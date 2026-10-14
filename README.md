@@ -26,7 +26,7 @@ supabase/               Local Supabase config (CLI)
 
 ## Web app structure
 
-Pages load data and hand it to components. Components render. Hooks hold interaction state and behaviour. Utils are plain functions with no React, so the play rules for the UI can be read (and tested) on their own. Every move is still validated by the server.
+Pages load data, set their own width and side padding, and hand data to components. Components render. Hooks hold interaction state and behaviour. Utils are plain functions with no React, so the play rules for the UI can be read (and tested) on their own. Every move is still validated by the server.
 
 ### `src/pages/`
 
@@ -51,7 +51,7 @@ Pages load data and hand it to components. Components render. Hooks hold interac
 | `CardPreview.tsx` | The large card preview that follows the cursor and resizes with the mouse wheel |
 | `PreviewContext.ts` | Context that lets any card show or hide the hover preview |
 | `CardFilters.tsx` | Card browser controls: name search, type and stage filters, max-attack range, sort field and direction, match count |
-| `CardGrid.tsx` | Scrollable grid of low-res card images; the number of columns follows the width. Clicking a card selects it |
+| `CardGrid.tsx` | Scrollable grid of low-res card images; the number of columns follows the width. Rows overlap so only each card's top strip (its name, set by the `gap-y-6` row gap) shows; hovering a strip brings that card to the front, clicking selects it |
 | `CardViewer.tsx` | The selected card's high-res image (low-res shown while it loads), sized to the window, with set, rarity, stage, type, HP and max attack |
 
 ### `src/hooks/`

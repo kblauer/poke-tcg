@@ -1,6 +1,10 @@
 import type { CatalogCard } from '../utils/cardList';
 
-/** Scrollable grid of low-res card images. Columns fill the available width. */
+/**
+ * Scrollable grid of low-res card images. Columns fill the available width.
+ * Rows overlap like a fanned-out stack: the row gap is the only space between rows, so each card
+ * shows just its top strip with the name. Hovering a strip brings that card to the front.
+ */
 export function CardGrid({
   cards,
   selectedId,
@@ -12,22 +16,31 @@ export function CardGrid({
 }) {
   if (cards.length === 0) return <p className="p-4 text-center text-slate-500">No cards match these filters.</p>;
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] content-start gap-2 overflow-y-auto p-1">
+    <div className="grid min-h-0 flex-1 grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] content-start gap-x-2 gap-y-6 overflow-y-auto p-1">
       {cards.map((c) => (
-        <button
-          key={c.id}
-          onClick={() => onSelect(c)}
-          title={`${c.name} · ${c.setName} #${c.number}`}
-          className={`aspect-[63/88] overflow-hidden rounded-md transition hover:-translate-y-0.5 hover:shadow-lg ${
-            c.id === selectedId ? 'ring-2 ring-yellow-300' : ''
-          }`}
-        >
-          {c.imageUrl ? (
-            <img src={`${c.imageUrl}/low.webp`} alt={c.name} loading="lazy" className="h-full w-full object-cover" />
-          ) : (
-            <div className="h-full w-full bg-slate-800 p-1 text-xs">{c.name}</div>
-          )}
-        </button>
+        // Zero-height cell: the card hangs down from it and later rows paint over it.
+        // The last row's overflow still extends the scroll area.
+        <div key={c.id} className="group relative h-0">
+          <div
+            className={`pointer-events-none absolute inset-x-0 top-0 aspect-[63/88] overflow-hidden rounded-md shadow-md shadow-black/60 transition group-hover:z-10 group-hover:-translate-y-1 group-hover:shadow-xl group-focus-within:z-10 group-focus-within:ring-2 group-focus-within:ring-sky-400 ${
+              c.id === selectedId ? 'ring-2 ring-yellow-300' : ''
+            }`}
+          >
+            {c.imageUrl ? (
+              <img src={`${c.imageUrl}/low.webp`} alt="" loading="lazy" className="h-full w-full object-cover" />
+            ) : (
+              <div className="h-full w-full bg-slate-800 p-1 text-xs">{c.name}</div>
+            )}
+          </div>
+          {/* Click target over the visible strip only (same height as the row gap), kept above every card
+              so moving down a column reaches the next strip even while a hovered card covers it. */}
+          <button
+            onClick={() => onSelect(c)}
+            title={`${c.name} · ${c.setName} #${c.number}`}
+            aria-label={c.name}
+            className="absolute inset-x-0 top-0 z-20 h-6 outline-none"
+          />
+        </div>
       ))}
     </div>
   );

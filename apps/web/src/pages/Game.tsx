@@ -4,6 +4,8 @@ import { useParams } from '@tanstack/react-router';
 import { Board } from '../components/Board';
 import { useTRPC } from '../lib/trpc';
 
+const PAGE_WIDTH = 'mx-auto max-w-6xl px-4';
+
 export function GamePage() {
   const { gameId } = useParams({ from: '/game/$gameId' });
   const trpc = useTRPC();
@@ -19,8 +21,8 @@ export function GamePage() {
     }),
   );
 
-  if (error) return <p className="text-red-400">{error.message}</p>;
-  if (!data) return <p className="text-slate-400">Loading…</p>;
+  if (error) return <p className={`${PAGE_WIDTH} text-red-400`}>{error.message}</p>;
+  if (!data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
 
   const view = data.view;
   // One move at a time: a second click would be built on a stale version and rejected.
@@ -28,5 +30,9 @@ export function GamePage() {
     if (!act.isPending) act.mutate({ gameId, expectedVersion: view.version, action });
   };
   const pending = act.isPending ? act.variables.action : null;
-  return <Board view={view} send={send} pending={pending} error={act.error?.message} />;
+  return (
+    <div className={PAGE_WIDTH}>
+      <Board view={view} send={send} pending={pending} error={act.error?.message} />
+    </div>
+  );
 }

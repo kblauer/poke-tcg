@@ -28,8 +28,9 @@ function RootLayout() {
   if (session === undefined) return null;
 
   return (
-    <div className="mx-auto max-w-6xl p-4">
-      <header className="mb-6 flex items-center justify-between">
+    // Each page sets its own width and side padding.
+    <div className="py-4">
+      <header className="mb-6 flex items-center justify-between px-4">
         <div className="flex items-center gap-6">
           <Link to="/" className="text-xl font-bold text-yellow-300">
             Poké TCG

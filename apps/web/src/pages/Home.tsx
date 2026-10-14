@@ -12,7 +12,7 @@ export function HomePage() {
   );
 
   return (
-    <div className="flex flex-col items-center gap-4 py-24">
+    <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-4 py-24">
       <p className="text-slate-400">Test deck vs. a CPU opponent that only passes.</p>
       <button
         className="rounded bg-blue-600 px-6 py-3 font-semibold hover:bg-blue-500 disabled:opacity-50"
