@@ -23,7 +23,8 @@ export interface PlayerState {
   discard: CardInstance[];
   prizes: CardInstance[];
   active: InPlayPokemon | null;
-  bench: InPlayPokemon[];
+  /** Fixed slots (length MAX_BENCH); null = empty. Cards stay in the slot they were played to. */
+  bench: (InPlayPokemon | null)[];
 }
 
 export type Phase = 'setup' | 'playing' | 'promote' | 'finished';
@@ -45,14 +46,14 @@ export interface GameState {
   cards: CardLibrary;
 }
 
-export type Target = 'active' | number; // number = bench index
+export type Target = 'active' | number; // number = bench slot
 
 export type GameAction =
   | { type: 'SET_ACTIVE'; cardUid: string }
-  | { type: 'PLAY_BENCH'; cardUid: string }
+  | { type: 'PLAY_BENCH'; cardUid: string; slot: number }
   | { type: 'ATTACH_ENERGY'; cardUid: string; target: Target }
   | { type: 'ATTACK'; attackIndex: number }
-  | { type: 'PROMOTE'; benchIndex: number }
+  | { type: 'PROMOTE'; slot: number }
   | { type: 'END_TURN' }
   | { type: 'CONCEDE' };
 
@@ -101,7 +102,7 @@ export function createGame(p1: NewGamePlayer, p2: NewGamePlayer, seed: number, l
       deck: deck.slice(HAND_SIZE + PRIZE_COUNT),
       discard: [],
       active: null,
-      bench: [],
+      bench: Array<InPlayPokemon | null>(MAX_BENCH).fill(null),
     };
   }
 
@@ -151,8 +152,9 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
   if (state.phase === 'promote') {
     if (playerId !== state.pendingPromotion) return fail('Waiting for opponent to promote');
     if (action.type !== 'PROMOTE') return fail('You must promote a benched Pokémon');
-    const [promoted] = me.bench.splice(action.benchIndex, 1);
-    if (!promoted) return fail('Invalid bench slot');
+    const promoted = me.bench[action.slot];
+    if (!promoted) return fail('That bench slot is empty');
+    me.bench[action.slot] = null;
     me.active = promoted;
     state.pendingPromotion = null;
     state.phase = 'playing';
@@ -164,17 +166,18 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
 
   switch (action.type) {
     case 'PLAY_BENCH': {
-      if (me.bench.length >= MAX_BENCH) return fail('Bench is full');
+      if (!isBenchSlot(action.slot)) return fail('Invalid bench slot');
+      if (me.bench[action.slot]) return fail('That bench slot is occupied');
       const played = takeFromHand(me, action.cardUid);
       if (!played || !isBasic(played)) return fail('Must play a Basic Pokémon from your hand');
-      me.bench.push({ card: played, damage: 0, energy: [] });
+      me.bench[action.slot] = { card: played, damage: 0, energy: [] };
       return ok(state);
     }
 
     case 'ATTACH_ENERGY': {
       if (state.energyAttachedThisTurn) return fail('Already attached energy this turn');
-      const target = action.target === 'active' ? me.active : me.bench[action.target];
-      if (!target) return fail('Invalid target');
+      const target = action.target === 'active' ? me.active : isBenchSlot(action.target) ? me.bench[action.target] : null;
+      if (!target) return fail('Attach energy to one of your Pokémon');
       const energy = takeFromHand(me, action.cardUid);
       if (!energy || card(energy).kind !== 'energy') return fail('Must attach an energy card from your hand');
       target.energy.push(energy);
@@ -197,7 +200,7 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
         opp.active = null;
         const prize = me.prizes.pop();
         if (prize) me.hand.push(prize);
-        if (me.prizes.length === 0 || opp.bench.length === 0) return finish(state, me.id);
+        if (me.prizes.length === 0 || !hasBenched(opp)) return finish(state, me.id);
         state.phase = 'promote';
         state.pendingPromotion = opp.id;
         return ok(state);
@@ -239,6 +242,10 @@ function startNextTurn(state: GameState): ActionResult {
   next.hand.push(drawn);
   return ok(state);
 }
+
+const isBenchSlot = (slot: number) => Number.isInteger(slot) && slot >= 0 && slot < MAX_BENCH;
+
+export const hasBenched = (player: PlayerState) => player.bench.some((p) => p !== null);
 
 function takeFromHand(player: PlayerState, uid: string): CardInstance | undefined {
   const idx = player.hand.findIndex((c) => c.uid === uid);

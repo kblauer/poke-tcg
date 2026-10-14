@@ -61,7 +61,58 @@ describe('game engine', () => {
     [s, uid] = giveCard(s, 'ash', 'charmeleon');
     expect(applyAction(s, 'ash', { type: 'SET_ACTIVE', cardUid: uid })).toEqual({ ok: false, error: 'Must choose a Basic Pokémon from your hand' });
     s = setup(s);
-    expect(applyAction(s, 'ash', { type: 'PLAY_BENCH', cardUid: uid })).toEqual({ ok: false, error: 'Must play a Basic Pokémon from your hand' });
+    expect(applyAction(s, 'ash', { type: 'PLAY_BENCH', cardUid: uid, slot: 0 })).toEqual({ ok: false, error: 'Must play a Basic Pokémon from your hand' });
+  });
+
+  describe('bench', () => {
+    it('starts with 5 empty slots', () => {
+      expect(newGame().players.ash!.bench).toEqual([null, null, null, null, null]);
+    });
+
+    it('keeps a Pokémon in the slot it was played to', () => {
+      let s = setup(newGame());
+      let uid: string;
+      [s, uid] = giveCard(s, 'ash', 'charmander');
+      s = act(s, 'ash', { type: 'PLAY_BENCH', cardUid: uid, slot: 3 });
+      expect(s.players.ash!.bench.map((p) => p?.card.uid ?? null)).toEqual([null, null, null, uid, null]);
+    });
+
+    it('rejects occupied and out-of-range slots', () => {
+      let s = setup(newGame());
+      let a: string, b: string;
+      [s, a] = giveCard(s, 'ash', 'charmander');
+      s = act(s, 'ash', { type: 'PLAY_BENCH', cardUid: a, slot: 1 });
+      [s, b] = giveCard(s, 'ash', 'squirtle');
+      expect(applyAction(s, 'ash', { type: 'PLAY_BENCH', cardUid: b, slot: 1 })).toEqual({ ok: false, error: 'That bench slot is occupied' });
+      expect(applyAction(s, 'ash', { type: 'PLAY_BENCH', cardUid: b, slot: 5 })).toEqual({ ok: false, error: 'Invalid bench slot' });
+    });
+
+    it('attaches energy to a benched Pokémon by slot, not to empty slots', () => {
+      let s = setup(newGame());
+      let mon: string, energy: string;
+      [s, mon] = giveCard(s, 'ash', 'charmander');
+      s = act(s, 'ash', { type: 'PLAY_BENCH', cardUid: mon, slot: 2 });
+      [s, energy] = giveCard(s, 'ash', 'fire-energy');
+      expect(applyAction(s, 'ash', { type: 'ATTACH_ENERGY', cardUid: energy, target: 0 })).toEqual({ ok: false, error: 'Attach energy to one of your Pokémon' });
+      s = act(s, 'ash', { type: 'ATTACH_ENERGY', cardUid: energy, target: 2 });
+      expect(s.players.ash!.bench[2]!.energy.map((e) => e.uid)).toEqual([energy]);
+    });
+
+    it('promotes from a slot and leaves it empty', () => {
+      let s = setup(newGame());
+      let mon: string;
+      [s, mon] = giveCard(s, 'ash', 'charmander');
+      s = act(s, 'ash', { type: 'PLAY_BENCH', cardUid: mon, slot: 4 });
+      // Simulate a knockout of ash's active.
+      s = structuredClone(s);
+      s.players.ash!.active = null;
+      s.phase = 'promote';
+      s.pendingPromotion = 'ash';
+      expect(applyAction(s, 'ash', { type: 'PROMOTE', slot: 0 })).toEqual({ ok: false, error: 'That bench slot is empty' });
+      s = act(s, 'ash', { type: 'PROMOTE', slot: 4 });
+      expect(s.players.ash!.active!.card.uid).toBe(mon);
+      expect(s.players.ash!.bench).toEqual([null, null, null, null, null]);
+    });
   });
 
   it('rejects actions out of turn and does not mutate input', () => {

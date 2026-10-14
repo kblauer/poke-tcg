@@ -18,7 +18,7 @@ export function dummyCpuAction(state: GameState, cpuId: PlayerId): GameAction | 
       return { type: 'SET_ACTIVE', cardUid: basic.uid };
     }
     case 'promote':
-      return state.pendingPromotion === cpuId ? { type: 'PROMOTE', benchIndex: 0 } : null;
+      return state.pendingPromotion === cpuId ? { type: 'PROMOTE', slot: cpu.bench.findIndex((p) => p !== null) } : null;
     case 'playing':
       return state.currentPlayer === cpuId ? { type: 'END_TURN' } : null;
     case 'finished':

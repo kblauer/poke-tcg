@@ -19,7 +19,8 @@ export interface PlayerView {
     prizeCount: number;
     discard: CardInstance[];
     active: InPlayPokemon | null;
-    bench: InPlayPokemon[];
+    /** Fixed slots; null = empty. */
+    bench: (InPlayPokemon | null)[];
   };
   opponent: {
     id: PlayerId;
@@ -29,7 +30,8 @@ export interface PlayerView {
     discard: CardInstance[];
     /** Hidden while both players are still choosing actives. */
     active: InPlayPokemon | null;
-    bench: InPlayPokemon[];
+    /** Fixed slots; null = empty. */
+    bench: (InPlayPokemon | null)[];
   };
 }
 
