@@ -24,7 +24,7 @@ import {
 } from '@poke-tcg/game-engine';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useTRPC } from '../lib/trpc';
 
 export function GamePage() {
@@ -54,10 +54,12 @@ export function GamePage() {
   return <Board view={view} send={send} pending={pending} error={act.error?.message} />;
 }
 
-/** Large card shown while hovering a card, on the half of the screen away from the pointer. */
+/** Large card shown next to the pointer while hovering a card. */
 interface Preview {
   def: CardDef;
-  side: 'left' | 'right';
+  /** Pointer position when the hover started; CardPreview tracks it from there. */
+  x: number;
+  y: number;
 }
 const PreviewContext = createContext<(preview: Preview | null) => void>(() => {});
 
@@ -356,12 +358,87 @@ function Board({
   );
 }
 
-function CardPreview({ def, side }: Preview) {
+const CARD_ASPECT = 88 / 63; // height / width
+const PREVIEW_GAP = 20; // between pointer and preview
+const VIEWPORT_MARGIN = 8;
+const MIN_PREVIEW_WIDTH = 160;
+const MAX_PREVIEW_WIDTH = 800;
+/** Width change per pixel of wheel delta: one ~100px mouse-wheel notch ≈ 15%. */
+const WHEEL_ZOOM_RATE = 0.0015;
+const PREVIEW_WIDTH_KEY = 'poke-tcg:preview-width';
+
+/** Largest width whose height still fits the window. */
+const maxPreviewWidth = () => Math.min(MAX_PREVIEW_WIDTH, (window.innerHeight - 2 * VIEWPORT_MARGIN) / CARD_ASPECT);
+const clampPreviewWidth = (w: number) => Math.max(MIN_PREVIEW_WIDTH, Math.min(w, maxPreviewWidth()));
+
+/** Preview size chosen with the scroll wheel; shared by every preview and remembered across reloads. */
+let previewWidth = (() => {
+  try {
+    return Number(localStorage.getItem(PREVIEW_WIDTH_KEY)) || 288;
+  } catch {
+    return 288; // storage unavailable (private mode, blocked site data)
+  }
+})();
+
+function savePreviewWidth(width: number) {
+  previewWidth = width;
+  try {
+    localStorage.setItem(PREVIEW_WIDTH_KEY, String(Math.round(width)));
+  } catch {
+    // Not persisted; the size still applies for this session.
+  }
+}
+
+/** Top-left corner for the preview: right of the pointer (left near the edge), vertically centred, kept on screen. */
+function previewPosition(x: number, y: number, width: number) {
+  const height = width * CARD_ASPECT;
+  const fitsRight = x + PREVIEW_GAP + width <= window.innerWidth - VIEWPORT_MARGIN;
+  const left = fitsRight ? x + PREVIEW_GAP : x - PREVIEW_GAP - width;
+  const maxTop = window.innerHeight - height - VIEWPORT_MARGIN;
+  const top = Math.min(Math.max(y - height / 2, VIEWPORT_MARGIN), maxTop);
+  return { left: Math.max(left, VIEWPORT_MARGIN), top: Math.max(top, VIEWPORT_MARGIN) };
+}
+
+function CardPreview({ def, x, y }: Preview) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Follow the pointer and resize on scroll by styling the element directly,
+  // so the board doesn't re-render on every mousemove or wheel tick.
+  useLayoutEffect(() => {
+    let px = x;
+    let py = y;
+    const place = () => {
+      const el = ref.current;
+      if (!el) return;
+      const width = clampPreviewWidth(previewWidth);
+      const { left, top } = previewPosition(px, py, width);
+      el.style.width = `${width}px`;
+      el.style.transform = `translate(${left}px, ${top}px)`;
+    };
+    const onMove = (e: MouseEvent) => {
+      px = e.clientX;
+      py = e.clientY;
+      place();
+    };
+    // Scroll up = bigger, down = smaller. Ctrl+wheel (and trackpad pinch) is left to the browser's zoom.
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey) return;
+      e.preventDefault(); // resize the preview instead of scrolling the page
+      const delta = e.deltaMode === WheelEvent.DOM_DELTA_LINE ? e.deltaY * 33 : e.deltaY;
+      savePreviewWidth(clampPreviewWidth(clampPreviewWidth(previewWidth) * Math.exp(-delta * WHEEL_ZOOM_RATE)));
+      place();
+    };
+    place();
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('wheel', onWheel);
+    };
+  }, [x, y]);
+
   return (
-    <div
-      className={`pointer-events-none fixed top-1/2 z-50 w-72 -translate-y-1/2 ${side === 'left' ? 'left-4' : 'right-4'}`}
-      aria-hidden
-    >
+    <div ref={ref} className="pointer-events-none fixed left-0 top-0 z-50" aria-hidden>
       {def.imageUrl ? (
         <img src={`${def.imageUrl}/high.webp`} alt="" className="aspect-[63/88] w-full rounded-xl shadow-2xl ring-1 ring-black/40" />
       ) : (
@@ -486,7 +563,7 @@ function Card({ def, inPlay, cards, small }: { def: CardDef; inPlay?: InPlayPoke
   return (
     <div
       className={`${size} relative aspect-[63/88] shrink-0 overflow-hidden rounded-lg shadow`}
-      onMouseEnter={(e) => setPreview({ def, side: e.clientX > window.innerWidth / 2 ? 'left' : 'right' })}
+      onMouseEnter={(e) => setPreview({ def, x: e.clientX, y: e.clientY })}
       onMouseLeave={() => setPreview(null)}
     >
       {def.imageUrl ? (
