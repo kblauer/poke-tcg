@@ -12,7 +12,7 @@ packages/
   game-engine/    Pure TS rules engine + CPU opponents – shared by client (UI hints) and server (authority)
   shared/         Zod schemas for API input, player ids
   db/             Prisma 7 schema, client (pg driver adapter), migrations, seed
-api/[[...route]].ts   Vercel Function entry that serves apps/api
+api/index.ts          Vercel Function entry that serves apps/api
 supabase/         Local Supabase config (CLI)
 ```
 
@@ -59,7 +59,7 @@ Use the printed DB URL for both `DATABASE_URL` and `DIRECT_URL`, `http://127.0.0
 
 ## Deploying to Vercel
 
-1. Import the repo into Vercel and leave the **Root Directory** as the repo root. `vercel.json` sets the build command, output directory and SPA rewrites. `/api/*` is served by `api/[[...route]].ts`.
+1. Import the repo into Vercel and leave the **Root Directory** as the repo root. `vercel.json` sets the build command, output directory and SPA rewrites. `/api/*` is served by `api/index.ts` (every `/api/*` path is rewritten to it).
 2. Add the variables from `.env.example` in the Vercel project settings. Use the **pooled** `DATABASE_URL`.
 3. Run migrations against production from your machine or CI with `pnpm --filter @poke-tcg/db migrate:deploy`. They don't run during the Vercel build, so preview deploys can't touch the production schema.
 
