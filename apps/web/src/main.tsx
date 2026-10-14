@@ -13,11 +13,15 @@ import './index.css';
 import { useSession } from './lib/auth';
 import { signInWithGoogle, signOut } from './lib/supabase';
 import { queryClient, TRPCProvider, trpcClient } from './lib/trpc';
+import { CardsPage } from './pages/Cards';
 import { GamePage } from './pages/Game';
 import { HomePage } from './pages/Home';
 
 // Marks the dev server's tab so it isn't confused with the deployed app.
 if (import.meta.env.DEV) document.title += ' - local';
+
+// The router sets data-status="active" on the link for the current page.
+const tab = 'rounded px-3 py-1 text-slate-400 hover:bg-slate-800 hover:text-slate-200 data-[status=active]:bg-slate-800 data-[status=active]:text-slate-100';
 
 function RootLayout() {
   const session = useSession();
@@ -26,9 +30,21 @@ function RootLayout() {
   return (
     <div className="mx-auto max-w-6xl p-4">
       <header className="mb-6 flex items-center justify-between">
-        <Link to="/" className="text-xl font-bold text-yellow-300">
-          Poké TCG
-        </Link>
+        <div className="flex items-center gap-6">
+          <Link to="/" className="text-xl font-bold text-yellow-300">
+            Poké TCG
+          </Link>
+          {session && (
+            <nav className="flex gap-1 text-sm">
+              <Link to="/" className={tab} activeOptions={{ exact: true }}>
+                Play
+              </Link>
+              <Link to="/cards" className={tab}>
+                Cards
+              </Link>
+            </nav>
+          )}
+        </div>
         {session && (
           <div className="flex items-center gap-3 text-sm">
             <span className="text-slate-400">{session.user.email}</span>
@@ -58,8 +74,9 @@ function RootLayout() {
 const rootRoute = createRootRoute({ component: RootLayout });
 const homeRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', component: HomePage });
 const gameRoute = createRoute({ getParentRoute: () => rootRoute, path: '/game/$gameId', component: GamePage });
+const cardsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/cards', component: CardsPage });
 
-const router = createRouter({ routeTree: rootRoute.addChildren([homeRoute, gameRoute]) });
+const router = createRouter({ routeTree: rootRoute.addChildren([homeRoute, gameRoute, cardsRoute]) });
 
 declare module '@tanstack/react-router' {
   interface Register {

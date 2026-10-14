@@ -1,0 +1,51 @@
+import { useLayoutEffect, useRef } from 'react';
+import { getPreviewWidth, previewPosition, zoomPreview } from '../utils/preview';
+import type { Preview } from './PreviewContext';
+
+export function CardPreview({ def, x, y }: Preview) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Follow the pointer and resize on scroll by styling the element directly,
+  // so the board doesn't re-render on every mousemove or wheel tick.
+  useLayoutEffect(() => {
+    let px = x;
+    let py = y;
+    const place = () => {
+      const el = ref.current;
+      if (!el) return;
+      const width = getPreviewWidth();
+      const { left, top } = previewPosition(px, py, width);
+      el.style.width = `${width}px`;
+      el.style.transform = `translate(${left}px, ${top}px)`;
+    };
+    const onMove = (e: MouseEvent) => {
+      px = e.clientX;
+      py = e.clientY;
+      place();
+    };
+    // Ctrl+wheel (and trackpad pinch) is left to the browser's zoom.
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey) return;
+      e.preventDefault(); // resize the preview instead of scrolling the page
+      zoomPreview(e);
+      place();
+    };
+    place();
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('wheel', onWheel);
+    };
+  }, [x, y]);
+
+  return (
+    <div ref={ref} className="pointer-events-none fixed left-0 top-0 z-50" aria-hidden>
+      {def.imageUrl ? (
+        <img src={`${def.imageUrl}/high.webp`} alt="" className="aspect-[63/88] w-full rounded-xl shadow-2xl ring-1 ring-black/40" />
+      ) : (
+        <div className="aspect-[63/88] w-full rounded-xl bg-slate-800 p-4 text-lg font-semibold shadow-2xl">{def.name}</div>
+      )}
+    </div>
+  );
+}

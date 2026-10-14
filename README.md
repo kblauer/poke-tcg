@@ -6,15 +6,78 @@ Monorepo for a single-player Pokémon TCG game: battle through the gym leaders o
 
 ```
 apps/
-  web/            Vite + React 19 SPA (TanStack Router/Query, tRPC client, Tailwind v4)
-  api/            Hono + tRPC API (Supabase JWT auth, game endpoints)
+  web/                  Vite + React 19 SPA (TanStack Router/Query, tRPC client, Tailwind v4)
+    src/
+      main.tsx          Routes, root layout (header with Play / Cards tabs), providers
+      pages/            Route-level pages: data loading only
+      components/       Game UI components, one per file
+      hooks/            React hooks: interaction state and handlers used by components
+      utils/            Pure helper functions grouped by use (no React)
+      lib/              tRPC client, Supabase client, session hook
+  api/                  Hono + tRPC API (Supabase JWT auth, game endpoints)
+    scripts/
+      vercel-build.mjs  Bundles the API and web app into .vercel/output for Vercel
 packages/
-  game-engine/    Pure TS rules engine + CPU opponents – shared by client (UI hints) and server (authority)
-  shared/         Zod schemas for API input, player ids
-  db/             Prisma 7 schema, client (pg driver adapter), migrations, seed
-apps/api/scripts/vercel-build.mjs  Bundles the API and web app into .vercel/output for Vercel
-supabase/         Local Supabase config (CLI)
+  game-engine/          Pure TS rules engine + CPU opponents – shared by client (UI hints) and server (authority)
+  shared/               Zod schemas for API input, player ids
+  db/                   Prisma 7 schema, client (pg driver adapter), migrations, seed
+supabase/               Local Supabase config (CLI)
 ```
+
+## Web app structure
+
+Pages load data and hand it to components. Components render. Hooks hold interaction state and behaviour. Utils are plain functions with no React, so the play rules for the UI can be read (and tested) on their own. Every move is still validated by the server.
+
+### `src/pages/`
+
+| File | Description |
+|---|---|
+| `Home.tsx` | Home screen with the "Start test game" button |
+| `Game.tsx` | Loads the game view, sends moves to the API (one at a time) and renders `<Board>` |
+| `Cards.tsx` | Card browser (`/cards`): loads the catalog once (`cards.list`), holds the filters, sort and selected card, and lays out the grid on the left and the viewer on the right |
+
+### `src/components/`
+
+| File | Description |
+|---|---|
+| `Board.tsx` | The game table. Gets card play from `useCardPlay`, holds the hover preview, and lays out the components below |
+| `StatusBar.tsx` | Status text, hint, and the End turn / Concede buttons |
+| `OpponentArea.tsx` | The CPU's bench, active and hand/deck/prize counts |
+| `AttackList.tsx` | Attack buttons beside your active Pokémon; attacks you can't pay for are disabled |
+| `Hand.tsx` | Your hand |
+| `HandCard.tsx` | One draggable, clickable card in your hand |
+| `Slot.tsx` | An active or bench slot: drop target, highlight ring, tint band and "Play"/"Attach"/"Evolve"/"Promote" label |
+| `Card.tsx` | Card art with damage and attached-energy overlays; opens the hover preview |
+| `CardPreview.tsx` | The large card preview that follows the cursor and resizes with the mouse wheel |
+| `PreviewContext.ts` | Context that lets any card show or hide the hover preview |
+| `CardFilters.tsx` | Card browser controls: name search, type and stage filters, max-attack range, sort field and direction, match count |
+| `CardGrid.tsx` | Scrollable grid of low-res card images; the number of columns follows the width. Clicking a card selects it |
+| `CardViewer.tsx` | The selected card's high-res image (low-res shown while it loads), sized to the window, with set, rarity, stage, type, HP and max attack |
+
+### `src/hooks/`
+
+| File | Description |
+|---|---|
+| `useCardPlay.ts` | Playing cards from the hand by click (select, then click a highlighted slot; Esc cancels) or drag and drop. Tracks the selected and dragged card and the "can't play" hint, and returns the highlighted slots, their label, click handlers and the `DndContext` props |
+
+### `src/utils/`
+
+| File | Description |
+|---|---|
+| `targets.ts` | Where a hand card can be played, why it can't, which action playing it sends, and its target label |
+| `slots.ts` | Slot ids (`active`, `bench-N`), converting them to engine targets, empty/occupied slots, and which slot an in-flight move is about |
+| `turn.ts` | Whose turn it is, whether you must promote, and the status headline |
+| `preview.ts` | Preview size limits, wheel zoom, saving the size in localStorage, and positioning next to the cursor |
+| `cardColors.ts` | Background colour for each card type |
+| `cardList.ts` | Card browser data: the `CatalogCard` type, type/stage/sort options, and the filter and sort functions |
+
+### `src/lib/`
+
+| File | Description |
+|---|---|
+| `trpc.ts` | Query client and typed tRPC client for the API |
+| `supabase.ts` | Supabase client and Google sign-in/sign-out |
+| `auth.ts` | `useSession` hook for the current Supabase session |
 
 ## How a move works
 

@@ -2,7 +2,31 @@
 <module type="GENERAL_MODULE" version="4">
   <component name="NewModuleRootManager" inherit-compiler-output="true">
     <exclude-output />
-    <content url="file://$MODULE_DIR$" />
+    <content url="file://$MODULE_DIR$">
+      <excludeFolder url="file://$MODULE_DIR$/.env.example" />
+      <excludeFolder url="file://$MODULE_DIR$/.gitignore" />
+      <excludeFolder url="file://$MODULE_DIR$/.idea" />
+      <excludeFolder url="file://$MODULE_DIR$/.turbo" />
+      <excludeFolder url="file://$MODULE_DIR$/.vercel" />
+      <excludeFolder url="file://$MODULE_DIR$/apps/api/.turbo" />
+      <excludeFolder url="file://$MODULE_DIR$/apps/web/.turbo" />
+      <excludeFolder url="file://$MODULE_DIR$/apps/web/tsconfig.json" />
+      <excludeFolder url="file://$MODULE_DIR$/apps/web/vite.config.ts" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/db/.turbo" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/db/prisma.config.ts" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/db/src/generated" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/db/tsconfig.json" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/game-engine/.turbo" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/game-engine/tsconfig.json" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/shared/.turbo" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/shared/tsconfig.json" />
+      <excludeFolder url="file://$MODULE_DIR$/pnpm-lock.yaml" />
+      <excludeFolder url="file://$MODULE_DIR$/pnpm-workspace.yaml" />
+      <excludeFolder url="file://$MODULE_DIR$/poke-tcg.iml" />
+      <excludeFolder url="file://$MODULE_DIR$/tsconfig.base.json" />
+      <excludeFolder url="file://$MODULE_DIR$/turbo.json" />
+      <excludeFolder url="file://$MODULE_DIR$/vercel.json" />
+    </content>
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
 </module>

@@ -5,7 +5,7 @@ const ENERGY_TYPES = new Set<EnergyType>(['grass', 'fire', 'water', 'lightning',
 const STAGES: Record<string, Stage> = { Basic: 'basic', Baby: 'basic', Stage1: 'stage1', Stage2: 'stage2' };
 
 /** Shape of the TCGdex fields kept in Card.data (see packages/db/prisma/tcgdex.ts). */
-interface CardData {
+export interface CardData {
   attacks?: { name: string; cost: string[] | null; damage: string | number | null; effect: string | null }[] | null;
 }
 
