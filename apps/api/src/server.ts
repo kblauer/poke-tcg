@@ -1,4 +1,4 @@
-// Local development server. On Vercel the same app is served by api/index.ts.
+// Local development server. On Vercel the same app is served by src/vercel.ts (see scripts/vercel-build.mjs).
 import { config } from 'dotenv';
 config({ path: '../../.env', quiet: true });
 

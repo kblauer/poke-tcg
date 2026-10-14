@@ -16,6 +16,9 @@ import { queryClient, TRPCProvider, trpcClient } from './lib/trpc';
 import { GamePage } from './pages/Game';
 import { HomePage } from './pages/Home';
 
+// Marks the dev server's tab so it isn't confused with the deployed app.
+if (import.meta.env.DEV) document.title += ' - local';
+
 function RootLayout() {
   const session = useSession();
   if (session === undefined) return null;

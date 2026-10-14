@@ -4,16 +4,5 @@
     "iad1"
   ],
   "installCommand": "pnpm install",
-  "buildCommand": "pnpm turbo run build --filter=@poke-tcg/web",
-  "outputDirectory": "apps/web/dist",
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api"
-    },
-    {
-      "source": "/((?!api/).*)",
-      "destination": "/index.html"
-    }
-  ]
+  "buildCommand": "pnpm turbo run build --filter=@poke-tcg/web && pnpm --filter @poke-tcg/api vercel-build"
 }
