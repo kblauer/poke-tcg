@@ -46,7 +46,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
     ...me.hand,
     ...me.discard,
     ...opp.discard,
-    ...[me.active, ...me.bench, oppActive, ...opp.bench].flatMap((p) => (p ? [p.card, ...p.energy] : [])),
+    ...[me.active, ...me.bench, oppActive, ...opp.bench].flatMap((p) => (p ? [p.card, ...p.evolvedFrom, ...p.energy] : [])),
   ];
   const cards: CardLibrary = {};
   for (const c of visible) cards[c.defId] = state.cards[c.defId]!;

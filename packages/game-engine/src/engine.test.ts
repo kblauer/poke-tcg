@@ -42,7 +42,7 @@ describe('game engine', () => {
   });
 
   it('stores only the definitions the decks use', () => {
-    expect(Object.keys(newGame().cards).sort()).toEqual(['charmander', 'charmeleon', 'fire-energy', 'squirtle', 'water-energy']);
+    expect(Object.keys(newGame().cards).sort()).toEqual(['charizard', 'charmander', 'charmeleon', 'fire-energy', 'squirtle', 'water-energy']);
   });
 
   it('rejects decks too small to deal a hand and prizes', () => {

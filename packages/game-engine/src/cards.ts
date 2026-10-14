@@ -53,4 +53,5 @@ export function lookupCard(cards: CardLibrary, defId: string): CardDef {
   return def;
 }
 
-export const isBasicPokemon = (def: CardDef): def is PokemonCardDef => def.kind === 'pokemon' && def.stage === 'basic';
+export const isBasicPokemon = (def: CardDef): def is PokemonCardDef & { stage: 'basic' } =>
+  def.kind === 'pokemon' && def.stage === 'basic';

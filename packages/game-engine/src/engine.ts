@@ -11,9 +11,14 @@ export interface CardInstance {
 }
 
 export interface InPlayPokemon {
+  /** Top card: the current (most evolved) Pokémon. */
   card: CardInstance;
+  /** Cards this Pokémon evolved from, bottom (Basic) first. */
+  evolvedFrom: CardInstance[];
   damage: number;
   energy: CardInstance[];
+  /** Turn this Pokémon was put into play or last evolved (0 = during setup). */
+  playedTurn: number;
 }
 
 export interface PlayerState {
@@ -52,6 +57,7 @@ export type GameAction =
   | { type: 'SET_ACTIVE'; cardUid: string }
   | { type: 'PLAY_BENCH'; cardUid: string; slot: number }
   | { type: 'ATTACH_ENERGY'; cardUid: string; target: Target }
+  | { type: 'EVOLVE'; cardUid: string; target: Target }
   | { type: 'ATTACK'; attackIndex: number }
   | { type: 'PROMOTE'; slot: number }
   | { type: 'END_TURN' }
@@ -62,7 +68,6 @@ export type ActionResult = { ok: true; state: GameState } | { ok: false; error: 
 export const HAND_SIZE = 7;
 export const PRIZE_COUNT = 6;
 export const MAX_BENCH = 5;
-
 
 export function opponentOf(state: GameState, playerId: PlayerId): PlayerId {
   const [a, b] = state.playerOrder;
@@ -144,7 +149,7 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
     if (me.active) return fail('Active Pokémon already chosen');
     const chosen = takeFromHand(me, action.cardUid);
     if (!chosen || !isBasic(chosen)) return fail('Must choose a Basic Pokémon from your hand');
-    me.active = { card: chosen, damage: 0, energy: [] };
+    me.active = newInPlay(chosen, 0);
     if (opp.active) state.phase = 'playing';
     return ok(state);
   }
@@ -170,7 +175,24 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       if (me.bench[action.slot]) return fail('That bench slot is occupied');
       const played = takeFromHand(me, action.cardUid);
       if (!played || !isBasic(played)) return fail('Must play a Basic Pokémon from your hand');
-      me.bench[action.slot] = { card: played, damage: 0, energy: [] };
+      me.bench[action.slot] = newInPlay(played, state.turn);
+      return ok(state);
+    }
+
+    case 'EVOLVE': {
+      const target = action.target === 'active' ? me.active : isBenchSlot(action.target) ? me.bench[action.target] : null;
+      if (!target) return fail('Evolve one of your Pokémon in play');
+      const evolution = takeFromHand(me, action.cardUid);
+      const evolutionDef = evolution && card(evolution);
+      if (!evolution || evolutionDef?.kind !== 'pokemon' || evolutionDef.stage === 'basic') {
+        return fail('Must evolve with a Stage 1 or Stage 2 Pokémon from your hand');
+      }
+      const error = evolveError(evolutionDef, target, state.cards, state.turn);
+      if (error) return fail(error);
+      // Damage and attached energy stay; the new card's HP and attacks apply from now on.
+      target.evolvedFrom.push(target.card);
+      target.card = evolution;
+      target.playedTurn = state.turn;
       return ok(state);
     }
 
@@ -196,7 +218,7 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       opp.active.damage += attack.damage;
       const defender = card(opp.active.card) as PokemonCardDef;
       if (opp.active.damage >= defender.hp) {
-        opp.discard.push(opp.active.card, ...opp.active.energy);
+        opp.discard.push(...opp.active.evolvedFrom, opp.active.card, ...opp.active.energy);
         opp.active = null;
         const prize = me.prizes.pop();
         if (prize) me.hand.push(prize);
@@ -215,6 +237,22 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
     case 'PROMOTE':
       return fail(`${action.type} is not allowed now`);
   }
+}
+
+/**
+ * Why `evolution` can't be played onto `target` right now, or null if it can.
+ * Pure and view-safe, so the UI uses it for hints and the engine for validation.
+ */
+export function evolveError(evolution: PokemonCardDef, target: InPlayPokemon, cards: CardLibrary, turn: number): string | null {
+  const current = lookupCard(cards, target.card.defId);
+  const evolvesFromStage = evolution.stage === 'stage2' ? 'stage1' : 'basic';
+  if (current.kind !== 'pokemon' || current.name !== evolution.evolvesFrom || current.stage !== evolvesFromStage) {
+    return `${evolution.name} evolves from ${evolution.evolvesFrom ?? 'nothing'}`;
+  }
+  // Turns 1 and 2 are each player's first turn.
+  if (turn <= 2) return "You can't evolve on your first turn";
+  if (target.playedTurn === turn) return `${current.name} was played or evolved this turn`;
+  return null;
 }
 
 export function canPayCost(pokemon: InPlayPokemon, attack: Attack, cards: CardLibrary): boolean {
@@ -246,6 +284,10 @@ function startNextTurn(state: GameState): ActionResult {
 const isBenchSlot = (slot: number) => Number.isInteger(slot) && slot >= 0 && slot < MAX_BENCH;
 
 export const hasBenched = (player: PlayerState) => player.bench.some((p) => p !== null);
+
+function newInPlay(card: CardInstance, turn: number): InPlayPokemon {
+  return { card, evolvedFrom: [], damage: 0, energy: [], playedTurn: turn };
+}
 
 function takeFromHand(player: PlayerState, uid: string): CardInstance | undefined {
   const idx = player.hand.findIndex((c) => c.uid === uid);

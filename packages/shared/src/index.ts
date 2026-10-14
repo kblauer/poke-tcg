@@ -13,6 +13,7 @@ export const gameActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('SET_ACTIVE'), cardUid: z.string() }),
   z.object({ type: z.literal('PLAY_BENCH'), cardUid: z.string(), slot: benchSlot }),
   z.object({ type: z.literal('ATTACH_ENERGY'), cardUid: z.string(), target }),
+  z.object({ type: z.literal('EVOLVE'), cardUid: z.string(), target }),
   z.object({ type: z.literal('ATTACK'), attackIndex: z.number().int().min(0) }),
   z.object({ type: z.literal('PROMOTE'), slot: benchSlot }),
   z.object({ type: z.literal('END_TURN') }),

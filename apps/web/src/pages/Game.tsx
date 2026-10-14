@@ -11,6 +11,7 @@ import {
 } from '@dnd-kit/core';
 import {
   canPayCost,
+  evolveError,
   isBasicPokemon,
   lookupCard,
   type CardDef,
@@ -76,6 +77,7 @@ function pendingSlot(action: GameAction | null): SlotId | null {
     case 'PLAY_BENCH':
       return benchSlotId(action.slot);
     case 'ATTACH_ENERGY':
+    case 'EVOLVE':
       return action.target === 'active' ? 'active' : benchSlotId(action.target);
     case 'PROMOTE':
       return benchSlotId(action.slot);
@@ -135,11 +137,17 @@ function Board({
   const occupied: SlotId[] = [...(self.active ? (['active'] as const) : []), ...self.bench.flatMap((p, i) => (p ? [benchSlotId(i)] : []))];
 
   /** Where a hand card can go right now (UI hint only – the server validates every move). */
+  const pokemonAt = (slot: SlotId) => {
+    const target = toTarget(slot);
+    return target === 'active' ? self.active : self.bench[target];
+  };
+
   function targetsFor(card: CardInstance): SlotId[] {
     const d = def(card);
     if (phase === 'setup') return isBasicPokemon(d) && !self.active ? ['active'] : [];
     if (!myTurn) return [];
     if (isBasicPokemon(d)) return emptyBench;
+    if (d.kind === 'pokemon') return occupied.filter((slot) => evolveError(d, pokemonAt(slot)!, view.cards, view.turn) === null);
     if (d.kind === 'energy' && !view.energyAttachedThisTurn) return occupied;
     return [];
   }
@@ -148,7 +156,12 @@ function Board({
     const d = def(card);
     if (phase === 'setup') return self.active ? 'Waiting for the CPU…' : 'Choose a Basic Pokémon as your active first.';
     if (!myTurn) return "It's not your turn.";
-    if (d.kind === 'pokemon' && !isBasicPokemon(d)) return "Evolving isn't implemented yet.";
+    if (d.kind === 'pokemon' && !isBasicPokemon(d)) {
+      // A matching Pokémon is in play but blocked (first turn, played this turn): say why.
+      const match = occupied.map(pokemonAt).find((p) => p && lookupCard(view.cards, p.card.defId).name === d.evolvesFrom);
+      const reason = match && evolveError(d, match, view.cards, view.turn);
+      return reason ? `${reason}.` : `No ${d.evolvesFrom} in play to evolve.`;
+    }
     if (isBasicPokemon(d)) return 'Your bench is full.';
     if (d.kind === 'energy') return "You've already attached an Energy this turn.";
     return "This card can't be played right now.";
@@ -162,7 +175,9 @@ function Board({
     send(
       d.kind === 'energy'
         ? { type: 'ATTACH_ENERGY', cardUid, target }
-        : target === 'active'
+        : !isBasicPokemon(d)
+          ? { type: 'EVOLVE', cardUid, target }
+          : target === 'active'
           ? { type: 'SET_ACTIVE', cardUid }
           : { type: 'PLAY_BENCH', cardUid, slot: target },
     );
@@ -194,6 +209,9 @@ function Board({
 
   const heldCard = self.hand.find((c) => c.uid === (dragging ?? selected));
   const highlighted = new Set(heldCard ? targetsFor(heldCard) : []);
+  /** What dropping the held card on a highlighted slot will do. */
+  const heldDef = heldCard && def(heldCard);
+  const targetLabel = !heldDef ? null : heldDef.kind === 'energy' ? 'Attach' : isBasicPokemon(heldDef) ? 'Play' : 'Evolve';
   const busySlot = pendingSlot(pending);
 
   const status =
@@ -221,6 +239,9 @@ function Board({
         large={id === 'active'}
         droppable={highlighted.has(id) && !busy}
         highlight={highlighted.has(id) ? 'target' : canPromote ? 'promote' : null}
+        label={highlighted.has(id) ? targetLabel : canPromote ? 'Promote' : null}
+        // While a card is held, fade the Pokémon it can't be played on so the targets stand out.
+        dimmed={heldCard !== undefined && pokemon !== null && !highlighted.has(id)}
         loading={busySlot === id}
         onClick={
           busy
@@ -501,6 +522,8 @@ function Slot({
   large,
   droppable = false,
   highlight = null,
+  label = null,
+  dimmed = false,
   loading = false,
   onClick,
   children,
@@ -511,31 +534,54 @@ function Slot({
   large?: boolean;
   droppable?: boolean;
   highlight?: 'target' | 'promote' | null;
+  /** Short call-to-action shown on the slot, e.g. "Evolve". */
+  label?: string | null;
+  dimmed?: boolean;
   loading?: boolean;
   onClick?: () => void;
   children?: ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id, disabled: !droppable });
+  // Rings sit outside the card art, so they need to be thick and glowing to read against the card's own border.
   const ring = loading
-    ? 'animate-pulse ring-2 ring-yellow-300'
+    ? 'animate-pulse ring-4 ring-yellow-300'
     : isOver
-      ? 'ring-4 ring-emerald-300'
+      ? '-translate-y-1 scale-105 ring-4 ring-emerald-300 shadow-[0_0_28px_6px_rgba(52,211,153,0.8)]'
       : highlight === 'target'
-        ? 'ring-2 ring-emerald-400'
+        ? '-translate-y-1 ring-4 ring-emerald-400 shadow-[0_0_18px_3px_rgba(52,211,153,0.6)]'
         : highlight === 'promote'
-          ? 'ring-2 ring-yellow-400'
-          : '';
+          ? '-translate-y-1 ring-4 ring-yellow-400 shadow-[0_0_18px_3px_rgba(250,204,21,0.6)]'
+          : dimmed
+            ? 'opacity-40'
+            : '';
   const size = large ? 'w-28' : 'w-20';
   return (
     <div className="flex gap-3">
       <div
         ref={setNodeRef}
         onClick={onClick}
-        className={`${size} aspect-[63/88] shrink-0 rounded-lg transition ${ring} ${onClick ? 'cursor-pointer' : ''} ${
+        className={`${size} relative aspect-[63/88] shrink-0 rounded-lg transition ${ring} ${onClick ? 'cursor-pointer' : ''} ${
           pokemon ? '' : `border-2 border-dashed ${highlight === 'target' ? 'border-emerald-400 bg-emerald-400/10' : 'border-slate-700'}`
         }`}
       >
         {pokemon && <Card def={lookupCard(cards, pokemon.card.defId)} inPlay={pokemon} cards={cards} small={!large} />}
+        {/* Tint only the bottom band (behind the label) so the Pokémon art stays visible. */}
+        {pokemon && highlight && (
+          <div
+            className={`pointer-events-none absolute inset-x-0 bottom-0 h-1/3 rounded-b-lg bg-gradient-to-t to-transparent ${
+              highlight === 'target' ? 'from-emerald-500/80' : 'from-yellow-400/70'
+            }`}
+          />
+        )}
+        {label && (
+          <span
+            className={`pointer-events-none absolute inset-x-0 bottom-2 mx-auto w-fit rounded-full px-2 py-0.5 text-xs font-bold shadow ${
+              highlight === 'promote' ? 'bg-yellow-400 text-slate-900' : 'bg-emerald-500 text-white'
+            }`}
+          >
+            {label}
+          </span>
+        )}
       </div>
       {children}
     </div>
