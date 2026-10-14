@@ -1,0 +1,12 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalEnv": ["DATABASE_URL", "DIRECT_URL", "SUPABASE_URL", "SUPABASE_JWT_SECRET", "VITE_*"],
+  "agentGuidance": false,
+  "tasks": {
+    "generate": { "cache": false },
+    "build": { "dependsOn": ["^build", "generate"], "outputs": ["dist/**"] },
+    "typecheck": { "dependsOn": ["^typecheck", "generate"] },
+    "test": { "dependsOn": ["generate"] },
+    "dev": { "dependsOn": ["generate"], "cache": false, "persistent": true }
+  }
+}

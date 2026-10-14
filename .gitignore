@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.turbo/
+.vercel/
+.env
+.env.*
+!.env.example
+packages/db/src/generated/
+supabase/.temp/
+.idea/workspace.xml
+.idea/shelf/

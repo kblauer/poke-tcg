@@ -1,0 +1,127 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// App profile for a Supabase Auth user. `id` matches auth.users.id.
+model User {
+  id          String   @id @db.Uuid
+  email       String   @unique
+  displayName String?
+  avatarUrl   String?
+  createdAt   DateTime @default(now())
+  decks       Deck[]
+  games       Game[]
+}
+
+enum CardKind {
+  POKEMON
+  ENERGY
+  TRAINER
+}
+
+/// Card set, imported from TCGdex (e.g. "base1" = Base Set).
+model CardSet {
+  id          String    @id
+  name        String
+  /// TCGdex series id, e.g. "base", "gym", "neo".
+  series      String
+  releaseDate DateTime? @db.Date
+  cardCount   Int
+  logoUrl     String?
+  symbolUrl   String?
+  cards       Card[]
+}
+
+/// Card catalog, imported from TCGdex. `id` is the TCGdex card id (e.g. "base1-4").
+model Card {
+  id         String     @id
+  setId      String
+  set        CardSet    @relation(fields: [setId], references: [id])
+  /// Number within the set, e.g. "4".
+  localId    String
+  name       String
+  kind       CardKind
+  /// TCGdex asset base URL; append "/high.webp" or "/low.webp".
+  imageUrl   String?
+  rarity     String?
+  hp         Int?
+  /// Pokémon types, e.g. ["Fire"].
+  types      String[]
+  /// "Basic" | "Stage1" | "Stage2" (Pokémon only).
+  stage      String?
+  evolveFrom String?
+  /// Remaining TCGdex fields: attacks, abilities, weaknesses, resistances, retreat, effect, ...
+  data       Json
+  deckCards  DeckCard[]
+
+  @@index([setId])
+  @@index([name])
+}
+
+model Deck {
+  id        String     @id @default(uuid()) @db.Uuid
+  ownerId   String     @db.Uuid
+  owner     User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name      String
+  cards     DeckCard[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([ownerId])
+}
+
+model DeckCard {
+  deckId   String @db.Uuid
+  deck     Deck   @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  cardId   String
+  card     Card   @relation(fields: [cardId], references: [id])
+  quantity Int
+
+  @@id([deckId, cardId])
+}
+
+enum GameStatus {
+  ACTIVE
+  FINISHED
+}
+
+/// A single-player battle against a CPU opponent.
+/// Engine player ids are "player" (the user) and "cpu".
+model Game {
+  id        String       @id @default(uuid()) @db.Uuid
+  ownerId   String       @db.Uuid
+  owner     User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  status    GameStatus   @default(ACTIVE)
+  /// Authoritative engine state. Contains hidden info – never return it to clients directly.
+  state     Json
+  /// Mirrors state.version; used for optimistic concurrency on writes.
+  version   Int
+  seed      Int
+  /// Engine player id of the winner.
+  winner    String?
+  actions   GameAction[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([ownerId, updatedAt])
+}
+
+/// Append-only log of accepted actions (player and CPU) – enables replays and debugging.
+model GameAction {
+  id        BigInt   @id @default(autoincrement())
+  gameId    String   @db.Uuid
+  game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  /// Engine player id that took the action.
+  playerId  String
+  /// state.version after this action was applied.
+  version   Int
+  action    Json
+  createdAt DateTime @default(now())
+
+  @@unique([gameId, version])
+}

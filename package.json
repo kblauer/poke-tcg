@@ -1,0 +1,35 @@
+{
+  "name": "poke-tcg",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "db:generate": "pnpm --filter @poke-tcg/db generate",
+    "db:migrate": "pnpm --filter @poke-tcg/db migrate",
+    "db:studio": "pnpm --filter @poke-tcg/db studio",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "db:seed": "pnpm --filter @poke-tcg/db seed",
+    "cards:fetch": "pnpm --filter @poke-tcg/db cards:fetch"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "supabase": "^2.120.0",
+    "tsx": "^4.23.15",
+    "turbo": "^2.11.7",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4"
+  },
+  "dependencies": {
+    "@hono/vercel": "^1.0.1",
+    "@poke-tcg/api": "workspace:*",
+    "hono": "^4.13.13"
+  },
+  "packageManager": "pnpm@12.11.2",
+  "engines": {
+    "node": ">=24"
+  }
+}

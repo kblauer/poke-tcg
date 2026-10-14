@@ -1,0 +1,26 @@
+{
+  "name": "@poke-tcg/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/app.ts",
+    "./router": "./src/router.ts"
+  },
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false src/server.ts",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.4",
+    "@hono/trpc-server": "^0.4.2",
+    "@poke-tcg/db": "workspace:*",
+    "@poke-tcg/game-engine": "workspace:*",
+    "@poke-tcg/shared": "workspace:*",
+    "@trpc/server": "^11.19.0",
+    "dotenv": "^18.0.7",
+    "hono": "^4.13.13",
+    "jose": "^6.2.12",
+    "zod": "^4.6.7"
+  }
+}
