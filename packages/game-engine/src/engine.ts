@@ -1,5 +1,5 @@
 /// <reference path="./globals.d.ts" />
-import { getCard, type Attack, type EnergyType, type PokemonCardDef } from './cards.js';
+import { isBasicPokemon, lookupCard, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { shuffle } from './rng.js';
 
 export type PlayerId = string;
@@ -41,6 +41,8 @@ export interface GameState {
   energyAttachedThisTurn: boolean;
   players: Record<PlayerId, PlayerState>;
   winner: PlayerId | null;
+  /** Definitions of every card in both decks, so the engine needs no external lookups. */
+  cards: CardLibrary;
 }
 
 export type Target = 'active' | number; // number = bench index
@@ -60,7 +62,6 @@ export const HAND_SIZE = 7;
 export const PRIZE_COUNT = 6;
 export const MAX_BENCH = 5;
 
-const isBasic = (c: CardInstance) => getCard(c.defId).kind === 'pokemon';
 
 export function opponentOf(state: GameState, playerId: PlayerId): PlayerId {
   const [a, b] = state.playerOrder;
@@ -72,18 +73,25 @@ export interface NewGamePlayer {
   deck: string[]; // card def ids
 }
 
-export function createGame(p1: NewGamePlayer, p2: NewGamePlayer, seed: number): GameState {
+export function createGame(p1: NewGamePlayer, p2: NewGamePlayer, seed: number, library: CardLibrary): GameState {
   let rngState = seed;
   const players: Record<PlayerId, PlayerState> = {};
+  // Keep only the definitions this game uses.
+  const cards: CardLibrary = {};
+  for (const defId of [...p1.deck, ...p2.deck]) cards[defId] = lookupCard(library, defId);
+  const isBasic = (c: CardInstance) => isBasicPokemon(cards[c.defId]!);
 
   for (const [i, p] of [p1, p2].entries()) {
-    const cards = p.deck.map((defId, n) => ({ uid: `p${i + 1}-${n}`, defId }));
-    if (!cards.some(isBasic)) throw new Error(`Deck for ${p.id} has no Basic Pokémon`);
+    const instances = p.deck.map((defId, n) => ({ uid: `p${i + 1}-${n}`, defId }));
+    if (!instances.some(isBasic)) throw new Error(`Deck for ${p.id} has no Basic Pokémon`);
+    if (instances.length <= HAND_SIZE + PRIZE_COUNT) {
+      throw new Error(`Deck for ${p.id} needs more than ${HAND_SIZE + PRIZE_COUNT} cards (hand + prizes)`);
+    }
 
     // Simplified mulligan: reshuffle until the opening hand contains a Basic.
     let deck: CardInstance[];
     do {
-      [deck, rngState] = shuffle(cards, rngState);
+      [deck, rngState] = shuffle(instances, rngState);
     } while (!deck.slice(0, HAND_SIZE).some(isBasic));
 
     players[p.id] = {
@@ -108,6 +116,7 @@ export function createGame(p1: NewGamePlayer, p2: NewGamePlayer, seed: number): 
     energyAttachedThisTurn: false,
     players,
     winner: null,
+    cards,
   };
 }
 
@@ -122,6 +131,8 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
   const state = structuredClone(prev);
   const me = state.players[playerId]!;
   const opp = state.players[opponentOf(state, playerId)]!;
+  const card = (c: CardInstance) => lookupCard(state.cards, c.defId);
+  const isBasic = (c: CardInstance) => isBasicPokemon(card(c));
 
   if (action.type === 'CONCEDE') {
     return finish(state, opp.id);
@@ -130,9 +141,9 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
   if (state.phase === 'setup') {
     if (action.type !== 'SET_ACTIVE') return fail('Choose your active Pokémon first');
     if (me.active) return fail('Active Pokémon already chosen');
-    const card = takeFromHand(me, action.cardUid);
-    if (!card || !isBasic(card)) return fail('Must choose a Basic Pokémon from your hand');
-    me.active = { card, damage: 0, energy: [] };
+    const chosen = takeFromHand(me, action.cardUid);
+    if (!chosen || !isBasic(chosen)) return fail('Must choose a Basic Pokémon from your hand');
+    me.active = { card: chosen, damage: 0, energy: [] };
     if (opp.active) state.phase = 'playing';
     return ok(state);
   }
@@ -154,9 +165,9 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
   switch (action.type) {
     case 'PLAY_BENCH': {
       if (me.bench.length >= MAX_BENCH) return fail('Bench is full');
-      const card = takeFromHand(me, action.cardUid);
-      if (!card || !isBasic(card)) return fail('Must play a Basic Pokémon from your hand');
-      me.bench.push({ card, damage: 0, energy: [] });
+      const played = takeFromHand(me, action.cardUid);
+      if (!played || !isBasic(played)) return fail('Must play a Basic Pokémon from your hand');
+      me.bench.push({ card: played, damage: 0, energy: [] });
       return ok(state);
     }
 
@@ -164,9 +175,9 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       if (state.energyAttachedThisTurn) return fail('Already attached energy this turn');
       const target = action.target === 'active' ? me.active : me.bench[action.target];
       if (!target) return fail('Invalid target');
-      const card = takeFromHand(me, action.cardUid);
-      if (!card || getCard(card.defId).kind !== 'energy') return fail('Must attach an energy card from your hand');
-      target.energy.push(card);
+      const energy = takeFromHand(me, action.cardUid);
+      if (!energy || card(energy).kind !== 'energy') return fail('Must attach an energy card from your hand');
+      target.energy.push(energy);
       state.energyAttachedThisTurn = true;
       return ok(state);
     }
@@ -174,13 +185,13 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
     case 'ATTACK': {
       if (state.turn === 1) return fail('The first player cannot attack on turn 1');
       if (!me.active || !opp.active) return fail('No active Pokémon');
-      const attacker = getCard(me.active.card.defId) as PokemonCardDef;
+      const attacker = card(me.active.card) as PokemonCardDef;
       const attack = attacker.attacks[action.attackIndex];
       if (!attack) return fail('Invalid attack');
-      if (!canPayCost(me.active, attack)) return fail('Not enough energy');
+      if (!canPayCost(me.active, attack, state.cards)) return fail('Not enough energy');
 
       opp.active.damage += attack.damage;
-      const defender = getCard(opp.active.card.defId) as PokemonCardDef;
+      const defender = card(opp.active.card) as PokemonCardDef;
       if (opp.active.damage >= defender.hp) {
         opp.discard.push(opp.active.card, ...opp.active.energy);
         opp.active = null;
@@ -203,9 +214,9 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
   }
 }
 
-export function canPayCost(pokemon: InPlayPokemon, attack: Attack): boolean {
+export function canPayCost(pokemon: InPlayPokemon, attack: Attack, cards: CardLibrary): boolean {
   const pool = pokemon.energy.map((e) => {
-    const def = getCard(e.defId);
+    const def = lookupCard(cards, e.defId);
     return def.kind === 'energy' ? def.energyType : 'colorless';
   }) as EnergyType[];
   // Pay typed costs first, then colorless with whatever is left.

@@ -1,4 +1,4 @@
-import { getCard } from './cards.js';
+import { isBasicPokemon, lookupCard } from './cards.js';
 import { applyAction, type GameAction, type GameState, type PlayerId } from './engine.js';
 
 /**
@@ -13,7 +13,7 @@ export function dummyCpuAction(state: GameState, cpuId: PlayerId): GameAction | 
   switch (state.phase) {
     case 'setup': {
       if (cpu.active) return null;
-      const basic = cpu.hand.find((c) => getCard(c.defId).kind === 'pokemon');
+      const basic = cpu.hand.find((c) => isBasicPokemon(lookupCard(state.cards, c.defId)));
       if (!basic) throw new Error('CPU has no Basic Pokémon to start with');
       return { type: 'SET_ACTIVE', cardUid: basic.uid };
     }

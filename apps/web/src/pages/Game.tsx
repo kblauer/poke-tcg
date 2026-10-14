@@ -1,7 +1,10 @@
 import {
   canPayCost,
-  getCard,
+  isBasicPokemon,
+  lookupCard,
+  type CardDef,
   type CardInstance,
+  type CardLibrary,
   type GameAction,
   type InPlayPokemon,
   type PlayerView,
@@ -76,11 +79,14 @@ function Board({
             ? `Your turn (turn ${view.turn})`
             : "CPU's turn";
 
+  const def = (c: CardInstance) => lookupCard(view.cards, c.defId);
+
   function onHandCard(card: CardInstance) {
-    const def = getCard(card.defId);
-    if (phase === 'setup' && def.kind === 'pokemon' && !self.active) send({ type: 'SET_ACTIVE', cardUid: card.uid });
-    else if (myTurn && def.kind === 'pokemon') send({ type: 'PLAY_BENCH', cardUid: card.uid });
-    else if (myTurn && def.kind === 'energy' && !view.energyAttachedThisTurn)
+    const d = def(card);
+    // Stage 1/2 cards do nothing yet: evolving isn't implemented.
+    if (phase === 'setup' && isBasicPokemon(d) && !self.active) send({ type: 'SET_ACTIVE', cardUid: card.uid });
+    else if (myTurn && isBasicPokemon(d)) send({ type: 'PLAY_BENCH', cardUid: card.uid });
+    else if (myTurn && d.kind === 'energy' && !view.energyAttachedThisTurn)
       send({ type: 'ATTACH_ENERGY', cardUid: card.uid, target: 'active' });
   }
 
@@ -115,11 +121,13 @@ function Board({
         label={`CPU · hand ${opponent.handCount} · deck ${opponent.deckCount} · prizes ${opponent.prizeCount}`}
         active={opponent.active}
         bench={opponent.bench}
+        cards={view.cards}
       />
       <Side
         label={`You · deck ${self.deckCount} · prizes ${self.prizeCount}`}
         active={self.active}
         bench={self.bench}
+        cards={view.cards}
         onBench={mustPromote ? (i) => send({ type: 'PROMOTE', benchIndex: i }) : undefined}
         attacks={myTurn && view.turn > 1 ? (i) => send({ type: 'ATTACK', attackIndex: i }) : undefined}
         pending={pending}
@@ -141,7 +149,7 @@ function Board({
                     : 'hover:-translate-y-1'
               }`}
             >
-              <Card card={c} />
+              <Card def={def(c)} />
             </button>
           ))}
         </div>
@@ -154,6 +162,7 @@ function Side({
   label,
   active,
   bench,
+  cards,
   onBench,
   attacks,
   pending = null,
@@ -161,34 +170,36 @@ function Side({
   label: string;
   active: InPlayPokemon | null;
   bench: InPlayPokemon[];
+  cards: CardLibrary;
   onBench?: (index: number) => void;
   attacks?: (index: number) => void;
   pending?: GameAction | null;
 }) {
   const busy = pending !== null;
-  const activeDef = active && (getCard(active.card.defId) as PokemonCardDef);
+  const activeDef = active && (lookupCard(cards, active.card.defId) as PokemonCardDef);
   return (
     <section className="rounded-lg bg-slate-900 p-3">
       <h3 className="mb-2 text-sm text-slate-400">{label}</h3>
       <div className="flex items-start gap-6">
         <div>
-          {active ? <Card card={active.card} inPlay={active} /> : <EmptySlot />}
+          {active ? <Card def={lookupCard(cards, active.card.defId)} inPlay={active} cards={cards} /> : <EmptySlot />}
           {attacks && active && activeDef && (
             <div className="mt-2 flex flex-col gap-1">
               {activeDef.attacks.map((a, i) => (
                 <button
                   key={a.name}
-                  disabled={busy || !canPayCost(active, a)}
+                  disabled={busy || !canPayCost(active, a, cards)}
                   onClick={() => attacks(i)}
                   className={`rounded bg-red-600 px-2 py-1 text-xs transition hover:bg-red-500 active:scale-95 ${
                     pending?.type === 'ATTACK' && pending.attackIndex === i
                       ? 'animate-pulse ring-2 ring-yellow-300'
-                      : canPayCost(active, a)
+                      : canPayCost(active, a, cards)
                         ? 'disabled:cursor-progress'
                         : 'disabled:opacity-40'
                   }`}
                 >
                   {a.name} ({a.damage})
+                  {a.text && <span title={`Not implemented yet: ${a.text}`}> *</span>}
                 </button>
               ))}
             </div>
@@ -208,7 +219,7 @@ function Side({
                     : ''
               }`}
             >
-              <Card card={p.card} inPlay={p} small />
+              <Card def={lookupCard(cards, p.card.defId)} inPlay={p} cards={cards} small />
             </button>
           ))}
         </div>
@@ -218,30 +229,46 @@ function Side({
 }
 
 const TYPE_COLORS: Record<string, string> = {
-  fire: 'bg-orange-700',
-  water: 'bg-sky-700',
-  grass: 'bg-green-700',
-  lightning: 'bg-yellow-600',
+  grass: 'bg-green-600',
+  fire: 'bg-orange-600',
+  water: 'bg-sky-600',
+  lightning: 'bg-yellow-500',
+  psychic: 'bg-purple-600',
+  fighting: 'bg-amber-800',
+  darkness: 'bg-slate-800',
+  metal: 'bg-zinc-400',
+  colorless: 'bg-slate-300',
 };
 
-function Card({ card, inPlay, small }: { card: CardInstance; inPlay?: InPlayPokemon; small?: boolean }) {
-  const def = getCard(card.defId);
-  const type = def.kind === 'pokemon' ? def.type : def.energyType;
+const typeOf = (def: CardDef) => (def.kind === 'pokemon' ? def.type : def.energyType);
+
+/** Card art from TCGdex (aspect ratio 63:88), with damage and attached energy overlaid when in play. */
+function Card({ def, inPlay, cards, small }: { def: CardDef; inPlay?: InPlayPokemon; cards?: CardLibrary; small?: boolean }) {
+  const size = small ? 'w-20' : 'w-28';
   return (
-    <div
-      className={`${TYPE_COLORS[type] ?? 'bg-slate-700'} ${small ? 'h-28 w-20' : 'h-36 w-26'} flex flex-col justify-between rounded-lg border-2 border-yellow-200/60 p-2 text-left text-xs shadow`}
-    >
-      <span className="font-semibold">{def.name}</span>
-      {def.kind === 'pokemon' && (
-        <span>
-          HP {def.hp - (inPlay?.damage ?? 0)}/{def.hp}
+    <div className={`${size} relative aspect-[63/88] shrink-0 overflow-hidden rounded-lg shadow`}>
+      {def.imageUrl ? (
+        <img src={`${def.imageUrl}/low.webp`} alt={def.name} title={def.name} loading="lazy" draggable={false} className="h-full w-full object-cover" />
+      ) : (
+        <div className={`${TYPE_COLORS[typeOf(def)] ?? 'bg-slate-700'} h-full w-full p-2 text-xs font-semibold`}>{def.name}</div>
+      )}
+      {inPlay && def.kind === 'pokemon' && inPlay.damage > 0 && (
+        <span className="absolute right-1 top-1 rounded-full bg-red-600 px-1.5 text-xs font-bold text-white shadow">
+          {def.hp - inPlay.damage}/{def.hp}
         </span>
       )}
-      {inPlay && inPlay.energy.length > 0 && <span>⚡×{inPlay.energy.length}</span>}
+      {inPlay && cards && inPlay.energy.length > 0 && (
+        <div className="absolute bottom-1 left-1 flex flex-wrap gap-0.5">
+          {inPlay.energy.map((e) => {
+            const energy = lookupCard(cards, e.defId);
+            return <span key={e.uid} title={energy.name} className={`${TYPE_COLORS[typeOf(energy)]} h-3 w-3 rounded-full border border-white shadow`} />;
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
 function EmptySlot() {
-  return <div className="h-36 w-26 rounded-lg border-2 border-dashed border-slate-700" />;
+  return <div className="aspect-[63/88] w-28 rounded-lg border-2 border-dashed border-slate-700" />;
 }

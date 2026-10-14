@@ -1,3 +1,4 @@
+import type { CardLibrary } from './cards.js';
 import type { CardInstance, GameState, InPlayPokemon, Phase, PlayerId } from './engine.js';
 
 /** What a single player is allowed to see. Never send raw GameState to a client. */
@@ -10,6 +11,8 @@ export interface PlayerView {
   pendingPromotion: PlayerId | null;
   energyAttachedThisTurn: boolean;
   winner: PlayerId | null;
+  /** Definitions for every card visible in this view (and nothing else). */
+  cards: CardLibrary;
   self: {
     hand: CardInstance[];
     deckCount: number;
@@ -36,6 +39,16 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
   const oppId = state.playerOrder[0] === playerId ? state.playerOrder[1] : state.playerOrder[0];
   const opp = state.players[oppId]!;
 
+  const oppActive = state.phase === 'setup' ? null : opp.active;
+  const visible: CardInstance[] = [
+    ...me.hand,
+    ...me.discard,
+    ...opp.discard,
+    ...[me.active, ...me.bench, oppActive, ...opp.bench].flatMap((p) => (p ? [p.card, ...p.energy] : [])),
+  ];
+  const cards: CardLibrary = {};
+  for (const c of visible) cards[c.defId] = state.cards[c.defId]!;
+
   return {
     version: state.version,
     phase: state.phase,
@@ -45,6 +58,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
     pendingPromotion: state.pendingPromotion,
     energyAttachedThisTurn: state.energyAttachedThisTurn,
     winner: state.winner,
+    cards,
     self: {
       hand: me.hand,
       deckCount: me.deck.length,
@@ -59,7 +73,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       deckCount: opp.deck.length,
       prizeCount: opp.prizes.length,
       discard: opp.discard,
-      active: state.phase === 'setup' ? null : opp.active,
+      active: oppActive,
       bench: opp.bench,
     },
   };

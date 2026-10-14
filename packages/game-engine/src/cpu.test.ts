@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { applyAction, createGame, getCard, runCpu, starterDeck, type GameState } from './index.js';
+import { applyAction, createGame, isBasicPokemon, lookupCard, runCpu, type GameState } from './index.js';
+import { TEST_CARDS, testDeck } from './test-cards.js';
 
-const newGame = () => createGame({ id: 'player', deck: starterDeck('fire') }, { id: 'cpu', deck: starterDeck('water') }, 7);
+const newGame = () => createGame({ id: 'player', deck: testDeck('fire') }, { id: 'cpu', deck: testDeck('water') }, 7, TEST_CARDS);
 
 function playerSetsActive(state: GameState): GameState {
-  const basic = state.players.player!.hand.find((c) => getCard(c.defId).kind === 'pokemon')!;
+  const basic = state.players.player!.hand.find((c) => isBasicPokemon(lookupCard(state.cards, c.defId)))!;
   const res = applyAction(state, 'player', { type: 'SET_ACTIVE', cardUid: basic.uid });
   if (!res.ok) throw new Error(res.error);
   return res.state;
