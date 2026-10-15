@@ -2,7 +2,7 @@
 
 Monorepo for a single-player Pokémon TCG game: battle through the gym leaders of each Pokémon generation against CPU opponents. React SPA + Hono/tRPC API on Vercel, Supabase (Postgres, Auth), Prisma ORM.
 
-**Current stage:** refining the card-playing mechanics. The home screen starts a test game (fixed test deck) against a dummy CPU that makes only forced moves and otherwise passes. Single-player structure, multiple saves per account and cross-run progression come later.
+**Current stage:** refining the card-playing mechanics. The home screen starts a test game (fixed test deck) against a simple CPU that benches its Basics, evolves when it can and attaches energy to Pokémon of the same type, but never attacks or retreats. Single-player structure, multiple saves per account and cross-run progression come later.
 
 ```
 apps/
@@ -164,5 +164,5 @@ Use the printed DB URL for both `DATABASE_URL` and `DIRECT_URL`, `http://127.0.0
 - Drive the engine from the imported `Card` catalog instead of the placeholder definitions in `game-engine/src/cards.ts`.
 - Trainers, weakness/resistance and special conditions in the engine.
 - Deck builder backed by `Deck` and `DeckCard`.
-- A CPU that actually plays (the `decide` function passed to `runCpu`).
+- A CPU that attacks and plays strategically (the `decide` function passed to `runCpu`).
 - Single-player structure: gym leader battles per generation, multiple saves per account, persistent progression across runs.

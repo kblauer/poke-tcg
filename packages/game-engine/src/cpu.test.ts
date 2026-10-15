@@ -11,7 +11,7 @@ function playerSetsActive(state: GameState): GameState {
   return res.state;
 }
 
-describe('dummy CPU', () => {
+describe('CPU', () => {
   it('chooses an active during setup, then waits for the player', () => {
     const { state, actions } = runCpu(newGame(), 'cpu');
     expect(actions).toEqual([{ type: 'SET_ACTIVE', cardUid: expect.any(String) }]);
@@ -26,6 +26,56 @@ describe('dummy CPU', () => {
     ({ state } = runCpu(res.state, 'cpu'));
     expect(state.currentPlayer).toBe('player');
     expect(state.turn).toBe(3);
+  });
+
+  describe('on its turn', () => {
+    /** The CPU (fire deck) has Charmander active, no bench and only `hand` in hand; it's the CPU's turn `turn`. */
+    function cpuTurn(hand: string[], turn = 4): GameState {
+      let s = createGame({ id: 'player', deck: testDeck('water') }, { id: 'cpu', deck: testDeck('fire') }, 7, TEST_CARDS);
+      s = structuredClone(s);
+      const cpu = s.players.cpu!;
+      cpu.active = { card: { uid: 'cpu-active', defId: 'charmander' }, evolvedFrom: [], damage: 0, energy: [], playedTurn: 0 };
+      cpu.hand = hand.map((defId, i) => ({ uid: `h${i}-${defId}`, defId }));
+      s.players.player!.active = { card: { uid: 'p-active', defId: 'squirtle' }, evolvedFrom: [], damage: 0, energy: [], playedTurn: 0 };
+      s.phase = 'playing';
+      s.turn = turn;
+      s.currentPlayer = 'cpu';
+      return s;
+    }
+
+    it('benches its Basics, attaches matching energy, then ends its turn without attacking', () => {
+      const { state, actions } = runCpu(cpuTurn(['charmander', 'charmander', 'fire-energy', 'fire-energy']), 'cpu');
+      expect(actions.map((a) => a.type)).toEqual(['PLAY_BENCH', 'PLAY_BENCH', 'ATTACH_ENERGY', 'END_TURN']);
+      const cpu = state.players.cpu!;
+      expect(cpu.bench.filter(Boolean)).toHaveLength(2);
+      expect(cpu.active!.energy.map((e) => e.defId)).toEqual(['fire-energy']);
+      expect(cpu.hand.map((c) => c.defId)).toEqual(['fire-energy']);
+      expect(state.currentPlayer).toBe('player');
+    });
+
+    it("doesn't attach energy that matches none of its Pokémon", () => {
+      const { state, actions } = runCpu(cpuTurn(['water-energy']), 'cpu');
+      expect(actions).toEqual([{ type: 'END_TURN' }]);
+      expect(state.players.cpu!.active!.energy).toEqual([]);
+    });
+
+    it('evolves when it can', () => {
+      const { state, actions } = runCpu(cpuTurn(['charmeleon', 'charizard']), 'cpu');
+      // Charizard can't follow on the same turn Charmeleon was played.
+      expect(actions.map((a) => a.type)).toEqual(['EVOLVE', 'END_TURN']);
+      expect(state.players.cpu!.active!.card.defId).toBe('charmeleon');
+    });
+
+    it("doesn't evolve on its first turn", () => {
+      const { actions } = runCpu(cpuTurn(['charmeleon'], 2), 'cpu');
+      expect(actions).toEqual([{ type: 'END_TURN' }]);
+    });
+
+    it('stops benching when the bench is full', () => {
+      const { state } = runCpu(cpuTurn(Array<string>(6).fill('charmander')), 'cpu');
+      expect(state.players.cpu!.bench.every(Boolean)).toBe(true);
+      expect(state.players.cpu!.hand.filter((c) => c.defId === 'charmander')).toHaveLength(1);
+    });
   });
 
   it('does nothing when it is not its move', () => {
