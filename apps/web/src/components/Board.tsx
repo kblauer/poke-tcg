@@ -2,6 +2,7 @@ import { DndContext, DragOverlay } from '@dnd-kit/core';
 import { lookupCard, type GameAction, type InPlayPokemon, type PlayerView } from '@poke-tcg/game-engine';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useCardPlay } from '../hooks/useCardPlay';
+import { useRetreat } from '../hooks/useRetreat';
 import { benchSlotId, pendingSlot, toTarget, type SlotId } from '../utils/slots';
 import { isMyTurn, mustPromote, statusText } from '../utils/turn';
 import { AttackList } from './AttackList';
@@ -10,6 +11,7 @@ import { CardPreview } from './CardPreview';
 import { Hand } from './Hand';
 import { OpponentArea } from './OpponentArea';
 import { PreviewContext, type Preview } from './PreviewContext';
+import { RetreatPanel } from './RetreatPanel';
 import { Slot } from './Slot';
 import { StatusBar } from './StatusBar';
 
@@ -32,11 +34,15 @@ export function Board({
   const promoting = mustPromote(view);
 
   const [preview, setPreview] = useState<Preview | null>(null);
-  const { selected, dragging, hint, heldCard, highlighted, heldLabel, canPlay, clickHandCard, slotClick, dnd } = useCardPlay({
+  const retreat = useRetreat({ view, send, busy });
+  const { selected, dragging, hint, heldCard, highlighted, heldLabel, canPlay, clickHandCard, slotClick, deselect, dnd } = useCardPlay({
     view,
     send,
     busy,
-    onDragStart: () => setPreview(null),
+    onDragStart: () => {
+      setPreview(null);
+      retreat.cancel();
+    },
   });
 
   // A hovered card can disappear without a mouseleave (played, knocked out), so reset on every update.
@@ -50,7 +56,8 @@ export function Board({
   const busySlot = pendingSlot(pending);
 
   const playerSlot = (id: SlotId, pokemon: InPlayPokemon | null, beside?: ReactNode) => {
-    const isTarget = highlighted.has(id);
+    const switchIn = retreat.targets.has(id);
+    const isTarget = highlighted.has(id) || switchIn;
     const canPromote = promoting && id !== 'active' && pokemon !== null;
     return (
       <Slot
@@ -61,11 +68,11 @@ export function Board({
         large={id === 'active'}
         droppable={isTarget && !busy}
         highlight={isTarget ? 'target' : canPromote ? 'promote' : null}
-        label={isTarget ? heldLabel : canPromote ? 'Promote' : null}
-        // While a card is held, fade the Pokémon it can't be played on so the targets stand out.
-        dimmed={heldCard !== undefined && pokemon !== null && !isTarget}
+        label={switchIn ? 'Switch' : isTarget ? heldLabel : canPromote ? 'Promote' : null}
+        // While a card is held or retreating, fade the Pokémon it can't go to so the targets stand out.
+        dimmed={(heldCard !== undefined || retreat.ready) && pokemon !== null && !isTarget}
         loading={busySlot === id}
-        onClick={busy ? undefined : (slotClick(id) ?? (canPromote ? () => send({ type: 'PROMOTE', slot: toTarget(id) as number }) : undefined))}
+        onClick={busy ? undefined : (slotClick(id) ?? retreat.slotClick(id) ?? (canPromote ? () => send({ type: 'PROMOTE', slot: toTarget(id) as number }) : undefined))}
       >
         {beside}
       </Slot>
@@ -73,7 +80,24 @@ export function Board({
   };
 
   const attacks = self.active && phase !== 'setup' && (
-    <AttackList pokemon={self.active} cards={view.cards} canAttack={myTurn && view.turn > 1 && !busy} pending={pending} send={send} />
+    <div className="flex w-36 flex-col gap-1 self-center">
+      <AttackList pokemon={self.active} cards={view.cards} canAttack={myTurn && view.turn > 1 && !busy} pending={pending} send={send} />
+      {myTurn && (
+        <RetreatPanel
+          pokemon={self.active}
+          cards={view.cards}
+          retreat={{
+            ...retreat,
+            // Retreating and holding a hand card are exclusive.
+            start: () => {
+              deselect();
+              retreat.start();
+            },
+          }}
+          pending={pending}
+        />
+      )}
+    </div>
   );
 
   return (
@@ -99,7 +123,10 @@ export function Board({
             selected={selected}
             pending={pending}
             canPlay={canPlay}
-            onCardClick={clickHandCard}
+            onCardClick={(c) => {
+              retreat.cancel();
+              clickHandCard(c);
+            }}
           />
         </div>
 

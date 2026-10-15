@@ -45,6 +45,8 @@ export interface GameState {
   /** Set while phase === 'promote': the player who must choose a new active. */
   pendingPromotion: PlayerId | null;
   energyAttachedThisTurn: boolean;
+  /** The current player has retreated this turn (once per turn). Missing in older games. */
+  retreatedThisTurn?: boolean;
   players: Record<PlayerId, PlayerState>;
   winner: PlayerId | null;
   /** Definitions of every card in both decks, so the engine needs no external lookups. */
@@ -60,6 +62,8 @@ export type GameAction =
   | { type: 'EVOLVE'; cardUid: string; target: Target }
   | { type: 'ATTACK'; attackIndex: number }
   | { type: 'PROMOTE'; slot: number }
+  /** Swap the active with a benched Pokémon, discarding `energyUids` from the active to pay the retreat cost. */
+  | { type: 'RETREAT'; slot: number; energyUids: string[] }
   | { type: 'END_TURN' }
   | { type: 'CONCEDE' };
 
@@ -120,6 +124,7 @@ export function createGame(p1: NewGamePlayer, p2: NewGamePlayer, seed: number, l
     currentPlayer: p1.id,
     pendingPromotion: null,
     energyAttachedThisTurn: false,
+    retreatedThisTurn: false,
     players,
     winner: null,
     cards,
@@ -230,6 +235,27 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       return startNextTurn(state);
     }
 
+    case 'RETREAT': {
+      if (!me.active) return fail('No active Pokémon');
+      const error = retreatError(me.active, state.cards, hasBenched(me), state.retreatedThisTurn ?? false);
+      if (error) return fail(error);
+      const benched = isBenchSlot(action.slot) ? me.bench[action.slot] : null;
+      if (!benched) return fail('Retreat to one of your benched Pokémon');
+      const cost = retreatCost(me.active, state.cards);
+      const uids = new Set(action.energyUids);
+      if (uids.size !== action.energyUids.length || !action.energyUids.every((uid) => me.active!.energy.some((e) => e.uid === uid))) {
+        return fail('Discard energy attached to your active Pokémon');
+      }
+      if (uids.size !== cost) return fail(`Retreating costs ${cost} energy`);
+      me.discard.push(...me.active.energy.filter((e) => uids.has(e.uid)));
+      me.active.energy = me.active.energy.filter((e) => !uids.has(e.uid));
+      // Damage stays with each Pokémon; the retreated one takes the chosen slot.
+      me.bench[action.slot] = me.active;
+      me.active = benched;
+      state.retreatedThisTurn = true;
+      return ok(state);
+    }
+
     case 'END_TURN':
       return startNextTurn(state);
 
@@ -255,6 +281,24 @@ export function evolveError(evolution: PokemonCardDef, target: InPlayPokemon, ca
   return null;
 }
 
+/** Energy the Pokémon must discard to retreat. */
+export const retreatCost = (pokemon: InPlayPokemon, cards: CardLibrary) => {
+  const def = lookupCard(cards, pokemon.card.defId);
+  return def.kind === 'pokemon' ? (def.retreatCost ?? 0) : 0;
+};
+
+/**
+ * Why the active Pokémon can't retreat right now, or null if it can (given a bench target
+ * and the energy to discard). Pure and view-safe, so the UI uses it for hints too.
+ */
+export function retreatError(active: InPlayPokemon, cards: CardLibrary, hasBench: boolean, retreatedThisTurn: boolean): string | null {
+  if (retreatedThisTurn) return 'You can only retreat once per turn';
+  if (!hasBench) return 'No benched Pokémon to switch in';
+  const cost = retreatCost(active, cards);
+  if (active.energy.length < cost) return `Retreating costs ${cost} energy`;
+  return null;
+}
+
 export function canPayCost(pokemon: InPlayPokemon, attack: Attack, cards: CardLibrary): boolean {
   const pool = pokemon.energy.map((e) => {
     const def = lookupCard(cards, e.defId);
@@ -274,6 +318,7 @@ function startNextTurn(state: GameState): ActionResult {
   state.currentPlayer = opponentOf(state, state.currentPlayer);
   state.turn += 1;
   state.energyAttachedThisTurn = false;
+  state.retreatedThisTurn = false;
   const next = state.players[state.currentPlayer]!;
   const drawn = next.deck.shift();
   if (!drawn) return finish(state, opponentOf(state, next.id)); // decked out
@@ -283,7 +328,7 @@ function startNextTurn(state: GameState): ActionResult {
 
 const isBenchSlot = (slot: number) => Number.isInteger(slot) && slot >= 0 && slot < MAX_BENCH;
 
-export const hasBenched = (player: PlayerState) => player.bench.some((p) => p !== null);
+export const hasBenched = (player: Pick<PlayerState, 'bench'>) => player.bench.some((p) => p !== null);
 
 function newInPlay(card: CardInstance, turn: number): InPlayPokemon {
   return { card, evolvedFrom: [], damage: 0, energy: [], playedTurn: turn };

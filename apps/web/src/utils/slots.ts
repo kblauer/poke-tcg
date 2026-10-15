@@ -30,6 +30,7 @@ export function pendingSlot(action: GameAction | null): SlotId | null {
     case 'EVOLVE':
       return action.target === 'active' ? 'active' : benchSlotId(action.target);
     case 'PROMOTE':
+    case 'RETREAT':
       return benchSlotId(action.slot);
     default:
       return null;

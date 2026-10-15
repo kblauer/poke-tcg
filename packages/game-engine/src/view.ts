@@ -10,6 +10,7 @@ export interface PlayerView {
   currentPlayer: PlayerId;
   pendingPromotion: PlayerId | null;
   energyAttachedThisTurn: boolean;
+  retreatedThisTurn: boolean;
   winner: PlayerId | null;
   /** Definitions for every card visible in this view (and nothing else). */
   cards: CardLibrary;
@@ -59,6 +60,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
     currentPlayer: state.currentPlayer,
     pendingPromotion: state.pendingPromotion,
     energyAttachedThisTurn: state.energyAttachedThisTurn,
+    retreatedThisTurn: state.retreatedThisTurn ?? false,
     winner: state.winner,
     cards,
     self: {

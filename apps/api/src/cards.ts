@@ -6,6 +6,8 @@ const STAGES: Record<string, Stage> = { Basic: 'basic', Baby: 'basic', Stage1: '
 
 /** Shape of the TCGdex fields kept in Card.data (see packages/db/prisma/tcgdex.ts). */
 export interface CardData {
+  /** Retreat cost (number of energy); null for Pokémon that retreat for free. */
+  retreat?: number | null;
   attacks?: { name: string; cost: string[] | null; damage: string | number | null; effect: string | null }[] | null;
   /** Printings that exist; `holo` marks holofoil cards (rarity alone doesn't, e.g. Base Set holos are "Rare"). */
   variants?: { holo?: boolean; normal?: boolean; reverse?: boolean; firstEdition?: boolean } | null;
@@ -46,7 +48,7 @@ export function toCardDef(card: Card): CardDef {
       damage: baseDamage(a.damage),
       text: a.effect,
     }));
-    return { id: card.id, kind: 'pokemon', name: card.name, imageUrl, type: energyType(type), hp: card.hp, stage, evolvesFrom: card.evolveFrom, attacks, holo: isHolo(card) };
+    return { id: card.id, kind: 'pokemon', name: card.name, imageUrl, type: energyType(type), hp: card.hp, stage, evolvesFrom: card.evolveFrom, attacks, retreatCost: (card.data as CardData).retreat ?? 0, holo: isHolo(card) };
   }
   if (card.kind === 'ENERGY') {
     // Basic energy cards are named "<Type> Energy".

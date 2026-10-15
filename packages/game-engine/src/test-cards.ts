@@ -2,10 +2,10 @@
 import type { CardLibrary } from './cards.js';
 
 export const TEST_CARDS: CardLibrary = {
-  charmander: { id: 'charmander', kind: 'pokemon', name: 'Charmander', imageUrl: null, type: 'fire', hp: 50, stage: 'basic', evolvesFrom: null, attacks: [{ name: 'Scratch', cost: ['colorless'], damage: 10, text: null }] },
-  charmeleon: { id: 'charmeleon', kind: 'pokemon', name: 'Charmeleon', imageUrl: null, type: 'fire', hp: 80, stage: 'stage1', evolvesFrom: 'Charmander', attacks: [{ name: 'Slash', cost: ['colorless', 'colorless'], damage: 30, text: null }] },
-  charizard: { id: 'charizard', kind: 'pokemon', name: 'Charizard', imageUrl: null, type: 'fire', hp: 120, stage: 'stage2', evolvesFrom: 'Charmeleon', attacks: [{ name: 'Fire Spin', cost: ['fire'], damage: 100, text: null }] },
-  squirtle: { id: 'squirtle', kind: 'pokemon', name: 'Squirtle', imageUrl: null, type: 'water', hp: 40, stage: 'basic', evolvesFrom: null, attacks: [{ name: 'Bubble', cost: ['water'], damage: 20, text: null }] },
+  charmander: { id: 'charmander', kind: 'pokemon', name: 'Charmander', imageUrl: null, type: 'fire', hp: 50, stage: 'basic', evolvesFrom: null, attacks: [{ name: 'Scratch', cost: ['colorless'], damage: 10, text: null }], retreatCost: 1 },
+  charmeleon: { id: 'charmeleon', kind: 'pokemon', name: 'Charmeleon', imageUrl: null, type: 'fire', hp: 80, stage: 'stage1', evolvesFrom: 'Charmander', attacks: [{ name: 'Slash', cost: ['colorless', 'colorless'], damage: 30, text: null }], retreatCost: 1 },
+  charizard: { id: 'charizard', kind: 'pokemon', name: 'Charizard', imageUrl: null, type: 'fire', hp: 120, stage: 'stage2', evolvesFrom: 'Charmeleon', attacks: [{ name: 'Fire Spin', cost: ['fire'], damage: 100, text: null }], retreatCost: 3 },
+  squirtle: { id: 'squirtle', kind: 'pokemon', name: 'Squirtle', imageUrl: null, type: 'water', hp: 40, stage: 'basic', evolvesFrom: null, attacks: [{ name: 'Bubble', cost: ['water'], damage: 20, text: null }], retreatCost: 1 },
   'fire-energy': { id: 'fire-energy', kind: 'energy', name: 'Fire Energy', imageUrl: null, energyType: 'fire' },
   'water-energy': { id: 'water-energy', kind: 'energy', name: 'Water Energy', imageUrl: null, energyType: 'water' },
 };

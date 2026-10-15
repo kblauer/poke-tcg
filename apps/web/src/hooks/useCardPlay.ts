@@ -99,6 +99,8 @@ export function useCardPlay({
     canPlay: (card: CardInstance) => targetsFor(view, card).length > 0,
     clickHandCard,
     slotClick,
+    /** Drops the click selection. */
+    deselect: () => setSelected(null),
     dnd,
   };
 }

@@ -17,7 +17,7 @@ export function AttackList({
 }) {
   const def = lookupCard(cards, pokemon.card.defId) as PokemonCardDef;
   return (
-    <div className="flex w-36 flex-col gap-1 self-center">
+    <div className="flex flex-col gap-1">
       {def.attacks.map((a, i) => {
         const affordable = canPayCost(pokemon, a, cards);
         return (

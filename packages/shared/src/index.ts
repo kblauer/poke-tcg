@@ -16,6 +16,7 @@ export const gameActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('EVOLVE'), cardUid: z.string(), target }),
   z.object({ type: z.literal('ATTACK'), attackIndex: z.number().int().min(0) }),
   z.object({ type: z.literal('PROMOTE'), slot: benchSlot }),
+  z.object({ type: z.literal('RETREAT'), slot: benchSlot, energyUids: z.array(z.string()).max(60) }),
   z.object({ type: z.literal('END_TURN') }),
   z.object({ type: z.literal('CONCEDE') }),
 ]) satisfies z.ZodType<GameAction>;

@@ -32,6 +32,8 @@ export interface PokemonCardDef {
   /** Name of the Pokémon this evolves from (null for Basics). */
   evolvesFrom: string | null;
   attacks: Attack[];
+  /** Energy to discard to retreat (any type). Missing in games created before it was stored: treated as 0. */
+  retreatCost?: number;
   /** Printed as a holofoil. Display only. */
   holo?: boolean;
 }

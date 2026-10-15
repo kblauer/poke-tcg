@@ -46,6 +46,7 @@ Pages load data, set their own width and side padding, and hand data to componen
 | `StatusBar.tsx` | Status text, hint, and the End turn / Concede buttons |
 | `OpponentArea.tsx` | The CPU's bench, active and hand/deck/prize counts |
 | `AttackList.tsx` | Attack buttons beside your active Pokémon; attacks you can't pay for are disabled |
+| `RetreatPanel.tsx` | Retreat button under the attacks; while retreating, picks which energy to discard (when it matters) and prompts for a benched Pokémon |
 | `Hand.tsx` | Your hand |
 | `HandCard.tsx` | One draggable, clickable card in your hand |
 | `Slot.tsx` | An active or bench slot: drop target, highlight ring, tint band and "Play"/"Attach"/"Evolve"/"Promote" label |
@@ -62,6 +63,7 @@ Pages load data, set their own width and side padding, and hand data to componen
 | File | Description |
 |---|---|
 | `useCardPlay.ts` | Playing cards from the hand by click (select, then click a highlighted slot; Esc cancels) or drag and drop. Tracks the selected and dragged card and the "can't play" hint, and returns the highlighted slots, their label, click handlers and the `DndContext` props |
+| `useRetreat.ts` | Retreating the active: tracks the chosen energy, says why retreat is blocked, and returns the bench slots to switch in and their click handlers (Esc cancels) |
 
 ### `src/utils/`
 
@@ -160,7 +162,7 @@ Use the printed DB URL for both `DATABASE_URL` and `DIRECT_URL`, `http://127.0.0
 ## Next steps
 
 - Drive the engine from the imported `Card` catalog instead of the placeholder definitions in `game-engine/src/cards.ts`.
-- Evolutions, trainers, retreat, weakness/resistance and special conditions in the engine.
+- Trainers, weakness/resistance and special conditions in the engine.
 - Deck builder backed by `Deck` and `DeckCard`.
 - A CPU that actually plays (the `decide` function passed to `runCpu`).
 - Single-player structure: gym leader battles per generation, multiple saves per account, persistent progression across runs.
