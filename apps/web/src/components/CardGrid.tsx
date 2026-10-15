@@ -32,13 +32,14 @@ export function CardGrid({
               <div className="h-full w-full bg-slate-800 p-1 text-xs">{c.name}</div>
             )}
           </div>
-          {/* Click target over the visible strip only (same height as the row gap), kept above every card
-              so moving down a column reaches the next strip even while a hovered card covers it. */}
+          {/* Click target the size of the card, kept above every card so moving down a column reaches the
+              next strip even while a hovered card covers it. Later buttons paint over earlier ones, so
+              only the visible strip is clickable, except on the last card in a column, where it's all of it. */}
           <button
             onClick={() => onSelect(c)}
             title={`${c.name} · ${c.setName} #${c.number}`}
             aria-label={c.name}
-            className="absolute inset-x-0 top-0 z-20 h-6 outline-none"
+            className="absolute inset-x-0 top-0 z-20 aspect-[63/88] outline-none"
           />
         </div>
       ))}
