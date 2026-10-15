@@ -1,5 +1,5 @@
 # Poké TCG
-
+teste teste edite powerse
 Monorepo for a single-player Pokémon TCG game: battle through the gym leaders of each Pokémon generation against CPU opponents. React SPA + Hono/tRPC API on Vercel, Supabase (Postgres, Auth), Prisma ORM.
 
 **Current stage:** refining the card-playing mechanics. The home screen starts a test game (fixed test deck) against a dummy CPU that makes only forced moves and otherwise passes. Single-player structure, multiple saves per account and cross-run progression come later.
