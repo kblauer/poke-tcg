@@ -15,5 +15,6 @@ const TYPE_COLORS: Record<EnergyType, string> = {
 /** Background class for an energy type. */
 export const energyColor = (type: EnergyType) => TYPE_COLORS[type] ?? 'bg-slate-700';
 
-/** Background class for a card's type (a Pokémon's type, or an Energy's). */
-export const typeColor = (def: CardDef) => TYPE_COLORS[def.kind === 'pokemon' ? def.type : def.energyType] ?? 'bg-slate-700';
+/** Background class for a card's type (a Pokémon's type, or an Energy's; Trainers are grey). */
+export const typeColor = (def: CardDef) =>
+  def.kind === 'trainer' ? 'bg-slate-500' : (TYPE_COLORS[def.kind === 'pokemon' ? def.type : def.energyType] ?? 'bg-slate-700');

@@ -2,9 +2,11 @@
 import {
   evolveError,
   isBasicPokemon,
+  isBenchable,
   lookupCard,
   ownTargets,
   powerError,
+  powerTakesHandCard,
   resolvePowerChoices,
   type CardDef,
   type CardInstance,
@@ -18,8 +20,10 @@ export function targetsFor(view: PlayerView, card: CardInstance): SlotId[] {
   const { self } = view;
   const def = lookupCard(view.cards, card.defId);
   if (view.phase === 'setup') return isBasicPokemon(def) && !self.active ? ['active'] : [];
-  if (!isMyTurn(view)) return [];
-  if (isBasicPokemon(def)) return emptyBenchSlots(self);
+  if (!isMyTurn(view) || view.self.pendingChoice) return [];
+  // Trainers are played from the TrainerPanel; Clefairy Doll goes onto the Bench like a Basic.
+  if (def.kind === 'trainer') return [];
+  if (isBenchable(def)) return emptyBenchSlots(self);
   if (def.kind === 'pokemon') return occupiedSlots(self).filter((slot) => evolveError(def, pokemonAt(self, slot)!, view.cards, view.turn) === null);
   if (def.kind === 'energy') return occupiedSlots(self).filter((slot) => !view.energyAttachedThisTurn || powerPlay(view, card, slot));
   return [];
@@ -34,6 +38,8 @@ export function powerPlay(view: PlayerView, card: CardInstance, slot: SlotId): G
   for (const source of ownTargets(view.self)) {
     const situation = { me: view.self, source, cards: view.cards, turn: view.turn };
     if (powerError(situation)) continue;
+    // Only powers that put this card from the hand into play (Rain Dance), not ones like Energy Burn.
+    if (!powerTakesHandCard(situation, card.uid)) continue;
     const choices = { cardUid: card.uid, to: toTarget(slot) };
     if ('choices' in resolvePowerChoices(situation, choices)) return { type: 'USE_POWER', source, choices };
   }
@@ -54,7 +60,7 @@ export function whyNoTargets(view: PlayerView, card: CardInstance): string {
     const reason = match && evolveError(def, match, view.cards, view.turn);
     return reason ? `${reason}.` : `No ${def.evolvesFrom} in play to evolve.`;
   }
-  if (isBasicPokemon(def)) return 'Your bench is full.';
+  if (isBenchable(def)) return 'Your bench is full.';
   if (def.kind === 'energy') return "You've already attached an Energy this turn.";
   return "This card can't be played right now.";
 }
@@ -65,9 +71,9 @@ export function playAction(view: PlayerView, card: CardInstance, slot: SlotId): 
   const cardUid = card.uid;
   const target = toTarget(slot);
   if (def.kind === 'energy') return powerPlay(view, card, slot) ?? { type: 'ATTACH_ENERGY', cardUid, target };
-  if (!isBasicPokemon(def)) return { type: 'EVOLVE', cardUid, target };
+  if (!isBenchable(def)) return { type: 'EVOLVE', cardUid, target };
   return target === 'active' ? { type: 'SET_ACTIVE', cardUid } : { type: 'PLAY_BENCH', cardUid, slot: target };
 }
 
 /** What dropping the card on a highlighted slot will do. */
-export const targetLabel = (def: CardDef) => (def.kind === 'energy' ? 'Attach' : isBasicPokemon(def) ? 'Play' : 'Evolve');
+export const targetLabel = (def: CardDef) => (def.kind === 'energy' ? 'Attach' : isBenchable(def) ? 'Play' : 'Evolve');

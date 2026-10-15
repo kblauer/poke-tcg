@@ -3,7 +3,7 @@ import { useContext } from 'react';
 import { energyColor, typeColor } from '../utils/cardColors';
 
 /** Badges for Special Conditions and protective effects on a Pokémon in play. */
-function statusBadges(p: InPlayPokemon): { label: string; title: string; className: string }[] {
+function statusBadges(p: InPlayPokemon, cards?: CardLibrary): { label: string; title: string; className: string }[] {
   const badges = [];
   if (p.condition === 'asleep') badges.push({ label: 'SLP', title: "Asleep: flips to wake up between turns; can't attack or retreat", className: 'bg-indigo-500' });
   if (p.condition === 'confused') badges.push({ label: 'CNF', title: 'Confused: flips to attack (tails: 20 damage to itself) and to retreat', className: 'bg-pink-500' });
@@ -15,6 +15,11 @@ function statusBadges(p: InPlayPokemon): { label: string; title: string; classNa
   else if (e.harden !== undefined) badges.push({ label: '🛡30', title: 'Attack damage of 30 or less is prevented next turn', className: 'bg-sky-600' });
   if (e.destinyBond !== undefined) badges.push({ label: '☠', title: 'Destiny Bond: knocks out the Pokémon that knocks it out next turn', className: 'bg-slate-700' });
   if (e.sandAttack !== undefined) badges.push({ label: 'SND', title: 'Sand-attack: needs heads to attack next turn', className: 'bg-amber-700' });
+  for (const a of p.attached ?? []) {
+    const name = cards?.[a.card.defId]?.name;
+    if (name === 'PlusPower') badges.push({ label: '+10', title: 'PlusPower: its attacks do 10 more damage this turn', className: 'bg-red-600' });
+    if (name === 'Defender') badges.push({ label: '−20', title: "Defender: 20 less damage from attacks until the end of the opponent's next turn", className: 'bg-sky-700' });
+  }
   if (e.amnesia) badges.push({ label: 'AMN', title: `Amnesia: can't use ${e.amnesia.attack} next turn`, className: 'bg-slate-600' });
   return badges;
 }
@@ -42,8 +47,8 @@ export function Card({ def, inPlay, cards, small }: { def: CardDef; inPlay?: InP
       )}
       {inPlay && (
         <div className="absolute left-1 top-1 flex flex-col items-start gap-0.5">
-          {statusBadges(inPlay).map((b) => (
-            <span key={b.label} title={b.title} className={`${b.className} rounded px-1 text-[10px] font-bold leading-4 text-white shadow`}>
+          {statusBadges(inPlay, cards).map((b, i) => (
+            <span key={`${b.label}-${i}`} title={b.title} className={`${b.className} rounded px-1 text-[10px] font-bold leading-4 text-white shadow`}>
               {b.label}
             </span>
           ))}
@@ -51,21 +56,16 @@ export function Card({ def, inPlay, cards, small }: { def: CardDef; inPlay?: InP
       )}
       {inPlay && cards && inPlay.energy.length > 0 && (
         <div className="absolute bottom-1 left-1 flex flex-wrap gap-0.5">
-          {inPlay.energy.map((e) => {
-            const { name } = lookupCard(cards, e.defId);
-            const { type, amount } = energyProvided(e, cards);
-            // A card providing more than 1 energy (Buzzap) is a bigger dot with its amount.
-            return amount > 1 ? (
-              <span
-                key={e.uid}
-                title={`${name} (${amount} ${type} energy)`}
-                className={`${energyColor(type)} flex h-4 w-4 items-center justify-center rounded-full border border-white text-[9px] font-bold text-white shadow`}
-              >
-                {amount}
-              </span>
-            ) : (
-              <span key={e.uid} title={name} className={`${energyColor(type)} h-3 w-3 rounded-full border border-white shadow`} />
-            );
+          {inPlay.energy.flatMap((e) => {
+            const provided = energyProvided(e, cards);
+            // Energy Burn makes all of the Pokémon's Energy Fire for the turn.
+            const burned = inPlay.effects?.energyBurn !== undefined;
+            const type = burned ? 'fire' : provided.type;
+            const name = lookupCard(cards, e.defId).name + (burned ? ' (Fire this turn: Energy Burn)' : '');
+            // One dot per energy provided: Double Colorless Energy (and a Buzzap'd Electrode) shows two.
+            return Array.from({ length: provided.amount }, (_, i) => (
+              <span key={`${e.uid}-${i}`} title={name} className={`${energyColor(type)} h-3 w-3 rounded-full border border-white shadow`} />
+            ));
           })}
         </div>
       )}

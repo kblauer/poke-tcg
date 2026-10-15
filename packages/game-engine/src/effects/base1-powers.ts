@@ -115,7 +115,7 @@ export const BASE1_POWERS: Record<string, PowerEffect> = {
       const to = pokemonAt(ctx.me, ctx.choices.to!)!;
       const type = ctx.choices.type!;
       // Electrode is Knocked Out: the cards under it and its Energy go to the discard pile, and the opponent takes a prize.
-      ctx.me.discard.push(...electrode.evolvedFrom, ...electrode.energy);
+      ctx.me.discard.push(...electrode.evolvedFrom, ...electrode.energy, ...(electrode.attached ?? []).map((a) => a.card));
       clearOnLeavingActive(electrode);
       to.energy.push({ ...electrode.card, provides: { type, amount: 2 } });
       if (ctx.sourceTarget === 'active') ctx.me.active = null;

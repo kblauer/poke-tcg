@@ -329,6 +329,9 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
         return 0;
       }
       let damage = weakness ? applyWeaknessResistance(amount, attackerDef.type, defenderDef, defender.effects) : amount;
+      // PlusPower adds 10 each, then Defender takes off 20 each (both after weakness and resistance).
+      const count = (p: InPlayPokemon, name: string) => (p.attached ?? []).filter((a) => lookupCard(state.cards, a.card.defId).name === name).length;
+      if (damage > 0) damage = Math.max(0, damage + 10 * count(attacker, 'PlusPower') - 20 * count(defender, 'Defender'));
       const effects = defender.effects;
       if (active(effects?.preventDamage, turn) || (active(effects?.harden, turn) && damage <= 30)) {
         log(`The damage to ${defenderDef.name} was prevented.`, opp.id);
@@ -362,6 +365,7 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
       const defender = opp.active!;
       const name = pokemonName(state, defender);
       if (shielded()) return log(`${name} is protected from the attack's effects.`, opp.id);
+      if (def(state.cards, defender).trainerText) return log(`${name} can't be affected by Special Conditions.`, opp.id);
       if (affliction === 'poisoned' || affliction === 'toxic') {
         defender.poison = Math.max(defender.poison ?? 0, affliction === 'toxic' ? 20 : 10);
         log(`${name} is now Poisoned${affliction === 'toxic' ? ' (20 damage)' : ''}.`, opp.id);

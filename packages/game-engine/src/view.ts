@@ -1,6 +1,7 @@
 import type { CardLibrary } from './cards.js';
 import type { CardInstance, GameState, InPlayPokemon, Phase, PlayerId } from './engine.js';
 import type { LogEntry } from './status.js';
+import { pendingChoiceView, type PendingChoiceView } from './trainers.js';
 
 /** What a single player is allowed to see. Never send raw GameState to a client. */
 export interface PlayerView {
@@ -25,6 +26,8 @@ export interface PlayerView {
     active: InPlayPokemon | null;
     /** Fixed slots; null = empty. */
     bench: (InPlayPokemon | null)[];
+    /** A search this player must finish, with the cards it reveals to them. */
+    pendingChoice: PendingChoiceView | null;
   };
   opponent: {
     id: PlayerId;
@@ -46,11 +49,13 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
   const opp = state.players[oppId]!;
 
   const oppActive = state.phase === 'setup' ? null : opp.active;
+  const pending = state.pendingChoice?.player === playerId ? pendingChoiceView(state, state.pendingChoice) : null;
   const visible: CardInstance[] = [
     ...me.hand,
     ...me.discard,
     ...opp.discard,
-    ...[me.active, ...me.bench, oppActive, ...opp.bench].flatMap((p) => (p ? [p.card, ...p.evolvedFrom, ...p.energy] : [])),
+    ...[me.active, ...me.bench, oppActive, ...opp.bench].flatMap((p) => (p ? [p.card, ...p.evolvedFrom, ...p.energy, ...(p.attached ?? []).map((a) => a.card)] : [])),
+    ...(pending ? (pending.kind === 'arrangeTop' ? pending.cards : pending.options) : []),
   ];
   const cards: CardLibrary = {};
   for (const c of visible) cards[c.defId] = state.cards[c.defId]!;
@@ -74,6 +79,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       discard: me.discard,
       active: me.active,
       bench: me.bench,
+      pendingChoice: pending,
     },
     opponent: {
       id: opp.id,

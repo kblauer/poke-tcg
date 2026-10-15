@@ -33,6 +33,8 @@ export interface PokemonCardDef {
   stage: Stage;
   /** Name of the Pokémon this evolves from (null for Basics). */
   evolvesFrom: string | null;
+  /** Stage 2 only: name of the Basic at the bottom of its line, for Pokémon Breeder. Missing in older games. */
+  evolvesFromBasic?: string | null;
   attacks: Attack[];
   /** Takes `multiplier`× damage from attackers of this type. Missing in games created before it was stored. */
   weakness?: { type: EnergyType; multiplier: number } | null;
@@ -44,6 +46,11 @@ export interface PokemonCardDef {
   retreatCost?: number;
   /** Printed as a holofoil. Display only. */
   holo?: boolean;
+  /**
+   * Set on a Trainer card played as a Pokémon (Clefairy Doll): its printed text. It's a Trainer card
+   * in the hand, deck and discard pile, and not a Basic Pokémon card for setup or searches.
+   */
+  trainerText?: string;
 }
 
 export interface EnergyCardDef {
@@ -51,12 +58,27 @@ export interface EnergyCardDef {
   kind: 'energy';
   name: string;
   imageUrl: string | null;
-  energyType: Exclude<EnergyType, 'colorless'>;
+  /** Type of energy it provides ('colorless' for Double Colorless Energy). */
+  energyType: EnergyType;
+  /** Energy it provides (2 for Double Colorless Energy). Missing = 1. */
+  amount?: number;
+  /** False for special Energy (Double Colorless), which isn't a basic Energy card. Missing = basic. */
+  basic?: boolean;
   /** Printed as a holofoil. Display only. */
   holo?: boolean;
 }
 
-export type CardDef = PokemonCardDef | EnergyCardDef;
+export interface TrainerCardDef {
+  id: string;
+  kind: 'trainer';
+  name: string;
+  imageUrl: string | null;
+  text: string;
+  /** Printed as a holofoil. Display only. */
+  holo?: boolean;
+}
+
+export type CardDef = PokemonCardDef | EnergyCardDef | TrainerCardDef;
 
 /** Card definitions by id. Built from the database and stored in each game's state. */
 export type CardLibrary = Record<string, CardDef>;
@@ -67,5 +89,18 @@ export function lookupCard(cards: CardLibrary, defId: string): CardDef {
   return def;
 }
 
+/** A Basic Pokémon card (not a Trainer played as one, like Clefairy Doll). */
 export const isBasicPokemon = (def: CardDef): def is PokemonCardDef & { stage: 'basic' } =>
-  def.kind === 'pokemon' && def.stage === 'basic';
+  def.kind === 'pokemon' && def.stage === 'basic' && !def.trainerText;
+
+/** A Pokémon card: Basic or Evolution (not Clefairy Doll). */
+export const isPokemonCard = (def: CardDef): def is PokemonCardDef => def.kind === 'pokemon' && !def.trainerText;
+
+/** A Trainer card, including one played as a Pokémon (Clefairy Doll). */
+export const isTrainerCard = (def: CardDef) => def.kind === 'trainer' || (def.kind === 'pokemon' && def.trainerText !== undefined);
+
+/** A basic Energy card (not Double Colorless Energy). */
+export const isBasicEnergy = (def: CardDef) => def.kind === 'energy' && def.basic !== false;
+
+/** Can be played onto the Bench: a Basic Pokémon, or a Trainer played as one. */
+export const isBenchable = (def: CardDef) => def.kind === 'pokemon' && def.stage === 'basic';

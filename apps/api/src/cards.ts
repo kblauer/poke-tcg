@@ -1,5 +1,5 @@
 import { prisma, type Card } from '@poke-tcg/db';
-import { attackEffect, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef, type Stage } from '@poke-tcg/game-engine';
+import { attackEffect, trainerEffect, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef, type Stage } from '@poke-tcg/game-engine';
 
 const ENERGY_TYPES = new Set<EnergyType>(['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'darkness', 'metal', 'colorless']);
 const STAGES: Record<string, Stage> = { Basic: 'basic', Baby: 'basic', Stage1: 'stage1', Stage2: 'stage2' };
@@ -12,6 +12,8 @@ export interface CardData {
   resistances?: { type: string; value: string | null }[] | null;
   /** WOTC era: Pokémon Powers (type "Pokemon Power"); e-Card era: Poké-Powers and Poké-Bodies. */
   abilities?: { name: string; type: string; effect: string }[] | null;
+  /** Card text of Trainers and special Energy. */
+  effect?: string | null;
   /** Retreat cost (number of energy); null for Pokémon that retreat for free. */
   retreat?: number | null;
   attacks?: { name: string; cost: string[] | null; damage: string | number | null; effect: string | null }[] | null;
@@ -80,12 +82,35 @@ export function toCardDef(card: Card): CardDef {
     return { id: card.id, kind: 'pokemon', name: card.name, imageUrl, type: energyType(type), hp: card.hp, stage, evolvesFrom: card.evolveFrom, attacks, power: power(data), weakness: weakness(data), resistance: resistance(data), retreatCost: data.retreat ?? 0, holo: isHolo(card) };
   }
   if (card.kind === 'ENERGY') {
+    if (card.name === 'Double Colorless Energy') {
+      return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'colorless', amount: 2, basic: false, holo: isHolo(card) };
+    }
     // Basic energy cards are named "<Type> Energy".
     const type = energyType(card.name.replace(/ Energy$/, ''));
-    if (type === 'colorless') throw new Error(`Card ${card.id} is not a basic energy`);
+    if (type === 'colorless') throw new Error(`Card ${card.id} is not a supported energy`);
     return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: type, holo: isHolo(card) };
   }
-  throw new Error(`Card ${card.id}: ${card.kind} cards are not supported by the engine yet`);
+  const text = (card.data as CardData).effect ?? '';
+  const effect = trainerEffect(card.id);
+  if (!effect) throw new Error(`Card ${card.id}: ${card.name} is not supported by the engine yet`);
+  // A Trainer played as a Pokémon (Clefairy Doll): no type, attacks, weakness or retreat.
+  if (effect.asPokemon) {
+    return {
+      id: card.id,
+      kind: 'pokemon',
+      name: card.name,
+      imageUrl,
+      type: 'colorless',
+      hp: effect.asPokemon.hp,
+      stage: 'basic',
+      evolvesFrom: null,
+      attacks: [],
+      retreatCost: 0,
+      trainerText: text,
+      holo: isHolo(card),
+    };
+  }
+  return { id: card.id, kind: 'trainer', name: card.name, imageUrl, text, holo: isHolo(card) };
 }
 
 /** Loads the definitions for the given card ids from the catalog. */
@@ -94,5 +119,15 @@ export async function loadCardLibrary(ids: Iterable<string>): Promise<CardLibrar
   const rows = await prisma.card.findMany({ where: { id: { in: unique } } });
   const missing = unique.filter((id) => !rows.some((r) => r.id === id));
   if (missing.length) throw new Error(`Cards not found in catalog: ${missing.join(', ')}`);
-  return Object.fromEntries(rows.map((r) => [r.id, toCardDef(r)]));
+  const library: CardLibrary = Object.fromEntries(rows.map((r) => [r.id, toCardDef(r)]));
+  // Pokémon Breeder needs the Basic at the bottom of each Stage 2 line: look up its Stage 1 by name.
+  const stage2 = Object.values(library).filter((d): d is PokemonCardDef => d.kind === 'pokemon' && d.stage === 'stage2' && d.evolvesFrom !== null);
+  if (stage2.length) {
+    const stage1 = await prisma.card.findMany({
+      where: { kind: 'POKEMON', stage: 'Stage1', name: { in: stage2.map((d) => d.evolvesFrom!) } },
+      select: { name: true, evolveFrom: true },
+    });
+    for (const d of stage2) d.evolvesFromBasic = stage1.find((s) => s.name === d.evolvesFrom && s.evolveFrom)?.evolveFrom ?? null;
+  }
+  return library;
 }

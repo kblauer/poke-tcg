@@ -4,6 +4,15 @@ import { applyAction, createGame, type AttackChoices, type GameAction, type Game
 import { nextRandom } from '../rng.js';
 
 // Base Set cards (the fields the engine uses), keyed by their real ids so the effects apply.
+/** Base Set Trainer card numbers and names (keyed in BY_NAME by lowercase letters only, e.g. 'pokemonbreeder'). */
+const TRAINERS: [number, string][] = [
+  [71, 'Computer Search'], [72, 'Devolution Spray'], [73, 'Impostor Professor Oak'], [74, 'Item Finder'], [75, 'Lass'],
+  [76, 'Pokemon Breeder'], [77, 'Pokemon Trader'], [78, 'Scoop Up'], [79, 'Super Energy Removal'], [80, 'Defender'],
+  [81, 'Energy Retrieval'], [82, 'Full Heal'], [83, 'Maintenance'], [84, 'PlusPower'], [85, 'Pokemon Center'],
+  [86, 'Pokemon Flute'], [87, 'Pokedex'], [88, 'Professor Oak'], [89, 'Revive'], [90, 'Super Potion'], [91, 'Bill'],
+  [92, 'Energy Removal'], [93, 'Gust of Wind'], [94, 'Potion'], [95, 'Switch'],
+];
+
 export const mon = (
   id: string,
   name: string,
@@ -28,7 +37,15 @@ export const F: EnergyType = 'fire', W: EnergyType = 'water', C: EnergyType = 'c
 
 const BY_NAME: CardLibrary = {
   charmander: mon('base1-46', 'Charmander', F, 50, [['Scratch', [C], 10], ['Ember', [F, C], 30]], { weakness: { type: W, multiplier: 2 } }),
-  charizard: mon('base1-4', 'Charizard', F, 120, [['Fire Spin', [F, F, F, F], 100]], { weakness: { type: W, multiplier: 2 }, power: { name: 'Energy Burn', text: '' } }),
+  charmeleon: mon('base1-24', 'Charmeleon', F, 80, [['Slash', [C, C, C], 30]], { stage: 'stage1', evolvesFrom: 'Charmander', weakness: { type: W, multiplier: 2 } }),
+  charizard: mon('base1-4', 'Charizard', F, 120, [['Fire Spin', [F, F, F, F], 100]], {
+    stage: 'stage2',
+    evolvesFrom: 'Charmeleon',
+    evolvesFromBasic: 'Charmander',
+    weakness: { type: W, multiplier: 2 },
+    power: { name: 'Energy Burn', text: '' },
+  }),
+  doll: mon('base1-70', 'Clefairy Doll', C, 10, [], { retreatCost: 0, trainerText: 'Play Clefairy Doll as if it were a Basic Pokémon.' }),
   squirtle: mon('base1-63', 'Squirtle', W, 40, [['Bubble', [W], 10], ['Withdraw', [W, C], 0]], { weakness: { type: L, multiplier: 2 } }),
   clefairy: mon('base1-5', 'Clefairy', C, 40, [['Sing', [C], 0], ['Metronome', [C, C, C], 0]]),
   gastly: mon('base1-50', 'Gastly', P, 30, [['Sleeping Gas', [P], 0], ['Destiny Bond', [P, C], 0]]),
@@ -53,6 +70,10 @@ const BY_NAME: CardLibrary = {
   lightning: { id: 'lightning', kind: 'energy', name: 'Lightning Energy', imageUrl: null, energyType: 'lightning' },
   fighting: { id: 'fighting', kind: 'energy', name: 'Fighting Energy', imageUrl: null, energyType: 'fighting' },
   grass: { id: 'grass', kind: 'energy', name: 'Grass Energy', imageUrl: null, energyType: 'grass' },
+  dce: { id: 'base1-96', kind: 'energy', name: 'Double Colorless Energy', imageUrl: null, energyType: 'colorless', amount: 2, basic: false },
+  ...Object.fromEntries(
+    TRAINERS.map(([n, name]) => [name.toLowerCase().replace(/[^a-z]/g, ''), { id: `base1-${n}`, kind: 'trainer' as const, name, imageUrl: null, text: '' }]),
+  ),
 };
 
 /** Library keyed by card id (effects are looked up by it); tests refer to cards by short names. */
@@ -64,7 +85,7 @@ export const pokemon = (name: string, energy: string[] = []): InPlayPokemon => (
   card: { uid: `${name}-${uid++}`, defId: id(name) },
   evolvedFrom: [],
   damage: 0,
-  energy: energy.map((e) => ({ uid: `${e}-${uid++}`, defId: e })),
+  energy: energy.map((e) => ({ uid: `${e}-${uid++}`, defId: BY_NAME[e]?.id ?? e })),
   playedTurn: 0,
 });
 
@@ -110,3 +131,12 @@ export const attack = (state: GameState, attackIndex: number, choices?: AttackCh
 export const tryAttack = (state: GameState, attackIndex: number, choices?: AttackChoices, player = 'ash') =>
   applyAction(state, player, { type: 'ATTACK', attackIndex, choices });
 export const endTurn = (state: GameState, player: string) => act(state, player, { type: 'END_TURN' });
+
+/** Puts cards (by short name) into a player's hand and returns their uids. */
+export function give(state: GameState, player: string, ...names: string[]): string[] {
+  return names.map((name) => {
+    const card = { uid: `${name}-${uid++}`, defId: id(name) };
+    state.players[player]!.hand.push(card);
+    return card.uid;
+  });
+}

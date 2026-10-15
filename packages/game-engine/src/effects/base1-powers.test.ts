@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyAction, energyPool, nextPowerChoice, type GameState, type PowerChoices, type Target } from '../index.js';
+import { applyAction, energyPool, nextPowerChoice, powerTakesHandCard, type GameState, type PowerChoices, type Target } from '../index.js';
 import { act, attack, duel, endTurn, id, pokemon } from './test-kit.js';
 
 const power = (state: GameState, source: Target, choices?: PowerChoices, player = 'ash') =>
@@ -132,6 +132,15 @@ describe('Base Set Pokémon Powers', () => {
       after = act(after, 'ash', { type: 'RETREAT', slot: 1, energyUids: [card] });
       expect(after.players.ash!.active!.card.defId).toBe(id('bulbasaur'));
     });
+  });
+
+  it('only Rain Dance takes an Energy card from the hand (so dropping energy on Charizard is a normal attachment)', () => {
+    const s = duel('charizard', 'squirtle', { bench: ['blastoise'] });
+    s.players.ash!.hand = [{ uid: 'f', defId: 'fire' }, { uid: 'w', defId: 'water' }];
+    const situation = (source: Target) => ({ me: s.players.ash!, source, cards: s.cards, turn: s.turn });
+    expect(powerTakesHandCard(situation('active'), 'f')).toBe(false); // Energy Burn
+    expect(powerTakesHandCard(situation(0), 'f')).toBe(false);
+    expect(powerTakesHandCard(situation(0), 'w')).toBe(true); // Rain Dance
   });
 
   it("can't be used on the opponent's turn", () => {

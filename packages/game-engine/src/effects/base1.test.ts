@@ -83,11 +83,13 @@ describe('Base Set attacks', () => {
     s = endTurn(flips(s, true), 'ash');
     const checkup = s.log!.map((l) => l.text);
     expect(checkup).toEqual([
+      'Ended the turn.',
       'Charmander takes 10 Poison damage.',
       'Squirtle takes 10 Poison damage.',
       'Squirtle is Asleep: heads.',
       'Squirtle woke up.',
       'Charmander is no longer Paralyzed.',
+      'Turn 4.',
     ]);
   });
 

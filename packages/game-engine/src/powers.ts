@@ -132,6 +132,14 @@ export function resolvePowerChoices(
   return { error: 'Too many choices' };
 }
 
+/**
+ * Whether the power puts this card from the hand into play (Rain Dance). The UI uses it to play a
+ * dropped hand card through a power; powers that don't take a hand card (Energy Burn) never match.
+ */
+export function powerTakesHandCard(s: PowerSituation, cardUid: string): boolean {
+  return choiceSpecs(s, {}).some((spec) => spec.kind === 'handCard' && spec.options.some((c) => c.uid === cardUid));
+}
+
 /** The next question the player has to answer for this power, or null when it's ready to use. */
 export function nextPowerChoice(s: PowerSituation, given: PowerChoices): PowerChoiceSpec | null {
   const result = resolvePowerChoices(s, given);

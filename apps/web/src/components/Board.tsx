@@ -1,9 +1,10 @@
 import { DndContext, DragOverlay } from '@dnd-kit/core';
-import { lookupCard, type GameAction, type InPlayPokemon, type PlayerView } from '@poke-tcg/game-engine';
+import { lookupCard, type GameAction, type InPlayPokemon, type PlayerView, type Target } from '@poke-tcg/game-engine';
 import { useEffect, useState } from 'react';
 import { useAttack } from '../hooks/useAttack';
 import { useCardPlay } from '../hooks/useCardPlay';
 import { usePower } from '../hooks/usePower';
+import { useTrainer } from '../hooks/useTrainer';
 import { useRetreat } from '../hooks/useRetreat';
 import { benchSlotId, pendingSlot, toTarget, type SlotId } from '../utils/slots';
 import { isMyTurn, mustPromote, statusText } from '../utils/turn';
@@ -16,12 +17,14 @@ import { DeckAndDiscard } from './DeckAndDiscard';
 import { GameLog } from './GameLog';
 import { Hand } from './Hand';
 import { OpponentArea } from './OpponentArea';
+import { PendingChoicePanel } from './PendingChoicePanel';
 import { PowerPanel } from './PowerPanel';
 import { PreviewContext, type Preview } from './PreviewContext';
 import { PrizeCards } from './PrizeCards';
 import { RetreatPanel } from './RetreatPanel';
 import { Slot } from './Slot';
 import { StatusBar } from './StatusBar';
+import { TrainerPanel } from './TrainerPanel';
 
 /** The game table. Card play comes from useCardPlay; the board itself owns the hover preview. */
 export function Board({
@@ -45,6 +48,15 @@ export function Board({
   const retreat = useRetreat({ view, send, busy });
   const attack = useAttack({ view, send, busy });
   const power = usePower({ view, send, busy });
+  const trainer = useTrainer({ view, send, busy });
+  /** Starting one move cancels the others (attack, retreat, power, Trainer, held card). */
+  const cancelAll = () => {
+    deselect();
+    attack.cancel();
+    retreat.cancel();
+    power.cancel();
+    trainer.cancel();
+  };
   const { selected, dragging, hint, heldCard, highlighted, heldLabel, canPlay, clickHandCard, slotClick, deselect, dnd } = useCardPlay({
     view,
     send,
@@ -54,6 +66,7 @@ export function Board({
       retreat.cancel();
       attack.cancel();
       power.cancel();
+      trainer.cancel();
     },
   });
 
@@ -89,6 +102,12 @@ export function Board({
     );
   };
 
+  /** Trainers played as Pokémon (Clefairy Doll), which can be discarded during your turn. */
+  const dolls = [self.active, ...self.bench].flatMap((p, i) => {
+    const def = p && lookupCard(view.cards, p.card.defId);
+    return def?.kind === 'pokemon' && def.trainerText ? [{ target: (i === 0 ? 'active' : i - 1) as Target, name: def.name }] : [];
+  });
+
   const attacks = self.active && phase !== 'setup' && (
     // Hangs off the active slot's right edge (w-28 slot, 0.75rem gap) so the slot stays centred whatever is shown here.
     <div className="absolute left-[calc(50%+4.25rem)] top-1/2 flex w-36 -translate-y-1/2 flex-col gap-1">
@@ -102,9 +121,7 @@ export function Board({
           ...attack,
           // Attacking, retreating and holding a hand card are exclusive.
           start: (i) => {
-            deselect();
-            retreat.cancel();
-            power.cancel();
+            cancelAll();
             attack.start(i);
           },
         }}
@@ -118,9 +135,7 @@ export function Board({
             ...retreat,
             // Retreating, attacking and holding a hand card are exclusive.
             start: () => {
-              deselect();
-              attack.cancel();
-              power.cancel();
+              cancelAll();
               retreat.start();
             },
           }}
@@ -134,14 +149,24 @@ export function Board({
           power={{
             ...power,
             start: (source) => {
-              deselect();
-              attack.cancel();
-              retreat.cancel();
+              cancelAll();
               power.start(source);
             },
           }}
         />
       )}
+      {myTurn &&
+        !attack.spec &&
+        dolls.map(({ target, name }) => (
+          <button
+            key={String(target)}
+            disabled={busy}
+            onClick={() => send({ type: 'DISCARD_DOLL', target })}
+            className="rounded bg-slate-700 px-2 py-1 text-left text-xs transition hover:bg-slate-600 active:scale-95 disabled:opacity-40"
+          >
+            Discard {name}
+          </button>
+        ))}
     </div>
   );
 
@@ -170,17 +195,28 @@ export function Board({
               <DeckAndDiscard deckCount={self.deckCount} discard={self.discard} cards={view.cards} />
             </section>
 
+            <PendingChoicePanel view={view} send={send} busy={busy} />
+            <TrainerPanel view={view} trainer={trainer} />
             <Hand
               hand={self.hand}
               cards={view.cards}
-              selected={selected}
+              selected={selected ?? trainer.card?.uid ?? null}
               pending={pending}
               canPlay={canPlay}
               onCardClick={(c) => {
-                retreat.cancel();
+                const wasTrainer = trainer.card?.uid === c.uid;
                 attack.cancel();
+                retreat.cancel();
                 power.cancel();
-                clickHandCard(c);
+                if (trainer.isTrainer(c)) {
+                  deselect();
+                  // Clicking the open Trainer again closes it.
+                  if (wasTrainer) trainer.cancel();
+                  else trainer.start(c);
+                } else {
+                  trainer.cancel();
+                  clickHandCard(c);
+                }
               }}
             />
           </div>
