@@ -9,6 +9,7 @@ const toBound = (value: string) => (value === '' ? null : Math.max(0, Number(val
 export function CardFilters({
   filter,
   sort,
+  sets,
   shown,
   total,
   onFilterChange,
@@ -16,6 +17,8 @@ export function CardFilters({
 }: {
   filter: CardFilter;
   sort: CardSort;
+  /** Set names for the set filter, in release order. */
+  sets: string[];
   /** Cards matching the filters, out of `total`. */
   shown: number;
   total: number;
@@ -33,6 +36,14 @@ export function CardFilters({
         className={`${input} w-full`}
       />
       <div className="flex flex-wrap items-center gap-2 text-sm">
+        <select value={filter.set ?? ''} onChange={(e) => set({ set: e.target.value || null })} className={input} aria-label="Set">
+          <option value="">All sets</option>
+          {sets.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
         <select value={filter.type ?? ''} onChange={(e) => set({ type: e.target.value || null })} className={input} aria-label="Type">
           <option value="">All types</option>
           {CARD_TYPES.map((t) => (

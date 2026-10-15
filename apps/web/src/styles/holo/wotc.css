@@ -9,6 +9,8 @@
     art window x 63–541, y 97–428. Stage 1/2 cards have the stage badge (label and evolution picture) over its top-left corner,
     traced along the starburst edge down to y 144. Neo sets have a smaller round badge instead,
     traced down to y 128.
+  - Galaxy foil cards (Entei and Pichu promos, Southern Islands): the foil covers the face inside
+    the yellow border (x 22–577, y 25–802) except the classic art window.
   - Trainers (Gym holo trainers): art window x 55–554, y 187–458.
   - e-Card layout (Expedition, Aquapolis, Skyridge): art window x 57–580, y 103–400, with a
     large rounded top-left corner and a smaller rounded bottom-left one. The stage badge sits
@@ -37,6 +39,16 @@
   --clip-stage-invert: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 51.9%, 90.2% 51.9%, 90.2% 11.7%, 17.2% 11.7%, 16.1% 12.7%, 15% 13.9%, 13.9% 14.7%, 12.2% 15.1%, 11% 15.4%, 10.5% 15.5%, 10.5% 51.9%, 0% 51.9%);
 }
 
+.card[data-era] {
+  --clip-galaxy: polygon(3.7% 3%, 96.2% 3%, 96.2% 97.2%, 3.7% 97.2%, 3.7% 51.9%, 90.2% 51.9%, 90.2% 11.7%, 10.5% 11.7%, 10.5% 51.9%, 3.7% 51.9%);
+}
+
+/* Galaxy foil uses the library's cosmos style, around the art instead of in it. */
+.card[data-era][data-rarity="rare holo cosmos"] .card__shine,
+.card[data-era][data-rarity="rare holo cosmos"] .card__glare:after {
+  clip-path: var(--clip-galaxy);
+}
+
 .card[data-era="ecard"] {
   --clip: inset(12.5% 3.3% 51.5% 9.5% round 15% 0 0 8.3% / 11.5% 0 0 5.5%);
   --clip-invert: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 48.5%, 96.7% 48.5%, 96.7% 12.5%, 9.5% 12.5%, 9.5% 48.5%, 0% 48.5%);
@@ -51,11 +63,16 @@
 }
 
 /* The plain glare every non-holo card gets on hover, at half strength. */
-.card[data-era]:not([data-rarity="rare holo"]) .card__glare {
+.card[data-era]:not([data-rarity^="rare holo"]) .card__glare {
   opacity: calc(var(--card-opacity) * 0.5);
 }
 
 /* Holo glare at half strength too (the library default is 0.8). */
 .card[data-era][data-rarity="rare holo"] .card__glare {
   opacity: calc(var(--card-opacity) * 0.4);
+}
+
+/* Galaxy glare at half strength too. */
+.card[data-era][data-rarity="rare holo cosmos"] .card__glare {
+  opacity: calc(var(--card-opacity) * (0.25 + var(--pointer-from-center)) * 0.5);
 }

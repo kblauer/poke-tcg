@@ -4,7 +4,7 @@ import { CardFilters } from '../components/CardFilters';
 import { CardGrid } from '../components/CardGrid';
 import { CardViewer } from '../components/CardViewer';
 import { useTRPC } from '../lib/trpc';
-import { EMPTY_FILTER, filterCards, sortCards, type CardFilter, type CardSort } from '../utils/cardList';
+import { EMPTY_FILTER, filterCards, setNames, sortCards, type CardFilter, type CardSort } from '../utils/cardList';
 
 /** Full width with a fixed 6rem gutter on large screens; the usual 1rem on small ones. */
 const PAGE_WIDTH = 'px-4 lg:px-24';
@@ -18,6 +18,7 @@ export function CardsPage() {
   const [sort, setSort] = useState<CardSort>({ key: 'set', dir: 'asc' });
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  const sets = useMemo(() => (data ? setNames(data) : []), [data]);
   const cards = useMemo(() => (data ? sortCards(filterCards(data, filter), sort) : []), [data, filter, sort]);
 
   if (error) return <p className={`${PAGE_WIDTH} text-red-400`}>{error.message}</p>;
@@ -27,7 +28,7 @@ export function CardsPage() {
   return (
     <div className={`${PAGE_WIDTH} grid gap-4 lg:grid-cols-2`}>
       <div className="flex h-[70vh] flex-col gap-3 lg:h-[calc(100dvh-6.5rem)]">
-        <CardFilters filter={filter} sort={sort} shown={cards.length} total={data.length} onFilterChange={setFilter} onSortChange={setSort} />
+        <CardFilters filter={filter} sort={sort} sets={sets} shown={cards.length} total={data.length} onFilterChange={setFilter} onSortChange={setSort} />
         <CardGrid cards={cards} selectedId={selectedId} onSelect={(c) => setSelectedId(c.id)} />
       </div>
       <div className="lg:sticky lg:top-4 lg:self-start">

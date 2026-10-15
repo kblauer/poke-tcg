@@ -14,6 +14,13 @@ export interface CardData {
 /** Whether the card was printed as a holofoil. */
 export const isHolo = (card: Pick<Card, 'data'>) => (card.data as CardData).variants?.holo === true;
 
+/**
+ * Cards with galaxy foil over the whole face except the art. TCGdex has no flag for it: these are
+ * the reverse-only printings, minus Scizor (basep-33), which is reverse-only but silver foil.
+ */
+const GALAXY_FOIL = new Set(['basep-34', 'basep-35', 'si1-1', 'si1-4', 'si1-7', 'si1-11', 'si1-14', 'si1-17']);
+export const isGalaxyFoil = (card: Pick<Card, 'id'>) => GALAXY_FOIL.has(card.id);
+
 function energyType(tcgdexType: string): EnergyType {
   const type = tcgdexType.toLowerCase() as EnergyType;
   if (!ENERGY_TYPES.has(type)) throw new Error(`Unknown energy type: ${tcgdexType}`);

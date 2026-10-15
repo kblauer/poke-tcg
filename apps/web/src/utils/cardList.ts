@@ -21,8 +21,12 @@ export const stageOf = (card: CatalogCard) => (card.kind === 'POKEMON' ? card.st
 
 export const stageLabel = (card: CatalogCard) => STAGES.find((s) => s.value === stageOf(card))?.label ?? null;
 
+/** Set names in release order, for the set filter. */
+export const setNames = (cards: CatalogCard[]) => [...new Set([...cards].sort((a, b) => a.order - b.order).map((c) => c.setName))];
+
 export interface CardFilter {
   search: string;
+  set: string | null;
   type: string | null;
   stage: string | null;
   /** Range for the card's highest attack damage. Setting either bound hides cards without attacks. */
@@ -30,13 +34,14 @@ export interface CardFilter {
   maxAttack: number | null;
 }
 
-export const EMPTY_FILTER: CardFilter = { search: '', type: null, stage: null, minAttack: null, maxAttack: null };
+export const EMPTY_FILTER: CardFilter = { search: '', set: null, type: null, stage: null, minAttack: null, maxAttack: null };
 
 export function filterCards(cards: CatalogCard[], filter: CardFilter): CatalogCard[] {
   const search = filter.search.trim().toLowerCase();
   const { minAttack, maxAttack } = filter;
   return cards.filter((c) => {
     if (search && !c.name.toLowerCase().includes(search)) return false;
+    if (filter.set && c.setName !== filter.set) return false;
     if (filter.type && c.type !== filter.type) return false;
     if (filter.stage && stageOf(c) !== filter.stage) return false;
     if (minAttack !== null || maxAttack !== null) {

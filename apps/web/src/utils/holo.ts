@@ -9,6 +9,8 @@ export interface HoloSource {
   type: string | null;
   rarity?: string | null;
   holo?: boolean;
+  /** Galaxy foil around the art (a few promos and Southern Islands). */
+  galaxy?: boolean;
 }
 
 export interface HoloAttributes {
@@ -31,7 +33,7 @@ export function holoAttributes(card: HoloSource): HoloAttributes {
   const kind = card.kind.toLowerCase();
   return {
     types: card.type?.toLowerCase() ?? '',
-    rarity: card.holo ? 'rare holo' : (card.rarity ?? 'common').toLowerCase(),
+    rarity: card.galaxy ? 'rare holo cosmos' : card.holo ? 'rare holo' : (card.rarity ?? 'common').toLowerCase(),
     supertype: kind === 'pokemon' ? 'pokémon' : kind,
     // WOTC Trainers have no subtype; "item" picks the Trainer art-window shape.
     subtypes: kind === 'pokemon' ? (SUBTYPES[card.stage?.toLowerCase() ?? ''] ?? 'basic') : kind === 'trainer' ? 'item' : 'basic',

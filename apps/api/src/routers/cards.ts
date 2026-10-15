@@ -1,5 +1,5 @@
 import { prisma } from '@poke-tcg/db';
-import { baseDamage, isHolo, type CardData } from '../cards.js';
+import { baseDamage, isGalaxyFoil, isHolo, type CardData } from '../cards.js';
 import { publicProcedure, router } from '../trpc.js';
 
 const TYPES = new Set(['Grass', 'Fire', 'Water', 'Lightning', 'Psychic', 'Fighting', 'Darkness', 'Metal', 'Colorless']);
@@ -49,6 +49,8 @@ export const cardsRouter = router({
         maxDamage: c.kind === 'POKEMON' ? Math.max(0, ...attacks.map((a) => baseDamage(a.damage))) : null,
         rarity: c.rarity,
         holo: isHolo(c),
+        /** Galaxy foil around the art instead of holofoil in it (see isGalaxyFoil). */
+        galaxy: isGalaxyFoil(c),
         imageUrl: c.imageUrl,
         /** Position in release order, for sorting by set. */
         order,
