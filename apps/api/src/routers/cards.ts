@@ -1,5 +1,5 @@
 import { prisma } from '@poke-tcg/db';
-import { baseDamage, type CardData } from '../cards.js';
+import { baseDamage, isHolo, type CardData } from '../cards.js';
 import { publicProcedure, router } from '../trpc.js';
 
 const TYPES = new Set(['Grass', 'Fire', 'Water', 'Lightning', 'Psychic', 'Fighting', 'Darkness', 'Metal', 'Colorless']);
@@ -48,6 +48,7 @@ export const cardsRouter = router({
         /** Highest base damage among the card's attacks (Pokémon only). */
         maxDamage: c.kind === 'POKEMON' ? Math.max(0, ...attacks.map((a) => baseDamage(a.damage))) : null,
         rarity: c.rarity,
+        holo: isHolo(c),
         imageUrl: c.imageUrl,
         /** Position in release order, for sorting by set. */
         order,

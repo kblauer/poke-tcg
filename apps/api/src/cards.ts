@@ -7,7 +7,12 @@ const STAGES: Record<string, Stage> = { Basic: 'basic', Baby: 'basic', Stage1: '
 /** Shape of the TCGdex fields kept in Card.data (see packages/db/prisma/tcgdex.ts). */
 export interface CardData {
   attacks?: { name: string; cost: string[] | null; damage: string | number | null; effect: string | null }[] | null;
+  /** Printings that exist; `holo` marks holofoil cards (rarity alone doesn't, e.g. Base Set holos are "Rare"). */
+  variants?: { holo?: boolean; normal?: boolean; reverse?: boolean; firstEdition?: boolean } | null;
 }
+
+/** Whether the card was printed as a holofoil. */
+export const isHolo = (card: Pick<Card, 'data'>) => (card.data as CardData).variants?.holo === true;
 
 function energyType(tcgdexType: string): EnergyType {
   const type = tcgdexType.toLowerCase() as EnergyType;
@@ -34,13 +39,13 @@ export function toCardDef(card: Card): CardDef {
       damage: baseDamage(a.damage),
       text: a.effect,
     }));
-    return { id: card.id, kind: 'pokemon', name: card.name, imageUrl, type: energyType(type), hp: card.hp, stage, evolvesFrom: card.evolveFrom, attacks };
+    return { id: card.id, kind: 'pokemon', name: card.name, imageUrl, type: energyType(type), hp: card.hp, stage, evolvesFrom: card.evolveFrom, attacks, holo: isHolo(card) };
   }
   if (card.kind === 'ENERGY') {
     // Basic energy cards are named "<Type> Energy".
     const type = energyType(card.name.replace(/ Energy$/, ''));
     if (type === 'colorless') throw new Error(`Card ${card.id} is not a basic energy`);
-    return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: type };
+    return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: type, holo: isHolo(card) };
   }
   throw new Error(`Card ${card.id}: ${card.kind} cards are not supported by the engine yet`);
 }

@@ -10,6 +10,7 @@ import {
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
+import './styles/holo/index.css';
 import { useSession } from './lib/auth';
 import { signInWithGoogle, signOut } from './lib/supabase';
 import { queryClient, TRPCProvider, trpcClient } from './lib/trpc';

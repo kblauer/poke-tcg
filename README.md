@@ -14,6 +14,8 @@ apps/
       hooks/            React hooks: interaction state and handlers used by components
       utils/            Pure helper functions grouped by use (no React)
       lib/              tRPC client, Supabase client, session hook
+      styles/holo/      Holo card effect styles (one file per card style) plus WOTC tuning
+    public/img/         Textures used by the holo styles
   api/                  Hono + tRPC API (Supabase JWT auth, game endpoints)
     scripts/
       vercel-build.mjs  Bundles the API and web app into .vercel/output for Vercel
@@ -50,6 +52,7 @@ Pages load data, set their own width and side padding, and hand data to componen
 | `Card.tsx` | Card art with damage and attached-energy overlays; opens the hover preview |
 | `CardPreview.tsx` | The large card preview that follows the cursor and resizes with the mouse wheel |
 | `PreviewContext.ts` | Context that lets any card show or hide the hover preview |
+| `HoloCard.tsx` | A card with the holo effect: tilts toward the pointer while shine and glare layers follow it. Used by `CardViewer` in the Cards tab only; play mode shows plain card images |
 | `CardFilters.tsx` | Card browser controls: name search, type and stage filters, max-attack range, sort field and direction, match count |
 | `CardGrid.tsx` | Scrollable grid of low-res card images; the number of columns follows the width. Rows overlap so only each card's top strip (its name, set by the `gap-y-6` row gap) shows; hovering a strip brings that card to the front, clicking selects it |
 | `CardViewer.tsx` | The selected card's high-res image (low-res shown while it loads), sized to the window, with set, rarity, stage, type, HP and max attack |
@@ -69,7 +72,24 @@ Pages load data, set their own width and side padding, and hand data to componen
 | `turn.ts` | Whose turn it is, whether you must promote, and the status headline |
 | `preview.ts` | Preview size limits, wheel zoom, saving the size in localStorage, and positioning next to the cursor |
 | `cardColors.ts` | Background colour for each card type |
+| `holo.ts` | Maps catalog and engine cards to the attributes the holo styles select on (rarity, supertype, subtypes, era) |
+| `spring.ts` | Spring physics for the holo effect's tilt and glare |
+| `math.ts` | `round`, `clamp` and `adjust` (re-map a value between ranges) |
 | `cardList.ts` | Card browser data: the `CatalogCard` type, type/stage/sort options, and the filter and sort functions |
+
+### `src/styles/holo/`
+
+Holo card effect: layered gradients, blend modes and textures moved by CSS variables that `HoloCard` sets from the pointer position. Each file styles one card type, selected by the card's `data-rarity`, `data-subtypes` and `data-supertype` attributes.
+
+| File | Description |
+|---|---|
+| `index.css` | Imports everything in cascade order and sets the variables' resting values. Imported by `main.tsx` |
+| `base.css` | Card structure (3D tilt, front/back, shine and glare layers) and the default glare every card gets |
+| `cards.css` | Shared variables: textures, colours and art-window clip shapes measured on modern cards |
+| `cards/*.css` | One style per rarity: `regular-holo.css` is the WOTC-era holo; the others (reverse holo, cosmos, V, VMAX, rainbow, secret, gallery…) are for later eras |
+| `wotc.css` | WOTC tuning: card aspect ratio and art-window clip shapes re-measured on TCGdex scans for the classic (Base–Neo), Trainer and e-Card layouts; holo Energy is foil across the whole card |
+
+Holo cards are those with `variants.holo` in their TCGdex data (the rarity alone doesn't say: Base Set holos are listed as "Rare"). The API passes it on as `holo` in `cards.list` and in the engine's card definitions.
 
 ### `src/lib/`
 

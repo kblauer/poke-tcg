@@ -1,4 +1,6 @@
 import { stageLabel, type CatalogCard } from '../utils/cardList';
+import { holoAttributes } from '../utils/holo';
+import { HoloCard } from './HoloCard';
 
 /** The selected card at full size, with its set and stats underneath. */
 export function CardViewer({ card }: { card: CatalogCard | null }) {
@@ -8,18 +10,13 @@ export function CardViewer({ card }: { card: CatalogCard | null }) {
   const details = [stageLabel(card), card.type, card.hp !== null && `${card.hp} HP`, card.maxDamage && `max attack ${card.maxDamage}`].filter(Boolean);
   return (
     <div className="flex flex-col items-center gap-3">
-      {/* Sized to fit the window height. The low-res image shows underneath while the high-res one loads. */}
-      <div
-        className="aspect-[63/88] overflow-hidden rounded-2xl bg-slate-800 bg-cover shadow-2xl"
-        style={{
-          width: 'min(100%, 32rem, calc((100dvh - 12rem) * 63 / 88))',
-          backgroundImage: card.imageUrl ? `url(${card.imageUrl}/low.webp)` : undefined,
-        }}
-      >
+      {/* Sized to fit the window height. Tilts and shines toward the pointer; the padding leaves room
+          for the near edge, which grows by up to ~6% in perspective, so it doesn't cover the text. */}
+      <div className="p-[7%]" style={{ width: 'min(100%, 32rem, calc((100dvh - 12rem) * 63 / 88))' }}>
         {card.imageUrl ? (
-          <img key={card.id} src={`${card.imageUrl}/high.webp`} alt={card.name} className="h-full w-full" />
+          <HoloCard key={card.id} img={`${card.imageUrl}/high.webp`} name={card.name} attrs={holoAttributes(card)} />
         ) : (
-          <div className="p-4 text-lg font-semibold">{card.name}</div>
+          <div className="aspect-[63/88] rounded-2xl bg-slate-800 p-4 text-lg font-semibold">{card.name}</div>
         )}
       </div>
       <div className="text-center">

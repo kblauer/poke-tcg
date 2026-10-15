@@ -1,0 +1,61 @@
+/*
+
+  WOTC-ERA CARDS (1999–2003)
+
+  The base styles are measured on modern cards. On WOTC holos the foil is only in the art
+  window, which sits elsewhere, so the clip shapes are re-measured on 600×825 TCGdex scans:
+
+  - Classic layout (Base, Jungle, Fossil, Team Rocket, Gym, Neo, Legendary Collection):
+    art window x 63–541, y 97–428. Stage 1/2 cards have the stage badge (label and evolution picture) over its top-left corner,
+    traced along the starburst edge down to y 144. Neo sets have a smaller round badge instead,
+    traced down to y 128.
+  - Trainers (Gym holo trainers): art window x 55–554, y 187–458.
+  - e-Card layout (Expedition, Aquapolis, Skyridge): art window x 57–580, y 103–400, with a
+    large rounded top-left corner and a smaller rounded bottom-left one. The stage badge sits
+    above the art, so Stage cards use the same shape.
+
+*/
+
+.card[data-era] {
+  /* TCGdex scans are 600×825, slightly wider than modern cards. */
+  --card-aspect: 0.7273;
+}
+
+.card[data-era="wotc"] {
+  --clip: inset(11.7% 9.8% 48.1% 10.5%);
+  --clip-invert: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 51.9%, 90.2% 51.9%, 90.2% 11.7%, 10.5% 11.7%, 10.5% 51.9%, 0% 51.9%);
+
+  --clip-stage: polygon(90.2% 11.7%, 23.3% 11.7%, 20.8% 13.6%, 19.7% 14.8%, 17.5% 15.8%, 15.8% 16.6%, 13.7% 17.5%, 11.7% 17%, 10.5% 17.2%, 10.5% 51.9%, 90.2% 51.9%);
+  --clip-stage-invert: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 51.9%, 90.2% 51.9%, 90.2% 11.7%, 23.3% 11.7%, 20.8% 13.6%, 19.7% 14.8%, 17.5% 15.8%, 15.8% 16.6%, 13.7% 17.5%, 11.7% 17%, 10.5% 17.2%, 10.5% 51.9%, 0% 51.9%);
+
+  --clip-trainer: inset(22.7% 7.7% 44.5% 9.2%);
+}
+
+/* Neo Genesis, Discovery, Revelation and Destiny: round stage badge. */
+.card[data-era="wotc"][data-set^="neo"] {
+  --clip-stage: polygon(90.2% 11.7%, 17.2% 11.7%, 16.1% 12.7%, 15% 13.9%, 13.9% 14.7%, 12.2% 15.1%, 11% 15.4%, 10.5% 15.5%, 10.5% 51.9%, 90.2% 51.9%);
+  --clip-stage-invert: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 51.9%, 90.2% 51.9%, 90.2% 11.7%, 17.2% 11.7%, 16.1% 12.7%, 15% 13.9%, 13.9% 14.7%, 12.2% 15.1%, 11% 15.4%, 10.5% 15.5%, 10.5% 51.9%, 0% 51.9%);
+}
+
+.card[data-era="ecard"] {
+  --clip: inset(12.5% 3.3% 51.5% 9.5% round 15% 0 0 8.3% / 11.5% 0 0 5.5%);
+  --clip-invert: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 48.5%, 96.7% 48.5%, 96.7% 12.5%, 9.5% 12.5%, 9.5% 48.5%, 0% 48.5%);
+
+  --clip-stage: var(--clip);
+  --clip-stage-invert: var(--clip-invert);
+}
+
+/* Holo Energy (Rainbow, Metal, Miracle…) is foil across the whole card. */
+.card[data-era][data-supertype="energy"] {
+  --clip: none;
+}
+
+/* The plain glare every non-holo card gets on hover, at half strength. */
+.card[data-era]:not([data-rarity="rare holo"]) .card__glare {
+  opacity: calc(var(--card-opacity) * 0.5);
+}
+
+/* Holo glare at half strength too (the library default is 0.8). */
+.card[data-era][data-rarity="rare holo"] .card__glare {
+  opacity: calc(var(--card-opacity) * 0.4);
+}

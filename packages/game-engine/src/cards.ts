@@ -32,6 +32,8 @@ export interface PokemonCardDef {
   /** Name of the Pokémon this evolves from (null for Basics). */
   evolvesFrom: string | null;
   attacks: Attack[];
+  /** Printed as a holofoil. Display only. */
+  holo?: boolean;
 }
 
 export interface EnergyCardDef {
@@ -40,6 +42,8 @@ export interface EnergyCardDef {
   name: string;
   imageUrl: string | null;
   energyType: Exclude<EnergyType, 'colorless'>;
+  /** Printed as a holofoil. Display only. */
+  holo?: boolean;
 }
 
 export type CardDef = PokemonCardDef | EnergyCardDef;
