@@ -80,6 +80,7 @@ Pages load data, set their own width and side padding, and hand data to componen
 | `slots.ts` | Slot ids (`active`, `bench-N`), converting them to engine targets, empty/occupied slots, and which slot an in-flight move is about |
 | `turn.ts` | Whose turn it is, whether you must promote, and the status headline |
 | `preview.ts` | Preview size limits, wheel zoom, saving the size in localStorage, and positioning next to the cursor |
+| `layout.ts` | Shared widths: the side columns (prizes, deck and discard), so both active slots line up, and small cards (bench and prizes) |
 | `cardBack.ts` | URL of the card back image |
 | `cardColors.ts` | Background colour for each card type |
 | `holo.ts` | Maps catalog and engine cards to the attributes the holo styles select on (rarity, supertype, subtypes, era) |

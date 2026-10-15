@@ -1,22 +1,24 @@
 import { lookupCard, type CardInstance, type CardLibrary } from '@poke-tcg/game-engine';
 import type { ReactNode } from 'react';
+import { SIDE_COLUMN } from '../utils/layout';
 import { Card } from './Card';
 import { CardBack } from './CardBack';
 
 /**
  * A player's deck (face down) and discard pile (top card face up) with their counts, stacked in a
- * column on the right of the play area. The CPU's side is mirrored, so its deck goes on top.
+ * column beside the play area, against the board's outer edge. `mirrored` (the CPU's side, which
+ * sits on the left) puts the deck on top.
  */
 export function DeckAndDiscard({
   deckCount,
   discard,
   cards,
-  deckOnTop = false,
+  mirrored = false,
 }: {
   deckCount: number;
   discard: CardInstance[];
   cards: CardLibrary;
-  deckOnTop?: boolean;
+  mirrored?: boolean;
 }) {
   const top = discard.at(-1);
   const deck = (
@@ -30,7 +32,11 @@ export function DeckAndDiscard({
       {top && <Card def={lookupCard(cards, top.defId)} small />}
     </Pile>
   );
-  return <div className="flex shrink-0 flex-col gap-2">{deckOnTop ? [deck, discardPile] : [discardPile, deck]}</div>;
+  return (
+    <div className={`${SIDE_COLUMN} flex flex-col gap-2 ${mirrored ? 'items-start' : 'items-end'}`}>
+      {mirrored ? [deck, discardPile] : [discardPile, deck]}
+    </div>
+  );
 }
 
 function Pile({ label, empty, children }: { label: string; empty: boolean; children: ReactNode }) {

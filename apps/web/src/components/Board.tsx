@@ -1,6 +1,6 @@
 import { DndContext, DragOverlay } from '@dnd-kit/core';
 import { lookupCard, type GameAction, type InPlayPokemon, type PlayerView } from '@poke-tcg/game-engine';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { useAttack } from '../hooks/useAttack';
 import { useCardPlay } from '../hooks/useCardPlay';
 import { useRetreat } from '../hooks/useRetreat';
@@ -63,7 +63,7 @@ export function Board({
 
   const busySlot = pendingSlot(pending);
 
-  const playerSlot = (id: SlotId, pokemon: InPlayPokemon | null, beside?: ReactNode) => {
+  const playerSlot = (id: SlotId, pokemon: InPlayPokemon | null) => {
     const switchIn = retreat.targets.has(id);
     const isTarget = highlighted.has(id) || switchIn;
     const canPromote = promoting && id !== 'active' && pokemon !== null;
@@ -81,14 +81,13 @@ export function Board({
         dimmed={(heldCard !== undefined || retreat.ready) && pokemon !== null && !isTarget}
         loading={busySlot === id}
         onClick={busy ? undefined : (slotClick(id) ?? retreat.slotClick(id) ?? (canPromote ? () => send({ type: 'PROMOTE', slot: toTarget(id) as number }) : undefined))}
-      >
-        {beside}
-      </Slot>
+      />
     );
   };
 
   const attacks = self.active && phase !== 'setup' && (
-    <div className="flex w-36 flex-col gap-1 self-center">
+    // Hangs off the active slot's right edge (w-28 slot, 0.75rem gap) so the slot stays centred whatever is shown here.
+    <div className="absolute left-[calc(50%+4.25rem)] top-1/2 flex w-36 -translate-y-1/2 flex-col gap-1">
       <AttackList
         pokemon={self.active}
         defender={view.opponent.active}
@@ -140,7 +139,10 @@ export function Board({
             <section className="flex gap-3 rounded-lg bg-slate-900 p-3">
               <PrizeCards count={self.prizeCount} />
               <div className="min-w-0 flex-1 space-y-3">
-                <div className="flex justify-center">{playerSlot('active', self.active, attacks)}</div>
+                <div className="relative flex justify-center">
+                  {playerSlot('active', self.active)}
+                  {attacks}
+                </div>
                 <div className="flex justify-center gap-2">{self.bench.map((p, i) => playerSlot(benchSlotId(i), p))}</div>
                 <h3 className="text-center text-sm text-slate-400">You</h3>
               </div>

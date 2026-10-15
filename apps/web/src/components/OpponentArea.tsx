@@ -10,7 +10,7 @@ import { Slot } from './Slot';
 export function OpponentArea({ opponent, cards }: { opponent: PlayerView['opponent']; cards: CardLibrary }) {
   return (
     <section className="flex gap-3 rounded-lg bg-slate-900 p-3">
-      <DeckAndDiscard deckCount={opponent.deckCount} discard={opponent.discard} cards={cards} deckOnTop />
+      <DeckAndDiscard deckCount={opponent.deckCount} discard={opponent.discard} cards={cards} mirrored />
       <div className="min-w-0 flex-1 space-y-3">
         <h3 className="text-sm text-slate-400">
           CPU · hand {opponent.handCount}
