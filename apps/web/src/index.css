@@ -1,1 +1,11 @@
 @import "tailwindcss";
+
+/* Coin flip (components/CoinFlip.tsx): several spins, landing on heads (front) or tails (back). */
+@keyframes coin-heads {
+  from { transform: rotateY(0deg); }
+  to { transform: rotateY(1800deg); }
+}
+@keyframes coin-tails {
+  from { transform: rotateY(0deg); }
+  to { transform: rotateY(1980deg); }
+}

@@ -1,5 +1,5 @@
 import { prisma, type Card } from '@poke-tcg/db';
-import type { Attack, CardDef, CardLibrary, EnergyType, PokemonCardDef, Stage } from '@poke-tcg/game-engine';
+import { attackEffect, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef, type Stage } from '@poke-tcg/game-engine';
 
 const ENERGY_TYPES = new Set<EnergyType>(['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'darkness', 'metal', 'colorless']);
 const STAGES: Record<string, Stage> = { Basic: 'basic', Baby: 'basic', Stage1: 'stage1', Stage2: 'stage2' };
@@ -65,7 +65,9 @@ export function toCardDef(card: Card): CardDef {
       name: a.name,
       cost: (a.cost ?? []).map(energyType),
       damage: baseDamage(a.damage),
-      text: a.effect,
+      damageText: a.damage == null || a.damage === '' ? null : String(a.damage),
+      // Printed wording where TCGdex's differs (kept with the attack's effect in the engine).
+      text: attackEffect(card.id, a.name)?.text ?? a.effect,
     }));
     return { id: card.id, kind: 'pokemon', name: card.name, imageUrl, type: energyType(type), hp: card.hp, stage, evolvesFrom: card.evolveFrom, attacks, weakness: weakness(data), resistance: resistance(data), retreatCost: data.retreat ?? 0, holo: isHolo(card) };
   }

@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { HoloAttributes } from '../utils/holo';
 import { adjust, clamp, round } from '../utils/math';
+import { CARD_BACK } from '../utils/cardBack';
 import { Spring } from '../utils/spring';
-
-const CARD_BACK = 'https://tcg.pokemon.com/assets/img/global/tcg-card-back-2x.jpg';
 
 const INTERACT = { stiffness: 0.066, damping: 0.25 };
 /** Slow, loose spring back to rest after the pointer leaves. */

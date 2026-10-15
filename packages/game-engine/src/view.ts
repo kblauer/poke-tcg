@@ -1,5 +1,6 @@
 import type { CardLibrary } from './cards.js';
 import type { CardInstance, GameState, InPlayPokemon, Phase, PlayerId } from './engine.js';
+import type { LogEntry } from './status.js';
 
 /** What a single player is allowed to see. Never send raw GameState to a client. */
 export interface PlayerView {
@@ -12,6 +13,8 @@ export interface PlayerView {
   energyAttachedThisTurn: boolean;
   retreatedThisTurn: boolean;
   winner: PlayerId | null;
+  /** Game log, oldest first. Only public information goes in it. */
+  log: LogEntry[];
   /** Definitions for every card visible in this view (and nothing else). */
   cards: CardLibrary;
   self: {
@@ -62,6 +65,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
     energyAttachedThisTurn: state.energyAttachedThisTurn,
     retreatedThisTurn: state.retreatedThisTurn ?? false,
     winner: state.winner,
+    log: state.log ?? [],
     cards,
     self: {
       hand: me.hand,

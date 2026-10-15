@@ -1,4 +1,7 @@
+export * from './attacks.js';
 export * from './cards.js';
+export { attackEffect } from './effects/index.js';
+export type { LogEntry } from './status.js';
 export * from './cpu.js';
 export * from './engine.js';
 export * from './view.js';

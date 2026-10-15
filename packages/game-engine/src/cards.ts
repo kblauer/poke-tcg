@@ -15,8 +15,10 @@ export interface Attack {
   name: string;
   /** 'colorless' in a cost can be paid by any energy. */
   cost: EnergyType[];
-  /** Base damage. Modifiers like "30+" or "20×" are reduced to the number for now. */
+  /** Base damage: the number in printed values like "30+" or "20×"; effects work out the rest. */
   damage: number;
+  /** Printed damage, e.g. "30+", "20×" or "?" (missing in older games). */
+  damageText?: string | null;
   /** Printed attack text. Not implemented by the engine yet – shown for reference only. */
   text: string | null;
 }

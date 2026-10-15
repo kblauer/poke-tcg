@@ -45,12 +45,18 @@ Pages load data, set their own width and side padding, and hand data to componen
 | `Board.tsx` | The game table. Gets card play from `useCardPlay`, holds the hover preview, and lays out the components below |
 | `StatusBar.tsx` | Status text, hint, and the End turn / Concede buttons |
 | `OpponentArea.tsx` | The CPU's bench, active and hand/deck/prize counts |
-| `AttackList.tsx` | Attack buttons beside your active Pokémon, with damage after the defender's weakness and resistance; attacks you can't pay for are disabled |
+| `AttackList.tsx` | Attack buttons beside your active Pokémon, with damage after the defender's weakness and resistance (variable damage like "30+" is shown as printed); attacks it can't use are disabled with the reason as a tooltip |
+| `AttackChoicePanel.tsx` | Asks the current question of an attack being used: energy to discard, an opponent's benched Pokémon, a defender's energy or attack, or a type |
+| `PrizeCards.tsx` | Prize cards face down in 2 columns of 3 with overlapping rows (like the card list), left of your play area and right of the CPU's |
+| `DeckAndDiscard.tsx` | A player's deck (face down) and discard pile (top card face up) with counts, in a column beside each play area (discard above deck on your right; mirrored both ways on the CPU's left) |
+| `CardBack.tsx` | A face-down card |
+| `CoinFlip.tsx` | Animated coin under the game log for each coin flip in a move's result, one after another |
+| `GameLog.tsx` | The game log (attacks, coin flips, Special Conditions, knockouts), beside the table on large screens |
 | `RetreatPanel.tsx` | Retreat button under the attacks; while retreating, picks which energy to discard (when it matters) and prompts for a benched Pokémon |
 | `Hand.tsx` | Your hand |
 | `HandCard.tsx` | One draggable, clickable card in your hand |
 | `Slot.tsx` | An active or bench slot: drop target, highlight ring, tint band and "Play"/"Attach"/"Evolve"/"Promote" label |
-| `Card.tsx` | Card art with damage and attached-energy overlays; opens the hover preview |
+| `Card.tsx` | Card art with damage, attached-energy, Special Condition and protection overlays; opens the hover preview |
 | `CardPreview.tsx` | The large card preview that follows the cursor and resizes with the mouse wheel |
 | `PreviewContext.ts` | Context that lets any card show or hide the hover preview |
 | `HoloCard.tsx` | A card with the holo effect: tilts toward the pointer while shine and glare layers follow it. Used by `CardViewer` in the Cards tab only; play mode shows plain card images |
@@ -63,6 +69,7 @@ Pages load data, set their own width and side padding, and hand data to componen
 | File | Description |
 |---|---|
 | `useCardPlay.ts` | Playing cards from the hand by click (select, then click a highlighted slot; Esc cancels) or drag and drop. Tracks the selected and dragged card and the "can't play" hint, and returns the highlighted slots, their label, click handlers and the `DndContext` props |
+| `useAttack.ts` | Using an attack: attacks straight away or asks its questions one at a time (via the engine's `nextAttackChoice`), and says why an attack can't be used (Esc cancels) |
 | `useRetreat.ts` | Retreating the active: tracks the chosen energy, says why retreat is blocked, and returns the bench slots to switch in and their click handlers (Esc cancels) |
 
 ### `src/utils/`
@@ -73,6 +80,7 @@ Pages load data, set their own width and side padding, and hand data to componen
 | `slots.ts` | Slot ids (`active`, `bench-N`), converting them to engine targets, empty/occupied slots, and which slot an in-flight move is about |
 | `turn.ts` | Whose turn it is, whether you must promote, and the status headline |
 | `preview.ts` | Preview size limits, wheel zoom, saving the size in localStorage, and positioning next to the cursor |
+| `cardBack.ts` | URL of the card back image |
 | `cardColors.ts` | Background colour for each card type |
 | `holo.ts` | Maps catalog and engine cards to the attributes the holo styles select on (rarity, supertype, subtypes, era) |
 | `spring.ts` | Spring physics for the holo effect's tilt and glare |
@@ -100,6 +108,19 @@ Holo cards are those with `variants.holo` in their TCGdex data (the rarity alone
 | `trpc.ts` | Query client and typed tRPC client for the API |
 | `supabase.ts` | Supabase client and Google sign-in/sign-out |
 | `auth.ts` | `useSession` hook for the current Supabase session |
+
+## Game engine (`packages/game-engine/src/`)
+
+| File | Purpose |
+| --- | --- |
+| `engine.ts` | State types and the `applyAction` reducer: setup, playing cards, retreat, turn flow (Pokémon Checkup between turns, knockouts, prizes, promotions) |
+| `attacks.ts` | Attack resolution: legality (`attackError`), the questions an attack asks (`nextAttackChoice`), weakness/resistance and prevention, and the context card effects run with |
+| `effects/` | Card-specific attack effects by card id and attack name (`base1.ts` for the Base Set), built from shared pieces in `common.ts` |
+| `status.ts` | Game log, coin flips and clearing conditions when a Pokémon leaves the active spot |
+| `view.ts` | `getPlayerView`: what one player may see |
+| `cpu.ts` | The CPU opponent |
+
+Rules follow the 1999 Base Set rulebook. Special Conditions: Asleep (flip between turns to wake), Confused (flip to attack, tails = 20 damage to itself; flip to retreat), Paralyzed (until after its owner's next turn), Poisoned (10 between turns, 20 from Toxic). The checkup between turns handles them in order for both actives: Poisoned, Burned (not in the Base Set, not implemented yet), Asleep, Paralyzed. Where TCGdex's attack text differs from the printed card, the effect carries the printed wording and the API shows that instead.
 
 ## How a move works
 
@@ -161,7 +182,8 @@ Use the printed DB URL for both `DATABASE_URL` and `DIRECT_URL`, `http://127.0.0
 
 ## Next steps
 
-- Trainers, attack and Pokémon Power text, and special conditions in the engine.
+- Pokémon Powers (Base Set: Damage Swap, Rain Dance, Energy Burn, Strikes Back, Energy Trans, Buzzap), Trainers, and attack effects for sets after the Base Set.
+- Ask the player to choose when an opponent's attack makes them pick (Whirlwind currently brings in their first benched Pokémon).
 - Deck builder backed by `Deck` and `DeckCard`.
 - A CPU that attacks and plays strategically (the `decide` function passed to `runCpu`).
 - Single-player structure: gym leader battles per generation, multiple saves per account, persistent progression across runs.

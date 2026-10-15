@@ -1,5 +1,7 @@
 /// <reference path="./globals.d.ts" />
+import { performAttack, type AttackChoices } from './attacks.js';
 import { isBasicPokemon, lookupCard, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
+import { addLog, clearOnLeavingActive, flipCoin, pokemonName, type LogEntry } from './status.js';
 import { shuffle } from './rng.js';
 
 export type PlayerId = string;
@@ -8,6 +10,40 @@ export interface CardInstance {
   /** Unique within a game, e.g. "p1-17". */
   uid: string;
   defId: string;
+}
+
+/** Asleep, Confused and Paralyzed replace each other; Poison is tracked separately (InPlayPokemon.poison). */
+export type SpecialCondition = 'asleep' | 'confused' | 'paralyzed';
+
+/** Something an attack did to a Pokémon besides damage, as Mirror Move reflects it. */
+export type Affliction = SpecialCondition | 'poisoned' | 'toxic';
+
+/**
+ * Lasting effects of attacks on a Pokémon. Turn numbers are the last turn the effect applies
+ * ("during your opponent's next turn" = the turn after the attack). All are removed when the
+ * Pokémon is benched or evolves, except `leekSlapUsed`.
+ */
+export interface PokemonEffects {
+  /** Prevent all damage done to it by attacks (Scrunch, Withdraw, Stiffen). */
+  preventDamage?: number;
+  /** Prevent all effects of attacks, including damage (Barrier, Agility). */
+  preventAll?: number;
+  /** Prevent attack damage of 30 or less (Harden). */
+  harden?: number;
+  /** If an attack Knocks it Out, Knock Out the attacker (Destiny Bond). */
+  destinyBond?: number;
+  /** Its attacks only happen on heads (Sand-attack). */
+  sandAttack?: number;
+  /** It can't use this attack (Amnesia). */
+  amnesia?: { attack: string; until: number };
+  /** Weakness type changed by Conversion 1. */
+  weakness?: EnergyType;
+  /** Resistance type changed by Conversion 2. */
+  resistance?: EnergyType;
+  /** Leek Slap can't be used again while it stays in play. */
+  leekSlapUsed?: boolean;
+  /** What the opponent's last attack on it did, for Mirror Move. */
+  attackedOn?: { turn: number; damage: number; afflictions: Affliction[] };
 }
 
 export interface InPlayPokemon {
@@ -19,6 +55,13 @@ export interface InPlayPokemon {
   energy: CardInstance[];
   /** Turn this Pokémon was put into play or last evolved (0 = during setup). */
   playedTurn: number;
+  /** Special Condition; only the active Pokémon can have one. Missing in older games. */
+  condition?: SpecialCondition | null;
+  /** Turn Paralysis was applied; it wears off after its owner's next turn. */
+  paralyzedTurn?: number;
+  /** Poison damage between turns: 10, or 20 from Toxic. 0 or missing = not Poisoned. */
+  poison?: number;
+  effects?: PokemonEffects;
 }
 
 export interface PlayerState {
@@ -51,6 +94,8 @@ export interface GameState {
   winner: PlayerId | null;
   /** Definitions of every card in both decks, so the engine needs no external lookups. */
   cards: CardLibrary;
+  /** What happened, oldest first: attacks, coin flips, knockouts… (last LOG_SIZE entries). Missing in older games. */
+  log?: LogEntry[];
 }
 
 export type Target = 'active' | number; // number = bench slot
@@ -60,7 +105,8 @@ export type GameAction =
   | { type: 'PLAY_BENCH'; cardUid: string; slot: number }
   | { type: 'ATTACH_ENERGY'; cardUid: string; target: Target }
   | { type: 'EVOLVE'; cardUid: string; target: Target }
-  | { type: 'ATTACK'; attackIndex: number }
+  /** `choices` answers the attack's questions (energy to discard, a target…); see attackChoice(). */
+  | { type: 'ATTACK'; attackIndex: number; choices?: AttackChoices }
   | { type: 'PROMOTE'; slot: number }
   /** Swap the active with a benched Pokémon, discarding `energyUids` from the active to pay the retreat cost. */
   | { type: 'RETREAT'; slot: number; energyUids: string[] }
@@ -128,6 +174,7 @@ export function createGame(p1: NewGamePlayer, p2: NewGamePlayer, seed: number, l
     players,
     winner: null,
     cards,
+    log: [],
   };
 }
 
@@ -162,14 +209,13 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
   if (state.phase === 'promote') {
     if (playerId !== state.pendingPromotion) return fail('Waiting for opponent to promote');
     if (action.type !== 'PROMOTE') return fail('You must promote a benched Pokémon');
-    const promoted = me.bench[action.slot];
+    const promoted = isBenchSlot(action.slot) ? me.bench[action.slot] : null;
     if (!promoted) return fail('That bench slot is empty');
     me.bench[action.slot] = null;
     me.active = promoted;
     state.pendingPromotion = null;
-    state.phase = 'playing';
-    // The knockout happened on an attack, which ends the attacker's turn.
-    return startNextTurn(state);
+    // Knockouts only happen at the end of a turn, so once both actives are filled the next turn starts.
+    return promoteOrBeginTurn(state);
   }
 
   if (playerId !== state.currentPlayer) return fail('Not your turn');
@@ -195,9 +241,11 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       const error = evolveError(evolutionDef, target, state.cards, state.turn);
       if (error) return fail(error);
       // Damage and attached energy stay; the new card's HP and attacks apply from now on.
+      // Evolving removes Special Conditions and the effects of attacks.
       target.evolvedFrom.push(target.card);
       target.card = evolution;
       target.playedTurn = state.turn;
+      clearOnLeavingActive(target);
       return ok(state);
     }
 
@@ -215,24 +263,11 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
     case 'ATTACK': {
       if (state.turn === 1) return fail('The first player cannot attack on turn 1');
       if (!me.active || !opp.active) return fail('No active Pokémon');
-      const attacker = card(me.active.card) as PokemonCardDef;
-      const attack = attacker.attacks[action.attackIndex];
-      if (!attack) return fail('Invalid attack');
-      if (!canPayCost(me.active, attack, state.cards)) return fail('Not enough energy');
-
-      const defender = card(opp.active.card) as PokemonCardDef;
-      opp.active.damage += attackDamage(attack, attacker, defender);
-      if (opp.active.damage >= defender.hp) {
-        opp.discard.push(...opp.active.evolvedFrom, opp.active.card, ...opp.active.energy);
-        opp.active = null;
-        const prize = me.prizes.pop();
-        if (prize) me.hand.push(prize);
-        if (me.prizes.length === 0 || !hasBenched(opp)) return finish(state, me.id);
-        state.phase = 'promote';
-        state.pendingPromotion = opp.id;
-        return ok(state);
-      }
-      return startNextTurn(state);
+      const error = performAttack(state, me, opp, action.attackIndex, action.choices ?? {});
+      if (error) return fail(error);
+      // Attacking ends the turn.
+      const winner = resolveKnockouts(state, me.id);
+      return winner ? finish(state, winner) : endTurn(state);
     }
 
     case 'RETREAT': {
@@ -249,15 +284,25 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       if (uids.size !== cost) return fail(`Retreating costs ${cost} energy`);
       me.discard.push(...me.active.energy.filter((e) => uids.has(e.uid)));
       me.active.energy = me.active.energy.filter((e) => !uids.has(e.uid));
+      state.retreatedThisTurn = true;
+      // 1999 rules: a Confused Pokémon needs heads to retreat; the energy is discarded either way.
+      if (me.active.condition === 'confused') {
+        const heads = flipCoin(state, `${pokemonName(state, me.active)} is Confused`, me.id);
+        if (!heads) {
+          addLog(state, `${pokemonName(state, me.active)} couldn't retreat.`, me.id);
+          return ok(state);
+        }
+      }
+      addLog(state, `${pokemonName(state, me.active)} retreated for ${pokemonName(state, benched)}.`, me.id);
       // Damage stays with each Pokémon; the retreated one takes the chosen slot.
+      clearOnLeavingActive(me.active);
       me.bench[action.slot] = me.active;
       me.active = benched;
-      state.retreatedThisTurn = true;
       return ok(state);
     }
 
     case 'END_TURN':
-      return startNextTurn(state);
+      return endTurn(state);
 
     case 'SET_ACTIVE':
     case 'PROMOTE':
@@ -281,19 +326,6 @@ export function evolveError(evolution: PokemonCardDef, target: InPlayPokemon, ca
   return null;
 }
 
-/**
- * Damage an attack deals to the defending Pokémon: base damage, doubled (or so) if the defender is
- * weak to the attacker's type, then reduced if it resists it, never below 0. Attacks that deal no
- * damage stay at 0.
- */
-export function attackDamage(attack: Attack, attacker: PokemonCardDef, defender: PokemonCardDef): number {
-  let damage = attack.damage;
-  if (damage <= 0) return 0;
-  if (defender.weakness?.type === attacker.type) damage *= defender.weakness.multiplier;
-  if (defender.resistance?.type === attacker.type) damage -= defender.resistance.amount;
-  return Math.max(0, damage);
-}
-
 /** Energy the Pokémon must discard to retreat. */
 export const retreatCost = (pokemon: InPlayPokemon, cards: CardLibrary) => {
   const def = lookupCard(cards, pokemon.card.defId);
@@ -306,17 +338,26 @@ export const retreatCost = (pokemon: InPlayPokemon, cards: CardLibrary) => {
  */
 export function retreatError(active: InPlayPokemon, cards: CardLibrary, hasBench: boolean, retreatedThisTurn: boolean): string | null {
   if (retreatedThisTurn) return 'You can only retreat once per turn';
+  if (active.condition === 'asleep' || active.condition === 'paralyzed') {
+    return `${lookupCard(cards, active.card.defId).name} is ${conditionLabel(active.condition)} and can't retreat`;
+  }
   if (!hasBench) return 'No benched Pokémon to switch in';
   const cost = retreatCost(active, cards);
   if (active.energy.length < cost) return `Retreating costs ${cost} energy`;
   return null;
 }
 
-export function canPayCost(pokemon: InPlayPokemon, attack: Attack, cards: CardLibrary): boolean {
-  const pool = pokemon.energy.map((e) => {
+export const conditionLabel = (c: SpecialCondition) => ({ asleep: 'Asleep', confused: 'Confused', paralyzed: 'Paralyzed' })[c];
+
+/** The energy types each attached card provides (basic energy only for now). */
+export const energyPool = (pokemon: InPlayPokemon, cards: CardLibrary): EnergyType[] =>
+  pokemon.energy.map((e) => {
     const def = lookupCard(cards, e.defId);
     return def.kind === 'energy' ? def.energyType : 'colorless';
-  }) as EnergyType[];
+  });
+
+export function canPayCost(pokemon: InPlayPokemon, attack: Attack, cards: CardLibrary): boolean {
+  const pool = energyPool(pokemon, cards);
   // Pay typed costs first, then colorless with whatever is left.
   const sorted = [...attack.cost].sort((a, b) => Number(a === 'colorless') - Number(b === 'colorless'));
   for (const need of sorted) {
@@ -327,16 +368,121 @@ export function canPayCost(pokemon: InPlayPokemon, attack: Attack, cards: CardLi
   return true;
 }
 
-function startNextTurn(state: GameState): ActionResult {
+/**
+ * Ends the current player's turn: Pokémon Checkup (Poison, Sleep, Paralysis, expiring
+ * effects), knockouts from it, then promotions and the next player's turn.
+ */
+function endTurn(state: GameState): ActionResult {
+  betweenTurns(state);
+  // A knockout between turns isn't caused by either player; ties go to the player whose turn it was.
+  const winner = resolveKnockouts(state, state.currentPlayer);
+  return winner ? finish(state, winner) : promoteOrBeginTurn(state);
+}
+
+/** Asks the next player without an active Pokémon to promote one, or starts the next turn. */
+function promoteOrBeginTurn(state: GameState): ActionResult {
+  // The player whose turn is next promotes last.
+  const order = [state.currentPlayer, opponentOf(state, state.currentPlayer)];
+  const needs = order.find((id) => !state.players[id]!.active);
+  if (needs) {
+    state.phase = 'promote';
+    state.pendingPromotion = needs;
+    return ok(state);
+  }
+  state.phase = 'playing';
+  return beginNextTurn(state);
+}
+
+function beginNextTurn(state: GameState): ActionResult {
   state.currentPlayer = opponentOf(state, state.currentPlayer);
   state.turn += 1;
   state.energyAttachedThisTurn = false;
   state.retreatedThisTurn = false;
   const next = state.players[state.currentPlayer]!;
   const drawn = next.deck.shift();
-  if (!drawn) return finish(state, opponentOf(state, next.id)); // decked out
+  if (!drawn) {
+    addLog(state, 'No cards left to draw.', next.id);
+    return finish(state, opponentOf(state, next.id)); // decked out
+  }
   next.hand.push(drawn);
   return ok(state);
+}
+
+/**
+ * 1999 rules Pokémon Checkup, run after every turn. Conditions are handled one at a time for
+ * both actives, in this order: Poisoned, Burned, Asleep, Paralyzed.
+ */
+function betweenTurns(state: GameState) {
+  const actives = state.playerOrder.flatMap((id) => {
+    const active = state.players[id]!.active;
+    return active ? [{ id, active, name: pokemonName(state, active) }] : [];
+  });
+  for (const { id, active, name } of actives) {
+    if (!active.poison) continue;
+    active.damage += active.poison;
+    addLog(state, `${name} takes ${active.poison} Poison damage.`, id);
+  }
+  // Burned goes here; no Base Set card burns, so it isn't implemented yet.
+  for (const { id, active, name } of actives) {
+    if (active.condition === 'asleep' && flipCoin(state, `${name} is Asleep`, id)) {
+      active.condition = null;
+      addLog(state, `${name} woke up.`, id);
+    }
+  }
+  for (const { id, active, name } of actives) {
+    // Paralysis wears off at the end of its owner's next turn.
+    if (active.condition === 'paralyzed' && id === state.currentPlayer && (active.paralyzedTurn ?? 0) < state.turn) {
+      active.condition = null;
+      addLog(state, `${name} is no longer Paralyzed.`, id);
+    }
+  }
+  for (const pokemon of inPlay(state)) expireEffects(pokemon, state.turn);
+}
+
+function expireEffects(pokemon: InPlayPokemon, turn: number) {
+  const e = pokemon.effects;
+  if (!e) return;
+  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack'] as const) {
+    if (e[key] !== undefined && e[key] <= turn) delete e[key];
+  }
+  if (e.amnesia && e.amnesia.until <= turn) delete e.amnesia;
+}
+
+/** Every Pokémon in play on both sides. */
+const inPlay = (state: GameState) =>
+  state.playerOrder.flatMap((id) => [state.players[id]!.active, ...state.players[id]!.bench]).filter((p): p is InPlayPokemon => p !== null);
+
+/**
+ * Knocks out every Pokémon whose damage reached its HP; for each, its owner's opponent takes a
+ * prize. Returns the winner, if any: a player wins by taking their last prize or when the
+ * opponent has no Pokémon left in play. If both win at once, `favoured` wins.
+ */
+function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId | null {
+  for (const id of state.playerOrder) {
+    const owner = state.players[id]!;
+    const taker = state.players[opponentOf(state, id)]!;
+    const knockOut = (pokemon: InPlayPokemon) => {
+      addLog(state, `${pokemonName(state, pokemon)} was Knocked Out.`, id);
+      owner.discard.push(...pokemon.evolvedFrom, pokemon.card, ...pokemon.energy);
+      const prize = taker.prizes.pop();
+      if (prize) taker.hand.push(prize);
+    };
+    const isOut = (p: InPlayPokemon) => {
+      const def = lookupCard(state.cards, p.card.defId);
+      return def.kind === 'pokemon' && p.damage >= def.hp;
+    };
+    if (owner.active && isOut(owner.active)) {
+      knockOut(owner.active);
+      owner.active = null;
+    }
+    owner.bench = owner.bench.map((p) => (p && isOut(p) ? (knockOut(p), null) : p));
+  }
+  const winners = state.playerOrder.filter((id) => {
+    const opp = state.players[opponentOf(state, id)]!;
+    return state.players[id]!.prizes.length === 0 || (!opp.active && !hasBenched(opp));
+  });
+  if (winners.length === 0) return null;
+  return winners.includes(favoured) ? favoured : winners[0]!;
 }
 
 const isBenchSlot = (slot: number) => Number.isInteger(slot) && slot >= 0 && slot < MAX_BENCH;
