@@ -81,7 +81,7 @@ export function Board({
 
   const attacks = self.active && phase !== 'setup' && (
     <div className="flex w-36 flex-col gap-1 self-center">
-      <AttackList pokemon={self.active} cards={view.cards} canAttack={myTurn && view.turn > 1 && !busy} pending={pending} send={send} />
+      <AttackList pokemon={self.active} defender={view.opponent.active} cards={view.cards} canAttack={myTurn && view.turn > 1 && !busy} pending={pending} send={send} />
       {myTurn && (
         <RetreatPanel
           pokemon={self.active}

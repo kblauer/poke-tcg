@@ -32,6 +32,10 @@ export interface PokemonCardDef {
   /** Name of the Pokémon this evolves from (null for Basics). */
   evolvesFrom: string | null;
   attacks: Attack[];
+  /** Takes `multiplier`× damage from attackers of this type. Missing in games created before it was stored. */
+  weakness?: { type: EnergyType; multiplier: number } | null;
+  /** Takes `amount` less damage from attackers of this type. Missing in games created before it was stored. */
+  resistance?: { type: EnergyType; amount: number } | null;
   /** Energy to discard to retreat (any type). Missing in games created before it was stored: treated as 0. */
   retreatCost?: number;
   /** Printed as a holofoil. Display only. */

@@ -1,11 +1,15 @@
 import { prisma, type Card } from '@poke-tcg/db';
-import type { Attack, CardDef, CardLibrary, EnergyType, Stage } from '@poke-tcg/game-engine';
+import type { Attack, CardDef, CardLibrary, EnergyType, PokemonCardDef, Stage } from '@poke-tcg/game-engine';
 
 const ENERGY_TYPES = new Set<EnergyType>(['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'darkness', 'metal', 'colorless']);
 const STAGES: Record<string, Stage> = { Basic: 'basic', Baby: 'basic', Stage1: 'stage1', Stage2: 'stage2' };
 
 /** Shape of the TCGdex fields kept in Card.data (see packages/db/prisma/tcgdex.ts). */
 export interface CardData {
+  /** WOTC values are all "×2" (or "x2"). */
+  weaknesses?: { type: string; value: string | null }[] | null;
+  /** WOTC values are all "-30". */
+  resistances?: { type: string; value: string | null }[] | null;
   /** Retreat cost (number of energy); null for Pokémon that retreat for free. */
   retreat?: number | null;
   attacks?: { name: string; cost: string[] | null; damage: string | number | null; effect: string | null }[] | null;
@@ -35,6 +39,20 @@ export function baseDamage(damage: string | number | null): number {
   return Number.parseInt(damage ?? '', 10) || 0;
 }
 
+/** First weakness as type and multiplier ("×2" → 2). */
+function weakness(data: CardData): PokemonCardDef['weakness'] {
+  const [w] = data.weaknesses ?? [];
+  if (!w) return null;
+  return { type: energyType(w.type), multiplier: Number.parseInt((w.value ?? '').replace(/^[×x]/, ''), 10) || 2 };
+}
+
+/** First resistance as type and amount ("-30" → 30). */
+function resistance(data: CardData): PokemonCardDef['resistance'] {
+  const [r] = data.resistances ?? [];
+  if (!r) return null;
+  return { type: energyType(r.type), amount: Math.abs(Number.parseInt(r.value ?? '', 10)) || 30 };
+}
+
 /** Converts a catalog row into the engine's card definition. */
 export function toCardDef(card: Card): CardDef {
   const imageUrl = card.imageUrl;
@@ -42,13 +60,14 @@ export function toCardDef(card: Card): CardDef {
     const stage = card.stage && STAGES[card.stage];
     const [type] = card.types;
     if (!stage || !type || card.hp == null) throw new Error(`Card ${card.id} is missing stage, type or HP`);
-    const attacks: Attack[] = ((card.data as CardData).attacks ?? []).map((a) => ({
+    const data = card.data as CardData;
+    const attacks: Attack[] = (data.attacks ?? []).map((a) => ({
       name: a.name,
       cost: (a.cost ?? []).map(energyType),
       damage: baseDamage(a.damage),
       text: a.effect,
     }));
-    return { id: card.id, kind: 'pokemon', name: card.name, imageUrl, type: energyType(type), hp: card.hp, stage, evolvesFrom: card.evolveFrom, attacks, retreatCost: (card.data as CardData).retreat ?? 0, holo: isHolo(card) };
+    return { id: card.id, kind: 'pokemon', name: card.name, imageUrl, type: energyType(type), hp: card.hp, stage, evolvesFrom: card.evolveFrom, attacks, weakness: weakness(data), resistance: resistance(data), retreatCost: data.retreat ?? 0, holo: isHolo(card) };
   }
   if (card.kind === 'ENERGY') {
     // Basic energy cards are named "<Type> Energy".

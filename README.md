@@ -2,7 +2,7 @@
 
 Monorepo for a single-player Pokémon TCG game: battle through the gym leaders of each Pokémon generation against CPU opponents. React SPA + Hono/tRPC API on Vercel, Supabase (Postgres, Auth), Prisma ORM.
 
-**Current stage:** refining the card-playing mechanics. The home screen starts a test game (fixed test deck) against a simple CPU that benches its Basics, evolves when it can and attaches energy to Pokémon of the same type, but never attacks or retreats. Single-player structure, multiple saves per account and cross-run progression come later.
+**Current stage:** refining the card-playing mechanics. The home screen starts a test game (fixed Base Set test decks) against a simple CPU that benches its Basics, evolves when it can and attaches energy to Pokémon of the same type, but never attacks or retreats. Single-player structure, multiple saves per account and cross-run progression come later.
 
 ```
 apps/
@@ -45,7 +45,7 @@ Pages load data, set their own width and side padding, and hand data to componen
 | `Board.tsx` | The game table. Gets card play from `useCardPlay`, holds the hover preview, and lays out the components below |
 | `StatusBar.tsx` | Status text, hint, and the End turn / Concede buttons |
 | `OpponentArea.tsx` | The CPU's bench, active and hand/deck/prize counts |
-| `AttackList.tsx` | Attack buttons beside your active Pokémon; attacks you can't pay for are disabled |
+| `AttackList.tsx` | Attack buttons beside your active Pokémon, with damage after the defender's weakness and resistance; attacks you can't pay for are disabled |
 | `RetreatPanel.tsx` | Retreat button under the attacks; while retreating, picks which energy to discard (when it matters) and prompts for a benched Pokémon |
 | `Hand.tsx` | Your hand |
 | `HandCard.tsx` | One draggable, clickable card in your hand |
@@ -161,8 +161,7 @@ Use the printed DB URL for both `DATABASE_URL` and `DIRECT_URL`, `http://127.0.0
 
 ## Next steps
 
-- Drive the engine from the imported `Card` catalog instead of the placeholder definitions in `game-engine/src/cards.ts`.
-- Trainers, weakness/resistance and special conditions in the engine.
+- Trainers, attack and Pokémon Power text, and special conditions in the engine.
 - Deck builder backed by `Deck` and `DeckCard`.
 - A CPU that attacks and plays strategically (the `decide` function passed to `runCpu`).
 - Single-player structure: gym leader battles per generation, multiple saves per account, persistent progression across runs.

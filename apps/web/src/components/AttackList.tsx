@@ -1,14 +1,20 @@
-import { canPayCost, lookupCard, type CardLibrary, type GameAction, type InPlayPokemon, type PokemonCardDef } from '@poke-tcg/game-engine';
+import { attackDamage, canPayCost, lookupCard, type CardLibrary, type GameAction, type InPlayPokemon, type PokemonCardDef } from '@poke-tcg/game-engine';
 
-/** Attack buttons for the player's active Pokémon. Attacks it can't pay for are disabled. */
+/**
+ * Attack buttons for the player's active Pokémon. Attacks it can't pay for are disabled. Damage is
+ * shown against the defending Pokémon, after weakness and resistance.
+ */
 export function AttackList({
   pokemon,
+  defender,
   cards,
   canAttack,
   pending,
   send,
 }: {
   pokemon: InPlayPokemon;
+  /** The opponent's active Pokémon, if any. */
+  defender: InPlayPokemon | null;
   cards: CardLibrary;
   /** It's the player's turn, attacking is allowed this turn and no move is in flight. */
   canAttack: boolean;
@@ -16,10 +22,14 @@ export function AttackList({
   send: (a: GameAction) => void;
 }) {
   const def = lookupCard(cards, pokemon.card.defId) as PokemonCardDef;
+  const defenderDef = defender && (lookupCard(cards, defender.card.defId) as PokemonCardDef);
   return (
     <div className="flex flex-col gap-1">
       {def.attacks.map((a, i) => {
         const affordable = canPayCost(pokemon, a, cards);
+        const damage = defenderDef ? attackDamage(a, def, defenderDef) : a.damage;
+        const modifier =
+          damage === a.damage ? null : damage > a.damage ? `${defenderDef!.name} is weak to ${def.type}` : `${defenderDef!.name} resists ${def.type}`;
         return (
           <button
             key={a.name}
@@ -33,7 +43,15 @@ export function AttackList({
                   : 'disabled:opacity-40'
             }`}
           >
-            {a.name} ({a.damage})
+            {a.name} (
+            {modifier ? (
+              <span title={modifier} className={damage > a.damage ? 'font-bold text-yellow-300' : 'text-slate-300'}>
+                {a.damage}→{damage}
+              </span>
+            ) : (
+              a.damage
+            )}
+            )
             {a.text && <span title={`Not implemented yet: ${a.text}`}> *</span>}
           </button>
         );

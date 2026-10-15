@@ -220,8 +220,8 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       if (!attack) return fail('Invalid attack');
       if (!canPayCost(me.active, attack, state.cards)) return fail('Not enough energy');
 
-      opp.active.damage += attack.damage;
       const defender = card(opp.active.card) as PokemonCardDef;
+      opp.active.damage += attackDamage(attack, attacker, defender);
       if (opp.active.damage >= defender.hp) {
         opp.discard.push(...opp.active.evolvedFrom, opp.active.card, ...opp.active.energy);
         opp.active = null;
@@ -279,6 +279,19 @@ export function evolveError(evolution: PokemonCardDef, target: InPlayPokemon, ca
   if (turn <= 2) return "You can't evolve on your first turn";
   if (target.playedTurn === turn) return `${current.name} was played or evolved this turn`;
   return null;
+}
+
+/**
+ * Damage an attack deals to the defending Pokémon: base damage, doubled (or so) if the defender is
+ * weak to the attacker's type, then reduced if it resists it, never below 0. Attacks that deal no
+ * damage stay at 0.
+ */
+export function attackDamage(attack: Attack, attacker: PokemonCardDef, defender: PokemonCardDef): number {
+  let damage = attack.damage;
+  if (damage <= 0) return 0;
+  if (defender.weakness?.type === attacker.type) damage *= defender.weakness.multiplier;
+  if (defender.resistance?.type === attacker.type) damage -= defender.resistance.amount;
+  return Math.max(0, damage);
 }
 
 /** Energy the Pokémon must discard to retreat. */
