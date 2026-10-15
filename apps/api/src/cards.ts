@@ -10,6 +10,8 @@ export interface CardData {
   weaknesses?: { type: string; value: string | null }[] | null;
   /** WOTC values are all "-30". */
   resistances?: { type: string; value: string | null }[] | null;
+  /** WOTC era: Pokémon Powers (type "Pokemon Power"); e-Card era: Poké-Powers and Poké-Bodies. */
+  abilities?: { name: string; type: string; effect: string }[] | null;
   /** Retreat cost (number of energy); null for Pokémon that retreat for free. */
   retreat?: number | null;
   attacks?: { name: string; cost: string[] | null; damage: string | number | null; effect: string | null }[] | null;
@@ -37,6 +39,12 @@ function energyType(tcgdexType: string): EnergyType {
 export function baseDamage(damage: string | number | null): number {
   if (typeof damage === 'number') return damage;
   return Number.parseInt(damage ?? '', 10) || 0;
+}
+
+/** The card's Pokémon Power, if it has one. */
+function power(data: CardData): PokemonCardDef['power'] {
+  const [ability] = data.abilities ?? [];
+  return ability ? { name: ability.name, text: ability.effect } : null;
 }
 
 /** First weakness as type and multiplier ("×2" → 2). */
@@ -69,7 +77,7 @@ export function toCardDef(card: Card): CardDef {
       // Printed wording where TCGdex's differs (kept with the attack's effect in the engine).
       text: attackEffect(card.id, a.name)?.text ?? a.effect,
     }));
-    return { id: card.id, kind: 'pokemon', name: card.name, imageUrl, type: energyType(type), hp: card.hp, stage, evolvesFrom: card.evolveFrom, attacks, weakness: weakness(data), resistance: resistance(data), retreatCost: data.retreat ?? 0, holo: isHolo(card) };
+    return { id: card.id, kind: 'pokemon', name: card.name, imageUrl, type: energyType(type), hp: card.hp, stage, evolvesFrom: card.evolveFrom, attacks, power: power(data), weakness: weakness(data), resistance: resistance(data), retreatCost: data.retreat ?? 0, holo: isHolo(card) };
   }
   if (card.kind === 'ENERGY') {
     // Basic energy cards are named "<Type> Energy".

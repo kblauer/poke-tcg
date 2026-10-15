@@ -1,6 +1,6 @@
-import { lookupCard, type CardLibrary, type GameAction, type InPlayPokemon } from '@poke-tcg/game-engine';
+import { energyProvided, lookupCard, type CardLibrary, type GameAction, type InPlayPokemon } from '@poke-tcg/game-engine';
 import type { Retreat } from '../hooks/useRetreat';
-import { typeColor } from '../utils/cardColors';
+import { energyColor } from '../utils/cardColors';
 
 /**
  * Retreat button under the attacks. While retreating it asks which energy to discard (when
@@ -17,7 +17,7 @@ export function RetreatPanel({
   retreat: Retreat;
   pending: GameAction | null;
 }) {
-  const { cost, retreating, needsChoice, chosen, ready, blocked } = retreat;
+  const { cost, retreating, needsChoice, chosen, ready, blocked, pickedTotal } = retreat;
   const costText = cost === 0 ? 'free' : `${cost} energy`;
 
   if (!retreating) {
@@ -40,23 +40,26 @@ export function RetreatPanel({
       {needsChoice && (
         <>
           <p className="text-slate-300">
-            Discard {cost} energy ({chosen.length}/{cost}):
+            Discard {cost} energy ({pickedTotal}/{cost}):
           </p>
           <div className="flex flex-wrap gap-1">
             {pokemon.energy.map((e) => {
               const def = lookupCard(cards, e.defId);
+              const { type, amount } = energyProvided(e, cards);
               const picked = chosen.includes(e.uid);
               return (
                 <button
                   key={e.uid}
                   onClick={() => retreat.toggleEnergy(e.uid)}
-                  title={def.name}
-                  className={`${typeColor(def)} h-5 w-5 rounded-full border-2 transition ${
+                  title={amount > 1 ? `${def.name} (${amount} energy)` : def.name}
+                  className={`${energyColor(type)} h-5 w-5 rounded-full border-2 text-[10px] font-bold text-white transition ${
                     picked ? 'border-red-400 opacity-40' : 'border-white'
                   }`}
                   aria-pressed={picked}
                   aria-label={`${picked ? 'Keep' : 'Discard'} ${def.name}`}
-                />
+                >
+                  {amount > 1 ? amount : null}
+                </button>
               );
             })}
           </div>

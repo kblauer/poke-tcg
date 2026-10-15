@@ -38,6 +38,8 @@ export interface PokemonCardDef {
   weakness?: { type: EnergyType; multiplier: number } | null;
   /** Takes `amount` less damage from attackers of this type. Missing in games created before it was stored. */
   resistance?: { type: EnergyType; amount: number } | null;
+  /** Pokémon Power printed on the card, if any (the effect lives in the engine's effects/). */
+  power?: { name: string; text: string } | null;
   /** Energy to discard to retreat (any type). Missing in games created before it was stored: treated as 0. */
   retreatCost?: number;
   /** Printed as a holofoil. Display only. */

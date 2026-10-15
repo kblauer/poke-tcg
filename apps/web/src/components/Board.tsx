@@ -3,6 +3,7 @@ import { lookupCard, type GameAction, type InPlayPokemon, type PlayerView } from
 import { useEffect, useState } from 'react';
 import { useAttack } from '../hooks/useAttack';
 import { useCardPlay } from '../hooks/useCardPlay';
+import { usePower } from '../hooks/usePower';
 import { useRetreat } from '../hooks/useRetreat';
 import { benchSlotId, pendingSlot, toTarget, type SlotId } from '../utils/slots';
 import { isMyTurn, mustPromote, statusText } from '../utils/turn';
@@ -15,6 +16,7 @@ import { DeckAndDiscard } from './DeckAndDiscard';
 import { GameLog } from './GameLog';
 import { Hand } from './Hand';
 import { OpponentArea } from './OpponentArea';
+import { PowerPanel } from './PowerPanel';
 import { PreviewContext, type Preview } from './PreviewContext';
 import { PrizeCards } from './PrizeCards';
 import { RetreatPanel } from './RetreatPanel';
@@ -42,6 +44,7 @@ export function Board({
   const [preview, setPreview] = useState<Preview | null>(null);
   const retreat = useRetreat({ view, send, busy });
   const attack = useAttack({ view, send, busy });
+  const power = usePower({ view, send, busy });
   const { selected, dragging, hint, heldCard, highlighted, heldLabel, canPlay, clickHandCard, slotClick, deselect, dnd } = useCardPlay({
     view,
     send,
@@ -50,6 +53,7 @@ export function Board({
       setPreview(null);
       retreat.cancel();
       attack.cancel();
+      power.cancel();
     },
   });
 
@@ -100,12 +104,13 @@ export function Board({
           start: (i) => {
             deselect();
             retreat.cancel();
+            power.cancel();
             attack.start(i);
           },
         }}
       />
       {attack.spec && <AttackChoicePanel spec={attack.spec} view={view} attack={attack} />}
-      {myTurn && !attack.spec && (
+      {myTurn && !attack.spec && !power.spec && (
         <RetreatPanel
           pokemon={self.active}
           cards={view.cards}
@@ -115,10 +120,26 @@ export function Board({
             start: () => {
               deselect();
               attack.cancel();
+              power.cancel();
               retreat.start();
             },
           }}
           pending={pending}
+        />
+      )}
+      {myTurn && !attack.spec && (
+        <PowerPanel
+          view={view}
+          busy={busy}
+          power={{
+            ...power,
+            start: (source) => {
+              deselect();
+              attack.cancel();
+              retreat.cancel();
+              power.start(source);
+            },
+          }}
         />
       )}
     </div>
@@ -158,6 +179,7 @@ export function Board({
               onCardClick={(c) => {
                 retreat.cancel();
                 attack.cancel();
+                power.cancel();
                 clickHandCard(c);
               }}
             />

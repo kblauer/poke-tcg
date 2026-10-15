@@ -1,5 +1,16 @@
 // Where a hand card can be played right now. UI hints only – the server validates every move.
-import { evolveError, isBasicPokemon, lookupCard, type CardDef, type CardInstance, type GameAction, type PlayerView } from '@poke-tcg/game-engine';
+import {
+  evolveError,
+  isBasicPokemon,
+  lookupCard,
+  ownTargets,
+  powerError,
+  resolvePowerChoices,
+  type CardDef,
+  type CardInstance,
+  type GameAction,
+  type PlayerView,
+} from '@poke-tcg/game-engine';
 import { emptyBenchSlots, occupiedSlots, pokemonAt, toTarget, type SlotId } from './slots';
 import { isMyTurn } from './turn';
 
@@ -10,8 +21,23 @@ export function targetsFor(view: PlayerView, card: CardInstance): SlotId[] {
   if (!isMyTurn(view)) return [];
   if (isBasicPokemon(def)) return emptyBenchSlots(self);
   if (def.kind === 'pokemon') return occupiedSlots(self).filter((slot) => evolveError(def, pokemonAt(self, slot)!, view.cards, view.turn) === null);
-  if (def.kind === 'energy' && !view.energyAttachedThisTurn) return occupiedSlots(self);
+  if (def.kind === 'energy') return occupiedSlots(self).filter((slot) => !view.energyAttachedThisTurn || powerPlay(view, card, slot));
   return [];
+}
+
+/**
+ * A Pokémon Power that can put this hand card onto the slot (Rain Dance), as the action that uses
+ * it; null if none can. Such powers don't use up the turn's energy attachment, so they're preferred.
+ */
+export function powerPlay(view: PlayerView, card: CardInstance, slot: SlotId): GameAction | null {
+  if (!isMyTurn(view)) return null;
+  for (const source of ownTargets(view.self)) {
+    const situation = { me: view.self, source, cards: view.cards, turn: view.turn };
+    if (powerError(situation)) continue;
+    const choices = { cardUid: card.uid, to: toTarget(slot) };
+    if ('choices' in resolvePowerChoices(situation, choices)) return { type: 'USE_POWER', source, choices };
+  }
+  return null;
 }
 
 /** Explains why a hand card has no targets. */
@@ -34,9 +60,11 @@ export function whyNoTargets(view: PlayerView, card: CardInstance): string {
 }
 
 /** The action for playing a hand card onto a slot. */
-export function playAction(def: CardDef, cardUid: string, slot: SlotId): GameAction {
+export function playAction(view: PlayerView, card: CardInstance, slot: SlotId): GameAction {
+  const def = lookupCard(view.cards, card.defId);
+  const cardUid = card.uid;
   const target = toTarget(slot);
-  if (def.kind === 'energy') return { type: 'ATTACH_ENERGY', cardUid, target };
+  if (def.kind === 'energy') return powerPlay(view, card, slot) ?? { type: 'ATTACH_ENERGY', cardUid, target };
   if (!isBasicPokemon(def)) return { type: 'EVOLVE', cardUid, target };
   return target === 'active' ? { type: 'SET_ACTIVE', cardUid } : { type: 'PLAY_BENCH', cardUid, slot: target };
 }

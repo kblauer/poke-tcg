@@ -1,4 +1,4 @@
-import { hasBenched, retreatCost, retreatError, type GameAction, type PlayerView } from '@poke-tcg/game-engine';
+import { energyProvided, hasBenched, retreatCost, retreatError, type CardInstance, type GameAction, type PlayerView } from '@poke-tcg/game-engine';
 import { useEffect, useState } from 'react';
 import { occupiedSlots, toTarget, type SlotId } from '../utils/slots';
 import { isMyTurn } from '../utils/turn';
@@ -15,11 +15,16 @@ export function useRetreat({ view, send, busy }: { view: PlayerView; send: (a: G
 
   const cost = active ? retreatCost(active, view.cards) : 0;
   const energy = active?.energy ?? [];
+  const amount = (e: CardInstance) => energyProvided(e, view.cards).amount;
+  const total = energy.reduce((sum, e) => sum + amount(e), 0);
   // Only ask which energy to discard when the choice changes what's left.
   const types = new Set(energy.map((e) => e.defId));
-  const needsChoice = cost > 0 && cost < energy.length && types.size > 1;
-  const discard = needsChoice ? chosen : energy.slice(0, cost).map((e) => e.uid);
-  const ready = retreating && discard.length === cost;
+  const needsChoice = cost > 0 && cost < total && (types.size > 1 || energy.some((e) => e.provides));
+  const discard = needsChoice ? chosen : cheapestDiscard(energy, cost, amount);
+  const picked = energy.filter((e) => discard.includes(e.uid)).map(amount);
+  const pickedTotal = picked.reduce((a, b) => a + b, 0);
+  // Enough to pay, and no card more than needed (the engine's rule).
+  const ready = retreating && pickedTotal >= cost && !picked.some((a) => pickedTotal - a >= cost);
 
   /** Why the Retreat button is disabled; null when it can be used. */
   const blocked = !active
@@ -59,9 +64,10 @@ export function useRetreat({ view, send, busy }: { view: PlayerView; send: (a: G
       setRetreating(true);
     },
     cancel,
-    /** Picks or unpicks an energy to discard; picking past the cost drops the oldest pick. */
-    toggleEnergy: (uid: string) =>
-      setChosen((c) => (c.includes(uid) ? c.filter((u) => u !== uid) : [...c, uid].slice(-cost))),
+    /** Energy picked so far, out of the cost. */
+    pickedTotal,
+    /** Picks or unpicks an energy card to discard. */
+    toggleEnergy: (uid: string) => setChosen((c) => (c.includes(uid) ? c.filter((u) => u !== uid) : [...c, uid])),
     /** Click handler for a slot, when clicking it would switch that Pokémon in. */
     slotClick: (slot: SlotId) =>
       targets.has(slot) && !busy ? () => send({ type: 'RETREAT', slot: toTarget(slot) as number, energyUids: discard }) : undefined,
@@ -69,3 +75,15 @@ export function useRetreat({ view, send, busy }: { view: PlayerView; send: (a: G
 }
 
 export type Retreat = ReturnType<typeof useRetreat>;
+
+/** Cards to discard when there's no real choice: biggest first until the cost is paid (never more than needed). */
+function cheapestDiscard(energy: CardInstance[], cost: number, amount: (e: CardInstance) => number): string[] {
+  const out: string[] = [];
+  let paid = 0;
+  for (const e of [...energy].sort((a, b) => amount(b) - amount(a))) {
+    if (paid >= cost) break;
+    out.push(e.uid);
+    paid += amount(e);
+  }
+  return out;
+}

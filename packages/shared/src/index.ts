@@ -1,4 +1,4 @@
-import { MAX_BENCH, type AttackChoices, type GameAction } from '@poke-tcg/game-engine';
+import { MAX_BENCH, type AttackChoices, type GameAction, type PowerChoices } from '@poke-tcg/game-engine';
 import { z } from 'zod';
 
 /** Engine player ids for single-player games. */
@@ -20,6 +20,15 @@ const attackChoicesSchema = z.object({
   type: energyType.optional(),
 }) satisfies z.ZodType<AttackChoices>;
 
+/** Answers to a Pokémon Power's questions (see PowerChoices in the engine). */
+const powerChoicesSchema = z.object({
+  from: target.optional(),
+  to: target.optional(),
+  cardUid: z.string().optional(),
+  energyUid: z.string().optional(),
+  type: energyType.optional(),
+}) satisfies z.ZodType<PowerChoices>;
+
 /** Runtime validation for actions arriving from clients. Kept in sync with GameAction. */
 export const gameActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('SET_ACTIVE'), cardUid: z.string() }),
@@ -29,6 +38,7 @@ export const gameActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('ATTACK'), attackIndex: z.number().int().min(0), choices: attackChoicesSchema.optional() }),
   z.object({ type: z.literal('PROMOTE'), slot: benchSlot }),
   z.object({ type: z.literal('RETREAT'), slot: benchSlot, energyUids: z.array(z.string()).max(60) }),
+  z.object({ type: z.literal('USE_POWER'), source: target, choices: powerChoicesSchema.optional() }),
   z.object({ type: z.literal('END_TURN') }),
   z.object({ type: z.literal('CONCEDE') }),
 ]) satisfies z.ZodType<GameAction>;

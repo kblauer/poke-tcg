@@ -1,11 +1,11 @@
 // Attack resolution: legality, the choices an attack asks for, damage (weakness, resistance,
 // prevention) and the helpers card effects use. Card-specific behaviour lives in effects/.
 import { lookupCard, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
-import { attackEffect } from './effects/index.js';
+import { attackEffect, powerEffect } from './effects/index.js';
 import {
   canPayCost,
   conditionLabel,
-  energyPool,
+  energyProvided,
   type Affliction,
   type CardInstance,
   type GameState,
@@ -127,11 +127,7 @@ export function attackError(s: AttackSituation, attackIndex: number): string | n
   return effect?.blocked?.(s) ?? null;
 }
 
-const discardOptions = (s: AttackSituation, type?: EnergyType) =>
-  s.attacker.energy.filter((e) => {
-    const d = lookupCard(s.cards, e.defId);
-    return !type || (d.kind === 'energy' && d.energyType === type);
-  });
+const discardOptions = (s: AttackSituation, type?: EnergyType) => s.attacker.energy.filter((e) => !type || energyProvided(e, s.cards).type === type);
 
 export const typeName = (t: EnergyType) => t[0]!.toUpperCase() + t.slice(1);
 
@@ -342,6 +338,7 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
       defender.damage += damage;
       record(defender).damage += damage;
       log(`${defenderDef.name} took ${damage} damage.`, opp.id);
+      powerEffect(defender.card.defId)?.onAttackDamage?.(ctx, defender);
       if (defender.damage >= defenderDef.hp && active(effects?.destinyBond, turn)) {
         attacker.damage = Math.max(attacker.damage, attackerDef.hp);
         log(`Destiny Bond: ${attackerDef.name} is Knocked Out too.`, opp.id);
@@ -353,8 +350,13 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
       log(`${attackerDef.name} did ${amount} damage to itself.`);
     },
     benchDamage(player, amount) {
-      for (const p of player.bench) if (p) p.damage += amount;
-      if (player.bench.some(Boolean)) log(`${amount} damage to each benched Pokémon.`, player.id);
+      if (!player.bench.some(Boolean)) return;
+      log(`${amount} damage to each benched Pokémon.`, player.id);
+      for (const p of player.bench) {
+        if (!p) continue;
+        p.damage += amount;
+        if (player === opp) powerEffect(p.card.defId)?.onAttackDamage?.(ctx, p);
+      }
     },
     inflict(affliction) {
       const defender = opp.active!;

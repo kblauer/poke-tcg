@@ -1,6 +1,6 @@
-import { lookupCard, type CardDef, type CardLibrary, type InPlayPokemon } from '@poke-tcg/game-engine';
+import { energyProvided, lookupCard, type CardDef, type CardLibrary, type InPlayPokemon } from '@poke-tcg/game-engine';
 import { useContext } from 'react';
-import { typeColor } from '../utils/cardColors';
+import { energyColor, typeColor } from '../utils/cardColors';
 
 /** Badges for Special Conditions and protective effects on a Pokémon in play. */
 function statusBadges(p: InPlayPokemon): { label: string; title: string; className: string }[] {
@@ -52,8 +52,20 @@ export function Card({ def, inPlay, cards, small }: { def: CardDef; inPlay?: InP
       {inPlay && cards && inPlay.energy.length > 0 && (
         <div className="absolute bottom-1 left-1 flex flex-wrap gap-0.5">
           {inPlay.energy.map((e) => {
-            const energy = lookupCard(cards, e.defId);
-            return <span key={e.uid} title={energy.name} className={`${typeColor(energy)} h-3 w-3 rounded-full border border-white shadow`} />;
+            const { name } = lookupCard(cards, e.defId);
+            const { type, amount } = energyProvided(e, cards);
+            // A card providing more than 1 energy (Buzzap) is a bigger dot with its amount.
+            return amount > 1 ? (
+              <span
+                key={e.uid}
+                title={`${name} (${amount} ${type} energy)`}
+                className={`${energyColor(type)} flex h-4 w-4 items-center justify-center rounded-full border border-white text-[9px] font-bold text-white shadow`}
+              >
+                {amount}
+              </span>
+            ) : (
+              <span key={e.uid} title={name} className={`${energyColor(type)} h-3 w-3 rounded-full border border-white shadow`} />
+            );
           })}
         </div>
       )}

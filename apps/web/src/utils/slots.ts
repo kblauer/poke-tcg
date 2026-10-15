@@ -32,6 +32,11 @@ export function pendingSlot(action: GameAction | null): SlotId | null {
     case 'PROMOTE':
     case 'RETREAT':
       return benchSlotId(action.slot);
+    case 'USE_POWER': {
+      // The Pokémon receiving something (Rain Dance, Damage Swap…), else the one using the power.
+      const target = action.choices?.to ?? action.source;
+      return target === 'active' ? 'active' : benchSlotId(target);
+    }
     default:
       return null;
   }

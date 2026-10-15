@@ -52,6 +52,7 @@ Pages load data, set their own width and side padding, and hand data to componen
 | `CardBack.tsx` | A face-down card |
 | `CoinFlip.tsx` | Animated coin under the game log for each coin flip in a move's result, one after another |
 | `GameLog.tsx` | The game log (attacks, coin flips, Special Conditions, knockouts), beside the table on large screens |
+| `PowerPanel.tsx` | Pokémon Power buttons under the attacks (one per Pokémon in play with a power to use), or the current question while one is being used |
 | `RetreatPanel.tsx` | Retreat button under the attacks; while retreating, picks which energy to discard (when it matters) and prompts for a benched Pokémon |
 | `Hand.tsx` | Your hand |
 | `HandCard.tsx` | One draggable, clickable card in your hand |
@@ -70,6 +71,7 @@ Pages load data, set their own width and side padding, and hand data to componen
 |---|---|
 | `useCardPlay.ts` | Playing cards from the hand by click (select, then click a highlighted slot; Esc cancels) or drag and drop. Tracks the selected and dragged card and the "can't play" hint, and returns the highlighted slots, their label, click handlers and the `DndContext` props |
 | `useAttack.ts` | Using an attack: attacks straight away or asks its questions one at a time (via the engine's `nextAttackChoice`), and says why an attack can't be used (Esc cancels) |
+| `usePower.ts` | Using Pokémon Powers: lists your Pokémon's powers with why each can't be used, and asks a power's questions one at a time (Esc cancels) |
 | `useRetreat.ts` | Retreating the active: tracks the chosen energy, says why retreat is blocked, and returns the bench slots to switch in and their click handlers (Esc cancels) |
 
 ### `src/utils/`
@@ -116,12 +118,13 @@ Holo cards are those with `variants.holo` in their TCGdex data (the rarity alone
 | --- | --- |
 | `engine.ts` | State types and the `applyAction` reducer: setup, playing cards, retreat, turn flow (Pokémon Checkup between turns, knockouts, prizes, promotions) |
 | `attacks.ts` | Attack resolution: legality (`attackError`), the questions an attack asks (`nextAttackChoice`), weakness/resistance and prevention, and the context card effects run with |
-| `effects/` | Card-specific attack effects by card id and attack name (`base1.ts` for the Base Set), built from shared pieces in `common.ts` |
+| `powers.ts` | Pokémon Powers: legality (`powerError`), their questions (`nextPowerChoice`) and `usePower` |
+| `effects/` | Card-specific effects by card id: attacks (`base1.ts`, from shared pieces in `common.ts`) and Pokémon Powers (`base1-powers.ts`). `test-kit.ts` sets up duels for their tests |
 | `status.ts` | Game log, coin flips and clearing conditions when a Pokémon leaves the active spot |
 | `view.ts` | `getPlayerView`: what one player may see |
 | `cpu.ts` | The CPU opponent |
 
-Rules follow the 1999 Base Set rulebook. Special Conditions: Asleep (flip between turns to wake), Confused (flip to attack, tails = 20 damage to itself; flip to retreat), Paralyzed (until after its owner's next turn), Poisoned (10 between turns, 20 from Toxic). The checkup between turns handles them in order for both actives: Poisoned, Burned (not in the Base Set, not implemented yet), Asleep, Paralyzed. Where TCGdex's attack text differs from the printed card, the effect carries the printed wording and the API shows that instead.
+Rules follow the 1999 Base Set rulebook. Special Conditions: Asleep (flip between turns to wake), Confused (flip to attack, tails = 20 damage to itself; flip to retreat), Paralyzed (until after its owner's next turn), Poisoned (10 between turns, 20 from Toxic). The checkup between turns handles them in order for both actives: Poisoned, Burned (not in the Base Set, not implemented yet), Asleep, Paralyzed. Pokémon Powers stop working while their Pokémon is Asleep, Confused or Paralyzed. Dropping a Water Energy on a Water Pokémon uses Rain Dance when a Blastoise can, so it doesn't use up the turn's attachment. Where TCGdex's attack text differs from the printed card, the effect carries the printed wording and the API shows that instead.
 
 ## How a move works
 
@@ -183,7 +186,7 @@ Use the printed DB URL for both `DATABASE_URL` and `DIRECT_URL`, `http://127.0.0
 
 ## Next steps
 
-- Pokémon Powers (Base Set: Damage Swap, Rain Dance, Energy Burn, Strikes Back, Energy Trans, Buzzap), Trainers, and attack effects for sets after the Base Set.
+- Trainers, and attack and Pokémon Power effects for sets after the Base Set.
 - Ask the player to choose when an opponent's attack makes them pick (Whirlwind currently brings in their first benched Pokémon).
 - Deck builder backed by `Deck` and `DeckCard`.
 - A CPU that attacks and plays strategically (the `decide` function passed to `runCpu`).

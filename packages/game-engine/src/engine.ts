@@ -1,5 +1,6 @@
 /// <reference path="./globals.d.ts" />
 import { performAttack, type AttackChoices } from './attacks.js';
+import { usePower, type PowerChoices } from './powers.js';
 import { isBasicPokemon, lookupCard, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { addLog, clearOnLeavingActive, flipCoin, pokemonName, type LogEntry } from './status.js';
 import { shuffle } from './rng.js';
@@ -10,6 +11,8 @@ export interface CardInstance {
   /** Unique within a game, e.g. "p1-17". */
   uid: string;
   defId: string;
+  /** Set on a non-Energy card attached as Energy (Buzzap): the energy it provides. */
+  provides?: { type: EnergyType; amount: number };
 }
 
 /** Asleep, Confused and Paralyzed replace each other; Poison is tracked separately (InPlayPokemon.poison). */
@@ -40,6 +43,8 @@ export interface PokemonEffects {
   weakness?: EnergyType;
   /** Resistance type changed by Conversion 2. */
   resistance?: EnergyType;
+  /** All its energy is Fire this turn (Energy Burn). */
+  energyBurn?: number;
   /** Leek Slap can't be used again while it stays in play. */
   leekSlapUsed?: boolean;
   /** What the opponent's last attack on it did, for Mirror Move. */
@@ -94,6 +99,8 @@ export interface GameState {
   winner: PlayerId | null;
   /** Definitions of every card in both decks, so the engine needs no external lookups. */
   cards: CardLibrary;
+  /** A Pokémon Power knocked out the current player's active mid-turn; after promoting, the turn goes on. */
+  midTurnPromotion?: boolean;
   /** What happened, oldest first: attacks, coin flips, knockouts… (last LOG_SIZE entries). Missing in older games. */
   log?: LogEntry[];
 }
@@ -108,6 +115,8 @@ export type GameAction =
   /** `choices` answers the attack's questions (energy to discard, a target…); see attackChoice(). */
   | { type: 'ATTACK'; attackIndex: number; choices?: AttackChoices }
   | { type: 'PROMOTE'; slot: number }
+  /** Use the Pokémon Power of the Pokémon at `source`; `choices` answers its questions (see nextPowerChoice). */
+  | { type: 'USE_POWER'; source: Target; choices?: PowerChoices }
   /** Swap the active with a benched Pokémon, discarding `energyUids` from the active to pay the retreat cost. */
   | { type: 'RETREAT'; slot: number; energyUids: string[] }
   | { type: 'END_TURN' }
@@ -281,7 +290,10 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       if (uids.size !== action.energyUids.length || !action.energyUids.every((uid) => me.active!.energy.some((e) => e.uid === uid))) {
         return fail('Discard energy attached to your active Pokémon');
       }
-      if (uids.size !== cost) return fail(`Retreating costs ${cost} energy`);
+      // Enough energy to pay, and no card more than needed (a card worth 2 can pay a cost of 1).
+      const amounts = me.active.energy.filter((e) => uids.has(e.uid)).map((e) => energyProvided(e, state.cards).amount);
+      const total = amounts.reduce((a, b) => a + b, 0);
+      if (total < cost || amounts.some((a) => total - a >= cost)) return fail(`Retreating costs ${cost} energy`);
       me.discard.push(...me.active.energy.filter((e) => uids.has(e.uid)));
       me.active.energy = me.active.energy.filter((e) => !uids.has(e.uid));
       state.retreatedThisTurn = true;
@@ -298,6 +310,21 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       clearOnLeavingActive(me.active);
       me.bench[action.slot] = me.active;
       me.active = benched;
+      return ok(state);
+    }
+
+    case 'USE_POWER': {
+      if (action.source !== 'active' && !isBenchSlot(action.source)) return fail('Invalid Pokémon');
+      const error = usePower(state, me, opp, action.source, action.choices ?? {});
+      if (error) return fail(error);
+      // Buzzap knocks out its own Pokémon: the opponent takes a prize and the active may need replacing.
+      const winner = resolveKnockouts(state, opp.id);
+      if (winner) return finish(state, winner);
+      if (!me.active) {
+        state.phase = 'promote';
+        state.pendingPromotion = me.id;
+        state.midTurnPromotion = true;
+      }
       return ok(state);
     }
 
@@ -343,18 +370,27 @@ export function retreatError(active: InPlayPokemon, cards: CardLibrary, hasBench
   }
   if (!hasBench) return 'No benched Pokémon to switch in';
   const cost = retreatCost(active, cards);
-  if (active.energy.length < cost) return `Retreating costs ${cost} energy`;
+  if (energyPool(active, cards).length < cost) return `Retreating costs ${cost} energy`;
   return null;
 }
 
 export const conditionLabel = (c: SpecialCondition) => ({ asleep: 'Asleep', confused: 'Confused', paralyzed: 'Paralyzed' })[c];
 
-/** The energy types each attached card provides (basic energy only for now). */
-export const energyPool = (pokemon: InPlayPokemon, cards: CardLibrary): EnergyType[] =>
-  pokemon.energy.map((e) => {
-    const def = lookupCard(cards, e.defId);
-    return def.kind === 'energy' ? def.energyType : 'colorless';
+/** The type and amount of energy an attached card provides: 1 of its type for basic Energy, or what a power made it (Buzzap). */
+export function energyProvided(card: CardInstance, cards: CardLibrary): { type: EnergyType; amount: number } {
+  if (card.provides) return card.provides;
+  const def = lookupCard(cards, card.defId);
+  return { type: def.kind === 'energy' ? def.energyType : 'colorless', amount: 1 };
+}
+
+/** Every energy the Pokémon's attached cards provide, one entry per energy. Energy Burn makes it all Fire. */
+export const energyPool = (pokemon: InPlayPokemon, cards: CardLibrary): EnergyType[] => {
+  const pool = pokemon.energy.flatMap((e) => {
+    const { type, amount } = energyProvided(e, cards);
+    return Array<EnergyType>(amount).fill(type);
   });
+  return pokemon.effects?.energyBurn !== undefined ? pool.map(() => 'fire') : pool;
+};
 
 export function canPayCost(pokemon: InPlayPokemon, attack: Attack, cards: CardLibrary): boolean {
   const pool = energyPool(pokemon, cards);
@@ -390,6 +426,10 @@ function promoteOrBeginTurn(state: GameState): ActionResult {
     return ok(state);
   }
   state.phase = 'playing';
+  if (state.midTurnPromotion) {
+    delete state.midTurnPromotion;
+    return ok(state);
+  }
   return beginNextTurn(state);
 }
 
@@ -442,7 +482,7 @@ function betweenTurns(state: GameState) {
 function expireEffects(pokemon: InPlayPokemon, turn: number) {
   const e = pokemon.effects;
   if (!e) return;
-  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack'] as const) {
+  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'energyBurn'] as const) {
     if (e[key] !== undefined && e[key] <= turn) delete e[key];
   }
   if (e.amnesia && e.amnesia.until <= turn) delete e.amnesia;

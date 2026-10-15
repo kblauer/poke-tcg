@@ -48,7 +48,7 @@ export function useCardPlay({
   function play(cardUid: string, slot: SlotId) {
     const card = hand.find((c) => c.uid === cardUid);
     if (!card || !targetsFor(view, card).includes(slot)) return;
-    send(playAction(lookupCard(view.cards, card.defId), cardUid, slot));
+    send(playAction(view, card, slot));
     setSelected(null);
     setHint(null);
   }
