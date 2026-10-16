@@ -18,7 +18,8 @@ import { GameLog } from './GameLog';
 import { Hand } from './Hand';
 import { OpponentArea } from './OpponentArea';
 import { PendingChoicePanel } from './PendingChoicePanel';
-import { PowerPanel } from './PowerPanel';
+import { PlayArea } from './PlayArea';
+import { BenchPowerButton, PowerPanel } from './PowerPanel';
 import { PreviewContext, type Preview } from './PreviewContext';
 import { PrizeCards } from './PrizeCards';
 import { RetreatPanel } from './RetreatPanel';
@@ -68,7 +69,10 @@ export function Board({
       power.cancel();
       trainer.cancel();
     },
+    onDropOnPlayArea: (c) => trainer.isTrainer(c) && trainer.drop(c),
   });
+  /** A Trainer card is being dragged: the whole play area is its drop target. */
+  const draggingTrainer = dragging !== null && heldCard !== undefined && trainer.isTrainer(heldCard);
 
   // A hovered card can disappear without a mouseleave (played, knocked out), so reset on every update.
   useEffect(() => setPreview(null), [view.version]);
@@ -80,25 +84,64 @@ export function Board({
 
   const busySlot = pendingSlot(pending);
 
+  /** An attack, power or Trainer asking for a Pokémon in play: it's chosen by clicking the Pokémon. */
+  const pokemonPick: { side: 'own' | 'opp'; options: Target[]; pick: (t: Target) => void } | null =
+    attack.spec?.kind === 'opponentBench'
+      ? { side: 'opp', options: attack.spec.options, pick: attack.answer }
+      : power.spec?.kind === 'ownPokemon'
+        ? { side: 'own', options: power.spec.options, pick: power.answer }
+        : trainer.spec?.kind === 'pokemon' && trainer.card && !trainer.error(trainer.card)
+          ? { side: trainer.spec.side, options: trainer.spec.options, pick: trainer.answer }
+          : null;
+
   const playerSlot = (id: SlotId, pokemon: InPlayPokemon | null) => {
     const switchIn = retreat.targets.has(id);
-    const isTarget = highlighted.has(id) || switchIn;
+    const choosable = pokemonPick?.side === 'own' && pokemonPick.options.includes(toTarget(id));
+    const isTarget = highlighted.has(id) || switchIn || choosable;
     const canPromote = promoting && id !== 'active' && pokemon !== null;
-    return (
+    const target = toTarget(id);
+    // A benched Pokémon with a power is clicked to show its Activate button.
+    const hasPower = myTurn && typeof target === 'number' && power.powers.some((p) => p.source === target);
+    const powerSelected = typeof target === 'number' && (power.selected === target || power.usingSource === target);
+    const slot = (
       <Slot
         key={id}
         id={id}
         pokemon={pokemon}
         cards={view.cards}
         large={id === 'active'}
-        droppable={isTarget && !busy}
-        highlight={isTarget ? 'target' : canPromote ? 'promote' : null}
-        label={switchIn ? 'Switch' : isTarget ? heldLabel : canPromote ? 'Promote' : null}
-        // While a card is held or retreating, fade the Pokémon it can't go to so the targets stand out.
-        dimmed={(heldCard !== undefined || retreat.ready) && pokemon !== null && !isTarget}
+        droppable={(highlighted.has(id) || switchIn) && !busy}
+        highlight={isTarget ? 'target' : canPromote ? 'promote' : powerSelected ? 'power' : null}
+        label={choosable ? 'Choose' : switchIn ? 'Switch' : isTarget ? heldLabel : canPromote ? 'Promote' : null}
+        // While a card is held, retreating or a Pokémon is being chosen, fade the ones that can't be picked so the targets stand out.
+        dimmed={((heldCard !== undefined && !draggingTrainer) || retreat.ready || pokemonPick !== null) && pokemon !== null && !isTarget}
         loading={busySlot === id}
-        onClick={busy ? undefined : (slotClick(id) ?? retreat.slotClick(id) ?? (canPromote ? () => send({ type: 'PROMOTE', slot: toTarget(id) as number }) : undefined))}
+        onClick={
+          busy
+            ? undefined
+            : choosable
+              ? () => pokemonPick!.pick(target)
+              : pokemonPick
+                ? undefined
+                : (slotClick(id) ??
+              retreat.slotClick(id) ??
+              (canPromote ? () => send({ type: 'PROMOTE', slot: target as number }) : undefined) ??
+              (hasPower && !heldCard && !retreat.ready
+                ? () => {
+                    const wasSelected = power.selected === target;
+                    cancelAll();
+                    if (!wasSelected) power.select(target as number);
+                  }
+                : undefined))
+        }
       />
+    );
+    if (typeof target !== 'number') return slot;
+    return (
+      <div key={id} className="relative">
+        {slot}
+        {power.selected === target && <BenchPowerButton power={power} slot={target} busy={busy} />}
+      </div>
     );
   };
 
@@ -179,21 +222,23 @@ export function Board({
             <StatusBar status={statusText(view)} hint={hint} canEndTurn={myTurn} canConcede={phase !== 'finished'} pending={pending} send={send} />
             {error && <p className="text-sm text-red-400">{error}</p>}
 
-            <OpponentArea opponent={view.opponent} cards={view.cards} />
+            <PlayArea droppable={draggingTrainer && !busy}>
+              <OpponentArea opponent={view.opponent} cards={view.cards} pick={pokemonPick?.side === 'opp' && !busy ? pokemonPick : null} />
 
-            {/* Prize cards on the left of the play area; discard pile and deck on the right. */}
-            <section className="flex gap-3 rounded-lg bg-slate-900 p-3">
-              <PrizeCards count={self.prizeCount} />
-              <div className="min-w-0 flex-1 space-y-3">
-                <div className="relative flex justify-center">
-                  {playerSlot('active', self.active)}
-                  {attacks}
+              {/* Prize cards on the left of the play area; discard pile and deck on the right. */}
+              <section className="flex gap-3 rounded-lg bg-slate-900 p-3">
+                <PrizeCards count={self.prizeCount} />
+                <div className="min-w-0 flex-1 space-y-3">
+                  <div className="relative flex justify-center">
+                    {playerSlot('active', self.active)}
+                    {attacks}
+                  </div>
+                  <div className="flex justify-center gap-2">{self.bench.map((p, i) => playerSlot(benchSlotId(i), p))}</div>
+                  <h3 className="text-center text-sm text-slate-400">You</h3>
                 </div>
-                <div className="flex justify-center gap-2">{self.bench.map((p, i) => playerSlot(benchSlotId(i), p))}</div>
-                <h3 className="text-center text-sm text-slate-400">You</h3>
-              </div>
-              <DeckAndDiscard deckCount={self.deckCount} discard={self.discard} cards={view.cards} />
-            </section>
+                <DeckAndDiscard deckCount={self.deckCount} discard={self.discard} cards={view.cards} />
+              </section>
+            </PlayArea>
 
             <PendingChoicePanel view={view} send={send} busy={busy} />
             <TrainerPanel view={view} trainer={trainer} />
@@ -202,7 +247,8 @@ export function Board({
               cards={view.cards}
               selected={selected ?? trainer.card?.uid ?? null}
               pending={pending}
-              canPlay={canPlay}
+              // Trainers are dragged onto the play area when they can be played.
+              canPlay={(c) => (trainer.isTrainer(c) ? trainer.error(c) === null : canPlay(c))}
               onCardClick={(c) => {
                 const wasTrainer = trainer.card?.uid === c.uid;
                 attack.cancel();

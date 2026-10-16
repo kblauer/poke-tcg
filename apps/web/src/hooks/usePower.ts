@@ -17,13 +17,19 @@ import { isMyTurn } from '../utils/turn';
 
 /**
  * Using Pokémon Powers: lists the powers of the player's Pokémon in play, and runs one by asking
- * its questions one at a time (like useAttack). Esc cancels.
+ * its questions one at a time (like useAttack). The active's power is a button under its attacks;
+ * a benched Pokémon's is used by clicking the Pokémon, then its Activate button. Esc cancels.
  */
 export function usePower({ view, send, busy }: { view: PlayerView; send: (a: GameAction) => void; busy: boolean }) {
   const [using, setUsing] = useState<{ source: Target; choices: PowerChoices } | null>(null);
+  /** Benched Pokémon clicked to show its Activate button. */
+  const [selected, setSelected] = useState<number | null>(null);
   const situation = (source: Target): PowerSituation => ({ me: view.self, source, cards: view.cards, turn: view.turn });
 
-  const cancel = () => setUsing(null);
+  const cancel = () => {
+    setUsing(null);
+    setSelected(null);
+  };
   useEffect(cancel, [view.version]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && cancel();
@@ -54,8 +60,14 @@ export function usePower({ view, send, busy }: { view: PlayerView; send: (a: Gam
     usingSource: spec ? using!.source : null,
     spec,
     start: (source: Target) => {
-      if (!busy) proceed(source, {});
+      if (busy) return;
+      setSelected(null);
+      proceed(source, {});
     },
+    /** The benched Pokémon whose Activate button is shown. */
+    selected,
+    /** Shows (or, clicked again, hides) the Activate button of a benched Pokémon with a power. */
+    select: (slot: number) => setSelected((s) => (s === slot ? null : slot)),
     answer: (value: PowerChoices[keyof PowerChoices]) => {
       if (using && spec) proceed(using.source, { ...using.choices, [spec.field]: value });
     },

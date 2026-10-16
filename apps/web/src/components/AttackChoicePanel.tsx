@@ -4,6 +4,8 @@ import type { AttackControl } from '../hooks/useAttack';
 import { typeColor } from '../utils/cardColors';
 
 const option = 'rounded bg-slate-700 px-2 py-1 text-left text-xs transition hover:bg-slate-600 active:scale-95';
+/** Shown instead of buttons when the answer is a Pokémon in play, which is clicked on the board. */
+export const pickHint = 'text-emerald-300';
 
 /** Asks the current question of the attack being used, e.g. which energy to discard. */
 export function AttackChoicePanel({ spec, view, attack }: { spec: ChoiceSpec; view: PlayerView; attack: AttackControl }) {
@@ -19,16 +21,7 @@ export function AttackChoicePanel({ spec, view, attack }: { spec: ChoiceSpec; vi
               {lookupCard(cards, e.defId).name}
             </button>
           ))}
-        {spec.kind === 'opponentBench' &&
-          spec.options.map((slot) => {
-            const p = opponent.bench[slot]!;
-            const def = lookupCard(cards, p.card.defId) as PokemonCardDef;
-            return (
-              <button key={slot} className={option} onClick={() => attack.answer(slot)}>
-                {def.name} ({def.hp - p.damage}/{def.hp} HP)
-              </button>
-            );
-          })}
+        {spec.kind === 'opponentBench' && <p className={pickHint}>Click one of the CPU's highlighted Benched Pokémon.</p>}
         {(spec.kind === 'defenderAttack' || spec.kind === 'copyAttack') &&
           spec.options.map((i) => {
             const a = (lookupCard(cards, opponent.active!.card.defId) as PokemonCardDef).attacks[i]!;

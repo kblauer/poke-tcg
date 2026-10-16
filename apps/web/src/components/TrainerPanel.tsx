@@ -1,6 +1,7 @@
-import { lookupCard, type CardInstance, type PlayerView, type PokemonCardDef, type Target, type TrainerChoiceSpec } from '@poke-tcg/game-engine';
+import { lookupCard, type CardInstance, type PlayerView, type TrainerChoiceSpec } from '@poke-tcg/game-engine';
 import { useState } from 'react';
 import type { TrainerControl } from '../hooks/useTrainer';
+import { pickHint } from './AttackChoicePanel';
 import { Card } from './Card';
 
 const option = 'rounded bg-slate-700 px-2 py-1 text-left text-xs transition hover:bg-slate-600 active:scale-95 disabled:opacity-40';
@@ -37,24 +38,10 @@ export function TrainerPanel({ view, trainer }: { view: PlayerView; trainer: Tra
 }
 
 function Question({ spec, view, onAnswer }: { spec: TrainerChoiceSpec; view: PlayerView; onAnswer: TrainerControl['answer'] }) {
-  const pokemonName = (side: 'own' | 'opp', t: Target) => {
-    const owner = side === 'own' ? view.self : view.opponent;
-    const p = (t === 'active' ? owner.active : owner.bench[t])!;
-    const def = lookupCard(view.cards, p.card.defId) as PokemonCardDef;
-    return `${def.name} (${t === 'active' ? 'active' : `bench ${t + 1}`}, ${def.hp - p.damage}/${def.hp} HP)`;
-  };
   return (
     <div className="space-y-1">
       <p className="text-slate-300">{spec.prompt}:</p>
-      {spec.kind === 'pokemon' && (
-        <div className="flex flex-wrap gap-1">
-          {spec.options.map((t) => (
-            <button key={String(t)} className={option} onClick={() => onAnswer(t)}>
-              {pokemonName(spec.side, t)}
-            </button>
-          ))}
-        </div>
-      )}
+      {spec.kind === 'pokemon' && <p className={pickHint}>Click {spec.side === 'own' ? 'one of your' : "one of the CPU's"} highlighted Pokémon.</p>}
       {spec.kind === 'stage' && (
         <div className="flex gap-1">
           {spec.options.map((st) => (

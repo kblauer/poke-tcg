@@ -13,7 +13,8 @@ import { isMyTurn } from '../utils/turn';
 
 /**
  * Playing a Trainer card: clicking it in the hand opens its questions (cards to discard, a target…)
- * one at a time, then a Play button confirms. Esc cancels.
+ * one at a time, then a Play button confirms. Esc cancels. Dropping it on the play area plays it
+ * at once when it has no questions.
  */
 export function useTrainer({ view, send, busy }: { view: PlayerView; send: (a: GameAction) => void; busy: boolean }) {
   const [playing, setPlaying] = useState<{ cardUid: string; choices: TrainerChoices } | null>(null);
@@ -51,6 +52,12 @@ export function useTrainer({ view, send, busy }: { view: PlayerView; send: (a: G
     start(card: CardInstance) {
       if (busy) return;
       setPlaying(playing?.cardUid === card.uid ? null : { cardUid: card.uid, choices: {} });
+    },
+    /** Dropped on the play area: plays it straight away, or opens its questions if it has any. */
+    drop(card: CardInstance) {
+      if (busy || error(card)) return;
+      if (nextTrainerChoice(situation(card), {})) setPlaying({ cardUid: card.uid, choices: {} });
+      else send({ type: 'PLAY_TRAINER', cardUid: card.uid, choices: {} });
     },
     answer(value: TrainerChoices[keyof TrainerChoices]) {
       if (playing && spec) setPlaying({ ...playing, choices: { ...playing.choices, [spec.field]: value } });

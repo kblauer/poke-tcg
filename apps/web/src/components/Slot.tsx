@@ -24,7 +24,8 @@ export function Slot({
   cards: CardLibrary;
   large?: boolean;
   droppable?: boolean;
-  highlight?: 'target' | 'promote' | null;
+  /** target: a held card can go here; promote: can be promoted; power: its Pokémon Power is selected. */
+  highlight?: 'target' | 'promote' | 'power' | null;
   /** Short call-to-action shown on the slot, e.g. "Evolve". */
   label?: string | null;
   dimmed?: boolean;
@@ -41,6 +42,8 @@ export function Slot({
         ? '-translate-y-1 ring-4 ring-emerald-400 shadow-[0_0_18px_3px_rgba(52,211,153,0.6)]'
         : highlight === 'promote'
           ? '-translate-y-1 ring-4 ring-yellow-400 shadow-[0_0_18px_3px_rgba(250,204,21,0.6)]'
+          : highlight === 'power'
+            ? '-translate-y-1 ring-4 ring-violet-400 shadow-[0_0_18px_3px_rgba(167,139,250,0.6)]'
           : dimmed
             ? 'opacity-40'
             : '';
@@ -58,7 +61,7 @@ export function Slot({
       {pokemon && highlight && (
         <div
           className={`pointer-events-none absolute inset-x-0 bottom-0 h-1/3 rounded-b-lg bg-gradient-to-t to-transparent ${
-            highlight === 'target' ? 'from-emerald-500/80' : 'from-yellow-400/70'
+            highlight === 'target' ? 'from-emerald-500/80' : highlight === 'power' ? 'from-violet-500/70' : 'from-yellow-400/70'
           }`}
         />
       )}

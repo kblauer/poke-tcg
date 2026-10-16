@@ -1,18 +1,21 @@
 import { PointerSensor, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core';
 import { lookupCard, type CardInstance, type GameAction, type PlayerView } from '@poke-tcg/game-engine';
 import { useEffect, useState } from 'react';
+import { PLAY_AREA } from '../components/PlayArea';
 import type { SlotId } from '../utils/slots';
 import { playAction, targetLabel, targetsFor, whyNoTargets } from '../utils/targets';
 
 /**
  * Playing cards from the hand, by click (select a card, then a highlighted slot; Esc cancels)
- * or by drag and drop. Spread `dnd` onto the DndContext.
+ * or by drag and drop. Trainer cards are dropped anywhere on the play area (see onDropOnPlayArea).
+ * Spread `dnd` onto the DndContext.
  */
 export function useCardPlay({
   view,
   send,
   busy,
   onDragStart,
+  onDropOnPlayArea,
 }: {
   view: PlayerView;
   send: (a: GameAction) => void;
@@ -20,6 +23,8 @@ export function useCardPlay({
   busy: boolean;
   /** Called when a drag begins, e.g. to hide the hover preview. */
   onDragStart?: () => void;
+  /** Called when a card is dropped anywhere on the play area (a Trainer card being played). */
+  onDropOnPlayArea?: (card: CardInstance) => void;
 }) {
   const { hand } = view.self;
   /** Hand card picked by clicking; its valid slots are highlighted until a slot is clicked. */
@@ -74,7 +79,10 @@ export function useCardPlay({
     },
     onDragEnd: ({ active, over }: DragEndEvent) => {
       setDragging(null);
-      if (over) play(String(active.id), over.id as SlotId);
+      if (over?.id === PLAY_AREA) {
+        const card = hand.find((c) => c.uid === active.id);
+        if (card) onDropOnPlayArea?.(card);
+      } else if (over) play(String(active.id), over.id as SlotId);
     },
     onDragCancel: () => setDragging(null),
   };

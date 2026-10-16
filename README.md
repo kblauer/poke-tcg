@@ -44,21 +44,22 @@ Pages load data, set their own width and side padding, and hand data to componen
 |---|---|
 | `Board.tsx` | The game table. Gets card play from `useCardPlay`, holds the hover preview, and lays out the components below |
 | `StatusBar.tsx` | Status text, hint, and the End turn / Concede buttons |
-| `OpponentArea.tsx` | The CPU's bench, active and hand/deck/prize counts |
+| `OpponentArea.tsx` | The CPU's bench, active and hand/deck/prize counts. When an effect asks for one of the CPU's Pokémon, the choices are highlighted and clicked |
 | `AttackList.tsx` | Attack buttons beside your active Pokémon, with damage after the defender's weakness and resistance (variable damage like "30+" is shown as printed); attacks it can't use are disabled with the reason as a tooltip |
-| `AttackChoicePanel.tsx` | Asks the current question of an attack being used: energy to discard, an opponent's benched Pokémon, a defender's energy or attack, or a type |
+| `AttackChoicePanel.tsx` | Asks the current question of an attack being used: energy to discard, a defender's energy or attack, or a type |
 | `PrizeCards.tsx` | Prize cards face down in 2 columns of 3 with overlapping rows (like the card list), left of your play area and right of the CPU's |
 | `DeckAndDiscard.tsx` | A player's deck (face down) and discard pile (top card face up) with counts, in a column beside each play area (discard above deck on your right; mirrored both ways on the CPU's left) |
 | `CardBack.tsx` | A face-down card |
 | `CoinFlip.tsx` | Animated coin under the game log for each coin flip in a move's result, one after another |
 | `GameLog.tsx` | The game log (attacks, coin flips, Special Conditions, knockouts), beside the table on large screens |
-| `PowerPanel.tsx` | Pokémon Power buttons under the attacks (one per Pokémon in play with a power to use), or the current question while one is being used |
+| `PowerPanel.tsx` | The active Pokémon's Power button under its attacks, or the current question while any power is being used. `BenchPowerButton` is the Activate button that appears under a benched Pokémon with a power when you click it |
 | `TrainerPanel.tsx` | The Trainer card being played (above the hand): its text, its questions one at a time, then a Play button |
 | `PendingChoicePanel.tsx` | Finishing a search from a Trainer: take a card from your deck (Computer Search, Pokémon Trader) or reorder its top cards (Pokédex). Only you see these cards |
 | `RetreatPanel.tsx` | Retreat button under the attacks; while retreating, picks which energy to discard (when it matters) and prompts for a benched Pokémon |
 | `Hand.tsx` | Your hand |
 | `HandCard.tsx` | One draggable, clickable card in your hand |
-| `Slot.tsx` | An active or bench slot: drop target, highlight ring, tint band and "Play"/"Attach"/"Evolve"/"Promote" label |
+| `PlayArea.tsx` | Both sides of the table; while a Trainer card is dragged it lights up and dropping the card anywhere on it plays it |
+| `Slot.tsx` | An active or bench slot: drop target, highlight ring, tint band and "Play"/"Attach"/"Evolve"/"Promote"/"Choose" label. Any attack, power or Trainer that asks for a Pokémon in play is answered by clicking a highlighted slot (`pokemonPick` in `Board.tsx`), not a button |
 | `Card.tsx` | Card art with damage, attached-energy, Special Condition and protection overlays; opens the hover preview |
 | `CardPreview.tsx` | The large card preview that follows the cursor and resizes with the mouse wheel |
 | `PreviewContext.ts` | Context that lets any card show or hide the hover preview |
@@ -71,10 +72,10 @@ Pages load data, set their own width and side padding, and hand data to componen
 
 | File | Description |
 |---|---|
-| `useCardPlay.ts` | Playing cards from the hand by click (select, then click a highlighted slot; Esc cancels) or drag and drop. Tracks the selected and dragged card and the "can't play" hint, and returns the highlighted slots, their label, click handlers and the `DndContext` props |
+| `useCardPlay.ts` | Playing cards from the hand by click (select, then click a highlighted slot; Esc cancels) or drag and drop (Trainers onto anywhere in the play area). Tracks the selected and dragged card and the "can't play" hint, and returns the highlighted slots, their label, click handlers and the `DndContext` props |
 | `useAttack.ts` | Using an attack: attacks straight away or asks its questions one at a time (via the engine's `nextAttackChoice`), and says why an attack can't be used (Esc cancels) |
-| `usePower.ts` | Using Pokémon Powers: lists your Pokémon's powers with why each can't be used, and asks a power's questions one at a time (Esc cancels) |
-| `useTrainer.ts` | Playing a Trainer from the hand: says why it can't be played, asks its questions, and plays it once confirmed (Esc cancels) |
+| `usePower.ts` | Using Pokémon Powers: lists your Pokémon's powers with why each can't be used, tracks the benched Pokémon clicked to show its Activate button, and asks a power's questions one at a time (Esc cancels) |
+| `useTrainer.ts` | Playing a Trainer from the hand: says why it can't be played, asks its questions, and plays it once confirmed (Esc cancels). Dropped on the play area, a Trainer with no questions is played at once |
 | `useRetreat.ts` | Retreating the active: tracks the chosen energy, says why retreat is blocked, and returns the bench slots to switch in and their click handlers (Esc cancels) |
 
 ### `src/utils/`
