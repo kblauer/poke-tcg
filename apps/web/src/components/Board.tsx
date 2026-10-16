@@ -297,15 +297,21 @@ export function Board({
         */}
         <div ref={tableRef} className={`-mb-4 -mt-6 flex ${busy ? 'cursor-progress' : ''}`} style={{ height: `calc(100dvh - ${tableTop}px)` }}>
           {/* Clips the hand cards where they run past the bottom of the window. */}
-          <div className={`flex min-w-0 flex-1 flex-col gap-3 overflow-hidden pt-6 ${PAGE_WIDTH}`}>
+          <div className={`relative flex min-w-0 flex-1 flex-col gap-3 overflow-hidden pt-6 ${PAGE_WIDTH}`}>
+            {/*
+              Searching the deck: a big dialog in the middle of the table, as wide as its cards need. It sits here, beside
+              the PlayArea rather than in it (its container-type would trap the dialog), and not in the window, which
+              also holds the game log.
+            */}
+            {self.pendingChoice && (
+              <FloatingDialog clickThrough={false} className="absolute left-1/2 top-1/2 z-[1000] w-fit max-w-[min(56rem,90%)] -translate-x-1/2 -translate-y-1/2">
+                <PendingChoicePanel view={view} send={send} busy={busy} />
+              </FloatingDialog>
+            )}
 
             <PlayArea
               droppable={draggingTrainer && !busy}
-              drop={
-                dragging && heldCard
-                  ? { over: dropTarget !== null, label: draggingTrainer ? 'Drop to play' : `Drop to ${(heldLabel ?? 'play').toLowerCase()}` }
-                  : null
-              }
+              drop={dragging && heldCard ? { over: dropTarget !== null } : null}
             >
               <OpponentArea
                 opponent={view.opponent}
@@ -380,13 +386,6 @@ export function Board({
           </div>
           <LogDrawer log={view.log} you={view.you} debug={debugEnabled ? { gameId, view } : undefined} />
         </div>
-
-        {/* Searching the deck: a big dialog in the middle of the screen (outside the table, which would contain it). */}
-        {self.pendingChoice && (
-          <FloatingDialog clickThrough={false} className="fixed left-1/2 top-1/2 z-[1000] w-[min(56rem,90vw)] -translate-x-1/2 -translate-y-1/2">
-            <PendingChoicePanel view={view} send={send} busy={busy} />
-          </FloatingDialog>
-        )}
 
         <DragOverlay dropAnimation={null} modifiers={[centerOnPointer]}>
           {dragging && heldCard ? (

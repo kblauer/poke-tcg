@@ -8,8 +8,7 @@ export const PLAY_AREA = 'play-area';
  * Both sides of the table, filling the space the page gives it; the cards scale to fit (see
  * `.play-area-cards` in index.css). While a Trainer card is dragged, dropping it anywhere here plays it;
  * the table glows green while it's over it. Any dragged card (a Trainer, or an Energy or Pokémon for a
- * slot) that isn't over somewhere it can go turns the table red: letting go there plays nothing. Over a
- * slot, a label says what dropping does (e.g. "Drop to attach").
+ * slot) that isn't over somewhere it can go turns the table red: letting go there plays nothing.
  */
 export function PlayArea({
   droppable,
@@ -18,8 +17,8 @@ export function PlayArea({
 }: {
   /** A Trainer is being dragged: the whole table is its drop target. */
   droppable: boolean;
-  /** While any card is dragged: whether letting go now plays it (and how, e.g. "Drop to attach") or cancels it. */
-  drop: { over: boolean; label: string } | null;
+  /** While any card is dragged: whether letting go now plays it or cancels it. */
+  drop: { over: boolean } | null;
   children: ReactNode;
 }) {
   const { setNodeRef } = useDroppable({ id: PLAY_AREA, disabled: !droppable });
@@ -29,12 +28,6 @@ export function PlayArea({
   return (
     <div ref={setNodeRef} className={`relative min-h-0 flex-1 rounded-lg transition [container-type:size] ${ring}`}>
       <div className="play-area-cards flex h-full flex-col gap-3">{children}</div>
-      {/* The whole table's green or red glow speaks for itself; a label only says what dropping on a slot will do. */}
-      {drop && isOver && !droppable && (
-        <span className="pointer-events-none absolute left-1/2 top-1/2 z-30 -translate-x-1/2 -translate-y-1/2 rounded bg-emerald-500 px-3 py-1 text-sm font-semibold text-white shadow">
-          {drop.label}
-        </span>
-      )}
     </div>
   );
 }

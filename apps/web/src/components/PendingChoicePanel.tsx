@@ -1,3 +1,8 @@
+import { closestCenter, DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { arrayMove, rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import { lookupCard, type GameAction, type PendingChoiceView, type PlayerView } from '@poke-tcg/game-engine';
 import { useContext, useState } from 'react';
 import { Card } from './Card';
@@ -42,32 +47,28 @@ function PickFromDeck({ choice, view, send, busy }: { choice: Extract<PendingCho
   );
 }
 
+type ArrangeCard = Extract<PendingChoiceView, { kind: 'arrangeTop' }>['cards'][number];
+
 function ArrangeTop({ choice, view, send, busy }: { choice: Extract<PendingChoiceView, { kind: 'arrangeTop' }>; view: PlayerView; send: (a: GameAction) => void; busy: boolean }) {
   const [order, setOrder] = useState(choice.cards);
-  const move = (i: number, by: number) =>
-    setOrder((o) => {
-      const next = [...o];
-      [next[i], next[i + by]] = [next[i + by]!, next[i]!];
-      return next;
-    });
+  const move = (i: number, by: number) => setOrder((o) => arrayMove(o, i, i + by));
+  // Its own DndContext, so these drags don't reach the board's drop handling. The distance keeps clicks on the arrows working.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
+    setOrder((o) => arrayMove(o, o.findIndex((c) => c.uid === active.id), o.findIndex((c) => c.uid === over.id)));
+  };
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-2">
-        {order.map((c, i) => (
-          <div key={c.uid} className="flex flex-col items-center gap-1">
-            <span className="text-xs text-slate-400">{i === 0 ? 'Top' : i + 1}</span>
-            <Card def={lookupCard(view.cards, c.defId)} highRes />
-            <div className="flex gap-1">
-              <button className="rounded bg-slate-700 px-2 text-xs disabled:opacity-30" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up">
-                ←
-              </button>
-              <button className="rounded bg-slate-700 px-2 text-xs disabled:opacity-30" disabled={i === order.length - 1} onClick={() => move(i, 1)} aria-label="Move down">
-                →
-              </button>
-            </div>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <SortableContext items={order.map((c) => c.uid)} strategy={rectSortingStrategy}>
+          <div className="flex flex-wrap gap-2">
+            {order.map((c, i) => (
+              <SortableCard key={c.uid} card={c} index={i} count={order.length} view={view} move={move} />
+            ))}
           </div>
-        ))}
-      </div>
+        </SortableContext>
+      </DndContext>
       <button
         className="rounded bg-emerald-600 px-3 py-1 text-sm font-semibold hover:bg-emerald-500"
         disabled={busy}
@@ -75,6 +76,31 @@ function ArrangeTop({ choice, view, send, busy }: { choice: Extract<PendingChoic
       >
         Put them back
       </button>
+    </div>
+  );
+}
+
+/** One card in the Pokédex order: drag it to a new place, or nudge it with the arrows. */
+function SortableCard({ card, index, count, view, move }: { card: ArrangeCard; index: number; count: number; view: PlayerView; move: (i: number, by: number) => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.uid });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={`flex cursor-grab touch-none flex-col items-center gap-1 active:cursor-grabbing ${isDragging ? 'relative z-10 opacity-80' : ''}`}
+      {...attributes}
+      {...listeners}
+    >
+      <span className="text-xs text-slate-400">{index === 0 ? 'Top' : index + 1}</span>
+      <Card def={lookupCard(view.cards, card.defId)} highRes />
+      <div className="flex gap-1">
+        <button className="flex rounded bg-slate-600 px-1 hover:bg-slate-500 disabled:opacity-30" disabled={index === 0} onClick={() => move(index, -1)} aria-label="Move up">
+          <ArrowBackIcon sx={{ fontSize: 16 }} />
+        </button>
+        <button className="flex rounded bg-slate-600 px-1 hover:bg-slate-500 disabled:opacity-30" disabled={index === count - 1} onClick={() => move(index, 1)} aria-label="Move down">
+          <ArrowForwardIcon sx={{ fontSize: 16 }} />
+        </button>
+      </div>
     </div>
   );
 }
