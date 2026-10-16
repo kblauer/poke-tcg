@@ -3,8 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
 import { Board } from '../components/Board';
 import { useTRPC } from '../lib/trpc';
+import { PAGE_WIDTH } from '../utils/layout';
 
-const PAGE_WIDTH = 'mx-auto max-w-6xl px-4';
 
 export function GamePage() {
   const { gameId } = useParams({ from: '/game/$gameId' });
@@ -31,8 +31,6 @@ export function GamePage() {
   };
   const pending = act.isPending ? act.variables.action : null;
   return (
-    <div className={PAGE_WIDTH}>
-      <Board view={view} send={send} pending={pending} error={act.error?.message} />
-    </div>
+    <Board view={view} send={send} pending={pending} error={act.error?.message} />
   );
 }

@@ -1,6 +1,6 @@
 import { lookupCard, type CardInstance, type CardLibrary } from '@poke-tcg/game-engine';
 import type { ReactNode } from 'react';
-import { SIDE_COLUMN } from '../utils/layout';
+import { SIDE_COLUMN, SMALL_CARD } from '../utils/layout';
 import { Card } from './Card';
 import { CardBack } from './CardBack';
 
@@ -41,7 +41,7 @@ export function DeckAndDiscard({
 
 function Pile({ label, empty, children }: { label: string; empty: boolean; children: ReactNode }) {
   return (
-    <div className="w-20">
+    <div className={SMALL_CARD}>
       <p className="mb-1 text-center text-xs text-slate-400">{label}</p>
       <div className={`aspect-[63/88] rounded-md ${empty ? 'border-2 border-dashed border-slate-700' : ''}`}>{children}</div>
     </div>

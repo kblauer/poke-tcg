@@ -6,7 +6,7 @@ Monorepo for a single-player Pokémon TCG game: battle through the gym leaders o
 
 ```
 apps/
-  web/                  Vite + React 19 SPA (TanStack Router/Query, tRPC client, Tailwind v4)
+  web/                  Vite + React 19 SPA (TanStack Router/Query, tRPC client, Tailwind v4, Material UI icons)
     src/
       main.tsx          Routes, root layout (header with Play / Cards tabs), providers
       pages/            Route-level pages: data loading only
@@ -43,22 +43,23 @@ Pages load data, set their own width and side padding, and hand data to componen
 | File | Description |
 |---|---|
 | `Board.tsx` | The game table. Gets card play from `useCardPlay`, holds the hover preview, and lays out the components below. A move being set up (Trainer, attack or power questions, a held card, retreating, a Pokémon's menu) is cancelled by clicking anywhere except a Pokémon slot, a hand card or the move's own panel (elements marked `data-keep-action`) |
-| `StatusBar.tsx` | Status text, hint, and the End turn / Concede buttons |
+| `StatusBar.tsx` | Status text, hint, the last rejected move's error, and the End turn / Concede buttons |
 | `OpponentArea.tsx` | The CPU's bench, active and hand/deck/prize counts. When an effect asks for one of the CPU's Pokémon, the choices are highlighted and clicked |
 | `AttackList.tsx` | Attack buttons beside your active Pokémon, with damage after the defender's weakness and resistance (variable damage like "30+" is shown as printed); attacks it can't use are disabled with the reason as a tooltip |
 | `AttackChoicePanel.tsx` | Asks the current question of an attack being used: energy to discard, a defender's energy or attack, or a type |
 | `PrizeCards.tsx` | Prize cards face down in 2 columns of 3 with overlapping rows (like the card list), left of your play area and right of the CPU's |
 | `DeckAndDiscard.tsx` | A player's deck (face down) and discard pile (top card face up) with counts, in a column beside each play area (discard above deck on your right; mirrored both ways on the CPU's left) |
 | `CardBack.tsx` | A face-down card |
-| `CoinFlip.tsx` | Animated coin under the game log for each coin flip in a move's result, one after another |
-| `GameLog.tsx` | The game log (attacks, coin flips, Special Conditions, knockouts), beside the table on large screens |
+| `CoinFlip.tsx` | Animated coin under the game log (beside the strip when the log is minimised) for each coin flip in a move's result, one after another |
+| `GameLog.tsx` | The game log (attacks, coin flips, Special Conditions, knockouts), with room for buttons in its header |
+| `LogDrawer.tsx` | The game log and coin flips as a full-height panel at the left or right edge of the window, outside the page margins: minimise it to a strip, move it to the left or right (arrow button, Material UI icons), or drag its inner edge to resize it. Remembered in the browser |
 | `PowerPanel.tsx` | The active Pokémon's Power button under its attacks, or the current question while any power is being used. `BenchPowerButton` is the Activate button that appears under a benched Pokémon with a power when you click it |
 | `TrainerPanel.tsx` | The Trainer card being played (above the hand): its text and its questions one at a time; answering the last one plays it (a single card or Pokémon is chosen by clicking it). A Trainer with no questions gets a Play button |
 | `PendingChoicePanel.tsx` | Finishing a search from a Trainer: take a card from your deck (Computer Search, Pokémon Trader) or reorder its top cards (Pokédex). Only you see these cards |
 | `RetreatPanel.tsx` | Retreat button under the attacks; while retreating, picks which energy to discard (when it matters) and prompts for a benched Pokémon |
-| `Hand.tsx` | Your hand |
+| `Hand.tsx` | Your hand along the very bottom of the screen, centred, each card partly below the edge. At rest it keeps to the play area's width; only a hovered card's neighbours spill into the page margins (up to the window edge and the game log) when they need the room; they overlap when there are too many to fit. Hovering a card grows it, lifts it fully into view and slides its neighbours aside, squeezing them closer rather than off the screen while every card keeps at least a 2rem strip showing to hover; the selected card is lifted too |
 | `HandCard.tsx` | One draggable, clickable card in your hand |
-| `PlayArea.tsx` | Both sides of the table; while a Trainer card is dragged it lights up and dropping the card anywhere on it plays it |
+| `PlayArea.tsx` | Both sides of the table, filling the window's height above the hand; the cards scale to the space (`.play-area-cards`). The Trainer being played and deck searches float over its bottom. While a Trainer card is dragged it lights up and dropping the card anywhere on it plays it |
 | `SlotMenu.tsx` | The small panel under a clicked Pokémon in play with what you can do with it: Activate a benched Pokémon's power, or Discard Clefairy Doll |
 | `Slot.tsx` | An active or bench slot: drop target, highlight ring, tint band and "Play"/"Attach"/"Evolve"/"Promote"/"Choose" label. Any attack, power or Trainer that asks for a Pokémon in play is answered by clicking a highlighted slot (`pokemonPick` in `Board.tsx`), not a button |
 | `Card.tsx` | Card art with damage, attached-energy, Special Condition and protection overlays; opens the hover preview |
@@ -87,7 +88,8 @@ Pages load data, set their own width and side padding, and hand data to componen
 | `slots.ts` | Slot ids (`active`, `bench-N`), converting them to engine targets, empty/occupied slots, and which slot an in-flight move is about |
 | `turn.ts` | Whose turn it is, whether you must promote, and the status headline |
 | `preview.ts` | Preview size limits, wheel zoom, saving the size in localStorage, and positioning next to the cursor |
-| `layout.ts` | Shared widths: the side columns (prizes, deck and discard), so both active slots line up, and small cards (bench and prizes) |
+| `dragOverlay.ts` | `centerOnPointer`: keeps a dragged card's image centred on the pointer, wherever the card was grabbed |
+| `layout.ts` | Shared card widths: small (bench, prizes, piles) and large (active), which scale with the board through CSS variables, the side columns (prizes, deck and discard) so both active slots line up, and the page side margins (`PAGE_WIDTH`, undone by `PAGE_BLEED` for the hand) |
 | `cardBack.ts` | URL of the card back image |
 | `cardColors.ts` | Background colour for each card type |
 | `holo.ts` | Maps catalog and engine cards to the attributes the holo styles select on (rarity, supertype, subtypes, era) |

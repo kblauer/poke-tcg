@@ -28,19 +28,13 @@ export function HandCard({
       {...attributes}
       onClick={onClick}
       disabled={busy}
-      className={`touch-none rounded-lg transition active:scale-95 disabled:cursor-progress ${
-        isDragging
-          ? 'opacity-30'
-          : loading
-            ? '-translate-y-2 animate-pulse ring-2 ring-yellow-300'
-            : selected
-              ? '-translate-y-3 ring-2 ring-emerald-400'
-              : busy
-                ? ''
-                : 'hover:-translate-y-1'
+      // Moving and growing on hover is done by Hand; this only marks the card's state.
+      className={`block touch-none rounded-lg shadow-lg shadow-black/60 transition active:scale-95 disabled:cursor-progress ${
+        isDragging ? 'opacity-30' : loading ? 'animate-pulse ring-2 ring-yellow-300' : selected ? 'ring-2 ring-emerald-400' : ''
       } ${draggable ? 'cursor-grab' : ''}`}
     >
-      <Card def={def} />
+      {/* High resolution so the text is readable when the hand zooms the card. */}
+      <Card def={def} highRes />
     </button>
   );
 }

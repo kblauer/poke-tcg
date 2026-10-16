@@ -1,6 +1,7 @@
 import { energyProvided, lookupCard, type CardDef, type CardLibrary, type InPlayPokemon } from '@poke-tcg/game-engine';
 import { useContext } from 'react';
 import { energyColor, typeColor } from '../utils/cardColors';
+import { LARGE_CARD, SMALL_CARD } from '../utils/layout';
 
 /** Badges for Special Conditions and protective effects on a Pokémon in play. */
 function statusBadges(p: InPlayPokemon, cards?: CardLibrary): { label: string; title: string; className: string }[] {
@@ -26,9 +27,22 @@ function statusBadges(p: InPlayPokemon, cards?: CardLibrary): { label: string; t
 import { PreviewContext } from './PreviewContext';
 
 /** Card art from TCGdex (aspect ratio 63:88), with damage and attached energy overlaid when in play. */
-export function Card({ def, inPlay, cards, small }: { def: CardDef; inPlay?: InPlayPokemon; cards?: CardLibrary; small?: boolean }) {
+export function Card({
+  def,
+  inPlay,
+  cards,
+  small,
+  highRes,
+}: {
+  def: CardDef;
+  inPlay?: InPlayPokemon;
+  cards?: CardLibrary;
+  small?: boolean;
+  /** Use the large image, for cards shown zoomed in (the hand). */
+  highRes?: boolean;
+}) {
   const setPreview = useContext(PreviewContext);
-  const size = small ? 'w-20' : 'w-28';
+  const size = small ? SMALL_CARD : LARGE_CARD;
   return (
     <div
       className={`${size} relative aspect-[63/88] shrink-0 overflow-hidden rounded-lg shadow`}
@@ -36,7 +50,7 @@ export function Card({ def, inPlay, cards, small }: { def: CardDef; inPlay?: InP
       onMouseLeave={() => setPreview(null)}
     >
       {def.imageUrl ? (
-        <img src={`${def.imageUrl}/low.webp`} alt={def.name} loading="lazy" draggable={false} className="h-full w-full object-cover" />
+        <img src={`${def.imageUrl}/${highRes ? 'high' : 'low'}.webp`} alt={def.name} loading="lazy" draggable={false} className="h-full w-full object-cover" />
       ) : (
         <div className={`${typeColor(def)} h-full w-full p-2 text-xs font-semibold`}>{def.name}</div>
       )}

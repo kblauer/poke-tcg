@@ -1,6 +1,6 @@
 import { useDroppable } from '@dnd-kit/core';
 import { lookupCard, type CardLibrary, type InPlayPokemon } from '@poke-tcg/game-engine';
-import { SMALL_CARD } from '../utils/layout';
+import { LARGE_CARD, SMALL_CARD } from '../utils/layout';
 import { Card } from './Card';
 
 /**
@@ -47,7 +47,7 @@ export function Slot({
           : dimmed
             ? 'opacity-40'
             : '';
-  const size = large ? 'w-28' : SMALL_CARD;
+  const size = large ? LARGE_CARD : SMALL_CARD;
   return (
     <div
       ref={setNodeRef}

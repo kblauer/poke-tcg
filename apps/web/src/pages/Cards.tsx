@@ -5,9 +5,9 @@ import { CardGrid } from '../components/CardGrid';
 import { CardViewer } from '../components/CardViewer';
 import { useTRPC } from '../lib/trpc';
 import { EMPTY_FILTER, filterCards, setNames, sortCards, type CardFilter, type CardSort } from '../utils/cardList';
+import { PAGE_WIDTH } from '../utils/layout';
 
 /** Full width with a fixed 6rem gutter on large screens; the usual 1rem on small ones. */
-const PAGE_WIDTH = 'px-4 lg:px-24';
 
 /** Card browser: searchable, filterable grid on the left, the selected card on the right. */
 export function CardsPage() {

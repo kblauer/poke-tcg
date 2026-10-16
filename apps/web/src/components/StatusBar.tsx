@@ -4,6 +4,7 @@ import type { GameAction } from '@poke-tcg/game-engine';
 export function StatusBar({
   status,
   hint,
+  error,
   canEndTurn,
   canConcede,
   pending,
@@ -11,6 +12,8 @@ export function StatusBar({
 }: {
   status: string;
   hint: string | null;
+  /** The server rejected the last move. */
+  error?: string;
   canEndTurn: boolean;
   canConcede: boolean;
   pending: GameAction | null;
@@ -22,6 +25,7 @@ export function StatusBar({
       <div>
         <span className="font-semibold">{status}</span>
         {hint && <span className="ml-3 text-sm text-amber-300">{hint}</span>}
+        {error && <span className="ml-3 text-sm text-red-400">{error}</span>}
       </div>
       <div className="flex gap-2">
         {canEndTurn && (

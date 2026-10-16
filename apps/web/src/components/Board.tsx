@@ -7,15 +7,16 @@ import { usePower } from '../hooks/usePower';
 import { useTrainer } from '../hooks/useTrainer';
 import { useRetreat } from '../hooks/useRetreat';
 import { benchSlotId, pendingSlot, toTarget, type SlotId } from '../utils/slots';
+import { PAGE_WIDTH } from '../utils/layout';
+import { centerOnPointer } from '../utils/dragOverlay';
 import { isMyTurn, mustPromote, statusText } from '../utils/turn';
 import { AttackChoicePanel } from './AttackChoicePanel';
 import { AttackList } from './AttackList';
 import { Card } from './Card';
 import { CardPreview } from './CardPreview';
-import { CoinFlip } from './CoinFlip';
 import { DeckAndDiscard } from './DeckAndDiscard';
-import { GameLog } from './GameLog';
 import { Hand } from './Hand';
+import { LogDrawer } from './LogDrawer';
 import { OpponentArea } from './OpponentArea';
 import { PendingChoicePanel } from './PendingChoicePanel';
 import { PlayArea } from './PlayArea';
@@ -196,8 +197,8 @@ export function Board({
   };
 
   const attacks = self.active && phase !== 'setup' && (
-    // Hangs off the active slot's right edge (w-28 slot, 0.75rem gap) so the slot stays centred whatever is shown here.
-    <div data-keep-action className="absolute left-[calc(50%+4.25rem)] top-1/2 flex w-36 -translate-y-1/2 flex-col gap-1">
+    // Hangs off the active slot's right edge (.attack-column in index.css) so the slot stays centred whatever is shown here.
+    <div data-keep-action className="attack-column absolute top-1/2 flex w-36 -translate-y-1/2 flex-col gap-1">
       <AttackList
         pokemon={self.active}
         defender={view.opponent.active}
@@ -254,17 +255,31 @@ export function Board({
           dnd.onDragEnd(e);
         }}
       >
-        {/* The table, with the game log beside it on large screens. */}
-        <div className={`grid gap-4 lg:grid-cols-[1fr_16rem] ${busy ? 'cursor-progress' : ''}`}>
-          <div className="min-w-0 space-y-4">
-            <StatusBar status={statusText(view)} hint={hint} canEndTurn={myTurn} canConcede={phase !== 'finished'} pending={pending} send={send} />
-            {error && <p className="text-sm text-red-400">{error}</p>}
+        {/*
+          Fills the window below the header. The game log runs from the header to the bottom of the window at its
+          edge, outside the page margins (-mt/-mb undo the layout's spacing); the table, inside the margins, takes all
+          the height the hand leaves.
+        */}
+        <div className={`-mb-4 -mt-6 flex h-[calc(100dvh-4rem)] ${busy ? 'cursor-progress' : ''}`}>
+          {/* Clips the hand cards where they run past the bottom of the window. */}
+          <div className={`flex min-w-0 flex-1 flex-col gap-3 overflow-hidden pt-6 ${PAGE_WIDTH}`}>
+            <StatusBar status={statusText(view)} hint={hint ?? (selected ? 'Click a highlighted slot (Esc to cancel)' : null)} error={error} canEndTurn={myTurn} canConcede={phase !== 'finished'} pending={pending} send={send} />
 
-            <PlayArea droppable={draggingTrainer && !busy}>
+            <PlayArea
+              droppable={draggingTrainer && !busy}
+              overlay={
+                (self.pendingChoice || trainer.card) && (
+                  <>
+                    <PendingChoicePanel view={view} send={send} busy={busy} />
+                    <TrainerPanel view={view} trainer={trainer} />
+                  </>
+                )
+              }
+            >
               <OpponentArea opponent={view.opponent} cards={view.cards} pick={pokemonPick?.side === 'opp' && !busy ? pokemonPick : null} />
 
               {/* Prize cards on the left of the play area; discard pile and deck on the right. */}
-              <section className="flex gap-3 rounded-lg bg-slate-900 p-3">
+              <section className="flex min-h-0 flex-1 items-center gap-3 rounded-lg bg-slate-900 p-3">
                 <PrizeCards count={self.prizeCount} />
                 <div className="min-w-0 flex-1 space-y-3">
                   <div className="relative flex justify-center">
@@ -278,8 +293,6 @@ export function Board({
               </section>
             </PlayArea>
 
-            <PendingChoicePanel view={view} send={send} busy={busy} />
-            <TrainerPanel view={view} trainer={trainer} />
             <Hand
               hand={self.hand}
               cards={view.cards}
@@ -304,16 +317,17 @@ export function Board({
               }}
             />
           </div>
-          <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
-            <GameLog log={view.log} you={view.you} />
-            <CoinFlip log={view.log} you={view.you} />
-          </div>
+          <LogDrawer log={view.log} you={view.you} />
         </div>
 
-        <DragOverlay dropAnimation={null}>
+        <DragOverlay dropAnimation={null} modifiers={[centerOnPointer]}>
           {dragging && heldCard ? (
-            <div className="rotate-3 cursor-grabbing opacity-90">
-              <Card def={lookupCard(view.cards, heldCard.defId)} />
+            // dnd-kit sizes the overlay like the card that was grabbed, which is bigger when it's a hovered hand card;
+            // centring the image in it keeps it centred on the pointer (centerOnPointer centres the overlay).
+            <div className="flex h-full w-full items-center justify-center">
+              <div className="rotate-3 cursor-grabbing opacity-90">
+                <Card def={lookupCard(view.cards, heldCard.defId)} highRes />
+              </div>
             </div>
           ) : null}
         </DragOverlay>
