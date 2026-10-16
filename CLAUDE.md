@@ -68,5 +68,5 @@
 - SET_HP has a minimum of 10; debug can't Knock Out a Pokémon directly.
 
 ## Known open items
-- CPU difficulties live in `packages/game-engine/src/cpu/`, one file each (`passive.ts`, `gym-leader.ts`) plus `shared.ts`. Keep them separate. Gym leader is the baseline the user agreed on (README: The CPU opponent); change its rules only with the user's say-so. Next: a 'trainer' difficulty, easier than gym leader.
+- CPU difficulties live in `packages/game-engine/src/cpu/`, one file each (`passive.ts`, `trainer.ts`, `gym-leader.ts`) plus `shared.ts`. Keep them separate. Gym leader is the baseline the user agreed on (README: The CPU opponent); change the difficulties' rules only with the user's say-so.
 - Missing rules: Whirlwind prompting, Burned, and card effects for sets after Base Set.

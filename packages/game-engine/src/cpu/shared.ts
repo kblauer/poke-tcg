@@ -3,9 +3,10 @@
 // cards are useful. Everything here is generic over cards: no card ids, and only the rules engine's own
 // effects decide what an attack does.
 import { answerChoice, attackError, performAttack, resolveChoices, type AttackChoices, type AttackSituation, type ChoiceSpec } from '../attacks.js';
-import { isBasicPokemon, isPokemonCard, lookupCard, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from '../cards.js';
-import { applyAction, energyPool, energyProvided, opponentOf, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
+import { isBasicEnergy, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from '../cards.js';
+import { applyAction, energyPool, energyProvided, evolveError, opponentOf, retreatCost, retreatError, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
 import { nextRandom } from '../rng.js';
+import { pendingChoiceView, type TrainerChoices } from '../trainers.js';
 
 /** Card names compared without accents, spaces or case ('Pokémon Breeder' = 'pokemonbreeder'). */
 export const nameKey = (name: string) => name.normalize('NFD').replace(/[^a-zA-Z]/g, '').toLowerCase();
@@ -397,3 +398,149 @@ export function unusableEnergy(state: GameState, me: PlayerState): CardInstance[
     return d.kind === 'energy' && !costs.includes('colorless') && !costs.includes(d.energyType);
   });
 }
+
+// ---- Playing a turn ----
+
+/** One CPU turn: the state, whose move it is, both players and card definitions. */
+export interface Turn {
+  state: GameState;
+  id: PlayerId;
+  me: PlayerState;
+  opp: PlayerState;
+  def: (c: CardInstance) => CardDef;
+}
+
+export function turnOf(state: GameState, id: PlayerId): Turn {
+  return { state, id, me: state.players[id]!, opp: state.players[opponentOf(state, id)]!, def: (c) => lookupCard(state.cards, c.defId) };
+}
+
+/** A Trainer card in the hand by nameKey. */
+export const trainer = (t: Turn, key: string) => t.me.hand.find((c) => isTrainerCard(t.def(c)) && nameKey(t.def(c).name) === key);
+
+/** Playing the card with these answers, if that's allowed. */
+export function play(t: Turn, card: CardInstance | undefined, choices?: TrainerChoices): GameAction | null {
+  if (!card) return null;
+  const action: GameAction = { type: 'PLAY_TRAINER', cardUid: card.uid, ...(choices && { choices }) };
+  return tryAction(t.state, t.id, action) ? action : null;
+}
+
+export const benched = (t: Turn) => inPlay(t.me).filter(([target]) => target !== 'active') as [number, InPlayPokemon][];
+
+/** Finishing a search: the most wanted card (see wantedCards), a Basic, an Energy that helps, or anything. Pokédex keeps the order. */
+export function resolveSearch(t: Turn): GameAction {
+  const view = pendingChoiceView(t.state, t.state.pendingChoice!);
+  if (view.kind === 'arrangeTop') return { type: 'RESOLVE_CHOICE', order: view.cards.map((c) => c.uid) };
+  const helpsEnergy = (c: CardInstance) => t.def(c).kind === 'energy' && inPlay(t.me).some(([, p]) => closeness(t.state.cards, p, [...p.energy, c]) < closeness(t.state.cards, p));
+  const pick =
+    wantedCards(t.state, t.me, view.options)[0] ??
+    view.options.find((c) => isBasicPokemon(t.def(c))) ??
+    view.options.find(helpsEnergy) ??
+    view.options[0];
+  return pick ? { type: 'RESOLVE_CHOICE', cardUid: pick.uid } : { type: 'RESOLVE_CHOICE' };
+}
+
+/** Puts a Basic Pokémon from the hand onto the Bench, while there's room. */
+export function benchBasic(t: Turn): GameAction | null {
+  const empty = t.me.bench.findIndex((p) => p === null);
+  const basic = t.me.hand.find((c) => isBasicPokemon(t.def(c)));
+  return empty >= 0 && basic ? { type: 'PLAY_BENCH', cardUid: basic.uid, slot: empty } : null;
+}
+
+/** Evolves whatever can evolve: the Active Pokémon first, then the Bench in order. */
+export function evolve(t: Turn): GameAction | null {
+  for (const [target, p] of inPlay(t.me)) {
+    for (const card of t.me.hand) {
+      const evolution = t.def(card);
+      if (evolution.kind !== 'pokemon' || evolution.stage === 'basic') continue;
+      if (evolveError(evolution, p, t.state.cards, t.state.turn) === null) return { type: 'EVOLVE', cardUid: card.uid, target };
+    }
+  }
+  return null;
+}
+
+/** Energy cards in the hand: all of them, or basic Energy of one type. */
+export const energyInHand = (t: Turn, type?: EnergyType) =>
+  t.me.hand.filter((c) => {
+    const d = t.def(c);
+    return d.kind === 'energy' && (!type || (d.energyType === type && d.basic !== false));
+  });
+
+/**
+ * Where to attach one of `energy`: the Active Pokémon if it makes a new attack payable, otherwise the
+ * benched Pokémon it brings closest to attacking, otherwise the Active Pokémon if it helps at all.
+ * Never Energy that helps no attack. Basic Energy is tried before special Energy.
+ */
+export function attachTarget(t: Turn, energy: CardInstance[], allowed: (p: InPlayPokemon) => boolean): { card: CardInstance; target: Target } | null {
+  const cards = t.state.cards;
+  const special = (c: CardInstance) => Number(!isBasicEnergy(t.def(c)));
+  const ordered = [...energy].sort((a, b) => special(a) - special(b));
+  const active = t.me.active && allowed(t.me.active) ? t.me.active : null;
+  const effect = (p: InPlayPokemon, card: CardInstance) => attachEffect(cards, p, card);
+  if (active) {
+    const card = ordered.find((c) => effect(active, c).enables);
+    if (card) return { card, target: 'active' };
+  }
+  let best: { card: CardInstance; target: Target; closeness: number } | null = null;
+  for (const [target, p] of benched(t).filter(([, p]) => allowed(p))) {
+    for (const card of ordered) {
+      const e = effect(p, card);
+      if (e.helps && (!best || e.closeness < best.closeness)) best = { card, target, closeness: e.closeness };
+    }
+  }
+  if (best) return best;
+  const card = active && ordered.find((c) => effect(active, c).helps);
+  return card ? { card, target: 'active' } : null;
+}
+
+/** Whether the Pokémon can discard one Energy and still pay for the strongest attack it can pay for now. */
+export function keepsBestAttack(t: Turn, p: InPlayPokemon): boolean {
+  const cards = t.state.cards;
+  const pool = energyPool(p, cards);
+  const payable = pokemonDef(cards, p).attacks.filter((a) => missingEnergy(pool, a.cost) === 0);
+  if (!payable.length) return true;
+  const strongest = payable.reduce((a, b) => (b.damage > a.damage ? b : a));
+  const spare = spareEnergy(cards, p, 1);
+  return !!spare && missingEnergy(energyPool({ ...p, energy: p.energy.filter((e) => !spare.includes(e)) }, cards), strongest.cost) === 0;
+}
+
+/** Each benched Pokémon with its best attack if it were the Active Pokémon. */
+export const benchAttackers = (t: Turn) => benched(t).map(([slot, p]) => ({ slot, p, best: attackAsActive(t.state, t.id, slot) }));
+
+/** The one that attacks best, then the one with the most HP left. */
+export function strongestOf<T extends { p: InPlayPokemon; best: AttackOption | null }>(cards: CardLibrary, list: T[]): T {
+  return list.reduce((a, b) => {
+    const diff = attackScore(b.best) - attackScore(a.best);
+    return diff > 0 || (diff === 0 && hpLeft(cards, b.p) > hpLeft(cards, a.p)) ? b : a;
+  });
+}
+
+/**
+ * Brings the benched Pokémon in `slot` in: with Switch if it's in the hand, otherwise by retreating,
+ * paying with the Energy the active can best spare. Not worth paying for when nothing could attack
+ * afterwards anyway (`bench` from benchAttackers).
+ */
+export function switchOrRetreat(t: Turn, slot: number, bench: { best: AttackOption | null }[]): GameAction | null {
+  const cards = t.state.cards;
+  const active = t.me.active!;
+  const sw = play(t, trainer(t, 'switch'), { target: slot });
+  if (sw) return sw;
+  if (retreatError(active, cards, true, t.state.retreatedThisTurn ?? false)) return null;
+  const payment = retreatPayment(cards, active, retreatCost(active, cards));
+  if (!payment) return null;
+  const left = { ...active, energy: active.energy.filter((e) => !payment.includes(e)) };
+  const oldCanAttack = pokemonDef(cards, active).attacks.some((a) => missingEnergy(energyPool(left, cards), a.cost) === 0);
+  if (!bench.some((b) => damages(b.best)) && !oldCanAttack) return null;
+  const action: GameAction = { type: 'RETREAT', slot, energyUids: payment.map((e) => e.uid) };
+  return tryAction(t.state, t.id, action) ? action : null;
+}
+
+/** Whether the active can't attack now and won't next turn either (one Energy short is "next turn"). */
+export function stuckActive(t: Turn): boolean {
+  const active = t.me.active!;
+  const pool = energyPool(active, t.state.cards);
+  const soon = pokemonDef(t.state.cards, active).attacks.some((a) => missingEnergy(pool, a.cost) <= 1);
+  return !damages(bestAttack(attackOptions(t.state, t.id))) && !soon;
+}
+
+/** The ATTACK action for an option, or null with none. */
+export const attackWith = (o: AttackOption | null): GameAction | null => (o ? { type: 'ATTACK', attackIndex: o.attackIndex, choices: o.choices } : null);

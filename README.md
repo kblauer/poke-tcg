@@ -138,8 +138,9 @@ Holo cards are those with `variants.holo` in their TCGdex data (the rarity alone
 | `view.ts` | `getPlayerView`: what one player may see |
 | `cpu/index.ts` | CPU difficulties (`CPU_DIFFICULTIES`, `cpuFor`) and `runCpu`, which plays at the game's `cpuDifficulty` |
 | `cpu/passive.ts` | The **Passive** CPU (`passiveCpu`): benches, evolves and attaches matching Energy; never attacks, retreats or plays Trainers |
+| `cpu/trainer.ts` | The **Trainer** CPU (`trainerCpu`): a simpler gym leader for the other fights |
 | `cpu/gym-leader.ts` | The **Gym leader** CPU (`gymLeaderCpu`): its rules, step by step |
-| `cpu/shared.ts` | What the CPUs share: choosing the first active, each attack simulated over every coin-flip outcome, the opponent's threat next turn, Energy arithmetic and which cards are useful |
+| `cpu/shared.ts` | What the CPUs share: the turn context and common moves (benching, evolving, aiming Energy, Switch or retreat, finishing a search), choosing the first active, each attack simulated over every coin-flip outcome, the opponent's threat next turn, Energy arithmetic and which cards are useful |
 | `cpu/*.test.ts` | Tests per difficulty (`gym-leader.test.ts` has one block per rule, with Base Set cards) |
 | `debug.ts` | `applyDebug`: testing cheats (a card into the hand, draw, set a Pokémon's HP). Not `GameAction`s, so normal moves can never reach them; each is logged |
 
@@ -159,7 +160,8 @@ Rules follow the 1999 Base Set rulebook. Special Conditions: Asleep (flip betwee
 Each difficulty has its own file in `packages/game-engine/src/cpu/`, with shared helpers in `shared.ts`. A game's `cpuDifficulty` picks one (missing = Gym leader), and the Debug tab can change it mid-game:
 
 - **Passive** (`passive.ts`): benches Basics, evolves and attaches Energy to a Pokémon of the same type. It never attacks, retreats or plays Trainers.
-- **Gym leader** (`gym-leader.ts`): the strongest, described below. An easier **Trainer** difficulty for the fights that aren't gym leaders comes next.
+- **Trainer** (`trainer.ts`), for the fights that aren't gym leaders: plays Bill and Professor Oak (same rules as the gym leader), benches and evolves, aims its Energy attachment like the gym leader, heals only its active (Potion at 20+, Super Potion at 40+ if it can still use its best attack), retreats or switches only when the active can't attack this turn or next and a benched Pokémon can, and attacks for the most damage even when that costs Energy or hurts itself. It never uses Pokémon Powers, searches its deck, disrupts, boosts, or looks at the player's next turn. After a Knock Out it promotes the Pokémon with the most HP left.
+- **Gym leader** (`gym-leader.ts`): the strongest, described below.
 
 The gym leader takes, on its turn, it takes the first move any of these steps wants, over and over, until it attacks or ends its turn:
 
@@ -240,5 +242,4 @@ Use the printed DB URL for both `DATABASE_URL` and `DIRECT_URL`, `http://127.0.0
 - Card effects for sets after the Base Set.
 - Ask the player to choose when an opponent's attack makes them pick (Whirlwind currently brings in their first benched Pokémon).
 - Deck builder backed by `Deck` and `DeckCard`.
-- A **Trainer** CPU difficulty, weaker than the gym leader, for the other fights (a new file in `cpu/`, added to `CPU_DIFFICULTIES`).
 - Single-player structure: gym leader battles per generation, multiple saves per account, persistent progression across runs.

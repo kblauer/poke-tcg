@@ -2,21 +2,22 @@
 import type { GameAction, GameState, PlayerId } from '../engine.js';
 import { gymLeaderCpu } from './gym-leader.js';
 import { passiveCpu } from './passive.js';
+import { trainerCpu } from './trainer.js';
 import { tryAction } from './shared.js';
 
-export { gymLeaderCpu, passiveCpu };
+export { gymLeaderCpu, passiveCpu, trainerCpu };
 
 /** A CPU's move in this state, or null when it has nothing to do (it isn't its move). */
 export type CpuDecide = (state: GameState, cpuId: PlayerId) => GameAction | null;
 
 /** How hard the CPU plays, easiest first. */
-export const CPU_DIFFICULTIES = ['passive', 'gymLeader'] as const;
+export const CPU_DIFFICULTIES = ['passive', 'trainer', 'gymLeader'] as const;
 export type CpuDifficulty = (typeof CPU_DIFFICULTIES)[number];
 /** For games without one (GameState.cpuDifficulty). */
 export const DEFAULT_CPU_DIFFICULTY: CpuDifficulty = 'gymLeader';
-export const CPU_DIFFICULTY_LABELS: Record<CpuDifficulty, string> = { passive: 'Passive', gymLeader: 'Gym leader' };
+export const CPU_DIFFICULTY_LABELS: Record<CpuDifficulty, string> = { passive: 'Passive', trainer: 'Trainer', gymLeader: 'Gym leader' };
 
-const CPUS: Record<CpuDifficulty, CpuDecide> = { passive: passiveCpu, gymLeader: gymLeaderCpu };
+const CPUS: Record<CpuDifficulty, CpuDecide> = { passive: passiveCpu, trainer: trainerCpu, gymLeader: gymLeaderCpu };
 
 /** The CPU that plays at this difficulty. */
 export const cpuFor = (difficulty: CpuDifficulty = DEFAULT_CPU_DIFFICULTY): CpuDecide => CPUS[difficulty];
