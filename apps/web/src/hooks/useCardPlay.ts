@@ -1,9 +1,19 @@
-import { PointerSensor, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core';
+import { pointerWithin, PointerSensor, rectIntersection, useSensor, useSensors, type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent } from '@dnd-kit/core';
 import { lookupCard, type CardInstance, type GameAction, type PlayerView } from '@poke-tcg/game-engine';
 import { useEffect, useState } from 'react';
 import { PLAY_AREA } from '../components/PlayArea';
 import type { SlotId } from '../utils/slots';
 import { playAction, targetLabel, targetsFor, whyNoTargets } from '../utils/targets';
+
+/**
+ * What the dragged card is over: whatever is under the pointer, else a slot the card overlaps. The
+ * play area (Trainers) counts only under the pointer: the card hangs over the table while the pointer
+ * is still on the hand, where letting go cancels.
+ */
+const collisionDetection: CollisionDetection = (args) => {
+  const underPointer = pointerWithin(args);
+  return underPointer.length ? underPointer : rectIntersection(args).filter((c) => c.id !== PLAY_AREA);
+};
 
 /**
  * Playing cards from the hand, by click (select a card, then a highlighted slot; Esc cancels)
@@ -30,6 +40,8 @@ export function useCardPlay({
   /** Hand card picked by clicking; its valid slots are highlighted until a slot is clicked. */
   const [selected, setSelected] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
+  /** The drop target under the dragged card (an enabled slot or the play area), if any. */
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
   /** Why the last clicked card can't be played. */
   const [hint, setHint] = useState<string | null>(null);
 
@@ -71,20 +83,26 @@ export function useCardPlay({
 
   const dnd = {
     sensors,
+    collisionDetection,
     onDragStart: ({ active }: DragStartEvent) => {
       onDragStart?.();
       setSelected(null);
       setHint(null);
       setDragging(String(active.id));
     },
+    onDragOver: ({ over }: DragOverEvent) => setDropTarget(over ? String(over.id) : null),
     onDragEnd: ({ active, over }: DragEndEvent) => {
       setDragging(null);
+      setDropTarget(null);
       if (over?.id === PLAY_AREA) {
         const card = hand.find((c) => c.uid === active.id);
         if (card) onDropOnPlayArea?.(card);
       } else if (over) play(String(active.id), over.id as SlotId);
     },
-    onDragCancel: () => setDragging(null),
+    onDragCancel: () => {
+      setDragging(null);
+      setDropTarget(null);
+    },
   };
 
   /** The card being dragged, or else the selected one. */
@@ -100,6 +118,8 @@ export function useCardPlay({
   return {
     selected,
     dragging,
+    /** Where the dragged card would land if dropped now; null means dropping cancels. */
+    dropTarget,
     hint,
     heldCard,
     highlighted,

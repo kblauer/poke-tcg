@@ -69,7 +69,7 @@ export function Board({
     power.cancel();
     trainer.cancel();
   };
-  const { selected, dragging, hint, heldCard, highlighted, heldLabel, canPlay, clickHandCard, slotClick, deselect, dnd } = useCardPlay({
+  const { selected, dragging, dropTarget, hint, heldCard, highlighted, heldLabel, canPlay, clickHandCard, slotClick, deselect, dnd } = useCardPlay({
     view,
     send,
     busy,
@@ -267,6 +267,11 @@ export function Board({
 
             <PlayArea
               droppable={draggingTrainer && !busy}
+              drop={
+                dragging && heldCard
+                  ? { over: dropTarget !== null, label: draggingTrainer ? 'Drop to play' : `Drop to ${(heldLabel ?? 'play').toLowerCase()}` }
+                  : null
+              }
               overlay={
                 (self.pendingChoice || trainer.card) && (
                   <>
