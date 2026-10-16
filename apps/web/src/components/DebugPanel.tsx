@@ -1,4 +1,4 @@
-import { lookupCard, type DebugCommand, type EnergyType, type InPlayPokemon, type PlayerView, type Target } from '@poke-tcg/game-engine';
+import { CPU_DIFFICULTIES, CPU_DIFFICULTY_LABELS, lookupCard, type CpuDifficulty, type DebugCommand, type EnergyType, type InPlayPokemon, type PlayerView, type Target } from '@poke-tcg/game-engine';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTRPC } from '../lib/trpc';
@@ -20,8 +20,8 @@ const button = 'rounded bg-slate-700 px-2 py-1 text-left text-xs transition hove
 const heading = 'mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500';
 
 /**
- * Testing cheats, in the game log's Debug tab: draw a card, put any card or an Energy into your hand,
- * set the HP of any Pokémon in play. Only loaded in builds with the debug tools (see utils/debug.ts);
+ * Testing cheats, in the game log's Debug tab: change the CPU's difficulty, draw a card, put any card or
+ * an Energy into your hand, set the HP of any Pokémon in play. Only loaded in builds with the debug tools (see utils/debug.ts);
  * the API runs the commands (debug.run) and refuses them in production.
  */
 export default function DebugPanel({ gameId, view }: { gameId: string; view: PlayerView }) {
@@ -52,6 +52,23 @@ export default function DebugPanel({ gameId, view }: { gameId: string; view: Pla
   return (
     <div className="min-h-0 flex-1 space-y-4 overflow-y-auto text-xs">
       {run.error && <p className="rounded bg-red-400 px-2 py-1 font-medium text-slate-900">{run.error.message}</p>}
+
+      <section>
+        <h4 className={heading}>CPU difficulty</h4>
+        <select
+          value={view.cpuDifficulty}
+          disabled={busy}
+          onChange={(e) => send({ type: 'SET_CPU_DIFFICULTY', difficulty: e.target.value as CpuDifficulty })}
+          aria-label="CPU difficulty"
+          className="w-full rounded bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-slate-500 disabled:opacity-40"
+        >
+          {CPU_DIFFICULTIES.map((d) => (
+            <option key={d} value={d}>
+              {CPU_DIFFICULTY_LABELS[d]}
+            </option>
+          ))}
+        </select>
+      </section>
 
       <section>
         <h4 className={heading}>Deck</h4>

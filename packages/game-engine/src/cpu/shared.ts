@@ -1,0 +1,399 @@
+// Shared by the CPU difficulties. What the CPU knows about a position: what each attack would do, worked out by playing it on copies of the
+// state with fixed coin flips (so it never sees the real flips to come), plus Energy arithmetic and which
+// cards are useful. Everything here is generic over cards: no card ids, and only the rules engine's own
+// effects decide what an attack does.
+import { answerChoice, attackError, performAttack, resolveChoices, type AttackChoices, type AttackSituation, type ChoiceSpec } from '../attacks.js';
+import { isBasicPokemon, isPokemonCard, lookupCard, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from '../cards.js';
+import { applyAction, energyPool, energyProvided, opponentOf, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
+import { nextRandom } from '../rng.js';
+
+/** Card names compared without accents, spaces or case ('Pokémon Breeder' = 'pokemonbreeder'). */
+export const nameKey = (name: string) => name.normalize('NFD').replace(/[^a-zA-Z]/g, '').toLowerCase();
+
+export const pokemonDef = (cards: CardLibrary, p: InPlayPokemon) => lookupCard(cards, p.card.defId) as PokemonCardDef;
+
+export const at = (side: Pick<PlayerState, 'active' | 'bench'>, t: Target) => (t === 'active' ? side.active : side.bench[t]) ?? null;
+
+/** The player's Pokémon in play, active first. */
+export const inPlay = (side: Pick<PlayerState, 'active' | 'bench'>): [Target, InPlayPokemon][] => [
+  ...(side.active ? [['active', side.active] as [Target, InPlayPokemon]] : []),
+  ...side.bench.flatMap((p, i) => (p ? [[i, p] as [Target, InPlayPokemon]] : [])),
+];
+
+export const hpLeft = (cards: CardLibrary, p: InPlayPokemon) => pokemonDef(cards, p).hp - p.damage;
+
+/** During setup: the first Basic Pokémon in the hand as the Active Pokémon (null once it has one). */
+export function chooseActive(state: GameState, cpu: PlayerState): GameAction | null {
+  if (cpu.active) return null;
+  const basic = cpu.hand.find((c) => isBasicPokemon(lookupCard(state.cards, c.defId)));
+  if (!basic) throw new Error('CPU has no Basic Pokémon to start with');
+  return { type: 'SET_ACTIVE', cardUid: basic.uid };
+}
+
+/** The state after `action`, or null if it isn't allowed. */
+export function tryAction(state: GameState, playerId: PlayerId, action: GameAction): GameState | null {
+  const result = applyAction(state, playerId, action);
+  return result.ok ? result.state : null;
+}
+
+// ---- Energy arithmetic ----
+
+/** How many more Energy the cost needs, paying typed symbols first and colorless with what's left. */
+export function missingEnergy(pool: EnergyType[], cost: EnergyType[]): number {
+  const left = [...pool];
+  let missing = 0;
+  for (const need of cost.filter((t) => t !== 'colorless')) {
+    const i = left.indexOf(need);
+    if (i < 0) missing++;
+    else left.splice(i, 1);
+  }
+  const colorless = cost.filter((t) => t === 'colorless').length;
+  return missing + Math.max(0, colorless - left.length);
+}
+
+/** Colorless symbols still unpaid (after typed ones take their matching Energy) in the attack's cost. */
+function colorlessLeft(pool: EnergyType[], cost: EnergyType[]): number {
+  const left = [...pool];
+  for (const need of cost.filter((t) => t !== 'colorless')) {
+    const i = left.indexOf(need);
+    if (i >= 0) left.splice(i, 1);
+  }
+  return Math.max(0, cost.filter((t) => t === 'colorless').length - left.length);
+}
+
+const provides = (cards: CardLibrary, card: CardInstance): EnergyType[] => {
+  const { type, amount } = energyProvided(card, cards);
+  return Array<EnergyType>(amount).fill(type);
+};
+
+const poolWith = (cards: CardLibrary, p: InPlayPokemon, energy: CardInstance[]) => energyPool({ ...p, energy }, cards);
+
+/** Fewest Energy still missing for any of the Pokémon's attacks (Infinity with no attacks). */
+export function closeness(cards: CardLibrary, p: InPlayPokemon, energy = p.energy): number {
+  const pool = poolWith(cards, p, energy);
+  return Math.min(...pokemonDef(cards, p).attacks.map((a) => missingEnergy(pool, a.cost)));
+}
+
+/** What attaching `card` does for `p`: whether it helps any attack, makes a new one payable, and how close it gets. */
+export function attachEffect(cards: CardLibrary, p: InPlayPokemon, card: CardInstance) {
+  const attacks = pokemonDef(cards, p).attacks;
+  const before = energyPool(p, cards);
+  const after = [...before, ...provides(cards, card)];
+  const helps = attacks.some((a) => missingEnergy(after, a.cost) < missingEnergy(before, a.cost));
+  const enables = attacks.some((a) => missingEnergy(before, a.cost) > 0 && missingEnergy(after, a.cost) === 0);
+  // Energy worth 2 (Double Colorless) only goes where two colorless symbols are still open.
+  const { type, amount } = energyProvided(card, cards);
+  const fits = amount < 2 || type !== 'colorless' || attacks.some((a) => colorlessLeft(before, a.cost) >= 2);
+  return { helps: helps && fits, enables: enables && fits, closeness: Math.min(...attacks.map((a) => missingEnergy(after, a.cost))) };
+}
+
+/** How much the Pokémon's attached Energy is worth to it: payable attacks count most, then how close the others are. */
+export function energyValue(cards: CardLibrary, p: InPlayPokemon, energy = p.energy): number {
+  const pool = poolWith(cards, p, energy);
+  return pokemonDef(cards, p).attacks.reduce((sum, a) => {
+    const missing = missingEnergy(pool, a.cost);
+    return sum + (missing === 0 ? 100 + a.damage : -missing);
+  }, 0);
+}
+
+/** Every way to pick `n` of the cards (identical cards count once). */
+export function combinations<T extends CardInstance>(items: T[], n: number): T[][] {
+  const out: T[][] = [];
+  const seen = new Set<string>();
+  const walk = (start: number, picked: T[]) => {
+    if (picked.length === n) {
+      const key = picked.map((c) => `${c.defId}/${c.provides?.type ?? ''}`).sort().join(',');
+      if (!seen.has(key)) seen.add(key), out.push(picked);
+      return;
+    }
+    for (let i = start; i < items.length; i++) walk(i + 1, [...picked, items[i]!]);
+  };
+  walk(0, []);
+  return out;
+}
+
+const isSpecial = (cards: CardLibrary, c: CardInstance) => !!c.provides || energyProvided(c, cards).amount > 1;
+
+/**
+ * The `n` Energy cards the Pokémon can best spare: the rest keep the most attacks payable. Ties keep
+ * special Energy (Double Colorless) and discard basic Energy.
+ */
+export function spareEnergy(cards: CardLibrary, p: InPlayPokemon, n: number, options = p.energy): CardInstance[] | null {
+  let best: { picked: CardInstance[]; score: number } | null = null;
+  for (const picked of combinations(options, n)) {
+    const score = energyValue(cards, p, p.energy.filter((e) => !picked.includes(e))) * 10 - picked.filter((e) => isSpecial(cards, e)).length;
+    if (!best || score > best.score) best = { picked, score };
+  }
+  return best?.picked ?? null;
+}
+
+/** The `n` Energy cards whose loss hurts the Pokémon most (for discarding the opponent's). Ties take special Energy. */
+export function vitalEnergy(cards: CardLibrary, p: InPlayPokemon, n: number): CardInstance[] | null {
+  let best: { picked: CardInstance[]; score: number } | null = null;
+  for (const picked of combinations(p.energy, n)) {
+    const score = -energyValue(cards, p, p.energy.filter((e) => !picked.includes(e))) * 10 + picked.filter((e) => isSpecial(cards, e)).length;
+    if (!best || score > best.score) best = { picked, score };
+  }
+  return best?.picked ?? null;
+}
+
+/**
+ * Energy to discard to retreat: enough to pay `cost`, with no card more than needed (the engine's rule),
+ * keeping what the Pokémon's attacks need most and basic Energy going before special Energy.
+ */
+export function retreatPayment(cards: CardLibrary, p: InPlayPokemon, cost: number): CardInstance[] | null {
+  if (cost === 0) return [];
+  let best: { picked: CardInstance[]; score: number } | null = null;
+  for (let n = 1; n <= Math.min(cost, p.energy.length); n++) {
+    for (const picked of combinations(p.energy, n)) {
+      const amounts = picked.map((e) => energyProvided(e, cards).amount);
+      const total = amounts.reduce((a, b) => a + b, 0);
+      if (total < cost || amounts.some((a) => total - a >= cost)) continue;
+      const score = energyValue(cards, p, p.energy.filter((e) => !picked.includes(e))) * 10 - picked.filter((e) => isSpecial(cards, e)).length;
+      if (!best || score > best.score) best = { picked, score };
+    }
+  }
+  return best?.picked ?? null;
+}
+
+// ---- Attacks, simulated ----
+
+/**
+ * Seeds whose first three coin flips are each of the 8 heads/tails patterns, so attacks with up to three
+ * flips are averaged over every outcome equally.
+ */
+const SEEDS: number[] = Array.from({ length: 8 }, (_, pattern) => {
+  for (let seed = 1; ; seed++) {
+    let s = seed;
+    const matches = [0, 1, 2].every((bit) => {
+      const [r, next] = nextRandom(s);
+      s = next;
+      return (r < 0.5) === (((pattern >> bit) & 1) === 1);
+    });
+    if (matches) return seed;
+  }
+});
+
+/** A copy to try things on. The log isn't needed for that. */
+const scratch = (state: GameState): GameState => structuredClone({ ...state, log: [] });
+
+/** One way to use an attack, and what it does on average. */
+export interface AttackOption {
+  attackIndex: number;
+  choices: AttackChoices;
+  /** Energy symbols in its cost. */
+  cost: number;
+  /** Share of coin-flip outcomes in which it Knocks Out one of the opponent's Pokémon. */
+  koChance: number;
+  /** Average damage done to the opponent's Pokémon, counting no more than each had left. */
+  expected: number;
+  /** It damages or Knocks Out the attacker, or discards its Energy. */
+  costly: boolean;
+  /** Average number of Special Conditions or Poison it inflicts. */
+  inflicts: number;
+  /** How much the attacker's Energy is still worth afterwards (choices that discard less come first). */
+  keeps: number;
+}
+
+/** It Knocks Out often enough to count on: in at least half the outcomes. */
+export const knocksOut = (o: AttackOption | null | undefined) => (o?.koChance ?? 0) >= 0.5;
+
+/** Every complete set of answers to the attack's questions (a few dozen at most). */
+function choiceSets(s: AttackSituation, attackIndex: number): AttackChoices[] {
+  const out: AttackChoices[] = [];
+  const walk = (given: AttackChoices) => {
+    if (out.length >= 24) return;
+    const result = resolveChoices(s, attackIndex, given);
+    if ('choices' in result) return void out.push(result.choices);
+    if (!result.need) return;
+    for (const value of answers(result.need)) walk(answerChoice(given, result.need, value));
+  };
+  walk({});
+  return out;
+}
+
+function answers(spec: ChoiceSpec): AttackChoices[keyof AttackChoices][] {
+  switch (spec.kind) {
+    case 'ownEnergy':
+      return combinations(spec.options, spec.count).map((picked) => picked.map((e) => e.uid));
+    case 'defenderEnergy':
+      return combinations(spec.options, 1).map(([e]) => e!.uid);
+    default:
+      return spec.options;
+  }
+}
+
+/**
+ * What each of `attackerId`'s attacks would do to the opponent now, one option per attack (its best
+ * answers to the attack's questions). With `nextTurn`, it's the opponent's coming turn instead: effects
+ * lasting "until the end of the opponent's next turn" still apply, and the first-turn rule doesn't.
+ * Confusion is left out, since it affects every attack alike (the CPU retreats from it instead).
+ */
+export function attackOptions(state: GameState, attackerId: PlayerId, { nextTurn = false } = {}): AttackOption[] {
+  const me = state.players[attackerId]!;
+  const opp = state.players[opponentOf(state, attackerId)]!;
+  if (!me.active || !opp.active || (!nextTurn && state.turn === 1)) return [];
+  const base = scratch(state);
+  if (nextTurn) base.turn += 1;
+  const attacker = base.players[attackerId]!.active!;
+  // A Pokémon Asleep now may wake up before its turn.
+  if (attacker.condition === 'confused' || (nextTurn && attacker.condition === 'asleep')) attacker.condition = null;
+  const situation: AttackSituation = { attacker, defender: base.players[opp.id]!.active!, opponentBench: base.players[opp.id]!.bench, cards: base.cards, turn: base.turn };
+
+  const options: AttackOption[] = [];
+  pokemonDef(base.cards, attacker).attacks.forEach((attack, attackIndex) => {
+    if (attackError(situation, attackIndex)) return;
+    let best: AttackOption | null = null;
+    for (const choices of choiceSets(situation, attackIndex)) {
+      const option = simulate(base, attackerId, attackIndex, choices, attack.cost.length);
+      if (option && (!best || compareOptions(option, best) > 0)) best = option;
+    }
+    if (best) options.push(best);
+  });
+  return options;
+}
+
+function simulate(base: GameState, attackerId: PlayerId, attackIndex: number, choices: AttackChoices, cost: number): AttackOption | null {
+  let kos = 0, damage = 0, inflicts = 0, costly = false, keeps = 0;
+  for (const seed of SEEDS) {
+    const s = structuredClone(base);
+    s.rngState = seed;
+    const me = s.players[attackerId]!;
+    const opp = s.players[opponentOf(s, attackerId)]!;
+    const attacker = me.active!;
+    const before = new Map(inPlay(opp).map(([, p]) => [p.card.uid, { damage: p.damage, hp: pokemonDef(s.cards, p).hp, condition: p.condition ?? null, poison: p.poison ?? 0 }]));
+    const self = { damage: attacker.damage, energy: attacker.energy.length };
+    let error: string | null;
+    try {
+      error = performAttack(s, me, opp, attackIndex, choices);
+    } catch {
+      return null;
+    }
+    if (error) return null;
+    let ko = false;
+    for (const [, p] of inPlay(opp)) {
+      const was = before.get(p.card.uid);
+      if (!was) continue;
+      damage += Math.max(0, Math.min(p.damage, was.hp) - was.damage);
+      if (p.damage >= was.hp) ko = true;
+      if ((p.condition ?? null) !== was.condition && p.condition) inflicts++;
+      if ((p.poison ?? 0) > was.poison) inflicts++;
+    }
+    if (ko) kos++;
+    if (attacker.damage > self.damage || attacker.energy.length < self.energy) costly = true;
+    keeps += energyValue(s.cards, attacker);
+  }
+  const n = SEEDS.length;
+  return { attackIndex, choices, cost, koChance: kos / n, expected: damage / n, costly, inflicts: inflicts / n, keeps: keeps / n };
+}
+
+/** Positive when `a` is the better way to attack: Knock Outs (cheapest first), then damage, then effects. */
+function compareOptions(a: AttackOption, b: AttackOption): number {
+  if (knocksOut(a) !== knocksOut(b)) return knocksOut(a) ? 1 : -1;
+  if (knocksOut(a)) return b.cost - a.cost || a.koChance - b.koChance || a.expected - b.expected || a.keeps - b.keeps;
+  return a.expected - b.expected || a.koChance - b.koChance || a.inflicts - b.inflicts || a.keeps - b.keeps;
+}
+
+/**
+ * The attack to use: the cheapest one that Knocks Out, otherwise the most damage. Attacks that hurt the
+ * attacker or discard its Energy only when they Knock Out or nothing else does damage. Attacking ends the
+ * turn anyway, so with no damage to do, any attack that costs nothing (Sing, Withdraw) beats passing.
+ */
+export function bestAttack(options: AttackOption[]): AttackOption | null {
+  const ko = options.filter(knocksOut);
+  if (ko.length) return ko.reduce((a, b) => (compareOptions(b, a) > 0 ? b : a));
+  const pick = (list: AttackOption[]) => (list.length ? list.reduce((a, b) => (compareOptions(b, a) > 0 ? b : a)) : null);
+  return (
+    pick(options.filter((o) => !o.costly && o.expected > 0)) ??
+    pick(options.filter((o) => o.costly && o.expected > 0)) ??
+    pick(options.filter((o) => !o.costly))
+  );
+}
+
+/** One number for comparing positions: Knock Outs first, then expected damage. */
+export const attackScore = (o: AttackOption | null) => (o ? (knocksOut(o) ? 10_000 : 0) + o.koChance * 100 + o.expected : -1);
+
+/** Whether the option does damage or Knocks Out (i.e. the Pokémon can really attack). */
+export const damages = (o: AttackOption | null) => !!o && (o.expected > 0 || o.koChance > 0);
+
+/** The CPU's best attack with the benched Pokémon in `slot` as its Active Pokémon instead. */
+export function attackAsActive(state: GameState, playerId: PlayerId, slot: number): AttackOption | null {
+  return bestAttack(attackOptions(swapIn(state, playerId, slot), playerId));
+}
+
+/** A copy where the benched Pokémon in `slot` and the active have swapped places (nothing else happens). */
+export function swapIn(state: GameState, playerId: PlayerId, slot: number): GameState {
+  const s = scratch(state);
+  const me = s.players[playerId]!;
+  [me.active, me.bench[slot]] = [me.bench[slot]!, me.active];
+  return s;
+}
+
+/**
+ * The opponent's most dangerous attack next turn against `playerId`'s Active Pokémon, with the Energy the
+ * opponent's Active Pokémon has now. Its chance to Knock Out is the highest of any of its attacks.
+ */
+export function threat(state: GameState, playerId: PlayerId): { koChance: number; expected: number } {
+  const options = attackOptions(state, opponentOf(state, playerId), { nextTurn: true });
+  return { koChance: Math.max(0, ...options.map((o) => o.koChance)), expected: Math.max(0, ...options.map((o) => o.expected)) };
+}
+
+export const threatKnocksOut = (state: GameState, playerId: PlayerId) => threat(state, playerId).koChance >= 0.5;
+
+// ---- Useful cards ----
+
+/** Next-stage cards for the player's Pokémon in play: the Pokémon cards (by definition) they could evolve into. */
+export function evolvesInto(cards: CardLibrary, side: Pick<PlayerState, 'active' | 'bench'>, candidate: CardDef): boolean {
+  if (!isPokemonCard(candidate) || candidate.stage === 'basic') return false;
+  const from = candidate.stage === 'stage2' ? 'stage1' : 'basic';
+  return inPlay(side).some(([, p]) => {
+    const current = pokemonDef(cards, p);
+    return current.name === candidate.evolvesFrom && current.stage === from && !current.trainerText;
+  });
+}
+
+/**
+ * The cards among `pool` the player most wants to fetch: the next stage of a Pokémon in play (Active
+ * Pokémon's line first) that isn't in the hand already, otherwise a Basic Pokémon when the Bench is empty
+ * and there's none in the hand.
+ */
+export function wantedCards(state: GameState, me: PlayerState, pool: CardInstance[]): CardInstance[] {
+  const def = (c: CardInstance) => lookupCard(state.cards, c.defId);
+  const inHand = new Set(me.hand.map((c) => def(c).name));
+  const lines = inPlay(me).map(([, p]) => pokemonDef(state.cards, p));
+  const evolutions = pool.filter((c) => !inHand.has(def(c).name) && evolvesInto(state.cards, me, def(c)));
+  // Lines in the order their Pokémon are in play, so the active's evolution comes first.
+  evolutions.sort((a, b) => lineIndex(lines, def(a)) - lineIndex(lines, def(b)));
+  if (evolutions.length) return evolutions;
+  const benchEmpty = !me.bench.some(Boolean);
+  const basicInHand = me.hand.some((c) => isBasicPokemon(def(c)));
+  return benchEmpty && !basicInHand ? pool.filter((c) => isBasicPokemon(def(c))) : [];
+}
+
+const lineIndex = (lines: PokemonCardDef[], d: CardDef) => lines.findIndex((l) => d.kind === 'pokemon' && l.name === d.evolvesFrom);
+
+/**
+ * Pokémon cards in the hand the player can't use: an Evolution with nothing in play or in the hand to
+ * evolve from, or a Basic when the Bench is full.
+ */
+export function unusablePokemon(state: GameState, me: PlayerState, except?: CardInstance): CardInstance[] {
+  const def = (c: CardInstance) => lookupCard(state.cards, c.defId);
+  const names = new Set([...inPlay(me).map(([, p]) => pokemonDef(state.cards, p).name), ...me.hand.filter((c) => c !== except).map((c) => def(c).name)]);
+  const benchFull = me.bench.every(Boolean);
+  return me.hand.filter((c) => {
+    const d = def(c);
+    if (c === except || !isPokemonCard(d)) return false;
+    return d.stage === 'basic' ? benchFull : !names.has(d.evolvesFrom ?? '');
+  });
+}
+
+/** Basic Energy cards in the hand that no attack of the player's Pokémon (in play or in the hand) can use. */
+export function unusableEnergy(state: GameState, me: PlayerState): CardInstance[] {
+  const def = (c: CardInstance) => lookupCard(state.cards, c.defId);
+  const pokemon = [...inPlay(me).map(([, p]) => pokemonDef(state.cards, p)), ...me.hand.map(def).filter(isPokemonCard)];
+  const costs = pokemon.flatMap((p) => p.attacks.flatMap((a) => a.cost));
+  return me.hand.filter((c) => {
+    const d = def(c);
+    return d.kind === 'energy' && !costs.includes('colorless') && !costs.includes(d.energyType);
+  });
+}

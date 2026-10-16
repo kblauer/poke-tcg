@@ -33,9 +33,18 @@ import { StatusBar } from './StatusBar';
 import { Toasts } from './Toasts';
 import { TrainerPanel } from './TrainerPanel';
 
+/** A move and the version of the view right after it. */
+export interface LastMove {
+  player: string;
+  type: GameAction['type'];
+  version: number;
+}
+
 /** The game table. Card play comes from useCardPlay; the board itself owns the hover preview. */
 export function Board({
   view,
+  lastMove = null,
+  replaying = false,
   send,
   pending,
   error,
@@ -43,6 +52,10 @@ export function Board({
   gameId,
 }: {
   view: PlayerView;
+  /** The move that led to `view`, if it just happened (for its animation). */
+  lastMove?: LastMove | null;
+  /** The CPU's reply is being shown move by move: nothing can be done until it ends. */
+  replaying?: boolean;
   send: (a: GameAction) => void;
   /** The action waiting on the server, if any. */
   pending: GameAction | null;
@@ -53,7 +66,9 @@ export function Board({
   gameId: string;
 }) {
   const debugEnabled = useDebugEnabled();
-  const busy = pending !== null;
+  const busy = pending !== null || replaying;
+  // The attacker lunges at the defender in the view right after its attack.
+  const attacker = lastMove?.type === 'ATTACK' && lastMove.version === view.version ? lastMove.player : null;
   const { self, phase } = view;
   const myTurn = isMyTurn(view);
   const promoting = mustPromote(view);
@@ -184,6 +199,7 @@ export function Board({
         // While a card is held, retreating or a Pokémon is being chosen, fade the ones that can't be picked so the targets stand out.
         dimmed={((heldCard !== undefined && !draggingTrainer) || retreat.ready || pokemonPick !== null) && pokemon !== null && !isTarget}
         loading={busySlot === id}
+        lunge={id === 'active' && attacker === view.you ? { dir: 'up', stamp: view.version } : null}
         onClick={
           busy
             ? undefined
@@ -317,6 +333,7 @@ export function Board({
                 opponent={view.opponent}
                 cards={view.cards}
                 pick={pokemonPick?.side === 'opp' && !busy ? pokemonPick : null}
+                lunge={attacker === view.opponent.id ? view.version : null}
                 dialog={trainer.card && <TrainerPanel view={view} trainer={trainer} />}
               />
 

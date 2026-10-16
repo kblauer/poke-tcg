@@ -14,11 +14,14 @@ export function OpponentArea({
   opponent,
   cards,
   pick,
+  lunge = null,
   dialog,
 }: {
   opponent: PlayerView['opponent'];
   cards: CardLibrary;
   pick: { options: Target[]; pick: (t: Target) => void } | null;
+  /** Set (to the view's version) right after the CPU attacked: its active lunges at the player's. */
+  lunge?: number | null;
   /** The Trainer being played or a search of the deck: floats over this side, its bottom level with the CPU's active. */
   dialog?: ReactNode;
 }) {
@@ -35,6 +38,7 @@ export function OpponentArea({
         label={choosable ? 'Choose' : null}
         dimmed={pick !== null && pokemon !== null && !choosable}
         onClick={choosable ? () => pick!.pick(target) : undefined}
+        lunge={target === 'active' && lunge !== null ? { dir: 'down', stamp: lunge } : null}
       />
     );
   };

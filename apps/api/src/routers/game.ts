@@ -23,7 +23,7 @@ export async function loadOwnGame(gameId: string, userId: string) {
 }
 
 export const gameRouter = router({
-  /** Starts a test game: the player's test deck against a CPU with no AI, using cards from the catalog. */
+  /** Starts a test game: the player's test deck against the CPU, using cards from the catalog. */
   createTest: protectedProcedure.mutation(async ({ ctx }) => {
     const playerDeck = expandDeck(PLAYER_TEST_DECK);
     const cpuDeck = expandDeck(CPU_TEST_DECK);
@@ -54,6 +54,8 @@ export const gameRouter = router({
   /**
    * Validates the player's action with the engine, then lets the CPU respond,
    * and persists everything in one write. The server is the only authority.
+   * Returns the player's view after each move (theirs first, then each of the CPU's), so the
+   * client can show the CPU's moves one at a time; the last frame is the current view.
    */
   act: protectedProcedure.input(submitActionInput).mutation(async ({ ctx, input }) => {
     const game = await loadOwnGame(input.gameId, ctx.user.id);
@@ -83,6 +85,10 @@ export const gameRouter = router({
     });
     if (!saved) throw new TRPCError({ code: 'CONFLICT', message: 'Game state changed, refresh and retry' });
 
-    return getPlayerView(next, HUMAN_ID);
+    const frames = [
+      { player: HUMAN_ID, type: input.action.type, view: getPlayerView(result.state, HUMAN_ID) },
+      ...cpu.actions.map((action, i) => ({ player: CPU_ID, type: action.type, view: getPlayerView(cpu.states[i]!, HUMAN_ID) })),
+    ];
+    return { frames };
   }),
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { applyAction, createGame, isBasicPokemon, lookupCard, runCpu, type GameState } from './index.js';
-import { TEST_CARDS, testDeck } from './test-cards.js';
+import { applyAction, createGame, isBasicPokemon, lookupCard, runCpu, type GameState } from '../index.js';
+import { TEST_CARDS, testDeck } from '../test-cards.js';
 
 const newGame = () => createGame({ id: 'player', deck: testDeck('fire') }, { id: 'cpu', deck: testDeck('water') }, 7, TEST_CARDS);
 
@@ -11,7 +11,7 @@ function playerSetsActive(state: GameState): GameState {
   return res.state;
 }
 
-describe('CPU', () => {
+describe('CPU (gym leader by default)', () => {
   it('chooses an active during setup, then waits for the player', () => {
     const { state, actions } = runCpu(newGame(), 'cpu');
     expect(actions).toEqual([{ type: 'SET_ACTIVE', cardUid: expect.any(String) }]);
@@ -43,9 +43,9 @@ describe('CPU', () => {
       return s;
     }
 
-    it('benches its Basics, attaches matching energy, then ends its turn without attacking', () => {
+    it('benches its Basics, attaches energy, then attacks', () => {
       const { state, actions } = runCpu(cpuTurn(['charmander', 'charmander', 'fire-energy', 'fire-energy']), 'cpu');
-      expect(actions.map((a) => a.type)).toEqual(['PLAY_BENCH', 'PLAY_BENCH', 'ATTACH_ENERGY', 'END_TURN']);
+      expect(actions.map((a) => a.type)).toEqual(['PLAY_BENCH', 'PLAY_BENCH', 'ATTACH_ENERGY', 'ATTACK']);
       const cpu = state.players.cpu!;
       expect(cpu.bench.filter(Boolean)).toHaveLength(2);
       expect(cpu.active!.energy.map((e) => e.defId)).toEqual(['fire-energy']);
@@ -53,10 +53,9 @@ describe('CPU', () => {
       expect(state.currentPlayer).toBe('player');
     });
 
-    it("doesn't attach energy that matches none of its Pokémon", () => {
-      const { state, actions } = runCpu(cpuTurn(['water-energy']), 'cpu');
-      expect(actions).toEqual([{ type: 'END_TURN' }]);
-      expect(state.players.cpu!.active!.energy).toEqual([]);
+    it('attaches energy of any type to a colorless cost', () => {
+      const { state } = runCpu(cpuTurn(['water-energy']), 'cpu');
+      expect(state.players.cpu!.active!.energy.map((e) => e.defId)).toEqual(['water-energy']);
     });
 
     it('evolves when it can', () => {

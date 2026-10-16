@@ -1,7 +1,49 @@
 import { useDroppable } from '@dnd-kit/core';
 import { lookupCard, type CardLibrary, type InPlayPokemon } from '@poke-tcg/game-engine';
+import { useEffect, useRef, type RefObject } from 'react';
 import { LARGE_CARD, SMALL_CARD } from '../utils/layout';
 import { Card } from './Card';
+
+/** Length of the slot animations (a Pokémon arriving, taking damage, healing, getting Energy, attacking). */
+const MOTION_MS = 450;
+
+/**
+ * Animates what changed in the slot since the last view: a new Pokémon (played, evolved, switched in) drops
+ * in, damage shakes it with a red glow, healing glows green, new Energy glows yellow, and an attack lunges.
+ * Nothing moves on the first render or for people who prefer reduced motion.
+ */
+function useSlotMotion(ref: RefObject<HTMLDivElement | null>, pokemon: InPlayPokemon | null, lunge: { dir: 'up' | 'down'; stamp: number } | null) {
+  const before = useRef(pokemon);
+  const lunged = useRef(lunge?.stamp ?? null);
+  useEffect(() => {
+    const prev = before.current;
+    before.current = pokemon;
+    const el = ref.current;
+    if (!el || !pokemon || prev === pokemon || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const glow = (rgb: string) => [{ filter: 'none' }, { filter: `drop-shadow(0 0 14px rgb(${rgb})) brightness(1.15)`, offset: 0.35 }, { filter: 'none' }];
+    if (!prev || prev.card.uid !== pokemon.card.uid) {
+      el.animate([{ opacity: 0, transform: 'translateY(-14%) scale(0.85)' }, { opacity: 1, transform: 'none' }], { duration: MOTION_MS, easing: 'ease-out' });
+    } else if (pokemon.damage > prev.damage) {
+      // Starts a moment late, so the attacker's lunge lands first.
+      const shake = ['none', 'translateX(-6%) rotate(-3deg)', 'translateX(5%) rotate(2deg)', 'translateX(-3%)', 'translateX(2%)', 'none'].map((transform) => ({ transform }));
+      el.animate(shake, { duration: MOTION_MS, delay: 180, easing: 'ease-out' });
+      el.animate(glow('239 68 68'), { duration: MOTION_MS, delay: 180 });
+    } else if (pokemon.damage < prev.damage) {
+      el.animate(glow('52 211 153'), { duration: MOTION_MS });
+    } else if (pokemon.energy.length > prev.energy.length) {
+      el.animate(glow('250 204 21'), { duration: MOTION_MS });
+    }
+  }, [pokemon]);
+  useEffect(() => {
+    const stamp = lunge?.stamp ?? null;
+    if (stamp === lunged.current) return;
+    lunged.current = stamp;
+    const el = ref.current;
+    if (!el || !lunge || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const reach = lunge.dir === 'up' ? '-18%' : '18%';
+    el.animate([{ transform: 'none' }, { transform: `translateY(${reach}) scale(1.06)`, offset: 0.4 }, { transform: 'none' }], { duration: MOTION_MS, easing: 'ease-in-out' });
+  }, [lunge?.stamp]);
+}
 
 /**
  * The active spot or a bench slot. Player slots become drop targets while a card that
@@ -17,6 +59,7 @@ export function Slot({
   label = null,
   dimmed = false,
   loading = false,
+  lunge = null,
   onClick,
 }: {
   id: string;
@@ -30,9 +73,13 @@ export function Slot({
   label?: string | null;
   dimmed?: boolean;
   loading?: boolean;
+  /** It just attacked: it lunges towards the other side (`stamp` is the view's version, so each attack lunges once). */
+  lunge?: { dir: 'up' | 'down'; stamp: number } | null;
   onClick?: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id, disabled: !droppable });
+  const art = useRef<HTMLDivElement>(null);
+  useSlotMotion(art, pokemon, lunge);
   // Rings sit outside the card art, so they need to be thick and glowing to read against the card's own border.
   const ring = loading
     ? 'animate-pulse ring-4 ring-yellow-300'
@@ -58,7 +105,11 @@ export function Slot({
       }`}
     >
       {/* The active spot is the biggest card on the board, so it gets the high-resolution image. */}
-      {pokemon && <Card def={lookupCard(cards, pokemon.card.defId)} inPlay={pokemon} cards={cards} small={!large} highRes={large} />}
+      {pokemon && (
+        <div ref={art}>
+          <Card def={lookupCard(cards, pokemon.card.defId)} inPlay={pokemon} cards={cards} small={!large} highRes={large} />
+        </div>
+      )}
       {/* Tint only the bottom band (behind the label) so the Pokémon art stays visible. */}
       {pokemon && highlight && (
         <div

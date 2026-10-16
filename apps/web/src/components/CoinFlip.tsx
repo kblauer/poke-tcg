@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 /** How long the coin spins, then how long the result stays up. */
 const SPIN_MS = 1000;
 const RESULT_MS = 900;
+/** How long one coin flip takes to show, start to finish. */
+export const COIN_MS = SPIN_MS + RESULT_MS;
 
 interface Flip {
   n: number;

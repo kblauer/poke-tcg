@@ -2,6 +2,7 @@
 // a Pokémon's HP). They aren't GameActions, so the normal action path can never reach them; the API
 // only runs them when debugging is enabled (never in production).
 import { lookupCard, type CardLibrary } from './cards.js';
+import { CPU_DIFFICULTIES, CPU_DIFFICULTY_LABELS, type CpuDifficulty } from './cpu/index.js';
 import { opponentOf, type ActionResult, type GameState, type PlayerId, type Target } from './engine.js';
 import { addLog, pokemonName } from './status.js';
 
@@ -11,7 +12,9 @@ export type DebugCommand =
   /** Draws the top card of the player's deck. */
   | { type: 'DRAW' }
   /** Sets the HP left on a Pokémon in play, on either side (at least 10: one damage counter short of Knocked Out). */
-  | { type: 'SET_HP'; side: 'self' | 'opponent'; target: Target; hp: number };
+  | { type: 'SET_HP'; side: 'self' | 'opponent'; target: Target; hp: number }
+  /** Changes how the CPU plays from its next move on. */
+  | { type: 'SET_CPU_DIFFICULTY'; difficulty: CpuDifficulty };
 
 /**
  * Runs a debug command for `playerId`. `cards` adds card defs to the game's library first (a card
@@ -52,6 +55,12 @@ export function applyDebug(prev: GameState, playerId: PlayerId, command: DebugCo
       }
       pokemon.damage = def.hp - command.hp;
       addLog(state, `Debug: set ${pokemonName(state, pokemon)} to ${command.hp} HP.`, playerId);
+      break;
+    }
+    case 'SET_CPU_DIFFICULTY': {
+      if (!CPU_DIFFICULTIES.includes(command.difficulty)) return fail(`Unknown CPU difficulty: ${command.difficulty}`);
+      state.cpuDifficulty = command.difficulty;
+      addLog(state, `Debug: set the CPU to ${CPU_DIFFICULTY_LABELS[command.difficulty]}.`, playerId);
       break;
     }
   }

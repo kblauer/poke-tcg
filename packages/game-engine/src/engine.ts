@@ -5,6 +5,7 @@ import { playTrainer, resolvePending, type PendingChoice, type TrainerChoices } 
 import { isBasicPokemon, isBenchable, lookupCard, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { addLog, clearOnLeavingActive, flipCoin, pokemonName, type LogEntry } from './status.js';
 import { shuffle } from './rng.js';
+import type { CpuDifficulty } from './cpu/index.js';
 
 export type PlayerId = string;
 
@@ -106,6 +107,8 @@ export interface GameState {
   midTurnPromotion?: boolean;
   /** A search the player must finish (after Computer Search, Pokémon Trader, Pokédex); nothing else can happen until then. */
   pendingChoice?: PendingChoice;
+  /** How the CPU plays this game (cpu/). Missing = DEFAULT_CPU_DIFFICULTY. */
+  cpuDifficulty?: CpuDifficulty;
   /** What happened, oldest first: attacks, coin flips, knockouts… (last LOG_SIZE entries). Missing in older games. */
   log?: LogEntry[];
 }

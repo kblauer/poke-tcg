@@ -2,7 +2,7 @@
 
 Monorepo for a single-player Pokémon TCG game: battle through the gym leaders of each Pokémon generation against CPU opponents. React SPA + Hono/tRPC API on Vercel, Supabase (Postgres, Auth), Prisma ORM.
 
-**Current stage:** refining the card-playing mechanics. The home screen starts a test game (fixed Base Set test decks) against a simple CPU that benches its Basics, evolves when it can and attaches energy to Pokémon of the same type, but never attacks or retreats. Single-player structure, multiple saves per account and cross-run progression come later.
+**Current stage:** refining the card-playing mechanics. The home screen starts a test game (fixed Base Set test decks) against the gym-leader CPU (see [The CPU opponent](#the-cpu-opponent)), whose moves play out one at a time. Single-player structure, multiple saves per account and cross-run progression come later.
 
 ```
 apps/
@@ -136,7 +136,11 @@ Holo cards are those with `variants.holo` in their TCGdex data (the rarity alone
 | `effects/` | Card-specific effects by card id: attacks (`base1.ts`, from shared pieces in `common.ts`) Pokémon Powers (`base1-powers.ts`) and Trainers (`base1-trainers.ts`). `test-kit.ts` sets up duels for their tests |
 | `status.ts` | Game log, coin flips and clearing conditions when a Pokémon leaves the active spot |
 | `view.ts` | `getPlayerView`: what one player may see |
-| `cpu.ts` | The CPU opponent |
+| `cpu/index.ts` | CPU difficulties (`CPU_DIFFICULTIES`, `cpuFor`) and `runCpu`, which plays at the game's `cpuDifficulty` |
+| `cpu/passive.ts` | The **Passive** CPU (`passiveCpu`): benches, evolves and attaches matching Energy; never attacks, retreats or plays Trainers |
+| `cpu/gym-leader.ts` | The **Gym leader** CPU (`gymLeaderCpu`): its rules, step by step |
+| `cpu/shared.ts` | What the CPUs share: choosing the first active, each attack simulated over every coin-flip outcome, the opponent's threat next turn, Energy arithmetic and which cards are useful |
+| `cpu/*.test.ts` | Tests per difficulty (`gym-leader.test.ts` has one block per rule, with Base Set cards) |
 | `debug.ts` | `applyDebug`: testing cheats (a card into the hand, draw, set a Pokémon's HP). Not `GameAction`s, so normal moves can never reach them; each is logged |
 
 Rules follow the 1999 Base Set rulebook. Special Conditions: Asleep (flip between turns to wake), Confused (flip to attack, tails = 20 damage to itself; flip to retreat), Paralyzed (until after its owner's next turn), Poisoned (10 between turns, 20 from Toxic). The checkup between turns handles them in order for both actives: Poisoned, Burned (not in the Base Set, not implemented yet), Asleep, Paralyzed. Trainers: PlusPower (+10) and Defender (−20) attach to a Pokémon and change attack damage after weakness and resistance, PlusPower first; they're discarded at the end of the turn / the opponent's next turn. Clefairy Doll is played onto the Bench as a 10 HP Pokémon (it can't start as your Active or count as a Basic for the opening hand), can't retreat or get Special Conditions, gives no prize when Knocked Out, and can be discarded during your turn. Scoop Up can't take your only Pokémon in play; Devolution Spray can Knock Out. Double Colorless Energy provides 2 Colorless energy. Pokémon Powers stop working while their Pokémon is Asleep, Confused or Paralyzed. Dropping a Water Energy on a Water Pokémon uses Rain Dance when a Blastoise can, so it doesn't use up the turn's attachment. Where TCGdex's attack text differs from the printed card, the effect carries the printed wording and the API shows that instead.
@@ -147,11 +151,34 @@ Rules follow the 1999 Base Set rulebook. Special Conditions: Asleep (flip betwee
 2. API validates the input with Zod, loads the game state, and runs `applyAction` from `@poke-tcg/game-engine`.
 3. If the move is legal, the API runs the CPU (`runCpu`) until it's the player's move again.
 4. If `expectedVersion` still matches, the API writes the new state and every action (player and CPU) to the `GameAction` log in one transaction.
-5. The response is the player's `getPlayerView`. Raw state, which includes the CPU's hand, deck order and RNG, never leaves the server.
+5. The response is `frames`: the player's `getPlayerView` after their move and after each of the CPU's, with who moved and the action type. Raw state, which includes the CPU's hand, deck order and RNG, never leaves the server.
+6. The web caches the last frame and plays the others back (`pages/Game.tsx`): each stays up for 0.9s plus 1.9s per coin flip in it, and nothing can be clicked until the reply ends. Slots animate what changed (`Slot.tsx`): a Pokémon dropping in, a red shake for damage, green for healing, yellow for Energy, and the attacker lunging at the defender.
+
+## The CPU opponent
+
+Each difficulty has its own file in `packages/game-engine/src/cpu/`, with shared helpers in `shared.ts`. A game's `cpuDifficulty` picks one (missing = Gym leader), and the Debug tab can change it mid-game:
+
+- **Passive** (`passive.ts`): benches Basics, evolves and attaches Energy to a Pokémon of the same type. It never attacks, retreats or plays Trainers.
+- **Gym leader** (`gym-leader.ts`): the strongest, described below. An easier **Trainer** difficulty for the fights that aren't gym leaders comes next.
+
+The gym leader takes, on its turn, it takes the first move any of these steps wants, over and over, until it attacks or ends its turn:
+
+1. **Draw and search**: Bill (keeping cards to draw). Computer Search for the next stage of a line in play, or a Basic if the Bench is empty, discarding Energy nothing can use, spare Trainers, Trainers it never plays and Pokémon it can't use (never anything else). Pokémon Trader swaps a Pokémon it can't use for one it wants. It only searches when the card could still be in its deck (counting the face-down prizes). Pokédex isn't played.
+2. **Develop**: bench Basics, Pokémon Breeder straight to Stage 2, evolve (active first), and a Clefairy Doll only when the Bench is empty.
+3. **Energy**: Rain Dance and the turn's attachment go to the active if they make a new attack usable, otherwise to the benched Pokémon they bring closest to attacking; Double Colorless only where two colorless symbols are open, and never Energy no attack can use. Energy Trans moves Grass Energy from the Bench to the active when that makes a stronger attack usable. Then Professor Oak, if the hand is down to 2 other cards (and the deck has more than 7).
+4. **Heal**: Full Heal for a Special Condition; Super Potion on the active at 40+ damage if it can spare the Energy and still use its best attack, else the most damaged benched Pokémon at 40+; Potion at 20+ damage (active first); Pokémon Center for 60+ healed when the active isn't about to attack with Energy it would lose; Damage Swap moves damage counters off an active that would be Knocked Out.
+5. **Disrupt**: Energy Removal on the player's active (else the Pokémon closest to its strongest attack); Super Energy Removal only when both Energy were going towards one attack, discarding its own Energy that's missed least; Gust of Wind for a Knock Out, else to strand a benched Pokémon with no Energy and a Retreat Cost of 2+.
+6. **Retreat or Switch** (Switch first): when the active can't attack this turn or next but a benched Pokémon can; when it would be Knocked Out next turn (and isn't Knocking Out the attacker first) and a benched Pokémon would survive; or when it still has a Special Condition. The benched Pokémon that attacks best comes in. The Retreat Cost is paid with the Energy it can best spare, basic before special, and never when nothing could attack afterwards.
+7. **Boost**: any Pokémon Power that makes this turn's attack better without costing a Pokémon or prize (Energy Burn); PlusPower when +10 makes a Knock Out; Defender when −20 stops a Knock Out next turn.
+8. **Attack**: the cheapest attack that Knocks Out, otherwise the most damage. Attacks that hurt the attacker or discard its Energy only when they Knock Out or nothing else does damage.
+
+After a Knock Out it promotes the benched Pokémon that attacks best (then the one with the most HP left). It plays no other Trainers yet (Lass, Impostor Professor Oak, Item Finder, Maintenance, Revive, Pokémon Flute, Scoop Up, Devolution Spray, Energy Retrieval), and never uses Buzzap.
+
+It only uses what the player could see. What an attack would do is worked out in `cpu/shared.ts` by playing it on copies of the state with fixed coin flips covering every heads/tails pattern of three flips, so it never knows the real flips to come; "Knocks Out" means in at least half of those outcomes. The player's threat is their active's best attack next turn with the Energy it has now. Trainers and powers are recognised by name, so reprints work the same, and nothing depends on the current test decks.
 
 ## Debug tools
 
-The game log has a **Debug** tab for testing: draw a card, put any card (or an Energy) into your hand, and set the HP of any Pokémon in play. It only exists outside production, enforced in two places:
+The game log has a **Debug** tab for testing: change the CPU's difficulty, draw a card, put any card (or an Energy) into your hand, and set the HP of any Pokémon in play. It only exists outside production, enforced in two places:
 
 - **API** (the authority): the `debug.run` procedure is a `debugProcedure` (`apps/api/src/trpc.ts`), which answers `NOT_FOUND` unless `env.debugEnabled` (`apps/api/src/env.ts`). That's always false in production (`VERCEL_ENV=production` or `NODE_ENV=production`, whatever else is set), and true elsewhere unless `ENABLE_DEBUG=false`. `debug.enabled` tells the client which.
 - **Web**: `__DEBUG_BUILD__` is a build-time constant from `vite.config.ts`: on in the dev server (unless `VITE_ENABLE_DEBUG=false`), off in a `vite build` (unless `VITE_ENABLE_DEBUG=true`). A production build leaves the Debug tab's code out of the bundle entirely; the tab also needs `debug.enabled` from the API.
@@ -211,8 +238,7 @@ Use the printed DB URL for both `DATABASE_URL` and `DIRECT_URL`, `http://127.0.0
 ## Next steps
 
 - Card effects for sets after the Base Set.
-- A CPU that plays Trainers.
 - Ask the player to choose when an opponent's attack makes them pick (Whirlwind currently brings in their first benched Pokémon).
 - Deck builder backed by `Deck` and `DeckCard`.
-- A CPU that attacks and plays strategically (the `decide` function passed to `runCpu`).
+- A **Trainer** CPU difficulty, weaker than the gym leader, for the other fights (a new file in `cpu/`, added to `CPU_DIFFICULTIES`).
 - Single-player structure: gym leader battles per generation, multiple saves per account, persistent progression across runs.

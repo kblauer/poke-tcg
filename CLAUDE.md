@@ -56,7 +56,7 @@
 - High-res card images are used for the hand, the Active Pokémon and the drag overlay; small images elsewhere.
 
 ## Debug tools (testing cheats)
-- The Debug tab can draw a card, add any card or Energy to the hand, and set the HP of any Pokémon in play.
+- The Debug tab can change the CPU's difficulty, draw a card, add any card or Energy to the hand, and set the HP of any Pokémon in play.
   - Engine: `applyDebug` in `packages/game-engine/src/debug.ts`.
   - API: `debug` router.
   - Web: `DebugPanel.tsx`.
@@ -68,5 +68,5 @@
 - SET_HP has a minimum of 10; debug can't Knock Out a Pokémon directly.
 
 ## Known open items
-- The CPU only benches Basics, evolves and attaches Energy; it never attacks, retreats or plays Trainers. Those are the next CPU steps.
+- CPU difficulties live in `packages/game-engine/src/cpu/`, one file each (`passive.ts`, `gym-leader.ts`) plus `shared.ts`. Keep them separate. Gym leader is the baseline the user agreed on (README: The CPU opponent); change its rules only with the user's say-so. Next: a 'trainer' difficulty, easier than gym leader.
 - Missing rules: Whirlwind prompting, Burned, and card effects for sets after Base Set.
