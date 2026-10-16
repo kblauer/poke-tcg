@@ -110,17 +110,17 @@ export function Slot({
           <Card def={lookupCard(cards, pokemon.card.defId)} inPlay={pokemon} cards={cards} small={!large} highRes={large} />
         </div>
       )}
-      {/* Tint only the bottom band (behind the label) so the Pokémon art stays visible. */}
+      {/* Tint only a band across the middle (behind the label), so the art and the Energy along the bottom stay visible. */}
       {pokemon && highlight && (
         <div
-          className={`pointer-events-none absolute inset-x-0 bottom-0 h-1/3 rounded-b-lg bg-gradient-to-t to-transparent ${
-            highlight === 'target' ? 'from-emerald-500/80' : highlight === 'power' ? 'from-violet-500/70' : 'from-yellow-400/70'
+          className={`pointer-events-none absolute inset-x-0 top-1/3 h-1/3 bg-gradient-to-b from-transparent to-transparent ${
+            highlight === 'target' ? 'via-emerald-500/70' : highlight === 'power' ? 'via-violet-500/60' : 'via-yellow-400/60'
           }`}
         />
       )}
       {label && (
         <span
-          className={`pointer-events-none absolute inset-x-0 bottom-2 mx-auto w-fit rounded-full px-2 py-0.5 text-xs font-bold shadow ${
+          className={`pointer-events-none absolute inset-x-0 top-1/2 mx-auto w-fit -translate-y-1/2 rounded-full px-2 py-0.5 text-xs font-bold shadow ${
             highlight === 'promote' ? 'bg-yellow-400 text-slate-900' : 'bg-emerald-500 text-white'
           }`}
         >

@@ -2,7 +2,7 @@ import type { CardDef, EnergyType } from '@poke-tcg/game-engine';
 
 const TYPE_COLORS: Record<EnergyType, string> = {
   grass: 'bg-green-600',
-  fire: 'bg-orange-600',
+  fire: 'bg-red-600',
   water: 'bg-sky-600',
   lightning: 'bg-yellow-500',
   psychic: 'bg-purple-600',

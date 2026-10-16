@@ -1,6 +1,6 @@
 import { energyProvided, lookupCard, type CardLibrary, type GameAction, type InPlayPokemon } from '@poke-tcg/game-engine';
 import type { Retreat } from '../hooks/useRetreat';
-import { energyColor } from '../utils/cardColors';
+import { EnergyIcon } from './EnergyIcon';
 
 /**
  * Retreat button under the attacks. While retreating it asks which energy to discard (when
@@ -52,13 +52,11 @@ export function RetreatPanel({
                   key={e.uid}
                   onClick={() => retreat.toggleEnergy(e.uid)}
                   title={amount > 1 ? `${def.name} (${amount} energy)` : def.name}
-                  className={`${energyColor(type)} h-5 w-5 rounded-full border-2 text-[10px] font-bold text-white transition ${
-                    picked ? 'border-red-400 opacity-40' : 'border-white'
-                  }`}
+                  className={`rounded-full transition ${picked ? 'opacity-40 ring-2 ring-red-400' : ''}`}
                   aria-pressed={picked}
                   aria-label={`${picked ? 'Keep' : 'Discard'} ${def.name}`}
                 >
-                  {amount > 1 ? amount : null}
+                  <EnergyIcon type={type} size="panel" count={amount > 1 ? amount : undefined} />
                 </button>
               );
             })}

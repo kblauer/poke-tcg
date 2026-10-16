@@ -2,7 +2,7 @@ import { CPU_DIFFICULTIES, CPU_DIFFICULTY_LABELS, lookupCard, type CpuDifficulty
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTRPC } from '../lib/trpc';
-import { energyColor } from '../utils/cardColors';
+import { EnergyIcon } from './EnergyIcon';
 
 /** Base Set Energy cards, for one-click adding. */
 const ENERGY: { id: string; name: string; type: EnergyType }[] = [
@@ -82,7 +82,7 @@ export default function DebugPanel({ gameId, view }: { gameId: string; view: Pla
         <div className="flex flex-wrap gap-1">
           {ENERGY.map((e) => (
             <button key={e.id} className={`${button} flex items-center gap-1`} disabled={busy} onClick={() => send({ type: 'ADD_TO_HAND', defId: e.id })}>
-              <span className={`${energyColor(e.type)} h-3 w-3 rounded-full border border-white`} />
+              <EnergyIcon type={e.type} />
               {e.name}
             </button>
           ))}

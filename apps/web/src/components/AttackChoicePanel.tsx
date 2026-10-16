@@ -1,7 +1,7 @@
-import { lookupCard, typeName, type CardInstance, type CardLibrary, type ChoiceSpec, type PlayerView, type PokemonCardDef } from '@poke-tcg/game-engine';
+import { energyProvided, lookupCard, typeName, type CardInstance, type CardLibrary, type ChoiceSpec, type PlayerView, type PokemonCardDef } from '@poke-tcg/game-engine';
 import { useState } from 'react';
 import type { AttackControl } from '../hooks/useAttack';
-import { typeColor } from '../utils/cardColors';
+import { EnergyIcon } from './EnergyIcon';
 
 // Styled like the Trainer dialog: buttons one shade lighter than the panel.
 const option = 'rounded bg-slate-600 px-2 py-1 text-left text-xs transition hover:bg-slate-500 active:scale-95';
@@ -76,8 +76,10 @@ function EnergyPicker({
               title={def.name}
               aria-pressed={on}
               aria-label={`${on ? 'Keep' : 'Discard'} ${def.name}`}
-              className={`${typeColor(def)} h-5 w-5 rounded-full border-2 transition ${on ? 'border-red-400 opacity-40' : 'border-white'}`}
-            />
+              className={`rounded-full transition ${on ? 'opacity-40 ring-2 ring-red-400' : ''}`}
+            >
+              <EnergyIcon type={energyProvided(e, cards).type} size="panel" />
+            </button>
           );
         })}
       </div>

@@ -1,6 +1,6 @@
 import { energyProvided, lookupCard, type CardDef, type CardLibrary, type InPlayPokemon } from '@poke-tcg/game-engine';
 import { useContext } from 'react';
-import { energyColor, typeColor } from '../utils/cardColors';
+import { typeColor } from '../utils/cardColors';
 import { LARGE_CARD, SMALL_CARD } from '../utils/layout';
 
 /** Badges for Special Conditions and protective effects on a Pokémon in play. */
@@ -24,6 +24,7 @@ function statusBadges(p: InPlayPokemon, cards?: CardLibrary): { label: string; t
   if (e.amnesia) badges.push({ label: 'AMN', title: `Amnesia: can't use ${e.amnesia.attack} next turn`, className: 'bg-slate-600' });
   return badges;
 }
+import { EnergyIcon } from './EnergyIcon';
 import { PreviewContext } from './PreviewContext';
 
 /** Card art from TCGdex (aspect ratio 63:88), with damage and attached energy overlaid when in play. */
@@ -69,7 +70,8 @@ export function Card({
         </div>
       )}
       {inPlay && cards && inPlay.energy.length > 0 && (
-        <div className="absolute bottom-1 left-1 flex flex-wrap gap-0.5">
+        // Along the bottom edge; a slot's label ("Attach", "Evolve"…) sits in the middle of the card, clear of them.
+        <div className="absolute inset-x-1 bottom-1 flex flex-wrap-reverse gap-0.5">
           {inPlay.energy.flatMap((e) => {
             const provided = energyProvided(e, cards);
             // Energy Burn makes all of the Pokémon's Energy Fire for the turn.
@@ -78,7 +80,7 @@ export function Card({
             const name = lookupCard(cards, e.defId).name + (burned ? ' (Fire this turn: Energy Burn)' : '');
             // One dot per energy provided: Double Colorless Energy (and a Buzzap'd Electrode) shows two.
             return Array.from({ length: provided.amount }, (_, i) => (
-              <span key={`${e.uid}-${i}`} title={name} className={`${energyColor(type)} h-3 w-3 rounded-full border border-white shadow`} />
+              <EnergyIcon key={`${e.uid}-${i}`} type={type} size={small ? 'sm' : 'lg'} title={name} />
             ));
           })}
         </div>
