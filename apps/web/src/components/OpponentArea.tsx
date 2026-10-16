@@ -46,7 +46,7 @@ export function OpponentArea({
           <DeckAndDiscard deckCount={opponent.deckCount} discard={opponent.discard} cards={cards} mirrored />
         </div>
         <div className="min-w-0 flex-1 space-y-3">
-          <h3 className="text-sm text-slate-400">
+          <h3 className="text-center text-sm text-slate-400">
             CPU · hand {opponent.handCount}
           </h3>
           <div className="flex justify-center gap-2">

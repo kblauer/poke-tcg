@@ -3,7 +3,8 @@ import { useState } from 'react';
 import type { TrainerControl } from '../hooks/useTrainer';
 import { pickHint } from './AttackChoicePanel';
 
-const option = 'rounded bg-slate-700 px-2 py-1 text-left text-xs transition hover:bg-slate-600 active:scale-95 disabled:opacity-40';
+// One shade lighter than the panel (slate-800) so the buttons stand out on it.
+const option = 'rounded bg-slate-600 px-2 py-1 text-left text-xs transition hover:bg-slate-500 active:scale-95 disabled:opacity-40';
 
 /** The Trainer card being played: its text and the current question (the last answer plays it), or a Play button if it has none. */
 export function TrainerPanel({ view, trainer }: { view: PlayerView; trainer: TrainerControl }) {
@@ -12,7 +13,7 @@ export function TrainerPanel({ view, trainer }: { view: PlayerView; trainer: Tra
   const error = trainer.error(card);
   return (
     // No card image: the card being played is already raised and ringed in the hand.
-    <section data-keep-action className="rounded-lg bg-slate-900 p-3 text-xs">
+    <section data-keep-action className="rounded-lg bg-slate-800 p-3 text-xs ring-1 ring-slate-600">
       <div className="space-y-2">
         <h3 className="text-base font-semibold">{def.name}</h3>
         <p className="text-slate-400">{def.text}</p>

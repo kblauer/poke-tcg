@@ -14,7 +14,7 @@ export function PendingChoicePanel({ view, send, busy }: { view: PlayerView; sen
   return (
     // Hovered cards here still show the preview, but the wheel scrolls the page rather than resizing it.
     <PreviewContext.Provider value={(p) => setPreview(p && { ...p, scrollZoom: false })}>
-      <section data-keep-action className="space-y-2 rounded-lg bg-slate-900 p-3 ring-2 ring-yellow-400/60">
+      <section data-keep-action className="space-y-2 rounded-lg bg-slate-800 p-3 ring-2 ring-yellow-400/60">
         <p className="text-sm font-semibold">{choice.prompt}</p>
         {choice.kind === 'pickFromDeck' ? <PickFromDeck key={view.version} choice={choice} view={view} send={send} busy={busy} /> : null}
         {choice.kind === 'arrangeTop' ? <ArrangeTop key={view.version} choice={choice} view={view} send={send} busy={busy} /> : null}
