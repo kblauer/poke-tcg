@@ -3,17 +3,27 @@ import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { useState, type ReactNode } from 'react';
 
 /**
- * Panels floating over the table (the Trainer being played, a search of the deck), placed by the
+ * Panels floating over the table (the Trainer being played, a search of the deck), placed, sized and layered by the
  * caller. An eye button fades them to 20% opacity, outlined so it's clear where they still are, and
- * lets every click through to what's underneath (only the eye button stays clickable); clicking it
- * again brings them back.
+ * (unless `clickThrough` is off) lets every click through to what's underneath, only the eye button
+ * staying clickable; clicking it again brings them back.
  */
-export function FloatingDialog({ children, className }: { children: ReactNode; className: string }) {
+export function FloatingDialog({
+  children,
+  className,
+  clickThrough = true,
+}: {
+  children: ReactNode;
+  /** Position and size. */
+  className: string;
+  /** Whether clicks reach what's underneath while it's faded (not needed for a search of the deck, which must be finished first). */
+  clickThrough?: boolean;
+}) {
   const [peeking, setPeeking] = useState(false);
   return (
     <div
       data-keep-action
-      className={`z-20 w-max max-w-[min(42rem,90cqw)] rounded-lg ${peeking ? 'pointer-events-none outline-1 outline-offset-2 outline-dashed outline-slate-400/60' : ''} ${className}`}
+      className={`rounded-lg ${peeking ? `outline-1 outline-offset-2 outline-dashed outline-slate-400/60 ${clickThrough ? 'pointer-events-none' : ''}` : ''} ${className}`}
     >
       <button
         onClick={() => setPeeking((p) => !p)}
@@ -25,7 +35,7 @@ export function FloatingDialog({ children, className }: { children: ReactNode; c
         {peeking ? <VisibilityOffIcon sx={{ fontSize: 16 }} /> : <VisibilityIcon sx={{ fontSize: 16 }} />}
       </button>
       <div
-        className={`flex flex-col gap-2 transition-opacity [&>*]:shadow-2xl [&>*]:shadow-black/70 ${peeking ? 'pointer-events-none opacity-20' : ''}`}
+        className={`flex flex-col gap-2 transition-opacity [&>*]:shadow-2xl [&>*]:shadow-black/70 ${peeking ? `opacity-20 ${clickThrough ? 'pointer-events-none' : ''}` : ''}`}
       >
         {children}
       </div>

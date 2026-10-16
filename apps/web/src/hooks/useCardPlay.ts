@@ -30,6 +30,7 @@ export function useCardPlay({
   busy,
   onDragStart,
   onDropOnPlayArea,
+  notify,
 }: {
   view: PlayerView;
   send: (a: GameAction) => void;
@@ -39,6 +40,8 @@ export function useCardPlay({
   onDragStart?: () => void;
   /** Called when a card is dropped anywhere on the play area (a Trainer card being played). */
   onDropOnPlayArea?: (card: CardInstance) => void;
+  /** Tells the player something, e.g. why the clicked card can't be played. */
+  notify?: (message: string) => void;
 }) {
   const { hand } = view.self;
   /** Hand card picked by clicking; its valid slots are highlighted until a slot is clicked. */
@@ -46,8 +49,6 @@ export function useCardPlay({
   const [dragging, setDragging] = useState<string | null>(null);
   /** The drop target under the dragged card (an enabled slot or the play area), if any. */
   const [dropTarget, setDropTarget] = useState<string | null>(null);
-  /** Why the last clicked card can't be played. */
-  const [hint, setHint] = useState<string | null>(null);
 
   const sensors = useSensors(
     // A small movement threshold keeps plain clicks working as "select".
@@ -71,7 +72,6 @@ export function useCardPlay({
     if (!card || !targetsFor(view, card).includes(slot)) return;
     send(playAction(view, card, slot));
     setSelected(null);
-    setHint(null);
   }
 
   function clickHandCard(card: CardInstance) {
@@ -79,9 +79,8 @@ export function useCardPlay({
     if (selected === card.uid) return setSelected(null);
     if (targetsFor(view, card).length === 0) {
       setSelected(null);
-      return setHint(whyNoTargets(view, card));
+      return notify?.(whyNoTargets(view, card));
     }
-    setHint(null);
     setSelected(card.uid);
   }
 
@@ -91,7 +90,6 @@ export function useCardPlay({
     onDragStart: ({ active }: DragStartEvent) => {
       onDragStart?.();
       setSelected(null);
-      setHint(null);
       setDragging(String(active.id));
     },
     onDragOver: ({ over }: DragOverEvent) => setDropTarget(over ? String(over.id) : null),
@@ -124,7 +122,6 @@ export function useCardPlay({
     dragging,
     /** Where the dragged card would land if dropped now; null means dropping cancels. */
     dropTarget,
-    hint,
     heldCard,
     highlighted,
     heldLabel,

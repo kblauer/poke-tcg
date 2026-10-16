@@ -32,10 +32,10 @@ function PickFromDeck({ choice, view, send, busy }: { choice: Extract<PendingCho
     );
   }
   return (
-    <div className="flex max-h-72 flex-wrap gap-2 overflow-y-auto">
+    <div className="flex max-h-[60vh] flex-wrap justify-center gap-2 overflow-y-auto p-1">
       {choice.options.map((c) => (
         <button key={c.uid} disabled={busy} className="rounded-lg transition hover:-translate-y-1" onClick={() => send({ type: 'RESOLVE_CHOICE', cardUid: c.uid })}>
-          <Card def={lookupCard(view.cards, c.defId)} small />
+          <Card def={lookupCard(view.cards, c.defId)} highRes />
         </button>
       ))}
     </div>
@@ -56,7 +56,7 @@ function ArrangeTop({ choice, view, send, busy }: { choice: Extract<PendingChoic
         {order.map((c, i) => (
           <div key={c.uid} className="flex flex-col items-center gap-1">
             <span className="text-xs text-slate-400">{i === 0 ? 'Top' : i + 1}</span>
-            <Card def={lookupCard(view.cards, c.defId)} small />
+            <Card def={lookupCard(view.cards, c.defId)} highRes />
             <div className="flex gap-1">
               <button className="rounded bg-slate-700 px-2 text-xs disabled:opacity-30" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up">
                 ←

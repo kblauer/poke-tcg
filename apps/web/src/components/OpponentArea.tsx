@@ -54,7 +54,7 @@ export function OpponentArea({
           </div>
           <div className="relative flex justify-center">
             {slot('cpu-active', 'active', opponent.active, true)}
-            {dialog && <FloatingDialog className="absolute bottom-0 left-1/2 -translate-x-1/2">{dialog}</FloatingDialog>}
+            {dialog && <FloatingDialog className="absolute bottom-0 left-1/2 z-20 w-max max-w-[min(42rem,90cqw)] -translate-x-1/2">{dialog}</FloatingDialog>}
           </div>
         </div>
         <div className="mt-8">

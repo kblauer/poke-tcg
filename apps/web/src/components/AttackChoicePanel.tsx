@@ -3,7 +3,8 @@ import { useState } from 'react';
 import type { AttackControl } from '../hooks/useAttack';
 import { typeColor } from '../utils/cardColors';
 
-const option = 'rounded bg-slate-700 px-2 py-1 text-left text-xs transition hover:bg-slate-600 active:scale-95';
+// Styled like the Trainer dialog: buttons one shade lighter than the panel.
+const option = 'rounded bg-slate-600 px-2 py-1 text-left text-xs transition hover:bg-slate-500 active:scale-95';
 /** Shown instead of buttons when the answer is a Pokémon in play, which is clicked on the board. */
 export const pickHint = 'text-emerald-300';
 
@@ -11,7 +12,7 @@ export const pickHint = 'text-emerald-300';
 export function AttackChoicePanel({ spec, view, attack }: { spec: ChoiceSpec; view: PlayerView; attack: AttackControl }) {
   const { cards, opponent } = view;
   return (
-    <div className="space-y-1 rounded bg-slate-800 p-2 text-xs">
+    <div className="space-y-1 rounded-lg bg-slate-800 p-2 text-xs ring-1 ring-slate-600">
       <p className="text-slate-300">{spec.prompt}:</p>
       <div className="flex flex-col gap-1">
         {spec.kind === 'ownEnergy' && <EnergyPicker key={spec.prompt} options={spec.options} count={spec.count} cards={cards} onDone={attack.answer} />}

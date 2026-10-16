@@ -3,7 +3,8 @@ import type { PowerControl } from '../hooks/usePower';
 import { pickHint } from './AttackChoicePanel';
 import { SlotMenu } from './SlotMenu';
 
-const option = 'rounded bg-slate-700 px-2 py-1 text-left text-xs transition hover:bg-slate-600 active:scale-95';
+// Styled like the Trainer dialog: buttons one shade lighter than the panel.
+const option = 'rounded bg-slate-600 px-2 py-1 text-left text-xs transition hover:bg-slate-500 active:scale-95';
 
 /**
  * The active Pokémon's Power button under its attacks, or the current question while any power
@@ -13,7 +14,7 @@ export function PowerPanel({ view, power, busy }: { view: PlayerView; power: Pow
   const { spec } = power;
   if (spec) {
     return (
-      <div className="space-y-1 rounded bg-slate-800 p-2 text-xs">
+      <div className="space-y-1 rounded-lg bg-slate-800 p-2 text-xs ring-1 ring-slate-600">
         <p className="text-slate-300">{spec.prompt}:</p>
         <div className="flex flex-col gap-1">
           {spec.kind === 'ownPokemon' && <p className={pickHint}>Click one of your highlighted Pokémon.</p>}

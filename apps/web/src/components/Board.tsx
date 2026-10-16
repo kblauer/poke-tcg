@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAttack } from '../hooks/useAttack';
 import { useCardPlay } from '../hooks/useCardPlay';
 import { usePower } from '../hooks/usePower';
+import { useToasts } from '../hooks/useToasts';
 import { useTrainer } from '../hooks/useTrainer';
 import { useRetreat } from '../hooks/useRetreat';
 import { benchSlotId, pendingSlot, toTarget, type SlotId } from '../utils/slots';
@@ -15,6 +16,7 @@ import { AttackList } from './AttackList';
 import { Card } from './Card';
 import { CardPreview } from './CardPreview';
 import { DeckAndDiscard } from './DeckAndDiscard';
+import { FloatingDialog } from './FloatingDialog';
 import { Hand } from './Hand';
 import { LogDrawer } from './LogDrawer';
 import { OpponentArea } from './OpponentArea';
@@ -27,6 +29,7 @@ import { RetreatPanel } from './RetreatPanel';
 import { Slot } from './Slot';
 import { SlotMenu } from './SlotMenu';
 import { StatusBar } from './StatusBar';
+import { Toasts } from './Toasts';
 import { TrainerPanel } from './TrainerPanel';
 
 /** The game table. Card play comes from useCardPlay; the board itself owns the hover preview. */
@@ -35,12 +38,15 @@ export function Board({
   send,
   pending,
   error,
+  errorAt,
 }: {
   view: PlayerView;
   send: (a: GameAction) => void;
   /** The action waiting on the server, if any. */
   pending: GameAction | null;
   error?: string;
+  /** When the move that failed was sent, so the same error twice still shows twice. */
+  errorAt?: number;
 }) {
   const busy = pending !== null;
   const { self, phase } = view;
@@ -48,6 +54,7 @@ export function Board({
   const promoting = mustPromote(view);
 
   const [preview, setPreview] = useState<Preview | null>(null);
+  const toasts = useToasts();
   const retreat = useRetreat({ view, send, busy });
   const attack = useAttack({ view, send, busy });
   const power = usePower({ view, send, busy });
@@ -69,7 +76,7 @@ export function Board({
     power.cancel();
     trainer.cancel();
   };
-  const { selected, dragging, dropTarget, hint, heldCard, highlighted, heldLabel, canPlay, clickHandCard, slotClick, deselect, dnd } = useCardPlay({
+  const { selected, dragging, dropTarget, heldCard, highlighted, heldLabel, canPlay, clickHandCard, slotClick, deselect, dnd } = useCardPlay({
     view,
     send,
     busy,
@@ -82,7 +89,16 @@ export function Board({
       trainer.cancel();
     },
     onDropOnPlayArea: (c) => trainer.isTrainer(c) && trainer.drop(c),
+    notify: (message) => toasts.push('warning', message),
   });
+
+  // Alerts and errors show as messages in the top right that fade away (Toasts).
+  useEffect(() => {
+    if (selected) toasts.push('warning', 'Click a highlighted slot (Esc to cancel)');
+  }, [selected]);
+  useEffect(() => {
+    if (error) toasts.push('error', error);
+  }, [error, errorAt]);
   // While a move is being set up (a Trainer or attack asking questions, a power, a held card, retreating,
   // a Pokémon's menu), clicking anywhere except a Pokémon slot, a hand card or the move's own panel cancels it.
   const inProgress =
@@ -199,7 +215,7 @@ export function Board({
             <button
               disabled={busy || !hasBenched(self)}
               onClick={() => send({ type: 'DISCARD_DOLL', target })}
-              className="w-full rounded bg-slate-700 px-2 py-1 text-left text-xs transition hover:bg-slate-600 active:scale-95 disabled:opacity-40"
+              className="w-full rounded bg-slate-600 px-2 py-1 text-left text-xs transition hover:bg-slate-500 active:scale-95 disabled:opacity-40"
             >
               Discard {dollDef.name}
             </button>
@@ -277,7 +293,6 @@ export function Board({
         <div ref={tableRef} className={`-mb-4 -mt-6 flex ${busy ? 'cursor-progress' : ''}`} style={{ height: `calc(100dvh - ${tableTop}px)` }}>
           {/* Clips the hand cards where they run past the bottom of the window. */}
           <div className={`flex min-w-0 flex-1 flex-col gap-3 overflow-hidden pt-6 ${PAGE_WIDTH}`}>
-            <StatusBar status={statusText(view)} hint={hint ?? (selected ? 'Click a highlighted slot (Esc to cancel)' : null)} error={error} canEndTurn={myTurn} canConcede={phase !== 'finished'} pending={pending} send={send} />
 
             <PlayArea
               droppable={draggingTrainer && !busy}
@@ -291,21 +306,26 @@ export function Board({
                 opponent={view.opponent}
                 cards={view.cards}
                 pick={pokemonPick?.side === 'opp' && !busy ? pokemonPick : null}
-                dialog={
-                  (self.pendingChoice || trainer.card) && (
-                    <>
-                      <PendingChoicePanel view={view} send={send} busy={busy} />
-                      <TrainerPanel view={view} trainer={trainer} />
-                    </>
-                  )
-                }
+                dialog={trainer.card && <TrainerPanel view={view} trainer={trainer} />}
               />
+
+              {/* Between the two sides: whose turn it is and End turn. */}
+              <StatusBar status={statusText(view)} canEndTurn={myTurn} pending={pending} send={send} />
 
               {/* Prize cards on the left of the play area; discard pile and deck on the right. */}
               <section className="flex min-h-0 flex-1 items-center rounded-lg bg-slate-900 p-3">
                 {/* Bottom-aligned, with the side columns lifted past the "You" label (text-sm + space-y-3 = 2rem) to line up with the bench. */}
                 <div className="flex w-full items-end gap-3">
-                  <div className="mb-8">
+                  <div className="mb-8 flex flex-col gap-2">
+                    {phase !== 'finished' && (
+                      <button
+                        className="w-full rounded bg-slate-700 px-2 py-1 text-xs transition hover:bg-slate-600 active:scale-95 disabled:cursor-progress"
+                        disabled={busy}
+                        onClick={() => send({ type: 'CONCEDE' })}
+                      >
+                        Concede
+                      </button>
+                    )}
                     <PrizeCards count={self.prizeCount} />
                   </div>
                   <div className="min-w-0 flex-1 space-y-3">
@@ -356,6 +376,13 @@ export function Board({
           <LogDrawer log={view.log} you={view.you} />
         </div>
 
+        {/* Searching the deck: a big dialog in the middle of the screen (outside the table, which would contain it). */}
+        {self.pendingChoice && (
+          <FloatingDialog clickThrough={false} className="fixed left-1/2 top-1/2 z-[1000] w-[min(56rem,90vw)] -translate-x-1/2 -translate-y-1/2">
+            <PendingChoicePanel view={view} send={send} busy={busy} />
+          </FloatingDialog>
+        )}
+
         <DragOverlay dropAnimation={null} modifiers={[centerOnPointer]}>
           {dragging && heldCard ? (
             // dnd-kit sizes the overlay like the card that was grabbed, which is bigger when it's a hovered hand card;
@@ -369,6 +396,7 @@ export function Board({
         </DragOverlay>
       </DndContext>
       {preview && <CardPreview {...preview} />}
+      <Toasts toasts={toasts.toasts} />
     </PreviewContext.Provider>
   );
 }

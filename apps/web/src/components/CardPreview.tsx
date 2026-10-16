@@ -40,7 +40,8 @@ export function CardPreview({ def, x, y, scrollZoom = true }: Preview) {
   }, [x, y, scrollZoom]);
 
   return (
-    <div ref={ref} className="pointer-events-none fixed left-0 top-0 z-50" aria-hidden>
+    // Above everything, including the deck-search dialog (z-[1000]).
+    <div ref={ref} className="pointer-events-none fixed left-0 top-0 z-[1100]" aria-hidden>
       {def.imageUrl ? (
         <img src={`${def.imageUrl}/high.webp`} alt="" className="aspect-[63/88] w-full rounded-xl shadow-2xl ring-1 ring-black/40" />
       ) : (
