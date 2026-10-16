@@ -83,6 +83,7 @@ export function Hand({
   hand,
   cards,
   selected,
+  pick,
   pending,
   canPlay,
   onCardClick,
@@ -91,6 +92,8 @@ export function Hand({
   cards: CardLibrary;
   /** uid of the card picked by clicking. */
   selected: string | null;
+  /** A Trainer is asking for cards from the hand: the ones that can be picked, and those picked so far (raised). */
+  pick: { options: Set<string>; picked: Set<string> } | null;
   pending: GameAction | null;
   /** Whether the card has somewhere to go (makes it draggable). */
   canPlay: (card: CardInstance) => boolean;
@@ -143,7 +146,7 @@ export function Hand({
       >
         {hand.map((c, i) => {
           const isHovered = i === hoveredIndex;
-          const raised = isHovered || selected === c.uid;
+          const raised = isHovered || selected === c.uid || (pick?.picked.has(c.uid) ?? false);
           const x = lefts[i]!;
           // Lifted so the whole card shows above the bottom of the screen; grown from its bottom edge.
           const y = raised ? -(cardH - visibleH) - (isHovered ? 0 : 4) : 0;
@@ -161,8 +164,9 @@ export function Hand({
               <HandCard
                 card={c}
                 def={lookupCard(cards, c.defId)}
-                draggable={!busy && canPlay(c)}
+                draggable={!busy && !pick && canPlay(c)}
                 selected={selected === c.uid}
+                pick={!pick || selected === c.uid ? undefined : pick.picked.has(c.uid) ? 'picked' : pick.options.has(c.uid) ? 'option' : 'unavailable'}
                 loading={pending !== null && 'cardUid' in pending && pending.cardUid === c.uid}
                 busy={busy}
                 onClick={() => onCardClick(c)}

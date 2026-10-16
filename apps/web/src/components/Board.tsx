@@ -97,8 +97,11 @@ export function Board({
       if (Date.now() - dragEndedAt.current < 300) return;
       if (!(e.target instanceof Element && e.target.closest('[data-keep-action]'))) cancelAllRef.current();
     };
-    window.addEventListener('click', onClick);
-    return () => window.removeEventListener('click', onClick);
+    // Capture phase: checked before React handles the click, while its target is still in the page. A handler
+    // that re-renders (the dialog's eye button swaps its icon) would otherwise detach the target, and a
+    // detached element is inside nothing, so the click would wrongly cancel the move.
+    window.addEventListener('click', onClick, true);
+    return () => window.removeEventListener('click', onClick, true);
   }, [inProgress]);
 
   /** A Trainer card is being dragged: the whole play area is its drop target. */
@@ -283,16 +286,20 @@ export function Board({
                   ? { over: dropTarget !== null, label: draggingTrainer ? 'Drop to play' : `Drop to ${(heldLabel ?? 'play').toLowerCase()}` }
                   : null
               }
-              overlay={
-                (self.pendingChoice || trainer.card) && (
-                  <>
-                    <PendingChoicePanel view={view} send={send} busy={busy} />
-                    <TrainerPanel view={view} trainer={trainer} />
-                  </>
-                )
-              }
             >
-              <OpponentArea opponent={view.opponent} cards={view.cards} pick={pokemonPick?.side === 'opp' && !busy ? pokemonPick : null} />
+              <OpponentArea
+                opponent={view.opponent}
+                cards={view.cards}
+                pick={pokemonPick?.side === 'opp' && !busy ? pokemonPick : null}
+                dialog={
+                  (self.pendingChoice || trainer.card) && (
+                    <>
+                      <PendingChoicePanel view={view} send={send} busy={busy} />
+                      <TrainerPanel view={view} trainer={trainer} />
+                    </>
+                  )
+                }
+              />
 
               {/* Prize cards on the left of the play area; discard pile and deck on the right. */}
               <section className="flex min-h-0 flex-1 items-center rounded-lg bg-slate-900 p-3">
@@ -320,10 +327,16 @@ export function Board({
               hand={self.hand}
               cards={view.cards}
               selected={selected ?? trainer.card?.uid ?? null}
+              pick={trainer.handPick && !busy ? trainer.handPick : null}
               pending={pending}
               // Trainers are dragged onto the play area when they can be played.
               canPlay={(c) => (trainer.isTrainer(c) ? trainer.error(c) === null : canPlay(c))}
               onCardClick={(c) => {
+                // A Trainer asking for cards from the hand: clicks pick them (other cards do nothing).
+                if (trainer.handPick && trainer.card?.uid !== c.uid) {
+                  if (trainer.handPick.options.has(c.uid)) trainer.handPick.toggle(c.uid);
+                  return;
+                }
                 const wasTrainer = trainer.card?.uid === c.uid;
                 attack.cancel();
                 retreat.cancel();

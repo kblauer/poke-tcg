@@ -2,7 +2,6 @@ import { lookupCard, type CardInstance, type PlayerView, type TrainerChoiceSpec 
 import { useState } from 'react';
 import type { TrainerControl } from '../hooks/useTrainer';
 import { pickHint } from './AttackChoicePanel';
-import { Card } from './Card';
 
 const option = 'rounded bg-slate-700 px-2 py-1 text-left text-xs transition hover:bg-slate-600 active:scale-95 disabled:opacity-40';
 
@@ -12,18 +11,15 @@ export function TrainerPanel({ view, trainer }: { view: PlayerView; trainer: Tra
   if (!card || !def || def.kind !== 'trainer') return null;
   const error = trainer.error(card);
   return (
-    <section data-keep-action className="flex gap-3 rounded-lg bg-slate-900 p-3 text-xs">
-      <div className="w-20 shrink-0">
-        <Card def={def} small />
-      </div>
-      <div className="min-w-0 flex-1 space-y-2">
-        <p>
-          <span className="font-semibold">{def.name}</span> <span className="text-slate-400">{def.text}</span>
-        </p>
+    // No card image: the card being played is already raised and ringed in the hand.
+    <section data-keep-action className="rounded-lg bg-slate-900 p-3 text-xs">
+      <div className="space-y-2">
+        <h3 className="text-base font-semibold">{def.name}</h3>
+        <p className="text-slate-400">{def.text}</p>
         {error ? (
           <p className="text-amber-300">{error}.</p>
         ) : spec ? (
-          <Question key={spec.prompt} spec={spec} view={view} onAnswer={trainer.answer} />
+          <Question key={spec.prompt} spec={spec} view={view} trainer={trainer} />
         ) : (
           <button className="rounded bg-emerald-600 px-3 py-1 text-sm font-semibold transition hover:bg-emerald-500 active:scale-95" onClick={trainer.play}>
             Play {def.name}
@@ -37,7 +33,9 @@ export function TrainerPanel({ view, trainer }: { view: PlayerView; trainer: Tra
   );
 }
 
-function Question({ spec, view, onAnswer }: { spec: TrainerChoiceSpec; view: PlayerView; onAnswer: TrainerControl['answer'] }) {
+function Question({ spec, view, trainer }: { spec: TrainerChoiceSpec; view: PlayerView; trainer: TrainerControl }) {
+  const onAnswer = trainer.answer;
+  const { handPick } = trainer;
   return (
     <div className="space-y-1">
       <p className="text-slate-300">{spec.prompt}:</p>
@@ -51,7 +49,20 @@ function Question({ spec, view, onAnswer }: { spec: TrainerChoiceSpec; view: Pla
           ))}
         </div>
       )}
-      {spec.kind === 'cards' && <CardPicker spec={spec} view={view} onDone={onAnswer} />}
+      {handPick ? (
+        // Cards from the hand are picked in the hand itself.
+        <>
+          <p className={pickHint}>Click {handPick.max === 1 ? 'a highlighted card' : 'the highlighted cards'} in your hand.</p>
+          {!(handPick.min === 1 && handPick.max === 1) && (
+            <button className={option} disabled={handPick.picked.size < handPick.min || handPick.picked.size > handPick.max} onClick={handPick.confirm}>
+              Choose {handPick.picked.size}
+              {handPick.min === handPick.max ? `/${handPick.max}` : ` (${handPick.min}–${handPick.max})`}
+            </button>
+          )}
+        </>
+      ) : (
+        spec.kind === 'cards' && <CardPicker spec={spec} view={view} onDone={onAnswer} />
+      )}
     </div>
   );
 }

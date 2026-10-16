@@ -10,20 +10,17 @@ export const PLAY_AREA = 'play-area';
  * the table glows green with "Drop to play" while it's over it. Any dragged card (a Trainer, or an Energy or
  * Pokémon for a slot) that isn't over somewhere it can go turns the table red with "Drop to cancel":
  * letting go there plays nothing.
- * `overlay` floats over the bottom of the table (the Trainer being played, a search of the deck).
  */
 export function PlayArea({
   droppable,
   drop,
   children,
-  overlay,
 }: {
   /** A Trainer is being dragged: the whole table is its drop target. */
   droppable: boolean;
   /** While any card is dragged: whether letting go now plays it (and how, e.g. "Drop to attach") or cancels it. */
   drop: { over: boolean; label: string } | null;
   children: ReactNode;
-  overlay?: ReactNode;
 }) {
   const { setNodeRef } = useDroppable({ id: PLAY_AREA, disabled: !droppable });
   const isOver = drop?.over ?? false;
@@ -39,7 +36,6 @@ export function PlayArea({
           {isOver ? drop.label : 'Drop to cancel'}
         </span>
       )}
-      {overlay && <div className="absolute inset-x-0 bottom-3 z-20 mx-auto flex w-fit max-w-[min(42rem,100%)] flex-col gap-2 px-3 [&>*]:shadow-2xl [&>*]:shadow-black/70">{overlay}</div>}
     </div>
   );
 }

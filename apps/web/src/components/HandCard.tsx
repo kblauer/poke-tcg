@@ -7,6 +7,7 @@ export function HandCard({
   def,
   draggable,
   selected,
+  pick,
   loading,
   busy,
   onClick,
@@ -15,6 +16,8 @@ export function HandCard({
   def: CardDef;
   draggable: boolean;
   selected: boolean;
+  /** While a Trainer asks for cards from the hand: whether this one can be picked, and whether it is. */
+  pick?: 'option' | 'picked' | 'unavailable';
   loading: boolean;
   busy: boolean;
   onClick: () => void;
@@ -30,7 +33,19 @@ export function HandCard({
       disabled={busy}
       // Moving and growing on hover is done by Hand; this only marks the card's state.
       className={`block touch-none rounded-lg shadow-lg shadow-black/60 transition active:scale-95 disabled:cursor-progress ${
-        isDragging ? 'opacity-30' : loading ? 'animate-pulse ring-2 ring-yellow-300' : selected ? 'ring-2 ring-emerald-400' : ''
+        isDragging
+          ? 'opacity-30'
+          : loading
+            ? 'animate-pulse ring-2 ring-yellow-300'
+            : pick === 'picked'
+              ? 'ring-4 ring-yellow-300'
+              : pick === 'option'
+                ? 'ring-2 ring-emerald-400'
+                : pick === 'unavailable'
+                  ? 'opacity-40'
+                  : selected
+                    ? 'ring-2 ring-emerald-400'
+                    : ''
       } ${draggable ? 'cursor-grab' : ''}`}
     >
       {/* High resolution so the text is readable when the hand zooms the card. */}

@@ -1,7 +1,6 @@
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import type { LogEntry, PlayerId } from '@poke-tcg/game-engine';
 import { useEffect, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { CoinFlip } from './CoinFlip';
@@ -77,7 +76,7 @@ export function LogDrawer({ log, you }: { log: LogEntry[]; you: PlayerId }) {
       aria-label={`Move the log to the ${side === 'right' ? 'left' : 'right'}`}
       onClick={() => update({ side: side === 'right' ? 'left' : 'right' })}
     >
-      {side === 'right' ? <ArrowBackIcon fontSize="small" /> : <ArrowForwardIcon fontSize="small" />}
+      <SwapHorizIcon fontSize="small" />
     </button>
   );
   // Minimising slides the panel towards its edge of the screen; expanding pulls it back out.

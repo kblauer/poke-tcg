@@ -1,5 +1,7 @@
 import type { CardLibrary, InPlayPokemon, PlayerView, Target } from '@poke-tcg/game-engine';
+import type { ReactNode } from 'react';
 import { DeckAndDiscard } from './DeckAndDiscard';
+import { FloatingDialog } from './FloatingDialog';
 import { PrizeCards } from './PrizeCards';
 import { Slot } from './Slot';
 
@@ -12,10 +14,13 @@ export function OpponentArea({
   opponent,
   cards,
   pick,
+  dialog,
 }: {
   opponent: PlayerView['opponent'];
   cards: CardLibrary;
   pick: { options: Target[]; pick: (t: Target) => void } | null;
+  /** The Trainer being played or a search of the deck: floats over this side, its bottom level with the CPU's active. */
+  dialog?: ReactNode;
 }) {
   const slot = (id: string, target: Target, pokemon: InPlayPokemon | null, large?: boolean) => {
     const choosable = pick?.options.includes(target) ?? false;
@@ -47,8 +52,9 @@ export function OpponentArea({
           <div className="flex justify-center gap-2">
             {opponent.bench.map((p, i) => slot(`cpu-bench-${i}`, i, p))}
           </div>
-          <div className="flex justify-center">
+          <div className="relative flex justify-center">
             {slot('cpu-active', 'active', opponent.active, true)}
+            {dialog && <FloatingDialog className="absolute bottom-0 left-1/2 -translate-x-1/2">{dialog}</FloatingDialog>}
           </div>
         </div>
         <div className="mt-8">

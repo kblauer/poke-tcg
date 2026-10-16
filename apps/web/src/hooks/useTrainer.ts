@@ -42,6 +42,41 @@ export function useTrainer({ view, send, busy }: { view: PlayerView; send: (a: G
   const card = playing && view.self.hand.find((c) => c.uid === playing.cardUid);
   const spec = card ? nextTrainerChoice(situation(card), playing!.choices) : null;
 
+  /** Cards picked so far in the hand, for a question about hand cards; reset for each new question. */
+  const [handPicked, setHandPicked] = useState<string[]>([]);
+  const questionKey = spec ? `${playing!.cardUid}:${spec.field}:${spec.prompt}` : '';
+  useEffect(() => setHandPicked([]), [questionKey]);
+
+  function answer(value: TrainerChoices[keyof TrainerChoices]) {
+    if (!playing || !spec || !card || busy) return;
+    const choices = { ...playing.choices, [spec.field]: value };
+    if (nextTrainerChoice(situation(card), choices)) return setPlaying({ ...playing, choices });
+    send({ type: 'PLAY_TRAINER', cardUid: playing.cardUid, choices });
+    setPlaying(null);
+  }
+
+  /**
+   * A question answered by clicking cards in the hand (Computer Search's discards, Pokémon Breeder's
+   * Stage 2…): which cards can be picked, the ones picked so far, and how many are needed. A single
+   * card is answered as soon as it's clicked; more are confirmed with the panel's Choose button.
+   */
+  const handPick =
+    spec?.kind === 'cards' && spec.field === 'handUids'
+      ? {
+          options: new Set(spec.options.map((c) => c.uid)),
+          picked: new Set(handPicked),
+          min: spec.min,
+          max: spec.max,
+          toggle(uid: string) {
+            if (spec.min === 1 && spec.max === 1) return answer([uid]);
+            setHandPicked((p) => (p.includes(uid) ? p.filter((u) => u !== uid) : [...p, uid].slice(-spec.max)));
+          },
+          confirm() {
+            if (handPicked.length >= spec.min && handPicked.length <= spec.max) answer(handPicked);
+          },
+        }
+      : null;
+
   return {
     /** The Trainer being played, if any. */
     card: card ?? null,
@@ -60,13 +95,8 @@ export function useTrainer({ view, send, busy }: { view: PlayerView; send: (a: G
       else send({ type: 'PLAY_TRAINER', cardUid: card.uid, choices: {} });
     },
     /** Answers the current question; the last answer plays the card without a separate Play click. */
-    answer(value: TrainerChoices[keyof TrainerChoices]) {
-      if (!playing || !spec || !card || busy) return;
-      const choices = { ...playing.choices, [spec.field]: value };
-      if (nextTrainerChoice(situation(card), choices)) return setPlaying({ ...playing, choices });
-      send({ type: 'PLAY_TRAINER', cardUid: playing.cardUid, choices });
-      setPlaying(null);
-    },
+    answer,
+    handPick,
     /** Plays it once every question is answered. */
     play() {
       if (!playing || spec || busy) return;
