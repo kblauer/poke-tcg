@@ -23,6 +23,7 @@ export function HandCard({
   return (
     <button
       ref={setNodeRef}
+      data-keep-action
       {...listeners}
       {...attributes}
       onClick={onClick}

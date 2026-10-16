@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef } from 'react';
 import { getPreviewWidth, previewPosition, zoomPreview } from '../utils/preview';
 import type { Preview } from './PreviewContext';
 
-export function CardPreview({ def, x, y }: Preview) {
+export function CardPreview({ def, x, y, scrollZoom = true }: Preview) {
   const ref = useRef<HTMLDivElement>(null);
 
   // Follow the pointer and resize on scroll by styling the element directly,
@@ -32,12 +32,12 @@ export function CardPreview({ def, x, y }: Preview) {
     };
     place();
     window.addEventListener('mousemove', onMove);
-    window.addEventListener('wheel', onWheel, { passive: false });
+    if (scrollZoom) window.addEventListener('wheel', onWheel, { passive: false });
     return () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('wheel', onWheel);
     };
-  }, [x, y]);
+  }, [x, y, scrollZoom]);
 
   return (
     <div ref={ref} className="pointer-events-none fixed left-0 top-0 z-50" aria-hidden>

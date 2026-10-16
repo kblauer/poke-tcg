@@ -1,6 +1,7 @@
 import { lookupCard, typeName, type PlayerView } from '@poke-tcg/game-engine';
 import type { PowerControl } from '../hooks/usePower';
 import { pickHint } from './AttackChoicePanel';
+import { SlotMenu } from './SlotMenu';
 
 const option = 'rounded bg-slate-700 px-2 py-1 text-left text-xs transition hover:bg-slate-600 active:scale-95';
 
@@ -43,7 +44,7 @@ export function PowerPanel({ view, power, busy }: { view: PlayerView; power: Pow
   if (!active) return null;
   return (
     <button disabled={active.error !== null || busy} title={[active.error, active.text].filter(Boolean).join('\n')} onClick={() => power.start('active')} className={powerButton}>
-      {active.name} <span className="text-violet-200">({active.pokemon})</span>
+      {active.name}
     </button>
   );
 }
@@ -56,11 +57,11 @@ export function BenchPowerButton({ power, slot, busy }: { power: PowerControl; s
   const p = power.powers.find((x) => x.source === slot);
   if (!p) return null;
   return (
-    <div className="absolute left-1/2 top-full z-10 mt-1 w-36 -translate-x-1/2 space-y-1 rounded bg-slate-800 p-1.5 text-xs shadow-lg">
+    <SlotMenu>
       <button disabled={p.error !== null || busy} title={p.text} onClick={() => power.start(slot)} className={`${powerButton} w-full`}>
         Activate {p.name}
       </button>
       {p.error && <p className="text-slate-400">{p.error}.</p>}
-    </div>
+    </SlotMenu>
   );
 }

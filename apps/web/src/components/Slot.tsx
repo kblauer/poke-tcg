@@ -51,6 +51,7 @@ export function Slot({
   return (
     <div
       ref={setNodeRef}
+      data-keep-action
       onClick={onClick}
       className={`${size} relative aspect-[63/88] shrink-0 rounded-lg transition ${ring} ${onClick ? 'cursor-pointer' : ''} ${
         pokemon ? '' : `border-2 border-dashed ${highlight === 'target' ? 'border-emerald-400 bg-emerald-400/10' : 'border-slate-700'}`

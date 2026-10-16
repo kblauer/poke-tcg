@@ -1,6 +1,6 @@
 import { DndContext, DragOverlay } from '@dnd-kit/core';
-import { lookupCard, type GameAction, type InPlayPokemon, type PlayerView, type Target } from '@poke-tcg/game-engine';
-import { useEffect, useState } from 'react';
+import { hasBenched, lookupCard, type GameAction, type InPlayPokemon, type PlayerView, type Target } from '@poke-tcg/game-engine';
+import { useEffect, useRef, useState } from 'react';
 import { useAttack } from '../hooks/useAttack';
 import { useCardPlay } from '../hooks/useCardPlay';
 import { usePower } from '../hooks/usePower';
@@ -24,6 +24,7 @@ import { PreviewContext, type Preview } from './PreviewContext';
 import { PrizeCards } from './PrizeCards';
 import { RetreatPanel } from './RetreatPanel';
 import { Slot } from './Slot';
+import { SlotMenu } from './SlotMenu';
 import { StatusBar } from './StatusBar';
 import { TrainerPanel } from './TrainerPanel';
 
@@ -50,8 +51,17 @@ export function Board({
   const attack = useAttack({ view, send, busy });
   const power = usePower({ view, send, busy });
   const trainer = useTrainer({ view, send, busy });
+  /** Clefairy Doll in play that was clicked to show its Discard button. */
+  const [dollMenu, setDollMenu] = useState<Target | null>(null);
+  useEffect(() => setDollMenu(null), [view.version]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setDollMenu(null);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   /** Starting one move cancels the others (attack, retreat, power, Trainer, held card). */
   const cancelAll = () => {
+    setDollMenu(null);
     deselect();
     attack.cancel();
     retreat.cancel();
@@ -64,6 +74,7 @@ export function Board({
     busy,
     onDragStart: () => {
       setPreview(null);
+      setDollMenu(null);
       retreat.cancel();
       attack.cancel();
       power.cancel();
@@ -71,6 +82,24 @@ export function Board({
     },
     onDropOnPlayArea: (c) => trainer.isTrainer(c) && trainer.drop(c),
   });
+  // While a move is being set up (a Trainer or attack asking questions, a power, a held card, retreating,
+  // a Pokémon's menu), clicking anywhere except a Pokémon slot, a hand card or the move's own panel cancels it.
+  const inProgress =
+    trainer.card !== null || attack.spec !== null || power.spec !== null || power.selected !== null || dollMenu !== null || selected !== null || retreat.retreating;
+  const cancelAllRef = useRef(cancelAll);
+  cancelAllRef.current = cancelAll;
+  /** When the last drag ended: dropping a card fires a click where it lands, which mustn't cancel what the drop started. */
+  const dragEndedAt = useRef(0);
+  useEffect(() => {
+    if (!inProgress) return;
+    const onClick = (e: MouseEvent) => {
+      if (Date.now() - dragEndedAt.current < 300) return;
+      if (!(e.target instanceof Element && e.target.closest('[data-keep-action]'))) cancelAllRef.current();
+    };
+    window.addEventListener('click', onClick);
+    return () => window.removeEventListener('click', onClick);
+  }, [inProgress]);
+
   /** A Trainer card is being dragged: the whole play area is its drop target. */
   const draggingTrainer = dragging !== null && heldCard !== undefined && trainer.isTrainer(heldCard);
 
@@ -103,6 +132,9 @@ export function Board({
     // A benched Pokémon with a power is clicked to show its Activate button.
     const hasPower = myTurn && typeof target === 'number' && power.powers.some((p) => p.source === target);
     const powerSelected = typeof target === 'number' && (power.selected === target || power.usingSource === target);
+    // A Trainer played as a Pokémon (Clefairy Doll) is clicked to show its Discard button.
+    const dollDef = pokemon && lookupCard(view.cards, pokemon.card.defId);
+    const isDoll = myTurn && dollDef?.kind === 'pokemon' && !!dollDef.trainerText;
     const slot = (
       <Slot
         key={id}
@@ -111,7 +143,7 @@ export function Board({
         cards={view.cards}
         large={id === 'active'}
         droppable={(highlighted.has(id) || switchIn) && !busy}
-        highlight={isTarget ? 'target' : canPromote ? 'promote' : powerSelected ? 'power' : null}
+        highlight={isTarget ? 'target' : canPromote ? 'promote' : powerSelected || dollMenu === target ? 'power' : null}
         label={choosable ? 'Choose' : switchIn ? 'Switch' : isTarget ? heldLabel : canPromote ? 'Promote' : null}
         // While a card is held, retreating or a Pokémon is being chosen, fade the ones that can't be picked so the targets stand out.
         dimmed={((heldCard !== undefined && !draggingTrainer) || retreat.ready || pokemonPick !== null) && pokemon !== null && !isTarget}
@@ -132,28 +164,40 @@ export function Board({
                     cancelAll();
                     if (!wasSelected) power.select(target as number);
                   }
+                : undefined) ??
+              (isDoll && !heldCard && !retreat.ready
+                ? () => {
+                    const wasSelected = dollMenu === target;
+                    cancelAll();
+                    if (!wasSelected) setDollMenu(target);
+                  }
                 : undefined))
         }
       />
     );
-    if (typeof target !== 'number') return slot;
     return (
       <div key={id} className="relative">
         {slot}
-        {power.selected === target && <BenchPowerButton power={power} slot={target} busy={busy} />}
+        {typeof target === 'number' && power.selected === target && <BenchPowerButton power={power} slot={target} busy={busy} />}
+        {isDoll && dollMenu === target && (
+          <SlotMenu>
+            <button
+              disabled={busy || !hasBenched(self)}
+              onClick={() => send({ type: 'DISCARD_DOLL', target })}
+              className="w-full rounded bg-slate-700 px-2 py-1 text-left text-xs transition hover:bg-slate-600 active:scale-95 disabled:opacity-40"
+            >
+              Discard {dollDef.name}
+            </button>
+            {!hasBenched(self) && <p className="text-slate-400">You can't discard your only Pokémon in play.</p>}
+          </SlotMenu>
+        )}
       </div>
     );
   };
 
-  /** Trainers played as Pokémon (Clefairy Doll), which can be discarded during your turn. */
-  const dolls = [self.active, ...self.bench].flatMap((p, i) => {
-    const def = p && lookupCard(view.cards, p.card.defId);
-    return def?.kind === 'pokemon' && def.trainerText ? [{ target: (i === 0 ? 'active' : i - 1) as Target, name: def.name }] : [];
-  });
-
   const attacks = self.active && phase !== 'setup' && (
     // Hangs off the active slot's right edge (w-28 slot, 0.75rem gap) so the slot stays centred whatever is shown here.
-    <div className="absolute left-[calc(50%+4.25rem)] top-1/2 flex w-36 -translate-y-1/2 flex-col gap-1">
+    <div data-keep-action className="absolute left-[calc(50%+4.25rem)] top-1/2 flex w-36 -translate-y-1/2 flex-col gap-1">
       <AttackList
         pokemon={self.active}
         defender={view.opponent.active}
@@ -198,24 +242,18 @@ export function Board({
           }}
         />
       )}
-      {myTurn &&
-        !attack.spec &&
-        dolls.map(({ target, name }) => (
-          <button
-            key={String(target)}
-            disabled={busy}
-            onClick={() => send({ type: 'DISCARD_DOLL', target })}
-            className="rounded bg-slate-700 px-2 py-1 text-left text-xs transition hover:bg-slate-600 active:scale-95 disabled:opacity-40"
-          >
-            Discard {name}
-          </button>
-        ))}
     </div>
   );
 
   return (
     <PreviewContext.Provider value={(p) => !dragging && setPreview(p)}>
-      <DndContext {...dnd}>
+      <DndContext
+        {...dnd}
+        onDragEnd={(e) => {
+          dragEndedAt.current = Date.now();
+          dnd.onDragEnd(e);
+        }}
+      >
         {/* The table, with the game log beside it on large screens. */}
         <div className={`grid gap-4 lg:grid-cols-[1fr_16rem] ${busy ? 'cursor-progress' : ''}`}>
           <div className="min-w-0 space-y-4">

@@ -6,13 +6,13 @@ import { Card } from './Card';
 
 const option = 'rounded bg-slate-700 px-2 py-1 text-left text-xs transition hover:bg-slate-600 active:scale-95 disabled:opacity-40';
 
-/** The Trainer card being played: its text, the current question, then a Play button. */
+/** The Trainer card being played: its text and the current question (the last answer plays it), or a Play button if it has none. */
 export function TrainerPanel({ view, trainer }: { view: PlayerView; trainer: TrainerControl }) {
   const { card, def, spec } = trainer;
   if (!card || !def || def.kind !== 'trainer') return null;
   const error = trainer.error(card);
   return (
-    <section className="flex gap-3 rounded-lg bg-slate-900 p-3 text-xs">
+    <section data-keep-action className="flex gap-3 rounded-lg bg-slate-900 p-3 text-xs">
       <div className="w-20 shrink-0">
         <Card def={def} small />
       </div>
@@ -56,11 +56,12 @@ function Question({ spec, view, onAnswer }: { spec: TrainerChoiceSpec; view: Pla
   );
 }
 
-/** Pick between `min` and `max` of the offered cards, then confirm. */
+/** Pick between `min` and `max` of the offered cards, then confirm. A single card is chosen by clicking it. */
 function CardPicker({ spec, view, onDone }: { spec: Extract<TrainerChoiceSpec, { kind: 'cards' }>; view: PlayerView; onDone: (uids: string[]) => void }) {
   const [picked, setPicked] = useState<string[]>([]);
+  const single = spec.min === 1 && spec.max === 1;
   const toggle = (c: CardInstance) =>
-    setPicked((p) => (p.includes(c.uid) ? p.filter((u) => u !== c.uid) : [...p, c.uid].slice(-spec.max)));
+    single ? onDone([c.uid]) : setPicked((p) => (p.includes(c.uid) ? p.filter((u) => u !== c.uid) : [...p, c.uid].slice(-spec.max)));
   return (
     <>
       <div className="flex flex-wrap gap-1">
@@ -75,10 +76,12 @@ function CardPicker({ spec, view, onDone }: { spec: Extract<TrainerChoiceSpec, {
           </button>
         ))}
       </div>
-      <button className={option} disabled={picked.length < spec.min || picked.length > spec.max} onClick={() => onDone(picked)}>
-        Choose {picked.length}
-        {spec.min === spec.max ? `/${spec.max}` : ` (${spec.min}–${spec.max})`}
-      </button>
+      {!single && (
+        <button className={option} disabled={picked.length < spec.min || picked.length > spec.max} onClick={() => onDone(picked)}>
+          Choose {picked.length}
+          {spec.min === spec.max ? `/${spec.max}` : ` (${spec.min}–${spec.max})`}
+        </button>
+      )}
     </>
   );
 }

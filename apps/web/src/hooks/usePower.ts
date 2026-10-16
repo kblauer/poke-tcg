@@ -49,7 +49,7 @@ export function usePower({ view, send, busy }: { view: PlayerView; send: (a: Gam
     const def = lookupCard(view.cards, pokemon.card.defId) as PokemonCardDef;
     if (!def.power || !powerEffect(def.id)?.use) return [];
     const error = !isMyTurn(view) ? "It's not your turn" : powerError(situation(source));
-    return [{ source, pokemon: def.name, name: def.power.name, text: def.power.text, error }];
+    return [{ source, name: def.power.name, text: def.power.text, error }];
   });
 
   const spec = using ? nextPowerChoice(situation(using.source), using.choices) : null;
