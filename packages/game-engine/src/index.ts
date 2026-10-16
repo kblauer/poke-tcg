@@ -5,6 +5,7 @@ export * from './powers.js';
 export * from './trainers.js';
 export type { LogEntry } from './status.js';
 export * from './cpu.js';
+export * from './debug.js';
 export * from './engine.js';
 export * from './view.js';
 export { shuffle } from './rng.js';

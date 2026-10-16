@@ -15,7 +15,7 @@ function actionRows(entries: { playerId: string; action: GameAction }[], finalVe
   return entries.map((e, i) => ({ playerId: e.playerId, version: first + i, action: asJson(e.action) }));
 }
 
-async function loadOwnGame(gameId: string, userId: string) {
+export async function loadOwnGame(gameId: string, userId: string) {
   const game = await prisma.game.findUnique({ where: { id: gameId } });
   // Same error for "missing" and "not yours" so ids can't be probed.
   if (!game || game.ownerId !== userId) throw new TRPCError({ code: 'NOT_FOUND', message: 'Game not found' });

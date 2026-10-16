@@ -1,20 +1,26 @@
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
-import type { LogEntry, PlayerId } from '@poke-tcg/game-engine';
-import { useEffect, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import type { LogEntry, PlayerId, PlayerView } from '@poke-tcg/game-engine';
+import { lazy, Suspense, useEffect, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { CoinFlip } from './CoinFlip';
 import { GameLog } from './GameLog';
+
+// Only builds with the debug tools load (or even include) the Debug tab's panel.
+// __DEBUG_BUILD__ (vite.config.ts) is a literal here, so a production build has no DebugPanel chunk at all.
+const DebugPanel = __DEBUG_BUILD__ ? lazy(() => import('./DebugPanel')) : null;
 
 interface LogPrefs {
   side: 'left' | 'right';
   open: boolean;
   /** Width in pixels while open. */
   width: number;
+  /** The tab shown: the log, or the debug tools (when available). */
+  tab: 'log' | 'debug';
 }
 
 const PREFS_KEY = 'poke-tcg.game-log';
-const DEFAULTS: LogPrefs = { side: 'right', open: true, width: 256 };
+const DEFAULTS: LogPrefs = { side: 'right', open: true, width: 256, tab: 'log' };
 const MIN_WIDTH = 192;
 const MAX_WIDTH = 640;
 const clampWidth = (w: number) => Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, Math.round(w)));
@@ -43,11 +49,13 @@ const iconButton = 'flex h-7 w-7 items-center justify-center rounded text-slate-
  * The game log (with coin flips under it) as a full-height panel at the left or right edge of the window.
  * It can be minimised to a thin strip, moved to the other side, and resized by dragging its inner
  * edge. Coin flips still show beside the strip while it's minimised. Clicks here never cancel a move.
+ * With `debug` (only while debugging is enabled, never in production) it has a second tab, Debug, with testing cheats.
  */
-export function LogDrawer({ log, you }: { log: LogEntry[]; you: PlayerId }) {
+export function LogDrawer({ log, you, debug }: { log: LogEntry[]; you: PlayerId; debug?: { gameId: string; view: PlayerView } }) {
   const [prefs, setPrefs] = useState(loadPrefs);
   useEffect(() => savePrefs(prefs), [prefs]);
   const { side, open, width } = prefs;
+  const tab = debug && DebugPanel ? prefs.tab : 'log';
   const update = (change: Partial<LogPrefs>) => setPrefs((p) => ({ ...p, ...change }));
 
   /** Drags the inner edge: towards the board widens the panel. */
@@ -83,6 +91,35 @@ export function LogDrawer({ log, you }: { log: LogEntry[]; you: PlayerId }) {
   const towardsEdge = side === 'right' ? <ChevronRightIcon fontSize="small" /> : <ChevronLeftIcon fontSize="small" />;
   const awayFromEdge = side === 'right' ? <ChevronLeftIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />;
   // A panel at the window edge, from the header to the bottom, with a border on the board side.
+  /** Title row: the tabs (just "Game log" without the debug tools), then the move and minimise buttons. */
+  const tabButton = (t: LogPrefs['tab'], label: string) => (
+    <button
+      role="tab"
+      aria-selected={tab === t}
+      onClick={() => update({ tab: t })}
+      className={`rounded px-2 py-0.5 text-sm transition ${tab === t ? 'bg-slate-700 text-slate-100' : 'text-slate-400 hover:text-slate-200'}`}
+    >
+      {label}
+    </button>
+  );
+  const header = (
+    <div className="mb-2 flex items-center justify-between gap-2">
+      {debug && DebugPanel ? (
+        <div role="tablist" className="flex gap-1">
+          {tabButton('log', 'Game log')}
+          {tabButton('debug', 'Debug')}
+        </div>
+      ) : (
+        <h3 className="text-sm text-slate-400">Game log</h3>
+      )}
+      <div className="flex gap-0.5">
+        {moveButton}
+        <button className={iconButton} title="Minimise the game log" aria-label="Minimise the game log" onClick={() => update({ open: false })}>
+          {towardsEdge}
+        </button>
+      </div>
+    </div>
+  );
   const edge = `h-full shrink-0 bg-slate-900 border-slate-700 ${side === 'left' ? 'order-first border-r' : 'order-last border-l'}`;
 
   if (!open) {
@@ -113,18 +150,16 @@ export function LogDrawer({ log, you }: { log: LogEntry[]; you: PlayerId }) {
       >
         <div className="h-full w-0.5 rounded bg-transparent transition group-hover:bg-slate-500" />
       </div>
-      <GameLog
-        log={log}
-        you={you}
-        actions={
-          <>
-            {moveButton}
-            <button className={iconButton} title="Minimise the game log" aria-label="Minimise the game log" onClick={() => update({ open: false })}>
-              {towardsEdge}
-            </button>
-          </>
-        }
-      />
+      {tab === 'debug' && debug && DebugPanel ? (
+        <section className="flex min-h-0 flex-1 flex-col p-3">
+          {header}
+          <Suspense fallback={<p className="text-xs text-slate-500">Loading…</p>}>
+            <DebugPanel gameId={debug.gameId} view={debug.view} />
+          </Suspense>
+        </section>
+      ) : (
+        <GameLog log={log} you={you} header={header} />
+      )}
       <div className="border-t border-slate-700 empty:hidden">
         <CoinFlip log={log} you={you} />
       </div>

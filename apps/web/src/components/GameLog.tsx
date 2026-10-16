@@ -1,17 +1,14 @@
 import type { LogEntry, PlayerId } from '@poke-tcg/game-engine';
 import { useEffect, useRef, type ReactNode } from 'react';
 
-/** What happened in the game (attacks, coin flips, knockouts), newest at the bottom. `actions` sit in its header. */
-export function GameLog({ log, you, actions }: { log: LogEntry[]; you: PlayerId; actions?: ReactNode }) {
+/** What happened in the game (attacks, coin flips, knockouts), newest at the bottom. `header` replaces its title row. */
+export function GameLog({ log, you, header }: { log: LogEntry[]; you: PlayerId; header?: ReactNode }) {
   const end = useRef<HTMLLIElement>(null);
   // Keep the newest entries in view as they arrive.
   useEffect(() => end.current?.scrollIntoView({ block: 'nearest' }), [log.length]);
   return (
     <section className="flex min-h-0 flex-1 flex-col p-3">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="text-sm text-slate-400">Game log</h3>
-        {actions && <div className="flex gap-0.5">{actions}</div>}
-      </div>
+      {header ?? <h3 className="mb-2 text-sm text-slate-400">Game log</h3>}
       <ol className="min-h-0 flex-1 space-y-0.5 overflow-y-auto text-xs">
         {log.length === 0 && <li className="text-slate-500">Nothing yet.</li>}
         {log.map((entry, i) => (

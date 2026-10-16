@@ -1,4 +1,4 @@
-import { MAX_BENCH, type AttackChoices, type GameAction, type PowerChoices, type TrainerChoices } from '@poke-tcg/game-engine';
+import { MAX_BENCH, type AttackChoices, type DebugCommand, type GameAction, type PowerChoices, type TrainerChoices } from '@poke-tcg/game-engine';
 import { z } from 'zod';
 
 /** Engine player ids for single-player games. */
@@ -63,4 +63,17 @@ export const submitActionInput = z.object({
   /** The state version the client acted on; stale submissions are rejected. */
   expectedVersion: z.number().int().min(0),
   action: gameActionSchema,
+});
+
+/** Runtime validation for debug commands (testing cheats; the API refuses them unless debugging is enabled). */
+export const debugCommandSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('ADD_TO_HAND'), defId: z.string().min(1).max(64) }),
+  z.object({ type: z.literal('DRAW') }),
+  z.object({ type: z.literal('SET_HP'), side: z.enum(['self', 'opponent']), target, hp: z.number().int().min(10).max(1000) }),
+]) satisfies z.ZodType<DebugCommand>;
+
+export const debugInput = z.object({
+  gameId: z.uuid(),
+  expectedVersion: z.number().int().min(0),
+  command: debugCommandSchema,
 });

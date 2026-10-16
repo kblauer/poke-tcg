@@ -16,7 +16,7 @@ apps/
       lib/              tRPC client, Supabase client, session hook
       styles/holo/      Holo card effect styles (one file per card style) plus WOTC tuning
     public/img/         Textures used by the holo styles
-  api/                  Hono + tRPC API (Supabase JWT auth, game endpoints)
+  api/                  Hono + tRPC API (Supabase JWT auth, game endpoints, debug endpoints outside production)
     scripts/
       vercel-build.mjs  Bundles the API and web app into .vercel/output for Vercel
 packages/
@@ -44,6 +44,7 @@ Pages load data, set their own width and side padding, and hand data to componen
 |---|---|
 | `Board.tsx` | The game table. Gets card play from `useCardPlay`, holds the hover preview, and lays out the components below. A move being set up (Trainer, attack or power questions, a held card, retreating, a Pokémon's menu) is cancelled by clicking anywhere except a Pokémon slot, a hand card or the move's own panel (elements marked `data-keep-action`) |
 | `StatusBar.tsx` | Whose turn it is and the End turn button, centred in the middle of the table between the two sides |
+| `DebugPanel.tsx` | The game log's Debug tab (see [Debug tools](#debug-tools)): draw a card, put any card or an Energy into your hand, set any Pokémon's HP. Loaded lazily, and left out of production builds |
 | `Toasts.tsx` | Messages in the top right of the page (amber warnings such as why a card can't be played, red errors for a move the server rejected) that fade away after a few seconds, newer ones stacking underneath |
 | `OpponentArea.tsx` | The CPU's bench, active and hand/deck/prize counts. When an effect asks for one of the CPU's Pokémon, the choices are highlighted and clicked. The Trainer being played floats over this side, its bottom level with the CPU's active |
 | `FloatingDialog.tsx` | Holds those floating panels, with an eye button that fades them to 20% opacity with a dashed outline and lets every click through to what's underneath (only the eye button stays clickable); the deck search only fades |
@@ -54,7 +55,7 @@ Pages load data, set their own width and side padding, and hand data to componen
 | `CardBack.tsx` | A face-down card |
 | `CoinFlip.tsx` | Animated coin under the game log (beside the strip when the log is minimised) for each coin flip in a move's result, one after another |
 | `GameLog.tsx` | The game log (attacks, coin flips, Special Conditions, knockouts), with room for buttons in its header |
-| `LogDrawer.tsx` | The game log and coin flips as a full-height panel at the left or right edge of the window, outside the page margins: minimise it to a strip, move it to the left or right (swap button), using Material UI icons, or drag its inner edge to resize it. Remembered in the browser |
+| `LogDrawer.tsx` | The game log and coin flips as a full-height panel at the left or right edge of the window, outside the page margins: minimise it to a strip, move it to the left or right (swap button), using Material UI icons, or drag its inner edge to resize it. Remembered in the browser. With the debug tools enabled it has a second tab, Debug |
 | `PowerPanel.tsx` | The active Pokémon's Power button under its attacks, or the current question while any power is being used. `BenchPowerButton` is the Activate button that appears under a benched Pokémon with a power when you click it |
 | `TrainerPanel.tsx` | The Trainer card being played (floating over the CPU's side): its name, text and questions one at a time; answering the last one plays it (a single card or Pokémon is chosen by clicking it). Cards from your hand (Computer Search, Item Finder, Energy Retrieval, Maintenance, Pokémon Breeder, Pokémon Trader) are picked by clicking them in the hand itself (`handPick` in `useTrainer`), with a Choose button when it takes more than one. A Trainer with no questions gets a Play button |
 | `PendingChoicePanel.tsx` | Finishing a search from a Trainer: take a card from your deck (Computer Search, Pokémon Trader) or reorder its top cards (Pokédex). Only you see these cards. Shown big in the middle of the screen with large card images |
@@ -89,6 +90,7 @@ Pages load data, set their own width and side padding, and hand data to componen
 |---|---|
 | `targets.ts` | Where a hand card can be played, why it can't, which action playing it sends, and its target label |
 | `slots.ts` | Slot ids (`active`, `bench-N`), converting them to engine targets, empty/occupied slots, and which slot an in-flight move is about |
+| `debug.ts` | `DEBUG_BUILD` (whether this build has the debug tools) and `useDebugEnabled` (and whether the API accepts them) |
 | `turn.ts` | Whose turn it is, whether you must promote, and the status headline |
 | `preview.ts` | Preview size limits, wheel zoom, saving the size in localStorage, and positioning next to the cursor |
 | `dragOverlay.ts` | `centerOnPointer`: keeps a dragged card's image centred on the pointer, wherever the card was grabbed |
@@ -134,6 +136,7 @@ Holo cards are those with `variants.holo` in their TCGdex data (the rarity alone
 | `status.ts` | Game log, coin flips and clearing conditions when a Pokémon leaves the active spot |
 | `view.ts` | `getPlayerView`: what one player may see |
 | `cpu.ts` | The CPU opponent |
+| `debug.ts` | `applyDebug`: testing cheats (a card into the hand, draw, set a Pokémon's HP). Not `GameAction`s, so normal moves can never reach them; each is logged |
 
 Rules follow the 1999 Base Set rulebook. Special Conditions: Asleep (flip between turns to wake), Confused (flip to attack, tails = 20 damage to itself; flip to retreat), Paralyzed (until after its owner's next turn), Poisoned (10 between turns, 20 from Toxic). The checkup between turns handles them in order for both actives: Poisoned, Burned (not in the Base Set, not implemented yet), Asleep, Paralyzed. Trainers: PlusPower (+10) and Defender (−20) attach to a Pokémon and change attack damage after weakness and resistance, PlusPower first; they're discarded at the end of the turn / the opponent's next turn. Clefairy Doll is played onto the Bench as a 10 HP Pokémon (it can't start as your Active or count as a Basic for the opening hand), can't retreat or get Special Conditions, gives no prize when Knocked Out, and can be discarded during your turn. Scoop Up can't take your only Pokémon in play; Devolution Spray can Knock Out. Double Colorless Energy provides 2 Colorless energy. Pokémon Powers stop working while their Pokémon is Asleep, Confused or Paralyzed. Dropping a Water Energy on a Water Pokémon uses Rain Dance when a Blastoise can, so it doesn't use up the turn's attachment. Where TCGdex's attack text differs from the printed card, the effect carries the printed wording and the API shows that instead.
 
@@ -144,6 +147,15 @@ Rules follow the 1999 Base Set rulebook. Special Conditions: Asleep (flip betwee
 3. If the move is legal, the API runs the CPU (`runCpu`) until it's the player's move again.
 4. If `expectedVersion` still matches, the API writes the new state and every action (player and CPU) to the `GameAction` log in one transaction.
 5. The response is the player's `getPlayerView`. Raw state, which includes the CPU's hand, deck order and RNG, never leaves the server.
+
+## Debug tools
+
+The game log has a **Debug** tab for testing: draw a card, put any card (or an Energy) into your hand, and set the HP of any Pokémon in play. It only exists outside production, enforced in two places:
+
+- **API** (the authority): the `debug.run` procedure is a `debugProcedure` (`apps/api/src/trpc.ts`), which answers `NOT_FOUND` unless `env.debugEnabled` (`apps/api/src/env.ts`). That's always false in production (`VERCEL_ENV=production` or `NODE_ENV=production`, whatever else is set), and true elsewhere unless `ENABLE_DEBUG=false`. `debug.enabled` tells the client which.
+- **Web**: `__DEBUG_BUILD__` is a build-time constant from `vite.config.ts`: on in the dev server (unless `VITE_ENABLE_DEBUG=false`), off in a `vite build` (unless `VITE_ENABLE_DEBUG=true`). A production build leaves the Debug tab's code out of the bundle entirely; the tab also needs `debug.enabled` from the API.
+
+Debug commands go through the engine's `applyDebug` (`packages/game-engine/src/debug.ts`), are written to the game log as "Debug: …", and are saved in the `GameAction` log as `{ type: 'DEBUG', command }`.
 
 ## Setup
 

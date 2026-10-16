@@ -31,6 +31,6 @@ export function GamePage() {
   };
   const pending = act.isPending ? act.variables.action : null;
   return (
-    <Board view={view} send={send} pending={pending} error={act.error?.message} errorAt={act.submittedAt} />
+    <Board gameId={gameId} view={view} send={send} pending={pending} error={act.error?.message} errorAt={act.submittedAt} />
   );
 }

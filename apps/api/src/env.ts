@@ -12,4 +12,15 @@ export const env = {
   get jwtSecret() {
     return process.env.SUPABASE_JWT_SECRET || undefined;
   },
+  /** Running as the production deployment: Vercel's production environment, or NODE_ENV=production. */
+  get isProduction() {
+    return process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production';
+  },
+  /**
+   * Debug tools (testing cheats, see routers/debug.ts). Always off in production, whatever else is set;
+   * elsewhere on unless ENABLE_DEBUG=false.
+   */
+  get debugEnabled() {
+    return !this.isProduction && process.env.ENABLE_DEBUG !== 'false';
+  },
 };

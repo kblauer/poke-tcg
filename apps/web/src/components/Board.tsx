@@ -8,6 +8,7 @@ import { useToasts } from '../hooks/useToasts';
 import { useTrainer } from '../hooks/useTrainer';
 import { useRetreat } from '../hooks/useRetreat';
 import { benchSlotId, pendingSlot, toTarget, type SlotId } from '../utils/slots';
+import { useDebugEnabled } from '../utils/debug';
 import { PAGE_WIDTH } from '../utils/layout';
 import { centerOnPointer } from '../utils/dragOverlay';
 import { isMyTurn, mustPromote, statusText } from '../utils/turn';
@@ -39,6 +40,7 @@ export function Board({
   pending,
   error,
   errorAt,
+  gameId,
 }: {
   view: PlayerView;
   send: (a: GameAction) => void;
@@ -47,7 +49,10 @@ export function Board({
   error?: string;
   /** When the move that failed was sent, so the same error twice still shows twice. */
   errorAt?: number;
+  /** For the debug tools (game log's Debug tab). */
+  gameId: string;
 }) {
+  const debugEnabled = useDebugEnabled();
   const busy = pending !== null;
   const { self, phase } = view;
   const myTurn = isMyTurn(view);
@@ -373,7 +378,7 @@ export function Board({
               }}
             />
           </div>
-          <LogDrawer log={view.log} you={view.you} />
+          <LogDrawer log={view.log} you={view.you} debug={debugEnabled ? { gameId, view } : undefined} />
         </div>
 
         {/* Searching the deck: a big dialog in the middle of the screen (outside the table, which would contain it). */}
