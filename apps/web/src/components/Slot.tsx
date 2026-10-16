@@ -57,7 +57,8 @@ export function Slot({
         pokemon ? '' : `border-2 border-dashed ${highlight === 'target' ? 'border-emerald-400 bg-emerald-400/10' : 'border-slate-700'}`
       }`}
     >
-      {pokemon && <Card def={lookupCard(cards, pokemon.card.defId)} inPlay={pokemon} cards={cards} small={!large} />}
+      {/* The active spot is the biggest card on the board, so it gets the high-resolution image. */}
+      {pokemon && <Card def={lookupCard(cards, pokemon.card.defId)} inPlay={pokemon} cards={cards} small={!large} highRes={large} />}
       {/* Tint only the bottom band (behind the label) so the Pokémon art stays visible. */}
       {pokemon && highlight && (
         <div

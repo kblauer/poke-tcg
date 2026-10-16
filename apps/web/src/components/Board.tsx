@@ -1,6 +1,6 @@
 import { DndContext, DragOverlay } from '@dnd-kit/core';
 import { hasBenched, lookupCard, type GameAction, type InPlayPokemon, type PlayerView, type Target } from '@poke-tcg/game-engine';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAttack } from '../hooks/useAttack';
 import { useCardPlay } from '../hooks/useCardPlay';
 import { usePower } from '../hooks/usePower';
@@ -103,6 +103,17 @@ export function Board({
 
   /** A Trainer card is being dragged: the whole play area is its drop target. */
   const draggingTrainer = dragging !== null && heldCard !== undefined && trainer.isTrainer(heldCard);
+
+  // The table runs from just under the header to the bottom of the window. The header's height isn't
+  // fixed, so measure where the table starts rather than guessing.
+  const tableRef = useRef<HTMLDivElement>(null);
+  const [tableTop, setTableTop] = useState(0);
+  useLayoutEffect(() => {
+    const measure = () => tableRef.current && setTableTop(tableRef.current.getBoundingClientRect().top + window.scrollY);
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
 
   // A hovered card can disappear without a mouseleave (played, knocked out), so reset on every update.
   useEffect(() => setPreview(null), [view.version]);
@@ -260,7 +271,7 @@ export function Board({
           edge, outside the page margins (-mt/-mb undo the layout's spacing); the table, inside the margins, takes all
           the height the hand leaves.
         */}
-        <div className={`-mb-4 -mt-6 flex h-[calc(100dvh-4rem)] ${busy ? 'cursor-progress' : ''}`}>
+        <div ref={tableRef} className={`-mb-4 -mt-6 flex ${busy ? 'cursor-progress' : ''}`} style={{ height: `calc(100dvh - ${tableTop}px)` }}>
           {/* Clips the hand cards where they run past the bottom of the window. */}
           <div className={`flex min-w-0 flex-1 flex-col gap-3 overflow-hidden pt-6 ${PAGE_WIDTH}`}>
             <StatusBar status={statusText(view)} hint={hint ?? (selected ? 'Click a highlighted slot (Esc to cancel)' : null)} error={error} canEndTurn={myTurn} canConcede={phase !== 'finished'} pending={pending} send={send} />
@@ -284,17 +295,24 @@ export function Board({
               <OpponentArea opponent={view.opponent} cards={view.cards} pick={pokemonPick?.side === 'opp' && !busy ? pokemonPick : null} />
 
               {/* Prize cards on the left of the play area; discard pile and deck on the right. */}
-              <section className="flex min-h-0 flex-1 items-center gap-3 rounded-lg bg-slate-900 p-3">
-                <PrizeCards count={self.prizeCount} />
-                <div className="min-w-0 flex-1 space-y-3">
-                  <div className="relative flex justify-center">
-                    {playerSlot('active', self.active)}
-                    {attacks}
+              <section className="flex min-h-0 flex-1 items-center rounded-lg bg-slate-900 p-3">
+                {/* Bottom-aligned, with the side columns lifted past the "You" label (text-sm + space-y-3 = 2rem) to line up with the bench. */}
+                <div className="flex w-full items-end gap-3">
+                  <div className="mb-8">
+                    <PrizeCards count={self.prizeCount} />
                   </div>
-                  <div className="flex justify-center gap-2">{self.bench.map((p, i) => playerSlot(benchSlotId(i), p))}</div>
-                  <h3 className="text-center text-sm text-slate-400">You</h3>
+                  <div className="min-w-0 flex-1 space-y-3">
+                    <div className="relative flex justify-center">
+                      {playerSlot('active', self.active)}
+                      {attacks}
+                    </div>
+                    <div className="flex justify-center gap-2">{self.bench.map((p, i) => playerSlot(benchSlotId(i), p))}</div>
+                    <h3 className="text-center text-sm text-slate-400">You</h3>
+                  </div>
+                  <div className="mb-8">
+                    <DeckAndDiscard deckCount={self.deckCount} discard={self.discard} cards={view.cards} />
+                  </div>
                 </div>
-                <DeckAndDiscard deckCount={self.deckCount} discard={self.discard} cards={view.cards} />
               </section>
             </PlayArea>
 

@@ -10,10 +10,10 @@ export const LARGE_CARD = 'w-[var(--card-lg,7rem)]';
 
 /**
  * Width of the columns either side of a play area (prizes on one side, deck and discard on the
- * other): two small cards side by side. Both are the same, so the play areas between them, and
- * both active slots, line up.
+ * other): one small card. Both are the same, so the play areas between them, and both active
+ * slots, line up.
  */
-export const SIDE_COLUMN = 'w-[calc(var(--card-sm,5rem)*2+0.25rem)] shrink-0';
+export const SIDE_COLUMN = 'w-[var(--card-sm,5rem)] shrink-0';
 
 /** Side margins of a page (the card list, and the board inside the game page, whose log reaches past them to the window edge). */
 export const PAGE_WIDTH = 'px-4 lg:px-24';

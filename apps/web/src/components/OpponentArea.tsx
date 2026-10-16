@@ -34,20 +34,27 @@ export function OpponentArea({
     );
   };
   return (
-    <section className="flex min-h-0 flex-1 items-center gap-3 rounded-lg bg-slate-900 p-3">
-      <DeckAndDiscard deckCount={opponent.deckCount} discard={opponent.discard} cards={cards} mirrored />
-      <div className="min-w-0 flex-1 space-y-3">
-        <h3 className="text-sm text-slate-400">
-          CPU · hand {opponent.handCount}
-        </h3>
-        <div className="flex justify-center gap-2">
-          {opponent.bench.map((p, i) => slot(`cpu-bench-${i}`, i, p))}
+    <section className="flex min-h-0 flex-1 items-center rounded-lg bg-slate-900 p-3">
+      {/* Top-aligned, with the side columns pushed down past the heading (text-sm + space-y-3 = 2rem) to line up with the bench. */}
+      <div className="flex w-full items-start gap-3">
+        <div className="mt-8">
+          <DeckAndDiscard deckCount={opponent.deckCount} discard={opponent.discard} cards={cards} mirrored />
         </div>
-        <div className="flex justify-center">
-          {slot('cpu-active', 'active', opponent.active, true)}
+        <div className="min-w-0 flex-1 space-y-3">
+          <h3 className="text-sm text-slate-400">
+            CPU · hand {opponent.handCount}
+          </h3>
+          <div className="flex justify-center gap-2">
+            {opponent.bench.map((p, i) => slot(`cpu-bench-${i}`, i, p))}
+          </div>
+          <div className="flex justify-center">
+            {slot('cpu-active', 'active', opponent.active, true)}
+          </div>
+        </div>
+        <div className="mt-8">
+          <PrizeCards count={opponent.prizeCount} mirrored />
         </div>
       </div>
-      <PrizeCards count={opponent.prizeCount} />
     </section>
   );
 }

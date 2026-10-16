@@ -14,10 +14,10 @@
  * The board (components/PlayArea.tsx) sizes its cards to fill the space it has. PlayArea is the
  * size container; this inner element turns its size into card widths. Small cards (bench, prizes,
  * piles) are limited by the height (each side holds an active and a bench row, at most) and by the
- * width (five benched Pokémon plus two side columns of two cards each). Active Pokémon are 1.4× bigger.
+ * width (five benched Pokémon plus a side column of one card each side). Active Pokémon are 1.4× bigger.
  */
 .play-area-cards {
-  --card-sm: max(3rem, min(calc((100cqh - 9rem) * 0.145), calc((100cqw - 5rem) / 9)));
+  --card-sm: max(3rem, min(calc((100cqh - 9rem) * 0.145), calc((100cqw - 5rem) / 7)));
   --card-lg: calc(var(--card-sm) * 1.4);
 }
 

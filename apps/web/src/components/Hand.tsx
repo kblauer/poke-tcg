@@ -1,13 +1,17 @@
+import { useDroppable } from '@dnd-kit/core';
 import { lookupCard, type CardInstance, type CardLibrary, type GameAction } from '@poke-tcg/game-engine';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { HandCard } from './HandCard';
 import { PAGE_BLEED } from '../utils/layout';
 import { PreviewContext } from './PreviewContext';
 
+/** Drop id of the hand: a card dragged back over it is put back (the drag is cancelled). */
+export const HAND_ZONE = 'hand';
+
 /** Hand card width (rem); cards are 63:88. */
 const CARD_REM = 7;
 /** How much of a card's height shows while it rests at the bottom of the screen. */
-const VISIBLE = 0.60;
+const VISIBLE = 0.70;
 /** A hovered card grows by this much, from its bottom edge. */
 const ZOOM = 2.75;
 /** Gap between cards when there's room (px). */
@@ -94,6 +98,7 @@ export function Hand({
 }) {
   const busy = pending !== null;
   const ref = useRef<HTMLDivElement>(null);
+  const { setNodeRef: setDropRef } = useDroppable({ id: HAND_ZONE });
   /** The hand's full width (to the window edge and the game log), and the page margin inside it on each side. */
   const [size, setSize] = useState({ width: 0, margin: 0 });
   const [hovered, setHovered] = useState<string | null>(null);
@@ -127,7 +132,15 @@ export function Hand({
     // The hover preview isn't needed here: the card itself grows.
     <PreviewContext.Provider value={() => {}}>
       {/* The full width beside the game log, past the page margins, so a big hand has room to spread. */}
-      <div ref={ref} className={`relative shrink-0 ${PAGE_BLEED}`} style={{ height: visibleH }} onMouseLeave={() => setHovered(null)}>
+      <div
+        ref={(el) => {
+          ref.current = el;
+          setDropRef(el);
+        }}
+        className={`relative shrink-0 ${PAGE_BLEED}`}
+        style={{ height: visibleH }}
+        onMouseLeave={() => setHovered(null)}
+      >
         {hand.map((c, i) => {
           const isHovered = i === hoveredIndex;
           const raised = isHovered || selected === c.uid;

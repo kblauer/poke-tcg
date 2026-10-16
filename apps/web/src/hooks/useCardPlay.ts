@@ -1,6 +1,7 @@
 import { pointerWithin, PointerSensor, rectIntersection, useSensor, useSensors, type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent } from '@dnd-kit/core';
 import { lookupCard, type CardInstance, type GameAction, type PlayerView } from '@poke-tcg/game-engine';
 import { useEffect, useState } from 'react';
+import { HAND_ZONE } from '../components/Hand';
 import { PLAY_AREA } from '../components/PlayArea';
 import type { SlotId } from '../utils/slots';
 import { playAction, targetLabel, targetsFor, whyNoTargets } from '../utils/targets';
@@ -8,11 +9,14 @@ import { playAction, targetLabel, targetsFor, whyNoTargets } from '../utils/targ
 /**
  * What the dragged card is over: whatever is under the pointer, else a slot the card overlaps. The
  * play area (Trainers) counts only under the pointer: the card hangs over the table while the pointer
- * is still on the hand, where letting go cancels.
+ * is still on the hand, where letting go cancels. With the pointer over the hand, nothing counts: the
+ * card is put back, even though the dragged image overlaps the bench above.
  */
 const collisionDetection: CollisionDetection = (args) => {
   const underPointer = pointerWithin(args);
-  return underPointer.length ? underPointer : rectIntersection(args).filter((c) => c.id !== PLAY_AREA);
+  // Back over the hand: the card is being put back, whatever it overlaps.
+  if (underPointer.some((c) => c.id === HAND_ZONE)) return [];
+  return underPointer.length ? underPointer : rectIntersection(args).filter((c) => c.id !== PLAY_AREA && c.id !== HAND_ZONE);
 };
 
 /**
