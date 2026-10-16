@@ -14,7 +14,8 @@ import { isMyTurn } from '../utils/turn';
 /**
  * Playing a Trainer card: clicking it in the hand opens its questions (cards to discard, a target…)
  * one at a time, and answering the last one plays it. One with no questions is confirmed with a
- * Play button, or played at once when dropped on the play area. Esc cancels.
+ * Play button, or played at once when dropped on the play area. A question answered by a single
+ * click in the hand or on the board has no dialog, just a `prompt`. Esc cancels.
  */
 export function useTrainer({ view, send, busy }: { view: PlayerView; send: (a: GameAction) => void; busy: boolean }) {
   const [playing, setPlaying] = useState<{ cardUid: string; choices: TrainerChoices } | null>(null);
@@ -77,9 +78,23 @@ export function useTrainer({ view, send, busy }: { view: PlayerView; send: (a: G
         }
       : null;
 
+  /**
+   * The instruction for a question answered entirely outside the dialog (one card clicked in the hand, or a
+   * Pokémon on the board), shown as a prompt toast instead of the dialog; null when the dialog is needed.
+   */
+  const name = card ? lookupCard(view.cards, card.defId).name : '';
+  const where =
+    spec?.kind === 'pokemon'
+      ? `one of ${spec.side === 'own' ? 'your' : "the CPU's"} highlighted Pokémon`
+      : handPick && handPick.min === 1 && handPick.max === 1
+        ? 'a highlighted card in your hand'
+        : null;
+  const prompt = spec && where && card && !error(card) ? `${name}: ${spec.prompt}. Click ${where} (Esc to cancel)` : null;
+
   return {
     /** The Trainer being played, if any. */
     card: card ?? null,
+    prompt,
     def: card ? lookupCard(view.cards, card.defId) : null,
     spec,
     error,

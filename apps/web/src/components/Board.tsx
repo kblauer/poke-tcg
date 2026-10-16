@@ -112,10 +112,9 @@ export function Board({
     notify: (message) => toasts.push('warning', message),
   });
 
-  // Alerts and errors show as messages in the top right that fade away (Toasts).
-  useEffect(() => {
-    if (selected) toasts.push('warning', 'Click a highlighted slot (Esc to cancel)');
-  }, [selected]);
+  // Alerts and errors show as messages in the bottom right that fade away (Toasts). A held card's
+  // instruction is a prompt there instead: it stays up while the card is held and goes the moment it's played or put down.
+  const prompt = selected ? 'Click a highlighted slot (Esc to cancel)' : trainer.prompt;
   useEffect(() => {
     if (error) toasts.push('error', error);
   }, [error, errorAt]);
@@ -334,7 +333,7 @@ export function Board({
                 cards={view.cards}
                 pick={pokemonPick?.side === 'opp' && !busy ? pokemonPick : null}
                 lunge={attacker === view.opponent.id ? view.version : null}
-                dialog={trainer.card && <TrainerPanel view={view} trainer={trainer} />}
+                dialog={trainer.card && !trainer.prompt && <TrainerPanel view={view} trainer={trainer} />}
               />
 
               {/* Between the two sides: whose turn it is and End turn. */}
@@ -391,9 +390,13 @@ export function Board({
                 power.cancel();
                 if (trainer.isTrainer(c)) {
                   deselect();
-                  // Clicking the open Trainer again closes it.
+                  // Clicking the open Trainer again closes it. One that can't be played just says why, like other cards.
+                  const why = trainer.error(c);
                   if (wasTrainer) trainer.cancel();
-                  else trainer.start(c);
+                  else if (why) {
+                    trainer.cancel();
+                    toasts.push('warning', why);
+                  } else trainer.start(c);
                 } else {
                   trainer.cancel();
                   clickHandCard(c);
@@ -417,7 +420,7 @@ export function Board({
         </DragOverlay>
       </DndContext>
       {preview && <CardPreview {...preview} />}
-      <Toasts toasts={toasts.toasts} />
+      <Toasts toasts={toasts.toasts} prompt={prompt} />
     </PreviewContext.Provider>
   );
 }
