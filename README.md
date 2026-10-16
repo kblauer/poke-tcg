@@ -24,6 +24,7 @@ packages/
   shared/               Zod schemas for API input, player ids
   db/                   Prisma 7 schema, client (pg driver adapter), migrations, seed
 supabase/               Local Supabase config (CLI)
+CLAUDE.md               Project notes and decisions for Claude Code (read automatically each session)
 ```
 
 ## Web app structure
