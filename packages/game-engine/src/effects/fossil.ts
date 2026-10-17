@@ -6,7 +6,7 @@ import { isTrainerCard, lookupCard, type EnergyType } from '../cards.js';
 import {
   benchedSlots,
   discardDefenderEnergy,
-  extraAnyEnergy,
+  extraEnergy,
   flipToInflict,
   flipToProtect,
   inflicts,
@@ -16,9 +16,10 @@ import {
   selfdestruct,
 } from './common.js';
 
-/** "Water Gun": base damage plus 10 for each Energy beyond the cost, at most 20 more. */
-const waterGun = (damage: number, cost: EnergyType[]): AttackEffect => ({
-  run: (ctx) => void ctx.hit(damage + 10 * extraAnyEnergy(ctx, cost, 2)),
+/** "Water Gun": base damage plus 10 for each Water Energy beyond the cost, at most 20 more (TCGdex drops the Water icon). */
+const waterGun = (damage: number, cost: EnergyType[], name: string, wording = 'in this way'): AttackEffect => ({
+  text: `Does ${damage} damage plus 10 more damage for each Water Energy attached to ${name} but not used to pay for this attack's Energy cost. You can't add more than 20 damage ${wording}.`,
+  run: (ctx) => void ctx.hit(damage + 10 * extraEnergy(ctx, cost, 'water', 2)),
 });
 
 /** Base damage, then `bench` damage to 1 of the opponent's benched Pokémon (Dark Mind, Stretch Kick). */
@@ -96,7 +97,7 @@ const HOLO: Record<string, Record<string, AttackEffect>> = {
     },
   },
   // Lapras
-  'base3-10': { 'Water Gun': waterGun(10, ['water']), 'Confuse Ray': flipToInflict(10, 'confused') },
+  'base3-10': { 'Water Gun': waterGun(10, ['water'], 'Lapras', 'this way'), 'Confuse Ray': flipToInflict(10, 'confused') },
   // Magneton
   'base3-11': {
     Sonicboom: { run: (ctx) => void ctx.hit(20, { weakness: false }) },
@@ -218,11 +219,11 @@ export const FOSSIL: Record<string, Record<string, AttackEffect>> = {
   // Magmar
   'base3-39': { Smokescreen: smokescreen(10), Smog: flipToInflict(20, 'poisoned') },
   // Omastar
-  'base3-40': { 'Water Gun': waterGun(20, ['water', 'colorless']), 'Spike Cannon': spikeCannon },
+  'base3-40': { 'Water Gun': waterGun(20, ['water', 'colorless'], 'Omastar'), 'Spike Cannon': spikeCannon },
   // Sandslash
   'base3-41': { 'Fury Swipes': furySwipes(20) },
   // Seadra
-  'base3-42': { 'Water Gun': waterGun(20, ['water', 'colorless']), Agility: flipToProtect(20, 'preventAll') },
+  'base3-42': { 'Water Gun': waterGun(20, ['water', 'colorless'], 'Seadra'), Agility: flipToProtect(20, 'preventAll') },
   // Slowbro
   'base3-43': { Psyshock: flipToInflict(20, 'paralyzed') },
   // Tentacruel
@@ -262,7 +263,7 @@ export const FOSSIL: Record<string, Record<string, AttackEffect>> = {
     },
   },
   // Omanyte
-  'base3-52': { 'Water Gun': waterGun(10, ['water']) },
+  'base3-52': { 'Water Gun': waterGun(10, ['water'], 'Omanyte') },
   // Psyduck
   'base3-53': {
     Headache: {
@@ -285,7 +286,8 @@ export const FOSSIL: Record<string, Record<string, AttackEffect>> = {
       },
     },
     Scavenge: {
-      discard: { count: 1 },
+      text: 'Discard 1 Psychic Energy card attached to Slowpoke in order to use this attack. Put a Trainer card from your discard pile into your hand.',
+      discard: { count: 1, type: 'psychic' },
       choices(s): ChoiceSpec[] {
         const options = s.ownDiscard.filter((c) => isTrainerCard(lookupCard(s.cards, c.defId)));
         return options.length ? [{ kind: 'ownDiscard', min: 1, max: 1, options, prompt: 'Choose a Trainer card from your discard pile to put into your hand' }] : [];

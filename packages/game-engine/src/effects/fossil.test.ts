@@ -13,9 +13,10 @@ describe('Fossil attacks', () => {
   });
 
   describe('damage', () => {
-    it('Water Gun counts every extra Energy, up to 20 more damage', () => {
-      expect(misty(attack(duel('lapras', 'onix', { energy: ['water', 'fire'] }), 0)).active!.damage).toBe(20);
-      expect(misty(attack(duel('lapras', 'onix', { energy: ['water', 'water', 'fire', 'fire'] }), 0)).active!.damage).toBe(30);
+    it('Water Gun counts extra Water Energy only, up to 20 more damage', () => {
+      expect(misty(attack(duel('lapras', 'onix', { energy: ['water', 'fire'] }), 0)).active!.damage).toBe(10);
+      expect(misty(attack(duel('lapras', 'onix', { energy: ['water', 'water', 'fire', 'fire'] }), 0)).active!.damage).toBe(20);
+      expect(misty(attack(duel('lapras', 'onix', { energy: ['water', 'water', 'water', 'water'] }), 0)).active!.damage).toBe(30);
       // Seadra's Colorless cost uses up one of the extras.
       expect(misty(attack(duel('seadra', 'onix', { energy: ['water', 'water', 'water'] }), 0)).active!.damage).toBe(30);
     });
@@ -201,6 +202,16 @@ describe('Fossil attacks', () => {
       const after = attack(s, 1);
       expect(ash(after).hand.some((c) => c.uid === 'd1')).toBe(true);
       expect(ash(after).active!.damage).toBe(10);
+    });
+
+    it("Scavenge needs a Psychic Energy to discard", () => {
+      const s = duel('slowpoke', 'onix', { energy: ['psychic', 'psychic'] });
+      s.players.ash!.active!.energy[1] = { uid: 'w', defId: 'water' };
+      s.players.ash!.active!.energy[0] = { uid: 'p', defId: 'psychic' };
+      // Psychic-only cost [P, P] can't be paid with one Psychic, so give it a third.
+      s.players.ash!.active!.energy.push({ uid: 'p2', defId: 'psychic' });
+      expect(tryAttack(s, 1, { energyUids: ['w'] })).toMatchObject({ ok: false });
+      expect(attack(s, 1, { energyUids: ['p'] }).players.ash!.active!.energy.map((e) => e.uid)).toEqual(['w', 'p2']);
     });
 
     it('Scavenge discards an Energy and takes a Trainer card from the discard pile', () => {

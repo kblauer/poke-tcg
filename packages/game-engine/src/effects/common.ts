@@ -92,13 +92,6 @@ export function extraEnergy(ctx: AttackContext, cost: EnergyType[], type: Energy
   return Math.min(cap, pool.filter((t) => t === type).length);
 }
 
-/**
- * Energy attached to the attacker beyond the attack's cost, of any type, up to `cap`. For the Water
- * Guns that count "each Energy" (Fossil) rather than each Water Energy.
- */
-export const extraAnyEnergy = (ctx: AttackContext, cost: EnergyType[], cap: number) =>
-  Math.min(cap, Math.max(0, energyPool(ctx.attacker, ctx.state.cards).length - cost.length));
-
 /** Opponent's benched Pokémon slots. */
 export const benchedSlots = (bench: readonly unknown[]) => bench.flatMap((p, i) => (p ? [i] : []));
 
