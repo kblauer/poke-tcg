@@ -80,6 +80,13 @@ describe('Jungle attacks', () => {
       expect(name(s, misty(s).active)).toBe('Charmander');
       expect(misty(s).bench[0]!.damage).toBe(50);
     });
+
+    it('Ram: the opponent picks the Pokémon switched in, even when the Defending Pokémon was Knocked Out', () => {
+      let s = duel('rhydon', 'charmander', { energy: ['fighting', 'fighting', 'fighting', 'fighting'], oppBench: ['squirtle', 'bulbasaur'] });
+      s = act(attack(s, 1), 'misty', { type: 'RESOLVE_CHOICE', target: 1 });
+      // Charmander (50 HP) took 50 and was Knocked Out on the Bench, so Bulbasaur stays Active with no promotion.
+      expect([name(s, misty(s).active), misty(s).bench[1], s.phase, s.currentPlayer]).toEqual(['Bulbasaur', null, 'playing', 'misty']);
+    });
   });
 
   describe('lasting effects', () => {

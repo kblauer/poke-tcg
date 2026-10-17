@@ -48,7 +48,7 @@ function savePrefs(prefs: LogPrefs) {
 const iconButton = 'flex h-7 w-7 items-center justify-center rounded text-slate-400 transition hover:bg-slate-700 hover:text-slate-100';
 
 /**
- * The game log (with coin flips under it) as a full-height panel at the left or right edge of the window.
+ * The game log as a full-height panel at the left or right edge of the window. Its coin flips play in the middle of the screen (CoinFlip).
  * It can be minimised to a thin strip, moved to the other side, and resized by dragging its inner
  * edge. Coin flips still show beside the strip while it's minimised. Clicks here never cancel a move.
  * During a run it has a Run tab (`run`: HP, ₱, EXP, consumables, the Bag); with `debug` (only while debugging
@@ -165,10 +165,8 @@ export function LogDrawer({
             </button>
           ))}
         </div>
-        {/* Coin flips still need to be seen while the log is minimised: beside the strip, over the board. */}
-        <div className={`absolute bottom-0 z-30 w-64 ${side === 'right' ? 'right-full mr-2' : 'left-full ml-2'}`}>
-          <CoinFlip log={log} you={you} />
-        </div>
+        {/* Coin flips show in the middle of the screen, minimised or not. */}
+        <CoinFlip log={log} you={you} />
       </aside>
     );
   }
@@ -200,9 +198,7 @@ export function LogDrawer({
       ) : (
         <GameLog log={log} you={you} header={header} />
       )}
-      <div className="border-t border-slate-700 empty:hidden">
-        <CoinFlip log={log} you={you} />
-      </div>
+      <CoinFlip log={log} you={you} />
     </aside>
   );
 }

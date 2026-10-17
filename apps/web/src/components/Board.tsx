@@ -30,7 +30,9 @@ import { PrizeCards } from './PrizeCards';
 import { RetreatPanel } from './RetreatPanel';
 import { Slot } from './Slot';
 import { SlotMenu } from './SlotMenu';
+import { StadiumChip } from './StadiumChip';
 import { StatusBar } from './StatusBar';
+import { TurnOrderFlip } from './TurnOrderFlip';
 import { Toasts } from './Toasts';
 import { TrainerPanel } from './TrainerPanel';
 
@@ -168,8 +170,10 @@ export function Board({
       ? { side: 'own', options: pendingPick.options, pick: (target) => send({ type: 'RESOLVE_CHOICE', target }) }
       : attack.spec?.kind === 'opponentBench'
       ? { side: 'opp', options: attack.spec.options, pick: attack.answer }
-      : attack.spec?.kind === 'ownBench'
+      : attack.spec?.kind === 'ownBench' || attack.spec?.kind === 'ownPokemon'
         ? { side: 'own', options: attack.spec.options, pick: attack.answer }
+      : attack.spec?.kind === 'opponentPokemon' || attack.spec?.kind === 'opponentPokemonTo'
+        ? { side: 'opp', options: attack.spec.options, pick: attack.answer }
       : attack.spec?.kind === 'opponentBenchMany'
         ? { side: 'opp', options: attack.spec.options, pick: (t) => attack.toggleBench(t as number), picked: attack.benchPicked }
       : power.spec?.kind === 'ownPokemon' || power.spec?.kind === 'oppPokemon'
@@ -343,7 +347,13 @@ export function Board({
               />
 
               {/* Between the two sides: whose turn it is and End turn. */}
-              <StatusBar status={statusText(view)} canEndTurn={myTurn} pending={pending} send={send} />
+              <StatusBar
+                status={statusText(view)}
+                canEndTurn={myTurn}
+                pending={pending}
+                send={send}
+                stadium={<StadiumChip view={view} send={send} busy={busy} />}
+              />
 
               {/* Prize cards on the left of the play area; discard pile and deck on the right. */}
               <section className="flex min-h-0 flex-1 items-center rounded-lg bg-slate-900 p-3">
@@ -411,6 +421,7 @@ export function Board({
             />
           </div>
           <LogDrawer log={view.log} you={view.you} run={runTab} debug={debugEnabled ? { gameId, view } : undefined} />
+          <TurnOrderFlip key={gameId} view={view} gameId={gameId} />
         </div>
 
         <DragOverlay dropAnimation={null} modifiers={[centerOnPointer]}>

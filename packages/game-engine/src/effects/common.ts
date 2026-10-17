@@ -118,18 +118,23 @@ export const selfdestruct = (damage: number, bench: number): AttackEffect => ({
   },
 });
 
-/** The opponent switches the Defending Pokémon with a benched one of their choice (Whirlwind, Terror Strike). */
-export function opponentSwitches(ctx: AttackContext) {
-  // The opponent chooses. Until the player can be asked mid-attack, their first benched Pokémon comes in.
-  const [slot] = benchedSlots(ctx.opp.bench);
-  if (slot !== undefined && ctx.opp.active) ctx.switchDefender(slot);
+/**
+ * The opponent switches the Defending Pokémon with a benched one of their choice (Whirlwind, Terror Strike).
+ * With one benched Pokémon it comes straight in; otherwise the opponent picks it once the attack is over,
+ * and the turn ends after that (`source` names the attack).
+ */
+export function opponentSwitches(ctx: AttackContext, source: string) {
+  const slots = benchedSlots(ctx.opp.bench);
+  if (!slots.length || !ctx.opp.active) return;
+  if (slots.length === 1) return ctx.switchDefender(slots[0]!);
+  if (ctx.canAffect(ctx.opp, ctx.opp.active)) ctx.opponentChooses({ kind: 'switchIn', source });
 }
 
 /** Base damage, then the opponent switches the Defending Pokémon with a benched one of their choice. */
 export const whirlwind = (damage: number): AttackEffect => ({
   run(ctx) {
     ctx.hit(damage);
-    opponentSwitches(ctx);
+    opponentSwitches(ctx, 'Whirlwind');
   },
 });
 
@@ -180,6 +185,13 @@ export const mirrorMove: AttackEffect = {
     for (const a of last.afflictions) ctx.inflict(a);
   },
 };
+
+/** Flips until tails and returns the number of heads (capped, in case of a very long run of heads). */
+export function headsUntilTails(ctx: AttackContext): number {
+  let heads = 0;
+  while (heads < 100 && ctx.flip()) heads++;
+  return heads;
+}
 
 /** Search the deck for a Basic Pokémon and put it onto the Bench (Call for Family, Sprout, Call for Friend). */
 export const benchSearch = (source: string, find: Pick<Extract<PendingChoice, { kind: 'pickFromDeck' }>, 'filter' | 'name' | 'type'>): AttackEffect => ({

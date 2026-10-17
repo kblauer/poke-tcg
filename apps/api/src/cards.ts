@@ -28,6 +28,9 @@ export interface CardData {
 /** Stage 1 Pokémon printed as evolving from Mysterious Fossil, which TCGdex leaves out. */
 const FROM_MYSTERIOUS_FOSSIL = new Set(['Omanyte', 'Kabuto', 'Aerodactyl']);
 
+/** Baby Pokémon promos, which TCGdex lists as Basic (Neo-era Babies have the stage "Baby"). */
+const BABY_PROMOS = new Set(['basep-31', 'basep-35', 'basep-36']);
+
 /** What the card evolves from, filling in TCGdex's gaps. */
 const evolvesFrom = (card: Pick<Card, 'name' | 'stage' | 'evolveFrom'>) =>
   card.evolveFrom ?? (card.stage === 'Stage1' && FROM_MYSTERIOUS_FOSSIL.has(card.name) ? 'Mysterious Fossil' : null);
@@ -103,15 +106,20 @@ export function toCardDef(card: Card): CardDef {
     const [type] = card.types;
     if (!stage || !type || card.hp == null) throw new Error(`Card ${card.id} is missing stage, type or HP`);
     const data = card.data as CardData;
-    const attacks: Attack[] = (data.attacks ?? []).map((a) => ({
-      name: attackName(a),
-      cost: (a.cost ?? []).map(energyType),
-      damage: baseDamage(a.damage),
-      damageText: a.damage == null || a.damage === '' ? null : String(a.damage),
-      // Printed wording where TCGdex's differs (kept with the attack's effect in the engine).
-      text: attackEffect(card.id, attackName(a))?.text ?? a.effect,
-    }));
-    return { id: card.id, kind: 'pokemon', name: card.name, imageUrl, type: energyType(type), hp: card.hp, stage, evolvesFrom: evolvesFrom(card), attacks, power: power(data), weakness: weakness(data), resistance: resistance(data), retreatCost: data.retreat ?? 0, holo: isHolo(card) };
+    const attacks: Attack[] = (data.attacks ?? []).map((a) => {
+      const effect = attackEffect(card.id, attackName(a));
+      // Printed damage and wording where TCGdex's differ (kept with the attack's effect in the engine).
+      const damage = effect?.damage ?? a.damage;
+      return {
+        name: attackName(a),
+        cost: (a.cost ?? []).map(energyType),
+        damage: baseDamage(damage),
+        damageText: damage == null || damage === '' ? null : String(damage),
+        text: effect?.text ?? a.effect,
+      };
+    });
+    const baby = card.stage === 'Baby' || BABY_PROMOS.has(card.id);
+    return { id: card.id, kind: 'pokemon', name: card.name, imageUrl, type: energyType(type), hp: card.hp, stage, evolvesFrom: evolvesFrom(card), attacks, power: power(data), weakness: weakness(data), resistance: resistance(data), retreatCost: data.retreat ?? 0, holo: isHolo(card), ...(baby && { baby }) };
   }
   if (card.kind === 'ENERGY') {
     if (card.name === 'Double Colorless Energy') {

@@ -1,8 +1,9 @@
 // Fossil (base3) attack effects, by card id and attack name. Rulings follow the 1999 rulebook;
 // where TCGdex's text differs from the printed card, `text` has the printed wording.
 // Attacks that only deal damage need no entry. Cards 16–30 are the non-holo prints of 1–15.
-import type { AttackEffect, AttackSituation, ChoiceSpec } from '../attacks.js';
+import type { AttackContext, AttackEffect, AttackSituation, ChoiceSpec } from '../attacks.js';
 import { isTrainerCard, lookupCard, type EnergyType } from '../cards.js';
+import { pokemonTower } from '../trainers.js';
 import {
   benchedSlots,
   benchSearch,
@@ -34,6 +35,9 @@ const smokescreen = (damage: number): AttackEffect => ({
     });
   },
 });
+
+/** Pokémon Tower is in play, so cards from a discard pile can't go into the hand. */
+const towerKeeps = (ctx: AttackContext) => pokemonTower({ stadium: ctx.state.stadium?.card, cards: ctx.state.cards });
 
 /** Energy cards in the attacking player's discard pile. */
 const discardEnergy = (s: AttackSituation) => s.ownDiscard.filter((c) => lookupCard(s.cards, c.defId).kind === 'energy');
@@ -160,7 +164,7 @@ export const FOSSIL: Record<string, Record<string, AttackEffect>> = {
     'Terror Strike': {
       run(ctx) {
         ctx.hit(10);
-        if (ctx.flip()) opponentSwitches(ctx);
+        if (ctx.flip()) opponentSwitches(ctx, 'Terror Strike');
       },
     },
     'Poison Fang': inflicts(20, 'poisoned'),
@@ -187,9 +191,12 @@ export const FOSSIL: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         const uids = new Set(ctx.choices.discardUids ?? []);
         const taken = ctx.me.discard.filter((c) => uids.has(c.uid));
-        ctx.me.discard = ctx.me.discard.filter((c) => !uids.has(c.uid));
-        ctx.me.hand.push(...taken);
-        ctx.log(`Put ${taken.length} Energy card${taken.length === 1 ? '' : 's'} from the discard pile into the hand.`);
+        if (towerKeeps(ctx)) ctx.log('Pokémon Tower: the Energy cards stay in the discard pile.');
+        else {
+          ctx.me.discard = ctx.me.discard.filter((c) => !uids.has(c.uid));
+          ctx.me.hand.push(...taken);
+          ctx.log(`Put ${taken.length} Energy card${taken.length === 1 ? '' : 's'} from the discard pile into the hand.`);
+        }
         ctx.selfDamage(10);
       },
     },
@@ -281,6 +288,7 @@ export const FOSSIL: Record<string, Record<string, AttackEffect>> = {
         const [uid] = ctx.choices.discardUids ?? [];
         const card = ctx.me.discard.find((c) => c.uid === uid);
         if (!card) return ctx.log('Scavenge found no Trainer card.');
+        if (towerKeeps(ctx)) return ctx.log('Pokémon Tower: the Trainer card stays in the discard pile.');
         ctx.me.discard = ctx.me.discard.filter((c) => c !== card);
         ctx.me.hand.push(card);
         ctx.log(`Put ${lookupCard(ctx.state.cards, card.defId).name} from the discard pile into the hand.`);

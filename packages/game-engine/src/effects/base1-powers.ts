@@ -3,7 +3,7 @@
 import { typeName } from '../attacks.js';
 import { lookupCard, type EnergyType } from '../cards.js';
 import type { CardInstance, InPlayPokemon, Target } from '../engine.js';
-import { ownTargets, pokemonAt, type PowerChoiceSpec, type PowerEffect, type PowerSituation } from '../powers.js';
+import { energyFromHand, ownTargets, pokemonAt, type PowerChoiceSpec, type PowerEffect, type PowerSituation } from '../powers.js';
 import { clearOnLeavingActive, inPlayDef, pokemonName } from '../status.js';
 
 const def = (s: PowerSituation, p: InPlayPokemon) => inPlayDef(s.cards, p);
@@ -54,6 +54,7 @@ export const BASE1_POWERS: Record<string, PowerEffect> = {
       const to = pokemonAt(ctx.me, ctx.choices.to!)!;
       to.energy.push(energy!);
       ctx.log(`Attached a Water Energy to ${pokemonName(ctx.state, to)}.`);
+      energyFromHand(ctx.state, ctx.me, ctx.choices.to!, energy!);
     },
   },
 

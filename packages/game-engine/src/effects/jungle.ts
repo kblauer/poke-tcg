@@ -26,7 +26,7 @@ import {
 } from './common.js';
 
 /** Flip: heads does `damage + bonus`, tails `damage` (Quick Attack, Stomp). */
-const flipForMore = (damage: number, bonus: number): AttackEffect => ({
+export const flipForMore = (damage: number, bonus: number): AttackEffect => ({
   run: (ctx) => void ctx.hit(ctx.flip() ? damage + bonus : damage),
 });
 
@@ -36,7 +36,7 @@ const rage = (damage: number): AttackEffect => ({
 });
 
 /** On heads, the Defending Pokémon can't attack this Pokémon next turn (Tail Wag, Leer). */
-const cantAttackMe: AttackEffect = {
+export const cantAttackMe: AttackEffect = {
   run(ctx) {
     if (!ctx.flip()) return ctx.log(`${ctx.defenderDef.name} can still attack.`);
     const target = baseUid(ctx.attacker);
@@ -48,7 +48,7 @@ const cantAttackMe: AttackEffect = {
 };
 
 /** Base damage; the Defending Pokémon's attacks on this Pokémon next turn do `amount` less (Pounce, Snivel). */
-const pounce = (damage: number, amount: number): AttackEffect => ({
+export const pounce = (damage: number, amount: number): AttackEffect => ({
   run(ctx) {
     ctx.hit(damage);
     const target = baseUid(ctx.attacker);
@@ -252,7 +252,7 @@ export const JUNGLE: Record<string, Record<string, AttackEffect>> = {
         ctx.hit(50);
         ctx.selfDamage(20);
         // Even if Rhydon is Knocked Out.
-        opponentSwitches(ctx);
+        opponentSwitches(ctx, 'Ram');
       },
     },
   },

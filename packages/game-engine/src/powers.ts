@@ -3,9 +3,9 @@
 import type { AttackContext } from './attacks.js';
 import { lookupCard, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { powerEffect } from './effects/index.js';
-import { conditionLabel, type CardInstance, type GameState, type InPlayPokemon, type PlayerState, type Target } from './engine.js';
+import { conditionLabel, type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
 import { addLog, effectId, flipCoin, inPlayDef } from './status.js';
-import type { PendingChoice, PendingChoiceInput } from './trainers.js';
+import { evolvesFromEevee, type PendingChoice, type PendingChoiceInput } from './trainers.js';
 
 /** Answers to a power's questions. Each question names the field it fills. */
 export interface PowerChoices {
@@ -86,6 +86,21 @@ export interface PowerEffect {
   noConditions?: boolean;
   /** Retreat Aid: while it's on the Bench, the Active Pokémon's retreat cost is 1 less. */
   retreatAid?: boolean;
+  /** Stops working while it has any Special Condition, Poisoned and Burned included (Aurora Veil, Guard). */
+  stopsOnAnyCondition?: boolean;
+  /** Neutral Shield: attacks by Evolved Pokémon don't affect it. */
+  neutralShield?: boolean;
+  /** Aurora Veil: while it's the Active Pokémon, attacks don't affect its owner's Benched Pokémon. */
+  auroraVeil?: boolean;
+  /** Guard: while it's the Active Pokémon, the opponent's Active Pokémon can't retreat. */
+  guard?: boolean;
+  /** Chain Reaction: after any Pokémon evolves, it may evolve from the deck (offerChainReaction). */
+  chainReaction?: boolean;
+  /**
+   * Called after a card from its owner's hand is attached to it as Energy (Pure Body). May ask the player to
+   * choose something (`state.pendingChoice`).
+   */
+  onEnergyFromHand?: (state: GameState, owner: PlayerState, pokemon: InPlayPokemon, target: Target, energy: CardInstance) => void;
 }
 
 export interface PowerContext {
@@ -131,7 +146,14 @@ export function powerActive(pokemon: InPlayPokemon, cards: CardLibrary, sides: S
   if (!inPlayDef(cards, pokemon).power) return false;
   const effect = powerEffect(effectId(pokemon));
   if (effect?.stopsOnlyWhileAsleep ? pokemon.condition === 'asleep' : pokemon.condition) return false;
+  if (effect?.stopsOnAnyCondition && (pokemon.poison || pokemon.burned)) return false;
   return !!effect?.toxicGas || !toxicGas(sides);
+}
+
+/** The power keeping the Active Pokémon of `sides[0]` from retreating (the opponent's Guard), or null. `sides`: owner first. */
+export function guardedBy(sides: Sides, cards: CardLibrary): string | null {
+  const opposing = sides[1]?.active;
+  return opposing && powerEffect(effectId(opposing))?.guard && powerActive(opposing, cards, sides) ? powerOf(opposing, cards)!.name : null;
 }
 
 /** Why no Evolution cards can be played (Prehistoric Power), or null. */
@@ -168,6 +190,37 @@ export function refreshTransforms(state: GameState) {
     const works = powerEffect(ditto.card.defId)?.transform && !ditto.condition && !gas;
     if (works && copy?.kind === 'pokemon' && !copy.trainerText && !powerEffect(copy.id)?.transform) ditto.transformed = copy.id;
     else delete ditto.transformed;
+  }
+}
+
+/** After `energy` from `owner`'s hand is attached to their Pokémon at `target`: its power reacts, if it works (Pure Body). */
+export function energyFromHand(state: GameState, owner: PlayerState, target: Target, energy: CardInstance) {
+  const pokemon = pokemonAt(owner, target);
+  const sides = state.playerOrder.map((id) => state.players[id]!);
+  if (pokemon && powerActive(pokemon, state.cards, sides)) powerEffect(effectId(pokemon))?.onEnergyFromHand?.(state, owner, pokemon, target, energy);
+}
+
+/**
+ * Chain Reaction, after a Pokémon evolves: asks the owner of the first Eevee in `queue` that can use it
+ * (working power, an Eevee evolution in their deck, allowed to evolve now) whether to; the rest wait in
+ * the choice. With no `queue`, every such Eevee in play is asked, the current player's first.
+ */
+export function offerChainReaction(state: GameState, queue?: { player: PlayerId; uid: string }[]) {
+  const sides = state.playerOrder.map((id) => state.players[id]!);
+  if (!queue) {
+    const order = [state.currentPlayer, ...state.playerOrder.filter((id) => id !== state.currentPlayer)];
+    queue = order.flatMap((player) => allInPlay([state.players[player]!]).filter((p) => powerEffect(effectId(p))?.chainReaction).map((p) => ({ player, uid: p.card.uid })));
+  }
+  for (const [i, { player, uid }] of queue.entries()) {
+    const owner = state.players[player]!;
+    const target = ownTargets(owner).find((t) => pokemonAt(owner, t)!.card.uid === uid);
+    const eevee = target === undefined ? null : pokemonAt(owner, target)!;
+    if (!eevee || !powerEffect(effectId(eevee))?.chainReaction || !powerActive(eevee, state.cards, sides)) continue;
+    // It counts as evolving Eevee, so the usual rules apply: not on the first turns, not the turn Eevee was played.
+    if (state.turn <= 2 || eevee.playedTurn === state.turn || evolutionBlocked(sides, state.cards)) continue;
+    if (!owner.deck.some((c) => evolvesFromEevee(state.cards, c))) continue;
+    state.pendingChoice = { player, source: powerOf(eevee, state.cards)!.name, kind: 'chainReaction', target: target!, next: queue.slice(i + 1) };
+    return;
   }
 }
 

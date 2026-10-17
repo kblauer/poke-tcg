@@ -12,6 +12,8 @@ import { JUNGLE_POWERS } from './jungle-powers.js';
 import { JUNGLE_TRAINERS } from './jungle-trainers.js';
 import { NEO1_TRAINERS } from './neo1-trainers.js';
 import { PROMOS } from './promos.js';
+import { PROMO_POWERS } from './promos-powers.js';
+import { PROMO_TRAINERS } from './promos-trainers.js';
 import { FOSSIL_POWERS } from './fossil-powers.js';
 import { FOSSIL_TRAINERS } from './fossil-trainers.js';
 
@@ -23,14 +25,14 @@ const EFFECTS: Record<string, Record<string, AttackEffect>> = { ...ORIGINAL_EFFE
 export const attackEffect = (defId: string, attackName: string): AttackEffect | undefined => EFFECTS[defId]?.[attackName];
 
 /** Pokémon Power effects by card id (WOTC cards have at most one power). Base Set 2's are its originals'. */
-const ORIGINAL_POWERS: Record<string, PowerEffect> = { ...BASE1_POWERS, ...JUNGLE_POWERS, ...FOSSIL_POWERS };
+const ORIGINAL_POWERS: Record<string, PowerEffect> = { ...BASE1_POWERS, ...JUNGLE_POWERS, ...FOSSIL_POWERS, ...PROMO_POWERS };
 const POWERS: Record<string, PowerEffect> = { ...ORIGINAL_POWERS, ...base4Reprints(ORIGINAL_POWERS) };
 
 /** The behaviour of the card's Pokémon Power, if it's implemented. */
 export const powerEffect = (defId: string): PowerEffect | undefined => POWERS[defId];
 
 /** Trainer card effects by card id. Base Set 2's are its originals'. */
-const ORIGINAL_TRAINERS: Record<string, TrainerEffect> = { ...BASE1_TRAINERS, ...JUNGLE_TRAINERS, ...FOSSIL_TRAINERS, ...NEO1_TRAINERS };
+const ORIGINAL_TRAINERS: Record<string, TrainerEffect> = { ...BASE1_TRAINERS, ...JUNGLE_TRAINERS, ...FOSSIL_TRAINERS, ...NEO1_TRAINERS, ...PROMO_TRAINERS };
 const TRAINERS: Record<string, TrainerEffect> = { ...ORIGINAL_TRAINERS, ...base4Reprints(ORIGINAL_TRAINERS) };
 
 /** The behaviour of a Trainer card, if it's implemented. */
