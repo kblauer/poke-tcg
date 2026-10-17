@@ -1,11 +1,15 @@
 import { CARD_TYPES, EMPTY_FILTER, OWNERSHIP_OPTIONS, SORT_OPTIONS, STAGES, type CardFilter, type CardSort, type Ownership, type SortKey } from '../utils/cardList';
 
 const input = 'rounded bg-slate-800 px-2 py-1 text-sm outline-none ring-yellow-300 focus:ring-1';
+// The same toggle as the deck builder's.
+const toggle = 'rounded px-2 py-1 text-sm transition';
+const on = 'bg-yellow-300 text-slate-900';
+const off = 'bg-slate-800 text-slate-300 hover:bg-slate-700';
 
 /** Parses a number field; empty means "no bound". */
 const toBound = (value: string) => (value === '' ? null : Math.max(0, Number(value)));
 
-/** Search, filters (unlocked or locked included) and sort controls for the card browser. */
+/** Search, filters (unlocked or locked, and implemented only, included) and sort controls for the card browser. */
 export function CardFilters({
   filter,
   sort,
@@ -108,6 +112,14 @@ export function CardFilters({
             </option>
           ))}
         </select>
+        <button
+          className={`${toggle} ${filter.implementedOnly ? on : off}`}
+          aria-pressed={filter.implementedOnly}
+          title="Only cards whose attacks, powers and effects all work in the game. Other cards' Pokémon can still attack for their base damage."
+          onClick={() => set({ implementedOnly: !filter.implementedOnly })}
+        >
+          Implemented only
+        </button>
         <button className="text-slate-400 hover:text-slate-200" onClick={() => onFilterChange(EMPTY_FILTER)}>
           Clear filters
         </button>

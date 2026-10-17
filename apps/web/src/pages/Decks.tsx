@@ -157,7 +157,7 @@ export function DecksPage() {
       <div className="flex h-[70vh] flex-col gap-3 lg:h-[calc(100dvh-6.5rem)]">
         <DeckFilters filter={filter} sort={sort} sets={sets} shown={results.length} total={catalog.data.length} onChange={setFilter} onSortChange={setSort} />
         {blocked && <p className="text-sm text-amber-300">{blocked}.</p>}
-        <CardGrid cards={results} selectedId={null} onSelect={(c) => change(c, 1)} counts={counts} isLocked={isLocked} />
+        <CardGrid cards={results} selectedId={null} onSelect={(c) => change(c, 1)} counts={counts} isLocked={isLocked} holdToInspect />
       </div>
     </div>
   );

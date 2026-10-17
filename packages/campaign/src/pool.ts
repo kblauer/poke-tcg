@@ -9,8 +9,8 @@ export interface PoolCard {
   rarity: Rarity;
 }
 
-/** Sets whose card effects the engine has (Base Set, Jungle, Fossil, Wizards promos). */
-export const POOL_SETS = ['base1', 'base2', 'base3', 'basep'];
+/** Sets whose card effects the engine has (Base Set, Jungle, Fossil, Wizards promos, Base Set 2). */
+export const POOL_SETS = ['base1', 'base2', 'base3', 'basep', 'base4'];
 
 /** Basic Energy card ids (Base Set printings) by type, and Double Colorless Energy. */
 export const BASIC_ENERGY: Partial<Record<EnergyType, string>> = {
