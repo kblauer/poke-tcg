@@ -2,17 +2,27 @@ import { Link } from '@tanstack/react-router';
 import type { RunControl, RunViewData } from '../../hooks/useRun';
 import { isBossKind } from '@poke-tcg/campaign';
 import { ENCOUNTER_STYLE, EncounterBadge } from './encounterIcons';
+import { useUnlocked } from '../../hooks/useUnlocked';
 import { RunCard } from './RunCard';
 
 const panel = 'space-y-4 rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600';
 const button = 'rounded bg-slate-600 px-4 py-2 font-semibold transition hover:bg-slate-500 active:scale-95 disabled:opacity-40';
 const primary = 'rounded bg-blue-600 px-4 py-2 font-semibold transition hover:bg-blue-500 active:scale-95 disabled:opacity-40';
 
-/** The encounter being played: a battle to start or go back to, a shop, a gift, a trade, an event, a Pokémon Center, or a battle's reward. */
+/**
+ * The encounter being played: a battle to start or go back to, a shop, a gift, a trade, an event, a Pokémon
+ * Center, or a battle's reward. Cards on offer that aren't unlocked yet are tagged NEW.
+ */
 export function EncounterPanel({ view, run }: { view: RunViewData; run: RunControl }) {
+  const { isLocked } = useUnlocked();
   const e = view.encounter;
   if (!e) return null;
   const card = (id: string) => view.cards[id];
+  /** NEW on a card the account hasn't unlocked (getting it unlocks it). */
+  const newTag = (id: string) => {
+    const def = card(id);
+    return def && isLocked({ id, basicEnergy: def.kind === 'energy' && def.basic !== false }) ? 'NEW' : undefined;
+  };
   const leave = (label: string) => (
     <button className={button} disabled={run.busy} onClick={() => run.send({ type: 'LEAVE' })}>
       {label}
@@ -64,7 +74,7 @@ export function EncounterPanel({ view, run }: { view: RunViewData; run: RunContr
           </p>
           <div className="flex flex-wrap gap-3">
             {e.offers.map((id, i) => (
-              <RunCard key={i} def={card(id)} disabled={run.busy} onClick={() => run.send({ type: 'PICK', index: i })} />
+              <RunCard key={i} def={card(id)} badge={newTag(id)} disabled={run.busy} onClick={() => run.send({ type: 'PICK', index: i })} />
             ))}
           </div>
           {leave('Take nothing')}
@@ -81,7 +91,7 @@ export function EncounterPanel({ view, run }: { view: RunViewData; run: RunContr
           <p className="text-sm text-slate-300">A collector has spares to give away. Take one:</p>
           <div className="flex flex-wrap gap-3">
             {e.offers.map((id, i) => (
-              <RunCard key={i} def={card(id)} disabled={run.busy} onClick={() => run.send({ type: 'PICK', index: i })} />
+              <RunCard key={i} def={card(id)} badge={newTag(id)} disabled={run.busy} onClick={() => run.send({ type: 'PICK', index: i })} />
             ))}
           </div>
           {leave('Take nothing')}
@@ -101,6 +111,7 @@ export function EncounterPanel({ view, run }: { view: RunViewData; run: RunContr
               <RunCard
                 key={i}
                 def={card(s.cardId)}
+                badge={s.sold ? undefined : newTag(s.cardId)}
                 disabled={run.busy || s.sold || view.pokedollars < s.price}
                 onClick={() => run.send({ type: 'BUY', index: i })}
                 footer={<span className={`text-sm font-semibold ${s.sold ? 'text-slate-500' : 'text-yellow-300'}`}>{s.sold ? 'Sold' : `₱${s.price}`}</span>}
@@ -124,7 +135,7 @@ export function EncounterPanel({ view, run }: { view: RunViewData; run: RunContr
           <div className="flex items-center gap-4">
             <RunCard def={card(e.give)} footer={<span className="text-xs text-rose-300">You give</span>} />
             <span className="text-2xl text-slate-500">⇄</span>
-            <RunCard def={card(e.get)} footer={<span className="text-xs text-emerald-300">You get</span>} />
+            <RunCard def={card(e.get)} badge={newTag(e.get)} footer={<span className="text-xs text-emerald-300">You get</span>} />
           </div>
           <div className="flex gap-2">
             <button className={primary} disabled={run.busy} onClick={() => run.send({ type: 'ACCEPT' })}>
@@ -160,7 +171,7 @@ export function EncounterPanel({ view, run }: { view: RunViewData; run: RunContr
             <h3 className="text-lg font-semibold">{view.event?.title}</h3>
           </div>
           <p className="text-sm text-slate-300">{view.event?.text}</p>
-          {e.event.id === 'bargain' && <RunCard def={card(e.event.cardId)} />}
+          {e.event.id === 'bargain' && <RunCard def={card(e.event.cardId)} badge={newTag(e.event.cardId)} />}
           <div className="flex gap-2">
             <button className={primary} disabled={run.busy} onClick={() => run.send({ type: 'ACCEPT' })}>
               {view.event?.accept}
