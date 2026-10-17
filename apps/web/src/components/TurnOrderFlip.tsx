@@ -68,7 +68,7 @@ export function TurnOrderFlip({ view, gameId }: { view: PlayerView; gameId: stri
             Heads: {caller} first. Tails: {other} first.
           </p>
         </div>
-        <SpinningCoin heads={heads} large />
+        <SpinningCoin heads={heads} size="lg" spinMs={LAND_MS} />
         <div className={`transition-opacity duration-300 ${landed ? 'opacity-100' : 'opacity-0'}`}>
           <p className={`text-3xl font-black ${heads ? 'text-yellow-300' : 'text-slate-200'}`}>{heads ? 'Heads!' : 'Tails!'}</p>
           <p className="text-lg font-semibold text-slate-100">{first[0]!.toUpperCase() + first.slice(1)} first.</p>

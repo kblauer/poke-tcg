@@ -263,7 +263,7 @@ describe('Base Set attacks', () => {
   it('logs attacks, coin flips and their results', () => {
     const s = attack(flips(duel('squirtle', 'charmander', { energy: ['water'] }), true), 0);
     expect(s.log!.map((l) => l.text)).toEqual(
-      expect.arrayContaining(['Squirtle used Bubble.', 'Charmander took 20 damage.', 'Coin flip: heads.', 'Charmander is now Paralyzed.']),
+      expect.arrayContaining(['Squirtle used Bubble.', 'Charmander took 20 damage.', "Squirtle's Bubble: heads.", 'Charmander is now Paralyzed.']),
     );
   });
 });

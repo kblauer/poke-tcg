@@ -418,7 +418,7 @@ export function performAttack(state: GameState, me: PlayerState, opp: PlayerStat
   }
 
   const later: (() => void)[] = [];
-  const ctx = createContext(state, me, opp, choices, later);
+  const ctx = createContext(state, me, opp, choices, later, `${attackerDef.name}'s ${attack.name}`);
   ctx.useAttack(attack, effectId(attacker));
   for (const fn of later) fn();
   return null;
@@ -433,7 +433,7 @@ export function damageChosenBenched(state: GameState, slot: number, amount: numb
   const opp = state.players[state.playerOrder.find((id) => id !== me.id)!]!;
   if (!me.active) return;
   const later: (() => void)[] = [];
-  createContext(state, me, opp, {}, later).damageBenched(opp, slot, amount);
+  createContext(state, me, opp, {}, later, `${pokemonName(state, me.active)}'s attack`).damageBenched(opp, slot, amount);
   for (const fn of later) fn();
 }
 
@@ -447,7 +447,8 @@ export function benchShielded(owner: PlayerState, cards: CardLibrary, sides: Pla
   return active && powerEffect(effectId(active))?.auroraVeil && powerActive(active, cards, sides) ? 'Aurora Veil' : null;
 }
 
-function createContext(state: GameState, me: PlayerState, opp: PlayerState, choices: AttackChoices, later: (() => void)[]): AttackContext {
+/** `source` names the attack on its coin flips ("Pikachu's Thundershock"). */
+function createContext(state: GameState, me: PlayerState, opp: PlayerState, choices: AttackChoices, later: (() => void)[], source: string): AttackContext {
   const turn = state.turn;
   const attacker = me.active!;
   const attackerDef = def(state.cards, attacker);
@@ -513,7 +514,7 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
     },
     choices,
     turn,
-    flip: () => flipCoin(state, 'Coin flip', me.id),
+    flip: () => flipCoin(state, source, me.id),
     flips: (n) => Array.from({ length: n }, () => ctx.flip()).filter(Boolean).length,
     hit(amount, { weakness = true } = {}) {
       const defender = opp.active!;
