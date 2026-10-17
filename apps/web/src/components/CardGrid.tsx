@@ -4,15 +4,18 @@ import type { CatalogCard } from '../utils/cardList';
  * Scrollable grid of low-res card images. Columns fill the available width.
  * Rows overlap like a fanned-out stack: the row gap is the only space between rows, so each card
  * shows just its top strip with the name. Hovering a strip brings that card to the front.
+ * `counts` (the deck builder) puts a badge with each card's copies in the deck on its strip.
  */
 export function CardGrid({
   cards,
   selectedId,
   onSelect,
+  counts,
 }: {
   cards: CatalogCard[];
   selectedId: string | null;
   onSelect: (card: CatalogCard) => void;
+  counts?: Map<string, number>;
 }) {
   if (cards.length === 0) return <p className="p-4 text-center text-slate-500">No cards match these filters.</p>;
   return (
@@ -31,6 +34,9 @@ export function CardGrid({
             ) : (
               <div className="h-full w-full bg-slate-800 p-1 text-xs">{c.name}</div>
             )}
+            {counts?.get(c.id) ? (
+              <span className="absolute right-1 top-1 rounded-full bg-yellow-300 px-1.5 text-xs font-bold text-slate-900 shadow">×{counts.get(c.id)}</span>
+            ) : null}
           </div>
           {/* Click target the size of the card, kept above every card so moving down a column reaches the
               next strip even while a hovered card covers it. Later buttons paint over earlier ones, so

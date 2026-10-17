@@ -1,6 +1,6 @@
-// Fixed decks for the test game until deck building and runs exist.
-// Base Set only: each has two Basic → Stage 1 → Stage 2 lines (4-3-2) plus basic Energy. The
-// player's deck also has one each of a spread of Trainers and a Double Colorless Energy to try them out.
+// Fixed decks: the player's test deck, and the CPU's deck for every game until each opponent has its own.
+// The player's test deck is Base Set only: two Basic → Stage 1 → Stage 2 lines (4-3-2) plus basic
+// Energy, and one each of a spread of Trainers and a Double Colorless Energy to try them out.
 
 /** [card id, copies] */
 type DeckList = [string, number][];
@@ -34,17 +34,28 @@ export const PLAYER_TEST_DECK: DeckList = [
   ['base1-70', 1], // Clefairy Doll
 ];
 
-export const CPU_TEST_DECK: DeckList = [
-  // Fighting: Machop → Machoke → Machamp
-  ['base1-52', 4],
-  ['base1-34', 3],
-  ['base1-8', 2],
-  // Grass: Bulbasaur → Ivysaur → Venusaur
-  ['base1-44', 4],
-  ['base1-30', 3],
-  ['base1-15', 2],
-  ['base1-97', 6], // Fighting Energy
-  ['base1-99', 6], // Grass Energy
+/** The CPU's deck: the Rock Crusher theme deck from the Game Boy Color game (60 cards, all Fighting). */
+export const CPU_DECK: DeckList = [
+  // Diglett → Dugtrio
+  ['base1-47', 4],
+  ['base1-19', 2],
+  // Geodude → Graveler → Golem (Fossil)
+  ['base3-47', 4],
+  ['base3-37', 3],
+  ['base3-36', 2],
+  ['base1-56', 3], // Onix
+  ['base2-61', 3], // Rhyhorn (Jungle)
+  // Trainers
+  ['base1-88', 2], // Professor Oak
+  ['base1-76', 1], // Pokémon Breeder
+  ['base1-92', 2], // Energy Removal
+  ['base1-95', 2], // Switch
+  ['base1-71', 1], // Computer Search
+  ['base1-80', 2], // Defender
+  ['base1-90', 1], // Super Potion
+  ['base1-94', 2], // Potion
+  ['base1-96', 2], // Double Colorless Energy
+  ['base1-97', 24], // Fighting Energy
 ];
 
 /** Expands a deck list into one card id per card. */

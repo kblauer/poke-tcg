@@ -2,13 +2,13 @@
 
 Monorepo for a single-player Pokémon TCG game: battle through the gym leaders of each Pokémon generation against CPU opponents. React SPA + Hono/tRPC API on Vercel, Supabase (Postgres, Auth), Prisma ORM.
 
-**Current stage:** refining the card-playing mechanics. The home screen starts a test game (fixed Base Set test decks) against the gym-leader CPU (see [The CPU opponent](#the-cpu-opponent)), whose moves play out one at a time. Single-player structure, multiple saves per account and cross-run progression come later.
+**Current stage:** refining the card-playing mechanics. The Play screen starts a game with one of your decks (built on the Decks tab) or the fixed Base Set test deck, against the CPU's Rock Crusher deck (`apps/api/src/test-decks.ts`) played by the gym-leader CPU (see [The CPU opponent](#the-cpu-opponent)), whose moves play out one at a time. Single-player structure, multiple saves per account and cross-run progression come later.
 
 ```
 apps/
   web/                  Vite + React 19 SPA (TanStack Router/Query, tRPC client, Tailwind v4, Material UI icons)
     src/
-      main.tsx          Routes, root layout (header with Play / Cards tabs), providers
+      main.tsx          Routes, root layout (header with Play / Cards / Decks tabs), providers
       pages/            Route-level pages: data loading only
       components/       Game UI components, one per file
       hooks/            React hooks: interaction state and handlers used by components
@@ -16,12 +16,12 @@ apps/
       lib/              tRPC client, Supabase client, session hook
       styles/holo/      Holo card effect styles (one file per card style) plus WOTC tuning
     public/img/         Textures used by the holo styles
-  api/                  Hono + tRPC API (Supabase JWT auth, game endpoints, debug endpoints outside production)
+  api/                  Hono + tRPC API (Supabase JWT auth, card, deck and game endpoints, debug endpoints outside production)
     scripts/
       vercel-build.mjs  Bundles the API and web app into .vercel/output for Vercel
 packages/
   game-engine/          Pure TS rules engine + CPU opponents – shared by client (UI hints) and server (authority)
-  shared/               Zod schemas for API input, player ids
+  shared/               Zod schemas for API input, player ids, deck building rules (deck.ts)
   db/                   Prisma 7 schema, client (pg driver adapter), migrations, seed
 supabase/               Local Supabase config (CLI)
 CLAUDE.md               Project notes and decisions for Claude Code (read automatically each session)
@@ -35,7 +35,7 @@ Pages load data, set their own width and side padding, and hand data to componen
 
 | File | Description |
 |---|---|
-| `Home.tsx` | Home screen with the "Start test game" button |
+| `Home.tsx` | Play (`/`): your decks, with Battle for the ones that follow the deck rules (Edit for the rest), and the "Start test game" button |
 | `Game.tsx` | Loads the game view, sends moves to the API (one at a time) and renders `<Board>` |
 | `Cards.tsx` | Card browser (`/cards`): loads the catalog once (`cards.list`), holds the filters, sort and selected card, and lays out the grid on the left and the viewer on the right |
 
@@ -71,6 +71,8 @@ Pages load data, set their own width and side padding, and hand data to componen
 | `CardPreview.tsx` | The large card preview that follows the cursor and resizes with the mouse wheel (except over the deck-search lists, where the wheel scrolls the page) |
 | `PreviewContext.ts` | Context that lets any card show or hide the hover preview |
 | `HoloCard.tsx` | A card with the holo effect: tilts toward the pointer while shine and glare layers follow it. Used by `CardViewer` in the Cards tab only; play mode shows plain card images |
+| `DeckFilters.tsx` | Deck builder search: name, release set, sort (set number, Pokédex number, type), "Implemented only", Pokémon filters (stage, type, HP range, has ability), a Trainer toggle and Energy toggles (one per type) |
+| `DeckPanel.tsx` | The deck being built: its cards by section with − / + buttons (+ disabled with the reason when a rule forbids another copy), the count out of 60, what keeps it from being played, and "(partial)" on cards that aren't fully implemented |
 | `CardFilters.tsx` | Card browser controls: name search, set, type and stage filters, max-attack range, sort field and direction, match count |
 | `CardGrid.tsx` | Scrollable grid of low-res card images; the number of columns follows the width. Rows overlap so only each card's top strip (its name, set by the `gap-y-6` row gap) shows; hovering a strip brings that card to the front, clicking selects it |
 | `CardViewer.tsx` | The selected card's high-res image (low-res shown while it loads), sized to the window, with set, rarity, stage, type, HP and max attack |
@@ -102,6 +104,7 @@ Pages load data, set their own width and side padding, and hand data to componen
 | `holo.ts` | Maps catalog and engine cards to the attributes the holo styles select on (rarity, supertype, subtypes, era) |
 | `spring.ts` | Spring physics for the holo effect's tilt and glare |
 | `math.ts` | `round`, `clamp` and `adjust` (re-map a value between ranges) |
+| `deckBuilder.ts` | Deck builder data: the search filter and sort (`filterForDeck`, `sortForDeck`), adding and removing copies within the rules (`cantAdd`, `changeCount`) and the deck's problems |
 | `cardList.ts` | Card browser data: the `CatalogCard` type, set/type/stage/sort options, and the filter and sort functions |
 
 ### `src/styles/holo/`
@@ -193,6 +196,16 @@ After a Knock Out it promotes the benched Pokémon that attacks best (then the o
 
 It only uses what the player could see. What an attack would do is worked out in `cpu/shared.ts` by playing it on copies of the state with fixed coin flips covering every heads/tails pattern of three flips, so it never knows the real flips to come; "Knocks Out" means in at least half of those outcomes. The player's threat is their active's best attack next turn with the Energy it has now. Trainers and powers are recognised by name, so reprints work the same, and nothing depends on the current test decks.
 
+## Deck builder
+
+The **Decks** tab (`pages/Decks.tsx`) builds decks to battle with on Play. Pick a saved deck or start a new one, name it, and click cards in the search to add copies; the deck is listed separately on the left, where − and + change the counts. Decks are saved per user (`Deck`, `DeckCard`) through the `decks` router (`apps/api/src/routers/decks.ts`: `list`, `get`, `save`, `delete`).
+
+The rules (`packages/shared/src/deck.ts`, used by both the builder and the API) are the rulebook's: exactly 60 cards; at most 4 cards with exactly the same name, across all sets, except basic Energy (TCGdex "Normal" Energy; Double Colorless, Darkness and Metal Energy are special); and at least one Basic Pokémon (Baby Pokémon count; Clefairy Doll and Mysterious Fossil don't). An unfinished deck can be saved, but never one over 60 cards or with more than 4 of a name, and only a deck with no problems can start a game (`game.create`). The CPU always plays the Rock Crusher theme deck (`CPU_DECK` in `apps/api/src/test-decks.ts`).
+
+Every catalog card can go in a deck. `cards.list` marks the ones the engine fully implements (`isImplemented` in `apps/api/src/cards.ts`: every attack with text, its power, its Trainer effect, or basic and Double Colorless Energy), for the "Implemented only" filter and the deck list's "(partial)". The rest still load: their Pokémon attack for base damage, while their other attack effects, powers, Trainer effects (the card can't be played) and special Energy effects (1 Energy of its type, or Colorless) do nothing yet.
+
+The search shows Pokémon, Trainers or Energy, not a mix: turning on the Trainer toggle or an Energy toggle clears the other two groups (the Pokémon filters are stage, type, HP and has ability), and setting a Pokémon filter turns both kinds of toggle off. While Trainers or Energy show, the stage and type dropdowns read "—", and picking "Any stage" or "Any type" goes back to every Pokémon. The Energy toggles go by the type of Energy a card provides; special Energy without one of its own (Double Colorless, Rainbow…) is Colorless.
+
 ## Debug tools
 
 The game log has a **Debug** tab for testing: change the CPU's difficulty, draw a card, put any card (or an Energy) into your hand, and set the HP of any Pokémon in play. It only exists outside production, enforced in two places:
@@ -256,5 +269,5 @@ Use the printed DB URL for both `DATABASE_URL` and `DIRECT_URL`, `http://127.0.0
 
 - Card effects for sets after the Base Set: Jungle and Fossil are done; later sets next. The CPUs don't play Poké Ball yet. The CPUs only use Fossil's powers when the gym leader's generic "Boost" finds them helpful, and play none of Fossil's Trainers yet.
 - Ask the player to choose when an opponent's attack makes them pick (Whirlwind and Terror Strike currently bring in their first benched Pokémon).
-- Deck builder backed by `Deck` and `DeckCard`.
+- Decks for each CPU opponent (it always plays the Rock Crusher deck).
 - Single-player structure: gym leader battles per generation, multiple saves per account, persistent progression across runs.

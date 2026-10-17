@@ -1,6 +1,8 @@
 import { CPU_DIFFICULTIES, MAX_BENCH, type AttackChoices, type DebugCommand, type GameAction, type PowerChoices, type TrainerChoices } from '@poke-tcg/game-engine';
 import { z } from 'zod';
 
+export * from './deck.js';
+
 /** Engine player ids for single-player games. */
 export const HUMAN_ID = 'player';
 export const CPU_ID = 'cpu';
