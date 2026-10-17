@@ -48,17 +48,35 @@ function packSet(setId: string) {
 }
 
 export const packsRouter = router({
-  /** The sets with packs (name, logo, release date, size), the price, and the ₱ in the user's bank. */
+  /**
+   * The sets with packs (name, logo, release date, size, and how many of the cards a pack can hold the user has
+   * unlocked: `unlockedCount` of `packCards`), the price, and the ₱ in the user's bank.
+   */
   list: protectedProcedure.query(async ({ ctx }) => {
     await ensureUser(ctx.user);
-    const [user, sets] = await Promise.all([
+    const [user, sets, unlocked, contents] = await Promise.all([
       prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { bank: true } }),
       prisma.cardSet.findMany({ where: { id: { in: PACK_SETS } }, orderBy: { releaseDate: 'asc' } }),
+      unlockedIds(ctx.user.id),
+      Promise.all(PACK_SETS.map(async (id) => [id, Object.values((await packSet(id)).set).flat()] as const)),
     ]);
+    // The cards a pack of each set can hold (basic Energy left out: it's always unlocked).
+    const packCards = new Map(contents);
     return {
       bank: user.bank,
       price: PACK_PRICE,
-      sets: sets.map((s) => ({ id: s.id, name: s.name, logoUrl: s.logoUrl && `${s.logoUrl}.png`, releaseDate: s.releaseDate, cardCount: s.cardCount })),
+      sets: sets.map((s) => {
+        const cards = packCards.get(s.id) ?? [];
+        return {
+          id: s.id,
+          name: s.name,
+          logoUrl: s.logoUrl && `${s.logoUrl}.png`,
+          releaseDate: s.releaseDate,
+          cardCount: s.cardCount,
+          unlockedCount: cards.filter((id) => unlocked.has(id)).length,
+          packCards: cards.length,
+        };
+      }),
     };
   }),
 

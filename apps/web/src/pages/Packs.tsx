@@ -51,6 +51,15 @@ export function PacksPage() {
               <span className="text-xs text-slate-400">
                 {s.releaseDate && new Date(s.releaseDate).getUTCFullYear()} · {s.cardCount} cards
               </span>
+              {/* How much of the set is unlocked: the cards a pack can hold, basic Energy aside. */}
+              <div className="w-full max-w-40 space-y-1" title={`${s.unlockedCount} of this set's ${s.packCards} cards unlocked`}>
+                <div className="h-1.5 overflow-hidden rounded-full bg-slate-700">
+                  <div className="h-full rounded-full bg-yellow-300" style={{ width: `${s.packCards ? (100 * s.unlockedCount) / s.packCards : 0}%` }} />
+                </div>
+                <p className={`text-xs ${s.unlockedCount === s.packCards ? 'font-semibold text-yellow-300' : 'text-slate-300'}`}>
+                  {s.unlockedCount} / {s.packCards} unlocked
+                </p>
+              </div>
             </button>
           ))}
         </div>
