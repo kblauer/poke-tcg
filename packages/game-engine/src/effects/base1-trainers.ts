@@ -3,7 +3,7 @@
 // usual); PlusPower's +10 comes before Defender's −20, both after weakness and resistance.
 import { isBasicEnergy, isBasicPokemon, isBenchable, isPokemonCard, isTrainerCard, type PokemonCardDef } from '../cards.js';
 import type { CardInstance, InPlayPokemon, PlayerState, Target } from '../engine.js';
-import { evolutionBlocked } from '../powers.js';
+import { evolutionBlocked, offerChainReaction } from '../powers.js';
 import { clearOnLeavingActive, inPlayDef } from '../status.js';
 import { def, otherHandCards, own, targetsOf, theirs, type TrainerChoiceSpec, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 
@@ -94,6 +94,7 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
 
   // Item Finder
   'base1-74': {
+    discardToHand: true,
     blocked: (s) => needOthers(s, 2) ?? (s.me.discard.some((c) => isTrainerCard(def(s, c))) ? null : 'No Trainer cards in your discard pile'),
     choices: (s) => [
       otherCards(s, 2, 'Choose 2 other cards to discard'),
@@ -147,6 +148,7 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
       p.playedTurn = ctx.turn;
       clearOnLeavingActive(p);
       ctx.log(`${basicName} evolved into ${pokemonDef(ctx.state, p).name}.`);
+      offerChainReaction(ctx.state);
     },
   },
 
@@ -210,6 +212,7 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
 
   // Energy Retrieval
   'base1-81': {
+    discardToHand: true,
     blocked: (s) => needOthers(s, 1) ?? (s.me.discard.some((c) => isBasicEnergy(def(s, c))) ? null : 'No basic Energy cards in your discard pile'),
     choices: (s) => [
       otherCards(s, 1, 'Choose another card to discard'),

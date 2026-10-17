@@ -47,6 +47,11 @@ export interface PokemonCardDef {
   /** Printed as a holofoil. Display only. */
   holo?: boolean;
   /**
+   * A Baby Pokémon (Cleffa, Pichu…): a Basic with the Baby Pokémon rule. When it's the Active Pokémon and the
+   * opponent attacks, they flip a coin first; on tails their turn ends. Missing = not a Baby.
+   */
+  baby?: boolean;
+  /**
    * Set on a Trainer card played as a Pokémon (Clefairy Doll): its printed text. It's a Trainer card
    * in the hand, deck and discard pile, and not a Basic Pokémon card for setup or searches.
    */

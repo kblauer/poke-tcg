@@ -2,12 +2,13 @@
 // Card-specific behaviour lives in effects/ (TRAINERS). Searches of hidden cards (the deck) can't
 // be answered from a player's view, so those Trainers leave a PendingChoice that only the player
 // sees the options of, answered with RESOLVE_CHOICE.
-import { typeName } from './attacks.js';
-import { isBasicEnergy, isBasicPokemon, lookupCard, type CardLibrary, type CardDef, type EnergyType } from './cards.js';
+import { damageChosenBenched, typeName } from './attacks.js';
+import { isBasicEnergy, isBasicPokemon, isPokemonCard, lookupCard, type CardLibrary, type CardDef, type EnergyType } from './cards.js';
 import { trainerEffect } from './effects/index.js';
 import type { CardInstance, GameState, InPlayPokemon, PlayerId, PlayerState, Target } from './engine.js';
 import { shuffle } from './rng.js';
-import { addLog, flipCoin } from './status.js';
+import { offerChainReaction } from './powers.js';
+import { addLog, clearOnLeavingActive, flipCoin } from './status.js';
 
 /** Answers to a Trainer's questions. Each question names the field it fills. */
 export interface TrainerChoices {
@@ -45,6 +46,8 @@ export interface TrainerSituation {
   deckCount: number;
   cards: CardLibrary;
   turn: number;
+  /** The Stadium card in play, if any. */
+  stadium: CardInstance | null;
 }
 
 /** A search the player must finish after playing a Trainer or using an attack. Only they see its options. */
@@ -59,15 +62,18 @@ export type PendingChoice = {
       kind: 'pickFromDeck';
       /**
        * 'basicNamed': a Basic Pokémon called `name` (or any of the names), for Call for Family;
-       * 'basicType': a Basic Pokémon of `type` (Call for Friend).
+       * 'basicType': a Basic Pokémon of `type` (Call for Friend); 'energyType': a basic Energy card of
+       * `type` (Recharge); 'baby': a Baby Pokémon (Let's Play!).
        */
-      filter: 'any' | 'pokemon' | 'basicNamed' | 'basicType' | 'basicEnergy';
+      filter: 'any' | 'pokemon' | 'basicNamed' | 'basicType' | 'basicEnergy' | 'energyType' | 'baby';
       name?: string | string[];
       type?: EnergyType;
       /** The card goes onto the Bench instead of into the hand (Call for Family). */
       toBench?: boolean;
       /** The card found is attached to one of the player's Pokémon, chosen next (Energy Spike), instead of going to the hand. */
       attach?: boolean;
+      /** The card found is attached to the player's Active Pokémon, the attacker (Recharge), instead of going to the hand. */
+      attachToActive?: boolean;
       /** The card taken is shown to the opponent (Poké Ball): the log names it. */
       reveal?: boolean;
       /** Pokémon Trader: the hand card that goes into the deck once a card is picked. */
@@ -94,6 +100,44 @@ export type PendingChoice = {
       kind: 'attachCard';
       card: CardInstance;
     }
+  | {
+      /** Put a card from the player's hand on top of their deck (Special Delivery). */
+      kind: 'handToDeck';
+    }
+  | {
+      /**
+       * Switch one of the player's benched Pokémon, chosen on the board, with their Active Pokémon. Asked of the
+       * Defending player after the opponent's Whirlwind, Ram, Terror Strike, Rapid Spin or Fling.
+       */
+      kind: 'switchIn';
+    }
+  | {
+      /** One of the player's benched Pokémon, chosen on the board, takes `amount` damage from the opponent's attack (Cat Punch). */
+      kind: 'benchDamage';
+      amount: number;
+    }
+  | {
+      /** Discard one of the Energy cards attached to the player's Pokémon at `target` (Pure Body). */
+      kind: 'discardAttached';
+      target: Target;
+    }
+  | {
+      /**
+       * Draw up to `max` cards (Computer Error). The player who played it chooses first, then their opponent,
+       * who answers during the other player's turn.
+       */
+      kind: 'drawCount';
+      max: number;
+    }
+  | {
+      /**
+       * Chain Reaction: after a Pokémon evolves, the owner of the Eevee at `target` may search their deck for a
+       * card that evolves from Eevee and evolve it. `next` are more Eevees to offer it to afterwards (by uid).
+       */
+      kind: 'chainReaction';
+      target: Target;
+      next: { player: PlayerId; uid: string }[];
+    }
 );
 
 /** A PendingChoice as an effect starts it: the player is filled in. */
@@ -108,6 +152,12 @@ export const trainersLocked = (me: Pick<PlayerState, 'noTrainersUntil'>, turn: n
 export interface TrainerEffect {
   /** Played onto the Bench as a Pokémon with this HP (Clefairy Doll) instead of with PLAY_TRAINER. */
   asPokemon?: { hp: number };
+  /** A Stadium card: it stays in play (GameState.stadium), shared by both players, until another Stadium replaces it. */
+  stadium?: boolean;
+  /** A Stadium either player can use once during their turn (Lucky Stadium), with USE_STADIUM. */
+  useStadium?: (ctx: { state: GameState; me: PlayerState; flip: () => boolean }) => void;
+  /** It puts cards from a discard pile into the hand, which Pokémon Tower stops (Energy Retrieval, Item Finder). */
+  discardToHand?: boolean;
   /** Why the Trainer can't be played now. */
   blocked?: (s: TrainerSituation) => string | null;
   choices?: (s: TrainerSituation, c: TrainerChoices) => TrainerChoiceSpec[];
@@ -150,9 +200,21 @@ export const def = (s: { cards: CardLibrary }, c: CardInstance): CardDef => look
 export function trainerError(s: TrainerSituation): string | null {
   const d = def(s, s.card);
   const effect = trainerEffect(s.card.defId);
-  if (d.kind !== 'trainer' || !effect?.play) return `${d.name} can't be played this way`;
+  if (d.kind !== 'trainer' || !(effect?.play || effect?.stadium)) return `${d.name} can't be played this way`;
   if (trainersLocked(s.me, s.turn)) return TRAINERS_LOCKED;
+  // A Stadium can't be played while one with the same name is in play.
+  if (effect.stadium && s.stadium && def(s, s.stadium).name === d.name) return `${d.name} is already in play`;
+  if (effect.discardToHand && pokemonTower(s)) return 'Pokémon Tower: cards in discard piles stay there';
   return effect.blocked?.(s) ?? null;
+}
+
+/** Pokémon Tower is in play: effects can't put cards from a discard pile into the hand. */
+export const pokemonTower = (s: { stadium?: CardInstance | null; cards: CardLibrary }) => !!s.stadium && def(s, s.stadium).name === 'Pokémon Tower';
+
+/** Why the Stadium in play can't be used now (Lucky Stadium: once during each player's turn), or null. View-safe. */
+export function stadiumError(stadium: CardInstance | null, usedTurn: number | undefined, turn: number): string | null {
+  if (!stadium || !trainerEffect(stadium.defId)?.useStadium) return 'There is no Stadium to use';
+  return usedTurn === turn ? 'You already used the Stadium this turn' : null;
 }
 
 function choiceSpecs(s: TrainerSituation, c: TrainerChoices): TrainerChoiceSpec[] {
@@ -216,7 +278,7 @@ export function nextTrainerChoice(s: TrainerSituation, given: TrainerChoices): T
 export function playTrainer(state: GameState, me: PlayerState, opp: PlayerState, cardUid: string, given: TrainerChoices): string | null {
   const card = me.hand.find((c) => c.uid === cardUid);
   if (!card) return 'That card is not in your hand';
-  const situation: TrainerSituation = { card, me, opp, deckCount: me.deck.length, cards: state.cards, turn: state.turn };
+  const situation: TrainerSituation = { card, me, opp, deckCount: me.deck.length, cards: state.cards, turn: state.turn, stadium: state.stadium?.card ?? null };
   const error = trainerError(situation);
   if (error) return error;
   const resolved = resolveTrainerChoices(situation, given);
@@ -255,16 +317,30 @@ export function playTrainer(state: GameState, me: PlayerState, opp: PlayerState,
     },
   };
   addLog(state, `Played ${lookupCard(state.cards, card.defId).name}.`, me.id);
-  trainerEffect(card.defId)!.play!(ctx);
+  const effect = trainerEffect(card.defId)!;
+  effect.play?.(ctx);
+  if (effect.stadium) {
+    // It replaces the Stadium in play, which goes to its owner's discard pile.
+    const old = state.stadium;
+    if (old) {
+      state.players[old.owner]!.discard.push(old.card);
+      addLog(state, `${lookupCard(state.cards, old.card.defId).name} was discarded.`, old.owner);
+    }
+    state.stadium = { card, owner: me.id };
+    delete state.stadiumUsedTurn;
+    attached = true;
+  }
   if (!attached) me.discard.push(card);
   return null;
 }
 
 /** What the player choosing sees of a pending search. */
 export type PendingChoiceView =
-  | { kind: 'pickFromDeck' | 'pickFromDiscard'; prompt: string; options: CardInstance[] }
-  | { kind: 'ownPokemon'; purpose: 'heal' | 'attach'; prompt: string; options: Target[] }
-  | { kind: 'arrangeTop'; prompt: string; cards: CardInstance[] };
+  /** Click a card to take it. `optional`: the player may also take nothing (Chain Reaction). */
+  | { kind: 'pickFromDeck' | 'pickFromDiscard' | 'pickFromHand' | 'pickAttached'; prompt: string; options: CardInstance[]; optional?: boolean }
+  | { kind: 'ownPokemon'; purpose: 'heal' | 'attach' | 'switchIn' | 'benchDamage'; prompt: string; options: Target[] }
+  | { kind: 'arrangeTop'; prompt: string; cards: CardInstance[] }
+  | { kind: 'drawCount'; prompt: string; max: number };
 
 /** The options of a pending search, for the player making it. Deck cards are sorted so their order stays secret. */
 export function pendingChoiceView(state: GameState, choice: PendingChoice): PendingChoiceView {
@@ -286,6 +362,30 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
     const options = discardOptions(state.players[choice.player]!, choice);
     return { kind: 'pickFromDiscard', prompt: `${choice.source}: put a card from your discard pile on top of your deck`, options };
   }
+  const player = state.players[choice.player]!;
+  if (choice.kind === 'handToDeck') {
+    return { kind: 'pickFromHand', prompt: `${choice.source}: put a card from your hand on top of your deck`, options: player.hand };
+  }
+  if (choice.kind === 'switchIn') {
+    const options = player.bench.flatMap((p, i) => (p ? [i] : []));
+    return { kind: 'ownPokemon', purpose: 'switchIn', prompt: `${choice.source}: click one of your benched Pokémon to switch in`, options };
+  }
+  if (choice.kind === 'benchDamage') {
+    const options = player.bench.flatMap((p, i) => (p ? [i] : []));
+    return { kind: 'ownPokemon', purpose: 'benchDamage', prompt: `${choice.source}: click one of your benched Pokémon to take ${choice.amount} damage`, options };
+  }
+  if (choice.kind === 'discardAttached') {
+    const p = (choice.target === 'active' ? player.active : player.bench[choice.target])!;
+    return { kind: 'pickAttached', prompt: `${choice.source}: discard an Energy card from ${lookupCard(state.cards, p.card.defId).name}`, options: p.energy };
+  }
+  if (choice.kind === 'drawCount') {
+    return { kind: 'drawCount', prompt: `${choice.source}: draw up to ${choice.max} cards`, max: Math.min(choice.max, player.deck.length) };
+  }
+  if (choice.kind === 'chainReaction') {
+    const name = (c: CardInstance) => lookupCard(state.cards, c.defId).name;
+    const options = player.deck.filter((c) => evolvesFromEevee(state.cards, c)).sort((a, b) => name(a).localeCompare(name(b)) || a.uid.localeCompare(b.uid));
+    return { kind: 'pickFromDeck', prompt: `${choice.source}: you may evolve Eevee with a card from your deck`, options, optional: true };
+  }
   const deck = state.players[choice.player]!.deck;
   const name = (c: CardInstance) => lookupCard(state.cards, c.defId).name;
   const options = deck.filter((c) => deckFilter(state.cards, choice, c)).sort((a, b) => name(a).localeCompare(name(b)) || a.uid.localeCompare(b.uid));
@@ -296,6 +396,10 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
         ? `a ${typeName(choice.type!)} Basic Pokémon`
       : choice.filter === 'basicEnergy'
         ? 'a basic Energy card'
+      : choice.filter === 'energyType'
+        ? `a ${typeName(choice.type!)} Energy card`
+      : choice.filter === 'baby'
+        ? 'a Baby Pokémon'
         : choice.filter === 'pokemon'
           ? 'a Basic Pokémon or Evolution card'
           : 'any card';
@@ -309,6 +413,8 @@ export const deckFilter = (cards: CardLibrary, choice: Extract<PendingChoice, { 
   if (choice.filter === 'basicNamed') return isBasicPokemon(d) && [choice.name].flat().includes(d.name);
   if (choice.filter === 'basicType') return isBasicPokemon(d) && d.type === choice.type;
   if (choice.filter === 'basicEnergy') return isBasicEnergy(d);
+  if (choice.filter === 'energyType') return isBasicEnergy(d) && d.kind === 'energy' && d.energyType === choice.type;
+  if (choice.filter === 'baby') return isPokemonCard(d) && !!d.baby;
   return choice.filter === 'any' || (d.kind === 'pokemon' && !d.trainerText);
 };
 
@@ -317,10 +423,71 @@ const discardOptions = (player: PlayerState, choice: Extract<PendingChoice, { ki
 /** The player's Pokémon in play with damage counters. */
 export const damagedTargets = (player: Pick<PlayerState, 'active' | 'bench'>) => targetsOf(player).filter((t) => (t === 'active' ? player.active : player.bench[t])!.damage >= 10);
 
+/** A card that evolves from Eevee (Chain Reaction). */
+export const evolvesFromEevee = (cards: CardLibrary, c: CardInstance) => {
+  const d = lookupCard(cards, c.defId);
+  return isPokemonCard(d) && d.stage === 'stage1' && d.evolvesFrom === 'Eevee';
+};
+
 /** Finishes a pending search. Mutates `state`; returns an error instead if the answer is invalid. */
-export function resolvePending(state: GameState, me: PlayerState, answer: { cardUid?: string; order?: string[]; target?: Target }): string | null {
+export function resolvePending(state: GameState, me: PlayerState, answer: { cardUid?: string; order?: string[]; target?: Target; count?: number }): string | null {
   const choice = state.pendingChoice!;
-  if (choice.kind === 'arrangeTop') {
+  const name = (c: CardInstance) => lookupCard(state.cards, c.defId).name;
+  if (choice.kind === 'benchDamage') {
+    if (typeof answer.target !== 'number' || !me.bench[answer.target]) return 'Choose one of your benched Pokémon';
+    damageChosenBenched(state, answer.target, choice.amount);
+  } else if (choice.kind === 'switchIn') {
+    const benched = typeof answer.target === 'number' ? me.bench[answer.target] : null;
+    if (!benched) return 'Choose one of your benched Pokémon';
+    const old = me.active;
+    // The old Active Pokémon takes the chosen slot, even if the attack Knocked it Out (it's then Knocked Out from the Bench).
+    if (old) clearOnLeavingActive(old);
+    me.bench[answer.target as number] = old;
+    me.active = benched;
+    addLog(state, old ? `${name(benched.card)} was switched in for ${name(old.card)}.` : `${name(benched.card)} is the new Active Pokémon.`, me.id);
+  } else if (choice.kind === 'handToDeck') {
+    const card = me.hand.find((c) => c.uid === answer.cardUid);
+    if (!card) return 'Choose a card from your hand';
+    me.hand = me.hand.filter((c) => c !== card);
+    me.deck.unshift(card);
+    addLog(state, 'Put a card from the hand on top of the deck.', me.id);
+  } else if (choice.kind === 'discardAttached') {
+    const p = (choice.target === 'active' ? me.active : me.bench[choice.target])!;
+    const energy = p.energy.find((e) => e.uid === answer.cardUid);
+    if (!energy) return 'Choose an Energy card to discard';
+    p.energy = p.energy.filter((e) => e !== energy);
+    me.discard.push(energy);
+    addLog(state, `Discarded ${name(energy)} from ${name(p.card)}.`, me.id);
+  } else if (choice.kind === 'drawCount') {
+    const max = Math.min(choice.max, me.deck.length);
+    const count = answer.count ?? -1;
+    if (!Number.isInteger(count) || count < 0 || count > max) return `Draw between 0 and ${max} cards`;
+    me.hand.push(...me.deck.splice(0, count));
+    addLog(state, `Drew ${count} card${count === 1 ? '' : 's'}.`, me.id);
+    // Then the opponent of the player who played it may draw too.
+    if (me.id === state.currentPlayer) {
+      const opp = state.playerOrder.find((id) => id !== me.id)!;
+      state.pendingChoice = { player: opp, source: choice.source, afterAttack: choice.afterAttack, kind: 'drawCount', max: choice.max };
+      return null;
+    }
+  } else if (choice.kind === 'chainReaction') {
+    const eevee = (choice.target === 'active' ? me.active : me.bench[choice.target])!;
+    const picked = answer.cardUid === undefined ? undefined : me.deck.find((c) => c.uid === answer.cardUid && evolvesFromEevee(state.cards, c));
+    if (answer.cardUid !== undefined && !picked) return 'Choose a card that evolves from Eevee';
+    if (picked) {
+      me.deck = me.deck.filter((c) => c !== picked);
+      [me.deck, state.rngState] = shuffle(me.deck, state.rngState);
+      addLog(state, `Evolved ${name(eevee.card)} into ${name(picked)} with a card from the deck.`, me.id);
+      eevee.evolvedFrom.push(eevee.card);
+      eevee.card = picked;
+      eevee.playedTurn = state.turn;
+      clearOnLeavingActive(eevee);
+    } else addLog(state, `${name(eevee.card)} didn't use ${choice.source}.`, me.id);
+    // The next Eevee waiting to be asked, if it still can.
+    delete state.pendingChoice;
+    offerChainReaction(state, choice.next);
+    return null;
+  } else if (choice.kind === 'arrangeTop') {
     const owner = state.players[choice.deckOwner ?? choice.player]!;
     const top = owner.deck.slice(0, choice.count);
     const order = answer.order ?? [];
@@ -359,6 +526,7 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     if (picked) {
       me.deck = me.deck.filter((c) => c !== picked);
       if (choice.toBench) me.bench[benchSlot] = { card: picked, evolvedFrom: [], damage: 0, energy: [], playedTurn: state.turn };
+      else if (choice.attachToActive && me.active) me.active.energy.push(picked);
       else if (!choice.attach) me.hand.push(picked);
     }
     const traded = choice.tradeUid !== undefined && picked ? me.hand.find((c) => c.uid === choice.tradeUid) : undefined;
@@ -372,6 +540,8 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
           ? `Traded ${name(traded)} for ${name(picked)} from the deck.`
           : choice.toBench
             ? `Put ${name(picked)} onto the Bench.`
+            : choice.attachToActive && me.active
+              ? `Attached ${name(picked)} from the deck to ${lookupCard(state.cards, me.active.card.defId).name}.`
             : choice.reveal || choice.attach
               ? `${choice.attach ? 'Found' : 'Took'} ${name(picked)} ${choice.attach ? 'in' : 'from'} the deck.`
               : 'Took a card from the deck.'

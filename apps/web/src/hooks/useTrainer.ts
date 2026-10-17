@@ -27,6 +27,7 @@ export function useTrainer({ view, send, busy }: { view: PlayerView; send: (a: G
     deckCount: view.self.deckCount,
     cards: view.cards,
     turn: view.turn,
+    stadium: view.stadium?.card ?? null,
   });
 
   const cancel = () => setPlaying(null);

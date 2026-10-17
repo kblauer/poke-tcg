@@ -19,9 +19,9 @@ export function passiveCpu(state: GameState, cpuId: PlayerId): GameAction | null
     case 'promote':
       return state.pendingPromotion === cpuId ? { type: 'PROMOTE', slot: cpu.bench.findIndex((p) => p !== null) } : null;
     case 'playing':
+      // Choices from its own Pokémon (Pure Body) or the other player's cards (Computer Error, Chain Reaction, Whirlwind: its first benched Pokémon comes in).
+      if (state.pendingChoice) return state.pendingChoice.player === cpuId ? finishSearch(state) : null;
       if (state.currentPlayer !== cpuId) return null;
-      // Only if the difficulty changed in the middle of a search (debug): keep the order, or take the first card.
-      if (state.pendingChoice) return finishSearch(state);
       return turnAction(state, cpu) ?? { type: 'END_TURN' };
     case 'finished':
       return null;
@@ -32,6 +32,8 @@ function finishSearch(state: GameState): GameAction {
   const view = pendingChoiceView(state, state.pendingChoice!);
   if (view.kind === 'arrangeTop') return { type: 'RESOLVE_CHOICE', order: view.cards.map((c) => c.uid) };
   if (view.kind === 'ownPokemon') return { type: 'RESOLVE_CHOICE', target: view.options[0] };
+  // Computer Error: always the most cards (agreed).
+  if (view.kind === 'drawCount') return { type: 'RESOLVE_CHOICE', count: view.max };
   const [pick] = view.options;
   return { type: 'RESOLVE_CHOICE', ...(pick && { cardUid: pick.uid }) };
 }

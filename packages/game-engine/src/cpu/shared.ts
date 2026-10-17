@@ -219,6 +219,7 @@ function answers(spec: ChoiceSpec): AttackChoices[keyof AttackChoices][] {
     case 'ownEnergy':
       return combinations(spec.options, spec.count).map((picked) => picked.map((e) => e.uid));
     case 'defenderEnergy':
+    case 'pokemonEnergy':
       return combinations(spec.options, 1).map(([e]) => e!.uid);
     // Keeping energy first: on a tie the first choice wins.
     case 'ownEnergyUpTo':
@@ -459,8 +460,28 @@ export function resolveSearch(t: Turn): GameAction {
   // Healing one of its Pokémon (Heal): the one with the most damage. Attaching (Energy Spike): the active.
   if (view.kind === 'ownPokemon') {
     if (view.purpose === 'attach') return { type: 'RESOLVE_CHOICE', target: view.options.includes('active') ? 'active' : view.options[0] };
+    // Taking damage from the player's attack (Cat Punch): the benched Pokémon with the most HP left.
+    if (view.purpose === 'benchDamage') {
+      const left = (target: Target) => hpLeft(t.state.cards, at(t.me, target)!);
+      return { type: 'RESOLVE_CHOICE', target: view.options.reduce((a, b) => (left(b) > left(a) ? b : a)) };
+    }
     const damage = (target: Target) => at(t.me, target)!.damage;
     return { type: 'RESOLVE_CHOICE', target: view.options.reduce((a, b) => (damage(b) > damage(a) ? b : a)) };
+  }
+  // Computer Error: always the most cards (agreed).
+  if (view.kind === 'drawCount') return { type: 'RESOLVE_CHOICE', count: view.max };
+  // Special Delivery: the card it wants least goes back on the deck.
+  if (view.kind === 'pickFromHand') {
+    const wanted = wantedCards(t.state, t.me, view.options);
+    const pick = view.options.find((c) => !wanted.includes(c)) ?? view.options.at(-1)!;
+    return { type: 'RESOLVE_CHOICE', cardUid: pick.uid };
+  }
+  // Pure Body: the Energy card that leaves Suicune closest to attacking.
+  if (view.kind === 'pickAttached') {
+    const p = inPlay(t.me).map(([, p]) => p).find((p) => p.energy.includes(view.options[0]!))!;
+    const without = (c: CardInstance) => closeness(t.state.cards, p, p.energy.filter((e) => e !== c));
+    const pick = view.options.reduce((a, b) => (without(b) < without(a) ? b : a));
+    return { type: 'RESOLVE_CHOICE', cardUid: pick.uid };
   }
   const helpsEnergy = (c: CardInstance) => t.def(c).kind === 'energy' && inPlay(t.me).some(([, p]) => closeness(t.state.cards, p, [...p.energy, c]) < closeness(t.state.cards, p));
   const pick =

@@ -22,15 +22,39 @@ export function PendingChoicePanel({ view, send, busy }: { view: PlayerView; sen
     <PreviewContext.Provider value={(p) => setPreview(p && { ...p, scrollZoom: false })}>
       <section data-keep-action className="space-y-2 rounded-lg bg-slate-800 p-3 ring-2 ring-yellow-400/60">
         <p className="text-sm font-semibold">{choice.prompt}</p>
-        {choice.kind === 'pickFromDeck' || choice.kind === 'pickFromDiscard' ? <PickFromDeck key={view.version} choice={choice} view={view} send={send} busy={busy} /> : null}
+        {choice.kind === 'pickFromDeck' || choice.kind === 'pickFromDiscard' || choice.kind === 'pickFromHand' || choice.kind === 'pickAttached' ? (
+          <PickFromDeck key={view.version} choice={choice} view={view} send={send} busy={busy} />
+        ) : null}
         {choice.kind === 'arrangeTop' ? <ArrangeTop key={view.version} choice={choice} view={view} send={send} busy={busy} /> : null}
+        {choice.kind === 'drawCount' ? (
+          <div className="flex flex-wrap justify-center gap-2">
+            {Array.from({ length: choice.max + 1 }, (_, n) => (
+              <button key={n} className="rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500" disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE', count: n })}>
+                Draw {n}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </section>
     </PreviewContext.Provider>
   );
 }
 
-/** Click a card to take it (from the deck, or the discard pile for Recycle). */
-function PickFromDeck({ choice, view, send, busy }: { choice: Extract<PendingChoiceView, { kind: 'pickFromDeck' | 'pickFromDiscard' }>; view: PlayerView; send: (a: GameAction) => void; busy: boolean }) {
+/**
+ * Click a card to take it: from the deck, the discard pile (Recycle), the hand (Special Delivery) or a Pokémon's
+ * Energy (Pure Body). A choice that's `optional` (Chain Reaction) can be skipped.
+ */
+function PickFromDeck({
+  choice,
+  view,
+  send,
+  busy,
+}: {
+  choice: Extract<PendingChoiceView, { kind: 'pickFromDeck' | 'pickFromDiscard' | 'pickFromHand' | 'pickAttached' }>;
+  view: PlayerView;
+  send: (a: GameAction) => void;
+  busy: boolean;
+}) {
   if (choice.options.length === 0) {
     return (
       <button className="rounded bg-slate-700 px-3 py-1 text-sm hover:bg-slate-600" disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE' })}>
@@ -39,13 +63,20 @@ function PickFromDeck({ choice, view, send, busy }: { choice: Extract<PendingCho
     );
   }
   return (
-    <div className="flex max-h-[60vh] flex-wrap justify-center gap-2 overflow-y-auto p-1">
-      {choice.options.map((c) => (
-        <button key={c.uid} disabled={busy} className="rounded-lg transition hover:-translate-y-1" onClick={() => send({ type: 'RESOLVE_CHOICE', cardUid: c.uid })}>
-          <Card def={lookupCard(view.cards, c.defId)} highRes />
+    <>
+      <div className="flex max-h-[60vh] flex-wrap justify-center gap-2 overflow-y-auto p-1">
+        {choice.options.map((c) => (
+          <button key={c.uid} disabled={busy} className="rounded-lg transition hover:-translate-y-1" onClick={() => send({ type: 'RESOLVE_CHOICE', cardUid: c.uid })}>
+            <Card def={lookupCard(view.cards, c.defId)} highRes />
+          </button>
+        ))}
+      </div>
+      {choice.optional && (
+        <button className="rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500" disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE' })}>
+          Skip
         </button>
-      ))}
-    </div>
+      )}
+    </>
   );
 }
 

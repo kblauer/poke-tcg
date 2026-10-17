@@ -36,7 +36,13 @@ export function AttackChoicePanel({ spec, view, attack }: { spec: ChoiceSpec; vi
               {d === 'own' ? 'Your deck' : "The CPU's deck"}
             </button>
           ))}
-        {spec.kind === 'defenderEnergy' &&
+        {spec.kind === 'side' &&
+          spec.options.map((side) => (
+            <button key={side} className={option} onClick={() => attack.answer(side)}>
+              {side === 'own' ? 'Your Pokémon' : "The CPU's Pokémon"}
+            </button>
+          ))}
+        {(spec.kind === 'defenderEnergy' || spec.kind === 'pokemonEnergy') &&
           spec.options.map((e) => (
             <button key={e.uid} className={option} onClick={() => attack.answer(e.uid)}>
               {lookupCard(cards, e.defId).name}
@@ -44,6 +50,8 @@ export function AttackChoicePanel({ spec, view, attack }: { spec: ChoiceSpec; vi
           ))}
         {spec.kind === 'opponentBench' && <p className={pickHint}>Click one of the CPU's highlighted Benched Pokémon.</p>}
         {spec.kind === 'ownBench' && <p className={pickHint}>Click one of your highlighted Benched Pokémon.</p>}
+        {(spec.kind === 'opponentPokemon' || spec.kind === 'opponentPokemonTo') && <p className={pickHint}>Click one of the CPU's highlighted Pokémon.</p>}
+        {spec.kind === 'ownPokemon' && <p className={pickHint}>Click one of your highlighted Pokémon.</p>}
         {(spec.kind === 'defenderAttack' || spec.kind === 'copyAttack') &&
           spec.options.map((i) => {
             const a = (lookupCard(cards, opponent.active!.card.defId) as PokemonCardDef).attacks[i]!;
@@ -53,7 +61,7 @@ export function AttackChoicePanel({ spec, view, attack }: { spec: ChoiceSpec; vi
               </button>
             );
           })}
-        {spec.kind === 'type' && (
+        {(spec.kind === 'type' || spec.kind === 'weaknessType') && (
           <div className="flex flex-wrap gap-1">
             {spec.options.map((t) => (
               <button key={t} className={`${option} capitalize`} onClick={() => attack.answer(t)}>
