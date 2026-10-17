@@ -81,6 +81,7 @@
 
 ## Known open items
 - CPU difficulties live in `packages/game-engine/src/cpu/`, one file each (`passive.ts`, `trainer.ts`, `gym-leader.ts`) plus `shared.ts`. Keep them separate. Gym leader is the baseline the user agreed on (README: The CPU opponent); change the difficulties' rules only with the user's say-so.
+- Base Set 2 is done (`effects/base4.ts`) and in the run pool. Its cards are all reprints: each takes its original's attacks, power and Trainer effect through `BASE4_REPRINTS` and `base4Reprints`, so fixing an original fixes its reprint too. Never key behaviour on a specific card id (use names, as the CPUs do), or the reprint won't match.
 - Missing rules: Whirlwind and Terror Strike prompting (both bring in the first benched Pokémon), and card effects for later sets (Burned is implemented, but no implemented card Burns yet). Jungle is done (`effects/jungle.ts`, `jungle-powers.ts`, `jungle-trainers.ts`); the CPUs don't play Poké Ball yet. Fossil is done (`effects/fossil.ts`, `fossil-powers.ts`, `fossil-trainers.ts`); the CPUs don't play Fossil's Trainers yet.
 - TCGdex card text drops energy icons ("Discard 1 Energy card" for "Discard 1 Fire Energy card"). Check the printed card for any untyped Energy in an effect and store the printed wording as `text`.
 - In-play Pokémon: use `inPlayDef`/`effectId` (status.ts), not `lookupCard(cards, p.card.defId)`, for anything rules-related, so a Transformed Ditto works. Check passive powers with `powerActive`, which handles Toxic Gas.
