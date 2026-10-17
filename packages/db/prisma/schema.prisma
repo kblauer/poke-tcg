@@ -14,8 +14,16 @@ model User {
   displayName String?
   avatarUrl   String?
   createdAt   DateTime @default(now())
+  /// Account-wide currency earned by beating runs, spent in the post-run shop.
+  exp         Int      @default(0)
+  /// ₱ banked from earlier runs: each run's ₱ is moved here when the next run starts.
+  bank        Int      @default(0)
   decks       Deck[]
   games       Game[]
+  runs        Run[]
+  cardUnlocks CardUnlock[]
+  items       InventoryItem[]
+  equipment   Equipment[]
 }
 
 enum CardKind {
@@ -58,6 +66,7 @@ model Card {
   /// Remaining TCGdex fields: attacks, abilities, weaknesses, resistances, retreat, effect, ...
   data       Json
   deckCards  DeckCard[]
+  unlocks    CardUnlock[]
 
   @@index([setId])
   @@index([name])
@@ -104,6 +113,9 @@ model Game {
   seed      Int
   /// Engine player id of the winner.
   winner    String?
+  /// The run this battle belongs to (null for test games).
+  runId     String?      @db.Uuid
+  run       Run?         @relation(fields: [runId], references: [id], onDelete: SetNull)
   actions   GameAction[]
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
@@ -124,4 +136,67 @@ model GameAction {
   createdAt DateTime @default(now())
 
   @@unique([gameId, version])
+}
+
+enum RunStatus {
+  ACTIVE
+  WON
+  LOST
+}
+
+/// A run: encounters and battles leading up to a gym leader (see @poke-tcg/campaign).
+model Run {
+  id        String    @id @default(uuid()) @db.Uuid
+  ownerId   String    @db.Uuid
+  owner     User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  /// Run type id, e.g. "celadon".
+  type      String
+  status    RunStatus @default(ACTIVE)
+  /// The campaign package's RunState (map, HP, ₱, deck, current encounter). Contains RNG state – never return it to clients directly.
+  state     Json
+  /// Mirrors state.version; used for optimistic concurrency on writes.
+  version   Int
+  seed      Int
+  /// Rewards for beating it (EXP, unlocks, badge) have been given.
+  rewarded  Boolean   @default(false)
+  /// Its ₱ has been moved to the bank (when the next run started).
+  banked    Boolean   @default(false)
+  games     Game[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([ownerId, createdAt])
+}
+
+/// Cards an account has unlocked by beating runs, for the deck builder (to come).
+model CardUnlock {
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cardId    String
+  card      Card     @relation(fields: [cardId], references: [id])
+  /// Copies unlocked.
+  quantity  Int
+  createdAt DateTime @default(now())
+
+  @@id([userId, cardId])
+}
+
+/// Items an account owns (consumables, misc items, key items, equipment). `itemId` is a key of the campaign package's ITEMS.
+model InventoryItem {
+  userId   String @db.Uuid
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  itemId   String
+  quantity Int
+
+  @@id([userId, itemId])
+}
+
+/// What's equipped in each slot (head, chest, legs, pokeball, accessory1, accessory2).
+model Equipment {
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slot   String
+  itemId String
+
+  @@id([userId, slot])
 }

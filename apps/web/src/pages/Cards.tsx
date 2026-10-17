@@ -3,14 +3,16 @@ import { useMemo, useState } from 'react';
 import { CardFilters } from '../components/CardFilters';
 import { CardGrid } from '../components/CardGrid';
 import { CardViewer } from '../components/CardViewer';
+import { useUnlocked } from '../hooks/useUnlocked';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useTRPC } from '../lib/trpc';
 import { EMPTY_FILTER, filterCards, setNames, sortCards, type CardFilter, type CardSort } from '../utils/cardList';
 import { PAGE_WIDTH, WIDE_SCREEN } from '../utils/layout';
 
 /**
- * Card browser: searchable, filterable grid on the left, the selected card on the right. A smaller screen
- * has only room for the grid, so the selected card opens over it; tapping anywhere closes it.
+ * Card browser: searchable, filterable grid on the left, the selected card on the right. Cards not unlocked yet
+ * are darker, and shown still (no holo). A smaller screen has only room for the grid, so the selected card opens
+ * over it; tapping anywhere closes it.
  */
 export function CardsPage() {
   const trpc = useTRPC();
@@ -19,6 +21,7 @@ export function CardsPage() {
   const [filter, setFilter] = useState<CardFilter>(EMPTY_FILTER);
   const [sort, setSort] = useState<CardSort>({ key: 'set', dir: 'asc' });
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { isLocked } = useUnlocked();
   const wide = useMediaQuery(WIDE_SCREEN);
 
   const sets = useMemo(() => (data ? setNames(data) : []), [data]);
@@ -32,11 +35,11 @@ export function CardsPage() {
     <div className={`${PAGE_WIDTH} grid gap-4 lg:grid-cols-2`}>
       <div className="flex h-[calc(100dvh-6.5rem)] flex-col gap-3">
         <CardFilters filter={filter} sort={sort} sets={sets} shown={cards.length} total={data.length} onFilterChange={setFilter} onSortChange={setSort} />
-        <CardGrid cards={cards} selectedId={selectedId} onSelect={(c) => setSelectedId(c.id)} />
+        <CardGrid cards={cards} selectedId={selectedId} onSelect={(c) => setSelectedId(c.id)} isLocked={isLocked} />
       </div>
       {wide ? (
         <div className="sticky top-4 self-start">
-          <CardViewer card={selected} />
+          <CardViewer card={selected} locked={selected !== null && isLocked(selected)} />
         </div>
       ) : (
         selected && (
@@ -47,7 +50,7 @@ export function CardsPage() {
             onClick={() => setSelectedId(null)}
           >
             <div className="w-full">
-              <CardViewer card={selected} />
+              <CardViewer card={selected} locked={isLocked(selected)} />
             </div>
           </div>
         )

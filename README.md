@@ -2,25 +2,26 @@
 
 Monorepo for a single-player Pokémon TCG game: battle through the gym leaders of each Pokémon generation against CPU opponents. React SPA + Hono/tRPC API on Vercel, Supabase (Postgres, Auth), Prisma ORM.
 
-**Current stage:** refining the card-playing mechanics. The Play screen starts a game with one of your decks (built on the Decks tab) or the fixed Base Set test deck, against the CPU's Rock Crusher deck (`apps/api/src/test-decks.ts`) played by the gym-leader CPU (see [The CPU opponent](#the-cpu-opponent)), whose moves play out one at a time. Single-player structure, multiple saves per account and cross-run progression come later.
+**Current stage:** the game loop. The home screen is the current run (see [Runs](#runs)): encounters and battles chosen on a map, leading up to a gym leader, then the shop and the next run, played with a deck built on the Decks tab from your unlocked cards. The CPU's moves play out one at a time (see [The CPU opponent](#the-cpu-opponent)). Practice battles (one of your decks, or the fixed Base Set test deck, against the CPU's Rock Crusher deck in `apps/api/src/test-decks.ts`) are at the bottom of the home screen. Multiple saves per account and later generations come later.
 
 ```
 apps/
   web/                  Vite + React 19 SPA (TanStack Router/Query, tRPC client, Tailwind v4, Material UI icons)
     src/
-      main.tsx          Routes, root layout (header with Play / Cards / Decks tabs), providers
+      main.tsx          Routes, root layout (header with Play / Inventory / Cards / Decks tabs), providers
       pages/            Route-level pages: data loading only
-      components/       Game UI components, one per file
+      components/       Game UI components, one per file (run/: the run screens)
       hooks/            React hooks: interaction state and handlers used by components
       utils/            Pure helper functions grouped by use (no React)
       lib/              tRPC client, Supabase client, session hook
       styles/holo/      Holo card effect styles (one file per card style) plus WOTC tuning
     public/img/         Textures used by the holo styles
-  api/                  Hono + tRPC API (Supabase JWT auth, card, deck and game endpoints, debug endpoints outside production)
+  api/                  Hono + tRPC API (Supabase JWT auth, card, deck, game and run endpoints, debug endpoints outside production)
     scripts/
       vercel-build.mjs  Bundles the API and web app into .vercel/output for Vercel
 packages/
   game-engine/          Pure TS rules engine + CPU opponents – shared by client (UI hints) and server (authority)
+  campaign/             Pure TS runs: map and encounters (reducer), deck lists and the deck generator, items, run types
   shared/               Zod schemas for API input, player ids, deck building rules (deck.ts)
   db/                   Prisma 7 schema, client (pg driver adapter), migrations, seed
 supabase/               Local Supabase config (CLI)
@@ -35,9 +36,11 @@ Pages load data, set their own width and side padding, and hand data to componen
 
 | File | Description |
 |---|---|
-| `Home.tsx` | Play (`/`): your decks, with Battle for the ones that follow the deck rules (Edit for the rest), and the "Start test game" button |
-| `Game.tsx` | Loads the game view, sends moves to the API (one at a time) and renders `<Board>` |
-| `Cards.tsx` | Card browser (`/cards`): loads the catalog once (`cards.list`), holds the filters, sort and selected card, and lays out the grid on the left and the viewer on the right (below the lg breakpoint the viewer opens over the grid; tap to close) |
+| `Home.tsx` | The run hub (`/`), laid out like the game: within the same side margins, filling the window, with the side panel (`LogDrawer`) at the window edge, its Run tab (`RunStats`) and run log. The run's name and step, then the map and the encounter (or a prompt to choose one on the map) with the cards unlocked this run below it; after a run, `RunOver`. Practice battles at the bottom: one of your playable decks or the test deck, against the Rock Crusher deck |
+| `Inventory.tsx` | Inventory (`/inventory`): equipment slots (head, chest, legs, Poké Ball, 2 accessories) with what fits each, items by category, and how many cards are unlocked |
+| `Game.tsx` | Loads the game view, sends moves to the API (one at a time) and renders `<Board>`. For a run's battle, the side panel gets the Run tab, and `RunBattleBanner` shows the opponent's name and the run's battle rules, and once it's over, the result and a Back to the run button |
+| `Cards.tsx` | Card browser (`/cards`): loads the catalog once (`cards.list`), holds the filters, sort and selected card, and lays out the grid on the left and the viewer on the right (below the lg breakpoint the viewer opens over the grid; tap to close). Cards you haven't unlocked are darker, and the viewer shows them still, without the holo effect (`useUnlocked`) |
+| `Decks.tsx` | Deck builder (`/decks`): pick a saved deck or start a new one, name, save or delete it; the deck (`DeckPanel`) on the left and the card search (`DeckFilters`, `CardGrid`) on the right, where clicking a card adds a copy (below the lg breakpoint, tabs switch between the two). Cards you haven't unlocked are darker and can't be added (`useUnlocked`) |
 
 ### `src/components/`
 
@@ -56,7 +59,7 @@ Pages load data, set their own width and side padding, and hand data to componen
 | `CardBack.tsx` | A face-down card |
 | `CoinFlip.tsx` | Animated coin under the game log (beside the strip when the log is minimised) for each coin flip in a move's result, one after another |
 | `GameLog.tsx` | The game log (attacks, coin flips, Special Conditions, knockouts), with room for buttons in its header |
-| `LogDrawer.tsx` | The game log and coin flips as a full-height panel at the left or right edge of the window, outside the page margins: minimise it to a strip, move it to the left or right (swap button), using Material UI icons, or drag its inner edge to resize it. Remembered in the browser. With the debug tools enabled it has a second tab, Debug. On a phone it opens over the board from a Log button beside the turn bar (`CompactLogButton`), and coin flips show in the middle of the screen while it's closed |
+| `LogDrawer.tsx` | The side panel: the game log and coin flips as a full-height panel at the left or right edge of the window, outside the page margins: minimise it to a strip, move it to the left or right (swap button), using Material UI icons, or drag its inner edge to resize it. Remembered in the browser. Its tabs: Run during a run (also on the run screen, where the log tab is the run log), the log, and Debug with the debug tools enabled. The minimised strip lists the tabs sideways; picking one opens the panel on it. On a phone it opens over the page instead: from a Log button beside the turn bar on the board (`CompactLogButton`), or a floating one in the corner on the run screen; coin flips show in the middle of the screen while it's closed |
 | `PowerPanel.tsx` | The active Pokémon's Power button under its attacks, or the current question while any power is being used. `BenchPowerButton` is the Activate button that appears under a benched Pokémon with a power when you click it. `PeekCard` shows the card you looked at with Peek until your next move |
 | `TrainerPanel.tsx` | The Trainer card being played (floating over the CPU's side): its name, text and questions one at a time; answering the last one plays it (a single card or Pokémon is chosen by clicking it). Cards from your hand (Computer Search, Item Finder, Energy Retrieval, Maintenance, Pokémon Breeder, Pokémon Trader) are picked by clicking them in the hand itself (`handPick` in `useTrainer`), with a Choose button when it takes more than one. A Trainer with no questions gets a Play button. A question answered by a single click in the hand or on the board (Pokémon Breeder, Gust of Wind, Potion…) shows no panel, only a prompt toast that stays until the card is played or cancelled; a Trainer that can't be played shows a warning toast instead of the panel |
 | `PendingChoicePanel.tsx` | Finishing a search from a Trainer or attack: take a card from your deck (Computer Search, Pokémon Trader, Energy Search, Poké Ball, Call for Family) or your discard pile (Recycle) or reorder the top cards of a deck (Pokédex, Prophecy) by dragging them or with the arrow buttons. Only you see these cards. Shown big in the middle of the table (not counting the game log), as wide as its cards need, with large card images |
@@ -70,17 +73,37 @@ Pages load data, set their own width and side padding, and hand data to componen
 | `EnergyIcon.tsx` | One energy as a coloured disc with its type's MUI symbol (leaf, flame, drop, bolt, eye, fist, moon, gear, star), so types differ by shape as well as colour. Used on cards in play and in the attack, retreat and debug panels |
 | `CardPreview.tsx` | The large card preview that follows the cursor and resizes with the mouse wheel (except over the deck-search lists, where the wheel scrolls the page). One opened by holding a finger on a card sits in the middle of the screen instead |
 | `PreviewContext.ts` | Context that lets any card show or hide the hover preview |
+| `PreviewProvider.tsx` | Provides the hover preview outside the board (the run hub), with the wheel resizing it or, for pages that scroll, scrolling the page |
 | `HoloCard.tsx` | A card with the holo effect: tilts toward the pointer while shine and glare layers follow it. Used by `CardViewer` in the Cards tab only; play mode shows plain card images |
 | `DeckFilters.tsx` | Deck builder search: name, release set, sort (set number, Pokédex number, type), "Implemented only", Pokémon filters (stage, type, HP range, has ability), a Trainer toggle and Energy toggles (one per type). Below the lg breakpoint the Pokémon, Trainer and Energy rows fold away behind a "More filters" button (with a dot while any is set), and on a phone the Energy toggles are icons only |
-| `DeckPanel.tsx` | The deck being built: its cards by section with − / + buttons (+ disabled with the reason when a rule forbids another copy), the count out of 60, what keeps it from being played, and "(partial)" on cards that aren't fully implemented |
+| `DeckPanel.tsx` | The deck being built: its cards by section with − / + buttons (+ disabled with the reason when a rule forbids another copy), the count out of 60, what keeps it from being played, and "(partial)" on cards that aren't fully implemented. Cards not unlocked are faded, marked (locked) |
 | `CardFilters.tsx` | Card browser controls: name search, set, type and stage filters, max-attack range, sort field and direction, match count |
-| `CardGrid.tsx` | Scrollable grid of low-res card images; the number of columns follows the width (narrower columns on a phone). Rows overlap so only each card's top strip (its name, set by the `gap-y-6` row gap) shows; hovering a strip brings that card to the front, clicking selects it |
-| `CardViewer.tsx` | The selected card's high-res image (low-res shown while it loads), sized to the window, with set, rarity, stage, type, HP and max attack |
+| `CardGrid.tsx` | Scrollable grid of low-res card images; the number of columns follows the width (narrower columns on a phone). Rows overlap so only each card's top strip (its name, set by the `gap-y-6` row gap) shows; hovering a strip brings that card to the front, clicking selects it. With `isLocked`, cards not unlocked yet are darker with a lock |
+| `CardViewer.tsx` | The selected card's high-res image (low-res shown while it loads), sized to the window, with set, rarity, stage, type, HP and max attack. A locked card is darkened and shown still (no `HoloCard`), marked Locked |
+
+### `src/components/run/`
+
+| File | Description |
+|---|---|
+| `RunHeader.tsx` | The run's name and how far along it is |
+| `RunStats.tsx` | The side panel's Run tab: HP as hearts, ₱ and the bank, the run's EXP and the account's, consumables used (of 3), the battle rules and consumables in effect, and the Bag |
+| `RunMap.tsx` | The path of steps as a vertical column on the left, climbing from the first step at the bottom to the gym leader at the top: the encounter taken at past steps, what later steps offer (faded), and the current step's options as large buttons to choose from. It scrolls on its own, kept centred on the current step |
+| `EncounterPanel.tsx` | The encounter being played: a battle (go to its game; an Ace Trainer can be declined first), a battle's reward (pick 1 of 3 cards), a free card, a card shop, a trade, a Pokémon Center or a Mystery event |
+| `DeckPanel.tsx` | The cards unlocked in this run, under the encounter: one per kind with how many came, grouped into Pokémon, Trainers and Energy, and a link to the Decks tab (where the deck itself is) |
+| `BagPanel.tsx` | Consumables and misc items you own with a Use button, disabled past the run's limits (in the Run tab) |
+| `RunOver.tsx` | After a run: beaten (EXP, the cards gained, badge, then `ItemShop` and `NewRunPicker`), or lost (start over, or Retry with 3 HP for testing) |
+| `ItemShop.tsx` | The post-run shop: items for account EXP |
+| `NewRunPicker.tsx` | Picks the next run's type and one of your decks (from the Decks tab), then starts it; decks that break the rules or hold locked cards are listed with why and can't be picked |
+| `RunCard.tsx` | A card offered or owned in a run, with the large hover preview (as on the board), its rarity, an optional price and an optional corner badge |
+| `encounterIcons.tsx` | A Material UI symbol and colour per kind of encounter (`EncounterBadge`) |
 
 ### `src/hooks/`
 
 | File | Description |
 |---|---|
+| `useRun.ts` | The home screen's data (`run.overview`, always refetched on arrival) and the run's moves (`run.act`, `useItem`, `retry`, `start`); a move that starts a battle goes to its game, and one that gains a card refreshes the unlocks |
+| `useUnlocked.ts` | Which cards the account has unlocked (`decks.unlocked`): `isLocked(card)`, never for basic Energy |
+| `useWindowFill.ts` | Makes an element fill the window from where it starts to the bottom (the game table and the run hub) |
 | `useCardPlay.ts` | Playing cards from the hand by click (select, then click a highlighted slot; Esc cancels) or drag and drop (Trainers onto anywhere in the play area). Tracks the selected and dragged card, reports why a clicked card can't be played (`notify`), and returns the highlighted slots, their label, click handlers and the `DndContext` props |
 | `useAttack.ts` | Using an attack: attacks straight away or asks its questions one at a time (via the engine's `nextAttackChoice`), and says why an attack can't be used (Esc cancels) |
 | `usePower.ts` | Using Pokémon Powers: lists your Pokémon's powers with why each can't be used, tracks the benched Pokémon clicked to show its Activate button, and asks a power's questions one at a time (Esc cancels) |
@@ -149,8 +172,9 @@ Holo cards are those with `variants.holo` in their TCGdex data (the rarity alone
 | `cpu/shared.ts` | What the CPUs share: the turn context and common moves (benching, evolving, aiming Energy, Switch or retreat, finishing a search), choosing the first active, each attack simulated over every coin-flip outcome, the opponent's threat next turn, Energy arithmetic and which cards are useful |
 | `cpu/*.test.ts` | Tests per difficulty (`gym-leader.test.ts` has one block per rule, with Base Set cards) |
 | `debug.ts` | `applyDebug`: testing cheats (a card into the hand, draw, set a Pokémon's HP). Not `GameAction`s, so normal moves can never reach them; each is logged |
+| `rules.test.ts` | Battle rules (`GameState.rules`) and `cardImplemented` |
 
-Rules follow the 1999 Base Set rulebook. Special Conditions: Asleep (flip between turns to wake), Confused (flip to attack, tails = 20 damage to itself; flip to retreat), Paralyzed (until after its owner's next turn), Poisoned (10 between turns, 20 from Toxic). The checkup between turns handles them in order for both actives: Poisoned, Burned (not in the Base Set, not implemented yet), Asleep, Paralyzed. Trainers: PlusPower (+10) and Defender (−20) attach to a Pokémon and change attack damage after weakness and resistance, PlusPower first; they're discarded at the end of the turn / the opponent's next turn. Clefairy Doll is played onto the Bench as a 10 HP Pokémon (it can't start as your Active or count as a Basic for the opening hand), can't retreat or get Special Conditions, gives no prize when Knocked Out, and can be discarded during your turn. Scoop Up can't take your only Pokémon in play; Devolution Spray can Knock Out. Double Colorless Energy provides 2 Colorless energy. Pokémon Powers stop working while their Pokémon is Asleep, Confused or Paralyzed. Dropping a Water Energy on a Water Pokémon uses Rain Dance when a Blastoise can, so it doesn't use up the turn's attachment. Where TCGdex's attack text differs from the printed card, the effect carries the printed wording and the API shows that instead.
+Rules follow the 1999 Base Set rulebook. Special Conditions: Asleep (flip between turns to wake), Confused (flip to attack, tails = 20 damage to itself; flip to retreat), Paralyzed (until after its owner's next turn), Poisoned (10 between turns, 20 from Toxic), Burned (20 between turns, then a flip: heads cures it; no Base Set, Jungle or Fossil card Burns, so only later sets' cards will use it). Poisoned and Burned are separate from each other and from Asleep, Confused and Paralyzed, which replace one another; only the active can have any of them, and benching, evolving and Full Heal remove them all. The checkup between turns handles them in order for both actives: Poisoned, Burned, Asleep, Paralyzed (tests in `burned.test.ts`). Trainers: PlusPower (+10) and Defender (−20) attach to a Pokémon and change attack damage after weakness and resistance, PlusPower first; they're discarded at the end of the turn / the opponent's next turn. Clefairy Doll is played onto the Bench as a 10 HP Pokémon (it can't start as your Active or count as a Basic for the opening hand), can't retreat or get Special Conditions, gives no prize when Knocked Out, and can be discarded during your turn. Scoop Up can't take your only Pokémon in play; Devolution Spray can Knock Out. Double Colorless Energy provides 2 Colorless energy. Pokémon Powers stop working while their Pokémon is Asleep, Confused or Paralyzed. Dropping a Water Energy on a Water Pokémon uses Rain Dance when a Blastoise can, so it doesn't use up the turn's attachment. Where TCGdex's attack text differs from the printed card, the effect carries the printed wording and the API shows that instead.
 
 Jungle attacks: every Jungle Pokémon's attack effects are in `effects/jungle.ts`. Hurricane returns the Defending Pokémon and its cards to the hand unless it Knocks it Out. Chain Lightning does 10 to every benched Pokémon, on both sides, of the Defending Pokémon's type (none if it's Colorless). Teleport switches the attacker with a benched Pokémon the player clicks. Acid stops the Defending Pokémon retreating, Tail Wag and Leer stop it attacking that Pokémon, and Pounce and Snivel take 10 or 20 off its attacks on it, all during the next turn; benching or evolving either Pokémon ends them. Swords Dance makes Slash do 60 base damage on its owner's next turn. Big Eggsplosion flips a coin per Energy provided (Double Colorless = 2). Flareon's Flamethrower discards a Fire Energy card and Vaporeon's Water Gun counts Water Energy only (TCGdex drops those icons). Call for Family (Nidoran♀) finds either Nidoran; Call for Friend finds a Fighting Basic Pokémon.
 
@@ -165,6 +189,28 @@ Fossil attacks: every Fossil Pokémon's attack effects are in `effects/fossil.ts
 Fossil Pokémon Powers (`effects/fossil-powers.ts`): Toxic Gas makes every other power stop working, on both sides, while Muk isn't Asleep, Confused or Paralyzed. Prehistoric Power stops both players playing Evolution cards (Pokémon Breeder included). Ditto's Transform, while it's the active and has no Special Condition, makes it a copy of the Defending Pokémon: type, HP, Weakness, Resistance, retreat cost, attacks and power; its Energy counts as any type; damage stays, so it's Knocked Out if it stops being a copy with more damage than its own 50 HP. Step In and Curse can be used once per turn per Pokémon; Curse can Knock Out, and the opponent then promotes without the turn ending. Strange Behavior can't Knock Out Slowbro. Transparency flips once per attack against any attack that does anything to Haunter, even its owner's, and only Sleep stops it. Kabuto Armor halves attack damage, rounded down to the nearest 10, after weakness, resistance, PlusPower and Defender. Clairvoyance shows the opponent's hand in the player's view. Cowardice returns Tentacool to the hand (not the turn it was put into play, nor your only Pokémon), discarding its cards.
 
 Fossil Trainers (`effects/fossil-trainers.ts`): Mr. Fuji shuffles a benched Pokémon and everything attached into the deck. Energy Search takes a basic Energy card from the deck. Gambler shuffles the hand into the deck, then draws 8 on heads or 1 on tails. Recycle needs a card in the discard pile; on heads the player picks one (not Recycle itself) to put on top of the deck. Mysterious Fossil follows Clefairy Doll's rules (a 10 HP Pokémon on the Bench, never the starting Active, no prize when Knocked Out, can be discarded during your turn). Omanyte, Kabuto and Aerodactyl evolve from it, and Pokémon Breeder can put Omastar or Kabutops straight onto it. TCGdex leaves out "evolves from Mysterious Fossil", so `apps/api/src/cards.ts` fills it in.
+
+## Runs
+
+An account plays runs, one at a time. A run is 25 encounters and then a gym leader. At each step you choose one of 2–3 encounters, and you can see what later steps offer. The pure logic is in `packages/campaign` (`RunState` and its reducer `applyRunAction`, like the engine's), the API saves it in the `Run` table, and the web shows it on the home screen.
+
+| File (`packages/campaign/src/`) | Purpose |
+| --- | --- |
+| `run.ts` | `RunState`, `createRun` (the map from a seed), `applyRunAction` (choosing, encounters, battle results, items, the testing retry), `battleSetup` (the CPU's deck, difficulty and battle rules) and `runView` (what the player sees) |
+| `decks.ts` | `STARTER_DECK`, `FLOWER_POWER_DECK`, `generateDeck` (random medium-strength decks) and `deckErrors` |
+| `items.ts` | The item catalog (consumables, misc items, key items, equipment), equipment slots and the shop's stock |
+| `run-types.ts` | The runs to pick from and their gym leaders (Celadon City: Erika) |
+| `pool.ts` | Card pool types, rarities and prices, basic Energy ids |
+| `random.ts` | Seeded randomness kept in the state (`Rng`) |
+| `test-pool.ts` | Tests only: the pool built from the TCGdex snapshot (`run.test.ts`, `decks.test.ts`) |
+
+- **Start**: the first visit sets up the account: a `Starter deck` (`STARTER_DECK`, medium strength, Water/Lightning: Poliwag and Pikachu lines, Lapras, Electabuzz, 17 Trainers, 24 Energy) saved in its deck list with every card in it unlocked, and a first run of **Celadon City** with it, ending with Gym Leader Erika and the GBC game's Flower Power deck (`FLOWER_POWER_DECK`). A run starts with 3 HP and ₱500. Older accounts get their starter deck's cards unlocked on their next visit.
+- **Battles**: the trainer plays a random 60-card deck of medium strength (`generateDeck`: 1–2 types, 2–4 middling evolution lines, 14–16 Trainers, the rest Energy split by the attacks' needs; the same seed gives the same deck) at the CPU's **Trainer** difficulty. **Ace Trainers** (elite battles, from step 6) can be declined; they play at **Gym leader** difficulty and pay more. The gym leader plays at Gym leader difficulty. A win pays ₱ and EXP and offers 1 of 3 cards; a loss costs 1 HP and the run moves on, except against the gym leader, who is fought again. At 0 HP the run is lost: start over (a new run), or, for testing, **Retry with 3 HP**, which carries on from where it ended (on in production too, for now).
+- **Other encounters**: a card shop (cards for ₱ by rarity), a free card (1 of 3), a card trade (one of your deck's cards for one at least as rare; it replaces it in the deck), a Pokémon Center (1 HP for ₱100) and Mystery events: a Frenzy (Pokémon of one type do double damage in the next 3 battles, both sides: the engine's `GameState.rules`), a coin-toss bet, a shady dealer (a rare card for 1 HP), a Fan Club donation (₱ for EXP) and a lucky find.
+- **Cards**: cards come from every card the engine plays fully (`cardImplemented`) in the Base Set, Jungle, Fossil and Wizards promos (`apps/api/src/pool.ts`), rarer ones less often. A card gained in a run is unlocked at once (`CardUnlock`, `apps/api/src/unlocks.ts`) but doesn't join the run's deck (only trades change it): it can go in your next decks on the Decks tab. Unlocks are per card, not per copy (up to the usual 4); basic Energy is always unlocked. The Decks and Cards tabs show locked cards darker, the deck builder won't add them (nor will the API save them), and a deck holding any can't start a run or a practice battle.
+- **After a run**: beating it adds its EXP to the account and gives the gym leader's badge (a key item). Then comes the shop, where items cost EXP, and then the next run, with a run type and one of your playable decks to pick. Starting a run moves the earlier runs' leftover ₱ into the account's bank (`User.bank`), and the new run starts with ₱500.
+- **Items** (`items.ts`, placeholders with no effects yet): consumables last a number of battles, at most 3 per run; misc items have their own limits (used up or not, per-run uses); key items are records that can't be removed; equipment goes in head, chest, legs, Poké Ball and 2 accessory slots (`Equipment`), each piece with one or more effects. Owned items are `InventoryItem` rows.
+- **API** (`routers/run.ts`, `runs.ts`, `pool.ts`, `unlocks.ts`): `run.overview` (with each deck's problems), `act` (with `expectedVersion`, like games), `useItem`, `retry`, `start` (a playable deck), `shop`, `buyItem`, `inventory`, `equip`; `decks.unlocked`. Starting a battle creates a `Game` linked to the run (`Game.runId`); when the game ends, `game.act` (or the next `run.overview`) records the result in the run.
 
 ## How a move works
 
@@ -200,9 +246,11 @@ It only uses what the player could see. What an attack would do is worked out in
 
 ## Deck builder
 
-The **Decks** tab (`pages/Decks.tsx`) builds decks to battle with on Play. Pick a saved deck or start a new one, name it, and click cards in the search to add copies; the deck is listed separately on the left, where − and + change the counts. Decks are saved per user (`Deck`, `DeckCard`) through the `decks` router (`apps/api/src/routers/decks.ts`: `list`, `get`, `save`, `delete`).
+The **Decks** tab (`pages/Decks.tsx`) builds decks for runs and practice battles on Play. Pick a saved deck or start a new one, name it, and click cards in the search to add copies; the deck is listed separately on the left, where − and + change the counts. Decks are saved per user (`Deck`, `DeckCard`) through the `decks` router (`apps/api/src/routers/decks.ts`: `list`, `get`, `save`, `delete`).
 
-The rules (`packages/shared/src/deck.ts`, used by both the builder and the API) are the rulebook's: exactly 60 cards; at most 4 cards with exactly the same name, across all sets, except basic Energy (TCGdex "Normal" Energy; Double Colorless, Darkness and Metal Energy are special); and at least one Basic Pokémon (Baby Pokémon count; Clefairy Doll and Mysterious Fossil don't). An unfinished deck can be saved, but never one over 60 cards or with more than 4 of a name, and only a deck with no problems can start a game (`game.create`). The CPU always plays the Rock Crusher theme deck (`CPU_DECK` in `apps/api/src/test-decks.ts`).
+The rules (`packages/shared/src/deck.ts`, used by both the builder and the API) are the rulebook's: exactly 60 cards; at most 4 cards with exactly the same name, across all sets, except basic Energy (TCGdex "Normal" Energy; Double Colorless, Darkness and Metal Energy are special); and at least one Basic Pokémon (Baby Pokémon count; Clefairy Doll and Mysterious Fossil don't). An unfinished deck can be saved, but never one over 60 cards or with more than 4 of a name, and only a deck with no problems can start a run (`run.start`) or a practice battle (`game.create`).
+
+Only unlocked cards can go in a deck (see [Runs](#runs)): the starter deck's cards, every card gained in a run, and basic Energy, which always is. Locked cards are darker on the Decks and Cards tabs, and on the Cards tab the selected card is shown still, without the holo effect. The API won't save a deck with a locked card, and a deck that holds one (saved before unlocks) lists it as a problem. The CPU always plays the Rock Crusher theme deck (`CPU_DECK` in `apps/api/src/test-decks.ts`).
 
 Every catalog card can go in a deck. `cards.list` marks the ones the engine fully implements (`isImplemented` in `apps/api/src/cards.ts`: every attack with text, its power, its Trainer effect, or basic and Double Colorless Energy), for the "Implemented only" filter and the deck list's "(partial)". The rest still load: their Pokémon attack for base damage, while their other attack effects, powers, Trainer effects (the card can't be played) and special Energy effects (1 Energy of its type, or Colorless) do nothing yet.
 
@@ -224,7 +272,7 @@ Tooltips (`title`), such as why an attack is disabled or what a status badge mea
 
 ## Debug tools
 
-The game log has a **Debug** tab for testing: change the CPU's difficulty, draw a card, put any card (or an Energy) into your hand, and set the HP of any Pokémon in play. It only exists outside production, enforced in two places:
+The game log has a **Debug** tab for testing: change the CPU's difficulty, draw a card, put any card (or an Energy) into your hand, set the HP of any Pokémon in play, and turn Special Conditions (Asleep, Confused, Paralyzed, Poisoned, Burned) on or off on either active, for example to try Burned before any card inflicts it. It only exists outside production, enforced in two places:
 
 - **API** (the authority): the `debug.run` procedure is a `debugProcedure` (`apps/api/src/trpc.ts`), which answers `NOT_FOUND` unless `env.debugEnabled` (`apps/api/src/env.ts`). That's always false in production (`VERCEL_ENV=production` or `NODE_ENV=production`, whatever else is set), and true elsewhere unless `ENABLE_DEBUG=false`. `debug.enabled` tells the client which.
 - **Web**: `__DEBUG_BUILD__` is a build-time constant from `vite.config.ts`: on in the dev server (unless `VITE_ENABLE_DEBUG=false`), off in a `vite build` (unless `VITE_ENABLE_DEBUG=true`). A production build leaves the Debug tab's code out of the bundle entirely; the tab also needs `debug.enabled` from the API.
@@ -277,7 +325,7 @@ Use the printed DB URL for both `DATABASE_URL` and `DIRECT_URL`, `http://127.0.0
 | `pnpm dev` | Run all apps with live reload |
 | `pnpm build` | Build everything |
 | `pnpm typecheck` | Typecheck all packages |
-| `pnpm test` | Run Vitest suites (game engine) |
+| `pnpm test` | Run Vitest suites (game engine, campaign) |
 | `pnpm db:migrate` / `db:studio` / `db:seed` | Prisma migrate dev / Studio / seed |
 | `pnpm cards:fetch` | Re-download the WOTC card snapshot from TCGdex (`packages/db/prisma/data/tcgdex-wotc.json`). Cards TCGdex doesn't have are kept by hand in `custom-cards.json` beside it (same shape; `pnpm db:seed` loads both), with their images in `apps/web/public/cards/<id>/` as `high.webp` and `low.webp` |
 
@@ -285,5 +333,6 @@ Use the printed DB URL for both `DATABASE_URL` and `DIRECT_URL`, `http://127.0.0
 
 - Card effects for sets after the Base Set: Jungle and Fossil are done; later sets next. The CPUs don't play Poké Ball yet. The CPUs only use Fossil's powers when the gym leader's generic "Boost" finds them helpful, and play none of Fossil's Trainers yet.
 - Ask the player to choose when an opponent's attack makes them pick (Whirlwind and Terror Strike currently bring in their first benched Pokémon).
-- Decks for each CPU opponent (it always plays the Rock Crusher deck).
-- Single-player structure: gym leader battles per generation, multiple saves per account, persistent progression across runs.
+- Decks for each CPU opponent outside runs (practice battles always use the Rock Crusher deck).
+- Runs: more run types and gym leaders, item and equipment effects, richer encounters. Remove the Retry with 3 HP testing button before release.
+- Multiple saves per account; runs through later generations.

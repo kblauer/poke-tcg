@@ -193,6 +193,9 @@ importers:
       '@hono/trpc-server':
         specifier: ^0.4.2
         version: 0.4.2(@trpc/server@11.19.0(typescript@7.0.2))(hono@4.13.13)
+      '@poke-tcg/campaign':
+        specifier: workspace:*
+        version: link:../../packages/campaign
       '@poke-tcg/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -245,6 +248,9 @@ importers:
       '@mui/material':
         specifier: ^9.5.0
         version: 9.5.0(@emotion/react@11.14.0(@types/react@19.3.0)(react@19.3.0))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.3.0)(react@19.3.0))(@types/react@19.3.0)(react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      '@poke-tcg/campaign':
+        specifier: workspace:*
+        version: link:../../packages/campaign
       '@poke-tcg/game-engine':
         specifier: workspace:*
         version: link:../../packages/game-engine
@@ -298,6 +304,16 @@ importers:
         specifier: ^8.3.4
         version: 8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
+  packages/campaign:
+    dependencies:
+      '@poke-tcg/game-engine':
+        specifier: workspace:*
+        version: link:../game-engine
+    devDependencies:
+      vitest:
+        specifier: ^5.0.4
+        version: 5.0.4(@types/node@26.6.5)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+
   packages/db:
     dependencies:
       '@prisma/adapter-pg':
@@ -322,6 +338,9 @@ importers:
 
   packages/shared:
     dependencies:
+      '@poke-tcg/campaign':
+        specifier: workspace:*
+        version: link:../campaign
       '@poke-tcg/game-engine':
         specifier: workspace:*
         version: link:../game-engine

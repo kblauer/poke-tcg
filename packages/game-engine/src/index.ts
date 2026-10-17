@@ -1,6 +1,6 @@
 export * from './attacks.js';
 export * from './cards.js';
-export { attackEffect, powerEffect, trainerEffect } from './effects/index.js';
+export { attackEffect, cardImplemented, powerEffect, trainerEffect } from './effects/index.js';
 export * from './powers.js';
 export * from './trainers.js';
 export { effectId, inPlayDef, type LogEntry } from './status.js';
@@ -8,4 +8,4 @@ export * from './cpu/index.js';
 export * from './debug.js';
 export * from './engine.js';
 export * from './view.js';
-export { shuffle } from './rng.js';
+export { nextRandom, shuffle } from './rng.js';

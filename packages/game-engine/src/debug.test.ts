@@ -10,6 +10,23 @@ const run = (state: GameState, command: DebugCommand, cards = {}) => {
 };
 
 describe('debug commands', () => {
+  it('turns Special Conditions on and off on either active: Asleep, Confused and Paralyzed replace each other', () => {
+    let s = duel('charmander', 'squirtle');
+    s = run(s, { type: 'SET_CONDITION', side: 'opponent', condition: 'burned', on: true });
+    s = run(s, { type: 'SET_CONDITION', side: 'opponent', condition: 'poisoned', on: true });
+    s = run(s, { type: 'SET_CONDITION', side: 'opponent', condition: 'asleep', on: true });
+    s = run(s, { type: 'SET_CONDITION', side: 'opponent', condition: 'paralyzed', on: true });
+    const squirtle = s.players.misty!.active!;
+    expect([squirtle.burned, squirtle.poison, squirtle.condition, squirtle.paralyzedTurn]).toEqual([true, 10, 'paralyzed', s.turn]);
+    expect(s.log?.at(-1)?.text).toBe('Debug: Squirtle is now Paralyzed.');
+    s = run(s, { type: 'SET_CONDITION', side: 'opponent', condition: 'burned', on: false });
+    s = run(s, { type: 'SET_CONDITION', side: 'self', condition: 'confused', on: true });
+    expect(s.players.misty!.active!.burned).toBe(false);
+    expect(s.players.ash!.active!.condition).toBe('confused');
+    expect(s.log?.at(-1)?.text).toBe('Debug: Charmander is now Confused.');
+  });
+
+
   it('puts a new copy of a card into the hand, with a unique uid, and logs it', () => {
     const s = duel('charmander', 'squirtle');
     const before = s.players.ash!.hand.length;

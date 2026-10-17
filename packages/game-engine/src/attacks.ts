@@ -421,6 +421,8 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
       const defender = opp.active!;
       const defenderDef = def(state.cards, defender);
       if (amount <= 0) return 0;
+      // A run's battle rules (Fire Pokémon do double damage…) change the base damage, before everything else.
+      for (const rule of state.rules ?? []) if (rule.kind === 'typeDamage' && rule.type === attackerDef.type) amount *= rule.multiplier;
       if (shielded()) {
         log(`${defenderDef.name} is protected from the attack.`, opp.id);
         return 0;
@@ -487,7 +489,10 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
       const name = pokemonName(state, defender);
       if (shielded()) return log(`${name} is protected from the attack's effects.`, opp.id);
       if (def(state.cards, defender).trainerText || passive(defender)?.noConditions) return log(`${name} can't be affected by Special Conditions.`, opp.id);
-      if (affliction === 'poisoned' || affliction === 'toxic') {
+      if (affliction === 'burned') {
+        defender.burned = true;
+        log(`${name} is now Burned.`, opp.id);
+      } else if (affliction === 'poisoned' || affliction === 'toxic') {
         defender.poison = Math.max(defender.poison ?? 0, affliction === 'toxic' ? 20 : 10);
         log(`${name} is now Poisoned${affliction === 'toxic' ? ' (20 damage)' : ''}.`, opp.id);
       } else {

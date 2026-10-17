@@ -9,6 +9,7 @@ function statusBadges(p: InPlayPokemon, cards?: CardLibrary): { label: string; t
   if (p.condition === 'asleep') badges.push({ label: 'SLP', title: "Asleep: flips to wake up between turns; can't attack or retreat", className: 'bg-indigo-500' });
   if (p.condition === 'confused') badges.push({ label: 'CNF', title: 'Confused: flips to attack (tails: 20 damage to itself) and to retreat', className: 'bg-pink-500' });
   if (p.condition === 'paralyzed') badges.push({ label: 'PAR', title: "Paralyzed: can't attack or retreat until after its owner's next turn", className: 'bg-yellow-500 text-slate-900' });
+  if (p.burned) badges.push({ label: 'BRN', title: 'Burned: 20 damage between turns, then a flip; heads cures it', className: 'bg-orange-600' });
   if (p.poison) badges.push({ label: `PSN${p.poison > 10 ? ` ${p.poison}` : ''}`, title: `Poisoned: ${p.poison} damage between turns`, className: 'bg-green-600' });
   const e = p.effects ?? {};
   if (e.preventAll !== undefined) badges.push({ label: '🛡', title: 'Protected from all effects of attacks, including damage, next turn', className: 'bg-sky-600' });

@@ -18,6 +18,7 @@ import { CardsPage } from './pages/Cards';
 import { DecksPage } from './pages/Decks';
 import { GamePage } from './pages/Game';
 import { HomePage } from './pages/Home';
+import { InventoryPage } from './pages/Inventory';
 
 // Marks the dev server's tab so it isn't confused with the deployed app.
 if (import.meta.env.DEV) document.title += ' - local';
@@ -42,6 +43,9 @@ function RootLayout() {
             <nav className="flex gap-1 text-sm">
               <Link to="/" className={tab} activeOptions={{ exact: true }}>
                 Play
+              </Link>
+              <Link to="/inventory" className={tab}>
+                Inventory
               </Link>
               <Link to="/cards" className={tab}>
                 Cards
@@ -83,8 +87,9 @@ const homeRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', comp
 const gameRoute = createRoute({ getParentRoute: () => rootRoute, path: '/game/$gameId', component: GamePage });
 const cardsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/cards', component: CardsPage });
 const decksRoute = createRoute({ getParentRoute: () => rootRoute, path: '/decks', component: DecksPage });
+const inventoryRoute = createRoute({ getParentRoute: () => rootRoute, path: '/inventory', component: InventoryPage });
 
-const router = createRouter({ routeTree: rootRoute.addChildren([homeRoute, gameRoute, cardsRoute, decksRoute]) });
+const router = createRouter({ routeTree: rootRoute.addChildren([homeRoute, gameRoute, cardsRoute, decksRoute, inventoryRoute]) });
 
 declare module '@tanstack/react-router' {
   interface Register {

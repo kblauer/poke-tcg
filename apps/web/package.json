@@ -17,6 +17,7 @@
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^9.5.0",
     "@mui/material": "^9.5.0",
+    "@poke-tcg/campaign": "workspace:*",
     "@poke-tcg/game-engine": "workspace:*",
     "@poke-tcg/shared": "workspace:*",
     "@supabase/supabase-js": "^2.117.3",

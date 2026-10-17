@@ -1,4 +1,5 @@
-import { CPU_DIFFICULTIES, MAX_BENCH, type AttackChoices, type DebugCommand, type GameAction, type PowerChoices, type TrainerChoices } from '@poke-tcg/game-engine';
+import { CPU_DIFFICULTIES, DEBUG_CONDITIONS, MAX_BENCH, type AttackChoices, type DebugCommand, type GameAction, type PowerChoices, type TrainerChoices } from '@poke-tcg/game-engine';
+import { EQUIP_SLOTS, RUN_TYPE_IDS, type RunAction, type RunTypeId } from '@poke-tcg/campaign';
 import { z } from 'zod';
 
 export * from './deck.js';
@@ -91,6 +92,7 @@ export const debugCommandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('DRAW') }),
   z.object({ type: z.literal('SET_HP'), side: z.enum(['self', 'opponent']), target, hp: z.number().int().min(10).max(1000) }),
   z.object({ type: z.literal('SET_CPU_DIFFICULTY'), difficulty: z.enum(CPU_DIFFICULTIES) }),
+  z.object({ type: z.literal('SET_CONDITION'), side: z.enum(['self', 'opponent']), condition: z.enum(DEBUG_CONDITIONS), on: z.boolean() }),
 ]) satisfies z.ZodType<DebugCommand>;
 
 export const debugInput = z.object({
@@ -98,3 +100,24 @@ export const debugInput = z.object({
   expectedVersion: z.number().int().min(0),
   command: debugCommandSchema,
 });
+
+/** A player's move in a run (see RunAction in @poke-tcg/campaign). The server's own actions aren't accepted. */
+export const runActionSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('CHOOSE'), option: z.number().int().min(0).max(5) }),
+  z.object({ type: z.literal('ACCEPT') }),
+  z.object({ type: z.literal('LEAVE') }),
+  z.object({ type: z.literal('PICK'), index: z.number().int().min(0).max(10) }),
+  z.object({ type: z.literal('BUY'), index: z.number().int().min(0).max(10) }),
+]) satisfies z.ZodType<RunAction>;
+
+export const runIdInput = z.object({ runId: z.uuid() });
+export const runActInput = z.object({
+  runId: z.uuid(),
+  /** The run version the client acted on; stale submissions are rejected. */
+  expectedVersion: z.number().int().min(0),
+  action: runActionSchema,
+});
+export const useItemInput = z.object({ runId: z.uuid(), itemId: z.string().min(1).max(64) });
+export const startRunInput = z.object({ type: z.enum(RUN_TYPE_IDS as [RunTypeId, ...RunTypeId[]]), deckId: z.uuid() });
+export const buyItemInput = z.object({ itemId: z.string().min(1).max(64) });
+export const equipInput = z.object({ slot: z.enum(EQUIP_SLOTS), itemId: z.string().min(1).max(64).nullable() });

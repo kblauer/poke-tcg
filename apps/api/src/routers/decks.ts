@@ -4,6 +4,7 @@ import { DECK_SIZE, MAX_COPIES, copiesOfName, deckIdInput, deckProblems, deckSav
 import { ensureUser } from '../auth.js';
 import { isBasicEnergyCard } from '../cards.js';
 import { protectedProcedure, router } from '../trpc.js';
+import { lockedNames, lockedProblem, unlockedIds } from '../unlocks.js';
 
 /** What the deck rules need from a catalog row. */
 export const ruleCard = (card: Pick<Card, 'name' | 'kind' | 'stage' | 'data'>): DeckRuleCard => ({
@@ -26,22 +27,42 @@ export async function loadOwnDeck(deckId: string, userId: string) {
 export const problemsOf = (cards: { quantity: number; card: Pick<Card, 'name' | 'kind' | 'stage' | 'data'> }[]) =>
   deckProblems(cards.map((c) => ({ card: ruleCard(c.card), quantity: c.quantity })));
 
+/** Why the deck can't be played: the rules, and cards the user hasn't unlocked. Empty when it can. */
+export const playProblems = (cards: { cardId: string; quantity: number; card: Pick<Card, 'name' | 'kind' | 'stage' | 'data'> }[], unlocked: Set<string>) => {
+  const locked = lockedProblem(cards, unlocked);
+  return [...problemsOf(cards), ...(locked ? [locked] : [])];
+};
+
+/** The user's deck, ready to battle with (one card id per card), or BAD_REQUEST with why it can't be played. */
+export async function playableDeck(deckId: string, userId: string): Promise<string[]> {
+  const [deck, unlocked] = await Promise.all([loadOwnDeck(deckId, userId), unlockedIds(userId)]);
+  const [problem] = playProblems(deck.cards, unlocked);
+  if (problem) throw new TRPCError({ code: 'BAD_REQUEST', message: problem });
+  return deck.cards.flatMap((c) => Array<string>(c.quantity).fill(c.cardId));
+}
+
 export const decksRouter = router({
-  /** The user's decks, newest first, with whether each can be played (no problems). */
+  /** The user's decks, newest first, with whether each can be played (no problems, including locked cards). */
   list: protectedProcedure.query(async ({ ctx }) => {
-    const decks = await prisma.deck.findMany({
-      where: { ownerId: ctx.user.id },
-      orderBy: { updatedAt: 'desc' },
-      include: { cards: { include: { card: cardFields } } },
-    });
+    const [decks, unlocked] = await Promise.all([
+      prisma.deck.findMany({
+        where: { ownerId: ctx.user.id },
+        orderBy: { updatedAt: 'desc' },
+        include: { cards: { include: { card: cardFields } } },
+      }),
+      unlockedIds(ctx.user.id),
+    ]);
     return decks.map((d) => ({
       id: d.id,
       name: d.name,
       updatedAt: d.updatedAt,
       cardCount: d.cards.reduce((n, c) => n + c.quantity, 0),
-      problems: problemsOf(d.cards),
+      problems: playProblems(d.cards, unlocked),
     }));
   }),
+
+  /** The cards the user has unlocked, for the deck builder and card list (basic Energy always is, so it isn't listed). */
+  unlocked: protectedProcedure.query(async ({ ctx }) => [...(await unlockedIds(ctx.user.id))]),
 
   /** One of the user's decks: its name and card list. */
   get: protectedProcedure.input(deckIdInput).query(async ({ ctx, input }) => {
@@ -64,6 +85,8 @@ export const decksRouter = router({
     if (total > DECK_SIZE) throw new TRPCError({ code: 'BAD_REQUEST', message: `A deck can't have more than ${DECK_SIZE} cards` });
     const over = entries.find((e) => !e.card.basicEnergy && copiesOfName(entries, e.card.name) > MAX_COPIES);
     if (over) throw new TRPCError({ code: 'BAD_REQUEST', message: `At most ${MAX_COPIES} cards named ${over.card.name}` });
+    const [locked] = lockedNames(input.cards.map((c) => ({ cardId: c.cardId, card: rows.find((r) => r.id === c.cardId)! })), await unlockedIds(ctx.user.id));
+    if (locked) throw new TRPCError({ code: 'BAD_REQUEST', message: `${locked} isn't unlocked yet` });
 
     if (input.deckId) await loadOwnDeck(input.deckId, ctx.user.id);
     else await ensureUser(ctx.user);
