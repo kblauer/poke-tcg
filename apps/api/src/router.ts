@@ -2,6 +2,7 @@ import { cardsRouter } from './routers/cards.js';
 import { debugRouter } from './routers/debug.js';
 import { decksRouter } from './routers/decks.js';
 import { gameRouter } from './routers/game.js';
+import { packsRouter } from './routers/packs.js';
 import { runRouter } from './routers/run.js';
 import { protectedProcedure, publicProcedure, router } from './trpc.js';
 
@@ -12,6 +13,7 @@ export const appRouter = router({
   decks: decksRouter,
   game: gameRouter,
   run: runRouter,
+  packs: packsRouter,
   debug: debugRouter,
 });
 

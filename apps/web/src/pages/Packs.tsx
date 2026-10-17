@@ -1,0 +1,61 @@
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { BoosterPack } from '../components/packs/BoosterPack';
+import { PackOpening, type PackSetInfo } from '../components/packs/PackOpening';
+import { PreviewProvider } from '../components/PreviewProvider';
+import { useTRPC } from '../lib/trpc';
+import { PAGE_WIDTH } from '../utils/layout';
+
+/**
+ * Booster packs (`/packs`), bought with the ₱ in the bank: pick a set, then open its pack in a window
+ * (PackOpening). Every card opened is unlocked for the deck builder.
+ */
+export function PacksPage() {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const packs = useQuery(trpc.packs.list.queryOptions());
+  const [opening, setOpening] = useState<PackSetInfo | null>(null);
+  if (packs.error) return <p className={`${PAGE_WIDTH} text-red-400`}>{packs.error.message}</p>;
+  if (!packs.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
+  const { bank, price, sets } = packs.data;
+
+  /** After a pack is bought: the bank, the unlocks and the run screen's bank figure change. */
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: trpc.packs.list.queryKey() });
+    queryClient.invalidateQueries({ queryKey: trpc.decks.unlocked.queryKey() });
+    queryClient.invalidateQueries({ queryKey: trpc.decks.list.queryKey() });
+    queryClient.invalidateQueries({ queryKey: trpc.run.overview.queryKey() });
+  };
+
+  return (
+    <PreviewProvider scrollZoom={false}>
+      <div className={`${PAGE_WIDTH} mx-auto max-w-5xl space-y-6`}>
+        <div className="flex flex-wrap items-baseline gap-3">
+          <h2 className="text-xl font-bold">Booster packs</h2>
+          <span className="text-sm text-slate-400">
+            ₱{price} each, from your bank. 11 cards: a rare (holo about 1 in 3), 3 uncommons, 6 commons and a basic Energy. Every card is unlocked for your decks.
+          </span>
+          <span className="ml-auto rounded-lg bg-slate-800 px-3 py-1.5 text-sm ring-1 ring-slate-700">
+            Bank <span className="font-semibold text-yellow-300">₱{bank}</span>
+          </span>
+        </div>
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {sets.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => setOpening({ id: s.id, name: s.name, logoUrl: s.logoUrl })}
+              className="flex flex-col items-center gap-3 rounded-lg bg-slate-900 p-6 ring-1 ring-slate-800 transition hover:bg-slate-800 hover:ring-slate-600"
+            >
+              <BoosterPack setId={s.id} name={s.name} logoUrl={s.logoUrl} size="sm" />
+              <span className="font-semibold">{s.name}</span>
+              <span className="text-xs text-slate-400">
+                {s.releaseDate && new Date(s.releaseDate).getUTCFullYear()} · {s.cardCount} cards
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+      {opening && <PackOpening key={opening.id} set={opening} price={price} bank={bank} onClose={() => setOpening(null)} onOpened={refresh} />}
+    </PreviewProvider>
+  );
+}

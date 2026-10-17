@@ -1,5 +1,5 @@
 import { CPU_DIFFICULTIES, DEBUG_CONDITIONS, MAX_BENCH, type AttackChoices, type DebugCommand, type GameAction, type PowerChoices, type TrainerChoices } from '@poke-tcg/game-engine';
-import { EQUIP_SLOTS, RUN_TYPE_IDS, type RunAction, type RunTypeId } from '@poke-tcg/campaign';
+import { EQUIP_SLOTS, PACK_SETS, RUN_TYPE_IDS, type RunAction, type RunTypeId } from '@poke-tcg/campaign';
 import { z } from 'zod';
 
 export * from './deck.js';
@@ -121,3 +121,5 @@ export const useItemInput = z.object({ runId: z.uuid(), itemId: z.string().min(1
 export const startRunInput = z.object({ type: z.enum(RUN_TYPE_IDS as [RunTypeId, ...RunTypeId[]]), deckId: z.uuid() });
 export const buyItemInput = z.object({ itemId: z.string().min(1).max(64) });
 export const equipInput = z.object({ slot: z.enum(EQUIP_SLOTS), itemId: z.string().min(1).max(64).nullable() });
+
+export const openPackInput = z.object({ setId: z.enum(PACK_SETS as [string, ...string[]]) });
