@@ -164,9 +164,11 @@ export function Board({
   const busySlot = pendingSlot(pending);
 
   /** An attack, power or Trainer asking for a Pokémon in play: it's chosen by clicking the Pokémon. */
-  const pokemonPick: { side: 'own' | 'opp'; options: Target[]; pick: (t: Target) => void } | null =
+  const pokemonPick: { side: 'own' | 'opp'; options: Target[]; pick: (t: Target) => void; picked?: Target[] } | null =
     attack.spec?.kind === 'opponentBench'
       ? { side: 'opp', options: attack.spec.options, pick: attack.answer }
+      : attack.spec?.kind === 'opponentBenchMany'
+        ? { side: 'opp', options: attack.spec.options, pick: (t) => attack.toggleBench(t as number), picked: attack.benchPicked }
       : power.spec?.kind === 'ownPokemon'
         ? { side: 'own', options: power.spec.options, pick: power.answer }
         : trainer.spec?.kind === 'pokemon' && trainer.card && !trainer.error(trainer.card)

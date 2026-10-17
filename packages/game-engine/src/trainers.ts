@@ -2,7 +2,7 @@
 // Card-specific behaviour lives in effects/ (TRAINERS). Searches of hidden cards (the deck) can't
 // be answered from a player's view, so those Trainers leave a PendingChoice that only the player
 // sees the options of, answered with RESOLVE_CHOICE.
-import { lookupCard, type CardLibrary, type CardDef } from './cards.js';
+import { isBasicPokemon, lookupCard, type CardLibrary, type CardDef } from './cards.js';
 import { trainerEffect } from './effects/index.js';
 import type { CardInstance, GameState, InPlayPokemon, PlayerId, PlayerState, Target } from './engine.js';
 import { shuffle } from './rng.js';
@@ -39,25 +39,46 @@ type Side = Pick<PlayerState, 'active' | 'bench' | 'discard'>;
 export interface TrainerSituation {
   /** The Trainer card being played. */
   card: CardInstance;
-  me: Side & Pick<PlayerState, 'hand'>;
+  me: Side & Pick<PlayerState, 'hand' | 'noTrainersUntil'>;
   opp: Side;
   deckCount: number;
   cards: CardLibrary;
   turn: number;
 }
 
-/** A search the player must finish after playing a Trainer. Only they see its options. */
-export type PendingChoice =
+/** A search the player must finish after playing a Trainer or using an attack. Only they see its options. */
+export type PendingChoice = {
+  player: PlayerId;
+  /** Trainer or attack that started it. */
+  source: string;
+  /** Started by an attack: the turn ends once it's finished. */
+  afterAttack?: boolean;
+} & (
   | {
-      player: PlayerId;
       kind: 'pickFromDeck';
-      /** Trainer that started it. */
-      source: string;
-      filter: 'any' | 'pokemon';
+      /** 'basicNamed': a Basic Pokémon called `name` (Call for Family). */
+      filter: 'any' | 'pokemon' | 'basicNamed';
+      name?: string;
+      /** The card goes onto the Bench instead of into the hand (Call for Family). */
+      toBench?: boolean;
       /** Pokémon Trader: the hand card that goes into the deck once a card is picked. */
       tradeUid?: string;
     }
-  | { player: PlayerId; kind: 'arrangeTop'; source: string; count: number };
+  | {
+      kind: 'arrangeTop';
+      count: number;
+      /** Whose deck it is (Prophecy can pick either). Missing = the player's own. */
+      deckOwner?: PlayerId;
+    }
+);
+
+/** A PendingChoice as an effect starts it: the player is filled in. */
+export type PendingChoiceInput = PendingChoice extends infer C ? (C extends unknown ? Omit<C, 'player'> : never) : never;
+
+export const TRAINERS_LOCKED = "You can't play Trainer cards this turn";
+
+/** Headache: the player can't play Trainer cards this turn. */
+export const trainersLocked = (me: Pick<PlayerState, 'noTrainersUntil'>, turn: number) => (me.noTrainersUntil ?? 0) >= turn;
 
 /** Card-specific Trainer behaviour. */
 export interface TrainerEffect {
@@ -86,7 +107,7 @@ export interface TrainerContext {
   /** Attaches the Trainer to a Pokémon until the end of turn `until`, instead of discarding it. */
   attachTo: (pokemon: InPlayPokemon, until: number) => void;
   /** Asks the player to finish a search (see PendingChoice). */
-  pend: (choice: PendingChoice extends infer C ? (C extends unknown ? Omit<C, 'player'> : never) : never) => void;
+  pend: (choice: PendingChoiceInput) => void;
 }
 
 export const own = (s: TrainerSituation, t: Target) => (t === 'active' ? s.me.active : s.me.bench[t]) ?? null;
@@ -104,6 +125,7 @@ export function trainerError(s: TrainerSituation): string | null {
   const d = def(s, s.card);
   const effect = trainerEffect(s.card.defId);
   if (d.kind !== 'trainer' || !effect?.play) return `${d.name} can't be played this way`;
+  if (trainersLocked(s.me, s.turn)) return TRAINERS_LOCKED;
   return effect.blocked?.(s) ?? null;
 }
 
@@ -218,18 +240,24 @@ export type PendingChoiceView =
 
 /** The options of a pending search, for the player making it. Deck cards are sorted so their order stays secret. */
 export function pendingChoiceView(state: GameState, choice: PendingChoice): PendingChoiceView {
-  const deck = state.players[choice.player]!.deck;
   if (choice.kind === 'arrangeTop') {
-    return { kind: 'arrangeTop', prompt: `${choice.source}: put these cards back in any order (first is on top)`, cards: deck.slice(0, choice.count) };
+    const owner = choice.deckOwner ?? choice.player;
+    const where = owner === choice.player ? '' : " on your opponent's deck";
+    const cards = state.players[owner]!.deck.slice(0, choice.count);
+    return { kind: 'arrangeTop', prompt: `${choice.source}: put these cards back${where} in any order (first is on top)`, cards };
   }
+  const deck = state.players[choice.player]!.deck;
   const name = (c: CardInstance) => lookupCard(state.cards, c.defId).name;
   const options = deck.filter((c) => deckFilter(state.cards, choice, c)).sort((a, b) => name(a).localeCompare(name(b)) || a.uid.localeCompare(b.uid));
-  const what = choice.filter === 'pokemon' ? 'a Basic Pokémon or Evolution card' : 'any card';
-  return { kind: 'pickFromDeck', prompt: `${choice.source}: take ${what} from your deck`, options };
+  const what = choice.filter === 'basicNamed' ? `a Basic Pokémon named ${choice.name}` : choice.filter === 'pokemon' ? 'a Basic Pokémon or Evolution card' : 'any card';
+  const prompt = choice.toBench ? `${choice.source}: put ${what} from your deck onto your Bench` : `${choice.source}: take ${what} from your deck`;
+  return { kind: 'pickFromDeck', prompt, options };
 }
 
-const deckFilter = (cards: CardLibrary, choice: Extract<PendingChoice, { kind: 'pickFromDeck' }>, c: CardInstance) => {
+/** Whether a deck card can be picked in this search. */
+export const deckFilter = (cards: CardLibrary, choice: Extract<PendingChoice, { kind: 'pickFromDeck' }>, c: CardInstance) => {
   const d = lookupCard(cards, c.defId);
+  if (choice.filter === 'basicNamed') return isBasicPokemon(d) && d.name === choice.name;
   return choice.filter === 'any' || (d.kind === 'pokemon' && !d.trainerText);
 };
 
@@ -237,19 +265,23 @@ const deckFilter = (cards: CardLibrary, choice: Extract<PendingChoice, { kind: '
 export function resolvePending(state: GameState, me: PlayerState, answer: { cardUid?: string; order?: string[] }): string | null {
   const choice = state.pendingChoice!;
   if (choice.kind === 'arrangeTop') {
-    const top = me.deck.slice(0, choice.count);
+    const owner = state.players[choice.deckOwner ?? choice.player]!;
+    const top = owner.deck.slice(0, choice.count);
     const order = answer.order ?? [];
     if (order.length !== top.length || !top.every((c) => order.includes(c.uid))) return 'Put every card back';
-    me.deck.splice(0, top.length, ...order.map((uid) => top.find((c) => c.uid === uid)!));
-    addLog(state, `Rearranged the top ${top.length} cards of the deck.`, me.id);
+    owner.deck.splice(0, top.length, ...order.map((uid) => top.find((c) => c.uid === uid)!));
+    addLog(state, `Rearranged the top ${top.length} cards of ${owner === me ? 'the' : "the opponent's"} deck.`, me.id);
   } else {
     const options = me.deck.filter((c) => deckFilter(state.cards, choice, c));
     const picked = options.find((c) => c.uid === answer.cardUid);
     // Nothing suitable in the deck: the search finds nothing.
     if (!picked && options.length > 0) return 'Choose a card from your deck';
+    const benchSlot = me.bench.findIndex((p) => p === null);
+    if (picked && choice.toBench && benchSlot < 0) return 'Your Bench is full';
     if (picked) {
       me.deck = me.deck.filter((c) => c !== picked);
-      me.hand.push(picked);
+      if (choice.toBench) me.bench[benchSlot] = { card: picked, evolvedFrom: [], damage: 0, energy: [], playedTurn: state.turn };
+      else me.hand.push(picked);
     }
     const traded = choice.tradeUid !== undefined && picked ? me.hand.find((c) => c.uid === choice.tradeUid) : undefined;
     if (traded) me.hand = me.hand.filter((c) => c !== traded);
@@ -257,7 +289,13 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     const name = (c: CardInstance) => lookupCard(state.cards, c.defId).name;
     addLog(
       state,
-      picked ? (traded ? `Traded ${name(traded)} for ${name(picked)} from the deck.` : 'Took a card from the deck.') : 'Found nothing in the deck.',
+      picked
+        ? traded
+          ? `Traded ${name(traded)} for ${name(picked)} from the deck.`
+          : choice.toBench
+            ? `Put ${name(picked)} onto the Bench.`
+            : 'Took a card from the deck.'
+        : 'Found nothing in the deck.',
       me.id,
     );
   }

@@ -31,6 +31,8 @@ export interface PlayerView {
     bench: (InPlayPokemon | null)[];
     /** A search this player must finish, with the cards it reveals to them. */
     pendingChoice: PendingChoiceView | null;
+    /** Last turn this player can't play Trainer cards (Headache). */
+    noTrainersUntil?: number;
   };
   opponent: {
     id: PlayerId;
@@ -84,6 +86,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       active: me.active,
       bench: me.bench,
       pendingChoice: pending,
+      noTrainersUntil: me.noTrainersUntil,
     },
     opponent: {
       id: opp.id,

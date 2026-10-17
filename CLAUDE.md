@@ -69,4 +69,4 @@
 
 ## Known open items
 - CPU difficulties live in `packages/game-engine/src/cpu/`, one file each (`passive.ts`, `trainer.ts`, `gym-leader.ts`) plus `shared.ts`. Keep them separate. Gym leader is the baseline the user agreed on (README: The CPU opponent); change the difficulties' rules only with the user's say-so.
-- Missing rules: Whirlwind prompting, Burned, and card effects for sets after Base Set.
+- Missing rules: Whirlwind and Terror Strike prompting (both bring in the first benched Pokémon), Burned, Fossil Pokémon Powers and Trainers, and card effects for later sets. Fossil attack effects are done (`effects/fossil.ts`).

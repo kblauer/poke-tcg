@@ -19,7 +19,7 @@ export function useAttack({ view, send, busy }: { view: PlayerView; send: (a: Ga
   const { self, opponent } = view;
   const situation: AttackSituation | null =
     self.active && opponent.active
-      ? { attacker: self.active, defender: opponent.active, opponentBench: opponent.bench, cards: view.cards, turn: view.turn }
+      ? { attacker: self.active, defender: opponent.active, opponentBench: opponent.bench, ownBench: self.bench, ownDiscard: self.discard, cards: view.cards, turn: view.turn }
       : null;
 
   const cancel = () => setChoosing(null);
@@ -42,6 +42,11 @@ export function useAttack({ view, send, busy }: { view: PlayerView; send: (a: Ga
   /** The question being asked now. */
   const spec: ChoiceSpec | null = choosing && situation ? nextAttackChoice(situation, choosing.attackIndex, choosing.choices) : null;
 
+  /** Benched Pokémon clicked so far, for a question asking for several (Gigashock); reset for each new question. */
+  const [benchPicked, setBenchPicked] = useState<number[]>([]);
+  const questionKey = spec ? `${choosing!.attackIndex}:${spec.kind}:${spec.prompt}` : '';
+  useEffect(() => setBenchPicked([]), [questionKey]);
+
   return {
     /** Index of the attack whose questions are being asked. */
     choosingIndex: spec ? choosing!.attackIndex : null,
@@ -53,6 +58,12 @@ export function useAttack({ view, send, busy }: { view: PlayerView; send: (a: Ga
     },
     answer: (value: AttackChoices[keyof AttackChoices]) => {
       if (choosing && spec) proceed(choosing.attackIndex, answerChoice(choosing.choices, spec, value));
+    },
+    benchPicked,
+    /** Picks or unpicks one of the opponent's benched Pokémon, keeping at most as many as the question asks for. */
+    toggleBench: (slot: number) => {
+      const count = spec?.kind === 'opponentBenchMany' ? spec.count : 1;
+      setBenchPicked((p) => (p.includes(slot) ? p.filter((s) => s !== slot) : [...p, slot].slice(-count)));
     },
     cancel,
   };

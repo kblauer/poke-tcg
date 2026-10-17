@@ -1,8 +1,8 @@
 /// <reference path="./globals.d.ts" />
 import { performAttack, type AttackChoices } from './attacks.js';
 import { usePower, type PowerChoices } from './powers.js';
-import { playTrainer, resolvePending, type PendingChoice, type TrainerChoices } from './trainers.js';
-import { isBasicPokemon, isBenchable, lookupCard, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
+import { playTrainer, resolvePending, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
+import { isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { addLog, clearOnLeavingActive, flipCoin, pokemonName, type LogEntry } from './status.js';
 import { shuffle } from './rng.js';
 import type { CpuDifficulty } from './cpu/index.js';
@@ -39,6 +39,10 @@ export interface PokemonEffects {
   destinyBond?: number;
   /** Its attacks only happen on heads (Sand-attack). */
   sandAttack?: number;
+  /** The same as Sand-attack, from Smokescreen. */
+  smokescreen?: number;
+  /** Damage done to it by attacks is reduced by 20, after weakness and resistance (Minimize). */
+  minimize?: number;
   /** It can't use this attack (Amnesia). */
   amnesia?: { attack: string; until: number };
   /** Weakness type changed by Conversion 1. */
@@ -82,6 +86,8 @@ export interface PlayerState {
   active: InPlayPokemon | null;
   /** Fixed slots (length MAX_BENCH); null = empty. Cards stay in the slot they were played to. */
   bench: (InPlayPokemon | null)[];
+  /** Last turn this player can't play Trainer cards (Headache). Missing = no limit. */
+  noTrainersUntil?: number;
 }
 
 export type Phase = 'setup' | 'playing' | 'promote' | 'finished';
@@ -105,7 +111,7 @@ export interface GameState {
   cards: CardLibrary;
   /** A Pokémon Power knocked out the current player's active mid-turn; after promoting, the turn goes on. */
   midTurnPromotion?: boolean;
-  /** A search the player must finish (after Computer Search, Pokémon Trader, Pokédex); nothing else can happen until then. */
+  /** A search the player must finish (after Computer Search, Pokédex, Prophecy…); nothing else can happen until then. */
   pendingChoice?: PendingChoice;
   /** How the CPU plays this game (cpu/). Missing = DEFAULT_CPU_DIFFICULTY. */
   cpuDifficulty?: CpuDifficulty;
@@ -248,8 +254,13 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
 
   if (state.pendingChoice) {
     if (action.type !== 'RESOLVE_CHOICE') return fail(`Finish ${state.pendingChoice.source} first`);
+    const { afterAttack } = state.pendingChoice;
     const error = resolvePending(state, me, action);
-    return error ? fail(error) : ok(state);
+    if (error) return fail(error);
+    if (!afterAttack) return ok(state);
+    // The search was the attack's: the turn ends as it does after any attack.
+    const winner = resolveKnockouts(state, me.id);
+    return winner ? finish(state, winner) : endTurn(state);
   }
 
   switch (action.type) {
@@ -258,6 +269,7 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       if (me.bench[action.slot]) return fail('That bench slot is occupied');
       const played = takeFromHand(me, action.cardUid);
       if (!played || !isBenchable(card(played))) return fail('Must play a Basic Pokémon from your hand');
+      if (isTrainerCard(card(played)) && trainersLocked(me, state.turn)) return fail(TRAINERS_LOCKED);
       me.bench[action.slot] = newInPlay(played, state.turn);
       addLog(state, `Put ${card(played).name} on the Bench.`, me.id);
       return ok(state);
@@ -300,6 +312,13 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       if (!me.active || !opp.active) return fail('No active Pokémon');
       const error = performAttack(state, me, opp, action.attackIndex, action.choices ?? {});
       if (error) return fail(error);
+      // An attack that starts a search (Prophecy, Call for Family) ends the turn once it's finished.
+      // (Checked above for the start of the action, so TypeScript thinks it can't be set.)
+      const search = state.pendingChoice as PendingChoice | undefined;
+      if (search) {
+        search.afterAttack = true;
+        return ok(state);
+      }
       // Attacking ends the turn.
       const winner = resolveKnockouts(state, me.id);
       return winner ? finish(state, winner) : endTurn(state);
@@ -552,7 +571,7 @@ function betweenTurns(state: GameState) {
 function expireEffects(pokemon: InPlayPokemon, turn: number) {
   const e = pokemon.effects;
   if (!e) return;
-  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'energyBurn'] as const) {
+  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'energyBurn'] as const) {
     if (e[key] !== undefined && e[key] <= turn) delete e[key];
   }
   if (e.amnesia && e.amnesia.until <= turn) delete e.amnesia;

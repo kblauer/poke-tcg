@@ -8,6 +8,8 @@ import {
   powerError,
   powerTakesHandCard,
   resolvePowerChoices,
+  isTrainerCard,
+  trainersLocked,
   type CardDef,
   type CardInstance,
   type GameAction,
@@ -23,6 +25,7 @@ export function targetsFor(view: PlayerView, card: CardInstance): SlotId[] {
   if (!isMyTurn(view) || view.self.pendingChoice) return [];
   // Trainers are played from the TrainerPanel; Clefairy Doll goes onto the Bench like a Basic.
   if (def.kind === 'trainer') return [];
+  if (isTrainerCard(def) && trainersLocked(self, view.turn)) return [];
   if (isBenchable(def)) return emptyBenchSlots(self);
   if (def.kind === 'pokemon') return occupiedSlots(self).filter((slot) => evolveError(def, pokemonAt(self, slot)!, view.cards, view.turn) === null);
   if (def.kind === 'energy') return occupiedSlots(self).filter((slot) => !view.energyAttachedThisTurn || powerPlay(view, card, slot));
@@ -60,6 +63,7 @@ export function whyNoTargets(view: PlayerView, card: CardInstance): string {
     const reason = match && evolveError(def, match, view.cards, view.turn);
     return reason ? `${reason}.` : `No ${def.evolvesFrom} in play to evolve.`;
   }
+  if (isTrainerCard(def) && trainersLocked(self, view.turn)) return "You can't play Trainer cards this turn.";
   if (isBenchable(def)) return 'Your bench is full.';
   if (def.kind === 'energy') return "You've already attached an Energy this turn.";
   return "This card can't be played right now.";

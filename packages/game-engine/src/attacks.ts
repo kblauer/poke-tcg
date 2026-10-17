@@ -14,6 +14,7 @@ import {
   type PokemonEffects,
 } from './engine.js';
 import { addLog, clearOnLeavingActive, flipCoin, pokemonName } from './status.js';
+import type { PendingChoice, PendingChoiceInput } from './trainers.js';
 
 /** Answers to an attack's questions. Each field belongs to one kind of ChoiceSpec. */
 export interface AttackChoices {
@@ -29,6 +30,12 @@ export interface AttackChoices {
   copyIndex?: number;
   /** A type (Conversion 1 and 2). */
   type?: EnergyType;
+  /** Cards from your discard pile to put into your hand (Energy Conversion, Scavenge). */
+  discardUids?: string[];
+  /** Several of the opponent's benched Pokémon (Gigashock). */
+  benchSlots?: number[];
+  /** Whose deck the attack uses (Prophecy). */
+  deck?: 'own' | 'opponent';
 }
 
 /** A question an attack asks before it's used. `prompt` is shown to the player. */
@@ -39,6 +46,12 @@ export type ChoiceSpec = { prompt: string } & (
   | { kind: 'defenderAttack'; options: number[] }
   | { kind: 'copyAttack'; options: number[] }
   | { kind: 'type'; options: EnergyType[] }
+  /** Any number (0 to all) of the attacker's energy, as part of the attack (Wildfire). */
+  | { kind: 'ownEnergyUpTo'; options: CardInstance[] }
+  | { kind: 'ownDiscard'; min: number; max: number; options: CardInstance[] }
+  /** `count` of them, or all if there are fewer. */
+  | { kind: 'opponentBenchMany'; count: number; options: number[] }
+  | { kind: 'deck'; options: ('own' | 'opponent')[] }
 );
 
 /** What an attack can see before it's used. View-safe: the UI builds it from a PlayerView. */
@@ -46,6 +59,8 @@ export interface AttackSituation {
   attacker: InPlayPokemon;
   defender: InPlayPokemon;
   opponentBench: (InPlayPokemon | null)[];
+  ownBench: (InPlayPokemon | null)[];
+  ownDiscard: CardInstance[];
   cards: CardLibrary;
   turn: number;
 }
@@ -84,12 +99,14 @@ export interface AttackContext {
   selfDamage: (amount: number) => void;
   /** Damages every benched Pokémon of `player` (no weakness or resistance). */
   benchDamage: (player: PlayerState, amount: number) => void;
+  /** Damages one benched Pokémon of `player` (no weakness or resistance). */
+  damageBenched: (player: PlayerState, slot: number, amount: number) => void;
   /** Gives the Defending Pokémon a Special Condition or Poison, unless its effects are prevented. */
   inflict: (affliction: Affliction) => void;
   /** Removes damage from the attacker. */
   heal: (amount: number | 'all') => void;
   /** Sets an effect on the attacker for the opponent's next turn. */
-  protect: (key: 'preventDamage' | 'preventAll' | 'harden' | 'destinyBond') => void;
+  protect: (key: 'preventDamage' | 'preventAll' | 'harden' | 'destinyBond' | 'minimize') => void;
   /** Runs `fn` on the Defending Pokémon's effects, unless its effects are prevented. */
   affectDefender: (fn: (effects: PokemonEffects) => void) => void;
   discardDefenderEnergy: (uid: string) => void;
@@ -97,10 +114,21 @@ export interface AttackContext {
   switchDefender: (slot: number) => void;
   /** Runs another attack's effect (Metronome), as if this Pokémon used it. */
   useAttack: (attack: Attack, sourceDefId: string) => void;
+  /** Asks the attacking player to finish a search (see PendingChoice); the turn ends after it. */
+  pend: (choice: PendingChoiceInput) => void;
   log: (text: string) => void;
 }
 
 const def = (cards: CardLibrary, p: InPlayPokemon) => lookupCard(cards, p.card.defId) as PokemonCardDef;
+
+/** How many of the named Trainer card are attached to the Pokémon (PlusPower, Defender). */
+const attachedCount = (cards: CardLibrary, p: InPlayPokemon, name: string) => (p.attached ?? []).filter((a) => lookupCard(cards, a.card.defId).name === name).length;
+
+/**
+ * Attack damage without weakness or resistance (to a benched Pokémon, or to the attacker itself,
+ * Confusion included): Defender still takes off 20 each.
+ */
+const afterDefender = (cards: CardLibrary, p: InPlayPokemon, amount: number) => Math.max(0, amount - 20 * attachedCount(cards, p, 'Defender'));
 
 /** An effect turned on for "your opponent's next turn" is still active this turn. */
 const active = (until: number | undefined, turn: number) => until !== undefined && until >= turn;
@@ -157,6 +185,10 @@ const FIELD = {
   defenderAttack: 'attackIndex',
   copyAttack: 'copyIndex',
   type: 'type',
+  ownEnergyUpTo: 'energyUids',
+  ownDiscard: 'discardUids',
+  opponentBenchMany: 'benchSlots',
+  deck: 'deck',
 } as const satisfies Record<ChoiceSpec['kind'], keyof AttackChoices>;
 
 /** The answer when there's nothing to decide (one option, or identical cards); undefined if the player must choose. */
@@ -169,11 +201,22 @@ function autoAnswer(spec: ChoiceSpec): AttackChoices[keyof AttackChoices] | unde
     case 'defenderEnergy':
       return new Set(spec.options.map((e) => e.defId)).size === 1 ? spec.options[0]!.uid : undefined;
     case 'type':
+    case 'deck':
       return undefined;
+    case 'ownEnergyUpTo':
+      return spec.options.length === 0 ? [] : undefined;
+    case 'ownDiscard':
+      return spec.options.length <= spec.min ? spec.options.map((c) => c.uid) : undefined;
+    case 'opponentBenchMany':
+      return spec.options.length <= spec.count ? spec.options : undefined;
     default:
       return spec.options.length === 1 ? spec.options[0] : undefined;
   }
 }
+
+/** A list of distinct option ids, between `min` and `max` long. */
+const pickedIds = (value: unknown, ids: unknown[], min: number, max: number) =>
+  Array.isArray(value) && value.length >= min && value.length <= max && new Set(value).size === value.length && value.every((v) => ids.includes(v));
 
 function validAnswer(spec: ChoiceSpec, value: unknown): boolean {
   switch (spec.kind) {
@@ -183,6 +226,14 @@ function validAnswer(spec: ChoiceSpec, value: unknown): boolean {
     }
     case 'defenderEnergy':
       return spec.options.some((e) => e.uid === value);
+    case 'ownEnergyUpTo':
+      return pickedIds(value, spec.options.map((e) => e.uid), 0, spec.options.length);
+    case 'ownDiscard':
+      return pickedIds(value, spec.options.map((c) => c.uid), spec.min, spec.max);
+    case 'opponentBenchMany': {
+      const n = Math.min(spec.count, spec.options.length);
+      return pickedIds(value, spec.options, n, n);
+    }
     default:
       return (spec.options as unknown[]).includes(value);
   }
@@ -259,7 +310,7 @@ export function performAttack(state: GameState, me: PlayerState, opp: PlayerStat
   const attackerDef = def(state.cards, attacker);
   const attack = attackerDef.attacks[attackIndex];
   if (!attack) return 'Invalid attack';
-  const situation: AttackSituation = { attacker, defender, opponentBench: opp.bench, cards: state.cards, turn: state.turn };
+  const situation: AttackSituation = { attacker, defender, opponentBench: opp.bench, ownBench: me.bench, ownDiscard: me.discard, cards: state.cards, turn: state.turn };
   const error = attackError(situation, attackIndex);
   if (error) return error;
   const resolved = resolveChoices(situation, attackIndex, given);
@@ -269,13 +320,16 @@ export function performAttack(state: GameState, me: PlayerState, opp: PlayerStat
   addLog(state, `${attackerDef.name} used ${attack.name}.`, me.id);
   // 1999 rules: a Confused Pokémon flips to attack; on tails it does 20 damage to itself instead.
   if (attacker.condition === 'confused' && !flipCoin(state, `${attackerDef.name} is Confused`, me.id)) {
-    attacker.damage += 20;
-    addLog(state, `${attackerDef.name} hurt itself for 20 damage.`, me.id);
+    const damage = afterDefender(state.cards, attacker, 20);
+    attacker.damage += damage;
+    addLog(state, damage ? `${attackerDef.name} hurt itself for ${damage} damage.` : `Defender prevented the damage ${attackerDef.name} did to itself.`, me.id);
     return null;
   }
-  if (active(attacker.effects?.sandAttack, state.turn) && !flipCoin(state, 'Sand-attack', me.id)) {
-    addLog(state, `${attack.name} did nothing.`, me.id);
-    return null;
+  for (const [key, name] of [['sandAttack', 'Sand-attack'], ['smokescreen', 'Smokescreen']] as const) {
+    if (active(attacker.effects?.[key], state.turn) && !flipCoin(state, name, me.id)) {
+      addLog(state, `${attack.name} did nothing.`, me.id);
+      return null;
+    }
   }
 
   const effect = attackEffect(attacker.card.defId, attack.name);
@@ -298,6 +352,7 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
   const log = (text: string, player = me.id) => addLog(state, text, player);
   /** Effects on the defender are blocked by Barrier and Agility. Read live: Lure and Whirlwind change the defender. */
   const shielded = () => active(opp.active?.effects?.preventAll, turn);
+  const benchedDamage = (p: InPlayPokemon, amount: number) => afterDefender(state.cards, p, amount);
   const record = (pokemon: InPlayPokemon) => {
     const effects = (pokemon.effects ??= {});
     if (effects.attackedOn?.turn !== turn) effects.attackedOn = { turn, damage: 0, afflictions: [] };
@@ -330,9 +385,12 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
       }
       let damage = weakness ? applyWeaknessResistance(amount, attackerDef.type, defenderDef, defender.effects) : amount;
       // PlusPower adds 10 each, then Defender takes off 20 each (both after weakness and resistance).
-      const count = (p: InPlayPokemon, name: string) => (p.attached ?? []).filter((a) => lookupCard(state.cards, a.card.defId).name === name).length;
-      if (damage > 0) damage = Math.max(0, damage + 10 * count(attacker, 'PlusPower') - 20 * count(defender, 'Defender'));
+      if (damage > 0) damage = Math.max(0, damage + 10 * attachedCount(state.cards, attacker, 'PlusPower') - 20 * attachedCount(state.cards, defender, 'Defender'));
       const effects = defender.effects;
+      if (damage > 0 && active(effects?.minimize, turn)) {
+        damage = Math.max(0, damage - 20);
+        log(`Minimize reduced the damage to ${defenderDef.name} by 20.`, opp.id);
+      }
       if (active(effects?.preventDamage, turn) || (active(effects?.harden, turn) && damage <= 30)) {
         log(`The damage to ${defenderDef.name} was prevented.`, opp.id);
         damage = 0;
@@ -349,15 +407,20 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
       return damage;
     },
     selfDamage(amount) {
-      attacker.damage += amount;
-      log(`${attackerDef.name} did ${amount} damage to itself.`);
+      const damage = benchedDamage(attacker, amount);
+      if (damage === 0) return log(`Defender prevented the damage ${attackerDef.name} did to itself.`);
+      attacker.damage += damage;
+      log(`${attackerDef.name} did ${damage} damage to itself.`);
     },
     benchDamage(player, amount) {
       if (!player.bench.some(Boolean)) return;
       log(`${amount} damage to each benched Pokémon.`, player.id);
       for (const p of player.bench) {
         if (!p) continue;
-        p.damage += amount;
+        const damage = benchedDamage(p, amount);
+        if (damage < amount) log(`Defender reduced the damage to ${pokemonName(state, p)}.`, player.id);
+        if (damage === 0) continue;
+        p.damage += damage;
         if (player === opp) powerEffect(p.card.defId)?.onAttackDamage?.(ctx, p);
       }
     },
@@ -375,6 +438,15 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
         log(`${name} is now ${conditionLabel(affliction)}.`, opp.id);
       }
       record(defender).afflictions.push(affliction);
+    },
+    damageBenched(player, slot, amount) {
+      const benched = player.bench[slot];
+      if (!benched || amount <= 0) return;
+      const damage = benchedDamage(benched, amount);
+      if (damage === 0) return log(`Defender prevented the damage to ${pokemonName(state, benched)}.`, player.id);
+      benched.damage += damage;
+      log(`${pokemonName(state, benched)} took ${damage} damage.`, player.id);
+      if (player === opp) powerEffect(benched.card.defId)?.onAttackDamage?.(ctx, benched);
     },
     heal(amount) {
       const healed = amount === 'all' ? attacker.damage : Math.min(amount, attacker.damage);
@@ -411,6 +483,9 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
       const effect = attackEffect(sourceDefId, attack.name);
       if (effect) effect.run(ctx);
       else ctx.hit(attack.damage);
+    },
+    pend(choice) {
+      state.pendingChoice = { ...choice, player: me.id } as PendingChoice;
     },
     log,
   };

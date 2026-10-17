@@ -219,9 +219,25 @@ function answers(spec: ChoiceSpec): AttackChoices[keyof AttackChoices][] {
       return combinations(spec.options, spec.count).map((picked) => picked.map((e) => e.uid));
     case 'defenderEnergy':
       return combinations(spec.options, 1).map(([e]) => e!.uid);
+    // Keeping energy first: on a tie the first choice wins.
+    case 'ownEnergyUpTo':
+      return spec.options.flatMap((_, n) => combinations(spec.options, n)).concat([spec.options]).map((picked) => picked.map((e) => e.uid));
+    // Taking the most cards first.
+    case 'ownDiscard': {
+      const sizes = Array.from({ length: Math.min(spec.max, spec.options.length) - spec.min + 1 }, (_, i) => Math.min(spec.max, spec.options.length) - i);
+      return sizes.flatMap((n) => combinations(spec.options, n)).map((picked) => picked.map((c) => c.uid));
+    }
+    case 'opponentBenchMany':
+      return slotCombinations(spec.options, Math.min(spec.count, spec.options.length));
     default:
       return spec.options;
   }
+}
+
+/** Every way to pick `n` of the slots. */
+function slotCombinations(slots: number[], n: number): number[][] {
+  if (n === 0) return [[]];
+  return slots.flatMap((slot, i) => slotCombinations(slots.slice(i + 1), n - 1).map((rest) => [slot, ...rest]));
 }
 
 /**
@@ -239,7 +255,15 @@ export function attackOptions(state: GameState, attackerId: PlayerId, { nextTurn
   const attacker = base.players[attackerId]!.active!;
   // A Pokémon Asleep now may wake up before its turn.
   if (attacker.condition === 'confused' || (nextTurn && attacker.condition === 'asleep')) attacker.condition = null;
-  const situation: AttackSituation = { attacker, defender: base.players[opp.id]!.active!, opponentBench: base.players[opp.id]!.bench, cards: base.cards, turn: base.turn };
+  const situation: AttackSituation = {
+    attacker,
+    defender: base.players[opp.id]!.active!,
+    opponentBench: base.players[opp.id]!.bench,
+    ownBench: base.players[attackerId]!.bench,
+    ownDiscard: base.players[attackerId]!.discard,
+    cards: base.cards,
+    turn: base.turn,
+  };
 
   const options: AttackOption[] = [];
   pokemonDef(base.cards, attacker).attacks.forEach((attack, attackIndex) => {

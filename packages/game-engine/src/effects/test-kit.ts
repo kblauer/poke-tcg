@@ -1,4 +1,4 @@
-// Shared setup for effect tests: Base Set card fixtures and a ready-to-play duel. Not exported from the package.
+// Shared setup for effect tests: Base Set and Fossil card fixtures and a ready-to-play duel. Not exported from the package.
 import type { CardLibrary, EnergyType, PokemonCardDef } from '../cards.js';
 import { applyAction, createGame, type AttackChoices, type GameAction, type GameState, type InPlayPokemon } from '../index.js';
 import { nextRandom } from '../rng.js';
@@ -33,7 +33,7 @@ export const mon = (
   retreatCost: 1,
   ...extra,
 });
-export const F: EnergyType = 'fire', W: EnergyType = 'water', C: EnergyType = 'colorless', P: EnergyType = 'psychic', L: EnergyType = 'lightning', G: EnergyType = 'grass';
+export const F: EnergyType = 'fire', W: EnergyType = 'water', C: EnergyType = 'colorless', P: EnergyType = 'psychic', L: EnergyType = 'lightning', G: EnergyType = 'grass', FI: EnergyType = 'fighting';
 
 const BY_NAME: CardLibrary = {
   charmander: mon('base1-46', 'Charmander', F, 50, [['Scratch', [C], 10], ['Ember', [F, C], 30]], { weakness: { type: W, multiplier: 2 } }),
@@ -64,6 +64,28 @@ const BY_NAME: CardLibrary = {
   venusaur: mon('base1-15', 'Venusaur', G, 100, [['Solarbeam', [G, G, G, G], 60]], { stage: 'stage2', power: { name: 'Energy Trans', text: '' } }),
   electrode: mon('base1-21', 'Electrode', L, 80, [['Electric Shock', [L, L, L], 50]], { stage: 'stage1', power: { name: 'Buzzap', text: '' } }),
   bulbasaur: mon('base1-44', 'Bulbasaur', G, 40, [['Leech Seed', [G, G], 20]], { weakness: { type: F, multiplier: 2 } }),
+  // Fossil
+  articuno: mon('base3-2', 'Articuno', W, 70, [['Freeze Dry', [W, W, W], 30], ['Blizzard', [W, W, W, W], 50]]),
+  gengar: mon('base3-5', 'Gengar', P, 80, [['Dark Mind', [P, P, P], 30]], { stage: 'stage2' }),
+  hitmonlee: mon('base3-7', 'Hitmonlee', FI, 60, [['Stretch Kick', [FI, FI], 0], ['High Jump Kick', [FI, FI, FI], 50]]),
+  hypno: mon('base3-8', 'Hypno', P, 90, [['Prophecy', [P], 0], ['Dark Mind', [P, P, P], 30]], { stage: 'stage1' }),
+  kabutops: mon('base3-9', 'Kabutops', FI, 60, [['Sharp Sickle', [FI, FI], 30], ['Absorb', [FI, FI, FI, FI], 40]], { stage: 'stage2' }),
+  lapras: mon('base3-10', 'Lapras', W, 80, [['Water Gun', [W], 10], ['Confuse Ray', [W, W], 10]]),
+  magnetonF: mon('base3-11', 'Magneton', L, 70, [['Sonicboom', [L, C], 20], ['Selfdestruct', [L, L, L, L], 100]], { stage: 'stage1' }),
+  moltres: mon('base3-12', 'Moltres', F, 70, [['Wildfire', [F], 0], ['Dive Bomb', [F, F, F, F], 80]]),
+  raichuF: mon('base3-14', 'Raichu', L, 90, [['Gigashock', [L, L, L, L], 30]], { stage: 'stage1' }),
+  zapdosF: mon('base3-15', 'Zapdos', L, 80, [['Thunderstorm', [L, L, L, L], 40]]),
+  arbok: mon('base3-31', 'Arbok', G, 60, [['Terror Strike', [G], 10], ['Poison Fang', [G, G, C], 20]], { stage: 'stage1' }),
+  cloyster: mon('base3-32', 'Cloyster', W, 50, [['Clamp', [W, W], 30], ['Spike Cannon', [W, W], 30]], { stage: 'stage1' }),
+  gastlyF: mon('base3-33', 'Gastly', P, 50, [['Lick', [P], 10], ['Energy Conversion', [P, P], 0]]),
+  seadra: mon('base3-42', 'Seadra', W, 60, [['Water Gun', [W, C], 20], ['Agility', [W, C, C], 20]], { stage: 'stage1' }),
+  geodude: mon('base3-47', 'Geodude', FI, 50, [['Stone Barrage', [FI, C], 10]]),
+  grimer: mon('base3-48', 'Grimer', G, 50, [['Nasty Goo', [C], 10], ['Minimize', [G], 0]]),
+  horsea: mon('base3-49', 'Horsea', W, 40, [['Smokescreen', [W], 10]]),
+  krabby: mon('base3-51', 'Krabby', W, 50, [['Call for Family', [W], 0], ['Irongrip', [W, C], 20]]),
+  psyduck: mon('base3-53', 'Psyduck', W, 50, [['Headache', [P], 0], ['Fury Swipes', [W], 10]]),
+  slowpoke: mon('base3-55', 'Slowpoke', P, 50, [['Spacing Out', [C], 0], ['Scavenge', [P, P], 0]]),
+  zubat: mon('base3-57', 'Zubat', G, 40, [['Supersonic', [C, C], 0], ['Leech Life', [G, C], 10]]),
   fire: { id: 'fire', kind: 'energy', name: 'Fire Energy', imageUrl: null, energyType: 'fire' },
   water: { id: 'water', kind: 'energy', name: 'Water Energy', imageUrl: null, energyType: 'water' },
   psychic: { id: 'psychic', kind: 'energy', name: 'Psychic Energy', imageUrl: null, energyType: 'psychic' },

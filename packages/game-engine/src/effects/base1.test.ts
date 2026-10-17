@@ -61,6 +61,13 @@ describe('Base Set attacks', () => {
       expect(after.currentPlayer).toBe('misty');
     });
 
+    it('Confusion: Defender takes 20 off the damage it does to itself', () => {
+      const s = duel('charmander', 'squirtle', { energy: ['fire'] });
+      s.players.ash!.active!.condition = 'confused';
+      s.players.ash!.active!.attached = [{ card: { uid: 'def', defId: id('defender') }, until: 4 }];
+      expect(attack(flips(s, false), 0).players.ash!.active!.damage).toBe(0);
+    });
+
     it('Confusion: retreating needs heads, and the energy is discarded either way', () => {
       const s = duel('charmander', 'squirtle', { energy: ['fire'], bench: ['charmander'] });
       s.players.ash!.active!.condition = 'confused';

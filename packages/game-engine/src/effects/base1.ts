@@ -4,7 +4,7 @@
 import { typeName, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
 import { lookupCard, type EnergyType, type PokemonCardDef } from '../cards.js';
 import {
-  benchedSlots,
+  discardDefenderEnergy,
   discardToUse,
   extraEnergy,
   flipToInflict,
@@ -12,9 +12,12 @@ import {
   inflicts,
   perHeads,
   recoil,
+  opponentBenchChoice,
   recover,
+  selfdestruct,
   tailsSelfDamage,
   thrash,
+  whirlwind,
 } from './common.js';
 import { attackEffect } from './index.js';
 
@@ -22,38 +25,6 @@ const defenderDef = (s: AttackSituation) => lookupCard(s.cards, s.defender.card.
 
 /** Types Conversion 1 and 2 can choose ("other than Colorless"). */
 const CONVERSION_TYPES: EnergyType[] = ['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'darkness', 'metal'];
-
-const defenderEnergyChoice = (s: AttackSituation): ChoiceSpec[] =>
-  s.defender.energy.length ? [{ kind: 'defenderEnergy', options: s.defender.energy, prompt: "Choose an Energy to discard from the Defending Pokémon" }] : [];
-
-/** Base damage, then discard 1 Energy from the Defending Pokémon (Whirlpool, Hyper Beam). */
-const discardDefenderEnergy = (damage: number): AttackEffect => ({
-  choices: defenderEnergyChoice,
-  run(ctx) {
-    ctx.hit(damage);
-    if (ctx.choices.defenderEnergyUid) ctx.discardDefenderEnergy(ctx.choices.defenderEnergyUid);
-  },
-});
-
-/** Damage to the defender, every benched Pokémon on both sides, and itself. */
-const selfdestruct = (damage: number, bench: number): AttackEffect => ({
-  run(ctx) {
-    ctx.hit(damage);
-    ctx.benchDamage(ctx.opp, bench);
-    ctx.benchDamage(ctx.me, bench);
-    ctx.selfDamage(damage);
-  },
-});
-
-/** Base damage, then the opponent switches the Defending Pokémon with a benched one of their choice. */
-const whirlwind = (damage: number): AttackEffect => ({
-  run(ctx) {
-    ctx.hit(damage);
-    // The opponent chooses. Until the player can be asked mid-attack, their first benched Pokémon comes in.
-    const [slot] = benchedSlots(ctx.opp.bench);
-    if (slot !== undefined && ctx.opp.active) ctx.switchDefender(slot);
-  },
-});
 
 const flamethrower = (name: string) =>
   discardToUse(50, 1, 'fire', `Discard 1 Fire Energy card attached to ${name} in order to use this attack.`);
@@ -114,10 +85,7 @@ export const BASE1: Record<string, Record<string, AttackEffect>> = {
   // Ninetales
   'base1-12': {
     Lure: {
-      choices: (s) => {
-        const options = benchedSlots(s.opponentBench);
-        return options.length ? [{ kind: 'opponentBench', options, prompt: "Choose one of your opponent's benched Pokémon to switch in" }] : [];
-      },
+      choices: (s) => opponentBenchChoice(s, "Choose one of your opponent's benched Pokémon to switch in"),
       run(ctx) {
         if (ctx.choices.benchSlot !== undefined) ctx.switchDefender(ctx.choices.benchSlot);
       },

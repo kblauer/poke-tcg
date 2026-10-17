@@ -1,5 +1,5 @@
 // Building blocks for attack effects that many cards share.
-import type { AttackContext, AttackEffect } from '../attacks.js';
+import type { AttackContext, AttackEffect, AttackSituation, ChoiceSpec } from '../attacks.js';
 import type { EnergyType } from '../cards.js';
 import { energyPool, type Affliction } from '../engine.js';
 
@@ -91,5 +91,55 @@ export function extraEnergy(ctx: AttackContext, cost: EnergyType[], type: Energy
   return Math.min(cap, pool.filter((t) => t === type).length);
 }
 
+/**
+ * Energy attached to the attacker beyond the attack's cost, of any type, up to `cap`. For the Water
+ * Guns that count "each Energy" (Fossil) rather than each Water Energy.
+ */
+export const extraAnyEnergy = (ctx: AttackContext, cost: EnergyType[], cap: number) =>
+  Math.min(cap, Math.max(0, energyPool(ctx.attacker, ctx.state.cards).length - cost.length));
+
 /** Opponent's benched Pokémon slots. */
 export const benchedSlots = (bench: readonly unknown[]) => bench.flatMap((p, i) => (p ? [i] : []));
+
+const defenderEnergyChoice = (s: AttackSituation): ChoiceSpec[] =>
+  s.defender.energy.length ? [{ kind: 'defenderEnergy', options: s.defender.energy, prompt: 'Choose an Energy to discard from the Defending Pokémon' }] : [];
+
+/** Base damage, then discard 1 Energy from the Defending Pokémon (Whirlpool, Hyper Beam). */
+export const discardDefenderEnergy = (damage: number): AttackEffect => ({
+  choices: defenderEnergyChoice,
+  run(ctx) {
+    ctx.hit(damage);
+    if (ctx.choices.defenderEnergyUid) ctx.discardDefenderEnergy(ctx.choices.defenderEnergyUid);
+  },
+});
+
+/** Damage to the defender, every benched Pokémon on both sides, and itself. */
+export const selfdestruct = (damage: number, bench: number): AttackEffect => ({
+  run(ctx) {
+    ctx.hit(damage);
+    ctx.benchDamage(ctx.opp, bench);
+    ctx.benchDamage(ctx.me, bench);
+    ctx.selfDamage(damage);
+  },
+});
+
+/** The opponent switches the Defending Pokémon with a benched one of their choice (Whirlwind, Terror Strike). */
+export function opponentSwitches(ctx: AttackContext) {
+  // The opponent chooses. Until the player can be asked mid-attack, their first benched Pokémon comes in.
+  const [slot] = benchedSlots(ctx.opp.bench);
+  if (slot !== undefined && ctx.opp.active) ctx.switchDefender(slot);
+}
+
+/** Base damage, then the opponent switches the Defending Pokémon with a benched one of their choice. */
+export const whirlwind = (damage: number): AttackEffect => ({
+  run(ctx) {
+    ctx.hit(damage);
+    opponentSwitches(ctx);
+  },
+});
+
+/** Choose 1 of the opponent's benched Pokémon, if they have any (Lure, Dark Mind…). */
+export const opponentBenchChoice = (s: AttackSituation, prompt: string): ChoiceSpec[] => {
+  const options = benchedSlots(s.opponentBench);
+  return options.length ? [{ kind: 'opponentBench', options, prompt }] : [];
+};
