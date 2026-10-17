@@ -40,6 +40,8 @@ export interface PlayerView {
     pendingChoice: PendingChoiceView | null;
     /** Last turn this player can't play Trainer cards (Headache). */
     noTrainersUntil?: number;
+    /** Setup: done placing Pokémon, waiting for the opponent. */
+    ready?: boolean;
     /** A card they looked at with Peek, until their next action. */
     peek?: { card: CardInstance; label: string };
   };
@@ -51,10 +53,12 @@ export interface PlayerView {
     deckCount: number;
     prizeCount: number;
     discard: CardInstance[];
-    /** Hidden while both players are still choosing actives. */
+    /** Hidden while the players are still placing their Pokémon (setup). */
     active: InPlayPokemon | null;
-    /** Fixed slots; null = empty. */
+    /** Fixed slots; null = empty. Hidden (all empty) during setup, like the active. */
     bench: (InPlayPokemon | null)[];
+    /** Setup: done placing Pokémon. */
+    ready?: boolean;
   };
 }
 
@@ -74,6 +78,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
   const opp = state.players[oppId]!;
 
   const oppActive = state.phase === 'setup' ? null : opp.active;
+  const oppBench = state.phase === 'setup' ? opp.bench.map(() => null) : opp.bench;
   const pending = state.pendingChoice?.player === playerId ? pendingChoiceView(state, state.pendingChoice) : null;
   const oppHand = seesOpponentHand(me, [me, opp], state.cards) ? opp.hand : undefined;
   const peek = state.peek?.player === playerId ? { card: state.peek.card, label: state.peek.label } : undefined;
@@ -81,7 +86,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
     ...me.hand,
     ...me.discard,
     ...opp.discard,
-    ...[me.active, ...me.bench, oppActive, ...opp.bench].flatMap((p) => (p ? [p.card, ...p.evolvedFrom, ...p.energy, ...(p.attached ?? []).map((a) => a.card)] : [])),
+    ...[me.active, ...me.bench, oppActive, ...oppBench].flatMap((p) => (p ? [p.card, ...p.evolvedFrom, ...p.energy, ...(p.attached ?? []).map((a) => a.card)] : [])),
     ...(pending?.kind === 'arrangeTop' ? pending.cards : pending?.kind === 'pickFromDeck' || pending?.kind === 'pickFromDiscard' ? pending.options : []),
     ...(oppHand ?? []),
     ...(peek ? [peek.card] : []),
@@ -115,6 +120,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       bench: me.bench,
       pendingChoice: pending,
       noTrainersUntil: me.noTrainersUntil,
+      ...(me.ready && { ready: true }),
       ...(peek && { peek }),
     },
     opponent: {
@@ -125,7 +131,8 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       prizeCount: opp.prizes.length,
       discard: opp.discard,
       active: oppActive,
-      bench: opp.bench,
+      bench: oppBench,
+      ...(opp.ready && { ready: true }),
     },
   };
 }
