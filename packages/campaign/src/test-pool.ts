@@ -2,6 +2,7 @@
 // (a simplified copy of apps/api/src/cards.ts's toCardDef). Not exported from the package.
 import { readFileSync } from 'node:fs';
 import { cardImplemented, type CardDef, type EnergyType, type Stage } from '@poke-tcg/game-engine';
+import type { PackSet } from './packs.js';
 import { POOL_SETS, type PoolCard, type Rarity } from './pool.js';
 
 interface Row {
@@ -81,3 +82,13 @@ export const testDef = (id: string) => {
   if (!c) throw new Error(`Not in the pool: ${id}`);
   return c.def;
 };
+
+/** A set's cards for packs, as the API groups them (basic Energy left out). */
+export function testPackSet(setId: string): PackSet {
+  const set: PackSet = { common: [], uncommon: [], rare: [], holo: [] };
+  for (const r of rows) {
+    if (r.id.split('-')[0] !== setId || (r.category === 'Energy' && r.name !== 'Double Colorless Energy')) continue;
+    set[rarity(r) === 'holo' ? 'holo' : rarity(r)].push(r.id);
+  }
+  return set;
+}

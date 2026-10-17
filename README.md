@@ -8,7 +8,7 @@ Monorepo for a single-player Pokémon TCG game: battle through the gym leaders o
 apps/
   web/                  Vite + React 19 SPA (TanStack Router/Query, tRPC client, Tailwind v4, Material UI icons)
     src/
-      main.tsx          Routes, root layout (header with Play / Inventory / Cards / Decks tabs), providers
+      main.tsx          Routes, root layout (header with Play / Inventory / Packs / Cards / Decks tabs), providers
       pages/            Route-level pages: data loading only
       components/       Game UI components, one per file (run/: the run screens)
       hooks/            React hooks: interaction state and handlers used by components
@@ -38,6 +38,7 @@ Pages load data, set their own width and side padding, and hand data to componen
 |---|---|
 | `Home.tsx` | The run hub (`/`), laid out like the game: within the same side margins, filling the window, with the side panel (`LogDrawer`) at the window edge, its Run tab (`RunStats`) and run log. The run's name and step, then the map and the encounter (or a prompt to choose one on the map) with the cards unlocked this run below it; after a run, `RunOver`. Practice battles at the bottom: one of your playable decks or the test deck, against the Rock Crusher deck |
 | `Inventory.tsx` | Inventory (`/inventory`): equipment slots (head, chest, legs, Poké Ball, 2 accessories) with what fits each, items by category, and how many cards are unlocked |
+| `Packs.tsx` | Booster packs (`/packs`): the bank, and a pack for each set with packs; clicking one opens it in `PackOpening` |
 | `Game.tsx` | Loads the game view, sends moves to the API (one at a time) and renders `<Board>`. For a run's battle, the side panel gets the Run tab, and `RunBattleBanner` shows the opponent's name and the run's battle rules, and once it's over, the result and a Back to the run button |
 | `Cards.tsx` | Card browser (`/cards`): loads the catalog once (`cards.list`), holds the filters, sort and selected card, and lays out the grid on the left and the viewer on the right. Cards you haven't unlocked are darker, and the viewer shows them still, without the holo effect (`useUnlocked`) |
 | `Decks.tsx` | Deck builder (`/decks`): pick a saved deck or start a new one, name, save or delete it; the deck (`DeckPanel`) on the left and the card search (`DeckFilters`, `CardGrid`) on the right, where clicking a card adds a copy. Cards you haven't unlocked are darker and can't be added (`useUnlocked`) |
@@ -74,7 +75,7 @@ Pages load data, set their own width and side padding, and hand data to componen
 | `CardPreview.tsx` | The large card preview that follows the cursor and resizes with the mouse wheel (except over the deck-search lists, where the wheel scrolls the page) |
 | `PreviewContext.ts` | Context that lets any card show or hide the hover preview |
 | `PreviewProvider.tsx` | Provides the hover preview outside the board (the run hub), with the wheel resizing it or, for pages that scroll, scrolling the page |
-| `HoloCard.tsx` | A card with the holo effect: tilts toward the pointer while shine and glare layers follow it. Used by `CardViewer` in the Cards tab only; play mode shows plain card images |
+| `HoloCard.tsx` | A card with the holo effect: tilts toward the pointer while shine and glare layers follow it. Used by `CardViewer` in the Cards tab and by the pack opener; play mode shows plain card images |
 | `DeckFilters.tsx` | Deck builder search: name, release set, sort (set number, Pokédex number, type), "Implemented only", Pokémon filters (stage, type, HP range, has ability), a Trainer toggle and Energy toggles (one per type). Also unlocked cards, locked ones or both. The search matches card names and attack names |
 | `DeckPanel.tsx` | The deck being built: its cards by section with − / + buttons (+ disabled with the reason when a rule forbids another copy), the count out of 60, what keeps it from being played, and "(partial)" on cards that aren't fully implemented. Cards not unlocked are faded, marked (locked) |
 | `CardFilters.tsx` | Card browser controls: name search, set, type and stage filters, max-attack range, sort field and direction, match count, and whether to show unlocked cards, locked ones or both. The search matches card names and attack names |
@@ -96,6 +97,13 @@ Pages load data, set their own width and side padding, and hand data to componen
 | `NewRunPicker.tsx` | Picks the next run's type and one of your decks (from the Decks tab), then starts it; decks that break the rules or hold locked cards are listed with why and can't be picked |
 | `RunCard.tsx` | A card offered or owned in a run, with the large hover preview (as on the board), its rarity, an optional price and an optional corner badge |
 | `encounterIcons.tsx` | A Material UI symbol and colour per kind of encounter, Gym Trainers, gym leaders, the Elite Four and the Champion included (`EncounterBadge`) |
+
+### `src/components/packs/`
+
+| File | Description |
+|---|---|
+| `BoosterPack.tsx` | A booster pack drawn in the set's colours with its logo, crimped foil ends and a sweeping sheen; it floats, shakes while being bought, and tears open with a flash |
+| `PackOpening.tsx` | The window for opening a pack: click it to buy it with the bank's ₱, the top tears off, the 11 cards burst out face down into a fan and gather into a stack (Web Animations API) while their large images load, then click through them or Skip, ending on the list of cards opened; Done closes it. Each card flips up as a `HoloCard`, with the card viewer's tilt and holo effect; rares and holos glow behind, and new unlocks pop a NEW badge |
 
 ### `src/hooks/`
 
@@ -206,6 +214,7 @@ An account plays runs, one at a time. A run is steps of encounters, choosing one
 | --- | --- |
 | `run.ts` | `RunState`, `createRun` (the map from a seed and the run type's segments), `applyRunAction` (choosing, encounters, battle results, bosses and badges, items, the testing retry), `battleSetup` (the CPU's deck, difficulty and battle rules) and `runView` (what the player sees) |
 | `decks.ts` | `STARTER_DECK`, `generateDeck` (random medium-strength decks; one type only for a Gym Trainer) and `deckErrors` |
+| `packs.ts` | Booster packs: `PACK_SETS`, `PACK_PRICE` and `openPack` (a rare, holo 1 in 3, 3 uncommons, 6 commons and a basic Energy) |
 | `bosses.ts` | The bosses (`BOSSES`: 8 gym leaders, the Elite Four, Champion Blue) with their decks, gyms and badges |
 | `items.ts` | The item catalog (consumables, misc items, key items, equipment), equipment slots and the shop's stock |
 | `run-types.ts` | The runs to pick from, as segments of encounters and bosses (one per gym, the Kanto Gym Challenge, Kanto Champion) |
@@ -220,6 +229,10 @@ An account plays runs, one at a time. A run is steps of encounters, choosing one
 - **After a run**: beating it adds its EXP to the account and gives the gym leader's badge (a key item). Then comes the shop, where items cost EXP, and then the next run, with a run type and one of your playable decks to pick. Starting a run moves the earlier runs' leftover ₱ into the account's bank (`User.bank`), and the new run starts with ₱500.
 - **Items** (`items.ts`, placeholders with no effects yet): consumables last a number of battles, at most 3 per run; misc items have their own limits (used up or not, per-run uses); key items are records that can't be removed; equipment goes in head, chest, legs, Poké Ball and 2 accessory slots (`Equipment`), each piece with one or more effects. Owned items are `InventoryItem` rows.
 - **API** (`routers/run.ts`, `runs.ts`, `pool.ts`, `unlocks.ts`): `run.overview` (with each deck's problems), `act` (with `expectedVersion`, like games), `useItem`, `retry`, `start` (a playable deck), `shop`, `buyItem`, `inventory`, `equip`; `decks.unlocked`. Starting a battle creates a `Game` linked to the run (`Game.runId`); when the game ends, `game.act` (or the next `run.overview`) records the result in the run.
+
+## Booster packs
+
+The ₱ in the bank (each run's leftover ₱, moved there when the next run starts) buys booster packs on the **Packs** tab, ₱300 each (`PACK_PRICE`). There's one per set whose card effects are done (`PACK_SETS`: Base Set, Jungle, Fossil). A pack is 11 cards with the usual WOTC-era make-up, averaged rather than each set's own odds: 1 rare, a holo about 1 pack in 3 (`HOLO_CHANCE`), 3 uncommons and 6 commons, all different, and 1 basic Energy of any type (Jungle and Fossil have none of their own). `openPack` in `packages/campaign/src/packs.ts` rolls it; the API's `packs` router (`apps/api/src/routers/packs.ts`: `list`, `open`) takes the ₱ from the bank, rolls the pack on the server and unlocks every card in it, in one transaction, and returns the cards in reveal order (the Energy first, the rare last) with which are new unlocks. The page shows the sets as packs; clicking one opens a window with that pack, and clicking the pack opens it with an animation, then the cards one at a time or all at once (Skip), and finally the list of cards opened.
 
 ## How a move works
 

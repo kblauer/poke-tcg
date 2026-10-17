@@ -34,3 +34,58 @@
 .toast-in {
   animation: toast-in 200ms ease-out;
 }
+
+/*
+ * Booster packs (components/packs/). The pack floats with a foil sheen sweeping across it, shakes while it's
+ * being bought, and its crimped top tears off. Each card flips up face first (with HoloCard's own tilt and holo effect). The cards'
+ * flight out of the pack is animated in PackOpening.tsx (its positions depend on the card).
+ */
+@keyframes pack-float {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50% { transform: translateY(-0.6rem) rotate(1deg); }
+}
+@keyframes pack-sheen {
+  from { background-position: 150% 0; }
+  to { background-position: -50% 0; }
+}
+@keyframes pack-shake {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(-4deg) scale(1.02); }
+  40% { transform: rotate(4deg) scale(1.03); }
+  60% { transform: rotate(-3deg) scale(1.04); }
+  80% { transform: rotate(3deg) scale(1.04); }
+}
+@keyframes pack-tear {
+  0% { transform: none; opacity: 1; }
+  100% { transform: translate(40%, -260%) rotate(28deg); opacity: 0; }
+}
+@keyframes pack-flash {
+  0% { opacity: 0; transform: scale(0.4); }
+  40% { opacity: 1; }
+  100% { opacity: 0; transform: scale(2.2); }
+}
+@keyframes card-flip-in {
+  from { transform: perspective(1200px) rotateY(-90deg) scale(0.85); }
+  to { transform: perspective(1200px) rotateY(0deg) scale(1); }
+}
+@keyframes card-fly-out {
+  to { transform: translate(-130%, -10%) rotate(-18deg); opacity: 0; }
+}
+@keyframes badge-pop {
+  0% { transform: scale(0); }
+  70% { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+.pack-float { animation: pack-float 3s ease-in-out infinite; }
+.pack-sheen { background-size: 250% 100%; animation: pack-sheen 2.6s linear infinite; }
+.pack-shake { animation: pack-shake 0.45s ease-in-out infinite; }
+.pack-tear { animation: pack-tear 0.6s ease-in forwards; }
+.pack-flash { animation: pack-flash 0.7s ease-out forwards; }
+.card-flip-in { animation: card-flip-in 0.45s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+.card-fly-out { animation: card-fly-out 0.35s ease-in forwards; }
+.badge-pop { animation: badge-pop 0.35s ease-out 0.3s both; }
+@media (prefers-reduced-motion: reduce) {
+  .pack-float, .pack-sheen, .pack-shake, .pack-tear, .pack-flash, .card-flip-in, .card-fly-out, .badge-pop {
+    animation: none;
+  }
+}

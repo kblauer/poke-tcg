@@ -3,7 +3,8 @@ import { prisma, type Card } from '@poke-tcg/db';
 import { cardImplemented, type CardDef } from '@poke-tcg/game-engine';
 import { isHolo, toCardDef } from './cards.js';
 
-const rarity = (card: Card): Rarity =>
+/** A catalog card's rarity, holos apart. */
+export const cardRarity = (card: Pick<Card, 'rarity' | 'data'>): Rarity =>
   isHolo(card) ? 'holo' : card.rarity === 'Rare' ? 'rare' : card.rarity === 'Uncommon' ? 'uncommon' : 'common';
 
 /** Every card in POOL_SETS the engine plays fully, with Stage 2s' Basics filled in for Pokémon Breeder. */
@@ -16,7 +17,7 @@ async function loadPool(): Promise<PoolCard[]> {
     } catch {
       return []; // A Trainer or Energy the engine doesn't support.
     }
-    return cardImplemented(def) ? [{ def, rarity: rarity(row) }] : [];
+    return cardImplemented(def) ? [{ def, rarity: cardRarity(row) }] : [];
   });
   for (const { def } of pool) {
     if (def.kind !== 'pokemon' || def.stage !== 'stage2') continue;
