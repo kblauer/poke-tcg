@@ -2,11 +2,11 @@
 // Card-specific behaviour lives in effects/ (TRAINERS). Searches of hidden cards (the deck) can't
 // be answered from a player's view, so those Trainers leave a PendingChoice that only the player
 // sees the options of, answered with RESOLVE_CHOICE.
-import { isBasicPokemon, lookupCard, type CardLibrary, type CardDef } from './cards.js';
+import { isBasicEnergy, isBasicPokemon, lookupCard, type CardLibrary, type CardDef } from './cards.js';
 import { trainerEffect } from './effects/index.js';
 import type { CardInstance, GameState, InPlayPokemon, PlayerId, PlayerState, Target } from './engine.js';
 import { shuffle } from './rng.js';
-import { addLog } from './status.js';
+import { addLog, flipCoin } from './status.js';
 
 /** Answers to a Trainer's questions. Each question names the field it fills. */
 export interface TrainerChoices {
@@ -57,7 +57,7 @@ export type PendingChoice = {
   | {
       kind: 'pickFromDeck';
       /** 'basicNamed': a Basic Pokémon called `name` (Call for Family). */
-      filter: 'any' | 'pokemon' | 'basicNamed';
+      filter: 'any' | 'pokemon' | 'basicNamed' | 'basicEnergy';
       name?: string;
       /** The card goes onto the Bench instead of into the hand (Call for Family). */
       toBench?: boolean;
@@ -69,6 +69,12 @@ export type PendingChoice = {
       count: number;
       /** Whose deck it is (Prophecy can pick either). Missing = the player's own. */
       deckOwner?: PlayerId;
+    }
+  | {
+      /** Put a card from the player's discard pile on top of their deck (Recycle). */
+      kind: 'pickFromDiscard';
+      /** The card that started it, still being played: not an option. */
+      excludeUid?: string;
     }
 );
 
@@ -98,6 +104,8 @@ export interface TrainerContext {
   choices: TrainerChoices;
   turn: number;
   log: (text: string, player?: PlayerId) => void;
+  /** Flips a coin for the Trainer (logged). True = heads. */
+  flip: () => boolean;
   /** Draws up to `n` cards (an empty deck just stops; that only loses at the start of a turn). */
   draw: (player: PlayerState, n: number) => void;
   /** Puts cards into the deck and shuffles it. */
@@ -206,6 +214,7 @@ export function playTrainer(state: GameState, me: PlayerState, opp: PlayerState,
     choices: resolved.choices,
     turn: state.turn,
     log: (text, player = me.id) => addLog(state, text, player),
+    flip: () => flipCoin(state, lookupCard(state.cards, card.defId).name, me.id),
     draw(player, n) {
       const drawn = player.deck.splice(0, n);
       player.hand.push(...drawn);
@@ -235,7 +244,7 @@ export function playTrainer(state: GameState, me: PlayerState, opp: PlayerState,
 
 /** What the player choosing sees of a pending search. */
 export type PendingChoiceView =
-  | { kind: 'pickFromDeck'; prompt: string; options: CardInstance[] }
+  | { kind: 'pickFromDeck' | 'pickFromDiscard'; prompt: string; options: CardInstance[] }
   | { kind: 'arrangeTop'; prompt: string; cards: CardInstance[] };
 
 /** The options of a pending search, for the player making it. Deck cards are sorted so their order stays secret. */
@@ -246,10 +255,21 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
     const cards = state.players[owner]!.deck.slice(0, choice.count);
     return { kind: 'arrangeTop', prompt: `${choice.source}: put these cards back${where} in any order (first is on top)`, cards };
   }
+  if (choice.kind === 'pickFromDiscard') {
+    const options = discardOptions(state.players[choice.player]!, choice);
+    return { kind: 'pickFromDiscard', prompt: `${choice.source}: put a card from your discard pile on top of your deck`, options };
+  }
   const deck = state.players[choice.player]!.deck;
   const name = (c: CardInstance) => lookupCard(state.cards, c.defId).name;
   const options = deck.filter((c) => deckFilter(state.cards, choice, c)).sort((a, b) => name(a).localeCompare(name(b)) || a.uid.localeCompare(b.uid));
-  const what = choice.filter === 'basicNamed' ? `a Basic Pokémon named ${choice.name}` : choice.filter === 'pokemon' ? 'a Basic Pokémon or Evolution card' : 'any card';
+  const what =
+    choice.filter === 'basicNamed'
+      ? `a Basic Pokémon named ${choice.name}`
+      : choice.filter === 'basicEnergy'
+        ? 'a basic Energy card'
+        : choice.filter === 'pokemon'
+          ? 'a Basic Pokémon or Evolution card'
+          : 'any card';
   const prompt = choice.toBench ? `${choice.source}: put ${what} from your deck onto your Bench` : `${choice.source}: take ${what} from your deck`;
   return { kind: 'pickFromDeck', prompt, options };
 }
@@ -258,8 +278,11 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
 export const deckFilter = (cards: CardLibrary, choice: Extract<PendingChoice, { kind: 'pickFromDeck' }>, c: CardInstance) => {
   const d = lookupCard(cards, c.defId);
   if (choice.filter === 'basicNamed') return isBasicPokemon(d) && d.name === choice.name;
+  if (choice.filter === 'basicEnergy') return isBasicEnergy(d);
   return choice.filter === 'any' || (d.kind === 'pokemon' && !d.trainerText);
 };
+
+const discardOptions = (player: PlayerState, choice: Extract<PendingChoice, { kind: 'pickFromDiscard' }>) => player.discard.filter((c) => c.uid !== choice.excludeUid);
 
 /** Finishes a pending search. Mutates `state`; returns an error instead if the answer is invalid. */
 export function resolvePending(state: GameState, me: PlayerState, answer: { cardUid?: string; order?: string[] }): string | null {
@@ -271,6 +294,15 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     if (order.length !== top.length || !top.every((c) => order.includes(c.uid))) return 'Put every card back';
     owner.deck.splice(0, top.length, ...order.map((uid) => top.find((c) => c.uid === uid)!));
     addLog(state, `Rearranged the top ${top.length} cards of ${owner === me ? 'the' : "the opponent's"} deck.`, me.id);
+  } else if (choice.kind === 'pickFromDiscard') {
+    const options = discardOptions(me, choice);
+    const picked = options.find((c) => c.uid === answer.cardUid);
+    if (!picked && options.length > 0) return 'Choose a card from your discard pile';
+    if (picked) {
+      me.discard = me.discard.filter((c) => c !== picked);
+      me.deck.unshift(picked);
+      addLog(state, `Put ${lookupCard(state.cards, picked.defId).name} on top of the deck.`, me.id);
+    }
   } else {
     const options = me.deck.filter((c) => deckFilter(state.cards, choice, c));
     const picked = options.find((c) => c.uid === answer.cardUid);

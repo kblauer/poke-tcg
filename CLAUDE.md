@@ -69,5 +69,5 @@
 
 ## Known open items
 - CPU difficulties live in `packages/game-engine/src/cpu/`, one file each (`passive.ts`, `trainer.ts`, `gym-leader.ts`) plus `shared.ts`. Keep them separate. Gym leader is the baseline the user agreed on (README: The CPU opponent); change the difficulties' rules only with the user's say-so.
-- Missing rules: Whirlwind and Terror Strike prompting (both bring in the first benched Pokémon), Burned, Fossil Trainers, and card effects for later sets. Fossil attacks and powers are done (`effects/fossil.ts`, `effects/fossil-powers.ts`).
+- Missing rules: Whirlwind and Terror Strike prompting (both bring in the first benched Pokémon), Burned, and card effects for Jungle and later sets. Fossil is done (`effects/fossil.ts`, `fossil-powers.ts`, `fossil-trainers.ts`); the CPUs don't play Fossil's Trainers yet.
 - In-play Pokémon: use `inPlayDef`/`effectId` (status.ts), not `lookupCard(cards, p.card.defId)`, for anything rules-related, so a Transformed Ditto works. Check passive powers with `powerActive`, which handles Toxic Gas.

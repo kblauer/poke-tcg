@@ -6,6 +6,7 @@ import { BASE1 } from './base1.js';
 import { BASE1_TRAINERS } from './base1-trainers.js';
 import { FOSSIL } from './fossil.js';
 import { FOSSIL_POWERS } from './fossil-powers.js';
+import { FOSSIL_TRAINERS } from './fossil-trainers.js';
 
 /** Effects by card id, then attack name. */
 const EFFECTS: Record<string, Record<string, AttackEffect>> = { ...BASE1, ...FOSSIL };
@@ -20,7 +21,7 @@ const POWERS: Record<string, PowerEffect> = { ...BASE1_POWERS, ...FOSSIL_POWERS 
 export const powerEffect = (defId: string): PowerEffect | undefined => POWERS[defId];
 
 /** Trainer card effects by card id. */
-const TRAINERS: Record<string, TrainerEffect> = { ...BASE1_TRAINERS };
+const TRAINERS: Record<string, TrainerEffect> = { ...BASE1_TRAINERS, ...FOSSIL_TRAINERS };
 
 /** The behaviour of a Trainer card, if it's implemented. */
 export const trainerEffect = (defId: string): TrainerEffect | undefined => TRAINERS[defId];

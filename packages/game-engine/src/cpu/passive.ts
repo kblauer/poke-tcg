@@ -1,6 +1,6 @@
 import { isBasicPokemon, lookupCard } from '../cards.js';
 import { evolveError, type GameAction, type GameState, type PlayerId, type PlayerState } from '../engine.js';
-import { deckFilter } from '../trainers.js';
+import { pendingChoiceView } from '../trainers.js';
 import { chooseActive, inPlay } from './shared.js';
 
 /**
@@ -29,12 +29,9 @@ export function passiveCpu(state: GameState, cpuId: PlayerId): GameAction | null
 }
 
 function finishSearch(state: GameState): GameAction {
-  const choice = state.pendingChoice!;
-  if (choice.kind === 'arrangeTop') {
-    const deck = state.players[choice.deckOwner ?? choice.player]!.deck;
-    return { type: 'RESOLVE_CHOICE', order: deck.slice(0, choice.count).map((c) => c.uid) };
-  }
-  const pick = state.players[choice.player]!.deck.find((c) => deckFilter(state.cards, choice, c));
+  const view = pendingChoiceView(state, state.pendingChoice!);
+  if (view.kind === 'arrangeTop') return { type: 'RESOLVE_CHOICE', order: view.cards.map((c) => c.uid) };
+  const [pick] = view.options;
   return { type: 'RESOLVE_CHOICE', ...(pick && { cardUid: pick.uid }) };
 }
 

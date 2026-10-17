@@ -1,7 +1,7 @@
 // Base Set (base1) Trainer cards, by card id. Rulings (agreed): a Knocked Out Clefairy Doll gives
 // no prize; Scoop Up can't take your only Pokémon in play; Devolution Spray can Knock Out (prize as
 // usual); PlusPower's +10 comes before Defender's −20, both after weakness and resistance.
-import { isBasicEnergy, isBasicPokemon, isPokemonCard, isTrainerCard, type PokemonCardDef } from '../cards.js';
+import { isBasicEnergy, isBasicPokemon, isBenchable, isPokemonCard, isTrainerCard, type PokemonCardDef } from '../cards.js';
 import type { CardInstance, InPlayPokemon, PlayerState, Target } from '../engine.js';
 import { evolutionBlocked } from '../powers.js';
 import { clearOnLeavingActive, inPlayDef } from '../status.js';
@@ -397,14 +397,17 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
   },
 };
 
-/** Your Basic Pokémon in play that a Stage 2 card can go straight onto with Pokémon Breeder. */
+/**
+ * Your Basic Pokémon in play that a Stage 2 card can go straight onto with Pokémon Breeder. Mysterious
+ * Fossil counts, as the bottom of the Omastar and Kabutops lines (agreed ruling).
+ */
 function breederTargets(s: TrainerSituation, card: CardInstance): Target[] {
   const d = def(s, card);
   if (d.kind !== 'pokemon' || d.stage !== 'stage2' || !d.evolvesFromBasic) return [];
   return targetsOf(s.me).filter((t) => {
     const p = own(s, t)!;
     const current = def(s, p.card);
-    return isBasicPokemon(current) && current.name === d.evolvesFromBasic && p.playedTurn !== s.turn;
+    return isBenchable(current) && current.name === d.evolvesFromBasic && p.playedTurn !== s.turn;
   });
 }
 
