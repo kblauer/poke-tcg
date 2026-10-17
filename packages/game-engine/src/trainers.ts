@@ -66,6 +66,8 @@ export type PendingChoice = {
       type?: EnergyType;
       /** The card goes onto the Bench instead of into the hand (Call for Family). */
       toBench?: boolean;
+      /** The card found is attached to one of the player's Pokémon, chosen next (Energy Spike), instead of going to the hand. */
+      attach?: boolean;
       /** The card taken is shown to the opponent (Poké Ball): the log names it. */
       reveal?: boolean;
       /** Pokémon Trader: the hand card that goes into the deck once a card is picked. */
@@ -86,6 +88,11 @@ export type PendingChoice = {
   | {
       /** Remove 1 damage counter from one of the player's Pokémon with damage (Heal), chosen on the board. */
       kind: 'removeDamage';
+    }
+  | {
+      /** Attach `card`, found in the deck, to one of the player's Pokémon, chosen on the board (Energy Spike). */
+      kind: 'attachCard';
+      card: CardInstance;
     }
 );
 
@@ -256,7 +263,7 @@ export function playTrainer(state: GameState, me: PlayerState, opp: PlayerState,
 /** What the player choosing sees of a pending search. */
 export type PendingChoiceView =
   | { kind: 'pickFromDeck' | 'pickFromDiscard'; prompt: string; options: CardInstance[] }
-  | { kind: 'ownPokemon'; prompt: string; options: Target[] }
+  | { kind: 'ownPokemon'; purpose: 'heal' | 'attach'; prompt: string; options: Target[] }
   | { kind: 'arrangeTop'; prompt: string; cards: CardInstance[] };
 
 /** The options of a pending search, for the player making it. Deck cards are sorted so their order stays secret. */
@@ -268,7 +275,12 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
     return { kind: 'arrangeTop', prompt: `${choice.source}: put these cards back${where} in any order (first is on top)`, cards };
   }
   if (choice.kind === 'removeDamage') {
-    return { kind: 'ownPokemon', prompt: `${choice.source}: click one of your Pokémon to remove a damage counter from`, options: damagedTargets(state.players[choice.player]!) };
+    const options = damagedTargets(state.players[choice.player]!);
+    return { kind: 'ownPokemon', purpose: 'heal', prompt: `${choice.source}: click one of your Pokémon to remove a damage counter from`, options };
+  }
+  if (choice.kind === 'attachCard') {
+    const name = lookupCard(state.cards, choice.card.defId).name;
+    return { kind: 'ownPokemon', purpose: 'attach', prompt: `${choice.source}: click one of your Pokémon to attach ${name} to`, options: targetsOf(state.players[choice.player]!) };
   }
   if (choice.kind === 'pickFromDiscard') {
     const options = discardOptions(state.players[choice.player]!, choice);
@@ -315,6 +327,11 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     if (order.length !== top.length || !top.every((c) => order.includes(c.uid))) return 'Put every card back';
     owner.deck.splice(0, top.length, ...order.map((uid) => top.find((c) => c.uid === uid)!));
     addLog(state, `Rearranged the top ${top.length} cards of ${owner === me ? 'the' : "the opponent's"} deck.`, me.id);
+  } else if (choice.kind === 'attachCard') {
+    const p = answer.target === undefined ? null : answer.target === 'active' ? me.active : me.bench[answer.target];
+    if (!p) return 'Choose one of your Pokémon';
+    p.energy.push(choice.card);
+    addLog(state, `Attached ${lookupCard(state.cards, choice.card.defId).name} to ${lookupCard(state.cards, p.card.defId).name}.`, me.id);
   } else if (choice.kind === 'removeDamage') {
     const options = damagedTargets(me);
     if (options.length && (answer.target === undefined || !options.includes(answer.target))) return 'Choose one of your Pokémon with damage counters';
@@ -342,7 +359,7 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     if (picked) {
       me.deck = me.deck.filter((c) => c !== picked);
       if (choice.toBench) me.bench[benchSlot] = { card: picked, evolvedFrom: [], damage: 0, energy: [], playedTurn: state.turn };
-      else me.hand.push(picked);
+      else if (!choice.attach) me.hand.push(picked);
     }
     const traded = choice.tradeUid !== undefined && picked ? me.hand.find((c) => c.uid === choice.tradeUid) : undefined;
     if (traded) me.hand = me.hand.filter((c) => c !== traded);
@@ -355,12 +372,17 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
           ? `Traded ${name(traded)} for ${name(picked)} from the deck.`
           : choice.toBench
             ? `Put ${name(picked)} onto the Bench.`
-            : choice.reveal
-              ? `Took ${name(picked)} from the deck.`
+            : choice.reveal || choice.attach
+              ? `${choice.attach ? 'Found' : 'Took'} ${name(picked)} ${choice.attach ? 'in' : 'from'} the deck.`
               : 'Took a card from the deck.'
         : 'Found nothing in the deck.',
       me.id,
     );
+    // The next step: which Pokémon gets it.
+    if (picked && choice.attach) {
+      state.pendingChoice = { player: me.id, source: choice.source, afterAttack: choice.afterAttack, kind: 'attachCard', card: picked };
+      return null;
+    }
   }
   delete state.pendingChoice;
   return null;

@@ -455,8 +455,9 @@ export const benched = (t: Turn) => inPlay(t.me).filter(([target]) => target !==
 export function resolveSearch(t: Turn): GameAction {
   const view = pendingChoiceView(t.state, t.state.pendingChoice!);
   if (view.kind === 'arrangeTop') return { type: 'RESOLVE_CHOICE', order: view.cards.map((c) => c.uid) };
-  // Healing one of its Pokémon (Heal): the one with the most damage.
+  // Healing one of its Pokémon (Heal): the one with the most damage. Attaching (Energy Spike): the active.
   if (view.kind === 'ownPokemon') {
+    if (view.purpose === 'attach') return { type: 'RESOLVE_CHOICE', target: view.options.includes('active') ? 'active' : view.options[0] };
     const damage = (target: Target) => at(t.me, target)!.damage;
     return { type: 'RESOLVE_CHOICE', target: view.options.reduce((a, b) => (damage(b) > damage(a) ? b : a)) };
   }

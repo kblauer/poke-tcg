@@ -3,6 +3,9 @@
 /** Relative to packages/db. */
 export const SNAPSHOT_PATH = 'prisma/data/tcgdex-wotc.json';
 
+/** Hand-made cards TCGdex doesn't have (same shape, `source: 'custom'`), seeded after the snapshot. Relative to packages/db. */
+export const CUSTOM_PATH = 'prisma/data/custom-cards.json';
+
 export interface TcgdexSet {
   id: string;
   name: string;
@@ -43,7 +46,7 @@ export interface TcgdexCard {
 }
 
 export interface CardSnapshot {
-  source: 'tcgdex';
+  source: 'tcgdex' | 'custom';
   fetchedAt: string;
   sets: TcgdexSet[];
   cards: TcgdexCard[];

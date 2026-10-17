@@ -134,7 +134,7 @@ Holo cards are those with `variants.holo` in their TCGdex data (the rarity alone
 | `attacks.ts` | Attack resolution: legality (`attackError`), the questions an attack asks (`nextAttackChoice`), weakness/resistance and prevention, and the context card effects run with |
 | `powers.ts` | Pokémon Powers: legality (`powerError`), their questions (`nextPowerChoice`) and `usePower`; whether a power works (`powerActive`: Special Conditions and Toxic Gas), Prehistoric Power (`evolutionBlocked`), Clairvoyance (`seesOpponentHand`) and Ditto's Transform (`refreshTransforms`, run on every action) |
 | `trainers.ts` | Trainer cards: legality (`trainerError`, including Headache's lock), their questions (`nextTrainerChoice`), `playTrainer`, and pending searches of the deck that only the searching player sees (`PendingChoice`, resolved with `RESOLVE_CHOICE`; attacks start them too) |
-| `effects/` | Card-specific effects by card id: attacks (`base1.ts` for the Base Set, `jungle.ts` for Jungle, `fossil.ts` for Fossil, from shared pieces in `common.ts`), Pokémon Powers (`base1-powers.ts`, `jungle-powers.ts`, `fossil-powers.ts`) and Trainers (`base1-trainers.ts`, `jungle-trainers.ts`, `fossil-trainers.ts`). `test-kit.ts` sets up duels for their tests (`jungle.test.ts`, `jungle-powers.test.ts` and `jungle-trainers.test.ts` cover Jungle; `fossil.test.ts`, `fossil-powers.test.ts` and `fossil-trainers.test.ts` cover Fossil) |
+| `effects/` | Card-specific effects by card id: attacks (`base1.ts` for the Base Set, `jungle.ts` for Jungle, `fossil.ts` for Fossil, from shared pieces in `common.ts`), Pokémon Powers (`base1-powers.ts`, `jungle-powers.ts`, `fossil-powers.ts`) and Trainers (`base1-trainers.ts`, `jungle-trainers.ts`, `fossil-trainers.ts`, `neo1-trainers.ts`), and promo cards' attacks (`promos.ts`). `test-kit.ts` sets up duels for their tests (`jungle.test.ts`, `jungle-powers.test.ts` and `jungle-trainers.test.ts` cover Jungle; `fossil.test.ts`, `fossil-powers.test.ts` and `fossil-trainers.test.ts` cover Fossil; `promos.test.ts` the promos and Super Energy Retrieval) |
 | `status.ts` | Game log, coin flips, clearing conditions when a Pokémon leaves the active spot, and the card an in-play Pokémon counts as (`inPlayDef`, `effectId`: a Transformed Ditto's copy) |
 | `view.ts` | `getPlayerView`: what one player may see |
 | `cpu/index.ts` | CPU difficulties (`CPU_DIFFICULTIES`, `cpuFor`) and `runCpu`, which plays at the game's `cpuDifficulty` |
@@ -150,6 +150,8 @@ Rules follow the 1999 Base Set rulebook. Special Conditions: Asleep (flip betwee
 Jungle attacks: every Jungle Pokémon's attack effects are in `effects/jungle.ts`. Hurricane returns the Defending Pokémon and its cards to the hand unless it Knocks it Out. Chain Lightning does 10 to every benched Pokémon, on both sides, of the Defending Pokémon's type (none if it's Colorless). Teleport switches the attacker with a benched Pokémon the player clicks. Acid stops the Defending Pokémon retreating, Tail Wag and Leer stop it attacking that Pokémon, and Pounce and Snivel take 10 or 20 off its attacks on it, all during the next turn; benching or evolving either Pokémon ends them. Swords Dance makes Slash do 60 base damage on its owner's next turn. Big Eggsplosion flips a coin per Energy provided (Double Colorless = 2). Flareon's Flamethrower discards a Fire Energy card and Vaporeon's Water Gun counts Water Energy only (TCGdex drops those icons). Call for Family (Nidoran♀) finds either Nidoran; Call for Friend finds a Fighting Basic Pokémon.
 
 Jungle Pokémon Powers (`effects/jungle-powers.ts`): Invisible Wall prevents attack damage of 30 or more to Mr. Mime, even from its owner's attacks, checked after weakness, resistance, PlusPower, Defender and other reductions. Thick Skinned stops Snorlax becoming Asleep, Confused, Paralyzed or Poisoned. Shift (once a turn) changes Venomoth's type to that of another Pokémon in play, not Colorless, until it leaves play or Shifts again. Heal (once a turn) flips a coin; on heads the player clicks one of their damaged Pokémon on the board to remove a damage counter (no choice if only one is damaged). Each working Retreat Aid on the Bench takes 1 off the Active Pokémon's retreat cost. Peek (once a turn) shows the player the top card of either deck, a random card from the opponent's hand, or a Prize card of either player they pick, until their next move; the log says only what they looked at.
+
+Promos (`effects/promos.ts`): Mewtwo (Wizards Promo 3 and 14)'s Energy Absorption attaches 1 or 2 Energy cards from the discard pile (it needs one there). Jigglypuff (Wizards Promo 7) has First Aid and Double-Edge. Electrode (Pokémon Web 26) is a Japanese-only card added by hand (`custom-cards.json`): Sonicboom ignores weakness and resistance, and Energy Spike finds a basic Energy card in the deck, then the player clicks the Pokémon to attach it to; the turn ends after both steps. Super Energy Retrieval (`effects/neo1-trainers.ts`, the Neo Genesis printing, standing in for the deck's Japanese Fan Book promo) trades 2 other cards from the hand for 4 basic Energy cards from the discard pile, or all of them if there are fewer.
 
 Jungle Trainers (`effects/jungle-trainers.ts`): Poké Ball needs a card in the deck; on heads the player takes a Basic Pokémon or Evolution card from the deck (they must when there is one), and the log names the card taken, as it's shown to the opponent.
 
@@ -208,7 +210,7 @@ Requires Node 24+, pnpm, and Docker if you want local Supabase.
 pnpm install
 cp .env.example .env        # fill in values (see below)
 pnpm db:migrate             # create tables (prompts for a migration name)
-pnpm db:seed                # load the WOTC card catalog (1999–2003) from the TCGdex snapshot
+pnpm db:seed                # load the WOTC card catalog (1999–2003) from the TCGdex snapshot, plus the hand-made cards
 pnpm dev                    # web on :5173 and API on :8787, both with live reload
 ```
 
@@ -248,7 +250,7 @@ Use the printed DB URL for both `DATABASE_URL` and `DIRECT_URL`, `http://127.0.0
 | `pnpm typecheck` | Typecheck all packages |
 | `pnpm test` | Run Vitest suites (game engine) |
 | `pnpm db:migrate` / `db:studio` / `db:seed` | Prisma migrate dev / Studio / seed |
-| `pnpm cards:fetch` | Re-download the WOTC card snapshot from TCGdex (`packages/db/prisma/data/tcgdex-wotc.json`) |
+| `pnpm cards:fetch` | Re-download the WOTC card snapshot from TCGdex (`packages/db/prisma/data/tcgdex-wotc.json`). Cards TCGdex doesn't have are kept by hand in `custom-cards.json` beside it (same shape; `pnpm db:seed` loads both), with their images in `apps/web/public/cards/<id>/` as `high.webp` and `low.webp` |
 
 ## Next steps
 

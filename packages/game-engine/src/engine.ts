@@ -277,7 +277,8 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
     const { afterAttack } = state.pendingChoice;
     const error = resolvePending(state, me, action);
     if (error) return fail(error);
-    if (!afterAttack) return ok(state);
+    // Another step may follow (Energy Spike: pick the energy, then the Pokémon to attach it to).
+    if (!afterAttack || state.pendingChoice) return ok(state);
     // The search was the attack's: the turn ends as it does after any attack.
     const winner = resolveKnockouts(state, me.id);
     return winner ? finish(state, winner) : endTurn(state);

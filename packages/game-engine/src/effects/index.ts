@@ -8,11 +8,13 @@ import { FOSSIL } from './fossil.js';
 import { JUNGLE } from './jungle.js';
 import { JUNGLE_POWERS } from './jungle-powers.js';
 import { JUNGLE_TRAINERS } from './jungle-trainers.js';
+import { NEO1_TRAINERS } from './neo1-trainers.js';
+import { PROMOS } from './promos.js';
 import { FOSSIL_POWERS } from './fossil-powers.js';
 import { FOSSIL_TRAINERS } from './fossil-trainers.js';
 
 /** Effects by card id, then attack name. */
-const EFFECTS: Record<string, Record<string, AttackEffect>> = { ...BASE1, ...JUNGLE, ...FOSSIL };
+const EFFECTS: Record<string, Record<string, AttackEffect>> = { ...BASE1, ...JUNGLE, ...FOSSIL, ...PROMOS };
 
 /** The card-specific behaviour of an attack, if it has any (plain-damage attacks don't). */
 export const attackEffect = (defId: string, attackName: string): AttackEffect | undefined => EFFECTS[defId]?.[attackName];
@@ -24,7 +26,7 @@ const POWERS: Record<string, PowerEffect> = { ...BASE1_POWERS, ...JUNGLE_POWERS,
 export const powerEffect = (defId: string): PowerEffect | undefined => POWERS[defId];
 
 /** Trainer card effects by card id. */
-const TRAINERS: Record<string, TrainerEffect> = { ...BASE1_TRAINERS, ...JUNGLE_TRAINERS, ...FOSSIL_TRAINERS };
+const TRAINERS: Record<string, TrainerEffect> = { ...BASE1_TRAINERS, ...JUNGLE_TRAINERS, ...FOSSIL_TRAINERS, ...NEO1_TRAINERS };
 
 /** The behaviour of a Trainer card, if it's implemented. */
 export const trainerEffect = (defId: string): TrainerEffect | undefined => TRAINERS[defId];

@@ -3,7 +3,7 @@
 ## Product direction
 - Single-player game: the player battles a generation's gym leaders against CPU opponents. Not PvP. Don't add lobbies, multiplayer or realtime features.
 - Roadmap order: (1) refine card-playing mechanics → (2) gym-leader campaign structure → (3) multiple saves per account → (4) progression across runs through different generations. Stay on the current step unless asked.
-- Card pool: WOTC era only (1999–2003, before the EX series), from TCGdex. Cards with no image are excluded.
+- Card pool: WOTC era only (1999–2003, before the EX series), from TCGdex. Cards with no image are excluded. Cards TCGdex lacks can be added by hand in `packages/db/prisma/data/custom-cards.json` (only with the user's say-so), with images in `apps/web/public/cards/<id>/`.
 - If you're unsure what a card does or how its rules should work, stop and ask. Don't guess at card effects.
 
 ## Stack and layout
