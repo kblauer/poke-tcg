@@ -10,6 +10,9 @@ export const PACK_SETS = ['base1', 'base2', 'base3', 'basep'];
 /** Price of a pack, in banked ₱. */
 export const PACK_PRICE = 300;
 
+/** The most packs bought and opened at once. */
+export const MAX_PACKS_AT_ONCE = 50;
+
 /** How often the rare is a holo. */
 export const HOLO_CHANCE = 1 / 3;
 

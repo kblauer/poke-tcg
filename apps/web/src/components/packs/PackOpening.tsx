@@ -1,5 +1,6 @@
 import CloseIcon from '@mui/icons-material/Close';
 import type { AppRouter } from '@poke-tcg/api/router';
+import { MAX_PACKS_AT_ONCE } from '@poke-tcg/campaign';
 import { useMutation } from '@tanstack/react-query';
 import type { inferRouterOutputs } from '@trpc/server';
 import { useLayoutEffect, useRef, useState } from 'react';
@@ -26,11 +27,16 @@ const FLY_OUT_MS = 300;
 
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+/** Quick picks for how many packs to open; Custom takes any number up to MAX_PACKS_AT_ONCE. */
+const QUANTITIES = [1, 2, 5, 10];
+/** The most cards drawn flying out of the packs (opening ten packs shouldn't animate 110). */
+const MAX_BURST = 22;
+
 /**
- * Opening a pack, in a window over the page. Click the pack to buy it (₱ from the bank): it shakes, its top
- * tears off, and the 11 cards burst out and gather into a stack. Click the stack to reveal the cards one by
- * one (each flips up; holos shimmer, new unlocks are marked NEW), or Skip. Either way it ends on the list
- * of cards opened. Closing the window goes back to the sets.
+ * Opening packs, in a window over the page. Pick how many (×1, ×2, ×5, ×10 or Custom), then click the pack to
+ * buy them (₱ from the bank): it shakes, its top tears off, and the cards burst out and gather into a stack.
+ * Click the stack to reveal the cards one by one, pack after pack (each flips up; holos shimmer, new unlocks
+ * are marked NEW), or Skip. Either way it ends on the list of cards opened. Closing the window goes back to the sets.
  */
 export function PackOpening({ set, price, bank, onClose, onOpened }: { set: PackSetInfo; price: number; bank: number; onClose: () => void; onOpened: () => void }) {
   const trpc = useTRPC();
@@ -38,6 +44,9 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
   const [cards, setCards] = useState<PackCard[]>([]);
   const [index, setIndex] = useState(0);
   const [leaving, setLeaving] = useState(false);
+  const [quantity, setQuantity] = useState(1);
+  /** Custom picked: the number field shows instead of the quick picks being the only choice. */
+  const [custom, setCustom] = useState(false);
   /** The cards' large images, fetched while the pack tears open and the cards burst out, so each is ready when it flips up. */
   const preloaded = useRef<HTMLImageElement[]>([]);
   const open = useMutation(
@@ -56,7 +65,13 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
       },
     }),
   );
-  const affordable = bank >= price;
+  const total = price * quantity;
+  const affordable = bank >= total;
+  /** The most packs the bank pays for (at least 1, so the price still shows). */
+  const maxAffordable = Math.max(1, Math.min(MAX_PACKS_AT_ONCE, Math.floor(bank / price)));
+  const packs = cards.length ? cards.at(-1)!.pack + 1 : quantity;
+  const inPack = (i: number) => cards.slice(0, i).filter((c) => c.pack === cards[i]!.pack).length;
+  const packSize = (p: number) => cards.filter((c) => c.pack === p).length;
 
   /** The current card flies off the stack and the next one flips up; after the last, the list. */
   function next() {
@@ -87,26 +102,72 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
           <button
             className="rounded-md outline-none transition hover:scale-105 focus-visible:ring-4 focus-visible:ring-yellow-300 disabled:cursor-not-allowed disabled:hover:scale-100"
             disabled={phase !== 'pack' || open.isPending || !affordable}
-            onClick={() => open.mutate({ setId: set.id })}
-            aria-label={`Open a ${set.name} pack`}
+            onClick={() => open.mutate({ setId: set.id, count: quantity })}
+            aria-label={`Open ${quantity === 1 ? 'a' : quantity} ${set.name} pack${quantity === 1 ? '' : 's'}`}
           >
             <BoosterPack setId={set.id} name={set.name} logoUrl={set.logoUrl} state={phase === 'tearing' ? 'torn' : open.isPending ? 'shaking' : 'idle'} />
           </button>
           {phase === 'pack' && (
+            <div className="flex flex-wrap items-center justify-center gap-2" role="group" aria-label="How many packs">
+              {QUANTITIES.map((n) => (
+                <button
+                  key={n}
+                  className={`rounded px-3 py-1 text-sm font-semibold transition ${!custom && quantity === n ? 'bg-yellow-300 text-slate-900' : 'bg-slate-700 text-slate-200 hover:bg-slate-600'}`}
+                  aria-pressed={!custom && quantity === n}
+                  disabled={open.isPending}
+                  onClick={() => {
+                    setCustom(false);
+                    setQuantity(n);
+                  }}
+                >
+                  ×{n}
+                </button>
+              ))}
+              <button
+                className={`rounded px-3 py-1 text-sm font-semibold transition ${custom ? 'bg-yellow-300 text-slate-900' : 'bg-slate-700 text-slate-200 hover:bg-slate-600'}`}
+                aria-pressed={custom}
+                disabled={open.isPending}
+                onClick={() => setCustom(true)}
+              >
+                Custom
+              </button>
+              {custom && (
+                <input
+                  type="number"
+                  min={1}
+                  max={MAX_PACKS_AT_ONCE}
+                  value={quantity}
+                  autoFocus
+                  disabled={open.isPending}
+                  onChange={(e) => setQuantity(Math.max(1, Math.min(MAX_PACKS_AT_ONCE, Math.floor(Number(e.target.value)) || 1)))}
+                  className="w-20 rounded bg-slate-800 px-2 py-1 text-sm outline-none ring-yellow-300 focus:ring-1"
+                  aria-label={`Number of packs (1 to ${MAX_PACKS_AT_ONCE})`}
+                />
+              )}
+              {custom && (
+                <button className="text-xs text-slate-400 hover:text-slate-200" disabled={open.isPending} onClick={() => setQuantity(maxAffordable)}>
+                  Max ({maxAffordable})
+                </button>
+              )}
+            </div>
+          )}
+          {phase === 'pack' && (
             <p className={`text-sm ${affordable ? 'text-slate-300' : 'text-amber-300'}`}>
-              {affordable ? `Click the pack to open it: ₱${price} from your bank (₱${bank}).` : `A pack costs ₱${price}; your bank has ₱${bank}.`}
+              {affordable
+                ? `Click the pack to open ${quantity === 1 ? 'it' : `${quantity} packs`}: ₱${total} from your bank (₱${bank}).`
+                : `${quantity === 1 ? 'A pack costs' : `${quantity} packs cost`} ₱${total}; your bank has ₱${bank}.`}
             </p>
           )}
           {open.error && <p className="text-sm text-red-400">{open.error.message}</p>}
         </div>
       )}
 
-      {phase === 'burst' && <Burst count={cards.length} onDone={() => setPhase('reveal')} />}
+      {phase === 'burst' && <Burst count={Math.min(cards.length, MAX_BURST)} onDone={() => setPhase('reveal')} />}
 
       {phase === 'reveal' && cards[index] && (
         <div className="flex flex-col items-center gap-5">
           <p className="text-sm text-slate-400">
-            Card {index + 1} of {cards.length} · click to see the next
+            {packs > 1 && `Pack ${cards[index].pack + 1} of ${packs} · `}Card {inPack(index) + 1} of {packSize(cards[index].pack)} · click to see the next
           </p>
           <button className="relative w-72 outline-none" onClick={next} aria-label="Next card">
             {/* The rest of the stack, face down, under the card shown. */}
@@ -130,7 +191,9 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
       {phase === 'summary' && (
         <div className="max-h-full w-full max-w-4xl space-y-4 overflow-y-auto rounded-lg bg-slate-800 p-6 ring-1 ring-slate-600">
           <div className="flex items-baseline gap-3">
-            <h2 className="text-xl font-bold">{set.name} pack</h2>
+            <h2 className="text-xl font-bold">
+              {packs === 1 ? `${set.name} pack` : `${packs} ${set.name} packs`}
+            </h2>
             <span className="text-sm text-emerald-300">
               {newCount} new card{newCount === 1 ? '' : 's'} unlocked
             </span>

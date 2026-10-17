@@ -81,15 +81,20 @@ export const packsRouter = router({
   }),
 
   /**
-   * Buys and opens a pack of the set with ₱ from the bank: its 11 cards in the order they're revealed,
+   * Buys and opens `count` packs of the set with ₱ from the bank: their cards in the order they're revealed (pack
+   * after pack, each with its `pack` number),
    * each unlocked (`isNew` if it wasn't before), and the bank left.
    */
   open: protectedProcedure.input(openPackInput).mutation(async ({ ctx, input }) => {
     const { set, cards } = await packSet(input.setId);
-    const pack = openPack(set, rngFrom(Math.floor(Math.random() * 2 ** 31)));
+    const rng = rngFrom(Math.floor(Math.random() * 2 ** 31));
+    // Every pack's cards in reveal order, pack after pack, each tagged with its pack (from 0).
+    const opened = Array.from({ length: input.count }, (_, pack) => openPack(set, rng).map((c) => ({ ...c, pack })));
+    const pack = opened.flat();
+    const price = PACK_PRICE * input.count;
     return prisma.$transaction(async (tx) => {
-      const { count } = await tx.user.updateMany({ where: { id: ctx.user.id, bank: { gte: PACK_PRICE } }, data: { bank: { decrement: PACK_PRICE } } });
-      if (!count) throw new TRPCError({ code: 'BAD_REQUEST', message: `A pack costs ₱${PACK_PRICE}: not enough in the bank` });
+      const { count } = await tx.user.updateMany({ where: { id: ctx.user.id, bank: { gte: price } }, data: { bank: { decrement: price } } });
+      if (!count) throw new TRPCError({ code: 'BAD_REQUEST', message: `${input.count === 1 ? 'A pack costs' : `${input.count} packs cost`} ₱${price}: not enough in the bank` });
       const before = await unlockedIds(ctx.user.id, tx);
       await unlockCards(ctx.user.id, pack.map((c) => c.cardId), tx);
       const { bank } = await tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { bank: true } });
