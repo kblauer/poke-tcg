@@ -87,7 +87,7 @@ Pages load data, set their own width and side padding, and hand data to componen
 |---|---|
 | `RunHeader.tsx` | The run's name and how far along it is |
 | `RunStats.tsx` | The side panel's Run tab: HP as hearts, ₱ and the bank, the run's EXP and the account's, consumables used (of 3), the battle rules and consumables in effect, and the Bag |
-| `RunMap.tsx` | The path of steps as a vertical column on the left, climbing from the first step at the bottom to the gym leader at the top: the encounter taken at past steps, what later steps offer (faded), and the current step's options as large buttons to choose from. It scrolls on its own, kept centred on the current step |
+| `RunMap.tsx` | The path of steps as a vertical column on the left, climbing from the first step at the bottom to the run's last boss at the top: the encounter taken at past steps, what later steps offer (faded; Gym Trainers and bosses labelled, bosses bigger), and the current step's options as large buttons to choose from. It scrolls on its own, kept centred on the current step |
 | `EncounterPanel.tsx` | The encounter being played: a battle (go to its game; an Ace Trainer can be declined first), a battle's reward (pick 1 of 3 cards), a free card, a card shop, a trade, a Pokémon Center or a Mystery event |
 | `DeckPanel.tsx` | The cards unlocked in this run, under the encounter: one per kind with how many came, grouped into Pokémon, Trainers and Energy, and a link to the Decks tab (where the deck itself is) |
 | `BagPanel.tsx` | Consumables and misc items you own with a Use button, disabled past the run's limits (in the Run tab) |
@@ -95,7 +95,7 @@ Pages load data, set their own width and side padding, and hand data to componen
 | `ItemShop.tsx` | The post-run shop: items for account EXP |
 | `NewRunPicker.tsx` | Picks the next run's type and one of your decks (from the Decks tab), then starts it; decks that break the rules or hold locked cards are listed with why and can't be picked |
 | `RunCard.tsx` | A card offered or owned in a run, with the large hover preview (as on the board), its rarity, an optional price and an optional corner badge |
-| `encounterIcons.tsx` | A Material UI symbol and colour per kind of encounter (`EncounterBadge`) |
+| `encounterIcons.tsx` | A Material UI symbol and colour per kind of encounter, Gym Trainers, gym leaders, the Elite Four and the Champion included (`EncounterBadge`) |
 
 ### `src/hooks/`
 
@@ -190,20 +190,31 @@ Fossil Trainers (`effects/fossil-trainers.ts`): Mr. Fuji shuffles a benched Pok�
 
 ## Runs
 
-An account plays runs, one at a time. A run is 25 encounters and then a gym leader. At each step you choose one of 2–3 encounters, and you can see what later steps offer. The pure logic is in `packages/campaign` (`RunState` and its reducer `applyRunAction`, like the engine's), the API saves it in the `Run` table, and the web shows it on the home screen.
+An account plays runs, one at a time. A run is steps of encounters, choosing one of 2–3 at each step (you can see what later steps offer), with bosses along the way: every gym leader comes after one of their gym's trainers, who must be fought, and the run is beaten with its last boss. The pure logic is in `packages/campaign` (`RunState` and its reducer `applyRunAction`, like the engine's), the API saves it in the `Run` table, and the web shows it on the home screen.
+
+**Run types** (`run-types.ts`):
+
+| Run | Steps | Bosses |
+| --- | --- | --- |
+| Pewter, Cerulean, Vermilion, Celadon, Fuchsia, Saffron, Cinnabar and Viridian City | 24 encounters, the Gym Trainer, the gym leader (26 in all) | Brock, Misty, Lt. Surge, Erika, Koga, Sabrina, Blaine or Giovanni |
+| Kanto Gym Challenge | For each gym in order: 5 encounters, the Gym Trainer, the gym leader (56) | All eight gym leaders |
+| Kanto Champion | For each gym: 4 encounters, the Gym Trainer, the gym leader; then Victory Road (5 encounters) and the Elite Four and Champion back to back (58) | All eight, Lorelei, Bruno, Agatha, Lance and Champion Blue |
+
+**Bosses** (`bosses.ts`) play their counterpart's deck from the Game Boy Color *Pokémon Trading Card Game* (TCG 1), named for the Generation I character: Brock (Gene's Rock Crusher), Misty (Amy's Rain Dancer), Lt. Surge (Isaac's Zapping Selfdestruct), Erika (Nikki's Flower Power), Koga (Rick's Wonders of Science), Sabrina (Murray's Strange Psyshock), Blaine (Ken's Fire Charge), Giovanni (Mitch's First-Strike); the Grand Masters' Legendary decks for the Elite Four, Lorelei (Jack's Articuno, Ice), Lance (Rod's Dragonite, Dragon), and by elimination Bruno (Steve's Zapdos) and Agatha (Courtney's Moltres); and Ronald's Legendary Ronald Deck for Champion Blue. Cards that only exist in the Game Boy game (its promos, its "Mystery" and "Laboratory" prints, the Japanese Fan Book and Pokémon Web cards) are replaced by the closest TCGdex card of the same type, noted on each deck (e.g. Fossil Moltres for the promo Moltres, Fossil Dragonite for the promo Dragonite, Jungle's Eeveelutions, Base Set Electrode, Neo Genesis Super Energy Retrieval). Ronald's promo Articuno and Zapdos are Moltres instead, as no Water or Lightning Pokémon can attack with his Fire and Double Colorless Energy. Bulbapedia's First-Strike and Rain Dancer lists add up to 61, so each has one basic Energy fewer. Bosses play at Gym leader difficulty; a loss costs 1 HP and they're fought again. Beating one gives more ₱ and EXP, a choice of rarer cards, and their badge (or, for Blue, the Champion Ribbon) as a key item at once. The practice battles' CPU deck is Brock's.
 
 | File (`packages/campaign/src/`) | Purpose |
 | --- | --- |
-| `run.ts` | `RunState`, `createRun` (the map from a seed), `applyRunAction` (choosing, encounters, battle results, items, the testing retry), `battleSetup` (the CPU's deck, difficulty and battle rules) and `runView` (what the player sees) |
-| `decks.ts` | `STARTER_DECK`, `FLOWER_POWER_DECK`, `generateDeck` (random medium-strength decks) and `deckErrors` |
+| `run.ts` | `RunState`, `createRun` (the map from a seed and the run type's segments), `applyRunAction` (choosing, encounters, battle results, bosses and badges, items, the testing retry), `battleSetup` (the CPU's deck, difficulty and battle rules) and `runView` (what the player sees) |
+| `decks.ts` | `STARTER_DECK`, `generateDeck` (random medium-strength decks; one type only for a Gym Trainer) and `deckErrors` |
+| `bosses.ts` | The bosses (`BOSSES`: 8 gym leaders, the Elite Four, Champion Blue) with their decks, gyms and badges |
 | `items.ts` | The item catalog (consumables, misc items, key items, equipment), equipment slots and the shop's stock |
-| `run-types.ts` | The runs to pick from and their gym leaders (Celadon City: Erika) |
+| `run-types.ts` | The runs to pick from, as segments of encounters and bosses (one per gym, the Kanto Gym Challenge, Kanto Champion) |
 | `pool.ts` | Card pool types, rarities and prices, basic Energy ids |
 | `random.ts` | Seeded randomness kept in the state (`Rng`) |
 | `test-pool.ts` | Tests only: the pool built from the TCGdex snapshot (`run.test.ts`, `decks.test.ts`) |
 
-- **Start**: the first visit sets up the account: a `Starter deck` (`STARTER_DECK`, medium strength, Water/Lightning: Poliwag and Pikachu lines, Lapras, Electabuzz, 17 Trainers, 24 Energy) saved in its deck list with every card in it unlocked, and a first run of **Celadon City** with it, ending with Gym Leader Erika and the GBC game's Flower Power deck (`FLOWER_POWER_DECK`). A run starts with 3 HP and ₱500. Older accounts get their starter deck's cards unlocked on their next visit.
-- **Battles**: the trainer plays a random 60-card deck of medium strength (`generateDeck`: 1–2 types, 2–4 middling evolution lines, 14–16 Trainers, the rest Energy split by the attacks' needs; the same seed gives the same deck) at the CPU's **Trainer** difficulty. **Ace Trainers** (elite battles, from step 6) can be declined; they play at **Gym leader** difficulty and pay more. The gym leader plays at Gym leader difficulty. A win pays ₱ and EXP and offers 1 of 3 cards; a loss costs 1 HP and the run moves on, except against the gym leader, who is fought again. At 0 HP the run is lost: start over (a new run), or, for testing, **Retry with 3 HP**, which carries on from where it ended (on in production too, for now).
+- **Start**: the first visit sets up the account: a `Starter deck` (`STARTER_DECK`, medium strength, Water/Lightning: Poliwag and Pikachu lines, Lapras, Electabuzz, 17 Trainers, 24 Energy) saved in its deck list with every card in it unlocked, and a first run of **Celadon City** with it. A run starts with 3 HP and ₱500. Older accounts get their starter deck's cards unlocked on their next visit.
+- **Battles**: the trainer plays a random 60-card deck of medium strength (`generateDeck`: 1–2 types, 2–4 middling evolution lines, 14–16 Trainers, the rest Energy split by the attacks' needs; the same seed gives the same deck) at the CPU's **Trainer** difficulty. A **Gym Trainer** is the only option on the step before their gym leader: a random deck of the gym's type alone, at Trainer difficulty. **Ace Trainers** (elite battles, from step 6) can be declined; they play at **Gym leader** difficulty and pay more. A win pays ₱ and EXP and offers 1 of 3 cards; a loss costs 1 HP and the run moves on, except against a boss, who is fought again. At 0 HP the run is lost: start over (a new run), or, for testing, **Retry with 3 HP**, which carries on from where it ended (on in production too, for now).
 - **Other encounters**: a card shop (cards for ₱ by rarity), a free card (1 of 3), a card trade (one of your deck's cards for one at least as rare; it replaces it in the deck), a Pokémon Center (1 HP for ₱100) and Mystery events: a Frenzy (Pokémon of one type do double damage in the next 3 battles, both sides: the engine's `GameState.rules`), a coin-toss bet, a shady dealer (a rare card for 1 HP), a Fan Club donation (₱ for EXP) and a lucky find.
 - **Cards**: cards come from every card the engine plays fully (`cardImplemented`) in the Base Set, Jungle, Fossil and Wizards promos (`apps/api/src/pool.ts`), rarer ones less often. A card gained in a run is unlocked at once (`CardUnlock`, `apps/api/src/unlocks.ts`) but doesn't join the run's deck (only trades change it): it can go in your next decks on the Decks tab. Unlocks are per card, not per copy (up to the usual 4); basic Energy is always unlocked. The Decks and Cards tabs show locked cards darker, the deck builder won't add them (nor will the API save them), and a deck holding any can't start a run or a practice battle.
 - **After a run**: beating it adds its EXP to the account and gives the gym leader's badge (a key item). Then comes the shop, where items cost EXP, and then the next run, with a run type and one of your playable decks to pick. Starting a run moves the earlier runs' leftover ₱ into the account's bank (`User.bank`), and the new run starts with ₱500.

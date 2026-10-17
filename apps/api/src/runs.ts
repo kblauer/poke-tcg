@@ -7,7 +7,6 @@ import {
   expandDeck,
   FIRST_RUN,
   needsBattle,
-  runType,
   STARTER_DECK,
   type RunAction,
   type RunState,
@@ -98,8 +97,12 @@ export async function advanceRun(run: LoadedRun, actions: (RunAction | RunSystem
       data: { state: asJson(state), version: state.version, status, ...(reward && { rewarded: true }) },
     });
     if (count === 0) return false;
-    // Cards gained by these actions are unlocked for the deck builder at once (they don't join the run's deck).
+    // Cards gained by these actions are unlocked for the deck builder at once (they don't join the run's deck),
+    // and badges (or the Champion's ribbon) go to the inventory as they're won.
     await unlockCards(run.ownerId, state.gained.slice(run.state.gained.length), tx);
+    for (const itemId of (state.badges ?? []).slice(run.state.badges?.length ?? 0)) {
+      await tx.inventoryItem.upsert({ where: { userId_itemId: { userId: run.ownerId, itemId } }, create: { userId: run.ownerId, itemId, quantity: 1 }, update: {} });
+    }
     if (reward) await giveRewards(tx, run.ownerId, state);
     return true;
   });
@@ -111,11 +114,9 @@ export async function advanceRun(run: LoadedRun, actions: (RunAction | RunSystem
   return { ...run, state, version: state.version, status, rewarded: run.rewarded || reward };
 }
 
-/** For a beaten run: its EXP and the gym leader's badge. (Its cards were unlocked as they were gained.) */
+/** For a beaten run: its EXP. (Its cards and badges were given as they were won.) */
 async function giveRewards(tx: Prisma.TransactionClient, userId: string, state: RunState) {
   await tx.user.update({ where: { id: userId }, data: { exp: { increment: state.exp } } });
-  const badge = runType(state.type).leader.badge;
-  await tx.inventoryItem.upsert({ where: { userId_itemId: { userId, itemId: badge } }, create: { userId, itemId: badge, quantity: 1 }, update: {} });
 }
 
 /** Creates the battle's game: the run's deck against the encounter's opponent, with the run's battle rules. */

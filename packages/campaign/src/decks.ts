@@ -41,29 +41,6 @@ export const STARTER_DECK: DeckList = [
   ['base1-96', 1], // Double Colorless Energy
 ];
 
-/**
- * Erika's deck: the Flower Power Deck from the Game Boy Color Pokémon Trading Card Game (Grass Club
- * Master Nikki's), https://bulbapedia.bulbagarden.net/wiki/Flower_Power_Deck_(TCG).
- */
-export const FLOWER_POWER_DECK: DeckList = [
-  ['base1-44', 4], // Bulbasaur
-  ['base1-30', 3], // Ivysaur
-  ['base1-15', 2], // Venusaur
-  ['base2-58', 4], // Oddish
-  ['base2-37', 3], // Gloom
-  ['base2-15', 2], // Vileplume
-  ['base2-52', 4], // Exeggcute
-  ['base2-35', 3], // Exeggutor
-  ['base1-88', 2], // Professor Oak
-  ['base1-91', 3], // Bill
-  ['base1-76', 2], // Pokémon Breeder
-  ['base1-81', 2], // Energy Retrieval
-  ['base1-95', 2], // Switch
-  ['base1-94', 2], // Potion
-  ['base1-99', 18], // Grass Energy
-  ['base1-101', 4], // Psychic Energy
-];
-
 /** An evolution line: the cards for each stage (one print of each), its type and how strong it is. */
 interface Line {
   stages: PokemonCardDef[];
@@ -136,12 +113,16 @@ const EXTRA_TRAINERS: [string, number][] = [
  * A random 60-card deck of medium strength for a trainer, following the usual rules of deck building:
  * one or two Energy types, 2–4 evolution lines of middling strength (about 18–20 Pokémon, at least 8
  * of them Basic), 14–16 Trainers (draw, healing, switching, a little disruption) and the rest Energy,
- * split by what the attacks need. No more than 4 of any card but basic Energy.
+ * split by what the attacks need. No more than 4 of any card but basic Energy. `type` makes a deck of just that
+ * type (and Colorless).
  */
-export function generateDeck(pool: readonly PoolCard[], rng: Rng): string[] {
+export function generateDeck(pool: readonly PoolCard[], rng: Rng, { type }: { type?: EnergyType } = {}): string[] {
   const all = evolutionLines(pool, rng);
-  const main = pick(rng, DECK_TYPES.filter((t) => all.some((l) => l.type === t && l.stages.length > 1)));
-  const second = chance(rng, 0.6) ? pick(rng, DECK_TYPES.filter((t) => t !== main)) : null;
+  const mainTypes = DECK_TYPES.filter((t) => all.some((l) => l.type === t && l.stages.length > 1));
+  // `type` (a Gym Trainer's gym) is the main type when the pool has evolution lines of it.
+  const main = type && mainTypes.includes(type) ? type : pick(rng, mainTypes);
+  // A Gym Trainer's deck sticks to its gym's type (Colorless Pokémon aside); others add a second type 60% of the time.
+  const second = !type && chance(rng, 0.6) ? pick(rng, DECK_TYPES.filter((t) => t !== main)) : null;
   const types = new Set<EnergyType>([main, ...(second ? [second] : [])]);
   // A line fits if all its attacks can be paid with the deck's Energy.
   const fits = (l: Line, type: EnergyType) => l.type === type || (l.type === 'colorless' && [...l.needs].every((t) => types.has(t)));
@@ -155,8 +136,9 @@ export function generateDeck(pool: readonly PoolCard[], rng: Rng): string[] {
     taken.add(line.stages[0]!.name);
   };
   const candidates = (type: EnergyType, length: number) => usable.filter((l) => fits(l, type) && l.stages.length === length && !taken.has(l.stages[0]!.name));
-  // The main attacker: a Stage 2 line half the time, otherwise a Stage 1 line.
-  add(mediumLine(rng, candidates(main, chance(rng, 0.5) ? 3 : 2)) ?? mediumLine(rng, candidates(main, 2)));
+  // The main attacker, of the main type: a Stage 2 line half the time, otherwise a Stage 1 line.
+  const ofMain = (length: number) => candidates(main, length).filter((l) => l.type === main);
+  add(mediumLine(rng, ofMain(chance(rng, 0.5) ? 3 : 2)) ?? mediumLine(rng, ofMain(2)) ?? mediumLine(rng, candidates(main, 2)));
   add(mediumLine(rng, candidates(second ?? main, 2)) ?? mediumLine(rng, candidates(second ?? main, 1)));
   const count = () => chosen.reduce((n, l) => n + LINE_COPIES[l.stages.length]!.reduce((a, b) => a + b, 0), 0);
   for (let tries = 0; count() < 18 && tries < 20; tries++) {

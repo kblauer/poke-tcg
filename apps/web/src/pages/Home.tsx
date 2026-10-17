@@ -50,7 +50,7 @@ export function HomePage() {
                   <div className="min-w-0 space-y-6">
                     {view.phase === 'map' ? (
                       <p className="rounded-lg bg-slate-800 p-5 text-slate-300 ring-1 ring-slate-600">
-                        Choose your next encounter on the map: the highlighted step. You climb from the bottom to the gym leader at the top.
+                        Choose your next encounter on the map: the highlighted step. You climb from the bottom to the run's last boss at the top.
                       </p>
                     ) : (
                       <EncounterPanel view={view} run={run} />

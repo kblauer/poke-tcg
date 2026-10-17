@@ -1,18 +1,28 @@
-// A run: 25 steps of encounters chosen one at a time on a map (2–3 options each), then the gym leader.
+// A run: steps of encounters chosen one at a time on a map (2–3 options each), with bosses along the way
+// (each gym leader after a Gym Trainer that must be fought), ending with its last boss (see run-types.ts).
 // RunState is plain JSON (saved in Run.state); applyRunAction is its reducer, like the engine's applyAction.
 // Battles themselves are engine games: the API starts one when the run asks for it (needsBattle) and
 // reports the result back with BATTLE_OVER.
 import type { BattleRule, CardDef, CpuDifficulty, EnergyType } from '@poke-tcg/game-engine';
+import { boss, bossLabel, type BossId, type BossKind } from './bosses.js';
 import { expandDeck, generateDeck } from './decks.js';
 import { item, MAX_CONSUMABLES_PER_RUN } from './items.js';
 import { byId, DECK_TYPES, offerable, PRICES, rarityWeight, type PoolCard, type Rarity } from './pool.js';
 import { between, pick, random, rngFrom, seed, weighted, type Rng } from './random.js';
-import { runType, type RunTypeId } from './run-types.js';
+import { finalBoss, runType, type RunTypeId } from './run-types.js';
 
 export const MAX_HP = 3;
 export const STARTING_POKEDOLLARS = 500;
 
-export type EncounterKind = 'battle' | 'elite' | 'gymLeader' | 'shop' | 'gift' | 'trade' | 'event' | 'center';
+/** Battles: a trainer, an Ace Trainer (elite, can be declined), a gym's Gym Trainer, or a boss. */
+export type BattleKind = 'battle' | 'elite' | 'gymTrainer' | BossKind;
+export type EncounterKind = BattleKind | 'shop' | 'gift' | 'trade' | 'event' | 'center';
+
+const BATTLE_KINDS: readonly string[] = ['battle', 'elite', 'gymTrainer', 'gymLeader', 'eliteFour', 'champion'];
+export const isBattleKind = (kind: string): kind is BattleKind => BATTLE_KINDS.includes(kind);
+const BOSS_KINDS: readonly string[] = ['gymLeader', 'eliteFour', 'champion'];
+/** Bosses are fought again after a loss, and give a better reward. */
+export const isBossKind = (kind: string): kind is BossKind => BOSS_KINDS.includes(kind);
 
 /** A choice on the map. What's inside (a shop's stock, a gift's cards) is rolled when it's chosen. */
 export interface MapEncounter {
@@ -20,6 +30,8 @@ export interface MapEncounter {
   label: string;
   /** Battles: the opponent's name. */
   trainer?: string;
+  /** Bosses: who; Gym Trainers: whose gym. Missing on gym leaders of runs saved before there were several. */
+  boss?: BossId;
 }
 
 export interface Step {
@@ -39,7 +51,7 @@ export type RunEvent =
 /** The encounter being played. */
 export type Encounter =
   /** `deckSeed` rolls a trainer's deck; `gameId` is the battle once started. An elite battle can be declined first. */
-  | { kind: 'battle' | 'elite' | 'gymLeader'; trainer: string; deckSeed: number; accepted?: boolean; gameId?: string }
+  | { kind: BattleKind; trainer: string; deckSeed: number; accepted?: boolean; gameId?: string; boss?: BossId }
   | { kind: 'shop'; stock: { cardId: string; price: number; sold?: boolean }[] }
   | { kind: 'gift'; offers: string[] }
   | { kind: 'trade'; give: string; get: string }
@@ -78,6 +90,8 @@ export interface RunState {
   consumablesUsed: number;
   /** Times each misc item was used this run. */
   itemUses: Record<string, number>;
+  /** Key items earned in this run (badges, the Champion's ribbon), given to the account as they're earned. Missing in older runs. */
+  badges?: string[];
   /** What happened, oldest first. */
   log: string[];
 }
@@ -120,7 +134,9 @@ const KIND_WEIGHTS: [EncounterKind, number][] = [
   ['center', 8],
 ];
 
-const LABELS: Record<Exclude<EncounterKind, 'battle' | 'elite' | 'gymLeader'>, string> = {
+const GYM_TRAINERS = ['Jr. Trainer Ken', 'Jr. Trainer Ami', 'Cooltrainer Rio', 'Cooltrainer Saki', 'Gym Guide Tom', 'Lass Nora', 'Black Belt Hideki', 'Beauty Tamia', 'Juggler Nate', 'Burglar Quinn', 'Scientist Ted', 'Rocker Dax'];
+
+const LABELS: Record<Exclude<EncounterKind, BattleKind>, string> = {
   shop: 'Card Shop',
   gift: 'Free Card',
   trade: 'Card Trade',
@@ -128,8 +144,15 @@ const LABELS: Record<Exclude<EncounterKind, 'battle' | 'elite' | 'gymLeader'>, s
   center: 'Pokémon Center',
 };
 
-/** Rewards for winning each kind of battle. */
-const REWARDS = { battle: { pokedollars: [100, 150], exp: 10 }, elite: { pokedollars: [250, 250], exp: 25 }, gymLeader: { pokedollars: [500, 500], exp: 100 } } as const;
+/** Rewards for winning each kind of battle, and the least rarity of the cards offered after it. */
+const REWARDS: Record<BattleKind, { pokedollars: [number, number]; exp: number; rarity: Rarity }> = {
+  battle: { pokedollars: [100, 150], exp: 10, rarity: 'common' },
+  elite: { pokedollars: [250, 250], exp: 25, rarity: 'uncommon' },
+  gymTrainer: { pokedollars: [150, 200], exp: 15, rarity: 'uncommon' },
+  gymLeader: { pokedollars: [500, 500], exp: 100, rarity: 'rare' },
+  eliteFour: { pokedollars: [600, 600], exp: 120, rarity: 'rare' },
+  champion: { pokedollars: [1000, 1000], exp: 200, rarity: 'rare' },
+};
 
 const CENTER_PRICE = 100;
 const SHOP_SIZE = 5;
@@ -145,7 +168,7 @@ function mapEncounter(rng: Rng, kind: EncounterKind): MapEncounter {
     const trainer = `Ace Trainer ${pick(rng, ['Cal', 'Gwen', 'Paige', 'Rolf', 'Vera', 'Quinn'])}`;
     return { kind, label: trainer, trainer };
   }
-  if (kind === 'gymLeader') throw new Error('The gym leader is added separately');
+  if (isBattleKind(kind)) throw new Error('Gym Trainers and bosses are added separately');
   return { kind, label: LABELS[kind] };
 }
 
@@ -154,18 +177,26 @@ export function createRun(typeId: RunTypeId, deck: string[], runSeed: number): R
   const type = runType(typeId);
   const rng = rngFrom(runSeed);
   const steps: Step[] = [];
-  for (let i = 0; i < type.steps; i++) {
-    // The first step is always a battle or two; Pokémon Centers and elite trainers come later.
-    const kinds = KIND_WEIGHTS.filter(([k]) => (i === 0 ? k === 'battle' : (k !== 'center' || i >= 3) && (k !== 'elite' || i >= 5)));
-    const count = i === 0 ? 2 : between(rng, 2, 3);
-    const options: MapEncounter[] = [];
-    for (let n = 0; n < count; n++) {
-      const left = kinds.filter(([k]) => k === 'battle' || !options.some((o) => o.kind === k));
-      options.push(mapEncounter(rng, weighted(rng, left)));
+  for (const segment of type.segments) {
+    for (let n = 0; n < segment.steps; n++) {
+      const i = steps.length;
+      // The first step is always a battle or two; Pokémon Centers and elite trainers come later.
+      const kinds = KIND_WEIGHTS.filter(([k]) => (i === 0 ? k === 'battle' : (k !== 'center' || i >= 3) && (k !== 'elite' || i >= 5)));
+      const count = i === 0 ? 2 : between(rng, 2, 3);
+      const options: MapEncounter[] = [];
+      for (let o = 0; o < count; o++) {
+        const left = kinds.filter(([k]) => k === 'battle' || !options.some((opt) => opt.kind === k));
+        options.push(mapEncounter(rng, weighted(rng, left)));
+      }
+      steps.push({ options });
     }
-    steps.push({ options });
+    for (const id of segment.bosses) {
+      const b = boss(id);
+      // Every gym leader has one of the gym's trainers to beat first: the only option on its step.
+      if (b.gym) steps.push({ options: [{ kind: 'gymTrainer', label: `${b.gym.city} Gym Trainer`, trainer: pick(rng, GYM_TRAINERS), boss: id }] });
+      steps.push({ options: [{ kind: b.kind, label: bossLabel(b), trainer: b.name, boss: id }] });
+    }
   }
-  steps.push({ options: [{ kind: 'gymLeader', label: `Gym Leader ${type.leader.name}`, trainer: type.leader.name }] });
   return {
     version: 0,
     type: typeId,
@@ -185,6 +216,7 @@ export function createRun(typeId: RunTypeId, deck: string[], runSeed: number): R
     consumables: [],
     consumablesUsed: 0,
     itemUses: {},
+    badges: [],
     log: [`Started the ${type.name} run.`],
   };
 }
@@ -221,11 +253,14 @@ function rollEvent(rng: Rng, state: RunState, pool: readonly PoolCard[]): RunEve
 
 function rollEncounter(rng: Rng, state: RunState, option: MapEncounter, pool: readonly PoolCard[]): Encounter {
   switch (option.kind) {
-    case 'battle':
-    case 'gymLeader':
-      return { kind: option.kind, trainer: option.trainer!, deckSeed: seed(rng) };
     case 'elite':
       return { kind: 'elite', trainer: option.trainer!, deckSeed: seed(rng), accepted: false };
+    case 'battle':
+    case 'gymTrainer':
+    case 'gymLeader':
+    case 'eliteFour':
+    case 'champion':
+      return { kind: option.kind, trainer: option.trainer!, deckSeed: seed(rng), ...(option.boss && { boss: option.boss }) };
     case 'shop': {
       const cards = byId(pool);
       return { kind: 'shop', stock: offerCards(rng, pool, SHOP_SIZE).map((cardId) => ({ cardId, price: PRICES[cards.get(cardId)!.rarity] })) };
@@ -248,25 +283,37 @@ function rollEncounter(rng: Rng, state: RunState, option: MapEncounter, pool: re
   }
 }
 
+type BattleEncounter = Extract<Encounter, { deckSeed: number }>;
+const battleOf = (state: RunState): BattleEncounter | null => {
+  const e = state.encounter;
+  return e && isBattleKind(e.kind) ? (e as BattleEncounter) : null;
+};
+
 /** Whether the run is waiting for the server to start a battle (it then sends BATTLE_STARTED). */
 export const needsBattle = (state: RunState) => {
-  const e = state.encounter;
-  return state.phase === 'encounter' && !!e && (e.kind === 'battle' || e.kind === 'gymLeader' || (e.kind === 'elite' && !!e.accepted)) && !e.gameId;
+  const e = battleOf(state);
+  return state.phase === 'encounter' && !!e && (e.kind !== 'elite' || !!e.accepted) && !e.gameId;
 };
 
 /** The current battle's game, if one is under way. */
-export const currentGameId = (state: RunState) => {
-  const e = state.encounter;
-  return e && (e.kind === 'battle' || e.kind === 'elite' || e.kind === 'gymLeader') ? (e.gameId ?? null) : null;
-};
+export const currentGameId = (state: RunState) => battleOf(state)?.gameId ?? null;
 
-/** What the server needs to start the battle: the CPU's deck, how it plays, and the battle rules in effect. */
+/** The boss of a boss or Gym Trainer battle (a gym leader saved without one is the run's own). */
+const bossOf = (state: RunState, e: BattleEncounter) => (e.boss ? boss(e.boss) : isBossKind(e.kind) ? finalBoss(runType(state.type)) : null);
+
+/**
+ * What the server needs to start the battle: the CPU's deck, how it plays, and the battle rules in effect.
+ * Bosses play their own deck at Gym leader difficulty; a Gym Trainer a random deck of their gym's type, at
+ * Trainer difficulty; Ace Trainers a random deck at Gym leader difficulty; other trainers at Trainer difficulty.
+ */
 export function battleSetup(state: RunState, pool: readonly PoolCard[]): { deck: string[]; difficulty: CpuDifficulty; rules: BattleRule[]; opponent: string } {
-  const e = state.encounter;
-  if (!e || (e.kind !== 'battle' && e.kind !== 'elite' && e.kind !== 'gymLeader')) throw new Error('No battle to start');
+  const e = battleOf(state);
+  if (!e) throw new Error('No battle to start');
   const rules = state.rules.map((r) => r.rule);
-  if (e.kind === 'gymLeader') return { deck: expandDeck(runType(state.type).leader.deck), difficulty: 'gymLeader', rules, opponent: e.trainer };
-  return { deck: generateDeck(pool, rngFrom(e.deckSeed)), difficulty: e.kind === 'elite' ? 'gymLeader' : 'trainer', rules, opponent: e.trainer };
+  const b = bossOf(state, e);
+  if (isBossKind(e.kind)) return { deck: expandDeck(b!.deck), difficulty: 'gymLeader', rules, opponent: e.trainer };
+  const type = e.kind === 'gymTrainer' ? b?.gym?.type : undefined;
+  return { deck: generateDeck(pool, rngFrom(e.deckSeed), { type }), difficulty: e.kind === 'elite' ? 'gymLeader' : 'trainer', rules, opponent: e.trainer };
 }
 
 const typeName = (t: string) => t[0]!.toUpperCase() + t.slice(1);
@@ -352,7 +399,7 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
 
     case 'BATTLE_OVER': {
       if (!e || currentGameId(state) !== action.gameId) return fail('Not the current battle');
-      const battle = e as Extract<Encounter, { deckSeed: number }>;
+      const battle = e as BattleEncounter;
       tickBattles(state);
       if (action.won) {
         const reward = REWARDS[battle.kind];
@@ -360,19 +407,22 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
         state.pokedollars += pokedollars;
         state.exp += reward.exp;
         state.log.push(`Beat ${battle.trainer}: +₱${pokedollars}, +${reward.exp} EXP.`);
-        if (battle.kind === 'gymLeader') {
+        const b = isBossKind(battle.kind) ? bossOf(state, battle) : null;
+        const keyItem = b?.gym?.badge ?? b?.prize;
+        if (keyItem) state.badges = [...(state.badges ?? []), keyItem];
+        if (state.position === state.steps.length - 1) {
           state.encounter = null;
           state.phase = 'won';
           state.log.push(`Beat the ${runType(state.type).name} run!`);
         } else {
-          state.encounter = { kind: 'reward', offers: offerCards(rng, pool, OFFERS, battle.kind === 'elite' ? 'uncommon' : 'common'), pokedollars, exp: reward.exp, trainer: battle.trainer };
+          state.encounter = { kind: 'reward', offers: offerCards(rng, pool, OFFERS, reward.rarity), pokedollars, exp: reward.exp, trainer: battle.trainer };
         }
         return done();
       }
       state.hp -= 1;
       state.log.push(`Lost to ${battle.trainer}: −1 HP.`);
-      // A gym leader stays to be fought again; any other battle is over, won or not.
-      if (battle.kind === 'gymLeader') {
+      // A boss stays to be fought again; any other battle (a Gym Trainer too) is over, won or not.
+      if (isBossKind(battle.kind)) {
         state.encounter = null;
         state.phase = 'map';
         delete state.steps[state.position]!.chosen;
@@ -446,7 +496,7 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
 
     case 'LEAVE': {
       if (!e) return fail('Nothing to leave');
-      if (e.kind === 'battle' || e.kind === 'gymLeader' || (e.kind === 'elite' && e.accepted)) return fail("You can't walk away from a battle");
+      if (isBattleKind(e.kind) && (e.kind !== 'elite' || e.accepted)) return fail("You can't walk away from a battle");
       nextStep(state);
       return ok();
     }

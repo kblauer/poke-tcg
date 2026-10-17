@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { expandDeck, STARTER_DECK } from './decks.js';
 import { MAX_CONSUMABLES_PER_RUN } from './items.js';
+import { RUN_TYPE_IDS, type RunTypeId } from './run-types.js';
 import { applyRunAction, battleSetup, createRun, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
 import { TEST_POOL } from './test-pool.js';
 
@@ -30,17 +31,42 @@ function fight(state: RunState, won: boolean): RunState {
 }
 
 describe('createRun', () => {
-  it('has 25 steps of 2–3 options, then the gym leader, with 3 HP and ₱500', () => {
+  it('a gym run has 24 steps of 2–3 options, then a Gym Trainer and the gym leader, with 3 HP and ₱500', () => {
     const s = fresh();
     expect(s.steps).toHaveLength(26);
-    for (const step of s.steps.slice(0, 25)) {
+    for (const step of s.steps.slice(0, 24)) {
       expect(step.options.length).toBeGreaterThanOrEqual(2);
       expect(step.options.length).toBeLessThanOrEqual(3);
-      expect(step.options.every((o) => o.kind !== 'gymLeader')).toBe(true);
+      expect(step.options.every((o) => !['gymTrainer', 'gymLeader', 'eliteFour', 'champion'].includes(o.kind))).toBe(true);
     }
-    expect(s.steps[25]!.options).toEqual([{ kind: 'gymLeader', label: 'Gym Leader Erika', trainer: 'Erika' }]);
+    expect(s.steps[24]!.options).toEqual([expect.objectContaining({ kind: 'gymTrainer', label: 'Celadon Gym Trainer', boss: 'erika' })]);
+    expect(s.steps[25]!.options).toEqual([{ kind: 'gymLeader', label: 'Gym Leader Erika', trainer: 'Erika', boss: 'erika' }]);
     expect(s.steps[0]!.options.every((o) => o.kind === 'battle')).toBe(true);
     expect([s.hp, s.maxHp, s.pokedollars]).toEqual([MAX_HP, MAX_HP, STARTING_POKEDOLLARS]);
+  });
+
+  it('every gym has its own run, with its leader last', () => {
+    const leaders: Record<string, string> = { pewter: 'Brock', cerulean: 'Misty', vermilion: 'Lt. Surge', celadon: 'Erika', fuchsia: 'Koga', saffron: 'Sabrina', cinnabar: 'Blaine', viridian: 'Giovanni' };
+    for (const [type, leader] of Object.entries(leaders)) {
+      const s = createRun(type as RunTypeId, deck, 1);
+      expect(s.steps.at(-1)!.options[0]).toMatchObject({ kind: 'gymLeader', trainer: leader });
+      expect(s.steps.at(-2)!.options[0]!.kind).toBe('gymTrainer');
+    }
+  });
+
+  it('the Kanto Gym Challenge has the 8 gyms in order, each after 5 steps and a Gym Trainer', () => {
+    const s = createRun('kantoGyms', deck, 1);
+    expect(s.steps).toHaveLength(8 * 7);
+    const bosses = s.steps.flatMap((st) => st.options.filter((o) => o.kind === 'gymLeader').map((o) => o.trainer));
+    expect(bosses).toEqual(['Brock', 'Misty', 'Lt. Surge', 'Erika', 'Koga', 'Sabrina', 'Blaine', 'Giovanni']);
+    expect(s.steps.filter((st) => st.options[0]!.kind === 'gymTrainer')).toHaveLength(8);
+  });
+
+  it('Kanto Champion adds Victory Road, then the Elite Four and the Champion back to back (no Gym Trainers before them)', () => {
+    const s = createRun('kantoChampion', deck, 1);
+    expect(s.steps).toHaveLength(8 * 6 + 5 + 5);
+    expect(s.steps.slice(-5).map((st) => st.options[0]!.label)).toEqual(['Elite Four Lorelei', 'Elite Four Bruno', 'Elite Four Agatha', 'Elite Four Lance', 'Champion Blue']);
+    expect(s.steps.at(-6)!.options.length).toBeGreaterThanOrEqual(2);
   });
 
   it('differs from seed to seed', () => {
@@ -115,6 +141,53 @@ describe('battles', () => {
   });
 });
 
+describe('bosses and Gym Trainers', () => {
+  it("a Gym Trainer must be fought: a random deck of their gym's type at Trainer difficulty; losing costs 1 HP and moves on", () => {
+    const s = fresh();
+    s.position = 24;
+    expect(applyRunAction(s, { type: 'CHOOSE', option: 1 }, TEST_POOL).ok).toBe(false);
+    const chosen = act(s, { type: 'CHOOSE', option: 0 });
+    const setup = battleSetup(chosen, TEST_POOL);
+    expect(setup.difficulty).toBe('trainer');
+    const energy = setup.deck.filter((id) => ['base1-99', 'base1-98', 'base1-102', 'base1-100', 'base1-101', 'base1-97'].includes(id));
+    expect(energy.every((id) => id === 'base1-99')).toBe(true);
+    const lost = fight(chosen, false);
+    expect([lost.position, lost.hp]).toEqual([25, 2]);
+  });
+
+  it('a gym leader beaten mid-run gives a better reward and their badge, and the run goes on', () => {
+    const s = createRun('kantoGyms', deck, 1);
+    s.position = 6;
+    const won = fight(s, true);
+    expect(won.encounter).toMatchObject({ kind: 'reward', trainer: 'Brock' });
+    expect(won.badges).toEqual(['boulder-badge']);
+    expect(won.exp).toBe(100);
+    expect(act(won, { type: 'LEAVE' })).toMatchObject({ phase: 'map', position: 7 });
+  });
+
+  it('the Elite Four and the Champion play their own decks at Gym leader difficulty; the Champion ends the run with the ribbon', () => {
+    const s = createRun('kantoChampion', deck, 1);
+    s.position = s.steps.length - 5;
+    const lorelei = act(s, { type: 'CHOOSE', option: 0 });
+    expect(battleSetup(lorelei, TEST_POOL)).toMatchObject({ difficulty: 'gymLeader', opponent: 'Lorelei' });
+    expect(battleSetup(lorelei, TEST_POOL).deck.filter((id) => id === 'base3-2')).toHaveLength(4);
+    s.position = s.steps.length - 1;
+    const blue = act(s, { type: 'CHOOSE', option: 0 });
+    expect(battleSetup(blue, TEST_POOL).deck).toContain('base3-4');
+    const won = fight(blue, true);
+    expect(won.phase).toBe('won');
+    expect(won.badges).toEqual(['champion-ribbon']);
+  });
+
+  it('a run saved before there were several bosses still finds its gym leader', () => {
+    const s = fresh();
+    s.position = 25;
+    delete s.steps[25]!.options[0]!.boss;
+    const chosen = act(s, { type: 'CHOOSE', option: 0 });
+    expect(battleSetup(chosen, TEST_POOL).deck.filter((id) => id === 'base1-99')).toHaveLength(18);
+  });
+});
+
 describe('other encounters', () => {
   it('shops sell cards for ₱ until you leave', () => {
     let s = act(at('shop'), { type: 'CHOOSE', option: 0 });
@@ -178,9 +251,9 @@ describe('runView', () => {
 describe('a whole run', () => {
   it('can be played from start to finish choosing at random, and every step is reachable', () => {
     for (let seed = 1; seed <= 20; seed++) {
-      let s = fresh(seed);
+      let s = createRun(RUN_TYPE_IDS[seed % RUN_TYPE_IDS.length]!, deck, seed);
       let games = 0;
-      for (let guard = 0; s.phase !== 'won' && guard < 500; guard++) {
+      for (let guard = 0; s.phase !== 'won' && guard < 2000; guard++) {
         if (s.phase === 'lost') s = act(s, { type: 'RESTORE_HP' });
         else if (s.phase === 'map') s = act(s, { type: 'CHOOSE', option: (seed + s.position) % s.steps[s.position]!.options.length });
         else if (needsBattle(s)) s = act(s, { type: 'BATTLE_STARTED', gameId: `g${++games}` });
@@ -190,7 +263,7 @@ describe('a whole run', () => {
         else s = act(s, { type: 'LEAVE' });
       }
       expect(s.phase).toBe('won');
-      expect(s.position).toBe(25);
+      expect(s.position).toBe(s.steps.length - 1);
     }
   });
 });
