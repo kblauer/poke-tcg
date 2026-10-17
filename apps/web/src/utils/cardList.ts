@@ -50,9 +50,11 @@ export interface CardFilter {
   minAttack: number | null;
   maxAttack: number | null;
   ownership: Ownership;
+  /** Only cards the engine plays fully (attacks, power, Trainer effect). */
+  implementedOnly: boolean;
 }
 
-export const EMPTY_FILTER: CardFilter = { search: '', set: null, type: null, stage: null, minAttack: null, maxAttack: null, ownership: 'all' };
+export const EMPTY_FILTER: CardFilter = { search: '', set: null, type: null, stage: null, minAttack: null, maxAttack: null, ownership: 'all', implementedOnly: false };
 
 /** Cards matching the filter; `isLocked` says which the account hasn't unlocked, for the ownership filter. */
 export function filterCards(cards: CatalogCard[], filter: CardFilter, isLocked: (card: CatalogCard) => boolean = () => false): CatalogCard[] {
@@ -61,6 +63,7 @@ export function filterCards(cards: CatalogCard[], filter: CardFilter, isLocked: 
   return cards.filter((c) => {
     if (search && !matchesSearch(c, search)) return false;
     if (!matchesOwnership(c, filter.ownership, isLocked)) return false;
+    if (filter.implementedOnly && !c.implemented) return false;
     if (filter.set && c.setName !== filter.set) return false;
     if (filter.type && c.type !== filter.type) return false;
     if (filter.stage && stageOf(c) !== filter.stage) return false;
