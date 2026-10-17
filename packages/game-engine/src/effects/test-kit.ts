@@ -102,6 +102,7 @@ const BY_NAME: CardLibrary = {
   omanyte: mon('base3-52', 'Omanyte', W, 40, [['Water Gun', [W], 10]], { stage: 'stage1', evolvesFrom: 'Mysterious Fossil', power: { name: 'Clairvoyance', text: '' } }),
   omastar: mon('base3-40', 'Omastar', W, 70, [['Water Gun', [W, C], 20]], { stage: 'stage2', evolvesFrom: 'Omanyte', evolvesFromBasic: 'Mysterious Fossil' }),
   fossil: mon('base3-62', 'Mysterious Fossil', C, 10, [], { retreatCost: 0, trainerText: 'Play Mysterious Fossil as if it were a Basic Pokémon.' }),
+  pokeball: { id: 'base2-64', kind: 'trainer', name: 'Poké Ball', imageUrl: null, text: '' },
   mrfuji: { id: 'base3-58', kind: 'trainer', name: 'Mr. Fuji', imageUrl: null, text: '' },
   energysearch: { id: 'base3-59', kind: 'trainer', name: 'Energy Search', imageUrl: null, text: '' },
   gambler: { id: 'base3-60', kind: 'trainer', name: 'Gambler', imageUrl: null, text: '' },

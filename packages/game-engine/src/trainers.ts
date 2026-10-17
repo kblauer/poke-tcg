@@ -66,6 +66,8 @@ export type PendingChoice = {
       type?: EnergyType;
       /** The card goes onto the Bench instead of into the hand (Call for Family). */
       toBench?: boolean;
+      /** The card taken is shown to the opponent (Poké Ball): the log names it. */
+      reveal?: boolean;
       /** Pokémon Trader: the hand card that goes into the deck once a card is picked. */
       tradeUid?: string;
     }
@@ -353,7 +355,9 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
           ? `Traded ${name(traded)} for ${name(picked)} from the deck.`
           : choice.toBench
             ? `Put ${name(picked)} onto the Bench.`
-            : 'Took a card from the deck.'
+            : choice.reveal
+              ? `Took ${name(picked)} from the deck.`
+              : 'Took a card from the deck.'
         : 'Found nothing in the deck.',
       me.id,
     );
