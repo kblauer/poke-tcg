@@ -31,6 +31,7 @@ export function passiveCpu(state: GameState, cpuId: PlayerId): GameAction | null
 function finishSearch(state: GameState): GameAction {
   const view = pendingChoiceView(state, state.pendingChoice!);
   if (view.kind === 'arrangeTop') return { type: 'RESOLVE_CHOICE', order: view.cards.map((c) => c.uid) };
+  if (view.kind === 'ownPokemon') return { type: 'RESOLVE_CHOICE', target: view.options[0] };
   const [pick] = view.options;
   return { type: 'RESOLVE_CHOICE', ...(pick && { cardUid: pick.uid }) };
 }

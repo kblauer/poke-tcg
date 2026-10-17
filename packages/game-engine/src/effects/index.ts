@@ -6,6 +6,7 @@ import { BASE1 } from './base1.js';
 import { BASE1_TRAINERS } from './base1-trainers.js';
 import { FOSSIL } from './fossil.js';
 import { JUNGLE } from './jungle.js';
+import { JUNGLE_POWERS } from './jungle-powers.js';
 import { FOSSIL_POWERS } from './fossil-powers.js';
 import { FOSSIL_TRAINERS } from './fossil-trainers.js';
 
@@ -16,7 +17,7 @@ const EFFECTS: Record<string, Record<string, AttackEffect>> = { ...BASE1, ...JUN
 export const attackEffect = (defId: string, attackName: string): AttackEffect | undefined => EFFECTS[defId]?.[attackName];
 
 /** Pokémon Power effects by card id (WOTC cards have at most one power). */
-const POWERS: Record<string, PowerEffect> = { ...BASE1_POWERS, ...FOSSIL_POWERS };
+const POWERS: Record<string, PowerEffect> = { ...BASE1_POWERS, ...JUNGLE_POWERS, ...FOSSIL_POWERS };
 
 /** The behaviour of the card's Pokémon Power, if it's implemented. */
 export const powerEffect = (defId: string): PowerEffect | undefined => POWERS[defId];

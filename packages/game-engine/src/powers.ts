@@ -4,7 +4,8 @@ import type { AttackContext } from './attacks.js';
 import { lookupCard, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { powerEffect } from './effects/index.js';
 import { conditionLabel, type CardInstance, type GameState, type InPlayPokemon, type PlayerState, type Target } from './engine.js';
-import { addLog, effectId, inPlayDef } from './status.js';
+import { addLog, effectId, flipCoin, inPlayDef } from './status.js';
+import type { PendingChoice, PendingChoiceInput } from './trainers.js';
 
 /** Answers to a power's questions. Each question names the field it fills. */
 export interface PowerChoices {
@@ -18,6 +19,10 @@ export interface PowerChoices {
   oppFrom?: Target;
   /** One of the opponent's Pokémon to give something to. */
   oppTo?: Target;
+  /** What to look at (Peek). */
+  peek?: PeekTarget;
+  /** Which Prize card, counting from the first (Peek). */
+  prize?: number;
   /** An Energy card attached to `from` (Energy Trans). */
   energyUid?: string;
   /** A type (Buzzap). */
@@ -31,12 +36,19 @@ export type PowerChoiceSpec = { prompt: string } & (
   | { kind: 'attachedEnergy'; field: 'energyUid'; options: CardInstance[] }
   | { kind: 'type'; field: 'type'; options: EnergyType[] }
   | { kind: 'oppPokemon'; field: 'oppFrom' | 'oppTo'; options: Target[] }
+  | { kind: 'peek'; field: 'peek'; options: PeekTarget[] }
+  | { kind: 'prize'; field: 'prize'; options: number[] }
 );
+
+/** Peek: the top card of your deck or the opponent's, a random card from their hand, or a Prize card of either player. */
+export type PeekTarget = 'deck' | 'oppDeck' | 'oppHand' | 'prize' | 'oppPrize';
 
 /** What a power can see before it's used. View-safe: the UI builds it from a PlayerView. */
 export interface PowerSituation {
   me: Pick<PlayerState, 'active' | 'bench' | 'hand'>;
   opp: Pick<PlayerState, 'active' | 'bench'>;
+  /** Sizes of the hidden piles (Peek). */
+  counts: { deck: number; prizes: number; oppDeck: number; oppHand: number; oppPrizes: number };
   /** The Pokémon whose power it is. */
   source: Target;
   cards: CardLibrary;
@@ -68,6 +80,12 @@ export interface PowerEffect {
   halvesDamage?: boolean;
   /** Clairvoyance: the opponent plays with their hand face up. */
   revealsHand?: boolean;
+  /** Invisible Wall: attack damage of 30 or more to it (after everything else) is prevented. */
+  invisibleWall?: boolean;
+  /** Thick Skinned: it can't become Asleep, Confused, Paralyzed or Poisoned. */
+  noConditions?: boolean;
+  /** Retreat Aid: while it's on the Bench, the Active Pokémon's retreat cost is 1 less. */
+  retreatAid?: boolean;
 }
 
 export interface PowerContext {
@@ -78,6 +96,10 @@ export interface PowerContext {
   sourceTarget: Target;
   choices: PowerChoices;
   log: (text: string) => void;
+  /** Flips a coin for the power (logged). True = heads. */
+  flip: () => boolean;
+  /** Asks the player to finish a choice (see PendingChoice). */
+  pend: (choice: PendingChoiceInput) => void;
 }
 
 /** The player's Pokémon at a target, or null. */
@@ -116,6 +138,13 @@ export function powerActive(pokemon: InPlayPokemon, cards: CardLibrary, sides: S
 export function evolutionBlocked(sides: Sides, cards: CardLibrary): string | null {
   const blocker = allInPlay(sides).find((p) => powerEffect(effectId(p))?.blocksEvolution && powerActive(p, cards, sides));
   return blocker ? `${powerOf(blocker, cards)!.name}: no Evolution cards can be played` : null;
+}
+
+/** How much less the Active Pokémon's retreat costs: 1 per working Retreat Aid on its owner's Bench (`sides`: owner first). */
+export function retreatAid(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sides): number {
+  const [owner] = sides;
+  if (!owner || owner.active !== pokemon) return 0;
+  return owner.bench.filter((p) => p && powerEffect(effectId(p))?.retreatAid && powerActive(p, cards, sides)).length;
 }
 
 /** Whether a working power of `viewer`'s Pokémon shows them the opponent's hand (Clairvoyance). */
@@ -217,9 +246,18 @@ export function nextPowerChoice(s: PowerSituation, given: PowerChoices): PowerCh
   return 'need' in result ? (result.need ?? null) : null;
 }
 
+/** PowerSituation.counts from the players' state. */
+export const situationCounts = (me: Pick<PlayerState, 'deck' | 'prizes'>, opp: Pick<PlayerState, 'deck' | 'hand' | 'prizes'>): PowerSituation['counts'] => ({
+  deck: me.deck.length,
+  prizes: me.prizes.length,
+  oppDeck: opp.deck.length,
+  oppHand: opp.hand.length,
+  oppPrizes: opp.prizes.length,
+});
+
 /** Uses the power of the Pokémon at `source`. Mutates `state`; returns an error instead if not allowed. */
 export function usePower(state: GameState, me: PlayerState, opp: PlayerState, sourceTarget: Target, given: PowerChoices): string | null {
-  const situation: PowerSituation = { me, opp, source: sourceTarget, cards: state.cards, turn: state.turn };
+  const situation: PowerSituation = { me, opp, counts: situationCounts(me, opp), source: sourceTarget, cards: state.cards, turn: state.turn };
   const error = powerError(situation);
   if (error) return error;
   const resolved = resolvePowerChoices(situation, given);
@@ -237,6 +275,10 @@ export function usePower(state: GameState, me: PlayerState, opp: PlayerState, so
     sourceTarget,
     choices: resolved.choices,
     log: (text) => addLog(state, text, me.id),
+    flip: () => flipCoin(state, def.power!.name, me.id),
+    pend: (choice) => {
+      state.pendingChoice = { ...choice, player: me.id } as PendingChoice;
+    },
   });
   return null;
 }

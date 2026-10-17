@@ -30,7 +30,7 @@ export function PendingChoicePanel({ view, send, busy }: { view: PlayerView; sen
 }
 
 /** Click a card to take it (from the deck, or the discard pile for Recycle). */
-function PickFromDeck({ choice, view, send, busy }: { choice: Extract<PendingChoiceView, { options: unknown }>; view: PlayerView; send: (a: GameAction) => void; busy: boolean }) {
+function PickFromDeck({ choice, view, send, busy }: { choice: Extract<PendingChoiceView, { kind: 'pickFromDeck' | 'pickFromDiscard' }>; view: PlayerView; send: (a: GameAction) => void; busy: boolean }) {
   if (choice.options.length === 0) {
     return (
       <button className="rounded bg-slate-700 px-3 py-1 text-sm hover:bg-slate-600" disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE' })}>

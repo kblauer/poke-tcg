@@ -391,7 +391,10 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
    */
   const shielded = () => active(opp.active?.effects?.preventAll, turn) || (!!opp.active && transparent(opp.active, opp));
   /** Damage to a benched Pokémon or the attacker itself: Defender, then Kabuto Armor. */
-  const benchedDamage = (p: InPlayPokemon, amount: number, owner: PlayerState) => armor(p, afterDefender(state.cards, p, amount), owner);
+  const benchedDamage = (p: InPlayPokemon, amount: number, owner: PlayerState) => {
+    const damage = armor(p, afterDefender(state.cards, p, amount), owner);
+    return damage >= 30 && passive(p)?.invisibleWall ? 0 : damage;
+  };
   const record = (pokemon: InPlayPokemon) => {
     const effects = (pokemon.effects ??= {});
     if (effects.attackedOn?.turn !== turn) effects.attackedOn = { turn, damage: 0, afflictions: [] };
@@ -437,6 +440,10 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
         log(`Minimize reduced the damage to ${defenderDef.name} by 20.`, opp.id);
       }
       damage = armor(defender, damage, opp);
+      if (damage >= 30 && passive(defender)?.invisibleWall) {
+        log(`Invisible Wall prevented the damage to ${defenderDef.name}.`, opp.id);
+        damage = 0;
+      }
       if (active(effects?.preventDamage, turn) || (active(effects?.harden, turn) && damage <= 30)) {
         log(`The damage to ${defenderDef.name} was prevented.`, opp.id);
         damage = 0;
@@ -479,7 +486,7 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
       const defender = opp.active!;
       const name = pokemonName(state, defender);
       if (shielded()) return log(`${name} is protected from the attack's effects.`, opp.id);
-      if (def(state.cards, defender).trainerText) return log(`${name} can't be affected by Special Conditions.`, opp.id);
+      if (def(state.cards, defender).trainerText || passive(defender)?.noConditions) return log(`${name} can't be affected by Special Conditions.`, opp.id);
       if (affliction === 'poisoned' || affliction === 'toxic') {
         defender.poison = Math.max(defender.poison ?? 0, affliction === 'toxic' ? 20 : 10);
         log(`${name} is now Poisoned${affliction === 'toxic' ? ' (20 damage)' : ''}.`, opp.id);
@@ -542,6 +549,7 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
       log(`Drew ${drawn.length} card${drawn.length === 1 ? '' : 's'}.`);
     },
     confuseSelf() {
+      if (passive(attacker)?.noConditions) return log(`${attackerDef.name} can't be affected by Special Conditions.`);
       attacker.condition = 'confused';
       log(`${attackerDef.name} is now Confused.`);
     },

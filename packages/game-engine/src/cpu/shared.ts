@@ -455,6 +455,11 @@ export const benched = (t: Turn) => inPlay(t.me).filter(([target]) => target !==
 export function resolveSearch(t: Turn): GameAction {
   const view = pendingChoiceView(t.state, t.state.pendingChoice!);
   if (view.kind === 'arrangeTop') return { type: 'RESOLVE_CHOICE', order: view.cards.map((c) => c.uid) };
+  // Healing one of its Pokémon (Heal): the one with the most damage.
+  if (view.kind === 'ownPokemon') {
+    const damage = (target: Target) => at(t.me, target)!.damage;
+    return { type: 'RESOLVE_CHOICE', target: view.options.reduce((a, b) => (damage(b) > damage(a) ? b : a)) };
+  }
   const helpsEnergy = (c: CardInstance) => t.def(c).kind === 'energy' && inPlay(t.me).some(([, p]) => closeness(t.state.cards, p, [...p.energy, c]) < closeness(t.state.cards, p));
   const pick =
     wantedCards(t.state, t.me, view.options)[0] ??
@@ -549,8 +554,8 @@ export function switchOrRetreat(t: Turn, slot: number, bench: { best: AttackOpti
   const active = t.me.active!;
   const sw = play(t, trainer(t, 'switch'), { target: slot });
   if (sw) return sw;
-  if (retreatError(active, cards, true, t.state.retreatedThisTurn ?? false)) return null;
-  const payment = retreatPayment(cards, active, retreatCost(active, cards));
+  if (retreatError(active, cards, true, t.state.retreatedThisTurn ?? false, [t.me, t.opp])) return null;
+  const payment = retreatPayment(cards, active, retreatCost(active, cards, [t.me, t.opp]));
   if (!payment) return null;
   const left = { ...active, energy: active.energy.filter((e) => !payment.includes(e)) };
   const oldCanAttack = pokemonDef(cards, active).attacks.some((a) => missingEnergy(energyPool(left, cards), a.cost) === 0);

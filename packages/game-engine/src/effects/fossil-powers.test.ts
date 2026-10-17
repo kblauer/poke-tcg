@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { applyAction, getPlayerView, powerError, type GameState, type Target } from '../index.js';
+import { applyAction, getPlayerView, powerError, situationCounts, type GameState, type Target } from '../index.js';
 import { act, attack, duel, endTurn, flips, give, id } from './test-kit.js';
 
 const ash = (s: GameState) => s.players.ash!;
 const misty = (s: GameState) => s.players.misty!;
 const usePower = (s: GameState, source: Target, choices = {}, player = 'ash') => act(s, player, { type: 'USE_POWER', source, choices });
 const tryPower = (s: GameState, source: Target, choices = {}, player = 'ash') => applyAction(s, player, { type: 'USE_POWER', source, choices });
-const situation = (s: GameState, source: Target) => ({ me: ash(s), opp: misty(s), source, cards: s.cards, turn: s.turn });
+const situation = (s: GameState, source: Target) => ({ me: ash(s), opp: misty(s), counts: situationCounts(ash(s), misty(s)), source, cards: s.cards, turn: s.turn });
 
 describe('Fossil Pokémon Powers', () => {
   describe('Prehistoric Power', () => {

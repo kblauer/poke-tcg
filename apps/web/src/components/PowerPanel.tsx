@@ -1,4 +1,5 @@
-import { lookupCard, typeName, type PlayerView } from '@poke-tcg/game-engine';
+import { lookupCard, typeName, type PeekTarget, type PlayerView } from '@poke-tcg/game-engine';
+import { Card } from './Card';
 import type { PowerControl } from '../hooks/usePower';
 import { pickHint } from './AttackChoicePanel';
 import { SlotMenu } from './SlotMenu';
@@ -19,6 +20,21 @@ export function PowerPanel({ view, power, busy }: { view: PlayerView; power: Pow
         <div className="flex flex-col gap-1">
           {spec.kind === 'ownPokemon' && <p className={pickHint}>Click one of your highlighted Pokémon.</p>}
           {spec.kind === 'oppPokemon' && <p className={pickHint}>Click one of the CPU's highlighted Pokémon.</p>}
+          {spec.kind === 'peek' &&
+            spec.options.map((p) => (
+              <button key={p} className={option} onClick={() => power.answer(p)}>
+                {PEEK_LABELS[p]}
+              </button>
+            ))}
+          {spec.kind === 'prize' && (
+            <div className="flex flex-wrap gap-1">
+              {spec.options.map((i) => (
+                <button key={i} className={option} onClick={() => power.answer(i)}>
+                  Prize {i + 1}
+                </button>
+              ))}
+            </div>
+          )}
           {(spec.kind === 'handCard' || spec.kind === 'attachedEnergy') &&
             spec.options.map((c) => (
               <button key={c.uid} className={option} onClick={() => power.answer(c.uid)}>
@@ -48,6 +64,26 @@ export function PowerPanel({ view, power, busy }: { view: PlayerView; power: Pow
     <button disabled={active.error !== null || busy} title={[active.error, active.text].filter(Boolean).join('\n')} onClick={() => power.start('active')} className={powerButton}>
       {active.name}
     </button>
+  );
+}
+
+const PEEK_LABELS: Record<PeekTarget, string> = {
+  deck: 'Top card of your deck',
+  oppDeck: "Top card of the CPU's deck",
+  oppHand: "Random card from the CPU's hand",
+  prize: 'One of your Prize cards',
+  oppPrize: "One of the CPU's Prize cards",
+};
+
+/** The card the player looked at with Peek, shown until their next move. Only they see it. */
+export function PeekCard({ view }: { view: PlayerView }) {
+  const peek = view.self.peek;
+  if (!peek) return null;
+  return (
+    <div className="space-y-1 rounded-lg bg-slate-800 p-2 text-xs ring-1 ring-slate-600">
+      <p className="text-slate-300">Peek: {peek.label}</p>
+      <Card def={lookupCard(view.cards, peek.card.defId)} small />
+    </div>
   );
 }
 

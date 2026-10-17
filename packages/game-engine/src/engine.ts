@@ -1,6 +1,6 @@
 /// <reference path="./globals.d.ts" />
 import { performAttack, type AttackChoices } from './attacks.js';
-import { evolutionBlocked, refreshTransforms, usePower, type PowerChoices } from './powers.js';
+import { evolutionBlocked, refreshTransforms, retreatAid, usePower, type PowerChoices } from './powers.js';
 import { playTrainer, resolvePending, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { addLog, clearOnLeavingActive, flipCoin, inPlayDef, pokemonName, type LogEntry } from './status.js';
@@ -83,6 +83,8 @@ export interface InPlayPokemon {
   effects?: PokemonEffects;
   /** Trainer cards attached to it (PlusPower, Defender), each discarded after turn `until`. Missing in older games. */
   attached?: { card: CardInstance; until: number }[];
+  /** Venomoth's Shift: the type it changed to, until it leaves play or Shifts again. */
+  shiftedType?: EnergyType;
   /** Ditto's Transform: the id of the card it's a copy of (the Defending Pokémon), kept up to date by refreshTransforms. */
   transformed?: string;
   /** Last turn its "once during your turn" power was used (Step In, Curse). Stays when it moves. */
@@ -125,6 +127,8 @@ export interface GameState {
   midTurnPromotion?: boolean;
   /** A search the player must finish (after Computer Search, Pokédex, Prophecy…); nothing else can happen until then. */
   pendingChoice?: PendingChoice;
+  /** A card a player looked at with a power (Peek), shown only to them until their next action. */
+  peek?: { player: PlayerId; card: CardInstance; label: string };
   /** How the CPU plays this game (cpu/). Missing = DEFAULT_CPU_DIFFICULTY. */
   cpuDifficulty?: CpuDifficulty;
   /** What happened, oldest first: attacks, coin flips, knockouts… (last LOG_SIZE entries). Missing in older games. */
@@ -148,7 +152,7 @@ export type GameAction =
   /** Play a Trainer card from the hand; `choices` answers its questions (see nextTrainerChoice). */
   | { type: 'PLAY_TRAINER'; cardUid: string; choices?: TrainerChoices }
   /** Finish a pending search: the card picked from the deck, or the new order of the cards looked at. */
-  | { type: 'RESOLVE_CHOICE'; cardUid?: string; order?: string[] }
+  | { type: 'RESOLVE_CHOICE'; cardUid?: string; order?: string[]; target?: Target }
   /** Discard a Trainer played as a Pokémon (Clefairy Doll) from play. */
   | { type: 'DISCARD_DOLL'; target: Target }
   | { type: 'END_TURN' }
@@ -230,6 +234,8 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
   const state = structuredClone(prev);
   // Games saved before Transform existed (or set up directly, in tests) may not have Ditto's copy yet.
   refreshTransforms(state);
+  // A card looked at with Peek stays in view until that player's next action.
+  if (state.peek?.player === playerId) delete state.peek;
   const me = state.players[playerId]!;
   const opp = state.players[opponentOf(state, playerId)]!;
   const card = (c: CardInstance) => lookupCard(state.cards, c.defId);
@@ -340,11 +346,11 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
 
     case 'RETREAT': {
       if (!me.active) return fail('No active Pokémon');
-      const error = retreatError(me.active, state.cards, hasBenched(me), state.retreatedThisTurn ?? false);
+      const error = retreatError(me.active, state.cards, hasBenched(me), state.retreatedThisTurn ?? false, [me, opp]);
       if (error) return fail(error);
       const benched = isBenchSlot(action.slot) ? me.bench[action.slot] : null;
       if (!benched) return fail('Retreat to one of your benched Pokémon');
-      const cost = retreatCost(me.active, state.cards);
+      const cost = retreatCost(me.active, state.cards, [me, opp]);
       const uids = new Set(action.energyUids);
       if (uids.size !== action.energyUids.length || !action.energyUids.every((uid) => me.active!.energy.some((e) => e.uid === uid))) {
         return fail('Discard energy attached to your active Pokémon');
@@ -452,13 +458,24 @@ export function evolveError(
 }
 
 /** Energy the Pokémon must discard to retreat. */
-export const retreatCost = (pokemon: InPlayPokemon, cards: CardLibrary) => inPlayDef(cards, pokemon).retreatCost ?? 0;
+/**
+ * Energy the Pokémon must discard to retreat. `sides` (its owner first) are for powers that change it:
+ * each working Retreat Aid on the owner's Bench takes 1 off the Active Pokémon's cost.
+ */
+export const retreatCost = (pokemon: InPlayPokemon, cards: CardLibrary, sides: Pick<PlayerState, 'active' | 'bench'>[] = []) =>
+  Math.max(0, (inPlayDef(cards, pokemon).retreatCost ?? 0) - retreatAid(pokemon, cards, sides));
 
 /**
  * Why the active Pokémon can't retreat right now, or null if it can (given a bench target
  * and the energy to discard). Pure and view-safe, so the UI uses it for hints too.
  */
-export function retreatError(active: InPlayPokemon, cards: CardLibrary, hasBench: boolean, retreatedThisTurn: boolean): string | null {
+export function retreatError(
+  active: InPlayPokemon,
+  cards: CardLibrary,
+  hasBench: boolean,
+  retreatedThisTurn: boolean,
+  sides: Pick<PlayerState, 'active' | 'bench'>[] = [],
+): string | null {
   if (retreatedThisTurn) return 'You can only retreat once per turn';
   const def = lookupCard(cards, active.card.defId);
   if (def.kind === 'pokemon' && def.trainerText) return `${def.name} can't retreat`;
@@ -468,7 +485,7 @@ export function retreatError(active: InPlayPokemon, cards: CardLibrary, hasBench
     return `${lookupCard(cards, active.card.defId).name} is ${conditionLabel(active.condition)} and can't retreat`;
   }
   if (!hasBench) return 'No benched Pokémon to switch in';
-  const cost = retreatCost(active, cards);
+  const cost = retreatCost(active, cards, sides);
   if (energyPool(active, cards).length < cost) return `Retreating costs ${cost} energy`;
   return null;
 }

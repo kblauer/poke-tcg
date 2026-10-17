@@ -81,6 +81,10 @@ export type PendingChoice = {
       /** The card that started it, still being played: not an option. */
       excludeUid?: string;
     }
+  | {
+      /** Remove 1 damage counter from one of the player's Pokémon with damage (Heal), chosen on the board. */
+      kind: 'removeDamage';
+    }
 );
 
 /** A PendingChoice as an effect starts it: the player is filled in. */
@@ -250,6 +254,7 @@ export function playTrainer(state: GameState, me: PlayerState, opp: PlayerState,
 /** What the player choosing sees of a pending search. */
 export type PendingChoiceView =
   | { kind: 'pickFromDeck' | 'pickFromDiscard'; prompt: string; options: CardInstance[] }
+  | { kind: 'ownPokemon'; prompt: string; options: Target[] }
   | { kind: 'arrangeTop'; prompt: string; cards: CardInstance[] };
 
 /** The options of a pending search, for the player making it. Deck cards are sorted so their order stays secret. */
@@ -259,6 +264,9 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
     const where = owner === choice.player ? '' : " on your opponent's deck";
     const cards = state.players[owner]!.deck.slice(0, choice.count);
     return { kind: 'arrangeTop', prompt: `${choice.source}: put these cards back${where} in any order (first is on top)`, cards };
+  }
+  if (choice.kind === 'removeDamage') {
+    return { kind: 'ownPokemon', prompt: `${choice.source}: click one of your Pokémon to remove a damage counter from`, options: damagedTargets(state.players[choice.player]!) };
   }
   if (choice.kind === 'pickFromDiscard') {
     const options = discardOptions(state.players[choice.player]!, choice);
@@ -292,8 +300,11 @@ export const deckFilter = (cards: CardLibrary, choice: Extract<PendingChoice, { 
 
 const discardOptions = (player: PlayerState, choice: Extract<PendingChoice, { kind: 'pickFromDiscard' }>) => player.discard.filter((c) => c.uid !== choice.excludeUid);
 
+/** The player's Pokémon in play with damage counters. */
+export const damagedTargets = (player: Pick<PlayerState, 'active' | 'bench'>) => targetsOf(player).filter((t) => (t === 'active' ? player.active : player.bench[t])!.damage >= 10);
+
 /** Finishes a pending search. Mutates `state`; returns an error instead if the answer is invalid. */
-export function resolvePending(state: GameState, me: PlayerState, answer: { cardUid?: string; order?: string[] }): string | null {
+export function resolvePending(state: GameState, me: PlayerState, answer: { cardUid?: string; order?: string[]; target?: Target }): string | null {
   const choice = state.pendingChoice!;
   if (choice.kind === 'arrangeTop') {
     const owner = state.players[choice.deckOwner ?? choice.player]!;
@@ -302,6 +313,14 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     if (order.length !== top.length || !top.every((c) => order.includes(c.uid))) return 'Put every card back';
     owner.deck.splice(0, top.length, ...order.map((uid) => top.find((c) => c.uid === uid)!));
     addLog(state, `Rearranged the top ${top.length} cards of ${owner === me ? 'the' : "the opponent's"} deck.`, me.id);
+  } else if (choice.kind === 'removeDamage') {
+    const options = damagedTargets(me);
+    if (options.length && (answer.target === undefined || !options.includes(answer.target))) return 'Choose one of your Pokémon with damage counters';
+    const p = answer.target === undefined ? null : answer.target === 'active' ? me.active : me.bench[answer.target];
+    if (p) {
+      p.damage -= 10;
+      addLog(state, `Removed a damage counter from ${lookupCard(state.cards, p.card.defId).name}.`, me.id);
+    }
   } else if (choice.kind === 'pickFromDiscard') {
     const options = discardOptions(me, choice);
     const picked = options.find((c) => c.uid === answer.cardUid);

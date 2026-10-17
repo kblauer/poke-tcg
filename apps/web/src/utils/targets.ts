@@ -14,6 +14,7 @@ import {
   type CardInstance,
   type GameAction,
   type PlayerView,
+  viewCounts,
 } from '@poke-tcg/game-engine';
 import { emptyBenchSlots, occupiedSlots, pokemonAt, toTarget, type SlotId } from './slots';
 import { isMyTurn } from './turn';
@@ -39,7 +40,7 @@ export function targetsFor(view: PlayerView, card: CardInstance): SlotId[] {
 export function powerPlay(view: PlayerView, card: CardInstance, slot: SlotId): GameAction | null {
   if (!isMyTurn(view)) return null;
   for (const source of ownTargets(view.self)) {
-    const situation = { me: view.self, opp: view.opponent, source, cards: view.cards, turn: view.turn };
+    const situation = { me: view.self, opp: view.opponent, counts: viewCounts(view), source, cards: view.cards, turn: view.turn };
     if (powerError(situation)) continue;
     // Only powers that put this card from the hand into play (Rain Dance), not ones like Energy Burn.
     if (!powerTakesHandCard(situation, card.uid)) continue;

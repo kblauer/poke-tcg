@@ -11,7 +11,7 @@
   - `apps/web`: Vite, React 19, TanStack Query/Router, Tailwind v4, dnd-kit, MUI icons (`@mui/icons-material`, so `@mui/material` and emotion are installed too).
   - `apps/api`: Hono + tRPC, deployed on Vercel.
   - `packages/game-engine`: pure TypeScript rules engine, tested with vitest.
-  - `packages/shared`: Zod schemas shared by web and API.
+  - `packages/shared`: Zod schemas shared by web and API. Zod drops keys a schema doesn't list, so every new field of an engine choice type must be added there too (`covers` fails to compile otherwise).
   - `packages/db`: Prisma on Supabase.
 - Dev servers: web on :5173, API on :8787.
 - Game state lives in the engine. The API loads a game, applies an action with an `expectedVersion` (a stale version gets CONFLICT), saves the state plus an action row, then runs the CPU's response.
@@ -69,6 +69,6 @@
 
 ## Known open items
 - CPU difficulties live in `packages/game-engine/src/cpu/`, one file each (`passive.ts`, `trainer.ts`, `gym-leader.ts`) plus `shared.ts`. Keep them separate. Gym leader is the baseline the user agreed on (README: The CPU opponent); change the difficulties' rules only with the user's say-so.
-- Missing rules: Whirlwind and Terror Strike prompting (both bring in the first benched Pokémon), Burned, Jungle's Pokémon Powers and Poké Ball, and card effects for later sets. Jungle attacks are done (`effects/jungle.ts`). Fossil is done (`effects/fossil.ts`, `fossil-powers.ts`, `fossil-trainers.ts`); the CPUs don't play Fossil's Trainers yet.
+- Missing rules: Whirlwind and Terror Strike prompting (both bring in the first benched Pokémon), Burned, Poké Ball, and card effects for later sets. Jungle attacks and powers are done (`effects/jungle.ts`, `jungle-powers.ts`). Fossil is done (`effects/fossil.ts`, `fossil-powers.ts`, `fossil-trainers.ts`); the CPUs don't play Fossil's Trainers yet.
 - TCGdex card text drops energy icons ("Discard 1 Energy card" for "Discard 1 Fire Energy card"). Check the printed card for any untyped Energy in an effect and store the printed wording as `text`.
 - In-play Pokémon: use `inPlayDef`/`effectId` (status.ts), not `lookupCard(cards, p.card.defId)`, for anything rules-related, so a Transformed Ditto works. Check passive powers with `powerActive`, which handles Toxic Gas.

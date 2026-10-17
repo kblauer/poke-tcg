@@ -46,7 +46,7 @@ export const effectId = (pokemon: InPlayPokemon) => pokemon.transformed ?? pokem
  */
 export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCardDef {
   const own = lookupCard(cards, pokemon.card.defId) as PokemonCardDef;
-  if (!pokemon.transformed) return own;
+  if (!pokemon.transformed) return pokemon.shiftedType ? { ...own, type: pokemon.shiftedType } : own;
   const copy = lookupCard(cards, pokemon.transformed) as PokemonCardDef;
   return { ...copy, name: own.name, stage: own.stage, evolvesFrom: own.evolvesFrom, evolvesFromBasic: own.evolvesFromBasic, power: copy.power ?? own.power };
 }
