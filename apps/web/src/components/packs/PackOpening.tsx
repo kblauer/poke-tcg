@@ -15,6 +15,8 @@ type PackCard = Opened['cards'][number];
 export type PackSetInfo = { id: string; name: string; logoUrl: string | null };
 
 const SLOT_LABEL: Record<PackCard['slot'], string> = { energy: 'Energy', common: 'Common', uncommon: 'Uncommon', rare: 'Rare', holo: 'Rare Holo' };
+/** The Wizards promos have no printed rarity: they're just promos, holo or not. */
+const PROMO_SLOT_LABEL: Record<PackCard['slot'], string> = { ...SLOT_LABEL, common: 'Promo', holo: 'Holo Promo' };
 
 /** How long the pack's top takes to tear off, and how long the cards fly out of it. */
 const TEAR_MS = 650;
@@ -115,7 +117,7 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
           </button>
           <div className="flex h-8 items-center gap-3">
             <span className={`text-sm font-semibold ${cards[index].slot === 'holo' ? 'text-fuchsia-300' : cards[index].slot === 'rare' ? 'text-amber-300' : 'text-slate-300'}`}>
-              {cards[index].name} · {SLOT_LABEL[cards[index].slot]}
+              {cards[index].name} · {(set.id === 'basep' ? PROMO_SLOT_LABEL : SLOT_LABEL)[cards[index].slot]}
             </span>
             {cards[index].isNew && <span className="badge-pop rounded-full bg-emerald-500 px-2 py-0.5 text-xs font-bold text-white">NEW</span>}
           </div>

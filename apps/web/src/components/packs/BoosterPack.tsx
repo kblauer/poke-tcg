@@ -3,6 +3,8 @@ const PALETTES: Record<string, string> = {
   base1: 'from-sky-600 via-blue-800 to-indigo-950',
   base2: 'from-lime-500 via-emerald-700 to-emerald-950',
   base3: 'from-amber-500 via-stone-700 to-stone-950',
+  // Wizards Black Star Promos: black, with a gold star's glow.
+  basep: 'from-yellow-600 via-neutral-900 to-black',
 };
 
 /** The crimped foil seal along a pack's top and bottom edges. */
