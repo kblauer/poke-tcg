@@ -1,0 +1,52 @@
+// Deck building rules (Pokémon TCG rulebook), shared by the deck builder and the API so both judge a deck the same way.
+import { z } from 'zod';
+
+export const DECK_SIZE = 60;
+/** Cards with exactly the same name a deck may hold, basic Energy excepted. */
+export const MAX_COPIES = 4;
+export const DECK_NAME_LENGTH = 40;
+
+/** What the rules need to know about a card. */
+export interface DeckRuleCard {
+  name: string;
+  kind: 'POKEMON' | 'TRAINER' | 'ENERGY';
+  /** "Baby" | "Basic" | "Stage1" | "Stage2" for Pokémon, null otherwise. */
+  stage: string | null;
+  basicEnergy: boolean;
+}
+
+/** Baby Pokémon are Basic Pokémon too. Trainers played as Pokémon (Clefairy Doll, Mysterious Fossil) aren't. */
+export const isBasicPokemonCard = (card: Pick<DeckRuleCard, 'kind' | 'stage'>) => card.kind === 'POKEMON' && (card.stage === 'Basic' || card.stage === 'Baby');
+
+/** Copies of one card a deck may hold before counting others with the same name. */
+export const copiesAllowed = (card: Pick<DeckRuleCard, 'basicEnergy'>) => (card.basicEnergy ? DECK_SIZE : MAX_COPIES);
+
+/** Cards in a deck with exactly this name (basic Energy has no limit, so it isn't counted). */
+export const copiesOfName = (entries: { card: DeckRuleCard; quantity: number }[], name: string) =>
+  entries.filter((e) => e.card.name === name && !e.card.basicEnergy).reduce((n, e) => n + e.quantity, 0);
+
+/** Why the deck can't be played, in plain words; empty when it follows every rule. */
+export function deckProblems(entries: { card: DeckRuleCard; quantity: number }[]): string[] {
+  const problems: string[] = [];
+  const total = entries.reduce((n, e) => n + e.quantity, 0);
+  if (total !== DECK_SIZE) problems.push(`The deck has ${total} card${total === 1 ? '' : 's'}; it needs exactly ${DECK_SIZE}.`);
+  const names = new Set(entries.filter((e) => !e.card.basicEnergy).map((e) => e.card.name));
+  for (const name of names) {
+    const copies = copiesOfName(entries, name);
+    if (copies > MAX_COPIES) problems.push(`${copies} cards named ${name}: at most ${MAX_COPIES} (basic Energy excepted).`);
+  }
+  if (!entries.some((e) => isBasicPokemonCard(e.card))) problems.push('The deck needs at least one Basic Pokémon.');
+  return problems;
+}
+
+/** A saved deck's card list, as the client sends it. Saving is allowed while the deck is unfinished. */
+export const deckSaveInput = z.object({
+  /** Missing = a new deck. */
+  deckId: z.uuid().optional(),
+  name: z.string().trim().min(1).max(DECK_NAME_LENGTH),
+  cards: z
+    .array(z.object({ cardId: z.string().min(1).max(64), quantity: z.number().int().min(1).max(DECK_SIZE) }))
+    .max(DECK_SIZE),
+});
+
+export const deckIdInput = z.object({ deckId: z.uuid() });

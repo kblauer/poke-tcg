@@ -1,11 +1,13 @@
 import { TRPCError } from '@trpc/server';
 import { prisma, saveGameState, type Prisma } from '@poke-tcg/db';
 import { applyAction, createGame, getPlayerView, runCpu, type GameAction, type GameState } from '@poke-tcg/game-engine';
-import { CPU_ID, HUMAN_ID, gameIdInput, submitActionInput } from '@poke-tcg/shared';
+import { CPU_ID, HUMAN_ID, deckIdInput, gameIdInput, submitActionInput } from '@poke-tcg/shared';
 import { ensureUser } from '../auth.js';
 import { loadCardLibrary } from '../cards.js';
-import { CPU_TEST_DECK, PLAYER_TEST_DECK, expandDeck } from '../test-decks.js';
+import { CPU_DECK, PLAYER_TEST_DECK, expandDeck } from '../test-decks.js';
+import type { AuthUser } from '../auth.js';
 import { protectedProcedure, router } from '../trpc.js';
+import { loadOwnDeck, problemsOf } from './decks.js';
 
 const asJson = (value: unknown) => value as Prisma.InputJsonValue;
 
@@ -22,27 +24,37 @@ export async function loadOwnGame(gameId: string, userId: string) {
   return { ...game, state: game.state as unknown as GameState };
 }
 
-export const gameRouter = router({
-  /** Starts a test game: the player's test deck against the CPU, using cards from the catalog. */
-  createTest: protectedProcedure.mutation(async ({ ctx }) => {
-    const playerDeck = expandDeck(PLAYER_TEST_DECK);
-    const cpuDeck = expandDeck(CPU_TEST_DECK);
-    const [library] = await Promise.all([loadCardLibrary([...playerDeck, ...cpuDeck]), ensureUser(ctx.user)]);
-    const seed = Math.floor(Math.random() * 2 ** 31);
-    const initial = createGame({ id: HUMAN_ID, deck: playerDeck }, { id: CPU_ID, deck: cpuDeck }, seed, library);
-    // The CPU picks its active right away, so the game is waiting on the player.
-    const { state, actions } = runCpu(initial, CPU_ID);
+/** Starts a game: `playerDeck` (one card id per card) against the CPU's deck (Rock Crusher), using cards from the catalog. */
+async function startGame(user: AuthUser, playerDeck: string[]) {
+  const cpuDeck = expandDeck(CPU_DECK);
+  const [library] = await Promise.all([loadCardLibrary([...playerDeck, ...cpuDeck]), ensureUser(user)]);
+  const seed = Math.floor(Math.random() * 2 ** 31);
+  const initial = createGame({ id: HUMAN_ID, deck: playerDeck }, { id: CPU_ID, deck: cpuDeck }, seed, library);
+  // The CPU picks its active right away, so the game is waiting on the player.
+  const { state, actions } = runCpu(initial, CPU_ID);
 
-    return prisma.game.create({
-      data: {
-        ownerId: ctx.user.id,
-        seed,
-        state: asJson(state),
-        version: state.version,
-        actions: { create: actionRows(actions.map((action) => ({ playerId: CPU_ID, action })), state.version) },
-      },
-      select: { id: true },
-    });
+  return prisma.game.create({
+    data: {
+      ownerId: user.id,
+      seed,
+      state: asJson(state),
+      version: state.version,
+      actions: { create: actionRows(actions.map((action) => ({ playerId: CPU_ID, action })), state.version) },
+    },
+    select: { id: true },
+  });
+}
+
+export const gameRouter = router({
+  /** Starts a test game: the player's test deck against the CPU. */
+  createTest: protectedProcedure.mutation(({ ctx }) => startGame(ctx.user, expandDeck(PLAYER_TEST_DECK))),
+
+  /** Starts a game with one of the player's decks, which must follow the deck rules. */
+  create: protectedProcedure.input(deckIdInput).mutation(async ({ ctx, input }) => {
+    const deck = await loadOwnDeck(input.deckId, ctx.user.id);
+    const [problem] = problemsOf(deck.cards);
+    if (problem) throw new TRPCError({ code: 'BAD_REQUEST', message: problem });
+    return startGame(ctx.user, deck.cards.flatMap((c) => Array<string>(c.quantity).fill(c.cardId)));
   }),
 
   /** The player's filtered view of the game – never the raw state. */

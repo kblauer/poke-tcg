@@ -1,5 +1,5 @@
 import { prisma, type Card } from '@poke-tcg/db';
-import { attackEffect, trainerEffect, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef, type Stage } from '@poke-tcg/game-engine';
+import { attackEffect, powerEffect, trainerEffect, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef, type Stage } from '@poke-tcg/game-engine';
 
 const ENERGY_TYPES = new Set<EnergyType>(['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'darkness', 'metal', 'colorless']);
 const STAGES: Record<string, Stage> = { Basic: 'basic', Baby: 'basic', Stage1: 'stage1', Stage2: 'stage2' };
@@ -14,6 +14,10 @@ export interface CardData {
   abilities?: { name: string; type: string; effect: string }[] | null;
   /** Card text of Trainers and special Energy. */
   effect?: string | null;
+  /** Pokémon: National Pokédex numbers (the first is the Pokémon's own). */
+  dexId?: number[] | null;
+  /** Energy: "Normal" for basic Energy, "Special" otherwise. */
+  energyType?: string | null;
   /** Retreat cost (number of energy); null for Pokémon that retreat for free. */
   retreat?: number | null;
   attacks?: { name: string; cost: string[] | null; damage: string | number | null; effect: string | null }[] | null;
@@ -70,6 +74,24 @@ function resistance(data: CardData): PokemonCardDef['resistance'] {
   return { type: energyType(r.type), amount: Math.abs(Number.parseInt(r.value ?? '', 10)) || 30 };
 }
 
+/** Basic Energy (TCGdex "Normal"), which a deck may hold any number of. */
+export const isBasicEnergyCard = (card: Pick<Card, 'kind' | 'data'>) => card.kind === 'ENERGY' && (card.data as CardData).energyType === 'Normal';
+
+/**
+ * Whether the engine implements everything on the card: every attack with text, its Pokémon Power, its
+ * Trainer effect, or (Energy) a basic Energy or Double Colorless. Other cards still load: their attacks
+ * do plain damage, and their powers, Trainer effects and special Energy effects do nothing.
+ */
+export function isImplemented(card: Pick<Card, 'id' | 'name' | 'kind' | 'data'>): boolean {
+  const data = card.data as CardData;
+  if (card.kind === 'POKEMON') {
+    const attacks = (data.attacks ?? []).every((a) => !a.effect || attackEffect(card.id, a.name));
+    return attacks && (!data.abilities?.length || powerEffect(card.id) !== undefined);
+  }
+  if (card.kind === 'TRAINER') return trainerEffect(card.id) !== undefined;
+  return isBasicEnergyCard(card) || card.name === 'Double Colorless Energy';
+}
+
 /** Converts a catalog row into the engine's card definition. */
 export function toCardDef(card: Card): CardDef {
   const imageUrl = card.imageUrl;
@@ -93,13 +115,19 @@ export function toCardDef(card: Card): CardDef {
       return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'colorless', amount: 2, basic: false, holo: isHolo(card) };
     }
     // Basic energy cards are named "<Type> Energy".
-    const type = energyType(card.name.replace(/ Energy$/, ''));
-    if (type === 'colorless') throw new Error(`Card ${card.id} is not a supported energy`);
-    return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: type, holo: isHolo(card) };
+    const named = card.name.replace(/ Energy$/, '').toLowerCase() as EnergyType;
+    const known = ENERGY_TYPES.has(named) && named !== 'colorless';
+    if (isBasicEnergyCard(card)) {
+      if (!known) throw new Error(`Card ${card.id} is not a supported energy`);
+      return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: named, holo: isHolo(card) };
+    }
+    // Special Energy the engine doesn't implement yet: 1 Energy of its type (Darkness, Metal), otherwise Colorless.
+    return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: known ? named : 'colorless', basic: false, holo: isHolo(card) };
   }
   const text = (card.data as CardData).effect ?? '';
   const effect = trainerEffect(card.id);
-  if (!effect) throw new Error(`Card ${card.id}: ${card.name} is not supported by the engine yet`);
+  // A Trainer the engine doesn't implement yet can be in a deck, but can't be played (trainerError says so).
+  if (!effect) return { id: card.id, kind: 'trainer', name: card.name, imageUrl, text, holo: isHolo(card) };
   // A Trainer played as a Pokémon (Clefairy Doll): no type, attacks, weakness or retreat.
   if (effect.asPokemon) {
     return {
