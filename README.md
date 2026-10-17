@@ -195,7 +195,7 @@ It only uses what the player could see. What an attack would do is worked out in
 
 ## Debug tools
 
-The game log has a **Debug** tab for testing: change the CPU's difficulty, draw a card, put any card (or an Energy) into your hand, and set the HP of any Pokémon in play. It only exists outside production, enforced in two places:
+The game log has a **Debug** tab for testing: change the CPU's difficulty, draw a card, put any card (or an Energy) into your hand, set the HP of any Pokémon in play, and turn Special Conditions (Asleep, Confused, Paralyzed, Poisoned, Burned) on or off on either active, for example to try Burned before any card inflicts it. It only exists outside production, enforced in two places:
 
 - **API** (the authority): the `debug.run` procedure is a `debugProcedure` (`apps/api/src/trpc.ts`), which answers `NOT_FOUND` unless `env.debugEnabled` (`apps/api/src/env.ts`). That's always false in production (`VERCEL_ENV=production` or `NODE_ENV=production`, whatever else is set), and true elsewhere unless `ENABLE_DEBUG=false`. `debug.enabled` tells the client which.
 - **Web**: `__DEBUG_BUILD__` is a build-time constant from `vite.config.ts`: on in the dev server (unless `VITE_ENABLE_DEBUG=false`), off in a `vite build` (unless `VITE_ENABLE_DEBUG=true`). A production build leaves the Debug tab's code out of the bundle entirely; the tab also needs `debug.enabled` from the API.

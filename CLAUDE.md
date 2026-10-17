@@ -56,7 +56,7 @@
 - High-res card images are used for the hand, the Active Pokémon and the drag overlay; small images elsewhere.
 
 ## Debug tools (testing cheats)
-- The Debug tab can change the CPU's difficulty, draw a card, add any card or Energy to the hand, and set the HP of any Pokémon in play.
+- The Debug tab can change the CPU's difficulty, draw a card, add any card or Energy to the hand, set the HP of any Pokémon in play, and turn Special Conditions on or off on either active.
   - Engine: `applyDebug` in `packages/game-engine/src/debug.ts`.
   - API: `debug` router.
   - Web: `DebugPanel.tsx`.

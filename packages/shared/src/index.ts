@@ -1,4 +1,4 @@
-import { CPU_DIFFICULTIES, MAX_BENCH, type AttackChoices, type DebugCommand, type GameAction, type PowerChoices, type TrainerChoices } from '@poke-tcg/game-engine';
+import { CPU_DIFFICULTIES, DEBUG_CONDITIONS, MAX_BENCH, type AttackChoices, type DebugCommand, type GameAction, type PowerChoices, type TrainerChoices } from '@poke-tcg/game-engine';
 import { z } from 'zod';
 
 /** Engine player ids for single-player games. */
@@ -89,6 +89,7 @@ export const debugCommandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('DRAW') }),
   z.object({ type: z.literal('SET_HP'), side: z.enum(['self', 'opponent']), target, hp: z.number().int().min(10).max(1000) }),
   z.object({ type: z.literal('SET_CPU_DIFFICULTY'), difficulty: z.enum(CPU_DIFFICULTIES) }),
+  z.object({ type: z.literal('SET_CONDITION'), side: z.enum(['self', 'opponent']), condition: z.enum(DEBUG_CONDITIONS), on: z.boolean() }),
 ]) satisfies z.ZodType<DebugCommand>;
 
 export const debugInput = z.object({
