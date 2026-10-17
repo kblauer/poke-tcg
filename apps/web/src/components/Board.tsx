@@ -1,12 +1,13 @@
 import { DndContext, DragOverlay } from '@dnd-kit/core';
 import { hasBenched, lookupCard, type GameAction, type InPlayPokemon, type PlayerView, type Target } from '@poke-tcg/game-engine';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAttack } from '../hooks/useAttack';
 import { useCardPlay } from '../hooks/useCardPlay';
 import { usePower } from '../hooks/usePower';
 import { useToasts } from '../hooks/useToasts';
 import { useTrainer } from '../hooks/useTrainer';
 import { useRetreat } from '../hooks/useRetreat';
+import { useWindowFill } from '../hooks/useWindowFill';
 import { benchSlotId, pendingSlot, toTarget, type SlotId } from '../utils/slots';
 import { useDebugEnabled } from '../utils/debug';
 import { PAGE_WIDTH } from '../utils/layout';
@@ -50,6 +51,7 @@ export function Board({
   error,
   errorAt,
   gameId,
+  runTab,
 }: {
   view: PlayerView;
   /** The move that led to `view`, if it just happened (for its animation). */
@@ -64,6 +66,8 @@ export function Board({
   errorAt?: number;
   /** For the debug tools (game log's Debug tab). */
   gameId: string;
+  /** A run's battle: the side panel's Run tab (HP, ₱, EXP, the Bag). */
+  runTab?: ReactNode;
 }) {
   const debugEnabled = useDebugEnabled();
   const busy = pending !== null || replaying;
@@ -146,14 +150,7 @@ export function Board({
 
   // The table runs from just under the header to the bottom of the window. The header's height isn't
   // fixed, so measure where the table starts rather than guessing.
-  const tableRef = useRef<HTMLDivElement>(null);
-  const [tableTop, setTableTop] = useState(0);
-  useLayoutEffect(() => {
-    const measure = () => tableRef.current && setTableTop(tableRef.current.getBoundingClientRect().top + window.scrollY);
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, []);
+  const table = useWindowFill<HTMLDivElement>();
 
   // A hovered card can disappear without a mouseleave (played, knocked out), so reset on every update.
   useEffect(() => setPreview(null), [view.version]);
@@ -319,7 +316,7 @@ export function Board({
           edge, outside the page margins (-mt/-mb undo the layout's spacing); the table, inside the margins, takes all
           the height the hand leaves.
         */}
-        <div ref={tableRef} className={`-mb-4 -mt-6 flex ${busy ? 'cursor-progress' : ''}`} style={{ height: `calc(100dvh - ${tableTop}px)` }}>
+        <div ref={table.ref} className={`-mb-4 -mt-6 flex ${busy ? 'cursor-progress' : ''}`} style={table.style}>
           {/* Clips the hand cards where they run past the bottom of the window. */}
           <div className={`relative flex min-w-0 flex-1 flex-col gap-3 overflow-hidden pt-6 ${PAGE_WIDTH}`}>
             {/*
@@ -413,7 +410,7 @@ export function Board({
               }}
             />
           </div>
-          <LogDrawer log={view.log} you={view.you} debug={debugEnabled ? { gameId, view } : undefined} />
+          <LogDrawer log={view.log} you={view.you} run={runTab} debug={debugEnabled ? { gameId, view } : undefined} />
         </div>
 
         <DragOverlay dropAnimation={null} modifiers={[centerOnPointer]}>

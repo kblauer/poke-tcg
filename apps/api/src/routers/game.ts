@@ -4,10 +4,11 @@ import { applyAction, createGame, getPlayerView, runCpu, type GameAction, type G
 import { CPU_ID, HUMAN_ID, deckIdInput, gameIdInput, submitActionInput } from '@poke-tcg/shared';
 import { ensureUser } from '../auth.js';
 import { loadCardLibrary } from '../cards.js';
+import { loadOwnRun, settleBattle } from '../runs.js';
 import { CPU_DECK, PLAYER_TEST_DECK, expandDeck } from '../test-decks.js';
 import type { AuthUser } from '../auth.js';
 import { protectedProcedure, router } from '../trpc.js';
-import { loadOwnDeck, problemsOf } from './decks.js';
+import { playableDeck } from './decks.js';
 
 const asJson = (value: unknown) => value as Prisma.InputJsonValue;
 
@@ -49,18 +50,17 @@ export const gameRouter = router({
   /** Starts a test game: the player's test deck against the CPU. */
   createTest: protectedProcedure.mutation(({ ctx }) => startGame(ctx.user, expandDeck(PLAYER_TEST_DECK))),
 
-  /** Starts a game with one of the player's decks, which must follow the deck rules. */
+  /** Starts a game with one of the player's decks, which must follow the deck rules and hold only unlocked cards. */
   create: protectedProcedure.input(deckIdInput).mutation(async ({ ctx, input }) => {
-    const deck = await loadOwnDeck(input.deckId, ctx.user.id);
-    const [problem] = problemsOf(deck.cards);
-    if (problem) throw new TRPCError({ code: 'BAD_REQUEST', message: problem });
-    return startGame(ctx.user, deck.cards.flatMap((c) => Array<string>(c.quantity).fill(c.cardId)));
+    return startGame(ctx.user, await playableDeck(input.deckId, ctx.user.id));
   }),
 
-  /** The player's filtered view of the game – never the raw state. */
+  /** The player's filtered view of the game – never the raw state – and, for a run's battle, the run and opponent's name. */
   view: protectedProcedure.input(gameIdInput).query(async ({ ctx, input }) => {
     const game = await loadOwnGame(input.gameId, ctx.user.id);
-    return { id: game.id, status: game.status, view: getPlayerView(game.state, HUMAN_ID) };
+    const encounter = game.runId ? (await loadOwnRun(game.runId, ctx.user.id)).state.encounter : null;
+    const opponent = encounter && 'trainer' in encounter && 'gameId' in encounter && encounter.gameId === game.id ? encounter.trainer : null;
+    return { id: game.id, status: game.status, runId: game.runId, opponent, view: getPlayerView(game.state, HUMAN_ID) };
   }),
 
   /**
@@ -96,6 +96,8 @@ export const gameRouter = router({
       actions: actionRows(log, next.version),
     });
     if (!saved) throw new TRPCError({ code: 'CONFLICT', message: 'Game state changed, refresh and retry' });
+    // A run's battle that just ended: the run records the result now (a reward, or 1 HP lost).
+    if (next.phase === 'finished' && game.runId) await settleBattle(await loadOwnRun(game.runId, ctx.user.id));
 
     const frames = [
       { player: HUMAN_ID, type: input.action.type, view: getPlayerView(result.state, HUMAN_ID) },

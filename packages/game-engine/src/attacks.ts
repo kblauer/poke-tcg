@@ -421,6 +421,8 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
       const defender = opp.active!;
       const defenderDef = def(state.cards, defender);
       if (amount <= 0) return 0;
+      // A run's battle rules (Fire Pokémon do double damage…) change the base damage, before everything else.
+      for (const rule of state.rules ?? []) if (rule.kind === 'typeDamage' && rule.type === attackerDef.type) amount *= rule.multiplier;
       if (shielded()) {
         log(`${defenderDef.name} is protected from the attack.`, opp.id);
         return 0;

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CardGrid } from '../components/CardGrid';
 import { DeckFilters } from '../components/DeckFilters';
 import { DeckPanel } from '../components/DeckPanel';
+import { useUnlocked } from '../hooks/useUnlocked';
 import { useTRPC } from '../lib/trpc';
 import { setNames, type CatalogCard } from '../utils/cardList';
 import { EMPTY_DECK_FILTER, cantAdd, changeCount, filterForDeck, problemsOf, sortForDeck, type DeckEntry, type DeckFilter, type DeckSort } from '../utils/deckBuilder';
@@ -14,7 +15,8 @@ const button = 'rounded px-3 py-1 text-sm disabled:opacity-40';
 
 /**
  * Deck builder: the deck being built on the left (pick a saved deck or start a new one, name it, save
- * or delete it), the card search on the right. Clicking a card in the search adds a copy.
+ * or delete it), the card search on the right. Clicking a card in the search adds a copy. Cards not
+ * unlocked yet (win them in runs) are darker and can't be added.
  */
 export function DecksPage() {
   const trpc = useTRPC();
@@ -22,6 +24,7 @@ export function DecksPage() {
   // The catalog only changes when the seed is re-run, so load it once per session.
   const catalog = useQuery({ ...trpc.cards.list.queryOptions(), staleTime: Infinity });
   const decks = useQuery(trpc.decks.list.queryOptions());
+  const { isLocked } = useUnlocked();
 
   /** The saved deck being edited; null for a new one. */
   const [deckId, setDeckId] = useState<string | null>(null);
@@ -82,7 +85,7 @@ export function DecksPage() {
   }
 
   function change(card: CatalogCard, by: 1 | -1) {
-    const reason = by > 0 ? cantAdd(entries, card, byId) : null;
+    const reason = by > 0 ? (isLocked(card) ? `${card.name} isn't unlocked yet: win it in a run` : cantAdd(entries, card, byId)) : null;
     setBlocked(reason);
     if (reason) return;
     setEntries((e) => changeCount(e, card.id, by));
@@ -137,12 +140,12 @@ export function DecksPage() {
           </div>
           {error && <p className="text-xs text-red-400">{error}</p>}
         </div>
-        <DeckPanel entries={entries} byId={byId} problems={problems} onChange={(cardId, by) => change(byId.get(cardId)!, by)} />
+        <DeckPanel entries={entries} byId={byId} problems={problems} isLocked={isLocked} onChange={(cardId, by) => change(byId.get(cardId)!, by)} />
       </div>
       <div className="flex h-[70vh] flex-col gap-3 lg:h-[calc(100dvh-6.5rem)]">
         <DeckFilters filter={filter} sort={sort} sets={sets} shown={results.length} total={catalog.data.length} onChange={setFilter} onSortChange={setSort} />
         {blocked && <p className="text-sm text-amber-300">{blocked}.</p>}
-        <CardGrid cards={results} selectedId={null} onSelect={(c) => change(c, 1)} counts={counts} />
+        <CardGrid cards={results} selectedId={null} onSelect={(c) => change(c, 1)} counts={counts} isLocked={isLocked} />
       </div>
     </div>
   );

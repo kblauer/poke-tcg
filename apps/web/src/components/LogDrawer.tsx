@@ -2,7 +2,7 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import type { LogEntry, PlayerId, PlayerView } from '@poke-tcg/game-engine';
-import { lazy, Suspense, useEffect, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { lazy, Suspense, useEffect, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { CoinFlip } from './CoinFlip';
 import { GameLog } from './GameLog';
 
@@ -10,13 +10,15 @@ import { GameLog } from './GameLog';
 // __DEBUG_BUILD__ (vite.config.ts) is a literal here, so a production build has no DebugPanel chunk at all.
 const DebugPanel = __DEBUG_BUILD__ ? lazy(() => import('./DebugPanel')) : null;
 
+type Tab = 'log' | 'run' | 'debug';
+
 interface LogPrefs {
   side: 'left' | 'right';
   open: boolean;
   /** Width in pixels while open. */
   width: number;
-  /** The tab shown: the log, or the debug tools (when available). */
-  tab: 'log' | 'debug';
+  /** The tab shown: the log, the run (during a run), or the debug tools (when available). */
+  tab: Tab;
 }
 
 const PREFS_KEY = 'poke-tcg.game-log';
@@ -49,13 +51,32 @@ const iconButton = 'flex h-7 w-7 items-center justify-center rounded text-slate-
  * The game log (with coin flips under it) as a full-height panel at the left or right edge of the window.
  * It can be minimised to a thin strip, moved to the other side, and resized by dragging its inner
  * edge. Coin flips still show beside the strip while it's minimised. Clicks here never cancel a move.
- * With `debug` (only while debugging is enabled, never in production) it has a second tab, Debug, with testing cheats.
+ * During a run it has a Run tab (`run`: HP, ₱, EXP, consumables, the Bag); with `debug` (only while debugging
+ * is enabled, never in production) a Debug tab with testing cheats. The tabs can be picked from the minimised
+ * strip too, which opens the panel on that tab. `logTitle` names the log tab ("Game log", or "Run log" on the run screen).
  */
-export function LogDrawer({ log, you, debug }: { log: LogEntry[]; you: PlayerId; debug?: { gameId: string; view: PlayerView } }) {
+export function LogDrawer({
+  log,
+  you,
+  logTitle = 'Game log',
+  run,
+  debug,
+}: {
+  log: LogEntry[];
+  you: PlayerId;
+  logTitle?: string;
+  run?: ReactNode;
+  debug?: { gameId: string; view: PlayerView };
+}) {
   const [prefs, setPrefs] = useState(loadPrefs);
   useEffect(() => savePrefs(prefs), [prefs]);
   const { side, open, width } = prefs;
-  const tab = debug && DebugPanel ? prefs.tab : 'log';
+  const tabs: { id: Tab; label: string }[] = [
+    ...(run ? [{ id: 'run' as const, label: 'Run' }] : []),
+    { id: 'log', label: logTitle },
+    ...(debug && DebugPanel ? [{ id: 'debug' as const, label: 'Debug' }] : []),
+  ];
+  const tab = tabs.some((t) => t.id === prefs.tab) ? prefs.tab : 'log';
   const update = (change: Partial<LogPrefs>) => setPrefs((p) => ({ ...p, ...change }));
 
   /** Drags the inner edge: towards the board widens the panel. */
@@ -91,9 +112,10 @@ export function LogDrawer({ log, you, debug }: { log: LogEntry[]; you: PlayerId;
   const towardsEdge = side === 'right' ? <ChevronRightIcon fontSize="small" /> : <ChevronLeftIcon fontSize="small" />;
   const awayFromEdge = side === 'right' ? <ChevronLeftIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />;
   // A panel at the window edge, from the header to the bottom, with a border on the board side.
-  /** Title row: the tabs (just "Game log" without the debug tools), then the move and minimise buttons. */
-  const tabButton = (t: LogPrefs['tab'], label: string) => (
+  /** Title row: the tabs (just the log's title when it's the only one), then the move and minimise buttons. */
+  const tabButton = (t: Tab, label: string) => (
     <button
+      key={t}
       role="tab"
       aria-selected={tab === t}
       onClick={() => update({ tab: t })}
@@ -104,17 +126,16 @@ export function LogDrawer({ log, you, debug }: { log: LogEntry[]; you: PlayerId;
   );
   const header = (
     <div className="mb-2 flex items-center justify-between gap-2">
-      {debug && DebugPanel ? (
+      {tabs.length > 1 ? (
         <div role="tablist" className="flex gap-1">
-          {tabButton('log', 'Game log')}
-          {tabButton('debug', 'Debug')}
+          {tabs.map((t) => tabButton(t.id, t.label))}
         </div>
       ) : (
-        <h3 className="text-sm text-slate-400">Game log</h3>
+        <h3 className="text-sm text-slate-400">{logTitle}</h3>
       )}
       <div className="flex gap-0.5">
         {moveButton}
-        <button className={iconButton} title="Minimise the game log" aria-label="Minimise the game log" onClick={() => update({ open: false })}>
+        <button className={iconButton} title="Minimise the panel" aria-label="Minimise the panel" onClick={() => update({ open: false })}>
           {towardsEdge}
         </button>
       </div>
@@ -125,11 +146,25 @@ export function LogDrawer({ log, you, debug }: { log: LogEntry[]; you: PlayerId;
   if (!open) {
     return (
       <aside data-keep-action className={`relative flex w-9 flex-col items-center gap-1 py-2 ${edge}`}>
-        <button className={iconButton} title="Show the game log" aria-label="Show the game log" onClick={() => update({ open: true })}>
+        <button className={iconButton} title="Show the panel" aria-label="Show the panel" onClick={() => update({ open: true })}>
           {awayFromEdge}
         </button>
         {moveButton}
-        <span className="mt-2 text-xs text-slate-400 [writing-mode:vertical-rl]">Game log</span>
+        {/* The tabs, written sideways: picking one opens the panel on it. */}
+        <div role="tablist" aria-orientation="vertical" className="mt-2 flex flex-col gap-1">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={tab === t.id}
+              title={`Show ${t.label}`}
+              onClick={() => update({ tab: t.id, open: true })}
+              className={`rounded px-1 py-2 text-xs transition [writing-mode:vertical-rl] ${tab === t.id ? 'bg-slate-700 text-slate-100' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
         {/* Coin flips still need to be seen while the log is minimised: beside the strip, over the board. */}
         <div className={`absolute bottom-0 z-30 w-64 ${side === 'right' ? 'right-full mr-2' : 'left-full ml-2'}`}>
           <CoinFlip log={log} you={you} />
@@ -150,7 +185,12 @@ export function LogDrawer({ log, you, debug }: { log: LogEntry[]; you: PlayerId;
       >
         <div className="h-full w-0.5 rounded bg-transparent transition group-hover:bg-slate-500" />
       </div>
-      {tab === 'debug' && debug && DebugPanel ? (
+      {tab === 'run' && run ? (
+        <section className="flex min-h-0 flex-1 flex-col p-3">
+          {header}
+          <div className="min-h-0 flex-1 overflow-y-auto">{run}</div>
+        </section>
+      ) : tab === 'debug' && debug && DebugPanel ? (
         <section className="flex min-h-0 flex-1 flex-col p-3">
           {header}
           <Suspense fallback={<p className="text-xs text-slate-500">Loading…</p>}>
