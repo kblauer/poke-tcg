@@ -20,7 +20,7 @@ export interface CardData {
   energyType?: string | null;
   /** Retreat cost (number of energy); null for Pokémon that retreat for free. */
   retreat?: number | null;
-  attacks?: { name: string; cost: string[] | null; damage: string | number | null; effect: string | null }[] | null;
+  attacks?: { name: string | null; cost: string[] | null; damage: string | number | null; effect: string | null }[] | null;
   /** Printings that exist; `holo` marks holofoil cards (rarity alone doesn't, e.g. Base Set holos are "Rare"). */
   variants?: { holo?: boolean; normal?: boolean; reverse?: boolean; firstEdition?: boolean } | null;
 }
@@ -74,6 +74,9 @@ function resistance(data: CardData): PokemonCardDef['resistance'] {
   return { type: energyType(r.type), amount: Math.abs(Number.parseInt(r.value ?? '', 10)) || 30 };
 }
 
+/** An attack's name. TCGdex leaves a few unnamed (null: Shining Tyranitar, e-Card Hoppip). */
+const attackName = (a: { name: string | null }) => a.name ?? 'Unnamed attack';
+
 /** Basic Energy (TCGdex "Normal"), which a deck may hold any number of. */
 export const isBasicEnergyCard = (card: Pick<Card, 'kind' | 'data'>) => card.kind === 'ENERGY' && (card.data as CardData).energyType === 'Normal';
 
@@ -85,7 +88,7 @@ export const isBasicEnergyCard = (card: Pick<Card, 'kind' | 'data'>) => card.kin
 export function isImplemented(card: Pick<Card, 'id' | 'name' | 'kind' | 'data'>): boolean {
   const data = card.data as CardData;
   if (card.kind === 'POKEMON') {
-    const attacks = (data.attacks ?? []).every((a) => !a.effect || attackEffect(card.id, a.name));
+    const attacks = (data.attacks ?? []).every((a) => !a.effect || attackEffect(card.id, attackName(a)));
     return attacks && (!data.abilities?.length || powerEffect(card.id) !== undefined);
   }
   if (card.kind === 'TRAINER') return trainerEffect(card.id) !== undefined;
@@ -101,12 +104,12 @@ export function toCardDef(card: Card): CardDef {
     if (!stage || !type || card.hp == null) throw new Error(`Card ${card.id} is missing stage, type or HP`);
     const data = card.data as CardData;
     const attacks: Attack[] = (data.attacks ?? []).map((a) => ({
-      name: a.name,
+      name: attackName(a),
       cost: (a.cost ?? []).map(energyType),
       damage: baseDamage(a.damage),
       damageText: a.damage == null || a.damage === '' ? null : String(a.damage),
       // Printed wording where TCGdex's differs (kept with the attack's effect in the engine).
-      text: attackEffect(card.id, a.name)?.text ?? a.effect,
+      text: attackEffect(card.id, attackName(a))?.text ?? a.effect,
     }));
     return { id: card.id, kind: 'pokemon', name: card.name, imageUrl, type: energyType(type), hp: card.hp, stage, evolvesFrom: evolvesFrom(card), attacks, power: power(data), weakness: weakness(data), resistance: resistance(data), retreatCost: data.retreat ?? 0, holo: isHolo(card) };
   }

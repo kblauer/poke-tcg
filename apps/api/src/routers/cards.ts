@@ -52,6 +52,8 @@ export const cardsRouter = router({
         hp: c.hp,
         /** Highest base damage among the card's attacks (Pokémon only). */
         maxDamage: c.kind === 'POKEMON' ? Math.max(0, ...attacks.map((a) => baseDamage(a.damage))) : null,
+        /** Attack names (Pokémon only), for the search. TCGdex leaves some unnamed (null); those are skipped. */
+        attacks: attacks.flatMap((a) => (a.name ? [a.name] : [])),
         rarity: c.rarity,
         holo: isHolo(c),
         /** Galaxy foil around the art instead of holofoil in it (see isGalaxyFoil). */
