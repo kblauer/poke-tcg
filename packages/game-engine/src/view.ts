@@ -20,6 +20,10 @@ export interface PlayerView {
   cpuDifficulty: CpuDifficulty;
   /** Rules from outside the cards (a run's events). */
   rules: BattleRule[];
+  /** The Stadium card in play, shared by both players, and who played it. */
+  stadium: { card: CardInstance; owner: PlayerId } | null;
+  /** Last turn the current player used the Stadium (Lucky Stadium). */
+  stadiumUsedTurn?: number;
   /** Game log, oldest first. Only public information goes in it. */
   log: LogEntry[];
   /** Definitions for every card visible in this view (and nothing else). */
@@ -81,6 +85,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
     ...(pending?.kind === 'arrangeTop' ? pending.cards : pending?.kind === 'pickFromDeck' || pending?.kind === 'pickFromDiscard' ? pending.options : []),
     ...(oppHand ?? []),
     ...(peek ? [peek.card] : []),
+    ...(state.stadium ? [state.stadium.card] : []),
   ];
   const cards: CardLibrary = {};
   for (const c of visible) cards[c.defId] = state.cards[c.defId]!;
@@ -97,6 +102,8 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
     winner: state.winner,
     cpuDifficulty: state.cpuDifficulty ?? DEFAULT_CPU_DIFFICULTY,
     rules: state.rules ?? [],
+    stadium: state.stadium ?? null,
+    ...(state.stadiumUsedTurn !== undefined && { stadiumUsedTurn: state.stadiumUsedTurn }),
     log: state.log ?? [],
     cards,
     self: {

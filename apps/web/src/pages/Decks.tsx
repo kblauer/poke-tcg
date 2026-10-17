@@ -39,12 +39,20 @@ export function DecksPage() {
   /** Why the last card clicked couldn't be added. */
   const [blocked, setBlocked] = useState<string | null>(null);
 
+  /**
+   * The `opened` count whose saved cards are in the editor. Until a saved deck's cards arrive it can't be
+   * edited, saved or deleted: the editor would still hold the previous deck's cards.
+   */
+  const [loaded, setLoaded] = useState(0);
+  const loading = deckId !== null && loaded !== opened;
+
   const saved = useQuery({ ...trpc.decks.get.queryOptions({ deckId: deckId ?? '' }), enabled: deckId !== null });
-  // Load the saved cards when a deck is opened or reloaded, unless there are edits to keep.
+  // Load the saved cards when a deck is opened, and when it's reloaded unless there are edits to keep.
   useEffect(() => {
-    if (!saved.data || dirty) return;
+    if (!saved.data || (dirty && loaded === opened)) return;
     setName(saved.data.name);
     setEntries(saved.data.cards);
+    setLoaded(opened);
   }, [saved.data, opened]);
 
   const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: trpc.decks.list.queryKey() }), queryClient.invalidateQueries({ queryKey: trpc.decks.get.queryKey() })]);
@@ -53,6 +61,8 @@ export function DecksPage() {
       onSuccess: ({ id }) => {
         setDeckId(id);
         setDirty(false);
+        // The editor already holds what was saved.
+        setLoaded(opened);
         return refresh();
       },
     }),
@@ -78,13 +88,13 @@ export function DecksPage() {
     setDirty(false);
     setBlocked(null);
     setOpened((n) => n + 1);
-    if (id === null) {
-      setName('New deck');
-      setEntries([]);
-    }
+    // A saved deck's cards replace these once they load (`loading` until then).
+    setName(id === null ? 'New deck' : (decks.data?.find((d) => d.id === id)?.name ?? ''));
+    setEntries([]);
   }
 
   function change(card: CatalogCard, by: 1 | -1) {
+    if (loading) return;
     const reason = by > 0 ? (isLocked(card) ? `${card.name} isn't unlocked yet: win it in a run` : cantAdd(entries, card, byId)) : null;
     setBlocked(reason);
     if (reason) return;
@@ -96,7 +106,7 @@ export function DecksPage() {
   if (!catalog.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading cards…</p>;
 
   const problems = problemsOf(entries, byId);
-  const error = save.error?.message ?? remove.error?.message;
+  const error = save.error?.message ?? remove.error?.message ?? saved.error?.message;
   return (
     <div className={`${PAGE_WIDTH} grid gap-4 lg:grid-cols-[24rem_1fr]`}>
       <div className="flex h-[70vh] flex-col gap-3 lg:h-[calc(100dvh-6.5rem)]">
@@ -111,6 +121,7 @@ export function DecksPage() {
           </select>
           <input
             value={name}
+            disabled={loading}
             maxLength={DECK_NAME_LENGTH}
             onChange={(e) => {
               setName(e.target.value);
@@ -122,7 +133,7 @@ export function DecksPage() {
           <div className="flex items-center gap-2">
             <button
               className={`${button} bg-emerald-600 font-semibold hover:bg-emerald-500`}
-              disabled={save.isPending || !name.trim() || (!dirty && deckId !== null)}
+              disabled={save.isPending || loading || !name.trim() || (!dirty && deckId !== null)}
               onClick={() => save.mutate({ ...(deckId && { deckId }), name: name.trim(), cards: entries })}
             >
               {save.isPending ? 'Saving…' : 'Save'}
@@ -130,13 +141,14 @@ export function DecksPage() {
             {deckId && (
               <button
                 className={`${button} bg-slate-700 hover:bg-red-700`}
-                disabled={remove.isPending}
-                onClick={() => window.confirm(`Delete ${name}?`) && remove.mutate({ deckId })}
+                disabled={remove.isPending || loading}
+                // Named as saved (the dropdown's deck), not as it may have been renamed since.
+                onClick={() => window.confirm(`Delete ${decks.data?.find((d) => d.id === deckId)?.name ?? name}?`) && remove.mutate({ deckId })}
               >
                 Delete
               </button>
             )}
-            {dirty && <span className="text-xs text-slate-400">Unsaved changes</span>}
+            {loading ? <span className="text-xs text-slate-400">Loading the deck…</span> : dirty && <span className="text-xs text-slate-400">Unsaved changes</span>}
           </div>
           {error && <p className="text-xs text-red-400">{error}</p>}
         </div>

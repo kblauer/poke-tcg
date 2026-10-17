@@ -1,7 +1,8 @@
 /// <reference path="./globals.d.ts" />
 import { performAttack, type AttackChoices } from './attacks.js';
-import { evolutionBlocked, refreshTransforms, retreatAid, usePower, type PowerChoices } from './powers.js';
-import { playTrainer, resolvePending, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
+import { energyFromHand, evolutionBlocked, guardedBy, offerChainReaction, refreshTransforms, retreatAid, usePower, type PowerChoices } from './powers.js';
+import { playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
+import { trainerEffect } from './effects/index.js';
 import { isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { addLog, clearOnLeavingActive, flipCoin, inPlayDef, pokemonName, type LogEntry } from './status.js';
 import { shuffle } from './rng.js';
@@ -58,8 +59,13 @@ export interface PokemonEffects {
   noRetreat?: number;
   /** It can't attack the Pokémon whose `target` is its baseUid (Tail Wag, Leer). */
   cantAttack?: { target: string; until: number };
-  /** Its attacks do `amount` less damage to the Pokémon whose baseUid is `target` (Pounce, Snivel). */
-  pounce?: { target: string; amount: number; until: number };
+  /**
+   * Its attacks do `amount` less damage to the Pokémon whose baseUid is `target` (Pounce, Snivel, Growl):
+   * after weakness and resistance, or before them with `beforeWeakness` (Togepi's Snivel).
+   */
+  pounce?: { target: string; amount: number; until: number; beforeWeakness?: boolean };
+  /** Attack damage to it is halved, rounded down to the nearest 10 (Light Screen). */
+  lightScreen?: number;
   /** The turn its Slash does 60 base damage (Swords Dance: its owner's next turn). */
   swordsDance?: number;
   /** Leek Slap can't be used again while it stays in play. */
@@ -88,8 +94,13 @@ export interface InPlayPokemon {
   effects?: PokemonEffects;
   /** Trainer cards attached to it (PlusPower, Defender), each discarded after turn `until`. Missing in older games. */
   attached?: { card: CardInstance; until: number }[];
-  /** Venomoth's Shift: the type it changed to, until it leaves play or Shifts again. */
+  /**
+   * The type it's changed to until it leaves play: Venomoth's Shift (until it Shifts again) or a Coloring
+   * counter from Smeargle's Paint (until another replaces it).
+   */
   shiftedType?: EnergyType;
+  /** It has a Lightning Rod marker (Electabuzz, Wizards Promo 46): Lightning Bolt does 20 to it. Stays until it leaves play. */
+  lightningRod?: boolean;
   /** Ditto's Transform: the id of the card it's a copy of (the Defending Pokémon), kept up to date by refreshTransforms. */
   transformed?: string;
   /** Last turn its "once during your turn" power was used (Step In, Curse). Stays when it moves. */
@@ -107,6 +118,8 @@ export interface PlayerState {
   bench: (InPlayPokemon | null)[];
   /** Last turn this player can't play Trainer cards (Headache). Missing = no limit. */
   noTrainersUntil?: number;
+  /** Last turn attacks can't affect this player's Benched Pokémon (Protective Flame). Missing = none. */
+  benchProtectedUntil?: number;
 }
 
 export type Phase = 'setup' | 'playing' | 'promote' | 'finished';
@@ -138,6 +151,10 @@ export interface GameState {
   cpuDifficulty?: CpuDifficulty;
   /** Rules from outside the cards, for both players (a run's events, e.g. Fire Pokémon do double damage). */
   rules?: BattleRule[];
+  /** The Stadium card in play, shared by both players, and who played it (it goes to their discard pile). */
+  stadium?: { card: CardInstance; owner: PlayerId } | null;
+  /** Last turn the current player used the Stadium (Lucky Stadium: once during each player's turn). */
+  stadiumUsedTurn?: number;
   /** What happened, oldest first: attacks, coin flips, knockouts… (last LOG_SIZE entries). Missing in older games. */
   log?: LogEntry[];
 }
@@ -158,10 +175,12 @@ export type GameAction =
   | { type: 'RETREAT'; slot: number; energyUids: string[] }
   /** Play a Trainer card from the hand; `choices` answers its questions (see nextTrainerChoice). */
   | { type: 'PLAY_TRAINER'; cardUid: string; choices?: TrainerChoices }
-  /** Finish a pending search: the card picked from the deck, or the new order of the cards looked at. */
-  | { type: 'RESOLVE_CHOICE'; cardUid?: string; order?: string[]; target?: Target }
+  /** Finish a pending search: the card picked from the deck, the new order of the cards looked at, or how many to draw. */
+  | { type: 'RESOLVE_CHOICE'; cardUid?: string; order?: string[]; target?: Target; count?: number }
   /** Discard a Trainer played as a Pokémon (Clefairy Doll) from play. */
   | { type: 'DISCARD_DOLL'; target: Target }
+  /** Use the Stadium card in play (Lucky Stadium), once during the turn. */
+  | { type: 'USE_STADIUM' }
   | { type: 'END_TURN' }
   | { type: 'CONCEDE' };
 
@@ -213,7 +232,7 @@ export function createGame(p1: NewGamePlayer, p2: NewGamePlayer, seed: number, l
     };
   }
 
-  return {
+  const state: GameState = {
     version: 0,
     rngState,
     phase: 'setup',
@@ -228,7 +247,15 @@ export function createGame(p1: NewGamePlayer, p2: NewGamePlayer, seed: number, l
     cards,
     log: [],
   };
+  // A coin flip for turn order, called by the first player: heads they go first, tails the second player does.
+  const heads = flipCoin(state, TURN_ORDER_FLIP, p1.id);
+  state.currentPlayer = heads ? p1.id : p2.id;
+  addLog(state, 'Goes first.', state.currentPlayer);
+  return state;
 }
+
+/** The reason on the turn-order coin flip's log entry, so the UI can pick it out. */
+export const TURN_ORDER_FLIP = 'Coin flip for turn order';
 
 /**
  * Pure reducer: validates `action` for `playerId` and returns the next state.
@@ -277,17 +304,20 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
     return promoteOrBeginTurn(state);
   }
 
-  if (playerId !== state.currentPlayer) return fail('Not your turn');
+  // A choice can be the other player's, answered during this turn (Computer Error, Chain Reaction).
+  const pending = state.pendingChoice;
+  if (pending && pending.player !== playerId) return fail(playerId === state.currentPlayer ? `Waiting for your opponent to finish ${pending.source}` : 'Not your turn');
+  if (!pending && playerId !== state.currentPlayer) return fail('Not your turn');
 
-  if (state.pendingChoice) {
-    if (action.type !== 'RESOLVE_CHOICE') return fail(`Finish ${state.pendingChoice.source} first`);
-    const { afterAttack } = state.pendingChoice;
+  if (pending) {
+    if (action.type !== 'RESOLVE_CHOICE') return fail(`Finish ${pending.source} first`);
+    const { afterAttack } = pending;
     const error = resolvePending(state, me, action);
     if (error) return fail(error);
     // Another step may follow (Energy Spike: pick the energy, then the Pokémon to attach it to).
     if (!afterAttack || state.pendingChoice) return ok(state);
-    // The search was the attack's: the turn ends as it does after any attack.
-    const winner = resolveKnockouts(state, me.id);
+    // The search was the attack's (or Computer Error's): the turn ends as it does after any attack.
+    const winner = resolveKnockouts(state, state.currentPlayer);
     return winner ? finish(state, winner) : endTurn(state);
   }
 
@@ -320,6 +350,7 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       target.card = evolution;
       target.playedTurn = state.turn;
       clearOnLeavingActive(target);
+      offerChainReaction(state);
       return ok(state);
     }
 
@@ -332,6 +363,7 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       target.energy.push(energy);
       state.energyAttachedThisTurn = true;
       addLog(state, `Attached ${card(energy).name} to ${pokemonName(state, target)}.`, me.id);
+      energyFromHand(state, me, action.target, energy);
       return ok(state);
     }
 
@@ -409,6 +441,15 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       else me.bench[action.target] = null;
       addLog(state, `Discarded ${def.name}.`, me.id);
       return afterOwnMove(state, me, opp);
+    }
+
+    case 'USE_STADIUM': {
+      const error = stadiumError(state.stadium?.card ?? null, state.stadiumUsedTurn, state.turn);
+      if (error) return fail(error);
+      state.stadiumUsedTurn = state.turn;
+      addLog(state, `Used ${card(state.stadium!.card).name}.`, me.id);
+      trainerEffect(state.stadium!.card.defId)!.useStadium!({ state, me, flip: () => flipCoin(state, card(state.stadium!.card).name, me.id) });
+      return ok(state);
     }
 
     case 'RESOLVE_CHOICE':
@@ -489,6 +530,8 @@ export function retreatError(
   if (def.kind === 'pokemon' && def.trainerText) return `${def.name} can't retreat`;
   // Effects are removed once they run out (expireEffects), so being set means it applies.
   if (active.effects?.noRetreat !== undefined) return `${def.name} can't retreat this turn`;
+  const guard = guardedBy(sides, cards);
+  if (guard) return `${guard}: ${def.name} can't retreat`;
   if (active.condition === 'asleep' || active.condition === 'paralyzed') {
     return `${lookupCard(cards, active.card.defId).name} is ${conditionLabel(active.condition)} and can't retreat`;
   }
@@ -629,7 +672,7 @@ function betweenTurns(state: GameState) {
 function expireEffects(pokemon: InPlayPokemon, turn: number) {
   const e = pokemon.effects;
   if (!e) return;
-  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn'] as const) {
+  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen'] as const) {
     if (e[key] !== undefined && e[key] <= turn) delete e[key];
   }
   if (e.amnesia && e.amnesia.until <= turn) delete e.amnesia;

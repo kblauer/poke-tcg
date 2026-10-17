@@ -5,7 +5,7 @@ import { BASIC_ENERGY, type Rarity } from './pool.js';
 import { chance, pick, sample, type Rng } from './random.js';
 
 /** Sets with packs: the ones whose card effects the engine has. */
-export const PACK_SETS = ['base1', 'base2', 'base3'];
+export const PACK_SETS = ['base1', 'base2', 'base3', 'basep'];
 
 /** Price of a pack, in banked ₱. */
 export const PACK_PRICE = 300;
@@ -32,14 +32,23 @@ export interface PackCard {
 
 /**
  * The cards in one pack, in the order they're revealed: the basic Energy, the commons, the uncommons,
- * and the rare last. A set without holos (or other rares) uses whichever rares it has.
+ * and the rare last. A set without holos (or other rares) uses whichever rares it has. A set of only
+ * commons and holos (the Wizards promos, which TCGdex lists as Common) fills the uncommon and rare slots
+ * with more commons, and the last card is a holo as often as any pack's.
  */
 export function openPack(set: PackSet, rng: Rng): PackCard[] {
+  const energy: PackCard = { cardId: pick(rng, Object.values(BASIC_ENERGY)), slot: 'energy' };
+  const commons = (n: number) => sample(rng, set.common, n).map((cardId) => ({ cardId, slot: 'common' as const }));
+  if (!set.uncommon.length && !set.rare.length) {
+    const holo = set.holo.length > 0 && chance(rng, HOLO_CHANCE);
+    const last: PackCard[] = holo ? [{ cardId: pick(rng, set.holo), slot: 'holo' }] : [];
+    return [energy, ...commons(PACK_COMMONS + PACK_UNCOMMONS + (holo ? 0 : 1)), ...last];
+  }
   const holo = set.holo.length > 0 && (set.rare.length === 0 || chance(rng, HOLO_CHANCE));
   const rare = pick(rng, holo ? set.holo : set.rare);
   return [
-    { cardId: pick(rng, Object.values(BASIC_ENERGY)), slot: 'energy' },
-    ...sample(rng, set.common, PACK_COMMONS).map((cardId) => ({ cardId, slot: 'common' as const })),
+    energy,
+    ...commons(PACK_COMMONS),
     ...sample(rng, set.uncommon, PACK_UNCOMMONS).map((cardId) => ({ cardId, slot: 'uncommon' as const })),
     { cardId: rare, slot: holo ? 'holo' : 'rare' },
   ];

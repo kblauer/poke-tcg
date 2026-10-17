@@ -70,9 +70,15 @@ export function gymLeaderCpu(state: GameState, cpuId: PlayerId): GameAction | nu
     case 'promote':
       return state.pendingPromotion === cpuId ? { type: 'PROMOTE', slot: promotion(state, cpuId) } : null;
     case 'playing': {
+      // A choice can be the CPU's during the other player's turn (Computer Error, Chain Reaction).
+      if (state.pendingChoice) {
+        if (state.pendingChoice.player !== cpuId) return null;
+        // After the player's Whirlwind, Ram…: the Pokémon it would promote after a Knock Out comes in.
+        if (state.pendingChoice.kind === 'switchIn') return { type: 'RESOLVE_CHOICE', target: promotion(state, cpuId) };
+        return resolveSearch(turnOf(state, cpuId));
+      }
       if (state.currentPlayer !== cpuId) return null;
       const t = turnOf(state, cpuId);
-      if (state.pendingChoice) return resolveSearch(t);
       for (const step of STEPS) {
         const action = step(t);
         if (action) return action;

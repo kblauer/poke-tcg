@@ -25,6 +25,12 @@ const attackChoicesSchema = z.object({
   benchSlots: z.array(benchSlot).max(MAX_BENCH).optional(),
   deck: z.enum(['own', 'opponent']).optional(),
   ownBenchSlot: benchSlot.optional(),
+  oppTarget: target.optional(),
+  oppTo: target.optional(),
+  ownTarget: target.optional(),
+  side: z.enum(['own', 'opponent']).optional(),
+  oppEnergyUid: z.string().optional(),
+  weaknessType: energyType.optional(),
 }) satisfies z.ZodType<AttackChoices>;
 
 /** Answers to a Pokémon Power's questions (see PowerChoices in the engine). */
@@ -72,8 +78,15 @@ export const gameActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('RETREAT'), slot: benchSlot, energyUids: z.array(z.string()).max(60) }),
   z.object({ type: z.literal('USE_POWER'), source: target, choices: powerChoicesSchema.optional() }),
   z.object({ type: z.literal('PLAY_TRAINER'), cardUid: z.string(), choices: trainerChoicesSchema.optional() }),
-  z.object({ type: z.literal('RESOLVE_CHOICE'), cardUid: z.string().optional(), order: z.array(z.string()).max(10).optional(), target: target.optional() }),
+  z.object({
+    type: z.literal('RESOLVE_CHOICE'),
+    cardUid: z.string().optional(),
+    order: z.array(z.string()).max(10).optional(),
+    target: target.optional(),
+    count: z.number().int().min(0).max(60).optional(),
+  }),
   z.object({ type: z.literal('DISCARD_DOLL'), target }),
+  z.object({ type: z.literal('USE_STADIUM') }),
   z.object({ type: z.literal('END_TURN') }),
   z.object({ type: z.literal('CONCEDE') }),
 ]) satisfies z.ZodType<GameAction>;

@@ -6,6 +6,7 @@ import { def, otherHandCards, type TrainerEffect } from '../trainers.js';
 export const NEO1_TRAINERS: Record<string, TrainerEffect> = {
   // Super Energy Retrieval: trade 2 other cards from your hand for 4 basic Energy cards from your discard pile (all of them, if fewer).
   'neo1-89': {
+    discardToHand: true,
     blocked(s) {
       if (otherHandCards(s).length < 2) return 'You need 2 other cards in your hand';
       return s.me.discard.some((c) => isBasicEnergy(def(s, c))) ? null : 'No basic Energy cards in your discard pile';

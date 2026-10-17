@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyAction, type GameState } from '../index.js';
+import { applyAction, getPlayerView, gymLeaderCpu, passiveCpu, runCpu, trainerCpu, type GameState } from '../index.js';
 import { act, attack, duel, endTurn, flips, id, tryAttack } from './test-kit.js';
 
 describe('Base Set attacks', () => {
@@ -162,10 +162,40 @@ describe('Base Set attacks', () => {
     expect(after.players.misty!.bench[1]!.card.defId).toBe(id('squirtle'));
   });
 
-  it('Whirlwind damages, then switches in the first benched Pokémon', () => {
+  it('Whirlwind damages, then switches in the only benched Pokémon straight away', () => {
     const after = attack(duel('pidgeotto', 'squirtle', { energy: ['fire', 'fire'], oppBench: ['charmander'] }), 0);
     expect(after.players.misty!.bench[0]!.damage).toBe(20);
     expect(after.players.misty!.active!.card.defId).toBe(id('charmander'));
+    expect(after.currentPlayer).toBe('misty');
+  });
+
+  it("Whirlwind: with several benched Pokémon, the opponent chooses which comes in, and then the turn ends", () => {
+    let s = attack(duel('pidgeotto', 'squirtle', { energy: ['fire', 'fire'], oppBench: ['charmander', 'bulbasaur'] }), 0);
+    expect(getPlayerView(s, 'misty').self.pendingChoice).toMatchObject({ kind: 'ownPokemon', purpose: 'switchIn', options: [0, 1] });
+    expect(s.currentPlayer).toBe('ash');
+    expect(applyAction(s, 'ash', { type: 'END_TURN' })).toEqual({ ok: false, error: 'Waiting for your opponent to finish Whirlwind' });
+    expect(applyAction(s, 'misty', { type: 'RESOLVE_CHOICE' })).toEqual({ ok: false, error: 'Choose one of your benched Pokémon' });
+    s = act(s, 'misty', { type: 'RESOLVE_CHOICE', target: 1 });
+    expect(s.players.misty!.active!.card.defId).toBe(id('bulbasaur'));
+    expect(s.players.misty!.bench[1]!.card.defId).toBe(id('squirtle'));
+    expect([s.pendingChoice, s.currentPlayer]).toEqual([undefined, 'misty']);
+  });
+
+  it('Whirlwind: a CPU opponent brings in the Pokémon it would promote', () => {
+    const s = attack(duel('pidgeotto', 'squirtle', { energy: ['fire', 'fire'], oppBench: ['charmander', 'bulbasaur'] }), 0);
+    const [first] = runCpu(s, 'misty', passiveCpu).actions;
+    expect(first).toEqual({ type: 'RESOLVE_CHOICE', target: 0 });
+    const [answer] = runCpu(s, 'misty', trainerCpu).actions;
+    // The Trainer CPU promotes the Pokémon with the most HP left: Charmander (50) over Bulbasaur (40).
+    expect(answer).toEqual({ type: 'RESOLVE_CHOICE', target: 0 });
+    expect(runCpu(s, 'misty', gymLeaderCpu).actions[0]).toMatchObject({ type: 'RESOLVE_CHOICE' });
+  });
+
+  it("Whirlwind doesn't switch a Defending Pokémon protected from the attack's effects", () => {
+    const s = duel('pidgeotto', 'squirtle', { energy: ['fire', 'fire'], oppBench: ['charmander', 'bulbasaur'] });
+    s.players.misty!.active!.effects = { preventAll: 4 };
+    const after = attack(s, 0);
+    expect([after.pendingChoice, after.players.misty!.active!.card.defId]).toEqual([undefined, id('squirtle')]);
   });
 
   it('Whirlpool discards the chosen Energy from the defender', () => {
@@ -233,7 +263,7 @@ describe('Base Set attacks', () => {
   it('logs attacks, coin flips and their results', () => {
     const s = attack(flips(duel('squirtle', 'charmander', { energy: ['water'] }), true), 0);
     expect(s.log!.map((l) => l.text)).toEqual(
-      expect.arrayContaining(['Squirtle used Bubble.', 'Charmander took 20 damage.', 'Coin flip: heads.', 'Charmander is now Paralyzed.']),
+      expect.arrayContaining(['Squirtle used Bubble.', 'Charmander took 20 damage.', "Squirtle's Bubble: heads.", 'Charmander is now Paralyzed.']),
     );
   });
 });
