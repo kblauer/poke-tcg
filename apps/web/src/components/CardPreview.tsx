@@ -1,8 +1,8 @@
 import { useLayoutEffect, useRef } from 'react';
-import { getPreviewWidth, previewPosition, zoomPreview } from '../utils/preview';
+import { getPreviewWidth, heldPreviewPosition, previewPosition, zoomPreview } from '../utils/preview';
 import type { Preview } from './PreviewContext';
 
-export function CardPreview({ def, x, y, scrollZoom = true }: Preview) {
+export function CardPreview({ def, x, y, scrollZoom = true, hold = false }: Preview) {
   const ref = useRef<HTMLDivElement>(null);
 
   // Follow the pointer and resize on scroll by styling the element directly,
@@ -14,7 +14,7 @@ export function CardPreview({ def, x, y, scrollZoom = true }: Preview) {
       const el = ref.current;
       if (!el) return;
       const width = getPreviewWidth();
-      const { left, top } = previewPosition(px, py, width);
+      const { left, top } = hold ? heldPreviewPosition(width) : previewPosition(px, py, width);
       el.style.width = `${width}px`;
       el.style.transform = `translate(${left}px, ${top}px)`;
     };
@@ -31,13 +31,15 @@ export function CardPreview({ def, x, y, scrollZoom = true }: Preview) {
       place();
     };
     place();
+    // A held preview stays in the middle until the finger lifts.
+    if (hold) return;
     window.addEventListener('mousemove', onMove);
     if (scrollZoom) window.addEventListener('wheel', onWheel, { passive: false });
     return () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('wheel', onWheel);
     };
-  }, [x, y, scrollZoom]);
+  }, [x, y, scrollZoom, hold]);
 
   return (
     // Above everything, including the deck-search dialog (z-[1000]).

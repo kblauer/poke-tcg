@@ -5,7 +5,10 @@ import { useEffect, useRef, type ReactNode } from 'react';
 export function GameLog({ log, you, header }: { log: LogEntry[]; you: PlayerId; header?: ReactNode }) {
   const end = useRef<HTMLLIElement>(null);
   // Keep the newest entries in view as they arrive.
-  useEffect(() => end.current?.scrollIntoView({ block: 'nearest' }), [log.length]);
+  // Braces: newer browsers return a Promise from scrollIntoView, which React would take for a clean-up function.
+  useEffect(() => {
+    end.current?.scrollIntoView({ block: 'nearest' });
+  }, [log.length]);
   return (
     <section className="flex min-h-0 flex-1 flex-col p-3">
       {header ?? <h3 className="mb-2 text-sm text-slate-400">Game log</h3>}

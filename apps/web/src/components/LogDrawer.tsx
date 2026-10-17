@@ -1,8 +1,12 @@
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import CloseIcon from '@mui/icons-material/Close';
+import ListAltIcon from '@mui/icons-material/ListAlt';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import type { LogEntry, PlayerId, PlayerView } from '@poke-tcg/game-engine';
-import { lazy, Suspense, useEffect, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { lazy, Suspense, useEffect, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { useMediaQuery } from '../hooks/useMediaQuery';
+import { NARROW_SCREEN } from '../utils/layout';
 import { CoinFlip } from './CoinFlip';
 import { GameLog } from './GameLog';
 
@@ -50,8 +54,21 @@ const iconButton = 'flex h-7 w-7 items-center justify-center rounded text-slate-
  * It can be minimised to a thin strip, moved to the other side, and resized by dragging its inner
  * edge. Coin flips still show beside the strip while it's minimised. Clicks here never cancel a move.
  * With `debug` (only while debugging is enabled, never in production) it has a second tab, Debug, with testing cheats.
+ * On a phone (NARROW_SCREEN) there's no room for it beside the board, so it opens over the board instead (CompactLog),
+ * from a button the board puts beside the turn bar (CompactLogButton); `sheet` is whether it's open.
  */
-export function LogDrawer({ log, you, debug }: { log: LogEntry[]; you: PlayerId; debug?: { gameId: string; view: PlayerView } }) {
+export function LogDrawer({
+  log,
+  you,
+  debug,
+  sheet,
+}: {
+  log: LogEntry[];
+  you: PlayerId;
+  debug?: { gameId: string; view: PlayerView };
+  sheet: { open: boolean; setOpen: (open: boolean) => void };
+}) {
+  const compact = useMediaQuery(NARROW_SCREEN);
   const [prefs, setPrefs] = useState(loadPrefs);
   useEffect(() => savePrefs(prefs), [prefs]);
   const { side, open, width } = prefs;
@@ -102,7 +119,7 @@ export function LogDrawer({ log, you, debug }: { log: LogEntry[]; you: PlayerId;
       {label}
     </button>
   );
-  const header = (
+  const header = (buttons: ReactNode) => (
     <div className="mb-2 flex items-center justify-between gap-2">
       {debug && DebugPanel ? (
         <div role="tablist" className="flex gap-1">
@@ -112,14 +129,34 @@ export function LogDrawer({ log, you, debug }: { log: LogEntry[]; you: PlayerId;
       ) : (
         <h3 className="text-sm text-slate-400">Game log</h3>
       )}
-      <div className="flex gap-0.5">
-        {moveButton}
-        <button className={iconButton} title="Minimise the game log" aria-label="Minimise the game log" onClick={() => update({ open: false })}>
-          {towardsEdge}
-        </button>
-      </div>
+      <div className="flex gap-0.5">{buttons}</div>
     </div>
   );
+  /** The open panel's tab, under its title row. */
+  const body = (buttons: ReactNode) =>
+    tab === 'debug' && debug && DebugPanel ? (
+      <section className="flex min-h-0 flex-1 flex-col p-3">
+        {header(buttons)}
+        <Suspense fallback={<p className="text-xs text-slate-500">Loading…</p>}>
+          <DebugPanel gameId={debug.gameId} view={debug.view} />
+        </Suspense>
+      </section>
+    ) : (
+      <GameLog log={log} you={you} header={header(buttons)} />
+    );
+
+  if (compact) {
+    return (
+      <CompactLog open={sheet.open} close={() => sheet.setOpen(false)} coins={<CoinFlip log={log} you={you} />}>
+        {body(
+          <button className={iconButton} title="Close the game log" aria-label="Close the game log" onClick={() => sheet.setOpen(false)}>
+            <CloseIcon fontSize="small" />
+          </button>,
+        )}
+      </CompactLog>
+    );
+  }
+
   const edge = `h-full shrink-0 bg-slate-900 border-slate-700 ${side === 'left' ? 'order-first border-r' : 'order-last border-l'}`;
 
   if (!open) {
@@ -150,19 +187,54 @@ export function LogDrawer({ log, you, debug }: { log: LogEntry[]; you: PlayerId;
       >
         <div className="h-full w-0.5 rounded bg-transparent transition group-hover:bg-slate-500" />
       </div>
-      {tab === 'debug' && debug && DebugPanel ? (
-        <section className="flex min-h-0 flex-1 flex-col p-3">
-          {header}
-          <Suspense fallback={<p className="text-xs text-slate-500">Loading…</p>}>
-            <DebugPanel gameId={debug.gameId} view={debug.view} />
-          </Suspense>
-        </section>
-      ) : (
-        <GameLog log={log} you={you} header={header} />
+      {body(
+        <>
+          {moveButton}
+          <button className={iconButton} title="Minimise the game log" aria-label="Minimise the game log" onClick={() => update({ open: false })}>
+            {towardsEdge}
+          </button>
+        </>,
       )}
       <div className="border-t border-slate-700 empty:hidden">
         <CoinFlip log={log} you={you} />
       </div>
     </aside>
+  );
+}
+
+/** On a phone, the button that opens the game log over the board (the board puts it beside the turn bar). Never cancels a move. */
+export function CompactLogButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      data-keep-action
+      onClick={onClick}
+      title="Show the game log"
+      aria-label="Show the game log"
+      className="flex items-center gap-1 rounded-lg bg-slate-800 px-2 py-1.5 text-xs text-slate-300 ring-1 ring-slate-600 transition hover:bg-slate-700"
+    >
+      <ListAltIcon sx={{ fontSize: 16 }} />
+      Log
+    </button>
+  );
+}
+
+/**
+ * The game log on a phone, where the board needs the whole width: CompactLogButton opens it as a panel over
+ * the board from the right (tapping beside it closes it). Coin flips show in the middle of the screen while
+ * it's closed, and under the log while it's open.
+ */
+function CompactLog({ open, close, coins, children }: { open: boolean; close: () => void; coins: ReactNode; children: ReactNode }) {
+  if (!open) {
+    return <div className="pointer-events-none fixed left-1/2 top-1/2 z-[1050] w-64 -translate-x-1/2 -translate-y-1/2 shadow-2xl shadow-black/70 empty:hidden">{coins}</div>;
+  }
+  return (
+    // Clicks in the panel or on the dimmed board beside it never cancel a move; the close button and the backdrop close it.
+    <div data-keep-action className="fixed inset-0 z-[1050]">
+      <div className="absolute inset-0 bg-black/50" onClick={close} />
+      <aside className="absolute inset-y-0 right-0 flex w-[min(20rem,85vw)] flex-col border-l border-slate-700 bg-slate-900 shadow-2xl">
+        {children}
+        <div className="border-t border-slate-700 empty:hidden">{coins}</div>
+      </aside>
+    </div>
   );
 }

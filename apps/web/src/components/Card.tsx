@@ -1,7 +1,7 @@
 import { energyProvided, lookupCard, type CardDef, type CardLibrary, type InPlayPokemon } from '@poke-tcg/game-engine';
-import { useContext } from 'react';
 import { typeColor } from '../utils/cardColors';
-import { LARGE_CARD, SMALL_CARD } from '../utils/layout';
+import { LARGE_CARD, NARROW_SCREEN, SMALL_CARD } from '../utils/layout';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 
 /** Badges for Special Conditions and protective effects on a Pokémon in play. */
 function statusBadges(p: InPlayPokemon, cards?: CardLibrary): { label: string; title: string; className: string }[] {
@@ -25,7 +25,7 @@ function statusBadges(p: InPlayPokemon, cards?: CardLibrary): { label: string; t
   return badges;
 }
 import { EnergyIcon } from './EnergyIcon';
-import { PreviewContext } from './PreviewContext';
+import { useHoldPreview } from '../hooks/useHoldPreview';
 
 /** Card art from TCGdex (aspect ratio 63:88), with damage and attached energy overlaid when in play. */
 export function Card({
@@ -42,14 +42,13 @@ export function Card({
   /** Use the large image, for cards shown zoomed in (the hand). */
   highRes?: boolean;
 }) {
-  const setPreview = useContext(PreviewContext);
+  const preview = useHoldPreview(def);
   const size = small ? SMALL_CARD : LARGE_CARD;
+  // On a phone even the active Pokémon is small, and big Energy icons would cover most of it.
+  const narrow = useMediaQuery(NARROW_SCREEN);
   return (
-    <div
-      className={`${size} relative aspect-[63/88] shrink-0 overflow-hidden rounded-lg shadow`}
-      onMouseEnter={(e) => setPreview({ def, x: e.clientX, y: e.clientY })}
-      onMouseLeave={() => setPreview(null)}
-    >
+    // No text selection or iOS image menu, which a long press would otherwise bring up.
+    <div className={`${size} relative aspect-[63/88] shrink-0 select-none overflow-hidden rounded-lg shadow [-webkit-touch-callout:none]`} {...preview}>
       {def.imageUrl ? (
         <img src={`${def.imageUrl}/${highRes ? 'high' : 'low'}.webp`} alt={def.name} loading="lazy" draggable={false} className="h-full w-full object-cover" />
       ) : (
@@ -80,7 +79,7 @@ export function Card({
             const name = lookupCard(cards, e.defId).name + (burned ? ' (Fire this turn: Energy Burn)' : '');
             // One dot per energy provided: Double Colorless Energy (and a Buzzap'd Electrode) shows two.
             return Array.from({ length: provided.amount }, (_, i) => (
-              <EnergyIcon key={`${e.uid}-${i}`} type={type} size={small ? 'sm' : 'lg'} title={name} />
+              <EnergyIcon key={`${e.uid}-${i}`} type={type} size={small || narrow ? 'sm' : 'lg'} title={name} />
             ));
           })}
         </div>

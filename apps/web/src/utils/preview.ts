@@ -12,9 +12,9 @@ const WHEEL_ZOOM_RATE = 0.0015;
 const WHEEL_LINE_HEIGHT = 33;
 const PREVIEW_WIDTH_KEY = 'poke-tcg:preview-width';
 
-/** Largest width whose height still fits the window. */
-const maxPreviewWidth = () => Math.min(MAX_PREVIEW_WIDTH, (window.innerHeight - 2 * VIEWPORT_MARGIN) / CARD_ASPECT);
-const clampPreviewWidth = (w: number) => Math.max(MIN_PREVIEW_WIDTH, Math.min(w, maxPreviewWidth()));
+/** Largest width that still fits the window both ways (a phone is narrower than the default). */
+const maxPreviewWidth = () => Math.min(MAX_PREVIEW_WIDTH, window.innerWidth - 2 * VIEWPORT_MARGIN, (window.innerHeight - 2 * VIEWPORT_MARGIN) / CARD_ASPECT);
+const clampPreviewWidth = (w: number) => Math.min(Math.max(MIN_PREVIEW_WIDTH, w), maxPreviewWidth());
 
 /** Preview size chosen with the scroll wheel; shared by every preview and remembered across reloads. */
 let previewWidth = (() => {
@@ -37,6 +37,12 @@ export function zoomPreview(e: WheelEvent) {
   } catch {
     // Not persisted; the size still applies for this session.
   }
+}
+
+/** Top-left corner for a preview opened by holding a card (touch screens): the middle of the window, clear of the finger. */
+export function heldPreviewPosition(width: number) {
+  const height = width * CARD_ASPECT;
+  return { left: (window.innerWidth - width) / 2, top: Math.max(VIEWPORT_MARGIN, (window.innerHeight - height) / 2) };
 }
 
 /** Top-left corner for the preview: right of the pointer (left near the edge), vertically centred, kept on screen. */

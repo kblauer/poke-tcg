@@ -1,15 +1,17 @@
 import { DndContext, DragOverlay } from '@dnd-kit/core';
+import ScreenRotationIcon from '@mui/icons-material/ScreenRotation';
 import { hasBenched, lookupCard, type GameAction, type InPlayPokemon, type PlayerView, type Target } from '@poke-tcg/game-engine';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAttack } from '../hooks/useAttack';
 import { useCardPlay } from '../hooks/useCardPlay';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import { usePower } from '../hooks/usePower';
 import { useToasts } from '../hooks/useToasts';
 import { useTrainer } from '../hooks/useTrainer';
 import { useRetreat } from '../hooks/useRetreat';
 import { benchSlotId, pendingSlot, toTarget, type SlotId } from '../utils/slots';
 import { useDebugEnabled } from '../utils/debug';
-import { PAGE_WIDTH } from '../utils/layout';
+import { NARROW_SCREEN, PAGE_WIDTH, SIDEWAYS_PHONE, TOUCH_SCREEN } from '../utils/layout';
 import { centerOnPointer } from '../utils/dragOverlay';
 import { isMyTurn, mustPromote, statusText } from '../utils/turn';
 import { AttackChoicePanel } from './AttackChoicePanel';
@@ -19,7 +21,7 @@ import { CardPreview } from './CardPreview';
 import { DeckAndDiscard } from './DeckAndDiscard';
 import { FloatingDialog } from './FloatingDialog';
 import { Hand } from './Hand';
-import { LogDrawer } from './LogDrawer';
+import { CompactLogButton, LogDrawer } from './LogDrawer';
 import { OpponentArea } from './OpponentArea';
 import { PendingChoicePanel } from './PendingChoicePanel';
 import { PlayArea } from './PlayArea';
@@ -66,6 +68,12 @@ export function Board({
   gameId: string;
 }) {
   const debugEnabled = useDebugEnabled();
+  /** A phone held upright: no room beside the active Pokémon, so its attacks go under the board. */
+  const narrow = useMediaQuery(NARROW_SCREEN);
+  const touch = useMediaQuery(TOUCH_SCREEN);
+  const sideways = useMediaQuery(SIDEWAYS_PHONE);
+  /** On a narrow screen, the game log is open over the board. */
+  const [logOpen, setLogOpen] = useState(false);
   const busy = pending !== null || replaying;
   // The attacker lunges at the defender in the view right after its attack.
   const attacker = lastMove?.type === 'ATTACK' && lastMove.version === view.version ? lastMove.player : null;
@@ -116,7 +124,13 @@ export function Board({
   // instruction is a prompt there instead: it stays up while the card is held and goes the moment it's played or put down.
   // Heal's "click one of your Pokémon" is answered on the board, so it's a prompt rather than a dialog.
   const pendingPick = self.pendingChoice?.kind === 'ownPokemon' ? self.pendingChoice : null;
-  const prompt = pendingPick ? pendingPick.prompt : selected ? 'Click a highlighted slot (Esc to cancel)' : trainer.prompt;
+  const prompt = pendingPick
+    ? pendingPick.prompt
+    : selected
+      ? touch
+        ? 'Tap a highlighted slot (tap anywhere else to cancel)'
+        : 'Click a highlighted slot (Esc to cancel)'
+      : trainer.prompt;
   useEffect(() => {
     if (error) toasts.push('error', error);
   }, [error, errorAt]);
@@ -256,7 +270,11 @@ export function Board({
 
   const attacks = self.active && phase !== 'setup' && (
     // Hangs off the active slot's right edge (.attack-column in index.css) so the slot stays centred whatever is shown here.
-    <div data-keep-action className="attack-column absolute top-1/2 flex w-36 -translate-y-1/2 flex-col gap-1">
+    // On a narrow screen it's a strip between the board and the hand instead, scrolling if it gets tall; the board shrinks to make room.
+    <div
+      data-keep-action
+      className={narrow ? 'flex max-h-[35dvh] shrink-0 flex-col gap-1 overflow-y-auto' : 'attack-column absolute top-1/2 flex w-36 -translate-y-1/2 flex-col gap-1'}
+    >
       <AttackList
         pokemon={self.active}
         defender={view.opponent.active}
@@ -345,17 +363,25 @@ export function Board({
                 dialog={trainer.card && !trainer.prompt && <TrainerPanel view={view} trainer={trainer} />}
               />
 
-              {/* Between the two sides: whose turn it is and End turn. */}
-              <StatusBar status={statusText(view)} canEndTurn={myTurn} pending={pending} send={send} />
+              {/* Between the two sides: whose turn it is and End turn. On a narrow screen, the button that opens the game log is beside it. */}
+              <div className="relative shrink-0">
+                <StatusBar status={statusText(view)} canEndTurn={myTurn} pending={pending} send={send} />
+                {narrow && (
+                  <div className="absolute inset-y-0 right-0 flex items-center">
+                    <CompactLogButton onClick={() => setLogOpen(true)} />
+                  </div>
+                )}
+              </div>
 
               {/* Prize cards on the left of the play area; discard pile and deck on the right. */}
-              <section className="flex min-h-0 flex-1 items-center rounded-lg bg-slate-900 p-3">
+              {/* Narrow screens have less padding and space between cards (and .play-area-cards counts on it). */}
+              <section className="flex min-h-0 flex-1 items-center rounded-lg bg-slate-900 p-3 max-md:p-2">
                 {/* Bottom-aligned, with the side columns lifted past the "You" label (text-sm + space-y-3 = 2rem) to line up with the bench. */}
-                <div className="flex w-full items-end gap-3">
+                <div className="flex w-full items-end gap-3 max-md:gap-2">
                   <div className="mb-8 flex flex-col gap-2">
                     {phase !== 'finished' && (
                       <button
-                        className="w-full rounded bg-slate-700 px-2 py-1 text-xs transition hover:bg-slate-600 active:scale-95 disabled:cursor-progress"
+                        className="w-full rounded bg-slate-700 px-2 py-1 text-xs transition hover:bg-slate-600 active:scale-95 disabled:cursor-progress max-md:px-0 max-md:text-[10px]"
                         disabled={busy}
                         onClick={() => send({ type: 'CONCEDE' })}
                       >
@@ -367,9 +393,9 @@ export function Board({
                   <div className="min-w-0 flex-1 space-y-3">
                     <div className="relative flex justify-center">
                       {playerSlot('active', self.active)}
-                      {attacks}
+                      {!narrow && attacks}
                     </div>
-                    <div className="flex justify-center gap-2">{self.bench.map((p, i) => playerSlot(benchSlotId(i), p))}</div>
+                    <div className="flex justify-center gap-2 max-md:gap-1">{self.bench.map((p, i) => playerSlot(benchSlotId(i), p))}</div>
                     <h3 className="text-center text-sm text-slate-400">You</h3>
                   </div>
                   <div className="mb-8">
@@ -378,6 +404,7 @@ export function Board({
                 </div>
               </section>
             </PlayArea>
+            {narrow && attacks}
 
             <Hand
               hand={self.hand}
@@ -413,7 +440,7 @@ export function Board({
               }}
             />
           </div>
-          <LogDrawer log={view.log} you={view.you} debug={debugEnabled ? { gameId, view } : undefined} />
+          <LogDrawer log={view.log} you={view.you} debug={debugEnabled ? { gameId, view } : undefined} sheet={{ open: logOpen, setOpen: setLogOpen }} />
         </div>
 
         <DragOverlay dropAnimation={null} modifiers={[centerOnPointer]}>
@@ -430,6 +457,14 @@ export function Board({
       </DndContext>
       {preview && <CardPreview {...preview} />}
       <Toasts toasts={toasts.toasts} prompt={prompt} />
+      {/* The board doesn't fit a phone on its side; it stays underneath, as it was, until the phone is turned back. */}
+      {sideways && (
+        <div className="fixed inset-0 z-[1300] flex flex-col items-center justify-center gap-3 bg-slate-950 p-6 text-center">
+          <ScreenRotationIcon sx={{ fontSize: 48 }} className="text-yellow-300" />
+          <p className="font-semibold">Turn your phone upright to play.</p>
+          <p className="text-sm text-slate-400">The board needs more height than your screen has sideways.</p>
+        </div>
+      )}
     </PreviewContext.Provider>
   );
 }

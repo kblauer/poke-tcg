@@ -23,7 +23,7 @@ import { HomePage } from './pages/Home';
 if (import.meta.env.DEV) document.title += ' - local';
 
 // The router sets data-status="active" on the link for the current page.
-const tab = 'rounded px-3 py-1 text-slate-400 hover:bg-slate-800 hover:text-slate-200 data-[status=active]:bg-slate-800 data-[status=active]:text-slate-100';
+const tab = 'rounded px-3 py-1 max-sm:px-2 text-slate-400 hover:bg-slate-800 hover:text-slate-200 data-[status=active]:bg-slate-800 data-[status=active]:text-slate-100';
 
 function RootLayout() {
   const session = useSession();
@@ -32,9 +32,10 @@ function RootLayout() {
   return (
     // Each page sets its own width and side padding.
     <div className="py-4">
-      <header className="mb-6 flex items-center justify-between px-4">
-        <div className="flex items-center gap-6">
-          <Link to="/" className="text-xl font-bold text-yellow-300">
+      {/* On a phone the title is smaller and the email is left out, so it all fits on one line. */}
+      <header className="mb-6 flex items-center justify-between gap-2 px-4">
+        <div className="flex items-center gap-6 max-sm:gap-2">
+          <Link to="/" className="whitespace-nowrap text-xl font-bold text-yellow-300 max-sm:text-lg">
             Poké TCG
           </Link>
           {session && (
@@ -53,8 +54,8 @@ function RootLayout() {
         </div>
         {session && (
           <div className="flex items-center gap-3 text-sm">
-            <span className="text-slate-400">{session.user.email}</span>
-            <button className="rounded bg-slate-800 px-3 py-1 hover:bg-slate-700" onClick={() => signOut()}>
+            <span className="truncate text-slate-400 max-md:hidden">{session.user.email}</span>
+            <button className="whitespace-nowrap rounded bg-slate-800 px-3 py-1 hover:bg-slate-700 max-sm:px-2" onClick={() => signOut()}>
               Sign out
             </button>
           </div>

@@ -27,7 +27,8 @@ export function AttackList({
   const def = inPlayDef(cards, pokemon);
   const defenderDef = defender && inPlayDef(cards, defender);
   return (
-    <div className="flex flex-col gap-1">
+    // Two to a row on a narrow screen, where they sit in a strip under the board.
+    <div className="grid gap-1 max-md:grid-cols-2">
       {def.attacks.map((a, i) => {
         const error = attack.error(i);
         const usable = canAttack && error === null;

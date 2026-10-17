@@ -42,7 +42,8 @@ export function DeckAndDiscard({
 
 /** A pile with its label above, or below on the CPU's side, so the deck card itself lines up with the bench. */
 function Pile({ label, empty, labelBelow, children }: { label: string; empty: boolean; labelBelow: boolean; children: ReactNode }) {
-  const text = <p className={`text-center text-xs text-slate-400 ${labelBelow ? 'mt-1' : 'mb-1'}`}>{label}</p>;
+  // One line, centred over the card even when a phone's small card is narrower than the text.
+  const text = <p className={`flex justify-center whitespace-nowrap text-xs text-slate-400 max-md:text-[10px] ${labelBelow ? 'mt-1' : 'mb-1'}`}>{label}</p>;
   return (
     <div className={SMALL_CARD}>
       {!labelBelow && text}

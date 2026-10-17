@@ -19,7 +19,8 @@ export function CardGrid({
 }) {
   if (cards.length === 0) return <p className="p-4 text-center text-slate-500">No cards match these filters.</p>;
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] content-start gap-x-2 gap-y-6 overflow-y-auto p-1">
+    // Narrower columns on a phone, so it isn't just two.
+    <div className="grid min-h-0 flex-1 grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] content-start gap-x-2 gap-y-6 overflow-y-auto p-1 max-sm:grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))]">
       {cards.map((c) => (
         // Zero-height cell: the card hangs down from it and later rows paint over it.
         // The last row's overflow still extends the scroll area.

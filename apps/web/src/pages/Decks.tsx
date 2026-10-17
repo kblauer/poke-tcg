@@ -6,15 +6,17 @@ import { DeckFilters } from '../components/DeckFilters';
 import { DeckPanel } from '../components/DeckPanel';
 import { useTRPC } from '../lib/trpc';
 import { setNames, type CatalogCard } from '../utils/cardList';
-import { EMPTY_DECK_FILTER, cantAdd, changeCount, filterForDeck, problemsOf, sortForDeck, type DeckEntry, type DeckFilter, type DeckSort } from '../utils/deckBuilder';
+import { EMPTY_DECK_FILTER, cantAdd, changeCount, deckSize, filterForDeck, problemsOf, sortForDeck, type DeckEntry, type DeckFilter, type DeckSort } from '../utils/deckBuilder';
 import { PAGE_WIDTH } from '../utils/layout';
 
 const input = 'rounded bg-slate-800 px-2 py-1 text-sm outline-none ring-yellow-300 focus:ring-1';
 const button = 'rounded px-3 py-1 text-sm disabled:opacity-40';
+const tab = 'flex-1 rounded px-3 py-1.5 text-sm transition aria-selected:bg-slate-700 aria-selected:text-slate-100 text-slate-400';
 
 /**
  * Deck builder: the deck being built on the left (pick a saved deck or start a new one, name it, save
- * or delete it), the card search on the right. Clicking a card in the search adds a copy.
+ * or delete it), the card search on the right. Clicking a card in the search adds a copy. Below the lg
+ * breakpoint there's only room for one of them, so tabs switch between the two.
  */
 export function DecksPage() {
   const trpc = useTRPC();
@@ -35,6 +37,8 @@ export function DecksPage() {
   const [sort, setSort] = useState<DeckSort>('set');
   /** Why the last card clicked couldn't be added. */
   const [blocked, setBlocked] = useState<string | null>(null);
+  /** The column shown on a smaller screen. */
+  const [shown, setShown] = useState<'deck' | 'search'>('deck');
 
   const saved = useQuery({ ...trpc.decks.get.queryOptions({ deckId: deckId ?? '' }), enabled: deckId !== null });
   // Load the saved cards when a deck is opened or reloaded, unless there are edits to keep.
@@ -95,8 +99,17 @@ export function DecksPage() {
   const problems = problemsOf(entries, byId);
   const error = save.error?.message ?? remove.error?.message;
   return (
-    <div className={`${PAGE_WIDTH} grid gap-4 lg:grid-cols-[24rem_1fr]`}>
-      <div className="flex h-[70vh] flex-col gap-3 lg:h-[calc(100dvh-6.5rem)]">
+    // Each column fills the window below the header; on a smaller screen, below the tabs too.
+    <div className={`${PAGE_WIDTH} grid gap-4 max-lg:gap-3 lg:grid-cols-[24rem_1fr]`}>
+      <div role="tablist" className="flex gap-1 rounded-lg bg-slate-900 p-1 lg:hidden">
+        <button role="tab" aria-selected={shown === 'deck'} className={tab} onClick={() => setShown('deck')}>
+          Deck ({deckSize(entries)}/60){dirty && ' •'}
+        </button>
+        <button role="tab" aria-selected={shown === 'search'} className={tab} onClick={() => setShown('search')}>
+          Add cards
+        </button>
+      </div>
+      <div className={`flex h-[calc(100dvh-10rem)] flex-col gap-3 lg:h-[calc(100dvh-6.5rem)] ${shown === 'deck' ? '' : 'max-lg:hidden'}`}>
         <div className="space-y-2 rounded-lg bg-slate-900 p-3">
           <select value={deckId ?? ''} onChange={(e) => open(e.target.value || null)} className={`${input} w-full`} aria-label="Deck">
             <option value="">New deck</option>
@@ -139,7 +152,7 @@ export function DecksPage() {
         </div>
         <DeckPanel entries={entries} byId={byId} problems={problems} onChange={(cardId, by) => change(byId.get(cardId)!, by)} />
       </div>
-      <div className="flex h-[70vh] flex-col gap-3 lg:h-[calc(100dvh-6.5rem)]">
+      <div className={`flex h-[calc(100dvh-10rem)] flex-col gap-3 lg:h-[calc(100dvh-6.5rem)] ${shown === 'search' ? '' : 'max-lg:hidden'}`}>
         <DeckFilters filter={filter} sort={sort} sets={sets} shown={results.length} total={catalog.data.length} onChange={setFilter} onSortChange={setSort} />
         {blocked && <p className="text-sm text-amber-300">{blocked}.</p>}
         <CardGrid cards={results} selectedId={null} onSelect={(c) => change(c, 1)} counts={counts} />

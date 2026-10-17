@@ -13,7 +13,8 @@ const STRIP = 'h-[calc(var(--card-sm,5rem)*0.2)]';
  * a gap shows whole.
  */
 export function PrizeCards({ count, mirrored = false }: { count: number; mirrored?: boolean }) {
-  const label = <p className={`text-center text-xs text-slate-400 ${mirrored ? 'mt-1' : 'mb-1'}`}>Prizes {count}</p>;
+  // One line, centred over the card even when a phone's small card is narrower than the text.
+  const label = <p className={`flex justify-center whitespace-nowrap text-xs text-slate-400 max-md:text-[10px] ${mirrored ? 'mt-1' : 'mb-1'}`}>Prizes {count}</p>;
   return (
     <div className={SIDE_COLUMN} title={`${count} prize card${count === 1 ? '' : 's'} left`}>
       {!mirrored && label}

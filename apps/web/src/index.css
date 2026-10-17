@@ -20,6 +20,20 @@
   --card-sm: max(3rem, min(calc((100cqh - 12.5rem) * 0.145), calc((100cqw - 5rem) / 7)));
   --card-lg: calc(var(--card-sm) * 1.4);
 }
+/*
+ * Narrow screens (a phone held upright, Tailwind's max-md) have less padding and space between the cards,
+ * 3rem across instead of 5rem, and smaller cards are allowed so seven still fit across.
+ */
+@media (width < 48rem) {
+  .play-area-cards {
+    --card-sm: max(2rem, min(calc((100cqh - 12.5rem) * 0.145), calc((100cqw - 3rem) / 7)));
+  }
+}
+
+/* No double-tap zoom on touch screens, so quick taps on cards and buttons aren't delayed or zoomed. */
+html {
+  touch-action: manipulation;
+}
 
 /* The attacks column hangs off the active slot's right edge, so the slot stays centred. */
 .attack-column {

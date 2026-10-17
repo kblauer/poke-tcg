@@ -55,6 +55,14 @@
   - Has a "Game log" tab and a "Debug" tab.
 - High-res card images are used for the hand, the Active Pokémon and the drag overlay; small images elsewhere.
 
+## Phones and touch screens (README: Phones and touch screens)
+- Supported: a phone held upright, and touch screens. The game page shows "turn your phone upright" on a sideways phone (`SIDEWAYS_PHONE`); a real landscape layout would need one row of cards a side.
+- Breakpoints: `NARROW_SCREEN` (below 48rem, Tailwind `max-md:`) and the others in `utils/layout.ts`, read with `useMediaQuery`. Use the Tailwind variant for styling, and the hook only where the element tree changes (attacks under the board, the log as an overlay).
+- `.play-area-cards` (index.css) subtracts the board's horizontal padding and gaps. If you change the board's `p-`/`gap-` classes, including the `max-md:` ones, update both formulas.
+- Hover is mouse-only (check `pointerType === 'mouse'`): on touch, a tap fakes a hover that never ends. Card previews on touch come from holding the card (`useHoldPreview`), which swallows the click that ends the hold.
+- Cards outside the play area take their width from `--card-lg`/`--card-sm` fallbacks. The hand sets `--card-lg` to its own card width.
+- Effects must return nothing or a cleanup function. Use braces around calls like `scrollIntoView`, which returns a Promise in newer browsers; React would crash calling it on unmount.
+
 ## Debug tools (testing cheats)
 - The Debug tab can change the CPU's difficulty, draw a card, add any card or Energy to the hand, and set the HP of any Pokémon in play.
   - Engine: `applyDebug` in `packages/game-engine/src/debug.ts`.

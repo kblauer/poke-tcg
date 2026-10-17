@@ -11,7 +11,8 @@ const toast = 'toast-in rounded-lg px-5 py-3 text-sm font-medium text-slate-900 
  */
 export function Toasts({ toasts, prompt = null }: { toasts: Toast[]; prompt?: string | null }) {
   return (
-    <div className="pointer-events-none fixed bottom-4 right-4 z-[1200] flex w-96 max-w-[calc(100vw-2rem)] flex-col items-end gap-2">
+    // On a phone they sit at the top instead, clear of the hand along the bottom.
+    <div className="pointer-events-none fixed bottom-4 right-4 z-[1200] flex w-96 max-w-[calc(100vw-2rem)] flex-col items-end gap-2 max-md:bottom-auto max-md:top-2">
       {toasts.map((t) => (
         <div
           key={t.id}

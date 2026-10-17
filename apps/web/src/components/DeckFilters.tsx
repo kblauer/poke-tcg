@@ -1,4 +1,5 @@
 import type { EnergyType } from '@poke-tcg/game-engine';
+import { useState } from 'react';
 import { CARD_TYPES } from '../utils/cardList';
 import { EnergyIcon } from './EnergyIcon';
 import {
@@ -21,7 +22,11 @@ const OTHER = 'other';
 /** Parses a number field; empty means "no bound". */
 const toBound = (value: string) => (value === '' ? null : Math.max(0, Number(value)));
 
-/** The deck builder's card search: name, set, Pokémon filters, Trainer toggles, "implemented only" and the sort. */
+/**
+ * The deck builder's card search: name, set, Pokémon filters, Trainer toggles, "implemented only" and the sort.
+ * Below the lg breakpoint the Pokémon, Trainer and Energy rows are folded away behind a Filters button, which
+ * shows a dot while any of them is set.
+ */
 export function DeckFilters({
   filter,
   sort,
@@ -41,6 +46,10 @@ export function DeckFilters({
   onChange: (filter: DeckFilter) => void;
 }) {
   const set = (patch: Partial<DeckFilter>) => onChange({ ...filter, ...patch });
+  /** The folded rows are open (small screens only). */
+  const [more, setMore] = useState(false);
+  const folded = more ? '' : 'max-lg:hidden';
+  const count = shown === total ? `${total} cards` : `${shown} of ${total} cards`;
   /**
    * While the Trainer or Energy toggles are on, the Pokémon dropdowns show "—" (OTHER), so picking "Any
    * stage" or "Any type" is a change, and switches back to every Pokémon.
@@ -92,8 +101,13 @@ export function DeckFilters({
         >
           Implemented only
         </button>
+        <button className={`${toggle} ${off} lg:hidden`} aria-expanded={more} onClick={() => setMore(!more)}>
+          {more ? 'Fewer filters' : 'More filters'}
+          {filter.pokemon || filter.stage !== null || filter.type !== null || filter.minHp !== null || filter.maxHp !== null || filter.hasAbility || otherGroup ? ' •' : ''}
+        </button>
+        {!more && <span className="ml-auto text-slate-400 lg:hidden">{count}</span>}
       </div>
-      <div className="flex flex-wrap items-center gap-2 text-sm">
+      <div className={`flex flex-wrap items-center gap-2 text-sm ${folded}`}>
         <span className="text-slate-400">Pokémon</span>
         <select value={otherGroup ? OTHER : (filter.stage ?? '')} onChange={(e) => setPokemon({ stage: e.target.value || null })} className={input} aria-label="Evolution stage">
           <option value={OTHER} hidden disabled>
@@ -148,12 +162,12 @@ export function DeckFilters({
           Has ability
         </button>
       </div>
-      <div className="flex flex-wrap items-center gap-2 text-sm">
+      <div className={`flex flex-wrap items-center gap-2 text-sm ${folded}`}>
         <button className={`${toggle} ${filter.trainers ? on : off}`} aria-pressed={filter.trainers} onClick={flipTrainers}>
           Trainer
         </button>
       </div>
-      <div className="flex flex-wrap items-center gap-2 text-sm">
+      <div className={`flex flex-wrap items-center gap-2 text-sm ${folded}`}>
         <span className="text-slate-400">Energy</span>
         {CARD_TYPES.map((t) => (
           <button
@@ -164,13 +178,14 @@ export function DeckFilters({
             onClick={() => flipEnergy(t)}
           >
             <EnergyIcon type={t.toLowerCase() as EnergyType} size="panel" />
-            {t}
+            {/* Just the icon on a phone, so they fit on two lines. */}
+            <span className="max-sm:sr-only">{t}</span>
           </button>
         ))}
         <button className="text-slate-400 hover:text-slate-200" onClick={() => onChange(EMPTY_DECK_FILTER)}>
           Clear filters
         </button>
-        <span className="ml-auto text-slate-400">{shown === total ? `${total} cards` : `${shown} of ${total} cards`}</span>
+        <span className="ml-auto text-slate-400">{count}</span>
       </div>
     </div>
   );
