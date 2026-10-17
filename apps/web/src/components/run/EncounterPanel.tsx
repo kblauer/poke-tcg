@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import type { RunControl, RunViewData } from '../../hooks/useRun';
-import { EncounterBadge } from './encounterIcons';
+import { isBossKind } from '@poke-tcg/campaign';
+import { ENCOUNTER_STYLE, EncounterBadge } from './encounterIcons';
 import { RunCard } from './RunCard';
 
 const panel = 'space-y-4 rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600';
@@ -21,13 +22,19 @@ export function EncounterPanel({ view, run }: { view: RunViewData; run: RunContr
   switch (e.kind) {
     case 'battle':
     case 'elite':
+    case 'gymTrainer':
     case 'gymLeader':
+    case 'eliteFour':
+    case 'champion':
       return (
         <div className={panel}>
           <div className="flex items-center gap-3">
             <EncounterBadge kind={e.kind} size={40} />
             <h3 className="text-lg font-semibold">{e.trainer}</h3>
+            <span className="text-sm text-slate-400">{ENCOUNTER_STYLE[e.kind].name}</span>
           </div>
+          {e.kind === 'gymTrainer' && <p className="text-sm text-slate-300">One of the gym's trainers stands in your way. You can't skip them, and a loss costs 1 HP.</p>}
+          {isBossKind(e.kind) && <p className="text-sm text-slate-300">A boss: if you lose, it costs 1 HP and you face them again.</p>}
           {e.kind === 'elite' && !e.accepted ? (
             <>
               <p className="text-sm text-slate-300">An Ace Trainer challenges you. They play like a gym leader, and pay far better if you win, but a loss still costs 1 HP.</p>

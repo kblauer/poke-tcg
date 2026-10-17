@@ -1,4 +1,4 @@
-import { currentGameId, EQUIP_SLOTS, fitsSlot, item, ITEMS, RUN_TYPE_IDS, RUN_TYPES, runView, SHOP_ITEMS, type EquipSlot } from '@poke-tcg/campaign';
+import { bossSummary, currentGameId, EQUIP_SLOTS, fitsSlot, item, ITEMS, RUN_TYPE_IDS, RUN_TYPES, runView, SHOP_ITEMS, type EquipSlot } from '@poke-tcg/campaign';
 import { prisma } from '@poke-tcg/db';
 import { buyItemInput, equipInput, runActInput, runIdInput, startRunInput, useItemInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
@@ -37,8 +37,8 @@ export const runRouter = router({
       // With why each can't start a run (the deck rules, or cards not unlocked); empty when it can.
       decks: decks.map((d) => ({ id: d.id, name: d.name, cardCount: d.cards.reduce((n, c) => n + c.quantity, 0), problems: playProblems(d.cards, unlocked) })),
       runTypes: RUN_TYPE_IDS.map((id) => {
-        const { name, description, leader } = RUN_TYPES[id];
-        return { id, name, description, leader: `${leader.title} ${leader.name}` };
+        const type = RUN_TYPES[id];
+        return { id, name: type.name, description: type.description, bosses: bossSummary(type) };
       }),
     };
   }),

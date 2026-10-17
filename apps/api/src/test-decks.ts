@@ -1,9 +1,8 @@
-// Fixed decks: the player's test deck, and the CPU's deck for every game until each opponent has its own.
+// Fixed decks for practice battles: the player's test deck, and the CPU's deck (Brock's Rock Crusher deck).
 // The player's test deck is Base Set only: two Basic → Stage 1 → Stage 2 lines (4-3-2) plus basic
 // Energy, and one each of a spread of Trainers and a Double Colorless Energy to try them out.
 
-/** [card id, copies] */
-type DeckList = [string, number][];
+import { BOSSES, type DeckList } from '@poke-tcg/campaign';
 
 export const PLAYER_TEST_DECK: DeckList = [
   // Fire: Charmander → Charmeleon → Charizard
@@ -34,29 +33,8 @@ export const PLAYER_TEST_DECK: DeckList = [
   ['base1-70', 1], // Clefairy Doll
 ];
 
-/** The CPU's deck: the Rock Crusher theme deck from the Game Boy Color game (60 cards, all Fighting). */
-export const CPU_DECK: DeckList = [
-  // Diglett → Dugtrio
-  ['base1-47', 4],
-  ['base1-19', 2],
-  // Geodude → Graveler → Golem (Fossil)
-  ['base3-47', 4],
-  ['base3-37', 3],
-  ['base3-36', 2],
-  ['base1-56', 3], // Onix
-  ['base2-61', 3], // Rhyhorn (Jungle)
-  // Trainers
-  ['base1-88', 2], // Professor Oak
-  ['base1-76', 1], // Pokémon Breeder
-  ['base1-92', 2], // Energy Removal
-  ['base1-95', 2], // Switch
-  ['base1-71', 1], // Computer Search
-  ['base1-80', 2], // Defender
-  ['base1-90', 1], // Super Potion
-  ['base1-94', 2], // Potion
-  ['base1-96', 2], // Double Colorless Energy
-  ['base1-97', 24], // Fighting Energy
-];
+/** The CPU's deck in practice battles: Brock's, the Rock Crusher theme deck from the Game Boy Color game (60 cards, all Fighting). */
+export const CPU_DECK: DeckList = BOSSES.brock.deck;
 
 /** Expands a deck list into one card id per card. */
 export const expandDeck = (list: DeckList) => list.flatMap(([id, copies]) => Array<string>(copies).fill(id));

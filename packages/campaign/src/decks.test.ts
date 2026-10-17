@@ -1,12 +1,19 @@
-import { canPayCost, isBasicPokemon, isPokemonCard, type PokemonCardDef } from '@poke-tcg/game-engine';
+import { canPayCost, cardImplemented, isBasicPokemon, isPokemonCard, type PokemonCardDef } from '@poke-tcg/game-engine';
 import { describe, expect, it } from 'vitest';
-import { deckErrors, expandDeck, FLOWER_POWER_DECK, generateDeck, STARTER_DECK } from './decks.js';
+import { BOSSES } from './bosses.js';
+import { deckErrors, expandDeck, generateDeck, STARTER_DECK } from './decks.js';
 import { rngFrom } from './random.js';
-import { TEST_POOL, testDef } from './test-pool.js';
+import { catalogDef, TEST_POOL, testDef } from './test-pool.js';
 
 describe('fixed decks', () => {
-  it('the starter deck and the Flower Power deck are legal 60-card decks of implemented cards', () => {
-    for (const list of [STARTER_DECK, FLOWER_POWER_DECK]) expect(deckErrors(expandDeck(list), testDef)).toEqual([]);
+  it('the starter deck is a legal 60-card deck of cards from the run pool', () => {
+    expect(deckErrors(expandDeck(STARTER_DECK), testDef)).toEqual([]);
+  });
+
+  it.each(Object.entries(BOSSES))("%s's deck is a legal 60-card deck of catalog cards the engine fully implements", (_, b) => {
+    const deck = expandDeck(b.deck);
+    expect(deckErrors(deck, catalogDef)).toEqual([]);
+    expect(deck.filter((id) => !cardImplemented(catalogDef(id)))).toEqual([]);
   });
 });
 
@@ -41,6 +48,17 @@ describe('generateDeck', () => {
       for (const d of new Set(deck.map(testDef).filter(isPokemonCard))) {
         const p = { card: { uid: 'p', defId: d.id }, evolvedFrom: [], damage: 0, energy, playedTurn: 0 };
         for (const a of (d as PokemonCardDef).attacks) expect(canPayCost(p, a, cards), `${d.name}: ${a.name}`).toBe(true);
+      }
+    }
+  });
+
+  it("with a type (a Gym Trainer's gym), most of the Energy is that type", () => {
+    for (const type of ['fighting', 'water', 'lightning', 'grass', 'psychic', 'fire'] as const) {
+      for (let seed = 0; seed < 20; seed++) {
+        const deck = generateDeck(TEST_POOL, rngFrom(seed), { type }).map(testDef);
+        expect(deckErrors(deck.map((d) => d.id), testDef)).toEqual([]);
+        const energy = deck.filter((d) => d.kind === 'energy' && d.basic !== false);
+        expect(energy.filter((d) => d.kind === 'energy' && d.energyType === type).length, `${type} seed ${seed}`).toBeGreaterThanOrEqual(energy.length / 2);
       }
     }
   });

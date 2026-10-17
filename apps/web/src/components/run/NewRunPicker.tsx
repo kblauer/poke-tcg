@@ -25,7 +25,7 @@ export function NewRunPicker({ overview, run, title, defaultType }: { overview: 
         >
           {overview.runTypes.map((t) => (
             <option key={t.id} value={t.id}>
-              {t.name} ({t.leader})
+              {t.name} ({t.bosses})
             </option>
           ))}
         </select>

@@ -52,7 +52,15 @@ export const ITEMS: Record<string, ItemDef> = Object.fromEntries(
       { id: 'itemfinder', name: 'Itemfinder', category: 'misc', price: 120, perRun: 2, description: 'Reveal what a Mystery encounter is before you choose it. Twice per run.' },
       { id: 'coin-case', name: 'Coin Case', category: 'misc', price: 150, description: 'Re-flip one coin per battle. Never used up.' },
       // Key items (records; not sold, can't be removed)
+      { id: 'boulder-badge', name: 'Boulder Badge', category: 'key', description: 'Proof of beating Pewter Gym Leader Brock.' },
+      { id: 'cascade-badge', name: 'Cascade Badge', category: 'key', description: 'Proof of beating Cerulean Gym Leader Misty.' },
+      { id: 'thunder-badge', name: 'Thunder Badge', category: 'key', description: 'Proof of beating Vermilion Gym Leader Lt. Surge.' },
       { id: 'rainbow-badge', name: 'Rainbow Badge', category: 'key', description: 'Proof of beating Celadon Gym Leader Erika.' },
+      { id: 'soul-badge', name: 'Soul Badge', category: 'key', description: 'Proof of beating Fuchsia Gym Leader Koga.' },
+      { id: 'marsh-badge', name: 'Marsh Badge', category: 'key', description: 'Proof of beating Saffron Gym Leader Sabrina.' },
+      { id: 'volcano-badge', name: 'Volcano Badge', category: 'key', description: 'Proof of beating Cinnabar Gym Leader Blaine.' },
+      { id: 'earth-badge', name: 'Earth Badge', category: 'key', description: 'Proof of beating Viridian Gym Leader Giovanni.' },
+      { id: 'champion-ribbon', name: 'Champion Ribbon', category: 'key', description: 'Proof of beating the Elite Four and Champion Blue.' },
       { id: 'town-map', name: 'Town Map', category: 'key', description: 'Shows where your runs have taken you.' },
       // Equipment
       { id: 'trainer-cap', name: "Trainer's Cap", category: 'equipment', equip: 'head', price: 100, effects: ['+20 ₱ after each battle won'], description: 'A well-worn cap.' },

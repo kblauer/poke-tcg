@@ -1,4 +1,4 @@
-import { ITEMS, runType } from '@poke-tcg/campaign';
+import { finalBoss, ITEMS, runType } from '@poke-tcg/campaign';
 import type { ClientRun, Overview, RunControl } from '../../hooks/useRun';
 import { ItemShop } from './ItemShop';
 import { NewRunPicker } from './NewRunPicker';
@@ -6,11 +6,13 @@ import { RunCard } from './RunCard';
 
 /**
  * After a run. Beaten: the EXP it earned, the cards gained in it (already unlocked in the deck builder) and
- * the badge, then the shop, then the next run. Lost: start over, or (for testing) carry on with full HP.
+ * the badges it won, then the shop, then the next run. Lost: start over, or (for testing) carry on with full HP.
  */
 export function RunOver({ current, overview, run }: { current: ClientRun; overview: Overview; run: RunControl }) {
   const view = current.view;
   const type = runType(view.type);
+  const last = finalBoss(type);
+  const won = (view.badges ?? []).map((id) => ITEMS[id]?.name).filter(Boolean);
   if (view.phase === 'lost') {
     return (
       <div className="space-y-4">
@@ -31,10 +33,10 @@ export function RunOver({ current, overview, run }: { current: ClientRun; overvi
     <div className="space-y-4">
       <section className="space-y-3 rounded-lg bg-slate-800 p-5 ring-1 ring-yellow-500">
         <h3 className="text-lg font-semibold text-yellow-300">
-          You beat {type.leader.title} {type.leader.name}!
+          You beat {last.title} {last.name}!
         </h3>
         <p className="text-sm text-slate-300">
-          +{view.exp} EXP · {ITEMS[type.leader.badge]?.name} · ₱{view.pokedollars} left (banked when you start your next run)
+          +{view.exp} EXP{won.length > 0 && ` · ${won.join(', ')}`} · ₱{view.pokedollars} left (banked when you start your next run)
         </p>
         {view.gained.length > 0 ? (
           <>

@@ -9,7 +9,7 @@ const label = 'text-xs uppercase tracking-wide text-slate-500';
 
 /**
  * The run tab of the side panel: HP, ₱ (and the bank), the run's EXP and the account's, consumables used,
- * the battle rules and consumables in effect, and the Bag.
+ * the battle rules and consumables in effect, the badges won this run, and the Bag.
  */
 export function RunStats({ view, account, run }: { view: RunViewData; account: Overview['account']; run: RunControl }) {
   return (
@@ -57,6 +57,18 @@ export function RunStats({ view, account, run }: { view: RunViewData; account: O
               {ITEMS[c.itemId]?.name} · {c.battlesLeft} battle{c.battlesLeft === 1 ? '' : 's'}
             </p>
           ))}
+        </div>
+      )}
+      {(view.badges ?? []).length > 0 && (
+        <div className="space-y-1 text-xs">
+          <h4 className={label}>Won this run</h4>
+          <p className="flex flex-wrap gap-1">
+            {view.badges!.map((id) => (
+              <span key={id} className="rounded bg-yellow-700/60 px-2 py-0.5">
+                {ITEMS[id]?.name ?? id}
+              </span>
+            ))}
+          </p>
         </div>
       )}
       {view.phase !== 'won' && view.phase !== 'lost' && <BagPanel view={view} run={run} />}

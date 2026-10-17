@@ -64,6 +64,18 @@ export const TEST_POOL: PoolCard[] = rows
     return def && cardImplemented(def) ? [{ def, rarity: rarity(r) }] : [];
   });
 
+/** Every card in the snapshot the engine can load (any set), for checking fixed decks like the bosses'. */
+const CATALOG = new Map(rows.flatMap((r) => {
+  const def = toDef(r);
+  return def ? [[r.id, def] as const] : [];
+}));
+
+export const catalogDef = (id: string) => {
+  const def = CATALOG.get(id);
+  if (!def) throw new Error(`Not in the catalog: ${id}`);
+  return def;
+};
+
 export const testDef = (id: string) => {
   const c = TEST_POOL.find((p) => p.def.id === id);
   if (!c) throw new Error(`Not in the pool: ${id}`);
