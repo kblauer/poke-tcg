@@ -2,7 +2,8 @@
 // Card-specific behaviour lives in effects/ (TRAINERS). Searches of hidden cards (the deck) can't
 // be answered from a player's view, so those Trainers leave a PendingChoice that only the player
 // sees the options of, answered with RESOLVE_CHOICE.
-import { isBasicEnergy, isBasicPokemon, lookupCard, type CardLibrary, type CardDef } from './cards.js';
+import { typeName } from './attacks.js';
+import { isBasicEnergy, isBasicPokemon, lookupCard, type CardLibrary, type CardDef, type EnergyType } from './cards.js';
 import { trainerEffect } from './effects/index.js';
 import type { CardInstance, GameState, InPlayPokemon, PlayerId, PlayerState, Target } from './engine.js';
 import { shuffle } from './rng.js';
@@ -56,9 +57,13 @@ export type PendingChoice = {
 } & (
   | {
       kind: 'pickFromDeck';
-      /** 'basicNamed': a Basic Pokémon called `name` (Call for Family). */
-      filter: 'any' | 'pokemon' | 'basicNamed' | 'basicEnergy';
-      name?: string;
+      /**
+       * 'basicNamed': a Basic Pokémon called `name` (or any of the names), for Call for Family;
+       * 'basicType': a Basic Pokémon of `type` (Call for Friend).
+       */
+      filter: 'any' | 'pokemon' | 'basicNamed' | 'basicType' | 'basicEnergy';
+      name?: string | string[];
+      type?: EnergyType;
       /** The card goes onto the Bench instead of into the hand (Call for Family). */
       toBench?: boolean;
       /** Pokémon Trader: the hand card that goes into the deck once a card is picked. */
@@ -264,7 +269,9 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
   const options = deck.filter((c) => deckFilter(state.cards, choice, c)).sort((a, b) => name(a).localeCompare(name(b)) || a.uid.localeCompare(b.uid));
   const what =
     choice.filter === 'basicNamed'
-      ? `a Basic Pokémon named ${choice.name}`
+      ? `a Basic Pokémon named ${[choice.name].flat().join(' or ')}`
+      : choice.filter === 'basicType'
+        ? `a ${typeName(choice.type!)} Basic Pokémon`
       : choice.filter === 'basicEnergy'
         ? 'a basic Energy card'
         : choice.filter === 'pokemon'
@@ -277,7 +284,8 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
 /** Whether a deck card can be picked in this search. */
 export const deckFilter = (cards: CardLibrary, choice: Extract<PendingChoice, { kind: 'pickFromDeck' }>, c: CardInstance) => {
   const d = lookupCard(cards, c.defId);
-  if (choice.filter === 'basicNamed') return isBasicPokemon(d) && d.name === choice.name;
+  if (choice.filter === 'basicNamed') return isBasicPokemon(d) && [choice.name].flat().includes(d.name);
+  if (choice.filter === 'basicType') return isBasicPokemon(d) && d.type === choice.type;
   if (choice.filter === 'basicEnergy') return isBasicEnergy(d);
   return choice.filter === 'any' || (d.kind === 'pokemon' && !d.trainerText);
 };

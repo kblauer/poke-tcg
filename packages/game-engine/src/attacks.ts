@@ -14,7 +14,7 @@ import {
   type PokemonEffects,
 } from './engine.js';
 import { powerActive } from './powers.js';
-import { addLog, clearOnLeavingActive, effectId, flipCoin, inPlayDef, pokemonName } from './status.js';
+import { addLog, baseUid, clearOnLeavingActive, effectId, flipCoin, inPlayDef, pokemonName } from './status.js';
 import type { PendingChoice, PendingChoiceInput } from './trainers.js';
 
 /** Answers to an attack's questions. Each field belongs to one kind of ChoiceSpec. */
@@ -37,6 +37,8 @@ export interface AttackChoices {
   benchSlots?: number[];
   /** Whose deck the attack uses (Prophecy). */
   deck?: 'own' | 'opponent';
+  /** One of your benched Pokémon (Teleport). */
+  ownBenchSlot?: number;
 }
 
 /** A question an attack asks before it's used. `prompt` is shown to the player. */
@@ -47,6 +49,7 @@ export type ChoiceSpec = { prompt: string } & (
   | { kind: 'defenderAttack'; options: number[] }
   | { kind: 'copyAttack'; options: number[] }
   | { kind: 'type'; options: EnergyType[] }
+  | { kind: 'ownBench'; options: number[] }
   /** Any number (0 to all) of the attacker's energy, as part of the attack (Wildfire). */
   | { kind: 'ownEnergyUpTo'; options: CardInstance[] }
   | { kind: 'ownDiscard'; min: number; max: number; options: CardInstance[] }
@@ -115,6 +118,14 @@ export interface AttackContext {
   switchDefender: (slot: number) => void;
   /** Runs another attack's effect (Metronome), as if this Pokémon used it. */
   useAttack: (attack: Attack, sourceDefId: string) => void;
+  /** The attacking player draws up to `n` cards. */
+  draw: (n: number) => void;
+  /** The attacker is now Confused (Petal Dance, Tantrum…). */
+  confuseSelf: () => void;
+  /** Switches the attacker with the attacking player's benched Pokémon in `slot` (Teleport). */
+  switchOwn: (slot: number) => void;
+  /** Returns the Defending Pokémon and every card attached to it to the opponent's hand (Hurricane). */
+  returnDefender: () => void;
   /** Asks the attacking player to finish a search (see PendingChoice); the turn ends after it. */
   pend: (choice: PendingChoiceInput) => void;
   log: (text: string) => void;
@@ -146,6 +157,10 @@ export function attackError(s: AttackSituation, attackIndex: number): string | n
   if (condition === 'asleep' || condition === 'paralyzed') return `${attackerDef.name} is ${conditionLabel(condition)} and can't attack`;
   if (s.attacker.effects?.amnesia?.attack === attack.name && active(s.attacker.effects.amnesia.until, s.turn)) {
     return `${attackerDef.name} can't use ${attack.name} this turn`;
+  }
+  const blockedTarget = s.attacker.effects?.cantAttack;
+  if (blockedTarget && blockedTarget.target === baseUid(s.defender) && active(blockedTarget.until, s.turn)) {
+    return `${attackerDef.name} can't attack ${def(s.cards, s.defender).name} this turn`;
   }
   if (!canPayCost(s.attacker, attack, s.cards)) return 'Not enough energy';
   const effect = attackEffect(effectId(s.attacker), attack.name);
@@ -188,6 +203,7 @@ const FIELD = {
   defenderAttack: 'attackIndex',
   copyAttack: 'copyIndex',
   type: 'type',
+  ownBench: 'ownBenchSlot',
   ownEnergyUpTo: 'energyUids',
   ownDiscard: 'discardUids',
   opponentBenchMany: 'benchSlots',
@@ -409,6 +425,12 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
       let damage = weakness ? applyWeaknessResistance(amount, attackerDef.type, defenderDef, defender.effects) : amount;
       // PlusPower adds 10 each, then Defender takes off 20 each (both after weakness and resistance).
       if (damage > 0) damage = Math.max(0, damage + 10 * attachedCount(state.cards, attacker, 'PlusPower') - 20 * attachedCount(state.cards, defender, 'Defender'));
+      // Pounce and Snivel: less damage from the Pokémon they were used on (also after weakness and resistance).
+      const pounce = attacker.effects?.pounce;
+      if (damage > 0 && pounce && pounce.target === baseUid(defender) && active(pounce.until, turn)) {
+        damage = Math.max(0, damage - pounce.amount);
+        log(`The damage to ${defenderDef.name} was reduced by ${pounce.amount}.`, opp.id);
+      }
       const effects = defender.effects;
       if (damage > 0 && active(effects?.minimize, turn)) {
         damage = Math.max(0, damage - 20);
@@ -513,6 +535,32 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
       const effect = attackEffect(sourceDefId, attack.name);
       if (effect) effect.run(ctx);
       else ctx.hit(attack.damage);
+    },
+    draw(n) {
+      const drawn = me.deck.splice(0, n);
+      me.hand.push(...drawn);
+      log(`Drew ${drawn.length} card${drawn.length === 1 ? '' : 's'}.`);
+    },
+    confuseSelf() {
+      attacker.condition = 'confused';
+      log(`${attackerDef.name} is now Confused.`);
+    },
+    switchOwn(slot) {
+      const benched = me.bench[slot];
+      if (!benched) return;
+      clearOnLeavingActive(attacker);
+      me.bench[slot] = attacker;
+      me.active = benched;
+      log(`${pokemonName(state, attacker)} switched with ${pokemonName(state, benched)}.`);
+    },
+    returnDefender() {
+      if (shielded()) return log(`${ctx.defenderDef.name} is protected from the attack's effects.`, opp.id);
+      const defender = opp.active!;
+      // A Buzzap'd Electrode attached as Energy is a Pokémon card again.
+      const energy = defender.energy.map(({ provides: _, ...card }) => card);
+      opp.hand.push(...defender.evolvedFrom, defender.card, ...energy, ...(defender.attached ?? []).map((a) => a.card));
+      opp.active = null;
+      log(`${pokemonName(state, defender)} and all cards attached to it returned to the hand.`, opp.id);
     },
     pend(choice) {
       state.pendingChoice = { ...choice, player: me.id } as PendingChoice;

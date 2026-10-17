@@ -33,6 +33,9 @@ export function flipCoin(state: GameState, reason: string, player: PlayerId | nu
 
 export const pokemonName = (state: GameState, pokemon: InPlayPokemon) => lookupCard(state.cards, pokemon.card.defId).name;
 
+/** Identifies a Pokémon in play across evolutions: the uid of its bottom card (Tail Wag, Pounce). */
+export const baseUid = (pokemon: InPlayPokemon) => (pokemon.evolvedFrom[0] ?? pokemon.card).uid;
+
 /** The card id whose attack and power effects apply: the copied card while Ditto is Transformed. */
 export const effectId = (pokemon: InPlayPokemon) => pokemon.transformed ?? pokemon.card.defId;
 

@@ -51,6 +51,14 @@ export interface PokemonEffects {
   resistance?: EnergyType;
   /** All its energy is Fire this turn (Energy Burn). */
   energyBurn?: number;
+  /** It can't retreat (Acid). */
+  noRetreat?: number;
+  /** It can't attack the Pokémon whose `target` is its baseUid (Tail Wag, Leer). */
+  cantAttack?: { target: string; until: number };
+  /** Its attacks do `amount` less damage to the Pokémon whose baseUid is `target` (Pounce, Snivel). */
+  pounce?: { target: string; amount: number; until: number };
+  /** The turn its Slash does 60 base damage (Swords Dance: its owner's next turn). */
+  swordsDance?: number;
   /** Leek Slap can't be used again while it stays in play. */
   leekSlapUsed?: boolean;
   /** What the opponent's last attack on it did, for Mirror Move. */
@@ -454,6 +462,8 @@ export function retreatError(active: InPlayPokemon, cards: CardLibrary, hasBench
   if (retreatedThisTurn) return 'You can only retreat once per turn';
   const def = lookupCard(cards, active.card.defId);
   if (def.kind === 'pokemon' && def.trainerText) return `${def.name} can't retreat`;
+  // Effects are removed once they run out (expireEffects), so being set means it applies.
+  if (active.effects?.noRetreat !== undefined) return `${def.name} can't retreat this turn`;
   if (active.condition === 'asleep' || active.condition === 'paralyzed') {
     return `${lookupCard(cards, active.card.defId).name} is ${conditionLabel(active.condition)} and can't retreat`;
   }
@@ -586,10 +596,12 @@ function betweenTurns(state: GameState) {
 function expireEffects(pokemon: InPlayPokemon, turn: number) {
   const e = pokemon.effects;
   if (!e) return;
-  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'energyBurn'] as const) {
+  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn'] as const) {
     if (e[key] !== undefined && e[key] <= turn) delete e[key];
   }
   if (e.amnesia && e.amnesia.until <= turn) delete e.amnesia;
+  if (e.cantAttack && e.cantAttack.until <= turn) delete e.cantAttack;
+  if (e.pounce && e.pounce.until <= turn) delete e.pounce;
 }
 
 /**

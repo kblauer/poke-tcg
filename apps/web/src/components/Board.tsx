@@ -167,6 +167,8 @@ export function Board({
   const pokemonPick: { side: 'own' | 'opp'; options: Target[]; pick: (t: Target) => void; picked?: Target[] } | null =
     attack.spec?.kind === 'opponentBench'
       ? { side: 'opp', options: attack.spec.options, pick: attack.answer }
+      : attack.spec?.kind === 'ownBench'
+        ? { side: 'own', options: attack.spec.options, pick: attack.answer }
       : attack.spec?.kind === 'opponentBenchMany'
         ? { side: 'opp', options: attack.spec.options, pick: (t) => attack.toggleBench(t as number), picked: attack.benchPicked }
       : power.spec?.kind === 'ownPokemon' || power.spec?.kind === 'oppPokemon'

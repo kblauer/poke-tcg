@@ -43,6 +43,7 @@ export function AttackChoicePanel({ spec, view, attack }: { spec: ChoiceSpec; vi
             </button>
           ))}
         {spec.kind === 'opponentBench' && <p className={pickHint}>Click one of the CPU's highlighted Benched Pokémon.</p>}
+        {spec.kind === 'ownBench' && <p className={pickHint}>Click one of your highlighted Benched Pokémon.</p>}
         {(spec.kind === 'defenderAttack' || spec.kind === 'copyAttack') &&
           spec.options.map((i) => {
             const a = (lookupCard(cards, opponent.active!.card.defId) as PokemonCardDef).attacks[i]!;

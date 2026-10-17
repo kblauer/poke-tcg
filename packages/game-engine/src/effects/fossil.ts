@@ -5,12 +5,14 @@ import type { AttackEffect, AttackSituation, ChoiceSpec } from '../attacks.js';
 import { isTrainerCard, lookupCard, type EnergyType } from '../cards.js';
 import {
   benchedSlots,
+  benchSearch,
+  benchTarget,
   discardDefenderEnergy,
   extraEnergy,
   flipToInflict,
   flipToProtect,
   inflicts,
-  opponentBenchChoice,
+  leechLife,
   opponentSwitches,
   perHeads,
   selfdestruct,
@@ -20,20 +22,6 @@ import {
 const waterGun = (damage: number, cost: EnergyType[], name: string, wording = 'in this way'): AttackEffect => ({
   text: `Does ${damage} damage plus 10 more damage for each Water Energy attached to ${name} but not used to pay for this attack's Energy cost. You can't add more than 20 damage ${wording}.`,
   run: (ctx) => void ctx.hit(damage + 10 * extraEnergy(ctx, cost, 'water', 2)),
-});
-
-/** Base damage, then `bench` damage to 1 of the opponent's benched Pokémon (Dark Mind, Stretch Kick). */
-const benchTarget = (damage: number, bench: number): AttackEffect => ({
-  choices: (s) => opponentBenchChoice(s, `Choose one of your opponent's benched Pokémon to do ${bench} damage to`),
-  run(ctx) {
-    ctx.hit(damage);
-    if (ctx.choices.benchSlot !== undefined) ctx.damageBenched(ctx.opp, ctx.choices.benchSlot, bench);
-  },
-});
-
-/** Removes damage counters equal to the damage done (Leech Life). */
-const leechLife = (damage: number): AttackEffect => ({
-  run: (ctx) => ctx.heal(ctx.hit(damage)),
 });
 
 /** Base damage; the Defending Pokémon needs heads to attack next turn (Smokescreen). */
@@ -257,10 +245,7 @@ export const FOSSIL: Record<string, Record<string, AttackEffect>> = {
   'base3-49': { Smokescreen: smokescreen(10) },
   // Krabby
   'base3-51': {
-    'Call for Family': {
-      blocked: (s) => (s.ownBench.every(Boolean) ? 'Your Bench is full' : null),
-      run: (ctx) => ctx.pend({ kind: 'pickFromDeck', source: 'Call for Family', filter: 'basicNamed', name: 'Krabby', toBench: true }),
-    },
+    'Call for Family': benchSearch('Call for Family', { filter: 'basicNamed', name: 'Krabby' }),
   },
   // Omanyte
   'base3-52': { 'Water Gun': waterGun(10, ['water'], 'Omanyte') },

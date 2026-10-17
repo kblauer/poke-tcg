@@ -11,9 +11,11 @@ import {
   flipToInflict,
   flipToProtect,
   inflicts,
+  leechSeed,
+  lure,
+  mirrorMove,
   perHeads,
   recoil,
-  opponentBenchChoice,
   recover,
   selfdestruct,
   tailsSelfDamage,
@@ -32,7 +34,7 @@ const flamethrower = (name: string) =>
 
 const withdraw: AttackEffect = flipToProtect(0, 'preventDamage');
 
-const metronome: AttackEffect = {
+export const metronome: AttackEffect = {
   choices(s, c) {
     const attacks = defenderDef(s).attacks;
     const options = attacks.flatMap((a, i) => (a.name === 'Metronome' ? [] : [i]));
@@ -85,12 +87,7 @@ export const BASE1: Record<string, Record<string, AttackEffect>> = {
   'base1-11': { Thrash: thrash(30), Toxic: inflicts(20, 'toxic') },
   // Ninetales
   'base1-12': {
-    Lure: {
-      choices: (s) => opponentBenchChoice(s, "Choose one of your opponent's benched Pokémon to switch in"),
-      run(ctx) {
-        if (ctx.choices.benchSlot !== undefined) ctx.switchDefender(ctx.choices.benchSlot);
-      },
-    },
+    Lure: lure,
     'Fire Blast': discardToUse(80, 1, 'fire', 'Discard 1 Fire Energy card attached to Ninetales in order to use this attack.'),
   },
   // Poliwrath
@@ -122,17 +119,7 @@ export const BASE1: Record<string, Record<string, AttackEffect>> = {
   // Pidgeotto
   'base1-22': {
     Whirlwind: whirlwind(20),
-    'Mirror Move': {
-      run(ctx) {
-        const last = ctx.attacker.effects?.attackedOn;
-        if (!last || last.turn !== ctx.turn - 1 || (last.damage === 0 && last.afflictions.length === 0)) {
-          return ctx.log('Mirror Move had nothing to reflect.');
-        }
-        // The final result already includes weakness and resistance, so they aren't applied again.
-        if (last.damage) ctx.hit(last.damage, { weakness: false });
-        for (const a of last.afflictions) ctx.inflict(a);
-      },
-    },
+    'Mirror Move': mirrorMove,
   },
   // Arcanine
   'base1-23': { Flamethrower: flamethrower('Arcanine'), 'Take Down': recoil(80, 30) },
@@ -242,11 +229,7 @@ export const BASE1: Record<string, Record<string, AttackEffect>> = {
   'base1-43': { Psyshock: flipToInflict(10, 'paralyzed') },
   // Bulbasaur
   'base1-44': {
-    'Leech Seed': {
-      run(ctx) {
-        if (ctx.hit(20) > 0) ctx.heal(10);
-      },
-    },
+    'Leech Seed': leechSeed(20),
   },
   // Caterpie
   'base1-45': { 'String Shot': flipToInflict(10, 'paralyzed') },

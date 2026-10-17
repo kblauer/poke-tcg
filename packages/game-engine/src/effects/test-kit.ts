@@ -1,4 +1,4 @@
-// Shared setup for effect tests: Base Set and Fossil card fixtures and a ready-to-play duel. Not exported from the package.
+// Shared setup for effect tests: Base Set, Jungle and Fossil card fixtures and a ready-to-play duel. Not exported from the package.
 import type { CardLibrary, EnergyType, PokemonCardDef } from '../cards.js';
 import { applyAction, createGame, type AttackChoices, type GameAction, type GameState, type InPlayPokemon } from '../index.js';
 import { nextRandom } from '../rng.js';
@@ -64,6 +64,26 @@ const BY_NAME: CardLibrary = {
   venusaur: mon('base1-15', 'Venusaur', G, 100, [['Solarbeam', [G, G, G, G], 60]], { stage: 'stage2', power: { name: 'Energy Trans', text: '' } }),
   electrode: mon('base1-21', 'Electrode', L, 80, [['Electric Shock', [L, L, L], 50]], { stage: 'stage1', power: { name: 'Buzzap', text: '' } }),
   bulbasaur: mon('base1-44', 'Bulbasaur', G, 40, [['Leech Seed', [G, G], 20]], { weakness: { type: F, multiplier: 2 } }),
+  nidoranM: mon('base1-55', 'Nidoran♂', G, 40, [['Horn Hazard', [G], 30]]),
+  // Jungle
+  electrodeJ: mon('base2-2', 'Electrode', L, 90, [['Tackle', [C, C], 20], ['Chain Lightning', [L, L, L], 20]], { stage: 'stage1' }),
+  flareon: mon('base2-3', 'Flareon', F, 70, [['Quick Attack', [C, C], 10], ['Flamethrower', [F, F, C, C], 60]], { stage: 'stage1' }),
+  kangaskhan: mon('base2-5', 'Kangaskhan', C, 90, [['Fetch', [C], 0], ['Comet Punch', [C, C, C, C], 20]]),
+  nidoqueen: mon('base2-7', 'Nidoqueen', G, 90, [['Boyfriends', [G, C], 20], ['Mega Punch', [G, G, C, C], 50]], { stage: 'stage2' }),
+  pidgeot: mon('base2-8', 'Pidgeot', C, 80, [['Wing Attack', [C, C], 20], ['Hurricane', [C, C, C], 30]], { stage: 'stage2' }),
+  scyther: mon('base2-10', 'Scyther', G, 70, [['Swords Dance', [G], 0], ['Slash', [C, C, C], 30]]),
+  vaporeon: mon('base2-12', 'Vaporeon', W, 80, [['Quick Attack', [C, C], 10], ['Water Gun', [W, W, C], 30]], { stage: 'stage1' }),
+  victreebel: mon('base2-14', 'Victreebel', G, 80, [['Lure', [G], 0], ['Acid', [G, G], 20]], { stage: 'stage2' }),
+  vileplume: mon('base2-15', 'Vileplume', G, 80, [['Petal Dance', [G, G, G], 40]], { stage: 'stage2' }),
+  wigglytuff: mon('base2-16', 'Wigglytuff', C, 80, [['Lullaby', [C], 0], ['Do the Wave', [C, C, C], 10]], { stage: 'stage1' }),
+  exeggutor: mon('base2-35', 'Exeggutor', G, 80, [['Teleport', [P], 0], ['Big Eggsplosion', [C], 20]], { stage: 'stage1' }),
+  gloom: mon('base2-37', 'Gloom', G, 60, [['Poisonpowder', [G], 0], ['Foul Odor', [G, G], 20]], { stage: 'stage1' }),
+  marowak: mon('base2-39', 'Marowak', FI, 60, [['Bonemerang', [FI, FI], 30], ['Call for Friend', [FI, FI, C], 0]], { stage: 'stage1' }),
+  persian: mon('base2-42', 'Persian', C, 70, [['Scratch', [C, C], 20], ['Pounce', [C, C, C], 30]], { stage: 'stage1' }),
+  rhydon: mon('base2-45', 'Rhydon', FI, 100, [['Horn Attack', [FI, C, C], 30], ['Ram', [FI, FI, FI, FI], 50]], { stage: 'stage1' }),
+  cubone: mon('base2-50', 'Cubone', FI, 40, [['Snivel', [C], 0], ['Rage', [FI, FI], 10]]),
+  eevee: mon('base2-51', 'Eevee', C, 50, [['Tail Wag', [C], 0], ['Quick Attack', [C, C], 10]]),
+  nidoranF: mon('base2-57', 'Nidoran♀', G, 60, [['Fury Swipes', [G], 10], ['Call for Family', [G, G], 0]]),
   // Fossil
   articuno: mon('base3-2', 'Articuno', W, 70, [['Freeze Dry', [W, W, W], 30], ['Blizzard', [W, W, W, W], 50]]),
   gengar: mon('base3-5', 'Gengar', P, 80, [['Dark Mind', [P, P, P], 30]], { stage: 'stage2', power: { name: 'Curse', text: '' } }),
