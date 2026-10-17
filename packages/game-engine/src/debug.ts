@@ -1,9 +1,9 @@
 // Debug commands for testing: cheats that change a game outside the rules (a card into the hand,
-// a Pokémon's HP). They aren't GameActions, so the normal action path can never reach them; the API
+// a Pokémon's HP or Special Conditions). They aren't GameActions, so the normal action path can never reach them; the API
 // only runs them when debugging is enabled (never in production).
 import { lookupCard, type CardLibrary } from './cards.js';
 import { CPU_DIFFICULTIES, CPU_DIFFICULTY_LABELS, type CpuDifficulty } from './cpu/index.js';
-import { opponentOf, type ActionResult, type GameState, type PlayerId, type Target } from './engine.js';
+import { conditionLabel, opponentOf, type ActionResult, type GameState, type PlayerId, type Target } from './engine.js';
 import { addLog, inPlayDef, pokemonName } from './status.js';
 
 export type DebugCommand =
@@ -14,7 +14,17 @@ export type DebugCommand =
   /** Sets the HP left on a Pokémon in play, on either side (at least 10: one damage counter short of Knocked Out). */
   | { type: 'SET_HP'; side: 'self' | 'opponent'; target: Target; hp: number }
   /** Changes how the CPU plays from its next move on. */
-  | { type: 'SET_CPU_DIFFICULTY'; difficulty: CpuDifficulty };
+  | { type: 'SET_CPU_DIFFICULTY'; difficulty: CpuDifficulty }
+  /**
+   * Turns a Special Condition on or off for either side's active (only the active can have one). Asleep,
+   * Confused and Paralyzed replace each other, as in play; Poisoned (10 damage) and Burned are separate.
+   * It ignores what would normally block it (Thick Skinned, a Trainer played as a Pokémon).
+   */
+  | { type: 'SET_CONDITION'; side: 'self' | 'opponent'; condition: DebugCondition; on: boolean };
+
+export const DEBUG_CONDITIONS = ['asleep', 'confused', 'paralyzed', 'poisoned', 'burned'] as const;
+export type DebugCondition = (typeof DEBUG_CONDITIONS)[number];
+const DEBUG_CONDITION_LABELS: Record<DebugCondition, string> = { asleep: 'Asleep', confused: 'Confused', paralyzed: 'Paralyzed', poisoned: 'Poisoned', burned: 'Burned' };
 
 /**
  * Runs a debug command for `playerId`. `cards` adds card defs to the game's library first (a card
@@ -54,6 +64,26 @@ export function applyDebug(prev: GameState, playerId: PlayerId, command: DebugCo
       }
       pokemon.damage = def.hp - command.hp;
       addLog(state, `Debug: set ${pokemonName(state, pokemon)} to ${command.hp} HP.`, playerId);
+      break;
+    }
+    case 'SET_CONDITION': {
+      const owner = command.side === 'self' ? me : state.players[opponentOf(state, playerId)]!;
+      const pokemon = owner.active;
+      if (!pokemon) return fail('No Active Pokémon there');
+      const { condition, on } = command;
+      if (!DEBUG_CONDITIONS.includes(condition)) return fail(`Unknown Special Condition: ${condition}`);
+      if (condition === 'poisoned') pokemon.poison = on ? Math.max(pokemon.poison ?? 0, 10) : 0;
+      else if (condition === 'burned') pokemon.burned = on;
+      else if (on) {
+        pokemon.condition = condition;
+        // As if an attack had just Paralyzed it: it wears off after its owner's next turn.
+        if (condition === 'paralyzed') pokemon.paralyzedTurn = state.turn;
+      } else if (pokemon.condition === condition) {
+        pokemon.condition = null;
+        delete pokemon.paralyzedTurn;
+      }
+      const label = condition === 'poisoned' || condition === 'burned' ? DEBUG_CONDITION_LABELS[condition] : conditionLabel(condition);
+      addLog(state, `Debug: ${pokemonName(state, pokemon)} is ${on ? 'now' : 'no longer'} ${label}.`, playerId);
       break;
     }
     case 'SET_CPU_DIFFICULTY': {

@@ -1,4 +1,16 @@
-import { CPU_DIFFICULTIES, CPU_DIFFICULTY_LABELS, lookupCard, type CpuDifficulty, type DebugCommand, type EnergyType, type InPlayPokemon, type PlayerView, type Target } from '@poke-tcg/game-engine';
+import {
+  CPU_DIFFICULTIES,
+  CPU_DIFFICULTY_LABELS,
+  DEBUG_CONDITIONS,
+  lookupCard,
+  type CpuDifficulty,
+  type DebugCommand,
+  type DebugCondition,
+  type EnergyType,
+  type InPlayPokemon,
+  type PlayerView,
+  type Target,
+} from '@poke-tcg/game-engine';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTRPC } from '../lib/trpc';
@@ -15,13 +27,19 @@ const ENERGY: { id: string; name: string; type: EnergyType }[] = [
   { id: 'base1-96', name: 'Double Colorless', type: 'colorless' },
 ];
 
+/** Labels on the Special Condition toggles, as on the Pokémon's badges. */
+const CONDITION_BADGES: Record<DebugCondition, string> = { asleep: 'SLP', confused: 'CNF', paralyzed: 'PAR', poisoned: 'PSN', burned: 'BRN' };
+
+/** Whether the Pokémon has the Special Condition. */
+const hasCondition = (p: InPlayPokemon, c: DebugCondition) => (c === 'poisoned' ? !!p.poison : c === 'burned' ? !!p.burned : p.condition === c);
+
 const MAX_RESULTS = 30;
 const button = 'rounded bg-slate-700 px-2 py-1 text-left text-xs transition hover:bg-slate-600 active:scale-95 disabled:opacity-40';
 const heading = 'mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500';
 
 /**
  * Testing cheats, in the game log's Debug tab: change the CPU's difficulty, draw a card, put any card or
- * an Energy into your hand, set the HP of any Pokémon in play. Only loaded in builds with the debug tools (see utils/debug.ts);
+ * an Energy into your hand, set the HP of any Pokémon in play, and turn Special Conditions on or off on either active. Only loaded in builds with the debug tools (see utils/debug.ts);
  * the API runs the commands (debug.run) and refuses them in production.
  */
 export default function DebugPanel({ gameId, view }: { gameId: string; view: PlayerView }) {
@@ -110,6 +128,39 @@ export default function DebugPanel({ gameId, view }: { gameId: string; view: Pla
             ))}
           </ul>
         )}
+      </section>
+
+      <section>
+        <h4 className={heading}>Special Conditions</h4>
+        <div className="space-y-1">
+          {(['self', 'opponent'] as const).map((side) => {
+            const active = (side === 'self' ? view.self : view.opponent).active;
+            if (!active) return null;
+            return (
+              <div key={side} className="flex items-center gap-1">
+                <span className="min-w-0 flex-1 truncate">
+                  <span className={side === 'self' ? 'text-sky-300' : 'text-rose-300'}>{side === 'self' ? 'You' : 'CPU'}</span>{' '}
+                  {lookupCard(view.cards, active.card.defId).name}
+                </span>
+                {DEBUG_CONDITIONS.map((condition) => {
+                  const on = hasCondition(active, condition);
+                  return (
+                    <button
+                      key={condition}
+                      className={`${button} ${on ? 'bg-amber-500 text-slate-900 hover:bg-amber-400' : ''}`}
+                      aria-pressed={on}
+                      title={`${on ? 'Remove' : 'Give'} ${condition}`}
+                      disabled={busy}
+                      onClick={() => send({ type: 'SET_CONDITION', side, condition, on: !on })}
+                    >
+                      {CONDITION_BADGES[condition]}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
       </section>
 
       <section>

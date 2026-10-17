@@ -17,11 +17,11 @@ export interface CardInstance {
   provides?: { type: EnergyType; amount: number };
 }
 
-/** Asleep, Confused and Paralyzed replace each other; Poison is tracked separately (InPlayPokemon.poison). */
+/** Asleep, Confused and Paralyzed replace each other; Poison and Burned are tracked separately (InPlayPokemon.poison, .burned). */
 export type SpecialCondition = 'asleep' | 'confused' | 'paralyzed';
 
 /** Something an attack did to a Pokémon besides damage, as Mirror Move reflects it. */
-export type Affliction = SpecialCondition | 'poisoned' | 'toxic';
+export type Affliction = SpecialCondition | 'poisoned' | 'toxic' | 'burned';
 
 /**
  * Lasting effects of attacks on a Pokémon. Turn numbers are the last turn the effect applies
@@ -80,6 +80,8 @@ export interface InPlayPokemon {
   paralyzedTurn?: number;
   /** Poison damage between turns: 10, or 20 from Toxic. 0 or missing = not Poisoned. */
   poison?: number;
+  /** Burned: 20 damage between turns, then a flip; heads cures it. Missing = not Burned. */
+  burned?: boolean;
   effects?: PokemonEffects;
   /** Trainer cards attached to it (PlusPower, Defender), each discarded after turn `until`. Missing in older games. */
   attached?: { card: CardInstance; until: number }[];
@@ -582,7 +584,15 @@ function betweenTurns(state: GameState) {
     active.damage += active.poison;
     addLog(state, `${name} takes ${active.poison} Poison damage.`, id);
   }
-  // Burned goes here; no Base Set card burns, so it isn't implemented yet.
+  for (const { id, active, name } of actives) {
+    if (!active.burned) continue;
+    active.damage += 20;
+    addLog(state, `${name} takes 20 Burn damage.`, id);
+    if (flipCoin(state, `${name} is Burned`, id)) {
+      active.burned = false;
+      addLog(state, `${name} is no longer Burned.`, id);
+    }
+  }
   for (const { id, active, name } of actives) {
     if (active.condition === 'asleep' && flipCoin(state, `${name} is Asleep`, id)) {
       active.condition = null;

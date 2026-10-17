@@ -226,11 +226,12 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
 
   // Full Heal
   'base1-82': {
-    blocked: (s) => (s.me.active?.condition || s.me.active?.poison ? null : 'Your Active Pokémon has no Special Condition'),
+    blocked: (s) => (s.me.active?.condition || s.me.active?.poison || s.me.active?.burned ? null : 'Your Active Pokémon has no Special Condition'),
     play(ctx) {
       const p = ctx.me.active!;
       p.condition = null;
       p.poison = 0;
+      p.burned = false;
       delete p.paralyzedTurn;
       ctx.log(`${pokemonDef(ctx.state, p).name} is no longer affected by Special Conditions.`);
     },

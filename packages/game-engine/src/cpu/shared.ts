@@ -287,7 +287,7 @@ function simulate(base: GameState, attackerId: PlayerId, attackIndex: number, ch
     const me = s.players[attackerId]!;
     const opp = s.players[opponentOf(s, attackerId)]!;
     const attacker = me.active!;
-    const before = new Map(inPlay(opp).map(([, p]) => [p.card.uid, { damage: p.damage, hp: pokemonDef(s.cards, p).hp, condition: p.condition ?? null, poison: p.poison ?? 0 }]));
+    const before = new Map(inPlay(opp).map(([, p]) => [p.card.uid, { damage: p.damage, hp: pokemonDef(s.cards, p).hp, condition: p.condition ?? null, poison: p.poison ?? 0, burned: !!p.burned }]));
     const self = { damage: attacker.damage, energy: attacker.energy.length };
     let error: string | null;
     try {
@@ -304,6 +304,7 @@ function simulate(base: GameState, attackerId: PlayerId, attackIndex: number, ch
       if (p.damage >= was.hp) ko = true;
       if ((p.condition ?? null) !== was.condition && p.condition) inflicts++;
       if ((p.poison ?? 0) > was.poison) inflicts++;
+      if (p.burned && !was.burned) inflicts++;
     }
     if (ko) kos++;
     if (attacker.damage > self.damage || attacker.energy.length < self.energy) costly = true;

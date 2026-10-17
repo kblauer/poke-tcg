@@ -51,10 +51,11 @@ export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCa
   return { ...copy, name: own.name, stage: own.stage, evolvesFrom: own.evolvesFrom, evolvesFromBasic: own.evolvesFromBasic, power: copy.power ?? own.power };
 }
 
-/** Benching or evolving removes Special Conditions and the effects of attacks (except Leek Slap's). */
+/** Benching or evolving removes Special Conditions (Burned and Poisoned included) and the effects of attacks (except Leek Slap's). */
 export function clearOnLeavingActive(pokemon: InPlayPokemon) {
   pokemon.condition = null;
   pokemon.poison = 0;
+  pokemon.burned = false;
   delete pokemon.paralyzedTurn;
   pokemon.effects = pokemon.effects?.leekSlapUsed ? { leekSlapUsed: true } : {};
 }

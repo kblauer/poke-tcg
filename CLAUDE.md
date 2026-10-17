@@ -56,7 +56,7 @@
 - High-res card images are used for the hand, the Active Pokémon and the drag overlay; small images elsewhere.
 
 ## Debug tools (testing cheats)
-- The Debug tab can change the CPU's difficulty, draw a card, add any card or Energy to the hand, and set the HP of any Pokémon in play.
+- The Debug tab can change the CPU's difficulty, draw a card, add any card or Energy to the hand, set the HP of any Pokémon in play, and turn Special Conditions on or off on either active.
   - Engine: `applyDebug` in `packages/game-engine/src/debug.ts`.
   - API: `debug` router.
   - Web: `DebugPanel.tsx`.
@@ -69,6 +69,6 @@
 
 ## Known open items
 - CPU difficulties live in `packages/game-engine/src/cpu/`, one file each (`passive.ts`, `trainer.ts`, `gym-leader.ts`) plus `shared.ts`. Keep them separate. Gym leader is the baseline the user agreed on (README: The CPU opponent); change the difficulties' rules only with the user's say-so.
-- Missing rules: Whirlwind and Terror Strike prompting (both bring in the first benched Pokémon), Burned, and card effects for later sets. Jungle is done (`effects/jungle.ts`, `jungle-powers.ts`, `jungle-trainers.ts`); the CPUs don't play Poké Ball yet. Fossil is done (`effects/fossil.ts`, `fossil-powers.ts`, `fossil-trainers.ts`); the CPUs don't play Fossil's Trainers yet.
+- Missing rules: Whirlwind and Terror Strike prompting (both bring in the first benched Pokémon), and card effects for later sets (Burned is implemented, but no implemented card Burns yet). Jungle is done (`effects/jungle.ts`, `jungle-powers.ts`, `jungle-trainers.ts`); the CPUs don't play Poké Ball yet. Fossil is done (`effects/fossil.ts`, `fossil-powers.ts`, `fossil-trainers.ts`); the CPUs don't play Fossil's Trainers yet.
 - TCGdex card text drops energy icons ("Discard 1 Energy card" for "Discard 1 Fire Energy card"). Check the printed card for any untyped Energy in an effect and store the printed wording as `text`.
 - In-play Pokémon: use `inPlayDef`/`effectId` (status.ts), not `lookupCard(cards, p.card.defId)`, for anything rules-related, so a Transformed Ditto works. Check passive powers with `powerActive`, which handles Toxic Gas.
