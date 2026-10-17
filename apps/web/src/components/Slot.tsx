@@ -1,5 +1,5 @@
 import { useDroppable } from '@dnd-kit/core';
-import { lookupCard, type CardLibrary, type InPlayPokemon } from '@poke-tcg/game-engine';
+import { inPlayDef, type CardLibrary, type InPlayPokemon } from '@poke-tcg/game-engine';
 import { useEffect, useRef, type RefObject } from 'react';
 import { LARGE_CARD, SMALL_CARD } from '../utils/layout';
 import { Card } from './Card';
@@ -107,8 +107,12 @@ export function Slot({
       {/* The active spot is the biggest card on the board, so it gets the high-resolution image. */}
       {pokemon && (
         <div ref={art}>
-          <Card def={lookupCard(cards, pokemon.card.defId)} inPlay={pokemon} cards={cards} small={!large} highRes={large} />
+          {/* A Transformed Ditto shows the card it's a copy of. */}
+          <Card def={inPlayDef(cards, pokemon)} inPlay={pokemon} cards={cards} small={!large} highRes={large} />
         </div>
+      )}
+      {pokemon?.transformed && (
+        <span className="pointer-events-none absolute left-1 top-1 rounded-full bg-violet-600 px-1.5 text-[10px] font-bold text-white shadow">Ditto</span>
       )}
       {/* Tint only a band across the middle (behind the label), so the art and the Energy along the bottom stay visible. */}
       {pokemon && highlight && (

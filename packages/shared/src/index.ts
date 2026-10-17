@@ -18,6 +18,10 @@ const attackChoicesSchema = z.object({
   attackIndex: z.number().int().min(0).optional(),
   copyIndex: z.number().int().min(0).optional(),
   type: energyType.optional(),
+  discardUids: z.array(z.string()).max(60).optional(),
+  benchSlots: z.array(benchSlot).max(MAX_BENCH).optional(),
+  deck: z.enum(['own', 'opponent']).optional(),
+  ownBenchSlot: benchSlot.optional(),
 }) satisfies z.ZodType<AttackChoices>;
 
 /** Answers to a Pokémon Power's questions (see PowerChoices in the engine). */
@@ -27,6 +31,10 @@ const powerChoicesSchema = z.object({
   cardUid: z.string().optional(),
   energyUid: z.string().optional(),
   type: energyType.optional(),
+  oppFrom: target.optional(),
+  oppTo: target.optional(),
+  peek: z.enum(['deck', 'oppDeck', 'oppHand', 'prize', 'oppPrize']).optional(),
+  prize: z.number().int().min(0).max(5).optional(),
 }) satisfies z.ZodType<PowerChoices>;
 
 /** Answers to a Trainer's questions (see TrainerChoices in the engine). */
@@ -40,6 +48,16 @@ const trainerChoicesSchema = z.object({
   stage: z.enum(['stage1', 'stage2']).optional(),
 }) satisfies z.ZodType<TrainerChoices>;
 
+/**
+ * Zod drops keys a schema doesn't list, so a choice field missing here would silently never reach the
+ * engine. These fail to compile if any field of the engine's choice types is left out.
+ */
+type Missing<T, S extends z.ZodType> = Exclude<keyof T, keyof z.infer<S>>;
+const covers = <T, S extends z.ZodType>(_: [Missing<T, S>] extends [never] ? true : Missing<T, S>) => {};
+covers<AttackChoices, typeof attackChoicesSchema>(true);
+covers<PowerChoices, typeof powerChoicesSchema>(true);
+covers<TrainerChoices, typeof trainerChoicesSchema>(true);
+
 /** Runtime validation for actions arriving from clients. Kept in sync with GameAction. */
 export const gameActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('SET_ACTIVE'), cardUid: z.string() }),
@@ -51,7 +69,7 @@ export const gameActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('RETREAT'), slot: benchSlot, energyUids: z.array(z.string()).max(60) }),
   z.object({ type: z.literal('USE_POWER'), source: target, choices: powerChoicesSchema.optional() }),
   z.object({ type: z.literal('PLAY_TRAINER'), cardUid: z.string(), choices: trainerChoicesSchema.optional() }),
-  z.object({ type: z.literal('RESOLVE_CHOICE'), cardUid: z.string().optional(), order: z.array(z.string()).max(10).optional() }),
+  z.object({ type: z.literal('RESOLVE_CHOICE'), cardUid: z.string().optional(), order: z.array(z.string()).max(10).optional(), target: target.optional() }),
   z.object({ type: z.literal('DISCARD_DOLL'), target }),
   z.object({ type: z.literal('END_TURN') }),
   z.object({ type: z.literal('CONCEDE') }),

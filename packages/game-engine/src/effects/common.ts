@@ -1,5 +1,6 @@
 // Building blocks for attack effects that many cards share.
-import type { AttackContext, AttackEffect } from '../attacks.js';
+import type { AttackContext, AttackEffect, AttackSituation, ChoiceSpec } from '../attacks.js';
+import type { PendingChoice } from '../trainers.js';
 import type { EnergyType } from '../cards.js';
 import { energyPool, type Affliction } from '../engine.js';
 
@@ -78,7 +79,8 @@ export const recover = (type: EnergyType, text: string): AttackEffect => ({
  * cost is paid with other energy first), up to `cap`. For Hydro Pump and Water Gun.
  */
 export function extraEnergy(ctx: AttackContext, cost: EnergyType[], type: EnergyType, cap: number): number {
-  const pool = energyPool(ctx.attacker, ctx.state.cards);
+  // A Transformed Ditto may treat all its Energy as `type`.
+  const pool = energyPool(ctx.attacker, ctx.state.cards).map((t) => (ctx.attacker.transformed ? type : t));
   const take = (match: (t: EnergyType) => boolean) => {
     const i = pool.findIndex(match);
     if (i >= 0) pool.splice(i, 1);
@@ -93,3 +95,94 @@ export function extraEnergy(ctx: AttackContext, cost: EnergyType[], type: Energy
 
 /** Opponent's benched Pokémon slots. */
 export const benchedSlots = (bench: readonly unknown[]) => bench.flatMap((p, i) => (p ? [i] : []));
+
+const defenderEnergyChoice = (s: AttackSituation): ChoiceSpec[] =>
+  s.defender.energy.length ? [{ kind: 'defenderEnergy', options: s.defender.energy, prompt: 'Choose an Energy to discard from the Defending Pokémon' }] : [];
+
+/** Base damage, then discard 1 Energy from the Defending Pokémon (Whirlpool, Hyper Beam). */
+export const discardDefenderEnergy = (damage: number): AttackEffect => ({
+  choices: defenderEnergyChoice,
+  run(ctx) {
+    ctx.hit(damage);
+    if (ctx.choices.defenderEnergyUid) ctx.discardDefenderEnergy(ctx.choices.defenderEnergyUid);
+  },
+});
+
+/** Damage to the defender, every benched Pokémon on both sides, and itself. */
+export const selfdestruct = (damage: number, bench: number): AttackEffect => ({
+  run(ctx) {
+    ctx.hit(damage);
+    ctx.benchDamage(ctx.opp, bench);
+    ctx.benchDamage(ctx.me, bench);
+    ctx.selfDamage(damage);
+  },
+});
+
+/** The opponent switches the Defending Pokémon with a benched one of their choice (Whirlwind, Terror Strike). */
+export function opponentSwitches(ctx: AttackContext) {
+  // The opponent chooses. Until the player can be asked mid-attack, their first benched Pokémon comes in.
+  const [slot] = benchedSlots(ctx.opp.bench);
+  if (slot !== undefined && ctx.opp.active) ctx.switchDefender(slot);
+}
+
+/** Base damage, then the opponent switches the Defending Pokémon with a benched one of their choice. */
+export const whirlwind = (damage: number): AttackEffect => ({
+  run(ctx) {
+    ctx.hit(damage);
+    opponentSwitches(ctx);
+  },
+});
+
+/** Choose 1 of the opponent's benched Pokémon, if they have any (Lure, Dark Mind…). */
+export const opponentBenchChoice = (s: AttackSituation, prompt: string): ChoiceSpec[] => {
+  const options = benchedSlots(s.opponentBench);
+  return options.length ? [{ kind: 'opponentBench', options, prompt }] : [];
+};
+
+/** Switch one of the opponent's benched Pokémon (the attacker chooses) with the Defending Pokémon. */
+export const lure: AttackEffect = {
+  choices: (s) => opponentBenchChoice(s, "Choose one of your opponent's benched Pokémon to switch in"),
+  run(ctx) {
+    if (ctx.choices.benchSlot !== undefined) ctx.switchDefender(ctx.choices.benchSlot);
+  },
+};
+
+/** Base damage, then `bench` damage to 1 of the opponent's benched Pokémon (Dark Mind, Stretch Kick, Spark). */
+export const benchTarget = (damage: number, bench: number): AttackEffect => ({
+  choices: (s) => opponentBenchChoice(s, `Choose one of your opponent's benched Pokémon to do ${bench} damage to`),
+  run(ctx) {
+    ctx.hit(damage);
+    if (ctx.choices.benchSlot !== undefined) ctx.damageBenched(ctx.opp, ctx.choices.benchSlot, bench);
+  },
+});
+
+/** Removes damage counters equal to the damage done (Leech Life). */
+export const leechLife = (damage: number): AttackEffect => ({
+  run: (ctx) => ctx.heal(ctx.hit(damage)),
+});
+
+/** Base damage; unless it was all prevented, remove 1 damage counter from the attacker (Leech Seed). */
+export const leechSeed = (damage: number): AttackEffect => ({
+  run(ctx) {
+    if (ctx.hit(damage) > 0) ctx.heal(10);
+  },
+});
+
+/** "If Spearow was attacked last turn, do the final result of that attack to the Defending Pokémon." */
+export const mirrorMove: AttackEffect = {
+  run(ctx) {
+    const last = ctx.attacker.effects?.attackedOn;
+    if (!last || last.turn !== ctx.turn - 1 || (last.damage === 0 && last.afflictions.length === 0)) {
+      return ctx.log('Mirror Move had nothing to reflect.');
+    }
+    // The final result already includes weakness and resistance, so they aren't applied again.
+    if (last.damage) ctx.hit(last.damage, { weakness: false });
+    for (const a of last.afflictions) ctx.inflict(a);
+  },
+};
+
+/** Search the deck for a Basic Pokémon and put it onto the Bench (Call for Family, Sprout, Call for Friend). */
+export const benchSearch = (source: string, find: Pick<Extract<PendingChoice, { kind: 'pickFromDeck' }>, 'filter' | 'name' | 'type'>): AttackEffect => ({
+  blocked: (s) => (s.ownBench.every(Boolean) ? 'Your Bench is full' : null),
+  run: (ctx) => ctx.pend({ kind: 'pickFromDeck', source, ...find, toBench: true }),
+});

@@ -9,8 +9,9 @@ import { Card } from './Card';
 import { PreviewContext } from './PreviewContext';
 
 /**
- * Finishing a search started by a Trainer: take a card from the deck (Computer Search, Pokémon
- * Trader) or put the top cards back in any order (Pokédex). Only this player sees these cards.
+ * Finishing a search started by a Trainer or attack: take a card from the deck (Computer Search,
+ * Pokémon Trader, Energy Search, Call for Family), pick one from the discard pile (Recycle), or put
+ * the top cards back in any order (Pokédex, Prophecy). Only this player sees the deck's cards.
  */
 export function PendingChoicePanel({ view, send, busy }: { view: PlayerView; send: (a: GameAction) => void; busy: boolean }) {
   const choice = view.self.pendingChoice;
@@ -21,14 +22,15 @@ export function PendingChoicePanel({ view, send, busy }: { view: PlayerView; sen
     <PreviewContext.Provider value={(p) => setPreview(p && { ...p, scrollZoom: false })}>
       <section data-keep-action className="space-y-2 rounded-lg bg-slate-800 p-3 ring-2 ring-yellow-400/60">
         <p className="text-sm font-semibold">{choice.prompt}</p>
-        {choice.kind === 'pickFromDeck' ? <PickFromDeck key={view.version} choice={choice} view={view} send={send} busy={busy} /> : null}
+        {choice.kind === 'pickFromDeck' || choice.kind === 'pickFromDiscard' ? <PickFromDeck key={view.version} choice={choice} view={view} send={send} busy={busy} /> : null}
         {choice.kind === 'arrangeTop' ? <ArrangeTop key={view.version} choice={choice} view={view} send={send} busy={busy} /> : null}
       </section>
     </PreviewContext.Provider>
   );
 }
 
-function PickFromDeck({ choice, view, send, busy }: { choice: Extract<PendingChoiceView, { kind: 'pickFromDeck' }>; view: PlayerView; send: (a: GameAction) => void; busy: boolean }) {
+/** Click a card to take it (from the deck, or the discard pile for Recycle). */
+function PickFromDeck({ choice, view, send, busy }: { choice: Extract<PendingChoiceView, { kind: 'pickFromDeck' | 'pickFromDiscard' }>; view: PlayerView; send: (a: GameAction) => void; busy: boolean }) {
   if (choice.options.length === 0) {
     return (
       <button className="rounded bg-slate-700 px-3 py-1 text-sm hover:bg-slate-600" disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE' })}>

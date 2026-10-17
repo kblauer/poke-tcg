@@ -6,12 +6,13 @@ import { answerChoice, attackError, performAttack, resolveChoices, type AttackCh
 import { isBasicEnergy, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from '../cards.js';
 import { applyAction, energyPool, energyProvided, evolveError, opponentOf, retreatCost, retreatError, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
 import { nextRandom } from '../rng.js';
+import { inPlayDef } from '../status.js';
 import { pendingChoiceView, type TrainerChoices } from '../trainers.js';
 
 /** Card names compared without accents, spaces or case ('Pokémon Breeder' = 'pokemonbreeder'). */
 export const nameKey = (name: string) => name.normalize('NFD').replace(/[^a-zA-Z]/g, '').toLowerCase();
 
-export const pokemonDef = (cards: CardLibrary, p: InPlayPokemon) => lookupCard(cards, p.card.defId) as PokemonCardDef;
+export const pokemonDef = (cards: CardLibrary, p: InPlayPokemon): PokemonCardDef => inPlayDef(cards, p);
 
 export const at = (side: Pick<PlayerState, 'active' | 'bench'>, t: Target) => (t === 'active' ? side.active : side.bench[t]) ?? null;
 
@@ -219,9 +220,25 @@ function answers(spec: ChoiceSpec): AttackChoices[keyof AttackChoices][] {
       return combinations(spec.options, spec.count).map((picked) => picked.map((e) => e.uid));
     case 'defenderEnergy':
       return combinations(spec.options, 1).map(([e]) => e!.uid);
+    // Keeping energy first: on a tie the first choice wins.
+    case 'ownEnergyUpTo':
+      return spec.options.flatMap((_, n) => combinations(spec.options, n)).concat([spec.options]).map((picked) => picked.map((e) => e.uid));
+    // Taking the most cards first.
+    case 'ownDiscard': {
+      const sizes = Array.from({ length: Math.min(spec.max, spec.options.length) - spec.min + 1 }, (_, i) => Math.min(spec.max, spec.options.length) - i);
+      return sizes.flatMap((n) => combinations(spec.options, n)).map((picked) => picked.map((c) => c.uid));
+    }
+    case 'opponentBenchMany':
+      return slotCombinations(spec.options, Math.min(spec.count, spec.options.length));
     default:
       return spec.options;
   }
+}
+
+/** Every way to pick `n` of the slots. */
+function slotCombinations(slots: number[], n: number): number[][] {
+  if (n === 0) return [[]];
+  return slots.flatMap((slot, i) => slotCombinations(slots.slice(i + 1), n - 1).map((rest) => [slot, ...rest]));
 }
 
 /**
@@ -239,7 +256,15 @@ export function attackOptions(state: GameState, attackerId: PlayerId, { nextTurn
   const attacker = base.players[attackerId]!.active!;
   // A Pokémon Asleep now may wake up before its turn.
   if (attacker.condition === 'confused' || (nextTurn && attacker.condition === 'asleep')) attacker.condition = null;
-  const situation: AttackSituation = { attacker, defender: base.players[opp.id]!.active!, opponentBench: base.players[opp.id]!.bench, cards: base.cards, turn: base.turn };
+  const situation: AttackSituation = {
+    attacker,
+    defender: base.players[opp.id]!.active!,
+    opponentBench: base.players[opp.id]!.bench,
+    ownBench: base.players[attackerId]!.bench,
+    ownDiscard: base.players[attackerId]!.discard,
+    cards: base.cards,
+    turn: base.turn,
+  };
 
   const options: AttackOption[] = [];
   pokemonDef(base.cards, attacker).attacks.forEach((attack, attackIndex) => {
@@ -430,6 +455,12 @@ export const benched = (t: Turn) => inPlay(t.me).filter(([target]) => target !==
 export function resolveSearch(t: Turn): GameAction {
   const view = pendingChoiceView(t.state, t.state.pendingChoice!);
   if (view.kind === 'arrangeTop') return { type: 'RESOLVE_CHOICE', order: view.cards.map((c) => c.uid) };
+  // Healing one of its Pokémon (Heal): the one with the most damage. Attaching (Energy Spike): the active.
+  if (view.kind === 'ownPokemon') {
+    if (view.purpose === 'attach') return { type: 'RESOLVE_CHOICE', target: view.options.includes('active') ? 'active' : view.options[0] };
+    const damage = (target: Target) => at(t.me, target)!.damage;
+    return { type: 'RESOLVE_CHOICE', target: view.options.reduce((a, b) => (damage(b) > damage(a) ? b : a)) };
+  }
   const helpsEnergy = (c: CardInstance) => t.def(c).kind === 'energy' && inPlay(t.me).some(([, p]) => closeness(t.state.cards, p, [...p.energy, c]) < closeness(t.state.cards, p));
   const pick =
     wantedCards(t.state, t.me, view.options)[0] ??
@@ -452,7 +483,7 @@ export function evolve(t: Turn): GameAction | null {
     for (const card of t.me.hand) {
       const evolution = t.def(card);
       if (evolution.kind !== 'pokemon' || evolution.stage === 'basic') continue;
-      if (evolveError(evolution, p, t.state.cards, t.state.turn) === null) return { type: 'EVOLVE', cardUid: card.uid, target };
+      if (evolveError(evolution, p, t.state.cards, t.state.turn, [t.me, t.opp]) === null) return { type: 'EVOLVE', cardUid: card.uid, target };
     }
   }
   return null;
@@ -524,8 +555,8 @@ export function switchOrRetreat(t: Turn, slot: number, bench: { best: AttackOpti
   const active = t.me.active!;
   const sw = play(t, trainer(t, 'switch'), { target: slot });
   if (sw) return sw;
-  if (retreatError(active, cards, true, t.state.retreatedThisTurn ?? false)) return null;
-  const payment = retreatPayment(cards, active, retreatCost(active, cards));
+  if (retreatError(active, cards, true, t.state.retreatedThisTurn ?? false, [t.me, t.opp])) return null;
+  const payment = retreatPayment(cards, active, retreatCost(active, cards, [t.me, t.opp]));
   if (!payment) return null;
   const left = { ...active, energy: active.energy.filter((e) => !payment.includes(e)) };
   const oldCanAttack = pokemonDef(cards, active).attacks.some((a) => missingEnergy(energyPool(left, cards), a.cost) === 0);

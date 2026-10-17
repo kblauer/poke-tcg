@@ -2,6 +2,7 @@ import type { CardLibrary } from './cards.js';
 import { DEFAULT_CPU_DIFFICULTY, type CpuDifficulty } from './cpu/index.js';
 import type { CardInstance, GameState, InPlayPokemon, Phase, PlayerId } from './engine.js';
 import type { LogEntry } from './status.js';
+import { seesOpponentHand } from './powers.js';
 import { pendingChoiceView, type PendingChoiceView } from './trainers.js';
 
 /** What a single player is allowed to see. Never send raw GameState to a client. */
@@ -31,10 +32,16 @@ export interface PlayerView {
     bench: (InPlayPokemon | null)[];
     /** A search this player must finish, with the cards it reveals to them. */
     pendingChoice: PendingChoiceView | null;
+    /** Last turn this player can't play Trainer cards (Headache). */
+    noTrainersUntil?: number;
+    /** A card they looked at with Peek, until their next action. */
+    peek?: { card: CardInstance; label: string };
   };
   opponent: {
     id: PlayerId;
     handCount: number;
+    /** Their hand, when a power shows it (Clairvoyance). */
+    hand?: CardInstance[];
     deckCount: number;
     prizeCount: number;
     discard: CardInstance[];
@@ -45,6 +52,15 @@ export interface PlayerView {
   };
 }
 
+/** PowerSituation.counts from what a player can see. */
+export const viewCounts = (view: PlayerView) => ({
+  deck: view.self.deckCount,
+  prizes: view.self.prizeCount,
+  oppDeck: view.opponent.deckCount,
+  oppHand: view.opponent.handCount,
+  oppPrizes: view.opponent.prizeCount,
+});
+
 export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView {
   const me = state.players[playerId];
   if (!me) throw new Error('Not a player in this game');
@@ -53,12 +69,16 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
 
   const oppActive = state.phase === 'setup' ? null : opp.active;
   const pending = state.pendingChoice?.player === playerId ? pendingChoiceView(state, state.pendingChoice) : null;
+  const oppHand = seesOpponentHand(me, [me, opp], state.cards) ? opp.hand : undefined;
+  const peek = state.peek?.player === playerId ? { card: state.peek.card, label: state.peek.label } : undefined;
   const visible: CardInstance[] = [
     ...me.hand,
     ...me.discard,
     ...opp.discard,
     ...[me.active, ...me.bench, oppActive, ...opp.bench].flatMap((p) => (p ? [p.card, ...p.evolvedFrom, ...p.energy, ...(p.attached ?? []).map((a) => a.card)] : [])),
-    ...(pending ? (pending.kind === 'arrangeTop' ? pending.cards : pending.options) : []),
+    ...(pending?.kind === 'arrangeTop' ? pending.cards : pending?.kind === 'pickFromDeck' || pending?.kind === 'pickFromDiscard' ? pending.options : []),
+    ...(oppHand ?? []),
+    ...(peek ? [peek.card] : []),
   ];
   const cards: CardLibrary = {};
   for (const c of visible) cards[c.defId] = state.cards[c.defId]!;
@@ -84,10 +104,13 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       active: me.active,
       bench: me.bench,
       pendingChoice: pending,
+      noTrainersUntil: me.noTrainersUntil,
+      ...(peek && { peek }),
     },
     opponent: {
       id: opp.id,
       handCount: opp.hand.length,
+      ...(oppHand && { hand: oppHand }),
       deckCount: opp.deck.length,
       prizeCount: opp.prizes.length,
       discard: opp.discard,

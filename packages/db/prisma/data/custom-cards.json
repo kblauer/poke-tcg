@@ -1,0 +1,56 @@
+{
+  "source": "custom",
+  "note": "Cards TCGdex doesn't have, in the snapshot's shape. Text from Bulbapedia; images are served by the web app (apps/web/public/cards/<id>/high.webp and low.webp).",
+  "sets": [
+    {
+      "id": "pkweb",
+      "name": "Pokémon Web",
+      "series": "neo",
+      "releaseDate": "2001-10-20",
+      "cardCount": { "total": 48, "official": 48 },
+      "logo": null,
+      "symbol": null
+    }
+  ],
+  "cards": [
+    {
+      "id": "pkweb-26",
+      "localId": "26",
+      "name": "Electrode",
+      "image": "/cards/pkweb-26",
+      "category": "Pokemon",
+      "rarity": "Uncommon",
+      "illustrator": "Ken Sugimori",
+      "hp": 70,
+      "types": ["Lightning"],
+      "stage": "Stage1",
+      "evolveFrom": "Voltorb",
+      "dexId": [101],
+      "retreat": 1,
+      "suffix": null,
+      "effect": null,
+      "trainerType": null,
+      "energyType": null,
+      "set": { "id": "pkweb" },
+      "variants": { "firstEdition": true, "holo": false, "normal": true, "reverse": false },
+      "attacks": [
+        {
+          "name": "Sonicboom",
+          "cost": ["Lightning", "Lightning"],
+          "damage": "30",
+          "effect": "Don't apply Weakness and Resistance for this attack. (Any other effects that would happen after applying Weakness and Resistance still happen.)"
+        },
+        {
+          "name": "Energy Spike",
+          "cost": ["Lightning", "Lightning", "Lightning"],
+          "damage": null,
+          "effect": "Search your deck for a basic Energy card and attach it to 1 of your Pokémon. Shuffle your deck afterward."
+        }
+      ],
+      "abilities": null,
+      "weaknesses": [{ "type": "Fighting", "value": "×2" }],
+      "resistances": null,
+      "item": null
+    }
+  ]
+}

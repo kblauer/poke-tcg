@@ -2,11 +2,12 @@
 // Card-specific behaviour lives in effects/ (TRAINERS). Searches of hidden cards (the deck) can't
 // be answered from a player's view, so those Trainers leave a PendingChoice that only the player
 // sees the options of, answered with RESOLVE_CHOICE.
-import { lookupCard, type CardLibrary, type CardDef } from './cards.js';
+import { typeName } from './attacks.js';
+import { isBasicEnergy, isBasicPokemon, lookupCard, type CardLibrary, type CardDef, type EnergyType } from './cards.js';
 import { trainerEffect } from './effects/index.js';
 import type { CardInstance, GameState, InPlayPokemon, PlayerId, PlayerState, Target } from './engine.js';
 import { shuffle } from './rng.js';
-import { addLog } from './status.js';
+import { addLog, flipCoin } from './status.js';
 
 /** Answers to a Trainer's questions. Each question names the field it fills. */
 export interface TrainerChoices {
@@ -39,25 +40,69 @@ type Side = Pick<PlayerState, 'active' | 'bench' | 'discard'>;
 export interface TrainerSituation {
   /** The Trainer card being played. */
   card: CardInstance;
-  me: Side & Pick<PlayerState, 'hand'>;
+  me: Side & Pick<PlayerState, 'hand' | 'noTrainersUntil'>;
   opp: Side;
   deckCount: number;
   cards: CardLibrary;
   turn: number;
 }
 
-/** A search the player must finish after playing a Trainer. Only they see its options. */
-export type PendingChoice =
+/** A search the player must finish after playing a Trainer or using an attack. Only they see its options. */
+export type PendingChoice = {
+  player: PlayerId;
+  /** Trainer or attack that started it. */
+  source: string;
+  /** Started by an attack: the turn ends once it's finished. */
+  afterAttack?: boolean;
+} & (
   | {
-      player: PlayerId;
       kind: 'pickFromDeck';
-      /** Trainer that started it. */
-      source: string;
-      filter: 'any' | 'pokemon';
+      /**
+       * 'basicNamed': a Basic Pokémon called `name` (or any of the names), for Call for Family;
+       * 'basicType': a Basic Pokémon of `type` (Call for Friend).
+       */
+      filter: 'any' | 'pokemon' | 'basicNamed' | 'basicType' | 'basicEnergy';
+      name?: string | string[];
+      type?: EnergyType;
+      /** The card goes onto the Bench instead of into the hand (Call for Family). */
+      toBench?: boolean;
+      /** The card found is attached to one of the player's Pokémon, chosen next (Energy Spike), instead of going to the hand. */
+      attach?: boolean;
+      /** The card taken is shown to the opponent (Poké Ball): the log names it. */
+      reveal?: boolean;
       /** Pokémon Trader: the hand card that goes into the deck once a card is picked. */
       tradeUid?: string;
     }
-  | { player: PlayerId; kind: 'arrangeTop'; source: string; count: number };
+  | {
+      kind: 'arrangeTop';
+      count: number;
+      /** Whose deck it is (Prophecy can pick either). Missing = the player's own. */
+      deckOwner?: PlayerId;
+    }
+  | {
+      /** Put a card from the player's discard pile on top of their deck (Recycle). */
+      kind: 'pickFromDiscard';
+      /** The card that started it, still being played: not an option. */
+      excludeUid?: string;
+    }
+  | {
+      /** Remove 1 damage counter from one of the player's Pokémon with damage (Heal), chosen on the board. */
+      kind: 'removeDamage';
+    }
+  | {
+      /** Attach `card`, found in the deck, to one of the player's Pokémon, chosen on the board (Energy Spike). */
+      kind: 'attachCard';
+      card: CardInstance;
+    }
+);
+
+/** A PendingChoice as an effect starts it: the player is filled in. */
+export type PendingChoiceInput = PendingChoice extends infer C ? (C extends unknown ? Omit<C, 'player'> : never) : never;
+
+export const TRAINERS_LOCKED = "You can't play Trainer cards this turn";
+
+/** Headache: the player can't play Trainer cards this turn. */
+export const trainersLocked = (me: Pick<PlayerState, 'noTrainersUntil'>, turn: number) => (me.noTrainersUntil ?? 0) >= turn;
 
 /** Card-specific Trainer behaviour. */
 export interface TrainerEffect {
@@ -77,6 +122,8 @@ export interface TrainerContext {
   choices: TrainerChoices;
   turn: number;
   log: (text: string, player?: PlayerId) => void;
+  /** Flips a coin for the Trainer (logged). True = heads. */
+  flip: () => boolean;
   /** Draws up to `n` cards (an empty deck just stops; that only loses at the start of a turn). */
   draw: (player: PlayerState, n: number) => void;
   /** Puts cards into the deck and shuffles it. */
@@ -86,7 +133,7 @@ export interface TrainerContext {
   /** Attaches the Trainer to a Pokémon until the end of turn `until`, instead of discarding it. */
   attachTo: (pokemon: InPlayPokemon, until: number) => void;
   /** Asks the player to finish a search (see PendingChoice). */
-  pend: (choice: PendingChoice extends infer C ? (C extends unknown ? Omit<C, 'player'> : never) : never) => void;
+  pend: (choice: PendingChoiceInput) => void;
 }
 
 export const own = (s: TrainerSituation, t: Target) => (t === 'active' ? s.me.active : s.me.bench[t]) ?? null;
@@ -104,6 +151,7 @@ export function trainerError(s: TrainerSituation): string | null {
   const d = def(s, s.card);
   const effect = trainerEffect(s.card.defId);
   if (d.kind !== 'trainer' || !effect?.play) return `${d.name} can't be played this way`;
+  if (trainersLocked(s.me, s.turn)) return TRAINERS_LOCKED;
   return effect.blocked?.(s) ?? null;
 }
 
@@ -184,6 +232,7 @@ export function playTrainer(state: GameState, me: PlayerState, opp: PlayerState,
     choices: resolved.choices,
     turn: state.turn,
     log: (text, player = me.id) => addLog(state, text, player),
+    flip: () => flipCoin(state, lookupCard(state.cards, card.defId).name, me.id),
     draw(player, n) {
       const drawn = player.deck.splice(0, n);
       player.hand.push(...drawn);
@@ -213,43 +262,104 @@ export function playTrainer(state: GameState, me: PlayerState, opp: PlayerState,
 
 /** What the player choosing sees of a pending search. */
 export type PendingChoiceView =
-  | { kind: 'pickFromDeck'; prompt: string; options: CardInstance[] }
+  | { kind: 'pickFromDeck' | 'pickFromDiscard'; prompt: string; options: CardInstance[] }
+  | { kind: 'ownPokemon'; purpose: 'heal' | 'attach'; prompt: string; options: Target[] }
   | { kind: 'arrangeTop'; prompt: string; cards: CardInstance[] };
 
 /** The options of a pending search, for the player making it. Deck cards are sorted so their order stays secret. */
 export function pendingChoiceView(state: GameState, choice: PendingChoice): PendingChoiceView {
-  const deck = state.players[choice.player]!.deck;
   if (choice.kind === 'arrangeTop') {
-    return { kind: 'arrangeTop', prompt: `${choice.source}: put these cards back in any order (first is on top)`, cards: deck.slice(0, choice.count) };
+    const owner = choice.deckOwner ?? choice.player;
+    const where = owner === choice.player ? '' : " on your opponent's deck";
+    const cards = state.players[owner]!.deck.slice(0, choice.count);
+    return { kind: 'arrangeTop', prompt: `${choice.source}: put these cards back${where} in any order (first is on top)`, cards };
   }
+  if (choice.kind === 'removeDamage') {
+    const options = damagedTargets(state.players[choice.player]!);
+    return { kind: 'ownPokemon', purpose: 'heal', prompt: `${choice.source}: click one of your Pokémon to remove a damage counter from`, options };
+  }
+  if (choice.kind === 'attachCard') {
+    const name = lookupCard(state.cards, choice.card.defId).name;
+    return { kind: 'ownPokemon', purpose: 'attach', prompt: `${choice.source}: click one of your Pokémon to attach ${name} to`, options: targetsOf(state.players[choice.player]!) };
+  }
+  if (choice.kind === 'pickFromDiscard') {
+    const options = discardOptions(state.players[choice.player]!, choice);
+    return { kind: 'pickFromDiscard', prompt: `${choice.source}: put a card from your discard pile on top of your deck`, options };
+  }
+  const deck = state.players[choice.player]!.deck;
   const name = (c: CardInstance) => lookupCard(state.cards, c.defId).name;
   const options = deck.filter((c) => deckFilter(state.cards, choice, c)).sort((a, b) => name(a).localeCompare(name(b)) || a.uid.localeCompare(b.uid));
-  const what = choice.filter === 'pokemon' ? 'a Basic Pokémon or Evolution card' : 'any card';
-  return { kind: 'pickFromDeck', prompt: `${choice.source}: take ${what} from your deck`, options };
+  const what =
+    choice.filter === 'basicNamed'
+      ? `a Basic Pokémon named ${[choice.name].flat().join(' or ')}`
+      : choice.filter === 'basicType'
+        ? `a ${typeName(choice.type!)} Basic Pokémon`
+      : choice.filter === 'basicEnergy'
+        ? 'a basic Energy card'
+        : choice.filter === 'pokemon'
+          ? 'a Basic Pokémon or Evolution card'
+          : 'any card';
+  const prompt = choice.toBench ? `${choice.source}: put ${what} from your deck onto your Bench` : `${choice.source}: take ${what} from your deck`;
+  return { kind: 'pickFromDeck', prompt, options };
 }
 
-const deckFilter = (cards: CardLibrary, choice: Extract<PendingChoice, { kind: 'pickFromDeck' }>, c: CardInstance) => {
+/** Whether a deck card can be picked in this search. */
+export const deckFilter = (cards: CardLibrary, choice: Extract<PendingChoice, { kind: 'pickFromDeck' }>, c: CardInstance) => {
   const d = lookupCard(cards, c.defId);
+  if (choice.filter === 'basicNamed') return isBasicPokemon(d) && [choice.name].flat().includes(d.name);
+  if (choice.filter === 'basicType') return isBasicPokemon(d) && d.type === choice.type;
+  if (choice.filter === 'basicEnergy') return isBasicEnergy(d);
   return choice.filter === 'any' || (d.kind === 'pokemon' && !d.trainerText);
 };
 
+const discardOptions = (player: PlayerState, choice: Extract<PendingChoice, { kind: 'pickFromDiscard' }>) => player.discard.filter((c) => c.uid !== choice.excludeUid);
+
+/** The player's Pokémon in play with damage counters. */
+export const damagedTargets = (player: Pick<PlayerState, 'active' | 'bench'>) => targetsOf(player).filter((t) => (t === 'active' ? player.active : player.bench[t])!.damage >= 10);
+
 /** Finishes a pending search. Mutates `state`; returns an error instead if the answer is invalid. */
-export function resolvePending(state: GameState, me: PlayerState, answer: { cardUid?: string; order?: string[] }): string | null {
+export function resolvePending(state: GameState, me: PlayerState, answer: { cardUid?: string; order?: string[]; target?: Target }): string | null {
   const choice = state.pendingChoice!;
   if (choice.kind === 'arrangeTop') {
-    const top = me.deck.slice(0, choice.count);
+    const owner = state.players[choice.deckOwner ?? choice.player]!;
+    const top = owner.deck.slice(0, choice.count);
     const order = answer.order ?? [];
     if (order.length !== top.length || !top.every((c) => order.includes(c.uid))) return 'Put every card back';
-    me.deck.splice(0, top.length, ...order.map((uid) => top.find((c) => c.uid === uid)!));
-    addLog(state, `Rearranged the top ${top.length} cards of the deck.`, me.id);
+    owner.deck.splice(0, top.length, ...order.map((uid) => top.find((c) => c.uid === uid)!));
+    addLog(state, `Rearranged the top ${top.length} cards of ${owner === me ? 'the' : "the opponent's"} deck.`, me.id);
+  } else if (choice.kind === 'attachCard') {
+    const p = answer.target === undefined ? null : answer.target === 'active' ? me.active : me.bench[answer.target];
+    if (!p) return 'Choose one of your Pokémon';
+    p.energy.push(choice.card);
+    addLog(state, `Attached ${lookupCard(state.cards, choice.card.defId).name} to ${lookupCard(state.cards, p.card.defId).name}.`, me.id);
+  } else if (choice.kind === 'removeDamage') {
+    const options = damagedTargets(me);
+    if (options.length && (answer.target === undefined || !options.includes(answer.target))) return 'Choose one of your Pokémon with damage counters';
+    const p = answer.target === undefined ? null : answer.target === 'active' ? me.active : me.bench[answer.target];
+    if (p) {
+      p.damage -= 10;
+      addLog(state, `Removed a damage counter from ${lookupCard(state.cards, p.card.defId).name}.`, me.id);
+    }
+  } else if (choice.kind === 'pickFromDiscard') {
+    const options = discardOptions(me, choice);
+    const picked = options.find((c) => c.uid === answer.cardUid);
+    if (!picked && options.length > 0) return 'Choose a card from your discard pile';
+    if (picked) {
+      me.discard = me.discard.filter((c) => c !== picked);
+      me.deck.unshift(picked);
+      addLog(state, `Put ${lookupCard(state.cards, picked.defId).name} on top of the deck.`, me.id);
+    }
   } else {
     const options = me.deck.filter((c) => deckFilter(state.cards, choice, c));
     const picked = options.find((c) => c.uid === answer.cardUid);
     // Nothing suitable in the deck: the search finds nothing.
     if (!picked && options.length > 0) return 'Choose a card from your deck';
+    const benchSlot = me.bench.findIndex((p) => p === null);
+    if (picked && choice.toBench && benchSlot < 0) return 'Your Bench is full';
     if (picked) {
       me.deck = me.deck.filter((c) => c !== picked);
-      me.hand.push(picked);
+      if (choice.toBench) me.bench[benchSlot] = { card: picked, evolvedFrom: [], damage: 0, energy: [], playedTurn: state.turn };
+      else if (!choice.attach) me.hand.push(picked);
     }
     const traded = choice.tradeUid !== undefined && picked ? me.hand.find((c) => c.uid === choice.tradeUid) : undefined;
     if (traded) me.hand = me.hand.filter((c) => c !== traded);
@@ -257,9 +367,22 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     const name = (c: CardInstance) => lookupCard(state.cards, c.defId).name;
     addLog(
       state,
-      picked ? (traded ? `Traded ${name(traded)} for ${name(picked)} from the deck.` : 'Took a card from the deck.') : 'Found nothing in the deck.',
+      picked
+        ? traded
+          ? `Traded ${name(traded)} for ${name(picked)} from the deck.`
+          : choice.toBench
+            ? `Put ${name(picked)} onto the Bench.`
+            : choice.reveal || choice.attach
+              ? `${choice.attach ? 'Found' : 'Took'} ${name(picked)} ${choice.attach ? 'in' : 'from'} the deck.`
+              : 'Took a card from the deck.'
+        : 'Found nothing in the deck.',
       me.id,
     );
+    // The next step: which Pokémon gets it.
+    if (picked && choice.attach) {
+      state.pendingChoice = { player: me.id, source: choice.source, afterAttack: choice.afterAttack, kind: 'attachCard', card: picked };
+      return null;
+    }
   }
   delete state.pendingChoice;
   return null;

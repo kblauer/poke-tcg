@@ -1,5 +1,6 @@
-import { isBasicPokemon, isPokemonCard, lookupCard } from '../cards.js';
+import { isBasicPokemon, lookupCard } from '../cards.js';
 import { evolveError, type GameAction, type GameState, type PlayerId, type PlayerState } from '../engine.js';
+import { pendingChoiceView } from '../trainers.js';
 import { chooseActive, inPlay } from './shared.js';
 
 /**
@@ -28,10 +29,10 @@ export function passiveCpu(state: GameState, cpuId: PlayerId): GameAction | null
 }
 
 function finishSearch(state: GameState): GameAction {
-  const choice = state.pendingChoice!;
-  const deck = state.players[choice.player]!.deck;
-  if (choice.kind === 'arrangeTop') return { type: 'RESOLVE_CHOICE', order: deck.slice(0, choice.count).map((c) => c.uid) };
-  const pick = deck.find((c) => choice.filter === 'any' || isPokemonCard(lookupCard(state.cards, c.defId)));
+  const view = pendingChoiceView(state, state.pendingChoice!);
+  if (view.kind === 'arrangeTop') return { type: 'RESOLVE_CHOICE', order: view.cards.map((c) => c.uid) };
+  if (view.kind === 'ownPokemon') return { type: 'RESOLVE_CHOICE', target: view.options[0] };
+  const [pick] = view.options;
   return { type: 'RESOLVE_CHOICE', ...(pick && { cardUid: pick.uid }) };
 }
 
@@ -48,7 +49,8 @@ function turnAction(state: GameState, cpu: PlayerState): GameAction | null {
   for (const card of cpu.hand) {
     const evolution = def(card.defId);
     if (evolution.kind !== 'pokemon' || evolution.stage === 'basic') continue;
-    const target = inPlay(cpu).find(([, p]) => evolveError(evolution, p, state.cards, state.turn) === null);
+    const sides = state.playerOrder.map((id) => state.players[id]!);
+    const target = inPlay(cpu).find(([, p]) => evolveError(evolution, p, state.cards, state.turn, sides) === null);
     if (target) return { type: 'EVOLVE', cardUid: card.uid, target: target[0] };
   }
 

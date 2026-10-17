@@ -1,9 +1,9 @@
 /// <reference path="./globals.d.ts" />
 import { performAttack, type AttackChoices } from './attacks.js';
-import { usePower, type PowerChoices } from './powers.js';
-import { playTrainer, resolvePending, type PendingChoice, type TrainerChoices } from './trainers.js';
-import { isBasicPokemon, isBenchable, lookupCard, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
-import { addLog, clearOnLeavingActive, flipCoin, pokemonName, type LogEntry } from './status.js';
+import { evolutionBlocked, refreshTransforms, retreatAid, usePower, type PowerChoices } from './powers.js';
+import { playTrainer, resolvePending, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
+import { isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
+import { addLog, clearOnLeavingActive, flipCoin, inPlayDef, pokemonName, type LogEntry } from './status.js';
 import { shuffle } from './rng.js';
 import type { CpuDifficulty } from './cpu/index.js';
 
@@ -39,6 +39,10 @@ export interface PokemonEffects {
   destinyBond?: number;
   /** Its attacks only happen on heads (Sand-attack). */
   sandAttack?: number;
+  /** The same as Sand-attack, from Smokescreen. */
+  smokescreen?: number;
+  /** Damage done to it by attacks is reduced by 20, after weakness and resistance (Minimize). */
+  minimize?: number;
   /** It can't use this attack (Amnesia). */
   amnesia?: { attack: string; until: number };
   /** Weakness type changed by Conversion 1. */
@@ -47,6 +51,14 @@ export interface PokemonEffects {
   resistance?: EnergyType;
   /** All its energy is Fire this turn (Energy Burn). */
   energyBurn?: number;
+  /** It can't retreat (Acid). */
+  noRetreat?: number;
+  /** It can't attack the Pokémon whose `target` is its baseUid (Tail Wag, Leer). */
+  cantAttack?: { target: string; until: number };
+  /** Its attacks do `amount` less damage to the Pokémon whose baseUid is `target` (Pounce, Snivel). */
+  pounce?: { target: string; amount: number; until: number };
+  /** The turn its Slash does 60 base damage (Swords Dance: its owner's next turn). */
+  swordsDance?: number;
   /** Leek Slap can't be used again while it stays in play. */
   leekSlapUsed?: boolean;
   /** What the opponent's last attack on it did, for Mirror Move. */
@@ -71,6 +83,12 @@ export interface InPlayPokemon {
   effects?: PokemonEffects;
   /** Trainer cards attached to it (PlusPower, Defender), each discarded after turn `until`. Missing in older games. */
   attached?: { card: CardInstance; until: number }[];
+  /** Venomoth's Shift: the type it changed to, until it leaves play or Shifts again. */
+  shiftedType?: EnergyType;
+  /** Ditto's Transform: the id of the card it's a copy of (the Defending Pokémon), kept up to date by refreshTransforms. */
+  transformed?: string;
+  /** Last turn its "once during your turn" power was used (Step In, Curse). Stays when it moves. */
+  powerUsedTurn?: number;
 }
 
 export interface PlayerState {
@@ -82,6 +100,8 @@ export interface PlayerState {
   active: InPlayPokemon | null;
   /** Fixed slots (length MAX_BENCH); null = empty. Cards stay in the slot they were played to. */
   bench: (InPlayPokemon | null)[];
+  /** Last turn this player can't play Trainer cards (Headache). Missing = no limit. */
+  noTrainersUntil?: number;
 }
 
 export type Phase = 'setup' | 'playing' | 'promote' | 'finished';
@@ -105,8 +125,10 @@ export interface GameState {
   cards: CardLibrary;
   /** A Pokémon Power knocked out the current player's active mid-turn; after promoting, the turn goes on. */
   midTurnPromotion?: boolean;
-  /** A search the player must finish (after Computer Search, Pokémon Trader, Pokédex); nothing else can happen until then. */
+  /** A search the player must finish (after Computer Search, Pokédex, Prophecy…); nothing else can happen until then. */
   pendingChoice?: PendingChoice;
+  /** A card a player looked at with a power (Peek), shown only to them until their next action. */
+  peek?: { player: PlayerId; card: CardInstance; label: string };
   /** How the CPU plays this game (cpu/). Missing = DEFAULT_CPU_DIFFICULTY. */
   cpuDifficulty?: CpuDifficulty;
   /** What happened, oldest first: attacks, coin flips, knockouts… (last LOG_SIZE entries). Missing in older games. */
@@ -130,7 +152,7 @@ export type GameAction =
   /** Play a Trainer card from the hand; `choices` answers its questions (see nextTrainerChoice). */
   | { type: 'PLAY_TRAINER'; cardUid: string; choices?: TrainerChoices }
   /** Finish a pending search: the card picked from the deck, or the new order of the cards looked at. */
-  | { type: 'RESOLVE_CHOICE'; cardUid?: string; order?: string[] }
+  | { type: 'RESOLVE_CHOICE'; cardUid?: string; order?: string[]; target?: Target }
   /** Discard a Trainer played as a Pokémon (Clefairy Doll) from play. */
   | { type: 'DISCARD_DOLL'; target: Target }
   | { type: 'END_TURN' }
@@ -210,6 +232,10 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
   if (prev.phase === 'finished') return fail('Game is over');
 
   const state = structuredClone(prev);
+  // Games saved before Transform existed (or set up directly, in tests) may not have Ditto's copy yet.
+  refreshTransforms(state);
+  // A card looked at with Peek stays in view until that player's next action.
+  if (state.peek?.player === playerId) delete state.peek;
   const me = state.players[playerId]!;
   const opp = state.players[opponentOf(state, playerId)]!;
   const card = (c: CardInstance) => lookupCard(state.cards, c.defId);
@@ -248,8 +274,14 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
 
   if (state.pendingChoice) {
     if (action.type !== 'RESOLVE_CHOICE') return fail(`Finish ${state.pendingChoice.source} first`);
+    const { afterAttack } = state.pendingChoice;
     const error = resolvePending(state, me, action);
-    return error ? fail(error) : ok(state);
+    if (error) return fail(error);
+    // Another step may follow (Energy Spike: pick the energy, then the Pokémon to attach it to).
+    if (!afterAttack || state.pendingChoice) return ok(state);
+    // The search was the attack's: the turn ends as it does after any attack.
+    const winner = resolveKnockouts(state, me.id);
+    return winner ? finish(state, winner) : endTurn(state);
   }
 
   switch (action.type) {
@@ -258,6 +290,7 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       if (me.bench[action.slot]) return fail('That bench slot is occupied');
       const played = takeFromHand(me, action.cardUid);
       if (!played || !isBenchable(card(played))) return fail('Must play a Basic Pokémon from your hand');
+      if (isTrainerCard(card(played)) && trainersLocked(me, state.turn)) return fail(TRAINERS_LOCKED);
       me.bench[action.slot] = newInPlay(played, state.turn);
       addLog(state, `Put ${card(played).name} on the Bench.`, me.id);
       return ok(state);
@@ -271,7 +304,7 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       if (!evolution || evolutionDef?.kind !== 'pokemon' || evolutionDef.stage === 'basic') {
         return fail('Must evolve with a Stage 1 or Stage 2 Pokémon from your hand');
       }
-      const error = evolveError(evolutionDef, target, state.cards, state.turn);
+      const error = evolveError(evolutionDef, target, state.cards, state.turn, [me, opp]);
       if (error) return fail(error);
       // Damage and attached energy stay; the new card's HP and attacks apply from now on.
       // Evolving removes Special Conditions and the effects of attacks.
@@ -300,6 +333,13 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       if (!me.active || !opp.active) return fail('No active Pokémon');
       const error = performAttack(state, me, opp, action.attackIndex, action.choices ?? {});
       if (error) return fail(error);
+      // An attack that starts a search (Prophecy, Call for Family) ends the turn once it's finished.
+      // (Checked above for the start of the action, so TypeScript thinks it can't be set.)
+      const search = state.pendingChoice as PendingChoice | undefined;
+      if (search) {
+        search.afterAttack = true;
+        return ok(state);
+      }
       // Attacking ends the turn.
       const winner = resolveKnockouts(state, me.id);
       return winner ? finish(state, winner) : endTurn(state);
@@ -307,11 +347,11 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
 
     case 'RETREAT': {
       if (!me.active) return fail('No active Pokémon');
-      const error = retreatError(me.active, state.cards, hasBenched(me), state.retreatedThisTurn ?? false);
+      const error = retreatError(me.active, state.cards, hasBenched(me), state.retreatedThisTurn ?? false, [me, opp]);
       if (error) return fail(error);
       const benched = isBenchSlot(action.slot) ? me.bench[action.slot] : null;
       if (!benched) return fail('Retreat to one of your benched Pokémon');
-      const cost = retreatCost(me.active, state.cards);
+      const cost = retreatCost(me.active, state.cards, [me, opp]);
       const uids = new Set(action.energyUids);
       if (uids.size !== action.energyUids.length || !action.energyUids.every((uid) => me.active!.energy.some((e) => e.uid === uid))) {
         return fail('Discard energy attached to your active Pokémon');
@@ -378,25 +418,35 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
 }
 
 /**
- * After a move by the current player that can knock out or remove their own Pokémon (a power or
- * Trainer): prizes, a possible win, and promoting a new active without ending the turn.
+ * After a move by the current player that can knock out or remove Pokémon (a power or Trainer):
+ * prizes, a possible win, and promoting new actives (the player's first) without ending the turn.
  */
 function afterOwnMove(state: GameState, me: PlayerState, opp: PlayerState): ActionResult {
   const winner = resolveKnockouts(state, opp.id);
   if (winner) return finish(state, winner);
-  if (!me.active) {
+  const needs = [me, opp].find((p) => !p.active);
+  if (needs) {
     state.phase = 'promote';
-    state.pendingPromotion = me.id;
+    state.pendingPromotion = needs.id;
     state.midTurnPromotion = true;
   }
   return ok(state);
 }
 
 /**
- * Why `evolution` can't be played onto `target` right now, or null if it can.
+ * Why `evolution` can't be played onto `target` right now, or null if it can. `sides` are both
+ * players' Pokémon in play, for powers that stop evolution (Prehistoric Power).
  * Pure and view-safe, so the UI uses it for hints and the engine for validation.
  */
-export function evolveError(evolution: PokemonCardDef, target: InPlayPokemon, cards: CardLibrary, turn: number): string | null {
+export function evolveError(
+  evolution: PokemonCardDef,
+  target: InPlayPokemon,
+  cards: CardLibrary,
+  turn: number,
+  sides: Pick<PlayerState, 'active' | 'bench'>[] = [],
+): string | null {
+  const blocked = evolutionBlocked(sides, cards);
+  if (blocked) return blocked;
   const current = lookupCard(cards, target.card.defId);
   const evolvesFromStage = evolution.stage === 'stage2' ? 'stage1' : 'basic';
   if (current.kind !== 'pokemon' || current.name !== evolution.evolvesFrom || current.stage !== evolvesFromStage) {
@@ -409,24 +459,34 @@ export function evolveError(evolution: PokemonCardDef, target: InPlayPokemon, ca
 }
 
 /** Energy the Pokémon must discard to retreat. */
-export const retreatCost = (pokemon: InPlayPokemon, cards: CardLibrary) => {
-  const def = lookupCard(cards, pokemon.card.defId);
-  return def.kind === 'pokemon' ? (def.retreatCost ?? 0) : 0;
-};
+/**
+ * Energy the Pokémon must discard to retreat. `sides` (its owner first) are for powers that change it:
+ * each working Retreat Aid on the owner's Bench takes 1 off the Active Pokémon's cost.
+ */
+export const retreatCost = (pokemon: InPlayPokemon, cards: CardLibrary, sides: Pick<PlayerState, 'active' | 'bench'>[] = []) =>
+  Math.max(0, (inPlayDef(cards, pokemon).retreatCost ?? 0) - retreatAid(pokemon, cards, sides));
 
 /**
  * Why the active Pokémon can't retreat right now, or null if it can (given a bench target
  * and the energy to discard). Pure and view-safe, so the UI uses it for hints too.
  */
-export function retreatError(active: InPlayPokemon, cards: CardLibrary, hasBench: boolean, retreatedThisTurn: boolean): string | null {
+export function retreatError(
+  active: InPlayPokemon,
+  cards: CardLibrary,
+  hasBench: boolean,
+  retreatedThisTurn: boolean,
+  sides: Pick<PlayerState, 'active' | 'bench'>[] = [],
+): string | null {
   if (retreatedThisTurn) return 'You can only retreat once per turn';
   const def = lookupCard(cards, active.card.defId);
   if (def.kind === 'pokemon' && def.trainerText) return `${def.name} can't retreat`;
+  // Effects are removed once they run out (expireEffects), so being set means it applies.
+  if (active.effects?.noRetreat !== undefined) return `${def.name} can't retreat this turn`;
   if (active.condition === 'asleep' || active.condition === 'paralyzed') {
     return `${lookupCard(cards, active.card.defId).name} is ${conditionLabel(active.condition)} and can't retreat`;
   }
   if (!hasBench) return 'No benched Pokémon to switch in';
-  const cost = retreatCost(active, cards);
+  const cost = retreatCost(active, cards, sides);
   if (energyPool(active, cards).length < cost) return `Retreating costs ${cost} energy`;
   return null;
 }
@@ -451,6 +511,8 @@ export const energyPool = (pokemon: InPlayPokemon, cards: CardLibrary): EnergyTy
 
 export function canPayCost(pokemon: InPlayPokemon, attack: Attack, cards: CardLibrary): boolean {
   const pool = energyPool(pokemon, cards);
+  // A Transformed Ditto may treat its Energy as any type.
+  if (pokemon.transformed) return pool.length >= attack.cost.length;
   // Pay typed costs first, then colorless with whatever is left.
   const sorted = [...attack.cost].sort((a, b) => Number(a === 'colorless') - Number(b === 'colorless'));
   for (const need of sorted) {
@@ -552,10 +614,12 @@ function betweenTurns(state: GameState) {
 function expireEffects(pokemon: InPlayPokemon, turn: number) {
   const e = pokemon.effects;
   if (!e) return;
-  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'energyBurn'] as const) {
+  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn'] as const) {
     if (e[key] !== undefined && e[key] <= turn) delete e[key];
   }
   if (e.amnesia && e.amnesia.until <= turn) delete e.amnesia;
+  if (e.cantAttack && e.cantAttack.until <= turn) delete e.cantAttack;
+  if (e.pounce && e.pounce.until <= turn) delete e.pounce;
 }
 
 /**
@@ -564,6 +628,8 @@ function expireEffects(pokemon: InPlayPokemon, turn: number) {
  * opponent has no Pokémon left in play. If both win at once, `favoured` wins.
  */
 function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId | null {
+  // A Ditto that stopped being a copy (Asleep, switched…) has its own HP again.
+  refreshTransforms(state);
   for (const id of state.playerOrder) {
     const owner = state.players[id]!;
     const taker = state.players[opponentOf(state, id)]!;
@@ -576,10 +642,7 @@ function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId | null
       const prize = taker.prizes.pop();
       if (prize) taker.hand.push(prize);
     };
-    const isOut = (p: InPlayPokemon) => {
-      const def = lookupCard(state.cards, p.card.defId);
-      return def.kind === 'pokemon' && p.damage >= def.hp;
-    };
+    const isOut = (p: InPlayPokemon) => p.damage >= inPlayDef(state.cards, p).hp;
     if (owner.active && isOut(owner.active)) {
       knockOut(owner.active);
       owner.active = null;
@@ -618,6 +681,7 @@ function finish(state: GameState, winner: PlayerId): ActionResult {
 }
 
 function ok(state: GameState): ActionResult {
+  refreshTransforms(state);
   state.version += 1;
   return { ok: true, state };
 }

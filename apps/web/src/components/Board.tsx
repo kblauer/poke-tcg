@@ -23,7 +23,7 @@ import { LogDrawer } from './LogDrawer';
 import { OpponentArea } from './OpponentArea';
 import { PendingChoicePanel } from './PendingChoicePanel';
 import { PlayArea } from './PlayArea';
-import { BenchPowerButton, PowerPanel } from './PowerPanel';
+import { BenchPowerButton, PeekCard, PowerPanel } from './PowerPanel';
 import { PreviewContext, type Preview } from './PreviewContext';
 import { PrizeCards } from './PrizeCards';
 import { RetreatPanel } from './RetreatPanel';
@@ -114,7 +114,9 @@ export function Board({
 
   // Alerts and errors show as messages in the bottom right that fade away (Toasts). A held card's
   // instruction is a prompt there instead: it stays up while the card is held and goes the moment it's played or put down.
-  const prompt = selected ? 'Click a highlighted slot (Esc to cancel)' : trainer.prompt;
+  // Heal's "click one of your Pokémon" is answered on the board, so it's a prompt rather than a dialog.
+  const pendingPick = self.pendingChoice?.kind === 'ownPokemon' ? self.pendingChoice : null;
+  const prompt = pendingPick ? pendingPick.prompt : selected ? 'Click a highlighted slot (Esc to cancel)' : trainer.prompt;
   useEffect(() => {
     if (error) toasts.push('error', error);
   }, [error, errorAt]);
@@ -164,11 +166,17 @@ export function Board({
   const busySlot = pendingSlot(pending);
 
   /** An attack, power or Trainer asking for a Pokémon in play: it's chosen by clicking the Pokémon. */
-  const pokemonPick: { side: 'own' | 'opp'; options: Target[]; pick: (t: Target) => void } | null =
-    attack.spec?.kind === 'opponentBench'
+  const pokemonPick: { side: 'own' | 'opp'; options: Target[]; pick: (t: Target) => void; picked?: Target[] } | null =
+    pendingPick
+      ? { side: 'own', options: pendingPick.options, pick: (target) => send({ type: 'RESOLVE_CHOICE', target }) }
+      : attack.spec?.kind === 'opponentBench'
       ? { side: 'opp', options: attack.spec.options, pick: attack.answer }
-      : power.spec?.kind === 'ownPokemon'
-        ? { side: 'own', options: power.spec.options, pick: power.answer }
+      : attack.spec?.kind === 'ownBench'
+        ? { side: 'own', options: attack.spec.options, pick: attack.answer }
+      : attack.spec?.kind === 'opponentBenchMany'
+        ? { side: 'opp', options: attack.spec.options, pick: (t) => attack.toggleBench(t as number), picked: attack.benchPicked }
+      : power.spec?.kind === 'ownPokemon' || power.spec?.kind === 'oppPokemon'
+        ? { side: power.spec.kind === 'ownPokemon' ? 'own' : 'opp', options: power.spec.options, pick: power.answer }
         : trainer.spec?.kind === 'pokemon' && trainer.card && !trainer.error(trainer.card)
           ? { side: trainer.spec.side, options: trainer.spec.options, pick: trainer.answer }
           : null;
@@ -280,6 +288,7 @@ export function Board({
           pending={pending}
         />
       )}
+      <PeekCard view={view} />
       {myTurn && !attack.spec && (
         <PowerPanel
           view={view}
@@ -318,7 +327,7 @@ export function Board({
               the PlayArea rather than in it (its container-type would trap the dialog), and not in the window, which
               also holds the game log.
             */}
-            {self.pendingChoice && (
+            {self.pendingChoice && !pendingPick && (
               <FloatingDialog clickThrough={false} className="absolute left-1/2 top-1/2 z-[1000] w-fit max-w-[min(56rem,90%)] -translate-x-1/2 -translate-y-1/2">
                 <PendingChoicePanel view={view} send={send} busy={busy} />
               </FloatingDialog>

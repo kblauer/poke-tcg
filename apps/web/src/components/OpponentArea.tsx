@@ -1,4 +1,5 @@
-import type { CardLibrary, InPlayPokemon, PlayerView, Target } from '@poke-tcg/game-engine';
+import { lookupCard, type CardLibrary, type InPlayPokemon, type PlayerView, type Target } from '@poke-tcg/game-engine';
+import { Card } from './Card';
 import type { ReactNode } from 'react';
 import { DeckAndDiscard } from './DeckAndDiscard';
 import { FloatingDialog } from './FloatingDialog';
@@ -9,6 +10,7 @@ import { Slot } from './Slot';
  * The CPU's side, mirrored both ways from the player's, as if sitting across the table: deck
  * above the discard pile on the left, prizes on the right, bench on top and active nearest the middle.
  * While an effect asks for one of the CPU's Pokémon (`pick`), the ones it can choose are highlighted and clicked to choose them.
+ * When it asks for several (Gigashock), the ones clicked so far are `picked`.
  */
 export function OpponentArea({
   opponent,
@@ -19,7 +21,7 @@ export function OpponentArea({
 }: {
   opponent: PlayerView['opponent'];
   cards: CardLibrary;
-  pick: { options: Target[]; pick: (t: Target) => void } | null;
+  pick: { options: Target[]; pick: (t: Target) => void; picked?: Target[] } | null;
   /** Set (to the view's version) right after the CPU attacked: its active lunges at the player's. */
   lunge?: number | null;
   /** The Trainer being played or a search of the deck: floats over this side, its bottom level with the CPU's active. */
@@ -27,6 +29,7 @@ export function OpponentArea({
 }) {
   const slot = (id: string, target: Target, pokemon: InPlayPokemon | null, large?: boolean) => {
     const choosable = pick?.options.includes(target) ?? false;
+    const picked = pick?.picked?.includes(target) ?? false;
     return (
       <Slot
         key={id}
@@ -34,8 +37,8 @@ export function OpponentArea({
         pokemon={pokemon}
         cards={cards}
         large={large}
-        highlight={choosable ? 'target' : null}
-        label={choosable ? 'Choose' : null}
+        highlight={picked ? 'power' : choosable ? 'target' : null}
+        label={picked ? 'Chosen' : choosable ? 'Choose' : null}
         dimmed={pick !== null && pokemon !== null && !choosable}
         onClick={choosable ? () => pick!.pick(target) : undefined}
         lunge={target === 'active' && lunge !== null ? { dir: 'down', stamp: lunge } : null}
@@ -52,7 +55,15 @@ export function OpponentArea({
         <div className="min-w-0 flex-1 space-y-3">
           <h3 className="text-center text-sm text-slate-400">
             CPU · hand {opponent.handCount}
+            {opponent.hand && ' (face up: Clairvoyance)'}
           </h3>
+          {opponent.hand && (
+            <div className="flex flex-wrap justify-center gap-1">
+              {opponent.hand.map((c) => (
+                <Card key={c.uid} def={lookupCard(cards, c.defId)} small />
+              ))}
+            </div>
+          )}
           <div className="flex justify-center gap-2">
             {opponent.bench.map((p, i) => slot(`cpu-bench-${i}`, i, p))}
           </div>

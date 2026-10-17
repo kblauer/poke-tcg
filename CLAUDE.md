@@ -3,7 +3,7 @@
 ## Product direction
 - Single-player game: the player battles a generation's gym leaders against CPU opponents. Not PvP. Don't add lobbies, multiplayer or realtime features.
 - Roadmap order: (1) refine card-playing mechanics → (2) gym-leader campaign structure → (3) multiple saves per account → (4) progression across runs through different generations. Stay on the current step unless asked.
-- Card pool: WOTC era only (1999–2003, before the EX series), from TCGdex. Cards with no image are excluded.
+- Card pool: WOTC era only (1999–2003, before the EX series), from TCGdex. Cards with no image are excluded. Cards TCGdex lacks can be added by hand in `packages/db/prisma/data/custom-cards.json` (only with the user's say-so), with images in `apps/web/public/cards/<id>/`.
 - If you're unsure what a card does or how its rules should work, stop and ask. Don't guess at card effects.
 
 ## Stack and layout
@@ -11,7 +11,7 @@
   - `apps/web`: Vite, React 19, TanStack Query/Router, Tailwind v4, dnd-kit, MUI icons (`@mui/icons-material`, so `@mui/material` and emotion are installed too).
   - `apps/api`: Hono + tRPC, deployed on Vercel.
   - `packages/game-engine`: pure TypeScript rules engine, tested with vitest.
-  - `packages/shared`: Zod schemas shared by web and API.
+  - `packages/shared`: Zod schemas shared by web and API. Zod drops keys a schema doesn't list, so every new field of an engine choice type must be added there too (`covers` fails to compile otherwise).
   - `packages/db`: Prisma on Supabase.
 - Dev servers: web on :5173, API on :8787.
 - Game state lives in the engine. The API loads a game, applies an action with an `expectedVersion` (a stale version gets CONFLICT), saves the state plus an action row, then runs the CPU's response.
@@ -69,4 +69,6 @@
 
 ## Known open items
 - CPU difficulties live in `packages/game-engine/src/cpu/`, one file each (`passive.ts`, `trainer.ts`, `gym-leader.ts`) plus `shared.ts`. Keep them separate. Gym leader is the baseline the user agreed on (README: The CPU opponent); change the difficulties' rules only with the user's say-so.
-- Missing rules: Whirlwind prompting, Burned, and card effects for sets after Base Set.
+- Missing rules: Whirlwind and Terror Strike prompting (both bring in the first benched Pokémon), Burned, and card effects for later sets. Jungle is done (`effects/jungle.ts`, `jungle-powers.ts`, `jungle-trainers.ts`); the CPUs don't play Poké Ball yet. Fossil is done (`effects/fossil.ts`, `fossil-powers.ts`, `fossil-trainers.ts`); the CPUs don't play Fossil's Trainers yet.
+- TCGdex card text drops energy icons ("Discard 1 Energy card" for "Discard 1 Fire Energy card"). Check the printed card for any untyped Energy in an effect and store the printed wording as `text`.
+- In-play Pokémon: use `inPlayDef`/`effectId` (status.ts), not `lookupCard(cards, p.card.defId)`, for anything rules-related, so a Transformed Ditto works. Check passive powers with `powerActive`, which handles Toxic Gas.

@@ -21,6 +21,13 @@ export interface CardData {
   variants?: { holo?: boolean; normal?: boolean; reverse?: boolean; firstEdition?: boolean } | null;
 }
 
+/** Stage 1 Pokémon printed as evolving from Mysterious Fossil, which TCGdex leaves out. */
+const FROM_MYSTERIOUS_FOSSIL = new Set(['Omanyte', 'Kabuto', 'Aerodactyl']);
+
+/** What the card evolves from, filling in TCGdex's gaps. */
+const evolvesFrom = (card: Pick<Card, 'name' | 'stage' | 'evolveFrom'>) =>
+  card.evolveFrom ?? (card.stage === 'Stage1' && FROM_MYSTERIOUS_FOSSIL.has(card.name) ? 'Mysterious Fossil' : null);
+
 /** Whether the card was printed as a holofoil. */
 export const isHolo = (card: Pick<Card, 'data'>) => (card.data as CardData).variants?.holo === true;
 
@@ -79,7 +86,7 @@ export function toCardDef(card: Card): CardDef {
       // Printed wording where TCGdex's differs (kept with the attack's effect in the engine).
       text: attackEffect(card.id, a.name)?.text ?? a.effect,
     }));
-    return { id: card.id, kind: 'pokemon', name: card.name, imageUrl, type: energyType(type), hp: card.hp, stage, evolvesFrom: card.evolveFrom, attacks, power: power(data), weakness: weakness(data), resistance: resistance(data), retreatCost: data.retreat ?? 0, holo: isHolo(card) };
+    return { id: card.id, kind: 'pokemon', name: card.name, imageUrl, type: energyType(type), hp: card.hp, stage, evolvesFrom: evolvesFrom(card), attacks, power: power(data), weakness: weakness(data), resistance: resistance(data), retreatCost: data.retreat ?? 0, holo: isHolo(card) };
   }
   if (card.kind === 'ENERGY') {
     if (card.name === 'Double Colorless Energy') {
@@ -125,9 +132,12 @@ export async function loadCardLibrary(ids: Iterable<string>): Promise<CardLibrar
   if (stage2.length) {
     const stage1 = await prisma.card.findMany({
       where: { kind: 'POKEMON', stage: 'Stage1', name: { in: stage2.map((d) => d.evolvesFrom!) } },
-      select: { name: true, evolveFrom: true },
+      select: { name: true, stage: true, evolveFrom: true },
     });
-    for (const d of stage2) d.evolvesFromBasic = stage1.find((s) => s.name === d.evolvesFrom && s.evolveFrom)?.evolveFrom ?? null;
+    for (const d of stage2) {
+      const line = stage1.find((s) => s.name === d.evolvesFrom && evolvesFrom(s));
+      d.evolvesFromBasic = line ? evolvesFrom(line) : null;
+    }
   }
   return library;
 }

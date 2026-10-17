@@ -38,7 +38,7 @@ import {
   type Turn,
 } from './shared.js';
 import { energyPool, hasBenched, retreatCost, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type Target } from '../engine.js';
-import { powerError, powerOf, resolvePowerChoices, type PowerChoices, type PowerChoiceSpec, type PowerSituation } from '../powers.js';
+import { powerError, powerOf, resolvePowerChoices, situationCounts, type PowerChoices, type PowerChoiceSpec, type PowerSituation } from '../powers.js';
 
 /**
  * The 'gym leader' CPU: the strongest, which the easier ones are weaker versions of. Besides the
@@ -94,7 +94,7 @@ const PLAYS = new Set([
 const powered = (t: Turn, key: string) =>
   inPlay(t.me).filter(([source, p]) => nameKey(powerOf(p, t.state.cards)?.name ?? '') === key && !powerError(powerSituation(t, source)));
 
-const powerSituation = (t: Turn, source: Target): PowerSituation => ({ me: t.me, source, cards: t.state.cards, turn: t.state.turn });
+const powerSituation = (t: Turn, source: Target): PowerSituation => ({ me: t.me, opp: t.opp, counts: situationCounts(t.me, t.opp), source, cards: t.state.cards, turn: t.state.turn });
 
 function usePower(t: Turn, source: Target, choices: PowerChoices): GameAction | null {
   const action: GameAction = { type: 'USE_POWER', source, choices };

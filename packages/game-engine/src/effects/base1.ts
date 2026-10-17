@@ -2,65 +2,39 @@
 // where TCGdex's text differs from the printed card, `text` has the printed wording.
 // Attacks that only deal damage need no entry. Pokémon Powers aren't implemented yet.
 import { typeName, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
-import { lookupCard, type EnergyType, type PokemonCardDef } from '../cards.js';
+import type { EnergyType } from '../cards.js';
+import { effectId, inPlayDef } from '../status.js';
 import {
-  benchedSlots,
+  discardDefenderEnergy,
   discardToUse,
   extraEnergy,
   flipToInflict,
   flipToProtect,
   inflicts,
+  leechSeed,
+  lure,
+  mirrorMove,
   perHeads,
   recoil,
   recover,
+  selfdestruct,
   tailsSelfDamage,
   thrash,
+  whirlwind,
 } from './common.js';
 import { attackEffect } from './index.js';
 
-const defenderDef = (s: AttackSituation) => lookupCard(s.cards, s.defender.card.defId) as PokemonCardDef;
+const defenderDef = (s: AttackSituation) => inPlayDef(s.cards, s.defender);
 
 /** Types Conversion 1 and 2 can choose ("other than Colorless"). */
 const CONVERSION_TYPES: EnergyType[] = ['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'darkness', 'metal'];
-
-const defenderEnergyChoice = (s: AttackSituation): ChoiceSpec[] =>
-  s.defender.energy.length ? [{ kind: 'defenderEnergy', options: s.defender.energy, prompt: "Choose an Energy to discard from the Defending Pokémon" }] : [];
-
-/** Base damage, then discard 1 Energy from the Defending Pokémon (Whirlpool, Hyper Beam). */
-const discardDefenderEnergy = (damage: number): AttackEffect => ({
-  choices: defenderEnergyChoice,
-  run(ctx) {
-    ctx.hit(damage);
-    if (ctx.choices.defenderEnergyUid) ctx.discardDefenderEnergy(ctx.choices.defenderEnergyUid);
-  },
-});
-
-/** Damage to the defender, every benched Pokémon on both sides, and itself. */
-const selfdestruct = (damage: number, bench: number): AttackEffect => ({
-  run(ctx) {
-    ctx.hit(damage);
-    ctx.benchDamage(ctx.opp, bench);
-    ctx.benchDamage(ctx.me, bench);
-    ctx.selfDamage(damage);
-  },
-});
-
-/** Base damage, then the opponent switches the Defending Pokémon with a benched one of their choice. */
-const whirlwind = (damage: number): AttackEffect => ({
-  run(ctx) {
-    ctx.hit(damage);
-    // The opponent chooses. Until the player can be asked mid-attack, their first benched Pokémon comes in.
-    const [slot] = benchedSlots(ctx.opp.bench);
-    if (slot !== undefined && ctx.opp.active) ctx.switchDefender(slot);
-  },
-});
 
 const flamethrower = (name: string) =>
   discardToUse(50, 1, 'fire', `Discard 1 Fire Energy card attached to ${name} in order to use this attack.`);
 
 const withdraw: AttackEffect = flipToProtect(0, 'preventDamage');
 
-const metronome: AttackEffect = {
+export const metronome: AttackEffect = {
   choices(s, c) {
     const attacks = defenderDef(s).attacks;
     const options = attacks.flatMap((a, i) => (a.name === 'Metronome' ? [] : [i]));
@@ -68,12 +42,12 @@ const metronome: AttackEffect = {
     const specs: ChoiceSpec[] = [{ kind: 'copyAttack', options, prompt: "Choose one of the Defending Pokémon's attacks to copy" }];
     const copied = c.copyIndex !== undefined ? attacks[c.copyIndex] : undefined;
     // The copied attack's own questions, except its discard: Metronome skips what's required to use it.
-    const effect = copied && attackEffect(s.defender.card.defId, copied.name);
+    const effect = copied && attackEffect(effectId(s.defender), copied.name);
     if (effect?.choices) specs.push(...effect.choices(s, c));
     return specs;
   },
   run(ctx) {
-    const sourceDefId = ctx.defender.card.defId;
+    const sourceDefId = effectId(ctx.defender);
     const copied = ctx.choices.copyIndex !== undefined ? ctx.defenderDef.attacks[ctx.choices.copyIndex] : undefined;
     if (!copied) return ctx.log('Metronome had nothing to copy.');
     ctx.log(`Metronome copies ${copied.name}.`);
@@ -113,15 +87,7 @@ export const BASE1: Record<string, Record<string, AttackEffect>> = {
   'base1-11': { Thrash: thrash(30), Toxic: inflicts(20, 'toxic') },
   // Ninetales
   'base1-12': {
-    Lure: {
-      choices: (s) => {
-        const options = benchedSlots(s.opponentBench);
-        return options.length ? [{ kind: 'opponentBench', options, prompt: "Choose one of your opponent's benched Pokémon to switch in" }] : [];
-      },
-      run(ctx) {
-        if (ctx.choices.benchSlot !== undefined) ctx.switchDefender(ctx.choices.benchSlot);
-      },
-    },
+    Lure: lure,
     'Fire Blast': discardToUse(80, 1, 'fire', 'Discard 1 Fire Energy card attached to Ninetales in order to use this attack.'),
   },
   // Poliwrath
@@ -153,17 +119,7 @@ export const BASE1: Record<string, Record<string, AttackEffect>> = {
   // Pidgeotto
   'base1-22': {
     Whirlwind: whirlwind(20),
-    'Mirror Move': {
-      run(ctx) {
-        const last = ctx.attacker.effects?.attackedOn;
-        if (!last || last.turn !== ctx.turn - 1 || (last.damage === 0 && last.afflictions.length === 0)) {
-          return ctx.log('Mirror Move had nothing to reflect.');
-        }
-        // The final result already includes weakness and resistance, so they aren't applied again.
-        if (last.damage) ctx.hit(last.damage, { weakness: false });
-        for (const a of last.afflictions) ctx.inflict(a);
-      },
-    },
+    'Mirror Move': mirrorMove,
   },
   // Arcanine
   'base1-23': { Flamethrower: flamethrower('Arcanine'), 'Take Down': recoil(80, 30) },
@@ -273,11 +229,7 @@ export const BASE1: Record<string, Record<string, AttackEffect>> = {
   'base1-43': { Psyshock: flipToInflict(10, 'paralyzed') },
   // Bulbasaur
   'base1-44': {
-    'Leech Seed': {
-      run(ctx) {
-        if (ctx.hit(20) > 0) ctx.heal(10);
-      },
-    },
+    'Leech Seed': leechSeed(20),
   },
   // Caterpie
   'base1-45': { 'String Shot': flipToInflict(10, 'paralyzed') },

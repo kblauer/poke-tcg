@@ -1,16 +1,18 @@
-// Loads the TCGdex card snapshot (prisma/data/tcgdex-wotc.json) into the database.
+// Loads the TCGdex card snapshot (prisma/data/tcgdex-wotc.json), then the hand-made cards TCGdex doesn't
+// have (prisma/data/custom-cards.json), into the database.
 // Idempotent: re-running updates existing rows. Refresh the snapshot with `pnpm cards:fetch`.
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { prisma, type Prisma } from '../src/index.js';
-import { SNAPSHOT_PATH, type CardSnapshot, type TcgdexCard } from './tcgdex.js';
+import { CUSTOM_PATH, SNAPSHOT_PATH, type CardSnapshot, type TcgdexCard } from './tcgdex.js';
 
 const KIND = { Pokemon: 'POKEMON', Trainer: 'TRAINER', Energy: 'ENERGY' } as const;
 /** Upserts in flight at once. No transaction: the seed is idempotent, so a partial run is safe to re-run. */
 const CONCURRENCY = 20;
 
-const path = fileURLToPath(new URL(`../${SNAPSHOT_PATH}`, import.meta.url));
-const snapshot = JSON.parse(await readFile(path, 'utf8')) as CardSnapshot;
+const load = async (file: string) => JSON.parse(await readFile(fileURLToPath(new URL(`../${file}`, import.meta.url)), 'utf8')) as CardSnapshot;
+const [tcgdex, custom] = await Promise.all([load(SNAPSHOT_PATH), load(CUSTOM_PATH)]);
+const snapshot = { sets: [...tcgdex.sets, ...custom.sets], cards: [...tcgdex.cards, ...custom.cards] };
 
 function toCardRow(card: TcgdexCard) {
   const { id, set, localId, name, category, image, rarity, hp, types, stage, evolveFrom, ...data } = card;

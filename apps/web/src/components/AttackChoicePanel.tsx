@@ -15,7 +15,27 @@ export function AttackChoicePanel({ spec, view, attack }: { spec: ChoiceSpec; vi
     <div className="space-y-1 rounded-lg bg-slate-800 p-2 text-xs ring-1 ring-slate-600">
       <p className="text-slate-300">{spec.prompt}:</p>
       <div className="flex flex-col gap-1">
-        {spec.kind === 'ownEnergy' && <EnergyPicker key={spec.prompt} options={spec.options} count={spec.count} cards={cards} onDone={attack.answer} />}
+        {spec.kind === 'ownEnergy' && <EnergyPicker key={spec.prompt} options={spec.options} min={spec.count} max={spec.count} cards={cards} onDone={attack.answer} />}
+        {spec.kind === 'ownEnergyUpTo' && <EnergyPicker key={spec.prompt} options={spec.options} min={0} max={spec.options.length} cards={cards} onDone={attack.answer} />}
+        {spec.kind === 'ownDiscard' && <DiscardPicker key={spec.prompt} spec={spec} cards={cards} onDone={attack.answer} />}
+        {spec.kind === 'opponentBenchMany' && (
+          <>
+            <p className={pickHint}>Click the CPU's highlighted Benched Pokémon to choose them.</p>
+            <button
+              className={`${option} disabled:opacity-40`}
+              disabled={attack.benchPicked.length !== Math.min(spec.count, spec.options.length)}
+              onClick={() => attack.answer(attack.benchPicked)}
+            >
+              Attack ({attack.benchPicked.length}/{Math.min(spec.count, spec.options.length)})
+            </button>
+          </>
+        )}
+        {spec.kind === 'deck' &&
+          spec.options.map((d) => (
+            <button key={d} className={option} onClick={() => attack.answer(d)}>
+              {d === 'own' ? 'Your deck' : "The CPU's deck"}
+            </button>
+          ))}
         {spec.kind === 'defenderEnergy' &&
           spec.options.map((e) => (
             <button key={e.uid} className={option} onClick={() => attack.answer(e.uid)}>
@@ -23,6 +43,7 @@ export function AttackChoicePanel({ spec, view, attack }: { spec: ChoiceSpec; vi
             </button>
           ))}
         {spec.kind === 'opponentBench' && <p className={pickHint}>Click one of the CPU's highlighted Benched Pokémon.</p>}
+        {spec.kind === 'ownBench' && <p className={pickHint}>Click one of your highlighted Benched Pokémon.</p>}
         {(spec.kind === 'defenderAttack' || spec.kind === 'copyAttack') &&
           spec.options.map((i) => {
             const a = (lookupCard(cards, opponent.active!.card.defId) as PokemonCardDef).attacks[i]!;
@@ -49,20 +70,22 @@ export function AttackChoicePanel({ spec, view, attack }: { spec: ChoiceSpec; vi
   );
 }
 
-/** Pick exactly `count` of the attacker's energy, then confirm. */
+/** Pick between `min` and `max` of the attacker's energy to discard, then confirm. */
 function EnergyPicker({
   options,
-  count,
+  min,
+  max,
   cards,
   onDone,
 }: {
   options: CardInstance[];
-  count: number;
+  min: number;
+  max: number;
   cards: CardLibrary;
   onDone: (uids: string[]) => void;
 }) {
   const [picked, setPicked] = useState<string[]>([]);
-  const toggle = (uid: string) => setPicked((p) => (p.includes(uid) ? p.filter((u) => u !== uid) : [...p, uid].slice(-count)));
+  const toggle = (uid: string) => setPicked((p) => (p.includes(uid) ? p.filter((u) => u !== uid) : [...p, uid].slice(-max)));
   return (
     <>
       <div className="flex flex-wrap gap-1">
@@ -83,9 +106,47 @@ function EnergyPicker({
           );
         })}
       </div>
-      <button className={`${option} disabled:opacity-40`} disabled={picked.length !== count} onClick={() => onDone(picked)}>
-        Discard {picked.length}/{count} and attack
+      <button className={`${option} disabled:opacity-40`} disabled={picked.length < min || picked.length > max} onClick={() => onDone(picked)}>
+        Discard {picked.length}
+        {min === max ? `/${max}` : ''} and attack
       </button>
+    </>
+  );
+}
+
+/** Pick between `min` and `max` cards from the discard pile, then confirm. A single card is chosen by clicking it. */
+function DiscardPicker({
+  spec,
+  cards,
+  onDone,
+}: {
+  spec: Extract<ChoiceSpec, { kind: 'ownDiscard' }>;
+  cards: CardLibrary;
+  onDone: (uids: string[]) => void;
+}) {
+  const [picked, setPicked] = useState<string[]>([]);
+  const single = spec.min === 1 && spec.max === 1;
+  const toggle = (uid: string) => (single ? onDone([uid]) : setPicked((p) => (p.includes(uid) ? p.filter((u) => u !== uid) : [...p, uid].slice(-spec.max))));
+  return (
+    <>
+      <div className="flex flex-wrap gap-1">
+        {spec.options.map((c) => (
+          <button
+            key={c.uid}
+            aria-pressed={picked.includes(c.uid)}
+            className={`${option} ${picked.includes(c.uid) ? 'ring-2 ring-yellow-300' : ''}`}
+            onClick={() => toggle(c.uid)}
+          >
+            {lookupCard(cards, c.defId).name}
+          </button>
+        ))}
+      </div>
+      {!single && (
+        <button className={`${option} disabled:opacity-40`} disabled={picked.length < spec.min || picked.length > spec.max} onClick={() => onDone(picked)}>
+          Take {picked.length}
+          {spec.min === spec.max ? `/${spec.max}` : ` (up to ${spec.max})`} and attack
+        </button>
+      )}
     </>
   );
 }

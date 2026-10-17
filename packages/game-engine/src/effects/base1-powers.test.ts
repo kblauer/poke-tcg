@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyAction, energyPool, nextPowerChoice, powerTakesHandCard, type GameState, type PowerChoices, type Target } from '../index.js';
+import { applyAction, energyPool, nextPowerChoice, powerTakesHandCard, situationCounts, type GameState, type PowerChoices, type Target } from '../index.js';
 import { act, attack, duel, endTurn, id, pokemon } from './test-kit.js';
 
 const power = (state: GameState, source: Target, choices?: PowerChoices, player = 'ash') =>
@@ -104,7 +104,7 @@ describe('Base Set Pokémon Powers', () => {
 
     it("asks for the type, and the target when there's a choice", () => {
       const s = duel('charmander', 'squirtle', { bench: ['electrode', 'bulbasaur'] });
-      const situation = { me: s.players.ash!, source: 0 as Target, cards: s.cards, turn: s.turn };
+      const situation = { me: s.players.ash!, opp: s.players.misty!, counts: situationCounts(s.players.ash!, s.players.misty!), source: 0 as Target, cards: s.cards, turn: s.turn };
       expect(nextPowerChoice(situation, {})?.prompt).toBe('Attach Electrode to');
       expect(nextPowerChoice(situation, { to: 'active' })?.prompt).toBe('Choose the type of Energy it becomes');
     });
@@ -137,7 +137,7 @@ describe('Base Set Pokémon Powers', () => {
   it('only Rain Dance takes an Energy card from the hand (so dropping energy on Charizard is a normal attachment)', () => {
     const s = duel('charizard', 'squirtle', { bench: ['blastoise'] });
     s.players.ash!.hand = [{ uid: 'f', defId: 'fire' }, { uid: 'w', defId: 'water' }];
-    const situation = (source: Target) => ({ me: s.players.ash!, source, cards: s.cards, turn: s.turn });
+    const situation = (source: Target) => ({ me: s.players.ash!, opp: s.players.misty!, counts: situationCounts(s.players.ash!, s.players.misty!), source, cards: s.cards, turn: s.turn });
     expect(powerTakesHandCard(situation('active'), 'f')).toBe(false); // Energy Burn
     expect(powerTakesHandCard(situation(0), 'f')).toBe(false);
     expect(powerTakesHandCard(situation(0), 'w')).toBe(true); // Rain Dance
