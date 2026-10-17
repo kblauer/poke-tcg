@@ -6,17 +6,20 @@ const small = 'rounded bg-slate-700 px-1.5 leading-5 hover:bg-slate-600 disabled
 
 /**
  * The deck being built, apart from the card search: its cards by section (Pokémon, Trainers, Energy) with
- * buttons to add or remove copies, the card count, and what still keeps it from being played.
+ * buttons to add or remove copies, the card count, and what still keeps it from being played. Cards not
+ * unlocked yet are darker, marked "locked".
  */
 export function DeckPanel({
   entries,
   byId,
   problems,
+  isLocked,
   onChange,
 }: {
   entries: DeckEntry[];
   byId: Map<string, CatalogCard>;
   problems: string[];
+  isLocked: (card: CatalogCard) => boolean;
   onChange: (cardId: string, by: 1 | -1) => void;
 }) {
   const cards = withCards(entries, byId);
@@ -50,9 +53,10 @@ export function DeckPanel({
               </h3>
               <ul className="space-y-1">
                 {section.map(({ card, quantity }) => {
-                  const blocked = cantAdd(entries, card, byId);
+                  const locked = isLocked(card);
+                  const blocked = locked ? 'Not unlocked yet' : cantAdd(entries, card, byId);
                   return (
-                    <li key={card.id} className="flex items-center gap-2">
+                    <li key={card.id} className={`flex items-center gap-2 ${locked ? 'opacity-50' : ''}`}>
                       {card.imageUrl ? (
                         <img src={`${card.imageUrl}/low.webp`} alt="" loading="lazy" className="h-9 w-[1.6rem] shrink-0 rounded-sm object-cover" />
                       ) : (
@@ -61,6 +65,7 @@ export function DeckPanel({
                       <div className="min-w-0 flex-1">
                         <div className="truncate">
                           {card.name}
+                          {locked && <span className="ml-1 text-xs text-slate-400">(locked)</span>}
                           {!card.implemented && (
                             <span className="ml-1 text-xs text-amber-400" title="Not fully implemented: its Pokémon can attack for base damage, but its other effects don't work yet.">
                               (partial)

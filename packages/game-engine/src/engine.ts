@@ -28,6 +28,9 @@ export type Affliction = SpecialCondition | 'poisoned' | 'toxic' | 'burned';
  * ("during your opponent's next turn" = the turn after the attack). All are removed when the
  * Pokémon is benched or evolves, except `leekSlapUsed`.
  */
+/** A rule from outside the cards. `typeDamage`: attacks by Pokémon of `type` do `multiplier`× their base damage. */
+export type BattleRule = { kind: 'typeDamage'; type: EnergyType; multiplier: number };
+
 export interface PokemonEffects {
   /** Prevent all damage done to it by attacks (Scrunch, Withdraw, Stiffen). */
   preventDamage?: number;
@@ -133,6 +136,8 @@ export interface GameState {
   peek?: { player: PlayerId; card: CardInstance; label: string };
   /** How the CPU plays this game (cpu/). Missing = DEFAULT_CPU_DIFFICULTY. */
   cpuDifficulty?: CpuDifficulty;
+  /** Rules from outside the cards, for both players (a run's events, e.g. Fire Pokémon do double damage). */
+  rules?: BattleRule[];
   /** What happened, oldest first: attacks, coin flips, knockouts… (last LOG_SIZE entries). Missing in older games. */
   log?: LogEntry[];
 }

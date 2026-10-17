@@ -1,3 +1,4 @@
+import type { CardDef } from '../cards.js';
 import type { AttackEffect } from '../attacks.js';
 import type { PowerEffect } from '../powers.js';
 import type { TrainerEffect } from '../trainers.js';
@@ -30,3 +31,14 @@ const TRAINERS: Record<string, TrainerEffect> = { ...BASE1_TRAINERS, ...JUNGLE_T
 
 /** The behaviour of a Trainer card, if it's implemented. */
 export const trainerEffect = (defId: string): TrainerEffect | undefined => TRAINERS[defId];
+
+/**
+ * Whether the engine plays the card fully: every attack with text has its effect, its Pokémon Power
+ * is implemented, and a Trainer has its effect. Basic Energy and Double Colorless always are.
+ */
+export function cardImplemented(def: CardDef): boolean {
+  if (def.kind === 'energy') return true;
+  if (def.kind === 'trainer' || def.trainerText) return !!trainerEffect(def.id);
+  if (def.power && !powerEffect(def.id)) return false;
+  return def.attacks.every((a) => !a.text || !!attackEffect(def.id, a.name));
+}

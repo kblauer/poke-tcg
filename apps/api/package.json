@@ -15,6 +15,7 @@
   "dependencies": {
     "@hono/node-server": "^2.1.4",
     "@hono/trpc-server": "^0.4.2",
+    "@poke-tcg/campaign": "workspace:*",
     "@poke-tcg/db": "workspace:*",
     "@poke-tcg/game-engine": "workspace:*",
     "@poke-tcg/shared": "workspace:*",

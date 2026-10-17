@@ -1,6 +1,6 @@
 import type { CardLibrary } from './cards.js';
 import { DEFAULT_CPU_DIFFICULTY, type CpuDifficulty } from './cpu/index.js';
-import type { CardInstance, GameState, InPlayPokemon, Phase, PlayerId } from './engine.js';
+import type { BattleRule, CardInstance, GameState, InPlayPokemon, Phase, PlayerId } from './engine.js';
 import type { LogEntry } from './status.js';
 import { seesOpponentHand } from './powers.js';
 import { pendingChoiceView, type PendingChoiceView } from './trainers.js';
@@ -18,6 +18,8 @@ export interface PlayerView {
   winner: PlayerId | null;
   /** How the CPU opponent plays. */
   cpuDifficulty: CpuDifficulty;
+  /** Rules from outside the cards (a run's events). */
+  rules: BattleRule[];
   /** Game log, oldest first. Only public information goes in it. */
   log: LogEntry[];
   /** Definitions for every card visible in this view (and nothing else). */
@@ -94,6 +96,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
     retreatedThisTurn: state.retreatedThisTurn ?? false,
     winner: state.winner,
     cpuDifficulty: state.cpuDifficulty ?? DEFAULT_CPU_DIFFICULTY,
+    rules: state.rules ?? [],
     log: state.log ?? [],
     cards,
     self: {

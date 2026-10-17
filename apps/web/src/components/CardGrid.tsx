@@ -1,3 +1,4 @@
+import LockIcon from '@mui/icons-material/Lock';
 import type { CatalogCard } from '../utils/cardList';
 
 /**
@@ -5,17 +6,20 @@ import type { CatalogCard } from '../utils/cardList';
  * Rows overlap like a fanned-out stack: the row gap is the only space between rows, so each card
  * shows just its top strip with the name. Hovering a strip brings that card to the front.
  * `counts` (the deck builder) puts a badge with each card's copies in the deck on its strip.
+ * `isLocked` darkens cards the account hasn't unlocked, with a lock on the strip.
  */
 export function CardGrid({
   cards,
   selectedId,
   onSelect,
   counts,
+  isLocked,
 }: {
   cards: CatalogCard[];
   selectedId: string | null;
   onSelect: (card: CatalogCard) => void;
   counts?: Map<string, number>;
+  isLocked?: (card: CatalogCard) => boolean;
 }) {
   if (cards.length === 0) return <p className="p-4 text-center text-slate-500">No cards match these filters.</p>;
   return (
@@ -30,9 +34,14 @@ export function CardGrid({
             }`}
           >
             {c.imageUrl ? (
-              <img src={`${c.imageUrl}/low.webp`} alt="" loading="lazy" className="h-full w-full object-cover" />
+              <img src={`${c.imageUrl}/low.webp`} alt="" loading="lazy" className={`h-full w-full object-cover ${isLocked?.(c) ? 'brightness-[.35]' : ''}`} />
             ) : (
               <div className="h-full w-full bg-slate-800 p-1 text-xs">{c.name}</div>
+            )}
+            {isLocked?.(c) && (
+              <span className="absolute left-1 top-1 flex items-center rounded-full bg-slate-900/90 p-0.5 text-slate-300" title="Locked: win it in a run">
+                <LockIcon sx={{ fontSize: 14 }} />
+              </span>
             )}
             {counts?.get(c.id) ? (
               <span className="absolute right-1 top-1 rounded-full bg-yellow-300 px-1.5 text-xs font-bold text-slate-900 shadow">×{counts.get(c.id)}</span>
@@ -43,7 +52,7 @@ export function CardGrid({
               only the visible strip is clickable, except on the last card in a column, where it's all of it. */}
           <button
             onClick={() => onSelect(c)}
-            title={`${c.name} · ${c.setName} #${c.number}`}
+            title={`${c.name} · ${c.setName} #${c.number}${isLocked?.(c) ? ' · Locked' : ''}`}
             aria-label={c.name}
             className="absolute inset-x-0 top-0 z-20 aspect-[63/88] outline-none"
           />

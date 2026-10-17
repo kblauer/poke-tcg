@@ -1,0 +1,19 @@
+{
+  "name": "@poke-tcg/campaign",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@poke-tcg/game-engine": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.4"
+  }
+}
