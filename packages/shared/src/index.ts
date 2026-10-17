@@ -18,6 +18,9 @@ const attackChoicesSchema = z.object({
   attackIndex: z.number().int().min(0).optional(),
   copyIndex: z.number().int().min(0).optional(),
   type: energyType.optional(),
+  discardUids: z.array(z.string()).max(60).optional(),
+  benchSlots: z.array(benchSlot).max(MAX_BENCH).optional(),
+  deck: z.enum(['own', 'opponent']).optional(),
 }) satisfies z.ZodType<AttackChoices>;
 
 /** Answers to a Pokémon Power's questions (see PowerChoices in the engine). */
@@ -27,6 +30,8 @@ const powerChoicesSchema = z.object({
   cardUid: z.string().optional(),
   energyUid: z.string().optional(),
   type: energyType.optional(),
+  oppFrom: target.optional(),
+  oppTo: target.optional(),
 }) satisfies z.ZodType<PowerChoices>;
 
 /** Answers to a Trainer's questions (see TrainerChoices in the engine). */
@@ -39,6 +44,16 @@ const trainerChoicesSchema = z.object({
   oppEnergyUids: z.array(z.string()).max(60).optional(),
   stage: z.enum(['stage1', 'stage2']).optional(),
 }) satisfies z.ZodType<TrainerChoices>;
+
+/**
+ * Zod drops keys a schema doesn't list, so a choice field missing here would silently never reach the
+ * engine. These fail to compile if any field of the engine's choice types is left out.
+ */
+type Missing<T, S extends z.ZodType> = Exclude<keyof T, keyof z.infer<S>>;
+const covers = <T, S extends z.ZodType>(_: [Missing<T, S>] extends [never] ? true : Missing<T, S>) => {};
+covers<AttackChoices, typeof attackChoicesSchema>(true);
+covers<PowerChoices, typeof powerChoicesSchema>(true);
+covers<TrainerChoices, typeof trainerChoicesSchema>(true);
 
 /** Runtime validation for actions arriving from clients. Kept in sync with GameAction. */
 export const gameActionSchema = z.discriminatedUnion('type', [
