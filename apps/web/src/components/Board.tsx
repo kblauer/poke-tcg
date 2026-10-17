@@ -32,6 +32,7 @@ import { Slot } from './Slot';
 import { SlotMenu } from './SlotMenu';
 import { StadiumChip } from './StadiumChip';
 import { StatusBar } from './StatusBar';
+import { TurnOrderFlip } from './TurnOrderFlip';
 import { Toasts } from './Toasts';
 import { TrainerPanel } from './TrainerPanel';
 
@@ -420,6 +421,7 @@ export function Board({
             />
           </div>
           <LogDrawer log={view.log} you={view.you} run={runTab} debug={debugEnabled ? { gameId, view } : undefined} />
+          <TurnOrderFlip key={gameId} view={view} gameId={gameId} />
         </div>
 
         <DragOverlay dropAnimation={null} modifiers={[centerOnPointer]}>

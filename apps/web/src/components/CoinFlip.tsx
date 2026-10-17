@@ -2,7 +2,7 @@ import type { LogEntry, PlayerId } from '@poke-tcg/game-engine';
 import { useEffect, useRef, useState } from 'react';
 
 /** How long the coin spins, then how long the result stays up. */
-const SPIN_MS = 1000;
+export const SPIN_MS = 1000;
 const RESULT_MS = 900;
 /** How long one coin flip takes to show, start to finish. */
 export const COIN_MS = SPIN_MS + RESULT_MS;
@@ -50,16 +50,7 @@ export function CoinFlip({ log, you }: { log: LogEntry[]; you: PlayerId }) {
   const who = current.player === null ? null : current.player === you ? 'You' : 'CPU';
   return (
     <section className="flex items-center gap-3 rounded-lg bg-slate-900 p-3" aria-live="polite">
-      <div className="shrink-0 [perspective:400px]">
-        <div
-          key={current.n}
-          className="relative h-12 w-12 [transform-style:preserve-3d]"
-          style={{ animation: `${current.heads ? 'coin-heads' : 'coin-tails'} ${SPIN_MS}ms cubic-bezier(0.2, 0.6, 0.3, 1) forwards` }}
-        >
-          <CoinFace label="H" className="bg-gradient-to-br from-yellow-200 via-yellow-400 to-amber-600" />
-          <CoinFace label="T" className="bg-gradient-to-br from-slate-200 via-slate-400 to-slate-600 [transform:rotateY(180deg)]" />
-        </div>
-      </div>
+      <SpinningCoin key={current.n} heads={current.heads} />
       <div className="min-w-0 text-xs">
         <p className="text-slate-300">
           {who && <span className="font-semibold">{who}: </span>}
@@ -74,10 +65,28 @@ export function CoinFlip({ log, you }: { log: LogEntry[]; you: PlayerId }) {
   );
 }
 
-function CoinFace({ label, className }: { label: string; className: string }) {
+/**
+ * A coin that spins for SPIN_MS and lands on heads or tails (give it a new `key` to flip again). `large` is the
+ * big coin in the middle of the screen (the turn-order flip).
+ */
+export function SpinningCoin({ heads, large = false }: { heads: boolean; large?: boolean }) {
+  return (
+    <div className="shrink-0 [perspective:400px]">
+      <div
+        className={`relative [transform-style:preserve-3d] ${large ? 'h-40 w-40' : 'h-12 w-12'}`}
+        style={{ animation: `${heads ? 'coin-heads' : 'coin-tails'} ${large ? 2 * SPIN_MS : SPIN_MS}ms cubic-bezier(0.2, 0.6, 0.3, 1) forwards` }}
+      >
+        <CoinFace label="H" large={large} className="bg-gradient-to-br from-yellow-200 via-yellow-400 to-amber-600" />
+        <CoinFace label="T" large={large} className="bg-gradient-to-br from-slate-200 via-slate-400 to-slate-600 [transform:rotateY(180deg)]" />
+      </div>
+    </div>
+  );
+}
+
+function CoinFace({ label, large, className }: { label: string; large: boolean; className: string }) {
   return (
     <div
-      className={`absolute inset-0 flex items-center justify-center rounded-full border-2 border-amber-700/60 text-xl font-black text-amber-900/70 shadow-inner [backface-visibility:hidden] ${className}`}
+      className={`absolute inset-0 flex items-center justify-center rounded-full border-amber-700/60 font-black text-amber-900/70 shadow-inner [backface-visibility:hidden] ${large ? 'border-4 text-6xl' : 'border-2 text-xl'} ${className}`}
     >
       {label}
     </div>

@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { applyAction, createGame, isBasicPokemon, lookupCard, runCpu, type GameState } from '../index.js';
 import { TEST_CARDS, testDeck } from '../test-cards.js';
 
-const newGame = () => createGame({ id: 'player', deck: testDeck('fire') }, { id: 'cpu', deck: testDeck('water') }, 7, TEST_CARDS);
+/** A new game in which the player won the turn-order flip. */
+const newGame = () => ({ ...createGame({ id: 'player', deck: testDeck('fire') }, { id: 'cpu', deck: testDeck('water') }, 7, TEST_CARDS), currentPlayer: 'player' });
 
 function playerSetsActive(state: GameState): GameState {
   const basic = state.players.player!.hand.find((c) => isBasicPokemon(lookupCard(state.cards, c.defId)))!;
@@ -26,6 +27,13 @@ describe('CPU (gym leader by default)', () => {
     ({ state } = runCpu(res.state, 'cpu'));
     expect(state.currentPlayer).toBe('player');
     expect(state.turn).toBe(3);
+  });
+
+  it('takes the first turn when it won the turn-order flip, once the player has chosen an active', () => {
+    let state = playerSetsActive(runCpu({ ...newGame(), currentPlayer: 'cpu' }, 'cpu').state);
+    expect([state.phase, state.currentPlayer, state.turn]).toEqual(['playing', 'cpu', 1]);
+    ({ state } = runCpu(state, 'cpu'));
+    expect([state.currentPlayer, state.turn]).toEqual(['player', 2]);
   });
 
   describe('on its turn', () => {

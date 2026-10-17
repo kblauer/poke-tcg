@@ -232,7 +232,7 @@ export function createGame(p1: NewGamePlayer, p2: NewGamePlayer, seed: number, l
     };
   }
 
-  return {
+  const state: GameState = {
     version: 0,
     rngState,
     phase: 'setup',
@@ -247,7 +247,15 @@ export function createGame(p1: NewGamePlayer, p2: NewGamePlayer, seed: number, l
     cards,
     log: [],
   };
+  // A coin flip for turn order, called by the first player: heads they go first, tails the second player does.
+  const heads = flipCoin(state, TURN_ORDER_FLIP, p1.id);
+  state.currentPlayer = heads ? p1.id : p2.id;
+  addLog(state, 'Goes first.', state.currentPlayer);
+  return state;
 }
+
+/** The reason on the turn-order coin flip's log entry, so the UI can pick it out. */
+export const TURN_ORDER_FLIP = 'Coin flip for turn order';
 
 /**
  * Pure reducer: validates `action` for `playerId` and returns the next state.

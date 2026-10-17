@@ -213,7 +213,8 @@ export function duel(
   misty.active = pokemon(defender, opts.defenderEnergy);
   (opts.bench ?? []).forEach((id, i) => (ash.bench[i] = pokemon(id)));
   (opts.oppBench ?? []).forEach((id, i) => (misty.bench[i] = pokemon(id)));
-  return Object.assign(s, { phase: 'playing', turn: 3, currentPlayer: 'ash' });
+  // Ash's turn, with nothing in the log yet (not even the turn-order flip).
+  return Object.assign(s, { phase: 'playing', turn: 3, currentPlayer: 'ash', log: [] });
 }
 
 /** Sets the RNG so the next coin flips come up as given (true = heads). */

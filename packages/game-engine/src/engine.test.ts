@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyAction, createGame, getPlayerView, isBasicPokemon, lookupCard, type GameAction, type GameState } from './index.js';
+import { applyAction, createGame, getPlayerView, isBasicPokemon, lookupCard, TURN_ORDER_FLIP, type GameAction, type GameState } from './index.js';
 import { TEST_CARDS, testDeck } from './test-cards.js';
 
 const newGame = () => createGame({ id: 'ash', deck: testDeck('fire') }, { id: 'misty', deck: testDeck('water') }, 42, TEST_CARDS);
@@ -35,6 +35,21 @@ describe('game engine', () => {
       expect(p.deck).toHaveLength(17);
       expect(basicsIn(s, p.id).length).toBeGreaterThan(0);
     }
+  });
+
+  it('flips a coin for turn order: heads the first player goes first, tails the second', () => {
+    const firsts = new Set<string>();
+    for (let seed = 0; seed < 20; seed++) {
+      const s = createGame({ id: 'ash', deck: testDeck('fire') }, { id: 'misty', deck: testDeck('water') }, seed, TEST_CARDS);
+      const [flip, goes] = s.log!;
+      expect(flip).toMatchObject({ player: 'ash', coin: { reason: TURN_ORDER_FLIP } });
+      expect(s.currentPlayer).toBe(flip!.coin!.heads ? 'ash' : 'misty');
+      expect(goes).toMatchObject({ text: 'Goes first.', player: s.currentPlayer });
+      // Whoever goes first starts once both actives are chosen.
+      expect(setup(s).currentPlayer).toBe(s.currentPlayer);
+      firsts.add(s.currentPlayer);
+    }
+    expect(firsts).toEqual(new Set(['ash', 'misty']));
   });
 
   it('is deterministic for a given seed', () => {
