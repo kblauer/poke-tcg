@@ -487,7 +487,10 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
       const name = pokemonName(state, defender);
       if (shielded()) return log(`${name} is protected from the attack's effects.`, opp.id);
       if (def(state.cards, defender).trainerText || passive(defender)?.noConditions) return log(`${name} can't be affected by Special Conditions.`, opp.id);
-      if (affliction === 'poisoned' || affliction === 'toxic') {
+      if (affliction === 'burned') {
+        defender.burned = true;
+        log(`${name} is now Burned.`, opp.id);
+      } else if (affliction === 'poisoned' || affliction === 'toxic') {
         defender.poison = Math.max(defender.poison ?? 0, affliction === 'toxic' ? 20 : 10);
         log(`${name} is now Poisoned${affliction === 'toxic' ? ' (20 damage)' : ''}.`, opp.id);
       } else {
