@@ -3,10 +3,11 @@
 // usual); PlusPower's +10 comes before Defender's −20, both after weakness and resistance.
 import { isBasicEnergy, isBasicPokemon, isPokemonCard, isTrainerCard, type PokemonCardDef } from '../cards.js';
 import type { CardInstance, InPlayPokemon, PlayerState, Target } from '../engine.js';
-import { clearOnLeavingActive } from '../status.js';
+import { evolutionBlocked } from '../powers.js';
+import { clearOnLeavingActive, inPlayDef } from '../status.js';
 import { def, otherHandCards, own, targetsOf, theirs, type TrainerChoiceSpec, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 
-const pokemonDef = (s: { cards: TrainerSituation['cards'] }, p: InPlayPokemon) => def(s, p.card) as PokemonCardDef;
+const pokemonDef = (s: { cards: TrainerSituation['cards'] }, p: InPlayPokemon): PokemonCardDef => inPlayDef(s.cards, p);
 
 /** "Discard/shuffle/trade N of the other cards from your hand." */
 const otherCards = (s: TrainerSituation, n: number, prompt: string): TrainerChoiceSpec => ({
@@ -126,6 +127,8 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
   'base1-76': {
     blocked(s) {
       if (s.turn <= 2) return "You can't evolve on your first turn";
+      const blocked = evolutionBlocked([s.me, s.opp], s.cards);
+      if (blocked) return blocked;
       return otherHandCards(s).some((c) => breederTargets(s, c).length) ? null : 'No Stage 2 card in your hand matches a Basic Pokémon you can evolve';
     },
     choices(s, c) {

@@ -94,7 +94,7 @@ const PLAYS = new Set([
 const powered = (t: Turn, key: string) =>
   inPlay(t.me).filter(([source, p]) => nameKey(powerOf(p, t.state.cards)?.name ?? '') === key && !powerError(powerSituation(t, source)));
 
-const powerSituation = (t: Turn, source: Target): PowerSituation => ({ me: t.me, source, cards: t.state.cards, turn: t.state.turn });
+const powerSituation = (t: Turn, source: Target): PowerSituation => ({ me: t.me, opp: t.opp, source, cards: t.state.cards, turn: t.state.turn });
 
 function usePower(t: Turn, source: Target, choices: PowerChoices): GameAction | null {
   const action: GameAction = { type: 'USE_POWER', source, choices };

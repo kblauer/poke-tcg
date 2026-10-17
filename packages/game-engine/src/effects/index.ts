@@ -5,6 +5,7 @@ import { BASE1_POWERS } from './base1-powers.js';
 import { BASE1 } from './base1.js';
 import { BASE1_TRAINERS } from './base1-trainers.js';
 import { FOSSIL } from './fossil.js';
+import { FOSSIL_POWERS } from './fossil-powers.js';
 
 /** Effects by card id, then attack name. */
 const EFFECTS: Record<string, Record<string, AttackEffect>> = { ...BASE1, ...FOSSIL };
@@ -12,8 +13,8 @@ const EFFECTS: Record<string, Record<string, AttackEffect>> = { ...BASE1, ...FOS
 /** The card-specific behaviour of an attack, if it has any (plain-damage attacks don't). */
 export const attackEffect = (defId: string, attackName: string): AttackEffect | undefined => EFFECTS[defId]?.[attackName];
 
-/** Pokémon Power effects by card id (Base Set cards have at most one power). */
-const POWERS: Record<string, PowerEffect> = { ...BASE1_POWERS };
+/** Pokémon Power effects by card id (WOTC cards have at most one power). */
+const POWERS: Record<string, PowerEffect> = { ...BASE1_POWERS, ...FOSSIL_POWERS };
 
 /** The behaviour of the card's Pokémon Power, if it's implemented. */
 export const powerEffect = (defId: string): PowerEffect | undefined => POWERS[defId];

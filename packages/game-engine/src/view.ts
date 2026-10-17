@@ -2,6 +2,7 @@ import type { CardLibrary } from './cards.js';
 import { DEFAULT_CPU_DIFFICULTY, type CpuDifficulty } from './cpu/index.js';
 import type { CardInstance, GameState, InPlayPokemon, Phase, PlayerId } from './engine.js';
 import type { LogEntry } from './status.js';
+import { seesOpponentHand } from './powers.js';
 import { pendingChoiceView, type PendingChoiceView } from './trainers.js';
 
 /** What a single player is allowed to see. Never send raw GameState to a client. */
@@ -37,6 +38,8 @@ export interface PlayerView {
   opponent: {
     id: PlayerId;
     handCount: number;
+    /** Their hand, when a power shows it (Clairvoyance). */
+    hand?: CardInstance[];
     deckCount: number;
     prizeCount: number;
     discard: CardInstance[];
@@ -55,12 +58,14 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
 
   const oppActive = state.phase === 'setup' ? null : opp.active;
   const pending = state.pendingChoice?.player === playerId ? pendingChoiceView(state, state.pendingChoice) : null;
+  const oppHand = seesOpponentHand(me, [me, opp], state.cards) ? opp.hand : undefined;
   const visible: CardInstance[] = [
     ...me.hand,
     ...me.discard,
     ...opp.discard,
     ...[me.active, ...me.bench, oppActive, ...opp.bench].flatMap((p) => (p ? [p.card, ...p.evolvedFrom, ...p.energy, ...(p.attached ?? []).map((a) => a.card)] : [])),
     ...(pending ? (pending.kind === 'arrangeTop' ? pending.cards : pending.options) : []),
+    ...(oppHand ?? []),
   ];
   const cards: CardLibrary = {};
   for (const c of visible) cards[c.defId] = state.cards[c.defId]!;
@@ -91,6 +96,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
     opponent: {
       id: opp.id,
       handCount: opp.hand.length,
+      ...(oppHand && { hand: oppHand }),
       deckCount: opp.deck.length,
       prizeCount: opp.prizes.length,
       discard: opp.discard,

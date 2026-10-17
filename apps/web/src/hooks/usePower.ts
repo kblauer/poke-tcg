@@ -1,5 +1,6 @@
 import {
-  lookupCard,
+  effectId,
+  inPlayDef,
   nextPowerChoice,
   ownTargets,
   pokemonAt,
@@ -7,7 +8,6 @@ import {
   powerError,
   type GameAction,
   type PlayerView,
-  type PokemonCardDef,
   type PowerChoices,
   type PowerSituation,
   type Target,
@@ -24,7 +24,7 @@ export function usePower({ view, send, busy }: { view: PlayerView; send: (a: Gam
   const [using, setUsing] = useState<{ source: Target; choices: PowerChoices } | null>(null);
   /** Benched Pokémon clicked to show its Activate button. */
   const [selected, setSelected] = useState<number | null>(null);
-  const situation = (source: Target): PowerSituation => ({ me: view.self, source, cards: view.cards, turn: view.turn });
+  const situation = (source: Target): PowerSituation => ({ me: view.self, opp: view.opponent, source, cards: view.cards, turn: view.turn });
 
   const cancel = () => {
     setUsing(null);
@@ -46,8 +46,8 @@ export function usePower({ view, send, busy }: { view: PlayerView; send: (a: Gam
   /** Powers that are used (not ones that only react, like Strikes Back), with why each is unusable now. */
   const powers = ownTargets(view.self).flatMap((source) => {
     const pokemon = pokemonAt(view.self, source)!;
-    const def = lookupCard(view.cards, pokemon.card.defId) as PokemonCardDef;
-    if (!def.power || !powerEffect(def.id)?.use) return [];
+    const def = inPlayDef(view.cards, pokemon);
+    if (!def.power || !powerEffect(effectId(pokemon))?.use) return [];
     const error = !isMyTurn(view) ? "It's not your turn" : powerError(situation(source));
     return [{ source, name: def.power.name, text: def.power.text, error }];
   });

@@ -27,7 +27,7 @@ export function targetsFor(view: PlayerView, card: CardInstance): SlotId[] {
   if (def.kind === 'trainer') return [];
   if (isTrainerCard(def) && trainersLocked(self, view.turn)) return [];
   if (isBenchable(def)) return emptyBenchSlots(self);
-  if (def.kind === 'pokemon') return occupiedSlots(self).filter((slot) => evolveError(def, pokemonAt(self, slot)!, view.cards, view.turn) === null);
+  if (def.kind === 'pokemon') return occupiedSlots(self).filter((slot) => evolveError(def, pokemonAt(self, slot)!, view.cards, view.turn, [self, view.opponent]) === null);
   if (def.kind === 'energy') return occupiedSlots(self).filter((slot) => !view.energyAttachedThisTurn || powerPlay(view, card, slot));
   return [];
 }
@@ -39,7 +39,7 @@ export function targetsFor(view: PlayerView, card: CardInstance): SlotId[] {
 export function powerPlay(view: PlayerView, card: CardInstance, slot: SlotId): GameAction | null {
   if (!isMyTurn(view)) return null;
   for (const source of ownTargets(view.self)) {
-    const situation = { me: view.self, source, cards: view.cards, turn: view.turn };
+    const situation = { me: view.self, opp: view.opponent, source, cards: view.cards, turn: view.turn };
     if (powerError(situation)) continue;
     // Only powers that put this card from the hand into play (Rain Dance), not ones like Energy Burn.
     if (!powerTakesHandCard(situation, card.uid)) continue;
@@ -60,7 +60,7 @@ export function whyNoTargets(view: PlayerView, card: CardInstance): string {
     const match = occupiedSlots(self)
       .map((slot) => pokemonAt(self, slot))
       .find((p) => p && lookupCard(view.cards, p.card.defId).name === def.evolvesFrom);
-    const reason = match && evolveError(def, match, view.cards, view.turn);
+    const reason = match && evolveError(def, match, view.cards, view.turn, [self, view.opponent]);
     return reason ? `${reason}.` : `No ${def.evolvesFrom} in play to evolve.`;
   }
   if (isTrainerCard(def) && trainersLocked(self, view.turn)) return "You can't play Trainer cards this turn.";

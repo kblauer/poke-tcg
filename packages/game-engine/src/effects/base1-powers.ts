@@ -1,12 +1,12 @@
 // Base Set (base1) Pokémon Powers, by card id. Each stops working while its Pokémon is Asleep,
 // Confused or Paralyzed (checked in powerError, and by Strikes Back itself).
 import { typeName } from '../attacks.js';
-import { lookupCard, type EnergyType, type PokemonCardDef } from '../cards.js';
+import { lookupCard, type EnergyType } from '../cards.js';
 import type { CardInstance, InPlayPokemon, Target } from '../engine.js';
 import { ownTargets, pokemonAt, type PowerChoiceSpec, type PowerEffect, type PowerSituation } from '../powers.js';
-import { clearOnLeavingActive, pokemonName } from '../status.js';
+import { clearOnLeavingActive, inPlayDef, pokemonName } from '../status.js';
 
-const def = (s: PowerSituation, p: InPlayPokemon) => lookupCard(s.cards, p.card.defId) as PokemonCardDef;
+const def = (s: PowerSituation, p: InPlayPokemon) => inPlayDef(s.cards, p);
 const at = (s: PowerSituation, t: Target) => pokemonAt(s.me, t)!;
 /** A basic Energy card of `type` (Rain Dance and Energy Trans move Energy cards, not Buzzap'd Electrodes). */
 const isEnergyCard = (s: PowerSituation, c: CardInstance, type: EnergyType) => {

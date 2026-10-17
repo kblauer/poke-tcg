@@ -169,8 +169,8 @@ export function Board({
       ? { side: 'opp', options: attack.spec.options, pick: attack.answer }
       : attack.spec?.kind === 'opponentBenchMany'
         ? { side: 'opp', options: attack.spec.options, pick: (t) => attack.toggleBench(t as number), picked: attack.benchPicked }
-      : power.spec?.kind === 'ownPokemon'
-        ? { side: 'own', options: power.spec.options, pick: power.answer }
+      : power.spec?.kind === 'ownPokemon' || power.spec?.kind === 'oppPokemon'
+        ? { side: power.spec.kind === 'ownPokemon' ? 'own' : 'opp', options: power.spec.options, pick: power.answer }
         : trainer.spec?.kind === 'pokemon' && trainer.card && !trainer.error(trainer.card)
           ? { side: trainer.spec.side, options: trainer.spec.options, pick: trainer.answer }
           : null;

@@ -1,4 +1,5 @@
-import type { CardLibrary, InPlayPokemon, PlayerView, Target } from '@poke-tcg/game-engine';
+import { lookupCard, type CardLibrary, type InPlayPokemon, type PlayerView, type Target } from '@poke-tcg/game-engine';
+import { Card } from './Card';
 import type { ReactNode } from 'react';
 import { DeckAndDiscard } from './DeckAndDiscard';
 import { FloatingDialog } from './FloatingDialog';
@@ -54,7 +55,15 @@ export function OpponentArea({
         <div className="min-w-0 flex-1 space-y-3">
           <h3 className="text-center text-sm text-slate-400">
             CPU · hand {opponent.handCount}
+            {opponent.hand && ' (face up: Clairvoyance)'}
           </h3>
+          {opponent.hand && (
+            <div className="flex flex-wrap justify-center gap-1">
+              {opponent.hand.map((c) => (
+                <Card key={c.uid} def={lookupCard(cards, c.defId)} small />
+              ))}
+            </div>
+          )}
           <div className="flex justify-center gap-2">
             {opponent.bench.map((p, i) => slot(`cpu-bench-${i}`, i, p))}
           </div>

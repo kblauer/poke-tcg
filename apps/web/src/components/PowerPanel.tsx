@@ -18,6 +18,7 @@ export function PowerPanel({ view, power, busy }: { view: PlayerView; power: Pow
         <p className="text-slate-300">{spec.prompt}:</p>
         <div className="flex flex-col gap-1">
           {spec.kind === 'ownPokemon' && <p className={pickHint}>Click one of your highlighted Pokémon.</p>}
+          {spec.kind === 'oppPokemon' && <p className={pickHint}>Click one of the CPU's highlighted Pokémon.</p>}
           {(spec.kind === 'handCard' || spec.kind === 'attachedEnergy') &&
             spec.options.map((c) => (
               <button key={c.uid} className={option} onClick={() => power.answer(c.uid)}>

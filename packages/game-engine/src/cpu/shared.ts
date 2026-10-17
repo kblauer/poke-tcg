@@ -6,12 +6,13 @@ import { answerChoice, attackError, performAttack, resolveChoices, type AttackCh
 import { isBasicEnergy, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from '../cards.js';
 import { applyAction, energyPool, energyProvided, evolveError, opponentOf, retreatCost, retreatError, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
 import { nextRandom } from '../rng.js';
+import { inPlayDef } from '../status.js';
 import { pendingChoiceView, type TrainerChoices } from '../trainers.js';
 
 /** Card names compared without accents, spaces or case ('Pokémon Breeder' = 'pokemonbreeder'). */
 export const nameKey = (name: string) => name.normalize('NFD').replace(/[^a-zA-Z]/g, '').toLowerCase();
 
-export const pokemonDef = (cards: CardLibrary, p: InPlayPokemon) => lookupCard(cards, p.card.defId) as PokemonCardDef;
+export const pokemonDef = (cards: CardLibrary, p: InPlayPokemon): PokemonCardDef => inPlayDef(cards, p);
 
 export const at = (side: Pick<PlayerState, 'active' | 'bench'>, t: Target) => (t === 'active' ? side.active : side.bench[t]) ?? null;
 
@@ -476,7 +477,7 @@ export function evolve(t: Turn): GameAction | null {
     for (const card of t.me.hand) {
       const evolution = t.def(card);
       if (evolution.kind !== 'pokemon' || evolution.stage === 'basic') continue;
-      if (evolveError(evolution, p, t.state.cards, t.state.turn) === null) return { type: 'EVOLVE', cardUid: card.uid, target };
+      if (evolveError(evolution, p, t.state.cards, t.state.turn, [t.me, t.opp]) === null) return { type: 'EVOLVE', cardUid: card.uid, target };
     }
   }
   return null;

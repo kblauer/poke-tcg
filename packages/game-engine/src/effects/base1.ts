@@ -2,7 +2,8 @@
 // where TCGdex's text differs from the printed card, `text` has the printed wording.
 // Attacks that only deal damage need no entry. Pokémon Powers aren't implemented yet.
 import { typeName, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
-import { lookupCard, type EnergyType, type PokemonCardDef } from '../cards.js';
+import type { EnergyType } from '../cards.js';
+import { effectId, inPlayDef } from '../status.js';
 import {
   discardDefenderEnergy,
   discardToUse,
@@ -21,7 +22,7 @@ import {
 } from './common.js';
 import { attackEffect } from './index.js';
 
-const defenderDef = (s: AttackSituation) => lookupCard(s.cards, s.defender.card.defId) as PokemonCardDef;
+const defenderDef = (s: AttackSituation) => inPlayDef(s.cards, s.defender);
 
 /** Types Conversion 1 and 2 can choose ("other than Colorless"). */
 const CONVERSION_TYPES: EnergyType[] = ['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'darkness', 'metal'];
@@ -39,12 +40,12 @@ const metronome: AttackEffect = {
     const specs: ChoiceSpec[] = [{ kind: 'copyAttack', options, prompt: "Choose one of the Defending Pokémon's attacks to copy" }];
     const copied = c.copyIndex !== undefined ? attacks[c.copyIndex] : undefined;
     // The copied attack's own questions, except its discard: Metronome skips what's required to use it.
-    const effect = copied && attackEffect(s.defender.card.defId, copied.name);
+    const effect = copied && attackEffect(effectId(s.defender), copied.name);
     if (effect?.choices) specs.push(...effect.choices(s, c));
     return specs;
   },
   run(ctx) {
-    const sourceDefId = ctx.defender.card.defId;
+    const sourceDefId = effectId(ctx.defender);
     const copied = ctx.choices.copyIndex !== undefined ? ctx.defenderDef.attacks[ctx.choices.copyIndex] : undefined;
     if (!copied) return ctx.log('Metronome had nothing to copy.');
     ctx.log(`Metronome copies ${copied.name}.`);

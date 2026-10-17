@@ -78,7 +78,8 @@ export const recover = (type: EnergyType, text: string): AttackEffect => ({
  * cost is paid with other energy first), up to `cap`. For Hydro Pump and Water Gun.
  */
 export function extraEnergy(ctx: AttackContext, cost: EnergyType[], type: EnergyType, cap: number): number {
-  const pool = energyPool(ctx.attacker, ctx.state.cards);
+  // A Transformed Ditto may treat all its Energy as `type`.
+  const pool = energyPool(ctx.attacker, ctx.state.cards).map((t) => (ctx.attacker.transformed ? type : t));
   const take = (match: (t: EnergyType) => boolean) => {
     const i = pool.findIndex(match);
     if (i >= 0) pool.splice(i, 1);

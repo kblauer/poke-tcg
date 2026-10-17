@@ -1,9 +1,9 @@
 /// <reference path="./globals.d.ts" />
 import { performAttack, type AttackChoices } from './attacks.js';
-import { usePower, type PowerChoices } from './powers.js';
+import { evolutionBlocked, refreshTransforms, usePower, type PowerChoices } from './powers.js';
 import { playTrainer, resolvePending, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
-import { addLog, clearOnLeavingActive, flipCoin, pokemonName, type LogEntry } from './status.js';
+import { addLog, clearOnLeavingActive, flipCoin, inPlayDef, pokemonName, type LogEntry } from './status.js';
 import { shuffle } from './rng.js';
 import type { CpuDifficulty } from './cpu/index.js';
 
@@ -75,6 +75,10 @@ export interface InPlayPokemon {
   effects?: PokemonEffects;
   /** Trainer cards attached to it (PlusPower, Defender), each discarded after turn `until`. Missing in older games. */
   attached?: { card: CardInstance; until: number }[];
+  /** Ditto's Transform: the id of the card it's a copy of (the Defending Pokémon), kept up to date by refreshTransforms. */
+  transformed?: string;
+  /** Last turn its "once during your turn" power was used (Step In, Curse). Stays when it moves. */
+  powerUsedTurn?: number;
 }
 
 export interface PlayerState {
@@ -216,6 +220,8 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
   if (prev.phase === 'finished') return fail('Game is over');
 
   const state = structuredClone(prev);
+  // Games saved before Transform existed (or set up directly, in tests) may not have Ditto's copy yet.
+  refreshTransforms(state);
   const me = state.players[playerId]!;
   const opp = state.players[opponentOf(state, playerId)]!;
   const card = (c: CardInstance) => lookupCard(state.cards, c.defId);
@@ -283,7 +289,7 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       if (!evolution || evolutionDef?.kind !== 'pokemon' || evolutionDef.stage === 'basic') {
         return fail('Must evolve with a Stage 1 or Stage 2 Pokémon from your hand');
       }
-      const error = evolveError(evolutionDef, target, state.cards, state.turn);
+      const error = evolveError(evolutionDef, target, state.cards, state.turn, [me, opp]);
       if (error) return fail(error);
       // Damage and attached energy stay; the new card's HP and attacks apply from now on.
       // Evolving removes Special Conditions and the effects of attacks.
@@ -397,25 +403,35 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
 }
 
 /**
- * After a move by the current player that can knock out or remove their own Pokémon (a power or
- * Trainer): prizes, a possible win, and promoting a new active without ending the turn.
+ * After a move by the current player that can knock out or remove Pokémon (a power or Trainer):
+ * prizes, a possible win, and promoting new actives (the player's first) without ending the turn.
  */
 function afterOwnMove(state: GameState, me: PlayerState, opp: PlayerState): ActionResult {
   const winner = resolveKnockouts(state, opp.id);
   if (winner) return finish(state, winner);
-  if (!me.active) {
+  const needs = [me, opp].find((p) => !p.active);
+  if (needs) {
     state.phase = 'promote';
-    state.pendingPromotion = me.id;
+    state.pendingPromotion = needs.id;
     state.midTurnPromotion = true;
   }
   return ok(state);
 }
 
 /**
- * Why `evolution` can't be played onto `target` right now, or null if it can.
+ * Why `evolution` can't be played onto `target` right now, or null if it can. `sides` are both
+ * players' Pokémon in play, for powers that stop evolution (Prehistoric Power).
  * Pure and view-safe, so the UI uses it for hints and the engine for validation.
  */
-export function evolveError(evolution: PokemonCardDef, target: InPlayPokemon, cards: CardLibrary, turn: number): string | null {
+export function evolveError(
+  evolution: PokemonCardDef,
+  target: InPlayPokemon,
+  cards: CardLibrary,
+  turn: number,
+  sides: Pick<PlayerState, 'active' | 'bench'>[] = [],
+): string | null {
+  const blocked = evolutionBlocked(sides, cards);
+  if (blocked) return blocked;
   const current = lookupCard(cards, target.card.defId);
   const evolvesFromStage = evolution.stage === 'stage2' ? 'stage1' : 'basic';
   if (current.kind !== 'pokemon' || current.name !== evolution.evolvesFrom || current.stage !== evolvesFromStage) {
@@ -428,10 +444,7 @@ export function evolveError(evolution: PokemonCardDef, target: InPlayPokemon, ca
 }
 
 /** Energy the Pokémon must discard to retreat. */
-export const retreatCost = (pokemon: InPlayPokemon, cards: CardLibrary) => {
-  const def = lookupCard(cards, pokemon.card.defId);
-  return def.kind === 'pokemon' ? (def.retreatCost ?? 0) : 0;
-};
+export const retreatCost = (pokemon: InPlayPokemon, cards: CardLibrary) => inPlayDef(cards, pokemon).retreatCost ?? 0;
 
 /**
  * Why the active Pokémon can't retreat right now, or null if it can (given a bench target
@@ -470,6 +483,8 @@ export const energyPool = (pokemon: InPlayPokemon, cards: CardLibrary): EnergyTy
 
 export function canPayCost(pokemon: InPlayPokemon, attack: Attack, cards: CardLibrary): boolean {
   const pool = energyPool(pokemon, cards);
+  // A Transformed Ditto may treat its Energy as any type.
+  if (pokemon.transformed) return pool.length >= attack.cost.length;
   // Pay typed costs first, then colorless with whatever is left.
   const sorted = [...attack.cost].sort((a, b) => Number(a === 'colorless') - Number(b === 'colorless'));
   for (const need of sorted) {
@@ -583,6 +598,8 @@ function expireEffects(pokemon: InPlayPokemon, turn: number) {
  * opponent has no Pokémon left in play. If both win at once, `favoured` wins.
  */
 function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId | null {
+  // A Ditto that stopped being a copy (Asleep, switched…) has its own HP again.
+  refreshTransforms(state);
   for (const id of state.playerOrder) {
     const owner = state.players[id]!;
     const taker = state.players[opponentOf(state, id)]!;
@@ -595,10 +612,7 @@ function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId | null
       const prize = taker.prizes.pop();
       if (prize) taker.hand.push(prize);
     };
-    const isOut = (p: InPlayPokemon) => {
-      const def = lookupCard(state.cards, p.card.defId);
-      return def.kind === 'pokemon' && p.damage >= def.hp;
-    };
+    const isOut = (p: InPlayPokemon) => p.damage >= inPlayDef(state.cards, p).hp;
     if (owner.active && isOut(owner.active)) {
       knockOut(owner.active);
       owner.active = null;
@@ -637,6 +651,7 @@ function finish(state: GameState, winner: PlayerId): ActionResult {
 }
 
 function ok(state: GameState): ActionResult {
+  refreshTransforms(state);
   state.version += 1;
   return { ok: true, state };
 }

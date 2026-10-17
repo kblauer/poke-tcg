@@ -4,7 +4,7 @@
 import { lookupCard, type CardLibrary } from './cards.js';
 import { CPU_DIFFICULTIES, CPU_DIFFICULTY_LABELS, type CpuDifficulty } from './cpu/index.js';
 import { opponentOf, type ActionResult, type GameState, type PlayerId, type Target } from './engine.js';
-import { addLog, pokemonName } from './status.js';
+import { addLog, inPlayDef, pokemonName } from './status.js';
 
 export type DebugCommand =
   /** Puts a new copy of a card into the player's hand. Its def must be in the game's library (see `cards`). */
@@ -48,8 +48,7 @@ export function applyDebug(prev: GameState, playerId: PlayerId, command: DebugCo
       const owner = command.side === 'self' ? me : state.players[opponentOf(state, playerId)]!;
       const pokemon = command.target === 'active' ? owner.active : owner.bench[command.target];
       if (!pokemon) return fail('No Pokémon there');
-      const def = lookupCard(state.cards, pokemon.card.defId);
-      if (def.kind !== 'pokemon') return fail('Not a Pokémon');
+      const def = inPlayDef(state.cards, pokemon);
       if (!Number.isInteger(command.hp) || command.hp % 10 !== 0 || command.hp < 10 || command.hp > def.hp) {
         return fail(`HP must be a multiple of 10 from 10 to ${def.hp}`);
       }

@@ -1,4 +1,4 @@
-import { attackDamage, attackEffect, lookupCard, type CardLibrary, type GameAction, type InPlayPokemon, type PokemonCardDef } from '@poke-tcg/game-engine';
+import { attackDamage, attackEffect, effectId, inPlayDef, type CardLibrary, type GameAction, type InPlayPokemon } from '@poke-tcg/game-engine';
 import type { AttackControl } from '../hooks/useAttack';
 
 /**
@@ -23,8 +23,9 @@ export function AttackList({
   pending: GameAction | null;
   attack: AttackControl;
 }) {
-  const def = lookupCard(cards, pokemon.card.defId) as PokemonCardDef;
-  const defenderDef = defender && (lookupCard(cards, defender.card.defId) as PokemonCardDef);
+  // A Transformed Ditto has the Defending Pokémon's attacks.
+  const def = inPlayDef(cards, pokemon);
+  const defenderDef = defender && inPlayDef(cards, defender);
   return (
     <div className="flex flex-col gap-1">
       {def.attacks.map((a, i) => {
@@ -35,7 +36,7 @@ export function AttackList({
         const damage = fixed && defenderDef ? attackDamage(a, def, defenderDef, defender) : a.damage;
         const modifier =
           damage === a.damage ? null : damage > a.damage ? `${defenderDef!.name} is weak to ${def.type}` : `${defenderDef!.name} resists ${def.type}`;
-        const unimplemented = a.text && !attackEffect(def.id, a.name);
+        const unimplemented = a.text && !attackEffect(effectId(pokemon), a.name);
         const active = (pending?.type === 'ATTACK' && pending.attackIndex === i) || attack.choosingIndex === i;
         return (
           <button
