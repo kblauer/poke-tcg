@@ -350,6 +350,9 @@ export function Board({
               <StatusBar
                 status={statusText(view)}
                 canEndTurn={myTurn}
+                setup={phase === 'setup' && !self.ready ? { canReset: !!self.active || self.bench.some(Boolean), canStart: !!self.active } : null}
+                // Ask before ending the turn with an Energy card in hand and none attached.
+                energyUnattached={!view.energyAttachedThisTurn && self.hand.some((c) => lookupCard(view.cards, c.defId).kind === 'energy')}
                 pending={pending}
                 send={send}
                 stadium={<StadiumChip view={view} send={send} busy={busy} />}

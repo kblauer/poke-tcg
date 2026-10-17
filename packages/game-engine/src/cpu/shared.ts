@@ -26,7 +26,9 @@ export const hpLeft = (cards: CardLibrary, p: InPlayPokemon) => pokemonDef(cards
 
 /** During setup: the first Basic Pokémon in the hand as the Active Pokémon (null once it has one). */
 export function chooseActive(state: GameState, cpu: PlayerState): GameAction | null {
-  if (cpu.active) return null;
+  if (cpu.ready) return null;
+  // Its active only; it benches on its first turn.
+  if (cpu.active) return { type: 'START_BATTLE' };
   const basic = cpu.hand.find((c) => isBasicPokemon(lookupCard(state.cards, c.defId)));
   if (!basic) throw new Error('CPU has no Basic Pokémon to start with');
   return { type: 'SET_ACTIVE', cardUid: basic.uid };

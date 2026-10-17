@@ -118,6 +118,8 @@ export interface PlayerState {
   bench: (InPlayPokemon | null)[];
   /** Last turn this player can't play Trainer cards (Headache). Missing = no limit. */
   noTrainersUntil?: number;
+  /** Setup: done placing Pokémon (START_BATTLE). Cleared when the battle starts. */
+  ready?: boolean;
   /** Last turn attacks can't affect this player's Benched Pokémon (Protective Flame). Missing = none. */
   benchProtectedUntil?: number;
 }
@@ -177,6 +179,10 @@ export type GameAction =
   | { type: 'PLAY_TRAINER'; cardUid: string; choices?: TrainerChoices }
   /** Finish a pending search: the card picked from the deck, the new order of the cards looked at, or how many to draw. */
   | { type: 'RESOLVE_CHOICE'; cardUid?: string; order?: string[]; target?: Target; count?: number }
+  /** Setup: take back every Pokémon placed so far. */
+  | { type: 'RESET_SETUP' }
+  /** Setup: done placing Pokémon; the battle starts once both players are. */
+  | { type: 'START_BATTLE' }
   /** Discard a Trainer played as a Pokémon (Clefairy Doll) from play. */
   | { type: 'DISCARD_DOLL'; target: Target }
   /** Use the Stadium card in play (Lucky Stadium), once during the turn. */
@@ -279,17 +285,7 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
     return finish(state, opp.id);
   }
 
-  if (state.phase === 'setup') {
-    if (action.type !== 'SET_ACTIVE') return fail('Choose your active Pokémon first');
-    if (me.active) return fail('Active Pokémon already chosen');
-    const chosen = takeFromHand(me, action.cardUid);
-    if (!chosen || !isBasic(chosen)) return fail('Must choose a Basic Pokémon from your hand');
-    me.active = newInPlay(chosen, 0);
-    // Which Pokémon stays hidden until both players have chosen.
-    addLog(state, 'Chose an Active Pokémon.', me.id);
-    if (opp.active) state.phase = 'playing';
-    return ok(state);
-  }
+  if (state.phase === 'setup') return setupAction(state, me, opp, action);
 
   if (state.phase === 'promote') {
     if (playerId !== state.pendingPromotion) return fail('Waiting for opponent to promote');
@@ -460,8 +456,67 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       return endTurn(state);
 
     case 'SET_ACTIVE':
+    case 'RESET_SETUP':
+    case 'START_BATTLE':
     case 'PROMOTE':
       return fail(`${action.type} is not allowed now`);
+  }
+}
+
+/**
+ * Setting up: each player puts a Basic Pokémon in the active spot and any number on the Bench, face down
+ * (the log doesn't name them), and can take them all back (RESET_SETUP) until they start the battle
+ * (START_BATTLE). Once both have, the Pokémon are revealed and the player who won the turn-order flip
+ * starts turn 1.
+ */
+function setupAction(state: GameState, me: PlayerState, opp: PlayerState, action: GameAction): ActionResult {
+  const isBasic = (c: CardInstance) => isBasicPokemon(lookupCard(state.cards, c.defId));
+  if (me.ready) return fail('Waiting for your opponent to start the battle');
+  switch (action.type) {
+    case 'SET_ACTIVE': {
+      if (me.active) return fail('Active Pokémon already chosen');
+      const chosen = takeFromHand(me, action.cardUid);
+      if (!chosen || !isBasic(chosen)) return fail('Must choose a Basic Pokémon from your hand');
+      me.active = newInPlay(chosen, 0);
+      addLog(state, 'Chose an Active Pokémon.', me.id);
+      return ok(state);
+    }
+    case 'PLAY_BENCH': {
+      if (!isBenchSlot(action.slot)) return fail('Invalid bench slot');
+      if (me.bench[action.slot]) return fail('That bench slot is occupied');
+      const played = takeFromHand(me, action.cardUid);
+      // Basic Pokémon cards only: not a Trainer played as one (Clefairy Doll).
+      if (!played || !isBasic(played)) return fail('Only Basic Pokémon can be put on the Bench before the battle');
+      me.bench[action.slot] = newInPlay(played, 0);
+      addLog(state, 'Put a Pokémon on the Bench.', me.id);
+      return ok(state);
+    }
+    case 'RESET_SETUP': {
+      const placed = [me.active, ...me.bench].flatMap((p) => (p ? [p.card] : []));
+      if (!placed.length) return fail('You have no Pokémon to take back');
+      me.hand.push(...placed);
+      me.active = null;
+      me.bench = me.bench.map(() => null);
+      addLog(state, 'Took their Pokémon back.', me.id);
+      return ok(state);
+    }
+    case 'START_BATTLE': {
+      if (!me.active) return fail('Choose an Active Pokémon first');
+      me.ready = true;
+      addLog(state, 'Is ready.', me.id);
+      if (!opp.ready) return ok(state);
+      // Both are ready: turn the Pokémon face up, and the first player starts.
+      for (const id of state.playerOrder) {
+        const player = state.players[id]!;
+        delete player.ready;
+        const bench = player.bench.flatMap((p) => (p ? [pokemonName(state, p)] : []));
+        addLog(state, `Active: ${pokemonName(state, player.active!)}${bench.length ? `. Bench: ${bench.join(', ')}` : ''}.`, id);
+      }
+      state.phase = 'playing';
+      return ok(state);
+    }
+    default:
+      return fail('Place your Pokémon, then start the battle');
   }
 }
 

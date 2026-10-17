@@ -22,6 +22,7 @@ function started(): GameState {
   for (const id of s.playerOrder) {
     const basic = s.players[id]!.hand.find((c) => isBasicPokemon(lookupCard(s.cards, c.defId)))!;
     s = act(s, id, { type: 'SET_ACTIVE', cardUid: basic.uid });
+    s = act(s, id, { type: 'START_BATTLE' });
   }
   return s;
 }

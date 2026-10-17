@@ -15,6 +15,7 @@ const basicsIn = (state: GameState, player: string) =>
 
 function setup(state: GameState): GameState {
   for (const id of state.playerOrder) state = act(state, id, { type: 'SET_ACTIVE', cardUid: basicsIn(state, id)[0]!.uid });
+  for (const id of state.playerOrder) state = act(state, id, { type: 'START_BATTLE' });
   return state;
 }
 
@@ -68,6 +69,52 @@ describe('game engine', () => {
 
   it('moves to playing once both actives are chosen', () => {
     expect(setup(newGame()).phase).toBe('playing');
+  });
+
+  describe('setup', () => {
+    /** Ash with two Basics in hand (an extra Charmander and Squirtle given), nothing placed yet. */
+    function placing(): [GameState, string, string, string] {
+      let s = newGame();
+      let a: string, b: string;
+      [s, a] = giveCard(s, 'ash', 'squirtle');
+      [s, b] = giveCard(s, 'ash', 'charmander');
+      return [s, basicsIn(s, 'ash')[0]!.uid, a, b];
+    }
+
+    it('places an active and benched Basics face down, and starts once both players start the battle', () => {
+      let [s, active, a] = placing();
+      s = act(act(s, 'ash', { type: 'SET_ACTIVE', cardUid: active }), 'ash', { type: 'PLAY_BENCH', cardUid: a, slot: 2 });
+      expect(s.players.ash!.bench[2]!.card.uid).toBe(a);
+      // The opponent sees neither, and the log doesn't name them.
+      const seen = getPlayerView(s, 'misty').opponent;
+      expect([seen.active, seen.bench.every((p) => p === null)]).toEqual([null, true]);
+      expect(s.log!.slice(-2).map((e) => e.text)).toEqual(['Chose an Active Pokémon.', 'Put a Pokémon on the Bench.']);
+      s = act(s, 'ash', { type: 'START_BATTLE' });
+      expect(applyAction(s, 'ash', { type: 'PLAY_BENCH', cardUid: basicsIn(s, 'ash')[0]!.uid, slot: 0 })).toEqual({ ok: false, error: 'Waiting for your opponent to start the battle' });
+      expect([s.phase, getPlayerView(s, 'misty').opponent.ready]).toEqual(['setup', true]);
+      s = act(act(s, 'misty', { type: 'SET_ACTIVE', cardUid: basicsIn(s, 'misty')[0]!.uid }), 'misty', { type: 'START_BATTLE' });
+      expect(s.phase).toBe('playing');
+      expect(getPlayerView(s, 'misty').opponent.bench[2]!.card.uid).toBe(a);
+      expect(s.log!.slice(-2).map((e) => e.text)).toEqual(['Active: Charmander. Bench: Squirtle.', 'Active: Squirtle.']);
+    });
+
+    it('needs an active to start the battle, and takes everything back with Reset', () => {
+      let [s, active, a, b] = placing();
+      expect(applyAction(s, 'ash', { type: 'START_BATTLE' })).toEqual({ ok: false, error: 'Choose an Active Pokémon first' });
+      expect(applyAction(s, 'ash', { type: 'RESET_SETUP' })).toEqual({ ok: false, error: 'You have no Pokémon to take back' });
+      s = act(act(act(s, 'ash', { type: 'PLAY_BENCH', cardUid: a, slot: 0 }), 'ash', { type: 'PLAY_BENCH', cardUid: b, slot: 4 }), 'ash', { type: 'SET_ACTIVE', cardUid: active });
+      const hand = s.players.ash!.hand.length;
+      s = act(s, 'ash', { type: 'RESET_SETUP' });
+      expect([s.players.ash!.active, s.players.ash!.bench.every((p) => p === null), s.players.ash!.hand.length]).toEqual([null, true, hand + 3]);
+    });
+
+    it('only takes Basic Pokémon cards, and nothing else until the battle starts', () => {
+      let [s] = placing();
+      let evolution: string;
+      [s, evolution] = giveCard(s, 'ash', 'charmeleon');
+      expect(applyAction(s, 'ash', { type: 'PLAY_BENCH', cardUid: evolution, slot: 0 })).toEqual({ ok: false, error: 'Only Basic Pokémon can be put on the Bench before the battle' });
+      expect(applyAction(s, 'ash', { type: 'END_TURN' })).toEqual({ ok: false, error: 'Place your Pokémon, then start the battle' });
+    });
   });
 
   it('does not allow evolved Pokémon to be played as Basics', () => {

@@ -9,13 +9,15 @@ function playerSetsActive(state: GameState): GameState {
   const basic = state.players.player!.hand.find((c) => isBasicPokemon(lookupCard(state.cards, c.defId)))!;
   const res = applyAction(state, 'player', { type: 'SET_ACTIVE', cardUid: basic.uid });
   if (!res.ok) throw new Error(res.error);
-  return res.state;
+  const ready = applyAction(res.state, 'player', { type: 'START_BATTLE' });
+  if (!ready.ok) throw new Error(ready.error);
+  return ready.state;
 }
 
 describe('CPU (gym leader by default)', () => {
-  it('chooses an active during setup, then waits for the player', () => {
+  it('chooses an active during setup, starts the battle, then waits for the player', () => {
     const { state, actions } = runCpu(newGame(), 'cpu');
-    expect(actions).toEqual([{ type: 'SET_ACTIVE', cardUid: expect.any(String) }]);
+    expect(actions).toEqual([{ type: 'SET_ACTIVE', cardUid: expect.any(String) }, { type: 'START_BATTLE' }]);
     expect(state.players.cpu!.active).not.toBeNull();
     expect(state.phase).toBe('setup');
   });

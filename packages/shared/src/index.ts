@@ -86,6 +86,8 @@ export const gameActionSchema = z.discriminatedUnion('type', [
     count: z.number().int().min(0).max(60).optional(),
   }),
   z.object({ type: z.literal('DISCARD_DOLL'), target }),
+  z.object({ type: z.literal('RESET_SETUP') }),
+  z.object({ type: z.literal('START_BATTLE') }),
   z.object({ type: z.literal('USE_STADIUM') }),
   z.object({ type: z.literal('END_TURN') }),
   z.object({ type: z.literal('CONCEDE') }),
