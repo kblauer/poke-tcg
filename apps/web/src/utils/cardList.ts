@@ -24,6 +24,23 @@ export const stageLabel = (card: CatalogCard) => STAGES.find((s) => s.value === 
 /** Set names in release order, for the set filter. */
 export const setNames = (cards: CatalogCard[]) => [...new Set([...cards].sort((a, b) => a.order - b.order).map((c) => c.setName))];
 
+/** Whether the search text is in the card's name or one of its attacks' names (already lower-cased). */
+export const matchesSearch = (card: Pick<CatalogCard, 'name' | 'attacks'>, search: string) =>
+  card.name.toLowerCase().includes(search) || (card.attacks ?? []).some((a) => a?.toLowerCase().includes(search));
+
+/** Cards to show by whether the account has unlocked them. */
+export type Ownership = 'all' | 'unlocked' | 'locked';
+
+export const OWNERSHIP_OPTIONS: { value: Ownership; label: string }[] = [
+  { value: 'all', label: 'Locked and unlocked' },
+  { value: 'unlocked', label: 'Unlocked only' },
+  { value: 'locked', label: 'Locked only' },
+];
+
+/** Whether the card passes the unlocked/locked filter. */
+export const matchesOwnership = (card: CatalogCard, ownership: Ownership, isLocked: (card: CatalogCard) => boolean) =>
+  ownership === 'all' || (ownership === 'locked') === isLocked(card);
+
 export interface CardFilter {
   search: string;
   set: string | null;
@@ -32,15 +49,18 @@ export interface CardFilter {
   /** Range for the card's highest attack damage. Setting either bound hides cards without attacks. */
   minAttack: number | null;
   maxAttack: number | null;
+  ownership: Ownership;
 }
 
-export const EMPTY_FILTER: CardFilter = { search: '', set: null, type: null, stage: null, minAttack: null, maxAttack: null };
+export const EMPTY_FILTER: CardFilter = { search: '', set: null, type: null, stage: null, minAttack: null, maxAttack: null, ownership: 'all' };
 
-export function filterCards(cards: CatalogCard[], filter: CardFilter): CatalogCard[] {
+/** Cards matching the filter; `isLocked` says which the account hasn't unlocked, for the ownership filter. */
+export function filterCards(cards: CatalogCard[], filter: CardFilter, isLocked: (card: CatalogCard) => boolean = () => false): CatalogCard[] {
   const search = filter.search.trim().toLowerCase();
   const { minAttack, maxAttack } = filter;
   return cards.filter((c) => {
-    if (search && !c.name.toLowerCase().includes(search)) return false;
+    if (search && !matchesSearch(c, search)) return false;
+    if (!matchesOwnership(c, filter.ownership, isLocked)) return false;
     if (filter.set && c.setName !== filter.set) return false;
     if (filter.type && c.type !== filter.type) return false;
     if (filter.stage && stageOf(c) !== filter.stage) return false;

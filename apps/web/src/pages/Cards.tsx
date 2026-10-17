@@ -21,7 +21,7 @@ export function CardsPage() {
   const { isLocked } = useUnlocked();
 
   const sets = useMemo(() => (data ? setNames(data) : []), [data]);
-  const cards = useMemo(() => (data ? sortCards(filterCards(data, filter), sort) : []), [data, filter, sort]);
+  const cards = useMemo(() => (data ? sortCards(filterCards(data, filter, isLocked), sort) : []), [data, filter, sort, isLocked]);
 
   if (error) return <p className={`${PAGE_WIDTH} text-red-400`}>{error.message}</p>;
   if (!data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading cards…</p>;

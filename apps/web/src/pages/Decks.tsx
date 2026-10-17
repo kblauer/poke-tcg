@@ -68,7 +68,7 @@ export function DecksPage() {
 
   const byId = useMemo(() => new Map((catalog.data ?? []).map((c) => [c.id, c])), [catalog.data]);
   const sets = useMemo(() => (catalog.data ? setNames(catalog.data) : []), [catalog.data]);
-  const results = useMemo(() => (catalog.data ? sortForDeck(filterForDeck(catalog.data, filter), sort) : []), [catalog.data, filter, sort]);
+  const results = useMemo(() => (catalog.data ? sortForDeck(filterForDeck(catalog.data, filter, isLocked), sort) : []), [catalog.data, filter, sort, isLocked]);
   const counts = useMemo(() => new Map(entries.map((e) => [e.cardId, e.quantity])), [entries]);
 
   /** Opens a saved deck, or a new empty one (null), asking first if there are unsaved changes. */

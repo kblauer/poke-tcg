@@ -1,5 +1,5 @@
 import type { EnergyType } from '@poke-tcg/game-engine';
-import { CARD_TYPES } from '../utils/cardList';
+import { CARD_TYPES, OWNERSHIP_OPTIONS, type Ownership } from '../utils/cardList';
 import { EnergyIcon } from './EnergyIcon';
 import {
   DECK_SORTS,
@@ -21,7 +21,7 @@ const OTHER = 'other';
 /** Parses a number field; empty means "no bound". */
 const toBound = (value: string) => (value === '' ? null : Math.max(0, Number(value)));
 
-/** The deck builder's card search: name, set, Pokémon filters, Trainer toggles, "implemented only" and the sort. */
+/** The deck builder's card search: name, unlocked or locked, set, Pokémon filters, Trainer toggles, "implemented only" and the sort. */
 export function DeckFilters({
   filter,
   sort,
@@ -61,7 +61,7 @@ export function DeckFilters({
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <input
           type="search"
-          placeholder="Search by name…"
+          placeholder="Search by name or attack…"
           value={filter.search}
           onChange={(e) => set({ search: e.target.value })}
           className={`${input} min-w-40 flex-1`}
@@ -84,6 +84,13 @@ export function DeckFilters({
             ))}
           </select>
         </label>
+        <select value={filter.ownership} onChange={(e) => set({ ownership: e.target.value as Ownership })} className={input} aria-label="Unlocked or locked">
+          {OWNERSHIP_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
         <button
           className={`${toggle} ${filter.implementedOnly ? on : off}`}
           aria-pressed={filter.implementedOnly}

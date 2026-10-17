@@ -1,11 +1,11 @@
-import { CARD_TYPES, EMPTY_FILTER, SORT_OPTIONS, STAGES, type CardFilter, type CardSort, type SortKey } from '../utils/cardList';
+import { CARD_TYPES, EMPTY_FILTER, OWNERSHIP_OPTIONS, SORT_OPTIONS, STAGES, type CardFilter, type CardSort, type Ownership, type SortKey } from '../utils/cardList';
 
 const input = 'rounded bg-slate-800 px-2 py-1 text-sm outline-none ring-yellow-300 focus:ring-1';
 
 /** Parses a number field; empty means "no bound". */
 const toBound = (value: string) => (value === '' ? null : Math.max(0, Number(value)));
 
-/** Search, filters and sort controls for the card browser. */
+/** Search, filters (unlocked or locked included) and sort controls for the card browser. */
 export function CardFilters({
   filter,
   sort,
@@ -30,7 +30,7 @@ export function CardFilters({
     <div className="space-y-2 rounded-lg bg-slate-900 p-3">
       <input
         type="search"
-        placeholder="Search by name…"
+        placeholder="Search by name or attack…"
         value={filter.search}
         onChange={(e) => set({ search: e.target.value })}
         className={`${input} w-full`}
@@ -101,6 +101,13 @@ export function CardFilters({
         >
           {sort.dir === 'asc' ? '↑ Ascending' : '↓ Descending'}
         </button>
+        <select value={filter.ownership} onChange={(e) => set({ ownership: e.target.value as Ownership })} className={input} aria-label="Unlocked or locked">
+          {OWNERSHIP_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
         <button className="text-slate-400 hover:text-slate-200" onClick={() => onFilterChange(EMPTY_FILTER)}>
           Clear filters
         </button>

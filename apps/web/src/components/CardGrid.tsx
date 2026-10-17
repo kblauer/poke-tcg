@@ -1,10 +1,46 @@
 import LockIcon from '@mui/icons-material/Lock';
+import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import type { CatalogCard } from '../utils/cardList';
+
+/** The least space between rows, as Tailwind spacing (gap-y-14): enough to read each card's name, a Trainer's too (it sits under the TRAINER banner). */
+const MIN_GAP = 'calc(var(--spacing) * 14)';
+/** Space under whole cards at the most (gap-2). */
+const CARD_GAP = 'calc(var(--spacing) * 2)';
+
+/**
+ * The row gap (CSS) that spreads the rows down the whole height of the grid when they'd otherwise leave space
+ * below, from MIN_GAP up to whole cards with a small gap (no overlap). Measured on the grid (columns from its
+ * computed template, the card height from the first card), and again when it resizes.
+ */
+function useRowGap(grid: RefObject<HTMLDivElement | null>, count: number) {
+  const [gap, setGap] = useState(MIN_GAP);
+  useLayoutEffect(() => {
+    const el = grid.current;
+    if (!el) return;
+    const measure = () => {
+      const card = el.querySelector<HTMLElement>('[data-card]');
+      const columns = getComputedStyle(el).gridTemplateColumns.split(' ').length;
+      if (!card || !columns) return;
+      const rows = Math.ceil(count / columns);
+      const style = getComputedStyle(el);
+      const height = el.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+      const cardHeight = card.offsetHeight;
+      const spread = rows > 1 ? Math.floor((height - cardHeight) / (rows - 1)) : 0;
+      setGap(`clamp(${MIN_GAP}, ${spread}px, calc(${cardHeight}px + ${CARD_GAP}))`);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [grid, count]);
+  return gap;
+}
 
 /**
  * Scrollable grid of low-res card images. Columns fill the available width.
  * Rows overlap like a fanned-out stack: the row gap is the only space between rows, so each card
- * shows just its top strip with the name. Hovering a strip brings that card to the front.
+ * shows just its top strip with the name. Hovering a strip brings that card to the front. When there are
+ * few enough rows, they spread out to fill the grid's height (up to whole cards, see useRowGap).
  * `counts` (the deck builder) puts a badge with each card's copies in the deck on its strip.
  * `isLocked` darkens cards the account hasn't unlocked, with a lock on the strip.
  */
@@ -21,14 +57,17 @@ export function CardGrid({
   counts?: Map<string, number>;
   isLocked?: (card: CatalogCard) => boolean;
 }) {
+  const grid = useRef<HTMLDivElement>(null);
+  const rowGap = useRowGap(grid, cards.length);
   if (cards.length === 0) return <p className="p-4 text-center text-slate-500">No cards match these filters.</p>;
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] content-start gap-x-2 gap-y-6 overflow-y-auto p-1">
+    <div ref={grid} className="grid min-h-0 flex-1 grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] content-start gap-x-2 overflow-y-auto p-1" style={{ rowGap }}>
       {cards.map((c) => (
         // Zero-height cell: the card hangs down from it and later rows paint over it.
         // The last row's overflow still extends the scroll area.
         <div key={c.id} className="group relative h-0">
           <div
+            data-card
             className={`pointer-events-none absolute inset-x-0 top-0 aspect-[63/88] overflow-hidden rounded-md shadow-md shadow-black/60 transition group-hover:z-10 group-hover:-translate-y-1 group-hover:shadow-xl group-focus-within:z-10 group-focus-within:ring-2 group-focus-within:ring-sky-400 ${
               c.id === selectedId ? 'ring-2 ring-yellow-300' : ''
             }`}

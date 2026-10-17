@@ -1,7 +1,7 @@
 // Deck builder: the search filters and editing a deck's card list. The rules themselves (60 cards, 4 of a
 // name, a Basic Pokémon) are in @poke-tcg/shared, where the API checks them too.
 import { DECK_SIZE, MAX_COPIES, copiesAllowed, copiesOfName, deckProblems, type DeckRuleCard } from '@poke-tcg/shared';
-import { CARD_TYPES, type CatalogCard } from './cardList';
+import { CARD_TYPES, matchesOwnership, matchesSearch, type CatalogCard, type Ownership } from './cardList';
 
 /** Pokémon stages for the stage filter. */
 export const POKEMON_STAGES = [
@@ -28,6 +28,8 @@ export interface DeckFilter {
   energies: string[];
   /** Only cards the engine fully implements. */
   implementedOnly: boolean;
+  /** Unlocked cards, locked ones, or both. */
+  ownership: Ownership;
 }
 
 export const EMPTY_DECK_FILTER: DeckFilter = {
@@ -42,26 +44,28 @@ export const EMPTY_DECK_FILTER: DeckFilter = {
   trainers: false,
   energies: [],
   implementedOnly: false,
+  ownership: 'all',
 };
 
 /** The filter with no Pokémon filters set, for when a Trainer toggle goes on. */
 export const withoutPokemonFilters = (f: DeckFilter): DeckFilter => ({ ...f, pokemon: false, stage: null, type: null, minHp: null, maxHp: null, hasAbility: false });
 
 /**
- * Cards matching the filters. Name, set and "implemented only" apply to every card. With no Pokémon
+ * Cards matching the filters. The search (name or attack), set, "implemented only" and unlocked/locked apply to every card. With no Pokémon
  * filter, Trainer toggle or Energy toggle set, every card shows. Energy toggles show only Energy of those
  * types, the Trainer toggle only Trainers, and Pokémon filters only Pokémon (the controls keep just one of
  * the three groups set).
  */
-export function filterForDeck(cards: CatalogCard[], f: DeckFilter): CatalogCard[] {
+export function filterForDeck(cards: CatalogCard[], f: DeckFilter, isLocked: (card: CatalogCard) => boolean = () => false): CatalogCard[] {
   const search = f.search.trim().toLowerCase();
   const pokemonFilters = f.pokemon || f.stage !== null || f.type !== null || f.minHp !== null || f.maxHp !== null || f.hasAbility;
   const trainerFilters = f.trainers;
   const energyFilters = f.energies.length > 0;
   return cards.filter((c) => {
-    if (search && !c.name.toLowerCase().includes(search)) return false;
+    if (search && !matchesSearch(c, search)) return false;
     if (f.set && c.setName !== f.set) return false;
     if (f.implementedOnly && !c.implemented) return false;
+    if (!matchesOwnership(c, f.ownership, isLocked)) return false;
     if (!pokemonFilters && !trainerFilters && !energyFilters) return true;
     if (energyFilters) return c.energyType !== null && f.energies.includes(c.energyType);
     if (trainerFilters) return c.kind === 'TRAINER';

@@ -75,10 +75,10 @@ Pages load data, set their own width and side padding, and hand data to componen
 | `PreviewContext.ts` | Context that lets any card show or hide the hover preview |
 | `PreviewProvider.tsx` | Provides the hover preview outside the board (the run hub), with the wheel resizing it or, for pages that scroll, scrolling the page |
 | `HoloCard.tsx` | A card with the holo effect: tilts toward the pointer while shine and glare layers follow it. Used by `CardViewer` in the Cards tab only; play mode shows plain card images |
-| `DeckFilters.tsx` | Deck builder search: name, release set, sort (set number, Pokédex number, type), "Implemented only", Pokémon filters (stage, type, HP range, has ability), a Trainer toggle and Energy toggles (one per type) |
+| `DeckFilters.tsx` | Deck builder search: name, release set, sort (set number, Pokédex number, type), "Implemented only", Pokémon filters (stage, type, HP range, has ability), a Trainer toggle and Energy toggles (one per type). Also unlocked cards, locked ones or both. The search matches card names and attack names |
 | `DeckPanel.tsx` | The deck being built: its cards by section with − / + buttons (+ disabled with the reason when a rule forbids another copy), the count out of 60, what keeps it from being played, and "(partial)" on cards that aren't fully implemented. Cards not unlocked are faded, marked (locked) |
-| `CardFilters.tsx` | Card browser controls: name search, set, type and stage filters, max-attack range, sort field and direction, match count |
-| `CardGrid.tsx` | Scrollable grid of low-res card images; the number of columns follows the width. Rows overlap so only each card's top strip (its name, set by the `gap-y-6` row gap) shows; hovering a strip brings that card to the front, clicking selects it. With `isLocked`, cards not unlocked yet are darker with a lock |
+| `CardFilters.tsx` | Card browser controls: name search, set, type and stage filters, max-attack range, sort field and direction, match count, and whether to show unlocked cards, locked ones or both. The search matches card names and attack names |
+| `CardGrid.tsx` | Scrollable grid of low-res card images; the number of columns follows the width. Rows overlap so only each card's top strip (its name, set by the `gap-y-6` row gap) shows; hovering a strip brings that card to the front, clicking selects it. With `isLocked`, cards not unlocked yet are darker with a lock. When the rows would leave space below, they spread out to fill the height, up to whole cards with no overlap |
 | `CardViewer.tsx` | The selected card's high-res image (low-res shown while it loads), sized to the window, with set, rarity, stage, type, HP and max attack. A locked card is darkened and shown still (no `HoloCard`), marked Locked |
 
 ### `src/components/run/`
@@ -128,7 +128,7 @@ Pages load data, set their own width and side padding, and hand data to componen
 | `spring.ts` | Spring physics for the holo effect's tilt and glare |
 | `math.ts` | `round`, `clamp` and `adjust` (re-map a value between ranges) |
 | `deckBuilder.ts` | Deck builder data: the search filter and sort (`filterForDeck`, `sortForDeck`), adding and removing copies within the rules (`cantAdd`, `changeCount`) and the deck's problems |
-| `cardList.ts` | Card browser data: the `CatalogCard` type, set/type/stage/sort options, and the filter and sort functions |
+| `cardList.ts` | Card browser data: the `CatalogCard` type, set/type/stage/sort options, and the filter and sort functions; the unlocked/locked filter (`Ownership`, `matchesOwnership`), shared with the deck builder |
 
 ### `src/styles/holo/`
 
