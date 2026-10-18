@@ -1,10 +1,10 @@
 // Card unlocks: which cards an account may put in its decks. A card is unlocked once (any number of copies,
 // up to the usual 4); basic Energy is always unlocked. The starter deck's cards are unlocked with the
-// account, and every card gained in a run is unlocked as it's gained. A Base Set 2 common and the earlier
-// common it reprints, whose art it shares, are unlocked together.
+// account, and every card gained in a run is unlocked as it's gained. A Base Set 2 card and the earlier card it
+// reprints are unlocked together when they look the same (neither is holo).
 import { prisma, type Card, type Prisma } from '@poke-tcg/db';
 import { BASE4_REPRINTS } from '@poke-tcg/game-engine';
-import { isBasicEnergyCard } from './cards.js';
+import { isBasicEnergyCard, isHolo } from './cards.js';
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
@@ -15,24 +15,42 @@ export async function unlockedIds(userId: string, db: Db = prisma): Promise<Set<
 }
 
 /**
- * The cards unlocked with these: a Base Set 2 common and the earlier common it reprints are the same card with the
- * same art, so unlocking either unlocks both (agreed with the user; only Base Set 2, and only its commons). The
- * migrations `20261018090000_base2_common_unlocks` (reprints) and `20261018100000_base2_common_originals`
- * (originals) did the same for unlocks made before this.
+ * Base Set 2's non-holo rares reprinting a Jungle holo (BASE4_REPRINTS points at the holo, whose effects they share)
+ * look the same as Jungle's own non-holo print of it.
  */
-async function base2Commons(ids: Set<string>, db: Db): Promise<string[]> {
-  const pairs = Object.entries(BASE4_REPRINTS).filter(([reprint, original]) => ids.has(reprint) || ids.has(original));
+const NON_HOLO_ORIGINALS: Record<string, string> = {
+  'base4-26': 'base2-21', // Kangaskhan
+  'base4-27': 'base2-22', // Mr. Mime
+  'base4-29': 'base2-25', // Pinsir
+  'base4-30': 'base2-27', // Snorlax
+  'base4-31': 'base2-29', // Venomoth
+  'base4-32': 'base2-30', // Victreebel
+};
+
+/** Each Base Set 2 card and the earlier print with its look: [reprint, original]. */
+export const BASE2_PAIRS = Object.entries(BASE4_REPRINTS).map(([reprint, original]) => [reprint, NON_HOLO_ORIGINALS[reprint] ?? original] as const);
+
+/**
+ * The cards unlocked with these: a Base Set 2 card and the earlier card it reprints have the same art, so when
+ * neither is holo they look the same, and unlocking either unlocks both, whatever the rarity (agreed with the
+ * user; only Base Set 2). Holo rares look different (Base Set 2's have the galaxy foil), so they're unlocked
+ * separately. The migration `20261019090000_base2_reprint_unlocks` (after the commons-only
+ * `20261018090000_base2_common_unlocks` and `20261018100000_base2_common_originals`) did the same for unlocks
+ * made before this.
+ */
+async function base2Reprints(ids: Set<string>, db: Db): Promise<string[]> {
+  const pairs = BASE2_PAIRS.filter(([reprint, original]) => ids.has(reprint) || ids.has(original));
   if (!pairs.length) return [];
+  const rows = await db.card.findMany({ where: { id: { in: pairs.flat() } }, select: { id: true, kind: true, data: true } });
   // Basic Energy is always unlocked, so it isn't listed.
-  const commons = await db.card.findMany({ where: { id: { in: pairs.map(([reprint]) => reprint) }, rarity: 'Common', kind: { not: 'ENERGY' } }, select: { id: true } });
-  const common = new Set(commons.map((c) => c.id));
-  return pairs.filter(([reprint]) => common.has(reprint)).flat();
+  const plain = new Set(rows.filter((c) => !isHolo(c) && !isBasicEnergyCard(c)).map((c) => c.id));
+  return pairs.filter(([reprint, original]) => plain.has(reprint) && plain.has(original)).flat();
 }
 
-/** Unlocks the cards, with the Base Set 2 commons reprinting them or reprinted by them (those already unlocked stay as they are). */
+/** Unlocks the cards, with the Base Set 2 cards that look the same as them (see base2Reprints; those already unlocked stay as they are). */
 export async function unlockCards(userId: string, cardIds: Iterable<string>, db: Db = prisma) {
   const ids = new Set(cardIds);
-  for (const id of await base2Commons(ids, db)) ids.add(id);
+  for (const id of await base2Reprints(ids, db)) ids.add(id);
   if (ids.size) await db.cardUnlock.createMany({ data: [...ids].map((cardId) => ({ userId, cardId, quantity: 1 })), skipDuplicates: true });
 }
 
