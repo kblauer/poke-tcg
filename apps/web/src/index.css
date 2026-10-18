@@ -61,9 +61,23 @@
   60% { transform: rotate(-3deg) scale(1.04); }
   80% { transform: rotate(3deg) scale(1.04); }
 }
-@keyframes pack-tear {
-  0% { transform: none; opacity: 1; }
-  100% { transform: translate(40%, -260%) rotate(28deg); opacity: 0; }
+/*
+ * Tearing the top seal off (components/packs/BoosterPack.tsx, Seal): the tear runs from left to right (--peel, how far
+ * it's got), and the strip torn off so far folds back over the hinge at the tear like a page being turned, getting
+ * longer as the tear goes on; then the whole strip comes away.
+ */
+@property --peel {
+  syntax: '<percentage>';
+  inherits: true;
+  initial-value: 0%;
+}
+@keyframes pack-peel {
+  from { --peel: 0%; }
+  to { --peel: 100%; }
+}
+@keyframes pack-peel-away {
+  0%, 80% { transform: none; opacity: 1; }
+  100% { transform: translate(20%, -140%) rotate(-10deg); opacity: 0; }
 }
 @keyframes pack-flash {
   0% { opacity: 0; transform: scale(0.4); }
@@ -85,8 +99,14 @@
 .pack-float { animation: pack-float 3s ease-in-out infinite; }
 .pack-sheen { background-size: 250% 100%; animation: pack-sheen 2.6s linear infinite; }
 .pack-shake { animation: pack-shake 0.45s ease-in-out infinite; }
-.pack-tear { animation: pack-tear 0.6s ease-in forwards; }
-.pack-flash { animation: pack-flash 0.7s ease-out forwards; }
+.pack-tear { animation: pack-peel 0.8s cubic-bezier(0.5, 0.1, 0.45, 1) forwards, pack-peel-away 1s ease-in forwards; }
+/* The torn-off part: as wide as the tear has got, hinged on its right edge (the tear) and turned over like a page. */
+.pack-tear-strip {
+  width: var(--peel);
+  transform-origin: 100% 50%;
+  transform: perspective(260px) rotateY(-158deg) rotateZ(-7deg);
+}
+.pack-flash { animation: pack-flash 0.7s ease-out 0.55s both; }
 .card-flip-in { animation: card-flip-in 0.45s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
 .card-fly-out { animation: card-fly-out 0.35s ease-in forwards; }
 .badge-pop { animation: badge-pop 0.35s ease-out 0.3s both; }

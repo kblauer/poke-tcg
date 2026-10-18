@@ -15,14 +15,15 @@ import { Fireworks } from './Fireworks';
 
 type Opened = inferRouterOutputs<AppRouter>['packs']['open'];
 type PackCard = Opened['cards'][number];
-export type PackSetInfo = { id: string; name: string; logoUrl: string | null };
+/** The pack being opened: its set, and the wrapper art shown on the Packs tab (PACK_ART), if it has one. */
+export type PackSetInfo = { id: string; name: string; logoUrl: string | null; art?: string };
 
 const SLOT_LABEL: Record<PackCard['slot'], string> = { energy: 'Energy', holoEnergy: 'Holo Energy', common: 'Common', uncommon: 'Uncommon', rare: 'Rare', holo: 'Rare Holo' };
 /** The Wizards promos have no printed rarity: they're just promos, holo or not. */
 const PROMO_SLOT_LABEL: Record<PackCard['slot'], string> = { ...SLOT_LABEL, common: 'Promo', holo: 'Holo Promo' };
 
 /** How long the pack's top takes to tear off, and how long the cards fly out of it. */
-const TEAR_MS = 650;
+const TEAR_MS = 1050;
 const BURST_MS = 1300;
 const STAGGER_MS = 45;
 const FLY_OUT_MS = 300;
@@ -71,8 +72,10 @@ const isRare = (c: PackCard) => c.slot === 'rare' || c.slot === 'holo' || c.slot
  * Opening packs, in a window over the page. Pick how many (×1, ×2, ×5, ×10 or Custom), then click the pack to
  * buy them (₱ from the bank): it shakes, its top tears off, and the cards burst out and gather into a stack.
  * Click the stack to reveal the cards one by one (each flips up; holos shimmer, new unlocks are marked NEW), or Skip:
- * every card of a single pack, or only the rares when several packs are opened at once. Either way it ends on the list
- * of every card opened, with the rares framed and tagged. An all-rares pack (ALL_RARES_CHANCE) sets off fireworks. Closing the window goes back to the sets.
+ * every card of every pack, pack after pack, or only the rares with the commons separated or when several packs are
+ * opened on auto open. Either way it ends on the list
+ * of every card opened, with the rares framed and tagged. An all-rares pack (ALL_RARES_CHANCE) sets off fireworks. Closing the window
+ * (the × button, or before opening a click anywhere but the pack and its controls) goes back to the sets.
  * Two options (OpenOptions): separate the commons from the rares (the commons are laid out at once, the rares
  * stay face down to be opened one by one), and auto open (the cards revealed move on by themselves, pausing on rares;
  * while it runs, ×2 speed doubles it and Stop auto goes back to clicking, with Resume auto to start it again).
@@ -133,8 +136,11 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
   /** The most packs the bank pays for (at least 1, so the price still shows). */
   const maxAffordable = Math.max(1, Math.min(MAX_PACKS_AT_ONCE, Math.floor(bank / price)));
   const packs = cards.length ? cards.at(-1)!.pack + 1 : quantity;
-  /** Several packs at once: only their rares are revealed, one by one on the same screen as a single pack; the rest wait for the list. */
-  const raresOnly = packs > 1 || options.separate;
+  /**
+   * Only the rares are revealed one by one (on the same screen as every card would be), the rest waiting for the list:
+   * with the commons separated, or several packs on auto open. Otherwise every card of every pack is clicked through.
+   */
+  const raresOnly = options.separate || (packs > 1 && options.auto);
   /** The packs (by number) that are all rares and holos but their Energy (ALL_RARES_CHANCE): they get fireworks. */
   const allRaresPacks = new Set(
     Array.from({ length: cards.length ? packs : 0 }, (_, p) => p).filter((p) => {
@@ -174,7 +180,14 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
   const newCount = cards.filter((c) => c.isNew).length;
   const rareCount = cards.filter(isRare).length;
   return (
-    <div data-keep-action className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm">
+    <div
+      data-keep-action
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm"
+      // Before the pack is opened, a click on anything but a control (the pack, the quantity, the options) closes the window.
+      onClick={(e) => {
+        if (phase === 'pack' && !open.isPending && !(e.target as Element).closest('button, input, label, select, a')) onClose();
+      }}
+    >
       {fireworks > 0 && <Fireworks key={fireworks} />}
       {phase !== 'tearing' && phase !== 'burst' && !open.isPending && (
         <button className="absolute right-4 top-4 rounded-full p-2 text-slate-300 hover:bg-slate-800 hover:text-white" onClick={onClose} aria-label="Close">
@@ -191,10 +204,11 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
             onClick={() => open.mutate({ setId: set.id, count: quantity })}
             aria-label={`Open ${quantity === 1 ? 'a' : quantity} ${set.name} pack${quantity === 1 ? '' : 's'}`}
           >
-            <BoosterPack setId={set.id} name={set.name} logoUrl={set.logoUrl} state={phase === 'tearing' ? 'torn' : open.isPending ? 'shaking' : 'idle'} />
+            <BoosterPack setId={set.id} name={set.name} logoUrl={set.logoUrl} art={set.art} state={phase === 'tearing' ? 'torn' : open.isPending ? 'shaking' : 'idle'} />
           </button>
-          {phase === 'pack' && (
-            <div className="flex flex-wrap items-center justify-center gap-2" role="group" aria-label="How many packs">
+          {/* The controls keep their space (hidden) while the pack tears, so the pack stays where it was. */}
+          {(phase === 'pack' || phase === 'tearing') && (
+            <div className={`flex flex-wrap items-center justify-center gap-2 ${phase === 'tearing' ? 'invisible' : ''}`} role="group" aria-label="How many packs">
               {QUANTITIES.map((n) => (
                 <button
                   key={n}
@@ -237,8 +251,8 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
               )}
             </div>
           )}
-          {phase === 'pack' && (
-            <div className="flex flex-wrap justify-center gap-x-5 gap-y-1 text-sm text-slate-300">
+          {(phase === 'pack' || phase === 'tearing') && (
+            <div className={`flex flex-wrap justify-center gap-x-5 gap-y-1 text-sm text-slate-300 ${phase === 'tearing' ? 'invisible' : ''}`}>
               <label className="flex items-center gap-2" title="Lay the commons and uncommons out together, and open only the rares one by one">
                 <input type="checkbox" checked={options.separate} onChange={(e) => setOptions((o) => ({ ...o, separate: e.target.checked }))} />
                 Separate commons and rares
@@ -262,8 +276,8 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
               )}
             </div>
           )}
-          {phase === 'pack' && (
-            <p className={`text-sm ${affordable ? 'text-slate-300' : 'text-amber-300'}`}>
+          {(phase === 'pack' || phase === 'tearing') && (
+            <p className={`text-sm ${affordable ? 'text-slate-300' : 'text-amber-300'} ${phase === 'tearing' ? 'invisible' : ''}`}>
               {affordable
                 ? `Click the pack to open ${quantity === 1 ? 'it' : `${quantity} packs`}: ₱${total} from your bank (₱${bank}).`
                 : `${quantity === 1 ? 'A pack costs' : `${quantity} packs cost`} ₱${total}; your bank has ₱${bank}.`}

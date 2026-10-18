@@ -5,6 +5,7 @@ import { PackOpening, type PackSetInfo } from '../components/packs/PackOpening';
 import { PreviewProvider } from '../components/PreviewProvider';
 import { useTRPC } from '../lib/trpc';
 import { PAGE_WIDTH } from '../utils/layout';
+import { pickPackArt } from '../utils/packArt';
 
 /**
  * Booster packs (`/packs`), bought with the ₱ in the bank: pick a set, then open its pack in a window
@@ -15,6 +16,8 @@ export function PacksPage() {
   const queryClient = useQueryClient();
   const packs = useQuery(trpc.packs.list.queryOptions());
   const [opening, setOpening] = useState<PackSetInfo | null>(null);
+  // A random one of each set's wrappers, picked when the page is opened.
+  const [art] = useState(pickPackArt);
   if (packs.error) return <p className={`${PAGE_WIDTH} text-red-400`}>{packs.error.message}</p>;
   if (!packs.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
   const { bank, stardust, price, sets } = packs.data;
@@ -50,10 +53,10 @@ export function PacksPage() {
           {sets.map((s) => (
             <button
               key={s.id}
-              onClick={() => setOpening({ id: s.id, name: s.name, logoUrl: s.logoUrl })}
+              onClick={() => setOpening({ id: s.id, name: s.name, logoUrl: s.logoUrl, art: art[s.id] })}
               className="flex flex-col items-center gap-3 rounded-lg bg-slate-900 p-6 ring-1 ring-slate-800 transition hover:bg-slate-800 hover:ring-slate-600"
             >
-              <BoosterPack setId={s.id} name={s.name} logoUrl={s.logoUrl} size="sm" />
+              <BoosterPack setId={s.id} name={s.name} logoUrl={s.logoUrl} art={art[s.id]} size="sm" />
               <span className="font-semibold">{s.name}</span>
               <span className="text-xs text-slate-400">
                 {s.releaseDate && new Date(s.releaseDate).getUTCFullYear()} · {s.cardCount} cards
