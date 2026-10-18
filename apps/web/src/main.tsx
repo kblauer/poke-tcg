@@ -52,7 +52,7 @@ function RootLayout() {
                 Packs
               </Link>
               <Link to="/decks" className={tab}>
-                Decks
+                Collection
               </Link>
               <Link to="/battle" className={tab}>
                 Single battle

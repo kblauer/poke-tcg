@@ -53,7 +53,7 @@ const choice = (selected: boolean) =>
 /**
  * Single battles outside runs (`/battle`): pick one of your decks (or the fixed test deck), a random trainer
  * or a boss to face, and how hard the CPU plays. The deck for the next battle is shown large at the top,
- * with links to edit it or build a new one on the Decks tab. The choices are remembered between battles.
+ * with links to edit it or build a new one on the Collection tab. The choices are remembered between battles.
  */
 export function SingleBattlePage() {
   const trpc = useTRPC();
@@ -119,7 +119,7 @@ export function SingleBattlePage() {
                 </button>
               </li>
             </ul>
-            {playable.length === 0 && <p className="text-xs text-amber-300">None of your decks can be played yet: fix one on the Decks tab, or use the test deck.</p>}
+            {playable.length === 0 && <p className="text-xs text-amber-300">None of your decks can be played yet: fix one on the Collection tab, or use the test deck.</p>}
           </div>
         </section>
 

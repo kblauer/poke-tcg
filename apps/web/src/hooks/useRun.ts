@@ -18,7 +18,7 @@ export function useRun() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const overviewKey = trpc.run.overview.queryKey();
-  // Always fresh on arrival: decks edited on the Decks tab change which ones can start a run.
+  // Always fresh on arrival: decks edited on the Collection tab change which ones can start a run.
   const overview = useQuery({ ...trpc.run.overview.queryOptions(), staleTime: 0 });
   const run = overview.data?.run ?? null;
 

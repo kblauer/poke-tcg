@@ -44,7 +44,7 @@ export function PacksPage() {
           </span>
           <span
             className="rounded-lg bg-slate-800 px-3 py-1.5 text-sm ring-1 ring-slate-700"
-            title="Earned for every card you pull that you already have (50 a common, 100 an uncommon, 300 a rare or holo; new cards give none); spend it crafting cards on the Decks tab (right-click a card)"
+            title="Earned for every card you pull that you already have (50 a common, 100 an uncommon, 300 a rare or holo; new cards give none); spend it crafting cards on the Collection tab (right-click a card)"
           >
             Stardust <span className="font-semibold text-sky-200">{stardust}</span>
           </span>
