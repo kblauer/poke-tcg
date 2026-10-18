@@ -1,7 +1,7 @@
 import { DECK_SIZE } from '@poke-tcg/shared';
 import { useUnlocked } from '../hooks/useUnlocked';
 import { cardTitle, type CatalogCard } from '../utils/cardList';
-import { DECK_SECTIONS, cantAdd, deckSize, withCards, type DeckEntry } from '../utils/deckBuilder';
+import { DECK_SECTIONS, cantAdd, deckSize, isHoloCard, withCards, type DeckEntry } from '../utils/deckBuilder';
 import { useInspectOnRightClick } from './InspectContext';
 import { CardImage } from './CardImage';
 
@@ -71,6 +71,12 @@ export function DeckPanel({
                       <div className="min-w-0 flex-1">
                         <div className="truncate">
                           {cardTitle(card)}
+                          {/* The same name as its non-holo version, so holos are tagged. */}
+                          {isHoloCard(card) && (
+                            <span className="ml-1 rounded bg-fuchsia-600/80 px-1 align-middle text-[10px] font-bold uppercase text-white" title={card.galaxy ? 'Galaxy foil holo' : 'Holo'}>
+                              Holo
+                            </span>
+                          )}
                           {locked && <span className="ml-1 text-xs text-slate-400">(locked)</span>}
                           {!card.implemented && (
                             <span className="ml-1 text-xs text-amber-400" title="Not fully implemented: its Pokémon can attack for base damage, but its other effects don't work yet.">
