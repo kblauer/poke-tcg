@@ -17,6 +17,7 @@ export function AttackList({
   attack,
   damage: preview = [],
   recall = false,
+  bench = [],
 }: {
   pokemon: InPlayPokemon;
   /** The opponent's active Pokémon, if any. */
@@ -30,13 +31,15 @@ export function AttackList({
   damage?: (DamageRange | null)[];
   /** Recall was played: the attacks of the cards it evolved from are listed after its own, with their card's name. */
   recall?: boolean;
+  /** The player's Bench, for Psylink's copies of its Psychic Pokémon's attacks (listed last, with their names). */
+  bench?: (InPlayPokemon | null)[];
 }) {
   // A Transformed Ditto has the Defending Pokémon's attacks.
   const def = inPlayDef(cards, pokemon);
   const defenderDef = defender && inPlayDef(cards, defender);
   return (
     <div className="flex flex-col gap-1">
-      {usableAttacks(pokemon, cards, recall).map(({ attack: a, source, from }, i) => {
+      {usableAttacks(pokemon, cards, { recall, bench }).map(({ attack: a, source, from }, i) => {
         const error = attack.error(i);
         const usable = canAttack && error === null;
         // Variable damage ("30+", "10×", "?") depends on the card text, so it's shown as printed.

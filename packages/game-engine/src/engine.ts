@@ -3,8 +3,8 @@ import { attackSituation, checkAttack, performAttack, usableAttacks, type Attack
 import { energyFromHand, evolutionBlocked, guardedBy, offerChainReaction, playedFromHand, powerActive, refreshTransforms, retreatAid, stickyGoo, trainersBlocked, usePower, type PowerChoices } from './powers.js';
 import { playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
-import { isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
-import { addLog, clearOnLeavingActive, effectId, flipCoin, inPlayDef, openBenchSlot, pokemonName, type LogEntry } from './status.js';
+import { isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
+import { addLog, baseUid, clearOnLeavingActive, effectId, evolvedHook, shapeshiftCard, flipCoin, inPlayDef, openBenchSlot, pokemonName, revealFaceDown, type LogEntry } from './status.js';
 import { shuffle } from './rng.js';
 import type { CpuDifficulty } from './cpu/index.js';
 
@@ -101,6 +101,16 @@ export interface PokemonEffects {
   focusEnergy?: number;
   /** When an attack damages it, flip; heads does double that damage back, with Weakness and Resistance (Crosscounter). */
   crosscounter?: number;
+  /** Attack damage to it is `amount` less, after Weakness and Resistance, through turn `until` (Lie Low, Barrier Attack). */
+  reduceDamage?: { amount: number; until: number };
+  /** The last attack it used, and when (Earthdrill needs Lie Low the turn before). */
+  lastAttack?: { name: string; turn: number };
+  /** Attacks it can't use again while it stays in play, even if it's benched (Hyper Needle, Ancestral Memory). */
+  usedOnce?: string[];
+  /** Giant Growth: its maximum HP are 80 and its Pound does 30 (benching it ends this). */
+  giantGrowth?: boolean;
+  /** Ink Spurt: its attacks need heads, until it evolves or is benched. */
+  inkSpurt?: boolean;
 }
 
 export interface InPlayPokemon {
@@ -123,9 +133,10 @@ export interface InPlayPokemon {
   effects?: PokemonEffects;
   /**
    * Trainer cards attached to it (PlusPower, Defender), each discarded after turn `until`, or returned to its owner's hand
-   * then with `toHand` (Charity). Missing in older games.
+   * then with `toHand` (Charity); `activeOnly` ones once it's benched (Koga's Ninja Trick). The Evolution card Shapeshift
+   * attached (`shapeshift`, which Brock's Ninetales is treated as: shapeshiftCard) stays until it's discarded. Missing in older games.
    */
-  attached?: { card: CardInstance; until: number; toHand?: boolean }[];
+  attached?: { card: CardInstance; until: number; toHand?: boolean; activeOnly?: boolean; shapeshift?: boolean }[];
   /**
    * The type it's changed to until it leaves play: Venomoth's Shift (until it Shifts again) or a Coloring
    * counter from Smeargle's Paint (until another replaces it).
@@ -139,6 +150,10 @@ export interface InPlayPokemon {
   transformed?: string;
   /** Last turn its "once during your turn" power was used (Step In, Curse). Stays when it moves. */
   powerUsedTurn?: number;
+  /** Lt. Surge's Secret Plan: a card from the hand put face down onto the Bench, treated as a Basic Pokémon until it's turned over (revealFaceDown). */
+  faceDown?: boolean;
+  /** Giovanni: the turn it may evolve even if it was played or evolved this turn, or on the first turn. */
+  giovanniTurn?: number;
 }
 
 export interface PlayerState {
@@ -164,6 +179,12 @@ export interface PlayerState {
   setAside?: { cards: CardInstance[]; until: number };
   /** Recall: the turn this player's Active Pokémon can use the attacks of the cards it evolved from. */
   recallTurn?: number;
+  /** Koga: the turn attacks by this player's Pokémon with Koga in their names poison the Defending Pokémon they damage. */
+  kogaTurn?: number;
+  /** Blaine: the turn this player may attach 2 Fire Energy cards to 1 Pokémon with Blaine in its name instead of 1 Energy card. */
+  blaineTurn?: number;
+  /** Transparent Walls: the last turn attack damage to this player's Benched Pokémon is prevented. */
+  benchDamageProtectedUntil?: number;
 }
 
 export type Phase = 'setup' | 'playing' | 'promote' | 'finished';
@@ -207,6 +228,13 @@ export interface GameState {
   endTurnNow?: boolean;
   /** Choices waiting for `pendingChoice` to be finished, asked in order (Bench Guard after an attack, Narrow Gym's second player). */
   queuedChoices?: PendingChoice[];
+  /** Blaine: the Pokémon (baseUid) a Fire Energy card went to this turn as the free attachment, or 'done' after the second. */
+  blaineAttach?: string;
+  /**
+   * A Trainer card `player` holds for now but `owner` owns: it goes back to `owner`'s discard pile once played, or at
+   * the end of the turn (Sabrina's Psychic Control, Chaos Gym on tails).
+   */
+  borrowed?: { uid: string; owner: PlayerId; player: PlayerId; chaos?: boolean };
   /** What happened, oldest first: attacks, coin flips, knockouts… (last LOG_SIZE entries). Missing in older games. */
   log?: LogEntry[];
 }
@@ -237,6 +265,10 @@ export type GameAction =
   | { type: 'DISCARD_DOLL'; target: Target }
   /** Use the Stadium card in play (Lucky Stadium), once during the turn. */
   | { type: 'USE_STADIUM' }
+  /** Turn over a face-down card on the player's Bench (Lt. Surge's Secret Plan). */
+  | { type: 'FLIP_FACE_DOWN'; target: Target }
+  /** Discard the Evolution card Shapeshift attached to Brock's Ninetales. */
+  | { type: 'DISCARD_SHAPESHIFT'; target: Target }
   | { type: 'END_TURN' }
   | { type: 'CONCEDE' };
 
@@ -366,6 +398,15 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
   if (!pending && playerId !== state.currentPlayer) return fail('Not your turn');
 
   if (pending) {
+    // Chaos Gym, on the other player's tails: the card they couldn't play may be played instead.
+    if (pending.kind === 'borrowedTrainer' && action.type === 'PLAY_TRAINER' && action.cardUid === state.borrowed?.uid) {
+      delete state.pendingChoice;
+      const error = playTrainer(state, me, opp, action.cardUid, action.choices ?? {});
+      if (error) return fail(error);
+      // Its "your turn ends" (Minion of Team Rocket) doesn't end the other player's turn.
+      delete state.endTurnNow;
+      return afterOwnMove(state, state.players[state.currentPlayer]!, state.players[opponentOf(state, state.currentPlayer)]!);
+    }
     if (action.type !== 'RESOLVE_CHOICE') return fail(`Finish ${pending.source} first`);
     const { afterAttack } = pending;
     const attacker = state.players[state.currentPlayer]!;
@@ -377,6 +418,23 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       delete state.pendingChoice;
       addLog(state, slot === undefined ? "Won't use Flee." : `Flee: will switch with ${pokemonName(state, me.bench[slot]!)} if the attack does damage.`, me.id);
       return attackAction(state, attacker, defending, pending.attackIndex, pending.choices, { flee: slot as number | undefined });
+    }
+    // Koga's Ninja Trick: the switch happens before the attack (which then hits the new Defending Pokémon), and the card is discarded.
+    if (pending.kind === 'ninjaTrick') {
+      const slot = action.target;
+      const benched = typeof slot === 'number' ? me.bench[slot] : null;
+      if (slot !== undefined && !benched) return fail('Choose one of your benched Pokémon, or not to switch');
+      delete state.pendingChoice;
+      if (benched && me.active) {
+        const old = me.active;
+        clearOnLeavingActive(old);
+        discardActiveOnly(state, me, old);
+        me.bench[slot as number] = old;
+        me.active = benched;
+        addLog(state, `Koga's Ninja Trick: ${pokemonName(state, benched)} was switched in for ${pokemonName(state, old)}.`, me.id);
+      }
+      if (!attacker.active || !defending.active) return ok(state);
+      return preAttackQuestion(state, attacker, defending, pending.attackIndex, pending.choices, true) ?? attackAction(state, attacker, defending, pending.attackIndex, pending.choices);
     }
     // Sabrina's ESP: the attack happens again from where it started, with new coin flips (the log keeps the first ones).
     if (pending.kind === 'reflip' && action.count === 1) {
@@ -410,12 +468,24 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       if (hayFever) return fail(hayFever);
       me.bench[action.slot] = newInPlay(played, state.turn);
       addLog(state, `Put ${card(played).name} on the Bench.`, me.id);
-      return ok(state);
+      // Rocket's Minefield Gym: tails puts 2 damage counters on it (agreed: the printed card leaves out the number), which can Knock it Out.
+      if (state.stadium && card(state.stadium.card).name === "Rocket's Minefield Gym" && !flipCoin(state, "Rocket's Minefield Gym", me.id)) {
+        me.bench[action.slot]!.damage += 20;
+        addLog(state, `Rocket's Minefield Gym put 2 damage counters on ${card(played).name}.`, me.id);
+      }
+      return afterOwnMove(state, me, opp);
     }
 
     case 'EVOLVE': {
       const target = action.target === 'active' ? me.active : isBenchSlot(action.target) ? me.bench[action.target] : null;
       if (!target) return fail('Evolve one of your Pokémon in play');
+      // Secret Plan: evolving turns the face-down card over; if it isn't a Basic Pokémon, it's discarded and nothing evolves.
+      if (target.faceDown) {
+        if (!revealFaceDown(state, me.id, target)) return afterOwnMove(state, me, opp);
+        const evo = me.hand.find((c) => c.uid === action.cardUid);
+        const evoDef = evo && card(evo);
+        if (evoDef?.kind === 'pokemon' && evolveError(evoDef, target, state.cards, state.turn, [me, opp])) return ok(state);
+      }
       const evolution = takeFromHand(me, action.cardUid);
       const evolutionDef = evolution && card(evolution);
       if (!evolution || evolutionDef?.kind !== 'pokemon' || evolutionDef.stage === 'basic') {
@@ -430,6 +500,7 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       target.card = evolution;
       target.playedTurn = state.turn;
       clearOnLeavingActive(target);
+      evolvedHook(state, me.id, target);
       // Its power may react to being played (Summon Minions…); then any Eevee's Chain Reaction, unless that's asking something.
       playedFromHand(state, me, target);
       if (!state.pendingChoice) offerChainReaction(state);
@@ -438,11 +509,18 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
     }
 
     case 'ATTACH_ENERGY': {
-      if (state.energyAttachedThisTurn) return fail('Already attached energy this turn');
       const target = action.target === 'active' ? me.active : isBenchSlot(action.target) ? me.bench[action.target] : null;
       if (!target) return fail('Attach energy to one of your Pokémon');
+      // Blaine: a second Fire Energy card can go to the Pokémon with Blaine in its name that got the first.
+      const fire = (c: CardInstance) => isBasicEnergy(card(c)) && (card(c) as { energyType?: EnergyType }).energyType === 'fire';
+      const blaine = me.blaineTurn === state.turn && pokemonName(state, target).includes('Blaine');
+      const second = state.energyAttachedThisTurn && blaine && state.blaineAttach === baseUid(target);
+      if (state.energyAttachedThisTurn && !second) return fail('Already attached energy this turn');
+      const handCard = me.hand.find((c) => c.uid === action.cardUid);
+      if (second && handCard && !fire(handCard)) return fail('Blaine: the second Energy card must be a Fire Energy card');
       const energy = takeFromHand(me, action.cardUid);
       if (!energy || card(energy).kind !== 'energy') return fail('Must attach an energy card from your hand');
+      state.blaineAttach = second ? 'done' : blaine && fire(energy) ? baseUid(target) : 'done';
       if (target.effects?.noEnergy !== undefined) return fail(`Energy cards can't be attached to ${pokemonName(state, target)} this turn`);
       target.energy.push(energy);
       state.energyAttachedThisTurn = true;
@@ -456,19 +534,27 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
     case 'ATTACK': {
       if (state.turn === 1) return fail('The first player cannot attack on turn 1');
       if (!me.active || !opp.active) return fail('No active Pokémon');
-      // Flee: the Defending player first says whether, and with which benched Pokémon, a damaged Misty's Tentacruel switches.
-      const defender = opp.active;
-      if (powerEffect(effectId(defender))?.flee && powerActive(defender, state.cards, [opp, me]) && hasBenched(opp)) {
-        const checked = checkAttack(attackSituation(state, me, opp), action.attackIndex, action.choices ?? {});
-        if ('error' in checked) return fail(checked.error);
-        state.pendingChoice = { player: opp.id, source: 'Flee', kind: 'flee', attackIndex: action.attackIndex, choices: checked.choices };
-        return ok(state);
-      }
-      return attackAction(state, me, opp, action.attackIndex, action.choices ?? {});
+      return preAttackQuestion(state, me, opp, action.attackIndex, action.choices ?? {}) ?? attackAction(state, me, opp, action.attackIndex, action.choices ?? {});
+    }
+
+    case 'FLIP_FACE_DOWN': {
+      const target = action.target === 'active' ? me.active : isBenchSlot(action.target) ? me.bench[action.target] : null;
+      if (!target?.faceDown) return fail('Choose one of your face-down cards');
+      revealFaceDown(state, me.id, target);
+      return afterOwnMove(state, me, opp);
+    }
+
+    case 'DISCARD_SHAPESHIFT': {
+      const target = action.target === 'active' ? me.active : isBenchSlot(action.target) ? me.bench[action.target] : null;
+      if (!target || !shapeshiftCard(target)) return fail('Choose a Pokémon with an Evolution card attached by Shapeshift');
+      discardShapeshift(state, me, target);
+      // It's its own card again: its damage may Knock it Out.
+      return afterOwnMove(state, me, opp);
     }
 
     case 'RETREAT': {
       if (!me.active) return fail('No active Pokémon');
+      if (me.active.faceDown && !revealFaceDown(state, me.id, me.active)) return afterOwnMove(state, me, opp);
       const error = retreatError(me.active, state.cards, hasBenched(me), state.retreatedThisTurn ?? false, [me, opp], state.stadium?.card);
       if (error) return fail(error);
       const benched = isBenchSlot(action.slot) ? me.bench[action.slot] : null;
@@ -548,7 +634,7 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       state.stadiumUsedTurn = state.turn;
       addLog(state, `Used ${card(state.stadium!.card).name}.`, me.id);
       trainerEffect(state.stadium!.card.defId)!.useStadium!({ state, me, flip: () => flipCoin(state, card(state.stadium!.card).name, me.id) });
-      return ok(state);
+      return afterOwnMove(state, me, opp);
     }
 
     case 'RESOLVE_CHOICE':
@@ -578,13 +664,15 @@ function attackAction(
   choices: AttackChoices,
   { flee, reflipped = false }: { flee?: number; reflipped?: boolean } = {},
 ): ActionResult {
-  const usable = usableAttacks(me.active!, state.cards, me.recallTurn === state.turn)[attackIndex];
+  const usable = usableAttacks(me.active!, state.cards, { recall: me.recallTurn === state.turn, bench: me.bench })[attackIndex];
   const esp = !reflipped && (me.active!.attached ?? []).some((a) => lookupCard(state.cards, a.card.defId).name === "Sabrina's ESP");
   const before = esp ? structuredClone(state) : null;
   const source = usable && `${inPlayDef(state.cards, me.active!).name}'s ${usable.attack.name}`;
   const logged = state.log?.at(-1)?.n ?? 0;
   const error = performAttack(state, me, opp, attackIndex, choices, { flee });
   if (error) return fail(error);
+  // Before the turn ends, while a Special Condition the attack gave is still there.
+  dropShapeshifts(state);
   // Sabrina's ESP: the attack's coins can be flipped again once, before anything else it asks.
   if (before && (state.log ?? []).some((e) => (e.n ?? 0) > logged && e.coin?.reason === source)) {
     if (state.pendingChoice) (state.queuedChoices ??= []).unshift(state.pendingChoice);
@@ -601,6 +689,46 @@ function attackAction(
   // Attacking ends the turn.
   const winner = resolveKnockouts(state, me.id);
   return winner ? finish(state, winner) : endTurn(state);
+}
+
+/**
+ * A question the Defending player answers before the attack (which waits in it), or null: Koga's Ninja Trick (switch
+ * first; `ninjaAsked` once it's answered), then Flee. Checks the attack first, so the question is never wasted.
+ */
+function preAttackQuestion(state: GameState, me: PlayerState, opp: PlayerState, attackIndex: number, given: AttackChoices, ninjaAsked = false): ActionResult | null {
+  const defender = opp.active!;
+  const ninja = !ninjaAsked && hasBenched(opp) && (defender.attached ?? []).some((a) => lookupCard(state.cards, a.card.defId).name === "Koga's Ninja Trick");
+  const flee = powerEffect(effectId(defender))?.flee && powerActive(defender, state.cards, [opp, me]) && hasBenched(opp);
+  if (!ninja && !flee) return null;
+  const checked = checkAttack(attackSituation(state, me, opp), attackIndex, given);
+  if ('error' in checked) return fail(checked.error);
+  state.pendingChoice = { player: opp.id, source: ninja ? "Koga's Ninja Trick" : 'Flee', kind: ninja ? 'ninjaTrick' : 'flee', attackIndex, choices: checked.choices };
+  return ok(state);
+}
+
+/** Koga's Ninja Trick is discarded once its Pokémon is benched (and Charity-like cards stay). */
+function discardActiveOnly(state: GameState, owner: PlayerState, pokemon: InPlayPokemon) {
+  const gone = (pokemon.attached ?? []).filter((a) => a.activeOnly);
+  if (!gone.length) return;
+  pokemon.attached = pokemon.attached!.filter((a) => !a.activeOnly);
+  owner.discard.push(...gone.map((a) => a.card));
+  for (const a of gone) addLog(state, `${lookupCard(state.cards, a.card.defId).name} was discarded.`, owner.id);
+}
+
+/** Shapeshift: the Evolution card attached to Brock's Ninetales is discarded, and it's Brock's Ninetales again. */
+export function discardShapeshift(state: GameState, owner: PlayerState, pokemon: InPlayPokemon) {
+  const card = shapeshiftCard(pokemon);
+  if (!card) return;
+  pokemon.attached = pokemon.attached!.filter((a) => !a.shapeshift);
+  owner.discard.push(card);
+  addLog(state, `Discarded ${lookupCard(state.cards, card.defId).name} from ${lookupCard(state.cards, pokemon.card.defId).name}.`, owner.id);
+}
+
+/** Shapeshift: Brock's Ninetales loses its Evolution card as soon as it's Asleep, Confused or Paralyzed. */
+function dropShapeshifts(state: GameState) {
+  for (const player of Object.values(state.players)) {
+    for (const p of [player.active, ...player.bench]) if (p && shapeshiftCard(p) && p.condition) discardShapeshift(state, player, p);
+  }
 }
 
 /** Asks the next queued choice, if any; after an attack's choice, it ends the turn too (`afterAttack`). */
@@ -697,12 +825,16 @@ export function evolveError(
 ): string | null {
   const blocked = evolutionBlocked(sides, cards);
   if (blocked) return blocked;
+  if (shapeshiftCard(target)) return `${lookupCard(cards, target.card.defId).name} can't evolve while Shapeshift is in use`;
+  if (target.faceDown) return null;
   // Owners' Pokémon (Gym Heroes) need no rule of their own: Brock's Rhydon evolves from Brock's Rhyhorn, by name.
   const current = lookupCard(cards, target.card.defId);
   const evolvesFromStage = evolution.stage === 'stage2' ? 'stage1' : 'basic';
   if (current.kind !== 'pokemon' || current.name !== evolution.evolvesFrom || current.stage !== evolvesFromStage) {
     return `${evolution.name} evolves from ${evolution.evolvesFrom ?? 'nothing'}`;
   }
+  // Giovanni: no first-turn or played-this-turn limit for the Pokémon chosen, this turn.
+  if (target.giovanniTurn === turn) return null;
   // Turns 1 and 2 are each player's first turn.
   if (turn <= 2) return "You can't evolve on your first turn";
   if (target.playedTurn === turn) return `${current.name} was played or evolved this turn`;
@@ -853,6 +985,7 @@ function beginNextTurn(state: GameState): ActionResult {
   state.turn += 1;
   state.energyAttachedThisTurn = false;
   state.retreatedThisTurn = false;
+  delete state.blaineAttach;
   const next = state.players[state.currentPlayer]!;
   const drawn = next.deck.shift();
   if (!drawn) {
@@ -909,6 +1042,17 @@ function betweenTurns(state: GameState) {
       delete player.powersOffUntil;
       if (id === state.currentPlayer) addLog(state, 'Goop Gas Attack wore off: Pokémon Powers work again.');
     }
+    // Sabrina's Psychic Control: a borrowed card not played this turn goes back to its owner's discard pile.
+    const borrowed = state.borrowed;
+    const held = borrowed?.player === id ? player.hand.find((c) => c.uid === borrowed.uid) : undefined;
+    if (borrowed && held) {
+      player.hand = player.hand.filter((c) => c !== held);
+      state.players[borrowed.owner]!.discard.push(held);
+      delete state.borrowed;
+      addLog(state, `${lookupCard(state.cards, held.defId).name} went back to the opponent's discard pile.`, id);
+    }
+    // Koga's Ninja Trick is discarded once its Pokémon is on the Bench.
+    for (const p of player.bench) if (p) discardActiveOnly(state, player, p);
     // Tickling Machine: the cards set aside go back into the hand at the end of the player's next turn.
     if (player.setAside && player.setAside.until <= state.turn) {
       player.hand.push(...player.setAside.cards);
@@ -971,6 +1115,15 @@ function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId | null
       const prize = taker.prizes.pop();
       if (prize) taker.hand.push(prize);
     };
+    // Scram: with exactly 10 HP left, Brock's Primeape is shuffled into its owner's deck with every card attached.
+    for (const p of [owner.active, ...owner.bench]) {
+      if (!p || !powerEffect(effectId(p))?.scram || !powerActive(p, state.cards, sides) || inPlayDef(state.cards, p).hp - p.damage !== 10) continue;
+      const cards = [...p.evolvedFrom, p.card, ...p.energy.map(asDiscarded), ...(p.attached ?? []).map((a) => a.card)];
+      [owner.deck, state.rngState] = shuffle([...owner.deck, ...cards], state.rngState);
+      if (owner.active === p) owner.active = null;
+      else owner.bench = owner.bench.map((q) => (q === p ? null : q));
+      addLog(state, `Scram: ${pokemonName(state, p)} was shuffled into the deck.`, id);
+    }
     const isOut = (p: InPlayPokemon) => p.damage >= inPlayDef(state.cards, p).hp;
     if (owner.active && isOut(owner.active)) {
       knockOut(owner.active);
@@ -1011,6 +1164,7 @@ function finish(state: GameState, winner: PlayerId): ActionResult {
 
 function ok(state: GameState): ActionResult {
   refreshTransforms(state);
+  dropShapeshifts(state);
   state.version += 1;
   return { ok: true, state };
 }

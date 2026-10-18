@@ -1,5 +1,5 @@
 import { DndContext, DragOverlay } from '@dnd-kit/core';
-import { hasBenched, lookupCard, type GameAction, type InPlayPokemon, type PlayerView, type Target } from '@poke-tcg/game-engine';
+import { hasBenched, lookupCard, shapeshiftCard, type GameAction, type InPlayPokemon, type PlayerView, type Target } from '@poke-tcg/game-engine';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAttack } from '../hooks/useAttack';
 import { useCardPlay } from '../hooks/useCardPlay';
@@ -187,6 +187,9 @@ export function Board({
     // A Trainer played as a Pokémon (Clefairy Doll) is clicked to discard it, unless it's the only Pokémon in play.
     const dollDef = pokemon && lookupCard(view.cards, pokemon.card.defId);
     const isDoll = myTurn && dollDef?.kind === 'pokemon' && !!dollDef.trainerText;
+    // Secret Plan's face-down card is clicked to turn it over; Brock's Ninetales with a Shapeshift card, to discard that card.
+    const faceDown = myTurn && !!pokemon?.faceDown;
+    const shapeshifted = myTurn && !!pokemon && !!shapeshiftCard(pokemon);
     const slot = (
       <Slot
         key={id}
@@ -211,6 +214,12 @@ export function Board({
                 : (slotClick(id) ??
               retreat.slotClick(id) ??
               (canPromote ? () => send({ type: 'PROMOTE', slot: target as number }) : undefined) ??
+              ((faceDown || shapeshifted) && !heldCard && !retreat.ready
+                ? () => {
+                    cancelAll();
+                    send(faceDown ? { type: 'FLIP_FACE_DOWN', target } : { type: 'DISCARD_SHAPESHIFT', target });
+                  }
+                : undefined) ??
               (benchPower && !heldCard && !retreat.ready
                 ? () => {
                     cancelAll();
@@ -245,6 +254,7 @@ export function Board({
         canAttack={myTurn && view.turn > 1 && !busy}
         damage={view.attackDamage}
         recall={!!self.recall}
+        bench={self.bench}
         pending={pending}
         attack={{
           ...attack,

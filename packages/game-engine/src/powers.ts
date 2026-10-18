@@ -128,6 +128,16 @@ export interface PowerEffect {
   benchGuard?: boolean;
   /** Flee: before the opponent attacks, its owner may say it switches out if the attack damages it as the Active Pokémon. */
   flee?: boolean;
+  /** Psylink: it can use the attacks of its owner's other Psychic Pokémon in play (usableAttacks). */
+  psylink?: boolean;
+  /** Rebellion: whenever it attacks, 2 tails and the attack does nothing; it's shuffled into its owner's deck. */
+  rebellion?: boolean;
+  /** Fortitude: an opponent's attack that would Knock it Out leaves it with 10 HP on heads. */
+  fortitude?: boolean;
+  /** Relaxing Scent: while it's an Active Pokémon, attack damage to any Pokémon is halved, rounded up to the nearest 10. */
+  relaxingScent?: boolean;
+  /** Scram: with exactly 10 HP left, it's shuffled into its owner's deck with every card attached (resolveKnockouts). */
+  scram?: boolean;
 }
 
 export interface PowerContext {

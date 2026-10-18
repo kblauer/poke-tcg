@@ -12,6 +12,8 @@ const PALETTES: Record<string, string> = {
   base5: 'from-red-600 via-neutral-900 to-black',
   // Gym Heroes: the gym badge's gold on Brock's grey (drawn until it has real wrapper art in packArt.ts).
   gym1: 'from-amber-400 via-slate-600 to-slate-900',
+  // Gym Challenge: Giovanni's dark green (drawn until it has real wrapper art in packArt.ts).
+  gym2: 'from-emerald-500 via-emerald-900 to-slate-950',
 };
 
 /** The crimped foil seal along a pack's top and bottom edges. */

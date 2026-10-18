@@ -225,6 +225,10 @@ function answers(spec: ChoiceSpec): AttackChoices[keyof AttackChoices][] {
     }
     case 'opponentBenchMany':
       return slotCombinations(spec.options, Math.min(spec.count, spec.options.length));
+    case 'eitherDiscard':
+      return spec.options.map((c) => [c.uid]);
+    case 'oppDiscard':
+      return spec.options.map((c) => c.uid);
     // Vermilion City Gym: the CPU always flips (agreed). Charity: it never holds back.
     case 'vermilion':
       return [true];
@@ -506,9 +510,9 @@ export function resolveSearch(t: Turn): GameAction {
   if (view.kind === 'arrangeTop') return { type: 'RESOLVE_CHOICE', order: view.cards.map((c) => c.uid) };
   // Lt. Surge's Treaty: both take a Prize card unless that helps the other player more (they have fewer left).
   if (view.kind === 'options') return { type: 'RESOLVE_CHOICE', count: optionAnswer(t, view.labels.length) };
-  // Flee: it switches out when Misty's Tentacruel has 40 HP or less left, to the benched Pokémon with the most HP left.
+  // Flee and Koga's Ninja Trick: it switches out when its Active Pokémon has 40 HP or less left, to the benched Pokémon with the most HP left.
   const choice = t.state.pendingChoice!;
-  if (choice.kind === 'flee' && view.kind === 'ownPokemon') {
+  if ((choice.kind === 'flee' || choice.kind === 'ninjaTrick') && view.kind === 'ownPokemon') {
     const left = (target: Target) => hpLeft(t.state.cards, at(t.me, target)!);
     if (!view.options.length || left('active') > 40) return { type: 'RESOLVE_CHOICE' };
     return { type: 'RESOLVE_CHOICE', target: view.options.reduce((a, b) => (left(b) > left(a) ? b : a)) };
@@ -533,12 +537,15 @@ export function resolveSearch(t: Turn): GameAction {
   }
   // Computer Error: always the most cards (agreed).
   if (view.kind === 'drawCount') return { type: 'RESOLVE_CHOICE', count: view.max };
+  if (choice.kind === 'attachFromHand' && view.kind === 'pickFromHand') return view.options[0] ? { type: 'RESOLVE_CHOICE', cardUid: view.options[0].uid } : { type: 'RESOLVE_CHOICE' };
   // Special Delivery: the card it wants least goes back on the deck. Sleight of Hand ("up to"): only cards it doesn't want.
   if (view.kind === 'pickFromHand') {
     const wanted = wantedCards(t.state, t.me, view.options);
     const pick = view.options.find((c) => !wanted.includes(c)) ?? (view.optional ? undefined : view.options.at(-1));
     return pick ? { type: 'RESOLVE_CHOICE', cardUid: pick.uid } : { type: 'RESOLVE_CHOICE' };
   }
+  // Super Removal, Energy Drain: an Energy card of the player's Pokémon, the first. Growth: every Grass Energy card it can.
+  if (choice.kind === 'removeEach' || choice.kind === 'drainEnergy') return view.kind === 'pickAttached' && view.options[0] ? { type: 'RESOLVE_CHOICE', cardUid: view.options[0].uid } : { type: 'RESOLVE_CHOICE' };
   // Pure Body: the Energy card that leaves Suicune closest to attacking.
   if (view.kind === 'pickAttached') {
     const p = inPlay(t.me).map(([, p]) => p).find((p) => p.energy.includes(view.options[0]!))!;
@@ -567,8 +574,27 @@ function optionAnswer(t: Turn, count: number): number {
     const rhydon = t.me.bench[choice.guard];
     return rhydon && hpLeft(t.state.cards, rhydon) > 10 ? 0 : 1;
   }
-  if (choice.kind === 'quiz') return Math.floor(nextRandom(t.state.rngState)[0] * count);
+  if (choice.kind === 'quiz' || choice.kind === 'guess') return Math.floor(nextRandom(t.state.rngState)[0] * count);
+  // Misty's Wish: it declines (agreed); for its own, the first Prize card.
+  if (choice.kind === 'mistysWish' && choice.step === 'ask') return 1;
   return 0;
+}
+
+/**
+ * Chaos Gym, on the player's tails: the CPU plays the card itself if it's what it would do first on a turn of its own with
+ * only that card in hand (`decide` is its difficulty's move); otherwise it lets the card go.
+ */
+export function borrowedTrainerMove(state: GameState, cpuId: PlayerId, decide: (state: GameState, cpuId: PlayerId) => GameAction | null): GameAction {
+  const uid = state.borrowed?.uid;
+  const scratch = structuredClone(state);
+  delete scratch.pendingChoice;
+  scratch.currentPlayer = cpuId;
+  scratch.energyAttachedThisTurn = true;
+  scratch.retreatedThisTurn = true;
+  scratch.players[cpuId]!.hand = scratch.players[cpuId]!.hand.filter((c) => c.uid === uid);
+  const action = decide(scratch, cpuId);
+  if (action?.type === 'PLAY_TRAINER' && action.cardUid === uid && tryAction(state, cpuId, action)) return action;
+  return { type: 'RESOLVE_CHOICE' };
 }
 
 /** Puts a Basic Pokémon from the hand onto the Bench, while there's room. */

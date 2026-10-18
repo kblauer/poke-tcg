@@ -34,7 +34,8 @@ export function flipCoin(state: GameState, reason: string, player: PlayerId | nu
   return heads;
 }
 
-export const pokemonName = (state: GameState, pokemon: InPlayPokemon) => lookupCard(state.cards, pokemon.card.defId).name;
+/** The Pokémon's name for the log; a face-down card (Secret Plan) stays secret. */
+export const pokemonName = (state: GameState, pokemon: InPlayPokemon) => (pokemon.faceDown ? 'Face-down card' : lookupCard(state.cards, pokemon.card.defId).name);
 
 /** Identifies a Pokémon in play across evolutions: the uid of its bottom card (Tail Wag, Pounce). */
 export const baseUid = (pokemon: InPlayPokemon) => (pokemon.evolvedFrom[0] ?? pokemon.card).uid;
@@ -43,15 +44,84 @@ export const baseUid = (pokemon: InPlayPokemon) => (pokemon.evolvedFrom[0] ?? po
 export const effectId = (pokemon: InPlayPokemon) => pokemon.transformed ?? pokemon.card.defId;
 
 /**
+ * A card put face down onto the Bench by Lt. Surge's Secret Plan: a Basic Pokémon with no attacks, which is turned face
+ * up (revealFaceDown) before anything could damage it, so its HP never matter.
+ */
+export const FACE_DOWN: PokemonCardDef = {
+  id: 'face-down',
+  kind: 'pokemon',
+  name: 'Face-down card',
+  imageUrl: null,
+  type: 'colorless',
+  hp: 990,
+  stage: 'basic',
+  evolvesFrom: null,
+  attacks: [],
+  retreatCost: 0,
+};
+
+/**
  * The card a Pokémon in play counts as. Usually its own; a Transformed Ditto is the Defending Pokémon's
  * card (type, HP, Weakness, Resistance, retreat cost, attacks and power) but keeps its name and stage,
- * and Transform when the copied card has no power.
+ * and Transform when the copied card has no power. A face-down card (Secret Plan) is FACE_DOWN. Brock's Ninetales
+ * with an Evolution card attached by Shapeshift is that card, keeping its own power. Koga's Ditto after Giant Growth
+ * has 80 HP; Sabrina's Gastly's Gaseous Form adds 10 HP per Psychic Energy card (it works whatever its condition;
+ * Stare stops it here, Toxic Gas and Goop Gas Attack don't, as this sees no other Pokémon).
  */
 export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCardDef {
+  if (pokemon.faceDown) return FACE_DOWN;
   const own = lookupCard(cards, pokemon.card.defId) as PokemonCardDef;
-  if (!pokemon.transformed) return pokemon.shiftedType ? { ...own, type: pokemon.shiftedType } : own;
-  const copy = lookupCard(cards, pokemon.transformed) as PokemonCardDef;
-  return { ...copy, name: own.name, stage: own.stage, evolvesFrom: own.evolvesFrom, evolvesFromBasic: own.evolvesFromBasic, power: copy.power ?? own.power };
+  let d: PokemonCardDef = own;
+  if (pokemon.transformed) {
+    const copy = lookupCard(cards, pokemon.transformed) as PokemonCardDef;
+    d = { ...copy, name: own.name, stage: own.stage, evolvesFrom: own.evolvesFrom, evolvesFromBasic: own.evolvesFromBasic, power: copy.power ?? own.power };
+  } else if (shapeshiftCard(pokemon)) {
+    d = { ...(lookupCard(cards, shapeshiftCard(pokemon)!.defId) as PokemonCardDef), power: own.power };
+  } else if (pokemon.shiftedType) d = { ...own, type: pokemon.shiftedType };
+  if (pokemon.effects?.giantGrowth) d = { ...d, hp: 80 };
+  if (own.power?.name === 'Gaseous Form' && pokemon.powerOffUntil === undefined) {
+    const psychic = pokemon.energy.filter((e) => {
+      const ed = !e.provides && lookupCard(cards, e.defId);
+      return ed && ed.kind === 'energy' && (!!ed.anyType || (ed.energyType === 'psychic' && ed.basic !== false));
+    }).length;
+    if (psychic) d = { ...d, hp: d.hp + 10 * psychic };
+  }
+  return d;
+}
+
+/** The Evolution card Shapeshift attached to Brock's Ninetales, if any. */
+export const shapeshiftCard = (pokemon: InPlayPokemon) => pokemon.attached?.find((a) => a.shapeshift)?.card;
+
+/**
+ * Turns a face-down card (Secret Plan) of `owner` face up: if it isn't a Basic Pokémon card, it's discarded with every
+ * card attached. Returns whether it's still in play.
+ */
+export function revealFaceDown(state: GameState, owner: PlayerId, pokemon: InPlayPokemon): boolean {
+  if (!pokemon.faceDown) return true;
+  delete pokemon.faceDown;
+  const player = state.players[owner]!;
+  const def = lookupCard(state.cards, pokemon.card.defId);
+  addLog(state, `The face-down card is ${def.name}.`, owner);
+  if (def.kind === 'pokemon' && def.stage === 'basic' && !def.trainerText) return true;
+  player.discard.push(pokemon.card, ...pokemon.energy.map(({ provides: _, ...card }) => card), ...(pokemon.attached ?? []).map((a) => a.card));
+  if (player.active === pokemon) player.active = null;
+  else player.bench = player.bench.map((p) => (p === pokemon ? null : p));
+  addLog(state, `It isn't a Basic Pokémon, so it was discarded with every card attached.`, owner);
+  return false;
+}
+
+/** Brock's Protection is attached: the opponent's attacks and Trainer cards can't remove its Energy cards. */
+export const energyProtected = (cards: CardLibrary, pokemon: InPlayPokemon) =>
+  (pokemon.attached ?? []).some((a) => lookupCard(cards, a.card.defId).name === "Brock's Protection");
+
+/** Viridian City Gym: a Pokémon with Giovanni in its name that just evolved has 2 damage counters removed (or 1). */
+export function evolvedHook(state: GameState, owner: PlayerId, pokemon: InPlayPokemon) {
+  const stadium = state.stadium?.card;
+  if (!stadium || lookupCard(state.cards, stadium.defId).name !== 'Viridian City Gym') return;
+  if (!pokemonName(state, pokemon).includes('Giovanni') || pokemon.damage < 10) return;
+  const healed = Math.min(20, pokemon.damage);
+  pokemon.damage -= healed;
+  addLog(state, `Viridian City Gym: removed ${healed / 10} damage counter${healed === 10 ? '' : 's'} from ${pokemonName(state, pokemon)}.`, owner);
 }
 
 /**
@@ -68,11 +138,15 @@ export function benchRoom(bench: readonly (InPlayPokemon | null)[], cards: CardL
   return Math.max(0, limit - bench.filter(Boolean).length);
 }
 
-/** Benching or evolving removes Special Conditions (Burned and Poisoned included) and the effects of attacks (except Leek Slap's). */
+/**
+ * Benching or evolving removes Special Conditions (Burned and Poisoned included) and the effects of attacks, except the
+ * ones that last while it stays in play (Leek Slap, Hyper Needle).
+ */
 export function clearOnLeavingActive(pokemon: InPlayPokemon) {
   pokemon.condition = null;
   pokemon.poison = 0;
   pokemon.burned = false;
   delete pokemon.paralyzedTurn;
-  pokemon.effects = pokemon.effects?.leekSlapUsed ? { leekSlapUsed: true } : {};
+  const { leekSlapUsed, usedOnce } = pokemon.effects ?? {};
+  pokemon.effects = { ...(leekSlapUsed && { leekSlapUsed }), ...(usedOnce && { usedOnce }) };
 }

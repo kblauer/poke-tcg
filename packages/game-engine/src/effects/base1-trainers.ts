@@ -4,7 +4,7 @@
 import { isBasicEnergy, isBasicPokemon, isBenchable, isPokemonCard, isTrainerCard, type CardLibrary, type PokemonCardDef } from '../cards.js';
 import type { CardInstance, InPlayPokemon, PlayerState, Target } from '../engine.js';
 import { evolutionBlocked, offerChainReaction, playedFromHand } from '../powers.js';
-import { clearOnLeavingActive, inPlayDef, openBenchSlot } from '../status.js';
+import { clearOnLeavingActive, energyProtected, evolvedHook, inPlayDef, openBenchSlot } from '../status.js';
 import { def, otherHandCards, own, targetsOf, theirs, type TrainerChoiceSpec, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 
 const pokemonDef = (s: { cards: TrainerSituation['cards'] }, p: InPlayPokemon): PokemonCardDef => inPlayDef(s.cards, p);
@@ -20,6 +20,8 @@ const otherCards = (s: TrainerSituation, n: number, prompt: string): TrainerChoi
 });
 const needOthers = (s: TrainerSituation, n: number) => (otherHandCards(s).length < n ? `You need ${n} other card${n === 1 ? '' : 's'} in your hand` : null);
 
+/** The opponent's Pokémon at `t` has Energy that Trainers can remove (not with Brock's Protection attached). */
+const removable = (s: TrainerSituation, t: Target) => theirs(s, t)!.energy.length > 0 && !energyProtected(s.cards, theirs(s, t)!);
 const at = (side: Pick<PlayerState, 'active' | 'bench'>, t: Target) => (t === 'active' ? side.active : side.bench[t])!;
 /** An empty Bench slot of `side` (none while Narrow Gym leaves no room), given the Stadium in play. */
 const emptySlot = (side: Pick<PlayerState, 'bench'>, s: { cards: CardLibrary; stadium?: CardInstance | null }) => openBenchSlot(side.bench, s.cards, s.stadium);
@@ -149,6 +151,7 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
       p.playedTurn = ctx.turn;
       clearOnLeavingActive(p);
       ctx.log(`${basicName} evolved into ${pokemonDef(ctx.state, p).name}.`);
+      evolvedHook(ctx.state, ctx.me.id, p);
       // The Stage 2 was played from the hand: its power may react (Summon Minions…, agreed), then Chain Reaction.
       playedFromHand(ctx.state, ctx.me, p);
       if (!ctx.state.pendingChoice) offerChainReaction(ctx.state);
@@ -184,14 +187,14 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
   'base1-79': {
     blocked(s) {
       if (!targetsOf(s.me).some((t) => own(s, t)!.energy.length)) return 'None of your Pokémon have Energy to discard';
-      return targetsOf(s.opp).some((t) => theirs(s, t)!.energy.length) ? null : "None of your opponent's Pokémon have Energy";
+      return targetsOf(s.opp).some((t) => removable(s, t)) ? null : "None of your opponent's Pokémon have Energy";
     },
     choices(s, c) {
       const specs: TrainerChoiceSpec[] = [
         { kind: 'pokemon', field: 'target', side: 'own', options: targetsOf(s.me).filter((t) => own(s, t)!.energy.length), prompt: 'Discard an Energy from which of your Pokémon' },
       ];
       if (c.target !== undefined) specs.push({ kind: 'cards', field: 'energyUids', min: 1, max: 1, options: own(s, c.target)!.energy, prompt: 'Choose your Energy to discard' });
-      specs.push({ kind: 'pokemon', field: 'oppTarget', side: 'opp', options: targetsOf(s.opp).filter((t) => theirs(s, t)!.energy.length), prompt: "Choose one of your opponent's Pokémon" });
+      specs.push({ kind: 'pokemon', field: 'oppTarget', side: 'opp', options: targetsOf(s.opp).filter((t) => removable(s, t)), prompt: "Choose one of your opponent's Pokémon" });
       if (c.oppTarget !== undefined) specs.push({ kind: 'cards', field: 'oppEnergyUids', min: 1, max: 2, options: theirs(s, c.oppTarget)!.energy, prompt: 'Choose up to 2 of its Energy to discard' });
       return specs;
     },
@@ -354,10 +357,10 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
 
   // Energy Removal
   'base1-92': {
-    blocked: (s) => (targetsOf(s.opp).some((t) => theirs(s, t)!.energy.length) ? null : "None of your opponent's Pokémon have Energy"),
+    blocked: (s) => (targetsOf(s.opp).some((t) => removable(s, t)) ? null : "None of your opponent's Pokémon have Energy"),
     choices(s, c) {
       const specs: TrainerChoiceSpec[] = [
-        { kind: 'pokemon', field: 'oppTarget', side: 'opp', options: targetsOf(s.opp).filter((t) => theirs(s, t)!.energy.length), prompt: "Choose one of your opponent's Pokémon" },
+        { kind: 'pokemon', field: 'oppTarget', side: 'opp', options: targetsOf(s.opp).filter((t) => removable(s, t)), prompt: "Choose one of your opponent's Pokémon" },
       ];
       if (c.oppTarget === undefined) return specs;
       return [...specs, { kind: 'cards', field: 'oppEnergyUids', min: 1, max: 1, options: theirs(s, c.oppTarget)!.energy, prompt: 'Choose an Energy to discard' }];

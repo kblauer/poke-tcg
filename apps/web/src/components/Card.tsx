@@ -17,8 +17,15 @@ function statusBadges(p: InPlayPokemon, cards?: CardLibrary): { label: string; t
   else if (e.harden !== undefined) badges.push({ label: '🛡30', title: 'Attack damage of 30 or less is prevented next turn', className: 'bg-sky-600' });
   if (e.destinyBond !== undefined) badges.push({ label: '☠', title: 'Destiny Bond: knocks out the Pokémon that knocks it out next turn', className: 'bg-slate-700' });
   if (e.sandAttack !== undefined) badges.push({ label: 'SND', title: 'Sand-attack: needs heads to attack next turn', className: 'bg-amber-700' });
+  // Lt. Surge's Secret Plan: the owner sees the card, marked; the opponent sees a card back.
+  if (p.faceDown) badges.push({ label: '?', title: 'Face down (Secret Plan): treated as a Basic Pokémon until turned over. Click it on your turn to turn it over', className: 'bg-yellow-600 text-slate-900' });
   for (const a of p.attached ?? []) {
     const name = cards?.[a.card.defId]?.name;
+    if (a.shapeshift) badges.push({ label: '⇄', title: `Shapeshift: treated as ${name ?? 'an Evolution card'}. Click it on your turn to discard that card`, className: 'bg-orange-700' });
+    if (name === "Brock's Protection") badges.push({ label: 'PRT', title: "Brock's Protection: the opponent's attacks and Trainers can't remove its Energy cards", className: 'bg-amber-700' });
+    if (name === "Koga's Ninja Trick") badges.push({ label: 'NIN', title: "Koga's Ninja Trick: it may switch out when the opponent attacks", className: 'bg-violet-700' });
+    if (name === 'Charity') badges.push({ label: 'CHR', title: 'Charity: its attacks may do less damage; it goes back to the hand at the end of the turn', className: 'bg-rose-700' });
+    if (name === "Sabrina's ESP") badges.push({ label: 'ESP', title: "Sabrina's ESP: its attack's coins may be re-flipped once this turn", className: 'bg-fuchsia-700' });
     if (name === 'PlusPower') badges.push({ label: '+10', title: 'PlusPower: its attacks do 10 more damage this turn', className: 'bg-red-600' });
     if (name === 'Defender') badges.push({ label: '−20', title: "Defender: 20 less damage from attacks until the end of the opponent's next turn", className: 'bg-sky-700' });
   }

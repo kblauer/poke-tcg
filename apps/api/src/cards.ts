@@ -69,7 +69,8 @@ const evolvesFrom = (card: Pick<Card, 'name' | 'stage' | 'evolveFrom'>) => {
   // An owner's Pokémon evolves from the same owner's (Brock's Rhydon from Brock's Rhyhorn, as printed); TCGdex has the plain one.
   const owner = card.stage !== 'Basic' && card.stage !== 'Baby' ? card.name.match(OWNER)?.[1] : undefined;
   const from = card.evolveFrom ?? TCGDEX_MISSING_EVOLVES_FROM[card.name];
-  if (owner && from) return from.startsWith(owner) ? from : `${owner}${from}`;
+  // Gym Challenge's Nidoran are named "Giovanni's Nidoran ♀" (with a space), unlike the plain "Nidoran♀".
+  if (owner && from) return (from.startsWith(owner) ? from : `${owner}${from}`).replace(/Nidoran([♀♂])$/, 'Nidoran $1');
   return card.evolveFrom ?? (card.stage === 'Stage1' && FROM_MYSTERIOUS_FOSSIL.has(card.name) ? 'Mysterious Fossil' : null);
 };
 

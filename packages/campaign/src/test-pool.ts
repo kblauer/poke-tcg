@@ -32,7 +32,7 @@ function evolvesFrom(r: Row, stage: Stage): string | null {
   if (stage === 'stage2' && r.name.startsWith('Dark ') && r.evolveFrom && !r.evolveFrom.startsWith('Dark ')) return `Dark ${r.evolveFrom}`;
   const owner = stage !== 'basic' ? r.name.match(/^((?:Blaine|Brock|Erika|Lt\. Surge|Misty|Sabrina|Giovanni|Koga|Rocket)'s )/)?.[1] : undefined;
   const from = r.evolveFrom ?? (r.name === "Lt. Surge's Magneton" ? 'Magnemite' : null);
-  if (owner && from) return from.startsWith(owner) ? from : `${owner}${from}`;
+  if (owner && from) return (from.startsWith(owner) ? from : `${owner}${from}`).replace(/Nidoran([♀♂])$/, 'Nidoran $1');
   return r.evolveFrom ?? (stage === 'stage1' && ['Omanyte', 'Kabuto', 'Aerodactyl'].includes(r.name) ? 'Mysterious Fossil' : null);
 }
 

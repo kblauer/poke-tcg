@@ -37,6 +37,8 @@ const attackChoicesSchema = z.object({
   vermilionFlip: z.boolean().optional(),
   // -1: Charity's "no limit".
   damageCap: z.number().int().min(-1).max(990).optional(),
+  amount: z.number().int().min(0).max(60).optional(),
+  oppDiscardUid: z.string().optional(),
 }) satisfies z.ZodType<AttackChoices>;
 
 /** Answers to a Pokémon Power's questions (see PowerChoices in the engine). */
@@ -57,6 +59,7 @@ const trainerChoicesSchema = z.object({
   handUids: z.array(z.string()).max(60).optional(),
   discardUids: z.array(z.string()).max(60).optional(),
   target: target.optional(),
+  target2: target.optional(),
   oppTarget: target.optional(),
   energyUids: z.array(z.string()).max(60).optional(),
   oppEnergyUids: z.array(z.string()).max(60).optional(),
@@ -95,6 +98,8 @@ export const gameActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('RESET_SETUP') }),
   z.object({ type: z.literal('START_BATTLE') }),
   z.object({ type: z.literal('USE_STADIUM') }),
+  z.object({ type: z.literal('FLIP_FACE_DOWN'), target }),
+  z.object({ type: z.literal('DISCARD_SHAPESHIFT'), target }),
   z.object({ type: z.literal('END_TURN') }),
   z.object({ type: z.literal('CONCEDE') }),
 ]) satisfies z.ZodType<GameAction>;

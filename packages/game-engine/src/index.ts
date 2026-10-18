@@ -4,7 +4,7 @@ export { attackEffect, cardImplemented, energyEffect, powerEffect, trainerEffect
 export { BASE4_REPRINTS } from './effects/base4.js';
 export * from './powers.js';
 export * from './trainers.js';
-export { effectId, inPlayDef, type LogEntry } from './status.js';
+export { effectId, FACE_DOWN, inPlayDef, shapeshiftCard, type LogEntry } from './status.js';
 export * from './cpu/index.js';
 export * from './debug.js';
 export * from './engine.js';

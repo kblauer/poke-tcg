@@ -2,7 +2,7 @@ import type { CardLibrary } from './cards.js';
 import { DEFAULT_CPU_DIFFICULTY, type CpuDifficulty } from './cpu/index.js';
 import { attackDamageRanges, type DamageRange } from './cpu/shared.js';
 import type { BattleRule, CardInstance, GameState, InPlayPokemon, Phase, PlayerId } from './engine.js';
-import type { LogEntry } from './status.js';
+import { FACE_DOWN, type LogEntry } from './status.js';
 import { seesOpponentHand } from './powers.js';
 import { pendingChoiceView, type PendingChoiceView } from './trainers.js';
 
@@ -93,8 +93,10 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
   const oppId = state.playerOrder[0] === playerId ? state.playerOrder[1] : state.playerOrder[0];
   const opp = state.players[oppId]!;
 
-  const oppActive = state.phase === 'setup' ? null : opp.active;
-  const oppBench = state.phase === 'setup' ? opp.bench.map(() => null) : opp.bench;
+  // Lt. Surge's Secret Plan: the opponent's face-down cards are shown as FACE_DOWN, with nothing of the card itself.
+  const hide = (p: InPlayPokemon | null): InPlayPokemon | null => (p?.faceDown ? { ...p, card: { uid: p.card.uid, defId: FACE_DOWN.id } } : p);
+  const oppActive = state.phase === 'setup' ? null : hide(opp.active);
+  const oppBench = state.phase === 'setup' ? opp.bench.map(() => null) : opp.bench.map(hide);
   const pending = state.pendingChoice?.player === playerId ? pendingChoiceView(state, state.pendingChoice) : null;
   const oppHand = seesOpponentHand(me, [me, opp], state.cards) ? opp.hand : undefined;
   const peek = state.peek?.player === playerId ? { card: state.peek.card, label: state.peek.label } : undefined;
@@ -110,7 +112,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
     ...(state.stadium ? [state.stadium.card] : []),
   ];
   const cards: CardLibrary = {};
-  for (const c of visible) cards[c.defId] = state.cards[c.defId]!;
+  for (const c of visible) cards[c.defId] = c.defId === FACE_DOWN.id ? FACE_DOWN : state.cards[c.defId]!;
 
   return {
     version: state.version,

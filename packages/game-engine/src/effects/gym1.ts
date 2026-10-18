@@ -37,7 +37,7 @@ import { flipForMore } from './jungle.js';
 import { flipOrNothing, shuffleIntoDeck } from './rocket.js';
 
 /** Basic Energy cards of `type` in the attacking player's discard pile (Charge). */
-const discardEnergyOf = (s: AttackSituation, type: EnergyType) =>
+export const discardEnergyOf = (s: AttackSituation, type: EnergyType) =>
   s.ownDiscard.filter((c) => {
     const d = lookupCard(s.cards, c.defId);
     return isBasicEnergy(d) && d.kind === 'energy' && d.energyType === type;
@@ -62,7 +62,7 @@ const charge = (max: number, upTo: boolean): AttackEffect => ({
 });
 
 /** Discards Energy cards from the attacker, logging it. */
-function discardFromAttacker(ctx: AttackContext, gone: CardInstance[]) {
+export function discardFromAttacker(ctx: AttackContext, gone: CardInstance[]) {
   if (!gone.length) return;
   ctx.attacker.energy = ctx.attacker.energy.filter((e) => !gone.includes(e));
   ctx.me.discard.push(...gone);
@@ -70,7 +70,7 @@ function discardFromAttacker(ctx: AttackContext, gone: CardInstance[]) {
 }
 
 /** The Defending Pokémon can't retreat during the opponent's next turn (Clutch, Sand Pit, Spook). */
-const noRetreat = (damage: number): AttackEffect => ({
+export const noRetreat = (damage: number): AttackEffect => ({
   run(ctx) {
     ctx.hit(damage);
     ctx.affectDefender((e) => {
@@ -81,7 +81,7 @@ const noRetreat = (damage: number): AttackEffect => ({
 });
 
 /** Base damage; then, if the Defending Pokémon has Energy, heads discards 1 of its Energy cards (Removal Pulse, Rapids, Removal Beam). */
-const removalFlip = (damage: number): AttackEffect => ({
+export const removalFlip = (damage: number): AttackEffect => ({
   choices: (s) => (s.defender.energy.length ? [{ kind: 'defenderEnergy', options: s.defender.energy, prompt: 'Choose an Energy card to discard from the Defending Pokémon (on heads)' }] : []),
   run(ctx) {
     ctx.hit(damage);
@@ -109,7 +109,7 @@ const callForFriend = (owner: string): AttackEffect => ({
 });
 
 /** Removes up to `amount` damage from each of the player's Pokémon (Healing Pollen). */
-function healEach(ctx: AttackContext, amount: number) {
+export function healEach(ctx: AttackContext, amount: number) {
   for (const p of [ctx.me.active, ...ctx.me.bench]) {
     if (!p || !p.damage) continue;
     const healed = Math.min(amount, p.damage);
@@ -122,7 +122,7 @@ function healEach(ctx: AttackContext, amount: number) {
 const needsOpponentBench = (s: AttackSituation) => (benchedSlots(s.opponentBench).length ? null : 'Your opponent has no benched Pokémon');
 
 /** Choose up to `count` of the opponent's benched Pokémon: base damage, and `bench` damage to each (Rock Slide, Tunneling). */
-const benchMany = (count: number, damage: number, bench: number): AttackEffect => ({
+export const benchMany = (count: number, damage: number, bench: number): AttackEffect => ({
   choices(s): ChoiceSpec[] {
     const options = benchedSlots(s.opponentBench);
     return options.length ? [{ kind: 'opponentBenchMany', count, options, prompt: `Choose up to ${count} of your opponent's benched Pokémon to do ${bench} damage to` }] : [];
@@ -134,14 +134,14 @@ const benchMany = (count: number, damage: number, bench: number): AttackEffect =
 });
 
 /** Damage to every benched Pokémon of `player` that matches (Water Ring, Blaze), without Weakness and Resistance. */
-function benchWhere(ctx: AttackContext, player: PlayerState, amount: number, matches: (p: InPlayPokemon) => boolean) {
+export function benchWhere(ctx: AttackContext, player: PlayerState, amount: number, matches: (p: InPlayPokemon) => boolean) {
   for (const slot of benchedSlots(player.bench)) if (matches(player.bench[slot]!)) ctx.damageBenched(player, slot, amount);
 }
 
 const typeOf = (ctx: AttackContext, p: InPlayPokemon) => inPlayDef(ctx.state.cards, p).type;
 
 /** Base damage, then the attacker is now Asleep (Collapse, Lazy Attack). */
-const fallsAsleep = (damage: number): AttackEffect => ({
+export const fallsAsleep = (damage: number): AttackEffect => ({
   run(ctx) {
     ctx.hit(damage);
     ctx.sleepSelf();

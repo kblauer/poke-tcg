@@ -67,6 +67,25 @@ export function AttackChoicePanel({ spec, view, attack }: { spec: ChoiceSpec; vi
               </button>
             );
           })}
+        {(spec.kind === 'eitherDiscard' || spec.kind === 'oppDiscard') && (
+          // Invigorate (either discard pile, answered as a list) and Pranks (the CPU's): one card, by name.
+          <div className="flex flex-wrap gap-1">
+            {spec.options.map((c) => (
+              <button key={c.uid} className={option} onClick={() => attack.answer(spec.kind === 'eitherDiscard' ? [c.uid] : c.uid)}>
+                {lookupCard(cards, c.defId).name}
+              </button>
+            ))}
+          </div>
+        )}
+        {spec.kind === 'amount' && (
+          <div className="flex flex-wrap gap-1">
+            {spec.options.map((n) => (
+              <button key={n} className={option} onClick={() => attack.answer(n)}>
+                {n}
+              </button>
+            ))}
+          </div>
+        )}
         {spec.kind === 'vermilion' && (
           <div className="flex flex-wrap gap-1">
             <button className={option} onClick={() => attack.answer(true)}>
