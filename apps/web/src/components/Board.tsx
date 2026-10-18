@@ -383,7 +383,7 @@ export function Board({
                     <h3 className="text-center text-sm text-slate-400">You</h3>
                   </div>
                   <div className="mb-8">
-                    <DeckAndDiscard deckCount={self.deckCount} discard={self.discard} cards={view.cards} />
+                    <DeckAndDiscard deckCount={self.deckCount} discard={self.discard} cards={view.cards} owner="Your" />
                   </div>
                 </div>
               </section>

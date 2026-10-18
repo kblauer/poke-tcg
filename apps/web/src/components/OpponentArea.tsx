@@ -50,7 +50,7 @@ export function OpponentArea({
       {/* Top-aligned, with the side columns pushed down past the heading (text-sm + space-y-3 = 2rem) to line up with the bench. */}
       <div className="flex w-full items-start gap-3">
         <div className="mt-8">
-          <DeckAndDiscard deckCount={opponent.deckCount} discard={opponent.discard} cards={cards} mirrored />
+          <DeckAndDiscard deckCount={opponent.deckCount} discard={opponent.discard} cards={cards} owner="The CPU's" mirrored />
         </div>
         <div className="min-w-0 flex-1 space-y-3">
           <h3 className="text-center text-sm text-slate-400">
