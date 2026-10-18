@@ -49,9 +49,10 @@ export interface PackCard {
  * commons and holos (the Wizards promos, which TCGdex lists as Common) fills the uncommon and rare slots
  * with more commons, and the last card is a holo as often as any pack's.
  */
-export function openPack(set: PackSet, rng: Rng): PackCard[] {
+export function openPack(set: PackSet, rng: Rng, { forceHoloEnergy = false } = {}): PackCard[] {
+  // `forceHoloEnergy`: always a holo Energy (the debug cheat for testing them).
   const energy: PackCard =
-    set.holoEnergy?.length && chance(rng, HOLO_ENERGY_CHANCE)
+    set.holoEnergy?.length && (forceHoloEnergy || chance(rng, HOLO_ENERGY_CHANCE))
       ? { cardId: pick(rng, set.holoEnergy), slot: 'holoEnergy' }
       : { cardId: pick(rng, set.energy?.length ? set.energy : Object.values(BASIC_ENERGY)), slot: 'energy' };
   const commons = (n: number) => sample(rng, set.common, n).map((cardId) => ({ cardId, slot: 'common' as const }));

@@ -336,6 +336,8 @@ The game log has a **Debug** tab for testing: change the CPU's difficulty, draw 
 - **API** (the authority): the `debug.run` procedure is a `debugProcedure` (`apps/api/src/trpc.ts`), which answers `NOT_FOUND` unless `env.debugEnabled` (`apps/api/src/env.ts`). That's always false in production (`VERCEL_ENV=production` or `NODE_ENV=production`, whatever else is set), and true elsewhere unless `ENABLE_DEBUG=false`. `debug.enabled` tells the client which.
 - **Web**: `__DEBUG_BUILD__` is a build-time constant from `vite.config.ts`: on in the dev server (unless `VITE_ENABLE_DEBUG=false`), off in a `vite build` (unless `VITE_ENABLE_DEBUG=true`). A production build leaves the Debug tab's code out of the bundle entirely; the tab also needs `debug.enabled` from the API.
 
+The pack window has one more, **Debug: force holo Energy**: every pack opened gets a holo Energy, for testing them (`packs.debugOpen`, a `debugProcedure`; the checkbox is behind `__DEBUG_BUILD__` and the API's debug switch like the Debug tab).
+
 Debug commands go through the engine's `applyDebug` (`packages/game-engine/src/debug.ts`), are written to the game log as "Debug: …", and are saved in the `GameAction` log as `{ type: 'DEBUG', command }`.
 
 ## Setup

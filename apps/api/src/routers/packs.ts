@@ -5,7 +5,7 @@ import { TRPCError } from '@trpc/server';
 import { ensureUser } from '../auth.js';
 import { holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, type HoloEnergyStyle } from '../cards.js';
 import { cardRarity } from '../pool.js';
-import { protectedProcedure, router } from '../trpc.js';
+import { debugProcedure, protectedProcedure, router } from '../trpc.js';
 import { addHoloEnergy, unlockCards, unlockedIds } from '../unlocks.js';
 
 /**
@@ -80,6 +80,40 @@ function packSet(setId: string) {
   return entry;
 }
 
+/**
+ * Buys and opens `count` packs of the set with ₱ from the bank: their cards in the order they're revealed (pack
+ * after pack, each with its `pack` number),
+ * each unlocked (`isNew` if it wasn't before; a holo Energy adds a copy), and the bank left.
+ * `forceHoloEnergy`: every pack's Energy is a holo Energy (the debug cheat, `debugOpen`).
+ */
+async function openPacks(userId: string, input: { setId: string; count: number }, forceHoloEnergy = false) {
+  const { set, cards } = await packSet(input.setId);
+  const rng = rngFrom(Math.floor(Math.random() * 2 ** 31));
+  // Every pack's cards in reveal order, pack after pack, each tagged with its pack (from 0).
+  const opened = Array.from({ length: input.count }, (_, pack) => openPack(set, rng, { forceHoloEnergy }).map((c) => ({ ...c, pack })));
+  const pack = opened.flat();
+  const price = PACK_PRICE * input.count;
+  return prisma.$transaction(async (tx) => {
+    const { count } = await tx.user.updateMany({ where: { id: userId, bank: { gte: price } }, data: { bank: { decrement: price } } });
+    if (!count) throw new TRPCError({ code: 'BAD_REQUEST', message: `${input.count === 1 ? 'A pack costs' : `${input.count} packs cost`} ₱${price}: not enough in the bank` });
+    const before = await unlockedIds(userId, tx);
+    // Each holo Energy pulled adds a copy; other cards are unlocked once.
+    await unlockCards(userId, pack.filter((c) => c.slot !== 'holoEnergy').map((c) => c.cardId), tx);
+    await addHoloEnergy(userId, pack.filter((c) => c.slot === 'holoEnergy').map((c) => c.cardId), tx);
+    const { bank } = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { bank: true } });
+    const seen = new Set<string>();
+    return {
+      bank,
+      cards: pack.map((c) => {
+        // Basic Energy is always unlocked; a card is only new the first time it comes up.
+        const isNew = c.slot !== 'energy' && !before.has(c.cardId) && !seen.has(c.cardId);
+        seen.add(c.cardId);
+        return { ...c, ...cards.get(c.cardId)!, isNew };
+      }),
+    };
+  });
+}
+
 export const packsRouter = router({
   /**
    * The sets with packs (name, logo, release date, size, and how many of the cards a pack can hold the user has
@@ -113,36 +147,9 @@ export const packsRouter = router({
     };
   }),
 
-  /**
-   * Buys and opens `count` packs of the set with ₱ from the bank: their cards in the order they're revealed (pack
-   * after pack, each with its `pack` number),
-   * each unlocked (`isNew` if it wasn't before; a holo Energy adds a copy), and the bank left.
-   */
-  open: protectedProcedure.input(openPackInput).mutation(async ({ ctx, input }) => {
-    const { set, cards } = await packSet(input.setId);
-    const rng = rngFrom(Math.floor(Math.random() * 2 ** 31));
-    // Every pack's cards in reveal order, pack after pack, each tagged with its pack (from 0).
-    const opened = Array.from({ length: input.count }, (_, pack) => openPack(set, rng).map((c) => ({ ...c, pack })));
-    const pack = opened.flat();
-    const price = PACK_PRICE * input.count;
-    return prisma.$transaction(async (tx) => {
-      const { count } = await tx.user.updateMany({ where: { id: ctx.user.id, bank: { gte: price } }, data: { bank: { decrement: price } } });
-      if (!count) throw new TRPCError({ code: 'BAD_REQUEST', message: `${input.count === 1 ? 'A pack costs' : `${input.count} packs cost`} ₱${price}: not enough in the bank` });
-      const before = await unlockedIds(ctx.user.id, tx);
-      // Each holo Energy pulled adds a copy; other cards are unlocked once.
-      await unlockCards(ctx.user.id, pack.filter((c) => c.slot !== 'holoEnergy').map((c) => c.cardId), tx);
-      await addHoloEnergy(ctx.user.id, pack.filter((c) => c.slot === 'holoEnergy').map((c) => c.cardId), tx);
-      const { bank } = await tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { bank: true } });
-      const seen = new Set<string>();
-      return {
-        bank,
-        cards: pack.map((c) => {
-          // Basic Energy is always unlocked; a card is only new the first time it comes up.
-          const isNew = c.slot !== 'energy' && !before.has(c.cardId) && !seen.has(c.cardId);
-          seen.add(c.cardId);
-          return { ...c, ...cards.get(c.cardId)!, isNew };
-        }),
-      };
-    });
-  }),
+  /** Buys and opens packs (openPacks). */
+  open: protectedProcedure.input(openPackInput).mutation(({ ctx, input }) => openPacks(ctx.user.id, input)),
+
+  /** Testing cheat (a debugProcedure, refused in production): opens packs like `open`, each with a holo Energy. */
+  debugOpen: debugProcedure.input(openPackInput).mutation(({ ctx, input }) => openPacks(ctx.user.id, input, true)),
 });

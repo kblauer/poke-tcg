@@ -62,6 +62,7 @@
 
 ## Debug tools (testing cheats)
 - The Debug tab can change the CPU's difficulty, draw a card, add any card or Energy to the hand, set the HP of any Pokémon in play, and turn Special Conditions on or off on either active.
+- The pack window's "Debug: force holo Energy" checkbox opens packs with a holo Energy each (`packs.debugOpen`, a `debugProcedure`; the checkbox is guarded by `DEBUG_BUILD` and `useDebugEnabled`).
   - Engine: `applyDebug` in `packages/game-engine/src/debug.ts`.
   - API: `debug` router.
   - Web: `DebugPanel.tsx`.

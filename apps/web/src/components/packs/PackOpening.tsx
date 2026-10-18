@@ -5,6 +5,7 @@ import { useMutation } from '@tanstack/react-query';
 import type { inferRouterOutputs } from '@trpc/server';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTRPC } from '../../lib/trpc';
+import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
 import { CARD_BACK } from '../../utils/cardBack';
 import { holoAttributes } from '../../utils/holo';
 import { HoloCard } from '../HoloCard';
@@ -89,23 +90,32 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
   const [custom, setCustom] = useState(false);
   /** The cards' large images, fetched while the pack tears open and the cards burst out, so each is ready when it flips up. */
   const preloaded = useRef<HTMLImageElement[]>([]);
-  const open = useMutation(
-    trpc.packs.open.mutationOptions({
-      onSuccess: (result) => {
-        preloaded.current = result.cards.flatMap((c) => {
-          if (!c.imageUrl) return [];
-          const img = new Image();
-          img.src = `${c.imageUrl}/high.webp`;
-          return [img];
-        });
-        setCards(result.cards);
-        onOpened();
-        setAutoOn(options.auto);
-        setPhase('tearing');
-        setTimeout(() => setPhase('burst'), reducedMotion() ? 0 : TEAR_MS);
-      },
-    }),
-  );
+  /** Debug tools only: the next packs each get a holo Energy (packs.debugOpen, refused in production). */
+  const debug = useDebugEnabled();
+  const [forceHolo, setForceHolo] = useState(false);
+  const opened = {
+    onSuccess: (result: Opened) => {
+      preloaded.current = result.cards.flatMap((c) => {
+        if (!c.imageUrl) return [];
+        const img = new Image();
+        img.src = `${c.imageUrl}/high.webp`;
+        return [img];
+      });
+      setCards(result.cards);
+      onOpened();
+      setAutoOn(options.auto);
+      setPhase('tearing');
+      setTimeout(() => setPhase('burst'), reducedMotion() ? 0 : TEAR_MS);
+    },
+  };
+  const buy = useMutation(trpc.packs.open.mutationOptions(opened));
+  const debugBuy = useMutation(trpc.packs.debugOpen.mutationOptions(opened));
+  // Whichever opened them: pending and errors come from either.
+  const open = {
+    isPending: buy.isPending || debugBuy.isPending,
+    error: buy.error ?? debugBuy.error,
+    mutate: (input: { setId: string; count: number }) => (DEBUG_BUILD && debug && forceHolo ? debugBuy : buy).mutate(input),
+  };
   const total = price * quantity;
   const affordable = bank >= total;
   /** The most packs the bank pays for (at least 1, so the price still shows). */
@@ -213,6 +223,13 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
                 <input type="checkbox" checked={options.auto} onChange={(e) => setOptions((o) => ({ ...o, auto: e.target.checked }))} />
                 Auto open
               </label>
+              {/* DEBUG_BUILD first: a production build drops the checkbox altogether. */}
+              {DEBUG_BUILD && debug && (
+                <label className="flex items-center gap-2 text-amber-300" title="Debug: every pack opened gets a holo Energy (packs.debugOpen, refused in production)">
+                  <input type="checkbox" checked={forceHolo} onChange={(e) => setForceHolo(e.target.checked)} />
+                  Debug: force holo Energy
+                </label>
+              )}
             </div>
           )}
           {phase === 'pack' && (
