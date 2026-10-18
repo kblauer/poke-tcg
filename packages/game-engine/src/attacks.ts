@@ -179,6 +179,10 @@ const def = inPlayDef;
 /** How many of the named Trainer card are attached to the Pokémon (PlusPower, Defender). */
 const attachedCount = (cards: CardLibrary, p: InPlayPokemon, name: string) => (p.attached ?? []).filter((a) => lookupCard(cards, a.card.defId).name === name).length;
 
+/** How much less attack damage `player`'s Pokémon of `type` take from battle rules (a run's items). */
+const ruleGuard = (state: GameState, player: PlayerId, type: EnergyType) =>
+  (state.rules ?? []).reduce((n, r) => (r.kind === 'damageGuard' && r.player === player && (!r.type || r.type === type) ? n + r.amount : n), 0);
+
 /**
  * Attack damage without weakness or resistance (to a benched Pokémon, or to the attacker itself,
  * Confusion included): Defender still takes off 20 each.
@@ -520,8 +524,10 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
       const defender = opp.active!;
       const defenderDef = def(state.cards, defender);
       if (amount <= 0) return 0;
-      // A run's battle rules (Fire Pokémon do double damage…) change the base damage, before everything else.
+      // A run's battle rules (Fire Pokémon do double damage…) change the base damage, before everything else,
+      // and then its items' bonuses (X Attack, Charcoal…) are added.
       for (const rule of state.rules ?? []) if (rule.kind === 'typeDamage' && rule.type === attackerDef.type) amount *= rule.multiplier;
+      for (const rule of state.rules ?? []) if (rule.kind === 'damageBonus' && rule.player === me.id && (!rule.type || rule.type === attackerDef.type)) amount += rule.amount;
       if (shielded()) {
         log(`${defenderDef.name} is protected from the attack.`, opp.id);
         return 0;
@@ -535,6 +541,12 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
       let damage = weakness ? applyWeaknessResistance(amount, attackerDef.type, defenderDef, defender.effects) : amount;
       // PlusPower adds 10 each, then Defender takes off 20 each (both after weakness and resistance).
       if (damage > 0) damage = Math.max(0, damage + 10 * attachedCount(state.cards, attacker, 'PlusPower') - 20 * attachedCount(state.cards, defender, 'Defender'));
+      // A run's items (X Defend, Leaf Jacket…) take some off too.
+      const guard = ruleGuard(state, opp.id, defenderDef.type);
+      if (damage > 0 && guard > 0) {
+        damage = Math.max(0, damage - guard);
+        log(`The damage to ${defenderDef.name} was reduced by ${guard}.`, opp.id);
+      }
       // Pounce and Snivel: less damage from the Pokémon they were used on (also after weakness and resistance).
       const pounce = attacker.effects?.pounce;
       if (damage > 0 && pounce && !pounce.beforeWeakness && pounce.target === baseUid(defender) && active(pounce.until, turn)) {
@@ -595,6 +607,8 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
       const name = pokemonName(state, defender);
       if (shielded()) return log(`${name} is protected from the attack's effects.`, opp.id);
       if (def(state.cards, defender).trainerText || passive(defender)?.noConditions) return log(`${name} can't be affected by Special Conditions.`, opp.id);
+      const guard = state.rules?.find((r) => r.kind === 'conditionGuard' && r.player === opp.id && r.conditions.includes(affliction === 'toxic' ? 'poisoned' : affliction));
+      if (guard) return log(`${guard.label ?? 'A battle rule'} protected ${name} from that.`, opp.id);
       if (affliction === 'burned') {
         defender.burned = true;
         log(`${name} is now Burned.`, opp.id);

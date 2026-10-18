@@ -1,4 +1,4 @@
-import { EQUIP_SLOTS, fitsSlot, ITEMS, SLOT_LABELS, type ItemCategory } from '@poke-tcg/campaign';
+import { EQUIP_SLOTS, fitsSlot, ITEMS, itemText, SLOT_LABELS, type ItemCategory } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '../lib/trpc';
 import { PAGE_WIDTH } from '../utils/layout';
@@ -7,7 +7,7 @@ const SECTIONS: { category: ItemCategory; title: string; hint: string }[] = [
   { category: 'consumable', title: 'Consumables', hint: 'Used from the Bag during a run; each lasts a number of battles. 3 per run.' },
   { category: 'misc', title: 'Misc items', hint: 'Used from the Bag during a run; some are used up, some have a limit per run.' },
   { category: 'key', title: 'Key items', hint: 'Records of what you have done. They stay forever.' },
-  { category: 'equipment', title: 'Equipment', hint: 'Equip pieces in the slots above.' },
+  { category: 'equipment', title: 'Equipment', hint: 'Equip pieces in the slots above. They work in your runs from the next encounter.' },
 ];
 
 /** The account's items by category, the equipment slots (head, chest, legs, Poké Ball, 2 accessories) and unlocked cards. */
@@ -23,7 +23,7 @@ export function InventoryPage() {
   return (
     <div className={`${PAGE_WIDTH} mx-auto max-w-5xl space-y-6`}>
       <p className="text-sm text-slate-400">
-        Unlocked cards: {unlockedCards.total} ({unlockedCards.distinct} different), for the deck builder to come. Item effects aren't implemented yet.
+        Unlocked cards: {unlockedCards.distinct}.
       </p>
       {equip.error && <p className="text-sm text-red-400">{equip.error.message}</p>}
 
@@ -49,7 +49,7 @@ export function InventoryPage() {
                     </option>
                   ))}
                 </select>
-                {current && <span className="block text-xs text-slate-400">{ITEMS[current]?.effects?.join('. ')}</span>}
+                {current && ITEMS[current] && <span className="block text-xs text-slate-400">{itemText(ITEMS[current])}</span>}
               </label>
             );
           })}
@@ -67,7 +67,7 @@ export function InventoryPage() {
                 {owned.map((i) => (
                   <li key={i.id} className="rounded bg-slate-800 p-3 text-sm ring-1 ring-slate-700">
                     <span className="font-semibold">{i.name}</span> <span className="text-slate-500">×{i.quantity}</span>
-                    <p className="text-xs text-slate-400">{i.effects?.join('. ') ?? i.description}</p>
+                    <p className="text-xs text-slate-400">{itemText(i)}</p>
                   </li>
                 ))}
               </ul>

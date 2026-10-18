@@ -3,7 +3,7 @@ import { prisma } from '@poke-tcg/db';
 import { buyItemInput, equipInput, runActInput, runIdInput, startRunInput, useItemInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { cardPool } from '../pool.js';
-import { advanceRun, ensureAccount, latestRun, loadOwnRun, startRun, type LoadedRun } from '../runs.js';
+import { abandonBattle, advanceRun, ensureAccount, latestRun, loadOwnRun, startRun, type LoadedRun } from '../runs.js';
 import { unlockedIds } from '../unlocks.js';
 import { playableDeck, playProblems } from './decks.js';
 import { protectedProcedure, router } from '../trpc.js';
@@ -50,7 +50,10 @@ export const runRouter = router({
     return clientRun(await advanceRun(run, [input.action]));
   }),
 
-  /** Uses a consumable or misc item from the inventory in the run (3 consumables per run; misc items keep their own limits). */
+  /**
+   * Uses a consumable or misc item from the inventory in the run (3 consumables per run; misc items keep their own limits).
+   * An Escape Rope used during a battle concedes its game, without the run counting it as a loss.
+   */
   useItem: protectedProcedure.input(useItemInput).mutation(async ({ ctx, input }) => {
     const def = ITEMS[input.itemId];
     if (!def || (def.category !== 'consumable' && def.category !== 'misc')) throw new TRPCError({ code: 'BAD_REQUEST', message: "That item can't be used" });
@@ -58,6 +61,8 @@ export const runRouter = router({
     if (!owned || owned.quantity < 1) throw new TRPCError({ code: 'BAD_REQUEST', message: `You have no ${def.name}` });
     const run = await loadOwnRun(input.runId, ctx.user.id);
     const next = await advanceRun(run, [{ type: 'USE_ITEM', itemId: def.id }]);
+    const left = currentGameId(run.state);
+    if (left && currentGameId(next.state) !== left) await abandonBattle(left);
     if (def.category === 'consumable' || def.consumedOnUse) {
       await prisma.inventoryItem.updateMany({ where: { userId: ctx.user.id, itemId: def.id, quantity: { gt: 0 } }, data: { quantity: { decrement: 1 } } });
     }

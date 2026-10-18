@@ -32,6 +32,8 @@ export function useRun() {
         queryClient.invalidateQueries({ queryKey: trpc.decks.list.queryKey() });
       }
       if (next.gameId && next.gameId !== run?.gameId) navigate({ to: '/game/$gameId', params: { gameId: next.gameId } });
+      // Escaped from the battle (an Escape Rope): back to the run.
+      else if (run?.gameId && !next.gameId) navigate({ to: '/' });
     },
     onError: refresh,
   };
