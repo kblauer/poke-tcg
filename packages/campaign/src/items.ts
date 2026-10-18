@@ -84,5 +84,8 @@ export const SHOP_ITEMS = Object.values(ITEMS)
   .filter((i) => i.price !== undefined)
   .sort((a, b) => a.price! - b.price!);
 
+/** Whether the account may have only one (equipment and misc items): the shop won't sell another while it has one. */
+export const onlyOne = (def: ItemDef) => def.category === 'equipment' || def.category === 'misc';
+
 /** Whether a piece of equipment can go in the slot. */
 export const fitsSlot = (def: ItemDef, slot: EquipSlot) => def.category === 'equipment' && (def.equip === 'accessory' ? slot.startsWith('accessory') : def.equip === slot);

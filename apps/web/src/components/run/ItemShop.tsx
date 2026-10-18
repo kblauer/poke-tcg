@@ -1,3 +1,4 @@
+import { onlyOne } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '../../lib/trpc';
 
@@ -5,7 +6,7 @@ const CATEGORY: Record<string, string> = { consumable: 'Consumable', misc: 'Misc
 
 /**
  * How many the account has: consumables show the count in the Bag (0 too); other items an Owned badge when
- * there's one, with the count when there are several (Escape Ropes).
+ * there's one (the shop sells only one of each; the count shows for any bought before that rule).
  */
 function Owned({ category, quantity }: { category: string; quantity: number }) {
   if (category === 'consumable') {
@@ -15,7 +16,10 @@ function Owned({ category, quantity }: { category: string; quantity: number }) {
   return <span className="ml-auto rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold uppercase text-white">Owned{quantity > 1 ? ` ×${quantity}` : ''}</span>;
 }
 
-/** The post-run shop: items for account EXP, with how many of each you already have. None of them has an effect yet. */
+/**
+ * The post-run shop: items for account EXP, with how many of each you already have. Equipment and misc items
+ * can't be bought again while you have one. None of them has an effect yet.
+ */
 export function ItemShop() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -52,10 +56,11 @@ export function ItemShop() {
             <p className="flex-1 text-xs text-slate-400">{item.effects?.join('. ') ?? item.description}</p>
             <button
               className="self-start rounded bg-slate-600 px-3 py-1 text-sm transition hover:bg-slate-500 active:scale-95 disabled:opacity-40"
-              disabled={buy.isPending || shop.data.exp < item.price!}
+              // Equipment and misc items: only one each.
+              disabled={buy.isPending || shop.data.exp < item.price! || (onlyOne(item) && !!shop.data.owned[item.id])}
               onClick={() => buy.mutate({ itemId: item.id })}
             >
-              Buy · {item.price} EXP
+              {onlyOne(item) && shop.data.owned[item.id] ? 'Already owned' : `Buy · ${item.price} EXP`}
             </button>
           </li>
         ))}
