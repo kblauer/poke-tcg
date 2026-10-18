@@ -26,7 +26,10 @@ export function addLog(state: GameState, text: string, player: PlayerId | null =
 export function flipCoin(state: GameState, reason: string, player: PlayerId | null = null): boolean {
   const [r, next] = nextRandom(state.rngState);
   state.rngState = next;
-  const heads = r < 0.5;
+  // A battle rule (a run's item) can make the player's next flips heads.
+  const lucky = player === null ? undefined : state.rules?.find((rule) => rule.kind === 'luckyFlips' && rule.player === player && rule.flips > 0);
+  if (lucky?.kind === 'luckyFlips') lucky.flips -= 1;
+  const heads = !!lucky || r < 0.5;
   addLog(state, `${reason}: ${heads ? 'heads' : 'tails'}.`, player, { reason, heads });
   return heads;
 }

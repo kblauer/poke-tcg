@@ -1,7 +1,9 @@
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
-import { ITEMS, MAX_CONSUMABLES_PER_RUN } from '@poke-tcg/campaign';
+import { EQUIP_SLOTS, ITEMS, itemText, MAX_CONSUMABLES_PER_RUN } from '@poke-tcg/campaign';
+import { useQuery } from '@tanstack/react-query';
 import type { Overview, RunControl, RunViewData } from '../../hooks/useRun';
+import { useTRPC } from '../../lib/trpc';
 import { BagPanel } from './BagPanel';
 
 const row = 'flex items-center justify-between gap-2 rounded bg-slate-800 px-3 py-1.5';
@@ -9,9 +11,15 @@ const label = 'text-xs uppercase tracking-wide text-slate-500';
 
 /**
  * The run tab of the side panel: HP, ₱ (and the bank), the run's EXP and the account's, consumables used,
- * the battle rules and consumables in effect, the badges won this run, and the Bag.
+ * the battle rules and consumables in effect, the equipment worn, the badges won this run, and the Bag.
  */
 export function RunStats({ view, account, run }: { view: RunViewData; account: Overview['account']; run: RunControl }) {
+  const trpc = useTRPC();
+  const inventory = useQuery(trpc.run.inventory.queryOptions());
+  const gear = EQUIP_SLOTS.flatMap((slot) => {
+    const def = ITEMS[inventory.data?.equipment[slot] ?? ''];
+    return def ? [def] : [];
+  });
   return (
     <div className="space-y-3 text-sm">
       <div className="space-y-1">
@@ -53,8 +61,18 @@ export function RunStats({ view, account, run }: { view: RunViewData; account: O
             </p>
           ))}
           {view.consumables.map((c, i) => (
-            <p key={i} className="rounded bg-emerald-800 px-2 py-1">
+            <p key={i} className="rounded bg-emerald-800 px-2 py-1" title={ITEMS[c.itemId] && itemText(ITEMS[c.itemId]!)}>
               {ITEMS[c.itemId]?.name} · {c.battlesLeft} battle{c.battlesLeft === 1 ? '' : 's'}
+            </p>
+          ))}
+        </div>
+      )}
+      {gear.length > 0 && (
+        <div className="space-y-1 text-xs">
+          <h4 className={label}>Equipped</h4>
+          {gear.map((def, i) => (
+            <p key={i} className="rounded bg-slate-800 px-2 py-1">
+              <span className="font-semibold">{def.name}</span> <span className="text-slate-400">{itemText(def)}</span>
             </p>
           ))}
         </div>
