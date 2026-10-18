@@ -1,7 +1,7 @@
 // Card unlocks: which cards an account may put in its decks. A card is unlocked once (any number of copies,
 // up to the usual 4); basic Energy is always unlocked. The starter deck's cards are unlocked with the
-// account, and every card gained in a run is unlocked as it's gained. A Base Set 2 common is unlocked with
-// the earlier common it reprints, whose art it shares.
+// account, and every card gained in a run is unlocked as it's gained. A Base Set 2 common and the earlier
+// common it reprints, whose art it shares, are unlocked together.
 import { prisma, type Card, type Prisma } from '@poke-tcg/db';
 import { BASE4_REPRINTS } from '@poke-tcg/game-engine';
 import { isBasicEnergyCard } from './cards.js';
@@ -15,18 +15,21 @@ export async function unlockedIds(userId: string, db: Db = prisma): Promise<Set<
 }
 
 /**
- * The Base Set 2 commons reprinting these cards: they're the same card with the same art, so unlocking the
- * original unlocks them too (agreed with the user; only Base Set 2, and only its commons). The migration
- * `20261018090000_base2_common_unlocks` did the same for unlocks made before this.
+ * The cards unlocked with these: a Base Set 2 common and the earlier common it reprints are the same card with the
+ * same art, so unlocking either unlocks both (agreed with the user; only Base Set 2, and only its commons). The
+ * migrations `20261018090000_base2_common_unlocks` (reprints) and `20261018100000_base2_common_originals`
+ * (originals) did the same for unlocks made before this.
  */
 async function base2Commons(ids: Set<string>, db: Db): Promise<string[]> {
-  const reprints = Object.entries(BASE4_REPRINTS).flatMap(([id, original]) => (ids.has(original) ? [id] : []));
-  if (!reprints.length) return [];
+  const pairs = Object.entries(BASE4_REPRINTS).filter(([reprint, original]) => ids.has(reprint) || ids.has(original));
+  if (!pairs.length) return [];
   // Basic Energy is always unlocked, so it isn't listed.
-  return (await db.card.findMany({ where: { id: { in: reprints }, rarity: 'Common', kind: { not: 'ENERGY' } }, select: { id: true } })).map((c) => c.id);
+  const commons = await db.card.findMany({ where: { id: { in: pairs.map(([reprint]) => reprint) }, rarity: 'Common', kind: { not: 'ENERGY' } }, select: { id: true } });
+  const common = new Set(commons.map((c) => c.id));
+  return pairs.filter(([reprint]) => common.has(reprint)).flat();
 }
 
-/** Unlocks the cards, and the Base Set 2 commons reprinting them (those already unlocked stay as they are). */
+/** Unlocks the cards, with the Base Set 2 commons reprinting them or reprinted by them (those already unlocked stay as they are). */
 export async function unlockCards(userId: string, cardIds: Iterable<string>, db: Db = prisma) {
   const ids = new Set(cardIds);
   for (const id of await base2Commons(ids, db)) ids.add(id);
