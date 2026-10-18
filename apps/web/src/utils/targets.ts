@@ -22,7 +22,8 @@ import { isMyTurn } from './turn';
 export function targetsFor(view: PlayerView, card: CardInstance): SlotId[] {
   const { self } = view;
   const def = lookupCard(view.cards, card.defId);
-  if (view.phase === 'setup') return isBasicPokemon(def) && !self.active ? ['active'] : [];
+  // Setup: Basic Pokémon cards go to the active spot or the Bench, until the player starts the battle.
+  if (view.phase === 'setup') return isBasicPokemon(def) && !self.ready ? [...(self.active ? [] : (['active'] as SlotId[])), ...emptyBenchSlots(self)] : [];
   if (!isMyTurn(view) || view.self.pendingChoice) return [];
   // Trainers are played from the TrainerPanel; Clefairy Doll goes onto the Bench like a Basic.
   if (def.kind === 'trainer') return [];
@@ -54,7 +55,10 @@ export function powerPlay(view: PlayerView, card: CardInstance, slot: SlotId): G
 export function whyNoTargets(view: PlayerView, card: CardInstance): string {
   const { self } = view;
   const def = lookupCard(view.cards, card.defId);
-  if (view.phase === 'setup') return self.active ? 'Waiting for the CPU…' : 'Choose a Basic Pokémon as your active first.';
+  if (view.phase === 'setup') {
+    if (self.ready) return 'Waiting for the CPU to start the battle…';
+    return isBasicPokemon(def) ? 'Your active spot and Bench are full.' : 'Only Basic Pokémon can be placed before the battle.';
+  }
   if (!isMyTurn(view)) return "It's not your turn.";
   if (def.kind === 'pokemon' && !isBasicPokemon(def)) {
     // A matching Pokémon is in play but blocked (first turn, played this turn): say why.
