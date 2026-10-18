@@ -2,6 +2,7 @@ import { prisma } from '@poke-tcg/db';
 import { baseDamage, holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, isImplemented, type CardData } from '../cards.js';
 import { publicProcedure, router } from '../trpc.js';
 import { holoTwins } from '../unlocks.js';
+import { craftCost } from './packs.js';
 
 const TYPES = new Set(['Grass', 'Fire', 'Water', 'Lightning', 'Psychic', 'Fighting', 'Darkness', 'Metal', 'Colorless']);
 
@@ -15,6 +16,7 @@ export const cardsRouter = router({
     const rows = await prisma.card.findMany({
       select: {
         id: true,
+        setId: true,
         name: true,
         localId: true,
         kind: true,
@@ -67,6 +69,8 @@ export const cardsRouter = router({
         holoEnergy: holoEnergyStyle(c),
         /** A deck holds no more copies than were gained: holo Energy and special holos (holoTwins). */
         limitedCopies: holoEnergyStyle(c) !== null || twins.has(c.id),
+        /** Stardust to craft it (packs.craft), or null for a card that can't be crafted. */
+        craftCost: craftCost(c),
         imageUrl: c.imageUrl,
         /** Position in release order, for sorting by set. */
         order,

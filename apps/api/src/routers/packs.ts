@@ -1,12 +1,12 @@
-import { openPack, PACK_PRICE, PACK_SETS, rngFrom, type PackSet } from '@poke-tcg/campaign';
+import { CRAFT_COST, openPack, PACK_PRICE, PACK_SETS, rngFrom, STARDUST_PER_CARD, type PackSet } from '@poke-tcg/campaign';
 import { prisma, type Card } from '@poke-tcg/db';
-import { debugOpenPackInput, openPackInput } from '@poke-tcg/shared';
+import { craftCardInput, debugOpenPackInput, openPackInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { ensureUser } from '../auth.js';
 import { holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, type HoloEnergyStyle } from '../cards.js';
 import { cardRarity } from '../pool.js';
 import { debugProcedure, protectedProcedure, router } from '../trpc.js';
-import { unlockCards, unlockedIds } from '../unlocks.js';
+import { holoTwins, unlockCards, unlockedIds } from '../unlocks.js';
 
 /**
  * What the pack screen shows of a card: its image, and what the card viewer's tilt and holo effect select on
@@ -83,7 +83,8 @@ function packSet(setId: string) {
 /**
  * Buys and opens `count` packs of the set with ₱ from the bank: their cards in the order they're revealed (pack
  * after pack, each with its `pack` number),
- * each unlocked (`isNew` if it wasn't before; a holo Energy adds a copy), and the bank left.
+ * each unlocked (`isNew` if it wasn't before; a holo Energy adds a copy), the bank left, and the Stardust earned
+ * (STARDUST_PER_CARD, for the cards that weren't new) and now held.
  * `force`: every pack's Energy is a holo Energy, or every pack is all rares (the debug cheats, `debugOpen`).
  */
 async function openPacks(userId: string, input: { setId: string; count: number }, force: { forceHoloEnergy?: boolean; forceAllRares?: boolean } = {}) {
@@ -99,19 +100,23 @@ async function openPacks(userId: string, input: { setId: string; count: number }
     const before = await unlockedIds(userId, tx);
     // Each holo pulled (holo Energy too) adds a copy; other cards are unlocked once.
     await unlockCards(userId, pack.map((c) => c.cardId), tx);
-    const { bank } = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { bank: true } });
     const seen = new Set<string>();
-    return {
-      bank,
-      cards: pack.map((c) => {
-        // Basic Energy is always unlocked; a card is only new the first time it comes up.
-        const isNew = c.slot !== 'energy' && !before.has(c.cardId) && !seen.has(c.cardId);
-        seen.add(c.cardId);
-        return { ...c, ...cards.get(c.cardId)!, isNew };
-      }),
-    };
+    const shown = pack.map((c) => {
+      // Basic Energy is always unlocked; a card is only new the first time it comes up.
+      const isNew = c.slot !== 'energy' && !before.has(c.cardId) && !seen.has(c.cardId);
+      seen.add(c.cardId);
+      return { ...c, ...cards.get(c.cardId)!, isNew };
+    });
+    // Stardust only for cards already obtained (agreed with the user): a new unlock gives none, a repeat gives some by rarity.
+    const stardustEarned = shown.reduce((n, c) => n + (c.isNew ? 0 : STARDUST_PER_CARD[c.slot]), 0);
+    const { bank, stardust } = await tx.user.update({ where: { id: userId }, data: { stardust: { increment: stardustEarned } }, select: { bank: true, stardust: true } });
+    return { bank, stardust, stardustEarned, cards: shown };
   });
 }
+
+/** What crafting the card costs in Stardust (CRAFT_COST), or null if it can't be crafted: only cards packs hold, not Energy that's basic (holo Energy only comes from pulls). */
+export const craftCost = (card: Pick<Card, 'id' | 'setId' | 'rarity' | 'kind' | 'data'>): number | null =>
+  PACK_SETS.includes(card.setId) && !isBasicEnergyCard(card) ? CRAFT_COST[cardRarity(card)] : null;
 
 export const packsRouter = router({
   /**
@@ -121,7 +126,7 @@ export const packsRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
     await ensureUser(ctx.user);
     const [user, sets, unlocked, contents] = await Promise.all([
-      prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { bank: true } }),
+      prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { bank: true, stardust: true } }),
       prisma.cardSet.findMany({ where: { id: { in: PACK_SETS } }, orderBy: { releaseDate: 'asc' } }),
       unlockedIds(ctx.user.id),
       Promise.all(PACK_SETS.map(async (id) => [id, Object.values((await packSet(id)).set).flat()] as const)),
@@ -130,6 +135,7 @@ export const packsRouter = router({
     const packCards = new Map(contents);
     return {
       bank: user.bank,
+      stardust: user.stardust,
       price: PACK_PRICE,
       sets: sets.map((s) => {
         const cards = packCards.get(s.id) ?? [];
@@ -144,6 +150,32 @@ export const packsRouter = router({
         };
       }),
     };
+  }),
+
+  /** The Stardust the user has, for crafting. */
+  stardust: protectedProcedure.query(async ({ ctx }) => {
+    await ensureUser(ctx.user);
+    return (await prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { stardust: true } })).stardust;
+  }),
+
+  /**
+   * Crafts a card with Stardust (CRAFT_COST by its rarity), unlocking it as pulling it would (unlockCards): once, or for
+   * a special holo another copy and its non-holo version. Only cards packs hold (PACK_SETS; not basic or holo Energy),
+   * and not one already unlocked unless it counts copies.
+   */
+  craft: protectedProcedure.input(craftCardInput).mutation(async ({ ctx, input }) => {
+    const card = await prisma.card.findUnique({ where: { id: input.cardId } });
+    const cost = card && craftCost(card);
+    if (!card || cost === null) throw new TRPCError({ code: 'BAD_REQUEST', message: "That card can't be crafted" });
+    const [unlocked, twins] = await Promise.all([unlockedIds(ctx.user.id), holoTwins()]);
+    if (unlocked.has(card.id) && !twins.has(card.id)) throw new TRPCError({ code: 'BAD_REQUEST', message: `${card.name} is already unlocked` });
+    return prisma.$transaction(async (tx) => {
+      const { count } = await tx.user.updateMany({ where: { id: ctx.user.id, stardust: { gte: cost } }, data: { stardust: { decrement: cost } } });
+      if (!count) throw new TRPCError({ code: 'BAD_REQUEST', message: `Crafting ${card.name} takes ${cost} Stardust` });
+      await unlockCards(ctx.user.id, [card.id], tx);
+      const { stardust } = await tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { stardust: true } });
+      return { stardust };
+    });
   }),
 
   /** Buys and opens packs (openPacks). */

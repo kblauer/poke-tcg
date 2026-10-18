@@ -9,17 +9,21 @@ const small = 'flex rounded bg-slate-600 p-1 hover:bg-slate-500 disabled:opacity
 /**
  * A card shown large in the middle of the screen, as holding it does, but staying open (right-clicking a card, see
  * CardInspectProvider) until Escape or a click outside it. With a deck open (`deck`), − and + change its copies in
- * the deck; + is disabled with the reason when the card can't be added.
+ * the deck; + is disabled with the reason when the card can't be added. In the deck builder (`craft`), Craft unlocks the
+ * card for Stardust.
  */
 export function CardInspector({
   card,
   locked,
   deck,
+  craft,
   onClose,
 }: {
   card: CatalogCard;
   locked: boolean;
   deck?: { name: string; copies: number; blocked: string | null; onChange: (by: 1 | -1) => void };
+  /** The deck builder's crafting: the card's Stardust cost, the Stardust held, and why it can't be crafted (or null). */
+  craft?: { cost: number; stardust: number; blocked: string | null; pending: boolean; error?: string; onCraft: () => void };
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -56,6 +60,22 @@ export function CardInspector({
           </div>
         )}
         {deck?.blocked && <p className="text-xs text-amber-300">{deck.blocked}.</p>}
+        {craft && (
+          <div className="flex items-center gap-3 rounded-lg bg-slate-800 px-3 py-2 text-sm ring-1 ring-slate-600">
+            <span className="text-slate-400">
+              Stardust <span className="font-semibold text-sky-200">{craft.stardust}</span>
+            </span>
+            <button
+              className="rounded bg-sky-700 px-3 py-1 font-semibold transition hover:bg-sky-600 active:scale-95 disabled:opacity-40 disabled:hover:bg-sky-700"
+              disabled={craft.blocked !== null || craft.pending}
+              title={craft.blocked ?? `Unlock ${card.name} for ${craft.cost} Stardust`}
+              onClick={craft.onCraft}
+            >
+              {craft.pending ? 'Crafting…' : `Craft for ${craft.cost}`}
+            </button>
+          </div>
+        )}
+        {craft && (craft.error ?? craft.blocked) && <p className="text-xs text-amber-300">{craft.error ?? craft.blocked}.</p>}
       </div>
     </div>
   );
