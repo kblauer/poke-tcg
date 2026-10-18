@@ -1,13 +1,14 @@
 import { DECK_SIZE } from '@poke-tcg/shared';
 import type { CatalogCard } from '../utils/cardList';
 import { DECK_SECTIONS, cantAdd, deckSize, withCards, type DeckEntry } from '../utils/deckBuilder';
+import { useInspectOnRightClick } from './InspectContext';
 
 const small = 'rounded bg-slate-700 px-1.5 leading-5 hover:bg-slate-600 disabled:opacity-30';
 
 /**
  * The deck being built, apart from the card search: its cards by section (Pokémon, Trainers, Energy) with
  * buttons to add or remove copies, the card count, and what still keeps it from being played. Cards not
- * unlocked yet are darker, marked "locked".
+ * unlocked yet are darker, marked "locked". Right-clicking a card opens it in the CardInspector.
  */
 export function DeckPanel({
   entries,
@@ -23,6 +24,7 @@ export function DeckPanel({
   onChange: (cardId: string, by: 1 | -1) => void;
 }) {
   const cards = withCards(entries, byId);
+  const inspectOn = useInspectOnRightClick();
   const size = deckSize(entries);
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 rounded-lg bg-slate-900 p-3 text-sm">
@@ -56,7 +58,7 @@ export function DeckPanel({
                   const locked = isLocked(card);
                   const blocked = locked ? 'Not unlocked yet' : cantAdd(entries, card, byId);
                   return (
-                    <li key={card.id} className={`flex items-center gap-2 ${locked ? 'opacity-50' : ''}`}>
+                    <li key={card.id} className={`flex items-center gap-2 ${locked ? 'opacity-50' : ''}`} {...inspectOn(card)}>
                       {card.imageUrl ? (
                         <img src={`${card.imageUrl}/low.webp`} alt="" loading="lazy" className="h-9 w-[1.6rem] shrink-0 rounded-sm object-cover" />
                       ) : (

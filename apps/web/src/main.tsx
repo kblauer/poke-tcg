@@ -14,7 +14,6 @@ import './styles/holo/index.css';
 import { useSession } from './lib/auth';
 import { signInWithGoogle, signOut } from './lib/supabase';
 import { queryClient, TRPCProvider, trpcClient } from './lib/trpc';
-import { CardsPage } from './pages/Cards';
 import { DecksPage } from './pages/Decks';
 import { GamePage } from './pages/Game';
 import { HomePage } from './pages/Home';
@@ -49,9 +48,6 @@ function RootLayout() {
               </Link>
               <Link to="/packs" className={tab}>
                 Packs
-              </Link>
-              <Link to="/cards" className={tab}>
-                Cards
               </Link>
               <Link to="/decks" className={tab}>
                 Decks
@@ -88,12 +84,11 @@ function RootLayout() {
 const rootRoute = createRootRoute({ component: RootLayout });
 const homeRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', component: HomePage });
 const gameRoute = createRoute({ getParentRoute: () => rootRoute, path: '/game/$gameId', component: GamePage });
-const cardsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/cards', component: CardsPage });
 const decksRoute = createRoute({ getParentRoute: () => rootRoute, path: '/decks', component: DecksPage });
 const inventoryRoute = createRoute({ getParentRoute: () => rootRoute, path: '/inventory', component: InventoryPage });
 const packsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/packs', component: PacksPage });
 
-const router = createRouter({ routeTree: rootRoute.addChildren([homeRoute, gameRoute, cardsRoute, decksRoute, inventoryRoute, packsRoute]) });
+const router = createRouter({ routeTree: rootRoute.addChildren([homeRoute, gameRoute, decksRoute, inventoryRoute, packsRoute]) });
 
 declare module '@tanstack/react-router' {
   interface Register {

@@ -341,7 +341,7 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
 
 /**
  * One card face up, flipping in, with the card viewer's tilt toward the pointer and its holo effect (HoloCard):
- * holos shine as they do on the Cards tab. Rares and holos have a glow behind them. `leaving`: it flies off the stack.
+ * holos shine as they do in the deck builder's card view. Rares and holos have a glow behind them. `leaving`: it flies off the stack.
  */
 function RevealedCard({ card, leaving }: { card: PackCard; leaving: boolean }) {
   const glow = card.slot === 'holo' ? 'bg-fuchsia-400/60' : card.slot === 'rare' ? 'bg-amber-300/50' : null;

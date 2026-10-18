@@ -11,72 +11,82 @@ export const POKEMON_STAGES = [
   { value: 'Stage2', label: 'Stage 2' },
 ];
 
+/** A card kind, for the kind toggles. */
+export type CardKind = CatalogCard['kind'];
+
+/** The kind toggles, in this order. */
+export const CARD_KINDS: { value: CardKind; label: string }[] = [
+  { value: 'POKEMON', label: 'Pokémon' },
+  { value: 'TRAINER', label: 'Trainer' },
+  { value: 'ENERGY', label: 'Energy' },
+];
+
 export interface DeckFilter {
   search: string;
   set: string | null;
-  /** Showing only Pokémon, even with no other Pokémon filter set ("Any type" picked after a Trainer or Energy toggle). */
-  pokemon: boolean;
-  /** Pokémon filters: any of these set shows only Pokémon that match them all (and turns the other toggles off). */
+  /** Kind toggles: the kinds to show (any of them); none on shows every kind. */
+  kinds: CardKind[];
+  /** Type toggles: Pokémon of these types and Energy providing them (any of them); none on is every type. */
+  types: string[];
+  /** Pokémon filters: Pokémon must match them all. */
   stage: string | null;
-  type: string | null;
   minHp: number | null;
   maxHp: number | null;
   hasAbility: boolean;
-  /** Trainer toggle: shows only Trainers (and clears the Pokémon filters and Energy toggles). */
-  trainers: boolean;
-  /** Energy toggles, by the type of Energy provided: any on shows only those Energy cards (and clears the other filters). */
-  energies: string[];
   /** Only cards the engine fully implements. */
   implementedOnly: boolean;
-  /** Unlocked cards, locked ones, or both. */
+  /** Unlocked cards, locked ones or both. */
   ownership: Ownership;
 }
 
 export const EMPTY_DECK_FILTER: DeckFilter = {
   search: '',
   set: null,
-  pokemon: false,
+  kinds: [],
+  types: [],
   stage: null,
-  type: null,
   minHp: null,
   maxHp: null,
   hasAbility: false,
-  trainers: false,
-  energies: [],
   implementedOnly: false,
   ownership: 'all',
 };
 
-/** The filter with no Pokémon filters set, for when a Trainer toggle goes on. */
-export const withoutPokemonFilters = (f: DeckFilter): DeckFilter => ({ ...f, pokemon: false, stage: null, type: null, minHp: null, maxHp: null, hasAbility: false });
+/** A card's type for the type toggles: a Pokémon's type, or the type of Energy provided (Trainers have none). */
+const cardType = (c: CatalogCard) => (c.kind === 'POKEMON' ? c.type : c.kind === 'ENERGY' ? c.energyType : null);
 
 /**
- * Cards matching the filters. The search (name or attack), set, "implemented only" and unlocked/locked apply to every card. With no Pokémon
- * filter, Trainer toggle or Energy toggle set, every card shows. Energy toggles show only Energy of those
- * types, the Trainer toggle only Trainers, and Pokémon filters only Pokémon (the controls keep just one of
- * the three groups set).
+ * Cards matching the filters. The search (name or attack), set, "implemented only" and unlocked/locked apply to every card.
+ * The kind toggles show those kinds (none on: every kind). The type toggles and the Pokémon filters only say
+ * something about cards that have a type, or are Pokémon: a card they say nothing about (a Trainer for the
+ * types, a Trainer or Energy for the Pokémon filters) still shows when its kind is toggled on, and is hidden
+ * otherwise. So with no kind on, picking Fire shows Fire Pokémon and Fire Energy, and with Pokémon and
+ * Trainer on, Fire Pokémon and every Trainer.
  */
 export function filterForDeck(cards: CatalogCard[], f: DeckFilter, isLocked: (card: CatalogCard) => boolean = () => false): CatalogCard[] {
   const search = f.search.trim().toLowerCase();
-  const pokemonFilters = f.pokemon || f.stage !== null || f.type !== null || f.minHp !== null || f.maxHp !== null || f.hasAbility;
-  const trainerFilters = f.trainers;
-  const energyFilters = f.energies.length > 0;
+  const pokemonFilters = f.stage !== null || f.minHp !== null || f.maxHp !== null || f.hasAbility;
   return cards.filter((c) => {
     if (search && !matchesSearch(c, search)) return false;
     if (f.set && c.setName !== f.set) return false;
     if (f.implementedOnly && !c.implemented) return false;
     if (!matchesOwnership(c, f.ownership, isLocked)) return false;
-    if (!pokemonFilters && !trainerFilters && !energyFilters) return true;
-    if (energyFilters) return c.energyType !== null && f.energies.includes(c.energyType);
-    if (trainerFilters) return c.kind === 'TRAINER';
-    return (
-      c.kind === 'POKEMON' &&
-      (f.stage === null || c.stage === f.stage) &&
-      (f.type === null || c.type === f.type) &&
-      (f.minHp === null || (c.hp !== null && c.hp >= f.minHp)) &&
-      (f.maxHp === null || (c.hp !== null && c.hp <= f.maxHp)) &&
-      (!f.hasAbility || c.hasAbility)
-    );
+    if (f.kinds.length && !f.kinds.includes(c.kind)) return false;
+    const picked = f.kinds.includes(c.kind);
+    if (f.types.length) {
+      const type = cardType(c);
+      if (c.kind === 'TRAINER' ? !picked : type === null || !f.types.includes(type)) return false;
+    }
+    if (pokemonFilters) {
+      if (c.kind !== 'POKEMON') return picked;
+      return (
+        (f.stage === null || c.stage === f.stage) &&
+        (f.minHp === null || (c.hp !== null && c.hp >= f.minHp)) &&
+        (f.maxHp === null || (c.hp !== null && c.hp <= f.maxHp)) &&
+        (!f.hasAbility || c.hasAbility)
+      );
+    }
+    return true;
   });
 }
 
