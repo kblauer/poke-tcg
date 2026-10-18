@@ -65,8 +65,9 @@ const isRare = (c: PackCard) => c.slot === 'rare' || c.slot === 'holo';
 /**
  * Opening packs, in a window over the page. Pick how many (×1, ×2, ×5, ×10 or Custom), then click the pack to
  * buy them (₱ from the bank): it shakes, its top tears off, and the cards burst out and gather into a stack.
- * Click the stack to reveal the cards one by one, pack after pack (each flips up; holos shimmer, new unlocks
- * are marked NEW), or Skip. Either way it ends on the list of cards opened. Closing the window goes back to the sets.
+ * Click the stack to reveal the cards one by one (each flips up; holos shimmer, new unlocks are marked NEW), or Skip:
+ * every card of a single pack, or only the rares when several packs are opened at once. Either way it ends on the list
+ * of every card opened, with the rares framed and tagged. Closing the window goes back to the sets.
  * Two options (OpenOptions): separate the commons from the rares (the commons are laid out at once, the rares
  * stay face down to be opened one by one), and auto open (the cards revealed move on by themselves, pausing on rares;
  * while it runs, ×2 speed doubles it and Stop auto goes back to clicking, with Resume auto to start it again).
@@ -111,11 +112,14 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
   /** The most packs the bank pays for (at least 1, so the price still shows). */
   const maxAffordable = Math.max(1, Math.min(MAX_PACKS_AT_ONCE, Math.floor(bank / price)));
   const packs = cards.length ? cards.at(-1)!.pack + 1 : quantity;
+  /** Several packs at once: only their rares are revealed, one by one on the same screen as a single pack; the rest wait for the list. */
+  const raresOnly = packs > 1 || options.separate;
   const inPack = (i: number) => cards.slice(0, i).filter((c) => c.pack === cards[i]!.pack).length;
   const packSize = (p: number) => cards.filter((c) => c.pack === p).length;
-  /** The cards revealed one by one (by index in `cards`): every card, or only the rares when they're separated. */
-  const queue = cards.flatMap((c, i) => (!options.separate || isRare(c) ? [i] : []));
-  const commons = options.separate ? cards.filter((c) => !isRare(c)) : [];
+  /** The cards revealed one by one (by index in `cards`): every card of a single pack, or only the rares. */
+  const queue = cards.flatMap((c, i) => (!raresOnly || isRare(c) ? [i] : []));
+  // A single pack with the commons separated lays them out first; several packs go straight to their rares.
+  const commons = options.separate && packs === 1 ? cards.filter((c) => !isRare(c)) : [];
   const current = queue[index] === undefined ? undefined : cards[queue[index]!];
 
   /** The current card flies off the stack and the next one flips up; after the last, the list. */
@@ -140,6 +144,7 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
   }, [phase, index, leaving, autoOn, fast]);
 
   const newCount = cards.filter((c) => c.isNew).length;
+  const rareCount = cards.filter(isRare).length;
   return (
     <div data-keep-action className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm">
       {phase !== 'tearing' && phase !== 'burst' && !open.isPending && (
@@ -226,7 +231,9 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
         </div>
       )}
 
-      {phase === 'burst' && <Burst count={Math.min(cards.length, MAX_BURST)} onDone={() => setPhase(options.separate ? 'commons' : 'reveal')} />}
+      {phase === 'burst' && (
+        <Burst count={Math.min(cards.length, MAX_BURST)} onDone={() => setPhase(commons.length ? 'commons' : queue.length ? 'reveal' : 'summary')} />
+      )}
 
       {phase === 'commons' && (
         <div className="flex max-h-full w-full max-w-5xl flex-col items-center gap-4">
@@ -263,7 +270,7 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
       {phase === 'reveal' && current && (
         <div className="flex flex-col items-center gap-5">
           <p className="text-sm text-slate-400">
-            {options.separate
+            {raresOnly
               ? `${packs > 1 ? `Pack ${current.pack + 1} of ${packs} · ` : ''}Rare ${index + 1} of ${queue.length}`
               : `${packs > 1 ? `Pack ${current.pack + 1} of ${packs} · ` : ''}Card ${inPack(queue[index]!) + 1} of ${packSize(current.pack)}`}
             {autoOn ? ` · opening by itself${fast ? ' (×2)' : ''}` : ' · click to see the next'}
@@ -318,14 +325,24 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
             <span className="text-sm text-emerald-300">
               {newCount} new card{newCount === 1 ? '' : 's'} unlocked
             </span>
+            <span className="text-sm text-amber-300">
+              {rareCount} rare{rareCount === 1 ? '' : 's'}
+            </span>
           </div>
           <div className="flex flex-wrap justify-center gap-3">
             {cards.map((c, i) => (
-              <RunCard
-                key={i}
-                def={{ id: c.cardId, kind: 'trainer', name: c.name, imageUrl: c.imageUrl, text: '', rarity: c.slot === 'energy' ? undefined : c.slot }}
-                badge={c.isNew ? 'NEW' : undefined}
-              />
+              // The rares (each pack's rare slot) are framed and tagged, holos in their own colour.
+              <div key={i} className={`relative rounded-xl ${c.slot === 'holo' ? 'bg-fuchsia-400/10 ring-2 ring-fuchsia-400/80' : c.slot === 'rare' ? 'bg-amber-400/10 ring-2 ring-amber-400/80' : ''}`}>
+                {isRare(c) && (
+                  <span className={`absolute -left-1 -top-1 z-10 rounded-full px-1.5 text-[10px] font-bold uppercase text-slate-900 shadow ${c.slot === 'holo' ? 'bg-fuchsia-300' : 'bg-amber-300'}`}>
+                    {c.slot === 'holo' ? 'Holo' : 'Rare'}
+                  </span>
+                )}
+                <RunCard
+                  def={{ id: c.cardId, kind: 'trainer', name: c.name, imageUrl: c.imageUrl, text: '', rarity: c.slot === 'energy' ? undefined : c.slot }}
+                  badge={c.isNew ? 'NEW' : undefined}
+                />
+              </div>
             ))}
           </div>
           <div className="flex justify-center">
