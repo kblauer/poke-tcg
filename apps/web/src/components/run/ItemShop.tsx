@@ -1,5 +1,6 @@
 import { itemText, onlyOne } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 import { useTRPC } from '../../lib/trpc';
 
 const CATEGORY: Record<string, string> = { consumable: 'Consumable', misc: 'Misc item', key: 'Key item', equipment: 'Equipment' };
@@ -17,9 +18,9 @@ function Owned({ stacks, quantity }: { stacks: boolean; quantity: number }) {
 
 /**
  * The post-run shop: items for account EXP, with how many of each you already have. Equipment and misc items that
- * aren't used up can't be bought again while you have one.
+ * aren't used up can't be bought again while you have one. `close` goes at the end of its header (RunOver's close button).
  */
-export function ItemShop() {
+export function ItemShop({ close }: { close?: ReactNode }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const shop = useQuery(trpc.run.shop.queryOptions());
@@ -39,6 +40,7 @@ export function ItemShop() {
         <h3 className="text-lg font-semibold">Shop</h3>
         <span className="text-sm text-slate-400">Spend the EXP from your runs. Equip gear on the Inventory tab; use consumables and misc items from the Bag in a run.</span>
         <span className="ml-auto font-semibold text-sky-300">{shop.data.exp} EXP</span>
+        {close}
       </div>
       {buy.error && <p className="text-sm text-red-400">{buy.error.message}</p>}
       <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
