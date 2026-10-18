@@ -7,10 +7,11 @@ const SLOP = 6;
 
 /**
  * Press and hold to inspect: holding an item for HOLD_MS makes it `inspecting` until the press ends (anywhere),
- * and the click that ends the hold is swallowed (`clicked` returns false), so it doesn't also count as a click.
- * Spread `press(item)` onto the element and call `clicked()` first in its onClick.
+ * or with `stay` until `close()` (a pane to browse, like the discard pile). The click that ends the hold is
+ * swallowed (`clicked` returns false), so it doesn't also count as a click. Spread `press(item)` onto the element
+ * and call `clicked()` first in its onClick.
  */
-export function useHoldToInspect<T>() {
+export function useHoldToInspect<T>({ stay = false }: { stay?: boolean } = {}) {
   const [inspecting, setInspecting] = useState<T | null>(null);
   const timer = useRef<number | undefined>(undefined);
   const start = useRef<{ x: number; y: number } | null>(null);
@@ -21,7 +22,7 @@ export function useHoldToInspect<T>() {
     const release = () => {
       clearTimeout(timer.current);
       start.current = null;
-      setInspecting(null);
+      if (!stay) setInspecting(null);
     };
     window.addEventListener('pointerup', release);
     window.addEventListener('pointercancel', release);
@@ -34,6 +35,7 @@ export function useHoldToInspect<T>() {
 
   return {
     inspecting,
+    close: () => setInspecting(null),
     press: (item: T) => ({
       onPointerDown(e: ReactPointerEvent) {
         if (e.button !== 0) return;

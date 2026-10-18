@@ -30,6 +30,7 @@ import { PrizeCards } from './PrizeCards';
 import { RetreatPanel } from './RetreatPanel';
 import { Slot } from './Slot';
 import { SlotMenu } from './SlotMenu';
+import { endTurnReminders } from '../utils/reminders';
 import { StadiumChip } from './StadiumChip';
 import { StatusBar } from './StatusBar';
 import { TurnOrderFlip } from './TurnOrderFlip';
@@ -351,8 +352,8 @@ export function Board({
                 status={statusText(view)}
                 canEndTurn={myTurn}
                 setup={phase === 'setup' && !self.ready ? { canReset: !!self.active || self.bench.some(Boolean), canStart: !!self.active } : null}
-                // Ask before ending the turn with an Energy card in hand and none attached.
-                energyUnattached={!view.energyAttachedThisTurn && self.hand.some((c) => lookupCard(view.cards, c.defId).kind === 'energy')}
+                // Ask before ending the turn while an Energy, the Stadium or a Pokémon Power could still be used.
+                reminders={endTurnReminders(view, power.powers)}
                 pending={pending}
                 send={send}
                 stadium={<StadiumChip view={view} send={send} busy={busy} />}
@@ -383,7 +384,7 @@ export function Board({
                     <h3 className="text-center text-sm text-slate-400">You</h3>
                   </div>
                   <div className="mb-8">
-                    <DeckAndDiscard deckCount={self.deckCount} discard={self.discard} cards={view.cards} />
+                    <DeckAndDiscard deckCount={self.deckCount} discard={self.discard} cards={view.cards} owner="Your" />
                   </div>
                 </div>
               </section>

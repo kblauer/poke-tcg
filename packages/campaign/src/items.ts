@@ -176,6 +176,12 @@ export const SHOP_ITEMS = Object.values(ITEMS)
   .filter((i) => i.price !== undefined)
   .sort((a, b) => a.price! - b.price!);
 
+/**
+ * Whether the account may have only one (equipment, and misc items that aren't used up): the shop won't sell
+ * another while it has one. Misc items that are used up (Escape Rope, Potion…) stack like consumables.
+ */
+export const onlyOne = (def: ItemDef) => def.category === 'equipment' || (def.category === 'misc' && !def.consumedOnUse);
+
 /** Whether a piece of equipment can go in the slot. */
 export const fitsSlot = (def: ItemDef, slot: EquipSlot) => def.category === 'equipment' && (def.equip === 'accessory' ? slot.startsWith('accessory') : def.equip === slot);
 

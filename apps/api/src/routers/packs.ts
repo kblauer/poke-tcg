@@ -48,30 +48,53 @@ function packSet(setId: string) {
 }
 
 export const packsRouter = router({
-  /** The sets with packs (name, logo, release date, size), the price, and the ₱ in the user's bank. */
+  /**
+   * The sets with packs (name, logo, release date, size, and how many of the cards a pack can hold the user has
+   * unlocked: `unlockedCount` of `packCards`), the price, and the ₱ in the user's bank.
+   */
   list: protectedProcedure.query(async ({ ctx }) => {
     await ensureUser(ctx.user);
-    const [user, sets] = await Promise.all([
+    const [user, sets, unlocked, contents] = await Promise.all([
       prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { bank: true } }),
       prisma.cardSet.findMany({ where: { id: { in: PACK_SETS } }, orderBy: { releaseDate: 'asc' } }),
+      unlockedIds(ctx.user.id),
+      Promise.all(PACK_SETS.map(async (id) => [id, Object.values((await packSet(id)).set).flat()] as const)),
     ]);
+    // The cards a pack of each set can hold (basic Energy left out: it's always unlocked).
+    const packCards = new Map(contents);
     return {
       bank: user.bank,
       price: PACK_PRICE,
-      sets: sets.map((s) => ({ id: s.id, name: s.name, logoUrl: s.logoUrl && `${s.logoUrl}.png`, releaseDate: s.releaseDate, cardCount: s.cardCount })),
+      sets: sets.map((s) => {
+        const cards = packCards.get(s.id) ?? [];
+        return {
+          id: s.id,
+          name: s.name,
+          logoUrl: s.logoUrl && `${s.logoUrl}.png`,
+          releaseDate: s.releaseDate,
+          cardCount: s.cardCount,
+          unlockedCount: cards.filter((id) => unlocked.has(id)).length,
+          packCards: cards.length,
+        };
+      }),
     };
   }),
 
   /**
-   * Buys and opens a pack of the set with ₱ from the bank: its 11 cards in the order they're revealed,
+   * Buys and opens `count` packs of the set with ₱ from the bank: their cards in the order they're revealed (pack
+   * after pack, each with its `pack` number),
    * each unlocked (`isNew` if it wasn't before), and the bank left.
    */
   open: protectedProcedure.input(openPackInput).mutation(async ({ ctx, input }) => {
     const { set, cards } = await packSet(input.setId);
-    const pack = openPack(set, rngFrom(Math.floor(Math.random() * 2 ** 31)));
+    const rng = rngFrom(Math.floor(Math.random() * 2 ** 31));
+    // Every pack's cards in reveal order, pack after pack, each tagged with its pack (from 0).
+    const opened = Array.from({ length: input.count }, (_, pack) => openPack(set, rng).map((c) => ({ ...c, pack })));
+    const pack = opened.flat();
+    const price = PACK_PRICE * input.count;
     return prisma.$transaction(async (tx) => {
-      const { count } = await tx.user.updateMany({ where: { id: ctx.user.id, bank: { gte: PACK_PRICE } }, data: { bank: { decrement: PACK_PRICE } } });
-      if (!count) throw new TRPCError({ code: 'BAD_REQUEST', message: `A pack costs ₱${PACK_PRICE}: not enough in the bank` });
+      const { count } = await tx.user.updateMany({ where: { id: ctx.user.id, bank: { gte: price } }, data: { bank: { decrement: price } } });
+      if (!count) throw new TRPCError({ code: 'BAD_REQUEST', message: `${input.count === 1 ? 'A pack costs' : `${input.count} packs cost`} ₱${price}: not enough in the bank` });
       const before = await unlockedIds(ctx.user.id, tx);
       await unlockCards(ctx.user.id, pack.map((c) => c.cardId), tx);
       const { bank } = await tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { bank: true } });

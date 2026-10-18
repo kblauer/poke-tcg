@@ -2,22 +2,29 @@ import type { GameAction } from '@poke-tcg/game-engine';
 import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
-/** localStorage key: the player turned off the "no Energy attached" check on End turn. */
-const SKIP_ENERGY_CHECK_KEY = 'poke-tcg.skip-end-turn-energy-check';
+/** Something the player could still do this turn, which End turn reminds them of first. */
+export type EndTurnReminder = { kind: 'energy' | 'stadium' | 'powers'; text: string };
 
-function energyCheckOff(): boolean {
+/** localStorage keys: the player turned off that reminder ("Don't remind me"). The Energy one predates the others. */
+const SKIP_KEYS: Record<EndTurnReminder['kind'], string> = {
+  energy: 'poke-tcg.skip-end-turn-energy-check',
+  stadium: 'poke-tcg.skip-end-turn-stadium-check',
+  powers: 'poke-tcg.skip-end-turn-powers-check',
+};
+
+function reminderOff(kind: EndTurnReminder['kind']): boolean {
   try {
-    return localStorage.getItem(SKIP_ENERGY_CHECK_KEY) === '1';
+    return localStorage.getItem(SKIP_KEYS[kind]) === '1';
   } catch {
     return false;
   }
 }
 
-function turnEnergyCheckOff() {
+function turnReminderOff(kind: EndTurnReminder['kind']) {
   try {
-    localStorage.setItem(SKIP_ENERGY_CHECK_KEY, '1');
+    localStorage.setItem(SKIP_KEYS[kind], '1');
   } catch {
-    // Not remembered: it asks again next time.
+    // Not remembered: it reminds them again next time.
   }
 }
 
@@ -29,15 +36,15 @@ const endButton = 'rounded bg-blue-600 px-3 py-1 text-sm transition hover:bg-blu
 /**
  * Whose turn it is and the End turn button, centred in the middle of the table between the two sides.
  * `stadium` is the Stadium card in play (StadiumChip), if any. `setup`: while placing Pokémon before the battle, the
- * Reset cards (take them all back) and Start battle buttons. `energyUnattached`: the player hasn't
- * attached Energy this turn and has an Energy card in hand, so End turn asks first (unless they turned
- * that off with "Don't ask again", remembered in the browser).
+ * Reset cards (take them all back) and Start battle buttons. `reminders`: what the player could still do this turn
+ * (attach Energy, use the Stadium, use Pokémon Powers); End turn lists them and asks first, except those the player
+ * turned off with "Don't remind me" (each remembered in the browser).
  */
 export function StatusBar({
   status,
   canEndTurn,
   setup = null,
-  energyUnattached = false,
+  reminders = [],
   pending,
   send,
   stadium,
@@ -45,31 +52,40 @@ export function StatusBar({
   status: string;
   canEndTurn: boolean;
   setup?: { canReset: boolean; canStart: boolean } | null;
-  energyUnattached?: boolean;
+  reminders?: EndTurnReminder[];
   pending: GameAction | null;
   send: (a: GameAction) => void;
   stadium?: ReactNode;
 }) {
   const busy = pending !== null;
-  const [asking, setAsking] = useState(false);
-  const [dontAsk, setDontAsk] = useState(false);
+  /** The reminders being asked about, or null. */
+  const [asking, setAsking] = useState<EndTurnReminder[] | null>(null);
+  /** The ones ticked "Don't remind me". */
+  const [silenced, setSilenced] = useState<EndTurnReminder['kind'][]>([]);
 
   // The question is moot once the turn moves on.
   useEffect(() => {
-    if (!canEndTurn) setAsking(false);
+    if (!canEndTurn) setAsking(null);
   }, [canEndTurn]);
   useEffect(() => {
     if (!asking) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setAsking(false);
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setAsking(null);
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [asking]);
 
+  const clickEndTurn = () => {
+    const open = reminders.filter((r) => !reminderOff(r.kind));
+    if (!open.length) return send({ type: 'END_TURN' });
+    setSilenced([]);
+    setAsking(open);
+  };
   const endTurn = () => {
-    setAsking(false);
-    if (dontAsk) turnEnergyCheckOff();
+    setAsking(null);
+    for (const kind of silenced) turnReminderOff(kind);
     send({ type: 'END_TURN' });
   };
+  const toggle = (kind: EndTurnReminder['kind'], on: boolean) => setSilenced((s) => (on ? [...s, kind] : s.filter((k) => k !== kind)));
 
   return (
     // 40% of the table's width, centred, so it keeps its size as the text changes; only very long text widens it.
@@ -95,7 +111,7 @@ export function StatusBar({
         <button
           className="rounded bg-blue-600 px-3 py-1 text-sm transition hover:bg-blue-500 active:scale-95 disabled:cursor-progress"
           disabled={busy}
-          onClick={() => (energyUnattached && !energyCheckOff() ? setAsking(true) : send({ type: 'END_TURN' }))}
+          onClick={clickEndTurn}
         >
           {pending?.type === 'END_TURN' ? 'Ending turn…' : 'End turn'}
         </button>
@@ -103,21 +119,27 @@ export function StatusBar({
       {/* In the page body: the play area's container-type would trap a fixed dialog. */}
       {asking &&
         createPortal(
-          <div data-keep-action className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/50 p-4" onClick={() => setAsking(false)}>
+          <div data-keep-action className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/50 p-4" onClick={() => setAsking(null)}>
             <div
               role="alertdialog"
-              aria-label="End turn without attaching Energy?"
-              className="w-full max-w-sm space-y-3 rounded-lg bg-slate-800 p-4 text-sm ring-1 ring-slate-600"
+              aria-label="End your turn?"
+              className="w-full max-w-md space-y-3 rounded-lg bg-slate-800 p-4 text-left text-sm ring-1 ring-slate-600"
               onClick={(e) => e.stopPropagation()}
             >
-              <p className="font-semibold">End your turn without attaching an Energy?</p>
-              <p className="text-slate-300">You haven't attached an Energy card this turn, and you have one in your hand.</p>
-              <label className="flex items-center gap-2 text-slate-300">
-                <input type="checkbox" checked={dontAsk} onChange={(e) => setDontAsk(e.target.checked)} />
-                Don't ask again
-              </label>
+              <p className="font-semibold">End your turn? You could still:</p>
+              <ul className="space-y-2">
+                {asking.map((r) => (
+                  <li key={r.kind} className="space-y-1">
+                    <p className="text-slate-200">• {r.text}</p>
+                    <label className="ml-3 flex items-center gap-2 text-xs text-slate-400">
+                      <input type="checkbox" checked={silenced.includes(r.kind)} onChange={(e) => toggle(r.kind, e.target.checked)} />
+                      Don't remind me about this
+                    </label>
+                  </li>
+                ))}
+              </ul>
               <div className="flex justify-end gap-2">
-                <button className={button} onClick={() => setAsking(false)} autoFocus>
+                <button className={button} onClick={() => setAsking(null)} autoFocus>
                   Keep playing
                 </button>
                 <button className={endButton} onClick={endTurn}>

@@ -1,4 +1,4 @@
-import { bossSummary, currentGameId, EQUIP_SLOTS, fitsSlot, item, ITEMS, RUN_TYPE_IDS, RUN_TYPES, runView, SHOP_ITEMS, type EquipSlot } from '@poke-tcg/campaign';
+import { bossSummary, currentGameId, EQUIP_SLOTS, fitsSlot, item, ITEMS, onlyOne, RUN_TYPE_IDS, RUN_TYPES, runView, SHOP_ITEMS, type EquipSlot } from '@poke-tcg/campaign';
 import { prisma } from '@poke-tcg/db';
 import { buyItemInput, equipInput, runActInput, runIdInput, startRunInput, useItemInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
@@ -81,13 +81,16 @@ export const runRouter = router({
   /** Starts a new run of a type with one of the account's decks, which must be playable (banking the earlier runs' ₱). */
   start: protectedProcedure.input(startRunInput).mutation(async ({ ctx, input }) => startRun(ctx.user.id, input.type, await playableDeck(input.deckId, ctx.user.id))),
 
-  /** The post-run shop: items for EXP. */
+  /** The post-run shop: items for EXP, and how many of each the account already has (`owned`, by item id). */
   shop: protectedProcedure.query(async ({ ctx }) => {
-    const user = await prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { exp: true } });
-    return { exp: user.exp, items: SHOP_ITEMS };
+    const [user, inventory] = await Promise.all([
+      prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { exp: true } }),
+      prisma.inventoryItem.findMany({ where: { userId: ctx.user.id, quantity: { gt: 0 } }, select: { itemId: true, quantity: true } }),
+    ]);
+    return { exp: user.exp, items: SHOP_ITEMS, owned: Object.fromEntries(inventory.map((i) => [i.itemId, i.quantity])) as Record<string, number> };
   }),
 
-  /** Buys an item with EXP. Only between runs (once the last one is over). */
+  /** Buys an item with EXP. Only between runs (once the last one is over). Equipment and misc items: one at most. */
   buyItem: protectedProcedure.input(buyItemInput).mutation(async ({ ctx, input }) => {
     const def = ITEMS[input.itemId];
     if (def?.price === undefined) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Not for sale' });
@@ -95,6 +98,10 @@ export const runRouter = router({
     await prisma.$transaction(async (tx) => {
       if (await tx.run.count({ where: { ownerId: ctx.user.id, status: 'ACTIVE' } })) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'The shop opens after a run' });
+      }
+      if (onlyOne(def)) {
+        const owned = await tx.inventoryItem.findUnique({ where: { userId_itemId: { userId: ctx.user.id, itemId: def.id } } });
+        if (owned && owned.quantity > 0) throw new TRPCError({ code: 'BAD_REQUEST', message: `You already have ${def.name}` });
       }
       const { count } = await tx.user.updateMany({ where: { id: ctx.user.id, exp: { gte: price } }, data: { exp: { decrement: price } } });
       if (!count) throw new TRPCError({ code: 'BAD_REQUEST', message: `Not enough EXP (${price} needed)` });
