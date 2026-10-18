@@ -1,11 +1,11 @@
 import { POOL_SETS, type PoolCard, type Rarity } from '@poke-tcg/campaign';
 import { prisma, type Card } from '@poke-tcg/db';
 import { cardImplemented, type CardDef } from '@poke-tcg/game-engine';
-import { isHolo, toCardDef } from './cards.js';
+import { isGalaxyFoil, isHolo, toCardDef } from './cards.js';
 
-/** A catalog card's rarity, holos apart. */
+/** A catalog card's rarity, holos apart: holo and galaxy-foil cards (the promo Entei and Pichu, which TCGdex lists as Common) are holos. */
 export const cardRarity = (card: Pick<Card, 'id' | 'rarity' | 'data'>): Rarity =>
-  isHolo(card) ? 'holo' : card.rarity === 'Rare' ? 'rare' : card.rarity === 'Uncommon' ? 'uncommon' : 'common';
+  isHolo(card) || isGalaxyFoil(card) ? 'holo' : card.rarity === 'Rare' ? 'rare' : card.rarity === 'Uncommon' ? 'uncommon' : 'common';
 
 /** Every card in POOL_SETS the engine plays fully, with Stage 2s' Basics filled in for Pokémon Breeder. */
 async function loadPool(): Promise<PoolCard[]> {
