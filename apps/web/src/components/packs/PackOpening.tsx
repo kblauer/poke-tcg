@@ -11,6 +11,7 @@ import { holoAttributes } from '../../utils/holo';
 import { HoloCard } from '../HoloCard';
 import { RunCard } from '../run/RunCard';
 import { BoosterPack } from './BoosterPack';
+import { Fireworks } from './Fireworks';
 
 type Opened = inferRouterOutputs<AppRouter>['packs']['open'];
 type PackCard = Opened['cards'][number];
@@ -68,7 +69,7 @@ const isRare = (c: PackCard) => c.slot === 'rare' || c.slot === 'holo' || c.slot
  * buy them (₱ from the bank): it shakes, its top tears off, and the cards burst out and gather into a stack.
  * Click the stack to reveal the cards one by one (each flips up; holos shimmer, new unlocks are marked NEW), or Skip:
  * every card of a single pack, or only the rares when several packs are opened at once. Either way it ends on the list
- * of every card opened, with the rares framed and tagged. Closing the window goes back to the sets.
+ * of every card opened, with the rares framed and tagged. An all-rares pack (ALL_RARES_CHANCE) sets off fireworks. Closing the window goes back to the sets.
  * Two options (OpenOptions): separate the commons from the rares (the commons are laid out at once, the rares
  * stay face down to be opened one by one), and auto open (the cards revealed move on by themselves, pausing on rares;
  * while it runs, ×2 speed doubles it and Stop auto goes back to clicking, with Resume auto to start it again).
@@ -86,6 +87,8 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
   /** Auto open at double speed. */
   const [fast, setFast] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  /** Bumped to set the fireworks off (an all-rares pack). */
+  const [fireworks, setFireworks] = useState(0);
   const [quantity, setQuantity] = useState(1);
   /** Custom picked: the number field shows instead of the quick picks being the only choice. */
   const [custom, setCustom] = useState(false);
@@ -94,6 +97,7 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
   /** Debug tools only: the next packs each get a holo Energy (packs.debugOpen, refused in production). */
   const debug = useDebugEnabled();
   const [forceHolo, setForceHolo] = useState(false);
+  const [forceAllRares, setForceAllRares] = useState(false);
   const opened = {
     onSuccess: (result: Opened) => {
       preloaded.current = result.cards.flatMap((c) => {
@@ -115,7 +119,8 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
   const open = {
     isPending: buy.isPending || debugBuy.isPending,
     error: buy.error ?? debugBuy.error,
-    mutate: (input: { setId: string; count: number }) => (DEBUG_BUILD && debug && forceHolo ? debugBuy : buy).mutate(input),
+    mutate: (input: { setId: string; count: number }) =>
+      DEBUG_BUILD && debug && (forceHolo || forceAllRares) ? debugBuy.mutate({ ...input, holoEnergy: forceHolo, allRares: forceAllRares }) : buy.mutate(input),
   };
   const total = price * quantity;
   const affordable = bank >= total;
@@ -124,6 +129,13 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
   const packs = cards.length ? cards.at(-1)!.pack + 1 : quantity;
   /** Several packs at once: only their rares are revealed, one by one on the same screen as a single pack; the rest wait for the list. */
   const raresOnly = packs > 1 || options.separate;
+  /** The packs (by number) that are all rares and holos but their Energy (ALL_RARES_CHANCE): they get fireworks. */
+  const allRaresPacks = new Set(
+    Array.from({ length: cards.length ? packs : 0 }, (_, p) => p).filter((p) => {
+      const rest = cards.filter((c) => c.pack === p && c.slot !== 'energy' && c.slot !== 'holoEnergy');
+      return rest.length > 1 && rest.every(isRare);
+    }),
+  );
   const inPack = (i: number) => cards.slice(0, i).filter((c) => c.pack === cards[i]!.pack).length;
   const packSize = (p: number) => cards.filter((c) => c.pack === p).length;
   /** The cards revealed one by one (by index in `cards`): every card of a single pack, or only the rares. */
@@ -157,6 +169,7 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
   const rareCount = cards.filter(isRare).length;
   return (
     <div data-keep-action className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm">
+      {fireworks > 0 && <Fireworks key={fireworks} />}
       {phase !== 'tearing' && phase !== 'burst' && !open.isPending && (
         <button className="absolute right-4 top-4 rounded-full p-2 text-slate-300 hover:bg-slate-800 hover:text-white" onClick={onClose} aria-label="Close">
           <CloseIcon />
@@ -235,6 +248,12 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
                   Debug: force holo Energy
                 </label>
               )}
+              {DEBUG_BUILD && debug && (
+                <label className="flex items-center gap-2 text-amber-300" title="Debug: every pack opened is all rares and holos (packs.debugOpen, refused in production)">
+                  <input type="checkbox" checked={forceAllRares} onChange={(e) => setForceAllRares(e.target.checked)} />
+                  Debug: force all-rares pack
+                </label>
+              )}
             </div>
           )}
           {phase === 'pack' && (
@@ -249,7 +268,14 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
       )}
 
       {phase === 'burst' && (
-        <Burst count={Math.min(cards.length, MAX_BURST)} onDone={() => setPhase(commons.length ? 'commons' : queue.length ? 'reveal' : 'summary')} />
+        <Burst
+          count={Math.min(cards.length, MAX_BURST)}
+          onDone={() => {
+            setPhase(commons.length ? 'commons' : queue.length ? 'reveal' : 'summary');
+            // An all-rares pack among them: fireworks as the cards come out.
+            if (allRaresPacks.size) setFireworks((n) => n + 1);
+          }}
+        />
       )}
 
       {phase === 'commons' && (
@@ -287,6 +313,7 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
       {phase === 'reveal' && current && (
         <div className="flex flex-col items-center gap-5">
           <p className="text-sm text-slate-400">
+            {allRaresPacks.has(current.pack) && <span className="font-bold text-yellow-300">All rares! · </span>}
             {raresOnly
               ? `${packs > 1 ? `Pack ${current.pack + 1} of ${packs} · ` : ''}Rare ${index + 1} of ${queue.length}`
               : `${packs > 1 ? `Pack ${current.pack + 1} of ${packs} · ` : ''}Card ${inPack(queue[index]!) + 1} of ${packSize(current.pack)}`}
@@ -346,6 +373,11 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
             <span className="text-sm text-amber-300">
               {rareCount} rare{rareCount === 1 ? '' : 's'}
             </span>
+            {allRaresPacks.size > 0 && (
+              <span className="text-sm font-bold text-yellow-300">
+                {allRaresPacks.size === 1 ? 'An all-rares pack!' : `${allRaresPacks.size} all-rares packs!`}
+              </span>
+            )}
           </div>
           <div className="flex flex-wrap justify-center gap-3">
             {cards.map((c, i) => (

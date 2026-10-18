@@ -25,6 +25,7 @@
     "@tanstack/react-router": "^1.170.44",
     "@trpc/client": "^11.19.0",
     "@trpc/tanstack-react-query": "^11.19.0",
+    "canvas-confetti": "^1.9.3",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
@@ -32,6 +33,7 @@
     "@poke-tcg/api": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",
     "@trpc/server": "^11.19.0",
+    "@types/canvas-confetti": "^1.9.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
