@@ -5,7 +5,7 @@ import { buyItemInput, equipInput, runActInput, runChooseInput, runIdInput, save
 import { TRPCError } from '@trpc/server';
 import { cardPool } from '../pool.js';
 import { abandonBattle, advanceRun, ensureAccount, latestRun, loadOwnRun, startRun, syncRunDeck, type LoadedRun } from '../runs.js';
-import { unlockedIds } from '../unlocks.js';
+import { holoTwins, unlockedIds } from '../unlocks.js';
 import { playableDeck, playProblems } from './decks.js';
 import { protectedProcedure, router } from '../trpc.js';
 
@@ -45,7 +45,7 @@ export const runRouter = router({
         orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
       }),
     ]);
-    const unlocked = await unlockedIds(ctx.user.id);
+    const [unlocked, limited] = await Promise.all([unlockedIds(ctx.user.id), holoTwins()]);
     // A run started before there were automatic run decks gets one now.
     if (run?.status === 'ACTIVE' && !decks.some((d) => d.runId === run.id)) await syncRunDeck(ctx.user.id, run.id, run.state.deck);
     const runDeck = run && decks.find((d) => d.runId === run.id);
@@ -56,7 +56,7 @@ export const runRouter = router({
       runDeck: run && (runDeck || run.status === 'ACTIVE') ? { saveName: await runDeckName(run) } : null,
       // With why each can't start a run (the deck rules, or cards not unlocked); empty when it can. Not the automatic
       // run deck: a run starts with one of the account's own decks.
-      decks: decks.filter((d) => d.runId === null).map((d) => ({ id: d.id, name: d.name, cardCount: d.cards.reduce((n, c) => n + c.quantity, 0), problems: playProblems(d.cards, unlocked) })),
+      decks: decks.filter((d) => d.runId === null).map((d) => ({ id: d.id, name: d.name, cardCount: d.cards.reduce((n, c) => n + c.quantity, 0), problems: playProblems(d.cards, unlocked, limited) })),
       runTypes: RUN_TYPE_IDS.map((id) => {
         const type = RUN_TYPES[id];
         return { id, name: type.name, description: type.description, bosses: bossSummary(type) };

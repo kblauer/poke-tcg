@@ -20,7 +20,7 @@ export const STARTER_DECK: DeckList = [
   ['base1-59', 4], // Poliwag
   ['base1-38', 3], // Poliwhirl
   ['base1-13', 2], // Poliwrath
-  ['base3-10', 2], // Lapras
+  ['base3-25', 2], // Lapras (the non-holo print: the holo one is a special holo, only from pulls)
   ['base1-58', 4], // Pikachu
   ['base1-14', 2], // Raichu
   ['base1-20', 2], // Electabuzz
