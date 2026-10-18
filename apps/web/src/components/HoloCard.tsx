@@ -8,9 +8,22 @@ const INTERACT = { stiffness: 0.066, damping: 0.25 };
 /** Slow, loose spring back to rest after the pointer leaves. */
 const SNAP = { stiffness: 0.01, damping: 0.06 };
 
+/** A `still` card's fixed light: the shine as if the pointer rested near its top left, flat (no tilt). */
+const STILL = {
+  '--pointer-x': '30%',
+  '--pointer-y': '25%',
+  '--pointer-from-center': 0.6,
+  '--pointer-from-top': 0.25,
+  '--pointer-from-left': 0.3,
+  '--card-opacity': 0.7,
+  '--background-x': '42%',
+  '--background-y': '38%',
+} as React.CSSProperties;
+
 /**
  * A card with the holo effect from src/styles/holo: it tilts toward the pointer, and the shine
  * and glare layers follow it. Styles are picked by the data-* attributes (rarity, subtypes, …).
+ * `still`: the shine is fixed and the card doesn't move or react to the pointer (the Active Pokémon on the board).
  */
 export function HoloCard({
   img,
@@ -18,6 +31,7 @@ export function HoloCard({
   attrs,
   foil,
   mask,
+  still = false,
 }: {
   img: string;
   name: string;
@@ -25,6 +39,7 @@ export function HoloCard({
   /** Optional foil texture and mask images for styles that use them. */
   foil?: string;
   mask?: string;
+  still?: boolean;
 }) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
@@ -54,12 +69,13 @@ export function HoloCard({
       data-rarity={attrs.rarity}
       data-era={attrs.era}
       data-trainer-gallery="false"
+      style={still ? STILL : undefined}
     >
       <div className="card__translater">
         <div
           className="card__rotator"
-          onPointerMove={(e) => motion.current!.interact(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect())}
-          onMouseOut={() => motion.current!.interactEnd()}
+          onPointerMove={still ? undefined : (e) => motion.current!.interact(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect())}
+          onMouseOut={still ? undefined : () => motion.current!.interactEnd()}
         >
           <img className="card__back" src={CARD_BACK} alt="" loading="lazy" width="660" height="921" />
           <div

@@ -1,12 +1,14 @@
 import type { CardDef } from '@poke-tcg/game-engine';
 import { useContext, type ReactNode } from 'react';
+import { useInspectOnRightClick } from '../InspectContext';
 import { PreviewContext } from '../PreviewContext';
 
 const RARITY: Record<string, string> = { common: 'Common', uncommon: 'Uncommon', rare: 'Rare', holo: 'Rare Holo' };
 
 /**
  * A card offered or owned in a run: its image (hovering shows the large preview, as on the game board), name
- * and rarity, with an optional footer (a price) and corner badge. Clickable when `onClick` is set.
+ * and rarity, with an optional footer (a price) and corner badge. Clickable when `onClick` is set; right-clicking
+ * opens it in the CardInspector.
  */
 export function RunCard({
   def,
@@ -25,12 +27,20 @@ export function RunCard({
   badge?: ReactNode;
 }) {
   const setPreview = useContext(PreviewContext);
+  const inspect = useInspectOnRightClick()(def?.id);
   const body = (
     <>
       <div
         className="relative aspect-[63/88] w-28"
         onMouseEnter={(e) => def && setPreview({ def, x: e.clientX, y: e.clientY })}
         onMouseLeave={() => setPreview(null)}
+        onContextMenu={
+          inspect.onContextMenu &&
+          ((e) => {
+            setPreview(null);
+            inspect.onContextMenu!(e);
+          })
+        }
       >
         {def?.imageUrl ? (
           <img src={`${def.imageUrl}/low.webp`} alt={def.name} loading="lazy" className={`h-full w-full rounded-lg object-cover shadow ${selected ? 'ring-4 ring-yellow-300' : ''}`} />

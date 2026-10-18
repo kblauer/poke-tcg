@@ -33,12 +33,12 @@ export const playProblems = (cards: { cardId: string; quantity: number; card: Pi
   return [...problemsOf(cards), ...(locked ? [locked] : [])];
 };
 
-/** The user's deck, ready to battle with (one card id per card), or BAD_REQUEST with why it can't be played. */
-export async function playableDeck(deckId: string, userId: string): Promise<string[]> {
+/** The user's deck, ready to battle with: its name and cards (one card id per card), or BAD_REQUEST with why it can't be played. */
+export async function playableDeck(deckId: string, userId: string): Promise<{ name: string; cards: string[] }> {
   const [deck, unlocked] = await Promise.all([loadOwnDeck(deckId, userId), unlockedIds(userId)]);
   const [problem] = playProblems(deck.cards, unlocked);
   if (problem) throw new TRPCError({ code: 'BAD_REQUEST', message: problem });
-  return deck.cards.flatMap((c) => Array<string>(c.quantity).fill(c.cardId));
+  return { name: deck.name, cards: deck.cards.flatMap((c) => Array<string>(c.quantity).fill(c.cardId)) };
 }
 
 /** The position after the user's last deck, for a new one. */

@@ -227,6 +227,26 @@ describe('other encounters', () => {
   });
 });
 
+describe('switching decks', () => {
+  const other = Array<string>(60).fill('base1-98');
+
+  it('on the map, replaces the run deck and names it', () => {
+    const s = act(at('battle'), { type: 'SET_DECK', deck: other, name: 'Fire' });
+    expect([s.deck, s.deckName, s.phase, s.log.at(-1)]).toEqual([other, 'Fire', 'map', 'Switched decks: now battling with Fire.']);
+    // The battle chosen next is played with it (the server starts it with `deck`).
+    expect(act(s, { type: 'CHOOSE', option: 0 }).deck).toEqual(other);
+  });
+
+  it('not during an encounter', () => {
+    const s = act(at('battle'), { type: 'CHOOSE', option: 0 });
+    expect(applyRunAction(s, { type: 'SET_DECK', deck: other, name: 'Fire' }, TEST_POOL)).toEqual({ ok: false, error: 'Decks can only be switched on the map' });
+  });
+
+  it('a new run keeps the name of the deck it started with', () => {
+    expect(createRun('celadon', deck, 1, 'Starter deck').deckName).toBe('Starter deck');
+  });
+});
+
 describe('items', () => {
   const use = (s: RunState, itemId: string) => applyRunAction(s, { type: 'USE_ITEM', itemId }, TEST_POOL);
 

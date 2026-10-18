@@ -7,8 +7,8 @@ import { CardViewer } from './CardViewer';
 const small = 'flex rounded bg-slate-600 p-1 hover:bg-slate-500 disabled:opacity-30';
 
 /**
- * A card shown large in the middle of the screen, as holding it does, but staying open (the deck builder's
- * right-click) until Escape or a click outside it. With a deck open (`deck`), − and + change its copies in
+ * A card shown large in the middle of the screen, as holding it does, but staying open (right-clicking a card, see
+ * CardInspectProvider) until Escape or a click outside it. With a deck open (`deck`), − and + change its copies in
  * the deck; + is disabled with the reason when the card can't be added.
  */
 export function CardInspector({
@@ -29,7 +29,9 @@ export function CardInspector({
   }, [onClose]);
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+      // Above everything, the game's dialogs and hover preview included; clicks in it don't cancel a move in progress.
+      data-keep-action
+      className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/80 p-4"
       role="dialog"
       aria-label={card.name}
       onClick={onClose}

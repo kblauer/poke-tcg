@@ -1,16 +1,21 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { RunControl, RunViewData } from '../../hooks/useRun';
 import { ENCOUNTER_STYLE, EncounterBadge, isBoss } from './encounterIcons';
+import { RouteChoice } from './RouteChoice';
 
 /**
  * The run's path, climbing from the first step at the bottom to its last boss at the top. Past steps
  * show the encounter taken, later ones what they'll offer (faded, bosses and Gym Trainers less so); the
- * current step's options are the buttons to choose from. It scrolls on its own, kept centred on the current step.
+ * current step's options are the buttons to choose from: clicking one opens RouteChoice, which describes it (and for
+ * a battle, picks the deck) before going. It scrolls on its own, kept centred on the current step.
  */
 export function RunMap({ view, run }: { view: RunViewData; run: RunControl }) {
   const choosing = view.phase === 'map';
   const scroller = useRef<HTMLDivElement>(null);
   const here = useRef<HTMLLIElement>(null);
+  /** The current step's option being looked at in RouteChoice. */
+  const [looking, setLooking] = useState<number | null>(null);
+  const options = view.steps[view.position]?.options ?? [];
 
   useEffect(() => {
     const box = scroller.current;
@@ -41,7 +46,7 @@ export function RunMap({ view, run }: { view: RunViewData; run: RunControl }) {
                     <button
                       key={n}
                       disabled={run.busy}
-                      onClick={() => run.send({ type: 'CHOOSE', option: n })}
+                      onClick={() => setLooking(n)}
                       title={ENCOUNTER_STYLE[o.kind].name}
                       className="flex w-24 flex-col items-center gap-1 rounded-lg p-1 transition hover:bg-slate-700 active:scale-95 disabled:opacity-50"
                     >
@@ -62,6 +67,9 @@ export function RunMap({ view, run }: { view: RunViewData; run: RunControl }) {
           );
         })}
       </ol>
+      {choosing && looking !== null && options[looking] && (
+        <RouteChoice option={options[looking]!} index={looking} view={view} run={run} onClose={() => setLooking(null)} />
+      )}
     </div>
   );
 }

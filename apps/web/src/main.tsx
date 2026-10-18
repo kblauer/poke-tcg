@@ -11,6 +11,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
 import './styles/holo/index.css';
+import { CardInspectProvider } from './components/CardInspectProvider';
 import { useSession } from './lib/auth';
 import { signInWithGoogle, signOut } from './lib/supabase';
 import { queryClient, TRPCProvider, trpcClient } from './lib/trpc';
@@ -69,7 +70,9 @@ function RootLayout() {
         )}
       </header>
       {session ? (
-        <Outlet />
+        <CardInspectProvider>
+          <Outlet />
+        </CardInspectProvider>
       ) : (
         <div className="flex flex-col items-center gap-4 py-24">
           <p className="text-slate-400">Sign in to play.</p>

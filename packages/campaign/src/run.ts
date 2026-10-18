@@ -74,8 +74,10 @@ export interface RunState {
   pokedollars: number;
   /** EXP earned this run, added to the account when the run is beaten. */
   exp: number;
-  /** The deck used in battles (trades change it). */
+  /** The deck used in battles (trades change it, and it can be switched for another of the account's decks before a battle). */
   deck: string[];
+  /** The name of the account's deck it came from, for the screen. Missing in older runs. */
+  deckName?: string;
   /** The deck the run started with. */
   startingDeck: string[];
   /** Cards gained during the run (gifts, rewards, shops, trades), in the order they came. Each is unlocked for the deck builder as it's gained; only trades put one in the run's deck. */
@@ -116,7 +118,9 @@ export type RunSystemAction =
   | { type: 'BATTLE_STARTED'; gameId: string }
   | { type: 'BATTLE_OVER'; gameId: string; won: boolean }
   | { type: 'USE_ITEM'; itemId: string }
-  | { type: 'RESTORE_HP' };
+  | { type: 'RESTORE_HP' }
+  /** Switch to another of the account's decks (the server loads it and checks it can be played), on the map before choosing a battle. */
+  | { type: 'SET_DECK'; deck: string[]; name: string };
 
 export type RunResult = { ok: true; state: RunState } | { ok: false; error: string };
 
@@ -149,7 +153,8 @@ const LABELS: Record<Exclude<EncounterKind, BattleKind>, string> = {
 };
 
 /** Rewards for winning each kind of battle, and the least rarity of the cards offered after it. */
-const REWARDS: Record<BattleKind, { pokedollars: [number, number]; exp: number; rarity: Rarity }> = {
+/** What each kind of battle pays when won: ₱ (a range), EXP, and how rare the cards to pick from are. */
+export const REWARDS: Record<BattleKind, { pokedollars: [number, number]; exp: number; rarity: Rarity }> = {
   battle: { pokedollars: [100, 150], exp: 10, rarity: 'common' },
   elite: { pokedollars: [250, 250], exp: 25, rarity: 'uncommon' },
   gymTrainer: { pokedollars: [150, 200], exp: 15, rarity: 'uncommon' },
@@ -158,9 +163,9 @@ const REWARDS: Record<BattleKind, { pokedollars: [number, number]; exp: number; 
   champion: { pokedollars: [1000, 1000], exp: 200, rarity: 'rare' },
 };
 
-const CENTER_PRICE = 100;
-const SHOP_SIZE = 5;
-const OFFERS = 3;
+export const CENTER_PRICE = 100;
+export const SHOP_SIZE = 5;
+export const OFFERS = 3;
 const RARITY_RANK: Record<Rarity, number> = { common: 0, uncommon: 1, rare: 2, holo: 3 };
 
 function mapEncounter(rng: Rng, kind: EncounterKind): MapEncounter {
@@ -189,7 +194,8 @@ function rollOptions(rng: Rng, i: number): MapEncounter[] {
 }
 
 /** A new run of `type` with `deck`. The map is fixed by the seed; what's in each encounter is rolled when it's entered. */
-export function createRun(typeId: RunTypeId, deck: string[], runSeed: number): RunState {
+/** A new run of `typeId` with the deck (`deckName`: the account deck it came from). */
+export function createRun(typeId: RunTypeId, deck: string[], runSeed: number, deckName?: string): RunState {
   const type = runType(typeId);
   const rng = rngFrom(runSeed);
   const steps: Step[] = [];
@@ -211,6 +217,7 @@ export function createRun(typeId: RunTypeId, deck: string[], runSeed: number): R
     pokedollars: STARTING_POKEDOLLARS,
     exp: 0,
     deck: [...deck],
+    ...(deckName && { deckName }),
     startingDeck: [...deck],
     gained: [],
     steps,
@@ -414,6 +421,14 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
       state.encounter = rollEncounter(rng, state, option, pool, effects);
       state.phase = 'encounter';
       return done();
+    }
+
+    case 'SET_DECK': {
+      if (state.phase !== 'map') return fail('Decks can only be switched on the map');
+      state.deck = [...action.deck];
+      state.deckName = action.name;
+      state.log.push(`Switched decks: now battling with ${action.name}.`);
+      return ok();
     }
 
     case 'BATTLE_STARTED': {
