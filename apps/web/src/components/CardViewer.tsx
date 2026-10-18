@@ -3,13 +3,10 @@ import { holoAttributes } from '../utils/holo';
 import { HoloCard } from './HoloCard';
 
 /**
- * The selected card at full size, with its set and stats underneath. A `locked` card (not unlocked by the
- * account) is shown darkened and still, without the holo effect.
+ * A card at full size, with its set and stats underneath (the deck builder's hold and right-click views). A
+ * `locked` card (not unlocked by the account) is shown darkened and still, without the holo effect.
  */
-export function CardViewer({ card, locked = false }: { card: CatalogCard | null; locked?: boolean }) {
-  if (!card) {
-    return <div className="flex h-64 items-center justify-center rounded-lg bg-slate-900 text-slate-500 lg:h-full">Click a card to view it.</div>;
-  }
+export function CardViewer({ card, locked = false }: { card: CatalogCard; locked?: boolean }) {
   const details = [stageLabel(card), card.type, card.hp !== null && `${card.hp} HP`, card.maxDamage && `max attack ${card.maxDamage}`].filter(Boolean);
   return (
     <div className="flex flex-col items-center gap-3">

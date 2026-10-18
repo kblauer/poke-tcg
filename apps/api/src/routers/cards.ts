@@ -6,7 +6,7 @@ const TYPES = new Set(['Grass', 'Fire', 'Water', 'Lightning', 'Psychic', 'Fighti
 
 export const cardsRouter = router({
   /**
-   * The whole catalog for the card browser, slimmed down to what it shows, filters and sorts by.
+   * The whole catalog for the deck builder, slimmed down to what it shows, filters and sorts by.
    * In set release order, then card number.
    */
   list: publicProcedure.query(async () => {

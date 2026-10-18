@@ -32,7 +32,7 @@
 - For API checks against the real DB, use a throwaway script in `apps/api/src/_*.tmp.ts`, run it with `npx tsx --env-file-if-exists=../../.env`, and delete both the script and any test data afterwards.
 
 ## UI and interaction decisions (game board)
-- The game page fills the window. Side margins come from `PAGE_WIDTH` in `apps/web/src/utils/layout.ts`, shared with the Cards page.
+- The game page fills the window. Side margins come from `PAGE_WIDTH` in `apps/web/src/utils/layout.ts`, shared with the Decks page.
 - Card sizes are CSS variables (`--card-sm`/`--card-lg`) on `.play-area-cards` in `index.css`. They scale with the play area's container size, and the large card is 1.4× the small one. Use `SMALL_CARD`/`LARGE_CARD`/`SIDE_COLUMN` rather than hard-coded sizes.
 - Hand (`Hand.tsx`):
   - Docked at the bottom edge and partly hidden.
@@ -75,7 +75,7 @@
 - Trainers use the CPU's Trainer difficulty with `generateDeck`; elite (Ace) trainers and bosses use Gym leader difficulty. Every gym leader has a required Gym Trainer (their gym's type, Trainer difficulty) on the step before them.
 - Bosses (`campaign/src/bosses.ts`) play their TCG 1 (Game Boy Color) counterpart's deck, named for the Gen 1 character (Club Masters → gym leaders, Grand Masters → Elite Four, Ronald → Champion Blue). Agreed: Game Boy-only cards (promos, "Mystery"/"Laboratory" prints, Fan Book, Pokémon Web) are replaced by the closest TCGdex card of the same type, never added by hand. Run types: one per gym, Kanto Gym Challenge, Kanto Champion.
 - Run cards come from `cardImplemented` cards of `POOL_SETS` only.
-- Unlocks (agreed): a card gained in a run is unlocked at once (`CardUnlock`), never added to the run's deck (trades excepted); unlocks are per card, not per copy; basic Energy is always unlocked; the starter deck is saved to the account's deck list with its cards unlocked. Runs start with one of the account's decks, which must follow the rules and hold only unlocked cards. Locked cards are darker on the Decks and Cards tabs, and shown without holo effects.
+- Unlocks (agreed): a card gained in a run is unlocked at once (`CardUnlock`), never added to the run's deck (trades excepted); unlocks are per card, not per copy; basic Energy is always unlocked; the starter deck is saved to the account's deck list with its cards unlocked. Runs start with one of the account's decks, which must follow the rules and hold only unlocked cards. Locked cards are darker on the Decks tab, and shown without holo effects. (The Cards tab was removed: the deck builder covers browsing cards.)
 - Booster packs (agreed): bought with banked ₱ on the Packs tab, one per set with card effects; 11 cards with averaged WOTC-era odds (1 rare, holo 1 in 3; 3 uncommons; 6 commons; 1 basic Energy). Every card opened is unlocked.
 - The "Retry with 3 HP" button (`run.retry`) is a testing aid the user wants in production for now; remove it before release.
 

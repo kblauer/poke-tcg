@@ -1,6 +1,7 @@
 import LockIcon from '@mui/icons-material/Lock';
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { useHoldToInspect } from '../hooks/useHoldToInspect';
+import { useInspectOnRightClick } from './InspectContext';
 import type { CatalogCard } from '../utils/cardList';
 import { CardViewer } from './CardViewer';
 
@@ -46,7 +47,8 @@ function useRowGap(grid: RefObject<HTMLDivElement | null>, count: number) {
  * `counts` (the deck builder) puts a badge with each card's copies in the deck on its strip.
  * `isLocked` darkens cards the account hasn't unlocked, with a lock on the strip.
  * `holdToInspect` (the deck builder, where a click adds a copy): pressing and holding a card shows it large in
- * the middle of the screen, with its details, until the press ends.
+ * the middle of the screen, with its details, until the press ends. Inside an InspectContext (the deck builder),
+ * right-clicking a card opens it in the CardInspector.
  */
 export function CardGrid({
   cards,
@@ -65,6 +67,7 @@ export function CardGrid({
 }) {
   const grid = useRef<HTMLDivElement>(null);
   const hold = useHoldToInspect<CatalogCard>();
+  const inspectOn = useInspectOnRightClick();
   const rowGap = useRowGap(grid, cards.length);
   if (cards.length === 0) return <p className="p-4 text-center text-slate-500">No cards match these filters.</p>;
   return (
@@ -99,6 +102,7 @@ export function CardGrid({
                 only the visible strip is clickable, except on the last card in a column, where it's all of it. */}
             <button
               {...(holdToInspect ? hold.press(c) : {})}
+              {...inspectOn(c)}
               onClick={() => hold.clicked() && onSelect(c)}
               title={`${c.name} · ${c.setName} #${c.number}${isLocked?.(c) ? ' · Locked' : ''}`}
               aria-label={c.name}

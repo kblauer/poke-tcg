@@ -9,6 +9,7 @@ import { DECK_NAME_LENGTH, DECK_SIZE } from '@poke-tcg/shared';
 import type { inferRouterOutputs } from '@trpc/server';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { CatalogCard } from '../utils/cardList';
+import { useInspectOnRightClick } from './InspectContext';
 import { DECK_SECTIONS, deckRatio, deckSize, featuredPokemon, type DeckEntry } from '../utils/deckBuilder';
 
 export type SavedDeck = inferRouterOutputs<AppRouter>['decks']['list'][number];
@@ -18,10 +19,11 @@ const RATIO_COLORS = { POKEMON: 'bg-rose-500', TRAINER: 'bg-sky-500', ENERGY: 'b
 
 /**
  * What a deck holds at a glance: its 3 headline Pokémon (see featuredPokemon) and how its cards split
- * between Pokémon, Trainers and Energy, as a bar and counts.
+ * between Pokémon, Trainers and Energy, as a bar and counts. Right-clicking a Pokémon opens it in the CardInspector.
  */
 export function DeckSummary({ entries, byId, isLocked }: { entries: DeckEntry[]; byId: Map<string, CatalogCard>; isLocked: (card: CatalogCard) => boolean }) {
   const featured = featuredPokemon(entries, byId);
+  const inspectOn = useInspectOnRightClick();
   const ratio = deckRatio(entries, byId);
   const size = deckSize(entries);
   return (
@@ -36,6 +38,7 @@ export function DeckSummary({ entries, byId, isLocked }: { entries: DeckEntry[];
               alt={card.name}
               title={card.name}
               loading="lazy"
+              {...inspectOn(card)}
               className={`h-14 w-10 rounded-sm object-cover ${isLocked(card) ? 'brightness-50' : ''}`}
             />
           ) : (

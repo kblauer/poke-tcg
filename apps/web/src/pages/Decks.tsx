@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { CardGrid } from '../components/CardGrid';
+import { CardInspector } from '../components/CardInspector';
 import { DeckFilters } from '../components/DeckFilters';
 import { CurrentDeck, DeckList } from '../components/DeckList';
 import { DeckPanel } from '../components/DeckPanel';
+import { InspectContext } from '../components/InspectContext';
 import { useUnlocked } from '../hooks/useUnlocked';
 import { useTRPC } from '../lib/trpc';
 import { setNames, type CatalogCard } from '../utils/cardList';
@@ -16,7 +18,8 @@ const button = 'rounded px-3 py-1 text-sm disabled:opacity-40';
  * Deck builder. On the left, the account's decks first (`DeckList`: open one, start a new one, rename or
  * copy one, drag to reorder); once a deck is open, the deck as a button back to the list (renaming it there
  * is an unsaved change, like its cards), save and delete, and its cards. The card search is on the right: clicking a card adds a copy to the open deck.
- * Cards not unlocked yet (win them in runs) are darker and can't be added.
+ * Cards not unlocked yet (win them in runs) are darker and can't be added. Right-clicking any card (in the
+ * search, the open deck or a deck's headline Pokémon) opens it large, with − and + for the open deck.
  */
 export function DecksPage() {
   const trpc = useTRPC();
@@ -40,6 +43,8 @@ export function DecksPage() {
   const [sort, setSort] = useState<DeckSort>('set');
   /** Why the last card clicked couldn't be added. */
   const [blocked, setBlocked] = useState<string | null>(null);
+  /** The card opened with a right-click (CardInspector). */
+  const [inspected, setInspected] = useState<CatalogCard | null>(null);
 
   /**
    * The `opened` count whose saved cards are in the editor. Until a saved deck's cards arrive it can't be
@@ -119,7 +124,7 @@ export function DecksPage() {
   function change(card: CatalogCard, by: 1 | -1) {
     if (!editing) return setBlocked('Open a deck or start a new one to add cards');
     if (loading) return;
-    const reason = by > 0 ? (isLocked(card) ? `${card.name} isn't unlocked yet: win it in a run` : cantAdd(entries, card, byId)) : null;
+    const reason = by > 0 ? blockedFor(card) : null;
     setBlocked(reason);
     if (reason) return;
     setEntries((e) => changeCount(e, card.id, by));
@@ -130,70 +135,82 @@ export function DecksPage() {
   if (!catalog.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading cards…</p>;
 
   const problems = problemsOf(entries, byId);
+  /** Why another copy of the card can't go in the open deck, or null. */
+  const blockedFor = (card: CatalogCard) => (isLocked(card) ? `${card.name} isn't unlocked yet: win it in a run` : cantAdd(entries, card, byId));
   const error = save.error?.message ?? remove.error?.message ?? saved.error?.message;
   const listError = decks.error?.message ?? duplicate.error?.message ?? reorder.error?.message ?? rename.error?.message;
   return (
-    <div className={`${PAGE_WIDTH} grid gap-4 lg:grid-cols-[24rem_1fr]`}>
-      {!editing ? (
-        <div className="flex h-[70vh] flex-col gap-3 lg:h-[calc(100dvh-6.5rem)]">
-          {decks.data ? (
-            <DeckList
-              decks={decks.data}
-              byId={byId}
-              isLocked={isLocked}
-              onOpen={(id) => open(id)}
-              onNew={() => open(null)}
-              onCopy={(id) => duplicate.mutate({ deckId: id })}
-              onRename={(id, newName) => rename.mutate({ deckId: id, name: newName })}
-              onReorder={(ids) => reorder.mutate({ deckIds: ids })}
-              busy={duplicate.isPending}
-            />
-          ) : (
-            !decks.error && <p className="text-sm text-slate-400">Loading your decks…</p>
-          )}
-          {listError && <p className="text-xs text-red-400">{listError}</p>}
-        </div>
-      ) : (
-        <div className="flex h-[70vh] flex-col gap-3 lg:h-[calc(100dvh-6.5rem)]">
-          <CurrentDeck
-            name={name}
-            onRename={(newName) => {
-              if (loading) return;
-              setName(newName);
-              setDirty(true);
-            }}
-            entries={entries} ready={problems.length === 0} byId={byId} isLocked={isLocked} onBack={() => close()} />
-          <div className="space-y-2 rounded-lg bg-slate-900 p-3">
-            <div className="flex items-center gap-2">
-              <button
-                className={`${button} bg-emerald-600 font-semibold hover:bg-emerald-500`}
-                disabled={save.isPending || loading || !name.trim() || (!dirty && deckId !== null)}
-                onClick={() => save.mutate({ ...(deckId && { deckId }), name: name.trim(), cards: entries })}
-              >
-                {save.isPending ? 'Saving…' : 'Save'}
-              </button>
-              {deckId && (
-                <button
-                  className={`${button} bg-slate-700 hover:bg-red-700`}
-                  disabled={remove.isPending || loading}
-                  // Named as saved (as in the deck list), not as it may have been renamed since.
-                  onClick={() => window.confirm(`Delete ${decks.data?.find((d) => d.id === deckId)?.name ?? name}?`) && remove.mutate({ deckId })}
-                >
-                  Delete
-                </button>
-              )}
-              {loading ? <span className="text-xs text-slate-400">Loading the deck…</span> : dirty && <span className="text-xs text-slate-400">Unsaved changes</span>}
-            </div>
-            {error && <p className="text-xs text-red-400">{error}</p>}
+    <InspectContext.Provider value={setInspected}>
+      <div className={`${PAGE_WIDTH} grid gap-4 lg:grid-cols-[24rem_1fr]`}>
+        {!editing ? (
+          <div className="flex h-[70vh] flex-col gap-3 lg:h-[calc(100dvh-6.5rem)]">
+            {decks.data ? (
+              <DeckList
+                decks={decks.data}
+                byId={byId}
+                isLocked={isLocked}
+                onOpen={(id) => open(id)}
+                onNew={() => open(null)}
+                onCopy={(id) => duplicate.mutate({ deckId: id })}
+                onRename={(id, newName) => rename.mutate({ deckId: id, name: newName })}
+                onReorder={(ids) => reorder.mutate({ deckIds: ids })}
+                busy={duplicate.isPending}
+              />
+            ) : (
+              !decks.error && <p className="text-sm text-slate-400">Loading your decks…</p>
+            )}
+            {listError && <p className="text-xs text-red-400">{listError}</p>}
           </div>
-          <DeckPanel entries={entries} byId={byId} problems={problems} isLocked={isLocked} onChange={(cardId, by) => change(byId.get(cardId)!, by)} />
+        ) : (
+          <div className="flex h-[70vh] flex-col gap-3 lg:h-[calc(100dvh-6.5rem)]">
+            <CurrentDeck
+              name={name}
+              onRename={(newName) => {
+                if (loading) return;
+                setName(newName);
+                setDirty(true);
+              }}
+              entries={entries} ready={problems.length === 0} byId={byId} isLocked={isLocked} onBack={() => close()} />
+            <div className="space-y-2 rounded-lg bg-slate-900 p-3">
+              <div className="flex items-center gap-2">
+                <button
+                  className={`${button} bg-emerald-600 font-semibold hover:bg-emerald-500`}
+                  disabled={save.isPending || loading || !name.trim() || (!dirty && deckId !== null)}
+                  onClick={() => save.mutate({ ...(deckId && { deckId }), name: name.trim(), cards: entries })}
+                >
+                  {save.isPending ? 'Saving…' : 'Save'}
+                </button>
+                {deckId && (
+                  <button
+                    className={`${button} bg-slate-700 hover:bg-red-700`}
+                    disabled={remove.isPending || loading}
+                    // Named as saved (as in the deck list), not as it may have been renamed since.
+                    onClick={() => window.confirm(`Delete ${decks.data?.find((d) => d.id === deckId)?.name ?? name}?`) && remove.mutate({ deckId })}
+                  >
+                    Delete
+                  </button>
+                )}
+                {loading ? <span className="text-xs text-slate-400">Loading the deck…</span> : dirty && <span className="text-xs text-slate-400">Unsaved changes</span>}
+              </div>
+              {error && <p className="text-xs text-red-400">{error}</p>}
+            </div>
+            <DeckPanel entries={entries} byId={byId} problems={problems} isLocked={isLocked} onChange={(cardId, by) => change(byId.get(cardId)!, by)} />
+          </div>
+        )}
+        <div className="flex h-[70vh] flex-col gap-3 lg:h-[calc(100dvh-6.5rem)]">
+          <DeckFilters filter={filter} sort={sort} sets={sets} shown={results.length} total={catalog.data.length} onChange={setFilter} onSortChange={setSort} />
+          {blocked && <p className="text-sm text-amber-300">{blocked}.</p>}
+          <CardGrid cards={results} selectedId={null} onSelect={(c) => change(c, 1)} counts={counts} isLocked={isLocked} holdToInspect />
         </div>
-      )}
-      <div className="flex h-[70vh] flex-col gap-3 lg:h-[calc(100dvh-6.5rem)]">
-        <DeckFilters filter={filter} sort={sort} sets={sets} shown={results.length} total={catalog.data.length} onChange={setFilter} onSortChange={setSort} />
-        {blocked && <p className="text-sm text-amber-300">{blocked}.</p>}
-        <CardGrid cards={results} selectedId={null} onSelect={(c) => change(c, 1)} counts={counts} isLocked={isLocked} holdToInspect />
       </div>
-    </div>
+      {inspected && (
+        <CardInspector
+          card={inspected}
+          locked={isLocked(inspected)}
+          deck={editing && !loading ? { name, copies: counts.get(inspected.id) ?? 0, blocked: blockedFor(inspected), onChange: (by) => change(inspected, by) } : undefined}
+          onClose={() => setInspected(null)}
+        />
+      )}
+    </InspectContext.Provider>
   );
 }
