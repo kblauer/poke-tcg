@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
 import { CardGrid } from '../components/CardGrid';
 import { CardInspector } from '../components/CardInspector';
@@ -20,6 +21,7 @@ const button = 'rounded px-3 py-1 text-sm disabled:opacity-40';
  * is an unsaved change, like its cards), save and delete, and its cards. The card search is on the right: clicking a card adds a copy to the open deck.
  * Cards not unlocked yet (win them in runs) are darker and can't be added. Right-clicking any card (in the
  * search, the open deck or a deck's headline Pokémon) opens it large, with − and + for the open deck.
+ * A link can open a deck straight away: `?deck=<id>`, or `?deck=new` for a new one.
  */
 export function DecksPage() {
   const trpc = useTRPC();
@@ -97,6 +99,16 @@ export function DecksPage() {
   const sets = useMemo(() => (catalog.data ? setNames(catalog.data) : []), [catalog.data]);
   const results = useMemo(() => (catalog.data ? sortForDeck(filterForDeck(catalog.data, filter, isLocked), sort) : []), [catalog.data, filter, sort, isLocked]);
   const counts = useMemo(() => new Map(entries.map((e) => [e.cardId, e.quantity])), [entries]);
+
+  // Opened from a link to a deck: open it once the deck list is in (to name it), then drop it from the address.
+  const linked = useSearch({ from: '/decks' }).deck;
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (!linked || !decks.data) return;
+    if (linked === 'new') open(null, true);
+    else if (decks.data.some((d) => d.id === linked)) open(linked, true);
+    navigate({ to: '/decks', search: {}, replace: true });
+  }, [linked, decks.data]);
 
   /** Opens a saved deck, or a new empty one (null), asking first if there are unsaved changes. */
   function open(id: string | null, force = false) {

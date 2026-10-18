@@ -1,6 +1,5 @@
 import { lookupCard, type CardInstance, type CardLibrary } from '@poke-tcg/game-engine';
-import type { HTMLAttributes, ReactNode } from 'react';
-import { useHoldToInspect } from '../hooks/useHoldToInspect';
+import { useState, type HTMLAttributes, type ReactNode } from 'react';
 import { SIDE_COLUMN, SMALL_CARD } from '../utils/layout';
 import { Card } from './Card';
 import { CardBack } from './CardBack';
@@ -10,8 +9,8 @@ import { DiscardPane } from './DiscardPane';
  * A player's deck (face down) and discard pile (top card face up) with their counts, stacked in a
  * column beside the play area, against the board's outer edge. The deck is nearest the bench and
  * level with it (the board lines it up): at the bottom on your side; `mirrored` (the CPU's side,
- * which sits on the left) puts it on top, with the labels under the cards. Holding the discard pile opens it in
- * a pane to browse (DiscardPane); `owner` names whose it is there.
+ * which sits on the left) puts it on top, with the labels under the cards. Clicking the discard pile opens it in
+ * a window to browse (DiscardPane); `owner` names whose it is there.
  */
 export function DeckAndDiscard({
   deckCount,
@@ -28,7 +27,7 @@ export function DeckAndDiscard({
   mirrored?: boolean;
 }) {
   const top = discard.at(-1);
-  const hold = useHoldToInspect<true>({ stay: true });
+  const [browsing, setBrowsing] = useState(false);
   const deck = (
     <Pile key="deck" label={`Deck ${deckCount}`} empty={deckCount === 0} labelBelow={mirrored}>
       {/* A few offset shadows suggest the stack. */}
@@ -41,7 +40,7 @@ export function DeckAndDiscard({
       label={`Discard ${discard.length}`}
       empty={!top}
       labelBelow={mirrored}
-      press={top ? { ...hold.press(true), onClick: () => void hold.clicked(), title: 'Hold to browse the discard pile', className: 'cursor-pointer' } : undefined}
+      press={top ? { role: 'button', tabIndex: 0, onClick: () => setBrowsing(true), onKeyDown: (e) => e.key === 'Enter' && setBrowsing(true), title: 'Click to view the discard pile', className: 'cursor-pointer transition hover:-translate-y-1' } : undefined}
     >
       {top && <Card def={lookupCard(cards, top.defId)} small />}
     </Pile>
@@ -49,8 +48,8 @@ export function DeckAndDiscard({
   return (
     <div className={`${SIDE_COLUMN} flex flex-col gap-2 ${mirrored ? 'items-start' : 'items-end'}`}>
       {mirrored ? [deck, discardPile] : [discardPile, deck]}
-      {/* Outside the pile, so presses in the pane don't reach the pile's hold handlers. */}
-      {hold.inspecting && <DiscardPane title={`${owner} discard pile`} discard={discard} cards={cards} onClose={hold.close} />}
+      {/* Outside the pile, so clicks in the window don't reach the pile. */}
+      {browsing && <DiscardPane title={`${owner} discard pile`} discard={discard} cards={cards} onClose={() => setBrowsing(false)} />}
     </div>
   );
 }
@@ -66,7 +65,7 @@ function Pile({
   label: string;
   empty: boolean;
   labelBelow: boolean;
-  /** Pointer handlers and attributes for the card (holding the discard pile). */
+  /** Handlers and attributes for the card (clicking the discard pile). */
   press?: HTMLAttributes<HTMLDivElement>;
   children: ReactNode;
 }) {

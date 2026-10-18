@@ -172,6 +172,8 @@ export interface GameState {
   peek?: { player: PlayerId; card: CardInstance; label: string };
   /** How the CPU plays this game (cpu/). Missing = DEFAULT_CPU_DIFFICULTY. */
   cpuDifficulty?: CpuDifficulty;
+  /** Who the CPU is, for a single battle's screen ("Swimmer Luis"). A run's battles name it from the run instead. */
+  opponentName?: string;
   /** Rules from outside the cards, for both players (a run's events, e.g. Fire Pokémon do double damage). */
   rules?: BattleRule[];
   /** The Stadium card in play, shared by both players, and who played it (it goes to their discard pile). */

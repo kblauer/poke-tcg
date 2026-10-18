@@ -120,7 +120,8 @@ export type RunSystemAction =
 
 export type RunResult = { ok: true; state: RunState } | { ok: false; error: string };
 
-const TRAINERS = [
+/** The trainers met in battles on the map (and as single battles' random trainers); trainerFavorites picks their Pokémon from their class. */
+export const TRAINERS = [
   'Youngster Joey', 'Lass Haley', 'Bug Catcher Rick', 'Hiker Marcos', 'Picnicker Gina', 'Camper Liam', 'Super Nerd Glenn',
   'Swimmer Luis', 'Fisherman Ned', 'Beauty Lola', 'Gentleman Arthur', 'Biker Jaren', 'Juggler Kirk', 'Cooltrainer Mary',
   'Rocker Luca', 'Gambler Hugo', 'Sailor Duncan', 'Psychic Tyron', 'Black Belt Koichi', 'Bird Keeper Sebastian',

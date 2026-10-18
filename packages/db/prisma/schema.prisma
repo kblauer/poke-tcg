@@ -16,7 +16,7 @@ model User {
   createdAt   DateTime @default(now())
   /// Account-wide currency earned by beating runs, spent in the post-run shop.
   exp         Int      @default(0)
-  /// ₱ banked from earlier runs: each run's ₱ is moved here when the next run starts.
+  /// ₱ banked from earlier runs: each run's ₱ is moved here when it ends.
   bank        Int      @default(0)
   decks       Deck[]
   games       Game[]
@@ -161,7 +161,7 @@ model Run {
   seed      Int
   /// Rewards for beating it (EXP, unlocks, badge) have been given.
   rewarded  Boolean   @default(false)
-  /// Its ₱ has been moved to the bank (when the next run started).
+  /// Its ₱ has been moved to the bank (when it ended).
   banked    Boolean   @default(false)
   games     Game[]
   createdAt DateTime  @default(now())

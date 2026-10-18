@@ -1,6 +1,3 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
 import { LogDrawer } from '../components/LogDrawer';
 import { PreviewProvider } from '../components/PreviewProvider';
 import { DeckPanel } from '../components/run/DeckPanel';
@@ -12,7 +9,6 @@ import { RunOver } from '../components/run/RunOver';
 import { RunStats } from '../components/run/RunStats';
 import { useRun } from '../hooks/useRun';
 import { useWindowFill } from '../hooks/useWindowFill';
-import { useTRPC } from '../lib/trpc';
 import { PAGE_WIDTH } from '../utils/layout';
 
 /**
@@ -61,7 +57,6 @@ export function HomePage() {
               )}
             </>
           )}
-          <PracticeGame />
         </div>
         <LogDrawer
           log={(view?.log ?? []).map((text) => ({ text, player: null }))}
@@ -71,48 +66,5 @@ export function HomePage() {
         />
       </div>
     </PreviewProvider>
-  );
-}
-
-/**
- * Practice battles outside the run, against the CPU's Rock Crusher deck: with one of your decks (those that
- * can be played), or with the fixed Base Set test deck.
- */
-function PracticeGame() {
-  const trpc = useTRPC();
-  const navigate = useNavigate();
-  const toGame = ({ id }: { id: string }) => navigate({ to: '/game/$gameId', params: { gameId: id } });
-  const decks = useQuery(trpc.decks.list.queryOptions());
-  const [deckId, setDeckId] = useState('');
-  const create = useMutation(trpc.game.create.mutationOptions({ onSuccess: toGame }));
-  const createTest = useMutation(trpc.game.createTest.mutationOptions({ onSuccess: toGame }));
-  const starting = create.isPending || createTest.isPending;
-  const error = create.error?.message ?? createTest.error?.message;
-  const playable = (decks.data ?? []).filter((d) => d.problems.length === 0);
-  const chosen = deckId || playable[0]?.id || '';
-  const button = 'rounded bg-slate-800 px-3 py-1 text-slate-300 hover:bg-slate-700 disabled:opacity-50';
-  return (
-    <div className="flex flex-wrap items-center gap-3 border-t border-slate-800 pt-4 text-sm text-slate-500">
-      <span>Practice outside the run:</span>
-      {playable.length > 0 && (
-        <>
-          <select className="rounded bg-slate-800 px-2 py-1 text-slate-300" value={chosen} onChange={(e) => setDeckId(e.target.value)} aria-label="Practice deck">
-            {playable.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-          <button className={button} disabled={starting || !chosen} onClick={() => create.mutate({ deckId: chosen })}>
-            Battle with this deck
-          </button>
-          <span>or</span>
-        </>
-      )}
-      <button className={button} disabled={starting} onClick={() => createTest.mutate()}>
-        {createTest.isPending ? 'Starting…' : 'Test deck'}
-      </button>
-      {error && <span className="text-red-400">{error}</span>}
-    </div>
   );
 }
