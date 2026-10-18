@@ -15,7 +15,7 @@ type Opened = inferRouterOutputs<AppRouter>['packs']['open'];
 type PackCard = Opened['cards'][number];
 export type PackSetInfo = { id: string; name: string; logoUrl: string | null };
 
-const SLOT_LABEL: Record<PackCard['slot'], string> = { energy: 'Energy', common: 'Common', uncommon: 'Uncommon', rare: 'Rare', holo: 'Rare Holo' };
+const SLOT_LABEL: Record<PackCard['slot'], string> = { energy: 'Energy', holoEnergy: 'Holo Energy', common: 'Common', uncommon: 'Uncommon', rare: 'Rare', holo: 'Rare Holo' };
 /** The Wizards promos have no printed rarity: they're just promos, holo or not. */
 const PROMO_SLOT_LABEL: Record<PackCard['slot'], string> = { ...SLOT_LABEL, common: 'Promo', holo: 'Holo Promo' };
 
@@ -59,8 +59,8 @@ function saveOptions(options: OpenOptions) {
   }
 }
 
-/** The rare slot: rares and holos (the cards kept face down when commons and rares are separated). */
-const isRare = (c: PackCard) => c.slot === 'rare' || c.slot === 'holo';
+/** The rare slot (rares and holos), and the odd holo Energy: the cards kept face down when commons and rares are separated. */
+const isRare = (c: PackCard) => c.slot === 'rare' || c.slot === 'holo' || c.slot === 'holoEnergy';
 
 /**
  * Opening packs, in a window over the page. Pick how many (×1, ×2, ×5, ×10 or Custom), then click the pack to
@@ -276,8 +276,9 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
             <RevealedCard key={index} card={current} leaving={leaving} />
           </button>
           <div className="flex h-8 items-center gap-3">
-            <span className={`text-sm font-semibold ${current.slot === 'holo' ? 'text-fuchsia-300' : current.slot === 'rare' ? 'text-amber-300' : 'text-slate-300'}`}>
+            <span className={`text-sm font-semibold ${current.slot === 'holo' || current.slot === 'holoEnergy' ? 'text-fuchsia-300' : current.slot === 'rare' ? 'text-amber-300' : 'text-slate-300'}`}>
               {current.name} · {(set.id === 'basep' ? PROMO_SLOT_LABEL : SLOT_LABEL)[current.slot]}
+              {current.holoEnergy && ` (${current.holoEnergy.label})`}
             </span>
             {current.isNew && <span className="badge-pop rounded-full bg-emerald-500 px-2 py-0.5 text-xs font-bold text-white">NEW</span>}
           </div>
@@ -344,7 +345,7 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
  * holos shine as they do in the deck builder's card view. Rares and holos have a glow behind them. `leaving`: it flies off the stack.
  */
 function RevealedCard({ card, leaving }: { card: PackCard; leaving: boolean }) {
-  const glow = card.slot === 'holo' ? 'bg-fuchsia-400/60' : card.slot === 'rare' ? 'bg-amber-300/50' : null;
+  const glow = card.slot === 'holo' || card.slot === 'holoEnergy' ? 'bg-fuchsia-400/60' : card.slot === 'rare' ? 'bg-amber-300/50' : null;
   return (
     <div className={`relative w-full ${leaving ? 'card-fly-out' : 'card-flip-in'}`}>
       {glow && <div className={`pointer-events-none absolute -inset-6 rounded-[2rem] blur-2xl ${glow}`} />}

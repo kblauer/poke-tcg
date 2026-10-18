@@ -1,6 +1,8 @@
 // Shapes of the TCGdex snapshot written by scripts/fetch-tcgdex.ts.
 
 /** Relative to packages/db. */
+import type { HoloEnergyStyle } from './holo-energy.js';
+
 export const SNAPSHOT_PATH = 'prisma/data/tcgdex-wotc.json';
 
 /** Hand-made cards TCGdex doesn't have (same shape, `source: 'custom'`), seeded after the snapshot. Relative to packages/db. */
@@ -43,6 +45,8 @@ export interface TcgdexCard {
   weaknesses: { type: string; value: string | null }[] | null;
   resistances: { type: string; value: string | null }[] | null;
   item: { name: string; effect: string } | null;
+  /** Holo Energy only (made by the seed, not from TCGdex): the holo style it's shown in (holo-energy.ts). */
+  holoEnergy?: HoloEnergyStyle;
 }
 
 export interface CardSnapshot {

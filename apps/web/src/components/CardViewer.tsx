@@ -1,4 +1,4 @@
-import { stageLabel, type CatalogCard } from '../utils/cardList';
+import { cardTitle, stageLabel, type CatalogCard } from '../utils/cardList';
 import { holoAttributes } from '../utils/holo';
 import { HoloCard } from './HoloCard';
 import { CardImage } from './CardImage';
@@ -24,7 +24,7 @@ export function CardViewer({ card, locked = false }: { card: CatalogCard; locked
       </div>
       <div className="text-center">
         <h2 className="text-lg font-semibold">
-          {card.name}
+          {cardTitle(card)}
           {locked && <span className="ml-2 rounded bg-slate-700 px-1.5 py-0.5 align-middle text-xs font-normal text-slate-300">Locked</span>}
         </h2>
         <p className="text-sm text-slate-400">

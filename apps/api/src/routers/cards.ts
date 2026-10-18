@@ -1,5 +1,5 @@
 import { prisma } from '@poke-tcg/db';
-import { baseDamage, isBasicEnergyCard, isGalaxyFoil, isHolo, isImplemented, type CardData } from '../cards.js';
+import { baseDamage, holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, isImplemented, type CardData } from '../cards.js';
 import { publicProcedure, router } from '../trpc.js';
 
 const TYPES = new Set(['Grass', 'Fire', 'Water', 'Lightning', 'Psychic', 'Fighting', 'Darkness', 'Metal', 'Colorless']);
@@ -61,6 +61,8 @@ export const cardsRouter = router({
         holo: isHolo(c),
         /** Galaxy foil around the art instead of holofoil in it (see isGalaxyFoil). */
         galaxy: isGalaxyFoil(c),
+        /** Holo Energy (found only in packs, as many copies as were pulled): its holo style. Null for other cards. */
+        holoEnergy: holoEnergyStyle(c),
         imageUrl: c.imageUrl,
         /** Position in release order, for sorting by set. */
         order,

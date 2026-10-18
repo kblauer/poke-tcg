@@ -2,7 +2,8 @@ import LockIcon from '@mui/icons-material/Lock';
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { useHoldToInspect } from '../hooks/useHoldToInspect';
 import { useInspectOnRightClick } from './InspectContext';
-import type { CatalogCard } from '../utils/cardList';
+import { useUnlocked } from '../hooks/useUnlocked';
+import { cardTitle, type CatalogCard } from '../utils/cardList';
 import { CardViewer } from './CardViewer';
 import { CardImage } from './CardImage';
 
@@ -69,6 +70,8 @@ export function CardGrid({
   const grid = useRef<HTMLDivElement>(null);
   const hold = useHoldToInspect<CatalogCard>();
   const inspectOn = useInspectOnRightClick();
+  // Holo Energy is tagged with its style and how many were pulled (it looks like the plain Energy at this size).
+  const { copies } = useUnlocked();
   const rowGap = useRowGap(grid, cards.length);
   if (cards.length === 0) return <p className="p-4 text-center text-slate-500">No cards match these filters.</p>;
   return (
@@ -89,6 +92,11 @@ export function CardGrid({
               ) : (
                 <div className="h-full w-full bg-slate-800 p-1 text-xs">{c.name}</div>
               )}
+              {c.holoEnergy && (
+                <span className="absolute inset-x-1 bottom-1 truncate rounded bg-fuchsia-600/90 px-1 text-center text-[10px] font-bold text-white shadow" title={`${c.holoEnergy.label} holo, ${copies(c.id)} pulled`}>
+                  Holo · {c.holoEnergy.label} ×{copies(c.id)}
+                </span>
+              )}
               {isLocked?.(c) && (
                 <span className="absolute left-1 top-1 flex items-center rounded-full bg-slate-900/90 p-0.5 text-slate-300" title="Locked: win it in a run">
                   <LockIcon sx={{ fontSize: 14 }} />
@@ -105,8 +113,8 @@ export function CardGrid({
               {...(holdToInspect ? hold.press(c) : {})}
               {...inspectOn(c)}
               onClick={() => hold.clicked() && onSelect(c)}
-              title={`${c.name} · ${c.setName} #${c.number}${isLocked?.(c) ? ' · Locked' : ''}`}
-              aria-label={c.name}
+              title={`${cardTitle(c)} · ${c.setName} #${c.number}${isLocked?.(c) ? ' · Locked' : ''}`}
+              aria-label={cardTitle(c)}
               className="absolute inset-x-0 top-0 z-20 aspect-[63/88] outline-none"
             />
           </div>

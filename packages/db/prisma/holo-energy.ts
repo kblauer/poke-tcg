@@ -1,0 +1,60 @@
+// Holo Energy (agreed with the user): holo versions of basic Energy cards, found only in booster packs (about 2% of
+// packs' Energy cards). Each comes in every style of the holo card library (apps/web/src/styles/holo/cards), and each
+// type and style is a card of its own in the catalog: "<energy id>-holo-<style>", e.g. "base1-98-holo-rainbow" (Fire
+// Energy, Rainbow). A pull unlocks one copy (CardUnlock.quantity), and a deck can hold only as many as were pulled.
+import type { TcgdexCard } from './tcgdex.js';
+
+/** A style of the holo card library, as the attributes its CSS selects on (HoloCard's data-* attributes). */
+export interface HoloEnergyStyle {
+  key: string;
+  label: string;
+  /** data-rarity. */
+  rarity: string;
+  /** data-trainer-gallery="true" (the Trainer Gallery styles). */
+  trainerGallery?: boolean;
+  /** Overrides for the styles that select on them (full arts). */
+  supertype?: string;
+  subtypes?: string;
+}
+
+/** Every style in the library but the one made for a single card (swsh-pikachu.css). */
+export const HOLO_ENERGY_STYLES: HoloEnergyStyle[] = [
+  { key: 'holo', label: 'Holo', rarity: 'rare holo' },
+  { key: 'reverse', label: 'Reverse Holo', rarity: 'reverse holo' },
+  { key: 'galaxy', label: 'Galaxy', rarity: 'rare holo cosmos' },
+  { key: 'amazing', label: 'Amazing Rare', rarity: 'amazing rare' },
+  { key: 'radiant', label: 'Radiant', rarity: 'radiant rare' },
+  { key: 'v', label: 'V', rarity: 'rare holo v' },
+  { key: 'vmax', label: 'VMAX', rarity: 'rare holo vmax' },
+  { key: 'vstar', label: 'VSTAR', rarity: 'rare holo vstar' },
+  { key: 'full-art', label: 'Full Art', rarity: 'rare ultra', supertype: 'pokémon' },
+  { key: 'trainer-full-art', label: 'Trainer Full Art', rarity: 'rare ultra', subtypes: 'supporter' },
+  { key: 'rainbow', label: 'Rainbow', rarity: 'rare rainbow' },
+  { key: 'rainbow-alt', label: 'Rainbow Alt', rarity: 'rare rainbow alt' },
+  { key: 'secret', label: 'Secret Rare', rarity: 'rare secret' },
+  { key: 'shiny', label: 'Shiny', rarity: 'rare shiny' },
+  { key: 'shiny-v', label: 'Shiny V', rarity: 'rare shiny v' },
+  { key: 'shiny-vmax', label: 'Shiny VMAX', rarity: 'rare shiny vmax' },
+  { key: 'gallery', label: 'Trainer Gallery', rarity: 'trainer gallery rare holo' },
+  { key: 'gallery-v', label: 'Trainer Gallery V', rarity: 'rare holo v', trainerGallery: true },
+  { key: 'gallery-vmax', label: 'Trainer Gallery VMAX', rarity: 'rare holo vmax', trainerGallery: true },
+  { key: 'gallery-secret', label: 'Trainer Gallery Secret', rarity: 'rare secret', trainerGallery: true },
+];
+
+/**
+ * The sets whose basic Energy packs give out: each pack set's own, or the closest earlier set's (the API picks by
+ * release date). Base Set covers Jungle, Fossil and the promos; Base Set 2 covers Team Rocket. Add a set here when a
+ * pack set with its own basic Energy (or after one) is added.
+ */
+export const HOLO_ENERGY_SETS = ['base1', 'base4'];
+
+/** The holo versions of a basic Energy card: the same card in each style, marked with `holoEnergy` and as holo. */
+export function holoEnergyCards(card: TcgdexCard): TcgdexCard[] {
+  return HOLO_ENERGY_STYLES.map((style) => ({
+    ...card,
+    id: `${card.id}-holo-${style.key}`,
+    rarity: 'Holo Energy',
+    variants: { firstEdition: false, holo: true, normal: false, reverse: false },
+    holoEnergy: style,
+  }));
+}

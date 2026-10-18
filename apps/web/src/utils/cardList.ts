@@ -5,6 +5,9 @@ import type { inferRouterOutputs } from '@trpc/server';
 
 export type CatalogCard = inferRouterOutputs<AppRouter>['cards']['list'][number];
 
+/** A card's name, with a holo Energy's style ("Fire Energy · Rainbow"). */
+export const cardTitle = (card: Pick<CatalogCard, 'name' | 'holoEnergy'>) => (card.holoEnergy ? `${card.name} · ${card.holoEnergy.label}` : card.name);
+
 export const CARD_TYPES = ['Grass', 'Fire', 'Water', 'Lightning', 'Psychic', 'Fighting', 'Darkness', 'Metal', 'Colorless'];
 
 /** Stage labels. Trainers and Energy have no stage, so they get their own entries. */

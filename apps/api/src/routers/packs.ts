@@ -3,16 +3,26 @@ import { prisma, type Card } from '@poke-tcg/db';
 import { openPackInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { ensureUser } from '../auth.js';
-import { isBasicEnergyCard, isGalaxyFoil, isHolo } from '../cards.js';
+import { holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, type HoloEnergyStyle } from '../cards.js';
 import { cardRarity } from '../pool.js';
 import { protectedProcedure, router } from '../trpc.js';
-import { unlockCards, unlockedIds } from '../unlocks.js';
+import { addHoloEnergy, unlockCards, unlockedIds } from '../unlocks.js';
 
 /**
  * What the pack screen shows of a card: its image, and what the card viewer's tilt and holo effect select on
- * (kind, stage, type, printed rarity, holo or galaxy foil).
+ * (kind, stage, type, printed rarity, holo or galaxy foil, a holo Energy's style).
  */
-type ShownCard = { name: string; imageUrl: string | null; kind: string; stage: string | null; type: string | null; rarity: string | null; holo: boolean; galaxy: boolean };
+type ShownCard = {
+  name: string;
+  imageUrl: string | null;
+  kind: string;
+  stage: string | null;
+  type: string | null;
+  rarity: string | null;
+  holo: boolean;
+  galaxy: boolean;
+  holoEnergy: HoloEnergyStyle | null;
+};
 
 const shown = (row: Card): ShownCard => ({
   name: row.name,
@@ -24,20 +34,43 @@ const shown = (row: Card): ShownCard => ({
   rarity: row.rarity,
   holo: isHolo(row),
   galaxy: isGalaxyFoil(row),
+  holoEnergy: holoEnergyStyle(row),
 });
+
+/**
+ * The basic Energy a set's packs give, and its holo versions: the set's own basic Energy, or the closest earlier
+ * set's by release date (Jungle, Fossil and the promos get Base Set's; Team Rocket gets Base Set 2's).
+ */
+async function packEnergy(setId: string): Promise<{ energy: Card[]; holoEnergy: Card[] }> {
+  const [target, rows] = await Promise.all([
+    prisma.cardSet.findUniqueOrThrow({ where: { id: setId }, select: { releaseDate: true } }),
+    prisma.card.findMany({ where: { kind: 'ENERGY' }, include: { set: { select: { releaseDate: true } } } }),
+  ]);
+  const basic = rows.filter((r) => isBasicEnergyCard(r) && !holoEnergyStyle(r));
+  const time = (r: (typeof rows)[number]) => r.set.releaseDate?.getTime() ?? 0;
+  const own = basic.filter((r) => r.setId === setId);
+  const earlier = basic.filter((r) => time(r) <= (target.releaseDate?.getTime() ?? 0));
+  const latest = Math.max(...earlier.map(time));
+  const energy = own.length ? own : earlier.filter((r) => time(r) === latest && r.setId === earlier.find((e) => time(e) === latest)!.setId);
+  const ids = new Set(energy.map((r) => r.id));
+  const holoEnergy = rows.filter((r) => holoEnergyStyle(r) && ids.has(r.id.replace(/-holo-[a-z-]+$/, '')));
+  return { energy, holoEnergy };
+}
 
 const loaded = new Map<string, Promise<{ set: PackSet; cards: Map<string, ShownCard> }>>();
 
-/** A set's cards grouped for packs (basic Energy left out; packs add one from any type), and what each looks like. Loaded once per set. */
+/**
+ * A set's cards grouped for packs (basic Energy left out: packs add one, see packEnergy, now and then a holo
+ * Energy), and what each looks like. Loaded once per set.
+ */
 function packSet(setId: string) {
   let entry = loaded.get(setId);
   if (!entry) {
     entry = (async () => {
-      const rows = await prisma.card.findMany({ where: { setId } });
-      const energy = await prisma.card.findMany({ where: { setId: 'base1', kind: 'ENERGY' } });
-      const set: PackSet = { common: [], uncommon: [], rare: [], holo: [] };
+      const [rows, { energy, holoEnergy }] = await Promise.all([prisma.card.findMany({ where: { setId } }), packEnergy(setId)]);
+      const set: PackSet = { common: [], uncommon: [], rare: [], holo: [], energy: energy.map((r) => r.id), holoEnergy: holoEnergy.map((r) => r.id) };
       const cards = new Map<string, ShownCard>();
-      for (const row of [...rows, ...energy]) cards.set(row.id, shown(row));
+      for (const row of [...rows, ...energy, ...holoEnergy]) cards.set(row.id, shown(row));
       for (const row of rows) if (!isBasicEnergyCard(row)) set[cardRarity(row)].push(row.id);
       return { set, cards };
     })();
@@ -83,7 +116,7 @@ export const packsRouter = router({
   /**
    * Buys and opens `count` packs of the set with ₱ from the bank: their cards in the order they're revealed (pack
    * after pack, each with its `pack` number),
-   * each unlocked (`isNew` if it wasn't before), and the bank left.
+   * each unlocked (`isNew` if it wasn't before; a holo Energy adds a copy), and the bank left.
    */
   open: protectedProcedure.input(openPackInput).mutation(async ({ ctx, input }) => {
     const { set, cards } = await packSet(input.setId);
@@ -96,7 +129,9 @@ export const packsRouter = router({
       const { count } = await tx.user.updateMany({ where: { id: ctx.user.id, bank: { gte: price } }, data: { bank: { decrement: price } } });
       if (!count) throw new TRPCError({ code: 'BAD_REQUEST', message: `${input.count === 1 ? 'A pack costs' : `${input.count} packs cost`} ₱${price}: not enough in the bank` });
       const before = await unlockedIds(ctx.user.id, tx);
-      await unlockCards(ctx.user.id, pack.map((c) => c.cardId), tx);
+      // Each holo Energy pulled adds a copy; other cards are unlocked once.
+      await unlockCards(ctx.user.id, pack.filter((c) => c.slot !== 'holoEnergy').map((c) => c.cardId), tx);
+      await addHoloEnergy(ctx.user.id, pack.filter((c) => c.slot === 'holoEnergy').map((c) => c.cardId), tx);
       const { bank } = await tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { bank: true } });
       const seen = new Set<string>();
       return {

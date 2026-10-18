@@ -1,5 +1,6 @@
 import { DECK_SIZE } from '@poke-tcg/shared';
-import type { CatalogCard } from '../utils/cardList';
+import { useUnlocked } from '../hooks/useUnlocked';
+import { cardTitle, type CatalogCard } from '../utils/cardList';
 import { DECK_SECTIONS, cantAdd, deckSize, withCards, type DeckEntry } from '../utils/deckBuilder';
 import { useInspectOnRightClick } from './InspectContext';
 import { CardImage } from './CardImage';
@@ -26,6 +27,8 @@ export function DeckPanel({
 }) {
   const cards = withCards(entries, byId);
   const inspectOn = useInspectOnRightClick();
+  // How many of each holo Energy were pulled: the most a deck holds.
+  const { copies } = useUnlocked();
   const size = deckSize(entries);
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 rounded-lg bg-slate-900 p-3 text-sm">
@@ -57,7 +60,7 @@ export function DeckPanel({
               <ul className="space-y-1">
                 {section.map(({ card, quantity }) => {
                   const locked = isLocked(card);
-                  const blocked = locked ? 'Not unlocked yet' : cantAdd(entries, card, byId);
+                  const blocked = locked ? 'Not unlocked yet' : cantAdd(entries, card, byId, copies(card.id));
                   return (
                     <li key={card.id} className={`flex items-center gap-2 ${locked ? 'opacity-50' : ''}`} {...inspectOn(card)}>
                       {card.imageUrl ? (
@@ -67,7 +70,7 @@ export function DeckPanel({
                       )}
                       <div className="min-w-0 flex-1">
                         <div className="truncate">
-                          {card.name}
+                          {cardTitle(card)}
                           {locked && <span className="ml-1 text-xs text-slate-400">(locked)</span>}
                           {!card.implemented && (
                             <span className="ml-1 text-xs text-amber-400" title="Not fully implemented: its Pokémon can attack for base damage, but its other effects don't work yet.">
