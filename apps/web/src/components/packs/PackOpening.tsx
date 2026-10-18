@@ -3,7 +3,7 @@ import type { AppRouter } from '@poke-tcg/api/router';
 import { MAX_PACKS_AT_ONCE } from '@poke-tcg/campaign';
 import { useMutation } from '@tanstack/react-query';
 import type { inferRouterOutputs } from '@trpc/server';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTRPC } from '../../lib/trpc';
 import { CARD_BACK } from '../../utils/cardBack';
 import { holoAttributes } from '../../utils/holo';
@@ -32,17 +32,57 @@ const QUANTITIES = [1, 2, 5, 10];
 /** The most cards drawn flying out of the packs (opening ten packs shouldn't animate 110). */
 const MAX_BURST = 22;
 
+/** Auto open: how long each card stays up before the next, and how long a rare or holo does. */
+const AUTO_MS = 200;
+const AUTO_RARE_MS = 1600;
+
+/**
+ * How packs open, remembered in the browser. `separate`: the commons (uncommons and Energy too) are laid out
+ * face up together, and only the rares are revealed one by one. `auto`: the cards being revealed move on by themselves.
+ */
+type OpenOptions = { separate: boolean; auto: boolean };
+const OPTIONS_KEY = 'poke-tcg.pack-options';
+
+function loadOptions(): OpenOptions {
+  try {
+    return { separate: false, auto: false, ...(JSON.parse(localStorage.getItem(OPTIONS_KEY) ?? '{}') as Partial<OpenOptions>) };
+  } catch {
+    return { separate: false, auto: false };
+  }
+}
+
+function saveOptions(options: OpenOptions) {
+  try {
+    localStorage.setItem(OPTIONS_KEY, JSON.stringify(options));
+  } catch {
+    // Not remembered: the defaults come back next time.
+  }
+}
+
+/** The rare slot: rares and holos (the cards kept face down when commons and rares are separated). */
+const isRare = (c: PackCard) => c.slot === 'rare' || c.slot === 'holo';
+
 /**
  * Opening packs, in a window over the page. Pick how many (×1, ×2, ×5, ×10 or Custom), then click the pack to
  * buy them (₱ from the bank): it shakes, its top tears off, and the cards burst out and gather into a stack.
  * Click the stack to reveal the cards one by one, pack after pack (each flips up; holos shimmer, new unlocks
  * are marked NEW), or Skip. Either way it ends on the list of cards opened. Closing the window goes back to the sets.
+ * Two options (OpenOptions): separate the commons from the rares (the commons are laid out at once, the rares
+ * stay face down to be opened one by one), and auto open (the cards revealed move on by themselves, pausing on rares;
+ * while it runs, ×2 speed doubles it and Stop auto goes back to clicking, with Resume auto to start it again).
  */
 export function PackOpening({ set, price, bank, onClose, onOpened }: { set: PackSetInfo; price: number; bank: number; onClose: () => void; onOpened: () => void }) {
   const trpc = useTRPC();
-  const [phase, setPhase] = useState<'pack' | 'tearing' | 'burst' | 'reveal' | 'summary'>('pack');
+  const [phase, setPhase] = useState<'pack' | 'tearing' | 'burst' | 'commons' | 'reveal' | 'summary'>('pack');
   const [cards, setCards] = useState<PackCard[]>([]);
+  /** Position in `queue`, the cards revealed one by one. */
   const [index, setIndex] = useState(0);
+  const [options, setOptions] = useState(loadOptions);
+  useEffect(() => saveOptions(options), [options]);
+  /** Auto open is running for these packs (it starts with the option, and can be stopped and resumed). */
+  const [autoOn, setAutoOn] = useState(false);
+  /** Auto open at double speed. */
+  const [fast, setFast] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [quantity, setQuantity] = useState(1);
   /** Custom picked: the number field shows instead of the quick picks being the only choice. */
@@ -60,6 +100,7 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
         });
         setCards(result.cards);
         onOpened();
+        setAutoOn(options.auto);
         setPhase('tearing');
         setTimeout(() => setPhase('burst'), reducedMotion() ? 0 : TEAR_MS);
       },
@@ -72,6 +113,10 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
   const packs = cards.length ? cards.at(-1)!.pack + 1 : quantity;
   const inPack = (i: number) => cards.slice(0, i).filter((c) => c.pack === cards[i]!.pack).length;
   const packSize = (p: number) => cards.filter((c) => c.pack === p).length;
+  /** The cards revealed one by one (by index in `cards`): every card, or only the rares when they're separated. */
+  const queue = cards.flatMap((c, i) => (!options.separate || isRare(c) ? [i] : []));
+  const commons = options.separate ? cards.filter((c) => !isRare(c)) : [];
+  const current = queue[index] === undefined ? undefined : cards[queue[index]!];
 
   /** The current card flies off the stack and the next one flips up; after the last, the list. */
   function next() {
@@ -80,12 +125,19 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
     setTimeout(
       () => {
         setLeaving(false);
-        if (index + 1 < cards.length) setIndex(index + 1);
+        if (index + 1 < queue.length) setIndex(index + 1);
         else setPhase('summary');
       },
-      reducedMotion() ? 0 : FLY_OUT_MS,
+      reducedMotion() ? 0 : FLY_OUT_MS / (autoOn && fast ? 2 : 1),
     );
   }
+
+  // Auto open: each card moves on by itself, after a longer pause on a rare or holo.
+  useEffect(() => {
+    if (phase !== 'reveal' || !autoOn || leaving || !current) return;
+    const timer = setTimeout(next, (isRare(current) ? AUTO_RARE_MS : AUTO_MS) / (fast ? 2 : 1));
+    return () => clearTimeout(timer);
+  }, [phase, index, leaving, autoOn, fast]);
 
   const newCount = cards.filter((c) => c.isNew).length;
   return (
@@ -152,6 +204,18 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
             </div>
           )}
           {phase === 'pack' && (
+            <div className="flex flex-wrap justify-center gap-x-5 gap-y-1 text-sm text-slate-300">
+              <label className="flex items-center gap-2" title="Lay the commons and uncommons out together, and open only the rares one by one">
+                <input type="checkbox" checked={options.separate} onChange={(e) => setOptions((o) => ({ ...o, separate: e.target.checked }))} />
+                Separate commons and rares
+              </label>
+              <label className="flex items-center gap-2" title="Move on to the next card by itself, pausing on rares">
+                <input type="checkbox" checked={options.auto} onChange={(e) => setOptions((o) => ({ ...o, auto: e.target.checked }))} />
+                Auto open
+              </label>
+            </div>
+          )}
+          {phase === 'pack' && (
             <p className={`text-sm ${affordable ? 'text-slate-300' : 'text-amber-300'}`}>
               {affordable
                 ? `Click the pack to open ${quantity === 1 ? 'it' : `${quantity} packs`}: ₱${total} from your bank (₱${bank}).`
@@ -162,29 +226,86 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
         </div>
       )}
 
-      {phase === 'burst' && <Burst count={Math.min(cards.length, MAX_BURST)} onDone={() => setPhase('reveal')} />}
+      {phase === 'burst' && <Burst count={Math.min(cards.length, MAX_BURST)} onDone={() => setPhase(options.separate ? 'commons' : 'reveal')} />}
 
-      {phase === 'reveal' && cards[index] && (
+      {phase === 'commons' && (
+        <div className="flex max-h-full w-full max-w-5xl flex-col items-center gap-4">
+          <p className="text-sm text-slate-400">
+            {commons.length} commons, uncommons and Energy from {packs === 1 ? 'the pack' : `${packs} packs`} ·{' '}
+            {queue.length ? `${queue.length} rare${queue.length === 1 ? '' : 's'} face down` : 'no rares'}
+          </p>
+          {/* Laid out face up all at once, flipping in one after another. */}
+          <div className="flex min-h-0 flex-wrap justify-center gap-2 overflow-y-auto p-2">
+            {commons.map((c, i) => (
+              <div key={i} className="card-flip-in" style={{ animationDelay: `${Math.min(i, 40) * 30}ms` }}>
+                <RunCard def={{ id: c.cardId, kind: 'trainer', name: c.name, imageUrl: c.imageUrl, text: '', rarity: c.slot === 'energy' ? undefined : c.slot }} badge={c.isNew ? 'NEW' : undefined} />
+              </div>
+            ))}
+          </div>
+          {queue.length ? (
+            <button className="group flex flex-col items-center gap-2 outline-none" onClick={() => setPhase('reveal')} aria-label="Open the rares">
+              {/* The rares, face down in a stack. */}
+              <div className="relative aspect-[63/88] w-24 transition group-hover:-translate-y-1">
+                {Array.from({ length: Math.min(queue.length, 5) }, (_, i) => (
+                  <img key={i} src={CARD_BACK} alt="" draggable={false} className="absolute inset-0 aspect-[63/88] w-full rounded-lg object-cover shadow-lg" style={{ transform: `translate(${i * 3}px, ${i * 3}px)` }} />
+                ))}
+              </div>
+              <span className="rounded bg-amber-500 px-3 py-1 text-sm font-semibold text-slate-900 group-hover:bg-amber-400">Open the rares ({queue.length})</span>
+            </button>
+          ) : (
+            <button className="rounded bg-blue-600 px-6 py-2 font-semibold transition hover:bg-blue-500" onClick={() => setPhase('summary')}>
+              Continue
+            </button>
+          )}
+        </div>
+      )}
+
+      {phase === 'reveal' && current && (
         <div className="flex flex-col items-center gap-5">
           <p className="text-sm text-slate-400">
-            {packs > 1 && `Pack ${cards[index].pack + 1} of ${packs} · `}Card {inPack(index) + 1} of {packSize(cards[index].pack)} · click to see the next
+            {options.separate
+              ? `${packs > 1 ? `Pack ${current.pack + 1} of ${packs} · ` : ''}Rare ${index + 1} of ${queue.length}`
+              : `${packs > 1 ? `Pack ${current.pack + 1} of ${packs} · ` : ''}Card ${inPack(queue[index]!) + 1} of ${packSize(current.pack)}`}
+            {autoOn ? ` · opening by itself${fast ? ' (×2)' : ''}` : ' · click to see the next'}
           </p>
           <button className="relative w-72 outline-none" onClick={next} aria-label="Next card">
             {/* The rest of the stack, face down, under the card shown. */}
-            {Array.from({ length: Math.min(cards.length - index - 1, 5) }, (_, i) => (
+            {Array.from({ length: Math.min(queue.length - index - 1, 5) }, (_, i) => (
               <img key={i} src={CARD_BACK} alt="" draggable={false} className="absolute inset-0 aspect-[63/88] w-full rounded-xl object-cover shadow-lg" style={{ transform: `translate(${(i + 1) * 4}px, ${(i + 1) * 4}px)` }} />
             ))}
-            <RevealedCard key={index} card={cards[index]} leaving={leaving} />
+            <RevealedCard key={index} card={current} leaving={leaving} />
           </button>
           <div className="flex h-8 items-center gap-3">
-            <span className={`text-sm font-semibold ${cards[index].slot === 'holo' ? 'text-fuchsia-300' : cards[index].slot === 'rare' ? 'text-amber-300' : 'text-slate-300'}`}>
-              {cards[index].name} · {(set.id === 'basep' ? PROMO_SLOT_LABEL : SLOT_LABEL)[cards[index].slot]}
+            <span className={`text-sm font-semibold ${current.slot === 'holo' ? 'text-fuchsia-300' : current.slot === 'rare' ? 'text-amber-300' : 'text-slate-300'}`}>
+              {current.name} · {(set.id === 'basep' ? PROMO_SLOT_LABEL : SLOT_LABEL)[current.slot]}
             </span>
-            {cards[index].isNew && <span className="badge-pop rounded-full bg-emerald-500 px-2 py-0.5 text-xs font-bold text-white">NEW</span>}
+            {current.isNew && <span className="badge-pop rounded-full bg-emerald-500 px-2 py-0.5 text-xs font-bold text-white">NEW</span>}
           </div>
-          <button className="rounded bg-slate-600 px-4 py-1.5 text-sm font-semibold transition hover:bg-slate-500" onClick={() => setPhase('summary')}>
-            Skip
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Auto open's controls, for packs opened with it: double speed, or stop and click through instead. */}
+            {options.auto &&
+              (autoOn ? (
+                <>
+                  <button
+                    className={`rounded px-4 py-1.5 text-sm font-semibold transition ${fast ? 'bg-yellow-300 text-slate-900' : 'bg-slate-600 hover:bg-slate-500'}`}
+                    aria-pressed={fast}
+                    onClick={() => setFast(!fast)}
+                  >
+                    ×2 speed
+                  </button>
+                  <button className="rounded bg-slate-600 px-4 py-1.5 text-sm font-semibold transition hover:bg-slate-500" onClick={() => setAutoOn(false)}>
+                    Stop auto
+                  </button>
+                </>
+              ) : (
+                <button className="rounded bg-slate-600 px-4 py-1.5 text-sm font-semibold transition hover:bg-slate-500" onClick={() => setAutoOn(true)}>
+                  Resume auto
+                </button>
+              ))}
+            <button className="rounded bg-slate-600 px-4 py-1.5 text-sm font-semibold transition hover:bg-slate-500" onClick={() => setPhase('summary')}>
+              Skip
+            </button>
+          </div>
         </div>
       )}
 
