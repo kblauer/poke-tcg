@@ -104,11 +104,11 @@ export function Slot({
         pokemon ? '' : `border-2 border-dashed ${highlight === 'target' ? 'border-emerald-400 bg-emerald-400/10' : 'border-slate-700'}`
       }`}
     >
-      {/* The active spot is the biggest card on the board, so it gets the high-resolution image. */}
+      {/* The active spot is the biggest card on the board, so it gets the high-resolution image, and a holo shines (still). */}
       {pokemon && (
         <div ref={art}>
           {/* A Transformed Ditto shows the card it's a copy of. */}
-          <Card def={inPlayDef(cards, pokemon)} inPlay={pokemon} cards={cards} small={!large} highRes={large} />
+          <Card def={inPlayDef(cards, pokemon)} inPlay={pokemon} cards={cards} small={!large} highRes={large} shine={large} />
         </div>
       )}
       {pokemon?.transformed && (

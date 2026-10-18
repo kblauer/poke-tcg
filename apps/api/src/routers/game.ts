@@ -68,7 +68,7 @@ export const gameRouter = router({
    * cards, or with the test deck (`deckId` null).
    */
   create: protectedProcedure.input(singleBattleInput).mutation(async ({ ctx, input }) => {
-    const deck = input.deckId === null ? expandDeck(PLAYER_TEST_DECK) : await playableDeck(input.deckId, ctx.user.id);
+    const deck = input.deckId === null ? expandDeck(PLAYER_TEST_DECK) : (await playableDeck(input.deckId, ctx.user.id)).cards;
     return startGame(ctx.user, deck, input);
   }),
 

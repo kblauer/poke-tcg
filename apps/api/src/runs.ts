@@ -48,12 +48,12 @@ export async function ensureAccount(user: AuthUser) {
     });
   }
   if (!unlocks) await unlockCards(user.id, STARTER_DECK.map(([cardId]) => cardId));
-  if (!runs) await createRunRow(user.id, FIRST_RUN, expandDeck(STARTER_DECK));
+  if (!runs) await createRunRow(user.id, FIRST_RUN, expandDeck(STARTER_DECK), STARTER_DECK_NAME);
 }
 
-async function createRunRow(ownerId: string, type: RunTypeId, deck: string[]) {
+async function createRunRow(ownerId: string, type: RunTypeId, deck: string[], deckName: string) {
   const seed = newSeed();
-  const state = createRun(type, deck, seed);
+  const state = createRun(type, deck, seed, deckName);
   return prisma.run.create({ data: { ownerId, type, seed, state: asJson(state), version: state.version } });
 }
 
@@ -198,7 +198,7 @@ export async function settleBattle(run: LoadedRun): Promise<LoadedRun> {
  * Runs' ₱ are banked when they end (advanceRun); any earlier run whose ₱ weren't (one that ended before that
  * rule) is banked here first.
  */
-export async function startRun(userId: string, type: RunTypeId, deck: string[]) {
+export async function startRun(userId: string, type: RunTypeId, deck: { name: string; cards: string[] }) {
   return prisma.$transaction(async (tx) => {
     if (await tx.run.count({ where: { ownerId: userId, status: 'ACTIVE' } })) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'Finish your current run first' });
@@ -210,7 +210,7 @@ export async function startRun(userId: string, type: RunTypeId, deck: string[]) 
       await tx.user.update({ where: { id: userId }, data: { bank: { increment: total } } });
     }
     const seed = newSeed();
-    const state = createRun(type, deck, seed);
+    const state = createRun(type, deck.cards, seed, deck.name);
     return tx.run.create({ data: { ownerId: userId, type, seed, state: asJson(state), version: state.version }, select: { id: true } });
   });
 }

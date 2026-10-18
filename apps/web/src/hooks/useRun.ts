@@ -38,6 +38,7 @@ export function useRun() {
     onError: refresh,
   };
   const act = useMutation(trpc.run.act.mutationOptions(onRun));
+  const choose = useMutation(trpc.run.choose.mutationOptions(onRun));
   // Using an item also changes how many are left.
   const itemUse = useMutation(
     trpc.run.useItem.mutationOptions({
@@ -48,8 +49,8 @@ export function useRun() {
   const retry = useMutation(trpc.run.retry.mutationOptions(onRun));
   const start = useMutation(trpc.run.start.mutationOptions({ onSuccess: refresh }));
 
-  const busy = act.isPending || itemUse.isPending || retry.isPending || start.isPending;
-  const error = act.error ?? itemUse.error ?? retry.error ?? start.error;
+  const busy = act.isPending || choose.isPending || itemUse.isPending || retry.isPending || start.isPending;
+  const error = act.error ?? choose.error ?? itemUse.error ?? retry.error ?? start.error;
   return {
     overview,
     run,
@@ -57,6 +58,10 @@ export function useRun() {
     error: error?.message ?? null,
     send(action: RunAction) {
       if (run && !busy) act.mutate({ runId: run.id, expectedVersion: run.version, action });
+    },
+    /** Takes option `option` on the map; for a battle, `deckId` switches to that deck first. */
+    choose(option: number, deckId?: string) {
+      if (run && !busy) choose.mutate({ runId: run.id, expectedVersion: run.version, option, deckId });
     },
     applyItem(itemId: string) {
       if (run && !busy) itemUse.mutate({ runId: run.id, itemId });

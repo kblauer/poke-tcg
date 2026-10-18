@@ -25,16 +25,23 @@ function statusBadges(p: InPlayPokemon, cards?: CardLibrary): { label: string; t
   if (e.amnesia) badges.push({ label: 'AMN', title: `Amnesia: can't use ${e.amnesia.attack} next turn`, className: 'bg-slate-600' });
   return badges;
 }
+import { holoAttributes } from '../utils/holo';
 import { EnergyIcon } from './EnergyIcon';
+import { HoloCard } from './HoloCard';
+import { CatalogContext, useInspectOnRightClick } from './InspectContext';
 import { PreviewContext } from './PreviewContext';
 
-/** Card art from TCGdex (aspect ratio 63:88), with damage and attached energy overlaid when in play. */
+/**
+ * Card art from TCGdex (aspect ratio 63:88), with damage and attached energy overlaid when in play. Right-clicking it
+ * opens it in the CardInspector. `shine`: a holo card gets its holo effect, still (the Active Pokémon).
+ */
 export function Card({
   def,
   inPlay,
   cards,
   small,
   highRes,
+  shine,
 }: {
   def: CardDef;
   inPlay?: InPlayPokemon;
@@ -42,16 +49,31 @@ export function Card({
   small?: boolean;
   /** Use the large image, for cards shown zoomed in (the hand). */
   highRes?: boolean;
+  shine?: boolean;
 }) {
   const setPreview = useContext(PreviewContext);
+  const catalog = useContext(CatalogContext);
+  const inspect = useInspectOnRightClick()(def.id);
+  // The catalog knows which cards are holo, and which have the galaxy foil.
+  const entry = shine ? catalog?.get(def.id) : undefined;
+  const holo = entry && (entry.holo || entry.galaxy) ? entry : null;
   const size = small ? SMALL_CARD : LARGE_CARD;
   return (
     <div
       className={`${size} relative aspect-[63/88] shrink-0 overflow-hidden rounded-lg shadow`}
       onMouseEnter={(e) => setPreview({ def, x: e.clientX, y: e.clientY })}
       onMouseLeave={() => setPreview(null)}
+      onContextMenu={
+        inspect.onContextMenu &&
+        ((e) => {
+          setPreview(null);
+          inspect.onContextMenu!(e);
+        })
+      }
     >
-      {def.imageUrl ? (
+      {holo && def.imageUrl ? (
+        <HoloCard still img={`${def.imageUrl}/high.webp`} name={def.name} attrs={holoAttributes(holo)} />
+      ) : def.imageUrl ? (
         <img src={`${def.imageUrl}/${highRes ? 'high' : 'low'}.webp`} alt={def.name} loading="lazy" draggable={false} className="h-full w-full object-cover" />
       ) : (
         <div className={`${typeColor(def)} h-full w-full p-2 text-xs font-semibold`}>{def.name}</div>

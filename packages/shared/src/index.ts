@@ -146,6 +146,13 @@ export const runActInput = z.object({
   expectedVersion: z.number().int().min(0),
   action: runActionSchema,
 });
+/** Choosing a step's option on the map; for a battle, `deckId` first switches the run to another of the account's decks. */
+export const runChooseInput = z.object({
+  runId: z.uuid(),
+  expectedVersion: z.number().int().min(0),
+  option: z.number().int().min(0).max(9),
+  deckId: z.uuid().optional(),
+});
 export const useItemInput = z.object({ runId: z.uuid(), itemId: z.string().min(1).max(64) });
 export const startRunInput = z.object({ type: z.enum(RUN_TYPE_IDS as [RunTypeId, ...RunTypeId[]]), deckId: z.uuid() });
 export const buyItemInput = z.object({ itemId: z.string().min(1).max(64) });

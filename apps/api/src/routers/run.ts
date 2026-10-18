@@ -1,6 +1,6 @@
-import { bossSummary, currentGameId, EQUIP_SLOTS, fitsSlot, item, ITEMS, onlyOne, RUN_TYPE_IDS, RUN_TYPES, runView, SHOP_ITEMS, type EquipSlot } from '@poke-tcg/campaign';
+import { bossSummary, currentGameId, EQUIP_SLOTS, isBattleKind, fitsSlot, item, ITEMS, onlyOne, RUN_TYPE_IDS, RUN_TYPES, runView, SHOP_ITEMS, type EquipSlot } from '@poke-tcg/campaign';
 import { prisma } from '@poke-tcg/db';
-import { buyItemInput, equipInput, runActInput, runIdInput, startRunInput, useItemInput } from '@poke-tcg/shared';
+import { buyItemInput, equipInput, runActInput, runChooseInput, runIdInput, startRunInput, useItemInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { cardPool } from '../pool.js';
 import { abandonBattle, advanceRun, ensureAccount, latestRun, loadOwnRun, startRun, type LoadedRun } from '../runs.js';
@@ -27,7 +27,8 @@ export const runRouter = router({
       prisma.deck.findMany({
         where: { ownerId: ctx.user.id },
         include: { cards: { include: { card: { select: { name: true, kind: true, stage: true, data: true } } } } },
-        orderBy: { createdAt: 'asc' },
+        // The Decks tab's order.
+        orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
       }),
     ]);
     const unlocked = await unlockedIds(ctx.user.id);
@@ -48,6 +49,20 @@ export const runRouter = router({
     const run = await loadOwnRun(input.runId, ctx.user.id);
     if (run.version !== input.expectedVersion) throw new TRPCError({ code: 'CONFLICT', message: 'Run changed, refresh and retry' });
     return clientRun(await advanceRun(run, [input.action]));
+  }),
+
+  /**
+   * Chooses an option on the map, like `act` with CHOOSE. For a battle, `deckId` switches the run to that deck
+   * first (one of the account's decks that can be played; SET_DECK), so the battle is played with it.
+   */
+  choose: protectedProcedure.input(runChooseInput).mutation(async ({ ctx, input }) => {
+    const run = await loadOwnRun(input.runId, ctx.user.id);
+    if (run.version !== input.expectedVersion) throw new TRPCError({ code: 'CONFLICT', message: 'Run changed, refresh and retry' });
+    if (input.deckId === undefined) return clientRun(await advanceRun(run, [{ type: 'CHOOSE', option: input.option }]));
+    const option = run.state.phase === 'map' ? run.state.steps[run.state.position]?.options[input.option] : undefined;
+    if (!option || !isBattleKind(option.kind)) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Decks can only be switched for a battle' });
+    const deck = await playableDeck(input.deckId, ctx.user.id);
+    return clientRun(await advanceRun(run, [{ type: 'SET_DECK', deck: deck.cards, name: deck.name }, { type: 'CHOOSE', option: input.option }]));
   }),
 
   /**
