@@ -80,7 +80,7 @@ export function GamePage() {
         errorAt={act.submittedAt}
         runTab={data.runId ? <GameRunTab /> : undefined}
       />
-      {data.runId && <RunBattleBanner view={shown} opponent={data.opponent} />}
+      <BattleBanner view={shown} opponent={data.opponent} run={data.runId !== null} />
     </>
   );
 }
@@ -94,10 +94,10 @@ function GameRunTab() {
 }
 
 /**
- * A run's battle: who you're up against and the run's battle rules, at the top of the screen; once the
- * battle is over, the result and the way back to the run.
+ * Who you're up against and the run's battle rules, at the top of the screen; once the battle is over, the
+ * result and the way back: to the run for a run's battle, otherwise to the Single battle tab.
  */
-function RunBattleBanner({ view, opponent }: { view: PlayerView; opponent: string | null }) {
+function BattleBanner({ view, opponent, run }: { view: PlayerView; opponent: string | null; run: boolean }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const over = view.phase === 'finished';
@@ -118,14 +118,22 @@ function RunBattleBanner({ view, opponent }: { view: PlayerView; opponent: strin
   return (
     <div className="fixed inset-x-0 top-1/3 z-40 mx-auto w-fit space-y-3 rounded-lg bg-slate-800 p-6 text-center shadow-2xl ring-1 ring-slate-600">
       <p className={`text-2xl font-bold ${won ? 'text-yellow-300' : 'text-rose-300'}`}>{won ? `You beat ${opponent ?? 'your opponent'}!` : `${opponent ?? 'Your opponent'} won.`}</p>
-      <p className="text-sm text-slate-400">{won ? 'Your reward is waiting.' : 'You lose 1 HP.'}</p>
-      <Link
-        to="/"
-        onClick={() => queryClient.invalidateQueries({ queryKey: trpc.run.overview.queryKey() })}
-        className="inline-block rounded bg-blue-600 px-5 py-2 font-semibold transition hover:bg-blue-500 active:scale-95"
-      >
-        Back to the run
-      </Link>
+      {run ? (
+        <>
+          <p className="text-sm text-slate-400">{won ? 'Your reward is waiting.' : 'You lose 1 HP.'}</p>
+          <Link
+            to="/"
+            onClick={() => queryClient.invalidateQueries({ queryKey: trpc.run.overview.queryKey() })}
+            className="inline-block rounded bg-blue-600 px-5 py-2 font-semibold transition hover:bg-blue-500 active:scale-95"
+          >
+            Back to the run
+          </Link>
+        </>
+      ) : (
+        <Link to="/battle" className="inline-block rounded bg-blue-600 px-5 py-2 font-semibold transition hover:bg-blue-500 active:scale-95">
+          Next battle
+        </Link>
+      )}
     </div>
   );
 }

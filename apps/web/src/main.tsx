@@ -19,6 +19,7 @@ import { GamePage } from './pages/Game';
 import { HomePage } from './pages/Home';
 import { InventoryPage } from './pages/Inventory';
 import { PacksPage } from './pages/Packs';
+import { SingleBattlePage } from './pages/SingleBattle';
 
 // Marks the dev server's tab so it isn't confused with the deployed app.
 if (import.meta.env.DEV) document.title += ' - local';
@@ -52,6 +53,9 @@ function RootLayout() {
               <Link to="/decks" className={tab}>
                 Decks
               </Link>
+              <Link to="/battle" className={tab}>
+                Single battle
+              </Link>
             </nav>
           )}
         </div>
@@ -84,11 +88,18 @@ function RootLayout() {
 const rootRoute = createRootRoute({ component: RootLayout });
 const homeRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', component: HomePage });
 const gameRoute = createRoute({ getParentRoute: () => rootRoute, path: '/game/$gameId', component: GamePage });
-const decksRoute = createRoute({ getParentRoute: () => rootRoute, path: '/decks', component: DecksPage });
+// `?deck=<id>` opens that deck, `?deck=new` a new one (the Single battle tab's links).
+const decksRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/decks',
+  component: DecksPage,
+  validateSearch: (search: Record<string, unknown>): { deck?: string } => (typeof search.deck === 'string' ? { deck: search.deck } : {}),
+});
+const battleRoute = createRoute({ getParentRoute: () => rootRoute, path: '/battle', component: SingleBattlePage });
 const inventoryRoute = createRoute({ getParentRoute: () => rootRoute, path: '/inventory', component: InventoryPage });
 const packsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/packs', component: PacksPage });
 
-const router = createRouter({ routeTree: rootRoute.addChildren([homeRoute, gameRoute, decksRoute, inventoryRoute, packsRoute]) });
+const router = createRouter({ routeTree: rootRoute.addChildren([homeRoute, battleRoute, gameRoute, decksRoute, inventoryRoute, packsRoute]) });
 
 declare module '@tanstack/react-router' {
   interface Register {

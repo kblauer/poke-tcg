@@ -1,8 +1,8 @@
-// Fixed decks for practice battles: the player's test deck, and the CPU's deck (Brock's Rock Crusher deck).
+// The fixed test deck, which single battles can use instead of one of the player's decks.
 // The player's test deck is Base Set only: two Basic → Stage 1 → Stage 2 lines (4-3-2) plus basic
 // Energy, and one each of a spread of Trainers and a Double Colorless Energy to try them out.
 
-import { BOSSES, type DeckList } from '@poke-tcg/campaign';
+import type { DeckList } from '@poke-tcg/campaign';
 
 export const PLAYER_TEST_DECK: DeckList = [
   // Fire: Charmander → Charmeleon → Charizard
@@ -32,9 +32,6 @@ export const PLAYER_TEST_DECK: DeckList = [
   ['base1-92', 1], // Energy Removal
   ['base1-70', 1], // Clefairy Doll
 ];
-
-/** The CPU's deck in practice battles: Brock's, the Rock Crusher theme deck from the Game Boy Color game (60 cards, all Fighting). */
-export const CPU_DECK: DeckList = BOSSES.brock.deck;
 
 /** Expands a deck list into one card id per card. */
 export const expandDeck = (list: DeckList) => list.flatMap(([id, copies]) => Array<string>(copies).fill(id));

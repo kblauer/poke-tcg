@@ -1,11 +1,13 @@
 import { TRPCError } from '@trpc/server';
+import { boss, bossLabel, generateDeck, rngFrom, TRAINERS, trainerFavorites } from '@poke-tcg/campaign';
 import { prisma, saveGameState, type Prisma } from '@poke-tcg/db';
 import { applyAction, createGame, getPlayerView, runCpu, type GameAction, type GameState } from '@poke-tcg/game-engine';
-import { CPU_ID, HUMAN_ID, deckIdInput, gameIdInput, submitActionInput } from '@poke-tcg/shared';
+import { CPU_ID, HUMAN_ID, gameIdInput, singleBattleInput, submitActionInput, type SingleBattleInput, type SingleBattleOpponent } from '@poke-tcg/shared';
 import { ensureUser } from '../auth.js';
 import { loadCardLibrary } from '../cards.js';
+import { cardPool } from '../pool.js';
 import { loadOwnRun, settleBattle } from '../runs.js';
-import { CPU_DECK, PLAYER_TEST_DECK, expandDeck } from '../test-decks.js';
+import { PLAYER_TEST_DECK, expandDeck } from '../test-decks.js';
 import type { AuthUser } from '../auth.js';
 import { protectedProcedure, router } from '../trpc.js';
 import { playableDeck } from './decks.js';
@@ -25,12 +27,26 @@ export async function loadOwnGame(gameId: string, userId: string) {
   return { ...game, state: game.state as unknown as GameState };
 }
 
-/** Starts a game: `playerDeck` (one card id per card) against the CPU's deck (Rock Crusher), using cards from the catalog. */
-async function startGame(user: AuthUser, playerDeck: string[]) {
-  const cpuDeck = expandDeck(CPU_DECK);
-  const [library] = await Promise.all([loadCardLibrary([...playerDeck, ...cpuDeck]), ensureUser(user)]);
-  const seed = Math.floor(Math.random() * 2 ** 31);
-  const initial = createGame({ id: HUMAN_ID, deck: playerDeck }, { id: CPU_ID, deck: cpuDeck }, seed, library);
+const newSeed = () => Math.floor(Math.random() * 2 ** 31);
+
+/** The CPU's side of a single battle: a boss's own deck, or a random trainer with a random deck suiting their name, as on a run's map. */
+async function opponentSetup(opponent: SingleBattleOpponent): Promise<{ name: string; deck: string[] }> {
+  if (opponent.kind === 'boss') {
+    const b = boss(opponent.bossId);
+    return { name: bossLabel(b), deck: expandDeck(b.deck) };
+  }
+  const name = TRAINERS[Math.floor(Math.random() * TRAINERS.length)]!;
+  return { name, deck: generateDeck(await cardPool(), rngFrom(newSeed()), { favorites: trainerFavorites(name) }) };
+}
+
+/** Starts a single battle: `playerDeck` (one card id per card) against the chosen opponent at the chosen difficulty, using cards from the catalog. */
+async function startGame(user: AuthUser, playerDeck: string[], { difficulty, opponent }: Omit<SingleBattleInput, 'deckId'>) {
+  const cpu = await opponentSetup(opponent);
+  const [library] = await Promise.all([loadCardLibrary([...playerDeck, ...cpu.deck]), ensureUser(user)]);
+  const seed = newSeed();
+  const initial = createGame({ id: HUMAN_ID, deck: playerDeck }, { id: CPU_ID, deck: cpu.deck }, seed, library);
+  initial.cpuDifficulty = difficulty;
+  initial.opponentName = cpu.name;
   // The CPU picks its active right away, so the game is waiting on the player.
   const { state, actions } = runCpu(initial, CPU_ID);
 
@@ -47,19 +63,21 @@ async function startGame(user: AuthUser, playerDeck: string[]) {
 }
 
 export const gameRouter = router({
-  /** Starts a test game: the player's test deck against the CPU. */
-  createTest: protectedProcedure.mutation(({ ctx }) => startGame(ctx.user, expandDeck(PLAYER_TEST_DECK))),
-
-  /** Starts a game with one of the player's decks, which must follow the deck rules and hold only unlocked cards. */
-  create: protectedProcedure.input(deckIdInput).mutation(async ({ ctx, input }) => {
-    return startGame(ctx.user, await playableDeck(input.deckId, ctx.user.id));
+  /**
+   * Starts a single battle with one of the player's decks, which must follow the deck rules and hold only unlocked
+   * cards, or with the test deck (`deckId` null).
+   */
+  create: protectedProcedure.input(singleBattleInput).mutation(async ({ ctx, input }) => {
+    const deck = input.deckId === null ? expandDeck(PLAYER_TEST_DECK) : await playableDeck(input.deckId, ctx.user.id);
+    return startGame(ctx.user, deck, input);
   }),
 
-  /** The player's filtered view of the game – never the raw state – and, for a run's battle, the run and opponent's name. */
+  /** The player's filtered view of the game – never the raw state – the opponent's name, and for a run's battle, the run. */
   view: protectedProcedure.input(gameIdInput).query(async ({ ctx, input }) => {
     const game = await loadOwnGame(input.gameId, ctx.user.id);
     const encounter = game.runId ? (await loadOwnRun(game.runId, ctx.user.id)).state.encounter : null;
-    const opponent = encounter && 'trainer' in encounter && 'gameId' in encounter && encounter.gameId === game.id ? encounter.trainer : null;
+    const runOpponent = encounter && 'trainer' in encounter && 'gameId' in encounter && encounter.gameId === game.id ? encounter.trainer : null;
+    const opponent = runOpponent ?? game.state.opponentName ?? null;
     return { id: game.id, status: game.status, runId: game.runId, opponent, view: getPlayerView(game.state, HUMAN_ID) };
   }),
 

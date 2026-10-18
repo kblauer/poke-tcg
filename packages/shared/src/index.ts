@@ -1,5 +1,5 @@
 import { CPU_DIFFICULTIES, DEBUG_CONDITIONS, MAX_BENCH, type AttackChoices, type DebugCommand, type GameAction, type PowerChoices, type TrainerChoices } from '@poke-tcg/game-engine';
-import { EQUIP_SLOTS, MAX_PACKS_AT_ONCE, PACK_SETS, RUN_TYPE_IDS, type RunAction, type RunTypeId } from '@poke-tcg/campaign';
+import { BOSS_IDS, EQUIP_SLOTS, MAX_PACKS_AT_ONCE, PACK_SETS, RUN_TYPE_IDS, type RunAction, type RunTypeId } from '@poke-tcg/campaign';
 import { z } from 'zod';
 
 export * from './deck.js';
@@ -100,6 +100,18 @@ export const submitActionInput = z.object({
   expectedVersion: z.number().int().min(0),
   action: gameActionSchema,
 });
+
+/** A single battle's opponent: a random trainer with a deck suiting their name, or a boss with their own deck. */
+export const singleBattleOpponent = z.discriminatedUnion('kind', [z.object({ kind: z.literal('trainer') }), z.object({ kind: z.literal('boss'), bossId: z.enum(BOSS_IDS) })]);
+export type SingleBattleOpponent = z.infer<typeof singleBattleOpponent>;
+
+/** A single battle (outside runs): one of your decks (null: the fixed test deck), the CPU's difficulty and its opponent. */
+export const singleBattleInput = z.object({
+  deckId: z.uuid().nullable(),
+  difficulty: z.enum(CPU_DIFFICULTIES),
+  opponent: singleBattleOpponent,
+});
+export type SingleBattleInput = z.infer<typeof singleBattleInput>;
 
 /** Runtime validation for debug commands (testing cheats; the API refuses them unless debugging is enabled). */
 export const debugCommandSchema = z.discriminatedUnion('type', [

@@ -76,7 +76,8 @@ export async function equippedGear(userId: string): Promise<string[]> {
 
 /**
  * Applies actions to a run and saves it, if nobody else changed it meanwhile (CONFLICT otherwise).
- * When the run asks for a battle, starts the game and records it; when the run is beaten, gives its rewards.
+ * When the run asks for a battle, starts the game and records it; when the run is beaten, gives its rewards;
+ * when it ends (beaten or lost), moves its ₱ to the bank.
  */
 export async function advanceRun(run: LoadedRun, actions: (RunAction | RunSystemAction)[]): Promise<LoadedRun> {
   const [pool, gear] = await Promise.all([cardPool(), equippedGear(run.ownerId)]);
@@ -96,12 +97,21 @@ export async function advanceRun(run: LoadedRun, actions: (RunAction | RunSystem
 
   const status = statusOf(state);
   const reward = status === 'WON' && !run.rewarded;
+  // A run's ₱ go to the bank as soon as it ends. A lost run carried on (the Retry testing aid) takes them back
+  // out, as far as the bank still has them, so they aren't banked twice.
+  const bank = status !== 'ACTIVE' && !run.banked;
+  const unbank = status === 'ACTIVE' && run.banked;
   const saved = await prisma.$transaction(async (tx) => {
     const { count } = await tx.run.updateMany({
       where: { id: run.id, version: run.version },
-      data: { state: asJson(state), version: state.version, status, ...(reward && { rewarded: true }) },
+      data: { state: asJson(state), version: state.version, status, ...(reward && { rewarded: true }), ...((bank || unbank) && { banked: bank }) },
     });
     if (count === 0) return false;
+    if (bank) await tx.user.update({ where: { id: run.ownerId }, data: { bank: { increment: state.pokedollars } } });
+    if (unbank) {
+      const { bank: banked } = await tx.user.findUniqueOrThrow({ where: { id: run.ownerId }, select: { bank: true } });
+      await tx.user.update({ where: { id: run.ownerId }, data: { bank: { decrement: Math.min(banked, state.pokedollars) } } });
+    }
     // Cards gained by these actions are unlocked for the deck builder at once (they don't join the run's deck),
     // and badges (or the Champion's ribbon) go to the inventory as they're won.
     await unlockCards(run.ownerId, state.gained.slice(run.state.gained.length), tx);
@@ -116,7 +126,7 @@ export async function advanceRun(run: LoadedRun, actions: (RunAction | RunSystem
     if (gameId) await prisma.game.delete({ where: { id: gameId } }).catch(() => {});
     throw new TRPCError({ code: 'CONFLICT', message: 'Run changed, refresh and retry' });
   }
-  return { ...run, state, version: state.version, status, rewarded: run.rewarded || reward };
+  return { ...run, state, version: state.version, status, rewarded: run.rewarded || reward, banked: (run.banked || bank) && !unbank };
 }
 
 /** For a beaten run: its EXP. (Its cards and badges were given as they were won.) */
@@ -182,8 +192,9 @@ export async function settleBattle(run: LoadedRun): Promise<LoadedRun> {
 }
 
 /**
- * Starts a new run of `type` with the deck. Earlier runs' ₱ go to the bank first; the new run starts
- * with STARTING_POKEDOLLARS. Not while a run is still going.
+ * Starts a new run of `type` with the deck; it starts with STARTING_POKEDOLLARS. Not while a run is still going.
+ * Runs' ₱ are banked when they end (advanceRun); any earlier run whose ₱ weren't (one that ended before that
+ * rule) is banked here first.
  */
 export async function startRun(userId: string, type: RunTypeId, deck: string[]) {
   return prisma.$transaction(async (tx) => {

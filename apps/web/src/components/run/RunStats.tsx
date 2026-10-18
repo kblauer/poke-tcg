@@ -29,7 +29,7 @@ export function RunStats({ view, account, run }: { view: RunViewData; account: O
             {Array.from({ length: view.maxHp }, (_, i) => (i < view.hp ? <FavoriteIcon key={i} fontSize="small" /> : <FavoriteBorderIcon key={i} fontSize="small" />))}
           </span>
         </div>
-        <div className={row} title="₱ to spend in this run; banked when the next run starts">
+        <div className={row} title="₱ to spend in this run; banked when the run ends">
           <span className={label}>₱</span>
           <span className="font-semibold text-yellow-300">{view.pokedollars}</span>
         </div>

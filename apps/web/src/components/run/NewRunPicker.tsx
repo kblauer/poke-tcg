@@ -67,7 +67,7 @@ export function NewRunPicker({ overview, run, title, defaultType }: { overview: 
         {playable.length === 0 && <p className="text-xs text-amber-300">None of your decks can be played yet: fix one on the Decks tab.</p>}
       </div>
 
-      <p className="text-xs text-slate-500">The ₱ you have now goes to your bank; the new run starts with ₱500 and 3 HP.</p>
+      <p className="text-xs text-slate-500">The new run starts with ₱500 and 3 HP.</p>
       <button
         className="rounded bg-blue-600 px-5 py-2 font-semibold transition hover:bg-blue-500 active:scale-95 disabled:opacity-40"
         disabled={run.busy || !deckId}
