@@ -1,6 +1,6 @@
 export * from './attacks.js';
 export * from './cards.js';
-export { attackEffect, cardImplemented, powerEffect, trainerEffect } from './effects/index.js';
+export { attackEffect, cardImplemented, energyEffect, powerEffect, trainerEffect } from './effects/index.js';
 export { BASE4_REPRINTS } from './effects/base4.js';
 export * from './powers.js';
 export * from './trainers.js';

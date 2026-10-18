@@ -2,7 +2,7 @@
 // Confused or Paralyzed (checked in powerError, and by Strikes Back itself).
 import { typeName } from '../attacks.js';
 import { lookupCard, type EnergyType } from '../cards.js';
-import type { CardInstance, InPlayPokemon, Target } from '../engine.js';
+import { isEnergyCardOf, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
 import { energyFromHand, ownTargets, pokemonAt, type PowerChoiceSpec, type PowerEffect, type PowerSituation } from '../powers.js';
 import { clearOnLeavingActive, inPlayDef, pokemonName } from '../status.js';
 
@@ -80,10 +80,11 @@ export const BASE1_POWERS: Record<string, PowerEffect> = {
   'base1-15': {
     blocked(s) {
       if (ownTargets(s.me).length < 2) return 'You need another Pokémon to move Energy to';
-      return ownTargets(s.me).some((t) => at(s, t).energy.some((e) => isEnergyCard(s, e, 'grass'))) ? null : 'None of your Pokémon have Grass Energy';
+      return ownTargets(s.me).some((t) => at(s, t).energy.some((e) => isEnergyCardOf(e, s.cards, 'grass'))) ? null : 'None of your Pokémon have Grass Energy';
     },
     choices(s, c) {
-      const grass = (t: Target) => at(s, t).energy.filter((e) => isEnergyCard(s, e, 'grass'));
+      // Rainbow Energy counts as Grass while attached.
+      const grass = (t: Target) => at(s, t).energy.filter((e) => isEnergyCardOf(e, s.cards, 'grass'));
       const specs: PowerChoiceSpec[] = [
         { kind: 'ownPokemon', field: 'from', options: ownTargets(s.me).filter((t) => grass(t).length > 0), prompt: 'Take a Grass Energy from' },
       ];

@@ -1,5 +1,5 @@
 import { prisma, type Card } from '@poke-tcg/db';
-import { attackEffect, powerEffect, trainerEffect, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef, type Stage } from '@poke-tcg/game-engine';
+import { attackEffect, energyEffect, powerEffect, trainerEffect, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef, type Stage } from '@poke-tcg/game-engine';
 
 const ENERGY_TYPES = new Set<EnergyType>(['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'darkness', 'metal', 'colorless']);
 const STAGES: Record<string, Stage> = { Basic: 'basic', Baby: 'basic', Stage1: 'stage1', Stage2: 'stage2' };
@@ -32,8 +32,11 @@ const FROM_MYSTERIOUS_FOSSIL = new Set(['Omanyte', 'Kabuto', 'Aerodactyl']);
 const BABY_PROMOS = new Set(['basep-31', 'basep-35', 'basep-36']);
 
 /** What the card evolves from, filling in TCGdex's gaps. */
-const evolvesFrom = (card: Pick<Card, 'name' | 'stage' | 'evolveFrom'>) =>
-  card.evolveFrom ?? (card.stage === 'Stage1' && FROM_MYSTERIOUS_FOSSIL.has(card.name) ? 'Mysterious Fossil' : null);
+const evolvesFrom = (card: Pick<Card, 'name' | 'stage' | 'evolveFrom'>) => {
+  // Team Rocket's Dark Stage 2 Pokémon evolve from the Dark Stage 1 (Dark Alakazam from Dark Kadabra); TCGdex has the plain one.
+  if (card.stage === 'Stage2' && card.name.startsWith('Dark ') && card.evolveFrom && !card.evolveFrom.startsWith('Dark ')) return `Dark ${card.evolveFrom}`;
+  return card.evolveFrom ?? (card.stage === 'Stage1' && FROM_MYSTERIOUS_FOSSIL.has(card.name) ? 'Mysterious Fossil' : null);
+};
 
 /** Whether the card was printed as a holofoil. */
 export const isHolo = (card: Pick<Card, 'data'>) => (card.data as CardData).variants?.holo === true;
@@ -89,7 +92,7 @@ export const isBasicEnergyCard = (card: Pick<Card, 'kind' | 'data'>) => card.kin
 
 /**
  * Whether the engine implements everything on the card: every attack with text, its Pokémon Power, its
- * Trainer effect, or (Energy) a basic Energy or Double Colorless. Other cards still load: their attacks
+ * Trainer effect, or (Energy) a basic Energy, Double Colorless or a special Energy with an effect (Rainbow). Other cards still load: their attacks
  * do plain damage, and their powers, Trainer effects and special Energy effects do nothing.
  */
 export function isImplemented(card: Pick<Card, 'id' | 'name' | 'kind' | 'data'>): boolean {
@@ -99,7 +102,7 @@ export function isImplemented(card: Pick<Card, 'id' | 'name' | 'kind' | 'data'>)
     return attacks && (!data.abilities?.length || powerEffect(card.id) !== undefined);
   }
   if (card.kind === 'TRAINER') return trainerEffect(card.id) !== undefined;
-  return isBasicEnergyCard(card) || card.name === 'Double Colorless Energy';
+  return isBasicEnergyCard(card) || card.name === 'Double Colorless Energy' || energyEffect(card.id) !== undefined;
 }
 
 /** Converts a catalog row into the engine's card definition. */
@@ -112,11 +115,11 @@ export function toCardDef(card: Card): CardDef {
     const data = card.data as CardData;
     const attacks: Attack[] = (data.attacks ?? []).map((a) => {
       const effect = attackEffect(card.id, attackName(a));
-      // Printed damage and wording where TCGdex's differ (kept with the attack's effect in the engine).
+      // Printed cost, damage and wording where TCGdex's differ (kept with the attack's effect in the engine).
       const damage = effect?.damage ?? a.damage;
       return {
         name: attackName(a),
-        cost: (a.cost ?? []).map(energyType),
+        cost: effect?.cost ?? (a.cost ?? []).map(energyType),
         damage: baseDamage(damage),
         damageText: damage == null || damage === '' ? null : String(damage),
         text: effect?.text ?? a.effect,
@@ -136,7 +139,9 @@ export function toCardDef(card: Card): CardDef {
       if (!known) throw new Error(`Card ${card.id} is not a supported energy`);
       return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: named, holo: isHolo(card) };
     }
-    // Special Energy the engine doesn't implement yet: 1 Energy of its type (Darkness, Metal), otherwise Colorless.
+    // Rainbow Energy counts as every type while attached (1 at a time).
+    if (card.name === 'Rainbow Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'colorless', anyType: true, basic: false, holo: isHolo(card) };
+    // Full Heal and Potion Energy provide Colorless (their effects are energyEffect's). Special Energy the engine doesn't implement yet: 1 Energy of its type (Darkness, Metal), otherwise Colorless.
     return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: known ? named : 'colorless', basic: false, holo: isHolo(card) };
   }
   const text = (card.data as CardData).effect ?? '';

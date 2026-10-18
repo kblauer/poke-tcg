@@ -1,5 +1,6 @@
-import { PRIZE_COUNT } from '@poke-tcg/game-engine';
+import { lookupCard, PRIZE_COUNT, type CardInstance, type CardLibrary } from '@poke-tcg/game-engine';
 import { SIDE_COLUMN } from '../utils/layout';
+import { Card } from './Card';
 import { CardBack } from './CardBack';
 
 /** How much of each covered prize card shows: a fifth of a card's width. */
@@ -10,9 +11,13 @@ const STRIP = 'h-[calc(var(--card-sm,5rem)*0.2)]';
  * all but a strip of the one before it, and the last is shown whole, level with the bench (the
  * board lines it up). `mirrored` (the CPU's side) turns the stack upside down: the whole card at
  * the top and the label underneath. Taken prizes leave gaps, last ones first, so the card before
- * a gap shows whole.
+ * a gap shows whole. `faceUp` (Here Comes Team Rocket!) shows the cards themselves.
  */
-export function PrizeCards({ count, mirrored = false }: { count: number; mirrored?: boolean }) {
+export function PrizeCards({ count, mirrored = false, faceUp }: { count: number; mirrored?: boolean; faceUp?: { prizes: CardInstance[]; cards: CardLibrary } }) {
+  const card = (i: number) => {
+    const prize = faceUp?.prizes[i];
+    return prize ? <Card def={lookupCard(faceUp.cards, prize.defId)} small /> : <CardBack />;
+  };
   const label = <p className={`text-center text-xs text-slate-400 ${mirrored ? 'mt-1' : 'mb-1'}`}>Prizes {count}</p>;
   return (
     <div className={SIDE_COLUMN} title={`${count} prize card${count === 1 ? '' : 's'} left`}>
@@ -24,13 +29,11 @@ export function PrizeCards({ count, mirrored = false }: { count: number; mirrore
             <div key={i} className={last ? 'relative' : `relative ${STRIP}`}>
               {last ? (
                 // Keeps the last card's place even after it's taken, so the stack stays level with the bench.
-                <div className="aspect-[63/88]">{i < count && <CardBack />}</div>
+                <div className="aspect-[63/88]">{i < count && card(i)}</div>
               ) : (
                 // A whole card hanging over the next places; the next card, drawn later, covers all but this strip.
                 i < count && (
-                  <div className={`absolute inset-x-0 ${mirrored ? 'bottom-0' : 'top-0'}`}>
-                    <CardBack />
-                  </div>
+                  <div className={`absolute inset-x-0 ${mirrored ? 'bottom-0' : 'top-0'}`}>{card(i)}</div>
                 )
               )}
             </div>

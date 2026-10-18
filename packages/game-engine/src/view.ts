@@ -32,10 +32,14 @@ export interface PlayerView {
     hand: CardInstance[];
     deckCount: number;
     prizeCount: number;
+    /** Their Prize cards, in order, while they're face up (Here Comes Team Rocket!). */
+    prizes?: CardInstance[];
     discard: CardInstance[];
     active: InPlayPokemon | null;
     /** Fixed slots; null = empty. */
     bench: (InPlayPokemon | null)[];
+    /** Last turn no Pokémon Powers work (Goop Gas Attack). */
+    powersOffUntil?: number;
     /** A search this player must finish, with the cards it reveals to them. */
     pendingChoice: PendingChoiceView | null;
     /** Last turn this player can't play Trainer cards (Headache). */
@@ -52,7 +56,11 @@ export interface PlayerView {
     hand?: CardInstance[];
     deckCount: number;
     prizeCount: number;
+    /** Their Prize cards, in order, while they're face up (Here Comes Team Rocket!). */
+    prizes?: CardInstance[];
     discard: CardInstance[];
+    /** Last turn no Pokémon Powers work (Goop Gas Attack). */
+    powersOffUntil?: number;
     /** Hidden while the players are still placing their Pokémon (setup). */
     active: InPlayPokemon | null;
     /** Fixed slots; null = empty. Hidden (all empty) during setup, like the active. */
@@ -87,7 +95,8 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
     ...me.discard,
     ...opp.discard,
     ...[me.active, ...me.bench, oppActive, ...oppBench].flatMap((p) => (p ? [p.card, ...p.evolvedFrom, ...p.energy, ...(p.attached ?? []).map((a) => a.card)] : [])),
-    ...(pending?.kind === 'arrangeTop' ? pending.cards : pending?.kind === 'pickFromDeck' || pending?.kind === 'pickFromDiscard' ? pending.options : []),
+    ...(pending?.kind === 'arrangeTop' || pending?.kind === 'oppHand' ? pending.cards : pending?.kind === 'pickFromDeck' || pending?.kind === 'pickFromDiscard' ? pending.options : []),
+    ...(state.prizesFaceUp ? [...me.prizes, ...opp.prizes] : []),
     ...(oppHand ?? []),
     ...(peek ? [peek.card] : []),
     ...(state.stadium ? [state.stadium.card] : []),
@@ -115,9 +124,11 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       hand: me.hand,
       deckCount: me.deck.length,
       prizeCount: me.prizes.length,
+      ...(state.prizesFaceUp && { prizes: me.prizes }),
       discard: me.discard,
       active: me.active,
       bench: me.bench,
+      ...(me.powersOffUntil !== undefined && { powersOffUntil: me.powersOffUntil }),
       pendingChoice: pending,
       noTrainersUntil: me.noTrainersUntil,
       ...(me.ready && { ready: true }),
@@ -129,7 +140,9 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       ...(oppHand && { hand: oppHand }),
       deckCount: opp.deck.length,
       prizeCount: opp.prizes.length,
+      ...(state.prizesFaceUp && { prizes: opp.prizes }),
       discard: opp.discard,
+      ...(opp.powersOffUntil !== undefined && { powersOffUntil: opp.powersOffUntil }),
       active: oppActive,
       bench: oppBench,
       ...(opp.ready && { ready: true }),

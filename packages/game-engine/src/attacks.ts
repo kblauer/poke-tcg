@@ -5,6 +5,7 @@ import { attackEffect, powerEffect } from './effects/index.js';
 import {
   canPayCost,
   conditionLabel,
+  counts,
   energyProvided,
   type Affliction,
   type CardInstance,
@@ -63,9 +64,10 @@ export type ChoiceSpec = { prompt: string } & (
   | { kind: 'defenderAttack'; options: number[] }
   | { kind: 'copyAttack'; options: number[] }
   | { kind: 'type'; options: EnergyType[] }
-  | { kind: 'ownBench'; options: number[] }
-  /** Any number (0 to all) of the attacker's energy, as part of the attack (Wildfire). */
-  | { kind: 'ownEnergyUpTo'; options: CardInstance[] }
+  /** `optional`: the player may also not choose ("you may switch"), answered with -1, which is then among the options. */
+  | { kind: 'ownBench'; options: number[]; optional?: boolean }
+  /** Any number (0 to all, or to `max`) of the attacker's energy, as part of the attack (Wildfire). */
+  | { kind: 'ownEnergyUpTo'; options: CardInstance[]; max?: number }
   | { kind: 'ownDiscard'; min: number; max: number; options: CardInstance[] }
   /** `count` of them, or all if there are fewer. */
   | { kind: 'opponentBenchMany'; count: number; options: number[] }
@@ -105,8 +107,10 @@ export const targetsIn = (active: InPlayPokemon | null, bench: (InPlayPokemon | 
 export interface AttackEffect {
   /** Printed text, where TCGdex's text differs from the card. */
   text?: string;
-  /** Printed damage (e.g. "10"), where TCGdex leaves it out. */
+  /** Printed damage (e.g. "10"), where TCGdex leaves it out or has it wrong. */
   damage?: string;
+  /** Printed Energy cost, where TCGdex has it wrong (Dark Magneton). */
+  cost?: EnergyType[];
   /** Energy the attacker discards in order to use the attack. */
   discard?: { count: number | 'all'; type?: EnergyType };
   /** Why the attack can't be used now (beyond its energy cost). */
@@ -131,6 +135,8 @@ export interface AttackContext {
   flip: () => boolean;
   /** Flips `n` coins and returns the number of heads. */
   flips: (n: number) => number;
+  /** The opponent flips (Knock Down, Bench Manipulation): true = heads. Logged as theirs. */
+  oppFlip: () => boolean;
   /** Damages the Defending Pokémon (weakness and resistance unless turned off). Returns the damage done. */
   hit: (amount: number, opts?: { weakness?: boolean }) => number;
   /** Damages the attacker (no weakness or resistance). */
@@ -148,7 +154,7 @@ export interface AttackContext {
   /** Removes damage from the attacker. */
   heal: (amount: number | 'all') => void;
   /** Sets an effect on the attacker for the opponent's next turn. */
-  protect: (key: 'preventDamage' | 'preventAll' | 'harden' | 'destinyBond' | 'minimize' | 'lightScreen') => void;
+  protect: (key: 'preventDamage' | 'preventAll' | 'harden' | 'destinyBond' | 'minimize' | 'lightScreen' | 'mirrorShell') => void;
   /** Runs `fn` on the Defending Pokémon's effects, unless its effects are prevented. */
   affectDefender: (fn: (effects: PokemonEffects) => void) => void;
   discardDefenderEnergy: (uid: string) => void;
@@ -220,7 +226,7 @@ export function attackError(s: AttackSituation, attackIndex: number): string | n
 
 /** Energy that can be discarded for the attack. A Transformed Ditto's Energy counts as any type. */
 export const discardOptions = (s: AttackSituation, type?: EnergyType) =>
-  s.attacker.energy.filter((e) => !type || s.attacker.transformed || energyProvided(e, s.cards).type === type);
+  s.attacker.energy.filter((e) => !type || s.attacker.transformed || counts(energyProvided(e, s.cards).type, type));
 
 export const typeName = (t: EnergyType) => t[0]!.toUpperCase() + t.slice(1);
 
@@ -303,7 +309,7 @@ function validAnswer(spec: ChoiceSpec, value: unknown): boolean {
     case 'pokemonEnergy':
       return spec.options.some((e) => e.uid === value);
     case 'ownEnergyUpTo':
-      return pickedIds(value, spec.options.map((e) => e.uid), 0, spec.options.length);
+      return pickedIds(value, spec.options.map((e) => e.uid), 0, spec.max ?? spec.options.length);
     case 'ownDiscard':
       return pickedIds(value, spec.options.map((c) => c.uid), spec.min, spec.max);
     case 'opponentBenchMany': {
@@ -401,7 +407,9 @@ export function performAttack(state: GameState, me: PlayerState, opp: PlayerStat
   }
   // 1999 rules: a Confused Pokémon flips to attack; on tails it does 20 damage to itself instead.
   if (attacker.condition === 'confused' && !flipCoin(state, `${attackerDef.name} is Confused`, me.id)) {
-    const damage = afterDefender(state.cards, attacker, 20);
+    // Frenzy: 30 more, even to itself.
+    const frenzy = powerEffect(effectId(attacker))?.frenzy && powerActive(attacker, state.cards, [me, opp]) ? 30 : 0;
+    const damage = afterDefender(state.cards, attacker, 20 + frenzy);
     attacker.damage += damage;
     addLog(state, damage ? `${attackerDef.name} hurt itself for ${damage} damage.` : `Defender prevented the damage ${attackerDef.name} did to itself.`, me.id);
     return null;
@@ -460,6 +468,8 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
   const sides = [me, opp];
   /** The power of a Pokémon reacting to the attack, while it works (not Asleep etc., no Toxic Gas). */
   const passive = (p: InPlayPokemon) => (powerActive(p, state.cards, sides) ? powerEffect(effectId(p)) : undefined);
+  /** Frenzy: the attacker does 30 more damage while it's Confused (before Weakness and Resistance), to itself too. */
+  const frenzy = () => (attacker.condition === 'confused' && passive(attacker)?.frenzy ? 30 : 0);
   /** Neutral Shield: attacks by Evolved Pokémon don't affect it. */
   const neutral = (p: InPlayPokemon) => attacker.evolvedFrom.length > 0 && !!passive(p)?.neutralShield;
   /**
@@ -519,6 +529,7 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
     choices,
     turn,
     flip: () => flipCoin(state, source, me.id),
+    oppFlip: () => flipCoin(state, source, opp.id),
     flips: (n) => Array.from({ length: n }, () => ctx.flip()).filter(Boolean).length,
     hit(amount, { weakness = true } = {}) {
       const defender = opp.active!;
@@ -527,6 +538,7 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
       // A run's battle rules (Fire Pokémon do double damage…) change the base damage, before everything else,
       // and then its items' bonuses (X Attack, Charcoal…) are added.
       for (const rule of state.rules ?? []) if (rule.kind === 'typeDamage' && rule.type === attackerDef.type) amount *= rule.multiplier;
+      amount += frenzy();
       for (const rule of state.rules ?? []) if (rule.kind === 'damageBonus' && rule.player === me.id && (!rule.type || rule.type === attackerDef.type)) amount += rule.amount;
       if (shielded()) {
         log(`${defenderDef.name} is protected from the attack.`, opp.id);
@@ -577,6 +589,11 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
       record(defender).damage += damage;
       log(`${defenderDef.name} took ${damage} damage.`, opp.id);
       passive(defender)?.onAttackDamage?.(ctx, defender);
+      // Mirror Shell: the same damage back to the attacker, without Weakness or anything else, even if this Knocks it Out.
+      if (active(effects?.mirrorShell, turn)) {
+        attacker.damage += damage;
+        log(`Mirror Shell: ${defenderDef.name} did ${damage} damage back to ${attackerDef.name}.`, opp.id);
+      }
       if (defender.damage >= defenderDef.hp && active(effects?.destinyBond, turn)) {
         attacker.damage = Math.max(attacker.damage, attackerDef.hp);
         log(`Destiny Bond: ${attackerDef.name} is Knocked Out too.`, opp.id);
@@ -585,7 +602,7 @@ function createContext(state: GameState, me: PlayerState, opp: PlayerState, choi
     },
     selfDamage(amount) {
       if (transparent(attacker, me)) return log(`${attackerDef.name} is protected from the attack.`);
-      const damage = benchedDamage(attacker, amount, me);
+      const damage = benchedDamage(attacker, amount > 0 ? amount + frenzy() : amount, me);
       if (damage === 0) return log(`The damage ${attackerDef.name} did to itself was prevented.`);
       attacker.damage += damage;
       log(`${attackerDef.name} did ${damage} damage to itself.`);

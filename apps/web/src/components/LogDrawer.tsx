@@ -3,7 +3,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import type { LogEntry, PlayerId, PlayerView } from '@poke-tcg/game-engine';
 import { lazy, Suspense, useEffect, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
-import { CoinFlip } from './CoinFlip';
+import { useSkipFlips } from '../hooks/useSkipFlips';
 import { GameLog } from './GameLog';
 
 // Only builds with the debug tools load (or even include) the Debug tab's panel.
@@ -48,9 +48,10 @@ function savePrefs(prefs: LogPrefs) {
 const iconButton = 'flex h-7 w-7 items-center justify-center rounded text-slate-400 transition hover:bg-slate-700 hover:text-slate-100';
 
 /**
- * The game log as a full-height panel at the left or right edge of the window. Its coin flips play in the middle of the screen (CoinFlip).
+ * The game log as a full-height panel at the left or right edge of the window. With `coinFlips` (a game), the log tab
+ * has the "Skip coin flips" setting (the flips themselves play in the middle of the screen, CoinFlip in GamePage).
  * It can be minimised to a thin strip, moved to the other side, and resized by dragging its inner
- * edge. Coin flips still show beside the strip while it's minimised. Clicks here never cancel a move.
+ * edge. Clicks here never cancel a move.
  * During a run it has a Run tab (`run`: HP, ₱, EXP, consumables, the Bag); with `debug` (only while debugging
  * is enabled, never in production) a Debug tab with testing cheats. The tabs can be picked from the minimised
  * strip too, which opens the panel on that tab. `logTitle` names the log tab ("Game log", or "Run log" on the run screen).
@@ -61,14 +62,17 @@ export function LogDrawer({
   logTitle = 'Game log',
   run,
   debug,
+  coinFlips = false,
 }: {
   log: LogEntry[];
   you: PlayerId;
   logTitle?: string;
   run?: ReactNode;
+  coinFlips?: boolean;
   debug?: { gameId: string; view: PlayerView };
 }) {
   const [prefs, setPrefs] = useState(loadPrefs);
+  const [skipFlips, setSkipFlips] = useSkipFlips();
   useEffect(() => savePrefs(prefs), [prefs]);
   const { side, open, width } = prefs;
   const tabs: { id: Tab; label: string }[] = [
@@ -165,8 +169,6 @@ export function LogDrawer({
             </button>
           ))}
         </div>
-        {/* Coin flips show in the middle of the screen, minimised or not. */}
-        <CoinFlip log={log} you={you} />
       </aside>
     );
   }
@@ -196,9 +198,22 @@ export function LogDrawer({
           </Suspense>
         </section>
       ) : (
-        <GameLog log={log} you={you} header={header} />
+        <GameLog
+          log={log}
+          you={you}
+          header={
+            <>
+              {header}
+              {coinFlips && (
+                <label className="mb-2 flex cursor-pointer items-center gap-1.5 text-xs text-slate-400">
+                  <input type="checkbox" checked={skipFlips} onChange={(e) => setSkipFlips(e.target.checked)} />
+                  Skip coin flip animations
+                </label>
+              )}
+            </>
+          }
+        />
       )}
-      <CoinFlip log={log} you={you} />
     </aside>
   );
 }

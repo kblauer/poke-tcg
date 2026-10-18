@@ -31,7 +31,7 @@ export const flipForMore = (damage: number, bonus: number): AttackEffect => ({
 });
 
 /** Base damage plus 10 for each damage counter on the attacker (Rage). */
-const rage = (damage: number): AttackEffect => ({
+export const rage = (damage: number): AttackEffect => ({
   run: (ctx) => void ctx.hit(damage + ctx.attacker.damage),
 });
 

@@ -16,7 +16,7 @@ export function AttackChoicePanel({ spec, view, attack }: { spec: ChoiceSpec; vi
       <p className="text-slate-300">{spec.prompt}:</p>
       <div className="flex flex-col gap-1">
         {spec.kind === 'ownEnergy' && <EnergyPicker key={spec.prompt} options={spec.options} min={spec.count} max={spec.count} cards={cards} onDone={attack.answer} />}
-        {spec.kind === 'ownEnergyUpTo' && <EnergyPicker key={spec.prompt} options={spec.options} min={0} max={spec.options.length} cards={cards} onDone={attack.answer} />}
+        {spec.kind === 'ownEnergyUpTo' && <EnergyPicker key={spec.prompt} options={spec.options} min={0} max={spec.max ?? spec.options.length} cards={cards} onDone={attack.answer} />}
         {spec.kind === 'ownDiscard' && <DiscardPicker key={spec.prompt} spec={spec} cards={cards} onDone={attack.answer} />}
         {spec.kind === 'opponentBenchMany' && (
           <>
@@ -50,6 +50,12 @@ export function AttackChoicePanel({ spec, view, attack }: { spec: ChoiceSpec; vi
           ))}
         {spec.kind === 'opponentBench' && <p className={pickHint}>Click one of the CPU's highlighted Benched Pokémon.</p>}
         {spec.kind === 'ownBench' && <p className={pickHint}>Click one of your highlighted Benched Pokémon.</p>}
+        {/* "You may switch" (Teleport Blast): -1 stays put. */}
+        {spec.kind === 'ownBench' && spec.optional && (
+          <button className={option} onClick={() => attack.answer(-1)}>
+            Don't switch
+          </button>
+        )}
         {(spec.kind === 'opponentPokemon' || spec.kind === 'opponentPokemonTo') && <p className={pickHint}>Click one of the CPU's highlighted Pokémon.</p>}
         {spec.kind === 'ownPokemon' && <p className={pickHint}>Click one of your highlighted Pokémon.</p>}
         {(spec.kind === 'defenderAttack' || spec.kind === 'copyAttack') &&

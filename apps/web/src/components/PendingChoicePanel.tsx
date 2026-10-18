@@ -26,6 +26,41 @@ export function PendingChoicePanel({ view, send, busy }: { view: PlayerView; sen
           <PickFromDeck key={view.version} choice={choice} view={view} send={send} busy={busy} />
         ) : null}
         {choice.kind === 'arrangeTop' ? <ArrangeTop key={view.version} choice={choice} view={view} send={send} busy={busy} /> : null}
+        {choice.kind === 'challenge' ? (
+          <div className="flex justify-center gap-2">
+            <button className="rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500" disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE', count: 1 })}>
+              Accept
+            </button>
+            <button className="rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500" disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE', count: 0 })}>
+              Decline
+            </button>
+          </div>
+        ) : null}
+        {choice.kind === 'oppHand' ? (
+          // Rocket's Sneak Attack: the whole hand is shown; only its Trainer cards can be picked.
+          <>
+            <div className="flex max-h-[60vh] flex-wrap justify-center gap-2 overflow-y-auto p-1">
+              {choice.cards.map((c) => {
+                const pickable = choice.options.some((o) => o.uid === c.uid);
+                return (
+                  <button
+                    key={c.uid}
+                    disabled={busy || !pickable}
+                    className={`rounded-lg transition ${pickable ? 'hover:-translate-y-1' : 'cursor-default opacity-50'}`}
+                    onClick={() => send({ type: 'RESOLVE_CHOICE', cardUid: c.uid })}
+                  >
+                    <Card def={lookupCard(view.cards, c.defId)} highRes />
+                  </button>
+                );
+              })}
+            </div>
+            {choice.options.length === 0 && (
+              <button className="rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500" disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE' })}>
+                Done
+              </button>
+            )}
+          </>
+        ) : null}
         {choice.kind === 'drawCount' ? (
           <div className="flex flex-wrap justify-center gap-2">
             {Array.from({ length: choice.max + 1 }, (_, n) => (

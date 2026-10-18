@@ -69,6 +69,8 @@ export interface EnergyCardDef {
   amount?: number;
   /** False for special Energy (Double Colorless), which isn't a basic Energy card. Missing = basic. */
   basic?: boolean;
+  /** Rainbow Energy: while attached, it counts as every type of basic Energy (1 at a time). */
+  anyType?: boolean;
   /** Printed as a holofoil. Display only. */
   holo?: boolean;
 }

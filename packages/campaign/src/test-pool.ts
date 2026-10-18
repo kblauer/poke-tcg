@@ -1,7 +1,7 @@
 // Test-only: the card pool built from the TCGdex snapshot, as the API builds it from the catalog
 // (a simplified copy of apps/api/src/cards.ts's toCardDef). Not exported from the package.
 import { readFileSync } from 'node:fs';
-import { cardImplemented, type CardDef, type EnergyType, type Stage } from '@poke-tcg/game-engine';
+import { attackEffect, cardImplemented, type CardDef, type EnergyType, type Stage } from '@poke-tcg/game-engine';
 import type { PackSet } from './packs.js';
 import { POOL_SETS, type PoolCard, type Rarity } from './pool.js';
 
@@ -36,14 +36,24 @@ function toDef(r: Row): CardDef | null {
       type: type(r.types[0]),
       hp: r.hp,
       stage,
-      evolvesFrom: r.evolveFrom ?? (stage === 'stage1' && ['Omanyte', 'Kabuto', 'Aerodactyl'].includes(r.name) ? 'Mysterious Fossil' : null),
-      attacks: (r.attacks ?? []).map((a) => ({ name: a.name, cost: (a.cost ?? []).map(type), damage: Number.parseInt(String(a.damage ?? ''), 10) || 0, text: a.effect })),
+      // Team Rocket's Dark Stage 2 Pokémon evolve from the Dark Stage 1, as the API has it.
+      evolvesFrom:
+        stage === 'stage2' && r.name.startsWith('Dark ') && r.evolveFrom && !r.evolveFrom.startsWith('Dark ')
+          ? `Dark ${r.evolveFrom}`
+          : (r.evolveFrom ?? (stage === 'stage1' && ['Omanyte', 'Kabuto', 'Aerodactyl'].includes(r.name) ? 'Mysterious Fossil' : null)),
+      // Printed cost and damage where TCGdex's differ (Dark Magneton), as the API has them.
+      attacks: (r.attacks ?? []).map((a) => {
+        const effect = attackEffect(r.id, a.name);
+        return { name: a.name, cost: effect?.cost ?? (a.cost ?? []).map(type), damage: Number.parseInt(String(effect?.damage ?? a.damage ?? ''), 10) || 0, text: a.effect };
+      }),
       power: r.abilities?.[0] ? { name: r.abilities[0].name, text: r.abilities[0].effect } : null,
       retreatCost: r.retreat ?? 0,
     };
   }
   if (r.category === 'Energy') {
     if (r.name === 'Double Colorless Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', amount: 2, basic: false };
+    if (r.name === 'Rainbow Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', anyType: true, basic: false };
+    if (r.name === 'Full Heal Energy' || r.name === 'Potion Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', basic: false };
     const t = type(r.name.replace(/ Energy$/, ''));
     return ['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting'].includes(t) ? { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: t } : null;
   }

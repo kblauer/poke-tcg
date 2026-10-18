@@ -8,7 +8,7 @@
 // "Your opponent chooses" (Cat Punch, Rapid Spin, Fling): they pick the benched Pokémon once the attack is over.
 import { benchShielded, discardOptions, pokemonOn, targetsIn, typeName, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
 import { isBasicEnergy, lookupCard, type EnergyType } from '../cards.js';
-import { energyPool, type InPlayPokemon, type Target } from '../engine.js';
+import { energyPool, isEnergyCardOf, type InPlayPokemon, type Target } from '../engine.js';
 import { baseUid, clearOnLeavingActive, effectId, inPlayDef, pokemonName } from '../status.js';
 import {
   benchedSlots,
@@ -199,12 +199,8 @@ const miniMetronome: AttackEffect = {
   },
 };
 
-/** Basic Fire Energy cards attached to the attacking player's Pokémon (Burning Fire). */
-const fireEnergyInPlay = (s: AttackSituation) =>
-  [s.attacker, ...s.ownBench].flatMap((p) => p?.energy ?? []).filter((e) => {
-    const d = lookupCard(s.cards, e.defId);
-    return !e.provides && d.kind === 'energy' && d.energyType === 'fire' && d.basic !== false;
-  });
+/** Fire Energy cards attached to the attacking player's Pokémon, Rainbow Energy included (Burning Fire). */
+const fireEnergyInPlay = (s: AttackSituation) => [s.attacker, ...s.ownBench].flatMap((p) => p?.energy ?? []).filter((e) => isEnergyCardOf(e, s.cards, 'fire'));
 
 /** The Pokémon with a Lightning Rod marker take 20 (the Defending Pokémon 20 instead of 10), all with Weakness and Resistance. */
 const lightningBolt: AttackEffect = {
@@ -355,10 +351,7 @@ export const PROMOS: Record<string, Record<string, AttackEffect>> = {
     'Hyper Flame': {
       text: "Flip a coin. If heads, discard 1 Fire Energy card attached to Moltres. If tails, discard all Energy cards attached to Moltres. If you can't discard Energy cards, this attack does nothing.",
       run(ctx) {
-        const fire = ctx.attacker.energy.filter((e) => {
-          const d = lookupCard(ctx.state.cards, e.defId);
-          return !e.provides && d.kind === 'energy' && d.energyType === 'fire';
-        });
+        const fire = ctx.attacker.energy.filter((e) => isEnergyCardOf(e, ctx.state.cards, 'fire'));
         const gone = ctx.flip() ? fire.slice(0, 1) : ctx.attacker.energy;
         if (!gone.length) return ctx.log('Hyper Flame did nothing.');
         ctx.me.discard.push(...gone);
