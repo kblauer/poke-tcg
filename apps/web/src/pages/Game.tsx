@@ -102,13 +102,16 @@ function RunBattleBanner({ view, opponent }: { view: PlayerView; opponent: strin
   const queryClient = useQueryClient();
   const over = view.phase === 'finished';
   const won = view.winner === view.you;
-  const rules = view.rules.map((r) => `${r.type[0]!.toUpperCase()}${r.type.slice(1)} Pokémon do ${r.multiplier}× damage`);
+  const rules = view.rules.flatMap((r) => (r.kind === 'typeDamage' ? [`${r.type[0]!.toUpperCase()}${r.type.slice(1)} Pokémon do ${r.multiplier}× damage`] : []));
+  // Your items at work in this battle (their rules carry the item's name).
+  const items = [...new Set(view.rules.flatMap((r) => (r.kind !== 'typeDamage' && r.player === view.you && r.label ? [r.label] : [])))];
   if (!over) {
-    if (!opponent && !rules.length) return null;
+    if (!opponent && !rules.length && !items.length) return null;
     return (
       <div className="pointer-events-none fixed left-1/2 top-2 z-30 -translate-x-1/2 rounded-full bg-slate-800/90 px-4 py-1 text-xs text-slate-300 ring-1 ring-slate-600">
         {opponent && <>vs {opponent}</>}
         {rules.length > 0 && <span className="text-violet-300">{opponent && ' · '}{rules.join(' · ')}</span>}
+        {items.length > 0 && <span className="text-emerald-300">{(opponent || rules.length > 0) && ' · '}{items.join(', ')}</span>}
       </div>
     );
   }

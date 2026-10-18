@@ -13,8 +13,8 @@ import {
   type RunSystemAction,
   type RunTypeId,
 } from '@poke-tcg/campaign';
-import { prisma, type Prisma, type Run } from '@poke-tcg/db';
-import { createGame, runCpu, type GameAction } from '@poke-tcg/game-engine';
+import { prisma, saveGameState, type Prisma, type Run } from '@poke-tcg/db';
+import { applyAction, createGame, runCpu, type GameAction, type GameState } from '@poke-tcg/game-engine';
 import { CPU_ID, HUMAN_ID } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { ensureUser, type AuthUser } from './auth.js';
@@ -69,22 +69,27 @@ export async function latestRun(userId: string): Promise<LoadedRun | null> {
   return run && settleBattle(loaded(run));
 }
 
+/** The account's equipped items: they work in its runs from the next encounter after they're put on. */
+export async function equippedGear(userId: string): Promise<string[]> {
+  return (await prisma.equipment.findMany({ where: { userId }, select: { itemId: true } })).map((e) => e.itemId);
+}
+
 /**
  * Applies actions to a run and saves it, if nobody else changed it meanwhile (CONFLICT otherwise).
  * When the run asks for a battle, starts the game and records it; when the run is beaten, gives its rewards.
  */
 export async function advanceRun(run: LoadedRun, actions: (RunAction | RunSystemAction)[]): Promise<LoadedRun> {
-  const pool = await cardPool();
+  const [pool, gear] = await Promise.all([cardPool(), equippedGear(run.ownerId)]);
   let state = run.state;
   for (const action of actions) {
-    const result = applyRunAction(state, action, pool);
+    const result = applyRunAction(state, action, pool, gear);
     if (!result.ok) throw new TRPCError({ code: 'BAD_REQUEST', message: result.error });
     state = result.state;
   }
   let gameId: string | null = null;
   if (needsBattle(state)) {
-    gameId = await startBattle(run, state);
-    const started = applyRunAction(state, { type: 'BATTLE_STARTED', gameId }, pool);
+    gameId = await startBattle(run, state, gear);
+    const started = applyRunAction(state, { type: 'BATTLE_STARTED', gameId }, pool, gear);
     if (!started.ok) throw new Error(started.error);
     state = started.state;
   }
@@ -119,14 +124,13 @@ async function giveRewards(tx: Prisma.TransactionClient, userId: string, state: 
   await tx.user.update({ where: { id: userId }, data: { exp: { increment: state.exp } } });
 }
 
-/** Creates the battle's game: the run's deck against the encounter's opponent, with the run's battle rules. */
-async function startBattle(run: LoadedRun, state: RunState): Promise<string> {
-  const setup = battleSetup(state, await cardPool());
+/** Creates the battle's game: the run's deck against the encounter's opponent, with the run's battle rules and the player's items'. */
+async function startBattle(run: LoadedRun, state: RunState, gear: string[]): Promise<string> {
+  const setup = battleSetup(state, await cardPool(), { gear, player: HUMAN_ID });
   const library = await loadCardLibrary([...state.deck, ...setup.deck]);
   const seed = newSeed();
-  const initial = createGame({ id: HUMAN_ID, deck: state.deck }, { id: CPU_ID, deck: setup.deck }, seed, library);
+  const initial = createGame({ id: HUMAN_ID, deck: state.deck }, { id: CPU_ID, deck: setup.deck }, seed, library, setup.rules);
   initial.cpuDifficulty = setup.difficulty;
-  if (setup.rules.length) initial.rules = setup.rules;
   // The CPU picks its active right away, so the game is waiting on the player.
   const { state: game, actions } = runCpu(initial, CPU_ID);
   const created = await prisma.game.create({
@@ -141,6 +145,25 @@ async function startBattle(run: LoadedRun, state: RunState): Promise<string> {
     select: { id: true },
   });
   return created.id;
+}
+
+/** Ends a battle the run has left (with an Escape Rope) by conceding it, so it can't be played on. */
+export async function abandonBattle(gameId: string) {
+  const game = await prisma.game.findUnique({ where: { id: gameId } });
+  if (!game || game.status === 'FINISHED') return;
+  const action: GameAction = { type: 'CONCEDE' };
+  const result = applyAction(game.state as unknown as GameState, HUMAN_ID, action);
+  if (!result.ok) return;
+  const next = result.state;
+  await saveGameState({
+    gameId,
+    expectedVersion: game.version,
+    state: next,
+    version: next.version,
+    status: 'FINISHED',
+    winner: next.winner,
+    actions: [{ playerId: HUMAN_ID, version: next.version, action: asJson(action) }],
+  });
 }
 
 /** If the run's battle has finished, records the result (a win, or a loss and 1 HP). */

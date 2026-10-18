@@ -1,4 +1,4 @@
-import { onlyOne } from '@poke-tcg/campaign';
+import { itemText, onlyOne } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '../../lib/trpc';
 
@@ -18,7 +18,7 @@ function Owned({ category, quantity }: { category: string; quantity: number }) {
 
 /**
  * The post-run shop: items for account EXP, with how many of each you already have. Equipment and misc items
- * can't be bought again while you have one. None of them has an effect yet.
+ * can't be bought again while you have one.
  */
 export function ItemShop() {
   const trpc = useTRPC();
@@ -38,7 +38,7 @@ export function ItemShop() {
     <section className="space-y-3 rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600">
       <div className="flex items-baseline gap-3">
         <h3 className="text-lg font-semibold">Shop</h3>
-        <span className="text-sm text-slate-400">Spend the EXP from your runs. Items have no effects yet.</span>
+        <span className="text-sm text-slate-400">Spend the EXP from your runs. Equip gear on the Inventory tab; use consumables and misc items from the Bag in a run.</span>
         <span className="ml-auto font-semibold text-sky-300">{shop.data.exp} EXP</span>
       </div>
       {buy.error && <p className="text-sm text-red-400">{buy.error.message}</p>}
@@ -53,7 +53,9 @@ export function ItemShop() {
               </span>
               <Owned category={item.category} quantity={shop.data.owned[item.id] ?? 0} />
             </div>
-            <p className="flex-1 text-xs text-slate-400">{item.effects?.join('. ') ?? item.description}</p>
+            <p className="flex-1 text-xs text-slate-400" title={item.description}>
+              {itemText(item)}
+            </p>
             <button
               className="self-start rounded bg-slate-600 px-3 py-1 text-sm transition hover:bg-slate-500 active:scale-95 disabled:opacity-40"
               // Equipment and misc items: only one each.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { expandDeck, STARTER_DECK } from './decks.js';
-import { MAX_CONSUMABLES_PER_RUN } from './items.js';
+import { ITEMS, itemText, MAX_CONSUMABLES_PER_RUN } from './items.js';
 import { RUN_TYPE_IDS, type RunTypeId } from './run-types.js';
 import { applyRunAction, battleSetup, createRun, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
 import { TEST_POOL } from './test-pool.js';
@@ -8,8 +8,8 @@ import { TEST_POOL } from './test-pool.js';
 const deck = expandDeck(STARTER_DECK);
 const fresh = (seed = 1) => createRun('celadon', deck, seed);
 
-function act(state: RunState, action: RunAction | RunSystemAction): RunState {
-  const res = applyRunAction(state, action, TEST_POOL);
+function act(state: RunState, action: RunAction | RunSystemAction, gear: string[] = []): RunState {
+  const res = applyRunAction(state, action, TEST_POOL, gear);
   if (!res.ok) throw new Error(res.error);
   return res.state;
 }
@@ -22,12 +22,12 @@ function at(kind: EncounterKind, seed = 1): RunState {
 }
 
 /** Plays a battle from choosing it to its end. */
-function fight(state: RunState, won: boolean): RunState {
-  let s = state.phase === 'map' ? act(state, { type: 'CHOOSE', option: 0 }) : state;
-  if (s.encounter?.kind === 'elite') s = act(s, { type: 'ACCEPT' });
+function fight(state: RunState, won: boolean, gear: string[] = []): RunState {
+  let s = state.phase === 'map' ? act(state, { type: 'CHOOSE', option: 0 }, gear) : state;
+  if (s.encounter?.kind === 'elite') s = act(s, { type: 'ACCEPT' }, gear);
   expect(needsBattle(s)).toBe(true);
-  s = act(s, { type: 'BATTLE_STARTED', gameId: 'g1' });
-  return act(s, { type: 'BATTLE_OVER', gameId: 'g1', won });
+  s = act(s, { type: 'BATTLE_STARTED', gameId: 'g1' }, gear);
+  return act(s, { type: 'BATTLE_OVER', gameId: 'g1', won }, gear);
 }
 
 describe('createRun', () => {
@@ -133,7 +133,7 @@ describe('battles', () => {
     expect(s.rules.map((r) => r.rule)).toEqual([{ kind: 'typeDamage', type: 'fire', multiplier: 2 }]);
     s.steps[s.position] = at('battle').steps[0]!;
     s = act(s, { type: 'CHOOSE', option: 0 });
-    expect(battleSetup(s, TEST_POOL).rules).toEqual([{ kind: 'typeDamage', type: 'fire', multiplier: 2 }]);
+    expect(battleSetup(s, TEST_POOL).rules).toEqual([{ kind: 'typeDamage', type: 'fire', multiplier: 2, label: 'Fire Pokémon do double damage' }]);
     s = act(fight(s, true), { type: 'LEAVE' });
     expect(s.rules[0]!.battlesLeft).toBe(1);
     s.steps[s.position] = at('battle').steps[0]!;
@@ -228,14 +228,95 @@ describe('other encounters', () => {
 });
 
 describe('items', () => {
+  const use = (s: RunState, itemId: string) => applyRunAction(s, { type: 'USE_ITEM', itemId }, TEST_POOL);
+
   it(`only ${MAX_CONSUMABLES_PER_RUN} consumables per run; misc items keep to their per-run limit`, () => {
     let s = fresh();
     for (let i = 0; i < MAX_CONSUMABLES_PER_RUN; i++) s = act(s, { type: 'USE_ITEM', itemId: 'x-attack' });
-    expect(applyRunAction(s, { type: 'USE_ITEM', itemId: 'x-attack' }, TEST_POOL).ok).toBe(false);
+    expect(use(s, 'x-attack').ok).toBe(false);
+    for (let i = 0; i < 5; i++) s = act(s, { type: 'USE_ITEM', itemId: 'nugget' });
+    expect(s.pokedollars).toBe(STARTING_POKEDOLLARS + 5 * 300);
+    expect(use(s, 'potion').ok).toBe(false); // full HP
+    s.hp = 1;
+    s = act(s, { type: 'USE_ITEM', itemId: 'potion' });
+    expect(s.hp).toBe(2);
+    expect(use(s, 'potion').ok).toBe(false); // once per run
+    expect(use(s, 'rainbow-badge').ok).toBe(false);
+    expect(use(s, 'trainer-cap').ok).toBe(false);
+  });
+
+  it('every consumable and piece of equipment has effects, and every misc item a use', () => {
+    for (const def of Object.values(ITEMS)) {
+      if (def.category === 'consumable' || def.category === 'equipment') expect(def.effects?.length, def.id).toBeGreaterThan(0);
+      if (def.category === 'misc') expect(def.use, def.id).toBeDefined();
+      expect(itemText(def)).not.toMatch(/undefined/);
+    }
+  });
+
+  it('consumables are used before a battle, and last their number of battles', () => {
+    let s = act(at('battle'), { type: 'CHOOSE', option: 0 });
+    s = act(s, { type: 'BATTLE_STARTED', gameId: 'g1' });
+    expect(use(s, 'x-attack').ok).toBe(false);
+    s = act(at('battle'), { type: 'USE_ITEM', itemId: 'guard-spec' });
+    s = fight(s, true);
+    expect(s.consumables).toEqual([{ itemId: 'guard-spec', battlesLeft: 1 }]);
+  });
+
+  it("equipment and consumables' battle effects are the player's battle rules, named for the item", () => {
+    let s = act(at('battle'), { type: 'USE_ITEM', itemId: 'x-attack' });
+    s = act(s, { type: 'CHOOSE', option: 0 });
+    expect(battleSetup(s, TEST_POOL, { gear: ['charcoal', 'padded-vest', 'amulet-coin', 'great-ball'], player: 'me' }).rules).toEqual([
+      { kind: 'damageBonus', player: 'me', amount: 10, type: 'fire', label: 'Charcoal' },
+      { kind: 'damageGuard', player: 'me', amount: 10, label: 'Padded Vest' },
+      { kind: 'openingHand', player: 'me', cards: 1, label: 'Great Ball' },
+      { kind: 'damageBonus', player: 'me', amount: 10, label: 'X Attack' },
+    ]);
+    expect(battleSetup(s, TEST_POOL).rules).toEqual([]);
+  });
+
+  it('₱ and EXP bonuses add to battles won', () => {
+    const plain = fight(at('battle'), true);
+    const prize = plain.pokedollars - STARTING_POKEDOLLARS;
+    const geared = fight(act(at('battle'), { type: 'USE_ITEM', itemId: 'lucky-egg' }), true, ['trainer-cap', 'amulet-coin', 'exp-share']);
+    expect(geared.pokedollars - STARTING_POKEDOLLARS).toBe(Math.round((prize * 1.25) / 10) * 10 + 20);
+    expect(geared.exp).toBe(Math.round(plain.exp * 2.25));
+  });
+
+  it('more cards to pick from, and lower prices', () => {
+    expect(act(at('gift'), { type: 'CHOOSE', option: 0 }, ['cycling-shorts']).encounter).toMatchObject({ offers: { length: 4 } });
+    expect(fight(at('battle'), true, ['safari-hat', 'ultra-ball']).encounter).toMatchObject({ kind: 'reward', offers: { length: 5 } });
+    const shop = (gear: string[]) => (act(at('shop'), { type: 'CHOOSE', option: 0 }, gear).encounter as { stock: { price: number }[] }).stock;
+    const prices = shop([]).map((c) => c.price);
+    expect(shop(['running-shoes']).map((c) => c.price)).toEqual(prices.map((p) => Math.round((p * 0.8) / 10) * 10));
+    expect(act(at('center'), { type: 'CHOOSE', option: 0 }, ['hiking-pants']).encounter).toEqual({ kind: 'center', price: 80 });
+  });
+
+  it('an Escape Rope leaves a battle without losing HP; a boss or Gym Trainer is still there to fight', () => {
+    let s = act(at('battle'), { type: 'CHOOSE', option: 0 });
+    s = act(s, { type: 'BATTLE_STARTED', gameId: 'g1' });
     s = act(s, { type: 'USE_ITEM', itemId: 'escape-rope' });
-    expect(applyRunAction(s, { type: 'USE_ITEM', itemId: 'escape-rope' }, TEST_POOL).ok).toBe(false);
-    for (let i = 0; i < 5; i++) s = act(s, { type: 'USE_ITEM', itemId: 'coin-case' });
-    expect(applyRunAction(s, { type: 'USE_ITEM', itemId: 'rainbow-badge' }, TEST_POOL).ok).toBe(false);
+    expect([s.hp, s.position, s.phase, s.encounter]).toEqual([MAX_HP, 1, 'map', null]);
+    expect(use(s, 'escape-rope').ok).toBe(false);
+    const gym = fresh();
+    gym.position = gym.steps.length - 1;
+    s = act(act(gym, { type: 'CHOOSE', option: 0 }), { type: 'USE_ITEM', itemId: 'escape-rope' });
+    expect([s.position, s.phase, s.steps[s.position]!.chosen]).toEqual([gym.steps.length - 1, 'map', undefined]);
+  });
+
+  it("the Itemfinder reveals a step's Mysteries, and Repel re-rolls a step but not at a gym", () => {
+    let s = act(at('event'), { type: 'USE_ITEM', itemId: 'itemfinder' });
+    const revealed = s.steps[s.position]!.options[0]!;
+    expect(revealed.event).toBeDefined();
+    expect(revealed.label).not.toBe('event');
+    expect(use(s, 'itemfinder').ok).toBe(false); // nothing left to reveal
+    expect(act(s, { type: 'CHOOSE', option: 0 }).encounter).toEqual({ kind: 'event', event: revealed.event });
+
+    s = act(at('event'), { type: 'USE_ITEM', itemId: 'repel' });
+    expect(s.steps[s.position]!.options.length).toBeGreaterThanOrEqual(2);
+    const gym = fresh();
+    gym.position = gym.steps.length - 1;
+    expect(use(gym, 'repel').ok).toBe(false);
+    expect(use(act(at('shop'), { type: 'CHOOSE', option: 0 }), 'repel').ok).toBe(false); // not on the map
   });
 });
 

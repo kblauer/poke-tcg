@@ -29,8 +29,23 @@ export type Affliction = SpecialCondition | 'poisoned' | 'toxic' | 'burned';
  * ("during your opponent's next turn" = the turn after the attack). All are removed when the
  * Pokémon is benched or evolves, except `leekSlapUsed`.
  */
-/** A rule from outside the cards. `typeDamage`: attacks by Pokémon of `type` do `multiplier`× their base damage. */
-export type BattleRule = { kind: 'typeDamage'; type: EnergyType; multiplier: number };
+/**
+ * A rule from outside the cards (a run's events and items). `label` names it on the screen and in the log.
+ * - `typeDamage`: attacks by Pokémon of `type` (either player's) do `multiplier`× their base damage.
+ * - `damageBonus`: attacks by `player`'s Pokémon (of `type`, if given) do `amount` more base damage.
+ * - `damageGuard`: attacks do `amount` less damage to `player`'s Pokémon (of `type`, if given), after Weakness and Resistance.
+ * - `conditionGuard`: the opponent's attacks can't give `player`'s Pokémon these conditions (Poisoned covers toxic poison).
+ * - `openingHand`: `player` draws `cards` more cards before the game starts.
+ * - `luckyFlips`: `player`'s next `flips` coin flips are heads (it counts down).
+ */
+export type BattleRule = (
+  | { kind: 'typeDamage'; type: EnergyType; multiplier: number }
+  | { kind: 'damageBonus'; player: PlayerId; amount: number; type?: EnergyType }
+  | { kind: 'damageGuard'; player: PlayerId; amount: number; type?: EnergyType }
+  | { kind: 'conditionGuard'; player: PlayerId; conditions: Exclude<Affliction, 'toxic'>[] }
+  | { kind: 'openingHand'; player: PlayerId; cards: number }
+  | { kind: 'luckyFlips'; player: PlayerId; flips: number }
+) & { label?: string };
 
 export interface PokemonEffects {
   /** Prevent all damage done to it by attacks (Scrunch, Withdraw, Stiffen). */
@@ -206,7 +221,8 @@ export interface NewGamePlayer {
   deck: string[]; // card def ids
 }
 
-export function createGame(p1: NewGamePlayer, p2: NewGamePlayer, seed: number, library: CardLibrary): GameState {
+/** `rules`: battle rules from outside the cards (see BattleRule), in force from the start. */
+export function createGame(p1: NewGamePlayer, p2: NewGamePlayer, seed: number, library: CardLibrary, rules: BattleRule[] = []): GameState {
   let rngState = seed;
   const players: Record<PlayerId, PlayerState> = {};
   // Keep only the definitions this game uses.
@@ -257,6 +273,15 @@ export function createGame(p1: NewGamePlayer, p2: NewGamePlayer, seed: number, l
   const heads = flipCoin(state, TURN_ORDER_FLIP, p1.id);
   state.currentPlayer = heads ? p1.id : p2.id;
   addLog(state, 'Goes first.', state.currentPlayer);
+  // Set after the turn-order flip, so a lucky flip doesn't decide who goes first.
+  if (rules.length) state.rules = structuredClone(rules);
+  for (const rule of rules) {
+    if (rule.kind !== 'openingHand') continue;
+    const p = players[rule.player];
+    if (!p) continue;
+    p.hand.push(...p.deck.splice(0, rule.cards));
+    addLog(state, `Drew ${rule.cards} extra card${rule.cards === 1 ? '' : 's'}${rule.label ? ` (${rule.label})` : ''}.`, p.id);
+  }
   return state;
 }
 
