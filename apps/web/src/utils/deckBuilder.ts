@@ -35,6 +35,8 @@ export interface DeckFilter {
   hasAbility: boolean;
   /** Only cards the engine fully implements. */
   implementedOnly: boolean;
+  /** Only holo cards: holo, galaxy foil or holo Energy (isHoloCard). */
+  holoOnly: boolean;
   /** Unlocked cards, locked ones or both. */
   ownership: Ownership;
 }
@@ -49,8 +51,12 @@ export const EMPTY_DECK_FILTER: DeckFilter = {
   maxHp: null,
   hasAbility: false,
   implementedOnly: false,
+  holoOnly: false,
   ownership: 'all',
 };
+
+/** Whether the card is a holo of any kind: holo, galaxy foil or holo Energy (the cards that count their copies). */
+export const isHoloCard = (c: Pick<CatalogCard, 'holo' | 'galaxy' | 'holoEnergy'>) => c.holo || c.galaxy || c.holoEnergy !== null;
 
 /** A card's type for the type toggles: a Pokémon's type, or the type of Energy provided (Trainers have none). */
 const cardType = (c: CatalogCard) => (c.kind === 'POKEMON' ? c.type : c.kind === 'ENERGY' ? c.energyType : null);
@@ -70,6 +76,7 @@ export function filterForDeck(cards: CatalogCard[], f: DeckFilter, isLocked: (ca
     if (search && !matchesSearch(c, search)) return false;
     if (f.set && c.setName !== f.set) return false;
     if (f.implementedOnly && !c.implemented) return false;
+    if (f.holoOnly && !isHoloCard(c)) return false;
     if (!matchesOwnership(c, f.ownership, isLocked)) return false;
     if (f.kinds.length && !f.kinds.includes(c.kind)) return false;
     const picked = f.kinds.includes(c.kind);

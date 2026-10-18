@@ -1,15 +1,18 @@
 // Card unlocks: which cards an account may put in its decks. A card is unlocked once (any number of copies,
-// up to the usual 4); basic Energy is always unlocked. Holo Energy is the exception: found only in packs, each pull
-// adds one copy (CardUnlock.quantity), and a deck can hold only as many as were pulled. The starter deck's cards are unlocked with the
+// up to the usual 4); basic Energy is always unlocked. A holo with a non-holo version of the same card in its set
+// (Jungle's holo Clefable and its plain one) is a special addition: it counts its copies (CardUnlock.quantity), and
+// gaining it unlocks the non-holo one too. Holo-only cards (Base Set's Alakazam) are ordinary unlocks. Holo Energy
+// counts copies too: found only in packs, a deck holds only as many as were pulled; other holos aren't limited by their
+// count (yet). The starter deck's cards are unlocked with the
 // account, and every card gained in a run is unlocked as it's gained. A Base Set 2 card and the earlier card it
 // reprints are unlocked together when they look the same (neither is holo).
 import { prisma, type Card, type Prisma } from '@poke-tcg/db';
 import { BASE4_REPRINTS } from '@poke-tcg/game-engine';
-import { cardLabel, holoEnergyStyle, isBasicEnergyCard, isHolo } from './cards.js';
+import { cardLabel, holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, type CardData } from './cards.js';
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
-/** The cards the user has unlocked, with how many copies (only holo Energy has more than 1). Basic Energy isn't listed: it always is. */
+/** The cards the user has unlocked, with how many copies (only counted holos have more than 1). Basic Energy isn't listed: it always is. */
 export type Unlocked = Map<string, number>;
 
 export async function unlockedIds(userId: string, db: Db = prisma): Promise<Unlocked> {
@@ -17,12 +20,38 @@ export async function unlockedIds(userId: string, db: Db = prisma): Promise<Unlo
   return new Map(rows.map((r) => [r.cardId, r.quantity]));
 }
 
-/** Adds a copy of each holo Energy pulled (an id twice: two copies). */
-export async function addHoloEnergy(userId: string, cardIds: string[], db: Db = prisma) {
-  const counts = cardIds.reduce((m, id) => m.set(id, (m.get(id) ?? 0) + 1), new Map<string, number>());
-  for (const [cardId, n] of counts) {
-    await db.cardUnlock.upsert({ where: { userId_cardId: { userId, cardId } }, create: { userId, cardId, quantity: n }, update: { quantity: { increment: n } } });
-  }
+type FaceCard = Pick<Card, 'id' | 'setId' | 'name' | 'kind' | 'hp' | 'data'>;
+
+/** What makes two prints the same card: kind, HP, attacks, powers and text (art and number aside). */
+const face = (c: FaceCard) => {
+  const d = c.data as CardData;
+  return JSON.stringify([c.kind, c.hp, (d.attacks ?? []).map((a) => a.name), (d.abilities ?? []).map((a) => a.name), d.effect ?? null]);
+};
+
+const isFoil = (c: Pick<Card, 'id' | 'data'>) => isHolo(c) || isGalaxyFoil(c);
+
+let twins: Promise<Map<string, string>> | null = null;
+
+/**
+ * Each holo with a non-holo version of the same card in its own set, and that version: Jungle's holo Clefable (base2-1)
+ * and its plain one (base2-17). These holos are special additions: they count their copies, and gaining one unlocks
+ * the plain one (agreed with the user). Holo-only cards aren't here: they're ordinary unlocks. Loaded once (the catalog
+ * only changes with the seed).
+ */
+export function holoTwins(): Promise<Map<string, string>> {
+  twins ??= (async () => {
+    const rows = await prisma.card.findMany({ select: { id: true, setId: true, name: true, kind: true, hp: true, data: true } });
+    const plain = new Map<string, string>();
+    for (const r of rows) if (!isFoil(r) && !isBasicEnergyCard(r)) plain.set(`${r.setId}|${face(r)}|${r.name}`, plain.get(`${r.setId}|${face(r)}|${r.name}`) ?? r.id);
+    const out = new Map<string, string>();
+    for (const r of rows) {
+      const twin = isFoil(r) && !holoEnergyStyle(r) ? plain.get(`${r.setId}|${face(r)}|${r.name}`) : undefined;
+      if (twin) out.set(r.id, twin);
+    }
+    return out;
+  })();
+  twins.catch(() => (twins = null));
+  return twins;
 }
 
 /**
@@ -58,11 +87,25 @@ async function base2Reprints(ids: Set<string>, db: Db): Promise<string[]> {
   return pairs.filter(([reprint, original]) => plain.has(reprint) && plain.has(original)).flat();
 }
 
-/** Unlocks the cards, with the Base Set 2 cards that look the same as them (see base2Reprints; those already unlocked stay as they are). */
+/**
+ * Unlocks the cards, with the Base Set 2 cards that look the same as them (see base2Reprints) and the non-holo version
+ * of a special holo (holoTwins); those already unlocked stay as they are. A special holo or a holo Energy adds a copy
+ * each time it's in `cardIds`: twice there, two copies.
+ */
 export async function unlockCards(userId: string, cardIds: Iterable<string>, db: Db = prisma) {
-  const ids = new Set(cardIds);
+  const gained = [...cardIds];
+  const pairs = await holoTwins();
+  const ids = new Set(gained);
+  for (const id of gained) if (pairs.has(id)) ids.add(pairs.get(id)!);
   for (const id of await base2Reprints(ids, db)) ids.add(id);
-  if (ids.size) await db.cardUnlock.createMany({ data: [...ids].map((cardId) => ({ userId, cardId, quantity: 1 })), skipDuplicates: true });
+  if (!ids.size) return;
+  const rows = await db.card.findMany({ where: { id: { in: [...ids] } }, select: { id: true, data: true } });
+  const counted = new Set(rows.filter((c) => pairs.has(c.id) || holoEnergyStyle(c)).map((c) => c.id));
+  await db.cardUnlock.createMany({ data: [...ids].filter((id) => !counted.has(id)).map((cardId) => ({ userId, cardId, quantity: 1 })), skipDuplicates: true });
+  const copies = gained.filter((id) => counted.has(id)).reduce((m, id) => m.set(id, (m.get(id) ?? 0) + 1), new Map<string, number>());
+  for (const [cardId, n] of copies) {
+    await db.cardUnlock.upsert({ where: { userId_cardId: { userId, cardId } }, create: { userId, cardId, quantity: n }, update: { quantity: { increment: n } } });
+  }
 }
 
 /** Cards in a deck that aren't unlocked, by name, once each. Holo Energy counts (it isn't always unlocked like basic Energy). */
