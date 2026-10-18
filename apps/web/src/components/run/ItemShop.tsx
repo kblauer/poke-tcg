@@ -5,20 +5,19 @@ import { useTRPC } from '../../lib/trpc';
 const CATEGORY: Record<string, string> = { consumable: 'Consumable', misc: 'Misc item', key: 'Key item', equipment: 'Equipment' };
 
 /**
- * How many the account has: consumables show the count in the Bag (0 too); other items an Owned badge when
- * there's one (the shop sells only one of each; the count shows for any bought before that rule).
+ * How many the account has: items that stack (consumables, and misc items that are used up) show the count in the
+ * Bag (0 too); the rest an Owned badge when there's one (the shop sells only one of each; the count shows for any
+ * bought before that rule).
  */
-function Owned({ category, quantity }: { category: string; quantity: number }) {
-  if (category === 'consumable') {
-    return <span className={`ml-auto text-xs ${quantity ? 'text-sky-300' : 'text-slate-500'}`}>In your bag: {quantity}</span>;
-  }
+function Owned({ stacks, quantity }: { stacks: boolean; quantity: number }) {
+  if (stacks) return <span className={`ml-auto text-xs ${quantity ? 'text-sky-300' : 'text-slate-500'}`}>In your bag: {quantity}</span>;
   if (!quantity) return null;
   return <span className="ml-auto rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold uppercase text-white">Owned{quantity > 1 ? ` ×${quantity}` : ''}</span>;
 }
 
 /**
- * The post-run shop: items for account EXP, with how many of each you already have. Equipment and misc items
- * can't be bought again while you have one.
+ * The post-run shop: items for account EXP, with how many of each you already have. Equipment and misc items that
+ * aren't used up can't be bought again while you have one.
  */
 export function ItemShop() {
   const trpc = useTRPC();
@@ -51,14 +50,14 @@ export function ItemShop() {
                 {CATEGORY[item.category]}
                 {item.equip && ` · ${item.equip}`}
               </span>
-              <Owned category={item.category} quantity={shop.data.owned[item.id] ?? 0} />
+              <Owned stacks={!onlyOne(item)} quantity={shop.data.owned[item.id] ?? 0} />
             </div>
             <p className="flex-1 text-xs text-slate-400" title={item.description}>
               {itemText(item)}
             </p>
             <button
               className="self-start rounded bg-slate-600 px-3 py-1 text-sm transition hover:bg-slate-500 active:scale-95 disabled:opacity-40"
-              // Equipment and misc items: only one each.
+              // Equipment and misc items that aren't used up: only one each.
               disabled={buy.isPending || shop.data.exp < item.price! || (onlyOne(item) && !!shop.data.owned[item.id])}
               onClick={() => buy.mutate({ itemId: item.id })}
             >
