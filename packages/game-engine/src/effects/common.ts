@@ -2,7 +2,7 @@
 import type { AttackContext, AttackEffect, AttackSituation, ChoiceSpec } from '../attacks.js';
 import type { PendingChoice } from '../trainers.js';
 import type { EnergyType } from '../cards.js';
-import { energyPool, type Affliction } from '../engine.js';
+import { counts, energyPool, type Affliction, type PoolEnergy } from '../engine.js';
 
 /** Base damage, then on heads the Defending Pokémon gets `affliction`. */
 export const flipToInflict = (damage: number, affliction: Affliction): AttackEffect => ({
@@ -81,16 +81,18 @@ export const recover = (type: EnergyType, text: string): AttackEffect => ({
 export function extraEnergy(ctx: AttackContext, cost: EnergyType[], type: EnergyType, cap: number): number {
   // A Transformed Ditto may treat all its Energy as `type`.
   const pool = energyPool(ctx.attacker, ctx.state.cards).map((t) => (ctx.attacker.transformed ? type : t));
-  const take = (match: (t: EnergyType) => boolean) => {
+  const take = (match: (t: PoolEnergy) => boolean) => {
     const i = pool.findIndex(match);
     if (i >= 0) pool.splice(i, 1);
+    return i >= 0;
   };
-  for (const need of cost.filter((t) => t !== 'colorless')) take((t) => t === need);
+  // Rainbow Energy ('any') counts as `type` too, so it pays other symbols only when nothing else can.
+  for (const need of cost.filter((t) => t !== 'colorless')) take((t) => t === need) || take((t) => t === 'any');
   for (const _ of cost.filter((t) => t === 'colorless')) {
-    if (pool.some((t) => t !== type)) take((t) => t !== type);
+    if (pool.some((t) => !counts(t, type))) take((t) => !counts(t, type));
     else take(() => true);
   }
-  return Math.min(cap, pool.filter((t) => t === type).length);
+  return Math.min(cap, pool.filter((t) => counts(t, type)).length);
 }
 
 /** Opponent's benched Pokémon slots. */

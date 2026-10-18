@@ -3,17 +3,20 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { Board, type LastMove } from '../components/Board';
-import { COIN_MS } from '../components/CoinFlip';
+import { CoinFlip, flipsAfter, type Flip } from '../components/CoinFlip';
 import { RunStats } from '../components/run/RunStats';
 import { useRun } from '../hooks/useRun';
+import { useSkipFlips } from '../hooks/useSkipFlips';
 import { useTRPC } from '../lib/trpc';
 import { PAGE_WIDTH } from '../utils/layout';
 
-/** How long each move of a reply stays on screen before the next one, plus the time for its coin flips. */
+/** How long each move of a reply stays on screen before the next one. */
 const MOVE_MS = 900;
 
-/** A move still to be shown: the view after it, and how long to show it. */
-type Frame = LastMove & { view: PlayerView; ms: number };
+/** A move still to be shown: the view after it. */
+type Frame = LastMove & { view: PlayerView };
+
+const lastEntry = (view: PlayerView) => view.log.at(-1)?.n ?? 0;
 
 export function GamePage() {
   const { gameId } = useParams({ from: '/game/$gameId' });
@@ -21,58 +24,85 @@ export function GamePage() {
   const queryClient = useQueryClient();
   const viewQuery = trpc.game.view.queryOptions({ gameId });
   const { data, error } = useQuery(viewQuery);
-  /** The moves of the last reply still being played back, oldest first; the board shows the first. */
+  /** The moves of the last action still to be played back, oldest first; the last is the view in the cache. */
   const [replay, setReplay] = useState<Frame[]>([]);
+  /** While they play back: the view on screen (the move before the next one). Null shows the cached view. */
+  const [shownView, setShownView] = useState<PlayerView | null>(null);
+  /** The next move's coin flips, playing before the move is shown. */
+  const [flips, setFlips] = useState<Flip[]>([]);
+  /** The next move is on screen, and the one after it follows shortly. */
+  const [revealed, setRevealed] = useState(false);
+  const [skipFlips] = useSkipFlips();
   /** The move that led to the view on screen, for its animation. */
   const [lastMove, setLastMove] = useState<LastMove | null>(null);
 
   // The response already includes the CPU's reply, so no polling or realtime is needed. It comes as the
-  // view after every move; the cache gets the last one, and the rest are played back one at a time.
+  // view after every move; the cache gets the last one, and they're all played back one at a time.
   const act = useMutation(
     trpc.game.act.mutationOptions({
       onSuccess: ({ frames }) => {
-        const final = frames.at(-1)!;
-        let seen = data?.view.log.at(-1)?.n ?? 0;
-        const timed = frames.slice(0, -1).map((f) => {
-          const coins = f.view.log.filter((e) => e.coin && (e.n ?? 0) > seen).length;
-          seen = f.view.log.at(-1)?.n ?? seen;
-          return { player: f.player, type: f.type, version: f.view.version, view: f.view, ms: MOVE_MS + coins * COIN_MS };
-        });
-        queryClient.setQueryData(viewQuery.queryKey, (old) => old && { ...old, view: final.view });
-        setReplay(timed);
-        setLastMove({ player: final.player, type: final.type, version: final.view.version });
+        if (data) setShownView(data.view);
+        queryClient.setQueryData(viewQuery.queryKey, (old) => old && { ...old, view: frames.at(-1)!.view });
+        setReplay(frames.map((f) => ({ player: f.player, type: f.type, version: f.view.version, view: f.view })));
       },
       onError: () => {
         setReplay([]);
+        setShownView(null);
+        setFlips([]);
         queryClient.invalidateQueries({ queryKey: viewQuery.queryKey });
       },
     }),
   );
 
-  const current = replay[0];
+  // Each move's coin flips play first, while the board still shows what came before, so their results only
+  // appear once the coins have landed (or are skipped). Then the move is shown, and after a moment the next.
+  const next = replay[0];
+  const reveal = () => {
+    setFlips([]);
+    setShownView(next!.view);
+    setLastMove({ player: next!.player, type: next!.type, version: next!.version });
+    setRevealed(true);
+  };
   useEffect(() => {
-    if (!current) return;
-    const timer = setTimeout(() => setReplay((r) => r.slice(1)), current.ms);
+    if (!next) return;
+    const before = shownView ?? data?.view;
+    const fresh = before ? flipsAfter(next.view.log, lastEntry(before)) : [];
+    if (fresh.length && !skipFlips) setFlips(fresh);
+    else reveal();
+  }, [next]);
+  useEffect(() => {
+    if (!revealed) return;
+    const last = replay.length === 1;
+    const timer = setTimeout(
+      () => {
+        setRevealed(false);
+        setReplay((r) => r.slice(1));
+        if (last) setShownView(null);
+      },
+      last ? 0 : MOVE_MS,
+    );
     return () => clearTimeout(timer);
-  }, [current]);
+  }, [revealed]);
 
   if (error) return <p className={`${PAGE_WIDTH} text-red-400`}>{error.message}</p>;
   if (!data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
 
   const view = data.view;
-  const replaying = current !== undefined;
-  // One move at a time: a second click would be built on a stale version and rejected. Nothing can be done while the reply plays.
+  const replaying = next !== undefined;
+  // One move at a time: a second click would be built on a stale version and rejected. Nothing can be done while
+  // the reply plays back, coin flips included.
   const send = (action: GameAction) => {
     if (!act.isPending && !replaying) act.mutate({ gameId, expectedVersion: view.version, action });
   };
   const pending = act.isPending ? act.variables.action : null;
-  const shown = current?.view ?? view;
+  const shown = shownView ?? view;
   return (
     <>
+      {flips.length > 0 && <CoinFlip flips={flips} you={view.you} onDone={reveal} />}
       <Board
         gameId={gameId}
         view={shown}
-        lastMove={current ?? lastMove}
+        lastMove={lastMove}
         replaying={replaying}
         send={send}
         pending={pending}

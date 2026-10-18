@@ -85,6 +85,10 @@ export interface RunState {
   position: number;
   /** map: choosing the next encounter; encounter: playing it; won/lost: the run is over. */
   phase: 'map' | 'encounter' | 'won' | 'lost';
+  /** The player gave up the run (CONCEDE): it's lost, and its ₱ are banked only if a battle was finished. */
+  conceded?: boolean;
+  /** Battles finished this run, won or lost. Missing in older runs (see battlesFought). */
+  battlesFought?: number;
   encounter: Encounter | null;
   /** Battle rules from events, for the next `battlesLeft` battles. */
   rules: { rule: BattleRule; battlesLeft: number; label: string }[];
@@ -109,7 +113,9 @@ export type RunAction =
   /** Pick card `index` of a gift or reward. */
   | { type: 'PICK'; index: number }
   /** Buy card `index` of a shop. */
-  | { type: 'BUY'; index: number };
+  | { type: 'BUY'; index: number }
+  /** Give up the run while choosing the next step: the cards gained stay unlocked, and its ₱ are banked if a battle was finished. */
+  | { type: 'CONCEDE' };
 
 /** Actions only the server sends (battles, items, the testing retry). Never accepted from clients. */
 export type RunSystemAction =
@@ -362,6 +368,12 @@ export function eventInfo(event: RunEvent, cardName: (id: string) => string): { 
   }
 }
 
+/** Battles finished in the run, won or lost; older runs, which didn't count them, from their log. */
+export const battlesFought = (state: Pick<RunState, 'battlesFought' | 'log'>) => state.battlesFought ?? state.log.filter((line) => /^(Beat .+: \+₱|Lost to .+: −1 HP)/.test(line)).length;
+
+/** The ₱ that go to the bank when the run ends: all of them, unless it was conceded before any battle was finished. */
+export const bankablePokedollars = (state: Pick<RunState, 'battlesFought' | 'log' | 'conceded' | 'pokedollars'>) => (state.conceded && battlesFought(state) === 0 ? 0 : state.pokedollars);
+
 /** Ends the current encounter and moves to the next step's choices. */
 function nextStep(state: RunState) {
   state.encounter = null;
@@ -397,6 +409,7 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
 
   if (action.type === 'RESTORE_HP') {
     if (state.phase !== 'lost') return fail('The run is still going');
+    if (state.conceded) return fail('A conceded run is over');
     state.hp = state.maxHp;
     state.phase = 'map';
     state.log.push(`Restored to ${state.maxHp} HP (testing).`);
@@ -405,6 +418,15 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
   if (state.phase === 'won' || state.phase === 'lost') return fail('This run is over');
 
   switch (action.type) {
+    case 'CONCEDE': {
+      if (state.phase !== 'map') return fail('Finish this encounter first');
+      state.phase = 'lost';
+      state.conceded = true;
+      const banked = bankablePokedollars(state);
+      state.log.push(banked ? `Conceded the run: ₱${banked} banked.` : 'Conceded the run before finishing a battle: no ₱ banked.');
+      return ok();
+    }
+
     case 'CHOOSE': {
       if (state.phase !== 'map') return fail('Finish this encounter first');
       const step = state.steps[state.position];
@@ -427,6 +449,7 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
       const battle = e as BattleEncounter;
       // The battle's consumables (`effects`, from before) count for its rewards; one of their battles is over.
       tickBattles(state);
+      state.battlesFought = battlesFought(state) + 1;
       if (action.won) {
         const reward = REWARDS[battle.kind];
         const prize = between(rng, reward.pokedollars[0] / 10, reward.pokedollars[1] / 10) * 10;

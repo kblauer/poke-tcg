@@ -3,7 +3,7 @@
 // usual); PlusPower's +10 comes before Defender's −20, both after weakness and resistance.
 import { isBasicEnergy, isBasicPokemon, isBenchable, isPokemonCard, isTrainerCard, type PokemonCardDef } from '../cards.js';
 import type { CardInstance, InPlayPokemon, PlayerState, Target } from '../engine.js';
-import { evolutionBlocked, offerChainReaction } from '../powers.js';
+import { evolutionBlocked, offerChainReaction, playedFromHand } from '../powers.js';
 import { clearOnLeavingActive, inPlayDef } from '../status.js';
 import { def, otherHandCards, own, targetsOf, theirs, type TrainerChoiceSpec, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 
@@ -148,7 +148,9 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
       p.playedTurn = ctx.turn;
       clearOnLeavingActive(p);
       ctx.log(`${basicName} evolved into ${pokemonDef(ctx.state, p).name}.`);
-      offerChainReaction(ctx.state);
+      // The Stage 2 was played from the hand: its power may react (Summon Minions…, agreed), then Chain Reaction.
+      playedFromHand(ctx.state, ctx.me, p);
+      if (!ctx.state.pendingChoice) offerChainReaction(ctx.state);
     },
   },
 

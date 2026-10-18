@@ -1,10 +1,10 @@
 /// <reference path="./globals.d.ts" />
 import { performAttack, type AttackChoices } from './attacks.js';
-import { energyFromHand, evolutionBlocked, guardedBy, offerChainReaction, refreshTransforms, retreatAid, usePower, type PowerChoices } from './powers.js';
+import { energyFromHand, evolutionBlocked, guardedBy, offerChainReaction, playedFromHand, powerActive, refreshTransforms, retreatAid, stickyGoo, trainersBlocked, usePower, type PowerChoices } from './powers.js';
 import { playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
-import { trainerEffect } from './effects/index.js';
+import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
 import { isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
-import { addLog, clearOnLeavingActive, flipCoin, inPlayDef, pokemonName, type LogEntry } from './status.js';
+import { addLog, clearOnLeavingActive, effectId, flipCoin, inPlayDef, pokemonName, type LogEntry } from './status.js';
 import { shuffle } from './rng.js';
 import type { CpuDifficulty } from './cpu/index.js';
 
@@ -81,6 +81,8 @@ export interface PokemonEffects {
   pounce?: { target: string; amount: number; until: number; beforeWeakness?: boolean };
   /** Attack damage to it is halved, rounded down to the nearest 10 (Light Screen). */
   lightScreen?: number;
+  /** Attack damage to it is done back to the attacker, without Weakness or anything else (Mirror Shell). */
+  mirrorShell?: number;
   /** The turn its Slash does 60 base damage (Swords Dance: its owner's next turn). */
   swordsDance?: number;
   /** Leek Slap can't be used again while it stays in play. */
@@ -116,6 +118,8 @@ export interface InPlayPokemon {
   shiftedType?: EnergyType;
   /** It has a Lightning Rod marker (Electabuzz, Wizards Promo 46): Lightning Bolt does 20 to it. Stays until it leaves play. */
   lightningRod?: boolean;
+  /** Last turn its Pokémon Power doesn't work (Stare), wherever it is. Missing = it works. */
+  powerOffUntil?: number;
   /** Ditto's Transform: the id of the card it's a copy of (the Defending Pokémon), kept up to date by refreshTransforms. */
   transformed?: string;
   /** Last turn its "once during your turn" power was used (Step In, Curse). Stays when it moves. */
@@ -137,6 +141,8 @@ export interface PlayerState {
   ready?: boolean;
   /** Last turn attacks can't affect this player's Benched Pokémon (Protective Flame). Missing = none. */
   benchProtectedUntil?: number;
+  /** Last turn no Pokémon Powers work (Goop Gas Attack, set on both players). Missing = they work. */
+  powersOffUntil?: number;
 }
 
 export type Phase = 'setup' | 'playing' | 'promote' | 'finished';
@@ -174,6 +180,8 @@ export interface GameState {
   stadium?: { card: CardInstance; owner: PlayerId } | null;
   /** Last turn the current player used the Stadium (Lucky Stadium: once during each player's turn). */
   stadiumUsedTurn?: number;
+  /** Here Comes Team Rocket!: both players play with their Prize cards face up for the rest of the game. */
+  prizesFaceUp?: boolean;
   /** What happened, oldest first: attacks, coin flips, knockouts… (last LOG_SIZE entries). Missing in older games. */
   log?: LogEntry[];
 }
@@ -338,7 +346,9 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
     const error = resolvePending(state, me, action);
     if (error) return fail(error);
     // Another step may follow (Energy Spike: pick the energy, then the Pokémon to attach it to).
-    if (!afterAttack || state.pendingChoice) return ok(state);
+    if (state.pendingChoice) return ok(state);
+    // Damage it did (Sneak Attack) can Knock Out a Pokémon during the turn.
+    if (!afterAttack) return afterOwnMove(state, state.players[state.currentPlayer]!, state.players[opponentOf(state, state.currentPlayer)]!);
     // The search was the attack's (or Computer Error's): the turn ends as it does after any attack.
     const winner = resolveKnockouts(state, state.currentPlayer);
     return winner ? finish(state, winner) : endTurn(state);
@@ -351,6 +361,8 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       const played = takeFromHand(me, action.cardUid);
       if (!played || !isBenchable(card(played))) return fail('Must play a Basic Pokémon from your hand');
       if (isTrainerCard(card(played)) && trainersLocked(me, state.turn)) return fail(TRAINERS_LOCKED);
+      const hayFever = isTrainerCard(card(played)) && trainersBlocked([me, opp], state.cards);
+      if (hayFever) return fail(hayFever);
       me.bench[action.slot] = newInPlay(played, state.turn);
       addLog(state, `Put ${card(played).name} on the Bench.`, me.id);
       return ok(state);
@@ -373,8 +385,11 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       target.card = evolution;
       target.playedTurn = state.turn;
       clearOnLeavingActive(target);
-      offerChainReaction(state);
-      return ok(state);
+      // Its power may react to being played (Summon Minions…); then any Eevee's Chain Reaction, unless that's asking something.
+      playedFromHand(state, me, target);
+      if (!state.pendingChoice) offerChainReaction(state);
+      // Sneak Attack can Knock Out.
+      return afterOwnMove(state, me, opp);
     }
 
     case 'ATTACH_ENERGY': {
@@ -386,8 +401,10 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       target.energy.push(energy);
       state.energyAttachedThisTurn = true;
       addLog(state, `Attached ${card(energy).name} to ${pokemonName(state, target)}.`, me.id);
+      energyEffect(energy.defId)?.onAttach?.(state, me, target);
       energyFromHand(state, me, action.target, energy);
-      return ok(state);
+      // Rainbow Energy's damage can Knock Out the Pokémon.
+      return afterOwnMove(state, me, opp);
     }
 
     case 'ATTACK': {
@@ -435,10 +452,18 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       }
       addLog(state, `${pokemonName(state, me.active)} retreated for ${pokemonName(state, benched)}.`, me.id);
       // Damage stays with each Pokémon; the retreated one takes the chosen slot.
-      clearOnLeavingActive(me.active);
-      me.bench[action.slot] = me.active;
+      const retreated = me.active;
+      clearOnLeavingActive(retreated);
+      me.bench[action.slot] = retreated;
       me.active = benched;
-      return ok(state);
+      // Sinkhole: for each working one on the other side, the retreating player flips; tails does 20 to the Pokémon that retreated.
+      for (const p of [opp.active, ...opp.bench]) {
+        if (!p || !powerEffect(effectId(p))?.sinkhole || !powerActive(p, state.cards, [opp, me])) continue;
+        if (flipCoin(state, 'Sinkhole', me.id)) continue;
+        retreated.damage += 20;
+        addLog(state, `Sinkhole did 20 damage to ${pokemonName(state, retreated)}.`, me.id);
+      }
+      return afterOwnMove(state, me, opp);
     }
 
     case 'USE_POWER': {
@@ -591,10 +616,11 @@ export function evolveError(
 /** Energy the Pokémon must discard to retreat. */
 /**
  * Energy the Pokémon must discard to retreat. `sides` (its owner first) are for powers that change it:
- * each working Retreat Aid on the owner's Bench takes 1 off the Active Pokémon's cost.
+ * each working Retreat Aid on the owner's Bench takes 1 off the Active Pokémon's cost, and the opponent's working
+ * Sticky Goo adds 2.
  */
 export const retreatCost = (pokemon: InPlayPokemon, cards: CardLibrary, sides: Pick<PlayerState, 'active' | 'bench'>[] = []) =>
-  Math.max(0, (inPlayDef(cards, pokemon).retreatCost ?? 0) - retreatAid(pokemon, cards, sides));
+  Math.max(0, (inPlayDef(cards, pokemon).retreatCost ?? 0) - retreatAid(pokemon, cards, sides) + (sides[0]?.active === pokemon ? stickyGoo(sides, cards) : 0));
 
 /**
  * Why the active Pokémon can't retreat right now, or null if it can (given a bench target
@@ -625,18 +651,35 @@ export function retreatError(
 
 export const conditionLabel = (c: SpecialCondition) => ({ asleep: 'Asleep', confused: 'Confused', paralyzed: 'Paralyzed' })[c];
 
+/** One energy a Pokémon has: a type, or 'any' for Rainbow Energy, which counts as every type. */
+export type PoolEnergy = EnergyType | 'any';
+
+/** Whether energy in a pool counts as  (Rainbow Energy counts as every type). */
+export const counts = (energy: PoolEnergy, type: EnergyType) => energy === type || energy === 'any';
+
 /** The type and amount of energy an attached card provides: 1 of its type for basic Energy, or what a power made it (Buzzap). */
-export function energyProvided(card: CardInstance, cards: CardLibrary): { type: EnergyType; amount: number } {
+export function energyProvided(card: CardInstance, cards: CardLibrary): { type: PoolEnergy; amount: number } {
   if (card.provides) return card.provides;
   const def = lookupCard(cards, card.defId);
-  return def.kind === 'energy' ? { type: def.energyType, amount: def.amount ?? 1 } : { type: 'colorless', amount: 1 };
+  if (def.kind !== 'energy') return { type: 'colorless', amount: 1 };
+  return { type: def.anyType ? 'any' : def.energyType, amount: def.amount ?? 1 };
+}
+
+/**
+ * Whether an attached card is a `type` Energy card: a basic one of that type, or Rainbow Energy (every type while in
+ * play). Not Double Colorless, nor a Pokémon attached as Energy (Buzzap).
+ */
+export function isEnergyCardOf(card: CardInstance, cards: CardLibrary, type: EnergyType): boolean {
+  if (card.provides) return false;
+  const d = lookupCard(cards, card.defId);
+  return d.kind === 'energy' && (!!d.anyType || (d.energyType === type && d.basic !== false));
 }
 
 /** Every energy the Pokémon's attached cards provide, one entry per energy. Energy Burn makes it all Fire. */
-export const energyPool = (pokemon: InPlayPokemon, cards: CardLibrary): EnergyType[] => {
+export const energyPool = (pokemon: InPlayPokemon, cards: CardLibrary): PoolEnergy[] => {
   const pool = pokemon.energy.flatMap((e) => {
     const { type, amount } = energyProvided(e, cards);
-    return Array<EnergyType>(amount).fill(type);
+    return Array<PoolEnergy>(amount).fill(type);
   });
   return pokemon.effects?.energyBurn !== undefined ? pool.map(() => 'fire') : pool;
 };
@@ -645,14 +688,28 @@ export function canPayCost(pokemon: InPlayPokemon, attack: Attack, cards: CardLi
   const pool = energyPool(pokemon, cards);
   // A Transformed Ditto may treat its Energy as any type.
   if (pokemon.transformed) return pool.length >= attack.cost.length;
-  // Pay typed costs first, then colorless with whatever is left.
-  const sorted = [...attack.cost].sort((a, b) => Number(a === 'colorless') - Number(b === 'colorless'));
-  for (const need of sorted) {
-    const idx = need === 'colorless' ? 0 : pool.indexOf(need);
-    if (idx < 0 || pool.length === 0) return false;
-    pool.splice(idx, 1);
+  return payCost(pool, attack.cost) === 0;
+}
+
+/**
+ * How many of `cost`'s symbols `pool` can't pay. Typed symbols take their own type first and Rainbow Energy ('any')
+ * only after that; colorless symbols take whatever is left.
+ */
+export function payCost(pool: PoolEnergy[], cost: EnergyType[]): number {
+  const left = [...pool];
+  const unpaid: EnergyType[] = [];
+  for (const need of cost.filter((t) => t !== 'colorless')) {
+    const i = left.indexOf(need);
+    if (i >= 0) left.splice(i, 1);
+    else unpaid.push(need);
   }
-  return true;
+  let missing = 0;
+  for (const _ of unpaid) {
+    const i = left.indexOf('any');
+    if (i >= 0) left.splice(i, 1);
+    else missing++;
+  }
+  return missing + Math.max(0, cost.filter((t) => t === 'colorless').length - left.length);
 }
 
 /**
@@ -738,9 +795,14 @@ function betweenTurns(state: GameState) {
   }
   for (const id of state.playerOrder) {
     const player = state.players[id]!;
+    if (player.powersOffUntil !== undefined && player.powersOffUntil <= state.turn) {
+      delete player.powersOffUntil;
+      if (id === state.currentPlayer) addLog(state, 'Goop Gas Attack wore off: Pokémon Powers work again.');
+    }
     for (const pokemon of [player.active, ...player.bench]) {
       if (!pokemon) continue;
       expireEffects(pokemon, state.turn);
+      if (pokemon.powerOffUntil !== undefined && pokemon.powerOffUntil <= state.turn) delete pokemon.powerOffUntil;
       // PlusPower at the end of its turn, Defender at the end of the opponent's next turn.
       const expired = (pokemon.attached ?? []).filter((a) => a.until <= state.turn);
       if (!expired.length) continue;
@@ -754,7 +816,7 @@ function betweenTurns(state: GameState) {
 function expireEffects(pokemon: InPlayPokemon, turn: number) {
   const e = pokemon.effects;
   if (!e) return;
-  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen'] as const) {
+  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell'] as const) {
     if (e[key] !== undefined && e[key] <= turn) delete e[key];
   }
   if (e.amnesia && e.amnesia.until <= turn) delete e.amnesia;

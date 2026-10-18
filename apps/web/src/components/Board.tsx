@@ -121,8 +121,9 @@ export function Board({
 
   // Alerts and errors show as messages in the bottom right that fade away (Toasts). A held card's
   // instruction is a prompt there instead: it stays up while the card is held and goes the moment it's played or put down.
-  // Heal's "click one of your Pokémon" is answered on the board, so it's a prompt rather than a dialog.
-  const pendingPick = self.pendingChoice?.kind === 'ownPokemon' ? self.pendingChoice : null;
+  // Heal's "click one of your Pokémon" is answered on the board, so it's a prompt rather than a dialog. So is Sneak
+  // Attack's "click one of the opponent's Pokémon", with a small dialog for skipping it.
+  const pendingPick = self.pendingChoice?.kind === 'ownPokemon' || self.pendingChoice?.kind === 'oppPokemon' ? self.pendingChoice : null;
   const prompt = pendingPick ? pendingPick.prompt : selected ? 'Click a highlighted slot (Esc to cancel)' : trainer.prompt;
   useEffect(() => {
     if (error) toasts.push('error', error);
@@ -168,7 +169,7 @@ export function Board({
   /** An attack, power or Trainer asking for a Pokémon in play: it's chosen by clicking the Pokémon. */
   const pokemonPick: { side: 'own' | 'opp'; options: Target[]; pick: (t: Target) => void; picked?: Target[] } | null =
     pendingPick
-      ? { side: 'own', options: pendingPick.options, pick: (target) => send({ type: 'RESOLVE_CHOICE', target }) }
+      ? { side: pendingPick.kind === 'ownPokemon' ? 'own' : 'opp', options: pendingPick.options, pick: (target) => send({ type: 'RESOLVE_CHOICE', target }) }
       : attack.spec?.kind === 'opponentBench'
       ? { side: 'opp', options: attack.spec.options, pick: attack.answer }
       : attack.spec?.kind === 'ownBench' || attack.spec?.kind === 'ownPokemon'
@@ -344,7 +345,17 @@ export function Board({
                 cards={view.cards}
                 pick={pokemonPick?.side === 'opp' && !busy ? pokemonPick : null}
                 lunge={attacker === view.opponent.id ? view.version : null}
-                dialog={trainer.card && !trainer.prompt && <TrainerPanel view={view} trainer={trainer} />}
+                dialog={
+                  pendingPick?.kind === 'oppPokemon' ? (
+                    <div className="rounded-lg bg-slate-800 p-2 ring-1 ring-slate-600">
+                      <button className="rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500" disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE' })}>
+                        Skip
+                      </button>
+                    </div>
+                  ) : (
+                    trainer.card && !trainer.prompt && <TrainerPanel view={view} trainer={trainer} />
+                  )
+                }
               />
 
               {/* Between the two sides: whose turn it is and End turn. */}
@@ -373,7 +384,7 @@ export function Board({
                         Concede
                       </button>
                     )}
-                    <PrizeCards count={self.prizeCount} />
+                    <PrizeCards count={self.prizeCount} faceUp={self.prizes && { prizes: self.prizes, cards: view.cards }} />
                   </div>
                   <div className="min-w-0 flex-1 space-y-3">
                     <div className="relative flex justify-center">
@@ -424,7 +435,7 @@ export function Board({
               }}
             />
           </div>
-          <LogDrawer log={view.log} you={view.you} run={runTab} debug={debugEnabled ? { gameId, view } : undefined} />
+          <LogDrawer log={view.log} you={view.you} coinFlips run={runTab} debug={debugEnabled ? { gameId, view } : undefined} />
           <TurnOrderFlip key={gameId} view={view} gameId={gameId} />
         </div>
 

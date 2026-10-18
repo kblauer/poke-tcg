@@ -73,7 +73,7 @@ export function OpponentArea({
           </div>
         </div>
         <div className="mt-8">
-          <PrizeCards count={opponent.prizeCount} mirrored />
+          <PrizeCards count={opponent.prizeCount} mirrored faceUp={opponent.prizes && { prizes: opponent.prizes, cards }} />
         </div>
       </div>
     </section>

@@ -1,7 +1,7 @@
 import { isBasicPokemon, lookupCard } from '../cards.js';
 import { evolveError, type GameAction, type GameState, type PlayerId, type PlayerState } from '../engine.js';
 import { pendingChoiceView } from '../trainers.js';
-import { chooseActive, inPlay } from './shared.js';
+import { acceptsChallenge, chooseActive, inPlay } from './shared.js';
 
 /**
  * The 'passive' CPU, with almost no strategy. Besides the moves the rules force (choose an active,
@@ -31,7 +31,8 @@ export function passiveCpu(state: GameState, cpuId: PlayerId): GameAction | null
 function finishSearch(state: GameState): GameAction {
   const view = pendingChoiceView(state, state.pendingChoice!);
   if (view.kind === 'arrangeTop') return { type: 'RESOLVE_CHOICE', order: view.cards.map((c) => c.uid) };
-  if (view.kind === 'ownPokemon') return { type: 'RESOLVE_CHOICE', target: view.options[0] };
+  if (view.kind === 'challenge') return { type: 'RESOLVE_CHOICE', count: acceptsChallenge(state, state.players[state.pendingChoice!.player]!) ? 1 : 0 };
+  if (view.kind === 'ownPokemon' || view.kind === 'oppPokemon') return { type: 'RESOLVE_CHOICE', target: view.options[0] };
   // Computer Error: always the most cards (agreed).
   if (view.kind === 'drawCount') return { type: 'RESOLVE_CHOICE', count: view.max };
   const [pick] = view.options;
