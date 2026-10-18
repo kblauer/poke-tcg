@@ -98,7 +98,6 @@ export function GamePage() {
   const shown = shownView ?? view;
   return (
     <>
-      {flips.length > 0 && <CoinFlip flips={flips} you={view.you} onDone={reveal} />}
       <Board
         gameId={gameId}
         view={shown}
@@ -109,6 +108,7 @@ export function GamePage() {
         error={act.error?.message}
         errorAt={act.submittedAt}
         runTab={data.runId ? <GameRunTab /> : undefined}
+        overlay={flips.length > 0 && <CoinFlip flips={flips} you={view.you} onDone={reveal} />}
       />
       <BattleBanner view={shown} opponent={data.opponent} run={data.runId !== null} />
     </>

@@ -79,6 +79,10 @@ model Deck {
   name      String
   /// Place in the account's deck list, which can be reordered (lowest first).
   position  Int        @default(0)
+  /// Set on the account's automatic run deck: a copy of this run's deck that the server keeps up to date (read-only
+  /// in the deck builder). Saving it when the run is over clears it; otherwise the next run takes it over.
+  runId     String?    @unique @db.Uuid
+  run       Run?       @relation(fields: [runId], references: [id], onDelete: SetNull)
   cards     DeckCard[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
@@ -164,6 +168,8 @@ model Run {
   /// Its ₱ has been moved to the bank (when it ended).
   banked    Boolean   @default(false)
   games     Game[]
+  /// The automatic deck copying this run's deck, until it's saved or the next run takes it over.
+  deck      Deck?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 

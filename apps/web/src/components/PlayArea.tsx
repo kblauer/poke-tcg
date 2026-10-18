@@ -13,12 +13,15 @@ export const PLAY_AREA = 'play-area';
 export function PlayArea({
   droppable,
   drop,
+  overlay,
   children,
 }: {
   /** A Trainer is being dragged: the whole table is its drop target. */
   droppable: boolean;
   /** While any card is dragged: whether letting go now plays it or cancels it. */
   drop: { over: boolean } | null;
+  /** Shown over the table, centred on it (the coin flips). */
+  overlay?: ReactNode;
   children: ReactNode;
 }) {
   const { setNodeRef } = useDroppable({ id: PLAY_AREA, disabled: !droppable });
@@ -28,6 +31,7 @@ export function PlayArea({
   return (
     <div ref={setNodeRef} className={`relative min-h-0 flex-1 rounded-lg transition [container-type:size] ${ring}`}>
       <div className="play-area-cards flex h-full flex-col gap-3">{children}</div>
+      {overlay}
     </div>
   );
 }

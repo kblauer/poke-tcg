@@ -14,6 +14,7 @@ import { EMPTY_DECK_FILTER, cantAdd, changeCount, filterForDeck, problemsOf, sor
 import { PAGE_WIDTH } from '../utils/layout';
 
 const button = 'rounded px-3 py-1 text-sm disabled:opacity-40';
+const READ_ONLY = "This is your run's deck, which follows the run: copy it to make changes, or save it when the run is over";
 
 /**
  * Deck builder. On the left, the account's decks first (`DeckList`: open one, start a new one, rename or
@@ -99,6 +100,8 @@ export function DecksPage() {
   const sets = useMemo(() => (catalog.data ? setNames(catalog.data) : []), [catalog.data]);
   const results = useMemo(() => (catalog.data ? sortForDeck(filterForDeck(catalog.data, filter, isLocked), sort) : []), [catalog.data, filter, sort, isLocked]);
   const counts = useMemo(() => new Map(entries.map((e) => [e.cardId, e.quantity])), [entries]);
+  /** The open deck is the automatic run deck: it can be looked at and copied, not changed. */
+  const readOnly = deckId !== null && (decks.data?.find((d) => d.id === deckId)?.runDeck ?? false);
 
   // Opened from a link to a deck: open it once the deck list is in (to name it), then drop it from the address.
   const linked = useSearch({ from: '/decks' }).deck;
@@ -135,6 +138,7 @@ export function DecksPage() {
 
   function change(card: CatalogCard, by: 1 | -1) {
     if (!editing) return setBlocked('Open a deck or start a new one to add cards');
+    if (readOnly) return setBlocked(READ_ONLY);
     if (loading) return;
     const reason = by > 0 ? blockedFor(card) : null;
     setBlocked(reason);
@@ -177,6 +181,7 @@ export function DecksPage() {
           <div className="flex h-[70vh] flex-col gap-3 lg:h-[calc(100dvh-6.5rem)]">
             <CurrentDeck
               name={name}
+              readOnly={readOnly}
               onRename={(newName) => {
                 if (loading) return;
                 setName(newName);
@@ -184,6 +189,14 @@ export function DecksPage() {
               }}
               entries={entries} ready={problems.length === 0} byId={byId} isLocked={isLocked} onBack={() => close()} />
             <div className="space-y-2 rounded-lg bg-slate-900 p-3">
+              {readOnly ? (
+                <div className="flex items-center gap-2">
+                  <button className={`${button} bg-slate-600 hover:bg-slate-500`} disabled={duplicate.isPending || loading} onClick={() => deckId && duplicate.mutate({ deckId })}>
+                    Copy to edit
+                  </button>
+                  <span className="text-xs text-slate-400">Your run's deck: it changes with the run (trades, switching decks).</span>
+                </div>
+              ) : (
               <div className="flex items-center gap-2">
                 <button
                   className={`${button} bg-emerald-600 font-semibold hover:bg-emerald-500`}
@@ -204,6 +217,7 @@ export function DecksPage() {
                 )}
                 {loading ? <span className="text-xs text-slate-400">Loading the deck…</span> : dirty && <span className="text-xs text-slate-400">Unsaved changes</span>}
               </div>
+              )}
               {error && <p className="text-xs text-red-400">{error}</p>}
             </div>
             <DeckPanel entries={entries} byId={byId} problems={problems} isLocked={isLocked} onChange={(cardId, by) => change(byId.get(cardId)!, by)} />
@@ -219,7 +233,7 @@ export function DecksPage() {
         <CardInspector
           card={inspected}
           locked={isLocked(inspected)}
-          deck={editing && !loading ? { name, copies: counts.get(inspected.id) ?? 0, blocked: blockedFor(inspected), onChange: (by) => change(inspected, by) } : undefined}
+          deck={editing && !loading && !readOnly ? { name, copies: counts.get(inspected.id) ?? 0, blocked: blockedFor(inspected), onChange: (by) => change(inspected, by) } : undefined}
           onClose={() => setInspected(null)}
         />
       )}

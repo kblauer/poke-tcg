@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from 'react';
 import { getPreviewWidth, previewPosition, zoomPreview } from '../utils/preview';
 import type { Preview } from './PreviewContext';
+import { CardImage } from './CardImage';
 
 export function CardPreview({ def, x, y, scrollZoom = true }: Preview) {
   const ref = useRef<HTMLDivElement>(null);
@@ -43,7 +44,7 @@ export function CardPreview({ def, x, y, scrollZoom = true }: Preview) {
     // Above everything, including the deck-search dialog (z-[1000]).
     <div ref={ref} className="pointer-events-none fixed left-0 top-0 z-[1100]" aria-hidden>
       {def.imageUrl ? (
-        <img src={`${def.imageUrl}/high.webp`} alt="" className="aspect-[63/88] w-full rounded-xl shadow-2xl ring-1 ring-black/40" />
+        <CardImage src={`${def.imageUrl}/high.webp`} alt="" className="aspect-[63/88] w-full rounded-xl shadow-2xl ring-1 ring-black/40" />
       ) : (
         <div className="aspect-[63/88] w-full rounded-xl bg-slate-800 p-4 text-lg font-semibold shadow-2xl">{def.name}</div>
       )}

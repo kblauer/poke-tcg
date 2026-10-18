@@ -2,6 +2,7 @@ import type { CardDef } from '@poke-tcg/game-engine';
 import { useContext, type ReactNode } from 'react';
 import { useInspectOnRightClick } from '../InspectContext';
 import { PreviewContext } from '../PreviewContext';
+import { CardImage } from '../CardImage';
 
 const RARITY: Record<string, string> = { common: 'Common', uncommon: 'Uncommon', rare: 'Rare', holo: 'Rare Holo' };
 
@@ -43,7 +44,7 @@ export function RunCard({
         }
       >
         {def?.imageUrl ? (
-          <img src={`${def.imageUrl}/low.webp`} alt={def.name} loading="lazy" className={`h-full w-full rounded-lg object-cover shadow ${selected ? 'ring-4 ring-yellow-300' : ''}`} />
+          <CardImage src={`${def.imageUrl}/low.webp`} alt={def.name} loading="lazy" className={`h-full w-full rounded-lg object-cover shadow ${selected ? 'ring-4 ring-yellow-300' : ''}`} />
         ) : (
           <div className="flex h-full w-full items-center justify-center rounded-lg bg-slate-700 p-1 text-center text-xs">{def?.name ?? '?'}</div>
         )}

@@ -30,6 +30,25 @@ export type LoadedRun = Omit<Run, 'state'> & { state: RunState };
 const loaded = (run: Run): LoadedRun => ({ ...run, state: run.state as unknown as RunState });
 
 export const STARTER_DECK_NAME = 'Starter deck';
+/** The automatic run deck's name in the deck list, until it's saved under a name of the player's. */
+export const RUN_DECK_NAME = 'Current run';
+
+type Db = Prisma.TransactionClient | typeof prisma;
+
+/**
+ * Makes the account's automatic run deck (`Deck.runId`) a copy of this run's deck: the deck the account has (left over
+ * from the last run, if it wasn't saved) is taken over, or one is made, at the top of the deck list. Called when a run
+ * starts and whenever its deck changes (a trade, switching decks).
+ */
+export async function syncRunDeck(ownerId: string, runId: string, deck: string[], db: Db = prisma) {
+  const existing = await db.deck.findFirst({ where: { ownerId, runId: { not: null } }, select: { id: true } });
+  const row = existing
+    ? await db.deck.update({ where: { id: existing.id }, data: { runId, name: RUN_DECK_NAME } })
+    : await db.deck.create({ data: { ownerId, runId, name: RUN_DECK_NAME, position: -1 } });
+  const counts = deck.reduce((m, id) => m.set(id, (m.get(id) ?? 0) + 1), new Map<string, number>());
+  await db.deckCard.deleteMany({ where: { deckId: row.id } });
+  await db.deckCard.createMany({ data: [...counts].map(([cardId, quantity]) => ({ deckId: row.id, cardId, quantity })) });
+}
 
 /** The run's status column for its state. */
 const statusOf = (state: RunState) => (state.phase === 'won' ? 'WON' : state.phase === 'lost' ? 'LOST' : 'ACTIVE');
@@ -54,7 +73,9 @@ export async function ensureAccount(user: AuthUser) {
 async function createRunRow(ownerId: string, type: RunTypeId, deck: string[], deckName: string) {
   const seed = newSeed();
   const state = createRun(type, deck, seed, deckName);
-  return prisma.run.create({ data: { ownerId, type, seed, state: asJson(state), version: state.version } });
+  const run = await prisma.run.create({ data: { ownerId, type, seed, state: asJson(state), version: state.version } });
+  await syncRunDeck(ownerId, run.id, state.deck);
+  return run;
 }
 
 export async function loadOwnRun(runId: string, userId: string): Promise<LoadedRun> {
@@ -121,6 +142,8 @@ export async function advanceRun(run: LoadedRun, actions: (RunAction | RunSystem
       await tx.inventoryItem.upsert({ where: { userId_itemId: { userId: run.ownerId, itemId } }, create: { userId: run.ownerId, itemId, quantity: 1 }, update: {} });
     }
     if (reward) await giveRewards(tx, run.ownerId, state);
+    // A trade or a switch of decks changed the run's deck: so does its automatic deck.
+    if (state.deck.join() !== run.state.deck.join()) await syncRunDeck(run.ownerId, run.id, state.deck, tx);
     return true;
   });
   if (!saved) {
@@ -195,6 +218,7 @@ export async function settleBattle(run: LoadedRun): Promise<LoadedRun> {
 
 /**
  * Starts a new run of `type` with the deck; it starts with STARTING_POKEDOLLARS. Not while a run is still going.
+ * The automatic run deck (if the last run's wasn't saved) is taken over by this run (syncRunDeck).
  * Runs' ₱ are banked when they end (advanceRun); any earlier run whose ₱ weren't (one that ended before that
  * rule) is banked here first.
  */
@@ -211,6 +235,8 @@ export async function startRun(userId: string, type: RunTypeId, deck: { name: st
     }
     const seed = newSeed();
     const state = createRun(type, deck.cards, seed, deck.name);
-    return tx.run.create({ data: { ownerId: userId, type, seed, state: asJson(state), version: state.version }, select: { id: true } });
+    const run = await tx.run.create({ data: { ownerId: userId, type, seed, state: asJson(state), version: state.version }, select: { id: true } });
+    await syncRunDeck(userId, run.id, state.deck, tx);
+    return run;
   });
 }
