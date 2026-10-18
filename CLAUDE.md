@@ -42,7 +42,7 @@
   - Drag cards onto slots. Trainers can be dropped anywhere on the play area.
   - The board glows green for a valid drop and red when the drop would cancel. Dropping on the hand cancels.
 - Any effect that asks for a Pokémon is answered by clicking a highlighted slot on the board, not by picking from a list. Effects that pick cards from the hand do it in the hand itself.
-- Benched Pokémon Powers and discarding Clefairy Doll are done by clicking the Pokémon and using its `SlotMenu`; using the Stadium (Lucky Stadium) by clicking the Stadium card (`StadiumCard`), which glows when it can be used.
+- Benched Pokémon Powers, discarding Clefairy Doll and using the Stadium (Lucky Stadium, `StadiumCard`, which glows when it can be used) are done by clicking the card. A card whose only option is its effect uses it at once, with no menu or confirm button; when it can't be used, a warning toast says why.
 - Clicking outside cancels an in-progress move:
   - The listener uses the capture phase.
   - Elements marked `data-keep-action` are exempt.

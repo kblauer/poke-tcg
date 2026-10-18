@@ -24,12 +24,11 @@ import { LogDrawer } from './LogDrawer';
 import { OpponentArea } from './OpponentArea';
 import { PendingChoicePanel } from './PendingChoicePanel';
 import { PlayArea } from './PlayArea';
-import { BenchPowerButton, PeekCard, PowerPanel } from './PowerPanel';
+import { PeekCard, PowerPanel } from './PowerPanel';
 import { PreviewContext, type Preview } from './PreviewContext';
 import { PrizeCards } from './PrizeCards';
 import { RetreatPanel } from './RetreatPanel';
 import { Slot } from './Slot';
-import { SlotMenu } from './SlotMenu';
 import { endTurnReminders } from '../utils/reminders';
 import { StadiumCard } from './StadiumCard';
 import { StatusBar } from './StatusBar';
@@ -89,17 +88,8 @@ export function Board({
   const attack = useAttack({ view, send, busy });
   const power = usePower({ view, send, busy });
   const trainer = useTrainer({ view, send, busy });
-  /** Clefairy Doll in play that was clicked to show its Discard button. */
-  const [dollMenu, setDollMenu] = useState<Target | null>(null);
-  useEffect(() => setDollMenu(null), [view.version]);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setDollMenu(null);
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
   /** Starting one move cancels the others (attack, retreat, power, Trainer, held card). */
   const cancelAll = () => {
-    setDollMenu(null);
     deselect();
     attack.cancel();
     retreat.cancel();
@@ -112,7 +102,6 @@ export function Board({
     busy,
     onDragStart: () => {
       setPreview(null);
-      setDollMenu(null);
       retreat.cancel();
       attack.cancel();
       power.cancel();
@@ -132,9 +121,8 @@ export function Board({
     if (error) toasts.push('error', error);
   }, [error, errorAt]);
   // While a move is being set up (a Trainer or attack asking questions, a power, a held card, retreating,
-  // a Pokémon's menu), clicking anywhere except a Pokémon slot, a hand card or the move's own panel cancels it.
-  const inProgress =
-    trainer.card !== null || attack.spec !== null || power.spec !== null || power.selected !== null || dollMenu !== null || selected !== null || retreat.retreating;
+  // clicking anywhere except a Pokémon slot, a hand card or the move's own panel cancels it.
+  const inProgress = trainer.card !== null || attack.spec !== null || power.spec !== null || selected !== null || retreat.retreating;
   const cancelAllRef = useRef(cancelAll);
   cancelAllRef.current = cancelAll;
   /** When the last drag ended: dropping a card fires a click where it lands, which mustn't cancel what the drop started. */
@@ -193,10 +181,10 @@ export function Board({
     const isTarget = highlighted.has(id) || switchIn || choosable;
     const canPromote = promoting && id !== 'active' && pokemon !== null;
     const target = toTarget(id);
-    // A benched Pokémon with a power is clicked to show its Activate button.
-    const hasPower = myTurn && typeof target === 'number' && power.powers.some((p) => p.source === target);
-    const powerSelected = typeof target === 'number' && (power.selected === target || power.usingSource === target);
-    // A Trainer played as a Pokémon (Clefairy Doll) is clicked to show its Discard button.
+    // A benched Pokémon with a power is clicked to use it (its only option, so there's no menu); a warning says why it can't.
+    const benchPower = myTurn && typeof target === 'number' ? power.powers.find((p) => p.source === target) : undefined;
+    const powerSelected = typeof target === 'number' && power.usingSource === target;
+    // A Trainer played as a Pokémon (Clefairy Doll) is clicked to discard it, unless it's the only Pokémon in play.
     const dollDef = pokemon && lookupCard(view.cards, pokemon.card.defId);
     const isDoll = myTurn && dollDef?.kind === 'pokemon' && !!dollDef.trainerText;
     const slot = (
@@ -207,7 +195,7 @@ export function Board({
         cards={view.cards}
         large={id === 'active'}
         droppable={(highlighted.has(id) || switchIn) && !busy}
-        highlight={isTarget ? 'target' : canPromote ? 'promote' : powerSelected || dollMenu === target ? 'power' : null}
+        highlight={isTarget ? 'target' : canPromote ? 'promote' : powerSelected ? 'power' : null}
         label={choosable ? 'Choose' : switchIn ? 'Switch' : isTarget ? heldLabel : canPromote ? 'Promote' : null}
         // While a card is held, retreating or a Pokémon is being chosen, fade the ones that can't be picked so the targets stand out.
         dimmed={((heldCard !== undefined && !draggingTrainer) || retreat.ready || pokemonPick !== null) && pokemon !== null && !isTarget}
@@ -223,18 +211,18 @@ export function Board({
                 : (slotClick(id) ??
               retreat.slotClick(id) ??
               (canPromote ? () => send({ type: 'PROMOTE', slot: target as number }) : undefined) ??
-              (hasPower && !heldCard && !retreat.ready
+              (benchPower && !heldCard && !retreat.ready
                 ? () => {
-                    const wasSelected = power.selected === target;
                     cancelAll();
-                    if (!wasSelected) power.select(target as number);
+                    if (benchPower.error) toasts.push('warning', `${benchPower.name}: ${benchPower.error}`);
+                    else power.start(target as number);
                   }
                 : undefined) ??
               (isDoll && !heldCard && !retreat.ready
                 ? () => {
-                    const wasSelected = dollMenu === target;
                     cancelAll();
-                    if (!wasSelected) setDollMenu(target);
+                    if (!hasBenched(self)) toasts.push('warning', `You can't discard ${dollDef.name}: it's your only Pokémon in play`);
+                    else send({ type: 'DISCARD_DOLL', target });
                   }
                 : undefined))
         }
@@ -243,19 +231,6 @@ export function Board({
     return (
       <div key={id} className="relative">
         {slot}
-        {typeof target === 'number' && power.selected === target && <BenchPowerButton power={power} slot={target} busy={busy} />}
-        {isDoll && dollMenu === target && (
-          <SlotMenu>
-            <button
-              disabled={busy || !hasBenched(self)}
-              onClick={() => send({ type: 'DISCARD_DOLL', target })}
-              className="w-full rounded bg-slate-600 px-2 py-1 text-left text-xs transition hover:bg-slate-500 active:scale-95 disabled:opacity-40"
-            >
-              Discard {dollDef.name}
-            </button>
-            {!hasBenched(self) && <p className="text-slate-400">You can't discard your only Pokémon in play.</p>}
-          </SlotMenu>
-        )}
       </div>
     );
   };
@@ -392,7 +367,7 @@ export function Board({
                   </div>
                   <div className="min-w-0 flex-1 space-y-3">
                     <div className="relative flex justify-center">
-                      <StadiumCard view={view} send={send} busy={busy} />
+                      <StadiumCard view={view} send={send} busy={busy} notify={(message) => toasts.push('warning', message)} />
                       {playerSlot('active', self.active)}
                       {attacks}
                     </div>
