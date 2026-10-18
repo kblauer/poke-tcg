@@ -50,3 +50,9 @@ export const deckSaveInput = z.object({
 });
 
 export const deckIdInput = z.object({ deckId: z.uuid() });
+
+/** A new name for one of the account's decks. */
+export const deckRenameInput = deckIdInput.extend({ name: z.string().trim().min(1).max(DECK_NAME_LENGTH) });
+
+/** The account's decks in their new order (every deck, each once). */
+export const deckOrderInput = z.object({ deckIds: z.array(z.uuid()).max(500) });

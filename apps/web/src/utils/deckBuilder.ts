@@ -149,3 +149,44 @@ export const DECK_SECTIONS = [
   { kind: 'TRAINER', label: 'Trainers' },
   { kind: 'ENERGY', label: 'Energy' },
 ] as const;
+
+/** Cards of each kind in the deck (Pokémon, Trainers, Energy). */
+export const deckRatio = (entries: DeckEntry[], byId: Map<string, CatalogCard>) =>
+  Object.fromEntries(DECK_SECTIONS.map(({ kind }) => [kind, withCards(entries, byId).reduce((n, e) => n + (e.card.kind === kind ? e.quantity : 0), 0)])) as Record<(typeof DECK_SECTIONS)[number]['kind'], number>;
+
+const STAGE_RANK: Record<string, number> = { Baby: 0, Basic: 1, Stage1: 2, Stage2: 3 };
+
+/**
+ * The deck's headline Pokémon, to show on its button: the highest stages first, preferring an evolved
+ * Pokémon whose whole line is in the deck with 2 or more copies of each earlier stage, then the most copies.
+ * Each comes from a different evolution line while there are enough lines, and names aren't repeated.
+ */
+export function featuredPokemon(entries: DeckEntry[], byId: Map<string, CatalogCard>, count = 3): CatalogCard[] {
+  const pokemon = withCards(entries, byId).filter((e) => e.card.kind === 'POKEMON');
+  const copies = new Map<string, number>();
+  const evolvesFrom = new Map<string, string>();
+  for (const { card, quantity } of pokemon) {
+    copies.set(card.name, (copies.get(card.name) ?? 0) + quantity);
+    if (card.evolvesFrom) evolvesFrom.set(card.name, card.evolvesFrom);
+  }
+  /** The names it evolves from, nearest first (stopping at a loop, should the data have one). */
+  const earlier = (name: string) => {
+    const names: string[] = [];
+    for (let n = evolvesFrom.get(name); n && !names.includes(n) && n !== name; n = evolvesFrom.get(n)) names.push(n);
+    return names;
+  };
+  const supported = (card: CatalogCard) => earlier(card.name).every((n) => (copies.get(n) ?? 0) >= 2) && (!card.evolvesFrom || copies.has(card.evolvesFrom));
+  const ranked = pokemon
+    .map(({ card }) => ({ card, supported: supported(card), stage: STAGE_RANK[card.stage ?? ''] ?? 1, copies: copies.get(card.name)! }))
+    .sort((a, b) => Number(b.supported) - Number(a.supported) || b.stage - a.stage || b.copies - a.copies || a.card.order - b.card.order);
+  const sameLine = (a: CatalogCard, b: CatalogCard) => earlier(a.name).includes(b.name) || earlier(b.name).includes(a.name);
+  const picked: CatalogCard[] = [];
+  for (const distinctLines of [true, false]) {
+    for (const { card } of ranked) {
+      if (picked.length >= count) break;
+      if (picked.some((p) => p.name === card.name || (distinctLines && sameLine(p, card)))) continue;
+      picked.push(card);
+    }
+  }
+  return picked;
+}
