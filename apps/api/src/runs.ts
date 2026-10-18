@@ -1,6 +1,7 @@
 // Runs on the server: the account's first run, saving run states, starting their battles and settling them.
 import {
   applyRunAction,
+  bankablePokedollars,
   battleSetup,
   createRun,
   currentGameId,
@@ -97,8 +98,9 @@ export async function advanceRun(run: LoadedRun, actions: (RunAction | RunSystem
 
   const status = statusOf(state);
   const reward = status === 'WON' && !run.rewarded;
-  // A run's ₱ go to the bank as soon as it ends. A lost run carried on (the Retry testing aid) takes them back
-  // out, as far as the bank still has them, so they aren't banked twice.
+  // A run's ₱ go to the bank as soon as it ends (a conceded one's only if it finished a battle: bankablePokedollars).
+  // A lost run carried on (the Retry testing aid) takes them back out, as far as the bank still has them, so they
+  // aren't banked twice.
   const bank = status !== 'ACTIVE' && !run.banked;
   const unbank = status === 'ACTIVE' && run.banked;
   const saved = await prisma.$transaction(async (tx) => {
@@ -107,7 +109,7 @@ export async function advanceRun(run: LoadedRun, actions: (RunAction | RunSystem
       data: { state: asJson(state), version: state.version, status, ...(reward && { rewarded: true }), ...((bank || unbank) && { banked: bank }) },
     });
     if (count === 0) return false;
-    if (bank) await tx.user.update({ where: { id: run.ownerId }, data: { bank: { increment: state.pokedollars } } });
+    if (bank) await tx.user.update({ where: { id: run.ownerId }, data: { bank: { increment: bankablePokedollars(state) } } });
     if (unbank) {
       const { bank: banked } = await tx.user.findUniqueOrThrow({ where: { id: run.ownerId }, select: { bank: true } });
       await tx.user.update({ where: { id: run.ownerId }, data: { bank: { decrement: Math.min(banked, state.pokedollars) } } });
@@ -202,7 +204,7 @@ export async function startRun(userId: string, type: RunTypeId, deck: string[]) 
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'Finish your current run first' });
     }
     const unbanked = await tx.run.findMany({ where: { ownerId: userId, banked: false }, select: { id: true, state: true } });
-    const total = unbanked.reduce((sum, r) => sum + (r.state as unknown as RunState).pokedollars, 0);
+    const total = unbanked.reduce((sum, r) => sum + bankablePokedollars(r.state as unknown as RunState), 0);
     if (unbanked.length) {
       await tx.run.updateMany({ where: { id: { in: unbanked.map((r) => r.id) } }, data: { banked: true } });
       await tx.user.update({ where: { id: userId }, data: { bank: { increment: total } } });

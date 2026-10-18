@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { expandDeck, STARTER_DECK } from './decks.js';
 import { ITEMS, itemText, MAX_CONSUMABLES_PER_RUN } from './items.js';
 import { RUN_TYPE_IDS, type RunTypeId } from './run-types.js';
-import { applyRunAction, battleSetup, createRun, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
+import { applyRunAction, bankablePokedollars, battleSetup, battlesFought, createRun, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
 import { TEST_POOL } from './test-pool.js';
 
 const deck = expandDeck(STARTER_DECK);
@@ -346,5 +346,34 @@ describe('a whole run', () => {
       expect(s.phase).toBe('won');
       expect(s.position).toBe(s.steps.length - 1);
     }
+  });
+});
+
+describe('conceding', () => {
+  it('ends the run while choosing the next step; with no battle finished, none of its ₱ are banked', () => {
+    const s = act(fresh(), { type: 'CONCEDE' });
+    expect([s.phase, s.conceded, battlesFought(s), bankablePokedollars(s)]).toEqual(['lost', true, 0, 0]);
+    expect(s.log.at(-1)).toBe('Conceded the run before finishing a battle: no ₱ banked.');
+  });
+
+  it('banks the ₱ once a battle is finished, won or lost', () => {
+    for (const won of [true, false]) {
+      let s = fight(at('battle'), won);
+      if (s.encounter?.kind === 'reward') s = act(s, { type: 'LEAVE' });
+      s = act(s, { type: 'CONCEDE' });
+      expect([battlesFought(s), bankablePokedollars(s)]).toEqual([1, s.pokedollars]);
+      expect(s.pokedollars).toBeGreaterThan(0);
+    }
+  });
+
+  it('only while choosing the next step, and a conceded run can’t be retried', () => {
+    const encounter = act(at('shop'), { type: 'CHOOSE', option: 0 });
+    expect(applyRunAction(encounter, { type: 'CONCEDE' }, TEST_POOL, [])).toEqual({ ok: false, error: 'Finish this encounter first' });
+    const conceded = act(fresh(), { type: 'CONCEDE' });
+    expect(applyRunAction(conceded, { type: 'RESTORE_HP' }, TEST_POOL, [])).toEqual({ ok: false, error: 'A conceded run is over' });
+  });
+
+  it('counts the battles of older runs from their log', () => {
+    expect(battlesFought({ log: ['Beat Lass Haley: +₱200, +10 EXP.', 'Bought Potion.', 'Lost to Hiker Marcos: −1 HP.'] })).toBe(2);
   });
 });

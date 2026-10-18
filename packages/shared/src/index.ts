@@ -134,6 +134,7 @@ export const runActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('CHOOSE'), option: z.number().int().min(0).max(5) }),
   z.object({ type: z.literal('ACCEPT') }),
   z.object({ type: z.literal('LEAVE') }),
+  z.object({ type: z.literal('CONCEDE') }),
   z.object({ type: z.literal('PICK'), index: z.number().int().min(0).max(10) }),
   z.object({ type: z.literal('BUY'), index: z.number().int().min(0).max(10) }),
 ]) satisfies z.ZodType<RunAction>;

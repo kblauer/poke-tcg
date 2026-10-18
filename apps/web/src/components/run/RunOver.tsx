@@ -1,6 +1,6 @@
 import CloseIcon from '@mui/icons-material/Close';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { finalBoss, ITEMS, runType } from '@poke-tcg/campaign';
+import { bankablePokedollars, finalBoss, ITEMS, runType } from '@poke-tcg/campaign';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { ClientRun, Overview, RunControl } from '../../hooks/useRun';
 import { ItemShop } from './ItemShop';
@@ -54,7 +54,7 @@ const Minimized = ({ title, summary, onOpen }: { title: ReactNode; summary?: Rea
 /**
  * After a run. Beaten: the next run first, then the EXP it earned, the cards gained in it (already unlocked in
  * the deck builder) and the badges it won, then the shop. The results and the shop can be closed to a slim bar
- * (see useClosed). Lost: start over, or (for testing) carry on with full HP.
+ * (see useClosed). Lost: start over, or (for testing) carry on with full HP. Conceded: start over (no retry).
  */
 export function RunOver({ current, overview, run }: { current: ClientRun; overview: Overview; run: RunControl }) {
   const view = current.view;
@@ -62,6 +62,21 @@ export function RunOver({ current, overview, run }: { current: ClientRun; overvi
   const last = finalBoss(type);
   const won = (view.badges ?? []).map((id) => ITEMS[id]?.name).filter(Boolean);
   const { isClosed, toggle } = useClosed(current.id);
+  if (view.phase === 'lost' && view.conceded) {
+    const banked = bankablePokedollars(view);
+    return (
+      <div className="space-y-4">
+        <section className="space-y-3 rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600">
+          <h3 className="text-lg font-semibold text-slate-200">You conceded the run</h3>
+          <p className="text-sm text-slate-300">
+            You made it to encounter {Math.min(view.position + 1, view.steps.length)} of {view.steps.length}. The cards you gained stay unlocked in the deck builder.{' '}
+            {banked ? `₱${banked} went to your bank.` : 'No battle was finished, so no ₱ were banked.'}
+          </p>
+        </section>
+        <NewRunPicker overview={overview} run={run} title="Start over" defaultType={view.type} />
+      </div>
+    );
+  }
   if (view.phase === 'lost') {
     return (
       <div className="space-y-4">

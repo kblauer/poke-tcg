@@ -4,6 +4,7 @@ import { DeckPanel } from '../components/run/DeckPanel';
 import { EncounterPanel } from '../components/run/EncounterPanel';
 import { NewRunPicker } from '../components/run/NewRunPicker';
 import { RunHeader } from '../components/run/RunHeader';
+import { ConcedeRun } from '../components/run/ConcedeRun';
 import { RunMap } from '../components/run/RunMap';
 import { RunOver } from '../components/run/RunOver';
 import { RunStats } from '../components/run/RunStats';
@@ -45,9 +46,12 @@ export function HomePage() {
                   <RunMap view={view} run={run} />
                   <div className="min-w-0 space-y-6">
                     {view.phase === 'map' ? (
-                      <p className="rounded-lg bg-slate-800 p-5 text-slate-300 ring-1 ring-slate-600">
-                        Choose your next encounter on the map: the highlighted step. You climb from the bottom to the run's last boss at the top.
-                      </p>
+                      <div className="space-y-3">
+                        <p className="rounded-lg bg-slate-800 p-5 text-slate-300 ring-1 ring-slate-600">
+                          Choose your next encounter on the map: the highlighted step. You climb from the bottom to the run's last boss at the top.
+                        </p>
+                        <ConcedeRun view={view} run={run} />
+                      </div>
                     ) : (
                       <EncounterPanel view={view} run={run} />
                     )}
