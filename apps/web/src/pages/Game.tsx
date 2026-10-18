@@ -43,7 +43,9 @@ export function GamePage() {
       onSuccess: ({ frames }) => {
         if (data) setShownView(data.view);
         queryClient.setQueryData(viewQuery.queryKey, (old) => old && { ...old, view: frames.at(-1)!.view });
-        setReplay(frames.map((f) => ({ player: f.player, type: f.type, version: f.view.version, view: f.view })));
+        // An action that ends the battle (won or lost) goes straight to the result: no coin flips or move-by-move replay.
+        const shown = frames.at(-1)!.view.phase === 'finished' ? frames.slice(-1) : frames;
+        setReplay(shown.map((f) => ({ player: f.player, type: f.type, version: f.view.version, view: f.view })));
       },
       onError: () => {
         setReplay([]);
@@ -67,7 +69,8 @@ export function GamePage() {
     if (!next) return;
     const before = shownView ?? data?.view;
     const fresh = before ? flipsAfter(next.view.log, lastEntry(before)) : [];
-    if (fresh.length && !skipFlips) setFlips(fresh);
+    // Once the battle is over, its flips aren't shown.
+    if (fresh.length && !skipFlips && next.view.phase !== 'finished') setFlips(fresh);
     else reveal();
   }, [next]);
   useEffect(() => {

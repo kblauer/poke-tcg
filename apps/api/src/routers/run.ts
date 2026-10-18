@@ -1,4 +1,4 @@
-import { bossSummary, currentGameId, EQUIP_SLOTS, isBattleKind, fitsSlot, item, ITEMS, onlyOne, RUN_TYPE_IDS, RUN_TYPES, runView, SHOP_ITEMS, type EquipSlot } from '@poke-tcg/campaign';
+import { bossSummary, currentGameId, EQUIP_SLOTS, isBattleKind, fitsSlot, item, ITEMS, onlyOne, RUN_TYPE_IDS, RUN_TYPES, runView, shopStock, type EquipSlot } from '@poke-tcg/campaign';
 import { prisma } from '@poke-tcg/db';
 import { DECK_NAME_LENGTH } from '@poke-tcg/shared';
 import { buyItemInput, equipInput, runActInput, runChooseInput, runIdInput, saveRunDeckInput, startRunInput, useItemInput } from '@poke-tcg/shared';
@@ -13,6 +13,13 @@ import { protectedProcedure, router } from '../trpc.js';
 async function runDeckName(run: LoadedRun) {
   const number = await prisma.run.count({ where: { ownerId: run.ownerId, createdAt: { lte: run.createdAt } } });
   return `Run #${number} – ${RUN_TYPES[run.type as keyof typeof RUN_TYPES]?.name ?? run.type}`.slice(0, DECK_NAME_LENGTH);
+}
+
+/** The post-run shop's stock: rolled from the latest run's seed, so it's new after each run and the same until then. */
+async function latestStock(userId: string) {
+  const run = await prisma.run.findFirst({ where: { ownerId: userId }, orderBy: { createdAt: 'desc' }, select: { seed: true } });
+  // Not the run's own seed, which rolled its map.
+  return shopStock(((run?.seed ?? 0) ^ 0x5eed5) >>> 0);
 }
 
 /** What the client gets for a run: its view (no RNG or opponents' deck seeds) and the battle under way. */
@@ -127,19 +134,23 @@ export const runRouter = router({
     return { id: deck.id };
   }),
 
-  /** The post-run shop: items for EXP, and how many of each the account already has (`owned`, by item id). */
+  /**
+   * The post-run shop: the items in stock after the latest run (shopStock), for EXP, and how many of each the account
+   * already has (`owned`, by item id).
+   */
   shop: protectedProcedure.query(async ({ ctx }) => {
-    const [user, inventory] = await Promise.all([
+    const [user, inventory, stock] = await Promise.all([
       prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { exp: true } }),
       prisma.inventoryItem.findMany({ where: { userId: ctx.user.id, quantity: { gt: 0 } }, select: { itemId: true, quantity: true } }),
+      latestStock(ctx.user.id),
     ]);
-    return { exp: user.exp, items: SHOP_ITEMS, owned: Object.fromEntries(inventory.map((i) => [i.itemId, i.quantity])) as Record<string, number> };
+    return { exp: user.exp, items: stock, owned: Object.fromEntries(inventory.map((i) => [i.itemId, i.quantity])) as Record<string, number> };
   }),
 
   /** Buys an item with EXP. Only between runs (once the last one is over). Equipment and misc items: one at most. */
   buyItem: protectedProcedure.input(buyItemInput).mutation(async ({ ctx, input }) => {
     const def = ITEMS[input.itemId];
-    if (def?.price === undefined) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Not for sale' });
+    if (def?.price === undefined || !(await latestStock(ctx.user.id)).some((i) => i.id === def.id)) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Not for sale' });
     const price = def.price;
     await prisma.$transaction(async (tx) => {
       if (await tx.run.count({ where: { ownerId: ctx.user.id, status: 'ACTIVE' } })) {

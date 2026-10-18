@@ -1,5 +1,6 @@
 import type { CardLibrary } from './cards.js';
 import { DEFAULT_CPU_DIFFICULTY, type CpuDifficulty } from './cpu/index.js';
+import { attackDamageRanges, type DamageRange } from './cpu/shared.js';
 import type { BattleRule, CardInstance, GameState, InPlayPokemon, Phase, PlayerId } from './engine.js';
 import type { LogEntry } from './status.js';
 import { seesOpponentHand } from './powers.js';
@@ -24,6 +25,11 @@ export interface PlayerView {
   stadium: { card: CardInstance; owner: PlayerId } | null;
   /** Last turn the current player used the Stadium (Lucky Stadium). */
   stadiumUsedTurn?: number;
+  /**
+   * On the player's turn, what each of their Active Pokémon's attacks would do to the Defending Pokémon now (least and
+   * most, over coin flips and choices; null for one it can't use), so "10+" shows as the damage it does now.
+   */
+  attackDamage?: (DamageRange | null)[];
   /** Game log, oldest first. Only public information goes in it. */
   log: LogEntry[];
   /** Definitions for every card visible in this view (and nothing else). */
@@ -118,6 +124,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
     rules: state.rules ?? [],
     stadium: state.stadium ?? null,
     ...(state.stadiumUsedTurn !== undefined && { stadiumUsedTurn: state.stadiumUsedTurn }),
+    ...(state.phase === 'playing' && state.currentPlayer === playerId && me.active && oppActive && { attackDamage: attackDamageRanges(state, playerId) }),
     log: state.log ?? [],
     cards,
     self: {

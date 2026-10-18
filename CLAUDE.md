@@ -42,7 +42,7 @@
   - Drag cards onto slots. Trainers can be dropped anywhere on the play area.
   - The board glows green for a valid drop and red when the drop would cancel. Dropping on the hand cancels.
 - Any effect that asks for a Pokémon is answered by clicking a highlighted slot on the board, not by picking from a list. Effects that pick cards from the hand do it in the hand itself.
-- Benched Pokémon Powers and discarding Clefairy Doll are done by clicking the Pokémon and using its `SlotMenu`.
+- Benched Pokémon Powers and discarding Clefairy Doll are done by clicking the Pokémon and using its `SlotMenu`; using the Stadium (Lucky Stadium) by clicking the Stadium card (`StadiumCard`), which glows when it can be used.
 - Clicking outside cancels an in-progress move:
   - The listener uses the capture phase.
   - Elements marked `data-keep-action` are exempt.
@@ -73,7 +73,7 @@
 - SET_HP has a minimum of 10; debug can't Knock Out a Pokémon directly.
 
 ## Runs (game loop) decisions
-- Agreed with the user: EXP is a separate account currency (earned by beating runs, spent in the post-run shop); ₱ belongs to a run (starts at 500) and goes to `User.bank` as soon as the run ends (beaten or lost). A lost battle costs 1 of 3 HP and the run moves on; a lost gym leader battle is fought again. Each step offers 2–3 encounters to choose from. Trainer battles lean different ways (`focus`: twice the ₱, twice the EXP, or reward cards one rarity up; placeholder amounts). Items work (`ItemEffect`/`ItemUse` in `items.ts`): equipment is read live on each run action, consumables are used before a battle, battle effects become the player's battle rules. The user said to balance them later, so prices and strengths are placeholders.
+- Agreed with the user: EXP is a separate account currency (earned by beating runs, spent in the post-run shop); ₱ belongs to a run (starts at 500) and goes to `User.bank` as soon as the run ends (beaten or lost). A lost battle costs 1 of 3 HP and the run moves on; a lost gym leader battle is fought again. Each step offers 2–3 encounters to choose from. Trainer battles lean different ways (`focus`: twice the ₱, twice the EXP, or reward cards one rarity up; placeholder amounts). Items work (`ItemEffect`/`ItemUse` in `items.ts`): equipment is read live on each run action, consumables are used before a battle, the post-run shop stocks 3–4 consumables, 1–2 misc items and 1 piece of gear after each run (`shopStock`), battle effects become the player's battle rules. The user said to balance them later, so prices and strengths are placeholders.
 - Trainers use the CPU's Trainer difficulty with `generateDeck`; elite (Ace) trainers and bosses use Gym leader difficulty. Every gym leader has a required Gym Trainer (their gym's type, Trainer difficulty) on the step before them.
 - Bosses (`campaign/src/bosses.ts`) play their TCG 1 (Game Boy Color) counterpart's deck, named for the Gen 1 character (Club Masters → gym leaders, Grand Masters → Elite Four, Ronald → Champion Blue). Agreed: Game Boy-only cards (promos, "Mystery"/"Laboratory" prints, Fan Book, Pokémon Web) are replaced by the closest TCGdex card of the same type, never added by hand. Run types: one per gym, Kanto Gym Challenge, Kanto Champion.
 - Run cards come from `cardImplemented` cards of `POOL_SETS` only.

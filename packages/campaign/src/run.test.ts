@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { expandDeck, STARTER_DECK } from './decks.js';
-import { ITEMS, itemText, MAX_CONSUMABLES_PER_RUN } from './items.js';
+import { ITEMS, itemText, MAX_CONSUMABLES_PER_RUN, shopStock } from './items.js';
 import { RUN_TYPE_IDS, type RunTypeId } from './run-types.js';
 import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesFought, createRun, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
 import { TEST_POOL } from './test-pool.js';
@@ -265,6 +265,26 @@ describe('switching decks', () => {
 
   it('a new run keeps the name of the deck it started with', () => {
     expect(createRun('celadon', deck, 1, 'Starter deck').deckName).toBe('Starter deck');
+  });
+});
+
+describe('the post-run shop', () => {
+  it('stocks 3–4 consumables, 1–2 misc items and 1 piece of gear, the same for the same seed', () => {
+    const sizes = new Set<string>();
+    for (let seed = 1; seed <= 50; seed++) {
+      const stock = shopStock(seed);
+      const count = (category: string) => stock.filter((i) => i.category === category).length;
+      expect([3, 4]).toContain(count('consumable'));
+      expect([1, 2]).toContain(count('misc'));
+      expect(count('equipment')).toBe(1);
+      expect(stock).toHaveLength(count('consumable') + count('misc') + 1);
+      expect(new Set(stock.map((i) => i.id)).size).toBe(stock.length);
+      expect(stock.map((i) => i.price)).toEqual([...stock.map((i) => i.price)].sort((a, b) => a! - b!));
+      expect(shopStock(seed)).toEqual(stock);
+      sizes.add(`${count('consumable')}/${count('misc')}`);
+    }
+    // Every mix comes up.
+    expect(sizes).toEqual(new Set(['3/1', '3/2', '4/1', '4/2']));
   });
 });
 
