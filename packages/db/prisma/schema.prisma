@@ -18,6 +18,8 @@ model User {
   exp         Int      @default(0)
   /// ₱ banked from earlier runs: each run's ₱ is moved here when it ends.
   bank        Int      @default(0)
+  /// Stardust, the crafting currency: earned for every card pulled from a pack, spent crafting cards in the deck builder.
+  stardust    Int      @default(0)
   decks       Deck[]
   games       Game[]
   runs        Run[]

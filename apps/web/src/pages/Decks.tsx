@@ -95,6 +95,25 @@ export function DecksPage() {
   );
   const reorder = useMutation(trpc.decks.reorder.mutationOptions({ onSettled: refresh }));
   const rename = useMutation(trpc.decks.rename.mutationOptions({ onSuccess: refresh }));
+  // Crafting: Stardust (earned from packs) unlocks a card as pulling it would.
+  const stardust = useQuery(trpc.packs.stardust.queryOptions());
+  const craft = useMutation(
+    trpc.packs.craft.mutationOptions({
+      onSuccess: ({ stardust: left }) => {
+        queryClient.setQueryData(trpc.packs.stardust.queryKey(), left);
+        queryClient.invalidateQueries({ queryKey: trpc.decks.unlocked.queryKey() });
+        queryClient.invalidateQueries({ queryKey: trpc.decks.list.queryKey() });
+        queryClient.invalidateQueries({ queryKey: trpc.packs.list.queryKey() });
+      },
+    }),
+  );
+  /** Why the card can't be crafted now, or null: one already unlocked (unless it counts copies), or too little Stardust. */
+  const craftBlocked = (card: CatalogCard, cost: number) =>
+    !isLocked(card) && !card.limitedCopies
+      ? `${card.name} is already unlocked`
+      : (stardust.data ?? 0) < cost
+        ? `Crafting it takes ${cost} Stardust; you have ${stardust.data ?? 0}`
+        : null;
 
   const byId = useMemo(() => new Map((catalog.data ?? []).map((c) => [c.id, c])), [catalog.data]);
   const sets = useMemo(() => (catalog.data ? setNames(catalog.data) : []), [catalog.data]);
@@ -237,6 +256,18 @@ export function DecksPage() {
           card={inspected}
           locked={isLocked(inspected)}
           deck={editing && !loading && !readOnly ? { name, copies: counts.get(inspected.id) ?? 0, blocked: blockedFor(inspected), onChange: (by) => change(inspected, by) } : undefined}
+          craft={
+            inspected.craftCost !== null && stardust.data !== undefined
+              ? {
+                  cost: inspected.craftCost,
+                  stardust: stardust.data,
+                  blocked: craftBlocked(inspected, inspected.craftCost),
+                  pending: craft.isPending,
+                  error: craft.variables?.cardId === inspected.id ? craft.error?.message : undefined,
+                  onCraft: () => craft.mutate({ cardId: inspected.id }),
+                }
+              : undefined
+          }
           onClose={() => setInspected(null)}
         />
       )}

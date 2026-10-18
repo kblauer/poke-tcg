@@ -8,6 +8,16 @@ import { chance, pick, sample, type Rng } from './random.js';
 /** Sets with packs: the ones whose card effects the engine has. */
 export const PACK_SETS = ['base1', 'base2', 'base3', 'basep', 'base4', 'base5'];
 
+/**
+ * Stardust, the account's crafting currency, for each card pulled from a pack that the account already had (a new
+ * unlock gives none), by its slot (agreed with the user): 50 a common, 100 an uncommon, 300 a rare or holo (a holo
+ * Energy too); basic Energy gives none.
+ */
+export const STARDUST_PER_CARD: Record<PackCard['slot'], number> = { common: 50, uncommon: 100, rare: 300, holo: 300, energy: 0, holoEnergy: 300 };
+
+/** What crafting a card costs in Stardust, by its rarity (agreed with the user): 100 a common or uncommon, 500 a rare or holo. */
+export const CRAFT_COST: Record<Rarity, number> = { common: 100, uncommon: 100, rare: 500, holo: 500 };
+
 /** Price of a pack, in banked ₱. */
 export const PACK_PRICE = 300;
 

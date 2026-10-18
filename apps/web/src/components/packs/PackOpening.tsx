@@ -78,6 +78,8 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
   const trpc = useTRPC();
   const [phase, setPhase] = useState<'pack' | 'tearing' | 'burst' | 'commons' | 'reveal' | 'summary'>('pack');
   const [cards, setCards] = useState<PackCard[]>([]);
+  /** The Stardust these packs gave. */
+  const [stardustEarned, setStardustEarned] = useState(0);
   /** Position in `queue`, the cards revealed one by one. */
   const [index, setIndex] = useState(0);
   const [options, setOptions] = useState(loadOptions);
@@ -107,6 +109,7 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
         return [img];
       });
       setCards(result.cards);
+      setStardustEarned(result.stardustEarned);
       onOpened();
       setAutoOn(options.auto);
       setPhase('tearing');
@@ -372,6 +375,9 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
             </span>
             <span className="text-sm text-amber-300">
               {rareCount} rare{rareCount === 1 ? '' : 's'}
+            </span>
+            <span className="text-sm text-sky-200" title="For crafting cards on the Decks tab">
+              +{stardustEarned} Stardust
             </span>
             {allRaresPacks.size > 0 && (
               <span className="text-sm font-bold text-yellow-300">

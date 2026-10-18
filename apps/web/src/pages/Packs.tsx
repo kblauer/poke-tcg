@@ -17,11 +17,12 @@ export function PacksPage() {
   const [opening, setOpening] = useState<PackSetInfo | null>(null);
   if (packs.error) return <p className={`${PAGE_WIDTH} text-red-400`}>{packs.error.message}</p>;
   if (!packs.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
-  const { bank, price, sets } = packs.data;
+  const { bank, stardust, price, sets } = packs.data;
 
   /** After a pack is bought: the bank, the unlocks and the run screen's bank figure change. */
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: trpc.packs.list.queryKey() });
+    queryClient.invalidateQueries({ queryKey: trpc.packs.stardust.queryKey() });
     queryClient.invalidateQueries({ queryKey: trpc.decks.unlocked.queryKey() });
     queryClient.invalidateQueries({ queryKey: trpc.decks.list.queryKey() });
     queryClient.invalidateQueries({ queryKey: trpc.run.overview.queryKey() });
@@ -37,6 +38,12 @@ export function PacksPage() {
           </span>
           <span className="ml-auto rounded-lg bg-slate-800 px-3 py-1.5 text-sm ring-1 ring-slate-700">
             Bank <span className="font-semibold text-yellow-300">₱{bank}</span>
+          </span>
+          <span
+            className="rounded-lg bg-slate-800 px-3 py-1.5 text-sm ring-1 ring-slate-700"
+            title="Earned for every card you pull that you already have (50 a common, 100 an uncommon, 300 a rare or holo; new cards give none); spend it crafting cards on the Decks tab (right-click a card)"
+          >
+            Stardust <span className="font-semibold text-sky-200">{stardust}</span>
           </span>
         </div>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
