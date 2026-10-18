@@ -4,7 +4,7 @@ import { DECK_NAME_LENGTH, DECK_SIZE, MAX_COPIES, copiesOfName, deckIdInput, dec
 import { ensureUser } from '../auth.js';
 import { isBasicEnergyCard } from '../cards.js';
 import { protectedProcedure, router } from '../trpc.js';
-import { lockedNames, lockedProblem, unlockedIds, type Unlocked } from '../unlocks.js';
+import { holoTwins, lockedNames, lockedProblem, unlockedIds, type Unlocked } from '../unlocks.js';
 
 /** What the deck rules need from a catalog row. */
 export const ruleCard = (card: Pick<Card, 'name' | 'kind' | 'stage' | 'data'>): DeckRuleCard => ({
@@ -34,9 +34,16 @@ async function loadEditableDeck(deckId: string, userId: string) {
 export const problemsOf = (cards: { quantity: number; card: Pick<Card, 'name' | 'kind' | 'stage' | 'data'> }[]) =>
   deckProblems(cards.map((c) => ({ card: ruleCard(c.card), quantity: c.quantity })));
 
-/** Why the deck can't be played: the rules, and cards the user hasn't unlocked. Empty when it can. */
-export const playProblems = (cards: { cardId: string; quantity: number; card: Pick<Card, 'name' | 'kind' | 'stage' | 'data'> }[], unlocked: Unlocked) => {
-  const locked = lockedProblem(cards, unlocked);
+/**
+ * Why the deck can't be played: the rules, and cards the user hasn't unlocked (or more copies of a limited holo than
+ * were gained; `limited` from holoTwins). Empty when it can.
+ */
+export const playProblems = (
+  cards: { cardId: string; quantity: number; card: Pick<Card, 'name' | 'kind' | 'stage' | 'data'> }[],
+  unlocked: Unlocked,
+  limited: { has: (cardId: string) => boolean },
+) => {
+  const locked = lockedProblem(cards, unlocked, limited);
   return [...problemsOf(cards), ...(locked ? [locked] : [])];
 };
 
@@ -45,8 +52,8 @@ export const playProblems = (cards: { cardId: string; quantity: number; card: Pi
  * or BAD_REQUEST with why it can't be played.
  */
 export async function playableDeck(deckId: string, userId: string): Promise<{ name: string; cards: string[]; runDeck: boolean }> {
-  const [deck, unlocked] = await Promise.all([loadOwnDeck(deckId, userId), unlockedIds(userId)]);
-  const [problem] = playProblems(deck.cards, unlocked);
+  const [deck, unlocked, limited] = await Promise.all([loadOwnDeck(deckId, userId), unlockedIds(userId), holoTwins()]);
+  const [problem] = playProblems(deck.cards, unlocked, limited);
   if (problem) throw new TRPCError({ code: 'BAD_REQUEST', message: problem });
   return { name: deck.name, cards: deck.cards.flatMap((c) => Array<string>(c.quantity).fill(c.cardId)), runDeck: deck.runId !== null };
 }
@@ -61,13 +68,14 @@ export const decksRouter = router({
    * each can be played (no problems, including locked cards).
    */
   list: protectedProcedure.query(async ({ ctx }) => {
-    const [decks, unlocked] = await Promise.all([
+    const [decks, unlocked, limited] = await Promise.all([
       prisma.deck.findMany({
         where: { ownerId: ctx.user.id },
         orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
         include: { cards: { include: { card: cardFields } } },
       }),
       unlockedIds(ctx.user.id),
+      holoTwins(),
     ]);
     return decks.map((d) => ({
       id: d.id,
@@ -75,7 +83,7 @@ export const decksRouter = router({
       updatedAt: d.updatedAt,
       cardCount: d.cards.reduce((n, c) => n + c.quantity, 0),
       cards: d.cards.map((c) => ({ cardId: c.cardId, quantity: c.quantity })),
-      problems: playProblems(d.cards, unlocked),
+      problems: playProblems(d.cards, unlocked, limited),
       // The automatic run deck: read-only, kept up to date with the run's deck.
       runDeck: d.runId !== null,
     }));
@@ -113,7 +121,7 @@ export const decksRouter = router({
     const [locked] = lockedNames(withRows, owned);
     if (locked) throw new TRPCError({ code: 'BAD_REQUEST', message: `${locked} isn't unlocked yet` });
     // More holo Energy than was pulled.
-    const tooMany = lockedProblem(withRows, owned);
+    const tooMany = lockedProblem(withRows, owned, await holoTwins());
     if (tooMany) throw new TRPCError({ code: 'BAD_REQUEST', message: tooMany });
 
     if (input.deckId) await loadEditableDeck(input.deckId, ctx.user.id);

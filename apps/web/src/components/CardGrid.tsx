@@ -70,7 +70,7 @@ export function CardGrid({
   const grid = useRef<HTMLDivElement>(null);
   const hold = useHoldToInspect<CatalogCard>();
   const inspectOn = useInspectOnRightClick();
-  // Holo Energy is tagged with its style and how many were pulled (it looks like the plain Energy at this size).
+  // Holo Energy and special holos are tagged with how many were pulled (and holo Energy with its style).
   const { copies } = useUnlocked();
   const rowGap = useRowGap(grid, cards.length);
   if (cards.length === 0) return <p className="p-4 text-center text-slate-500">No cards match these filters.</p>;
@@ -92,9 +92,10 @@ export function CardGrid({
               ) : (
                 <div className="h-full w-full bg-slate-800 p-1 text-xs">{c.name}</div>
               )}
-              {c.holoEnergy && (
-                <span className="absolute inset-x-1 bottom-1 truncate rounded bg-fuchsia-600/90 px-1 text-center text-[10px] font-bold text-white shadow" title={`${c.holoEnergy.label} holo, ${copies(c.id)} pulled`}>
-                  Holo · {c.holoEnergy.label} ×{copies(c.id)}
+              {c.limitedCopies && !isLocked?.(c) && (
+                // How many were pulled: the most a deck holds.
+                <span className="absolute inset-x-1 bottom-1 truncate rounded bg-fuchsia-600/90 px-1 text-center text-[10px] font-bold text-white shadow" title={`${copies(c.id)} pulled: a deck holds no more`}>
+                  Holo{c.holoEnergy && ` · ${c.holoEnergy.label}`} ×{copies(c.id)}
                 </span>
               )}
               {isLocked?.(c) && (

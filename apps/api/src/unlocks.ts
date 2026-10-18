@@ -2,9 +2,8 @@
 // up to the usual 4); basic Energy is always unlocked. A holo with a non-holo version of the same card in its set
 // (Jungle's holo Clefable and its plain one) is a special addition: it counts its copies (CardUnlock.quantity), and
 // gaining it unlocks the non-holo one too. Holo-only cards (Base Set's Alakazam) are ordinary unlocks. Holo Energy
-// counts copies too: found only in packs, a deck holds only as many as were pulled; other holos aren't limited by their
-// count (yet). The starter deck's cards are unlocked with the
-// account, and every card gained in a run is unlocked as it's gained. A Base Set 2 card and the earlier card it
+// (found only in packs) counts copies too. A deck holds no more copies of a special holo or a holo Energy than were
+// gained. The starter deck's cards are unlocked with the account, and every card gained in a run is unlocked as it's gained. A Base Set 2 card and the earlier card it
 // reprints are unlocked together when they look the same (neither is holo).
 import { prisma, type Card, type Prisma } from '@poke-tcg/db';
 import { BASE4_REPRINTS } from '@poke-tcg/game-engine';
@@ -114,10 +113,19 @@ export function lockedNames(cards: { cardId: string; card: Pick<Card, 'name' | '
   return [...new Set(locked.map((c) => cardLabel(c.card)))];
 }
 
-/** The problem a deck has if it holds cards that aren't unlocked, or more holo Energy than were pulled, or null. */
-export function lockedProblem(cards: { cardId: string; quantity?: number; card: Pick<Card, 'name' | 'kind' | 'data'> }[], unlocked: Unlocked): string | null {
+/**
+ * The problem a deck has if it holds cards that aren't unlocked, or more copies than were gained of a holo Energy or a
+ * special holo (`limited`: holoTwins, which has every special holo), or null.
+ */
+export function lockedProblem(
+  cards: { cardId: string; quantity?: number; card: Pick<Card, 'name' | 'kind' | 'data'> }[],
+  unlocked: Unlocked,
+  limited: { has: (cardId: string) => boolean },
+): string | null {
   const names = lockedNames(cards, unlocked);
   if (names.length) return `Not unlocked yet: ${names.slice(0, 3).join(', ')}${names.length > 3 ? ` and ${names.length - 3} more` : ''}. Win cards in runs to unlock them.`;
-  const over = cards.find((c) => holoEnergyStyle(c.card) && (c.quantity ?? 1) > (unlocked.get(c.cardId) ?? 0));
-  return over ? `${cardLabel(over.card)}: ${over.quantity} in the deck, but you've pulled ${unlocked.get(over.cardId) ?? 0}` : null;
+  const over = cards.find((c) => (holoEnergyStyle(c.card) || limited.has(c.cardId)) && (c.quantity ?? 1) > (unlocked.get(c.cardId) ?? 0));
+  if (!over) return null;
+  const label = holoEnergyStyle(over.card) ? cardLabel(over.card) : `${over.card.name} (holo)`;
+  return `${label}: ${over.quantity} in the deck, but you've pulled ${unlocked.get(over.cardId) ?? 0}`;
 }
