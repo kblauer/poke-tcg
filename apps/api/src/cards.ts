@@ -62,8 +62,14 @@ const evolvesFrom = (card: Pick<Card, 'name' | 'stage' | 'evolveFrom'>) => {
   return card.evolveFrom ?? (card.stage === 'Stage1' && FROM_MYSTERIOUS_FOSSIL.has(card.name) ? 'Mysterious Fossil' : null);
 };
 
+/**
+ * Holofoils TCGdex lists as normal printings only: the Wizards Black Star Promos Venusaur (13) and Cool Porygon (15),
+ * which were printed holo like the other holo promos (Eevee, Mew, Meowth…).
+ */
+const TCGDEX_MISSING_HOLO = new Set(['basep-13', 'basep-15']);
+
 /** Whether the card was printed as a holofoil. */
-export const isHolo = (card: Pick<Card, 'data'>) => (card.data as CardData).variants?.holo === true;
+export const isHolo = (card: Pick<Card, 'id' | 'data'>) => (card.data as CardData).variants?.holo === true || TCGDEX_MISSING_HOLO.has(card.id);
 
 /**
  * Cards with galaxy foil over the whole face except the art. TCGdex has no flag for it: these are

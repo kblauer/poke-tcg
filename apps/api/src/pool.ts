@@ -4,7 +4,7 @@ import { cardImplemented, type CardDef } from '@poke-tcg/game-engine';
 import { isHolo, toCardDef } from './cards.js';
 
 /** A catalog card's rarity, holos apart. */
-export const cardRarity = (card: Pick<Card, 'rarity' | 'data'>): Rarity =>
+export const cardRarity = (card: Pick<Card, 'id' | 'rarity' | 'data'>): Rarity =>
   isHolo(card) ? 'holo' : card.rarity === 'Rare' ? 'rare' : card.rarity === 'Uncommon' ? 'uncommon' : 'common';
 
 /** Every card in POOL_SETS the engine plays fully, with Stage 2s' Basics filled in for Pokémon Breeder. */

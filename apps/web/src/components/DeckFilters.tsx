@@ -15,7 +15,7 @@ const toBound = (value: string) => (value === '' ? null : Math.max(0, Number(val
 const flip = <T,>(list: T[], value: T) => (list.includes(value) ? list.filter((x) => x !== value) : [...list, value]);
 
 /**
- * The deck builder's card search: name, set, sort, unlocked or locked, "implemented only", kind toggles
+ * The deck builder's card search: name, set, sort, unlocked or locked, "implemented only", "holo", kind toggles
  * (Pokémon, Trainer, Energy), type toggles (a Pokémon's type or the Energy's, see filterForDeck) and the
  * Pokémon filters.
  */
@@ -94,6 +94,14 @@ export function DeckFilters({
             {k.label}
           </button>
         ))}
+        <button
+          className={`${toggle} ${filter.holoOnly ? on : off}`}
+          aria-pressed={filter.holoOnly}
+          title="Only holo cards: holos, galaxy foils and the holo Energy you've pulled"
+          onClick={() => set({ holoOnly: !filter.holoOnly })}
+        >
+          Holo
+        </button>
       </div>
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="text-slate-400">Type</span>

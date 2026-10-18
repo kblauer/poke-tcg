@@ -6,7 +6,7 @@ import { ensureUser } from '../auth.js';
 import { holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, type HoloEnergyStyle } from '../cards.js';
 import { cardRarity } from '../pool.js';
 import { debugProcedure, protectedProcedure, router } from '../trpc.js';
-import { addHoloEnergy, unlockCards, unlockedIds } from '../unlocks.js';
+import { unlockCards, unlockedIds } from '../unlocks.js';
 
 /**
  * What the pack screen shows of a card: its image, and what the card viewer's tilt and holo effect select on
@@ -97,9 +97,8 @@ async function openPacks(userId: string, input: { setId: string; count: number }
     const { count } = await tx.user.updateMany({ where: { id: userId, bank: { gte: price } }, data: { bank: { decrement: price } } });
     if (!count) throw new TRPCError({ code: 'BAD_REQUEST', message: `${input.count === 1 ? 'A pack costs' : `${input.count} packs cost`} ₱${price}: not enough in the bank` });
     const before = await unlockedIds(userId, tx);
-    // Each holo Energy pulled adds a copy; other cards are unlocked once.
-    await unlockCards(userId, pack.filter((c) => c.slot !== 'holoEnergy').map((c) => c.cardId), tx);
-    await addHoloEnergy(userId, pack.filter((c) => c.slot === 'holoEnergy').map((c) => c.cardId), tx);
+    // Each holo pulled (holo Energy too) adds a copy; other cards are unlocked once.
+    await unlockCards(userId, pack.map((c) => c.cardId), tx);
     const { bank } = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { bank: true } });
     const seen = new Set<string>();
     return {
