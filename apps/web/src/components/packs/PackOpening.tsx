@@ -60,8 +60,11 @@ function saveOptions(options: OpenOptions) {
   }
 }
 
-/** The rare slot (rares and holos), and the odd holo Energy: the cards kept face down when commons and rares are separated. */
-const isRare = (c: PackCard) => c.slot === 'rare' || c.slot === 'holo' || c.slot === 'holoEnergy';
+/**
+ * The rare slot (rares and holos), the odd holo Energy, and any other holo or galaxy foil: the cards revealed one by one
+ * when commons and rares are separated or several packs are opened.
+ */
+const isRare = (c: PackCard) => c.slot === 'rare' || c.slot === 'holo' || c.slot === 'holoEnergy' || c.holo || c.galaxy;
 
 /**
  * Opening packs, in a window over the page. Pick how many (×1, ×2, ×5, ×10 or Custom), then click the pack to
