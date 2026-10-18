@@ -166,3 +166,6 @@ export const openPackInput = z.object({
   /** How many packs to buy and open at once. */
   count: z.number().int().min(1).max(MAX_PACKS_AT_ONCE).default(1),
 });
+
+/** The debug pack opener's cheats (packs.debugOpen): a holo Energy in every pack, or every pack all rares. */
+export const debugOpenPackInput = openPackInput.extend({ holoEnergy: z.boolean().default(false), allRares: z.boolean().default(false) });

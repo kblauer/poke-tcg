@@ -1,6 +1,6 @@
 import { openPack, PACK_PRICE, PACK_SETS, rngFrom, type PackSet } from '@poke-tcg/campaign';
 import { prisma, type Card } from '@poke-tcg/db';
-import { openPackInput } from '@poke-tcg/shared';
+import { debugOpenPackInput, openPackInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { ensureUser } from '../auth.js';
 import { holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, type HoloEnergyStyle } from '../cards.js';
@@ -84,13 +84,13 @@ function packSet(setId: string) {
  * Buys and opens `count` packs of the set with ₱ from the bank: their cards in the order they're revealed (pack
  * after pack, each with its `pack` number),
  * each unlocked (`isNew` if it wasn't before; a holo Energy adds a copy), and the bank left.
- * `forceHoloEnergy`: every pack's Energy is a holo Energy (the debug cheat, `debugOpen`).
+ * `force`: every pack's Energy is a holo Energy, or every pack is all rares (the debug cheats, `debugOpen`).
  */
-async function openPacks(userId: string, input: { setId: string; count: number }, forceHoloEnergy = false) {
+async function openPacks(userId: string, input: { setId: string; count: number }, force: { forceHoloEnergy?: boolean; forceAllRares?: boolean } = {}) {
   const { set, cards } = await packSet(input.setId);
   const rng = rngFrom(Math.floor(Math.random() * 2 ** 31));
   // Every pack's cards in reveal order, pack after pack, each tagged with its pack (from 0).
-  const opened = Array.from({ length: input.count }, (_, pack) => openPack(set, rng, { forceHoloEnergy }).map((c) => ({ ...c, pack })));
+  const opened = Array.from({ length: input.count }, (_, pack) => openPack(set, rng, force).map((c) => ({ ...c, pack })));
   const pack = opened.flat();
   const price = PACK_PRICE * input.count;
   return prisma.$transaction(async (tx) => {
@@ -149,6 +149,8 @@ export const packsRouter = router({
   /** Buys and opens packs (openPacks). */
   open: protectedProcedure.input(openPackInput).mutation(({ ctx, input }) => openPacks(ctx.user.id, input)),
 
-  /** Testing cheat (a debugProcedure, refused in production): opens packs like `open`, each with a holo Energy. */
-  debugOpen: debugProcedure.input(openPackInput).mutation(({ ctx, input }) => openPacks(ctx.user.id, input, true)),
+  /** Testing cheats (a debugProcedure, refused in production): opens packs like `open`, each with a holo Energy, or all rares. */
+  debugOpen: debugProcedure
+    .input(debugOpenPackInput)
+    .mutation(({ ctx, input }) => openPacks(ctx.user.id, input, { forceHoloEnergy: input.holoEnergy, forceAllRares: input.allRares })),
 });
