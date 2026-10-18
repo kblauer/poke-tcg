@@ -1,6 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { prisma, type Card } from '@poke-tcg/db';
-import { DECK_SIZE, MAX_COPIES, copiesOfName, deckIdInput, deckProblems, deckSaveInput, type DeckRuleCard } from '@poke-tcg/shared';
+import { DECK_NAME_LENGTH, DECK_SIZE, MAX_COPIES, copiesOfName, deckIdInput, deckOrderInput, deckProblems, deckRenameInput, deckSaveInput, type DeckRuleCard } from '@poke-tcg/shared';
 import { ensureUser } from '../auth.js';
 import { isBasicEnergyCard } from '../cards.js';
 import { protectedProcedure, router } from '../trpc.js';
@@ -41,13 +41,20 @@ export async function playableDeck(deckId: string, userId: string): Promise<stri
   return deck.cards.flatMap((c) => Array<string>(c.quantity).fill(c.cardId));
 }
 
+/** The position after the user's last deck, for a new one. */
+const nextPosition = async (tx: Pick<typeof prisma, 'deck'>, userId: string) =>
+  ((await tx.deck.aggregate({ where: { ownerId: userId }, _max: { position: true } }))._max.position ?? -1) + 1;
+
 export const decksRouter = router({
-  /** The user's decks, newest first, with whether each can be played (no problems, including locked cards). */
+  /**
+   * The user's decks in their order (oldest first until they're reordered), with their cards and whether
+   * each can be played (no problems, including locked cards).
+   */
   list: protectedProcedure.query(async ({ ctx }) => {
     const [decks, unlocked] = await Promise.all([
       prisma.deck.findMany({
         where: { ownerId: ctx.user.id },
-        orderBy: { updatedAt: 'desc' },
+        orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
         include: { cards: { include: { card: cardFields } } },
       }),
       unlockedIds(ctx.user.id),
@@ -57,6 +64,7 @@ export const decksRouter = router({
       name: d.name,
       updatedAt: d.updatedAt,
       cardCount: d.cards.reduce((n, c) => n + c.quantity, 0),
+      cards: d.cards.map((c) => ({ cardId: c.cardId, quantity: c.quantity })),
       problems: playProblems(d.cards, unlocked),
     }));
   }),
@@ -95,11 +103,41 @@ export const decksRouter = router({
     return prisma.$transaction(async (tx) => {
       const deck = input.deckId
         ? await tx.deck.update({ where: { id: input.deckId }, data: { name: input.name } })
-        : await tx.deck.create({ data: { ownerId: ctx.user.id, name: input.name } });
+        : await tx.deck.create({ data: { ownerId: ctx.user.id, name: input.name, position: await nextPosition(tx, ctx.user.id) } });
       await tx.deckCard.deleteMany({ where: { deckId: deck.id } });
       await tx.deckCard.createMany({ data: cards.map((c) => ({ ...c, deckId: deck.id })) });
       return { id: deck.id };
     });
+  }),
+
+  /** Renames one of the user's decks, leaving its cards as they are. */
+  rename: protectedProcedure.input(deckRenameInput).mutation(async ({ ctx, input }) => {
+    await loadOwnDeck(input.deckId, ctx.user.id);
+    await prisma.deck.update({ where: { id: input.deckId }, data: { name: input.name } });
+    return { ok: true };
+  }),
+
+  /** Copies one of the user's decks, as "<name> (copy)" at the end of the list. */
+  duplicate: protectedProcedure.input(deckIdInput).mutation(async ({ ctx, input }) => {
+    const deck = await loadOwnDeck(input.deckId, ctx.user.id);
+    const suffix = ' (copy)';
+    const name = deck.name.slice(0, DECK_NAME_LENGTH - suffix.length).trimEnd() + suffix;
+    return prisma.$transaction(async (tx) => {
+      const copy = await tx.deck.create({ data: { ownerId: ctx.user.id, name, position: await nextPosition(tx, ctx.user.id) } });
+      await tx.deckCard.createMany({ data: deck.cards.map((c) => ({ deckId: copy.id, cardId: c.cardId, quantity: c.quantity })) });
+      return { id: copy.id };
+    });
+  }),
+
+  /** Puts the user's decks in a new order. It must list every one of their decks, once. */
+  reorder: protectedProcedure.input(deckOrderInput).mutation(async ({ ctx, input }) => {
+    const owned = await prisma.deck.findMany({ where: { ownerId: ctx.user.id }, select: { id: true } });
+    const ids = new Set(input.deckIds);
+    if (ids.size !== input.deckIds.length || ids.size !== owned.length || owned.some((d) => !ids.has(d.id))) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'The order should list each of your decks once' });
+    }
+    await prisma.$transaction(input.deckIds.map((id, position) => prisma.deck.update({ where: { id }, data: { position } })));
+    return { ok: true };
   }),
 
   delete: protectedProcedure.input(deckIdInput).mutation(async ({ ctx, input }) => {

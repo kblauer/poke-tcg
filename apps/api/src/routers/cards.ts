@@ -21,6 +21,7 @@ export const cardsRouter = router({
         hp: true,
         types: true,
         stage: true,
+        evolveFrom: true,
         data: true,
         set: { select: { name: true, releaseDate: true } },
       },
@@ -43,6 +44,8 @@ export const cardsRouter = router({
         kind: c.kind,
         /** "Baby" | "Basic" | "Stage1" | "Stage2" for Pokémon, null otherwise. */
         stage: c.stage,
+        /** The Pokémon's name it evolves from (evolved Pokémon only). */
+        evolvesFrom: c.evolveFrom,
         type: c.types[0] ?? (energyType && TYPES.has(energyType) ? energyType : null),
         /**
          * Energy: the type it provides, for the deck builder's Energy toggles. Special Energy with no type

@@ -77,6 +77,8 @@ model Deck {
   ownerId   String     @db.Uuid
   owner     User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   name      String
+  /// Place in the account's deck list, which can be reordered (lowest first).
+  position  Int        @default(0)
   cards     DeckCard[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
