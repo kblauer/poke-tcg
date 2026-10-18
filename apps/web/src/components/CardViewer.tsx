@@ -1,6 +1,7 @@
 import { stageLabel, type CatalogCard } from '../utils/cardList';
 import { holoAttributes } from '../utils/holo';
 import { HoloCard } from './HoloCard';
+import { CardImage } from './CardImage';
 
 /**
  * A card at full size, with its set and stats underneath (the deck builder's hold and right-click views). A
@@ -14,7 +15,7 @@ export function CardViewer({ card, locked = false }: { card: CatalogCard; locked
           for the near edge, which grows by up to ~6% in perspective, so it doesn't cover the text. */}
       <div className="p-[7%]" style={{ width: 'min(100%, 32rem, calc((100dvh - 12rem) * 63 / 88))' }}>
         {card.imageUrl && locked ? (
-          <img src={`${card.imageUrl}/high.webp`} alt={card.name} className="aspect-[63/88] w-full rounded-[4.5%] object-cover brightness-[.35]" />
+          <CardImage src={`${card.imageUrl}/high.webp`} alt={card.name} className="aspect-[63/88] w-full rounded-[4.5%] object-cover brightness-[.35]" />
         ) : card.imageUrl ? (
           <HoloCard key={card.id} img={`${card.imageUrl}/high.webp`} name={card.name} attrs={holoAttributes(card)} />
         ) : (

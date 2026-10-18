@@ -4,6 +4,7 @@ import { useHoldToInspect } from '../hooks/useHoldToInspect';
 import { useInspectOnRightClick } from './InspectContext';
 import type { CatalogCard } from '../utils/cardList';
 import { CardViewer } from './CardViewer';
+import { CardImage } from './CardImage';
 
 /** The least space between rows, as Tailwind spacing (gap-y-14): enough to read each card's name, a Trainer's too (it sits under the TRAINER banner). */
 const MIN_GAP = 'calc(var(--spacing) * 14)';
@@ -84,7 +85,7 @@ export function CardGrid({
               }`}
             >
               {c.imageUrl ? (
-                <img src={`${c.imageUrl}/low.webp`} alt="" loading="lazy" className={`h-full w-full object-cover ${isLocked?.(c) ? 'brightness-[.35]' : ''}`} />
+                <CardImage src={`${c.imageUrl}/low.webp`} alt="" loading="lazy" className={`h-full w-full object-cover ${isLocked?.(c) ? 'brightness-[.35]' : ''}`} />
               ) : (
                 <div className="h-full w-full bg-slate-800 p-1 text-xs">{c.name}</div>
               )}

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { expandDeck, STARTER_DECK } from './decks.js';
 import { ITEMS, itemText, MAX_CONSUMABLES_PER_RUN } from './items.js';
 import { RUN_TYPE_IDS, type RunTypeId } from './run-types.js';
-import { applyRunAction, bankablePokedollars, battleSetup, battlesFought, createRun, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
+import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesFought, createRun, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
 import { TEST_POOL } from './test-pool.js';
 
 const deck = expandDeck(STARTER_DECK);
@@ -85,6 +85,27 @@ describe('battles', () => {
     const picked = act(s, { type: 'PICK', index: 1 });
     expect(picked.gained).toEqual([offers[1]]);
     expect([picked.phase, picked.position]).toEqual(['map', 1]);
+  });
+
+  it('some trainers pay twice the ₱, some twice the EXP, some offer rarer cards', () => {
+    const leaning = (focus: 'pokedollars' | 'exp' | 'cards') => {
+      const s = at('battle');
+      s.steps[s.position]!.options[0]!.focus = focus;
+      return fight(s, true);
+    };
+    const money = leaning('pokedollars');
+    expect(money.pokedollars - STARTING_POKEDOLLARS).toBeGreaterThanOrEqual(200);
+    expect(leaning('exp').exp).toBe(20);
+    const cards = leaning('cards');
+    expect(battleReward('battle', 'cards').rarity).toBe('uncommon');
+    const rarities = (cards.encounter as { offers: string[] }).offers.map((id) => TEST_POOL.find((c) => c.def.id === id)!.rarity);
+    expect(rarities.every((r) => r !== 'common')).toBe(true);
+  });
+
+  it('trainer battles on the map lean different ways', () => {
+    const foci = new Set<string | undefined>();
+    for (let seed = 1; seed <= 30; seed++) for (const step of fresh(seed).steps) for (const o of step.options) if (o.kind === 'battle') foci.add(o.focus);
+    expect(foci).toEqual(new Set([undefined, 'pokedollars', 'exp', 'cards']));
   });
 
   it('a loss costs 1 HP and moves on; losing the last HP loses the run, and the testing retry restores it', () => {

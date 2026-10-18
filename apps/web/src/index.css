@@ -17,13 +17,19 @@
  * width (five benched Pokémon plus a side column of one card each side). Active Pokémon are 1.4× bigger.
  */
 .play-area-cards {
-  --card-sm: max(3rem, min(calc((100cqh - 12.5rem) * 0.145), calc((100cqw - 5rem) / 7)));
+  /* 14rem: everything on the table that isn't a card, the 4rem turn bar (status line over the End turn button) included. */
+  --card-sm: max(3rem, min(calc((100cqh - 14rem) * 0.145), calc((100cqw - 5rem) / 7)));
   --card-lg: calc(var(--card-sm) * 1.4);
 }
 
 /* The attacks column hangs off the active slot's right edge, so the slot stays centred. */
 .attack-column {
   left: calc(50% + var(--card-lg, 7rem) / 2 + 0.75rem);
+}
+
+/* The Stadium card (components/StadiumCard.tsx) hangs off its left edge the same way. */
+.stadium-column {
+  right: calc(50% + var(--card-lg, 7rem) / 2 + 0.75rem);
 }
 
 /* A message (components/Toasts.tsx) slides in from the right as it appears. */

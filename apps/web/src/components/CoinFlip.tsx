@@ -3,8 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useSkipFlips } from '../hooks/useSkipFlips';
 
 /** How long the coin spins, then how long the result stays up. */
-export const SPIN_MS = 1000;
-const RESULT_MS = 900;
+export const SPIN_MS = 600;
+const RESULT_MS = 540;
 
 /** A coin flip from the log, to animate. */
 export interface Flip {
@@ -19,7 +19,8 @@ export const flipsAfter = (log: LogEntry[], since: number): Flip[] =>
   log.flatMap((e) => (e.coin && e.n !== undefined && e.n > since ? [{ n: e.n, player: e.player, ...e.coin }] : []));
 
 /**
- * Animates a move's coin flips one after another, in the middle of the screen, with what each is for (the attack,
+ * Animates a move's coin flips one after another, in the middle of the play area (Board puts it in the PlayArea), with
+ * what each is for (the attack,
  * Trainer, power or Special Condition). The engine has already decided each result; this replays them while the
  * game waits (GamePage holds the move back until `onDone`). Clicking anywhere skips the rest of them, and
  * "Always skip coin flips" turns the animations off (useSkipFlips).
@@ -48,8 +49,9 @@ export function CoinFlip({ flips, you, onDone }: { flips: Flip[]; you: PlayerId;
   if (!current) return null;
   const who = current.player === null ? null : current.player === you ? 'You' : 'CPU';
   return (
-    // The game waits for the flips, so a click anywhere (not only on the coin) skips them.
-    <div data-keep-action className="fixed inset-0 z-[1150] flex cursor-pointer items-center justify-center p-4" aria-live="polite" onClick={() => doneRef.current()}>
+    // Covers the play area (the PlayArea is its containing block), centring the coin there. The game waits for the
+    // flips, so a click anywhere on the table (not only on the coin) skips them.
+    <div data-keep-action className="absolute inset-0 z-[1150] flex cursor-pointer items-center justify-center p-4" aria-live="polite" onClick={() => doneRef.current()}>
       <section className="flex max-w-sm flex-col items-center gap-3 rounded-2xl bg-slate-900/95 px-8 py-5 text-center shadow-2xl shadow-black/70 ring-1 ring-slate-600">
         <p className="text-base text-slate-200">
           {who && <span className="font-semibold">{who}: </span>}

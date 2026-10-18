@@ -1,12 +1,19 @@
 import { bossSummary, currentGameId, EQUIP_SLOTS, isBattleKind, fitsSlot, item, ITEMS, onlyOne, RUN_TYPE_IDS, RUN_TYPES, runView, SHOP_ITEMS, type EquipSlot } from '@poke-tcg/campaign';
 import { prisma } from '@poke-tcg/db';
-import { buyItemInput, equipInput, runActInput, runChooseInput, runIdInput, startRunInput, useItemInput } from '@poke-tcg/shared';
+import { DECK_NAME_LENGTH } from '@poke-tcg/shared';
+import { buyItemInput, equipInput, runActInput, runChooseInput, runIdInput, saveRunDeckInput, startRunInput, useItemInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { cardPool } from '../pool.js';
-import { abandonBattle, advanceRun, ensureAccount, latestRun, loadOwnRun, startRun, type LoadedRun } from '../runs.js';
+import { abandonBattle, advanceRun, ensureAccount, latestRun, loadOwnRun, startRun, syncRunDeck, type LoadedRun } from '../runs.js';
 import { unlockedIds } from '../unlocks.js';
 import { playableDeck, playProblems } from './decks.js';
 import { protectedProcedure, router } from '../trpc.js';
+
+/** The default name for saving a run's deck: the run's number among the account's runs and its type, "Run #3 – Celadon City". */
+async function runDeckName(run: LoadedRun) {
+  const number = await prisma.run.count({ where: { ownerId: run.ownerId, createdAt: { lte: run.createdAt } } });
+  return `Run #${number} – ${RUN_TYPES[run.type as keyof typeof RUN_TYPES]?.name ?? run.type}`.slice(0, DECK_NAME_LENGTH);
+}
 
 /** What the client gets for a run: its view (no RNG or opponents' deck seeds) and the battle under way. */
 async function clientRun(run: LoadedRun) {
@@ -32,11 +39,17 @@ export const runRouter = router({
       }),
     ]);
     const unlocked = await unlockedIds(ctx.user.id);
+    // A run started before there were automatic run decks gets one now.
+    if (run?.status === 'ACTIVE' && !decks.some((d) => d.runId === run.id)) await syncRunDeck(ctx.user.id, run.id, run.state.deck);
+    const runDeck = run && decks.find((d) => d.runId === run.id);
     return {
       account: user,
       run: run && (await clientRun(run)),
-      // With why each can't start a run (the deck rules, or cards not unlocked); empty when it can.
-      decks: decks.map((d) => ({ id: d.id, name: d.name, cardCount: d.cards.reduce((n, c) => n + c.quantity, 0), problems: playProblems(d.cards, unlocked) })),
+      // The latest run's automatic deck while it's not saved (its name, the default for saving it: "Run #3 – Celadon City").
+      runDeck: run && (runDeck || run.status === 'ACTIVE') ? { saveName: await runDeckName(run) } : null,
+      // With why each can't start a run (the deck rules, or cards not unlocked); empty when it can. Not the automatic
+      // run deck: a run starts with one of the account's own decks.
+      decks: decks.filter((d) => d.runId === null).map((d) => ({ id: d.id, name: d.name, cardCount: d.cards.reduce((n, c) => n + c.quantity, 0), problems: playProblems(d.cards, unlocked) })),
       runTypes: RUN_TYPE_IDS.map((id) => {
         const type = RUN_TYPES[id];
         return { id, name: type.name, description: type.description, bosses: bossSummary(type) };
@@ -94,7 +107,25 @@ export const runRouter = router({
   }),
 
   /** Starts a new run of a type with one of the account's decks, which must be playable (banking the earlier runs' ₱). */
-  start: protectedProcedure.input(startRunInput).mutation(async ({ ctx, input }) => startRun(ctx.user.id, input.type, await playableDeck(input.deckId, ctx.user.id))),
+  start: protectedProcedure.input(startRunInput).mutation(async ({ ctx, input }) => {
+    const deck = await playableDeck(input.deckId, ctx.user.id);
+    if (deck.runDeck) throw new TRPCError({ code: 'BAD_REQUEST', message: "Start a run with one of your own decks (save the run's deck first)" });
+    return startRun(ctx.user.id, input.type, deck);
+  }),
+
+  /**
+   * Saves the automatic run deck once its run is over: it becomes one of the account's own decks, under `name`, at the end
+   * of the list. Unsaved, it's taken over by the next run instead.
+   */
+  saveDeck: protectedProcedure.input(saveRunDeckInput).mutation(async ({ ctx, input }) => {
+    const run = await loadOwnRun(input.runId, ctx.user.id);
+    if (run.status === 'ACTIVE') throw new TRPCError({ code: 'BAD_REQUEST', message: 'Save the deck once the run is over' });
+    const deck = await prisma.deck.findUnique({ where: { runId: run.id }, select: { id: true } });
+    if (!deck) throw new TRPCError({ code: 'BAD_REQUEST', message: "This run's deck is already saved" });
+    const last = await prisma.deck.aggregate({ where: { ownerId: ctx.user.id }, _max: { position: true } });
+    await prisma.deck.update({ where: { id: deck.id }, data: { runId: null, name: input.name, position: (last._max.position ?? -1) + 1 } });
+    return { id: deck.id };
+  }),
 
   /** The post-run shop: items for EXP, and how many of each the account already has (`owned`, by item id). */
   shop: protectedProcedure.query(async ({ ctx }) => {

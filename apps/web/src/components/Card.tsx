@@ -30,6 +30,7 @@ import { EnergyIcon } from './EnergyIcon';
 import { HoloCard } from './HoloCard';
 import { CatalogContext, useInspectOnRightClick } from './InspectContext';
 import { PreviewContext } from './PreviewContext';
+import { CardImage } from './CardImage';
 
 /**
  * Card art from TCGdex (aspect ratio 63:88), with damage and attached energy overlaid when in play. Right-clicking it
@@ -74,7 +75,7 @@ export function Card({
       {holo && def.imageUrl ? (
         <HoloCard still img={`${def.imageUrl}/high.webp`} name={def.name} attrs={holoAttributes(holo)} />
       ) : def.imageUrl ? (
-        <img src={`${def.imageUrl}/${highRes ? 'high' : 'low'}.webp`} alt={def.name} loading="lazy" draggable={false} className="h-full w-full object-cover" />
+        <CardImage src={`${def.imageUrl}/${highRes ? 'high' : 'low'}.webp`} alt={def.name} loading="lazy" draggable={false} className="h-full w-full object-cover" />
       ) : (
         <div className={`${typeColor(def)} h-full w-full p-2 text-xs font-semibold`}>{def.name}</div>
       )}

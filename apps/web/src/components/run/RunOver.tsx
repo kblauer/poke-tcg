@@ -6,6 +6,7 @@ import type { ClientRun, Overview, RunControl } from '../../hooks/useRun';
 import { ItemShop } from './ItemShop';
 import { NewRunPicker } from './NewRunPicker';
 import { RunCard } from './RunCard';
+import { SaveRunDeck } from './SaveRunDeck';
 
 /** localStorage key: the run whose results the player closed, and which panels (see useClosed). */
 const CLOSED_KEY = 'poke-tcg.run-over-closed';
@@ -55,6 +56,7 @@ const Minimized = ({ title, summary, onOpen }: { title: ReactNode; summary?: Rea
  * After a run. Beaten: the next run first, then the EXP it earned, the cards gained in it (already unlocked in
  * the deck builder) and the badges it won, then the shop. The results and the shop can be closed to a slim bar
  * (see useClosed). Lost: start over, or (for testing) carry on with full HP. Conceded: start over (no retry).
+ * Whichever way it ended, SaveRunDeck offers to save the run's deck before the next run.
  */
 export function RunOver({ current, overview, run }: { current: ClientRun; overview: Overview; run: RunControl }) {
   const view = current.view;
@@ -62,6 +64,8 @@ export function RunOver({ current, overview, run }: { current: ClientRun; overvi
   const last = finalBoss(type);
   const won = (view.badges ?? []).map((id) => ITEMS[id]?.name).filter(Boolean);
   const { isClosed, toggle } = useClosed(current.id);
+  // Before the next run, which takes the run's deck over if it isn't saved.
+  const saveDeck = <SaveRunDeck current={current} saveName={overview.runDeck?.saveName ?? null} />;
   if (view.phase === 'lost' && view.conceded) {
     const banked = bankablePokedollars(view);
     return (
@@ -73,6 +77,7 @@ export function RunOver({ current, overview, run }: { current: ClientRun; overvi
             {banked ? `₱${banked} went to your bank.` : 'No battle was finished, so no ₱ were banked.'}
           </p>
         </section>
+        {saveDeck}
         <NewRunPicker overview={overview} run={run} title="Start over" defaultType={view.type} />
       </div>
     );
@@ -89,6 +94,7 @@ export function RunOver({ current, overview, run }: { current: ClientRun; overvi
             Retry with 3 HP (testing)
           </button>
         </section>
+        {saveDeck}
         <NewRunPicker overview={overview} run={run} title="Start over" defaultType={view.type} />
       </div>
     );
@@ -97,6 +103,7 @@ export function RunOver({ current, overview, run }: { current: ClientRun; overvi
   const rewards = `+${view.exp} EXP${won.length > 0 ? ` · ${won.join(', ')}` : ''} · ₱${view.pokedollars} banked`;
   return (
     <div className="space-y-4">
+      {saveDeck}
       <NewRunPicker overview={overview} run={run} title="Next run" />
       {isClosed('result') ? (
         <Minimized title={<span className="text-yellow-300">{beat}</span>} summary={`${rewards} · ${view.gained.length} cards gained`} onOpen={() => toggle('result')} />

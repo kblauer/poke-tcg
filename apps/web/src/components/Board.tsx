@@ -31,7 +31,7 @@ import { RetreatPanel } from './RetreatPanel';
 import { Slot } from './Slot';
 import { SlotMenu } from './SlotMenu';
 import { endTurnReminders } from '../utils/reminders';
-import { StadiumChip } from './StadiumChip';
+import { StadiumCard } from './StadiumCard';
 import { StatusBar } from './StatusBar';
 import { TurnOrderFlip } from './TurnOrderFlip';
 import { Toasts } from './Toasts';
@@ -55,6 +55,7 @@ export function Board({
   errorAt,
   gameId,
   runTab,
+  overlay,
 }: {
   view: PlayerView;
   /** The move that led to `view`, if it just happened (for its animation). */
@@ -71,6 +72,8 @@ export function Board({
   gameId: string;
   /** A run's battle: the side panel's Run tab (HP, ₱, EXP, the Bag). */
   runTab?: ReactNode;
+  /** Shown over the play area, centred on it: the coin flips (CoinFlip). */
+  overlay?: ReactNode;
 }) {
   const debugEnabled = useDebugEnabled();
   const busy = pending !== null || replaying;
@@ -339,6 +342,7 @@ export function Board({
             <PlayArea
               droppable={draggingTrainer && !busy}
               drop={dragging && heldCard ? { over: dropTarget !== null } : null}
+              overlay={overlay}
             >
               <OpponentArea
                 opponent={view.opponent}
@@ -367,7 +371,6 @@ export function Board({
                 reminders={endTurnReminders(view, power.powers)}
                 pending={pending}
                 send={send}
-                stadium={<StadiumChip view={view} send={send} busy={busy} />}
               />
 
               {/* Prize cards on the left of the play area; discard pile and deck on the right. */}
@@ -388,6 +391,7 @@ export function Board({
                   </div>
                   <div className="min-w-0 flex-1 space-y-3">
                     <div className="relative flex justify-center">
+                      <StadiumCard view={view} send={send} busy={busy} />
                       {playerSlot('active', self.active)}
                       {attacks}
                     </div>

@@ -1,5 +1,5 @@
 import type { GameAction } from '@poke-tcg/game-engine';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 /** Something the player could still do this turn, which End turn reminds them of first. */
@@ -34,8 +34,10 @@ const button = 'rounded bg-slate-600 px-3 py-1 text-sm transition hover:bg-slate
 const endButton = 'rounded bg-blue-600 px-3 py-1 text-sm transition hover:bg-blue-500 active:scale-95';
 
 /**
- * Whose turn it is and the End turn button, centred in the middle of the table between the two sides.
- * `stadium` is the Stadium card in play (StadiumChip), if any. `setup`: while placing Pokémon before the battle, the
+ * Whose turn it is, and below it the End turn button, both centred in the middle of the table between the two sides.
+ * The text line and the button row keep fixed heights (the row stays when there's no button), so the button never
+ * moves as the text or the turn changes.
+ * `setup`: while placing Pokémon before the battle, the
  * Reset cards (take them all back) and Start battle buttons. `reminders`: what the player could still do this turn
  * (attach Energy, use the Stadium, use Pokémon Powers); End turn lists them and asks first, except those the player
  * turned off with "Don't remind me" (each remembered in the browser).
@@ -47,7 +49,6 @@ export function StatusBar({
   reminders = [],
   pending,
   send,
-  stadium,
 }: {
   status: string;
   canEndTurn: boolean;
@@ -55,7 +56,6 @@ export function StatusBar({
   reminders?: EndTurnReminder[];
   pending: GameAction | null;
   send: (a: GameAction) => void;
-  stadium?: ReactNode;
 }) {
   const busy = pending !== null;
   /** The reminders being asked about, or null. */
@@ -88,34 +88,41 @@ export function StatusBar({
   const toggle = (kind: EndTurnReminder['kind'], on: boolean) => setSilenced((s) => (on ? [...s, kind] : s.filter((k) => k !== kind)));
 
   return (
-    // 40% of the table's width, centred, so it keeps its size as the text changes; only very long text widens it.
-    <div className="mx-auto flex w-fit min-w-[40%] shrink-0 items-center justify-center gap-4 rounded-lg bg-slate-900 px-4 py-1.5 text-center">
-      <span className="font-semibold">{status}</span>
-      {stadium}
-      {setup && (
-        <>
-          <button className={`${button} disabled:opacity-40`} disabled={busy || !setup.canReset} onClick={() => send({ type: 'RESET_SETUP' })} title="Take the Pokémon you've placed back into your hand">
-            Reset cards
-          </button>
+    <div className="flex shrink-0 flex-col items-center gap-1 text-center">
+      {/* One line, so a longer message never pushes the button down. */}
+      <p className="h-5 max-w-full truncate px-2 text-sm font-semibold leading-5">{status}</p>
+      <div className="flex h-10 items-center justify-center">
+        {setup && (
+          // Start battle in the middle, where End turn goes; Reset cards hangs off its left.
+          <span className="relative">
+            <button
+              className={`${button} absolute right-full top-1/2 mr-3 -translate-y-1/2 whitespace-nowrap disabled:opacity-40`}
+              disabled={busy || !setup.canReset}
+              onClick={() => send({ type: 'RESET_SETUP' })}
+              title="Take the Pokémon you've placed back into your hand"
+            >
+              Reset cards
+            </button>
+            <button
+              className="min-w-36 rounded-lg bg-emerald-600 px-6 py-2 text-base font-semibold shadow-lg shadow-black/40 transition hover:bg-emerald-500 active:scale-95 disabled:opacity-40"
+              disabled={busy || !setup.canStart}
+              onClick={() => send({ type: 'START_BATTLE' })}
+              title={setup.canStart ? 'Done placing your Pokémon' : 'Choose an Active Pokémon first'}
+            >
+              {pending?.type === 'START_BATTLE' ? 'Starting…' : 'Start battle'}
+            </button>
+          </span>
+        )}
+        {canEndTurn && (
           <button
-            className="rounded bg-emerald-600 px-3 py-1 text-sm font-semibold transition hover:bg-emerald-500 active:scale-95 disabled:opacity-40"
-            disabled={busy || !setup.canStart}
-            onClick={() => send({ type: 'START_BATTLE' })}
-            title={setup.canStart ? 'Done placing your Pokémon' : 'Choose an Active Pokémon first'}
+            className="min-w-36 rounded-lg bg-blue-600 px-6 py-2 text-base font-semibold shadow-lg shadow-black/40 transition hover:bg-blue-500 active:scale-95 disabled:cursor-progress"
+            disabled={busy}
+            onClick={clickEndTurn}
           >
-            {pending?.type === 'START_BATTLE' ? 'Starting…' : 'Start battle'}
+            {pending?.type === 'END_TURN' ? 'Ending turn…' : 'End turn'}
           </button>
-        </>
-      )}
-      {canEndTurn && (
-        <button
-          className="rounded bg-blue-600 px-3 py-1 text-sm transition hover:bg-blue-500 active:scale-95 disabled:cursor-progress"
-          disabled={busy}
-          onClick={clickEndTurn}
-        >
-          {pending?.type === 'END_TURN' ? 'Ending turn…' : 'End turn'}
-        </button>
-      )}
+        )}
+      </div>
       {/* In the page body: the play area's container-type would trap a fixed dialog. */}
       {asking &&
         createPortal(

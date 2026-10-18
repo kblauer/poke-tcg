@@ -35,6 +35,8 @@ export interface MapEncounter {
   boss?: BossId;
   /** A Mystery revealed by the Itemfinder: the event it will be. */
   event?: RunEvent;
+  /** Trainer battles: what their reward leans to, if anything (battleReward). */
+  focus?: RewardFocus;
 }
 
 export interface Step {
@@ -54,7 +56,7 @@ export type RunEvent =
 /** The encounter being played. */
 export type Encounter =
   /** `deckSeed` rolls a trainer's deck; `gameId` is the battle once started. An elite battle can be declined first. */
-  | { kind: BattleKind; trainer: string; deckSeed: number; accepted?: boolean; gameId?: string; boss?: BossId }
+  | { kind: BattleKind; trainer: string; deckSeed: number; accepted?: boolean; gameId?: string; boss?: BossId; focus?: RewardFocus }
   | { kind: 'shop'; stock: { cardId: string; price: number; sold?: boolean }[] }
   | { kind: 'gift'; offers: string[] }
   | { kind: 'trade'; give: string; get: string }
@@ -169,6 +171,30 @@ export const REWARDS: Record<BattleKind, { pokedollars: [number, number]; exp: n
   champion: { pokedollars: [1000, 1000], exp: 200, rarity: 'rare' },
 };
 
+/**
+ * What a trainer battle's reward leans to, so they differ: twice the ₱, twice the EXP, or cards one rarity up. Shown
+ * on the map before choosing. The amounts are placeholders, to balance later (agreed with the user).
+ */
+export type RewardFocus = 'pokedollars' | 'exp' | 'cards';
+export const REWARD_FOCUS_LABELS: Record<RewardFocus, string> = { pokedollars: 'Big payout', exp: 'Extra EXP', cards: 'Rarer cards' };
+/** How often a trainer battle leans each way (null: an ordinary reward). */
+const FOCUS_WEIGHTS: [RewardFocus | null, number][] = [
+  [null, 4],
+  ['pokedollars', 2],
+  ['exp', 2],
+  ['cards', 2],
+];
+const RARITIES: Rarity[] = ['common', 'uncommon', 'rare', 'holo'];
+
+/** What a battle pays when won (REWARDS), with its trainer's `focus`. */
+export function battleReward(kind: BattleKind, focus?: RewardFocus): (typeof REWARDS)[BattleKind] {
+  const r = REWARDS[kind];
+  if (focus === 'pokedollars') return { ...r, pokedollars: [r.pokedollars[0] * 2, r.pokedollars[1] * 2] };
+  if (focus === 'exp') return { ...r, exp: r.exp * 2 };
+  if (focus === 'cards') return { ...r, rarity: RARITIES[Math.min(RARITIES.indexOf(r.rarity) + 1, RARITIES.length - 1)]! };
+  return r;
+}
+
 export const CENTER_PRICE = 100;
 export const SHOP_SIZE = 5;
 export const OFFERS = 3;
@@ -177,7 +203,8 @@ const RARITY_RANK: Record<Rarity, number> = { common: 0, uncommon: 1, rare: 2, h
 function mapEncounter(rng: Rng, kind: EncounterKind): MapEncounter {
   if (kind === 'battle') {
     const trainer = pick(rng, TRAINERS);
-    return { kind, label: trainer, trainer };
+    const focus = weighted(rng, FOCUS_WEIGHTS);
+    return { kind, label: trainer, trainer, ...(focus && { focus }) };
   }
   if (kind === 'elite') {
     const trainer = `Ace Trainer ${pick(rng, ['Cal', 'Gwen', 'Paige', 'Rolf', 'Vera', 'Quinn'])}`;
@@ -285,7 +312,7 @@ function rollEncounter(rng: Rng, state: RunState, option: MapEncounter, pool: re
     case 'gymLeader':
     case 'eliteFour':
     case 'champion':
-      return { kind: option.kind, trainer: option.trainer!, deckSeed: seed(rng), ...(option.boss && { boss: option.boss }) };
+      return { kind: option.kind, trainer: option.trainer!, deckSeed: seed(rng), ...(option.boss && { boss: option.boss }), ...(option.focus && { focus: option.focus }) };
     case 'shop': {
       const cards = byId(pool);
       const discount = effectTotal(effects, (e) => (e.kind === 'shopDiscount' ? e.percent : 0));
@@ -466,7 +493,7 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
       tickBattles(state);
       state.battlesFought = battlesFought(state) + 1;
       if (action.won) {
-        const reward = REWARDS[battle.kind];
+        const reward = battleReward(battle.kind, battle.focus);
         const prize = between(rng, reward.pokedollars[0] / 10, reward.pokedollars[1] / 10) * 10;
         const pokedollars =
           Math.round((prize * (100 + effectTotal(effects, (x) => (x.kind === 'pokedollarBonus' ? x.percent : 0)))) / 1000) * 10 +

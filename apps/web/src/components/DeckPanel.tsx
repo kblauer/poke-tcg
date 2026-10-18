@@ -2,6 +2,7 @@ import { DECK_SIZE } from '@poke-tcg/shared';
 import type { CatalogCard } from '../utils/cardList';
 import { DECK_SECTIONS, cantAdd, deckSize, withCards, type DeckEntry } from '../utils/deckBuilder';
 import { useInspectOnRightClick } from './InspectContext';
+import { CardImage } from './CardImage';
 
 const small = 'rounded bg-slate-700 px-1.5 leading-5 hover:bg-slate-600 disabled:opacity-30';
 
@@ -60,7 +61,7 @@ export function DeckPanel({
                   return (
                     <li key={card.id} className={`flex items-center gap-2 ${locked ? 'opacity-50' : ''}`} {...inspectOn(card)}>
                       {card.imageUrl ? (
-                        <img src={`${card.imageUrl}/low.webp`} alt="" loading="lazy" className="h-9 w-[1.6rem] shrink-0 rounded-sm object-cover" />
+                        <CardImage src={`${card.imageUrl}/low.webp`} alt="" loading="lazy" className="h-9 w-[1.6rem] shrink-0 rounded-sm object-cover" />
                       ) : (
                         <div className="h-9 w-[1.6rem] shrink-0 rounded-sm bg-slate-800" />
                       )}

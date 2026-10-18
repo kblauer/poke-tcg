@@ -1,6 +1,7 @@
 import { CPU_DIFFICULTIES, DEBUG_CONDITIONS, MAX_BENCH, type AttackChoices, type DebugCommand, type GameAction, type PowerChoices, type TrainerChoices } from '@poke-tcg/game-engine';
 import { BOSS_IDS, EQUIP_SLOTS, MAX_PACKS_AT_ONCE, PACK_SETS, RUN_TYPE_IDS, type RunAction, type RunTypeId } from '@poke-tcg/campaign';
 import { z } from 'zod';
+import { DECK_NAME_LENGTH } from './deck.js';
 
 export * from './deck.js';
 
@@ -153,6 +154,8 @@ export const runChooseInput = z.object({
   option: z.number().int().min(0).max(9),
   deckId: z.uuid().optional(),
 });
+/** Saving the automatic run deck once the run is over, under a name of the player's. */
+export const saveRunDeckInput = z.object({ runId: z.uuid(), name: z.string().trim().min(1).max(DECK_NAME_LENGTH) });
 export const useItemInput = z.object({ runId: z.uuid(), itemId: z.string().min(1).max(64) });
 export const startRunInput = z.object({ type: z.enum(RUN_TYPE_IDS as [RunTypeId, ...RunTypeId[]]), deckId: z.uuid() });
 export const buyItemInput = z.object({ itemId: z.string().min(1).max(64) });

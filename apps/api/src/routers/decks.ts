@@ -23,6 +23,13 @@ export async function loadOwnDeck(deckId: string, userId: string) {
   return deck;
 }
 
+/** One of the user's decks that they can change: not the automatic run deck, which copies the run's deck. */
+async function loadEditableDeck(deckId: string, userId: string) {
+  const deck = await loadOwnDeck(deckId, userId);
+  if (deck.runId) throw new TRPCError({ code: 'BAD_REQUEST', message: "The run's deck follows your run: copy it to change it, or save it when the run is over" });
+  return deck;
+}
+
 /** Why the deck's cards break the rules (see deckProblems). */
 export const problemsOf = (cards: { quantity: number; card: Pick<Card, 'name' | 'kind' | 'stage' | 'data'> }[]) =>
   deckProblems(cards.map((c) => ({ card: ruleCard(c.card), quantity: c.quantity })));
@@ -33,12 +40,15 @@ export const playProblems = (cards: { cardId: string; quantity: number; card: Pi
   return [...problemsOf(cards), ...(locked ? [locked] : [])];
 };
 
-/** The user's deck, ready to battle with: its name and cards (one card id per card), or BAD_REQUEST with why it can't be played. */
-export async function playableDeck(deckId: string, userId: string): Promise<{ name: string; cards: string[] }> {
+/**
+ * The user's deck, ready to battle with: its name, cards (one card id per card) and whether it's the automatic run deck,
+ * or BAD_REQUEST with why it can't be played.
+ */
+export async function playableDeck(deckId: string, userId: string): Promise<{ name: string; cards: string[]; runDeck: boolean }> {
   const [deck, unlocked] = await Promise.all([loadOwnDeck(deckId, userId), unlockedIds(userId)]);
   const [problem] = playProblems(deck.cards, unlocked);
   if (problem) throw new TRPCError({ code: 'BAD_REQUEST', message: problem });
-  return { name: deck.name, cards: deck.cards.flatMap((c) => Array<string>(c.quantity).fill(c.cardId)) };
+  return { name: deck.name, cards: deck.cards.flatMap((c) => Array<string>(c.quantity).fill(c.cardId)), runDeck: deck.runId !== null };
 }
 
 /** The position after the user's last deck, for a new one. */
@@ -66,6 +76,8 @@ export const decksRouter = router({
       cardCount: d.cards.reduce((n, c) => n + c.quantity, 0),
       cards: d.cards.map((c) => ({ cardId: c.cardId, quantity: c.quantity })),
       problems: playProblems(d.cards, unlocked),
+      // The automatic run deck: read-only, kept up to date with the run's deck.
+      runDeck: d.runId !== null,
     }));
   }),
 
@@ -96,7 +108,7 @@ export const decksRouter = router({
     const [locked] = lockedNames(input.cards.map((c) => ({ cardId: c.cardId, card: rows.find((r) => r.id === c.cardId)! })), await unlockedIds(ctx.user.id));
     if (locked) throw new TRPCError({ code: 'BAD_REQUEST', message: `${locked} isn't unlocked yet` });
 
-    if (input.deckId) await loadOwnDeck(input.deckId, ctx.user.id);
+    if (input.deckId) await loadEditableDeck(input.deckId, ctx.user.id);
     else await ensureUser(ctx.user);
     const cards = input.cards.map((c) => ({ cardId: c.cardId, quantity: c.quantity }));
     // Replace the card list in one transaction, so a deck is never half saved.
@@ -112,7 +124,7 @@ export const decksRouter = router({
 
   /** Renames one of the user's decks, leaving its cards as they are. */
   rename: protectedProcedure.input(deckRenameInput).mutation(async ({ ctx, input }) => {
-    await loadOwnDeck(input.deckId, ctx.user.id);
+    await loadEditableDeck(input.deckId, ctx.user.id);
     await prisma.deck.update({ where: { id: input.deckId }, data: { name: input.name } });
     return { ok: true };
   }),
@@ -141,7 +153,7 @@ export const decksRouter = router({
   }),
 
   delete: protectedProcedure.input(deckIdInput).mutation(async ({ ctx, input }) => {
-    await loadOwnDeck(input.deckId, ctx.user.id);
+    await loadEditableDeck(input.deckId, ctx.user.id);
     await prisma.deck.delete({ where: { id: input.deckId } });
     return { ok: true };
   }),

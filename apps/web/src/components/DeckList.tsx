@@ -11,6 +11,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { CatalogCard } from '../utils/cardList';
 import { useInspectOnRightClick } from './InspectContext';
 import { DECK_SECTIONS, deckRatio, deckSize, featuredPokemon, type DeckEntry } from '../utils/deckBuilder';
+import { CardImage } from './CardImage';
 
 export type SavedDeck = inferRouterOutputs<AppRouter>['decks']['list'][number];
 
@@ -32,7 +33,7 @@ export function DeckSummary({ entries, byId, isLocked }: { entries: DeckEntry[];
         {[0, 1, 2].map((i) => {
           const card = featured[i];
           return card?.imageUrl ? (
-            <img
+            <CardImage
               key={i}
               src={`${card.imageUrl}/low.webp`}
               alt={card.name}
@@ -124,11 +125,28 @@ function DeckName({ name, onRename }: { name: string; onRename: (name: string) =
   );
 }
 
-/** A deck's name (with its rename button) and card count, with whether it can be played. */
-function DeckTitle({ name, onRename, size, ready, children }: { name: string; onRename: (name: string) => void; size: number; ready: boolean; children?: ReactNode }) {
+/** The automatic run deck's tag by its name: it copies the run's deck, so it can't be renamed or edited. */
+const RUN_DECK_TAG = (
+  <span className="shrink-0 rounded bg-sky-700 px-1.5 text-[10px] font-semibold uppercase leading-5 tracking-wide text-sky-100" title="Copies your run's deck as it changes. Copy it to edit it, or save it when the run is over.">
+    Run deck
+  </span>
+);
+
+/**
+ * A deck's name (with its rename button) and card count, with whether it can be played. Without `onRename` (the
+ * automatic run deck) the name is plain, tagged Run deck.
+ */
+function DeckTitle({ name, onRename, size, ready, children }: { name: string; onRename?: (name: string) => void; size: number; ready: boolean; children?: ReactNode }) {
   return (
     <div className="flex items-center gap-2">
-      <DeckName name={name} onRename={onRename} />
+      {onRename ? (
+        <DeckName name={name} onRename={onRename} />
+      ) : (
+        <span className="flex min-w-0 flex-1 items-center gap-1.5">
+          <span className="truncate font-semibold">{name}</span>
+          {RUN_DECK_TAG}
+        </span>
+      )}
       {children}
       <span className={`shrink-0 text-xs ${ready ? 'text-emerald-400' : 'text-slate-400'}`}>
         {size}/{DECK_SIZE}
@@ -230,7 +248,7 @@ function SortableDeck({
         }}
         title={deck.problems.join(' ') || undefined}
       >
-        <DeckTitle name={deck.name} onRename={(name) => onRename(deck.id, name)} size={deck.cardCount} ready={deck.problems.length === 0}>
+        <DeckTitle name={deck.name} onRename={deck.runDeck ? undefined : (name) => onRename(deck.id, name)} size={deck.cardCount} ready={deck.problems.length === 0}>
           <button
             className="flex shrink-0 items-center gap-1 self-center rounded bg-slate-600 px-1.5 text-xs leading-5 hover:bg-slate-500 disabled:opacity-40"
             disabled={busy}
@@ -251,10 +269,14 @@ function SortableDeck({
   );
 }
 
-/** The open deck at the top of the deck builder: click it to go back to the deck list, or the pencil to rename it. */
+/**
+ * The open deck at the top of the deck builder: click it to go back to the deck list, or the pencil to rename it
+ * (not the automatic run deck, `readOnly`).
+ */
 export function CurrentDeck({
   name,
   onRename,
+  readOnly = false,
   entries,
   ready,
   byId,
@@ -263,6 +285,7 @@ export function CurrentDeck({
 }: {
   name: string;
   onRename: (name: string) => void;
+  readOnly?: boolean;
   entries: DeckEntry[];
   ready: boolean;
   byId: Map<string, CatalogCard>;
@@ -279,7 +302,7 @@ export function CurrentDeck({
       onKeyDown={(e) => e.key === 'Enter' && onBack()}
       title="Back to the deck list"
     >
-      <DeckTitle name={name || 'Unnamed deck'} onRename={onRename} size={deckSize(entries)} ready={ready}>
+      <DeckTitle name={name || 'Unnamed deck'} onRename={readOnly ? undefined : onRename} size={deckSize(entries)} ready={ready}>
         <span className="shrink-0 text-xs text-slate-400">← All decks</span>
       </DeckTitle>
       <DeckSummary entries={entries} byId={byId} isLocked={isLocked} />
