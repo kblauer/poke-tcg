@@ -1,6 +1,6 @@
 // Booster packs, bought with the ₱ in the bank. Each is 11 cards from one set with the generally accepted
 // WOTC-era make-up (averaged over the sets, not each set's own odds): 1 rare (holo about 1 pack in 3),
-// 3 uncommons and 6 commons, all different, plus 1 basic Energy: the set's own, or the closest earlier set's, and
+// 3 uncommons and 6 commons, all different (each of those now and then a rare instead: EXTRA_RARE_CHANCES), plus 1 basic Energy: the set's own, or the closest earlier set's, and
 // about 1 pack in 50 a holo Energy instead (found only in packs). Opening one unlocks its cards.
 import { BASIC_ENERGY, type Rarity } from './pool.js';
 import { chance, pick, sample, type Rng } from './random.js';
@@ -16,6 +16,17 @@ export const MAX_PACKS_AT_ONCE = 50;
 
 /** How often the rare is a holo. */
 export const HOLO_CHANCE = 1 / 3;
+
+/**
+ * The chance each of a pack's other cards (commons and uncommons) has of being a rare or holo instead, by how many such
+ * extra rares the pack has so far (agreed with the user): 4%, then 2%, then dropping off sharply. About 31% of packs
+ * get at least one extra rare, 2.5% two or more. A promo pack's extras are holo promos (its only rares). Placeholder
+ * odds, to balance later.
+ */
+export const EXTRA_RARE_CHANCES = [0.04, 0.02, 0.005, 0.001];
+
+/** How often a pack is all rares and holos besides its Energy (agreed with the user: 0.6%). The pack screen celebrates it. */
+export const ALL_RARES_CHANCE = 0.006;
 
 /** How often the Energy card is a holo Energy (agreed with the user: 2%). */
 export const HOLO_ENERGY_CHANCE = 0.02;
@@ -49,24 +60,45 @@ export interface PackCard {
  * commons and holos (the Wizards promos, which TCGdex lists as Common) fills the uncommon and rare slots
  * with more commons, and the last card is a holo as often as any pack's.
  */
-export function openPack(set: PackSet, rng: Rng, { forceHoloEnergy = false } = {}): PackCard[] {
-  // `forceHoloEnergy`: always a holo Energy (the debug cheat for testing them).
+export function openPack(set: PackSet, rng: Rng, { forceHoloEnergy = false, forceAllRares = false } = {}): PackCard[] {
+  // `forceHoloEnergy`, `forceAllRares`: always a holo Energy, or an all-rares pack (the debug cheats for testing them).
   const energy: PackCard =
     set.holoEnergy?.length && (forceHoloEnergy || chance(rng, HOLO_ENERGY_CHANCE))
       ? { cardId: pick(rng, set.holoEnergy), slot: 'holoEnergy' }
       : { cardId: pick(rng, set.energy?.length ? set.energy : Object.values(BASIC_ENERGY)), slot: 'energy' };
   const commons = (n: number) => sample(rng, set.common, n).map((cardId) => ({ cardId, slot: 'common' as const }));
-  if (!set.uncommon.length && !set.rare.length) {
-    const holo = set.holo.length > 0 && chance(rng, HOLO_CHANCE);
-    const last: PackCard[] = holo ? [{ cardId: pick(rng, set.holo), slot: 'holo' }] : [];
-    return [energy, ...commons(PACK_COMMONS + PACK_UNCOMMONS + (holo ? 0 : 1)), ...last];
+  const taken = new Set<string>();
+  /** A rare not in the pack yet: a holo HOLO_CHANCE of the time (always, for a set with no other rares). Null if none are left. */
+  const rareCard = (): PackCard | null => {
+    const holos = set.holo.filter((id) => !taken.has(id));
+    const rares = set.rare.filter((id) => !taken.has(id));
+    if (!holos.length && !rares.length) return null;
+    const holo = holos.length > 0 && (rares.length === 0 || chance(rng, HOLO_CHANCE));
+    const cardId = pick(rng, holo ? holos : rares);
+    taken.add(cardId);
+    return { cardId, slot: holo ? 'holo' : 'rare' };
+  };
+  /** The extra rares the other cards turned into (EXTRA_RARE_CHANCES), revealed with the rare, before it. */
+  const extras: PackCard[] = [];
+  /** Each card may be a rare instead, less likely the more extras the pack has; the cards that stay. */
+  const upgrade = (cards: PackCard[]) =>
+    cards.filter((c) => {
+      const odds = EXTRA_RARE_CHANCES[extras.length] ?? 0;
+      const rare = odds > 0 && chance(rng, odds) ? rareCard() : null;
+      if (rare) extras.push(rare);
+      return !rare;
+    });
+  // Now and then every card but the Energy is a rare or holo (commons only make up for a set with too few rares).
+  if (forceAllRares || chance(rng, ALL_RARES_CHANCE)) {
+    const rares = Array.from({ length: PACK_COMMONS + PACK_UNCOMMONS + 1 }, rareCard).filter((c): c is PackCard => c !== null);
+    return [energy, ...commons(PACK_COMMONS + PACK_UNCOMMONS + 1 - rares.length), ...rares];
   }
-  const holo = set.holo.length > 0 && (set.rare.length === 0 || chance(rng, HOLO_CHANCE));
-  const rare = pick(rng, holo ? set.holo : set.rare);
-  return [
-    energy,
-    ...commons(PACK_COMMONS),
-    ...sample(rng, set.uncommon, PACK_UNCOMMONS).map((cardId) => ({ cardId, slot: 'uncommon' as const })),
-    { cardId: rare, slot: holo ? 'holo' : 'rare' },
-  ];
+  if (!set.uncommon.length && !set.rare.length) {
+    const holo = set.holo.length > 0 && chance(rng, HOLO_CHANCE) ? rareCard() : null;
+    const rest = upgrade(commons(PACK_COMMONS + PACK_UNCOMMONS + (holo ? 0 : 1)));
+    return [energy, ...rest, ...extras, ...(holo ? [holo] : [])];
+  }
+  const rare = rareCard()!;
+  const rest = upgrade([...commons(PACK_COMMONS), ...sample(rng, set.uncommon, PACK_UNCOMMONS).map((cardId) => ({ cardId, slot: 'uncommon' as const }))]);
+  return [energy, ...rest, ...extras, rare];
 }
