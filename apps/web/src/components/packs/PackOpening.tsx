@@ -393,7 +393,7 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
             <span className="text-sm text-amber-300">
               {rareCount} rare{rareCount === 1 ? '' : 's'}
             </span>
-            <span className="text-sm text-sky-200" title="For crafting cards on the Decks tab">
+            <span className="text-sm text-sky-200" title="For crafting cards on the Collection tab">
               +{stardustEarned} Stardust
             </span>
             {allRaresPacks.size > 0 && (

@@ -116,7 +116,7 @@ export function RunOver({ current, overview, run }: { current: ClientRun; overvi
           <p className="text-sm text-slate-300">{rewards}</p>
           {view.gained.length > 0 ? (
             <>
-              <p className="text-sm text-slate-400">Cards you gained (unlocked on the Decks tab):</p>
+              <p className="text-sm text-slate-400">Cards you gained (unlocked on the Collection tab):</p>
               <div className="flex flex-wrap gap-3">
                 {view.gained.map((id, i) => (
                   <RunCard key={i} def={view.cards[id]} />

@@ -41,7 +41,7 @@ export const runRouter = router({
       prisma.deck.findMany({
         where: { ownerId: ctx.user.id },
         include: { cards: { include: { card: { select: { name: true, kind: true, stage: true, data: true } } } } },
-        // The Decks tab's order.
+        // The Collection tab's order.
         orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
       }),
     ]);

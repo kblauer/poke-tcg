@@ -4,7 +4,7 @@ import { useState } from 'react';
 import type { Overview, RunControl } from '../../hooks/useRun';
 
 /**
- * Picks the next run's type and one of your decks (built on the Decks tab), then starts it. Decks that
+ * Picks the next run's type and one of your decks (built on the Collection tab), then starts it. Decks that
  * break the rules or hold cards you haven't unlocked are listed with why, and can't be picked.
  */
 export function NewRunPicker({ overview, run, title, defaultType }: { overview: Overview; run: RunControl; title: string; defaultType?: RunTypeId }) {
@@ -64,7 +64,7 @@ export function NewRunPicker({ overview, run, title, defaultType }: { overview: 
             );
           })}
         </ul>
-        {playable.length === 0 && <p className="text-xs text-amber-300">None of your decks can be played yet: fix one on the Decks tab.</p>}
+        {playable.length === 0 && <p className="text-xs text-amber-300">None of your decks can be played yet: fix one on the Collection tab.</p>}
       </div>
 
       <p className="text-xs text-slate-500">The new run starts with ₱500 and 3 HP.</p>

@@ -10,7 +10,7 @@ const GROUPS = [
 
 /**
  * The cards unlocked in this run (gifts, rewards, shops, trades, events), one per kind with how many came,
- * grouped into Pokémon, Trainers and Energy. The deck itself is on the Decks tab.
+ * grouped into Pokémon, Trainers and Energy. The deck itself is on the Collection tab.
  */
 export function DeckPanel({ view }: { view: RunViewData }) {
   const gained = new Map<string, number>();

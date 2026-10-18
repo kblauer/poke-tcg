@@ -24,7 +24,7 @@ export function SaveRunDeck({ current, saveName }: { current: ClientRun; saveNam
     }),
   );
   if (savedAs) {
-    return <p className="rounded-lg bg-slate-800 px-5 py-3 text-sm text-emerald-300 ring-1 ring-slate-600">Saved the run's deck as “{savedAs}” on the Decks tab.</p>;
+    return <p className="rounded-lg bg-slate-800 px-5 py-3 text-sm text-emerald-300 ring-1 ring-slate-600">Saved the run's deck as “{savedAs}” on the Collection tab.</p>;
   }
   if (saveName === null) return null;
   return (
