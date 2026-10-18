@@ -6,7 +6,7 @@
 // action, so equipment takes effect from the next encounter; the consumables in effect are in the state.
 import type { BattleRule, CardDef, CpuDifficulty, EnergyType, PlayerId } from '@poke-tcg/game-engine';
 import { boss, bossLabel, type BossId, type BossKind } from './bosses.js';
-import { expandDeck, generateDeck } from './decks.js';
+import { expandDeck, generateDeck, trainerFavorites } from './decks.js';
 import { activeEffects, battleRules, effectTotal, item, MAX_CONSUMABLES_PER_RUN, type ActiveEffect } from './items.js';
 import { byId, DECK_TYPES, offerable, PRICES, rarityWeight, type PoolCard, type Rarity } from './pool.js';
 import { between, pick, random, rngFrom, seed, weighted, type Rng } from './random.js';
@@ -320,7 +320,8 @@ const bossOf = (state: RunState, e: BattleEncounter) => (e.boss ? boss(e.boss) :
  * What the server needs to start the battle: the CPU's deck, how it plays, and the battle rules in effect
  * (the run's, and with `items`, the battle effects of the gear and the consumables in effect as rules for the player).
  * Bosses play their own deck at Gym leader difficulty; a Gym Trainer a random deck of their gym's type, at
- * Trainer difficulty; Ace Trainers a random deck at Gym leader difficulty; other trainers at Trainer difficulty.
+ * Trainer difficulty; Ace Trainers a random deck at Gym leader difficulty; other trainers a deck suiting their name
+ * (trainerFavorites) at Trainer difficulty.
  */
 export function battleSetup(
   state: RunState,
@@ -333,7 +334,9 @@ export function battleSetup(
   const b = bossOf(state, e);
   if (isBossKind(e.kind)) return { deck: expandDeck(b!.deck), difficulty: 'gymLeader', rules, opponent: e.trainer };
   const type = e.kind === 'gymTrainer' ? b?.gym?.type : undefined;
-  return { deck: generateDeck(pool, rngFrom(e.deckSeed), { type }), difficulty: e.kind === 'elite' ? 'gymLeader' : 'trainer', rules, opponent: e.trainer };
+  // A trainer's deck suits their name (a Swimmer's Water Pokémon); a Gym Trainer's suits their gym instead.
+  const favorites = e.kind === 'battle' ? trainerFavorites(e.trainer) : undefined;
+  return { deck: generateDeck(pool, rngFrom(e.deckSeed), { type, favorites }), difficulty: e.kind === 'elite' ? 'gymLeader' : 'trainer', rules, opponent: e.trainer };
 }
 
 const typeName = (t: string) => t[0]!.toUpperCase() + t.slice(1);

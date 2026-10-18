@@ -94,6 +94,7 @@ const CORE_TRAINERS: [string, number][] = [
   ['Potion', 2],
   ['Switch', 2],
 ];
+// Only Trainers a CPU plays (cpu/): others would be dead cards in its hand.
 const EXTRA_TRAINERS: [string, number][] = [
   ['PlusPower', 2],
   ['Energy Removal', 2],
@@ -102,27 +103,64 @@ const EXTRA_TRAINERS: [string, number][] = [
   ['Defender', 1],
   ['Full Heal', 1],
   ['Pokémon Center', 1],
-  ['Poké Ball', 1],
-  ['Energy Retrieval', 1],
-  ['Energy Search', 1],
+  ['Computer Search', 1],
+  ['Super Energy Removal', 1],
   ['Pokémon Trader', 1],
-  ['Scoop Up', 1],
 ];
+
+/**
+ * The Pokémon each kind of trainer favours, by the class in their name ("Swimmer" in "Swimmer Luis"), after
+ * the Generation I games: their decks are built from these lines first (generateDeck's `favorites`).
+ */
+const TRAINER_FAVORITES: Record<string, string[]> = {
+  Youngster: ['Rattata', 'Raticate', 'Ekans', 'Arbok', 'Spearow', 'Fearow', 'Sandshrew', 'Sandslash', 'Nidoran♂', 'Nidorino'],
+  Lass: ['Nidoran♀', 'Nidorina', 'Jigglypuff', 'Wigglytuff', 'Clefairy', 'Clefable', 'Oddish', 'Gloom', 'Pidgey', 'Meowth'],
+  'Bug Catcher': ['Caterpie', 'Metapod', 'Butterfree', 'Weedle', 'Kakuna', 'Beedrill', 'Venonat', 'Venomoth', 'Paras', 'Parasect', 'Scyther', 'Pinsir'],
+  Hiker: ['Geodude', 'Graveler', 'Golem', 'Onix', 'Machop', 'Machoke', 'Machamp', 'Rhyhorn', 'Rhydon', 'Diglett', 'Dugtrio', 'Cubone', 'Marowak'],
+  Picnicker: ['Pidgey', 'Pidgeotto', 'Oddish', 'Gloom', 'Bellsprout', 'Weepinbell', 'Pikachu', 'Raichu', 'Meowth', 'Persian'],
+  Camper: ['Sandshrew', 'Sandslash', 'Mankey', 'Primeape', 'Ekans', 'Arbok', 'Nidoran♂', 'Nidorino', 'Charmander', 'Charmeleon', 'Squirtle', 'Wartortle'],
+  'Super Nerd': ['Magnemite', 'Magneton', 'Voltorb', 'Electrode', 'Grimer', 'Muk', 'Koffing', 'Weezing', 'Vulpix', 'Ninetales', 'Porygon'],
+  Swimmer: ['Tentacool', 'Tentacruel', 'Psyduck', 'Golduck', 'Horsea', 'Seadra', 'Staryu', 'Starmie', 'Goldeen', 'Seaking', 'Shellder', 'Cloyster', 'Seel', 'Dewgong'],
+  Fisherman: ['Magikarp', 'Gyarados', 'Goldeen', 'Seaking', 'Poliwag', 'Poliwhirl', 'Poliwrath', 'Krabby', 'Kingler', 'Shellder', 'Cloyster'],
+  Beauty: ['Oddish', 'Gloom', 'Vileplume', 'Bellsprout', 'Weepinbell', 'Victreebel', 'Exeggcute', 'Exeggutor', 'Clefairy', 'Clefable', 'Jigglypuff', 'Wigglytuff'],
+  Gentleman: ['Growlithe', 'Arcanine', 'Ponyta', 'Rapidash', 'Meowth', 'Persian', 'Pikachu', 'Raichu'],
+  Biker: ['Koffing', 'Weezing', 'Grimer', 'Muk', 'Voltorb', 'Electrode', 'Ponyta', 'Rapidash'],
+  Juggler: ['Abra', 'Kadabra', 'Alakazam', 'Drowzee', 'Hypno', 'Mr. Mime', 'Voltorb', 'Electrode'],
+  Rocker: ['Voltorb', 'Electrode', 'Magnemite', 'Magneton', 'Pikachu', 'Raichu', 'Electabuzz', 'Jolteon'],
+  Gambler: ['Meowth', 'Persian', 'Growlithe', 'Arcanine', 'Poliwag', 'Poliwhirl', 'Horsea', 'Seadra'],
+  Sailor: ['Machop', 'Machoke', 'Machamp', 'Tentacool', 'Tentacruel', 'Shellder', 'Cloyster', 'Horsea', 'Seadra', 'Staryu', 'Starmie'],
+  Psychic: ['Abra', 'Kadabra', 'Alakazam', 'Slowpoke', 'Slowbro', 'Drowzee', 'Hypno', 'Mr. Mime', 'Jynx', 'Exeggcute', 'Exeggutor'],
+  'Black Belt': ['Machop', 'Machoke', 'Machamp', 'Mankey', 'Primeape', 'Hitmonlee', 'Hitmonchan', 'Geodude', 'Graveler', 'Onix'],
+  'Bird Keeper': ['Pidgey', 'Pidgeotto', 'Pidgeot', 'Spearow', 'Fearow', 'Doduo', 'Dodrio', "Farfetch'd", 'Zubat', 'Golbat'],
+};
+
+/** The Pokémon a trainer favours, from the class in their name ("Swimmer Luis": a Swimmer's), if they have any. */
+export const trainerFavorites = (trainer: string): string[] | undefined => TRAINER_FAVORITES[trainer.split(' ').slice(0, -1).join(' ')];
 
 /**
  * A random 60-card deck of medium strength for a trainer, following the usual rules of deck building:
  * one or two Energy types, 2–4 evolution lines of middling strength (about 18–20 Pokémon, at least 8
  * of them Basic), 14–16 Trainers (draw, healing, switching, a little disruption) and the rest Energy,
  * split by what the attacks need. No more than 4 of any card but basic Energy. `type` makes a deck of just that
- * type (and Colorless).
+ * type (and Colorless). `favorites` (Pokémon names, from trainerFavorites) are chosen first wherever they fit,
+ * and set the deck's types: a Swimmer's deck has Tentacruel and Golduck rather than any Water Pokémon.
  */
-export function generateDeck(pool: readonly PoolCard[], rng: Rng, { type }: { type?: EnergyType } = {}): string[] {
+export function generateDeck(pool: readonly PoolCard[], rng: Rng, { type, favorites }: { type?: EnergyType; favorites?: string[] } = {}): string[] {
   const all = evolutionLines(pool, rng);
+  const liked = new Set(favorites ?? []);
+  // A favourite line ends with a favourite (Nidoran♀ → Nidorina, not on to Nidoqueen unless that's one too).
+  const favored = (l: Line) => liked.has(l.stages.at(-1)!.name);
   const mainTypes = DECK_TYPES.filter((t) => all.some((l) => l.type === t && l.stages.length > 1));
-  // `type` (a Gym Trainer's gym) is the main type when the pool has evolution lines of it.
-  const main = type && mainTypes.includes(type) ? type : pick(rng, mainTypes);
-  // A Gym Trainer's deck sticks to its gym's type (Colorless Pokémon aside); others add a second type 60% of the time.
-  const second = !type && chance(rng, 0.6) ? pick(rng, DECK_TYPES.filter((t) => t !== main)) : null;
+  // The types of the favourite lines that their own Energy plays (not Colorless, which any Energy pays for),
+  // once per line, so a type with more favourites comes up more often.
+  const likedTypes = all.filter((l) => favored(l) && DECK_TYPES.includes(l.type) && [...l.needs].every((t) => t === l.type)).map((l) => l.type);
+  // `type` (a Gym Trainer's gym) is the main type when the pool has evolution lines of it; otherwise a favourite type.
+  const main = type && mainTypes.includes(type) ? type : likedTypes.length ? pick(rng, likedTypes) : pick(rng, mainTypes);
+  // A Gym Trainer's deck sticks to its gym's type (Colorless Pokémon aside); others add a second type 60% of the
+  // time: a themed deck only another favourite type, if it has one.
+  const others = [...new Set(likedTypes)].filter((t) => t !== main);
+  const secondTypes = liked.size ? others : DECK_TYPES.filter((t) => t !== main);
+  const second = !type && secondTypes.length && chance(rng, 0.6) ? pick(rng, secondTypes) : null;
   const types = new Set<EnergyType>([main, ...(second ? [second] : [])]);
   // A line fits if all its attacks can be paid with the deck's Energy.
   const fits = (l: Line, type: EnergyType) => l.type === type || (l.type === 'colorless' && [...l.needs].every((t) => types.has(t)));
@@ -135,12 +173,26 @@ export function generateDeck(pool: readonly PoolCard[], rng: Rng, { type }: { ty
     chosen.push(line);
     taken.add(line.stages[0]!.name);
   };
-  const candidates = (type: EnergyType, length: number) => usable.filter((l) => fits(l, type) && l.stages.length === length && !taken.has(l.stages[0]!.name));
-  // The main attacker, of the main type: a Stage 2 line half the time, otherwise a Stage 1 line.
-  const ofMain = (length: number) => candidates(main, length).filter((l) => l.type === main);
-  add(mediumLine(rng, ofMain(chance(rng, 0.5) ? 3 : 2)) ?? mediumLine(rng, ofMain(2)) ?? mediumLine(rng, candidates(main, 2)));
-  add(mediumLine(rng, candidates(second ?? main, 2)) ?? mediumLine(rng, candidates(second ?? main, 1)));
   const count = () => chosen.reduce((n, l) => n + LINE_COPIES[l.stages.length]!.reduce((a, b) => a + b, 0), 0);
+  // A themed deck (`favorites`): its favourite lines that fit, first a main-type line that evolves as the main
+  // attacker, then evolving ones, until there are enough Pokémon. Only if they run out do other lines join.
+  if (liked.size) {
+    const mine = () => usable.filter((l) => favored(l) && !taken.has(l.stages[0]!.name) && [...types].some((t) => fits(l, t)));
+    add(mediumLine(rng, mine().filter((l) => l.type === main && l.stages.length > 1)) ?? mediumLine(rng, mine().filter((l) => l.type === main)));
+    for (let tries = 0; count() < 18 && tries < 20; tries++) {
+      const left = mine();
+      if (!left.length) break;
+      const evolving = left.filter((l) => l.stages.length > 1);
+      add(mediumLine(rng, count() <= 14 && evolving.length ? evolving : left));
+    }
+  }
+  const candidates = (type: EnergyType, length: number) => usable.filter((l) => fits(l, type) && l.stages.length === length && !taken.has(l.stages[0]!.name));
+  if (!chosen.length) {
+    // The main attacker, of the main type: a Stage 2 line half the time, otherwise a Stage 1 line.
+    const ofMain = (length: number) => candidates(main, length).filter((l) => l.type === main);
+    add(mediumLine(rng, ofMain(chance(rng, 0.5) ? 3 : 2)) ?? mediumLine(rng, ofMain(2)) ?? mediumLine(rng, candidates(main, 2)));
+    add(mediumLine(rng, candidates(second ?? main, 2)) ?? mediumLine(rng, candidates(second ?? main, 1)));
+  }
   for (let tries = 0; count() < 18 && tries < 20; tries++) {
     const type = pick(rng, [...types]);
     add(mediumLine(rng, candidates(type, count() <= 14 ? 2 : 1)) ?? mediumLine(rng, candidates(type, 1)));
