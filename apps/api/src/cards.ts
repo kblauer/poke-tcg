@@ -43,7 +43,11 @@ export const isHolo = (card: Pick<Card, 'data'>) => (card.data as CardData).vari
  * the reverse-only printings, minus Scizor (basep-33), which is reverse-only but silver foil.
  */
 const GALAXY_FOIL = new Set(['basep-34', 'basep-35', 'si1-1', 'si1-4', 'si1-7', 'si1-11', 'si1-14', 'si1-17']);
-export const isGalaxyFoil = (card: Pick<Card, 'id'>) => GALAXY_FOIL.has(card.id);
+
+/** Base Set 2's holo rares are shown with the galaxy foil, to set them apart from the originals they reprint (agreed with the user). */
+const isBase2Holo = (card: Pick<Card, 'id' | 'data'>) => card.id.startsWith('base4-') && isHolo(card);
+
+export const isGalaxyFoil = (card: Pick<Card, 'id' | 'data'>) => GALAXY_FOIL.has(card.id) || isBase2Holo(card);
 
 function energyType(tcgdexType: string): EnergyType {
   const type = tcgdexType.toLowerCase() as EnergyType;
