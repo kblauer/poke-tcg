@@ -3,6 +3,7 @@
 // Attacks that only deal damage need no entry. Cards 16–30 are the non-holo prints of 1–15.
 import type { AttackContext, AttackEffect, AttackSituation, ChoiceSpec } from '../attacks.js';
 import { isTrainerCard, lookupCard, type EnergyType } from '../cards.js';
+import { isEnergyCardOf } from '../engine.js';
 import { pokemonTower } from '../trainers.js';
 import {
   benchedSlots,
@@ -100,11 +101,8 @@ const HOLO: Record<string, Record<string, AttackEffect>> = {
     Wildfire: {
       text: 'You may discard any number of Fire Energy cards attached to Moltres when you use this attack. If you do, discard that many cards from the top of your opponent\'s deck.',
       choices(s): ChoiceSpec[] {
-        // Fire Energy cards: not Double Colorless, and not energy that only counts as Fire (Energy Burn).
-        const options = s.attacker.energy.filter((e) => {
-          const d = lookupCard(s.cards, e.defId);
-          return !e.provides && d.kind === 'energy' && d.energyType === 'fire' && d.basic !== false;
-        });
+        // Fire Energy cards (Rainbow Energy too): not Double Colorless, and not energy that only counts as Fire (Energy Burn).
+        const options = s.attacker.energy.filter((e) => isEnergyCardOf(e, s.cards, 'fire'));
         return options.length ? [{ kind: 'ownEnergyUpTo', options, prompt: "Choose any number of Fire Energy to discard (each discards the top card of your opponent's deck)" }] : [];
       },
       run(ctx) {

@@ -24,7 +24,8 @@ const attackChoicesSchema = z.object({
   discardUids: z.array(z.string()).max(60).optional(),
   benchSlots: z.array(benchSlot).max(MAX_BENCH).optional(),
   deck: z.enum(['own', 'opponent']).optional(),
-  ownBenchSlot: benchSlot.optional(),
+  // -1: not switching, for a "you may switch" (Teleport Blast).
+  ownBenchSlot: z.number().int().min(-1).max(MAX_BENCH - 1).optional(),
   oppTarget: target.optional(),
   oppTo: target.optional(),
   ownTarget: target.optional(),

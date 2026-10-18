@@ -1,46 +1,44 @@
 import type { LogEntry, PlayerId } from '@poke-tcg/game-engine';
 import { useEffect, useRef, useState } from 'react';
+import { useSkipFlips } from '../hooks/useSkipFlips';
 
 /** How long the coin spins, then how long the result stays up. */
 export const SPIN_MS = 1000;
 const RESULT_MS = 900;
-/** How long one coin flip takes to show, start to finish. */
-export const COIN_MS = SPIN_MS + RESULT_MS;
 
-interface Flip {
+/** A coin flip from the log, to animate. */
+export interface Flip {
   n: number;
   player: PlayerId | null;
   reason: string;
   heads: boolean;
 }
 
+/** The coin flips in `log` after entry number `since`. */
+export const flipsAfter = (log: LogEntry[], since: number): Flip[] =>
+  log.flatMap((e) => (e.coin && e.n !== undefined && e.n > since ? [{ n: e.n, player: e.player, ...e.coin }] : []));
+
 /**
- * Animates the coin flips that arrive in the log, one after another. The engine has already
- * decided each result; this replays them. Flips already in the log when the game is opened
- * aren't replayed. Shown in the middle of the screen, with what the flip is for (the attack,
- * Trainer, power or Special Condition); clicks go through it to the board.
+ * Animates a move's coin flips one after another, in the middle of the screen, with what each is for (the attack,
+ * Trainer, power or Special Condition). The engine has already decided each result; this replays them while the
+ * game waits (GamePage holds the move back until `onDone`). Clicking anywhere skips the rest of them, and
+ * "Always skip coin flips" turns the animations off (useSkipFlips).
  */
-export function CoinFlip({ log, you }: { log: LogEntry[]; you: PlayerId }) {
-  /** Highest log entry number seen so far; null until the first render of this game. */
-  const seen = useRef<number | null>(null);
-  const [queue, setQueue] = useState<Flip[]>([]);
+export function CoinFlip({ flips, you, onDone }: { flips: Flip[]; you: PlayerId; onDone: () => void }) {
+  const [index, setIndex] = useState(0);
   const [landed, setLanded] = useState(false);
+  const [skip, setSkip] = useSkipFlips();
+  const doneRef = useRef(onDone);
+  doneRef.current = onDone;
 
-  useEffect(() => {
-    const last = log.at(-1)?.n ?? 0;
-    const since = seen.current;
-    seen.current = last;
-    if (since === null) return;
-    const fresh = log.flatMap((e) => (e.coin && e.n !== undefined && e.n > since ? [{ n: e.n, player: e.player, ...e.coin }] : []));
-    if (fresh.length) setQueue((q) => [...q, ...fresh]);
-  }, [log]);
-
-  const current = queue[0];
+  // A new set of flips starts from its first.
+  useEffect(() => setIndex(0), [flips]);
+  const current = flips[index];
   useEffect(() => {
     if (!current) return;
     setLanded(false);
     const land = setTimeout(() => setLanded(true), SPIN_MS);
-    const next = setTimeout(() => setQueue((q) => q.slice(1)), SPIN_MS + RESULT_MS);
+    const next = setTimeout(() => (index + 1 < flips.length ? setIndex(index + 1) : doneRef.current()), SPIN_MS + RESULT_MS);
     return () => {
       clearTimeout(land);
       clearTimeout(next);
@@ -50,17 +48,30 @@ export function CoinFlip({ log, you }: { log: LogEntry[]; you: PlayerId }) {
   if (!current) return null;
   const who = current.player === null ? null : current.player === you ? 'You' : 'CPU';
   return (
-    <div className="pointer-events-none fixed inset-0 z-[1150] flex items-center justify-center p-4" aria-live="polite">
+    // The game waits for the flips, so a click anywhere (not only on the coin) skips them.
+    <div data-keep-action className="fixed inset-0 z-[1150] flex cursor-pointer items-center justify-center p-4" aria-live="polite" onClick={() => doneRef.current()}>
       <section className="flex max-w-sm flex-col items-center gap-3 rounded-2xl bg-slate-900/95 px-8 py-5 text-center shadow-2xl shadow-black/70 ring-1 ring-slate-600">
         <p className="text-base text-slate-200">
           {who && <span className="font-semibold">{who}: </span>}
           {current.reason}
-          {queue.length > 1 && <span className="text-slate-500"> (1 of {queue.length})</span>}
+          {flips.length > 1 && <span className="text-slate-500"> ({index + 1} of {flips.length})</span>}
         </p>
         <SpinningCoin key={current.n} heads={current.heads} size="md" />
         <p className={`h-8 text-2xl font-black transition-opacity ${landed ? 'opacity-100' : 'opacity-0'} ${current.heads ? 'text-yellow-300' : 'text-slate-200'}`}>
           {current.heads ? 'Heads!' : 'Tails!'}
         </p>
+        <p className="text-xs text-slate-500">Click to skip</p>
+        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-400" onClick={(e) => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            checked={skip}
+            onChange={(e) => {
+              setSkip(e.target.checked);
+              if (e.target.checked) doneRef.current();
+            }}
+          />
+          Always skip coin flips
+        </label>
       </section>
     </div>
   );

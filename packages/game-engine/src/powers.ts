@@ -45,8 +45,8 @@ export type PeekTarget = 'deck' | 'oppDeck' | 'oppHand' | 'prize' | 'oppPrize';
 
 /** What a power can see before it's used. View-safe: the UI builds it from a PlayerView. */
 export interface PowerSituation {
-  me: Pick<PlayerState, 'active' | 'bench' | 'hand'>;
-  opp: Pick<PlayerState, 'active' | 'bench'>;
+  me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'powersOffUntil'>;
+  opp: Pick<PlayerState, 'active' | 'bench' | 'powersOffUntil'>;
   /** Sizes of the hidden piles (Peek). */
   counts: { deck: number; prizes: number; oppDeck: number; oppHand: number; oppPrizes: number };
   /** The Pokémon whose power it is. */
@@ -96,6 +96,21 @@ export interface PowerEffect {
   guard?: boolean;
   /** Chain Reaction: after any Pokémon evolves, it may evolve from the deck (offerChainReaction). */
   chainReaction?: boolean;
+  /** It works whatever Special Condition the Pokémon has (Frenzy, which works while it's Confused). */
+  ignoresConditions?: boolean;
+  /**
+   * When its card is played from the hand onto a Pokémon (evolving it, or by Pokémon Breeder): Summon Minions,
+   * Sneak Attack, Reel In. May ask the player to choose something (`state.pendingChoice`).
+   */
+  onPlayFromHand?: (state: GameState, owner: PlayerState, pokemon: InPlayPokemon) => void;
+  /** Hay Fever: no Trainer cards can be played, by either player. */
+  noTrainers?: boolean;
+  /** Sticky Goo: while it's the Active Pokémon, the opponent's Active Pokémon costs this much more to retreat. */
+  stickyGoo?: number;
+  /** Sinkhole: when the opponent's Active Pokémon retreats, they flip; tails does 20 damage to it. */
+  sinkhole?: boolean;
+  /** Frenzy: any damage it does while Confused (to itself too) is 30 more, before Weakness and Resistance. */
+  frenzy?: boolean;
   /**
    * Called after a card from its owner's hand is attached to it as Energy (Pure Body). May ask the player to
    * choose something (`state.pendingChoice`).
@@ -132,7 +147,10 @@ export function powerOf(pokemon: InPlayPokemon, cards: CardLibrary) {
   return inPlayDef(cards, pokemon).power ?? null;
 }
 
-type Sides = Pick<PlayerState, 'active' | 'bench'>[];
+type Sides = Pick<PlayerState, 'active' | 'bench' | 'powersOffUntil'>[];
+
+/** Goop Gas Attack: no Pokémon Powers work (it's set on both players). */
+const goopGas = (sides: Sides) => sides.some((s) => s.powersOffUntil !== undefined);
 const allInPlay = (sides: Sides) => sides.flatMap((s) => [s.active, ...s.bench]).filter((p): p is InPlayPokemon => !!p);
 
 /** A Muk's Toxic Gas is working, so every other power is ignored. Copies don't count: Toxic Gas stops Ditto's Transform. */
@@ -144,10 +162,37 @@ export const toxicGas = (sides: Sides) => allInPlay(sides).some((p) => powerEffe
  */
 export function powerActive(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sides): boolean {
   if (!inPlayDef(cards, pokemon).power) return false;
+  // Stare: switched off until it expires between turns (betweenTurns removes it). Goop Gas Attack: all of them.
+  if (pokemon.powerOffUntil !== undefined || goopGas(sides)) return false;
   const effect = powerEffect(effectId(pokemon));
-  if (effect?.stopsOnlyWhileAsleep ? pokemon.condition === 'asleep' : pokemon.condition) return false;
+  if (!effect?.ignoresConditions && (effect?.stopsOnlyWhileAsleep ? pokemon.condition === 'asleep' : pokemon.condition)) return false;
   if (effect?.stopsOnAnyCondition && (pokemon.poison || pokemon.burned)) return false;
   return !!effect?.toxicGas || !toxicGas(sides);
+}
+
+/** Why no Trainer cards can be played (Hay Fever, by either player), or null. */
+export function trainersBlocked(sides: Sides, cards: CardLibrary): string | null {
+  const p = allInPlay(sides).find((q) => powerEffect(effectId(q))?.noTrainers && powerActive(q, cards, sides));
+  return p ? `${powerOf(p, cards)!.name}: no Trainer cards can be played` : null;
+}
+
+/** How much more the Active Pokémon of `sides[0]` costs to retreat: the opponent's Active Pokémon's Sticky Goo. */
+export function stickyGoo(sides: Sides, cards: CardLibrary): number {
+  const opposing = sides[1]?.active;
+  return opposing && powerActive(opposing, cards, sides) ? (powerEffect(effectId(opposing))?.stickyGoo ?? 0) : 0;
+}
+
+/**
+ * After the card on top of `owner`'s Pokémon was played from their hand (evolving it, or by Pokémon Breeder): its
+ * power reacts if it has one that does and Toxic Gas isn't ignoring it (Summon Minions, Sneak Attack, Reel In).
+ */
+export function playedFromHand(state: GameState, owner: PlayerState, pokemon: InPlayPokemon) {
+  const sides = state.playerOrder.map((id) => state.players[id]!);
+  const effect = powerEffect(effectId(pokemon));
+  if (effect?.onPlayFromHand && powerActive(pokemon, state.cards, sides)) {
+    addLog(state, `${powerOf(pokemon, state.cards)!.name}!`, owner.id);
+    effect.onPlayFromHand(state, owner, pokemon);
+  }
 }
 
 /** The power keeping the Active Pokémon of `sides[0]` from retreating (the opponent's Guard), or null. `sides`: owner first. */
@@ -205,7 +250,7 @@ export function energyFromHand(state: GameState, owner: PlayerState, target: Tar
  * (working power, an Eevee evolution in their deck, allowed to evolve now) whether to; the rest wait in
  * the choice. With no `queue`, every such Eevee in play is asked, the current player's first.
  */
-export function offerChainReaction(state: GameState, queue?: { player: PlayerId; uid: string }[]) {
+export function offerChainReaction(state: GameState, queue?: { player: PlayerId; uid: string }[], afterAttack?: boolean) {
   const sides = state.playerOrder.map((id) => state.players[id]!);
   if (!queue) {
     const order = [state.currentPlayer, ...state.playerOrder.filter((id) => id !== state.currentPlayer)];
@@ -219,7 +264,8 @@ export function offerChainReaction(state: GameState, queue?: { player: PlayerId;
     // It counts as evolving Eevee, so the usual rules apply: not on the first turns, not the turn Eevee was played.
     if (state.turn <= 2 || eevee.playedTurn === state.turn || evolutionBlocked(sides, state.cards)) continue;
     if (!owner.deck.some((c) => evolvesFromEevee(state.cards, c))) continue;
-    state.pendingChoice = { player, source: powerOf(eevee, state.cards)!.name, kind: 'chainReaction', target: target!, next: queue.slice(i + 1) };
+    // `afterAttack`: the evolution was an attack's (Rapid Evolution), so the turn ends once every Eevee has answered.
+    state.pendingChoice = { player, source: powerOf(eevee, state.cards)!.name, kind: 'chainReaction', target: target!, next: queue.slice(i + 1), ...(afterAttack && { afterAttack }) };
     return;
   }
 }
@@ -233,7 +279,9 @@ export function powerError(s: PowerSituation): string | null {
   if (!def.power || !effect?.use) return `${def.name} has no power to use`;
   // Powers that are used all stop working while their Pokémon is Asleep, Confused or Paralyzed.
   if (source.condition) return `${def.name} is ${conditionLabel(source.condition)} and can't use ${def.power.name}`;
+  if (goopGas([s.me, s.opp])) return `Goop Gas Attack: Pokémon Powers don't work until the end of the turn after it was played`;
   if (toxicGas([s.me, s.opp])) return `Toxic Gas: ${def.power.name} can't be used`;
+  if (source.powerOffUntil !== undefined) return `${def.power.name} doesn't work until the end of your turn (Stare)`;
   const blocked = effect.blocked?.(s);
   if (blocked) return blocked;
   return effect.oncePerTurn && source.powerUsedTurn === s.turn ? `${def.name} has already used ${def.power.name} this turn` : null;
@@ -287,10 +335,12 @@ export function resolvePowerChoices(
 
 /**
  * Whether the power puts this card from the hand into play (Rain Dance). The UI uses it to play a
- * dropped hand card through a power; powers that don't take a hand card (Energy Burn) never match.
+ * dropped hand card through a power; powers that don't take a hand card (Energy Burn), or don't put it onto
+ * a Pokémon (Matter Exchange), never match.
  */
 export function powerTakesHandCard(s: PowerSituation, cardUid: string): boolean {
-  return choiceSpecs(s, {}).some((spec) => spec.kind === 'handCard' && spec.options.some((c) => c.uid === cardUid));
+  if (!choiceSpecs(s, {}).some((spec) => spec.kind === 'handCard' && spec.options.some((c) => c.uid === cardUid))) return false;
+  return choiceSpecs(s, { cardUid }).some((spec) => spec.field === 'to');
 }
 
 /** The next question the player has to answer for this power, or null when it's ready to use. */

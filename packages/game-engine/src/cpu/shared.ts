@@ -4,7 +4,7 @@
 // effects decide what an attack does.
 import { answerChoice, attackError, performAttack, resolveChoices, type AttackChoices, type AttackSituation, type ChoiceSpec } from '../attacks.js';
 import { isBasicEnergy, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from '../cards.js';
-import { applyAction, energyPool, energyProvided, evolveError, opponentOf, retreatCost, retreatError, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
+import { applyAction, energyPool, energyProvided, payCost, type PoolEnergy, evolveError, opponentOf, retreatCost, retreatError, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
 import { nextRandom } from '../rng.js';
 import { inPlayDef } from '../status.js';
 import { pendingChoiceView, type TrainerChoices } from '../trainers.js';
@@ -43,31 +43,21 @@ export function tryAction(state: GameState, playerId: PlayerId, action: GameActi
 // ---- Energy arithmetic ----
 
 /** How many more Energy the cost needs, paying typed symbols first and colorless with what's left. */
-export function missingEnergy(pool: EnergyType[], cost: EnergyType[]): number {
-  const left = [...pool];
-  let missing = 0;
-  for (const need of cost.filter((t) => t !== 'colorless')) {
-    const i = left.indexOf(need);
-    if (i < 0) missing++;
-    else left.splice(i, 1);
-  }
-  const colorless = cost.filter((t) => t === 'colorless').length;
-  return missing + Math.max(0, colorless - left.length);
-}
+export const missingEnergy = (pool: PoolEnergy[], cost: EnergyType[]): number => payCost(pool, cost);
 
 /** Colorless symbols still unpaid (after typed ones take their matching Energy) in the attack's cost. */
-function colorlessLeft(pool: EnergyType[], cost: EnergyType[]): number {
+function colorlessLeft(pool: PoolEnergy[], cost: EnergyType[]): number {
   const left = [...pool];
   for (const need of cost.filter((t) => t !== 'colorless')) {
-    const i = left.indexOf(need);
+    const i = left.includes(need) ? left.indexOf(need) : left.indexOf('any');
     if (i >= 0) left.splice(i, 1);
   }
   return Math.max(0, cost.filter((t) => t === 'colorless').length - left.length);
 }
 
-const provides = (cards: CardLibrary, card: CardInstance): EnergyType[] => {
+const provides = (cards: CardLibrary, card: CardInstance): PoolEnergy[] => {
   const { type, amount } = energyProvided(card, cards);
-  return Array<EnergyType>(amount).fill(type);
+  return Array<PoolEnergy>(amount).fill(type);
 };
 
 const poolWith = (cards: CardLibrary, p: InPlayPokemon, energy: CardInstance[]) => energyPool({ ...p, energy }, cards);
@@ -224,8 +214,10 @@ function answers(spec: ChoiceSpec): AttackChoices[keyof AttackChoices][] {
     case 'pokemonEnergy':
       return combinations(spec.options, 1).map(([e]) => e!.uid);
     // Keeping energy first: on a tie the first choice wins.
-    case 'ownEnergyUpTo':
-      return spec.options.flatMap((_, n) => combinations(spec.options, n)).concat([spec.options]).map((picked) => picked.map((e) => e.uid));
+    case 'ownEnergyUpTo': {
+      const most = Math.min(spec.max ?? spec.options.length, spec.options.length);
+      return Array.from({ length: most + 1 }, (_, n) => combinations(spec.options, n)).flat().map((picked) => picked.map((e) => e.uid));
+    }
     // Taking the most cards first.
     case 'ownDiscard': {
       const sizes = Array.from({ length: Math.min(spec.max, spec.options.length) - spec.min + 1 }, (_, i) => Math.min(spec.max, spec.options.length) - i);
@@ -456,8 +448,13 @@ export function play(t: Turn, card: CardInstance | undefined, choices?: TrainerC
 export const benched = (t: Turn) => inPlay(t.me).filter(([target]) => target !== 'active') as [number, InPlayPokemon][];
 
 /** Finishing a search: the most wanted card (see wantedCards), a Basic, an Energy that helps, or anything. Pokédex keeps the order. */
+/** Challenge! (agreed): the CPU accepts whenever its Bench has room and its deck has a Basic Pokémon. */
+export const acceptsChallenge = (state: GameState, cpu: PlayerState) =>
+  cpu.bench.includes(null) && cpu.deck.some((c) => isBasicPokemon(lookupCard(state.cards, c.defId)));
+
 export function resolveSearch(t: Turn): GameAction {
   const view = pendingChoiceView(t.state, t.state.pendingChoice!);
+  if (view.kind === 'challenge') return { type: 'RESOLVE_CHOICE', count: acceptsChallenge(t.state, t.me) ? 1 : 0 };
   if (view.kind === 'arrangeTop') return { type: 'RESOLVE_CHOICE', order: view.cards.map((c) => c.uid) };
   // Healing one of its Pokémon (Heal): the one with the most damage. Attaching (Energy Spike): the active.
   if (view.kind === 'ownPokemon') {
@@ -469,6 +466,11 @@ export function resolveSearch(t: Turn): GameAction {
     }
     const damage = (target: Target) => at(t.me, target)!.damage;
     return { type: 'RESOLVE_CHOICE', target: view.options.reduce((a, b) => (damage(b) > damage(a) ? b : a)) };
+  }
+  // Damage to one of the player's Pokémon (Sneak Attack): the one with the least HP left, the Active Pokémon on a tie.
+  if (view.kind === 'oppPokemon') {
+    const left = (target: Target) => hpLeft(t.state.cards, at(t.opp, target)!);
+    return { type: 'RESOLVE_CHOICE', target: view.options.reduce((a, b) => (left(b) < left(a) ? b : a)) };
   }
   // Computer Error: always the most cards (agreed).
   if (view.kind === 'drawCount') return { type: 'RESOLVE_CHOICE', count: view.max };

@@ -11,7 +11,7 @@ import { BASE1_TRAINERS } from './base1-trainers.js';
 export const PROMO_TRAINERS: Record<string, TrainerEffect> = {
   // Computer Error: you may draw up to 5 cards, then your opponent may draw up to 5. Your turn is over (no attack).
   'basep-16': {
-    play: (ctx) => ctx.pend({ kind: 'drawCount', source: 'Computer Error', max: 5, afterAttack: true }),
+    play: (ctx) => ctx.pend({ kind: 'drawCount', source: 'Computer Error', max: 5, alsoOpponent: true, afterAttack: true }),
   },
 
   // Pokémon Center: the same card as Base Set's.
