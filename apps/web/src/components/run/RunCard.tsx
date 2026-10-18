@@ -4,7 +4,7 @@ import { useInspectOnRightClick } from '../InspectContext';
 import { PreviewContext } from '../PreviewContext';
 import { CardImage } from '../CardImage';
 
-const RARITY: Record<string, string> = { common: 'Common', uncommon: 'Uncommon', rare: 'Rare', holo: 'Rare Holo' };
+const RARITY: Record<string, string> = { common: 'Common', uncommon: 'Uncommon', rare: 'Rare', holo: 'Rare Holo', holoEnergy: 'Holo Energy' };
 
 /**
  * A card offered or owned in a run: its image (hovering shows the large preview, as on the game board), name

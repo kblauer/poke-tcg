@@ -5,6 +5,7 @@ import { useMutation } from '@tanstack/react-query';
 import type { inferRouterOutputs } from '@trpc/server';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTRPC } from '../../lib/trpc';
+import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
 import { CARD_BACK } from '../../utils/cardBack';
 import { holoAttributes } from '../../utils/holo';
 import { HoloCard } from '../HoloCard';
@@ -15,7 +16,7 @@ type Opened = inferRouterOutputs<AppRouter>['packs']['open'];
 type PackCard = Opened['cards'][number];
 export type PackSetInfo = { id: string; name: string; logoUrl: string | null };
 
-const SLOT_LABEL: Record<PackCard['slot'], string> = { energy: 'Energy', common: 'Common', uncommon: 'Uncommon', rare: 'Rare', holo: 'Rare Holo' };
+const SLOT_LABEL: Record<PackCard['slot'], string> = { energy: 'Energy', holoEnergy: 'Holo Energy', common: 'Common', uncommon: 'Uncommon', rare: 'Rare', holo: 'Rare Holo' };
 /** The Wizards promos have no printed rarity: they're just promos, holo or not. */
 const PROMO_SLOT_LABEL: Record<PackCard['slot'], string> = { ...SLOT_LABEL, common: 'Promo', holo: 'Holo Promo' };
 
@@ -59,8 +60,8 @@ function saveOptions(options: OpenOptions) {
   }
 }
 
-/** The rare slot: rares and holos (the cards kept face down when commons and rares are separated). */
-const isRare = (c: PackCard) => c.slot === 'rare' || c.slot === 'holo';
+/** The rare slot (rares and holos), and the odd holo Energy: the cards kept face down when commons and rares are separated. */
+const isRare = (c: PackCard) => c.slot === 'rare' || c.slot === 'holo' || c.slot === 'holoEnergy';
 
 /**
  * Opening packs, in a window over the page. Pick how many (×1, ×2, ×5, ×10 or Custom), then click the pack to
@@ -90,23 +91,32 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
   const [custom, setCustom] = useState(false);
   /** The cards' large images, fetched while the pack tears open and the cards burst out, so each is ready when it flips up. */
   const preloaded = useRef<HTMLImageElement[]>([]);
-  const open = useMutation(
-    trpc.packs.open.mutationOptions({
-      onSuccess: (result) => {
-        preloaded.current = result.cards.flatMap((c) => {
-          if (!c.imageUrl) return [];
-          const img = new Image();
-          img.src = `${c.imageUrl}/high.webp`;
-          return [img];
-        });
-        setCards(result.cards);
-        onOpened();
-        setAutoOn(options.auto);
-        setPhase('tearing');
-        setTimeout(() => setPhase('burst'), reducedMotion() ? 0 : TEAR_MS);
-      },
-    }),
-  );
+  /** Debug tools only: the next packs each get a holo Energy (packs.debugOpen, refused in production). */
+  const debug = useDebugEnabled();
+  const [forceHolo, setForceHolo] = useState(false);
+  const opened = {
+    onSuccess: (result: Opened) => {
+      preloaded.current = result.cards.flatMap((c) => {
+        if (!c.imageUrl) return [];
+        const img = new Image();
+        img.src = `${c.imageUrl}/high.webp`;
+        return [img];
+      });
+      setCards(result.cards);
+      onOpened();
+      setAutoOn(options.auto);
+      setPhase('tearing');
+      setTimeout(() => setPhase('burst'), reducedMotion() ? 0 : TEAR_MS);
+    },
+  };
+  const buy = useMutation(trpc.packs.open.mutationOptions(opened));
+  const debugBuy = useMutation(trpc.packs.debugOpen.mutationOptions(opened));
+  // Whichever opened them: pending and errors come from either.
+  const open = {
+    isPending: buy.isPending || debugBuy.isPending,
+    error: buy.error ?? debugBuy.error,
+    mutate: (input: { setId: string; count: number }) => (DEBUG_BUILD && debug && forceHolo ? debugBuy : buy).mutate(input),
+  };
   const total = price * quantity;
   const affordable = bank >= total;
   /** The most packs the bank pays for (at least 1, so the price still shows). */
@@ -218,6 +228,13 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
                 <input type="checkbox" checked={options.auto} onChange={(e) => setOptions((o) => ({ ...o, auto: e.target.checked }))} />
                 Auto open
               </label>
+              {/* DEBUG_BUILD first: a production build drops the checkbox altogether. */}
+              {DEBUG_BUILD && debug && (
+                <label className="flex items-center gap-2 text-amber-300" title="Debug: every pack opened gets a holo Energy (packs.debugOpen, refused in production)">
+                  <input type="checkbox" checked={forceHolo} onChange={(e) => setForceHolo(e.target.checked)} />
+                  Debug: force holo Energy
+                </label>
+              )}
             </div>
           )}
           {phase === 'pack' && (
@@ -283,8 +300,9 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
             <RevealedCard key={index} card={current} leaving={leaving} />
           </button>
           <div className="flex h-8 items-center gap-3">
-            <span className={`text-sm font-semibold ${current.slot === 'holo' ? 'text-fuchsia-300' : current.slot === 'rare' ? 'text-amber-300' : 'text-slate-300'}`}>
+            <span className={`text-sm font-semibold ${current.slot === 'holo' || current.slot === 'holoEnergy' ? 'text-fuchsia-300' : current.slot === 'rare' ? 'text-amber-300' : 'text-slate-300'}`}>
               {current.name} · {(set.id === 'basep' ? PROMO_SLOT_LABEL : SLOT_LABEL)[current.slot]}
+              {current.holoEnergy && ` (${current.holoEnergy.label})`}
             </span>
             {current.isNew && <span className="badge-pop rounded-full bg-emerald-500 px-2 py-0.5 text-xs font-bold text-white">NEW</span>}
           </div>
@@ -331,11 +349,11 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
           </div>
           <div className="flex flex-wrap justify-center gap-3">
             {cards.map((c, i) => (
-              // The rares (each pack's rare slot) are framed and tagged, holos in their own colour.
-              <div key={i} className={`relative rounded-xl ${c.slot === 'holo' ? 'bg-fuchsia-400/10 ring-2 ring-fuchsia-400/80' : c.slot === 'rare' ? 'bg-amber-400/10 ring-2 ring-amber-400/80' : ''}`}>
+              // The rares (each pack's rare slot, and a holo Energy) are framed and tagged, holos in their own colour.
+              <div key={i} className={`relative rounded-xl ${c.slot === 'holo' || c.slot === 'holoEnergy' ? 'bg-fuchsia-400/10 ring-2 ring-fuchsia-400/80' : c.slot === 'rare' ? 'bg-amber-400/10 ring-2 ring-amber-400/80' : ''}`}>
                 {isRare(c) && (
-                  <span className={`absolute -left-1 -top-1 z-10 rounded-full px-1.5 text-[10px] font-bold uppercase text-slate-900 shadow ${c.slot === 'holo' ? 'bg-fuchsia-300' : 'bg-amber-300'}`}>
-                    {c.slot === 'holo' ? 'Holo' : 'Rare'}
+                  <span className={`absolute -left-1 -top-1 z-10 rounded-full px-1.5 text-[10px] font-bold uppercase text-slate-900 shadow ${c.slot === 'holo' || c.slot === 'holoEnergy' ? 'bg-fuchsia-300' : 'bg-amber-300'}`}>
+                    {c.slot === 'holoEnergy' ? 'Holo Energy' : c.slot === 'holo' ? 'Holo' : 'Rare'}
                   </span>
                 )}
                 <RunCard
@@ -361,7 +379,7 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
  * holos shine as they do in the deck builder's card view. Rares and holos have a glow behind them. `leaving`: it flies off the stack.
  */
 function RevealedCard({ card, leaving }: { card: PackCard; leaving: boolean }) {
-  const glow = card.slot === 'holo' ? 'bg-fuchsia-400/60' : card.slot === 'rare' ? 'bg-amber-300/50' : null;
+  const glow = card.slot === 'holo' || card.slot === 'holoEnergy' ? 'bg-fuchsia-400/60' : card.slot === 'rare' ? 'bg-amber-300/50' : null;
   return (
     <div className={`relative w-full ${leaving ? 'card-fly-out' : 'card-flip-in'}`}>
       {glow && <div className={`pointer-events-none absolute -inset-6 rounded-[2rem] blur-2xl ${glow}`} />}

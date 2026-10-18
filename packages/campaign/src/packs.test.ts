@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HOLO_CHANCE, openPack, PACK_SETS } from './packs.js';
+import { HOLO_CHANCE, HOLO_ENERGY_CHANCE, openPack, PACK_SETS } from './packs.js';
 import { BASIC_ENERGY } from './pool.js';
 import { rngFrom } from './random.js';
 import { testPackSet } from './test-pool.js';
@@ -21,6 +21,15 @@ describe('openPack', () => {
     const set = testPackSet('base1');
     const holos = Array.from({ length: 3000 }, (_, seed) => openPack(set, rngFrom(seed))).filter((p) => p[10]!.slot === 'holo').length;
     expect(Math.abs(holos / 3000 - HOLO_CHANCE)).toBeLessThan(0.03);
+  });
+
+  it("the Energy card is the set's own (or the closest earlier set's), and about 1 pack in 50 a holo Energy", () => {
+    const set = { ...testPackSet('base1'), energy: ['base1-98', 'base1-102'], holoEnergy: ['base1-98-holo-rainbow', 'base1-102-holo-secret'] };
+    const energies = Array.from({ length: 5000 }, (_, seed) => openPack(set, rngFrom(seed))[0]!);
+    expect(new Set(energies.filter((c) => c.slot === 'energy').map((c) => c.cardId))).toEqual(new Set(set.energy));
+    const holos = energies.filter((c) => c.slot === 'holoEnergy');
+    expect(new Set(holos.map((c) => c.cardId))).toEqual(new Set(set.holoEnergy));
+    expect(Math.abs(holos.length / 5000 - HOLO_ENERGY_CHANCE)).toBeLessThan(0.01);
   });
 
   it("Base Set's basic Energy isn't in its common slots", () => {

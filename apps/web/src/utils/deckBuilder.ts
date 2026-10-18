@@ -137,8 +137,10 @@ export const problemsOf = (entries: DeckEntry[], byId: Map<string, CatalogCard>)
   deckProblems(withCards(entries, byId).map((e) => ({ card: ruleCard(e.card), quantity: e.quantity })));
 
 /** Why another copy of `card` can't go in the deck, or null if it can. */
-export function cantAdd(entries: DeckEntry[], card: CatalogCard, byId: Map<string, CatalogCard>): string | null {
+export function cantAdd(entries: DeckEntry[], card: CatalogCard, byId: Map<string, CatalogCard>, pulled = 0): string | null {
   if (deckSize(entries) >= DECK_SIZE) return `The deck already has ${DECK_SIZE} cards`;
+  // Holo Energy: as many as were pulled from packs (`pulled`).
+  if (card.holoEnergy && (entries.find((e) => e.cardId === card.id)?.quantity ?? 0) >= pulled) return `You've pulled ${pulled} of this holo Energy`;
   const rules = withCards(entries, byId).map((e) => ({ card: ruleCard(e.card), quantity: e.quantity }));
   if (!card.basicEnergy && copiesOfName(rules, card.name) >= MAX_COPIES) return `Already ${MAX_COPIES} cards named ${card.name}`;
   const own = entries.find((e) => e.cardId === card.id)?.quantity ?? 0;

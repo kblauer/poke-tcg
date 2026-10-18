@@ -23,7 +23,31 @@ export interface CardData {
   attacks?: { name: string | null; cost: string[] | null; damage: string | number | null; effect: string | null }[] | null;
   /** Printings that exist; `holo` marks holofoil cards (rarity alone doesn't, e.g. Base Set holos are "Rare"). */
   variants?: { holo?: boolean; normal?: boolean; reverse?: boolean; firstEdition?: boolean } | null;
+  /** Holo Energy only (made by the seed, packages/db/prisma/holo-energy.ts): the holo style it's shown in. */
+  holoEnergy?: HoloEnergyStyle | null;
 }
+
+/** A holo Energy's style: the attributes the holo card styles select on (see HoloCard). */
+export interface HoloEnergyStyle {
+  key: string;
+  label: string;
+  rarity: string;
+  trainerGallery?: boolean;
+  supertype?: string;
+  subtypes?: string;
+}
+
+/**
+ * A holo Energy's style, or null for any other card. Holo Energy is basic Energy for the deck rules (no limit by name),
+ * but it's only found in packs: locked until pulled, and a deck holds no more copies than were pulled.
+ */
+export const holoEnergyStyle = (card: Pick<Card, 'data'>): HoloEnergyStyle | null => (card.data as CardData).holoEnergy ?? null;
+
+/** A card's name for messages: a holo Energy's says its style ("Fire Energy (Rainbow holo)"). */
+export const cardLabel = (card: Pick<Card, 'name' | 'data'>) => {
+  const style = holoEnergyStyle(card);
+  return style ? `${card.name} (${style.label} holo)` : card.name;
+};
 
 /** Stage 1 Pokémon printed as evolving from Mysterious Fossil, which TCGdex leaves out. */
 const FROM_MYSTERIOUS_FOSSIL = new Set(['Omanyte', 'Kabuto', 'Aerodactyl']);

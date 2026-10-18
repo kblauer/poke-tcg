@@ -4,7 +4,7 @@ import { DECK_NAME_LENGTH, DECK_SIZE, MAX_COPIES, copiesOfName, deckIdInput, dec
 import { ensureUser } from '../auth.js';
 import { isBasicEnergyCard } from '../cards.js';
 import { protectedProcedure, router } from '../trpc.js';
-import { lockedNames, lockedProblem, unlockedIds } from '../unlocks.js';
+import { lockedNames, lockedProblem, unlockedIds, type Unlocked } from '../unlocks.js';
 
 /** What the deck rules need from a catalog row. */
 export const ruleCard = (card: Pick<Card, 'name' | 'kind' | 'stage' | 'data'>): DeckRuleCard => ({
@@ -35,7 +35,7 @@ export const problemsOf = (cards: { quantity: number; card: Pick<Card, 'name' | 
   deckProblems(cards.map((c) => ({ card: ruleCard(c.card), quantity: c.quantity })));
 
 /** Why the deck can't be played: the rules, and cards the user hasn't unlocked. Empty when it can. */
-export const playProblems = (cards: { cardId: string; quantity: number; card: Pick<Card, 'name' | 'kind' | 'stage' | 'data'> }[], unlocked: Set<string>) => {
+export const playProblems = (cards: { cardId: string; quantity: number; card: Pick<Card, 'name' | 'kind' | 'stage' | 'data'> }[], unlocked: Unlocked) => {
   const locked = lockedProblem(cards, unlocked);
   return [...problemsOf(cards), ...(locked ? [locked] : [])];
 };
@@ -81,8 +81,11 @@ export const decksRouter = router({
     }));
   }),
 
-  /** The cards the user has unlocked, for the deck builder and card list (basic Energy always is, so it isn't listed). */
-  unlocked: protectedProcedure.query(async ({ ctx }) => [...(await unlockedIds(ctx.user.id))]),
+  /**
+   * The cards the user has unlocked, for the deck builder, with how many copies (only holo Energy has more than 1: a
+   * deck holds no more than were pulled). Basic Energy always is, so it isn't listed.
+   */
+  unlocked: protectedProcedure.query(async ({ ctx }) => Object.fromEntries(await unlockedIds(ctx.user.id)) as Record<string, number>),
 
   /** One of the user's decks: its name and card list. */
   get: protectedProcedure.input(deckIdInput).query(async ({ ctx, input }) => {
@@ -105,8 +108,13 @@ export const decksRouter = router({
     if (total > DECK_SIZE) throw new TRPCError({ code: 'BAD_REQUEST', message: `A deck can't have more than ${DECK_SIZE} cards` });
     const over = entries.find((e) => !e.card.basicEnergy && copiesOfName(entries, e.card.name) > MAX_COPIES);
     if (over) throw new TRPCError({ code: 'BAD_REQUEST', message: `At most ${MAX_COPIES} cards named ${over.card.name}` });
-    const [locked] = lockedNames(input.cards.map((c) => ({ cardId: c.cardId, card: rows.find((r) => r.id === c.cardId)! })), await unlockedIds(ctx.user.id));
+    const withRows = input.cards.map((c) => ({ cardId: c.cardId, quantity: c.quantity, card: rows.find((r) => r.id === c.cardId)! }));
+    const owned = await unlockedIds(ctx.user.id);
+    const [locked] = lockedNames(withRows, owned);
     if (locked) throw new TRPCError({ code: 'BAD_REQUEST', message: `${locked} isn't unlocked yet` });
+    // More holo Energy than was pulled.
+    const tooMany = lockedProblem(withRows, owned);
+    if (tooMany) throw new TRPCError({ code: 'BAD_REQUEST', message: tooMany });
 
     if (input.deckId) await loadEditableDeck(input.deckId, ctx.user.id);
     else await ensureUser(ctx.user);

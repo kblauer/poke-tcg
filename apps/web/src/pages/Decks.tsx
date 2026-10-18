@@ -9,7 +9,7 @@ import { DeckPanel } from '../components/DeckPanel';
 import { InspectContext } from '../components/InspectContext';
 import { useUnlocked } from '../hooks/useUnlocked';
 import { useTRPC } from '../lib/trpc';
-import { setNames, type CatalogCard } from '../utils/cardList';
+import { cardTitle, setNames, type CatalogCard } from '../utils/cardList';
 import { EMPTY_DECK_FILTER, cantAdd, changeCount, filterForDeck, problemsOf, sortForDeck, type DeckEntry, type DeckFilter, type DeckSort } from '../utils/deckBuilder';
 import { PAGE_WIDTH } from '../utils/layout';
 
@@ -30,7 +30,7 @@ export function DecksPage() {
   // The catalog only changes when the seed is re-run, so load it once per session.
   const catalog = useQuery({ ...trpc.cards.list.queryOptions(), staleTime: Infinity });
   const decks = useQuery(trpc.decks.list.queryOptions());
-  const { isLocked } = useUnlocked();
+  const { isLocked, copies } = useUnlocked();
 
   /** A deck is open (false: the deck list is shown). */
   const [editing, setEditing] = useState(false);
@@ -98,7 +98,9 @@ export function DecksPage() {
 
   const byId = useMemo(() => new Map((catalog.data ?? []).map((c) => [c.id, c])), [catalog.data]);
   const sets = useMemo(() => (catalog.data ? setNames(catalog.data) : []), [catalog.data]);
-  const results = useMemo(() => (catalog.data ? sortForDeck(filterForDeck(catalog.data, filter, isLocked), sort) : []), [catalog.data, filter, sort, isLocked]);
+  // Holo Energy only shows once it's been pulled from a pack.
+  const searchable = useMemo(() => (catalog.data ?? []).filter((c) => !c.holoEnergy || copies(c.id) > 0), [catalog.data, copies]);
+  const results = useMemo(() => sortForDeck(filterForDeck(searchable, filter, isLocked), sort), [searchable, filter, sort, isLocked]);
   const counts = useMemo(() => new Map(entries.map((e) => [e.cardId, e.quantity])), [entries]);
   /** The open deck is the automatic run deck: it can be looked at and copied, not changed. */
   const readOnly = deckId !== null && (decks.data?.find((d) => d.id === deckId)?.runDeck ?? false);
@@ -152,7 +154,8 @@ export function DecksPage() {
 
   const problems = problemsOf(entries, byId);
   /** Why another copy of the card can't go in the open deck, or null. */
-  const blockedFor = (card: CatalogCard) => (isLocked(card) ? `${card.name} isn't unlocked yet: win it in a run` : cantAdd(entries, card, byId));
+  const blockedFor = (card: CatalogCard) =>
+    isLocked(card) ? `${cardTitle(card)} isn't unlocked yet: ${card.holoEnergy ? 'pull it from a pack' : 'win it in a run'}` : cantAdd(entries, card, byId, copies(card.id));
   const error = save.error?.message ?? remove.error?.message ?? saved.error?.message;
   const listError = decks.error?.message ?? duplicate.error?.message ?? reorder.error?.message ?? rename.error?.message;
   return (
