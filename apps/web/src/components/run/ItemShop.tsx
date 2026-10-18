@@ -3,7 +3,19 @@ import { useTRPC } from '../../lib/trpc';
 
 const CATEGORY: Record<string, string> = { consumable: 'Consumable', misc: 'Misc item', key: 'Key item', equipment: 'Equipment' };
 
-/** The post-run shop: items for account EXP. None of them has an effect yet. */
+/**
+ * How many the account has: consumables show the count in the Bag (0 too); other items an Owned badge when
+ * there's one, with the count when there are several (Escape Ropes).
+ */
+function Owned({ category, quantity }: { category: string; quantity: number }) {
+  if (category === 'consumable') {
+    return <span className={`ml-auto text-xs ${quantity ? 'text-sky-300' : 'text-slate-500'}`}>In your bag: {quantity}</span>;
+  }
+  if (!quantity) return null;
+  return <span className="ml-auto rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold uppercase text-white">Owned{quantity > 1 ? ` ×${quantity}` : ''}</span>;
+}
+
+/** The post-run shop: items for account EXP, with how many of each you already have. None of them has an effect yet. */
 export function ItemShop() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -35,6 +47,7 @@ export function ItemShop() {
                 {CATEGORY[item.category]}
                 {item.equip && ` · ${item.equip}`}
               </span>
+              <Owned category={item.category} quantity={shop.data.owned[item.id] ?? 0} />
             </div>
             <p className="flex-1 text-xs text-slate-400">{item.effects?.join('. ') ?? item.description}</p>
             <button

@@ -96,7 +96,7 @@ Pages load data, set their own width and side padding, and hand data to componen
 | `DeckPanel.tsx` | The cards unlocked in this run, under the encounter: one per kind with how many came, grouped into Pokémon, Trainers and Energy, and a link to the Decks tab (where the deck itself is) |
 | `BagPanel.tsx` | Consumables and misc items you own with a Use button, disabled past the run's limits (in the Run tab) |
 | `RunOver.tsx` | After a run: beaten (EXP, the cards gained, badge, then `ItemShop` and `NewRunPicker`), or lost (start over, or Retry with 3 HP for testing) |
-| `ItemShop.tsx` | The post-run shop: items for account EXP |
+| `ItemShop.tsx` | The post-run shop: items for account EXP. Consumables show how many are in your bag; other items you have show an Owned badge (with the count when there are several). `run.shop` returns the counts (`owned`) |
 | `NewRunPicker.tsx` | Picks the next run's type and one of your decks (from the Decks tab), then starts it; decks that break the rules or hold locked cards are listed with why and can't be picked |
 | `RunCard.tsx` | A card offered or owned in a run, with the large hover preview (as on the board), its rarity, an optional price and an optional corner badge |
 | `encounterIcons.tsx` | A Material UI symbol and colour per kind of encounter, Gym Trainers, gym leaders, the Elite Four and the Champion included (`EncounterBadge`) |

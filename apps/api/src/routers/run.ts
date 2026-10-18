@@ -76,10 +76,13 @@ export const runRouter = router({
   /** Starts a new run of a type with one of the account's decks, which must be playable (banking the earlier runs' ₱). */
   start: protectedProcedure.input(startRunInput).mutation(async ({ ctx, input }) => startRun(ctx.user.id, input.type, await playableDeck(input.deckId, ctx.user.id))),
 
-  /** The post-run shop: items for EXP. */
+  /** The post-run shop: items for EXP, and how many of each the account already has (`owned`, by item id). */
   shop: protectedProcedure.query(async ({ ctx }) => {
-    const user = await prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { exp: true } });
-    return { exp: user.exp, items: SHOP_ITEMS };
+    const [user, inventory] = await Promise.all([
+      prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { exp: true } }),
+      prisma.inventoryItem.findMany({ where: { userId: ctx.user.id, quantity: { gt: 0 } }, select: { itemId: true, quantity: true } }),
+    ]);
+    return { exp: user.exp, items: SHOP_ITEMS, owned: Object.fromEntries(inventory.map((i) => [i.itemId, i.quantity])) as Record<string, number> };
   }),
 
   /** Buys an item with EXP. Only between runs (once the last one is over). */
