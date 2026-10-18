@@ -129,70 +129,76 @@ export function RouteChoice({ view, run }: { view: RunViewData; run: RunControl 
         </p>
       </div>
 
-      {battles.length > 0 && (
-        <div className="space-y-3">
-          <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-400">{battles.length === 1 ? 'Battle' : 'Battles'}</h4>
-          <ul className="space-y-2">
-            {battles.map(({ option, index }) => (
-              <Option key={index} option={option} lines={describe(option, cardName)} note={<ClassTypes option={option} catalog={byId} />}>
-                <button className={primary} disabled={run.busy} onClick={() => run.choose(index, deckId ?? undefined)}>
-                  {isBossKind(option.kind) || option.kind === 'gymTrainer' ? 'Challenge' : 'Battle'}
-                </button>
-              </Option>
-            ))}
-          </ul>
-
-          <div className="space-y-2">
-            <div className="flex items-baseline justify-between">
-              <span className="text-sm font-semibold">Battle with</span>
-              <Link to="/decks" className="text-xs text-yellow-300 hover:underline">
-                Build or edit decks
-              </Link>
-            </div>
-            <div role="radiogroup" aria-label="Deck" className="space-y-3">
-              {/* The run's deck on its own row, then a divider, then the account's other decks. */}
-              <ul className="grid gap-2 sm:grid-cols-2">
-                <DeckOption selected={deckId === null} onPick={() => setDeckId(null)} name="Current run" note={view.deckName ? `${view.deckName}${traded ? ', with its trades' : ''}` : traded ? 'With its trades' : undefined}>
-                  <DeckSummary entries={runDeck} byId={byId} isLocked={isLocked} />
-                </DeckOption>
+      {/* Battles and other stops side by side when the panel is wide enough; stacked otherwise, the other stops on top
+          (column-reverse), so the battles' deck choice comes last, nearest the battles' buttons. */}
+      <div className="@container">
+        <div className="flex flex-col-reverse gap-5 @4xl:flex-row @4xl:items-start">
+          {battles.length > 0 && (
+            <div className="@container min-w-0 flex-1 space-y-3">
+              <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-400">{battles.length === 1 ? 'Battle' : 'Battles'}</h4>
+              <ul className="space-y-2">
+                {battles.map(({ option, index }) => (
+                  <Option key={index} option={option} lines={describe(option, cardName)} note={<ClassTypes option={option} catalog={byId} />}>
+                    <button className={primary} disabled={run.busy} onClick={() => run.choose(index, deckId ?? undefined)}>
+                      {isBossKind(option.kind) || option.kind === 'gymTrainer' ? 'Challenge' : 'Battle'}
+                    </button>
+                  </Option>
+                ))}
               </ul>
-              {otherDecks.length > 0 && (
-                <>
-                  <div className="flex items-center gap-2 text-xs text-slate-500">
-                    <span>Or switch to</span>
-                    <span className="h-px flex-1 bg-slate-700" />
-                  </div>
-                  <ul className="grid gap-2 sm:grid-cols-2">
-                    {otherDecks.map((d) => (
-                      <DeckOption key={d.id} selected={deckId === d.id} onPick={() => setDeckId(d.id)} name={d.name} disabled={d.problems.length > 0} note={d.problems[0]}>
-                        {d.problems.length === 0 && <DeckSummary entries={d.cards} byId={byId} isLocked={isLocked} />}
-                      </DeckOption>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </div>
-            {deckId !== null && (
-              <p className="text-xs text-amber-300">This deck replaces your run deck for the rest of the run{traded ? ', and the cards you traded for leave it (they stay unlocked)' : ''}.</p>
-            )}
-          </div>
-        </div>
-      )}
 
-      {others.length > 0 && (
-        <div className="space-y-3">
-          <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-400">{battles.length ? 'Or stop at' : 'Stops'}</h4>
-          <ul className="space-y-2">
-            {others.map(({ option, index }) => (
-              <Option key={index} option={option} lines={describe(option, cardName)}>
-                <button className={primary} disabled={run.busy} onClick={() => run.choose(index)}>
-                  Go
-                </button>
-              </Option>
-            ))}
-          </ul>
+              <div className="space-y-2">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-sm font-semibold">Battle with</span>
+                  <Link to="/decks" className="text-xs text-yellow-300 hover:underline">
+                    Build or edit decks
+                  </Link>
+                </div>
+                <div role="radiogroup" aria-label="Deck" className="space-y-3">
+                  {/* The run's deck on its own row, then a divider, then the account's other decks. */}
+                  <ul className="grid gap-2 @md:grid-cols-2">
+                    <DeckOption selected={deckId === null} onPick={() => setDeckId(null)} name="Current run" note={view.deckName ? `${view.deckName}${traded ? ', with its trades' : ''}` : traded ? 'With its trades' : undefined}>
+                      <DeckSummary entries={runDeck} byId={byId} isLocked={isLocked} />
+                    </DeckOption>
+                  </ul>
+                  {otherDecks.length > 0 && (
+                    <>
+                      <div className="flex items-center gap-2 text-xs text-slate-500">
+                        <span>Or switch to</span>
+                        <span className="h-px flex-1 bg-slate-700" />
+                      </div>
+                      <ul className="grid gap-2 @md:grid-cols-2">
+                        {otherDecks.map((d) => (
+                          <DeckOption key={d.id} selected={deckId === d.id} onPick={() => setDeckId(d.id)} name={d.name} disabled={d.problems.length > 0} note={d.problems[0]}>
+                            {d.problems.length === 0 && <DeckSummary entries={d.cards} byId={byId} isLocked={isLocked} />}
+                          </DeckOption>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </div>
+                {deckId !== null && (
+                  <p className="text-xs text-amber-300">This deck replaces your run deck for the rest of the run{traded ? ', and the cards you traded for leave it (they stay unlocked)' : ''}.</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {others.length > 0 && (
+            <div className="min-w-0 flex-1 space-y-3">
+              <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-400">{battles.length ? 'Other stops' : 'Stops'}</h4>
+              <ul className="space-y-2">
+                {others.map(({ option, index }) => (
+                  <Option key={index} option={option} lines={describe(option, cardName)}>
+                    <button className={primary} disabled={run.busy} onClick={() => run.choose(index)}>
+                      Go
+                    </button>
+                  </Option>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </section>
   );
 }

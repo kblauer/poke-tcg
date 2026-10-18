@@ -2,6 +2,7 @@
 // Equipment works while it's equipped (read live, so a change applies from the next encounter); a consumable
 // works for a number of battles once used; a misc item does its one thing when used (see USE_ITEM in run.ts).
 import type { BattleRule, EnergyType, PlayerId } from '@poke-tcg/game-engine';
+import { between, rngFrom, sample } from './random.js';
 
 export type ItemCategory = 'consumable' | 'misc' | 'key' | 'equipment';
 
@@ -171,10 +172,28 @@ export const item = (id: string): ItemDef => {
   return def;
 };
 
-/** Items the post-run shop sells, cheapest first. */
+/** Items the post-run shop can sell, cheapest first. */
 export const SHOP_ITEMS = Object.values(ITEMS)
   .filter((i) => i.price !== undefined)
   .sort((a, b) => a.price! - b.price!);
+
+/** How many of each kind the post-run shop stocks after a run, least and most (agreed with the user). */
+const SHOP_STOCK: [ItemCategory, number, number][] = [
+  ['consumable', 3, 4],
+  ['misc', 1, 2],
+  ['equipment', 1, 1],
+];
+
+/**
+ * What the post-run shop has after a run, rolled from `seed` (from the run, so it stays the same until the next run
+ * ends): 3–4 consumables, 1–2 misc items and 1 piece of gear, all different, cheapest first.
+ */
+export function shopStock(seed: number): ItemDef[] {
+  const rng = rngFrom(seed);
+  return SHOP_STOCK.flatMap(([category, least, most]) => sample(rng, SHOP_ITEMS.filter((i) => i.category === category), between(rng, least, most))).sort(
+    (a, b) => a.price! - b.price!,
+  );
+}
 
 /**
  * Whether the account may have only one (equipment, and misc items that aren't used up): the shop won't sell

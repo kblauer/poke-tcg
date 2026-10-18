@@ -6,6 +6,7 @@ import { trainerCpu } from './trainer.js';
 import { tryAction } from './shared.js';
 
 export { gymLeaderCpu, passiveCpu, trainerCpu };
+export type { DamageRange } from './shared.js';
 
 /** A CPU's move in this state, or null when it has nothing to do (it isn't its move). */
 export type CpuDecide = (state: GameState, cpuId: PlayerId) => GameAction | null;

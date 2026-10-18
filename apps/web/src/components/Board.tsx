@@ -268,6 +268,7 @@ export function Board({
         defender={view.opponent.active}
         cards={view.cards}
         canAttack={myTurn && view.turn > 1 && !busy}
+        damage={view.attackDamage}
         pending={pending}
         attack={{
           ...attack,

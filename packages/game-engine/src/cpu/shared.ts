@@ -251,15 +251,7 @@ export function attackOptions(state: GameState, attackerId: PlayerId, { nextTurn
   const attacker = base.players[attackerId]!.active!;
   // A Pokémon Asleep now may wake up before its turn.
   if (attacker.condition === 'confused' || (nextTurn && attacker.condition === 'asleep')) attacker.condition = null;
-  const situation: AttackSituation = {
-    attacker,
-    defender: base.players[opp.id]!.active!,
-    opponentBench: base.players[opp.id]!.bench,
-    ownBench: base.players[attackerId]!.bench,
-    ownDiscard: base.players[attackerId]!.discard,
-    cards: base.cards,
-    turn: base.turn,
-  };
+  const situation = situationOf(base, attackerId);
 
   const options: AttackOption[] = [];
   pokemonDef(base.cards, attacker).attacks.forEach((attack, attackIndex) => {
@@ -272,6 +264,56 @@ export function attackOptions(state: GameState, attackerId: PlayerId, { nextTurn
     if (best) options.push(best);
   });
   return options;
+}
+
+/** The attacker's side of `state` for the attack rules (attackError, choiceSets). */
+function situationOf(state: GameState, attackerId: PlayerId): AttackSituation {
+  const me = state.players[attackerId]!;
+  const opp = state.players[opponentOf(state, attackerId)]!;
+  return { attacker: me.active!, defender: opp.active!, opponentBench: opp.bench, ownBench: me.bench, ownDiscard: me.discard, cards: state.cards, turn: state.turn };
+}
+
+/** The least and most damage an attack does to the Defending Pokémon. */
+export interface DamageRange {
+  min: number;
+  max: number;
+}
+
+/**
+ * What each of `attackerId`'s attacks would do to the Defending Pokémon now: the least and most damage over every
+ * coin-flip pattern and every answer to its questions, worked out like attackOptions by playing it on copies (so
+ * "10+" and "20×" attacks, weakness, resistance, PlusPower and Defender all count). Null for an attack that can't be
+ * used now. Confusion is left out, as it is for attackOptions. For the player's attack list.
+ */
+export function attackDamageRanges(state: GameState, attackerId: PlayerId): (DamageRange | null)[] {
+  const me = state.players[attackerId]!;
+  const opp = state.players[opponentOf(state, attackerId)]!;
+  if (!me.active || !opp.active) return [];
+  const base = scratch(state);
+  const attacker = base.players[attackerId]!.active!;
+  if (attacker.condition === 'confused') attacker.condition = null;
+  const situation = situationOf(base, attackerId);
+  return pokemonDef(base.cards, attacker).attacks.map((_, attackIndex) => {
+    if (attackError(situation, attackIndex)) return null;
+    let min = Infinity;
+    let max = -Infinity;
+    for (const choices of choiceSets(situation, attackIndex)) {
+      for (const seed of SEEDS) {
+        const s = structuredClone(base);
+        s.rngState = seed;
+        const defender = s.players[opp.id]!.active!;
+        const before = defender.damage;
+        try {
+          if (performAttack(s, s.players[attackerId]!, s.players[opp.id]!, attackIndex, choices)) continue;
+        } catch {
+          continue;
+        }
+        min = Math.min(min, defender.damage - before);
+        max = Math.max(max, defender.damage - before);
+      }
+    }
+    return min === Infinity ? null : { min, max };
+  });
 }
 
 function simulate(base: GameState, attackerId: PlayerId, attackIndex: number, choices: AttackChoices, cost: number): AttackOption | null {
