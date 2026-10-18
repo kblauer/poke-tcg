@@ -65,8 +65,11 @@ export const TEST_POOL: PoolCard[] = rows
     return def && cardImplemented(def) ? [{ def, rarity: rarity(r) }] : [];
   });
 
-/** Every card in the snapshot the engine can load (any set), for checking fixed decks like the bosses'. */
-const CATALOG = new Map(rows.flatMap((r) => {
+/** Cards added by hand to the catalog (packages/db/prisma/data/custom-cards.json), in the snapshot's shape. */
+const custom = (JSON.parse(readFileSync(new URL('../../db/prisma/data/custom-cards.json', import.meta.url), 'utf8')) as { cards: Row[] }).cards;
+
+/** Every card in the snapshot and the hand-made ones the engine can load (any set), for checking fixed decks like the bosses'. */
+const CATALOG = new Map([...rows, ...custom].flatMap((r) => {
   const def = toDef(r);
   return def ? [[r.id, def] as const] : [];
 }));

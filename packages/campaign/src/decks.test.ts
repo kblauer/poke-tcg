@@ -1,7 +1,7 @@
 import { canPayCost, cardImplemented, isBasicPokemon, isPokemonCard, type PokemonCardDef } from '@poke-tcg/game-engine';
 import { describe, expect, it } from 'vitest';
 import { BOSSES } from './bosses.js';
-import { deckErrors, expandDeck, generateDeck, STARTER_DECK } from './decks.js';
+import { deckErrors, expandDeck, generateDeck, STARTER_DECK, trainerFavorites } from './decks.js';
 import { rngFrom } from './random.js';
 import { catalogDef, TEST_POOL, testDef } from './test-pool.js';
 
@@ -65,5 +65,31 @@ describe('generateDeck', () => {
 
   it('is the same deck for the same seed', () => {
     expect(generateDeck(TEST_POOL, rngFrom(42))).toEqual(generateDeck(TEST_POOL, rngFrom(42)));
+  });
+
+  it('holds only Trainers a CPU plays', () => {
+    const played = new Set(['Bill', 'Professor Oak', 'Potion', 'Switch', 'Pokémon Breeder', 'PlusPower', 'Energy Removal', 'Gust of Wind', 'Super Potion', 'Defender', 'Full Heal', 'Pokémon Center', 'Computer Search', 'Super Energy Removal', 'Pokémon Trader']);
+    for (const deck of decks) for (const d of deck.map(testDef)) if (d.kind === 'trainer') expect(played, d.name).toContain(d.name);
+  });
+});
+
+describe('trainer decks suit their name', () => {
+  it("reads the trainer's class from their name", () => {
+    expect(trainerFavorites('Swimmer Luis')).toContain('Tentacruel');
+    expect(trainerFavorites('Bird Keeper Sebastian')).toContain('Pidgeot');
+    expect(trainerFavorites('Cooltrainer Mary')).toBeUndefined();
+  });
+
+  it.each(['Swimmer Luis', 'Bug Catcher Rick', 'Hiker Marcos', 'Bird Keeper Sebastian', 'Psychic Tyron'])("%s's decks are legal, and nearly all their favourite Pokémon", (trainer) => {
+    const favorites = trainerFavorites(trainer)!;
+    for (let seed = 0; seed < 30; seed++) {
+      const deck = generateDeck(TEST_POOL, rngFrom(seed), { favorites });
+      expect(deckErrors(deck, testDef)).toEqual([]);
+      // A line counts when its top card is a favourite (Abra → Kadabra counts, through Kadabra).
+      const pokemon = deck.map(testDef).filter(isPokemonCard);
+      const tops = pokemon.filter((d) => favorites.includes(d.name));
+      const inFavoriteLine = pokemon.filter((d) => favorites.includes(d.name) || tops.some((t) => t.evolvesFrom === d.name || pokemon.some((m) => m.evolvesFrom === d.name && t.evolvesFrom === m.name)));
+      expect(inFavoriteLine.length / pokemon.length, `${trainer} seed ${seed}`).toBeGreaterThanOrEqual(0.75);
+    }
   });
 });
