@@ -1,4 +1,5 @@
 import { isBenchable, isPokemonCard, isTrainerCard, lookupCard, type PokemonCardDef } from '../cards.js';
+import { openBenchSlot } from '../status.js';
 import {
   attackOptions,
   attackScore,
@@ -173,7 +174,7 @@ function develop(t: Turn): GameAction | null {
 
   // A Clefairy Doll only as a stand-in, so a Knock Out of the active can't leave nothing in play.
   const doll = t.me.hand.find((c) => isBenchable(t.def(c)) && isTrainerCard(t.def(c)));
-  const empty = t.me.bench.findIndex((p) => p === null);
+  const empty = openBenchSlot(t.me.bench, t.state.cards, t.state.stadium?.card);
   if (empty >= 0 && doll && !hasBenched(t.me)) return { type: 'PLAY_BENCH', cardUid: doll.uid, slot: empty };
   return null;
 }

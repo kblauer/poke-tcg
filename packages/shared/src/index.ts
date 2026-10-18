@@ -33,6 +33,10 @@ const attackChoicesSchema = z.object({
   side: z.enum(['own', 'opponent']).optional(),
   oppEnergyUid: z.string().optional(),
   weaknessType: energyType.optional(),
+  condition: z.enum(['asleep', 'confused', 'paralyzed', 'poisoned']).optional(),
+  vermilionFlip: z.boolean().optional(),
+  // -1: Charity's "no limit".
+  damageCap: z.number().int().min(-1).max(990).optional(),
 }) satisfies z.ZodType<AttackChoices>;
 
 /** Answers to a Pokémon Power's questions (see PowerChoices in the engine). */

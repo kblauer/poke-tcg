@@ -6,7 +6,7 @@ import { BASIC_ENERGY, type Rarity } from './pool.js';
 import { chance, pick, sample, type Rng } from './random.js';
 
 /** Sets with packs: the ones whose card effects the engine has. */
-export const PACK_SETS = ['base1', 'base2', 'base3', 'basep', 'base4', 'base5'];
+export const PACK_SETS = ['base1', 'base2', 'base3', 'basep', 'base4', 'base5', 'gym1'];
 
 /**
  * Stardust, the account's crafting currency, for each card pulled from a pack that the account already had (a new

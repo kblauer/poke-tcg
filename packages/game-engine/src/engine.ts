@@ -1,10 +1,10 @@
 /// <reference path="./globals.d.ts" />
-import { performAttack, type AttackChoices } from './attacks.js';
+import { attackSituation, checkAttack, performAttack, usableAttacks, type AttackChoices } from './attacks.js';
 import { energyFromHand, evolutionBlocked, guardedBy, offerChainReaction, playedFromHand, powerActive, refreshTransforms, retreatAid, stickyGoo, trainersBlocked, usePower, type PowerChoices } from './powers.js';
 import { playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
 import { isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
-import { addLog, clearOnLeavingActive, effectId, flipCoin, inPlayDef, pokemonName, type LogEntry } from './status.js';
+import { addLog, clearOnLeavingActive, effectId, flipCoin, inPlayDef, openBenchSlot, pokemonName, type LogEntry } from './status.js';
 import { shuffle } from './rng.js';
 import type { CpuDifficulty } from './cpu/index.js';
 
@@ -89,6 +89,18 @@ export interface PokemonEffects {
   leekSlapUsed?: boolean;
   /** What the opponent's last attack on it did, for Mirror Move. */
   attackedOn?: { turn: number; damage: number; afflictions: Affliction[] };
+  /** It can't attack (Suggestion on the Defending Pokémon; Tunneling on the attacker, through its owner's next turn). */
+  noAttack?: number;
+  /** Its owner can't attach Energy cards to it (Crystal Beam). */
+  noEnergy?: number;
+  /** Whenever it's attacked, the attacker flips; tails does no damage to it. Lasts until it takes damage (Shadow Images). */
+  shadowImages?: boolean;
+  /** Whenever an attack damages it, 10 damage back to the attacker, with Weakness and Resistance (Fire Wall). */
+  fireWall?: number;
+  /** The turn its Gnaw does double base damage (Focus Energy: its owner's next turn). */
+  focusEnergy?: number;
+  /** When an attack damages it, flip; heads does double that damage back, with Weakness and Resistance (Crosscounter). */
+  crosscounter?: number;
 }
 
 export interface InPlayPokemon {
@@ -109,8 +121,11 @@ export interface InPlayPokemon {
   /** Burned: 20 damage between turns, then a flip; heads cures it. Missing = not Burned. */
   burned?: boolean;
   effects?: PokemonEffects;
-  /** Trainer cards attached to it (PlusPower, Defender), each discarded after turn `until`. Missing in older games. */
-  attached?: { card: CardInstance; until: number }[];
+  /**
+   * Trainer cards attached to it (PlusPower, Defender), each discarded after turn `until`, or returned to its owner's hand
+   * then with `toHand` (Charity). Missing in older games.
+   */
+  attached?: { card: CardInstance; until: number; toHand?: boolean }[];
   /**
    * The type it's changed to until it leaves play: Venomoth's Shift (until it Shifts again) or a Coloring
    * counter from Smeargle's Paint (until another replaces it).
@@ -143,6 +158,12 @@ export interface PlayerState {
   benchProtectedUntil?: number;
   /** Last turn no Pokémon Powers work (Goop Gas Attack, set on both players). Missing = they work. */
   powersOffUntil?: number;
+  /** Misty: the turn this player's Pokémon with Misty in its name do `count` × 20 more damage to the Defending Pokémon. */
+  misty?: { turn: number; count: number };
+  /** Tickling Machine: the hand, set aside face down; it comes back at the end of turn `until`. */
+  setAside?: { cards: CardInstance[]; until: number };
+  /** Recall: the turn this player's Active Pokémon can use the attacks of the cards it evolved from. */
+  recallTurn?: number;
 }
 
 export type Phase = 'setup' | 'playing' | 'promote' | 'finished';
@@ -182,6 +203,10 @@ export interface GameState {
   stadiumUsedTurn?: number;
   /** Here Comes Team Rocket!: both players play with their Prize cards face up for the rest of the game. */
   prizesFaceUp?: boolean;
+  /** A Trainer just played ends the turn (Minion of Team Rocket, Tickling Machine on tails). */
+  endTurnNow?: boolean;
+  /** Choices waiting for `pendingChoice` to be finished, asked in order (Bench Guard after an attack, Narrow Gym's second player). */
+  queuedChoices?: PendingChoice[];
   /** What happened, oldest first: attacks, coin flips, knockouts… (last LOG_SIZE entries). Missing in older games. */
   log?: LogEntry[];
 }
@@ -343,8 +368,26 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
   if (pending) {
     if (action.type !== 'RESOLVE_CHOICE') return fail(`Finish ${pending.source} first`);
     const { afterAttack } = pending;
+    const attacker = state.players[state.currentPlayer]!;
+    const defending = state.players[opponentOf(state, state.currentPlayer)]!;
+    // Flee, asked of the Defending player before the attack: then the attack happens.
+    if (pending.kind === 'flee') {
+      const slot = action.target;
+      if (slot !== undefined && (slot === 'active' || !me.bench[slot])) return fail('Choose one of your benched Pokémon, or not to flee');
+      delete state.pendingChoice;
+      addLog(state, slot === undefined ? "Won't use Flee." : `Flee: will switch with ${pokemonName(state, me.bench[slot]!)} if the attack does damage.`, me.id);
+      return attackAction(state, attacker, defending, pending.attackIndex, pending.choices, { flee: slot as number | undefined });
+    }
+    // Sabrina's ESP: the attack happens again from where it started, with new coin flips (the log keeps the first ones).
+    if (pending.kind === 'reflip' && action.count === 1) {
+      const again: GameState = { ...structuredClone(pending.before), rngState: state.rngState, log: state.log, version: state.version };
+      addLog(again, "Sabrina's ESP: re-flipped the coins.", me.id);
+      const [mine, theirs] = [again.players[me.id]!, again.players[opponentOf(again, me.id)]!];
+      return attackAction(again, mine, theirs, pending.attackIndex, pending.choices, { flee: pending.flee, reflipped: true });
+    }
     const error = resolvePending(state, me, action);
     if (error) return fail(error);
+    if (!state.pendingChoice) nextQueued(state, afterAttack);
     // Another step may follow (Energy Spike: pick the energy, then the Pokémon to attach it to).
     if (state.pendingChoice) return ok(state);
     // Damage it did (Sneak Attack) can Knock Out a Pokémon during the turn.
@@ -358,6 +401,8 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
     case 'PLAY_BENCH': {
       if (!isBenchSlot(action.slot)) return fail('Invalid bench slot');
       if (me.bench[action.slot]) return fail('That bench slot is occupied');
+      // Narrow Gym: no more than 4 benched Pokémon.
+      if (openBenchSlot(me.bench, state.cards, state.stadium?.card) < 0) return fail('Your Bench is full (Narrow Gym: 4 Pokémon at most)');
       const played = takeFromHand(me, action.cardUid);
       if (!played || !isBenchable(card(played))) return fail('Must play a Basic Pokémon from your hand');
       if (isTrainerCard(card(played)) && trainersLocked(me, state.turn)) return fail(TRAINERS_LOCKED);
@@ -398,6 +443,7 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       if (!target) return fail('Attach energy to one of your Pokémon');
       const energy = takeFromHand(me, action.cardUid);
       if (!energy || card(energy).kind !== 'energy') return fail('Must attach an energy card from your hand');
+      if (target.effects?.noEnergy !== undefined) return fail(`Energy cards can't be attached to ${pokemonName(state, target)} this turn`);
       target.energy.push(energy);
       state.energyAttachedThisTurn = true;
       addLog(state, `Attached ${card(energy).name} to ${pokemonName(state, target)}.`, me.id);
@@ -410,27 +456,24 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
     case 'ATTACK': {
       if (state.turn === 1) return fail('The first player cannot attack on turn 1');
       if (!me.active || !opp.active) return fail('No active Pokémon');
-      const error = performAttack(state, me, opp, action.attackIndex, action.choices ?? {});
-      if (error) return fail(error);
-      // An attack that starts a search (Prophecy, Call for Family) ends the turn once it's finished.
-      // (Checked above for the start of the action, so TypeScript thinks it can't be set.)
-      const search = state.pendingChoice as PendingChoice | undefined;
-      if (search) {
-        search.afterAttack = true;
+      // Flee: the Defending player first says whether, and with which benched Pokémon, a damaged Misty's Tentacruel switches.
+      const defender = opp.active;
+      if (powerEffect(effectId(defender))?.flee && powerActive(defender, state.cards, [opp, me]) && hasBenched(opp)) {
+        const checked = checkAttack(attackSituation(state, me, opp), action.attackIndex, action.choices ?? {});
+        if ('error' in checked) return fail(checked.error);
+        state.pendingChoice = { player: opp.id, source: 'Flee', kind: 'flee', attackIndex: action.attackIndex, choices: checked.choices };
         return ok(state);
       }
-      // Attacking ends the turn.
-      const winner = resolveKnockouts(state, me.id);
-      return winner ? finish(state, winner) : endTurn(state);
+      return attackAction(state, me, opp, action.attackIndex, action.choices ?? {});
     }
 
     case 'RETREAT': {
       if (!me.active) return fail('No active Pokémon');
-      const error = retreatError(me.active, state.cards, hasBenched(me), state.retreatedThisTurn ?? false, [me, opp]);
+      const error = retreatError(me.active, state.cards, hasBenched(me), state.retreatedThisTurn ?? false, [me, opp], state.stadium?.card);
       if (error) return fail(error);
       const benched = isBenchSlot(action.slot) ? me.bench[action.slot] : null;
       if (!benched) return fail('Retreat to one of your benched Pokémon');
-      const cost = retreatCost(me.active, state.cards, [me, opp]);
+      const cost = retreatCost(me.active, state.cards, [me, opp], state.stadium?.card);
       const uids = new Set(action.energyUids);
       if (uids.size !== action.energyUids.length || !action.energyUids.every((uid) => me.active!.energy.some((e) => e.uid === uid))) {
         return fail('Discard energy attached to your active Pokémon');
@@ -475,8 +518,16 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
 
     case 'PLAY_TRAINER': {
       const error = playTrainer(state, me, opp, action.cardUid, action.choices ?? {});
+      if (error) return fail(error);
+      // Minion of Team Rocket, Tickling Machine on tails: the turn ends at once (no attack).
+      if (state.endTurnNow) {
+        delete state.endTurnNow;
+        addLog(state, 'The turn ends.', me.id);
+        const winner = resolveKnockouts(state, opp.id);
+        return winner ? finish(state, winner) : endTurn(state);
+      }
       // Devolution Spray can Knock Out; Scoop Up can empty the active spot.
-      return error ? fail(error) : afterOwnMove(state, me, opp);
+      return afterOwnMove(state, me, opp);
     }
 
     case 'DISCARD_DOLL': {
@@ -492,7 +543,7 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
     }
 
     case 'USE_STADIUM': {
-      const error = stadiumError(state.stadium?.card ?? null, state.stadiumUsedTurn, state.turn);
+      const error = stadiumError(state.stadium?.card ?? null, state.stadiumUsedTurn, state.turn, { me, cards: state.cards });
       if (error) return fail(error);
       state.stadiumUsedTurn = state.turn;
       addLog(state, `Used ${card(state.stadium!.card).name}.`, me.id);
@@ -513,6 +564,50 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
     case 'PROMOTE':
       return fail(`${action.type} is not allowed now`);
   }
+}
+
+/**
+ * Uses an attack and ends the turn, or waits for the choices it leaves (a search, Bench Guard, Sabrina's ESP's re-flip),
+ * after which the turn ends. `flee`: the Defending Pokémon's Flee answer. `reflipped`: Sabrina's ESP was already used.
+ */
+function attackAction(
+  state: GameState,
+  me: PlayerState,
+  opp: PlayerState,
+  attackIndex: number,
+  choices: AttackChoices,
+  { flee, reflipped = false }: { flee?: number; reflipped?: boolean } = {},
+): ActionResult {
+  const usable = usableAttacks(me.active!, state.cards, me.recallTurn === state.turn)[attackIndex];
+  const esp = !reflipped && (me.active!.attached ?? []).some((a) => lookupCard(state.cards, a.card.defId).name === "Sabrina's ESP");
+  const before = esp ? structuredClone(state) : null;
+  const source = usable && `${inPlayDef(state.cards, me.active!).name}'s ${usable.attack.name}`;
+  const logged = state.log?.at(-1)?.n ?? 0;
+  const error = performAttack(state, me, opp, attackIndex, choices, { flee });
+  if (error) return fail(error);
+  // Sabrina's ESP: the attack's coins can be flipped again once, before anything else it asks.
+  if (before && (state.log ?? []).some((e) => (e.n ?? 0) > logged && e.coin?.reason === source)) {
+    if (state.pendingChoice) (state.queuedChoices ??= []).unshift(state.pendingChoice);
+    state.pendingChoice = { player: me.id, source: "Sabrina's ESP", kind: 'reflip', before, attackIndex, choices, ...(flee !== undefined && { flee }) };
+  }
+  // An attack that starts a search (Prophecy, Call for Family), or leaves Bench Guard's questions, ends the turn once they're answered.
+  if (!state.pendingChoice) nextQueued(state, true);
+  const search = state.pendingChoice as PendingChoice | undefined;
+  if (search) {
+    search.afterAttack = true;
+    for (const queued of state.queuedChoices ?? []) queued.afterAttack = true;
+    return ok(state);
+  }
+  // Attacking ends the turn.
+  const winner = resolveKnockouts(state, me.id);
+  return winner ? finish(state, winner) : endTurn(state);
+}
+
+/** Asks the next queued choice, if any; after an attack's choice, it ends the turn too (`afterAttack`). */
+function nextQueued(state: GameState, afterAttack?: boolean) {
+  const next = state.queuedChoices?.shift();
+  if (!state.queuedChoices?.length) delete state.queuedChoices;
+  if (next) state.pendingChoice = { ...next, ...(afterAttack && { afterAttack }) };
 }
 
 /**
@@ -602,6 +697,7 @@ export function evolveError(
 ): string | null {
   const blocked = evolutionBlocked(sides, cards);
   if (blocked) return blocked;
+  // Owners' Pokémon (Gym Heroes) need no rule of their own: Brock's Rhydon evolves from Brock's Rhyhorn, by name.
   const current = lookupCard(cards, target.card.defId);
   const evolvesFromStage = evolution.stage === 'stage2' ? 'stage1' : 'basic';
   if (current.kind !== 'pokemon' || current.name !== evolution.evolvesFrom || current.stage !== evolvesFromStage) {
@@ -613,14 +709,19 @@ export function evolveError(
   return null;
 }
 
-/** Energy the Pokémon must discard to retreat. */
 /**
  * Energy the Pokémon must discard to retreat. `sides` (its owner first) are for powers that change it:
  * each working Retreat Aid on the owner's Bench takes 1 off the Active Pokémon's cost, and the opponent's working
- * Sticky Goo adds 2.
+ * Sticky Goo adds 2. The Stadium in play can change it too (The Rocket's Training Gym, Cerulean City Gym).
  */
-export const retreatCost = (pokemon: InPlayPokemon, cards: CardLibrary, sides: Pick<PlayerState, 'active' | 'bench'>[] = []) =>
-  Math.max(0, (inPlayDef(cards, pokemon).retreatCost ?? 0) - retreatAid(pokemon, cards, sides) + (sides[0]?.active === pokemon ? stickyGoo(sides, cards) : 0));
+export const retreatCost = (pokemon: InPlayPokemon, cards: CardLibrary, sides: Pick<PlayerState, 'active' | 'bench'>[] = [], stadium?: CardInstance | null) =>
+  Math.max(
+    0,
+    (inPlayDef(cards, pokemon).retreatCost ?? 0) -
+      retreatAid(pokemon, cards, sides) +
+      (sides[0]?.active === pokemon ? stickyGoo(sides, cards) : 0) +
+      (stadium ? (trainerEffect(stadium.defId)?.retreatModifier?.(inPlayDef(cards, pokemon)) ?? 0) : 0),
+  );
 
 /**
  * Why the active Pokémon can't retreat right now, or null if it can (given a bench target
@@ -632,6 +733,7 @@ export function retreatError(
   hasBench: boolean,
   retreatedThisTurn: boolean,
   sides: Pick<PlayerState, 'active' | 'bench'>[] = [],
+  stadium?: CardInstance | null,
 ): string | null {
   if (retreatedThisTurn) return 'You can only retreat once per turn';
   const def = lookupCard(cards, active.card.defId);
@@ -644,7 +746,7 @@ export function retreatError(
     return `${lookupCard(cards, active.card.defId).name} is ${conditionLabel(active.condition)} and can't retreat`;
   }
   if (!hasBench) return 'No benched Pokémon to switch in';
-  const cost = retreatCost(active, cards, sides);
+  const cost = retreatCost(active, cards, sides, stadium);
   if (energyPool(active, cards).length < cost) return `Retreating costs ${cost} energy`;
   return null;
 }
@@ -675,13 +777,18 @@ export function isEnergyCardOf(card: CardInstance, cards: CardLibrary, type: Ene
   return d.kind === 'energy' && (!!d.anyType || (d.energyType === type && d.basic !== false));
 }
 
-/** Every energy the Pokémon's attached cards provide, one entry per energy. Energy Burn makes it all Fire. */
+/**
+ * Every energy the Pokémon's attached cards provide, one entry per energy. Energy Burn makes it all Fire, and
+ * Photosynthesis all Grass (it works whatever the Pokémon's condition; only Stare stops it here, as this sees no
+ * other Pokémon for Toxic Gas or Goop Gas Attack).
+ */
 export const energyPool = (pokemon: InPlayPokemon, cards: CardLibrary): PoolEnergy[] => {
   const pool = pokemon.energy.flatMap((e) => {
     const { type, amount } = energyProvided(e, cards);
     return Array<PoolEnergy>(amount).fill(type);
   });
-  return pokemon.effects?.energyBurn !== undefined ? pool.map(() => 'fire') : pool;
+  if (pokemon.effects?.energyBurn !== undefined) return pool.map(() => 'fire');
+  return powerEffect(effectId(pokemon))?.photosynthesis && pokemon.powerOffUntil === undefined ? pool.map(() => 'grass') : pool;
 };
 
 export function canPayCost(pokemon: InPlayPokemon, attack: Attack, cards: CardLibrary): boolean {
@@ -769,11 +876,14 @@ function betweenTurns(state: GameState) {
   for (const { id, active, name } of actives) {
     if (!active.poison) continue;
     active.damage += active.poison;
+    // Shadow Images lasts until the Pokémon takes damage.
+    if (active.effects) delete active.effects.shadowImages;
     addLog(state, `${name} takes ${active.poison} Poison damage.`, id);
   }
   for (const { id, active, name } of actives) {
     if (!active.burned) continue;
     active.damage += 20;
+    if (active.effects) delete active.effects.shadowImages;
     addLog(state, `${name} takes 20 Burn damage.`, id);
     if (flipCoin(state, `${name} is Burned`, id)) {
       active.burned = false;
@@ -799,6 +909,12 @@ function betweenTurns(state: GameState) {
       delete player.powersOffUntil;
       if (id === state.currentPlayer) addLog(state, 'Goop Gas Attack wore off: Pokémon Powers work again.');
     }
+    // Tickling Machine: the cards set aside go back into the hand at the end of the player's next turn.
+    if (player.setAside && player.setAside.until <= state.turn) {
+      player.hand.push(...player.setAside.cards);
+      addLog(state, `Put the ${player.setAside.cards.length} cards set aside back into the hand.`, id);
+      delete player.setAside;
+    }
     for (const pokemon of [player.active, ...player.bench]) {
       if (!pokemon) continue;
       expireEffects(pokemon, state.turn);
@@ -807,8 +923,11 @@ function betweenTurns(state: GameState) {
       const expired = (pokemon.attached ?? []).filter((a) => a.until <= state.turn);
       if (!expired.length) continue;
       pokemon.attached = pokemon.attached!.filter((a) => !expired.includes(a));
-      player.discard.push(...expired.map((a) => a.card));
-      for (const a of expired) addLog(state, `${lookupCard(state.cards, a.card.defId).name} on ${pokemonName(state, pokemon)} was discarded.`, id);
+      // Charity goes back to the hand instead.
+      for (const a of expired) {
+        (a.toHand ? player.hand : player.discard).push(a.card);
+        addLog(state, `${lookupCard(state.cards, a.card.defId).name} on ${pokemonName(state, pokemon)} ${a.toHand ? 'returned to the hand' : 'was discarded'}.`, id);
+      }
     }
   }
 }
@@ -816,7 +935,7 @@ function betweenTurns(state: GameState) {
 function expireEffects(pokemon: InPlayPokemon, turn: number) {
   const e = pokemon.effects;
   if (!e) return;
-  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell'] as const) {
+  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell', 'noAttack', 'noEnergy', 'fireWall', 'focusEnergy', 'crosscounter'] as const) {
     if (e[key] !== undefined && e[key] <= turn) delete e[key];
   }
   if (e.amnesia && e.amnesia.until <= turn) delete e.amnesia;
@@ -832,12 +951,20 @@ function expireEffects(pokemon: InPlayPokemon, turn: number) {
 function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId | null {
   // A Ditto that stopped being a copy (Asleep, switched…) has its own HP again.
   refreshTransforms(state);
+  const sides = state.playerOrder.map((id) => state.players[id]!);
   for (const id of state.playerOrder) {
     const owner = state.players[id]!;
     const taker = state.players[opponentOf(state, id)]!;
     const knockOut = (pokemon: InPlayPokemon) => {
       addLog(state, `${pokemonName(state, pokemon)} was Knocked Out.`, id);
+      // Rebirth: the card goes back to the hand once it's discarded, unless its power isn't working (Asleep…).
+      const reborn = !!powerEffect(pokemon.card.defId)?.rebirth && powerActive(pokemon, state.cards, sides);
       owner.discard.push(...pokemon.evolvedFrom, pokemon.card, ...pokemon.energy.map(asDiscarded), ...(pokemon.attached ?? []).map((a) => a.card));
+      if (reborn) {
+        owner.discard = owner.discard.filter((c) => c !== pokemon.card);
+        owner.hand.push(pokemon.card);
+        addLog(state, `Rebirth: ${pokemonName(state, pokemon)} returned to the hand.`, id);
+      }
       // A Trainer played as a Pokémon (Clefairy Doll) doesn't count as a Knocked Out Pokémon: no prize.
       const def = lookupCard(state.cards, pokemon.card.defId);
       if (def.kind === 'pokemon' && def.trainerText) return;

@@ -37,7 +37,7 @@ export function PendingChoicePanel({ view, send, busy }: { view: PlayerView; sen
           </div>
         ) : null}
         {choice.kind === 'oppHand' ? (
-          // Rocket's Sneak Attack: the whole hand is shown; only its Trainer cards can be picked.
+          // Rocket's Sneak Attack: the whole hand is shown; only its Trainer cards can be picked. Erika's Perfume: its Basic Pokémon, any number.
           <>
             <div className="flex max-h-[60vh] flex-wrap justify-center gap-2 overflow-y-auto p-1">
               {choice.cards.map((c) => {
@@ -54,12 +54,22 @@ export function PendingChoicePanel({ view, send, busy }: { view: PlayerView; sen
                 );
               })}
             </div>
-            {choice.options.length === 0 && (
+            {(choice.options.length === 0 || choice.optional) && (
               <button className="rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500" disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE' })}>
                 Done
               </button>
             )}
           </>
+        ) : null}
+        {choice.kind === 'options' ? (
+          // Lt. Surge's Treaty: one button per answer, sent as its index.
+          <div className="flex flex-wrap justify-center gap-2">
+            {choice.labels.map((label, i) => (
+              <button key={label} className="rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500" disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE', count: i })}>
+                {label}
+              </button>
+            ))}
+          </div>
         ) : null}
         {choice.kind === 'drawCount' ? (
           <div className="flex flex-wrap justify-center gap-2">

@@ -2,11 +2,11 @@
 // state with fixed coin flips (so it never sees the real flips to come), plus Energy arithmetic and which
 // cards are useful. Everything here is generic over cards: no card ids, and only the rules engine's own
 // effects decide what an attack does.
-import { answerChoice, attackError, performAttack, resolveChoices, type AttackChoices, type AttackSituation, type ChoiceSpec } from '../attacks.js';
+import { answerChoice, attackError, attackSituation, performAttack, resolveChoices, type AttackChoices, type AttackSituation, type ChoiceSpec } from '../attacks.js';
 import { isBasicEnergy, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from '../cards.js';
 import { applyAction, energyPool, energyProvided, payCost, type PoolEnergy, evolveError, opponentOf, retreatCost, retreatError, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
 import { nextRandom } from '../rng.js';
-import { inPlayDef } from '../status.js';
+import { inPlayDef, openBenchSlot } from '../status.js';
 import { pendingChoiceView, type TrainerChoices } from '../trainers.js';
 
 /** Card names compared without accents, spaces or case ('Pokémon Breeder' = 'pokemonbreeder'). */
@@ -225,6 +225,11 @@ function answers(spec: ChoiceSpec): AttackChoices[keyof AttackChoices][] {
     }
     case 'opponentBenchMany':
       return slotCombinations(spec.options, Math.min(spec.count, spec.options.length));
+    // Vermilion City Gym: the CPU always flips (agreed). Charity: it never holds back.
+    case 'vermilion':
+      return [true];
+    case 'charity':
+      return [-1];
     default:
       return spec.options;
   }
@@ -270,7 +275,8 @@ export function attackOptions(state: GameState, attackerId: PlayerId, { nextTurn
 function situationOf(state: GameState, attackerId: PlayerId): AttackSituation {
   const me = state.players[attackerId]!;
   const opp = state.players[opponentOf(state, attackerId)]!;
-  return { attacker: me.active!, defender: opp.active!, opponentBench: opp.bench, ownBench: me.bench, ownDiscard: me.discard, cards: state.cards, turn: state.turn };
+  // The Stadium (Vermilion City Gym's question) and Recall too.
+  return attackSituation(state, me, opp);
 }
 
 /** The least and most damage an attack does to the Defending Pokémon. */
@@ -443,7 +449,7 @@ const lineIndex = (lines: PokemonCardDef[], d: CardDef) => lines.findIndex((l) =
 export function unusablePokemon(state: GameState, me: PlayerState, except?: CardInstance): CardInstance[] {
   const def = (c: CardInstance) => lookupCard(state.cards, c.defId);
   const names = new Set([...inPlay(me).map(([, p]) => pokemonDef(state.cards, p).name), ...me.hand.filter((c) => c !== except).map((c) => def(c).name)]);
-  const benchFull = me.bench.every(Boolean);
+  const benchFull = openBenchSlot(me.bench, state.cards, state.stadium?.card) < 0;
   return me.hand.filter((c) => {
     const d = def(c);
     if (c === except || !isPokemonCard(d)) return false;
@@ -492,12 +498,23 @@ export const benched = (t: Turn) => inPlay(t.me).filter(([target]) => target !==
 /** Finishing a search: the most wanted card (see wantedCards), a Basic, an Energy that helps, or anything. Pokédex keeps the order. */
 /** Challenge! (agreed): the CPU accepts whenever its Bench has room and its deck has a Basic Pokémon. */
 export const acceptsChallenge = (state: GameState, cpu: PlayerState) =>
-  cpu.bench.includes(null) && cpu.deck.some((c) => isBasicPokemon(lookupCard(state.cards, c.defId)));
+  openBenchSlot(cpu.bench, state.cards, state.stadium?.card) >= 0 && cpu.deck.some((c) => isBasicPokemon(lookupCard(state.cards, c.defId)));
 
 export function resolveSearch(t: Turn): GameAction {
   const view = pendingChoiceView(t.state, t.state.pendingChoice!);
   if (view.kind === 'challenge') return { type: 'RESOLVE_CHOICE', count: acceptsChallenge(t.state, t.me) ? 1 : 0 };
   if (view.kind === 'arrangeTop') return { type: 'RESOLVE_CHOICE', order: view.cards.map((c) => c.uid) };
+  // Lt. Surge's Treaty: both take a Prize card unless that helps the other player more (they have fewer left).
+  if (view.kind === 'options') return { type: 'RESOLVE_CHOICE', count: optionAnswer(t, view.labels.length) };
+  // Flee: it switches out when Misty's Tentacruel has 40 HP or less left, to the benched Pokémon with the most HP left.
+  const choice = t.state.pendingChoice!;
+  if (choice.kind === 'flee' && view.kind === 'ownPokemon') {
+    const left = (target: Target) => hpLeft(t.state.cards, at(t.me, target)!);
+    if (!view.options.length || left('active') > 40) return { type: 'RESOLVE_CHOICE' };
+    return { type: 'RESOLVE_CHOICE', target: view.options.reduce((a, b) => (left(b) > left(a) ? b : a)) };
+  }
+  // Returning its own Pokémon to the hand (Fairy Power): it keeps them in play.
+  if (view.kind === 'ownPokemon' && view.optional) return { type: 'RESOLVE_CHOICE' };
   // Healing one of its Pokémon (Heal): the one with the most damage. Attaching (Energy Spike): the active.
   if (view.kind === 'ownPokemon') {
     if (view.purpose === 'attach') return { type: 'RESOLVE_CHOICE', target: view.options.includes('active') ? 'active' : view.options[0] };
@@ -516,11 +533,11 @@ export function resolveSearch(t: Turn): GameAction {
   }
   // Computer Error: always the most cards (agreed).
   if (view.kind === 'drawCount') return { type: 'RESOLVE_CHOICE', count: view.max };
-  // Special Delivery: the card it wants least goes back on the deck.
+  // Special Delivery: the card it wants least goes back on the deck. Sleight of Hand ("up to"): only cards it doesn't want.
   if (view.kind === 'pickFromHand') {
     const wanted = wantedCards(t.state, t.me, view.options);
-    const pick = view.options.find((c) => !wanted.includes(c)) ?? view.options.at(-1)!;
-    return { type: 'RESOLVE_CHOICE', cardUid: pick.uid };
+    const pick = view.options.find((c) => !wanted.includes(c)) ?? (view.optional ? undefined : view.options.at(-1));
+    return pick ? { type: 'RESOLVE_CHOICE', cardUid: pick.uid } : { type: 'RESOLVE_CHOICE' };
   }
   // Pure Body: the Energy card that leaves Suicune closest to attacking.
   if (view.kind === 'pickAttached') {
@@ -538,9 +555,25 @@ export function resolveSearch(t: Turn): GameAction {
   return pick ? { type: 'RESOLVE_CHOICE', cardUid: pick.uid } : { type: 'RESOLVE_CHOICE' };
 }
 
+/**
+ * An answer to a choice between labelled options. Lt. Surge's Treaty: both take a Prize card unless that helps the other
+ * player more (they have fewer left). Bench Guard: Brock's Rhydon takes the 10 if that doesn't Knock it Out. Blaine's
+ * Quiz #1: a guess at random. Otherwise the first (Sabrina's ESP: keep the flips).
+ */
+function optionAnswer(t: Turn, count: number): number {
+  const choice = t.state.pendingChoice!;
+  if (choice.kind === 'treaty') return t.me.prizes.length > t.opp.prizes.length ? 1 : 0;
+  if (choice.kind === 'benchGuard') {
+    const rhydon = t.me.bench[choice.guard];
+    return rhydon && hpLeft(t.state.cards, rhydon) > 10 ? 0 : 1;
+  }
+  if (choice.kind === 'quiz') return Math.floor(nextRandom(t.state.rngState)[0] * count);
+  return 0;
+}
+
 /** Puts a Basic Pokémon from the hand onto the Bench, while there's room. */
 export function benchBasic(t: Turn): GameAction | null {
-  const empty = t.me.bench.findIndex((p) => p === null);
+  const empty = openBenchSlot(t.me.bench, t.state.cards, t.state.stadium?.card);
   const basic = t.me.hand.find((c) => isBasicPokemon(t.def(c)));
   return empty >= 0 && basic ? { type: 'PLAY_BENCH', cardUid: basic.uid, slot: empty } : null;
 }
@@ -623,8 +656,8 @@ export function switchOrRetreat(t: Turn, slot: number, bench: { best: AttackOpti
   const active = t.me.active!;
   const sw = play(t, trainer(t, 'switch'), { target: slot });
   if (sw) return sw;
-  if (retreatError(active, cards, true, t.state.retreatedThisTurn ?? false, [t.me, t.opp])) return null;
-  const payment = retreatPayment(cards, active, retreatCost(active, cards, [t.me, t.opp]));
+  if (retreatError(active, cards, true, t.state.retreatedThisTurn ?? false, [t.me, t.opp], t.state.stadium?.card)) return null;
+  const payment = retreatPayment(cards, active, retreatCost(active, cards, [t.me, t.opp], t.state.stadium?.card));
   if (!payment) return null;
   const left = { ...active, energy: active.energy.filter((e) => !payment.includes(e)) };
   const oldCanAttack = pokemonDef(cards, active).attacks.some((a) => missingEnergy(energyPool(left, cards), a.cost) === 0);

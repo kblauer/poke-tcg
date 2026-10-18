@@ -24,6 +24,18 @@ interface Row {
 const STAGES: Record<string, Stage> = { Basic: 'basic', Stage1: 'stage1', Stage2: 'stage2' };
 const type = (t: string) => t.toLowerCase() as EnergyType;
 
+/**
+ * What the card evolves from, as the API has it: Team Rocket's Dark Stage 2 Pokémon from the Dark Stage 1, and an
+ * owner's Pokémon (Gym Heroes) from the same owner's.
+ */
+function evolvesFrom(r: Row, stage: Stage): string | null {
+  if (stage === 'stage2' && r.name.startsWith('Dark ') && r.evolveFrom && !r.evolveFrom.startsWith('Dark ')) return `Dark ${r.evolveFrom}`;
+  const owner = stage !== 'basic' ? r.name.match(/^((?:Blaine|Brock|Erika|Lt\. Surge|Misty|Sabrina|Giovanni|Koga|Rocket)'s )/)?.[1] : undefined;
+  const from = r.evolveFrom ?? (r.name === "Lt. Surge's Magneton" ? 'Magnemite' : null);
+  if (owner && from) return from.startsWith(owner) ? from : `${owner}${from}`;
+  return r.evolveFrom ?? (stage === 'stage1' && ['Omanyte', 'Kabuto', 'Aerodactyl'].includes(r.name) ? 'Mysterious Fossil' : null);
+}
+
 function toDef(r: Row): CardDef | null {
   if (r.category === 'Pokemon') {
     const stage = r.stage && STAGES[r.stage];
@@ -36,11 +48,7 @@ function toDef(r: Row): CardDef | null {
       type: type(r.types[0]),
       hp: r.hp,
       stage,
-      // Team Rocket's Dark Stage 2 Pokémon evolve from the Dark Stage 1, as the API has it.
-      evolvesFrom:
-        stage === 'stage2' && r.name.startsWith('Dark ') && r.evolveFrom && !r.evolveFrom.startsWith('Dark ')
-          ? `Dark ${r.evolveFrom}`
-          : (r.evolveFrom ?? (stage === 'stage1' && ['Omanyte', 'Kabuto', 'Aerodactyl'].includes(r.name) ? 'Mysterious Fossil' : null)),
+      evolvesFrom: evolvesFrom(r, stage),
       // Printed cost and damage where TCGdex's differ (Dark Magneton), as the API has them.
       attacks: (r.attacks ?? []).map((a) => {
         const effect = attackEffect(r.id, a.name);

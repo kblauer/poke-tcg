@@ -46,6 +46,8 @@ export interface PokemonCardDef {
   retreatCost?: number;
   /** Printed as a holofoil. Display only. */
   holo?: boolean;
+  /** The Pokédex length printed on the card, e.g. `6' 3"` (Blaine's Quiz #1). Missing when it isn't known. */
+  length?: string;
   /**
    * A Baby Pokémon (Cleffa, Pichu…): a Basic with the Baby Pokémon rule. When it's the Active Pokémon and the
    * opponent attacks, they flip a coin first; on tails their turn ends. Missing = not a Baby.

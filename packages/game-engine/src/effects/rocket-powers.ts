@@ -9,7 +9,7 @@ import { isBasicPokemon, isPokemonCard, lookupCard, type CardLibrary } from '../
 import { applyWeaknessResistance } from '../attacks.js';
 import { counts, energyPool, isEnergyCardOf, type CardInstance, type GameState, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { ownTargets, pokemonAt, powerActive, type PowerContext, type PowerEffect, type PowerSituation } from '../powers.js';
-import { addLog, effectId, flipCoin, inPlayDef, pokemonName } from '../status.js';
+import { addLog, effectId, flipCoin, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { pokemonTower, type PendingChoice, type PendingChoiceInput } from '../trainers.js';
 import { powerEffect } from './index.js';
 
@@ -49,7 +49,7 @@ const HOLO: Record<string, PowerEffect> = {
   // Dark Dragonite – Summon Minions: when you play it from your hand, put up to 2 Basic Pokémon from your deck onto your Bench.
   'base5-5': {
     onPlayFromHand(state, owner) {
-      if (owner.bench.every(Boolean) || !owner.deck.some((c) => isBasicPokemon(lookupCard(state.cards, c.defId)))) return;
+      if (openBenchSlot(owner.bench, state.cards, state.stadium?.card) < 0 || !owner.deck.some((c) => isBasicPokemon(lookupCard(state.cards, c.defId)))) return;
       pend(state, owner, { source: 'Summon Minions', kind: 'pickFromDeck', filter: 'basic', toBench: true, optional: true, count: 2 });
     },
   },

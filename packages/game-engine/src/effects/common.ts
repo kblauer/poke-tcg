@@ -3,6 +3,7 @@ import type { AttackContext, AttackEffect, AttackSituation, ChoiceSpec } from '.
 import type { PendingChoice } from '../trainers.js';
 import type { EnergyType } from '../cards.js';
 import { counts, energyPool, type Affliction, type PoolEnergy } from '../engine.js';
+import { openBenchSlot } from '../status.js';
 
 /** Base damage, then on heads the Defending Pokémon gets `affliction`. */
 export const flipToInflict = (damage: number, affliction: Affliction): AttackEffect => ({
@@ -197,6 +198,6 @@ export function headsUntilTails(ctx: AttackContext): number {
 
 /** Search the deck for a Basic Pokémon and put it onto the Bench (Call for Family, Sprout, Call for Friend). */
 export const benchSearch = (source: string, find: Pick<Extract<PendingChoice, { kind: 'pickFromDeck' }>, 'filter' | 'name' | 'type'>): AttackEffect => ({
-  blocked: (s) => (s.ownBench.every(Boolean) ? 'Your Bench is full' : null),
+  blocked: (s) => (openBenchSlot(s.ownBench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
   run: (ctx) => ctx.pend({ kind: 'pickFromDeck', source, ...find, toBench: true }),
 });

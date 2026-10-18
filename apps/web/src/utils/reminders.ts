@@ -12,7 +12,7 @@ export function endTurnReminders(view: PlayerView, powers: { pokemon: string; na
   if (!view.energyAttachedThisTurn && view.self.hand.some((c) => lookupCard(view.cards, c.defId).kind === 'energy')) {
     reminders.push({ kind: 'energy', text: "Attach an Energy card: you haven't this turn, and you have one in your hand." });
   }
-  if (view.stadium && stadiumError(view.stadium.card, view.stadiumUsedTurn, view.turn) === null) {
+  if (view.stadium && stadiumError(view.stadium.card, view.stadiumUsedTurn, view.turn, { me: view.self, cards: view.cards }) === null) {
     reminders.push({ kind: 'stadium', text: `Use ${lookupCard(view.cards, view.stadium.card.defId).name}.` });
   }
   const usable = powers.filter((p) => p.error === null).map((p) => `${p.pokemon}'s ${p.name}`);

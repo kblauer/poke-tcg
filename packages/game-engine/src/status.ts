@@ -1,7 +1,7 @@
 // Small state helpers shared by the reducer and attack effects (no imports of engine values,
 // so effect modules can use them without import cycles).
 import { lookupCard, type CardLibrary, type PokemonCardDef } from './cards.js';
-import type { GameState, InPlayPokemon, PlayerId } from './engine.js';
+import type { CardInstance, GameState, InPlayPokemon, PlayerId } from './engine.js';
 import { nextRandom } from './rng.js';
 
 export const LOG_SIZE = 100;
@@ -52,6 +52,20 @@ export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCa
   if (!pokemon.transformed) return pokemon.shiftedType ? { ...own, type: pokemon.shiftedType } : own;
   const copy = lookupCard(cards, pokemon.transformed) as PokemonCardDef;
   return { ...copy, name: own.name, stage: own.stage, evolvesFrom: own.evolvesFrom, evolvesFromBasic: own.evolvesFromBasic, power: copy.power ?? own.power };
+}
+
+/**
+ * The first empty Bench slot a Pokémon can be put into, or -1 when the Bench is full: 5 Pokémon, or 4 while Narrow Gym
+ * is the Stadium in play (`stadium`).
+ */
+export function openBenchSlot(bench: readonly (InPlayPokemon | null)[], cards: CardLibrary, stadium?: CardInstance | null): number {
+  return benchRoom(bench, cards, stadium) > 0 ? bench.indexOf(null) : -1;
+}
+
+/** How many more Pokémon the Bench can hold (see openBenchSlot). */
+export function benchRoom(bench: readonly (InPlayPokemon | null)[], cards: CardLibrary, stadium?: CardInstance | null): number {
+  const limit = stadium && lookupCard(cards, stadium.defId).name === 'Narrow Gym' ? 4 : bench.length;
+  return Math.max(0, limit - bench.filter(Boolean).length);
 }
 
 /** Benching or evolving removes Special Conditions (Burned and Poisoned included) and the effects of attacks (except Leek Slap's). */

@@ -54,6 +54,8 @@ export interface PlayerView {
     ready?: boolean;
     /** A card they looked at with Peek, until their next action. */
     peek?: { card: CardInstance; label: string };
+    /** Recall was played this turn: the Active Pokémon can use the attacks of the cards it evolved from (usableAttacks). */
+    recall?: boolean;
   };
   opponent: {
     id: PlayerId;
@@ -140,6 +142,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       noTrainersUntil: me.noTrainersUntil,
       ...(me.ready && { ready: true }),
       ...(peek && { peek }),
+      ...(me.recallTurn === state.turn && { recall: true }),
     },
     opponent: {
       id: opp.id,

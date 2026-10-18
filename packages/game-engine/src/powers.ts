@@ -116,6 +116,18 @@ export interface PowerEffect {
    * choose something (`state.pendingChoice`).
    */
   onEnergyFromHand?: (state: GameState, owner: PlayerState, pokemon: InPlayPokemon, target: Target, energy: CardInstance) => void;
+  /** Rebirth: when it's Knocked Out, its card goes back to the hand after it's discarded (engine.ts, resolveKnockouts). */
+  rebirth?: boolean;
+  /** Photosynthesis: all Energy attached to it provides Grass Energy (energyPool). */
+  photosynthesis?: boolean;
+  /** Shell Armor: attack damage to it is 10 less, after Weakness and Resistance. */
+  shellArmor?: boolean;
+  /** Strange Barrier: an attack by a Basic Pokémon that does 20 or more damage to it does 10 instead. */
+  strangeBarrier?: boolean;
+  /** Bench Guard: while it's benched, its owner may move 10 of the damage an attack does to another benched Pokémon to it. */
+  benchGuard?: boolean;
+  /** Flee: before the opponent attacks, its owner may say it switches out if the attack damages it as the Active Pokémon. */
+  flee?: boolean;
 }
 
 export interface PowerContext {

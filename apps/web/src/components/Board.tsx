@@ -244,6 +244,7 @@ export function Board({
         cards={view.cards}
         canAttack={myTurn && view.turn > 1 && !busy}
         damage={view.attackDamage}
+        recall={!!self.recall}
         pending={pending}
         attack={{
           ...attack,
@@ -326,10 +327,11 @@ export function Board({
                 pick={pokemonPick?.side === 'opp' && !busy ? pokemonPick : null}
                 lunge={attacker === view.opponent.id ? view.version : null}
                 dialog={
-                  pendingPick?.kind === 'oppPokemon' ? (
+                  pendingPick?.optional ? (
+                    // Sneak Attack can be skipped; Fairy Power is done whenever the player says so.
                     <div className="rounded-lg bg-slate-800 p-2 ring-1 ring-slate-600">
                       <button className="rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500" disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE' })}>
-                        Skip
+                        {pendingPick.kind === 'oppPokemon' ? 'Skip' : 'Done'}
                       </button>
                     </div>
                   ) : (

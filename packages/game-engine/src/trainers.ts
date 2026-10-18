@@ -2,13 +2,13 @@
 // Card-specific behaviour lives in effects/ (TRAINERS). Searches of hidden cards (the deck) can't
 // be answered from a player's view, so those Trainers leave a PendingChoice that only the player
 // sees the options of, answered with RESOLVE_CHOICE.
-import { applyWeaknessResistance, damageChosenBenched, typeName } from './attacks.js';
-import { isBasicEnergy, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard, type CardLibrary, type CardDef, type EnergyType } from './cards.js';
+import { applyWeaknessResistance, damageChosenBenched, typeName, usableAttacks, type AttackChoices } from './attacks.js';
+import { isBasicEnergy, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard, type CardLibrary, type CardDef, type EnergyType, type PokemonCardDef } from './cards.js';
 import { trainerEffect } from './effects/index.js';
 import type { CardInstance, GameState, InPlayPokemon, PlayerId, PlayerState, Target } from './engine.js';
 import { shuffle } from './rng.js';
 import { offerChainReaction, trainersBlocked } from './powers.js';
-import { addLog, clearOnLeavingActive, flipCoin, inPlayDef } from './status.js';
+import { addLog, benchRoom, clearOnLeavingActive, flipCoin, inPlayDef, openBenchSlot } from './status.js';
 
 /** Answers to a Trainer's questions. Each question names the field it fills. */
 export interface TrainerChoices {
@@ -66,7 +66,11 @@ export type PendingChoice = {
        * `type` (Recharge); 'baby': a Baby Pokémon (Let's Play!); 'basic': any Basic Pokémon (Summon Minions);
        * 'evolution': an Evolution card (Evolutionary Light); 'darkEvolution': one with Dark in its name (The Boss's Way).
        */
-      filter: 'any' | 'pokemon' | 'basicNamed' | 'basicType' | 'basicEnergy' | 'energyType' | 'baby' | 'basic' | 'evolution' | 'darkEvolution';
+      filter: 'any' | 'pokemon' | 'basicNamed' | 'basicType' | 'basicEnergy' | 'energyType' | 'baby' | 'basic' | 'evolution' | 'darkEvolution' | 'named' | 'ownerBasic' | 'ownerPokemon';
+      /**
+       * 'basicNamed' and 'named' (a Pokémon card with one of the names: Jellyfish Pod): the names. 'ownerBasic' (Call for
+       * Friend) and 'ownerPokemon' (Brock's Training Method): the owner in the card's name, e.g. 'Brock'.
+       */
       name?: string | string[];
       type?: EnergyType;
       /** The card goes onto the Bench instead of into the hand (Call for Family). */
@@ -85,6 +89,80 @@ export type PendingChoice = {
       count?: number;
       /** Challenge!: once this player is done, this player searches the same way. */
       then?: PlayerId;
+      /** Erika's Maids: these cards go from the hand into the deck once the search is over, whatever it found. */
+      tradeAway?: string[];
+    }
+  | {
+      /** Look at the top cards of the deck (`looked`, by uid) and put `take` of them into the hand; the rest are discarded (Misty's Wrath). */
+      kind: 'pickFromTop';
+      looked: string[];
+      take: number;
+    }
+  | {
+      /** Put any number of the Basic Pokémon cards in the opponent's hand onto their Bench, one at a time (Erika's Perfume). */
+      kind: 'oppHandBasics';
+    }
+  | {
+      /**
+       * The opponent of the player who played it picks one (Lt. Surge's Treaty): both players take 1 of their Prizes
+       * into their hand (0), or the player who played it draws a card (1).
+       */
+      kind: 'treaty';
+    }
+  | {
+      /** Return any number of the player's Pokémon in play, and the cards attached, to their hand, one at a time (Fairy Power). */
+      kind: 'returnOwn';
+    }
+  | {
+      /** Look at the opponent's hand (Secret Mission); then discard any number of cards from the hand and draw as many (discardDraw). */
+      kind: 'secretMission';
+    }
+  | {
+      /** Discard cards from the hand one at a time, then draw as many as were discarded (`discarded` so far). */
+      kind: 'discardDraw';
+      discarded: number;
+    }
+  | {
+      /**
+       * Sleight of Hand: put up to 3 cards from the hand on top of the deck, one at a time (`moved` so far), then search
+       * the deck for as many basic Energy cards.
+       */
+      kind: 'sleightOfHand';
+      moved: number;
+    }
+  | {
+      /** Bench Guard: move 10 of the damage done to the benched Pokémon in `target` to the Brock's Rhydon in `guard` (count 0), or not (1). */
+      kind: 'benchGuard';
+      target: number;
+      guard: number;
+    }
+  | {
+      /**
+       * Flee, asked of the Defending player before the opponent's attack (`attackIndex`, `choices`): the benched Pokémon
+       * Misty's Tentacruel switches with if the attack damages it (target), or none.
+       */
+      kind: 'flee';
+      attackIndex: number;
+      choices: AttackChoices;
+    }
+  | {
+      /** Sabrina's ESP: keep the attack's coin flips (count 0), or attack again from `before` with new ones (count 1). */
+      kind: 'reflip';
+      before: GameState;
+      attackIndex: number;
+      choices: AttackChoices;
+      flee?: number;
+    }
+  | {
+      /** Narrow Gym: return 1 of the player's 5 benched Pokémon, and its cards, to their hand. */
+      kind: 'narrowGym';
+    }
+  | {
+      /** Blaine's Quiz #1: the opponent of the player who played it guesses `card`'s length among `lengths` (count = index); `answer` is right. */
+      kind: 'quiz';
+      card: CardInstance;
+      lengths: string[];
+      answer: number;
     }
   | {
       /** Challenge!: the opponent of the player who played it accepts (RESOLVE_CHOICE count 1) or declines (count 0). */
@@ -146,10 +224,14 @@ export type PendingChoice = {
       amount: number;
     }
   | {
-      /** Discard `count` (1 if missing) of the Energy cards attached to the player's Pokémon at `target`, one at a time (Pure Body, Continuous Fireball). */
+      /**
+       * Discard `count` (1 if missing) of the Energy cards attached to the player's Pokémon at `target`, one at a time (Pure
+       * Body, Continuous Fireball). `cure` (Celadon City Gym): then it's no longer Asleep, Confused, Paralyzed or Poisoned.
+       */
       kind: 'discardAttached';
       target: Target;
       count?: number;
+      cure?: boolean;
     }
   | {
       /**
@@ -203,8 +285,14 @@ export interface TrainerEffect {
   stadium?: boolean;
   /** A Stadium either player can use once during their turn (Lucky Stadium), with USE_STADIUM. */
   useStadium?: (ctx: { state: GameState; me: PlayerState; flip: () => boolean }) => void;
+  /** It can be used any number of times a turn (Celadon City Gym), whenever `stadiumBlocked` allows. */
+  stadiumAnyTimes?: boolean;
+  /** Why the player can't use the Stadium now (Celadon City Gym: no Erika's Pokémon to cure). */
+  stadiumBlocked?: (me: Pick<PlayerState, 'active' | 'bench'>, cards: CardLibrary) => string | null;
   /** It puts cards from a discard pile into the hand, which Pokémon Tower stops (Energy Retrieval, Item Finder). */
   discardToHand?: boolean;
+  /** A Stadium that changes what each Pokémon pays to retreat (The Rocket's Training Gym, Cerulean City Gym). */
+  retreatModifier?: (pokemon: PokemonCardDef) => number;
   /** Why the Trainer can't be played now. */
   blocked?: (s: TrainerSituation) => string | null;
   choices?: (s: TrainerSituation, c: TrainerChoices) => TrainerChoiceSpec[];
@@ -227,13 +315,15 @@ export interface TrainerContext {
   shuffleIntoDeck: (player: PlayerState, cards: CardInstance[]) => void;
   /** Removes these cards from the player's hand and returns them. */
   fromHand: (player: PlayerState, uids: string[]) => CardInstance[];
-  /** Attaches the Trainer to a Pokémon until the end of turn `until`, instead of discarding it. */
-  attachTo: (pokemon: InPlayPokemon, until: number) => void;
+  /** Attaches the Trainer to a Pokémon until the end of turn `until`, instead of discarding it; `toHand`: then it goes back to the hand (Charity). */
+  attachTo: (pokemon: InPlayPokemon, until: number, opts?: { toHand?: boolean }) => void;
   /** Asks the player to finish a search (see PendingChoice). */
   pend: (choice: PendingChoiceInput) => void;
+  /** The player's turn ends once the Trainer is done (Minion of Team Rocket, Tickling Machine). */
+  endTurn: () => void;
 }
 
-export const own = (s: TrainerSituation, t: Target) => (t === 'active' ? s.me.active : s.me.bench[t]) ?? null;
+export const own =(s: TrainerSituation, t: Target) => (t === 'active' ? s.me.active : s.me.bench[t]) ?? null;
 export const theirs = (s: TrainerSituation, t: Target) => (t === 'active' ? s.opp.active : s.opp.bench[t]) ?? null;
 export const targetsOf = (side: Pick<PlayerState, 'active' | 'bench'>): Target[] => [
   ...(side.active ? (['active'] as Target[]) : []),
@@ -254,20 +344,38 @@ export function trainerError(s: TrainerSituation): string | null {
   // A Stadium can't be played while one with the same name is in play.
   if (effect.stadium && s.stadium && def(s, s.stadium).name === d.name) return `${d.name} is already in play`;
   if (effect.discardToHand && pokemonTower(s)) return 'Pokémon Tower: cards in discard piles stay there';
+  if (removalTax(s) && otherHandCards(s).length < 2) return `No Removal Gym: you must discard 2 other cards from your hand to play ${d.name}`;
   return effect.blocked?.(s) ?? null;
 }
+
+/** No Removal Gym is in play and this is Energy Removal or Super Energy Removal: 2 other cards from the hand must be discarded to play it. */
+const removalTax = (s: TrainerSituation) =>
+  !!s.stadium && def(s, s.stadium).name === 'No Removal Gym' && ['Energy Removal', 'Super Energy Removal'].includes(def(s, s.card).name);
 
 /** Pokémon Tower is in play: effects can't put cards from a discard pile into the hand. */
 export const pokemonTower = (s: { stadium?: CardInstance | null; cards: CardLibrary }) => !!s.stadium && def(s, s.stadium).name === 'Pokémon Tower';
 
-/** Why the Stadium in play can't be used now (Lucky Stadium: once during each player's turn), or null. View-safe. */
-export function stadiumError(stadium: CardInstance | null, usedTurn: number | undefined, turn: number): string | null {
-  if (!stadium || !trainerEffect(stadium.defId)?.useStadium) return 'There is no Stadium to use';
-  return usedTurn === turn ? 'You already used the Stadium this turn' : null;
+/**
+ * Why the Stadium in play can't be used now (Lucky Stadium: once during each player's turn), or null. `player`: the
+ * player using it, for Stadiums that depend on their Pokémon (Celadon City Gym). View-safe.
+ */
+export function stadiumError(
+  stadium: CardInstance | null,
+  usedTurn: number | undefined,
+  turn: number,
+  player?: { me: Pick<PlayerState, 'active' | 'bench'>; cards: CardLibrary },
+): string | null {
+  const effect = stadium && trainerEffect(stadium.defId);
+  if (!effect?.useStadium) return 'There is no Stadium to use';
+  const blocked = player && effect.stadiumBlocked?.(player.me, player.cards);
+  if (blocked) return blocked;
+  return !effect.stadiumAnyTimes && usedTurn === turn ? 'You already used the Stadium this turn' : null;
 }
 
 function choiceSpecs(s: TrainerSituation, c: TrainerChoices): TrainerChoiceSpec[] {
-  return trainerEffect(s.card.defId)?.choices?.(s, c) ?? [];
+  const specs = trainerEffect(s.card.defId)?.choices?.(s, c) ?? [];
+  if (!removalTax(s)) return specs;
+  return [{ kind: 'cards', field: 'handUids', min: 2, max: 2, options: otherHandCards(s), prompt: 'No Removal Gym: choose 2 cards from your hand to discard' }, ...specs];
 }
 
 function autoAnswer(spec: TrainerChoiceSpec): TrainerChoices[keyof TrainerChoices] | undefined {
@@ -357,15 +465,23 @@ export function playTrainer(state: GameState, me: PlayerState, opp: PlayerState,
       player.hand = player.hand.filter((c) => !uids.includes(c.uid));
       return taken;
     },
-    attachTo(pokemon, until) {
-      (pokemon.attached ??= []).push({ card, until });
+    attachTo(pokemon, until, opts) {
+      (pokemon.attached ??= []).push({ card, until, ...(opts?.toHand && { toHand: true }) });
       attached = true;
     },
     pend(choice) {
       state.pendingChoice = { ...choice, player: me.id } as PendingChoice;
     },
+    endTurn() {
+      state.endTurnNow = true;
+    },
   };
   addLog(state, `Played ${lookupCard(state.cards, card.defId).name}.`, me.id);
+  if (removalTax(situation)) {
+    const taxed = ctx.fromHand(me, resolved.choices.handUids!);
+    me.discard.push(...taxed);
+    ctx.log(`No Removal Gym: discarded ${taxed.map((c) => lookupCard(state.cards, c.defId).name).join(' and ')}.`);
+  }
   const effect = trainerEffect(card.defId)!;
   effect.play?.(ctx);
   if (effect.stadium) {
@@ -387,15 +503,21 @@ export function playTrainer(state: GameState, me: PlayerState, opp: PlayerState,
 export type PendingChoiceView =
   /** Click a card to take it. `optional`: the player may also take nothing (Chain Reaction). */
   | { kind: 'pickFromDeck' | 'pickFromDiscard' | 'pickFromHand' | 'pickAttached'; prompt: string; options: CardInstance[]; optional?: boolean }
-  | { kind: 'ownPokemon'; purpose: 'heal' | 'attach' | 'switchIn' | 'benchDamage'; prompt: string; options: Target[] }
+  /** Click one of the player's Pokémon on the board. `optional`: or be done (Fairy Power). */
+  | { kind: 'ownPokemon'; purpose: 'heal' | 'attach' | 'switchIn' | 'benchDamage' | 'return'; prompt: string; options: Target[]; optional?: boolean }
   /** Click one of the opponent's Pokémon on the board (Sneak Attack), or skip. */
   | { kind: 'oppPokemon'; prompt: string; options: Target[]; optional: true }
   | { kind: 'arrangeTop'; prompt: string; cards: CardInstance[] }
   /** Accept or decline (Challenge!), answered with count 1 or 0. */
   | { kind: 'challenge'; prompt: string }
-  /** The opponent's whole hand (`cards`), and the Trainer cards in it to choose from; none to choose: just carry on. */
-  | { kind: 'oppHand'; prompt: string; cards: CardInstance[]; options: CardInstance[] }
-  | { kind: 'drawCount'; prompt: string; max: number };
+  /**
+   * The opponent's whole hand (`cards`), and the cards in it to choose from (Rocket's Sneak Attack: its Trainers);
+   * none to choose, or `optional` (Erika's Perfume): the player can carry on.
+   */
+  | { kind: 'oppHand'; prompt: string; cards: CardInstance[]; options: CardInstance[]; optional?: boolean }
+  | { kind: 'drawCount'; prompt: string; max: number }
+  /** Pick one of the labelled answers (Lt. Surge's Treaty), answered with count = its index. */
+  | { kind: 'options'; prompt: string; labels: string[] };
 
 /** The options of a pending search, for the player making it. Deck cards are sorted so their order stays secret. */
 export function pendingChoiceView(state: GameState, choice: PendingChoice): PendingChoiceView {
@@ -468,6 +590,57 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
     const options = player.deck.filter((c) => evolvesFromEevee(state.cards, c)).sort((a, b) => name(a).localeCompare(name(b)) || a.uid.localeCompare(b.uid));
     return { kind: 'pickFromDeck', prompt: `${choice.source}: you may evolve Eevee with a card from your deck`, options, optional: true };
   }
+  if (choice.kind === 'pickFromTop') {
+    const options = player.deck.filter((c) => choice.looked.includes(c.uid));
+    const left = choice.take > 1 ? ` (${choice.take} left)` : '';
+    return { kind: 'pickFromDeck', prompt: `${choice.source}: put a card into your hand${left}; the rest are discarded`, options };
+  }
+  if (choice.kind === 'oppHandBasics') {
+    const opp = state.players[opponentOfChoice(state, choice)]!;
+    const options = openBenchSlot(opp.bench, state.cards, state.stadium?.card) >= 0 ? opp.hand.filter((c) => isBasicPokemon(lookupCard(state.cards, c.defId))) : [];
+    return { kind: 'oppHand', prompt: `${choice.source}: you may put Basic Pokémon from your opponent's hand onto their Bench`, cards: opp.hand, options, optional: true };
+  }
+  if (choice.kind === 'treaty') {
+    return { kind: 'options', prompt: `${choice.source}: your opponent asks you to choose`, labels: ['Each player takes 1 of their Prize cards', 'Your opponent draws a card'] };
+  }
+  if (choice.kind === 'returnOwn') {
+    return { kind: 'ownPokemon', purpose: 'return', prompt: `${choice.source}: click any of your Pokémon to return it and its cards to your hand, or be done`, options: targetsOf(player), optional: true };
+  }
+  if (choice.kind === 'secretMission') {
+    const hand = state.players[opponentOfChoice(state, choice)]!.hand;
+    return { kind: 'oppHand', prompt: `${choice.source}: your opponent's hand`, cards: hand, options: [] };
+  }
+  if (choice.kind === 'discardDraw') {
+    const so = choice.discarded ? ` (${choice.discarded} so far)` : '';
+    return { kind: 'pickFromHand', prompt: `${choice.source}: discard any number of cards from your hand, then draw as many${so}`, options: player.hand, optional: true };
+  }
+  if (choice.kind === 'benchGuard') {
+    const damaged = player.bench[choice.target];
+    const rhydon = player.bench[choice.guard];
+    const who = damaged ? lookupCard(state.cards, damaged.card.defId).name : 'it';
+    const guard = rhydon ? lookupCard(state.cards, rhydon.card.defId).name : 'Brock’s Rhydon';
+    return { kind: 'options', prompt: `${choice.source}: ${who} was damaged. Do 10 of that damage to ${guard} instead?`, labels: [`Move 10 damage to ${guard}`, `Leave it on ${who}`] };
+  }
+  if (choice.kind === 'flee') {
+    const attacker = state.players[opponentOfChoice(state, choice)]!;
+    const attack = attacker.active && usableAttacks(attacker.active, state.cards, attacker.recallTurn === state.turn)[choice.attackIndex]?.attack.name;
+    const options = player.bench.flatMap((p, i) => (p ? [i] : []));
+    const prompt = `${choice.source}: your opponent is attacking with ${attack ?? 'an attack'}. If it damages Misty's Tentacruel, it switches with the benched Pokémon you click (Done: it stays)`;
+    return { kind: 'ownPokemon', purpose: 'switchIn', prompt, options, optional: true };
+  }
+  if (choice.kind === 'reflip') {
+    return { kind: 'options', prompt: `${choice.source}: re-flip all of the attack's coins?`, labels: ['Keep the flips', 'Re-flip the coins'] };
+  }
+  if (choice.kind === 'narrowGym') {
+    const options = player.bench.flatMap((p, i) => (p ? [i] : []));
+    return { kind: 'ownPokemon', purpose: 'return', prompt: `${choice.source}: no more than 4 benched Pokémon. Click one to return it and its cards to your hand`, options };
+  }
+  if (choice.kind === 'quiz') {
+    return { kind: 'options', prompt: `${choice.source}: your opponent put ${lookupCard(state.cards, choice.card.defId).name} face down. How long is it?`, labels: choice.lengths };
+  }
+  if (choice.kind === 'sleightOfHand') {
+    return { kind: 'pickFromHand', prompt: `${choice.source}: put up to ${3 - choice.moved} more cards from your hand on top of your deck, then take as many basic Energy cards from it`, options: player.hand, optional: true };
+  }
   const deck = state.players[choice.player]!.deck;
   const name = (c: CardInstance) => lookupCard(state.cards, c.defId).name;
   const options = deck.filter((c) => deckFilter(state.cards, choice, c)).sort((a, b) => name(a).localeCompare(name(b)) || a.uid.localeCompare(b.uid));
@@ -488,6 +661,12 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
         ? 'an Evolution card'
       : choice.filter === 'darkEvolution'
         ? 'an Evolution card with Dark in its name'
+      : choice.filter === 'named'
+        ? `any of ${[choice.name].flat().join(', ')}`
+      : choice.filter === 'ownerBasic'
+        ? `a Basic Pokémon with ${choice.name} in its name`
+      : choice.filter === 'ownerPokemon'
+        ? `a Basic Pokémon or Evolution card with ${choice.name} in its name`
         : choice.filter === 'pokemon'
           ? 'a Basic Pokémon or Evolution card'
           : 'any card';
@@ -504,7 +683,7 @@ const opponentOfChoice = (state: GameState, choice: PendingChoice) => state.play
  * none), then `then` does the same.
  */
 export function challengeSearch(state: GameState, player: PlayerState, source: string, then?: PlayerId) {
-  const room = player.bench.filter((p) => p === null).length;
+  const room = benchRoom(player.bench, state.cards, state.stadium?.card);
   if (room && player.deck.some((c) => isBasicPokemon(lookupCard(state.cards, c.defId)))) {
     state.pendingChoice = { player: player.id, source, kind: 'pickFromDeck', filter: 'basic', toBench: true, optional: true, count: room, ...(then && { then }) };
   } else if (then) challengeSearch(state, state.players[then]!, source);
@@ -521,6 +700,9 @@ export const deckFilter = (cards: CardLibrary, choice: Extract<PendingChoice, { 
   if (choice.filter === 'basic') return isBasicPokemon(d);
   if (choice.filter === 'evolution') return isPokemonCard(d) && d.stage !== 'basic';
   if (choice.filter === 'darkEvolution') return isPokemonCard(d) && d.stage !== 'basic' && /\bDark\b/.test(d.name);
+  if (choice.filter === 'named') return isPokemonCard(d) && [choice.name].flat().includes(d.name);
+  if (choice.filter === 'ownerBasic') return isBasicPokemon(d) && d.name.includes(String(choice.name));
+  if (choice.filter === 'ownerPokemon') return isPokemonCard(d) && d.name.includes(String(choice.name));
   return choice.filter === 'any' || (d.kind === 'pokemon' && !d.trainerText);
 };
 
@@ -534,6 +716,14 @@ export const evolvesFromEevee = (cards: CardLibrary, c: CardInstance) => {
   const d = lookupCard(cards, c.defId);
   return isPokemonCard(d) && d.stage === 'stage1' && d.evolvesFrom === 'Eevee';
 };
+
+/** Celadon City Gym: the Pokémon is no longer Asleep, Confused, Paralyzed or Poisoned (Burned stays). */
+export function cureConditions(state: GameState, owner: PlayerState, pokemon: InPlayPokemon) {
+  pokemon.condition = null;
+  pokemon.poison = 0;
+  delete pokemon.paralyzedTurn;
+  addLog(state, `${lookupCard(state.cards, pokemon.card.defId).name} is no longer Asleep, Confused, Paralyzed or Poisoned.`, owner.id);
+}
 
 /** Finishes a pending search. Mutates `state`; returns an error instead if the answer is invalid. */
 export function resolvePending(state: GameState, me: PlayerState, answer: { cardUid?: string; order?: string[]; target?: Target; count?: number }): string | null {
@@ -620,6 +810,7 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
       me.discard.push(...gone);
       addLog(state, `Discarded ${gone.length} more Energy from ${name(p.card)}.`, me.id);
     }
+    if (choice.cure) cureConditions(state, me, p);
   } else if (choice.kind === 'evolveFromDeck') {
     const p = (choice.target === 'active' ? me.active : me.bench[choice.target])!;
     const options = me.deck.filter((c) => choice.names.includes(name(c)));
@@ -676,6 +867,135 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     delete state.pendingChoice;
     offerChainReaction(state, choice.next, choice.afterAttack);
     return null;
+  } else if (choice.kind === 'pickFromTop') {
+    const looked = me.deck.filter((c) => choice.looked.includes(c.uid));
+    const picked = looked.find((c) => c.uid === answer.cardUid);
+    if (!picked && looked.length) return 'Choose one of the cards';
+    if (picked) {
+      me.deck = me.deck.filter((c) => c !== picked);
+      me.hand.push(picked);
+      addLog(state, 'Put a card into the hand.', me.id);
+    }
+    const rest = looked.filter((c) => c !== picked);
+    if (picked && choice.take > 1 && rest.length) {
+      state.pendingChoice = { ...choice, take: choice.take - 1 };
+      return null;
+    }
+    me.deck = me.deck.filter((c) => !rest.includes(c));
+    me.discard.push(...rest);
+    if (rest.length) addLog(state, `Discarded ${rest.map(name).join(', ')}.`, me.id);
+  } else if (choice.kind === 'oppHandBasics') {
+    const opp = state.players[opponentOfChoice(state, choice)]!;
+    if (answer.cardUid !== undefined) {
+      const isBasic = (c: CardInstance) => isBasicPokemon(lookupCard(state.cards, c.defId));
+      const card = opp.hand.find((c) => c.uid === answer.cardUid && isBasic(c));
+      const slot = openBenchSlot(opp.bench, state.cards, state.stadium?.card);
+      if (!card || slot < 0) return "Choose a Basic Pokémon from your opponent's hand";
+      opp.hand = opp.hand.filter((c) => c !== card);
+      opp.bench[slot] = { card, evolvedFrom: [], damage: 0, energy: [], playedTurn: state.turn };
+      addLog(state, `${name(card)} was put onto the Bench.`, opp.id);
+      // More to put down, while there's room.
+      if (openBenchSlot(opp.bench, state.cards, state.stadium?.card) >= 0 && opp.hand.some(isBasic)) return null;
+    }
+  } else if (choice.kind === 'treaty') {
+    if (answer.count !== 0 && answer.count !== 1) return 'Choose one of the two';
+    const player = state.players[opponentOfChoice(state, choice)]!;
+    if (answer.count === 0) {
+      addLog(state, `Chose that each player takes 1 of their Prize cards.`, me.id);
+      for (const p of [player, me]) {
+        const prize = p.prizes.pop();
+        if (!prize) continue;
+        p.hand.push(prize);
+        addLog(state, 'Took a Prize card.', p.id);
+      }
+    } else {
+      addLog(state, 'Chose that their opponent draws a card.', me.id);
+      const drawn = player.deck.splice(0, 1);
+      player.hand.push(...drawn);
+      addLog(state, `Drew ${drawn.length} card${drawn.length === 1 ? '' : 's'}.`, player.id);
+    }
+  } else if (choice.kind === 'returnOwn') {
+    if (answer.target !== undefined) {
+      const p = answer.target === 'active' ? me.active : me.bench[answer.target];
+      if (!p) return 'Choose one of your Pokémon';
+      // A Buzzap'd Electrode attached as Energy is a Pokémon card again.
+      me.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...card }) => card), ...(p.attached ?? []).map((a) => a.card));
+      if (answer.target === 'active') me.active = null;
+      else me.bench[answer.target] = null;
+      addLog(state, `${name(p.card)} and all cards attached to it returned to the hand.`, me.id);
+      if (targetsOf(me).length) return null;
+    }
+  } else if (choice.kind === 'secretMission') {
+    state.pendingChoice = { player: me.id, source: choice.source, kind: 'discardDraw', discarded: 0, ...(choice.afterAttack && { afterAttack: true }) };
+    return null;
+  } else if (choice.kind === 'discardDraw') {
+    let discarded = choice.discarded;
+    if (answer.cardUid !== undefined) {
+      const card = me.hand.find((c) => c.uid === answer.cardUid);
+      if (!card) return 'Choose a card from your hand';
+      me.hand = me.hand.filter((c) => c !== card);
+      me.discard.push(card);
+      addLog(state, `Discarded ${name(card)}.`, me.id);
+      discarded++;
+      if (me.hand.length) {
+        state.pendingChoice = { ...choice, discarded };
+        return null;
+      }
+    }
+    const drawn = me.deck.splice(0, discarded);
+    me.hand.push(...drawn);
+    addLog(state, `Drew ${drawn.length} card${drawn.length === 1 ? '' : 's'}.`, me.id);
+  } else if (choice.kind === 'benchGuard') {
+    if (answer.count !== 0 && answer.count !== 1) return 'Choose one of the two';
+    const damaged = me.bench[choice.target];
+    const rhydon = me.bench[choice.guard];
+    if (answer.count === 0 && damaged && rhydon && damaged.damage >= 10) {
+      damaged.damage -= 10;
+      rhydon.damage += 10;
+      addLog(state, `${choice.source}: moved 10 damage from ${name(damaged.card)} to ${name(rhydon.card)}.`, me.id);
+    }
+  } else if (choice.kind === 'flee') {
+    // The engine answers it: the attack happens next.
+    return 'Flee is answered with the attack';
+  } else if (choice.kind === 'reflip') {
+    // Re-flipping (count 1) is the engine's: it replays the attack.
+    if (answer.count !== 0) return 'Choose one of the two';
+    addLog(state, `Kept the coin flips (${choice.source}).`, me.id);
+  } else if (choice.kind === 'narrowGym') {
+    const p = typeof answer.target === 'number' ? me.bench[answer.target] : null;
+    if (!p) return 'Choose one of your benched Pokémon';
+    me.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...card }) => card), ...(p.attached ?? []).map((a) => a.card));
+    me.bench[answer.target as number] = null;
+    addLog(state, `${name(p.card)} and all cards attached to it returned to the hand (${choice.source}).`, me.id);
+  } else if (choice.kind === 'quiz') {
+    const guess = answer.count;
+    if (guess === undefined || !Number.isInteger(guess) || guess < 0 || guess >= choice.lengths.length) return 'Choose a length';
+    const player = state.players[opponentOfChoice(state, choice)]!;
+    const right = guess === choice.answer;
+    addLog(state, `Guessed ${choice.lengths[guess]}: ${name(choice.card)} is ${choice.lengths[choice.answer]}. ${right ? 'Right!' : 'Wrong.'}`, me.id);
+    const winner = right ? me : player;
+    const drawn = winner.deck.splice(0, 2);
+    winner.hand.push(...drawn);
+    addLog(state, `Drew ${drawn.length} card${drawn.length === 1 ? '' : 's'}.`, winner.id);
+  } else if (choice.kind === 'sleightOfHand') {
+    let moved = choice.moved;
+    if (answer.cardUid !== undefined) {
+      const card = me.hand.find((c) => c.uid === answer.cardUid);
+      if (!card) return 'Choose a card from your hand';
+      me.hand = me.hand.filter((c) => c !== card);
+      me.deck.unshift(card);
+      addLog(state, 'Put a card from the hand on top of the deck.', me.id);
+      moved++;
+      if (moved < 3 && me.hand.length) {
+        state.pendingChoice = { ...choice, moved };
+        return null;
+      }
+    }
+    // Then as many basic Energy cards from the deck, shown to the opponent.
+    if (moved && me.deck.some((c) => isBasicEnergy(lookupCard(state.cards, c.defId)))) {
+      state.pendingChoice = { player: me.id, source: choice.source, kind: 'pickFromDeck', filter: 'basicEnergy', reveal: true, count: moved, ...(choice.afterAttack && { afterAttack: true }) };
+      return null;
+    }
   } else if (choice.kind === 'arrangeTop') {
     const owner = state.players[choice.deckOwner ?? choice.player]!;
     const top = owner.deck.slice(0, choice.count);
@@ -710,7 +1030,7 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     const picked = options.find((c) => c.uid === answer.cardUid);
     // Nothing suitable in the deck: the search finds nothing.
     if (!picked && options.length > 0 && !choice.optional) return 'Choose a card from your deck';
-    const benchSlot = me.bench.findIndex((p) => p === null);
+    const benchSlot = openBenchSlot(me.bench, state.cards, state.stadium?.card);
     if (picked && choice.toBench && benchSlot < 0) return 'Your Bench is full';
     if (picked) {
       me.deck = me.deck.filter((c) => c !== picked);
@@ -739,9 +1059,16 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     );
     // More to take (Summon Minions), while there's room and something to find.
     const left = (choice.count ?? 1) - 1;
-    if (picked && left > 0 && (!choice.toBench || me.bench.includes(null)) && me.deck.some((c) => deckFilter(state.cards, choice, c))) {
+    if (picked && left > 0 && (!choice.toBench || openBenchSlot(me.bench, state.cards, state.stadium?.card) >= 0) && me.deck.some((c) => deckFilter(state.cards, choice, c))) {
       state.pendingChoice = { ...choice, count: left };
       return null;
+    }
+    // Erika's Maids: the cards traded go from the hand into the deck.
+    const away = me.hand.filter((c) => choice.tradeAway?.includes(c.uid));
+    if (away.length) {
+      me.hand = me.hand.filter((c) => !away.includes(c));
+      [me.deck, state.rngState] = shuffle([...me.deck, ...away], state.rngState);
+      addLog(state, `Shuffled ${away.length} card${away.length === 1 ? '' : 's'} from the hand into the deck.`, me.id);
     }
     // Challenge!: then the other player searches.
     if (choice.then) {

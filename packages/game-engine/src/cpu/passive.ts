@@ -1,4 +1,5 @@
 import { isBasicPokemon, lookupCard } from '../cards.js';
+import { openBenchSlot } from '../status.js';
 import { evolveError, type GameAction, type GameState, type PlayerId, type PlayerState } from '../engine.js';
 import { pendingChoiceView } from '../trainers.js';
 import { acceptsChallenge, chooseActive, inPlay } from './shared.js';
@@ -32,9 +33,13 @@ function finishSearch(state: GameState): GameAction {
   const view = pendingChoiceView(state, state.pendingChoice!);
   if (view.kind === 'arrangeTop') return { type: 'RESOLVE_CHOICE', order: view.cards.map((c) => c.uid) };
   if (view.kind === 'challenge') return { type: 'RESOLVE_CHOICE', count: acceptsChallenge(state, state.players[state.pendingChoice!.player]!) ? 1 : 0 };
+  // Fairy Power ("any number"): it keeps its Pokémon in play.
+  if (view.kind === 'ownPokemon' && view.optional) return { type: 'RESOLVE_CHOICE' };
   if (view.kind === 'ownPokemon' || view.kind === 'oppPokemon') return { type: 'RESOLVE_CHOICE', target: view.options[0] };
   // Computer Error: always the most cards (agreed).
   if (view.kind === 'drawCount') return { type: 'RESOLVE_CHOICE', count: view.max };
+  // Lt. Surge's Treaty: the first answer.
+  if (view.kind === 'options') return { type: 'RESOLVE_CHOICE', count: 0 };
   const [pick] = view.options;
   return { type: 'RESOLVE_CHOICE', ...(pick && { cardUid: pick.uid }) };
 }
@@ -44,7 +49,7 @@ function turnAction(state: GameState, cpu: PlayerState): GameAction | null {
   const def = (defId: string) => lookupCard(state.cards, defId);
 
   // Bench every Basic in hand while there's room.
-  const emptySlot = cpu.bench.findIndex((p) => p === null);
+  const emptySlot = openBenchSlot(cpu.bench, state.cards, state.stadium?.card);
   const basic = cpu.hand.find((c) => isBasicPokemon(def(c.defId)));
   if (emptySlot >= 0 && basic) return { type: 'PLAY_BENCH', cardUid: basic.uid, slot: emptySlot };
 
