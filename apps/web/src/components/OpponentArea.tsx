@@ -27,24 +27,9 @@ export function OpponentArea({
   /** The Trainer being played or a search of the deck: floats over this side, its bottom level with the CPU's active. */
   dialog?: ReactNode;
 }) {
-  const slot = (id: string, target: Target, pokemon: InPlayPokemon | null, large?: boolean) => {
-    const choosable = pick?.options.includes(target) ?? false;
-    const picked = pick?.picked?.includes(target) ?? false;
-    return (
-      <Slot
-        key={id}
-        id={id}
-        pokemon={pokemon}
-        cards={cards}
-        large={large}
-        highlight={picked ? 'power' : choosable ? 'target' : null}
-        label={picked ? 'Chosen' : choosable ? 'Choose' : null}
-        dimmed={pick !== null && pokemon !== null && !choosable}
-        onClick={choosable ? () => pick!.pick(target) : undefined}
-        lunge={target === 'active' && lunge !== null ? { dir: 'down', stamp: lunge } : null}
-      />
-    );
-  };
+  const slot = (id: string, target: Target, pokemon: InPlayPokemon | null, large?: boolean) => (
+    <OpponentSlot key={id} id={id} target={target} pokemon={pokemon} cards={cards} large={large} pick={pick} lunge={lunge} />
+  );
   return (
     <section className="flex min-h-0 flex-1 items-center rounded-lg bg-slate-900 p-3">
       {/* Top-aligned, with the side columns pushed down past the heading (text-sm + space-y-3 = 2rem) to line up with the bench. */}
@@ -77,5 +62,40 @@ export function OpponentArea({
         </div>
       </div>
     </section>
+  );
+}
+
+/** One of the CPU's slots: highlighted and clicked while an effect asks for one of its Pokémon (`pick`). Also the phone layout's. */
+export function OpponentSlot({
+  id,
+  target,
+  pokemon,
+  cards,
+  large,
+  pick,
+  lunge,
+}: {
+  id: string;
+  target: Target;
+  pokemon: InPlayPokemon | null;
+  cards: CardLibrary;
+  large?: boolean;
+  pick: { options: Target[]; pick: (t: Target) => void; picked?: Target[] } | null;
+  lunge: number | null;
+}) {
+  const choosable = pick?.options.includes(target) ?? false;
+  const picked = pick?.picked?.includes(target) ?? false;
+  return (
+    <Slot
+      id={id}
+      pokemon={pokemon}
+      cards={cards}
+      large={large}
+      highlight={picked ? 'power' : choosable ? 'target' : null}
+      label={picked ? 'Chosen' : choosable ? 'Choose' : null}
+      dimmed={pick !== null && pokemon !== null && !choosable}
+      onClick={choosable ? () => pick!.pick(target) : undefined}
+      lunge={target === 'active' && lunge !== null ? { dir: 'down', stamp: lunge } : null}
+    />
   );
 }

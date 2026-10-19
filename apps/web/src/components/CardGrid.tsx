@@ -59,6 +59,7 @@ export function CardGrid({
   counts,
   isLocked,
   holdToInspect = false,
+  compact = false,
 }: {
   cards: CatalogCard[];
   selectedId: string | null;
@@ -66,6 +67,8 @@ export function CardGrid({
   counts?: Map<string, number>;
   isLocked?: (card: CatalogCard) => boolean;
   holdToInspect?: boolean;
+  /** Narrower columns (a phone), so more cards fit across: 4 on a 360px-wide screen (2340×1080). */
+  compact?: boolean;
 }) {
   const grid = useRef<HTMLDivElement>(null);
   const hold = useHoldToInspect<CatalogCard>();
@@ -76,7 +79,7 @@ export function CardGrid({
   if (cards.length === 0) return <p className="p-4 text-center text-slate-500">No cards match these filters.</p>;
   return (
     <>
-      <div ref={grid} className="grid min-h-0 flex-1 grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] content-start gap-x-2 overflow-y-auto p-1" style={{ rowGap }}>
+      <div ref={grid} className={`grid min-h-0 flex-1 content-start overflow-y-auto p-1 ${compact ? 'grid-cols-[repeat(auto-fill,minmax(4.75rem,1fr))] gap-x-1.5' : 'grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-x-2'}`} style={{ rowGap }}>
         {cards.map((c) => (
           // Zero-height cell: the card hangs down from it and later rows paint over it.
           // The last row's overflow still extends the scroll area.

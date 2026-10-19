@@ -22,6 +22,31 @@
   --card-lg: calc(var(--card-sm) * 1.4);
 }
 
+/*
+ * The phone board (components/phone/PhoneTable.tsx) stacks both sides in one column, TCG Pocket style: per side a
+ * bench row and an active row, plus the bar between them. Its width fits five benched Pokémon; its height two
+ * benches (1.4 card widths tall each) and two actives at least 1.7× as big, plus 7rem of bars and gaps. Tall phones
+ * (19.5:9, 2340×1080) have height to spare, so the actives grow into what the benches and bars leave, up to 2.1×.
+ * --card-pile is the Prize, deck and discard stacks beside the actives.
+ */
+.phone-cards {
+  --card-sm: max(2.5rem, min(calc((100cqw - 2.5rem) / 5.4), calc((100cqh - 7rem) / 7.55)));
+  --card-lg: max(calc(var(--card-sm) * 1.7), min(calc(var(--card-sm) * 2.1), calc((100cqh - 7rem - 2.794 * var(--card-sm)) / 2.794)));
+  --card-pile: calc(var(--card-sm) * 0.62);
+}
+
+/* The phone layout's sheet of the Active Pokémon's moves (components/phone/ActiveSheet.tsx) slides up from the bottom. */
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+.sheet-up {
+  animation: sheet-up 200ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet-up { animation: none; }
+}
+
 /* The attacks column hangs off the active slot's right edge, so the slot stays centred. */
 .attack-column {
   left: calc(50% + var(--card-lg, 7rem) / 2 + 0.75rem);

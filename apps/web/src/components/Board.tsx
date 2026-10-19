@@ -1,8 +1,11 @@
 import { DndContext, DragOverlay } from '@dnd-kit/core';
-import { hasBenched, lookupCard, shapeshiftCard, type GameAction, type InPlayPokemon, type PlayerView, type Target } from '@poke-tcg/game-engine';
+import MenuIcon from '@mui/icons-material/Menu';
+import { hasBenched, inPlayDef, lookupCard, shapeshiftCard, type GameAction, type InPlayPokemon, type PlayerView, type Target } from '@poke-tcg/game-engine';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAttack } from '../hooks/useAttack';
 import { useCardPlay } from '../hooks/useCardPlay';
+import { useIsPhone } from '../hooks/useIsPhone';
+import { useLockedScreen } from '../hooks/useLockedScreen';
 import { usePower } from '../hooks/usePower';
 import { useToasts } from '../hooks/useToasts';
 import { useTrainer } from '../hooks/useTrainer';
@@ -18,11 +21,15 @@ import { AttackList } from './AttackList';
 import { Card } from './Card';
 import { CardPreview } from './CardPreview';
 import { DeckAndDiscard } from './DeckAndDiscard';
+import { DiscardPane } from './DiscardPane';
 import { FloatingDialog } from './FloatingDialog';
 import { Hand } from './Hand';
-import { LogDrawer } from './LogDrawer';
-import { OpponentArea } from './OpponentArea';
+import { LogDrawer, LogSheet } from './LogDrawer';
+import { OpponentArea, OpponentSlot } from './OpponentArea';
 import { PendingChoicePanel } from './PendingChoicePanel';
+import { ActiveSheet } from './phone/ActiveSheet';
+import { PhonePiles, PhonePrizes } from './phone/PhonePiles';
+import { PhoneTable } from './phone/PhoneTable';
 import { PlayArea } from './PlayArea';
 import { PeekCard, PowerPanel } from './PowerPanel';
 import { PreviewContext, type Preview } from './PreviewContext';
@@ -43,7 +50,12 @@ export interface LastMove {
   version: number;
 }
 
-/** The game table. Card play comes from useCardPlay; the board itself owns the hover preview. */
+/**
+ * The game table. Card play comes from useCardPlay; the board itself owns the hover preview. On a phone held upright
+ * (useIsPhone) it's laid out for the phone instead (PhoneTable), filling the screen and locked in place
+ * (useLockedScreen): your Active Pokémon's moves are in a sheet its tap opens (ActiveSheet), and the side panel's
+ * tabs and Concede in a full-screen menu behind the round ☰ button (LogSheet). Everything else works the same.
+ */
 export function Board({
   view,
   lastMove = null,
@@ -55,6 +67,7 @@ export function Board({
   gameId,
   runTab,
   overlay,
+  info,
 }: {
   view: PlayerView;
   /** The move that led to `view`, if it just happened (for its animation). */
@@ -73,8 +86,17 @@ export function Board({
   runTab?: ReactNode;
   /** Shown over the play area, centred on it: the coin flips (CoinFlip). */
   overlay?: ReactNode;
+  /** Who you're up against and the battle's rules: the phone layout's top line (GamePage shows them itself otherwise). */
+  info?: ReactNode;
 }) {
   const debugEnabled = useDebugEnabled();
+  const phone = useIsPhone();
+  useLockedScreen(phone);
+  /** The phone layout's sheet of the Active Pokémon's moves, and its ☰ menu. */
+  const [sheet, setSheet] = useState(false);
+  const [menu, setMenu] = useState(false);
+  /** The phone layout's spread-out view of the CPU's hand, while it's face up (Clairvoyance). */
+  const [cpuHand, setCpuHand] = useState(false);
   const busy = pending !== null || replaying;
   // The attacker lunges at the defender in the view right after its attack.
   const attacker = lastMove?.type === 'ATTACK' && lastMove.version === view.version ? lastMove.player : null;
@@ -131,7 +153,9 @@ export function Board({
     if (!inProgress) return;
     const onClick = (e: MouseEvent) => {
       if (Date.now() - dragEndedAt.current < 300) return;
-      if (!(e.target instanceof Element && e.target.closest('[data-keep-action]'))) cancelAllRef.current();
+      if (e.target instanceof Element && e.target.closest('[data-keep-action]')) return;
+      cancelAllRef.current();
+      setSheet(false);
     };
     // Capture phase: checked before React handles the click, while its target is still in the page. A handler
     // that re-renders (the dialog's eye button swaps its icon) would otherwise detach the target, and a
@@ -156,6 +180,12 @@ export function Board({
   }, [view.cards]);
 
   const busySlot = pendingSlot(pending);
+
+  // The sheet closes once its move is made, and when the turn or the Active Pokémon changes.
+  useEffect(() => {
+    if (pending?.type === 'ATTACK' || pending?.type === 'RETREAT') setSheet(false);
+  }, [pending]);
+  useEffect(() => setSheet(false), [view.turn, phase, self.active?.card.uid]);
 
   /** An attack, power or Trainer asking for a Pokémon in play: it's chosen by clicking the Pokémon. */
   const pokemonPick: { side: 'own' | 'opp'; options: Target[]; pick: (t: Target) => void; picked?: Target[] } | null =
@@ -190,6 +220,8 @@ export function Board({
     // Secret Plan's face-down card is clicked to turn it over; Brock's Ninetales with a Shapeshift card, to discard that card.
     const faceDown = myTurn && !!pokemon?.faceDown;
     const shapeshifted = myTurn && !!pokemon && !!shapeshiftCard(pokemon);
+    // On a phone, tapping your Active Pokémon opens the sheet of its moves (those above among them).
+    const opensSheet = phone && id === 'active' && pokemon !== null && phase !== 'setup' && !heldCard && !retreat.ready;
     const slot = (
       <Slot
         key={id}
@@ -213,6 +245,7 @@ export function Board({
                 ? undefined
                 : (slotClick(id) ??
               retreat.slotClick(id) ??
+              (opensSheet ? () => setSheet(true) : undefined) ??
               (canPromote ? () => send({ type: 'PROMOTE', slot: target as number }) : undefined) ??
               ((faceDown || shapeshifted) && !heldCard && !retreat.ready
                 ? () => {
@@ -244,9 +277,8 @@ export function Board({
     );
   };
 
-  const attacks = self.active && phase !== 'setup' && (
-    // Hangs off the active slot's right edge (.attack-column in index.css) so the slot stays centred whatever is shown here.
-    <div data-keep-action className="attack-column absolute top-1/2 flex w-36 -translate-y-1/2 flex-col gap-1">
+  const attackPanels = self.active && phase !== 'setup' && (
+    <>
       <AttackList
         pokemon={self.active}
         defender={view.opponent.active}
@@ -281,7 +313,7 @@ export function Board({
           pending={pending}
         />
       )}
-      <PeekCard view={view} />
+      {!phone && <PeekCard view={view} />}
       {myTurn && !attack.spec && (
         <PowerPanel
           view={view}
@@ -295,8 +327,238 @@ export function Board({
           }}
         />
       )}
+    </>
+  );
+  const attacks = attackPanels && (
+    // Hangs off the active slot's right edge (.attack-column in index.css) so the slot stays centred whatever is shown here.
+    <div data-keep-action className="attack-column absolute top-1/2 flex w-36 -translate-y-1/2 flex-col gap-1">
+      {attackPanels}
     </div>
   );
+
+  const handView = (compact: boolean) => (
+    <Hand
+      compact={compact}
+      hand={self.hand}
+      cards={view.cards}
+      selected={selected ?? trainer.card?.uid ?? null}
+      pick={trainer.handPick && !busy ? trainer.handPick : null}
+      pending={pending}
+      // Trainers are dragged onto the play area when they can be played.
+      canPlay={(c) => (trainer.isTrainer(c) ? trainer.error(c) === null : canPlay(c))}
+      onCardClick={(c) => {
+        // A Trainer asking for cards from the hand: clicks pick them (other cards do nothing).
+        if (trainer.handPick && trainer.card?.uid !== c.uid) {
+          if (trainer.handPick.options.has(c.uid)) trainer.handPick.toggle(c.uid);
+          return;
+        }
+        const wasTrainer = trainer.card?.uid === c.uid;
+        attack.cancel();
+        retreat.cancel();
+        power.cancel();
+        if (trainer.isTrainer(c)) {
+          deselect();
+          // Clicking the open Trainer again closes it. One that can't be played just says why, like other cards.
+          const why = trainer.error(c);
+          if (wasTrainer) trainer.cancel();
+          else if (why) {
+            trainer.cancel();
+            toasts.push('warning', why);
+          } else trainer.start(c);
+        } else {
+          trainer.cancel();
+          clickHandCard(c);
+        }
+      }}
+    />
+  );
+  const dragOverlay = (
+      <DragOverlay dropAnimation={null} modifiers={[centerOnPointer]}>
+        {dragging && heldCard ? (
+          // dnd-kit sizes the overlay like the card that was grabbed, which is bigger when it's a hovered hand card;
+          // centring the image in it keeps it centred on the pointer (centerOnPointer centres the overlay).
+          <div className="flex h-full w-full items-center justify-center">
+            <div className="rotate-3 cursor-grabbing opacity-90">
+              <Card def={lookupCard(view.cards, heldCard.defId)} highRes />
+            </div>
+          </div>
+        ) : null}
+      </DragOverlay>
+  );
+  /** Whose turn it is and End turn (with the setup buttons before the battle), between the two sides. */
+  const statusBar = (compact: boolean) => (
+    <StatusBar
+      compact={compact}
+      status={statusText(view)}
+      canEndTurn={myTurn}
+      setup={phase === 'setup' && !self.ready ? { canReset: !!self.active || self.bench.some(Boolean), canStart: !!self.active } : null}
+      // Ask before ending the turn while an Energy, the Stadium or a Pokémon Power could still be used.
+      reminders={endTurnReminders(view, power.powers)}
+      pending={pending}
+      send={send}
+    />
+  );
+  /** Floats over the CPU's side: the Trainer being played, or Skip/Done for a choice of Pokémon that can be left (Sneak Attack can be skipped; Fairy Power is done whenever the player says so). */
+  const oppDialog = pendingPick?.optional ? (
+    <div className="rounded-lg bg-slate-800 p-2 ring-1 ring-slate-600">
+      <button className="rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500" disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE' })}>
+        {pendingPick.kind === 'oppPokemon' ? 'Skip' : 'Done'}
+      </button>
+    </div>
+  ) : (
+    trainer.card && !trainer.prompt && <TrainerPanel view={view} trainer={trainer} />
+  );
+
+  /** The phone layout (see above): the same pieces, laid out by PhoneTable. */
+  const phoneBoard = () => {
+    const active = self.active;
+    const activeDef = active && inPlayDef(view.cards, active);
+    const doll = active && lookupCard(view.cards, active.card.defId);
+    // What a click on the Active Pokémon does elsewhere (the bench's clicks) is a button in its sheet here.
+    const activeMoves: { label: string; run: () => void }[] =
+      myTurn && active
+        ? [
+            ...(active.faceDown ? [{ label: 'Turn it face up', run: () => send({ type: 'FLIP_FACE_DOWN', target: 'active' }) }] : []),
+            ...(shapeshiftCard(active) ? [{ label: 'Discard its Shapeshift card', run: () => send({ type: 'DISCARD_SHAPESHIFT', target: 'active' }) }] : []),
+            ...(doll?.kind === 'pokemon' && doll.trainerText
+              ? [
+                  {
+                    label: `Discard ${doll.name}`,
+                    run: () => (hasBenched(self) ? send({ type: 'DISCARD_DOLL', target: 'active' }) : toasts.push('warning', `You can't discard ${doll.name}: it's your only Pokémon in play`)),
+                  },
+                ]
+              : []),
+          ]
+        : [];
+    // Hidden while the board is needed: a Pokémon to choose for its move, a Pokémon to retreat to, or a card being dragged.
+    const sheetShown = sheet && !!attackPanels && !pokemonPick && !retreat.ready && !dragging;
+    const closeSheet = () => {
+      cancelAll();
+      setSheet(false);
+    };
+    const oppPick = pokemonPick?.side === 'opp' && !busy ? pokemonPick : null;
+    const oppLunge = attacker === view.opponent.id ? view.version : null;
+    const opponent = view.opponent;
+    return (
+      // No hover preview on a phone: a long press inspects a card instead (Card).
+      <PreviewContext.Provider value={() => {}}>
+        <DndContext
+          {...dnd}
+          onDragEnd={(e) => {
+            dragEndedAt.current = Date.now();
+            dnd.onDragEnd(e);
+          }}
+        >
+          {/* The whole screen, over the site's header, held still: nothing in it pans, zooms or selects text. */}
+          <div className={`fixed inset-0 z-30 flex touch-none select-none flex-col overflow-hidden bg-slate-950 [-webkit-touch-callout:none] ${busy ? 'cursor-progress' : ''}`}>
+            {self.pendingChoice && !pendingPick && (
+              <FloatingDialog clickThrough={false} className="absolute left-1/2 top-1/2 z-[1000] w-fit max-w-[calc(100%-1rem)] -translate-x-1/2 -translate-y-1/2 touch-pan-y">
+                <PendingChoicePanel view={view} send={send} busy={busy} />
+              </FloatingDialog>
+            )}
+            <PlayArea droppable={draggingTrainer && !busy} drop={dragging && heldCard ? { over: dropTarget !== null } : null} overlay={overlay} cards="phone-cards h-full">
+              <PhoneTable
+                top={
+                  <div className="flex h-4 shrink-0 items-center justify-between gap-2 text-[11px] leading-4 text-slate-400">
+                    <span className="min-w-0 truncate">{info}</span>
+                    {opponent.hand ? (
+                      <button data-keep-action className="shrink-0 underline" onClick={() => setCpuHand(true)}>
+                        CPU · hand {opponent.handCount} (face up)
+                      </button>
+                    ) : (
+                      <span className="shrink-0">CPU · hand {opponent.handCount}</span>
+                    )}
+                  </div>
+                }
+                opponent={{
+                  bench: opponent.bench.map((p, i) => <OpponentSlot key={i} id={`cpu-bench-${i}`} target={i} pokemon={p} cards={view.cards} pick={oppPick} lunge={oppLunge} />),
+                  active: <OpponentSlot id="cpu-active" target="active" pokemon={opponent.active} cards={view.cards} large pick={oppPick} lunge={oppLunge} />,
+                  prizes: <PhonePrizes count={opponent.prizeCount} owner="The CPU's" faceUp={opponent.prizes && { prizes: opponent.prizes, cards: view.cards }} />,
+                  piles: <PhonePiles deckCount={opponent.deckCount} discard={opponent.discard} cards={view.cards} owner="The CPU's" />,
+                }}
+                bar={
+                  <div className="relative flex min-h-14 shrink-0 items-center gap-2">
+                    <button
+                      data-keep-action
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800 text-slate-200 ring-1 ring-slate-600 transition active:scale-95"
+                      aria-label="Menu: game log, run and Concede"
+                      onClick={() => setMenu(true)}
+                    >
+                      <MenuIcon />
+                    </button>
+                    <StadiumCard view={view} send={send} busy={busy} notify={(message) => toasts.push('warning', message)} compact />
+                    {statusBar(true)}
+                    {self.peek && (
+                      <div className="absolute bottom-full left-0 z-10 mb-1 [--card-sm:var(--card-pile)]">
+                        <PeekCard view={view} />
+                      </div>
+                    )}
+                  </div>
+                }
+                self={{
+                  bench: self.bench.map((p, i) => playerSlot(benchSlotId(i), p)),
+                  active: playerSlot('active', self.active),
+                  prizes: <PhonePrizes count={self.prizeCount} owner="Your" faceUp={self.prizes && { prizes: self.prizes, cards: view.cards }} />,
+                  piles: <PhonePiles deckCount={self.deckCount} discard={self.discard} cards={view.cards} owner="Your" />,
+                }}
+                dialog={oppDialog && <FloatingDialog className="relative">{oppDialog}</FloatingDialog>}
+              />
+            </PlayArea>
+            {handView(true)}
+            <TurnOrderFlip key={gameId} view={view} gameId={gameId} />
+          </div>
+          {sheetShown && activeDef && (
+            <ActiveSheet title={activeDef.kind === 'pokemon' ? `${activeDef.name} · ${activeDef.hp - active!.damage}/${activeDef.hp} HP` : activeDef.name} onClose={closeSheet}>
+              {attackPanels}
+              {activeMoves.map((m) => (
+                <button
+                  key={m.label}
+                  className="rounded bg-slate-600 px-2 text-left transition hover:bg-slate-500 active:scale-95"
+                  disabled={busy}
+                  onClick={() => {
+                    closeSheet();
+                    m.run();
+                  }}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </ActiveSheet>
+          )}
+          {menu && (
+            <LogSheet
+              log={view.log}
+              you={view.you}
+              coinFlips
+              run={runTab}
+              debug={debugEnabled ? { gameId, view } : undefined}
+              onClose={() => setMenu(false)}
+              actions={
+                phase !== 'finished' && (
+                  <button
+                    className="rounded bg-slate-700 px-4 py-2 text-sm transition hover:bg-slate-600 active:scale-95 disabled:cursor-progress"
+                    disabled={busy}
+                    onClick={() => {
+                      setMenu(false);
+                      send({ type: 'CONCEDE' });
+                    }}
+                  >
+                    Concede
+                  </button>
+                )
+              }
+            />
+          )}
+          {cpuHand && opponent.hand && (
+            <DiscardPane title="The CPU's hand" note={`${opponent.hand.length}, face up: Clairvoyance`} discard={opponent.hand} cards={view.cards} onClose={() => setCpuHand(false)} />
+          )}
+          {dragOverlay}
+        </DndContext>
+        <Toasts toasts={toasts.toasts} prompt={prompt} />
+      </PreviewContext.Provider>
+    );
+  };
+  if (phone) return phoneBoard();
 
   return (
     <PreviewContext.Provider value={(p) => !dragging && setPreview(p)}>
@@ -336,30 +598,11 @@ export function Board({
                 cards={view.cards}
                 pick={pokemonPick?.side === 'opp' && !busy ? pokemonPick : null}
                 lunge={attacker === view.opponent.id ? view.version : null}
-                dialog={
-                  pendingPick?.optional ? (
-                    // Sneak Attack can be skipped; Fairy Power is done whenever the player says so.
-                    <div className="rounded-lg bg-slate-800 p-2 ring-1 ring-slate-600">
-                      <button className="rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500" disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE' })}>
-                        {pendingPick.kind === 'oppPokemon' ? 'Skip' : 'Done'}
-                      </button>
-                    </div>
-                  ) : (
-                    trainer.card && !trainer.prompt && <TrainerPanel view={view} trainer={trainer} />
-                  )
-                }
+                dialog={oppDialog}
               />
 
               {/* Between the two sides: whose turn it is and End turn. */}
-              <StatusBar
-                status={statusText(view)}
-                canEndTurn={myTurn}
-                setup={phase === 'setup' && !self.ready ? { canReset: !!self.active || self.bench.some(Boolean), canStart: !!self.active } : null}
-                // Ask before ending the turn while an Energy, the Stadium or a Pokémon Power could still be used.
-                reminders={endTurnReminders(view, power.powers)}
-                pending={pending}
-                send={send}
-              />
+              {statusBar(false)}
 
               {/* Prize cards on the left of the play area; discard pile and deck on the right. */}
               <section className="flex min-h-0 flex-1 items-center rounded-lg bg-slate-900 p-3">
@@ -393,55 +636,13 @@ export function Board({
               </section>
             </PlayArea>
 
-            <Hand
-              hand={self.hand}
-              cards={view.cards}
-              selected={selected ?? trainer.card?.uid ?? null}
-              pick={trainer.handPick && !busy ? trainer.handPick : null}
-              pending={pending}
-              // Trainers are dragged onto the play area when they can be played.
-              canPlay={(c) => (trainer.isTrainer(c) ? trainer.error(c) === null : canPlay(c))}
-              onCardClick={(c) => {
-                // A Trainer asking for cards from the hand: clicks pick them (other cards do nothing).
-                if (trainer.handPick && trainer.card?.uid !== c.uid) {
-                  if (trainer.handPick.options.has(c.uid)) trainer.handPick.toggle(c.uid);
-                  return;
-                }
-                const wasTrainer = trainer.card?.uid === c.uid;
-                attack.cancel();
-                retreat.cancel();
-                power.cancel();
-                if (trainer.isTrainer(c)) {
-                  deselect();
-                  // Clicking the open Trainer again closes it. One that can't be played just says why, like other cards.
-                  const why = trainer.error(c);
-                  if (wasTrainer) trainer.cancel();
-                  else if (why) {
-                    trainer.cancel();
-                    toasts.push('warning', why);
-                  } else trainer.start(c);
-                } else {
-                  trainer.cancel();
-                  clickHandCard(c);
-                }
-              }}
-            />
+            {handView(false)}
           </div>
           <LogDrawer log={view.log} you={view.you} coinFlips run={runTab} debug={debugEnabled ? { gameId, view } : undefined} />
           <TurnOrderFlip key={gameId} view={view} gameId={gameId} />
         </div>
 
-        <DragOverlay dropAnimation={null} modifiers={[centerOnPointer]}>
-          {dragging && heldCard ? (
-            // dnd-kit sizes the overlay like the card that was grabbed, which is bigger when it's a hovered hand card;
-            // centring the image in it keeps it centred on the pointer (centerOnPointer centres the overlay).
-            <div className="flex h-full w-full items-center justify-center">
-              <div className="rotate-3 cursor-grabbing opacity-90">
-                <Card def={lookupCard(view.cards, heldCard.defId)} highRes />
-              </div>
-            </div>
-          ) : null}
-        </DragOverlay>
+        {dragOverlay}
       </DndContext>
       {preview && <CardPreview {...preview} />}
       <Toasts toasts={toasts.toasts} prompt={prompt} />

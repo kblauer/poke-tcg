@@ -3,8 +3,11 @@ import { CARD_TYPES, OWNERSHIP_OPTIONS, type Ownership } from '../utils/cardList
 import { EnergyIcon } from './EnergyIcon';
 import { CARD_KINDS, DECK_SORTS, EMPTY_DECK_FILTER, POKEMON_STAGES, type CardKind, type DeckFilter, type DeckSort } from '../utils/deckBuilder';
 
-const input = 'rounded bg-slate-800 px-2 py-1 text-sm outline-none ring-yellow-300 focus:ring-1';
-const toggle = 'rounded px-2 py-1 text-sm transition';
+const normalInput = 'rounded bg-slate-800 px-2 py-1 text-sm outline-none ring-yellow-300 focus:ring-1';
+const normalToggle = 'rounded px-2 py-1 text-sm transition';
+// Smaller, for the phone layout's narrow column.
+const smallInput = 'rounded bg-slate-800 px-1.5 py-0.5 text-xs outline-none ring-yellow-300 focus:ring-1';
+const smallToggle = 'rounded px-1.5 py-0.5 text-xs transition';
 const on = 'bg-yellow-300 text-slate-900';
 const off = 'bg-slate-800 text-slate-300 hover:bg-slate-700';
 
@@ -17,7 +20,8 @@ const flip = <T,>(list: T[], value: T) => (list.includes(value) ? list.filter((x
 /**
  * The deck builder's card search: name, set, sort, unlocked or locked, "implemented only", "holo", kind toggles
  * (Pokémon, Trainer, Energy), type toggles (a Pokémon's type or the Energy's, see filterForDeck) and the
- * Pokémon filters.
+ * Pokémon filters. `compact` (a phone, where it's a narrow column beside the deck list): smaller, the type toggles
+ * just their icons, and the whole thing scrolls.
  */
 export function DeckFilters({
   filter,
@@ -27,6 +31,7 @@ export function DeckFilters({
   total,
   onChange,
   onSortChange,
+  compact = false,
 }: {
   filter: DeckFilter;
   sort: DeckSort;
@@ -36,17 +41,21 @@ export function DeckFilters({
   shown: number;
   total: number;
   onChange: (filter: DeckFilter) => void;
+  compact?: boolean;
 }) {
   const set = (patch: Partial<DeckFilter>) => onChange({ ...filter, ...patch });
+  const input = compact ? smallInput : normalInput;
+  const toggle = compact ? smallToggle : normalToggle;
+  const row = `flex flex-wrap items-center ${compact ? 'gap-1 text-xs' : 'gap-2 text-sm'}`;
   return (
-    <div className="space-y-2 rounded-lg bg-slate-900 p-3">
-      <div className="flex flex-wrap items-center gap-2 text-sm">
+    <div className={compact ? 'min-h-0 space-y-1.5 overflow-y-auto rounded-lg bg-slate-900 p-2' : 'space-y-2 rounded-lg bg-slate-900 p-3'}>
+      <div className={row}>
         <input
           type="search"
           placeholder="Search by name or attack…"
           value={filter.search}
           onChange={(e) => set({ search: e.target.value })}
-          className={`${input} min-w-40 flex-1`}
+          className={`${input} ${compact ? 'w-full' : 'min-w-40 flex-1'}`}
         />
         <select value={filter.set ?? ''} onChange={(e) => set({ set: e.target.value || null })} className={input} aria-label="Release set">
           <option value="">All sets</option>
@@ -57,7 +66,7 @@ export function DeckFilters({
           ))}
         </select>
         <label className="flex items-center gap-1 text-slate-400">
-          Sort by
+          {compact ? 'Sort' : 'Sort by'}
           <select value={sort} onChange={(e) => onSortChange(e.target.value as DeckSort)} className={input}>
             {DECK_SORTS.map((s) => (
               <option key={s.value} value={s.value}>
@@ -82,7 +91,7 @@ export function DeckFilters({
           Implemented only
         </button>
       </div>
-      <div className="flex flex-wrap items-center gap-2 text-sm">
+      <div className={row}>
         {CARD_KINDS.map((k) => (
           <button
             key={k.value}
@@ -103,7 +112,7 @@ export function DeckFilters({
           Holo
         </button>
       </div>
-      <div className="flex flex-wrap items-center gap-2 text-sm">
+      <div className={row}>
         <span className="text-slate-400">Type</span>
         {CARD_TYPES.map((t) => (
           <button
@@ -111,14 +120,15 @@ export function DeckFilters({
             className={`${toggle} flex items-center gap-1 ${filter.types.includes(t) ? on : off}`}
             aria-pressed={filter.types.includes(t)}
             title={`${t} Pokémon and ${t} Energy${t === 'Colorless' ? ' (Double Colorless and other special Energy with no type of its own)' : ''}`}
+            aria-label={t}
             onClick={() => set({ types: flip(filter.types, t) })}
           >
             <EnergyIcon type={t.toLowerCase() as EnergyType} size="panel" />
-            {t}
+            {!compact && t}
           </button>
         ))}
       </div>
-      <div className="flex flex-wrap items-center gap-2 text-sm">
+      <div className={row}>
         <span className="text-slate-400">Pokémon</span>
         <select value={filter.stage ?? ''} onChange={(e) => set({ stage: e.target.value || null })} className={input} aria-label="Evolution stage">
           <option value="">Any stage</option>
@@ -137,7 +147,7 @@ export function DeckFilters({
             placeholder="min"
             value={filter.minHp ?? ''}
             onChange={(e) => set({ minHp: toBound(e.target.value) })}
-            className={`${input} w-16`}
+            className={`${input} ${compact ? 'w-12' : 'w-16'}`}
           />
           –
           <input
@@ -147,7 +157,7 @@ export function DeckFilters({
             placeholder="max"
             value={filter.maxHp ?? ''}
             onChange={(e) => set({ maxHp: toBound(e.target.value) })}
-            className={`${input} w-16`}
+            className={`${input} ${compact ? 'w-12' : 'w-16'}`}
           />
         </label>
         <button

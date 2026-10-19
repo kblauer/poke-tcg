@@ -10,7 +10,8 @@ const small = 'rounded bg-slate-700 px-1.5 leading-5 hover:bg-slate-600 disabled
 /**
  * The deck being built, apart from the card search: its cards by section (Pokémon, Trainers, Energy) with
  * buttons to add or remove copies, the card count, and what still keeps it from being played. Cards not
- * unlocked yet are darker, marked "locked". Right-clicking a card opens it in the CardInspector.
+ * unlocked yet are darker, marked "locked". Right-clicking a card opens it in the CardInspector. `compact` (a phone,
+ * where its column is short): as tall as its cards, for the column itself to scroll.
  */
 export function DeckPanel({
   entries,
@@ -18,12 +19,14 @@ export function DeckPanel({
   problems,
   isLocked,
   onChange,
+  compact = false,
 }: {
   entries: DeckEntry[];
   byId: Map<string, CatalogCard>;
   problems: string[];
   isLocked: (card: CatalogCard) => boolean;
   onChange: (cardId: string, by: 1 | -1) => void;
+  compact?: boolean;
 }) {
   const cards = withCards(entries, byId);
   const inspectOn = useInspectOnRightClick();
@@ -31,7 +34,7 @@ export function DeckPanel({
   const { copies } = useUnlocked();
   const size = deckSize(entries);
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2 rounded-lg bg-slate-900 p-3 text-sm">
+    <div className={`flex flex-col gap-2 rounded-lg bg-slate-900 ${compact ? 'shrink-0 p-2 text-xs' : 'min-h-0 flex-1 p-3 text-sm'}`}>
       <div className="flex items-baseline justify-between">
         <span className="font-semibold">Deck</span>
         <span className={size === DECK_SIZE ? 'text-emerald-400' : 'text-slate-400'}>
@@ -48,7 +51,7 @@ export function DeckPanel({
         <p className="text-xs text-emerald-400">Ready to play.</p>
       )}
       {cards.length === 0 && <p className="text-slate-500">Click cards in the search to add them.</p>}
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
+      <div className={compact ? 'space-y-3' : 'min-h-0 flex-1 space-y-3 overflow-y-auto'}>
         {DECK_SECTIONS.map(({ kind, label }) => {
           const section = cards.filter((e) => e.card.kind === kind).sort((a, b) => a.card.order - b.card.order);
           if (!section.length) return null;

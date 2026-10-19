@@ -11,7 +11,20 @@ import { PreviewContext } from './PreviewContext';
  * Hovering a card shows the large preview, which sits above the window. Closed with the × button, Esc, or a click
  * beside it. In the page body: the play area's container-type would trap a fixed window.
  */
-export function DiscardPane({ title, discard, cards, onClose }: { title: string; discard: CardInstance[]; cards: CardLibrary; onClose: () => void }) {
+export function DiscardPane({
+  title,
+  discard,
+  cards,
+  onClose,
+  note = `${discard.length}, newest first`,
+}: {
+  title: string;
+  discard: CardInstance[];
+  cards: CardLibrary;
+  onClose: () => void;
+  /** Beside the title. Other cards shown the same way (the phone layout's face-up prizes and CPU hand) just give their count. */
+  note?: string;
+}) {
   const setPreview = useContext(PreviewContext);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -32,7 +45,7 @@ export function DiscardPane({ title, discard, cards, onClose }: { title: string;
         >
           <div className="flex items-center justify-between gap-2">
             <p className="text-sm font-semibold">
-              {title} <span className="font-normal text-slate-400">({discard.length}, newest first)</span>
+              {title} <span className="font-normal text-slate-400">({note})</span>
             </p>
             <button className="rounded-full p-1 text-slate-300 hover:bg-slate-700 hover:text-white" onClick={onClose} aria-label="Close">
               <CloseIcon fontSize="small" />
