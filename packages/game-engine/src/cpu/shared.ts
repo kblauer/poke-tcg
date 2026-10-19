@@ -538,6 +538,11 @@ export function resolveSearch(t: Turn): GameAction {
   // Computer Error: always the most cards (agreed).
   if (view.kind === 'drawCount') return { type: 'RESOLVE_CHOICE', count: view.max };
   if (choice.kind === 'attachFromHand' && view.kind === 'pickFromHand') return view.options[0] ? { type: 'RESOLVE_CHOICE', cardUid: view.options[0].uid } : { type: 'RESOLVE_CHOICE' };
+  // Secret Mission: only cards it can't use (Energy no attack needs, Pokémon it can't play) go, then it draws as many.
+  if (choice.kind === 'discardDraw') {
+    const junk = [...unusableEnergy(t.state, t.me), ...unusablePokemon(t.state, t.me)][0];
+    return junk ? { type: 'RESOLVE_CHOICE', cardUid: junk.uid } : { type: 'RESOLVE_CHOICE' };
+  }
   // Special Delivery: the card it wants least goes back on the deck. Sleight of Hand ("up to"): only cards it doesn't want.
   if (view.kind === 'pickFromHand') {
     const wanted = wantedCards(t.state, t.me, view.options);
