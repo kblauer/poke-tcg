@@ -1,7 +1,7 @@
 import { bossSummary, currentGameId, EQUIP_SLOTS, isBattleKind, fitsSlot, item, ITEMS, onlyOne, RUN_TYPE_IDS, RUN_TYPES, runView, shopStock, type EquipSlot } from '@poke-tcg/campaign';
 import { prisma } from '@poke-tcg/db';
 import { DECK_NAME_LENGTH } from '@poke-tcg/shared';
-import { buyItemInput, equipInput, runActInput, runChooseInput, runIdInput, saveRunDeckInput, startRunInput, useItemInput } from '@poke-tcg/shared';
+import { buyItemInput, DEFAULT_TRAINER_SPRITE, equipInput, runActInput, runChooseInput, runIdInput, saveRunDeckInput, startRunInput, trainerSpriteInput, useItemInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { cardPool } from '../pool.js';
 import { runTypeProgress } from '../progress.js';
@@ -178,18 +178,26 @@ export const runRouter = router({
     return { ok: true };
   }),
 
-  /** The account's items (with their definitions), what's equipped, and how many cards are unlocked. */
+  /** The account's items (with their definitions), what's equipped, its trainer sprite, and how many cards are unlocked. */
   inventory: protectedProcedure.query(async ({ ctx }) => {
-    const [items, equipment, unlocks] = await Promise.all([
+    const [items, equipment, unlocks, user] = await Promise.all([
       prisma.inventoryItem.findMany({ where: { userId: ctx.user.id, quantity: { gt: 0 } } }),
       prisma.equipment.findMany({ where: { userId: ctx.user.id } }),
       prisma.cardUnlock.aggregate({ where: { userId: ctx.user.id }, _sum: { quantity: true }, _count: true }),
+      prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { trainerSprite: true } }),
     ]);
     return {
+      trainerSprite: user.trainerSprite ?? DEFAULT_TRAINER_SPRITE,
       items: items.flatMap((i) => (ITEMS[i.itemId] ? [{ ...item(i.itemId), quantity: i.quantity }] : [])),
       equipment: Object.fromEntries(EQUIP_SLOTS.map((slot) => [slot, equipment.find((e) => e.slot === slot)?.itemId ?? null])) as Record<EquipSlot, string | null>,
       unlockedCards: { distinct: unlocks._count, total: unlocks._sum.quantity ?? 0 },
     };
+  }),
+
+  /** Sets the account's trainer sprite (the Inventory's trainer), one of Showdown's (TRAINER_SPRITES). */
+  setTrainerSprite: protectedProcedure.input(trainerSpriteInput).mutation(async ({ ctx, input }) => {
+    await prisma.user.update({ where: { id: ctx.user.id }, data: { trainerSprite: input.sprite } });
+    return { ok: true };
   }),
 
   /** Equips an owned piece of equipment in a slot that fits it, or empties the slot (itemId null). */

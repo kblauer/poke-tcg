@@ -2,6 +2,7 @@ import { itemText, onlyOne } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { useTRPC } from '../../lib/trpc';
+import { ItemIcon } from '../ItemIcon';
 
 const CATEGORY: Record<string, string> = { consumable: 'Consumable', misc: 'Misc item', key: 'Key item', equipment: 'Equipment' };
 
@@ -46,17 +47,23 @@ export function ItemShop({ close }: { close?: ReactNode }) {
       <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {shop.data.items.map((item) => (
           <li key={item.id} className="flex flex-col gap-1 rounded bg-slate-900 p-3">
-            <div className="flex items-baseline gap-2">
-              <span className="font-semibold">{item.name}</span>
-              <span className="text-[10px] uppercase tracking-wide text-slate-500">
-                {CATEGORY[item.category]}
-                {item.equip && ` · ${item.equip}`}
-              </span>
-              <Owned stacks={!onlyOne(item)} quantity={shop.data.owned[item.id] ?? 0} />
+            {/* The item's picture on the left of its name and description. */}
+            <div className="flex flex-1 items-start gap-3">
+              <ItemIcon id={item.id} />
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <div className="flex items-baseline gap-2">
+                  <span className="font-semibold">{item.name}</span>
+                  <span className="text-[10px] uppercase tracking-wide text-slate-500">
+                    {CATEGORY[item.category]}
+                    {item.equip && ` · ${item.equip}`}
+                  </span>
+                  <Owned stacks={!onlyOne(item)} quantity={shop.data.owned[item.id] ?? 0} />
+                </div>
+                <p className="flex-1 text-xs text-slate-400" title={item.description}>
+                  {itemText(item)}
+                </p>
+              </div>
             </div>
-            <p className="flex-1 text-xs text-slate-400" title={item.description}>
-              {itemText(item)}
-            </p>
             <button
               className="self-start rounded bg-slate-600 px-3 py-1 text-sm transition hover:bg-slate-500 active:scale-95 disabled:opacity-40"
               // Equipment and misc items that aren't used up: only one each.
