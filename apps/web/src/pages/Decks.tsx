@@ -7,7 +7,9 @@ import { DeckFilters } from '../components/DeckFilters';
 import { CurrentDeck, DeckList } from '../components/DeckList';
 import { DeckPanel } from '../components/DeckPanel';
 import { InspectContext } from '../components/InspectContext';
+import { useIsPhone } from '../hooks/useIsPhone';
 import { useUnlocked } from '../hooks/useUnlocked';
+import { useWindowFill } from '../hooks/useWindowFill';
 import { useTRPC } from '../lib/trpc';
 import { cardTitle, setNames, type CatalogCard } from '../utils/cardList';
 import { EMPTY_DECK_FILTER, cantAdd, changeCount, filterForDeck, problemsOf, sortForDeck, type DeckEntry, type DeckFilter, type DeckSort } from '../utils/deckBuilder';
@@ -23,6 +25,8 @@ const READ_ONLY = "This is your run's deck, which follows the run: copy it to ma
  * Cards not unlocked yet (win them in runs) are darker and can't be added. Right-clicking any card (in the
  * search, the open deck or a deck's headline Pokémon) opens it large, with − and + for the open deck.
  * A link can open a deck straight away: `?deck=<id>`, or `?deck=new` for a new one.
+ * On a phone held upright (useIsPhone) the page fills the screen: the decks (or the open deck) and the search share
+ * the top, side by side and smaller, and the cards take the rest below them.
  */
 export function DecksPage() {
   const trpc = useTRPC();
@@ -31,6 +35,8 @@ export function DecksPage() {
   const catalog = useQuery({ ...trpc.cards.list.queryOptions(), staleTime: Infinity });
   const decks = useQuery(trpc.decks.list.queryOptions());
   const { isLocked, copies } = useUnlocked();
+  const phone = useIsPhone();
+  const fill = useWindowFill<HTMLDivElement>();
 
   /** A deck is open (false: the deck list is shown). */
   const [editing, setEditing] = useState(false);
@@ -177,80 +183,101 @@ export function DecksPage() {
     isLocked(card) ? `${cardTitle(card)} isn't unlocked yet: ${card.holoEnergy ? 'pull it from a pack' : 'win it in a run'}` : cantAdd(entries, card, byId, copies(card.id));
   const error = save.error?.message ?? remove.error?.message ?? saved.error?.message;
   const listError = decks.error?.message ?? duplicate.error?.message ?? reorder.error?.message ?? rename.error?.message;
-  return (
-    <InspectContext.Provider value={setInspected}>
-      <div className={`${PAGE_WIDTH} grid gap-4 lg:grid-cols-[24rem_1fr]`}>
-        {!editing ? (
-          <div className="flex h-[70vh] flex-col gap-3 lg:h-[calc(100dvh-6.5rem)]">
-            {decks.data ? (
-              <DeckList
-                decks={decks.data}
-                byId={byId}
-                isLocked={isLocked}
-                onOpen={(id) => open(id)}
-                onNew={() => open(null)}
-                onCopy={(id) => duplicate.mutate({ deckId: id })}
-                onRename={(id, newName) => rename.mutate({ deckId: id, name: newName })}
-                onReorder={(ids) => reorder.mutate({ deckIds: ids })}
-                busy={duplicate.isPending}
-              />
-            ) : (
-              !decks.error && <p className="text-sm text-slate-400">Loading your decks…</p>
-            )}
-            {listError && <p className="text-xs text-red-400">{listError}</p>}
+  /** The left column: the deck list, or the open deck. */
+  // On a phone the open deck's column scrolls as a whole (the deck list scrolls its decks).
+  const column = phone ? `flex min-h-0 flex-col gap-2 ${editing ? 'overflow-y-auto' : ''}` : 'flex h-[70vh] flex-col gap-3 lg:h-[calc(100dvh-6.5rem)]';
+  const deckColumn = !editing ? (
+    <div className={column}>
+      {decks.data ? (
+        <DeckList
+          decks={decks.data}
+          byId={byId}
+          isLocked={isLocked}
+          onOpen={(id) => open(id)}
+          onNew={() => open(null)}
+          onCopy={(id) => duplicate.mutate({ deckId: id })}
+          onRename={(id, newName) => rename.mutate({ deckId: id, name: newName })}
+          onReorder={(ids) => reorder.mutate({ deckIds: ids })}
+          busy={duplicate.isPending}
+          compact={phone}
+        />
+      ) : (
+        !decks.error && <p className="text-sm text-slate-400">Loading your decks…</p>
+      )}
+      {listError && <p className="text-xs text-red-400">{listError}</p>}
+    </div>
+  ) : (
+    <div className={column}>
+      <CurrentDeck
+        compact={phone}
+        name={name}
+        readOnly={readOnly}
+        onRename={(newName) => {
+          if (loading) return;
+          setName(newName);
+          setDirty(true);
+        }}
+        entries={entries} ready={problems.length === 0} byId={byId} isLocked={isLocked} onBack={() => close()} />
+      <div className={`space-y-2 rounded-lg bg-slate-900 ${phone ? 'p-2' : 'p-3'}`}>
+        {readOnly ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <button className={`${button} bg-slate-600 hover:bg-slate-500`} disabled={duplicate.isPending || loading} onClick={() => deckId && duplicate.mutate({ deckId })}>
+              Copy to edit
+            </button>
+            <span className="text-xs text-slate-400">Your run's deck: it changes with the run (trades, switching decks).</span>
           </div>
         ) : (
-          <div className="flex h-[70vh] flex-col gap-3 lg:h-[calc(100dvh-6.5rem)]">
-            <CurrentDeck
-              name={name}
-              readOnly={readOnly}
-              onRename={(newName) => {
-                if (loading) return;
-                setName(newName);
-                setDirty(true);
-              }}
-              entries={entries} ready={problems.length === 0} byId={byId} isLocked={isLocked} onBack={() => close()} />
-            <div className="space-y-2 rounded-lg bg-slate-900 p-3">
-              {readOnly ? (
-                <div className="flex items-center gap-2">
-                  <button className={`${button} bg-slate-600 hover:bg-slate-500`} disabled={duplicate.isPending || loading} onClick={() => deckId && duplicate.mutate({ deckId })}>
-                    Copy to edit
-                  </button>
-                  <span className="text-xs text-slate-400">Your run's deck: it changes with the run (trades, switching decks).</span>
-                </div>
-              ) : (
-              <div className="flex items-center gap-2">
-                <button
-                  className={`${button} bg-emerald-600 font-semibold hover:bg-emerald-500`}
-                  disabled={save.isPending || loading || !name.trim() || (!dirty && deckId !== null)}
-                  onClick={() => save.mutate({ ...(deckId && { deckId }), name: name.trim(), cards: entries })}
-                >
-                  {save.isPending ? 'Saving…' : 'Save'}
-                </button>
-                {deckId && (
-                  <button
-                    className={`${button} bg-slate-700 hover:bg-red-700`}
-                    disabled={remove.isPending || loading}
-                    // Named as saved (as in the deck list), not as it may have been renamed since.
-                    onClick={() => window.confirm(`Delete ${decks.data?.find((d) => d.id === deckId)?.name ?? name}?`) && remove.mutate({ deckId })}
-                  >
-                    Delete
-                  </button>
-                )}
-                {loading ? <span className="text-xs text-slate-400">Loading the deck…</span> : dirty && <span className="text-xs text-slate-400">Unsaved changes</span>}
-              </div>
-              )}
-              {error && <p className="text-xs text-red-400">{error}</p>}
-            </div>
-            <DeckPanel entries={entries} byId={byId} problems={problems} isLocked={isLocked} onChange={(cardId, by) => change(byId.get(cardId)!, by)} />
-          </div>
-        )}
-        <div className="flex h-[70vh] flex-col gap-3 lg:h-[calc(100dvh-6.5rem)]">
-          <DeckFilters filter={filter} sort={sort} sets={sets} shown={results.length} total={catalog.data.length} onChange={setFilter} onSortChange={setSort} />
-          {blocked && <p className="text-sm text-amber-300">{blocked}.</p>}
-          <CardGrid cards={results} selectedId={null} onSelect={(c) => change(c, 1)} counts={counts} isLocked={isLocked} holdToInspect />
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            className={`${button} bg-emerald-600 font-semibold hover:bg-emerald-500`}
+            disabled={save.isPending || loading || !name.trim() || (!dirty && deckId !== null)}
+            onClick={() => save.mutate({ ...(deckId && { deckId }), name: name.trim(), cards: entries })}
+          >
+            {save.isPending ? 'Saving…' : 'Save'}
+          </button>
+          {deckId && (
+            <button
+              className={`${button} bg-slate-700 hover:bg-red-700`}
+              disabled={remove.isPending || loading}
+              // Named as saved (as in the deck list), not as it may have been renamed since.
+              onClick={() => window.confirm(`Delete ${decks.data?.find((d) => d.id === deckId)?.name ?? name}?`) && remove.mutate({ deckId })}
+            >
+              Delete
+            </button>
+          )}
+          {loading ? <span className="text-xs text-slate-400">Loading the deck…</span> : dirty && <span className="text-xs text-slate-400">Unsaved changes</span>}
         </div>
+        )}
+        {error && <p className="text-xs text-red-400">{error}</p>}
       </div>
+      <DeckPanel entries={entries} byId={byId} problems={problems} isLocked={isLocked} onChange={(cardId, by) => change(byId.get(cardId)!, by)} compact={phone} />
+    </div>
+  );
+  const filters = <DeckFilters filter={filter} sort={sort} sets={sets} shown={results.length} total={catalog.data.length} onChange={setFilter} onSortChange={setSort} compact={phone} />;
+  const blockedNote = blocked && <p className={`${phone ? 'text-xs' : 'text-sm'} text-amber-300`}>{blocked}.</p>;
+  const grid = <CardGrid cards={results} selectedId={null} onSelect={(c) => change(c, 1)} counts={counts} isLocked={isLocked} holdToInspect compact={phone} />;
+  return (
+    <InspectContext.Provider value={setInspected}>
+      {phone ? (
+        // To the bottom of the screen (-mb-4 undoes the layout's spacing); the decks and the search take the top 40%.
+        <div ref={fill.ref} style={fill.style} className="-mb-4 flex flex-col gap-2 px-2 pb-2">
+          <div className="grid h-[40%] shrink-0 grid-cols-2 gap-2">
+            {deckColumn}
+            {filters}
+          </div>
+          {blockedNote}
+          {grid}
+        </div>
+      ) : (
+        <div className={`${PAGE_WIDTH} grid gap-4 lg:grid-cols-[24rem_1fr]`}>
+          {deckColumn}
+          <div className="flex h-[70vh] flex-col gap-3 lg:h-[calc(100dvh-6.5rem)]">
+            {filters}
+            {blockedNote}
+            {grid}
+          </div>
+        </div>
+      )}
       {inspected && (
         <CardInspector
           card={inspected}
