@@ -1,4 +1,5 @@
-import { isBenchable, isPokemonCard, isTrainerCard, lookupCard, type PokemonCardDef } from '../cards.js';
+import { isBasicPokemon, isBenchable, isPokemonCard, isTrainerCard, lookupCard, type PokemonCardDef } from '../cards.js';
+import { baseUid, openBenchSlot } from '../status.js';
 import {
   attackOptions,
   attackScore,
@@ -22,6 +23,7 @@ import {
   play,
   pokemonDef,
   resolveSearch,
+  borrowedTrainerMove,
   spareEnergy,
   strongestOf,
   switchOrRetreat,
@@ -46,15 +48,23 @@ import { powerError, powerOf, resolvePowerChoices, situationCounts, type PowerCh
  * turn it goes through these steps in order, taking the first move any of them wants, until it attacks or
  * nothing is left and it ends its turn:
  *
- * 1. Draw and search: Bill; Computer Search and Pokémon Trader for the next stage of a line in play.
- * 2. Develop: bench Basics, Pokémon Breeder, evolve, and a Clefairy Doll when the Bench is empty.
- * 3. Energy: Rain Dance and Energy Trans, then the turn's attachment where it brings an attack closest.
- *    Then Professor Oak, if the hand is down to 2 other cards.
- * 4. Heal: Full Heal, Super Potion, Potion, Pokémon Center, Damage Swap.
- * 5. Disrupt: Energy Removal, Super Energy Removal, Gust of Wind.
+ * 1. Draw and search: Bill; Computer Search, Pokémon Trader, Master Ball, Brock's Training Method and Erika's Maids for
+ *    the next stage of a line in play; Good Manners for a Basic; Erika and Misty's Wrath with a small hand; Blaine's
+ *    Last Resort; Secret Mission to swap cards it can't use; Misty's Tears and Fervor for Energy its Pokémon need;
+ *    Rocket's Secret Experiment for a card it wants.
+ * 2. Develop: bench Basics, Pokémon Breeder, Giovanni when it lets something evolve, evolve, Max Revive with Energy it
+ *    can't use, and a Clefairy Doll when the Bench is empty.
+ * 3. Energy: Rain Dance and Energy Trans; Blaine when a Pokémon with Blaine in its name needs 2 more; then the turn's
+ *    attachment where it brings an attack closest. Then Professor Oak, if the hand is down to 2 other cards.
+ * 4. Heal: Full Heal, Celadon City Gym, Super Potion, Potion, Brock, Erika's Kindness, Giovanni's Last Resort, Pokémon
+ *    Center, Damage Swap.
+ * 5. Disrupt: Energy Removal, Super Energy Removal, Gust of Wind, The Rocket's Trap; a Stadium for its owner's Pokémon
+ *    (Pewter City Gym for Brock's…) when it has more of them in play than the player; Brock's Protection.
  * 6. Retreat or Switch when the Active Pokémon can't attack, is about to be Knocked Out, or has a Special Condition.
- * 7. Boost: powers that improve this turn's attack (Energy Burn), PlusPower for a Knock Out, Defender to survive one.
- * 8. Attack: the cheapest Knock Out, otherwise the most damage.
+ * 7. Boost: powers that improve this turn's attack (Energy Burn), PlusPower and Misty for a Knock Out, Koga to poison,
+ *    Defender or Koga's Ninja Trick to survive one.
+ * 8. Tickling Machine, when it has no attack that does damage (tails would end the turn).
+ * 9. Attack: the cheapest Knock Out, otherwise the most damage.
  *
  * It only uses what the player could see: what attacks would do is worked out over every coin-flip outcome
  * (shared.ts), never from the real flips to come, and searches only count on cards that could still be
@@ -75,6 +85,7 @@ export function gymLeaderCpu(state: GameState, cpuId: PlayerId): GameAction | nu
         if (state.pendingChoice.player !== cpuId) return null;
         // After the player's Whirlwind, Ram…: the Pokémon it would promote after a Knock Out comes in.
         if (state.pendingChoice.kind === 'switchIn') return { type: 'RESOLVE_CHOICE', target: promotion(state, cpuId) };
+        if (state.pendingChoice.kind === 'borrowedTrainer') return borrowedTrainerMove(state, cpuId, gymLeaderCpu);
         return resolveSearch(turnOf(state, cpuId));
       }
       if (state.currentPlayer !== cpuId) return null;
@@ -90,10 +101,24 @@ export function gymLeaderCpu(state: GameState, cpuId: PlayerId): GameAction | nu
   }
 }
 
+/** Stadiums that help Pokémon with an owner's name, by nameKey. */
+const OWNER_STADIUMS: Record<string, string> = {
+  pewtercitygym: 'Brock',
+  ceruleancitygym: 'Misty',
+  celadoncitygym: 'Erika',
+  viridiancitygym: 'Giovanni',
+  vermilioncitygym: 'Lt. Surge',
+  cinnabarcitygym: 'Blaine',
+};
+
 /** Trainers the CPU plays, by nameKey. Others (Lass, Item Finder, Pokédex…) it keeps, or discards to Computer Search. */
 const PLAYS = new Set([
   'bill', 'professoroak', 'computersearch', 'pokemontrader', 'pokemonbreeder', 'clefairydoll', 'superpotion', 'potion', 'pokemoncenter',
   'fullheal', 'energyremoval', 'superenergyremoval', 'gustofwind', 'switch', 'pluspower', 'defender',
+  // Gym Heroes and Gym Challenge.
+  'erika', 'mistyswrath', 'masterball', 'brockstrainingmethod', 'erikasmaids', 'goodmanners', 'blaineslastresort', 'secretmission',
+  'mistystears', 'fervor', 'rocketssecretexperiment', 'giovanni', 'maxrevive', 'blaine', 'brock', 'erikaskindness', 'giovannislastresort',
+  'therocketstrap', 'brocksprotection', 'koga', 'misty', 'kogasninjatrick', 'ticklingmachine', ...Object.keys(OWNER_STADIUMS),
 ]);
 
 /** The CPU's Pokémon that can use the power with this nameKey now. */
@@ -107,7 +132,7 @@ function usePower(t: Turn, source: Target, choices: PowerChoices): GameAction | 
   return tryAction(t.state, t.id, action) ? action : null;
 }
 
-const STEPS: ((t: Turn) => GameAction | null)[] = [drawAndSearch, develop, attachEnergy, professorOak, heal, disrupt, retreat, boost, attack];
+const STEPS: ((t: Turn) => GameAction | null)[] = [drawAndSearch, develop, attachEnergy, professorOak, heal, disrupt, retreat, boost, tickle, attack];
 
 // ---- 1. Draw and search ----
 
@@ -131,8 +156,64 @@ function drawAndSearch(t: Turn): GameAction | null {
     const action = play(t, trader, { handUids: [offer.uid] });
     if (action) return action;
   }
+  return gymSearch(t, unseen);
+}
+
+/** The Gym sets' draw and search Trainers (see the steps above). */
+function gymSearch(t: Turn, unseen: CardInstance[]): GameAction | null {
+  const wanted = wantedCards(t.state, t.me, unseen).filter((c) => isPokemonCard(t.def(c)));
+  const owned = (owner: string) => wanted.some((c) => t.def(c).name.includes(owner));
+  if (wanted.length) {
+    const action = play(t, trainer(t, 'masterball')) ?? (owned('Brock') ? play(t, trainer(t, 'brockstrainingmethod')) : null);
+    if (action) return action;
+    const maids = trainer(t, 'erikasmaids');
+    const discards = maids ? searchDiscards(t, maids) : [];
+    const traded = owned('Erika') && discards.length >= 2 && play(t, maids, { handUids: discards.slice(0, 2).map((c) => c.uid) });
+    if (traded) return traded;
+  }
+  const basicInHand = t.me.hand.some((c) => isBasicPokemon(t.def(c)));
+  if (!basicInHand && openBenchSlot(t.me.bench, t.state.cards, t.state.stadium?.card) >= 0) {
+    const manners = play(t, trainer(t, 'goodmanners'));
+    if (manners) return manners;
+  }
+  // Draw, with a small hand and a deck that can take it.
+  const others = (key: string) => t.me.hand.filter((c) => nameKey(t.def(c).name) !== key).length;
+  if (others('erika') <= 3 && t.me.deck.length > 8) {
+    const action = play(t, trainer(t, 'erika'));
+    if (action) return action;
+  }
+  if (others('mistyswrath') <= 3 && t.me.deck.length > 10) {
+    const action = play(t, trainer(t, 'mistyswrath'));
+    if (action) return action;
+  }
+  if (t.me.deck.length > 7) {
+    const action = play(t, trainer(t, 'blaineslastresort'));
+    if (action) return action;
+  }
+  // Swap cards it can't use for new ones.
+  const mission = trainer(t, 'secretmission');
+  if (mission && junk(t, mission).length >= 2 && t.me.deck.length > 5) {
+    const action = play(t, mission);
+    if (action) return action;
+  }
+  // Energy its Pokémon need, of a type the hand has none of.
+  const needs = (type: 'water' | 'fire') => inPlay(t.me).some(([, p]) => pokemonDef(t.state.cards, p).type === type) && !energyInHand(t, type).length;
+  const tears = trainer(t, 'mistystears');
+  if (tears && needs('water')) {
+    const discard = junk(t, tears)[0];
+    const action = discard && play(t, tears, { handUids: [discard.uid] });
+    if (action) return action;
+  }
+  if (needs('fire') && t.me.deck.length > 6) {
+    const action = play(t, trainer(t, 'fervor'));
+    if (action) return action;
+  }
+  if (wanted.length) return play(t, trainer(t, 'rocketssecretexperiment'));
   return null;
 }
+
+/** Cards in the hand it can do without (to discard or trade): Energy nothing uses, Pokémon it can't play. Never `except`. */
+const junk = (t: Turn, except: CardInstance) => [...unusableEnergy(t.state, t.me), ...unusablePokemon(t.state, t.me, except)].filter((c) => c !== except);
 
 /**
  * Cards Computer Search can discard, best first: Energy nothing can use, spare copies of a Trainer,
@@ -168,12 +249,31 @@ function develop(t: Turn): GameAction | null {
     }
   }
 
+  // Giovanni: when a Pokémon with Giovanni in its name could evolve but for the first turn or being played this turn.
+  const giovanni = trainer(t, 'giovanni');
+  if (giovanni && !evolve(t)) {
+    for (const [target, p] of inPlay(t.me)) {
+      if (!pokemonDef(t.state.cards, p).name.includes('Giovanni')) continue;
+      const after = tryAction(t.state, t.id, { type: 'PLAY_TRAINER', cardUid: giovanni.uid, choices: { target } });
+      if (after && evolve(turnOf(after, t.id))) return { type: 'PLAY_TRAINER', cardUid: giovanni.uid, choices: { target } };
+    }
+  }
+
   const evolution = evolve(t);
   if (evolution) return evolution;
 
+  // Max Revive, paying with 2 Energy cards nothing can use.
+  const revive = trainer(t, 'maxrevive');
+  const spare = unusableEnergy(t.state, t.me);
+  const basic = t.me.discard.find((c) => isBasicPokemon(t.def(c)));
+  if (revive && spare.length >= 2 && basic) {
+    const action = play(t, revive, { handUids: spare.slice(0, 2).map((c) => c.uid), discardUids: [basic.uid] });
+    if (action) return action;
+  }
+
   // A Clefairy Doll only as a stand-in, so a Knock Out of the active can't leave nothing in play.
   const doll = t.me.hand.find((c) => isBenchable(t.def(c)) && isTrainerCard(t.def(c)));
-  const empty = t.me.bench.findIndex((p) => p === null);
+  const empty = openBenchSlot(t.me.bench, t.state.cards, t.state.stadium?.card);
   if (empty >= 0 && doll && !hasBenched(t.me)) return { type: 'PLAY_BENCH', cardUid: doll.uid, slot: empty };
   return null;
 }
@@ -191,6 +291,9 @@ function attachEnergy(t: Turn): GameAction | null {
 
   const trans = energyTrans(t);
   if (trans) return trans;
+
+  const blaine = blaineAttach(t);
+  if (blaine) return blaine;
 
   if (!t.state.energyAttachedThisTurn) {
     const pick = attachTarget(t, energyInHand(t), () => true);
@@ -230,6 +333,29 @@ function energyTrans(t: Turn): GameAction | null {
   return usePower(t, sources[0]![0], { from: donor.slot, energyUid: donor.energy.uid, to: 'active' });
 }
 
+/**
+ * Blaine: played when a Pokémon with Blaine in its name is 2 or more Energy from its strongest attack and the hand has 2
+ * Fire Energy cards; then both go to it (the first as the turn's attachment, the second as Blaine's).
+ */
+function blaineAttach(t: Turn): GameAction | null {
+  const cards = t.state.cards;
+  const fire = energyInHand(t, 'fire');
+  const gap = (p: InPlayPokemon) => {
+    const attacks = pokemonDef(cards, p).attacks;
+    return attacks.length ? missingEnergy(energyPool(p, cards), attacks.reduce((a, b) => (b.damage > a.damage ? b : a)).cost) : 0;
+  };
+  const blaines = inPlay(t.me).filter(([, p]) => pokemonDef(cards, p).name.includes('Blaine'));
+  if (t.me.blaineTurn === t.state.turn) {
+    // The first Fire Energy card goes to the neediest; the second follows it.
+    const first = t.state.energyAttachedThisTurn ? blaines.find(([, p]) => baseUid(p) === t.state.blaineAttach) : blaines.reduce<[Target, InPlayPokemon] | undefined>((a, b) => (!a || gap(b[1]) > gap(a[1]) ? b : a), undefined);
+    if (!first || !fire.length || t.state.blaineAttach === 'done') return null;
+    const action: GameAction = { type: 'ATTACH_ENERGY', cardUid: fire[0]!.uid, target: first[0] };
+    return tryAction(t.state, t.id, action) ? action : null;
+  }
+  if (t.state.energyAttachedThisTurn || fire.length < 2 || !blaines.some(([, p]) => gap(p) >= 2)) return null;
+  return play(t, trainer(t, 'blaine'));
+}
+
 function professorOak(t: Turn): GameAction | null {
   const oak = trainer(t, 'professoroak');
   // Only once the hand is nearly spent, and never drawing the deck down to nothing.
@@ -265,6 +391,31 @@ function heal(t: Turn): GameAction | null {
     const hurt = inPlay(t.me).filter(([, p]) => p.damage >= 20);
     const target = active && active.damage >= 20 ? 'active' : hurt.length ? hurt.reduce((a, b) => (b[1].damage > a[1].damage ? b : a))[0] : null;
     const action = target !== null && play(t, potion, { target });
+    if (action) return action;
+  }
+
+  // Celadon City Gym: an Energy card for curing the Active Pokémon with Erika in its name, if it can spare one.
+  if (active?.condition && t.state.stadium && nameKey(t.def(t.state.stadium.card).name) === 'celadoncitygym' && spareEnergy(cards, active, 1)) {
+    const action: GameAction = { type: 'USE_STADIUM' };
+    if (tryAction(t.state, t.id, action)) return action;
+  }
+
+  // Brock: a counter off each damaged Pokémon, once 2 or more are hurt.
+  if (inPlay(t.me).filter(([, p]) => p.damage >= 10).length >= 2) {
+    const action = play(t, trainer(t, 'brock'));
+    if (action) return action;
+  }
+  // Erika's Kindness heals both sides: only when it heals more of its own.
+  const healed = (side: typeof t.me) => inPlay(side).reduce((n, [, p]) => n + Math.min(20, p.damage), 0);
+  if (healed(t.me) >= 30 && healed(t.me) > healed(t.opp)) {
+    const action = play(t, trainer(t, 'erikaskindness'));
+    if (action) return action;
+  }
+  // Giovanni's Last Resort: all damage off a badly hurt Pokémon with Giovanni in its name, when there's little hand to lose.
+  const resort = trainer(t, 'giovannislastresort');
+  if (resort && t.me.hand.length - 1 <= 2) {
+    const hurt = inPlay(t.me).filter(([, p]) => pokemonDef(cards, p).name.includes('Giovanni') && p.damage * 2 >= pokemonDef(cards, p).hp);
+    const action = hurt.length && play(t, resort, { target: hurt.reduce((a, b) => (b[1].damage > a[1].damage ? b : a))[0] });
     if (action) return action;
   }
 
@@ -334,6 +485,29 @@ function disrupt(t: Turn): GameAction | null {
       const action = play(t, gust, { oppTarget: slot });
       if (action) return action;
     }
+  }
+
+  // The Rocket's Trap: a flip that could send 3 of the player's cards back into their deck.
+  if (t.opp.hand.length >= 3) {
+    const action = play(t, trainer(t, 'therocketstrap'));
+    if (action) return action;
+  }
+
+  // A Stadium for its owner's Pokémon, when the CPU has more of them in play than the player (and at least 2).
+  const owners = (side: typeof t.me, owner: string) => inPlay(side).filter(([, p]) => pokemonDef(cards, p).name.includes(owner)).length;
+  for (const [key, owner] of Object.entries(OWNER_STADIUMS)) {
+    const mine = owners(t.me, owner);
+    if (mine < 2 || mine <= owners(t.opp, owner)) continue;
+    const action = play(t, trainer(t, key));
+    if (action) return action;
+  }
+
+  // Brock's Protection on the Pokémon with Brock in its name that has the most Energy.
+  const protection = trainer(t, 'brocksprotection');
+  const brocks = inPlay(t.me).filter(([, p]) => pokemonDef(cards, p).name.includes('Brock') && p.energy.length >= 2 && !(p.attached ?? []).some((a) => nameKey(t.def(a.card).name) === 'brocksprotection'));
+  if (protection && brocks.length) {
+    const action = play(t, protection, { target: brocks.reduce((a, b) => (b[1].energy.length > a[1].energy.length ? b : a))[0] });
+    if (action) return action;
   }
   return null;
 }
@@ -413,6 +587,21 @@ function boost(t: Turn): GameAction | null {
     const plusPower = trainer(t, 'pluspower');
     const after = plusPower && tryAction(t.state, t.id, { type: 'PLAY_TRAINER', cardUid: plusPower.uid });
     if (after && knocksOut(bestAttack(attackOptions(after, t.id)))) return { type: 'PLAY_TRAINER', cardUid: plusPower!.uid };
+    // Misty: 20 more for a Pokémon with Misty in its name, paid with 2 cards it can do without.
+    const misty = trainer(t, 'misty');
+    const discards = misty ? junk(t, misty) : [];
+    if (misty && discards.length >= 2) {
+      const choices = { handUids: discards.slice(0, 2).map((c) => c.uid) };
+      const boosted = tryAction(t.state, t.id, { type: 'PLAY_TRAINER', cardUid: misty.uid, choices });
+      if (boosted && knocksOut(bestAttack(attackOptions(boosted, t.id)))) return { type: 'PLAY_TRAINER', cardUid: misty.uid, choices };
+    }
+  }
+
+  // Koga: its Pokémon with Koga in its name poisons what it damages, if that isn't Poisoned already.
+  const active = t.me.active;
+  if (active && damages(now) && !knocksOut(now) && pokemonDef(t.state.cards, active).name.includes('Koga') && !t.opp.active?.poison) {
+    const action = play(t, trainer(t, 'koga'));
+    if (action) return action;
   }
 
   // Defender, if the player's next attack would Knock Out the active and −20 stops that (pointless if the attacker goes down first).
@@ -422,7 +611,19 @@ function boost(t: Turn): GameAction | null {
     const after = tryAction(t.state, t.id, { type: 'PLAY_TRAINER', cardUid: defender.uid, choices });
     if (after && !threatKnocksOut(after, t.id)) return { type: 'PLAY_TRAINER', cardUid: defender.uid, choices };
   }
+  // Koga's Ninja Trick on an Active Pokémon with Koga in its name that would be Knocked Out: it can switch out first.
+  if (active && !knocksOut(now) && hasBenched(t.me) && pokemonDef(t.state.cards, active).name.includes('Koga') && threatKnocksOut(t.state, t.id)) {
+    const action = play(t, trainer(t, 'kogasninjatrick'));
+    if (action) return action;
+  }
   return null;
+}
+
+// ---- 8. Tickling Machine ----
+
+/** Only when there's no damaging attack to lose: tails ends the turn. */
+function tickle(t: Turn): GameAction | null {
+  return t.opp.hand.length && !damages(bestAttack(attackOptions(t.state, t.id))) ? play(t, trainer(t, 'ticklingmachine')) : null;
 }
 
 /** Every complete set of answers to a power's questions (a few dozen at most). */
@@ -442,7 +643,7 @@ function powerChoiceSets(t: Turn, source: Target): PowerChoices[] {
   return out;
 }
 
-// ---- 8. Attack ----
+// ---- 9. Attack ----
 
 function attack(t: Turn): GameAction | null {
   return attackWith(bestAttack(attackOptions(t.state, t.id)));

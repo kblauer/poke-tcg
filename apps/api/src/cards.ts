@@ -1,5 +1,6 @@
 import { prisma, type Card } from '@poke-tcg/db';
 import { attackEffect, energyEffect, powerEffect, trainerEffect, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef, type Stage } from '@poke-tcg/game-engine';
+import { pokedexLength } from './lengths.js';
 
 const ENERGY_TYPES = new Set<EnergyType>(['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'darkness', 'metal', 'colorless']);
 const STAGES: Record<string, Stage> = { Basic: 'basic', Baby: 'basic', Stage1: 'stage1', Stage2: 'stage2' };
@@ -55,10 +56,21 @@ const FROM_MYSTERIOUS_FOSSIL = new Set(['Omanyte', 'Kabuto', 'Aerodactyl']);
 /** Baby Pokémon promos, which TCGdex lists as Basic (Neo-era Babies have the stage "Baby"). */
 const BABY_PROMOS = new Set(['basep-31', 'basep-35', 'basep-36']);
 
+/** Gym Heroes evolutions TCGdex leaves out, by name (without the owner). */
+const TCGDEX_MISSING_EVOLVES_FROM: Record<string, string> = { "Lt. Surge's Magneton": 'Magnemite' };
+
+/** The owner in an owner's Pokémon's name (Gym Heroes, Gym Challenge): "Brock's Rhydon" → "Brock's ". */
+const OWNER = /^((?:Blaine|Brock|Erika|Lt\. Surge|Misty|Sabrina|Giovanni|Koga|Rocket)'s )/;
+
 /** What the card evolves from, filling in TCGdex's gaps. */
 const evolvesFrom = (card: Pick<Card, 'name' | 'stage' | 'evolveFrom'>) => {
   // Team Rocket's Dark Stage 2 Pokémon evolve from the Dark Stage 1 (Dark Alakazam from Dark Kadabra); TCGdex has the plain one.
   if (card.stage === 'Stage2' && card.name.startsWith('Dark ') && card.evolveFrom && !card.evolveFrom.startsWith('Dark ')) return `Dark ${card.evolveFrom}`;
+  // An owner's Pokémon evolves from the same owner's (Brock's Rhydon from Brock's Rhyhorn, as printed); TCGdex has the plain one.
+  const owner = card.stage !== 'Basic' && card.stage !== 'Baby' ? card.name.match(OWNER)?.[1] : undefined;
+  const from = card.evolveFrom ?? TCGDEX_MISSING_EVOLVES_FROM[card.name];
+  // Gym Challenge's Nidoran are named "Giovanni's Nidoran ♀" (with a space), unlike the plain "Nidoran♀".
+  if (owner && from) return (from.startsWith(owner) ? from : `${owner}${from}`).replace(/Nidoran([♀♂])$/, 'Nidoran $1');
   return card.evolveFrom ?? (card.stage === 'Stage1' && FROM_MYSTERIOUS_FOSSIL.has(card.name) ? 'Mysterious Fossil' : null);
 };
 
@@ -156,7 +168,8 @@ export function toCardDef(card: Card): CardDef {
       };
     });
     const baby = card.stage === 'Baby' || BABY_PROMOS.has(card.id);
-    return { id: card.id, kind: 'pokemon', name: card.name, imageUrl, type: energyType(type), hp: card.hp, stage, evolvesFrom: evolvesFrom(card), attacks, power: power(data), weakness: weakness(data), resistance: resistance(data), retreatCost: data.retreat ?? 0, holo: isHolo(card), ...(baby && { baby }) };
+    const length = pokedexLength(data.dexId?.[0]);
+    return { id: card.id, kind: 'pokemon', name: card.name, imageUrl, type: energyType(type), hp: card.hp, stage, evolvesFrom: evolvesFrom(card), attacks, power: power(data), weakness: weakness(data), resistance: resistance(data), retreatCost: data.retreat ?? 0, holo: isHolo(card), ...(baby && { baby }), ...(length && { length }) };
   }
   if (card.kind === 'ENERGY') {
     if (card.name === 'Double Colorless Energy') {

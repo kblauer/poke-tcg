@@ -8,7 +8,7 @@
 import { isBasicEnergy, isPokemonCard, lookupCard } from '../cards.js';
 import type { CardInstance, GameState, InPlayPokemon, PlayerState } from '../engine.js';
 import { powerActive } from '../powers.js';
-import { addLog, effectId, flipCoin, inPlayDef, pokemonName } from '../status.js';
+import { addLog, effectId, flipCoin, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { otherHandCards, type EnergyEffect, type TrainerEffect } from '../trainers.js';
 import { powerEffect } from './index.js';
 
@@ -54,7 +54,8 @@ export const ROCKET_TRAINERS: Record<string, TrainerEffect> = {
   // Challenge!: the opponent accepts (both bench any number of Basic Pokémon from their decks) or declines (you draw 2).
   'base5-74': {
     play(ctx) {
-      if (!ctx.me.bench.includes(null) && !ctx.opp.bench.includes(null)) {
+      const full = (p: PlayerState) => openBenchSlot(p.bench, ctx.state.cards, ctx.state.stadium?.card) < 0;
+      if (full(ctx.me) && full(ctx.opp)) {
         ctx.log('Both Benches are full.');
         return ctx.draw(ctx.me, 2);
       }

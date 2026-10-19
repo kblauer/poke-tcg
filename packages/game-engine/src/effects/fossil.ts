@@ -27,7 +27,7 @@ const waterGun = (damage: number, cost: EnergyType[], name: string, wording = 'i
 });
 
 /** Base damage; the Defending Pokémon needs heads to attack next turn (Smokescreen). */
-const smokescreen = (damage: number): AttackEffect => ({
+export const smokescreen = (damage: number): AttackEffect => ({
   run(ctx) {
     ctx.hit(damage);
     ctx.affectDefender((e) => {

@@ -259,3 +259,73 @@ describe('CPU: Damage Swap', () => {
     expect(actions.filter((a) => a.type === 'USE_POWER')).toHaveLength(1);
   });
 });
+
+describe('CPU: Gym Heroes and Gym Challenge Trainers', () => {
+  /** The CPU's hand is these cards, and its deck big enough to draw from. */
+  const hand = (s: GameState, ...names: string[]) => {
+    ash(s).deck = Array.from({ length: 15 }, (_, i) => ({ uid: `deck-${i}`, defId: id('charmander') }));
+    return give(s, 'ash', ...names);
+  };
+
+  it('plays Erika with a small hand', () => {
+    const s = cpuTurn('charmander', 'onix');
+    const [erika] = hand(s, 'erikaG');
+    expect(played(moves(s), erika!)).toBeDefined();
+  });
+
+  it('plays Brock once 2 of its Pokémon are damaged', () => {
+    const s = cpuTurn('charmander', 'onix');
+    bench(s, 0, 'squirtle');
+    ash(s).active!.damage = 10;
+    ash(s).bench[0]!.damage = 10;
+    const [brock] = hand(s, 'brockG');
+    expect(played(moves(s), brock!)).toBeDefined();
+  });
+
+  it("plays Blaine and attaches 2 Fire Energy cards to a Pokémon with Blaine in its name that needs them", () => {
+    const s = cpuTurn('blainesGrowlithe', 'onix');
+    const [blaine] = hand(s, 'blaine', 'fire', 'fire');
+    const actions = moves(s);
+    expect(played(actions, blaine!)).toBeDefined();
+    expect(actions.filter((a) => a.type === 'ATTACH_ENERGY' && a.target === 'active')).toHaveLength(2);
+  });
+
+  it("plays Misty when its 20 more damage Knocks Out, discarding cards it can't use", () => {
+    const s = cpuTurn('mistysTentacoolC', 'squirtle', { energy: ['water', 'water'] });
+    const [misty] = hand(s, 'mistyG', 'charizard', 'charizard');
+    expect(played(moves(s), misty!)).toBeDefined();
+  });
+
+  it('plays Koga before attacking with a Pokémon with Koga in its name', () => {
+    const s = cpuTurn('kogasKoffing', 'onix', { energy: ['grass'] });
+    const [koga] = hand(s, 'koga');
+    const actions = moves(s);
+    expect([played(actions, koga!) !== undefined, actions.at(-1)!.type]).toEqual([true, 'ATTACK']);
+  });
+
+  it('plays Giovanni so a Pokémon with Giovanni in its name can evolve the turn it was played', () => {
+    const s = cpuTurn('charmander', 'onix');
+    bench(s, 0, 'giovannisMachop');
+    ash(s).bench[0]!.playedTurn = 3;
+    const [giovanni, machoke] = hand(s, 'giovanni', 'giovannisMachoke');
+    const actions = moves(s);
+    expect(played(actions, giovanni!)).toBeDefined();
+    expect(actions).toContainEqual({ type: 'EVOLVE', cardUid: machoke, target: 0 });
+  });
+
+  it("plays a Stadium for its owner's Pokémon when it has more of them in play", () => {
+    const s = cpuTurn('brocksRhyhorn', 'onix');
+    bench(s, 0, 'brocksGeodude');
+    const [pewter] = hand(s, 'pewterGym');
+    expect(played(moves(s), pewter!)).toBeDefined();
+  });
+
+  it("plays Tickling Machine only when it has no attack that does damage", () => {
+    const stuck = cpuTurn('charmander', 'onix');
+    const [machine] = hand(stuck, 'ticklingMachine');
+    expect(played(moves(stuck), machine!)).toBeDefined();
+    const ready = cpuTurn('charmander', 'onix', { energy: ['fire'] });
+    const [other] = hand(ready, 'ticklingMachine');
+    expect(played(moves(ready), other!)).toBeUndefined();
+  });
+});

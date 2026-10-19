@@ -19,7 +19,17 @@ export function useAttack({ view, send, busy }: { view: PlayerView; send: (a: Ga
   const { self, opponent } = view;
   const situation: AttackSituation | null =
     self.active && opponent.active
-      ? { attacker: self.active, defender: opponent.active, opponentBench: opponent.bench, ownBench: self.bench, ownDiscard: self.discard, cards: view.cards, turn: view.turn }
+      ? {
+          attacker: self.active,
+          defender: opponent.active,
+          opponentBench: opponent.bench,
+          ownBench: self.bench,
+          ownDiscard: self.discard,
+          cards: view.cards,
+          turn: view.turn,
+          stadium: view.stadium?.card ?? null,
+          recall: !!self.recall,
+        }
       : null;
 
   const cancel = () => setChoosing(null);

@@ -1,4 +1,4 @@
-import { attackDamage, attackEffect, effectId, inPlayDef, type CardLibrary, type DamageRange, type GameAction, type InPlayPokemon } from '@poke-tcg/game-engine';
+import { attackDamage, attackEffect, inPlayDef, usableAttacks, type CardLibrary, type DamageRange, type GameAction, type InPlayPokemon } from '@poke-tcg/game-engine';
 import type { AttackControl } from '../hooks/useAttack';
 
 /**
@@ -16,6 +16,8 @@ export function AttackList({
   pending,
   attack,
   damage: preview = [],
+  recall = false,
+  bench = [],
 }: {
   pokemon: InPlayPokemon;
   /** The opponent's active Pokémon, if any. */
@@ -27,13 +29,17 @@ export function AttackList({
   attack: AttackControl;
   /** What each attack would do now (PlayerView.attackDamage). */
   damage?: (DamageRange | null)[];
+  /** Recall was played: the attacks of the cards it evolved from are listed after its own, with their card's name. */
+  recall?: boolean;
+  /** The player's Bench, for Psylink's copies of its Psychic Pokémon's attacks (listed last, with their names). */
+  bench?: (InPlayPokemon | null)[];
 }) {
   // A Transformed Ditto has the Defending Pokémon's attacks.
   const def = inPlayDef(cards, pokemon);
   const defenderDef = defender && inPlayDef(cards, defender);
   return (
     <div className="flex flex-col gap-1">
-      {def.attacks.map((a, i) => {
+      {usableAttacks(pokemon, cards, { recall, bench }).map(({ attack: a, source, from }, i) => {
         const error = attack.error(i);
         const usable = canAttack && error === null;
         // Variable damage ("30+", "10×", "?") depends on the card text, so it's shown as printed.
@@ -41,12 +47,12 @@ export function AttackList({
         const damage = fixed && defenderDef ? attackDamage(a, def, defenderDef, defender) : a.damage;
         const modifier =
           damage === a.damage ? null : damage > a.damage ? `${defenderDef!.name} is weak to ${def.type}` : `${defenderDef!.name} resists ${def.type}`;
-        const unimplemented = a.text && !attackEffect(effectId(pokemon), a.name);
+        const unimplemented = a.text && !attackEffect(source, a.name);
         const now = !fixed ? preview[i] : undefined;
         const active = (pending?.type === 'ATTACK' && pending.attackIndex === i) || attack.choosingIndex === i;
         return (
           <button
-            key={a.name}
+            key={`${from ?? ''}:${a.name}`}
             disabled={!usable}
             title={[error, now && `Printed damage: ${a.damageText ?? a.damage}`, a.text, unimplemented && '(Card text not implemented yet.)'].filter(Boolean).join('\n') || undefined}
             onClick={() => attack.start(i)}
@@ -54,6 +60,7 @@ export function AttackList({
               active ? 'animate-pulse ring-2 ring-yellow-300' : usable ? '' : 'disabled:opacity-40'
             }`}
           >
+            {from && <span className="text-yellow-200">{from}: </span>}
             {a.name} (
             {!fixed ? (
               now ? (

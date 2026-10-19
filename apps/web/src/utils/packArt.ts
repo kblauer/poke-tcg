@@ -10,6 +10,8 @@ export const PACK_ART: Record<string, string[]> = {
   base3: ['aerodactyl', 'lapras', 'zapdos'],
   base4: ['gyarados', 'mewtwo', 'pidgeot', 'raichu'],
   base5: ['giovanni', 'gyarados', 'jessie-james', 'team-rocket'],
+  gym1: ['brock', 'erika', 'misty'],
+  gym2: ['blaine', 'koga', 'sabrina'],
 };
 
 /** A random wrapper for each set that has them, as image paths: picked once per visit to the Packs tab. */

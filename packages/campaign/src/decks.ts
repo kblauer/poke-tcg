@@ -106,7 +106,30 @@ const EXTRA_TRAINERS: [string, number][] = [
   ['Computer Search', 1],
   ['Super Energy Removal', 1],
   ['Pokémon Trader', 1],
+  // Gym Heroes and Gym Challenge Trainers that work in any deck.
+  ['Erika', 1],
+  ["Misty's Wrath", 1],
+  ['Master Ball', 1],
+  ['Brock', 1],
+  ['Good Manners', 1],
 ];
+
+/**
+ * Gym Trainers for a deck with an owner's Pokémon (4 or more cards with "Brock's" in the name…), added before the random
+ * extras. Only ones the gym leader CPU plays.
+ */
+const OWNER_TRAINERS: Record<string, [string, number][]> = {
+  Brock: [["Brock's Training Method", 1], ["Brock's Protection", 1], ['Pewter City Gym', 1]],
+  Misty: [['Misty', 1], ['Cerulean City Gym', 1]],
+  Erika: [["Erika's Maids", 1], ['Celadon City Gym', 1]],
+  Giovanni: [['Giovanni', 1], ["Giovanni's Last Resort", 1], ['Viridian City Gym', 1]],
+  Koga: [['Koga', 1], ["Koga's Ninja Trick", 1]],
+  Blaine: [['Blaine', 1], ['Cinnabar City Gym', 1]],
+  'Lt. Surge': [['Vermilion City Gym', 1]],
+};
+
+/** Gym Trainers that fetch Energy, for a deck of that type. */
+const TYPE_TRAINERS: Partial<Record<EnergyType, [string, number][]>> = { water: [["Misty's Tears", 1]], fire: [['Fervor', 1]] };
 
 /**
  * The Pokémon each kind of trainer favours, by the class in their name ("Swimmer" in "Swimmer Luis"), after
@@ -206,6 +229,9 @@ export function generateDeck(pool: readonly PoolCard[], rng: Rng, { type, favori
   const trainerTarget = between(rng, 14, 16);
   const plan: [string, number][] = [...CORE_TRAINERS];
   if (chosen.some((l) => l.stages.length === 3)) plan.push(['Pokémon Breeder', 1]);
+  const owned = (owner: string) => deck.filter((id) => pool.find((c) => c.def.id === id)?.def.name.startsWith(`${owner}'s `)).length;
+  for (const [owner, cards] of Object.entries(OWNER_TRAINERS)) if (owned(owner) >= 4) plan.push(...cards);
+  for (const t of types) plan.push(...(TYPE_TRAINERS[t] ?? []));
   for (const [name, copies] of sample(rng, EXTRA_TRAINERS, EXTRA_TRAINERS.length)) {
     if (plan.reduce((n, [, c]) => n + c, 0) >= trainerTarget) break;
     plan.push([name, copies]);

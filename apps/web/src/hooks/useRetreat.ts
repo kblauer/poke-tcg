@@ -13,8 +13,8 @@ export function useRetreat({ view, send, busy }: { view: PlayerView; send: (a: G
   /** Energy picked to discard, when there's a choice. */
   const [chosen, setChosen] = useState<string[]>([]);
 
-  // Both sides, for powers that change it (Retreat Aid).
-  const cost = active ? retreatCost(active, view.cards, [view.self, view.opponent]) : 0;
+  // Both sides, for powers that change it (Retreat Aid), and the Stadium (The Rocket's Training Gym).
+  const cost = active ? retreatCost(active, view.cards, [view.self, view.opponent], view.stadium?.card) : 0;
   const energy = active?.energy ?? [];
   const amount = (e: CardInstance) => energyProvided(e, view.cards).amount;
   const total = energy.reduce((sum, e) => sum + amount(e), 0);
@@ -32,7 +32,7 @@ export function useRetreat({ view, send, busy }: { view: PlayerView; send: (a: G
     ? 'No active Pokémon'
     : !isMyTurn(view)
       ? "It's not your turn"
-      : retreatError(active, view.cards, hasBenched(view.self), view.retreatedThisTurn, [view.self, view.opponent]);
+      : retreatError(active, view.cards, hasBenched(view.self), view.retreatedThisTurn, [view.self, view.opponent], view.stadium?.card);
 
   const cancel = () => {
     setRetreating(false);

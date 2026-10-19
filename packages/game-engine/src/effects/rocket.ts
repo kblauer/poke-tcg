@@ -27,7 +27,7 @@ import {
 import { flipForMore, rage } from './jungle.js';
 
 /** Base damage, or nothing on tails (Giant Tail, Fickle Attack, Hyper Fang). */
-const flipOrNothing = (damage: number): AttackEffect => ({
+export const flipOrNothing = (damage: number): AttackEffect => ({
   run(ctx) {
     if (ctx.flip()) ctx.hit(damage);
     else ctx.log('The attack did nothing.');
@@ -63,7 +63,7 @@ function discardFromAttacker(ctx: AttackContext, gone: CardInstance[]) {
 }
 
 /** Shuffles a Pokémon in play and every card with it into its owner's deck, emptying its spot (Fling, Vanish). */
-function shuffleIntoDeck(ctx: AttackContext, owner: PlayerState, target: Target, discardAttached: boolean) {
+export function shuffleIntoDeck(ctx: AttackContext, owner: PlayerState, target: Target, discardAttached: boolean) {
   const p = (target === 'active' ? owner.active : owner.bench[target])!;
   const attached = [...p.energy.map(({ provides: _, ...card }) => card), ...(p.attached ?? []).map((a) => a.card)];
   const cards = [...p.evolvedFrom, p.card, ...(discardAttached ? [] : attached)];

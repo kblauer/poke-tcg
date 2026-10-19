@@ -116,6 +116,28 @@ export interface PowerEffect {
    * choose something (`state.pendingChoice`).
    */
   onEnergyFromHand?: (state: GameState, owner: PlayerState, pokemon: InPlayPokemon, target: Target, energy: CardInstance) => void;
+  /** Rebirth: when it's Knocked Out, its card goes back to the hand after it's discarded (engine.ts, resolveKnockouts). */
+  rebirth?: boolean;
+  /** Photosynthesis: all Energy attached to it provides Grass Energy (energyPool). */
+  photosynthesis?: boolean;
+  /** Shell Armor: attack damage to it is 10 less, after Weakness and Resistance. */
+  shellArmor?: boolean;
+  /** Strange Barrier: an attack by a Basic Pokémon that does 20 or more damage to it does 10 instead. */
+  strangeBarrier?: boolean;
+  /** Bench Guard: while it's benched, its owner may move 10 of the damage an attack does to another benched Pokémon to it. */
+  benchGuard?: boolean;
+  /** Flee: before the opponent attacks, its owner may say it switches out if the attack damages it as the Active Pokémon. */
+  flee?: boolean;
+  /** Psylink: it can use the attacks of its owner's other Psychic Pokémon in play (usableAttacks). */
+  psylink?: boolean;
+  /** Rebellion: whenever it attacks, 2 tails and the attack does nothing; it's shuffled into its owner's deck. */
+  rebellion?: boolean;
+  /** Fortitude: an opponent's attack that would Knock it Out leaves it with 10 HP on heads. */
+  fortitude?: boolean;
+  /** Relaxing Scent: while it's an Active Pokémon, attack damage to any Pokémon is halved, rounded up to the nearest 10. */
+  relaxingScent?: boolean;
+  /** Scram: with exactly 10 HP left, it's shuffled into its owner's deck with every card attached (resolveKnockouts). */
+  scram?: boolean;
 }
 
 export interface PowerContext {

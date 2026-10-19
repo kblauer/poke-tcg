@@ -67,6 +67,53 @@ export function AttackChoicePanel({ spec, view, attack }: { spec: ChoiceSpec; vi
               </button>
             );
           })}
+        {(spec.kind === 'eitherDiscard' || spec.kind === 'oppDiscard') && (
+          // Invigorate (either discard pile, answered as a list) and Pranks (the CPU's): one card, by name.
+          <div className="flex flex-wrap gap-1">
+            {spec.options.map((c) => (
+              <button key={c.uid} className={option} onClick={() => attack.answer(spec.kind === 'eitherDiscard' ? [c.uid] : c.uid)}>
+                {lookupCard(cards, c.defId).name}
+              </button>
+            ))}
+          </div>
+        )}
+        {spec.kind === 'amount' && (
+          <div className="flex flex-wrap gap-1">
+            {spec.options.map((n) => (
+              <button key={n} className={option} onClick={() => attack.answer(n)}>
+                {n}
+              </button>
+            ))}
+          </div>
+        )}
+        {spec.kind === 'vermilion' && (
+          <div className="flex flex-wrap gap-1">
+            <button className={option} onClick={() => attack.answer(true)}>
+              Flip
+            </button>
+            <button className={option} onClick={() => attack.answer(false)}>
+              Don't flip
+            </button>
+          </div>
+        )}
+        {spec.kind === 'charity' && (
+          <div className="flex flex-wrap gap-1">
+            {spec.options.map((n) => (
+              <button key={n} className={option} onClick={() => attack.answer(n)}>
+                {n < 0 ? 'All of it' : n}
+              </button>
+            ))}
+          </div>
+        )}
+        {spec.kind === 'condition' && (
+          <div className="flex flex-wrap gap-1">
+            {spec.options.map((c) => (
+              <button key={c} className={`${option} capitalize`} onClick={() => attack.answer(c)}>
+                {c}
+              </button>
+            ))}
+          </div>
+        )}
         {(spec.kind === 'type' || spec.kind === 'weaknessType') && (
           <div className="flex flex-wrap gap-1">
             {spec.options.map((t) => (

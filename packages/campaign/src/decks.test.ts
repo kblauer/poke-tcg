@@ -68,7 +68,9 @@ describe('generateDeck', () => {
   });
 
   it('holds only Trainers a CPU plays', () => {
-    const played = new Set(['Bill', 'Professor Oak', 'Potion', 'Switch', 'Pokémon Breeder', 'PlusPower', 'Energy Removal', 'Gust of Wind', 'Super Potion', 'Defender', 'Full Heal', 'Pokémon Center', 'Computer Search', 'Super Energy Removal', 'Pokémon Trader']);
+    const played = new Set(['Bill', 'Professor Oak', 'Potion', 'Switch', 'Pokémon Breeder', 'PlusPower', 'Energy Removal', 'Gust of Wind', 'Super Potion', 'Defender', 'Full Heal', 'Pokémon Center', 'Computer Search', 'Super Energy Removal', 'Pokémon Trader',
+      // Gym Heroes and Gym Challenge.
+      'Erika', "Misty's Wrath", 'Master Ball', 'Brock', 'Good Manners', "Brock's Training Method", "Brock's Protection", 'Pewter City Gym', 'Misty', 'Cerulean City Gym', "Erika's Maids", 'Celadon City Gym', 'Giovanni', "Giovanni's Last Resort", 'Viridian City Gym', 'Koga', "Koga's Ninja Trick", 'Blaine', 'Cinnabar City Gym', 'Vermilion City Gym', "Misty's Tears", 'Fervor']);
     for (const deck of decks) for (const d of deck.map(testDef)) if (d.kind === 'trainer') expect(played, d.name).toContain(d.name);
   });
 });

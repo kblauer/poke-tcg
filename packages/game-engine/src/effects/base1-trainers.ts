@@ -1,10 +1,10 @@
 // Base Set (base1) Trainer cards, by card id. Rulings (agreed): a Knocked Out Clefairy Doll gives
 // no prize; Scoop Up can't take your only Pokémon in play; Devolution Spray can Knock Out (prize as
 // usual); PlusPower's +10 comes before Defender's −20, both after weakness and resistance.
-import { isBasicEnergy, isBasicPokemon, isBenchable, isPokemonCard, isTrainerCard, type PokemonCardDef } from '../cards.js';
+import { isBasicEnergy, isBasicPokemon, isBenchable, isPokemonCard, isTrainerCard, type CardLibrary, type PokemonCardDef } from '../cards.js';
 import type { CardInstance, InPlayPokemon, PlayerState, Target } from '../engine.js';
 import { evolutionBlocked, offerChainReaction, playedFromHand } from '../powers.js';
-import { clearOnLeavingActive, inPlayDef } from '../status.js';
+import { clearOnLeavingActive, energyProtected, evolvedHook, inPlayDef, openBenchSlot } from '../status.js';
 import { def, otherHandCards, own, targetsOf, theirs, type TrainerChoiceSpec, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 
 const pokemonDef = (s: { cards: TrainerSituation['cards'] }, p: InPlayPokemon): PokemonCardDef => inPlayDef(s.cards, p);
@@ -20,8 +20,11 @@ const otherCards = (s: TrainerSituation, n: number, prompt: string): TrainerChoi
 });
 const needOthers = (s: TrainerSituation, n: number) => (otherHandCards(s).length < n ? `You need ${n} other card${n === 1 ? '' : 's'} in your hand` : null);
 
+/** The opponent's Pokémon at `t` has Energy that Trainers can remove (not with Brock's Protection attached). */
+const removable = (s: TrainerSituation, t: Target) => theirs(s, t)!.energy.length > 0 && !energyProtected(s.cards, theirs(s, t)!);
 const at = (side: Pick<PlayerState, 'active' | 'bench'>, t: Target) => (t === 'active' ? side.active : side.bench[t])!;
-const emptySlot = (side: Pick<PlayerState, 'bench'>) => side.bench.findIndex((p) => p === null);
+/** An empty Bench slot of `side` (none while Narrow Gym leaves no room), given the Stadium in play. */
+const emptySlot = (side: Pick<PlayerState, 'bench'>, s: { cards: CardLibrary; stadium?: CardInstance | null }) => openBenchSlot(side.bench, s.cards, s.stadium);
 const newInPlay = (card: CardInstance, turn: number): InPlayPokemon => ({ card, evolvedFrom: [], damage: 0, energy: [], playedTurn: turn });
 
 /** Switches the active with the benched Pokémon in `slot`. */
@@ -148,6 +151,7 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
       p.playedTurn = ctx.turn;
       clearOnLeavingActive(p);
       ctx.log(`${basicName} evolved into ${pokemonDef(ctx.state, p).name}.`);
+      evolvedHook(ctx.state, ctx.me.id, p);
       // The Stage 2 was played from the hand: its power may react (Summon Minions…, agreed), then Chain Reaction.
       playedFromHand(ctx.state, ctx.me, p);
       if (!ctx.state.pendingChoice) offerChainReaction(ctx.state);
@@ -183,14 +187,14 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
   'base1-79': {
     blocked(s) {
       if (!targetsOf(s.me).some((t) => own(s, t)!.energy.length)) return 'None of your Pokémon have Energy to discard';
-      return targetsOf(s.opp).some((t) => theirs(s, t)!.energy.length) ? null : "None of your opponent's Pokémon have Energy";
+      return targetsOf(s.opp).some((t) => removable(s, t)) ? null : "None of your opponent's Pokémon have Energy";
     },
     choices(s, c) {
       const specs: TrainerChoiceSpec[] = [
         { kind: 'pokemon', field: 'target', side: 'own', options: targetsOf(s.me).filter((t) => own(s, t)!.energy.length), prompt: 'Discard an Energy from which of your Pokémon' },
       ];
       if (c.target !== undefined) specs.push({ kind: 'cards', field: 'energyUids', min: 1, max: 1, options: own(s, c.target)!.energy, prompt: 'Choose your Energy to discard' });
-      specs.push({ kind: 'pokemon', field: 'oppTarget', side: 'opp', options: targetsOf(s.opp).filter((t) => theirs(s, t)!.energy.length), prompt: "Choose one of your opponent's Pokémon" });
+      specs.push({ kind: 'pokemon', field: 'oppTarget', side: 'opp', options: targetsOf(s.opp).filter((t) => removable(s, t)), prompt: "Choose one of your opponent's Pokémon" });
       if (c.oppTarget !== undefined) specs.push({ kind: 'cards', field: 'oppEnergyUids', min: 1, max: 2, options: theirs(s, c.oppTarget)!.energy, prompt: 'Choose up to 2 of its Energy to discard' });
       return specs;
     },
@@ -280,7 +284,7 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
   // Pokémon Flute
   'base1-86': {
     blocked(s) {
-      if (emptySlot(s.opp) < 0) return "Your opponent's Bench is full";
+      if (emptySlot(s.opp, s) < 0) return "Your opponent's Bench is full";
       return s.opp.discard.some((c) => isBasicPokemon(def(s, c))) ? null : "No Basic Pokémon in your opponent's discard pile";
     },
     choices: (s) => [
@@ -289,7 +293,7 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
     play(ctx) {
       const card = ctx.opp.discard.find((c) => c.uid === ctx.choices.discardUids![0])!;
       ctx.opp.discard = ctx.opp.discard.filter((c) => c !== card);
-      ctx.opp.bench[emptySlot(ctx.opp)] = newInPlay(card, ctx.turn);
+      ctx.opp.bench[emptySlot(ctx.opp, { cards: ctx.state.cards, stadium: ctx.state.stadium?.card })] = newInPlay(card, ctx.turn);
       ctx.log(`${def(ctx.state, card).name} was put onto the Bench.`, ctx.opp.id);
     },
   },
@@ -312,7 +316,7 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
   // Revive
   'base1-89': {
     blocked(s) {
-      if (emptySlot(s.me) < 0) return 'Your Bench is full';
+      if (emptySlot(s.me, s) < 0) return 'Your Bench is full';
       return s.me.discard.some((c) => isBasicPokemon(def(s, c))) ? null : 'No Basic Pokémon in your discard pile';
     },
     choices: (s) => [
@@ -324,7 +328,7 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
       const p = newInPlay(card, ctx.turn);
       // Half its HP, rounded down to the nearest 10.
       p.damage = Math.floor(pokemonDef(ctx.state, p).hp / 20) * 10;
-      ctx.me.bench[emptySlot(ctx.me)] = p;
+      ctx.me.bench[emptySlot(ctx.me, { cards: ctx.state.cards, stadium: ctx.state.stadium?.card })] = p;
       ctx.log(`Revived ${pokemonDef(ctx.state, p).name} onto the Bench.`);
     },
   },
@@ -353,10 +357,10 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
 
   // Energy Removal
   'base1-92': {
-    blocked: (s) => (targetsOf(s.opp).some((t) => theirs(s, t)!.energy.length) ? null : "None of your opponent's Pokémon have Energy"),
+    blocked: (s) => (targetsOf(s.opp).some((t) => removable(s, t)) ? null : "None of your opponent's Pokémon have Energy"),
     choices(s, c) {
       const specs: TrainerChoiceSpec[] = [
-        { kind: 'pokemon', field: 'oppTarget', side: 'opp', options: targetsOf(s.opp).filter((t) => theirs(s, t)!.energy.length), prompt: "Choose one of your opponent's Pokémon" },
+        { kind: 'pokemon', field: 'oppTarget', side: 'opp', options: targetsOf(s.opp).filter((t) => removable(s, t)), prompt: "Choose one of your opponent's Pokémon" },
       ];
       if (c.oppTarget === undefined) return specs;
       return [...specs, { kind: 'cards', field: 'oppEnergyUids', min: 1, max: 1, options: theirs(s, c.oppTarget)!.energy, prompt: 'Choose an Energy to discard' }];

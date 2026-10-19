@@ -38,8 +38,12 @@ export function useTrainer({ view, send, busy }: { view: PlayerView; send: (a: G
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  /** Chaos Gym, on the CPU's tails: the card it couldn't play, which the player may play now. */
+  const pending = view.self.pendingChoice;
+  const borrowed = pending?.kind === 'options' ? pending.playable : undefined;
   /** Why a Trainer card in the hand can't be played now; null if it can. */
-  const error = (card: CardInstance) => (!isMyTurn(view) ? "It's not your turn" : view.self.pendingChoice ? 'Finish your search first' : trainerError(situation(card)));
+  const error = (card: CardInstance) =>
+    card.uid === borrowed ? trainerError(situation(card)) : !isMyTurn(view) ? "It's not your turn" : view.self.pendingChoice ? 'Finish your search first' : trainerError(situation(card));
 
   const card = playing && view.self.hand.find((c) => c.uid === playing.cardUid);
   const spec = card ? nextTrainerChoice(situation(card), playing!.choices) : null;
