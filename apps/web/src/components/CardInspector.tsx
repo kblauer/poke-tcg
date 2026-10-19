@@ -1,6 +1,9 @@
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
+import StarIcon from '@mui/icons-material/Star';
+import StarBorderIcon from '@mui/icons-material/StarBorder';
 import { useEffect, useRef } from 'react';
+import { useScrollLock } from '../hooks/useScrollLock';
 import type { CatalogCard } from '../utils/cardList';
 import { CardViewer } from './CardViewer';
 
@@ -11,13 +14,15 @@ const small = 'flex rounded bg-slate-600 p-1 hover:bg-slate-500 disabled:opacity
  * CardInspectProvider) until Escape or a click outside it. Opened by a long press, it ignores the finger lifting (the
  * click that ends the press lands on it): only a press that starts on it closes it. With a deck open (`deck`), − and + change its copies in
  * the deck; + is disabled with the reason when the card can't be added. In the deck builder (`craft`), Craft unlocks the
- * card for Stardust.
+ * card for Stardust. The page behind it doesn't scroll while it's open (useScrollLock); it scrolls itself only when it's
+ * taller than the screen. The ★ button (`favorite`) adds the card to the account's favorites, or takes it out.
  */
 export function CardInspector({
   card,
   locked,
   deck,
   craft,
+  favorite,
   onClose,
 }: {
   card: CatalogCard;
@@ -25,10 +30,14 @@ export function CardInspector({
   deck?: { name: string; copies: number; blocked: string | null; onChange: (by: 1 | -1) => void };
   /** The deck builder's crafting: the card's Stardust cost, the Stardust held, and why it can't be crafted (or null). */
   craft?: { cost: number; stardust: number; blocked: string | null; pending: boolean; error?: string; onCraft: () => void };
+  /** Whether the card is one of the account's favorites, and adding or taking it out. */
+  favorite?: { on: boolean; onToggle: () => void };
   onClose: () => void;
 }) {
   /** A press has started on it since it opened. */
   const pressed = useRef(false);
+  const overlay = useRef<HTMLDivElement>(null);
+  useScrollLock(true, overlay);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
@@ -38,7 +47,8 @@ export function CardInspector({
     <div
       // Above everything, the game's dialogs and hover preview included; clicks in it don't cancel a move in progress.
       data-keep-action
-      className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/80 p-4"
+      ref={overlay}
+      className="fixed inset-0 z-[1200] flex overflow-y-auto overscroll-contain bg-black/80 p-4"
       role="dialog"
       aria-label={card.name}
       onPointerDown={() => (pressed.current = true)}
@@ -49,8 +59,18 @@ export function CardInspector({
         if (pressed.current) onClose();
       }}
     >
-      <div className="flex w-full max-w-lg flex-col items-center gap-3" onClick={(e) => e.stopPropagation()} onContextMenu={(e) => e.stopPropagation()}>
+      <div className="m-auto flex w-full max-w-lg flex-col items-center gap-3" onClick={(e) => e.stopPropagation()} onContextMenu={(e) => e.stopPropagation()}>
         <CardViewer card={card} locked={locked} />
+        {favorite && (
+          <button
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm ring-1 transition active:scale-95 ${favorite.on ? 'bg-yellow-300/15 text-yellow-300 ring-yellow-300/60 hover:bg-yellow-300/25' : 'bg-slate-800 text-slate-200 ring-slate-600 hover:bg-slate-700'}`}
+            aria-pressed={favorite.on}
+            onClick={favorite.onToggle}
+          >
+            {favorite.on ? <StarIcon sx={{ fontSize: 18 }} /> : <StarBorderIcon sx={{ fontSize: 18 }} />}
+            {favorite.on ? 'Favorite' : 'Add to favorites'}
+          </button>
+        )}
         {deck && (
           <div className="flex items-center gap-3 rounded-lg bg-slate-800 px-3 py-2 text-sm ring-1 ring-slate-600">
             <span className="max-w-56 truncate text-slate-400">In {deck.name || 'this deck'}</span>

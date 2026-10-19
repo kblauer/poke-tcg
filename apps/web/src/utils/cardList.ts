@@ -32,15 +32,3 @@ export const setNames = (cards: CatalogCard[]) => [...new Set([...cards].sort((a
 export const matchesSearch = (card: Pick<CatalogCard, 'name' | 'attacks'>, search: string) =>
   card.name.toLowerCase().includes(search) || (card.attacks ?? []).some((a) => a?.toLowerCase().includes(search));
 
-/** Cards to show by whether the account has unlocked them. */
-export type Ownership = 'all' | 'unlocked' | 'locked';
-
-export const OWNERSHIP_OPTIONS: { value: Ownership; label: string }[] = [
-  { value: 'all', label: 'Locked and unlocked' },
-  { value: 'unlocked', label: 'Unlocked only' },
-  { value: 'locked', label: 'Locked only' },
-];
-
-/** Whether the card passes the unlocked/locked filter. */
-export const matchesOwnership = (card: CatalogCard, ownership: Ownership, isLocked: (card: CatalogCard) => boolean) =>
-  ownership === 'all' || (ownership === 'locked') === isLocked(card);
