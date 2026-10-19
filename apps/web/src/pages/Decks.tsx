@@ -137,6 +137,9 @@ export function DecksPage() {
   // Holo Energy only shows once it's been pulled from a pack.
   const searchable = useMemo(() => (catalog.data ?? []).filter((c) => !c.holoEnergy || copies(c.id) > 0), [catalog.data, copies]);
   const results = useMemo(() => sortForDeck(filterForDeck(searchable, filter, isLocked), sort), [searchable, filter, sort, isLocked]);
+  // The numbers of cards shown and in all: holo Energy is never counted (it's a version of a basic Energy, pulled from packs).
+  const shownCount = useMemo(() => results.filter((c) => !c.holoEnergy).length, [results]);
+  const totalCount = useMemo(() => (catalog.data ?? []).filter((c) => !c.holoEnergy).length, [catalog.data]);
   const counts = useMemo(() => new Map(entries.map((e) => [e.cardId, e.quantity])), [entries]);
   /** The open deck is the automatic run deck: it can be looked at and copied, not changed. */
   const readOnly = deckId !== null && (decks.data?.find((d) => d.id === deckId)?.runDeck ?? false);
@@ -265,7 +268,7 @@ export function DecksPage() {
       <DeckPanel entries={entries} byId={byId} problems={problems} isLocked={isLocked} onChange={(cardId, by) => change(byId.get(cardId)!, by)} compact={phone} />
     </div>
   );
-  const filters = <DeckFilters filter={filter} sort={sort} sets={sets} shown={results.length} total={catalog.data.length} onChange={setFilter} onSortChange={setSort} compact={phone} />;
+  const filters = <DeckFilters filter={filter} sort={sort} sets={sets} shown={shownCount} total={totalCount} onChange={setFilter} onSortChange={setSort} compact={phone} />;
   const blockedNote = blocked && <p className={`${phone ? 'text-xs' : 'text-sm'} text-amber-300`}>{blocked}.</p>;
   const grid = <CardGrid cards={results} selectedId={null} onSelect={(c) => change(c, 1)} counts={counts} isLocked={isLocked} holdToInspect compact={phone} />;
   /** How many of the search's filters are set (the phone's Filters button shows it). */
@@ -305,7 +308,7 @@ export function DecksPage() {
               Filters
               {filtersOn > 0 && <span className="rounded-full bg-yellow-300 px-1.5 text-xs font-semibold text-slate-900">{filtersOn}</span>}
             </button>
-            <span className="ml-auto shrink-0 text-xs text-slate-400">{results.length === catalog.data.length ? `${results.length} cards` : `${results.length} of ${catalog.data.length}`}</span>
+            <span className="ml-auto shrink-0 text-xs text-slate-400">{shownCount === totalCount ? `${shownCount} cards` : `${shownCount} of ${totalCount}`}</span>
           </div>
           {blockedNote}
           {grid}
