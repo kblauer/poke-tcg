@@ -31,6 +31,9 @@
 - Claude usually can't see the UI. Unless browser tools are connected, UI changes are only checked by typecheck and build, and you should be told that explicitly.
 - For API checks against the real DB, use a throwaway script in `apps/api/src/_*.tmp.ts`, run it with `npx tsx --env-file-if-exists=../../.env`, and delete both the script and any test data afterwards.
 
+## Site navigation (agreed)
+- The header is the original single row (logo, page tabs, email and Sign out) whenever it fits the window's width (measured, not a fixed breakpoint). When it would wrap onto two rows, it becomes the ☰ button and the logo: the ☰ opens a menu panel from the left (`SidePanel`) with the pages, the account's email and Sign out.
+
 ## UI and interaction decisions (game board)
 - The game page fills the window. Side margins come from `PAGE_WIDTH` in `apps/web/src/utils/layout.ts`, shared with the Decks page.
 - Card sizes are CSS variables (`--card-sm`/`--card-lg`) on `.play-area-cards` in `index.css`. They scale with the play area's container size, and the large card is 1.4× the small one. Use `SMALL_CARD`/`LARGE_CARD`/`SIDE_COLUMN` rather than hard-coded sizes.
@@ -65,7 +68,11 @@
 - Phones held upright (`useIsPhone`) get their own battle screen and Collection layout; tablets and desktops keep the usual ones. See README: Phone layout.
 - Battle screen: locked full screen (`useLockedScreen`), TCG Pocket style (`components/phone/`); tap your Active for its moves (`ActiveSheet`); small Prize/deck/discard stacks beside each Active; the round ☰ button opens the side panel's tabs and Concede (`LogSheet`). No hover preview: a long press inspects a card.
 - Phone hand: tap selects; hold zooms in (large, above the hand) and sliding along the hand changes the zoomed card; sliding up off the hand drags the zoomed card into play.
-- Collection: decks (compact tiles) on the left and the search on the right share the top; the cards get the rest.
+- Collection: the cards fill the screen; the decks (compact tiles) and the search are side panels slid in by the Decks and Filters buttons above them.
+- Packs: a grid 4 wide by 2 tall.
+
+## Post-run screen (agreed)
+- A beaten run's screen: the shop first, then the cards gained (with the results), then the next run. The same on every screen size.
 
 ## Debug tools (testing cheats)
 - The Debug tab can change the CPU's difficulty, draw a card, add any card or Energy to the hand, set the HP of any Pokémon in play, and turn Special Conditions on or off on either active.

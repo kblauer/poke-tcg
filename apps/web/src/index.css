@@ -43,8 +43,23 @@
 .sheet-up {
   animation: sheet-up 200ms ease-out;
 }
+/* Side panels (components/SidePanel.tsx) slide in from their edge. */
+@keyframes panel-left {
+  from { transform: translateX(-100%); }
+  to { transform: none; }
+}
+@keyframes panel-right {
+  from { transform: translateX(100%); }
+  to { transform: none; }
+}
+.panel-left {
+  animation: panel-left 200ms ease-out;
+}
+.panel-right {
+  animation: panel-right 200ms ease-out;
+}
 @media (prefers-reduced-motion: reduce) {
-  .sheet-up { animation: none; }
+  .sheet-up, .panel-left, .panel-right { animation: none; }
 }
 
 /* The attacks column hangs off the active slot's right edge, so the slot stays centred. */

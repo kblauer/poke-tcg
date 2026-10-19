@@ -53,8 +53,8 @@ const Minimized = ({ title, summary, onOpen }: { title: ReactNode; summary?: Rea
 );
 
 /**
- * After a run. Beaten: the next run first, then the EXP it earned, the cards gained in it (already unlocked in
- * the deck builder) and the badges it won, then the shop. The results and the shop can be closed to a slim bar
+ * After a run. Beaten: the shop first, then the EXP it earned, the cards gained in it (already unlocked in
+ * the deck builder) and the badges it won, then the next run. The results and the shop can be closed to a slim bar
  * (see useClosed). Lost: start over, or (for testing) carry on with full HP. Conceded: start over (no retry).
  * Whichever way it ended, SaveRunDeck offers to save the run's deck before the next run.
  */
@@ -109,8 +109,11 @@ export function RunOver({ current, overview, run }: { current: ClientRun; overvi
   const rewards = `+${view.exp} EXP${won.length > 0 ? ` · ${won.join(', ')}` : ''} · ₱${view.pokedollars} banked${packs.length > 0 ? ` · ${packs.join(', ')} booster packs unlocked` : ''}`;
   return (
     <div className="space-y-4">
-      {saveDeck}
-      <NewRunPicker overview={overview} run={run} title="Next run" />
+      {isClosed('shop') ? (
+        <Minimized title="Shop" summary="Spend the EXP from your runs" onOpen={() => toggle('shop')} />
+      ) : (
+        <ItemShop close={<CloseButton label="Close the shop" onClick={() => toggle('shop')} />} />
+      )}
       {isClosed('result') ? (
         <Minimized title={<span className="text-yellow-300">{beat}</span>} summary={`${rewards} · ${view.gained.length} cards gained`} onOpen={() => toggle('result')} />
       ) : (
@@ -134,11 +137,8 @@ export function RunOver({ current, overview, run }: { current: ClientRun; overvi
           )}
         </section>
       )}
-      {isClosed('shop') ? (
-        <Minimized title="Shop" summary="Spend the EXP from your runs" onOpen={() => toggle('shop')} />
-      ) : (
-        <ItemShop close={<CloseButton label="Close the shop" onClick={() => toggle('shop')} />} />
-      )}
+      {saveDeck}
+      <NewRunPicker overview={overview} run={run} title="Next run" />
     </div>
   );
 }
