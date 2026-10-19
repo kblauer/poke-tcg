@@ -20,7 +20,7 @@ import { CPU_ID, HUMAN_ID } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { ensureUser, type AuthUser } from './auth.js';
 import { loadCardLibrary } from './cards.js';
-import { cardPool } from './pool.js';
+import { runPool } from './pool.js';
 import { earnedPacks, unlockPacks } from './progress.js';
 import { unlockCards } from './unlocks.js';
 
@@ -103,7 +103,8 @@ export async function equippedGear(userId: string): Promise<string[]> {
  * when it ends (beaten or lost), moves its ₱ to the bank; its first battle completed (and beating it) unlocks packs.
  */
 export async function advanceRun(run: LoadedRun, actions: (RunAction | RunSystemAction)[]): Promise<LoadedRun> {
-  const [pool, gear] = await Promise.all([cardPool(), equippedGear(run.ownerId)]);
+  // The run's generation's cards: its offers and its trainers' decks are that generation's.
+  const [pool, gear] = await Promise.all([runPool(run.state.type), equippedGear(run.ownerId)]);
   let state = run.state;
   for (const action of actions) {
     const result = applyRunAction(state, action, pool, gear);
@@ -166,7 +167,7 @@ async function giveRewards(tx: Prisma.TransactionClient, userId: string, state: 
 
 /** Creates the battle's game: the run's deck against the encounter's opponent, with the run's battle rules and the player's items'. */
 async function startBattle(run: LoadedRun, state: RunState, gear: string[]): Promise<string> {
-  const setup = battleSetup(state, await cardPool(), { gear, player: HUMAN_ID });
+  const setup = battleSetup(state, await runPool(state.type), { gear, player: HUMAN_ID });
   const library = await loadCardLibrary([...state.deck, ...setup.deck]);
   const seed = newSeed();
   const initial = createGame({ id: HUMAN_ID, deck: state.deck }, { id: CPU_ID, deck: setup.deck }, seed, library, setup.rules);

@@ -86,16 +86,21 @@ function RunTypeOption({ info, selected, onPick }: { info: RunTypeInfo; selected
 
 /**
  * Picks the next run's type and one of your decks (built on the Collection tab), then starts it. Run types are buttons
- * grouped by region (RunTypeOption); locked ones can't be picked. Decks that break the rules or hold cards you haven't
+ * (RunTypeOption) for the generation picked in the dropdown (Gen 1 · Kanto, Gen 2 · Johto…); locked ones can't be picked. Decks that break the rules or hold cards you haven't
  * unlocked are listed with why, and can't be picked.
  */
 export function NewRunPicker({ overview, run, title, defaultType }: { overview: Overview; run: RunControl; title: string; defaultType?: RunTypeId }) {
   const open = overview.runTypes.filter((t) => t.locked === null);
   const [type, setType] = useState<RunTypeId>(open.find((t) => t.id === defaultType)?.id ?? open[0]?.id ?? overview.runTypes[0]!.id);
-  const regions = [...new Set(overview.runTypes.map((t) => RUN_TYPES[t.id].generation))].map((g) => ({
-    region: generation(g).region,
-    types: overview.runTypes.filter((t) => RUN_TYPES[t.id].generation === g),
-  }));
+  // The generation dropdown shows one generation's runs at a time, starting with the picked run's.
+  const generations = [...new Set(overview.runTypes.map((t) => RUN_TYPES[t.id].generation))];
+  const [gen, setGen] = useState(RUN_TYPES[type].generation);
+  const shown = overview.runTypes.filter((t) => RUN_TYPES[t.id].generation === gen);
+  const pickGeneration = (g: number) => {
+    setGen(g);
+    const runs = overview.runTypes.filter((t) => RUN_TYPES[t.id].generation === g);
+    setType((runs.find((t) => t.locked === null) ?? runs[0])!.id);
+  };
   const playable = overview.decks.filter((d) => d.problems.length === 0);
   const [picked, setPicked] = useState<string | null>(null);
   const deckId = picked ?? playable[0]?.id ?? null;
@@ -104,17 +109,28 @@ export function NewRunPicker({ overview, run, title, defaultType }: { overview: 
     <section className="space-y-4 rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600">
       <h3 className="text-lg font-semibold">{title}</h3>
       <div className="@container space-y-2 text-sm">
-        <span className="text-slate-400">Run</span>
-        {regions.map(({ region, types }) => (
-          <div key={region} className="space-y-1">
-            {regions.length > 1 && <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{region}</p>}
-            <ul role="radiogroup" aria-label={`${region} runs`} className="grid gap-2 @lg:grid-cols-2 @3xl:grid-cols-3">
-              {types.map((t) => (
-                <RunTypeOption key={t.id} info={t} selected={t.id === type} onPick={() => setType(t.id)} />
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-slate-400">Run</span>
+          <label className="ml-auto flex items-center gap-2 text-xs text-slate-400">
+            Generation
+            <select
+              className="rounded bg-slate-900 px-2 py-1 text-sm text-slate-100 ring-1 ring-slate-600 focus:outline-none focus:ring-slate-400"
+              value={gen}
+              onChange={(e) => pickGeneration(Number(e.target.value))}
+            >
+              {generations.map((g) => (
+                <option key={g} value={g}>
+                  Gen {g} · {generation(g).region}
+                </option>
               ))}
-            </ul>
-          </div>
-        ))}
+            </select>
+          </label>
+        </div>
+        <ul role="radiogroup" aria-label={`${generation(gen).region} runs`} className="grid gap-2 @lg:grid-cols-2 @3xl:grid-cols-3">
+          {shown.map((t) => (
+            <RunTypeOption key={t.id} info={t} selected={t.id === type} onPick={() => setType(t.id)} />
+          ))}
+        </ul>
       </div>
       {chosen && <p className="text-sm text-slate-400">{chosen.description}</p>}
 

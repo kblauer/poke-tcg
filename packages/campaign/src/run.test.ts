@@ -3,13 +3,14 @@ import { expandDeck, STARTER_DECK } from './decks.js';
 import { ITEMS, itemText, MAX_CONSUMABLES_PER_RUN, shopStock } from './items.js';
 import { RUN_TYPE_IDS, type RunTypeId } from './run-types.js';
 import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
-import { TEST_POOL } from './test-pool.js';
+import { GEN2_SETS } from './pool.js';
+import { GEN2_TEST_POOL, TEST_POOL } from './test-pool.js';
 
 const deck = expandDeck(STARTER_DECK);
 const fresh = (seed = 1) => createRun('celadon', deck, seed);
 
-function act(state: RunState, action: RunAction | RunSystemAction, gear: string[] = []): RunState {
-  const res = applyRunAction(state, action, TEST_POOL, gear);
+function act(state: RunState, action: RunAction | RunSystemAction, gear: string[] = [], pool = TEST_POOL): RunState {
+  const res = applyRunAction(state, action, pool, gear);
   if (!res.ok) throw new Error(res.error);
   return res.state;
 }
@@ -457,5 +458,21 @@ describe('conceding', () => {
 
   it('counts the battles of older runs from their log', () => {
     expect(battlesFought({ log: ['Beat Lass Haley: +₱200, +10 EXP.', 'Bought Potion.', 'Lost to Hiker Marcos: −1 HP.'] })).toBe(2);
+  });
+});
+
+describe('Gen 2 runs', () => {
+  it("a Johto gym run ends with its gym leader, and its Gym Trainer and leader play Gen 2 decks", () => {
+    let s = createRun('violet', deck, 7);
+    expect(s.steps).toHaveLength(26);
+    expect(s.steps.at(-1)!.options[0]).toMatchObject({ kind: 'gymLeader', boss: 'falkner' });
+    for (const kind of ['gymTrainer', 'gymLeader'] as const) {
+      s = createRun('violet', deck, 7);
+      s.position = s.steps.findIndex((step) => step.options[0]!.kind === kind);
+      s = act(s, { type: 'CHOOSE', option: 0 }, [], GEN2_TEST_POOL);
+      const setup = battleSetup(s, GEN2_TEST_POOL);
+      expect(setup.deck).toHaveLength(60);
+      expect(setup.deck.filter((id) => !GEN2_SETS.includes(id.split('-')[0]!))).toEqual([]);
+    }
   });
 });

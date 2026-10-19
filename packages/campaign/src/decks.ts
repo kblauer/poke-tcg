@@ -1,6 +1,6 @@
 // Deck lists: the starter deck, gym leaders' decks, and random medium-strength decks for the other trainers.
 import { isBasicPokemon, isPokemonCard, type CardDef, type EnergyType, type PokemonCardDef } from '@poke-tcg/game-engine';
-import { BASIC_ENERGY, DECK_TYPES, DOUBLE_COLORLESS, nameKey, type PoolCard } from './pool.js';
+import { BASIC_ENERGY, DOUBLE_COLORLESS, GEN2_BASIC_ENERGY, nameKey, type PoolCard } from './pool.js';
 import { between, chance, pick, sample, type Rng } from './random.js';
 
 /** [card id, copies] */
@@ -87,7 +87,7 @@ function mediumLine(rng: Rng, lines: Line[]): Line | null {
   return pick(rng, ranked.length >= 5 ? ranked.slice(cut, ranked.length - cut) : ranked);
 }
 
-/** Trainers by name, with copies: some in every deck, the rest picked at random. */
+/** Gen 1 Trainers by name, with copies: some in every deck, the rest picked at random. */
 const CORE_TRAINERS: [string, number][] = [
   ['Bill', 3],
   ['Professor Oak', 1],
@@ -132,30 +132,87 @@ const OWNER_TRAINERS: Record<string, [string, number][]> = {
 const TYPE_TRAINERS: Partial<Record<EnergyType, [string, number][]>> = { water: [["Misty's Tears", 1]], fire: [['Fervor', 1]] };
 
 /**
+ * Gen 2's Trainers for random decks, from Neo Genesis to Skyridge, by what they do (draw, healing, switching, a little
+ * disruption), as Gen 1's. Their effects are still to come (agreed: Gen 2 is scaffolding for now), so the CPUs can't
+ * play them yet.
+ */
+const GEN2_CORE_TRAINERS: [string, number][] = [
+  ['Professor Elm', 2],
+  ["Professor Oak's Research", 1],
+  ['Potion', 2],
+  ['Switch', 2],
+];
+const GEN2_EXTRA_TRAINERS: [string, number][] = [
+  ['Energy Removal 2', 2],
+  ['Super Energy Removal 2', 1],
+  ['Pokémon Reversal', 1],
+  ['Double Gust', 1],
+  ['Gold Berry', 2],
+  ['Moo-Moo Milk', 1],
+  ['Hyper Potion', 1],
+  ['Full Heal', 1],
+  ['Focus Band', 1],
+  ['Super Energy Retrieval', 1],
+  ['Energy Search', 1],
+  ['Super Scoop Up', 1],
+  ['Pokémon Nurse', 1],
+  ['Master Ball', 1],
+  ['Warp Point', 1],
+];
+
+/**
+ * What a generation's random decks are made of: its basic Energy (the types decks are built around) and Double
+ * Colorless if it has one, its Trainers (the core ones in every deck, the extras at random, Pokémon Breeder with a
+ * Stage 2 line), and the Gym Trainers for owners' Pokémon and for types (Gen 1's Gym sets).
+ */
+export interface DeckRules {
+  basicEnergy: Partial<Record<EnergyType, string>>;
+  doubleColorless?: string;
+  core: [string, number][];
+  extra: [string, number][];
+  breeder?: string;
+  owners: Record<string, [string, number][]>;
+  types: Partial<Record<EnergyType, [string, number][]>>;
+}
+
+/**
  * The Pokémon each kind of trainer favours, by the class in their name ("Swimmer" in "Swimmer Luis"), after
- * the Generation I games: their decks are built from these lines first (generateDeck's `favorites`).
+ * the Generation I and II games (each list's Kanto Pokémon, then its Johto ones): their decks are built from these lines
+ * first (generateDeck's `favorites`), as far as the generation's pool has them.
  */
 const TRAINER_FAVORITES: Record<string, string[]> = {
-  Youngster: ['Rattata', 'Raticate', 'Ekans', 'Arbok', 'Spearow', 'Fearow', 'Sandshrew', 'Sandslash', 'Nidoran♂', 'Nidorino'],
-  Lass: ['Nidoran♀', 'Nidorina', 'Jigglypuff', 'Wigglytuff', 'Clefairy', 'Clefable', 'Oddish', 'Gloom', 'Pidgey', 'Meowth'],
-  'Bug Catcher': ['Caterpie', 'Metapod', 'Butterfree', 'Weedle', 'Kakuna', 'Beedrill', 'Venonat', 'Venomoth', 'Paras', 'Parasect', 'Scyther', 'Pinsir'],
-  Hiker: ['Geodude', 'Graveler', 'Golem', 'Onix', 'Machop', 'Machoke', 'Machamp', 'Rhyhorn', 'Rhydon', 'Diglett', 'Dugtrio', 'Cubone', 'Marowak'],
-  Picnicker: ['Pidgey', 'Pidgeotto', 'Oddish', 'Gloom', 'Bellsprout', 'Weepinbell', 'Pikachu', 'Raichu', 'Meowth', 'Persian'],
-  Camper: ['Sandshrew', 'Sandslash', 'Mankey', 'Primeape', 'Ekans', 'Arbok', 'Nidoran♂', 'Nidorino', 'Charmander', 'Charmeleon', 'Squirtle', 'Wartortle'],
-  'Super Nerd': ['Magnemite', 'Magneton', 'Voltorb', 'Electrode', 'Grimer', 'Muk', 'Koffing', 'Weezing', 'Vulpix', 'Ninetales', 'Porygon'],
-  Swimmer: ['Tentacool', 'Tentacruel', 'Psyduck', 'Golduck', 'Horsea', 'Seadra', 'Staryu', 'Starmie', 'Goldeen', 'Seaking', 'Shellder', 'Cloyster', 'Seel', 'Dewgong'],
-  Fisherman: ['Magikarp', 'Gyarados', 'Goldeen', 'Seaking', 'Poliwag', 'Poliwhirl', 'Poliwrath', 'Krabby', 'Kingler', 'Shellder', 'Cloyster'],
-  Beauty: ['Oddish', 'Gloom', 'Vileplume', 'Bellsprout', 'Weepinbell', 'Victreebel', 'Exeggcute', 'Exeggutor', 'Clefairy', 'Clefable', 'Jigglypuff', 'Wigglytuff'],
-  Gentleman: ['Growlithe', 'Arcanine', 'Ponyta', 'Rapidash', 'Meowth', 'Persian', 'Pikachu', 'Raichu'],
-  Biker: ['Koffing', 'Weezing', 'Grimer', 'Muk', 'Voltorb', 'Electrode', 'Ponyta', 'Rapidash'],
-  Juggler: ['Abra', 'Kadabra', 'Alakazam', 'Drowzee', 'Hypno', 'Mr. Mime', 'Voltorb', 'Electrode'],
-  Rocker: ['Voltorb', 'Electrode', 'Magnemite', 'Magneton', 'Pikachu', 'Raichu', 'Electabuzz', 'Jolteon'],
-  Gambler: ['Meowth', 'Persian', 'Growlithe', 'Arcanine', 'Poliwag', 'Poliwhirl', 'Horsea', 'Seadra'],
-  Sailor: ['Machop', 'Machoke', 'Machamp', 'Tentacool', 'Tentacruel', 'Shellder', 'Cloyster', 'Horsea', 'Seadra', 'Staryu', 'Starmie'],
-  Psychic: ['Abra', 'Kadabra', 'Alakazam', 'Slowpoke', 'Slowbro', 'Drowzee', 'Hypno', 'Mr. Mime', 'Jynx', 'Exeggcute', 'Exeggutor'],
-  'Black Belt': ['Machop', 'Machoke', 'Machamp', 'Mankey', 'Primeape', 'Hitmonlee', 'Hitmonchan', 'Geodude', 'Graveler', 'Onix'],
-  'Bird Keeper': ['Pidgey', 'Pidgeotto', 'Pidgeot', 'Spearow', 'Fearow', 'Doduo', 'Dodrio', "Farfetch'd", 'Zubat', 'Golbat'],
+  Youngster: ['Rattata', 'Raticate', 'Ekans', 'Arbok', 'Spearow', 'Fearow', 'Sandshrew', 'Sandslash', 'Nidoran♂', 'Nidorino', 'Sentret', 'Furret', 'Hoothoot', 'Wooper', 'Quagsire'],
+  Lass: ['Nidoran♀', 'Nidorina', 'Jigglypuff', 'Wigglytuff', 'Clefairy', 'Clefable', 'Oddish', 'Gloom', 'Pidgey', 'Meowth', 'Snubbull', 'Marill', 'Hoppip', 'Togepi', 'Cleffa', 'Igglybuff'],
+  'Bug Catcher': ['Caterpie', 'Metapod', 'Butterfree', 'Weedle', 'Kakuna', 'Beedrill', 'Venonat', 'Venomoth', 'Paras', 'Parasect', 'Scyther', 'Pinsir', 'Ledyba', 'Ledian', 'Spinarak', 'Ariados', 'Yanma', 'Pineco', 'Forretress', 'Shuckle', 'Heracross'],
+  Hiker: ['Geodude', 'Graveler', 'Golem', 'Onix', 'Machop', 'Machoke', 'Machamp', 'Rhyhorn', 'Rhydon', 'Diglett', 'Dugtrio', 'Cubone', 'Marowak', 'Sudowoodo', 'Phanpy', 'Donphan', 'Larvitar', 'Pupitar', 'Teddiursa', 'Ursaring', 'Swinub', 'Piloswine'],
+  Picnicker: ['Pidgey', 'Pidgeotto', 'Oddish', 'Gloom', 'Bellsprout', 'Weepinbell', 'Pikachu', 'Raichu', 'Meowth', 'Persian', 'Hoppip', 'Skiploom', 'Jumpluff', 'Marill', 'Azumarill', 'Sentret', 'Furret'],
+  Camper: ['Sandshrew', 'Sandslash', 'Mankey', 'Primeape', 'Ekans', 'Arbok', 'Nidoran♂', 'Nidorino', 'Charmander', 'Charmeleon', 'Squirtle', 'Wartortle', 'Phanpy', 'Donphan', 'Cyndaquil', 'Quilava', 'Totodile', 'Croconaw', 'Chikorita', 'Bayleef'],
+  'Super Nerd': ['Magnemite', 'Magneton', 'Voltorb', 'Electrode', 'Grimer', 'Muk', 'Koffing', 'Weezing', 'Vulpix', 'Ninetales', 'Porygon', 'Mareep', 'Flaaffy', 'Ampharos', 'Porygon2', 'Slugma', 'Magcargo', 'Unown'],
+  Swimmer: ['Tentacool', 'Tentacruel', 'Psyduck', 'Golduck', 'Horsea', 'Seadra', 'Staryu', 'Starmie', 'Goldeen', 'Seaking', 'Shellder', 'Cloyster', 'Seel', 'Dewgong', 'Chinchou', 'Lanturn', 'Marill', 'Azumarill', 'Qwilfish', 'Mantine', 'Corsola', 'Remoraid', 'Octillery'],
+  Fisherman: ['Magikarp', 'Gyarados', 'Goldeen', 'Seaking', 'Poliwag', 'Poliwhirl', 'Poliwrath', 'Krabby', 'Kingler', 'Shellder', 'Cloyster', 'Chinchou', 'Lanturn', 'Qwilfish', 'Remoraid', 'Octillery', 'Wooper', 'Quagsire'],
+  Beauty: ['Oddish', 'Gloom', 'Vileplume', 'Bellsprout', 'Weepinbell', 'Victreebel', 'Exeggcute', 'Exeggutor', 'Clefairy', 'Clefable', 'Jigglypuff', 'Wigglytuff', 'Snubbull', 'Granbull', 'Bellossom', 'Sunkern', 'Sunflora', 'Togepi', 'Togetic'],
+  Gentleman: ['Growlithe', 'Arcanine', 'Ponyta', 'Rapidash', 'Meowth', 'Persian', 'Pikachu', 'Raichu', 'Houndour', 'Houndoom', 'Snubbull', 'Granbull', 'Stantler'],
+  Biker: ['Koffing', 'Weezing', 'Grimer', 'Muk', 'Voltorb', 'Electrode', 'Ponyta', 'Rapidash', 'Slugma', 'Magcargo', 'Houndour', 'Houndoom'],
+  Juggler: ['Abra', 'Kadabra', 'Alakazam', 'Drowzee', 'Hypno', 'Mr. Mime', 'Voltorb', 'Electrode', 'Natu', 'Xatu', 'Girafarig', 'Wobbuffet'],
+  Rocker: ['Voltorb', 'Electrode', 'Magnemite', 'Magneton', 'Pikachu', 'Raichu', 'Electabuzz', 'Jolteon', 'Mareep', 'Flaaffy', 'Ampharos', 'Elekid'],
+  Gambler: ['Meowth', 'Persian', 'Growlithe', 'Arcanine', 'Poliwag', 'Poliwhirl', 'Horsea', 'Seadra', 'Aipom', 'Murkrow', 'Sneasel'],
+  Sailor: ['Machop', 'Machoke', 'Machamp', 'Tentacool', 'Tentacruel', 'Shellder', 'Cloyster', 'Horsea', 'Seadra', 'Staryu', 'Starmie', 'Chinchou', 'Lanturn', 'Mantine', 'Tyrogue', 'Hitmontop'],
+  Psychic: ['Abra', 'Kadabra', 'Alakazam', 'Slowpoke', 'Slowbro', 'Drowzee', 'Hypno', 'Mr. Mime', 'Jynx', 'Exeggcute', 'Exeggutor', 'Natu', 'Xatu', 'Espeon', 'Girafarig', 'Smoochum', 'Wobbuffet', 'Misdreavus'],
+  'Black Belt': ['Machop', 'Machoke', 'Machamp', 'Mankey', 'Primeape', 'Hitmonlee', 'Hitmonchan', 'Geodude', 'Graveler', 'Onix', 'Tyrogue', 'Hitmontop', 'Heracross', 'Teddiursa', 'Ursaring'],
+  'Bird Keeper': ['Pidgey', 'Pidgeotto', 'Pidgeot', 'Spearow', 'Fearow', 'Doduo', 'Dodrio', "Farfetch'd", 'Zubat', 'Golbat', 'Hoothoot', 'Noctowl', 'Natu', 'Xatu', 'Murkrow', 'Skarmory', 'Delibird'],
 };
+
+export const GEN1_DECK_RULES: DeckRules = {
+  basicEnergy: BASIC_ENERGY,
+  doubleColorless: DOUBLE_COLORLESS,
+  core: CORE_TRAINERS,
+  extra: EXTRA_TRAINERS,
+  breeder: 'Pokémon Breeder',
+  owners: OWNER_TRAINERS,
+  types: TYPE_TRAINERS,
+};
+
+export const GEN2_DECK_RULES: DeckRules = { basicEnergy: GEN2_BASIC_ENERGY, core: GEN2_CORE_TRAINERS, extra: GEN2_EXTRA_TRAINERS, owners: {}, types: {} };
 
 /** The Pokémon a trainer favours, from the class in their name ("Swimmer Luis": a Swimmer's), if they have any. */
 export const trainerFavorites = (trainer: string): string[] | undefined => TRAINER_FAVORITES[trainer.split(' ').slice(0, -1).join(' ')];
@@ -166,9 +223,15 @@ export const trainerFavorites = (trainer: string): string[] | undefined => TRAIN
  * of them Basic), 14–16 Trainers (draw, healing, switching, a little disruption) and the rest Energy,
  * split by what the attacks need. No more than 4 of any card but basic Energy. `type` makes a deck of just that
  * type (and Colorless). `favorites` (Pokémon names, from trainerFavorites) are chosen first wherever they fit,
- * and set the deck's types: a Swimmer's deck has Tentacruel and Golduck rather than any Water Pokémon.
+ * and set the deck's types: a Swimmer's deck has Tentacruel and Golduck rather than any Water Pokémon. `rules` are the
+ * generation's Energy and Trainers (Gen 1's by default); the pool should be the same generation's.
  */
-export function generateDeck(pool: readonly PoolCard[], rng: Rng, { type, favorites }: { type?: EnergyType; favorites?: string[] } = {}): string[] {
+export function generateDeck(
+  pool: readonly PoolCard[],
+  rng: Rng,
+  { type, favorites, rules = GEN1_DECK_RULES }: { type?: EnergyType; favorites?: string[]; rules?: DeckRules } = {},
+): string[] {
+  const DECK_TYPES = Object.keys(rules.basicEnergy) as EnergyType[];
   const all = evolutionLines(pool, rng);
   const liked = new Set(favorites ?? []);
   // A favourite line ends with a favourite (Nidoran♀ → Nidorina, not on to Nidoqueen unless that's one too).
@@ -227,12 +290,12 @@ export function generateDeck(pool: readonly PoolCard[], rng: Rng, { type, favori
   // Trainers: the core ones, Pokémon Breeder with a Stage 2 line, then random extras up to 14–16.
   const trainer = (name: string) => pool.find((c) => c.def.kind !== 'pokemon' || c.def.trainerText ? nameKey(c.def.name) === nameKey(name) : false)?.def.id;
   const trainerTarget = between(rng, 14, 16);
-  const plan: [string, number][] = [...CORE_TRAINERS];
-  if (chosen.some((l) => l.stages.length === 3)) plan.push(['Pokémon Breeder', 1]);
+  const plan: [string, number][] = [...rules.core];
+  if (rules.breeder && chosen.some((l) => l.stages.length === 3)) plan.push([rules.breeder, 1]);
   const owned = (owner: string) => deck.filter((id) => pool.find((c) => c.def.id === id)?.def.name.startsWith(`${owner}'s `)).length;
-  for (const [owner, cards] of Object.entries(OWNER_TRAINERS)) if (owned(owner) >= 4) plan.push(...cards);
-  for (const t of types) plan.push(...(TYPE_TRAINERS[t] ?? []));
-  for (const [name, copies] of sample(rng, EXTRA_TRAINERS, EXTRA_TRAINERS.length)) {
+  for (const [owner, cards] of Object.entries(rules.owners)) if (owned(owner) >= 4) plan.push(...cards);
+  for (const t of types) plan.push(...(rules.types[t] ?? []));
+  for (const [name, copies] of sample(rng, rules.extra, rules.extra.length)) {
     if (plan.reduce((n, [, c]) => n + c, 0) >= trainerTarget) break;
     plan.push([name, copies]);
   }
@@ -260,9 +323,9 @@ export function generateDeck(pool: readonly PoolCard[], rng: Rng, { type, favori
   if (!symbols.size) symbols.set(main, 1);
   let energy = DECK_SIZE - deck.length;
   const total = [...symbols.values()].reduce((a, b) => a + b, 0);
-  if (colorless / (colorless + total) > 0.3 && energy > 10) {
+  if (rules.doubleColorless && colorless / (colorless + total) > 0.3 && energy > 10) {
     const dce = between(rng, 1, 2);
-    deck.push(...Array<string>(dce).fill(DOUBLE_COLORLESS));
+    deck.push(...Array<string>(dce).fill(rules.doubleColorless));
     energy -= dce;
   }
   const split = [...symbols.entries()].map(([t, n]) => [t, Math.max(4, Math.round((energy * n) / total))] as const);
@@ -270,9 +333,9 @@ export function generateDeck(pool: readonly PoolCard[], rng: Rng, { type, favori
   const sum = split.reduce((a, [, n]) => a + n, 0);
   for (const [i, [t, n]] of split.entries()) {
     const fix = i === 0 ? energy - sum : 0;
-    deck.push(...Array<string>(Math.max(0, n + fix)).fill(BASIC_ENERGY[t]!));
+    deck.push(...Array<string>(Math.max(0, n + fix)).fill(rules.basicEnergy[t]!));
   }
-  while (deck.length < DECK_SIZE) deck.push(BASIC_ENERGY[split[0]![0]]!);
+  while (deck.length < DECK_SIZE) deck.push(rules.basicEnergy[split[0]![0]]!);
   return deck.slice(0, DECK_SIZE);
 }
 

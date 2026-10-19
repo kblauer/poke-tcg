@@ -1,4 +1,4 @@
-import { battleReward, boss, CENTER_PRICE, eventInfo, isBattleKind, isBossKind, OFFERS, PRICES, REWARD_FOCUS_LABELS, SHOP_SIZE, trainerFavorites, type MapEncounter } from '@poke-tcg/campaign';
+import { battleReward, boss, CENTER_PRICE, eventInfo, isBattleKind, isBossKind, ITEMS, OFFERS, PRICES, REWARD_FOCUS_LABELS, SHOP_SIZE, trainerFavorites, type MapEncounter } from '@poke-tcg/campaign';
 import { CPU_DIFFICULTY_LABELS, type EnergyType } from '@poke-tcg/game-engine';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
@@ -30,11 +30,16 @@ function describe(o: MapEncounter, cardName: (id: string) => string): string[] {
       case 'elite':
         return [`Plays a random deck at ${CPU_DIFFICULTY_LABELS.gymLeader} difficulty. You can still walk away when you meet them.`, win, 'Lose: 1 HP, and the run moves on.'];
       case 'gymTrainer':
-        return [`Plays a ${b?.gym ? `${typeName(b.gym.type)} ` : ''}deck at ${CPU_DIFFICULTY_LABELS.trainer} difficulty. They can't be skipped.`, win, 'Lose: 1 HP, and the run moves on.'];
+        // A gym whose type has no basic Energy (Colorless, Metal) gives its Gym Trainer a deck of its favourite Pokémon instead.
+        return [
+          `Plays ${b?.gym?.favorites ? `a deck of ${b.gym.city} Gym's favourite Pokémon` : `a ${b?.gym ? `${typeName(b.gym.type)} ` : ''}deck`} at ${CPU_DIFFICULTY_LABELS.trainer} difficulty. They can't be skipped.`,
+          win,
+          'Lose: 1 HP, and the run moves on.',
+        ];
       default:
         return [
           `Plays the ${b?.deckName ?? 'their own'} deck at ${CPU_DIFFICULTY_LABELS.gymLeader} difficulty.`,
-          `${win.slice(0, -1)}${b?.gym ? ', and the badge' : b?.prize ? ', and the Champion Ribbon' : ''}.`,
+          `${win.slice(0, -1)}${b?.gym ? ', and the badge' : b?.prize ? `, and the ${ITEMS[b.prize]?.name ?? 'prize'}` : ''}.`,
           'Lose: 1 HP, and you face them again.',
         ];
     }

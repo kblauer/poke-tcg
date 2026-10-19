@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { BoosterPack } from '../components/packs/BoosterPack';
 import { PackOpening, type PackSetInfo } from '../components/packs/PackOpening';
+import { GenerationFilter, packGeneration } from '../components/packs/GenerationFilter';
 import { PreviewProvider } from '../components/PreviewProvider';
 import { useTRPC } from '../lib/trpc';
 import { PAGE_WIDTH } from '../utils/layout';
@@ -11,13 +12,16 @@ import { pickPackArt } from '../utils/packArt';
 /**
  * Booster packs (`/packs`), bought with the ₱ in the bank: pick a set, then open its pack in a window
  * (PackOpening). Every card opened is unlocked for the deck builder. Locked sets are dimmed and can't be picked: a run's
- * first battle completed unlocks its generation's next one (marked), beating a run all of them.
+ * first battle completed unlocks its generation's next one (marked), beating a run all of them. Every set shows until
+ * generations are picked in the generation filter (GenerationFilter).
  */
 export function PacksPage() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const packs = useQuery(trpc.packs.list.queryOptions());
   const [opening, setOpening] = useState<PackSetInfo | null>(null);
+  // The generations picked in the filter; none (as on every visit) shows every set.
+  const [picked, setPicked] = useState<Set<number>>(() => new Set());
   // A random one of each set's wrappers, picked when the page is opened.
   const [art] = useState(pickPackArt);
   if (packs.error) return <p className={`${PAGE_WIDTH} text-red-400`}>{packs.error.message}</p>;
@@ -51,8 +55,9 @@ export function PacksPage() {
             Stardust <span className="font-semibold text-sky-200">{stardust}</span>
           </span>
         </div>
+        <GenerationFilter picked={picked} onChange={setPicked} />
         <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-          {sets.map((s) => (
+          {sets.filter((s) => picked.size === 0 || picked.has(packGeneration(s.id) ?? 0)).map((s) => (
             <button
               key={s.id}
               disabled={s.locked}

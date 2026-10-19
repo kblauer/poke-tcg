@@ -2,11 +2,11 @@
 // WOTC-era make-up (averaged over the sets, not each set's own odds): 1 rare (holo about 1 pack in 3),
 // 3 uncommons and 6 commons, all different (each of those now and then a rare instead: EXTRA_RARE_CHANCES), plus 1 basic Energy: the set's own, or the closest earlier set's, and
 // about 1 pack in 50 a holo Energy instead (found only in packs). Opening one unlocks its cards.
-import { BASIC_ENERGY, type Rarity } from './pool.js';
+import { BASIC_ENERGY, GEN2_SETS, type Rarity } from './pool.js';
 import { chance, pick, sample, type Rng } from './random.js';
 
-/** Sets with packs: the ones whose card effects the engine has. */
-export const PACK_SETS = ['base1', 'base2', 'base3', 'basep', 'base4', 'base5', 'gym1', 'gym2'];
+/** Sets with packs: Gen 1's, whose card effects the engine has, and Gen 2's (GEN2_SETS; their effects are still to come). */
+export const PACK_SETS = ['base1', 'base2', 'base3', 'basep', 'base4', 'base5', 'gym1', 'gym2', ...GEN2_SETS];
 
 /**
  * Stardust, the account's crafting currency, for each card pulled from a pack that the account already had (a new
@@ -44,6 +44,9 @@ export const HOLO_ENERGY_CHANCE = 0.02;
 export const PACK_COMMONS = 6;
 export const PACK_UNCOMMONS = 3;
 
+/** How many different holos a pack of a set made only of holos holds (Southern Islands, all galaxy foil). A placeholder. */
+export const HOLO_SET_PACK = 6;
+
 /**
  * A set's cards by rarity (holos apart from other rares), for packs. Basic Energy isn't among them: `energy` is the
  * basic Energy its packs give (the set's own, or the closest earlier set's; missing: any type of BASIC_ENERGY), and
@@ -68,7 +71,8 @@ export interface PackCard {
  * The cards in one pack, in the order they're revealed: the basic Energy, the commons, the uncommons,
  * and the rare last. A set without holos (or other rares) uses whichever rares it has. A set of only
  * commons and holos (the Wizards promos, which TCGdex lists as Common) fills the uncommon and rare slots
- * with more commons, and the last card is a holo as often as any pack's.
+ * with more commons, and the last card is a holo as often as any pack's. A set of only holos (Southern Islands) gives
+ * HOLO_SET_PACK different ones.
  */
 export function openPack(set: PackSet, rng: Rng, { forceHoloEnergy = false, forceAllRares = false } = {}): PackCard[] {
   // `forceHoloEnergy`, `forceAllRares`: always a holo Energy, or an all-rares pack (the debug cheats for testing them).
@@ -98,6 +102,9 @@ export function openPack(set: PackSet, rng: Rng, { forceHoloEnergy = false, forc
       if (rare) extras.push(rare);
       return !rare;
     });
+  if (!set.common.length && !set.uncommon.length && !set.rare.length) {
+    return [energy, ...sample(rng, set.holo, HOLO_SET_PACK).map((cardId) => ({ cardId, slot: 'holo' as const }))];
+  }
   // Now and then every card but the Energy is a rare or holo (commons only make up for a set with too few rares).
   if (forceAllRares || chance(rng, ALL_RARES_CHANCE)) {
     const rares = Array.from({ length: PACK_COMMONS + PACK_UNCOMMONS + 1 }, rareCard).filter((c): c is PackCard => c !== null);

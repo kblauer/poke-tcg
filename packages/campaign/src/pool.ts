@@ -9,10 +9,17 @@ export interface PoolCard {
   rarity: Rarity;
 }
 
-/** Sets whose card effects the engine has (Base Set, Jungle, Fossil, Wizards promos, Base Set 2, Team Rocket, Gym Heroes, Gym Challenge). */
+/** Gen 1 runs' sets, whose card effects the engine has (Base Set, Jungle, Fossil, Wizards promos, Base Set 2, Team Rocket, Gym Heroes, Gym Challenge). */
 export const POOL_SETS = ['base1', 'base2', 'base3', 'basep', 'base4', 'base5', 'gym1', 'gym2'];
 
-/** Basic Energy card ids (Base Set printings) by type, and Double Colorless Energy. */
+/**
+ * Gen 2 runs' sets (agreed with the user): Neo Genesis to Skyridge, with Southern Islands but not Legendary Collection
+ * (its Gen 1 reprints). Their card effects are still to come, so Gen 2 runs use every card of them for now (Generation
+ * `implementedOnly`).
+ */
+export const GEN2_SETS = ['neo1', 'neo2', 'si1', 'neo3', 'neo4', 'ecard1', 'ecard2', 'ecard3'];
+
+/** Basic Energy card ids (Base Set printings) by type, and Double Colorless Energy: Gen 1's. */
 export const BASIC_ENERGY: Partial<Record<EnergyType, string>> = {
   grass: 'base1-99',
   fire: 'base1-98',
@@ -23,8 +30,22 @@ export const BASIC_ENERGY: Partial<Record<EnergyType, string>> = {
 };
 export const DOUBLE_COLORLESS = 'base1-96';
 
+/** Gen 2's basic Energy (Neo Genesis printings). Gen 2 has no Double Colorless. */
+export const GEN2_BASIC_ENERGY: Partial<Record<EnergyType, string>> = {
+  grass: 'neo1-108',
+  fire: 'neo1-107',
+  water: 'neo1-111',
+  lightning: 'neo1-109',
+  psychic: 'neo1-110',
+  fighting: 'neo1-106',
+};
+
 /** Types with a basic Energy card, the ones decks are built around. */
 export const DECK_TYPES = Object.keys(BASIC_ENERGY) as EnergyType[];
+
+/** The type of a basic Energy card of either generation's printings above, or undefined. */
+export const basicEnergyType = (id: string): EnergyType | undefined =>
+  (Object.entries(BASIC_ENERGY).find(([, e]) => e === id) ?? Object.entries(GEN2_BASIC_ENERGY).find(([, e]) => e === id))?.[0] as EnergyType | undefined;
 
 /** Card shop prices in ₱. */
 export const PRICES: Record<Rarity, number> = { common: 40, uncommon: 80, rare: 150, holo: 250 };

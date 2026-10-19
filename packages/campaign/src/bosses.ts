@@ -6,6 +6,7 @@
 // Electrode is in the catalog (added by hand), so it plays as itself.
 import type { EnergyType } from '@poke-tcg/game-engine';
 import type { DeckList } from './decks.js';
+import { JOHTO_BOSSES } from './johto-bosses.js';
 
 export type BossKind = 'gymLeader' | 'eliteFour' | 'champion';
 
@@ -13,14 +14,19 @@ export interface Boss {
   name: string;
   title: string;
   kind: BossKind;
-  /** The TCG 1 deck it plays, and that game's character who plays it. */
+  /** The deck it plays (Kanto: its TCG 1 deck), and the TCG 1 character who plays it (Kanto only: johto-bosses.ts). */
   deckName: string;
-  counterpart: string;
+  counterpart?: string;
   deck: DeckList;
-  /** Gym leaders: their gym's type, for the Gym Trainer's deck before them; and the badge for beating them (a key item). */
-  gym?: { city: string; type: EnergyType; badge: string };
+  /**
+   * Gym leaders: their gym's type, for the Gym Trainer's deck before them (with `favorites`, the Pokémon that deck is built
+   * from first, for a type with no basic Energy); and the badge for beating them (a key item).
+   */
+  gym?: { city: string; type: EnergyType; badge: string; favorites?: string[] };
   /** The key item for beating them, other than a badge (the Champion's). */
   prize?: string;
+  /** The types the run picker shows for the deck when its basic Energy doesn't say (a Colorless or Metal deck). */
+  types?: EnergyType[];
 }
 
 /** Brock: Gene's Rock Crusher Deck (Rock Club). */
@@ -309,6 +315,7 @@ export const BOSSES = {
   agatha: { name: 'Agatha', title: 'Elite Four', kind: 'eliteFour', deckName: 'Legendary Moltres', counterpart: 'Courtney', deck: LEGENDARY_MOLTRES_DECK },
   lance: { name: 'Lance', title: 'Elite Four', kind: 'eliteFour', deckName: 'Legendary Dragonite', counterpart: 'Rod', deck: LEGENDARY_DRAGONITE_DECK },
   blue: { name: 'Blue', title: 'Champion', kind: 'champion', deckName: 'Legendary Ronald', counterpart: 'Ronald', deck: LEGENDARY_RONALD_DECK, prize: 'champion-ribbon' },
+  ...JOHTO_BOSSES,
 } satisfies Record<string, Boss>;
 
 export type BossId = keyof typeof BOSSES;
@@ -316,6 +323,9 @@ export type BossId = keyof typeof BOSSES;
 /** Kanto's gyms in the order the games visit them. */
 export const KANTO_GYMS: BossId[] = ['brock', 'misty', 'surge', 'erika', 'koga', 'sabrina', 'blaine', 'giovanni'];
 export const ELITE_FOUR: BossId[] = ['lorelei', 'bruno', 'agatha', 'lance'];
+/** Johto's gyms in the order Gold and Silver visit them, and its Elite Four. */
+export const JOHTO_GYMS: BossId[] = ['falkner', 'bugsy', 'whitney', 'morty', 'chuck', 'jasmine', 'pryce', 'clair'];
+export const JOHTO_ELITE_FOUR: BossId[] = ['will', 'johto-koga', 'johto-bruno', 'karen'];
 
 export const boss = (id: string): Boss => {
   const b = (BOSSES as Record<string, Boss>)[id];
