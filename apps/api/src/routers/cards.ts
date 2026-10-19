@@ -43,6 +43,7 @@ export const cardsRouter = router({
       return {
         id: c.id,
         name: c.name,
+        setId: c.setId,
         setName: c.set.name,
         number: c.localId,
         kind: c.kind,

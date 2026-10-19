@@ -97,6 +97,8 @@ export function DecksPage() {
   const rename = useMutation(trpc.decks.rename.mutationOptions({ onSuccess: refresh }));
   // Crafting: Stardust (earned from packs) unlocks a card as pulling it would.
   const stardust = useQuery(trpc.packs.stardust.queryOptions());
+  // Only cards from sets whose packs are unlocked can be crafted.
+  const unlockedSets = useQuery(trpc.packs.unlockedSets.queryOptions());
   const craft = useMutation(
     trpc.packs.craft.mutationOptions({
       onSuccess: ({ stardust: left }) => {
@@ -107,11 +109,13 @@ export function DecksPage() {
       },
     }),
   );
-  /** Why the card can't be crafted now, or null: one already unlocked (unless it counts copies), or too little Stardust. */
+  /** Why the card can't be crafted now, or null: one already unlocked (unless it counts copies), its set's packs still locked, or too little Stardust. */
   const craftBlocked = (card: CatalogCard, cost: number) =>
     !isLocked(card) && !card.limitedCopies
       ? `${card.name} is already unlocked`
-      : (stardust.data ?? 0) < cost
+      : !unlockedSets.data?.includes(card.setId)
+        ? `Unlock ${card.setName} booster packs to craft its cards`
+        : (stardust.data ?? 0) < cost
         ? `Crafting it takes ${cost} Stardust; you have ${stardust.data ?? 0}`
         : null;
 

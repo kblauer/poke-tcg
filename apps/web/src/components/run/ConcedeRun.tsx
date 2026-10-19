@@ -1,4 +1,4 @@
-import { bankablePokedollars, battlesFought } from '@poke-tcg/campaign';
+import { bankablePokedollars, battlesCompleted } from '@poke-tcg/campaign';
 import { useState } from 'react';
 import type { RunControl, RunViewData } from '../../hooks/useRun';
 
@@ -15,7 +15,7 @@ export function ConcedeRun({ view, run }: { view: RunViewData; run: RunControl }
       </button>
     );
   }
-  const banked = bankablePokedollars({ ...view, conceded: true });
+  const banked = bankablePokedollars(view);
   const cards = view.gained.length;
   return (
     <div className="space-y-3 rounded-lg bg-slate-800 p-4 ring-1 ring-slate-600">
@@ -23,9 +23,9 @@ export function ConcedeRun({ view, run }: { view: RunViewData; run: RunControl }
       <ul className="list-disc space-y-1 pl-5 text-sm text-slate-300">
         <li>{cards ? `The ${cards} card${cards === 1 ? '' : 's'} you gained stay unlocked.` : 'You haven’t gained any cards yet.'}</li>
         <li>
-          {battlesFought(view) > 0
+          {battlesCompleted(view) > 0
             ? `₱${banked} go to your bank.`
-            : `You haven’t finished a battle yet, so the run’s ₱${view.pokedollars} won’t be banked.`}
+            : `You haven’t completed a battle without conceding it yet, so the run’s ₱${view.pokedollars} won’t be banked.`}
         </li>
         <li>You won’t get the run’s EXP: that’s only for beating it.</li>
       </ul>

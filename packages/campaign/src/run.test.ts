@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { expandDeck, STARTER_DECK } from './decks.js';
 import { ITEMS, itemText, MAX_CONSUMABLES_PER_RUN, shopStock } from './items.js';
 import { RUN_TYPE_IDS, type RunTypeId } from './run-types.js';
-import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesFought, createRun, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
+import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
 import { TEST_POOL } from './test-pool.js';
 
 const deck = expandDeck(STARTER_DECK);
@@ -22,12 +22,12 @@ function at(kind: EncounterKind, seed = 1): RunState {
 }
 
 /** Plays a battle from choosing it to its end. */
-function fight(state: RunState, won: boolean, gear: string[] = []): RunState {
+function fight(state: RunState, won: boolean, gear: string[] = [], conceded = false): RunState {
   let s = state.phase === 'map' ? act(state, { type: 'CHOOSE', option: 0 }, gear) : state;
   if (s.encounter?.kind === 'elite') s = act(s, { type: 'ACCEPT' }, gear);
   expect(needsBattle(s)).toBe(true);
   s = act(s, { type: 'BATTLE_STARTED', gameId: 'g1' }, gear);
-  return act(s, { type: 'BATTLE_OVER', gameId: 'g1', won }, gear);
+  return act(s, { type: 'BATTLE_OVER', gameId: 'g1', won, ...(conceded && { conceded }) }, gear);
 }
 
 describe('createRun', () => {
@@ -414,7 +414,7 @@ describe('conceding', () => {
   it('ends the run while choosing the next step; with no battle finished, none of its ₱ are banked', () => {
     const s = act(fresh(), { type: 'CONCEDE' });
     expect([s.phase, s.conceded, battlesFought(s), bankablePokedollars(s)]).toEqual(['lost', true, 0, 0]);
-    expect(s.log.at(-1)).toBe('Conceded the run before finishing a battle: no ₱ banked.');
+    expect(s.log.at(-1)).toBe('Conceded the run before completing a battle: no ₱ banked.');
   });
 
   it('banks the ₱ once a battle is finished, won or lost', () => {
@@ -422,9 +422,30 @@ describe('conceding', () => {
       let s = fight(at('battle'), won);
       if (s.encounter?.kind === 'reward') s = act(s, { type: 'LEAVE' });
       s = act(s, { type: 'CONCEDE' });
-      expect([battlesFought(s), bankablePokedollars(s)]).toEqual([1, s.pokedollars]);
+      expect([battlesFought(s), battlesCompleted(s), bankablePokedollars(s)]).toEqual([1, 1, s.pokedollars]);
       expect(s.pokedollars).toBeGreaterThan(0);
     }
+  });
+
+  it('a conceded battle doesn’t count: conceding it and then the run banks nothing', () => {
+    const s = act(fight(at('battle'), false, [], true), { type: 'CONCEDE' });
+    expect([battlesFought(s), battlesCompleted(s), bankablePokedollars(s)]).toEqual([1, 0, 0]);
+    expect(s.log).toContain('Lost to Lass Haley (conceded): −1 HP.');
+  });
+
+  it('a run lost by conceding every battle banks nothing either', () => {
+    let s = fresh();
+    for (let i = 0; i < MAX_HP; i++) {
+      s.steps[s.position] = { options: [{ kind: 'battle', label: 'battle', trainer: 'Lass Haley' }] };
+      s = fight(s, false, [], true);
+    }
+    expect([s.phase, s.conceded, bankablePokedollars(s)]).toEqual(['lost', undefined, 0]);
+    expect(s.log.at(-1)).toBe('Out of HP: the run is lost, without completing a battle: no ₱ banked.');
+  });
+
+  it('older runs count every battle they finished as completed', () => {
+    expect(battlesCompleted({ battlesFought: 2, log: [] })).toBe(2);
+    expect(battlesCompleted({ battlesFought: 2, battlesCompleted: 1, log: [] })).toBe(1);
   });
 
   it('only while choosing the next step, and a conceded run can’t be retried', () => {

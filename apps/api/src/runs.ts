@@ -21,6 +21,7 @@ import { TRPCError } from '@trpc/server';
 import { ensureUser, type AuthUser } from './auth.js';
 import { loadCardLibrary } from './cards.js';
 import { cardPool } from './pool.js';
+import { earnedPacks, unlockPacks } from './progress.js';
 import { unlockCards } from './unlocks.js';
 
 const asJson = (value: unknown) => value as Prisma.InputJsonValue;
@@ -99,7 +100,7 @@ export async function equippedGear(userId: string): Promise<string[]> {
 /**
  * Applies actions to a run and saves it, if nobody else changed it meanwhile (CONFLICT otherwise).
  * When the run asks for a battle, starts the game and records it; when the run is beaten, gives its rewards;
- * when it ends (beaten or lost), moves its ₱ to the bank.
+ * when it ends (beaten or lost), moves its ₱ to the bank; its first battle completed (and beating it) unlocks packs.
  */
 export async function advanceRun(run: LoadedRun, actions: (RunAction | RunSystemAction)[]): Promise<LoadedRun> {
   const [pool, gear] = await Promise.all([cardPool(), equippedGear(run.ownerId)]);
@@ -119,12 +120,15 @@ export async function advanceRun(run: LoadedRun, actions: (RunAction | RunSystem
 
   const status = statusOf(state);
   const reward = status === 'WON' && !run.rewarded;
-  // A run's ₱ go to the bank as soon as it ends (a conceded one's only if it finished a battle: bankablePokedollars).
+  // A run's ₱ go to the bank as soon as it ends (only if it completed a battle without conceding it: bankablePokedollars).
   // A lost run carried on (the Retry testing aid) takes them back out, as far as the bank still has them, so they
   // aren't banked twice.
   const bank = status !== 'ACTIVE' && !run.banked;
   const unbank = status === 'ACTIVE' && run.banked;
   const saved = await prisma.$transaction(async (tx) => {
+    // Its first battle completed unlocks its generation's next booster pack, beating it all of them; the run's log says so.
+    const packs = await earnedPacks(run.ownerId, run.state, state, tx);
+    for (const { name } of packs) state.log.push(`Unlocked ${name} booster packs.`);
     const { count } = await tx.run.updateMany({
       where: { id: run.id, version: run.version },
       data: { state: asJson(state), version: state.version, status, ...(reward && { rewarded: true }), ...((bank || unbank) && { banked: bank }) },
@@ -138,6 +142,7 @@ export async function advanceRun(run: LoadedRun, actions: (RunAction | RunSystem
     // Cards gained by these actions are unlocked for the deck builder at once (they don't join the run's deck),
     // and badges (or the Champion's ribbon) go to the inventory as they're won.
     await unlockCards(run.ownerId, state.gained.slice(run.state.gained.length), tx);
+    await unlockPacks(run.ownerId, packs.map((p) => p.id), tx);
     for (const itemId of (state.badges ?? []).slice(run.state.badges?.length ?? 0)) {
       await tx.inventoryItem.upsert({ where: { userId_itemId: { userId: run.ownerId, itemId } }, create: { userId: run.ownerId, itemId, quantity: 1 }, update: {} });
     }
@@ -201,14 +206,18 @@ export async function abandonBattle(gameId: string) {
   });
 }
 
-/** If the run's battle has finished, records the result (a win, or a loss and 1 HP). */
+/**
+ * If the run's battle has finished, records the result (a win, or a loss and 1 HP), and whether the player conceded
+ * it (a CONCEDE of theirs in its action rows): a conceded battle isn't a completed one (battlesCompleted).
+ */
 export async function settleBattle(run: LoadedRun): Promise<LoadedRun> {
   const gameId = currentGameId(run.state);
   if (!gameId) return run;
   const game = await prisma.game.findUnique({ where: { id: gameId }, select: { status: true, winner: true } });
   if (!game || game.status !== 'FINISHED') return run;
+  const conceded = (await prisma.gameAction.count({ where: { gameId, playerId: HUMAN_ID, action: { path: ['type'], equals: 'CONCEDE' } } })) > 0;
   try {
-    return await advanceRun(run, [{ type: 'BATTLE_OVER', gameId, won: game.winner === HUMAN_ID }]);
+    return await advanceRun(run, [{ type: 'BATTLE_OVER', gameId, won: game.winner === HUMAN_ID, ...(conceded && { conceded }) }]);
   } catch (error) {
     // Settled by another request first: reload.
     if (error instanceof TRPCError && error.code === 'CONFLICT') return loaded((await prisma.run.findUniqueOrThrow({ where: { id: run.id } })));

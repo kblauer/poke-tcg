@@ -63,18 +63,22 @@ export function RunOver({ current, overview, run }: { current: ClientRun; overvi
   const type = runType(view.type);
   const last = finalBoss(type);
   const won = (view.badges ?? []).map((id) => ITEMS[id]?.name).filter(Boolean);
+  // The booster packs the run unlocked (its first battle completed, or beating it), from its log.
+  const packs = view.log.flatMap((line) => line.match(/^Unlocked (.+) booster packs\.$/)?.slice(1) ?? []);
+  const packsNote = packs.length > 0 ? ` Unlocked booster packs: ${packs.join(', ')}.` : '';
+  const banked = bankablePokedollars(view);
   const { isClosed, toggle } = useClosed(current.id);
   // Before the next run, which takes the run's deck over if it isn't saved.
   const saveDeck = <SaveRunDeck current={current} saveName={overview.runDeck?.saveName ?? null} />;
   if (view.phase === 'lost' && view.conceded) {
-    const banked = bankablePokedollars(view);
     return (
       <div className="space-y-4">
         <section className="space-y-3 rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600">
           <h3 className="text-lg font-semibold text-slate-200">You conceded the run</h3>
           <p className="text-sm text-slate-300">
             You made it to encounter {Math.min(view.position + 1, view.steps.length)} of {view.steps.length}. The cards you gained stay unlocked in the deck builder.{' '}
-            {banked ? `₱${banked} went to your bank.` : 'No battle was finished, so no ₱ were banked.'}
+            {banked ? `₱${banked} went to your bank.` : 'No battle was completed without conceding it, so no ₱ were banked.'}
+            {packsNote}
           </p>
         </section>
         {saveDeck}
@@ -88,7 +92,9 @@ export function RunOver({ current, overview, run }: { current: ClientRun; overvi
         <section className="space-y-3 rounded-lg bg-slate-800 p-5 ring-1 ring-rose-700">
           <h3 className="text-lg font-semibold text-rose-300">Out of HP: the run is over</h3>
           <p className="text-sm text-slate-300">
-            You made it to encounter {Math.min(view.position + 1, view.steps.length)} of {view.steps.length}. The cards you gained stay unlocked in the deck builder.
+            You made it to encounter {Math.min(view.position + 1, view.steps.length)} of {view.steps.length}. The cards you gained stay unlocked in the deck builder.{' '}
+            {banked ? `₱${banked} went to your bank.` : 'No battle was completed without conceding it, so no ₱ were banked.'}
+            {packsNote}
           </p>
           <button className="rounded bg-amber-600 px-4 py-2 text-sm font-semibold transition hover:bg-amber-500 active:scale-95 disabled:opacity-40" disabled={run.busy} onClick={() => run.retry()}>
             Retry with 3 HP (testing)
@@ -100,7 +106,7 @@ export function RunOver({ current, overview, run }: { current: ClientRun; overvi
     );
   }
   const beat = `You beat ${last.title} ${last.name}!`;
-  const rewards = `+${view.exp} EXP${won.length > 0 ? ` · ${won.join(', ')}` : ''} · ₱${view.pokedollars} banked`;
+  const rewards = `+${view.exp} EXP${won.length > 0 ? ` · ${won.join(', ')}` : ''} · ₱${view.pokedollars} banked${packs.length > 0 ? ` · ${packs.join(', ')} booster packs unlocked` : ''}`;
   return (
     <div className="space-y-4">
       {saveDeck}

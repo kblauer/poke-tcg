@@ -1,14 +1,101 @@
-import type { RunTypeId } from '@poke-tcg/campaign';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import LockIcon from '@mui/icons-material/Lock';
+import { boss, bossLabel, bossTypes, generation, RUN_TYPES, type BossId, type RunTypeId } from '@poke-tcg/campaign';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import type { Overview, RunControl } from '../../hooks/useRun';
+import { EnergyIcon } from '../EnergyIcon';
+
+type RunTypeInfo = Overview['runTypes'][number];
+
+const typeName = (t: string) => t[0]!.toUpperCase() + t.slice(1);
+
+/** A boss's overworld sprite from the remake of their game (FireRed/LeafGreen for Kanto), drawn at 3× with crisp pixels. */
+function BossSprite({ id, scale = 3 }: { id: BossId; scale?: number }) {
+  const b = boss(id);
+  return <img src={`/trainers/${id}.png`} alt={b.name} title={bossLabel(b)} style={{ height: 20 * scale }} className="w-auto shrink-0 [image-rendering:pixelated]" draggable={false} />;
+}
 
 /**
- * Picks the next run's type and one of your decks (built on the Collection tab), then starts it. Decks that
- * break the rules or hold cards you haven't unlocked are listed with why, and can't be picked.
+ * One run type to pick: its final boss's sprite, its name, and who it ends with. A single-gym run shows its gym leader
+ * and the types their deck is built around (bossTypes); a longer run a row of all its bosses. Beaten runs are ticked (Badge),
+ * locked ones say what unlocks them and can't be picked.
+ */
+function RunTypeOption({ info, selected, onPick }: { info: RunTypeInfo; selected: boolean; onPick: () => void }) {
+  const ids = RUN_TYPES[info.id].segments.flatMap((s) => s.bosses);
+  const last = boss(ids.at(-1)!);
+  const locked = info.locked !== null;
+  return (
+    <li>
+      <button
+        role="radio"
+        aria-checked={selected}
+        disabled={locked}
+        onClick={onPick}
+        className={`flex h-full w-full items-center gap-3 rounded-lg px-3 py-2 text-left ring-1 transition ${
+          selected ? 'bg-slate-700 ring-yellow-300' : 'bg-slate-900 ring-slate-700 hover:ring-slate-500'
+        } disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:ring-slate-700`}
+      >
+        <span className={`flex w-12 justify-center ${locked ? 'brightness-50 grayscale' : ''}`}>
+          <BossSprite id={ids.at(-1)!} />
+        </span>
+        <span className="min-w-0 flex-1 space-y-0.5">
+          <span className="flex items-center gap-2">
+            <span className="truncate font-medium">{info.name}</span>
+            {info.beaten > 0 && (
+              <span className="flex shrink-0 items-center gap-0.5 text-xs font-semibold text-emerald-300" title={`Beaten ${info.beaten} time${info.beaten === 1 ? '' : 's'}`}>
+                <CheckCircleIcon sx={{ fontSize: 14 }} />
+                {info.beaten > 1 ? `Badge ×${info.beaten}` : 'Badge'}
+              </span>
+            )}
+          </span>
+          {locked ? (
+            <span className="flex items-center gap-1 text-xs text-amber-300">
+              <LockIcon sx={{ fontSize: 13 }} />
+              {info.locked}
+            </span>
+          ) : ids.length === 1 ? (
+            <>
+              <span className="block truncate text-xs text-slate-300">
+                {bossLabel(last)}
+              </span>
+              <span className="flex flex-wrap items-center gap-x-2 text-xs text-sky-300">
+                {bossTypes(last).map((t) => (
+                  <span key={t} className="flex items-center gap-1">
+                    <EnergyIcon type={t} size="sm" />
+                    {typeName(t)}
+                  </span>
+                ))}
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="block truncate text-xs text-slate-300">{info.bosses}</span>
+              <span className="flex flex-wrap items-end gap-0.5">
+                {ids.map((id) => (
+                  <BossSprite key={id} id={id} scale={1} />
+                ))}
+              </span>
+            </>
+          )}
+        </span>
+      </button>
+    </li>
+  );
+}
+
+/**
+ * Picks the next run's type and one of your decks (built on the Collection tab), then starts it. Run types are buttons
+ * grouped by region (RunTypeOption); locked ones can't be picked. Decks that break the rules or hold cards you haven't
+ * unlocked are listed with why, and can't be picked.
  */
 export function NewRunPicker({ overview, run, title, defaultType }: { overview: Overview; run: RunControl; title: string; defaultType?: RunTypeId }) {
-  const [type, setType] = useState<RunTypeId>(defaultType ?? overview.runTypes[0]!.id);
+  const open = overview.runTypes.filter((t) => t.locked === null);
+  const [type, setType] = useState<RunTypeId>(open.find((t) => t.id === defaultType)?.id ?? open[0]?.id ?? overview.runTypes[0]!.id);
+  const regions = [...new Set(overview.runTypes.map((t) => RUN_TYPES[t.id].generation))].map((g) => ({
+    region: generation(g).region,
+    types: overview.runTypes.filter((t) => RUN_TYPES[t.id].generation === g),
+  }));
   const playable = overview.decks.filter((d) => d.problems.length === 0);
   const [picked, setPicked] = useState<string | null>(null);
   const deckId = picked ?? playable[0]?.id ?? null;
@@ -16,20 +103,19 @@ export function NewRunPicker({ overview, run, title, defaultType }: { overview: 
   return (
     <section className="space-y-4 rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600">
       <h3 className="text-lg font-semibold">{title}</h3>
-      <label className="block space-y-1 text-sm">
+      <div className="@container space-y-2 text-sm">
         <span className="text-slate-400">Run</span>
-        <select
-          className="w-full rounded bg-slate-900 px-3 py-2 text-sm ring-1 ring-slate-600 focus:outline-none focus:ring-slate-400"
-          value={type}
-          onChange={(e) => setType(e.target.value as RunTypeId)}
-        >
-          {overview.runTypes.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name} ({t.bosses})
-            </option>
-          ))}
-        </select>
-      </label>
+        {regions.map(({ region, types }) => (
+          <div key={region} className="space-y-1">
+            {regions.length > 1 && <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{region}</p>}
+            <ul role="radiogroup" aria-label={`${region} runs`} className="grid gap-2 @lg:grid-cols-2 @3xl:grid-cols-3">
+              {types.map((t) => (
+                <RunTypeOption key={t.id} info={t} selected={t.id === type} onPick={() => setType(t.id)} />
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
       {chosen && <p className="text-sm text-slate-400">{chosen.description}</p>}
 
       <div className="space-y-2 text-sm">
@@ -70,7 +156,7 @@ export function NewRunPicker({ overview, run, title, defaultType }: { overview: 
       <p className="text-xs text-slate-500">The new run starts with ₱500 and 3 HP.</p>
       <button
         className="rounded bg-blue-600 px-5 py-2 font-semibold transition hover:bg-blue-500 active:scale-95 disabled:opacity-40"
-        disabled={run.busy || !deckId}
+        disabled={run.busy || !deckId || chosen?.locked !== null}
         onClick={() => deckId && run.start(type, deckId)}
       >
         Start the run

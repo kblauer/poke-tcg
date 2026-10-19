@@ -24,6 +24,7 @@ model User {
   games       Game[]
   runs        Run[]
   cardUnlocks CardUnlock[]
+  packUnlocks PackUnlock[]
   items       InventoryItem[]
   equipment   Equipment[]
 }
@@ -189,6 +190,17 @@ model CardUnlock {
   createdAt DateTime @default(now())
 
   @@id([userId, cardId])
+}
+
+/// Booster packs an account can buy (by set id, e.g. "base2"): a run's first battle finished without conceding unlocks
+/// its generation's next pack, beating a run all of them (see the campaign package's GENERATIONS).
+model PackUnlock {
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  setId     String
+  createdAt DateTime @default(now())
+
+  @@id([userId, setId])
 }
 
 /// Items an account owns (consumables, misc items, key items, equipment). `itemId` is a key of the campaign package's ITEMS.

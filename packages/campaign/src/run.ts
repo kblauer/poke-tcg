@@ -72,7 +72,7 @@ export interface RunState {
   rngState: number;
   hp: number;
   maxHp: number;
-  /** ₱ to spend in this run. Banked when the next run starts. */
+  /** ₱ to spend in this run. Banked when the run ends, if a battle was finished without conceding it (bankablePokedollars). */
   pokedollars: number;
   /** EXP earned this run, added to the account when the run is beaten. */
   exp: number;
@@ -89,10 +89,12 @@ export interface RunState {
   position: number;
   /** map: choosing the next encounter; encounter: playing it; won/lost: the run is over. */
   phase: 'map' | 'encounter' | 'won' | 'lost';
-  /** The player gave up the run (CONCEDE): it's lost, and its ₱ are banked only if a battle was finished. */
+  /** The player gave up the run (CONCEDE): it's lost, and its ₱ are banked only if a battle was finished without conceding it. */
   conceded?: boolean;
   /** Battles finished this run, won or lost. Missing in older runs (see battlesFought). */
   battlesFought?: number;
+  /** Battles finished without the player conceding the game, won or lost. Missing in older runs (see battlesCompleted). */
+  battlesCompleted?: number;
   encounter: Encounter | null;
   /** Battle rules from events, for the next `battlesLeft` battles. */
   rules: { rule: BattleRule; battlesLeft: number; label: string }[];
@@ -118,13 +120,14 @@ export type RunAction =
   | { type: 'PICK'; index: number }
   /** Buy card `index` of a shop. */
   | { type: 'BUY'; index: number }
-  /** Give up the run while choosing the next step: the cards gained stay unlocked, and its ₱ are banked if a battle was finished. */
+  /** Give up the run while choosing the next step: the cards gained stay unlocked, and its ₱ are banked if a battle was finished without conceding it. */
   | { type: 'CONCEDE' };
 
 /** Actions only the server sends (battles, items, the testing retry). Never accepted from clients. */
 export type RunSystemAction =
   | { type: 'BATTLE_STARTED'; gameId: string }
-  | { type: 'BATTLE_OVER'; gameId: string; won: boolean }
+  /** `conceded`: the player conceded the game, so it doesn't count as a completed battle (battlesCompleted). */
+  | { type: 'BATTLE_OVER'; gameId: string; won: boolean; conceded?: boolean }
   | { type: 'USE_ITEM'; itemId: string }
   | { type: 'RESTORE_HP' }
   /** Switch to another of the account's decks (the server loads it and checks it can be played), on the map before choosing a battle. */
@@ -405,8 +408,15 @@ export function eventInfo(event: RunEvent, cardName: (id: string) => string): { 
 /** Battles finished in the run, won or lost; older runs, which didn't count them, from their log. */
 export const battlesFought = (state: Pick<RunState, 'battlesFought' | 'log'>) => state.battlesFought ?? state.log.filter((line) => /^(Beat .+: \+₱|Lost to .+: −1 HP)/.test(line)).length;
 
-/** The ₱ that go to the bank when the run ends: all of them, unless it was conceded before any battle was finished. */
-export const bankablePokedollars = (state: Pick<RunState, 'battlesFought' | 'log' | 'conceded' | 'pokedollars'>) => (state.conceded && battlesFought(state) === 0 ? 0 : state.pokedollars);
+/** Battles finished without the player conceding the game, won or lost; older runs, which didn't count them, count every battle finished. */
+export const battlesCompleted = (state: Pick<RunState, 'battlesCompleted' | 'battlesFought' | 'log'>) => state.battlesCompleted ?? battlesFought(state);
+
+/**
+ * The ₱ that go to the bank when the run ends (beaten, lost or conceded): all of them once a battle was finished without
+ * conceding it, won or lost (agreed with the user), and none before, so conceding the first battle and the run can't bank
+ * the starting ₱. The same first completed battle unlocks the generation's next booster pack (the API, nextPack).
+ */
+export const bankablePokedollars = (state: Pick<RunState, 'battlesCompleted' | 'battlesFought' | 'log' | 'pokedollars'>) => (battlesCompleted(state) > 0 ? state.pokedollars : 0);
 
 /** Ends the current encounter and moves to the next step's choices. */
 function nextStep(state: RunState) {
@@ -457,7 +467,7 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
       state.phase = 'lost';
       state.conceded = true;
       const banked = bankablePokedollars(state);
-      state.log.push(banked ? `Conceded the run: ₱${banked} banked.` : 'Conceded the run before finishing a battle: no ₱ banked.');
+      state.log.push(banked ? `Conceded the run: ₱${banked} banked.` : 'Conceded the run before completing a battle: no ₱ banked.');
       return ok();
     }
 
@@ -491,7 +501,9 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
       const battle = e as BattleEncounter;
       // The battle's consumables (`effects`, from before) count for its rewards; one of their battles is over.
       tickBattles(state);
+      const completed = battlesCompleted(state);
       state.battlesFought = battlesFought(state) + 1;
+      state.battlesCompleted = completed + (action.conceded ? 0 : 1);
       if (action.won) {
         const reward = battleReward(battle.kind, battle.focus);
         const prize = between(rng, reward.pokedollars[0] / 10, reward.pokedollars[1] / 10) * 10;
@@ -515,7 +527,7 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
         return done();
       }
       state.hp -= 1;
-      state.log.push(`Lost to ${battle.trainer}: −1 HP.`);
+      state.log.push(`Lost to ${battle.trainer}${action.conceded ? ' (conceded)' : ''}: −1 HP.`);
       // A boss stays to be fought again; any other battle (a Gym Trainer too) is over, won or not.
       if (isBossKind(battle.kind)) {
         state.encounter = null;
@@ -526,7 +538,7 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
       }
       if (state.hp <= 0) {
         state.phase = 'lost';
-        state.log.push('Out of HP: the run is lost.');
+        state.log.push(bankablePokedollars(state) ? 'Out of HP: the run is lost.' : 'Out of HP: the run is lost, without completing a battle: no ₱ banked.');
       }
       return done();
     }
