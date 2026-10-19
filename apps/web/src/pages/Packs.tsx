@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { BoosterPack } from '../components/packs/BoosterPack';
 import { PackOpening, type PackSetInfo } from '../components/packs/PackOpening';
+import { GenerationFilter, packGeneration } from '../components/packs/GenerationFilter';
 import { PreviewProvider } from '../components/PreviewProvider';
 import { useIsPhone } from '../hooks/useIsPhone';
 import { useTRPC } from '../lib/trpc';
@@ -12,8 +13,9 @@ import { pickPackArt } from '../utils/packArt';
 /**
  * Booster packs (`/packs`), bought with the ₱ in the bank: pick a set, then open its pack in a window
  * (PackOpening). Every card opened is unlocked for the deck builder. Locked sets are dimmed and can't be picked: a run's
- * first battle completed unlocks its generation's next one (marked), beating a run all of them. On a phone held upright
- * (useIsPhone) the packs are a grid 4 wide, smaller; a tap on a locked one says under the grid how to unlock it.
+ * first battle completed unlocks its generation's next one (marked), beating a run all of them. Every set shows until
+ * generations are picked in the generation filter (GenerationFilter). On a phone held upright (useIsPhone) the packs
+ * are a grid 4 wide, smaller; a tap on a locked one says under the grid how to unlock it.
  */
 export function PacksPage() {
   const trpc = useTRPC();
@@ -21,6 +23,8 @@ export function PacksPage() {
   const packs = useQuery(trpc.packs.list.queryOptions());
   const phone = useIsPhone();
   const [opening, setOpening] = useState<PackSetInfo | null>(null);
+  // The generations picked in the filter; none (as on every visit) shows every set.
+  const [picked, setPicked] = useState<Set<number>>(() => new Set());
   /** On a phone: the locked pack last tapped, and how to unlock it. */
   const [lockedNote, setLockedNote] = useState<string | null>(null);
   // A random one of each set's wrappers, picked when the page is opened.
@@ -56,8 +60,9 @@ export function PacksPage() {
             Stardust <span className="font-semibold text-sky-200">{stardust}</span>
           </span>
         </div>
+        <GenerationFilter picked={picked} onChange={setPicked} />
         <div className={phone ? 'grid grid-cols-4 gap-2' : 'grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6'}>
-          {sets.map((s) => {
+          {sets.filter((s) => picked.size === 0 || picked.has(packGeneration(s.id) ?? 0)).map((s) => {
             const why = s.next ? `Next to unlock: complete a battle in a ${s.next} run (without conceding it)` : `Locked: beat a run, or keep completing battles in runs`;
             return phone ? (
               <button

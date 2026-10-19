@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { attackEffect, cardImplemented, type CardDef, type EnergyType, type Stage } from '@poke-tcg/game-engine';
 import type { PackSet } from './packs.js';
-import { POOL_SETS, type PoolCard, type Rarity } from './pool.js';
+import { GEN2_SETS, POOL_SETS, type PoolCard, type Rarity } from './pool.js';
 
 interface Row {
   id: string;
@@ -21,7 +21,7 @@ interface Row {
   abilities?: { name: string; effect: string }[] | null;
 }
 
-const STAGES: Record<string, Stage> = { Basic: 'basic', Stage1: 'stage1', Stage2: 'stage2' };
+const STAGES: Record<string, Stage> = { Basic: 'basic', Baby: 'basic', Stage1: 'stage1', Stage2: 'stage2' };
 const type = (t: string) => t.toLowerCase() as EnergyType;
 
 /**
@@ -63,7 +63,9 @@ function toDef(r: Row): CardDef | null {
     if (r.name === 'Rainbow Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', anyType: true, basic: false };
     if (r.name === 'Full Heal Energy' || r.name === 'Potion Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', basic: false };
     const t = type(r.name.replace(/ Energy$/, ''));
-    return ['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting'].includes(t) ? { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: t } : null;
+    if (['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting'].includes(t)) return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: t };
+    // Special Energy the engine doesn't implement yet, as the API loads it: 1 Energy of its type (Darkness, Metal), otherwise Colorless.
+    return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: t === 'darkness' || t === 'metal' ? t : 'colorless', basic: false };
   }
   if (r.name === 'Clefairy Doll' || r.name === 'Mysterious Fossil') {
     return { id: r.id, kind: 'pokemon', name: r.name, imageUrl: null, type: 'colorless', hp: 10, stage: 'basic', evolvesFrom: null, attacks: [], retreatCost: 0, trainerText: r.effect ?? '' };
@@ -81,6 +83,14 @@ export const TEST_POOL: PoolCard[] = rows
   .flatMap((r) => {
     const def = toDef(r);
     return def && cardImplemented(def) ? [{ def, rarity: rarity(r) }] : [];
+  });
+
+/** Gen 2's pool as the API builds it: every card of GEN2_SETS it can load, implemented or not (their effects are still to come). */
+export const GEN2_TEST_POOL: PoolCard[] = rows
+  .filter((r) => GEN2_SETS.includes(r.id.split('-')[0]!))
+  .flatMap((r) => {
+    const def = toDef(r);
+    return def ? [{ def, rarity: rarity(r) }] : [];
   });
 
 /** Cards added by hand to the catalog (packages/db/prisma/data/custom-cards.json), in the snapshot's shape. */

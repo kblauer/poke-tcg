@@ -10,7 +10,7 @@ import { expandDeck, generateDeck, trainerFavorites } from './decks.js';
 import { activeEffects, battleRules, effectTotal, item, MAX_CONSUMABLES_PER_RUN, type ActiveEffect } from './items.js';
 import { byId, DECK_TYPES, offerable, PRICES, rarityWeight, type PoolCard, type Rarity } from './pool.js';
 import { between, pick, random, rngFrom, seed, weighted, type Rng } from './random.js';
-import { finalBoss, runType, type RunTypeId } from './run-types.js';
+import { finalBoss, runGeneration, runType, type RunTypeId } from './run-types.js';
 
 export const MAX_HP = 3;
 export const STARTING_POKEDOLLARS = 500;
@@ -364,8 +364,9 @@ const bossOf = (state: RunState, e: BattleEncounter) => (e.boss ? boss(e.boss) :
  * What the server needs to start the battle: the CPU's deck, how it plays, and the battle rules in effect
  * (the run's, and with `items`, the battle effects of the gear and the consumables in effect as rules for the player).
  * Bosses play their own deck at Gym leader difficulty; a Gym Trainer a random deck of their gym's type, at
- * Trainer difficulty; Ace Trainers a random deck at Gym leader difficulty; other trainers a deck suiting their name
- * (trainerFavorites) at Trainer difficulty.
+ * Trainer difficulty (from its gym's favourite Pokémon when its type has no basic Energy); Ace Trainers a random deck at Gym
+ * leader difficulty; other trainers a deck suiting their name (trainerFavorites) at Trainer difficulty. Random decks are
+ * the run's generation's (its Energy and Trainers; `pool` should be its pool too).
  */
 export function battleSetup(
   state: RunState,
@@ -377,10 +378,13 @@ export function battleSetup(
   const rules = [...state.rules.map((r) => ({ ...r.rule, label: r.label })), ...(items ? battleRules(activeEffects(items.gear, state.consumables), items.player) : [])];
   const b = bossOf(state, e);
   if (isBossKind(e.kind)) return { deck: expandDeck(b!.deck), difficulty: 'gymLeader', rules, opponent: e.trainer };
-  const type = e.kind === 'gymTrainer' ? b?.gym?.type : undefined;
+  const deckRules = runGeneration(state.type).deckRules;
+  const gym = e.kind === 'gymTrainer' ? b?.gym : undefined;
+  // A Gym Trainer's deck is of their gym's type, or for a type with no basic Energy (Colorless, Metal) built from the gym's favourites.
+  const type = gym && gym.type in deckRules.basicEnergy ? gym.type : undefined;
   // A trainer's deck suits their name (a Swimmer's Water Pokémon); a Gym Trainer's suits their gym instead.
-  const favorites = e.kind === 'battle' ? trainerFavorites(e.trainer) : undefined;
-  return { deck: generateDeck(pool, rngFrom(e.deckSeed), { type, favorites }), difficulty: e.kind === 'elite' ? 'gymLeader' : 'trainer', rules, opponent: e.trainer };
+  const favorites = e.kind === 'battle' ? trainerFavorites(e.trainer) : gym && !type ? gym.favorites : undefined;
+  return { deck: generateDeck(pool, rngFrom(e.deckSeed), { type, favorites, rules: deckRules }), difficulty: e.kind === 'elite' ? 'gymLeader' : 'trainer', rules, opponent: e.trainer };
 }
 
 const typeName = (t: string) => t[0]!.toUpperCase() + t.slice(1);

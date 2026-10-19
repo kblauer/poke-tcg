@@ -1,19 +1,32 @@
 import { canPayCost, cardImplemented, isBasicPokemon, isPokemonCard, type PokemonCardDef } from '@poke-tcg/game-engine';
 import { describe, expect, it } from 'vitest';
-import { BOSSES } from './bosses.js';
-import { deckErrors, expandDeck, generateDeck, STARTER_DECK, trainerFavorites } from './decks.js';
+import { BOSSES, JOHTO_ELITE_FOUR, JOHTO_GYMS } from './bosses.js';
+import { deckErrors, expandDeck, GEN2_DECK_RULES, generateDeck, STARTER_DECK, trainerFavorites } from './decks.js';
+import { GEN2_SETS } from './pool.js';
 import { rngFrom } from './random.js';
-import { catalogDef, TEST_POOL, testDef } from './test-pool.js';
+import { catalogDef, GEN2_TEST_POOL, TEST_POOL, testDef } from './test-pool.js';
 
 describe('fixed decks', () => {
   it('the starter deck is a legal 60-card deck of cards from the run pool', () => {
     expect(deckErrors(expandDeck(STARTER_DECK), testDef)).toEqual([]);
   });
 
-  it.each(Object.entries(BOSSES))("%s's deck is a legal 60-card deck of catalog cards the engine fully implements", (_, b) => {
+  const johto = new Set<string>([...JOHTO_GYMS, ...JOHTO_ELITE_FOUR, 'johto-lance']);
+  const kanto = Object.entries(BOSSES).filter(([id]) => !johto.has(id));
+
+  it.each(kanto)("%s's deck is a legal 60-card deck of catalog cards the engine fully implements", (_, b) => {
     const deck = expandDeck(b.deck);
     expect(deckErrors(deck, catalogDef)).toEqual([]);
     expect(deck.filter((id) => !cardImplemented(catalogDef(id)))).toEqual([]);
+  });
+
+  // Gen 2's card effects are still to come: its bosses' decks only need to be legal and Gen 2's.
+  it.each([...johto])("%s's deck is a legal 60-card deck of Gen 2 cards, each evolution with its earlier stage", (id) => {
+    const deck = expandDeck(BOSSES[id as keyof typeof BOSSES].deck);
+    expect(deckErrors(deck, catalogDef)).toEqual([]);
+    expect(deck.filter((c) => !GEN2_SETS.includes(c.split('-')[0]!))).toEqual([]);
+    const names = new Set(deck.map((c) => catalogDef(c).name));
+    expect(deck.map(catalogDef).filter((d) => isPokemonCard(d) && d.evolvesFrom && !names.has(d.evolvesFrom)).map((d) => d.name)).toEqual([]);
   });
 });
 
@@ -93,5 +106,24 @@ describe('trainer decks suit their name', () => {
       const inFavoriteLine = pokemon.filter((d) => favorites.includes(d.name) || tops.some((t) => t.evolvesFrom === d.name || pokemon.some((m) => m.evolvesFrom === d.name && t.evolvesFrom === m.name)));
       expect(inFavoriteLine.length / pokemon.length, `${trainer} seed ${seed}`).toBeGreaterThanOrEqual(0.75);
     }
+  });
+});
+
+describe('generateDeck for Gen 2', () => {
+  const gen2Def = (id: string) => GEN2_TEST_POOL.find((c) => c.def.id === id)!.def;
+  const decks = Array.from({ length: 100 }, (_, seed) => generateDeck(GEN2_TEST_POOL, rngFrom(seed), { rules: GEN2_DECK_RULES }));
+
+  it("builds legal 60-card decks of Gen 2's cards only, with Gen 2's basic Energy and Trainers", () => {
+    for (const deck of decks) {
+      expect(deckErrors(deck, gen2Def)).toEqual([]);
+      expect(deck.filter((id) => !GEN2_SETS.includes(id.split('-')[0]!))).toEqual([]);
+      expect(deck.filter((id) => gen2Def(id).kind === 'trainer').length).toBeGreaterThanOrEqual(12);
+    }
+  });
+
+  it("builds a Gym Trainer's deck from their gym's favourites when its type has no basic Energy", () => {
+    const deck = generateDeck(GEN2_TEST_POOL, rngFrom(3), { favorites: BOSSES.falkner.gym.favorites, rules: GEN2_DECK_RULES });
+    const names = new Set(deck.map((id) => gen2Def(id).name));
+    expect(BOSSES.falkner.gym.favorites.filter((n) => names.has(n)).length).toBeGreaterThanOrEqual(3);
   });
 });

@@ -1,4 +1,4 @@
-import { POOL_SETS, type PoolCard, type Rarity } from '@poke-tcg/campaign';
+import { generation, runType, type PoolCard, type Rarity } from '@poke-tcg/campaign';
 import { prisma, type Card } from '@poke-tcg/db';
 import { cardImplemented, type CardDef } from '@poke-tcg/game-engine';
 import { isGalaxyFoil, isHolo, toCardDef } from './cards.js';
@@ -7,9 +7,13 @@ import { isGalaxyFoil, isHolo, toCardDef } from './cards.js';
 export const cardRarity = (card: Pick<Card, 'id' | 'rarity' | 'data'>): Rarity =>
   isHolo(card) || isGalaxyFoil(card) ? 'holo' : card.rarity === 'Rare' ? 'rare' : card.rarity === 'Uncommon' ? 'uncommon' : 'common';
 
-/** Every card in POOL_SETS the engine plays fully, with Stage 2s' Basics filled in for Pokémon Breeder. */
-async function loadPool(): Promise<PoolCard[]> {
-  const rows = await prisma.card.findMany({ where: { setId: { in: POOL_SETS } }, orderBy: { id: 'asc' } });
+/**
+ * A generation's pool: every card of its sets (`poolSets`) the engine can load, only those it plays fully when the
+ * generation is `implementedOnly` (Gen 1; Gen 2's effects are still to come), with Stage 2s' Basics filled in for Pokémon Breeder.
+ */
+async function loadPool(gen: number): Promise<PoolCard[]> {
+  const { poolSets, implementedOnly } = generation(gen);
+  const rows = await prisma.card.findMany({ where: { setId: { in: poolSets } }, orderBy: { id: 'asc' } });
   const pool = rows.flatMap((row) => {
     let def: CardDef;
     try {
@@ -17,7 +21,7 @@ async function loadPool(): Promise<PoolCard[]> {
     } catch {
       return []; // A Trainer or Energy the engine doesn't support.
     }
-    return cardImplemented(def) ? [{ def, rarity: cardRarity(row) }] : [];
+    return !implementedOnly || cardImplemented(def) ? [{ def, rarity: cardRarity(row) }] : [];
   });
   for (const { def } of pool) {
     if (def.kind !== 'pokemon' || def.stage !== 'stage2') continue;
@@ -27,13 +31,23 @@ async function loadPool(): Promise<PoolCard[]> {
   return pool;
 }
 
-let cached: Promise<PoolCard[]> | undefined;
+const cached = new Map<number, Promise<PoolCard[]>>();
 
-/** The card pool runs use (see @poke-tcg/campaign's pool.ts). The catalog doesn't change at runtime, so it's loaded once. */
-export function cardPool(): Promise<PoolCard[]> {
-  cached ??= loadPool().catch((error) => {
-    cached = undefined;
-    throw error;
-  });
-  return cached;
+/**
+ * The card pool a generation's runs use (see @poke-tcg/campaign's pool.ts and GENERATIONS): Gen 1's by default (single
+ * battles too). The catalog doesn't change at runtime, so each is loaded once.
+ */
+export function cardPool(gen = 1): Promise<PoolCard[]> {
+  let pool = cached.get(gen);
+  if (!pool) {
+    pool = loadPool(gen).catch((error) => {
+      cached.delete(gen);
+      throw error;
+    });
+    cached.set(gen, pool);
+  }
+  return pool;
 }
+
+/** The pool of a run's generation (by its run type). */
+export const runPool = (type: string) => cardPool(runType(type).generation);

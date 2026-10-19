@@ -91,3 +91,14 @@ describe('openPack: Wizards Black Star Promos', () => {
     expect(Math.abs(share - (1 - (1 - HOLO_CHANCE) * 0.69))).toBeLessThan(0.03);
   });
 });
+
+describe('a set of only holos (Southern Islands)', () => {
+  it('gives the Energy and 6 different holos', () => {
+    const holo = Array.from({ length: 18 }, (_, i) => `si1-${i + 1}`);
+    for (let seed = 0; seed < 20; seed++) {
+      const pack = openPack({ common: [], uncommon: [], rare: [], holo, energy: ['neo1-106'] }, rngFrom(seed));
+      expect(pack.map((c) => c.slot)).toEqual(['energy', ...Array(6).fill('holo')]);
+      expect(new Set(pack.map((c) => c.cardId)).size).toBe(7);
+    }
+  });
+});

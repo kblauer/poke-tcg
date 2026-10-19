@@ -3,7 +3,7 @@ import { prisma } from '@poke-tcg/db';
 import { DECK_NAME_LENGTH } from '@poke-tcg/shared';
 import { buyItemInput, DEFAULT_TRAINER_SPRITE, equipInput, runActInput, runChooseInput, runIdInput, saveRunDeckInput, startRunInput, trainerSpriteInput, useItemInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
-import { cardPool } from '../pool.js';
+import { runPool } from '../pool.js';
 import { runTypeProgress } from '../progress.js';
 import { abandonBattle, advanceRun, ensureAccount, latestRun, loadOwnRun, startRun, syncRunDeck, type LoadedRun } from '../runs.js';
 import { holoTwins, unlockedIds } from '../unlocks.js';
@@ -25,7 +25,7 @@ async function latestStock(userId: string) {
 
 /** What the client gets for a run: its view (no RNG or opponents' deck seeds) and the battle under way. */
 async function clientRun(run: LoadedRun) {
-  return { id: run.id, status: run.status, version: run.version, gameId: currentGameId(run.state), view: runView(run.state, await cardPool()) };
+  return { id: run.id, status: run.status, version: run.version, gameId: currentGameId(run.state), view: runView(run.state, await runPool(run.state.type)) };
 }
 
 export const runRouter = router({
@@ -61,7 +61,7 @@ export const runRouter = router({
       // With why each can't be started yet (`locked`: badges or a Gym Challenge missing) and how often it's been beaten.
       runTypes: RUN_TYPE_IDS.map((id) => {
         const type = RUN_TYPES[id];
-        return { id, name: type.name, description: type.description, bosses: bossSummary(type), ...progress[id] };
+        return { id, name: type.name, description: type.description, bosses: bossSummary(type), generation: type.generation, ...progress[id] };
       }),
     };
   }),

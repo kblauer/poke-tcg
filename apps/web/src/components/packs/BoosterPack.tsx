@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 
-/** Each set's pack colours, for a pack drawn without its real art (the promos, which had no packs). */
+/** Each set's pack colours, for a pack drawn without its real art (the promos and Southern Islands, which had no booster packs). */
 const PALETTES: Record<string, string> = {
   base1: 'from-sky-600 via-blue-800 to-indigo-950',
   base2: 'from-lime-500 via-emerald-700 to-emerald-950',
@@ -10,6 +10,8 @@ const PALETTES: Record<string, string> = {
   base4: 'from-fuchsia-500 via-violet-800 to-indigo-950',
   // Team Rocket: black and red, like its big red R.
   base5: 'from-red-600 via-neutral-900 to-black',
+  // Southern Islands, sold in collections rather than booster packs: tropical sea blues.
+  si1: 'from-sky-400 via-cyan-700 to-blue-950',
 };
 
 /** The crimped foil seal along a pack's top and bottom edges. */

@@ -25,8 +25,9 @@ describe('unlocking run types', () => {
 });
 
 describe('generation packs', () => {
-  it('Kanto unlocks every pack set, one at a time in release order', () => {
-    expect([...kanto.packs].sort()).toEqual([...PACK_SETS].sort());
+  it("the generations' packs are every pack set, each in one generation, one at a time in release order", () => {
+    expect([...kanto.packs, ...generation(2).packs].sort()).toEqual([...PACK_SETS].sort());
+    expect(nextPack(generation(2), new Set(kanto.packs))).toBe('neo1');
     expect(nextPack(kanto, new Set())).toBe('base1');
     expect(nextPack(kanto, new Set(['base1']))).toBe('base2');
     expect(nextPack(kanto, new Set(kanto.packs))).toBeNull();
