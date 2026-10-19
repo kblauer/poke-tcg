@@ -9,24 +9,25 @@ datasource db {
 
 /// App profile for a Supabase Auth user. `id` matches auth.users.id.
 model User {
-  id          String   @id @db.Uuid
-  email       String   @unique
-  displayName String?
-  avatarUrl   String?
-  createdAt   DateTime @default(now())
+  id            String          @id @db.Uuid
+  email         String          @unique
+  displayName   String?
+  avatarUrl     String?
+  createdAt     DateTime        @default(now())
   /// Account-wide currency earned by beating runs, spent in the post-run shop.
-  exp         Int      @default(0)
+  exp           Int             @default(0)
   /// ₱ banked from earlier runs: each run's ₱ is moved here when it ends.
-  bank        Int      @default(0)
+  bank          Int             @default(0)
   /// Stardust, the crafting currency: earned for every card pulled from a pack, spent crafting cards in the deck builder.
-  stardust    Int      @default(0)
-  decks       Deck[]
-  games       Game[]
-  runs        Run[]
-  cardUnlocks CardUnlock[]
-  packUnlocks PackUnlock[]
-  items       InventoryItem[]
-  equipment   Equipment[]
+  stardust      Int             @default(0)
+  decks         Deck[]
+  games         Game[]
+  runs          Run[]
+  cardUnlocks   CardUnlock[]
+  packUnlocks   PackUnlock[]
+  favoriteCards FavoriteCard[]
+  items         InventoryItem[]
+  equipment     Equipment[]
 }
 
 enum CardKind {
@@ -50,9 +51,9 @@ model CardSet {
 
 /// Card catalog, imported from TCGdex. `id` is the TCGdex card id (e.g. "base1-4").
 model Card {
-  id         String     @id
+  id         String         @id
   setId      String
-  set        CardSet    @relation(fields: [setId], references: [id])
+  set        CardSet        @relation(fields: [setId], references: [id])
   /// Number within the set, e.g. "4".
   localId    String
   name       String
@@ -70,6 +71,7 @@ model Card {
   data       Json
   deckCards  DeckCard[]
   unlocks    CardUnlock[]
+  favorites  FavoriteCard[]
 
   @@index([setId])
   @@index([name])
@@ -187,6 +189,17 @@ model CardUnlock {
   card      Card     @relation(fields: [cardId], references: [id])
   /// Copies unlocked.
   quantity  Int
+  createdAt DateTime @default(now())
+
+  @@id([userId, cardId])
+}
+
+/// Cards an account has marked as favorites on the Collection tab (its Favorites list and filter).
+model FavoriteCard {
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cardId    String
+  card      Card     @relation(fields: [cardId], references: [id])
   createdAt DateTime @default(now())
 
   @@id([userId, cardId])

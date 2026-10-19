@@ -39,7 +39,7 @@ const PAGES = [
   { to: '/inventory', label: 'Inventory' },
   { to: '/packs', label: 'Packs' },
   { to: '/decks', label: 'Collection' },
-  { to: '/battle', label: 'Single battle' },
+  { to: '/battle', label: 'Practice' },
 ] as const;
 
 function RootLayout() {

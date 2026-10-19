@@ -39,6 +39,8 @@ export interface DeckFilter {
   notImplemented: boolean;
   /** Only holo cards: holo, galaxy foil or holo Energy (isHoloCard). */
   holoOnly: boolean;
+  /** Only the account's favorite cards. */
+  favorites: boolean;
   /** Show unlocked cards, and locked ones (only unlocked ones by default; both off shows none). */
   unlocked: boolean;
   locked: boolean;
@@ -56,6 +58,7 @@ export const EMPTY_DECK_FILTER: DeckFilter = {
   implemented: true,
   notImplemented: false,
   holoOnly: false,
+  favorites: false,
   unlocked: true,
   locked: false,
 };
@@ -67,14 +70,19 @@ export const isHoloCard = (c: Pick<CatalogCard, 'holo' | 'galaxy' | 'holoEnergy'
 const cardType = (c: CatalogCard) => (c.kind === 'POKEMON' ? c.type : c.kind === 'ENERGY' ? c.energyType : null);
 
 /**
- * Cards matching the filters. The search (name or attack), sets, implemented or not and unlocked or locked apply to every card.
+ * Cards matching the filters. The search (name or attack), sets, implemented or not, unlocked or locked and favorites apply to every card.
  * The kind toggles show those kinds (none on: every kind). The type toggles and the Pokémon filters only say
  * something about cards that have a type, or are Pokémon: a card they say nothing about (a Trainer for the
  * types, a Trainer or Energy for the Pokémon filters) still shows when its kind is toggled on, and is hidden
  * otherwise. So with no kind on, picking Fire shows Fire Pokémon and Fire Energy, and with Pokémon and
  * Trainer on, Fire Pokémon and every Trainer.
  */
-export function filterForDeck(cards: CatalogCard[], f: DeckFilter, isLocked: (card: CatalogCard) => boolean = () => false): CatalogCard[] {
+export function filterForDeck(
+  cards: CatalogCard[],
+  f: DeckFilter,
+  isLocked: (card: CatalogCard) => boolean = () => false,
+  isFavorite: (cardId: string) => boolean = () => false,
+): CatalogCard[] {
   const search = f.search.trim().toLowerCase();
   const pokemonFilters = f.stage !== null || f.minHp !== null || f.maxHp !== null || f.hasAbility;
   return cards.filter((c) => {
@@ -82,6 +90,7 @@ export function filterForDeck(cards: CatalogCard[], f: DeckFilter, isLocked: (ca
     if (f.sets && !f.sets.includes(c.setName)) return false;
     if (!(c.implemented ? f.implemented : f.notImplemented)) return false;
     if (f.holoOnly && !isHoloCard(c)) return false;
+    if (f.favorites && !isFavorite(c.id)) return false;
     if (!(isLocked(c) ? f.locked : f.unlocked)) return false;
     if (f.kinds.length && !f.kinds.includes(c.kind)) return false;
     const picked = f.kinds.includes(c.kind);

@@ -68,6 +68,7 @@
 - Phones held upright (`useIsPhone`) get their own battle screen and Collection layout; tablets and desktops keep the usual ones. See README: Phone layout.
 - Battle screen: locked full screen (`useLockedScreen`), TCG Pocket style (`components/phone/`); tap your Active for its moves (`ActiveSheet`); small Prize/deck/discard stacks beside each Active; the round ☰ button opens the side panel's tabs and Concede (`LogSheet`). No hover preview: a long press inspects a card.
 - Phone hand: tap selects; hold zooms in (large, above the hand) and sliding along the hand changes the zoomed card; sliding up off the hand drags the zoomed card into play.
+- Favorites (agreed): the ★ in a card's large view adds it to the account's favorites (`FavoriteCard`); the search's Favorites toggle (before Pokémon) is the only Favorites view (a separate list was tried and removed). The site's "Single battle" tab is called Practice.
 - Collection: the cards fill the screen; the decks (compact tiles) and the search are side panels slid in by the Decks and Filters buttons above them.
 - Packs: a grid 4 wide by 2 tall.
 

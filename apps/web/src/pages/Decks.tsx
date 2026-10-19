@@ -11,6 +11,7 @@ import { CurrentDeck, DeckList } from '../components/DeckList';
 import { DeckPanel } from '../components/DeckPanel';
 import { InspectContext } from '../components/InspectContext';
 import { SidePanel } from '../components/SidePanel';
+import { useFavorites } from '../hooks/useFavorites';
 import { useIsPhone } from '../hooks/useIsPhone';
 import { useUnlocked } from '../hooks/useUnlocked';
 import { useWindowFill } from '../hooks/useWindowFill';
@@ -29,6 +30,7 @@ const READ_ONLY = "This is your run's deck, which follows the run: copy it to ma
  * Cards not unlocked yet (win them in runs) are darker and can't be added. Right-clicking any card (in the
  * search, the open deck or a deck's headline Pokémon) opens it large, with − and + for the open deck.
  * A link can open a deck straight away: `?deck=<id>`, or `?deck=new` for a new one.
+ * The search's Favorites toggle shows only the account's favorite cards (the ★ on a card opened large adds it).
  * On a phone held upright (useIsPhone) the cards fill the screen, under a bar with two buttons: one slides in the decks
  * (or the open deck) from the left, the other the search from the right (SidePanel). Opening a deck or starting a new one
  * closes its panel, so cards can be tapped into it.
@@ -40,6 +42,7 @@ export function DecksPage() {
   const catalog = useQuery({ ...trpc.cards.list.queryOptions(), staleTime: Infinity });
   const decks = useQuery(trpc.decks.list.queryOptions());
   const { isLocked, copies } = useUnlocked();
+  const favorites = useFavorites();
   const phone = useIsPhone();
   const fill = useWindowFill<HTMLDivElement>();
 
@@ -136,7 +139,7 @@ export function DecksPage() {
   const sets = useMemo(() => (catalog.data ? setNames(catalog.data) : []), [catalog.data]);
   // Holo Energy only shows once it's been pulled from a pack.
   const searchable = useMemo(() => (catalog.data ?? []).filter((c) => !c.holoEnergy || copies(c.id) > 0), [catalog.data, copies]);
-  const results = useMemo(() => sortForDeck(filterForDeck(searchable, filter, isLocked), sort), [searchable, filter, sort, isLocked]);
+  const results = useMemo(() => sortForDeck(filterForDeck(searchable, filter, isLocked, favorites.isFavorite), sort), [searchable, filter, sort, isLocked, favorites.isFavorite]);
   // The numbers of cards shown and in all: holo Energy is never counted (it's a version of a basic Energy, pulled from packs).
   const shownCount = useMemo(() => results.filter((c) => !c.holoEnergy).length, [results]);
   const totalCount = useMemo(() => (catalog.data ?? []).filter((c) => !c.holoEnergy).length, [catalog.data]);
@@ -334,6 +337,7 @@ export function DecksPage() {
           card={inspected}
           locked={isLocked(inspected)}
           deck={editing && !loading && !readOnly ? { name, copies: counts.get(inspected.id) ?? 0, blocked: blockedFor(inspected), onChange: (by) => change(inspected, by) } : undefined}
+          favorite={{ on: favorites.isFavorite(inspected.id), onToggle: () => favorites.toggle(inspected.id) }}
           craft={
             inspected.craftCost !== null && stardust.data !== undefined
               ? {

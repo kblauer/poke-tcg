@@ -1,4 +1,5 @@
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import StarIcon from '@mui/icons-material/Star';
 import type { EnergyType } from '@poke-tcg/game-engine';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { CARD_TYPES } from '../utils/cardList';
@@ -144,6 +145,18 @@ export function DeckFilters({
   const kinds = CARD_KINDS.map((k) =>
     toggleButton(k.label, filter.kinds.includes(k.value), `Show ${k.label === 'Energy' ? 'Energy' : `${k.label}s`} (with none on, every kind shows)`, () => set({ kinds: flip<CardKind>(filter.kinds, k.value) }), k.value),
   );
+  const favorites = (
+    <button
+      key="favorites"
+      className={`${toggle} flex items-center gap-1 ${filter.favorites ? on : off}`}
+      aria-pressed={filter.favorites}
+      title="Only your favorite cards (add one with the ★ when it's open large)"
+      onClick={() => set({ favorites: !filter.favorites })}
+    >
+      <StarIcon sx={{ fontSize: 16 }} />
+      Favorites
+    </button>
+  );
   const holo = toggleButton('Holo', filter.holoOnly, "Only holo cards: holos, galaxy foils and the holo Energy you've pulled", () => set({ holoOnly: !filter.holoOnly }), 'holo');
   const types = CARD_TYPES.map((t) => (
     <button
@@ -202,9 +215,13 @@ export function DeckFilters({
         <div className="flex flex-wrap items-center gap-1.5">{controls}</div>
       </div>
     );
+    // Clear filters at the top, the number of cards shown at the bottom.
     return (
       <div className="min-h-0 space-y-3 overflow-y-auto rounded-lg bg-slate-900 p-3">
-        {search}
+        <div className="flex items-center gap-3 text-sm">
+          <span className="shrink-0">{clear}</span>
+          {search}
+        </div>
         {line(
           'Sets',
           <>
@@ -212,46 +229,44 @@ export function DeckFilters({
             {sortSelect}
           </>,
         )}
-        {line('Type', types)}
         {line('Kind', kinds)}
-        {line('Holo', holo)}
+        {line(
+          'Only',
+          <>
+            {favorites}
+            {holo}
+          </>,
+        )}
+        {line('Type', types)}
         {line('Stage', stage)}
         {line('HP', hp)}
         {line('Ability', ability)}
         {line('Cards', ownership)}
         {line('Effects', implemented)}
-        <div className={`${row} justify-between border-t border-slate-800 pt-3`}>
-          {clear}
-          {count}
-        </div>
+        <div className={`${row} justify-end border-t border-slate-800 pt-3`}>{count}</div>
       </div>
     );
   }
   return (
-    // Five lines: the search, sets and sort; the types (always one line); the kinds; the Pokémon filters; unlocked or
-    // locked and works or not.
+    // Five lines: the search, sets and sort (Clear filters before them); the kinds; the types (always one line); the
+    // Pokémon filters; unlocked or locked and works or not (the number of cards shown at its end).
     // Related filters stay together when a line wraps.
     <div className="space-y-2 rounded-lg bg-slate-900 p-3">
       <div className={`${row} gap-x-4`}>
+        <span className="shrink-0">{clear}</span>
         <div className="flex min-w-0 items-center gap-1.5">
           {search}
           {setPicker}
           {sortSelect}
         </div>
-        <span className="ml-auto flex items-center gap-3">
-          {clear}
-          {count}
-        </span>
-      </div>
-      <div className="@container">
-        <div className="flex items-center gap-1.5 text-sm">
-          <span className="text-slate-400">Type</span>
-          {types}
-        </div>
       </div>
       <div className={row}>
+        {favorites}
         {kinds}
         {holo}
+      </div>
+      <div className="@container">
+        <div className="flex items-center gap-1.5 text-sm">{types}</div>
       </div>
       <div className={`${row} text-slate-400`}>
         Pokémon
@@ -263,6 +278,7 @@ export function DeckFilters({
       <div className={`${row} gap-x-4`}>
         <div className={group}>{ownership}</div>
         <div className={group}>{implemented}</div>
+        <span className="ml-auto">{count}</span>
       </div>
     </div>
   );
