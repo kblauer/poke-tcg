@@ -1,4 +1,7 @@
+import TuneIcon from '@mui/icons-material/Tune';
+import ViewListIcon from '@mui/icons-material/ViewList';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { DECK_SIZE } from '@poke-tcg/shared';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
 import { CardGrid } from '../components/CardGrid';
@@ -7,12 +10,14 @@ import { DeckFilters } from '../components/DeckFilters';
 import { CurrentDeck, DeckList } from '../components/DeckList';
 import { DeckPanel } from '../components/DeckPanel';
 import { InspectContext } from '../components/InspectContext';
+import { SidePanel } from '../components/SidePanel';
+import { useFavorites } from '../hooks/useFavorites';
 import { useIsPhone } from '../hooks/useIsPhone';
 import { useUnlocked } from '../hooks/useUnlocked';
 import { useWindowFill } from '../hooks/useWindowFill';
 import { useTRPC } from '../lib/trpc';
 import { cardTitle, setNames, type CatalogCard } from '../utils/cardList';
-import { EMPTY_DECK_FILTER, cantAdd, changeCount, filterForDeck, problemsOf, sortForDeck, type DeckEntry, type DeckFilter, type DeckSort } from '../utils/deckBuilder';
+import { EMPTY_DECK_FILTER, cantAdd, changeCount, deckSize, filterForDeck, problemsOf, sortForDeck, type DeckEntry, type DeckFilter, type DeckSort } from '../utils/deckBuilder';
 import { PAGE_WIDTH } from '../utils/layout';
 
 const button = 'rounded px-3 py-1 text-sm disabled:opacity-40';
@@ -25,8 +30,10 @@ const READ_ONLY = "This is your run's deck, which follows the run: copy it to ma
  * Cards not unlocked yet (win them in runs) are darker and can't be added. Right-clicking any card (in the
  * search, the open deck or a deck's headline Pokémon) opens it large, with − and + for the open deck.
  * A link can open a deck straight away: `?deck=<id>`, or `?deck=new` for a new one.
- * On a phone held upright (useIsPhone) the page fills the screen: the decks (or the open deck) and the search share
- * the top, side by side and smaller, and the cards take the rest below them.
+ * The search's Favorites toggle shows only the account's favorite cards (the ★ on a card opened large adds it).
+ * On a phone held upright (useIsPhone) the cards fill the screen, under a bar with two buttons: one slides in the decks
+ * (or the open deck) from the left, the other the search from the right (SidePanel). Opening a deck or starting a new one
+ * closes its panel, so cards can be tapped into it.
  */
 export function DecksPage() {
   const trpc = useTRPC();
@@ -35,6 +42,7 @@ export function DecksPage() {
   const catalog = useQuery({ ...trpc.cards.list.queryOptions(), staleTime: Infinity });
   const decks = useQuery(trpc.decks.list.queryOptions());
   const { isLocked, copies } = useUnlocked();
+  const favorites = useFavorites();
   const phone = useIsPhone();
   const fill = useWindowFill<HTMLDivElement>();
 
@@ -49,11 +57,13 @@ export function DecksPage() {
   /** Bumped each time a deck is (re)opened, so its saved cards load even when they're already cached. */
   const [opened, setOpened] = useState(0);
   const [filter, setFilter] = useState<DeckFilter>(EMPTY_DECK_FILTER);
-  const [sort, setSort] = useState<DeckSort>('set');
+  const [sort, setSort] = useState<DeckSort>('dex');
   /** Why the last card clicked couldn't be added. */
   const [blocked, setBlocked] = useState<string | null>(null);
   /** The card opened with a right-click (CardInspector). */
   const [inspected, setInspected] = useState<CatalogCard | null>(null);
+  /** On a phone: the side panel slid in, if any. */
+  const [panel, setPanel] = useState<'decks' | 'filters' | null>(null);
 
   /**
    * The `opened` count whose saved cards are in the editor. Until a saved deck's cards arrive it can't be
@@ -129,7 +139,10 @@ export function DecksPage() {
   const sets = useMemo(() => (catalog.data ? setNames(catalog.data) : []), [catalog.data]);
   // Holo Energy only shows once it's been pulled from a pack.
   const searchable = useMemo(() => (catalog.data ?? []).filter((c) => !c.holoEnergy || copies(c.id) > 0), [catalog.data, copies]);
-  const results = useMemo(() => sortForDeck(filterForDeck(searchable, filter, isLocked), sort), [searchable, filter, sort, isLocked]);
+  const results = useMemo(() => sortForDeck(filterForDeck(searchable, filter, isLocked, favorites.isFavorite), sort), [searchable, filter, sort, isLocked, favorites.isFavorite]);
+  // The numbers of cards shown and in all: holo Energy is never counted (it's a version of a basic Energy, pulled from packs).
+  const shownCount = useMemo(() => results.filter((c) => !c.holoEnergy).length, [results]);
+  const totalCount = useMemo(() => (catalog.data ?? []).filter((c) => !c.holoEnergy).length, [catalog.data]);
   const counts = useMemo(() => new Map(entries.map((e) => [e.cardId, e.quantity])), [entries]);
   /** The open deck is the automatic run deck: it can be looked at and copied, not changed. */
   const readOnly = deckId !== null && (decks.data?.find((d) => d.id === deckId)?.runDeck ?? false);
@@ -147,6 +160,7 @@ export function DecksPage() {
   /** Opens a saved deck, or a new empty one (null), asking first if there are unsaved changes. */
   function open(id: string | null, force = false) {
     if (dirty && !force && !window.confirm('Discard the unsaved changes to this deck?')) return;
+    setPanel(null);
     setEditing(true);
     setDeckId(id);
     setDirty(false);
@@ -188,8 +202,8 @@ export function DecksPage() {
   const error = save.error?.message ?? remove.error?.message ?? saved.error?.message;
   const listError = decks.error?.message ?? duplicate.error?.message ?? reorder.error?.message ?? rename.error?.message;
   /** The left column: the deck list, or the open deck. */
-  // On a phone the open deck's column scrolls as a whole (the deck list scrolls its decks).
-  const column = phone ? `flex min-h-0 flex-col gap-2 ${editing ? 'overflow-y-auto' : ''}` : 'flex h-[70vh] flex-col gap-3 lg:h-[calc(100dvh-6.5rem)]';
+  // On a phone (in its side panel) the open deck's column scrolls as a whole (the deck list scrolls its decks).
+  const column = phone ? `flex min-h-0 flex-1 flex-col gap-2 ${editing ? 'overflow-y-auto' : ''}` : 'flex h-[70vh] flex-col gap-3 lg:h-[calc(100dvh-6.5rem)]';
   const deckColumn = !editing ? (
     <div className={column}>
       {decks.data ? (
@@ -257,20 +271,56 @@ export function DecksPage() {
       <DeckPanel entries={entries} byId={byId} problems={problems} isLocked={isLocked} onChange={(cardId, by) => change(byId.get(cardId)!, by)} compact={phone} />
     </div>
   );
-  const filters = <DeckFilters filter={filter} sort={sort} sets={sets} shown={results.length} total={catalog.data.length} onChange={setFilter} onSortChange={setSort} compact={phone} />;
+  const filters = <DeckFilters filter={filter} sort={sort} sets={sets} shown={shownCount} total={totalCount} onChange={setFilter} onSortChange={setSort} compact={phone} />;
   const blockedNote = blocked && <p className={`${phone ? 'text-xs' : 'text-sm'} text-amber-300`}>{blocked}.</p>;
   const grid = <CardGrid cards={results} selectedId={null} onSelect={(c) => change(c, 1)} counts={counts} isLocked={isLocked} holdToInspect compact={phone} />;
+  /** How many of the search's filters are set (the phone's Filters button shows it). */
+  const filtersOn = (Object.keys(EMPTY_DECK_FILTER) as (keyof DeckFilter)[]).filter((k) => JSON.stringify(filter[k]) !== JSON.stringify(EMPTY_DECK_FILTER[k])).length;
+  const size = deckSize(entries);
+  const barButton = 'flex min-w-0 items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-sm ring-1 ring-slate-600 transition hover:bg-slate-700 active:bg-slate-700';
+  const decksButton = (
+    <button className={`${barButton} ${editing ? 'ring-yellow-300/60' : ''}`} onClick={() => setPanel('decks')}>
+      <ViewListIcon sx={{ fontSize: 18 }} className="shrink-0 text-slate-400" />
+      {editing ? (
+        <>
+          <span className="truncate font-semibold">{name}</span>
+          <span className={`shrink-0 text-xs ${problems.length === 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+            {size}/{DECK_SIZE}
+            {dirty && ' •'}
+          </span>
+        </>
+      ) : (
+        'Decks'
+      )}
+    </button>
+  );
+  const decksPanel = panel === 'decks' && (
+    <SidePanel side="left" title={editing ? 'Open deck' : 'Your decks'} onClose={() => setPanel(null)}>
+      {deckColumn}
+    </SidePanel>
+  );
   return (
     <InspectContext.Provider value={setInspected}>
       {phone ? (
-        // To the bottom of the screen (-mb-4 undoes the layout's spacing); the decks and the search take the top 40%.
+        // To the bottom of the screen (-mb-4 undoes the layout's spacing): the bar, then the cards.
         <div ref={fill.ref} style={fill.style} className="-mb-4 flex flex-col gap-2 px-2 pb-2">
-          <div className="grid h-[40%] shrink-0 grid-cols-2 gap-2">
-            {deckColumn}
-            {filters}
+          <div className="flex shrink-0 items-center gap-2">
+            {decksButton}
+            <button className={`${barButton} shrink-0 ${filtersOn ? 'ring-yellow-300/60' : ''}`} onClick={() => setPanel('filters')}>
+              <TuneIcon sx={{ fontSize: 18 }} className="text-slate-400" />
+              Filters
+              {filtersOn > 0 && <span className="rounded-full bg-yellow-300 px-1.5 text-xs font-semibold text-slate-900">{filtersOn}</span>}
+            </button>
+            <span className="ml-auto shrink-0 text-xs text-slate-400">{shownCount === totalCount ? `${shownCount} cards` : `${shownCount} of ${totalCount}`}</span>
           </div>
           {blockedNote}
           {grid}
+          {decksPanel}
+          {panel === 'filters' && (
+            <SidePanel side="right" title="Search" onClose={() => setPanel(null)}>
+              {filters}
+            </SidePanel>
+          )}
         </div>
       ) : (
         <div className={`${PAGE_WIDTH} grid gap-4 lg:grid-cols-[24rem_1fr]`}>
@@ -287,6 +337,7 @@ export function DecksPage() {
           card={inspected}
           locked={isLocked(inspected)}
           deck={editing && !loading && !readOnly ? { name, copies: counts.get(inspected.id) ?? 0, blocked: blockedFor(inspected), onChange: (by) => change(inspected, by) } : undefined}
+          favorite={{ on: favorites.isFavorite(inspected.id), onToggle: () => favorites.toggle(inspected.id) }}
           craft={
             inspected.craftCost !== null && stardust.data !== undefined
               ? {

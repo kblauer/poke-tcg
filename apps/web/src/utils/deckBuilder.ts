@@ -1,7 +1,7 @@
 // Deck builder: the search filters and editing a deck's card list. The rules themselves (60 cards, 4 of a
 // name, a Basic Pokémon) are in @poke-tcg/shared, where the API checks them too.
 import { DECK_SIZE, MAX_COPIES, copiesAllowed, copiesOfName, deckProblems, type DeckRuleCard } from '@poke-tcg/shared';
-import { CARD_TYPES, matchesOwnership, matchesSearch, type CatalogCard, type Ownership } from './cardList';
+import { CARD_TYPES, matchesSearch, type CatalogCard } from './cardList';
 
 /** Pokémon stages for the stage filter. */
 export const POKEMON_STAGES = [
@@ -23,7 +23,8 @@ export const CARD_KINDS: { value: CardKind; label: string }[] = [
 
 export interface DeckFilter {
   search: string;
-  set: string | null;
+  /** The release sets to show (any of them); null is every set (`[]` is none). */
+  sets: string[] | null;
   /** Kind toggles: the kinds to show (any of them); none on shows every kind. */
   kinds: CardKind[];
   /** Type toggles: Pokémon of these types and Energy providing them (any of them); none on is every type. */
@@ -33,26 +34,33 @@ export interface DeckFilter {
   minHp: number | null;
   maxHp: number | null;
   hasAbility: boolean;
-  /** Only cards the engine fully implements. */
-  implementedOnly: boolean;
+  /** Show cards the engine fully implements, and the ones it doesn't (only implemented ones by default; both off shows none). */
+  implemented: boolean;
+  notImplemented: boolean;
   /** Only holo cards: holo, galaxy foil or holo Energy (isHoloCard). */
   holoOnly: boolean;
-  /** Unlocked cards, locked ones or both. */
-  ownership: Ownership;
+  /** Only the account's favorite cards. */
+  favorites: boolean;
+  /** Show unlocked cards, and locked ones (only unlocked ones by default; both off shows none). */
+  unlocked: boolean;
+  locked: boolean;
 }
 
 export const EMPTY_DECK_FILTER: DeckFilter = {
   search: '',
-  set: null,
+  sets: null,
   kinds: [],
   types: [],
   stage: null,
   minHp: null,
   maxHp: null,
   hasAbility: false,
-  implementedOnly: false,
+  implemented: true,
+  notImplemented: false,
   holoOnly: false,
-  ownership: 'all',
+  favorites: false,
+  unlocked: true,
+  locked: false,
 };
 
 /** Whether the card is a holo of any kind: holo, galaxy foil or holo Energy (the cards that count their copies). */
@@ -62,22 +70,28 @@ export const isHoloCard = (c: Pick<CatalogCard, 'holo' | 'galaxy' | 'holoEnergy'
 const cardType = (c: CatalogCard) => (c.kind === 'POKEMON' ? c.type : c.kind === 'ENERGY' ? c.energyType : null);
 
 /**
- * Cards matching the filters. The search (name or attack), set, "implemented only" and unlocked/locked apply to every card.
+ * Cards matching the filters. The search (name or attack), sets, implemented or not, unlocked or locked and favorites apply to every card.
  * The kind toggles show those kinds (none on: every kind). The type toggles and the Pokémon filters only say
  * something about cards that have a type, or are Pokémon: a card they say nothing about (a Trainer for the
  * types, a Trainer or Energy for the Pokémon filters) still shows when its kind is toggled on, and is hidden
  * otherwise. So with no kind on, picking Fire shows Fire Pokémon and Fire Energy, and with Pokémon and
  * Trainer on, Fire Pokémon and every Trainer.
  */
-export function filterForDeck(cards: CatalogCard[], f: DeckFilter, isLocked: (card: CatalogCard) => boolean = () => false): CatalogCard[] {
+export function filterForDeck(
+  cards: CatalogCard[],
+  f: DeckFilter,
+  isLocked: (card: CatalogCard) => boolean = () => false,
+  isFavorite: (cardId: string) => boolean = () => false,
+): CatalogCard[] {
   const search = f.search.trim().toLowerCase();
   const pokemonFilters = f.stage !== null || f.minHp !== null || f.maxHp !== null || f.hasAbility;
   return cards.filter((c) => {
     if (search && !matchesSearch(c, search)) return false;
-    if (f.set && c.setName !== f.set) return false;
-    if (f.implementedOnly && !c.implemented) return false;
+    if (f.sets && !f.sets.includes(c.setName)) return false;
+    if (!(c.implemented ? f.implemented : f.notImplemented)) return false;
     if (f.holoOnly && !isHoloCard(c)) return false;
-    if (!matchesOwnership(c, f.ownership, isLocked)) return false;
+    if (f.favorites && !isFavorite(c.id)) return false;
+    if (!(isLocked(c) ? f.locked : f.unlocked)) return false;
     if (f.kinds.length && !f.kinds.includes(c.kind)) return false;
     const picked = f.kinds.includes(c.kind);
     if (f.types.length) {

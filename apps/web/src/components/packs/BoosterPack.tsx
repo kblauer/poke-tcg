@@ -13,7 +13,10 @@ const PALETTES: Record<string, string> = {
 };
 
 /** The crimped foil seal along a pack's top and bottom edges. */
-const crimp = 'h-4 bg-[repeating-linear-gradient(90deg,#e2e8f0_0_5px,#94a3b8_5px_10px)] shadow-inner';
+const crimp = 'bg-[repeating-linear-gradient(90deg,#e2e8f0_0_5px,#94a3b8_5px_10px)] shadow-inner';
+
+/** Each size's width (`xs`: the width of its box, for the phone's grid of packs). */
+const WIDTHS = { lg: 'w-60', sm: 'w-36', xs: 'w-full' };
 
 /** How much of a real pack's art is its top seal, which tears off. */
 const SEAL = '9%';
@@ -46,7 +49,8 @@ function Seal({ torn, height, face, trim }: { torn: boolean; height: string; fac
 /**
  * A booster pack: its real wrapper art (`art`, from PACK_ART), or for a set without one the set's colours and logo on
  * foil, crimped at both ends; with a sheen sweeping across. `state`: idle floats, shaking while it's being bought, torn
- * once opened (its top seal is torn off from left to right, see Seal, with a flash).
+ * once opened (its top seal is torn off from left to right, see Seal, with a flash). `xs` (a phone's grid of packs): as
+ * wide as its box, a drawn pack without its small print and with a thinner seal.
  */
 export function BoosterPack({
   setId,
@@ -61,8 +65,9 @@ export function BoosterPack({
   logoUrl: string | null;
   art?: string;
   state?: 'idle' | 'shaking' | 'torn';
-  size?: 'sm' | 'lg';
+  size?: 'xs' | 'sm' | 'lg';
 }) {
+  const xs = size === 'xs';
   // The float is paused, not dropped, once the pack is clicked: it shakes and tears where it was floating.
   const float = `pack-float ${state === 'idle' ? '' : '[animation-play-state:paused]'}`;
   const motion = state === 'shaking' ? 'pack-shake' : '';
@@ -75,7 +80,7 @@ export function BoosterPack({
     // left of the scanner's white margin.
     return (
       <div className={float}>
-        <div className={`relative isolate aspect-[29/50] select-none ${size === 'lg' ? 'w-60' : 'w-36'} ${motion}`}>
+        <div className={`relative isolate aspect-[29/50] select-none ${WIDTHS[size]} ${motion}`}>
           {/* The top seal: the top of the art, which tears off. */}
           <Seal
             torn={state === 'torn'}
@@ -94,20 +99,20 @@ export function BoosterPack({
   }
   return (
     <div className={float}>
-      <div className={`relative isolate aspect-[5/8] select-none ${size === 'lg' ? 'w-60' : 'w-36'} ${motion}`}>
+      <div className={`relative isolate aspect-[5/8] select-none ${WIDTHS[size]} ${motion}`}>
         {/* The top seal, which tears off. */}
-        <Seal torn={state === 'torn'} height="1rem" face={{ className: `rounded-t-md ${crimp}` }} />
+        <Seal torn={state === 'torn'} height={xs ? '0.5rem' : '1rem'} face={{ className: `rounded-t-md ${crimp}` }} />
         <div
-          className={`absolute inset-x-0 bottom-0 top-4 flex flex-col items-center justify-between overflow-hidden rounded-b-md bg-gradient-to-b ${PALETTES[setId] ?? PALETTES.base1} shadow-2xl shadow-black/70 ring-1 ring-white/20`}
+          className={`absolute inset-x-0 bottom-0 ${xs ? 'top-2' : 'top-4'} flex flex-col items-center justify-between overflow-hidden rounded-b-md bg-gradient-to-b ${PALETTES[setId] ?? PALETTES.base1} shadow-2xl shadow-black/70 ring-1 ring-white/20`}
         >
-          <span className={`mt-3 font-bold uppercase tracking-[0.2em] text-white/80 ${size === 'lg' ? 'text-[10px]' : 'text-[8px]'}`}>Pokémon Trading Card Game</span>
+          {xs ? <span /> : <span className={`mt-3 font-bold uppercase tracking-[0.2em] text-white/80 ${size === 'lg' ? 'text-[10px]' : 'text-[8px]'}`}>Pokémon Trading Card Game</span>}
           {logoUrl ? (
             <img src={logoUrl} alt={name} draggable={false} className="w-4/5 drop-shadow-[0_4px_8px_rgba(0,0,0,0.7)]" />
           ) : (
-            <span className="text-2xl font-black text-white">{name}</span>
+            <span className={`font-black text-white ${xs ? 'text-xs' : 'text-2xl'}`}>{name}</span>
           )}
-          <span className={`mb-6 rounded-full bg-black/40 px-3 py-0.5 font-semibold text-yellow-200 ${size === 'lg' ? 'text-xs' : 'text-[10px]'}`}>11 cards</span>
-          <div className={`absolute inset-x-0 bottom-0 ${crimp}`} />
+          {xs ? <span /> : <span className={`mb-6 rounded-full bg-black/40 px-3 py-0.5 font-semibold text-yellow-200 ${size === 'lg' ? 'text-xs' : 'text-[10px]'}`}>11 cards</span>}
+          <div className={`absolute inset-x-0 bottom-0 ${xs ? 'h-2' : 'h-4'} ${crimp}`} />
           {/* Foil sheen. */}
           <div className="pack-sheen pointer-events-none absolute inset-0 bg-[linear-gradient(105deg,transparent_40%,rgb(255_255_255/0.4)_50%,transparent_60%)]" />
         </div>

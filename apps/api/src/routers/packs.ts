@@ -133,13 +133,14 @@ export const packsRouter = router({
       prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { bank: true, stardust: true } }),
       prisma.cardSet.findMany({ where: { id: { in: PACK_SETS } }, orderBy: { releaseDate: 'asc' } }),
       unlockedIds(ctx.user.id),
-      Promise.all(PACK_SETS.map(async (id) => [id, Object.values((await packSet(id)).set).flat()] as const)),
+      Promise.all(PACK_SETS.map(async (id) => [id, (await packSet(id)).set] as const)),
       unlockedPacks(ctx.user.id),
     ]);
     // The pack each generation's runs unlock next (with its region, for the hint).
     const next = new Map(Object.values(GENERATIONS).flatMap((g) => g.packs.filter((id) => !packs.has(id)).slice(0, 1).map((id) => [id, g.region] as const)));
-    // The cards a pack of each set can hold (basic Energy left out: it's always unlocked).
-    const packCards = new Map(contents);
+    // The cards a pack of each set can hold, Energy left out: basic Energy is always unlocked (and may be another
+    // set's), and holo Energy is never counted in the number of cards collected.
+    const packCards = new Map(contents.map(([id, set]) => [id, [...set.common, ...set.uncommon, ...set.rare, ...set.holo]]));
     return {
       bank: user.bank,
       stardust: user.stardust,

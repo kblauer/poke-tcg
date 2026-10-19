@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useFavorites } from '../hooks/useFavorites';
 import { useTRPC } from '../lib/trpc';
 import type { CatalogCard } from '../utils/cardList';
 import { CardInspector } from './CardInspector';
@@ -7,7 +8,7 @@ import { CatalogContext, InspectContext } from './InspectContext';
 
 /**
  * Right-clicking a card anywhere in the app opens it in the CardInspector, large with its holo effect (the deck
- * builder's view, without its deck buttons). Also provides the card catalog by id (CatalogContext), loaded once
+ * builder's view, without its deck buttons, with its ★ for the favorites). Also provides the card catalog by id (CatalogContext), loaded once
  * per session, for cards known only by id: the game's, the run's and the packs'.
  */
 export function CardInspectProvider({ children }: { children: ReactNode }) {
@@ -16,11 +17,12 @@ export function CardInspectProvider({ children }: { children: ReactNode }) {
   const byId = useMemo(() => (catalog.data ? new Map(catalog.data.map((c) => [c.id, c])) : null), [catalog.data]);
   const [inspected, setInspected] = useState<CatalogCard | null>(null);
   const close = useCallback(() => setInspected(null), []);
+  const { isFavorite, toggle } = useFavorites();
   return (
     <CatalogContext.Provider value={byId}>
       <InspectContext.Provider value={setInspected}>
         {children}
-        {inspected && <CardInspector card={inspected} locked={false} onClose={close} />}
+        {inspected && <CardInspector card={inspected} locked={false} favorite={{ on: isFavorite(inspected.id), onToggle: () => toggle(inspected.id) }} onClose={close} />}
       </InspectContext.Provider>
     </CatalogContext.Provider>
   );

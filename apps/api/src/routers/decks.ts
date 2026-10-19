@@ -1,6 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { prisma, type Card } from '@poke-tcg/db';
-import { DECK_NAME_LENGTH, DECK_SIZE, MAX_COPIES, copiesOfName, deckIdInput, deckOrderInput, deckProblems, deckRenameInput, deckSaveInput, type DeckRuleCard } from '@poke-tcg/shared';
+import { DECK_NAME_LENGTH, DECK_SIZE, MAX_COPIES, copiesOfName, deckIdInput, deckOrderInput, deckProblems, deckRenameInput, deckSaveInput, favoriteCardInput, type DeckRuleCard } from '@poke-tcg/shared';
 import { ensureUser } from '../auth.js';
 import { isBasicEnergyCard } from '../cards.js';
 import { protectedProcedure, router } from '../trpc.js';
@@ -94,6 +94,24 @@ export const decksRouter = router({
    * deck holds no more than were pulled). Basic Energy always is, so it isn't listed.
    */
   unlocked: protectedProcedure.query(async ({ ctx }) => Object.fromEntries(await unlockedIds(ctx.user.id)) as Record<string, number>),
+
+  /** The ids of the cards the user has marked as favorites, the latest first. */
+  favorites: protectedProcedure.query(async ({ ctx }) =>
+    (await prisma.favoriteCard.findMany({ where: { userId: ctx.user.id }, orderBy: { createdAt: 'desc' }, select: { cardId: true } })).map((f) => f.cardId),
+  ),
+
+  /** Adds a card to the user's favorites, or takes it out (doing nothing if it's already in or out). */
+  setFavorite: protectedProcedure.input(favoriteCardInput).mutation(async ({ ctx, input }) => {
+    await ensureUser(ctx.user);
+    const key = { userId: ctx.user.id, cardId: input.cardId };
+    if (!input.favorite) {
+      await prisma.favoriteCard.deleteMany({ where: key });
+      return { ok: true };
+    }
+    if (!(await prisma.card.findUnique({ where: { id: input.cardId }, select: { id: true } }))) throw new TRPCError({ code: 'NOT_FOUND', message: 'No such card' });
+    await prisma.favoriteCard.upsert({ where: { userId_cardId: key }, create: key, update: {} });
+    return { ok: true };
+  }),
 
   /** One of the user's decks: its name and card list. */
   get: protectedProcedure.input(deckIdInput).query(async ({ ctx, input }) => {

@@ -1,7 +1,8 @@
 import LockIcon from '@mui/icons-material/Lock';
-import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import { useContext, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { useHoldToInspect } from '../hooks/useHoldToInspect';
-import { useInspectOnRightClick } from './InspectContext';
+import { useScrollLock } from '../hooks/useScrollLock';
+import { InspectContext, useInspectOnRightClick } from './InspectContext';
 import { useUnlocked } from '../hooks/useUnlocked';
 import { cardTitle, type CatalogCard } from '../utils/cardList';
 import { CardViewer } from './CardViewer';
@@ -49,8 +50,8 @@ function useRowGap(grid: RefObject<HTMLDivElement | null>, count: number) {
  * `counts` (the deck builder) puts a badge with each card's copies in the deck on its strip.
  * `isLocked` darkens cards the account hasn't unlocked, with a lock on the strip.
  * `holdToInspect` (the deck builder, where a click adds a copy): pressing and holding a card shows it large in
- * the middle of the screen, with its details, until the press ends. Inside an InspectContext (the deck builder),
- * right-clicking a card opens it in the CardInspector.
+ * the middle of the screen, with its details, until the press ends (the grid and the page don't scroll meanwhile). Inside an InspectContext (the deck builder),
+ * right-clicking a card opens it in the CardInspector, as does letting go of a finger's hold (a phone).
  */
 export function CardGrid({
   cards,
@@ -71,7 +72,9 @@ export function CardGrid({
   compact?: boolean;
 }) {
   const grid = useRef<HTMLDivElement>(null);
-  const hold = useHoldToInspect<CatalogCard>();
+  const inspect = useContext(InspectContext);
+  const hold = useHoldToInspect<CatalogCard>(inspect ?? undefined);
+  useScrollLock(hold.inspecting !== null);
   const inspectOn = useInspectOnRightClick();
   // Holo Energy and special holos are tagged with how many were pulled (and holo Energy with its style).
   const { copies } = useUnlocked();
