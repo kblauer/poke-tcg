@@ -35,7 +35,7 @@ export function PacksPage() {
 
   return (
     <PreviewProvider scrollZoom={false}>
-      <div className={`${PAGE_WIDTH} mx-auto max-w-5xl space-y-6`}>
+      <div className={`${PAGE_WIDTH} space-y-6`}>
         <div className="flex flex-wrap items-baseline gap-3">
           <h2 className="text-xl font-bold">Booster packs</h2>
           <span className="text-sm text-slate-400">
@@ -51,7 +51,7 @@ export function PacksPage() {
             Stardust <span className="font-semibold text-sky-200">{stardust}</span>
           </span>
         </div>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
           {sets.map((s) => (
             <button
               key={s.id}

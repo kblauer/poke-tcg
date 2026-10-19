@@ -27,7 +27,8 @@
     "@trpc/tanstack-react-query": "^11.19.0",
     "canvas-confetti": "^1.9.3",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "react-h5-audio-player": "3.10.2"
   },
   "devDependencies": {
     "@poke-tcg/api": "workspace:*",

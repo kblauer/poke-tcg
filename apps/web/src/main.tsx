@@ -12,6 +12,7 @@ import { createRoot } from 'react-dom/client';
 import './index.css';
 import './styles/holo/index.css';
 import { CardInspectProvider } from './components/CardInspectProvider';
+import { MusicPlayer } from './components/MusicPlayer';
 import { useSession } from './lib/auth';
 import { signInWithGoogle, signOut } from './lib/supabase';
 import { queryClient, TRPCProvider, trpcClient } from './lib/trpc';
@@ -73,6 +74,8 @@ function RootLayout() {
       {session ? (
         <CardInspectProvider>
           <Outlet />
+          {/* Mounted with the layout, so the music plays on from page to page. */}
+          <MusicPlayer />
         </CardInspectProvider>
       ) : (
         <div className="flex flex-col items-center gap-4 py-24">
