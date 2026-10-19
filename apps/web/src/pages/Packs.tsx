@@ -1,3 +1,4 @@
+import LockIcon from '@mui/icons-material/Lock';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { BoosterPack } from '../components/packs/BoosterPack';
@@ -9,7 +10,8 @@ import { pickPackArt } from '../utils/packArt';
 
 /**
  * Booster packs (`/packs`), bought with the ₱ in the bank: pick a set, then open its pack in a window
- * (PackOpening). Every card opened is unlocked for the deck builder.
+ * (PackOpening). Every card opened is unlocked for the deck builder. Locked sets are dimmed and can't be picked: a run's
+ * first battle completed unlocks its generation's next one (marked), beating a run all of them.
  */
 export function PacksPage() {
   const trpc = useTRPC();
@@ -53,11 +55,20 @@ export function PacksPage() {
           {sets.map((s) => (
             <button
               key={s.id}
+              disabled={s.locked}
               onClick={() => setOpening({ id: s.id, name: s.name, logoUrl: s.logoUrl, art: art[s.id] })}
-              className="flex flex-col items-center gap-3 rounded-lg bg-slate-900 p-6 ring-1 ring-slate-800 transition hover:bg-slate-800 hover:ring-slate-600"
+              className="flex flex-col items-center gap-3 rounded-lg bg-slate-900 p-6 ring-1 ring-slate-800 transition hover:bg-slate-800 hover:ring-slate-600 disabled:cursor-not-allowed disabled:hover:bg-slate-900 disabled:hover:ring-slate-800"
             >
-              <BoosterPack setId={s.id} name={s.name} logoUrl={s.logoUrl} art={art[s.id]} size="sm" />
+              <span className={s.locked ? 'opacity-40 grayscale' : undefined}>
+                <BoosterPack setId={s.id} name={s.name} logoUrl={s.logoUrl} art={art[s.id]} size="sm" />
+              </span>
               <span className="font-semibold">{s.name}</span>
+              {s.locked && (
+                <span className="flex items-center gap-1 text-center text-xs text-amber-300">
+                  <LockIcon sx={{ fontSize: 14 }} />
+                  {s.next ? `Next to unlock: complete a battle in a ${s.next} run (without conceding it)` : `Locked: beat a run, or keep completing battles in runs`}
+                </span>
+              )}
               <span className="text-xs text-slate-400">
                 {s.releaseDate && new Date(s.releaseDate).getUTCFullYear()} · {s.cardCount} cards
               </span>

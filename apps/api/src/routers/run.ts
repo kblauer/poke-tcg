@@ -4,6 +4,7 @@ import { DECK_NAME_LENGTH } from '@poke-tcg/shared';
 import { buyItemInput, equipInput, runActInput, runChooseInput, runIdInput, saveRunDeckInput, startRunInput, useItemInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { cardPool } from '../pool.js';
+import { runTypeProgress } from '../progress.js';
 import { abandonBattle, advanceRun, ensureAccount, latestRun, loadOwnRun, startRun, syncRunDeck, type LoadedRun } from '../runs.js';
 import { holoTwins, unlockedIds } from '../unlocks.js';
 import { playableDeck, playProblems } from './decks.js';
@@ -45,7 +46,7 @@ export const runRouter = router({
         orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
       }),
     ]);
-    const [unlocked, limited] = await Promise.all([unlockedIds(ctx.user.id), holoTwins()]);
+    const [unlocked, limited, progress] = await Promise.all([unlockedIds(ctx.user.id), holoTwins(), runTypeProgress(ctx.user.id)]);
     // A run started before there were automatic run decks gets one now.
     if (run?.status === 'ACTIVE' && !decks.some((d) => d.runId === run.id)) await syncRunDeck(ctx.user.id, run.id, run.state.deck);
     const runDeck = run && decks.find((d) => d.runId === run.id);
@@ -57,9 +58,10 @@ export const runRouter = router({
       // With why each can't start a run (the deck rules, or cards not unlocked); empty when it can. Not the automatic
       // run deck: a run starts with one of the account's own decks.
       decks: decks.filter((d) => d.runId === null).map((d) => ({ id: d.id, name: d.name, cardCount: d.cards.reduce((n, c) => n + c.quantity, 0), problems: playProblems(d.cards, unlocked, limited) })),
+      // With why each can't be started yet (`locked`: badges or a Gym Challenge missing) and how often it's been beaten.
       runTypes: RUN_TYPE_IDS.map((id) => {
         const type = RUN_TYPES[id];
-        return { id, name: type.name, description: type.description, bosses: bossSummary(type) };
+        return { id, name: type.name, description: type.description, bosses: bossSummary(type), ...progress[id] };
       }),
     };
   }),
@@ -113,8 +115,13 @@ export const runRouter = router({
     return clientRun(await advanceRun(run, [{ type: 'RESTORE_HP' }]));
   }),
 
-  /** Starts a new run of a type with one of the account's decks, which must be playable (banking the earlier runs' ₱). */
+  /**
+   * Starts a new run of a type with one of the account's decks, which must be playable (banking the earlier runs' ₱).
+   * The run type must be unlocked (runTypeLock: the Gym Challenge needs every badge, the Champion run a beaten Gym Challenge).
+   */
   start: protectedProcedure.input(startRunInput).mutation(async ({ ctx, input }) => {
+    const { locked } = (await runTypeProgress(ctx.user.id))[input.type];
+    if (locked) throw new TRPCError({ code: 'BAD_REQUEST', message: locked });
     const deck = await playableDeck(input.deckId, ctx.user.id);
     if (deck.runDeck) throw new TRPCError({ code: 'BAD_REQUEST', message: "Start a run with one of your own decks (save the run's deck first)" });
     return startRun(ctx.user.id, input.type, deck);

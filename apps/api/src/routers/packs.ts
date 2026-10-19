@@ -1,10 +1,11 @@
-import { CRAFT_COST, openPack, PACK_PRICE, PACK_SETS, rngFrom, STARDUST_PER_CARD, type PackSet } from '@poke-tcg/campaign';
+import { CRAFT_COST, GENERATIONS, openPack, PACK_PRICE, PACK_SETS, rngFrom, STARDUST_PER_CARD, type PackSet } from '@poke-tcg/campaign';
 import { prisma, type Card } from '@poke-tcg/db';
 import { craftCardInput, debugOpenPackInput, openPackInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { ensureUser } from '../auth.js';
 import { holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, type HoloEnergyStyle } from '../cards.js';
 import { cardRarity } from '../pool.js';
+import { unlockedPacks } from '../progress.js';
 import { debugProcedure, protectedProcedure, router } from '../trpc.js';
 import { holoTwins, unlockCards, unlockedIds } from '../unlocks.js';
 
@@ -85,9 +86,11 @@ function packSet(setId: string) {
  * after pack, each with its `pack` number),
  * each unlocked (`isNew` if it wasn't before; a holo Energy adds a copy), the bank left, and the Stardust earned
  * (STARDUST_PER_CARD, for the cards that weren't new) and now held.
+ * The set's packs must be unlocked (PackUnlock), except with the debug cheats.
  * `force`: every pack's Energy is a holo Energy, or every pack is all rares (the debug cheats, `debugOpen`).
  */
-async function openPacks(userId: string, input: { setId: string; count: number }, force: { forceHoloEnergy?: boolean; forceAllRares?: boolean } = {}) {
+async function openPacks(userId: string, input: { setId: string; count: number }, force?: { forceHoloEnergy?: boolean; forceAllRares?: boolean }) {
+  if (!force && !(await unlockedPacks(userId)).has(input.setId)) throw new TRPCError({ code: 'BAD_REQUEST', message: "You haven't unlocked these packs yet" });
   const { set, cards } = await packSet(input.setId);
   const rng = rngFrom(Math.floor(Math.random() * 2 ** 31));
   // Every pack's cards in reveal order, pack after pack, each tagged with its pack (from 0).
@@ -120,17 +123,21 @@ export const craftCost = (card: Pick<Card, 'id' | 'setId' | 'rarity' | 'kind' | 
 
 export const packsRouter = router({
   /**
-   * The sets with packs (name, logo, release date, size, and how many of the cards a pack can hold the user has
-   * unlocked: `unlockedCount` of `packCards`), the price, and the ₱ in the user's bank.
+   * The sets with packs (name, logo, release date, size, how many of the cards a pack can hold the user has unlocked:
+   * `unlockedCount` of `packCards`, and whether the user can buy them: `locked`, with `next` on the one a run unlocks
+   * next), the price, and the ₱ in the user's bank.
    */
   list: protectedProcedure.query(async ({ ctx }) => {
     await ensureUser(ctx.user);
-    const [user, sets, unlocked, contents] = await Promise.all([
+    const [user, sets, unlocked, contents, packs] = await Promise.all([
       prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { bank: true, stardust: true } }),
       prisma.cardSet.findMany({ where: { id: { in: PACK_SETS } }, orderBy: { releaseDate: 'asc' } }),
       unlockedIds(ctx.user.id),
       Promise.all(PACK_SETS.map(async (id) => [id, Object.values((await packSet(id)).set).flat()] as const)),
+      unlockedPacks(ctx.user.id),
     ]);
+    // The pack each generation's runs unlock next (with its region, for the hint).
+    const next = new Map(Object.values(GENERATIONS).flatMap((g) => g.packs.filter((id) => !packs.has(id)).slice(0, 1).map((id) => [id, g.region] as const)));
     // The cards a pack of each set can hold (basic Energy left out: it's always unlocked).
     const packCards = new Map(contents);
     return {
@@ -147,10 +154,15 @@ export const packsRouter = router({
           cardCount: s.cardCount,
           unlockedCount: cards.filter((id) => unlocked.has(id)).length,
           packCards: cards.length,
+          locked: !packs.has(s.id),
+          next: next.get(s.id) ?? null,
         };
       }),
     };
   }),
+
+  /** The sets whose packs the user has unlocked (PackUnlock): only their cards can be crafted. */
+  unlockedSets: protectedProcedure.query(async ({ ctx }) => [...(await unlockedPacks(ctx.user.id))]),
 
   /** The Stardust the user has, for crafting. */
   stardust: protectedProcedure.query(async ({ ctx }) => {
@@ -160,14 +172,15 @@ export const packsRouter = router({
 
   /**
    * Crafts a card with Stardust (CRAFT_COST by its rarity), unlocking it as pulling it would (unlockCards): once, or for
-   * a special holo another copy and its non-holo version. Only cards packs hold (PACK_SETS; not basic or holo Energy),
-   * and not one already unlocked unless it counts copies.
+   * a special holo another copy and its non-holo version. Only cards packs hold (PACK_SETS; not basic or holo Energy)
+   * from a set whose packs the user has unlocked, and not one already unlocked unless it counts copies.
    */
   craft: protectedProcedure.input(craftCardInput).mutation(async ({ ctx, input }) => {
     const card = await prisma.card.findUnique({ where: { id: input.cardId } });
     const cost = card && craftCost(card);
     if (!card || cost === null) throw new TRPCError({ code: 'BAD_REQUEST', message: "That card can't be crafted" });
-    const [unlocked, twins] = await Promise.all([unlockedIds(ctx.user.id), holoTwins()]);
+    const [unlocked, twins, packs] = await Promise.all([unlockedIds(ctx.user.id), holoTwins(), unlockedPacks(ctx.user.id)]);
+    if (!packs.has(card.setId)) throw new TRPCError({ code: 'BAD_REQUEST', message: "Unlock this set's booster packs first" });
     if (unlocked.has(card.id) && !twins.has(card.id)) throw new TRPCError({ code: 'BAD_REQUEST', message: `${card.name} is already unlocked` });
     return prisma.$transaction(async (tx) => {
       const { count } = await tx.user.updateMany({ where: { id: ctx.user.id, stardust: { gte: cost } }, data: { stardust: { decrement: cost } } });
@@ -181,7 +194,7 @@ export const packsRouter = router({
   /** Buys and opens packs (openPacks). */
   open: protectedProcedure.input(openPackInput).mutation(({ ctx, input }) => openPacks(ctx.user.id, input)),
 
-  /** Testing cheats (a debugProcedure, refused in production): opens packs like `open`, each with a holo Energy, or all rares. */
+  /** Testing cheats (a debugProcedure, refused in production): opens packs like `open` (locked ones too), each with a holo Energy, or all rares. */
   debugOpen: debugProcedure
     .input(debugOpenPackInput)
     .mutation(({ ctx, input }) => openPacks(ctx.user.id, input, { forceHoloEnergy: input.holoEnergy, forceAllRares: input.allRares })),
