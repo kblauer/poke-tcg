@@ -21,14 +21,30 @@ const RATIO_COLORS = { POKEMON: 'bg-rose-500', TRAINER: 'bg-sky-500', ENERGY: 'b
 /**
  * What a deck holds at a glance: its 3 headline Pokémon (see featuredPokemon) and how its cards split
  * between Pokémon, Trainers and Energy, as a bar and counts. Right-clicking a Pokémon opens it in the CardInspector.
+ * `compact` (a phone): just a thin bar under the Pokémon, with the counts as its tooltip.
  */
-export function DeckSummary({ entries, byId, isLocked }: { entries: DeckEntry[]; byId: Map<string, CatalogCard>; isLocked: (card: CatalogCard) => boolean }) {
+export function DeckSummary({
+  entries,
+  byId,
+  isLocked,
+  compact = false,
+}: {
+  entries: DeckEntry[];
+  byId: Map<string, CatalogCard>;
+  isLocked: (card: CatalogCard) => boolean;
+  compact?: boolean;
+}) {
   const featured = featuredPokemon(entries, byId);
   const inspectOn = useInspectOnRightClick();
   const ratio = deckRatio(entries, byId);
   const size = deckSize(entries);
+  const bar = (height: string, title?: string) => (
+    <div className={`flex ${height} overflow-hidden rounded-full bg-slate-800`} title={title}>
+      {size > 0 && DECK_SECTIONS.map(({ kind }) => <div key={kind} className={RATIO_COLORS[kind]} style={{ width: `${(ratio[kind] / size) * 100}%` }} />)}
+    </div>
+  );
   return (
-    <div className="flex items-center gap-3">
+    <div className={compact ? 'w-fit space-y-1' : 'flex items-center gap-3'}>
       <div className="flex shrink-0 gap-1">
         {[0, 1, 2].map((i) => {
           const card = featured[i];
@@ -47,19 +63,21 @@ export function DeckSummary({ entries, byId, isLocked }: { entries: DeckEntry[];
           );
         })}
       </div>
-      <div className="min-w-0 flex-1 space-y-1">
-        <div className="flex h-2 overflow-hidden rounded-full bg-slate-800">
-          {size > 0 && DECK_SECTIONS.map(({ kind }) => <div key={kind} className={RATIO_COLORS[kind]} style={{ width: `${(ratio[kind] / size) * 100}%` }} />)}
+      {compact ? (
+        bar('h-1', DECK_SECTIONS.map(({ kind, label }) => `${ratio[kind]} ${label}`).join(' · '))
+      ) : (
+        <div className="min-w-0 flex-1 space-y-1">
+          {bar('h-2')}
+          <div className="flex flex-wrap gap-x-2 text-xs text-slate-400">
+            {DECK_SECTIONS.map(({ kind, label }) => (
+              <span key={kind} className="flex items-center gap-1">
+                <span className={`inline-block h-2 w-2 rounded-full ${RATIO_COLORS[kind]}`} />
+                {ratio[kind]} {label}
+              </span>
+            ))}
+          </div>
         </div>
-        <div className="flex flex-wrap gap-x-2 text-xs text-slate-400">
-          {DECK_SECTIONS.map(({ kind, label }) => (
-            <span key={kind} className="flex items-center gap-1">
-              <span className={`inline-block h-2 w-2 rounded-full ${RATIO_COLORS[kind]}`} />
-              {ratio[kind]} {label}
-            </span>
-          ))}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -134,11 +152,25 @@ const RUN_DECK_TAG = (
 
 /**
  * A deck's name (with its rename button) and card count, with whether it can be played. Without `onRename` (the
- * automatic run deck) the name is plain, tagged Run deck.
+ * automatic run deck) the name is plain, tagged Run deck. `compact` (a phone): the count without ", ready" (its colour says so).
  */
-function DeckTitle({ name, onRename, size, ready, children }: { name: string; onRename?: (name: string) => void; size: number; ready: boolean; children?: ReactNode }) {
+function DeckTitle({
+  name,
+  onRename,
+  size,
+  ready,
+  compact = false,
+  children,
+}: {
+  name: string;
+  onRename?: (name: string) => void;
+  size: number;
+  ready: boolean;
+  compact?: boolean;
+  children?: ReactNode;
+}) {
   return (
-    <div className="flex items-center gap-2">
+    <div className={`flex items-center ${compact ? 'gap-1' : 'gap-2'}`}>
       {onRename ? (
         <DeckName name={name} onRename={onRename} />
       ) : (
@@ -150,7 +182,7 @@ function DeckTitle({ name, onRename, size, ready, children }: { name: string; on
       {children}
       <span className={`shrink-0 text-xs ${ready ? 'text-emerald-400' : 'text-slate-400'}`}>
         {size}/{DECK_SIZE}
-        {ready && ', ready'}
+        {ready && !compact && ', ready'}
       </span>
     </div>
   );
@@ -159,6 +191,7 @@ function DeckTitle({ name, onRename, size, ready, children }: { name: string; on
 /**
  * The account's decks as buttons to open, in their saved order: drag one to move it (the new order is
  * saved with `onReorder`). Each can be renamed (the pencil by its name) or copied, and a new deck started from scratch.
+ * `compact` (a phone, where the list shares the top of the screen with the search): smaller tiles (DeckSummary's).
  */
 export function DeckList({
   decks,
@@ -170,6 +203,7 @@ export function DeckList({
   onRename,
   onReorder,
   busy,
+  compact = false,
 }: {
   decks: SavedDeck[];
   byId: Map<string, CatalogCard>;
@@ -180,6 +214,7 @@ export function DeckList({
   onRename: (deckId: string, name: string) => void;
   onReorder: (deckIds: string[]) => void;
   busy: boolean;
+  compact?: boolean;
 }) {
   // Shown in the new order straight away, while it's saved.
   const [order, setOrder] = useState(() => decks.map((d) => d.id));
@@ -194,20 +229,20 @@ export function DeckList({
     onReorder(next);
   };
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2 rounded-lg bg-slate-900 p-3 text-sm">
+    <div className={`flex min-h-0 flex-1 flex-col gap-2 rounded-lg bg-slate-900 text-sm ${compact ? 'p-2' : 'p-3'}`}>
       <div className="flex items-center justify-between">
         <span className="font-semibold">Decks</span>
-        <button className="flex items-center gap-1 rounded bg-emerald-600 px-3 py-1 text-sm font-semibold hover:bg-emerald-500" onClick={onNew}>
-          <AddIcon sx={{ fontSize: 16 }} /> New deck
+        <button className={`flex items-center gap-1 rounded bg-emerald-600 font-semibold hover:bg-emerald-500 ${compact ? 'px-2 py-0.5 text-xs' : 'px-3 py-1 text-sm'}`} onClick={onNew}>
+          <AddIcon sx={{ fontSize: 16 }} /> {compact ? 'New' : 'New deck'}
         </button>
       </div>
       {decks.length === 0 && <p className="text-slate-500">No decks yet. Start a new one.</p>}
-      {decks.length > 1 && <p className="text-xs text-slate-500">Drag a deck to move it in the list.</p>}
+      {decks.length > 1 && !compact && <p className="text-xs text-slate-500">Drag a deck to move it in the list.</p>}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={order} strategy={verticalListSortingStrategy}>
           <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto">
             {shown.map((d) => (
-              <SortableDeck key={d.id} deck={d} byId={byId} isLocked={isLocked} onOpen={onOpen} onCopy={onCopy} onRename={onRename} busy={busy} />
+              <SortableDeck key={d.id} deck={d} byId={byId} isLocked={isLocked} onOpen={onOpen} onCopy={onCopy} onRename={onRename} busy={busy} compact={compact} />
             ))}
           </ul>
         </SortableContext>
@@ -224,6 +259,7 @@ function SortableDeck({
   onCopy,
   onRename,
   busy,
+  compact,
 }: {
   deck: SavedDeck;
   byId: Map<string, CatalogCard>;
@@ -232,13 +268,14 @@ function SortableDeck({
   onCopy: (deckId: string) => void;
   onRename: (deckId: string, name: string) => void;
   busy: boolean;
+  compact: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: deck.id });
   return (
     <li ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} className={isDragging ? 'relative z-10 opacity-80' : ''}>
       {/* dnd-kit's attributes make it a focusable button. */}
       <div
-        className="w-full cursor-pointer touch-none space-y-2 rounded-lg bg-slate-800 p-2 text-left ring-yellow-300 hover:bg-slate-700 focus:outline-none focus-visible:ring-1"
+        className={`w-full cursor-pointer touch-none rounded-lg bg-slate-800 text-left ring-yellow-300 hover:bg-slate-700 focus:outline-none focus-visible:ring-1 ${compact ? 'space-y-1 p-1.5' : 'space-y-2 p-2'}`}
         {...attributes}
         {...listeners}
         onClick={() => onOpen(deck.id)}
@@ -248,7 +285,7 @@ function SortableDeck({
         }}
         title={deck.problems.join(' ') || undefined}
       >
-        <DeckTitle name={deck.name} onRename={deck.runDeck ? undefined : (name) => onRename(deck.id, name)} size={deck.cardCount} ready={deck.problems.length === 0}>
+        <DeckTitle name={deck.name} onRename={deck.runDeck ? undefined : (name) => onRename(deck.id, name)} size={deck.cardCount} ready={deck.problems.length === 0} compact={compact}>
           <button
             className="flex shrink-0 items-center gap-1 self-center rounded bg-slate-600 px-1.5 text-xs leading-5 hover:bg-slate-500 disabled:opacity-40"
             disabled={busy}
@@ -259,11 +296,12 @@ function SortableDeck({
               onCopy(deck.id);
             }}
             title="Copy this deck to edit the copy"
+            aria-label={`Copy ${deck.name}`}
           >
-            <ContentCopyIcon sx={{ fontSize: 12 }} /> Copy
+            <ContentCopyIcon sx={{ fontSize: 12 }} /> {!compact && 'Copy'}
           </button>
         </DeckTitle>
-        <DeckSummary entries={deck.cards} byId={byId} isLocked={isLocked} />
+        <DeckSummary entries={deck.cards} byId={byId} isLocked={isLocked} compact={compact} />
       </div>
     </li>
   );
@@ -282,6 +320,7 @@ export function CurrentDeck({
   byId,
   isLocked,
   onBack,
+  compact = false,
 }: {
   name: string;
   onRename: (name: string) => void;
@@ -291,21 +330,23 @@ export function CurrentDeck({
   byId: Map<string, CatalogCard>;
   isLocked: (card: CatalogCard) => boolean;
   onBack: () => void;
+  /** A phone: DeckSummary's small version, and a shorter way back. */
+  compact?: boolean;
 }) {
   return (
     // Not a <button>: the name's text box goes inside it.
     <div
       role="button"
       tabIndex={0}
-      className="w-full cursor-pointer space-y-2 rounded-lg bg-slate-900 p-3 text-left text-sm ring-1 ring-slate-700 hover:bg-slate-800 focus:outline-none focus-visible:ring-yellow-300"
+      className={`w-full cursor-pointer rounded-lg bg-slate-900 text-left text-sm ring-1 ring-slate-700 hover:bg-slate-800 focus:outline-none focus-visible:ring-yellow-300 ${compact ? 'space-y-1 p-2' : 'space-y-2 p-3'}`}
       onClick={onBack}
       onKeyDown={(e) => e.key === 'Enter' && onBack()}
       title="Back to the deck list"
     >
-      <DeckTitle name={name || 'Unnamed deck'} onRename={readOnly ? undefined : onRename} size={deckSize(entries)} ready={ready}>
-        <span className="shrink-0 text-xs text-slate-400">← All decks</span>
+      <DeckTitle name={name || 'Unnamed deck'} onRename={readOnly ? undefined : onRename} size={deckSize(entries)} ready={ready} compact={compact}>
+        <span className="shrink-0 text-xs text-slate-400">{compact ? '←' : '← All decks'}</span>
       </DeckTitle>
-      <DeckSummary entries={entries} byId={byId} isLocked={isLocked} />
+      <DeckSummary entries={entries} byId={byId} isLocked={isLocked} compact={compact} />
     </div>
   );
 }

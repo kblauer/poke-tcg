@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Board, type LastMove } from '../components/Board';
 import { CoinFlip, flipsAfter, type Flip } from '../components/CoinFlip';
 import { RunStats } from '../components/run/RunStats';
+import { useIsPhone } from '../hooks/useIsPhone';
 import { useRun } from '../hooks/useRun';
 import { useSkipFlips } from '../hooks/useSkipFlips';
 import { useTRPC } from '../lib/trpc';
@@ -112,6 +113,7 @@ export function GamePage() {
         errorAt={act.submittedAt}
         runTab={data.runId ? <GameRunTab /> : undefined}
         overlay={flips.length > 0 && <CoinFlip flips={flips} you={view.you} onDone={reveal} />}
+        info={<BattleInfo view={shown} opponent={data.opponent} />}
       />
       <BattleBanner view={shown} opponent={data.opponent} run={data.runId !== null} />
     </>
@@ -126,25 +128,37 @@ function GameRunTab() {
   return <RunStats view={data.run.view} account={data.account} run={run} />;
 }
 
+/** Who you're up against, the battle's rules and your items at work, on one line (or nothing, when there's none). */
+function BattleInfo({ view, opponent }: { view: PlayerView; opponent: string | null }) {
+  const rules = view.rules.flatMap((r) => (r.kind === 'typeDamage' ? [`${r.type[0]!.toUpperCase()}${r.type.slice(1)} Pokémon do ${r.multiplier}× damage`] : []));
+  // Your items at work in this battle (their rules carry the item's name).
+  const items = [...new Set(view.rules.flatMap((r) => (r.kind !== 'typeDamage' && r.player === view.you && r.label ? [r.label] : [])))];
+  if (!opponent && !rules.length && !items.length) return null;
+  return (
+    <>
+      {opponent && <>vs {opponent}</>}
+      {rules.length > 0 && <span className="text-violet-300">{opponent && ' · '}{rules.join(' · ')}</span>}
+      {items.length > 0 && <span className="text-emerald-300">{(opponent || rules.length > 0) && ' · '}{items.join(', ')}</span>}
+    </>
+  );
+}
+
 /**
- * Who you're up against and the run's battle rules, at the top of the screen; once the battle is over, the
- * result and the way back: to the run for a run's battle, otherwise to the Single battle tab.
+ * Who you're up against and the run's battle rules (BattleInfo), at the top of the screen (on a phone, the board's
+ * top line has them instead); once the battle is over, the result and the way back: to the run for a run's battle,
+ * otherwise to the Single battle tab.
  */
 function BattleBanner({ view, opponent, run }: { view: PlayerView; opponent: string | null; run: boolean }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const phone = useIsPhone();
   const over = view.phase === 'finished';
   const won = view.winner === view.you;
-  const rules = view.rules.flatMap((r) => (r.kind === 'typeDamage' ? [`${r.type[0]!.toUpperCase()}${r.type.slice(1)} Pokémon do ${r.multiplier}× damage`] : []));
-  // Your items at work in this battle (their rules carry the item's name).
-  const items = [...new Set(view.rules.flatMap((r) => (r.kind !== 'typeDamage' && r.player === view.you && r.label ? [r.label] : [])))];
   if (!over) {
-    if (!opponent && !rules.length && !items.length) return null;
+    if (phone || (!opponent && !view.rules.length)) return null;
     return (
-      <div className="pointer-events-none fixed left-1/2 top-2 z-30 -translate-x-1/2 rounded-full bg-slate-800/90 px-4 py-1 text-xs text-slate-300 ring-1 ring-slate-600">
-        {opponent && <>vs {opponent}</>}
-        {rules.length > 0 && <span className="text-violet-300">{opponent && ' · '}{rules.join(' · ')}</span>}
-        {items.length > 0 && <span className="text-emerald-300">{(opponent || rules.length > 0) && ' · '}{items.join(', ')}</span>}
+      <div className="pointer-events-none fixed left-1/2 top-2 z-30 -translate-x-1/2 rounded-full bg-slate-800/90 px-4 py-1 text-xs text-slate-300 ring-1 ring-slate-600 empty:hidden">
+        <BattleInfo view={view} opponent={opponent} />
       </div>
     );
   }

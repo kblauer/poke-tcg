@@ -1,6 +1,6 @@
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { CatalogCard } from '../utils/cardList';
 import { CardViewer } from './CardViewer';
 
@@ -8,7 +8,8 @@ const small = 'flex rounded bg-slate-600 p-1 hover:bg-slate-500 disabled:opacity
 
 /**
  * A card shown large in the middle of the screen, as holding it does, but staying open (right-clicking a card, see
- * CardInspectProvider) until Escape or a click outside it. With a deck open (`deck`), − and + change its copies in
+ * CardInspectProvider) until Escape or a click outside it. Opened by a long press, it ignores the finger lifting (the
+ * click that ends the press lands on it): only a press that starts on it closes it. With a deck open (`deck`), − and + change its copies in
  * the deck; + is disabled with the reason when the card can't be added. In the deck builder (`craft`), Craft unlocks the
  * card for Stardust.
  */
@@ -26,6 +27,8 @@ export function CardInspector({
   craft?: { cost: number; stardust: number; blocked: string | null; pending: boolean; error?: string; onCraft: () => void };
   onClose: () => void;
 }) {
+  /** A press has started on it since it opened. */
+  const pressed = useRef(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
@@ -38,11 +41,12 @@ export function CardInspector({
       className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/80 p-4"
       role="dialog"
       aria-label={card.name}
-      onClick={onClose}
+      onPointerDown={() => (pressed.current = true)}
+      onClick={() => pressed.current && onClose()}
       // Right-clicking another spot closes it, without the browser's menu.
       onContextMenu={(e) => {
         e.preventDefault();
-        onClose();
+        if (pressed.current) onClose();
       }}
     >
       <div className="flex w-full max-w-lg flex-col items-center gap-3" onClick={(e) => e.stopPropagation()} onContextMenu={(e) => e.stopPropagation()}>

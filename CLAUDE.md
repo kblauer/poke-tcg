@@ -60,6 +60,12 @@
 - Right-clicking any card, anywhere, opens the `CardInspector` (large, all holo effects; `CardInspectProvider` around every page, the deck builder adding its − and +). New card elements should use `useInspectOnRightClick`.
 - The Active Pokémon shows its holo effect when it's a holo, but still (`HoloCard` `still`): no tilt or reaction to the pointer.
 
+## Phone layout (agreed)
+- Phones held upright (`useIsPhone`) get their own battle screen and Collection layout; tablets and desktops keep the usual ones. See README: Phone layout.
+- Battle screen: locked full screen (`useLockedScreen`), TCG Pocket style (`components/phone/`); tap your Active for its moves (`ActiveSheet`); small Prize/deck/discard stacks beside each Active; the round ☰ button opens the side panel's tabs and Concede (`LogSheet`). No hover preview: a long press inspects a card.
+- Phone hand: tap selects; hold zooms in (large, above the hand) and sliding along the hand changes the zoomed card; sliding up off the hand drags the zoomed card into play.
+- Collection: decks (compact tiles) on the left and the search on the right share the top; the cards get the rest.
+
 ## Debug tools (testing cheats)
 - The Debug tab can change the CPU's difficulty, draw a card, add any card or Energy to the hand, set the HP of any Pokémon in play, and turn Special Conditions on or off on either active.
 - The pack window's "Debug: force holo Energy" and "Debug: force all-rares pack" checkboxes open packs with a holo Energy each, or all rares (`packs.debugOpen`, a `debugProcedure`; the checkbox is guarded by `DEBUG_BUILD` and `useDebugEnabled`).

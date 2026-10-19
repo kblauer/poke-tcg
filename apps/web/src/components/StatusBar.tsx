@@ -30,6 +30,7 @@ function turnReminderOff(kind: EndTurnReminder['kind']) {
 
 // Styled like the other dialogs: bg-slate-800, ring-slate-600, slate-600 buttons.
 const button = 'rounded bg-slate-600 px-3 py-1 text-sm transition hover:bg-slate-500 active:scale-95';
+const smallButton = 'rounded bg-slate-600 px-2 py-1 text-xs transition hover:bg-slate-500 active:scale-95';
 /** End turn itself, blue like the turn bar's button. */
 const endButton = 'rounded bg-blue-600 px-3 py-1 text-sm transition hover:bg-blue-500 active:scale-95';
 
@@ -40,7 +41,8 @@ const endButton = 'rounded bg-blue-600 px-3 py-1 text-sm transition hover:bg-blu
  * `setup`: while placing Pokémon before the battle, the
  * Reset cards (take them all back) and Start battle buttons. `reminders`: what the player could still do this turn
  * (attach Energy, use the Stadium, use Pokémon Powers); End turn lists them and asks first, except those the player
- * turned off with "Don't remind me" (each remembered in the browser).
+ * turned off with "Don't remind me" (each remembered in the browser). `compact` (the phone layout): one row, the
+ * text (up to two lines) on the left and the buttons, smaller, on the right, where the thumb is.
  */
 export function StatusBar({
   status,
@@ -49,6 +51,7 @@ export function StatusBar({
   reminders = [],
   pending,
   send,
+  compact = false,
 }: {
   status: string;
   canEndTurn: boolean;
@@ -56,6 +59,7 @@ export function StatusBar({
   reminders?: EndTurnReminder[];
   pending: GameAction | null;
   send: (a: GameAction) => void;
+  compact?: boolean;
 }) {
   const busy = pending !== null;
   /** The reminders being asked about, or null. */
@@ -86,17 +90,23 @@ export function StatusBar({
     send({ type: 'END_TURN' });
   };
   const toggle = (kind: EndTurnReminder['kind'], on: boolean) => setSilenced((s) => (on ? [...s, kind] : s.filter((k) => k !== kind)));
+  /** The big buttons (Start battle, End turn): a little smaller on a phone. */
+  const big = compact ? 'px-4 py-2 text-sm' : 'min-w-36 px-6 py-2 text-base';
 
   return (
-    <div className="flex shrink-0 flex-col items-center gap-1 text-center">
-      {/* One line, so a longer message never pushes the button down. */}
-      <p className="h-5 max-w-full truncate px-2 text-sm font-semibold leading-5">{status}</p>
-      <div className="flex h-10 items-center justify-center">
+    <div className={compact ? 'flex min-w-0 flex-1 items-center gap-2' : 'flex shrink-0 flex-col items-center gap-1 text-center'}>
+      {/* One line, so a longer message never pushes the button down (two beside the buttons on a phone). */}
+      {compact ? (
+        <p className="line-clamp-2 min-w-0 flex-1 text-xs font-semibold leading-4">{status}</p>
+      ) : (
+        <p className="h-5 max-w-full truncate px-2 text-sm font-semibold leading-5">{status}</p>
+      )}
+      <div className={`flex h-10 items-center justify-center ${compact ? 'shrink-0 gap-2' : ''}`}>
         {setup && (
-          // Start battle in the middle, where End turn goes; Reset cards hangs off its left.
-          <span className="relative">
+          // Start battle in the middle, where End turn goes; Reset cards hangs off its left (beside it, on a phone).
+          <span className={compact ? 'flex items-center gap-2' : 'relative'}>
             <button
-              className={`${button} absolute right-full top-1/2 mr-3 -translate-y-1/2 whitespace-nowrap disabled:opacity-40`}
+              className={`${compact ? smallButton : `${button} absolute right-full top-1/2 mr-3 -translate-y-1/2`} whitespace-nowrap disabled:opacity-40`}
               disabled={busy || !setup.canReset}
               onClick={() => send({ type: 'RESET_SETUP' })}
               title="Take the Pokémon you've placed back into your hand"
@@ -104,7 +114,7 @@ export function StatusBar({
               Reset cards
             </button>
             <button
-              className="min-w-36 rounded-lg bg-emerald-600 px-6 py-2 text-base font-semibold shadow-lg shadow-black/40 transition hover:bg-emerald-500 active:scale-95 disabled:opacity-40"
+              className={`${big} rounded-lg bg-emerald-600 font-semibold shadow-lg shadow-black/40 transition hover:bg-emerald-500 active:scale-95 disabled:opacity-40`}
               disabled={busy || !setup.canStart}
               onClick={() => send({ type: 'START_BATTLE' })}
               title={setup.canStart ? 'Done placing your Pokémon' : 'Choose an Active Pokémon first'}
@@ -115,7 +125,7 @@ export function StatusBar({
         )}
         {canEndTurn && (
           <button
-            className="min-w-36 rounded-lg bg-blue-600 px-6 py-2 text-base font-semibold shadow-lg shadow-black/40 transition hover:bg-blue-500 active:scale-95 disabled:cursor-progress"
+            className={`${big} rounded-lg bg-blue-600 font-semibold shadow-lg shadow-black/40 transition hover:bg-blue-500 active:scale-95 disabled:cursor-progress`}
             disabled={busy}
             onClick={clickEndTurn}
           >

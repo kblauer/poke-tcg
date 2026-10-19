@@ -33,15 +33,16 @@ function RootLayout() {
   if (session === undefined) return null;
 
   return (
-    // Each page sets its own width and side padding.
+    // Each page sets its own width and side padding. On a phone the header wraps rather than running off the screen
+    // (the battle screen covers it there).
     <div className="py-4">
-      <header className="mb-6 flex items-center justify-between px-4">
-        <div className="flex items-center gap-6">
+      <header className="mb-6 flex flex-wrap items-center justify-between gap-2 px-4">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
           <Link to="/" className="text-xl font-bold text-yellow-300">
             Poké TCG
           </Link>
           {session && (
-            <nav className="flex gap-1 text-sm">
+            <nav className="flex flex-wrap gap-1 text-sm">
               <Link to="/" className={tab} activeOptions={{ exact: true }}>
                 Play
               </Link>
@@ -62,7 +63,7 @@ function RootLayout() {
         </div>
         {session && (
           <div className="flex items-center gap-3 text-sm">
-            <span className="text-slate-400">{session.user.email}</span>
+            <span className="hidden text-slate-400 sm:inline">{session.user.email}</span>
             <button className="rounded bg-slate-800 px-3 py-1 hover:bg-slate-700" onClick={() => signOut()}>
               Sign out
             </button>

@@ -32,16 +32,17 @@ function statusBadges(p: InPlayPokemon, cards?: CardLibrary): { label: string; t
   if (e.amnesia) badges.push({ label: 'AMN', title: `Amnesia: can't use ${e.amnesia.attack} next turn`, className: 'bg-slate-600' });
   return badges;
 }
+import { useTouchHold } from '../hooks/useTouchHold';
 import { holoAttributes } from '../utils/holo';
 import { EnergyIcon } from './EnergyIcon';
 import { HoloCard } from './HoloCard';
-import { CatalogContext, useInspectOnRightClick } from './InspectContext';
+import { CatalogContext, InspectContext, useInspectOnRightClick } from './InspectContext';
 import { PreviewContext } from './PreviewContext';
 import { CardImage } from './CardImage';
 
 /**
  * Card art from TCGdex (aspect ratio 63:88), with damage and attached energy overlaid when in play. Right-clicking it
- * opens it in the CardInspector. `shine`: a holo card gets its holo effect, still (the Active Pokémon).
+ * (or a long press, on a touch screen) opens it in the CardInspector. `shine`: a holo card gets its holo effect, still (the Active Pokémon).
  */
 export function Card({
   def,
@@ -62,12 +63,24 @@ export function Card({
   const setPreview = useContext(PreviewContext);
   const catalog = useContext(CatalogContext);
   const inspect = useInspectOnRightClick()(def.id);
+  // On a touch screen, holding a finger on the card does what right-click does.
+  const openInspector = useContext(InspectContext);
+  const inspectable = catalog?.get(def.id);
+  const hold = useTouchHold(
+    openInspector && inspectable
+      ? () => {
+          setPreview(null);
+          openInspector(inspectable);
+        }
+      : undefined,
+  );
   // The catalog knows which cards are holo, and which have the galaxy foil.
   const entry = shine ? catalog?.get(def.id) : undefined;
   const holo = entry && (entry.holo || entry.galaxy) ? entry : null;
   const size = small ? SMALL_CARD : LARGE_CARD;
   return (
     <div
+      {...hold}
       className={`${size} relative aspect-[63/88] shrink-0 overflow-hidden rounded-lg shadow`}
       onMouseEnter={(e) => setPreview({ def, x: e.clientX, y: e.clientY })}
       onMouseLeave={() => setPreview(null)}

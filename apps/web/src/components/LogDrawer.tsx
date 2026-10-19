@@ -1,8 +1,10 @@
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import CloseIcon from '@mui/icons-material/Close';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import type { LogEntry, PlayerId, PlayerView } from '@poke-tcg/game-engine';
 import { lazy, Suspense, useEffect, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useSkipFlips } from '../hooks/useSkipFlips';
 import { GameLog } from './GameLog';
 
@@ -45,6 +47,11 @@ function savePrefs(prefs: LogPrefs) {
   }
 }
 
+/** The tabs there are: the run's (during a run), the log, and the debug tools (when available). */
+function panelTabs(logTitle: string, run: boolean, debug: boolean): { id: Tab; label: string }[] {
+  return [...(run ? [{ id: 'run' as const, label: 'Run' }] : []), { id: 'log', label: logTitle }, ...(debug && DebugPanel ? [{ id: 'debug' as const, label: 'Debug' }] : [])];
+}
+
 const iconButton = 'flex h-7 w-7 items-center justify-center rounded text-slate-400 transition hover:bg-slate-700 hover:text-slate-100';
 
 /**
@@ -75,11 +82,7 @@ export function LogDrawer({
   const [skipFlips, setSkipFlips] = useSkipFlips();
   useEffect(() => savePrefs(prefs), [prefs]);
   const { side, open, width } = prefs;
-  const tabs: { id: Tab; label: string }[] = [
-    ...(run ? [{ id: 'run' as const, label: 'Run' }] : []),
-    { id: 'log', label: logTitle },
-    ...(debug && DebugPanel ? [{ id: 'debug' as const, label: 'Debug' }] : []),
-  ];
+  const tabs = panelTabs(logTitle, !!run, !!debug);
   const tab = tabs.some((t) => t.id === prefs.tab) ? prefs.tab : 'log';
   const update = (change: Partial<LogPrefs>) => setPrefs((p) => ({ ...p, ...change }));
 
@@ -215,5 +218,91 @@ export function LogDrawer({
         />
       )}
     </aside>
+  );
+}
+
+/**
+ * The phone layout's version of the panel, opened by its round ☰ button: the same tabs, filling the screen, with
+ * `actions` (Concede) along the bottom and a button to close it. It remembers the panel's tab (the same preferences).
+ */
+export function LogSheet({
+  log,
+  you,
+  logTitle = 'Game log',
+  run,
+  debug,
+  coinFlips = false,
+  actions,
+  onClose,
+}: {
+  log: LogEntry[];
+  you: PlayerId;
+  logTitle?: string;
+  run?: ReactNode;
+  coinFlips?: boolean;
+  debug?: { gameId: string; view: PlayerView };
+  actions?: ReactNode;
+  onClose: () => void;
+}) {
+  const [prefs, setPrefs] = useState(loadPrefs);
+  const [skipFlips, setSkipFlips] = useSkipFlips();
+  useEffect(() => savePrefs(prefs), [prefs]);
+  const tabs = panelTabs(logTitle, !!run, !!debug);
+  const tab = tabs.some((t) => t.id === prefs.tab) ? prefs.tab : 'log';
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  // In the page body, outside the board, which is locked against scrolling (touch-none): the log scrolls.
+  return createPortal(
+    <div data-keep-action role="dialog" aria-label="Menu" className="fixed inset-0 z-[1000] flex flex-col bg-slate-900 p-3 text-slate-100">
+      <div className="flex items-center justify-between gap-2">
+        <div role="tablist" className="flex gap-1">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={tab === t.id}
+              onClick={() => setPrefs((p) => ({ ...p, tab: t.id }))}
+              className={`rounded px-3 py-1.5 text-sm transition ${tab === t.id ? 'bg-slate-700 text-slate-100' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <button className={`${iconButton} h-9 w-9`} title="Close the menu" aria-label="Close the menu" onClick={onClose}>
+          <CloseIcon />
+        </button>
+      </div>
+      <div className="-mx-3 flex min-h-0 flex-1 flex-col">
+        {tab === 'run' && run ? (
+          <div className="min-h-0 flex-1 overflow-y-auto p-3">{run}</div>
+        ) : tab === 'debug' && debug && DebugPanel ? (
+          <div className="min-h-0 flex-1 overflow-y-auto p-3">
+            <Suspense fallback={<p className="text-xs text-slate-500">Loading…</p>}>
+              <DebugPanel gameId={debug.gameId} view={debug.view} />
+            </Suspense>
+          </div>
+        ) : (
+          <GameLog
+            log={log}
+            you={you}
+            header={
+              coinFlips ? (
+                <label className="mb-2 flex cursor-pointer items-center gap-1.5 text-xs text-slate-400">
+                  <input type="checkbox" checked={skipFlips} onChange={(e) => setSkipFlips(e.target.checked)} />
+                  Skip coin flip animations
+                </label>
+              ) : (
+                <></>
+              )
+            }
+          />
+        )}
+      </div>
+      {actions && <div className="flex justify-end gap-2 border-t border-slate-700 pt-3">{actions}</div>}
+    </div>,
+    document.body,
   );
 }

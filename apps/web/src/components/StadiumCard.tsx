@@ -8,9 +8,22 @@ import { Card } from './Card';
  * with the hover preview and right-click view of any card; an empty dashed spot when there's none. It changes as soon
  * as another Stadium is played. A Stadium that can be used once during each turn (Lucky Stadium) is used by clicking
  * it, like a benched Pokémon's power: on your turn it glows when it can be used, and a click uses it at once (it's the
- * only thing to do with it); when it can't be, a warning says why (`notify`).
+ * only thing to do with it); when it can't be, a warning says why (`notify`). `compact` (the phone layout): just the card,
+ * at the size of the piles, in the bar between the sides, and nothing when there's no Stadium.
  */
-export function StadiumCard({ view, send, busy, notify }: { view: PlayerView; send: (a: GameAction) => void; busy: boolean; notify: (message: string) => void }) {
+export function StadiumCard({
+  view,
+  send,
+  busy,
+  notify,
+  compact = false,
+}: {
+  view: PlayerView;
+  send: (a: GameAction) => void;
+  busy: boolean;
+  notify: (message: string) => void;
+  compact?: boolean;
+}) {
   const stadium = view.stadium;
   const def = stadium && lookupCard(view.cards, stadium.card.defId);
   // Only Stadiums with a once-a-turn use (not Pokémon Tower) can be clicked.
@@ -23,10 +36,11 @@ export function StadiumCard({ view, send, busy, notify }: { view: PlayerView; se
     else send({ type: 'USE_STADIUM' });
   };
 
+  if (compact && !(stadium && def)) return null;
   return (
     // Hangs off the active slot's left edge (index.css), level with its bottom, so the slot stays centred.
-    <div className={`stadium-column absolute bottom-0 flex flex-col gap-1 ${SMALL_CARD}`}>
-      <p className="text-center text-xs text-slate-400">Stadium</p>
+    <div className={compact ? `shrink-0 [--card-sm:var(--card-pile)] ${SMALL_CARD}` : `stadium-column absolute bottom-0 flex flex-col gap-1 ${SMALL_CARD}`}>
+      {!compact && <p className="text-center text-xs text-slate-400">Stadium</p>}
       {stadium && def ? (
         <div
           data-keep-action
