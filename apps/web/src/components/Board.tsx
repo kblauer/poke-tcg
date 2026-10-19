@@ -1,7 +1,7 @@
 import { DndContext, DragOverlay } from '@dnd-kit/core';
 import MenuIcon from '@mui/icons-material/Menu';
 import { hasBenched, inPlayDef, lookupCard, shapeshiftCard, type GameAction, type InPlayPokemon, type PlayerView, type Target } from '@poke-tcg/game-engine';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAttack } from '../hooks/useAttack';
 import { useCardPlay } from '../hooks/useCardPlay';
 import { useIsPhone } from '../hooks/useIsPhone';
@@ -105,6 +105,7 @@ export function Board({
   const promoting = mustPromote(view);
 
   const [preview, setPreview] = useState<Preview | null>(null);
+  const hidePreview = useCallback(() => setPreview(null), []);
   const toasts = useToasts();
   const retreat = useRetreat({ view, send, busy });
   const attack = useAttack({ view, send, busy });
@@ -644,7 +645,7 @@ export function Board({
 
         {dragOverlay}
       </DndContext>
-      {preview && <CardPreview {...preview} />}
+      {preview && <CardPreview {...preview} onLost={hidePreview} />}
       <Toasts toasts={toasts.toasts} prompt={prompt} />
     </PreviewContext.Provider>
   );

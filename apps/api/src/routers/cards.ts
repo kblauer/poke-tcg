@@ -62,6 +62,11 @@ export const cardsRouter = router({
         maxDamage: c.kind === 'POKEMON' ? Math.max(0, ...attacks.map((a) => baseDamage(a.damage))) : null,
         /** Attack names (Pokémon only), for the search. TCGdex leaves some unnamed (null); those are skipped. */
         attacks: attacks.flatMap((a) => (a.name ? [a.name] : [])),
+        /**
+         * A Stadium Trainer, for the search ("Stadium"). TCGdex doesn't list the Trainer type for these sets, so it's
+         * known by the rule every Stadium prints: discard it if another Stadium card comes into play.
+         */
+        stadium: c.kind === 'TRAINER' && /another Stadium card comes into play/i.test((c.data as CardData).effect ?? ''),
         rarity: c.rarity,
         holo: isHolo(c),
         /** Galaxy foil around the art instead of holofoil in it (see isGalaxyFoil). */

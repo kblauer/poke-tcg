@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import { CardPreview } from './CardPreview';
 import { PreviewContext, type Preview } from './PreviewContext';
 
@@ -9,10 +9,11 @@ import { PreviewContext, type Preview } from './PreviewContext';
  */
 export function PreviewProvider({ children, scrollZoom = true }: { children: ReactNode; scrollZoom?: boolean }) {
   const [preview, setPreview] = useState<Preview | null>(null);
+  const hide = useCallback(() => setPreview(null), []);
   return (
     <PreviewContext.Provider value={(p) => setPreview(p && { scrollZoom, ...p })}>
       {children}
-      {preview && <CardPreview {...preview} />}
+      {preview && <CardPreview {...preview} onLost={hide} />}
     </PreviewContext.Provider>
   );
 }

@@ -3,7 +3,8 @@ import { getPreviewWidth, previewPosition, zoomPreview } from '../utils/preview'
 import type { Preview } from './PreviewContext';
 import { CardImage } from './CardImage';
 
-export function CardPreview({ def, x, y, scrollZoom = true }: Preview) {
+/** The large hover preview, following the pointer. `onLost` hides it: called once the pointer has left the card it's for (`from`) or the window. */
+export function CardPreview({ def, x, y, scrollZoom = true, from, onLost }: Preview & { onLost: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
 
   // Follow the pointer and resize on scroll by styling the element directly,
@@ -20,10 +21,13 @@ export function CardPreview({ def, x, y, scrollZoom = true }: Preview) {
       el.style.transform = `translate(${left}px, ${top}px)`;
     };
     const onMove = (e: MouseEvent) => {
+      if (from && (!from.isConnected || !from.contains(e.target as Node))) return onLost();
       px = e.clientX;
       py = e.clientY;
       place();
     };
+    // The pointer leaving the window (no element is left under it).
+    const onOut = (e: MouseEvent) => !e.relatedTarget && onLost();
     // Ctrl+wheel (and trackpad pinch) is left to the browser's zoom.
     const onWheel = (e: WheelEvent) => {
       if (e.ctrlKey) return;
@@ -33,12 +37,14 @@ export function CardPreview({ def, x, y, scrollZoom = true }: Preview) {
     };
     place();
     window.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseout', onOut);
     if (scrollZoom) window.addEventListener('wheel', onWheel, { passive: false });
     return () => {
       window.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseout', onOut);
       window.removeEventListener('wheel', onWheel);
     };
-  }, [x, y, scrollZoom]);
+  }, [x, y, scrollZoom, from, onLost]);
 
   return (
     // Above everything, including the deck-search dialog (z-[1000]).

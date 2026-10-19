@@ -82,7 +82,7 @@ export function Card({
     <div
       {...hold}
       className={`${size} relative aspect-[63/88] shrink-0 overflow-hidden rounded-lg shadow`}
-      onMouseEnter={(e) => setPreview({ def, x: e.clientX, y: e.clientY })}
+      onMouseEnter={(e) => setPreview({ def, x: e.clientX, y: e.clientY, from: e.currentTarget })}
       onMouseLeave={() => setPreview(null)}
       onContextMenu={
         inspect.onContextMenu &&
