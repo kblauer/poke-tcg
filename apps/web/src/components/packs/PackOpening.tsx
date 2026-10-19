@@ -478,7 +478,8 @@ function Burst({ count, onDone }: { count: number; onDone: () => void }) {
     return () => animations.forEach((a) => a?.cancel());
   }, []);
   return (
-    <div className="relative aspect-[63/88] w-72">
+    // m-auto: centred in the window, as every phase is.
+    <div className="relative m-auto aspect-[63/88] w-72">
       {Array.from({ length: count }, (_, i) => (
         <img key={i} ref={(el) => void (cards.current[i] = el)} src={CARD_BACK} alt="" draggable={false} className="absolute inset-0 aspect-[63/88] w-full rounded-xl object-cover shadow-xl shadow-black/60" />
       ))}

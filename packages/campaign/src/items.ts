@@ -195,11 +195,13 @@ const SHOP_STOCK: [ItemCategory, number, number][] = [
 
 /**
  * What the post-run shop has after a run, rolled from `seed` (from the run, so it stays the same until the next run
- * ends): 3–4 consumables, 1–2 misc items and 1 piece of gear, all different, cheapest first.
+ * ends): 3–4 consumables, 1–2 misc items and 1 piece of gear, all different, cheapest first. `owned`: the items the
+ * account has; the one-of-a-kind ones among them (onlyOne) aren't offered, and others take their place.
  */
-export function shopStock(seed: number): ItemDef[] {
+export function shopStock(seed: number, owned: (id: string) => boolean = () => false): ItemDef[] {
   const rng = rngFrom(seed);
-  return SHOP_STOCK.flatMap(([category, least, most]) => sample(rng, SHOP_ITEMS.filter((i) => i.category === category), between(rng, least, most))).sort(
+  const offered = SHOP_ITEMS.filter((i) => !(onlyOne(i) && owned(i.id)));
+  return SHOP_STOCK.flatMap(([category, least, most]) => sample(rng, offered.filter((i) => i.category === category), between(rng, least, most))).sort(
     (a, b) => a.price! - b.price!,
   );
 }

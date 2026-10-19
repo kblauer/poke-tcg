@@ -40,6 +40,12 @@ export function PowerPanel({ view, power, busy }: { view: PlayerView; power: Pow
                 {lookupCard(view.cards, c.defId).name}
               </button>
             ))}
+          {spec.kind === 'counters' &&
+            spec.options.map((n) => (
+              <button key={n} className={option} onClick={() => power.answer(n)}>
+                {n === 1 ? 'No, just 1' : spec.all ? `Yes, all ${n}` : `Yes, ${n}`}
+              </button>
+            ))}
           {spec.kind === 'type' && (
             <div className="flex flex-wrap gap-1">
               {spec.options.map((t) => (

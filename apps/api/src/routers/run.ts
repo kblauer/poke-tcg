@@ -1,5 +1,5 @@
 import { bossSummary, currentGameId, EQUIP_SLOTS, isBattleKind, fitsSlot, item, ITEMS, onlyOne, RUN_TYPE_IDS, RUN_TYPES, runView, shopStock, type EquipSlot } from '@poke-tcg/campaign';
-import { prisma } from '@poke-tcg/db';
+import { Prisma, prisma } from '@poke-tcg/db';
 import { DECK_NAME_LENGTH } from '@poke-tcg/shared';
 import { buyItemInput, DEFAULT_TRAINER_SPRITE, equipInput, runActInput, runChooseInput, runIdInput, saveRunDeckInput, startRunInput, trainerSpriteInput, useItemInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
@@ -18,9 +18,15 @@ async function runDeckName(run: LoadedRun) {
 
 /** The post-run shop's stock: rolled from the latest run's seed, so it's new after each run and the same until then. */
 async function latestStock(userId: string) {
-  const run = await prisma.run.findFirst({ where: { ownerId: userId }, orderBy: { createdAt: 'desc' }, select: { seed: true } });
+  const run = await prisma.run.findFirst({ where: { ownerId: userId }, orderBy: { createdAt: 'desc' }, select: { id: true, seed: true, status: true, shop: true } });
+  if (Array.isArray(run?.shop)) return (run.shop as string[]).flatMap((id) => (ITEMS[id] ? [ITEMS[id]] : []));
+  // One-of-a-kind items the account has aren't offered.
+  const owned = new Set((await prisma.inventoryItem.findMany({ where: { userId, quantity: { gt: 0 } }, select: { itemId: true } })).map((i) => i.itemId));
   // Not the run's own seed, which rolled its map.
-  return shopStock(((run?.seed ?? 0) ^ 0x5eed5) >>> 0);
+  const stock = shopStock(((run?.seed ?? 0) ^ 0x5eed5) >>> 0, (id) => owned.has(id));
+  // Fixed once the run is over (the shop is open), so buying something doesn't change what's offered.
+  if (run && run.status !== 'ACTIVE') await prisma.run.updateMany({ where: { id: run.id, shop: { equals: Prisma.DbNull } }, data: { shop: stock.map((i) => i.id) } });
+  return stock;
 }
 
 /** What the client gets for a run: its view (no RNG or opponents' deck seeds) and the battle under way. */

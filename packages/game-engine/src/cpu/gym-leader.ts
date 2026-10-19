@@ -434,7 +434,8 @@ function heal(t: Turn): GameAction | null {
       const receivers = benched(t).filter(([, p]) => p.damage + 10 < pokemonDef(cards, p).hp);
       if (!receivers.length) break;
       const [to] = receivers.reduce((a, b) => (hpLeft(cards, b[1]) > hpLeft(cards, a[1]) ? b : a));
-      const action = usePower(t, source, { from: 'active', to });
+      // One counter at a time, as it always has.
+      const action = usePower(t, source, { from: 'active', to, counters: 1 });
       if (action) return action;
     }
   }

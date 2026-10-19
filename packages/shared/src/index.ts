@@ -54,6 +54,7 @@ const powerChoicesSchema = z.object({
   oppTo: target.optional(),
   peek: z.enum(['deck', 'oppDeck', 'oppHand', 'prize', 'oppPrize']).optional(),
   prize: z.number().int().min(0).max(5).optional(),
+  counters: z.number().int().min(1).max(30).optional(),
 }) satisfies z.ZodType<PowerChoices>;
 
 /** Answers to a Trainer's questions (see TrainerChoices in the engine). */

@@ -57,6 +57,7 @@ const BY_NAME: CardLibrary = {
   poliwrath: mon('base1-13', 'Poliwrath', W, 90, [['Water Gun', [W, W, C], 30], ['Whirlpool', [W, W, C, C], 40]]),
   farfetchd: mon('base1-27', "Farfetch'd", C, 50, [['Leek Slap', [C], 30]]),
   onix: mon('base1-56', 'Onix', 'fighting', 90, [['Rock Throw', ['fighting'], 10], ['Harden', ['fighting', 'fighting'], 0]]),
+  machoke: mon('base1-34', 'Machoke', FI, 80, [['Karate Chop', [FI, FI, C], 50], ['Submission', [FI, FI, C, C], 60]], { stage: 'stage1', evolvesFrom: 'Machop' }),
   nidoking: mon('base1-11', 'Nidoking', G, 90, [['Thrash', [G, C, C], 30], ['Toxic', [G, G, G], 20]]),
   alakazam: mon('base1-1', 'Alakazam', P, 80, [['Confuse Ray', [P, P, P], 30]], { stage: 'stage2', power: { name: 'Damage Swap', text: '' } }),
   blastoise: mon('base1-2', 'Blastoise', W, 100, [['Hydro Pump', [W, W, W], 40]], { stage: 'stage2', power: { name: 'Rain Dance', text: '' } }),

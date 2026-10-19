@@ -630,7 +630,8 @@ export const GYM1: Record<string, Record<string, AttackEffect>> = {
         ctx.log('Shuffled the deck.');
       },
     },
-    'Karate Chop': { run: (ctx) => void ctx.hit(Math.max(0, 40 - ctx.attacker.damage)) },
+    // Printed "40-", which TCGdex leaves out.
+    'Karate Chop': { run: (ctx) => void ctx.hit(Math.max(0, 40 - ctx.attacker.damage)), damage: '40-' },
   },
   // Brock's Onix
   'gym1-69': { Bellow: flipToInflict(0, 'paralyzed') },

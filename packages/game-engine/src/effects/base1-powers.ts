@@ -8,6 +8,17 @@ import { clearOnLeavingActive, inPlayDef, pokemonName } from '../status.js';
 
 const def = (s: PowerSituation, p: InPlayPokemon) => inPlayDef(s.cards, p);
 const at = (s: PowerSituation, t: Target) => pokemonAt(s.me, t)!;
+
+/**
+ * Damage Swap: the most damage counters that can go from one Pokémon to another without Knocking Out the one taking
+ * them (`most`), and whether that's all of them (`all`).
+ */
+function swapLimit(from: InPlayPokemon, to: InPlayPokemon, hp: number) {
+  const counters = Math.floor(from.damage / 10);
+  const room = Math.floor((hp - 1 - to.damage) / 10);
+  return { most: Math.max(0, Math.min(counters, room)), all: room >= counters };
+}
+const swappable = (s: PowerSituation, from: Target, to: Target) => swapLimit(at(s, from), at(s, to), def(s, at(s, to)).hp);
 /** A basic Energy card of `type` (Rain Dance and Energy Trans move Energy cards, not Buzzap'd Electrodes). */
 const isEnergyCard = (s: PowerSituation, c: CardInstance, type: EnergyType) => {
   const d = lookupCard(s.cards, c.defId);
@@ -19,6 +30,9 @@ const ENERGY_TYPES: EnergyType[] = ['grass', 'fire', 'water', 'lightning', 'psyc
 
 export const BASE1_POWERS: Record<string, PowerEffect> = {
   // Alakazam – Damage Swap: move 1 damage counter between your Pokémon, as long as it doesn't Knock Out the one receiving it.
+  // As it can be used as often as you like, moving several at once is the same as using it several times: once both
+  // Pokémon are picked, if more than 1 counter can go, it asks whether to move them all (or as many as the receiving
+  // Pokémon can take without being Knocked Out), or just 1.
   'base1-1': {
     blocked: (s) => (ownTargets(s.me).some((t) => at(s, t).damage >= 10) ? null : 'None of your Pokémon have damage counters'),
     choices(s, c) {
@@ -27,14 +41,22 @@ export const BASE1_POWERS: Record<string, PowerEffect> = {
       ];
       if (c.from === undefined) return specs;
       const to = ownTargets(s.me).filter((t) => t !== c.from && at(s, t).damage + 10 < def(s, at(s, t)).hp);
-      return [...specs, { kind: 'ownPokemon', field: 'to', options: to, prompt: 'Move it to' }];
+      specs.push({ kind: 'ownPokemon', field: 'to', options: to, prompt: 'Move it to' });
+      if (c.to === undefined || !to.includes(c.to)) return specs;
+      const { all, most } = swappable(s, c.from, c.to);
+      if (most < 2) return specs;
+      const name = def(s, at(s, c.to)).name;
+      const prompt = all ? `Move all ${most} damage counters to ${name}` : `Move as many damage counters as ${name} can take (${most} of ${at(s, c.from).damage / 10})`;
+      return [...specs, { kind: 'counters', field: 'counters', options: [most, 1], all, prompt }];
     },
     use(ctx) {
       const from = pokemonAt(ctx.me, ctx.choices.from!)!;
       const to = pokemonAt(ctx.me, ctx.choices.to!)!;
-      from.damage -= 10;
-      to.damage += 10;
-      ctx.log(`Moved a damage counter from ${pokemonName(ctx.state, from)} to ${pokemonName(ctx.state, to)}.`);
+      // Never more than can go (the question is only asked when more than 1 can).
+      const n = Math.min(Math.max(1, ctx.choices.counters ?? 1), swapLimit(from, to, inPlayDef(ctx.state.cards, to).hp).most);
+      from.damage -= 10 * n;
+      to.damage += 10 * n;
+      ctx.log(`Moved ${n === 1 ? 'a damage counter' : `${n} damage counters`} from ${pokemonName(ctx.state, from)} to ${pokemonName(ctx.state, to)}.`);
     },
   },
 

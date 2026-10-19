@@ -162,7 +162,8 @@ export const BASE1: Record<string, Record<string, AttackEffect>> = {
   'base1-33': { Stiffen: withdraw, Poisonpowder: flipToInflict(20, 'poisoned') },
   // Machoke
   'base1-34': {
-    'Karate Chop': { run: (ctx) => void ctx.hit(Math.max(0, 50 - ctx.attacker.damage)) },
+    // Printed "50-": TCGdex leaves it out of the Base Set 2 reprint (which shares this).
+    'Karate Chop': { run: (ctx) => void ctx.hit(Math.max(0, 50 - ctx.attacker.damage)), damage: '50-' },
     Submission: recoil(60, 20),
   },
   // Magikarp

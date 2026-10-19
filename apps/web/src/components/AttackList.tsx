@@ -3,10 +3,11 @@ import type { AttackControl } from '../hooks/useAttack';
 
 /**
  * Attack buttons for the player's active Pokémon. Attacks it can't use (energy, Special
- * Conditions, card text) are disabled, with the reason as a tooltip. Plain damage is shown
- * against the defending Pokémon, after weakness and resistance. Variable damage ("10+", "20×") shows what the
- * attack would do now (`damage`, from the view: one number, or a range when coin flips or choices decide it), with
- * the printed damage in the tooltip.
+ * Conditions, card text) are disabled, with the reason as a tooltip. On the player's turn each attack shows what it
+ * would do to the Defending Pokémon now (`damage`, from the view: the attack played out on a copy of the game, so its
+ * own effect, Weakness and Resistance, PlusPower, Defender and effects in play all count, and an attack that would be
+ * stopped shows 0; one number, or a range when coin flips or choices decide it), with the printed damage in the
+ * tooltip. Otherwise plain damage is shown after Weakness and Resistance, and variable damage ("10+", "50-") as printed.
  */
 export function AttackList({
   pokemon,
@@ -48,13 +49,17 @@ export function AttackList({
         const modifier =
           damage === a.damage ? null : damage > a.damage ? `${defenderDef!.name} is weak to ${def.type}` : `${defenderDef!.name} resists ${def.type}`;
         const unimplemented = a.text && !attackEffect(source, a.name);
-        const now = !fixed ? preview[i] : undefined;
+        // What it would do now, worked out by the engine (only its own attacks, on its turn, when it can use them).
+        const now = from ? undefined : (preview[i] ?? undefined);
+        const shown = now && (now.min === now.max ? String(now.min) : `${now.min}–${now.max}`);
+        // Plain damage changed by something: the printed number, then what it does.
+        const changed = now && fixed && now.min === now.max && now.min !== a.damage;
         const active = (pending?.type === 'ATTACK' && pending.attackIndex === i) || attack.choosingIndex === i;
         return (
           <button
             key={`${from ?? ''}:${a.name}`}
             disabled={!usable}
-            title={[error, now && `Printed damage: ${a.damageText ?? a.damage}`, a.text, unimplemented && '(Card text not implemented yet.)'].filter(Boolean).join('\n') || undefined}
+            title={[error, now && `Printed damage: ${a.damageText ?? a.damage}; with everything in play now: ${shown}`, a.text, unimplemented && '(Card text not implemented yet.)'].filter(Boolean).join('\n') || undefined}
             onClick={() => attack.start(i)}
             className={`rounded bg-red-600 px-2 py-1 text-left text-xs transition hover:bg-red-500 active:scale-95 disabled:hover:bg-red-600 ${
               active ? 'animate-pulse ring-2 ring-yellow-300' : usable ? '' : 'disabled:opacity-40'
@@ -62,12 +67,14 @@ export function AttackList({
           >
             {from && <span className="text-yellow-200">{from}: </span>}
             {a.name} (
-            {!fixed ? (
-              now ? (
-                <span className="font-semibold text-yellow-200">{now.min === now.max ? now.min : `${now.min}–${now.max}`}</span>
-              ) : (
-                (a.damageText ?? a.damage)
-              )
+            {changed ? (
+              <span className={now.min > a.damage ? 'font-bold text-yellow-300' : 'text-slate-300'}>
+                {a.damage}→{now.min}
+              </span>
+            ) : now ? (
+              <span className={fixed ? undefined : 'font-semibold text-yellow-200'}>{shown}</span>
+            ) : !fixed ? (
+              (a.damageText ?? a.damage)
             ) : modifier ? (
               <span title={modifier} className={damage > a.damage ? 'font-bold text-yellow-300' : 'text-slate-300'}>
                 {a.damage}→{damage}
