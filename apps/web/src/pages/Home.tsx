@@ -1,4 +1,6 @@
-import { LogDrawer } from '../components/LogDrawer';
+import ListAltIcon from '@mui/icons-material/ListAlt';
+import { useState } from 'react';
+import { LogDrawer, LogSheet } from '../components/LogDrawer';
 import { PreviewProvider } from '../components/PreviewProvider';
 import { DeckPanel } from '../components/run/DeckPanel';
 import { EncounterPanel } from '../components/run/EncounterPanel';
@@ -9,6 +11,7 @@ import { RouteChoice } from '../components/run/RouteChoice';
 import { RunMap } from '../components/run/RunMap';
 import { RunOver } from '../components/run/RunOver';
 import { RunStats } from '../components/run/RunStats';
+import { useIsPhone } from '../hooks/useIsPhone';
 import { useRun } from '../hooks/useRun';
 import { useWindowFill } from '../hooks/useWindowFill';
 import { PAGE_WIDTH } from '../utils/layout';
@@ -18,15 +21,27 @@ import { PAGE_WIDTH } from '../utils/layout';
  * the side panel at the window's edge (its Run tab has HP, ₱, EXP, consumables and the Bag; its log tab
  * the run log). The page has the run's map and its encounter with the deck below; after a run, its
  * results, the shop and the next run. A new account is set up with its first run on the first visit.
+ * On a phone (useIsPhone) the side panel is a round button floating in the top right corner instead, which opens its
+ * tabs full screen (LogSheet, as on the phone's battle screen).
  */
 export function HomePage() {
   const run = useRun();
   const fill = useWindowFill<HTMLDivElement>();
+  const phone = useIsPhone();
+  /** On a phone: the side panel's tabs are open. */
+  const [panel, setPanel] = useState(false);
   const { overview } = run;
   if (overview.error) return <p className={`${PAGE_WIDTH} text-red-400`}>{overview.error.message}</p>;
   if (!overview.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
   const current = overview.data.run;
   const view = current?.view;
+  // The side panel's tabs: the run (HP, ₱, EXP, items) and its log.
+  const sidePanel = {
+    log: (view?.log ?? []).map((text) => ({ text, player: null })),
+    you: 'player',
+    logTitle: 'Run log',
+    run: view && <RunStats view={view} account={overview.data.account} run={run} />,
+  } as const;
 
   return (
     // -mt/-mb undo the layout's spacing, as on the game page, so the side panel runs from the header to the bottom.
@@ -61,12 +76,21 @@ export function HomePage() {
             </>
           )}
         </div>
-        <LogDrawer
-          log={(view?.log ?? []).map((text) => ({ text, player: null }))}
-          you="player"
-          logTitle="Run log"
-          run={view && <RunStats view={view} account={overview.data.account} run={run} />}
-        />
+        {phone ? (
+          <>
+            <button
+              className="fixed right-3 top-3 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-slate-800 text-slate-200 shadow-lg shadow-black/60 ring-1 ring-slate-600 transition active:scale-95"
+              onClick={() => setPanel(true)}
+              aria-label="The run and its log"
+              title="The run and its log"
+            >
+              <ListAltIcon />
+            </button>
+            {panel && <LogSheet {...sidePanel} onClose={() => setPanel(false)} />}
+          </>
+        ) : (
+          <LogDrawer {...sidePanel} />
+        )}
       </div>
     </PreviewProvider>
   );

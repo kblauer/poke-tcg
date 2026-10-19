@@ -13,6 +13,7 @@ import { InspectContext } from '../components/InspectContext';
 import { SidePanel } from '../components/SidePanel';
 import { useFavorites } from '../hooks/useFavorites';
 import { useIsPhone } from '../hooks/useIsPhone';
+import { useSwipe } from '../hooks/useSwipe';
 import { useUnlocked } from '../hooks/useUnlocked';
 import { useWindowFill } from '../hooks/useWindowFill';
 import { useTRPC } from '../lib/trpc';
@@ -32,7 +33,7 @@ const READ_ONLY = "This is your run's deck, which follows the run: copy it to ma
  * A link can open a deck straight away: `?deck=<id>`, or `?deck=new` for a new one.
  * The search's Favorites toggle shows only the account's favorite cards (the ★ on a card opened large adds it).
  * On a phone held upright (useIsPhone) the cards fill the screen, under a bar with two buttons: one slides in the decks
- * (or the open deck) from the left, the other the search from the right (SidePanel). Opening a deck or starting a new one
+ * (or the open deck, with its cards) from the left, as does a swipe to the right, the other the search from the right (SidePanel). Opening a deck or starting a new one
  * closes its panel, so cards can be tapped into it.
  */
 export function DecksPage() {
@@ -64,6 +65,9 @@ export function DecksPage() {
   const [inspected, setInspected] = useState<CatalogCard | null>(null);
   /** On a phone: the side panel slid in, if any. */
   const [panel, setPanel] = useState<'decks' | 'filters' | null>(null);
+  // On a phone, a swipe to the right slides the decks (the open deck's cards) in. The page only pans up and down
+  // (touch-pan-y), so the browser doesn't take a sideways swipe as going back.
+  const swipe = useSwipe({ onRight: () => setPanel('decks') });
 
   /**
    * The `opened` count whose saved cards are in the editor. Until a saved deck's cards arrive it can't be
@@ -303,7 +307,7 @@ export function DecksPage() {
     <InspectContext.Provider value={setInspected}>
       {phone ? (
         // To the bottom of the screen (-mb-4 undoes the layout's spacing): the bar, then the cards.
-        <div ref={fill.ref} style={fill.style} className="-mb-4 flex flex-col gap-2 px-2 pb-2">
+        <div ref={fill.ref} style={fill.style} className="-mb-4 flex touch-pan-y flex-col gap-2 overscroll-x-none px-2 pb-2" {...swipe}>
           <div className="flex shrink-0 items-center gap-2">
             {decksButton}
             <button className={`${barButton} shrink-0 ${filtersOn ? 'ring-yellow-300/60' : ''}`} onClick={() => setPanel('filters')}>

@@ -1,8 +1,11 @@
 import { battleReward, boss, CENTER_PRICE, eventInfo, isBattleKind, isBossKind, ITEMS, OFFERS, PRICES, REWARD_FOCUS_LABELS, SHOP_SIZE, trainerFavorites, type MapEncounter } from '@poke-tcg/campaign';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { CPU_DIFFICULTY_LABELS, type EnergyType } from '@poke-tcg/game-engine';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { useContext, useMemo, useState, type ReactNode } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useIsPhone } from '../../hooks/useIsPhone';
 import { useUnlocked } from '../../hooks/useUnlocked';
 import type { RunControl, RunViewData } from '../../hooks/useRun';
 import { useTRPC } from '../../lib/trpc';
@@ -18,30 +21,34 @@ const primary = 'shrink-0 rounded bg-blue-600 px-4 py-2 font-semibold transition
 const typeName = (t: string) => t[0]!.toUpperCase() + t.slice(1);
 const range = ([low, high]: [number, number]) => (low === high ? `₱${low}` : `₱${low}–${high}`);
 
-/** What choosing this option leads to, in a few sentences (matching rollEncounter and battleSetup in the campaign). */
-function describe(o: MapEncounter, cardName: (id: string) => string): string[] {
+/**
+ * What choosing this option leads to, in a few sentences (matching rollEncounter and battleSetup in the campaign).
+ * `compact` (a phone): a battle's prizes each on a line of their own (₱, EXP, the card, a boss's prize), without what
+ * losing costs.
+ */
+function describe(o: MapEncounter, cardName: (id: string) => string, compact = false): string[] {
   if (isBattleKind(o.kind)) {
     const r = battleReward(o.kind, o.focus);
-    const win = `Win: ${range(r.pokedollars)}, ${r.exp} EXP and a ${r.rarity} card of your choice.`;
     const b = o.boss ? boss(o.boss) : undefined;
+    const prize = isBossKind(o.kind) ? (b?.gym ? 'the badge' : b?.prize ? `the ${ITEMS[b.prize]?.name ?? 'prize'}` : null) : null;
+    const win = compact
+      ? [range(r.pokedollars), `${r.exp} EXP`, `${typeName(r.rarity)} card`, ...(prize ? [typeName(prize.replace(/^the /, ''))] : [])]
+      : [`Win: ${range(r.pokedollars)}, ${r.exp} EXP and a ${r.rarity} card of your choice${prize ? `, and ${prize}` : ''}.`];
+    const lose = compact ? [] : [isBossKind(o.kind) ? 'Lose: 1 HP, and you face them again.' : 'Lose: 1 HP, and the run moves on.'];
     switch (o.kind) {
       case 'battle':
-        return [win, 'Lose: 1 HP, and the run moves on.'];
+        return [...win, ...lose];
       case 'elite':
-        return [`Plays a random deck at ${CPU_DIFFICULTY_LABELS.gymLeader} difficulty. You can still walk away when you meet them.`, win, 'Lose: 1 HP, and the run moves on.'];
+        return [`Plays a random deck at ${CPU_DIFFICULTY_LABELS.gymLeader} difficulty. You can still walk away when you meet them.`, ...win, ...lose];
       case 'gymTrainer':
         // A gym whose type has no basic Energy (Colorless, Metal) gives its Gym Trainer a deck of its favourite Pokémon instead.
         return [
           `Plays ${b?.gym?.favorites ? `a deck of ${b.gym.city} Gym's favourite Pokémon` : `a ${b?.gym ? `${typeName(b.gym.type)} ` : ''}deck`} at ${CPU_DIFFICULTY_LABELS.trainer} difficulty. They can't be skipped.`,
-          win,
-          'Lose: 1 HP, and the run moves on.',
+          ...win,
+          ...lose,
         ];
       default:
-        return [
-          `Plays the ${b?.deckName ?? 'their own'} deck at ${CPU_DIFFICULTY_LABELS.gymLeader} difficulty.`,
-          `${win.slice(0, -1)}${b?.gym ? ', and the badge' : b?.prize ? `, and the ${ITEMS[b.prize]?.name ?? 'prize'}` : ''}.`,
-          'Lose: 1 HP, and you face them again.',
-        ];
+        return [`Plays the ${b?.deckName ?? 'their own'} deck at ${CPU_DIFFICULTY_LABELS.gymLeader} difficulty.`, ...win, ...lose];
     }
   }
   switch (o.kind) {
@@ -66,8 +73,9 @@ function describe(o: MapEncounter, cardName: (id: string) => string): string[] {
 /**
  * The 2 types most common among the Pokémon a trainer's class favours (trainerFavorites: their deck is built from these
  * lines first), with icons, for a battle's description. Types come from the catalog (the first Pokémon of each name).
+ * `compact` (a phone): just the icons, the words as their tooltip.
  */
-function ClassTypes({ option, catalog }: { option: MapEncounter; catalog: Map<string, CatalogCard> }) {
+function ClassTypes({ option, catalog, compact = false }: { option: MapEncounter; catalog: Map<string, CatalogCard>; compact?: boolean }) {
   const favorites = option.kind === 'battle' && option.trainer ? trainerFavorites(option.trainer) : undefined;
   if (!favorites) return null;
   const typeOf = new Map<string, string>();
@@ -81,6 +89,14 @@ function ClassTypes({ option, catalog }: { option: MapEncounter; catalog: Map<st
   const top = [...counts].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([type]) => type);
   if (!top.length) return null;
   const trainerClass = option.trainer!.split(' ').slice(0, -1).join(' ');
+  if (compact)
+    return (
+      <p className="flex items-center gap-1" title={`${trainerClass}s favour ${top.join(' and ')} Pokémon`}>
+        {top.map((type) => (
+          <EnergyIcon key={type} type={type.toLowerCase() as EnergyType} size="panel" />
+        ))}
+      </p>
+    );
   return (
     <p className="flex flex-wrap items-center gap-1.5 text-sm text-sky-300">
       {trainerClass}s favour
@@ -105,7 +121,8 @@ const countsOf = (cards: string[]): DeckEntry[] => [...cards.reduce((m, id) => m
  * deck choice for whichever battle is taken, then the other encounters together (each with Go). The deck choice is the
  * run's current deck (first, as Current run) or one of the account's other decks (the switch is made as the battle is
  * chosen, with `run.choose`). Clicking an option on the map instead goes there at
- * once, with the current deck.
+ * once, with the current deck. On a phone (useIsPhone) it's shorter: no introduction, the battles' details pared down
+ * (describe's and ClassTypes' `compact`), the other stops headed Event, and the decks a drop-down menu of deck tiles (DeckMenu).
  */
 export function RouteChoice({ view, run }: { view: RunViewData; run: RunControl }) {
   const trpc = useTRPC();
@@ -123,15 +140,18 @@ export function RouteChoice({ view, run }: { view: RunViewData; run: RunControl 
   // The automatic run deck is the run's deck itself, already first.
   const otherDecks = (decks.data ?? []).filter((d) => !d.runDeck);
   const cardName = (id: string) => view.cards[id]?.name ?? id;
+  const phone = useIsPhone();
 
   return (
     <section aria-label="Your next encounter" className="flex flex-col gap-5 rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600">
       <div>
         <h3 className="text-lg font-semibold">Your next encounter</h3>
-        <p className="text-xs text-slate-400">
-          Choose one here, or click it on the map's highlighted step to go straight there (battles with your current deck). You climb from the bottom to
-          the run's last boss at the top.
-        </p>
+        {!phone && (
+          <p className="text-xs text-slate-400">
+            Choose one here, or click it on the map's highlighted step to go straight there (battles with your current deck). You climb from the bottom to
+            the run's last boss at the top.
+          </p>
+        )}
       </div>
 
       {/* Battles and other stops side by side when the panel is wide enough; stacked otherwise, the other stops on top
@@ -143,7 +163,7 @@ export function RouteChoice({ view, run }: { view: RunViewData; run: RunControl 
               <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-400">{battles.length === 1 ? 'Battle' : 'Battles'}</h4>
               <ul className="space-y-2">
                 {battles.map(({ option, index }) => (
-                  <Option key={index} option={option} lines={describe(option, cardName)} note={<ClassTypes option={option} catalog={byId} />}>
+                  <Option key={index} option={option} lines={describe(option, cardName, phone)} note={<ClassTypes option={option} catalog={byId} compact={phone} />}>
                     <button className={primary} disabled={run.busy} onClick={() => run.choose(index, deckId ?? undefined)}>
                       {isBossKind(option.kind) || option.kind === 'gymTrainer' ? 'Challenge' : 'Battle'}
                     </button>
@@ -158,29 +178,43 @@ export function RouteChoice({ view, run }: { view: RunViewData; run: RunControl 
                     Build or edit decks
                   </Link>
                 </div>
-                <div role="radiogroup" aria-label="Deck" className="space-y-3">
-                  {/* The run's deck on its own row, then a divider, then the account's other decks. */}
-                  <ul className="grid gap-2 @md:grid-cols-2">
-                    <DeckOption selected={deckId === null} onPick={() => setDeckId(null)} name="Current run" note={view.deckName ? `${view.deckName}${traded ? ', with its trades' : ''}` : traded ? 'With its trades' : undefined}>
-                      <DeckSummary entries={runDeck} byId={byId} isLocked={isLocked} />
-                    </DeckOption>
-                  </ul>
-                  {otherDecks.length > 0 && (
-                    <>
-                      <div className="flex items-center gap-2 text-xs text-slate-500">
-                        <span>Or switch to</span>
-                        <span className="h-px flex-1 bg-slate-700" />
-                      </div>
-                      <ul className="grid gap-2 @md:grid-cols-2">
-                        {otherDecks.map((d) => (
-                          <DeckOption key={d.id} selected={deckId === d.id} onPick={() => setDeckId(d.id)} name={d.name} disabled={d.problems.length > 0} note={d.problems[0]}>
-                            {d.problems.length === 0 && <DeckSummary entries={d.cards} byId={byId} isLocked={isLocked} />}
-                          </DeckOption>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                </div>
+                {phone ? (
+                  // The run's deck first (picked unless another is), then the account's other decks.
+                  <DeckMenu
+                    selected={deckId}
+                    onPick={setDeckId}
+                    decks={[
+                      { id: null, name: 'Current run', note: view.deckName ? `${view.deckName}${traded ? ', with its trades' : ''}` : traded ? 'With its trades' : undefined, entries: runDeck },
+                      ...otherDecks.map((d) => ({ id: d.id, name: d.name, note: d.problems[0], entries: d.cards, disabled: d.problems.length > 0 })),
+                    ]}
+                    byId={byId}
+                    isLocked={isLocked}
+                  />
+                ) : (
+                  <div role="radiogroup" aria-label="Deck" className="space-y-3">
+                    {/* The run's deck on its own row, then a divider, then the account's other decks. */}
+                    <ul className="grid gap-2 @md:grid-cols-2">
+                      <DeckOption selected={deckId === null} onPick={() => setDeckId(null)} name="Current run" note={view.deckName ? `${view.deckName}${traded ? ', with its trades' : ''}` : traded ? 'With its trades' : undefined}>
+                        <DeckSummary entries={runDeck} byId={byId} isLocked={isLocked} />
+                      </DeckOption>
+                    </ul>
+                    {otherDecks.length > 0 && (
+                      <>
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                          <span>Or switch to</span>
+                          <span className="h-px flex-1 bg-slate-700" />
+                        </div>
+                        <ul className="grid gap-2 @md:grid-cols-2">
+                          {otherDecks.map((d) => (
+                            <DeckOption key={d.id} selected={deckId === d.id} onPick={() => setDeckId(d.id)} name={d.name} disabled={d.problems.length > 0} note={d.problems[0]}>
+                              {d.problems.length === 0 && <DeckSummary entries={d.cards} byId={byId} isLocked={isLocked} />}
+                            </DeckOption>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                  </div>
+                )}
                 {deckId !== null && (
                   <p className="text-xs text-amber-300">This deck replaces your run deck for the rest of the run{traded ? ', and the cards you traded for leave it (they stay unlocked)' : ''}.</p>
                 )}
@@ -190,10 +224,10 @@ export function RouteChoice({ view, run }: { view: RunViewData; run: RunControl 
 
           {others.length > 0 && (
             <div className="min-w-0 flex-1 space-y-3">
-              <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-400">{battles.length ? 'Other stops' : 'Stops'}</h4>
+              <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-400">{phone ? (others.length === 1 ? 'Event' : 'Events') : battles.length ? 'Other stops' : 'Stops'}</h4>
               <ul className="space-y-2">
                 {others.map(({ option, index }) => (
-                  <Option key={index} option={option} lines={describe(option, cardName)}>
+                  <Option key={index} option={option} lines={describe(option, cardName, phone)}>
                     <button className={primary} disabled={run.busy} onClick={() => run.choose(index)}>
                       Go
                     </button>
@@ -234,6 +268,90 @@ function Option({ option, lines, note, children }: { option: MapEncounter; lines
 export function FocusTag({ option }: { option: MapEncounter }) {
   if (!option.focus) return null;
   return <span className="rounded bg-amber-500/20 px-1.5 text-xs font-semibold text-amber-300 ring-1 ring-amber-500/40">{REWARD_FOCUS_LABELS[option.focus]}</span>;
+}
+
+/** A deck in DeckMenu: null is the run's own deck. */
+interface MenuDeck {
+  id: string | null;
+  name: string;
+  note?: string;
+  entries: DeckEntry[];
+  disabled?: boolean;
+}
+
+/**
+ * The phone's deck choice: a drop-down menu whose entries are deck tiles, as on the Collection tab (the name, its 3
+ * headline Pokémon and the thin Pokémon/Trainer/Energy bar: DeckSummary's `compact`). Closed, it shows the deck picked;
+ * opened, the other decks below it (those that can't be played greyed out, with why). Picking one, or a tap outside, closes it.
+ */
+function DeckMenu({
+  decks,
+  selected,
+  onPick,
+  byId,
+  isLocked,
+}: {
+  decks: MenuDeck[];
+  selected: string | null;
+  onPick: (id: string | null) => void;
+  byId: Map<string, CatalogCard>;
+  isLocked: (card: CatalogCard) => boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: PointerEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [open]);
+  const picked = decks.find((d) => d.id === selected) ?? decks[0]!;
+  /** A deck's tile: its name (and note), then its headline Pokémon and bar. */
+  const tile = (d: MenuDeck) => (
+    <>
+      <span className="flex min-w-0 items-baseline gap-2">
+        <span className="truncate font-semibold">{d.name}</span>
+        {d.note && <span className={`truncate text-xs ${d.disabled ? 'text-amber-300' : 'text-slate-400'}`}>{d.note}</span>}
+      </span>
+      {!d.disabled && <DeckSummary entries={d.entries} byId={byId} isLocked={isLocked} compact />}
+    </>
+  );
+  return (
+    <div ref={ref} className="space-y-2">
+      <button
+        className="flex w-full items-center gap-2 rounded-lg bg-slate-900 p-2 text-left text-sm ring-1 ring-yellow-300"
+        onClick={() => setOpen(!open)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={`Deck: ${picked.name}`}
+      >
+        <span className="min-w-0 flex-1 space-y-1">{tile(picked)}</span>
+        {open ? <ExpandLessIcon className="shrink-0 text-slate-400" /> : <ExpandMoreIcon className="shrink-0 text-slate-400" />}
+      </button>
+      {open && (
+        <ul role="listbox" aria-label="Decks" className="space-y-2">
+          {decks
+            .filter((d) => d !== picked)
+            .map((d) => (
+              <li key={d.id ?? 'run'}>
+                <button
+                  role="option"
+                  aria-selected={false}
+                  disabled={d.disabled}
+                  onClick={() => {
+                    onPick(d.id);
+                    setOpen(false);
+                  }}
+                  className="w-full space-y-1 rounded-lg bg-slate-900 p-2 text-left text-sm ring-1 ring-slate-700 transition active:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {tile(d)}
+                </button>
+              </li>
+            ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 /** One deck to battle with. */
