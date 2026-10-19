@@ -50,7 +50,8 @@
 - Dialogs share one style: `bg-slate-800`, `ring-1 ring-slate-600`, buttons `bg-slate-600`/`hover:bg-slate-500`.
   - The Trainer dialog floats above the CPU's Active Pokémon. It shows no card image, and an eye button makes it see-through and click-through. It only appears when it has something to click (buttons, a multi-card Choose); single-click questions are a prompt toast, and an unplayable Trainer is a warning toast.
   - The deck-search dialog is large and centred, and is rendered outside the PlayArea (its `container-type` would trap fixed elements).
-- Hints and errors are toasts (`useToasts`, bottom-right, 4s, deduped), not inline text. Instructions for a move in progress are `Toasts`' `prompt`: shown while the move is pending, gone the instant it's confirmed or cancelled, no timer.
+- The music player (`MusicPlayer`, bottom-right of every page, KHInsider streams listed in `public/music/tracks.json`, gens 1–5, tracks of 1 minute or more, battle music listed apart) was agreed with the user, licensing aside: the app isn't public.
+- Hints and errors are toasts (`useToasts`, bottom-right above the music player, 4s, deduped), not inline text. Instructions for a move in progress are `Toasts`' `prompt`: shown while the move is pending, gone the instant it's confirmed or cancelled, no timer.
 - Side panel (`LogDrawer`, the game log sidebar), also on the run screen with the same page margins as the game:
   - Full height at the window edge; can be minimised, resized and moved to either side.
   - Preferences are saved in localStorage under `poke-tcg.game-log`.
