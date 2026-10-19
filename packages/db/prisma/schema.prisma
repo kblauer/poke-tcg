@@ -20,6 +20,8 @@ model User {
   bank        Int      @default(0)
   /// Stardust, the crafting currency: earned for every card pulled from a pack, spent crafting cards in the deck builder.
   stardust    Int      @default(0)
+  /// The trainer sprite shown on the Inventory tab (a name from the shared package's TRAINER_SPRITES); null is the default, Hilbert.
+  trainerSprite String?
   decks       Deck[]
   games       Game[]
   runs        Run[]

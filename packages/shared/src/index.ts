@@ -2,8 +2,10 @@ import { CPU_DIFFICULTIES, DEBUG_CONDITIONS, MAX_BENCH, type AttackChoices, type
 import { BOSS_IDS, EQUIP_SLOTS, MAX_PACKS_AT_ONCE, PACK_SETS, RUN_TYPE_IDS, type RunAction, type RunTypeId } from '@poke-tcg/campaign';
 import { z } from 'zod';
 import { DECK_NAME_LENGTH } from './deck.js';
+import { TRAINER_SPRITES } from './trainer-sprites.js';
 
 export * from './deck.js';
+export * from './trainer-sprites.js';
 
 /** Engine player ids for single-player games. */
 export const HUMAN_ID = 'player';
@@ -169,6 +171,8 @@ export const useItemInput = z.object({ runId: z.uuid(), itemId: z.string().min(1
 export const startRunInput = z.object({ type: z.enum(RUN_TYPE_IDS as [RunTypeId, ...RunTypeId[]]), deckId: z.uuid() });
 export const buyItemInput = z.object({ itemId: z.string().min(1).max(64) });
 export const equipInput = z.object({ slot: z.enum(EQUIP_SLOTS), itemId: z.string().min(1).max(64).nullable() });
+/** The Inventory's trainer sprite, one of Showdown's. */
+export const trainerSpriteInput = z.object({ sprite: z.enum(TRAINER_SPRITES) });
 
 export const openPackInput = z.object({
   setId: z.enum(PACK_SETS as [string, ...string[]]),
