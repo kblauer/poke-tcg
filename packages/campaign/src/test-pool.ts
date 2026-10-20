@@ -44,7 +44,7 @@ function toDef(r: Row): CardDef | null {
     return {
       id: r.id,
       kind: 'pokemon',
-      name: r.name,
+      name: r.name.replace(/^Nidoran ([♀♂])$/, 'Nidoran$1'),
       imageUrl: null,
       type: type(r.types[0]),
       hp: r.hp,

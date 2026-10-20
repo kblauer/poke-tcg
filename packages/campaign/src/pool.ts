@@ -9,12 +9,12 @@ export interface PoolCard {
   rarity: Rarity;
 }
 
-/** Gen 1 runs' sets, whose card effects the engine has (Base Set, Jungle, Fossil, Wizards promos, Base Set 2, Team Rocket, Gym Heroes, Gym Challenge). */
-export const POOL_SETS = ['base1', 'base2', 'base3', 'basep', 'base4', 'base5', 'gym1', 'gym2'];
+/** Gen 1 runs' sets, whose card effects the engine has (Base Set, Jungle, Fossil, Wizards promos, Base Set 2, Team Rocket, Gym Heroes, Gym Challenge, Legendary Collection). */
+export const POOL_SETS = ['base1', 'base2', 'base3', 'basep', 'base4', 'base5', 'gym1', 'gym2', 'lc'];
 
 /**
  * Gen 2 runs' sets (agreed with the user): Neo Genesis to Skyridge, with Southern Islands but not Legendary Collection
- * (its Gen 1 reprints). Only Neo Genesis's, Neo Discovery's, Southern Islands', Neo Revelation's and Neo Destiny's card effects are done (GEN2_DONE_SETS); Gen 2 runs use every card of the
+ * (its Gen 1 reprints, in Gen 1's: agreed). Only Neo Genesis's, Neo Discovery's, Southern Islands', Neo Revelation's and Neo Destiny's card effects are done (GEN2_DONE_SETS); Gen 2 runs use every card of the
  * others for now (Generation `implementedSets`).
  */
 export const GEN2_SETS = ['neo1', 'neo2', 'si1', 'neo3', 'neo4', 'ecard1', 'ecard2', 'ecard3'];

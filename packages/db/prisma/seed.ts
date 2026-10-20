@@ -42,6 +42,20 @@ const TCGDEX_FIXES: Record<string, Partial<TcgdexCard>> = {
       },
     ],
   },
+  // Legendary Collection Jolteon: TCGdex spells Pin Missile "Pin Missle".
+  'lc-14': {
+    attacks: [
+      { name: 'Quick Attack', cost: ['Colorless', 'Colorless'], damage: '10+', effect: 'Flip a coin. If heads, this attack does 10 damage plus 20 more damage; if tails, this attack does 10 damage.' },
+      { name: 'Pin Missile', cost: ['Lightning', 'Lightning', 'Colorless'], damage: '20×', effect: 'Flip 4 coins. This attack does 20 damage times the number of heads.' },
+    ],
+  },
+  // Legendary Collection Grimer: TCGdex calls Minimize "Minimized".
+  'lc-78': {
+    attacks: [
+      { name: 'Nasty Goo', cost: ['Colorless'], damage: '10', effect: 'Flip a coin. If heads, the Defending Pokémon is now Paralyzed.' },
+      { name: 'Minimize', cost: ['Grass'], damage: null, effect: "All damage done by attacks to Grimer during your opponent's next turn is reduced by 20 (after applying Weakness and Resistance)." },
+    ],
+  },
   // Southern Islands Tentacruel: TCGdex lists both attacks twice; the printed card Paralyzes with Poison Sting.
   'si1-10': {
     attacks: [
@@ -51,13 +65,20 @@ const TCGDEX_FIXES: Record<string, Partial<TcgdexCard>> = {
   },
 };
 
+/**
+ * The printed name, the same in every set: Legendary Collection and the e-Card sets spell Nidoran "Nidoran ♀" (with a
+ * space), unlike the earlier sets and the Nidorina and Nidorino that evolve from them. Owners' (Giovanni's Nidoran ♀)
+ * keep theirs.
+ */
+const printedName = (name: string) => name.replace(/^Nidoran ([♀♂])$/, 'Nidoran$1');
+
 function toCardRow(tcgdex: TcgdexCard) {
   const card = { ...tcgdex, ...TCGDEX_FIXES[tcgdex.id] };
   const { id, set, localId, name, category, image, rarity, hp, types, stage, evolveFrom, ...data } = card;
   return {
     setId: set.id,
     localId,
-    name,
+    name: printedName(name),
     kind: KIND[category],
     imageUrl: image,
     rarity,

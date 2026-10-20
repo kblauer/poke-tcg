@@ -6,7 +6,7 @@ import { BASIC_ENERGY, GEN2_SETS, type Rarity } from './pool.js';
 import { chance, pick, sample, type Rng } from './random.js';
 
 /** Sets with packs: Gen 1's and Gen 2's (GEN2_SETS: Neo Genesis's, Neo Discovery's, Southern Islands', Neo Revelation's and Neo Destiny's card effects are done, the others' are still to come). */
-export const PACK_SETS = ['base1', 'base2', 'base3', 'basep', 'base4', 'base5', 'gym1', 'gym2', ...GEN2_SETS];
+export const PACK_SETS = ['base1', 'base2', 'base3', 'basep', 'base4', 'base5', 'gym1', 'gym2', 'lc', ...GEN2_SETS];
 
 /**
  * Stardust, the account's crafting currency, for each card pulled from a pack that the account already had (a new

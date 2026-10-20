@@ -94,7 +94,7 @@ export interface PowerEffect {
   noConditions?: boolean;
   /** Retreat Aid: while it's on the Bench, the Active Pokémon's retreat cost is 1 less. */
   retreatAid?: boolean;
-  /** Stops working while it has any Special Condition, Poisoned and Burned included (Aurora Veil, Guard). */
+  /** Stops working while it has any Special Condition, Poisoned and Burned included (Aurora Veil, Guard, Legendary Collection's powers). */
   stopsOnAnyCondition?: boolean;
   /** Neutral Shield: attacks by Evolved Pokémon don't affect it. */
   neutralShield?: boolean;
@@ -235,7 +235,11 @@ const goopGas = (sides: Sides) => sides.some((s) => s.powersOffUntil !== undefin
 const allInPlay = (sides: Sides) => sides.flatMap((s) => [s.active, ...s.bench]).filter((p): p is InPlayPokemon => !!p);
 
 /** A Muk's Toxic Gas is working, so every other power is ignored. Copies don't count: Toxic Gas stops Ditto's Transform. */
-export const toxicGas = (sides: Sides) => allInPlay(sides).some((p) => powerEffect(p.card.defId)?.toxicGas && !p.condition);
+export const toxicGas = (sides: Sides) =>
+  allInPlay(sides).some((p) => {
+    const effect = powerEffect(p.card.defId);
+    return effect?.toxicGas && !p.condition && !(effect.stopsOnAnyCondition && (p.poison || p.burned));
+  });
 
 /**
  * Whether the Pokémon's power is working: it has one, isn't Asleep, Confused or Paralyzed (only
@@ -443,6 +447,8 @@ export function powerError(s: PowerSituation): string | null {
   if (!def.power || !effect?.use) return `${def.name} has no power to use`;
   // Powers that are used all stop working while their Pokémon is Asleep, Confused or Paralyzed, unless they say otherwise (Unown B and Y).
   if (source.condition && !effect.ignoresConditions) return `${def.name} is ${conditionLabel(source.condition)} and can't use ${def.power.name}`;
+  // Legendary Collection's powers: Poisoned and Burned stop them too.
+  if (effect.stopsOnAnyCondition && (source.poison || source.burned)) return `${def.name} is ${source.burned ? 'Burned' : 'Poisoned'} and can't use ${def.power.name}`;
   if (goopGas([s.me, s.opp])) return `Goop Gas Attack: Pokémon Powers don't work until the end of the turn after it was played`;
   if (toxicGas([s.me, s.opp])) return `Toxic Gas: ${def.power.name} can't be used`;
   if (source.powerOffUntil !== undefined) return `${def.power.name} doesn't work until the end of your turn (Stare)`;
