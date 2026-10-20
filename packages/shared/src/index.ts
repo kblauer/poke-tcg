@@ -133,6 +133,7 @@ export const debugCommandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('SET_HP'), side: z.enum(['self', 'opponent']), target, hp: z.number().int().min(10).max(1000) }),
   z.object({ type: z.literal('SET_CPU_DIFFICULTY'), difficulty: z.enum(CPU_DIFFICULTIES) }),
   z.object({ type: z.literal('SET_CONDITION'), side: z.enum(['self', 'opponent']), condition: z.enum(DEBUG_CONDITIONS), on: z.boolean() }),
+  z.object({ type: z.literal('WIN') }),
 ]) satisfies z.ZodType<DebugCommand>;
 
 export const debugInput = z.object({

@@ -6,6 +6,7 @@ import { useContext, useMemo, useState, type ReactNode } from 'react';
 import { useUnlocked } from '../../hooks/useUnlocked';
 import type { RunControl, RunViewData } from '../../hooks/useRun';
 import { useTRPC } from '../../lib/trpc';
+import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
 import type { DeckEntry } from '../../utils/deckBuilder';
 import type { CatalogCard } from '../../utils/cardList';
 import { DeckSummary } from '../DeckList';
@@ -14,54 +15,64 @@ import { CatalogContext } from '../InspectContext';
 import { ENCOUNTER_STYLE, EncounterBadge } from './encounterIcons';
 
 const primary = 'shrink-0 rounded bg-blue-600 px-4 py-2 font-semibold transition hover:bg-blue-500 active:scale-95 disabled:opacity-40';
+/** Debug's Skip battle, under a battle's button. */
+const skipButton = 'rounded bg-slate-600 px-3 py-1 text-xs font-semibold transition hover:bg-slate-500 disabled:opacity-40';
 
 const typeName = (t: string) => t[0]!.toUpperCase() + t.slice(1);
 const range = ([low, high]: [number, number]) => (low === high ? `₱${low}` : `₱${low}–${high}`);
 
-/** What choosing this option leads to, in a few sentences (matching rollEncounter and battleSetup in the campaign). */
+/** What choosing this option leads to, as briefly as can be (matching rollEncounter and battleSetup in the campaign). */
 function describe(o: MapEncounter, cardName: (id: string) => string): string[] {
   if (isBattleKind(o.kind)) {
     const r = battleReward(o.kind, o.focus);
-    const win = `Win: ${range(r.pokedollars)}, ${r.exp} EXP and a ${r.rarity} card of your choice.`;
     const b = o.boss ? boss(o.boss) : undefined;
+    const prize = b?.gym ? 'Badge' : b?.prize ? (ITEMS[b.prize]?.name ?? 'Prize') : undefined;
+    const win = [range(r.pokedollars), `${r.exp} EXP`, `${typeName(r.rarity)} card`, ...(prize ? [prize] : [])].join(' · ');
     switch (o.kind) {
       case 'battle':
-        return [win, 'Lose: 1 HP, and the run moves on.'];
+        return [win];
       case 'elite':
-        return [`Plays a random deck at ${CPU_DIFFICULTY_LABELS.gymLeader} difficulty. You can still walk away when you meet them.`, win, 'Lose: 1 HP, and the run moves on.'];
+        return [`Random deck, ${CPU_DIFFICULTY_LABELS.gymLeader} level. Can walk away.`, win];
       case 'gymTrainer':
         // A gym whose type has no basic Energy (Colorless, Metal) gives its Gym Trainer a deck of its favourite Pokémon instead.
-        return [
-          `Plays ${b?.gym?.favorites ? `a deck of ${b.gym.city} Gym's favourite Pokémon` : `a ${b?.gym ? `${typeName(b.gym.type)} ` : ''}deck`} at ${CPU_DIFFICULTY_LABELS.trainer} difficulty. They can't be skipped.`,
-          win,
-          'Lose: 1 HP, and the run moves on.',
-        ];
+        return [`${b?.gym?.favorites ? `${b.gym.city} Gym favourites` : b?.gym ? `${typeName(b.gym.type)}` : 'Gym'} deck. Can't skip.`, win];
       default:
-        return [
-          `Plays the ${b?.deckName ?? 'their own'} deck at ${CPU_DIFFICULTY_LABELS.gymLeader} difficulty.`,
-          `${win.slice(0, -1)}${b?.gym ? ', and the badge' : b?.prize ? `, and the ${ITEMS[b.prize]?.name ?? 'prize'}` : ''}.`,
-          'Lose: 1 HP, and you face them again.',
-        ];
+        return [`${b?.deckName ?? 'Their own'} deck. Lose: rematch.`, win];
     }
   }
   switch (o.kind) {
     case 'shop':
-      return [`A card shop with ${SHOP_SIZE} cards for sale, priced by rarity (₱${PRICES.common}–${PRICES.holo}). Every card bought is unlocked for your decks.`];
+      return [`${SHOP_SIZE} cards, ₱${PRICES.common}–${PRICES.holo}.`];
     case 'gift':
-      return [`A collector gives you 1 of ${OFFERS} cards, unlocked for your decks.`];
+      return [`Pick 1 of ${OFFERS} cards.`];
     case 'trade':
-      return ["A trader offers a card at least as rare for one of your deck's cards. If you accept, it takes that card's place in your deck."];
+      return ['Swap a deck card for one as rare or rarer.'];
     case 'center':
-      return [`Nurse Joy restores 1 HP for ₱${CENTER_PRICE}.`];
+      return [`+1 HP for ₱${CENTER_PRICE}.`];
     case 'event': {
-      if (!o.event) return ['Something unexpected happens on the road. You can accept it or walk away.'];
-      const info = eventInfo(o.event, cardName);
-      return [`${info.title}: ${info.text}`];
+      if (!o.event) return ['Accept or walk away.'];
+      const e = o.event;
+      switch (e.id) {
+        case 'typeFrenzy':
+          return [`${typeName(e.type)} does double damage (both sides), ${e.battles} battles.`];
+        case 'gamble':
+          return [`Bet ₱${e.stake}, heads wins ₱${e.prize}.`];
+        case 'bargain':
+          return [`${cardName(e.cardId)} for 1 HP.`];
+        case 'donation':
+          return [`₱${e.cost} for ${e.exp} EXP.`];
+        case 'luckyFind':
+          return [`₱${e.pokedollars} on the ground.`];
+      }
+      return [];
     }
     default:
       return [];
   }
 }
+
+/** An option's title: a known Mystery's event title, otherwise its label. */
+const optionTitle = (o: MapEncounter, cardName: (id: string) => string) => (o.kind === 'event' && o.event ? eventInfo(o.event, cardName).title : o.label);
 
 /**
  * The 2 types most common among the Pokémon a trainer's class favours (trainerFavorites: their deck is built from these
@@ -82,16 +93,13 @@ function ClassTypes({ option, catalog }: { option: MapEncounter; catalog: Map<st
   if (!top.length) return null;
   const trainerClass = option.trainer!.split(' ').slice(0, -1).join(' ');
   return (
-    <p className="flex flex-wrap items-center gap-1.5 text-sm text-sky-300">
-      {trainerClass}s favour
-      {top.map((type, i) => (
+    <p className="flex flex-wrap items-center gap-2 text-sm text-sky-300" title={`${trainerClass}s favour these types`}>
+      {top.map((type) => (
         <span key={type} className="flex items-center gap-1">
-          {i > 0 && <span>and</span>}
           <EnergyIcon type={type.toLowerCase() as EnergyType} size="panel" />
           {type}
         </span>
       ))}
-      Pokémon
     </p>
   );
 }
@@ -107,8 +115,9 @@ const countsOf = (cards: string[]): DeckEntry[] => [...cards.reduce((m, id) => m
  * chosen, with `run.choose`). Clicking an option on the map instead goes there at
  * once, with the current deck.
  */
-export function RouteChoice({ view, run }: { view: RunViewData; run: RunControl }) {
+export function RouteChoice({ view, run, iconMap = true }: { view: RunViewData; run: RunControl; iconMap?: boolean }) {
   const trpc = useTRPC();
+  const debug = useDebugEnabled();
   const options = (view.steps[view.position]?.options ?? []).map((option, index) => ({ option, index }));
   const battles = options.filter(({ option }) => isBattleKind(option.kind));
   const others = options.filter(({ option }) => !isBattleKind(option.kind));
@@ -128,9 +137,11 @@ export function RouteChoice({ view, run }: { view: RunViewData; run: RunControl 
     <section aria-label="Your next encounter" className="flex flex-col gap-5 rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600">
       <div>
         <h3 className="text-lg font-semibold">Your next encounter</h3>
+        {/* With the icon map beside it (not a route's map), its options can be clicked there too. */}
         <p className="text-xs text-slate-400">
-          Choose one here, or click it on the map's highlighted step to go straight there (battles with your current deck). You climb from the bottom to
-          the run's last boss at the top.
+          {iconMap
+            ? "Choose one here, or click it on the map's highlighted step to go straight there (battles with your current deck). You climb from the bottom to the run's last boss at the top."
+            : 'Choose where to go next. The route above shows where you are.'}
         </p>
       </div>
 
@@ -143,10 +154,18 @@ export function RouteChoice({ view, run }: { view: RunViewData; run: RunControl 
               <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-400">{battles.length === 1 ? 'Battle' : 'Battles'}</h4>
               <ul className="space-y-2">
                 {battles.map(({ option, index }) => (
-                  <Option key={index} option={option} lines={describe(option, cardName)} note={<ClassTypes option={option} catalog={byId} />}>
-                    <button className={primary} disabled={run.busy} onClick={() => run.choose(index, deckId ?? undefined)}>
-                      {isBossKind(option.kind) || option.kind === 'gymTrainer' ? 'Challenge' : 'Battle'}
-                    </button>
+                  <Option key={index} option={option} title={option.label} lines={describe(option, cardName)} note={<ClassTypes option={option} catalog={byId} />}>
+                    <div className="flex shrink-0 flex-col items-stretch gap-1">
+                      <button className={primary} disabled={run.busy} onClick={() => run.choose(index, deckId ?? undefined)}>
+                        {isBossKind(option.kind) || option.kind === 'gymTrainer' ? 'Challenge' : 'Battle'}
+                      </button>
+                      {/* Debug: win it without playing. DEBUG_BUILD first: a production build drops the button altogether. */}
+                      {DEBUG_BUILD && debug && (
+                        <button className={skipButton} disabled={run.busy} onClick={() => run.skipBattle(index, deckId ?? undefined)} title="Debug: win this battle without playing it">
+                          Skip battle
+                        </button>
+                      )}
+                    </div>
                   </Option>
                 ))}
               </ul>
@@ -193,7 +212,7 @@ export function RouteChoice({ view, run }: { view: RunViewData; run: RunControl 
               <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-400">{battles.length ? 'Other stops' : 'Stops'}</h4>
               <ul className="space-y-2">
                 {others.map(({ option, index }) => (
-                  <Option key={index} option={option} lines={describe(option, cardName)}>
+                  <Option key={index} option={option} title={optionTitle(option, cardName)} lines={describe(option, cardName)}>
                     <button className={primary} disabled={run.busy} onClick={() => run.choose(index)}>
                       Go
                     </button>
@@ -208,14 +227,19 @@ export function RouteChoice({ view, run }: { view: RunViewData; run: RunControl 
   );
 }
 
-/** One option of the step: its badge, name and kind, what it leads to, and its button. */
-function Option({ option, lines, note, children }: { option: MapEncounter; lines: string[]; note?: ReactNode; children: ReactNode }) {
+/**
+ * One option of the step, compact: its badge, title (a special battle's kind beside it: Gym Trainer, Gym leader…; not for
+ * ordinary battles or the other stops, whose title says it), what it leads to, and its button.
+ */
+function Option({ option, title, lines, note, children }: { option: MapEncounter; title: string; lines: string[]; note?: ReactNode; children: ReactNode }) {
+  const kindName = isBattleKind(option.kind) && option.kind !== 'battle' ? ENCOUNTER_STYLE[option.kind].name : null;
   return (
-    <li className="flex items-start gap-3 rounded-lg bg-slate-900 p-3 ring-1 ring-slate-700">
-      <EncounterBadge kind={option.kind} size={40} />
-      <div className="min-w-0 flex-1 space-y-1">
+    <li className="flex items-center gap-3 rounded-lg bg-slate-900 px-3 py-2 ring-1 ring-slate-700">
+      <EncounterBadge kind={option.kind} size={32} />
+      <div className="min-w-0 flex-1 space-y-0.5">
         <p className="flex flex-wrap items-baseline gap-x-2">
-          <span className="font-semibold">{option.label}</span> <span className="text-sm text-slate-400">{ENCOUNTER_STYLE[option.kind].name}</span>
+          <span className="font-semibold">{title}</span>
+          {kindName && <span className="text-sm text-slate-400">{kindName}</span>}
           {option.focus && <FocusTag option={option} />}
         </p>
         {note}

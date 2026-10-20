@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { expandDeck, STARTER_DECK } from './decks.js';
 import { ITEMS, itemText, MAX_CONSUMABLES_PER_RUN, shopStock } from './items.js';
-import { RUN_TYPE_IDS, type RunTypeId } from './run-types.js';
-import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
+import { RUN_TYPE_IDS, RUN_TYPES, runType, type RunType, type RunTypeId } from './run-types.js';
+import { ROUTE_4 } from './kanto-routes.js';
+import { onPath, PEWTER_GYM, ROUTE_2, routePath } from './routes.js';
+import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, isBattleKind, isBossKind, MAX_CENTERS, REQUIRED_BATTLES, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
 import { GEN2_SETS } from './pool.js';
 import { GEN2_TEST_POOL, TEST_POOL } from './test-pool.js';
 
@@ -32,18 +34,49 @@ function fight(state: RunState, won: boolean, gear: string[] = [], conceded = fa
 }
 
 describe('createRun', () => {
-  it('a gym run has 24 steps of 2–3 options, then a Gym Trainer and the gym leader, with 3 HP and ₱500', () => {
+  it('a gym run has 10 steps of 1–3 options (one per route spot), then a Gym Trainer and the gym leader, with 3 HP and ₱500', () => {
     const s = fresh();
-    expect(s.steps).toHaveLength(26);
-    for (const step of s.steps.slice(0, 24)) {
-      expect(step.options.length).toBeGreaterThanOrEqual(2);
+    expect(s.steps).toHaveLength(12);
+    for (const step of s.steps.slice(0, 10)) {
+      expect(step.options.length).toBeGreaterThanOrEqual(1);
       expect(step.options.length).toBeLessThanOrEqual(3);
       expect(step.options.every((o) => !['gymTrainer', 'gymLeader', 'eliteFour', 'champion'].includes(o.kind))).toBe(true);
     }
-    expect(s.steps[24]!.options).toEqual([expect.objectContaining({ kind: 'gymTrainer', label: 'Celadon Gym Trainer', boss: 'erika' })]);
-    expect(s.steps[25]!.options).toEqual([{ kind: 'gymLeader', label: 'Gym Leader Erika', trainer: 'Erika', boss: 'erika' }]);
+    expect(s.steps[10]!.options).toEqual([expect.objectContaining({ kind: 'gymTrainer', label: 'Celadon Gym Trainer', boss: 'erika' })]);
+    expect(s.steps[11]!.options).toEqual([{ kind: 'gymLeader', label: 'Gym Leader Erika', trainer: 'Erika', boss: 'erika' }]);
     expect(s.steps[0]!.options.every((o) => o.kind === 'battle')).toBe(true);
     expect([s.hp, s.maxHp, s.pokedollars]).toEqual([MAX_HP, MAX_HP, STARTING_POKEDOLLARS]);
+  });
+
+  it(`every run has at least ${REQUIRED_BATTLES} required battles (the first step one), at most ${MAX_CENTERS} Pokémon Centers, and a non-battle encounter alone about half the time`, () => {
+    const counts = [0, 0, 0, 0];
+    let battleSteps = 0;
+    let pairs = 0;
+    for (let seed = 0; seed < 200; seed++) {
+      for (const type of ['pewter', 'celadon'] as const) {
+        const s = createRun(type, deck, seed);
+        const encounters = s.steps.filter((st) => !st.options.some((o) => o.kind === 'gymTrainer' || isBossKind(o.kind)));
+        // A required battle offers only trainers: one, or two to choose between.
+        const required = encounters.filter((st) => st.options.every((o) => o.kind === 'battle'));
+        expect(required.length).toBeGreaterThanOrEqual(REQUIRED_BATTLES);
+        expect(encounters[0]!.options.every((o) => o.kind === 'battle')).toBe(true);
+        for (const st of encounters.filter((x) => x.options.some((o) => o.kind === 'battle' || o.kind === 'elite'))) {
+          battleSteps++;
+          if (st.options.filter((o) => o.kind === 'battle' || o.kind === 'elite').length >= 2) pairs++;
+        }
+        expect(s.steps.flatMap((st) => st.options).filter((o) => o.kind === 'center').length).toBeLessThanOrEqual(MAX_CENTERS);
+        // How many options the steps offering a non-battle encounter have.
+        for (const st of encounters.filter((x) => x.options.some((o) => !isBattleKind(o.kind)))) counts[st.options.length]!++;
+      }
+    }
+    const total = counts[1]! + counts[2]! + counts[3]!;
+    expect(counts[1]! / total).toBeGreaterThan(0.4);
+    expect(counts[1]! / total).toBeLessThan(0.6);
+    expect(counts[2]!).toBeGreaterThan(counts[3]!);
+    // A lone trainer gets a second 75% of the time (PAIR_CHANCE): in these 10-encounter runs about two thirds of the steps
+    // offering a trainer battle offer two (the required battles being a bigger share than in a longer run).
+    expect(pairs / battleSteps, `${pairs} of ${battleSteps}`).toBeGreaterThan(0.61);
+    expect(pairs / battleSteps, `${pairs} of ${battleSteps}`).toBeLessThan(0.71);
   });
 
   it('every gym has its own run, with its leader last', () => {
@@ -55,19 +88,146 @@ describe('createRun', () => {
     }
   });
 
-  it('the Kanto Gym Challenge has the 8 gyms in order, each after 5 steps and a Gym Trainer', () => {
+  it('the Kanto Gym Challenge is the 8 gym leaders back to back, with a Pokémon Center after the fourth and no Gym Trainers', () => {
     const s = createRun('kantoGyms', deck, 1);
-    expect(s.steps).toHaveLength(8 * 7);
+    expect(s.steps.map((st) => st.options.map((o) => o.kind).join())).toEqual([...Array(4).fill('gymLeader'), 'center', ...Array(4).fill('gymLeader')]);
     const bosses = s.steps.flatMap((st) => st.options.filter((o) => o.kind === 'gymLeader').map((o) => o.trainer));
-    expect(bosses).toEqual(['Brock', 'Misty', 'Lt. Surge', 'Erika', 'Koga', 'Sabrina', 'Blaine', 'Giovanni']);
-    expect(s.steps.filter((st) => st.options[0]!.kind === 'gymTrainer')).toHaveLength(8);
+    expect(bosses).toEqual(['Brock', 'Misty', 'Lt. Surge', 'Erika', 'Sabrina', 'Koga', 'Blaine', 'Giovanni']);
   });
 
-  it('Kanto Champion adds Victory Road, then the Elite Four and the Champion back to back (no Gym Trainers before them)', () => {
+  it('Kanto Champion is the 8 gym leaders, the Elite Four and the Champion back to back (no encounters or Gym Trainers)', () => {
     const s = createRun('kantoChampion', deck, 1);
-    expect(s.steps).toHaveLength(8 * 6 + 5 + 5);
+    expect(s.steps).toHaveLength(8 + 4 + 1);
+    expect(s.steps.every((st) => st.options.length === 1 && isBossKind(st.options[0]!.kind))).toBe(true);
     expect(s.steps.slice(-5).map((st) => st.options[0]!.label)).toEqual(['Elite Four Lorelei', 'Elite Four Bruno', 'Elite Four Agatha', 'Elite Four Lance', 'Champion Blue']);
-    expect(s.steps.at(-6)!.options.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('the Pewter City run is 10 encounters (one per Route 2 spot), then the Gym Trainer and Brock', () => {
+    const s = createRun('pewter', deck, 1);
+    expect(s.steps).toHaveLength(12);
+    expect(s.steps.slice(0, 10).every((st) => st.options.length >= 1 && st.options.every((o) => !isBossKind(o.kind) && o.kind !== 'gymTrainer'))).toBe(true);
+    expect(s.steps.slice(10).map((st) => st.options[0]!.kind)).toEqual(['gymTrainer', 'gymLeader']);
+    expect(runType('pewter').routes?.[0]?.spots).toHaveLength(10);
+  });
+
+  it('every Route 2 spot can be walked to from the one before, the gatehouse (spots 4 to 5) the only fade', () => {
+    const spots = ROUTE_2.spots;
+    const walks = spots.slice(1).map((to, i) => routePath(ROUTE_2, spots[i]!, to));
+    expect(walks.every((w) => w !== null)).toBe(true);
+    expect(walks.map((w) => w!.filter((s) => s.fade).length)).toEqual([0, 0, 0, 1, 0, 0, 0, 0, 0]);
+    expect(Math.max(...walks.map((w) => w!.length))).toBeLessThanOrEqual(30);
+  });
+
+  it('every Route 4 spot can be walked to from the one before, the tunnel (spots 3 to 4) the only fade', () => {
+    const walks = ROUTE_4.spots.slice(1).map((to, i) => routePath(ROUTE_4, ROUTE_4.spots[i]!, to));
+    expect(walks.every((w) => w !== null)).toBe(true);
+    expect(walks.map((w) => w!.filter((s) => s.fade).length)).toEqual([0, 0, 1, 0, 0, 0, 0, 0, 0]);
+    expect(Math.max(...walks.map((w) => w!.length))).toBeLessThanOrEqual(40);
+  });
+
+  it("the Vermilion City run crosses Route 5 (3 encounters, to Saffron's gatehouse) then Route 6 (7, from Saffron's gate), each walkable", () => {
+    const [r5, r6] = runType('vermilion').routes!;
+    expect([r5!.spots.length, r6!.spots.length]).toEqual([3, 7]);
+    expect(createRun('vermilion', deck, 1).steps).toHaveLength(12);
+    expect(r6!.spots[0]).toEqual({ x: 13, y: 8 });
+    const walks = [
+      ...r5!.spots.slice(1).map((to, i) => routePath(r5!, r5!.spots[i]!, to)),
+      routePath(r5!, r5!.spots[2]!, r5!.exit!),
+      routePath(r6!, r6!.entrance!, r6!.spots[0]!),
+      ...r6!.spots.slice(1).map((to, i) => routePath(r6!, r6!.spots[i]!, to)),
+    ];
+    expect(walks.map((w) => w !== null)).toEqual(walks.map(() => true));
+  });
+
+  it('every route and gym has an entrance, and on a route the player can walk from it to the first spot', () => {
+    for (const type of RUN_TYPE_IDS.map(runType)) {
+      for (const map of type.routes ?? []) expect(map.entrance && routePath(map, map.entrance, map.spots[0]!), `${type.id} ${map.name}`).toBeTruthy();
+      // Gyms' puzzles (Saffron's teleport pads) can split them until their links are given: there the player fades instead.
+      if (type.gym) expect(type.gym.entrance, `${type.id} ${type.gym.name}`).toBeDefined();
+    }
+  });
+
+  it('the Saffron City run climbs the Pokémon Tower, 1F to 5F (2 encounters a floor), each floor walked from its entrance to its exit', () => {
+    const floors = runType('saffron').routes!;
+    expect(floors.map((f) => f.name)).toEqual([1, 2, 3, 4, 5].map((n) => `Pokémon Tower ${n}F`));
+    for (const f of floors) {
+      const stops = [f.entrance!, ...f.spots, f.exit!];
+      expect(f.spots, f.name).toHaveLength(2);
+      expect(stops.slice(1).map((to, i) => routePath(f, stops[i]!, to) !== null), f.name).toEqual(stops.slice(1).map(() => true));
+    }
+  });
+
+  /** The trainers of the battles on a run's route steps (the first `encounters` steps), over many runs. */
+  const routeTrainers = (type: RunTypeId, encounters: number, runs = 60) =>
+    Array.from({ length: runs }, (_, seed) => createRun(type, deck, seed + 1).steps.slice(0, encounters))
+      .flat()
+      .flatMap((s) => s.options.filter((o) => o.kind === 'battle').map((o) => o.trainer!));
+
+  it("most of Route 17's trainers (the Fuchsia City run) are Bikers, and most of the Power Plant's (Viridian City) Team Rocket Grunts", () => {
+    for (const [type, cls] of [['fuchsia', 'Biker'], ['viridian', 'Rocket Grunt']] as const) {
+      const trainers = routeTrainers(type, 10);
+      const share = trainers.filter((t) => t.startsWith(`${cls} `)).length / trainers.length;
+      expect(share, type).toBeGreaterThan(0.7);
+      expect(share, type).toBeLessThan(0.9);
+    }
+  });
+
+  it("Route 20's trainers (the Cinnabar Island run) are Swimmers, but for its battle on land by the Seafoam Islands, always a battle against another trainer", () => {
+    const route = runType('cinnabar').routes![0]!;
+    const land = route.landBattle!;
+    expect(route.walkable[route.spots[land]!.y]![route.spots[land]!.x]).toBe('.');
+    for (let seed = 1; seed <= 30; seed++) {
+      const steps = createRun('cinnabar', deck, seed).steps;
+      steps.slice(0, 10).forEach((s, i) => {
+        const battles = s.options.filter((o) => o.kind === 'battle');
+        if (i === land) {
+          expect(battles.length).toBeGreaterThan(0);
+          expect(battles.every((o) => !o.trainer!.startsWith('Swimmer '))).toBe(true);
+        } else expect(battles.every((o) => o.trainer!.startsWith('Swimmer '))).toBe(true);
+      });
+    }
+  });
+
+  it("Route 20's spots with no land near (surfed, out at sea) offer only battles, those ashore only non-battle encounters", () => {
+    const route = runType('cinnabar').routes![0]!;
+    const dry = route.spots.map((s) => [-3, -2, -1, 0, 1, 2, 3].some((dy) => [-3, -2, -1, 0, 1, 2, 3].some((dx) => Math.abs(dx) + Math.abs(dy) <= 3 && route.walkable[s.y + dy]?.[s.x + dx] === '.')));
+    expect(dry.some((d) => !d)).toBe(true);
+    for (let seed = 1; seed <= 30; seed++) {
+      createRun('cinnabar', deck, seed).steps.slice(0, 10).forEach((s, i) => {
+        if (!dry[i]) expect(s.options.every((o) => o.kind === 'battle')).toBe(true);
+        // Ashore (land near, not the land battle's spot): only non-battle encounters.
+        else if (i !== route.landBattle) expect(s.options.every((o) => !isBattleKind(o.kind))).toBe(true);
+      });
+    }
+  });
+
+  it('the Kanto Gym Challenge and Champion runs have a map per step: each boss in their gym or room, and the Pokémon Center', () => {
+    for (const id of ['kantoGyms', 'kantoChampion'] as const) {
+      const type = runType(id);
+      const steps = createRun(id, deck, 1).steps;
+      expect(type.routes, id).toHaveLength(steps.length);
+      steps.forEach((s, i) => {
+        const map = type.routes![i]!;
+        expect(map.spots, `${id} ${map.name}`).toHaveLength(1);
+        expect(map.name, id).toBe(s.options[0]!.kind === 'center' ? 'Pokémon Center' : map.name);
+        // The player walks up from the entrance: 4 steps, 5 tiles from the boss.
+        expect(routePath(map, map.entrance!, map.spots[0]!)?.length, `${id} ${map.name}`).toBeLessThanOrEqual(6);
+      });
+    }
+    expect(runType('kantoGyms').routes!.map((m) => m.name)).toEqual(['Pewter Gym', 'Cerulean Gym', 'Vermilion Gym', 'Celadon Gym', 'Pokémon Center', 'Saffron Gym', 'Fuchsia Gym', 'Cinnabar Gym', 'Viridian Gym']);
+  });
+
+  it("Pewter Gym: the Gym Trainer's and Brock's spots can be walked to from the door, one after the other", () => {
+    const { entrance, spots } = PEWTER_GYM;
+    expect(routePath(PEWTER_GYM, entrance!, spots[0]!)).not.toBeNull();
+    expect(routePath(PEWTER_GYM, spots[0]!, spots[1]!)).not.toBeNull();
+    expect(runType('pewter').gym?.spots).toHaveLength(runType('pewter').segments.reduce((n, s) => n + s.bosses.length * 2, 0));
+  });
+
+  it("every route spot is on a walkable tile of its route's map", () => {
+    for (const type of Object.values(RUN_TYPES) as RunType[]) {
+      for (const map of [...(type.routes ?? []), type.gym]) for (const spot of [...(map?.spots ?? []), ...(map?.entrance ? [map.entrance] : []), ...(map?.exit ? [map.exit] : [])]) expect(onPath(map!, spot), `${type.id} ${map!.name} ${spot.x},${spot.y}`).toBe(true);
+    }
   });
 
   it('differs from seed to seed', () => {
@@ -123,14 +283,14 @@ describe('battles', () => {
 
   it('the gym leader uses the Flower Power deck at Gym leader difficulty; losing means fighting them again, winning beats the run', () => {
     const s = fresh();
-    s.position = 25;
+    s.position = 11;
     const chosen = act(s, { type: 'CHOOSE', option: 0 });
     const setup = battleSetup(chosen, TEST_POOL);
     expect(setup.difficulty).toBe('gymLeader');
     expect(setup.deck).toHaveLength(60);
     expect(setup.deck.filter((id) => id === 'base1-99')).toHaveLength(18);
     const lost = fight(chosen, false);
-    expect([lost.phase, lost.position, lost.hp]).toEqual(['map', 25, 2]);
+    expect([lost.phase, lost.position, lost.hp]).toEqual(['map', 11, 2]);
     const won = fight(lost, true);
     expect(won.phase).toBe('won');
     expect(won.exp).toBe(100);
@@ -166,7 +326,7 @@ describe('battles', () => {
 describe('bosses and Gym Trainers', () => {
   it("a Gym Trainer must be fought: a random deck of their gym's type at Trainer difficulty; losing costs 1 HP and moves on", () => {
     const s = fresh();
-    s.position = 24;
+    s.position = 10;
     expect(applyRunAction(s, { type: 'CHOOSE', option: 1 }, TEST_POOL).ok).toBe(false);
     const chosen = act(s, { type: 'CHOOSE', option: 0 });
     const setup = battleSetup(chosen, TEST_POOL);
@@ -174,17 +334,16 @@ describe('bosses and Gym Trainers', () => {
     const energy = setup.deck.filter((id) => ['base1-99', 'base1-98', 'base1-102', 'base1-100', 'base1-101', 'base1-97'].includes(id));
     expect(energy.every((id) => id === 'base1-99')).toBe(true);
     const lost = fight(chosen, false);
-    expect([lost.position, lost.hp]).toEqual([25, 2]);
+    expect([lost.position, lost.hp]).toEqual([11, 2]);
   });
 
   it('a gym leader beaten mid-run gives a better reward and their badge, and the run goes on', () => {
     const s = createRun('kantoGyms', deck, 1);
-    s.position = 6;
     const won = fight(s, true);
     expect(won.encounter).toMatchObject({ kind: 'reward', trainer: 'Brock' });
     expect(won.badges).toEqual(['boulder-badge']);
     expect(won.exp).toBe(100);
-    expect(act(won, { type: 'LEAVE' })).toMatchObject({ phase: 'map', position: 7 });
+    expect(act(won, { type: 'LEAVE' })).toMatchObject({ phase: 'map', position: 1 });
   });
 
   it('the Elite Four and the Champion play their own decks at Gym leader difficulty; the Champion ends the run with the ribbon', () => {
@@ -203,8 +362,8 @@ describe('bosses and Gym Trainers', () => {
 
   it('a run saved before there were several bosses still finds its gym leader', () => {
     const s = fresh();
-    s.position = 25;
-    delete s.steps[25]!.options[0]!.boss;
+    s.position = 11;
+    delete s.steps[11]!.options[0]!.boss;
     const chosen = act(s, { type: 'CHOOSE', option: 0 });
     expect(battleSetup(chosen, TEST_POOL).deck.filter((id) => id === 'base1-99')).toHaveLength(18);
   });
@@ -374,7 +533,9 @@ describe('items', () => {
     expect(act(s, { type: 'CHOOSE', option: 0 }).encounter).toEqual({ kind: 'event', event: revealed.event });
 
     s = act(at('event'), { type: 'USE_ITEM', itemId: 'repel' });
-    expect(s.steps[s.position]!.options.length).toBeGreaterThanOrEqual(2);
+    // New options (1–3), not the lone Mystery that was there.
+    expect(s.steps[s.position]!.options.length).toBeGreaterThanOrEqual(1);
+    expect(s.steps[s.position]!.options).not.toEqual([{ kind: 'event', label: 'event' }]);
     const gym = fresh();
     gym.position = gym.steps.length - 1;
     expect(use(gym, 'repel').ok).toBe(false);
