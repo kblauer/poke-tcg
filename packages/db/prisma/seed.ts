@@ -18,7 +18,14 @@ const cards = [...tcgdex.cards, ...custom.cards];
 const holoEnergy = cards.filter((c) => c.category === 'Energy' && c.energyType === 'Normal' && HOLO_ENERGY_SETS.includes(c.set.id)).flatMap(holoEnergyCards);
 const snapshot = { sets: [...tcgdex.sets, ...custom.sets], cards: [...cards, ...holoEnergy] };
 
-function toCardRow(card: TcgdexCard) {
+/** Where TCGdex's data differs from the printed card (checked against the card image), by card id. */
+const TCGDEX_FIXES: Record<string, Partial<TcgdexCard>> = {
+  // Wizards Promo 7 Jigglypuff: 50 HP as printed (TCGdex has 70).
+  'basep-7': { hp: 50 },
+};
+
+function toCardRow(tcgdex: TcgdexCard) {
+  const card = { ...tcgdex, ...TCGDEX_FIXES[tcgdex.id] };
   const { id, set, localId, name, category, image, rarity, hp, types, stage, evolveFrom, ...data } = card;
   return {
     setId: set.id,

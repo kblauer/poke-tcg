@@ -54,7 +54,8 @@ export const cardLabel = (card: Pick<Card, 'name' | 'data'>) => {
 const FROM_MYSTERIOUS_FOSSIL = new Set(['Omanyte', 'Kabuto', 'Aerodactyl']);
 
 /** Baby Pokémon promos, which TCGdex lists as Basic (Neo-era Babies have the stage "Baby"). */
-const BABY_PROMOS = new Set(['basep-31', 'basep-35', 'basep-36']);
+/** Baby Pokémon TCGdex lists as Basic: the promos, and Neo Genesis's Pichu, Cleffa, Elekid and Magby. */
+const BABIES = new Set(['basep-31', 'basep-35', 'basep-36', 'neo1-12', 'neo1-20', 'neo1-22', 'neo1-23']);
 
 /** Gym Heroes evolutions TCGdex leaves out, by name (without the owner). */
 const TCGDEX_MISSING_EVOLVES_FROM: Record<string, string> = { "Lt. Surge's Magneton": 'Magnemite' };
@@ -107,9 +108,10 @@ export function baseDamage(damage: string | number | null): number {
 }
 
 /** The card's Pokémon Power, if it has one. */
-function power(data: CardData): PokemonCardDef['power'] {
+/** The card's Pokémon Power, with the printed text where TCGdex's differs (the power's effect carries it: Downpour). */
+function power(data: CardData, cardId: string): PokemonCardDef['power'] {
   const [ability] = data.abilities ?? [];
-  return ability ? { name: ability.name, text: ability.effect } : null;
+  return ability ? { name: ability.name, text: powerEffect(cardId)?.text ?? ability.effect } : null;
 }
 
 /** First weakness as type and multiplier ("×2" → 2). */
@@ -167,9 +169,9 @@ export function toCardDef(card: Card): CardDef {
         text: effect?.text ?? a.effect,
       };
     });
-    const baby = card.stage === 'Baby' || BABY_PROMOS.has(card.id);
+    const baby = card.stage === 'Baby' || BABIES.has(card.id);
     const length = pokedexLength(data.dexId?.[0]);
-    return { id: card.id, kind: 'pokemon', name: card.name, imageUrl, type: energyType(type), hp: card.hp, stage, evolvesFrom: evolvesFrom(card), attacks, power: power(data), weakness: weakness(data), resistance: resistance(data), retreatCost: data.retreat ?? 0, holo: isHolo(card), ...(baby && { baby }), ...(length && { length }) };
+    return { id: card.id, kind: 'pokemon', name: card.name, imageUrl, type: energyType(type), hp: card.hp, stage, evolvesFrom: evolvesFrom(card), attacks, power: power(data, card.id), weakness: weakness(data), resistance: resistance(data), retreatCost: data.retreat ?? 0, holo: isHolo(card), ...(baby && { baby }), ...(length && { length }) };
   }
   if (card.kind === 'ENERGY') {
     if (card.name === 'Double Colorless Energy') {
@@ -184,7 +186,7 @@ export function toCardDef(card: Card): CardDef {
     }
     // Rainbow Energy counts as every type while attached (1 at a time).
     if (card.name === 'Rainbow Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'colorless', anyType: true, basic: false, holo: isHolo(card) };
-    // Full Heal and Potion Energy provide Colorless (their effects are energyEffect's). Special Energy the engine doesn't implement yet: 1 Energy of its type (Darkness, Metal), otherwise Colorless.
+    // Full Heal, Potion and Recycle Energy provide Colorless (their effects are the engine's); Darkness and Metal Energy 1 Energy of their type.
     return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: known ? named : 'colorless', basic: false, holo: isHolo(card) };
   }
   const text = (card.data as CardData).effect ?? '';

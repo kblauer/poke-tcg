@@ -3,7 +3,7 @@
 // powerActive, which also handles Toxic Gas. Cards 16–30 are the non-holo prints of 1–15.
 // Rulings (agreed): a Transformed Ditto copies the Defending Pokémon's power too; Transparency flips
 // against any attack, even its owner's; Kabuto Armor halves after weakness, resistance, PlusPower and Defender.
-import type { InPlayPokemon, Target } from '../engine.js';
+import { activeLock, type InPlayPokemon, type Target } from '../engine.js';
 import { ownTargets, pokemonAt, type PowerChoiceSpec, type PowerEffect, type PowerSituation } from '../powers.js';
 import { clearOnLeavingActive, inPlayDef, pokemonName } from '../status.js';
 
@@ -21,7 +21,7 @@ const HOLO: Record<string, PowerEffect> = {
   // Dragonite – Step In: once during your turn, if Dragonite is on your Bench, switch it with your Active Pokémon.
   'base3-4': {
     oncePerTurn: true,
-    blocked: (s) => (s.source === 'active' ? 'Dragonite must be on your Bench' : !s.me.active ? 'No Active Pokémon to switch with' : null),
+    blocked: (s) => (s.source === 'active' ? 'Dragonite must be on your Bench' : !s.me.active ? 'No Active Pokémon to switch with' : activeLock(s.me, [s.me, s.opp], s.cards)),
     use(ctx) {
       const old = ctx.me.active!;
       clearOnLeavingActive(old);
@@ -94,7 +94,8 @@ export const FOSSIL_POWERS: Record<string, PowerEffect> = {
   'base3-56': {
     blocked(s) {
       if (at(s, s.source).playedTurn === s.turn) return "Tentacool can't use Cowardice the turn it was put into play";
-      return ownTargets(s.me).length < 2 ? "You can't return your only Pokémon in play" : null;
+      if (ownTargets(s.me).length < 2) return "You can't return your only Pokémon in play";
+      return s.source === 'active' ? activeLock(s.me, [s.me, s.opp], s.cards) : null;
     },
     use(ctx) {
       const tentacool = ctx.source;

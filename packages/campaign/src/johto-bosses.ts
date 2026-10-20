@@ -1,8 +1,8 @@
 // Johto's bosses for Gen 2 runs: the eight gym leaders, the Elite Four and Champion Lance of Pokémon Gold, Silver and
 // Crystal. No Game Boy TCG plays the Neo and e-Card sets, so their decks are our own (agreed with the user): built
 // around each character's team in the games (as HeartGold and SoulSilver have it), from Gen 2's sets only (GEN2_SETS:
-// Neo Genesis to Skyridge, with Southern Islands), with Gen 2's basic Energy (Neo Genesis prints) and Trainers. The
-// cards' effects are still to come; until then their Pokémon attack for base damage and their Trainers can't be played.
+// Neo Genesis to Skyridge, with Southern Islands), with Gen 2's basic Energy (Neo Genesis prints) and Trainers. Only Neo
+// Genesis's card effects are done; the other sets' Pokémon attack for base damage and their Trainers can't be played yet.
 import type { EnergyType } from '@poke-tcg/game-engine';
 import type { DeckList } from './decks.js';
 

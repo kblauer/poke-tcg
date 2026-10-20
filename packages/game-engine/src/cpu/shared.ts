@@ -558,6 +558,8 @@ export function resolveSearch(t: Turn): GameAction {
     const pick = view.options.reduce((a, b) => (without(b) < without(a) ? b : a));
     return { type: 'RESOLVE_CHOICE', cardUid: pick.uid };
   }
+  // Time Capsule: as many as it can, Pokémon first (agreed; the options come in that order).
+  if (choice.kind === 'timeCapsule') return view.options[0] ? { type: 'RESOLVE_CHOICE', cardUid: view.options[0].uid } : { type: 'RESOLVE_CHOICE' };
   const helpsEnergy = (c: CardInstance) => t.def(c).kind === 'energy' && inPlay(t.me).some(([, p]) => closeness(t.state.cards, p, [...p.energy, c]) < closeness(t.state.cards, p));
   const pick =
     wantedCards(t.state, t.me, view.options)[0] ??
@@ -582,6 +584,8 @@ function optionAnswer(t: Turn, count: number): number {
   if (choice.kind === 'quiz' || choice.kind === 'guess') return Math.floor(nextRandom(t.state.rngState)[0] * count);
   // Misty's Wish: it declines (agreed); for its own, the first Prize card.
   if (choice.kind === 'mistysWish' && choice.step === 'ask') return 1;
+  // Mind Games (agreed), Herbal Scent and Fire Boost: it always flips (the first option).
+  if (choice.kind === 'mindGames' || choice.kind === 'mayFlip') return 0;
   return 0;
 }
 

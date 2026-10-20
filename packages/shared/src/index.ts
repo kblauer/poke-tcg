@@ -23,6 +23,8 @@ const attackChoicesSchema = z.object({
   defenderEnergyUid: z.string().optional(),
   attackIndex: z.number().int().min(0).optional(),
   copyIndex: z.number().int().min(0).optional(),
+  copyFrom: target.optional(),
+  boost: z.boolean().optional(),
   type: energyType.optional(),
   discardUids: z.array(z.string()).max(60).optional(),
   benchSlots: z.array(benchSlot).max(MAX_BENCH).optional(),
@@ -67,6 +69,8 @@ const trainerChoicesSchema = z.object({
   energyUids: z.array(z.string()).max(60).optional(),
   oppEnergyUids: z.array(z.string()).max(60).optional(),
   stage: z.enum(['stage1', 'stage2']).optional(),
+  pick: z.number().int().min(0).max(60).optional(),
+  guess: z.number().int().min(0).max(60).optional(),
 }) satisfies z.ZodType<TrainerChoices>;
 
 /**

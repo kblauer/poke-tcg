@@ -111,6 +111,22 @@ export interface PokemonEffects {
   giantGrowth?: boolean;
   /** Ink Spurt: its attacks need heads, until it evolves or is benched. */
   inkSpurt?: boolean;
+  /** Attacks that damage it do 20 more (after Weakness and Resistance), through this turn (Screech). */
+  screech?: number;
+  /** If an attack would Knock it Out, it's left with 10 HP instead, through this turn (Endure). */
+  endure?: number;
+  /** It can't become Asleep, Confused, Paralyzed or Poisoned, through this turn (Pollen Shield). */
+  pollenShield?: number;
+  /** It can't attack until it's benched or evolves (Freeze). */
+  frozen?: boolean;
+  /** It can't retreat until it's benched or evolves (Spider Web). */
+  stuck?: boolean;
+  /**
+   * It can't retreat while the opponent's Active Pokémon is the one that held it (`by`, its top card's uid: benching or
+   * evolving it ends this): Mean Look. Jaw Clamp and Sticky Nectar also stop any effect from changing its owner's Active
+   * Pokémon (`switches`), and last through turn `until`.
+   */
+  heldBy?: { by: string; until?: number; switches?: boolean };
 }
 
 export interface InPlayPokemon {
@@ -130,13 +146,17 @@ export interface InPlayPokemon {
   poison?: number;
   /** Burned: 20 damage between turns, then a flip; heads cures it. Missing = not Burned. */
   burned?: boolean;
+  /** Wild Growth is working for it (refreshWildGrowth): each Grass Energy card attached provides 2 Grass Energy. */
+  wildGrowth?: boolean;
+  /** A Char counter (Char): after every turn its owner flips, and tails puts 2 damage counters on it. Stays while it's in play. */
+  charCounter?: boolean;
   effects?: PokemonEffects;
   /**
    * Trainer cards attached to it (PlusPower, Defender), each discarded after turn `until`, or returned to its owner's hand
    * then with `toHand` (Charity); `activeOnly` ones once it's benched (Koga's Ninja Trick). The Evolution card Shapeshift
    * attached (`shapeshift`, which Brock's Ninetales is treated as: shapeshiftCard) stays until it's discarded. Missing in older games.
    */
-  attached?: { card: CardInstance; until: number; toHand?: boolean; activeOnly?: boolean; shapeshift?: boolean }[];
+  attached?: { card: CardInstance; until: number; toHand?: boolean; activeOnly?: boolean; shapeshift?: boolean; tool?: boolean }[];
   /**
    * The type it's changed to until it leaves play: Venomoth's Shift (until it Shifts again) or a Coloring
    * counter from Smeargle's Paint (until another replaces it).
@@ -167,6 +187,8 @@ export interface PlayerState {
   bench: (InPlayPokemon | null)[];
   /** Last turn this player can't play Trainer cards (Headache). Missing = no limit. */
   noTrainersUntil?: number;
+  /** Prize cards turned face up (by uid: Card-Flip Game); both players see them. */
+  faceUpPrizes?: string[];
   /** Setup: done placing Pokémon (START_BATTLE). Cleared when the battle starts. */
   ready?: boolean;
   /** Last turn attacks can't affect this player's Benched Pokémon (Protective Flame). Missing = none. */
@@ -235,6 +257,10 @@ export interface GameState {
    * the end of the turn (Sabrina's Psychic Control, Chaos Gym on tails).
    */
   borrowed?: { uid: string; owner: PlayerId; player: PlayerId; chaos?: boolean };
+  /** Mind Games let this Trainer card be played (it's being played now): no second question for it. */
+  mindGamesPassed?: string;
+  /** Recycle Energy cards attached to Pokémon after the last action (by uid): any of them then found in a discard pile goes back to its owner's hand. */
+  recycleWatch?: string[];
   /** What happened, oldest first: attacks, coin flips, knockouts… (last LOG_SIZE entries). Missing in older games. */
   log?: LogEntry[];
 }
@@ -408,6 +434,27 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       return afterOwnMove(state, state.players[state.currentPlayer]!, state.players[opponentOf(state, state.currentPlayer)]!);
     }
     if (action.type !== 'RESOLVE_CHOICE') return fail(`Finish ${pending.source} first`);
+    // Mind Games, answered by the opponent of the player who played the Trainer: flip, or let it be played.
+    if (pending.kind === 'mindGames') {
+      if (action.count !== 0 && action.count !== 1) return fail('Flip a coin, or let it be played');
+      delete state.pendingChoice;
+      const player = state.players[state.currentPlayer]!;
+      const other = state.players[opponentOf(state, state.currentPlayer)]!;
+      const card = player.hand.find((c) => c.uid === pending.cardUid);
+      if (!card) return ok(state);
+      // One flip for each Slowking, until one is heads.
+      const stopped = action.count === 0 && Array.from({ length: pending.flips }).some(() => flipCoin(state, 'Mind Games', me.id));
+      if (stopped) {
+        player.hand = player.hand.filter((c) => c !== card);
+        player.deck.unshift(card);
+        addLog(state, `Mind Games: ${lookupCard(state.cards, card.defId).name} did nothing; it went on top of the deck.`, player.id);
+        return afterOwnMove(state, player, other);
+      }
+      state.mindGamesPassed = card.uid;
+      const error = playTrainer(state, player, other, card.uid, pending.choices);
+      delete state.mindGamesPassed;
+      return error ? fail(error) : afterTrainer(state, player, other);
+    }
     const { afterAttack } = pending;
     const attacker = state.players[state.currentPlayer]!;
     const defending = state.players[opponentOf(state, state.currentPlayer)]!;
@@ -598,22 +645,13 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
     case 'USE_POWER': {
       if (action.source !== 'active' && !isBenchSlot(action.source)) return fail('Invalid Pokémon');
       const error = usePower(state, me, opp, action.source, action.choices ?? {});
-      // Buzzap knocks out its own Pokémon: the opponent takes a prize and the active may need replacing.
-      return error ? fail(error) : afterOwnMove(state, me, opp);
+      // Buzzap knocks out its own Pokémon: the opponent takes a prize and the active may need replacing. Playful Punch ends the turn.
+      return error ? fail(error) : afterTrainer(state, me, opp);
     }
 
     case 'PLAY_TRAINER': {
       const error = playTrainer(state, me, opp, action.cardUid, action.choices ?? {});
-      if (error) return fail(error);
-      // Minion of Team Rocket, Tickling Machine on tails: the turn ends at once (no attack).
-      if (state.endTurnNow) {
-        delete state.endTurnNow;
-        addLog(state, 'The turn ends.', me.id);
-        const winner = resolveKnockouts(state, opp.id);
-        return winner ? finish(state, winner) : endTurn(state);
-      }
-      // Devolution Spray can Knock Out; Scoop Up can empty the active spot.
-      return afterOwnMove(state, me, opp);
+      return error ? fail(error) : afterTrainer(state, me, opp);
     }
 
     case 'DISCARD_DOLL': {
@@ -729,6 +767,20 @@ function dropShapeshifts(state: GameState) {
   for (const player of Object.values(state.players)) {
     for (const p of [player.active, ...player.bench]) if (p && shapeshiftCard(p) && p.condition) discardShapeshift(state, player, p);
   }
+}
+
+/**
+ * After a Trainer card or a Pokémon Power: Minion of Team Rocket, Tickling Machine on tails and Playful Punch end the turn at
+ * once (no attack); otherwise Knock Outs are checked (Devolution Spray, Buzzap; Scoop Up can empty the active spot).
+ */
+function afterTrainer(state: GameState, me: PlayerState, opp: PlayerState): ActionResult {
+  if (state.endTurnNow) {
+    delete state.endTurnNow;
+    addLog(state, 'The turn ends.', me.id);
+    const winner = resolveKnockouts(state, opp.id);
+    return winner ? finish(state, winner) : endTurn(state);
+  }
+  return afterOwnMove(state, me, opp);
 }
 
 /** Asks the next queued choice, if any; after an attack's choice, it ends the turn too (`afterAttack`). */
@@ -872,6 +924,8 @@ export function retreatError(
   if (def.kind === 'pokemon' && def.trainerText) return `${def.name} can't retreat`;
   // Effects are removed once they run out (expireEffects), so being set means it applies.
   if (active.effects?.noRetreat !== undefined) return `${def.name} can't retreat this turn`;
+  if (active.effects?.stuck) return `${def.name} can't retreat`;
+  if (heldActive(active, sides)) return `${def.name} can't retreat while ${lookupCard(cards, heldActive(active, sides)!.card.defId).name} is the Active Pokémon`;
   const guard = guardedBy(sides, cards);
   if (guard) return `${guard}: ${def.name} can't retreat`;
   if (active.condition === 'asleep' || active.condition === 'paralyzed') {
@@ -882,6 +936,29 @@ export function retreatError(
   if (energyPool(active, cards).length < cost) return `Retreating costs ${cost} energy`;
   return null;
 }
+
+/**
+ * The opponent's Active Pokémon holding this one (Mean Look, Jaw Clamp, Sticky Nectar), if it still is: it can't retreat.
+ * `sides` are both players'.
+ */
+export const heldActive = (pokemon: InPlayPokemon, sides: Pick<PlayerState, 'active'>[]) => {
+  const by = pokemon.effects?.heldBy?.by;
+  return by ? (sides.find((s) => s.active && s.active !== pokemon && s.active.card.uid === by)?.active ?? null) : null;
+};
+
+/**
+ * Why `side`'s Active Pokémon can't be changed by an effect now (Jaw Clamp, Sticky Nectar), or null; `sides` are both
+ * players'. Whoever's effect it is (agreed): Switch, Scoop Up, Gust of Wind, Whirlwind… that part does nothing.
+ */
+export function activeLock(side: Pick<PlayerState, 'active'>, sides: Pick<PlayerState, 'active'>[], cards: CardLibrary): string | null {
+  const active = side.active;
+  if (!active?.effects?.heldBy?.switches) return null;
+  const holder = heldActive(active, sides);
+  return holder ? `${lookupCard(cards, active.card.defId).name} is held by ${lookupCard(cards, holder.card.defId).name}: it can't be switched out` : null;
+}
+
+/** activeLock for `player` in a game. */
+export const activeLocked = (state: Pick<GameState, 'players' | 'cards'>, player: PlayerId) => activeLock(state.players[player]!, Object.values(state.players), state.cards);
 
 export const conditionLabel = (c: SpecialCondition) => ({ asleep: 'Asleep', confused: 'Confused', paralyzed: 'Paralyzed' })[c];
 
@@ -914,12 +991,19 @@ export function isEnergyCardOf(card: CardInstance, cards: CardLibrary, type: Ene
  * Photosynthesis all Grass (it works whatever the Pokémon's condition; only Stare stops it here, as this sees no
  * other Pokémon for Toxic Gas or Goop Gas Attack).
  */
+const isBasicGrass = (cards: CardLibrary, e: CardInstance) => {
+  const d = lookupCard(cards, e.defId);
+  return d.kind === 'energy' && d.energyType === 'grass' && d.basic !== false && !d.anyType;
+};
+
 export const energyPool = (pokemon: InPlayPokemon, cards: CardLibrary): PoolEnergy[] => {
   const pool = pokemon.energy.flatMap((e) => {
     const { type, amount } = energyProvided(e, cards);
     return Array<PoolEnergy>(amount).fill(type);
   });
   if (pokemon.effects?.energyBurn !== undefined) return pool.map(() => 'fire');
+  // Wild Growth: each basic Grass Energy card attached provides 2 Grass Energy.
+  if (pokemon.wildGrowth) pool.push(...pokemon.energy.filter((e) => !e.provides && isBasicGrass(cards, e)).map((): PoolEnergy => 'grass'));
   return powerEffect(effectId(pokemon))?.photosynthesis && pokemon.powerOffUntil === undefined ? pool.map(() => 'grass') : pool;
 };
 
@@ -1023,6 +1107,29 @@ function betweenTurns(state: GameState) {
       addLog(state, `${name} is no longer Burned.`, id);
     }
   }
+  // Darkness Energy: 1 damage counter for each on a Pokémon that isn't Darkness and doesn't have Dark in its name.
+  for (const id of state.playerOrder) {
+    const player = state.players[id]!;
+    for (const p of [player.active, ...player.bench]) {
+      if (!p) continue;
+      const d = inPlayDef(state.cards, p);
+      const dark = p.energy.filter((e) => !e.provides && lookupCard(state.cards, e.defId).name === 'Darkness Energy').length;
+      if (!dark || d.type === 'darkness' || d.name.includes('Dark')) continue;
+      p.damage += 10 * dark;
+      addLog(state, `Darkness Energy: ${dark === 1 ? 'a damage counter' : `${dark} damage counters`} on ${pokemonName(state, p)}.`, id);
+    }
+  }
+  // Char counters: on any of the player's Pokémon in play, Active or Benched.
+  for (const id of state.playerOrder) {
+    const player = state.players[id]!;
+    for (const p of [player.active, ...player.bench]) {
+      if (!p?.charCounter) continue;
+      const name = pokemonName(state, p);
+      if (flipCoin(state, `${name} has a Char counter`, id)) continue;
+      p.damage += 20;
+      addLog(state, `Char: 2 damage counters on ${name}.`, id);
+    }
+  }
   for (const { id, active, name } of actives) {
     if (active.condition === 'asleep' && flipCoin(state, `${name} is Asleep`, id)) {
       active.condition = null;
@@ -1036,11 +1143,16 @@ function betweenTurns(state: GameState) {
       addLog(state, `${name} is no longer Paralyzed.`, id);
     }
   }
+  // Berries (Pokémon Tools): used by themselves as soon as they can be, between turns (agreed).
+  for (const id of state.playerOrder) {
+    const player = state.players[id]!;
+    for (const p of [player.active, ...player.bench]) if (p) useBerry(state, player, p);
+  }
   for (const id of state.playerOrder) {
     const player = state.players[id]!;
     if (player.powersOffUntil !== undefined && player.powersOffUntil <= state.turn) {
       delete player.powersOffUntil;
-      if (id === state.currentPlayer) addLog(state, 'Goop Gas Attack wore off: Pokémon Powers work again.');
+      if (id === state.currentPlayer) addLog(state, 'Pokémon Powers work again.');
     }
     // Sabrina's Psychic Control: a borrowed card not played this turn goes back to its owner's discard pile.
     const borrowed = state.borrowed;
@@ -1076,12 +1188,61 @@ function betweenTurns(state: GameState) {
   }
 }
 
+/**
+ * Discards Energy cards an effect took off one of `owner`'s Pokémon, the effect being another player's (Energy Removal,
+ * Whirlpool…). With Ecogym in play, a non-Colorless Energy card goes back to its owner's hand instead.
+ */
+export function discardTheirEnergy(state: GameState, owner: PlayerState, cards: CardInstance[]) {
+  const ecogym = !!state.stadium && lookupCard(state.cards, state.stadium.card.defId).name === 'Ecogym';
+  for (const { provides, ...card } of cards) {
+    const d = lookupCard(state.cards, card.defId);
+    // A Pokémon attached as Energy (Buzzap) isn't an Energy card.
+    const back = ecogym && !provides && d.kind === 'energy' && (!!d.anyType || d.energyType !== 'colorless');
+    (back ? owner.hand : owner.discard).push(card);
+    if (back) addLog(state, `Ecogym: ${d.name} went back to the hand.`, owner.id);
+  }
+}
+
+/** The Pokémon Tool attached to the Pokémon, if any, and its name. */
+export const toolOf = (cards: CardLibrary, p: Pick<InPlayPokemon, 'attached'>) => {
+  const tool = p.attached?.find((a) => a.tool);
+  return tool ? { tool, name: lookupCard(cards, tool.card.defId).name } : null;
+};
+
+/** Discards the Pokémon's Pokémon Tool (once it's used). */
+export function discardTool(state: Pick<GameState, 'cards'>, owner: PlayerState, p: InPlayPokemon) {
+  const found = toolOf(state.cards, p);
+  if (!found) return;
+  p.attached = p.attached!.filter((a) => a !== found.tool);
+  owner.discard.push(found.tool.card);
+}
+
+/**
+ * Berry (2 damage counters), Gold Berry (4) and Miracle Berry (Asleep, Confused, Paralyzed or Poisoned): between turns,
+ * if the Pokémon has that much damage (or one of those), it's removed and the Berry is discarded.
+ */
+function useBerry(state: GameState, owner: PlayerState, p: InPlayPokemon) {
+  const name = toolOf(state.cards, p)?.name;
+  const amount = name === 'Berry' ? 20 : name === 'Gold Berry' ? 40 : 0;
+  if (amount && p.damage >= amount) {
+    p.damage -= amount;
+    addLog(state, `${name}: ${pokemonName(state, p)} healed ${amount} damage.`, owner.id);
+  } else if (name === 'Miracle Berry' && (p.condition || p.poison)) {
+    p.condition = null;
+    p.poison = 0;
+    delete p.paralyzedTurn;
+    addLog(state, `Miracle Berry: ${pokemonName(state, p)} is no longer Asleep, Confused, Paralyzed or Poisoned.`, owner.id);
+  } else return;
+  discardTool(state, owner, p);
+}
+
 function expireEffects(pokemon: InPlayPokemon, turn: number) {
   const e = pokemon.effects;
   if (!e) return;
-  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell', 'noAttack', 'noEnergy', 'fireWall', 'focusEnergy', 'crosscounter'] as const) {
+  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell', 'noAttack', 'noEnergy', 'fireWall', 'focusEnergy', 'crosscounter', 'screech', 'endure', 'pollenShield'] as const) {
     if (e[key] !== undefined && e[key] <= turn) delete e[key];
   }
+  if (e.heldBy?.until !== undefined && e.heldBy.until <= turn) delete e.heldBy;
   if (e.amnesia && e.amnesia.until <= turn) delete e.amnesia;
   if (e.cantAttack && e.cantAttack.until <= turn) delete e.cantAttack;
   if (e.pounce && e.pounce.until <= turn) delete e.pounce;
@@ -1155,6 +1316,41 @@ function takeFromHand(player: PlayerState, uid: string): CardInstance | undefine
   return idx < 0 ? undefined : player.hand.splice(idx, 1)[0];
 }
 
+/**
+ * Wild Growth: a player's Grass Pokémon are marked (`wildGrowth`) while any of their Pokémon has it working, so energyPool
+ * counts their Grass Energy cards twice. However many there are, it doesn't stack (agreed).
+ */
+function refreshWildGrowth(state: GameState) {
+  const sides = state.playerOrder.map((id) => state.players[id]!);
+  for (const player of sides) {
+    const inPlay = [player.active, ...player.bench].filter((p): p is InPlayPokemon => !!p);
+    const growing = inPlay.some((p) => powerEffect(effectId(p))?.wildGrowth && powerActive(p, state.cards, sides));
+    for (const p of inPlay) {
+      if (growing && inPlayDef(state.cards, p).type === 'grass') p.wildGrowth = true;
+      else delete p.wildGrowth;
+    }
+  }
+}
+
+/**
+ * Recycle Energy: put into a discard pile from play (since the last action), it goes back to its owner's hand. Then the
+ * ones attached now are noted for next time.
+ */
+function returnRecycleEnergy(state: GameState) {
+  for (const uid of state.recycleWatch ?? []) {
+    for (const player of Object.values(state.players)) {
+      const i = player.discard.findIndex((c) => c.uid === uid);
+      if (i < 0) continue;
+      player.hand.push(...player.discard.splice(i, 1));
+      addLog(state, 'Recycle Energy went back to the hand.', player.id);
+    }
+  }
+  const attached = Object.values(state.players).flatMap((p) => [p.active, ...p.bench]).flatMap((p) => p?.energy ?? []);
+  const watch = attached.filter((e) => !e.provides && lookupCard(state.cards, e.defId).name === 'Recycle Energy').map((e) => e.uid);
+  if (watch.length) state.recycleWatch = watch;
+  else delete state.recycleWatch;
+}
+
 function finish(state: GameState, winner: PlayerId): ActionResult {
   state.phase = 'finished';
   state.winner = winner;
@@ -1164,6 +1360,8 @@ function finish(state: GameState, winner: PlayerId): ActionResult {
 
 function ok(state: GameState): ActionResult {
   refreshTransforms(state);
+  refreshWildGrowth(state);
+  returnRecycleEnergy(state);
   dropShapeshifts(state);
   state.version += 1;
   return { ok: true, state };
