@@ -99,7 +99,7 @@ export function EquipmentPanel({
       <div className="grid gap-4 [--slot:4.5rem] lg:grid-cols-4" onClick={() => setHeld(null)}>
         <div className="space-y-2">
           <h2 className="flex h-7 items-center text-lg font-semibold">Equipped</h2>
-          <div className="relative h-[30rem] overflow-hidden rounded-lg bg-slate-900 ring-1 ring-slate-700">
+          <div className="relative h-[20rem] overflow-hidden rounded-lg bg-slate-900 ring-1 ring-slate-700">
             <img
               src={trainerSpriteUrl(sprite)}
               alt=""
@@ -130,8 +130,8 @@ export function EquipmentPanel({
 
         <div className="flow-root space-y-2 lg:col-span-3">
           <p className="flex h-7 items-center text-xs text-slate-500">Drag a piece onto its slot, or click it and then the slot. It works in your runs from the next encounter.</p>
-          {/* The slots in the top left corner, a 2×3 grid spaced as the pieces are (so their rows line up), the pieces wrapping around them (both float). */}
-          <div className="float-left mb-2 mr-2 grid grid-cols-[repeat(2,var(--slot))] gap-2 rounded-lg bg-slate-900 ring-1 ring-slate-700">
+          {/* The slots in the top left corner, a 2×3 grid in a padded box (p-3); the pieces wrap around it (both float), their list padded the same at the top so their rows line up with the slots. */}
+          <div className="float-left mb-2 mr-3 grid grid-cols-[repeat(2,var(--slot))] gap-2 rounded-lg bg-slate-900 p-3 ring-1 ring-slate-700">
             {SLOT_ORDER.map((slot) => {
               const id = equipment[slot];
               return (
@@ -149,7 +149,7 @@ export function EquipmentPanel({
             })}
           </div>
           {gear.length ? (
-            <ul>
+            <ul className="pt-3">
               {gear.map((item) => {
                 const worn = EQUIP_SLOTS.filter((s) => equipment[s] === item.id).length;
                 return (
