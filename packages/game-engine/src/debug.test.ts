@@ -27,6 +27,13 @@ describe('debug commands', () => {
   });
 
 
+  it('ends the game won by the player, and logs it', () => {
+    const s = run(duel('charmander', 'squirtle'), { type: 'WIN' });
+    expect([s.phase, s.winner]).toEqual(['finished', 'ash']);
+    expect(s.log?.at(-1)?.text).toBe('Debug: won the game.');
+    expect(applyDebug(s, 'ash', { type: 'WIN' }).ok).toBe(false);
+  });
+
   it('puts a new copy of a card into the hand, with a unique uid, and logs it', () => {
     const s = duel('charmander', 'squirtle');
     const before = s.players.ash!.hand.length;

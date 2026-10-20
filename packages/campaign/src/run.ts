@@ -9,8 +9,9 @@ import { boss, bossLabel, type BossId, type BossKind } from './bosses.js';
 import { expandDeck, generateDeck, trainerFavorites } from './decks.js';
 import { activeEffects, battleRules, effectTotal, item, MAX_CONSUMABLES_PER_RUN, type ActiveEffect } from './items.js';
 import { byId, DECK_TYPES, offerable, PRICES, rarityWeight, type PoolCard, type Rarity } from './pool.js';
-import { between, pick, random, rngFrom, seed, weighted, type Rng } from './random.js';
-import { finalBoss, runGeneration, runType, type RunTypeId } from './run-types.js';
+import { between, chance, pick, random, rngFrom, sample, seed, weighted, type Rng } from './random.js';
+import { finalBoss, runGeneration, runType, type RunType, type RunTypeId } from './run-types.js';
+import type { Route, RouteSpot } from './routes.js';
 
 export const MAX_HP = 3;
 export const STARTING_POKEDOLLARS = 500;
@@ -203,9 +204,47 @@ export const SHOP_SIZE = 5;
 export const OFFERS = 3;
 const RARITY_RANK: Record<Rarity, number> = { common: 0, uncommon: 1, rare: 2, holo: 3 };
 
-function mapEncounter(rng: Rng, kind: EncounterKind): MapEncounter {
+/**
+ * Who a battle on a map's spot can be against: its route's `trainers` (that share of the time) or, for the rest and the
+ * route's `landBattle`, any trainer but those trainers' classes. Undefined: any trainer.
+ */
+type TrainerPool = { names: string[]; share: number; others: string[] } | undefined;
+
+const classOf = (trainer: string) => trainer.split(' ').slice(0, -1).join(' ');
+
+/** Whether a spot of a route has land (not water) within 3 tiles of it, for a non-battle encounter's NPC to stand on. */
+const landNear = (route: Route, spot: RouteSpot) => {
+  for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) if (Math.abs(dx) + Math.abs(dy) <= 3 && route.walkable[spot.y + dy]?.[spot.x + dx] === '.') return true;
+  return false;
+};
+
+/**
+ * The trainer pool for encounter step `encounter` of a run type with routes (the spot it's on), if its route has one;
+ * whether it's the route's `landBattle`; and on a surfed route (agreed with the user), `atSea`, a spot with no land near
+ * it, which offers only battles (non-battle encounters' NPCs can't swim), or `ashore`, a spot with land near it (not the
+ * land battle's), which offers only non-battle encounters, so the route isn't all battles.
+ */
+function poolAt(type: RunType, encounter: number): { pool: TrainerPool; landBattle: boolean; atSea: boolean; ashore: boolean } {
+  let first = 0;
+  for (const route of type.routes ?? []) {
+    if (encounter < first + route.spots.length) {
+      const surf = route.travel === 'surf';
+      const near = surf && landNear(route, route.spots[encounter - first]!);
+      const landBattle = !!route.trainers && route.landBattle === encounter - first;
+      const sea = { atSea: surf && !near, ashore: near && !landBattle };
+      if (!route.trainers) return { pool: undefined, landBattle: false, ...sea };
+      const classes = new Set(route.trainers.names.map(classOf));
+      const others = TRAINERS.filter((t) => !classes.has(classOf(t)));
+      return { pool: landBattle ? { names: [], share: 0, others } : { ...route.trainers, others }, landBattle, ...sea };
+    }
+    first += route.spots.length;
+  }
+  return { pool: undefined, landBattle: false, atSea: false, ashore: false };
+}
+
+function mapEncounter(rng: Rng, kind: EncounterKind, pool?: TrainerPool): MapEncounter {
   if (kind === 'battle') {
-    const trainer = pick(rng, TRAINERS);
+    const trainer = pool ? (pool.share > 0 && chance(rng, pool.share) ? pick(rng, pool.names) : pick(rng, pool.others)) : pick(rng, TRAINERS);
     const focus = weighted(rng, FOCUS_WEIGHTS);
     return { kind, label: trainer, trainer, ...(focus && { focus }) };
   }
@@ -217,14 +256,53 @@ function mapEncounter(rng: Rng, kind: EncounterKind): MapEncounter {
   return { kind, label: LABELS[kind] };
 }
 
-/** The 2–3 options of step `i` (not a gym's or a boss's). The first step is always a battle or two; Pokémon Centers and elite trainers come later. */
-function rollOptions(rng: Rng, i: number): MapEncounter[] {
-  const kinds = KIND_WEIGHTS.filter(([k]) => (i === 0 ? k === 'battle' : (k !== 'center' || i >= 3) && (k !== 'elite' || i >= 5)));
-  const count = i === 0 ? 2 : between(rng, 2, 3);
+/** Steps that are a single trainer battle, which can't be skipped: at least this many per run (agreed with the user). */
+export const REQUIRED_BATTLES = 4;
+
+/**
+ * How often a step offering a single trainer and nothing else (a required battle, or a step rolled that way) offers a
+ * second trainer to choose between, one of whom must still be fought (agreed with the user: 75%). Steps with a non-battle
+ * option keep their options. In a 10-encounter run, about two thirds of the steps offering a trainer battle offer two.
+ */
+export const PAIR_CHANCE = 0.75;
+
+/** A step's options with a second trainer to choose between now and then (PAIR_CHANCE), when they're a single trainer. */
+function pairUp(rng: Rng, options: MapEncounter[], pool?: TrainerPool): MapEncounter[] {
+  const [only] = options;
+  if (options.length !== 1 || only!.kind !== 'battle' || !chance(rng, PAIR_CHANCE)) return options;
+  let second = mapEncounter(rng, 'battle', pool);
+  while (second.trainer === only!.trainer) second = mapEncounter(rng, 'battle', pool);
+  return [only!, second];
+}
+
+/** Pokémon Centers offered in a run, at most (agreed with the user). */
+export const MAX_CENTERS = 2;
+
+/**
+ * How many options a step offers, weighted so that a step offering a non-battle encounter has only that one option about
+ * half the time (agreed with the user), two more often than three.
+ */
+const OPTION_COUNTS: [number, number][] = [
+  [1, 4],
+  [2, 2],
+  [3, 1],
+];
+
+/** The Pokémon Centers a run's steps offer (all of them but `except`, the step being rolled again). */
+const centersOffered = (steps: readonly Step[], except?: number) => steps.filter((s, i) => i !== except).flatMap((s) => s.options).filter((o) => o.kind === 'center').length;
+
+/**
+ * The options of step `i` (not a required battle, a gym's or a boss's): 1–3 (OPTION_COUNTS), a single one being an
+ * encounter to go through (a shop, a gift…). Pokémon Centers come from step 3 while the run has offered fewer than
+ * MAX_CENTERS (`centers`), elite trainers from step 5. `noBattles`: only non-battle encounters (a surfed route's spot ashore).
+ */
+function rollOptions(rng: Rng, i: number, centers: number, pool?: TrainerPool, noBattles = false): MapEncounter[] {
+  const kinds = KIND_WEIGHTS.filter(([k]) => (k !== 'center' || (i >= 3 && centers < MAX_CENTERS)) && (k !== 'elite' || i >= 5) && !(noBattles && isBattleKind(k)));
+  const count = weighted(rng, OPTION_COUNTS);
   const options: MapEncounter[] = [];
   for (let o = 0; o < count; o++) {
     const left = kinds.filter(([k]) => k === 'battle' || !options.some((opt) => opt.kind === k));
-    options.push(mapEncounter(rng, weighted(rng, left)));
+    options.push(mapEncounter(rng, weighted(rng, left), pool));
   }
   return options;
 }
@@ -235,12 +313,25 @@ export function createRun(typeId: RunTypeId, deck: string[], runSeed: number, de
   const type = runType(typeId);
   const rng = rngFrom(runSeed);
   const steps: Step[] = [];
+  // The required battles (REQUIRED_BATTLES): the first encounter step and others at random.
+  const encounters = type.segments.reduce((n, s) => n + s.steps, 0);
+  // A surfed route's spots ashore offer no battles, so they're never required ones.
+  const others = Array.from({ length: Math.max(0, encounters - 1) }, (_, k) => k + 1).filter((k) => !poolAt(type, k).ashore);
+  const required = new Set(encounters ? [0, ...sample(rng, others, Math.min(REQUIRED_BATTLES, encounters) - 1)] : []);
+  let encounter = 0;
   for (const segment of type.segments) {
-    for (let n = 0; n < segment.steps; n++) steps.push({ options: rollOptions(rng, steps.length) });
+    for (let n = 0; n < segment.steps; n++, encounter++) {
+      // On a route with its own trainers (routes.ts), its battles are mostly those; its `landBattle` spot is always a battle,
+      // and so is a surfed route's spot out at sea.
+      const { pool, landBattle, atSea, ashore } = poolAt(type, encounter);
+      const battle = (required.has(encounter) && !ashore) || landBattle || atSea;
+      steps.push({ options: pairUp(rng, battle ? [mapEncounter(rng, 'battle', pool)] : rollOptions(rng, steps.length, centersOffered(steps), pool, ashore), pool) });
+    }
+    if (segment.center) steps.push({ options: [{ kind: 'center', label: LABELS.center }] });
     for (const id of segment.bosses) {
       const b = boss(id);
-      // Every gym leader has one of the gym's trainers to beat first: the only option on its step.
-      if (b.gym) steps.push({ options: [{ kind: 'gymTrainer', label: `${b.gym.city} Gym Trainer`, trainer: pick(rng, GYM_TRAINERS), boss: id }] });
+      // A gym leader has one of the gym's trainers to beat first, the only option on its step (not in a Gym Challenge or Champion run).
+      if (b.gym && segment.gymTrainers !== false) steps.push({ options: [{ kind: 'gymTrainer', label: `${b.gym.city} Gym Trainer`, trainer: pick(rng, GYM_TRAINERS), boss: id }] });
       steps.push({ options: [{ kind: b.kind, label: bossLabel(b), trainer: b.name, boss: id }] });
     }
   }
@@ -680,7 +771,7 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
         case 'reroll':
           if (notOnMap) return notOnMap;
           if (step!.options.some((o) => o.kind === 'gymTrainer' || isBossKind(o.kind))) return fail(`${def.name} doesn't work at a gym`);
-          step!.options = rollOptions(rng, state.position);
+          step!.options = pairUp(rng, rollOptions(rng, state.position, centersOffered(state.steps, state.position)));
           state.log.push(`Used ${def.name}: new encounters to choose from.`);
           break;
         case 'heal':

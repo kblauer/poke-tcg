@@ -1,14 +1,15 @@
-import { bossSummary, currentGameId, EQUIP_SLOTS, isBattleKind, fitsSlot, item, ITEMS, onlyOne, RUN_TYPE_IDS, RUN_TYPES, runView, shopStock, type EquipSlot } from '@poke-tcg/campaign';
-import { prisma } from '@poke-tcg/db';
-import { DECK_NAME_LENGTH } from '@poke-tcg/shared';
+import { bossSummary, currentGameId, EQUIP_SLOTS, isBattleKind, fitsSlot, item, ITEMS, onlyOne, RUN_TYPE_IDS, RUN_TYPES, runView, shopStock, type EquipSlot, type RunTypeId } from '@poke-tcg/campaign';
+import { prisma, saveGameState, type Prisma } from '@poke-tcg/db';
+import { applyDebug, type DebugCommand, type GameState } from '@poke-tcg/game-engine';
+import { DECK_NAME_LENGTH, HUMAN_ID } from '@poke-tcg/shared';
 import { buyItemInput, DEFAULT_TRAINER_SPRITE, equipInput, runActInput, runChooseInput, runIdInput, saveRunDeckInput, startRunInput, trainerSpriteInput, useItemInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { runPool } from '../pool.js';
 import { runTypeProgress } from '../progress.js';
-import { abandonBattle, advanceRun, ensureAccount, latestRun, loadOwnRun, startRun, syncRunDeck, type LoadedRun } from '../runs.js';
+import { abandonBattle, advanceRun, ensureAccount, latestRun, loadOwnRun, settleBattle, startRun, syncRunDeck, type LoadedRun } from '../runs.js';
 import { holoTwins, unlockedIds } from '../unlocks.js';
 import { playableDeck, playProblems } from './decks.js';
-import { protectedProcedure, router } from '../trpc.js';
+import { debugProcedure, protectedProcedure, router } from '../trpc.js';
 
 /** The default name for saving a run's deck: the run's number among the account's runs and its type, "Run #3 – Celadon City". */
 async function runDeckName(run: LoadedRun) {
@@ -21,6 +22,27 @@ async function latestStock(userId: string) {
   const run = await prisma.run.findFirst({ where: { ownerId: userId }, orderBy: { createdAt: 'desc' }, select: { seed: true } });
   // Not the run's own seed, which rolled its map.
   return shopStock(((run?.seed ?? 0) ^ 0x5eed5) >>> 0);
+}
+
+/** Starts a run of `type` with one of the account's own decks, which must be playable. */
+async function startWithDeck(userId: string, type: RunTypeId, deckId: string) {
+  const deck = await playableDeck(deckId, userId);
+  if (deck.runDeck) throw new TRPCError({ code: 'BAD_REQUEST', message: "Start a run with one of your own decks (save the run's deck first)" });
+  return startRun(userId, type, deck);
+}
+
+/**
+ * Chooses an option on the map, like `act` with CHOOSE. For a battle, `deckId` switches the run to that deck first (one of
+ * the account's decks that can be played; SET_DECK), so the battle is played with it.
+ */
+async function chooseOption(userId: string, input: { runId: string; expectedVersion: number; option: number; deckId?: string }) {
+  const run = await loadOwnRun(input.runId, userId);
+  if (run.version !== input.expectedVersion) throw new TRPCError({ code: 'CONFLICT', message: 'Run changed, refresh and retry' });
+  if (input.deckId === undefined) return advanceRun(run, [{ type: 'CHOOSE', option: input.option }]);
+  const option = run.state.phase === 'map' ? run.state.steps[run.state.position]?.options[input.option] : undefined;
+  if (!option || !isBattleKind(option.kind)) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Decks can only be switched for a battle' });
+  const deck = await playableDeck(input.deckId, userId);
+  return advanceRun(run, [{ type: 'SET_DECK', deck: deck.cards, name: deck.name }, { type: 'CHOOSE', option: input.option }]);
 }
 
 /** What the client gets for a run: its view (no RNG or opponents' deck seeds) and the battle under way. */
@@ -73,18 +95,36 @@ export const runRouter = router({
     return clientRun(await advanceRun(run, [input.action]));
   }),
 
+  /** Chooses an option on the map (chooseOption). */
+  choose: protectedProcedure.input(runChooseInput).mutation(async ({ ctx, input }) => clientRun(await chooseOption(ctx.user.id, input))),
+
   /**
-   * Chooses an option on the map, like `act` with CHOOSE. For a battle, `deckId` switches the run to that deck
-   * first (one of the account's decks that can be played; SET_DECK), so the battle is played with it.
+   * Debug (a debugProcedure, refused in production): chooses a battle like `choose` (an Ace Trainer's accepted too), then
+   * wins its game at once (the WIN debug command, saved as a DEBUG action row) and settles it, so the run goes on to its rewards.
    */
-  choose: protectedProcedure.input(runChooseInput).mutation(async ({ ctx, input }) => {
+  debugSkipBattle: debugProcedure.input(runChooseInput).mutation(async ({ ctx, input }) => {
     const run = await loadOwnRun(input.runId, ctx.user.id);
-    if (run.version !== input.expectedVersion) throw new TRPCError({ code: 'CONFLICT', message: 'Run changed, refresh and retry' });
-    if (input.deckId === undefined) return clientRun(await advanceRun(run, [{ type: 'CHOOSE', option: input.option }]));
     const option = run.state.phase === 'map' ? run.state.steps[run.state.position]?.options[input.option] : undefined;
-    if (!option || !isBattleKind(option.kind)) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Decks can only be switched for a battle' });
-    const deck = await playableDeck(input.deckId, ctx.user.id);
-    return clientRun(await advanceRun(run, [{ type: 'SET_DECK', deck: deck.cards, name: deck.name }, { type: 'CHOOSE', option: input.option }]));
+    if (!option || !isBattleKind(option.kind)) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Only a battle can be skipped' });
+    let chosen = await chooseOption(ctx.user.id, input);
+    if (!currentGameId(chosen.state) && option.kind === 'elite') chosen = await advanceRun(chosen, [{ type: 'ACCEPT' }]);
+    const gameId = currentGameId(chosen.state);
+    const game = gameId ? await prisma.game.findUnique({ where: { id: gameId } }) : null;
+    if (!game) throw new TRPCError({ code: 'BAD_REQUEST', message: 'The battle did not start' });
+    const command: DebugCommand = { type: 'WIN' };
+    const result = applyDebug(game.state as unknown as GameState, HUMAN_ID, command);
+    if (!result.ok) throw new TRPCError({ code: 'BAD_REQUEST', message: result.error });
+    const next = result.state;
+    await saveGameState({
+      gameId: game.id,
+      expectedVersion: game.version,
+      state: next,
+      version: next.version,
+      status: 'FINISHED',
+      winner: next.winner,
+      actions: [{ playerId: HUMAN_ID, version: next.version, action: { type: 'DEBUG', command } as unknown as Prisma.InputJsonValue }],
+    });
+    return clientRun(await settleBattle(chosen));
   }),
 
   /**
@@ -122,10 +162,11 @@ export const runRouter = router({
   start: protectedProcedure.input(startRunInput).mutation(async ({ ctx, input }) => {
     const { locked } = (await runTypeProgress(ctx.user.id))[input.type];
     if (locked) throw new TRPCError({ code: 'BAD_REQUEST', message: locked });
-    const deck = await playableDeck(input.deckId, ctx.user.id);
-    if (deck.runDeck) throw new TRPCError({ code: 'BAD_REQUEST', message: "Start a run with one of your own decks (save the run's deck first)" });
-    return startRun(ctx.user.id, input.type, deck);
+    return startWithDeck(ctx.user.id, input.type, input.deckId);
   }),
+
+  /** Debug (a debugProcedure, refused in production): starts a run like `start`, locked run types too. */
+  debugStart: debugProcedure.input(startRunInput).mutation(async ({ ctx, input }) => startWithDeck(ctx.user.id, input.type, input.deckId)),
 
   /**
    * Saves the automatic run deck once its run is over: it becomes one of the account's own decks, under `name`, at the end

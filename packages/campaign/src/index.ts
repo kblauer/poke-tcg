@@ -6,3 +6,5 @@ export * from './pool.js';
 export * from './random.js';
 export * from './run.js';
 export * from './run-types.js';
+export * from './routes.js';
+export * from './kanto-routes.js';

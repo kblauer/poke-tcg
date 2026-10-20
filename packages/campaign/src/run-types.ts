@@ -1,18 +1,24 @@
 // The kinds of run a player can pick, for each generation: one per gym, all eight gyms in a row, and the whole League.
-// A run is made of segments: some encounters to choose from, then (before a gym leader) a Gym Trainer that
-// must be fought, then the segment's bosses one after another. The run is beaten with its last boss.
+// A run is made of segments: some encounters to choose from (or a Pokémon Center), then (before a gym leader, unless the
+// segment leaves them out) a Gym Trainer that must be fought, then the segment's bosses one after another. The run is
+// beaten with its last boss. A run type can have a route (routes.ts): the map its run screen shows, a spot per step.
 // Each belongs to a generation, whose booster packs its runs unlock (GENERATIONS); the Gym Challenge needs the
 // generation's badges and the Champion run a beaten Gym Challenge (runTypeLock).
 import type { EnergyType } from '@poke-tcg/game-engine';
 import { BOSSES, boss, ELITE_FOUR, JOHTO_ELITE_FOUR, JOHTO_GYMS, KANTO_GYMS, type Boss, type BossId } from './bosses.js';
 import { GEN1_DECK_RULES, GEN2_DECK_RULES, type DeckRules } from './decks.js';
 import { basicEnergyType, GEN2_SETS, POOL_SETS } from './pool.js';
+import { CELADON_GYM, CERULEAN_GYM, CINNABAR_GYM, FUCHSIA_GYM, KANTO_BOSS_ROOMS, POKEMON_CENTER, POKEMON_TOWER_1F, POKEMON_TOWER_2F, POKEMON_TOWER_3F, POKEMON_TOWER_4F, POKEMON_TOWER_5F, POWER_PLANT, ROUTE_17, ROUTE_20, ROUTE_8, ROUTE_4, ROUTE_5_VERMILION, ROUTE_6, SAFFRON_GYM, VERMILION_GYM, VIRIDIAN_GYM } from './kanto-routes.js';
+import { PEWTER_GYM, ROUTE_2, type Route } from './routes.js';
 
 export interface RunSegment {
   /** Steps with 2–3 encounters to choose from. */
   steps: number;
-  /** Fought in order, after the steps. A gym leader has a Gym Trainer before them. */
+  /** A Pokémon Center step (its only option) after the encounters, before the bosses. */
+  center?: boolean;
+  /** Fought in order, after the steps. A gym leader has a Gym Trainer before them, unless `gymTrainers` is false. */
   bosses: BossId[];
+  gymTrainers?: boolean;
 }
 
 export interface RunType {
@@ -24,44 +30,82 @@ export interface RunType {
   generation: number;
   /** What unlocks it, if it isn't open from the start: every gym badge of its generation, or a beaten Gym Challenge. */
   requires?: 'badges' | 'gymChallenge';
+  /**
+   * The routes its run screen shows, one after another, a spot for each encounter step (routes.ts); runs without them show
+   * the icon map. Going from one to the next, the player fades out (at the route's `exit`, if it has one) and back in at
+   * the next one's `entrance`.
+   */
+  routes?: Route[];
+  /** The gym's interior, for the steps after the route's spots (the Gym Trainer and the gym leader). */
+  gym?: Route;
 }
 
-/** One gym: 24 encounters, the Gym Trainer, then the gym leader (the 26th fight). `place`: "City" or "Town". */
-const gymRun = (id: BossId, city: string, generation: number, place = 'City') => {
+/**
+ * One gym: 24 encounters, the Gym Trainer, then the gym leader (the 26th fight). `place`: "City" or "Town". With `maps` (its
+ * routes and gym interior, routes.ts), one encounter per route spot instead (agreed with the user: 10), then the gym.
+ */
+const gymRun = (id: BossId, city: string, generation: number, place = 'City', maps?: { routes: Route[]; gym: Route; along?: string }) => {
   const b = boss(id);
+  const leader = `${b.title} ${b.name} with the ${b.deckName} deck`;
+  const encounters = maps ? maps.routes.reduce((n, r) => n + r.spots.length, 0) : 24;
+  // Where the encounters are: the maps' names, or `along` for several of one place (the Pokémon Tower's floors).
+  const along = maps?.along ?? maps?.routes.map((r) => r.name).join(' and ');
   return {
     id: city.toLowerCase(),
     name: `${city} ${place}`,
-    description: `Trainers and encounters around ${city} ${place}, then the gym: a Gym Trainer, and ${b.title} ${b.name} with the ${b.deckName} deck.`,
-    segments: [{ steps: 24, bosses: [id] }],
+    description: maps
+      ? `Along ${along}: ${encounters} encounters, then ${maps.gym.name}: a Gym Trainer, and ${leader}.`
+      : `Trainers and encounters around ${city} ${place}, then the gym: a Gym Trainer, and ${leader}.`,
+    segments: [{ steps: encounters, bosses: [id] }],
     generation,
+    ...(maps && { routes: maps.routes, gym: maps.gym }),
   };
 };
 
+/**
+ * The maps of a run of bosses back to back (the Kanto Gym Challenge and Champion run; agreed with the user), one per step in
+ * order: each boss's room (KANTO_BOSS_ROOMS), and the Pokémon Center's for a segment's `center`.
+ */
+const bossMaps = (segments: RunSegment[]): Route[] => segments.flatMap((s) => [...(s.center ? [POKEMON_CENTER] : []), ...s.bosses.map((id) => KANTO_BOSS_ROOMS[id]!)]);
+
+/** A Gym Challenge (agreed with the user): the eight gym leaders back to back, no Gym Trainers, a Pokémon Center after the fourth. */
+const gymChallenge = (gyms: BossId[]): RunSegment[] => [
+  { steps: 0, bosses: gyms.slice(0, 4), gymTrainers: false },
+  { steps: 0, center: true, bosses: gyms.slice(4), gymTrainers: false },
+];
+
 export const RUN_TYPES = {
-  pewter: gymRun('brock', 'Pewter', 1),
-  cerulean: gymRun('misty', 'Cerulean', 1),
-  vermilion: gymRun('surge', 'Vermilion', 1),
-  celadon: gymRun('erika', 'Celadon', 1),
-  fuchsia: gymRun('koga', 'Fuchsia', 1),
-  saffron: gymRun('sabrina', 'Saffron', 1),
-  cinnabar: gymRun('blaine', 'Cinnabar', 1),
-  viridian: gymRun('giovanni', 'Viridian', 1),
+  // Each Kanto gym's route and interior (agreed with the user): 10 encounters, one at each route spot, then the gym.
+  pewter: gymRun('brock', 'Pewter', 1, 'City', { routes: [ROUTE_2], gym: PEWTER_GYM }),
+  cerulean: gymRun('misty', 'Cerulean', 1, 'City', { routes: [ROUTE_4], gym: CERULEAN_GYM }),
+  // Route 5 to Saffron's north gatehouse, then Route 6 from its south gate (agreed with the user): 3 encounters, then 7.
+  vermilion: gymRun('surge', 'Vermilion', 1, 'City', { routes: [ROUTE_5_VERMILION, ROUTE_6], gym: VERMILION_GYM }),
+  celadon: gymRun('erika', 'Celadon', 1, 'City', { routes: [ROUTE_8], gym: CELADON_GYM }),
+  // Saffron before Fuchsia (agreed with the user): Pokémon Tower 1F to 5F, 2 encounters a floor, then the gym.
+  saffron: gymRun('sabrina', 'Saffron', 1, 'City', { routes: [POKEMON_TOWER_1F, POKEMON_TOWER_2F, POKEMON_TOWER_3F, POKEMON_TOWER_4F, POKEMON_TOWER_5F], gym: SAFFRON_GYM, along: 'the Pokémon Tower, 1F to 5F' }),
+  // The Cycling Road on a bike, most trainers Bikers (agreed with the user).
+  fuchsia: gymRun('koga', 'Fuchsia', 1, 'City', { routes: [ROUTE_17], gym: FUCHSIA_GYM }),
+  // Surfing Route 20, Swimmers in the water and one trainer on land by the Seafoam Islands (agreed with the user).
+  cinnabar: gymRun('blaine', 'Cinnabar', 1, 'City', { routes: [ROUTE_20], gym: CINNABAR_GYM }),
+  // The Power Plant, most trainers Team Rocket Grunts (agreed with the user).
+  viridian: gymRun('giovanni', 'Viridian', 1, 'City', { routes: [POWER_PLANT], gym: VIRIDIAN_GYM }),
   kantoGyms: {
     id: 'kantoGyms',
     name: 'Kanto Gym Challenge',
-    description: "All eight Kanto gyms in one run, Brock to Giovanni: 5 encounters, a Gym Trainer and the gym leader for each.",
-    segments: KANTO_GYMS.map((id) => ({ steps: 5, bosses: [id] })),
+    description: 'All eight Kanto gym leaders back to back, Brock to Giovanni, with a Pokémon Center after the fourth.',
+    segments: gymChallenge(KANTO_GYMS),
     generation: 1,
     requires: 'badges',
+    routes: bossMaps(gymChallenge(KANTO_GYMS)),
   },
   kantoChampion: {
     id: 'kantoChampion',
     name: 'Kanto Champion',
-    description: 'All eight gyms (4 encounters, a Gym Trainer and the gym leader each), then Victory Road and the Elite Four back to back, and Champion Blue.',
-    segments: [...KANTO_GYMS.map((id) => ({ steps: 4, bosses: [id] })), { steps: 5, bosses: [...ELITE_FOUR, 'blue'] }],
+    description: 'All eight Kanto gym leaders, the Elite Four and Champion Blue, back to back.',
+    segments: [{ steps: 0, bosses: [...KANTO_GYMS, ...ELITE_FOUR, 'blue'], gymTrainers: false }],
     generation: 1,
     requires: 'gymChallenge',
+    routes: bossMaps([{ steps: 0, bosses: [...KANTO_GYMS, ...ELITE_FOUR, 'blue'], gymTrainers: false }]),
   },
   violet: gymRun('falkner', 'Violet', 2),
   azalea: gymRun('bugsy', 'Azalea', 2, 'Town'),
@@ -74,16 +118,16 @@ export const RUN_TYPES = {
   johtoGyms: {
     id: 'johtoGyms',
     name: 'Johto Gym Challenge',
-    description: 'All eight Johto gyms in one run, Falkner to Clair: 5 encounters, a Gym Trainer and the gym leader for each.',
-    segments: JOHTO_GYMS.map((id) => ({ steps: 5, bosses: [id] })),
+    description: 'All eight Johto gym leaders back to back, Falkner to Clair, with a Pokémon Center after the fourth.',
+    segments: gymChallenge(JOHTO_GYMS),
     generation: 2,
     requires: 'badges',
   },
   johtoChampion: {
     id: 'johtoChampion',
     name: 'Johto Champion',
-    description: 'All eight Johto gyms (4 encounters, a Gym Trainer and the gym leader each), then Victory Road and the Elite Four back to back, and Champion Lance.',
-    segments: [...JOHTO_GYMS.map((id) => ({ steps: 4, bosses: [id] })), { steps: 5, bosses: [...JOHTO_ELITE_FOUR, 'johto-lance'] }],
+    description: 'All eight Johto gym leaders, the Elite Four and Champion Lance, back to back.',
+    segments: [{ steps: 0, bosses: [...JOHTO_GYMS, ...JOHTO_ELITE_FOUR, 'johto-lance'], gymTrainers: false }],
     generation: 2,
     requires: 'gymChallenge',
   },
