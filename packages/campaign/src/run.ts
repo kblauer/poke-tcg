@@ -475,7 +475,8 @@ export function battleSetup(
   const type = gym && gym.type in deckRules.basicEnergy ? gym.type : undefined;
   // A trainer's deck suits their name (a Swimmer's Water Pokémon); a Gym Trainer's suits their gym instead.
   const favorites = e.kind === 'battle' ? trainerFavorites(e.trainer) : gym && !type ? gym.favorites : undefined;
-  return { deck: generateDeck(pool, rngFrom(e.deckSeed), { type, favorites, rules: deckRules }), difficulty: e.kind === 'elite' ? 'gymLeader' : 'trainer', rules, opponent: e.trainer };
+  const difficulty = e.kind === 'elite' ? 'gymLeader' : 'trainer';
+  return { deck: generateDeck(pool, rngFrom(e.deckSeed), { type, favorites, rules: deckRules, difficulty }), difficulty, rules, opponent: e.trainer };
 }
 
 const typeName = (t: string) => t[0]!.toUpperCase() + t.slice(1);

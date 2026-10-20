@@ -1,8 +1,8 @@
-import { canPayCost, cardImplemented, isBasicPokemon, isPokemonCard, type PokemonCardDef } from '@poke-tcg/game-engine';
+import { canPayCost, cardImplemented, isBasicPokemon, isPokemonCard, TRAINER_CPU_ENERGY, TRAINER_CPU_PLAYS, TRAINER_CPU_RULES, type PokemonCardDef } from '@poke-tcg/game-engine';
 import { describe, expect, it } from 'vitest';
 import { BOSSES, JOHTO_ELITE_FOUR, JOHTO_GYMS } from './bosses.js';
-import { DECK_SIZE, deckErrors, expandDeck, GEN2_DECK_RULES, generateDeck, STARTER_DECK, trainerFavorites } from './decks.js';
-import { GEN2_SETS } from './pool.js';
+import { DECK_SIZE, deckErrors, expandDeck, GEN1_DECK_RULES, GEN2_DECK_RULES, generateDeck, STARTER_DECK, trainerFavorites } from './decks.js';
+import { GEN2_SETS, nameKey } from './pool.js';
 import { rngFrom } from './random.js';
 import { catalogDef, GEN2_TEST_POOL, TEST_POOL, testDef } from './test-pool.js';
 
@@ -88,11 +88,21 @@ describe('generateDeck', () => {
     expect(generateDeck(TEST_POOL, rngFrom(42))).toEqual(generateDeck(TEST_POOL, rngFrom(42)));
   });
 
-  it('holds only Trainers a CPU plays', () => {
-    const played = new Set(['Bill', 'Professor Oak', 'Potion', 'Switch', 'Pokémon Breeder', 'PlusPower', 'Energy Removal', 'Gust of Wind', 'Super Potion', 'Defender', 'Full Heal', 'Pokémon Center', 'Computer Search', 'Super Energy Removal', 'Pokémon Trader',
-      // Gym Heroes and Gym Challenge.
-      'Erika', "Misty's Wrath", 'Master Ball', 'Brock', 'Good Manners', "Brock's Training Method", "Brock's Protection", 'Pewter City Gym', 'Misty', 'Cerulean City Gym', "Erika's Maids", 'Celadon City Gym', 'Giovanni', "Giovanni's Last Resort", 'Viridian City Gym', 'Koga', "Koga's Ninja Trick", 'Blaine', 'Cinnabar City Gym', 'Vermilion City Gym', "Misty's Tears", 'Fervor']);
-    for (const deck of decks) for (const d of deck.map(testDef)) if (d.kind === 'trainer') expect(played, d.name).toContain(d.name);
+  it("holds only Trainers and special Energy the Trainer CPU plays, in a Trainer CPU's deck, in either generation", () => {
+    const plays = new Set([...TRAINER_CPU_PLAYS, ...TRAINER_CPU_RULES, ...TRAINER_CPU_ENERGY, 'doublecolorlessenergy']);
+    for (const [pool, rules] of [[TEST_POOL, GEN1_DECK_RULES], [GEN2_TEST_POOL, GEN2_DECK_RULES]] as const) {
+      for (let seed = 0; seed < 100; seed++) {
+        for (const d of generateDeck(pool, rngFrom(seed), { rules, difficulty: 'trainer' }).map(catalogDef)) {
+          if (d.kind === 'trainer' || (d.kind === 'energy' && d.basic === false)) expect(plays, d.name).toContain(nameKey(d.name));
+        }
+      }
+    }
+  });
+
+  it("gives a gym leader's deck its disruption Trainers too", () => {
+    const names = (difficulty: 'trainer' | 'gymLeader') => new Set(Array.from({ length: 50 }, (_, seed) => generateDeck(TEST_POOL, rngFrom(seed), { difficulty })).flat().map((id) => testDef(id).name));
+    expect(names('gymLeader')).toContain('Energy Removal');
+    expect(names('trainer')).not.toContain('Energy Removal');
   });
 });
 

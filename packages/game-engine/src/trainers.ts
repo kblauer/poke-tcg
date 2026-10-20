@@ -813,12 +813,17 @@ export function nextTrainerChoice(s: TrainerSituation, given: TrainerChoices): T
   return 'need' in result ? (result.need ?? null) : null;
 }
 
+/** What `me` sees when playing `card` from their hand (trainerError, resolveTrainerChoices). */
+export function trainerSituation(state: GameState, me: PlayerState, opp: PlayerState, card: CardInstance): TrainerSituation {
+  const oppFaceDownPrizes = faceDownPrizes(opp.prizes.length, (i) => !!opp.faceUpPrizes?.includes(opp.prizes[i]!.uid));
+  return { card, me, opp, deckCount: me.deck.length, cards: state.cards, turn: state.turn, stadium: state.stadium?.card ?? null, oppFaceDownPrizes };
+}
+
 /** Plays a Trainer card from the hand. Mutates `state`; returns an error instead if not allowed. */
 export function playTrainer(state: GameState, me: PlayerState, opp: PlayerState, cardUid: string, given: TrainerChoices): string | null {
   const card = me.hand.find((c) => c.uid === cardUid);
   if (!card) return 'That card is not in your hand';
-  const oppFaceDownPrizes = faceDownPrizes(opp.prizes.length, (i) => !!opp.faceUpPrizes?.includes(opp.prizes[i]!.uid));
-  const situation: TrainerSituation = { card, me, opp, deckCount: me.deck.length, cards: state.cards, turn: state.turn, stadium: state.stadium?.card ?? null, oppFaceDownPrizes };
+  const situation = trainerSituation(state, me, opp, card);
   const error = trainerError(situation);
   if (error) return error;
   const resolved = resolveTrainerChoices(situation, given);

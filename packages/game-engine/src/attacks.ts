@@ -218,7 +218,9 @@ export function usableAttacks(
   return [...own, ...lower, ...remembered, ...linked, ...copied, ...mimicked, ...machines];
 }
 
-const attackAt = (s: AttackSituation, attackIndex: number) => usableAttacks(s.attacker, s.cards, { recall: s.recall, bench: s.ownBench, defender: s.defender, oppBench: s.opponentBench })[attackIndex];
+/** Every attack the situation's attacker can use, by attack index (its own, then Recall's, Technical Machines'…). */
+export const situationAttacks = (s: AttackSituation) => usableAttacks(s.attacker, s.cards, { recall: s.recall, bench: s.ownBench, defender: s.defender, oppBench: s.opponentBench });
+const attackAt = (s: AttackSituation, attackIndex: number) => situationAttacks(s)[attackIndex];
 
 /** Whether `me`'s Active Pokémon can use the attacks of the cards it evolved from now: Recall this turn, or Prehistoric Memory. */
 export const recallsAttacks = (state: Pick<GameState, 'players' | 'playerOrder' | 'cards' | 'turn'>, me: PlayerState) =>
@@ -348,7 +350,8 @@ export function attackError(s: AttackSituation, attackIndex: number): string | n
   const attack = usable.attack;
   const condition = s.attacker.condition;
   if (condition === 'asleep' || condition === 'paralyzed') return `${attackerDef.name} is ${conditionLabel(condition)} and can't attack`;
-  if (s.attacker.effects?.amnesia?.attack === attack.name && active(s.attacker.effects.amnesia.until, s.turn)) {
+  const amnesia = s.attacker.effects?.amnesia;
+  if (amnesia && amnesia.attack === attack.name && active(amnesia.until, s.turn)) {
     return `${attackerDef.name} can't use ${attack.name} this turn`;
   }
   if (active(s.attacker.effects?.noAttack, s.turn)) return `${attackerDef.name} can't attack this turn`;
