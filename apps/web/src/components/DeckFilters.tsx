@@ -11,12 +11,6 @@ const toggle = 'rounded px-2 py-1 text-sm transition';
 const on = 'bg-yellow-300 text-slate-900';
 const off = 'bg-slate-800 text-slate-300 hover:bg-slate-700';
 
-/** The sort menu: the default (Pokédex number) reads just "Sort", then the others. */
-const SORT_OPTIONS: { value: DeckSort; label: string }[] = [
-  { value: 'dex', label: 'Sort' },
-  ...DECK_SORTS.filter((s) => s.value !== 'dex').sort((a, b) => (a.value === 'type' ? -1 : b.value === 'type' ? 1 : 0)),
-];
-
 /** Parses a number field; empty means "no bound". */
 const toBound = (value: string) => (value === '' ? null : Math.max(0, Number(value)));
 
@@ -142,8 +136,8 @@ export function DeckFilters({
   );
   const setPicker = <SetPicker groups={sets} picked={filter.sets} onChange={(picked) => set({ sets: picked })} className={input} compact={compact} />;
   const sortSelect = (
-    <select value={sort} onChange={(e) => onSortChange(e.target.value as DeckSort)} className={input} aria-label="Sort by" title="Sort by Pokédex number (the default), type or set number">
-      {SORT_OPTIONS.map((s) => (
+    <select value={sort} onChange={(e) => onSortChange(e.target.value as DeckSort)} className={input} aria-label="Sort by" title="Sort by set number (the default), Pokédex number or type">
+      {DECK_SORTS.map((s) => (
         <option key={s.value} value={s.value}>
           {s.label}
         </option>
