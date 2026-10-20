@@ -11,7 +11,7 @@
 // card from the hand went there (each Venusaur once a turn). Burning Energy turns the basic Energy cards attached to its
 // player's Pokémon then into Fire Energy until the end of the turn. Major Tsunami: the opponent chooses their Pokémon that
 // comes in; then the player's chosen Benched Pokémon switches with Feraligatr.
-import { isBasicEnergy, lookupCard } from '../cards.js';
+import { conditionProof, isBasicEnergy, lookupCard } from '../cards.js';
 import { type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { energyFromHand, energyKept, ownTargets, pokemonAt, powerActive, type PowerChoiceSpec, type PowerContext, type PowerEffect, type PowerSituation } from '../powers.js';
 import { shuffle } from '../rng.js';
@@ -291,7 +291,7 @@ const HOLO: Record<string, PowerEffect> = {
     },
     choices(s) {
       const active = s.me.active ? inPlayDef(s.cards, s.me.active) : null;
-      const options = s.me.hand.filter((c) => lookupCard(s.cards, c.defId).kind === 'energy' && !(active && energyEffect(c.defId)?.attachError?.(active, s.me.active!)));
+      const options = s.me.hand.filter((c) => lookupCard(s.cards, c.defId).kind === 'energy' && !(active && energyEffect(c.defId)?.attachError?.(active, s.me.active!, s.cards)));
       return [{ kind: 'handCard', field: 'cardUid', options, prompt: 'Choose an Energy card to attach to your Active Pokémon' }];
     },
     use(ctx) {
@@ -323,7 +323,7 @@ function poison(ctx: PowerContext, p: InPlayPokemon) {
   const def = inPlayDef(ctx.state.cards, p);
   const effect = p.effects;
   const thickSkinned = powerActive(p, ctx.state.cards, [ctx.me, ctx.opp]) && powerEffect(effectId(p))?.noConditions;
-  if (def.trainerText || thickSkinned || (effect?.flashTouch && ctx.opp.active === p) || (effect?.pollenShield ?? -1) >= ctx.state.turn) return ctx.log(`${name} can't be affected by Special Conditions.`);
+  if (conditionProof(def) || thickSkinned || (effect?.flashTouch && ctx.opp.active === p) || (effect?.pollenShield ?? -1) >= ctx.state.turn) return ctx.log(`${name} can't be affected by Special Conditions.`);
   const guard = ctx.state.rules?.find((r) => r.kind === 'conditionGuard' && r.player === ctx.opp.id && r.conditions.includes('poisoned'));
   if (guard) return ctx.log(`${guard.label ?? 'A battle rule'} protected ${name} from that.`);
   p.poison = Math.max(p.poison ?? 0, 10);

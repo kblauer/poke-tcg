@@ -12,6 +12,7 @@ const WAITING: Record<string, string[]> = {
   // Bill's Maintenance: can it be played with no other cards in the hand?
   ecard1: ['ecard1-137'],
   ecard2: [],
+  ecard3: [],
 };
 
 describe.each(Object.keys(WAITING))('%s', (set) => {

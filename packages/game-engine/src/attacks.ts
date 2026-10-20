@@ -1,6 +1,6 @@
 // Attack resolution: legality, the choices an attack asks for, damage (weakness, resistance,
 // prevention) and the helpers card effects use. Card-specific behaviour lives in effects/.
-import { lookupCard, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
+import { conditionProof, lookupCard, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { attackEffect, powerEffect, trainerEffect } from './effects/index.js';
 import {
   canPayCost,
@@ -660,9 +660,9 @@ export function performAttack(
   const ctx = createContext(state, me, opp, choices, later, `${attackerDef.name}'s ${attack.name}`, { vermilion, flee });
   ctx.useAttack(attack, attackSource);
   if (vermilion === false && me.active === attacker) ctx.selfDamage(10);
-  // Memory Berry: discarded at the end of a turn its Pokémon attacks.
+  // Memory Berry and Crystal Shard: discarded at the end of a turn their Pokémon attacks.
   const memory = toolOf(state.cards, attacker);
-  if (memory?.name === 'Memory Berry') memory.tool.until = state.turn;
+  if (memory?.name === 'Memory Berry' || memory?.name === 'Crystal Shard') memory.tool.until = state.turn;
   for (const fn of later) fn();
   ctx.finish();
   // Earthdrill needs to know Lie Low was used the turn before.
@@ -804,6 +804,12 @@ function createContext(
     if (damage > 0 && guarded && attackerDef.stage === 'basic' && !attackerDef.baby) {
       damage = Math.max(0, damage - guarded);
       log(`${def(state.cards, p).power!.name} reduced the damage to ${pokemonName(state, p)} by ${guarded}.`, owner.id);
+    }
+    // Thick Shell: a set amount less from an Evolved Pokémon's attack.
+    const shell = passive(p)?.evolvedGuard;
+    if (damage > 0 && shell && attacker.evolvedFrom.length > 0) {
+      damage = Math.max(0, damage - shell);
+      log(`${def(state.cards, p).power!.name} reduced the damage to ${pokemonName(state, p)} by ${shell}.`, owner.id);
     }
     // Rock Body, Exoskeleton: a set amount less.
     const reduction = passive(p)?.damageReduction;
@@ -1205,7 +1211,7 @@ function createContext(
       const defender = opp.active!;
       const name = pokemonName(state, defender);
       if (untouchable()) return;
-      if (def(state.cards, defender).trainerText || passive(defender)?.noConditions || (defender.effects?.flashTouch && affliction !== 'burned')) return log(`${name} can't be affected by Special Conditions.`, opp.id);
+      if (conditionProof(def(state.cards, defender)) || passive(defender)?.noConditions || (defender.effects?.flashTouch && affliction !== 'burned') || active(defender.effects?.conditionProof, turn)) return log(`${name} can't be affected by Special Conditions.`, opp.id);
       if ((affliction === 'poisoned' || affliction === 'toxic') && passive(defender)?.noPoison) return log(`${name} can't be Poisoned.`, opp.id);
       if (affliction !== 'burned' && active(defender.effects?.pollenShield, turn)) return log(`Pollen Shield: ${name} can't be ${affliction === 'toxic' || affliction === 'poisoned' ? 'Poisoned' : conditionLabel(affliction)}.`, opp.id);
       const guard = state.rules?.find((r) => r.kind === 'conditionGuard' && r.player === opp.id && r.conditions.includes(affliction === 'toxic' ? 'poisoned' : affliction));
@@ -1222,6 +1228,13 @@ function createContext(
         log(`${name} is now ${conditionLabel(affliction)}.`, opp.id);
       }
       record(defender).afflictions.push(affliction);
+      // Mirror Coat: Poisoned or Burned by the attack, it makes the attacker the same.
+      if (affliction !== 'burned' && affliction !== 'poisoned' && affliction !== 'toxic') return;
+      if (!passive(defender)?.mirrorCoat || me.active !== attacker) return;
+      if (conditionProof(attackerDef) || passive(attacker)?.noConditions || (affliction !== 'burned' && passive(attacker)?.noPoison)) return;
+      if (affliction === 'burned') attacker.burned = true;
+      else attacker.poison = Math.max(attacker.poison ?? 0, affliction === 'toxic' ? 20 : 10);
+      log(`Mirror Coat: ${attackerDef.name} is now ${affliction === 'burned' ? 'Burned' : 'Poisoned'}.`);
     },
     damageBenched(player, slot, amount, { weakness = false } = {}) {
       const benched = player.bench[slot];

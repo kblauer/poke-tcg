@@ -9,7 +9,7 @@
 // type lasts until the end of the turn (a new attachment changes it again). Pure Body discards an Energy card after the
 // Fire (Entei) or Water (Suicune) Energy card is attached from the hand, as the promo Suicune's does. Extreme Speed and
 // Lightweight count Energy (Double Colorless is 2), Conductive Body the Magnemite on the Bench (both Magnemite cards).
-import { isBasicEnergy, lookupCard, type CardLibrary, type EnergyType } from '../cards.js';
+import { conditionProof, isBasicEnergy, lookupCard, type CardLibrary, type EnergyType } from '../cards.js';
 import { counts, energyPool, isEnergyCardOf, type CardInstance, type InPlayPokemon, type PlayerState } from '../engine.js';
 import { attachBlocked, discardsLocked, energyFromHand, ownTargets, pokemonAt, powerActive, type PowerChoiceSpec, type PowerContext, type PowerEffect, type PowerSituation } from '../powers.js';
 import { addLog, effectId, inPlayDef, pokemonName } from '../status.js';
@@ -38,11 +38,11 @@ const benched = (s: Pick<PowerSituation, 'me'>) => ownTargets(s.me).filter((t) =
  * `pokemon` (of `owner`) is now `condition`, unless it can't be affected by Special Conditions (Thick Skinned, Clefairy Doll,
  * Flash Touch, Pollen Shield) or a battle rule guards it (Sleep Pendulum).
  */
-function afflict(ctx: PowerContext, owner: PlayerState, pokemon: InPlayPokemon, condition: 'asleep') {
+export function afflict(ctx: PowerContext, owner: PlayerState, pokemon: InPlayPokemon, condition: 'asleep') {
   const name = pokemonName(ctx.state, pokemon);
   const thickSkinned = powerActive(pokemon, ctx.state.cards, [ctx.me, ctx.opp]) && powerEffect(effectId(pokemon))?.noConditions;
   const shielded = (pokemon.effects?.flashTouch && owner.active === pokemon) || (pokemon.effects?.pollenShield ?? -1) >= ctx.state.turn;
-  if (inPlayDef(ctx.state.cards, pokemon).trainerText || thickSkinned || shielded) return addLog(ctx.state, `${name} can't be affected by Special Conditions.`, owner.id);
+  if (conditionProof(inPlayDef(ctx.state.cards, pokemon)) || thickSkinned || shielded) return addLog(ctx.state, `${name} can't be affected by Special Conditions.`, owner.id);
   const guard = ctx.state.rules?.find((r) => r.kind === 'conditionGuard' && r.player === owner.id && r.conditions.includes(condition));
   if (guard) return addLog(ctx.state, `${guard.label ?? 'A battle rule'} protected ${name} from that.`, owner.id);
   pokemon.condition = condition;
@@ -51,7 +51,7 @@ function afflict(ctx: PowerContext, owner: PlayerState, pokemon: InPlayPokemon, 
 }
 
 /** Pure Body: after a `type` basic Energy card from the hand is attached, an Energy card is discarded from the Pokémon. */
-const pureBody = (type: EnergyType): PowerEffect => ({
+export const pureBody = (type: EnergyType): PowerEffect => ({
   ...POKE_BODY,
   onEnergyFromHand(state, owner, pokemon, target, energy) {
     const d = lookupCard(state.cards, energy.defId);
@@ -68,7 +68,7 @@ const pureBody = (type: EnergyType): PowerEffect => ({
 });
 
 /** Crystal Type: a basic Energy card of one of `types` attached from the hand makes the Pokémon that type for the turn. */
-const crystalType = (types: EnergyType[]): PowerEffect => ({
+export const crystalType = (types: EnergyType[]): PowerEffect => ({
   ...POKE_BODY,
   onEnergyFromHand(state, owner, pokemon, _target, energy) {
     const d = lookupCard(state.cards, energy.defId);

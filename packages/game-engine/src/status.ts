@@ -83,6 +83,8 @@ export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCa
   if (pokemon.crystalType) d = { ...d, type: pokemon.crystalType };
   // Submerge: Lanturn is a Water Pokémon until the end of the turn.
   if (pokemon.submerged !== undefined) d = { ...d, type: 'water' };
+  // Crystal Shard: Colorless while it's attached.
+  if (pokemon.attached?.some((a) => a.tool && lookupCard(cards, a.card.defId).name === 'Crystal Shard')) d = { ...d, type: 'colorless' };
   if (pokemon.effects?.giantGrowth) d = { ...d, hp: 80 };
   // Rocket's Hideout: 20 more HP for a Pokémon with Dark in its name.
   if (pokemon.hideout) d = { ...d, hp: d.hp + 20 };

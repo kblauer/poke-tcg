@@ -5,7 +5,7 @@
 // when Pokémon Breeder puts the card into play (playedFromHand). Frenzy's 30 is added before Weakness and
 // Resistance, so Confusion's self-damage is 50. Trickery: the player picks which face-down Prize, by position,
 // to switch with the top card of the deck.
-import { isBasicPokemon, isPokemonCard, lookupCard, type CardLibrary } from '../cards.js';
+import { conditionProof, isBasicPokemon, isPokemonCard, lookupCard, type CardLibrary } from '../cards.js';
 import { applyWeaknessResistance } from '../attacks.js';
 import { counts, energyPool, isEnergyCardOf, type CardInstance, type GameState, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { discardsLocked, ownTargets, pokemonAt, powerActive, type PowerContext, type PowerEffect, type PowerSituation } from '../powers.js';
@@ -26,7 +26,7 @@ function afflict(ctx: PowerContext, owner: PlayerState, pokemon: InPlayPokemon |
   if (!pokemon) return;
   const name = pokemonName(ctx.state, pokemon);
   const sides = [ctx.me, ctx.opp];
-  if (inPlayDef(ctx.state.cards, pokemon).trainerText || (powerActive(pokemon, ctx.state.cards, sides) && powerEffect(effectId(pokemon))?.noConditions)) return addLog(ctx.state, `${name} can't be affected by Special Conditions.`, owner.id);
+  if (conditionProof(inPlayDef(ctx.state.cards, pokemon)) || (powerActive(pokemon, ctx.state.cards, sides) && powerEffect(effectId(pokemon))?.noConditions)) return addLog(ctx.state, `${name} can't be affected by Special Conditions.`, owner.id);
   const guard = ctx.state.rules?.find((r) => r.kind === 'conditionGuard' && r.player === owner.id && r.conditions.includes(condition));
   if (guard) return addLog(ctx.state, `${guard.label ?? 'A battle rule'} protected ${name} from that.`, owner.id);
   pokemon.condition = condition;

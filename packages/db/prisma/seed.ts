@@ -106,6 +106,32 @@ const TCGDEX_FIXES: Record<string, Partial<TcgdexCard>> = {
       return [id, { effect: `Attach this card to 1 of your ${type} Pokémon in play. That Pokémon may use this card's attack instead of its own. At the end of your turn, discard ${cube}. Attack: ${attack}` }];
     }),
   ),
+  // Skyridge Omanyte: printed without Resistance.
+  'ecard3-41': { resistances: null },
+  // Skyridge's Miracle Spheres: α's text names itself (TCGdex: "Miracle Plate α"); γ's Thunder Force costs Lightning.
+  'ecard3-129': {
+    effect: 'Attach this card to 1 of your Evolved Fire, Lightning, or Fighting Pokémon in play. That Pokémon may use this card\'s attack instead of its own. At the end of your turn, discard Miracle Sphere α.',
+    attacks: [
+      {
+        name: 'Fire Force',
+        cost: ['Fire', 'Colorless', 'Colorless'],
+        damage: '30+',
+        effect:
+          'If the Pokémon using this attack has Fire and Lightning basic Energy cards attached to it, the Defending Pokémon is now Confused. If the Pokémon using this attack has Fire and Fighting basic Energy cards attached to it, this attack does 30 damage plus 10 more damage and removes 3 damage counters from the Pokémon that Miracle Sphere α is attached to.',
+      },
+    ],
+  },
+  'ecard3-131': {
+    attacks: [
+      {
+        name: 'Thunder Force',
+        cost: ['Lightning', 'Colorless', 'Colorless'],
+        damage: '30+',
+        effect:
+          "If the Pokémon using this attack has Grass and Lightning basic Energy cards attached to it, the Defending Pokémon is now Asleep and Poisoned. If the Pokémon using this attack has Water and Lightning basic Energy cards attached to it, this attack does 30 damage plus 10 more damage and lets you put 1 damage counter on each of your opponent's Benched Pokémon.",
+      },
+    ],
+  },
   // Southern Islands Tentacruel: TCGdex lists both attacks twice; the printed card Paralyzes with Poison Sting.
   'si1-10': {
     attacks: [

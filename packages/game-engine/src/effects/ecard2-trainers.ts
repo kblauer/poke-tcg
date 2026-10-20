@@ -13,9 +13,10 @@
 // basic Energy cards by itself (up to 2: always the most it can).
 import { isBasicEnergy, isPokemonCard, lookupCard, type Attack, type EnergyType } from '../cards.js';
 import { discardTheirEnergy, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
-import { energyKept, trainerProof } from '../powers.js';
+import { energyKept, powerActive, trainerProof } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { energyProtected, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
+import { effectId, energyProtected, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
+import { powerEffect } from './index.js';
 import { swapActive, targetsOf, type EnergyEffect, type TrainerChoiceSpec, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 import { tool } from './neo1-trainers.js';
 import { ROCKET_ENERGY } from './rocket-trainers.js';
@@ -23,11 +24,18 @@ import { ROCKET_ENERGY } from './rocket-trainers.js';
 const at = (side: Pick<PlayerState, 'active' | 'bench'>, t: Target) => (t === 'active' ? side.active : side.bench[t])!;
 const isBasicCard = (s: { cards: TrainerSituation['cards'] }, c: { defId: string; provides?: unknown }) => !c.provides && isBasicEnergy(lookupCard(s.cards, c.defId));
 
+/** Pokémon of `type` a Cube can be attached to, or with Skyridge's Synchronicity working (any Technical Machine). */
+const cubeTargets = (s: TrainerSituation, type: EnergyType) =>
+  targetsOf(s.me).filter((t) => {
+    const p = at(s.me, t);
+    return inPlayDef(s.cards, p).type === type || (!!powerEffect(effectId(p))?.synchronicity && powerActive(p, s.cards, [s.me, s.opp]));
+  });
+
 /** A Cube: a Technical Machine for a Pokémon of `type`, with its attack (its effect is in ecard2.ts, by this card's id). */
 const cube = (type: EnergyType, attack: Attack): TrainerEffect => ({
   technicalMachine: attack,
-  blocked: (s) => (targetsOf(s.me).some((t) => inPlayDef(s.cards, at(s.me, t)).type === type) ? null : `You have no ${type[0]!.toUpperCase()}${type.slice(1)} Pokémon in play`),
-  choices: (s) => [{ kind: 'pokemon', field: 'target', side: 'own', options: targetsOf(s.me).filter((t) => inPlayDef(s.cards, at(s.me, t)).type === type), prompt: `Choose one of your ${type[0]!.toUpperCase()}${type.slice(1)} Pokémon to attach it to` }],
+  blocked: (s) => (cubeTargets(s, type).length ? null : `You have no ${type[0]!.toUpperCase()}${type.slice(1)} Pokémon in play`),
+  choices: (s) => [{ kind: 'pokemon', field: 'target', side: 'own', options: cubeTargets(s, type), prompt: `Choose one of your ${type[0]!.toUpperCase()}${type.slice(1)} Pokémon to attach it to` }],
   play(ctx) {
     const p = at(ctx.me, ctx.choices.target!);
     ctx.attachTo(p, ctx.turn);

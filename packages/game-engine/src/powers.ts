@@ -59,7 +59,7 @@ export type PeekTarget = 'deck' | 'oppDeck' | 'oppHand' | 'prize' | 'oppPrize';
 
 /** What a power can see before it's used. View-safe: the UI builds it from a PlayerView. */
 export interface PowerSituation {
-  me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'discard' | 'powersOffUntil' | 'quickenTurn' | 'activeEnergyTurn'>;
+  me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'discard' | 'powersOffUntil' | 'quickenTurn' | 'activeEnergyTurn' | 'goodNeighborTurn'>;
   opp: Pick<PlayerState, 'active' | 'bench' | 'powersOffUntil' | 'discard'>;
   /** Sizes of the hidden piles (Peek). */
   counts: { deck: number; prizes: number; oppDeck: number; oppHand: number; oppPrizes: number };
@@ -218,8 +218,11 @@ export interface PowerEffect {
   energyAs?: EnergyType;
   /** A Poké-Body (always on; Dark Impact doesn't stop it). Poké-Powers and the older Pokémon Powers don't have it. */
   body?: boolean;
-  /** Extreme Speed, Heavyweight, Lightweight, Conductive Body: how much its own retreat cost changes (retreatCost). */
-  retreatChange?: (pokemon: InPlayPokemon, cards: CardLibrary, owner: Pick<PlayerState, 'active' | 'bench'>) => number;
+  /**
+   * Extreme Speed, Heavyweight, Lightweight, Conductive Body, Psychoflow, Slippery Skin: how much its own retreat cost
+   * changes (retreatCost). `opp`: the other player's Pokémon in play, when known.
+   */
+  retreatChange?: (pokemon: InPlayPokemon, cards: CardLibrary, owner: Pick<PlayerState, 'active' | 'bench'>, opp?: Pick<PlayerState, 'active' | 'bench'>) => number;
   /** Gluey Slime: each player's Active Pokémon costs 1 more to retreat (only 1, however many are in play). */
   glueySlime?: boolean;
   /** Poison Resistance: it can't be Poisoned. */
@@ -234,6 +237,20 @@ export interface PowerEffect {
   enervatingPollen?: boolean;
   /** Anti-Lightning: basic Energy cards of this type can't be attached to it from the hand (attachBlocked). */
   antiAttach?: EnergyType;
+  /** Dark Gaze: as its owner's Active Pokémon, Benched Pokémon (both players') can't use Poké-Powers (powerError). */
+  darkGaze?: boolean;
+  /** Mirror Coat: when the opponent's attack Poisons or Burns it, their Active Pokémon becomes affected the same way (attacks.ts). */
+  mirrorCoat?: boolean;
+  /** Synchronicity: any Technical Machine can be attached to it, whatever Pokémon the Machine is for. */
+  synchronicity?: boolean;
+  /** Rare Metal, Prismatic Body: each basic Energy card attached provides this instead ('any': every type, 1 at a time) (energyPool). */
+  basicEnergyAs?: EnergyType | 'any';
+  /** Thick Shell: attack damage to it from Evolved Pokémon is this much less, after Weakness and Resistance. */
+  evolvedGuard?: number;
+  /** Primal Aura: as its owner's Active Pokémon, neither player can play Evolution cards from the hand onto Benched Pokémon (primalBlock). */
+  primalAura?: boolean;
+  /** Primal Stare: as its owner's Active Pokémon, the opponent can't play Evolution cards from the hand onto their Active Pokémon (primalBlock). */
+  primalStare?: boolean;
 }
 
 export interface PowerContext {
@@ -265,7 +282,7 @@ export function powerOf(pokemon: InPlayPokemon, cards: CardLibrary) {
   return inPlayDef(cards, pokemon).power ?? null;
 }
 
-type Sides = Pick<PlayerState, 'active' | 'bench' | 'powersOffUntil'>[];
+type Sides = Pick<PlayerState, 'active' | 'bench' | 'powersOffUntil' | 'bodiesOffTurn'>[];
 
 /** Goop Gas Attack: no Pokémon Powers work (it's set on both players). */
 const goopGas = (sides: Sides) => sides.some((s) => s.powersOffUntil !== undefined);
@@ -291,6 +308,8 @@ export function powerActive(pokemon: InPlayPokemon, cards: CardLibrary, sides: S
   if (effect?.stopsOnAnyCondition && (pokemon.poison || pokemon.burned)) return false;
   // Dark Impact: its Poké-Powers (and Pokémon Powers) don't work; Poké-Bodies do.
   if (pokemon.effects?.noPokePowers !== undefined && !effect?.body) return false;
+  // Ancient Wind: every Poké-Body is ignored until the end of the turn.
+  if (effect?.body && sides.some((s) => s.bodiesOffTurn !== undefined)) return false;
   // Scare: a Baby Pokémon's power doesn't work while the opponent's Active Dark Feraligatr's Scare does.
   if (inPlayDef(cards, pokemon).baby) {
     const owner = sides.find((s) => s.active === pokemon || s.bench.includes(pokemon));
@@ -364,7 +383,8 @@ export function stickyGoo(sides: Sides, cards: CardLibrary): number {
 export function playedFromHand(state: GameState, owner: PlayerState, pokemon: InPlayPokemon) {
   const sides = state.playerOrder.map((id) => state.players[id]!);
   const effect = powerEffect(effectId(pokemon));
-  if (effect?.onPlayFromHand && powerActive(pokemon, state.cards, sides)) {
+  // Dark Gaze: a Benched Pokémon's Poké-Power doesn't work as it's played either.
+  if (effect?.onPlayFromHand && powerActive(pokemon, state.cards, sides) && !darkGazed(pokemon, state.cards, sides)) {
     addLog(state, `${powerOf(pokemon, state.cards)!.name}!`, owner.id);
     effect.onPlayFromHand(state, owner, pokemon);
   }
@@ -424,12 +444,32 @@ export function attachBlocked(cards: CardLibrary, sides: Sides, pokemon: InPlayP
 export function retreatBodies(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sides): number {
   const [owner] = sides;
   if (!owner) return 0;
-  const own = powerActive(pokemon, cards, sides) ? (powerEffect(effectId(pokemon))?.retreatChange?.(pokemon, cards, owner) ?? 0) : 0;
+  const own = powerActive(pokemon, cards, sides) ? (powerEffect(effectId(pokemon))?.retreatChange?.(pokemon, cards, owner, sides[1]) ?? 0) : 0;
   return own + (owner.active === pokemon && anyWorking(sides, cards, (e) => e.glueySlime) ? 1 : 0);
 }
 
 /** Enervating Pollen is working: a Pokémon with it anywhere in play. */
 export const enervatingPollen = (sides: Sides, cards: CardLibrary) => anyWorking(sides, cards, (e) => e.enervatingPollen);
+
+/**
+ * Why no Evolution card can be played from the hand onto `target` (`sides[0]`'s Pokémon), or null: Primal Aura (an Active
+ * Pokémon's, either player's: not onto a Benched Pokémon) and Primal Stare (the opponent's Active Pokémon's: not onto the
+ * Active Pokémon).
+ */
+export function primalBlock(target: InPlayPokemon, sides: Sides, cards: CardLibrary): string | null {
+  const [owner, ...others] = sides;
+  if (!owner) return null;
+  const working = (p: InPlayPokemon | null, key: 'primalAura' | 'primalStare') => !!p && !!powerEffect(effectId(p))?.[key] && powerActive(p, cards, sides);
+  if (owner.active !== target && sides.some((s) => working(s.active, 'primalAura'))) return "Primal Aura: Evolution cards can't be played onto Benched Pokémon";
+  if (owner.active === target && others.some((s) => working(s.active, 'primalStare'))) return "Primal Stare: Evolution cards can't be played onto your Active Pokémon";
+  return null;
+}
+
+/** Dark Gaze is stopping the Benched Pokémon `pokemon`'s Poké-Powers: a working Dark Gaze on either Active Pokémon. */
+export function darkGazed(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sides): boolean {
+  if (sides.some((s) => s.active === pokemon) || powerEffect(effectId(pokemon))?.body) return false;
+  return sides.some((s) => !!s.active && !!powerEffect(effectId(s.active))?.darkGaze && powerActive(s.active, cards, sides));
+}
 
 /** Why no Evolution cards can be played (Prehistoric Power), or null. */
 export function evolutionBlocked(sides: Sides, cards: CardLibrary): string | null {
@@ -525,6 +565,7 @@ export function powerError(s: PowerSituation): string | null {
   if (toxicGas([s.me, s.opp])) return `Toxic Gas: ${def.power.name} can't be used`;
   if (source.powerOffUntil !== undefined) return `${def.power.name} doesn't work until the end of your turn (Stare)`;
   if (source.effects?.noPokePowers !== undefined) return `Dark Impact: ${def.name} can't use Poké-Powers this turn`;
+  if (darkGazed(source, s.cards, [s.me, s.opp])) return "Dark Gaze: Benched Pokémon can't use Poké-Powers";
   const blocked = effect.blocked?.(s);
   if (blocked) return blocked;
   return effect.oncePerTurn && source.powerUsedTurn === s.turn ? `${def.name} has already used ${def.power.name} this turn` : null;

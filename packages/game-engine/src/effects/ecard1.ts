@@ -85,7 +85,7 @@ export function putCounters(ctx: AttackContext, t: Target, n: number) {
 }
 
 /** Base damage; heads attaches a `type` Energy card from the discard pile to the attacker, if there are any (Plasma, Collect Fire). */
-export const plasma = (damage: number, type: 'lightning' | 'fire'): AttackEffect => ({
+export const plasma = (damage: number, type: 'lightning' | 'fire' | 'water'): AttackEffect => ({
   run(ctx) {
     ctx.hit(damage);
     if (!ctx.me.discard.some((c) => isEnergyCardOf(c, ctx.state.cards, type))) return;

@@ -1,9 +1,9 @@
 /// <reference path="./globals.d.ts" />
 import { applyWeaknessResistance, attackSituation, checkAttack, performAttack, recallsAttacks, usableAttacks, type AttackChoices } from './attacks.js';
-import { attachBlocked, discardsLocked, energyFromHand, evolutionBlocked, retreatBodies, guardedBy, miraculousWind, offerChainReaction, playedFromHand, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, trainersBlocked, usePower, zoomed, type PowerChoices } from './powers.js';
-import { evolvesFromEevee, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
+import { attachBlocked, discardsLocked, energyFromHand, evolutionBlocked, primalBlock, retreatBodies, guardedBy, miraculousWind, offerChainReaction, playedFromHand, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, trainersBlocked, usePower, zoomed, type PowerChoices } from './powers.js';
+import { evolvesFromEevee, evolveWith, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
-import { isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
+import { isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { addLog, baseUid, clearOnLeavingActive, effectId, evolvedHook, shapeshiftCard, flipCoin, inPlayDef, openBenchSlot, pokemonName, revealFaceDown, type LogEntry } from './status.js';
 import { shuffle } from './rng.js';
 import type { CpuDifficulty } from './cpu/index.js';
@@ -128,6 +128,8 @@ export interface PokemonEffects {
   endure?: number;
   /** It can't become Asleep, Confused, Paralyzed or Poisoned, through this turn (Pollen Shield). */
   pollenShield?: number;
+  /** It can't become affected by any Special Condition, Burned included, through this turn (Skyridge's Pollen Shield). */
+  conditionProof?: number;
   /** It can't attack until it's benched or evolves (Freeze). */
   frozen?: boolean;
   /** It can't retreat until it's benched or evolves (Spider Web). */
@@ -258,6 +260,12 @@ export interface PlayerState {
   benchProtectedUntil?: number;
   /** Last turn no Pokémon Powers work (Goop Gas Attack, set on both players). Missing = they work. */
   powersOffUntil?: number;
+  /** Ancient Wind: every Poké-Body is ignored this turn (set on both players, removed between turns). Missing = they work. */
+  bodiesOffTurn?: number;
+  /** Freeze Lock: last turn this player can't attach Energy cards from the hand to their Active Pokémon. */
+  freezeLockUntil?: number;
+  /** The turn this player last used a Wigglytuff's Good Neighbor (once a turn, whichever Wigglytuff). */
+  goodNeighborTurn?: number;
   /** Misty: the turn this player's Pokémon with Misty in its name do `count` × 20 more damage to the Defending Pokémon. */
   misty?: { turn: number; count: number };
   /** Tickling Machine: the hand, set aside face down; it comes back at the end of turn `until`. */
@@ -732,8 +740,9 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       if (!energy || card(energy).kind !== 'energy') return fail('Must attach an energy card from your hand');
       state.blaineAttach = second ? 'done' : blaine && fire(energy) ? baseUid(target) : 'done';
       if (target.effects?.noEnergy !== undefined) return fail(`Energy cards can't be attached to ${pokemonName(state, target)} this turn`);
+      if (action.target === 'active' && (me.freezeLockUntil ?? 0) >= state.turn) return fail("Freeze Lock: you can't attach Energy cards from your hand to your Active Pokémon this turn");
       // Miracle Energy goes only on Shining and Light Pokémon, Boost Energy only on an Evolved Pokémon; Anti-Lightning.
-      const notHere = energyEffect(energy.defId)?.attachError?.(inPlayDef(state.cards, target), target) ?? attachBlocked(state.cards, [me, opp], target, energy);
+      const notHere = energyEffect(energy.defId)?.attachError?.(inPlayDef(state.cards, target), target, state.cards) ?? attachBlocked(state.cards, [me, opp], target, energy);
       if (notHere) return fail(notHere);
       target.energy.push(energy);
       state.energyAttachedThisTurn = true;
@@ -783,6 +792,12 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       const amounts = me.active.energy.filter((e) => uids.has(e.uid)).map((e) => energyProvided(e, state.cards).amount);
       const total = amounts.reduce((a, b) => a + b, 0);
       if (total < cost || amounts.some((a) => total - a >= cost)) return fail(`Retreating costs ${cost} energy`);
+      // Mirage Stadium: a flip first; tails, it can't retreat this turn and no Energy is discarded.
+      if (state.stadium && lookupCard(state.cards, state.stadium.card.defId).name === 'Mirage Stadium' && !flipCoin(state, 'Mirage Stadium', me.id)) {
+        (me.active.effects ??= {}).noRetreat = state.turn;
+        addLog(state, `Mirage Stadium: ${pokemonName(state, me.active)} can't retreat this turn.`, me.id);
+        return afterOwnMove(state, me, opp);
+      }
       me.discard.push(...me.active.energy.filter((e) => uids.has(e.uid)));
       me.active.energy = me.active.energy.filter((e) => !uids.has(e.uid));
       state.retreatedThisTurn = true;
@@ -1075,10 +1090,10 @@ export function evolveError(
   if (target.faceDown) return null;
   // Owners' Pokémon (Gym Heroes) need no rule of their own: Brock's Rhydon evolves from Brock's Rhyhorn, by name.
   const current = lookupCard(cards, target.card.defId);
-  const evolvesFromStage = evolution.stage === 'stage2' ? 'stage1' : 'basic';
-  if (current.kind !== 'pokemon' || current.name !== evolution.evolvesFrom || current.stage !== evolvesFromStage) {
-    return `${evolution.name} evolves from ${evolution.evolvesFrom ?? 'nothing'}`;
-  }
+  if (!evolvesOnto(evolution, current)) return `${evolution.name} evolves from ${evolution.evolvesFrom ?? 'nothing'}`;
+  // Primal Aura and Primal Stare: not from the hand onto a Benched (or the opponent's Active) Pokémon.
+  const primal = primalBlock(target, sides, cards);
+  if (primal) return primal;
   // Dark Tentacle: not by an Evolution card from the hand or a Trainer this turn.
   if (target.effects?.noEvolve !== undefined) return `${current.name} can't evolve this turn`;
   // Giovanni: no first-turn or played-this-turn limit for the Pokémon chosen, this turn.
@@ -1087,6 +1102,16 @@ export function evolveError(
   if (turn <= 2) return "You can't evolve on your first turn";
   if (target.playedTurn === turn) return `${current.name} was played or evolved this turn`;
   return null;
+}
+
+/**
+ * Whether `evolution` can be put onto a Pokémon whose top card is `current`: it evolves from that name and stage, or it
+ * evolves from Mysterious Fossil and `current` is Buried Fossil (which counts as one for this).
+ */
+export function evolvesOnto(evolution: PokemonCardDef, current: CardDef): boolean {
+  const evolvesFromStage = evolution.stage === 'stage2' ? 'stage1' : 'basic';
+  if (current.kind !== 'pokemon' || current.stage !== evolvesFromStage || evolution.stage === 'basic') return false;
+  return current.name === evolution.evolvesFrom || (current.name === 'Buried Fossil' && evolution.evolvesFrom === 'Mysterious Fossil');
 }
 
 /**
@@ -1212,8 +1237,11 @@ const isBasicGrass = (cards: CardLibrary, e: CardInstance) => {
 };
 
 export const energyPool = (pokemon: InPlayPokemon, cards: CardLibrary): PoolEnergy[] => {
+  // Rare Metal, Prismatic Body: each basic Energy card provides another type (Prismatic Body: every type, 1 at a time).
+  const basicAs = pokemon.powerOffUntil === undefined ? powerEffect(effectId(pokemon))?.basicEnergyAs : undefined;
   const pool = pokemon.energy.flatMap((e) => {
     const { type, amount } = energyProvided(e, cards);
+    if (basicAs && !e.provides && isBasicEnergy(lookupCard(cards, e.defId))) return [basicAs];
     return Array<PoolEnergy>(amount).fill(isCrystalEnergy(cards, e) ? crystalProvides(pokemon, cards) : type);
   });
   if (pokemon.effects?.energyBurn !== undefined) return pool.map(() => 'fire');
@@ -1397,10 +1425,11 @@ function betweenTurns(state: GameState) {
       addLog(state, `${name} is no longer Paralyzed.`, id);
     }
   }
-  // Berries (Pokémon Tools): used by themselves as soon as they can be, between turns (agreed).
+  // Berries (Pokémon Tools): used by themselves as soon as they can be, between turns (agreed). Star Piece too.
   for (const id of state.playerOrder) {
     const player = state.players[id]!;
     for (const p of [player.active, ...player.bench]) if (p) useBerry(state, player, p);
+    for (const p of player.bench) if (p) useStarPiece(state, player, p);
   }
   for (const id of state.playerOrder) {
     const player = state.players[id]!;
@@ -1408,6 +1437,7 @@ function betweenTurns(state: GameState) {
       delete player.powersOffUntil;
       if (id === state.currentPlayer) addLog(state, 'Pokémon Powers work again.');
     }
+    delete player.bodiesOffTurn;
     // Sabrina's Psychic Control: a borrowed card not played this turn goes back to its owner's discard pile.
     const borrowed = state.borrowed;
     const held = borrowed?.player === id ? player.hand.find((c) => c.uid === borrowed.uid) : undefined;
@@ -1480,6 +1510,26 @@ export function discardTool(state: Pick<GameState, 'cards'>, owner: PlayerState,
 }
 
 /**
+ * Star Piece: between turns, on a Benched Pokémon with 2 or more damage counters, a card from the deck that evolves from it
+ * goes onto it (the first one in the deck: the deck is shuffled, so it's a random one of them); then Star Piece is discarded.
+ * With no such card in the deck, nothing happens.
+ */
+function useStarPiece(state: GameState, owner: PlayerState, p: InPlayPokemon) {
+  if (toolOf(state.cards, p)?.name !== 'Star Piece' || p.damage < 20) return;
+  const current = lookupCard(state.cards, p.card.defId);
+  const card = owner.deck.find((c) => {
+    const d = lookupCard(state.cards, c.defId);
+    return d.kind === 'pokemon' && evolvesOnto(d, current);
+  });
+  if (!card) return;
+  owner.deck = owner.deck.filter((c) => c !== card);
+  evolveWith(state, owner, p, card, 'with Star Piece');
+  [owner.deck, state.rngState] = shuffle(owner.deck, state.rngState);
+  discardTool(state, owner, p);
+  addLog(state, `Star Piece on ${pokemonName(state, p)} was discarded.`, owner.id);
+}
+
+/**
  * Berry (2 damage counters), Gold Berry (4) and Miracle Berry (Asleep, Confused, Paralyzed or Poisoned): between turns,
  * if the Pokémon has that much damage (or one of those), it's removed and the Berry is discarded.
  */
@@ -1506,7 +1556,7 @@ function useBerry(state: GameState, owner: PlayerState, p: InPlayPokemon) {
 function expireEffects(pokemon: InPlayPokemon, turn: number) {
   const e = pokemon.effects;
   if (!e) return;
-  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell', 'noAttack', 'noEnergy', 'fireWall', 'focusEnergy', 'crosscounter', 'screech', 'endure', 'pollenShield', 'counter', 'secretePoison', 'slime', 'pursuit', 'lockOn', 'triggeredPoison', 'effectProof', 'pulseGuard', 'dodge', 'reflectShield', 'armorUp', 'noEvolve', 'heavier', 'tailwind', 'noPokePowers'] as const) {
+  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell', 'noAttack', 'noEnergy', 'fireWall', 'focusEnergy', 'crosscounter', 'screech', 'endure', 'pollenShield', 'counter', 'secretePoison', 'slime', 'pursuit', 'lockOn', 'triggeredPoison', 'effectProof', 'pulseGuard', 'dodge', 'reflectShield', 'armorUp', 'noEvolve', 'heavier', 'tailwind', 'noPokePowers', 'conditionProof'] as const) {
     if (e[key] !== undefined && e[key] <= turn) delete e[key];
   }
   if (e.charm && e.charm.until <= turn) delete e.charm;
