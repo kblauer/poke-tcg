@@ -24,30 +24,34 @@ const RATIO_COLORS = { POKEMON: 'bg-rose-500', TRAINER: 'bg-sky-500', ENERGY: 'b
 /**
  * What a deck holds at a glance: its 3 headline Pokémon (see featuredPokemon) and how its cards split
  * between Pokémon, Trainers and Energy, as a bar and counts. Right-clicking a Pokémon opens it in the CardInspector.
- * `compact` (a phone): just a thin bar under the Pokémon, with the counts as its tooltip.
+ * `compact` (a phone): just a thin bar under the Pokémon, with the counts as its tooltip. `large` (Community Decks): bigger
+ * Pokémon, with the bar and counts under them.
  */
 export function DeckSummary({
   entries,
   byId,
   isLocked,
   compact = false,
+  large = false,
 }: {
   entries: DeckEntry[];
   byId: Map<string, CatalogCard>;
   isLocked: (card: CatalogCard) => boolean;
   compact?: boolean;
+  large?: boolean;
 }) {
   const featured = featuredPokemon(entries, byId);
   const inspectOn = useInspectOnRightClick();
   const ratio = deckRatio(entries, byId);
   const size = deckSize(entries);
+  const cardSize = large ? 'h-30 w-[5.375rem]' : 'h-14 w-10';
   const bar = (height: string, title?: string) => (
     <div className={`flex ${height} overflow-hidden rounded-full bg-slate-800`} title={title}>
       {size > 0 && DECK_SECTIONS.map(({ kind }) => <div key={kind} className={RATIO_COLORS[kind]} style={{ width: `${(ratio[kind] / size) * 100}%` }} />)}
     </div>
   );
   return (
-    <div className={compact ? 'w-fit space-y-1' : 'flex items-center gap-3'}>
+    <div className={compact ? 'w-fit space-y-1' : large ? 'w-fit shrink-0 space-y-1.5' : 'flex items-center gap-3'}>
       <div className="flex shrink-0 gap-1">
         {[0, 1, 2].map((i) => {
           const card = featured[i];
@@ -59,17 +63,17 @@ export function DeckSummary({
               title={card.name}
               loading="lazy"
               {...inspectOn(card)}
-              className={`h-14 w-10 rounded-sm object-cover ${isLocked(card) ? 'brightness-50' : ''}`}
+              className={`${cardSize} rounded-sm object-cover ${isLocked(card) ? 'brightness-50' : ''}`}
             />
           ) : (
-            <div key={i} className="h-14 w-10 rounded-sm bg-slate-800" />
+            <div key={i} className={`${cardSize} rounded-sm bg-slate-800`} />
           );
         })}
       </div>
       {compact ? (
         bar('h-1', DECK_SECTIONS.map(({ kind, label }) => `${ratio[kind]} ${label}`).join(' · '))
       ) : (
-        <div className="min-w-0 flex-1 space-y-1">
+        <div className={large ? 'space-y-1' : 'min-w-0 flex-1 space-y-1'}>
           {bar('h-2')}
           <div className="flex flex-wrap gap-x-2 text-xs text-slate-400">
             {DECK_SECTIONS.map(({ kind, label }) => (

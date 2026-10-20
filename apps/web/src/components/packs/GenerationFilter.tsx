@@ -4,7 +4,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { GENERATIONS } from '@poke-tcg/campaign';
 import { useEffect, useRef, useState } from 'react';
 
-/** The generations with packs, for the filter: "Gen 1 · Kanto"… */
+/** Every generation, for the filter: "Gen 1 · Kanto"… */
 const OPTIONS = Object.entries(GENERATIONS).map(([id, g]) => ({ id: Number(id), name: `Gen ${id} · ${g.region}` }));
 
 /** The generation a set's packs belong to (GENERATIONS' `packs`), if any. */
@@ -12,9 +12,21 @@ export const packGeneration = (setId: string) => OPTIONS.find((o) => GENERATIONS
 
 /**
  * The Packs tab's generation filter: a dropdown with a checkbox per generation. Nothing picked (`picked` empty) shows
- * every set, as the page does on each visit; Show all clears the picks. Escape or a click outside closes it.
+ * every set, as the page does on each visit; Show all clears the picks. Escape or a click outside closes it. With `toggles`
+ * (Community Decks) each box turns its generation on or off instead: `picked` holds those on, and Show all turns them all on;
+ * `compact` makes the button smaller.
  */
-export function GenerationFilter({ picked, onChange }: { picked: ReadonlySet<number>; onChange: (picked: Set<number>) => void }) {
+export function GenerationFilter({
+  picked,
+  onChange,
+  toggles = false,
+  compact = false,
+}: {
+  picked: ReadonlySet<number>;
+  onChange: (picked: Set<number>) => void;
+  toggles?: boolean;
+  compact?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -34,11 +46,12 @@ export function GenerationFilter({ picked, onChange }: { picked: ReadonlySet<num
     else next.add(id);
     onChange(next);
   };
-  const label = picked.size === 0 ? 'All' : picked.size === 1 ? OPTIONS.find((s) => picked.has(s.id))?.name : `${picked.size} generations`;
+  const all = toggles ? picked.size === OPTIONS.length : picked.size === 0;
+  const label = all ? 'All' : picked.size === 0 ? 'None' : picked.size === 1 ? OPTIONS.find((s) => picked.has(s.id))?.name : `${picked.size} generations`;
   return (
     <div ref={root} className="relative">
       <button
-        className="flex items-center gap-1 rounded-lg bg-slate-800 px-3 py-1.5 text-sm ring-1 ring-slate-700 transition hover:ring-slate-500"
+        className={`flex items-center gap-1 rounded-lg bg-slate-800 ${compact ? 'px-2 py-0.5' : 'px-3 py-1.5'} text-sm ring-1 ring-slate-700 transition hover:ring-slate-500`}
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         aria-haspopup="listbox"
@@ -64,7 +77,7 @@ export function GenerationFilter({ picked, onChange }: { picked: ReadonlySet<num
             );
           })}
           <div className="mt-1 border-t border-slate-700 pt-1">
-            <button className="w-full rounded px-2 py-1 text-left text-sm text-slate-300 transition hover:bg-slate-700 disabled:opacity-40" disabled={picked.size === 0} onClick={() => onChange(new Set())}>
+            <button className="w-full rounded px-2 py-1 text-left text-sm text-slate-300 transition hover:bg-slate-700 disabled:opacity-40" disabled={all} onClick={() => onChange(new Set(toggles ? OPTIONS.map((o) => o.id) : []))}>
               Show all
             </button>
           </div>

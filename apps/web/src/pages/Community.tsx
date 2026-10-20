@@ -1,3 +1,4 @@
+import { GENERATIONS } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AppRouter } from '@poke-tcg/api/router';
 import { DECK_SIZE } from '@poke-tcg/shared';
@@ -6,6 +7,7 @@ import type { inferRouterOutputs } from '@trpc/server';
 import { useEffect, useMemo, useState } from 'react';
 import { CardImage } from '../components/CardImage';
 import { DeckSummary } from '../components/DeckList';
+import { GenerationFilter } from '../components/packs/GenerationFilter';
 import { AccountNameField } from '../components/AccountMenu';
 import { CopyButton } from '../components/DeckShare';
 import { useInspectOnRightClick } from '../components/InspectContext';
@@ -19,13 +21,20 @@ type CommunityDeck = inferRouterOutputs<AppRouter>['community']['list'][number];
 
 const button = 'rounded px-3 py-1 text-sm disabled:opacity-40';
 
+/** The generations (GENERATIONS) a deck's cards come from, by their sets; basic Energy left out, as any generation's deck may use any set's. */
+const generationsOf = (cards: ReturnType<typeof withCards>) =>
+  Object.entries(GENERATIONS)
+    .filter(([, g]) => cards.some((e) => !e.card.basicEnergy && g.poolSets.includes(e.card.setId)))
+    .map(([id]) => Number(id));
+
 /**
  * Community Decks (`/community`): decks players have published (Share on the Collection tab), the latest first, for
  * everyone to see and import (agreed with the user), as tiles of one size (CommunityDeckTile: click one for its buttons). Each shows its author, description and what it holds, how many of
  * its cards the account hasn't unlocked, and its card list; Import saves it as one of the account's decks (with as many
  * of their own holos as they have) and opens it in the deck builder; Copy code gives its share code. The account's own
  * published decks can be unpublished, and its account name (shown on its decks, never its real name) changed. The search
- * matches deck names, authors and descriptions.
+ * matches deck names, authors and descriptions; the generation dropdown (GenerationFilter) shows the decks with cards
+ * from any of the generations ticked.
  */
 export function CommunityPage() {
   const trpc = useTRPC();
@@ -35,6 +44,8 @@ export function CommunityPage() {
   const { isLocked } = useUnlocked();
   const byId = useMemo(() => new Map((catalog.data ?? []).map((c) => [c.id, c])), [catalog.data]);
   const [search, setSearch] = useState('');
+  /** The generations whose decks are shown (all to start): a deck shows if any of its cards' generations is on. */
+  const [shownGens, setShownGens] = useState<ReadonlySet<number>>(() => new Set(Object.keys(GENERATIONS).map(Number)));
   /** The deck tile clicked to focus it (its buttons showing), if any. */
   const [focused, setFocused] = useState<string | null>(null);
   // A click outside the tiles (not in a card opened large from one), or Escape, puts the focused one back.
@@ -55,11 +66,27 @@ export function CommunityPage() {
   if (!decks.data || !catalog.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
 
   const words = search.trim().toLowerCase();
-  const shown = words ? decks.data.filter((d) => [d.name, d.author, d.description].some((s) => s.toLowerCase().includes(words))) : decks.data;
+  // A deck shows if any of its generations is on (one with only basic Energy always does).
+  const genShown = (gens: number[]) => gens.length === 0 || gens.some((g) => shownGens.has(g));
+  const shown = decks.data.filter(
+    (d) =>
+      (!words || [d.name, d.author, d.description].some((s) => s.toLowerCase().includes(words))) &&
+      genShown(generationsOf(withCards(d.cards, byId))),
+  );
   return (
     <div className={`space-y-4 ${PAGE_WIDTH}`}>
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 className="text-2xl font-bold">Community Decks</h2>
+      <h2 className="text-2xl font-bold">Community Decks</h2>
+      <p className="text-sm text-slate-400">
+        Decks other players have published. Import one to get it in your{' '}
+        <Link to="/decks" className="text-yellow-300 hover:underline">
+          Collection
+        </Link>
+        , even with cards you haven't unlocked (it can't be played until you have them). To publish one of yours, open it on the Collection tab and use Share.
+      </p>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <AccountNameField />
+        <GenerationFilter picked={shownGens} onChange={setShownGens} toggles compact />
+        {/* The search right after the generation dropdown. */}
         <input
           className="w-full max-w-xs rounded bg-slate-900 px-3 py-1.5 text-sm ring-1 ring-slate-600 focus:outline-none focus:ring-slate-400"
           placeholder="Search decks, authors…"
@@ -68,15 +95,7 @@ export function CommunityPage() {
           aria-label="Search community decks"
         />
       </div>
-      <p className="text-sm text-slate-400">
-        Decks other players have published. Import one to get it in your{' '}
-        <Link to="/decks" className="text-yellow-300 hover:underline">
-          Collection
-        </Link>
-        , even with cards you haven't unlocked (it can't be played until you have them). To publish one of yours, open it on the Collection tab and use Share.
-      </p>
-      <AccountNameField />
-      {shown.length === 0 && <p className="text-sm text-slate-500">{decks.data.length ? 'No decks match the search.' : 'No decks published yet.'}</p>}
+      {shown.length === 0 && <p className="text-sm text-slate-500">{decks.data.length ? 'No decks match the search and generations.' : 'No decks published yet.'}</p>}
       <ul className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
         {shown.map((d) => (
           <CommunityDeckTile key={d.id} deck={d} byId={byId} isLocked={isLocked} focused={focused === d.id} onFocus={(on) => setFocused(on ? d.id : null)} />
@@ -88,7 +107,8 @@ export function CommunityPage() {
 
 /**
  * One community deck, a tile of the same size as the others: its name, author and date, description (cut short with an
- * ellipsis), summary and how many of its cards you haven't unlocked. Clicking it focuses it (`focused`, one at a time;
+ * ellipsis, beside its Pokémon shown large over the Pokémon/Trainer/Energy bar; the generations its cards are from, G1, G2…,
+ * top right) and how many of its cards you haven't unlocked, if any. Clicking it focuses it (`focused`, one at a time;
  * agreed with the user): it grows a little, shows its whole description and its buttons along the bottom (Import, Copy
  * code, Cards for its card list, Unpublish on your own); clicking it again, outside it or Escape puts it back.
  */
@@ -125,6 +145,7 @@ function CommunityDeckTile({
   const unpublish = useMutation(trpc.community.unpublish.mutationOptions({ onSuccess: () => queryClient.invalidateQueries({ queryKey: trpc.community.list.queryKey() }) }));
   const cards = withCards(deck.cards, byId);
   const locked = cards.reduce((n, e) => n + (isLocked(e.card) ? e.quantity : 0), 0);
+  const generations = generationsOf(cards);
   return (
     <li
       data-community-tile
@@ -133,12 +154,18 @@ function CommunityDeckTile({
       aria-expanded={focused}
       onClick={() => onFocus(!focused)}
       onKeyDown={(e) => e.target === e.currentTarget && e.key === 'Enter' && onFocus(!focused)}
-      className={`flex cursor-pointer flex-col gap-2 rounded-lg bg-slate-900 p-3 text-sm ring-1 transition focus:outline-none focus-visible:ring-yellow-300 ${
-        focused ? 'relative z-10 min-h-56 scale-[1.03] shadow-xl shadow-black/60 ring-yellow-300' : 'h-56 ring-slate-700 hover:ring-slate-500'
+      className={`@container flex cursor-pointer flex-col gap-2 rounded-lg bg-slate-900 p-3 text-sm ring-1 transition focus:outline-none focus-visible:ring-yellow-300 ${
+        focused ? 'relative z-10 min-h-64 scale-[1.03] shadow-xl shadow-black/60 ring-yellow-300' : 'h-64 overflow-hidden ring-slate-700 hover:ring-slate-500'
       }`}
     >
       <div className="flex items-baseline gap-2">
         <span className="min-w-0 flex-1 truncate font-semibold">{deck.name}</span>
+        {/* The generations its cards are from, before Yours and the card count. */}
+        {generations.map((g) => (
+          <span key={g} title={`Gen ${g} · ${GENERATIONS[g]!.region} cards`} className="shrink-0 rounded bg-slate-700 px-1.5 text-[10px] font-semibold leading-5 text-slate-200">
+            G{g}
+          </span>
+        ))}
         {deck.mine && <span className="shrink-0 rounded bg-sky-700 px-1.5 text-[10px] font-semibold uppercase leading-5 tracking-wide text-sky-100">Yours</span>}
         <span className={`shrink-0 text-xs ${deck.cardCount === DECK_SIZE ? 'text-emerald-400' : 'text-slate-400'}`}>
           {deck.cardCount}/{DECK_SIZE}
@@ -147,10 +174,15 @@ function CommunityDeckTile({
       <p className="truncate text-xs text-slate-500">
         by {deck.author} · {new Date(deck.createdAt).toLocaleDateString()}
       </p>
-      {/* Two lines with an ellipsis until the tile is focused; the space kept even without one, so the tiles line up. */}
-      <p className={`min-h-10 break-words text-slate-300 ${focused ? 'whitespace-pre-line' : 'line-clamp-2'}`}>{deck.description || <span className="italic text-slate-500">No description</span>}</p>
-      <DeckSummary entries={deck.cards} byId={byId} isLocked={isLocked} />
-      <p className={`text-xs ${locked ? 'text-amber-300' : 'text-emerald-400'}`}>{locked ? `${locked} of its cards you haven't unlocked yet` : 'You have every card in it'}</p>
+      {/* Its Pokémon large, the bar under them, and the description on their right (under them on a narrow tile), cut
+          short with an ellipsis until the tile is focused. */}
+      <div className="flex flex-col gap-3 @md:flex-row">
+        <DeckSummary entries={deck.cards} byId={byId} isLocked={isLocked} large />
+        <div className="min-w-0 flex-1 space-y-1">
+          <p className={`break-words text-slate-300 ${focused ? 'whitespace-pre-line' : 'line-clamp-2 @md:line-clamp-6'}`}>{deck.description || <span className="italic text-slate-500">No description</span>}</p>
+          {locked > 0 && <p className="text-xs text-amber-300">{locked} of its cards you haven't unlocked yet</p>}
+        </div>
+      </div>
       {focused && (
         // Its buttons and card list don't put the tile back.
         <div className="mt-auto space-y-2" onClick={(e) => e.stopPropagation()}>
