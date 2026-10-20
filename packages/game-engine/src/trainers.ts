@@ -49,7 +49,7 @@ type Side = Pick<PlayerState, 'active' | 'bench' | 'discard'>;
 export interface TrainerSituation {
   /** The Trainer card being played. */
   card: CardInstance;
-  me: Side & Pick<PlayerState, 'hand' | 'noTrainersUntil' | 'supporterTurn'>;
+  me: Side & Pick<PlayerState, 'hand' | 'noTrainersUntil' | 'supporterTurn' | 'noSupportersUntil'>;
   opp: Side;
   deckCount: number;
   cards: CardLibrary;
@@ -82,9 +82,31 @@ export type PendingChoice = {
        * 'basicType': a Basic Pokémon of `type` (Call for Friend); 'energyType': a basic Energy card of
        * `type` (Recharge); 'baby': a Baby Pokémon (Let's Play!); 'basic': any Basic Pokémon (Summon Minions);
        * 'evolution': an Evolution card (Evolutionary Light); 'darkEvolution': one with Dark in its name (The Boss's Way);
-       * 'basicNotBaby': a Basic Pokémon that isn't a Baby Pokémon (Dual Ball).
+       * 'basicNotBaby': a Basic Pokémon that isn't a Baby Pokémon (Dual Ball); 'energy': any Energy card (Scavenger Hunt);
+       * 'toolOrMachine': a Pokémon Tool or Technical Machine card (Traveling Salesman).
        */
-      filter: 'any' | 'pokemon' | 'basicNamed' | 'basicType' | 'basicEnergy' | 'energyType' | 'baby' | 'basic' | 'basicNotBaby' | 'evolution' | 'darkEvolution' | 'named' | 'ownerBasic' | 'ownerPokemon' | 'trainer' | 'trainerNamed' | 'pokemonNotNamed' | 'evolvesFrom' | 'tool';
+      filter:
+        | 'any'
+        | 'pokemon'
+        | 'basicNamed'
+        | 'basicType'
+        | 'basicEnergy'
+        | 'energyType'
+        | 'baby'
+        | 'basic'
+        | 'basicNotBaby'
+        | 'evolution'
+        | 'darkEvolution'
+        | 'named'
+        | 'ownerBasic'
+        | 'ownerPokemon'
+        | 'trainer'
+        | 'trainerNamed'
+        | 'pokemonNotNamed'
+        | 'evolvesFrom'
+        | 'tool'
+        | 'energy'
+        | 'toolOrMachine';
       /**
        * 'basicNamed' and 'named' (a Pokémon card with one of the names: Jellyfish Pod): the names. 'ownerBasic' (Call for
        * Friend) and 'ownerPokemon' (Brock's Training Method): the owner in the card's name, e.g. 'Brock'. 'evolvesFrom'
@@ -129,6 +151,8 @@ export type PendingChoice = {
       master?: boolean;
       /** As `master`, but a Trainer card may be taken (PokéGear), shown to the opponent. */
       trainer?: boolean;
+      /** Any card must be taken; the rest are shuffled back (Baby Outing, Forest Guardian). */
+      shuffleRest?: boolean;
       /** Any number of basic Energy cards may be taken, one at a time, shown to the opponent; the rest are shuffled back (Flipper Stroke). */
       basicEnergy?: boolean;
       /** Then this player looks at as many cards from the top of their deck, the same way (Flipper Stroke). */
@@ -316,6 +340,21 @@ export type PendingChoice = {
        */
       kind: 'oppHandTrainer';
       any?: boolean;
+      /** Up to this many cards, one at a time (Dark Moon); the opponent then draws as many as were shuffled away (`taken`). */
+      count?: number;
+      taken?: number;
+    }
+  | {
+      /** Apricorn Forest: a basic Energy card from the player's hand to show; then a Basic Pokémon of its type from the deck onto the Bench. */
+      kind: 'revealEnergy';
+    }
+  | {
+      /** Undersea Ruins: one of the player's Evolved Pokémon loses its top Evolution card (discarded), devolving it. */
+      kind: 'devolveOwn';
+    }
+  | {
+      /** Power Plant: a basic Energy card from the player's hand to discard; then a basic Energy card from the discard pile into the hand. */
+      kind: 'powerPlant';
     }
   | {
       kind: 'arrangeTop';
@@ -335,9 +374,11 @@ export type PendingChoice = {
       count: number;
       /**
        * Only Basic Pokémon cards, or only Evolution cards (Super Rod); or Trainer cards instead (Old Rod), basic Energy cards
-       * (Energy Stadium) or any card (Searchlight).
+       * (Energy Stadium), any card (Searchlight), or a Pokémon or basic Energy card (Fishing Tail).
        */
-      filter?: 'basic' | 'evolution' | 'trainer' | 'basicEnergy' | 'any';
+      filter?: 'basic' | 'evolution' | 'trainer' | 'basicEnergy' | 'any' | 'pokemonOrBasicEnergy';
+      /** The card taken is shown to the opponent (Fishing Tail): the log names it. */
+      reveal?: boolean;
       /** The card that started it, still being played: not an option (Old Rod). */
       excludeUid?: string;
       /** Then this player may do the same (Searchlight, Mysterious Wing). */
@@ -512,8 +553,8 @@ export const trainersLocked = (me: Pick<PlayerState, 'noTrainersUntil'>, turn: n
 /** Special Energy behaviour (Rainbow, Full Heal and Potion Energy): what it does when attached from the hand. */
 export interface EnergyEffect {
   onAttach: (state: GameState, owner: PlayerState, pokemon: InPlayPokemon) => void;
-  /** Why it can't be attached to this Pokémon from the hand (Miracle Energy: Shining and Light Pokémon only). */
-  attachError?: (pokemon: PokemonCardDef) => string | null;
+  /** Why it can't be attached to this Pokémon from the hand (Miracle Energy: Shining and Light Pokémon only; Boost Energy: Evolved Pokémon only). */
+  attachError?: (pokemon: PokemonCardDef, inPlay: InPlayPokemon) => string | null;
 }
 
 /** Card-specific Trainer behaviour. */
@@ -533,7 +574,7 @@ export interface TrainerEffect {
   /** It can be used any number of times a turn (Celadon City Gym), whenever `stadiumBlocked` allows. */
   stadiumAnyTimes?: boolean;
   /** Why the player can't use the Stadium now (Celadon City Gym: no Erika's Pokémon to cure). */
-  stadiumBlocked?: (me: Pick<PlayerState, 'active' | 'bench'>, cards: CardLibrary) => string | null;
+  stadiumBlocked?: (me: Pick<PlayerState, 'active' | 'bench' | 'hand'>, cards: CardLibrary) => string | null;
   /** It puts cards from a discard pile into the hand, which Pokémon Tower stops (Energy Retrieval, Item Finder). */
   discardToHand?: boolean;
   /** A Stadium that changes what each Pokémon pays to retreat (The Rocket's Training Gym, Cerulean City Gym). */
@@ -588,6 +629,7 @@ export function trainerError(s: TrainerSituation): string | null {
   if (d.kind !== 'trainer' || !(effect?.play || effect?.stadium)) return `${d.name} can't be played this way`;
   if (trainersLocked(s.me, s.turn)) return TRAINERS_LOCKED;
   if (effect.supporter && s.me.supporterTurn === s.turn) return 'You can play only one Supporter card each turn';
+  if (effect.supporter && (s.me.noSupportersUntil ?? 0) >= s.turn) return "Addictive Pollen: you can't play Supporter cards this turn";
   const hayFever = trainersBlocked([s.me, s.opp], s.cards);
   if (hayFever) return hayFever;
   // A Stadium can't be played while one with the same name is in play.
@@ -612,7 +654,7 @@ export function stadiumError(
   stadium: CardInstance | null,
   usedTurn: number | undefined,
   turn: number,
-  player?: { me: Pick<PlayerState, 'active' | 'bench'>; cards: CardLibrary },
+  player?: { me: Pick<PlayerState, 'active' | 'bench' | 'hand'>; cards: CardLibrary },
 ): string | null {
   const effect = stadium && trainerEffect(stadium.defId);
   if (!effect?.useStadium) return 'There is no Stadium to use';
@@ -787,6 +829,7 @@ const discardToHandFits = (cards: CardLibrary, c: CardInstance, filter?: Extract
   if (filter === 'any') return true;
   if (filter === 'trainer') return isTrainerCard(d);
   if (filter === 'basicEnergy') return isBasicEnergy(d);
+  if (filter === 'pokemonOrBasicEnergy') return isPokemonCard(d) || isBasicEnergy(d);
   if (!isPokemonCard(d)) return false;
   return filter === 'basic' ? isBasicPokemon(d) : filter === 'evolution' ? !isBasicPokemon(d) : true;
 };
@@ -864,6 +907,19 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
   if (choice.kind === 'challenge') {
     return { kind: 'challenge', prompt: `${choice.source}: your opponent challenges you. If you accept, each of you puts any number of Basic Pokémon from your deck onto your Bench; if you decline, they draw 2 cards` };
   }
+  if (choice.kind === 'oppHandTrainer' && choice.count !== undefined) {
+    const hand = state.players[opponentOfChoice(state, choice)]!.hand;
+    return { kind: 'oppHand', prompt: `${choice.source}: choose up to ${choice.count} more card${choice.count === 1 ? '' : 's'} for your opponent to shuffle into their deck (they then draw as many)`, cards: hand, options: hand, optional: true };
+  }
+  if (choice.kind === 'revealEnergy' || choice.kind === 'powerPlant') {
+    const hand = state.players[choice.player]!.hand.filter((c) => isBasicEnergy(lookupCard(state.cards, c.defId)));
+    const what = choice.kind === 'revealEnergy' ? 'show a basic Energy card from your hand: a Basic Pokémon of its type goes from your deck onto your Bench' : 'discard a basic Energy card from your hand, then take one from your discard pile';
+    return { kind: 'pickFromHand', prompt: `${choice.source}: ${what}`, options: hand };
+  }
+  if (choice.kind === 'devolveOwn') {
+    const player = state.players[choice.player]!;
+    return { kind: 'ownPokemon', purpose: 'return', prompt: `${choice.source}: click one of your Evolved Pokémon to discard its top Evolution card`, options: targetsOf(player).filter((t) => (t === 'active' ? player.active : player.bench[t])!.evolvedFrom.length > 0) };
+  }
   if (choice.kind === 'oppHandTrainer') {
     const hand = state.players[opponentOfChoice(state, choice)]!.hand;
     const options = choice.any ? hand : hand.filter((c) => isTrainerCard(lookupCard(state.cards, c.defId)));
@@ -921,7 +977,7 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
   const player = state.players[choice.player]!;
   if (choice.kind === 'discardToHand') {
     const more = choice.count > 1 ? ` (up to ${choice.count})` : '';
-    const what = { basic: 'a Basic Pokémon card', evolution: 'an Evolution card', trainer: 'a Trainer card', basicEnergy: 'a basic Energy card', any: 'a card' }[choice.filter ?? 'basic'];
+    const what = { basic: 'a Basic Pokémon card', evolution: 'an Evolution card', trainer: 'a Trainer card', basicEnergy: 'a basic Energy card', any: 'a card', pokemonOrBasicEnergy: 'a Pokémon or basic Energy card' }[choice.filter ?? 'basic'];
     const pokemon = choice.filter === undefined ? 'a Basic Pokémon or Evolution card' : what;
     return { kind: 'pickFromDiscard', prompt: `${choice.source}: put ${pokemon} from your discard pile into your hand${more}`, options: player.discard.filter((c) => c.uid !== choice.excludeUid && discardToHandFits(state.cards, c, choice.filter)), optional: true };
   }
@@ -981,6 +1037,10 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
     const name = (c: CardInstance) => lookupCard(state.cards, c.defId).name;
     const options = player.deck.filter((c) => evolvesFromEevee(state.cards, c)).sort((a, b) => name(a).localeCompare(name(b)) || a.uid.localeCompare(b.uid));
     return { kind: 'pickFromDeck', prompt: `${choice.source}: you may evolve Eevee with a card from your deck`, options, optional: true };
+  }
+  if (choice.kind === 'pickFromTop' && choice.shuffleRest) {
+    const options = player.deck.filter((c) => choice.looked.includes(c.uid));
+    return { kind: 'pickFromDeck', prompt: `${choice.source}: put one of these cards into your hand; the rest are shuffled back`, options };
   }
   if (choice.kind === 'pickFromTop') {
     const options = player.deck.filter((c) => choice.looked.includes(c.uid));
@@ -1118,6 +1178,10 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
         ? 'a Basic Pokémon'
       : choice.filter === 'basicNotBaby'
         ? 'a Basic Pokémon (not a Baby Pokémon)'
+      : choice.filter === 'energy'
+        ? 'an Energy card'
+      : choice.filter === 'toolOrMachine'
+        ? 'a Pokémon Tool or Technical Machine card'
       : choice.filter === 'evolution'
         ? 'an Evolution card'
       : choice.filter === 'darkEvolution'
@@ -1180,6 +1244,8 @@ export const deckFilter = (cards: CardLibrary, choice: Extract<PendingChoice, { 
   if (choice.filter === 'pokemonNotNamed') return isPokemonCard(d) && d.name !== choice.name;
   if (choice.filter === 'evolvesFrom') return d.kind === 'pokemon' && !d.trainerText && d.evolvesFrom === choice.name;
   if (choice.filter === 'tool') return d.kind === 'trainer' && !!trainerEffect(c.defId)?.tool;
+  if (choice.filter === 'energy') return d.kind === 'energy';
+  if (choice.filter === 'toolOrMachine') return d.kind === 'trainer' && (!!trainerEffect(c.defId)?.tool || !!trainerEffect(c.defId)?.technicalMachine);
   return choice.filter === 'any' || (d.kind === 'pokemon' && !d.trainerText);
 };
 
@@ -1455,6 +1521,63 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     addLog(state, `Accepted ${choice.source}`, me.id);
     challengeSearch(state, challenger, choice.source, me.id);
     return null;
+  } else if (choice.kind === 'oppHandTrainer' && choice.count !== undefined) {
+    // Dark Moon: up to `count` cards, one at a time; then the opponent draws as many as were shuffled away.
+    const opp = state.players[opponentOfChoice(state, choice)]!;
+    const card = opp.hand.find((c) => c.uid === answer.cardUid);
+    if (answer.cardUid !== undefined && !card) return "Choose a card from your opponent's hand";
+    const taken = (choice.taken ?? 0) + (card ? 1 : 0);
+    if (card) {
+      opp.hand = opp.hand.filter((c) => c !== card);
+      [opp.deck, state.rngState] = shuffle([...opp.deck, card], state.rngState);
+      addLog(state, `${choice.source}: shuffled ${name(card)} into the deck.`, opp.id);
+      if (choice.count > 1 && opp.hand.length) {
+        state.pendingChoice = { ...choice, count: choice.count - 1, taken };
+        return null;
+      }
+    }
+    if (taken) {
+      const drawn = opp.deck.splice(0, taken);
+      opp.hand.push(...drawn);
+      addLog(state, `${choice.source}: drew ${drawn.length} card${drawn.length === 1 ? '' : 's'}.`, opp.id);
+    }
+  } else if (choice.kind === 'revealEnergy') {
+    const energy = me.hand.find((c) => c.uid === answer.cardUid && isBasicEnergy(lookupCard(state.cards, c.defId)));
+    if (!energy) return 'Choose a basic Energy card from your hand';
+    const type = (lookupCard(state.cards, energy.defId) as { energyType: EnergyType }).energyType;
+    addLog(state, `${choice.source}: showed ${name(energy)}.`, me.id);
+    if (me.deck.some((c) => { const d = lookupCard(state.cards, c.defId); return isBasicPokemon(d) && d.kind === 'pokemon' && d.type === type; })) {
+      state.pendingChoice = { player: me.id, source: choice.source, kind: 'pickFromDeck', filter: 'basicType', type, toBench: true };
+      return null;
+    }
+    [me.deck, state.rngState] = shuffle(me.deck, state.rngState);
+    addLog(state, `${choice.source}: no Basic Pokémon of that type in the deck.`, me.id);
+  } else if (choice.kind === 'powerPlant') {
+    const energy = me.hand.find((c) => c.uid === answer.cardUid && isBasicEnergy(lookupCard(state.cards, c.defId)));
+    if (!energy) return 'Choose a basic Energy card from your hand';
+    me.hand = me.hand.filter((c) => c !== energy);
+    me.discard.push(energy);
+    addLog(state, `${choice.source}: discarded ${name(energy)}.`, me.id);
+    state.pendingChoice = { player: me.id, source: choice.source, kind: 'discardToHand', count: 1, filter: 'basicEnergy', reveal: true };
+    return null;
+  } else if (choice.kind === 'devolveOwn') {
+    const p = answer.target === undefined ? null : answer.target === 'active' ? me.active : me.bench[answer.target];
+    if (!p?.evolvedFrom.length) return 'Choose one of your Evolved Pokémon';
+    const top = p.card;
+    p.card = p.evolvedFrom.pop()!;
+    me.discard.push(top);
+    // As if it had evolved: Special Conditions and attack effects end. A Knock Out is handled after.
+    clearOnLeavingActive(p);
+    addLog(state, `${choice.source}: discarded ${name(top)}; it's ${name(p.card)} again.`, me.id);
+  } else if (choice.kind === 'pickFromTop' && choice.shuffleRest) {
+    const picked = me.deck.find((c) => c.uid === answer.cardUid && choice.looked.includes(c.uid));
+    if (!picked && me.deck.some((c) => choice.looked.includes(c.uid))) return 'Choose one of the cards';
+    if (picked) {
+      me.deck = me.deck.filter((c) => c !== picked);
+      me.hand.push(picked);
+      addLog(state, 'Put a card into the hand.', me.id);
+    }
+    [me.deck, state.rngState] = shuffle(me.deck, state.rngState);
   } else if (choice.kind === 'oppHandTrainer') {
     const opp = state.players[opponentOfChoice(state, choice)]!;
     const trainers = choice.any ? opp.hand : opp.hand.filter((c) => isTrainerCard(lookupCard(state.cards, c.defId)));

@@ -197,6 +197,8 @@ export function toCardDef(card: Card): CardDef {
     if (card.name === 'Rainbow Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'colorless', anyType: true, basic: false, holo: isHolo(card) };
     // Miracle Energy counts as every type but provides only 2 Energy at a time.
     if (card.name === 'Miracle Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'colorless', anyType: true, amount: 2, basic: false, holo: isHolo(card) };
+    // Boost Energy provides 3 Colorless Energy (its other rules are the engine's).
+    if (card.name === 'Boost Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'colorless', amount: 3, basic: false, holo: isHolo(card) };
     // Full Heal, Potion and Recycle Energy provide Colorless (their effects are the engine's); Darkness and Metal Energy 1 Energy of their type.
     return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: known ? named : 'colorless', basic: false, holo: isHolo(card) };
   }

@@ -33,13 +33,17 @@ export interface PowerChoices {
   fromSide?: 'own' | 'opp';
   /** Whose Pokémon to give something to (Chaos Move); then which, in `to` or `oppTo`. */
   toSide?: 'own' | 'opp';
+  /** A second Energy card, attached to `oppTo` (Magnetic Flow). */
+  energyUid2?: string;
 }
 
 /** A question a power asks before it's used. */
 export type PowerChoiceSpec = { prompt: string } & (
   | { kind: 'ownPokemon'; field: 'from' | 'to'; options: Target[] }
   | { kind: 'handCard'; field: 'cardUid'; options: CardInstance[] }
-  | { kind: 'attachedEnergy'; field: 'energyUid'; options: CardInstance[] }
+  | { kind: 'attachedEnergy'; field: 'energyUid' | 'energyUid2'; options: CardInstance[] }
+  /** A card in a discard pile (Strange Tentacles: the opponent's; Miracle Shift: the player's). */
+  | { kind: 'discardCard'; field: 'cardUid'; options: CardInstance[] }
   | { kind: 'type'; field: 'type'; options: EnergyType[] }
   | { kind: 'oppPokemon'; field: 'oppFrom' | 'oppTo'; options: Target[] }
   | { kind: 'peek'; field: 'peek'; options: PeekTarget[] }
@@ -56,7 +60,7 @@ export type PeekTarget = 'deck' | 'oppDeck' | 'oppHand' | 'prize' | 'oppPrize';
 /** What a power can see before it's used. View-safe: the UI builds it from a PlayerView. */
 export interface PowerSituation {
   me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'discard' | 'powersOffUntil' | 'quickenTurn' | 'activeEnergyTurn'>;
-  opp: Pick<PlayerState, 'active' | 'bench' | 'powersOffUntil'>;
+  opp: Pick<PlayerState, 'active' | 'bench' | 'powersOffUntil' | 'discard'>;
   /** Sizes of the hidden piles (Peek). */
   counts: { deck: number; prizes: number; oppDeck: number; oppHand: number; oppPrizes: number };
   /** The Pokémon whose power it is. */
@@ -212,6 +216,24 @@ export interface PowerEffect {
   damageReduction?: number;
   /** Dark Aura (a Poké-Body): every Energy attached to it provides this type instead of its own (energyPool). */
   energyAs?: EnergyType;
+  /** A Poké-Body (always on; Dark Impact doesn't stop it). Poké-Powers and the older Pokémon Powers don't have it. */
+  body?: boolean;
+  /** Extreme Speed, Heavyweight, Lightweight, Conductive Body: how much its own retreat cost changes (retreatCost). */
+  retreatChange?: (pokemon: InPlayPokemon, cards: CardLibrary, owner: Pick<PlayerState, 'active' | 'bench'>) => number;
+  /** Gluey Slime: each player's Active Pokémon costs 1 more to retreat (only 1, however many are in play). */
+  glueySlime?: boolean;
+  /** Poison Resistance: it can't be Poisoned. */
+  noPoison?: boolean;
+  /** Dense Body: attack damage to it from Basic Pokémon (not Baby Pokémon) is this much less. */
+  basicGuard?: number;
+  /** Suction Cups: as its owner's Active Pokémon, the opponent's Active Pokémon that retreats has all its Energy cards discarded (RETREAT). */
+  suctionCups?: boolean;
+  /** Fluff: during the opponent's turn, with a damage counter on it, a flip whenever an attack does anything to it; heads prevents all of it. */
+  fluff?: boolean;
+  /** Enervating Pollen: Resistance on each Active Pokémon takes off at most 10 (attacks.ts). */
+  enervatingPollen?: boolean;
+  /** Anti-Lightning: basic Energy cards of this type can't be attached to it from the hand (attachBlocked). */
+  antiAttach?: EnergyType;
 }
 
 export interface PowerContext {
@@ -267,6 +289,8 @@ export function powerActive(pokemon: InPlayPokemon, cards: CardLibrary, sides: S
   const effect = powerEffect(effectId(pokemon));
   if (!effect?.ignoresConditions && (effect?.stopsOnlyWhileAsleep ? pokemon.condition === 'asleep' : pokemon.condition)) return false;
   if (effect?.stopsOnAnyCondition && (pokemon.poison || pokemon.burned)) return false;
+  // Dark Impact: its Poké-Powers (and Pokémon Powers) don't work; Poké-Bodies do.
+  if (pokemon.effects?.noPokePowers !== undefined && !effect?.body) return false;
   // Scare: a Baby Pokémon's power doesn't work while the opponent's Active Dark Feraligatr's Scare does.
   if (inPlayDef(cards, pokemon).baby) {
     const owner = sides.find((s) => s.active === pokemon || s.bench.includes(pokemon));
@@ -382,6 +406,31 @@ export function trainerProof(side: Pick<PlayerState, 'active'>, sides: Sides, ca
   return powerEffect(effectId(p))?.legendaryBody && powerActive(p, cards, sides) ? `${powerOf(p, cards)!.name}: ${inPlayDef(cards, p).name} isn't affected by Trainer cards` : null;
 }
 
+/**
+ * Why `energy` from `owner`'s hand can't be attached to their Pokémon `pokemon` (Anti-Lightning: a basic Energy card of its
+ * type), or null. `sides`: both players'.
+ */
+export function attachBlocked(cards: CardLibrary, sides: Sides, pokemon: InPlayPokemon, energy: CardInstance): string | null {
+  const effect = powerEffect(effectId(pokemon));
+  const d = lookupCard(cards, energy.defId);
+  if (!effect?.antiAttach || !powerActive(pokemon, cards, sides) || d.kind !== 'energy' || d.basic === false || d.energyType !== effect.antiAttach) return null;
+  return `${inPlayDef(cards, pokemon).power!.name}: ${d.name} cards can't be attached to ${inPlayDef(cards, pokemon).name} from your hand`;
+}
+
+/**
+ * How much the Poké-Bodies in play change what `pokemon` (`sides[0]`'s Active Pokémon) pays to retreat: its own
+ * (Extreme Speed, Heavyweight, Lightweight, Conductive Body) and Gluey Slime anywhere in play (1 more, however many).
+ */
+export function retreatBodies(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sides): number {
+  const [owner] = sides;
+  if (!owner) return 0;
+  const own = powerActive(pokemon, cards, sides) ? (powerEffect(effectId(pokemon))?.retreatChange?.(pokemon, cards, owner) ?? 0) : 0;
+  return own + (owner.active === pokemon && anyWorking(sides, cards, (e) => e.glueySlime) ? 1 : 0);
+}
+
+/** Enervating Pollen is working: a Pokémon with it anywhere in play. */
+export const enervatingPollen = (sides: Sides, cards: CardLibrary) => anyWorking(sides, cards, (e) => e.enervatingPollen);
+
 /** Why no Evolution cards can be played (Prehistoric Power), or null. */
 export function evolutionBlocked(sides: Sides, cards: CardLibrary): string | null {
   const blocker = allInPlay(sides).find((p) => powerEffect(effectId(p))?.blocksEvolution && powerActive(p, cards, sides));
@@ -424,6 +473,14 @@ export function energyFromHand(state: GameState, owner: PlayerState, target: Tar
   const pokemon = pokemonAt(owner, target);
   const sides = state.playerOrder.map((id) => state.players[id]!);
   if (pokemon && powerActive(pokemon, state.cards, sides)) powerEffect(effectId(pokemon))?.onEnergyFromHand?.(state, owner, pokemon, target, energy);
+  // Pokémon Park: the first time each turn a player attaches an Energy card from the hand to a Benched Pokémon, 1 damage counter off it.
+  if (pokemon && target !== 'active' && state.stadium && lookupCard(state.cards, state.stadium.card.defId).name === 'Pokémon Park' && owner.parkTurn !== state.turn) {
+    owner.parkTurn = state.turn;
+    if (pokemon.damage >= 10) {
+      pokemon.damage -= 10;
+      addLog(state, `Pokémon Park removed a damage counter from ${inPlayDef(state.cards, pokemon).name}.`, owner.id);
+    }
+  }
   // Conductivity: 10 damage to it, from the opponent's working Dark Ampharos.
   if (pokemon) conductivity(state, sides.find((s) => s !== owner)!, sides, pokemon);
 }
@@ -467,6 +524,7 @@ export function powerError(s: PowerSituation): string | null {
   if (goopGas([s.me, s.opp])) return `Goop Gas Attack: Pokémon Powers don't work until the end of the turn after it was played`;
   if (toxicGas([s.me, s.opp])) return `Toxic Gas: ${def.power.name} can't be used`;
   if (source.powerOffUntil !== undefined) return `${def.power.name} doesn't work until the end of your turn (Stare)`;
+  if (source.effects?.noPokePowers !== undefined) return `Dark Impact: ${def.name} can't use Poké-Powers this turn`;
   const blocked = effect.blocked?.(s);
   if (blocked) return blocked;
   return effect.oncePerTurn && source.powerUsedTurn === s.turn ? `${def.name} has already used ${def.power.name} this turn` : null;
@@ -482,6 +540,7 @@ function autoAnswer(spec: PowerChoiceSpec): PowerChoices[keyof PowerChoices] | u
   switch (spec.kind) {
     case 'handCard':
     case 'attachedEnergy':
+    case 'discardCard':
       // Identical cards (e.g. two Water Energy) make no difference.
       return new Set(spec.options.map((e) => e.defId)).size === 1 && !spec.options.some((e) => e.provides) ? spec.options[0]!.uid : undefined;
     case 'type':
@@ -492,7 +551,7 @@ function autoAnswer(spec: PowerChoiceSpec): PowerChoices[keyof PowerChoices] | u
 }
 
 function validAnswer(spec: PowerChoiceSpec, value: unknown): boolean {
-  if (spec.kind === 'handCard' || spec.kind === 'attachedEnergy') return spec.options.some((e) => e.uid === value);
+  if (spec.kind === 'handCard' || spec.kind === 'attachedEnergy' || spec.kind === 'discardCard') return spec.options.some((e) => e.uid === value);
   return (spec.options as unknown[]).includes(value);
 }
 

@@ -34,7 +34,7 @@ export function PowerPanel({ view, power, busy }: { view: PlayerView; power: Pow
               ))}
             </div>
           )}
-          {(spec.kind === 'handCard' || spec.kind === 'attachedEnergy') &&
+          {(spec.kind === 'handCard' || spec.kind === 'attachedEnergy' || spec.kind === 'discardCard') &&
             spec.options.map((c) => (
               <button key={c.uid} className={option} onClick={() => power.answer(c.uid)}>
                 {lookupCard(view.cards, c.defId).name}

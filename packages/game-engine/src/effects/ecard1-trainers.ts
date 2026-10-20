@@ -13,7 +13,7 @@ import { isBasicEnergy, isBasicPokemon, lookupCard, type CardDef } from '../card
 import { activeLock, discardTheirEnergy, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { energyKept, trainerProof } from '../powers.js';
 import { energyProtected, pokemonName } from '../status.js';
-import { swapActive, targetsOf, theirs, type TrainerContext, type TrainerEffect, type TrainerSituation } from '../trainers.js';
+import { swapActive, targetsOf, theirs, type EnergyEffect, type TrainerContext, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 import { BASE1_TRAINERS } from './base1-trainers.js';
 import { FOSSIL_TRAINERS } from './fossil-trainers.js';
 import { GYM2_TRAINERS } from './gym2-trainers.js';
@@ -184,4 +184,10 @@ export const ECARD1_TRAINERS: Record<string, TrainerEffect> = {
   'ecard1-155': NEO1_TRAINERS['neo1-101']!,
   'ecard1-156': BASE1_TRAINERS['base1-94']!,
   'ecard1-157': BASE1_TRAINERS['base1-95']!,
+};
+
+/** Darkness and Metal Energy: their rules live in the engine (attacks.ts, betweenTurns). */
+export const ECARD1_ENERGY: Record<string, EnergyEffect> = {
+  'ecard1-158': { onAttach: () => {} },
+  'ecard1-159': { onAttach: () => {} },
 };

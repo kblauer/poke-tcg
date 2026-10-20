@@ -79,6 +79,8 @@ export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCa
   } else if (shapeshiftCard(pokemon)) {
     d = { ...(lookupCard(cards, shapeshiftCard(pokemon)!.defId) as PokemonCardDef), power: own.power };
   } else if (pokemon.shiftedType) d = { ...own, type: pokemon.shiftedType };
+  // Crystal Type: the type of the basic Energy card attached from the hand, until the end of the turn.
+  if (pokemon.crystalType) d = { ...d, type: pokemon.crystalType };
   // Submerge: Lanturn is a Water Pokémon until the end of the turn.
   if (pokemon.submerged !== undefined) d = { ...d, type: 'water' };
   if (pokemon.effects?.giantGrowth) d = { ...d, hp: 80 };
@@ -148,6 +150,8 @@ export function benchRoom(bench: readonly (InPlayPokemon | null)[], cards: CardL
  * ones that last while it stays in play (Leek Slap, Hyper Needle).
  */
 export function clearOnLeavingActive(pokemon: InPlayPokemon) {
+  // Ion Coating ends when the Active Pokémon leaves the Active spot.
+  for (const e of pokemon.energy) if (e.converted?.activeOnly) delete e.converted;
   pokemon.condition = null;
   pokemon.poison = 0;
   pokemon.burned = false;

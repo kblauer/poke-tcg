@@ -50,6 +50,12 @@ export function AttackChoicePanel({ spec, view, attack }: { spec: ChoiceSpec; vi
             </button>
           ))}
         {spec.kind === 'opponentBench' && <p className={pickHint}>Click one of the CPU's highlighted Benched Pokémon.</p>}
+        {/* "You may switch" (Spiral Aura, Snatch): -1 doesn't. */}
+        {spec.kind === 'opponentBench' && spec.optional && (
+          <button className={option} onClick={() => attack.answer(-1)}>
+            Don't switch
+          </button>
+        )}
         {spec.kind === 'ownBench' && <p className={pickHint}>Click one of your highlighted Benched Pokémon.</p>}
         {/* "You may switch" (Teleport Blast): -1 stays put. */}
         {spec.kind === 'ownBench' && spec.optional && (

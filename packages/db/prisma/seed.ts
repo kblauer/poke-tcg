@@ -81,6 +81,31 @@ const TCGDEX_FIXES: Record<string, Partial<TcgdexCard>> = {
     effect:
       "Attach this card to 1 of your Pokémon in play. That Pokémon may use this card's attack instead of its own. At the end of your turn, discard Multi Technical Machine 01. Attack: Paralyzing Gaze (Colorless): The Defending Pokémon is now Paralyzed.",
   },
+  // Aquapolis Smeargle: TCGdex spells Doubleslap "Doublslap".
+  'ecard2-109': {
+    attacks: [
+      { name: 'Paint Trick', cost: ['Colorless'], damage: null, effect: 'Flip a coin. If heads, the Defending Pokémon is now Confused. Then, choose 1 of your Benched Pokémon and switch Smeargle with it.' },
+      { name: 'Doubleslap', cost: ['Colorless', 'Colorless'], damage: '20×', effect: 'Flip 2 coins. This attack does 20 damage times the number of heads.' },
+    ],
+  },
+  // Aquapolis's Cubes (Technical Machines): TCGdex leaves out their attacks.
+  ...Object.fromEntries(
+    (
+      [
+        ['ecard2-119', 'Darkness', 'Plunder (Darkness) 10: Before doing damage, discard any Trainer cards attached to the Defending Pokémon.'],
+        ['ecard2-121', 'Fighting', 'Violent Rage (Fighting) 10×: Flip a number of coins equal to the number of damage counters on this Pokémon. This attack does 10 damage times the number of heads.'],
+        ['ecard2-122', 'Fire', 'Singe (Fire): The Defending Pokémon is now Burned.'],
+        ['ecard2-124', 'Grass', 'Sleep Poison (Grass): The Defending Pokémon is now Asleep and Poisoned.'],
+        ['ecard2-127', 'Lightning', 'Discharge (Lightning) 40×: Discard all Lightning Energy cards attached to this Pokémon. Then, flip a number of coins equal to the number of Energy cards discarded that way. This attack does 40 damage times the number of heads.'],
+        ['ecard2-129', 'Metal', "Metal Reversal (Metal) 10: Before doing damage, you may choose 1 of your opponent's Benched Pokémon and switch it with the Defending Pokémon."],
+        ['ecard2-132', 'Psychic', 'Psy Confuse (Psychic): The Defending Pokémon is now Confused.'],
+        ['ecard2-140', 'Water', "Splatter (Water): Choose 1 of your opponent's Pokémon. This attack does 20 damage to that Pokémon. Don't apply Weakness or Resistance."],
+      ] as const
+    ).map(([id, type, attack]) => {
+      const cube = `${type} Cube 01`;
+      return [id, { effect: `Attach this card to 1 of your ${type} Pokémon in play. That Pokémon may use this card's attack instead of its own. At the end of your turn, discard ${cube}. Attack: ${attack}` }];
+    }),
+  ),
   // Southern Islands Tentacruel: TCGdex lists both attacks twice; the printed card Paralyzes with Poison Sting.
   'si1-10': {
     attacks: [

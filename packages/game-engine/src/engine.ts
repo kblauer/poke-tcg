@@ -1,6 +1,6 @@
 /// <reference path="./globals.d.ts" />
 import { applyWeaknessResistance, attackSituation, checkAttack, performAttack, recallsAttacks, usableAttacks, type AttackChoices } from './attacks.js';
-import { discardsLocked, energyFromHand, evolutionBlocked, guardedBy, miraculousWind, offerChainReaction, playedFromHand, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, trainersBlocked, usePower, zoomed, type PowerChoices } from './powers.js';
+import { attachBlocked, discardsLocked, energyFromHand, evolutionBlocked, retreatBodies, guardedBy, miraculousWind, offerChainReaction, playedFromHand, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, trainersBlocked, usePower, zoomed, type PowerChoices } from './powers.js';
 import { evolvesFromEevee, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
 import { isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
@@ -18,12 +18,16 @@ export interface CardInstance {
   provides?: { type: EnergyType; amount: number };
   /**
    * Energy Converter: this basic Energy card is treated as `type` until the end of the turn, while the Porygon2 whose
-   * top card is `by` works (refreshConverted).
+   * top card is `by` works (refreshConverted). `activeOnly` (Ion Coating): also until its Pokémon leaves the Active spot.
+   * `untied` (Burning Energy, Ion Coating): until the end of the turn, whatever becomes of the Pokémon that used it.
    */
-  converted?: { type: EnergyType; by: string };
+  converted?: { type: EnergyType; by: string; activeOnly?: boolean; untied?: boolean };
   /** Miraculous Wind: this attached Special Energy card provides Colorless Energy only and its other effects stop (refreshWind). */
   windless?: boolean;
 }
+
+/** Energy that pays for a Crystal Energy card: one of these types (`crystal:fire,water`), chosen as the cost needs. */
+export type CrystalEnergy = `crystal:${string}`;
 
 /** Asleep, Confused and Paralyzed replace each other; Poison and Burned are tracked separately (InPlayPokemon.poison, .burned). */
 export type SpecialCondition = 'asleep' | 'confused' | 'paralyzed';
@@ -172,6 +176,8 @@ export interface PokemonEffects {
   flashTouch?: boolean;
   /** Its retreat cost is 0 through this turn (Tailwind). */
   tailwind?: number;
+  /** Its Poké-Powers (and Pokémon Powers) don't work, through this turn (Dark Impact); Poké-Bodies still do. */
+  noPokePowers?: number;
 }
 
 export interface InPlayPokemon {
@@ -227,6 +233,10 @@ export interface InPlayPokemon {
   submerged?: number;
   /** Rocket's Hideout is the Stadium in play and it has Dark in its name: 20 more HP (refreshHideout, inPlayDef). */
   hideout?: boolean;
+  /** Crystal Type: the type it's changed to until the end of the turn (inPlayDef). */
+  crystalType?: EnergyType;
+  /** Time Shard: an opponent's attack's damage is Knocking it Out; up to 2 of its basic Energy cards go back to the hand (resolveKnockouts). */
+  timeShard?: boolean;
 }
 
 export interface PlayerState {
@@ -272,6 +282,10 @@ export interface PlayerState {
   supporterTurn?: number;
   /** The turn this player last attached an Energy card from their hand to their Active Pokémon (Harvest Bounty). */
   activeEnergyTurn?: number;
+  /** Last turn this player can't play Supporter cards (Addictive Pollen). */
+  noSupportersUntil?: number;
+  /** The turn Pokémon Park last removed a damage counter for this player (once during each of their turns). */
+  parkTurn?: number;
 }
 
 export type Phase = 'setup' | 'playing' | 'promote' | 'finished';
@@ -718,8 +732,8 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       if (!energy || card(energy).kind !== 'energy') return fail('Must attach an energy card from your hand');
       state.blaineAttach = second ? 'done' : blaine && fire(energy) ? baseUid(target) : 'done';
       if (target.effects?.noEnergy !== undefined) return fail(`Energy cards can't be attached to ${pokemonName(state, target)} this turn`);
-      // Miracle Energy goes only on Shining and Light Pokémon.
-      const notHere = energyEffect(energy.defId)?.attachError?.(inPlayDef(state.cards, target));
+      // Miracle Energy goes only on Shining and Light Pokémon, Boost Energy only on an Evolved Pokémon; Anti-Lightning.
+      const notHere = energyEffect(energy.defId)?.attachError?.(inPlayDef(state.cards, target), target) ?? attachBlocked(state.cards, [me, opp], target, energy);
       if (notHere) return fail(notHere);
       target.energy.push(energy);
       state.energyAttachedThisTurn = true;
@@ -782,6 +796,8 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
         me.active.damage += 10;
         addLog(state, `Pursuit did 10 damage to ${pokemonName(state, me.active)}.`, me.id);
       }
+      // Suction Cups: the opponent's Active Octillery's discards every Energy card from the Pokémon that retreats.
+      const suction = opp.active && powerEffect(effectId(opp.active))?.suctionCups && powerActive(opp.active, state.cards, [opp, me]);
       // [Chase]: the opponent's Active Unown C flips; heads puts a damage counter on it, with Weakness and Resistance.
       const chaser = opp.active;
       if (chaser && powerEffect(effectId(chaser))?.chase && powerActive(chaser, state.cards, [opp, me]) && flipCoin(state, '[Chase]', opp.id)) {
@@ -803,6 +819,11 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       clearOnLeavingActive(retreated);
       me.bench[action.slot] = retreated;
       me.active = benched;
+      if (suction && retreated.energy.length) {
+        me.discard.push(...retreated.energy.map(asDiscarded));
+        retreated.energy = [];
+        addLog(state, `Suction Cups: discarded every Energy card from ${pokemonName(state, retreated)}.`, me.id);
+      }
       // Sinkhole: for each working one on the other side, the retreating player flips; tails does 20 to the Pokémon that retreated.
       for (const p of [opp.active, ...opp.bench]) {
         if (!p || !powerEffect(effectId(p))?.sinkhole || !powerActive(p, state.cards, [opp, me])) continue;
@@ -1082,6 +1103,8 @@ export const retreatCost = (pokemon: InPlayPokemon, cards: CardLibrary, sides: P
       // Tentacle Wrap: 1 more.
       (pokemon.effects?.heavier !== undefined ? 1 : 0) -
       retreatAid(pokemon, cards, sides) +
+      // Poké-Bodies: Extreme Speed, Heavyweight, Lightweight, Conductive Body, Gluey Slime.
+      retreatBodies(pokemon, cards, sides) +
       (sides[0]?.active === pokemon ? stickyGoo(sides, cards) : 0) +
       (stadium ? (trainerEffect(stadium.defId)?.retreatModifier?.(inPlayDef(cards, pokemon)) ?? 0) : 0),
   );
@@ -1104,6 +1127,8 @@ export function retreatError(
   // Effects are removed once they run out (expireEffects), so being set means it applies.
   if (active.effects?.noRetreat !== undefined) return `${def.name} can't retreat this turn`;
   if (active.effects?.stuck) return `${def.name} can't retreat`;
+  // Boost Energy: the Pokémon it's attached to can't retreat.
+  if (active.energy.some((e) => !e.provides && !e.windless && lookupCard(cards, e.defId).name === 'Boost Energy')) return `${def.name} can't retreat while Boost Energy is attached`;
   if (heldActive(active, sides)) return `${def.name} can't retreat while ${lookupCard(cards, heldActive(active, sides)!.card.defId).name} is the Active Pokémon`;
   const guard = guardedBy(sides, cards);
   if (guard) return `${guard}: ${def.name} can't retreat`;
@@ -1141,11 +1166,11 @@ export const activeLocked = (state: Pick<GameState, 'players' | 'cards'>, player
 
 export const conditionLabel = (c: SpecialCondition) => ({ asleep: 'Asleep', confused: 'Confused', paralyzed: 'Paralyzed' })[c];
 
-/** One energy a Pokémon has: a type, or 'any' for Rainbow Energy, which counts as every type. */
-export type PoolEnergy = EnergyType | 'any';
+/** One energy a Pokémon has: a type, 'any' for Rainbow Energy, which counts as every type, or Crystal Energy's types. */
+export type PoolEnergy = EnergyType | 'any' | CrystalEnergy;
 
-/** Whether energy in a pool counts as  (Rainbow Energy counts as every type). */
-export const counts = (energy: PoolEnergy, type: EnergyType) => energy === type || energy === 'any';
+/** Whether energy in a pool counts as `type` (Rainbow Energy counts as every type; Crystal Energy as each of its types). */
+export const counts = (energy: PoolEnergy, type: EnergyType) => energy === type || energy === 'any' || (energy.startsWith('crystal:') && energy.slice(8).split(',').includes(type));
 
 /** The type and amount of energy an attached card provides: 1 of its type for basic Energy, or what a power made it (Buzzap). */
 export function energyProvided(card: CardInstance, cards: CardLibrary): { type: PoolEnergy; amount: number } {
@@ -1189,7 +1214,7 @@ const isBasicGrass = (cards: CardLibrary, e: CardInstance) => {
 export const energyPool = (pokemon: InPlayPokemon, cards: CardLibrary): PoolEnergy[] => {
   const pool = pokemon.energy.flatMap((e) => {
     const { type, amount } = energyProvided(e, cards);
-    return Array<PoolEnergy>(amount).fill(type);
+    return Array<PoolEnergy>(amount).fill(isCrystalEnergy(cards, e) ? crystalProvides(pokemon, cards) : type);
   });
   if (pokemon.effects?.energyBurn !== undefined) return pool.map(() => 'fire');
   // Dark Aura: all of it is Darkness Energy.
@@ -1199,6 +1224,25 @@ export const energyPool = (pokemon: InPlayPokemon, cards: CardLibrary): PoolEner
   if (pokemon.wildGrowth) pool.push(...pokemon.energy.filter((e) => !e.provides && isBasicGrass(cards, e)).map((): PoolEnergy => 'grass'));
   return powerEffect(effectId(pokemon))?.photosynthesis && pokemon.powerOffUntil === undefined ? pool.map(() => 'grass') : pool;
 };
+
+/** A Crystal Energy card (its effect not stopped by Miraculous Wind). */
+const isCrystalEnergy = (cards: CardLibrary, e: CardInstance) => !e.provides && !e.windless && lookupCard(cards, e.defId).name === 'Crystal Energy';
+
+/**
+ * What a Crystal Energy card on `pokemon` provides: 1 Energy of every type of the basic Energy cards attached to it (one
+ * of them, as a cost needs: `crystal:<types>`), or Colorless if there are none.
+ */
+function crystalProvides(pokemon: InPlayPokemon, cards: CardLibrary): PoolEnergy {
+  const types = [
+    ...new Set(
+      pokemon.energy.flatMap((e) => {
+        const d = lookupCard(cards, e.defId);
+        return !e.provides && d.kind === 'energy' && d.basic !== false && !d.anyType ? [e.converted?.type ?? d.energyType] : [];
+      }),
+    ),
+  ];
+  return types.length === 0 ? 'colorless' : types.length === 1 ? types[0]! : (`crystal:${types.join(',')}` as CrystalEnergy);
+}
 
 export function canPayCost(pokemon: InPlayPokemon, attack: Attack, cards: CardLibrary): boolean {
   const pool = energyPool(pokemon, cards);
@@ -1220,8 +1264,10 @@ export function payCost(pool: PoolEnergy[], cost: EnergyType[]): number {
     else unpaid.push(need);
   }
   let missing = 0;
-  for (const _ of unpaid) {
-    const i = left.indexOf('any');
+  for (const need of unpaid) {
+    // Crystal Energy that has the type, then Rainbow Energy.
+    const crystal = left.findIndex((t) => t.startsWith('crystal:') && counts(t, need));
+    const i = crystal >= 0 ? crystal : left.indexOf('any');
     if (i >= 0) left.splice(i, 1);
     else missing++;
   }
@@ -1333,14 +1379,16 @@ function betweenTurns(state: GameState) {
     active.condition = null;
     addLog(state, `${name} woke up.`, id);
   }
-  // Miracle Energy: discarded at the end of its owner's turn.
+  // Miracle Energy and Boost Energy: discarded at the end of their owner's turn (Boost Energy: the turn it was attached).
   const current = state.players[state.currentPlayer]!;
   for (const p of [current.active, ...current.bench]) {
-    const miracle = p?.energy.filter((e) => !e.provides && lookupCard(state.cards, e.defId).name === 'Miracle Energy') ?? [];
-    if (!p || !miracle.length) continue;
-    p.energy = p.energy.filter((e) => !miracle.includes(e));
-    current.discard.push(...miracle.map(asDiscarded));
-    addLog(state, `Miracle Energy on ${pokemonName(state, p)} was discarded.`, current.id);
+    for (const special of ['Miracle Energy', 'Boost Energy']) {
+      const gone = p?.energy.filter((e) => !e.provides && lookupCard(state.cards, e.defId).name === special) ?? [];
+      if (!p || !gone.length) continue;
+      p.energy = p.energy.filter((e) => !gone.includes(e));
+      current.discard.push(...gone.map(asDiscarded));
+      addLog(state, `${special} on ${pokemonName(state, p)} was discarded.`, current.id);
+    }
   }
   for (const { id, active, name } of actives) {
     // Paralysis wears off at the end of its owner's next turn.
@@ -1383,6 +1431,7 @@ function betweenTurns(state: GameState) {
       if (!pokemon) continue;
       for (const e of pokemon.energy) delete e.converted;
       delete pokemon.submerged;
+      delete pokemon.crystalType;
       expireEffects(pokemon, state.turn);
       if (pokemon.powerOffUntil !== undefined && pokemon.powerOffUntil <= state.turn) {
         delete pokemon.powerOffUntil;
@@ -1437,7 +1486,12 @@ export function discardTool(state: Pick<GameState, 'cards'>, owner: PlayerState,
 function useBerry(state: GameState, owner: PlayerState, p: InPlayPokemon) {
   const name = toolOf(state.cards, p)?.name;
   const amount = name === 'Berry' ? 20 : name === 'Gold Berry' ? 40 : 0;
-  if (amount && p.damage >= amount) {
+  // Healing Berry: 20 HP or less left, 3 damage counters off.
+  if (name === 'Healing Berry' && p.damage >= 10 && inPlayDef(state.cards, p).hp - p.damage <= 20) {
+    const healed = Math.min(30, p.damage);
+    p.damage -= healed;
+    addLog(state, `Healing Berry: ${pokemonName(state, p)} healed ${healed} damage.`, owner.id);
+  } else if (amount && p.damage >= amount) {
     p.damage -= amount;
     addLog(state, `${name}: ${pokemonName(state, p)} healed ${amount} damage.`, owner.id);
   } else if (name === 'Miracle Berry' && (p.condition || p.poison)) {
@@ -1452,7 +1506,7 @@ function useBerry(state: GameState, owner: PlayerState, p: InPlayPokemon) {
 function expireEffects(pokemon: InPlayPokemon, turn: number) {
   const e = pokemon.effects;
   if (!e) return;
-  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell', 'noAttack', 'noEnergy', 'fireWall', 'focusEnergy', 'crosscounter', 'screech', 'endure', 'pollenShield', 'counter', 'secretePoison', 'slime', 'pursuit', 'lockOn', 'triggeredPoison', 'effectProof', 'pulseGuard', 'dodge', 'reflectShield', 'armorUp', 'noEvolve', 'heavier', 'tailwind'] as const) {
+  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell', 'noAttack', 'noEnergy', 'fireWall', 'focusEnergy', 'crosscounter', 'screech', 'endure', 'pollenShield', 'counter', 'secretePoison', 'slime', 'pursuit', 'lockOn', 'triggeredPoison', 'effectProof', 'pulseGuard', 'dodge', 'reflectShield', 'armorUp', 'noEvolve', 'heavier', 'tailwind', 'noPokePowers'] as const) {
     if (e[key] !== undefined && e[key] <= turn) delete e[key];
   }
   if (e.charm && e.charm.until <= turn) delete e.charm;
@@ -1528,6 +1582,13 @@ function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId | null
     }
     const knockOut = (pokemon: InPlayPokemon) => {
       addLog(state, `${pokemonName(state, pokemon)} was Knocked Out.`, id);
+      // Time Shard: Knocked Out by the opponent's attack, up to 2 of its basic Energy cards go back to the hand.
+      if (pokemon.timeShard) {
+        const back = pokemon.energy.filter((e) => !e.provides && isBasicEnergy(lookupCard(state.cards, e.defId))).slice(0, 2);
+        pokemon.energy = pokemon.energy.filter((e) => !back.includes(e));
+        owner.hand.push(...back.map(asDiscarded));
+        if (back.length) addLog(state, `Time Shard: ${back.length} basic Energy card${back.length === 1 ? '' : 's'} went back to the hand.`, id);
+      }
       // Rebirth: the card goes back to the hand once it's discarded, unless its power isn't working (Asleep…).
       const reborn = !!powerEffect(pokemon.card.defId)?.rebirth && powerActive(pokemon, state.cards, sides) && !discardsLocked(sides, state.cards);
       owner.discard.push(...pokemon.evolvedFrom, pokemon.card, ...pokemon.energy.map(asDiscarded), ...(pokemon.attached ?? []).map((a) => a.card));
@@ -1645,7 +1706,7 @@ function refreshConverted(state: GameState) {
   for (const p of inPlay) {
     if (p.submerged !== undefined && p.condition) delete p.submerged;
     for (const e of p.energy) {
-      if (!e.converted) continue;
+      if (!e.converted || e.converted.untied) continue;
       const porygon = inPlay.find((q) => q.card.uid === e.converted!.by);
       if (!porygon || porygon.condition) delete e.converted;
     }
@@ -1677,8 +1738,22 @@ function refreshWind(state: GameState) {
   }
 }
 
+/** Boost Energy is discarded from a Pokémon that's no longer an Evolved Pokémon (devolved). */
+function dropBoostEnergy(state: GameState) {
+  for (const player of Object.values(state.players)) {
+    for (const p of [player.active, ...player.bench]) {
+      const boost = p && !p.evolvedFrom.length ? p.energy.filter((e) => !e.provides && lookupCard(state.cards, e.defId).name === 'Boost Energy') : [];
+      if (!p || !boost.length) continue;
+      p.energy = p.energy.filter((e) => !boost.includes(e));
+      player.discard.push(...boost.map(asDiscarded));
+      addLog(state, `Boost Energy on ${pokemonName(state, p)} was discarded.`, player.id);
+    }
+  }
+}
+
 function ok(state: GameState): ActionResult {
   refreshTransforms(state);
+  dropBoostEnergy(state);
   refreshWildGrowth(state);
   refreshHideout(state);
   refreshConverted(state);

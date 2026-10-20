@@ -36,16 +36,17 @@ const SIZES = { sm: 18, lg: 22, panel: 22 } as const;
 
 /**
  * One energy: a coloured disc with its type's symbol. `count` marks a card that provides more than one
- * (Double Colorless Energy in the retreat panel). 'any' is Rainbow Energy.
+ * (Double Colorless Energy in the retreat panel). 'any' is Rainbow Energy; Crystal Energy's several types look the same.
  */
 export function EnergyIcon({ type, size = 'sm', count, title }: { type: PoolEnergy; size?: keyof typeof SIZES; count?: number; title?: string }) {
   const px = SIZES[size];
-  const Icon = type === 'any' ? AutoAwesomeIcon : ICONS[type];
+  const rainbow = type === 'any' || type.startsWith('crystal:');
+  const Icon = rainbow ? AutoAwesomeIcon : ICONS[type as EnergyType];
   return (
     <span
       title={title}
-      className={`${type === 'any' ? RAINBOW : energyColor(type)} relative inline-flex shrink-0 items-center justify-center rounded-full border border-white shadow shadow-black/60 ${
-        type !== 'any' && DARK_SYMBOL[type] ? 'text-slate-800' : 'text-white'
+      className={`${rainbow ? RAINBOW : energyColor(type as EnergyType)} relative inline-flex shrink-0 items-center justify-center rounded-full border border-white shadow shadow-black/60 ${
+        !rainbow && DARK_SYMBOL[type as EnergyType] ? 'text-slate-800' : 'text-white'
       }`}
       style={{ width: px, height: px }}
     >

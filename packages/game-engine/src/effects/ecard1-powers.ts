@@ -24,7 +24,7 @@ import { energyEffect, powerEffect } from './index.js';
 const POKE_POWER = { stopsOnAnyCondition: true } as const;
 
 /** A Poké-Body: always on, whatever its Pokémon's Special Conditions. */
-const POKE_BODY = { ignoresConditions: true } as const;
+const POKE_BODY = { ignoresConditions: true, body: true } as const;
 
 /** Basic Energy cards attached to a Pokémon (not a Pokémon attached as Energy). */
 const basicEnergyOn = (cards: PowerSituation['cards'], p: InPlayPokemon) => p.energy.filter((e) => !e.provides && isBasicEnergy(lookupCard(cards, e.defId)));
@@ -124,7 +124,7 @@ const HOLO: Record<string, PowerEffect> = {
     oncePerTurn: true,
     blocked: (s) => (inPlay(s.me).some((p) => basicEnergyOn(s.cards, p).length) ? null : 'None of your Pokémon has a basic Energy card attached'),
     use(ctx) {
-      for (const p of inPlay(ctx.me)) for (const e of basicEnergyOn(ctx.state.cards, p)) e.converted = { type: 'fire', by: ctx.source.card.uid };
+      for (const p of inPlay(ctx.me)) for (const e of basicEnergyOn(ctx.state.cards, p)) e.converted = { type: 'fire', by: ctx.source.card.uid, untied: true };
       ctx.log('All basic Energy attached to your Pokémon is Fire Energy for the rest of the turn.');
     },
   },
@@ -291,7 +291,7 @@ const HOLO: Record<string, PowerEffect> = {
     },
     choices(s) {
       const active = s.me.active ? inPlayDef(s.cards, s.me.active) : null;
-      const options = s.me.hand.filter((c) => lookupCard(s.cards, c.defId).kind === 'energy' && !(active && energyEffect(c.defId)?.attachError?.(active)));
+      const options = s.me.hand.filter((c) => lookupCard(s.cards, c.defId).kind === 'energy' && !(active && energyEffect(c.defId)?.attachError?.(active, s.me.active!)));
       return [{ kind: 'handCard', field: 'cardUid', options, prompt: 'Choose an Energy card to attach to your Active Pokémon' }];
     },
     use(ctx) {

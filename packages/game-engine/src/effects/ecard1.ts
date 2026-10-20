@@ -36,13 +36,13 @@ import { flipOrNothing } from './rocket.js';
 import { eitherCondition, healUpTo } from './si1.js';
 
 /** Basic Energy cards attached to a Pokémon (not a Pokémon attached as Energy). */
-const basicEnergyOn = (cards: AttackSituation['cards'], p: InPlayPokemon) => p.energy.filter((e) => !e.provides && isBasicEnergy(lookupCard(cards, e.defId)));
+export const basicEnergyOn = (cards: AttackSituation['cards'], p: InPlayPokemon) => p.energy.filter((e) => !e.provides && isBasicEnergy(lookupCard(cards, e.defId)));
 
 /** Energy cards attached to a Pokémon. */
-const energyCards = (p: InPlayPokemon) => p.energy.filter((e) => !e.provides);
+export const energyCards = (p: InPlayPokemon) => p.energy.filter((e) => !e.provides);
 
 /** `type` Energy cards attached to the attacker (Rainbow Energy last). */
-const typedCards = (ctx: AttackContext, type: 'fire' | 'lightning' | 'water') => {
+export const typedCards = (ctx: AttackContext, type: 'fire' | 'lightning' | 'water') => {
   const cards = ctx.attacker.energy.filter((e) => isEnergyCardOf(e, ctx.state.cards, type));
   const rainbow = (e: CardInstance) => lookupCard(ctx.state.cards, e.defId).name === 'Rainbow Energy';
   return [...cards.filter((e) => !rainbow(e)), ...cards.filter(rainbow)];
@@ -58,7 +58,7 @@ const baseOr = (damage: number, alt: number, alternative: (ctx: AttackContext) =
 });
 
 /** Base damage, then the attacker switches with one of its player's benched Pokémon, if any (Hide in Shadows). */
-const hideAway = (damage: number): AttackEffect => ({
+export const hideAway = (damage: number): AttackEffect => ({
   choices(s): ChoiceSpec[] {
     const options = benchedSlots(s.ownBench);
     return options.length ? [{ kind: 'ownBench', options, prompt: 'Choose one of your benched Pokémon to switch with' }] : [];
@@ -73,7 +73,7 @@ const hideAway = (damage: number): AttackEffect => ({
 const benchSplash = (ctx: AttackContext, damage: number) => ctx.benchDamage(ctx.opp, damage);
 
 /** Puts `n` damage counters on one of the opponent's Pokémon, unless the attack can't affect it. */
-function putCounters(ctx: AttackContext, t: Target, n: number) {
+export function putCounters(ctx: AttackContext, t: Target, n: number) {
   const p = pokemonOn(ctx.opp.active, ctx.opp.bench, t);
   if (!p || n <= 0) return;
   const put = () => {
@@ -84,11 +84,46 @@ function putCounters(ctx: AttackContext, t: Target, n: number) {
   else if (ctx.canAffect(ctx.opp, p)) put();
 }
 
+/** Base damage; heads attaches a `type` Energy card from the discard pile to the attacker, if there are any (Plasma, Collect Fire). */
+export const plasma = (damage: number, type: 'lightning' | 'fire'): AttackEffect => ({
+  run(ctx) {
+    ctx.hit(damage);
+    if (!ctx.me.discard.some((c) => isEnergyCardOf(c, ctx.state.cards, type))) return;
+    if (ctx.flip()) attachFromDiscard(ctx, (c) => isEnergyCardOf(c, ctx.state.cards, type));
+  },
+});
+
+/** Base damage; then a basic Energy card from the attacker moves to one of its player's Benched Pokémon (Reflect Energy). */
+export const reflectEnergy = (damage: number, name: string): AttackEffect => ({
+  choices(s): ChoiceSpec[] {
+    const energy = basicEnergyOn(s.cards, s.attacker);
+    const bench = benchedSlots(s.ownBench);
+    if (!energy.length || !bench.length) return [];
+    return [
+      { kind: 'pokemonEnergy', options: energy, prompt: `Choose a basic Energy card to move from ${name}` },
+      { kind: 'ownBench', options: bench, prompt: 'Choose one of your benched Pokémon to attach it to' },
+    ];
+  },
+  run(ctx) {
+    ctx.hit(damage);
+    const slot = ctx.choices.ownBenchSlot;
+    const to = slot === undefined || slot < 0 ? null : ctx.me.bench[slot];
+    if (to && ctx.choices.oppEnergyUid && ctx.me.active === ctx.attacker) moveEnergy(ctx, ctx.attacker, to, ctx.choices.oppEnergyUid);
+  },
+});
+
+/** A basic Energy card from the deck, attached to the attacker (Energy Draw). */
+export const energyDraw: AttackEffect = {
+  run(ctx) {
+    if (ctx.me.deck.length) ctx.pend({ kind: 'pickFromDeck', source: 'Energy Draw', filter: 'basicEnergy', attachToActive: true });
+  },
+};
+
 /** The attacking player's Pokémon in play that have a basic Energy card attached (Energy Patch). */
 const withBasicEnergy = (s: AttackSituation) => targetsIn(s.attacker, s.ownBench).filter((t) => basicEnergyOn(s.cards, pokemonOn(s.attacker, s.ownBench, t)!).length > 0);
 
 /** Moves the Energy card `uid` from one of the attacking player's Pokémon to another, logging it. */
-function moveEnergy(ctx: AttackContext, from: InPlayPokemon, to: InPlayPokemon, uid: string) {
+export function moveEnergy(ctx: AttackContext, from: InPlayPokemon, to: InPlayPokemon, uid: string) {
   const energy = from.energy.find((e) => e.uid === uid);
   if (!energy || from === to) return;
   from.energy = from.energy.filter((e) => e !== energy);
@@ -247,13 +282,7 @@ const HOLO: Record<string, Record<string, AttackEffect>> = {
   'ecard1-24': { 'Water Punch': { run: (ctx) => void ctx.hit(40 + 10 * ctx.flips(energyPool(ctx.attacker, ctx.state.cards).filter((t) => t === 'water' || t === 'any').length)) } },
   // Raichu – Plasma: heads attaches a Lightning Energy card from the discard pile; Shock Bolt: discards its Lightning Energy cards.
   'ecard1-25': {
-    Plasma: {
-      run(ctx) {
-        ctx.hit(10);
-        if (!ctx.me.discard.some((c) => isEnergyCardOf(c, ctx.state.cards, 'lightning'))) return;
-        if (ctx.flip()) attachFromDiscard(ctx, (c) => isEnergyCardOf(c, ctx.state.cards, 'lightning'));
-      },
-    },
+    Plasma: plasma(10, 'lightning'),
     'Shock Bolt': {
       run(ctx) {
         const lightning = typedCards(ctx, 'lightning');
@@ -362,28 +391,8 @@ export const ECARD1: Record<string, Record<string, AttackEffect>> = {
   'ecard1-75': { 'Spiral Wave': { run: (ctx) => void ctx.hit(20 * headsUntilTails(ctx)) } },
   // Electabuzz – Energy Draw: a basic Energy card from the deck attached to it; Reflect Energy: a basic Energy card from it to a benched Pokémon.
   'ecard1-76': {
-    'Energy Draw': {
-      run(ctx) {
-        if (ctx.me.deck.length) ctx.pend({ kind: 'pickFromDeck', source: 'Energy Draw', filter: 'basicEnergy', attachToActive: true });
-      },
-    },
-    'Reflect Energy': {
-      choices(s): ChoiceSpec[] {
-        const energy = basicEnergyOn(s.cards, s.attacker);
-        const bench = benchedSlots(s.ownBench);
-        if (!energy.length || !bench.length) return [];
-        return [
-          { kind: 'pokemonEnergy', options: energy, prompt: 'Choose a basic Energy card to move from Electabuzz' },
-          { kind: 'ownBench', options: bench, prompt: 'Choose one of your benched Pokémon to attach it to' },
-        ];
-      },
-      run(ctx) {
-        ctx.hit(20);
-        const slot = ctx.choices.ownBenchSlot;
-        const to = slot === undefined || slot < 0 ? null : ctx.me.bench[slot];
-        if (to && ctx.choices.oppEnergyUid && ctx.me.active === ctx.attacker) moveEnergy(ctx, ctx.attacker, to, ctx.choices.oppEnergyUid);
-      },
-    },
+    'Energy Draw': energyDraw,
+    'Reflect Energy': reflectEnergy(20, 'Electabuzz'),
   },
   // Flaaffy – Thunder Jolt.
   'ecard1-77': { 'Thunder Jolt': tailsSelfDamage(50, 20) },

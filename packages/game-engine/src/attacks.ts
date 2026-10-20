@@ -21,7 +21,7 @@ import {
   type PokemonEffects,
   type Target,
 } from './engine.js';
-import { discardsLocked, energyKept, powerActive, prehistoricMemory, scaredBy } from './powers.js';
+import { discardsLocked, energyKept, enervatingPollen, powerActive, prehistoricMemory, scaredBy } from './powers.js';
 import { shuffle } from './rng.js';
 import { addLog, baseUid, clearOnLeavingActive, effectId, energyProtected, flipCoin, inPlayDef, pokemonName, revealFaceDown, shapeshiftCard } from './status.js';
 import type { PendingChoice, PendingChoiceInput } from './trainers.js';
@@ -66,8 +66,8 @@ export interface AttackChoices {
   oppEnergyUid?: string;
   /** A type for the Defending Pokémon's Weakness, when `type` is the attacker's Resistance (Texture Magic). */
   weaknessType?: EnergyType;
-  /** A Special Condition or Poison for the Defending Pokémon (Magic Pollen). */
-  condition?: 'asleep' | 'confused' | 'paralyzed' | 'poisoned';
+  /** A Special Condition or Poison for the Defending Pokémon (Magic Pollen; Miracle Tail: Burned too). */
+  condition?: 'asleep' | 'confused' | 'paralyzed' | 'poisoned' | 'burned';
   /** Vermilion City Gym: whether to flip for a Pokémon with Lt. Surge in its name (heads 10 more, tails 10 to itself). */
   vermilionFlip?: boolean;
   /** Charity: the most damage to do to the Defending Pokémon; -1 = no less than usual. */
@@ -81,7 +81,8 @@ export interface AttackChoices {
 /** A question an attack asks before it's used. `prompt` is shown to the player. */
 export type ChoiceSpec = { prompt: string } & (
   | { kind: 'ownEnergy'; count: number; options: CardInstance[] }
-  | { kind: 'opponentBench'; options: number[] }
+  /** `optional`: the player may also not choose ("you may switch": Spiral Aura), answered with -1, which is then among the options. */
+  | { kind: 'opponentBench'; options: number[]; optional?: boolean }
   | { kind: 'defenderEnergy'; options: CardInstance[] }
   | { kind: 'defenderAttack'; options: number[] }
   /** An attack to copy: the Defending Pokémon's, or (`of`) that of another of the opponent's Pokémon. */
@@ -199,12 +200,20 @@ export function usableAttacks(
         return d.attacks.map((attack) => ({ attack, source: shapeshiftCard(p)?.defId ?? effectId(p), from: d.name }));
       })
     : [];
+  // Memory Berry: the attacks of the cards it evolved from, as with Recall.
+  const memory = !recall && !attacker.transformed && (attacker.attached ?? []).some((a) => a.tool && lookupCard(cards, a.card.defId).name === 'Memory Berry');
+  const remembered = memory
+    ? attacker.evolvedFrom.flatMap((c) => {
+        const d = lookupCard(cards, c.defId);
+        return d.kind === 'pokemon' ? d.attacks.map((attack) => ({ attack, source: d.id, from: d.name })) : [];
+      })
+    : [];
   // A Technical Machine attached to it: its attack.
   const machines = (attacker.attached ?? []).flatMap((a) => {
     const attack = trainerEffect(a.card.defId)?.technicalMachine;
     return attack ? [{ attack, source: a.card.defId, from: lookupCard(cards, a.card.defId).name }] : [];
   });
-  return [...own, ...lower, ...linked, ...copied, ...mimicked, ...machines];
+  return [...own, ...lower, ...remembered, ...linked, ...copied, ...mimicked, ...machines];
 }
 
 const attackAt = (s: AttackSituation, attackIndex: number) => usableAttacks(s.attacker, s.cards, { recall: s.recall, bench: s.ownBench, defender: s.defender, oppBench: s.opponentBench })[attackIndex];
@@ -548,7 +557,12 @@ export function applyWeaknessResistance(
   attackerType: EnergyType,
   defender: PokemonCardDef,
   effects?: PokemonEffects,
-  { resistance: withResistance = true, weakness: withWeakness = true, resistanceLess = 0 }: { resistance?: boolean; weakness?: boolean; resistanceLess?: number } = {},
+  {
+    resistance: withResistance = true,
+    weakness: withWeakness = true,
+    resistanceLess = 0,
+    resistanceCap = Infinity,
+  }: { resistance?: boolean; weakness?: boolean; resistanceLess?: number; resistanceCap?: number } = {},
 ): number {
   if (amount <= 0) return 0;
   const weakness = defender.weakness && { ...defender.weakness, type: effects?.weakness ?? defender.weakness.type };
@@ -557,7 +571,7 @@ export function applyWeaknessResistance(
   // Cinnabar City Gym: no Weakness for a Water Pokémon's attack on Blaine's Pokémon.
   if (withWeakness && weakness?.type === attackerType) damage *= weakness.multiplier;
   // Hook Shot and Pewter City Gym: no Resistance. Resistance Gym: 20 less of it.
-  if (withResistance && resistance?.type === attackerType) damage -= Math.max(0, resistance.amount - resistanceLess);
+  if (withResistance && resistance?.type === attackerType) damage -= Math.min(resistanceCap, Math.max(0, resistance.amount - resistanceLess));
   return Math.max(0, damage);
 }
 
@@ -646,6 +660,9 @@ export function performAttack(
   const ctx = createContext(state, me, opp, choices, later, `${attackerDef.name}'s ${attack.name}`, { vermilion, flee });
   ctx.useAttack(attack, attackSource);
   if (vermilion === false && me.active === attacker) ctx.selfDamage(10);
+  // Memory Berry: discarded at the end of a turn its Pokémon attacks.
+  const memory = toolOf(state.cards, attacker);
+  if (memory?.name === 'Memory Berry') memory.tool.until = state.turn;
   for (const fn of later) fn();
   ctx.finish();
   // Earthdrill needs to know Lie Low was used the turn before.
@@ -739,9 +756,15 @@ function createContext(
   const transparency = new Map<string, boolean>();
   /** Transparency: the first time this attack does anything to the Pokémon, a flip; heads prevents all its effects on it. */
   const transparent = (p: InPlayPokemon, owner: PlayerState) => {
-    if (!passive(p)?.transparency) return false;
-    if (!transparency.has(p.card.uid)) transparency.set(p.card.uid, flipCoin(state, 'Transparency', owner.id));
+    // Fluff: only against the opponent's attack, with a damage counter on it.
+    const fluff = !!passive(p)?.fluff && owner === opp && p.damage >= 10;
+    if (!passive(p)?.transparency && !fluff) return false;
+    if (!transparency.has(p.card.uid)) transparency.set(p.card.uid, flipCoin(state, fluff ? 'Fluff' : 'Transparency', owner.id));
     return transparency.get(p.card.uid)!;
+  };
+  /** Time Shard: the opponent's attack's damage is Knocking out `p` (of `owner`): it's marked for resolveKnockouts. */
+  const shard = (p: InPlayPokemon, owner: PlayerState) => {
+    if (owner === opp && p.damage >= def(state.cards, p).hp && toolOf(state.cards, p)?.name === 'Time Shard') p.timeShard = true;
   };
   /** Kabuto Armor: attack damage to it is halved, rounded down to the nearest 10, after everything else. */
   const armor = (p: InPlayPokemon, damage: number, owner: PlayerState) => {
@@ -775,6 +798,12 @@ function createContext(
     if (damage > 0 && passive(p)?.shellArmor) {
       damage = Math.max(0, damage - 10);
       log(`Shell Armor reduced the damage to ${pokemonName(state, p)} by 10.`, owner.id);
+    }
+    // Dense Body: 20 less from a Basic Pokémon's attack (not a Baby Pokémon's).
+    const guarded = passive(p)?.basicGuard;
+    if (damage > 0 && guarded && attackerDef.stage === 'basic' && !attackerDef.baby) {
+      damage = Math.max(0, damage - guarded);
+      log(`${def(state.cards, p).power!.name} reduced the damage to ${pokemonName(state, p)} by ${guarded}.`, owner.id);
     }
     // Rock Body, Exoskeleton: a set amount less.
     const reduction = passive(p)?.damageReduction;
@@ -962,7 +991,8 @@ function createContext(
       if (stadium === 'Pewter City Gym' && attackerDef.name.includes('Brock')) resistance = false;
       // Magnifier: no Resistance for its Pokémon's attack.
       if (attachedCount(state.cards, attacker, 'Magnifier')) resistance = false;
-      const weaknessOff = stadium === 'Cinnabar City Gym' && attackerDef.type === 'water' && defenderDef.name.includes('Blaine');
+      // Cinnabar City Gym, and Weakness Guard: no Weakness.
+      const weaknessOff = (stadium === 'Cinnabar City Gym' && attackerDef.type === 'water' && defenderDef.name.includes('Blaine')) || attachedCount(state.cards, defender, 'Weakness Guard') > 0;
       // Charm: the attacker's damage is less, before Weakness and Resistance.
       const before = amount;
       amount = charmed(amount);
@@ -974,7 +1004,8 @@ function createContext(
         log(`The damage to ${defenderDef.name} was reduced by ${snivel.amount}.`, opp.id);
       }
       if (metalLess) amount = Math.max(0, amount - metalLess);
-      const rules = { resistance, weakness: !weaknessOff, resistanceLess: stadium === 'Resistance Gym' ? 20 : 0 };
+      // Enervating Pollen: Resistance takes off at most 10.
+      const rules = { resistance, weakness: !weaknessOff, resistanceLess: stadium === 'Resistance Gym' ? 20 : 0, resistanceCap: enervatingPollen(sides, state.cards) ? 10 : undefined };
       let damage = weakness && !swift ? applyWeaknessResistance(amount, attackerDef.type, defenderDef, defender.effects, rules) : amount;
       // Misty: 20 more each, for a Pokémon with Misty in its name, if the attack does damage after Weakness and Resistance.
       const misty = me.misty?.turn === turn && attackerDef.name.includes('Misty') ? me.misty.count : 0;
@@ -1095,6 +1126,7 @@ function createContext(
       defender.damage += damage;
       record(defender).damage += damage;
       log(`${defenderDef.name} took ${damage} damage.`, opp.id);
+      shard(defender, opp);
       if (effects) delete effects.shadowImages;
       passive(defender)?.onAttackDamage?.(ctx, defender);
       // Flee (asked before the attack): it switches out once the attack is over, and nothing else the attack does affects it.
@@ -1164,6 +1196,7 @@ function createContext(
         if (damage < amount) log(`${pokemonName(state, p)} took ${damage} damage.`, player.id);
         if (damage === 0) continue;
         p.damage += damage;
+        shard(p, player);
         if (player === opp) passive(p)?.onAttackDamage?.(ctx, p);
         benchGuard(player, p);
       }
@@ -1173,6 +1206,7 @@ function createContext(
       const name = pokemonName(state, defender);
       if (untouchable()) return;
       if (def(state.cards, defender).trainerText || passive(defender)?.noConditions || (defender.effects?.flashTouch && affliction !== 'burned')) return log(`${name} can't be affected by Special Conditions.`, opp.id);
+      if ((affliction === 'poisoned' || affliction === 'toxic') && passive(defender)?.noPoison) return log(`${name} can't be Poisoned.`, opp.id);
       if (affliction !== 'burned' && active(defender.effects?.pollenShield, turn)) return log(`Pollen Shield: ${name} can't be ${affliction === 'toxic' || affliction === 'poisoned' ? 'Poisoned' : conditionLabel(affliction)}.`, opp.id);
       const guard = state.rules?.find((r) => r.kind === 'conditionGuard' && r.player === opp.id && r.conditions.includes(affliction === 'toxic' ? 'poisoned' : affliction));
       if (guard) return log(`${guard.label ?? 'A battle rule'} protected ${name} from that.`, opp.id);
@@ -1197,6 +1231,7 @@ function createContext(
       if (damage === 0) return log(`The damage to ${pokemonName(state, benched)} was prevented.`, player.id);
       benched.damage += damage;
       log(`${pokemonName(state, benched)} took ${damage} damage.`, player.id);
+      shard(benched, player);
       if (player === opp) passive(benched)?.onAttackDamage?.(ctx, benched);
       benchGuard(player, benched);
     },
