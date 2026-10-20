@@ -156,14 +156,14 @@ function saveSpeed(speed: number) {
   }
 }
 
-/** localStorage key for the phone's map lock (the lock button): while it's on, the map doesn't pan, so a swipe over it scrolls the page. */
+/** localStorage key for the phone's map lock (the lock button), on until it's turned off (agreed): while it's on, the map doesn't pan, so a swipe over it scrolls the page. */
 const LOCK_KEY = 'poke-tcg.route-lock';
 
 function loadLocked(): boolean {
   try {
-    return localStorage.getItem(LOCK_KEY) === '1';
+    return localStorage.getItem(LOCK_KEY) !== '0';
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -171,7 +171,7 @@ function saveLocked(locked: boolean) {
   try {
     localStorage.setItem(LOCK_KEY, locked ? '1' : '0');
   } catch {
-    // Not remembered; the map starts unlocked next time.
+    // Not remembered; the map starts locked next time.
   }
 }
 
@@ -515,7 +515,7 @@ function placeFigures(route: Route, view: RunViewData, first: number, upto: numb
  * (routePath, up to MAX_WALK tiles, through gatehouses fading out at one door and back in at the other); otherwise he fades
  * out, the view glides there, and he fades back in. The target
  * button centres the view on him again, and the speed button walks everyone (and fades and glides) at 1×, 2× or 3×. On a
- * phone the lock button below them stops the map panning, so a swipe over it scrolls the page (remembered, `poke-tcg.route-lock`).
+ * phone the lock button below them stops the map panning, so a swipe over it scrolls the page (on by default; remembered, `poke-tcg.route-lock`).
  * With more than one route (Vermilion City: Route 5, then Route 6), each route holds its spots' steps: Red walks to the
  * route's `exit` (if it has one), fades out, and comes back in at the next route's `entrance`, the view switching to it.
  * With a `gym` (its interior: Pewter Gym), the steps after the routes' spots are there:

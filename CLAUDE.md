@@ -69,7 +69,7 @@
 ## Phone layout (agreed)
 - Phones held upright (`useIsPhone`) get their own battle screen and Collection layout; tablets and desktops keep the usual ones. See README: Phone layout.
 - Battle screen: locked full screen (`useLockedScreen`), TCG Pocket style (`components/phone/`); tap your Active for its moves (`ActiveSheet`); small Prize/deck/discard stacks beside each Active (the Prize stack a little towards its Bench; the Stadium in the bar, 1.3× the piles, lowered towards your Active); the round ☰ button opens the side panel's tabs and Concede (`LogSheet`). No hover preview: a long press inspects a card.
-- Phone run screen: the map has a lock button under Centre on you and the speed button (agreed): locked, the map doesn't pan and a swipe over it scrolls the page.
+- Phone run screen: the map has a lock button under Centre on you and the speed button (agreed): locked (the default), the map doesn't pan and a swipe over it scrolls the page.
 - Phone run screen: the encounter choice (the compact one every screen has, agreed) heads the other stops "Event" and makes the decks a drop-down menu, "Unlocked this run" starts minimised, and the Run / Run log panel is a floating button in the top right corner.
 - Phone Collection: a swipe to the right opens the decks panel (the open deck's cards); a panel swiped back towards its edge closes. Opening a saved deck from the list keeps the panel open (a new deck closes it). The card view (`CardInspector`) has a × and closes on a tap anywhere but the card and its controls.
 - Phone hand: tap selects; hold zooms in (large, above the hand) and sliding along the hand changes the zoomed card; sliding up off the hand drags the zoomed card into play.
