@@ -69,6 +69,7 @@ export function HoloCard({
       data-rarity={attrs.rarity}
       data-era={attrs.era}
       data-trainer-gallery={attrs.trainerGallery ? "true" : "false"}
+      data-holo-energy={attrs.holoEnergy ? 'true' : 'false'}
       style={still ? STILL : undefined}
     >
       <div className="card__translater">
