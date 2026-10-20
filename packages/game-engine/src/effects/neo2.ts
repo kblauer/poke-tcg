@@ -17,7 +17,7 @@ import { powerActive } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { effectId, energyProtected, inPlayDef, pokemonName } from '../status.js';
 import { attackEffect, powerEffect } from './index.js';
-import { discardToUse, flipToInflict, flipToProtect, inflicts, opponentBenchChoice, opponentSwitches, perHeads, recoil, recover, tailsSelfDamage, extraEnergy } from './common.js';
+import { discardToUse, flipToInflict, flipToProtect, headsUntilTails, inflicts, opponentBenchChoice, opponentSwitches, perHeads, recoil, recover, tailsSelfDamage, extraEnergy } from './common.js';
 import { benchWhere } from './gym1.js';
 import { flipForMore } from './jungle.js';
 import { damageOpponent, opponentTargets, rapidSpin, screech, swift } from './neo1.js';
@@ -68,24 +68,40 @@ const plunder = (damage: number): AttackEffect => ({
 });
 
 /**
- * Hidden Power, by a Pokémon with Unown in its name: 10, plus 10 for each damage counter on the attacking player's Unown A
- * with Anger working (only one Anger: the most damage counters).
+ * Hidden Power, by a Pokémon with Unown in its name: `damage` (10 on most), plus 10 for each damage counter on the attacking
+ * player's Unown A with Anger working (only one Anger: the most damage counters); [XXXXX] (any Unown X of theirs working,
+ * one per attack) flips until tails for 10 more each heads; [Perform] adds the damage an attack did to this Unown P as the
+ * Active Pokémon on the opponent's last turn.
  */
-export const hiddenPower: AttackEffect = {
+export const hiddenPowerOf = (damage: number): AttackEffect => ({
   run(ctx) {
     const unown = ctx.attackerDef.name.includes('Unown');
-    const angry = [ctx.me.active, ...ctx.me.bench].filter((p): p is InPlayPokemon => !!p && !!powerEffect(effectId(p))?.anger && powerActive(p, ctx.state.cards, [ctx.me, ctx.opp]));
-    const more = unown ? Math.max(0, ...angry.map((p) => p.damage)) : 0;
+    const works = (p: InPlayPokemon | null): p is InPlayPokemon => !!p && powerActive(p, ctx.state.cards, [ctx.me, ctx.opp]);
+    const own = [ctx.me.active, ...ctx.me.bench].filter(works);
+    const angry = own.filter((p) => !!powerEffect(effectId(p))?.anger);
+    let more = unown ? Math.max(0, ...angry.map((p) => p.damage)) : 0;
     if (more) ctx.log(`Anger: ${more} more damage.`);
-    ctx.hit(10 + more);
+    if (unown && own.some((p) => powerEffect(effectId(p))?.xxxxx)) {
+      const heads = headsUntilTails(ctx);
+      if (heads) ctx.log(`[XXXXX]: ${10 * heads} more damage.`);
+      more += 10 * heads;
+    }
+    const last = ctx.attacker.effects?.attackedOn;
+    if (works(ctx.attacker) && powerEffect(effectId(ctx.attacker))?.perform && last?.turn === ctx.turn - 1 && last.damage) {
+      ctx.log(`[Perform]: ${last.damage} more damage.`);
+      more += last.damage;
+    }
+    ctx.hit(damage + more);
   },
-};
+});
+
+export const hiddenPower = hiddenPowerOf(10);
 
 /** Pokémon Work Together counts on the Bench. */
 const FOSSIL_FRIENDS = ['Omanyte', 'Omastar', 'Kabuto', 'Kabutops'];
 
 /** The names of the cards in the game that evolve from `name` (Hatch). */
-const evolutionsOf = (ctx: AttackContext, name: string) => [
+export const evolutionsOf = (ctx: AttackContext, name: string) => [
   ...new Set(Object.values(ctx.state.cards).flatMap((d) => (d.kind === 'pokemon' && d.evolvesFrom === name ? [d.name] : []))),
 ];
 

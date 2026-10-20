@@ -14,13 +14,13 @@ export const POOL_SETS = ['base1', 'base2', 'base3', 'basep', 'base4', 'base5', 
 
 /**
  * Gen 2 runs' sets (agreed with the user): Neo Genesis to Skyridge, with Southern Islands but not Legendary Collection
- * (its Gen 1 reprints). Only Neo Genesis's, Neo Discovery's, Southern Islands' and Neo Revelation's card effects are done (GEN2_DONE_SETS); Gen 2 runs use every card of the
+ * (its Gen 1 reprints). Only Neo Genesis's, Neo Discovery's, Southern Islands', Neo Revelation's and Neo Destiny's card effects are done (GEN2_DONE_SETS); Gen 2 runs use every card of the
  * others for now (Generation `implementedSets`).
  */
 export const GEN2_SETS = ['neo1', 'neo2', 'si1', 'neo3', 'neo4', 'ecard1', 'ecard2', 'ecard3'];
 
 /** The Gen 2 sets whose card effects the engine has: Gen 2 runs take only the cards it plays fully from these. */
-export const GEN2_DONE_SETS = ['neo1', 'neo2', 'si1', 'neo3'];
+export const GEN2_DONE_SETS = ['neo1', 'neo2', 'si1', 'neo3', 'neo4'];
 
 /** Basic Energy card ids (Base Set printings) by type, and Double Colorless Energy: Gen 1's. */
 export const BASIC_ENERGY: Partial<Record<EnergyType, string>> = {

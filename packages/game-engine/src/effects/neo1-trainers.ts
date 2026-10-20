@@ -26,6 +26,7 @@ const noMoreTrainers = (ctx: TrainerContext) => void (ctx.me.noTrainersUntil = M
 
 /** A Pokémon Tool: attached to 1 of the player's Pokémon that doesn't have one. */
 export const tool = (what: string): TrainerEffect => ({
+  tool: true,
   blocked: (s) => (toolTargets(s).length ? null : 'All your Pokémon have a Pokémon Tool attached'),
   choices: (s) => [{ kind: 'pokemon', field: 'target', side: 'own', options: toolTargets(s), prompt: `Choose a Pokémon to attach ${what} to` }],
   play(ctx) {

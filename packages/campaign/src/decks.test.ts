@@ -1,7 +1,7 @@
 import { canPayCost, cardImplemented, isBasicPokemon, isPokemonCard, type PokemonCardDef } from '@poke-tcg/game-engine';
 import { describe, expect, it } from 'vitest';
 import { BOSSES, JOHTO_ELITE_FOUR, JOHTO_GYMS } from './bosses.js';
-import { deckErrors, expandDeck, GEN2_DECK_RULES, generateDeck, STARTER_DECK, trainerFavorites } from './decks.js';
+import { DECK_SIZE, deckErrors, expandDeck, GEN2_DECK_RULES, generateDeck, STARTER_DECK, trainerFavorites } from './decks.js';
 import { GEN2_SETS } from './pool.js';
 import { rngFrom } from './random.js';
 import { catalogDef, GEN2_TEST_POOL, TEST_POOL, testDef } from './test-pool.js';
@@ -9,6 +9,14 @@ import { catalogDef, GEN2_TEST_POOL, TEST_POOL, testDef } from './test-pool.js';
 describe('fixed decks', () => {
   it('the starter deck is a legal 60-card deck of cards from the run pool', () => {
     expect(deckErrors(expandDeck(STARTER_DECK), testDef)).toEqual([]);
+  });
+
+  it('a deck holds only 1 of each Shining Pokémon and 1 Miracle Energy', () => {
+    const starter = expandDeck(STARTER_DECK);
+    const swap = (extra: string[]) => [...starter.slice(0, DECK_SIZE - extra.length), ...extra];
+    expect(deckErrors(swap(['neo4-107', 'neo4-107']), catalogDef)).toEqual(['2 copies of Shining Charizard']);
+    expect(deckErrors(swap(['neo4-16', 'neo4-16']), catalogDef)).toEqual(['2 copies of Miracle Energy']);
+    expect(deckErrors(swap(['neo4-107', 'neo4-16']), catalogDef)).toEqual([]);
   });
 
   const johto = new Set<string>([...JOHTO_GYMS, ...JOHTO_ELITE_FOUR, 'johto-lance']);

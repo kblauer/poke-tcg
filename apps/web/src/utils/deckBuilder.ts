@@ -1,6 +1,6 @@
 // Deck builder: the search filters and editing a deck's card list. The rules themselves (60 cards, 4 of a
 // name, a Basic Pokémon) are in @poke-tcg/shared, where the API checks them too.
-import { DECK_SIZE, MAX_COPIES, MAX_UNOWN, copiesAllowed, copiesOfName, deckProblems, isUnownCard, unownCount, type DeckRuleCard } from '@poke-tcg/shared';
+import { DECK_SIZE, MAX_UNOWN, maxCopiesOf, copiesAllowed, copiesOfName, deckProblems, isUnownCard, unownCount, type DeckRuleCard } from '@poke-tcg/shared';
 import { CARD_TYPES, matchesSearch, type CatalogCard } from './cardList';
 
 /** Pokémon stages for the stage filter. */
@@ -164,7 +164,9 @@ export function cantAdd(entries: DeckEntry[], card: CatalogCard, byId: Map<strin
   // Holo Energy and special holos: as many as were pulled (`pulled`).
   if (card.limitedCopies && (entries.find((e) => e.cardId === card.id)?.quantity ?? 0) >= pulled) return `You've pulled ${pulled} of this holo`;
   const rules = withCards(entries, byId).map((e) => ({ card: ruleCard(e.card), quantity: e.quantity }));
-  if (!card.basicEnergy && copiesOfName(rules, card.name) >= MAX_COPIES) return `Already ${MAX_COPIES} cards named ${card.name}`;
+  // At most 4 of a name; 1 for a Shining Pokémon or Miracle Energy.
+  const most = maxCopiesOf(ruleCard(card));
+  if (!card.basicEnergy && copiesOfName(rules, card.name) >= most) return `Already ${most} card${most === 1 ? '' : 's'} named ${card.name}`;
   if (isUnownCard(ruleCard(card)) && unownCount(rules) >= MAX_UNOWN) return `Already ${MAX_UNOWN} Unown (at most ${MAX_UNOWN} Basic Pokémon with Unown in their names)`;
   const own = entries.find((e) => e.cardId === card.id)?.quantity ?? 0;
   return own >= copiesAllowed(ruleCard(card)) ? `Already ${own} of this card` : null;

@@ -51,7 +51,7 @@ export const cardLabel = (card: Pick<Card, 'name' | 'data'>) => {
 };
 
 /** Stage 1 Pokémon printed as evolving from Mysterious Fossil, which TCGdex leaves out. */
-const FROM_MYSTERIOUS_FOSSIL = new Set(['Omanyte', 'Kabuto', 'Aerodactyl']);
+const FROM_MYSTERIOUS_FOSSIL = new Set(['Omanyte', 'Kabuto', 'Aerodactyl', 'Dark Omanyte']);
 
 /** Baby Pokémon promos, which TCGdex lists as Basic (Neo-era Babies have the stage "Baby"). */
 /** Baby Pokémon TCGdex lists as Basic: the promos, Neo Genesis's Pichu, Cleffa, Elekid and Magby, Neo Discovery's Igglybuff and Tyrogue, and Neo Revelation's Smoochum. */
@@ -67,6 +67,8 @@ const OWNER = /^((?:Blaine|Brock|Erika|Lt\. Surge|Misty|Sabrina|Giovanni|Koga|Ro
 const evolvesFrom = (card: Pick<Card, 'name' | 'stage' | 'evolveFrom'>) => {
   // Team Rocket's Dark Stage 2 Pokémon evolve from the Dark Stage 1 (Dark Alakazam from Dark Kadabra); TCGdex has the plain one.
   if (card.stage === 'Stage2' && card.name.startsWith('Dark ') && card.evolveFrom && !card.evolveFrom.startsWith('Dark ')) return `Dark ${card.evolveFrom}`;
+  // Neo Destiny's Light Stage 2 Pokémon likewise evolve from the Light Stage 1 (Light Dragonite from Light Dragonair).
+  if (card.stage === 'Stage2' && card.name.startsWith('Light ') && card.evolveFrom && !card.evolveFrom.startsWith('Light ')) return `Light ${card.evolveFrom}`;
   // An owner's Pokémon evolves from the same owner's (Brock's Rhydon from Brock's Rhyhorn, as printed); TCGdex has the plain one.
   const owner = card.stage !== 'Basic' && card.stage !== 'Baby' ? card.name.match(OWNER)?.[1] : undefined;
   const from = card.evolveFrom ?? TCGDEX_MISSING_EVOLVES_FROM[card.name];
@@ -190,6 +192,8 @@ export function toCardDef(card: Card): CardDef {
     }
     // Rainbow Energy counts as every type while attached (1 at a time).
     if (card.name === 'Rainbow Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'colorless', anyType: true, basic: false, holo: isHolo(card) };
+    // Miracle Energy counts as every type but provides only 2 Energy at a time.
+    if (card.name === 'Miracle Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'colorless', anyType: true, amount: 2, basic: false, holo: isHolo(card) };
     // Full Heal, Potion and Recycle Energy provide Colorless (their effects are the engine's); Darkness and Metal Energy 1 Energy of their type.
     return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: known ? named : 'colorless', basic: false, holo: isHolo(card) };
   }

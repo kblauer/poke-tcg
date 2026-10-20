@@ -19,6 +19,9 @@ import { NEO2_TRAINERS } from './neo2-trainers.js';
 import { NEO3 } from './neo3.js';
 import { NEO3_POWERS } from './neo3-powers.js';
 import { NEO3_TRAINERS } from './neo3-trainers.js';
+import { NEO4 } from './neo4.js';
+import { NEO4_POWERS } from './neo4-powers.js';
+import { NEO4_ENERGY, NEO4_TRAINERS } from './neo4-trainers.js';
 import { SI1 } from './si1.js';
 import { PROMOS } from './promos.js';
 import { ROCKET } from './rocket.js';
@@ -36,28 +39,28 @@ import { GYM2_POWERS } from './gym2-powers.js';
 import { GYM2_TRAINERS } from './gym2-trainers.js';
 
 /** Effects by card id, then attack name. Base Set 2's are its originals' (base4.ts). */
-const ORIGINAL_EFFECTS: Record<string, Record<string, AttackEffect>> = { ...BASE1, ...JUNGLE, ...FOSSIL, ...PROMOS, ...ROCKET, ...GYM1, ...GYM2, ...NEO1, ...NEO2, ...SI1, ...NEO3 };
+const ORIGINAL_EFFECTS: Record<string, Record<string, AttackEffect>> = { ...BASE1, ...JUNGLE, ...FOSSIL, ...PROMOS, ...ROCKET, ...GYM1, ...GYM2, ...NEO1, ...NEO2, ...SI1, ...NEO3, ...NEO4 };
 const EFFECTS: Record<string, Record<string, AttackEffect>> = { ...ORIGINAL_EFFECTS, ...base4Reprints(ORIGINAL_EFFECTS) };
 
 /** The card-specific behaviour of an attack, if it has any (plain-damage attacks don't). */
 export const attackEffect = (defId: string, attackName: string): AttackEffect | undefined => EFFECTS[defId]?.[attackName];
 
 /** Pokémon Power effects by card id (WOTC cards have at most one power). Base Set 2's are its originals'. */
-const ORIGINAL_POWERS: Record<string, PowerEffect> = { ...BASE1_POWERS, ...JUNGLE_POWERS, ...FOSSIL_POWERS, ...PROMO_POWERS, ...ROCKET_POWERS, ...GYM1_POWERS, ...GYM2_POWERS, ...NEO1_POWERS, ...NEO2_POWERS, ...NEO3_POWERS };
+const ORIGINAL_POWERS: Record<string, PowerEffect> = { ...BASE1_POWERS, ...JUNGLE_POWERS, ...FOSSIL_POWERS, ...PROMO_POWERS, ...ROCKET_POWERS, ...GYM1_POWERS, ...GYM2_POWERS, ...NEO1_POWERS, ...NEO2_POWERS, ...NEO3_POWERS, ...NEO4_POWERS };
 const POWERS: Record<string, PowerEffect> = { ...ORIGINAL_POWERS, ...base4Reprints(ORIGINAL_POWERS) };
 
 /** The behaviour of the card's Pokémon Power, if it's implemented. */
 export const powerEffect = (defId: string): PowerEffect | undefined => POWERS[defId];
 
 /** Trainer card effects by card id. Base Set 2's are its originals'. */
-const ORIGINAL_TRAINERS: Record<string, TrainerEffect> = { ...BASE1_TRAINERS, ...JUNGLE_TRAINERS, ...FOSSIL_TRAINERS, ...NEO1_TRAINERS, ...NEO2_TRAINERS, ...NEO3_TRAINERS, ...PROMO_TRAINERS, ...ROCKET_TRAINERS, ...GYM1_TRAINERS, ...GYM2_TRAINERS };
+const ORIGINAL_TRAINERS: Record<string, TrainerEffect> = { ...BASE1_TRAINERS, ...JUNGLE_TRAINERS, ...FOSSIL_TRAINERS, ...NEO1_TRAINERS, ...NEO2_TRAINERS, ...NEO3_TRAINERS, ...NEO4_TRAINERS, ...PROMO_TRAINERS, ...ROCKET_TRAINERS, ...GYM1_TRAINERS, ...GYM2_TRAINERS };
 const TRAINERS: Record<string, TrainerEffect> = { ...ORIGINAL_TRAINERS, ...base4Reprints(ORIGINAL_TRAINERS) };
 
 /** The behaviour of a Trainer card, if it's implemented. */
 export const trainerEffect = (defId: string): TrainerEffect | undefined => TRAINERS[defId];
 
 /** Special Energy effects by card id (Team Rocket's). */
-const ENERGY: Record<string, EnergyEffect> = { ...ROCKET_ENERGY, ...NEO1_ENERGY };
+const ENERGY: Record<string, EnergyEffect> = { ...ROCKET_ENERGY, ...NEO1_ENERGY, ...NEO4_ENERGY };
 
 /** What the special Energy card does when attached from the hand, if it does anything. */
 export const energyEffect = (defId: string): EnergyEffect | undefined => ENERGY[defId];

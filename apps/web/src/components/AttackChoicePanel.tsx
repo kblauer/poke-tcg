@@ -17,6 +17,7 @@ export function AttackChoicePanel({ spec, view, attack }: { spec: ChoiceSpec; vi
       <div className="flex flex-col gap-1">
         {spec.kind === 'ownEnergy' && <EnergyPicker key={spec.prompt} options={spec.options} min={spec.count} max={spec.count} cards={cards} onDone={attack.answer} />}
         {spec.kind === 'ownEnergyUpTo' && <EnergyPicker key={spec.prompt} options={spec.options} min={0} max={spec.max ?? spec.options.length} cards={cards} onDone={attack.answer} />}
+        {spec.kind === 'ownEnergyAny' && <EnergyPicker key={spec.prompt} options={spec.options} min={0} max={spec.options.length} cards={cards} onDone={attack.answer} />}
         {spec.kind === 'ownDiscard' && <DiscardPicker key={spec.prompt} spec={spec} cards={cards} onDone={attack.answer} />}
         {spec.kind === 'opponentBenchMany' && (
           <>

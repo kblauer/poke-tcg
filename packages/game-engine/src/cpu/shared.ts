@@ -214,8 +214,9 @@ function answers(spec: ChoiceSpec): AttackChoices[keyof AttackChoices][] {
     case 'pokemonEnergy':
       return combinations(spec.options, 1).map(([e]) => e!.uid);
     // Keeping energy first: on a tie the first choice wins.
-    case 'ownEnergyUpTo': {
-      const most = Math.min(spec.max ?? spec.options.length, spec.options.length);
+    case 'ownEnergyUpTo':
+    case 'ownEnergyAny': {
+      const most = Math.min((spec.kind === 'ownEnergyUpTo' && spec.max) || spec.options.length, spec.options.length);
       return Array.from({ length: most + 1 }, (_, n) => combinations(spec.options, n)).flat().map((picked) => picked.map((e) => e.uid));
     }
     // Taking the most cards first.
