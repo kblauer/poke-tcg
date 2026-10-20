@@ -1,10 +1,13 @@
 import type { ReactNode } from 'react';
 
-/** One player's Active Pokémon row: Prize cards on the left, the Active Pokémon in the middle, deck and discard on the right. */
-function ActiveRow({ prizes, active, piles }: { prizes: ReactNode; active: ReactNode; piles: ReactNode }) {
+/**
+ * One player's Active Pokémon row: Prize cards on the left, the Active Pokémon in the middle, deck and discard on the right.
+ * The Prize cards sit a little off centre, towards the player's Bench (`toward`: down for you, up for the CPU; agreed).
+ */
+function ActiveRow({ prizes, active, piles, toward }: { prizes: ReactNode; active: ReactNode; piles: ReactNode; toward: 'up' | 'down' }) {
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-      <div className="justify-self-start">{prizes}</div>
+      <div className={`justify-self-start ${toward === 'down' ? 'translate-y-[calc(var(--card-sm)*0.35)]' : '-translate-y-[calc(var(--card-sm)*0.35)]'}`}>{prizes}</div>
       {active}
       <div className="justify-self-end">{piles}</div>
     </div>
@@ -30,9 +33,9 @@ export function PhoneTable({ top, opponent, bar, self, dialog }: { top: ReactNod
     <div className="flex h-full flex-col justify-between gap-1 px-2 py-1">
       {top}
       <div className="flex justify-center gap-1.5">{opponent.bench}</div>
-      <ActiveRow prizes={opponent.prizes} active={opponent.active} piles={opponent.piles} />
+      <ActiveRow prizes={opponent.prizes} active={opponent.active} piles={opponent.piles} toward="up" />
       {bar}
-      <ActiveRow prizes={self.prizes} active={self.active} piles={self.piles} />
+      <ActiveRow prizes={self.prizes} active={self.active} piles={self.piles} toward="down" />
       <div className="flex justify-center gap-1.5">{self.bench}</div>
       {dialog && <div className="absolute inset-x-2 top-3 z-20 mx-auto w-fit max-w-[calc(100%-1rem)]">{dialog}</div>}
     </div>

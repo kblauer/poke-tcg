@@ -1,6 +1,7 @@
 // Catalog cards in the browser (the whole catalog is loaded once): the `CatalogCard` type, types and stages, and
 // the search and unlocked/locked filters the deck builder uses.
 import type { AppRouter } from '@poke-tcg/api/router';
+import { GENERATIONS } from '@poke-tcg/campaign';
 import type { inferRouterOutputs } from '@trpc/server';
 
 export type CatalogCard = inferRouterOutputs<AppRouter>['cards']['list'][number];
@@ -27,6 +28,23 @@ export const stageLabel = (card: CatalogCard) => STAGES.find((s) => s.value === 
 
 /** Set names in release order, for the set filter. */
 export const setNames = (cards: CatalogCard[]) => [...new Set([...cards].sort((a, b) => a.order - b.order).map((c) => c.setName))];
+
+/** A generation's sets for the set filter: "Gen 1 · Kanto" and its set names in release order. */
+export interface SetGroup {
+  label: string;
+  sets: string[];
+}
+
+/**
+ * The sets by generation (GENERATIONS' `poolSets`), each in release order; sets in no generation's runs (Legendary
+ * Collection) last, under Other.
+ */
+export function setGroups(cards: CatalogCard[]): SetGroup[] {
+  const ids = new Map(cards.map((c) => [c.setName, c.setId]));
+  const groups = Object.entries(GENERATIONS).map(([id, g]) => ({ label: `Gen ${id} · ${g.region}`, sets: setNames(cards).filter((s) => g.poolSets.includes(ids.get(s)!)) }));
+  const other = setNames(cards).filter((s) => !groups.some((g) => g.sets.includes(s)));
+  return [...groups, ...(other.length ? [{ label: 'Other', sets: other }] : [])].filter((g) => g.sets.length);
+}
 
 /** Searching for this (or as much of it as 3 letters or more) finds every Stadium Trainer. */
 const STADIUM = 'stadium';

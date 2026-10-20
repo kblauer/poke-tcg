@@ -30,7 +30,7 @@ export function DeckPanel({
 }) {
   const cards = withCards(entries, byId);
   const inspectOn = useInspectOnRightClick();
-  // How many of each holo Energy were pulled: the most a deck holds.
+  // How many of each holo Energy and special holo were pulled: the most a playable deck holds.
   const { copies } = useUnlocked();
   const size = deckSize(entries);
   return (
@@ -62,8 +62,9 @@ export function DeckPanel({
               </h3>
               <ul className="space-y-1">
                 {section.map(({ card, quantity }) => {
-                  const locked = isLocked(card);
-                  const blocked = locked ? 'Not unlocked yet' : cantAdd(entries, card, byId, copies(card.id));
+                  // Not unlocked, or more copies of a holo than were pulled: the deck can't be played.
+                  const locked = isLocked(card) || (card.limitedCopies && quantity > copies(card.id));
+                  const blocked = cantAdd(entries, card, byId);
                   return (
                     <li key={card.id} className={`flex items-center gap-2 ${locked ? 'opacity-50' : ''}`} {...inspectOn(card)}>
                       {card.imageUrl ? (

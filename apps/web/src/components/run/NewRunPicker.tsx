@@ -1,10 +1,14 @@
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import LockIcon from '@mui/icons-material/Lock';
 import { boss, bossLabel, bossTypes, generation, RUN_TYPES, type BossId, type RunTypeId } from '@poke-tcg/campaign';
+import { DECK_SIZE } from '@poke-tcg/shared';
 import { Link } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useContext, useState } from 'react';
 import type { Overview, RunControl } from '../../hooks/useRun';
+import { useUnlocked } from '../../hooks/useUnlocked';
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
+import { DeckSummary, LOCKED_TAG } from '../DeckList';
+import { CatalogContext } from '../InspectContext';
 import { EnergyIcon } from '../EnergyIcon';
 
 type RunTypeInfo = Overview['runTypes'][number];
@@ -87,11 +91,15 @@ function RunTypeOption({ info, selected, onPick }: { info: RunTypeInfo; selected
 
 /**
  * Picks the next run's type and one of your decks (built on the Collection tab), then starts it. Run types are buttons
- * (RunTypeOption) for the generation picked in the dropdown (Gen 1 · Kanto, Gen 2 · Johto…); locked ones can't be picked. Decks that break the rules or hold cards you haven't
+ * (RunTypeOption) for the generation picked in the dropdown (Gen 1 · Kanto, Gen 2 · Johto…); locked ones can't be picked. Decks are
+ * tiles as on the Collection tab (name, card count, DeckSummary); those that break the rules or hold cards you haven't
  * unlocked are listed with why, and can't be picked.
  */
 export function NewRunPicker({ overview: given, run, title, defaultType }: { overview: Overview; run: RunControl; title: string; defaultType?: RunTypeId }) {
   // Debug mode unlocks every run type (started with debugStart); `debugLocked`: the ones that were locked.
+  // The catalog (for the decks' headline Pokémon) and which cards are unlocked.
+  const byId = useContext(CatalogContext);
+  const { isLocked } = useUnlocked();
   const debug = useDebugEnabled();
   const unlockAll = DEBUG_BUILD && debug;
   const debugLocked = new Set(unlockAll ? given.runTypes.filter((t) => t.locked !== null).map((t) => t.id) : []);
@@ -147,7 +155,8 @@ export function NewRunPicker({ overview: given, run, title, defaultType }: { ove
             Build or edit decks
           </Link>
         </div>
-        <ul role="radiogroup" className="space-y-1">
+        {/* Deck tiles, as on the Collection tab: the name, then the headline Pokémon and card split, or why it can't be played. */}
+        <ul role="radiogroup" className="grid gap-2 @lg:grid-cols-2 @3xl:grid-cols-3">
           {overview.decks.map((d) => {
             const ok = d.problems.length === 0;
             const selected = d.id === deckId;
@@ -158,15 +167,18 @@ export function NewRunPicker({ overview: given, run, title, defaultType }: { ove
                   aria-checked={selected}
                   disabled={!ok}
                   onClick={() => setPicked(d.id)}
-                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left ring-1 transition ${
+                  className={`h-full w-full space-y-2 rounded-lg px-3 py-2 text-left ring-1 transition ${
                     selected ? 'bg-slate-700 ring-yellow-300' : 'bg-slate-900 ring-slate-700 hover:ring-slate-500'
                   } disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:ring-slate-700`}
                 >
-                  <span className={`h-3 w-3 shrink-0 rounded-full ring-2 ${selected ? 'bg-yellow-300 ring-yellow-300' : 'ring-slate-500'}`} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{d.name}</span>
-                    <span className={`block truncate text-xs ${ok ? 'text-slate-400' : 'text-amber-300'}`}>{d.problems[0] ?? `${d.cardCount} cards`}</span>
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span className="truncate font-medium">{d.name}</span>
+                    {d.locked && LOCKED_TAG}
+                    <span className={`ml-auto shrink-0 text-xs ${ok ? 'text-emerald-400' : 'text-slate-400'}`}>
+                      {d.cardCount}/{DECK_SIZE}
+                    </span>
                   </span>
+                  {ok && byId ? <DeckSummary entries={d.cards} byId={byId} isLocked={isLocked} /> : <span className="block truncate text-xs text-amber-300">{d.problems[0]}</span>}
                 </button>
               </li>
             );

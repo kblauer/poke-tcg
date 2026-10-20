@@ -4,6 +4,7 @@ import { CSS } from '@dnd-kit/utilities';
 import AddIcon from '@mui/icons-material/Add';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import EditIcon from '@mui/icons-material/Edit';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import StarIcon from '@mui/icons-material/Star';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
 import type { AppRouter } from '@poke-tcg/api/router';
@@ -152,6 +153,16 @@ const RUN_DECK_TAG = (
   </span>
 );
 
+/**
+ * The tag on a deck holding cards the account hasn't unlocked (decks.list's `locked`): it can't be played until they
+ * are, so wherever deck tiles are shown it's greyed out with this tag (agreed with the user).
+ */
+export const LOCKED_TAG = (
+  <span className="shrink-0 rounded bg-slate-600 px-1.5 text-[10px] font-semibold uppercase leading-5 tracking-wide text-slate-200" title="Holds cards you haven't unlocked: it can't be played until you have them">
+    Locked
+  </span>
+);
+
 /** A deck's card count, green when it can be played (the colour says it's ready). */
 function DeckCount({ size, ready }: { size: number; ready: boolean }) {
   return (
@@ -220,6 +231,7 @@ export function DeckList({
   onRename,
   onReorder,
   onFavorite,
+  onImport,
   busy,
   compact = false,
 }: {
@@ -228,6 +240,8 @@ export function DeckList({
   isLocked: (card: CatalogCard) => boolean;
   onOpen: (deckId: string) => void;
   onNew: () => void;
+  /** Opens the Import dialog (a deck code from another player). */
+  onImport: () => void;
   onCopy: (deckId: string) => void;
   onRename: (deckId: string, name: string) => void;
   onReorder: (deckIds: string[]) => void;
@@ -251,9 +265,14 @@ export function DeckList({
     <div className={`flex min-h-0 flex-1 flex-col gap-2 rounded-lg bg-slate-900 text-sm ${compact ? 'p-2' : 'p-3'}`}>
       <div className="flex items-center justify-between">
         <span className="font-semibold">Decks</span>
-        <button className={`flex items-center gap-1 rounded bg-emerald-600 font-semibold hover:bg-emerald-500 ${compact ? 'px-2 py-0.5 text-xs' : 'px-3 py-1 text-sm'}`} onClick={onNew}>
-          <AddIcon sx={{ fontSize: 16 }} /> {compact ? 'New' : 'New deck'}
-        </button>
+        <span className="flex gap-2">
+          <button className={`flex items-center gap-1 rounded bg-slate-600 hover:bg-slate-500 ${compact ? 'px-2 py-0.5 text-xs' : 'px-3 py-1 text-sm'}`} onClick={onImport} title="Import a deck from a deck code">
+            <FileDownloadIcon sx={{ fontSize: 16 }} /> Import
+          </button>
+          <button className={`flex items-center gap-1 rounded bg-emerald-600 font-semibold hover:bg-emerald-500 ${compact ? 'px-2 py-0.5 text-xs' : 'px-3 py-1 text-sm'}`} onClick={onNew}>
+            <AddIcon sx={{ fontSize: 16 }} /> {compact ? 'New' : 'New deck'}
+          </button>
+        </span>
       </div>
       {decks.length === 0 && <p className="text-slate-500">No decks yet. Start a new one.</p>}
       {decks.length > 1 && !compact && <p className="text-xs text-slate-500">Drag a deck to move it in the list.</p>}
@@ -307,6 +326,7 @@ function SortableDeck({
         title={deck.problems.join(' ') || undefined}
       >
         <DeckTitle name={deck.name} onRename={deck.runDeck ? undefined : (name) => onRename(deck.id, name)} compact={compact}>
+          {deck.locked && LOCKED_TAG}
           <button
             className="flex shrink-0 items-center gap-1 self-center rounded bg-slate-600 px-1.5 text-xs leading-5 hover:bg-slate-500 disabled:opacity-40"
             disabled={busy}
@@ -339,7 +359,10 @@ function SortableDeck({
             </button>
           )}
         </DeckTitle>
-        <DeckBody entries={deck.cards} size={deck.cardCount} ready={deck.problems.length === 0} byId={byId} isLocked={isLocked} compact={compact} />
+        {/* Greyed out while it holds locked cards. */}
+        <div className={deck.locked ? 'opacity-60' : ''}>
+          <DeckBody entries={deck.cards} size={deck.cardCount} ready={deck.problems.length === 0} byId={byId} isLocked={isLocked} compact={compact} />
+        </div>
       </div>
     </li>
   );

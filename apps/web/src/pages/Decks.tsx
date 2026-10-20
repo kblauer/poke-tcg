@@ -9,6 +9,7 @@ import { CardInspector } from '../components/CardInspector';
 import { DeckFilters } from '../components/DeckFilters';
 import { CurrentDeck, DeckList } from '../components/DeckList';
 import { DeckPanel } from '../components/DeckPanel';
+import { ImportDeckDialog, ShareDeckDialog } from '../components/DeckShare';
 import { InspectContext } from '../components/InspectContext';
 import { SidePanel } from '../components/SidePanel';
 import { useFavorites } from '../hooks/useFavorites';
@@ -17,8 +18,8 @@ import { useSwipe } from '../hooks/useSwipe';
 import { useUnlocked } from '../hooks/useUnlocked';
 import { useWindowFill } from '../hooks/useWindowFill';
 import { useTRPC } from '../lib/trpc';
-import { cardTitle, setNames, type CatalogCard } from '../utils/cardList';
-import { EMPTY_DECK_FILTER, cantAdd, changeCount, deckSize, filterForDeck, problemsOf, sortForDeck, type DeckEntry, type DeckFilter, type DeckSort } from '../utils/deckBuilder';
+import { setGroups, type CatalogCard } from '../utils/cardList';
+import { EMPTY_DECK_FILTER, LOCKED_DECK_PROBLEM, cantAdd, changeCount, deckSize, filterForDeck, hasLockedCards, lockedWarning, problemsOf, sortForDeck, type DeckEntry, type DeckFilter, type DeckSort } from '../utils/deckBuilder';
 import { PAGE_WIDTH } from '../utils/layout';
 
 const button = 'rounded px-3 py-1 text-sm disabled:opacity-40';
@@ -28,13 +29,15 @@ const READ_ONLY = "This is your run's deck, which follows the run: copy it to ma
  * Deck builder. On the left, the account's decks first (`DeckList`: open one, start a new one, rename or
  * copy one, drag to reorder); once a deck is open, the deck as a button back to the list (renaming it there
  * is an unsaved change, like its cards), save and delete, and its cards. The card search is on the right: clicking a card adds a copy to the open deck.
- * Cards not unlocked yet (win them in runs) are darker and can't be added. Right-clicking any card (in the
+ * Cards not unlocked yet (win them in runs) are darker. They can be added, with a warning: a deck holding any can't be
+ * played until they're unlocked (agreed with the user). Right-clicking any card (in the
  * search, the open deck or a deck's headline Pokémon) opens it large, with − and + for the open deck.
+ * Share (a saved deck) gives its share code and publishes it to Community Decks; Import (the deck list) saves a code's deck.
  * A link can open a deck straight away: `?deck=<id>`, or `?deck=new` for a new one.
  * The search's Favorites toggle shows only the account's favorite cards (the ★ on a card opened large adds it).
  * On a phone held upright (useIsPhone) the cards fill the screen, under a bar with two buttons: one slides in the decks
- * (or the open deck, with its cards) from the left, as does a swipe to the right, the other the search from the right (SidePanel). Opening a deck or starting a new one
- * closes its panel, so cards can be tapped into it.
+ * (or the open deck, with its cards) from the left, as does a swipe to the right, the other the search from the right (SidePanel). Opening a saved deck keeps
+ * the panel open, showing that deck's cards; starting a new one closes it, so cards can be tapped into it.
  */
 export function DecksPage() {
   const trpc = useTRPC();
@@ -59,8 +62,10 @@ export function DecksPage() {
   const [opened, setOpened] = useState(0);
   const [filter, setFilter] = useState<DeckFilter>(EMPTY_DECK_FILTER);
   const [sort, setSort] = useState<DeckSort>('dex');
-  /** Why the last card clicked couldn't be added. */
+  /** Why the last card clicked couldn't be added, or that adding it locked the deck (lockedWarning). */
   const [blocked, setBlocked] = useState<string | null>(null);
+  /** The Share dialog (the open deck's) or the Import one is open. */
+  const [dialog, setDialog] = useState<'share' | 'import' | null>(null);
   /** The card opened with a right-click (CardInspector). */
   const [inspected, setInspected] = useState<CatalogCard | null>(null);
   /** On a phone: the side panel slid in, if any. */
@@ -141,7 +146,7 @@ export function DecksPage() {
         : null;
 
   const byId = useMemo(() => new Map((catalog.data ?? []).map((c) => [c.id, c])), [catalog.data]);
-  const sets = useMemo(() => (catalog.data ? setNames(catalog.data) : []), [catalog.data]);
+  const sets = useMemo(() => (catalog.data ? setGroups(catalog.data) : []), [catalog.data]);
   // Holo Energy only shows once it's been pulled from a pack.
   const searchable = useMemo(() => (catalog.data ?? []).filter((c) => !c.holoEnergy || copies(c.id) > 0), [catalog.data, copies]);
   const results = useMemo(() => sortForDeck(filterForDeck(searchable, filter, isLocked, favorites.isFavorite), sort), [searchable, filter, sort, isLocked, favorites.isFavorite]);
@@ -165,7 +170,8 @@ export function DecksPage() {
   /** Opens a saved deck, or a new empty one (null), asking first if there are unsaved changes. */
   function open(id: string | null, force = false) {
     if (dirty && !force && !window.confirm('Discard the unsaved changes to this deck?')) return;
-    setPanel(null);
+    // On a phone, a saved deck opens in the decks panel, which stays open to show it (agreed); a new one closes it, so cards can be tapped in.
+    if (id === null) setPanel(null);
     setEditing(true);
     setDeckId(id);
     setDirty(false);
@@ -191,7 +197,8 @@ export function DecksPage() {
     if (readOnly) return setBlocked(READ_ONLY);
     if (loading) return;
     const reason = by > 0 ? blockedFor(card) : null;
-    setBlocked(reason);
+    // A locked card goes in, with a warning that the deck can't be played.
+    setBlocked(reason ?? (by > 0 ? lockedWarning(entries, card, isLocked(card), copies(card.id)) : null));
     if (reason) return;
     setEntries((e) => changeCount(e, card.id, by));
     setDirty(true);
@@ -200,12 +207,19 @@ export function DecksPage() {
   if (catalog.error) return <p className={`${PAGE_WIDTH} text-red-400`}>{catalog.error.message}</p>;
   if (!catalog.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading cards…</p>;
 
-  const problems = problemsOf(entries, byId);
+  // The rules' problems (all a deck needs to be published), then its locked cards'.
+  const ruleProblems = problemsOf(entries, byId);
+  const problems = hasLockedCards(entries, byId, isLocked, copies) ? [...ruleProblems, LOCKED_DECK_PROBLEM] : ruleProblems;
   /** Why another copy of the card can't go in the open deck, or null. */
-  const blockedFor = (card: CatalogCard) =>
-    isLocked(card) ? `${cardTitle(card)} isn't unlocked yet: ${card.holoEnergy ? 'pull it from a pack' : 'win it in a run'}` : cantAdd(entries, card, byId, copies(card.id));
+  const blockedFor = (card: CatalogCard) => cantAdd(entries, card, byId);
   const error = save.error?.message ?? remove.error?.message ?? saved.error?.message;
   const listError = decks.error?.message ?? duplicate.error?.message ?? reorder.error?.message ?? rename.error?.message;
+  // Shares the saved deck, so changes are saved first.
+  const shareButton = deckId && (
+    <button className={`${button} bg-slate-600 hover:bg-slate-500`} disabled={loading || dirty} title={dirty ? 'Save the deck to share it' : 'Copy its deck code, or publish it to Community Decks'} onClick={() => setDialog('share')}>
+      Share
+    </button>
+  );
   /** The left column: the deck list, or the open deck. */
   // On a phone (in its side panel) the open deck's column scrolls as a whole (the deck list scrolls its decks).
   const column = phone ? `flex min-h-0 flex-1 flex-col gap-2 ${editing ? 'overflow-y-auto' : ''}` : 'flex h-[70vh] flex-col gap-3 lg:h-[calc(100dvh-6.5rem)]';
@@ -222,6 +236,7 @@ export function DecksPage() {
           onRename={(id, newName) => rename.mutate({ deckId: id, name: newName })}
           onFavorite={(id, on) => favorite.mutate({ deckId: id, favorite: on })}
           onReorder={(ids) => reorder.mutate({ deckIds: ids })}
+          onImport={() => setDialog('import')}
           busy={duplicate.isPending}
           compact={phone}
         />
@@ -248,6 +263,7 @@ export function DecksPage() {
             <button className={`${button} bg-slate-600 hover:bg-slate-500`} disabled={duplicate.isPending || loading} onClick={() => deckId && duplicate.mutate({ deckId })}>
               Copy to edit
             </button>
+            {shareButton}
             <span className="text-xs text-slate-400">Your run's deck: it changes with the run (trades, switching decks).</span>
           </div>
         ) : (
@@ -269,6 +285,7 @@ export function DecksPage() {
               Delete
             </button>
           )}
+          {shareButton}
           {loading ? <span className="text-xs text-slate-400">Loading the deck…</span> : dirty && <span className="text-xs text-slate-400">Unsaved changes</span>}
         </div>
         )}
@@ -357,6 +374,17 @@ export function DecksPage() {
               : undefined
           }
           onClose={() => setInspected(null)}
+        />
+      )}
+      {dialog === 'share' && deckId && <ShareDeckDialog deckId={deckId} name={name} problem={ruleProblems[0]} onClose={() => setDialog(null)} />}
+      {dialog === 'import' && (
+        <ImportDeckDialog
+          onClose={() => setDialog(null)}
+          onImported={(id, locked) => {
+            setDialog(null);
+            open(id);
+            if (locked) setBlocked("Imported. Some of its cards aren't unlocked yet: the deck can't be played until they are");
+          }}
         />
       )}
     </InspectContext.Provider>

@@ -1,7 +1,7 @@
 // Deck builder: the search filters and editing a deck's card list. The rules themselves (60 cards, 4 of a
 // name, a Basic Pokémon) are in @poke-tcg/shared, where the API checks them too.
 import { DECK_SIZE, MAX_COPIES, MAX_UNOWN, copiesAllowed, copiesOfName, deckProblems, isUnownCard, unownCount, type DeckRuleCard } from '@poke-tcg/shared';
-import { CARD_TYPES, matchesSearch, type CatalogCard } from './cardList';
+import { CARD_TYPES, cardTitle, matchesSearch, type CatalogCard } from './cardList';
 
 /** Pokémon stages for the stage filter. */
 export const POKEMON_STAGES = [
@@ -158,17 +158,39 @@ export const deckSize = (entries: DeckEntry[]) => entries.reduce((n, e) => n + e
 export const problemsOf = (entries: DeckEntry[], byId: Map<string, CatalogCard>) =>
   deckProblems(withCards(entries, byId).map((e) => ({ card: ruleCard(e.card), quantity: e.quantity })));
 
-/** Why another copy of `card` can't go in the deck, or null if it can. */
-export function cantAdd(entries: DeckEntry[], card: CatalogCard, byId: Map<string, CatalogCard>, pulled = 0): string | null {
+/**
+ * Why another copy of `card` can't go in the deck, or null if it can. Locked cards can (agreed with the user): the deck
+ * just can't be played until they're unlocked (lockedWarning, hasLockedCards).
+ */
+export function cantAdd(entries: DeckEntry[], card: CatalogCard, byId: Map<string, CatalogCard>): string | null {
   if (deckSize(entries) >= DECK_SIZE) return `The deck already has ${DECK_SIZE} cards`;
-  // Holo Energy and special holos: as many as were pulled (`pulled`).
-  if (card.limitedCopies && (entries.find((e) => e.cardId === card.id)?.quantity ?? 0) >= pulled) return `You've pulled ${pulled} of this holo`;
   const rules = withCards(entries, byId).map((e) => ({ card: ruleCard(e.card), quantity: e.quantity }));
   if (!card.basicEnergy && copiesOfName(rules, card.name) >= MAX_COPIES) return `Already ${MAX_COPIES} cards named ${card.name}`;
   if (isUnownCard(ruleCard(card)) && unownCount(rules) >= MAX_UNOWN) return `Already ${MAX_UNOWN} Unown (at most ${MAX_UNOWN} Basic Pokémon with Unown in their names)`;
   const own = entries.find((e) => e.cardId === card.id)?.quantity ?? 0;
   return own >= copiesAllowed(ruleCard(card)) ? `Already ${own} of this card` : null;
 }
+
+/**
+ * A copy of the card is locked: not unlocked, or (a holo Energy or special holo) more copies than were pulled (`pulled`).
+ * `copies` is how many the deck would hold.
+ */
+const lockedCopy = (card: CatalogCard, copies: number, locked: boolean, pulled: number) => locked || (card.limitedCopies && copies > pulled);
+
+/** What adding a copy of the card means, when it locks the deck (see cantAdd); null when it doesn't. */
+export function lockedWarning(entries: DeckEntry[], card: CatalogCard, locked: boolean, pulled: number): string | null {
+  const copies = (entries.find((e) => e.cardId === card.id)?.quantity ?? 0) + 1;
+  if (!lockedCopy(card, copies, locked, pulled)) return null;
+  const what = locked ? `${cardTitle(card)} isn't unlocked yet (${card.holoEnergy ? 'pull it from a pack' : 'win it in a run'})` : `You've pulled ${pulled} of this holo`;
+  return `${what}: the deck can't be played until ${locked ? 'it is' : 'you have as many as it holds'}`;
+}
+
+/** The deck holds a locked copy (see lockedWarning): it can't be played. The API's decks.list says the same (`locked`). */
+export const hasLockedCards = (entries: DeckEntry[], byId: Map<string, CatalogCard>, isLocked: (card: CatalogCard) => boolean, pulled: (cardId: string) => number) =>
+  withCards(entries, byId).some((e) => lockedCopy(e.card, e.quantity, isLocked(e.card), pulled(e.card.id)));
+
+/** The problem shown for a deck with locked cards (hasLockedCards). */
+export const LOCKED_DECK_PROBLEM = "Holds cards you haven't unlocked: it can't be played until you have them";
 
 /** The deck with one more (`by` = 1) or one fewer (`by` = −1) copy of the card. */
 export function changeCount(entries: DeckEntry[], cardId: string, by: 1 | -1): DeckEntry[] {

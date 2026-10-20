@@ -9,7 +9,7 @@ import { Card } from './Card';
  * as another Stadium is played. A Stadium that can be used once during each turn (Lucky Stadium) is used by clicking
  * it, like a benched Pokémon's power: on your turn it glows when it can be used, and a click uses it at once (it's the
  * only thing to do with it); when it can't be, a warning says why (`notify`). `compact` (the phone layout): just the card,
- * at the size of the piles, in the bar between the sides, and nothing when there's no Stadium.
+ * 1.3 times the piles' size, in the bar between the sides but lowered towards your side, and nothing when there's no Stadium.
  */
 export function StadiumCard({
   view,
@@ -39,7 +39,8 @@ export function StadiumCard({
   if (compact && !(stadium && def)) return null;
   return (
     // Hangs off the active slot's left edge (index.css), level with its bottom, so the slot stays centred.
-    <div className={compact ? `shrink-0 [--card-sm:var(--card-pile)] ${SMALL_CARD}` : `stadium-column absolute bottom-0 flex flex-col gap-1 ${SMALL_CARD}`}>
+    // On a phone: a little larger than the piles, and lowered towards your Active Pokémon (agreed).
+    <div className={compact ? `relative z-10 shrink-0 translate-y-[calc(var(--card-pile)*0.45)] [--card-sm:calc(var(--card-pile)*1.3)] ${SMALL_CARD}` : `stadium-column absolute bottom-0 flex flex-col gap-1 ${SMALL_CARD}`}>
       {!compact && <p className="text-center text-xs text-slate-400">Stadium</p>}
       {stadium && def ? (
         <div
