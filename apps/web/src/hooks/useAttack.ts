@@ -30,6 +30,7 @@ export function useAttack({ view, send, busy }: { view: PlayerView; send: (a: Ga
           stadium: view.stadium?.card ?? null,
           recall: !!self.recall,
           powersOff: self.powersOffUntil !== undefined || opponent.powersOffUntil !== undefined,
+          opponentPrizes: opponent.prizeCount,
         }
       : null;
 

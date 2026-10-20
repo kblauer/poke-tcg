@@ -4,11 +4,11 @@
 // Rulings (from the text): the powers that work "when you play X from your hand to evolve your Active Pokémon" (Energy
 // Recharge, Venom Spray, Manipulate, Flame Vapor, Streaming Mantle) do nothing when it evolves a Benched Pokémon; Attract
 // Energy works on any evolution from the hand. Their "may" is asked when the card is played (Manipulate's: by taking a Basic
-// Pokémon from the discard pile or not). Streaming Mantle's basic Energy cards are the last 3 put in each discard pile (the
-// player doesn't choose). Evolution Helper follows the usual evolving limits (not on the first turn, nor onto a Pokémon put
+// Pokémon from the discard pile or not). Streaming Mantle: each player picks the 3 basic Energy cards that
+// go back, when they have more than 3 (agreed with the user). Evolution Helper follows the usual evolving limits (not on the first turn, nor onto a Pokémon put
 // into play this turn) but not Primal Aura's or Primal Stare's (it isn't played from the hand). Ancient Wind turns every
 // Poké-Body off, both players', until the end of the turn. Good Neighbor is once a turn whichever Wigglytuff uses it.
-// Investigate looks at the top 2 cards of a deck or the first 2 Prize cards of a player. Psychoflow and Slippery Skin make
+// Investigate looks at the top 2 cards of a deck, or at 1 or 2 Prize cards of a player that the player picks (agreed). Psychoflow and Slippery Skin make
 // the printed Retreat Cost 0; other changes (Gluey Slime) still apply. Dark Gaze stops Benched Pokémon's Poké-Powers and
 // the older Pokémon Powers, both players', as Dark Impact does.
 import { isBasicEnergy, lookupCard, type EnergyType } from '../cards.js';

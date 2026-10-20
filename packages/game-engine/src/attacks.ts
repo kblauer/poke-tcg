@@ -143,6 +143,8 @@ export interface AttackSituation {
   powersOff?: boolean;
   /** Allergic Pollen: the attack can't do anything with cards in discard piles (its questions about them aren't asked). */
   discardsLocked?: boolean;
+  /** How many Prize cards the opponent has left (the Mystery Plates). Missing = not known: their questions are asked anyway. */
+  opponentPrizes?: number;
 }
 
 /** An attack the Pokémon can use, and the card it's printed on (its effect's card id). */
@@ -678,6 +680,7 @@ export const attackSituation = (state: GameState, me: PlayerState, opp: PlayerSt
   opponentDiscard: opp.discard,
   powersOff: me.powersOffUntil !== undefined || opp.powersOffUntil !== undefined,
   discardsLocked: discardsLocked([me, opp], state.cards),
+  opponentPrizes: opp.prizes.length,
 });
 
 /** Whether the attack can be used with these answers: the complete choices, or why not. */

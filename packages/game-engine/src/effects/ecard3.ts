@@ -9,8 +9,8 @@
 // Booster's Energy card is chosen as it's discarded; Fireblast and Scalding Steam discard theirs before the damage, as a cost.
 // Bounce Off: the player whose Active Pokémon has fewer Energy cards switches (the attacker's player picks theirs after the
 // attack). Electric Blast's damage counters are placed one at a time after the attack. The Mystery Plates count the
-// opponent's Prize cards left when the attack is used; Retro Cave's and Healing Oasis's Pokémon are asked for whatever that
-// count is.
+// opponent's Prize cards left when the attack is used; Retro Cave's and Healing Oasis's Pokémon are asked only when that
+// count is exactly 2 (`AttackSituation.opponentPrizes`).
 import { pokemonOn, targetsIn, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
 import { isBasicEnergy, lookupCard } from '../cards.js';
 import { energyPool, isEnergyCardOf, retreatCost, type InPlayPokemon, type Target } from '../engine.js';
@@ -124,6 +124,8 @@ const hasBasic = (ctx: AttackContext, ...types: EnergyType[]) =>
 
 /** The opponent's Prize cards left (the Mystery Plates). */
 const oppPrizes = (ctx: AttackContext) => ctx.opp.prizes.length;
+/** Retro Cave and Healing Oasis ask for their Pokémon only when the opponent has exactly 2 Prize cards left (or it's not known). */
+const twoPrizes = (s: AttackSituation) => s.opponentPrizes === undefined || s.opponentPrizes === 2;
 
 /** Puts a damage counter on the attacker for each `n` (Lightning Storm: 2; Continuous Charge: 1 per heads). */
 function selfCounters(ctx: AttackContext, n: number) {
@@ -903,8 +905,9 @@ export const ECARD3: Record<string, Record<string, AttackEffect>> = {
   'ecard3-135': {
     'Retro Cave': {
       choices(s): ChoiceSpec[] {
+        if (!twoPrizes(s)) return [];
         const options = targetsIn(s.defender, s.opponentBench).filter((t) => pokemonOn(s.defender, s.opponentBench, t)!.evolvedFrom.length > 0);
-        return options.length ? [{ kind: 'opponentPokemon', options, prompt: "Choose one of your opponent's Evolved Pokémon to devolve (if they have exactly 2 Prize cards left)" }] : [];
+        return options.length ? [{ kind: 'opponentPokemon', options, prompt: "Choose one of your opponent's Evolved Pokémon to devolve" }] : [];
       },
       run(ctx) {
         const prizes = oppPrizes(ctx);
@@ -933,8 +936,9 @@ export const ECARD3: Record<string, Record<string, AttackEffect>> = {
   'ecard3-136': {
     'Healing Oasis': {
       choices(s): ChoiceSpec[] {
+        if (!twoPrizes(s)) return [];
         const options = targetsIn(s.attacker, s.ownBench).filter((t) => pokemonOn(s.attacker, s.ownBench, t)!.damage > 0);
-        return options.length ? [{ kind: 'ownPokemon', options, prompt: 'Choose one of your Pokémon to remove all damage counters from (if your opponent has exactly 2 Prize cards left)' }] : [];
+        return options.length ? [{ kind: 'ownPokemon', options, prompt: 'Choose one of your Pokémon to remove all damage counters from' }] : [];
       },
       run(ctx) {
         const prizes = oppPrizes(ctx);

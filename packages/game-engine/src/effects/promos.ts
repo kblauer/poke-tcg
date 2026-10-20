@@ -183,6 +183,7 @@ const miniMetronome: AttackEffect = {
       ownDiscard: ctx.me.discard,
       cards: ctx.state.cards,
       turn: ctx.turn,
+      opponentPrizes: ctx.opp.prizes.length,
     };
     const discard = effect?.discard;
     const blocked = effect?.blocked?.(situation) ?? (discard && discard.count !== 'all' && !ctx.choices.energyUids?.length ? `${copied.name} needs Energy to discard` : null);

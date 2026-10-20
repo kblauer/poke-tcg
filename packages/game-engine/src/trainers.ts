@@ -292,8 +292,13 @@ export type PendingChoice = {
       kind: 'lookOppDeck';
       count: number;
       own?: boolean;
-      /** Their first `count` Prize cards instead (Investigate). */
+      /**
+       * Up to `count` of their Prize cards instead (Investigate): with more Prizes than that, the player first picks which,
+       * one at a time (`picked`, by index), and may stop after one; `looking` once they're shown.
+       */
       prizes?: boolean;
+      picked?: number[];
+      looking?: boolean;
     }
   | {
       /**
@@ -408,7 +413,7 @@ export type PendingChoice = {
       count: number;
       of: number;
       then?: PlayerId;
-      /** Basic Energy cards instead of Pokémon cards (Energy Recycle). */
+      /** Basic Energy cards instead of Pokémon cards (Energy Recycle, Streaming Mantle: then `then` does the same, mantleEnergy). */
       filter?: 'basicEnergy';
     }
   | {
@@ -1029,7 +1034,10 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
   }
   if (choice.kind === 'discardToDeck') {
     const options = state.players[choice.player]!.discard.filter((c) => toDeckFits(state.cards, choice, c));
-    if (choice.filter === 'basicEnergy') return { kind: 'pickFromDiscard', prompt: `${choice.source}: shuffle a basic Energy card from your discard pile into your deck`, options };
+    if (choice.filter === 'basicEnergy') {
+      const left = choice.count > 1 ? ` (${choice.count} left)` : '';
+      return { kind: 'pickFromDiscard', prompt: `${choice.source}: shuffle a basic Energy card from your discard pile into your deck${left}`, options };
+    }
     return { kind: 'pickFromDiscard', prompt: `${choice.source}: you may shuffle up to ${choice.count} more Baby, Basic or Evolution cards from your discard pile into your deck`, options, optional: true };
   }
   if (choice.kind === 'removeDamage') {
@@ -1222,8 +1230,15 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
   if (choice.kind === 'guess') return { kind: 'options', prompt: choice.source, labels: choice.labels };
   if (choice.kind === 'lookOppHand') return { kind: 'oppHand', prompt: `${choice.source}: your opponent's hand`, cards: state.players[opponentOfChoice(state, choice)]!.hand, options: [] };
   if (choice.kind === 'lookOppDeck' && choice.prizes) {
-    const cards = state.players[choice.own ? choice.player : opponentOfChoice(state, choice)]!.prizes.slice(0, choice.count);
-    return { kind: 'oppHand', prompt: `${choice.source}: ${cards.length} of ${choice.own ? 'your' : "your opponent's"} Prize cards (they stay where they are)`, cards, options: [] };
+    const whose = choice.own ? 'your' : "your opponent's";
+    const pile = state.players[choice.own ? choice.player : opponentOfChoice(state, choice)]!.prizes;
+    if (pickingPrizes(choice, pile)) {
+      const labels = unpickedPrizes(choice, pile).map((i) => `Prize ${i + 1}`);
+      if (!choice.picked?.length) return { kind: 'options', prompt: `${choice.source}: look at which of ${whose} Prize cards?`, labels };
+      return { kind: 'options', prompt: `${choice.source}: look at another of ${whose} Prize cards?`, labels: [...labels, 'Only that one'] };
+    }
+    const cards = choice.looking ? choice.picked!.map((i) => pile[i]!) : pile.slice(0, choice.count);
+    return { kind: 'oppHand', prompt: `${choice.source}: ${cards.length} of ${whose} Prize cards (they stay where they are)`, cards, options: [] };
   }
   if (choice.kind === 'lookOppDeck') {
     const cards = state.players[choice.own ? choice.player : opponentOfChoice(state, choice)]!.deck.slice(0, choice.count);
@@ -1375,8 +1390,32 @@ type SkyridgeChoice = Extract<PendingChoice, { kind: (typeof SKYRIDGE_KINDS)[num
 
 const isSkyridge = (choice: PendingChoice): choice is SkyridgeChoice => (SKYRIDGE_KINDS as readonly string[]).includes(choice.kind);
 
+/** Investigate: the player is still picking which Prize cards to look at (there are more than it looks at). */
+const pickingPrizes = (choice: Extract<PendingChoice, { kind: 'lookOppDeck' }>, pile: CardInstance[]) => !choice.looking && pile.length > choice.count;
+/** Investigate: the indexes of the Prize cards not picked yet. */
+const unpickedPrizes = (choice: Extract<PendingChoice, { kind: 'lookOppDeck' }>, pile: CardInstance[]) => pile.flatMap((_, i) => (choice.picked?.includes(i) ? [] : [i]));
+
 /** Basic Energy cards in the discard pile. */
 const basicEnergyIn = (cards: CardLibrary, pile: CardInstance[]) => pile.filter((c) => isBasicEnergy(lookupCard(cards, c.defId)));
+
+/**
+ * Streaming Mantle: each of `players` in turn shuffles 3 basic Energy cards from their discard pile into their deck: all of
+ * them with 3 or fewer, otherwise the player picks which (agreed), and the next one goes after.
+ */
+function mantleEnergy(state: GameState, players: PlayerState[], source: string) {
+  for (const [i, player] of players.entries()) {
+    const basic = basicEnergyIn(state.cards, player.discard);
+    if (basic.length > 3) {
+      const next = players[i + 1];
+      state.pendingChoice = { player: player.id, source, kind: 'discardToDeck', count: 3, of: 3, filter: 'basicEnergy', ...(next && { then: next.id }) };
+      return;
+    }
+    player.discard = player.discard.filter((c) => !basic.includes(c));
+    [player.deck, state.rngState] = shuffle([...player.deck, ...basic], state.rngState);
+    addLog(state, `${source}: shuffled ${basic.length} basic Energy card${basic.length === 1 ? '' : 's'} into the deck.`, player.id);
+  }
+  delete state.pendingChoice;
+}
 
 /** Cards in the discard pile `discardToBench` can put onto the Bench. */
 const toBenchFits = (cards: CardLibrary, choice: Extract<PendingChoice, { kind: 'discardToBench' }>, c: CardInstance) => {
@@ -1483,15 +1522,14 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
         const energy = opp.active?.energy.filter((e) => !e.provides).length ?? 0;
         if (Math.min(heads, energy)) return again({ player: me.id, source: choice.source, kind: 'removeEach', targets: Array<Target>(Math.min(heads, energy)).fill('active') });
       } else if (choice.power === 'streamingMantle') {
+        // Both decks lose their top 3 first (neither player's picks change the other's deck), then each player's basic Energy go back.
         for (const player of [me, opp]) {
           const top = player.deck.splice(0, 3);
           player.discard.push(...top);
-          // The last 3 basic Energy cards discarded go back (agreed reading: the player doesn't choose which).
-          const back = basicEnergyIn(state.cards, player.discard).slice(-3);
-          player.discard = player.discard.filter((c) => !back.includes(c));
-          [player.deck, state.rngState] = shuffle([...player.deck, ...back], state.rngState);
-          addLog(state, `${choice.source}: discarded the top ${top.length} cards of the deck and shuffled ${back.length} basic Energy cards into it.`, player.id);
+          addLog(state, `${choice.source}: discarded the top ${top.length} cards of the deck.`, player.id);
         }
+        mantleEnergy(state, [me, opp], choice.source);
+        return null;
       } else {
         // Retro Energy: up to 2 damage counters off, then its top card is discarded.
         const healed = Math.min(20, p.damage);
@@ -2000,6 +2038,11 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
       }
     }
     [me.deck, state.rngState] = shuffle(me.deck, state.rngState);
+    // Streaming Mantle: then the opponent's basic Energy cards (shuffled back by themselves, or picked).
+    if (choice.filter === 'basicEnergy' && choice.then) {
+      mantleEnergy(state, [state.players[choice.then]!], choice.source);
+      return null;
+    }
     // Then the other player may do the same.
     const next = choice.then ? state.players[choice.then] : undefined;
     if (next && next.discard.some((c) => isPokemonCard(lookupCard(state.cards, c.defId)))) {
@@ -2402,6 +2445,16 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
       state.borrowed = { uid: picked.uid, owner: opp.id, player: me.id };
       addLog(state, `Took ${name(picked)} from the opponent's discard pile to use this turn.`, me.id);
     }
+  } else if (choice.kind === 'lookOppDeck' && choice.prizes && pickingPrizes(choice, state.players[choice.own ? choice.player : opponentOfChoice(state, choice)]!.prizes)) {
+    // Investigate: a Prize card to look at, or (after the first) 'Only that one'.
+    const pile = state.players[choice.own ? choice.player : opponentOfChoice(state, choice)]!.prizes;
+    const unpicked = unpickedPrizes(choice, pile);
+    const picked = choice.picked ?? [];
+    const i = answer.count;
+    if (typeof i !== 'number' || i < 0 || i > unpicked.length || (i === unpicked.length && !picked.length)) return 'Choose a Prize card';
+    const more = i === unpicked.length ? picked : [...picked, unpicked[i]!];
+    state.pendingChoice = { ...choice, picked: more, ...((i === unpicked.length || more.length >= choice.count) && { looking: true }) };
+    return null;
   } else if (choice.kind === 'lookOppHand' || choice.kind === 'lookOppDeck') {
     // Nothing to do: the cards were shown.
   } else if (choice.kind === 'engage') {

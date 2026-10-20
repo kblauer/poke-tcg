@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CardDef, PokemonCardDef } from '../cards.js';
-import { applyAction, energyPool, inPlayDef, powerError, retreatCost, situationCounts, type GameState, type InPlayPokemon, type Target } from '../index.js';
+import { applyAction, attackSituation, energyPool, inPlayDef, pendingChoiceView, powerError, resolveChoices, retreatCost, situationCounts, type GameState, type InPlayPokemon, type Target } from '../index.js';
 import { act, attack, duel, endTurn, flips, give, id, mon, C, F, FI, G, L, P, W } from './test-kit.js';
 
 const ash = (s: GameState) => s.players.ash!;
@@ -164,6 +164,48 @@ describe('Skyridge Pokémon', () => {
     expect([misty(after).active!.condition, misty(after).active!.poison]).toEqual(['paralyzed', 10]);
   });
 
+  it('Investigate: the player picks 1 or 2 of a player\'s Prize cards to look at; with 2 or fewer, they\'re all shown', () => {
+    const s = duel('charmander', 'onix');
+    put(s, 'ash', 'active', mon('ecard3-40', 'Noctowl', C, 70, [['Triple Smash', [C, C], 10]], { stage: 'stage1', ...power('Investigate') }));
+    misty(s).prizes = [0, 1, 2, 3].map((i) => ({ uid: `p${i}`, defId: id('charmander') }));
+    const asked = act(s, 'ash', { type: 'USE_POWER', source: 'active', choices: { peek: 'oppPrize' } });
+    expect(pendingChoiceView(asked, asked.pendingChoice!)).toMatchObject({ kind: 'options', labels: ['Prize 1', 'Prize 2', 'Prize 3', 'Prize 4'] });
+    const one = resolve(asked, { count: 2 });
+    expect(pendingChoiceView(one, one.pendingChoice!)).toMatchObject({ kind: 'options', labels: ['Prize 1', 'Prize 2', 'Prize 4', 'Only that one'] });
+    const two = resolve(one, { count: 2 });
+    expect(pendingChoiceView(two, two.pendingChoice!)).toMatchObject({ kind: 'oppHand', cards: [{ uid: 'p2' }, { uid: 'p3' }] });
+    const only = resolve(one, { count: 3 });
+    expect(pendingChoiceView(only, only.pendingChoice!)).toMatchObject({ kind: 'oppHand', cards: [{ uid: 'p2' }] });
+    expect(resolve(only, {}).pendingChoice).toBeUndefined();
+    misty(s).prizes = misty(s).prizes.slice(0, 2);
+    const few = act(s, 'ash', { type: 'USE_POWER', source: 'active', choices: { peek: 'oppPrize' } });
+    expect(pendingChoiceView(few, few.pendingChoice!)).toMatchObject({ kind: 'oppHand', cards: [{ uid: 'p0' }, { uid: 'p1' }] });
+  });
+
+  it('Streaming Mantle: both players discard their top 3 cards; each picks 3 basic Energy cards to shuffle back when they have more', () => {
+    const s = duel('charmander', 'onix');
+    const slugma = mon('ecard3-slugma', 'Slugma', F, 50, [['Ember', [F], 10]]);
+    const magcargo = mon('ecard3-18', 'Magcargo', F, 80, [['Crushing Lava', [F, C], 40]], { stage: 'stage1', evolvesFrom: 'Slugma', ...power('Streaming Mantle') });
+    put(s, 'ash', 'active', slugma);
+    for (const player of [ash(s), misty(s)]) player.deck = [0, 1, 2, 3].map((i) => ({ uid: `${player.id}-top${i}`, defId: id('charmander') }));
+    ash(s).discard = ['fire', 'water', 'fire', 'grass'].map((e, i) => ({ uid: `a${i}`, defId: e }));
+    misty(s).discard = ['fighting', 'water'].map((e, i) => ({ uid: `m${i}`, defId: e }));
+    const asked = resolve(act(s, 'ash', { type: 'EVOLVE', cardUid: hand(s, 'ash', magcargo), target: 'active' }), { count: 0 });
+    expect(misty(asked).deck.map((c) => c.uid)).toEqual(['misty-top3']);
+    expect(asked.pendingChoice).toMatchObject({ player: 'ash', kind: 'discardToDeck', count: 3, filter: 'basicEnergy', then: 'misty' });
+    const done = resolve(resolve(resolve(asked, { cardUid: 'a3' }), { cardUid: 'a1' }), { cardUid: 'a0' });
+    expect(done.pendingChoice).toBeUndefined();
+    expect(ash(done).discard.map((c) => c.uid)).toContain('a2');
+    expect(ash(done).deck.map((c) => c.uid)).toEqual(expect.arrayContaining(['a0', 'a1', 'a3', 'ash-top3']));
+    // Misty had only 2: both go back by themselves.
+    expect(misty(done).deck.map((c) => c.uid).sort()).toEqual(['m0', 'm1', 'misty-top3']);
+    // With more than 3, Misty picks hers after Ash.
+    misty(s).discard.push(...['grass', 'fire'].map((e, i) => ({ uid: `m${i + 2}`, defId: e })));
+    const theirs = resolve(resolve(resolve(resolve(act(s, 'ash', { type: 'EVOLVE', cardUid: hand(s, 'ash', magcargo), target: 'active' }), { count: 0 }), { cardUid: 'a3' }), { cardUid: 'a1' }), { cardUid: 'a0' });
+    expect(theirs.pendingChoice).toMatchObject({ player: 'misty', kind: 'discardToDeck', count: 3 });
+    expect(resolve(theirs, { cardUid: 'm1' }, 'misty').pendingChoice).toMatchObject({ player: 'misty', count: 2 });
+  });
+
   it('Evolution Helper: from the Bench, the Active Pokémon evolves with a card from the deck', () => {
     const s = duel('charmander', 'onix');
     put(s, 'ash', 0, nidoqueen);
@@ -259,6 +301,18 @@ describe('Skyridge Trainers and Energy', () => {
     expect(misty(plated).prizes.length).toBeGreaterThanOrEqual(5);
     const before = ash(plated).hand.length;
     expect(ash(attack(plated, 2)).hand.length).toBe(before + 3);
+  });
+
+  it('Mystery Plate δ – Healing Oasis: its Pokémon is asked for only when the opponent has exactly 2 Prize cards left', () => {
+    const s = duel('charmander', 'onix', { energy: ['fire'] });
+    ash(s).active!.damage = 20;
+    const plated = play(s, hand(s, 'ash', trainer('ecard3-136', 'Mystery Plate δ')), { target: 'active' });
+    // With one Pokémon to choose, the answer fills itself in.
+    const answered = (state: GameState) => resolveChoices(attackSituation(state, ash(state), misty(state)), 2, {});
+    expect(answered(plated)).toEqual({ choices: {} });
+    misty(plated).prizes = misty(plated).prizes.slice(0, 2);
+    expect(answered(plated)).toEqual({ choices: { ownTarget: 'active' } });
+    expect(ash(attack(plated, 2, { ownTarget: 'active' })).active!.damage).toBe(0);
   });
 
   it('Oracle: 2 cards from the deck on top, in the order chosen', () => {
