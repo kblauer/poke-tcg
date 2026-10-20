@@ -2,7 +2,7 @@
 // state with fixed coin flips (so it never sees the real flips to come), plus Energy arithmetic and which
 // cards are useful. Everything here is generic over cards: no card ids, and only the rules engine's own
 // effects decide what an attack does.
-import { answerChoice, attackError, attackSituation, performAttack, resolveChoices, type AttackChoices, type AttackSituation, type ChoiceSpec } from '../attacks.js';
+import { answerChoice, attackError, attackSituation, performAttack, resolveChoices, situationAttacks, type AttackChoices, type AttackSituation, type ChoiceSpec } from '../attacks.js';
 import { isBasicEnergy, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from '../cards.js';
 import { applyAction, energyPool, energyProvided, payCost, type PoolEnergy, evolveError, opponentOf, retreatCost, retreatError, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
 import { nextRandom } from '../rng.js';
@@ -156,7 +156,7 @@ export function retreatPayment(cards: CardLibrary, p: InPlayPokemon, cost: numbe
  * Seeds whose first three coin flips are each of the 8 heads/tails patterns, so attacks with up to three
  * flips are averaged over every outcome equally.
  */
-const SEEDS: number[] = Array.from({ length: 8 }, (_, pattern) => {
+export const SEEDS: number[] = Array.from({ length: 8 }, (_, pattern) => {
   for (let seed = 1; ; seed++) {
     let s = seed;
     const matches = [0, 1, 2].every((bit) => {
@@ -264,7 +264,8 @@ export function attackOptions(state: GameState, attackerId: PlayerId, { nextTurn
   const situation = situationOf(base, attackerId);
 
   const options: AttackOption[] = [];
-  pokemonDef(base.cards, attacker).attacks.forEach((attack, attackIndex) => {
+  // Every attack it can use: its own, and Technical Machines', Recall's, Psymimic's…
+  situationAttacks(situation).forEach(({ attack }, attackIndex) => {
     if (attackError(situation, attackIndex)) return;
     let best: AttackOption | null = null;
     for (const choices of choiceSets(situation, attackIndex)) {
@@ -304,7 +305,7 @@ export function attackDamageRanges(state: GameState, attackerId: PlayerId): (Dam
   const attacker = base.players[attackerId]!.active!;
   if (attacker.condition === 'confused') attacker.condition = null;
   const situation = situationOf(base, attackerId);
-  return pokemonDef(base.cards, attacker).attacks.map((_, attackIndex) => {
+  return situationAttacks(situation).map((_, attackIndex) => {
     if (attackError(situation, attackIndex)) return null;
     let min = Infinity;
     let max = -Infinity;
@@ -500,7 +501,7 @@ export function play(t: Turn, card: CardInstance | undefined, choices?: TrainerC
 
 export const benched = (t: Turn) => inPlay(t.me).filter(([target]) => target !== 'active') as [number, InPlayPokemon][];
 
-/** Finishing a search: the most wanted card (see wantedCards), a Basic, an Energy that helps, or anything. Pokédex keeps the order. */
+/** Finishing a search: the most wanted card (see wantedCards), a Basic, an Energy that helps, or anything. Pokédex: wanted cards on top. */
 /** Challenge! (agreed): the CPU accepts whenever its Bench has room and its deck has a Basic Pokémon. */
 export const acceptsChallenge = (state: GameState, cpu: PlayerState) =>
   openBenchSlot(cpu.bench, state.cards, state.stadium?.card) >= 0 && cpu.deck.some((c) => isBasicPokemon(lookupCard(state.cards, c.defId)));
@@ -508,7 +509,11 @@ export const acceptsChallenge = (state: GameState, cpu: PlayerState) =>
 export function resolveSearch(t: Turn): GameAction {
   const view = pendingChoiceView(t.state, t.state.pendingChoice!);
   if (view.kind === 'challenge') return { type: 'RESOLVE_CHOICE', count: acceptsChallenge(t.state, t.me) ? 1 : 0 };
-  if (view.kind === 'arrangeTop') return { type: 'RESOLVE_CHOICE', order: view.cards.map((c) => c.uid) };
+  // Pokédex, Oracle…: the cards it wants most on top.
+  if (view.kind === 'arrangeTop') {
+    const wanted = wantedCards(t.state, t.me, view.cards);
+    return { type: 'RESOLVE_CHOICE', order: [...wanted, ...view.cards.filter((c) => !wanted.includes(c))].map((c) => c.uid) };
+  }
   // Lt. Surge's Treaty: both take a Prize card unless that helps the other player more (they have fewer left).
   if (view.kind === 'options') return { type: 'RESOLVE_CHOICE', count: optionAnswer(t, view.labels.length) };
   // Flee and Koga's Ninja Trick: it switches out when its Active Pokémon has 40 HP or less left, to the benched Pokémon with the most HP left.

@@ -94,24 +94,35 @@ const CORE_TRAINERS: [string, number][] = [
   ['Potion', 2],
   ['Switch', 2],
 ];
-// Only Trainers a CPU plays (cpu/): others would be dead cards in its hand.
+// The extras in every random deck: only Trainers the Trainer CPU plays too (cpu/trainer.ts), so none are dead cards in its hand.
 const EXTRA_TRAINERS: [string, number][] = [
-  ['PlusPower', 2],
-  ['Energy Removal', 2],
-  ['Gust of Wind', 1],
   ['Super Potion', 1],
-  ['Defender', 1],
   ['Full Heal', 1],
-  ['Pokémon Center', 1],
-  ['Computer Search', 1],
-  ['Super Energy Removal', 1],
+  ['Energy Retrieval', 1],
+  ['Energy Search', 1],
+  ['Poké Ball', 1],
+  ['Maintenance', 1],
+  ['Revive', 1],
   ['Pokémon Trader', 1],
   // Gym Heroes and Gym Challenge Trainers that work in any deck.
   ['Erika', 1],
-  ["Misty's Wrath", 1],
   ['Master Ball', 1],
   ['Brock', 1],
   ['Good Manners', 1],
+];
+
+/** More extras for the gym leader CPU's random decks (the Ace trainers'): disruption and tricks only it plays. */
+const GYM_LEADER_TRAINERS: [string, number][] = [
+  ['PlusPower', 2],
+  ['Energy Removal', 2],
+  ['Gust of Wind', 1],
+  ['Defender', 1],
+  ['Pokémon Center', 1],
+  ['Computer Search', 1],
+  ['Super Energy Removal', 1],
+  ["Misty's Wrath", 1],
+  ['Scoop Up', 1],
+  ['Item Finder', 1],
 ];
 
 /**
@@ -132,9 +143,8 @@ const OWNER_TRAINERS: Record<string, [string, number][]> = {
 const TYPE_TRAINERS: Partial<Record<EnergyType, [string, number][]>> = { water: [["Misty's Tears", 1]], fire: [['Fervor', 1]] };
 
 /**
- * Gen 2's Trainers for random decks, from Neo Genesis to Skyridge, by what they do (draw, healing, switching, a little
- * disruption), as Gen 1's. Only Neo Genesis's have their effects so far (agreed: Gen 2 is scaffolding for now), and the
- * CPUs don't play any of them yet.
+ * Gen 2's Trainers for random decks, from Neo Genesis to Skyridge, by what they do (draw, search, healing, switching), as
+ * Gen 1's: the core and extras ones the Trainer CPU plays, the gym leader's extras with disruption on top.
  */
 const GEN2_CORE_TRAINERS: [string, number][] = [
   ['Professor Elm', 2],
@@ -143,22 +153,43 @@ const GEN2_CORE_TRAINERS: [string, number][] = [
   ['Switch', 2],
 ];
 const GEN2_EXTRA_TRAINERS: [string, number][] = [
-  ['Energy Removal 2', 2],
-  ['Super Energy Removal 2', 1],
-  ['Pokémon Reversal', 1],
-  ['Double Gust', 1],
   ['Gold Berry', 2],
+  ['Berry', 1],
+  ['Miracle Berry', 1],
   ['Moo-Moo Milk', 1],
   ['Hyper Potion', 1],
   ['Full Heal', 1],
   ['Focus Band', 1],
   ['Super Energy Retrieval', 1],
   ['Energy Search', 1],
+  ['Energy Ark', 1],
+  ['Master Ball', 1],
+  ["Bill's Teleporter", 1],
+  ['Mary', 1],
+  ['Pokémon Fan Club', 1],
+  ["Professor Elm's Training Method", 1],
+  ['Dual Ball', 1],
+  ['Fast Ball', 1],
+  ['Energy Switch', 1],
+  ['Copycat', 1],
+  ['Healing Berry', 1],
+];
+const GEN2_GYM_LEADER_TRAINERS: [string, number][] = [
+  ['Energy Removal 2', 2],
+  ['Super Energy Removal 2', 1],
+  ['Pokémon Reversal', 1],
+  ['Double Gust', 1],
   ['Super Scoop Up', 1],
   ['Pokémon Nurse', 1],
-  ['Master Ball', 1],
   ['Warp Point', 1],
+  ['Strength Charm', 1],
+  ['EXP.ALL', 1],
+  ['Pokémon Breeder Fields', 1],
+  ['Seer', 1],
 ];
+
+/** Special Energy for random decks: Colorless-heavy decks take the `colorless` ones, two-type decks the `twoTypes` ones. */
+type SpecialEnergy = [name: string, copies: number, when: 'colorless' | 'twoTypes'];
 
 /**
  * What a generation's random decks are made of: its basic Energy (the types decks are built around) and Double
@@ -170,6 +201,11 @@ export interface DeckRules {
   doubleColorless?: string;
   core: [string, number][];
   extra: [string, number][];
+  /** Extras only the gym leader CPU's random decks draw from (it plays every card; the Trainer CPU doesn't). */
+  gymLeaderExtra: [string, number][];
+  /** Special Energy (at most one kind a deck), by the deck's Energy; `gymLeaderSpecial` too for the gym leader's. */
+  special: SpecialEnergy[];
+  gymLeaderSpecial: SpecialEnergy[];
   breeder?: string;
   owners: Record<string, [string, number][]>;
   types: Partial<Record<EnergyType, [string, number][]>>;
@@ -209,12 +245,24 @@ export const GEN1_DECK_RULES: DeckRules = {
   doubleColorless: DOUBLE_COLORLESS,
   core: CORE_TRAINERS,
   extra: EXTRA_TRAINERS,
+  gymLeaderExtra: GYM_LEADER_TRAINERS,
+  special: [['Potion Energy', 1, 'colorless'], ['Full Heal Energy', 1, 'colorless']],
+  gymLeaderSpecial: [['Rainbow Energy', 1, 'twoTypes']],
   breeder: 'Pokémon Breeder',
   owners: OWNER_TRAINERS,
   types: TYPE_TRAINERS,
 };
 
-export const GEN2_DECK_RULES: DeckRules = { basicEnergy: GEN2_BASIC_ENERGY, core: GEN2_CORE_TRAINERS, extra: GEN2_EXTRA_TRAINERS, owners: {}, types: {} };
+export const GEN2_DECK_RULES: DeckRules = {
+  basicEnergy: GEN2_BASIC_ENERGY,
+  core: GEN2_CORE_TRAINERS,
+  extra: GEN2_EXTRA_TRAINERS,
+  gymLeaderExtra: GEN2_GYM_LEADER_TRAINERS,
+  special: [['Recycle Energy', 2, 'colorless'], ['Rainbow Energy', 1, 'twoTypes']],
+  gymLeaderSpecial: [['Boost Energy', 1, 'colorless'], ['Warp Energy', 1, 'colorless']],
+  owners: {},
+  types: {},
+};
 
 /** The Pokémon a trainer favours, from the class in their name ("Swimmer Luis": a Swimmer's), if they have any. */
 export const trainerFavorites = (trainer: string): string[] | undefined => TRAINER_FAVORITES[trainer.split(' ').slice(0, -1).join(' ')];
@@ -226,13 +274,16 @@ export const trainerFavorites = (trainer: string): string[] | undefined => TRAIN
  * split by what the attacks need. No more than 4 of any card but basic Energy. `type` makes a deck of just that
  * type (and Colorless). `favorites` (Pokémon names, from trainerFavorites) are chosen first wherever they fit,
  * and set the deck's types: a Swimmer's deck has Tentacruel and Golduck rather than any Water Pokémon. `rules` are the
- * generation's Energy and Trainers (Gen 1's by default); the pool should be the same generation's.
+ * generation's Energy and Trainers (Gen 1's by default); the pool should be the same generation's. `difficulty` is the CPU
+ * that plays it: a Trainer CPU's deck holds only cards it plays, a gym leader's (the default) its extras, Pokémon Breeder
+ * and owners' Trainers too.
  */
 export function generateDeck(
   pool: readonly PoolCard[],
   rng: Rng,
-  { type, favorites, rules = GEN1_DECK_RULES }: { type?: EnergyType; favorites?: string[]; rules?: DeckRules } = {},
+  { type, favorites, rules = GEN1_DECK_RULES, difficulty = 'gymLeader' }: { type?: EnergyType; favorites?: string[]; rules?: DeckRules; difficulty?: 'trainer' | 'gymLeader' } = {},
 ): string[] {
+  const gymLeader = difficulty === 'gymLeader';
   const DECK_TYPES = Object.keys(rules.basicEnergy) as EnergyType[];
   // A deck may hold only 1 of each Shining Pokémon: they stay out of random decks, which use 3 or 4 copies of a line.
   const all = evolutionLines(pool, rng).filter((l) => !l.stages.some((d) => d.name.startsWith('Shining ')));
@@ -296,11 +347,12 @@ export function generateDeck(
   const trainer = (name: string) => pool.find((c) => c.def.kind !== 'pokemon' || c.def.trainerText ? nameKey(c.def.name) === nameKey(name) : false)?.def.id;
   const trainerTarget = between(rng, 14, 16);
   const plan: [string, number][] = [...rules.core];
-  if (rules.breeder && chosen.some((l) => l.stages.length === 3)) plan.push([rules.breeder, 1]);
+  if (gymLeader && rules.breeder && chosen.some((l) => l.stages.length === 3)) plan.push([rules.breeder, 1]);
   const owned = (owner: string) => deck.filter((id) => pool.find((c) => c.def.id === id)?.def.name.startsWith(`${owner}'s `)).length;
-  for (const [owner, cards] of Object.entries(rules.owners)) if (owned(owner) >= 4) plan.push(...cards);
+  if (gymLeader) for (const [owner, cards] of Object.entries(rules.owners)) if (owned(owner) >= 4) plan.push(...cards);
   for (const t of types) plan.push(...(rules.types[t] ?? []));
-  for (const [name, copies] of sample(rng, rules.extra, rules.extra.length)) {
+  const extra = gymLeader ? [...rules.extra, ...rules.gymLeaderExtra] : rules.extra;
+  for (const [name, copies] of sample(rng, extra, extra.length)) {
     if (plan.reduce((n, [, c]) => n + c, 0) >= trainerTarget) break;
     plan.push([name, copies]);
   }
@@ -332,6 +384,13 @@ export function generateDeck(
     const dce = between(rng, 1, 2);
     deck.push(...Array<string>(dce).fill(rules.doubleColorless));
     energy -= dce;
+  }
+  // Special Energy half the time it suits the deck: one kind, Colorless-heavy or two-type decks.
+  const fitting = [...rules.special, ...(gymLeader ? rules.gymLeaderSpecial : [])].filter(([name, , when]) => trainer(name) && (when === 'twoTypes' ? types.size === 2 : colorless / (colorless + total) > 0.2));
+  if (fitting.length && energy > 10 && chance(rng, 0.5)) {
+    const [name, copies] = pick(rng, fitting);
+    deck.push(...Array<string>(copies).fill(trainer(name)!));
+    energy -= copies;
   }
   const split = [...symbols.entries()].map(([t, n]) => [t, Math.max(4, Math.round((energy * n) / total))] as const);
   // Rounding can over- or undershoot: the main type takes up the difference.

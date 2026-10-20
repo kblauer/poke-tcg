@@ -20,10 +20,12 @@ import {
   stuckActive,
   switchOrRetreat,
   trainer,
+  tryAction,
   turnOf,
   type AttackOption,
   type Turn,
 } from './shared.js';
+import { bestMove, plainEnergy, specialAttachment, type Allowed } from './evaluate.js';
 
 /**
  * The 'trainer' CPU, for the fights that aren't gym leaders: a simpler gym leader that develops its
@@ -36,9 +38,13 @@ import {
  * 5. Retreat or Switch only when the Active Pokémon can't attack this turn or next and a benched one can now.
  * 6. Attack with whatever does the most damage, even if it costs Energy or hurts itself.
  *
- * Unlike the gym leader it never uses Pokémon Powers, searches its deck, plays Energy Removal, Gust of
- * Wind, PlusPower, Defender or the other Trainers, never thinks about what the player will do next turn,
- * and doesn't look for the cheapest Knock Out. After a Knock Out it promotes the Pokémon with the most HP left.
+ * After step 2 it also plays a short list of simple Trainers (TRAINER_CPU_PLAYS: draw, search, healing, Pokémon Tools, from
+ * each generation, enough for its random decks) whenever the generic judgement (evaluate.ts) finds they leave a better
+ * position, and in step 3 its special Energy (TRAINER_CPU_ENERGY) where that does better than basic Energy.
+ *
+ * Unlike the gym leader it never uses Pokémon Powers or Stadiums, plays Energy Removal, Gust of Wind, PlusPower,
+ * Defender, Technical Machines or the other Trainers, never thinks about what the player will do next turn, and doesn't
+ * look for the cheapest Knock Out. After a Knock Out it promotes the Pokémon with the most HP left.
  */
 export function trainerCpu(state: GameState, cpuId: PlayerId): GameAction | null {
   const cpu = state.players[cpuId];
@@ -71,7 +77,28 @@ export function trainerCpu(state: GameState, cpuId: PlayerId): GameAction | null
   }
 }
 
-const STEPS: ((t: Turn) => GameAction | null)[] = [bill, develop, attachEnergy, professorOak, heal, retreat, attack];
+/**
+ * The Trainers it plays besides its own rules (agreed with the user: the Trainer CPU gets the simple ones, by nameKey).
+ * Gen 1 first, then Gen 2.
+ */
+export const TRAINER_CPU_PLAYS = new Set([
+  'fullheal', 'energyretrieval', 'energysearch', 'pokeball', 'maintenance', 'revive', 'pokemontrader', 'brock', 'erika',
+  'masterball', 'goodmanners', 'mistystears', 'fervor',
+  'professorelm', 'professoroaksresearch', 'billsteleporter', 'mary', 'mailfrombill', 'energyark', 'moomoomilk', 'berry',
+  'goldberry', 'miracleberry', 'focusband', 'hyperpotion', 'superenergyretrieval', 'copycat', 'marysimpulse',
+  'pokemonfanclub', 'professorelmstrainingmethod', 'dualball', 'fastball', 'energyswitch', 'healingberry',
+  'billsmaintenance', 'energyrestore',
+]);
+
+/** The Trainers its own rules play (steps 1, 3, 4 and 5), by nameKey. */
+export const TRAINER_CPU_RULES = new Set(['bill', 'professoroak', 'potion', 'superpotion', 'switch']);
+
+/** The special Energy it attaches besides Double Colorless, by nameKey. */
+export const TRAINER_CPU_ENERGY = new Set(['potionenergy', 'fullhealenergy', 'rainbowenergy', 'recycleenergy']);
+
+const ALLOWED: Allowed = { trainers: (key) => TRAINER_CPU_PLAYS.has(key) };
+
+const STEPS: ((t: Turn) => GameAction | null)[] = [bill, develop, others, attachEnergy, professorOak, heal, retreat, attack];
 
 function bill(t: Turn): GameAction | null {
   return t.me.deck.length > 2 ? play(t, trainer(t, 'bill')) : null;
@@ -81,10 +108,16 @@ function develop(t: Turn): GameAction | null {
   return benchBasic(t) ?? evolve(t);
 }
 
+/** Its other Trainers, when they leave a better position. */
+function others(t: Turn): GameAction | null {
+  return bestMove(t, ALLOWED);
+}
+
 function attachEnergy(t: Turn): GameAction | null {
   if (t.state.energyAttachedThisTurn) return null;
-  const pick = attachTarget(t, energyInHand(t), () => true);
-  return pick ? { type: 'ATTACH_ENERGY', cardUid: pick.card.uid, target: pick.target } : null;
+  const pick = attachTarget(t, energyInHand(t).filter((c) => plainEnergy(t, c)), () => true);
+  const action: GameAction | null = pick && { type: 'ATTACH_ENERGY', cardUid: pick.card.uid, target: pick.target };
+  return specialAttachment(t, action && tryAction(t.state, t.id, action) ? action : null, (key) => TRAINER_CPU_ENERGY.has(key));
 }
 
 function professorOak(t: Turn): GameAction | null {

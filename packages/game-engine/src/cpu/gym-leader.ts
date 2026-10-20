@@ -40,7 +40,8 @@ import {
   type Turn,
 } from './shared.js';
 import { energyPool, hasBenched, retreatCost, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type Target } from '../engine.js';
-import { powerError, powerOf, resolvePowerChoices, situationCounts, type PowerChoices, type PowerChoiceSpec, type PowerSituation } from '../powers.js';
+import { powerError, powerOf, type PowerChoices } from '../powers.js';
+import { attackBoost, bestMove, plainEnergy, powerChoiceSets, powerSituation, specialAttachment, survive, type Allowed } from './evaluate.js';
 
 /**
  * The 'gym leader' CPU: the strongest, which the easier ones are weaker versions of. Besides the
@@ -65,6 +66,12 @@ import { powerError, powerOf, resolvePowerChoices, situationCounts, type PowerCh
  *    Defender or Koga's Ninja Trick to survive one.
  * 8. Tickling Machine, when it has no attack that does damage (tails would end the turn).
  * 9. Attack: the cheapest Knock Out, otherwise the most damage.
+ *
+ * Every other card (agreed with the user: the gym leader plays every card) goes through the generic judgement in
+ * evaluate.ts: after Develop, any other Trainer, Pokémon Power or Stadium that leaves a better position; in Energy, a
+ * special Energy card where it does better than the attachment rule's pick; in Boost, any other Trainer that makes this
+ * turn's attack better or stops the player's next attack from Knocking Out the Active Pokémon. Cards with rules of their own
+ * are left to those rules (the agreed baseline).
  *
  * It only uses what the player could see: what attacks would do is worked out over every coin-flip outcome
  * (shared.ts), never from the real flips to come, and searches only count on cards that could still be
@@ -121,18 +128,22 @@ const PLAYS = new Set([
   'therocketstrap', 'brocksprotection', 'koga', 'misty', 'kogasninjatrick', 'ticklingmachine', ...Object.keys(OWNER_STADIUMS),
 ]);
 
+/** Powers with rules of their own (Energy step, Damage Swap in Heal), by nameKey: the generic judgement leaves them. */
+const RULE_POWERS = new Set(['raindance', 'energytrans', 'damageswap']);
+
+/** What the generic judgement plays: every Trainer, power and Stadium without a rule above. */
+const OTHERS: Allowed = { trainers: (key) => !PLAYS.has(key), powers: (key) => !RULE_POWERS.has(key), stadium: (key) => key !== 'celadoncitygym' };
+
 /** The CPU's Pokémon that can use the power with this nameKey now. */
 const powered = (t: Turn, key: string) =>
   inPlay(t.me).filter(([source, p]) => nameKey(powerOf(p, t.state.cards)?.name ?? '') === key && !powerError(powerSituation(t, source)));
-
-const powerSituation = (t: Turn, source: Target): PowerSituation => ({ me: t.me, opp: t.opp, counts: situationCounts(t.me, t.opp), source, cards: t.state.cards, turn: t.state.turn });
 
 function usePower(t: Turn, source: Target, choices: PowerChoices): GameAction | null {
   const action: GameAction = { type: 'USE_POWER', source, choices };
   return tryAction(t.state, t.id, action) ? action : null;
 }
 
-const STEPS: ((t: Turn) => GameAction | null)[] = [drawAndSearch, develop, attachEnergy, professorOak, heal, disrupt, retreat, boost, tickle, attack];
+const STEPS: ((t: Turn) => GameAction | null)[] = [drawAndSearch, develop, others, attachEnergy, professorOak, heal, disrupt, retreat, boost, tickle, attack];
 
 // ---- 1. Draw and search ----
 
@@ -296,10 +307,18 @@ function attachEnergy(t: Turn): GameAction | null {
   if (blaine) return blaine;
 
   if (!t.state.energyAttachedThisTurn) {
-    const pick = attachTarget(t, energyInHand(t), () => true);
-    if (pick) return { type: 'ATTACH_ENERGY', cardUid: pick.card.uid, target: pick.target };
+    const pick = attachTarget(t, energyInHand(t).filter((c) => plainEnergy(t, c)), () => true);
+    const action: GameAction | null = pick && { type: 'ATTACH_ENERGY', cardUid: pick.card.uid, target: pick.target };
+    return specialAttachment(t, action && tryAction(t.state, t.id, action) ? action : null, () => true);
   }
   return null;
+}
+
+// ---- After Develop: every other card ----
+
+/** Any Trainer, Pokémon Power or Stadium without a rule of its own that leaves a better position (evaluate.ts). */
+function others(t: Turn): GameAction | null {
+  return bestMove(t, OTHERS);
 }
 
 /**
@@ -617,7 +636,8 @@ function boost(t: Turn): GameAction | null {
     const action = play(t, trainer(t, 'kogasninjatrick'));
     if (action) return action;
   }
-  return null;
+  // Any other Trainer that makes this attack better (a Technical Machine, Pokémon Reversal…), or keeps the Active Pokémon from a Knock Out.
+  return attackBoost(t, OTHERS) ?? (knocksOut(now) ? null : survive(t, OTHERS));
 }
 
 // ---- 8. Tickling Machine ----
@@ -625,23 +645,6 @@ function boost(t: Turn): GameAction | null {
 /** Only when there's no damaging attack to lose: tails ends the turn. */
 function tickle(t: Turn): GameAction | null {
   return t.opp.hand.length && !damages(bestAttack(attackOptions(t.state, t.id))) ? play(t, trainer(t, 'ticklingmachine')) : null;
-}
-
-/** Every complete set of answers to a power's questions (a few dozen at most). */
-function powerChoiceSets(t: Turn, source: Target): PowerChoices[] {
-  const s = powerSituation(t, source);
-  const out: PowerChoices[] = [];
-  const answers = (spec: PowerChoiceSpec): unknown[] =>
-    spec.kind === 'handCard' || spec.kind === 'attachedEnergy' ? combinations(spec.options, 1).map(([c]) => c!.uid) : spec.options;
-  const walk = (given: PowerChoices) => {
-    if (out.length >= 24) return;
-    const result = resolvePowerChoices(s, given);
-    if ('choices' in result) return void out.push(result.choices);
-    if (!result.need) return;
-    for (const value of answers(result.need)) walk({ ...given, [result.need.field]: value });
-  };
-  walk({});
-  return out;
 }
 
 // ---- 9. Attack ----
