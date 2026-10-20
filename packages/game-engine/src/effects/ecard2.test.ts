@@ -184,4 +184,37 @@ describe('Aquapolis', () => {
     const back = endTurn(guarded, 'misty');
     expect(misty(attack(back, 0)).active!.damage).toBe(10);
   });
+
+  describe('Time Shard', () => {
+    /** Misty's Active Onix, 10 HP left, with Time Shard and these basic Energy cards, about to be Knocked Out by Scratch. */
+    function shardKo(energy: string[]) {
+      const s = duel('charmander', 'onix', { energy: ['fire'], oppBench: ['squirtle'] });
+      s.cards['ecard2-135'] = trainer('ecard2-135', 'Time Shard');
+      Object.assign(misty(s).active!, { damage: 80, energy: energy.map((e) => ({ uid: `${e}-${n++}`, defId: e })) });
+      misty(s).active!.attached = [{ card: { uid: 'shard', defId: 'ecard2-135' }, until: Number.MAX_SAFE_INTEGER, tool: true }];
+      return s;
+    }
+
+    it("returns up to 2 basic Energy cards to the hand when the opponent's attack Knocks its Pokémon Out", () => {
+      const s = shardKo(['fighting', 'fighting']);
+      const energy = misty(s).active!.energy.map((e) => e.uid);
+      const after = attack(s, 0);
+      expect(after.pendingChoice).toBeUndefined();
+      expect(misty(after).hand.map((c) => c.uid)).toEqual(expect.arrayContaining(energy));
+    });
+
+    it('with more than 2, its owner picks up to 2, one at a time, and may stop', () => {
+      const s = shardKo(['fighting', 'water', 'fire']);
+      const [fighting, water] = misty(s).active!.energy.map((e) => e.uid);
+      const asked = attack(s, 0);
+      expect(asked.pendingChoice).toMatchObject({ player: 'misty', kind: 'discardAttached', toHand: true, count: 2, optional: true });
+      const once = act(asked, 'misty', { type: 'RESOLVE_CHOICE', cardUid: water });
+      expect(once.pendingChoice).toMatchObject({ player: 'misty', count: 1 });
+      const done = act(once, 'misty', { type: 'RESOLVE_CHOICE' });
+      expect(done.pendingChoice).toBeUndefined();
+      expect(misty(done).hand.map((c) => c.uid)).toContain(water);
+      expect(misty(done).discard.map((c) => c.uid)).toContain(fighting);
+      expect(misty(done).discard.map((c) => c.uid)).toContain(misty(s).active!.card.uid);
+    });
+  });
 });

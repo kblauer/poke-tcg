@@ -4,16 +4,16 @@
 // same. Strength Charm is a Pokémon Tool (attacks.ts: 10 more damage after Weakness and Resistance, then it's discarded at
 // the end of that turn). Multi Technical Machine 01 is attached until the end of the turn, and its Pokémon can use its
 // attack (Paralyzing Gaze, in ecard1.ts; usableAttacks). Darkness and Metal Energy's rules are the engine's (attacks.ts:
-// Expedition's Metal Energy reduces a non-Metal Pokémon's damage after Weakness and Resistance).
+// both play like Neo Genesis's, agreed with the user).
 // Rulings (from the text): questions whose answer depends on a flip are asked before it (Energy Removal 2's Energy card,
 // Pokémon Reversal's Benched Pokémon, Power Charge's Energy cards). Dual Ball and Energy Restore take as many cards as
 // there are heads (or as many as there are). Pokémon Nurse can be played on a Pokémon with no damage counters.
-// Bill's Maintenance isn't implemented yet: whether it can be played with no other cards in the hand is asked on the PR.
+// Bill's Maintenance can't be played with no other card in the hand (agreed with the user).
 import { isBasicEnergy, isBasicPokemon, lookupCard, type CardDef } from '../cards.js';
 import { activeLock, discardTheirEnergy, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { energyKept, trainerProof } from '../powers.js';
 import { energyProtected, pokemonName } from '../status.js';
-import { swapActive, targetsOf, theirs, type EnergyEffect, type TrainerContext, type TrainerEffect, type TrainerSituation } from '../trainers.js';
+import { otherHandCards, swapActive, targetsOf, theirs, type EnergyEffect, type TrainerContext, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 import { BASE1_TRAINERS } from './base1-trainers.js';
 import { FOSSIL_TRAINERS } from './fossil-trainers.js';
 import { GYM2_TRAINERS } from './gym2-trainers.js';
@@ -36,6 +36,18 @@ const removable = (s: TrainerSituation, p: InPlayPokemon) => p.energy.some((e) =
 const ownTargets = (s: TrainerSituation) => targetsOf(s.me);
 
 export const ECARD1_TRAINERS: Record<string, TrainerEffect> = {
+  // Bill's Maintenance (Supporter): shuffle 1 other card from the hand into the deck, then draw 3 cards.
+  'ecard1-137': {
+    supporter: true,
+    blocked: (s) => (otherHandCards(s).length ? null : 'You have no other cards in your hand'),
+    choices: (s) => [{ kind: 'cards', field: 'handUids', min: 1, max: 1, options: otherHandCards(s), prompt: 'Choose a card to shuffle into your deck' }],
+    play(ctx) {
+      ctx.shuffleIntoDeck(ctx.me, ctx.fromHand(ctx.me, ctx.choices.handUids!));
+      ctx.log('Shuffled 1 card from the hand into the deck.');
+      ctx.draw(ctx.me, 3);
+    },
+  },
+
   // Copycat (Supporter): shuffle the hand into the deck, then draw as many cards as the opponent has in their hand.
   'ecard1-138': {
     supporter: true,

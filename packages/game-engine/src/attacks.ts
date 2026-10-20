@@ -1,6 +1,6 @@
 // Attack resolution: legality, the choices an attack asks for, damage (weakness, resistance,
 // prevention) and the helpers card effects use. Card-specific behaviour lives in effects/.
-import { conditionProof, lookupCard, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
+import { conditionProof, isBasicEnergy, lookupCard, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { attackEffect, powerEffect, trainerEffect } from './effects/index.js';
 import {
   canPayCost,
@@ -315,13 +315,6 @@ const def = inPlayDef;
 
 /** How many of the named special Energy card are attached to the Pokémon (Darkness Energy, Metal Energy). */
 const energyCount = (cards: CardLibrary, p: InPlayPokemon, name: string) => p.energy.filter((e) => !e.provides && !e.windless && lookupCard(cards, e.defId).name === name).length;
-
-/** Expedition's Metal Energy: a non-Metal Pokémon's attack damage is reduced after Weakness and Resistance (Neo Genesis's: before). */
-const METAL_AFTER_WEAKNESS = new Set(['ecard1-159']);
-
-/** Metal Energy cards on the attacker that reduce its damage: Neo Genesis's (before Weakness and Resistance) or Expedition's (`after`). */
-const metalOn = (cards: CardLibrary, p: InPlayPokemon, after: boolean) =>
-  p.energy.filter((e) => !e.provides && !e.windless && lookupCard(cards, e.defId).name === 'Metal Energy' && METAL_AFTER_WEAKNESS.has(e.defId) === after).length;
 
 /** Sprout Tower is the Stadium in play. */
 const sproutTower = (state: Pick<GameState, 'stadium' | 'cards'>) => !!state.stadium && lookupCard(state.cards, state.stadium.card.defId).name === 'Sprout Tower';
@@ -763,9 +756,20 @@ function createContext(
     if (!transparency.has(p.card.uid)) transparency.set(p.card.uid, flipCoin(state, fluff ? 'Fluff' : 'Transparency', owner.id));
     return transparency.get(p.card.uid)!;
   };
-  /** Time Shard: the opponent's attack's damage is Knocking out `p` (of `owner`): it's marked for resolveKnockouts. */
+  /**
+   * Time Shard: the opponent's attack's damage is Knocking out `p` (of `owner`): it's marked for resolveKnockouts, which
+   * returns its basic Energy cards. With more than 2, its owner picks up to 2 once the attack is over (agreed).
+   */
   const shard = (p: InPlayPokemon, owner: PlayerState) => {
-    if (owner === opp && p.damage >= def(state.cards, p).hp && toolOf(state.cards, p)?.name === 'Time Shard') p.timeShard = true;
+    if (owner !== opp || p.timeShard || p.damage < def(state.cards, p).hp || toolOf(state.cards, p)?.name !== 'Time Shard') return;
+    const basic = p.energy.filter((e) => !e.provides && isBasicEnergy(lookupCard(state.cards, e.defId)));
+    if (basic.length <= 2) {
+      p.timeShard = true;
+      return;
+    }
+    p.timeShard = 'asked';
+    const target: Target = owner.active === p ? 'active' : owner.bench.indexOf(p);
+    (state.queuedChoices ??= []).push({ player: owner.id, source: 'Time Shard', kind: 'discardAttached', target, toHand: true, count: 2, optional: true });
   };
   /** Kabuto Armor: attack damage to it is halved, rounded down to the nearest 10, after everything else. */
   const armor = (p: InPlayPokemon, damage: number, owner: PlayerState) => {
@@ -923,7 +927,7 @@ function createContext(
   };
   /** Damage to a benched Pokémon or the attacker itself: Defender, then Kabuto Armor. */
   const benchedDamage = (p: InPlayPokemon, amount: number, owner: PlayerState) => {
-    amount = Math.max(0, charmed(amount) - metalLess - metalAfter);
+    amount = Math.max(0, charmed(amount) - metalLess);
     if (amount > 0 && sproutTower(state) && attackerDef.type === 'colorless') amount = Math.max(0, amount - 30);
     amount = Math.max(0, amount - 10 * energyCount(state.cards, p, 'Metal Energy'));
     const damage = unownGuarded(p, barriers(p, armor(p, afterDefender(state.cards, p, amount), owner), owner), owner);
@@ -931,10 +935,11 @@ function createContext(
   };
   /** Shadow Images: one flip per attack, by the attacking player; tails, the attack does no damage to the Pokémon. */
   let shadowImages: boolean | undefined;
-  /** Metal Energy on an attacker that isn't Metal: its attacks do 10 less for each, before Weakness and Resistance (Neo Genesis's). */
-  const metalLess = attackerDef.type === 'metal' ? 0 : 10 * metalOn(state.cards, attacker, false);
-  /** Expedition's Metal Energy on an attacker that isn't Metal: 10 less for each, after Weakness and Resistance. */
-  const metalAfter = attackerDef.type === 'metal' ? 0 : 10 * metalOn(state.cards, attacker, true);
+  /**
+   * Metal Energy on an attacker that isn't Metal: its attacks do 10 less for each, before Weakness and Resistance (Neo
+   * Genesis's; Expedition's plays the same, agreed with the user).
+   */
+  const metalLess = attackerDef.type === 'metal' ? 0 : 10 * energyCount(state.cards, attacker, 'Metal Energy');
   /** Whether the attack can affect this Pokémon; logs why not. Transparency flips the first time it's asked. */
   const canAffect = (player: PlayerState, p: InPlayPokemon) => {
     if (!immune(p, player) && !transparent(p, player)) return true;
@@ -1032,10 +1037,6 @@ function createContext(
         damage += 10;
         charm.tool.until = turn;
         log('Strength Charm: 10 more damage.');
-      }
-      if (damage > 0 && metalAfter) {
-        damage = Math.max(0, damage - metalAfter);
-        log(`Metal Energy reduced ${attackerDef.name}'s damage by ${metalAfter}.`);
       }
       // Frog Song: 40 more, if the attack damages it after Weakness and Resistance, while more than 3 Poliwag line Pokémon are in play.
       if (damage > 0 && passive(attacker)?.frogSong && frogs() > 3) {

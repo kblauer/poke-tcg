@@ -509,6 +509,8 @@ export type PendingChoice = {
       count?: number;
       cure?: boolean;
       toHand?: boolean;
+      /** With `toHand`: up to `count`, one at a time, and the player may stop (Time Shard). */
+      optional?: boolean;
     }
   | {
       /**
@@ -1101,7 +1103,13 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
   if (choice.kind === 'discardAttached') {
     const p = (choice.target === 'active' ? player.active : player.bench[choice.target])!;
     if (choice.toHand) {
-      return { kind: 'pickAttached', prompt: `${choice.source}: return a basic Energy card from ${lookupCard(state.cards, p.card.defId).name} to your hand`, options: p.energy.filter((e) => !e.provides && isBasicEnergy(lookupCard(state.cards, e.defId))) };
+      const options = p.energy.filter((e) => !e.provides && isBasicEnergy(lookupCard(state.cards, e.defId)));
+      const from = lookupCard(state.cards, p.card.defId).name;
+      if (choice.optional) {
+        const what = (choice.count ?? 1) > 1 ? `up to ${choice.count} basic Energy cards` : 'a basic Energy card';
+        return { kind: 'pickAttached', prompt: `${choice.source}: you may return ${what} from ${from} to your hand, one at a time`, options, optional: true };
+      }
+      return { kind: 'pickAttached', prompt: `${choice.source}: return a basic Energy card from ${from} to your hand`, options };
     }
     return { kind: 'pickAttached', prompt: `${choice.source}: discard an Energy card from ${lookupCard(state.cards, p.card.defId).name}`, options: p.energy };
   }
@@ -2023,12 +2031,23 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     addLog(state, 'Put a card from the hand on top of the deck.', me.id);
   } else if (choice.kind === 'discardAttached') {
     const p = (choice.target === 'active' ? me.active : me.bench[choice.target])!;
+    // Time Shard ("up to"): nothing chosen, and it's done.
+    if (choice.optional && answer.cardUid === undefined) {
+      delete state.pendingChoice;
+      return null;
+    }
     const energy = p.energy.find((e) => e.uid === answer.cardUid && (!choice.toHand || (!e.provides && isBasicEnergy(lookupCard(state.cards, e.defId)))));
     if (!energy) return choice.toHand ? 'Choose a basic Energy card' : 'Choose an Energy card to discard';
     p.energy = p.energy.filter((e) => e !== energy);
     if (choice.toHand) {
       me.hand.push(energy);
       addLog(state, `Returned ${name(energy)} from ${name(p.card)} to the hand.`, me.id);
+      // Time Shard: up to `count`, asked again while there are basic Energy cards left.
+      const left = (choice.count ?? 1) - 1;
+      if (left > 0 && p.energy.some((e) => !e.provides && isBasicEnergy(lookupCard(state.cards, e.defId)))) {
+        state.pendingChoice = { ...choice, count: left };
+        return null;
+      }
       delete state.pendingChoice;
       return null;
     }

@@ -237,8 +237,11 @@ export interface InPlayPokemon {
   hideout?: boolean;
   /** Crystal Type: the type it's changed to until the end of the turn (inPlayDef). */
   crystalType?: EnergyType;
-  /** Time Shard: an opponent's attack's damage is Knocking it Out; up to 2 of its basic Energy cards go back to the hand (resolveKnockouts). */
-  timeShard?: boolean;
+  /**
+   * Time Shard: an opponent's attack's damage is Knocking it Out; up to 2 of its basic Energy cards go back to the hand
+   * (resolveKnockouts), or 'asked': its owner was asked which, with more than 2.
+   */
+  timeShard?: boolean | 'asked';
 }
 
 export interface PlayerState {
@@ -1626,7 +1629,7 @@ function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId | null
     const knockOut = (pokemon: InPlayPokemon) => {
       addLog(state, `${pokemonName(state, pokemon)} was Knocked Out.`, id);
       // Time Shard: Knocked Out by the opponent's attack, up to 2 of its basic Energy cards go back to the hand.
-      if (pokemon.timeShard) {
+      if (pokemon.timeShard === true) {
         const back = pokemon.energy.filter((e) => !e.provides && isBasicEnergy(lookupCard(state.cards, e.defId))).slice(0, 2);
         pokemon.energy = pokemon.energy.filter((e) => !back.includes(e));
         owner.hand.push(...back.map(asDiscarded));

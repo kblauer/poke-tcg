@@ -17,6 +17,7 @@ function hand(s: GameState, player: string, def: CardDef): string {
 const trainer = (id: string, name: string): CardDef => ({ id, kind: 'trainer', name, imageUrl: null, text: '' });
 const play = (s: GameState, cardUid: string, choices = {}) => act(s, 'ash', { type: 'PLAY_TRAINER', cardUid, choices });
 
+const billsMaintenance = trainer('ecard1-137', "Bill's Maintenance");
 const copycat = trainer('ecard1-138', 'Copycat');
 const dualBall = trainer('ecard1-139', 'Dual Ball');
 const removal2 = trainer('ecard1-140', 'Energy Removal 2');
@@ -41,6 +42,18 @@ describe('Expedition Trainers', () => {
     ash(s).hand = [{ uid: 'a', defId: 'fire' }, { uid: 'b', defId: 'fire' }];
     const after = play(s, hand(s, 'ash', oaksResearch));
     expect(ash(after).hand).toHaveLength(5);
+  });
+
+  it("Bill's Maintenance: shuffle 1 other card from the hand into the deck, then draw 3; not with no other card in the hand", () => {
+    const s = duel('charmander', 'onix');
+    ash(s).hand = [];
+    const alone = hand(s, 'ash', billsMaintenance);
+    expect(applyAction(s, 'ash', { type: 'PLAY_TRAINER', cardUid: alone })).toEqual({ ok: false, error: 'You have no other cards in your hand' });
+    ash(s).hand.push({ uid: 'x', defId: 'fire' });
+    const deck = ash(s).deck.length;
+    const after = play(s, alone, { handUids: ['x'] });
+    expect(ash(after).hand).toHaveLength(3);
+    expect(ash(after).deck).toHaveLength(deck + 1 - 3);
   });
 
   it("Copycat: draw as many cards as the opponent has in their hand", () => {
@@ -87,14 +100,14 @@ describe('Expedition Trainers', () => {
     expect(ash(after).discard.map((c) => c.defId)).toContain('ecard1-150');
   });
 
-  it("Expedition's Metal Energy: a non-Metal attacker's damage is 10 less after Weakness and Resistance", () => {
+  it("Expedition's Metal Energy: a non-Metal attacker's damage is 10 less before Weakness and Resistance, as Neo Genesis's", () => {
     const s = duel('charmander', 'onix');
     s.cards[metal.id] = metal;
     ash(s).active!.energy = [{ uid: 'f', defId: 'fire' }, { uid: 'm', defId: 'ecard1-159' }];
     // Ember (30) against an Onix that isn't weak to Fire: 30 − 10.
     expect(misty(attack(s, 1)).active!.damage).toBe(20);
-    // Weakness first: 30 × 2 = 60, then 10 less.
+    // 10 less first, then Weakness: (30 − 10) × 2.
     s.cards['base1-56'] = { ...(s.cards['base1-56'] as ReturnType<typeof mon>), weakness: { type: F, multiplier: 2 } };
-    expect(misty(attack(s, 1)).active!.damage).toBe(50);
+    expect(misty(attack(s, 1)).active!.damage).toBe(40);
   });
 });

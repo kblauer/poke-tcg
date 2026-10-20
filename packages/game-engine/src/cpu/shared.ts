@@ -553,6 +553,8 @@ export function resolveSearch(t: Turn): GameAction {
   }
   // Super Removal, Energy Drain: an Energy card of the player's Pokémon, the first. Growth: every Grass Energy card it can.
   if (choice.kind === 'removeEach' || choice.kind === 'drainEnergy') return view.kind === 'pickAttached' && view.options[0] ? { type: 'RESOLVE_CHOICE', cardUid: view.options[0].uid } : { type: 'RESOLVE_CHOICE' };
+  // Time Shard ("up to 2"): it takes back as many as it can.
+  if (choice.kind === 'discardAttached' && choice.optional && view.kind === 'pickAttached') return view.options[0] ? { type: 'RESOLVE_CHOICE', cardUid: view.options[0].uid } : { type: 'RESOLVE_CHOICE' };
   // Pure Body: the Energy card that leaves Suicune closest to attacking.
   if (view.kind === 'pickAttached') {
     const p = inPlay(t.me).map(([, p]) => p).find((p) => p.energy.includes(view.options[0]!))!;

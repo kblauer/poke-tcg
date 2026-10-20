@@ -9,8 +9,7 @@ const rows: { id: string; name: string }[] = JSON.parse(readFileSync(new URL('..
 
 /** Cards not implemented yet, by set: each waits on a question on the PR. */
 const WAITING: Record<string, string[]> = {
-  // Bill's Maintenance: can it be played with no other cards in the hand?
-  ecard1: ['ecard1-137'],
+  ecard1: [],
   ecard2: [],
   ecard3: [],
 };

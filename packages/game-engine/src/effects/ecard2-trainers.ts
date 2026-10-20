@@ -9,8 +9,8 @@
 // basic Energy card attached to its Pokémon (energyPool); Warp Energy switches the Active Pokémon it's attached to.
 // Rulings (from the text): Juggler discards 1 or 2 basic Energy cards (none would draw nothing). Town Volunteers takes 5
 // cards, or all there are if fewer. Super Energy Removal 2's discards are the opponent's to suffer (Brock's Protection,
-// [Keep] and Legendary Body stop them) on 2 heads, the player's own Active Pokémon's on 2 tails. Time Shard returns the
-// basic Energy cards by itself (up to 2: always the most it can).
+// [Keep] and Legendary Body stop them) on 2 heads, the player's own Active Pokémon's on 2 tails. Time Shard returns 1 or 2
+// basic Energy cards by itself; with more than 2 attached, its owner picks up to 2 (agreed with the user).
 import { isBasicEnergy, isPokemonCard, lookupCard, type Attack, type EnergyType } from '../cards.js';
 import { discardTheirEnergy, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { energyKept, powerActive, trainerProof } from '../powers.js';
