@@ -11,7 +11,7 @@
 import { applyWeaknessResistance } from '../attacks.js';
 import { isBasicEnergy, lookupCard, type CardLibrary } from '../cards.js';
 import type { CardInstance, GameState, PlayerState } from '../engine.js';
-import { ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
+import { discardsLocked, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
 import { addLog, flipCoin, inPlayDef, pokemonName } from '../status.js';
 import type { PendingChoice, PendingChoiceInput } from '../trainers.js';
 
@@ -79,6 +79,7 @@ export const NEO1_POWERS: Record<string, PowerEffect> = {
     oncePerTurn: true,
     blocked(s) {
       if (!s.me.discard.some((c) => isBasicOf(s.cards, c, 'fire'))) return 'No Fire Energy cards in your discard pile';
+      if (discardsLocked([s.me, s.opp], s.cards)) return 'Allergic Pollen: cards in discard piles are not affected';
       return firePokemon(s).length ? null : 'No Fire Pokémon to attach to';
     },
     choices: (s) => [{ kind: 'ownPokemon', field: 'to', options: firePokemon(s), prompt: 'Choose a Fire Pokémon to attach a Fire Energy card to (if heads)' }],

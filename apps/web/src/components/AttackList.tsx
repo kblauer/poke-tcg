@@ -40,7 +40,7 @@ export function AttackList({
   const defenderDef = defender && inPlayDef(cards, defender);
   return (
     <div className="flex flex-col gap-1">
-      {usableAttacks(pokemon, cards, { recall, bench }).map(({ attack: a, source, from }, i) => {
+      {usableAttacks(pokemon, cards, { recall, bench, defender }).map(({ attack: a, source, from }, i) => {
         const error = attack.error(i);
         const usable = canAttack && error === null;
         // Variable damage ("30+", "10×", "?") depends on the card text, so it's shown as printed.

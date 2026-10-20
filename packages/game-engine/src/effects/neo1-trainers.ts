@@ -24,7 +24,7 @@ const isEnergy = (s: { cards: TrainerSituation['cards'] }, c: CardInstance) => d
 const noMoreTrainers = (ctx: TrainerContext) => void (ctx.me.noTrainersUntil = Math.max(ctx.me.noTrainersUntil ?? 0, ctx.turn));
 
 /** A Pokémon Tool: attached to 1 of the player's Pokémon that doesn't have one. */
-const tool = (what: string): TrainerEffect => ({
+export const tool = (what: string): TrainerEffect => ({
   blocked: (s) => (toolTargets(s).length ? null : 'All your Pokémon have a Pokémon Tool attached'),
   choices: (s) => [{ kind: 'pokemon', field: 'target', side: 'own', options: toolTargets(s), prompt: `Choose a Pokémon to attach ${what} to` }],
   play(ctx) {

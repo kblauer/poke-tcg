@@ -1,5 +1,6 @@
 import type { CardLibrary } from './cards.js';
 import { DEFAULT_CPU_DIFFICULTY, type CpuDifficulty } from './cpu/index.js';
+import { recallsAttacks } from './attacks.js';
 import { attackDamageRanges, type DamageRange } from './cpu/shared.js';
 import type { BattleRule, CardInstance, GameState, InPlayPokemon, Phase, PlayerId } from './engine.js';
 import { FACE_DOWN, type LogEntry } from './status.js';
@@ -154,7 +155,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       noTrainersUntil: me.noTrainersUntil,
       ...(me.ready && { ready: true }),
       ...(peek && { peek }),
-      ...(me.recallTurn === state.turn && { recall: true }),
+      ...(recallsAttacks(state, me) && { recall: true }),
     },
     opponent: {
       id: opp.id,

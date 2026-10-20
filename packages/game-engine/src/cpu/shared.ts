@@ -584,7 +584,9 @@ function optionAnswer(t: Turn, count: number): number {
   if (choice.kind === 'quiz' || choice.kind === 'guess') return Math.floor(nextRandom(t.state.rngState)[0] * count);
   // Misty's Wish: it declines (agreed); for its own, the first Prize card.
   if (choice.kind === 'mistysWish' && choice.step === 'ask') return 1;
-  // Mind Games (agreed), Herbal Scent and Fire Boost: it always flips (the first option).
+  // Howl would end its turn as soon as Entei is benched: it doesn't use it.
+  if (choice.kind === 'mayFlip' && choice.power === 'howl') return 1;
+  // Mind Games (agreed), Herbal Scent, Fire Boost and Softboiled: it always flips (the first option).
   if (choice.kind === 'mindGames' || choice.kind === 'mayFlip') return 0;
   // Engage: a new hand of 4 only when it holds fewer than 4 cards.
   if (choice.kind === 'engage') return t.me.hand.length < 4 ? 0 : 1;

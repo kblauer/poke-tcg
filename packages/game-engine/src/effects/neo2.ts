@@ -71,7 +71,7 @@ const plunder = (damage: number): AttackEffect => ({
  * Hidden Power, by a Pokémon with Unown in its name: 10, plus 10 for each damage counter on the attacking player's Unown A
  * with Anger working (only one Anger: the most damage counters).
  */
-const hiddenPower: AttackEffect = {
+export const hiddenPower: AttackEffect = {
   run(ctx) {
     const unown = ctx.attackerDef.name.includes('Unown');
     const angry = [ctx.me.active, ...ctx.me.bench].filter((p): p is InPlayPokemon => !!p && !!powerEffect(effectId(p))?.anger && powerActive(p, ctx.state.cards, [ctx.me, ctx.opp]));

@@ -22,6 +22,20 @@ const snapshot = { sets: [...tcgdex.sets, ...custom.sets], cards: [...cards, ...
 const TCGDEX_FIXES: Record<string, Partial<TcgdexCard>> = {
   // Wizards Promo 7 Jigglypuff: 50 HP as printed (TCGdex has 70).
   'basep-7': { hp: 50 },
+  // Southern Islands Marill: TCGdex has none of its attacks.
+  'si1-11': {
+    attacks: [
+      { name: 'Squirt', cost: ['Water'], damage: null, effect: "Choose 1 of your opponent's Pokémon. This attack does 10 damage to that Pokémon. Don't apply Weakness and Resistance." },
+      { name: 'Rolling Tackle', cost: ['Colorless', 'Colorless'], damage: '20', effect: null },
+    ],
+  },
+  // Southern Islands Tentacruel: TCGdex lists both attacks twice; the printed card Paralyzes with Poison Sting.
+  'si1-10': {
+    attacks: [
+      { name: 'Tentacle Grip', cost: ['Water'], damage: null, effect: 'Flip a number of coins equal to the number of Water Energy cards attached to Tentacruel. For each heads, draw 2 cards.' },
+      { name: 'Poison Sting', cost: ['Water', 'Water'], damage: '20', effect: 'Flip a coin. If heads, the Defending Pokémon is now Paralyzed.' },
+    ],
+  },
 };
 
 function toCardRow(tcgdex: TcgdexCard) {

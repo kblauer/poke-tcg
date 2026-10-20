@@ -50,7 +50,8 @@ function toDef(r: Row): CardDef | null {
       stage,
       evolvesFrom: evolvesFrom(r, stage),
       // Printed cost and damage where TCGdex's differ (Dark Magneton), as the API has them.
-      attacks: (r.attacks ?? []).map((a) => {
+      // Each name once: TCGdex lists some attacks twice (Southern Islands Tentacruel), as the API has them.
+      attacks: (r.attacks ?? []).filter((a, i, all) => all.findIndex((b) => b.name === a.name) === i).map((a) => {
         const effect = attackEffect(r.id, a.name);
         return { name: a.name, cost: effect?.cost ?? (a.cost ?? []).map(type), damage: Number.parseInt(String(effect?.damage ?? a.damage ?? ''), 10) || 0, text: a.effect };
       }),

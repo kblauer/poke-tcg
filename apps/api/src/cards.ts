@@ -54,8 +54,8 @@ export const cardLabel = (card: Pick<Card, 'name' | 'data'>) => {
 const FROM_MYSTERIOUS_FOSSIL = new Set(['Omanyte', 'Kabuto', 'Aerodactyl']);
 
 /** Baby Pokémon promos, which TCGdex lists as Basic (Neo-era Babies have the stage "Baby"). */
-/** Baby Pokémon TCGdex lists as Basic: the promos, Neo Genesis's Pichu, Cleffa, Elekid and Magby, and Neo Discovery's Igglybuff and Tyrogue. */
-const BABIES = new Set(['basep-31', 'basep-35', 'basep-36', 'neo1-12', 'neo1-20', 'neo1-22', 'neo1-23', 'neo2-40', 'neo2-66']);
+/** Baby Pokémon TCGdex lists as Basic: the promos, Neo Genesis's Pichu, Cleffa, Elekid and Magby, Neo Discovery's Igglybuff and Tyrogue, and Neo Revelation's Smoochum. */
+const BABIES = new Set(['basep-31', 'basep-35', 'basep-36', 'neo1-12', 'neo1-20', 'neo1-22', 'neo1-23', 'neo2-40', 'neo2-66', 'neo3-54']);
 
 /** Gym Heroes evolutions TCGdex leaves out, by name (without the owner). */
 const TCGDEX_MISSING_EVOLVES_FROM: Record<string, string> = { "Lt. Surge's Magneton": 'Magnemite' };
@@ -132,6 +132,9 @@ function resistance(data: CardData): PokemonCardDef['resistance'] {
 /** An attack's name. TCGdex leaves a few unnamed (null: Shining Tyranitar, e-Card Hoppip). */
 const attackName = (a: { name: string | null }) => a.name ?? 'Unnamed attack';
 
+/** The card's attacks, each name once: TCGdex lists some twice (Southern Islands Tentacruel, before the seed's fix). */
+const printedAttacks = (data: CardData) => (data.attacks ?? []).filter((a, i, all) => all.findIndex((b) => attackName(b) === attackName(a)) === i);
+
 /** Basic Energy (TCGdex "Normal"), which a deck may hold any number of. */
 export const isBasicEnergyCard = (card: Pick<Card, 'kind' | 'data'>) => card.kind === 'ENERGY' && (card.data as CardData).energyType === 'Normal';
 
@@ -143,7 +146,7 @@ export const isBasicEnergyCard = (card: Pick<Card, 'kind' | 'data'>) => card.kin
 export function isImplemented(card: Pick<Card, 'id' | 'name' | 'kind' | 'data'>): boolean {
   const data = card.data as CardData;
   if (card.kind === 'POKEMON') {
-    const attacks = (data.attacks ?? []).every((a) => !a.effect || attackEffect(card.id, attackName(a)));
+    const attacks = printedAttacks(data).every((a) => !a.effect || attackEffect(card.id, attackName(a)));
     return attacks && (!data.abilities?.length || powerEffect(card.id) !== undefined);
   }
   if (card.kind === 'TRAINER') return trainerEffect(card.id) !== undefined;
@@ -158,7 +161,7 @@ export function toCardDef(card: Card): CardDef {
     const [type] = card.types;
     if (!stage || !type || card.hp == null) throw new Error(`Card ${card.id} is missing stage, type or HP`);
     const data = card.data as CardData;
-    const attacks: Attack[] = (data.attacks ?? []).map((a) => {
+    const attacks: Attack[] = printedAttacks(data).map((a) => {
       const effect = attackEffect(card.id, attackName(a));
       // Printed cost, damage and wording where TCGdex's differ (kept with the attack's effect in the engine).
       const damage = effect?.damage ?? a.damage;

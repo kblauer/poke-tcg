@@ -161,6 +161,22 @@ export interface PowerEffect {
   anger?: boolean;
   /** Energy Evolution: whenever its owner attaches an Energy card to it, a flip; heads evolves it from the deck into the Energy's type (engine.ts). */
   energyEvolution?: boolean;
+  /** Time Travel: if an opponent's attack would Knock it Out, a flip; heads shuffles it and its cards into its owner's deck instead (attacks.ts, resolveKnockouts). */
+  timeTravel?: boolean;
+  /** Hard Shell: attack damage of 40 or less to it (after Weakness and Resistance) is 10 instead. */
+  hardShell?: boolean;
+  /** Crystal Body: the opponent's attacks do nothing to it but damage. */
+  crystalBody?: boolean;
+  /** Prehistoric Memory: every Evolved Pokémon in play can use the attacks of the cards it evolved from (prehistoricMemory). */
+  prehistoricMemory?: boolean;
+  /** Mimic: as the Active Pokémon, it can use the Defending Pokémon's attacks too (usableAttacks). */
+  mimic?: boolean;
+  /** Magma Pool: when it moves from the Active spot to the Bench, a Fire Energy card goes from it to the new Active Pokémon (engine.ts, newActives). */
+  magmaPool?: boolean;
+  /** Allergic Pollen: attacks and Pokémon Powers can't do anything with the cards in either discard pile (discardsLocked). */
+  allergicPollen?: boolean;
+  /** Unown K's Keep: the opponent's attacks, Pokémon Powers and Trainer cards can't discard Energy cards from its owner's Pokémon with Unown in their names (energyKept). */
+  keep?: boolean;
 }
 
 export interface PowerContext {
@@ -246,6 +262,26 @@ export function guardedBy(sides: Sides, cards: CardLibrary): string | null {
   return opposing && powerEffect(effectId(opposing))?.guard && powerActive(opposing, cards, sides) ? powerOf(opposing, cards)!.name : null;
 }
 
+/** A working power of this kind on any Pokémon in play, either player's. */
+const anyWorking = (sides: Sides, cards: CardLibrary, has: (effect: PowerEffect) => boolean | undefined) =>
+  allInPlay(sides).some((p) => {
+    const effect = powerEffect(effectId(p));
+    return !!effect && !!has(effect) && powerActive(p, cards, sides);
+  });
+
+/** Prehistoric Memory is working: every Evolved Pokémon can use the attacks of the cards it evolved from (as with Recall). */
+export const prehistoricMemory = (sides: Sides, cards: CardLibrary) => anyWorking(sides, cards, (e) => e.prehistoricMemory);
+
+/** Allergic Pollen is working: attacks and Pokémon Powers can't do anything with cards in discard piles. */
+export const discardsLocked = (sides: Sides, cards: CardLibrary) => anyWorking(sides, cards, (e) => e.allergicPollen);
+
+/**
+ * Unown K's Keep: `owner`'s Pokémon with Unown in its name, while one of their Unown K works, can't have Energy cards
+ * discarded by the opponent's attacks, Pokémon Powers or Trainer cards. `sides`: both players'.
+ */
+export const energyKept = (owner: Pick<PlayerState, 'active' | 'bench' | 'powersOffUntil'>, sides: Sides, cards: CardLibrary, pokemon: InPlayPokemon) =>
+  inPlayDef(cards, pokemon).name.includes('Unown') && allInPlay([owner]).some((p) => powerEffect(effectId(p))?.keep && powerActive(p, cards, sides));
+
 /** Why no Evolution cards can be played (Prehistoric Power), or null. */
 export function evolutionBlocked(sides: Sides, cards: CardLibrary): string | null {
   const blocker = allInPlay(sides).find((p) => powerEffect(effectId(p))?.blocksEvolution && powerActive(p, cards, sides));
@@ -322,8 +358,8 @@ export function powerError(s: PowerSituation): string | null {
   const def = inPlayDef(s.cards, source);
   const effect = powerEffect(effectId(source));
   if (!def.power || !effect?.use) return `${def.name} has no power to use`;
-  // Powers that are used all stop working while their Pokémon is Asleep, Confused or Paralyzed.
-  if (source.condition) return `${def.name} is ${conditionLabel(source.condition)} and can't use ${def.power.name}`;
+  // Powers that are used all stop working while their Pokémon is Asleep, Confused or Paralyzed, unless they say otherwise (Unown B and Y).
+  if (source.condition && !effect.ignoresConditions) return `${def.name} is ${conditionLabel(source.condition)} and can't use ${def.power.name}`;
   if (goopGas([s.me, s.opp])) return `Goop Gas Attack: Pokémon Powers don't work until the end of the turn after it was played`;
   if (toxicGas([s.me, s.opp])) return `Toxic Gas: ${def.power.name} can't be used`;
   if (source.powerOffUntil !== undefined) return `${def.power.name} doesn't work until the end of your turn (Stare)`;

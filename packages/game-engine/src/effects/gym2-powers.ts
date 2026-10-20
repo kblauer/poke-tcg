@@ -8,7 +8,7 @@
 // Gaseous Form's HP are in inPlayDef (it sees no Toxic Gas there).
 import { isPokemonCard, lookupCard } from '../cards.js';
 import { discardShapeshift, isEnergyCardOf, type CardInstance, type Target } from '../engine.js';
-import { evolutionBlocked, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
+import { energyKept, evolutionBlocked, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
 import { addLog, flipCoin, pokemonName } from '../status.js';
 
 const at = (s: PowerSituation, t: Target) => pokemonAt(s.me, t)!;
@@ -70,6 +70,7 @@ export const GYM2_POWERS: Record<string, PowerEffect> = {
       if (!flipCoin(ctx.state, 'Energy Drain', ctx.opp.id)) return;
       const energy = ctx.attacker.energy.filter((e) => !e.provides);
       if (!energy.length) return;
+      if (energyKept(ctx.me, [ctx.me, ctx.opp], ctx.state.cards, ctx.attacker)) return addLog(ctx.state, `[Keep]: ${ctx.attackerDef.name}'s Energy cards can't be discarded.`, ctx.me.id);
       // Identical cards need no choice; otherwise Muk's owner picks once the attack is over.
       if (new Set(energy.map((e) => e.defId)).size > 1) {
         (ctx.state.queuedChoices ??= []).push({ player: ctx.opp.id, source: 'Energy Drain', kind: 'drainEnergy' });

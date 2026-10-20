@@ -9,7 +9,7 @@
 import { targetsIn, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
 import { isBasicPokemon, isTrainerCard, lookupCard } from '../cards.js';
 import { activeLocked, discardTheirEnergy, isEnergyCardOf, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
-import { evolutionBlocked } from '../powers.js';
+import { energyKept, evolutionBlocked } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { benchRoom, energyProtected, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { BASE1, metronome } from './base1.js';
@@ -251,6 +251,10 @@ export const GYM2: Record<string, Record<string, AttackEffect>> = {
           if (!energy.length || !ctx.canAffect(ctx.opp, p)) continue;
           if (energyProtected(ctx.state.cards, p)) {
             ctx.log(`Brock's Protection: ${pokemonName(ctx.state, p)}'s Energy can't be removed.`, ctx.opp.id);
+            continue;
+          }
+          if (energyKept(ctx.opp, [ctx.opp, ctx.me], ctx.state.cards, p)) {
+            ctx.log(`[Keep]: ${pokemonName(ctx.state, p)}'s Energy cards can't be discarded.`, ctx.opp.id);
             continue;
           }
           // Identical cards need no choice.

@@ -8,7 +8,7 @@
 import { isBasicPokemon, isPokemonCard, lookupCard, type CardLibrary } from '../cards.js';
 import { applyWeaknessResistance } from '../attacks.js';
 import { counts, energyPool, isEnergyCardOf, type CardInstance, type GameState, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
-import { ownTargets, pokemonAt, powerActive, type PowerContext, type PowerEffect, type PowerSituation } from '../powers.js';
+import { discardsLocked, ownTargets, pokemonAt, powerActive, type PowerContext, type PowerEffect, type PowerSituation } from '../powers.js';
 import { addLog, effectId, flipCoin, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { pokemonTower, type PendingChoice, type PendingChoiceInput } from '../trainers.js';
 import { powerEffect } from './index.js';
@@ -84,6 +84,7 @@ const HOLO: Record<string, PowerEffect> = {
     onPlayFromHand(state, owner) {
       if (!owner.discard.some((c) => isPokemonCard(lookupCard(state.cards, c.defId)))) return;
       if (pokemonTower({ stadium: state.stadium?.card, cards: state.cards })) return addLog(state, 'Pokémon Tower: cards in discard piles stay there.', owner.id);
+      if (discardsLocked(Object.values(state.players), state.cards)) return addLog(state, 'Allergic Pollen: cards in discard piles are not affected.', owner.id);
       pend(state, owner, { source: 'Reel In', kind: 'discardToHand', count: 3 });
     },
   },

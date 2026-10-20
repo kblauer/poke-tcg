@@ -66,7 +66,8 @@ export const FACE_DOWN: PokemonCardDef = {
  * and Transform when the copied card has no power. A face-down card (Secret Plan) is FACE_DOWN. Brock's Ninetales
  * with an Evolution card attached by Shapeshift is that card, keeping its own power. Koga's Ditto after Giant Growth
  * has 80 HP; Sabrina's Gastly's Gaseous Form adds 10 HP per Psychic Energy card (it works whatever its condition;
- * Stare stops it here, Toxic Gas and Goop Gas Attack don't, as this sees no other Pokémon).
+ * Stare stops it here, Toxic Gas and Goop Gas Attack don't, as this sees no other Pokémon). A submerged Lanturn is Water,
+ * and Rocket's Hideout gives a Pokémon with Dark in its name 20 more HP.
  */
 export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCardDef {
   if (pokemon.faceDown) return FACE_DOWN;
@@ -78,7 +79,11 @@ export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCa
   } else if (shapeshiftCard(pokemon)) {
     d = { ...(lookupCard(cards, shapeshiftCard(pokemon)!.defId) as PokemonCardDef), power: own.power };
   } else if (pokemon.shiftedType) d = { ...own, type: pokemon.shiftedType };
+  // Submerge: Lanturn is a Water Pokémon until the end of the turn.
+  if (pokemon.submerged !== undefined) d = { ...d, type: 'water' };
   if (pokemon.effects?.giantGrowth) d = { ...d, hp: 80 };
+  // Rocket's Hideout: 20 more HP for a Pokémon with Dark in its name.
+  if (pokemon.hideout) d = { ...d, hp: d.hp + 20 };
   if (own.power?.name === 'Gaseous Form' && pokemon.powerOffUntil === undefined) {
     const psychic = pokemon.energy.filter((e) => {
       const ed = !e.provides && lookupCard(cards, e.defId);
