@@ -4,6 +4,7 @@ import { boss, bossLabel, bossTypes, generation, RUN_TYPES, type BossId, type Ru
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import type { Overview, RunControl } from '../../hooks/useRun';
+import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
 import { EnergyIcon } from '../EnergyIcon';
 
 type RunTypeInfo = Overview['runTypes'][number];
@@ -89,7 +90,12 @@ function RunTypeOption({ info, selected, onPick }: { info: RunTypeInfo; selected
  * (RunTypeOption) for the generation picked in the dropdown (Gen 1 · Kanto, Gen 2 · Johto…); locked ones can't be picked. Decks that break the rules or hold cards you haven't
  * unlocked are listed with why, and can't be picked.
  */
-export function NewRunPicker({ overview, run, title, defaultType }: { overview: Overview; run: RunControl; title: string; defaultType?: RunTypeId }) {
+export function NewRunPicker({ overview: given, run, title, defaultType }: { overview: Overview; run: RunControl; title: string; defaultType?: RunTypeId }) {
+  // Debug mode unlocks every run type (started with debugStart); `debugLocked`: the ones that were locked.
+  const debug = useDebugEnabled();
+  const unlockAll = DEBUG_BUILD && debug;
+  const debugLocked = new Set(unlockAll ? given.runTypes.filter((t) => t.locked !== null).map((t) => t.id) : []);
+  const overview = unlockAll ? { ...given, runTypes: given.runTypes.map((t) => ({ ...t, locked: null })) } : given;
   const open = overview.runTypes.filter((t) => t.locked === null);
   const [type, setType] = useState<RunTypeId>(open.find((t) => t.id === defaultType)?.id ?? open[0]?.id ?? overview.runTypes[0]!.id);
   // The generation dropdown shows one generation's runs at a time, starting with the picked run's.
@@ -173,7 +179,7 @@ export function NewRunPicker({ overview, run, title, defaultType }: { overview: 
       <button
         className="rounded bg-blue-600 px-5 py-2 font-semibold transition hover:bg-blue-500 active:scale-95 disabled:opacity-40"
         disabled={run.busy || !deckId || chosen?.locked !== null}
-        onClick={() => deckId && run.start(type, deckId)}
+        onClick={() => deckId && run.start(type, deckId, debugLocked.has(type))}
       >
         Start the run
       </button>

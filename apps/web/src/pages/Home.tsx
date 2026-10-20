@@ -1,4 +1,5 @@
 import ListAltIcon from '@mui/icons-material/ListAlt';
+import { runType } from '@poke-tcg/campaign';
 import { useState } from 'react';
 import { LogDrawer, LogSheet } from '../components/LogDrawer';
 import { PreviewProvider } from '../components/PreviewProvider';
@@ -9,6 +10,7 @@ import { RunHeader } from '../components/run/RunHeader';
 import { ConcedeRun } from '../components/run/ConcedeRun';
 import { RouteChoice } from '../components/run/RouteChoice';
 import { RunMap } from '../components/run/RunMap';
+import { RouteView } from '../components/run/RouteView';
 import { RunOver } from '../components/run/RunOver';
 import { RunStats } from '../components/run/RunStats';
 import { useIsPhone } from '../hooks/useIsPhone';
@@ -20,7 +22,9 @@ import { PAGE_WIDTH } from '../utils/layout';
  * The run hub, laid out like the game: the page within the same side margins, filling the window, with
  * the side panel at the window's edge (its Run tab has HP, ₱, EXP, consumables and the Bag; its log tab
  * the run log). The page has the run's map and its encounter with the deck below; after a run, its
- * results, the shop and the next run. A new account is set up with its first run on the first visit.
+ * results, the shop and the next run. A run whose type has routes (Pewter City: Route 2) shows them instead of the
+ * icon map: zoomed in on the step's spot, alone in the top row, with the encounter, the cards unlocked and Concede below.
+ * A new account is set up with its first run on the first visit.
  * On a phone (useIsPhone) the side panel is a round button floating in the top right corner instead, which opens its
  * tabs full screen (LogSheet, as on the phone's battle screen).
  */
@@ -42,6 +46,20 @@ export function HomePage() {
     logTitle: 'Run log',
     run: view && <RunStats view={view} account={overview.data.account} run={run} />,
   } as const;
+  const routes = view ? runType(view.type).routes : undefined;
+  // The next encounter (or the one under way), the cards unlocked this run, and Concede below them, out of the way.
+  const panels = view && (
+    <div className="min-w-0 space-y-6">
+      {view.phase === 'map' ? (
+        // A new step starts with the run's deck picked again.
+        <RouteChoice key={view.position} view={view} run={run} iconMap={!routes} />
+      ) : (
+        <EncounterPanel view={view} run={run} />
+      )}
+      <DeckPanel view={view} />
+      {view.phase === 'map' && <ConcedeRun view={view} run={run} />}
+    </div>
+  );
 
   return (
     // -mt/-mb undo the layout's spacing, as on the game page, so the side panel runs from the header to the bottom.
@@ -57,20 +75,15 @@ export function HomePage() {
               <RunHeader view={view} />
               {view.phase === 'won' || view.phase === 'lost' ? (
                 <RunOver current={current} overview={overview.data} run={run} />
+              ) : routes ? (
+                <>
+                  <RouteView routes={routes} gym={runType(view.type).gym} view={view} spotted={run.spotted} />
+                  {panels}
+                </>
               ) : (
                 <div className="grid items-start gap-6 lg:grid-cols-[23rem_1fr]">
                   <RunMap view={view} run={run} />
-                  <div className="min-w-0 space-y-6">
-                    {view.phase === 'map' ? (
-                      // A new step starts with the run's deck picked again.
-                      <RouteChoice key={view.position} view={view} run={run} />
-                    ) : (
-                      <EncounterPanel view={view} run={run} />
-                    )}
-                    <DeckPanel view={view} />
-                    {/* Below the cards unlocked this run, out of the way of the next encounter. */}
-                    {view.phase === 'map' && <ConcedeRun view={view} run={run} />}
-                  </div>
+                  {panels}
                 </div>
               )}
             </>
