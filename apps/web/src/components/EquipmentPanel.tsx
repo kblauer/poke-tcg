@@ -23,18 +23,8 @@ const SLOT_ICONS: Record<EquipSlot, ComponentType<{ sx?: object }>> = {
   accessory2: DiamondIcon,
 };
 
-/**
- * Where each slot sits on the trainer: head (level with the top accessory), chest and legs down the middle, the Poké Ball just right of the chest, and the
- * accessories stacked in the top right corner.
- */
-const SLOT_PLACES: Record<EquipSlot, string> = {
-  head: 'left-1/2 top-3 -translate-x-1/2',
-  chest: 'left-1/2 top-[40%] -translate-x-1/2',
-  legs: 'left-1/2 bottom-[7%] -translate-x-1/2',
-  pokeball: 'left-[calc(50%+var(--slot)/2+0.5rem)] top-[40%]',
-  accessory1: 'right-3 top-3',
-  accessory2: 'right-3 top-[calc(0.75rem+var(--slot)+0.5rem)]',
-};
+/** The slots in their 2×3 grid, row by row: head, chest and legs down the left; the accessories and the Poké Ball down the right. */
+const SLOT_ORDER: EquipSlot[] = ['head', 'accessory1', 'chest', 'accessory2', 'legs', 'pokeball'];
 
 /** The size of a slot and of a box in the item grid. */
 const BOX = 'h-[var(--slot)] w-[var(--slot)]';
@@ -42,9 +32,10 @@ const ICON_SIZE = 60;
 
 /**
  * The Equipped section of the Inventory tab, in two columns: a quarter and three quarters of the row, their tops level (the
- * section's title heads the left one, the hint the right one). Left: a Black/White trainer (behind) with a slot
- * for each piece of equipment (head, chest, legs, Poké Ball, 2 accessories), each showing its icon while empty and an ×
- * to take off what's in it. Right: every piece of equipment the account has, as boxes the size of the slots, each
+ * section's title heads the left one, the hint the right one). Left: the account's trainer (a Black/White sprite). Right:
+ * a slot for each piece of equipment (head, chest, legs, Poké Ball, 2 accessories) in a 2×3 grid in the top left corner
+ * (SLOT_ORDER), each showing its icon while empty and an × to take off what's in it; and wrapping around them, every piece
+ * of equipment the account has, as boxes the size of the slots, each
  * describing itself on hover. Drag one onto a slot to equip it (dnd-kit), or click it and then the slot; while one is
  * held (clicked or dragged) the slots it fits light up green and the others red. A piece already in another slot moves
  * when the account has no spare (two accessories of a kind need two of them). Under the trainer, a button opens
@@ -108,31 +99,13 @@ export function EquipmentPanel({
       <div className="grid gap-4 [--slot:4.5rem] lg:grid-cols-4" onClick={() => setHeld(null)}>
         <div className="space-y-2">
           <h2 className="flex h-7 items-center text-lg font-semibold">Equipped</h2>
-          <div className="relative h-[30rem] rounded-lg bg-slate-900 ring-1 ring-slate-700">
-            {/* Only the trainer is clipped to the box, so the slots' hover descriptions can reach past it. */}
-            <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-lg">
-              <img
-                src={trainerSpriteUrl(sprite)}
-                alt=""
-                draggable={false}
-                className="absolute left-1/2 top-0 h-full w-auto max-w-none -translate-x-1/2 select-none [image-rendering:pixelated]"
-              />
-            </div>
-            {EQUIP_SLOTS.map((slot) => {
-              const id = equipment[slot];
-              return (
-                <EquipSlotBox
-                  key={slot}
-                  slot={slot}
-                  item={id ? (byId.get(id) ?? null) : null}
-                  itemId={id}
-                  state={heldItem ? (fitsSlot(heldItem, slot) ? 'fits' : 'wrong') : 'idle'}
-                  busy={busy}
-                  onClick={() => heldItem && fitsSlot(heldItem, slot) && void equipTo(slot, heldItem)}
-                  onRemove={() => void onEquip(slot, null)}
-                />
-              );
-            })}
+          <div className="relative h-[30rem] overflow-hidden rounded-lg bg-slate-900 ring-1 ring-slate-700">
+            <img
+              src={trainerSpriteUrl(sprite)}
+              alt=""
+              draggable={false}
+              className="pointer-events-none absolute left-1/2 top-0 h-full w-auto max-w-none -translate-x-1/2 select-none [image-rendering:pixelated]"
+            />
           </div>
           <button
             className="w-full rounded bg-slate-600 px-3 py-1.5 text-sm transition hover:bg-slate-500"
@@ -155,10 +128,28 @@ export function EquipmentPanel({
           )}
         </div>
 
-        <div className="space-y-2 lg:col-span-3">
+        <div className="flow-root space-y-2 lg:col-span-3">
           <p className="flex h-7 items-center text-xs text-slate-500">Drag a piece onto its slot, or click it and then the slot. It works in your runs from the next encounter.</p>
+          {/* The slots in the top left corner, a 2×3 grid spaced as the pieces are (so their rows line up), the pieces wrapping around them (both float). */}
+          <div className="float-left mb-2 mr-2 grid grid-cols-[repeat(2,var(--slot))] gap-2 rounded-lg bg-slate-900 ring-1 ring-slate-700">
+            {SLOT_ORDER.map((slot) => {
+              const id = equipment[slot];
+              return (
+                <EquipSlotBox
+                  key={slot}
+                  slot={slot}
+                  item={id ? (byId.get(id) ?? null) : null}
+                  itemId={id}
+                  state={heldItem ? (fitsSlot(heldItem, slot) ? 'fits' : 'wrong') : 'idle'}
+                  busy={busy}
+                  onClick={() => heldItem && fitsSlot(heldItem, slot) && void equipTo(slot, heldItem)}
+                  onRemove={() => void onEquip(slot, null)}
+                />
+              );
+            })}
+          </div>
           {gear.length ? (
-            <ul className="flex flex-wrap gap-2">
+            <ul>
               {gear.map((item) => {
                 const worn = EQUIP_SLOTS.filter((s) => equipment[s] === item.id).length;
                 return (
@@ -189,7 +180,7 @@ export function EquipmentPanel({
   );
 }
 
-/** One slot on the trainer: a drop target, with the piece in it (and an × to take it off) or the slot's icon. */
+/** One equipment slot: a drop target, with the piece in it (and an × to take it off) or the slot's icon. */
 function EquipSlotBox({
   slot,
   item,
@@ -217,7 +208,7 @@ function EquipSlotBox({
         : 'bg-slate-800/80 ring-1 ring-slate-600';
   return (
     // Raised while hovered, so its description shows over the other slots.
-    <div ref={setNodeRef} className={`group absolute hover:z-30 ${SLOT_PLACES[slot]}`}>
+    <div ref={setNodeRef} className="group relative hover:z-30">
       <button
         className={`${BOX} flex flex-col items-center justify-center rounded-lg transition ${look} ${state === 'fits' ? 'cursor-pointer' : 'cursor-default'}`}
         onClick={(e) => {
@@ -259,7 +250,8 @@ function EquipSlotBox({
 function GearBox({ item, worn, held, dragging, onClick }: { item: OwnedItem; worn: number; held: boolean; dragging: boolean; onClick: () => void }) {
   const { setNodeRef, listeners, attributes } = useDraggable({ id: item.id });
   return (
-    <li className="group relative">
+    // Floated, so the pieces wrap around the slots floating in the top left corner.
+    <li className="group relative float-left mb-2 mr-2">
       <button
         ref={setNodeRef}
         {...listeners}

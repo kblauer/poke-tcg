@@ -90,6 +90,8 @@ model Deck {
   /// in the deck builder). Saving it when the run is over clears it; otherwise the next run takes it over.
   runId     String?    @unique @db.Uuid
   run       Run?       @relation(fields: [runId], references: [id], onDelete: SetNull)
+  /// Starred on the Collection tab: offered under the run's deck choice (Favorite decks).
+  favorite  Boolean    @default(false)
   cards     DeckCard[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt

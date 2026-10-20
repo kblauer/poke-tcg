@@ -115,6 +115,7 @@ export function DecksPage() {
   );
   const reorder = useMutation(trpc.decks.reorder.mutationOptions({ onSettled: refresh }));
   const rename = useMutation(trpc.decks.rename.mutationOptions({ onSuccess: refresh }));
+  const favorite = useMutation(trpc.decks.favoriteDeck.mutationOptions({ onSuccess: refresh }));
   // Crafting: Stardust (earned from packs) unlocks a card as pulling it would.
   const stardust = useQuery(trpc.packs.stardust.queryOptions());
   // Only cards from sets whose packs are unlocked can be crafted.
@@ -219,6 +220,7 @@ export function DecksPage() {
           onNew={() => open(null)}
           onCopy={(id) => duplicate.mutate({ deckId: id })}
           onRename={(id, newName) => rename.mutate({ deckId: id, name: newName })}
+          onFavorite={(id, on) => favorite.mutate({ deckId: id, favorite: on })}
           onReorder={(ids) => reorder.mutate({ deckIds: ids })}
           busy={duplicate.isPending}
           compact={phone}

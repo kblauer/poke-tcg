@@ -1,4 +1,5 @@
 import { battleReward, boss, CENTER_PRICE, eventInfo, isBattleKind, isBossKind, ITEMS, OFFERS, PRICES, REWARD_FOCUS_LABELS, SHOP_SIZE, trainerFavorites, type MapEncounter } from '@poke-tcg/campaign';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { CPU_DIFFICULTY_LABELS, type EnergyType } from '@poke-tcg/game-engine';
@@ -17,7 +18,6 @@ import { EnergyIcon } from '../EnergyIcon';
 import { CatalogContext } from '../InspectContext';
 import { ENCOUNTER_STYLE, EncounterBadge } from './encounterIcons';
 
-const primary = 'shrink-0 rounded bg-blue-600 px-4 py-2 font-semibold transition hover:bg-blue-500 active:scale-95 disabled:opacity-40';
 /** Debug's Skip battle, under a battle's button. */
 const skipButton = 'rounded bg-slate-600 px-3 py-1 text-xs font-semibold transition hover:bg-slate-500 disabled:opacity-40';
 
@@ -112,14 +112,14 @@ const countsOf = (cards: string[]): DeckEntry[] => [...cards.reduce((m, id) => m
 
 /**
  * The middle of the run screen while choosing the next encounter: every option of the current step at once, the
- * battles together (each with its opponent, the 2 Pokémon types their class favours, rewards and Battle button), then one
- * deck choice for whichever battle is taken, then the other encounters together (each with Go). The deck choice is the
+ * battles together (each with its opponent, the 2 Pokémon types their class favours, and rewards), then one
+ * deck choice for whichever battle is taken, then the other encounters together (each option a button: Option). The deck choice is the
  * run's current deck (first, as Current run) or one of the account's other decks (the switch is made as the battle is
  * chosen, with `run.choose`). Clicking an option on the map instead goes there at
- * once, with the current deck. On a phone (useIsPhone) the other stops are headed Event, and the decks are a drop-down menu
- * of deck tiles (DeckMenu).
+ * once, with the current deck. The deck choice is a drop-down menu of deck tiles (DeckMenu), with the decks starred on the
+ * Collection tab below it (Favorite decks). On a phone (useIsPhone) the other stops are headed Event.
  */
-export function RouteChoice({ view, run, iconMap = true }: { view: RunViewData; run: RunControl; iconMap?: boolean }) {
+export function RouteChoice({ view, run }: { view: RunViewData; run: RunControl }) {
   const trpc = useTRPC();
   const debug = useDebugEnabled();
   const options = (view.steps[view.position]?.options ?? []).map((option, index) => ({ option, index }));
@@ -135,45 +135,53 @@ export function RouteChoice({ view, run, iconMap = true }: { view: RunViewData; 
   const runDeck = useMemo(() => countsOf(view.deck), [view.deck]);
   // The automatic run deck is the run's deck itself, already first.
   const otherDecks = (decks.data ?? []).filter((d) => !d.runDeck);
+  const favoriteDecks = otherDecks.filter((d) => d.favorite);
   const cardName = (id: string) => view.cards[id]?.name ?? id;
   const phone = useIsPhone();
 
   return (
     <section aria-label="Your next encounter" className="flex flex-col gap-5 rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600">
-      <div>
-        <h3 className="text-lg font-semibold">Your next encounter</h3>
-        {/* With the icon map beside it (not a route's map), its options can be clicked there too. */}
-        <p className="text-xs text-slate-400">
-          {iconMap
-            ? "Choose one here, or click it on the map's highlighted step to go straight there (battles with your current deck). You climb from the bottom to the run's last boss at the top."
-            : 'Choose where to go next. The route above shows where you are.'}
-        </p>
-      </div>
-
       {/* Battles and other stops side by side when the panel is wide enough; stacked otherwise, the other stops on top
           (column-reverse), so the battles' deck choice comes last, nearest the battles' buttons. */}
       <div className="@container">
         <div className="flex flex-col-reverse gap-5 @4xl:flex-row @4xl:items-start">
           {battles.length > 0 && (
-            <div className="@container min-w-0 flex-1 space-y-3">
-              <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-400">{battles.length === 1 ? 'Battle' : 'Battles'}</h4>
-              <ul className="space-y-2">
-                {battles.map(({ option, index }) => (
-                  <Option key={index} option={option} title={option.label} lines={describe(option, cardName)} note={<ClassTypes option={option} catalog={byId} />}>
-                    <div className="flex shrink-0 flex-col items-stretch gap-1">
-                      <button className={primary} disabled={run.busy} onClick={() => run.choose(index, deckId ?? undefined)}>
-                        {isBossKind(option.kind) || option.kind === 'gymTrainer' ? 'Challenge' : 'Battle'}
-                      </button>
+            // Only battles on this step: the trainers on the left and the deck choice on the right, when there's room.
+            <div className={`@container min-w-0 flex-1 ${others.length ? 'space-y-3' : 'grid gap-3 @3xl:grid-cols-2 @3xl:items-start @3xl:gap-5'}`}>
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-400">{battles.length === 1 ? 'Battle' : 'Battles'}</h4>
+                <ul className="space-y-2">
+                  {battles.map(({ option, index }) => (
+                    <Option
+                      key={index}
+                      option={option}
+                      title={option.label}
+                      lines={describe(option, cardName)}
+                      note={<ClassTypes option={option} catalog={byId} />}
+                      action={isBossKind(option.kind) || option.kind === 'gymTrainer' ? 'Challenge' : 'Battle'}
+                      disabled={run.busy}
+                      onChoose={() => run.choose(index, deckId ?? undefined)}
+                    >
                       {/* Debug: win it without playing. DEBUG_BUILD first: a production build drops the button altogether. */}
                       {DEBUG_BUILD && debug && (
-                        <button className={skipButton} disabled={run.busy} onClick={() => run.skipBattle(index, deckId ?? undefined)} title="Debug: win this battle without playing it">
+                        <button
+                          className={skipButton}
+                          disabled={run.busy}
+                          // Not the option's own click.
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            run.skipBattle(index, deckId ?? undefined);
+                          }}
+                          onKeyDown={(e) => e.stopPropagation()}
+                          title="Debug: win this battle without playing it"
+                        >
                           Skip battle
                         </button>
                       )}
-                    </div>
-                  </Option>
-                ))}
-              </ul>
+                    </Option>
+                  ))}
+                </ul>
+              </div>
 
               <div className="space-y-2">
                 <div className="flex items-baseline justify-between">
@@ -182,42 +190,33 @@ export function RouteChoice({ view, run, iconMap = true }: { view: RunViewData; 
                     Build or edit decks
                   </Link>
                 </div>
-                {phone ? (
-                  // The run's deck first (picked unless another is), then the account's other decks.
-                  <DeckMenu
-                    selected={deckId}
-                    onPick={setDeckId}
-                    decks={[
-                      { id: null, name: 'Current run', note: view.deckName ? `${view.deckName}${traded ? ', with its trades' : ''}` : traded ? 'With its trades' : undefined, entries: runDeck },
-                      ...otherDecks.map((d) => ({ id: d.id, name: d.name, note: d.problems[0], entries: d.cards, disabled: d.problems.length > 0 })),
-                    ]}
-                    byId={byId}
-                    isLocked={isLocked}
-                  />
-                ) : (
-                  <div role="radiogroup" aria-label="Deck" className="space-y-3">
-                    {/* The run's deck on its own row, then a divider, then the account's other decks. */}
-                    <ul className="grid gap-2 @md:grid-cols-2">
-                      <DeckOption selected={deckId === null} onPick={() => setDeckId(null)} name="Current run" note={view.deckName ? `${view.deckName}${traded ? ', with its trades' : ''}` : traded ? 'With its trades' : undefined}>
-                        <DeckSummary entries={runDeck} byId={byId} isLocked={isLocked} />
+                {/* The run's deck first (picked unless another is), then the account's other decks. */}
+                <DeckMenu
+                  selected={deckId}
+                  onPick={setDeckId}
+                  decks={[
+                    { id: null, name: 'Current run', note: view.deckName ? `${view.deckName}${traded ? ', with its trades' : ''}` : traded ? 'With its trades' : undefined, entries: runDeck },
+                    ...otherDecks.map((d) => ({ id: d.id, name: d.name, note: d.problems[0], entries: d.cards, disabled: d.problems.length > 0 })),
+                  ]}
+                  byId={byId}
+                  isLocked={isLocked}
+                  compact={phone}
+                />
+                {/* The decks starred on the Collection tab, a click away. */}
+                <div className="flex items-center gap-2 text-xs text-slate-500">
+                  <span>Favorite decks</span>
+                  <span className="h-px flex-1 bg-slate-700" />
+                </div>
+                {favoriteDecks.length > 0 ? (
+                  <ul role="radiogroup" aria-label="Favorite decks" className="grid gap-2 @md:grid-cols-2">
+                    {favoriteDecks.map((d) => (
+                      <DeckOption key={d.id} selected={deckId === d.id} onPick={() => setDeckId(d.id)} name={d.name} disabled={d.problems.length > 0} note={d.problems[0]}>
+                        {d.problems.length === 0 && <DeckSummary entries={d.cards} byId={byId} isLocked={isLocked} compact={phone} />}
                       </DeckOption>
-                    </ul>
-                    {otherDecks.length > 0 && (
-                      <>
-                        <div className="flex items-center gap-2 text-xs text-slate-500">
-                          <span>Or switch to</span>
-                          <span className="h-px flex-1 bg-slate-700" />
-                        </div>
-                        <ul className="grid gap-2 @md:grid-cols-2">
-                          {otherDecks.map((d) => (
-                            <DeckOption key={d.id} selected={deckId === d.id} onPick={() => setDeckId(d.id)} name={d.name} disabled={d.problems.length > 0} note={d.problems[0]}>
-                              {d.problems.length === 0 && <DeckSummary entries={d.cards} byId={byId} isLocked={isLocked} />}
-                            </DeckOption>
-                          ))}
-                        </ul>
-                      </>
-                    )}
-                  </div>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-slate-500">Star a deck on the Collection tab to keep it here.</p>
                 )}
                 {deckId !== null && (
                   <p className="text-xs text-amber-300">This deck replaces your run deck for the rest of the run{traded ? ', and the cards you traded for leave it (they stay unlocked)' : ''}.</p>
@@ -231,11 +230,7 @@ export function RouteChoice({ view, run, iconMap = true }: { view: RunViewData; 
               <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-400">{phone ? (others.length === 1 ? 'Event' : 'Events') : battles.length ? 'Other stops' : 'Stops'}</h4>
               <ul className="space-y-2">
                 {others.map(({ option, index }) => (
-                  <Option key={index} option={option} title={optionTitle(option, cardName)} lines={describe(option, cardName)}>
-                    <button className={primary} disabled={run.busy} onClick={() => run.choose(index)}>
-                      Go
-                    </button>
-                  </Option>
+                  <Option key={index} option={option} title={optionTitle(option, cardName)} lines={describe(option, cardName)} action="Go to" disabled={run.busy} onChoose={() => run.choose(index)} />
                 ))}
               </ul>
             </div>
@@ -248,12 +243,45 @@ export function RouteChoice({ view, run, iconMap = true }: { view: RunViewData; 
 
 /**
  * One option of the step, compact: its badge, title (a special battle's kind beside it: Gym Trainer, Gym leader…; not for
- * ordinary battles or the other stops, whose title says it), what it leads to, and its button.
+ * ordinary battles or the other stops, whose title says it) and what it leads to. The whole row is the button that takes
+ * it (`onChoose`; `action` names it for screen readers: Battle, Challenge, Go to), with an arrow on the right; `children`
+ * (the debug Skip battle) sit before the arrow.
  */
-function Option({ option, title, lines, note, children }: { option: MapEncounter; title: string; lines: string[]; note?: ReactNode; children: ReactNode }) {
+function Option({
+  option,
+  title,
+  lines,
+  note,
+  action,
+  disabled,
+  onChoose,
+  children,
+}: {
+  option: MapEncounter;
+  title: string;
+  lines: string[];
+  note?: ReactNode;
+  action: string;
+  disabled: boolean;
+  onChoose: () => void;
+  children?: ReactNode;
+}) {
   const kindName = isBattleKind(option.kind) && option.kind !== 'battle' ? ENCOUNTER_STYLE[option.kind].name : null;
   return (
-    <li className="flex items-center gap-3 rounded-lg bg-slate-900 px-3 py-2 ring-1 ring-slate-700">
+    <li
+      // A div rather than a button, as the debug Skip battle is a button inside it.
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      aria-disabled={disabled}
+      aria-label={`${action} ${title}`}
+      onClick={() => !disabled && onChoose()}
+      onKeyDown={(e) => {
+        if (disabled || (e.key !== 'Enter' && e.key !== ' ')) return;
+        e.preventDefault();
+        onChoose();
+      }}
+      className="group flex cursor-pointer items-center gap-3 rounded-lg bg-slate-900 px-3 py-2 ring-1 ring-slate-700 transition hover:bg-slate-700/60 hover:ring-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 active:scale-[0.99] aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+    >
       <EncounterBadge kind={option.kind} size={32} />
       <div className="min-w-0 flex-1 space-y-0.5">
         <p className="flex flex-wrap items-baseline gap-x-2">
@@ -269,6 +297,7 @@ function Option({ option, title, lines, note, children }: { option: MapEncounter
         ))}
       </div>
       {children}
+      <ChevronRightIcon className="shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-slate-100" />
     </li>
   );
 }
@@ -289,9 +318,11 @@ interface MenuDeck {
 }
 
 /**
- * The phone's deck choice: a drop-down menu whose entries are deck tiles, as on the Collection tab (the name, its 3
- * headline Pokémon and the thin Pokémon/Trainer/Energy bar: DeckSummary's `compact`). Closed, it shows the deck picked;
- * opened, the other decks below it (those that can't be played greyed out, with why). Picking one, or a tap outside, closes it.
+ * The deck choice: a drop-down menu whose entries are deck tiles, as on the Collection tab (the name, its 3 headline
+ * Pokémon and the Pokémon/Trainer/Energy bar; on a phone, `compact`, DeckSummary's small version). On a desktop the list
+ * floats over the page below the menu (above it without room below), every deck in it, scrolling past LIST_HEIGHT;
+ * on a phone it opens in place below the deck picked. Escape closes it too. Closed, it shows the deck picked;
+ * decks that can't be played are greyed out, with why. Picking one, or a click outside, closes it.
  */
 function DeckMenu({
   decks,
@@ -299,21 +330,36 @@ function DeckMenu({
   onPick,
   byId,
   isLocked,
+  compact,
 }: {
   decks: MenuDeck[];
   selected: string | null;
   onPick: (id: string | null) => void;
   byId: Map<string, CatalogCard>;
   isLocked: (card: CatalogCard) => boolean;
+  /** A phone: DeckSummary's small version. */
+  compact: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
     const close = (e: PointerEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    const escape = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
     document.addEventListener('pointerdown', close);
-    return () => document.removeEventListener('pointerdown', close);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', close);
+      document.removeEventListener('keydown', escape);
+    };
   }, [open]);
+  // On a desktop the list floats over the page below the menu, or above it when there isn't room below (and there's more above).
+  const [below, setBelow] = useState(false);
+  const toggle = () => {
+    const box = ref.current?.getBoundingClientRect();
+    if (box) setBelow(window.innerHeight - box.bottom >= LIST_HEIGHT + 16 || window.innerHeight - box.bottom >= box.top);
+    setOpen(!open);
+  };
   const picked = decks.find((d) => d.id === selected) ?? decks[0]!;
   /** A deck's tile: its name (and note), then its headline Pokémon and bar. */
   const tile = (d: MenuDeck) => (
@@ -322,14 +368,14 @@ function DeckMenu({
         <span className="truncate font-semibold">{d.name}</span>
         {d.note && <span className={`truncate text-xs ${d.disabled ? 'text-amber-300' : 'text-slate-400'}`}>{d.note}</span>}
       </span>
-      {!d.disabled && <DeckSummary entries={d.entries} byId={byId} isLocked={isLocked} compact />}
+      {!d.disabled && <DeckSummary entries={d.entries} byId={byId} isLocked={isLocked} compact={compact} />}
     </>
   );
   return (
-    <div ref={ref} className="space-y-2">
+    <div ref={ref} className={compact ? 'space-y-2' : 'relative'}>
       <button
         className="flex w-full items-center gap-2 rounded-lg bg-slate-900 p-2 text-left text-sm ring-1 ring-yellow-300"
-        onClick={() => setOpen(!open)}
+        onClick={toggle}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={`Deck: ${picked.name}`}
@@ -338,20 +384,30 @@ function DeckMenu({
         {open ? <ExpandLessIcon className="shrink-0 text-slate-400" /> : <ExpandMoreIcon className="shrink-0 text-slate-400" />}
       </button>
       {open && (
-        <ul role="listbox" aria-label="Decks" className="space-y-2">
+        <ul
+          role="listbox"
+          aria-label="Decks"
+          className={
+            compact
+              ? 'space-y-2'
+              : `absolute inset-x-0 z-30 space-y-2 overflow-y-auto rounded-lg bg-slate-800 p-2 shadow-xl shadow-black/60 ring-1 ring-slate-600 ${below ? 'top-full mt-2' : 'bottom-full mb-2'}`
+          }
+          style={compact ? undefined : { maxHeight: LIST_HEIGHT }}
+        >
+          {/* On a phone the other decks below the one picked; on a desktop every deck, the one picked marked. */}
           {decks
-            .filter((d) => d !== picked)
+            .filter((d) => !compact || d !== picked)
             .map((d) => (
               <li key={d.id ?? 'run'}>
                 <button
                   role="option"
-                  aria-selected={false}
+                  aria-selected={d === picked}
                   disabled={d.disabled}
                   onClick={() => {
                     onPick(d.id);
                     setOpen(false);
                   }}
-                  className="w-full space-y-1 rounded-lg bg-slate-900 p-2 text-left text-sm ring-1 ring-slate-700 transition active:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  className={`w-full space-y-1 rounded-lg bg-slate-900 p-2 text-left text-sm ring-1 transition hover:bg-slate-700 active:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-slate-900 ${d === picked ? 'ring-yellow-300' : 'ring-slate-700'}`}
                 >
                   {tile(d)}
                 </button>
@@ -362,6 +418,9 @@ function DeckMenu({
     </div>
   );
 }
+
+/** How tall the desktop deck menu's floating list gets before it scrolls, in px. */
+const LIST_HEIGHT = 320;
 
 /** One deck to battle with. */
 function DeckOption({

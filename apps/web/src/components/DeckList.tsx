@@ -4,6 +4,8 @@ import { CSS } from '@dnd-kit/utilities';
 import AddIcon from '@mui/icons-material/Add';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import EditIcon from '@mui/icons-material/Edit';
+import StarIcon from '@mui/icons-material/Star';
+import StarBorderIcon from '@mui/icons-material/StarBorder';
 import type { AppRouter } from '@poke-tcg/api/router';
 import { DECK_NAME_LENGTH, DECK_SIZE } from '@poke-tcg/shared';
 import type { inferRouterOutputs } from '@trpc/server';
@@ -150,22 +152,40 @@ const RUN_DECK_TAG = (
   </span>
 );
 
+/** A deck's card count, green when it can be played (the colour says it's ready). */
+function DeckCount({ size, ready }: { size: number; ready: boolean }) {
+  return (
+    <span className={`shrink-0 self-end text-xs ${ready ? 'text-emerald-400' : 'text-slate-400'}`} title={ready ? 'Ready to play' : undefined}>
+      {size}/{DECK_SIZE}
+    </span>
+  );
+}
+
 /**
- * A deck's name (with its rename button) and card count, with whether it can be played. Without `onRename` (the
- * automatic run deck) the name is plain, tagged Run deck. `compact` (a phone): the count without ", ready" (its colour says so).
+ * A deck's tile body: what it holds (DeckSummary), with its card count at the bottom right (DeckCount).
+ */
+function DeckBody({ entries, size, ready, byId, isLocked, compact }: { entries: DeckEntry[]; size: number; ready: boolean; byId: Map<string, CatalogCard>; isLocked: (card: CatalogCard) => boolean; compact: boolean }) {
+  return (
+    <div className="flex items-end gap-2">
+      <div className="min-w-0 flex-1">
+        <DeckSummary entries={entries} byId={byId} isLocked={isLocked} compact={compact} />
+      </div>
+      <DeckCount size={size} ready={ready} />
+    </div>
+  );
+}
+
+/**
+ * A deck's name (with its rename button). Without `onRename` (the automatic run deck) the name is plain, tagged Run deck.
  */
 function DeckTitle({
   name,
   onRename,
-  size,
-  ready,
   compact = false,
   children,
 }: {
   name: string;
   onRename?: (name: string) => void;
-  size: number;
-  ready: boolean;
   compact?: boolean;
   children?: ReactNode;
 }) {
@@ -180,17 +200,14 @@ function DeckTitle({
         </span>
       )}
       {children}
-      <span className={`shrink-0 text-xs ${ready ? 'text-emerald-400' : 'text-slate-400'}`}>
-        {size}/{DECK_SIZE}
-        {ready && !compact && ', ready'}
-      </span>
     </div>
   );
 }
 
 /**
  * The account's decks as buttons to open, in their saved order: drag one to move it (the new order is
- * saved with `onReorder`). Each can be renamed (the pencil by its name) or copied, and a new deck started from scratch.
+ * saved with `onReorder`). Each can be renamed (the pencil by its name) or copied, and a new deck started from scratch;
+ * the star in a deck's top right corner favorites it (`onFavorite`: the run's Favorite decks), not the automatic run deck.
  * `compact` (a phone, where the list shares the top of the screen with the search): smaller tiles (DeckSummary's).
  */
 export function DeckList({
@@ -202,6 +219,7 @@ export function DeckList({
   onCopy,
   onRename,
   onReorder,
+  onFavorite,
   busy,
   compact = false,
 }: {
@@ -213,6 +231,7 @@ export function DeckList({
   onCopy: (deckId: string) => void;
   onRename: (deckId: string, name: string) => void;
   onReorder: (deckIds: string[]) => void;
+  onFavorite: (deckId: string, favorite: boolean) => void;
   busy: boolean;
   compact?: boolean;
 }) {
@@ -242,7 +261,7 @@ export function DeckList({
         <SortableContext items={order} strategy={verticalListSortingStrategy}>
           <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto">
             {shown.map((d) => (
-              <SortableDeck key={d.id} deck={d} byId={byId} isLocked={isLocked} onOpen={onOpen} onCopy={onCopy} onRename={onRename} busy={busy} compact={compact} />
+              <SortableDeck key={d.id} deck={d} byId={byId} isLocked={isLocked} onOpen={onOpen} onCopy={onCopy} onRename={onRename} onFavorite={onFavorite} busy={busy} compact={compact} />
             ))}
           </ul>
         </SortableContext>
@@ -258,6 +277,7 @@ function SortableDeck({
   onOpen,
   onCopy,
   onRename,
+  onFavorite,
   busy,
   compact,
 }: {
@@ -267,6 +287,7 @@ function SortableDeck({
   onOpen: (deckId: string) => void;
   onCopy: (deckId: string) => void;
   onRename: (deckId: string, name: string) => void;
+  onFavorite: (deckId: string, favorite: boolean) => void;
   busy: boolean;
   compact: boolean;
 }) {
@@ -285,7 +306,7 @@ function SortableDeck({
         }}
         title={deck.problems.join(' ') || undefined}
       >
-        <DeckTitle name={deck.name} onRename={deck.runDeck ? undefined : (name) => onRename(deck.id, name)} size={deck.cardCount} ready={deck.problems.length === 0} compact={compact}>
+        <DeckTitle name={deck.name} onRename={deck.runDeck ? undefined : (name) => onRename(deck.id, name)} compact={compact}>
           <button
             className="flex shrink-0 items-center gap-1 self-center rounded bg-slate-600 px-1.5 text-xs leading-5 hover:bg-slate-500 disabled:opacity-40"
             disabled={busy}
@@ -300,8 +321,25 @@ function SortableDeck({
           >
             <ContentCopyIcon sx={{ fontSize: 12 }} /> {!compact && 'Copy'}
           </button>
+          {/* The favorite star, in the top right corner (not on the automatic run deck). */}
+          {!deck.runDeck && (
+            <button
+              className={`flex shrink-0 rounded p-0.5 hover:bg-slate-600 ${deck.favorite ? 'text-amber-300' : 'text-slate-400 hover:text-slate-100'}`}
+              {...inside}
+              onClick={(e) => {
+                e.stopPropagation();
+                onFavorite(deck.id, !deck.favorite);
+              }}
+              onKeyDown={(e) => e.stopPropagation()}
+              aria-pressed={deck.favorite}
+              title={deck.favorite ? 'Favorite deck (click to unfavorite)' : 'Favorite this deck: it shows under the deck choice in a run'}
+              aria-label={`${deck.favorite ? 'Unfavorite' : 'Favorite'} ${deck.name}`}
+            >
+              {deck.favorite ? <StarIcon sx={{ fontSize: 16 }} /> : <StarBorderIcon sx={{ fontSize: 16 }} />}
+            </button>
+          )}
         </DeckTitle>
-        <DeckSummary entries={deck.cards} byId={byId} isLocked={isLocked} compact={compact} />
+        <DeckBody entries={deck.cards} size={deck.cardCount} ready={deck.problems.length === 0} byId={byId} isLocked={isLocked} compact={compact} />
       </div>
     </li>
   );
@@ -343,10 +381,10 @@ export function CurrentDeck({
       onKeyDown={(e) => e.key === 'Enter' && onBack()}
       title="Back to the deck list"
     >
-      <DeckTitle name={name || 'Unnamed deck'} onRename={readOnly ? undefined : onRename} size={deckSize(entries)} ready={ready} compact={compact}>
+      <DeckTitle name={name || 'Unnamed deck'} onRename={readOnly ? undefined : onRename} compact={compact}>
         <span className="shrink-0 text-xs text-slate-400">{compact ? '←' : '← All decks'}</span>
       </DeckTitle>
-      <DeckSummary entries={entries} byId={byId} isLocked={isLocked} compact={compact} />
+      <DeckBody entries={entries} size={deckSize(entries)} ready={ready} byId={byId} isLocked={isLocked} compact={compact} />
     </div>
   );
 }
