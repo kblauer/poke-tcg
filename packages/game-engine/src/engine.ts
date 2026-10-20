@@ -1,7 +1,7 @@
 /// <reference path="./globals.d.ts" />
 import { attackSituation, checkAttack, performAttack, usableAttacks, type AttackChoices } from './attacks.js';
 import { energyFromHand, evolutionBlocked, guardedBy, offerChainReaction, playedFromHand, powerActive, refreshTransforms, retreatAid, stickyGoo, trainersBlocked, usePower, type PowerChoices } from './powers.js';
-import { playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
+import { evolvesFromEevee, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
 import { isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { addLog, baseUid, clearOnLeavingActive, effectId, evolvedHook, shapeshiftCard, flipCoin, inPlayDef, openBenchSlot, pokemonName, revealFaceDown, type LogEntry } from './status.js';
@@ -127,6 +127,20 @@ export interface PokemonEffects {
    * Pokémon (`switches`), and last through turn `until`.
    */
   heldBy?: { by: string; until?: number; switches?: boolean };
+  /** Attack damage to it of `amount` or less (after Weakness and Resistance) is prevented, through turn `until` (Metapod's Harden). */
+  preventUpTo?: { amount: number; until: number };
+  /** When an attack damages it, its owner flips; heads does the same damage back to the attacker, without Weakness or Resistance (Counter). */
+  counter?: number;
+  /** When an attack damages it, the attacker is Poisoned and each of the attacking player's benched Pokémon takes 10 (Secrete Poison). */
+  secretePoison?: number;
+  /** When an attack would damage it, the attacking player flips; tails prevents the damage (Slime). */
+  slime?: number;
+  /** If it tries to retreat, 10 damage to it (Pursuit). */
+  pursuit?: number;
+  /** Through this turn, tails flipped for its Electric Bolt on the Pokémon Locked On to it count as heads (Lock-on). */
+  lockOn?: number;
+  /** Lock-on: the top card uid of the Pokémon that Locked On to it (benching or evolving it ends this). */
+  lockedOnBy?: string;
 }
 
 export interface InPlayPokemon {
@@ -174,6 +188,8 @@ export interface InPlayPokemon {
   faceDown?: boolean;
   /** Giovanni: the turn it may evolve even if it was played or evolved this turn, or on the first turn. */
   giovanniTurn?: number;
+  /** Gaze switched its power off (`powerOffUntil`) while it's benched: leaving the Bench turns it back on. */
+  gazed?: boolean;
 }
 
 export interface PlayerState {
@@ -207,6 +223,8 @@ export interface PlayerState {
   blaineTurn?: number;
   /** Transparent Walls: the last turn attack damage to this player's Benched Pokémon is prevented. */
   benchDamageProtectedUntil?: number;
+  /** The baseUid of the Active Pokémon when it was last checked (Spikes: a new one during its player's turn). */
+  lastActive?: string;
 }
 
 export type Phase = 'setup' | 'playing' | 'promote' | 'finished';
@@ -386,6 +404,51 @@ export const TURN_ORDER_FLIP = 'Coin flip for turn order';
  * Never mutates the input. Runs identically on client (preview) and server (authority).
  */
 export function applyAction(prev: GameState, playerId: PlayerId, action: GameAction): ActionResult {
+  const result = act(prev, playerId, action);
+  if (result.ok) energyEvolution(prev, result.state, playerId);
+  return result;
+}
+
+/**
+ * Energy Evolution: for each of the player's Eevees with it working that has an Energy card attached now that it didn't
+ * before the action (attached or moved by the player, by any effect: agreed), a flip for each such Energy card until one
+ * is heads; heads asks for a card from the deck that evolves from Eevee of the Energy's type (Rainbow Energy: any).
+ */
+function energyEvolution(prev: GameState, state: GameState, playerId: PlayerId) {
+  if (state.phase !== 'playing') return;
+  const before = new Map(
+    [prev.players[playerId]!.active, ...prev.players[playerId]!.bench].flatMap((p) => (p && powerEffect(effectId(p))?.energyEvolution ? [[p.card.uid, new Set(p.energy.map((e) => e.uid))] as const] : [])),
+  );
+  const owner = state.players[playerId]!;
+  const sides = state.playerOrder.map((id) => state.players[id]!);
+  for (const target of [...(owner.active ? (['active'] as Target[]) : []), ...owner.bench.flatMap((p, i) => (p ? [i] : []))]) {
+    const eevee = (target === 'active' ? owner.active : owner.bench[target])!;
+    const had = before.get(eevee.card.uid);
+    const added = had ? eevee.energy.filter((e) => !had.has(e.uid)) : [];
+    if (!added.length || !powerActive(eevee, state.cards, sides)) continue;
+    for (const energy of added) {
+      if (!flipCoin(state, 'Energy Evolution', playerId)) continue;
+      const d = lookupCard(state.cards, energy.defId);
+      const any = d.kind === 'energy' && !!d.anyType;
+      const type = energy.provides?.type ?? (d.kind === 'energy' ? d.energyType : null);
+      const names = [...new Set(owner.deck.filter((c) => evolvesFromEevee(state.cards, c)).map((c) => card(state, c)).filter((e) => any || e.type === type).map((e) => e.name))];
+      if (!names.length) {
+        [owner.deck, state.rngState] = shuffle(owner.deck, state.rngState);
+        addLog(state, 'Energy Evolution: no card in the deck evolves from Eevee into that type.', playerId);
+        break;
+      }
+      const choice: PendingChoice = { player: playerId, source: 'Energy Evolution', kind: 'evolveFromDeck', target, names };
+      if (state.pendingChoice) (state.queuedChoices ??= []).push(choice);
+      else state.pendingChoice = choice;
+      break;
+    }
+  }
+}
+
+/** The Pokémon card definition of a card. */
+const card = (state: GameState, c: CardInstance) => lookupCard(state.cards, c.defId) as PokemonCardDef;
+
+function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionResult {
   if (!prev.players[playerId]) return fail('Not a player in this game');
   if (prev.phase === 'finished') return fail('Game is over');
 
@@ -414,6 +477,16 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
     me.active = promoted;
     state.pendingPromotion = null;
     addLog(state, `${pokemonName(state, promoted)} is the new Active Pokémon.`, me.id);
+    // Spikes, for a promotion during the player's own turn (its Pokémon was Knocked Out mid-turn).
+    newActives(state, !!state.midTurnPromotion);
+    if (promoted.damage >= inPlayDef(state.cards, promoted).hp) {
+      const winner = resolveKnockouts(state, opp.id);
+      if (winner) return finish(state, winner);
+      if (!me.active) {
+        state.pendingPromotion = me.id;
+        return ok(state);
+      }
+    }
     // Knockouts only happen at the end of a turn, so once both actives are filled the next turn starts.
     return promoteOrBeginTurn(state);
   }
@@ -520,6 +593,8 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
         me.bench[action.slot]!.damage += 20;
         addLog(state, `Rocket's Minefield Gym put 2 damage counters on ${card(played).name}.`, me.id);
       }
+      // Unown E and I: powers that react to the Pokémon being played from the hand.
+      playedFromHand(state, me, me.bench[action.slot]!);
       return afterOwnMove(state, me, opp);
     }
 
@@ -618,12 +693,17 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
       me.discard.push(...me.active.energy.filter((e) => uids.has(e.uid)));
       me.active.energy = me.active.energy.filter((e) => !uids.has(e.uid));
       state.retreatedThisTurn = true;
+      // Pursuit: trying to retreat does 10 damage to it (no Weakness or Resistance), even if Confusion then stops it.
+      if (me.active.effects?.pursuit !== undefined) {
+        me.active.damage += 10;
+        addLog(state, `Pursuit did 10 damage to ${pokemonName(state, me.active)}.`, me.id);
+      }
       // 1999 rules: a Confused Pokémon needs heads to retreat; the energy is discarded either way.
       if (me.active.condition === 'confused') {
         const heads = flipCoin(state, `${pokemonName(state, me.active)} is Confused`, me.id);
         if (!heads) {
           addLog(state, `${pokemonName(state, me.active)} couldn't retreat.`, me.id);
-          return ok(state);
+          return afterOwnMove(state, me, opp);
         }
       }
       addLog(state, `${pokemonName(state, me.active)} retreated for ${pokemonName(state, benched)}.`, me.id);
@@ -1071,6 +1151,7 @@ function beginNextTurn(state: GameState): ActionResult {
   state.retreatedThisTurn = false;
   delete state.blaineAttach;
   const next = state.players[state.currentPlayer]!;
+  for (const player of Object.values(state.players)) if (player.active) player.lastActive = baseUid(player.active);
   const drawn = next.deck.shift();
   if (!drawn) {
     addLog(state, 'No cards left to draw.', next.id);
@@ -1174,7 +1255,10 @@ function betweenTurns(state: GameState) {
     for (const pokemon of [player.active, ...player.bench]) {
       if (!pokemon) continue;
       expireEffects(pokemon, state.turn);
-      if (pokemon.powerOffUntil !== undefined && pokemon.powerOffUntil <= state.turn) delete pokemon.powerOffUntil;
+      if (pokemon.powerOffUntil !== undefined && pokemon.powerOffUntil <= state.turn) {
+        delete pokemon.powerOffUntil;
+        delete pokemon.gazed;
+      }
       // PlusPower at the end of its turn, Defender at the end of the opponent's next turn.
       const expired = (pokemon.attached ?? []).filter((a) => a.until <= state.turn);
       if (!expired.length) continue;
@@ -1239,13 +1323,41 @@ function useBerry(state: GameState, owner: PlayerState, p: InPlayPokemon) {
 function expireEffects(pokemon: InPlayPokemon, turn: number) {
   const e = pokemon.effects;
   if (!e) return;
-  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell', 'noAttack', 'noEnergy', 'fireWall', 'focusEnergy', 'crosscounter', 'screech', 'endure', 'pollenShield'] as const) {
+  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell', 'noAttack', 'noEnergy', 'fireWall', 'focusEnergy', 'crosscounter', 'screech', 'endure', 'pollenShield', 'counter', 'secretePoison', 'slime', 'pursuit', 'lockOn'] as const) {
     if (e[key] !== undefined && e[key] <= turn) delete e[key];
   }
   if (e.heldBy?.until !== undefined && e.heldBy.until <= turn) delete e.heldBy;
   if (e.amnesia && e.amnesia.until <= turn) delete e.amnesia;
   if (e.cantAttack && e.cantAttack.until <= turn) delete e.cantAttack;
   if (e.pounce && e.pounce.until <= turn) delete e.pounce;
+  if (e.preventUpTo && e.preventUpTo.until <= turn) delete e.preventUpTo;
+}
+
+/**
+ * After the Active Pokémon may have changed: a player's new Active Pokémon (from their Bench) during their own turn takes
+ * 10 from each working Spikes on the other side (no Weakness or Resistance); a Pokémon Gaze switched off works again once
+ * it's left the Bench. `duringTurn`: false for a promotion between turns.
+ */
+function newActives(state: GameState, duringTurn: boolean) {
+  const sides = state.playerOrder.map((id) => state.players[id]!);
+  for (const player of sides) {
+    const active = player.active;
+    if (!active) continue;
+    if (active.gazed) {
+      delete active.gazed;
+      delete active.powerOffUntil;
+    }
+    const base = baseUid(active);
+    const changed = player.lastActive !== undefined && player.lastActive !== base;
+    player.lastActive = base;
+    if (!changed || !duringTurn || player.id !== state.currentPlayer) continue;
+    const other = sides.find((p) => p !== player)!;
+    for (const p of [other.active, ...other.bench]) {
+      if (!p || !powerEffect(effectId(p))?.spikes || !powerActive(p, state.cards, sides)) continue;
+      active.damage += 10;
+      addLog(state, `Spikes: ${pokemonName(state, p)} did 10 damage to ${pokemonName(state, active)}.`, other.id);
+    }
+  }
 }
 
 /**
@@ -1254,6 +1366,7 @@ function expireEffects(pokemon: InPlayPokemon, turn: number) {
  * opponent has no Pokémon left in play. If both win at once, `favoured` wins.
  */
 function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId | null {
+  newActives(state, state.phase === 'playing');
   // A Ditto that stopped being a copy (Asleep, switched…) has its own HP again.
   refreshTransforms(state);
   const sides = state.playerOrder.map((id) => state.players[id]!);

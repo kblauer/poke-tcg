@@ -238,7 +238,7 @@ export interface AttackContext {
   /** Removes damage from the attacker. */
   heal: (amount: number | 'all') => void;
   /** Sets an effect on the attacker for the opponent's next turn. */
-  protect: (key: 'preventDamage' | 'preventAll' | 'harden' | 'destinyBond' | 'minimize' | 'lightScreen' | 'mirrorShell' | 'fireWall' | 'crosscounter') => void;
+  protect: (key: 'preventDamage' | 'preventAll' | 'harden' | 'destinyBond' | 'minimize' | 'lightScreen' | 'mirrorShell' | 'fireWall' | 'crosscounter' | 'counter' | 'secretePoison' | 'slime') => void;
   /** Runs `fn` on the Defending Pokémon's effects, unless its effects are prevented. */
   affectDefender: (fn: (effects: PokemonEffects) => void) => void;
   discardDefenderEnergy: (uid: string) => void;
@@ -749,12 +749,29 @@ function createContext(
     log(`Transparent Walls prevented the damage to ${pokemonName(state, p)}.`, owner.id);
     return false;
   };
+  /** Frog Song: the Poliwag, Poliwhirl, Poliwrath and Politoed in play, both players'. */
+  const frogs = () => sides.flatMap((s) => [s.active, ...s.bench]).filter((p) => p && ['Poliwag', 'Poliwhirl', 'Poliwrath', 'Politoed'].includes(def(state.cards, p).name)).length;
+  /**
+   * Unown D, M and N: 30 less attack damage (after Weakness and Resistance) to `owner`'s Pokémon from an attacker of the
+   * Unown's type, while that Unown works and is the only one of its name `owner` has in play.
+   */
+  const unownGuarded = (p: InPlayPokemon, damage: number, owner: PlayerState) => {
+    if (damage <= 0) return damage;
+    const ownInPlay = [owner.active, ...owner.bench].filter((q): q is InPlayPokemon => !!q);
+    const guard = ownInPlay.find((q) => {
+      const name = def(state.cards, q).name;
+      return passive(q)?.unownGuard === attackerDef.type && ownInPlay.filter((r) => def(state.cards, r).name === name).length === 1;
+    });
+    if (!guard) return damage;
+    log(`${def(state.cards, guard).power!.name}: the damage to ${pokemonName(state, p)} was reduced by 30.`, owner.id);
+    return Math.max(0, damage - 30);
+  };
   /** Damage to a benched Pokémon or the attacker itself: Defender, then Kabuto Armor. */
   const benchedDamage = (p: InPlayPokemon, amount: number, owner: PlayerState) => {
     amount = Math.max(0, amount - metalLess);
     if (amount > 0 && sproutTower(state) && attackerDef.type === 'colorless') amount = Math.max(0, amount - 30);
     amount = Math.max(0, amount - 10 * energyCount(state.cards, p, 'Metal Energy'));
-    const damage = barriers(p, armor(p, afterDefender(state.cards, p, amount), owner), owner);
+    const damage = unownGuarded(p, barriers(p, armor(p, afterDefender(state.cards, p, amount), owner), owner), owner);
     return damage >= 30 && passive(p)?.invisibleWall ? 0 : damage;
   };
   /** Shadow Images: one flip per attack, by the attacking player; tails, the attack does no damage to the Pokémon. */
@@ -844,6 +861,11 @@ function createContext(
         damage += 10 * dark;
         log(`Darkness Energy: ${10 * dark} more damage.`);
       }
+      // Frog Song: 40 more, if the attack damages it after Weakness and Resistance, while more than 3 Poliwag line Pokémon are in play.
+      if (damage > 0 && passive(attacker)?.frogSong && frogs() > 3) {
+        damage += 40;
+        log('Frog Song: 40 more damage.');
+      }
       // Screech: 20 more to it, if the attack damages it after Weakness and Resistance.
       if (damage > 0 && !swift && active(defender.effects?.screech, turn)) {
         damage += 20;
@@ -891,6 +913,7 @@ function createContext(
           damage = Math.max(0, damage - reduced.amount);
           log(`The damage to ${defenderDef.name} was reduced by ${reduced.amount}.`, opp.id);
         }
+        damage = unownGuarded(defender, damage, opp);
         damage = barriers(defender, armor(defender, damage, opp), opp);
         // Light Screen and Deflector: half the damage, rounded down to the nearest 10, after everything else (like Kabuto Armor).
         if (damage > 0 && active(effects?.lightScreen, turn)) {
@@ -901,8 +924,14 @@ function createContext(
           log(`Invisible Wall prevented the damage to ${defenderDef.name}.`, opp.id);
           damage = 0;
         }
-        if (active(effects?.preventDamage, turn) || (active(effects?.harden, turn) && damage <= 30)) {
+        const upTo = effects?.preventUpTo && active(effects.preventUpTo.until, turn) ? effects.preventUpTo.amount : 0;
+        if (active(effects?.preventDamage, turn) || (active(effects?.harden, turn) && damage <= 30) || (damage > 0 && damage <= upTo)) {
           log(`The damage to ${defenderDef.name} was prevented.`, opp.id);
+          damage = 0;
+        }
+        // Slime: the attacking player flips; tails prevents the damage.
+        if (damage > 0 && active(effects?.slime, turn) && !flipCoin(state, 'Slime', me.id)) {
+          log(`Slime prevented the damage to ${defenderDef.name}.`, opp.id);
           damage = 0;
         }
       }
@@ -941,6 +970,17 @@ function createContext(
       if (active(effects?.mirrorShell, turn)) {
         attacker.damage += damage;
         log(`Mirror Shell: ${defenderDef.name} did ${damage} damage back to ${attackerDef.name}.`, opp.id);
+      }
+      // Counter: on heads (its owner flips), the same damage back to the attacker, without Weakness or Resistance (agreed), even if this Knocks it Out.
+      if (active(effects?.counter, turn) && flipCoin(state, 'Counter', opp.id)) {
+        attacker.damage += damage;
+        log(`Counter: ${defenderDef.name} did ${damage} damage to ${attackerDef.name}.`, opp.id);
+      }
+      // Secrete Poison: the attacker is Poisoned and 10 damage to each of the attacking player's benched Pokémon, even if this Knocks it Out.
+      if (active(effects?.secretePoison, turn)) {
+        log(`Secrete Poison: ${attackerDef.name} is now Poisoned, and 10 damage to each benched Pokémon.`);
+        if (!passive(attacker)?.noConditions) attacker.poison = Math.max(attacker.poison ?? 0, 10);
+        for (const p of me.bench) if (p) p.damage += 10;
       }
       if (defender.damage >= defenderDef.hp && active(effects?.destinyBond, turn)) {
         attacker.damage = Math.max(attacker.damage, attackerDef.hp);

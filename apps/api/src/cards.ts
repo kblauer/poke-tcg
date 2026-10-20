@@ -54,8 +54,8 @@ export const cardLabel = (card: Pick<Card, 'name' | 'data'>) => {
 const FROM_MYSTERIOUS_FOSSIL = new Set(['Omanyte', 'Kabuto', 'Aerodactyl']);
 
 /** Baby Pokémon promos, which TCGdex lists as Basic (Neo-era Babies have the stage "Baby"). */
-/** Baby Pokémon TCGdex lists as Basic: the promos, and Neo Genesis's Pichu, Cleffa, Elekid and Magby. */
-const BABIES = new Set(['basep-31', 'basep-35', 'basep-36', 'neo1-12', 'neo1-20', 'neo1-22', 'neo1-23']);
+/** Baby Pokémon TCGdex lists as Basic: the promos, Neo Genesis's Pichu, Cleffa, Elekid and Magby, and Neo Discovery's Igglybuff and Tyrogue. */
+const BABIES = new Set(['basep-31', 'basep-35', 'basep-36', 'neo1-12', 'neo1-20', 'neo1-22', 'neo1-23', 'neo2-40', 'neo2-66']);
 
 /** Gym Heroes evolutions TCGdex leaves out, by name (without the owner). */
 const TCGDEX_MISSING_EVOLVES_FROM: Record<string, string> = { "Lt. Surge's Magneton": 'Magnemite' };
@@ -108,10 +108,11 @@ export function baseDamage(damage: string | number | null): number {
 }
 
 /** The card's Pokémon Power, if it has one. */
-/** The card's Pokémon Power, with the printed text where TCGdex's differs (the power's effect carries it: Downpour). */
+/** The card's Pokémon Power, with the printed name and text where TCGdex's differ (the power's effect carries them: Downpour, Unown [M]). */
 function power(data: CardData, cardId: string): PokemonCardDef['power'] {
   const [ability] = data.abilities ?? [];
-  return ability ? { name: ability.name, text: powerEffect(cardId)?.text ?? ability.effect } : null;
+  const effect = powerEffect(cardId);
+  return ability ? { name: effect?.name ?? ability.name, text: effect?.text ?? ability.effect } : null;
 }
 
 /** First weakness as type and multiplier ("×2" → 2). */

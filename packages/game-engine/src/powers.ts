@@ -63,6 +63,8 @@ export interface PowerSituation {
 export interface PowerEffect {
   /** Printed text, where TCGdex's differs from the card (Downpour). */
   text?: string;
+  /** Printed name, where TCGdex has none or leaves out the brackets (Unown [M]'s [Metal]). */
+  name?: string;
   /** Why the power can't be used now (beyond Special Conditions). */
   blocked?: (s: PowerSituation) => string | null;
   choices?: (s: PowerSituation, c: PowerChoices) => PowerChoiceSpec[];
@@ -106,7 +108,8 @@ export interface PowerEffect {
   ignoresConditions?: boolean;
   /**
    * When its card is played from the hand onto a Pokémon (evolving it, or by Pokémon Breeder): Summon Minions,
-   * Sneak Attack, Reel In. May ask the player to choose something (`state.pendingChoice`).
+   * Sneak Attack, Reel In; or, for a Basic Pokémon, onto the Bench (Engage). May ask the player to choose something
+   * (`state.pendingChoice`).
    */
   onPlayFromHand?: (state: GameState, owner: PlayerState, pokemon: InPlayPokemon) => void;
   /** Hay Fever: no Trainer cards can be played, by either player. */
@@ -148,6 +151,16 @@ export interface PowerEffect {
   mindGames?: boolean;
   /** Wild Growth: each Grass Energy card attached to its owner's Grass Pokémon provides 2 Grass Energy (refreshWildGrowth; it doesn't stack). */
   wildGrowth?: boolean;
+  /** Spikes: during the opponent's turn, 10 damage to each of their benched Pokémon that becomes their Active Pokémon (engine.ts, newActives). */
+  spikes?: boolean;
+  /** Frog Song: its attacks that damage the Defending Pokémon do 40 more while more than 3 Poliwag line Pokémon are in play. */
+  frogSong?: boolean;
+  /** Unown D, M and N: attack damage to its owner's Pokémon by a Pokémon of this type is 30 less, while it's the only one of its name they have in play. */
+  unownGuard?: EnergyType;
+  /** Anger: its owner's Pokémon with Unown in their names do 10 more with Hidden Power for each damage counter on it (one Anger per attack). */
+  anger?: boolean;
+  /** Energy Evolution: whenever its owner attaches an Energy card to it, a flip; heads evolves it from the deck into the Energy's type (engine.ts). */
+  energyEvolution?: boolean;
 }
 
 export interface PowerContext {
@@ -215,8 +228,8 @@ export function stickyGoo(sides: Sides, cards: CardLibrary): number {
 }
 
 /**
- * After the card on top of `owner`'s Pokémon was played from their hand (evolving it, or by Pokémon Breeder): its
- * power reacts if it has one that does and Toxic Gas isn't ignoring it (Summon Minions, Sneak Attack, Reel In).
+ * After the card on top of `owner`'s Pokémon was played from their hand (evolving it, by Pokémon Breeder, or a Basic
+ * onto the Bench): its power reacts if it has one that does and Toxic Gas isn't ignoring it (Summon Minions, Engage).
  */
 export function playedFromHand(state: GameState, owner: PlayerState, pokemon: InPlayPokemon) {
   const sides = state.playerOrder.map((id) => state.players[id]!);

@@ -5,7 +5,7 @@
 import { BASIC_ENERGY, GEN2_SETS, type Rarity } from './pool.js';
 import { chance, pick, sample, type Rng } from './random.js';
 
-/** Sets with packs: Gen 1's and Gen 2's (GEN2_SETS: Neo Genesis's card effects are done, the others' are still to come). */
+/** Sets with packs: Gen 1's and Gen 2's (GEN2_SETS: Neo Genesis's and Neo Discovery's card effects are done, the others' are still to come). */
 export const PACK_SETS = ['base1', 'base2', 'base3', 'basep', 'base4', 'base5', 'gym1', 'gym2', ...GEN2_SETS];
 
 /**

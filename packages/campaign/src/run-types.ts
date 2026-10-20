@@ -173,7 +173,7 @@ export interface Generation {
   packs: string[];
   /**
    * The sets its runs' cards come from (offered, sold, and in trainers' decks), only the cards the engine plays fully from
-   * `implementedSets` (those whose effects are done: all of Gen 1's, Gen 2's Neo Genesis; the other Gen 2 sets' effects
+   * `implementedSets` (those whose effects are done: all of Gen 1's, Gen 2's Neo Genesis and Neo Discovery; the other Gen 2 sets' effects
    * are still to come, so their runs use all of their cards for now), and how its random decks are made.
    */
   poolSets: string[];

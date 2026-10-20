@@ -256,8 +256,10 @@ export function generateDeck(
 
   const chosen: Line[] = [];
   const taken = new Set<string>();
+  // One Unown at most (its 3 copies): a deck may hold only 4 Basic Pokémon with Unown in their names.
+  const unown = (l: Line) => l.stages[0]!.name.includes('Unown');
   const add = (line: Line | null) => {
-    if (!line || taken.has(line.stages[0]!.name)) return;
+    if (!line || taken.has(line.stages[0]!.name) || (unown(line) && chosen.some(unown))) return;
     chosen.push(line);
     taken.add(line.stages[0]!.name);
   };
@@ -341,7 +343,10 @@ export function generateDeck(
   return deck.slice(0, DECK_SIZE);
 }
 
-/** Checks the deck-building rules this game uses: 60 cards, at most 4 of a card but basic Energy, and a Basic Pokémon. */
+/**
+ * Checks the deck-building rules this game uses: 60 cards, at most 4 of a card but basic Energy, at most 4 Basic Pokémon
+ * with Unown in their names, and a Basic Pokémon.
+ */
 export function deckErrors(deck: readonly string[], defs: (id: string) => CardDef): string[] {
   const errors: string[] = [];
   if (deck.length !== DECK_SIZE) errors.push(`The deck has ${deck.length} cards, not ${DECK_SIZE}`);
@@ -352,6 +357,8 @@ export function deckErrors(deck: readonly string[], defs: (id: string) => CardDe
     counts.set(d.name, (counts.get(d.name) ?? 0) + 1);
   }
   for (const [name, n] of counts) if (n > 4) errors.push(`${n} copies of ${name}`);
+  const unown = deck.filter((id) => isBasicPokemon(defs(id)) && defs(id).name.includes('Unown')).length;
+  if (unown > 4) errors.push(`${unown} Unown`);
   if (!deck.some((id) => isBasicPokemon(defs(id)))) errors.push('No Basic Pokémon');
   return errors;
 }

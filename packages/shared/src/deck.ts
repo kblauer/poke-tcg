@@ -25,6 +25,15 @@ export const copiesAllowed = (card: Pick<DeckRuleCard, 'basicEnergy'>) => (card.
 export const copiesOfName = (entries: { card: DeckRuleCard; quantity: number }[], name: string) =>
   entries.filter((e) => e.card.name === name && !e.card.basicEnergy).reduce((n, e) => n + e.quantity, 0);
 
+/** Printed on every Unown: "You may have up to 4 Basic Pokémon cards in your deck with Unown in their names." */
+export const MAX_UNOWN = 4;
+
+/** A Basic Pokémon card with Unown in its name (Unown [A], Unown [J]…), which MAX_UNOWN limits. */
+export const isUnownCard = (card: Pick<DeckRuleCard, 'name' | 'kind' | 'stage'>) => isBasicPokemonCard(card) && card.name.includes('Unown');
+
+/** Basic Pokémon cards with Unown in their names in a deck. */
+export const unownCount = (entries: { card: DeckRuleCard; quantity: number }[]) => entries.filter((e) => isUnownCard(e.card)).reduce((n, e) => n + e.quantity, 0);
+
 /** Why the deck can't be played, in plain words; empty when it follows every rule. */
 export function deckProblems(entries: { card: DeckRuleCard; quantity: number }[]): string[] {
   const problems: string[] = [];
@@ -35,6 +44,8 @@ export function deckProblems(entries: { card: DeckRuleCard; quantity: number }[]
     const copies = copiesOfName(entries, name);
     if (copies > MAX_COPIES) problems.push(`${copies} cards named ${name}: at most ${MAX_COPIES} (basic Energy excepted).`);
   }
+  const unown = unownCount(entries);
+  if (unown > MAX_UNOWN) problems.push(`${unown} Unown: at most ${MAX_UNOWN} Basic Pokémon with Unown in their names.`);
   if (!entries.some((e) => isBasicPokemonCard(e.card))) problems.push('The deck needs at least one Basic Pokémon.');
   return problems;
 }

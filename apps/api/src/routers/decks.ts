@@ -1,6 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { prisma, type Card } from '@poke-tcg/db';
-import { DECK_NAME_LENGTH, DECK_SIZE, MAX_COPIES, copiesOfName, deckIdInput, deckOrderInput, deckProblems, deckRenameInput, deckSaveInput, favoriteCardInput, type DeckRuleCard } from '@poke-tcg/shared';
+import { DECK_NAME_LENGTH, DECK_SIZE, MAX_COPIES, MAX_UNOWN, copiesOfName, unownCount, deckIdInput, deckOrderInput, deckProblems, deckRenameInput, deckSaveInput, favoriteCardInput, type DeckRuleCard } from '@poke-tcg/shared';
 import { ensureUser } from '../auth.js';
 import { isBasicEnergyCard } from '../cards.js';
 import { protectedProcedure, router } from '../trpc.js';
@@ -121,7 +121,7 @@ export const decksRouter = router({
 
   /**
    * Creates or replaces a deck. An unfinished deck can be saved (fewer than 60 cards, no Basic
-   * Pokémon yet), but never one over 60 cards or with more than 4 cards of a name.
+   * Pokémon yet), but never one over 60 cards, with more than 4 cards of a name, or with more than 4 Unown.
    */
   save: protectedProcedure.input(deckSaveInput).mutation(async ({ ctx, input }) => {
     if (new Set(input.cards.map((c) => c.cardId)).size !== input.cards.length) {
@@ -134,6 +134,7 @@ export const decksRouter = router({
     if (total > DECK_SIZE) throw new TRPCError({ code: 'BAD_REQUEST', message: `A deck can't have more than ${DECK_SIZE} cards` });
     const over = entries.find((e) => !e.card.basicEnergy && copiesOfName(entries, e.card.name) > MAX_COPIES);
     if (over) throw new TRPCError({ code: 'BAD_REQUEST', message: `At most ${MAX_COPIES} cards named ${over.card.name}` });
+    if (unownCount(entries) > MAX_UNOWN) throw new TRPCError({ code: 'BAD_REQUEST', message: `At most ${MAX_UNOWN} Basic Pokémon with Unown in their names` });
     const withRows = input.cards.map((c) => ({ cardId: c.cardId, quantity: c.quantity, card: rows.find((r) => r.id === c.cardId)! }));
     const owned = await unlockedIds(ctx.user.id);
     const [locked] = lockedNames(withRows, owned);
