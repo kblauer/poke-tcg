@@ -20,7 +20,7 @@ import {
   type PokemonEffects,
   type Target,
 } from './engine.js';
-import { powerActive } from './powers.js';
+import { discardsLocked, energyKept, powerActive, prehistoricMemory } from './powers.js';
 import { shuffle } from './rng.js';
 import { addLog, baseUid, clearOnLeavingActive, effectId, energyProtected, flipCoin, inPlayDef, pokemonName, revealFaceDown, shapeshiftCard } from './status.js';
 import type { PendingChoice, PendingChoiceInput } from './trainers.js';
@@ -112,7 +112,8 @@ export type ChoiceSpec = { prompt: string } & (
   /** One card from either player's discard pile (Invigorate), answered in `discardUids`. */
   | { kind: 'eitherDiscard'; options: CardInstance[] }
   | { kind: 'oppDiscard'; options: CardInstance[] }
-  | { kind: 'amount'; options: number[] }
+  /** A number, or with `labels` one of the labelled options (Genetic Memory: which attack), answered with its number. */
+  | { kind: 'amount'; options: number[]; labels?: string[] }
 );
 
 /** What an attack can see before it's used. View-safe: the UI builds it from a PlayerView. */
@@ -132,6 +133,8 @@ export interface AttackSituation {
   opponentDiscard?: CardInstance[];
   /** Every Pokémon Power is off (Goop Gas Attack, Sputter: `powersOffUntil` on either player). */
   powersOff?: boolean;
+  /** Allergic Pollen: the attack can't do anything with cards in discard piles (its questions about them aren't asked). */
+  discardsLocked?: boolean;
 }
 
 /** An attack the Pokémon can use, and the card it's printed on (its effect's card id). */
@@ -144,12 +147,13 @@ export interface UsableAttack {
 
 /**
  * The attacks the Pokémon can use, in attack-index order: its own (a Transformed Ditto's are the copy's), then with
- * Recall those of each card it evolved from, Basic first.
+ * Recall (or Prehistoric Memory) those of each card it evolved from, Basic first, then Psylink's, then with Mimic the
+ * Defending Pokémon's (`defender`).
  */
 export function usableAttacks(
   attacker: InPlayPokemon,
   cards: CardLibrary,
-  { recall = false, bench = [] }: { recall?: boolean; bench?: readonly (InPlayPokemon | null)[] } = {},
+  { recall = false, bench = [], defender = null }: { recall?: boolean; bench?: readonly (InPlayPokemon | null)[]; defender?: InPlayPokemon | null } = {},
 ): UsableAttack[] {
   // Shapeshift: the attached Evolution card's attacks, with that card's effects.
   const source = shapeshiftCard(attacker)?.defId ?? effectId(attacker);
@@ -170,10 +174,17 @@ export function usableAttacks(
         return d.attacks.map((attack) => ({ attack, source: shapeshiftCard(p)?.defId ?? effectId(p), from: d.name }));
       })
     : [];
-  return [...own, ...lower, ...linked];
+  // Mimic: every attack of the Defending Pokémon, with its cost and effects, while the power works (as Psylink's).
+  const mimic = defender && !defender.faceDown && powerEffect(effectId(attacker))?.mimic && !attacker.condition && attacker.powerOffUntil === undefined;
+  const copied = mimic ? def(cards, defender).attacks.map((attack) => ({ attack, source: shapeshiftCard(defender)?.defId ?? effectId(defender), from: def(cards, defender).name })) : [];
+  return [...own, ...lower, ...linked, ...copied];
 }
 
-const attackAt = (s: AttackSituation, attackIndex: number) => usableAttacks(s.attacker, s.cards, { recall: s.recall, bench: s.ownBench })[attackIndex];
+const attackAt = (s: AttackSituation, attackIndex: number) => usableAttacks(s.attacker, s.cards, { recall: s.recall, bench: s.ownBench, defender: s.defender })[attackIndex];
+
+/** Whether `me`'s Active Pokémon can use the attacks of the cards it evolved from now: Recall this turn, or Prehistoric Memory. */
+export const recallsAttacks = (state: Pick<GameState, 'players' | 'playerOrder' | 'cards' | 'turn'>, me: PlayerState) =>
+  me.recallTurn === state.turn || prehistoricMemory(state.playerOrder.map((id) => state.players[id]!), state.cards);
 
 /** The Pokémon at `target` of the side whose active and bench are given. */
 export const pokemonOn = (active: InPlayPokemon | null, bench: (InPlayPokemon | null)[], target: Target) => (target === 'active' ? active : bench[target]) ?? null;
@@ -339,7 +350,8 @@ function choiceSpecs(s: AttackSituation, attackIndex: number, c: AttackChoices):
       prompt: `Choose ${discard.count} ${type}Energy to discard`,
     });
   }
-  if (effect?.choices) specs.push(...effect.choices(s, c));
+  // Allergic Pollen: no cards can be taken from discard piles, so those questions go.
+  if (effect?.choices) specs.push(...effect.choices(s, c).filter((spec) => !s.discardsLocked || !['ownDiscard', 'eitherDiscard', 'oppDiscard'].includes(spec.kind)));
   // Vermilion City Gym: a Pokémon with Lt. Surge in its name may flip (the CPU always does).
   if (s.stadium && lookupCard(s.cards, s.stadium.defId).name === 'Vermilion City Gym' && def(s.cards, s.attacker).name.includes('Lt. Surge')) {
     specs.push({ kind: 'vermilion', options: [true, false], prompt: 'Vermilion City Gym: flip a coin? Heads: 10 more damage; tails: 10 damage to your Pokémon' });
@@ -607,9 +619,10 @@ export const attackSituation = (state: GameState, me: PlayerState, opp: PlayerSt
   cards: state.cards,
   turn: state.turn,
   stadium: state.stadium?.card ?? null,
-  recall: me.recallTurn === state.turn,
+  recall: recallsAttacks(state, me),
   opponentDiscard: opp.discard,
   powersOff: me.powersOffUntil !== undefined || opp.powersOffUntil !== undefined,
+  discardsLocked: discardsLocked([me, opp], state.cards),
 });
 
 /** Whether the attack can be used with these answers: the complete choices, or why not. */
@@ -696,6 +709,13 @@ function createContext(
    */
   const shielded = () =>
     active(opp.active?.effects?.preventAll, turn) || (!!opp.active && (opp.active === fled || neutral(opp.active) || transparent(opp.active, opp)));
+  /** Shielded, or Crystal Body: the attack does nothing to the Defending Pokémon but damage. Logs why. */
+  const untouchable = () => {
+    const crystal = !!opp.active && !!passive(opp.active)?.crystalBody;
+    if (!shielded() && !crystal) return false;
+    log(crystal && !shielded() ? `Crystal Body: the attack's effects don't affect ${ctx.defenderDef.name}.` : `${ctx.defenderDef.name} is protected from the attack's effects.`, opp.id);
+    return true;
+  };
   /** Charity: how much more damage the attack may do to the Defending Pokémon. */
   let capLeft = choices.damageCap !== undefined && choices.damageCap >= 0 ? choices.damageCap : Infinity;
   /** Bench Guard: once the attack is over, the owner of a damaged benched Pokémon may move 10 of the damage to a benched Brock's Rhydon. */
@@ -713,6 +733,11 @@ function createContext(
     if (damage >= 20 && attackerDef.stage === 'basic' && passive(p)?.strangeBarrier) {
       damage = 10;
       log(`Strange Barrier reduced the damage to ${pokemonName(state, p)} to 10.`, owner.id);
+    }
+    // Hard Shell: 40 or less (any attack's, its own player's too) is 10.
+    if (damage > 10 && damage <= 40 && passive(p)?.hardShell) {
+      damage = 10;
+      log(`Hard Shell reduced the damage to ${pokemonName(state, p)} to 10.`, owner.id);
     }
     // Relaxing Scent, from either Active Pokémon: half the damage to any Pokémon, rounded up to the nearest 10.
     if (damage > 0 && [me.active, opp.active].some((a) => a && passive(a)?.relaxingScent)) {
@@ -734,6 +759,14 @@ function createContext(
     if (owner === opp && p.damage + damage >= hp && active(p.effects?.endure, turn)) {
       log(`Endure: ${pokemonName(state, p)} isn't Knocked Out; it has 10 HP left.`, owner.id);
       return Math.max(0, hp - 10 - p.damage);
+    }
+    // Time Travel: heads, it isn't Knocked Out; it's shuffled into its owner's deck once the attack is over (resolveKnockouts).
+    if (owner === opp && p.damage + damage >= hp && !p.timeTravel && passive(p)?.timeTravel) {
+      if (flipCoin(state, 'Time Travel', owner.id)) {
+        p.timeTravel = true;
+        log(`Time Travel: ${pokemonName(state, p)} won't be Knocked Out; it goes back into the deck.`, owner.id);
+      }
+      return damage;
     }
     if (owner !== opp || p.damage + damage < hp || !passive(p)?.fortitude || !flipCoin(state, 'Fortitude', owner.id)) return damage;
     log(`Fortitude: ${pokemonName(state, p)} isn't Knocked Out; it has 10 HP left.`, owner.id);
@@ -1011,7 +1044,7 @@ function createContext(
     inflict(affliction) {
       const defender = opp.active!;
       const name = pokemonName(state, defender);
-      if (shielded()) return log(`${name} is protected from the attack's effects.`, opp.id);
+      if (untouchable()) return;
       if (def(state.cards, defender).trainerText || passive(defender)?.noConditions) return log(`${name} can't be affected by Special Conditions.`, opp.id);
       if (affliction !== 'burned' && active(defender.effects?.pollenShield, turn)) return log(`Pollen Shield: ${name} can't be ${affliction === 'toxic' || affliction === 'poisoned' ? 'Poisoned' : conditionLabel(affliction)}.`, opp.id);
       const guard = state.rules?.find((r) => r.kind === 'conditionGuard' && r.player === opp.id && r.conditions.includes(affliction === 'toxic' ? 'poisoned' : affliction));
@@ -1049,13 +1082,14 @@ function createContext(
       (attacker.effects ??= {})[key] = turn + 1;
     },
     affectDefender(fn) {
-      if (shielded()) return log(`${ctx.defenderDef.name} is protected from the attack's effects.`, opp.id);
+      if (untouchable()) return;
       fn((opp.active!.effects ??= {}));
     },
     discardDefenderEnergy(uid) {
-      if (shielded()) return log(`${ctx.defenderDef.name} is protected from the attack's effects.`, opp.id);
+      if (untouchable()) return;
       const defender = opp.active!;
       if (energyProtected(state.cards, defender)) return log(`Brock's Protection: ${ctx.defenderDef.name}'s Energy can't be removed.`, opp.id);
+      if (energyKept(opp, sides, state.cards, defender)) return log(`[Keep]: ${ctx.defenderDef.name}'s Energy cards can't be discarded.`, opp.id);
       const energy = defender.energy.find((e) => e.uid === uid);
       if (!energy) return;
       defender.energy = defender.energy.filter((e) => e !== energy);
@@ -1063,7 +1097,7 @@ function createContext(
       discardTheirEnergy(state, opp, [energy]);
     },
     switchDefender(slot) {
-      if (shielded()) return log(`${ctx.defenderDef.name} is protected from the attack's effects.`, opp.id);
+      if (untouchable()) return;
       const locked = activeLocked(state, opp.id);
       if (locked) return log(`${locked}.`, opp.id);
       const benched = opp.bench[slot];
@@ -1107,7 +1141,7 @@ function createContext(
       log(`${pokemonName(state, attacker)} switched with ${pokemonName(state, benched)}.`);
     },
     returnDefender() {
-      if (shielded()) return log(`${ctx.defenderDef.name} is protected from the attack's effects.`, opp.id);
+      if (untouchable()) return;
       const defender = opp.active!;
       // A Buzzap'd Electrode attached as Energy is a Pokémon card again.
       const energy = defender.energy.map(({ provides: _, ...card }) => card);

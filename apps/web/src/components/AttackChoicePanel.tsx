@@ -106,7 +106,7 @@ export function AttackChoicePanel({ spec, view, attack }: { spec: ChoiceSpec; vi
           <div className="flex flex-wrap gap-1">
             {spec.options.map((n) => (
               <button key={n} className={option} onClick={() => attack.answer(n)}>
-                {n}
+                {spec.labels?.[n] ?? n}
               </button>
             ))}
           </div>

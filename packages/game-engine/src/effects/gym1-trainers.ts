@@ -9,6 +9,7 @@
 // guesses at random.
 import { isBasicPokemon, isPokemonCard, lookupCard, type PokemonCardDef } from '../cards.js';
 import type { CardInstance, PlayerState } from '../engine.js';
+import { trainerProof } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { addLog, clearOnLeavingActive, openBenchSlot, pokemonName } from '../status.js';
 import { cureConditions, otherHandCards, targetsOf, type TrainerContext, type TrainerEffect, type TrainerSituation } from '../trainers.js';
@@ -37,7 +38,7 @@ const BROCK: TrainerEffect = {
   blocked: (s) => (targetsOf(s.me).some((t) => (t === 'active' ? s.me.active : s.me.bench[t])!.damage > 0) ? null : 'None of your Pokémon have damage counters'),
   play(ctx) {
     for (const p of [ctx.me.active, ...ctx.me.bench]) {
-      if (!p || !p.damage) continue;
+      if (!p || !p.damage || trainerProof(ctx.me, [ctx.me, ctx.opp], ctx.state.cards, p)) continue;
       p.damage -= 10;
       ctx.log(`Removed a damage counter from ${pokemonName(ctx.state, p)}.`);
     }
@@ -50,7 +51,7 @@ const ERIKA: TrainerEffect = { play: (ctx) => ctx.pend({ kind: 'drawCount', sour
 const LT_SURGE: TrainerEffect = {
   blocked(s) {
     if (!basicsInHand(s).length) return 'You have no Basic Pokémon cards in your hand';
-    return openBenchSlot(s.me.bench, s.cards, s.stadium) >= 0 ? null : 'Your Bench is full';
+    return trainerProof(s.me, [s.me, s.opp], s.cards) ?? (openBenchSlot(s.me.bench, s.cards, s.stadium) >= 0 ? null : 'Your Bench is full');
   },
   choices: (s) => [{ kind: 'cards', field: 'handUids', min: 1, max: 1, options: basicsInHand(s), prompt: 'Choose a Basic Pokémon to put into play as your Active Pokémon' }],
   play(ctx) {
@@ -118,7 +119,7 @@ export const GYM1_TRAINERS: Record<string, TrainerEffect> = {
   // Charity: attach to your Active Pokémon; it goes back to your hand at the end of the turn unless that Pokémon is
   // Knocked Out. Its attack may do less damage (the attack's `charity` question).
   'gym1-99': {
-    blocked: (s) => (s.me.active ? null : 'You have no Active Pokémon'),
+    blocked: (s) => trainerProof(s.me, [s.me, s.opp], s.cards) ?? (s.me.active ? null : 'You have no Active Pokémon'),
     play(ctx) {
       ctx.attachTo(ctx.me.active!, ctx.turn, { toHand: true });
       ctx.log(`Attached Charity to ${pokemonName(ctx.state, ctx.me.active!)}.`);

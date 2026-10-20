@@ -73,7 +73,7 @@ export function PendingChoicePanel({ view, send, busy }: { view: PlayerView; sen
         ) : null}
         {choice.kind === 'drawCount' ? (
           <div className="flex flex-wrap justify-center gap-2">
-            {Array.from({ length: choice.max + 1 }, (_, n) => (
+            {Array.from({ length: choice.max + 1 }, (_, n) => n).filter((n) => !choice.allOrNone || n === 0 || n === choice.max).map((n) => (
               <button key={n} className="rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500" disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE', count: n })}>
                 Draw {n}
               </button>

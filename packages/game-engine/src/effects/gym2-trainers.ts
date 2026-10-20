@@ -9,6 +9,7 @@
 // Misty's Wish: the CPU declines. Sabrina's Psychic Control's card stays in the hand until it's played or the turn ends.
 import { isBasicEnergy, isBasicPokemon, isPokemonCard, lookupCard, type PokemonCardDef } from '../cards.js';
 import type { CardInstance, InPlayPokemon, PlayerState } from '../engine.js';
+import { trainerProof } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { addLog, openBenchSlot, pokemonName } from '../status.js';
 import { controllable, otherHandCards, saffronTargets, targetsOf, type TrainerContext, type TrainerEffect, type TrainerSituation } from '../trainers.js';
@@ -94,6 +95,7 @@ export const GYM2_TRAINERS: Record<string, TrainerEffect> = {
     blocked: (s) => (damaged([s.me, s.opp]).length ? null : 'No Pokémon in play have damage counters'),
     play(ctx) {
       for (const [player, p] of [ctx.me, ctx.opp].flatMap((side) => damaged([side]).map((p) => [side, p] as const))) {
+        if (trainerProof(player, [ctx.me, ctx.opp], ctx.state.cards, p)) continue;
         const healed = Math.min(20, p.damage);
         p.damage -= healed;
         ctx.log(`Removed ${healed / 10} damage counter${healed === 10 ? '' : 's'} from ${pokemonName(ctx.state, p)}.`, player.id);
@@ -310,7 +312,10 @@ export const GYM2_TRAINERS: Record<string, TrainerEffect> = {
   'gym2-126': {
     blocked: (s) => (s.opp.bench.some(Boolean) || s.me.bench.some(Boolean) ? null : 'Neither player has a benched Pokémon'),
     play(ctx) {
-      const turns = [ctx.opp, ctx.me].filter((p) => p.bench.some(Boolean)).map((p) => ({ player: p.id, source: 'Warp Point', kind: 'switchIn' as const }));
+      // A player whose Active Pokémon has Legendary Body working doesn't switch.
+      const switching = [ctx.opp, ctx.me].filter((p) => p.bench.some(Boolean) && !trainerProof(p, [ctx.me, ctx.opp], ctx.state.cards));
+      const turns = switching.map((p) => ({ player: p.id, source: 'Warp Point', kind: 'switchIn' as const }));
+      if (!turns.length) return ctx.log('Warp Point: no Active Pokémon can be switched.');
       const [first, ...rest] = turns;
       ctx.state.pendingChoice = first;
       if (rest.length) (ctx.state.queuedChoices ??= []).push(...rest);

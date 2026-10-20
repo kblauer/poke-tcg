@@ -3,7 +3,7 @@
 // usual); PlusPower's +10 comes before Defender's −20, both after weakness and resistance.
 import { isBasicEnergy, isBasicPokemon, isBenchable, isPokemonCard, isTrainerCard, type CardLibrary, type PokemonCardDef } from '../cards.js';
 import { activeLock, discardTheirEnergy, type CardInstance, type GameState, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
-import { evolutionBlocked, offerChainReaction, playedFromHand } from '../powers.js';
+import { energyKept, evolutionBlocked, offerChainReaction, playedFromHand, trainerProof } from '../powers.js';
 import { clearOnLeavingActive, energyProtected, evolvedHook, inPlayDef, openBenchSlot } from '../status.js';
 import { def, otherHandCards, own, targetsOf, theirs, type TrainerChoiceSpec, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 
@@ -20,8 +20,8 @@ const otherCards = (s: TrainerSituation, n: number, prompt: string): TrainerChoi
 });
 const needOthers = (s: TrainerSituation, n: number) => (otherHandCards(s).length < n ? `You need ${n} other card${n === 1 ? '' : 's'} in your hand` : null);
 
-/** The opponent's Pokémon at `t` has Energy that Trainers can remove (not with Brock's Protection attached). */
-const removable = (s: TrainerSituation, t: Target) => theirs(s, t)!.energy.length > 0 && !energyProtected(s.cards, theirs(s, t)!);
+/** The opponent's Pokémon at `t` has Energy that Trainers can remove (not with Brock's Protection attached, nor an Unown kept by Unown K). */
+const removable = (s: TrainerSituation, t: Target) => theirs(s, t)!.energy.length > 0 && !energyProtected(s.cards, theirs(s, t)!) && !energyKept(s.opp, [s.opp, s.me], s.cards, theirs(s, t)!);
 const at = (side: Pick<PlayerState, 'active' | 'bench'>, t: Target) => (t === 'active' ? side.active : side.bench[t])!;
 /** An empty Bench slot of `side` (none while Narrow Gym leaves no room), given the Stadium in play. */
 const emptySlot = (side: Pick<PlayerState, 'bench'>, s: { cards: CardLibrary; stadium?: CardInstance | null }) => openBenchSlot(side.bench, s.cards, s.stadium);
@@ -236,7 +236,7 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
 
   // Full Heal
   'base1-82': {
-    blocked: (s) => (s.me.active?.condition || s.me.active?.poison || s.me.active?.burned ? null : 'Your Active Pokémon has no Special Condition'),
+    blocked: (s) => trainerProof(s.me, [s.me, s.opp], s.cards) ?? (s.me.active?.condition || s.me.active?.poison || s.me.active?.burned ? null : 'Your Active Pokémon has no Special Condition'),
     play(ctx) {
       const p = ctx.me.active!;
       p.condition = null;
@@ -259,7 +259,7 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
 
   // PlusPower
   'base1-84': {
-    blocked: (s) => (s.me.active ? null : 'No Active Pokémon'),
+    blocked: (s) => trainerProof(s.me, [s.me, s.opp], s.cards) ?? (s.me.active ? null : 'No Active Pokémon'),
     play(ctx) {
       // Discarded at the end of this turn.
       ctx.attachTo(ctx.me.active!, ctx.turn);
@@ -273,7 +273,7 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
     play(ctx) {
       for (const t of targetsOf(ctx.me)) {
         const p = at(ctx.me, t);
-        if (!p.damage) continue;
+        if (!p.damage || trainerProof(ctx.me, [ctx.me, ctx.opp], ctx.state.cards, p)) continue;
         p.damage = 0;
         ctx.me.discard.push(...p.energy);
         p.energy = [];
@@ -375,7 +375,7 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
 
   // Gust of Wind
   'base1-93': {
-    blocked: (s) => (s.opp.bench.some(Boolean) ? activeLock(s.opp, [s.me, s.opp], s.cards) : 'Your opponent has no Benched Pokémon'),
+    blocked: (s) => trainerProof(s.opp, [s.me, s.opp], s.cards) ?? (s.opp.bench.some(Boolean) ? activeLock(s.opp, [s.me, s.opp], s.cards) : 'Your opponent has no Benched Pokémon'),
     choices: (s) => [
       { kind: 'pokemon', field: 'oppTarget', side: 'opp', options: targetsOf(s.opp).filter((t) => t !== 'active'), prompt: "Choose one of your opponent's Benched Pokémon" },
     ],
@@ -399,7 +399,7 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
 
   // Switch
   'base1-95': {
-    blocked: (s) => (s.me.bench.some(Boolean) && s.me.active ? activeLock(s.me, [s.me, s.opp], s.cards) : 'You have no Benched Pokémon'),
+    blocked: (s) => trainerProof(s.me, [s.me, s.opp], s.cards) ?? (s.me.bench.some(Boolean) && s.me.active ? activeLock(s.me, [s.me, s.opp], s.cards) : 'You have no Benched Pokémon'),
     choices: (s) => [{ kind: 'pokemon', field: 'target', side: 'own', options: targetsOf(s.me).filter((t) => t !== 'active'), prompt: 'Choose a Benched Pokémon to switch in' }],
     play(ctx) {
       switchActive(ctx.me, ctx.choices.target as number);
