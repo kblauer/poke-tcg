@@ -98,7 +98,7 @@ export function ShareDeckDialog({ deckId, name, problem, onClose }: { deckId: st
 }
 
 /**
- * Importing a deck from a share code (decks.importCode): it's saved as a new deck, even with cards the account hasn't
+ * Importing a deck from a share code or a text deck list ("4 Lickitung JU 38", decks.importCode): it's saved as a new deck, even with cards the account hasn't
  * unlocked (it can't be played until they are), with as many of the account's own holos as it has. `onImported` gets
  * the new deck's id once the deck list has it.
  */
@@ -117,13 +117,13 @@ export function ImportDeckDialog({ onClose, onImported }: { onClose: () => void;
   return (
     <Dialog title="Import a deck" onClose={onClose}>
       <p className="text-slate-400">
-        Paste a deck code from another player, or find decks on the{' '}
+        Paste a deck code from another player or a deck list (a line per card, like "4 Lickitung JU 38"), or find decks on the{' '}
         <Link to="/community" className="text-yellow-300 hover:underline">
           Community Decks
         </Link>{' '}
         tab. Cards you haven't unlocked stay in the deck, but it can't be played until you have them.
       </p>
-      <textarea autoFocus rows={4} maxLength={DECK_CODE_LENGTH} className={`${field} font-mono`} placeholder="PTCG1.…" value={code} onChange={(e) => setCode(e.target.value)} aria-label="Deck code" />
+      <textarea autoFocus rows={8} maxLength={DECK_CODE_LENGTH} className={`${field} font-mono`} placeholder={'PTCG1.…\n\nor\n\n4 Lickitung JU 38\n3 Scyther JU 10\n…'} value={code} onChange={(e) => setCode(e.target.value)} aria-label="Deck code or list" />
       {importCode.error && <p className="text-xs text-red-400">{importCode.error.message}</p>}
       <button className={`${button} bg-emerald-600 font-semibold hover:bg-emerald-500`} disabled={!code.trim() || importCode.isPending} onClick={() => importCode.mutate({ code })}>
         {importCode.isPending ? 'Importing…' : 'Import'}
