@@ -34,14 +34,14 @@ export interface DeckFilter {
   minHp: number | null;
   maxHp: number | null;
   hasAbility: boolean;
-  /** Show cards the engine fully implements, and the ones it doesn't (only implemented ones by default; both off shows none). */
+  /** Show cards the engine fully implements, or the ones it doesn't (only implemented ones by default; both off or both on shows all). */
   implemented: boolean;
   notImplemented: boolean;
   /** Only holo cards: holo, galaxy foil or holo Energy (isHoloCard). */
   holoOnly: boolean;
   /** Only the account's favorite cards. */
   favorites: boolean;
-  /** Show unlocked cards, and locked ones (only unlocked ones by default; both off shows none). */
+  /** Show unlocked cards, or locked ones (only unlocked ones by default; both off or both on shows all). */
   unlocked: boolean;
   locked: boolean;
 }
@@ -88,10 +88,11 @@ export function filterForDeck(
   return cards.filter((c) => {
     if (search && !matchesSearch(c, search)) return false;
     if (f.sets && !f.sets.includes(c.setName)) return false;
-    if (!(c.implemented ? f.implemented : f.notImplemented)) return false;
+    // Like the kind toggles: neither on shows every card.
+    if ((f.implemented || f.notImplemented) && !(c.implemented ? f.implemented : f.notImplemented)) return false;
     if (f.holoOnly && !isHoloCard(c)) return false;
     if (f.favorites && !isFavorite(c.id)) return false;
-    if (!(isLocked(c) ? f.locked : f.unlocked)) return false;
+    if ((f.unlocked || f.locked) && !(isLocked(c) ? f.locked : f.unlocked)) return false;
     if (f.kinds.length && !f.kinds.includes(c.kind)) return false;
     const picked = f.kinds.includes(c.kind);
     if (f.types.length) {

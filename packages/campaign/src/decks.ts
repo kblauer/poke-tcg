@@ -199,6 +199,8 @@ const TRAINER_FAVORITES: Record<string, string[]> = {
   Sailor: ['Machop', 'Machoke', 'Machamp', 'Tentacool', 'Tentacruel', 'Shellder', 'Cloyster', 'Horsea', 'Seadra', 'Staryu', 'Starmie', 'Chinchou', 'Lanturn', 'Mantine', 'Tyrogue', 'Hitmontop'],
   Psychic: ['Abra', 'Kadabra', 'Alakazam', 'Slowpoke', 'Slowbro', 'Drowzee', 'Hypno', 'Mr. Mime', 'Jynx', 'Exeggcute', 'Exeggutor', 'Natu', 'Xatu', 'Espeon', 'Girafarig', 'Smoochum', 'Wobbuffet', 'Misdreavus'],
   'Black Belt': ['Machop', 'Machoke', 'Machamp', 'Mankey', 'Primeape', 'Hitmonlee', 'Hitmonchan', 'Geodude', 'Graveler', 'Onix', 'Tyrogue', 'Hitmontop', 'Heracross', 'Teddiursa', 'Ursaring'],
+  // Team Rocket's grunts (the Power Plant): their usual Pokémon, of many types, so each grunt's deck is a different mix.
+  'Rocket Grunt': ['Rattata', 'Raticate', 'Zubat', 'Golbat', 'Ekans', 'Arbok', 'Koffing', 'Weezing', 'Grimer', 'Muk', 'Drowzee', 'Hypno', 'Machop', 'Machoke', 'Sandshrew', 'Sandslash', 'Cubone', 'Marowak', 'Meowth', 'Persian', 'Houndour', 'Murkrow'],
   'Bird Keeper': ['Pidgey', 'Pidgeotto', 'Pidgeot', 'Spearow', 'Fearow', 'Doduo', 'Dodrio', "Farfetch'd", 'Zubat', 'Golbat', 'Hoothoot', 'Noctowl', 'Natu', 'Xatu', 'Murkrow', 'Skarmory', 'Delibird'],
 };
 

@@ -20,7 +20,9 @@ export type DebugCommand =
    * Confused and Paralyzed replace each other, as in play; Poisoned (10 damage) and Burned are separate.
    * It ignores what would normally block it (Thick Skinned, a Trainer played as a Pokémon).
    */
-  | { type: 'SET_CONDITION'; side: 'self' | 'opponent'; condition: DebugCondition; on: boolean };
+  | { type: 'SET_CONDITION'; side: 'self' | 'opponent'; condition: DebugCondition; on: boolean }
+  /** Ends the game won by the player, as if it had been played out (a run's Skip battle). */
+  | { type: 'WIN' };
 
 export const DEBUG_CONDITIONS = ['asleep', 'confused', 'paralyzed', 'poisoned', 'burned'] as const;
 export type DebugCondition = (typeof DEBUG_CONDITIONS)[number];
@@ -90,6 +92,13 @@ export function applyDebug(prev: GameState, playerId: PlayerId, command: DebugCo
       if (!CPU_DIFFICULTIES.includes(command.difficulty)) return fail(`Unknown CPU difficulty: ${command.difficulty}`);
       state.cpuDifficulty = command.difficulty;
       addLog(state, `Debug: set the CPU to ${CPU_DIFFICULTY_LABELS[command.difficulty]}.`, playerId);
+      break;
+    }
+    case 'WIN': {
+      state.phase = 'finished';
+      state.winner = playerId;
+      state.pendingPromotion = null;
+      addLog(state, 'Debug: won the game.', playerId);
       break;
     }
   }

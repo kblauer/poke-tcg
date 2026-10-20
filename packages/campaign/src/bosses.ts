@@ -321,7 +321,8 @@ export const BOSSES = {
 export type BossId = keyof typeof BOSSES;
 
 /** Kanto's gyms in the order the games visit them. */
-export const KANTO_GYMS: BossId[] = ['brock', 'misty', 'surge', 'erika', 'koga', 'sabrina', 'blaine', 'giovanni'];
+// Sabrina before Koga (agreed with the user).
+export const KANTO_GYMS: BossId[] = ['brock', 'misty', 'surge', 'erika', 'sabrina', 'koga', 'blaine', 'giovanni'];
 export const ELITE_FOUR: BossId[] = ['lorelei', 'bruno', 'agatha', 'lance'];
 /** Johto's gyms in the order Gold and Silver visit them, and its Elite Four. */
 export const JOHTO_GYMS: BossId[] = ['falkner', 'bugsy', 'whitney', 'morty', 'chuck', 'jasmine', 'pryce', 'clair'];
