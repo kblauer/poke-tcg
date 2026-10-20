@@ -41,7 +41,7 @@ export interface DeckFilter {
   holoOnly: boolean;
   /** Only the account's favorite cards. */
   favorites: boolean;
-  /** Show unlocked cards, or locked ones (only unlocked ones by default; both off or both on shows all). */
+  /** Show unlocked cards, or locked ones (both off, the default, or both on shows all). */
   unlocked: boolean;
   locked: boolean;
 }
@@ -55,11 +55,11 @@ export const EMPTY_DECK_FILTER: DeckFilter = {
   minHp: null,
   maxHp: null,
   hasAbility: false,
-  implemented: true,
+  implemented: false,
   notImplemented: false,
   holoOnly: false,
   favorites: false,
-  unlocked: true,
+  unlocked: false,
   locked: false,
 };
 
@@ -116,7 +116,7 @@ export type DeckSort = 'set' | 'dex' | 'type';
 
 export const DECK_SORTS: { value: DeckSort; label: string }[] = [
   { value: 'set', label: 'Set number' },
-  { value: 'dex', label: 'Pokédex number' },
+  { value: 'dex', label: 'Dex Number' },
   { value: 'type', label: 'Type' },
 ];
 
