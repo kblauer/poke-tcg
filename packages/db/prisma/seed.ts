@@ -56,6 +56,31 @@ const TCGDEX_FIXES: Record<string, Partial<TcgdexCard>> = {
       { name: 'Minimize', cost: ['Grass'], damage: null, effect: "All damage done by attacks to Grimer during your opponent's next turn is reduced by 20 (after applying Weakness and Resistance)." },
     ],
   },
+  // Expedition: Weakness and Resistance TCGdex gives cards printed without them (the Babies have neither), two missing
+  // "Evolves from", Ninetales' Ethereal Flame damage, Caterpie's misspelt attack and Hoppip's garbled attacks.
+  ...Object.fromEntries(['ecard1-5', 'ecard1-7', 'ecard1-15', 'ecard1-24', 'ecard1-39', 'ecard1-40', 'ecard1-41', 'ecard1-46', 'ecard1-60', 'ecard1-72', 'ecard1-73', 'ecard1-83', 'ecard1-87', 'ecard1-110'].map((id) => [id, { resistances: null }])),
+  ...Object.fromEntries(['ecard1-17', 'ecard1-22', 'ecard1-52'].map((id) => [id, { weaknesses: null, resistances: null }])),
+  ...Object.fromEntries(['ecard1-43', 'ecard1-58', 'ecard1-75', 'ecard1-107'].map((id) => [id, { weaknesses: null }])),
+  'ecard1-35': { resistances: null, evolveFrom: 'Ekans' },
+  'ecard1-37': { evolveFrom: 'Wartortle' },
+  'ecard1-57': {
+    attacks: [
+      { name: 'Mislead', cost: ['Fire', 'Colorless'], damage: null, effect: 'Flip 2 coins. If either of them is heads, the Defending Pokémon is now Confused.' },
+      { name: 'Ethereal Flame', cost: ['Colorless', 'Colorless', 'Colorless'], damage: '30+', effect: 'Discard all Fire Energy cards attached to Ninetales. This attack does 30 damage plus 20 more damage for each card discarded this way.' },
+    ],
+  },
+  'ecard1-96': {
+    attacks: [
+      { name: 'Headbutt', cost: ['Colorless'], damage: '10', effect: null },
+      { name: 'Entangling Thread', cost: ['Colorless', 'Colorless'], damage: '10', effect: 'Flip a coin. If heads, the Defending Pokémon is now Paralyzed.' },
+    ],
+  },
+  'ecard1-112': { attacks: [{ name: 'Sleep Powder', cost: ['Grass'], damage: '10', effect: 'The Defending Pokémon is now Asleep.' }] },
+  // Expedition Multi Technical Machine 01: TCGdex leaves out its attack.
+  'ecard1-144': {
+    effect:
+      "Attach this card to 1 of your Pokémon in play. That Pokémon may use this card's attack instead of its own. At the end of your turn, discard Multi Technical Machine 01. Attack: Paralyzing Gaze (Colorless): The Defending Pokémon is now Paralyzed.",
+  },
   // Southern Islands Tentacruel: TCGdex lists both attacks twice; the printed card Paralyzes with Poison Sting.
   'si1-10': {
     attacks: [

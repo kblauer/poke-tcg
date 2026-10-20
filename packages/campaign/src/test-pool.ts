@@ -34,7 +34,7 @@ function evolvesFrom(r: Row, stage: Stage): string | null {
   const owner = stage !== 'basic' ? r.name.match(/^((?:Blaine|Brock|Erika|Lt\. Surge|Misty|Sabrina|Giovanni|Koga|Rocket)'s )/)?.[1] : undefined;
   const from = r.evolveFrom ?? (r.name === "Lt. Surge's Magneton" ? 'Magnemite' : null);
   if (owner && from) return (from.startsWith(owner) ? from : `${owner}${from}`).replace(/Nidoran([♀♂])$/, 'Nidoran $1');
-  return r.evolveFrom ?? (stage === 'stage1' && ['Omanyte', 'Kabuto', 'Aerodactyl', 'Dark Omanyte'].includes(r.name) ? 'Mysterious Fossil' : null);
+  return r.evolveFrom ?? { 'ecard1-35': 'Ekans', 'ecard1-37': 'Wartortle' }[r.id] ?? (stage === 'stage1' && ['Omanyte', 'Kabuto', 'Aerodactyl', 'Dark Omanyte'].includes(r.name) ? 'Mysterious Fossil' : null);
 }
 
 function toDef(r: Row): CardDef | null {

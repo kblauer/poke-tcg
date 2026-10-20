@@ -29,6 +29,10 @@ export interface PowerChoices {
   type?: EnergyType;
   /** How many damage counters to move at once (Damage Swap; 1 when it isn't asked). */
   counters?: number;
+  /** Whose Pokémon to take something from (Chaos Move: yours or your opponent's); then which, in `from` or `oppFrom`. */
+  fromSide?: 'own' | 'opp';
+  /** Whose Pokémon to give something to (Chaos Move); then which, in `to` or `oppTo`. */
+  toSide?: 'own' | 'opp';
 }
 
 /** A question a power asks before it's used. */
@@ -42,6 +46,8 @@ export type PowerChoiceSpec = { prompt: string } & (
   | { kind: 'prize'; field: 'prize'; options: number[] }
   /** How many damage counters to move: the most that can go (`all`: every one there is), or 1. */
   | { kind: 'counters'; field: 'counters'; options: number[]; all: boolean }
+  /** Whose Pokémon (Chaos Move): the player's own or the opponent's. */
+  | { kind: 'side'; field: 'fromSide' | 'toSide'; options: ('own' | 'opp')[] }
 );
 
 /** Peek: the top card of your deck or the opponent's, a random card from their hand, or a Prize card of either player. */
@@ -49,7 +55,7 @@ export type PeekTarget = 'deck' | 'oppDeck' | 'oppHand' | 'prize' | 'oppPrize';
 
 /** What a power can see before it's used. View-safe: the UI builds it from a PlayerView. */
 export interface PowerSituation {
-  me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'discard' | 'powersOffUntil' | 'quickenTurn'>;
+  me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'discard' | 'powersOffUntil' | 'quickenTurn' | 'activeEnergyTurn'>;
   opp: Pick<PlayerState, 'active' | 'bench' | 'powersOffUntil'>;
   /** Sizes of the hidden piles (Peek). */
   counts: { deck: number; prizes: number; oppDeck: number; oppHand: number; oppPrizes: number };
@@ -197,6 +203,15 @@ export interface PowerEffect {
   perform?: boolean;
   /** Hot Plate: as the Active Pokémon, 10 damage to each Baby or Basic Pokémon either player puts onto their Bench from their hand (hotPlate). */
   hotPlate?: boolean;
+  /**
+   * Psymimic: instead of its own attacks, it can use any attack of the opponent's Pokémon in play, paying that attack's
+   * cost, while it works (usableAttacks).
+   */
+  psymimic?: boolean;
+  /** Rock Body, Exoskeleton (Poké-Bodies): attack damage to it is this much less, after Weakness and Resistance (attacks.ts). */
+  damageReduction?: number;
+  /** Dark Aura (a Poké-Body): every Energy attached to it provides this type instead of its own (energyPool). */
+  energyAs?: EnergyType;
 }
 
 export interface PowerContext {

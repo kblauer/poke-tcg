@@ -194,7 +194,7 @@ export function Board({
       ? { side: pendingPick.kind === 'ownPokemon' ? 'own' : 'opp', options: pendingPick.options, pick: (target) => send({ type: 'RESOLVE_CHOICE', target }) }
       : attack.spec?.kind === 'opponentBench'
       ? { side: 'opp', options: attack.spec.options, pick: attack.answer }
-      : attack.spec?.kind === 'ownBench' || attack.spec?.kind === 'ownPokemon'
+      : attack.spec?.kind === 'ownBench' || attack.spec?.kind === 'ownPokemon' || attack.spec?.kind === 'ownPokemonTo'
         ? { side: 'own', options: attack.spec.options, pick: attack.answer }
       : attack.spec?.kind === 'opponentPokemon' || attack.spec?.kind === 'opponentPokemonTo'
         ? { side: 'opp', options: attack.spec.options, pick: attack.answer }
@@ -288,6 +288,7 @@ export function Board({
         damage={view.attackDamage}
         recall={!!self.recall}
         bench={self.bench}
+        oppBench={view.opponent.bench}
         pending={pending}
         attack={{
           ...attack,

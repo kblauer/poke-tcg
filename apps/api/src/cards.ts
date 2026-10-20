@@ -60,11 +60,14 @@ const BABIES = new Set(['basep-31', 'basep-35', 'basep-36', 'neo1-12', 'neo1-20'
 /** Gym Heroes evolutions TCGdex leaves out, by name (without the owner). */
 const TCGDEX_MISSING_EVOLVES_FROM: Record<string, string> = { "Lt. Surge's Magneton": 'Magnemite' };
 
+/** Other cards whose "Evolves from" TCGdex leaves out, by id (Expedition's non-holo Arbok and Blastoise; also fixed in the seed). */
+const MISSING_EVOLVES_FROM_BY_ID: Record<string, string> = { 'ecard1-35': 'Ekans', 'ecard1-37': 'Wartortle' };
+
 /** The owner in an owner's Pokémon's name (Gym Heroes, Gym Challenge): "Brock's Rhydon" → "Brock's ". */
 const OWNER = /^((?:Blaine|Brock|Erika|Lt\. Surge|Misty|Sabrina|Giovanni|Koga|Rocket)'s )/;
 
 /** What the card evolves from, filling in TCGdex's gaps. */
-const evolvesFrom = (card: Pick<Card, 'name' | 'stage' | 'evolveFrom'>) => {
+const evolvesFrom = (card: Pick<Card, 'id' | 'name' | 'stage' | 'evolveFrom'>) => {
   // Team Rocket's Dark Stage 2 Pokémon evolve from the Dark Stage 1 (Dark Alakazam from Dark Kadabra); TCGdex has the plain one.
   if (card.stage === 'Stage2' && card.name.startsWith('Dark ') && card.evolveFrom && !card.evolveFrom.startsWith('Dark ')) return `Dark ${card.evolveFrom}`;
   // Neo Destiny's Light Stage 2 Pokémon likewise evolve from the Light Stage 1 (Light Dragonite from Light Dragonair).
@@ -74,7 +77,7 @@ const evolvesFrom = (card: Pick<Card, 'name' | 'stage' | 'evolveFrom'>) => {
   const from = card.evolveFrom ?? TCGDEX_MISSING_EVOLVES_FROM[card.name];
   // Gym Challenge's Nidoran are named "Giovanni's Nidoran ♀" (with a space), unlike the plain "Nidoran♀".
   if (owner && from) return (from.startsWith(owner) ? from : `${owner}${from}`).replace(/Nidoran([♀♂])$/, 'Nidoran $1');
-  return card.evolveFrom ?? (card.stage === 'Stage1' && FROM_MYSTERIOUS_FOSSIL.has(card.name) ? 'Mysterious Fossil' : null);
+  return card.evolveFrom ?? MISSING_EVOLVES_FROM_BY_ID[card.id] ?? (card.stage === 'Stage1' && FROM_MYSTERIOUS_FOSSIL.has(card.name) ? 'Mysterious Fossil' : null);
 };
 
 /**
@@ -233,7 +236,7 @@ export async function loadCardLibrary(ids: Iterable<string>): Promise<CardLibrar
   if (stage2.length) {
     const stage1 = await prisma.card.findMany({
       where: { kind: 'POKEMON', stage: 'Stage1', name: { in: stage2.map((d) => d.evolvesFrom!) } },
-      select: { name: true, stage: true, evolveFrom: true },
+      select: { id: true, name: true, stage: true, evolveFrom: true },
     });
     for (const d of stage2) {
       const line = stage1.find((s) => s.name === d.evolvesFrom && evolvesFrom(s));

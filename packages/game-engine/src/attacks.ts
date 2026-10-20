@@ -1,7 +1,7 @@
 // Attack resolution: legality, the choices an attack asks for, damage (weakness, resistance,
 // prevention) and the helpers card effects use. Card-specific behaviour lives in effects/.
 import { lookupCard, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
-import { attackEffect, powerEffect } from './effects/index.js';
+import { attackEffect, powerEffect, trainerEffect } from './effects/index.js';
 import {
   canPayCost,
   conditionLabel,
@@ -58,6 +58,8 @@ export interface AttackChoices {
   oppTo?: Target;
   /** One of your Pokémon in play (Devolution Beam). */
   ownTarget?: Target;
+  /** Another of your Pokémon, to move something to (Energy Patch). */
+  ownTo?: Target;
   /** Whose Pokémon the attack picks (Devolution Beam). */
   side?: 'own' | 'opponent';
   /** An Energy card attached to `oppTarget` (Energy Control). */
@@ -104,6 +106,8 @@ export type ChoiceSpec = { prompt: string } & (
   | { kind: 'opponentPokemonTo'; options: Target[] }
   /** Any of the attacking player's Pokémon in play, clicked on the board. */
   | { kind: 'ownPokemon'; options: Target[] }
+  /** Another of the attacking player's Pokémon in play, to move something to (Energy Patch), clicked on the board. */
+  | { kind: 'ownPokemonTo'; options: Target[] }
   | { kind: 'side'; options: ('own' | 'opponent')[] }
   /** One of the Energy cards attached to the chosen opponent's Pokémon. */
   | { kind: 'pokemonEnergy'; options: CardInstance[] }
@@ -151,12 +155,18 @@ export interface UsableAttack {
 /**
  * The attacks the Pokémon can use, in attack-index order: its own (a Transformed Ditto's are the copy's), then with
  * Recall (or Prehistoric Memory) those of each card it evolved from, Basic first, then Psylink's, then with Mimic the
- * Defending Pokémon's (`defender`).
+ * Defending Pokémon's (`defender`), then with Psymimic every attack of the opponent's Pokémon in play (`defender` and
+ * `oppBench`), then a Technical Machine's attached to it.
  */
 export function usableAttacks(
   attacker: InPlayPokemon,
   cards: CardLibrary,
-  { recall = false, bench = [], defender = null }: { recall?: boolean; bench?: readonly (InPlayPokemon | null)[]; defender?: InPlayPokemon | null } = {},
+  {
+    recall = false,
+    bench = [],
+    defender = null,
+    oppBench = [],
+  }: { recall?: boolean; bench?: readonly (InPlayPokemon | null)[]; defender?: InPlayPokemon | null; oppBench?: readonly (InPlayPokemon | null)[] } = {},
 ): UsableAttack[] {
   // Shapeshift: the attached Evolution card's attacks, with that card's effects.
   const source = shapeshiftCard(attacker)?.defId ?? effectId(attacker);
@@ -180,10 +190,24 @@ export function usableAttacks(
   // Mimic: every attack of the Defending Pokémon, with its cost and effects, while the power works (as Psylink's).
   const mimic = defender && !defender.faceDown && powerEffect(effectId(attacker))?.mimic && !attacker.condition && attacker.powerOffUntil === undefined;
   const copied = mimic ? def(cards, defender).attacks.map((attack) => ({ attack, source: shapeshiftCard(defender)?.defId ?? effectId(defender), from: def(cards, defender).name })) : [];
-  return [...own, ...lower, ...linked, ...copied];
+  // Psymimic: every attack of the opponent's Pokémon in play, while it works (it stops with any Special Condition).
+  const psymimic = powerEffect(effectId(attacker))?.psymimic && !attacker.condition && !attacker.poison && !attacker.burned && attacker.powerOffUntil === undefined;
+  const mimicked = psymimic
+    ? [defender, ...oppBench].flatMap((p) => {
+        if (!p || p.faceDown) return [];
+        const d = def(cards, p);
+        return d.attacks.map((attack) => ({ attack, source: shapeshiftCard(p)?.defId ?? effectId(p), from: d.name }));
+      })
+    : [];
+  // A Technical Machine attached to it: its attack.
+  const machines = (attacker.attached ?? []).flatMap((a) => {
+    const attack = trainerEffect(a.card.defId)?.technicalMachine;
+    return attack ? [{ attack, source: a.card.defId, from: lookupCard(cards, a.card.defId).name }] : [];
+  });
+  return [...own, ...lower, ...linked, ...copied, ...mimicked, ...machines];
 }
 
-const attackAt = (s: AttackSituation, attackIndex: number) => usableAttacks(s.attacker, s.cards, { recall: s.recall, bench: s.ownBench, defender: s.defender })[attackIndex];
+const attackAt = (s: AttackSituation, attackIndex: number) => usableAttacks(s.attacker, s.cards, { recall: s.recall, bench: s.ownBench, defender: s.defender, oppBench: s.opponentBench })[attackIndex];
 
 /** Whether `me`'s Active Pokémon can use the attacks of the cards it evolved from now: Recall this turn, or Prehistoric Memory. */
 export const recallsAttacks = (state: Pick<GameState, 'players' | 'playerOrder' | 'cards' | 'turn'>, me: PlayerState) =>
@@ -282,6 +306,13 @@ const def = inPlayDef;
 
 /** How many of the named special Energy card are attached to the Pokémon (Darkness Energy, Metal Energy). */
 const energyCount = (cards: CardLibrary, p: InPlayPokemon, name: string) => p.energy.filter((e) => !e.provides && !e.windless && lookupCard(cards, e.defId).name === name).length;
+
+/** Expedition's Metal Energy: a non-Metal Pokémon's attack damage is reduced after Weakness and Resistance (Neo Genesis's: before). */
+const METAL_AFTER_WEAKNESS = new Set(['ecard1-159']);
+
+/** Metal Energy cards on the attacker that reduce its damage: Neo Genesis's (before Weakness and Resistance) or Expedition's (`after`). */
+const metalOn = (cards: CardLibrary, p: InPlayPokemon, after: boolean) =>
+  p.energy.filter((e) => !e.provides && !e.windless && lookupCard(cards, e.defId).name === 'Metal Energy' && METAL_AFTER_WEAKNESS.has(e.defId) === after).length;
 
 /** Sprout Tower is the Stadium in play. */
 const sproutTower = (state: Pick<GameState, 'stadium' | 'cards'>) => !!state.stadium && lookupCard(state.cards, state.stadium.card.defId).name === 'Sprout Tower';
@@ -391,6 +422,7 @@ const FIELD = {
   opponentPokemon: 'oppTarget',
   opponentPokemonTo: 'oppTo',
   ownPokemon: 'ownTarget',
+  ownPokemonTo: 'ownTo',
   side: 'side',
   pokemonEnergy: 'oppEnergyUid',
   weaknessType: 'weaknessType',
@@ -744,6 +776,12 @@ function createContext(
       damage = Math.max(0, damage - 10);
       log(`Shell Armor reduced the damage to ${pokemonName(state, p)} by 10.`, owner.id);
     }
+    // Rock Body, Exoskeleton: a set amount less.
+    const reduction = passive(p)?.damageReduction;
+    if (damage > 0 && reduction) {
+      damage = Math.max(0, damage - reduction);
+      log(`${def(state.cards, p).power!.name} reduced the damage to ${pokemonName(state, p)} by ${reduction}.`, owner.id);
+    }
     if (damage >= 20 && attackerDef.stage === 'basic' && passive(p)?.strangeBarrier) {
       damage = 10;
       log(`Strange Barrier reduced the damage to ${pokemonName(state, p)} to 10.`, owner.id);
@@ -849,7 +887,7 @@ function createContext(
   };
   /** Damage to a benched Pokémon or the attacker itself: Defender, then Kabuto Armor. */
   const benchedDamage = (p: InPlayPokemon, amount: number, owner: PlayerState) => {
-    amount = Math.max(0, charmed(amount) - metalLess);
+    amount = Math.max(0, charmed(amount) - metalLess - metalAfter);
     if (amount > 0 && sproutTower(state) && attackerDef.type === 'colorless') amount = Math.max(0, amount - 30);
     amount = Math.max(0, amount - 10 * energyCount(state.cards, p, 'Metal Energy'));
     const damage = unownGuarded(p, barriers(p, armor(p, afterDefender(state.cards, p, amount), owner), owner), owner);
@@ -857,8 +895,10 @@ function createContext(
   };
   /** Shadow Images: one flip per attack, by the attacking player; tails, the attack does no damage to the Pokémon. */
   let shadowImages: boolean | undefined;
-  /** Metal Energy on an attacker that isn't Metal: its attacks do 10 less for each, before Weakness and Resistance. */
-  const metalLess = attackerDef.type === 'metal' ? 0 : 10 * energyCount(state.cards, attacker, 'Metal Energy');
+  /** Metal Energy on an attacker that isn't Metal: its attacks do 10 less for each, before Weakness and Resistance (Neo Genesis's). */
+  const metalLess = attackerDef.type === 'metal' ? 0 : 10 * metalOn(state.cards, attacker, false);
+  /** Expedition's Metal Energy on an attacker that isn't Metal: 10 less for each, after Weakness and Resistance. */
+  const metalAfter = attackerDef.type === 'metal' ? 0 : 10 * metalOn(state.cards, attacker, true);
   /** Whether the attack can affect this Pokémon; logs why not. Transparency flips the first time it's asked. */
   const canAffect = (player: PlayerState, p: InPlayPokemon) => {
     if (!immune(p, player) && !transparent(p, player)) return true;
@@ -947,6 +987,17 @@ function createContext(
       if (damage > 0 && dark) {
         damage += 10 * dark;
         log(`Darkness Energy: ${10 * dark} more damage.`);
+      }
+      // Strength Charm: 10 more, if the attack damages it after Weakness and Resistance; it's discarded at the end of the turn.
+      const charm = toolOf(state.cards, attacker);
+      if (damage > 0 && charm?.name === 'Strength Charm') {
+        damage += 10;
+        charm.tool.until = turn;
+        log('Strength Charm: 10 more damage.');
+      }
+      if (damage > 0 && metalAfter) {
+        damage = Math.max(0, damage - metalAfter);
+        log(`Metal Energy reduced ${attackerDef.name}'s damage by ${metalAfter}.`);
       }
       // Frog Song: 40 more, if the attack damages it after Weakness and Resistance, while more than 3 Poliwag line Pokémon are in play.
       if (damage > 0 && passive(attacker)?.frogSong && frogs() > 3) {

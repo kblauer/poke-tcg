@@ -53,6 +53,10 @@ export interface PlayerView {
     pendingChoice: PendingChoiceView | null;
     /** Last turn this player can't play Trainer cards (Headache). */
     noTrainersUntil?: number;
+    /** The turn they last played a Supporter card (only one each turn). */
+    supporterTurn?: number;
+    /** The turn they last attached an Energy card from their hand to their Active Pokémon (Harvest Bounty). */
+    activeEnergyTurn?: number;
     /** Setup: done placing Pokémon, waiting for the opponent. */
     ready?: boolean;
     /** A card they looked at with Peek, until their next action. */
@@ -153,6 +157,8 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       ...(me.powersOffUntil !== undefined && { powersOffUntil: me.powersOffUntil }),
       pendingChoice: pending,
       noTrainersUntil: me.noTrainersUntil,
+      ...(me.supporterTurn !== undefined && { supporterTurn: me.supporterTurn }),
+      ...(me.activeEnergyTurn !== undefined && { activeEnergyTurn: me.activeEnergyTurn }),
       ...(me.ready && { ready: true }),
       ...(peek && { peek }),
       ...(recallsAttacks(state, me) && { recall: true }),

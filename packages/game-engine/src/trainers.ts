@@ -3,7 +3,7 @@
 // be answered from a player's view, so those Trainers leave a PendingChoice that only the player
 // sees the options of, answered with RESOLVE_CHOICE.
 import { applyWeaknessResistance, damageChosenBenched, recallsAttacks, typeName, usableAttacks, type AttackChoices } from './attacks.js';
-import { isBasicEnergy, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard, type CardLibrary, type CardDef, type EnergyType, type PokemonCardDef } from './cards.js';
+import { isBasicEnergy, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard, type Attack, type CardLibrary, type CardDef, type EnergyType, type PokemonCardDef } from './cards.js';
 import { powerEffect, trainerEffect } from './effects/index.js';
 import { activeLocked, discardTheirEnergy, type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
 import { shuffle } from './rng.js';
@@ -49,7 +49,7 @@ type Side = Pick<PlayerState, 'active' | 'bench' | 'discard'>;
 export interface TrainerSituation {
   /** The Trainer card being played. */
   card: CardInstance;
-  me: Side & Pick<PlayerState, 'hand' | 'noTrainersUntil'>;
+  me: Side & Pick<PlayerState, 'hand' | 'noTrainersUntil' | 'supporterTurn'>;
   opp: Side;
   deckCount: number;
   cards: CardLibrary;
@@ -81,9 +81,10 @@ export type PendingChoice = {
        * 'basicNamed': a Basic Pokémon called `name` (or any of the names), for Call for Family;
        * 'basicType': a Basic Pokémon of `type` (Call for Friend); 'energyType': a basic Energy card of
        * `type` (Recharge); 'baby': a Baby Pokémon (Let's Play!); 'basic': any Basic Pokémon (Summon Minions);
-       * 'evolution': an Evolution card (Evolutionary Light); 'darkEvolution': one with Dark in its name (The Boss's Way).
+       * 'evolution': an Evolution card (Evolutionary Light); 'darkEvolution': one with Dark in its name (The Boss's Way);
+       * 'basicNotBaby': a Basic Pokémon that isn't a Baby Pokémon (Dual Ball).
        */
-      filter: 'any' | 'pokemon' | 'basicNamed' | 'basicType' | 'basicEnergy' | 'energyType' | 'baby' | 'basic' | 'evolution' | 'darkEvolution' | 'named' | 'ownerBasic' | 'ownerPokemon' | 'trainer' | 'trainerNamed' | 'pokemonNotNamed' | 'evolvesFrom' | 'tool';
+      filter: 'any' | 'pokemon' | 'basicNamed' | 'basicType' | 'basicEnergy' | 'energyType' | 'baby' | 'basic' | 'basicNotBaby' | 'evolution' | 'darkEvolution' | 'named' | 'ownerBasic' | 'ownerPokemon' | 'trainer' | 'trainerNamed' | 'pokemonNotNamed' | 'evolvesFrom' | 'tool';
       /**
        * 'basicNamed' and 'named' (a Pokémon card with one of the names: Jellyfish Pod): the names. 'ownerBasic' (Call for
        * Friend) and 'ownerPokemon' (Brock's Training Method): the owner in the card's name, e.g. 'Brock'. 'evolvesFrom'
@@ -519,6 +520,10 @@ export interface EnergyEffect {
 export interface TrainerEffect {
   /** Played onto the Bench as a Pokémon with this HP (Clefairy Doll) instead of with PLAY_TRAINER. */
   asPokemon?: { hp: number };
+  /** A Supporter card: only one can be played each turn (PlayerState.supporterTurn). */
+  supporter?: boolean;
+  /** A Technical Machine: the Pokémon it's attached to can use this attack instead of its own (usableAttacks). */
+  technicalMachine?: Attack;
   /** A Pokémon Tool (Gift searches for one). */
   tool?: boolean;
   /** A Stadium card: it stays in play (GameState.stadium), shared by both players, until another Stadium replaces it. */
@@ -582,6 +587,7 @@ export function trainerError(s: TrainerSituation): string | null {
   const effect = trainerEffect(s.card.defId);
   if (d.kind !== 'trainer' || !(effect?.play || effect?.stadium)) return `${d.name} can't be played this way`;
   if (trainersLocked(s.me, s.turn)) return TRAINERS_LOCKED;
+  if (effect.supporter && s.me.supporterTurn === s.turn) return 'You can play only one Supporter card each turn';
   const hayFever = trainersBlocked([s.me, s.opp], s.cards);
   if (hayFever) return hayFever;
   // A Stadium can't be played while one with the same name is in play.
@@ -750,6 +756,7 @@ export function playTrainer(state: GameState, me: PlayerState, opp: PlayerState,
     return null;
   }
   addLog(state, `Played ${name}.`, me.id);
+  if (effect.supporter) me.supporterTurn = state.turn;
   if (removalTax(situation)) {
     const taxed = ctx.fromHand(me, resolved.choices.handUids!);
     me.discard.push(...taxed);
@@ -1020,7 +1027,7 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
   }
   if (choice.kind === 'flee' || choice.kind === 'ninjaTrick') {
     const attacker = state.players[opponentOfChoice(state, choice)]!;
-    const attack = attacker.active && usableAttacks(attacker.active, state.cards, { recall: recallsAttacks(state, attacker), bench: attacker.bench, defender: player.active })[choice.attackIndex]?.attack.name;
+    const attack = attacker.active && usableAttacks(attacker.active, state.cards, { recall: recallsAttacks(state, attacker), bench: attacker.bench, defender: player.active, oppBench: player.bench })[choice.attackIndex]?.attack.name;
     const options = player.bench.flatMap((p, i) => (p ? [i] : []));
     const prompt =
       choice.kind === 'flee'
@@ -1109,6 +1116,8 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
         ? 'a Baby Pokémon'
       : choice.filter === 'basic'
         ? 'a Basic Pokémon'
+      : choice.filter === 'basicNotBaby'
+        ? 'a Basic Pokémon (not a Baby Pokémon)'
       : choice.filter === 'evolution'
         ? 'an Evolution card'
       : choice.filter === 'darkEvolution'
@@ -1160,6 +1169,7 @@ export const deckFilter = (cards: CardLibrary, choice: Extract<PendingChoice, { 
   if (choice.filter === 'energyType') return isBasicEnergy(d) && d.kind === 'energy' && d.energyType === choice.type;
   if (choice.filter === 'baby') return isPokemonCard(d) && !!d.baby;
   if (choice.filter === 'basic') return isBasicPokemon(d);
+  if (choice.filter === 'basicNotBaby') return isBasicPokemon(d) && d.kind === 'pokemon' && !d.baby;
   if (choice.filter === 'evolution') return isPokemonCard(d) && d.stage !== 'basic';
   if (choice.filter === 'darkEvolution') return isPokemonCard(d) && d.stage !== 'basic' && /\bDark\b/.test(d.name);
   if (choice.filter === 'named') return isPokemonCard(d) && [choice.name].flat().includes(d.name);

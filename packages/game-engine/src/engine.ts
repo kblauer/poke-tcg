@@ -170,6 +170,8 @@ export interface PokemonEffects {
   heavier?: number;
   /** It can't become Asleep, Confused, Paralyzed or Poisoned while it's the Active Pokémon (Flash Touch). */
   flashTouch?: boolean;
+  /** Its retreat cost is 0 through this turn (Tailwind). */
+  tailwind?: number;
 }
 
 export interface InPlayPokemon {
@@ -266,6 +268,10 @@ export interface PlayerState {
   quickenTurn?: number;
   /** Ice Pillar: attack damage to this player's Benched Pokémon is prevented through turn `until`, while the Pokémon whose top card is `by` is their Active Pokémon. */
   icePillar?: { until: number; by: string };
+  /** The turn this player last played a Supporter card (only one each turn). */
+  supporterTurn?: number;
+  /** The turn this player last attached an Energy card from their hand to their Active Pokémon (Harvest Bounty). */
+  activeEnergyTurn?: number;
 }
 
 export type Phase = 'setup' | 'playing' | 'promote' | 'finished';
@@ -717,6 +723,7 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       if (notHere) return fail(notHere);
       target.energy.push(energy);
       state.energyAttachedThisTurn = true;
+      if (action.target === 'active') me.activeEnergyTurn = state.turn;
       addLog(state, `Attached ${card(energy).name} to ${pokemonName(state, target)}.`, me.id);
       // Miraculous Wind stops a Special Energy card's other effects (Rainbow Energy's damage counter…).
       if (!(isSpecialEnergy(state.cards, energy) && miraculousWind([me, opp], state.cards))) energyEffect(energy.defId)?.onAttach?.(state, me, target);
@@ -866,7 +873,7 @@ function attackAction(
   choices: AttackChoices,
   { flee, reflipped = false }: { flee?: number; reflipped?: boolean } = {},
 ): ActionResult {
-  const usable = usableAttacks(me.active!, state.cards, { recall: recallsAttacks(state, me), bench: me.bench, defender: opp.active })[attackIndex];
+  const usable = usableAttacks(me.active!, state.cards, { recall: recallsAttacks(state, me), bench: me.bench, defender: opp.active, oppBench: opp.bench })[attackIndex];
   const esp = !reflipped && (me.active!.attached ?? []).some((a) => lookupCard(state.cards, a.card.defId).name === "Sabrina's ESP");
   const before = esp ? structuredClone(state) : null;
   const source = usable && `${inPlayDef(state.cards, me.active!).name}'s ${usable.attack.name}`;
@@ -1068,7 +1075,8 @@ export function evolveError(
  */
 export const retreatCost = (pokemon: InPlayPokemon, cards: CardLibrary, sides: Pick<PlayerState, 'active' | 'bench'>[] = [], stadium?: CardInstance | null) =>
   // Balloon Berry: it's discarded instead of Energy cards (RETREAT). [Zoom]: free for an Unown.
-  toolOf(cards, pokemon)?.name === 'Balloon Berry' || zoomed(pokemon, cards, sides) ? 0 : Math.max(
+  // Tailwind: 0 this turn.
+  toolOf(cards, pokemon)?.name === 'Balloon Berry' || zoomed(pokemon, cards, sides) || pokemon.effects?.tailwind !== undefined ? 0 : Math.max(
     0,
     (inPlayDef(cards, pokemon).retreatCost ?? 0) +
       // Tentacle Wrap: 1 more.
@@ -1184,6 +1192,9 @@ export const energyPool = (pokemon: InPlayPokemon, cards: CardLibrary): PoolEner
     return Array<PoolEnergy>(amount).fill(type);
   });
   if (pokemon.effects?.energyBurn !== undefined) return pool.map(() => 'fire');
+  // Dark Aura: all of it is Darkness Energy.
+  const as = powerEffect(effectId(pokemon))?.energyAs;
+  if (as && pokemon.powerOffUntil === undefined) return pool.map(() => as);
   // Wild Growth: each basic Grass Energy card attached provides 2 Grass Energy.
   if (pokemon.wildGrowth) pool.push(...pokemon.energy.filter((e) => !e.provides && isBasicGrass(cards, e)).map((): PoolEnergy => 'grass'));
   return powerEffect(effectId(pokemon))?.photosynthesis && pokemon.powerOffUntil === undefined ? pool.map(() => 'grass') : pool;
@@ -1441,7 +1452,7 @@ function useBerry(state: GameState, owner: PlayerState, p: InPlayPokemon) {
 function expireEffects(pokemon: InPlayPokemon, turn: number) {
   const e = pokemon.effects;
   if (!e) return;
-  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell', 'noAttack', 'noEnergy', 'fireWall', 'focusEnergy', 'crosscounter', 'screech', 'endure', 'pollenShield', 'counter', 'secretePoison', 'slime', 'pursuit', 'lockOn', 'triggeredPoison', 'effectProof', 'pulseGuard', 'dodge', 'reflectShield', 'armorUp', 'noEvolve', 'heavier'] as const) {
+  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell', 'noAttack', 'noEnergy', 'fireWall', 'focusEnergy', 'crosscounter', 'screech', 'endure', 'pollenShield', 'counter', 'secretePoison', 'slime', 'pursuit', 'lockOn', 'triggeredPoison', 'effectProof', 'pulseGuard', 'dodge', 'reflectShield', 'armorUp', 'noEvolve', 'heavier', 'tailwind'] as const) {
     if (e[key] !== undefined && e[key] <= turn) delete e[key];
   }
   if (e.charm && e.charm.until <= turn) delete e.charm;
