@@ -41,51 +41,69 @@ export function DeckSummary({
   compact?: boolean;
   large?: boolean;
 }) {
-  const featured = featuredPokemon(entries, byId);
-  const inspectOn = useInspectOnRightClick();
   const ratio = deckRatio(entries, byId);
   const size = deckSize(entries);
-  const cardSize = large ? 'h-[9.375rem] w-[6.72rem]' : 'h-14 w-10';
-  const bar = (height: string, title?: string) => (
+  return (
+    <div className={compact ? 'w-fit space-y-1' : large ? 'w-fit shrink-0 space-y-1.5' : 'flex items-center gap-3'}>
+      <FeaturedCards featured={featuredPokemon(entries, byId)} isLocked={isLocked} size={large ? 'h-[9.375rem] w-[6.72rem]' : 'h-14 w-10'} />
+      {compact ? (
+        <RatioBar ratio={ratio} size={size} height="h-1" title={DECK_SECTIONS.map(({ kind, label }) => `${ratio[kind]} ${label}`).join(' · ')} />
+      ) : (
+        <div className={large ? 'space-y-1' : 'min-w-0 flex-1 space-y-1'}>
+          <RatioBar ratio={ratio} size={size} height="h-2" />
+          <RatioCounts ratio={ratio} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A deck's 3 headline Pokémon (featuredPokemon) as cards of `size` (Tailwind height and width); right-clicking one opens it in the CardInspector. */
+function FeaturedCards({ featured, isLocked, size }: { featured: CatalogCard[]; isLocked: (card: CatalogCard) => boolean; size: string }) {
+  const inspectOn = useInspectOnRightClick();
+  return (
+    <div className="flex shrink-0 gap-1">
+      {[0, 1, 2].map((i) => {
+        const card = featured[i];
+        return card?.imageUrl ? (
+          <CardImage
+            key={i}
+            src={`${card.imageUrl}/low.webp`}
+            alt={card.name}
+            title={card.name}
+            loading="lazy"
+            {...inspectOn(card)}
+            className={`${size} rounded-sm object-cover ${isLocked(card) ? 'brightness-50' : ''}`}
+          />
+        ) : (
+          <div key={i} className={`${size} rounded-sm bg-slate-800`} />
+        );
+      })}
+    </div>
+  );
+}
+
+type Ratio = ReturnType<typeof deckRatio>;
+
+/** How a deck's `size` cards split between Pokémon, Trainers and Energy, as a bar `height` high. */
+function RatioBar({ ratio, size, height, title }: { ratio: Ratio; size: number; height: string; title?: string }) {
+  return (
     <div className={`flex ${height} overflow-hidden rounded-full bg-slate-800`} title={title}>
       {size > 0 && DECK_SECTIONS.map(({ kind }) => <div key={kind} className={RATIO_COLORS[kind]} style={{ width: `${(ratio[kind] / size) * 100}%` }} />)}
     </div>
   );
+}
+
+/** The bar's counts, each with its colour's dot; `small` for the deck list's tiles. */
+function RatioCounts({ ratio, small = false }: { ratio: Ratio; small?: boolean }) {
   return (
-    <div className={compact ? 'w-fit space-y-1' : large ? 'w-fit shrink-0 space-y-1.5' : 'flex items-center gap-3'}>
-      <div className="flex shrink-0 gap-1">
-        {[0, 1, 2].map((i) => {
-          const card = featured[i];
-          return card?.imageUrl ? (
-            <CardImage
-              key={i}
-              src={`${card.imageUrl}/low.webp`}
-              alt={card.name}
-              title={card.name}
-              loading="lazy"
-              {...inspectOn(card)}
-              className={`${cardSize} rounded-sm object-cover ${isLocked(card) ? 'brightness-50' : ''}`}
-            />
-          ) : (
-            <div key={i} className={`${cardSize} rounded-sm bg-slate-800`} />
-          );
-        })}
-      </div>
-      {compact ? (
-        bar('h-1', DECK_SECTIONS.map(({ kind, label }) => `${ratio[kind]} ${label}`).join(' · '))
-      ) : (
-        <div className={large ? 'space-y-1' : 'min-w-0 flex-1 space-y-1'}>
-          {bar('h-2')}
-          <div className="flex flex-wrap gap-x-2 text-xs text-slate-400">
-            {DECK_SECTIONS.map(({ kind, label }) => (
-              <span key={kind} className="flex items-center gap-1">
-                <span className={`inline-block h-2 w-2 rounded-full ${RATIO_COLORS[kind]}`} />
-                {ratio[kind]} {label}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
+    <div className={`flex flex-wrap text-slate-400 ${small ? 'gap-x-1.5 text-[10px] leading-3' : 'gap-x-2 text-xs'}`}>
+      {DECK_SECTIONS.map(({ kind, label }) => (
+        <span key={kind} className="flex items-center gap-1">
+          <span className={`inline-block rounded-full ${small ? 'h-1.5 w-1.5' : 'h-2 w-2'} ${RATIO_COLORS[kind]}`} />
+          {ratio[kind]} {label}
+        </span>
+      ))}
     </div>
   );
 }
@@ -97,7 +115,7 @@ const inside = {
 };
 
 /** The deck's name, with a pencil button that turns it into a text box: Enter or clicking away renames it, Escape doesn't. */
-function DeckName({ name, onRename }: { name: string; onRename: (name: string) => void }) {
+function DeckName({ name, onRename, large = false }: { name: string; onRename: (name: string) => void; large?: boolean }) {
   const [draft, setDraft] = useState<string | null>(null);
   /** Escape was pressed: the blur that follows shouldn't rename. */
   const cancelled = useRef(false);
@@ -126,14 +144,14 @@ function DeckName({ name, onRename }: { name: string; onRename: (name: string) =
           }
         }}
         {...inside}
-        className="min-w-0 flex-1 rounded bg-slate-950 px-1.5 font-semibold outline-none ring-1 ring-yellow-300"
+        className={`min-w-0 flex-1 rounded bg-slate-950 px-1.5 font-semibold outline-none ring-1 ring-yellow-300 ${large ? 'text-base' : ''}`}
         aria-label="Deck name"
       />
     );
   }
   return (
     <span className="flex min-w-0 flex-1 items-center gap-1">
-      <span className="truncate font-semibold">{name}</span>
+      <span className={`truncate font-semibold ${large ? 'text-base' : ''}`}>{name}</span>
       <button
         className="flex shrink-0 rounded p-0.5 text-slate-400 hover:bg-slate-600 hover:text-slate-100"
         {...inside}
@@ -168,10 +186,10 @@ export const LOCKED_TAG = (
   </span>
 );
 
-/** A deck's card count, green when it can be played (the colour says it's ready). */
-function DeckCount({ size, ready }: { size: number; ready: boolean }) {
+/** A deck's card count, green when it can be played (the colour says it's ready); `large` on the deck list's tiles. */
+function DeckCount({ size, ready, large = false }: { size: number; ready: boolean; large?: boolean }) {
   return (
-    <span className={`shrink-0 self-end text-xs ${ready ? 'text-emerald-400' : 'text-slate-400'}`} title={ready ? 'Ready to play' : undefined}>
+    <span className={`shrink-0 self-end ${large ? 'text-sm' : 'text-xs'} ${ready ? 'text-emerald-400' : 'text-slate-400'}`} title={ready ? 'Ready to play' : undefined}>
       {size}/{DECK_SIZE}
     </span>
   );
@@ -193,25 +211,28 @@ function DeckBody({ entries, size, ready, byId, isLocked, compact }: { entries: 
 
 /**
  * A deck's name (with its rename button). Without `onRename` (the automatic run deck) the name is plain, tagged Run deck.
+ * `large`: the deck list's tiles' bigger name.
  */
 function DeckTitle({
   name,
   onRename,
   compact = false,
+  large = false,
   children,
 }: {
   name: string;
   onRename?: (name: string) => void;
   compact?: boolean;
+  large?: boolean;
   children?: ReactNode;
 }) {
   return (
     <div className={`flex items-center ${compact ? 'gap-1' : 'gap-2'}`}>
       {onRename ? (
-        <DeckName name={name} onRename={onRename} />
+        <DeckName name={name} onRename={onRename} large={large} />
       ) : (
         <span className="flex min-w-0 flex-1 items-center gap-1.5">
-          <span className="truncate font-semibold">{name}</span>
+          <span className={`truncate font-semibold ${large ? 'text-base' : ''}`}>{name}</span>
           {RUN_DECK_TAG}
         </span>
       )}
@@ -322,6 +343,44 @@ function SortableDeck({
   compact: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: deck.id });
+  const copyButton = (
+    <button
+      className={`flex shrink-0 items-center gap-1 self-center rounded bg-slate-600 hover:bg-slate-500 disabled:opacity-40 ${compact ? 'px-1.5 text-xs leading-5' : 'px-2 py-0.5 text-sm'}`}
+      disabled={busy}
+      // Not a click on the deck (which opens it), and not the start of a drag.
+      {...inside}
+      onClick={(e) => {
+        e.stopPropagation();
+        onCopy(deck.id);
+      }}
+      title="Copy this deck to edit the copy"
+      aria-label={`Copy ${deck.name}`}
+    >
+      <ContentCopyIcon sx={{ fontSize: compact ? 12 : 14 }} /> {!compact && 'Copy'}
+    </button>
+  );
+  // The favorite star (not on the automatic run deck).
+  const star = !deck.runDeck && (
+    <button
+      className={`flex shrink-0 rounded p-0.5 hover:bg-slate-600 ${deck.favorite ? 'text-amber-300' : 'text-slate-400 hover:text-slate-100'}`}
+      {...inside}
+      onClick={(e) => {
+        e.stopPropagation();
+        onFavorite(deck.id, !deck.favorite);
+      }}
+      onKeyDown={(e) => e.stopPropagation()}
+      aria-pressed={deck.favorite}
+      title={deck.favorite ? 'Favorite deck (click to unfavorite)' : 'Favorite this deck: it shows under the deck choice in a run'}
+      aria-label={`${deck.favorite ? 'Unfavorite' : 'Favorite'} ${deck.name}`}
+    >
+      {deck.favorite ? <StarIcon sx={{ fontSize: compact ? 16 : 18 }} /> : <StarBorderIcon sx={{ fontSize: compact ? 16 : 18 }} />}
+    </button>
+  );
+  const onRenameDeck = deck.runDeck ? undefined : (name: string) => onRename(deck.id, name);
+  // Greyed out while it holds locked cards.
+  const dim = deck.locked ? 'opacity-60' : '';
+  const featured = featuredPokemon(deck.cards, byId);
+  const ratio = deckRatio(deck.cards, byId);
   return (
     <li ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} className={isDragging ? 'relative z-10 opacity-80' : ''}>
       {/* dnd-kit's attributes make it a focusable button. */}
@@ -336,44 +395,52 @@ function SortableDeck({
         }}
         title={deck.problems.join(' ') || undefined}
       >
-        <DeckTitle name={deck.name} onRename={deck.runDeck ? undefined : (name) => onRename(deck.id, name)} compact={compact}>
-          {deck.locked && LOCKED_TAG}
-          <button
-            className="flex shrink-0 items-center gap-1 self-center rounded bg-slate-600 px-1.5 text-xs leading-5 hover:bg-slate-500 disabled:opacity-40"
-            disabled={busy}
-            // Not a click on the deck (which opens it), and not the start of a drag.
-            {...inside}
-            onClick={(e) => {
-              e.stopPropagation();
-              onCopy(deck.id);
-            }}
-            title="Copy this deck to edit the copy"
-            aria-label={`Copy ${deck.name}`}
-          >
-            <ContentCopyIcon sx={{ fontSize: 12 }} /> {!compact && 'Copy'}
-          </button>
-          {/* The favorite star, in the top right corner (not on the automatic run deck). */}
-          {!deck.runDeck && (
-            <button
-              className={`flex shrink-0 rounded p-0.5 hover:bg-slate-600 ${deck.favorite ? 'text-amber-300' : 'text-slate-400 hover:text-slate-100'}`}
-              {...inside}
-              onClick={(e) => {
-                e.stopPropagation();
-                onFavorite(deck.id, !deck.favorite);
-              }}
-              onKeyDown={(e) => e.stopPropagation()}
-              aria-pressed={deck.favorite}
-              title={deck.favorite ? 'Favorite deck (click to unfavorite)' : 'Favorite this deck: it shows under the deck choice in a run'}
-              aria-label={`${deck.favorite ? 'Unfavorite' : 'Favorite'} ${deck.name}`}
-            >
-              {deck.favorite ? <StarIcon sx={{ fontSize: 16 }} /> : <StarBorderIcon sx={{ fontSize: 16 }} />}
-            </button>
-          )}
-        </DeckTitle>
-        {/* Greyed out while it holds locked cards. */}
-        <div className={deck.locked ? 'opacity-60' : ''}>
-          <DeckBody entries={deck.cards} size={deck.cardCount} ready={deck.problems.length === 0} byId={byId} isLocked={isLocked} compact={compact} />
-        </div>
+        {compact ? (
+          <>
+            {/* A phone: the name with Copy and the star in the top right corner, what it holds under them. */}
+            <DeckTitle name={deck.name} onRename={onRenameDeck} compact>
+              {deck.locked && LOCKED_TAG}
+              {copyButton}
+              {star}
+            </DeckTitle>
+            <div className={dim}>
+              <DeckBody entries={deck.cards} size={deck.cardCount} ready={deck.problems.length === 0} byId={byId} isLocked={isLocked} compact />
+            </div>
+          </>
+        ) : (
+          // Its Pokémon large on the left; on their right the name, the Pokémon/Trainer/Energy bar and counts, then the
+          // Pokémon's names (one a line) with Copy, the star and the card count beside them (agreed with the user).
+          <div className="flex gap-2.5">
+            <div className={dim}>
+              <FeaturedCards featured={featured} isLocked={isLocked} size="h-[5.6rem] w-[4rem]" />
+            </div>
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <DeckTitle name={deck.name} onRename={onRenameDeck} large>
+                {deck.locked && LOCKED_TAG}
+              </DeckTitle>
+              <div className={`space-y-0.5 ${dim}`}>
+                <RatioBar ratio={ratio} size={deckSize(deck.cards)} height="h-1.5" />
+                <RatioCounts ratio={ratio} small />
+              </div>
+              <div className="mt-auto flex items-end gap-2">
+                <ul className={`min-w-0 flex-1 text-xs leading-4 text-slate-200 ${dim}`}>
+                  {featured.map((card, i) => (
+                    <li key={i} className="truncate">
+                      {card.name}
+                    </li>
+                  ))}
+                </ul>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  {copyButton}
+                  <div className="flex items-center gap-1">
+                    {star}
+                    <DeckCount size={deck.cardCount} ready={deck.problems.length === 0} large />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </li>
   );
