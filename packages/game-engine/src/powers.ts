@@ -49,7 +49,7 @@ export type PeekTarget = 'deck' | 'oppDeck' | 'oppHand' | 'prize' | 'oppPrize';
 
 /** What a power can see before it's used. View-safe: the UI builds it from a PlayerView. */
 export interface PowerSituation {
-  me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'discard' | 'powersOffUntil'>;
+  me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'discard' | 'powersOffUntil' | 'quickenTurn'>;
   opp: Pick<PlayerState, 'active' | 'bench' | 'powersOffUntil'>;
   /** Sizes of the hidden piles (Peek). */
   counts: { deck: number; prizes: number; oppDeck: number; oppHand: number; oppPrizes: number };
@@ -179,6 +179,24 @@ export interface PowerEffect {
   keep?: boolean;
   /** Legendary Body: as the Active Pokémon, no Trainer card but a Stadium affects it or its Energy, and Trainer cards attached to it are discarded (trainerProof). */
   legendaryBody?: boolean;
+  /** Conductivity: 10 damage to each Pokémon the opponent attaches an Energy card to from their hand, while its owner has only 1 of it in play (conductivity). */
+  conductivity?: boolean;
+  /** Scare: as the Active Pokémon, the opponent's Baby Pokémon's powers stop working and they can't attack (scaredBy). */
+  scare?: boolean;
+  /** Deep Sleep: an Asleep Pokémon wakes up between turns only on 2 heads (deepSleep). */
+  deepSleep?: boolean;
+  /** Miraculous Wind: as the Active Pokémon, every Special Energy card provides Colorless Energy only and its other effects stop (refreshWind). */
+  miraculousWind?: boolean;
+  /** [Chase]: as the Active Pokémon, a heads puts a damage counter (with Weakness and Resistance) on the opponent's Active Pokémon that tries to retreat (RETREAT). */
+  chase?: boolean;
+  /** [Zoom]: on the Bench, its owner's Pokémon with Unown in their names retreat for free (zoomed). */
+  zoom?: boolean;
+  /** [XXXXX]: its owner's Hidden Power attacks flip until tails, 10 more for each heads (one per attack). */
+  xxxxx?: boolean;
+  /** [Perform]: its Hidden Power does as much more damage as an attack did to it as the Active Pokémon on the opponent's last turn. */
+  perform?: boolean;
+  /** Hot Plate: as the Active Pokémon, 10 damage to each Baby or Basic Pokémon either player puts onto their Bench from their hand (hotPlate). */
+  hotPlate?: boolean;
 }
 
 export interface PowerContext {
@@ -230,7 +248,58 @@ export function powerActive(pokemon: InPlayPokemon, cards: CardLibrary, sides: S
   const effect = powerEffect(effectId(pokemon));
   if (!effect?.ignoresConditions && (effect?.stopsOnlyWhileAsleep ? pokemon.condition === 'asleep' : pokemon.condition)) return false;
   if (effect?.stopsOnAnyCondition && (pokemon.poison || pokemon.burned)) return false;
+  // Scare: a Baby Pokémon's power doesn't work while the opponent's Active Dark Feraligatr's Scare does.
+  if (inPlayDef(cards, pokemon).baby) {
+    const owner = sides.find((s) => s.active === pokemon || s.bench.includes(pokemon));
+    if (owner && scaredBy(owner, sides, cards)) return false;
+  }
   return !!effect?.toxicGas || !toxicGas(sides);
+}
+
+/** Scare: the name of the power stopping `side`'s Baby Pokémon (an opponent's Active Pokémon with it working), or null. */
+export function scaredBy(side: Pick<PlayerState, 'active' | 'bench'>, sides: Sides, cards: CardLibrary): string | null {
+  for (const other of sides) {
+    const p = other !== side ? other.active : null;
+    if (p && powerEffect(effectId(p))?.scare && powerActive(p, cards, sides)) return powerOf(p, cards)!.name;
+  }
+  return null;
+}
+
+/** Miraculous Wind is working: a Light Dragonite with it as the Active Pokémon. */
+export const miraculousWind = (sides: Sides, cards: CardLibrary) =>
+  sides.some((s) => !!s.active && !!powerEffect(effectId(s.active))?.miraculousWind && powerActive(s.active, cards, sides));
+
+/** Deep Sleep is working: a Dark Gengar with it, anywhere in play. */
+export const deepSleep = (sides: Sides, cards: CardLibrary) => anyWorking(sides, cards, (e) => e.deepSleep);
+
+/** [Zoom]: `pokemon`, `sides[0]`'s Active Pokémon with Unown in its name, retreats for free while a benched Unown Z works. */
+export function zoomed(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sides): boolean {
+  const [owner] = sides;
+  if (!owner || owner.active !== pokemon || !inPlayDef(cards, pokemon).name.includes('Unown')) return false;
+  return owner.bench.some((p) => p && powerEffect(effectId(p))?.zoom && powerActive(p, cards, sides));
+}
+
+/** Hot Plate: 10 damage (no Weakness or Resistance) to `pokemon`, just put onto `player`'s Bench from the hand, from each working Active Dark Magcargo. */
+export function hotPlate(state: GameState, pokemon: InPlayPokemon, player: PlayerId) {
+  const sides = state.playerOrder.map((id) => state.players[id]!);
+  for (const side of sides) {
+    const p = side.active;
+    if (!p || !powerEffect(effectId(p))?.hotPlate || !powerActive(p, state.cards, sides)) continue;
+    pokemon.damage += 10;
+    addLog(state, `Hot Plate did 10 damage to ${inPlayDef(state.cards, pokemon).name}.`, player);
+  }
+}
+
+/**
+ * Conductivity: after `target` got an Energy card from its player's hand, 10 damage to it (no Weakness or Resistance) from
+ * `owner`'s Dark Ampharos, while it's their only one in play and its power works.
+ */
+export function conductivity(state: GameState, owner: PlayerState, sides: Sides, target: InPlayPokemon) {
+  const ampharos = allInPlay([owner]).filter((p) => powerEffect(effectId(p))?.conductivity);
+  const dark = allInPlay([owner]).filter((p) => inPlayDef(state.cards, p).name === 'Dark Ampharos');
+  if (ampharos.length !== 1 || dark.length > 1 || !powerActive(ampharos[0]!, state.cards, sides)) return;
+  target.damage += 10;
+  addLog(state, `Conductivity did 10 damage to ${inPlayDef(state.cards, target).name}.`, owner.id);
 }
 
 /** Why no Trainer cards can be played (Hay Fever, by either player), or null. */
@@ -336,6 +405,8 @@ export function energyFromHand(state: GameState, owner: PlayerState, target: Tar
   const pokemon = pokemonAt(owner, target);
   const sides = state.playerOrder.map((id) => state.players[id]!);
   if (pokemon && powerActive(pokemon, state.cards, sides)) powerEffect(effectId(pokemon))?.onEnergyFromHand?.(state, owner, pokemon, target, energy);
+  // Conductivity: 10 damage to it, from the opponent's working Dark Ampharos.
+  if (pokemon) conductivity(state, sides.find((s) => s !== owner)!, sides, pokemon);
 }
 
 /**

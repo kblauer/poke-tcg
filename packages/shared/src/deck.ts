@@ -18,8 +18,17 @@ export interface DeckRuleCard {
 /** Baby Pokémon are Basic Pokémon too. Trainers played as Pokémon (Clefairy Doll, Mysterious Fossil) aren't. */
 export const isBasicPokemonCard = (card: Pick<DeckRuleCard, 'kind' | 'stage'>) => card.kind === 'POKEMON' && (card.stage === 'Basic' || card.stage === 'Baby');
 
+/**
+ * Printed on Shining Pokémon and Miracle Energy: "You can't have more than 1 [this card] in your deck" (by name, as the
+ * 4-copy limit counts).
+ */
+export const onlyOnePerDeck = (card: Pick<DeckRuleCard, 'name' | 'kind'>) => (card.kind === 'POKEMON' && card.name.startsWith('Shining ')) || card.name === 'Miracle Energy';
+
+/** The most cards with this card's name a deck may hold. */
+export const maxCopiesOf = (card: Pick<DeckRuleCard, 'name' | 'kind'>) => (onlyOnePerDeck(card) ? 1 : MAX_COPIES);
+
 /** Copies of one card a deck may hold before counting others with the same name. */
-export const copiesAllowed = (card: Pick<DeckRuleCard, 'basicEnergy'>) => (card.basicEnergy ? DECK_SIZE : MAX_COPIES);
+export const copiesAllowed = (card: Pick<DeckRuleCard, 'basicEnergy' | 'name' | 'kind'>) => (card.basicEnergy ? DECK_SIZE : maxCopiesOf(card));
 
 /** Cards in a deck with exactly this name (basic Energy has no limit, so it isn't counted). */
 export const copiesOfName = (entries: { card: DeckRuleCard; quantity: number }[], name: string) =>
@@ -39,10 +48,11 @@ export function deckProblems(entries: { card: DeckRuleCard; quantity: number }[]
   const problems: string[] = [];
   const total = entries.reduce((n, e) => n + e.quantity, 0);
   if (total !== DECK_SIZE) problems.push(`The deck has ${total} card${total === 1 ? '' : 's'}; it needs exactly ${DECK_SIZE}.`);
-  const names = new Set(entries.filter((e) => !e.card.basicEnergy).map((e) => e.card.name));
-  for (const name of names) {
+  const names = new Map(entries.filter((e) => !e.card.basicEnergy).map((e) => [e.card.name, e.card] as const));
+  for (const [name, card] of names) {
     const copies = copiesOfName(entries, name);
-    if (copies > MAX_COPIES) problems.push(`${copies} cards named ${name}: at most ${MAX_COPIES} (basic Energy excepted).`);
+    if (onlyOnePerDeck(card) && copies > 1) problems.push(`${copies} cards named ${name}: at most 1.`);
+    else if (copies > MAX_COPIES) problems.push(`${copies} cards named ${name}: at most ${MAX_COPIES} (basic Energy excepted).`);
   }
   const unown = unownCount(entries);
   if (unown > MAX_UNOWN) problems.push(`${unown} Unown: at most ${MAX_UNOWN} Basic Pokémon with Unown in their names.`);

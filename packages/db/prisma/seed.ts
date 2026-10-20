@@ -29,6 +29,19 @@ const TCGDEX_FIXES: Record<string, Partial<TcgdexCard>> = {
       { name: 'Rolling Tackle', cost: ['Colorless', 'Colorless'], damage: '20', effect: null },
     ],
   },
+  // Neo Destiny Shining Tyranitar: TCGdex has its attacks' costs and damage only.
+  'neo4-113': {
+    attacks: [
+      { name: 'Mountain Crush', cost: ['Darkness', 'Fighting', 'Fighting'], damage: '30', effect: 'Flip a coin until you get tails. For each heads, your opponent discards the top card from his or her deck.' },
+      {
+        name: 'Destructive Fire',
+        cost: ['Darkness', 'Fire', 'Fire', 'Fire'],
+        damage: '50',
+        effect:
+          'Flip a coin for each Fire Energy card attached to Shining Tyranitar. For each heads, discard a Fire Energy card attached to Shining Tyranitar or this attack does nothing. Then, for each heads, choose an Energy card attached to the Defending Pokémon and discard it. If it has fewer Energy cards than that, remove all of them.',
+      },
+    ],
+  },
   // Southern Islands Tentacruel: TCGdex lists both attacks twice; the printed card Paralyzes with Poison Sting.
   'si1-10': {
     attacks: [

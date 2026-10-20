@@ -48,7 +48,7 @@ const onceInPlay = (ctx: AttackContext, name: string) => {
 };
 
 /** A Stadium in play is discarded, to its owner's discard pile (Detonate, Mega Thrash). */
-function discardStadium(ctx: AttackContext) {
+export function discardStadium(ctx: AttackContext) {
   const stadium = ctx.state.stadium;
   if (!stadium) return;
   ctx.state.players[stadium.owner]!.discard.push(stadium.card);

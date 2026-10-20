@@ -234,7 +234,8 @@ export function generateDeck(
   { type, favorites, rules = GEN1_DECK_RULES }: { type?: EnergyType; favorites?: string[]; rules?: DeckRules } = {},
 ): string[] {
   const DECK_TYPES = Object.keys(rules.basicEnergy) as EnergyType[];
-  const all = evolutionLines(pool, rng);
+  // A deck may hold only 1 of each Shining Pokémon: they stay out of random decks, which use 3 or 4 copies of a line.
+  const all = evolutionLines(pool, rng).filter((l) => !l.stages.some((d) => d.name.startsWith('Shining ')));
   const liked = new Set(favorites ?? []);
   // A favourite line ends with a favourite (Nidoran♀ → Nidorina, not on to Nidoqueen unless that's one too).
   const favored = (l: Line) => liked.has(l.stages.at(-1)!.name);
@@ -356,7 +357,8 @@ export function deckErrors(deck: readonly string[], defs: (id: string) => CardDe
     if (d.kind === 'energy' && d.basic !== false) continue;
     counts.set(d.name, (counts.get(d.name) ?? 0) + 1);
   }
-  for (const [name, n] of counts) if (n > 4) errors.push(`${n} copies of ${name}`);
+  // At most 4 of a name; 1 for a Shining Pokémon or Miracle Energy.
+  for (const [name, n] of counts) if (n > (name.startsWith('Shining ') || name === 'Miracle Energy' ? 1 : 4)) errors.push(`${n} copies of ${name}`);
   const unown = deck.filter((id) => isBasicPokemon(defs(id)) && defs(id).name.includes('Unown')).length;
   if (unown > 4) errors.push(`${unown} Unown`);
   if (!deck.some((id) => isBasicPokemon(defs(id)))) errors.push('No Basic Pokémon');

@@ -1,6 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { prisma, type Card } from '@poke-tcg/db';
-import { DECK_NAME_LENGTH, DECK_SIZE, MAX_COPIES, MAX_UNOWN, copiesOfName, unownCount, deckIdInput, deckImportInput, deckOrderInput, deckProblems, deckRenameInput, deckSaveInput, favoriteCardInput, favoriteDeckInput, type DeckRuleCard } from '@poke-tcg/shared';
+import { DECK_NAME_LENGTH, DECK_SIZE, MAX_UNOWN, maxCopiesOf, copiesOfName, unownCount, deckIdInput, deckImportInput, deckOrderInput, deckProblems, deckRenameInput, deckSaveInput, favoriteCardInput, favoriteDeckInput, type DeckRuleCard } from '@poke-tcg/shared';
 import { ensureUser, type AuthUser } from '../auth.js';
 import { isBasicEnergyCard } from '../cards.js';
 import { decodeDeck, encodeDeck, plainCards, withOwnHolos, type DeckList } from '../deck-codes.js';
@@ -78,8 +78,8 @@ async function checkCards(cards: DeckList['cards']) {
   const entries = cards.map((c) => ({ card: ruleCard(rows.find((r) => r.id === c.cardId)!), quantity: c.quantity }));
   const total = entries.reduce((n, e) => n + e.quantity, 0);
   if (total > DECK_SIZE) throw new TRPCError({ code: 'BAD_REQUEST', message: `A deck can't have more than ${DECK_SIZE} cards` });
-  const over = entries.find((e) => !e.card.basicEnergy && copiesOfName(entries, e.card.name) > MAX_COPIES);
-  if (over) throw new TRPCError({ code: 'BAD_REQUEST', message: `At most ${MAX_COPIES} cards named ${over.card.name}` });
+  const over = entries.find((e) => !e.card.basicEnergy && copiesOfName(entries, e.card.name) > maxCopiesOf(e.card));
+  if (over) throw new TRPCError({ code: 'BAD_REQUEST', message: `At most ${maxCopiesOf(over.card)} cards named ${over.card.name}` });
   if (unownCount(entries) > MAX_UNOWN) throw new TRPCError({ code: 'BAD_REQUEST', message: `At most ${MAX_UNOWN} Basic Pokémon with Unown in their names` });
   return rows;
 }
@@ -164,7 +164,7 @@ export const decksRouter = router({
 
   /**
    * Creates or replaces a deck. An unfinished deck can be saved (fewer than 60 cards, no Basic Pokémon yet), and one
-   * with locked cards, but never one over 60 cards, with more than 4 cards of a name, or with more than 4 Unown (checkCards).
+   * with locked cards, but never one over 60 cards, with more than 4 cards of a name (1 of a Shining Pokémon or Miracle Energy), or with more than 4 Unown (checkCards).
    */
   save: protectedProcedure.input(deckSaveInput).mutation(async ({ ctx, input }) => {
     await checkCards(input.cards);

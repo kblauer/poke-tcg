@@ -30,14 +30,14 @@ import { flipOrNothing } from './rocket.js';
 import { damageEach, fly, healDefender, TYPES } from './si1.js';
 
 /** Whether the attack can do anything with cards in discard piles: not while Allergic Pollen works (logged). */
-function discardFree(ctx: AttackContext): boolean {
+export function discardFree(ctx: AttackContext): boolean {
   if (!discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return true;
   ctx.log('Allergic Pollen: cards in discard piles are not affected.');
   return false;
 }
 
 /** Attaches the first card `matches` finds in the attacking player's discard pile to the attacker (Plasma, Dark Flame). */
-function attachFromDiscard(ctx: AttackContext, matches: (c: CardInstance) => boolean) {
+export function attachFromDiscard(ctx: AttackContext, matches: (c: CardInstance) => boolean) {
   const card = ctx.me.discard.find(matches);
   if (!card || ctx.me.active !== ctx.attacker || !discardFree(ctx)) return;
   ctx.me.discard = ctx.me.discard.filter((c) => c !== card);
@@ -51,13 +51,13 @@ const basicOf = (ctx: AttackContext, type: EnergyType) => (c: CardInstance) => {
 };
 
 /** The attacker can't use this attack during its player's next turn (High-Speed Charge, Leek Jab: benching ends this). */
-const notNextTurn = (ctx: AttackContext, attack: string) => {
+export const notNextTurn = (ctx: AttackContext, attack: string) => {
   (ctx.attacker.effects ??= {}).amnesia = { attack, until: ctx.turn + 2 };
   ctx.log(`${ctx.attackerDef.name} can't use ${attack} next turn.`);
 };
 
 /** Whether an attack may discard Energy cards from this Pokémon of the opponent's: Brock's Protection and Unown K's Keep (logged). */
-function energyCanGo(ctx: AttackContext, p: InPlayPokemon): boolean {
+export function energyCanGo(ctx: AttackContext, p: InPlayPokemon): boolean {
   const why = energyProtected(ctx.state.cards, p)
     ? `Brock's Protection: ${pokemonName(ctx.state, p)}'s Energy can't be removed.`
     : energyKept(ctx.opp, [ctx.opp, ctx.me], ctx.state.cards, p)
@@ -68,7 +68,7 @@ function energyCanGo(ctx: AttackContext, p: InPlayPokemon): boolean {
 }
 
 /** Whether the attack's effects can reach the Defending Pokémon (not Agility, Crystal Body…); logs why not. */
-function reachesDefender(ctx: AttackContext): boolean {
+export function reachesDefender(ctx: AttackContext): boolean {
   let reached = false;
   ctx.affectDefender(() => void (reached = true));
   return reached;
@@ -78,7 +78,7 @@ function reachesDefender(ctx: AttackContext): boolean {
  * Discards 1 Energy card from each of the opponent's Pokémon at `targets` (as Super Removal): at once when there's nothing
  * to choose, otherwise the attacking player picks them after the attack (removeEach, one at a time).
  */
-function discardFromEach(ctx: AttackContext, targets: Target[], source: string) {
+export function discardFromEach(ctx: AttackContext, targets: Target[], source: string) {
   const ask: Target[] = [];
   for (const t of targets) {
     const p = pokemonOn(ctx.opp.active, ctx.opp.bench, t)!;

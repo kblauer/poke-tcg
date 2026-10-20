@@ -85,7 +85,7 @@ export const screech = (damage: number): AttackEffect => ({
  * The Defending Pokémon can't retreat while the attacker is the Active Pokémon (Jaw Clamp, Sticky Nectar: until the end of
  * the opponent's next turn, and no effect can change its player's Active Pokémon either; Mean Look: for as long as it lasts).
  */
-function hold(ctx: AttackContext, until?: number) {
+export function hold(ctx: AttackContext, until?: number) {
   const by = ctx.attacker.card.uid;
   ctx.affectDefender((e) => {
     e.heldBy = { by, ...(until !== undefined && { until, switches: true }) };
