@@ -8,7 +8,7 @@ import { PAGE_WIDTH } from '../utils/layout';
 
 const SECTIONS: { category: ItemCategory; title: string; hint: string }[] = [
   { category: 'consumable', title: 'Consumables', hint: 'Used from the Bag during a run; each lasts a number of battles. 3 per run.' },
-  { category: 'misc', title: 'Misc items', hint: 'Used from the Bag during a run; some are used up, some have a limit per run.' },
+  { category: 'misc', title: 'Miscellaneous items', hint: 'Used from the Bag during a run; some are used up, some have a limit per run.' },
   { category: 'key', title: 'Key items', hint: 'Records of what you have done. They stay forever. Open a badge case to see its badges.' },
 ];
 

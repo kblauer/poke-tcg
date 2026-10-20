@@ -85,7 +85,7 @@ export const runRouter = router({
       runDeck: run && (runDeck || run.status === 'ACTIVE') ? { saveName: await runDeckName(run) } : null,
       // With why each can't start a run (the deck rules, or cards not unlocked); empty when it can. Not the automatic
       // run deck: a run starts with one of the account's own decks.
-      decks: decks.filter((d) => d.runId === null).map((d) => ({ id: d.id, name: d.name, cardCount: d.cards.reduce((n, c) => n + c.quantity, 0), cards: d.cards.map((c) => ({ cardId: c.cardId, quantity: c.quantity })), problems: playProblems(d.cards, unlocked, limited), locked: lockedProblem(d.cards, unlocked, limited) !== null })),
+      decks: decks.filter((d) => d.runId === null).map((d) => ({ id: d.id, name: d.name, favorite: d.favorite, cardCount: d.cards.reduce((n, c) => n + c.quantity, 0), cards: d.cards.map((c) => ({ cardId: c.cardId, quantity: c.quantity })), problems: playProblems(d.cards, unlocked, limited), locked: lockedProblem(d.cards, unlocked, limited) !== null })),
       // With why each can't be started yet (`locked`: badges or a Gym Challenge missing) and how often it's been beaten.
       runTypes: RUN_TYPE_IDS.map((id) => {
         const type = RUN_TYPES[id];
