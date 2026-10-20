@@ -240,7 +240,7 @@ export function DeckList({
   isLocked: (card: CatalogCard) => boolean;
   onOpen: (deckId: string) => void;
   onNew: () => void;
-  /** Opens the Import dialog (a deck code from another player). */
+  /** Opens the Import dialog (a deck code from another player, or a text deck list). */
   onImport: () => void;
   onCopy: (deckId: string) => void;
   onRename: (deckId: string, name: string) => void;
@@ -266,7 +266,7 @@ export function DeckList({
       <div className="flex items-center justify-between">
         <span className="font-semibold">Decks</span>
         <span className="flex gap-2">
-          <button className={`flex items-center gap-1 rounded bg-slate-600 hover:bg-slate-500 ${compact ? 'px-2 py-0.5 text-xs' : 'px-3 py-1 text-sm'}`} onClick={onImport} title="Import a deck from a deck code">
+          <button className={`flex items-center gap-1 rounded bg-slate-600 hover:bg-slate-500 ${compact ? 'px-2 py-0.5 text-xs' : 'px-3 py-1 text-sm'}`} onClick={onImport} title="Import a deck from a deck code or a deck list">
             <FileDownloadIcon sx={{ fontSize: 16 }} /> Import
           </button>
           <button className={`flex items-center gap-1 rounded bg-emerald-600 font-semibold hover:bg-emerald-500 ${compact ? 'px-2 py-0.5 text-xs' : 'px-3 py-1 text-sm'}`} onClick={onNew}>
