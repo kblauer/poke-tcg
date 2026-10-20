@@ -4,6 +4,7 @@ import { DECK_NAME_LENGTH, DECK_SIZE, MAX_UNOWN, maxCopiesOf, copiesOfName, unow
 import { ensureUser, type AuthUser } from '../auth.js';
 import { isBasicEnergyCard } from '../cards.js';
 import { decodeDeck, encodeDeck, plainCards, withOwnHolos, type DeckList } from '../deck-codes.js';
+import { parseDeckText, resolveDeckText } from '../deck-text.js';
 import { protectedProcedure, router } from '../trpc.js';
 import { holoTwins, lockedProblem, unlockedIds, type Unlocked } from '../unlocks.js';
 
@@ -188,11 +189,19 @@ export const decksRouter = router({
     return { code: encodeDeck({ name: deck.name, cards: plainCards(deck.cards, twins) }) };
   }),
 
-  /** Saves a share code's deck as a new deck of the user's (importDeck), even if they haven't unlocked all its cards. */
+  /**
+   * Saves a share code's deck, or a text deck list's (deck-text.ts), as a new deck of the user's (importDeck), even if
+   * they haven't unlocked all its cards.
+   */
   importCode: protectedProcedure.input(deckImportInput).mutation(async ({ ctx, input }) => {
     const deck = decodeDeck(input.code);
-    if (!deck) throw new TRPCError({ code: 'BAD_REQUEST', message: "That isn't a deck code: copy the whole code from Share" });
-    return importDeck(ctx.user, deck);
+    if (deck) return importDeck(ctx.user, deck);
+    const text = parseDeckText(input.code);
+    if (!text) throw new TRPCError({ code: 'BAD_REQUEST', message: 'That isn\'t a deck code or a deck list: copy the whole code from Share, or a list like "4 Lickitung JU 38"' });
+    if ('error' in text) throw new TRPCError({ code: 'BAD_REQUEST', message: text.error });
+    const { deck: listed, missing } = await resolveDeckText(text.lines);
+    if (missing.length) throw new TRPCError({ code: 'BAD_REQUEST', message: `No card found for ${missing.map((l) => `"${l}"`).join(', ')}` });
+    return importDeck(ctx.user, listed);
   }),
 
   /** Renames one of the user's decks, leaving its cards as they are. */
