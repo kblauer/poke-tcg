@@ -1,5 +1,5 @@
 // Wizards Black Star Promos (basep) Pokémon Powers, by card id. Powers that are used stop working while their
-// Pokémon is Asleep, Confused or Paralyzed (checked in powerError); the rest are flags the engine checks with
+// Pokémon is Asleep, Confused, Paralyzed, Poisoned or Burned (agreed; checked in powerError); the rest are flags the engine checks with
 // powerActive, which also handles Toxic Gas.
 // Rulings (agreed): Chain Reaction can be used after any Pokémon evolves, either player's, and counts as
 // evolving Eevee (the usual evolution rules apply). Pure Body: the player chooses which Energy card to discard
@@ -79,10 +79,10 @@ export const PROMO_POWERS: Record<string, PowerEffect> = {
   'basep-47': { neutralShield: true },
 
   // Articuno – Aurora Veil: while Articuno is your Active Pokémon, attacks don't affect your Benched Pokémon. Off while it has any Special Condition.
-  'basep-48': { auroraVeil: true, stopsOnAnyCondition: true },
+  'basep-48': { auroraVeil: true },
 
   // Snorlax – Guard: while Snorlax is your Active Pokémon, the Defending Pokémon can't retreat. Off while it has any Special Condition.
-  'basep-49': { guard: true, stopsOnAnyCondition: true },
+  'basep-49': { guard: true },
 
   // Suicune – Pure Body: after a Water Energy card from your hand is attached to Suicune, discard an Energy card from Suicune.
   'basep-53': {

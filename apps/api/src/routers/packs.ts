@@ -40,14 +40,16 @@ const shown = (row: Card): ShownCard => ({
 
 /**
  * The basic Energy a set's packs give, and its holo versions: the set's own basic Energy, or the closest earlier
- * set's by release date (Jungle, Fossil and the promos get Base Set's; Team Rocket gets Base Set 2's).
+ * set's by release date (Jungle, Fossil and the promos get Base Set's; Team Rocket gets Base Set 2's), from the same
+ * generation's sets (Legendary Collection, a Gen 1 set released after Neo Genesis, gets Gym Challenge's).
  */
 async function packEnergy(setId: string): Promise<{ energy: Card[]; holoEnergy: Card[] }> {
   const [target, rows] = await Promise.all([
     prisma.cardSet.findUniqueOrThrow({ where: { id: setId }, select: { releaseDate: true } }),
     prisma.card.findMany({ where: { kind: 'ENERGY' }, include: { set: { select: { releaseDate: true } } } }),
   ]);
-  const basic = rows.filter((r) => isBasicEnergyCard(r) && !holoEnergyStyle(r));
+  const generation = Object.values(GENERATIONS).find((g) => g.packs.includes(setId));
+  const basic = rows.filter((r) => isBasicEnergyCard(r) && !holoEnergyStyle(r) && (!generation || generation.packs.includes(r.setId)));
   const time = (r: (typeof rows)[number]) => r.set.releaseDate?.getTime() ?? 0;
   const own = basic.filter((r) => r.setId === setId);
   const earlier = basic.filter((r) => time(r) <= (target.releaseDate?.getTime() ?? 0));

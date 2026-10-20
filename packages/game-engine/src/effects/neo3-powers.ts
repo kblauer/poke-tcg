@@ -9,7 +9,7 @@
 // hand onto the Bench; using it ends the turn, even if no Fire Energy cards turn up. Time Travel flips when an opponent's
 // attack would Knock Celebi Out (Bench damage too); heads, it's shuffled into the deck with every card attached once the
 // attack is over, and no Prize card is taken. Energy Converter's Energy is that type until the end of the turn (attack
-// costs, Energy-type checks), and goes back once Porygon2 is Asleep, Confused or Paralyzed or leaves play. Lightning Burst
+// costs, Energy-type checks), and goes back once Porygon2 has any Special Condition or leaves play. Lightning Burst
 // works on a Lightning Energy card (Rainbow Energy too) attached from the hand; the opponent picks the Pokémon that comes in.
 // Crystal Body stops everything an opponent's attack does to Suicune as the Active Pokémon but its damage (Special
 // Conditions, switching, Energy discards, damage counters put on it). Prehistoric Memory lets every Evolved Pokémon in play,

@@ -186,7 +186,7 @@ export const GENERATIONS: Record<number, Generation> = {
     region: 'Kanto',
     gyms: KANTO_GYMS,
     gymChallenge: 'kantoGyms',
-    packs: ['base1', 'base2', 'basep', 'base3', 'base4', 'base5', 'gym1', 'gym2'],
+    packs: ['base1', 'base2', 'basep', 'base3', 'base4', 'base5', 'gym1', 'gym2', 'lc'],
     poolSets: POOL_SETS,
     implementedSets: POOL_SETS,
     deckRules: GEN1_DECK_RULES,

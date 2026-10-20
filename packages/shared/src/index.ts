@@ -34,10 +34,11 @@ const attackChoicesSchema = z.object({
   oppTarget: target.optional(),
   oppTo: target.optional(),
   ownTarget: target.optional(),
+  ownTo: target.optional(),
   side: z.enum(['own', 'opponent']).optional(),
   oppEnergyUid: z.string().optional(),
   weaknessType: energyType.optional(),
-  condition: z.enum(['asleep', 'confused', 'paralyzed', 'poisoned']).optional(),
+  condition: z.enum(['asleep', 'confused', 'paralyzed', 'poisoned', 'burned']).optional(),
   vermilionFlip: z.boolean().optional(),
   // -1: Charity's "no limit".
   damageCap: z.number().int().min(-1).max(990).optional(),
@@ -57,6 +58,9 @@ const powerChoicesSchema = z.object({
   peek: z.enum(['deck', 'oppDeck', 'oppHand', 'prize', 'oppPrize']).optional(),
   prize: z.number().int().min(0).max(5).optional(),
   counters: z.number().int().min(1).max(30).optional(),
+  fromSide: z.enum(['own', 'opp']).optional(),
+  toSide: z.enum(['own', 'opp']).optional(),
+  energyUid2: z.string().optional(),
 }) satisfies z.ZodType<PowerChoices>;
 
 /** Answers to a Trainer's questions (see TrainerChoices in the engine). */

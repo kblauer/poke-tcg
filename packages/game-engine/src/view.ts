@@ -49,10 +49,22 @@ export interface PlayerView {
     bench: (InPlayPokemon | null)[];
     /** Last turn no Pokémon Powers work (Goop Gas Attack). */
     powersOffUntil?: number;
+    /** Ancient Wind: every Poké-Body is ignored this turn. */
+    bodiesOffTurn?: number;
+    /** Last turn they can't attach Energy cards from the hand to their Active Pokémon (Freeze Lock). */
+    freezeLockUntil?: number;
+    /** The turn they last used Good Neighbor (once a turn, whichever Wigglytuff). */
+    goodNeighborTurn?: number;
     /** A search this player must finish, with the cards it reveals to them. */
     pendingChoice: PendingChoiceView | null;
     /** Last turn this player can't play Trainer cards (Headache). */
     noTrainersUntil?: number;
+    /** The turn they last played a Supporter card (only one each turn). */
+    supporterTurn?: number;
+    /** Last turn they can't play Supporter cards (Addictive Pollen). */
+    noSupportersUntil?: number;
+    /** The turn they last attached an Energy card from their hand to their Active Pokémon (Harvest Bounty). */
+    activeEnergyTurn?: number;
     /** Setup: done placing Pokémon, waiting for the opponent. */
     ready?: boolean;
     /** A card they looked at with Peek, until their next action. */
@@ -74,6 +86,8 @@ export interface PlayerView {
     discard: CardInstance[];
     /** Last turn no Pokémon Powers work (Goop Gas Attack). */
     powersOffUntil?: number;
+    /** Ancient Wind: every Poké-Body is ignored this turn. */
+    bodiesOffTurn?: number;
     /** Hidden while the players are still placing their Pokémon (setup). */
     active: InPlayPokemon | null;
     /** Fixed slots; null = empty. Hidden (all empty) during setup, like the active. */
@@ -151,8 +165,14 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       active: me.active,
       bench: me.bench,
       ...(me.powersOffUntil !== undefined && { powersOffUntil: me.powersOffUntil }),
+      ...(me.bodiesOffTurn !== undefined && { bodiesOffTurn: me.bodiesOffTurn }),
+      ...(me.freezeLockUntil !== undefined && { freezeLockUntil: me.freezeLockUntil }),
+      ...(me.goodNeighborTurn !== undefined && { goodNeighborTurn: me.goodNeighborTurn }),
       pendingChoice: pending,
       noTrainersUntil: me.noTrainersUntil,
+      ...(me.supporterTurn !== undefined && { supporterTurn: me.supporterTurn }),
+      ...(me.noSupportersUntil !== undefined && { noSupportersUntil: me.noSupportersUntil }),
+      ...(me.activeEnergyTurn !== undefined && { activeEnergyTurn: me.activeEnergyTurn }),
       ...(me.ready && { ready: true }),
       ...(peek && { peek }),
       ...(recallsAttacks(state, me) && { recall: true }),
@@ -167,6 +187,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       ...(faceUp(opp).length && { faceUpPrizes: inOrder(opp) }),
       discard: opp.discard,
       ...(opp.powersOffUntil !== undefined && { powersOffUntil: opp.powersOffUntil }),
+      ...(opp.bodiesOffTurn !== undefined && { bodiesOffTurn: opp.bodiesOffTurn }),
       active: oppActive,
       bench: oppBench,
       ...(opp.ready && { ready: true }),

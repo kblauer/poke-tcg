@@ -1,5 +1,5 @@
 // Gym Heroes (gym1) Pokémon Powers, by card id. Powers that are used stop working while their Pokémon is Asleep,
-// Confused or Paralyzed (checked in powerError); the rest are flags the engine checks with powerActive, which also
+// Confused, Paralyzed, Poisoned or Burned (agreed; checked in powerError); the rest are flags the engine checks with powerActive, which also
 // handles Toxic Gas.
 // Rulings: Shell Armor and Rebirth ("you may") are always used, as there's never a reason not to. Restless Sleep's 20
 // damage, like Strikes Back's, has no Weakness or Resistance. Photosynthesis makes the Energy Grass for costs, counts

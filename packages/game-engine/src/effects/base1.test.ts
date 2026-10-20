@@ -52,11 +52,11 @@ describe('Base Set attacks', () => {
       expect(s.players.misty!.active).toBeNull();
     });
 
-    it('Confusion: tails means 20 damage to itself and no attack', () => {
+    it('Confusion (modern rules): tails means 30 damage to itself and no attack', () => {
       const s = duel('charmander', 'squirtle', { energy: ['fire'] });
       s.players.ash!.active!.condition = 'confused';
       const after = attack(flips(s, false), 0);
-      expect(after.players.ash!.active!.damage).toBe(20);
+      expect(after.players.ash!.active!.damage).toBe(30);
       expect(after.players.misty!.active!.damage).toBe(0);
       expect(after.currentPlayer).toBe('misty');
     });
@@ -65,19 +65,17 @@ describe('Base Set attacks', () => {
       const s = duel('charmander', 'squirtle', { energy: ['fire'] });
       s.players.ash!.active!.condition = 'confused';
       s.players.ash!.active!.attached = [{ card: { uid: 'def', defId: id('defender') }, until: 4 }];
-      expect(attack(flips(s, false), 0).players.ash!.active!.damage).toBe(0);
+      expect(attack(flips(s, false), 0).players.ash!.active!.damage).toBe(10);
     });
 
-    it('Confusion: retreating needs heads, and the energy is discarded either way', () => {
+    it('Confusion (modern rules): a Confused Pokémon retreats with no flip', () => {
       const s = duel('charmander', 'squirtle', { energy: ['fire'], bench: ['charmander'] });
       s.players.ash!.active!.condition = 'confused';
       const energy = s.players.ash!.active!.energy[0]!.uid;
-      const failed = act(flips(s, false), 'ash', { type: 'RETREAT', slot: 0, energyUids: [energy] });
-      expect(failed.players.ash!.active!.card.uid).toBe(s.players.ash!.active!.card.uid);
-      expect(failed.players.ash!.discard).toHaveLength(1);
-      expect(failed.retreatedThisTurn).toBe(true);
-      const worked = act(flips(s, true), 'ash', { type: 'RETREAT', slot: 0, energyUids: [energy] });
+      const worked = act(flips(s, false), 'ash', { type: 'RETREAT', slot: 0, energyUids: [energy] });
+      expect(worked.players.ash!.bench[0]!.card.uid).toBe(s.players.ash!.active!.card.uid);
       expect(worked.players.ash!.bench[0]!.condition).toBeNull();
+      expect(worked.log!.some((l) => l.text.includes('is Confused'))).toBe(false);
     });
   });
 

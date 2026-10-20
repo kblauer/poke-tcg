@@ -1,5 +1,5 @@
 // Jungle (base2) Pokémon Powers, by card id. Powers that are used stop working while their Pokémon is
-// Asleep, Confused or Paralyzed (checked in powerError); the rest are flags the engine checks with
+// Asleep, Confused, Paralyzed, Poisoned or Burned (agreed; checked in powerError); the rest are flags the engine checks with
 // powerActive. Cards 17–32 are the non-holo prints of 1–16.
 // Rulings (agreed): Shift's type lasts until Venomoth leaves play or Shifts again; Heal flips first and
 // the Pokémon is chosen after heads; several Retreat Aids each take 1 off; Invisible Wall checks the

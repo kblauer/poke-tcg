@@ -1,10 +1,10 @@
 // Base Set (base1) Pokémon Powers, by card id. Each stops working while its Pokémon is Asleep,
-// Confused or Paralyzed (checked in powerError, and by Strikes Back itself).
+// Confused, Paralyzed, Poisoned or Burned (agreed; checked in powerError, and by Strikes Back itself).
 import { typeName } from '../attacks.js';
 import { lookupCard, type EnergyType } from '../cards.js';
 import { isEnergyCardOf, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
 import { energyFromHand, ownTargets, pokemonAt, type PowerChoiceSpec, type PowerEffect, type PowerSituation } from '../powers.js';
-import { clearOnLeavingActive, inPlayDef, pokemonName } from '../status.js';
+import { clearOnLeavingActive, hasSpecialCondition, inPlayDef, pokemonName } from '../status.js';
 
 const def = (s: PowerSituation, p: InPlayPokemon) => inPlayDef(s.cards, p);
 const at = (s: PowerSituation, t: Target) => pokemonAt(s.me, t)!;
@@ -92,7 +92,7 @@ export const BASE1_POWERS: Record<string, PowerEffect> = {
   // Machamp – Strikes Back: 10 damage to the attacking Pokémon whenever an attack damages Machamp (no weakness or resistance).
   'base1-8': {
     onAttackDamage(ctx, machamp) {
-      if (machamp.condition) return; // Already Asleep, Confused or Paralyzed when attacked.
+      if (hasSpecialCondition(machamp)) return; // Already affected by a Special Condition when attacked.
       ctx.attacker.damage += 10;
       ctx.log(`Strikes Back: ${ctx.attackerDef.name} took 10 damage.`);
     },

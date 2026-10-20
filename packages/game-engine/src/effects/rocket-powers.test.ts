@@ -83,7 +83,7 @@ describe('Team Rocket Pokémon Powers', () => {
     const s = duel('darkPrimeape', 'onix', { energy: ['fighting', 'fighting'] });
     ash(s).active!.condition = 'confused';
     expect(misty(attack(flips(s, true), 0)).active!.damage).toBe(70);
-    expect(ash(attack(flips(s, false), 0)).active!.damage).toBe(50);
+    expect(attack(flips(s, false), 0).log!.map((l) => l.text)).toContain('Dark Primeape hurt itself for 60 damage.');
   });
 
   it('Gather Fire moves a Fire Energy card from another of your Pokémon to Charmander, once a turn', () => {

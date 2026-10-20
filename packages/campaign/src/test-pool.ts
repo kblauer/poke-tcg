@@ -34,7 +34,7 @@ function evolvesFrom(r: Row, stage: Stage): string | null {
   const owner = stage !== 'basic' ? r.name.match(/^((?:Blaine|Brock|Erika|Lt\. Surge|Misty|Sabrina|Giovanni|Koga|Rocket)'s )/)?.[1] : undefined;
   const from = r.evolveFrom ?? (r.name === "Lt. Surge's Magneton" ? 'Magnemite' : null);
   if (owner && from) return (from.startsWith(owner) ? from : `${owner}${from}`).replace(/Nidoran([♀♂])$/, 'Nidoran $1');
-  return r.evolveFrom ?? (stage === 'stage1' && ['Omanyte', 'Kabuto', 'Aerodactyl', 'Dark Omanyte'].includes(r.name) ? 'Mysterious Fossil' : null);
+  return r.evolveFrom ?? { 'ecard1-35': 'Ekans', 'ecard1-37': 'Wartortle' }[r.id] ?? (stage === 'stage1' && ['Omanyte', 'Kabuto', 'Aerodactyl', 'Dark Omanyte'].includes(r.name) ? 'Mysterious Fossil' : null);
 }
 
 function toDef(r: Row): CardDef | null {
@@ -44,7 +44,7 @@ function toDef(r: Row): CardDef | null {
     return {
       id: r.id,
       kind: 'pokemon',
-      name: r.name,
+      name: r.name.replace(/^Nidoran ([♀♂])$/, 'Nidoran$1'),
       imageUrl: null,
       type: type(r.types[0]),
       hp: r.hp,
@@ -64,6 +64,8 @@ function toDef(r: Row): CardDef | null {
     if (r.name === 'Double Colorless Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', amount: 2, basic: false };
     if (r.name === 'Rainbow Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', anyType: true, basic: false };
     if (r.name === 'Miracle Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', anyType: true, amount: 2, basic: false };
+    if (r.name === 'Boost Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', amount: 3, basic: false };
+    if (r.name === 'Bounce Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', amount: 2, basic: false };
     if (r.name === 'Full Heal Energy' || r.name === 'Potion Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', basic: false };
     const t = type(r.name.replace(/ Energy$/, ''));
     if (['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting'].includes(t)) return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: t };

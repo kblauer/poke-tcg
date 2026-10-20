@@ -518,8 +518,9 @@ export function resolveSearch(t: Turn): GameAction {
     if (!view.options.length || left('active') > 40) return { type: 'RESOLVE_CHOICE' };
     return { type: 'RESOLVE_CHOICE', target: view.options.reduce((a, b) => (left(b) > left(a) ? b : a)) };
   }
-  // Returning its own Pokémon to the hand (Fairy Power): it keeps them in play.
+  // Returning its own Pokémon to the hand (Fairy Power): it keeps them in play. Attract Energy: its Energy stays where it is.
   if (view.kind === 'ownPokemon' && view.optional) return { type: 'RESOLVE_CHOICE' };
+  if (choice.kind === 'moveAttached') return { type: 'RESOLVE_CHOICE' };
   // Healing one of its Pokémon (Heal): the one with the most damage. Attaching (Energy Spike): the active.
   if (view.kind === 'ownPokemon') {
     if (view.purpose === 'attach') return { type: 'RESOLVE_CHOICE', target: view.options.includes('active') ? 'active' : view.options[0] };
@@ -552,6 +553,8 @@ export function resolveSearch(t: Turn): GameAction {
   }
   // Super Removal, Energy Drain: an Energy card of the player's Pokémon, the first. Growth: every Grass Energy card it can.
   if (choice.kind === 'removeEach' || choice.kind === 'drainEnergy') return view.kind === 'pickAttached' && view.options[0] ? { type: 'RESOLVE_CHOICE', cardUid: view.options[0].uid } : { type: 'RESOLVE_CHOICE' };
+  // Time Shard ("up to 2"): it takes back as many as it can.
+  if (choice.kind === 'discardAttached' && choice.optional && view.kind === 'pickAttached') return view.options[0] ? { type: 'RESOLVE_CHOICE', cardUid: view.options[0].uid } : { type: 'RESOLVE_CHOICE' };
   // Pure Body: the Energy card that leaves Suicune closest to attacking.
   if (view.kind === 'pickAttached') {
     const p = inPlay(t.me).map(([, p]) => p).find((p) => p.energy.includes(view.options[0]!))!;
@@ -589,6 +592,8 @@ function optionAnswer(t: Turn, count: number): number {
   if (choice.kind === 'mayFlip' && choice.power === 'howl') return 1;
   // Mind Games (agreed), Herbal Scent, Fire Boost and Softboiled: it always flips (the first option).
   if (choice.kind === 'mindGames' || choice.kind === 'mayFlip') return 0;
+  // Retro Energy would devolve its own Pokémon: it doesn't use it. Skyridge's other "may" powers: it uses them.
+  if (choice.kind === 'mayUse') return choice.power === 'retroEnergy' ? 1 : 0;
   // Engage: a new hand of 4 only when it holds fewer than 4 cards.
   if (choice.kind === 'engage') return t.me.hand.length < 4 ? 0 : 1;
   return 0;

@@ -44,6 +44,16 @@ export const baseUid = (pokemon: InPlayPokemon) => (pokemon.evolvedFrom[0] ?? po
 export const effectId = (pokemon: InPlayPokemon) => pokemon.transformed ?? pokemon.card.defId;
 
 /**
+ * Whether the Pokémon has any Special Condition, Poisoned and Burned included. Pokémon Powers stop with any of them, also
+ * the older ones printed "Asleep, Confused, or Paralyzed" (agreed with the user).
+ */
+export const hasSpecialCondition = (pokemon: InPlayPokemon) => !!(pokemon.condition || pokemon.poison || pokemon.burned);
+
+/** The label of the Pokémon's Special Condition for messages: its Asleep/Confused/Paralyzed one first. */
+export const specialConditionLabel = (pokemon: InPlayPokemon) =>
+  pokemon.condition ? ({ asleep: 'Asleep', confused: 'Confused', paralyzed: 'Paralyzed' } as const)[pokemon.condition] : pokemon.burned ? 'Burned' : 'Poisoned';
+
+/**
  * A card put face down onto the Bench by Lt. Surge's Secret Plan: a Basic Pokémon with no attacks, which is turned face
  * up (revealFaceDown) before anything could damage it, so its HP never matter.
  */
@@ -79,8 +89,12 @@ export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCa
   } else if (shapeshiftCard(pokemon)) {
     d = { ...(lookupCard(cards, shapeshiftCard(pokemon)!.defId) as PokemonCardDef), power: own.power };
   } else if (pokemon.shiftedType) d = { ...own, type: pokemon.shiftedType };
+  // Crystal Type: the type of the basic Energy card attached from the hand, until the end of the turn.
+  if (pokemon.crystalType) d = { ...d, type: pokemon.crystalType };
   // Submerge: Lanturn is a Water Pokémon until the end of the turn.
   if (pokemon.submerged !== undefined) d = { ...d, type: 'water' };
+  // Crystal Shard: Colorless while it's attached.
+  if (pokemon.attached?.some((a) => a.tool && lookupCard(cards, a.card.defId).name === 'Crystal Shard')) d = { ...d, type: 'colorless' };
   if (pokemon.effects?.giantGrowth) d = { ...d, hp: 80 };
   // Rocket's Hideout: 20 more HP for a Pokémon with Dark in its name.
   if (pokemon.hideout) d = { ...d, hp: d.hp + 20 };
@@ -148,6 +162,8 @@ export function benchRoom(bench: readonly (InPlayPokemon | null)[], cards: CardL
  * ones that last while it stays in play (Leek Slap, Hyper Needle).
  */
 export function clearOnLeavingActive(pokemon: InPlayPokemon) {
+  // Ion Coating ends when the Active Pokémon leaves the Active spot.
+  for (const e of pokemon.energy) if (e.converted?.activeOnly) delete e.converted;
   pokemon.condition = null;
   pokemon.poison = 0;
   pokemon.burned = false;

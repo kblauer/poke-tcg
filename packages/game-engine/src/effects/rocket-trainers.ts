@@ -5,7 +5,7 @@
 // counts as every type while attached (costs, counts of a type of Energy, "discard a Fire Energy card", Energy
 // Trans, Gather Fire), and its 10 damage when attached from the hand can Knock Out its own Pokémon. Goop Gas Attack
 // stops every Pokémon Power on both sides, including Pokémon put into play afterwards.
-import { isBasicEnergy, isPokemonCard, lookupCard } from '../cards.js';
+import { conditionProof, isBasicEnergy, isPokemonCard, lookupCard } from '../cards.js';
 import type { CardInstance, GameState, InPlayPokemon, PlayerState } from '../engine.js';
 import { powerActive, trainerProof } from '../powers.js';
 import { addLog, effectId, flipCoin, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
@@ -22,7 +22,7 @@ const garbage = (s: { cards: GameState['cards'] }, discard: CardInstance[]) =>
 /** Whether this Pokémon can't be affected by Special Conditions: Clefairy Doll, or a working Thick Skinned. */
 const noConditions = (state: GameState, pokemon: InPlayPokemon) => {
   const sides = state.playerOrder.map((id) => state.players[id]!);
-  return !!inPlayDef(state.cards, pokemon).trainerText || (powerActive(pokemon, state.cards, sides) && !!powerEffect(effectId(pokemon))?.noConditions);
+  return conditionProof(inPlayDef(state.cards, pokemon)) || (powerActive(pokemon, state.cards, sides) && !!powerEffect(effectId(pokemon))?.noConditions);
 };
 
 const HOLO: Record<string, TrainerEffect> = {

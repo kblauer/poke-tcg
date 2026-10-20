@@ -111,5 +111,8 @@ export const isTrainerCard = (def: CardDef) => def.kind === 'trainer' || (def.ki
 /** A basic Energy card (not Double Colorless Energy). */
 export const isBasicEnergy = (def: CardDef) => def.kind === 'energy' && def.basic !== false;
 
+/** A Pokémon that can't be affected by Special Conditions by its own rule: a Trainer played as one (Clefairy Doll), or Buried Fossil. */
+export const conditionProof = (def: CardDef) => def.kind === 'pokemon' && (def.trainerText !== undefined || def.name === 'Buried Fossil');
+
 /** Can be played onto the Bench: a Basic Pokémon, or a Trainer played as one. */
 export const isBenchable = (def: CardDef) => def.kind === 'pokemon' && def.stage === 'basic';

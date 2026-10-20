@@ -34,7 +34,7 @@ export function PowerPanel({ view, power, busy }: { view: PlayerView; power: Pow
               ))}
             </div>
           )}
-          {(spec.kind === 'handCard' || spec.kind === 'attachedEnergy') &&
+          {(spec.kind === 'handCard' || spec.kind === 'attachedEnergy' || spec.kind === 'discardCard') &&
             spec.options.map((c) => (
               <button key={c.uid} className={option} onClick={() => power.answer(c.uid)}>
                 {lookupCard(view.cards, c.defId).name}
@@ -46,6 +46,15 @@ export function PowerPanel({ view, power, busy }: { view: PlayerView; power: Pow
                 {n === 1 ? 'No, just 1' : spec.all ? `Yes, all ${n}` : `Yes, ${n}`}
               </button>
             ))}
+          {spec.kind === 'side' && (
+            <div className="flex flex-wrap gap-1">
+              {spec.options.map((s) => (
+                <button key={s} className={option} onClick={() => power.answer(s)}>
+                  {s === 'own' ? 'Your Pokémon' : "The CPU's Pokémon"}
+                </button>
+              ))}
+            </div>
+          )}
           {spec.kind === 'type' && (
             <div className="flex flex-wrap gap-1">
               {spec.options.map((t) => (
