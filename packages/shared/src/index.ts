@@ -191,6 +191,8 @@ export const craftCardInput = z.object({ cardId: z.string().min(1).max(64) });
 
 /** Adding a card to the account's favorites, or taking it out (decks.setFavorite). */
 export const favoriteCardInput = z.object({ cardId: z.string().min(1).max(64), favorite: z.boolean() });
+/** Starring one of the account's decks (or not), for the run's Favorite decks. */
+export const favoriteDeckInput = z.object({ deckId: z.uuid(), favorite: z.boolean() });
 
 /** The debug pack opener's cheats (packs.debugOpen): a holo Energy in every pack, or every pack all rares. */
 export const debugOpenPackInput = openPackInput.extend({ holoEnergy: z.boolean().default(false), allRares: z.boolean().default(false) });

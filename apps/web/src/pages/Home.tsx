@@ -52,7 +52,7 @@ export function HomePage() {
     <div className="min-w-0 space-y-6">
       {view.phase === 'map' ? (
         // A new step starts with the run's deck picked again.
-        <RouteChoice key={view.position} view={view} run={run} iconMap={!routes} />
+        <RouteChoice key={view.position} view={view} run={run} />
       ) : (
         <EncounterPanel view={view} run={run} />
       )}

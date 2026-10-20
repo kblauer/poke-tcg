@@ -1,6 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { prisma, type Card } from '@poke-tcg/db';
-import { DECK_NAME_LENGTH, DECK_SIZE, MAX_COPIES, MAX_UNOWN, copiesOfName, unownCount, deckIdInput, deckOrderInput, deckProblems, deckRenameInput, deckSaveInput, favoriteCardInput, type DeckRuleCard } from '@poke-tcg/shared';
+import { DECK_NAME_LENGTH, DECK_SIZE, MAX_COPIES, MAX_UNOWN, copiesOfName, unownCount, deckIdInput, deckOrderInput, deckProblems, deckRenameInput, deckSaveInput, favoriteCardInput, favoriteDeckInput, type DeckRuleCard } from '@poke-tcg/shared';
 import { ensureUser } from '../auth.js';
 import { isBasicEnergyCard } from '../cards.js';
 import { protectedProcedure, router } from '../trpc.js';
@@ -86,6 +86,8 @@ export const decksRouter = router({
       problems: playProblems(d.cards, unlocked, limited),
       // The automatic run deck: read-only, kept up to date with the run's deck.
       runDeck: d.runId !== null,
+      // Starred on the Collection tab (offered under the run's deck choice).
+      favorite: d.favorite,
     }));
   }),
 
@@ -161,6 +163,13 @@ export const decksRouter = router({
   rename: protectedProcedure.input(deckRenameInput).mutation(async ({ ctx, input }) => {
     await loadEditableDeck(input.deckId, ctx.user.id);
     await prisma.deck.update({ where: { id: input.deckId }, data: { name: input.name } });
+    return { ok: true };
+  }),
+
+  /** Stars one of the user's decks, or unstars it (not the automatic run deck). */
+  favoriteDeck: protectedProcedure.input(favoriteDeckInput).mutation(async ({ ctx, input }) => {
+    await loadEditableDeck(input.deckId, ctx.user.id);
+    await prisma.deck.update({ where: { id: input.deckId }, data: { favorite: input.favorite } });
     return { ok: true };
   }),
 
