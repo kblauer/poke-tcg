@@ -13,12 +13,14 @@ import { StrictMode, useLayoutEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
 import './styles/holo/index.css';
+import { AccountMenu } from './components/AccountMenu';
 import { CardInspectProvider } from './components/CardInspectProvider';
 import { MusicControls, MusicProvider } from './components/MusicPlayer';
 import { SidePanel } from './components/SidePanel';
 import { useSession } from './lib/auth';
 import { signInWithGoogle, signOut } from './lib/supabase';
 import { queryClient, TRPCProvider, trpcClient } from './lib/trpc';
+import { CommunityPage } from './pages/Community';
 import { DecksPage } from './pages/Decks';
 import { GamePage } from './pages/Game';
 import { HomePage } from './pages/Home';
@@ -39,6 +41,7 @@ const PAGES = [
   { to: '/inventory', label: 'Inventory' },
   { to: '/packs', label: 'Packs' },
   { to: '/decks', label: 'Collection' },
+  { to: '/community', label: 'Community Decks' },
   { to: '/battle', label: 'Practice' },
 ] as const;
 
@@ -87,7 +90,7 @@ function RootLayout() {
         </nav>
       </div>
       <div className="flex items-center gap-3 text-sm">
-        <span className="hidden text-slate-400 sm:inline">{session.user.email}</span>
+        <AccountMenu email={session.user.email ?? ''} />
         <button className="rounded bg-slate-800 px-3 py-1 hover:bg-slate-700" onClick={() => signOut()}>
           Sign out
         </button>
@@ -133,7 +136,7 @@ function RootLayout() {
           </nav>
           <div className="mt-auto space-y-2 border-t border-slate-700 pt-3 text-sm">
             <MusicControls onOpen={() => setMenu(false)} />
-            <p className="truncate text-slate-400">{session.user.email}</p>
+            <AccountMenu email={session.user.email ?? ''} inline />
             <button className="flex items-center gap-1.5 rounded bg-slate-700 px-3 py-1.5 hover:bg-slate-600" onClick={() => signOut()}>
               <LogoutIcon sx={{ fontSize: 16 }} />
               Sign out
@@ -172,11 +175,12 @@ const decksRoute = createRoute({
   component: DecksPage,
   validateSearch: (search: Record<string, unknown>): { deck?: string } => (typeof search.deck === 'string' ? { deck: search.deck } : {}),
 });
+const communityRoute = createRoute({ getParentRoute: () => rootRoute, path: '/community', component: CommunityPage });
 const battleRoute = createRoute({ getParentRoute: () => rootRoute, path: '/battle', component: SingleBattlePage });
 const inventoryRoute = createRoute({ getParentRoute: () => rootRoute, path: '/inventory', component: InventoryPage });
 const packsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/packs', component: PacksPage });
 
-const router = createRouter({ routeTree: rootRoute.addChildren([homeRoute, battleRoute, gameRoute, decksRoute, inventoryRoute, packsRoute]) });
+const router = createRouter({ routeTree: rootRoute.addChildren([homeRoute, battleRoute, gameRoute, decksRoute, communityRoute, inventoryRoute, packsRoute]) });
 
 declare module '@tanstack/react-router' {
   interface Register {

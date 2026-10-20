@@ -1,8 +1,11 @@
 import GridOnIcon from '@mui/icons-material/GridOn';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import LockIcon from '@mui/icons-material/Lock';
+import LockOpenIcon from '@mui/icons-material/LockOpen';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
 import { flowAt, isBattleKind, isBossKind, onPath, onWater, routePath, type BossId, type EncounterKind, type MapEncounter, type Route, type RouteSpot } from '@poke-tcg/campaign';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useIsPhone } from '../../hooks/useIsPhone';
 import type { RunViewData } from '../../hooks/useRun';
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
 import { encounterSprite, FRAME, spriteWidth, STEP_MS, STRIP_FRAMES, trainerSprite, WALK, WALK_FRAME_MS, waterSprite, type Facing } from '../../utils/overworld';
@@ -150,6 +153,25 @@ function saveSpeed(speed: number) {
     localStorage.setItem(SPEED_KEY, String(speed));
   } catch {
     // Not remembered; the walks start at 1× next time.
+  }
+}
+
+/** localStorage key for the phone's map lock (the lock button): while it's on, the map doesn't pan, so a swipe over it scrolls the page. */
+const LOCK_KEY = 'poke-tcg.route-lock';
+
+function loadLocked(): boolean {
+  try {
+    return localStorage.getItem(LOCK_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function saveLocked(locked: boolean) {
+  try {
+    localStorage.setItem(LOCK_KEY, locked ? '1' : '0');
+  } catch {
+    // Not remembered; the map starts unlocked next time.
   }
 }
 
@@ -492,7 +514,8 @@ function placeFigures(route: Route, view: RunViewData, first: number, upto: numb
  * tile with FireRed's walk cycle (WALK), the view following him, where the route has a walkable path between them
  * (routePath, up to MAX_WALK tiles, through gatehouses fading out at one door and back in at the other); otherwise he fades
  * out, the view glides there, and he fades back in. The target
- * button centres the view on him again, and the speed button walks everyone (and fades and glides) at 1×, 2× or 3×.
+ * button centres the view on him again, and the speed button walks everyone (and fades and glides) at 1×, 2× or 3×. On a
+ * phone the lock button below them stops the map panning, so a swipe over it scrolls the page (remembered, `poke-tcg.route-lock`).
  * With more than one route (Vermilion City: Route 5, then Route 6), each route holds its spots' steps: Red walks to the
  * route's `exit` (if it has one), fades out, and comes back in at the next route's `entrance`, the view switching to it.
  * With a `gym` (its interior: Pewter Gym), the steps after the routes' spots are there:
@@ -509,6 +532,11 @@ export function RouteView({ routes, gym, view, spotted }: { routes: Route[]; gym
   const debug = useDebugEnabled();
   const [showTiles, setShowTiles] = useState(false);
   const [height, setHeight] = useState(loadHeight);
+  // On a phone, the lock button stops dragging (and the wheel) panning the map, so a swipe over it scrolls the page
+  // instead; the view still follows Red and Centre on you still works.
+  const phone = useIsPhone();
+  const [locked, setLocked] = useState(loadLocked);
+  const panLocked = phone && locked;
   // The walk speed (the speed button), and every walk timing at it.
   const [speed, setSpeed] = useState(loadSpeed);
   const ms = { step: STEP_MS / speed, frame: WALK_FRAME_MS / speed, fade: FADE_MS / speed, through: THROUGH_MS / speed, glide: 700 / speed };
@@ -752,6 +780,8 @@ export function RouteView({ routes, gym, view, spotted }: { routes: Route[]; gym
     const el = box.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
+      // Locked, the wheel scrolls the page.
+      if (panLocked) return;
       e.preventDefault();
       // Lines (some mice) are about 16px each.
       const unit = e.deltaMode === 1 ? 16 : 1;
@@ -765,7 +795,7 @@ export function RouteView({ routes, gym, view, spotted }: { routes: Route[]; gym
   });
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if ((e.target as HTMLElement).closest('button')) return;
+    if (panLocked || (e.target as HTMLElement).closest('button')) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     drag.current = { x: e.clientX, y: e.clientY, ox: offset.x, oy: offset.y };
     setGlide(null);
@@ -810,9 +840,9 @@ export function RouteView({ routes, gym, view, spotted }: { routes: Route[]; gym
     <figure className="mx-auto w-full space-y-1" style={{ maxWidth: Math.max(768, ...sections.map((s) => s.map.width * ZOOM)) }}>
       <div
         ref={box}
-        className="relative cursor-grab touch-none overflow-hidden rounded-lg bg-slate-950 ring-1 ring-slate-600 active:cursor-grabbing"
+        className={`relative overflow-hidden rounded-lg bg-slate-950 ring-1 ring-slate-600 ${panLocked ? 'touch-pan-y' : 'cursor-grab touch-none active:cursor-grabbing'}`}
         style={{ height }}
-        aria-label={`${shown.name}. Drag or scroll to look around.`}
+        aria-label={panLocked ? `${shown.name}. The map is locked.` : `${shown.name}. Drag or scroll to look around.`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
@@ -890,6 +920,22 @@ export function RouteView({ routes, gym, view, spotted }: { routes: Route[]; gym
               ))}
             </span>
           </button>
+          {/* On a phone: the map lock (see `locked`). */}
+          {phone && (
+            <button
+              className={`${button} ${locked ? 'ring-yellow-300' : ''}`}
+              onClick={() => {
+                setLocked(!locked);
+                saveLocked(!locked);
+                drag.current = null;
+              }}
+              aria-pressed={locked}
+              aria-label={locked ? 'Unlock the map' : 'Lock the map'}
+              title={locked ? 'Map locked: tap to drag it around again' : 'Lock the map, so a swipe over it scrolls the page'}
+            >
+              {locked ? <LockIcon sx={{ fontSize: 16 }} /> : <LockOpenIcon sx={{ fontSize: 16 }} />}
+            </button>
+          )}
           {/* DEBUG_BUILD first: a production build drops the button altogether. */}
           {DEBUG_BUILD && debug && (
             <button
@@ -923,7 +969,7 @@ export function RouteView({ routes, gym, view, spotted }: { routes: Route[]; gym
         <span className="h-1 w-12 rounded-full bg-slate-600 transition group-hover:bg-slate-400" />
       </div>
       <figcaption className="text-center text-xs text-slate-400">
-        {atGym ? gym.name : target.map.spots.length > 1 ? `${target.map.name} · encounter ${Math.min(position - target.first, target.map.spots.length - 1) + 1} of ${target.map.spots.length}` : target.map.name} · step {Math.min(position + 1, total)} of {total} · drag or scroll to look around
+        {atGym ? gym.name : target.map.spots.length > 1 ? `${target.map.name} · encounter ${Math.min(position - target.first, target.map.spots.length - 1) + 1} of ${target.map.spots.length}` : target.map.name} · step {Math.min(position + 1, total)} of {total} · {panLocked ? 'map locked' : 'drag or scroll to look around'}
       </figcaption>
     </figure>
   );

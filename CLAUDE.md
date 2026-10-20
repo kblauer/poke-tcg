@@ -32,7 +32,8 @@
 - For API checks against the real DB, use a throwaway script in `apps/api/src/_*.tmp.ts`, run it with `npx tsx --env-file-if-exists=../../.env`, and delete both the script and any test data afterwards.
 
 ## Site navigation (agreed)
-- The header is the original single row (logo, page tabs, email and Sign out) whenever it fits the window's width (measured, not a fixed breakpoint). When it would wrap onto two rows, it becomes the ☰ button and the logo: the ☰ opens a menu panel from the left (`SidePanel`) with the pages, the account's email and Sign out.
+- The header is the original single row (logo, page tabs, the account name and Sign out) whenever it fits the window's width (measured, not a fixed breakpoint). When it would wrap onto two rows, it becomes the ☰ button and the logo: the ☰ opens a menu panel from the left (`SidePanel`) with the pages, the account name and Sign out.
+- The account's email is never shown on its own (agreed): the header shows the account name (`AccountMenu`; "Choose a name" until there is one), which opens to show the email and change the name.
 
 ## UI and interaction decisions (game board)
 - The game page fills the window. Side margins come from `PAGE_WIDTH` in `apps/web/src/utils/layout.ts`, shared with the Decks page.
@@ -67,14 +68,21 @@
 
 ## Phone layout (agreed)
 - Phones held upright (`useIsPhone`) get their own battle screen and Collection layout; tablets and desktops keep the usual ones. See README: Phone layout.
-- Battle screen: locked full screen (`useLockedScreen`), TCG Pocket style (`components/phone/`); tap your Active for its moves (`ActiveSheet`); small Prize/deck/discard stacks beside each Active; the round ☰ button opens the side panel's tabs and Concede (`LogSheet`). No hover preview: a long press inspects a card.
+- Battle screen: locked full screen (`useLockedScreen`), TCG Pocket style (`components/phone/`); tap your Active for its moves (`ActiveSheet`); small Prize/deck/discard stacks beside each Active (the Prize stack a little towards its Bench; the Stadium in the bar, 1.3× the piles, lowered towards your Active); the round ☰ button opens the side panel's tabs and Concede (`LogSheet`). No hover preview: a long press inspects a card.
+- Phone run screen: the map has a lock button under Centre on you and the speed button (agreed): locked, the map doesn't pan and a swipe over it scrolls the page.
 - Phone run screen: the encounter choice (the compact one every screen has, agreed) heads the other stops "Event" and makes the decks a drop-down menu, "Unlocked this run" starts minimised, and the Run / Run log panel is a floating button in the top right corner.
-- Phone Collection: a swipe to the right opens the decks panel (the open deck's cards); a panel swiped back towards its edge closes. The card view (`CardInspector`) has a × and closes on a tap anywhere but the card and its controls.
+- Phone Collection: a swipe to the right opens the decks panel (the open deck's cards); a panel swiped back towards its edge closes. Opening a saved deck from the list keeps the panel open (a new deck closes it). The card view (`CardInspector`) has a × and closes on a tap anywhere but the card and its controls.
 - Phone hand: tap selects; hold zooms in (large, above the hand) and sliding along the hand changes the zoomed card; sliding up off the hand drags the zoomed card into play.
 - Favorite decks (agreed): the star in a deck tile's top right corner on the Collection tab (`Deck.favorite`); a run's deck choice is a drop-down on every screen with the favorite decks under it. Deck tiles show the card count at the bottom right, its colour meaning ready.
 - Favorites (agreed): the ★ in a card's large view adds it to the account's favorites (`FavoriteCard`); the search's Favorites toggle (before Pokémon) is the only Favorites view (a separate list was tried and removed). The site's "Single battle" tab is called Practice.
 - Collection: the cards fill the screen; the decks (compact tiles) and the search are side panels slid in by the Decks and Filters buttons above them.
 - Packs: a grid 4 wide by 2 tall.
+
+## Deck sharing (agreed)
+- Share codes (`PTCG1.…`, `apps/api/src/deck-codes.ts`) and Community Decks (the tab after Collection, before Practice) hold each card's non-holo version when it has one; importing uses as many of the importer's own holos as they have, the rest non-holo.
+- Imports keep locked cards. Any deck may hold locked cards (the builder adds them with a warning, the API saves them); such a deck can't be played, and wherever deck tiles are shown it's greyed out and tagged Locked (`LOCKED_TAG`).
+- Community Decks tiles are one size, descriptions cut short with an ellipsis; clicking one focuses it (a little larger, the whole description, and only then its Import, Copy code, Cards and Unpublish buttons); clicking it again, outside or Escape puts it back.
+- A published community deck is a snapshot (later edits don't change it; its author can unpublish it), only of a deck that follows the rules, shown with the author's account name (`User.accountName`: chosen by them, not unique, required to publish), never their Google name (`displayName`) or email.
 
 ## Post-run screen (agreed)
 - A beaten run's screen: the shop first, then the cards gained (with the results), then the next run. The same on every screen size.

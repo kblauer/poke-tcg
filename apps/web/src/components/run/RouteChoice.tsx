@@ -13,7 +13,7 @@ import { useTRPC } from '../../lib/trpc';
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
 import type { DeckEntry } from '../../utils/deckBuilder';
 import type { CatalogCard } from '../../utils/cardList';
-import { DeckSummary } from '../DeckList';
+import { DeckSummary, LOCKED_TAG } from '../DeckList';
 import { EnergyIcon } from '../EnergyIcon';
 import { CatalogContext } from '../InspectContext';
 import { ENCOUNTER_STYLE, EncounterBadge } from './encounterIcons';
@@ -196,7 +196,7 @@ export function RouteChoice({ view, run }: { view: RunViewData; run: RunControl 
                   onPick={setDeckId}
                   decks={[
                     { id: null, name: 'Current run', note: view.deckName ? `${view.deckName}${traded ? ', with its trades' : ''}` : traded ? 'With its trades' : undefined, entries: runDeck },
-                    ...otherDecks.map((d) => ({ id: d.id, name: d.name, note: d.problems[0], entries: d.cards, disabled: d.problems.length > 0 })),
+                    ...otherDecks.map((d) => ({ id: d.id, name: d.name, note: d.problems[0], entries: d.cards, disabled: d.problems.length > 0, locked: d.locked })),
                   ]}
                   byId={byId}
                   isLocked={isLocked}
@@ -210,7 +210,7 @@ export function RouteChoice({ view, run }: { view: RunViewData; run: RunControl 
                 {favoriteDecks.length > 0 ? (
                   <ul role="radiogroup" aria-label="Favorite decks" className="grid gap-2 @md:grid-cols-2">
                     {favoriteDecks.map((d) => (
-                      <DeckOption key={d.id} selected={deckId === d.id} onPick={() => setDeckId(d.id)} name={d.name} disabled={d.problems.length > 0} note={d.problems[0]}>
+                      <DeckOption key={d.id} selected={deckId === d.id} onPick={() => setDeckId(d.id)} name={d.name} disabled={d.problems.length > 0} locked={d.locked} note={d.problems[0]}>
                         {d.problems.length === 0 && <DeckSummary entries={d.cards} byId={byId} isLocked={isLocked} compact={phone} />}
                       </DeckOption>
                     ))}
@@ -315,6 +315,8 @@ interface MenuDeck {
   note?: string;
   entries: DeckEntry[];
   disabled?: boolean;
+  /** Holds locked cards (tagged Locked). */
+  locked?: boolean;
 }
 
 /**
@@ -366,6 +368,7 @@ function DeckMenu({
     <>
       <span className="flex min-w-0 items-baseline gap-2">
         <span className="truncate font-semibold">{d.name}</span>
+        {d.locked && LOCKED_TAG}
         {d.note && <span className={`truncate text-xs ${d.disabled ? 'text-amber-300' : 'text-slate-400'}`}>{d.note}</span>}
       </span>
       {!d.disabled && <DeckSummary entries={d.entries} byId={byId} isLocked={isLocked} compact={compact} />}
@@ -428,6 +431,7 @@ function DeckOption({
   note,
   selected,
   disabled = false,
+  locked = false,
   onPick,
   children,
 }: {
@@ -435,6 +439,8 @@ function DeckOption({
   note?: string;
   selected: boolean;
   disabled?: boolean;
+  /** Holds locked cards (tagged Locked). */
+  locked?: boolean;
   onPick: () => void;
   children?: ReactNode;
 }) {
@@ -451,6 +457,7 @@ function DeckOption({
       >
         <span className="flex items-baseline gap-2">
           <span className="truncate font-medium">{name}</span>
+          {locked && LOCKED_TAG}
           {note && <span className={`truncate text-xs ${disabled ? 'text-amber-300' : 'text-slate-400'}`}>{note}</span>}
         </span>
         {children}

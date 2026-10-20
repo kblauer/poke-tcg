@@ -22,13 +22,17 @@ model User {
   stardust      Int             @default(0)
   /// The trainer sprite shown on the Inventory tab (a name from the shared package's TRAINER_SPRITES); null is the default, Hilbert.
   trainerSprite String?
+  /// The name the account chose to be shown by, on its Community Decks (not unique; null until it's chosen). Never the
+  /// Google profile's name (displayName), which is private.
+  accountName   String?
   decks         Deck[]
   games         Game[]
   runs          Run[]
   cardUnlocks   CardUnlock[]
   packUnlocks   PackUnlock[]
   favoriteCards FavoriteCard[]
-  items         InventoryItem[]
+  communityDecks CommunityDeck[]
+  items        InventoryItem[]
   equipment     Equipment[]
 }
 
@@ -74,6 +78,7 @@ model Card {
   deckCards  DeckCard[]
   unlocks    CardUnlock[]
   favorites  FavoriteCard[]
+  communityDeckCards CommunityDeckCard[]
 
   @@index([setId])
   @@index([name])
@@ -107,6 +112,30 @@ model DeckCard {
   quantity Int
 
   @@id([deckId, cardId])
+}
+
+/// A deck published to the Community Decks tab: a snapshot of one of the author's decks when it was published (later
+/// edits to the deck don't change it), its holos as their non-holo versions. Every account can see it and import it.
+model CommunityDeck {
+  id          String              @id @default(uuid()) @db.Uuid
+  authorId    String              @db.Uuid
+  author      User                @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  name        String
+  description String              @default("")
+  cards       CommunityDeckCard[]
+  createdAt   DateTime            @default(now())
+
+  @@index([createdAt])
+}
+
+model CommunityDeckCard {
+  communityDeckId String        @db.Uuid
+  communityDeck   CommunityDeck @relation(fields: [communityDeckId], references: [id], onDelete: Cascade)
+  cardId          String
+  card            Card          @relation(fields: [cardId], references: [id])
+  quantity        Int
+
+  @@id([communityDeckId, cardId])
 }
 
 enum GameStatus {

@@ -1,10 +1,11 @@
 import { TRPCError } from '@trpc/server';
 import { prisma, type Card } from '@poke-tcg/db';
-import { DECK_NAME_LENGTH, DECK_SIZE, MAX_COPIES, MAX_UNOWN, copiesOfName, unownCount, deckIdInput, deckOrderInput, deckProblems, deckRenameInput, deckSaveInput, favoriteCardInput, favoriteDeckInput, type DeckRuleCard } from '@poke-tcg/shared';
-import { ensureUser } from '../auth.js';
+import { DECK_NAME_LENGTH, DECK_SIZE, MAX_COPIES, MAX_UNOWN, copiesOfName, unownCount, deckIdInput, deckImportInput, deckOrderInput, deckProblems, deckRenameInput, deckSaveInput, favoriteCardInput, favoriteDeckInput, type DeckRuleCard } from '@poke-tcg/shared';
+import { ensureUser, type AuthUser } from '../auth.js';
 import { isBasicEnergyCard } from '../cards.js';
+import { decodeDeck, encodeDeck, plainCards, withOwnHolos, type DeckList } from '../deck-codes.js';
 import { protectedProcedure, router } from '../trpc.js';
-import { holoTwins, lockedNames, lockedProblem, unlockedIds, type Unlocked } from '../unlocks.js';
+import { holoTwins, lockedProblem, unlockedIds, type Unlocked } from '../unlocks.js';
 
 /** What the deck rules need from a catalog row. */
 export const ruleCard = (card: Pick<Card, 'name' | 'kind' | 'stage' | 'data'>): DeckRuleCard => ({
@@ -62,6 +63,44 @@ export async function playableDeck(deckId: string, userId: string): Promise<{ na
 const nextPosition = async (tx: Pick<typeof prisma, 'deck'>, userId: string) =>
   ((await tx.deck.aggregate({ where: { ownerId: userId }, _max: { position: true } }))._max.position ?? -1) + 1;
 
+/**
+ * Checks a card list a deck may be saved with, throwing BAD_REQUEST if it can't: each card once and in the catalog, no
+ * more than 60 cards, 4 cards of a name or 4 Unown. It may be unfinished, and may hold cards the user hasn't unlocked
+ * (or more copies of a holo than they've pulled): it just can't be played until they have (agreed with the user).
+ * Returns the cards' catalog rows.
+ */
+async function checkCards(cards: DeckList['cards']) {
+  if (new Set(cards.map((c) => c.cardId)).size !== cards.length) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'Each card should be listed once' });
+  }
+  const rows = await prisma.card.findMany({ where: { id: { in: cards.map((c) => c.cardId) } }, select: { id: true, ...cardFields.select } });
+  if (rows.length !== cards.length) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Unknown card in the deck' });
+  const entries = cards.map((c) => ({ card: ruleCard(rows.find((r) => r.id === c.cardId)!), quantity: c.quantity }));
+  const total = entries.reduce((n, e) => n + e.quantity, 0);
+  if (total > DECK_SIZE) throw new TRPCError({ code: 'BAD_REQUEST', message: `A deck can't have more than ${DECK_SIZE} cards` });
+  const over = entries.find((e) => !e.card.basicEnergy && copiesOfName(entries, e.card.name) > MAX_COPIES);
+  if (over) throw new TRPCError({ code: 'BAD_REQUEST', message: `At most ${MAX_COPIES} cards named ${over.card.name}` });
+  if (unownCount(entries) > MAX_UNOWN) throw new TRPCError({ code: 'BAD_REQUEST', message: `At most ${MAX_UNOWN} Basic Pokémon with Unown in their names` });
+  return rows;
+}
+
+/**
+ * Saves a shared deck list (a share code's or a community deck's) as a new deck of the user's, at the end of their
+ * list, with as many of their own holos as they have (withOwnHolos). `locked`: it holds cards they haven't unlocked.
+ */
+export async function importDeck(user: AuthUser, deck: DeckList): Promise<{ id: string; locked: boolean }> {
+  const [unlocked, twins] = await Promise.all([unlockedIds(user.id), holoTwins()]);
+  const cards = withOwnHolos(deck.cards, unlocked, twins);
+  const rows = await checkCards(cards);
+  await ensureUser(user);
+  const locked = lockedProblem(cards.map((c) => ({ ...c, card: rows.find((r) => r.id === c.cardId)! })), unlocked, twins) !== null;
+  return prisma.$transaction(async (tx) => {
+    const created = await tx.deck.create({ data: { ownerId: user.id, name: deck.name || 'Imported deck', position: await nextPosition(tx, user.id) } });
+    await tx.deckCard.createMany({ data: cards.map((c) => ({ ...c, deckId: created.id })) });
+    return { id: created.id, locked };
+  });
+}
+
 export const decksRouter = router({
   /**
    * The user's decks in their order (oldest first until they're reordered), with their cards and whether
@@ -84,6 +123,8 @@ export const decksRouter = router({
       cardCount: d.cards.reduce((n, c) => n + c.quantity, 0),
       cards: d.cards.map((c) => ({ cardId: c.cardId, quantity: c.quantity })),
       problems: playProblems(d.cards, unlocked, limited),
+      // Holds cards the user hasn't unlocked (or more of a holo than they've pulled): greyed out, tagged Locked.
+      locked: lockedProblem(d.cards, unlocked, limited) !== null,
       // The automatic run deck: read-only, kept up to date with the run's deck.
       runDeck: d.runId !== null,
       // Starred on the Collection tab (offered under the run's deck choice).
@@ -122,29 +163,11 @@ export const decksRouter = router({
   }),
 
   /**
-   * Creates or replaces a deck. An unfinished deck can be saved (fewer than 60 cards, no Basic
-   * Pokémon yet), but never one over 60 cards, with more than 4 cards of a name, or with more than 4 Unown.
+   * Creates or replaces a deck. An unfinished deck can be saved (fewer than 60 cards, no Basic Pokémon yet), and one
+   * with locked cards, but never one over 60 cards, with more than 4 cards of a name, or with more than 4 Unown (checkCards).
    */
   save: protectedProcedure.input(deckSaveInput).mutation(async ({ ctx, input }) => {
-    if (new Set(input.cards.map((c) => c.cardId)).size !== input.cards.length) {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Each card should be listed once' });
-    }
-    const rows = await prisma.card.findMany({ where: { id: { in: input.cards.map((c) => c.cardId) } }, select: { id: true, ...cardFields.select } });
-    if (rows.length !== input.cards.length) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Unknown card in the deck' });
-    const entries = input.cards.map((c) => ({ card: ruleCard(rows.find((r) => r.id === c.cardId)!), quantity: c.quantity }));
-    const total = entries.reduce((n, e) => n + e.quantity, 0);
-    if (total > DECK_SIZE) throw new TRPCError({ code: 'BAD_REQUEST', message: `A deck can't have more than ${DECK_SIZE} cards` });
-    const over = entries.find((e) => !e.card.basicEnergy && copiesOfName(entries, e.card.name) > MAX_COPIES);
-    if (over) throw new TRPCError({ code: 'BAD_REQUEST', message: `At most ${MAX_COPIES} cards named ${over.card.name}` });
-    if (unownCount(entries) > MAX_UNOWN) throw new TRPCError({ code: 'BAD_REQUEST', message: `At most ${MAX_UNOWN} Basic Pokémon with Unown in their names` });
-    const withRows = input.cards.map((c) => ({ cardId: c.cardId, quantity: c.quantity, card: rows.find((r) => r.id === c.cardId)! }));
-    const owned = await unlockedIds(ctx.user.id);
-    const [locked] = lockedNames(withRows, owned);
-    if (locked) throw new TRPCError({ code: 'BAD_REQUEST', message: `${locked} isn't unlocked yet` });
-    // More holo Energy than was pulled.
-    const tooMany = lockedProblem(withRows, owned, await holoTwins());
-    if (tooMany) throw new TRPCError({ code: 'BAD_REQUEST', message: tooMany });
-
+    await checkCards(input.cards);
     if (input.deckId) await loadEditableDeck(input.deckId, ctx.user.id);
     else await ensureUser(ctx.user);
     const cards = input.cards.map((c) => ({ cardId: c.cardId, quantity: c.quantity }));
@@ -157,6 +180,19 @@ export const decksRouter = router({
       await tx.deckCard.createMany({ data: cards.map((c) => ({ ...c, deckId: deck.id })) });
       return { id: deck.id };
     });
+  }),
+
+  /** One of the user's decks as a share code (deck-codes.ts), its holos as their non-holo versions. */
+  exportCode: protectedProcedure.input(deckIdInput).query(async ({ ctx, input }) => {
+    const [deck, twins] = await Promise.all([loadOwnDeck(input.deckId, ctx.user.id), holoTwins()]);
+    return { code: encodeDeck({ name: deck.name, cards: plainCards(deck.cards, twins) }) };
+  }),
+
+  /** Saves a share code's deck as a new deck of the user's (importDeck), even if they haven't unlocked all its cards. */
+  importCode: protectedProcedure.input(deckImportInput).mutation(async ({ ctx, input }) => {
+    const deck = decodeDeck(input.code);
+    if (!deck) throw new TRPCError({ code: 'BAD_REQUEST', message: "That isn't a deck code: copy the whole code from Share" });
+    return importDeck(ctx.user, deck);
   }),
 
   /** Renames one of the user's decks, leaving its cards as they are. */
