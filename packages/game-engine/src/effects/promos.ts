@@ -1,5 +1,4 @@
-// Promo cards' attack effects, by card id and attack name: Wizards Black Star Promos (basep) and the
-// Japanese-only Pokémon Web Electrode (pkweb-26, a hand-made catalog card: packages/db/prisma/data/custom-cards.json).
+// Promo cards' attack effects, by card id and attack name: Wizards Black Star Promos (basep).
 // Where TCGdex's text differs from the printed card (it drops energy icons), `text` has the printed wording.
 // Rulings (agreed): Energy Absorption works like Energy Conversion: it needs an Energy card in the
 // discard pile and takes 1 or 2. It's never your birthday (___________'s Pikachu). Lightning Bolt does 20
@@ -569,11 +568,5 @@ export const PROMOS: Record<string, Record<string, AttackEffect>> = {
         ctx.inflict('asleep');
       },
     },
-  },
-  // Electrode (Pokémon Web 26)
-  'pkweb-26': {
-    Sonicboom: { run: (ctx) => void ctx.hit(30, { weakness: false }) },
-    // Search the deck for a basic Energy card, then pick the Pokémon to attach it to.
-    'Energy Spike': { run: (ctx) => ctx.pend({ kind: 'pickFromDeck', source: 'Energy Spike', filter: 'basicEnergy', attach: true }) },
   },
 };

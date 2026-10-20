@@ -27,31 +27,6 @@ describe('Promo cards', () => {
     });
   });
 
-  describe('Electrode (Pokémon Web 26)', () => {
-    it('Sonicboom ignores Weakness', () => {
-      expect(misty(attack(duel('electrodeW', 'squirtle', { energy: ['lightning', 'lightning'] }), 0)).active!.damage).toBe(30);
-    });
-
-    it('Energy Spike finds a basic Energy, then attaches it to a Pokémon the player clicks; the turn ends after', () => {
-      let s = duel('electrodeW', 'onix', { energy: ['lightning', 'lightning', 'lightning'], bench: ['charmander'] });
-      ash(s).deck.push({ uid: 'f1', defId: 'fire' });
-      s = attack(s, 1);
-      expect(getPlayerView(s, 'ash').self.pendingChoice).toMatchObject({ kind: 'pickFromDeck', options: [{ uid: 'f1' }] });
-      s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'f1' });
-      expect(s.currentPlayer).toBe('ash');
-      expect(getPlayerView(s, 'ash').self.pendingChoice).toMatchObject({ kind: 'ownPokemon', purpose: 'attach', options: ['active', 0] });
-      s = act(s, 'ash', { type: 'RESOLVE_CHOICE', target: 0 });
-      expect(ash(s).bench[0]!.energy.map((e) => e.uid)).toEqual(['f1']);
-      expect(s.currentPlayer).toBe('misty');
-    });
-
-    it('Energy Spike with no basic Energy in the deck finds nothing and the turn ends', () => {
-      let s = attack(duel('electrodeW', 'onix', { energy: ['lightning', 'lightning', 'lightning'] }), 1);
-      s = act(s, 'ash', { type: 'RESOLVE_CHOICE' });
-      expect([s.pendingChoice, s.currentPlayer]).toEqual([undefined, 'misty']);
-    });
-  });
-
   describe('Super Energy Retrieval (Neo Genesis)', () => {
     it('trades 2 other cards for 4 basic Energy cards from the discard pile', () => {
       const s = duel('charmander', 'onix');

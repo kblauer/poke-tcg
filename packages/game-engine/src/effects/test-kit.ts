@@ -105,7 +105,6 @@ const BY_NAME: CardLibrary = {
   fossil: mon('base3-62', 'Mysterious Fossil', C, 10, [], { retreatCost: 0, trainerText: 'Play Mysterious Fossil as if it were a Basic Pokémon.' }),
   mewtwoP: mon('basep-3', 'Mewtwo', P, 70, [['Energy Absorption', [P], 0], ['Psyburn', [P, P, C], 40]]),
   jigglypuffP: mon('basep-7', 'Jigglypuff', C, 70, [['First Aid', [C], 0], ['Double-Edge', [C, C, C], 40]]),
-  electrodeW: mon('pkweb-26', 'Electrode', L, 70, [['Sonicboom', [L, L], 30], ['Energy Spike', [L, L, L], 0]], { stage: 'stage1' }),
   // Team Rocket
   darkAlakazam: mon('base5-1', 'Dark Alakazam', P, 60, [['Teleport Blast', [P, P, C], 30], ['Mind Shock', [P, P, P], 40]], { stage: 'stage2', evolvesFrom: 'Dark Kadabra' }),
   darkArbok: mon('base5-2', 'Dark Arbok', G, 60, [['Stare', [G, G], 0], ['Poison Vapor', [G, G, G], 10]], { stage: 'stage1', evolvesFrom: 'Ekans' }),

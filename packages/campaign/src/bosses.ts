@@ -2,8 +2,7 @@
 // Trading Card Game (Game Boy Color, "TCG 1") counterpart plays, named for the Generation I character:
 // https://bulbapedia.bulbagarden.net/wiki/Club_Master and https://bulbapedia.bulbagarden.net/wiki/Grand_Master.
 // Cards that only exist in the Game Boy game (its promos and Japanese-only prints) are replaced by the
-// closest card of the same type in the catalog; each substitution is commented. The Japanese-only Pokémon Web
-// Electrode is in the catalog (added by hand), so it plays as itself.
+// closest card of the same type in the catalog; each substitution is commented.
 import type { EnergyType } from '@poke-tcg/game-engine';
 import type { DeckList } from './decks.js';
 import { JOHTO_BOSSES } from './johto-bosses.js';
@@ -77,7 +76,7 @@ const ZAPPING_SELFDESTRUCT_DECK: DeckList = [
   ['base1-53', 4], // Magnemite
   ['base1-9', 3], // Magneton
   ['base1-67', 4], // Voltorb
-  ['pkweb-26', 2], // Electrode (Pokémon Web 26, a hand-made catalog card)
+  ['base1-21', 2], // Electrode (Base Set; stands in for the Japanese-only Pokémon Web Electrode)
   ['base1-20', 4], // Electabuzz
   ['base2-5', 2], // Kangaskhan
   ['base2-47', 1], // Tauros
@@ -214,7 +213,7 @@ const LEGENDARY_ARTICUNO_DECK: DeckList = [
 /** Bruno: Grand Master Steve's Legendary Zapdos Deck. */
 const LEGENDARY_ZAPDOS_DECK: DeckList = [
   ['base1-67', 4], // Voltorb
-  ['pkweb-26', 3], // Electrode (Pokémon Web 26, a hand-made catalog card)
+  ['base1-21', 3], // Electrode (Base Set; stands in for the Japanese-only Pokémon Web Electrode)
   ['base1-20', 4], // Electabuzz
   ['base2-4', 2], // Jolteon
   ['base3-15', 1], // Zapdos (Fossil)
