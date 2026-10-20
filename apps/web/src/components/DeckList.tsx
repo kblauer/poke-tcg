@@ -44,7 +44,7 @@ export function DeckSummary({
   const inspectOn = useInspectOnRightClick();
   const ratio = deckRatio(entries, byId);
   const size = deckSize(entries);
-  const cardSize = large ? 'h-30 w-[5.375rem]' : 'h-14 w-10';
+  const cardSize = large ? 'h-[9.375rem] w-[6.72rem]' : 'h-14 w-10';
   const bar = (height: string, title?: string) => (
     <div className={`flex ${height} overflow-hidden rounded-full bg-slate-800`} title={title}>
       {size > 0 && DECK_SECTIONS.map(({ kind }) => <div key={kind} className={RATIO_COLORS[kind]} style={{ width: `${(ratio[kind] / size) * 100}%` }} />)}

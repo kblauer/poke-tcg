@@ -14,7 +14,7 @@ import { useInspectOnRightClick } from '../components/InspectContext';
 import { useUnlocked } from '../hooks/useUnlocked';
 import { useTRPC } from '../lib/trpc';
 import { cardTitle, type CatalogCard } from '../utils/cardList';
-import { DECK_SECTIONS, withCards } from '../utils/deckBuilder';
+import { DECK_SECTIONS, featuredPokemon, withCards } from '../utils/deckBuilder';
 import { PAGE_WIDTH } from '../utils/layout';
 
 type CommunityDeck = inferRouterOutputs<AppRouter>['community']['list'][number];
@@ -107,7 +107,7 @@ export function CommunityPage() {
 
 /**
  * One community deck, a tile of the same size as the others: its name, author and date, description (cut short with an
- * ellipsis, beside its Pokémon shown large over the Pokémon/Trainer/Energy bar; the generations its cards are from, G1, G2…,
+ * ellipsis, under its Pokémon's names, one a line, beside the Pokémon shown large over the Pokémon/Trainer/Energy bar; the generations its cards are from, G1, G2…,
  * top right) and how many of its cards you haven't unlocked, if any. Clicking it focuses it (`focused`, one at a time;
  * agreed with the user): it grows a little, shows its whole description and its buttons along the bottom (Import, Copy
  * code, Cards for its card list, Unpublish on your own); clicking it again, outside it or Escape puts it back.
@@ -146,6 +146,7 @@ function CommunityDeckTile({
   const cards = withCards(deck.cards, byId);
   const locked = cards.reduce((n, e) => n + (isLocked(e.card) ? e.quantity : 0), 0);
   const generations = generationsOf(cards);
+  const featured = featuredPokemon(deck.cards, byId);
   return (
     <li
       data-community-tile
@@ -155,7 +156,7 @@ function CommunityDeckTile({
       onClick={() => onFocus(!focused)}
       onKeyDown={(e) => e.target === e.currentTarget && e.key === 'Enter' && onFocus(!focused)}
       className={`@container flex cursor-pointer flex-col gap-2 rounded-lg bg-slate-900 p-3 text-sm ring-1 transition focus:outline-none focus-visible:ring-yellow-300 ${
-        focused ? 'relative z-10 min-h-64 scale-[1.03] shadow-xl shadow-black/60 ring-yellow-300' : 'h-64 overflow-hidden ring-slate-700 hover:ring-slate-500'
+        focused ? 'relative z-10 min-h-80 scale-[1.03] shadow-xl shadow-black/60 ring-yellow-300' : 'h-80 overflow-hidden ring-slate-700 hover:ring-slate-500'
       }`}
     >
       <div className="flex items-baseline gap-2">
@@ -174,12 +175,21 @@ function CommunityDeckTile({
       <p className="truncate text-xs text-slate-500">
         by {deck.author} · {new Date(deck.createdAt).toLocaleDateString()}
       </p>
-      {/* Its Pokémon large, the bar under them, and the description on their right (under them on a narrow tile), cut
+      {/* Its Pokémon large, the bar under them, and their names (one a line) over the description on their right (under them on a narrow tile), cut
           short with an ellipsis until the tile is focused. */}
       <div className="flex flex-col gap-3 @md:flex-row">
         <DeckSummary entries={deck.cards} byId={byId} isLocked={isLocked} large />
         <div className="min-w-0 flex-1 space-y-1">
-          <p className={`break-words text-slate-300 ${focused ? 'whitespace-pre-line' : 'line-clamp-2 @md:line-clamp-6'}`}>{deck.description || <span className="italic text-slate-500">No description</span>}</p>
+          {featured.length > 0 && (
+            <ul className="font-semibold text-slate-200">
+              {featured.map((card, i) => (
+                <li key={i} className="truncate">
+                  {card.name}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className={`break-words text-slate-300 ${focused ? 'whitespace-pre-line' : 'line-clamp-2 @md:line-clamp-4'}`}>{deck.description || <span className="italic text-slate-500">No description</span>}</p>
           {locked > 0 && <p className="text-xs text-amber-300">{locked} of its cards you haven't unlocked yet</p>}
         </div>
       </div>
