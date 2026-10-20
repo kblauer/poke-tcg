@@ -64,7 +64,7 @@
 - High-res card images are used for the hand, the Active Pokémon and the drag overlay; small images elsewhere.
 - Cards show the large hover preview (`CardPreview`, via `PreviewContext`) everywhere except the hand, which grows the hovered card instead. Outside the board, wrap the page in `PreviewProvider`.
 - Right-clicking any card, anywhere, opens the `CardInspector` (large, all holo effects; `CardInspectProvider` around every page, the deck builder adding its − and +). New card elements should use `useInspectOnRightClick`.
-- The Active Pokémon shows its holo effect when it's a holo, but still (`HoloCard` `still`): no tilt or reaction to the pointer.
+- The Active Pokémon shows its holo effect when it's a holo, but still (`HoloCard` `still`): no tilt or reaction to the pointer. Its slot animations (drop-in, shake, lunge, glows) do tilt and shine it with them (`HoloMotion`), then it settles back.
 
 ## Phone layout (agreed)
 - Phones held upright (`useIsPhone`) get their own battle screen and Collection layout; tablets and desktops keep the usual ones. See README: Phone layout.

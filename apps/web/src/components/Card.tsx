@@ -1,5 +1,5 @@
 import { energyProvided, lookupCard, type CardDef, type CardLibrary, type InPlayPokemon } from '@poke-tcg/game-engine';
-import { useContext } from 'react';
+import { useContext, type Ref } from 'react';
 import { typeColor } from '../utils/cardColors';
 import { LARGE_CARD, SMALL_CARD } from '../utils/layout';
 
@@ -35,14 +35,15 @@ function statusBadges(p: InPlayPokemon, cards?: CardLibrary): { label: string; t
 import { useTouchHold } from '../hooks/useTouchHold';
 import { holoAttributes } from '../utils/holo';
 import { EnergyIcon } from './EnergyIcon';
-import { HoloCard } from './HoloCard';
+import { HoloCard, type HoloMotion } from './HoloCard';
 import { CatalogContext, InspectContext, useInspectOnRightClick } from './InspectContext';
 import { PreviewContext } from './PreviewContext';
 import { CardImage } from './CardImage';
 
 /**
  * Card art from TCGdex (aspect ratio 63:88), with damage and attached energy overlaid when in play. Right-clicking it
- * (or a long press, on a touch screen) opens it in the CardInspector. `shine`: a holo card gets its holo effect, still (the Active Pokémon).
+ * (or a long press, on a touch screen) opens it in the CardInspector. `shine`: a holo card gets its holo effect, still (the Active Pokémon);
+ * `holoRef` moves its tilt and shine (the slot's animations).
  */
 export function Card({
   def,
@@ -51,6 +52,7 @@ export function Card({
   small,
   highRes,
   shine,
+  holoRef,
 }: {
   def: CardDef;
   inPlay?: InPlayPokemon;
@@ -59,6 +61,7 @@ export function Card({
   /** Use the large image, for cards shown zoomed in (the hand). */
   highRes?: boolean;
   shine?: boolean;
+  holoRef?: Ref<HoloMotion | null>;
 }) {
   const setPreview = useContext(PreviewContext);
   const catalog = useContext(CatalogContext);
@@ -93,7 +96,7 @@ export function Card({
       }
     >
       {holo && def.imageUrl ? (
-        <HoloCard still img={`${def.imageUrl}/high.webp`} name={def.name} attrs={holoAttributes(holo)} />
+        <HoloCard still motionRef={holoRef} img={`${def.imageUrl}/high.webp`} name={def.name} attrs={holoAttributes(holo)} />
       ) : def.imageUrl ? (
         <CardImage src={`${def.imageUrl}/${highRes ? 'high' : 'low'}.webp`} alt={def.name} loading="lazy" draggable={false} className="h-full w-full object-cover" />
       ) : (

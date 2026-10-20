@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import type { HoloAttributes } from '../utils/holo';
 import { adjust, clamp, round } from '../utils/math';
 import { CARD_BACK } from '../utils/cardBack';
@@ -7,6 +7,8 @@ import { Spring } from '../utils/spring';
 const INTERACT = { stiffness: 0.066, damping: 0.25 };
 /** Slow, loose spring back to rest after the pointer leaves. */
 const SNAP = { stiffness: 0.01, damping: 0.06 };
+/** Quicker and a little bouncy, for motion scripted to follow a board animation (`HoloMotion.play`). */
+const SCRIPTED = { stiffness: 0.12, damping: 0.35 };
 
 /** A `still` card's fixed light: the shine as if the pointer rested near its top left, flat (no tilt). */
 const STILL = {
@@ -20,10 +22,22 @@ const STILL = {
   '--background-y': '38%',
 } as React.CSSProperties;
 
+/** The springs' rest (background, tilt, glare): the free card's, flat and dark, and the still card's, matching `STILL`. */
+type Rest = [{ x: number; y: number }, { x: number; y: number }, { x: number; y: number; o: number }];
+const FREE_REST: Rest = [{ x: 50, y: 50 }, { x: 0, y: 0 }, { x: 50, y: 50, o: 0 }];
+const STILL_REST: Rest = [{ x: 42, y: 38 }, { x: 0, y: 0 }, { x: 30, y: 25, o: 0.7 }];
+
+/** A pointer position over the card (percent of its width and height) to reach `at` ms after `play` starts. */
+export type HoloKeyframe = { x: number; y: number; at: number };
+
+/** Moves a card's tilt and shine as if a pointer followed `path`, then lets it settle back to rest at `end` ms. */
+export type HoloMotion = { play(path: HoloKeyframe[], end: number): void };
+
 /**
  * A card with the holo effect from src/styles/holo: it tilts toward the pointer, and the shine
  * and glare layers follow it. Styles are picked by the data-* attributes (rarity, subtypes, …).
  * `still`: the shine is fixed and the card doesn't move or react to the pointer (the Active Pokémon on the board).
+ * `motionRef` lets a caller move it anyway (`HoloMotion`), e.g. to tilt and shine with the slot's animations.
  */
 export function HoloCard({
   img,
@@ -32,6 +46,7 @@ export function HoloCard({
   foil,
   mask,
   still = false,
+  motionRef,
 }: {
   img: string;
   name: string;
@@ -40,6 +55,7 @@ export function HoloCard({
   foil?: string;
   mask?: string;
   still?: boolean;
+  motionRef?: Ref<HoloMotion | null>;
 }) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
@@ -47,6 +63,7 @@ export function HoloCard({
   const [seed] = useState(() => ({ x: Math.random(), y: Math.random() }));
   const motion = useRef<ReturnType<typeof createMotion>>(null);
   motion.current ??= createMotion(cardRef);
+  useImperativeHandle(motionRef, () => ({ play: (path, end) => motion.current!.play(path, end, still ? STILL_REST : FREE_REST) }), [still]);
 
   useEffect(() => {
     const m = motion.current!;
@@ -112,6 +129,11 @@ function createMotion(cardRef: React.RefObject<HTMLDivElement | null>) {
 
   let frame: number | null = null;
   let snapTimer: ReturnType<typeof setTimeout> | undefined;
+  let scriptTimers: ReturnType<typeof setTimeout>[] = [];
+  const stopScript = () => {
+    scriptTimers.forEach(clearTimeout);
+    scriptTimers = [];
+  };
 
   function render() {
     const el = cardRef.current;
@@ -154,22 +176,35 @@ function createMotion(cardRef: React.RefObject<HTMLDivElement | null>) {
     start();
   }
 
+  /** The springs' targets for a pointer at `percent` of the card. */
+  function toward(percent: { x: number; y: number }): Rest {
+    const center = { x: percent.x - 50, y: percent.y - 50 };
+    return [
+      { x: adjust(percent.x, 0, 100, 37, 63), y: adjust(percent.y, 0, 100, 33, 67) },
+      { x: round(-(center.x / 3.5)), y: round(center.y / 3.5) },
+      { x: round(percent.x), y: round(percent.y), o: 1 },
+    ];
+  }
+
   return {
     /** Tilts the card toward a pointer position within `rect`. */
     interact(clientX: number, clientY: number, rect: DOMRect) {
       if (document.visibilityState !== 'visible') return;
       clearTimeout(snapTimer);
+      stopScript();
       cardRef.current?.classList.add('interacting');
-      const percent = {
+      setSprings(INTERACT, toward({
         x: clamp(round((100 / rect.width) * (clientX - rect.left))),
         y: clamp(round((100 / rect.height) * (clientY - rect.top))),
-      };
-      const center = { x: percent.x - 50, y: percent.y - 50 };
-      setSprings(INTERACT, [
-        { x: adjust(percent.x, 0, 100, 37, 63), y: adjust(percent.y, 0, 100, 33, 67) },
-        { x: round(-(center.x / 3.5)), y: round(center.y / 3.5) },
-        { x: round(percent.x), y: round(percent.y), o: 1 },
-      ]);
+      }));
+    },
+    /** Follows `path` (pointer positions over time), then springs back to `rest` at `end` ms. */
+    play(path: HoloKeyframe[], end: number, rest: Rest) {
+      if (document.visibilityState !== 'visible') return;
+      clearTimeout(snapTimer);
+      stopScript();
+      for (const k of path) scriptTimers.push(setTimeout(() => setSprings(SCRIPTED, toward(k)), k.at));
+      scriptTimers.push(setTimeout(() => setSprings(SCRIPTED, rest), end));
     },
     /** Lets the card drift back to rest after `delay` ms. */
     interactEnd(delay = 500) {
@@ -182,6 +217,7 @@ function createMotion(cardRef: React.RefObject<HTMLDivElement | null>) {
     /** Snaps straight to rest (e.g. when the tab is hidden). */
     reset() {
       clearTimeout(snapTimer);
+      stopScript();
       cardRef.current?.classList.remove('interacting');
       rotate.set({ x: 0, y: 0 }, { hard: true });
       glare.set({ x: 50, y: 50, o: 0 }, { hard: true });
@@ -190,6 +226,7 @@ function createMotion(cardRef: React.RefObject<HTMLDivElement | null>) {
     },
     dispose() {
       clearTimeout(snapTimer);
+      stopScript();
       if (frame !== null) cancelAnimationFrame(frame);
     },
   };
