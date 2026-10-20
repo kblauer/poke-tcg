@@ -40,6 +40,8 @@ export interface PlayerView {
     prizeCount: number;
     /** Their Prize cards, in order, while they're face up (Here Comes Team Rocket!). */
     prizes?: CardInstance[];
+    /** Prize cards turned face up one by one (Card-Flip Game), in Prize order; null while face down. */
+    faceUpPrizes?: (CardInstance | null)[];
     discard: CardInstance[];
     active: InPlayPokemon | null;
     /** Fixed slots; null = empty. */
@@ -66,6 +68,8 @@ export interface PlayerView {
     prizeCount: number;
     /** Their Prize cards, in order, while they're face up (Here Comes Team Rocket!). */
     prizes?: CardInstance[];
+    /** Prize cards turned face up one by one (Card-Flip Game), in Prize order; null while face down. */
+    faceUpPrizes?: (CardInstance | null)[];
     discard: CardInstance[];
     /** Last turn no Pokémon Powers work (Goop Gas Attack). */
     powersOffUntil?: number;
@@ -100,7 +104,12 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
   const pending = state.pendingChoice?.player === playerId ? pendingChoiceView(state, state.pendingChoice) : null;
   const oppHand = seesOpponentHand(me, [me, opp], state.cards) ? opp.hand : undefined;
   const peek = state.peek?.player === playerId ? { card: state.peek.card, label: state.peek.label } : undefined;
+  /** A player's Prize cards turned face up (Card-Flip Game). */
+  const faceUp = (p: typeof me) => p.prizes.filter((c) => p.faceUpPrizes?.includes(c.uid));
+  const inOrder = (p: typeof me) => p.prizes.map((c) => (p.faceUpPrizes?.includes(c.uid) ? c : null));
   const visible: CardInstance[] = [
+    ...faceUp(me),
+    ...faceUp(opp),
     ...me.hand,
     ...me.discard,
     ...opp.discard,
@@ -136,6 +145,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       deckCount: me.deck.length,
       prizeCount: me.prizes.length,
       ...(state.prizesFaceUp && { prizes: me.prizes }),
+      ...(faceUp(me).length && { faceUpPrizes: inOrder(me) }),
       discard: me.discard,
       active: me.active,
       bench: me.bench,
@@ -153,6 +163,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       deckCount: opp.deck.length,
       prizeCount: opp.prizes.length,
       ...(state.prizesFaceUp && { prizes: opp.prizes }),
+      ...(faceUp(opp).length && { faceUpPrizes: inOrder(opp) }),
       discard: opp.discard,
       ...(opp.powersOffUntil !== undefined && { powersOffUntil: opp.powersOffUntil }),
       active: oppActive,

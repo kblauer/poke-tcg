@@ -49,7 +49,7 @@ export type PeekTarget = 'deck' | 'oppDeck' | 'oppHand' | 'prize' | 'oppPrize';
 
 /** What a power can see before it's used. View-safe: the UI builds it from a PlayerView. */
 export interface PowerSituation {
-  me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'powersOffUntil'>;
+  me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'discard' | 'powersOffUntil'>;
   opp: Pick<PlayerState, 'active' | 'bench' | 'powersOffUntil'>;
   /** Sizes of the hidden piles (Peek). */
   counts: { deck: number; prizes: number; oppDeck: number; oppHand: number; oppPrizes: number };
@@ -61,6 +61,8 @@ export interface PowerSituation {
 
 /** Card-specific power behaviour. */
 export interface PowerEffect {
+  /** Printed text, where TCGdex's differs from the card (Downpour). */
+  text?: string;
   /** Why the power can't be used now (beyond Special Conditions). */
   blocked?: (s: PowerSituation) => string | null;
   choices?: (s: PowerSituation, c: PowerChoices) => PowerChoiceSpec[];
@@ -142,6 +144,10 @@ export interface PowerEffect {
   relaxingScent?: boolean;
   /** Scram: with exactly 10 HP left, it's shuffled into its owner's deck with every card attached (resolveKnockouts). */
   scram?: boolean;
+  /** Mind Games: whenever the opponent plays a Trainer card, its owner may flip; heads, the card does nothing and goes on top of their deck (playTrainer). */
+  mindGames?: boolean;
+  /** Wild Growth: each Grass Energy card attached to its owner's Grass Pokémon provides 2 Grass Energy (refreshWildGrowth; it doesn't stack). */
+  wildGrowth?: boolean;
 }
 
 export interface PowerContext {

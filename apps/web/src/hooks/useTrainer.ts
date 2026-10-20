@@ -1,4 +1,5 @@
 import {
+  faceDownPrizes,
   lookupCard,
   nextTrainerChoice,
   trainerError,
@@ -28,6 +29,7 @@ export function useTrainer({ view, send, busy }: { view: PlayerView; send: (a: G
     cards: view.cards,
     turn: view.turn,
     stadium: view.stadium?.card ?? null,
+    oppFaceDownPrizes: faceDownPrizes(view.opponent.prizeCount, view.opponent.faceUpPrizes),
   });
 
   const cancel = () => setPlaying(null);

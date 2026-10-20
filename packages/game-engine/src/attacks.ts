@@ -5,8 +5,12 @@ import { attackEffect, powerEffect } from './effects/index.js';
 import {
   canPayCost,
   conditionLabel,
+  activeLocked,
   counts,
+  discardTheirEnergy,
+  discardTool,
   energyProvided,
+  toolOf,
   type Affliction,
   type CardInstance,
   type GameState,
@@ -31,8 +35,12 @@ export interface AttackChoices {
   defenderEnergyUid?: string;
   /** One of the Defending Pokémon's attacks (Amnesia). */
   attackIndex?: number;
-  /** The Defending Pokémon's attack to copy (Metronome). */
+  /** The Defending Pokémon's attack to copy (Metronome), or the attack of `copyFrom` (Super Metronome). */
   copyIndex?: number;
+  /** The opponent's Pokémon whose attack is copied (Super Metronome). */
+  copyFrom?: Target;
+  /** Use the Pokémon Power that makes this attack stronger (Final Blow, Hydroelectric Power). */
+  boost?: boolean;
   /** A type (Conversion 1 and 2). */
   type?: EnergyType;
   /** Cards from your discard pile to put into your hand (Energy Conversion, Scavenge). */
@@ -73,7 +81,12 @@ export type ChoiceSpec = { prompt: string } & (
   | { kind: 'opponentBench'; options: number[] }
   | { kind: 'defenderEnergy'; options: CardInstance[] }
   | { kind: 'defenderAttack'; options: number[] }
-  | { kind: 'copyAttack'; options: number[] }
+  /** An attack to copy: the Defending Pokémon's, or (`of`) that of another of the opponent's Pokémon. */
+  | { kind: 'copyAttack'; options: number[]; of?: Target }
+  /** Which of the opponent's Pokémon to copy an attack of (Super Metronome). */
+  | { kind: 'copySource'; options: Target[] }
+  /** Whether to use a Pokémon Power that makes the attack stronger (Final Blow, Hydroelectric Power): yes first. */
+  | { kind: 'boost'; options: boolean[] }
   | { kind: 'type'; options: EnergyType[] }
   /** `optional`: the player may also not choose ("you may switch"), answered with -1, which is then among the options. */
   | { kind: 'ownBench'; options: number[]; optional?: boolean }
@@ -117,6 +130,8 @@ export interface AttackSituation {
   recall?: boolean;
   /** The opponent's discard pile (Pranks, Invigorate). Missing = not needed. */
   opponentDiscard?: CardInstance[];
+  /** Every Pokémon Power is off (Goop Gas Attack, Sputter: `powersOffUntil` on either player). */
+  powersOff?: boolean;
 }
 
 /** An attack the Pokémon can use, and the card it's printed on (its effect's card id). */
@@ -251,6 +266,12 @@ export interface AttackContext {
 
 const def = inPlayDef;
 
+/** How many of the named special Energy card are attached to the Pokémon (Darkness Energy, Metal Energy). */
+const energyCount = (cards: CardLibrary, p: InPlayPokemon, name: string) => p.energy.filter((e) => !e.provides && lookupCard(cards, e.defId).name === name).length;
+
+/** Sprout Tower is the Stadium in play. */
+const sproutTower = (state: Pick<GameState, 'stadium' | 'cards'>) => !!state.stadium && lookupCard(state.cards, state.stadium.card.defId).name === 'Sprout Tower';
+
 /** How many of the named Trainer card are attached to the Pokémon (PlusPower, Defender). */
 const attachedCount = (cards: CardLibrary, p: InPlayPokemon, name: string) => (p.attached ?? []).filter((a) => lookupCard(cards, a.card.defId).name === name).length;
 
@@ -282,6 +303,7 @@ export function attackError(s: AttackSituation, attackIndex: number): string | n
     return `${attackerDef.name} can't use ${attack.name} this turn`;
   }
   if (active(s.attacker.effects?.noAttack, s.turn)) return `${attackerDef.name} can't attack this turn`;
+  if (s.attacker.effects?.frozen) return `${attackerDef.name} can't attack`;
   if (s.attacker.effects?.usedOnce?.includes(attack.name)) return `${attackerDef.name} can't use ${attack.name} again while it stays in play`;
   const blockedTarget = s.attacker.effects?.cantAttack;
   if (blockedTarget && blockedTarget.target === baseUid(s.defender) && active(blockedTarget.until, s.turn)) {
@@ -336,6 +358,8 @@ const FIELD = {
   defenderEnergy: 'defenderEnergyUid',
   defenderAttack: 'attackIndex',
   copyAttack: 'copyIndex',
+  copySource: 'copyFrom',
+  boost: 'boost',
   type: 'type',
   ownBench: 'ownBenchSlot',
   ownEnergyUpTo: 'energyUids',
@@ -585,6 +609,7 @@ export const attackSituation = (state: GameState, me: PlayerState, opp: PlayerSt
   stadium: state.stadium?.card ?? null,
   recall: me.recallTurn === state.turn,
   opponentDiscard: opp.discard,
+  powersOff: me.powersOffUntil !== undefined || opp.powersOffUntil !== undefined,
 });
 
 /** Whether the attack can be used with these answers: the complete choices, or why not. */
@@ -699,6 +724,17 @@ function createContext(
   /** Fortitude: an opponent's attack that would Knock it Out leaves it with 10 HP on heads (its owner flips). */
   const fortitude = (p: InPlayPokemon, owner: PlayerState, damage: number) => {
     const hp = def(state.cards, p).hp;
+    // Focus Band: on heads, not Knocked Out by the opponent's attack; 10 HP left, and Focus Band is discarded.
+    if (owner === opp && p.damage + damage >= hp && toolOf(state.cards, p)?.name === 'Focus Band' && flipCoin(state, 'Focus Band', owner.id)) {
+      log(`Focus Band: ${pokemonName(state, p)} isn't Knocked Out; it has 10 HP left.`, owner.id);
+      discardTool(state, owner, p);
+      return Math.max(0, hp - 10 - p.damage);
+    }
+    // Endure: not Knocked Out by an attack this turn; 10 HP left instead.
+    if (owner === opp && p.damage + damage >= hp && active(p.effects?.endure, turn)) {
+      log(`Endure: ${pokemonName(state, p)} isn't Knocked Out; it has 10 HP left.`, owner.id);
+      return Math.max(0, hp - 10 - p.damage);
+    }
     if (owner !== opp || p.damage + damage < hp || !passive(p)?.fortitude || !flipCoin(state, 'Fortitude', owner.id)) return damage;
     log(`Fortitude: ${pokemonName(state, p)} isn't Knocked Out; it has 10 HP left.`, owner.id);
     return Math.max(0, hp - 10 - p.damage);
@@ -715,11 +751,16 @@ function createContext(
   };
   /** Damage to a benched Pokémon or the attacker itself: Defender, then Kabuto Armor. */
   const benchedDamage = (p: InPlayPokemon, amount: number, owner: PlayerState) => {
+    amount = Math.max(0, amount - metalLess);
+    if (amount > 0 && sproutTower(state) && attackerDef.type === 'colorless') amount = Math.max(0, amount - 30);
+    amount = Math.max(0, amount - 10 * energyCount(state.cards, p, 'Metal Energy'));
     const damage = barriers(p, armor(p, afterDefender(state.cards, p, amount), owner), owner);
     return damage >= 30 && passive(p)?.invisibleWall ? 0 : damage;
   };
   /** Shadow Images: one flip per attack, by the attacking player; tails, the attack does no damage to the Pokémon. */
   let shadowImages: boolean | undefined;
+  /** Metal Energy on an attacker that isn't Metal: its attacks do 10 less for each, before Weakness and Resistance. */
+  const metalLess = attackerDef.type === 'metal' ? 0 : 10 * energyCount(state.cards, attacker, 'Metal Energy');
   /** Whether the attack can affect this Pokémon; logs why not. Transparency flips the first time it's asked. */
   const canAffect = (player: PlayerState, p: InPlayPokemon) => {
     if (!immune(p, player) && !transparent(p, player)) return true;
@@ -788,6 +829,7 @@ function createContext(
         amount = Math.max(0, amount - snivel.amount);
         log(`The damage to ${defenderDef.name} was reduced by ${snivel.amount}.`, opp.id);
       }
+      if (metalLess) amount = Math.max(0, amount - metalLess);
       const rules = { resistance, weakness: !weaknessOff, resistanceLess: stadium === 'Resistance Gym' ? 20 : 0 };
       let damage = weakness && !swift ? applyWeaknessResistance(amount, attackerDef.type, defenderDef, defender.effects, rules) : amount;
       // Misty: 20 more each, for a Pokémon with Misty in its name, if the attack does damage after Weakness and Resistance.
@@ -795,6 +837,17 @@ function createContext(
       if (damage > 0 && misty) {
         damage += 20 * misty;
         log(`Misty: ${20 * misty} more damage.`);
+      }
+      // Darkness Energy: 10 more for each on the attacker, if the attack damages the Defending Pokémon after Weakness and Resistance.
+      const dark = energyCount(state.cards, attacker, 'Darkness Energy');
+      if (damage > 0 && dark) {
+        damage += 10 * dark;
+        log(`Darkness Energy: ${10 * dark} more damage.`);
+      }
+      // Screech: 20 more to it, if the attack damages it after Weakness and Resistance.
+      if (damage > 0 && !swift && active(defender.effects?.screech, turn)) {
+        damage += 20;
+        log(`Screech: 20 more damage to ${defenderDef.name}.`, opp.id);
       }
       if (damage > 0 && vermilionBonus) {
         damage += 10;
@@ -820,6 +873,17 @@ function createContext(
         if (damage > 0 && active(effects?.minimize, turn)) {
           damage = Math.max(0, damage - 20);
           log(`Minimize reduced the damage to ${defenderDef.name} by 20.`, opp.id);
+        }
+        // Sprout Tower: Colorless Pokémon's attacks do 30 less, after Weakness and Resistance.
+        if (damage > 0 && sproutTower(state) && attackerDef.type === 'colorless') {
+          damage = Math.max(0, damage - 30);
+          log(`Sprout Tower reduced the damage to ${defenderDef.name} by 30.`, opp.id);
+        }
+        // Metal Energy: 10 less for each on the Defending Pokémon, after Weakness and Resistance.
+        const metal = energyCount(state.cards, defender, 'Metal Energy');
+        if (damage > 0 && metal) {
+          damage = Math.max(0, damage - 10 * metal);
+          log(`Metal Energy reduced the damage to ${defenderDef.name} by ${10 * metal}.`, opp.id);
         }
         // Lie Low and Barrier Attack: a set amount less, after Weakness and Resistance.
         const reduced = effects?.reduceDamage;
@@ -909,6 +973,7 @@ function createContext(
       const name = pokemonName(state, defender);
       if (shielded()) return log(`${name} is protected from the attack's effects.`, opp.id);
       if (def(state.cards, defender).trainerText || passive(defender)?.noConditions) return log(`${name} can't be affected by Special Conditions.`, opp.id);
+      if (affliction !== 'burned' && active(defender.effects?.pollenShield, turn)) return log(`Pollen Shield: ${name} can't be ${affliction === 'toxic' || affliction === 'poisoned' ? 'Poisoned' : conditionLabel(affliction)}.`, opp.id);
       const guard = state.rules?.find((r) => r.kind === 'conditionGuard' && r.player === opp.id && r.conditions.includes(affliction === 'toxic' ? 'poisoned' : affliction));
       if (guard) return log(`${guard.label ?? 'A battle rule'} protected ${name} from that.`, opp.id);
       if (affliction === 'burned') {
@@ -954,11 +1019,13 @@ function createContext(
       const energy = defender.energy.find((e) => e.uid === uid);
       if (!energy) return;
       defender.energy = defender.energy.filter((e) => e !== energy);
-      opp.discard.push(energy);
       log(`Discarded ${lookupCard(state.cards, energy.defId).name} from ${ctx.defenderDef.name}.`, opp.id);
+      discardTheirEnergy(state, opp, [energy]);
     },
     switchDefender(slot) {
       if (shielded()) return log(`${ctx.defenderDef.name} is protected from the attack's effects.`, opp.id);
+      const locked = activeLocked(state, opp.id);
+      if (locked) return log(`${locked}.`, opp.id);
       const benched = opp.bench[slot];
       if (!benched) return;
       const old = opp.active!;
@@ -992,6 +1059,8 @@ function createContext(
     switchOwn(slot) {
       const benched = me.bench[slot];
       if (!benched) return;
+      const locked = activeLocked(state, me.id);
+      if (locked) return log(`${locked}.`);
       clearOnLeavingActive(attacker);
       me.bench[slot] = attacker;
       me.active = benched;

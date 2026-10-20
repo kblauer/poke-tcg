@@ -8,7 +8,7 @@
 // copy before the flips. Group Attack asks how many Koga's Zubat to bench (up to the room on the Bench) before searching.
 import { targetsIn, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
 import { isBasicPokemon, isTrainerCard, lookupCard } from '../cards.js';
-import { isEnergyCardOf, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
+import { activeLocked, discardTheirEnergy, isEnergyCardOf, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { evolutionBlocked } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { benchRoom, energyProtected, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
@@ -73,6 +73,8 @@ const basicEnergyInDiscard = (ctx: AttackContext, type: 'fire' | 'lightning') =>
 function returnSelf(ctx: AttackContext) {
   const p = ctx.attacker;
   if (ctx.me.active !== p) return;
+  const locked = activeLocked(ctx.state, ctx.me.id);
+  if (locked) return ctx.log(`${locked}.`);
   ctx.me.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...c }) => c), ...(p.attached ?? []).map((a) => a.card));
   ctx.me.active = null;
   ctx.log(`${pokemonName(ctx.state, p)} and all cards attached to it returned to the hand.`);
@@ -255,8 +257,8 @@ export const GYM2: Record<string, Record<string, AttackEffect>> = {
           if (new Set(energy.map((e) => e.defId)).size > 1) targets.push(t);
           else {
             p.energy = p.energy.filter((e) => e !== energy[0]);
-            ctx.opp.discard.push(energy[0]!);
             ctx.log(`Super Removal: discarded ${lookupCard(ctx.state.cards, energy[0]!.defId).name} from ${pokemonName(ctx.state, p)}.`, ctx.opp.id);
+            discardTheirEnergy(ctx.state, ctx.opp, [energy[0]!]);
           }
         }
         if (targets.length) ctx.pend({ kind: 'removeEach', source: 'Super Removal', targets });
