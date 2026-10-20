@@ -2,7 +2,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import StarIcon from '@mui/icons-material/Star';
 import type { EnergyType } from '@poke-tcg/game-engine';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { CARD_TYPES } from '../utils/cardList';
+import { CARD_TYPES, type SetGroup } from '../utils/cardList';
 import { EnergyIcon } from './EnergyIcon';
 import { CARD_KINDS, DECK_SORTS, EMPTY_DECK_FILTER, POKEMON_STAGES, type CardKind, type DeckFilter, type DeckSort } from '../utils/deckBuilder';
 
@@ -24,12 +24,13 @@ const toBound = (value: string) => (value === '' ? null : Math.max(0, Number(val
 const flip = <T,>(list: T[], value: T) => (list.includes(value) ? list.filter((x) => x !== value) : [...list, value]);
 
 /**
- * The release set filter: a button naming the sets picked, opening a list of every set to tick any number of. "All
- * sets" at the top ticks every set (null), so one or two can then be unticked; with every set ticked it unticks them
- * all. A click outside it closes the list. `compact` (the phone's
+ * The release set filter: a button naming the sets picked, opening a list of every set, by generation (`groups`:
+ * setGroups), to tick any number of. "All sets" at the top ticks every set (null), so one or two can then be unticked;
+ * with every set ticked it unticks them all. Each generation's heading ticks or unticks all its sets. A click outside
+ * it closes the list. `compact` (the phone's
  * panel, which scrolls and would cut a floating list off): the list opens in place, pushing the filters below it down.
  */
-function SetPicker({ sets, picked, onChange, className, compact }: { sets: string[]; picked: string[] | null; onChange: (sets: string[] | null) => void; className: string; compact: boolean }) {
+function SetPicker({ groups, picked, onChange, className, compact }: { groups: SetGroup[]; picked: string[] | null; onChange: (sets: string[] | null) => void; className: string; compact: boolean }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -38,16 +39,23 @@ function SetPicker({ sets, picked, onChange, className, compact }: { sets: strin
     document.addEventListener('pointerdown', close);
     return () => document.removeEventListener('pointerdown', close);
   }, [open]);
-  const every = picked === null || sets.every((s) => picked.includes(s));
-  const label = every ? 'All sets' : picked.length === 0 ? 'No sets' : picked.length === 1 ? picked[0] : `${picked.length} sets`;
-  /** Ticks or unticks one set: every set ticked again is null. */
-  const pick = (s: string) => {
-    const next = flip(picked ?? sets, s);
-    onChange(sets.every((x) => next.includes(x)) ? null : next);
+  const sets = groups.flatMap((g) => g.sets);
+  const ticked = (s: string) => picked === null || picked.includes(s);
+  const every = sets.every(ticked);
+  // A single generation picked whole reads as its name.
+  const whole = groups.find((g) => picked !== null && g.sets.length === picked.length && g.sets.every(ticked));
+  const label = every ? 'All sets' : picked!.length === 0 ? 'No sets' : picked!.length === 1 ? picked![0] : whole ? whole.label : `${picked!.length} sets`;
+  /** The new picks: every set ticked again is null. */
+  const change = (next: string[]) => onChange(sets.every((x) => next.includes(x)) ? null : sets.filter((x) => next.includes(x)));
+  /** Ticks a generation's sets, or unticks them when they all are. */
+  const pickGroup = (g: SetGroup) => {
+    const now = picked ?? sets;
+    change(g.sets.every(ticked) ? now.filter((s) => !g.sets.includes(s)) : [...now, ...g.sets.filter((s) => !now.includes(s))]);
   };
+  const row = 'flex cursor-pointer items-center gap-2 px-3 py-1.5 hover:bg-slate-700';
   return (
     <div ref={ref} className={compact && open ? 'w-full' : 'relative'}>
-      <button className={`${className} flex items-center gap-1`} aria-haspopup="listbox" aria-expanded={open} title={every ? undefined : picked.join(', ') || undefined} onClick={() => setOpen((o) => !o)}>
+      <button className={`${className} flex items-center gap-1`} aria-haspopup="listbox" aria-expanded={open} title={every ? undefined : picked!.join(', ') || undefined} onClick={() => setOpen((o) => !o)}>
         <span className="max-w-40 truncate">{label}</span>
         <ExpandMoreIcon sx={{ fontSize: 16 }} className="shrink-0 text-slate-400" />
       </button>
@@ -55,18 +63,32 @@ function SetPicker({ sets, picked, onChange, className, compact }: { sets: strin
         <div
           role="listbox"
           aria-multiselectable
-          className={`${compact ? 'mt-1 w-full' : 'absolute left-0 top-full z-50 mt-1 max-h-72 w-60 overflow-y-auto shadow-xl shadow-black/60'} rounded bg-slate-800 py-1 text-sm ring-1 ring-slate-600`}
+          className={`${compact ? 'mt-1 w-full' : 'absolute left-0 top-full z-50 mt-1 max-h-80 w-64 overflow-y-auto shadow-xl shadow-black/60'} rounded bg-slate-800 py-1 text-sm ring-1 ring-slate-600`}
         >
-          <label className="flex cursor-pointer items-center gap-2 px-3 py-1.5 hover:bg-slate-700">
+          <label className={row}>
             <input type="checkbox" className="accent-yellow-300" checked={every} onChange={() => onChange(every ? [] : null)} />
             All sets
           </label>
-          {sets.map((s) => (
-            <label key={s} className="flex cursor-pointer items-center gap-2 px-3 py-1.5 hover:bg-slate-700">
-              <input type="checkbox" className="accent-yellow-300" checked={picked === null || picked.includes(s)} onChange={() => pick(s)} />
-              {s}
-            </label>
-          ))}
+          {groups.map((g) => {
+            const all = g.sets.every(ticked);
+            const some = !all && g.sets.some(ticked);
+            return (
+              <div key={g.label} className="border-t border-slate-700">
+                <label className={`${row} font-semibold`}>
+                  <input type="checkbox" className="accent-yellow-300" checked={all} ref={(el) => {
+                      if (el) el.indeterminate = some;
+                    }} onChange={() => pickGroup(g)} />
+                  {g.label}
+                </label>
+                {g.sets.map((s) => (
+                  <label key={s} className={`${row} pl-8`}>
+                    <input type="checkbox" className="accent-yellow-300" checked={ticked(s)} onChange={() => change(flip(picked ?? sets, s))} />
+                    {s}
+                  </label>
+                ))}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -93,8 +115,8 @@ export function DeckFilters({
   filter: DeckFilter;
   sort: DeckSort;
   onSortChange: (sort: DeckSort) => void;
-  /** Set names, in release order. */
-  sets: string[];
+  /** Set names by generation, in release order (setGroups). */
+  sets: SetGroup[];
   shown: number;
   total: number;
   onChange: (filter: DeckFilter) => void;
@@ -118,7 +140,7 @@ export function DeckFilters({
       className={`${input} ${compact ? 'w-full' : 'w-72 min-w-40 shrink'}`}
     />
   );
-  const setPicker = <SetPicker sets={sets} picked={filter.sets} onChange={(picked) => set({ sets: picked })} className={input} compact={compact} />;
+  const setPicker = <SetPicker groups={sets} picked={filter.sets} onChange={(picked) => set({ sets: picked })} className={input} compact={compact} />;
   const sortSelect = (
     <select value={sort} onChange={(e) => onSortChange(e.target.value as DeckSort)} className={input} aria-label="Sort by" title="Sort by Pokédex number (the default), type or set number">
       {SORT_OPTIONS.map((s) => (

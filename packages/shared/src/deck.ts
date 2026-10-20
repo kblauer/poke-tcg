@@ -77,3 +77,30 @@ export const deckRenameInput = deckIdInput.extend({ name: z.string().trim().min(
 
 /** The account's decks in their new order (every deck, each once). */
 export const deckOrderInput = z.object({ deckIds: z.array(z.uuid()).max(500) });
+
+/** Longest share code accepted (a 60-card deck's is a few hundred characters). */
+export const DECK_CODE_LENGTH = 4000;
+/** Longest description of a deck published to the Community Decks tab. */
+export const DECK_DESCRIPTION_LENGTH = 500;
+
+/** A deck's share code (decks.exportCode), to import as a new deck. */
+export const deckImportInput = z.object({ code: z.string().trim().min(1).max(DECK_CODE_LENGTH) });
+
+/** Publishing one of the account's decks to the Community Decks tab, with a description. */
+export const deckPublishInput = deckIdInput.extend({ description: z.string().trim().max(DECK_DESCRIPTION_LENGTH) });
+
+/** A deck on the Community Decks tab. */
+export const communityDeckIdInput = z.object({ communityDeckId: z.uuid() });
+
+/** Longest account name. */
+export const ACCOUNT_NAME_LENGTH = 20;
+
+/** The name an account is shown by on Community Decks: anyone may pick any name (not unique). */
+export const accountNameInput = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(2, 'At least 2 characters')
+    .max(ACCOUNT_NAME_LENGTH, `At most ${ACCOUNT_NAME_LENGTH} characters`)
+    .regex(/^[\p{L}\p{N} ._'-]+$/u, 'Letters, numbers, spaces and . _ \' - only'),
+});

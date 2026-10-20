@@ -4,7 +4,7 @@ import { singleBattleOpponent, type SingleBattleOpponent } from '@poke-tcg/share
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
-import { DeckSummary, type SavedDeck } from '../components/DeckList';
+import { DeckSummary, LOCKED_TAG, type SavedDeck } from '../components/DeckList';
 import { useUnlocked } from '../hooks/useUnlocked';
 import { useTRPC } from '../lib/trpc';
 import type { CatalogCard } from '../utils/cardList';
@@ -232,7 +232,10 @@ function DeckChoice({
       onClick={onPick}
       className={`${choice(selected)} h-full w-full space-y-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:ring-slate-700`}
     >
-      <span className="block truncate font-medium">{deck.name}</span>
+      <span className="flex min-w-0 items-center gap-1.5">
+        <span className="truncate font-medium">{deck.name}</span>
+        {deck.locked && LOCKED_TAG}
+      </span>
       {ok ? <DeckSummary entries={deck.cards} byId={byId} isLocked={isLocked} /> : <span className="block truncate text-xs text-amber-300">{deck.problems[0]}</span>}
     </button>
   );
