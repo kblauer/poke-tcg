@@ -47,7 +47,7 @@ const ownInPlay = (ctx: AttackContext) => [ctx.me.active, ...ctx.me.bench].filte
 const flail: AttackEffect = { run: (ctx) => void ctx.hit(ctx.attacker.damage) };
 
 /** Damage that nothing on the Defending Pokémon changes: Weakness, Resistance, Pokémon Powers or other effects (Swift). */
-const swift = (damage: number): AttackEffect => ({ run: (ctx) => void ctx.hit(damage, { swift: true }) });
+export const swift = (damage: number): AttackEffect => ({ run: (ctx) => void ctx.hit(damage, { swift: true }) });
 
 /** Removes damage from one of `owner`'s Pokémon (all of it, or up to `amount`). */
 function healPokemon(ctx: AttackContext, owner: PlayerState, p: InPlayPokemon, amount: number | 'all') {
@@ -71,7 +71,7 @@ const shower = (damage: number): AttackEffect => ({
 });
 
 /** Until the end of the attacking player's next turn, attacks that damage the Defending Pokémon do 20 more (Screech). */
-const screech = (damage: number): AttackEffect => ({
+export const screech = (damage: number): AttackEffect => ({
   run(ctx) {
     ctx.hit(damage);
     ctx.affectDefender((e) => {
@@ -94,12 +94,25 @@ function hold(ctx: AttackContext, until?: number) {
 }
 
 /** Damage to one of the opponent's Pokémon: the Active one without Weakness and Resistance (`swift`: without anything else on it either). */
-function damageOpponent(ctx: AttackContext, target: Target, amount: number, swift = false) {
+export function damageOpponent(ctx: AttackContext, target: Target, amount: number, swift = false) {
   if (target === 'active') ctx.hit(amount, swift ? { swift } : { weakness: false });
   else ctx.damageBenched(ctx.opp, target, amount);
 }
 
-const opponentTargets = (s: AttackSituation, prompt: string): ChoiceSpec[] => [{ kind: 'opponentPokemon', options: targetsIn(s.defender, s.opponentBench), prompt }];
+export const opponentTargets = (s: AttackSituation, prompt: string): ChoiceSpec[] => [{ kind: 'opponentPokemon', options: targetsIn(s.defender, s.opponentBench), prompt }];
+
+/** Base damage; the opponent switches the Defending Pokémon (their choice), then the attacker may be switched with a benched Pokémon (Rapid Spin). */
+export const rapidSpin = (damage: number, name: string): AttackEffect => ({
+  choices(s): ChoiceSpec[] {
+    const options = benchedSlots(s.ownBench);
+    return options.length ? [{ kind: 'ownBench', options, prompt: `Choose one of your benched Pokémon to switch with ${name}` }] : [];
+  },
+  run(ctx) {
+    ctx.hit(damage);
+    opponentSwitches(ctx, 'Rapid Spin');
+    if (ctx.choices.ownBenchSlot !== undefined) ctx.switchOwn(ctx.choices.ownBenchSlot);
+  },
+});
 
 /** The attacker's own damaged Pokémon, to choose 1 of (Sweet Nectar, Sweet Scent). */
 const ownDamaged = (s: AttackSituation, prompt: string): ChoiceSpec[] => {
@@ -337,17 +350,7 @@ export const NEO1: Record<string, Record<string, AttackEffect>> = {
   // Donphan
   'neo1-21': {
     Flail: flail,
-    'Rapid Spin': {
-      choices(s): ChoiceSpec[] {
-        const options = benchedSlots(s.ownBench);
-        return options.length ? [{ kind: 'ownBench', options, prompt: 'Choose one of your benched Pokémon to switch with Donphan' }] : [];
-      },
-      run(ctx) {
-        ctx.hit(50);
-        opponentSwitches(ctx, 'Rapid Spin');
-        if (ctx.choices.ownBenchSlot !== undefined) ctx.switchOwn(ctx.choices.ownBenchSlot);
-      },
-    },
+    'Rapid Spin': rapidSpin(50, 'Donphan'),
   },
   // Magby
   'neo1-23': {

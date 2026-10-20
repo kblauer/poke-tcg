@@ -83,10 +83,11 @@ export type PendingChoice = {
        * `type` (Recharge); 'baby': a Baby Pokémon (Let's Play!); 'basic': any Basic Pokémon (Summon Minions);
        * 'evolution': an Evolution card (Evolutionary Light); 'darkEvolution': one with Dark in its name (The Boss's Way).
        */
-      filter: 'any' | 'pokemon' | 'basicNamed' | 'basicType' | 'basicEnergy' | 'energyType' | 'baby' | 'basic' | 'evolution' | 'darkEvolution' | 'named' | 'ownerBasic' | 'ownerPokemon' | 'trainer' | 'trainerNamed' | 'pokemonNotNamed';
+      filter: 'any' | 'pokemon' | 'basicNamed' | 'basicType' | 'basicEnergy' | 'energyType' | 'baby' | 'basic' | 'evolution' | 'darkEvolution' | 'named' | 'ownerBasic' | 'ownerPokemon' | 'trainer' | 'trainerNamed' | 'pokemonNotNamed' | 'evolvesFrom';
       /**
        * 'basicNamed' and 'named' (a Pokémon card with one of the names: Jellyfish Pod): the names. 'ownerBasic' (Call for
-       * Friend) and 'ownerPokemon' (Brock's Training Method): the owner in the card's name, e.g. 'Brock'.
+       * Friend) and 'ownerPokemon' (Brock's Training Method): the owner in the card's name, e.g. 'Brock'. 'evolvesFrom'
+       * (Omanyte's Fossil): what the card evolves from.
        */
       name?: string | string[];
       type?: EnergyType;
@@ -238,6 +239,19 @@ export type PendingChoice = {
   | {
       /** Look at the opponent's hand, then carry on (Psyscan). */
       kind: 'lookOppHand';
+    }
+  | {
+      /** Look at the top `count` cards of the opponent's deck and put them back in the same order (Observe). */
+      kind: 'lookOppDeck';
+      count: number;
+    }
+  | {
+      /**
+       * Unown E's Engage: the player may shuffle their hand into their deck and draw 4 (count 0) or not (count 1). The
+       * opponent of the Unown's owner is asked first (`then`: the owner, asked next).
+       */
+      kind: 'engage';
+      then?: PlayerId;
     }
   | {
       /** Sabrina's ESP: keep the attack's coin flips (count 0), or attack again from `before` with new ones (count 1). */
@@ -892,6 +906,14 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
   }
   if (choice.kind === 'guess') return { kind: 'options', prompt: choice.source, labels: choice.labels };
   if (choice.kind === 'lookOppHand') return { kind: 'oppHand', prompt: `${choice.source}: your opponent's hand`, cards: state.players[opponentOfChoice(state, choice)]!.hand, options: [] };
+  if (choice.kind === 'lookOppDeck') {
+    const cards = state.players[opponentOfChoice(state, choice)]!.deck.slice(0, choice.count);
+    return { kind: 'oppHand', prompt: `${choice.source}: the top ${cards.length} cards of your opponent's deck, top first (they go back in this order)`, cards, options: [] };
+  }
+  if (choice.kind === 'engage') {
+    const who = choice.then ? 'Your opponent played Unown E. You may' : 'You may';
+    return { kind: 'options', prompt: `${choice.source}: ${who} shuffle your hand into your deck and draw 4 cards`, labels: ['Shuffle and draw 4', 'Keep your hand'] };
+  }
   if (choice.kind === 'fuchsia') {
     const options = targetsOf(player).filter((t) => cardName(state, (t === 'active' ? player.active : player.bench[t])!.card).includes('Koga'));
     return { kind: 'ownPokemon', purpose: 'return', prompt: `${choice.source}: you may click a Pokémon with Koga in its name to shuffle it and its cards into your deck`, options, optional: true };
@@ -946,6 +968,8 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
         ? `the Trainer card ${choice.name}`
       : choice.filter === 'pokemonNotNamed'
         ? `a Basic Pokémon or Evolution card not named ${choice.name}`
+      : choice.filter === 'evolvesFrom'
+        ? `a card that evolves from ${choice.name}`
         : choice.filter === 'pokemon'
           ? 'a Basic Pokémon or Evolution card'
           : 'any card';
@@ -985,6 +1009,7 @@ export const deckFilter = (cards: CardLibrary, choice: Extract<PendingChoice, { 
   if (choice.filter === 'trainer') return isTrainerCard(d);
   if (choice.filter === 'trainerNamed') return isTrainerCard(d) && d.name === choice.name;
   if (choice.filter === 'pokemonNotNamed') return isPokemonCard(d) && d.name !== choice.name;
+  if (choice.filter === 'evolvesFrom') return d.kind === 'pokemon' && !d.trainerText && d.evolvesFrom === choice.name;
   return choice.filter === 'any' || (d.kind === 'pokemon' && !d.trainerText);
 };
 
@@ -1523,8 +1548,18 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
       state.borrowed = { uid: picked.uid, owner: opp.id, player: me.id };
       addLog(state, `Took ${name(picked)} from the opponent's discard pile to use this turn.`, me.id);
     }
-  } else if (choice.kind === 'lookOppHand') {
-    // Nothing to do: the hand was shown.
+  } else if (choice.kind === 'lookOppHand' || choice.kind === 'lookOppDeck') {
+    // Nothing to do: the cards were shown.
+  } else if (choice.kind === 'engage') {
+    if (answer.count !== 0 && answer.count !== 1) return 'Shuffle and draw, or keep your hand';
+    delete state.pendingChoice;
+    if (answer.count === 0) {
+      [me.deck, state.rngState] = shuffle([...me.deck, ...me.hand], state.rngState);
+      me.hand = me.deck.splice(0, 4);
+      addLog(state, `${choice.source}: shuffled the hand into the deck and drew ${me.hand.length} cards.`, me.id);
+    } else addLog(state, `${choice.source}: kept the hand.`, me.id);
+    if (choice.then) state.pendingChoice = { player: choice.then, source: choice.source, kind: 'engage' };
+    return null;
   } else if (choice.kind === 'reflip') {
     // Re-flipping (count 1) is the engine's: it replays the attack.
     if (answer.count !== 0) return 'Choose one of the two';

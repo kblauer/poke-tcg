@@ -586,6 +586,8 @@ function optionAnswer(t: Turn, count: number): number {
   if (choice.kind === 'mistysWish' && choice.step === 'ask') return 1;
   // Mind Games (agreed), Herbal Scent and Fire Boost: it always flips (the first option).
   if (choice.kind === 'mindGames' || choice.kind === 'mayFlip') return 0;
+  // Engage: a new hand of 4 only when it holds fewer than 4 cards.
+  if (choice.kind === 'engage') return t.me.hand.length < 4 ? 0 : 1;
   return 0;
 }
 
