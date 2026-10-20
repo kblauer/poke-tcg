@@ -177,6 +177,8 @@ export interface PowerEffect {
   allergicPollen?: boolean;
   /** Unown K's Keep: the opponent's attacks, Pokémon Powers and Trainer cards can't discard Energy cards from its owner's Pokémon with Unown in their names (energyKept). */
   keep?: boolean;
+  /** Legendary Body: as the Active Pokémon, no Trainer card but a Stadium affects it or its Energy, and Trainer cards attached to it are discarded (trainerProof). */
+  legendaryBody?: boolean;
 }
 
 export interface PowerContext {
@@ -281,6 +283,16 @@ export const discardsLocked = (sides: Sides, cards: CardLibrary) => anyWorking(s
  */
 export const energyKept = (owner: Pick<PlayerState, 'active' | 'bench' | 'powersOffUntil'>, sides: Sides, cards: CardLibrary, pokemon: InPlayPokemon) =>
   inPlayDef(cards, pokemon).name.includes('Unown') && allInPlay([owner]).some((p) => powerEffect(effectId(p))?.keep && powerActive(p, cards, sides));
+
+/**
+ * Legendary Body (agreed: every Trainer card, either player's, but Stadiums): `side`'s Active Pokémon with it working (or
+ * `pokemon`, if it's that Active Pokémon) and its Energy aren't affected by Trainer cards. The power's name, or null.
+ */
+export function trainerProof(side: Pick<PlayerState, 'active'>, sides: Sides, cards: CardLibrary, pokemon?: InPlayPokemon | null): string | null {
+  const p = pokemon === undefined ? side.active : pokemon;
+  if (!p || side.active !== p) return null;
+  return powerEffect(effectId(p))?.legendaryBody && powerActive(p, cards, sides) ? `${powerOf(p, cards)!.name}: ${inPlayDef(cards, p).name} isn't affected by Trainer cards` : null;
+}
 
 /** Why no Evolution cards can be played (Prehistoric Power), or null. */
 export function evolutionBlocked(sides: Sides, cards: CardLibrary): string | null {

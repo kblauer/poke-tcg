@@ -1,6 +1,10 @@
 // Neo Revelation (neo3) Pokémon Powers, by card id. `text` and `name` have the printed wording where TCGdex's is missing
 // or differs (Parasect's Allergic Pollen has neither there; Energy Converter's "end is your turn"; Unown B's power loses
 // its letter).
+// Rulings (agreed): Legendary Body keeps every Trainer card, either player's, but Stadiums from affecting the Active Entei,
+// Raikou or Suicune and its Energy: it can't be chosen (Potion, Energy Removal, PlusPower, Pokémon Tools…), switched
+// (Switch, Gust of Wind, Double Gust, Warp Point) or otherwise changed (Full Heal, Sleep!, Digger, Pokémon Center, Erika's
+// Kindness…), and any Trainer card attached to it is discarded; it works while Asleep, Confused or Paralyzed, as printed.
 // Rulings (from the text): Softboiled asks whether to flip, as Herbal Scent does. Howl works when Entei is played from the
 // hand onto the Bench; using it ends the turn, even if no Fire Energy cards turn up. Time Travel flips when an opponent's
 // attack would Knock Celebi Out (Bench damage too); heads, it's shuffled into the deck with every card attached once the
@@ -33,6 +37,13 @@ const energyCards = (s: PowerSituation, t: Target) => pokemonAt(s.me, t)!.energy
 
 /** Energy Converter: the player's Pokémon with a basic Energy card attached. */
 const basicEnergyOn = (s: PowerSituation, t: Target) => pokemonAt(s.me, t)!.energy.filter((e) => !e.provides && isBasicEnergy(lookupCard(s.cards, e.defId)));
+
+/** Legendary Body (Entei, Raikou, Suicune), with the printed text (TCGdex says "other than" twice): trainerProof. */
+const legendaryBody = (name: string): PowerEffect => ({
+  text: `As long as ${name} is your Active Pokémon, ${name} and Energy cards attached to it aren't affected by effects from Trainer cards other than Stadium cards. As long as this power is active, discard any Trainer cards attached to ${name}. (This power works even if ${name} is Asleep, Confused, or Paralyzed.)`,
+  legendaryBody: true,
+  ignoresConditions: true,
+});
 
 /** Unown B's [Bear]: the player's other Pokémon with Unown in their names and damage counters. */
 const bearFrom = (s: PowerSituation) =>
@@ -129,6 +140,11 @@ export const NEO3_POWERS: Record<string, PowerEffect> = {
 
   // Aerodactyl – Prehistoric Memory: every Evolved Pokémon can use the attacks of the cards it evolved from (recallsAttacks).
   'neo3-15': { prehistoricMemory: true },
+
+  // Entei, Raikou and Suicune – Legendary Body: as the Active Pokémon, no Trainer card but a Stadium affects it or its Energy (agreed: either player's), and Trainer cards attached to it are discarded.
+  'neo3-17': legendaryBody('Entei'),
+  'neo3-22': legendaryBody('Raikou'),
+  'neo3-27': legendaryBody('Suicune'),
 
   // Sudowoodo – Mimic: as the Active Pokémon, it can use the Defending Pokémon's attacks too (usableAttacks).
   'neo3-26': { mimic: true },

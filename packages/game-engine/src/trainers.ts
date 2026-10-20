@@ -7,7 +7,7 @@ import { isBasicEnergy, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard
 import { powerEffect, trainerEffect } from './effects/index.js';
 import { activeLocked, discardTheirEnergy, type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
 import { shuffle } from './rng.js';
-import { offerChainReaction, powerActive, trainersBlocked } from './powers.js';
+import { offerChainReaction, powerActive, trainerProof, trainersBlocked } from './powers.js';
 import { addLog, baseUid, benchRoom, clearOnLeavingActive, effectId, evolvedHook, flipCoin, inPlayDef, openBenchSlot, shapeshiftCard } from './status.js';
 
 /** Answers to a Trainer's questions. Each question names the field it fills. */
@@ -553,8 +553,18 @@ export function stadiumError(
   return !effect.stadiumAnyTimes && usedTurn === turn ? 'You already used the Stadium this turn' : null;
 }
 
+/** Legendary Body: a Trainer card that isn't a Stadium can't choose an Active Pokémon with it working, or its Energy. */
+function withoutProof(s: TrainerSituation, spec: TrainerChoiceSpec): TrainerChoiceSpec {
+  const sides = [s.me, s.opp];
+  if (spec.kind === 'pokemon') return trainerProof(spec.side === 'own' ? s.me : s.opp, sides, s.cards) ? { ...spec, options: spec.options.filter((t) => t !== 'active') } : spec;
+  if (spec.kind !== 'cards' || (spec.field !== 'energyUids' && spec.field !== 'oppEnergyUids')) return spec;
+  const proof = sides.flatMap((side) => (trainerProof(side, sides, s.cards) ? side.active!.energy.map((e) => e.uid) : []));
+  return proof.length ? { ...spec, options: spec.options.filter((e) => !proof.includes(e.uid)) } : spec;
+}
+
 function choiceSpecs(s: TrainerSituation, c: TrainerChoices): TrainerChoiceSpec[] {
-  const specs = trainerEffect(s.card.defId)?.choices?.(s, c) ?? [];
+  const effect = trainerEffect(s.card.defId);
+  const specs = (effect?.choices?.(s, c) ?? []).map((spec) => (effect?.stadium ? spec : withoutProof(s, spec)));
   if (!removalTax(s)) return specs;
   return [{ kind: 'cards', field: 'handUids', min: 2, max: 2, options: otherHandCards(s), prompt: 'No Removal Gym: choose 2 cards from your hand to discard' }, ...specs];
 }

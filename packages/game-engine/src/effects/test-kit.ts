@@ -443,6 +443,7 @@ const BY_NAME: CardLibrary = {
   shiningMagikarp: mon('neo3-66', 'Shining Magikarp', W, 30, [['Gold Scale', [W], 0], ['Dragon Bond', [P], 0]]),
   balloonBerry: { id: 'neo3-60', kind: 'trainer', name: 'Balloon Berry', imageUrl: null, text: '' },
   healingField: { id: 'neo3-61', kind: 'trainer', name: 'Healing Field', imageUrl: null, text: '' },
+  breederFields: { id: 'neo3-62', kind: 'trainer', name: 'Pokémon Breeder Fields', imageUrl: null, text: '' },
   rocketsHideout: { id: 'neo3-63', kind: 'trainer', name: "Rocket's Hideout", imageUrl: null, text: '' },
   oldRod: { id: 'neo3-64', kind: 'trainer', name: 'Old Rod', imageUrl: null, text: '' },
   darkness: { id: 'neo1-104', kind: 'energy', name: 'Darkness Energy', imageUrl: null, energyType: 'darkness', basic: false },

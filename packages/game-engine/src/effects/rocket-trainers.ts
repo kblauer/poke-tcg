@@ -7,7 +7,7 @@
 // stops every Pokémon Power on both sides, including Pokémon put into play afterwards.
 import { isBasicEnergy, isPokemonCard, lookupCard } from '../cards.js';
 import type { CardInstance, GameState, InPlayPokemon, PlayerState } from '../engine.js';
-import { powerActive } from '../powers.js';
+import { powerActive, trainerProof } from '../powers.js';
 import { addLog, effectId, flipCoin, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { otherHandCards, type EnergyEffect, type TrainerEffect } from '../trainers.js';
 import { powerEffect } from './index.js';
@@ -69,6 +69,8 @@ export const ROCKET_TRAINERS: Record<string, TrainerEffect> = {
       for (let player: PlayerState = ctx.me; ; player = player === ctx.me ? ctx.opp : ctx.me) {
         if (flipCoin(ctx.state, 'Digger', player.id)) continue;
         if (!player.active) return;
+        const proof = trainerProof(player, [ctx.me, ctx.opp], ctx.state.cards);
+        if (proof) return addLog(ctx.state, `${proof}.`, player.id);
         player.active.damage += 10;
         return addLog(ctx.state, `Digger did 10 damage to ${pokemonName(ctx.state, player.active)}.`, player.id);
       }
@@ -117,6 +119,8 @@ export const ROCKET_TRAINERS: Record<string, TrainerEffect> = {
       const defending = ctx.opp.active;
       if (!ctx.flip() || !defending) return ctx.log('Sleep! did nothing.');
       const name = pokemonName(ctx.state, defending);
+      const proof = trainerProof(ctx.opp, [ctx.me, ctx.opp], ctx.state.cards);
+      if (proof) return ctx.log(`${proof}.`, ctx.opp.id);
       if (noConditions(ctx.state, defending)) return ctx.log(`${name} can't be affected by Special Conditions.`, ctx.opp.id);
       defending.condition = 'asleep';
       delete defending.paralyzedTurn;

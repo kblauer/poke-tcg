@@ -192,6 +192,38 @@ describe('Neo Revelation Pokémon Powers', () => {
     expect(applyAction(start, 'ash', { type: 'USE_POWER', source: 'active', choices: { from: 'active', energyUid, to: 1 } }).ok).toBe(false);
   });
 
+  it("Legendary Body: the opponent's Trainer cards can't switch the Active Entei or take its Energy", () => {
+    const start = duel('charmander', 'enteiFlame', { defenderEnergy: ['fire'], oppBench: ['squirtle'] });
+    const [gust, removal] = give(start, 'ash', 'gustofwind', 'energyremoval');
+    expect(applyAction(start, 'ash', { type: 'PLAY_TRAINER', cardUid: gust!, choices: { oppTarget: 0 } }).ok).toBe(false);
+    expect(applyAction(start, 'ash', { type: 'PLAY_TRAINER', cardUid: removal!, choices: { oppTarget: 'active' } }).ok).toBe(false);
+  });
+
+  it("Legendary Body: its own player's Trainer cards don't affect it either, even while it's Asleep", () => {
+    const start = duel('enteiFlame', 'machoke', { bench: ['squirtle'] });
+    ash(start).active!.damage = 20;
+    ash(start).active!.condition = 'asleep';
+    const [potion, sw] = give(start, 'ash', 'potion', 'switch');
+    expect(applyAction(start, 'ash', { type: 'PLAY_TRAINER', cardUid: potion!, choices: { target: 'active' } }).ok).toBe(false);
+    expect(applyAction(start, 'ash', { type: 'PLAY_TRAINER', cardUid: sw!, choices: { target: 0 } }).ok).toBe(false);
+  });
+
+  it('Legendary Body: benched, it can be chosen as usual', () => {
+    const start = duel('charmander', 'machoke', { bench: ['enteiFlame'] });
+    ash(start).bench[0]!.damage = 20;
+    const [potion] = give(start, 'ash', 'potion');
+    const s = act(start, 'ash', { type: 'PLAY_TRAINER', cardUid: potion!, choices: { target: 0 } });
+    expect(ash(s).bench[0]!.damage).toBe(0);
+  });
+
+  it('Legendary Body: Trainer cards attached to it are discarded once it is the Active Pokémon', () => {
+    const start = duel('squirtle', 'machoke', { bench: ['enteiFlame'] });
+    ash(start).bench[0]!.attached = [{ card: card('focusBand'), until: Number.MAX_SAFE_INTEGER, tool: true }];
+    const [sw] = give(start, 'ash', 'switch');
+    const s = act(start, 'ash', { type: 'PLAY_TRAINER', cardUid: sw!, choices: { target: 0 } });
+    expect([ash(s).active!.attached?.length, ash(s).discard.some((c) => c.defId === id('focusBand'))]).toEqual([0, true]);
+  });
+
   it('Prehistoric Memory works for the opponent too', () => {
     const start = duel('charmander', 'charmeleon', { oppBench: ['aerodactylNeo3'] });
     misty(start).active!.evolvedFrom = [card('charmander', 1)];

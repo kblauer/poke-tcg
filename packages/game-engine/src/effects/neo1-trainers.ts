@@ -13,6 +13,7 @@
 // player's only Pokémon in play. Mind Games (Slowking) applies to all of these, Stadiums and Tools too.
 import { isBasicEnergy, isPokemonCard, lookupCard } from '../cards.js';
 import { activeLock, type CardInstance, type InPlayPokemon } from '../engine.js';
+import { trainerProof } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { openBenchSlot, pokemonName } from '../status.js';
 import { def, otherHandCards, swapActive, targetsOf, timeCapsuleCards, type EnergyEffect, type PendingChoice, type TrainerContext, type TrainerEffect, type TrainerSituation } from '../trainers.js';
@@ -222,8 +223,10 @@ export const NEO1_TRAINERS: Record<string, TrainerEffect> = {
       return options.length ? [{ kind: 'pokemon', field: 'oppTarget', side: 'opp', options, prompt: "Choose one of your opponent's benched Pokémon to switch with their Active Pokémon" }] : [];
     },
     play(ctx) {
-      const oppSlot = typeof ctx.choices.oppTarget === 'number' ? ctx.choices.oppTarget : undefined;
-      if (ctx.me.bench.some(Boolean)) {
+      // Legendary Body: an Active Pokémon with it working isn't switched.
+      const proof = (side: typeof ctx.me) => trainerProof(side, [ctx.me, ctx.opp], ctx.state.cards);
+      const oppSlot = typeof ctx.choices.oppTarget === 'number' && !proof(ctx.opp) ? ctx.choices.oppTarget : undefined;
+      if (ctx.me.bench.some(Boolean) && !proof(ctx.me)) {
         // The opponent picks which of the player's benched Pokémon comes in; then the player's pick of theirs.
         ctx.state.pendingChoice = { player: ctx.opp.id, source: 'Double Gust', kind: 'doubleGust', ...(oppSlot !== undefined && { oppSlot }) } as PendingChoice;
         return;

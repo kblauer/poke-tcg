@@ -1,6 +1,6 @@
 /// <reference path="./globals.d.ts" />
 import { attackSituation, checkAttack, performAttack, recallsAttacks, usableAttacks, type AttackChoices } from './attacks.js';
-import { discardsLocked, energyFromHand, evolutionBlocked, guardedBy, offerChainReaction, playedFromHand, powerActive, refreshTransforms, retreatAid, stickyGoo, trainersBlocked, usePower, type PowerChoices } from './powers.js';
+import { discardsLocked, energyFromHand, evolutionBlocked, guardedBy, offerChainReaction, playedFromHand, powerActive, refreshTransforms, retreatAid, stickyGoo, trainerProof, trainersBlocked, usePower, type PowerChoices } from './powers.js';
 import { evolvesFromEevee, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
 import { isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
@@ -1577,11 +1577,25 @@ function refreshConverted(state: GameState) {
   }
 }
 
+/** Legendary Body: an Active Pokémon with it working has every Trainer card attached to it discarded (not Shapeshift's Evolution card). */
+function discardLegendaryTrainers(state: GameState) {
+  const sides = state.playerOrder.map((id) => state.players[id]!);
+  for (const player of sides) {
+    const active = player.active;
+    const trainers = active && trainerProof(player, sides, state.cards) ? (active.attached ?? []).filter((a) => lookupCard(state.cards, a.card.defId).kind === 'trainer') : [];
+    if (!active || !trainers.length) continue;
+    active.attached = active.attached!.filter((a) => !trainers.includes(a));
+    player.discard.push(...trainers.map((a) => a.card));
+    addLog(state, `Legendary Body: discarded ${trainers.map((a) => lookupCard(state.cards, a.card.defId).name).join(', ')} from ${pokemonName(state, active)}.`, player.id);
+  }
+}
+
 function ok(state: GameState): ActionResult {
   refreshTransforms(state);
   refreshWildGrowth(state);
   refreshHideout(state);
   refreshConverted(state);
+  discardLegendaryTrainers(state);
   returnRecycleEnergy(state);
   dropShapeshifts(state);
   state.version += 1;
