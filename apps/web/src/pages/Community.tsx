@@ -14,18 +14,12 @@ import { useInspectOnRightClick } from '../components/InspectContext';
 import { useUnlocked } from '../hooks/useUnlocked';
 import { useTRPC } from '../lib/trpc';
 import { cardTitle, type CatalogCard } from '../utils/cardList';
-import { DECK_SECTIONS, featuredPokemon, withCards } from '../utils/deckBuilder';
+import { DECK_SECTIONS, allGenerations, deckInGenerations, featuredPokemon, generationsOf, withCards } from '../utils/deckBuilder';
 import { PAGE_WIDTH } from '../utils/layout';
 
 type CommunityDeck = inferRouterOutputs<AppRouter>['community']['list'][number];
 
 const button = 'rounded px-3 py-1 text-sm disabled:opacity-40';
-
-/** The generations (GENERATIONS) a deck's cards come from, by their sets; basic Energy left out, as any generation's deck may use any set's. */
-const generationsOf = (cards: ReturnType<typeof withCards>) =>
-  Object.entries(GENERATIONS)
-    .filter(([, g]) => cards.some((e) => !e.card.basicEnergy && g.poolSets.includes(e.card.setId)))
-    .map(([id]) => Number(id));
 
 /**
  * Community Decks (`/community`): decks players have published (Share on the Collection tab), the latest first, for
@@ -45,7 +39,7 @@ export function CommunityPage() {
   const byId = useMemo(() => new Map((catalog.data ?? []).map((c) => [c.id, c])), [catalog.data]);
   const [search, setSearch] = useState('');
   /** The generations whose decks are shown (all to start): a deck shows if any of its cards' generations is on. */
-  const [shownGens, setShownGens] = useState<ReadonlySet<number>>(() => new Set(Object.keys(GENERATIONS).map(Number)));
+  const [shownGens, setShownGens] = useState<ReadonlySet<number>>(allGenerations);
   /** The deck tile clicked to focus it (its buttons showing), if any. */
   const [focused, setFocused] = useState<string | null>(null);
   // A click outside the tiles (not in a card opened large from one), or Escape, puts the focused one back.
@@ -66,12 +60,10 @@ export function CommunityPage() {
   if (!decks.data || !catalog.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
 
   const words = search.trim().toLowerCase();
-  // A deck shows if any of its generations is on (one with only basic Energy always does).
-  const genShown = (gens: number[]) => gens.length === 0 || gens.some((g) => shownGens.has(g));
   const shown = decks.data.filter(
     (d) =>
       (!words || [d.name, d.author, d.description].some((s) => s.toLowerCase().includes(words))) &&
-      genShown(generationsOf(withCards(d.cards, byId))),
+      deckInGenerations(d.cards, byId, shownGens),
   );
   return (
     <div className={`space-y-4 ${PAGE_WIDTH}`}>

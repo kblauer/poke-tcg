@@ -1,5 +1,6 @@
 // Deck builder: the search filters and editing a deck's card list. The rules themselves (60 cards, 4 of a
 // name, a Basic Pokémon) are in @poke-tcg/shared, where the API checks them too.
+import { GENERATIONS } from '@poke-tcg/campaign';
 import { DECK_SIZE, MAX_UNOWN, maxCopiesOf, copiesAllowed, copiesOfName, deckProblems, isUnownCard, unownCount, type DeckRuleCard } from '@poke-tcg/shared';
 import { CARD_TYPES, cardTitle, matchesSearch, type CatalogCard } from './cardList';
 
@@ -151,6 +152,21 @@ export const withCards = (entries: DeckEntry[], byId: Map<string, CatalogCard>) 
     const card = byId.get(e.cardId);
     return card ? [{ ...e, card }] : [];
   });
+
+/** The generations (GENERATIONS) a deck's cards come from, by their sets; basic Energy left out, as any generation's deck may use any set's. */
+export const generationsOf = (cards: ReturnType<typeof withCards>) =>
+  Object.entries(GENERATIONS)
+    .filter(([, g]) => cards.some((e) => !e.card.basicEnergy && g.poolSets.includes(e.card.setId)))
+    .map(([id]) => Number(id));
+
+/** Whether a deck shows with the generations `shown` on (GenerationFilter's `toggles`): any of its generations is on, and one with only basic Energy always does. */
+export const deckInGenerations = (entries: DeckEntry[], byId: Map<string, CatalogCard>, shown: ReadonlySet<number>) => {
+  const gens = generationsOf(withCards(entries, byId));
+  return gens.length === 0 || gens.some((g) => shown.has(g));
+};
+
+/** Every generation, the generation filter's start (all on). */
+export const allGenerations = () => new Set(Object.keys(GENERATIONS).map(Number));
 
 export const deckSize = (entries: DeckEntry[]) => entries.reduce((n, e) => n + e.quantity, 0);
 

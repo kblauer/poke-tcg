@@ -13,8 +13,9 @@ import type { inferRouterOutputs } from '@trpc/server';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { CatalogCard } from '../utils/cardList';
 import { useInspectOnRightClick } from './InspectContext';
-import { DECK_SECTIONS, deckRatio, deckSize, featuredPokemon, type DeckEntry } from '../utils/deckBuilder';
+import { DECK_SECTIONS, allGenerations, deckInGenerations, deckRatio, deckSize, featuredPokemon, type DeckEntry } from '../utils/deckBuilder';
 import { CardImage } from './CardImage';
+import { GenerationFilter } from './packs/GenerationFilter';
 
 export type SavedDeck = inferRouterOutputs<AppRouter>['decks']['list'][number];
 
@@ -223,6 +224,8 @@ function DeckTitle({
  * The account's decks as buttons to open, in their saved order: drag one to move it (the new order is
  * saved with `onReorder`). Each can be renamed (the pencil by its name) or copied, and a new deck started from scratch;
  * the star in a deck's top right corner favorites it (`onFavorite`: the run's Favorite decks), not the automatic run deck.
+ * The generation dropdown beside Import and New deck (GenerationFilter with `toggles`, as on Community Decks; all on to
+ * start) lists only the decks with cards from any generation ticked.
  * `compact` (a phone, where the list shares the top of the screen with the search): smaller tiles (DeckSummary's).
  */
 export function DeckList({
@@ -256,7 +259,9 @@ export function DeckList({
   // Shown in the new order straight away, while it's saved.
   const [order, setOrder] = useState(() => decks.map((d) => d.id));
   useEffect(() => setOrder(decks.map((d) => d.id)), [decks]);
-  const shown = order.flatMap((id) => decks.filter((d) => d.id === id));
+  /** The generations whose decks are listed (all to start). */
+  const [shownGens, setShownGens] = useState<ReadonlySet<number>>(allGenerations);
+  const shown = order.flatMap((id) => decks.filter((d) => d.id === id && deckInGenerations(d.cards, byId, shownGens)));
   // The distance keeps clicks on a deck (to open it) from starting a drag.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const onDragEnd = ({ active, over }: DragEndEvent) => {
@@ -269,7 +274,8 @@ export function DeckList({
     <div className={`flex min-h-0 flex-1 flex-col gap-2 rounded-lg bg-slate-900 text-sm ${compact ? 'p-2' : 'p-3'}`}>
       <div className="flex items-center justify-between">
         <span className="font-semibold">Decks</span>
-        <span className="flex gap-2">
+        <span className="flex items-center gap-2">
+          <GenerationFilter picked={shownGens} onChange={setShownGens} toggles compact />
           <button className={`flex items-center gap-1 rounded bg-slate-600 hover:bg-slate-500 ${compact ? 'px-2 py-0.5 text-xs' : 'px-3 py-1 text-sm'}`} onClick={onImport} title="Import a deck from a deck code or a deck list">
             <FileDownloadIcon sx={{ fontSize: 16 }} /> Import
           </button>
@@ -279,6 +285,7 @@ export function DeckList({
         </span>
       </div>
       {decks.length === 0 && <p className="text-slate-500">No decks yet. Start a new one.</p>}
+      {decks.length > 0 && shown.length === 0 && <p className="text-slate-500">No decks with cards from the generations picked.</p>}
       {decks.length > 1 && !compact && <p className="text-xs text-slate-500">Drag a deck to move it in the list.</p>}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={order} strategy={verticalListSortingStrategy}>
