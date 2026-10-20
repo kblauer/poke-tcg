@@ -624,11 +624,12 @@ export function performAttack(
     addLog(state, `${attack.name} did nothing: ${def(state.cards, defender).name} is a Baby Pokémon.`, me.id);
     return null;
   }
-  // 1999 rules: a Confused Pokémon flips to attack; on tails it does 20 damage to itself instead.
+  // Modern rules (agreed with the user, for every set): a Confused Pokémon flips to attack; on tails it does 30 damage to
+  // itself instead.
   if (attacker.condition === 'confused' && !flipCoin(state, `${attackerDef.name} is Confused`, me.id)) {
     // Frenzy: 30 more, even to itself.
     const frenzy = powerEffect(effectId(attacker))?.frenzy && powerActive(attacker, state.cards, [me, opp]) ? 30 : 0;
-    const damage = afterDefender(state.cards, attacker, 20 + frenzy);
+    const damage = afterDefender(state.cards, attacker, 30 + frenzy);
     attacker.damage += damage;
     addLog(state, damage ? `${attackerDef.name} hurt itself for ${damage} damage.` : `Defender prevented the damage ${attackerDef.name} did to itself.`, me.id);
     return null;

@@ -1,5 +1,5 @@
 // Team Rocket (base5) Pokémon Powers, by card id. Powers that are used stop working while their Pokémon is
-// Asleep, Confused or Paralyzed (checked in powerError); the rest are flags the engine checks with powerActive,
+// Asleep, Confused, Paralyzed, Poisoned or Burned (agreed; checked in powerError); the rest are flags the engine checks with powerActive,
 // which also handles Toxic Gas. Cards 22–30 are the non-holo prints of 5–13.
 // Rulings (agreed): Summon Minions, Sneak Attack and Reel In ("when you play it from your hand") also trigger
 // when Pokémon Breeder puts the card into play (playedFromHand). Frenzy's 30 is added before Weakness and

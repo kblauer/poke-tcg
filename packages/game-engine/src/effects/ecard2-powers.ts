@@ -16,9 +16,6 @@ import { addLog, effectId, inPlayDef, pokemonName } from '../status.js';
 import { swapActive } from '../trainers.js';
 import { powerEffect } from './index.js';
 
-/** A Poké-Power: used, stopped by any Special Condition, Poisoned and Burned too (as printed). */
-const POKE_POWER = { stopsOnAnyCondition: true } as const;
-
 /** A Poké-Body: always on, whatever its Pokémon's Special Conditions. */
 const POKE_BODY = { ignoresConditions: true, body: true } as const;
 
@@ -93,7 +90,6 @@ export const ECARD2_POWERS: Record<string, PowerEffect> = {
 
   // Azumarill – Bubble Turn: once a turn, from the Bench, flip; heads returns Azumarill and its cards to the hand.
   'ecard2-4': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked: (s) => onlyBenched(s, 'Azumarill'),
     use(ctx) {
@@ -108,7 +104,6 @@ export const ECARD2_POWERS: Record<string, PowerEffect> = {
 
   // Bellossom – Flower Supplement: once a turn, flip; heads attaches a basic Energy card from the hand to a Benched Pokémon.
   'ecard2-5': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked: (s) => (!benched(s).length ? 'You have no Benched Pokémon' : s.me.hand.some((c) => isBasicCard(s.cards, c)) ? null : 'No basic Energy cards in your hand'),
     choices(s, c) {
@@ -129,7 +124,6 @@ export const ECARD2_POWERS: Record<string, PowerEffect> = {
 
   // Blissey – Happy Healing: once a turn, choose a Benched Pokémon and flip; heads removes a damage counter from it for each Energy on Blissey.
   'ecard2-6': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked: (s) => (benched(s).length ? null : 'You have no Benched Pokémon'),
     choices: (s) => [{ kind: 'ownPokemon', field: 'to', options: benched(s), prompt: 'Choose one of your Benched Pokémon to heal (on heads)' }],
@@ -144,7 +138,6 @@ export const ECARD2_POWERS: Record<string, PowerEffect> = {
 
   // Electrode – Super Dynamo: as the Active Pokémon, once a turn, flip; heads attaches a Lightning Energy card from the discard pile to one of your Pokémon.
   'ecard2-8': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked(s) {
       if (s.source !== 'active') return 'Electrode must be your Active Pokémon';
@@ -170,7 +163,6 @@ export const ECARD2_POWERS: Record<string, PowerEffect> = {
 
   // Espeon – Energy Return: as often as you like, an Energy card attached to one of your Pokémon goes back to the hand.
   'ecard2-11': {
-    ...POKE_POWER,
     blocked: (s) => (ownTargets(s.me).some((t) => energyCards(pokemonAt(s.me, t)!).length) ? null : 'None of your Pokémon has an Energy card attached'),
     choices(s, c) {
       const specs: PowerChoiceSpec[] = [{ kind: 'ownPokemon', field: 'from', options: ownTargets(s.me).filter((t) => energyCards(pokemonAt(s.me, t)!).length), prompt: 'Return an Energy card from' }];
@@ -189,7 +181,6 @@ export const ECARD2_POWERS: Record<string, PowerEffect> = {
 
   // Hypno – Sleep Pendulum: as the Active Pokémon, once a turn, the Defending Pokémon is now Asleep.
   'ecard2-16': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked: (s) => onlyActive(s, 'Hypno') ?? (s.opp.active ? null : 'Your opponent has no Active Pokémon'),
     use: (ctx) => afflict(ctx, ctx.opp, ctx.opp.active!, 'asleep'),
@@ -200,7 +191,6 @@ export const ECARD2_POWERS: Record<string, PowerEffect> = {
 
   // Kingdra – Water Cyclone: as often as you like, a Water Energy card from the Active Pokémon to a Benched Pokémon.
   'ecard2-19': {
-    ...POKE_POWER,
     blocked(s) {
       if (!s.me.active?.energy.some((e) => isEnergyCardOf(e, s.cards, 'water'))) return 'Your Active Pokémon has no Water Energy card attached';
       return benched(s).length ? null : 'You have no Benched Pokémon';
@@ -221,7 +211,6 @@ export const ECARD2_POWERS: Record<string, PowerEffect> = {
 
   // Lanturn – Ion Coating: once a turn, the Lightning Energy on the Active Pokémon is Water Energy for the turn.
   'ecard2-21': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked: (s) => (s.me.active?.energy.some((e) => isBasicCard(s.cards, e) && isEnergyCardOf(e, s.cards, 'lightning')) ? null : 'Your Active Pokémon has no Lightning Energy card attached'),
     use(ctx) {
@@ -233,7 +222,6 @@ export const ECARD2_POWERS: Record<string, PowerEffect> = {
 
   // Magneton – Magnetic Flow: as the Active Pokémon, once a turn, flip; heads switches an Energy card between 2 of the opponent's Pokémon.
   'ecard2-22': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked: (s) => onlyActive(s, 'Magneton') ?? (ownTargets(s.opp).filter((t) => energyCards(pokemonAt(s.opp, t)!).length).length >= 2 ? null : "Your opponent needs 2 Pokémon with Energy cards attached"),
     choices(s, c) {
@@ -263,7 +251,6 @@ export const ECARD2_POWERS: Record<string, PowerEffect> = {
 
   // Nidoking – Earth Rage: as the Active Pokémon, once a turn, flip; heads puts a damage counter on each of the opponent's Benched Pokémon.
   'ecard2-24': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked: (s) => onlyActive(s, 'Nidoking') ?? (s.opp.bench.some(Boolean) ? null : 'Your opponent has no Benched Pokémon'),
     use(ctx) {
@@ -281,7 +268,6 @@ export const ECARD2_POWERS: Record<string, PowerEffect> = {
 
   // Porygon2 – Backup: once a turn, with 2 or fewer cards in the hand, draw until there are 3.
   'ecard2-28': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked: (s) => (s.me.hand.length > 2 ? 'You have more than 2 cards in your hand' : s.counts.deck ? null : 'Your deck is empty'),
     use(ctx) {
@@ -302,7 +288,6 @@ export const ECARD2_POWERS: Record<string, PowerEffect> = {
 
   // Tentacruel – Strange Tentacles: once a turn, while the Defending Pokémon has fewer Energy cards than your Active Pokémon, an Energy card from the opponent's discard pile onto it.
   'ecard2-38': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked(s) {
       if (!s.me.active || !s.opp.active) return 'There must be an Active Pokémon on each side';
@@ -321,7 +306,6 @@ export const ECARD2_POWERS: Record<string, PowerEffect> = {
 
   // Togetic – Miracle Shift: once a turn, discard a basic Energy card from one of your Pokémon; then a basic Energy card from the discard pile onto it.
   'ecard2-39': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked: (s) => (discardsLocked([s.me, s.opp], s.cards) ? 'Allergic Pollen: cards in discard piles are not affected' : ownTargets(s.me).some((t) => pokemonAt(s.me, t)!.energy.some((e) => isBasicCard(s.cards, e))) ? null : 'None of your Pokémon has a basic Energy card attached'),
     choices(s, c) {
@@ -348,7 +332,6 @@ export const ECARD2_POWERS: Record<string, PowerEffect> = {
 
   // Umbreon – Dark Moon: as the Active Pokémon with a Darkness Energy attached, once a turn, up to that many cards from the opponent's hand go into their deck; they draw as many.
   'ecard2-41': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked(s) {
       if (s.source !== 'active') return 'Umbreon must be your Active Pokémon';
@@ -363,7 +346,6 @@ export const ECARD2_POWERS: Record<string, PowerEffect> = {
 
   // Victreebel – Fragrance Trap: once a turn, flip; heads switches the chosen Benched Pokémon of the opponent's with their Active Pokémon.
   'ecard2-42': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked: (s) => (s.opp.bench.some(Boolean) ? null : 'Your opponent has no Benched Pokémon'),
     choices: (s) => [{ kind: 'oppPokemon', field: 'oppTo', options: ownTargets(s.opp).filter((t) => t !== 'active'), prompt: "Choose one of your opponent's Benched Pokémon to switch in (on heads)" }],
@@ -378,7 +360,6 @@ export const ECARD2_POWERS: Record<string, PowerEffect> = {
 
   // Furret – Scavenger Hunt: once a turn, 2 cards from the hand into the deck; then an Energy card from the deck into the hand.
   'ecard2-48': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked: (s) => (s.me.hand.length < 2 ? 'You need 2 cards in your hand' : null),
     use(ctx) {

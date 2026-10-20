@@ -1,5 +1,5 @@
 // Fossil (base3) Pokémon Powers, by card id. Powers that are used stop working while their Pokémon is
-// Asleep, Confused or Paralyzed (checked in powerError); the rest are flags the engine checks with
+// Asleep, Confused, Paralyzed, Poisoned or Burned (agreed; checked in powerError); the rest are flags the engine checks with
 // powerActive, which also handles Toxic Gas. Cards 16–30 are the non-holo prints of 1–15.
 // Rulings (agreed): a Transformed Ditto copies the Defending Pokémon's power too; Transparency flips
 // against any attack, even its owner's; Kabuto Armor halves after weakness, resistance, PlusPower and Defender.

@@ -1,8 +1,8 @@
 // Expedition (ecard1) Poké-Powers and Poké-Bodies, by card id (the engine's Pokémon Powers: Toxic Gas, Goop Gas Attack and
 // the like stop them too). Poké-Bodies always work, whatever the Pokémon's Special Conditions (`ignoresConditions`). The
 // Poké-Powers say "This power can't be used if … is affected by a Special Condition", so they stop when Poisoned or Burned
-// too (`stopsOnAnyCondition`); the two used from the Bench (Tailwind, Plunge) don't say it, and a Benched Pokémon has no
-// Special Conditions anyway. The non-holo prints (33–70) take the holos' (withNonHolo).
+// too, as every Pokémon Power does (powerActive); the two used from the Bench (Tailwind, Plunge) don't say it, and a
+// Benched Pokémon has no Special Conditions anyway. The non-holo prints (33–70) take the holos' (withNonHolo).
 // Rulings (from the text, as for Hatch: "Then…" parts happen only on heads): Jet Stream discards an Energy card from
 // Blastoise and then one from the Defending Pokémon only on heads; Plunge moves the Energy and switches only on heads. Chaos
 // Move asks whose Pokémon to move the damage counter from, which one, then whose to move it to and which (it may Knock Out).
@@ -19,9 +19,6 @@ import { effectId, energyProtected, inPlayDef, pokemonName } from '../status.js'
 import { swapActive } from '../trainers.js';
 import { withNonHolo } from './ecard1-prints.js';
 import { energyEffect, powerEffect } from './index.js';
-
-/** A Poké-Power: used, stopped by any Special Condition, Poisoned and Burned too (as printed). */
-const POKE_POWER = { stopsOnAnyCondition: true } as const;
 
 /** A Poké-Body: always on, whatever its Pokémon's Special Conditions. */
 const POKE_BODY = { ignoresConditions: true, body: true } as const;
@@ -61,11 +58,10 @@ const onSide = (s: Pick<PowerSituation, 'me' | 'opp'>, side: 'own' | 'opp', t: T
 
 const HOLO: Record<string, PowerEffect> = {
   // Alakazam – Psymimic: the opponent's Pokémon's attacks can be used instead of its own (usableAttacks).
-  'ecard1-1': { ...POKE_POWER, psymimic: true },
+  'ecard1-1': { psymimic: true },
 
   // Ampharos – Energy Connect: as often as you like, a basic Energy card from one of its player's Benched Pokémon to the Active Pokémon.
   'ecard1-2': {
-    ...POKE_POWER,
     blocked: (s) => (!s.me.active ? 'You have no Active Pokémon' : s.me.bench.some((p) => p && basicEnergyOn(s.cards, p).length) ? null : 'None of your Benched Pokémon has a basic Energy card'),
     choices(s, c) {
       const specs: PowerChoiceSpec[] = [
@@ -86,7 +82,6 @@ const HOLO: Record<string, PowerEffect> = {
 
   // Blastoise – Jet Stream: as the Active Pokémon, once a turn, flip; heads discards an Energy card from Blastoise, then one from the Defending Pokémon.
   'ecard1-4': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked: (s) => onlyActive(s, 'Blastoise') ?? (s.opp.active ? null : 'Your opponent has no Active Pokémon'),
     use(ctx) {
@@ -105,7 +100,6 @@ const HOLO: Record<string, PowerEffect> = {
 
   // Butterfree – Miraculous Powder: once a turn, its player's Active Pokémon is no longer affected by any Special Condition.
   'ecard1-5': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked: (s) => (s.me.active && (s.me.active.condition || s.me.active.poison || s.me.active.burned) ? null : 'Your Active Pokémon has no Special Condition'),
     use(ctx) {
@@ -120,7 +114,6 @@ const HOLO: Record<string, PowerEffect> = {
 
   // Charizard – Burning Energy: once a turn, the basic Energy attached to its player's Pokémon is Fire Energy for the rest of the turn.
   'ecard1-6': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked: (s) => (inPlay(s.me).some((p) => basicEnergyOn(s.cards, p).length) ? null : 'None of your Pokémon has a basic Energy card attached'),
     use(ctx) {
@@ -131,7 +124,6 @@ const HOLO: Record<string, PowerEffect> = {
 
   // Clefable – Moonlight: once a turn, a card from the hand goes on top of the deck; then a basic Energy card from the deck into the hand.
   'ecard1-7': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked: (s) => (s.me.hand.length ? null : 'Your hand is empty'),
     choices: (s) => [{ kind: 'handCard', field: 'cardUid', options: s.me.hand, prompt: 'Choose a card to put back on top of your deck' }],
@@ -146,7 +138,6 @@ const HOLO: Record<string, PowerEffect> = {
 
   // Dragonite – Tailwind: once a turn, from the Bench, its player's Active Pokémon's retreat cost is 0 this turn.
   'ecard1-9': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked: (s) => onlyBenched(s, 'Dragonite') ?? (s.me.active ? null : 'You have no Active Pokémon'),
     use(ctx) {
@@ -158,7 +149,6 @@ const HOLO: Record<string, PowerEffect> = {
 
   // Feraligatr – Major Tsunami: as the Active Pokémon, once a turn, the opponent switches their Active Pokémon; then Feraligatr switches with a Benched Pokémon, if any.
   'ecard1-12': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked: (s) => onlyActive(s, 'Feraligatr') ?? (s.opp.bench.some(Boolean) ? null : 'Your opponent has no Benched Pokémon'),
     choices(s) {
@@ -175,7 +165,6 @@ const HOLO: Record<string, PowerEffect> = {
 
   // Gengar – Chaos Move: once a turn, while the opponent has 3 or fewer Prize cards left, move a damage counter from any Pokémon in play to another (it may Knock Out).
   'ecard1-13': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked(s) {
       if (s.counts.oppPrizes > 3) return 'Your opponent has more than 3 Prize cards left';
@@ -212,7 +201,6 @@ const HOLO: Record<string, PowerEffect> = {
 
   // Machamp – Terraforming: once a turn, look at the top 4 cards of the deck and put them back in any order.
   'ecard1-16': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked: (s) => (s.counts.deck ? null : 'Your deck is empty'),
     use: (ctx) => ctx.pend({ kind: 'arrangeTop', source: 'Terraforming', count: 4 }),
@@ -220,7 +208,6 @@ const HOLO: Record<string, PowerEffect> = {
 
   // Meganium – Soothing Aroma: once a turn, flip; heads removes a damage counter from each of its player's Pokémon that has any.
   'ecard1-18': {
-    ...POKE_POWER,
     oncePerTurn: true,
     use(ctx) {
       if (!ctx.flip()) return ctx.log('Soothing Aroma did nothing.');
@@ -234,7 +221,6 @@ const HOLO: Record<string, PowerEffect> = {
 
   // Pidgeot – Beating Wings: as the Active Pokémon, once a turn, a Benched Pokémon and every card attached go back into the deck.
   'ecard1-23': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked: (s) => onlyActive(s, 'Pidgeot') ?? (s.me.bench.some(Boolean) ? null : 'You have no Benched Pokémon'),
     choices: (s) => [{ kind: 'ownPokemon', field: 'from', options: ownTargets(s.me).filter((t) => t !== 'active'), prompt: 'Choose one of your Benched Pokémon to shuffle into your deck' }],
@@ -250,7 +236,6 @@ const HOLO: Record<string, PowerEffect> = {
 
   // Poliwrath – Plunge: once a turn, from the Bench, flip; heads moves the Active Pokémon's Energy cards to Poliwrath, then switches them.
   'ecard1-24': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked: (s) => onlyBenched(s, 'Poliwrath') ?? (s.me.active ? null : 'You have no Active Pokémon'),
     use(ctx) {
@@ -266,7 +251,6 @@ const HOLO: Record<string, PowerEffect> = {
 
   // Typhlosion – Heat Up: once a turn, if the opponent has more Energy cards attached than the player, a Fire Energy card from the deck goes onto one of their Benched Pokémon.
   'ecard1-28': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked(s) {
       const count = (side: Pick<PlayerState, 'active' | 'bench'>) => inPlay(side).reduce((n, p) => n + energyCards(p).length, 0);
@@ -282,7 +266,6 @@ const HOLO: Record<string, PowerEffect> = {
 
   // Venusaur – Harvest Bounty: once a turn, after the turn's Energy card from the hand went to the Active Pokémon, another one from the hand goes there too.
   'ecard1-30': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked(s) {
       if (s.me.activeEnergyTurn !== s.turn) return 'Attach an Energy card from your hand to your Active Pokémon first';
@@ -307,7 +290,6 @@ const HOLO: Record<string, PowerEffect> = {
 
   // Vileplume – Poison Pollen: once a turn, flip; heads, the Defending Pokémon is now Poisoned.
   'ecard1-31': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked: (s) => (s.opp.active ? null : 'Your opponent has no Active Pokémon'),
     use(ctx) {

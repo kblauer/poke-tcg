@@ -20,9 +20,6 @@ import type { GameState } from '../engine.js';
 import { afflict, crystalType, pureBody } from './ecard2-powers.js';
 import { powerEffect } from './index.js';
 
-/** A Poké-Power: used, stopped by any Special Condition, Poisoned and Burned too (as printed). */
-const POKE_POWER = { stopsOnAnyCondition: true } as const;
-
 /** A Poké-Body: always on, whatever its Pokémon's Special Conditions. */
 const POKE_BODY = { ignoresConditions: true, body: true } as const;
 
@@ -96,7 +93,6 @@ const INVESTIGATE: Record<'deck' | 'oppDeck' | 'prize' | 'oppPrize', { own: bool
 export const ECARD3_POWERS: Record<string, PowerEffect> = {
   // Aerodactyl – Ancient Wind: as the Active Pokémon, every Poké-Body is ignored until the end of the turn.
   'ecard3-1': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked: (s) => onlyActive(s, 'Aerodactyl'),
     use(ctx) {
@@ -108,7 +104,6 @@ export const ECARD3_POWERS: Record<string, PowerEffect> = {
 
   // Alakazam – Energy Jump: an Energy card from one of the player's Pokémon to another.
   'ecard3-2': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked: (s) => (ownTargets(s.me).length < 2 ? 'You have no other Pokémon to move Energy to' : ownTargets(s.me).some((t) => energyCards(pokemonAt(s.me, t)!).length) ? null : 'None of your Pokémon has an Energy card attached'),
     choices(s, c) {
@@ -132,7 +127,6 @@ export const ECARD3_POWERS: Record<string, PowerEffect> = {
 
   // Arcanine – Energy Recharge: evolving the Active Pokémon from the hand, may flip 3 coins; a basic Energy card from the discard pile for each heads.
   'ecard3-3': {
-    ...POKE_POWER,
     onPlayFromHand(state, owner, arcanine) {
       if (!evolvedActive(owner, arcanine) || !owner.discard.some((c) => isBasicEnergy(lookupCard(state.cards, c.defId)))) return;
       state.pendingChoice = { player: owner.id, source: 'Energy Recharge', kind: 'mayUse', power: 'energyRecharge', target: 'active' };
@@ -144,7 +138,6 @@ export const ECARD3_POWERS: Record<string, PowerEffect> = {
 
   // Beedrill – Venom Spray: evolving the Active Pokémon from the hand, the Defending Pokémon is now Paralyzed and Poisoned.
   'ecard3-5': {
-    ...POKE_POWER,
     onPlayFromHand(state, owner, beedrill) {
       const opp = opponentOf(state, owner);
       if (!evolvedActive(owner, beedrill) || !opp.active) return;
@@ -155,7 +148,6 @@ export const ECARD3_POWERS: Record<string, PowerEffect> = {
 
   // Crobat – Carry Off: once a turn, flip; heads, a Baby, Basic or Evolution card from the opponent's hand into their deck.
   'ecard3-6': {
-    ...POKE_POWER,
     oncePerTurn: true,
     use(ctx) {
       if (!ctx.flip()) return ctx.log('Carry Off did nothing.');
@@ -168,7 +160,6 @@ export const ECARD3_POWERS: Record<string, PowerEffect> = {
 
   // Gengar – Manipulate: evolving the Active Pokémon from the hand, a Basic Pokémon (not a Baby) from the discard pile onto the Bench; 3 coins, a basic Energy card from the discard pile to it for each heads.
   'ecard3-10': {
-    ...POKE_POWER,
     onPlayFromHand(state, owner, gengar) {
       if (!evolvedActive(owner, gengar)) return;
       const fits = owner.discard.some((c) => {
@@ -181,7 +172,6 @@ export const ECARD3_POWERS: Record<string, PowerEffect> = {
 
   // Gyarados – Flame Vapor: evolving the Active Pokémon from the hand, may flip 2 coins; an Energy card discarded from the Defending Pokémon for each heads.
   'ecard3-11': {
-    ...POKE_POWER,
     onPlayFromHand(state, owner, gyarados) {
       const opp = opponentOf(state, owner);
       if (!evolvedActive(owner, gyarados) || !opp.active || !energyCards(opp.active).length) return;
@@ -200,7 +190,6 @@ export const ECARD3_POWERS: Record<string, PowerEffect> = {
 
   // Magcargo – Streaming Mantle: evolving the Active Pokémon from the hand, may discard the top 3 cards and shuffle 3 basic Energy cards from the discard pile into the deck; the opponent does the same.
   'ecard3-18': {
-    ...POKE_POWER,
     onPlayFromHand(state, owner, magcargo) {
       if (!evolvedActive(owner, magcargo)) return;
       state.pendingChoice = { player: owner.id, source: 'Streaming Mantle', kind: 'mayUse', power: 'streamingMantle', target: 'active' };
@@ -209,7 +198,6 @@ export const ECARD3_POWERS: Record<string, PowerEffect> = {
 
   // Magneton – Attract Energy: evolving any of the player's Pokémon from the hand, any number of basic Energy cards from their other Pokémon to it.
   'ecard3-19': {
-    ...POKE_POWER,
     onPlayFromHand(state, owner, magneton) {
       const target: Target = owner.active === magneton ? 'active' : owner.bench.indexOf(magneton);
       if (target === -1) return;
@@ -223,7 +211,6 @@ export const ECARD3_POWERS: Record<string, PowerEffect> = {
 
   // Nidoqueen – Evolution Helper: once a turn, from the Bench, the Active Pokémon evolves with a card from the deck.
   'ecard3-22': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked(s) {
       const bench = onlyBenched(s, 'Nidoqueen');
@@ -250,7 +237,6 @@ export const ECARD3_POWERS: Record<string, PowerEffect> = {
 
   // Poliwrath – Strange Spiral: once a turn, as the Active Pokémon, discard a basic Energy card from it; the Defending Pokémon is now Confused.
   'ecard3-26': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked(s) {
       const active = onlyActive(s, 'Poliwrath');
@@ -282,7 +268,6 @@ export const ECARD3_POWERS: Record<string, PowerEffect> = {
 
   // Wigglytuff – Good Neighbor: once a turn (whichever Wigglytuff), from the Bench, flip; heads, 2 damage counters off each Active Pokémon.
   'ecard3-34': {
-    ...POKE_POWER,
     blocked: (s) => onlyBenched(s, 'Wigglytuff') ?? (s.me.goodNeighborTurn === s.turn ? 'Good Neighbor has already been used this turn' : null),
     use(ctx) {
       ctx.me.goodNeighborTurn = ctx.state.turn;
@@ -305,7 +290,6 @@ export const ECARD3_POWERS: Record<string, PowerEffect> = {
 
   // Noctowl – Investigate: once a turn, the top 2 cards of either deck, or 2 of either player's Prize cards.
   'ecard3-40': {
-    ...POKE_POWER,
     oncePerTurn: true,
     choices(s) {
       const sizes = { deck: s.counts.deck, oppDeck: s.counts.oppDeck, prize: s.counts.prizes, oppPrize: s.counts.oppPrizes };
@@ -325,7 +309,6 @@ export const ECARD3_POWERS: Record<string, PowerEffect> = {
 
   // Buried Fossil – Reconstruction: with a basic Energy card in the hand, an Omanyte or Kabuto from the deck into the hand; then a basic Energy card from the hand into the deck.
   'ecard3-47': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked: (s) => (!s.me.hand.some((c) => isBasicEnergy(lookupCard(s.cards, c.defId))) ? 'No basic Energy cards in your hand' : s.counts.deck ? null : 'Your deck is empty'),
     choices: (s) => [{ kind: 'handCard', field: 'cardUid', options: s.me.hand.filter((c) => isBasicEnergy(lookupCard(s.cards, c.defId))), prompt: 'Choose the basic Energy card to put into your deck afterwards' }],
@@ -351,7 +334,6 @@ export const ECARD3_POWERS: Record<string, PowerEffect> = {
 
   // Snorlax – Lolling About: once a turn, as the Active Pokémon, a damage counter off Snorlax; it's now Asleep.
   'ecard3-100': {
-    ...POKE_POWER,
     oncePerTurn: true,
     blocked: (s) => onlyActive(s, 'Snorlax'),
     use(ctx: PowerContext) {

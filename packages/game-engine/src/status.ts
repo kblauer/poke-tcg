@@ -44,6 +44,16 @@ export const baseUid = (pokemon: InPlayPokemon) => (pokemon.evolvedFrom[0] ?? po
 export const effectId = (pokemon: InPlayPokemon) => pokemon.transformed ?? pokemon.card.defId;
 
 /**
+ * Whether the Pokémon has any Special Condition, Poisoned and Burned included. Pokémon Powers stop with any of them, also
+ * the older ones printed "Asleep, Confused, or Paralyzed" (agreed with the user).
+ */
+export const hasSpecialCondition = (pokemon: InPlayPokemon) => !!(pokemon.condition || pokemon.poison || pokemon.burned);
+
+/** The label of the Pokémon's Special Condition for messages: its Asleep/Confused/Paralyzed one first. */
+export const specialConditionLabel = (pokemon: InPlayPokemon) =>
+  pokemon.condition ? ({ asleep: 'Asleep', confused: 'Confused', paralyzed: 'Paralyzed' } as const)[pokemon.condition] : pokemon.burned ? 'Burned' : 'Poisoned';
+
+/**
  * A card put face down onto the Bench by Lt. Surge's Secret Plan: a Basic Pokémon with no attacks, which is turned face
  * up (revealFaceDown) before anything could damage it, so its HP never matter.
  */

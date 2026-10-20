@@ -44,7 +44,7 @@ describe('Legendary Collection reprints', () => {
     for (const r of lc) {
       if (r.abilities?.length) {
         const original = powerEffect(LC_REPRINTS[r.id]!)!;
-        expect(powerEffect(r.id), `${r.id} ${r.name}`).toEqual({ ...original, stopsOnAnyCondition: true, stopsOnlyWhileAsleep: false });
+        expect(powerEffect(r.id), `${r.id} ${r.name}`).toEqual({ ...original, stopsOnlyWhileAsleep: false });
       }
       if (r.category === 'Trainer') expect(trainerEffect(r.id), `${r.id} ${r.name}`).toBe(trainerEffect(LC_REPRINTS[r.id]!));
     }

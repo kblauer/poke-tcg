@@ -1,9 +1,9 @@
 // Gym Challenge (gym2) Pokémon Powers, by card id. Powers that are used stop working while their Pokémon is Asleep,
-// Confused or Paralyzed (checked in powerError); the rest are flags the engine checks with powerActive, which also
+// Confused, Paralyzed, Poisoned or Burned (agreed; checked in powerError); the rest are flags the engine checks with powerActive, which also
 // handles Toxic Gas.
 // Rulings: Shapeshift attaches an Evolution card from the hand to Brock's Ninetales once a turn, and it's treated as
 // that card (inPlayDef, usableAttacks) but keeps Shapeshift; attaching another replaces it; clicking it discards the card
-// (DISCARD_SHAPESHIFT), and it's discarded as soon as Brock's Ninetales is Asleep, Confused or Paralyzed. Emerge, like
+// (DISCARD_SHAPESHIFT), and it's discarded as soon as Brock's Ninetales has any Special Condition. Emerge, like
 // Rapid Evolution, has no evolution limits besides what stops evolving. Energy Drain's owner picks the Energy card.
 // Gaseous Form's HP are in inPlayDef (it sees no Toxic Gas there).
 import { isPokemonCard, lookupCard } from '../cards.js';

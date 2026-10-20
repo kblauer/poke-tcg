@@ -4,8 +4,8 @@
 //
 // Differences from the originals, as printed:
 // - Its Pokémon Powers say "affected by a Special Condition" where the originals say "Asleep, Confused, or Paralyzed"
-//   (Haunter's Transparency: "Asleep"), so they also stop working while the Pokémon is Poisoned or Burned
-//   (`stopsOnAnyCondition`). LC Snorlax can't be Burned either (Thick Skinned already keeps every Special Condition off).
+//   (Haunter's Transparency: "Asleep"). Every Pokémon Power now stops with any Special Condition, Poisoned and Burned
+//   included (agreed with the user), so only Transparency differs (`stopsOnlyWhileAsleep` off). LC Snorlax can't be Burned either (Thick Skinned already keeps every Special Condition off).
 // - TCGdex leaves out some damage (Dark Dragonite's Giant Tail…) and has Omastar's Spike Cannon cost as Colorless; the
 //   printed values are below. It also spells Jolteon's Pin Missile "Pin Missle" and Grimer's Minimize "Minimized" (fixed
 //   in the seed's TCGDEX_FIXES; the misspellings are kept here too until a re-seed).
@@ -168,6 +168,6 @@ export function lcAttacks(table: Record<string, Record<string, AttackEffect>>): 
   return out;
 }
 
-/** The Pokémon Powers of the Legendary Collection reprints: the originals', which stop working with any Special Condition. */
+/** The Pokémon Powers of the Legendary Collection reprints: the originals', Transparency stopping with any Special Condition. */
 export const lcPowers = (table: Record<string, PowerEffect>): Record<string, PowerEffect> =>
-  Object.fromEntries(Object.entries(lcReprints(table)).map(([id, effect]) => [id, { ...effect, stopsOnAnyCondition: true, stopsOnlyWhileAsleep: false }]));
+  Object.fromEntries(Object.entries(lcReprints(table)).map(([id, effect]) => [id, { ...effect, stopsOnlyWhileAsleep: false }]));

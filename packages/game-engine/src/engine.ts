@@ -4,7 +4,7 @@ import { attachBlocked, discardsLocked, energyFromHand, evolutionBlocked, primal
 import { evolvesFromEevee, evolveWith, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
 import { isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
-import { addLog, baseUid, clearOnLeavingActive, effectId, evolvedHook, shapeshiftCard, flipCoin, inPlayDef, openBenchSlot, pokemonName, revealFaceDown, type LogEntry } from './status.js';
+import { addLog, baseUid, clearOnLeavingActive, effectId, evolvedHook, hasSpecialCondition, shapeshiftCard, flipCoin, inPlayDef, openBenchSlot, pokemonName, revealFaceDown, type LogEntry } from './status.js';
 import { shuffle } from './rng.js';
 import type { CpuDifficulty } from './cpu/index.js';
 
@@ -231,7 +231,7 @@ export interface InPlayPokemon {
   gazed?: boolean;
   /** Time Travel: an opponent's attack would have Knocked it Out, and a heads shuffles it into its owner's deck instead (resolveKnockouts). */
   timeTravel?: boolean;
-  /** Submerge: the turn it's a Water Pokémon (inPlayDef), until it's Asleep, Confused or Paralyzed (refreshSubmerge). */
+  /** Submerge: the turn it's a Water Pokémon (inPlayDef), until it has any Special Condition (refreshConverted). */
   submerged?: number;
   /** Rocket's Hideout is the Stadium in play and it has Dark in its name: 20 more HP (refreshHideout, inPlayDef). */
   hideout?: boolean;
@@ -806,7 +806,7 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
         discardTool(state, me, me.active);
         addLog(state, `Discarded Balloon Berry from ${pokemonName(state, me.active)}.`, me.id);
       }
-      // Pursuit: trying to retreat does 10 damage to it (no Weakness or Resistance), even if Confusion then stops it.
+      // Pursuit: trying to retreat does 10 damage to it (no Weakness or Resistance).
       if (me.active.effects?.pursuit !== undefined) {
         me.active.damage += 10;
         addLog(state, `Pursuit did 10 damage to ${pokemonName(state, me.active)}.`, me.id);
@@ -820,14 +820,7 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
         me.active.damage += damage;
         addLog(state, `[Chase] did ${damage} damage to ${pokemonName(state, me.active)}.`, me.id);
       }
-      // 1999 rules: a Confused Pokémon needs heads to retreat; the energy is discarded either way.
-      if (me.active.condition === 'confused') {
-        const heads = flipCoin(state, `${pokemonName(state, me.active)} is Confused`, me.id);
-        if (!heads) {
-          addLog(state, `${pokemonName(state, me.active)} couldn't retreat.`, me.id);
-          return afterOwnMove(state, me, opp);
-        }
-      }
+      // Modern rules (agreed): a Confused Pokémon retreats like any other, with no flip.
       addLog(state, `${pokemonName(state, me.active)} retreated for ${pokemonName(state, benched)}.`, me.id);
       // Damage stays with each Pokémon; the retreated one takes the chosen slot.
       const retreated = me.active;
@@ -969,10 +962,10 @@ export function discardShapeshift(state: GameState, owner: PlayerState, pokemon:
   addLog(state, `Discarded ${lookupCard(state.cards, card.defId).name} from ${lookupCard(state.cards, pokemon.card.defId).name}.`, owner.id);
 }
 
-/** Shapeshift: Brock's Ninetales loses its Evolution card as soon as it's Asleep, Confused or Paralyzed. */
+/** Shapeshift: Brock's Ninetales loses its Evolution card as soon as it has any Special Condition. */
 function dropShapeshifts(state: GameState) {
   for (const player of Object.values(state.players)) {
-    for (const p of [player.active, ...player.bench]) if (p && shapeshiftCard(p) && p.condition) discardShapeshift(state, player, p);
+    for (const p of [player.active, ...player.bench]) if (p && shapeshiftCard(p) && hasSpecialCondition(p)) discardShapeshift(state, player, p);
   }
 }
 
@@ -1748,17 +1741,17 @@ function refreshHideout(state: GameState) {
 }
 
 /**
- * Energy Converter's Energy goes back to its own type once the Porygon2 that converted it is gone or Asleep, Confused or
- * Paralyzed; Submerge ends once Lanturn is. (Both end with the turn: betweenTurns.)
+ * Energy Converter's Energy goes back to its own type once the Porygon2 that converted it is gone or has any Special
+ * Condition; Submerge ends once Lanturn is. (Both end with the turn: betweenTurns.)
  */
 function refreshConverted(state: GameState) {
   const inPlay = Object.values(state.players).flatMap((player) => [player.active, ...player.bench]).filter((p): p is InPlayPokemon => !!p);
   for (const p of inPlay) {
-    if (p.submerged !== undefined && p.condition) delete p.submerged;
+    if (p.submerged !== undefined && hasSpecialCondition(p)) delete p.submerged;
     for (const e of p.energy) {
       if (!e.converted || e.converted.untied) continue;
       const porygon = inPlay.find((q) => q.card.uid === e.converted!.by);
-      if (!porygon || porygon.condition) delete e.converted;
+      if (!porygon || hasSpecialCondition(porygon)) delete e.converted;
     }
   }
 }

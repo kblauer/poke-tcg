@@ -25,12 +25,12 @@ describe('Legendary Collection', () => {
     expect(misty(attack(flips(s, true), 0)).active!.damage).toBe(70);
   });
 
-  it("stops its powers while the Pokémon is Poisoned, unlike the original (Alakazam's Damage Swap)", () => {
+  it("stops its powers while the Pokémon is Poisoned, as the original's now do too (Alakazam's Damage Swap)", () => {
     const lc = reprintOf('base1-1');
     const s = duel('alakazam', 'squirtle', { bench: ['charmander'] });
     ash(s).active!.damage = 20;
     ash(s).active!.poison = 10;
-    expect(powerError(situation(s, 'active'))).toBeNull();
+    expect(powerError(situation(s, 'active'))).toBe("Alakazam is Poisoned and can't use Damage Swap");
     s.cards[lc] = mon(lc, 'Alakazam', P, 80, [['Confuse Ray', [P, P, P], 30]], { stage: 'stage2', power: { name: 'Damage Swap', text: '' } });
     ash(s).active!.card.defId = lc;
     expect(powerError(situation(s, 'active'))).toBe("Alakazam is Poisoned and can't use Damage Swap");
