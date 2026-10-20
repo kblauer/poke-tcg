@@ -8,11 +8,11 @@ export const cardRarity = (card: Pick<Card, 'id' | 'rarity' | 'data'>): Rarity =
   isHolo(card) || isGalaxyFoil(card) ? 'holo' : card.rarity === 'Rare' ? 'rare' : card.rarity === 'Uncommon' ? 'uncommon' : 'common';
 
 /**
- * A generation's pool: every card of its sets (`poolSets`) the engine can load, only those it plays fully when the
- * generation is `implementedOnly` (Gen 1; Gen 2's effects are still to come), with Stage 2s' Basics filled in for Pokémon Breeder.
+ * A generation's pool: every card of its sets (`poolSets`) the engine can load, only those it plays fully from the sets
+ * whose effects are done (`implementedSets`: Gen 1's, Neo Genesis), with Stage 2s' Basics filled in for Pokémon Breeder.
  */
 async function loadPool(gen: number): Promise<PoolCard[]> {
-  const { poolSets, implementedOnly } = generation(gen);
+  const { poolSets, implementedSets } = generation(gen);
   const rows = await prisma.card.findMany({ where: { setId: { in: poolSets } }, orderBy: { id: 'asc' } });
   const pool = rows.flatMap((row) => {
     let def: CardDef;
@@ -21,7 +21,7 @@ async function loadPool(gen: number): Promise<PoolCard[]> {
     } catch {
       return []; // A Trainer or Energy the engine doesn't support.
     }
-    return !implementedOnly || cardImplemented(def) ? [{ def, rarity: cardRarity(row) }] : [];
+    return !implementedSets.includes(row.setId) || cardImplemented(def) ? [{ def, rarity: cardRarity(row) }] : [];
   });
   for (const { def } of pool) {
     if (def.kind !== 'pokemon' || def.stage !== 'stage2') continue;

@@ -2,7 +2,7 @@
 // no prize; Scoop Up can't take your only Pokémon in play; Devolution Spray can Knock Out (prize as
 // usual); PlusPower's +10 comes before Defender's −20, both after weakness and resistance.
 import { isBasicEnergy, isBasicPokemon, isBenchable, isPokemonCard, isTrainerCard, type CardLibrary, type PokemonCardDef } from '../cards.js';
-import type { CardInstance, InPlayPokemon, PlayerState, Target } from '../engine.js';
+import { activeLock, discardTheirEnergy, type CardInstance, type GameState, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { evolutionBlocked, offerChainReaction, playedFromHand } from '../powers.js';
 import { clearOnLeavingActive, energyProtected, evolvedHook, inPlayDef, openBenchSlot } from '../status.js';
 import { def, otherHandCards, own, targetsOf, theirs, type TrainerChoiceSpec, type TrainerEffect, type TrainerSituation } from '../trainers.js';
@@ -173,7 +173,8 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
   // Scoop Up
   'base1-78': {
     blocked: (s) => (targetsOf(s.me).length < 2 ? "You can't Scoop Up your only Pokémon in play" : null),
-    choices: (s) => [{ kind: 'pokemon', field: 'target', side: 'own', options: targetsOf(s.me), prompt: 'Choose a Pokémon to return to your hand' }],
+    // Not an Active Pokémon held by Jaw Clamp.
+    choices: (s) => [{ kind: 'pokemon', field: 'target', side: 'own', options: targetsOf(s.me).filter((t) => t !== 'active' || !activeLock(s.me, [s.me, s.opp], s.cards)), prompt: 'Choose a Pokémon to return to your hand' }],
     play(ctx) {
       const p = at(ctx.me, ctx.choices.target!);
       const basic = p.evolvedFrom[0] ?? p.card;
@@ -200,7 +201,7 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
     },
     play(ctx) {
       discardEnergy(ctx.me, at(ctx.me, ctx.choices.target!), ctx.choices.energyUids!);
-      discardEnergy(ctx.opp, at(ctx.opp, ctx.choices.oppTarget!), ctx.choices.oppEnergyUids!);
+      discardTheirs(ctx.state, ctx.opp, at(ctx.opp, ctx.choices.oppTarget!), ctx.choices.oppEnergyUids!);
       ctx.log(`Discarded ${ctx.choices.oppEnergyUids!.length} Energy from ${pokemonDef(ctx.state, at(ctx.opp, ctx.choices.oppTarget!)).name}.`, ctx.opp.id);
     },
   },
@@ -367,14 +368,14 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
     },
     play(ctx) {
       const p = at(ctx.opp, ctx.choices.oppTarget!);
-      discardEnergy(ctx.opp, p, ctx.choices.oppEnergyUids!);
+      discardTheirs(ctx.state, ctx.opp, p, ctx.choices.oppEnergyUids!);
       ctx.log(`Discarded an Energy from ${pokemonDef(ctx.state, p).name}.`, ctx.opp.id);
     },
   },
 
   // Gust of Wind
   'base1-93': {
-    blocked: (s) => (s.opp.bench.some(Boolean) ? null : 'Your opponent has no Benched Pokémon'),
+    blocked: (s) => (s.opp.bench.some(Boolean) ? activeLock(s.opp, [s.me, s.opp], s.cards) : 'Your opponent has no Benched Pokémon'),
     choices: (s) => [
       { kind: 'pokemon', field: 'oppTarget', side: 'opp', options: targetsOf(s.opp).filter((t) => t !== 'active'), prompt: "Choose one of your opponent's Benched Pokémon" },
     ],
@@ -398,7 +399,7 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
 
   // Switch
   'base1-95': {
-    blocked: (s) => (s.me.bench.some(Boolean) && s.me.active ? null : 'You have no Benched Pokémon'),
+    blocked: (s) => (s.me.bench.some(Boolean) && s.me.active ? activeLock(s.me, [s.me, s.opp], s.cards) : 'You have no Benched Pokémon'),
     choices: (s) => [{ kind: 'pokemon', field: 'target', side: 'own', options: targetsOf(s.me).filter((t) => t !== 'active'), prompt: 'Choose a Benched Pokémon to switch in' }],
     play(ctx) {
       switchActive(ctx.me, ctx.choices.target as number);
@@ -425,5 +426,12 @@ function discardEnergy(owner: PlayerState, p: InPlayPokemon, uids: string[]) {
   const gone = p.energy.filter((e) => uids.includes(e.uid));
   p.energy = p.energy.filter((e) => !gone.includes(e));
   owner.discard.push(...gone.map(({ provides: _, ...card }) => card));
+}
+
+/** The opponent's Energy cards, discarded by the player's Trainer (Ecogym may send them back to the hand). */
+function discardTheirs(state: GameState, owner: PlayerState, p: InPlayPokemon, uids: string[]) {
+  const gone = p.energy.filter((e) => uids.includes(e.uid));
+  p.energy = p.energy.filter((e) => !gone.includes(e));
+  discardTheirEnergy(state, owner, gone);
 }
 

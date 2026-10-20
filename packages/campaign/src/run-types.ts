@@ -7,7 +7,7 @@
 import type { EnergyType } from '@poke-tcg/game-engine';
 import { BOSSES, boss, ELITE_FOUR, JOHTO_ELITE_FOUR, JOHTO_GYMS, KANTO_GYMS, type Boss, type BossId } from './bosses.js';
 import { GEN1_DECK_RULES, GEN2_DECK_RULES, type DeckRules } from './decks.js';
-import { basicEnergyType, GEN2_SETS, POOL_SETS } from './pool.js';
+import { basicEnergyType, GEN2_DONE_SETS, GEN2_SETS, POOL_SETS } from './pool.js';
 import { CELADON_GYM, CERULEAN_GYM, CINNABAR_GYM, FUCHSIA_GYM, KANTO_BOSS_ROOMS, POKEMON_CENTER, POKEMON_TOWER_1F, POKEMON_TOWER_2F, POKEMON_TOWER_3F, POKEMON_TOWER_4F, POKEMON_TOWER_5F, POWER_PLANT, ROUTE_17, ROUTE_20, ROUTE_8, ROUTE_4, ROUTE_5_VERMILION, ROUTE_6, SAFFRON_GYM, VERMILION_GYM, VIRIDIAN_GYM } from './kanto-routes.js';
 import { PEWTER_GYM, ROUTE_2, type Route } from './routes.js';
 
@@ -172,11 +172,12 @@ export interface Generation {
   gymChallenge: RunTypeId;
   packs: string[];
   /**
-   * The sets its runs' cards come from (offered, sold, and in trainers' decks), only the cards the engine plays fully if
-   * `implementedOnly` (Gen 2's effects are still to come, so it uses all of them for now), and how its random decks are made.
+   * The sets its runs' cards come from (offered, sold, and in trainers' decks), only the cards the engine plays fully from
+   * `implementedSets` (those whose effects are done: all of Gen 1's, Gen 2's Neo Genesis; the other Gen 2 sets' effects
+   * are still to come, so their runs use all of their cards for now), and how its random decks are made.
    */
   poolSets: string[];
-  implementedOnly: boolean;
+  implementedSets: string[];
   deckRules: DeckRules;
 }
 
@@ -187,10 +188,10 @@ export const GENERATIONS: Record<number, Generation> = {
     gymChallenge: 'kantoGyms',
     packs: ['base1', 'base2', 'basep', 'base3', 'base4', 'base5', 'gym1', 'gym2'],
     poolSets: POOL_SETS,
-    implementedOnly: true,
+    implementedSets: POOL_SETS,
     deckRules: GEN1_DECK_RULES,
   },
-  2: { region: 'Johto', gyms: JOHTO_GYMS, gymChallenge: 'johtoGyms', packs: GEN2_SETS, poolSets: GEN2_SETS, implementedOnly: false, deckRules: GEN2_DECK_RULES },
+  2: { region: 'Johto', gyms: JOHTO_GYMS, gymChallenge: 'johtoGyms', packs: GEN2_SETS, poolSets: GEN2_SETS, implementedSets: GEN2_DONE_SETS, deckRules: GEN2_DECK_RULES },
 };
 
 /** The generation a run type belongs to. */

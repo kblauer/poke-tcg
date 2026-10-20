@@ -7,6 +7,7 @@ import { lazy, Suspense, useEffect, useState, type PointerEvent as ReactPointerE
 import { createPortal } from 'react-dom';
 import { useSkipFlips } from '../hooks/useSkipFlips';
 import { GameLog } from './GameLog';
+import { MusicControls } from './MusicPlayer';
 
 // Only builds with the debug tools load (or even include) the Debug tab's panel.
 // __DEBUG_BUILD__ (vite.config.ts) is a literal here, so a production build has no DebugPanel chunk at all.
@@ -301,7 +302,11 @@ export function LogSheet({
           />
         )}
       </div>
-      {actions && <div className="flex justify-end gap-2 border-t border-slate-700 pt-3">{actions}</div>}
+      {/* The music player's bar (it isn't floating on a phone) and the actions (Concede). */}
+      <div className="flex items-center justify-between gap-2 border-t border-slate-700 pt-3">
+        <MusicControls onOpen={onClose} />
+        {actions && <div className="flex gap-2">{actions}</div>}
+      </div>
     </div>,
     document.body,
   );

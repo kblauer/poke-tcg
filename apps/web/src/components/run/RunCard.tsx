@@ -33,7 +33,7 @@ export function RunCard({
     <>
       <div
         className="relative aspect-[63/88] w-28"
-        onMouseEnter={(e) => def && setPreview({ def, x: e.clientX, y: e.clientY })}
+        onMouseEnter={(e) => def && setPreview({ def, x: e.clientX, y: e.clientY, from: e.currentTarget })}
         onMouseLeave={() => setPreview(null)}
         onContextMenu={
           inspect.onContextMenu &&

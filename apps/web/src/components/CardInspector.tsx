@@ -1,4 +1,5 @@
 import AddIcon from '@mui/icons-material/Add';
+import CloseIcon from '@mui/icons-material/Close';
 import RemoveIcon from '@mui/icons-material/Remove';
 import StarIcon from '@mui/icons-material/Star';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
@@ -9,9 +10,13 @@ import { CardViewer } from './CardViewer';
 
 const small = 'flex rounded bg-slate-600 p-1 hover:bg-slate-500 disabled:opacity-30';
 
+/** What a click or tap in the view leaves alone: the card itself, its controls and their rows. Anywhere else closes it. */
+const KEEP_OPEN = 'button, input, a, [data-keep-open]';
+
 /**
  * A card shown large in the middle of the screen, as holding it does, but staying open (right-clicking a card, see
- * CardInspectProvider) until Escape or a click outside it. Opened by a long press, it ignores the finger lifting (the
+ * CardInspectProvider) until Escape, its × (top right) or a click anywhere but the card and its controls (beside the
+ * card too). Opened by a long press, it ignores the finger lifting (the
  * click that ends the press lands on it): only a press that starts on it closes it. With a deck open (`deck`), − and + change its copies in
  * the deck; + is disabled with the reason when the card can't be added. In the deck builder (`craft`), Craft unlocks the
  * card for Stardust. The page behind it doesn't scroll while it's open (useScrollLock); it scrolls itself only when it's
@@ -52,14 +57,17 @@ export function CardInspector({
       role="dialog"
       aria-label={card.name}
       onPointerDown={() => (pressed.current = true)}
-      onClick={() => pressed.current && onClose()}
+      onClick={(e) => pressed.current && !(e.target as Element).closest(KEEP_OPEN) && onClose()}
       // Right-clicking another spot closes it, without the browser's menu.
       onContextMenu={(e) => {
         e.preventDefault();
-        if (pressed.current) onClose();
+        if (pressed.current && !(e.target as Element).closest(KEEP_OPEN)) onClose();
       }}
     >
-      <div className="m-auto flex w-full max-w-lg flex-col items-center gap-3" onClick={(e) => e.stopPropagation()} onContextMenu={(e) => e.stopPropagation()}>
+      <button className="fixed right-3 top-3 z-10 flex rounded-full bg-slate-800/80 p-2 text-slate-200 ring-1 ring-slate-600 transition hover:bg-slate-700 hover:text-white" onClick={onClose} aria-label="Close" title="Close">
+        <CloseIcon />
+      </button>
+      <div className="m-auto flex w-full max-w-lg flex-col items-center gap-3">
         <CardViewer card={card} locked={locked} />
         {favorite && (
           <button
@@ -72,7 +80,7 @@ export function CardInspector({
           </button>
         )}
         {deck && (
-          <div className="flex items-center gap-3 rounded-lg bg-slate-800 px-3 py-2 text-sm ring-1 ring-slate-600">
+          <div data-keep-open className="flex items-center gap-3 rounded-lg bg-slate-800 px-3 py-2 text-sm ring-1 ring-slate-600">
             <span className="max-w-56 truncate text-slate-400">In {deck.name || 'this deck'}</span>
             <button className={small} disabled={deck.copies === 0} onClick={() => deck.onChange(-1)} aria-label={`Remove a ${card.name}`}>
               <RemoveIcon sx={{ fontSize: 16 }} />
@@ -85,7 +93,7 @@ export function CardInspector({
         )}
         {deck?.blocked && <p className="text-xs text-amber-300">{deck.blocked}.</p>}
         {craft && (
-          <div className="flex items-center gap-3 rounded-lg bg-slate-800 px-3 py-2 text-sm ring-1 ring-slate-600">
+          <div data-keep-open className="flex items-center gap-3 rounded-lg bg-slate-800 px-3 py-2 text-sm ring-1 ring-slate-600">
             <span className="text-slate-400">
               Stardust <span className="font-semibold text-sky-200">{craft.stardust}</span>
             </span>

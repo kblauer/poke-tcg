@@ -14,7 +14,7 @@ import { createRoot } from 'react-dom/client';
 import './index.css';
 import './styles/holo/index.css';
 import { CardInspectProvider } from './components/CardInspectProvider';
-import { MusicPlayer } from './components/MusicPlayer';
+import { MusicControls, MusicProvider } from './components/MusicPlayer';
 import { SidePanel } from './components/SidePanel';
 import { useSession } from './lib/auth';
 import { signInWithGoogle, signOut } from './lib/supabase';
@@ -95,9 +95,10 @@ function RootLayout() {
     </>
   );
 
-  return (
+  const page = (
     // Each page sets its own width and side padding. The header is one row when it fits the window; when it would
-    // wrap, the pages go in a menu behind a ☰ button (the phone's battle screen covers the header).
+    // wrap, the pages go in a menu behind a ☰ button (the phone's battle screen covers the header), with the music
+    // player's bar.
     <div className="py-4">
       <header ref={header} className="relative mb-6 flex items-center justify-between gap-2 whitespace-nowrap px-4">
         {session && (
@@ -131,6 +132,7 @@ function RootLayout() {
             ))}
           </nav>
           <div className="mt-auto space-y-2 border-t border-slate-700 pt-3 text-sm">
+            <MusicControls onOpen={() => setMenu(false)} />
             <p className="truncate text-slate-400">{session.user.email}</p>
             <button className="flex items-center gap-1.5 rounded bg-slate-700 px-3 py-1.5 hover:bg-slate-600" onClick={() => signOut()}>
               <LogoutIcon sx={{ fontSize: 16 }} />
@@ -142,8 +144,6 @@ function RootLayout() {
       {session ? (
         <CardInspectProvider>
           <Outlet />
-          {/* Mounted with the layout, so the music plays on from page to page. */}
-          <MusicPlayer />
         </CardInspectProvider>
       ) : (
         <div className="flex flex-col items-center gap-4 py-24">
@@ -158,6 +158,8 @@ function RootLayout() {
       )}
     </div>
   );
+  // Mounted with the layout, so the music plays on from page to page; in the ☰ menu when there is one.
+  return session ? <MusicProvider docked={!fits}>{page}</MusicProvider> : page;
 }
 
 const rootRoute = createRootRoute({ component: RootLayout });

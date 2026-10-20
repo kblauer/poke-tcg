@@ -1,4 +1,4 @@
-import { energyProvided, lookupCard, typeName, type CardInstance, type CardLibrary, type ChoiceSpec, type PlayerView, type PokemonCardDef } from '@poke-tcg/game-engine';
+import { energyProvided, inPlayDef, lookupCard, typeName, type CardInstance, type CardLibrary, type ChoiceSpec, type PlayerView } from '@poke-tcg/game-engine';
 import { useState } from 'react';
 import type { AttackControl } from '../hooks/useAttack';
 import { EnergyIcon } from './EnergyIcon';
@@ -58,9 +58,34 @@ export function AttackChoicePanel({ spec, view, attack }: { spec: ChoiceSpec; vi
         )}
         {(spec.kind === 'opponentPokemon' || spec.kind === 'opponentPokemonTo') && <p className={pickHint}>Click one of the CPU's highlighted Pokémon.</p>}
         {spec.kind === 'ownPokemon' && <p className={pickHint}>Click one of your highlighted Pokémon.</p>}
+        {spec.kind === 'boost' && (
+          // Final Blow, Hydroelectric Power: use the power for this attack, or not.
+          <div className="flex flex-wrap gap-1">
+            <button className={option} onClick={() => attack.answer(true)}>
+              Yes
+            </button>
+            <button className={option} onClick={() => attack.answer(false)}>
+              No
+            </button>
+          </div>
+        )}
+        {spec.kind === 'copySource' &&
+          // Super Metronome: which of the CPU's Pokémon to copy an attack of, by name.
+          spec.options.map((t) => {
+            const p = t === 'active' ? opponent.active : opponent.bench[t];
+            return (
+              p && (
+                <button key={String(t)} className={option} onClick={() => attack.answer(t)}>
+                  {inPlayDef(cards, p).name}
+                  {t === 'active' ? ' (Active)' : ''}
+                </button>
+              )
+            );
+          })}
         {(spec.kind === 'defenderAttack' || spec.kind === 'copyAttack') &&
           spec.options.map((i) => {
-            const a = (lookupCard(cards, opponent.active!.card.defId) as PokemonCardDef).attacks[i]!;
+            const of = spec.kind === 'copyAttack' && spec.of !== undefined && spec.of !== 'active' ? opponent.bench[spec.of] : opponent.active;
+            const a = inPlayDef(cards, of!).attacks[i]!;
             return (
               <button key={i} className={option} title={a.text ?? undefined} onClick={() => attack.answer(i)}>
                 {a.name} ({a.damageText ?? a.damage})

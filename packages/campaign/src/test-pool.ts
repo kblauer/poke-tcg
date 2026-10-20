@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { attackEffect, cardImplemented, type CardDef, type EnergyType, type Stage } from '@poke-tcg/game-engine';
 import type { PackSet } from './packs.js';
-import { GEN2_SETS, POOL_SETS, type PoolCard, type Rarity } from './pool.js';
+import { GEN2_DONE_SETS, GEN2_SETS, POOL_SETS, type PoolCard, type Rarity } from './pool.js';
 
 interface Row {
   id: string;
@@ -85,12 +85,12 @@ export const TEST_POOL: PoolCard[] = rows
     return def && cardImplemented(def) ? [{ def, rarity: rarity(r) }] : [];
   });
 
-/** Gen 2's pool as the API builds it: every card of GEN2_SETS it can load, implemented or not (their effects are still to come). */
+/** Gen 2's pool as the API builds it: every card of GEN2_SETS it can load, only implemented ones from GEN2_DONE_SETS (the others' effects are still to come). */
 export const GEN2_TEST_POOL: PoolCard[] = rows
   .filter((r) => GEN2_SETS.includes(r.id.split('-')[0]!))
   .flatMap((r) => {
     const def = toDef(r);
-    return def ? [{ def, rarity: rarity(r) }] : [];
+    return def && (!GEN2_DONE_SETS.includes(r.id.split('-')[0]!) || cardImplemented(def)) ? [{ def, rarity: rarity(r) }] : [];
   });
 
 /** Cards added by hand to the catalog (packages/db/prisma/data/custom-cards.json), in the snapshot's shape. */

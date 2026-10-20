@@ -50,6 +50,15 @@ function Question({ spec, view, trainer }: { spec: TrainerChoiceSpec; view: Play
           ))}
         </div>
       )}
+      {spec.kind === 'pick' && (
+        <div className="flex flex-wrap gap-1">
+          {spec.options.map((n, i) => (
+            <button key={n} className={option} onClick={() => onAnswer(n)}>
+              {spec.labels[i]}
+            </button>
+          ))}
+        </div>
+      )}
       {handPick ? (
         // Cards from the hand are picked in the hand itself.
         <>

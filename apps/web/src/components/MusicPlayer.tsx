@@ -6,7 +6,7 @@ import ShuffleIcon from '@mui/icons-material/Shuffle';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import AudioPlayer, { RHAP_UI } from 'react-h5-audio-player';
 import 'react-h5-audio-player/lib/styles.css';
 import { duration, groupByGame, MUSIC_GENERATIONS, playlist, type GenFilter, type Track } from '../utils/music';
@@ -57,15 +57,58 @@ const PlayingBars = () => (
   </span>
 );
 
+/** What MusicControls shows and does: whether music is playing, the song, play/pause, and opening the player's panel. */
+interface MusicState {
+  playing: boolean;
+  title: string | null;
+  open: boolean;
+  togglePlay: () => void;
+  toggleOpen: () => void;
+}
+
+const MusicContext = createContext<MusicState | null>(null);
+
 /**
- * The music player, at the bottom right of every page: a small bar with the track playing and play/pause, which pops out
- * for the track controls (react-h5-audio-player: seek, previous/next, repeat, shuffle, volume) and the song list. The list
+ * The music player's small bar: play/pause and the song playing, which opens the player's panel. Floating at the bottom
+ * right of the page, or (`MusicProvider`'s `docked`) in a menu: the site's ☰ menu, or the phone battle screen's.
+ * `onOpen`: called when it opens the panel (a menu closes itself, so the panel can be seen).
+ */
+export function MusicControls({ onOpen }: { onOpen?: () => void }) {
+  const music = useContext(MusicContext);
+  if (!music) return null;
+  const { playing, title, open, togglePlay, toggleOpen } = music;
+  return (
+    <div className="flex w-fit min-w-0 items-center gap-1 rounded-full bg-slate-800 py-1 pl-1 pr-1 shadow-lg ring-1 ring-slate-600">
+      <button className={`${iconButton} rounded-full`} onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'} title={playing ? 'Pause' : 'Play'}>
+        {playing ? <PauseIcon sx={{ fontSize: 20 }} /> : <PlayArrowIcon sx={{ fontSize: 20 }} />}
+      </button>
+      <button
+        className="flex min-w-0 items-center gap-1.5 rounded-full px-2 py-1 text-sm text-slate-300 transition hover:bg-slate-700 hover:text-slate-100"
+        onClick={() => {
+          if (!open) onOpen?.();
+          toggleOpen();
+        }}
+        aria-expanded={open}
+        title={open ? 'Hide the music player' : 'Show the music player'}
+      >
+        <MusicNoteIcon sx={{ fontSize: 18 }} className={playing ? 'text-yellow-300' : undefined} />
+        <span className="max-w-48 truncate">{title ?? 'Music'}</span>
+      </button>
+    </div>
+  );
+}
+
+/**
+ * The music player, mounted with the layout so music plays on from page to page: a small bar (MusicControls) with the
+ * track playing and play/pause, which pops out a panel for the track controls (react-h5-audio-player: seek, previous/next, repeat, shuffle, volume) and the song list. The list
  * shows one generation or all, game by game, each game's other music apart from its battle music; each song's play button
  * plays it at once (clicking the song itself only selects it, leaving what's playing alone), and when one ends the next in the list plays (a random one with shuffle). The tracks (public/music/tracks.json) are
  * loaded once the player is first used. The audio stays mounted while the panel is closed, so music plays on across pages.
  * Settings and the last track are remembered in localStorage (`poke-tcg.music`); nothing plays until clicked.
+ * The bar floats at the bottom right, its panel above it; `docked` (when the site's pages are in its ☰ menu: a phone, a
+ * narrow window), the bar is in the menus instead (MusicControls) and the panel opens at the bottom of the screen.
  */
-export function MusicPlayer() {
+export function MusicProvider({ children, docked }: { children: ReactNode; docked: boolean }) {
   const [prefs, setPrefs] = useState(loadPrefs);
   const update = (change: Partial<MusicPrefs>) => setPrefs((p) => ({ ...p, ...change }));
   useEffect(() => savePrefs(prefs), [prefs]);
@@ -145,157 +188,149 @@ export function MusicPlayer() {
     if (prefs.open) listRef.current?.querySelector('[data-current]')?.scrollIntoView({ block: 'center' });
   }, [prefs.open, prefs.gen, tracks.data]);
 
+  const toggleOpen = () => {
+    setWanted(true);
+    update({ open: !prefs.open });
+  };
+  const state: MusicState = { playing, title: current?.title ?? null, open: prefs.open, togglePlay, toggleOpen };
   return (
-    // Clicks here don't cancel a move in progress on the board (the Board's outside-click listener).
-    <div data-keep-action className="fixed bottom-4 right-4 z-[1300] flex flex-col items-end gap-2">
-      <section
-        aria-label="Music player"
-        className={`${prefs.open ? 'flex' : 'hidden'} max-h-[min(42rem,calc(100vh-6rem))] w-[26rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-lg bg-slate-800 shadow-xl ring-1 ring-slate-600`}
-      >
-        <div className="flex items-start gap-2 px-4 pt-3">
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-semibold">{current?.title ?? 'Pick a song'}</p>
-            <p className="truncate text-xs text-slate-400">{current ? `${current.game} · Gen ${current.gen}${current.battle ? ' · Battle' : ''}` : 'Pokémon game music, generations 1–5'}</p>
-          </div>
-          <button className={iconButton} onClick={() => update({ open: false })} aria-label="Close the music player" title="Close">
-            <CloseIcon sx={{ fontSize: 18 }} />
-          </button>
-        </div>
-        {current && (
-          <AudioPlayer
-            ref={player}
-            className="music-player"
-            src={current.url}
-            preload="none"
-            autoPlayAfterSrcChange={false}
-            volume={prefs.volume * MAX_VOLUME}
-            showSkipControls
-            showJumpControls={false}
-            onClickNext={() => step(1)}
-            onClickPrevious={() => step(-1)}
-            onEnded={() => step(1)}
-            onPlay={() => setPlaying(true)}
-            onPause={() => setPlaying(false)}
-            onError={() => setError("This song couldn't be loaded.")}
-            customVolumeControls={[
-              <div key="volume" className="flex items-center gap-1">
-                <button className={iconButton} onClick={() => setMuted(!muted)} aria-label={muted ? 'Unmute' : 'Mute'} title={muted ? 'Unmute' : 'Mute'}>
-                  {muted || prefs.volume === 0 ? <VolumeOffIcon sx={{ fontSize: 20 }} /> : <VolumeUpIcon sx={{ fontSize: 20 }} />}
-                </button>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={prefs.volume}
-                  onChange={(e) => {
-                    setMuted(false);
-                    update({ volume: Number(e.target.value) });
-                  }}
-                  aria-label="Volume"
-                  className="h-1 w-20 cursor-pointer accent-yellow-300"
-                />
-              </div>,
-            ]}
-            customAdditionalControls={[
-              RHAP_UI.LOOP,
-              <button
-                key="shuffle"
-                className={`${iconButton} ${prefs.shuffle ? 'text-yellow-300 hover:text-yellow-200' : ''}`}
-                onClick={() => update({ shuffle: !prefs.shuffle })}
-                aria-pressed={prefs.shuffle}
-                title={prefs.shuffle ? 'Shuffle on' : 'Shuffle off'}
-              >
-                <ShuffleIcon sx={{ fontSize: 20 }} />
-              </button>,
-            ]}
-          />
-        )}
-        {error && <p className="px-4 pb-1 text-xs text-amber-300">{error}</p>}
-
-        <div role="radiogroup" aria-label="Generation" className="flex flex-wrap gap-1 border-t border-slate-700 px-4 py-2 text-xs">
-          {[null, ...MUSIC_GENERATIONS].map((gen) => (
-            <button
-              key={gen ?? 'all'}
-              role="radio"
-              aria-checked={prefs.gen === gen}
-              onClick={() => update({ gen })}
-              className={`rounded px-2 py-1 transition ${prefs.gen === gen ? 'bg-slate-600 text-slate-100' : 'text-slate-400 hover:bg-slate-700 hover:text-slate-200'}`}
-            >
-              {gen === null ? 'All' : `Gen ${gen}`}
-            </button>
-          ))}
-        </div>
-
-        <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
-          {tracks.error && <p className="px-2 text-sm text-red-400">{tracks.error.message}</p>}
-          {!tracks.data && !tracks.error && <p className="px-2 text-sm text-slate-400">Loading songs…</p>}
-          {groupByGame(list).map((g) => (
-            <div key={g.game} className="pt-2">
-              <p className="sticky top-0 z-10 bg-slate-800 px-2 py-1 text-sm font-semibold text-yellow-300">
-                {g.game} {prefs.gen === null && <span className="text-xs font-normal text-slate-500">Gen {g.gen}</span>}
-              </p>
-              {[
-                { label: 'Music', songs: g.music },
-                { label: 'Battle', songs: g.battle },
-              ].map(
-                ({ label, songs }) =>
-                  songs.length > 0 && (
-                    <div key={label}>
-                      <p className="px-2 pt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-                      <ul>
-                        {songs.map((t) => {
-                          const isCurrent = t === current;
-                          const isSelected = t.url === selected;
-                          return (
-                            <li
-                              key={t.url}
-                              data-current={isCurrent || undefined}
-                              className={`flex items-center gap-1 rounded pl-1 text-sm transition ${isSelected ? 'bg-slate-700 ring-1 ring-slate-500' : 'hover:bg-slate-700/60'} ${isCurrent ? 'text-yellow-200' : 'text-slate-300'}`}
-                            >
-                              {/* The only way to play a song from the list: it starts at once. */}
-                              <button
-                                className={`${iconButton} h-6 w-6 ${isCurrent ? 'text-yellow-300 hover:text-yellow-200' : ''}`}
-                                onClick={() => play(t)}
-                                aria-label={`Play ${t.title}`}
-                                title={isCurrent && playing ? 'Playing' : 'Play'}
-                              >
-                                {isCurrent && playing ? <PlayingBars /> : <PlayArrowIcon sx={{ fontSize: 18 }} />}
-                              </button>
-                              {/* Clicking the song only selects it: what's playing and the controls above stay as they are. */}
-                              <button className="flex min-w-0 flex-1 items-center gap-2 py-1 pr-2 text-left" onClick={() => setSelected(t.url)} aria-pressed={isSelected}>
-                                <span className="min-w-0 flex-1 truncate">{t.title}</span>
-                                <span className="shrink-0 text-xs tabular-nums text-slate-500">{duration(t.seconds)}</span>
-                              </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </div>
-                  ),
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <div className="flex items-center gap-1 rounded-full bg-slate-800 py-1 pl-1 pr-1 shadow-lg ring-1 ring-slate-600">
-        <button className={`${iconButton} rounded-full`} onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'} title={playing ? 'Pause' : 'Play'}>
-          {playing ? <PauseIcon sx={{ fontSize: 20 }} /> : <PlayArrowIcon sx={{ fontSize: 20 }} />}
-        </button>
-        <button
-          className="flex min-w-0 items-center gap-1.5 rounded-full px-2 py-1 text-sm text-slate-300 transition hover:bg-slate-700 hover:text-slate-100"
-          onClick={() => {
-            setWanted(true);
-            update({ open: !prefs.open });
-          }}
-          aria-expanded={prefs.open}
-          title={prefs.open ? 'Hide the music player' : 'Show the music player'}
+    <MusicContext.Provider value={state}>
+      {children}
+      {/* Clicks here don't cancel a move in progress on the board (the Board's outside-click listener). */}
+      <div data-keep-action className={`fixed z-[1300] flex flex-col gap-2 ${docked ? 'bottom-3 left-3 items-start' : 'bottom-4 right-4 items-end'}`}>
+        <section
+          aria-label="Music player"
+          className={`${prefs.open ? 'flex' : 'hidden'} max-h-[min(42rem,calc(100vh-6rem))] w-[26rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-lg bg-slate-800 shadow-xl ring-1 ring-slate-600`}
         >
-          <MusicNoteIcon sx={{ fontSize: 18 }} className={playing ? 'text-yellow-300' : undefined} />
-          {current && <span className="max-w-48 truncate">{current.title}</span>}
-        </button>
+          <div className="flex items-start gap-2 px-4 pt-3">
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-semibold">{current?.title ?? 'Pick a song'}</p>
+              <p className="truncate text-xs text-slate-400">{current ? `${current.game} · Gen ${current.gen}${current.battle ? ' · Battle' : ''}` : 'Pokémon game music, generations 1–5'}</p>
+            </div>
+            <button className={iconButton} onClick={() => update({ open: false })} aria-label="Close the music player" title="Close">
+              <CloseIcon sx={{ fontSize: 18 }} />
+            </button>
+          </div>
+          {current && (
+            <AudioPlayer
+              ref={player}
+              className="music-player"
+              src={current.url}
+              preload="none"
+              autoPlayAfterSrcChange={false}
+              volume={prefs.volume * MAX_VOLUME}
+              showSkipControls
+              showJumpControls={false}
+              onClickNext={() => step(1)}
+              onClickPrevious={() => step(-1)}
+              onEnded={() => step(1)}
+              onPlay={() => setPlaying(true)}
+              onPause={() => setPlaying(false)}
+              onError={() => setError("This song couldn't be loaded.")}
+              customVolumeControls={[
+                <div key="volume" className="flex items-center gap-1">
+                  <button className={iconButton} onClick={() => setMuted(!muted)} aria-label={muted ? 'Unmute' : 'Mute'} title={muted ? 'Unmute' : 'Mute'}>
+                    {muted || prefs.volume === 0 ? <VolumeOffIcon sx={{ fontSize: 20 }} /> : <VolumeUpIcon sx={{ fontSize: 20 }} />}
+                  </button>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={prefs.volume}
+                    onChange={(e) => {
+                      setMuted(false);
+                      update({ volume: Number(e.target.value) });
+                    }}
+                    aria-label="Volume"
+                    className="h-1 w-20 cursor-pointer accent-yellow-300"
+                  />
+                </div>,
+              ]}
+              customAdditionalControls={[
+                RHAP_UI.LOOP,
+                <button
+                  key="shuffle"
+                  className={`${iconButton} ${prefs.shuffle ? 'text-yellow-300 hover:text-yellow-200' : ''}`}
+                  onClick={() => update({ shuffle: !prefs.shuffle })}
+                  aria-pressed={prefs.shuffle}
+                  title={prefs.shuffle ? 'Shuffle on' : 'Shuffle off'}
+                >
+                  <ShuffleIcon sx={{ fontSize: 20 }} />
+                </button>,
+              ]}
+            />
+          )}
+          {error && <p className="px-4 pb-1 text-xs text-amber-300">{error}</p>}
+
+          <div role="radiogroup" aria-label="Generation" className="flex flex-wrap gap-1 border-t border-slate-700 px-4 py-2 text-xs">
+            {[null, ...MUSIC_GENERATIONS].map((gen) => (
+              <button
+                key={gen ?? 'all'}
+                role="radio"
+                aria-checked={prefs.gen === gen}
+                onClick={() => update({ gen })}
+                className={`rounded px-2 py-1 transition ${prefs.gen === gen ? 'bg-slate-600 text-slate-100' : 'text-slate-400 hover:bg-slate-700 hover:text-slate-200'}`}
+              >
+                {gen === null ? 'All' : `Gen ${gen}`}
+              </button>
+            ))}
+          </div>
+
+          <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+            {tracks.error && <p className="px-2 text-sm text-red-400">{tracks.error.message}</p>}
+            {!tracks.data && !tracks.error && <p className="px-2 text-sm text-slate-400">Loading songs…</p>}
+            {groupByGame(list).map((g) => (
+              <div key={g.game} className="pt-2">
+                <p className="sticky top-0 z-10 bg-slate-800 px-2 py-1 text-sm font-semibold text-yellow-300">
+                  {g.game} {prefs.gen === null && <span className="text-xs font-normal text-slate-500">Gen {g.gen}</span>}
+                </p>
+                {[
+                  { label: 'Music', songs: g.music },
+                  { label: 'Battle', songs: g.battle },
+                ].map(
+                  ({ label, songs }) =>
+                    songs.length > 0 && (
+                      <div key={label}>
+                        <p className="px-2 pt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+                        <ul>
+                          {songs.map((t) => {
+                            const isCurrent = t === current;
+                            const isSelected = t.url === selected;
+                            return (
+                              <li
+                                key={t.url}
+                                data-current={isCurrent || undefined}
+                                className={`flex items-center gap-1 rounded pl-1 text-sm transition ${isSelected ? 'bg-slate-700 ring-1 ring-slate-500' : 'hover:bg-slate-700/60'} ${isCurrent ? 'text-yellow-200' : 'text-slate-300'}`}
+                              >
+                                {/* The only way to play a song from the list: it starts at once. */}
+                                <button
+                                  className={`${iconButton} h-6 w-6 ${isCurrent ? 'text-yellow-300 hover:text-yellow-200' : ''}`}
+                                  onClick={() => play(t)}
+                                  aria-label={`Play ${t.title}`}
+                                  title={isCurrent && playing ? 'Playing' : 'Play'}
+                                >
+                                  {isCurrent && playing ? <PlayingBars /> : <PlayArrowIcon sx={{ fontSize: 18 }} />}
+                                </button>
+                                {/* Clicking the song only selects it: what's playing and the controls above stay as they are. */}
+                                <button className="flex min-w-0 flex-1 items-center gap-2 py-1 pr-2 text-left" onClick={() => setSelected(t.url)} aria-pressed={isSelected}>
+                                  <span className="min-w-0 flex-1 truncate">{t.title}</span>
+                                  <span className="shrink-0 text-xs tabular-nums text-slate-500">{duration(t.seconds)}</span>
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    ),
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {!docked && <MusicControls />}
       </div>
-    </div>
+    </MusicContext.Provider>
   );
 }

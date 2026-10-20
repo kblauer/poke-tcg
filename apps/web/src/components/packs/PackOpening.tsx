@@ -4,6 +4,7 @@ import { MAX_PACKS_AT_ONCE } from '@poke-tcg/campaign';
 import { useMutation } from '@tanstack/react-query';
 import type { inferRouterOutputs } from '@trpc/server';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useScrollLock } from '../../hooks/useScrollLock';
 import { useTRPC } from '../../lib/trpc';
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
 import { CARD_BACK } from '../../utils/cardBack';
@@ -83,6 +84,8 @@ const isRare = (c: PackCard) => c.slot === 'rare' || c.slot === 'holo' || c.slot
 export function PackOpening({ set, price, bank, onClose, onOpened }: { set: PackSetInfo; price: number; bank: number; onClose: () => void; onOpened: () => void }) {
   const trpc = useTRPC();
   const [phase, setPhase] = useState<'pack' | 'tearing' | 'burst' | 'commons' | 'reveal' | 'summary'>('pack');
+  const overlay = useRef<HTMLDivElement>(null);
+  useScrollLock(true, overlay);
   const [cards, setCards] = useState<PackCard[]>([]);
   /** The Stardust these packs gave. */
   const [stardustEarned, setStardustEarned] = useState(0);
@@ -182,7 +185,9 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
   return (
     <div
       data-keep-action
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm"
+      ref={overlay}
+      // Its content is centred, and scrolls when it's taller than the screen (a phone); the page behind stays put.
+      className="fixed inset-0 z-50 flex overflow-y-auto overscroll-contain bg-slate-950/85 p-4 backdrop-blur-sm"
       // Before the pack is opened, a click on anything but a control (the pack, the quantity, the options) closes the window.
       onClick={(e) => {
         if (phase === 'pack' && !open.isPending && !(e.target as Element).closest('button, input, label, select, a')) onClose();
@@ -190,13 +195,13 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
     >
       {fireworks > 0 && <Fireworks key={fireworks} />}
       {phase !== 'tearing' && phase !== 'burst' && !open.isPending && (
-        <button className="absolute right-4 top-4 rounded-full p-2 text-slate-300 hover:bg-slate-800 hover:text-white" onClick={onClose} aria-label="Close">
+        <button className="fixed right-4 top-4 z-10 rounded-full p-2 text-slate-300 hover:bg-slate-800 hover:text-white" onClick={onClose} aria-label="Close">
           <CloseIcon />
         </button>
       )}
 
       {(phase === 'pack' || phase === 'tearing') && (
-        <div className="flex flex-col items-center gap-6">
+        <div className="m-auto flex flex-col items-center gap-6">
           <h2 className="text-2xl font-bold">{set.name}</h2>
           <button
             className="rounded-md outline-none transition hover:scale-105 focus-visible:ring-4 focus-visible:ring-yellow-300 disabled:cursor-not-allowed disabled:hover:scale-100"
@@ -299,7 +304,7 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
       )}
 
       {phase === 'commons' && (
-        <div className="flex max-h-full w-full max-w-5xl flex-col items-center gap-4">
+        <div className="m-auto flex max-h-full w-full max-w-5xl flex-col items-center gap-4">
           <p className="text-sm text-slate-400">
             {commons.length} commons, uncommons and Energy from {packs === 1 ? 'the pack' : `${packs} packs`} ·{' '}
             {queue.length ? `${queue.length} rare${queue.length === 1 ? '' : 's'} face down` : 'no rares'}
@@ -331,7 +336,7 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
       )}
 
       {phase === 'reveal' && current && (
-        <div className="flex flex-col items-center gap-5">
+        <div className="m-auto flex flex-col items-center gap-5">
           <p className="text-sm text-slate-400">
             {allRaresPacks.has(current.pack) && <span className="font-bold text-yellow-300">All rares! · </span>}
             {raresOnly
@@ -382,7 +387,7 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
       )}
 
       {phase === 'summary' && (
-        <div className="max-h-full w-full max-w-4xl space-y-4 overflow-y-auto rounded-lg bg-slate-800 p-6 ring-1 ring-slate-600">
+        <div className="m-auto max-h-full w-full max-w-4xl space-y-4 overflow-y-auto rounded-lg bg-slate-800 p-6 ring-1 ring-slate-600">
           <div className="flex items-baseline gap-3">
             <h2 className="text-xl font-bold">
               {packs === 1 ? `${set.name} pack` : `${packs} ${set.name} packs`}
@@ -473,7 +478,8 @@ function Burst({ count, onDone }: { count: number; onDone: () => void }) {
     return () => animations.forEach((a) => a?.cancel());
   }, []);
   return (
-    <div className="relative aspect-[63/88] w-72">
+    // m-auto: centred in the window, as every phase is.
+    <div className="relative m-auto aspect-[63/88] w-72">
       {Array.from({ length: count }, (_, i) => (
         <img key={i} ref={(el) => void (cards.current[i] = el)} src={CARD_BACK} alt="" draggable={false} className="absolute inset-0 aspect-[63/88] w-full rounded-xl object-cover shadow-xl shadow-black/60" />
       ))}

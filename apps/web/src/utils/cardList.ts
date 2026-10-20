@@ -28,7 +28,12 @@ export const stageLabel = (card: CatalogCard) => STAGES.find((s) => s.value === 
 /** Set names in release order, for the set filter. */
 export const setNames = (cards: CatalogCard[]) => [...new Set([...cards].sort((a, b) => a.order - b.order).map((c) => c.setName))];
 
-/** Whether the search text is in the card's name or one of its attacks' names (already lower-cased). */
-export const matchesSearch = (card: Pick<CatalogCard, 'name' | 'attacks'>, search: string) =>
-  card.name.toLowerCase().includes(search) || (card.attacks ?? []).some((a) => a?.toLowerCase().includes(search));
+/** Searching for this (or as much of it as 3 letters or more) finds every Stadium Trainer. */
+const STADIUM = 'stadium';
+
+/** Whether the search text (already lower-cased) is in the card's name or one of its attacks' names, or names it a Stadium. */
+export const matchesSearch = (card: Pick<CatalogCard, 'name' | 'attacks' | 'stadium'>, search: string) =>
+  card.name.toLowerCase().includes(search) ||
+  (card.attacks ?? []).some((a) => a?.toLowerCase().includes(search)) ||
+  (card.stadium && search.length >= 3 && STADIUM.startsWith(search));
 

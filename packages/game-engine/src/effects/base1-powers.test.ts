@@ -12,12 +12,44 @@ describe('Base Set Pokémon Powers', () => {
     it('moves a damage counter between your Pokémon, as often as you like', () => {
       let s = duel('alakazam', 'squirtle', { bench: ['charmander', 'bulbasaur'] });
       s.players.ash!.active!.damage = 30;
-      s = power(s, 'active', { from: 'active', to: 0 });
-      s = power(s, 'active', { from: 'active', to: 1 });
+      s = power(s, 'active', { from: 'active', to: 0, counters: 1 });
+      s = power(s, 'active', { from: 'active', to: 1, counters: 1 });
       expect(s.players.ash!.active!.damage).toBe(10);
       expect(s.players.ash!.bench[0]!.damage).toBe(10);
       expect(s.players.ash!.bench[1]!.damage).toBe(10);
       expect(s.currentPlayer).toBe('ash');
+    });
+
+    it('asks whether to move every counter at once, when the receiving Pokémon can take them all', () => {
+      const s = duel('alakazam', 'squirtle', { bench: ['charmander'] });
+      s.players.ash!.active!.damage = 30;
+      const situation = { me: s.players.ash!, opp: s.players.misty!, counts: situationCounts(s.players.ash!, s.players.misty!), source: 'active' as const, cards: s.cards, turn: s.turn };
+      expect(nextPowerChoice(situation, { from: 'active', to: 0 })).toMatchObject({ kind: 'counters', options: [3, 1], all: true, prompt: 'Move all 3 damage counters to Charmander' });
+      const after = power(s, 'active', { from: 'active', to: 0, counters: 3 });
+      expect(after.players.ash!.active!.damage).toBe(0);
+      expect(after.players.ash!.bench[0]!.damage).toBe(30);
+      expect(after.log?.at(-1)?.text).toBe('Moved 3 damage counters from Alakazam to Charmander.');
+    });
+
+    it('offers as many as the receiving Pokémon can take without being Knocked Out, or just 1', () => {
+      const s = duel('alakazam', 'squirtle', { bench: ['charmander'] });
+      s.players.ash!.active!.damage = 50;
+      s.players.ash!.bench[0]!.damage = 20; // 50 HP: room for 2 more
+      const situation = { me: s.players.ash!, opp: s.players.misty!, counts: situationCounts(s.players.ash!, s.players.misty!), source: 'active' as const, cards: s.cards, turn: s.turn };
+      expect(nextPowerChoice(situation, { from: 'active', to: 0 })).toMatchObject({ kind: 'counters', options: [2, 1], all: false });
+      expect(power(s, 'active', { from: 'active', to: 0, counters: 2 }).players.ash!.bench[0]!.damage).toBe(40);
+      expect(power(s, 'active', { from: 'active', to: 0, counters: 1 }).players.ash!.bench[0]!.damage).toBe(30);
+      expect(tryPower(s, 'active', { from: 'active', to: 0, counters: 3 })).toMatchObject({ ok: false });
+    });
+
+    it("doesn't ask when only 1 counter can go, and never moves more", () => {
+      const s = duel('alakazam', 'squirtle', { bench: ['charmander'] });
+      s.players.ash!.active!.damage = 30;
+      s.players.ash!.bench[0]!.damage = 30; // room for 1
+      const after = power(s, 'active', { from: 'active', to: 0 });
+      expect(after.players.ash!.bench[0]!.damage).toBe(40);
+      // Not asked, so a count sent anyway is held to what can go.
+      expect(power(s, 'active', { from: 'active', to: 0, counters: 3 }).players.ash!.bench[0]!.damage).toBe(40);
     });
 
     it("can't Knock Out the Pokémon receiving the counter", () => {

@@ -1,7 +1,7 @@
 import { DndContext, DragOverlay } from '@dnd-kit/core';
 import MenuIcon from '@mui/icons-material/Menu';
 import { hasBenched, inPlayDef, lookupCard, shapeshiftCard, type GameAction, type InPlayPokemon, type PlayerView, type Target } from '@poke-tcg/game-engine';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAttack } from '../hooks/useAttack';
 import { useCardPlay } from '../hooks/useCardPlay';
 import { useIsPhone } from '../hooks/useIsPhone';
@@ -105,6 +105,7 @@ export function Board({
   const promoting = mustPromote(view);
 
   const [preview, setPreview] = useState<Preview | null>(null);
+  const hidePreview = useCallback(() => setPreview(null), []);
   const toasts = useToasts();
   const retreat = useRetreat({ view, send, busy });
   const attack = useAttack({ view, send, busy });
@@ -432,6 +433,10 @@ export function Board({
         : [];
     // Hidden while the board is needed: a Pokémon to choose for its move, a Pokémon to retreat to, or a card being dragged.
     const sheetShown = sheet && !!attackPanels && !pokemonPick && !retreat.ready && !dragging;
+    // A power's question answered with a button (Damage Swap's how many, Buzzap's type, Peek's pile), for a benched
+    // Pokémon's power too: in a sheet of its own when the Active's isn't open.
+    const powerQuestion = myTurn && !sheetShown && power.spec && power.spec.kind !== 'ownPokemon' && power.spec.kind !== 'oppPokemon' ? power.spec : null;
+    const powerName = power.powers.find((p) => p.source === power.usingSource)?.name;
     const closeSheet = () => {
       cancelAll();
       setSheet(false);
@@ -523,6 +528,11 @@ export function Board({
                   {m.label}
                 </button>
               ))}
+            </ActiveSheet>
+          )}
+          {powerQuestion && (
+            <ActiveSheet title={powerName ?? 'Pokémon Power'} onClose={cancelAll}>
+              <PowerPanel view={view} busy={busy} power={power} />
             </ActiveSheet>
           )}
           {menu && (
@@ -644,7 +654,7 @@ export function Board({
 
         {dragOverlay}
       </DndContext>
-      {preview && <CardPreview {...preview} />}
+      {preview && <CardPreview {...preview} onLost={hidePreview} />}
       <Toasts toasts={toasts.toasts} prompt={prompt} />
     </PreviewContext.Provider>
   );

@@ -8,7 +8,7 @@
 // play, its player loses). Dark Magneton is Sonicboom (CC) 20 and Magnetic Lines (LL) 30 (TCGdex has both prints wrong).
 import { targetsIn, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
 import { isBasicEnergy, lookupCard, type EnergyType } from '../cards.js';
-import { isEnergyCardOf, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
+import { activeLocked, isEnergyCardOf, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { evolutionBlocked } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { inPlayDef, pokemonName } from '../status.js';
@@ -65,6 +65,9 @@ function discardFromAttacker(ctx: AttackContext, gone: CardInstance[]) {
 /** Shuffles a Pokémon in play and every card with it into its owner's deck, emptying its spot (Fling, Vanish). */
 export function shuffleIntoDeck(ctx: AttackContext, owner: PlayerState, target: Target, discardAttached: boolean) {
   const p = (target === 'active' ? owner.active : owner.bench[target])!;
+  // An Active Pokémon held by Jaw Clamp stays where it is.
+  const locked = target === 'active' && activeLocked(ctx.state, owner.id);
+  if (locked) return ctx.log(`${locked}.`, owner.id);
   const attached = [...p.energy.map(({ provides: _, ...card }) => card), ...(p.attached ?? []).map((a) => a.card)];
   const cards = [...p.evolvedFrom, p.card, ...(discardAttached ? [] : attached)];
   if (discardAttached) owner.discard.push(...attached);

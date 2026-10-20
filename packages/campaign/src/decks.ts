@@ -133,8 +133,8 @@ const TYPE_TRAINERS: Partial<Record<EnergyType, [string, number][]>> = { water: 
 
 /**
  * Gen 2's Trainers for random decks, from Neo Genesis to Skyridge, by what they do (draw, healing, switching, a little
- * disruption), as Gen 1's. Their effects are still to come (agreed: Gen 2 is scaffolding for now), so the CPUs can't
- * play them yet.
+ * disruption), as Gen 1's. Only Neo Genesis's have their effects so far (agreed: Gen 2 is scaffolding for now), and the
+ * CPUs don't play any of them yet.
  */
 const GEN2_CORE_TRAINERS: [string, number][] = [
   ['Professor Elm', 2],

@@ -1,5 +1,7 @@
+import ListAltIcon from '@mui/icons-material/ListAlt';
 import { runType } from '@poke-tcg/campaign';
-import { LogDrawer } from '../components/LogDrawer';
+import { useState } from 'react';
+import { LogDrawer, LogSheet } from '../components/LogDrawer';
 import { PreviewProvider } from '../components/PreviewProvider';
 import { DeckPanel } from '../components/run/DeckPanel';
 import { EncounterPanel } from '../components/run/EncounterPanel';
@@ -11,6 +13,7 @@ import { RunMap } from '../components/run/RunMap';
 import { RouteView } from '../components/run/RouteView';
 import { RunOver } from '../components/run/RunOver';
 import { RunStats } from '../components/run/RunStats';
+import { useIsPhone } from '../hooks/useIsPhone';
 import { useRun } from '../hooks/useRun';
 import { useWindowFill } from '../hooks/useWindowFill';
 import { PAGE_WIDTH } from '../utils/layout';
@@ -22,15 +25,27 @@ import { PAGE_WIDTH } from '../utils/layout';
  * results, the shop and the next run. A run whose type has routes (Pewter City: Route 2) shows them instead of the
  * icon map: zoomed in on the step's spot, alone in the top row, with the encounter, the cards unlocked and Concede below.
  * A new account is set up with its first run on the first visit.
+ * On a phone (useIsPhone) the side panel is a round button floating in the top right corner instead, which opens its
+ * tabs full screen (LogSheet, as on the phone's battle screen).
  */
 export function HomePage() {
   const run = useRun();
   const fill = useWindowFill<HTMLDivElement>();
+  const phone = useIsPhone();
+  /** On a phone: the side panel's tabs are open. */
+  const [panel, setPanel] = useState(false);
   const { overview } = run;
   if (overview.error) return <p className={`${PAGE_WIDTH} text-red-400`}>{overview.error.message}</p>;
   if (!overview.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
   const current = overview.data.run;
   const view = current?.view;
+  // The side panel's tabs: the run (HP, ₱, EXP, items) and its log.
+  const sidePanel = {
+    log: (view?.log ?? []).map((text) => ({ text, player: null })),
+    you: 'player',
+    logTitle: 'Run log',
+    run: view && <RunStats view={view} account={overview.data.account} run={run} />,
+  } as const;
   const routes = view ? runType(view.type).routes : undefined;
   // The next encounter (or the one under way), the cards unlocked this run, and Concede below them, out of the way.
   const panels = view && (
@@ -62,7 +77,7 @@ export function HomePage() {
                 <RunOver current={current} overview={overview.data} run={run} />
               ) : routes ? (
                 <>
-                  <RouteView routes={routes}gym={runType(view.type).gym} view={view} spotted={run.spotted} />
+                  <RouteView routes={routes} gym={runType(view.type).gym} view={view} spotted={run.spotted} />
                   {panels}
                 </>
               ) : (
@@ -74,12 +89,21 @@ export function HomePage() {
             </>
           )}
         </div>
-        <LogDrawer
-          log={(view?.log ?? []).map((text) => ({ text, player: null }))}
-          you="player"
-          logTitle="Run log"
-          run={view && <RunStats view={view} account={overview.data.account} run={run} />}
-        />
+        {phone ? (
+          <>
+            <button
+              className="fixed right-3 top-3 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-slate-800 text-slate-200 shadow-lg shadow-black/60 ring-1 ring-slate-600 transition active:scale-95"
+              onClick={() => setPanel(true)}
+              aria-label="The run and its log"
+              title="The run and its log"
+            >
+              <ListAltIcon />
+            </button>
+            {panel && <LogSheet {...sidePanel} onClose={() => setPanel(false)} />}
+          </>
+        ) : (
+          <LogDrawer {...sidePanel} />
+        )}
       </div>
     </PreviewProvider>
   );

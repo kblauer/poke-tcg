@@ -23,6 +23,8 @@ const attackChoicesSchema = z.object({
   defenderEnergyUid: z.string().optional(),
   attackIndex: z.number().int().min(0).optional(),
   copyIndex: z.number().int().min(0).optional(),
+  copyFrom: target.optional(),
+  boost: z.boolean().optional(),
   type: energyType.optional(),
   discardUids: z.array(z.string()).max(60).optional(),
   benchSlots: z.array(benchSlot).max(MAX_BENCH).optional(),
@@ -54,6 +56,7 @@ const powerChoicesSchema = z.object({
   oppTo: target.optional(),
   peek: z.enum(['deck', 'oppDeck', 'oppHand', 'prize', 'oppPrize']).optional(),
   prize: z.number().int().min(0).max(5).optional(),
+  counters: z.number().int().min(1).max(30).optional(),
 }) satisfies z.ZodType<PowerChoices>;
 
 /** Answers to a Trainer's questions (see TrainerChoices in the engine). */
@@ -66,6 +69,8 @@ const trainerChoicesSchema = z.object({
   energyUids: z.array(z.string()).max(60).optional(),
   oppEnergyUids: z.array(z.string()).max(60).optional(),
   stage: z.enum(['stage1', 'stage2']).optional(),
+  pick: z.number().int().min(0).max(60).optional(),
+  guess: z.number().int().min(0).max(60).optional(),
 }) satisfies z.ZodType<TrainerChoices>;
 
 /**

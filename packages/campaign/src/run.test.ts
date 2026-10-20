@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { expandDeck, STARTER_DECK } from './decks.js';
-import { ITEMS, itemText, MAX_CONSUMABLES_PER_RUN, shopStock } from './items.js';
+import { ITEMS, itemText, MAX_CONSUMABLES_PER_RUN, onlyOne, shopStock } from './items.js';
 import { RUN_TYPE_IDS, RUN_TYPES, runType, type RunType, type RunTypeId } from './run-types.js';
 import { ROUTE_4 } from './kanto-routes.js';
 import { onPath, PEWTER_GYM, ROUTE_2, routePath } from './routes.js';
@@ -445,6 +445,18 @@ describe('the post-run shop', () => {
     }
     // Every mix comes up.
     expect(sizes).toEqual(new Set(['3/1', '3/2', '4/1', '4/2']));
+  });
+
+  it("doesn't offer one-of-a-kind items the account already has, and fills their places with others", () => {
+    const itemfinder = Object.values(ITEMS).find((i) => i.name === 'Itemfinder')!;
+    const seed = Array.from({ length: 200 }, (_, i) => i + 1).find((s) => shopStock(s).some((i) => i.id === itemfinder.id))!;
+    const owned = (id: string) => id === itemfinder.id;
+    const stock = shopStock(seed, owned);
+    expect(stock.map((i) => i.id)).not.toContain(itemfinder.id);
+    expect(stock).toHaveLength(shopStock(seed).length);
+    // Used-up items stack, so they're still offered when owned.
+    const potion = shopStock(seed).find((i) => !onlyOne(i))!;
+    expect(shopStock(seed, (id) => id === potion.id).map((i) => i.id)).toContain(potion.id);
   });
 });
 

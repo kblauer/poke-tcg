@@ -39,6 +39,7 @@ function finishSearch(state: GameState): GameAction {
   // Computer Error: always the most cards (agreed).
   if (view.kind === 'drawCount') return { type: 'RESOLVE_CHOICE', count: view.max };
   // Lt. Surge's Treaty: the first answer.
+  // The first option: Mind Games, Herbal Scent and Fire Boost flip (agreed for Mind Games).
   if (view.kind === 'options') return { type: 'RESOLVE_CHOICE', count: 0 };
   const [pick] = view.options;
   return { type: 'RESOLVE_CHOICE', ...(pick && { cardUid: pick.uid }) };

@@ -255,7 +255,7 @@ describe('CPU: Damage Swap', () => {
     ash(s).active!.damage = 70;
     bench(s, 0, 'onix');
     const actions = moves(s);
-    expect(actions[0]).toEqual({ type: 'USE_POWER', source: 'active', choices: { from: 'active', to: 0 } });
+    expect(actions[0]).toEqual({ type: 'USE_POWER', source: 'active', choices: { from: 'active', to: 0, counters: 1 } });
     expect(actions.filter((a) => a.type === 'USE_POWER')).toHaveLength(1);
   });
 });

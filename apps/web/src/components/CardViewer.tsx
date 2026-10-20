@@ -13,7 +13,7 @@ export function CardViewer({ card, locked = false }: { card: CatalogCard; locked
     <div className="flex flex-col items-center gap-3">
       {/* Sized to fit the window height. Tilts and shines toward the pointer; the padding leaves room
           for the near edge, which grows by up to ~6% in perspective, so it doesn't cover the text. */}
-      <div className="p-[7%]" style={{ width: 'min(100%, 32rem, calc((100dvh - 12rem) * 63 / 88))' }}>
+      <div data-keep-open className="p-[7%]" style={{ width: 'min(100%, 32rem, calc((100dvh - 12rem) * 63 / 88))' }}>
         {card.imageUrl && locked ? (
           <CardImage src={`${card.imageUrl}/high.webp`} alt={card.name} className="aspect-[63/88] w-full rounded-[4.5%] object-cover brightness-[.35]" />
         ) : card.imageUrl ? (
