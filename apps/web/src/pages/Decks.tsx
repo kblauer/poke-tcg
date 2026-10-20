@@ -61,7 +61,7 @@ export function DecksPage() {
   /** Bumped each time a deck is (re)opened, so its saved cards load even when they're already cached. */
   const [opened, setOpened] = useState(0);
   const [filter, setFilter] = useState<DeckFilter>(EMPTY_DECK_FILTER);
-  const [sort, setSort] = useState<DeckSort>('dex');
+  const [sort, setSort] = useState<DeckSort>('set');
   /** Why the last card clicked couldn't be added, or that adding it locked the deck (lockedWarning). */
   const [blocked, setBlocked] = useState<string | null>(null);
   /** The Share dialog (the open deck's) or the Import one is open. */
