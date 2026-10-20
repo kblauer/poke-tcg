@@ -99,7 +99,7 @@ export function CommunityPage() {
 
 /**
  * One community deck, a tile of the same size as the others: its name, author and date, description (cut short with an
- * ellipsis, under its Pokémon's names, one a line, beside the Pokémon shown large over the Pokémon/Trainer/Energy bar; the generations its cards are from, G1, G2…,
+ * ellipsis, under its Pokémon's names, on one line with commas, beside the Pokémon shown large over the Pokémon/Trainer/Energy bar; the generations its cards are from, G1, G2…,
  * top right) and how many of its cards you haven't unlocked, if any. Clicking it focuses it (`focused`, one at a time;
  * agreed with the user): it grows a little, shows its whole description and its buttons along the bottom (Import, Copy
  * code, Cards for its card list, Unpublish on your own); clicking it again, outside it or Escape puts it back.
@@ -167,21 +167,17 @@ function CommunityDeckTile({
       <p className="truncate text-xs text-slate-500">
         by {deck.author} · {new Date(deck.createdAt).toLocaleDateString()}
       </p>
-      {/* Its Pokémon large, the bar under them, and their names (one a line) over the description on their right (under them on a narrow tile), cut
+      {/* Its Pokémon large, the bar under them, and their names (one line, comma separated) over the description on their right (under them on a narrow tile), cut
           short with an ellipsis until the tile is focused. */}
       <div className="flex flex-col gap-3 @md:flex-row">
         <DeckSummary entries={deck.cards} byId={byId} isLocked={isLocked} large />
         <div className="min-w-0 flex-1 space-y-1">
           {featured.length > 0 && (
-            <ul className="font-semibold text-slate-200">
-              {featured.map((card, i) => (
-                <li key={i} className="truncate">
-                  {card.name}
-                </li>
-              ))}
-            </ul>
+            <p className="truncate font-semibold text-slate-200" title={featured.map((card) => card.name).join(', ')}>
+              {featured.map((card) => card.name).join(', ')}
+            </p>
           )}
-          <p className={`break-words text-slate-300 ${focused ? 'whitespace-pre-line' : 'line-clamp-2 @md:line-clamp-4'}`}>{deck.description || <span className="italic text-slate-500">No description</span>}</p>
+          <p className={`break-words text-slate-300 ${focused ? 'whitespace-pre-line' : 'line-clamp-2 @md:line-clamp-6'}`}>{deck.description || <span className="italic text-slate-500">No description</span>}</p>
           {locked > 0 && <p className="text-xs text-amber-300">{locked} of its cards you haven't unlocked yet</p>}
         </div>
       </div>
