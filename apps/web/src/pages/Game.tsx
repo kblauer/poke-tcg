@@ -112,10 +112,16 @@ export function GamePage() {
         error={act.error?.message}
         errorAt={act.submittedAt}
         runTab={data.runId ? <GameRunTab /> : undefined}
-        overlay={flips.length > 0 && <CoinFlip flips={flips} you={view.you} onDone={reveal} />}
+        overlay={
+          flips.length > 0 ? (
+            <CoinFlip flips={flips} you={view.you} onDone={reveal} />
+          ) : (
+            shown.phase === 'finished' && <BattleResult view={shown} opponent={data.opponent} run={data.runId !== null} />
+          )
+        }
         info={<BattleInfo view={shown} opponent={data.opponent} />}
       />
-      <BattleBanner view={shown} opponent={data.opponent} run={data.runId !== null} />
+      <BattleBanner view={shown} opponent={data.opponent} />
     </>
   );
 }
@@ -144,43 +150,48 @@ function BattleInfo({ view, opponent }: { view: PlayerView; opponent: string | n
 }
 
 /**
- * Who you're up against and the run's battle rules (BattleInfo), at the top of the screen (on a phone, the board's
- * top line has them instead); once the battle is over, the result and the way back: to the run for a run's battle,
- * otherwise to the Single battle tab.
+ * Who you're up against and the run's battle rules (BattleInfo), at the top of the screen while the battle lasts
+ * (on a phone, the board's top line has them instead).
  */
-function BattleBanner({ view, opponent, run }: { view: PlayerView; opponent: string | null; run: boolean }) {
+function BattleBanner({ view, opponent }: { view: PlayerView; opponent: string | null }) {
+  const phone = useIsPhone();
+  if (view.phase === 'finished' || phone || (!opponent && !view.rules.length)) return null;
+  return (
+    <div className="pointer-events-none fixed left-1/2 top-2 z-30 -translate-x-1/2 rounded-full bg-slate-800/90 px-4 py-1 text-xs text-slate-300 ring-1 ring-slate-600 empty:hidden">
+      <BattleInfo view={view} opponent={opponent} />
+    </div>
+  );
+}
+
+/**
+ * Once the battle is over, centred on the play area (the Board's overlay): the result and the way back, to the run
+ * for a run's battle, otherwise to the Practice tab.
+ */
+function BattleResult({ view, opponent, run }: { view: PlayerView; opponent: string | null; run: boolean }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const phone = useIsPhone();
-  const over = view.phase === 'finished';
   const won = view.winner === view.you;
-  if (!over) {
-    if (phone || (!opponent && !view.rules.length)) return null;
-    return (
-      <div className="pointer-events-none fixed left-1/2 top-2 z-30 -translate-x-1/2 rounded-full bg-slate-800/90 px-4 py-1 text-xs text-slate-300 ring-1 ring-slate-600 empty:hidden">
-        <BattleInfo view={view} opponent={opponent} />
-      </div>
-    );
-  }
   return (
-    <div className="fixed inset-x-0 top-1/3 z-40 mx-auto w-fit space-y-3 rounded-lg bg-slate-800 p-6 text-center shadow-2xl ring-1 ring-slate-600">
-      <p className={`text-2xl font-bold ${won ? 'text-yellow-300' : 'text-rose-300'}`}>{won ? `You beat ${opponent ?? 'your opponent'}!` : `${opponent ?? 'Your opponent'} won.`}</p>
-      {run ? (
-        <>
-          <p className="text-sm text-slate-400">{won ? 'Your reward is waiting.' : 'You lose 1 HP.'}</p>
-          <Link
-            to="/"
-            onClick={() => queryClient.invalidateQueries({ queryKey: trpc.run.overview.queryKey() })}
-            className="inline-block rounded bg-blue-600 px-5 py-2 font-semibold transition hover:bg-blue-500 active:scale-95"
-          >
-            Back to the run
+    <div className="pointer-events-none absolute inset-0 z-[1100] flex items-center justify-center p-4">
+      <div data-keep-action className="pointer-events-auto w-fit space-y-3 rounded-lg bg-slate-800 p-6 text-center shadow-2xl ring-1 ring-slate-600">
+        <p className={`text-2xl font-bold ${won ? 'text-yellow-300' : 'text-rose-300'}`}>{won ? `You beat ${opponent ?? 'your opponent'}!` : `${opponent ?? 'Your opponent'} won.`}</p>
+        {run ? (
+          <>
+            <p className="text-sm text-slate-400">{won ? 'Your reward is waiting.' : 'You lose 1 HP.'}</p>
+            <Link
+              to="/"
+              onClick={() => queryClient.invalidateQueries({ queryKey: trpc.run.overview.queryKey() })}
+              className="inline-block rounded bg-blue-600 px-5 py-2 font-semibold transition hover:bg-blue-500 active:scale-95"
+            >
+              Back to the run
+            </Link>
+          </>
+        ) : (
+          <Link to="/battle" className="inline-block rounded bg-blue-600 px-5 py-2 font-semibold transition hover:bg-blue-500 active:scale-95">
+            Next battle
           </Link>
-        </>
-      ) : (
-        <Link to="/battle" className="inline-block rounded bg-blue-600 px-5 py-2 font-semibold transition hover:bg-blue-500 active:scale-95">
-          Next battle
-        </Link>
-      )}
+        )}
+      </div>
     </div>
   );
 }

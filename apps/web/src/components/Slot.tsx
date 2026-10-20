@@ -3,6 +3,7 @@ import { inPlayDef, type CardLibrary, type InPlayPokemon } from '@poke-tcg/game-
 import { useEffect, useRef, type RefObject } from 'react';
 import { LARGE_CARD, SMALL_CARD } from '../utils/layout';
 import { Card } from './Card';
+import type { HoloMotion } from './HoloCard';
 
 /** Length of the slot animations (a Pokémon arriving, taking damage, healing, getting Energy, attacking). */
 const MOTION_MS = 450;
@@ -10,9 +11,15 @@ const MOTION_MS = 450;
 /**
  * Animates what changed in the slot since the last view: a new Pokémon (played, evolved, switched in) drops
  * in, damage shakes it with a red glow, healing glows green, new Energy glows yellow, and an attack lunges.
+ * A holo (the Active Pokémon) tilts and shines along with each move (`holo`, the HoloCard's springs).
  * Nothing moves on the first render or for people who prefer reduced motion.
  */
-function useSlotMotion(ref: RefObject<HTMLDivElement | null>, pokemon: InPlayPokemon | null, lunge: { dir: 'up' | 'down'; stamp: number } | null) {
+function useSlotMotion(
+  ref: RefObject<HTMLDivElement | null>,
+  holo: RefObject<HoloMotion | null>,
+  pokemon: InPlayPokemon | null,
+  lunge: { dir: 'up' | 'down'; stamp: number } | null,
+) {
   const before = useRef(pokemon);
   const lunged = useRef(lunge?.stamp ?? null);
   useEffect(() => {
@@ -23,15 +30,23 @@ function useSlotMotion(ref: RefObject<HTMLDivElement | null>, pokemon: InPlayPok
     const glow = (rgb: string) => [{ filter: 'none' }, { filter: `drop-shadow(0 0 14px rgb(${rgb})) brightness(1.15)`, offset: 0.35 }, { filter: 'none' }];
     if (!prev || prev.card.uid !== pokemon.card.uid) {
       el.animate([{ opacity: 0, transform: 'translateY(-14%) scale(0.85)' }, { opacity: 1, transform: 'none' }], { duration: MOTION_MS, easing: 'ease-out' });
+      // Lit from above as it drops in.
+      holo.current?.play([{ x: 50, y: 5, at: 0 }], MOTION_MS * 0.5);
     } else if (pokemon.damage > prev.damage) {
       // Starts a moment late, so the attacker's lunge lands first.
       const shake = ['none', 'translateX(-6%) rotate(-3deg)', 'translateX(5%) rotate(2deg)', 'translateX(-3%)', 'translateX(2%)', 'none'].map((transform) => ({ transform }));
       el.animate(shake, { duration: MOTION_MS, delay: 180, easing: 'ease-out' });
       el.animate(glow('239 68 68'), { duration: MOTION_MS, delay: 180 });
+      // Rocks side to side with the shake.
+      const step = MOTION_MS / 5;
+      holo.current?.play([10, 90, 25, 70].map((x, i) => ({ x, y: 50, at: 180 + i * step })), 180 + 4 * step);
     } else if (pokemon.damage < prev.damage) {
       el.animate(glow('52 211 153'), { duration: MOTION_MS });
+      // The glow sweeps across the card.
+      holo.current?.play([{ x: 15, y: 15, at: 0 }, { x: 85, y: 85, at: MOTION_MS * 0.4 }], MOTION_MS * 0.8);
     } else if (pokemon.energy.length > prev.energy.length) {
       el.animate(glow('250 204 21'), { duration: MOTION_MS });
+      holo.current?.play([{ x: 15, y: 15, at: 0 }, { x: 85, y: 85, at: MOTION_MS * 0.4 }], MOTION_MS * 0.8);
     }
   }, [pokemon]);
   useEffect(() => {
@@ -42,6 +57,8 @@ function useSlotMotion(ref: RefObject<HTMLDivElement | null>, pokemon: InPlayPok
     if (!el || !lunge || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const reach = lunge.dir === 'up' ? '-18%' : '18%';
     el.animate([{ transform: 'none' }, { transform: `translateY(${reach}) scale(1.06)`, offset: 0.4 }, { transform: 'none' }], { duration: MOTION_MS, easing: 'ease-in-out' });
+    // Leans into the lunge, then back.
+    holo.current?.play([{ x: 50, y: lunge.dir === 'up' ? 0 : 100, at: 0 }], MOTION_MS * 0.4);
   }, [lunge?.stamp]);
 }
 
@@ -79,7 +96,8 @@ export function Slot({
 }) {
   const { setNodeRef, isOver } = useDroppable({ id, disabled: !droppable });
   const art = useRef<HTMLDivElement>(null);
-  useSlotMotion(art, pokemon, lunge);
+  const holo = useRef<HoloMotion>(null);
+  useSlotMotion(art, holo, pokemon, lunge);
   // Rings sit outside the card art, so they need to be thick and glowing to read against the card's own border.
   const ring = loading
     ? 'animate-pulse ring-4 ring-yellow-300'
@@ -108,7 +126,7 @@ export function Slot({
       {pokemon && (
         <div ref={art}>
           {/* A Transformed Ditto shows the card it's a copy of. */}
-          <Card def={inPlayDef(cards, pokemon)} inPlay={pokemon} cards={cards} small={!large} highRes={large} shine={large} />
+          <Card def={inPlayDef(cards, pokemon)} inPlay={pokemon} cards={cards} small={!large} highRes={large} shine={large} holoRef={holo} />
         </div>
       )}
       {pokemon?.transformed && (

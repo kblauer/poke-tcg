@@ -69,9 +69,19 @@
   --clip-stage-invert: var(--clip-invert);
 }
 
-/* Holo Energy (Rainbow, Metal, Miracle…) is foil across the whole card. */
-.card[data-era][data-supertype="energy"] {
+/* Holo Energy (Rainbow, Metal, Miracle…, and the library's styles on basic Energy) is foil across the whole card: no
+   shape masks any of it out, not the art window (Holo), the area around it (Reverse Holo, Galaxy) or the borders
+   (Radiant, Trainer Gallery). data-holo-energy covers the styles that pose as another supertype (Full Art). */
+.card[data-era][data-supertype="energy"],
+.card[data-era][data-holo-energy="true"] {
   --clip: none;
+  --clip-invert: none;
+  --clip-stage: none;
+  --clip-stage-invert: none;
+  --clip-trainer: none;
+  --clip-trainer-invert: none;
+  --clip-galaxy: none;
+  --clip-borders: none;
 }
 
 /* The plain glare every non-holo card gets on hover, at half strength. */

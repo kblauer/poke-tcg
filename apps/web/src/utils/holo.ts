@@ -27,6 +27,8 @@ export interface HoloAttributes {
   era: 'wotc' | 'ecard';
   /** The Trainer Gallery styles (data-trainer-gallery). */
   trainerGallery: boolean;
+  /** A holo Energy (data-holo-energy): its style covers the whole card, nothing masked out (wotc.css). */
+  holoEnergy: boolean;
 }
 
 const SUBTYPES: Record<string, string> = { basic: 'basic', baby: 'basic', stage1: 'stage 1', stage2: 'stage 2' };
@@ -48,5 +50,6 @@ export function holoAttributes(card: HoloSource): HoloAttributes {
     number: id.slice(split + 1).toLowerCase(),
     era: set.startsWith('ecard') ? 'ecard' : 'wotc',
     trainerGallery: style?.trainerGallery ?? false,
+    holoEnergy: !!style,
   };
 }
