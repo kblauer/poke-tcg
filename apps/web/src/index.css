@@ -25,13 +25,15 @@
 /*
  * The phone board (components/phone/PhoneTable.tsx) stacks both sides in one column, TCG Pocket style: per side a
  * bench row and an active row, plus the bar between them. Its width fits five benched Pokémon; its height two
- * benches (1.4 card widths tall each) and two actives at least 1.7× as big, plus 7rem of bars and gaps. Tall phones
- * (19.5:9, 2340×1080) have height to spare, so the actives grow into what the benches and bars leave, up to 2.1×.
+ * benches (1.4 card widths tall each) and two actives at least 1.7× as big, plus 3.5rem of lines and gaps and the bar
+ * between the sides: 3.5rem, or the Stadium's height (1.126 card widths) when that's more. It's kept free even with no
+ * Stadium in play, so playing one never pushes your Bench under the hand. Tall phones (19.5:9, 2340×1080) have height
+ * to spare, so the actives grow into what the benches and bars leave, up to 2.1×.
  * --card-pile is the Prize, deck and discard stacks beside the actives.
  */
 .phone-cards {
-  --card-sm: max(2.5rem, min(calc((100cqw - 2.5rem) / 5.4), calc((100cqh - 7rem) / 7.55)));
-  --card-lg: max(calc(var(--card-sm) * 1.7), min(calc(var(--card-sm) * 2.1), calc((100cqh - 7rem - 2.794 * var(--card-sm)) / 2.794)));
+  --card-sm: max(2.5rem, min(calc((100cqw - 2.5rem) / 5.4), calc((100cqh - 7rem) / 7.55), calc((100cqh - 3.5rem) / 8.67)));
+  --card-lg: max(calc(var(--card-sm) * 1.7), min(calc(var(--card-sm) * 2.1), calc((100cqh - 3.5rem - max(3.5rem, 1.126 * var(--card-sm)) - 2.794 * var(--card-sm)) / 2.794)));
   --card-pile: calc(var(--card-sm) * 0.62);
 }
 

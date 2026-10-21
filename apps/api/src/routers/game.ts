@@ -10,7 +10,7 @@ import { loadOwnRun, settleBattle } from '../runs.js';
 import { PLAYER_TEST_DECK, expandDeck } from '../test-decks.js';
 import type { AuthUser } from '../auth.js';
 import { protectedProcedure, router } from '../trpc.js';
-import { playableDeck } from './decks.js';
+import { markPlayed, playableDeck } from './decks.js';
 
 const asJson = (value: unknown) => value as Prisma.InputJsonValue;
 
@@ -70,7 +70,9 @@ export const gameRouter = router({
    */
   create: protectedProcedure.input(singleBattleInput).mutation(async ({ ctx, input }) => {
     const deck = input.deckId === null ? expandDeck(PLAYER_TEST_DECK) : (await playableDeck(input.deckId, ctx.user.id)).cards;
-    return startGame(ctx.user, deck, input);
+    const game = await startGame(ctx.user, deck, input);
+    if (input.deckId !== null) await markPlayed(ctx.user.id, input.deckId);
+    return game;
   }),
 
   /** The player's filtered view of the game – never the raw state – the opponent's name, and for a run's battle, the run. */

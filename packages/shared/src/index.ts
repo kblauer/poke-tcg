@@ -178,6 +178,8 @@ export const runChooseInput = z.object({
 /** Saving the automatic run deck once the run is over, under a name of the player's. */
 export const saveRunDeckInput = z.object({ runId: z.uuid(), name: z.string().trim().min(1).max(DECK_NAME_LENGTH) });
 export const useItemInput = z.object({ runId: z.uuid(), itemId: z.string().min(1).max(64) });
+/** A consumable used from the Inventory: in the run under way, or kept for the next run when there's none. */
+export const useConsumableInput = z.object({ itemId: z.string().min(1).max(64) });
 export const startRunInput = z.object({ type: z.enum(RUN_TYPE_IDS as [RunTypeId, ...RunTypeId[]]), deckId: z.uuid() });
 export const buyItemInput = z.object({ itemId: z.string().min(1).max(64) });
 export const equipInput = z.object({ slot: z.enum(EQUIP_SLOTS), itemId: z.string().min(1).max(64).nullable() });

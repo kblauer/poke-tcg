@@ -60,6 +60,9 @@ export async function playableDeck(deckId: string, userId: string): Promise<{ na
   return { name: deck.name, cards: deck.cards.flatMap((c) => Array<string>(c.quantity).fill(c.cardId)), runDeck: deck.runId !== null };
 }
 
+/** Remembers `deckId` as the deck the user played most recently (`User.lastDeckId`), the next run's deck to start with. */
+export const markPlayed = (userId: string, deckId: string) => prisma.user.update({ where: { id: userId }, data: { lastDeckId: deckId } });
+
 /** The position after the user's last deck, for a new one. */
 const nextPosition = async (tx: Pick<typeof prisma, 'deck'>, userId: string) =>
   ((await tx.deck.aggregate({ where: { ownerId: userId }, _max: { position: true } }))._max.position ?? -1) + 1;

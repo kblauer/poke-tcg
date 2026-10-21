@@ -9,6 +9,7 @@ import {
   FIRST_RUN,
   needsBattle,
   STARTER_DECK,
+  withConsumablesBefore,
   type RunAction,
   type RunState,
   type RunSystemAction,
@@ -230,7 +231,7 @@ export async function settleBattle(run: LoadedRun): Promise<LoadedRun> {
  * Starts a new run of `type` with the deck; it starts with STARTING_POKEDOLLARS. Not while a run is still going.
  * The automatic run deck (if the last run's wasn't saved) is taken over by this run (syncRunDeck).
  * Runs' ₱ are banked when they end (advanceRun); any earlier run whose ₱ weren't (one that ended before that
- * rule) is banked here first.
+ * rule) is banked here first. The consumables used from the Inventory between runs (`User.pendingConsumables`) take effect (withConsumablesBefore).
  */
 export async function startRun(userId: string, type: RunTypeId, deck: { name: string; cards: string[] }) {
   return prisma.$transaction(async (tx) => {
@@ -244,7 +245,10 @@ export async function startRun(userId: string, type: RunTypeId, deck: { name: st
       await tx.user.update({ where: { id: userId }, data: { bank: { increment: total } } });
     }
     const seed = newSeed();
-    const state = createRun(type, deck.cards, seed, deck.name);
+    // The consumables used from the Inventory between runs all take effect now, among this run's 3.
+    const { pendingConsumables } = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { pendingConsumables: true } });
+    const state = withConsumablesBefore(createRun(type, deck.cards, seed, deck.name), pendingConsumables);
+    if (pendingConsumables.length) await tx.user.update({ where: { id: userId }, data: { pendingConsumables: [] } });
     const run = await tx.run.create({ data: { ownerId: userId, type, seed, state: asJson(state), version: state.version }, select: { id: true } });
     await syncRunDeck(userId, run.id, state.deck, tx);
     return run;

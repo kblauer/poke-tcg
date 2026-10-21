@@ -1,13 +1,14 @@
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import LockIcon from '@mui/icons-material/Lock';
 import { boss, bossLabel, bossTypes, generation, RUN_TYPES, type BossId, type RunTypeId } from '@poke-tcg/campaign';
-import { DECK_SIZE } from '@poke-tcg/shared';
 import { Link } from '@tanstack/react-router';
 import { useContext, useState } from 'react';
+import { useIsPhone } from '../../hooks/useIsPhone';
 import type { Overview, RunControl } from '../../hooks/useRun';
 import { useUnlocked } from '../../hooks/useUnlocked';
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
-import { DeckSummary, LOCKED_TAG } from '../DeckList';
+import { DeckSummary } from '../DeckList';
+import { DeckMenu, DeckOption } from './DeckMenu';
 import { CatalogContext } from '../InspectContext';
 import { EnergyIcon } from '../EnergyIcon';
 
@@ -91,9 +92,9 @@ function RunTypeOption({ info, selected, onPick }: { info: RunTypeInfo; selected
 
 /**
  * Picks the next run's type and one of your decks (built on the Collection tab), then starts it. Run types are buttons
- * (RunTypeOption) for the generation picked in the dropdown (Gen 1 · Kanto, Gen 2 · Johto…); locked ones can't be picked. Decks are
- * tiles as on the Collection tab (name, card count, DeckSummary); those that break the rules or hold cards you haven't
- * unlocked are listed with why, and can't be picked.
+ * (RunTypeOption) for the generation picked in the dropdown (Gen 1 · Kanto, Gen 2 · Johto…); locked ones can't be picked. The
+ * deck is picked from a drop-down menu of deck tiles (DeckMenu, as when battling in a run), with the favorite decks under
+ * it; those that break the rules or hold cards you haven't unlocked are listed with why, and can't be picked.
  */
 export function NewRunPicker({ overview: given, run, title, defaultType }: { overview: Overview; run: RunControl; title: string; defaultType?: RunTypeId }) {
   // Debug mode unlocks every run type (started with debugStart); `debugLocked`: the ones that were locked.
@@ -117,7 +118,11 @@ export function NewRunPicker({ overview: given, run, title, defaultType }: { ove
   };
   const playable = overview.decks.filter((d) => d.problems.length === 0);
   const [picked, setPicked] = useState<string | null>(null);
-  const deckId = picked ?? playable[0]?.id ?? null;
+  // To start with: the deck played most recently, or (deleted, or now unplayable) the top one in the deck list that can be played.
+  const lastPlayed = playable.find((d) => d.id === overview.lastDeckId);
+  const deckId = picked ?? lastPlayed?.id ?? playable[0]?.id ?? null;
+  const favorites = overview.decks.filter((d) => d.favorite);
+  const phone = useIsPhone();
   const chosen = overview.runTypes.find((t) => t.id === type);
   return (
     <section className="space-y-4 rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600">
@@ -148,42 +153,41 @@ export function NewRunPicker({ overview: given, run, title, defaultType }: { ove
       </div>
       {chosen && <p className="text-sm text-slate-400">{chosen.description}</p>}
 
-      <div className="space-y-2 text-sm">
+      <div className="@container space-y-2 text-sm">
         <div className="flex items-baseline justify-between">
           <span className="text-slate-400">Deck</span>
           <Link to="/decks" className="text-xs text-yellow-300 hover:underline">
             Build or edit decks
           </Link>
         </div>
-        {/* Deck tiles, as on the Collection tab: the name, then the headline Pokémon and card split, or why it can't be played. */}
-        <ul role="radiogroup" className="grid gap-2 @lg:grid-cols-2 @3xl:grid-cols-3">
-          {overview.decks.map((d) => {
-            const ok = d.problems.length === 0;
-            const selected = d.id === deckId;
-            return (
-              <li key={d.id}>
-                <button
-                  role="radio"
-                  aria-checked={selected}
-                  disabled={!ok}
-                  onClick={() => setPicked(d.id)}
-                  className={`h-full w-full space-y-2 rounded-lg px-3 py-2 text-left ring-1 transition ${
-                    selected ? 'bg-slate-700 ring-yellow-300' : 'bg-slate-900 ring-slate-700 hover:ring-slate-500'
-                  } disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:ring-slate-700`}
-                >
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <span className="truncate font-medium">{d.name}</span>
-                    {d.locked && LOCKED_TAG}
-                    <span className={`ml-auto shrink-0 text-xs ${ok ? 'text-emerald-400' : 'text-slate-400'}`}>
-                      {d.cardCount}/{DECK_SIZE}
-                    </span>
-                  </span>
-                  {ok && byId ? <DeckSummary entries={d.cards} byId={byId} isLocked={isLocked} /> : <span className="block truncate text-xs text-amber-300">{d.problems[0]}</span>}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        {/* A drop-down menu of deck tiles, as when battling in a run (DeckMenu), with the favorite decks under it. */}
+        {overview.decks.length > 0 && byId && (
+          <>
+            <DeckMenu
+              selected={deckId}
+              onPick={(id) => id && setPicked(id)}
+              decks={overview.decks.map((d) => ({ id: d.id, name: d.name, note: d.problems[0], entries: d.cards, disabled: d.problems.length > 0, locked: d.locked }))}
+              byId={byId}
+              isLocked={isLocked}
+              compact={phone}
+            />
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <span>Favorite decks</span>
+              <span className="h-px flex-1 bg-slate-700" />
+            </div>
+            {favorites.length > 0 ? (
+              <ul role="radiogroup" aria-label="Favorite decks" className="grid gap-2 @lg:grid-cols-2 @3xl:grid-cols-3">
+                {favorites.map((d) => (
+                  <DeckOption key={d.id} selected={deckId === d.id} onPick={() => setPicked(d.id)} name={d.name} disabled={d.problems.length > 0} locked={d.locked} note={d.problems[0]}>
+                    {d.problems.length === 0 && <DeckSummary entries={d.cards} byId={byId} isLocked={isLocked} compact={phone} />}
+                  </DeckOption>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-slate-500">Star a deck on the Collection tab to keep it here.</p>
+            )}
+          </>
+        )}
         {playable.length === 0 && <p className="text-xs text-amber-300">None of your decks can be played yet: fix one on the Collection tab.</p>}
       </div>
 

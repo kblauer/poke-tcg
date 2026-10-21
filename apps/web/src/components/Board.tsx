@@ -443,6 +443,10 @@ export function Board({
       setSheet(false);
     };
     const oppPick = pokemonPick?.side === 'opp' && !busy ? pokemonPick : null;
+    // How many of the CPU's Benched Pokémon an attack wants (Tunneling), while they're being tapped.
+    const benchMany = attack.spec?.kind === 'opponentBenchMany' ? Math.min(attack.spec.count, attack.spec.options.length) : 0;
+    // The attack's question, while its sheet is closed for a Pokémon to be tapped on the board.
+    const phonePrompt = prompt ?? (pokemonPick && attack.spec ? attack.spec.prompt : null);
     const oppLunge = attacker === view.opponent.id ? view.version : null;
     const opponent = view.opponent;
     return (
@@ -493,7 +497,19 @@ export function Board({
                       <MenuIcon />
                     </button>
                     <StadiumCard view={view} send={send} busy={busy} notify={(message) => toasts.push('warning', message)} compact />
-                    {statusBar(true)}
+                    {/* Choosing several of the CPU's Benched Pokémon (Tunneling): the sheet is closed so they can be tapped, so it's confirmed here. */}
+                    {benchMany ? (
+                      <button
+                        data-keep-action
+                        className="ml-auto rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 active:scale-95 disabled:opacity-40"
+                        disabled={busy || attack.benchPicked.length !== benchMany}
+                        onClick={() => attack.answer(attack.benchPicked)}
+                      >
+                        Attack ({attack.benchPicked.length}/{benchMany})
+                      </button>
+                    ) : (
+                      statusBar(true)
+                    )}
                     {self.peek && (
                       <div className="absolute bottom-full left-0 z-10 mb-1 [--card-sm:var(--card-pile)]">
                         <PeekCard view={view} />
@@ -565,7 +581,7 @@ export function Board({
           )}
           {dragOverlay}
         </DndContext>
-        <Toasts toasts={toasts.toasts} prompt={prompt} />
+        <Toasts toasts={toasts.toasts} prompt={phonePrompt} />
       </PreviewContext.Provider>
     );
   };
