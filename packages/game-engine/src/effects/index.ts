@@ -50,16 +50,31 @@ import { ECARD3_ENERGY, ECARD3_TRAINERS } from './ecard3-trainers.js';
 import { EX1 } from './ex1.js';
 import { EX1_POWERS } from './ex1-powers.js';
 import { EX1_ENERGY, EX1_TRAINERS } from './ex1-trainers.js';
+import { EX_TEMPLATE_DATA } from './ex-template-data.js';
+import { templateEffects } from './ex-templates.js';
 
 /** Effects by card id, then attack name. Base Set 2's and Legendary Collection's are their originals' (base4.ts, lc.ts). */
 const ORIGINAL_EFFECTS: Record<string, Record<string, AttackEffect>> = { ...BASE1, ...JUNGLE, ...FOSSIL, ...PROMOS, ...ROCKET, ...GYM1, ...GYM2, ...NEO1, ...NEO2, ...SI1, ...NEO3, ...NEO4, ...ECARD1, ...ECARD2, ...ECARD3, ...EX1 };
 const EFFECTS: Record<string, Record<string, AttackEffect>> = { ...ORIGINAL_EFFECTS, ...base4Reprints(ORIGINAL_EFFECTS), ...lcAttacks(ORIGINAL_EFFECTS) };
 
+/**
+ * The later EX sets' attacks worded as one of the shared wordings (ex-templates.ts), under a set's own effects, which have
+ * the last word on any attack. Built on the first lookup, as ex-templates.ts can still be loading while this module does.
+ */
+let allEffects: Record<string, Record<string, AttackEffect>> | undefined;
+function effectsOf(id: string): Record<string, AttackEffect> | undefined {
+  if (!allEffects) {
+    allEffects = { ...EFFECTS };
+    for (const [card, attacks] of Object.entries(templateEffects(EX_TEMPLATE_DATA))) allEffects[card] = { ...attacks, ...EFFECTS[card] };
+  }
+  return allEffects[id];
+}
+
 /** The card-specific behaviour of an attack, if it has any (plain-damage attacks don't). */
 /** A reverse-holo print (EX sets, "<card id>-reverse") plays as its card: every lookup goes by the card's own id. */
 const printOf = (defId: string) => (defId.endsWith('-reverse') ? defId.slice(0, -'-reverse'.length) : defId);
 
-export const attackEffect = (defId: string, attackName: string): AttackEffect | undefined => EFFECTS[printOf(defId)]?.[attackName];
+export const attackEffect = (defId: string, attackName: string): AttackEffect | undefined => effectsOf(printOf(defId))?.[attackName];
 
 /** Pokémon Power effects by card id (WOTC cards have at most one power). Base Set 2's and Legendary Collection's are their originals' (LC's stop with any Special Condition). */
 const ORIGINAL_POWERS: Record<string, PowerEffect> = { ...BASE1_POWERS, ...JUNGLE_POWERS, ...FOSSIL_POWERS, ...PROMO_POWERS, ...ROCKET_POWERS, ...GYM1_POWERS, ...GYM2_POWERS, ...NEO1_POWERS, ...NEO2_POWERS, ...NEO3_POWERS, ...NEO4_POWERS, ...ECARD1_POWERS, ...ECARD2_POWERS, ...ECARD3_POWERS, ...EX1_POWERS };

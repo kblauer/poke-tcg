@@ -23,7 +23,7 @@ import { flipOrNothing } from './rocket.js';
 import { healUpTo } from './si1.js';
 
 /** Discards a card from the opponent's hand at random ("without looking": Shakedown, Knock Off). */
-function discardAtRandom(ctx: AttackContext) {
+export function discardAtRandom(ctx: AttackContext) {
   if (!ctx.opp.hand.length) return ctx.log("Your opponent's hand is empty.");
   const [r, next] = nextRandom(ctx.state.rngState);
   ctx.state.rngState = next;
@@ -53,16 +53,16 @@ function discardChosen(ctx: AttackContext, count: number): boolean {
 }
 
 /** The attacker can't attack during its player's next turn (Critical Move, Slack Off). */
-const restNextTurn = (ctx: AttackContext) => {
+export const restNextTurn = (ctx: AttackContext) => {
   (ctx.attacker.effects ??= {}).noAttack = ctx.turn + 2;
   ctx.log(`${ctx.attackerDef.name} can't attack next turn.`);
 };
 
 /** The Energy attached to a Pokémon, by what it provides (Double Colorless is 2). */
-const energyAmount = (ctx: AttackContext, p: InPlayPokemon) => energyPool(p, ctx.state.cards).length;
+export const energyAmount = (ctx: AttackContext, p: InPlayPokemon) => energyPool(p, ctx.state.cards).length;
 
 /** "Each Defending Pokémon" (agreed): the Active Pokémon, and the same damage to each Benched one without Weakness or Resistance. */
-const eachDefending = (ctx: AttackContext, damage: number) => {
+export const eachDefending = (ctx: AttackContext, damage: number) => {
   ctx.hit(damage);
   ctx.benchDamage(ctx.opp, damage);
 };
