@@ -47,7 +47,7 @@ import { eitherCondition } from './si1.js';
 const energyOf = (ctx: Pick<AttackContext, 'state'>, p: InPlayPokemon, type: Parameters<typeof counts>[1]) => energyPool(p, ctx.state.cards).filter((t) => counts(t, type)).length;
 
 /** Discards every Trainer card attached to the Defending Pokémon (Mug, Plunder), unless the attack can't affect it. */
-function discardDefenderTrainers(ctx: AttackContext) {
+export function discardDefenderTrainers(ctx: AttackContext) {
   ctx.affectDefender(() => {
     const defender = ctx.opp.active!;
     const trainers = (defender.attached ?? []).filter((a) => lookupCard(ctx.state.cards, a.card.defId).kind === 'trainer');
