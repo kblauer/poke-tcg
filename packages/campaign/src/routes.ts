@@ -245,9 +245,18 @@ const tileKey = (t: RouteSpot) => `${t.x},${t.y}`;
 /**
  * The shortest walk from one tile to another over the route's walkable tiles (4 ways, as in the game) and its links,
  * around the tiles in `blocked` (people standing on the route), as the steps taken (not `from`); null if there's none.
+ * `lineOfSight` (an encounter whose people stand in a line through `to`): of the shortest walks, one reaching the line
+ * only as it arrives, so the player steps into their line of sight then, as in the games (agreed with the user): people
+ * on `to`'s row ('row') are reached by its column first, people in its column ('column') by its row first; the fewest
+ * steps on that line before `to`.
  */
-export function routePath(route: Route, from: RouteSpot, to: RouteSpot, blocked: ReadonlySet<string> = new Set()): RouteStep[] | null {
+export function routePath(route: Route, from: RouteSpot, to: RouteSpot, blocked: ReadonlySet<string> = new Set(), lineOfSight?: 'row' | 'column'): RouteStep[] | null {
   const prev = new Map<string, { from: RouteSpot; fade: boolean } | null>([[tileKey(from), null]]);
+  const inSight = (t: RouteSpot) => (lineOfSight === 'row' ? t.y === to.y : lineOfSight === 'column' ? t.x === to.x : false) && !(t.x === to.x && t.y === to.y);
+  // Each tile's steps from `from`, and (lineOfSight) its walk's steps on the line: BFS reaches a tile first by a shortest
+  // walk, and a later one as short replaces it if it has fewer steps on the line.
+  const dist = new Map<string, number>([[tileKey(from), 0]]);
+  const onRow = new Map<string, number>([[tileKey(from), 0]]);
   const queue: RouteSpot[] = [from];
   while (queue.length) {
     const here = queue.shift()!;
@@ -262,10 +271,23 @@ export function routePath(route: Route, from: RouteSpot, to: RouteSpot, blocked:
       ...linked.map((tile) => ({ tile, fade: true })),
     ];
     for (const { tile, fade } of next) {
-      if (!(onPath(route, tile) || downLedge(route, tile)) || prev.has(tileKey(tile)) || blocked.has(tileKey(tile))) continue;
+      const k = tileKey(tile);
+      if (!(onPath(route, tile) || downLedge(route, tile)) || blocked.has(k)) continue;
       // A ledge is jumped going down only: onto it and off it southwards.
       if (!fade && (downLedge(route, tile) || downLedge(route, here)) && tile.y !== here.y + 1) continue;
-      prev.set(tileKey(tile), { from: here, fade });
+      const d = dist.get(tileKey(here))! + 1;
+      const row = onRow.get(tileKey(here))! + (inSight(tile) ? 1 : 0);
+      if (prev.has(k)) {
+        // Already reached: only a walk as short with fewer steps on the line takes its place (it's still queued).
+        if (lineOfSight && dist.get(k) === d && row < onRow.get(k)!) {
+          prev.set(k, { from: here, fade });
+          onRow.set(k, row);
+        }
+        continue;
+      }
+      prev.set(k, { from: here, fade });
+      dist.set(k, d);
+      onRow.set(k, row);
       queue.push(tile);
     }
   }

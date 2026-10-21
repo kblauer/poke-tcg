@@ -3,7 +3,7 @@ import { expandDeck, STARTER_DECK } from './decks.js';
 import { ITEMS, itemText, MAX_CONSUMABLES_PER_RUN, onlyOne, shopStock } from './items.js';
 import { RUN_TYPE_IDS, RUN_TYPES, runType, type RunType, type RunTypeId } from './run-types.js';
 import { ROUTE_4 } from './kanto-routes.js';
-import { onPath, PEWTER_GYM, ROUTE_2, routePath } from './routes.js';
+import { onPath, PEWTER_GYM, ROUTE_2, routePath, type Route } from './routes.js';
 import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, isBattleKind, isBossKind, MAX_CENTERS, REQUIRED_BATTLES, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, withConsumablesBefore, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
 import { GEN2_SETS } from './pool.js';
 import { GEN2_TEST_POOL, TEST_POOL } from './test-pool.js';
@@ -225,6 +225,38 @@ describe('createRun', () => {
       });
     }
     expect(runType('kantoGyms').routes!.map((m) => m.name)).toEqual(['Pewter Gym', 'Cerulean Gym', 'Vermilion Gym', 'Celadon Gym', 'Pokémon Center', 'Saffron Gym', 'Fuchsia Gym', 'Cinnabar Gym', 'Viridian Gym']);
+  });
+
+  it("with lineOfSight, the walk reaches the spot's line of people only as it arrives: a row by its column first, a column by its row first", () => {
+    // An open 5x5 floor.
+    const open: Route = { name: 'Open', flow: 'up', image: '', width: 80, height: 80, spots: [], walkable: ['.....', '.....', '.....', '.....', '.....'] };
+    const from = { x: 0, y: 4 };
+    const to = { x: 2, y: 0 };
+    // People in a row on row 0: only the last step is onto it, straight up its column.
+    const byColumn = routePath(open, from, to, new Set(), 'row')!;
+    expect(byColumn).toHaveLength(6);
+    expect(byColumn.filter((s) => s.tile.y === to.y)).toHaveLength(1);
+    expect(byColumn.at(-2)!.tile).toEqual({ x: 2, y: 1 });
+    // People in a column on column 2: only the last step is into it, straight across its row.
+    const byRow = routePath(open, from, to, new Set(), 'column')!;
+    expect(byRow).toHaveLength(6);
+    expect(byRow.filter((s) => s.tile.x === to.x)).toHaveLength(1);
+    expect(byRow.at(-2)!.tile).toEqual({ x: 1, y: 0 });
+    // Without it the walk is as short.
+    expect(routePath(open, from, to)).toHaveLength(6);
+  });
+
+  it("every Johto gym interior: the Gym Trainer's and the leader's spots can be walked to from the door, one after the other", () => {
+    // Azalea's levels are crossed on Spinarak carts along its webs, which the map data doesn't show: the player fades
+    // between them until the user gives the links.
+    const awaitingLinks = ['Azalea Gym'];
+    const gyms = RUN_TYPE_IDS.flatMap((id) => runType(id).gym ?? []).filter((g) => g.sprites === 'hgss');
+    expect(gyms.map((g) => g.name)).toEqual(expect.arrayContaining(['Violet Gym', 'Azalea Gym', 'Goldenrod Gym', 'Ecruteak Gym', 'Cianwood Gym', 'Olivine Gym', 'Mahogany Gym', 'Blackthorn Gym']));
+    for (const gym of gyms.filter((g) => !awaitingLinks.includes(g.name))) {
+      const [trainer, leader] = gym.spots;
+      expect(routePath(gym, gym.entrance!, trainer!), gym.name).not.toBeNull();
+      expect(routePath(gym, trainer!, leader!), gym.name).not.toBeNull();
+    }
   });
 
   it("Pewter Gym: the Gym Trainer's and Brock's spots can be walked to from the door, one after the other", () => {

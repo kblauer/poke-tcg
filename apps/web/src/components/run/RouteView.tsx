@@ -777,7 +777,13 @@ export function RouteView({ routes, gym, view, spotted }: { routes: Route[]; gym
     }
     // Around the people there, unless one stands in a one-tile gap (a cut-tree's, a door): then past them.
     const others = section === targetSection ? new Set(placedRef.current.map((p) => key(p.tile))) : new Set((map.stands ?? []).map(key));
-    const path = start.x === to.x && start.y === to.y ? [] : (routePath(map, start, to, others) ?? routePath(map, start, to));
+    // Several people at the spot standing in a line (a row, on one y, or a column, on one x): the player comes into their
+    // line of sight only as he arrives, as in the games (agreed with the user): a row's by its column first, a column's by
+    // its row first.
+    const there = section === targetSection ? placedRef.current.filter((p) => key(p.spot) === key(to)) : [];
+    const lineOfSight =
+      there.length < 2 ? undefined : there.every((p) => p.tile.y === there[0]!.tile.y) ? 'row' : there.every((p) => p.tile.x === there[0]!.tile.x) ? 'column' : undefined;
+    const path = start.x === to.x && start.y === to.y ? [] : (routePath(map, start, to, others, lineOfSight) ?? routePath(map, start, to, new Set(), lineOfSight));
     if (path && path.length <= MAX_WALK) {
       walk(map, targetSection, path, start);
     } else {

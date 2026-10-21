@@ -13,8 +13,11 @@ interface JohtoBoss {
   kind: 'gymLeader' | 'eliteFour' | 'champion';
   deckName: string;
   deck: DeckList;
-  /** `favorites`: the Pokémon their Gym Trainer's random deck is built from first (for gyms whose type has no basic Energy). */
-  gym?: { city: string; type: EnergyType; badge: string; favorites?: string[] };
+  /**
+   * `favorites`: the Pokémon their Gym Trainer's random deck is built from first (for gyms whose type has no basic Energy);
+   * `trainers`: who their Gym Trainer may be (HGSS's in their gym; Olivine's the Lighthouse's), as Boss's in bosses.ts.
+   */
+  gym?: { city: string; type: EnergyType; badge: string; favorites?: string[]; trainers?: string[] };
   prize?: string;
   /** The types shown for the deck when its basic Energy doesn't say (a Colorless or Metal deck). */
   types?: EnergyType[];
@@ -341,38 +344,38 @@ export const JOHTO_BOSSES = {
     kind: 'gymLeader',
     deckName: 'Flying Squad',
     deck: FALKNER_DECK,
-    gym: { city: 'Violet', type: 'colorless', badge: 'zephyr-badge', favorites: ['Pidgey', 'Pidgeotto', 'Pidgeot', 'Hoothoot', 'Noctowl', 'Spearow', 'Fearow', "Farfetch'd", 'Doduo', 'Dodrio'] },
+    gym: { city: 'Violet', type: 'colorless', badge: 'zephyr-badge', trainers: ['Bird Keeper Abe', 'Bird Keeper Rod'], favorites: ['Pidgey', 'Pidgeotto', 'Pidgeot', 'Hoothoot', 'Noctowl', 'Spearow', 'Fearow', "Farfetch'd", 'Doduo', 'Dodrio'] },
     types: ['colorless'],
   },
-  bugsy: { name: 'Bugsy', title: 'Azalea Gym Leader', kind: 'gymLeader', deckName: 'Swarm', deck: BUGSY_DECK, gym: { city: 'Azalea', type: 'grass', badge: 'hive-badge' } },
+  bugsy: { name: 'Bugsy', title: 'Azalea Gym Leader', kind: 'gymLeader', deckName: 'Swarm', deck: BUGSY_DECK, gym: { city: 'Azalea', type: 'grass', badge: 'hive-badge', trainers: ['Bug Catcher Al', 'Bug Catcher Benny', 'Bug Catcher Josh'] } },
   whitney: {
     name: 'Whitney',
     title: 'Goldenrod Gym Leader',
     kind: 'gymLeader',
     deckName: 'Rollout',
     deck: WHITNEY_DECK,
-    gym: { city: 'Goldenrod', type: 'colorless', badge: 'plain-badge', favorites: ['Clefairy', 'Clefable', 'Miltank', 'Snubbull', 'Granbull', 'Teddiursa', 'Ursaring', 'Aipom', 'Girafarig', 'Stantler'] },
+    gym: { city: 'Goldenrod', type: 'colorless', badge: 'plain-badge', trainers: ['Lass Cathy', 'Lass Carrie', 'Beauty Victoria', 'Beauty Samantha'], favorites: ['Clefairy', 'Clefable', 'Miltank', 'Snubbull', 'Granbull', 'Teddiursa', 'Ursaring', 'Aipom', 'Girafarig', 'Stantler'] },
     types: ['colorless'],
   },
-  morty: { name: 'Morty', title: 'Ecruteak Gym Leader', kind: 'gymLeader', deckName: 'Shadow Haunt', deck: MORTY_DECK, gym: { city: 'Ecruteak', type: 'psychic', badge: 'fog-badge' } },
-  chuck: { name: 'Chuck', title: 'Cianwood Gym Leader', kind: 'gymLeader', deckName: 'Waterfall Fist', deck: CHUCK_DECK, gym: { city: 'Cianwood', type: 'fighting', badge: 'storm-badge' } },
+  morty: { name: 'Morty', title: 'Ecruteak Gym Leader', kind: 'gymLeader', deckName: 'Shadow Haunt', deck: MORTY_DECK, gym: { city: 'Ecruteak', type: 'psychic', badge: 'fog-badge', trainers: ['Medium Georgina', 'Medium Grace', 'Medium Edith', 'Medium Martha'] } },
+  chuck: { name: 'Chuck', title: 'Cianwood Gym Leader', kind: 'gymLeader', deckName: 'Waterfall Fist', deck: CHUCK_DECK, gym: { city: 'Cianwood', type: 'fighting', badge: 'storm-badge', trainers: ['Black Belt Yoshi', 'Black Belt Lao', 'Black Belt Nob', 'Black Belt Lung'] } },
   jasmine: {
     name: 'Jasmine',
     title: 'Olivine Gym Leader',
     kind: 'gymLeader',
     deckName: 'Iron Guard',
     deck: JASMINE_DECK,
-    gym: { city: 'Olivine', type: 'metal', badge: 'mineral-badge', favorites: ['Magnemite', 'Magneton', 'Onix', 'Steelix', 'Skarmory', 'Pineco', 'Forretress', 'Scyther', 'Scizor'] },
+    gym: { city: 'Olivine', type: 'metal', badge: 'mineral-badge', trainers: ['Gentleman Alfred', 'Sailor Huey', 'Sailor Kent', 'Bird Keeper Denis', 'Bird Keeper Theo', 'Lass Connie', 'Gentleman Preston', 'Sailor Terrell', 'Sailor Roberto'], favorites: ['Magnemite', 'Magneton', 'Onix', 'Steelix', 'Skarmory', 'Pineco', 'Forretress', 'Scyther', 'Scizor'] },
     types: ['metal', 'lightning'],
   },
-  pryce: { name: 'Pryce', title: 'Mahogany Gym Leader', kind: 'gymLeader', deckName: 'Deep Freeze', deck: PRYCE_DECK, gym: { city: 'Mahogany', type: 'water', badge: 'glacier-badge' } },
+  pryce: { name: 'Pryce', title: 'Mahogany Gym Leader', kind: 'gymLeader', deckName: 'Deep Freeze', deck: PRYCE_DECK, gym: { city: 'Mahogany', type: 'water', badge: 'glacier-badge', trainers: ['Skier Jill', 'Skier Diana', 'Boarder Deandre', 'Boarder Gerardo', 'Boarder Patton'] } },
   clair: {
     name: 'Clair',
     title: 'Blackthorn Gym Leader',
     kind: 'gymLeader',
     deckName: "Dragon's Den",
     deck: CLAIR_DECK,
-    gym: { city: 'Blackthorn', type: 'water', badge: 'rising-badge', favorites: ['Dratini', 'Dragonair', 'Dragonite', 'Horsea', 'Seadra', 'Kingdra', 'Magikarp', 'Gyarados'] },
+    gym: { city: 'Blackthorn', type: 'water', badge: 'rising-badge', trainers: ['Ace Trainer Paulo', 'Ace Trainer Lola', 'Ace Trainer Cody', 'Ace Trainer Fran', 'Ace Trainer Mike'], favorites: ['Dratini', 'Dragonair', 'Dragonite', 'Horsea', 'Seadra', 'Kingdra', 'Magikarp', 'Gyarados'] },
   },
   will: { name: 'Will', title: 'Elite Four', kind: 'eliteFour', deckName: 'Mind Games', deck: WILL_DECK },
   'johto-koga': { name: 'Koga', title: 'Elite Four', kind: 'eliteFour', deckName: 'Poison Mist', deck: JOHTO_KOGA_DECK },

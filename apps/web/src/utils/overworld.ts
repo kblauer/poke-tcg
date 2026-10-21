@@ -110,7 +110,7 @@ const CLASS_SPRITES: Record<string, string> = {
  * Trainers whose sprite depends on who they are: Cooltrainers, Ace Trainers, Jr. Trainers, Swimmers and Rocket Grunts come
  * as men and women.
  */
-const WOMEN = new Set(['Mary', 'Saki', 'Gwen', 'Paige', 'Vera', 'Quinn', 'Shirley', 'Tiffany', 'Nora', 'Melissa', 'Anya', 'Alice', 'Connie', 'Mara', 'Lena', 'Tess', 'Rhea']);
+const WOMEN = new Set(['Mary', 'Saki', 'Gwen', 'Paige', 'Vera', 'Quinn', 'Shirley', 'Tiffany', 'Nora', 'Melissa', 'Anya', 'Alice', 'Connie', 'Mara', 'Lena', 'Tess', 'Rhea', 'Lola', 'Fran']);
 
 /** Kanto's Gym Trainers (bosses.ts) whose class FireRed draws differently in their gym (pret's gym maps): Fuchsia's Jugglers as Rockers, Saffron's Psychics as Cooltrainers. */
 const GYM_SPRITES: Record<string, string> = {
@@ -138,6 +138,10 @@ const HGSS_CLASS_SPRITES: Record<string, string> = {
   'Bird Keeper': 'bird_keeper',
   Burglar: 'burglar',
   'Gym Guide': 'boy',
+  // The Johto gyms' trainers (johto-bosses.ts), with HGSS's sprites for them.
+  Medium: 'medium',
+  Skier: 'skier',
+  Boarder: 'boarder',
 };
 
 /**

@@ -9,6 +9,7 @@ import { BOSSES, boss, ELITE_FOUR, JOHTO_ELITE_FOUR, JOHTO_GYMS, KANTO_GYMS, typ
 import { GEN1_DECK_RULES, GEN2_DECK_RULES, type DeckRules } from './decks.js';
 import { basicEnergyType, GEN2_DONE_SETS, GEN2_SETS, POOL_SETS } from './pool.js';
 import { CELADON_GYM, CERULEAN_GYM, CINNABAR_GYM, FUCHSIA_GYM, KANTO_BOSS_ROOMS, POKEMON_CENTER, POKEMON_TOWER_1F, POKEMON_TOWER_2F, POKEMON_TOWER_3F, POKEMON_TOWER_4F, POKEMON_TOWER_5F, POWER_PLANT, ROUTE_17, ROUTE_20, ROUTE_8, ROUTE_4, ROUTE_5_VERMILION, ROUTE_6, SAFFRON_GYM, VERMILION_GYM, VIRIDIAN_GYM } from './kanto-routes.js';
+import { AZALEA_GYM, BLACKTHORN_GYM, CIANWOOD_GYM, ECRUTEAK_GYM, GOLDENROD_GYM, MAHOGANY_GYM, OLIVINE_GYM, VIOLET_GYM } from './johto-gyms.js';
 import { ROUTE_30, ROUTE_32, ROUTE_34, ROUTE_35, ROUTE_40, ROUTE_42, ROUTE_44, ROUTE_45 } from './johto-routes.js';
 import { PEWTER_GYM, ROUTE_2, type Route } from './routes.js';
 
@@ -43,8 +44,8 @@ export interface RunType {
 
 /**
  * One gym: 24 encounters, the Gym Trainer, then the gym leader (the 26th fight). `place`: "City" or "Town". With `maps` (its
- * routes and gym interior, routes.ts), one encounter per route spot instead (agreed with the user: 10), then the gym (the
- * Johto runs have no gym interiors yet: their gym's steps stay at the route's last spot).
+ * routes and gym interior, routes.ts), one encounter per route spot instead (agreed with the user: 10), then the gym
+ * (FireRed's in Kanto, kanto-routes.ts; HeartGold/SoulSilver's in Johto, johto-gyms.ts).
  */
 const gymRun = (id: BossId, city: string, generation: number, place = 'City', maps?: { routes: Route[]; gym?: Route; along?: string }) => {
   const b = boss(id);
@@ -109,16 +110,16 @@ export const RUN_TYPES = {
     requires: 'gymChallenge',
     routes: bossMaps([{ steps: 0, bosses: [...KANTO_GYMS, ...ELITE_FOUR, 'blue'], gymTrainers: false }]),
   },
-  // Each Johto gym's route, from HeartGold/SoulSilver (johto-routes.ts; agreed with the user): 10 encounters, then the gym.
-  violet: gymRun('falkner', 'Violet', 2, 'City', { routes: [ROUTE_30] }),
-  azalea: gymRun('bugsy', 'Azalea', 2, 'Town', { routes: [ROUTE_32] }),
-  goldenrod: gymRun('whitney', 'Goldenrod', 2, 'City', { routes: [ROUTE_34] }),
-  ecruteak: gymRun('morty', 'Ecruteak', 2, 'City', { routes: [ROUTE_35] }),
+  // Each Johto gym's route and interior, from HeartGold/SoulSilver (johto-routes.ts, johto-gyms.ts; agreed with the user): 10 encounters, then the gym.
+  violet: gymRun('falkner', 'Violet', 2, 'City', { routes: [ROUTE_30], gym: VIOLET_GYM }),
+  azalea: gymRun('bugsy', 'Azalea', 2, 'Town', { routes: [ROUTE_32], gym: AZALEA_GYM }),
+  goldenrod: gymRun('whitney', 'Goldenrod', 2, 'City', { routes: [ROUTE_34], gym: GOLDENROD_GYM }),
+  ecruteak: gymRun('morty', 'Ecruteak', 2, 'City', { routes: [ROUTE_35], gym: ECRUTEAK_GYM }),
   // Made up: a surf route, a cave with a waterfall, an ice cave in two areas (generate_johto.py).
-  cianwood: gymRun('chuck', 'Cianwood', 2, 'City', { routes: [ROUTE_40] }),
-  olivine: gymRun('jasmine', 'Olivine', 2, 'City', { routes: [ROUTE_42] }),
-  mahogany: gymRun('pryce', 'Mahogany', 2, 'Town', { routes: [ROUTE_44] }),
-  blackthorn: gymRun('clair', 'Blackthorn', 2, 'City', { routes: [ROUTE_45] }),
+  cianwood: gymRun('chuck', 'Cianwood', 2, 'City', { routes: [ROUTE_40], gym: CIANWOOD_GYM }),
+  olivine: gymRun('jasmine', 'Olivine', 2, 'City', { routes: [ROUTE_42], gym: OLIVINE_GYM }),
+  mahogany: gymRun('pryce', 'Mahogany', 2, 'Town', { routes: [ROUTE_44], gym: MAHOGANY_GYM }),
+  blackthorn: gymRun('clair', 'Blackthorn', 2, 'City', { routes: [ROUTE_45], gym: BLACKTHORN_GYM }),
   johtoGyms: {
     id: 'johtoGyms',
     name: 'Johto Gym Challenge',
