@@ -205,8 +205,8 @@ export function toCardDef(card: Card): CardDef {
       if (!known) throw new Error(`Card ${card.id} is not a supported energy`);
       return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: named, holo: isHolo(card) };
     }
-    // Rainbow Energy counts as every type while attached (1 at a time).
-    if (card.name === 'Rainbow Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'colorless', anyType: true, basic: false, holo: isHolo(card) };
+    // Rainbow Energy and Multi Energy count as every type while attached (1 at a time; Multi Energy only Colorless beside another Special Energy card: colorlessOnly).
+    if (card.name === 'Rainbow Energy' || card.name === 'Multi Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'colorless', anyType: true, basic: false, holo: isHolo(card) };
     // Miracle Energy counts as every type but provides only 2 Energy at a time.
     if (card.name === 'Miracle Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'colorless', anyType: true, amount: 2, basic: false, holo: isHolo(card) };
     // Boost Energy provides 3 Colorless Energy, Bounce Energy 2 (their other rules are the engine's).

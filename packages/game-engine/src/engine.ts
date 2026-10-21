@@ -1,9 +1,9 @@
 /// <reference path="./globals.d.ts" />
 import { applyWeaknessResistance, attackSituation, checkAttack, performAttack, recallsAttacks, usableAttacks, type AttackChoices } from './attacks.js';
-import { attachBlocked, discardsLocked, energyFromHand, evolutionBlocked, primalBlock, retreatBodies, guardedBy, miraculousWind, offerChainReaction, playedFromHand, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, trainersBlocked, usePower, zoomed, type PowerChoices } from './powers.js';
+import { attachBlocked, discardsLocked, energyFromHand, evolutionBlocked, primalBlock, retreatBodies, guardedBy, miraculousWind, offerChainReaction, playedFromHand, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, primalLocked, trainersBlocked, usePower, zoomed, type PowerChoices } from './powers.js';
 import { evolvesFromEevee, evolveWith, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
-import { isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
+import { hasType, isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { addLog, baseUid, clearOnLeavingActive, effectId, evolvedHook, hasSpecialCondition, shapeshiftCard, flipCoin, inPlayDef, openBenchSlot, pokemonName, revealFaceDown, type LogEntry } from './status.js';
 import { shuffle } from './rng.js';
 import type { CpuDifficulty } from './cpu/index.js';
@@ -24,6 +24,8 @@ export interface CardInstance {
   converted?: { type: EnergyType; by: string; activeOnly?: boolean; untied?: boolean };
   /** Miraculous Wind: this attached Special Energy card provides Colorless Energy only and its other effects stop (refreshWind). */
   windless?: boolean;
+  /** Multi Energy beside another Special Energy card on its Pokémon: it provides Colorless Energy only (refreshMultiEnergy). */
+  colorlessOnly?: boolean;
 }
 
 /** Energy that pays for a Crystal Energy card: one of these types (`crystal:fire,water`), chosen as the cost needs. */
@@ -239,6 +241,10 @@ export interface InPlayPokemon {
   hideout?: boolean;
   /** Crystal Type: the type it's changed to until the end of the turn (inPlayDef). */
   crystalType?: EnergyType;
+  /** Low Pressure System is the Stadium in play and it's a Grass or Lightning Pokémon: 10 more HP (refreshHideout, inPlayDef). */
+  lowPressure?: boolean;
+  /** Energy Variation, while it works: the types of the basic Energy cards attached, which it is (refreshHideout, inPlayDef). */
+  variedTypes?: EnergyType[];
   /**
    * Time Shard: an opponent's attack's damage is Knocking it Out; up to 2 of its basic Energy cards go back to the hand
    * (resolveKnockouts), or 'asked': its owner was asked which, with more than 2.
@@ -297,6 +303,8 @@ export interface PlayerState {
   activeEnergyTurn?: number;
   /** Last turn this player can't play Supporter cards (Addictive Pollen). */
   noSupportersUntil?: number;
+  /** Dragon Dance: the turn this player's attacks do 40 more damage to each Defending Pokémon they damage, before Weakness and Resistance. */
+  dragonDanceTurn?: number;
   /** The turn Pokémon Park last removed a damage counter for this player (once during each of their turns). */
   parkTurn?: number;
 }
@@ -1203,6 +1211,7 @@ export function energyProvided(card: CardInstance, cards: CardLibrary): { type: 
   const def = lookupCard(cards, card.defId);
   // Miraculous Wind: a Special Energy card provides Colorless Energy (as much as it usually does).
   if (card.windless) return { type: 'colorless', amount: def.kind === 'energy' ? (def.amount ?? 1) : 1 };
+  if (card.colorlessOnly) return { type: 'colorless', amount: 1 };
   if (def.kind !== 'energy') return { type: 'colorless', amount: 1 };
   return { type: def.anyType ? 'any' : def.energyType, amount: def.amount ?? 1 };
 }
@@ -1218,7 +1227,7 @@ export function isSpecialEnergy(cards: CardLibrary, card: CardInstance): boolean
 }
 
 export function isEnergyCardOf(card: CardInstance, cards: CardLibrary, type: EnergyType): boolean {
-  if (card.provides || card.windless) return false;
+  if (card.provides || card.windless || card.colorlessOnly) return false;
   if (card.converted) return card.converted.type === type;
   const d = lookupCard(cards, card.defId);
   return d.kind === 'energy' && (!!d.anyType || (d.energyType === type && d.basic !== false));
@@ -1416,6 +1425,17 @@ function betweenTurns(state: GameState) {
     const player = state.players[id]!;
     for (const p of [player.active, ...player.bench]) if (p) useBerry(state, player, p);
     for (const p of player.bench) if (p) useStarPiece(state, player, p);
+  }
+  // Rain Dish: a set amount of damage off between turns, wherever it is.
+  const sides = state.playerOrder.map((id) => state.players[id]!);
+  for (const player of sides) {
+    for (const p of [player.active, ...player.bench]) {
+      const dish = p && powerActive(p, state.cards, sides) ? powerEffect(effectId(p))?.rainDish : undefined;
+      if (!p || !dish || p.damage < 10) continue;
+      const healed = Math.min(dish, p.damage);
+      p.damage -= healed;
+      addLog(state, `${inPlayDef(state.cards, p).power!.name}: removed ${healed / 10} damage counter${healed === 10 ? '' : 's'} from ${pokemonName(state, p)}.`, player.id);
+    }
   }
   for (const id of state.playerOrder) {
     const player = state.players[id]!;
@@ -1733,14 +1753,54 @@ function finish(state: GameState, winner: PlayerId): ActionResult {
   return ok(state);
 }
 
-/** Rocket's Hideout: while it's the Stadium in play, each Pokémon with Dark in its name has 20 more HP (`hideout`, inPlayDef). */
+/**
+ * Rocket's Hideout: while it's the Stadium in play, each Pokémon with Dark in its name has 20 more HP (`hideout`, inPlayDef).
+ * Low Pressure System: each Grass and Lightning Pokémon, both players', has 10 more (`lowPressure`). Energy Variation, while it
+ * works (Toxic Gas…): Kecleon is the types of the basic Energy cards attached (`variedTypes`), which Low Pressure System sees.
+ */
 function refreshHideout(state: GameState) {
-  const hideout = !!state.stadium && lookupCard(state.cards, state.stadium.card.defId).name === "Rocket's Hideout";
+  const stadium = state.stadium && lookupCard(state.cards, state.stadium.card.defId).name;
+  const sides = state.playerOrder.map((id) => state.players[id]!);
   for (const player of Object.values(state.players)) {
     for (const p of [player.active, ...player.bench]) {
       if (!p) continue;
-      if (hideout && /\bDark\b/.test(lookupCard(state.cards, p.card.defId).name)) p.hideout = true;
+      delete p.variedTypes;
+      if (inPlayDef(state.cards, p).power?.name === 'Energy Variation' && powerActive(p, state.cards, sides)) {
+        const types = [...new Set(p.energy.flatMap((e) => (!e.provides && isBasicEnergy(lookupCard(state.cards, e.defId)) ? [energyProvided(e, state.cards).type as EnergyType] : [])))];
+        if (types.length) p.variedTypes = types;
+      }
+      if (stadium === "Rocket's Hideout" && /\bDark\b/.test(lookupCard(state.cards, p.card.defId).name)) p.hideout = true;
       else delete p.hideout;
+      const d = inPlayDef(state.cards, p);
+      if (stadium === 'Low Pressure System' && (hasType(d, 'grass') || hasType(d, 'lightning'))) p.lowPressure = true;
+      else delete p.lowPressure;
+    }
+  }
+}
+
+/** Multi Energy provides Colorless Energy only while another Special Energy card is attached to its Pokémon (agreed: checked all the time). */
+function refreshMultiEnergy(state: GameState) {
+  for (const player of Object.values(state.players)) {
+    for (const p of [player.active, ...player.bench]) {
+      for (const e of p?.energy ?? []) {
+        const multi = !e.provides && lookupCard(state.cards, e.defId).name === 'Multi Energy';
+        if (multi && p!.energy.some((o) => o !== e && isSpecialEnergy(state.cards, o))) e.colorlessOnly = true;
+        else delete e.colorlessOnly;
+      }
+    }
+  }
+}
+
+/** Primal Lock: while one works, the Pokémon Tool cards attached to its owner's opponent's Pokémon are discarded. */
+function dropLockedTools(state: GameState) {
+  const sides = state.playerOrder.map((id) => state.players[id]!);
+  for (const player of sides) {
+    if (!primalLocked(player, sides, state.cards)) continue;
+    for (const p of [player.active, ...player.bench]) {
+      const tool = p && toolOf(state.cards, p);
+      if (!p || !tool) continue;
+      addLog(state, `Primal Lock: ${tool.name} on ${pokemonName(state, p)} was discarded.`, player.id);
+      discardTool(state, player, p);
     }
   }
 }
@@ -1807,6 +1867,8 @@ function ok(state: GameState): ActionResult {
   refreshConverted(state);
   discardLegendaryTrainers(state);
   refreshWind(state);
+  refreshMultiEnergy(state);
+  dropLockedTools(state);
   returnRecycleEnergy(state);
   dropShapeshifts(state);
   state.version += 1;

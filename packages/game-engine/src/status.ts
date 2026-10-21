@@ -77,7 +77,8 @@ export const FACE_DOWN: PokemonCardDef = {
  * with an Evolution card attached by Shapeshift is that card, keeping its own power. Koga's Ditto after Giant Growth
  * has 80 HP; Sabrina's Gastly's Gaseous Form adds 10 HP per Psychic Energy card (it works whatever its condition;
  * Stare stops it here, Toxic Gas and Goop Gas Attack don't, as this sees no other Pokémon). A submerged Lanturn is Water,
- * and Rocket's Hideout gives a Pokémon with Dark in its name 20 more HP.
+ * and Rocket's Hideout gives a Pokémon with Dark in its name 20 more HP. Kecleon's Energy Variation makes it every type of
+ * basic Energy card attached (`types`), and Low Pressure System gives Grass and Lightning Pokémon 10 more HP.
  */
 export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCardDef {
   if (pokemon.faceDown) return FACE_DOWN;
@@ -95,7 +96,12 @@ export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCa
   if (pokemon.submerged !== undefined) d = { ...d, type: 'water' };
   // Crystal Shard: Colorless while it's attached.
   if (pokemon.attached?.some((a) => a.tool && lookupCard(cards, a.card.defId).name === 'Crystal Shard')) d = { ...d, type: 'colorless' };
+  // Energy Variation (a Poké-Body): every type of basic Energy card attached, while it works (refreshHideout).
+  const varied = pokemon.variedTypes;
+  if (varied?.length) d = { ...d, type: varied[0]!, ...(varied.length > 1 && { types: varied }) };
   if (pokemon.effects?.giantGrowth) d = { ...d, hp: 80 };
+  // Low Pressure System: 10 more HP for a Grass or Lightning Pokémon.
+  if (pokemon.lowPressure) d = { ...d, hp: d.hp + 10 };
   // Rocket's Hideout: 20 more HP for a Pokémon with Dark in its name.
   if (pokemon.hideout) d = { ...d, hp: d.hp + 20 };
   if (own.power?.name === 'Gaseous Form' && pokemon.powerOffUntil === undefined) {
