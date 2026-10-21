@@ -15,6 +15,8 @@ export interface HoloSource {
   galaxy?: boolean;
   /** Holo Energy: the library style it's shown in (its data-* attributes). */
   holoEnergy?: { rarity: string; trainerGallery?: boolean; supertype?: string; subtypes?: string } | null;
+  /** A reverse-holo print (EX sets, id "<card id>-reverse"): foil everywhere but the art window. */
+  reverseHolo?: boolean;
 }
 
 export interface HoloAttributes {
@@ -38,21 +40,21 @@ export interface HoloAttributes {
 const SUBTYPES: Record<string, string> = { basic: 'basic', baby: 'basic', stage1: 'stage 1', stage2: 'stage 2' };
 
 export function holoAttributes(card: HoloSource): HoloAttributes {
-  // A holo Energy's id is its Energy card's with "-holo-<style>" after it.
-  const id = card.holoEnergy ? card.id.replace(/-holo-[a-z-]+$/, '') : card.id;
+  // A holo Energy's id is its Energy card's with "-holo-<style>" after it; a reverse holo's with "-reverse".
+  const id = card.holoEnergy ? card.id.replace(/-holo-[a-z-]+$/, '') : card.id.replace(/-reverse$/, '');
   const split = id.lastIndexOf('-');
   const set = id.slice(0, split);
   const kind = card.kind.toLowerCase();
   const style = card.holoEnergy;
   return {
     types: card.type?.toLowerCase() ?? '',
-    rarity: style ? style.rarity : card.galaxy ? 'rare holo cosmos' : card.holo ? 'rare holo' : (card.rarity ?? 'common').toLowerCase(),
+    rarity: style ? style.rarity : card.reverseHolo ? 'reverse holo' : card.galaxy ? 'rare holo cosmos' : card.holo ? 'rare holo' : (card.rarity ?? 'common').toLowerCase(),
     supertype: style?.supertype ?? (kind === 'pokemon' ? 'pokémon' : kind),
     // WOTC Trainers have no subtype; "item" picks the Trainer art-window shape.
     subtypes: style?.subtypes ?? (kind === 'pokemon' ? (SUBTYPES[card.stage?.toLowerCase() ?? ''] ?? 'basic') : kind === 'trainer' ? 'item' : 'basic'),
     set,
     number: id.slice(split + 1).toLowerCase(),
-    era: set.startsWith('ecard') ? 'ecard' : /^exd/.test(set) ? 'ex' : 'wotc',
+    era: set.startsWith('ecard') ? 'ecard' : /^ex\d/.test(set) ? 'ex' : 'wotc',
     pokemonEx: kind === 'pokemon' && / ex$/.test(card.name ?? ''),
     trainerGallery: style?.trainerGallery ?? false,
     holoEnergy: !!style,

@@ -28,6 +28,8 @@ export interface CardData {
   holoEnergy?: HoloEnergyStyle | null;
   /** "ex" on a Pokémon-ex (EX series). */
   suffix?: string | null;
+  /** A reverse-holo print (made by the seed from an EX card, id "<card id>-reverse", packages/db/prisma/holo-energy.ts). */
+  reverseHolo?: boolean;
 }
 
 /** A holo Energy's style: the attributes the holo card styles select on (see HoloCard). */
@@ -46,10 +48,16 @@ export interface HoloEnergyStyle {
  */
 export const holoEnergyStyle = (card: Pick<Card, 'data'>): HoloEnergyStyle | null => (card.data as CardData).holoEnergy ?? null;
 
-/** A card's name for messages: a holo Energy's says its style ("Fire Energy (Rainbow holo)"). */
+/**
+ * A reverse-holo print (EX sets): a holo of its own, a special addition like the holos with a non-holo twin (holoTwins:
+ * its copies count, and it unlocks the card's own print, agreed with the user).
+ */
+export const isReverseHolo = (card: Pick<Card, 'data'>) => (card.data as CardData).reverseHolo === true;
+
+/** A card's name for messages: a holo Energy's says its style ("Fire Energy (Rainbow holo)"), a reverse holo says so. */
 export const cardLabel = (card: Pick<Card, 'name' | 'data'>) => {
   const style = holoEnergyStyle(card);
-  return style ? `${card.name} (${style.label} holo)` : card.name;
+  return style ? `${card.name} (${style.label} holo)` : isReverseHolo(card) ? `${card.name} (reverse holo)` : card.name;
 };
 
 /** Stage 1 Pokémon printed as evolving from Mysterious Fossil, which TCGdex leaves out. */

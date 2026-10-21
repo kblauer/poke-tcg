@@ -5,7 +5,7 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { prisma, type Prisma } from '../src/index.js';
-import { HOLO_ENERGY_SETS, holoEnergyCards } from './holo-energy.js';
+import { HOLO_ENERGY_SETS, holoEnergyCards, reverseHoloCard } from './holo-energy.js';
 import { CUSTOM_PATH, SNAPSHOT_PATH, type CardSnapshot, type TcgdexCard } from './tcgdex.js';
 
 const KIND = { Pokemon: 'POKEMON', Trainer: 'TRAINER', Energy: 'ENERGY' } as const;
@@ -16,7 +16,10 @@ const load = async (file: string) => JSON.parse(await readFile(fileURLToPath(new
 const [tcgdex, custom] = await Promise.all([load(SNAPSHOT_PATH), load(CUSTOM_PATH)]);
 const cards = [...tcgdex.cards, ...custom.cards];
 const holoEnergy = cards.filter((c) => c.category === 'Energy' && c.energyType === 'Normal' && HOLO_ENERGY_SETS.includes(c.set.id)).flatMap(holoEnergyCards);
-const snapshot = { sets: [...tcgdex.sets, ...custom.sets], cards: [...cards, ...holoEnergy] };
+// Reverse-holo prints of the EX cards (holo-energy.ts).
+const official = new Map(tcgdex.sets.map((s) => [s.id, s.cardCount.official]));
+const reverseHolos = cards.flatMap((c) => reverseHoloCard(c, official.get(c.set.id) ?? Infinity) ?? []);
+const snapshot = { sets: [...tcgdex.sets, ...custom.sets], cards: [...cards, ...holoEnergy, ...reverseHolos] };
 
 /** Where TCGdex's data differs from the printed card (checked against the card image), by card id. */
 const TCGDEX_FIXES: Record<string, Partial<TcgdexCard>> = {

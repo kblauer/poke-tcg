@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { BoosterPack } from '../components/packs/BoosterPack';
 import { PackOpening, type PackSetInfo } from '../components/packs/PackOpening';
+import { PACK_GENERATIONS } from '@poke-tcg/campaign';
 import { GenerationFilter, packGeneration } from '../components/packs/GenerationFilter';
 import { PreviewProvider } from '../components/PreviewProvider';
 import { useIsPhone } from '../hooks/useIsPhone';
@@ -63,7 +64,11 @@ export function PacksPage() {
         <GenerationFilter picked={picked} onChange={setPicked} />
         <div className={phone ? 'grid grid-cols-4 gap-2' : 'grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6'}>
           {sets.filter((s) => picked.size === 0 || picked.has(packGeneration(s.id) ?? 0)).map((s) => {
-            const why = s.next ? `Next to unlock: complete a battle in a ${s.next} run (without conceding it)` : `Locked: beat a run, or keep completing battles in runs`;
+            const why = s.upcoming
+              ? `Locked until ${PACK_GENERATIONS[packGeneration(s.id) ?? 0]?.region ?? 'its generation'}'s runs arrive`
+              : s.next
+                ? `Next to unlock: complete a battle in a ${s.next} run (without conceding it)`
+                : `Locked: beat a run, or keep completing battles in runs`;
             return phone ? (
               <button
                 key={s.id}

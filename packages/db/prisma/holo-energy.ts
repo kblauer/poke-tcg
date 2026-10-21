@@ -42,6 +42,25 @@ export const HOLO_ENERGY_STYLES: HoloEnergyStyle[] = [
 ];
 
 /**
+ * EX sets TCGdex lists no reverse-holo prints for at all (EX Delta Species on). Their cards get one by the rule every other
+ * EX set follows (reverseHoloCard): every card but the Pokémon-ex, the Gold Stars (☆) and the secret rares.
+ */
+const NO_REVERSE_DATA = new Set(['ex11', 'ex12', 'ex13', 'ex14', 'ex15', 'ex16']);
+
+/**
+ * The reverse-holo print of an EX card (agreed with the user: collectible prints of their own): the card again, id
+ * "<card id>-reverse", foil (`holo`) and marked `reverseHolo`; null for a card with none. TCGdex lists them
+ * (`variants.reverse`) up to EX Unseen Forces; for the later sets the rule they follow decides (NO_REVERSE_DATA), with the
+ * set's official card count (`official`) telling the secret rares apart.
+ */
+export function reverseHoloCard(card: TcgdexCard, official: number): TcgdexCard | null {
+  if (!/^ex[0-9]+$/.test(card.set.id)) return null;
+  const byRule = NO_REVERSE_DATA.has(card.set.id) && card.suffix !== 'ex' && !card.name.includes('☆') && Number(card.localId) <= official;
+  if (!card.variants?.reverse && !byRule) return null;
+  return { ...card, id: `${card.id}-reverse`, variants: { holo: true, normal: false, reverse: true, firstEdition: false }, reverseHolo: true };
+}
+
+/**
  * The sets whose basic Energy packs give out: each pack set's own, or the closest earlier set's (the API picks by
  * release date). Base Set covers Jungle, Fossil and the promos; Base Set 2 covers Team Rocket. Add a set here when a
  * pack set with its own basic Energy (or after one) is added.

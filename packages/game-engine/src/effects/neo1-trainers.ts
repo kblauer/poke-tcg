@@ -3,10 +3,9 @@
 // Pokémon Tools (Focus Band, Berry, Gold Berry, Miracle Berry) are attached to a Pokémon without one (`attached` with
 // `tool`) and stay until it leaves play; their rules live where they apply: the Berries between turns (useBerry in
 // engine.ts, automatic as soon as they can be used: agreed), Focus Band in attacks.ts (fortitude). The Stadiums' too:
-// Ecogym (discardTheirEnergy), Sprout Tower (attacks.ts). So do the special Energy's: Darkness Energy (10 more from its
-// Pokémon's attacks that damage the Defending Pokémon; a damage counter on it at the end of every turn unless it's Darkness
-// or Dark), Metal Energy (10 less damage to its Pokémon; 10 less from a non-Metal Pokémon's attacks, before Weakness and
-// Resistance) and Recycle Energy (back to the hand when it's discarded from play: returnRecycleEnergy).
+// Ecogym (discardTheirEnergy), Sprout Tower (attacks.ts). So do the special Energy's: Darkness and Metal Energy (the EX
+// rules, for every set's: agreed; attacks.ts) and Recycle Energy (back to the hand when it's discarded from play:
+// returnRecycleEnergy).
 // Rulings (from the text): Time Capsule's players each shuffle back 5 cards or none (all or none, if they have fewer),
 // the opponent first, one at a time, so only the first can be declined; the CPU takes Pokémon before Energy (agreed). Double Gust's opponent picks first. Card-Flip Game's
 // guess is Energy, Trainer or Pokémon, and the Prize card stays face up. Super Scoop Up, as Scoop Up, can't take the

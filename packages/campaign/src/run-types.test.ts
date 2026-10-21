@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { boss } from './bosses.js';
 import { PACK_SETS } from './packs.js';
-import { bossTypes, generation, generationBadges, nextPack, RUN_TYPES, runTypeLock } from './run-types.js';
+import { bossTypes, generation, generationBadges, nextPack, PACK_GENERATIONS, RUN_TYPES, runTypeLock } from './run-types.js';
+import { EX_SETS } from './pool.js';
 
 const kanto = generation(1);
 const none = { badges: new Set<string>(), beaten: new Set<string>() };
@@ -26,7 +27,9 @@ describe('unlocking run types', () => {
 
 describe('generation packs', () => {
   it("the generations' packs are every pack set, each in one generation, one at a time in release order", () => {
-    expect([...kanto.packs, ...generation(2).packs].sort()).toEqual([...PACK_SETS].sort());
+    // Gen 3's packs (the EX sets) belong to PACK_GENERATIONS only, until its runs exist.
+    expect(Object.values(PACK_GENERATIONS).flatMap((g) => g.packs).sort()).toEqual([...PACK_SETS].sort());
+    expect([...kanto.packs, ...generation(2).packs, ...EX_SETS].sort()).toEqual([...PACK_SETS].sort());
     expect(nextPack(generation(2), new Set(kanto.packs))).toBe('neo1');
     expect(nextPack(kanto, new Set())).toBe('base1');
     expect(nextPack(kanto, new Set(['base1']))).toBe('base2');

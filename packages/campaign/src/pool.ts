@@ -19,6 +19,12 @@ export const POOL_SETS = ['base1', 'base2', 'base3', 'basep', 'base4', 'base5', 
  */
 export const GEN2_SETS = ['neo1', 'neo2', 'si1', 'neo3', 'neo4', 'ecard1', 'ecard2', 'ecard3'];
 
+/**
+ * Generation 3's EX sets, EX Ruby & Sapphire to EX Power Keepers, in release order: in the catalog and with booster packs
+ * (locked until Gen 3's runs exist, agreed with the user), no generation yet.
+ */
+export const EX_SETS = ['ex1', 'ex2', 'ex3', 'ex4', 'ex5', 'ex6', 'ex7', 'ex8', 'ex9', 'ex10', 'ex11', 'ex12', 'ex13', 'ex14', 'ex15', 'ex16'];
+
 /** The Gen 2 sets whose card effects the engine has: Gen 2 runs take only the cards it plays fully from these. */
 export const GEN2_DONE_SETS = ['neo1', 'neo2', 'si1', 'neo3', 'neo4', 'ecard1', 'ecard2', 'ecard3'];
 
