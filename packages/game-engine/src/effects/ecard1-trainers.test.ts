@@ -100,14 +100,12 @@ describe('Expedition Trainers', () => {
     expect(ash(after).discard.map((c) => c.defId)).toContain('ecard1-150');
   });
 
-  it("Expedition's Metal Energy: a non-Metal attacker's damage is 10 less before Weakness and Resistance, as Neo Genesis's", () => {
+  it("Expedition's Metal Energy plays by the EX rules (agreed): nothing less from a non-Metal attacker", () => {
     const s = duel('charmander', 'onix');
     s.cards[metal.id] = metal;
     ash(s).active!.energy = [{ uid: 'f', defId: 'fire' }, { uid: 'm', defId: 'ecard1-159' }];
-    // Ember (30) against an Onix that isn't weak to Fire: 30 − 10.
-    expect(misty(attack(s, 1)).active!.damage).toBe(20);
-    // 10 less first, then Weakness: (30 − 10) × 2.
+    expect(misty(attack(s, 1)).active!.damage).toBe(30);
     s.cards['base1-56'] = { ...(s.cards['base1-56'] as ReturnType<typeof mon>), weakness: { type: F, multiplier: 2 } };
-    expect(misty(attack(s, 1)).active!.damage).toBe(40);
+    expect(misty(attack(s, 1)).active!.damage).toBe(60);
   });
 });

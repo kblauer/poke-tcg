@@ -946,20 +946,20 @@ function createContext(
   };
   /** Damage to a benched Pokémon or the attacker itself: Defender, then Kabuto Armor. */
   const benchedDamage = (p: InPlayPokemon, amount: number, owner: PlayerState) => {
-    amount = Math.max(0, charmed(amount) - metalLess);
+    amount = charmed(amount);
     if (owner === opp) amount = intimidated(amount, owner);
     if (amount > 0 && sproutTower(state) && attackerDef.type === 'colorless') amount = Math.max(0, amount - 30);
-    amount = Math.max(0, amount - 10 * energyCount(state.cards, p, 'Metal Energy'));
+    if (def(state.cards, p).type === 'metal') amount = Math.max(0, amount - 10 * energyCount(state.cards, p, 'Metal Energy'));
     const damage = unownGuarded(p, barriers(p, armor(p, afterDefender(state.cards, p, amount), owner), owner), owner);
     return damage >= 30 && passive(p)?.invisibleWall ? 0 : damage;
   };
   /** Shadow Images: one flip per attack, by the attacking player; tails, the attack does no damage to the Pokémon. */
   let shadowImages: boolean | undefined;
   /**
-   * Metal Energy on an attacker that isn't Metal: its attacks do 10 less for each, before Weakness and Resistance (Neo
-   * Genesis's; Expedition's plays the same, agreed with the user).
+   * Darkness Energy (the EX rules for every set's, agreed with the user): 10 more for each to the Active Pokémon, before
+   * Weakness and Resistance, from an attacker that's Darkness or has Dark in its name.
    */
-  const metalLess = attackerDef.type === 'metal' ? 0 : 10 * energyCount(state.cards, attacker, 'Metal Energy');
+  const darkMore = () => (attackerDef.type === 'darkness' || attackerDef.name.includes('Dark') ? 10 * energyCount(state.cards, attacker, 'Darkness Energy') : 0);
   /** Whether the attack can affect this Pokémon; logs why not. Transparency flips the first time it's asked. */
   const canAffect = (player: PlayerState, p: InPlayPokemon) => {
     if (!immune(p, player) && !transparent(p, player)) return true;
@@ -1036,7 +1036,12 @@ function createContext(
         amount = Math.max(0, amount - snivel.amount);
         log(`The damage to ${defenderDef.name} was reduced by ${snivel.amount}.`, opp.id);
       }
-      if (metalLess) amount = Math.max(0, amount - metalLess);
+      // As the damage is done: the attack may have discarded its Darkness Energy first (Dark Fire).
+      const dark = darkMore();
+      if (amount > 0 && dark) {
+        amount += dark;
+        log(`Darkness Energy: ${dark} more damage.`);
+      }
       amount = intimidated(amount, opp);
       // Enervating Pollen: Resistance takes off at most 10.
       const rules = { resistance, weakness: !weaknessOff, resistanceLess: stadium === 'Resistance Gym' ? 20 : 0, resistanceCap: enervatingPollen(sides, state.cards) ? 10 : undefined };
@@ -1046,12 +1051,6 @@ function createContext(
       if (damage > 0 && misty) {
         damage += 20 * misty;
         log(`Misty: ${20 * misty} more damage.`);
-      }
-      // Darkness Energy: 10 more for each on the attacker, if the attack damages the Defending Pokémon after Weakness and Resistance.
-      const dark = energyCount(state.cards, attacker, 'Darkness Energy');
-      if (damage > 0 && dark) {
-        damage += 10 * dark;
-        log(`Darkness Energy: ${10 * dark} more damage.`);
       }
       // Strength Charm: 10 more, if the attack damages it after Weakness and Resistance; it's discarded at the end of the turn.
       const charm = toolOf(state.cards, attacker);
@@ -1100,8 +1099,8 @@ function createContext(
           damage = Math.max(0, damage - 30);
           log(`Sprout Tower reduced the damage to ${defenderDef.name} by 30.`, opp.id);
         }
-        // Metal Energy: 10 less for each on the Defending Pokémon, after Weakness and Resistance.
-        const metal = energyCount(state.cards, defender, 'Metal Energy');
+        // Metal Energy (the EX rules for every set's, agreed): 10 less for each on a Metal Defending Pokémon, after Weakness and Resistance.
+        const metal = defenderDef.type === 'metal' ? energyCount(state.cards, defender, 'Metal Energy') : 0;
         if (damage > 0 && metal) {
           damage = Math.max(0, damage - 10 * metal);
           log(`Metal Energy reduced the damage to ${defenderDef.name} by ${10 * metal}.`, opp.id);

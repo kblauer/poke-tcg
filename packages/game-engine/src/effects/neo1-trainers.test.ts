@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyAction, getPlayerView, type GameState, type TrainerChoices } from '../index.js';
+import { applyAction, getPlayerView, type GameState, type PokemonCardDef, type TrainerChoices } from '../index.js';
 import { act, attack, duel, endTurn, flips, give, id } from './test-kit.js';
 
 const ash = (s: GameState) => s.players.ash!;
@@ -69,15 +69,20 @@ describe('Neo Genesis Trainers', () => {
   });
 
   describe('special Energy', () => {
-    it('Darkness Energy: 10 more damage to the Defending Pokémon, and a damage counter at the end of the turn on a Pokémon that isn’t Darkness', () => {
-      let s = attack(table('charmander', 'onix', { energy: ['darkness'] }), 0);
-      expect(misty(s).active!.damage).toBe(20);
-      expect(ash(s).active!.damage).toBe(10);
+    it('Darkness Energy (EX rules, agreed): 10 more damage to the Active Pokémon only from a Darkness or Dark Pokémon, no damage counters', () => {
+      const s = attack(table('charmander', 'onix', { energy: ['darkness'] }), 0);
+      expect([misty(s).active!.damage, ash(s).active!.damage]).toEqual([10, 0]);
+      const dark = table('charmander', 'onix', { energy: ['darkness'] });
+      dark.cards[id('charmander')] = { ...(dark.cards[id('charmander')] as PokemonCardDef), type: 'darkness' };
+      expect(misty(attack(dark, 0)).active!.damage).toBe(20);
     });
 
-    it('Metal Energy: 10 less damage to its Pokémon, and 10 less from a Pokémon that isn’t Metal', () => {
-      expect(misty(attack(table('charmander', 'onix', { defenderEnergy: ['metal'], energy: ['fire', 'fire'] }), 1)).active!.damage).toBe(20);
-      expect(misty(attack(table('charmander', 'onix', { energy: ['metal', 'fire'] }), 1)).active!.damage).toBe(20);
+    it('Metal Energy (EX rules, agreed): 10 less damage only to a Metal Pokémon, and nothing less from its own attacks', () => {
+      expect(misty(attack(table('charmander', 'onix', { defenderEnergy: ['metal'], energy: ['fire', 'fire'] }), 1)).active!.damage).toBe(30);
+      expect(misty(attack(table('charmander', 'onix', { energy: ['metal', 'fire'] }), 1)).active!.damage).toBe(30);
+      const steel = table('charmander', 'onix', { defenderEnergy: ['metal'], energy: ['fire', 'fire'] });
+      steel.cards[id('onix')] = { ...(steel.cards[id('onix')] as PokemonCardDef), type: 'metal' };
+      expect(misty(attack(steel, 1)).active!.damage).toBe(20);
     });
 
     it('Recycle Energy goes back to the hand when it’s discarded from play', () => {

@@ -1373,18 +1373,6 @@ function betweenTurns(state: GameState) {
       addLog(state, `${name} is no longer Burned.`, id);
     }
   }
-  // Darkness Energy: 1 damage counter for each on a Pokémon that isn't Darkness and doesn't have Dark in its name.
-  for (const id of state.playerOrder) {
-    const player = state.players[id]!;
-    for (const p of [player.active, ...player.bench]) {
-      if (!p) continue;
-      const d = inPlayDef(state.cards, p);
-      const dark = p.energy.filter((e) => !e.provides && !e.windless && lookupCard(state.cards, e.defId).name === 'Darkness Energy').length;
-      if (!dark || d.type === 'darkness' || d.name.includes('Dark')) continue;
-      p.damage += 10 * dark;
-      addLog(state, `Darkness Energy: ${dark === 1 ? 'a damage counter' : `${dark} damage counters`} on ${pokemonName(state, p)}.`, id);
-    }
-  }
   // Char counters: on any of the player's Pokémon in play, Active or Benched.
   for (const id of state.playerOrder) {
     const player = state.players[id]!;

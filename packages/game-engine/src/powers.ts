@@ -175,6 +175,8 @@ export interface PowerEffect {
   hardShell?: boolean;
   /** Crystal Body: the opponent's attacks do nothing to it but damage. */
   crystalBody?: boolean;
+  /** Lazy: while it's its player's Active Pokémon, the opponent's Pokémon can't use Poké-Powers (or older Pokémon Powers). */
+  lazy?: boolean;
   /** Withering Dust: while it's in play, no Resistance for any Active Pokémon. */
   witheringDust?: boolean;
   /** Intimidating Fang: while it's its player's Active Pokémon, the opponent's attacks do this much less to their Pokémon, before Weakness and Resistance. */
@@ -309,8 +311,9 @@ export function powerActive(pokemon: InPlayPokemon, cards: CardLibrary, sides: S
   if (pokemon.powerOffUntil !== undefined || goopGas(sides)) return false;
   const effect = powerEffect(effectId(pokemon));
   if (!effect?.ignoresConditions && (effect?.stopsOnlyWhileAsleep ? pokemon.condition === 'asleep' : hasSpecialCondition(pokemon))) return false;
-  // Dark Impact: its Poké-Powers (and Pokémon Powers) don't work; Poké-Bodies do.
+  // Dark Impact: its Poké-Powers (and Pokémon Powers) don't work; Poké-Bodies do. Lazy: none of its player's do.
   if (pokemon.effects?.noPokePowers !== undefined && !effect?.body) return false;
+  if (lazied(pokemon, cards, sides)) return false;
   // Ancient Wind: every Poké-Body is ignored until the end of the turn.
   if (effect?.body && sides.some((s) => s.bodiesOffTurn !== undefined)) return false;
   // Scare: a Baby Pokémon's power doesn't work while the opponent's Active Dark Feraligatr's Scare does.
@@ -468,6 +471,16 @@ export function primalBlock(target: InPlayPokemon, sides: Sides, cards: CardLibr
   return null;
 }
 
+/**
+ * Lazy is stopping `pokemon`'s Poké-Power (or older Pokémon Power, agreed): the opponent's Active Pokémon has a working
+ * Lazy. Poké-Bodies aren't stopped, so a Lazy is never asked about itself.
+ */
+export function lazied(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sides): boolean {
+  if (powerEffect(effectId(pokemon))?.body) return false;
+  const opponent = sides.find((s) => s.active !== pokemon && !s.bench.includes(pokemon));
+  return !!opponent?.active && !!powerEffect(effectId(opponent.active))?.lazy && powerActive(opponent.active, cards, sides);
+}
+
 /** Dark Gaze is stopping the Benched Pokémon `pokemon`'s Poké-Powers: a working Dark Gaze on either Active Pokémon. */
 export function darkGazed(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sides): boolean {
   if (sides.some((s) => s.active === pokemon) || powerEffect(effectId(pokemon))?.body) return false;
@@ -568,6 +581,7 @@ export function powerError(s: PowerSituation): string | null {
   if (source.powerOffUntil !== undefined) return `${def.power.name} doesn't work until the end of your turn (Stare)`;
   if (source.effects?.noPokePowers !== undefined) return `Dark Impact: ${def.name} can't use Poké-Powers this turn`;
   if (darkGazed(source, s.cards, [s.me, s.opp])) return "Dark Gaze: Benched Pokémon can't use Poké-Powers";
+  if (lazied(source, s.cards, [s.me, s.opp])) return "Lazy: your Pokémon can't use Poké-Powers";
   const blocked = effect.blocked?.(s);
   if (blocked) return blocked;
   return effect.oncePerTurn && source.powerUsedTurn === s.turn ? `${def.name} has already used ${def.power.name} this turn` : null;

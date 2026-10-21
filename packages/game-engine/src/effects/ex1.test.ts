@@ -158,6 +158,82 @@ describe('EX Ruby & Sapphire', () => {
     expect(ash(act(s, 'ash', { type: 'PLAY_TRAINER', cardUid: hand(s, 'ash', trainer('ex1-89', 'Professor Birch')) })).hand).toHaveLength(6);
   });
 
+  describe('rulings agreed with the user', () => {
+    it('"Each Defending Pokémon" is the Active one and every Benched one (no Weakness or Resistance on the Bench): Super Slap Push', () => {
+      const s = duel('charmander', 'onix', { oppBench: ['squirtle', 'charmander'] });
+      put(s, 'ash', 'active', hariyama, ['fighting']);
+      const after = attack(s, 0);
+      expect([misty(after).active!.damage, misty(after).bench[0]!.damage, misty(after).bench[1]!.damage]).toEqual([20, 20, 20]);
+    });
+
+    it('Special Conditions on "each Defending Pokémon" go only on the Active one: Poison Smog', () => {
+      const s = duel('charmander', 'onix', { oppBench: ['squirtle'] });
+      put(s, 'ash', 'active', mon('ex1-24', 'Weezing', G, 80, [['Confusion Gas', [G], 10], ['Poison Smog', [G, C], 0]], { stage: 'stage1' }), ['grass', 'grass']);
+      const after = attack(s, 1);
+      expect([misty(after).active!.poison, misty(after).bench[0]!.poison ?? 0, misty(after).bench[0]!.damage]).toEqual([10, 0, 10]);
+    });
+
+    it("Fast Stream: the opponent moves an Energy card from their Defending Pokémon to one of their Benched Pokémon, picking both", () => {
+      const s = duel('charmander', 'onix', { defenderEnergy: ['fighting', 'fighting'], oppBench: ['squirtle'] });
+      put(s, 'ash', 'active', mon('ex1-21', 'Seaking', W, 70, [['Water Arrow', [W], 0], ['Fast Stream', [C, C], 30]], { stage: 'stage1' }), ['water', 'water']);
+      const asked = attack(s, 1);
+      expect(asked.pendingChoice).toMatchObject({ player: 'misty', kind: 'fastStream' });
+      const energy = misty(asked).active!.energy[0]!.uid;
+      const moved = resolve(resolve(asked, { cardUid: energy }, 'misty'), { target: 0 }, 'misty');
+      expect([misty(moved).active!.energy.length, misty(moved).bench[0]!.energy.map((e) => e.uid)]).toEqual([1, [energy]]);
+    });
+
+    it('Energy counts what it provides; Cannonball counts the Energy beyond its cost of 2', () => {
+      const s = duel('charmander', 'onix');
+      put(s, 'ash', 'active', mon('ex1-29', 'Delcatty', C, 80, [['Energy Call', [C], 10], ['Cannonball', [C, C], 30]], { stage: 'stage1' }), ['fire', 'fire', 'fire', 'fire']);
+      put(s, 'misty', 'active', big('Wailord'));
+      expect(misty(attack(s, 1)).active!.damage).toBe(50);
+    });
+
+    it('Lazy: as the Active Pokémon, the opponent\'s Pokémon (an older Pokémon Power too) can\'t use powers', () => {
+      const s = duel('blastoise', 'onix');
+      put(s, 'misty', 'active', mon('ex1-12', 'Slaking', C, 120, [['Critical Move', [C, C, C, C], 100]], { stage: 'stage2', ...power('Lazy') }));
+      const [water] = give(s, 'ash', 'water');
+      expect(applyAction(s, 'ash', { type: 'USE_POWER', source: 'active', choices: { cardUid: water, to: 'active' } })).toMatchObject({ ok: false, error: "Lazy: your Pokémon can't use Poké-Powers" });
+    });
+
+    it('Psy Shadow: a Psychic Energy card from the deck to a Pokémon, then 2 damage counters on it (it may Knock it Out)', () => {
+      const s = duel('charmander', 'onix', { bench: ['charmander'] });
+      put(s, 'ash', 'active', mon('ex1-7', 'Gardevoir', 'psychic', 100, [['Energy Burst', ['psychic'], 10]], { stage: 'stage2', ...power('Psy Shadow') }));
+      ash(s).deck.push({ uid: 'psy', defId: id('psychic') });
+      ash(s).bench[0]!.damage = 40;
+      const asked = usePower(s, 'active');
+      const attach = resolve(asked, { cardUid: 'psy' });
+      expect(attach.pendingChoice).toMatchObject({ kind: 'attachCard', counters: 2 });
+      expect(ash(resolve(attach, { target: 0 })).discard.map((c) => c.uid)).toContain('psy');
+    });
+
+    it('Water Call attaches from the hand, so it sets off Natural Remedy', () => {
+      const s = duel('charmander', 'onix', { bench: ['charmander'] });
+      put(s, 'ash', 'active', mon('ex1-23', 'Swampert', W, 100, [['Water Arrow', [W], 0]], { stage: 'stage2', ...power('Natural Remedy') })).damage = 30;
+      put(s, 'ash', 0, mon('ex1-13', 'Swampert', W, 110, [['Hypno Splash', [W, W, C, C], 50]], { stage: 'stage2', ...power('Water Call') }));
+      const [water] = give(s, 'ash', 'water');
+      expect(ash(usePower(s, 0, { cardUid: water })).active!.damage).toBe(20);
+    });
+
+    it("EX Pokémon Reversal: heads, the opponent picks the Benched Pokémon that comes in", () => {
+      const s = duel('charmander', 'onix', { oppBench: ['squirtle', 'charmander'] });
+      const asked = act(flips(s, true), 'ash', { type: 'PLAY_TRAINER', cardUid: hand(s, 'ash', trainer('ex1-87', 'Pokémon Reversal')) });
+      expect(asked.pendingChoice).toMatchObject({ player: 'misty', kind: 'switchIn' });
+    });
+
+    it('Signs of Evolution: one card of each name in the pair', () => {
+      const s = duel('charmander', 'onix');
+      put(s, 'ash', 'active', mon('ex1-78', 'Wurmple', G, 50, [['Signs of Evolution', [C], 0], ['Poison Barb', [G], 0]]), ['grass']);
+      const silcoon = mon('silcoon', 'Silcoon', G, 60, [], { stage: 'stage1', evolvesFrom: 'Wurmple' });
+      s.cards.silcoon = silcoon;
+      ash(s).deck = [{ uid: 's1', defId: 'silcoon' }, { uid: 's2', defId: 'silcoon' }];
+      const asked = attack(s, 0, { boost: true });
+      const one = resolve(asked, { cardUid: 's1' });
+      expect(one.pendingChoice).toBeUndefined();
+    });
+  });
+
   it('Lum Berry removes every Special Condition between turns, Burned included; Oran Berry 2 damage counters', () => {
     const s = duel('charmander', 'onix');
     s.cards['ex1-84'] = trainer('ex1-84', 'Lum Berry');

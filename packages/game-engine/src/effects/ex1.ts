@@ -1,16 +1,18 @@
 // EX Ruby & Sapphire (ex1) attack effects, by card id and attack name. Rulings follow the card text (the EX rulebook).
 // Attacks that only deal damage need no entry. "Choose 1 card from your opponent's hand without looking" is a card at
 // random. Questions whose answer depends on a flip are asked before it (Removal Beam's Energy card).
-// Not done yet (asked on the PR): attacks worded for 2 Active Pokémon a side ("each Defending Pokémon", "the other
-// Defending Pokémon": Super Slap Push, Fast Stream, Poison Smog, Dazzle Dance, Super Thunder Wave, Burn Off, Trembler,
-// Invisible Hand, Repulsion, Max Energy Source), and counting "Energy" attached (Energy Burst, Lizard Poison, Cannonball,
-// Water Gun, Energy Ball, Link Blast); Wurmple's Signs of Evolution is still to come.
+// Rulings (agreed with the user) for the wording made for 2 Active Pokémon a side: "each Defending Pokémon" is the Active
+// Pokémon and every Benched one, damage to the Benched ones without Weakness or Resistance, Special Conditions only on the
+// Active Pokémon; "the other Defending Pokémon" is one of the Benched ones, picked by the player whose Energy card moves
+// (Fast Stream); "Active Pokémon" otherwise (Invisible Hand, Repulsion, Max Energy Source) is the one Active Pokémon.
+// "Energy attached" counts the Energy provided (Double Colorless is 2); "not used to pay for this attack's cost" is that
+// less the cost (Water Gun counts only Water Energy, its Colorless paid with other Energy first: extraEnergy).
 import { type AttackContext, type AttackEffect, type ChoiceSpec } from '../attacks.js';
 import { isBasicEnergy, lookupCard } from '../cards.js';
-import { isEnergyCardOf } from '../engine.js';
+import { energyPool, isEnergyCardOf, type InPlayPokemon } from '../engine.js';
 import { nextRandom } from '../rng.js';
 import { pokemonName } from '../status.js';
-import { benchedSlots, benchTarget, discardToUse, flipToInflict, flipToProtect, headsUntilTails, inflicts, opponentSwitches, perHeads, recoil, tailsSelfDamage } from './common.js';
+import { benchedSlots, benchTarget, discardToUse, extraEnergy, flipToInflict, flipToProtect, headsUntilTails, inflicts, opponentSwitches, perHeads, recoil, tailsSelfDamage } from './common.js';
 import { basicEnergyOn, typedCards } from './ecard1.js';
 import { smokescreen } from './fossil.js';
 import { benchMany, noRetreat } from './gym1.js';
@@ -56,6 +58,33 @@ const restNextTurn = (ctx: AttackContext) => {
   ctx.log(`${ctx.attackerDef.name} can't attack next turn.`);
 };
 
+/** The Energy attached to a Pokémon, by what it provides (Double Colorless is 2). */
+const energyAmount = (ctx: AttackContext, p: InPlayPokemon) => energyPool(p, ctx.state.cards).length;
+
+/** "Each Defending Pokémon" (agreed): the Active Pokémon, and the same damage to each Benched one without Weakness or Resistance. */
+const eachDefending = (ctx: AttackContext, damage: number) => {
+  ctx.hit(damage);
+  ctx.benchDamage(ctx.opp, damage);
+};
+
+/** "Flip a coin. If heads, each Defending Pokémon is now …": only the Active Pokémon can have a Special Condition (agreed). */
+const flipEachDefending = (affliction: 'confused' | 'paralyzed' | 'burned'): AttackEffect => ({
+  run(ctx) {
+    if (ctx.flip()) ctx.inflict(affliction);
+    else ctx.log('The attack did nothing.');
+  },
+});
+
+/** Water Arrow: 20 to 1 of the opponent's Pokémon (no Weakness or Resistance for a Benched one). */
+const waterArrow: AttackEffect = {
+  choices: (s): ChoiceSpec[] => [{ kind: 'opponentPokemon', options: ['active', ...benchedSlots(s.opponentBench)], prompt: "Choose one of your opponent's Pokémon to do 20 damage to" }],
+  run(ctx) {
+    const t = ctx.choices.oppTarget ?? 'active';
+    if (t === 'active') ctx.hit(20);
+    else ctx.damageBenched(ctx.opp, t, 20);
+  },
+};
+
 /** Stockpile's turn on the attacker: during its player's next turn Spit Up and Swallow do more. */
 const stockpiled = (ctx: AttackContext) => (ctx.attacker.effects?.stockpile ?? -1) >= ctx.turn;
 
@@ -99,10 +128,17 @@ export const EX1: Record<string, Record<string, AttackEffect>> = {
       },
     },
   },
+  // Delcatty – Max Energy Source: 10 for each Energy attached to its player's Active Pokémon.
+  'ex1-5': { 'Max Energy Source': { run: (ctx) => void ctx.hit(10 * energyAmount(ctx, ctx.attacker)) } },
   // Dustox – Toxic: 2 damage counters between turns.
   'ex1-6': { Toxic: inflicts(0, 'toxic') },
-  // Hariyama – Mega Throw: 40 more against a Pokémon-ex.
-  'ex1-8': { 'Mega Throw': { run: (ctx) => void ctx.hit(ctx.defenderDef.ex ? 80 : 40) } },
+  // Gardevoir – Energy Burst: 10 for each Energy attached to Gardevoir and the Defending Pokémon.
+  'ex1-7': { 'Energy Burst': { run: (ctx) => void ctx.hit(10 * (energyAmount(ctx, ctx.attacker) + energyAmount(ctx, ctx.defender))) } },
+  // Hariyama – Super Slap Push: 20 to each Defending Pokémon; Mega Throw: 40 more against a Pokémon-ex.
+  'ex1-8': {
+    'Super Slap Push': { run: (ctx) => eachDefending(ctx, 20) },
+    'Mega Throw': { run: (ctx) => void ctx.hit(ctx.defenderDef.ex ? 80 : 40) },
+  },
   // Manectric – Attract Current: a Lightning Energy card from the deck to 1 of its player's Pokémon; Thunder Jolt.
   'ex1-9': {
     'Attract Current': {
@@ -119,6 +155,18 @@ export const EX1: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         ctx.hit(40);
         if (ctx.flip()) discardAtRandom(ctx);
+      },
+    },
+  },
+  // Sceptile – Lizard Poison: Special Conditions by the Energy attached to Sceptile.
+  'ex1-11': {
+    'Lizard Poison': {
+      run(ctx) {
+        ctx.hit(20);
+        const n = energyAmount(ctx, ctx.attacker);
+        if (n === 1 || n === 3 || n >= 4) ctx.inflict('asleep');
+        if (n >= 4) ctx.inflict('burned');
+        if (n >= 2) ctx.inflict('poisoned');
       },
     },
   },
@@ -150,6 +198,22 @@ export const EX1: Record<string, Record<string, AttackEffect>> = {
     Rend: { run: (ctx) => void ctx.hit(ctx.defender.damage > 0 ? 40 : 20) },
     'Double Spin': perHeads(2, 60),
   },
+  // Nosepass – Invisible Hand: with an Evolved Pokémon as the opponent's Active Pokémon, any card from the deck; Repulsion:
+  // heads, the Defending Pokémon and its cards back to the opponent's hand (nothing if they have no Benched Pokémon).
+  'ex1-18': {
+    'Invisible Hand': {
+      run(ctx) {
+        if (!ctx.defender.evolvedFrom.length) return ctx.log('Invisible Hand did nothing.');
+        if (ctx.me.deck.length) ctx.pend({ kind: 'pickFromDeck', source: 'Invisible Hand', filter: 'any' });
+      },
+    },
+    Repulsion: {
+      run(ctx) {
+        if (!ctx.opp.bench.some(Boolean) || !ctx.flip()) return ctx.log('Repulsion did nothing.');
+        ctx.returnDefender();
+      },
+    },
+  },
   // Pelipper – Stockpile; Spit Up (70 after Stockpile); Swallow (60 after Stockpile): damage counters off as the damage done.
   'ex1-19': {
     Stockpile: {
@@ -168,6 +232,16 @@ export const EX1: Record<string, Record<string, AttackEffect>> = {
   },
   // Sceptile – Tail Rap.
   'ex1-20': { 'Tail Rap': perHeads(2, 50) },
+  // Seaking – Water Arrow; Fast Stream: the opponent moves an Energy card from the Defending Pokémon to one of their Benched Pokémon (they pick both).
+  'ex1-21': {
+    'Water Arrow': waterArrow,
+    'Fast Stream': {
+      run(ctx) {
+        ctx.hit(30);
+        if (ctx.defender.energy.length && ctx.opp.bench.some(Boolean) && ctx.canAffect(ctx.opp, ctx.defender)) ctx.opponentChooses({ kind: 'fastStream', source: 'Fast Stream' });
+      },
+    },
+  },
   // Sharpedo – Dark Slash: may discard a Darkness Energy card for 30 more.
   'ex1-22': {
     'Dark Slash': {
@@ -183,6 +257,18 @@ export const EX1: Record<string, Record<string, AttackEffect>> = {
       },
     },
   },
+  // Swampert – Water Arrow.
+  'ex1-23': { 'Water Arrow': waterArrow },
+  // Weezing – Confusion Gas; Poison Smog: the Active Pokémon Poisoned (only it can be), 10 to each Benched one.
+  'ex1-24': {
+    'Confusion Gas': inflicts(10, 'confused'),
+    'Poison Smog': {
+      run(ctx) {
+        ctx.inflict('poisoned');
+        ctx.benchDamage(ctx.opp, 10);
+      },
+    },
+  },
   // Aron – Double Stab.
   'ex1-25': { 'Double Stab': perHeads(2, 20) },
   // Cascoon – Poison Thread.
@@ -191,6 +277,21 @@ export const EX1: Record<string, Record<string, AttackEffect>> = {
   'ex1-27': { 'Double Kick': perHeads(2, 40) },
   // Combusken – Lunge.
   'ex1-28': { Lunge: flipOrNothing(50) },
+  // Delcatty – Energy Call: an Energy card from the discard pile to Delcatty; Cannonball: 10 more for each Energy beyond its cost of 2.
+  'ex1-29': {
+    'Energy Call': {
+      choices: (s): ChoiceSpec[] => {
+        const options = s.ownDiscard.filter((c) => lookupCard(s.cards, c.defId).kind === 'energy');
+        return options.length && !s.discardsLocked ? [{ kind: 'ownDiscard', min: 1, max: 1, options, prompt: 'Choose an Energy card from your discard pile to attach to your Active Pokémon' }] : [];
+      },
+      run(ctx) {
+        ctx.hit(10);
+        const uid = ctx.choices.discardUids?.[0];
+        if (uid) attachFromDiscard(ctx, (c) => c.uid === uid);
+      },
+    },
+    Cannonball: { run: (ctx) => void ctx.hit(30 + 10 * Math.max(0, energyAmount(ctx, ctx.attacker) - 2)) },
+  },
   // Electrike – Charge: a Lightning Energy card from the discard pile to Electrike; Thunder Jolt.
   'ex1-30': {
     Charge: { run: (ctx) => attachFromDiscard(ctx, (c) => isEnergyCardOf(c, ctx.state.cards, 'lightning')) },
@@ -216,8 +317,9 @@ export const EX1: Record<string, Record<string, AttackEffect>> = {
       },
     },
   },
-  // Kirlia – Life Drain: heads, damage counters until the Defending Pokémon has 10 HP left.
+  // Kirlia – Dazzle Dance: heads, the Defending Pokémon is Confused; Life Drain: heads, damage counters until it has 10 HP left.
   'ex1-35': {
+    'Dazzle Dance': flipEachDefending('confused'),
     'Life Drain': {
       run(ctx) {
         if (!ctx.flip()) return ctx.log('Life Drain did nothing.');
@@ -279,6 +381,18 @@ export const EX1: Record<string, Record<string, AttackEffect>> = {
   },
   // Vigoroth – Fury Swipes; Rage.
   'ex1-47': { 'Fury Swipes': perHeads(3, 20), Rage: rage(20) },
+  // Wailmer – Rest: its Special Conditions and 4 damage counters off, then Asleep; Water Gun: 10 more for each Water Energy beyond the cost (at most 20).
+  'ex1-48': {
+    Rest: {
+      run(ctx) {
+        Object.assign(ctx.attacker, { condition: null, poison: 0, burned: false });
+        delete ctx.attacker.paralyzedTurn;
+        healUpTo(ctx, ctx.me, ctx.attacker, 40);
+        ctx.sleepSelf();
+      },
+    },
+    'Water Gun': { run: (ctx) => void ctx.hit(20 + 10 * extraEnergy(ctx, ['water', 'colorless'], 'water', 2)) },
+  },
   // Aron – Teary Eyes: 10 less damage to Aron during the opponent's next turn.
   'ex1-49': {
     'Teary Eyes': {
@@ -290,6 +404,8 @@ export const EX1: Record<string, Record<string, AttackEffect>> = {
   },
   // Carvanha – Big Bite.
   'ex1-51': { 'Big Bite': noRetreat(10) },
+  // Electrike – Super Thunder Wave.
+  'ex1-53': { 'Super Thunder Wave': flipEachDefending('paralyzed') },
   // Koffing – Double-edge.
   'ex1-54': { 'Double-edge': recoil(30, 10) },
   // Goldeen – Flail: 10 for each damage counter on Goldeen.
@@ -302,6 +418,18 @@ export const EX1: Record<string, Record<string, AttackEffect>> = {
   'ex1-59': { Bubble: flipToInflict(10, 'paralyzed') },
   // Mudkip – Fury Swipes.
   'ex1-60': { 'Fury Swipes': perHeads(3, 10) },
+  // Numel – Burn Off.
+  'ex1-61': { 'Burn Off': flipEachDefending('burned') },
+  // Phanpy – Trembler: heads, 10 to each Defending Pokémon, and the Active one Paralyzed.
+  'ex1-62': {
+    Trembler: {
+      run(ctx) {
+        if (!ctx.flip()) return ctx.log('Trembler did nothing.');
+        eachDefending(ctx, 10);
+        ctx.inflict('paralyzed');
+      },
+    },
+  },
   // Poochyena – Knock Off: heads, a card from the opponent's hand at random discarded.
   'ex1-64': {
     'Knock Off': {
@@ -317,6 +445,16 @@ export const EX1: Record<string, Record<string, AttackEffect>> = {
   'ex1-66': { 'Confuse Ray': flipToInflict(10, 'confused') },
   // Ralts – Hypnoblast.
   'ex1-67': { Hypnoblast: inflicts(20, 'asleep') },
+  // Ralts – Link Blast: 10 instead of 40 if Ralts and the Defending Pokémon have different amounts of Energy attached.
+  'ex1-68': {
+    'Link Blast': {
+      run(ctx) {
+        const differ = energyAmount(ctx, ctx.attacker) !== energyAmount(ctx, ctx.defender);
+        if (differ) ctx.log("Link Blast's base damage is 10.");
+        ctx.hit(differ ? 10 : 40);
+      },
+    },
+  },
   // Shroomish – Sleep Powder.
   'ex1-69': { 'Sleep Powder': inflicts(10, 'asleep') },
   // Skitty – Plus Energy: a basic Energy card from the hand to 1 of its player's Pokémon.
@@ -352,8 +490,18 @@ export const EX1: Record<string, Record<string, AttackEffect>> = {
   'ex1-75': { 'Poison Breath': flipToInflict(0, 'poisoned') },
   // Wingull – Surprise Attack.
   'ex1-77': { 'Surprise Attack': flipOrNothing(20) },
-  // Wurmple – Poison Barb.
-  'ex1-78': { 'Poison Barb': inflicts(0, 'poisoned') },
+  // Wurmple – Signs of Evolution: Silcoon and Beautifly, or Cascoon and Dustox, from the deck (1 or both of the pair, shown); Poison Barb.
+  'ex1-78': {
+    'Signs of Evolution': {
+      choices: (): ChoiceSpec[] => [{ kind: 'boost', options: [true, false], prompt: 'Search for Silcoon and Beautifly? (No: Cascoon and Dustox)' }],
+      run(ctx) {
+        if (!ctx.me.deck.length) return;
+        const name = ctx.choices.boost === false ? ['Cascoon', 'Dustox'] : ['Silcoon', 'Beautifly'];
+        ctx.pend({ kind: 'pickFromDeck', source: 'Signs of Evolution', filter: 'named', name, count: 2, optional: true, reveal: true, distinct: 'name' });
+      },
+    },
+    'Poison Barb': inflicts(0, 'poisoned'),
+  },
   // Zigzagoon – Fury Swipes.
   'ex1-79': { 'Fury Swipes': perHeads(3, 10) },
   // Chansey ex – Healing Egg: 2 damage counters off each of its player's other Pokémon; Double-edge.
@@ -371,6 +519,11 @@ export const EX1: Record<string, Record<string, AttackEffect>> = {
   'ex1-98': {
     'Steady Punch': flipForMore(10, 10),
     'Sky Uppercut': { run: (ctx) => void ctx.hit(50, { resistance: false }) },
+  },
+  // Lapras ex – Energy Ball: 10 more for each Energy beyond its cost of 1 (at most 20); Confuse Ray.
+  'ex1-99': {
+    'Energy Ball': { run: (ctx) => void ctx.hit(10 + Math.min(20, 10 * Math.max(0, energyAmount(ctx, ctx.attacker) - 1))) },
+    'Confuse Ray': inflicts(30, 'confused'),
   },
   // Magmar ex – Smokescreen; Super Singe.
   'ex1-100': { Smokescreen: smokescreen(10), 'Super Singe': inflicts(40, 'burned') },

@@ -3,13 +3,23 @@
 // Rulings (from the text): Firestarter's Fire Energy card and Energy Draw's Energy card are the player's choice; Energy
 // Draw then draws up to 3 (the player picks how many). Rough Skin works even when the Attacking Pokémon Knocks Sharpedo
 // (or Carvanha) Out. Natural Cure is a basic Energy card of its type attached from the hand.
-// Not done yet (asked on the PR): Psy Shadow (Gardevoir), Lazy (Slaking), Water Call and Natural Remedy (Swampert), Drive
-// Off (Swellow).
-import { isBasicEnergy, lookupCard, type EnergyType } from '../cards.js';
-import { isEnergyCardOf } from '../engine.js';
-import { discardsLocked, type PowerEffect } from '../powers.js';
+// Agreed with the user: Lazy stops the older sets' Pokémon Powers too (as Dark Impact); Psy Shadow may attach to a
+// Pokémon its 2 damage counters Knock Out; Water Call attaches from the hand, so it sets off Natural Remedy (and Pure
+// Body…: energyFromHand); Drive Off switches only the Active Pokémon, the opponent picking the Benched one.
+import { isBasicEnergy, lookupCard, type CardLibrary, type EnergyType } from '../cards.js';
+import { activeLocked, isEnergyCardOf, type CardInstance } from '../engine.js';
+import { attachBlocked, discardsLocked, energyFromHand, type PowerEffect, type PowerSituation } from '../powers.js';
 import { addLog, hasSpecialCondition, pokemonName } from '../status.js';
+import { swapActive } from '../trainers.js';
 import { BASE1_POWERS } from './base1-powers.js';
+
+const onlyActive = (s: PowerSituation, name: string) => (s.source === 'active' ? null : `${name} must be your Active Pokémon`);
+
+/** A basic Water Energy card. */
+const isBasicWater = (cards: CardLibrary, c: CardInstance) => {
+  const d = lookupCard(cards, c.defId);
+  return !c.provides && isBasicEnergy(d) && d.kind === 'energy' && d.energyType === 'water';
+};
 
 /** A Poké-Body: always on, whatever its Pokémon's Special Conditions. */
 const POKE_BODY = { ignoresConditions: true, body: true } as const;
@@ -85,6 +95,48 @@ export const EX1_POWERS: Record<string, PowerEffect> = {
   // Dustox – Protective Dust: the Attacking Pokémon's attacks do nothing to it but damage (as Crystal Body).
   'ex1-6': { ...POKE_BODY, crystalBody: true },
 
+  // Gardevoir – Psy Shadow: once a turn, a Psychic Energy card from the deck to 1 of the player's Pokémon, then 2 damage counters on it.
+  'ex1-7': {
+    oncePerTurn: true,
+    blocked: (s) => (s.counts.deck > 0 ? null : 'Your deck is empty'),
+    use: (ctx) => ctx.pend({ kind: 'pickFromDeck', source: 'Psy Shadow', filter: 'energyType', type: 'psychic', attach: true, counters: 2 }),
+  },
+
+  // Slaking – Lazy: as the Active Pokémon, the opponent's Pokémon can't use Poké-Powers (lazied, in powerActive and powerError).
+  'ex1-12': { ...POKE_BODY, lazy: true },
+
+  // Swampert – Water Call: once a turn, a Water Energy card from the hand to the Active Pokémon (attached from the hand).
+  'ex1-13': {
+    oncePerTurn: true,
+    blocked(s) {
+      if (!s.me.active) return 'No Active Pokémon';
+      return s.me.hand.some((c) => isBasicWater(s.cards, c)) ? null : 'No Water Energy cards in your hand';
+    },
+    choices: (s) => [{ kind: 'handCard', field: 'cardUid', options: s.me.hand.filter((c) => isBasicWater(s.cards, c)), prompt: 'Choose a Water Energy card to attach to your Active Pokémon' }],
+    use(ctx) {
+      const card = ctx.me.hand.find((c) => c.uid === ctx.choices.cardUid);
+      const active = ctx.me.active;
+      if (!card || !active) return;
+      const blocked = attachBlocked(ctx.state.cards, [ctx.me, ctx.opp], active, card);
+      if (blocked) return ctx.log(blocked);
+      ctx.me.hand = ctx.me.hand.filter((c) => c !== card);
+      active.energy.push(card);
+      ctx.log(`Attached ${lookupCard(ctx.state.cards, card.defId).name} to ${pokemonName(ctx.state, active)}.`);
+      energyFromHand(ctx.state, ctx.me, 'active', card);
+    },
+  },
+
+  // Swampert – Natural Remedy: once during its player's turn, a Water Energy card attached to it from the hand takes a damage counter off.
+  'ex1-23': {
+    ...POKE_BODY,
+    onEnergyFromHand(state, owner, pokemon, _target, energy) {
+      if (state.currentPlayer !== owner.id || !isBasicWater(state.cards, energy) || pokemon.damage < 10 || pokemon.powerUsedTurn === state.turn) return;
+      pokemon.powerUsedTurn = state.turn;
+      pokemon.damage -= 10;
+      addLog(state, `Natural Remedy: removed a damage counter from ${pokemonName(state, pokemon)}.`, owner.id);
+    },
+  },
+
   // Mightyena – Intimidating Fang: as the Active Pokémon, the opponent's attacks do 10 less to its player's Pokémon (attacks.ts).
   'ex1-10': { ...POKE_BODY, intimidatingFang: 10 },
 
@@ -102,6 +154,19 @@ export const EX1_POWERS: Record<string, PowerEffect> = {
   'ex1-28': naturalCure('fire'),
   'ex1-32': naturalCure('grass'),
   'ex1-41': naturalCure('water'),
+
+  // Swellow – Drive Off: once a turn, as the Active Pokémon, the opponent switches their Active Pokémon with a Benched one of their choice.
+  'ex1-46': {
+    oncePerTurn: true,
+    blocked: (s) => onlyActive(s, 'Swellow') ?? (s.opp.bench.some(Boolean) ? null : 'Your opponent has no Benched Pokémon'),
+    use(ctx) {
+      const locked = activeLocked(ctx.state, ctx.opp.id);
+      if (locked) return ctx.log(locked);
+      const slots = ctx.opp.bench.flatMap((p, i) => (p ? [i] : []));
+      if (slots.length === 1) return swapActive(ctx.state, ctx.opp, slots[0]!);
+      ctx.state.pendingChoice = { player: ctx.opp.id, source: 'Drive Off', kind: 'switchIn' };
+    },
+  },
 
   // Carvanha – Rough Skin: 1 damage counter on the Attacking Pokémon.
   'ex1-51': roughSkin(1),
