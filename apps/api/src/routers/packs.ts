@@ -144,8 +144,8 @@ export const packsRouter = router({
     // The pack each generation's runs unlock next (with its region, for the hint).
     const next = new Map(Object.values(GENERATIONS).flatMap((g) => g.packs.filter((id) => !packs.has(id)).slice(0, 1).map((id) => [id, g.region] as const)));
     // The cards a pack of each set can hold, Energy left out: basic Energy is always unlocked (and may be another
-    // set's), and holo Energy is never counted in the number of cards collected.
-    const packCards = new Map(contents.map(([id, set]) => [id, [...set.common, ...set.uncommon, ...set.rare, ...set.holo, ...(set.reverse ?? [])]]));
+    // set's), and holo Energy and reverse holos (versions of other cards) are never counted in the number of cards collected.
+    const packCards = new Map(contents.map(([id, set]) => [id, [...set.common, ...set.uncommon, ...set.rare, ...set.holo]]));
     return {
       bank: user.bank,
       stardust: user.stardust,
