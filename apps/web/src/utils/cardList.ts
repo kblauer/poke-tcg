@@ -10,6 +10,12 @@ export type CatalogCard = inferRouterOutputs<AppRouter>['cards']['list'][number]
 export const cardTitle = (card: Pick<CatalogCard, 'name' | 'holoEnergy'> & { reverseHolo?: boolean }) =>
   card.holoEnergy ? `${card.name} · ${card.holoEnergy.label}` : card.reverseHolo ? `${card.name} · Reverse Holo` : card.name;
 
+/**
+ * A version of another card, found only by gaining it: a holo Energy (of a basic Energy) or a reverse holo (of an EX card).
+ * The Collection hides one until it's gained, and the numbers of cards collected leave them out (agreed with the user).
+ */
+export const isVersion = (card: Pick<CatalogCard, 'holoEnergy' | 'reverseHolo'>) => !!card.holoEnergy || card.reverseHolo;
+
 export const CARD_TYPES = ['Grass', 'Fire', 'Water', 'Lightning', 'Psychic', 'Fighting', 'Darkness', 'Metal', 'Colorless'];
 
 /** Stage labels. Trainers and Energy have no stage, so they get their own entries. */
