@@ -3,6 +3,7 @@
 import type { TemplateUse } from './ex-templates.js';
 
 export const EX_TEMPLATE_DATA: Record<string, Record<string, TemplateUse>> = {
+  'ex2-2': { 'Feint Attack': ['feintAttack', 0, 40] }, // Cacturne
   'ex2-5': { 'Super Singe': ['flipCondition', 20, 'burned'], Flamethrower: ['discardTyped', 70, 'fire'] }, // Flareon
   'ex2-6': { 'Double Kick': ['perHeads', 20, 2, 20] }, // Jolteon
   'ex2-7': { 'Hydro Punch': ['extraTyped', 50, 50, 10, 'water', 20, 'water,colorless,colorless'] }, // Ludicolo
@@ -13,11 +14,13 @@ export const EX_TEMPLATE_DATA: Record<string, Record<string, TemplateUse>> = {
   'ex2-16': { 'Confuse Ray': ['flipCondition', 20, 'confused'] }, // Espeon
   'ex2-18': { 'Double Scratch': ['perHeads', 20, 2, 20] }, // Kecleon
   'ex2-19': { Hydrocannon: ['extraTyped', 30, 30, 20, 'water', 40, 'colorless,colorless'] }, // Omastar
+  'ex2-22': { 'Feint Attack': ['feintAttack', 0, 40] }, // Shiftry
   'ex2-23': { Rage: ['rage', 10, 10, 10], 'Spinning Tail': ['spreadAll', 0, 20] }, // Steelix
   'ex2-24': { 'Confuse Ray': ['flipCondition', 10, 'confused'] }, // Umbreon
   'ex2-25': { 'Aqua Sonic': ['noResistance', 50] }, // Vaporeon
   'ex2-28': { 'Double Scratch': ['perHeads', 40, 2, 40] }, // Anorith
   'ex2-29': { Toxic: ['toxic', 20] }, // Arbok
+  'ex2-32': { 'Rapid Spin': ['rapidSpin', 10] }, // Baltoy
   'ex2-33': { 'Super Poison Breath': ['condition', 0, 'poisoned'], 'Sky Uppercut': ['noResistance', 50] }, // Breloom
   'ex2-35': { Plasma: ['flipAttachFromDiscard', 10, 'lightning'], 'Thunder Spear': ['snipe', 0, 40] }, // Electabuzz
   'ex2-37': { 'Double Wing Attack': ['eachDefending', 0, 20], Rend: ['damagedMore', 30, 30, 20] }, // Fearow
@@ -79,7 +82,7 @@ export const EX_TEMPLATE_DATA: Record<string, Record<string, TemplateUse>> = {
   'ex3-30': { Magnitude: ['bothBenches', 20, 10] }, // Graveler
   'ex3-32': { 'Aqua Sonic': ['noResistance', 80] }, // Gyarados
   'ex3-33': { Smokescreen: ['smokescreen', 10] }, // Horsea
-  'ex3-34': { Flamethrower: ['discardTyped', 50, 'fire'] }, // Houndoom
+  'ex3-34': { 'Feint Attack': ['feintAttack', 0, 20], Flamethrower: ['discardTyped', 50, 'fire'] }, // Houndoom
   'ex3-35': { 'Triple Smash': ['perHeadsMore', 20, 3, 20, 20] }, // Magneton
   'ex3-36': { 'Mud Splash': ['benchOne', 20, 10] }, // Marshtomp
   'ex3-37': { Meditate: ['meditate', 10, 10, 10] }, // Meditite
@@ -189,7 +192,7 @@ export const EX_TEMPLATE_DATA: Record<string, Record<string, TemplateUse>> = {
   'ex5-39': { 'Cracking Voice': ['flipCondition', 20, 'confused'] }, // Loudred
   'ex5-42': { 'Steady Punch': ['flipForMore', 20, 20, 10] }, // Medicham
   'ex5-43': { Psyshock: ['flipCondition', 20, 'paralyzed'] }, // Metang
-  'ex5-45': { 'Upper Hand': ['amnesia', 0] }, // Nuzleaf
+  'ex5-45': { 'Upper Hand': ['amnesia', 0], 'Feint Attack': ['feintAttack', 0, 40] }, // Nuzleaf
   'ex5-46': { 'Hyper Tail': ['powerMore', 50, 50, 20] }, // Rhydon
   'ex5-48': { Flail: ['flail', 10, 10] }, // Spinda
   'ex5-49': { 'Water Arrow': ['snipe', 0, 20] }, // Starmie
@@ -242,7 +245,7 @@ export const EX_TEMPLATE_DATA: Record<string, Record<string, TemplateUse>> = {
   'ex6-23': { 'Cross-Cut': ['evolvedMore', 10, 10, 20] }, // Farfetch'd
   'ex6-24': { 'Shot Air': ['benchOne', 10, 20] }, // Fearow
   'ex6-25': { 'Hypnotic Ray': ['condition', 20, 'asleep'] }, // Hypno
-  'ex6-27': { Thundershock: ['flipCondition', 20, 'paralyzed'] }, // Magneton
+  'ex6-27': { Thundershock: ['flipCondition', 20, 'paralyzed'], 'Speed Shot': ['feintAttack', 0, 40] }, // Magneton
   'ex6-30': { Wiggle: ['headsOrTails', 0, 'confused', 'poisoned'] }, // Tangela
   'ex6-32': { Hypnosis: ['condition', 0, 'asleep'], Ambush: ['flipForMore', 10, 10, 10] }, // Drowzee
   'ex6-33': { Psybeam: ['flipCondition', 10, 'confused'], 'Double Spin': ['perHeads', 20, 2, 20] }, // Exeggcute
@@ -397,6 +400,7 @@ export const EX_TEMPLATE_DATA: Record<string, Record<string, TemplateUse>> = {
   'ex8-74': { Collect: ['draw', 0] }, // Slugma
   'ex8-75': { 'Magma Ring': ['noRetreat', 10] }, // Slugma
   'ex8-76': { 'Hypnotic Gaze': ['condition', 0, 'asleep'] }, // Spoink
+  'ex8-77': { 'Rapid Spin': ['rapidSpin', 10] }, // Staryu
   'ex8-78': { Agility: ['agility', 10] }, // Surskit
   'ex8-81': { 'Quick Attack': ['flipForMore', 10, 10, 10] }, // Wingull
   'ex8-96': { Pester: ['conditionMore', 60, 60, 40] }, // Crobat ex
@@ -542,6 +546,7 @@ export const EX_TEMPLATE_DATA: Record<string, Record<string, TemplateUse>> = {
   'ex11-13': { 'Power Blow': ['perOwnEnergy', 10, 10] }, // Rayquaza δ
   'ex11-14': { 'Delta Blast': ['discardTyped', 100, 'metal'] }, // Salamence δ
   'ex11-15': { Collect: ['draw', 0, 3] }, // Starmie δ
+  'ex11-17': { 'Feint Attack': ['feintAttack', 0, 30] }, // Umbreon δ
   'ex11-19': { Bubblebeam: ['flipCondition', 20, 'paralyzed'] }, // Azumarill δ
   'ex11-21': { 'Dazzle Blast': ['condition', 30, 'confused'] }, // Holon's Electrode
   'ex11-22': { 'Extra Ball': ['exMore', 30, 30, 20] }, // Holon's Magneton
@@ -604,6 +609,7 @@ export const EX_TEMPLATE_DATA: Record<string, Record<string, TemplateUse>> = {
   'ex12-12': { 'Cross-Cut': ['evolvedMore', 40, 40, 30] }, // Shiftry
   'ex12-13': { 'Sleep Poison': ['twoConditions', 10, 'asleep', 'poisoned'], 'Sharp Leaf': ['flipForMore', 40, 40, 30] }, // Victreebel
   'ex12-14': { 'Hypno Splash': ['condition', 40, 'asleep'] }, // Wailord
+  'ex12-15': { 'Feint Attack': ['feintAttack', 0, 20] }, // Absol
   'ex12-17': { 'Hydro Pump': ['extraTyped', 30, 30, 20, 'water', 40, 'colorless,water'] }, // Gorebyss
   'ex12-18': { 'Bite Off': ['exMore', 40, 40, 30] }, // Huntail
   'ex12-20': { Psyshock: ['flipCondition', 10, 'paralyzed'] }, // Lunatone
@@ -656,7 +662,7 @@ export const EX_TEMPLATE_DATA: Record<string, Record<string, TemplateUse>> = {
   'ex13-18': { Overrun: ['benchOne', 10, 20] }, // Absol
   'ex13-21': { 'Super Singe': ['flipCondition', 40, 'burned'] }, // Latias δ
   'ex13-22': { 'Aqua Wave': ['flipForMore', 10, 10, 20], Dragonbreath: ['tailsNothingHeadsCondition', 50, 'paralyzed'] }, // Latios δ
-  'ex13-23': { Surprise: ['randomToDeck', 20] }, // Mawile
+  'ex13-23': { 'Feint Attack': ['feintAttack', 0, 10], Surprise: ['randomToDeck', 20] }, // Mawile
   'ex13-24': { 'Psychic Erase': ['amnesia', 0] }, // Mewtwo δ
   'ex13-25': { Supersonic: ['flipCondition', 10, 'confused'], 'Rock Slide': ['benchTwo', 20, 10] }, // Nosepass
   'ex13-27': { 'Icy Wind': ['flipCondition', 40, 'asleep'] }, // Regice
@@ -733,6 +739,7 @@ export const EX_TEMPLATE_DATA: Record<string, Record<string, TemplateUse>> = {
   'ex14-36': { Roar: ['opponentSwitches', 0] }, // Lairon
   'ex14-37': { Plunder: ['mug', 20] }, // Lombre
   'ex14-38': { Hug: ['noRetreat', 20] }, // Marshtomp
+  'ex14-41': { 'Feint Attack': ['feintAttack', 0, 20] }, // Skitty
   'ex14-42': { Bubble: ['flipCondition', 20, 'paralyzed'] }, // Wartortle
   'ex14-43': { 'Tail Whip': ['flipNoAttack', 0] }, // Wartortle
   'ex14-44': { Flail: ['flail', 10, 10] }, // Aron
@@ -797,6 +804,7 @@ export const EX_TEMPLATE_DATA: Record<string, Record<string, TemplateUse>> = {
   'ex15-65': { 'Splash About': ['lessEnergyMore', 10, 10, 10] }, // Swablu δ
   'ex15-66': { 'Quick Attack': ['flipForMore', 10, 10, 10] }, // Taillow δ
   'ex15-67': { Rage: ['rage', 10, 10, 10] }, // Totodile δ
+  'ex15-69': { 'Quick Bind': ['feintAttack', 0, 10] }, // Trapinch δ
   'ex15-70': { 'Hypnotic Gaze': ['condition', 0, 'asleep'] }, // Vulpix δ
   'ex15-71': { Amnesia: ['amnesia', 0] }, // Wooper δ
   'ex15-94': { 'Energy Link': ['attachFromDiscard', 40] }, // Kingdra ex δ
@@ -816,6 +824,7 @@ export const EX_TEMPLATE_DATA: Record<string, Record<string, TemplateUse>> = {
   'ex16-18': { Plunder: ['mug', 30] }, // Mightyena
   'ex16-19': { 'Quick Attack': ['flipForMore', 20, 20, 20] }, // Ninetales
   'ex16-20': { Hydrocannon: ['extraTyped', 30, 30, 20, 'water', 40, 'colorless,colorless'] }, // Omastar
+  'ex16-22': { 'Feint Attack': ['feintAttack', 0, 20] }, // Sableye
   'ex16-23': { Toxic: ['toxic', 0] }, // Seviper
   'ex16-25': { 'Call for Family': ['benchSearch', 0, 2], 'Sharp Claws': ['flipForMore', 10, 10, 20] }, // Zangoose
   'ex16-27': { 'Pin Missile': ['perHeads', 20, 4, 20] }, // Cacturne
@@ -834,6 +843,7 @@ export const EX_TEMPLATE_DATA: Record<string, Record<string, TemplateUse>> = {
   'ex16-41': { Ambush: ['flipForMore', 20, 20, 20] }, // Vigoroth
   'ex16-43': { Retaliate: ['flail', 10, 10] }, // Bagon
   'ex16-44': { Psybeam: ['flipCondition', 10, 'confused'] }, // Baltoy
+  'ex16-46': { 'Feint Attack': ['feintAttack', 0, 10] }, // Cacnea
   'ex16-48': { Smokescreen: ['smokescreen', 10] }, // Charmander
   'ex16-49': { 'Positive Ion': ['flipForMore', 10, 10, 10] }, // Chinchou
   'ex16-50': { 'Surprise Attack': ['tailsNothing', 30] }, // Duskull

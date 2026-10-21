@@ -15,6 +15,7 @@ import { discardAtRandom, eachDefending, energyAmount, restNextTurn } from './ex
 import { smokescreen } from './fossil.js';
 import { benchMany, noRetreat } from './gym1.js';
 import { flipForMore } from './jungle.js';
+import { damageOpponent, opponentTargets, rapidSpin } from './neo1.js';
 import { attachFromDiscard } from './neo3.js';
 import { flipOrNothing } from './rocket.js';
 import { healUpTo } from './si1.js';
@@ -331,6 +332,15 @@ export const ATTACK_TEMPLATES: Record<string, AttackTemplate> = {
 
   // Damage to other Pokémon.
   snipe: { pattern: re(`choose 1 of your opponent's pokemon\\. this attack does (\\d+) damage to that pokemon\\.${BENCH_RULE}`), fits: (d) => d === 0, make: (_, [amount]) => snipe(num(amount), false) },
+  // As Aquapolis's Feint Attack: nothing on the chosen Pokémon changes the damage.
+  feintAttack: {
+    pattern: re("choose 1 of your opponent's pokemon\\. this attack does (\\d+) damage to that pokemon\\. this attack's damage isn't affected by weakness, resistance, poke-powers, poke-bodies,? or any other effects on that pokemon"),
+    fits: (d) => d === 0,
+    make: (_, [amount]) => ({
+      choices: (s) => opponentTargets(s, `Choose one of your opponent's Pokémon to do ${amount} damage to`),
+      run: (ctx) => damageOpponent(ctx, ctx.choices.oppTarget ?? 'active', num(amount), true),
+    }),
+  },
   snipeNoWR: { pattern: re("choose 1 of your opponent's pokemon\\. this attack does (\\d+) damage to that pokemon\\. this attack's damage isn't affected by weakness or resistance"), fits: (d) => d === 0, make: (_, [amount]) => snipe(num(amount), true) },
   benchOne: { pattern: re(`(?:does (\\d+) damage to 1 of your opponent's benched pokemon|choose 1 of your opponent's benched pokemon\\. this attack does (\\d+) damage to that pokemon)\\.${BENCH_RULE}`), make: (d, [a, b]) => benchTarget(d, num(a ?? b)) },
   benchTwo: { pattern: re(`does (\\d+) damage to 2 of your opponent's benched pokemon \\(1 if there is only 1\\)\\.${BENCH_RULE}`), make: (d, [amount]) => benchMany(2, d, num(amount)) },
@@ -365,6 +375,10 @@ export const ATTACK_TEMPLATES: Record<string, AttackTemplate> = {
   teleport: { pattern: re('switch @ with 1 of your benched pokemon'), make: (d) => switchSelf(d, false) },
   maySwitchSelf: { pattern: re('after your attack, you may switch @ with 1 of your benched pokemon'), make: (d) => switchSelf(d, true) },
   opponentSwitches: { pattern: re('your opponent switches the defending pokemon with 1 of his or her benched pokemon(?:, if any)?'), make: (d, _, attack) => thenDo(d, (ctx) => opponentSwitches(ctx, attack)) },
+  rapidSpin: {
+    pattern: re('your opponent switches the defending pokemon with 1 of his or her benched pokemon, if any\\. you switch @ with 1 of your benched pokemon, if any'),
+    make: (d, _, attack) => rapidSpin(d, attack),
+  },
 
   // Cards.
   draw: { pattern: re('draw (?:a card|(\\d+) cards)'), make: (d, [n]) => thenDo(d, (ctx) => ctx.draw(n === undefined ? 1 : num(n))) },
