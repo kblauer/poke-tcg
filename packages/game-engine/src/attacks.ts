@@ -804,8 +804,21 @@ function createContext(
     const guard = owner.bench.findIndex((q) => q && q !== p && passive(q)?.benchGuard);
     if (target >= 0 && guard >= 0) (state.queuedChoices ??= []).push({ player: owner.id, source: 'Bench Guard', kind: 'benchGuard', target, guard });
   };
+  /** Intimidating Fang: while the opponent's Active Pokémon has it, the attack does less to any of their Pokémon (before Weakness and Resistance). */
+  const intimidated = (amount: number, owner: PlayerState) => {
+    const fang = owner.active ? passive(owner.active)?.intimidatingFang : undefined;
+    if (!fang || amount <= 0) return amount;
+    log(`Intimidating Fang reduced the damage by ${fang}.`, owner.id);
+    return Math.max(0, amount - fang);
+  };
   /** Shell Armor: 10 less attack damage. Strange Barrier: an attack by a Basic Pokémon does 10 instead of 20 or more. */
   const barriers = (p: InPlayPokemon, damage: number, owner: PlayerState) => {
+    // Hard Cocoon: the opponent's attack, on its owner's heads, does a set amount less.
+    const cocoon = passive(p)?.hardCocoon;
+    if (damage > 0 && cocoon && owner === opp && flipCoin(state, 'Hard Cocoon', owner.id)) {
+      damage = Math.max(0, damage - cocoon);
+      log(`Hard Cocoon reduced the damage to ${pokemonName(state, p)} by ${cocoon}.`, owner.id);
+    }
     if (damage > 0 && passive(p)?.shellArmor) {
       damage = Math.max(0, damage - 10);
       log(`Shell Armor reduced the damage to ${pokemonName(state, p)} by 10.`, owner.id);
@@ -934,6 +947,7 @@ function createContext(
   /** Damage to a benched Pokémon or the attacker itself: Defender, then Kabuto Armor. */
   const benchedDamage = (p: InPlayPokemon, amount: number, owner: PlayerState) => {
     amount = Math.max(0, charmed(amount) - metalLess);
+    if (owner === opp) amount = intimidated(amount, owner);
     if (amount > 0 && sproutTower(state) && attackerDef.type === 'colorless') amount = Math.max(0, amount - 30);
     amount = Math.max(0, amount - 10 * energyCount(state.cards, p, 'Metal Energy'));
     const damage = unownGuarded(p, barriers(p, armor(p, afterDefender(state.cards, p, amount), owner), owner), owner);
@@ -1007,8 +1021,9 @@ function createContext(
       // Pewter City Gym: no Resistance for attacks by Pokémon with Brock in their names.
       const stadium = state.stadium && lookupCard(state.cards, state.stadium.card.defId).name;
       if (stadium === 'Pewter City Gym' && attackerDef.name.includes('Brock')) resistance = false;
-      // Magnifier: no Resistance for its Pokémon's attack.
+      // Magnifier: no Resistance for its Pokémon's attack. Withering Dust, from anywhere in play: none for any Active Pokémon.
       if (attachedCount(state.cards, attacker, 'Magnifier')) resistance = false;
+      if (sides.some((side) => [side.active, ...side.bench].some((p) => p && passive(p)?.witheringDust))) resistance = false;
       // Cinnabar City Gym, and Weakness Guard: no Weakness.
       const weaknessOff = (stadium === 'Cinnabar City Gym' && attackerDef.type === 'water' && defenderDef.name.includes('Blaine')) || attachedCount(state.cards, defender, 'Weakness Guard') > 0;
       // Charm: the attacker's damage is less, before Weakness and Resistance.
@@ -1022,6 +1037,7 @@ function createContext(
         log(`The damage to ${defenderDef.name} was reduced by ${snivel.amount}.`, opp.id);
       }
       if (metalLess) amount = Math.max(0, amount - metalLess);
+      amount = intimidated(amount, opp);
       // Enervating Pollen: Resistance takes off at most 10.
       const rules = { resistance, weakness: !weaknessOff, resistanceLess: stadium === 'Resistance Gym' ? 20 : 0, resistanceCap: enervatingPollen(sides, state.cards) ? 10 : undefined };
       let damage = weakness && !swift ? applyWeaknessResistance(amount, attackerDef.type, defenderDef, defender.effects, rules) : amount;

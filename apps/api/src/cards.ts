@@ -26,6 +26,8 @@ export interface CardData {
   variants?: { holo?: boolean; normal?: boolean; reverse?: boolean; firstEdition?: boolean } | null;
   /** Holo Energy only (made by the seed, packages/db/prisma/holo-energy.ts): the holo style it's shown in. */
   holoEnergy?: HoloEnergyStyle | null;
+  /** "ex" on a Pokémon-ex (EX series). */
+  suffix?: string | null;
 }
 
 /** A holo Energy's style: the attributes the holo card styles select on (see HoloCard). */
@@ -162,10 +164,11 @@ export function isImplemented(card: Pick<Card, 'id' | 'name' | 'kind' | 'data'>)
 export function toCardDef(card: Card): CardDef {
   const imageUrl = card.imageUrl;
   if (card.kind === 'POKEMON') {
-    const stage = card.stage && STAGES[card.stage];
+    const data = card.data as CardData;
+    // TCGdex has no stage for many Pokémon-ex; the seed works it out (stageOf), and until a re-seed it's Basic or Stage 1.
+    const stage = (card.stage && STAGES[card.stage]) || (card.stage === null ? (card.evolveFrom ? 'stage1' : 'basic') : undefined);
     const [type] = card.types;
     if (!stage || !type || card.hp == null) throw new Error(`Card ${card.id} is missing stage, type or HP`);
-    const data = card.data as CardData;
     const attacks: Attack[] = printedAttacks(data).map((a) => {
       const effect = attackEffect(card.id, attackName(a));
       // Printed cost, damage and wording where TCGdex's differ (kept with the attack's effect in the engine).
@@ -179,8 +182,9 @@ export function toCardDef(card: Card): CardDef {
       };
     });
     const baby = card.stage === 'Baby' || BABIES.has(card.id);
+    const ex = data.suffix === 'ex';
     const length = pokedexLength(data.dexId?.[0]);
-    return { id: card.id, kind: 'pokemon', name: card.name, imageUrl, type: energyType(type), hp: card.hp, stage, evolvesFrom: evolvesFrom(card), attacks, power: power(data, card.id), weakness: weakness(data), resistance: resistance(data), retreatCost: data.retreat ?? 0, holo: isHolo(card), ...(baby && { baby }), ...(length && { length }) };
+    return { id: card.id, kind: 'pokemon', name: card.name, imageUrl, type: energyType(type), hp: card.hp, stage, evolvesFrom: evolvesFrom(card), attacks, power: power(data, card.id), weakness: weakness(data), resistance: resistance(data), retreatCost: data.retreat ?? 0, holo: isHolo(card), ...(baby && { baby }), ...(ex && { ex }), ...(length && { length }) };
   }
   if (card.kind === 'ENERGY') {
     if (card.name === 'Double Colorless Energy') {

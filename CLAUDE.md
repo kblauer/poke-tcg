@@ -3,7 +3,7 @@
 ## Product direction
 - Single-player game: the player battles a generation's gym leaders against CPU opponents. Not PvP. Don't add lobbies, multiplayer or realtime features.
 - Roadmap order: (1) refine card-playing mechanics → (2) gym-leader campaign structure → (3) multiple saves per account → (4) progression across runs through different generations. Currently on step (2), the run loop (since 2026-10-17). Stay on the current step unless asked.
-- Card pool: WOTC era only (1999–2003, before the EX series), from TCGdex. Cards with no image are excluded. Cards TCGdex lacks can be added by hand in `packages/db/prisma/data/custom-cards.json` (only with the user's say-so), with images in `apps/web/public/cards/<id>/`.
+- Card pool: WOTC era (1999–2003) and Generation 3's EX series, EX Ruby & Sapphire to EX Power Keepers (2003–2007, agreed 2026-10-20), from TCGdex. Cards with no image are excluded. Cards TCGdex lacks can be added by hand in `packages/db/prisma/data/custom-cards.json` (only with the user's say-so), with images in `apps/web/public/cards/<id>/`.
 - If you're unsure what a card does or how its rules should work, stop and ask. Don't guess at card effects.
 
 ## Stack and layout
@@ -134,4 +134,5 @@
 - A `PendingChoice` can belong to the player whose turn it isn't (Computer Error, Chain Reaction). `applyAction` takes `RESOLVE_CHOICE` from that player only, and every CPU difficulty answers its own pending choice before checking whose turn it is. New choices that the CPU can be asked must be handled in `resolveSearch` (`cpu/shared.ts`) and `finishSearch` (`cpu/passive.ts`).
 - Stadiums: `GameState.stadium` (one for both players), played like any Trainer with `stadium: true` on its effect; `useStadium` makes it usable once a turn with `USE_STADIUM`. Baby Pokémon are `baby: true` on the card (the API sets it from the "Baby" stage and for the promos TCGdex lists as Basic).
 - TCGdex card text drops energy icons ("Discard 1 Energy card" for "Discard 1 Fire Energy card"). Check the printed card for any untyped Energy in an effect and store the printed wording as `text`.
+- Generation 3 (EX sets, `ex1`–`ex16`): in the catalog only so far (no generation, runs or packs). Don't re-seed the shared database until this code is on main: older code's `toCardDef` throws on Pokémon-ex with no stage. Pokémon-ex are `ex: true` (2 Prize cards). EX Ruby & Sapphire (`effects/ex1.ts`, `ex1-powers.ts`, `ex1-trainers.ts`) is mostly done; its open rulings are in the PR. The EX holo masks (`data-era="ex"`, `data-pokemon-ex`, wotc.css) are measured on a few cards and need checking by eye.
 - In-play Pokémon: use `inPlayDef`/`effectId` (status.ts), not `lookupCard(cards, p.card.defId)`, for anything rules-related, so a Transformed Ditto works. Check passive powers with `powerActive`, which handles Toxic Gas.

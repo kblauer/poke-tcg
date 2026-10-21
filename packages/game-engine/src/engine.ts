@@ -102,6 +102,8 @@ export interface PokemonEffects {
   attackedOn?: { turn: number; damage: number; afflictions: Affliction[] };
   /** It can't attack (Suggestion on the Defending Pokémon; Tunneling on the attacker, through its owner's next turn). */
   noAttack?: number;
+  /** Stockpile: through its owner's next turn, Spit Up and Swallow do more. */
+  stockpile?: number;
   /** Its owner can't attach Energy cards to it (Crystal Beam). */
   noEnergy?: number;
   /** Whenever it's attacked, the attacker flips; tails does no damage to it. Lasts until it takes damage (Shadow Images). */
@@ -1526,12 +1528,14 @@ function useStarPiece(state: GameState, owner: PlayerState, p: InPlayPokemon) {
 }
 
 /**
- * Berry (2 damage counters), Gold Berry (4) and Miracle Berry (Asleep, Confused, Paralyzed or Poisoned): between turns,
+ * Berry and Oran Berry (2 damage counters), Gold Berry (4), Miracle Berry (Asleep, Confused, Paralyzed or Poisoned) and Lum
+ * Berry (any Special Condition): between turns,
  * if the Pokémon has that much damage (or one of those), it's removed and the Berry is discarded.
  */
 function useBerry(state: GameState, owner: PlayerState, p: InPlayPokemon) {
   const name = toolOf(state.cards, p)?.name;
-  const amount = name === 'Berry' ? 20 : name === 'Gold Berry' ? 40 : 0;
+  // Oran Berry (EX Ruby & Sapphire) works as Berry.
+  const amount = name === 'Berry' || name === 'Oran Berry' ? 20 : name === 'Gold Berry' ? 40 : 0;
   // Healing Berry: 20 HP or less left, 3 damage counters off.
   if (name === 'Healing Berry' && p.damage >= 10 && inPlayDef(state.cards, p).hp - p.damage <= 20) {
     const healed = Math.min(30, p.damage);
@@ -1545,6 +1549,13 @@ function useBerry(state: GameState, owner: PlayerState, p: InPlayPokemon) {
     p.poison = 0;
     delete p.paralyzedTurn;
     addLog(state, `Miracle Berry: ${pokemonName(state, p)} is no longer Asleep, Confused, Paralyzed or Poisoned.`, owner.id);
+  } else if (name === 'Lum Berry' && hasSpecialCondition(p)) {
+    // Lum Berry: every Special Condition, Burned included.
+    p.condition = null;
+    p.poison = 0;
+    p.burned = false;
+    delete p.paralyzedTurn;
+    addLog(state, `Lum Berry: ${pokemonName(state, p)} is no longer affected by Special Conditions.`, owner.id);
   } else return;
   discardTool(state, owner, p);
 }
@@ -1552,7 +1563,7 @@ function useBerry(state: GameState, owner: PlayerState, p: InPlayPokemon) {
 function expireEffects(pokemon: InPlayPokemon, turn: number) {
   const e = pokemon.effects;
   if (!e) return;
-  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell', 'noAttack', 'noEnergy', 'fireWall', 'focusEnergy', 'crosscounter', 'screech', 'endure', 'pollenShield', 'counter', 'secretePoison', 'slime', 'pursuit', 'lockOn', 'triggeredPoison', 'effectProof', 'pulseGuard', 'dodge', 'reflectShield', 'armorUp', 'noEvolve', 'heavier', 'tailwind', 'noPokePowers', 'conditionProof'] as const) {
+  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell', 'noAttack', 'noEnergy', 'fireWall', 'focusEnergy', 'crosscounter', 'screech', 'endure', 'pollenShield', 'counter', 'secretePoison', 'slime', 'pursuit', 'lockOn', 'triggeredPoison', 'effectProof', 'pulseGuard', 'dodge', 'reflectShield', 'armorUp', 'noEvolve', 'heavier', 'tailwind', 'noPokePowers', 'conditionProof', 'stockpile'] as const) {
     if (e[key] !== undefined && e[key] <= turn) delete e[key];
   }
   if (e.charm && e.charm.until <= turn) delete e.charm;
@@ -1646,8 +1657,11 @@ function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId | null
       // A Trainer played as a Pokémon (Clefairy Doll) doesn't count as a Knocked Out Pokémon: no prize.
       const def = lookupCard(state.cards, pokemon.card.defId);
       if (def.kind === 'pokemon' && def.trainerText) return;
-      const prize = taker.prizes.pop();
-      if (prize) taker.hand.push(prize);
+      // A Pokémon-ex gives up 2 Prize cards.
+      for (let n = def.kind === 'pokemon' && def.ex ? 2 : 1; n > 0; n--) {
+        const prize = taker.prizes.pop();
+        if (prize) taker.hand.push(prize);
+      }
     };
     // Scram: with exactly 10 HP left, Brock's Primeape is shuffled into its owner's deck with every card attached.
     for (const p of [owner.active, ...owner.bench]) {

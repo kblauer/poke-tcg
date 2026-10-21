@@ -19,6 +19,7 @@ interface Row {
   variants?: { holo?: boolean } | null;
   attacks?: { name: string; cost: string[] | null; damage: string | number | null; effect: string | null }[] | null;
   abilities?: { name: string; effect: string }[] | null;
+  suffix?: string | null;
 }
 
 const STAGES: Record<string, Stage> = { Basic: 'basic', Baby: 'basic', Stage1: 'stage1', Stage2: 'stage2' };
@@ -39,7 +40,8 @@ function evolvesFrom(r: Row, stage: Stage): string | null {
 
 function toDef(r: Row): CardDef | null {
   if (r.category === 'Pokemon') {
-    const stage = r.stage && STAGES[r.stage];
+    // A Pokémon-ex TCGdex has no stage for, as the API has it before a re-seed (seed.ts works it out exactly).
+    const stage = r.stage ? STAGES[r.stage] : r.evolveFrom ? 'stage1' : 'basic';
     if (!stage || !r.types?.[0] || r.hp == null) return null;
     return {
       id: r.id,
@@ -58,6 +60,7 @@ function toDef(r: Row): CardDef | null {
       }),
       power: r.abilities?.[0] ? { name: r.abilities[0].name, text: r.abilities[0].effect } : null,
       retreatCost: r.retreat ?? 0,
+      ...(r.suffix === 'ex' && { ex: true }),
     };
   }
   if (r.category === 'Energy') {

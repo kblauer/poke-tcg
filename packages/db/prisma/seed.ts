@@ -1,4 +1,4 @@
-// Loads the TCGdex card snapshot (prisma/data/tcgdex-wotc.json), then the hand-made cards TCGdex doesn't
+// Loads the TCGdex card snapshot (prisma/data/tcgdex-wotc.json: the WOTC era and Generation 3's EX sets), then the hand-made cards TCGdex doesn't
 // have (prisma/data/custom-cards.json), into the database, with the holo Energy made from the packs' basic Energy
 // (holo-energy.ts).
 // Idempotent: re-running updates existing rows. Refresh the snapshot with `pnpm cards:fetch`.
@@ -148,6 +148,17 @@ const TCGDEX_FIXES: Record<string, Partial<TcgdexCard>> = {
  */
 const printedName = (name: string) => name.replace(/^Nidoran ([♀♂])$/, 'Nidoran$1');
 
+/**
+ * TCGdex has no stage for many Pokémon-ex (EX FireRed & LeafGreen on, e.g. Blastoise ex): no "Evolves from" makes it a
+ * Basic Pokémon, otherwise it's a stage above the Pokémon it evolves from (Charizard ex from Charmeleon: Stage 2).
+ */
+function stageOf(card: TcgdexCard): string | null {
+  if (card.category !== 'Pokemon' || card.stage) return card.stage;
+  if (!card.evolveFrom) return 'Basic';
+  const from = cards.find((c) => c.category === 'Pokemon' && c.stage && printedName(c.name) === printedName(card.evolveFrom!));
+  return from?.stage === 'Stage1' ? 'Stage2' : 'Stage1';
+}
+
 function toCardRow(tcgdex: TcgdexCard) {
   const card = { ...tcgdex, ...TCGDEX_FIXES[tcgdex.id] };
   const { id, set, localId, name, category, image, rarity, hp, types, stage, evolveFrom, ...data } = card;
@@ -161,7 +172,7 @@ function toCardRow(tcgdex: TcgdexCard) {
     hp,
     types: types ?? [],
     // TCGdex also tags basic Energy as "Basic"; stage only matters for Pokémon.
-    stage: category === 'Pokemon' ? stage : null,
+    stage: category === 'Pokemon' ? (stage ?? stageOf(card)) : null,
     evolveFrom,
     data: data as unknown as Prisma.InputJsonObject,
   };

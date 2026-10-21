@@ -4,6 +4,8 @@
 export interface HoloSource {
   /** TCGdex id, e.g. "base1-4". */
   id: string;
+  /** Pokémon-ex are named "… ex" (their foil covers the border too). */
+  name?: string;
   kind: string;
   stage: string | null;
   type: string | null;
@@ -23,8 +25,10 @@ export interface HoloAttributes {
   subtypes: string;
   set: string;
   number: string;
-  /** Card layout the WOTC tuning in wotc.css applies to: classic (Base–Neo) or e-Card. */
-  era: 'wotc' | 'ecard';
+  /** Card layout the tuning in wotc.css applies to: classic (Base–Neo), e-Card, or EX (Generation 3). */
+  era: 'wotc' | 'ecard' | 'ex';
+  /** A Pokémon-ex (data-pokemon-ex): its foil covers the art and the border around the card (wotc.css). */
+  pokemonEx: boolean;
   /** The Trainer Gallery styles (data-trainer-gallery). */
   trainerGallery: boolean;
   /** A holo Energy (data-holo-energy): its style covers the whole card, nothing masked out (wotc.css). */
@@ -48,7 +52,8 @@ export function holoAttributes(card: HoloSource): HoloAttributes {
     subtypes: style?.subtypes ?? (kind === 'pokemon' ? (SUBTYPES[card.stage?.toLowerCase() ?? ''] ?? 'basic') : kind === 'trainer' ? 'item' : 'basic'),
     set,
     number: id.slice(split + 1).toLowerCase(),
-    era: set.startsWith('ecard') ? 'ecard' : 'wotc',
+    era: set.startsWith('ecard') ? 'ecard' : /^exd/.test(set) ? 'ex' : 'wotc',
+    pokemonEx: kind === 'pokemon' && / ex$/.test(card.name ?? ''),
     trainerGallery: style?.trainerGallery ?? false,
     holoEnergy: !!style,
   };

@@ -175,6 +175,12 @@ export interface PowerEffect {
   hardShell?: boolean;
   /** Crystal Body: the opponent's attacks do nothing to it but damage. */
   crystalBody?: boolean;
+  /** Withering Dust: while it's in play, no Resistance for any Active Pokémon. */
+  witheringDust?: boolean;
+  /** Intimidating Fang: while it's its player's Active Pokémon, the opponent's attacks do this much less to their Pokémon, before Weakness and Resistance. */
+  intimidatingFang?: number;
+  /** Hard Cocoon: the opponent's attack's damage to it, after Weakness and Resistance, is this much less on its owner's heads. */
+  hardCocoon?: number;
   /** Prehistoric Memory: every Evolved Pokémon in play can use the attacks of the cards it evolved from (prehistoricMemory). */
   prehistoricMemory?: boolean;
   /** Mimic: as the Active Pokémon, it can use the Defending Pokémon's attacks too (usableAttacks). */

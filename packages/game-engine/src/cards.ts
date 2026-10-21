@@ -53,6 +53,8 @@ export interface PokemonCardDef {
    * opponent attacks, they flip a coin first; on tails their turn ends. Missing = not a Baby.
    */
   baby?: boolean;
+  /** A Pokémon-ex (EX series): when it's Knocked Out, its opponent takes 2 Prize cards. Missing = not one. */
+  ex?: boolean;
   /**
    * Set on a Trainer card played as a Pokémon (Clefairy Doll): its printed text. It's a Trainer card
    * in the hand, deck and discard pile, and not a Basic Pokémon card for setup or searches.
