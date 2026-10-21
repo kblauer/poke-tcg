@@ -1,9 +1,10 @@
 // EX Sandstorm (ex2) attack effects, by card id and attack name: the ones the shared wordings (ex-templates.ts) don't play.
 // Rulings follow the card text and the EX Ruby & Sapphire ones (ex1.ts). Agreed with the user: Random Curse's 5 damage
 // counters go on any of the opponent's Pokémon, Active and Benched; Split Blast may do 50 to each of the opponent's
-// Pokémon whenever they have a Benched Pokémon; a named Pokémon matches its variants (Team Aqua's Seviper, Kabuto δ) but a
-// Pokémon-ex never matches its non-ex name (namesMatch); Supernatural uses the Supporter's effect as if Sableye's player had
-// played it (the card stays in the opponent's hand; Primal Veil and the one-Supporter rule don't stop it).
+// Pokémon whenever they have a Benched Pokémon; a named Pokémon matches every variant of it (Team Aqua's Seviper, Kabuto δ,
+// Dark Golbat…) but a Pokémon-ex never matches its non-ex name (namesMatch); Supernatural uses the Supporter's effect as if
+// Sableye's player had played it, its questions asked during the attack (the card stays in the opponent's hand; Primal
+// Veil and the one-Supporter rule don't stop it).
 // From the text: "you may discard … If you do" is asked before the attack; Lure Poison's and Metal Hook's switch is the
 // attacking player's pick; Judgement Knocks Out only a Pokémon the attack can affect.
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
@@ -84,7 +85,7 @@ const benchNamed = (source: string, names: string[], most: number, orBasic: bool
   blocked: (s) => (openBenchSlot(s.ownBench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
   run(ctx) {
     const room = Math.min(most, benchRoom(ctx.me.bench, ctx.state.cards, ctx.state.stadium?.card));
-    if (ctx.me.deck.length && room) ctx.pend({ kind: 'pickFromDeck', source, filter: 'named', name: names, variants: true, orBasic, toBench: true, optional: true, count: room });
+    if (ctx.me.deck.length && room) ctx.pend({ kind: 'pickFromDeck', source, filter: 'named', name: names, orBasic, toBench: true, optional: true, count: room });
   },
 });
 

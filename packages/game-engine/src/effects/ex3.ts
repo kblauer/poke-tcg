@@ -354,7 +354,7 @@ export const EX3: Record<string, Record<string, AttackEffect>> = {
       blocked: (s) => (benchedSlots(s.ownBench).length >= s.ownBench.length ? 'Your Bench is full' : null),
       run(ctx) {
         const room = ctx.me.bench.filter((p) => !p).length;
-        if (ctx.me.deck.length && room) ctx.pend({ kind: 'pickFromDeck', source: 'Call for Family', filter: 'basicNamed', name: 'Magikarp', variants: true, toBench: true, optional: true, count: room });
+        if (ctx.me.deck.length && room) ctx.pend({ kind: 'pickFromDeck', source: 'Call for Family', filter: 'basicNamed', name: 'Magikarp', toBench: true, optional: true, count: room });
       },
     },
   },

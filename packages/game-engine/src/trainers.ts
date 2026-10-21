@@ -140,8 +140,6 @@ export type PendingChoice = {
       /** Each a different type of basic Energy (Lady Outing) or a different name (Signs of Evolution): `taken` has those found so far. */
       distinct?: 'type' | 'name';
       taken?: string[];
-      /** 'named' and 'basicNamed': a variant of a name counts too (Team Aqua's Seviper, Kabuto δ: namesMatch). */
-      variants?: boolean;
       /** 'named': or any Basic Pokémon (Team Assembly). */
       orBasic?: boolean;
       /** With `attach`: then this many damage counters on the Pokémon it's attached to (Psy Shadow). */
@@ -657,8 +655,15 @@ export type PendingChoice = {
       count: number;
     }
   | {
-      /** Supernatural: look at the opponent's hand; the player may use the effect of a Supporter card in it (it stays there). */
+      /**
+       * Supernatural: look at the opponent's hand; the player may use the effect of a Supporter card in it (it stays there).
+       * Once one is picked (`cardUid`), its questions are asked one at a time (agreed), the answers so far in `choices`
+       * (and `taken`: the cards picked so far for a question that takes several).
+       */
       kind: 'supernatural';
+      cardUid?: string;
+      choices?: TrainerChoices;
+      taken?: string[];
     }
 );
 
@@ -961,8 +966,8 @@ export function trainerContext(state: GameState, me: PlayerState, opp: PlayerSta
 
 /**
  * Supernatural: the Supporter cards in the opponent's hand whose effect the player can use now (agreed: as if they'd played
- * it, though it stays in that hand; Primal Veil and the one-Supporter rule don't stop it). Only those whose questions
- * answer themselves: none is asked during the attack.
+ * it, though it stays in that hand; Primal Veil and the one-Supporter rule don't stop it). Their questions are asked during
+ * the attack (agreed).
  */
 export function supernaturalCards(state: GameState, me: PlayerState, opp: PlayerState): CardInstance[] {
   return opp.hand.filter((c) => {
@@ -971,8 +976,40 @@ export function supernaturalCards(state: GameState, me: PlayerState, opp: Player
     const s = trainerSituation(state, me, opp, c);
     if (effect.blocked?.(s)) return false;
     const resolved = resolveTrainerChoices(s, {});
-    return !('error' in resolved);
+    return 'choices' in resolved || !!resolved.need;
   });
+}
+
+type SupernaturalChoice = Extract<PendingChoice, { kind: 'supernatural' }>;
+
+/** Supernatural: the Supporter's next question, or its effect once every one is answered. */
+function supernaturalStep(state: GameState, me: PlayerState, opp: PlayerState, choice: SupernaturalChoice) {
+  const card = opp.hand.find((c) => c.uid === choice.cardUid);
+  if (!card) return;
+  const resolved = resolveTrainerChoices(trainerSituation(state, me, opp, card), choice.choices ?? {});
+  if ('error' in resolved) {
+    if (resolved.need) state.pendingChoice = choice;
+    else addLog(state, `${choice.source}: ${resolved.error}.`, me.id);
+    return;
+  }
+  addLog(state, `${choice.source}: used the effect of ${lookupCard(state.cards, card.defId).name} from the opponent's hand.`, me.id);
+  trainerEffect(card.defId)!.play!(trainerContext(state, me, opp, card, resolved.choices, () => {}));
+  // A choice the effect asks (a search) is still the attack's: the turn ends once it's answered.
+  const next = state.pendingChoice as PendingChoice | undefined;
+  if (next && choice.afterAttack) next.afterAttack = true;
+}
+
+/** Supernatural: the view of the Supporter's open question `spec`. */
+function supernaturalView(choice: SupernaturalChoice, spec: TrainerChoiceSpec): PendingChoiceView {
+  const prompt = `${choice.source}: ${spec.prompt}`;
+  if (spec.kind === 'pokemon') return spec.side === 'own' ? { kind: 'ownPokemon', purpose: 'return', prompt, options: spec.options } : { kind: 'oppPokemon', prompt, options: spec.options };
+  if (spec.kind === 'stage') return { kind: 'options', prompt, labels: spec.options.map((s) => (s === 'stage1' ? 'Stage 1' : 'Stage 2')) };
+  if (spec.kind === 'pick') return { kind: 'options', prompt, labels: spec.labels };
+  const taken = choice.taken ?? [];
+  const options = spec.options.filter((c) => !taken.includes(c.uid));
+  const kind = spec.field === 'handUids' ? 'pickFromHand' : spec.field === 'discardUids' ? 'pickFromDiscard' : 'pickAttached';
+  const more = spec.max > 1 ? ` (${taken.length} of up to ${spec.max} chosen)` : '';
+  return { kind, prompt: `${prompt}${more}`, options, optional: taken.length >= spec.min };
 }
 
 /** A card Super Rod (`filter`), Old Rod, Energy Stadium, Searchlight or Reel In may take from the discard pile. */
@@ -1428,7 +1465,8 @@ export function challengeSearch(state: GameState, player: PlayerState, source: s
 /** Whether a deck card can be picked in this search. */
 export const deckFilter = (cards: CardLibrary, choice: Extract<PendingChoice, { kind: 'pickFromDeck' }>, c: CardInstance) => {
   const d = lookupCard(cards, c.defId);
-  const named = (name: string) => [choice.name].flat().some((n) => (choice.variants ? namesMatch(name, n!) : name === n));
+  // A named Pokémon's variants count too (agreed: Team Aqua's Seviper, Dark Golbat…), never a Pokémon-ex.
+  const named = (name: string) => [choice.name].flat().some((n) => namesMatch(name, n!));
   if (choice.filter === 'basicNamed') return isBasicPokemon(d) && named(d.name);
   if (choice.filter === 'basicType') return isBasicPokemon(d) && d.type === choice.type;
   if (choice.distinct === 'name' && choice.taken?.includes(d.name)) return false;
@@ -1578,6 +1616,11 @@ function skyridgeView(state: GameState, choice: SkyridgeChoice): PendingChoiceVi
       return { kind: 'pickFromHand', prompt: `${choice.source}: discard ${choice.count === 1 ? 'a card' : `${choice.count} cards`} from your hand`, options: player.hand };
     case 'supernatural': {
       const opp = state.players[opponentOfChoice(state, choice)]!;
+      const card = choice.cardUid && opp.hand.find((c) => c.uid === choice.cardUid);
+      if (card) {
+        const resolved = resolveTrainerChoices(trainerSituation(state, player, opp, card), choice.choices ?? {});
+        if ('need' in resolved && resolved.need) return supernaturalView(choice, resolved.need);
+      }
       const options = supernaturalCards(state, player, opp);
       const prompt = options.length ? `${choice.source}: you may choose a Supporter card in your opponent's hand to use its effect` : `${choice.source}: your opponent has no Supporter card you can use`;
       return { kind: 'oppHand', prompt, cards: opp.hand, options, optional: true };
@@ -1733,13 +1776,39 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
       return null;
     }
     case 'supernatural': {
-      if (!picked) return answer.cardUid === undefined ? null : again(choice) ?? 'Choose a Supporter card';
-      addLog(state, `${choice.source}: used the effect of ${name(picked)} from the opponent's hand.`, me.id);
-      const resolved = resolveTrainerChoices(trainerSituation(state, me, opp, picked), {});
-      trainerEffect(picked.defId)!.play!(trainerContext(state, me, opp, picked, 'choices' in resolved ? resolved.choices : {}, () => {}));
-      // A choice the effect asks (a search) is still the attack's: the turn ends once it's answered.
-      const next = state.pendingChoice as PendingChoice | undefined;
-      if (next && choice.afterAttack) next.afterAttack = true;
+      const card = choice.cardUid ? opp.hand.find((c) => c.uid === choice.cardUid) : undefined;
+      if (!card) {
+        if (!picked) return answer.cardUid === undefined ? null : again(choice) ?? 'Choose a Supporter card';
+        supernaturalStep(state, me, opp, { ...choice, cardUid: picked.uid, choices: {} });
+        return null;
+      }
+      // The answer to the Supporter's open question.
+      const resolved = resolveTrainerChoices(trainerSituation(state, me, opp, card), choice.choices ?? {});
+      const spec = 'need' in resolved ? resolved.need : undefined;
+      if (!spec) {
+        supernaturalStep(state, me, opp, choice);
+        return null;
+      }
+      const choices: TrainerChoices = { ...choice.choices };
+      const set = (value: unknown) => ((choices as Record<string, unknown>)[spec.field] = value);
+      if (spec.kind === 'pokemon') {
+        if (answer.target === undefined || !spec.options.includes(answer.target)) return again(choice) ?? 'Choose one of the highlighted Pokémon';
+        set(answer.target);
+      } else if (spec.kind === 'stage' || spec.kind === 'pick') {
+        const value = typeof answer.count === 'number' ? spec.options[answer.count] : undefined;
+        if (value === undefined) return again(choice) ?? 'Choose one of the options';
+        set(value);
+      } else {
+        // Cards one at a time: done at the most, or when the player stops (with at least the fewest it needs).
+        const taken = [...(choice.taken ?? [])];
+        if (answer.cardUid !== undefined) {
+          if (!spec.options.some((c) => c.uid === answer.cardUid) || taken.includes(answer.cardUid)) return again(choice) ?? 'Choose one of the cards';
+          taken.push(answer.cardUid);
+          if (taken.length < spec.max && spec.options.length > taken.length) return again({ ...choice, taken });
+        } else if (taken.length < spec.min) return again(choice) ?? `Choose ${spec.min} card${spec.min === 1 ? '' : 's'}`;
+        set(taken);
+      }
+      supernaturalStep(state, me, opp, { ...choice, choices, taken: undefined });
       return null;
     }
     default:

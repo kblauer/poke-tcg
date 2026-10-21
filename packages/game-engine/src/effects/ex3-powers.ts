@@ -60,7 +60,7 @@ export const EX3_POWERS: Record<string, PowerEffect> = {
   'ex3-18': {
     onPlayFromHand(state, owner, pokemon) {
       if (!pokemon.evolvedFrom.length || !owner.deck.length || !benchRoom(owner.bench, state.cards, state.stadium?.card)) return;
-      state.pendingChoice = { player: owner.id, source: 'Loose Shell', kind: 'pickFromDeck', filter: 'named', name: 'Shedinja', variants: true, toBench: true, optional: true };
+      state.pendingChoice = { player: owner.id, source: 'Loose Shell', kind: 'pickFromDeck', filter: 'named', name: 'Shedinja', toBench: true, optional: true };
     },
   },
   // Salamence – Intimidating Fang.

@@ -4,7 +4,7 @@
 // partners, must be their owner's own; Energy Variation makes Kecleon every type of basic Energy card attached (Weakness and
 // Resistance apply if any of them matches, Low Pressure System counts it; inPlayDef); Baby Evolution can be used on the
 // player's first turn and the turn the baby was played, unlike evolving from the hand (it's still evolving: Prehistoric
-// Power, Primal Aura and Primal Stare stop it); a named Pokémon matches its variants (namesMatch).
+// Power, Primal Aura and Primal Stare stop it); a named Pokémon matches every variant of it, never a Pokémon-ex (namesMatch).
 // From the text: Poison Payback and Fire Veil work even when the Attacking Pokémon Knocks it Out (as Rough Skin); Fan Away
 // returns the Energy card its player picks; Super Suction Cups is Guard; Primal Lock also discards the opponent's Pokémon Tools.
 import { lookupCard, namesMatch, conditionProof, type CardLibrary } from '../cards.js';

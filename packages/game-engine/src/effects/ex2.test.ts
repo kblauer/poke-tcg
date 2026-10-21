@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CardDef, PokemonCardDef } from '../cards.js';
+import { namesMatch, type CardDef, type PokemonCardDef } from '../cards.js';
 import { applyAction, type GameState, type InPlayPokemon, type Target } from '../index.js';
 import { act, attack, duel, endTurn, mon, C, F, FI, G, P, W } from './test-kit.js';
 
@@ -156,6 +156,31 @@ describe('EX Sandstorm', () => {
     s = resolve(s, { cardUid: birch });
     expect(ash(s).hand.length).toBe(Math.max(before, 6));
     expect(misty(s).hand.some((c) => c.uid === birch)).toBe(true);
+  });
+
+  it("Supernatural: a Supporter's questions are asked during the attack (agreed: Mr. Briney's Compassion's Pokémon)", () => {
+    let s = duel('charmander', 'onix', { bench: ['squirtle'] });
+    put(s, 'ash', 'active', mon('ex2-10', 'Sableye', 'darkness', 60, [['Supernatural', [C], 0], ['Dark Bind', ['darkness', C], 20]]), ['fire']);
+    const briney = hand(s, 'misty', trainer('ex3-87', "Mr. Briney's Compassion"));
+    const benched = ash(s).bench[0]!.card.uid;
+    s = attack(s, 0);
+    s = resolve(s, { cardUid: briney });
+    expect(s.pendingChoice).toMatchObject({ kind: 'supernatural', cardUid: briney });
+    s = resolve(s, { target: 0 });
+    expect(ash(s).hand.some((c) => c.uid === benched)).toBe(true);
+    expect(misty(s).hand.some((c) => c.uid === briney)).toBe(true);
+  });
+
+  it('namesMatch: every variant counts as its name (agreed), never a Pokémon-ex', () => {
+    expect(namesMatch("Team Aqua's Seviper", 'Seviper')).toBe(true);
+    expect(namesMatch('Kabuto δ', 'Kabuto')).toBe(true);
+    expect(namesMatch('Dark Golbat', 'Golbat')).toBe(true);
+    expect(namesMatch("Brock's Onix", 'Onix')).toBe(true);
+    expect(namesMatch("Lt. Surge's Raichu", 'Raichu')).toBe(true);
+    expect(namesMatch('Shining Magikarp', 'Magikarp')).toBe(true);
+    expect(namesMatch('Mew ☆', 'Mew')).toBe(true);
+    expect(namesMatch('Seviper ex', 'Seviper')).toBe(false);
+    expect(namesMatch('Mr. Mime', 'Mime')).toBe(false);
   });
 
   it('Rain Dish: a damage counter off between turns, Benched too', () => {

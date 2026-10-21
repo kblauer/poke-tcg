@@ -71,15 +71,15 @@ export const hasType = (def: Pick<PokemonCardDef, 'type' | 'types'>, type: Energ
 export const typesOf = (def: Pick<PokemonCardDef, 'type' | 'types'>): EnergyType[] => def.types ?? [def.type];
 
 /**
- * The prefixes and marks a card name may add to a Pokémon's name: Team Aqua's Seviper and Kabuto δ are Seviper and Kabuto
- * (agreed). Dark, Light, owners' and Gold Star (☆) Pokémon aren't in it: the older sets' names stay their own.
+ * The prefixes and marks a card name may add to a Pokémon's name (agreed: every variant): an owner's (Team Aqua's Seviper,
+ * Brock's Onix, Rocket's Scizor, Lt. Surge's Raichu), Dark, Light and Shining Pokémon, δ and Gold Star (☆) Pokémon.
  */
-const VARIANT_NAME = /^(?:Team Aqua's|Team Magma's) | δ$/g;
+const VARIANT_NAME = /^(?:[A-Z][\w.]*(?: [A-Z][\w.]*)?'s|Dark|Light|Shining) | (?:δ|☆|Star)$/g;
 
 /**
  * Whether a card called `name` counts as `wanted` when an effect names a Pokémon ("If the Defending Pokémon is Seviper",
- * "Search your deck for Omanyte"): the same name, or a variant of it (agreed: Team Aqua's Seviper, Kabuto δ). A Pokémon-ex
- * never counts as its non-ex name, or the other way round (agreed, for every rule).
+ * "Search your deck for Omanyte"): the same name, or a variant of it (agreed: Team Aqua's Seviper, Kabuto δ, Dark Golbat…).
+ * Only a Pokémon-ex never counts as its non-ex name, or the other way round (agreed, for every rule).
  */
 export const namesMatch = (name: string, wanted: string) => name === wanted || name.replace(VARIANT_NAME, '') === wanted.replace(VARIANT_NAME, '');
 
