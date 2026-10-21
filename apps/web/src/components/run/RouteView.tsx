@@ -3,7 +3,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
-import { flowAt, isBattleKind, isBossKind, onPath, onWater, routePath, type BossId, type EncounterKind, type MapEncounter, type Route, type RouteSpot } from '@poke-tcg/campaign';
+import { flowAt, inGrass, isBattleKind, isBossKind, onPath, onWater, routePath, type BossId, type EncounterKind, type MapEncounter, type Route, type RouteSpot } from '@poke-tcg/campaign';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import type { RunViewData } from '../../hooks/useRun';
@@ -183,6 +183,10 @@ function saveLocked(locked: boolean) {
 
 /** How much faster than walking the player gets along a map: twice as fast on a bike (Route 17, agreed with the user). */
 const pace = (route: Route) => (route.travel === 'bike' ? 2 : 1);
+/** A step's pace onto `tile`: a little slower into tall grass (GRASS_PACE, agreed with the user). */
+const stepPace = (route: Route, tile: RouteSpot) => pace(route) * (inGrass(route, tile) ? GRASS_PACE : 1);
+/** How fast the player wades through tall grass, of his pace elsewhere: 30% slower (agreed with the user). */
+const GRASS_PACE = 0.7;
 
 /** The longest walk between spots, in tiles; farther (or with no path), the player fades out and back in instead. */
 const MAX_WALK = 40;
@@ -323,7 +327,8 @@ function facing(from: RouteSpot, to: RouteSpot): Facing {
 /**
  * A FireRed overworld sprite standing on a tile (its feet on the tile, its head on the one above), facing a way, in map
  * pixels; lower on the map is in front, as in the game. `frame` shows another frame of its strip (a walking one), `moveMs`
- * slides it to a new tile over that long (a step), and `hidden` fades it out.
+ * slides it to a new tile over that long (a step), and `hidden` fades it out. `grass`: on a tile of tall grass, its
+ * bottom (GRASS_HIDES) is cut off, so the grass drawn on the map shows there instead, as in the games (agreed with the user).
  */
 function OverworldSprite({
   name,
@@ -336,6 +341,7 @@ function OverworldSprite({
   moveMs = 0,
   fadeMs = FADE_MS,
   hidden = false,
+  grass = false,
 }: {
   name: string;
   tile: RouteSpot;
@@ -349,8 +355,11 @@ function OverworldSprite({
   moveMs?: number;
   fadeMs?: number;
   hidden?: boolean;
+  grass?: boolean;
 }) {
   const w = spriteWidth(name);
+  // An item ball stays whole (it lies in the grass, one tile tall).
+  const inGrass = grass && !isItemBall(name);
   const frame = walkTick !== undefined ? walkFrame(name, face, walkTick) : bob && bobs(name) ? bobFrame(name, face) : standFrame(name, face);
   return (
     <div
@@ -367,11 +376,15 @@ function OverworldSprite({
         backgroundSize: `${w * stripFrames(name)}px 32px`,
         backgroundPosition: `${-frame * w}px 0`,
         transform: mirrored(name, face) ? 'scaleX(-1)' : undefined,
+        clipPath: inGrass ? `inset(0 0 ${GRASS_HIDES}px 0)` : undefined,
         zIndex: tile.y,
       }}
     />
   );
 }
+
+/** How much of someone standing in tall grass it hides, in map pixels: the bottom half of their tile, their feet and legs. */
+const GRASS_HIDES = 8;
 
 /**
  * A speech bubble over a figure's head with its encounter's icon (ENCOUNTER_STYLE, as in the encounter panels), in map
@@ -424,6 +437,7 @@ function Figure({
   walkTick,
   moveMs,
   wet,
+  grass,
 }: {
   figure: RouteFigure;
   tile: RouteSpot;
@@ -431,6 +445,8 @@ function Figure({
   faded?: boolean;
   /** Standing in water: a swimmer shows swimming (waterSprite). */
   wet?: boolean;
+  /** Standing in tall grass: half hidden in it. */
+  grass?: boolean;
   /** While walking (an NPC coming up to the player): the way it's going, its walking frame and its step's time. */
   face?: Facing;
   walkTick?: number;
@@ -439,7 +455,7 @@ function Figure({
   if (!figure.boss) {
     return (
       <>
-        <OverworldSprite name={(wet && figure.sprite && waterSprite(figure.sprite)) || figure.sprite || 'boy'} tile={tile} face={face ?? facing(tile, spot)} title={figure.title} faded={faded} walkTick={walkTick} moveMs={moveMs} />
+        <OverworldSprite name={(wet && figure.sprite && waterSprite(figure.sprite)) || figure.sprite || 'boy'} tile={tile} face={face ?? facing(tile, spot)} title={figure.title} faded={faded} walkTick={walkTick} moveMs={moveMs} grass={grass} />
         {figure.bubble && <EncounterBubble kind={figure.bubble} tile={tile} faded={faded} low={isItemBall(figure.sprite)} below={tile.y > spot.y} moveMs={moveMs} />}
       </>
     );
@@ -661,11 +677,13 @@ export function RouteView({ routes, gym, view, spotted }: { routes: Route[]; gym
     const timer = window.setInterval(() => setBobbing((b) => !b), BOB_MS);
     return () => window.clearInterval(timer);
   }, [stillBob]);
+  // Wading through tall grass, the player's legs slow with his steps (GRASS_PACE).
+  const wading = walker.walking && inGrass(shown, walker.tile);
   useEffect(() => {
     if (!anyWalking) return;
-    const timer = window.setInterval(() => setTick((t) => t + 1), ms.frame / pace(shown));
+    const timer = window.setInterval(() => setTick((t) => t + 1), ms.frame / (pace(shown) * (wading ? GRASS_PACE : 1)));
     return () => window.clearInterval(timer);
-  }, [anyWalking, shown]);
+  }, [anyWalking, shown, wading]);
 
   // A non-battle encounter chosen: its NPC (an item ball aside) walks from where it stood to the free tile beside the
   // player it reaches soonest, then faces him; from the moment it's clicked (`spotted`), or once the encounter is under way
@@ -746,10 +764,10 @@ export function RouteView({ routes, gym, view, spotted }: { routes: Route[]; gym
         } else {
           later(t, () => {
             setWalker({ section: onSection, tile, face, walking: true, hidden: false });
-            setGlide({ ms: ms.step / pace(on), ease: 'linear' });
+            setGlide({ ms: ms.step / stepPace(on, tile), ease: 'linear' });
             setOffset(centreOnMap(on, tile));
           });
-          t += ms.step / pace(on);
+          t += ms.step / stepPace(on, tile);
         }
       });
       later(t, () => setWalker((w) => ({ ...w, walking: false })));
@@ -886,7 +904,7 @@ export function RouteView({ routes, gym, view, spotted }: { routes: Route[]; gym
           >
             <img src={shown.image} alt="" draggable={false} className="h-full w-full select-none [image-rendering:pixelated]" />
             {/* The people always there (a gym's guide). */}
-            {shown.npcs?.map((n, i) => <OverworldSprite key={`npc${i}`} name={n.sprite} tile={n.tile} face={n.face} />)}
+            {shown.npcs?.map((n, i) => <OverworldSprite key={`npc${i}`} name={n.sprite} tile={n.tile} face={n.face} grass={inGrass(shown, n.tile)} />)}
             {placed.map((p, i) =>
               isApproaching(p) ? (
                 <Figure
@@ -898,9 +916,10 @@ export function RouteView({ routes, gym, view, spotted }: { routes: Route[]; gym
                   walkTick={approaching!.walking ? tick : undefined}
                   moveMs={approaching!.walking ? ms.step : 0}
                   wet={onWater(shown, approaching!.tile)}
+                  grass={inGrass(shown, approaching!.tile)}
                 />
               ) : (
-                <Figure key={i} figure={p.figure} tile={p.tile} spot={p.spot} faded={p.faded} wet={onWater(shown, p.tile)} />
+                <Figure key={i} figure={p.figure} tile={p.tile} spot={p.spot} faded={p.faded} wet={onWater(shown, p.tile)} grass={inGrass(shown, p.tile)} />
               ),
             )}
             <OverworldSprite
@@ -909,11 +928,14 @@ export function RouteView({ routes, gym, view, spotted }: { routes: Route[]; gym
               tile={walker.tile}
               face={redFace}
               walkTick={walker.walking ? tick : undefined}
-              moveMs={walker.walking ? ms.step / pace(shown) : 0}
+              moveMs={walker.walking ? ms.step / stepPace(shown, walker.tile) : 0}
               fadeMs={ms.fade}
               hidden={walker.hidden}
+              grass={inGrass(shown, walker.tile)}
               title="You"
             />
+            {/* What's over the people walking under it (a bridge): above every sprite (zIndex: their row), below the bubbles and "!". */}
+            {shown.overhead && <img src={shown.overhead} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full select-none [image-rendering:pixelated]" style={{ zIndex: 899 }} />}
             {spottedFigure && <Exclamation tile={spottedFigure.tile} />}
             {DEBUG_BUILD && debug && showTiles && <TileOverlay route={shown} />}
           </div>

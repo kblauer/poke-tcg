@@ -42,6 +42,39 @@ MADE_UP = {
  * two areas of the Ice Path's rock and ice, the lower one's ladder climbing to the upper one (a fading link, from the
  * foot of the ladder to beside its hole above); leaving by the top edge.""", ''),
 }
+# The materials drawn over people walking under them, by route: Route 32's Magnet Train bridge (its girders and deck; not
+# its pillars, which stand on the ground).
+OVERHEAD = {
+    'route32': ['overpass', 'lambert76'],
+}
+# Tiles the user says can't be walked on, though the map data has them walkable, by route.
+USER_BLOCKED = {
+    'route32': [
+        (21, 44),
+        (6, 74),
+        (9, 107), (10, 107), (11, 107), (12, 107),
+        (12, 121), (12, 122), (12, 123), (12, 124), (12, 125), (13, 125), (14, 125), (14, 126), (14, 127), (15, 127), (16, 127),
+        (18, 131), (19, 131),
+        (12, 143), (13, 143), (15, 143), (16, 143),
+        (12, 146), (13, 146), (14, 146), (16, 146), (17, 146),
+    ],
+}
+# Tiles the user says are tall grass, though the map data doesn't, by route.
+USER_GRASS = {
+    'route32': [(9, 114), (10, 114), (8, 115), (9, 115), (10, 115), (8, 116)],
+}
+# Tiles the user says aren't tall grass, though the map data has them as grass, by route.
+USER_NOT_GRASS = {
+    'route32': [(8, 105), (8, 106), (8, 107)],
+}
+# The user's exits: where the player walks after the last spot before fading into the gym (Route 32's Union Cave mouth).
+USER_EXITS = {
+    'route32': (14, 143),
+}
+# The user's spots on the real routes, in place of the generator's: by encounter number (from 1).
+USER_SPOTS = {
+    'route32': {5: (5, 74)},
+}
 STEP = {'left': (-1, 0), 'right': (1, 0), 'up': (0, -1), 'down': (0, 1)}
 HEAD = """// The Johto gym runs' maps, from HeartGold/SoulSilver (the pret/pokeheartgold decompilation; tools/routes/hgss/): its
 // maps are 3D, so hgss_map.py converts each one's terrain chunks and buildings with apicula and draws them looking down,
@@ -116,6 +149,9 @@ def pick(name, rows, edge, flow, image, preview):
         t = walk[round((i + 1) * (len(walk) - 1) / 10)]
         near = [(x, y) for y in range(t[1] - 2, t[1] + 3) for x in range(t[0] - 2, t[0] + 3) if 0 <= y < h and 0 <= x < w and rows[y][x] == '.' and (x, y) in prev and (x, y) not in spots and (x, y) != ent]
         spots.append(max(near, key=lambda n: openness(n) * 2 - abs(n[0] - t[0]) - abs(n[1] - t[1])))
+    for n, t in USER_SPOTS.get(name, {}).items():
+        assert rows[t[1]][t[0]] == '.', (name, 'user spot not walkable', n, t)
+        spots[n - 1] = t
     stops = [ent] + spots
     gaps = [(a, b) for a, b in zip(stops, stops[1:]) if b not in bfs(rows, a)]
     assert not gaps, (name, 'no walk', gaps)
@@ -133,9 +169,12 @@ def pick(name, rows, edge, flow, image, preview):
     return rows, (ex, ey), spots
 
 
-def route_ts(doc, const, fields, name, image, w, h, spots, rows):
+def route_ts(doc, const, fields, name, image, w, h, spots, rows, grass=None):
     spots_ = '\n'.join(f'    {{ x: {x}, y: {y} }},' for x, y in spots)
     walk = '\n'.join(f"    '{r}'," for r in rows)
+    # The tall grass, on a map with any.
+    grass_ = ''.join(f"\n    '{r}'," for r in grass) if grass and any('g' in r for r in grass) else ''
+    grass_ = f'\n  grass: [{grass_}\n  ],' if grass_ else ''
     return f"""
 {doc}
 export const {const}: Route = {{
@@ -149,7 +188,7 @@ export const {const}: Route = {{
   ],
   walkable: [
 {walk}
-  ],
+  ],{grass_}
 }};
 """
 
@@ -167,12 +206,35 @@ def main():
     out = []
     for name, (map_const, edge, flow, const, title, what, start) in REAL.items():
         prefix = os.path.join(work, name)
-        subprocess.run([sys.executable, os.path.join(HERE, 'hgss_map.py'), prefix, map_const, '--apicula', apicula, '--cache', cache], check=True)
+        overhead = ['--overhead', ','.join(OVERHEAD[name])] if name in OVERHEAD else []
+        subprocess.run([sys.executable, os.path.join(HERE, 'hgss_map.py'), prefix, map_const, *overhead, '--apicula', apicula, '--cache', cache], check=True)
         j = json.load(open(prefix + '.json'))
+        for x, y in USER_BLOCKED.get(name, []):
+            j['rows'][y] = j['rows'][y][:x] + '#' + j['rows'][y][x + 1:]
+        for x, y in USER_GRASS.get(name, []):
+            j['grass'][y] = j['grass'][y][:x] + 'g' + j['grass'][y][x + 1:]
+        for x, y in USER_NOT_GRASS.get(name, []):
+            j['grass'][y] = j['grass'][y][:x] + '.' + j['grass'][y][x + 1:]
         rows, (ex, ey), spots = pick(name, j['rows'], edge, flow, prefix + '.png', prefix + '-preview.png')
         shutil.copy(prefix + '.png', os.path.join(PUBLIC, name + '.png'))
         fields = f"  flow: '{flow}',\n  sprites: 'hgss',\n  entrance: {{ x: {ex}, y: {ey} }},"
-        out.append(route_ts(f'/** {title}: {what}. Spots along the walk from the {start}, picked by the generator. */', const, fields, title, name + '.png', len(rows[0]), len(rows), spots, rows))
+        if name in USER_EXITS:
+            x, y = USER_EXITS[name]
+            assert rows[y][x] == '.', (name, 'user exit not walkable')
+            fields += f'\n  exit: {{ x: {x}, y: {y} }},'
+        if overhead:
+            shutil.copy(prefix + '-overhead.png', os.path.join(PUBLIC, name + '_overhead.png'))
+            fields += f"\n  overhead: '/routes/{name}_overhead.png',"
+        users = ''.join(f', spot {n} at {x},{y}' for n, (x, y) in USER_SPOTS.get(name, {}).items())
+        blocked = USER_BLOCKED.get(name, [])
+        users += f", {' '.join(f'{x},{y}' for x, y in blocked)} not walkable" if blocked else ''
+        grassy = USER_GRASS.get(name, [])
+        users += f", {' '.join(f'{x},{y}' for x, y in grassy)} tall grass" if grassy else ''
+        bare = USER_NOT_GRASS.get(name, [])
+        users += f", {' '.join(f'{x},{y}' for x, y in bare)} not grass" if bare else ''
+        users += f', leaving by {USER_EXITS[name][0]},{USER_EXITS[name][1]} for the gym' if name in USER_EXITS else ''
+        users = f' (the user\'s{users[1:]})' if users else ''
+        out.append(route_ts(f'/** {title}: {what}. Spots along the walk from the {start}, picked by the generator{users}. */', const, fields, title, name + '.png', len(rows[0]), len(rows), spots, rows, j.get('grass')))
         print(name, 'entrance', (ex, ey), 'spots', spots)
     a = gen.Assets(apicula, cache)
     gen.route40(a, work); gen.route42(a, work); gen.route44(a, work)

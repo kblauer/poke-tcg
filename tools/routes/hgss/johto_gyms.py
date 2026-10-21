@@ -7,7 +7,10 @@ packages/campaign/src/johto-gyms.ts, copying the images to apps/web/public/route
   Gym Trainer where the gym's trainer nearest halfway in along the walk to the leader stands (the player beside them, on
   the side they face), the leader in their place (the player below them), and the Gym Guide where there is one.
   Olivine's gym has no trainers, so its Gym Trainer stands where its girl does (Olivine's pool is the Lighthouse's,
-  bosses.ts).
+  bosses.ts);
+- the Johto Gym Challenge and Champion runs' rooms (as Kanto's KANTO_BOSS_ROOMS): each gym's leader-only version (the
+  player coming in 5 tiles from the leader, south where it can), the Pokémon League's rooms (hgss_pokemonleague_<boss>s_room.png)
+  and Ecruteak's Pokémon Center (hgss_ecruteak_pokemoncenter_1f.png), with JOHTO_BOSS_ROOMS.
 
 Usage: python johto_gyms.py [--apicula <apicula.exe>] [--cache <dir>] [--work <dir>]
 (--work: where the renders go, a temporary directory by default; each gym also gets a <city>-preview.png there with its
@@ -37,19 +40,43 @@ GYMS = {
     'mahogany': ('MAP_MAHOGANY_GYM_LEADER_ROOM', '136_T28GYM0101', 'MAP_MAHOGANY_GYM_ROOM_2', 'MAHOGANY_GYM', 'Mahogany Gym'),
     'blackthorn': ('MAP_BLACKTHORN_GYM', '137_T30GYM0101', 'MAP_BLACKTHORN', 'BLACKTHORN_GYM', 'Blackthorn Gym'),
 }
+# The Johto Gym Challenge and Champion runs' other rooms (as Kanto's KANTO_BOSS_ROOMS): the Elite Four's and Lance's at
+# the Pokémon League (their map, events, the boss's sprite, the boss id, constant and name), and the Pokémon Center after
+# the fourth gym, Ecruteak's (the nurse's sprite).
+LEAGUE = {
+    'will': ('MAP_POKEMON_LEAGUE_WILL_ROOM', '272_T10R0201', 'SPRITE_GSBIGFOUR1', 'will', 'WILLS_ROOM', "Will's Room"),
+    'koga': ('MAP_POKEMON_LEAGUE_KOGA_ROOM', '273_T10R0301', 'SPRITE_GSBIGFOUR2', 'johto-koga', 'KOGAS_ROOM', "Koga's Room"),
+    'bruno': ('MAP_POKEMON_LEAGUE_BRUNO_ROOM', '274_T10R0401', 'SPRITE_GSBIGFOUR3', 'johto-bruno', 'BRUNOS_ROOM', "Bruno's Room"),
+    'karen': ('MAP_POKEMON_LEAGUE_KAREN_ROOM', '275_T10R0501', 'SPRITE_GSBIGFOUR4', 'karen', 'KARENS_ROOM', "Karen's Room"),
+    'lance': ('MAP_POKEMON_LEAGUE_LANCE_ROOM', '276_T10R0601', 'SPRITE_WATARU', 'johto-lance', 'LANCES_ROOM', "Lance's Room"),
+}
+CENTER = ('MAP_ECRUTEAK_POKECENTER_1F', '078_T27PC0101', 'MAP_ECRUTEAK', 'SPRITE_PCWOMAN1')
+# The boss ids of the Johto gyms' leaders, for their leader-only rooms.
+LEADERS = {'violet': 'falkner', 'azalea': 'bugsy', 'goldenrod': 'whitney', 'ecruteak': 'morty', 'cianwood': 'chuck', 'olivine': 'jasmine', 'mahogany': 'pryce', 'blackthorn': 'clair'}
+# The user's Gym Trainer places, in place of the generator's (in the cropped map's tiles): the player's spot and where
+# the Gym Trainer stands.
+USER_GYM_TRAINER = {
+    'azalea': {'spot': (9, 20), 'stand': (7, 20)},
+}
+# The user's links (fading walks between tiles the map data doesn't join), in the cropped map's tiles: Azalea's Spinarak
+# carts, from the door's floor to the middle one (9,33 to 9,23) and from there to Bugsy's (9,18 to 9,8).
+USER_LINKS = {
+    'azalea': [((9, 33), (9, 23)), ((9, 18), (9, 8))],
+}
 FACE = {0: 'up', 1: 'down', 2: 'left', 3: 'right'}
 STEP = {'up': (0, -1), 'down': (0, 1), 'left': (-1, 0), 'right': (1, 0)}
 # How far past the room's walkable tiles the image goes: its walls above (drawn tilted), a tile elsewhere.
 MARGIN = {'top': 3, 'side': 1, 'bottom': 1}
 
 
-def bfs(rows, start):
+def bfs(rows, start, links=()):
+    """Steps from `start` to every tile walked to, over walkable tiles and through `links` (pairs of tiles, both ways)."""
     h, w = len(rows), len(rows[0])
     dist = {start: 0}; q = deque([start])
     while q:
         x, y = q.popleft()
-        for dx, dy in STEP.values():
-            n = (x + dx, y + dy)
+        through = [b for a, b in links if a == (x, y)] + [a for a, b in links if b == (x, y)]
+        for n in [(x + dx, y + dy) for dx, dy in STEP.values()] + through:
             if 0 <= n[0] < w and 0 <= n[1] < h and rows[n[1]][n[0]] == '.' and n not in dist:
                 dist[n] = dist[(x, y)] + 1; q.append(n)
     return dist
@@ -96,6 +123,40 @@ def place(name, rows, events, warp_to):
     return rows, door, [tspot, lspot], [tstand, lstand], guide, gaps, trainer
 
 
+def entrance_near(rows, spot):
+    """Where the player comes in for a boss's room: 4 steps from their spot (5 tiles from them, as Kanto's), straight
+    south where the room allows, else the most southern such tile, nearest the spot's column."""
+    dist = bfs(rows, spot)
+    for steps in (4, 3, 5, 2):
+        cands = [t for t, d in dist.items() if d == steps]
+        if cands:
+            return min(cands, key=lambda t: (t != (spot[0], spot[1] + steps), -t[1], abs(t[0] - spot[0])))
+    return spot
+
+
+def boss_room(rows, events, boss_sprite, door_to=None):
+    """A room with one boss (an Elite Four member, Lance) or the Pokémon Center's nurse (`door_to`: the warp the player
+    comes in by, made walkable): their stand, the player's spot (below the boss; across the counter from the nurse) and
+    the entrance (5 tiles from the boss; the Center's door)."""
+    rows = [list(r) for r in rows]
+    door = None
+    if door_to:
+        door = next((w['x'], w['z']) for w in events['warps'] if w['header'] == door_to)
+        rows[door[1]][door[0]] = '.'
+    rows = [''.join(r) for r in rows]
+    who = next(o for o in events['objects'] if o['spriteId'] == boss_sprite)
+    stand = (who['x'], who['z'])
+    spot = nearest_walkable(rows, (stand[0], stand[1] + (2 if door_to else 1)), (0, 1))
+    return rows, stand, spot, door or entrance_near(rows, spot)
+
+
+def render(work, name, map_const, apicula, cache):
+    prefix = os.path.join(work, name)
+    if not os.path.exists(prefix + '.png'):
+        subprocess.run([sys.executable, os.path.join(HERE, 'hgss_map.py'), prefix, map_const, '--room', '--apicula', apicula, '--cache', cache], check=True)
+    return prefix, json.load(open(prefix + '.json'))['rows']
+
+
 def crop_box(rows, door, keep):
     """The room: the bounds of the tiles walked to from its door (and `keep`'s: the people), with MARGIN round them.
     Tiles outside the room can count as walkable in the map data, so only the door's area counts."""
@@ -106,20 +167,23 @@ def crop_box(rows, door, keep):
     return x0, y0, x1, y1
 
 
-def gym_ts(const, title, doc, image, w, h, door, spots, stands, guide, rows):
+def gym_ts(const, title, doc, image, w, h, door, spots, stands, guide, rows, links=()):
     pts = lambda ps: '\n'.join(f'    {{ x: {x}, y: {y} }},' for x, y in ps)
+    links_ = '\n  links: [' + ', '.join(f'[{{ x: {a[0]}, y: {a[1]} }}, {{ x: {b[0]}, y: {b[1]} }}]' for a, b in links) + '],' if links else ''
     walk = '\n'.join(f"    '{r}'," for r in rows)
+    # Double quotes for a name with an apostrophe ("Will's Room"), as kanto-routes.ts has them.
+    name = f'"{title}"' if "'" in title else f"'{title}'"
     npcs = f"\n  npcs: [{{ sprite: 'hgss/gym_guide', tile: {{ x: {guide[0]}, y: {guide[1]} }}, face: 'down' }}]," if guide else ''
     return f"""
 /** {doc} */
 export const {const}: Route = {{
   flow: 'up',
   sprites: 'hgss',
-  name: '{title}',
+  name: {name},
   image: '/routes/{image}',
   width: {w * TILE},
   height: {h * TILE},
-  entrance: {{ x: {door[0]}, y: {door[1]} }},
+  entrance: {{ x: {door[0]}, y: {door[1]} }},{links_}
   spots: [
 {pts(spots)}
   ],
@@ -138,8 +202,10 @@ HEAD = """// The Johto gyms' interiors, from HeartGold/SoulSilver (the pret/poke
 // cropped to the room. The door the player comes in at, the Gym Trainer where the gym's trainer nearest halfway in
 // stands (the player beside them, on the side they face), the leader in their place (the player below them), and the Gym
 // Guide where there is one, all from the map's events. Walking connections the map data doesn't show (a gym's puzzle)
-// come from the user, as `links` or walkable tiles. Written by tools/routes/hgss/johto_gyms.py.
-import type { Route } from './routes.js';
+// come from the user, as `links` or walkable tiles. Then the Johto Gym Challenge and Champion runs' other rooms, as Kanto's:
+// the Pokémon League's, each boss in their place and the player coming in 5 tiles from them, and Ecruteak's Pokémon
+// Center; and each boss's map for those runs (JOHTO_BOSS_ROOMS). Written by tools/routes/hgss/johto_gyms.py.
+import { leaderRoom, type Route } from './routes.js';
 """
 
 
@@ -153,20 +219,31 @@ def main():
     cache = opt('--cache', os.path.join(tempfile.gettempdir(), 'pokeheartgold'))
     work = opt('--work', None) or tempfile.mkdtemp(prefix='johto_gyms_')
     os.makedirs(work, exist_ok=True)
-    out, problems = [], []
+    out, problems, entrances = [], [], {}
     for city, (map_const, events_file, warp_to, const, title) in GYMS.items():
         prefix = os.path.join(work, city)
         if not os.path.exists(prefix + '.png'):
             subprocess.run([sys.executable, os.path.join(HERE, 'hgss_map.py'), prefix, map_const, '--room', '--apicula', apicula, '--cache', cache], check=True)
         rows = json.load(open(prefix + '.json'))['rows']
         events = json.load(open(hd.fetch(cache, EVENTS + events_file + '.json'), encoding='utf-8'))
-        rows, door, spots, stands, guide, gaps, trainer = place(city, rows, events, warp_to)
-        problems += [(city,) + g for g in gaps]
+        rows, door, spots, stands, guide, _, trainer = place(city, rows, events, warp_to)
         x0, y0, x1, y1 = crop_box(rows, door, [*spots, *stands] + ([guide] if guide else []))
         shift = lambda t: (t[0] - x0, t[1] - y0)
         rows = [r[x0:x1 + 1] for r in rows[y0:y1 + 1]]
         door, spots, stands = shift(door), [shift(s) for s in spots], [shift(s) for s in stands]
         guide = guide and shift(guide)
+        user = USER_GYM_TRAINER.get(city)
+        if user:
+            assert rows[user['spot'][1]][user['spot'][0]] == '.', (city, 'user Gym Trainer spot not walkable')
+            spots[0], stands[0] = user['spot'], user['stand']
+        # The walks from the door to the Gym Trainer and on to the leader (through the user's links), with any missing.
+        links = USER_LINKS.get(city, [])
+        for a, b in links:
+            assert rows[a[1]][a[0]] == '.' and rows[b[1]][b[0]] == '.', (city, 'user link not walkable', a, b)
+        if spots[0] not in bfs(rows, door, links):
+            problems.append((city, 'door', door, 'Gym Trainer spot', spots[0]))
+        if spots[1] not in bfs(rows, spots[0], links):
+            problems.append((city, 'Gym Trainer spot', spots[0], 'leader spot', spots[1]))
         if guide and not (0 <= guide[1] < len(rows) and 0 <= guide[0] < len(rows[0])):
             guide = None
         im = Image.open(prefix + '.png').crop((x0 * TILE, y0 * TILE, (x1 + 1) * TILE, (y1 + 1) * TILE))
@@ -179,8 +256,40 @@ def main():
         pv.save(prefix + '-preview.png')
         who = str(trainer['scriptId']).replace('std_trainer(TRAINER_', '').rstrip(')') if 'trainer' in str(trainer['scriptId']) else 'its girl'
         doc = f"{title}, the leader's room: the Gym Trainer where {who.replace('_', ' ').title() if who != 'its girl' else who} stands ({stands[0][0]},{stands[0][1]}), the leader in their place ({stands[1][0]},{stands[1][1]})."
-        out.append(gym_ts(const, title, doc, image, len(rows[0]), len(rows), door, spots, stands, guide, rows))
-        print(city, 'door', door, 'spots', spots, 'stands', stands, 'guide', guide, 'trainer', who)
+        if user:
+            doc = f"{title}, the leader's room: the Gym Trainer at {stands[0][0]},{stands[0][1]}, the player stopping beside them at {spots[0][0]},{spots[0][1]} (the user's), the leader in their place ({stands[1][0]},{stands[1][1]})."
+        if links:
+            doc = doc[:-1] + ', the walk from floor to floor through ' + ' and '.join(f'{a[0]},{a[1]} to {b[0]},{b[1]}' for a, b in links) + ' (the user\'s links: Spinarak carts).'
+        out.append(gym_ts(const, title, doc, image, len(rows[0]), len(rows), door, spots, stands, guide, rows, links))
+        entrances[city] = entrance_near(rows, spots[1])
+        print(city, 'door', door, 'spots', spots, 'stands', stands, 'guide', guide, 'trainer', who, 'leader room entrance', entrances[city])
+
+    # The League's rooms and the Pokémon Center, each cropped to the area walked to from its entrance.
+    rooms = {}
+    for key, (map_const, events_file, sprite, boss, const, title) in list(LEAGUE.items()) + [('center', CENTER[:2] + (CENTER[3], None, 'POKEMON_CENTER', 'Pokémon Center'))]:
+        prefix, rows = render(work, key, map_const, apicula, cache)
+        events = json.load(open(hd.fetch(cache, EVENTS + events_file + '.json'), encoding='utf-8'))
+        rows, stand, spot, ent = boss_room(rows, events, sprite, CENTER[2] if key == 'center' else None)
+        x0, y0, x1, y1 = crop_box(rows, ent, [stand, spot])
+        shift = lambda t: (t[0] - x0, t[1] - y0)
+        rows = [r[x0:x1 + 1] for r in rows[y0:y1 + 1]]
+        stand, spot, ent = shift(stand), shift(spot), shift(ent)
+        image = 'hgss_pokemonleague_' + key + 's_room.png' if key != 'center' else 'hgss_ecruteak_pokemoncenter_1f.png'
+        Image.open(prefix + '.png').crop((x0 * TILE, y0 * TILE, (x1 + 1) * TILE, (y1 + 1) * TILE)).save(os.path.join(PUBLIC, image))
+        if key == 'center':
+            doc = f"A Pokémon Center's ground floor (Ecruteak City's, HGSS's), for the Pokémon Center in the middle of the Johto Gym Challenge: the player comes in at the door ({ent[0]},{ent[1]}) and walks up to the counter ({spot[0]},{spot[1]}), the nurse behind it ({stand[0]},{stand[1]})."
+            const = 'JOHTO_POKEMON_CENTER'
+        else:
+            doc = f"{title} at the Pokémon League (HGSS's), for the Johto Champion run: {title.split(chr(39))[0]} in their place ({stand[0]},{stand[1]}), the player coming in 5 tiles from them ({ent[0]},{ent[1]})."
+            const = 'JOHTO_' + const
+            rooms[boss] = const
+        out.append(gym_ts(const, title, doc, image, len(rows[0]), len(rows), ent, [spot], [stand], None, rows))
+        print(key, 'entrance', ent, 'spot', spot, 'stand', stand)
+
+    # Each Johto boss's map for the Gym Challenge and Champion runs.
+    lines = [f'  {LEADERS[c]}: leaderRoom({GYMS[c][3]}, {{ x: {e[0]}, y: {e[1]} }}),' for c, e in entrances.items()]
+    lines += [f"  '{boss}': {const}," if '-' in boss else f'  {boss}: {const},' for boss, const in rooms.items()]
+    out.append('\n/** Each Johto boss\'s map for the Gym Challenge and Champion runs, by boss id: their gym (leaderRoom, the player coming in 5 tiles from them, south where it can) or Pokémon League room. */\nexport const JOHTO_BOSS_ROOMS: Record<string, Route> = {\n' + '\n'.join(lines) + '\n};\n')
     open(OUT, 'w', encoding='utf-8', newline='\n').write(HEAD + ''.join(out))
     print('wrote', OUT, 'previews in', work)
     for p in problems:

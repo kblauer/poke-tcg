@@ -25,13 +25,15 @@ class Scene:
         left), their texture coordinates, vertex colours (0-1), an RGBA texture (0-1) and how it wraps."""
         self.prims.append((np.asarray(pos, float), np.asarray(uv, float), np.asarray(col, float), tex, wrap, alpha, blend))
 
-    def glb(self, path, origin, texmtx=None):
+    def glb(self, path, origin, texmtx=None, only=None):
         """A GLB (apicula's), its model origin at `origin` (x, y, z in model units); `texmtx`: its materials' texture
-        matrices (hgss_data.texture_matrices)."""
+        matrices (hgss_data.texture_matrices); `only`: just these materials (a bridge overhead)."""
         for p in glb_prims(path, texmtx):
-            self.mesh(p['pos'] + np.array(origin), p['uv'], p['col'], p['tex'], p['wrap'], p['alpha'], p['blend'])
+            if only is None or p['material'] in only:
+                self.mesh(p['pos'] + np.array(origin), p['uv'], p['col'], p['tex'], p['wrap'], p['alpha'], p['blend'])
 
-    def render(self, out):
+    def render(self, out, transparent=False):
+        """Draws the scene to `out`; `transparent`: see-through wherever nothing was drawn (an overhead layer)."""
         # Opaque first, then see-through surfaces (water), so they blend over what's beneath them.
         for pos, uv, col, tex, wrap, alpha, blend in sorted(self.prims, key=lambda p: p[6]):
             sx = pos[:, 0] * S
@@ -39,7 +41,10 @@ class Scene:
             d = pos[:, 1] + pos[:, 2] * self.tilt * 0.5
             for k in range(0, len(pos) - 2, 3):
                 self._triangle(sx[k:k + 3], sy[k:k + 3], d[k:k + 3], uv[k:k + 3], col[k:k + 3], tex, wrap, alpha)
-        Image.fromarray((np.clip(self.img, 0, 1) * 255).astype(np.uint8)).save(out)
+        rgb = (np.clip(self.img, 0, 1) * 255).astype(np.uint8)
+        if transparent:
+            rgb = np.dstack([rgb, np.where(self.depth > -1e17, 255, 0).astype(np.uint8)])
+        Image.fromarray(rgb).save(out)
 
     def _triangle(self, xs3, ys3, ds, uv, col, tex, wrap, alpha):
         (x0, x1, x2), (y0, y1, y2) = xs3, ys3

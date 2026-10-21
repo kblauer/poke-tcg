@@ -3,8 +3,10 @@
 // cropped to the room. The door the player comes in at, the Gym Trainer where the gym's trainer nearest halfway in
 // stands (the player beside them, on the side they face), the leader in their place (the player below them), and the Gym
 // Guide where there is one, all from the map's events. Walking connections the map data doesn't show (a gym's puzzle)
-// come from the user, as `links` or walkable tiles. Written by tools/routes/hgss/johto_gyms.py.
-import type { Route } from './routes.js';
+// come from the user, as `links` or walkable tiles. Then the Johto Gym Challenge and Champion runs' other rooms, as Kanto's:
+// the Pokémon League's, each boss in their place and the player coming in 5 tiles from them, and Ecruteak's Pokémon
+// Center; and each boss's map for those runs (JOHTO_BOSS_ROOMS). Written by tools/routes/hgss/johto_gyms.py.
+import { leaderRoom, type Route } from './routes.js';
 
 /** Violet Gym, the leader's room: the Gym Trainer where Bird Keeper Gs Abe stands (5,14), the leader in their place (8,3). */
 export const VIOLET_GYM: Route = {
@@ -57,7 +59,7 @@ export const VIOLET_GYM: Route = {
   ],
 };
 
-/** Azalea Gym, the leader's room: the Gym Trainer where Bug Catcher Al stands (15,20), the leader in their place (9,3). */
+/** Azalea Gym, the leader's room: the Gym Trainer at 7,20, the player stopping beside them at 9,20 (the user's), the leader in their place (9,3), the walk from floor to floor through 9,33 to 9,23 and 9,18 to 9,8 (the user's links: Spinarak carts). */
 export const AZALEA_GYM: Route = {
   flow: 'up',
   sprites: 'hgss',
@@ -66,12 +68,13 @@ export const AZALEA_GYM: Route = {
   width: 304,
   height: 592,
   entrance: { x: 9, y: 35 },
+  links: [[{ x: 9, y: 33 }, { x: 9, y: 23 }], [{ x: 9, y: 18 }, { x: 9, y: 8 }]],
   spots: [
-    { x: 15, y: 21 },
+    { x: 9, y: 20 },
     { x: 9, y: 4 },
   ],
   stands: [
-    { x: 15, y: 20 },
+    { x: 7, y: 20 },
     { x: 9, y: 3 },
   ],
   walkable: [
@@ -478,4 +481,260 @@ export const BLACKTHORN_GYM: Route = {
     '######............#######',
     '#########################',
   ],
+};
+
+/** Will's Room at the Pokémon League (HGSS's), for the Johto Champion run: Will in their place (6,10), the player coming in 5 tiles from them (6,15). */
+export const JOHTO_WILLS_ROOM: Route = {
+  flow: 'up',
+  sprites: 'hgss',
+  name: "Will's Room",
+  image: '/routes/hgss_pokemonleague_wills_room.png',
+  width: 208,
+  height: 320,
+  entrance: { x: 6, y: 15 },
+  spots: [
+    { x: 6, y: 11 },
+  ],
+  stands: [
+    { x: 6, y: 10 },
+  ],
+  walkable: [
+    '#############',
+    '#############',
+    '#############',
+    '#...........#',
+    '#...........#',
+    '#...........#',
+    '#####...#####',
+    '##.........##',
+    '##.........##',
+    '##.........##',
+    '##.........##',
+    '##.........##',
+    '##.........##',
+    '##.........##',
+    '#####...#####',
+    '#####...#####',
+    '#####...#####',
+    '#####...#####',
+    '#####...#####',
+    '#############',
+  ],
+};
+
+/** Koga's Room at the Pokémon League (HGSS's), for the Johto Champion run: Koga in their place (6,11), the player coming in 5 tiles from them (6,16). */
+export const JOHTO_KOGAS_ROOM: Route = {
+  flow: 'up',
+  sprites: 'hgss',
+  name: "Koga's Room",
+  image: '/routes/hgss_pokemonleague_kogas_room.png',
+  width: 208,
+  height: 320,
+  entrance: { x: 6, y: 16 },
+  spots: [
+    { x: 6, y: 12 },
+  ],
+  stands: [
+    { x: 6, y: 11 },
+  ],
+  walkable: [
+    '#############',
+    '#############',
+    '#############',
+    '####.....####',
+    '####.....####',
+    '#...........#',
+    '#...........#',
+    '#..##.......#',
+    '#..##.......#',
+    '##.........##',
+    '##.........##',
+    '##.........##',
+    '##.........##',
+    '##.........##',
+    '##.........##',
+    '##.........##',
+    '##.........##',
+    '##.........##',
+    '##.........##',
+    '#############',
+  ],
+};
+
+/** Bruno's Room at the Pokémon League (HGSS's), for the Johto Champion run: Bruno in their place (5,10), the player coming in 5 tiles from them (5,15). */
+export const JOHTO_BRUNOS_ROOM: Route = {
+  flow: 'up',
+  sprites: 'hgss',
+  name: "Bruno's Room",
+  image: '/routes/hgss_pokemonleague_brunos_room.png',
+  width: 176,
+  height: 320,
+  entrance: { x: 5, y: 15 },
+  spots: [
+    { x: 5, y: 11 },
+  ],
+  stands: [
+    { x: 5, y: 10 },
+  ],
+  walkable: [
+    '###########',
+    '###########',
+    '###########',
+    '#.........#',
+    '#.........#',
+    '####...####',
+    '####...####',
+    '#.........#',
+    '#.........#',
+    '#.........#',
+    '##.......##',
+    '##.......##',
+    '####...####',
+    '####...####',
+    '####...####',
+    '####...####',
+    '####...####',
+    '####...####',
+    '####...####',
+    '###########',
+  ],
+};
+
+/** Karen's Room at the Pokémon League (HGSS's), for the Johto Champion run: Karen in their place (6,10), the player coming in 5 tiles from them (6,15). */
+export const JOHTO_KARENS_ROOM: Route = {
+  flow: 'up',
+  sprites: 'hgss',
+  name: "Karen's Room",
+  image: '/routes/hgss_pokemonleague_karens_room.png',
+  width: 208,
+  height: 320,
+  entrance: { x: 6, y: 15 },
+  spots: [
+    { x: 6, y: 11 },
+  ],
+  stands: [
+    { x: 6, y: 10 },
+  ],
+  walkable: [
+    '#############',
+    '#############',
+    '#############',
+    '#...........#',
+    '#...........#',
+    '#...........#',
+    '#####...#####',
+    '##.........##',
+    '##.........##',
+    '###.......###',
+    '###.......###',
+    '###.......###',
+    '###.......###',
+    '#####...#####',
+    '#####...#####',
+    '#####...#####',
+    '#####...#####',
+    '#####...#####',
+    '#####...#####',
+    '#############',
+  ],
+};
+
+/** Lance's Room at the Pokémon League (HGSS's), for the Johto Champion run: Lance in their place (6,6), the player coming in 5 tiles from them (6,11). */
+export const JOHTO_LANCES_ROOM: Route = {
+  flow: 'up',
+  sprites: 'hgss',
+  name: "Lance's Room",
+  image: '/routes/hgss_pokemonleague_lances_room.png',
+  width: 208,
+  height: 416,
+  entrance: { x: 6, y: 11 },
+  spots: [
+    { x: 6, y: 7 },
+  ],
+  stands: [
+    { x: 6, y: 6 },
+  ],
+  walkable: [
+    '#############',
+    '#############',
+    '####.###.####',
+    '###.#...#.###',
+    '#.#.......#.#',
+    '#.#.......#.#',
+    '#.#.......#.#',
+    '#.#.......#.#',
+    '#.###...###.#',
+    '#.###...###.#',
+    '#...#...#...#',
+    '#..#.....#..#',
+    '#...........#',
+    '#...........#',
+    '#...........#',
+    '#...........#',
+    '#..#.....#..#',
+    '#...........#',
+    '#...........#',
+    '#...........#',
+    '#...........#',
+    '#..#.....#..#',
+    '#...........#',
+    '#...........#',
+    '#...........#',
+    '#############',
+  ],
+};
+
+/** A Pokémon Center's ground floor (Ecruteak City's, HGSS's), for the Pokémon Center in the middle of the Johto Gym Challenge: the player comes in at the door (8,17) and walks up to the counter (8,11), the nurse behind it (8,9). */
+export const JOHTO_POKEMON_CENTER: Route = {
+  flow: 'up',
+  sprites: 'hgss',
+  name: 'Pokémon Center',
+  image: '/routes/hgss_ecruteak_pokemoncenter_1f.png',
+  width: 272,
+  height: 304,
+  entrance: { x: 8, y: 17 },
+  spots: [
+    { x: 8, y: 11 },
+  ],
+  stands: [
+    { x: 8, y: 9 },
+  ],
+  walkable: [
+    '#################',
+    '##..#....#....###',
+    '##..#....#....###',
+    '###############.#',
+    '#...............#',
+    '#...............#',
+    '#..##########..##',
+    '#..#.#....###..##',
+    '#..#.###..###..##',
+    '#..#.###..##....#',
+    '#..#.#######....#',
+    '#..#............#',
+    '#..#..........###',
+    '#.............###',
+    '#.............###',
+    '#.............###',
+    '#.............###',
+    '##.............##',
+    '#################',
+  ],
+};
+
+/** Each Johto boss's map for the Gym Challenge and Champion runs, by boss id: their gym (leaderRoom, the player coming in 5 tiles from them, south where it can) or Pokémon League room. */
+export const JOHTO_BOSS_ROOMS: Record<string, Route> = {
+  falkner: leaderRoom(VIOLET_GYM, { x: 8, y: 8 }),
+  bugsy: leaderRoom(AZALEA_GYM, { x: 9, y: 8 }),
+  whitney: leaderRoom(GOLDENROD_GYM, { x: 13, y: 9 }),
+  morty: leaderRoom(ECRUTEAK_GYM, { x: 3, y: 8 }),
+  chuck: leaderRoom(CIANWOOD_GYM, { x: 12, y: 15 }),
+  jasmine: leaderRoom(OLIVINE_GYM, { x: 4, y: 8 }),
+  pryce: leaderRoom(MAHOGANY_GYM, { x: 7, y: 9 }),
+  clair: leaderRoom(BLACKTHORN_GYM, { x: 11, y: 8 }),
+  will: JOHTO_WILLS_ROOM,
+  'johto-koga': JOHTO_KOGAS_ROOM,
+  'johto-bruno': JOHTO_BRUNOS_ROOM,
+  karen: JOHTO_KARENS_ROOM,
+  'johto-lance': JOHTO_LANCES_ROOM,
 };

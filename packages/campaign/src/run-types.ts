@@ -9,7 +9,7 @@ import { BOSSES, boss, ELITE_FOUR, JOHTO_ELITE_FOUR, JOHTO_GYMS, KANTO_GYMS, typ
 import { GEN1_DECK_RULES, GEN2_DECK_RULES, type DeckRules } from './decks.js';
 import { basicEnergyType, GEN2_DONE_SETS, GEN2_SETS, POOL_SETS } from './pool.js';
 import { CELADON_GYM, CERULEAN_GYM, CINNABAR_GYM, FUCHSIA_GYM, KANTO_BOSS_ROOMS, POKEMON_CENTER, POKEMON_TOWER_1F, POKEMON_TOWER_2F, POKEMON_TOWER_3F, POKEMON_TOWER_4F, POKEMON_TOWER_5F, POWER_PLANT, ROUTE_17, ROUTE_20, ROUTE_8, ROUTE_4, ROUTE_5_VERMILION, ROUTE_6, SAFFRON_GYM, VERMILION_GYM, VIRIDIAN_GYM } from './kanto-routes.js';
-import { AZALEA_GYM, BLACKTHORN_GYM, CIANWOOD_GYM, ECRUTEAK_GYM, GOLDENROD_GYM, MAHOGANY_GYM, OLIVINE_GYM, VIOLET_GYM } from './johto-gyms.js';
+import { AZALEA_GYM, BLACKTHORN_GYM, CIANWOOD_GYM, ECRUTEAK_GYM, GOLDENROD_GYM, JOHTO_BOSS_ROOMS, JOHTO_POKEMON_CENTER, MAHOGANY_GYM, OLIVINE_GYM, VIOLET_GYM } from './johto-gyms.js';
 import { ROUTE_30, ROUTE_32, ROUTE_34, ROUTE_35, ROUTE_40, ROUTE_42, ROUTE_44, ROUTE_45 } from './johto-routes.js';
 import { PEWTER_GYM, ROUTE_2, type Route } from './routes.js';
 
@@ -66,10 +66,12 @@ const gymRun = (id: BossId, city: string, generation: number, place = 'City', ma
 };
 
 /**
- * The maps of a run of bosses back to back (the Kanto Gym Challenge and Champion run; agreed with the user), one per step in
- * order: each boss's room (KANTO_BOSS_ROOMS), and the Pokémon Center's for a segment's `center`.
+ * The maps of a run of bosses back to back (the Gym Challenge and Champion runs; agreed with the user), one per step in
+ * order: each boss's room (`rooms`: KANTO_BOSS_ROOMS, or JOHTO_BOSS_ROOMS), and the Pokémon Center's (`center`) for a
+ * segment's `center`.
  */
-const bossMaps = (segments: RunSegment[]): Route[] => segments.flatMap((s) => [...(s.center ? [POKEMON_CENTER] : []), ...s.bosses.map((id) => KANTO_BOSS_ROOMS[id]!)]);
+const bossMaps = (segments: RunSegment[], rooms: Record<string, Route> = KANTO_BOSS_ROOMS, center: Route = POKEMON_CENTER): Route[] =>
+  segments.flatMap((s) => [...(s.center ? [center] : []), ...s.bosses.map((id) => rooms[id]!)]);
 
 /** A Gym Challenge (agreed with the user): the eight gym leaders back to back, no Gym Trainers, a Pokémon Center after the fourth. */
 const gymChallenge = (gyms: BossId[]): RunSegment[] => [
@@ -125,6 +127,7 @@ export const RUN_TYPES = {
     name: 'Johto Gym Challenge',
     description: 'All eight Johto gym leaders back to back, Falkner to Clair, with a Pokémon Center after the fourth.',
     segments: gymChallenge(JOHTO_GYMS),
+    routes: bossMaps(gymChallenge(JOHTO_GYMS), JOHTO_BOSS_ROOMS, JOHTO_POKEMON_CENTER),
     generation: 2,
     requires: 'badges',
   },
@@ -133,6 +136,7 @@ export const RUN_TYPES = {
     name: 'Johto Champion',
     description: 'All eight Johto gym leaders, the Elite Four and Champion Lance, back to back.',
     segments: [{ steps: 0, bosses: [...JOHTO_GYMS, ...JOHTO_ELITE_FOUR, 'johto-lance'], gymTrainers: false }],
+    routes: bossMaps([{ steps: 0, bosses: [...JOHTO_GYMS, ...JOHTO_ELITE_FOUR, 'johto-lance'], gymTrainers: false }], JOHTO_BOSS_ROOMS, JOHTO_POKEMON_CENTER),
     generation: 2,
     requires: 'gymChallenge',
   },

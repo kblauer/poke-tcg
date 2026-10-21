@@ -211,8 +211,8 @@ describe('createRun', () => {
     }
   });
 
-  it('the Kanto Gym Challenge and Champion runs have a map per step: each boss in their gym or room, and the Pokémon Center', () => {
-    for (const id of ['kantoGyms', 'kantoChampion'] as const) {
+  it('the Gym Challenge and Champion runs (Kanto and Johto) have a map per step: each boss in their gym or room, and the Pokémon Center', () => {
+    for (const id of ['kantoGyms', 'kantoChampion', 'johtoGyms', 'johtoChampion'] as const) {
       const type = runType(id);
       const steps = createRun(id, deck, 1).steps;
       expect(type.routes, id).toHaveLength(steps.length);
@@ -225,6 +225,18 @@ describe('createRun', () => {
       });
     }
     expect(runType('kantoGyms').routes!.map((m) => m.name)).toEqual(['Pewter Gym', 'Cerulean Gym', 'Vermilion Gym', 'Celadon Gym', 'Pokémon Center', 'Saffron Gym', 'Fuchsia Gym', 'Cinnabar Gym', 'Viridian Gym']);
+    expect(runType('johtoGyms').routes!.map((m) => m.name)).toEqual(['Violet Gym', 'Azalea Gym', 'Goldenrod Gym', 'Ecruteak Gym', 'Pokémon Center', 'Cianwood Gym', 'Olivine Gym', 'Mahogany Gym', 'Blackthorn Gym']);
+    expect(runType('johtoChampion').routes!.slice(-5).map((m) => m.name)).toEqual(["Will's Room", "Koga's Room", "Bruno's Room", "Karen's Room", "Lance's Room"]);
+    // Johto's are HGSS's, drawn with its sprites.
+    expect(runType('johtoChampion').routes!.every((m) => m.sprites === 'hgss')).toBe(true);
+  });
+
+  it("a map's tall grass lines up with its tiles: the same rows as `walkable`", () => {
+    const maps = RUN_TYPE_IDS.flatMap((id) => [...(runType(id).routes ?? []), ...(runType(id).gym ? [runType(id).gym!] : [])]);
+    const grassy = maps.filter((m) => m.grass);
+    // FireRed's Routes 2, 4, 5, 6 and 8, and HGSS's 30, 32, 34, 35 and 45.
+    expect(new Set(grassy.map((m) => m.name))).toEqual(new Set(['Route 2', 'Route 4', 'Route 5', 'Route 6', 'Route 8', 'Route 30', 'Route 32', 'Route 34', 'Route 35', 'Route 45']));
+    for (const m of grassy) expect(m.grass!.map((r) => r.length), m.name).toEqual(m.walkable.map((r) => r.length));
   });
 
   it("with lineOfSight, the walk reaches the spot's line of people only as it arrives: a row by its column first, a column by its row first", () => {
@@ -246,13 +258,21 @@ describe('createRun', () => {
     expect(routePath(open, from, to)).toHaveLength(6);
   });
 
+  it("with lineOfSight, the walk gets onto the spot's column soonest and comes straight down it (Route 32's encounter 10)", () => {
+    // Its people at 14,149 and 18,149, either side of the spot (16,149): from encounter 9 the player turns to column 16 as
+    // soon as the rock allows (row 147: row 146's 16,146 isn't walkable, the user's) and walks straight down it, never beside them.
+    const route = runType('azalea').routes![0]!;
+    const walk = routePath(route, route.spots[8]!, route.spots[9]!, new Set(['14,149', '18,149']), 'row')!;
+    const firstOnColumn = walk.findIndex((s) => s.tile.x === 16);
+    expect(walk.slice(firstOnColumn).every((s) => s.tile.x === 16)).toBe(true);
+    expect(walk[firstOnColumn]!.tile.y).toBe(147);
+  });
+
   it("every Johto gym interior: the Gym Trainer's and the leader's spots can be walked to from the door, one after the other", () => {
-    // Azalea's levels are crossed on Spinarak carts along its webs, which the map data doesn't show: the player fades
-    // between them until the user gives the links.
-    const awaitingLinks = ['Azalea Gym'];
+    // Azalea's floors are joined by its Spinarak carts (the user's links, fading).
     const gyms = RUN_TYPE_IDS.flatMap((id) => runType(id).gym ?? []).filter((g) => g.sprites === 'hgss');
     expect(gyms.map((g) => g.name)).toEqual(expect.arrayContaining(['Violet Gym', 'Azalea Gym', 'Goldenrod Gym', 'Ecruteak Gym', 'Cianwood Gym', 'Olivine Gym', 'Mahogany Gym', 'Blackthorn Gym']));
-    for (const gym of gyms.filter((g) => !awaitingLinks.includes(g.name))) {
+    for (const gym of gyms) {
       const [trainer, leader] = gym.spots;
       expect(routePath(gym, gym.entrance!, trainer!), gym.name).not.toBeNull();
       expect(routePath(gym, trainer!, leader!), gym.name).not.toBeNull();
