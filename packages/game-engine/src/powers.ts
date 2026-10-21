@@ -257,6 +257,24 @@ export interface PowerEffect {
   primalAura?: boolean;
   /** Primal Stare: as its owner's Active Pokémon, the opponent can't play Evolution cards from the hand onto their Active Pokémon (primalBlock). */
   primalStare?: boolean;
+  /** Safeguard ('ex'), Wonder Guard ('evolvedOrEx'): attacks by the opponent's Pokémon-ex (and Evolved Pokémon) don't affect it (attacks.ts). */
+  guardFrom?: 'ex' | 'evolvedOrEx';
+  /** Submerge: while it's on the Bench, the opponent's attacks do no damage to it (attacks.ts). */
+  benchImmune?: boolean;
+  /** Energy Guard: with a basic Energy card attached, the opponent's attack damage to it is this much less, after Weakness and Resistance. */
+  energyGuard?: number;
+  /** Glowing Screen: while its owner has `partner` in play, attack damage to it from Pokémon of `types` is `amount` less (at most that, however many partners). */
+  partnerGuard?: { partner: string; types: EnergyType[]; amount: number };
+  /** Power Pinchers: while it's its player's Active Pokémon, their attacks do this much more to the Defending Pokémon, before Weakness and Resistance. */
+  powerPinchers?: number;
+  /** Primal Veil: while it's its player's Active Pokémon, neither player can play Supporter cards (supportersVeiled). */
+  primalVeil?: boolean;
+  /** Primal Lock: while it's in play, the opponent can't play Pokémon Tools and theirs are discarded (primalLocked, dropLockedTools). */
+  primalLock?: boolean;
+  /** Rain Dish: this much damage off it between turns, wherever it is (betweenTurns). */
+  rainDish?: number;
+  /** Conductivity (Ampharos ex): a damage counter on each Pokémon the opponent attaches an Energy card to from their hand; only 1, however many (conductivityEx). */
+  conductivityEx?: boolean;
 }
 
 export interface PowerContext {
@@ -294,11 +312,17 @@ type Sides = Pick<PlayerState, 'active' | 'bench' | 'powersOffUntil' | 'bodiesOf
 const goopGas = (sides: Sides) => sides.some((s) => s.powersOffUntil !== undefined);
 const allInPlay = (sides: Sides) => sides.flatMap((s) => [s.active, ...s.bench]).filter((p): p is InPlayPokemon => !!p);
 
-/** A Muk's Toxic Gas is working, so every other power is ignored. Copies don't count: Toxic Gas stops Ditto's Transform. */
+/**
+ * A Muk's Toxic Gas is working, so every other power is ignored. Copies don't count: Toxic Gas stops Ditto's Transform. Muk
+ * ex's is a Poké-Body: it works only as its owner's Active Pokémon, whatever its Special Conditions, unless Ancient Wind
+ * turns Poké-Bodies off.
+ */
 export const toxicGas = (sides: Sides) =>
   allInPlay(sides).some((p) => {
     const effect = powerEffect(p.card.defId);
-    return effect?.toxicGas && !hasSpecialCondition(p);
+    if (!effect?.toxicGas) return false;
+    if (effect.body) return sides.some((s) => s.active === p) && !sides.some((s) => s.bodiesOffTurn !== undefined);
+    return !hasSpecialCondition(p);
   });
 
 /**
@@ -368,6 +392,29 @@ export function conductivity(state: GameState, owner: PlayerState, sides: Sides,
   if (ampharos.length !== 1 || dark.length > 1 || !powerActive(ampharos[0]!, state.cards, sides)) return;
   target.damage += 10;
   addLog(state, `Conductivity did 10 damage to ${inPlayDef(state.cards, target).name}.`, owner.id);
+}
+
+/**
+ * Conductivity (Ampharos ex): after `target` got an Energy card from its player's hand, a damage counter on it while `owner`
+ * (that player's opponent) has a working Ampharos ex in play; only 1, however many they have.
+ */
+export function conductivityEx(state: GameState, owner: PlayerState, sides: Sides, target: InPlayPokemon) {
+  const ampharos = allInPlay([owner]).find((p) => powerEffect(effectId(p))?.conductivityEx && powerActive(p, state.cards, sides));
+  if (!ampharos) return;
+  target.damage += 10;
+  addLog(state, `Conductivity put a damage counter on ${inPlayDef(state.cards, target).name}.`, owner.id);
+}
+
+/** Primal Veil: the power stopping Supporter cards (either Active Pokémon's, working), or null. */
+export function supportersVeiled(sides: Sides, cards: CardLibrary): string | null {
+  const p = sides.map((s) => s.active).find((a) => a && powerEffect(effectId(a))?.primalVeil && powerActive(a, cards, sides));
+  return p ? `${powerOf(p, cards)!.name}: no Supporter cards can be played` : null;
+}
+
+/** Primal Lock: `player`'s opponent has a working one in play, so `player` can't play Pokémon Tools (and theirs are discarded). `sides`: both players'. */
+export function primalLocked(player: Sides[number], sides: Sides, cards: CardLibrary): boolean {
+  const opponent = sides.find((s) => s !== player);
+  return !!opponent && allInPlay([opponent]).some((p) => powerEffect(effectId(p))?.primalLock && powerActive(p, cards, sides));
 }
 
 /** Why no Trainer cards can be played (Hay Fever, by either player), or null. */
@@ -539,6 +586,7 @@ export function energyFromHand(state: GameState, owner: PlayerState, target: Tar
   }
   // Conductivity: 10 damage to it, from the opponent's working Dark Ampharos.
   if (pokemon) conductivity(state, sides.find((s) => s !== owner)!, sides, pokemon);
+  if (pokemon) conductivityEx(state, sides.find((s) => s !== owner)!, sides, pokemon);
 }
 
 /**

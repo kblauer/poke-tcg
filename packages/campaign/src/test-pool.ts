@@ -41,7 +41,9 @@ function evolvesFrom(r: Row, stage: Stage): string | null {
 function toDef(r: Row): CardDef | null {
   if (r.category === 'Pokemon') {
     // A Pokémon-ex TCGdex has no stage for, as the API has it before a re-seed (seed.ts works it out exactly).
-    const stage = r.stage ? STAGES[r.stage] : r.evolveFrom ? 'stage1' : 'basic';
+    // An evolving EX Pokémon-ex TCGdex calls Basic (EX Dragon's Ampharos ex) counts as one with no stage, as the seed has it.
+    const exEvolving = r.stage === 'Basic' && !!r.evolveFrom && /^ex[0-9]+-/.test(r.id);
+    const stage = r.stage && !exEvolving ? STAGES[r.stage] : r.evolveFrom ? 'stage1' : 'basic';
     if (!stage || !r.types?.[0] || r.hp == null) return null;
     return {
       id: r.id,
@@ -65,7 +67,7 @@ function toDef(r: Row): CardDef | null {
   }
   if (r.category === 'Energy') {
     if (r.name === 'Double Colorless Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', amount: 2, basic: false };
-    if (r.name === 'Rainbow Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', anyType: true, basic: false };
+    if (r.name === 'Rainbow Energy' || r.name === 'Multi Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', anyType: true, basic: false };
     if (r.name === 'Miracle Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', anyType: true, amount: 2, basic: false };
     if (r.name === 'Boost Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', amount: 3, basic: false };
     if (r.name === 'Bounce Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', amount: 2, basic: false };
@@ -75,8 +77,8 @@ function toDef(r: Row): CardDef | null {
     // Special Energy the engine doesn't implement yet, as the API loads it: 1 Energy of its type (Darkness, Metal), otherwise Colorless.
     return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: t === 'darkness' || t === 'metal' ? t : 'colorless', basic: false };
   }
-  if (r.name === 'Clefairy Doll' || r.name === 'Mysterious Fossil') {
-    return { id: r.id, kind: 'pokemon', name: r.name, imageUrl: null, type: 'colorless', hp: 10, stage: 'basic', evolvesFrom: null, attacks: [], retreatCost: 0, trainerText: r.effect ?? '' };
+  if (['Clefairy Doll', 'Mysterious Fossil', 'Claw Fossil', 'Root Fossil'].includes(r.name)) {
+    return { id: r.id, kind: 'pokemon', name: r.name, imageUrl: null, type: 'colorless', hp: r.hp ?? 10, stage: 'basic', evolvesFrom: null, attacks: [], retreatCost: 0, trainerText: r.effect ?? '' };
   }
   return { id: r.id, kind: 'trainer', name: r.name, imageUrl: null, text: r.effect ?? '' };
 }

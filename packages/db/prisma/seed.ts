@@ -142,7 +142,35 @@ const TCGDEX_FIXES: Record<string, Partial<TcgdexCard>> = {
       { name: 'Poison Sting', cost: ['Water', 'Water'], damage: '20', effect: 'Flip a coin. If heads, the Defending Pokémon is now Paralyzed.' },
     ],
   },
+  // EX Sandstorm Espeon, Lombre and Vigoroth, and EX Dragon Graveler: TCGdex's typos, and Big Explosion's damage (none printed).
+  'ex2-16': {
+    attacks: [
+      { name: 'Confuse Ray', cost: ['Psychic'], damage: '20', effect: 'Flip a coin. If heads, the Defending Pokémon is now Confused.' },
+      { name: 'Energy Crush', cost: ['Colorless', 'Colorless', 'Colorless'], damage: '20+', effect: "Does 20 damage plus 10 more damage for each Energy attached to all of your opponent's Pokémon." },
+    ],
+  },
+  'ex2-46': {
+    attacks: [
+      { name: 'Surprise', cost: ['Colorless'], damage: '10', effect: "Choose 1 card from your opponent's hand without looking. Look at the card you chose, then have your opponent shuffle that card into his or her deck." },
+      { name: 'Fury Swipes', cost: ['Colorless', 'Colorless'], damage: '20×', effect: 'Flip 3 coins. This attack does 20 damage times the number of heads.' },
+    ],
+  },
+  'ex2-52': {
+    attacks: [
+      { name: 'Focus Energy', cost: ['Colorless'], damage: null, effect: "During your next turn, the base damage of Vigoroth's Slash attack is 90 instead of 40." },
+      { name: 'Slash', cost: ['Colorless', 'Colorless', 'Colorless'], damage: '40', effect: null },
+    ],
+  },
+  'ex3-29': {
+    attacks: [
+      { name: 'Grind', cost: ['Colorless'], damage: '10×', effect: 'Does 10 damage times the amount of Energy attached to Graveler.' },
+      { name: 'Big Explosion', cost: ['Fighting', 'Fighting', 'Colorless', 'Colorless'], damage: null, effect: "Does 80 damage to each Active Pokémon (both yours and your opponent's)." },
+    ],
+  },
 };
+
+/** The fixes for a card, also for its reverse-holo print ("<id>-reverse"). */
+const fixesFor = (id: string) => TCGDEX_FIXES[id] ?? TCGDEX_FIXES[id.replace(/-reverse$/, '')];
 
 /**
  * The printed name, the same in every set: Legendary Collection and the e-Card sets spell Nidoran "Nidoran ♀" (with a
@@ -153,10 +181,13 @@ const printedName = (name: string) => name.replace(/^Nidoran ([♀♂])$/, 'Nido
 
 /**
  * TCGdex has no stage for many Pokémon-ex (EX FireRed & LeafGreen on, e.g. Blastoise ex): no "Evolves from" makes it a
- * Basic Pokémon, otherwise it's a stage above the Pokémon it evolves from (Charizard ex from Charmeleon: Stage 2).
+ * Basic Pokémon, otherwise it's a stage above the Pokémon it evolves from (Charizard ex from Charmeleon: Stage 2). In the EX
+ * sets it calls some evolving Pokémon-ex Basic (EX Dragon's Ampharos ex, from Flaaffy): they get their stage the same way.
+ * (A Basic Pokémon with "Evolves from" is right in the earlier sets: one that evolves from a Baby Pokémon.)
  */
 function stageOf(card: TcgdexCard): string | null {
-  if (card.category !== 'Pokemon' || card.stage) return card.stage;
+  const exEvolving = card.stage === 'Basic' && !!card.evolveFrom && /^ex[0-9]+$/.test(card.set.id);
+  if (card.category !== 'Pokemon' || (card.stage && !exEvolving)) return card.stage;
   if (!card.evolveFrom) return 'Basic';
   const from = cards.find((c) => c.category === 'Pokemon' && c.stage && printedName(c.name) === printedName(card.evolveFrom!));
   return from?.stage === 'Stage1' ? 'Stage2' : 'Stage1';
@@ -172,7 +203,7 @@ const notHolo = (card: TcgdexCard): TcgdexCard =>
     : card;
 
 function toCardRow(tcgdex: TcgdexCard) {
-  const card = notHolo({ ...tcgdex, ...TCGDEX_FIXES[tcgdex.id] });
+  const card = notHolo({ ...tcgdex, ...fixesFor(tcgdex.id) });
   const { id, set, localId, name, category, image, rarity, hp, types, stage, evolveFrom, ...data } = card;
   return {
     setId: set.id,
@@ -184,7 +215,7 @@ function toCardRow(tcgdex: TcgdexCard) {
     hp,
     types: types ?? [],
     // TCGdex also tags basic Energy as "Basic"; stage only matters for Pokémon.
-    stage: category === 'Pokemon' ? (stage ?? stageOf(card)) : null,
+    stage: category === 'Pokemon' ? stageOf(card) : null,
     evolveFrom,
     data: data as unknown as Prisma.InputJsonObject,
   };

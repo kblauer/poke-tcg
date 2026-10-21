@@ -60,7 +60,28 @@ export interface PokemonCardDef {
    * in the hand, deck and discard pile, and not a Basic Pokémon card for setup or searches.
    */
   trainerText?: string;
+  /** Every type it is, when it's more than one (Kecleon's Energy Variation, in play: inPlayDef). `type` is the first. */
+  types?: EnergyType[];
 }
+
+/** Whether the Pokémon is of `type`: its type, or one of its types (Energy Variation). */
+export const hasType = (def: Pick<PokemonCardDef, 'type' | 'types'>, type: EnergyType) => def.type === type || !!def.types?.includes(type);
+
+/** Every type the Pokémon is. */
+export const typesOf = (def: Pick<PokemonCardDef, 'type' | 'types'>): EnergyType[] => def.types ?? [def.type];
+
+/**
+ * The prefixes and marks a card name may add to a Pokémon's name: Team Aqua's Seviper and Kabuto δ are Seviper and Kabuto
+ * (agreed). Dark, Light, owners' and Gold Star (☆) Pokémon aren't in it: the older sets' names stay their own.
+ */
+const VARIANT_NAME = /^(?:Team Aqua's|Team Magma's) | δ$/g;
+
+/**
+ * Whether a card called `name` counts as `wanted` when an effect names a Pokémon ("If the Defending Pokémon is Seviper",
+ * "Search your deck for Omanyte"): the same name, or a variant of it (agreed: Team Aqua's Seviper, Kabuto δ). A Pokémon-ex
+ * never counts as its non-ex name, or the other way round (agreed, for every rule).
+ */
+export const namesMatch = (name: string, wanted: string) => name === wanted || name.replace(VARIANT_NAME, '') === wanted.replace(VARIANT_NAME, '');
 
 export interface EnergyCardDef {
   id: string;
