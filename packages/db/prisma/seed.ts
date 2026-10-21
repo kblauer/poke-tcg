@@ -162,8 +162,17 @@ function stageOf(card: TcgdexCard): string | null {
   return from?.stage === 'Stage1' ? 'Stage2' : 'Stage1';
 }
 
+/**
+ * Basic Energy is never holo in its base form: TCGdex says EX Emerald's, Holon Phantoms' and Power Keepers' are, but the
+ * holo versions are the holo Energy (holo-energy.ts; agreed with the user). The holo Energy and reverse holos keep theirs.
+ */
+const notHolo = (card: TcgdexCard): TcgdexCard =>
+  card.category === 'Energy' && card.energyType === 'Normal' && !card.holoEnergy && !card.reverseHolo && card.variants?.holo
+    ? { ...card, variants: { ...card.variants, holo: false, normal: true } }
+    : card;
+
 function toCardRow(tcgdex: TcgdexCard) {
-  const card = { ...tcgdex, ...TCGDEX_FIXES[tcgdex.id] };
+  const card = notHolo({ ...tcgdex, ...TCGDEX_FIXES[tcgdex.id] });
   const { id, set, localId, name, category, image, rarity, hp, types, stage, evolveFrom, ...data } = card;
   return {
     setId: set.id,
