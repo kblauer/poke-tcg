@@ -19,9 +19,11 @@ export interface Boss {
   deck: DeckList;
   /**
    * Gym leaders: their gym's type, for the Gym Trainer's deck before them (with `favorites`, the Pokémon that deck is built
-   * from first, for a type with no basic Energy); and the badge for beating them (a key item).
+   * from first, for a type with no basic Energy); and the badge for beating them (a key item). `trainers` are who their Gym
+   * Trainer may be, one picked each run: in Kanto the trainers in their gym in FireRed and LeafGreen (pret's gym maps);
+   * without them (Johto) any of a general list.
    */
-  gym?: { city: string; type: EnergyType; badge: string; favorites?: string[] };
+  gym?: { city: string; type: EnergyType; badge: string; favorites?: string[]; trainers?: string[] };
   /** The key item for beating them, other than a badge (the Champion's). */
   prize?: string;
   /** The types the run picker shows for the deck when its basic Energy doesn't say (a Colorless or Metal deck). */
@@ -301,14 +303,14 @@ const LEGENDARY_RONALD_DECK: DeckList = [
 ];
 
 export const BOSSES = {
-  brock: { name: 'Brock', title: 'Pewter Gym Leader', kind: 'gymLeader', deckName: 'Rock Crusher', counterpart: 'Gene', deck: ROCK_CRUSHER_DECK, gym: { city: 'Pewter', type: 'fighting', badge: 'boulder-badge' } },
-  misty: { name: 'Misty', title: 'Cerulean Gym Leader', kind: 'gymLeader', deckName: 'Rain Dancer', counterpart: 'Amy', deck: RAIN_DANCER_DECK, gym: { city: 'Cerulean', type: 'water', badge: 'cascade-badge' } },
-  surge: { name: 'Lt. Surge', title: 'Vermilion Gym Leader', kind: 'gymLeader', deckName: 'Zapping Selfdestruct', counterpart: 'Isaac', deck: ZAPPING_SELFDESTRUCT_DECK, gym: { city: 'Vermilion', type: 'lightning', badge: 'thunder-badge' } },
-  erika: { name: 'Erika', title: 'Celadon Gym Leader', kind: 'gymLeader', deckName: 'Flower Power', counterpart: 'Nikki', deck: FLOWER_POWER_DECK, gym: { city: 'Celadon', type: 'grass', badge: 'rainbow-badge' } },
-  koga: { name: 'Koga', title: 'Fuchsia Gym Leader', kind: 'gymLeader', deckName: 'Wonders of Science', counterpart: 'Rick', deck: WONDERS_OF_SCIENCE_DECK, gym: { city: 'Fuchsia', type: 'grass', badge: 'soul-badge' } },
-  sabrina: { name: 'Sabrina', title: 'Saffron Gym Leader', kind: 'gymLeader', deckName: 'Strange Psyshock', counterpart: 'Murray', deck: STRANGE_PSYSHOCK_DECK, gym: { city: 'Saffron', type: 'psychic', badge: 'marsh-badge' } },
-  blaine: { name: 'Blaine', title: 'Cinnabar Gym Leader', kind: 'gymLeader', deckName: 'Fire Charge', counterpart: 'Ken', deck: FIRE_CHARGE_DECK, gym: { city: 'Cinnabar', type: 'fire', badge: 'volcano-badge' } },
-  giovanni: { name: 'Giovanni', title: 'Viridian Gym Leader', kind: 'gymLeader', deckName: 'First-Strike', counterpart: 'Mitch', deck: FIRST_STRIKE_DECK, gym: { city: 'Viridian', type: 'fighting', badge: 'earth-badge' } },
+  brock: { name: 'Brock', title: 'Pewter Gym Leader', kind: 'gymLeader', deckName: 'Rock Crusher', counterpart: 'Gene', deck: ROCK_CRUSHER_DECK, gym: { city: 'Pewter', type: 'fighting', badge: 'boulder-badge', trainers: ['Camper Liam'] } },
+  misty: { name: 'Misty', title: 'Cerulean Gym Leader', kind: 'gymLeader', deckName: 'Rain Dancer', counterpart: 'Amy', deck: RAIN_DANCER_DECK, gym: { city: 'Cerulean', type: 'water', badge: 'cascade-badge', trainers: ['Swimmer Luis', 'Picnicker Diana'] } },
+  surge: { name: 'Lt. Surge', title: 'Vermilion Gym Leader', kind: 'gymLeader', deckName: 'Zapping Selfdestruct', counterpart: 'Isaac', deck: ZAPPING_SELFDESTRUCT_DECK, gym: { city: 'Vermilion', type: 'lightning', badge: 'thunder-badge', trainers: ['Sailor Dwayne', 'Engineer Baily', 'Gentleman Tucker'] } },
+  erika: { name: 'Erika', title: 'Celadon Gym Leader', kind: 'gymLeader', deckName: 'Flower Power', counterpart: 'Nikki', deck: FLOWER_POWER_DECK, gym: { city: 'Celadon', type: 'grass', badge: 'rainbow-badge', trainers: ['Lass Kay', 'Beauty Bridget', 'Picnicker Tina', 'Beauty Tamia', 'Beauty Lori', 'Lass Lisa', 'Cooltrainer Mary'] } },
+  koga: { name: 'Koga', title: 'Fuchsia Gym Leader', kind: 'gymLeader', deckName: 'Wonders of Science', counterpart: 'Rick', deck: WONDERS_OF_SCIENCE_DECK, gym: { city: 'Fuchsia', type: 'grass', badge: 'soul-badge', trainers: ['Juggler Kayden', 'Juggler Shawn', 'Juggler Kirk', 'Tamer Edgar', 'Tamer Phil', 'Juggler Nate'] } },
+  sabrina: { name: 'Sabrina', title: 'Saffron Gym Leader', kind: 'gymLeader', deckName: 'Strange Psyshock', counterpart: 'Murray', deck: STRANGE_PSYSHOCK_DECK, gym: { city: 'Saffron', type: 'psychic', badge: 'marsh-badge', trainers: ['Psychic Cameron', 'Psychic Johan', 'Psychic Preston', 'Channeler Amanda', 'Channeler Stacy', 'Channeler Tasha', 'Psychic Tyron'] } },
+  blaine: { name: 'Blaine', title: 'Cinnabar Gym Leader', kind: 'gymLeader', deckName: 'Fire Charge', counterpart: 'Ken', deck: FIRE_CHARGE_DECK, gym: { city: 'Cinnabar', type: 'fire', badge: 'volcano-badge', trainers: ['Burglar Quinn', 'Super Nerd Erik', 'Super Nerd Avery', 'Burglar Ramon', 'Super Nerd Derek', 'Burglar Dusty', 'Super Nerd Zac'] } },
+  giovanni: { name: 'Giovanni', title: 'Viridian Gym Leader', kind: 'gymLeader', deckName: 'First-Strike', counterpart: 'Mitch', deck: FIRST_STRIKE_DECK, gym: { city: 'Viridian', type: 'fighting', badge: 'earth-badge', trainers: ['Black Belt Takashi', 'Cooltrainer Yuji', 'Black Belt Atsushi', 'Tamer Jason', 'Tamer Cole', 'Black Belt Kiyo', 'Cooltrainer Samuel', 'Cooltrainer Warren'] } },
   lorelei: { name: 'Lorelei', title: 'Elite Four', kind: 'eliteFour', deckName: 'Legendary Articuno', counterpart: 'Jack', deck: LEGENDARY_ARTICUNO_DECK },
   bruno: { name: 'Bruno', title: 'Elite Four', kind: 'eliteFour', deckName: 'Legendary Zapdos', counterpart: 'Steve', deck: LEGENDARY_ZAPDOS_DECK },
   agatha: { name: 'Agatha', title: 'Elite Four', kind: 'eliteFour', deckName: 'Legendary Moltres', counterpart: 'Courtney', deck: LEGENDARY_MOLTRES_DECK },

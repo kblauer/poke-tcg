@@ -35,7 +35,8 @@ const ICON_SIZE = 60;
 
 /**
  * The Equipped section of the Inventory tab, in two columns (stacked on a narrow screen), their tops level (the section's
- * title heads the left one, Equipment and its hint the right one). Left: one box with the account's trainer (a Black/White sprite) on
+ * title heads the left one, Equipment with its hint beside it the right one, whose grid's first row is level with the first
+ * row of slots). Left: one box with the account's trainer (a Black/White sprite) on
  * its left and on its right a slot for each piece of equipment (head, chest, legs, Poké Ball, 2 accessories) in a 2×3
  * grid (SLOT_ORDER), never overlapping (the trainer's side narrows first), each slot showing its icon while empty and an ×
  * to take off what's in it. Right: in a grid of their own, the pieces of equipment the account has that aren't equipped
@@ -169,12 +170,15 @@ export function EquipmentPanel({
         </div>
 
         <div className="space-y-2">
-          {/* Headed as the Inventory's other sections are (Consumables, Miscellaneous items), level with Equipped. */}
-          <h2 className="flex h-7 items-center text-lg font-semibold">Equipment</h2>
-          <p className="text-xs text-slate-500">Drag a piece onto its slot, or click it and then the slot. It works in your runs from the next encounter.</p>
-          {/* Only the pieces not equipped: one worn in a slot leaves the grid (a spare copy stays, with how many are left). */}
+          {/* Headed as the Inventory's other sections are (Consumables, Miscellaneous items), level with Equipped, the hint beside it. */}
+          <div className="flex min-h-7 items-center gap-3">
+            <h2 className="shrink-0 text-lg font-semibold">Equipment</h2>
+            <p className="text-xs text-slate-500">Drag a piece onto its slot, or click it and then the slot. It works in your runs from the next encounter.</p>
+          </div>
+          {/* Only the pieces not equipped: one worn in a slot leaves the grid (a spare copy stays, with how many are left). Its
+              first row level with the first row of slots (pt-3: the Equipped box's padding). */}
           {spares.length > 0 && (
-            <ul className="grid grid-cols-[repeat(auto-fill,var(--slot))] gap-3">
+            <ul className="grid grid-cols-[repeat(auto-fill,var(--slot))] gap-3 pt-3">
               {spares.map(({ item, spare }) => (
                 <GearBox
                   key={item.id}

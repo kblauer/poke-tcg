@@ -25,6 +25,12 @@ model User {
   /// The name the account chose to be shown by, on its Community Decks (not unique; null until it's chosen). Never the
   /// Google profile's name (displayName), which is private.
   accountName   String?
+  /// The account's deck played most recently (a run started with it, a run's battle switched to it, or a Practice battle):
+  /// the next run's deck to start with. Not a relation: a deleted deck's id is just ignored.
+  lastDeckId    String?         @db.Uuid
+  /// Consumables used from the Inventory while no run was under way (item ids, already taken from the inventory; at most a
+  /// run's 3): they all take effect when the next run starts (among that run's 3), then this is cleared.
+  pendingConsumables String[]   @default([])
   decks         Deck[]
   games         Game[]
   runs          Run[]

@@ -15,7 +15,7 @@ import { DeckSummary } from '../DeckList';
 import { EnergyIcon } from '../EnergyIcon';
 import { CatalogContext } from '../InspectContext';
 import { DeckMenu, DeckOption } from './DeckMenu';
-import { ENCOUNTER_STYLE, EncounterBadge } from './encounterIcons';
+import { ENCOUNTER_STYLE, EncounterBadge, encounterLabel } from './encounterIcons';
 
 /** Debug's Skip battle, under a battle's button. */
 const skipButton = 'rounded bg-slate-600 px-3 py-1 text-xs font-semibold transition hover:bg-slate-500 disabled:opacity-40';
@@ -28,7 +28,8 @@ function describe(o: MapEncounter, cardName: (id: string) => string): string[] {
   if (isBattleKind(o.kind)) {
     const r = battleReward(o.kind, o.focus);
     const b = o.boss ? boss(o.boss) : undefined;
-    const prize = b?.gym ? 'Badge' : b?.prize ? (ITEMS[b.prize]?.name ?? 'Prize') : undefined;
+    // Only beating the boss gives their badge or prize (a Gym Trainer's `boss` is the leader after them).
+    const prize = !isBossKind(o.kind) ? undefined : b?.gym ? 'Badge' : b?.prize ? (ITEMS[b.prize]?.name ?? 'Prize') : undefined;
     const win = [range(r.pokedollars), `${r.exp} EXP`, `${typeName(r.rarity)} card`, ...(prize ? [prize] : [])].join(' · ');
     switch (o.kind) {
       case 'battle':
@@ -74,7 +75,7 @@ function describe(o: MapEncounter, cardName: (id: string) => string): string[] {
 }
 
 /** An option's title: a known Mystery's event title, otherwise its label. */
-const optionTitle = (o: MapEncounter, cardName: (id: string) => string) => (o.kind === 'event' && o.event ? eventInfo(o.event, cardName).title : o.label);
+const optionTitle = (o: MapEncounter, cardName: (id: string) => string) => (o.kind === 'event' && o.event ? eventInfo(o.event, cardName).title : encounterLabel(o));
 
 /**
  * The 2 types most common among the Pokémon a trainer's class favours (trainerFavorites: their deck is built from these
@@ -154,7 +155,7 @@ export function RouteChoice({ view, run }: { view: RunViewData; run: RunControl 
                     <Option
                       key={index}
                       option={option}
-                      title={option.label}
+                      title={encounterLabel(option)}
                       lines={describe(option, cardName)}
                       note={<ClassTypes option={option} catalog={byId} />}
                       action={isBossKind(option.kind) || option.kind === 'gymTrainer' ? 'Challenge' : 'Battle'}

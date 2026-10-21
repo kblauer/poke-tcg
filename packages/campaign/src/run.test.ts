@@ -4,7 +4,7 @@ import { ITEMS, itemText, MAX_CONSUMABLES_PER_RUN, onlyOne, shopStock } from './
 import { RUN_TYPE_IDS, RUN_TYPES, runType, type RunType, type RunTypeId } from './run-types.js';
 import { ROUTE_4 } from './kanto-routes.js';
 import { onPath, PEWTER_GYM, ROUTE_2, routePath } from './routes.js';
-import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, isBattleKind, isBossKind, MAX_CENTERS, REQUIRED_BATTLES, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
+import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, isBattleKind, isBossKind, MAX_CENTERS, REQUIRED_BATTLES, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, withConsumablesBefore, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
 import { GEN2_SETS } from './pool.js';
 import { GEN2_TEST_POOL, TEST_POOL } from './test-pool.js';
 
@@ -337,6 +337,14 @@ describe('bosses and Gym Trainers', () => {
     expect([lost.position, lost.hp]).toEqual([11, 2]);
   });
 
+  it("a Kanto Gym Trainer is one of the trainers in their gym in FireRed", () => {
+    const gymTrainer = (type: 'pewter' | 'vermilion', seed: number) => createRun(type, deck, seed).steps.flatMap((s) => s.options).find((o) => o.kind === 'gymTrainer')?.trainer;
+    expect(gymTrainer('pewter', 1)).toBe('Camper Liam');
+    const vermilion = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((seed) => gymTrainer('vermilion', seed)));
+    expect([...vermilion].every((t) => ['Sailor Dwayne', 'Engineer Baily', 'Gentleman Tucker'].includes(t!))).toBe(true);
+    expect(vermilion.size).toBeGreaterThan(1);
+  });
+
   it('a gym leader beaten mid-run gives a better reward and their badge, and the run goes on', () => {
     const s = createRun('kantoGyms', deck, 1);
     const won = fight(s, true);
@@ -465,7 +473,8 @@ describe('items', () => {
 
   it(`only ${MAX_CONSUMABLES_PER_RUN} consumables per run; misc items keep to their per-run limit`, () => {
     let s = fresh();
-    for (let i = 0; i < MAX_CONSUMABLES_PER_RUN; i++) s = act(s, { type: 'USE_ITEM', itemId: 'x-attack' });
+    // Each one run out before the next (only one at a time).
+    for (let i = 0; i < MAX_CONSUMABLES_PER_RUN; i++) s = { ...act(s, { type: 'USE_ITEM', itemId: 'x-attack' }), consumables: [] };
     expect(use(s, 'x-attack').ok).toBe(false);
     for (let i = 0; i < 5; i++) s = act(s, { type: 'USE_ITEM', itemId: 'nugget' });
     expect(s.pokedollars).toBe(STARTING_POKEDOLLARS + 5 * 300);
@@ -476,6 +485,26 @@ describe('items', () => {
     expect(use(s, 'potion').ok).toBe(false); // once per run
     expect(use(s, 'rainbow-badge').ok).toBe(false);
     expect(use(s, 'trainer-cap').ok).toBe(false);
+  });
+
+  it('only one consumable is in effect at a time: another can be used once it has run out', () => {
+    let s = act(at('battle'), { type: 'USE_ITEM', itemId: 'x-attack' });
+    const second = use(s, 'guard-spec');
+    expect(second.ok).toBe(false);
+    if (!second.ok) expect(second.error).toBe('X Attack is still active');
+    s = { ...s, consumables: [] };
+    expect(use(s, 'guard-spec').ok).toBe(true);
+  });
+
+  it(`consumables used before the run are all in effect from its start, among its ${MAX_CONSUMABLES_PER_RUN}`, () => {
+    let s = withConsumablesBefore(fresh(), ['x-attack', 'trainer-cap', 'guard-spec']);
+    expect(s.consumables.map((c) => c.itemId)).toEqual(['x-attack', 'guard-spec']);
+    expect(s.consumablesUsed).toBe(2);
+    expect(use(s, 'x-attack').ok).toBe(false); // one at a time: they're still in effect
+    s = { ...s, consumables: [] };
+    s = act(s, { type: 'USE_ITEM', itemId: 'x-attack' });
+    expect(s.consumablesUsed).toBe(MAX_CONSUMABLES_PER_RUN);
+    expect(withConsumablesBefore(fresh(), ['x-attack', 'x-attack', 'x-attack', 'x-attack']).consumables).toHaveLength(MAX_CONSUMABLES_PER_RUN);
   });
 
   it('every consumable and piece of equipment has effects, and every misc item a use', () => {

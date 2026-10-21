@@ -1,6 +1,6 @@
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import { runType } from '@poke-tcg/campaign';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { LogDrawer, LogSheet } from '../components/LogDrawer';
 import { PreviewProvider } from '../components/PreviewProvider';
 import { DeckPanel } from '../components/run/DeckPanel';
@@ -35,6 +35,15 @@ export function HomePage() {
   /** On a phone: the side panel's tabs are open. */
   const [panel, setPanel] = useState(false);
   const { overview } = run;
+  // On a phone, once an encounter is over (its reward taken), the page scrolls back up to the route map, to watch the
+  // player walk on to the next spot.
+  const routeMap = useRef<HTMLDivElement>(null);
+  const phase = overview.data?.run?.view.phase;
+  const lastPhase = useRef(phase);
+  useEffect(() => {
+    if (phone && phase === 'map' && lastPhase.current === 'encounter') routeMap.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    lastPhase.current = phase;
+  }, [phase, phone]);
   if (overview.error) return <p className={`${PAGE_WIDTH} text-red-400`}>{overview.error.message}</p>;
   if (!overview.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
   const current = overview.data.run;
@@ -77,7 +86,9 @@ export function HomePage() {
                 <RunOver current={current} overview={overview.data} run={run} />
               ) : routes ? (
                 <>
-                  <RouteView routes={routes} gym={runType(view.type).gym} view={view} spotted={run.spotted} />
+                  <div ref={routeMap}>
+                    <RouteView routes={routes} gym={runType(view.type).gym} view={view} spotted={run.spotted} />
+                  </div>
                   {panels}
                 </>
               ) : (

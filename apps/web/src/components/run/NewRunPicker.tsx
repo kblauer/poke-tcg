@@ -118,7 +118,9 @@ export function NewRunPicker({ overview: given, run, title, defaultType }: { ove
   };
   const playable = overview.decks.filter((d) => d.problems.length === 0);
   const [picked, setPicked] = useState<string | null>(null);
-  const deckId = picked ?? playable[0]?.id ?? null;
+  // To start with: the deck played most recently, or (deleted, or now unplayable) the top one in the deck list that can be played.
+  const lastPlayed = playable.find((d) => d.id === overview.lastDeckId);
+  const deckId = picked ?? lastPlayed?.id ?? playable[0]?.id ?? null;
   const favorites = overview.decks.filter((d) => d.favorite);
   const phone = useIsPhone();
   const chosen = overview.runTypes.find((t) => t.id === type);

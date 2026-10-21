@@ -9,7 +9,7 @@ const RARITY: Record<string, string> = { common: 'Common', uncommon: 'Uncommon',
 /**
  * A card offered or owned in a run: its image (hovering shows the large preview, as on the game board), name
  * and rarity, with an optional footer (a price) and corner badge. Clickable when `onClick` is set; right-clicking
- * opens it in the CardInspector.
+ * opens it in the CardInspector. `fluid` (a phone's reward row): it shrinks to share the row, at most its usual size.
  */
 export function RunCard({
   def,
@@ -18,6 +18,7 @@ export function RunCard({
   disabled,
   selected,
   badge,
+  fluid = false,
 }: {
   def: (CardDef & { rarity?: string }) | undefined;
   footer?: ReactNode;
@@ -26,13 +27,15 @@ export function RunCard({
   selected?: boolean;
   /** A chip on the card's corner (e.g. NEW for a card gained this run). */
   badge?: ReactNode;
+  fluid?: boolean;
 }) {
+  const width = fluid ? 'w-full max-w-28' : 'w-28';
   const setPreview = useContext(PreviewContext);
   const inspect = useInspectOnRightClick()(def?.id);
   const body = (
     <>
       <div
-        className="relative aspect-[63/88] w-28"
+        className={`relative aspect-[63/88] ${width}`}
         onMouseEnter={(e) => def && setPreview({ def, x: e.clientX, y: e.clientY, from: e.currentTarget })}
         onMouseLeave={() => setPreview(null)}
         onContextMenu={
@@ -50,15 +53,16 @@ export function RunCard({
         )}
         {badge && <span className="absolute -right-1 -top-1 rounded-full bg-emerald-500 px-1.5 text-[10px] font-bold text-white shadow">{badge}</span>}
       </div>
-      <span className="w-28 truncate text-center text-xs text-slate-200">{def?.name ?? 'Unknown card'}</span>
+      <span className={`${width} truncate text-center text-xs text-slate-200`}>{def?.name ?? 'Unknown card'}</span>
       {def?.rarity && <span className="text-[10px] uppercase tracking-wide text-slate-500">{RARITY[def.rarity]}</span>}
       {footer}
     </>
   );
-  if (!onClick) return <div className="relative flex flex-col items-center gap-1">{body}</div>;
+  const share = fluid ? 'min-w-0 flex-1' : '';
+  if (!onClick) return <div className={`relative flex flex-col items-center gap-1 ${share}`}>{body}</div>;
   return (
     <button
-      className="relative flex flex-col items-center gap-1 rounded-lg p-1 transition hover:bg-slate-700/60 disabled:cursor-not-allowed disabled:opacity-40"
+      className={`relative flex flex-col items-center gap-1 rounded-lg p-1 transition hover:bg-slate-700/60 disabled:cursor-not-allowed disabled:opacity-40 ${share}`}
       disabled={disabled}
       onClick={onClick}
     >

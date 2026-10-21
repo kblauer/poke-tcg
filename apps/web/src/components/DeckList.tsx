@@ -1,10 +1,13 @@
-import { closestCenter, DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { closestCenter, DndContext, MouseSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import AddIcon from '@mui/icons-material/Add';
+import CheckBoxIcon from '@mui/icons-material/CheckBox';
+import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import EditIcon from '@mui/icons-material/Edit';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import PublishIcon from '@mui/icons-material/Publish';
 import StarIcon from '@mui/icons-material/Star';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
 import type { AppRouter } from '@poke-tcg/api/router';
@@ -16,6 +19,7 @@ import { useInspectOnRightClick } from './InspectContext';
 import { DECK_SECTIONS, allGenerations, deckInGenerations, deckRatio, deckSize, featuredPokemon, type DeckEntry } from '../utils/deckBuilder';
 import { CardImage } from './CardImage';
 import { GenerationFilter } from './packs/GenerationFilter';
+import { Toasts } from './Toasts';
 
 export type SavedDeck = inferRouterOutputs<AppRouter>['decks']['list'][number];
 
@@ -94,14 +98,18 @@ function RatioBar({ ratio, size, height, title }: { ratio: Ratio; size: number; 
   );
 }
 
-/** The bar's counts, each with its colour's dot; `small` for the deck list's tiles. */
+/** The bar's counts, each with its colour's dot; `small` for the deck list's tiles: just the numbers, the labels as a tooltip. */
 function RatioCounts({ ratio, small = false }: { ratio: Ratio; small?: boolean }) {
   return (
-    <div className={`flex flex-wrap text-slate-400 ${small ? 'gap-x-1.5 text-[10px] leading-3' : 'gap-x-2 text-xs'}`}>
+    <div
+      className={`flex flex-wrap text-slate-400 ${small ? 'gap-x-1.5 text-[10px] leading-3' : 'gap-x-2 text-xs'}`}
+      title={small ? DECK_SECTIONS.map(({ kind, label }) => `${ratio[kind]} ${label}`).join(' · ') : undefined}
+    >
       {DECK_SECTIONS.map(({ kind, label }) => (
         <span key={kind} className="flex items-center gap-1">
           <span className={`inline-block rounded-full ${small ? 'h-1.5 w-1.5' : 'h-2 w-2'} ${RATIO_COLORS[kind]}`} />
-          {ratio[kind]} {label}
+          {ratio[kind]}
+          {!small && ` ${label}`}
         </span>
       ))}
     </div>
@@ -210,6 +218,56 @@ function DeckBody({ entries, size, ready, byId, isLocked, compact }: { entries: 
 }
 
 /**
+ * A deck tile's contents, as agreed with the user (the Collection's deck list, and the run's deck menu): its Pokémon large
+ * on the left with the Pokémon/Trainer/Energy bar and its counts under them; on their right `title` (the name) with the
+ * Pokémon's names (comma separated, wrapping) and any `note` under it, and `corner` (the star) and the card count at the
+ * bottom right. Greyed out while it holds `locked` cards.
+ */
+export function DeckTile({
+  entries,
+  size,
+  ready,
+  locked = false,
+  byId,
+  isLocked,
+  title,
+  note,
+  corner,
+}: {
+  entries: DeckEntry[];
+  size: number;
+  ready: boolean;
+  locked?: boolean;
+  byId: Map<string, CatalogCard>;
+  isLocked: (card: CatalogCard) => boolean;
+  title: ReactNode;
+  note?: ReactNode;
+  corner?: ReactNode;
+}) {
+  const dim = locked ? 'opacity-60' : '';
+  const featured = featuredPokemon(entries, byId);
+  const ratio = deckRatio(entries, byId);
+  return (
+    <div className="flex gap-2.5">
+      <div className={`space-y-1 ${dim}`}>
+        <FeaturedCards featured={featured} isLocked={isLocked} size="h-[4.2rem] w-[3rem]" />
+        <RatioBar ratio={ratio} size={deckSize(entries)} height="h-1.5" />
+        <RatioCounts ratio={ratio} small />
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        {title}
+        <p className={`break-words text-xs leading-4 text-slate-200 ${dim}`}>{featured.map((card) => card.name).join(', ')}</p>
+        {note}
+        <div className="mt-auto flex items-center justify-end gap-1">
+          {corner}
+          <DeckCount size={size} ready={ready} large />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
  * A deck's name (with its rename button). Without `onRename` (the automatic run deck) the name is plain, tagged Run deck.
  * `large`: the deck list's tiles' bigger name.
  */
@@ -245,9 +303,12 @@ function DeckTitle({
  * The account's decks as buttons to open, in their saved order: drag one to move it (the new order is
  * saved with `onReorder`). Each can be renamed (the pencil by its name) or copied, and a new deck started from scratch;
  * the star in a deck's top right corner favorites it (`onFavorite`: the run's Favorite decks), not the automatic run deck.
- * The generation dropdown beside Import and New deck (GenerationFilter with `toggles`, as on Community Decks; all on to
- * start) lists only the decks with cards from any generation ticked.
- * `compact` (a phone, where the list shares the top of the screen with the search): smaller tiles (DeckSummary's).
+ * The toolbar's Filters icon pops out Favorites (only the favorite decks; off to start) and the generations
+ * (GenerationFilter with `toggles`, as on Community Decks; all on to start), listing only the decks with cards from any
+ * generation ticked. Its Copy and Publish icons ask for a deck (a
+ * prompt toast; Escape, the icon again or a click outside the decks cancels), then `onCopy` copies it or `onShare` opens
+ * its Share dialog.
+ * `compact` (a phone, in its side panel): tighter padding and no drag hint; the tiles are the same on every screen.
  */
 export function DeckList({
   decks,
@@ -260,6 +321,7 @@ export function DeckList({
   onReorder,
   onFavorite,
   onImport,
+  onShare,
   busy,
   compact = false,
 }: {
@@ -270,6 +332,8 @@ export function DeckList({
   onNew: () => void;
   /** Opens the Import dialog (a deck code from another player, or a text deck list). */
   onImport: () => void;
+  /** Opens the Share dialog (its deck code, and Publish to Community Decks) for the deck picked. */
+  onShare: (deckId: string) => void;
   onCopy: (deckId: string) => void;
   onRename: (deckId: string, name: string) => void;
   onReorder: (deckIds: string[]) => void;
@@ -282,9 +346,45 @@ export function DeckList({
   useEffect(() => setOrder(decks.map((d) => d.id)), [decks]);
   /** The generations whose decks are listed (all to start). */
   const [shownGens, setShownGens] = useState<ReadonlySet<number>>(allGenerations);
-  const shown = order.flatMap((id) => decks.filter((d) => d.id === id && deckInGenerations(d.cards, byId, shownGens)));
-  // The distance keeps clicks on a deck (to open it) from starting a drag.
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  /** Only the favorite decks (the Filters' Favorites). */
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const shown = order.flatMap((id) => decks.filter((d) => d.id === id && (!favoritesOnly || d.favorite) && deckInGenerations(d.cards, byId, shownGens)));
+  /** Waiting for a deck to be picked to copy or publish. */
+  const [picking, setPicking] = useState<'copy' | 'share' | null>(null);
+  useEffect(() => {
+    if (!picking) return;
+    // Capture phase, so it runs before the click lands; the decks and the icons are `data-keep-action`.
+    const onDown = (e: PointerEvent) => !(e.target as Element).closest('[data-keep-action]') && setPicking(null);
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setPicking(null);
+    window.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('pointerdown', onDown, true);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [picking]);
+  const pick = (deckId: string) => {
+    setPicking(null);
+    if (picking === 'copy') onCopy(deckId);
+    else onShare(deckId);
+  };
+  /** A toolbar icon that asks for a deck (`mode`), highlighted while it does. */
+  const pickButton = (mode: 'copy' | 'share', label: string, title: string, icon: ReactNode, disabled: boolean) => (
+    <button
+      data-keep-action
+      className={`flex items-center rounded p-1 transition hover:bg-slate-700 disabled:opacity-40 ${picking === mode ? 'bg-slate-700 text-yellow-300' : 'text-slate-300 hover:text-white'}`}
+      onClick={() => setPicking(picking === mode ? null : mode)}
+      aria-pressed={picking === mode}
+      disabled={disabled}
+      title={title}
+      aria-label={label}
+    >
+      {icon}
+    </button>
+  );
+  // The distance keeps clicks on a deck (to open it) from starting a drag; a finger must hold the deck first, so a swipe
+  // over it scrolls the list (as EquipmentPanel's).
+  const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 6 } }));
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     if (!over || active.id === over.id) return;
     const next = arrayMove(order, order.indexOf(String(active.id)), order.indexOf(String(over.id)));
@@ -293,26 +393,46 @@ export function DeckList({
   };
   return (
     <div className={`flex min-h-0 flex-1 flex-col gap-2 rounded-lg bg-slate-900 text-sm ${compact ? 'p-2' : 'p-3'}`}>
-      <div className="flex items-center justify-between">
-        <span className="font-semibold">Decks</span>
-        <span className="flex items-center gap-2">
-          <GenerationFilter picked={shownGens} onChange={setShownGens} toggles compact />
-          <button className={`flex items-center gap-1 rounded bg-slate-600 hover:bg-slate-500 ${compact ? 'px-2 py-0.5 text-xs' : 'px-3 py-1 text-sm'}`} onClick={onImport} title="Import a deck from a deck code or a deck list">
-            <FileDownloadIcon sx={{ fontSize: 16 }} /> Import
-          </button>
-          <button className={`flex items-center gap-1 rounded bg-emerald-600 font-semibold hover:bg-emerald-500 ${compact ? 'px-2 py-0.5 text-xs' : 'px-3 py-1 text-sm'}`} onClick={onNew}>
-            <AddIcon sx={{ fontSize: 16 }} /> {compact ? 'New' : 'New deck'}
-          </button>
-        </span>
+      {/* The toolbar across the top: New deck, Copy, Import, Publish and Filters (the generations, popping out) as icons. */}
+      <div className="flex items-center gap-1 border-b border-slate-700 pb-1.5">
+        <span className="mr-auto font-semibold">Decks</span>
+        <button className="flex items-center rounded p-1 text-emerald-400 transition hover:bg-slate-700 hover:text-emerald-300" onClick={onNew} title="New deck" aria-label="New deck">
+          <AddIcon sx={{ fontSize: 20 }} />
+        </button>
+        {pickButton('copy', 'Copy a deck', 'Copy a deck to edit the copy', <ContentCopyIcon sx={{ fontSize: 18 }} />, decks.length === 0 || busy)}
+        <button className="flex items-center rounded p-1 text-slate-300 transition hover:bg-slate-700 hover:text-white" onClick={onImport} title="Import a deck from a deck code or a deck list" aria-label="Import">
+          <FileDownloadIcon sx={{ fontSize: 20 }} />
+        </button>
+        {pickButton('share', 'Publish to Community Decks', 'Publish a deck to Community Decks (or copy its deck code)', <PublishIcon sx={{ fontSize: 20 }} />, decks.length === 0)}
+        <GenerationFilter
+          picked={shownGens}
+          onChange={setShownGens}
+          toggles
+          icon
+          filtering={favoritesOnly}
+          before={
+            <button
+              role="option"
+              aria-selected={favoritesOnly}
+              onClick={() => setFavoritesOnly(!favoritesOnly)}
+              className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm text-slate-200 transition hover:bg-slate-700"
+            >
+              {favoritesOnly ? <CheckBoxIcon sx={{ fontSize: 18 }} className="text-yellow-300" /> : <CheckBoxOutlineBlankIcon sx={{ fontSize: 18 }} className="text-slate-500" />}
+              Favorites
+              <StarIcon sx={{ fontSize: 16 }} className="text-amber-300" />
+            </button>
+          }
+        />
       </div>
+      <Toasts toasts={[]} prompt={picking === 'copy' ? 'Click the deck to copy' : picking === 'share' ? 'Click the deck to publish to Community Decks' : null} />
       {decks.length === 0 && <p className="text-slate-500">No decks yet. Start a new one.</p>}
-      {decks.length > 0 && shown.length === 0 && <p className="text-slate-500">No decks with cards from the generations picked.</p>}
+      {decks.length > 0 && shown.length === 0 && <p className="text-slate-500">{favoritesOnly ? 'No favorite decks with cards from the generations picked.' : 'No decks with cards from the generations picked.'}</p>}
       {decks.length > 1 && !compact && <p className="text-xs text-slate-500">Drag a deck to move it in the list.</p>}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={order} strategy={verticalListSortingStrategy}>
           <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto">
             {shown.map((d) => (
-              <SortableDeck key={d.id} deck={d} byId={byId} isLocked={isLocked} onOpen={onOpen} onCopy={onCopy} onRename={onRename} onFavorite={onFavorite} busy={busy} compact={compact} />
+              <SortableDeck key={d.id} deck={d} byId={byId} isLocked={isLocked} onOpen={picking ? pick : onOpen} picking={picking !== null} onRename={onRename} onFavorite={onFavorite} />
             ))}
           </ul>
         </SortableContext>
@@ -326,39 +446,20 @@ function SortableDeck({
   byId,
   isLocked,
   onOpen,
-  onCopy,
+  picking,
   onRename,
   onFavorite,
-  busy,
-  compact,
 }: {
   deck: SavedDeck;
   byId: Map<string, CatalogCard>;
   isLocked: (card: CatalogCard) => boolean;
+  /** Opens the deck, or picks it to copy or publish while `picking` (each deck then outlined). */
   onOpen: (deckId: string) => void;
-  onCopy: (deckId: string) => void;
+  picking: boolean;
   onRename: (deckId: string, name: string) => void;
   onFavorite: (deckId: string, favorite: boolean) => void;
-  busy: boolean;
-  compact: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: deck.id });
-  const copyButton = (
-    <button
-      className={`flex shrink-0 items-center gap-1 self-center rounded bg-slate-600 hover:bg-slate-500 disabled:opacity-40 ${compact ? 'px-1.5 text-xs leading-5' : 'px-2 py-0.5 text-sm'}`}
-      disabled={busy}
-      // Not a click on the deck (which opens it), and not the start of a drag.
-      {...inside}
-      onClick={(e) => {
-        e.stopPropagation();
-        onCopy(deck.id);
-      }}
-      title="Copy this deck to edit the copy"
-      aria-label={`Copy ${deck.name}`}
-    >
-      <ContentCopyIcon sx={{ fontSize: compact ? 12 : 14 }} /> {!compact && 'Copy'}
-    </button>
-  );
   // The favorite star (not on the automatic run deck).
   const star = !deck.runDeck && (
     <button
@@ -373,19 +474,16 @@ function SortableDeck({
       title={deck.favorite ? 'Favorite deck (click to unfavorite)' : 'Favorite this deck: it shows under the deck choice in a run'}
       aria-label={`${deck.favorite ? 'Unfavorite' : 'Favorite'} ${deck.name}`}
     >
-      {deck.favorite ? <StarIcon sx={{ fontSize: compact ? 16 : 18 }} /> : <StarBorderIcon sx={{ fontSize: compact ? 16 : 18 }} />}
+      {deck.favorite ? <StarIcon sx={{ fontSize: 18 }} /> : <StarBorderIcon sx={{ fontSize: 18 }} />}
     </button>
   );
   const onRenameDeck = deck.runDeck ? undefined : (name: string) => onRename(deck.id, name);
-  // Greyed out while it holds locked cards.
-  const dim = deck.locked ? 'opacity-60' : '';
-  const featured = featuredPokemon(deck.cards, byId);
-  const ratio = deckRatio(deck.cards, byId);
   return (
     <li ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} className={isDragging ? 'relative z-10 opacity-80' : ''}>
       {/* dnd-kit's attributes make it a focusable button. */}
       <div
-        className={`w-full cursor-pointer touch-none rounded-lg bg-slate-800 text-left ring-yellow-300 hover:bg-slate-700 focus:outline-none focus-visible:ring-1 ${compact ? 'space-y-1 p-1.5' : 'space-y-2 p-2'}`}
+        data-keep-action
+        className={`w-full cursor-pointer touch-manipulation rounded-lg bg-slate-800 text-left hover:bg-slate-700 focus:outline-none focus-visible:ring-1 ${picking ? 'ring-1 ring-yellow-300/60 hover:ring-2 hover:ring-yellow-300' : 'ring-yellow-300'} p-2`}
         {...attributes}
         {...listeners}
         onClick={() => onOpen(deck.id)}
@@ -395,52 +493,20 @@ function SortableDeck({
         }}
         title={deck.problems.join(' ') || undefined}
       >
-        {compact ? (
-          <>
-            {/* A phone: the name with Copy and the star in the top right corner, what it holds under them. */}
-            <DeckTitle name={deck.name} onRename={onRenameDeck} compact>
+        <DeckTile
+          entries={deck.cards}
+          size={deck.cardCount}
+          ready={deck.problems.length === 0}
+          locked={deck.locked}
+          byId={byId}
+          isLocked={isLocked}
+          title={
+            <DeckTitle name={deck.name} onRename={onRenameDeck} large>
               {deck.locked && LOCKED_TAG}
-              {copyButton}
-              {star}
             </DeckTitle>
-            <div className={dim}>
-              <DeckBody entries={deck.cards} size={deck.cardCount} ready={deck.problems.length === 0} byId={byId} isLocked={isLocked} compact />
-            </div>
-          </>
-        ) : (
-          // Its Pokémon large on the left; on their right the name, the Pokémon/Trainer/Energy bar and counts, then the
-          // Pokémon's names (one a line) with Copy, the star and the card count beside them (agreed with the user).
-          <div className="flex gap-2.5">
-            <div className={dim}>
-              <FeaturedCards featured={featured} isLocked={isLocked} size="h-[5.6rem] w-[4rem]" />
-            </div>
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <DeckTitle name={deck.name} onRename={onRenameDeck} large>
-                {deck.locked && LOCKED_TAG}
-              </DeckTitle>
-              <div className={`space-y-0.5 ${dim}`}>
-                <RatioBar ratio={ratio} size={deckSize(deck.cards)} height="h-1.5" />
-                <RatioCounts ratio={ratio} small />
-              </div>
-              <div className="mt-auto flex items-end gap-2">
-                <ul className={`min-w-0 flex-1 text-xs leading-4 text-slate-200 ${dim}`}>
-                  {featured.map((card, i) => (
-                    <li key={i} className="truncate">
-                      {card.name}
-                    </li>
-                  ))}
-                </ul>
-                <div className="flex shrink-0 flex-col items-end gap-1">
-                  {copyButton}
-                  <div className="flex items-center gap-1">
-                    {star}
-                    <DeckCount size={deck.cardCount} ready={deck.problems.length === 0} large />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+          }
+          corner={star}
+        />
       </div>
     </li>
   );

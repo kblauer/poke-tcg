@@ -7,7 +7,7 @@
 import type { BattleRule, CardDef, CpuDifficulty, EnergyType, PlayerId } from '@poke-tcg/game-engine';
 import { boss, bossLabel, type BossId, type BossKind } from './bosses.js';
 import { expandDeck, generateDeck, trainerFavorites } from './decks.js';
-import { activeEffects, battleRules, effectTotal, item, MAX_CONSUMABLES_PER_RUN, type ActiveEffect } from './items.js';
+import { activeEffects, battleRules, effectTotal, item, ITEMS, MAX_CONSUMABLES_PER_RUN, type ActiveEffect } from './items.js';
 import { byId, DECK_TYPES, offerable, PRICES, rarityWeight, type PoolCard, type Rarity } from './pool.js';
 import { between, chance, pick, random, rngFrom, sample, seed, weighted, type Rng } from './random.js';
 import { finalBoss, runGeneration, runType, type RunType, type RunTypeId } from './run-types.js';
@@ -307,6 +307,23 @@ function rollOptions(rng: Rng, i: number, centers: number, pool?: TrainerPool, n
   return options;
 }
 
+/**
+ * The consumables used from the Inventory before the run (`itemIds`, agreed with the user) put in effect at its start,
+ * all at once (not one at a time): they're among the run's MAX_CONSUMABLES_PER_RUN, so at most that many count, and
+ * another can be used in the run (one at a time) once they've all run out.
+ */
+export function withConsumablesBefore(prev: RunState, itemIds: readonly string[]): RunState {
+  const state = structuredClone(prev);
+  for (const id of itemIds) {
+    const def = ITEMS[id];
+    if (def?.category !== 'consumable' || state.consumablesUsed >= MAX_CONSUMABLES_PER_RUN) continue;
+    state.consumablesUsed += 1;
+    state.consumables.push({ itemId: def.id, battlesLeft: def.battles ?? 1 });
+    state.log.push(`Used ${def.name} before the run.`);
+  }
+  return state;
+}
+
 /** A new run of `type` with `deck`. The map is fixed by the seed; what's in each encounter is rolled when it's entered. */
 /** A new run of `typeId` with the deck (`deckName`: the account deck it came from). */
 export function createRun(typeId: RunTypeId, deck: string[], runSeed: number, deckName?: string): RunState {
@@ -331,7 +348,8 @@ export function createRun(typeId: RunTypeId, deck: string[], runSeed: number, de
     for (const id of segment.bosses) {
       const b = boss(id);
       // A gym leader has one of the gym's trainers to beat first, the only option on its step (not in a Gym Challenge or Champion run).
-      if (b.gym && segment.gymTrainers !== false) steps.push({ options: [{ kind: 'gymTrainer', label: `${b.gym.city} Gym Trainer`, trainer: pick(rng, GYM_TRAINERS), boss: id }] });
+      // One of the gym's own trainers (FireRed's, in Kanto), or anyone from the general list.
+      if (b.gym && segment.gymTrainers !== false) steps.push({ options: [{ kind: 'gymTrainer', label: `${b.gym.city} Gym Trainer`, trainer: pick(rng, b.gym.trainers ?? GYM_TRAINERS), boss: id }] });
       steps.push({ options: [{ kind: b.kind, label: bossLabel(b), trainer: b.name, boss: id }] });
     }
   }
@@ -730,6 +748,9 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
       if (def.category === 'consumable') {
         if (state.consumablesUsed >= MAX_CONSUMABLES_PER_RUN) return fail(`Only ${MAX_CONSUMABLES_PER_RUN} consumables can be used per run`);
         if (currentGameId(state)) return fail('Use consumables before a battle starts');
+        // One at a time (agreed with the user): another waits until the one in effect has run out.
+        const active = state.consumables[0];
+        if (active) return fail(`${item(active.itemId).name} is still active`);
         state.consumablesUsed += 1;
         state.consumables.push({ itemId: def.id, battlesLeft: def.battles ?? 1 });
         state.log.push(`Used ${def.name}.`);

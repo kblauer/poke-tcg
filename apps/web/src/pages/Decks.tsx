@@ -66,6 +66,8 @@ export function DecksPage() {
   const [blocked, setBlocked] = useState<string | null>(null);
   /** The Share dialog (the open deck's) or the Import one is open. */
   const [dialog, setDialog] = useState<'share' | 'import' | null>(null);
+  /** The deck picked with the deck list's Publish icon, whose Share dialog is open. */
+  const [sharedId, setSharedId] = useState<string | null>(null);
   /** The card opened with a right-click (CardInspector). */
   const [inspected, setInspected] = useState<CatalogCard | null>(null);
   /** On a phone: the side panel slid in, if any. */
@@ -212,6 +214,7 @@ export function DecksPage() {
   const problems = hasLockedCards(entries, byId, isLocked, copies) ? [...ruleProblems, LOCKED_DECK_PROBLEM] : ruleProblems;
   /** Why another copy of the card can't go in the open deck, or null. */
   const blockedFor = (card: CatalogCard) => cantAdd(entries, card, byId);
+  const sharedDeck = decks.data?.find((d) => d.id === sharedId);
   const error = save.error?.message ?? remove.error?.message ?? saved.error?.message;
   const listError = decks.error?.message ?? duplicate.error?.message ?? reorder.error?.message ?? rename.error?.message;
   // Shares the saved deck, so changes are saved first.
@@ -237,6 +240,7 @@ export function DecksPage() {
           onFavorite={(id, on) => favorite.mutate({ deckId: id, favorite: on })}
           onReorder={(ids) => reorder.mutate({ deckIds: ids })}
           onImport={() => setDialog('import')}
+          onShare={setSharedId}
           busy={duplicate.isPending}
           compact={phone}
         />
@@ -377,6 +381,7 @@ export function DecksPage() {
         />
       )}
       {dialog === 'share' && deckId && <ShareDeckDialog deckId={deckId} name={name} problem={ruleProblems[0]} onClose={() => setDialog(null)} />}
+      {sharedDeck && <ShareDeckDialog deckId={sharedDeck.id} name={sharedDeck.name} problem={problemsOf(sharedDeck.cards, byId)[0]} onClose={() => setSharedId(null)} />}
       {dialog === 'import' && (
         <ImportDeckDialog
           onClose={() => setDialog(null)}

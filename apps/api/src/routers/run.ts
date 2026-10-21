@@ -1,14 +1,14 @@
-import { bossSummary, currentGameId, EQUIP_SLOTS, isBattleKind, fitsSlot, item, ITEMS, onlyOne, RUN_TYPE_IDS, RUN_TYPES, runView, shopStock, type EquipSlot, type RunTypeId } from '@poke-tcg/campaign';
+import { bossSummary, currentGameId, EQUIP_SLOTS, isBattleKind, fitsSlot, item, ITEMS, MAX_CONSUMABLES_PER_RUN, onlyOne, RUN_TYPE_IDS, RUN_TYPES, runView, shopStock, type EquipSlot, type RunTypeId } from '@poke-tcg/campaign';
 import { Prisma, prisma, saveGameState } from '@poke-tcg/db';
 import { applyDebug, type DebugCommand, type GameState } from '@poke-tcg/game-engine';
 import { DECK_NAME_LENGTH, HUMAN_ID } from '@poke-tcg/shared';
-import { buyItemInput, DEFAULT_TRAINER_SPRITE, equipInput, runActInput, runChooseInput, runIdInput, saveRunDeckInput, startRunInput, trainerSpriteInput, useItemInput } from '@poke-tcg/shared';
+import { buyItemInput, DEFAULT_TRAINER_SPRITE, equipInput, runActInput, runChooseInput, runIdInput, saveRunDeckInput, startRunInput, trainerSpriteInput, useConsumableInput, useItemInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { runPool } from '../pool.js';
 import { runTypeProgress } from '../progress.js';
 import { abandonBattle, advanceRun, ensureAccount, latestRun, loadOwnRun, settleBattle, startRun, syncRunDeck, type LoadedRun } from '../runs.js';
 import { holoTwins, lockedProblem, unlockedIds } from '../unlocks.js';
-import { playableDeck, playProblems } from './decks.js';
+import { markPlayed, playableDeck, playProblems } from './decks.js';
 import { debugProcedure, protectedProcedure, router } from '../trpc.js';
 
 /** The default name for saving a run's deck: the run's number among the account's runs and its type, "Run #3 – Celadon City". */
@@ -34,7 +34,9 @@ async function latestStock(userId: string) {
 async function startWithDeck(userId: string, type: RunTypeId, deckId: string) {
   const deck = await playableDeck(deckId, userId);
   if (deck.runDeck) throw new TRPCError({ code: 'BAD_REQUEST', message: "Start a run with one of your own decks (save the run's deck first)" });
-  return startRun(userId, type, deck);
+  const started = await startRun(userId, type, deck);
+  await markPlayed(userId, deckId);
+  return started;
 }
 
 /**
@@ -48,7 +50,9 @@ async function chooseOption(userId: string, input: { runId: string; expectedVers
   const option = run.state.phase === 'map' ? run.state.steps[run.state.position]?.options[input.option] : undefined;
   if (!option || !isBattleKind(option.kind)) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Decks can only be switched for a battle' });
   const deck = await playableDeck(input.deckId, userId);
-  return advanceRun(run, [{ type: 'SET_DECK', deck: deck.cards, name: deck.name }, { type: 'CHOOSE', option: input.option }]);
+  const advanced = await advanceRun(run, [{ type: 'SET_DECK', deck: deck.cards, name: deck.name }, { type: 'CHOOSE', option: input.option }]);
+  if (!deck.runDeck) await markPlayed(userId, input.deckId);
+  return advanced;
 }
 
 /** What the client gets for a run: its view (no RNG or opponents' deck seeds) and the battle under way. */
@@ -66,7 +70,7 @@ export const runRouter = router({
     // First, as settling a battle that beat the run adds its EXP to the account.
     const run = await latestRun(ctx.user.id);
     const [user, decks] = await Promise.all([
-      prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { exp: true, bank: true } }),
+      prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { exp: true, bank: true, lastDeckId: true } }),
       prisma.deck.findMany({
         where: { ownerId: ctx.user.id },
         include: { cards: { include: { card: { select: { name: true, kind: true, stage: true, data: true } } } } },
@@ -79,7 +83,9 @@ export const runRouter = router({
     if (run?.status === 'ACTIVE' && !decks.some((d) => d.runId === run.id)) await syncRunDeck(ctx.user.id, run.id, run.state.deck);
     const runDeck = run && decks.find((d) => d.runId === run.id);
     return {
-      account: user,
+      account: { exp: user.exp, bank: user.bank },
+      // The deck played most recently, the new run's deck to start with (the client falls back to the top deck when it's gone).
+      lastDeckId: user.lastDeckId,
       run: run && (await clientRun(run)),
       // The latest run's automatic deck while it's not saved (its name, the default for saving it: "Run #3 – Celadon City").
       runDeck: run && (runDeck || run.status === 'ACTIVE') ? { saveName: await runDeckName(run) } : null,
@@ -150,6 +156,29 @@ export const runRouter = router({
       await prisma.inventoryItem.updateMany({ where: { userId: ctx.user.id, itemId: def.id, quantity: { gt: 0 } }, data: { quantity: { decrement: 1 } } });
     }
     return clientRun(next);
+  }),
+
+  /**
+   * Uses a consumable from the Inventory: in the run under way (as `useItem`), or, with none, kept for the next run
+   * (`User.pendingConsumables`, taken from the inventory now; startRun puts them all in effect). As they count among the
+   * next run's consumables, at most MAX_CONSUMABLES_PER_RUN wait.
+   */
+  useConsumable: protectedProcedure.input(useConsumableInput).mutation(async ({ ctx, input }) => {
+    const def = ITEMS[input.itemId];
+    if (def?.category !== 'consumable') throw new TRPCError({ code: 'BAD_REQUEST', message: "That item can't be used" });
+    const owned = await prisma.inventoryItem.findUnique({ where: { userId_itemId: { userId: ctx.user.id, itemId: def.id } } });
+    if (!owned || owned.quantity < 1) throw new TRPCError({ code: 'BAD_REQUEST', message: `You have no ${def.name}` });
+    const active = await prisma.run.findFirst({ where: { ownerId: ctx.user.id, status: 'ACTIVE' }, select: { id: true } });
+    if (active) await advanceRun(await loadOwnRun(active.id, ctx.user.id), [{ type: 'USE_ITEM', itemId: def.id }]);
+    else {
+      await prisma.$transaction(async (tx) => {
+        const { pendingConsumables } = await tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { pendingConsumables: true } });
+        if (pendingConsumables.length >= MAX_CONSUMABLES_PER_RUN) throw new TRPCError({ code: 'BAD_REQUEST', message: `${MAX_CONSUMABLES_PER_RUN} consumables are already waiting for your next run` });
+        await tx.user.update({ where: { id: ctx.user.id }, data: { pendingConsumables: { push: def.id } } });
+      });
+    }
+    await prisma.inventoryItem.updateMany({ where: { userId: ctx.user.id, itemId: def.id, quantity: { gt: 0 } }, data: { quantity: { decrement: 1 } } });
+    return { inRun: active !== null };
   }),
 
   /**
@@ -231,10 +260,12 @@ export const runRouter = router({
       prisma.inventoryItem.findMany({ where: { userId: ctx.user.id, quantity: { gt: 0 } } }),
       prisma.equipment.findMany({ where: { userId: ctx.user.id } }),
       prisma.cardUnlock.aggregate({ where: { userId: ctx.user.id }, _sum: { quantity: true }, _count: true }),
-      prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { trainerSprite: true } }),
+      prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { trainerSprite: true, pendingConsumables: true } }),
     ]);
     return {
       trainerSprite: user.trainerSprite ?? DEFAULT_TRAINER_SPRITE,
+      // Consumables used between runs, waiting for the next one (item ids).
+      pendingConsumables: user.pendingConsumables,
       items: items.flatMap((i) => (ITEMS[i.itemId] ? [{ ...item(i.itemId), quantity: i.quantity }] : [])),
       equipment: Object.fromEntries(EQUIP_SLOTS.map((slot) => [slot, equipment.find((e) => e.slot === slot)?.itemId ?? null])) as Record<EquipSlot, string | null>,
       unlockedCards: { distinct: unlocks._count, total: unlocks._sum.quantity ?? 0 },

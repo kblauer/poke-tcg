@@ -2,8 +2,8 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { CatalogCard } from '../../utils/cardList';
-import type { DeckEntry } from '../../utils/deckBuilder';
-import { DeckSummary, LOCKED_TAG } from '../DeckList';
+import { deckSize, type DeckEntry } from '../../utils/deckBuilder';
+import { DeckTile, LOCKED_TAG } from '../DeckList';
 
 /** A deck in DeckMenu: null is the run's own deck. */
 export interface MenuDeck {
@@ -17,9 +17,9 @@ export interface MenuDeck {
 }
 
 /**
- * The deck choice: a drop-down menu whose entries are deck tiles, as on the Collection tab (the name, its 3 headline
- * Pokémon and the Pokémon/Trainer/Energy bar; on a phone, `compact`, DeckSummary's small version). On a desktop the list
- * floats over the page below the menu (above it without room below), every deck in it, scrolling past LIST_HEIGHT;
+ * The deck choice: a drop-down menu whose entries are deck tiles, the same as the Collection tab's (DeckTile, on every
+ * screen; `compact`, a phone, only changes where the list opens). On a desktop the list
+ * floats over the page below the menu (above it without room below), every other deck in it, scrolling past LIST_HEIGHT;
  * on a phone it opens in place below the deck picked. Escape closes it too. Closed, it shows the deck picked;
  * decks that can't be played are greyed out, with why. Picking one, or a click outside, closes it.
  */
@@ -36,7 +36,7 @@ export function DeckMenu({
   onPick: (id: string | null) => void;
   byId: Map<string, CatalogCard>;
   isLocked: (card: CatalogCard) => boolean;
-  /** A phone: DeckSummary's small version. */
+  /** A phone: the list opens in place, below the deck picked. */
   compact: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -60,16 +60,23 @@ export function DeckMenu({
     setOpen(!open);
   };
   const picked = decks.find((d) => d.id === selected) ?? decks[0]!;
-  /** A deck's tile: its name (and note), then its headline Pokémon and bar. */
+  /** A deck's tile, as on the Collection tab (DeckTile), with its note (why it can't be played) under the Pokémon's names. */
   const tile = (d: MenuDeck) => (
-    <>
-      <span className="flex min-w-0 items-baseline gap-2">
-        <span className="truncate font-semibold">{d.name}</span>
-        {d.locked && LOCKED_TAG}
-        {d.note && <span className={`truncate text-xs ${d.disabled ? 'text-amber-300' : 'text-slate-400'}`}>{d.note}</span>}
-      </span>
-      {!d.disabled && <DeckSummary entries={d.entries} byId={byId} isLocked={isLocked} compact={compact} />}
-    </>
+    <DeckTile
+      entries={d.entries}
+      size={deckSize(d.entries)}
+      ready={!d.disabled}
+      locked={d.locked}
+      byId={byId}
+      isLocked={isLocked}
+      title={
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-base font-semibold">{d.name}</span>
+          {d.locked && LOCKED_TAG}
+        </span>
+      }
+      note={d.note && <span className={`text-xs ${d.disabled ? 'text-amber-300' : 'text-slate-400'}`}>{d.note}</span>}
+    />
   );
   return (
     <div ref={ref} className={compact ? 'space-y-2' : 'relative'}>
@@ -83,7 +90,7 @@ export function DeckMenu({
         <span className="min-w-0 flex-1 space-y-1">{tile(picked)}</span>
         {open ? <ExpandLessIcon className="shrink-0 text-slate-400" /> : <ExpandMoreIcon className="shrink-0 text-slate-400" />}
       </button>
-      {open && (
+      {open && decks.length > 1 && (
         <ul
           role="listbox"
           aria-label="Decks"
@@ -94,20 +101,20 @@ export function DeckMenu({
           }
           style={compact ? undefined : { maxHeight: LIST_HEIGHT }}
         >
-          {/* On a phone the other decks below the one picked; on a desktop every deck, the one picked marked. */}
+          {/* The other decks: the one picked is the menu's button. */}
           {decks
-            .filter((d) => !compact || d !== picked)
+            .filter((d) => d !== picked)
             .map((d) => (
               <li key={d.id ?? 'run'}>
                 <button
                   role="option"
-                  aria-selected={d === picked}
+                  aria-selected={false}
                   disabled={d.disabled}
                   onClick={() => {
                     onPick(d.id);
                     setOpen(false);
                   }}
-                  className={`w-full space-y-1 rounded-lg bg-slate-900 p-2 text-left text-sm ring-1 transition hover:bg-slate-700 active:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-slate-900 ${d === picked ? 'ring-yellow-300' : 'ring-slate-700'}`}
+                  className={`w-full space-y-1 rounded-lg bg-slate-900 p-2 text-left text-sm ring-1 transition hover:bg-slate-700 active:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-slate-900 ring-slate-700`}
                 >
                   {tile(d)}
                 </button>
@@ -119,8 +126,8 @@ export function DeckMenu({
   );
 }
 
-/** How tall the desktop deck menu's floating list gets before it scrolls, in px. */
-const LIST_HEIGHT = 320;
+/** How tall the desktop deck menu's floating list gets before it scrolls, in px: about 3 tiles. */
+const LIST_HEIGHT = 370;
 
 /** One deck to battle with. */
 export function DeckOption({
