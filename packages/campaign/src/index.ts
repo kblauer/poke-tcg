@@ -8,3 +8,4 @@ export * from './run.js';
 export * from './run-types.js';
 export * from './routes.js';
 export * from './kanto-routes.js';
+export * from './johto-routes.js';

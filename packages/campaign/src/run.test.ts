@@ -188,6 +188,15 @@ describe('createRun', () => {
     }
   });
 
+  it('no route but a surfed one has Swimmers', () => {
+    for (const id of RUN_TYPE_IDS.filter((t) => !runType(t).routes?.some((r) => r.travel === 'surf'))) {
+      for (let seed = 1; seed <= 10; seed++) {
+        const trainers = createRun(id, deck, seed).steps.flatMap((s) => s.options.map((o) => o.trainer ?? ''));
+        expect(trainers.filter((t) => t.startsWith('Swimmer ')), id).toEqual([]);
+      }
+    }
+  });
+
   it("Route 20's spots with no land near (surfed, out at sea) offer only battles, those ashore only non-battle encounters", () => {
     const route = runType('cinnabar').routes![0]!;
     const dry = route.spots.map((s) => [-3, -2, -1, 0, 1, 2, 3].some((dy) => [-3, -2, -1, 0, 1, 2, 3].some((dx) => Math.abs(dx) + Math.abs(dy) <= 3 && route.walkable[s.y + dy]?.[s.x + dx] === '.')));
@@ -635,9 +644,32 @@ describe('conceding', () => {
 });
 
 describe('Gen 2 runs', () => {
+  it('every Johto gym run crosses its HGSS route: walked from its entrance through each spot in turn (and out at its exit)', () => {
+    for (const id of ['violet', 'azalea', 'goldenrod', 'ecruteak', 'cianwood', 'olivine', 'mahogany', 'blackthorn'] as const) {
+      const [route] = runType(id).routes!;
+      expect(route!.sprites, id).toBe('hgss');
+      const stops = [route!.entrance!, ...route!.spots, ...(route!.exit ? [route!.exit] : [])];
+      expect(stops.slice(1).map((to, i) => routePath(route!, stops[i]!, to) !== null), `${id} ${route!.name}`).toEqual(stops.slice(1).map(() => true));
+    }
+  });
+
+  it("Route 45's ledges are jumped going down only, and Route 44's ladder joins its two areas", () => {
+    const r45 = runType('blackthorn').routes![0]!;
+    expect(r45.walkable.some((r) => r.includes('v'))).toBe(true);
+    // Down the route from its first spot to its last, but not back up.
+    expect(routePath(r45, r45.spots[0]!, r45.spots.at(-1)!)).not.toBeNull();
+    expect(routePath(r45, r45.spots.at(-1)!, r45.spots[0]!)).toBeNull();
+    // From the bottom of the ice cave to the top only by its ladder (the link's fade).
+    const r44 = runType('mahogany').routes![0]!;
+    const climb = routePath(r44, r44.entrance!, r44.exit!);
+    expect(climb?.some((s) => s.fade)).toBe(true);
+    expect(routePath({ ...r44, links: [] }, r44.entrance!, r44.exit!)).toBeNull();
+  });
+
   it("a Johto gym run ends with its gym leader, and its Gym Trainer and leader play Gen 2 decks", () => {
     let s = createRun('violet', deck, 7);
-    expect(s.steps).toHaveLength(26);
+    // Route 30's 10 encounters (johto-routes.ts), the Gym Trainer and Falkner.
+    expect(s.steps).toHaveLength(12);
     expect(s.steps.at(-1)!.options[0]).toMatchObject({ kind: 'gymLeader', boss: 'falkner' });
     for (const kind of ['gymTrainer', 'gymLeader'] as const) {
       s = createRun('violet', deck, 7);

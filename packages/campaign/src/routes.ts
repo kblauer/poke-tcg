@@ -1,7 +1,8 @@
 // Routes for the run map: a route's pixel map (from the FireRed/LeafGreen decompilation, rendered with its tilesets by
 // tools/routes/render_route.py) and the spots its encounters happen at, in 16px tiles from the top left. The run screen
 // zooms the map in on the current step's spot. Each route keeps which of its tiles can be walked on (`walkable`: '.'
-// walkable, '~' water (walkable only on a route tagged for surfing, `travel: 'surf'`), '#' not: trees, buildings, ledges, other water,
+// walkable, '~' water (walkable only on a route tagged for surfing, `travel: 'surf'`), 'v' a ledge jumped going down
+// only (Route 45: walked onto and off only southwards; no one stands on it), '#' not: trees, buildings, ledges, other water,
 // doorways and objects), so its spots can be checked to stay on the path.
 
 export interface RouteSpot {
@@ -39,6 +40,8 @@ export interface Route {
   exit?: RouteSpot;
   /** Where each spot's figure stands (a gym's trainers, as the game has them), instead of near the spot. */
   stands?: RouteSpot[];
+  /** The overworld sprites it's drawn with: HeartGold/SoulSilver's on the Johto maps ('hgss', 32x32); FireRed's otherwise. */
+  sprites?: 'hgss';
   /** How the player gets along (Route 17: on a bike, walking twice as fast; Route 20: surfing its water, '~'); on foot otherwise. */
   travel?: 'bike' | 'surf';
   /**
@@ -225,6 +228,9 @@ export const onPath = (route: Route, spot: RouteSpot) => {
 /** The way the encounters go at a spot of a route (its `spotFlows`, or the map's `flow`). */
 export const flowAt = (route: Route, spot: number) => route.spotFlows?.[spot] ?? route.flow;
 
+/** Whether a tile of a route is a ledge jumped going down only ('v'). */
+const downLedge = (route: Route, spot: RouteSpot) => route.walkable[spot.y]?.[spot.x] === 'v';
+
 /** Whether a tile of a route is water surfed across (on a route tagged for surfing). */
 export const onWater = (route: Route, spot: RouteSpot) => route.travel === 'surf' && route.walkable[spot.y]?.[spot.x] === '~';
 
@@ -256,7 +262,9 @@ export function routePath(route: Route, from: RouteSpot, to: RouteSpot, blocked:
       ...linked.map((tile) => ({ tile, fade: true })),
     ];
     for (const { tile, fade } of next) {
-      if (!onPath(route, tile) || prev.has(tileKey(tile)) || blocked.has(tileKey(tile))) continue;
+      if (!(onPath(route, tile) || downLedge(route, tile)) || prev.has(tileKey(tile)) || blocked.has(tileKey(tile))) continue;
+      // A ledge is jumped going down only: onto it and off it southwards.
+      if (!fade && (downLedge(route, tile) || downLedge(route, here)) && tile.y !== here.y + 1) continue;
       prev.set(tileKey(tile), { from: here, fade });
       queue.push(tile);
     }

@@ -206,11 +206,16 @@ const RARITY_RANK: Record<Rarity, number> = { common: 0, uncommon: 1, rare: 2, h
 
 /**
  * Who a battle on a map's spot can be against: its route's `trainers` (that share of the time) or, for the rest and the
- * route's `landBattle`, any trainer but those trainers' classes. Undefined: any trainer.
+ * route's `landBattle`, any trainer but those trainers' classes (and never a Swimmer off a surfed route). Undefined: any
+ * trainer.
  */
 type TrainerPool = { names: string[]; share: number; others: string[] } | undefined;
 
 const classOf = (trainer: string) => trainer.split(' ').slice(0, -1).join(' ');
+
+/** Off the water (every route but a surfed one, agreed with the user), no Swimmers. */
+const LAND_TRAINERS = TRAINERS.filter((t) => classOf(t) !== 'Swimmer');
+const LAND_POOL: TrainerPool = { names: [], share: 0, others: LAND_TRAINERS };
 
 /** Whether a spot of a route has land (not water) within 3 tiles of it, for a non-battle encounter's NPC to stand on. */
 const landNear = (route: Route, spot: RouteSpot) => {
@@ -232,14 +237,14 @@ function poolAt(type: RunType, encounter: number): { pool: TrainerPool; landBatt
       const near = surf && landNear(route, route.spots[encounter - first]!);
       const landBattle = !!route.trainers && route.landBattle === encounter - first;
       const sea = { atSea: surf && !near, ashore: near && !landBattle };
-      if (!route.trainers) return { pool: undefined, landBattle: false, ...sea };
+      if (!route.trainers) return { pool: surf ? undefined : LAND_POOL, landBattle: false, ...sea };
       const classes = new Set(route.trainers.names.map(classOf));
-      const others = TRAINERS.filter((t) => !classes.has(classOf(t)));
+      const others = (surf ? TRAINERS : LAND_TRAINERS).filter((t) => !classes.has(classOf(t)));
       return { pool: landBattle ? { names: [], share: 0, others } : { ...route.trainers, others }, landBattle, ...sea };
     }
     first += route.spots.length;
   }
-  return { pool: undefined, landBattle: false, atSea: false, ashore: false };
+  return { pool: LAND_POOL, landBattle: false, atSea: false, ashore: false };
 }
 
 function mapEncounter(rng: Rng, kind: EncounterKind, pool?: TrainerPool): MapEncounter {

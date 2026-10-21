@@ -8,15 +8,18 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type Pointer
 import { useIsPhone } from '../../hooks/useIsPhone';
 import type { RunViewData } from '../../hooks/useRun';
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
-import { encounterSprite, FRAME, spriteWidth, STEP_MS, STRIP_FRAMES, trainerSprite, WALK, WALK_FRAME_MS, waterSprite, type Facing } from '../../utils/overworld';
+import { bobFrame, bobs, BOB_MS, encounterSprite, isItemBall, mirrored, playerSprite, spriteWidth, standFrame, STEP_MS, stripFrames, swims, trainerSprite, walkFrame, WALK_FRAME_MS, waterSprite, type Facing, type SpriteSet } from '../../utils/overworld';
 import { ENCOUNTER_STYLE } from './encounterIcons';
 
 /**
- * Red's sprites (walking, on a bike, surfing) and the swimmers' in-water ones, fetched as soon as the app loads, so a
- * switch between them (stepping off the water onto land) never shows him blank while one loads. The images are kept so
- * the browser keeps them decoded.
+ * The players' sprites (Red's and Ethan's, walking, on a bike, surfing) and the swimmers' in-water ones, fetched as soon as
+ * the app loads, so a switch between them (stepping off the water onto land) never shows him blank while one loads. The
+ * images are kept so the browser keeps them decoded.
  */
-const PRELOADED = typeof window === 'undefined' ? [] : ['red', 'red_bike', 'red_surf', 'swimmer_m_water', 'swimmer_f_water'].map((name) => Object.assign(new Image(), { src: `/overworld/${name}.png` }));
+const PRELOADED =
+  typeof window === 'undefined'
+    ? []
+    : ['red', 'red_bike', 'red_surf', 'swimmer_m_water', 'swimmer_f_water', 'hgss/hero', 'hgss/cyclehero', 'hgss/swimhero'].map((name) => Object.assign(new Image(), { src: `/overworld/${name}.png` }));
 void PRELOADED;
 
 /** How much the route's pixel map is enlarged in the view (2×: 16px tiles show 32px). */
@@ -58,19 +61,22 @@ interface RouteFigure {
   option?: number;
 }
 
+/** The sprites a map uses: HGSS's on the Johto maps (`sprites: 'hgss'`), FireRed's on the others. */
+const setOf = (route: Route): SpriteSet => route.sprites ?? 'frlg';
+
 /** An option's figure: its trainer (a boss's own sprite), or the non-battle encounter's (null if it has none). */
-function optionFigure(o: MapEncounter): RouteFigure | null {
-  if (isBattleKind(o.kind)) return o.trainer ? { title: o.trainer, ...(isBossKind(o.kind) && o.boss ? { boss: o.boss } : { sprite: trainerSprite(o.trainer) }) } : null;
-  const sprite = encounterSprite(o.kind, o.event?.id);
+function optionFigure(o: MapEncounter, set: SpriteSet): RouteFigure | null {
+  if (isBattleKind(o.kind)) return o.trainer ? { title: o.trainer, ...(isBossKind(o.kind) && o.boss ? { boss: o.boss } : { sprite: trainerSprite(o.trainer, set) }) } : null;
+  const sprite = encounterSprite(o.kind, o.event?.id, set);
   return sprite ? { title: o.label, sprite, bubble: o.kind } : null;
 }
 
 /** The figure of the encounter under way: its trainer, or whoever runs it (the shop's clerk, the event's character…). */
-function encounterFigure(view: RunViewData): RouteFigure | null {
+function encounterFigure(view: RunViewData, set: SpriteSet): RouteFigure | null {
   const e = view.encounter;
   if (!e || e.kind === 'reward') return null;
-  if ('trainer' in e && isBattleKind(e.kind)) return { title: e.trainer, ...(isBossKind(e.kind) && 'boss' in e && e.boss ? { boss: e.boss } : { sprite: trainerSprite(e.trainer) }) };
-  const sprite = encounterSprite(e.kind, e.kind === 'event' ? e.event.id : undefined);
+  if ('trainer' in e && isBattleKind(e.kind)) return { title: e.trainer, ...(isBossKind(e.kind) && 'boss' in e && e.boss ? { boss: e.boss } : { sprite: trainerSprite(e.trainer, set) }) };
+  const sprite = encounterSprite(e.kind, e.kind === 'event' ? e.event.id : undefined, set);
   return sprite ? { title: view.event?.title ?? e.kind, sprite, bubble: e.kind } : null;
 }
 
@@ -325,7 +331,8 @@ function OverworldSprite({
   face,
   title,
   faded,
-  frame,
+  walkTick,
+  bob = false,
   moveMs = 0,
   fadeMs = FADE_MS,
   hidden = false,
@@ -335,12 +342,16 @@ function OverworldSprite({
   face: Facing;
   title?: string;
   faded?: boolean;
-  frame?: number;
+  /** While walking: how far into its walk cycle it is (walkFrame). */
+  walkTick?: number;
+  /** Standing still: in the low half of its bob (a sprite that bobs, bobFrame). */
+  bob?: boolean;
   moveMs?: number;
   fadeMs?: number;
   hidden?: boolean;
 }) {
   const w = spriteWidth(name);
+  const frame = walkTick !== undefined ? walkFrame(name, face, walkTick) : bob && bobs(name) ? bobFrame(name, face) : standFrame(name, face);
   return (
     <div
       title={title}
@@ -353,9 +364,9 @@ function OverworldSprite({
         width: w,
         height: 32,
         backgroundImage: `url(/overworld/${name}.png)`,
-        backgroundSize: `${w * STRIP_FRAMES}px 32px`,
-        backgroundPosition: `${-(frame ?? FRAME[face]) * w}px 0`,
-        transform: face === 'right' ? 'scaleX(-1)' : undefined,
+        backgroundSize: `${w * stripFrames(name)}px 32px`,
+        backgroundPosition: `${-frame * w}px 0`,
+        transform: mirrored(name, face) ? 'scaleX(-1)' : undefined,
         zIndex: tile.y,
       }}
     />
@@ -410,7 +421,7 @@ function Figure({
   spot,
   faded,
   face,
-  frame,
+  walkTick,
   moveMs,
   wet,
 }: {
@@ -422,14 +433,14 @@ function Figure({
   wet?: boolean;
   /** While walking (an NPC coming up to the player): the way it's going, its walking frame and its step's time. */
   face?: Facing;
-  frame?: number;
+  walkTick?: number;
   moveMs?: number;
 }) {
   if (!figure.boss) {
     return (
       <>
-        <OverworldSprite name={(wet && figure.sprite && waterSprite(figure.sprite)) || figure.sprite || 'boy'} tile={tile} face={face ?? facing(tile, spot)} title={figure.title} faded={faded} frame={frame} moveMs={moveMs} />
-        {figure.bubble && <EncounterBubble kind={figure.bubble} tile={tile} faded={faded} low={figure.sprite === 'item_ball'} below={tile.y > spot.y} moveMs={moveMs} />}
+        <OverworldSprite name={(wet && figure.sprite && waterSprite(figure.sprite)) || figure.sprite || 'boy'} tile={tile} face={face ?? facing(tile, spot)} title={figure.title} faded={faded} walkTick={walkTick} moveMs={moveMs} />
+        {figure.bubble && <EncounterBubble kind={figure.bubble} tile={tile} faded={faded} low={isItemBall(figure.sprite)} below={tile.y > spot.y} moveMs={moveMs} />}
       </>
     );
   }
@@ -459,11 +470,11 @@ function placeFigures(route: Route, view: RunViewData, first: number, upto: numb
   const place = (figures: RouteFigure[], index: number, faded: boolean) => {
     const spot = spots[index]!;
     const stand = route.stands?.[index];
-    let tiles = stand ? [stand] : nearbyTiles(route, index, figures.map((f) => !!f.sprite && !!waterSprite(f.sprite)), taken);
+    let tiles = stand ? [stand] : nearbyTiles(route, index, figures.map((f) => !!f.sprite && swims(f.sprite)), taken);
     // A passed non-battle encounter's NPC (not an item ball) walked up to the player: it stays (faded) where it went
     // (`moved`), or, not seen walking (a reload), on the free tile beside the spot nearest where it stood.
     const f = figures[0];
-    if (faded && !stand && figures.length === 1 && f?.bubble && f.sprite !== 'item_ball' && tiles[0]) {
+    if (faded && !stand && figures.length === 1 && f?.bubble && !isItemBall(f.sprite) && tiles[0]) {
       const from = tiles[0];
       const beside = ([[0, -1], [1, 0], [0, 1], [-1, 0]] as const)
         .map(([dx, dy]) => ({ x: spot.x + dx, y: spot.y + dy }))
@@ -482,16 +493,16 @@ function placeFigures(route: Route, view: RunViewData, first: number, upto: numb
     if (!step) return { figures: [], faded: false };
     if (i < view.position) {
       const chosen = step.chosen !== undefined ? step.options[step.chosen] : undefined;
-      const figure = chosen && optionFigure(chosen);
+      const figure = chosen && optionFigure(chosen, setOf(route));
       return { figures: figure ? [figure] : [], faded: true };
     }
     if (i === view.position && view.phase === 'encounter') {
       // Choosing a battle's reward, its trainer stays (at full opacity) until the player walks on.
       const chosen = view.encounter?.kind === 'reward' && step.chosen !== undefined ? step.options[step.chosen] : undefined;
-      const figure = chosen ? optionFigure(chosen) : encounterFigure(view);
+      const figure = chosen ? optionFigure(chosen, setOf(route)) : encounterFigure(view, setOf(route));
       return { figures: figure ? [figure] : [], faded: false };
     }
-    return { figures: step.options.flatMap((o, option) => { const f = optionFigure(o); return f ? [{ ...f, option }] : []; }), faded: false };
+    return { figures: step.options.flatMap((o, option) => { const f = optionFigure(o, setOf(route)); return f ? [{ ...f, option }] : []; }), faded: false };
   };
   const local = view.position - first;
   const onMap = local >= 0 && view.position < upto;
@@ -641,6 +652,15 @@ export function RouteView({ routes, gym, view, spotted }: { routes: Route[]; gym
   const movedRef = useRef(new Map<number, RouteSpot>());
   const [tick, setTick] = useState(0);
   const anyWalking = walker.walking || !!approach?.walking;
+  // The player bobbing on the spot while still (Ethan surfing): the low half of the bob every other BOB_MS.
+  const [bobbing, setBobbing] = useState(false);
+  const playerName = playerSprite(setOf(shown), shown.travel, onWater(shown, walker.tile));
+  const stillBob = bobs(playerName) && !walker.walking;
+  useEffect(() => {
+    if (!stillBob) return;
+    const timer = window.setInterval(() => setBobbing((b) => !b), BOB_MS);
+    return () => window.clearInterval(timer);
+  }, [stillBob]);
   useEffect(() => {
     if (!anyWalking) return;
     const timer = window.setInterval(() => setTick((t) => t + 1), ms.frame / pace(shown));
@@ -656,7 +676,7 @@ export function RouteView({ routes, gym, view, spotted }: { routes: Route[]; gym
     const option = view.steps[position]?.options[chosenOption];
     if (!option || isBattleKind(option.kind)) return;
     const e = view.encounter;
-    if (view.phase === 'encounter' && (!e || e.kind === 'reward' || encounterFigure(view)?.sprite === 'item_ball')) return;
+    if (view.phase === 'encounter' && (!e || e.kind === 'reward' || isItemBall(encounterFigure(view, setOf(shown))?.sprite))) return;
     // A Mystery waits until it's revealed (once under way) to show who walks up; a Lucky Find's ₱ stay on the ground.
     if (view.phase === 'map' && option.kind === 'event' && (!option.event || option.event.id === 'luckyFind')) return;
     const from = choosingRef.current.find((p) => p.spot === spot && !p.faded && p.figure.option === chosenOption)?.tile;
@@ -869,7 +889,7 @@ export function RouteView({ routes, gym, view, spotted }: { routes: Route[]; gym
                   tile={approaching!.tile}
                   spot={p.spot}
                   face={approaching!.face}
-                  frame={approaching!.walking ? WALK[approaching!.face][tick % 4] : undefined}
+                  walkTick={approaching!.walking ? tick : undefined}
                   moveMs={approaching!.walking ? ms.step : 0}
                   wet={onWater(shown, approaching!.tile)}
                 />
@@ -878,10 +898,11 @@ export function RouteView({ routes, gym, view, spotted }: { routes: Route[]; gym
               ),
             )}
             <OverworldSprite
-              name={shown.travel === 'bike' ? 'red_bike' : shown.travel === 'surf' && onWater(shown, walker.tile) ? 'red_surf' : 'red'}
+              name={playerName}
+              bob={stillBob && bobbing}
               tile={walker.tile}
               face={redFace}
-              frame={walker.walking ? WALK[redFace][tick % 4] : undefined}
+              walkTick={walker.walking ? tick : undefined}
               moveMs={walker.walking ? ms.step / pace(shown) : 0}
               fadeMs={ms.fade}
               hidden={walker.hidden}
