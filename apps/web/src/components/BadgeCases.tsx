@@ -12,7 +12,7 @@ export const BADGE_IDS = new Set(Object.values(GENERATIONS).flatMap(generationBa
  * has. Clicking one opens it (BadgeCaseDialog). The icon (`public/items/badge-case.png`) is the Medal Box: the games have
  * no bag icon for a Badge Case, which is a Trainer Card screen.
  */
-export function BadgeCases({ owned }: { owned: ReadonlySet<string> }) {
+export function BadgeCases({ owned, tile }: { owned: ReadonlySet<string>; /** The Inventory's tile style, so a case is the size of the items beside it. */ tile: string }) {
   const [open, setOpen] = useState<number | null>(null);
   return (
     <>
@@ -22,10 +22,10 @@ export function BadgeCases({ owned }: { owned: ReadonlySet<string> }) {
         return (
           <li key={id}>
             <button
-              className="flex w-full items-center gap-3 rounded bg-slate-800 p-3 text-left text-sm ring-1 ring-slate-700 transition hover:bg-slate-700/60 hover:ring-slate-500"
+              className={`${tile} w-full text-left transition hover:bg-slate-700/60 hover:ring-slate-500`}
               onClick={() => setOpen(Number(id))}
             >
-              <ItemIcon id="badge-case" />
+              <ItemIcon id="badge-case" className="shrink-0" />
               <div className="min-w-0">
                 <span className="font-semibold">{g.region} Badge Case</span>
                 <p className={`text-xs ${have === badges.length ? 'font-semibold text-yellow-300' : 'text-slate-400'}`}>

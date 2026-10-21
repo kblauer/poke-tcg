@@ -16,7 +16,7 @@ import type { ComponentType } from 'react';
 export const ENCOUNTER_STYLE: Record<EncounterKind, { Icon: ComponentType<{ sx?: object }>; color: string; name: string }> = {
   battle: { Icon: SportsMartialArtsIcon, color: 'bg-rose-600', name: 'Battle' },
   elite: { Icon: MilitaryTechIcon, color: 'bg-fuchsia-700', name: 'Elite battle' },
-  gymTrainer: { Icon: SportsKabaddiIcon, color: 'bg-orange-600', name: 'Gym Trainer (must be fought)' },
+  gymTrainer: { Icon: SportsKabaddiIcon, color: 'bg-orange-600', name: 'Gym Trainer' },
   gymLeader: { Icon: CastleIcon, color: 'bg-yellow-500', name: 'Gym leader' },
   eliteFour: { Icon: ShieldIcon, color: 'bg-indigo-600', name: 'Elite Four' },
   champion: { Icon: EmojiEventsIcon, color: 'bg-amber-400', name: 'Champion' },
@@ -26,6 +26,9 @@ export const ENCOUNTER_STYLE: Record<EncounterKind, { Icon: ComponentType<{ sx?:
   event: { Icon: QuestionMarkIcon, color: 'bg-violet-600', name: 'Mystery' },
   center: { Icon: LocalHospitalIcon, color: 'bg-pink-500', name: 'Pokémon Center' },
 };
+
+/** What an encounter is called: its label, but a Gym Trainer by their name (their label is the gym's, "Celadon Gym Trainer"). */
+export const encounterLabel = (o: { kind: EncounterKind; label: string; trainer?: string }) => (o.kind === 'gymTrainer' && o.trainer ? o.trainer : o.label);
 
 /** Bosses (gym leaders, the Elite Four, the Champion) are drawn bigger on the map. */
 export const isBoss = isBossKind;

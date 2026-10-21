@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { lockPage } from '../utils/pageLock';
 
 /** The viewport while the screen is locked: no zooming, and any zoom the player had is undone. */
 const LOCKED_VIEWPORT = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
@@ -11,13 +12,9 @@ const LOCKED_VIEWPORT = 'width=device-width, initial-scale=1.0, maximum-scale=1.
 export function useLockedScreen(on: boolean) {
   useEffect(() => {
     if (!on) return;
-    const { documentElement: html, body } = document;
     const meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
-    const before = { html: html.style.cssText, body: body.style.cssText, viewport: meta?.content };
-    for (const el of [html, body]) {
-      el.style.overflow = 'hidden';
-      el.style.overscrollBehavior = 'none';
-    }
+    const viewport = meta?.content;
+    const release = lockPage();
     if (meta) meta.content = LOCKED_VIEWPORT;
     window.scrollTo(0, 0);
     const block = (e: Event) => e.preventDefault();
@@ -26,9 +23,8 @@ export function useLockedScreen(on: boolean) {
     document.addEventListener('gesturestart', block);
     document.addEventListener('touchmove', pinch, { passive: false });
     return () => {
-      html.style.cssText = before.html;
-      body.style.cssText = before.body;
-      if (meta && before.viewport !== undefined) meta.content = before.viewport;
+      release();
+      if (meta && viewport !== undefined) meta.content = viewport;
       document.removeEventListener('gesturestart', block);
       document.removeEventListener('touchmove', pinch);
     };

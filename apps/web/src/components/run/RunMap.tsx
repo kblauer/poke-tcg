@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import type { RunControl, RunViewData } from '../../hooks/useRun';
-import { ENCOUNTER_STYLE, EncounterBadge, isBoss } from './encounterIcons';
+import { ENCOUNTER_STYLE, EncounterBadge, encounterLabel, isBoss } from './encounterIcons';
 import { FocusTag } from './RouteChoice';
 
 /** On a phone, how many steps before and after the current one the map shows without scrolling. */
@@ -77,15 +77,15 @@ export function RunMap({ view, run }: { view: RunViewData; run: RunControl }) {
                       className="flex w-24 flex-col items-center gap-1 rounded-lg p-1 transition hover:bg-slate-700 active:scale-95 disabled:opacity-50"
                     >
                       <EncounterBadge kind={o.kind} size={phone ? (big ? 64 : 52) : big ? 80 : 64} />
-                      <span className="text-center text-xs font-semibold leading-tight">{o.label}</span>
+                      <span className="text-center text-xs font-semibold leading-tight">{encounterLabel(o)}</span>
                       <FocusTag option={o} />
                     </button>
                   ))
                 ) : (
                   step.options.map((o, n) => (
-                    <span key={n} className="flex flex-col items-center gap-0.5" title={o.label}>
+                    <span key={n} className="flex flex-col items-center gap-0.5" title={encounterLabel(o)}>
                       <EncounterBadge kind={o.kind} size={phone ? (big ? 48 : current ? 48 : 32) : big ? 64 : current ? 56 : 40} dim={!current && !fixed} />
-                      {fixed && <span className="text-[10px] text-slate-400">{o.label}</span>}
+                      {fixed && <span className="text-[10px] text-slate-400">{encounterLabel(o)}</span>}
                     </span>
                   ))
                 )}

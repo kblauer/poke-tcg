@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router';
 import type { RunControl, RunViewData } from '../../hooks/useRun';
 import { isBossKind } from '@poke-tcg/campaign';
 import { ENCOUNTER_STYLE, EncounterBadge } from './encounterIcons';
+import { useIsPhone } from '../../hooks/useIsPhone';
 import { useUnlocked } from '../../hooks/useUnlocked';
 import { RunCard } from './RunCard';
 
@@ -15,6 +16,8 @@ const primary = 'rounded bg-blue-600 px-4 py-2 font-semibold transition hover:bg
  */
 export function EncounterPanel({ view, run }: { view: RunViewData; run: RunControl }) {
   const { isLocked } = useUnlocked();
+  // On a phone the reward's and the free card's cards shrink to share one row, the card shop's two rows.
+  const phone = useIsPhone();
   const e = view.encounter;
   if (!e) return null;
   const card = (id: string) => view.cards[id];
@@ -72,9 +75,9 @@ export function EncounterPanel({ view, run }: { view: RunViewData; run: RunContr
           <p className="text-sm text-slate-300">
             +₱{e.pokedollars} and +{e.exp} EXP. Choose a card to take with you:
           </p>
-          <div className="flex flex-wrap gap-3">
+          <div className={phone ? 'flex gap-1' : 'flex flex-wrap gap-3'}>
             {e.offers.map((id, i) => (
-              <RunCard key={i} def={card(id)} badge={newTag(id)} disabled={run.busy} onClick={() => run.send({ type: 'PICK', index: i })} />
+              <RunCard key={i} def={card(id)} badge={newTag(id)} disabled={run.busy} onClick={() => run.send({ type: 'PICK', index: i })} fluid={phone} />
             ))}
           </div>
           {leave('Take nothing')}
@@ -89,9 +92,9 @@ export function EncounterPanel({ view, run }: { view: RunViewData; run: RunContr
             <h3 className="text-lg font-semibold">Free card</h3>
           </div>
           <p className="text-sm text-slate-300">A collector has spares to give away. Take one:</p>
-          <div className="flex flex-wrap gap-3">
+          <div className={phone ? 'flex gap-1' : 'flex flex-wrap gap-3'}>
             {e.offers.map((id, i) => (
-              <RunCard key={i} def={card(id)} badge={newTag(id)} disabled={run.busy} onClick={() => run.send({ type: 'PICK', index: i })} />
+              <RunCard key={i} def={card(id)} badge={newTag(id)} disabled={run.busy} onClick={() => run.send({ type: 'PICK', index: i })} fluid={phone} />
             ))}
           </div>
           {leave('Take nothing')}
@@ -106,10 +109,15 @@ export function EncounterPanel({ view, run }: { view: RunViewData; run: RunContr
             <h3 className="text-lg font-semibold">Card shop</h3>
             <span className="ml-auto text-sm text-yellow-300">You have ₱{view.pokedollars}</span>
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div
+            // Each card stretches to its column (not sized by its name), so all are the same size.
+            className={phone ? 'grid gap-1' : 'flex flex-wrap gap-3'}
+            style={phone ? { gridTemplateColumns: `repeat(${Math.ceil(e.stock.length / 2)}, minmax(0, 1fr))` } : undefined}
+          >
             {e.stock.map((s, i) => (
               <RunCard
                 key={i}
+                fluid={phone}
                 def={card(s.cardId)}
                 badge={s.sold ? undefined : newTag(s.cardId)}
                 disabled={run.busy || s.sold || view.pokedollars < s.price}

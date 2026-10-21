@@ -1,11 +1,23 @@
-import { itemText, MAX_CONSUMABLES_PER_RUN } from '@poke-tcg/campaign';
+import { itemText, ITEMS, MAX_CONSUMABLES_PER_RUN } from '@poke-tcg/campaign';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '../../lib/trpc';
 import type { RunControl, RunViewData } from '../../hooks/useRun';
 
 /**
+ * Why no consumable can be used in the run now, or null: 3 per run at most, used before a battle starts, and one at a time
+ * (another waits until the one in effect has run out). As USE_ITEM checks, for the Bag and the Inventory's tiles.
+ */
+export function consumableProblem(view: RunViewData): string | null {
+  if (view.consumablesUsed >= MAX_CONSUMABLES_PER_RUN) return `Only ${MAX_CONSUMABLES_PER_RUN} consumables per run`;
+  if (view.encounter && 'gameId' in view.encounter && view.encounter.gameId) return 'Use consumables before a battle starts';
+  const active = view.consumables[0];
+  if (active) return `${ITEMS[active.itemId]?.name ?? 'A consumable'} is still active (${active.battlesLeft} battle${active.battlesLeft === 1 ? '' : 's'} left)`;
+  return null;
+}
+
+/**
  * The consumables and misc items you own, with a Use button each: consumables last a number of battles
- * (3 per run at most, used before a battle starts), misc items keep their own per-run limits.
+ * (consumableProblem: 3 per run at most, before a battle starts, one at a time), misc items keep their own per-run limits.
  */
 export function BagPanel({ view, run }: { view: RunViewData; run: RunControl }) {
   const trpc = useTRPC();
@@ -13,8 +25,7 @@ export function BagPanel({ view, run }: { view: RunViewData; run: RunControl }) 
   const usable = (inventory.data?.items ?? []).filter((i) => i.category === 'consumable' || i.category === 'misc');
   if (!usable.length) return null;
   const why = (i: (typeof usable)[number]) => {
-    if (i.category === 'consumable' && view.consumablesUsed >= MAX_CONSUMABLES_PER_RUN) return `Only ${MAX_CONSUMABLES_PER_RUN} consumables per run`;
-    if (i.category === 'consumable' && view.encounter && 'gameId' in view.encounter && view.encounter.gameId) return 'Use consumables before a battle starts';
+    if (i.category === 'consumable') return consumableProblem(view);
     if (i.perRun !== undefined && (view.itemUses[i.id] ?? 0) >= i.perRun) return 'Used up for this run';
     return null;
   };

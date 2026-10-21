@@ -100,6 +100,10 @@ const CLASS_SPRITES: Record<string, string> = {
   Burglar: 'poke_maniac',
   'Gym Guide': 'gym_guy',
   'Rocket Grunt': 'rocket_m',
+  // Kanto's Gym Trainers' classes, as FireRed draws them in their gyms.
+  Tamer: 'man',
+  Channeler: 'channeler',
+  Engineer: 'balding_man',
 };
 
 /**
@@ -107,6 +111,18 @@ const CLASS_SPRITES: Record<string, string> = {
  * as men and women.
  */
 const WOMEN = new Set(['Mary', 'Saki', 'Gwen', 'Paige', 'Vera', 'Quinn', 'Shirley', 'Tiffany', 'Nora', 'Melissa', 'Anya', 'Alice', 'Connie', 'Mara', 'Lena', 'Tess', 'Rhea']);
+
+/** Kanto's Gym Trainers (bosses.ts) whose class FireRed draws differently in their gym (pret's gym maps): Fuchsia's Jugglers as Rockers, Saffron's Psychics as Cooltrainers. */
+const GYM_SPRITES: Record<string, string> = {
+  'Juggler Kayden': 'rocker',
+  'Juggler Shawn': 'rocker',
+  'Juggler Kirk': 'rocker',
+  'Juggler Nate': 'rocker',
+  'Psychic Cameron': 'cooltrainer_m',
+  'Psychic Johan': 'cooltrainer_m',
+  'Psychic Preston': 'cooltrainer_m',
+  'Psychic Tyron': 'cooltrainer_m',
+};
 
 /**
  * Each trainer class's HGSS sprite where its name differs from FireRed's (the others have HGSS sprites of the same name):
@@ -124,8 +140,12 @@ const HGSS_CLASS_SPRITES: Record<string, string> = {
   'Gym Guide': 'boy',
 };
 
-/** The overworld sprite for a trainer met on the map (or at a gym), by their name; the boy for any other. */
+/**
+ * The overworld sprite for a trainer met on the map (or at a gym), by their name; the boy for any other. Kanto's Gym
+ * Trainers' own sprites (GYM_SPRITES) are FireRed's, on its maps.
+ */
 export function trainerSprite(trainer: string, set: SpriteSet = 'frlg'): string {
+  if (set === 'frlg' && GYM_SPRITES[trainer]) return GYM_SPRITES[trainer];
   const words = trainer.split(' ');
   const name = words.at(-1)!;
   const trainerClass = words.slice(0, -1).join(' ');
