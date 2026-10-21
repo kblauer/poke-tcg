@@ -47,6 +47,8 @@ export interface TcgdexCard {
   item: { name: string; effect: string } | null;
   /** Holo Energy only (made by the seed, not from TCGdex): the holo style it's shown in (holo-energy.ts). */
   holoEnergy?: HoloEnergyStyle;
+  /** A reverse-holo print (made by the seed from an EX card TCGdex lists one for, id "<card id>-reverse": reverseHoloCard). */
+  reverseHolo?: boolean;
 }
 
 export interface CardSnapshot {

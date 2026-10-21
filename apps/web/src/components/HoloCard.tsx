@@ -87,6 +87,7 @@ export function HoloCard({
       data-era={attrs.era}
       data-trainer-gallery={attrs.trainerGallery ? "true" : "false"}
       data-holo-energy={attrs.holoEnergy ? 'true' : 'false'}
+      data-pokemon-ex={attrs.pokemonEx ? 'true' : 'false'}
       style={still ? STILL : undefined}
     >
       <div className="card__translater">

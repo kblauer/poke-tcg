@@ -1,19 +1,20 @@
 // Booster packs, bought with the ₱ in the bank. Each is 11 cards from one set with the generally accepted
 // WOTC-era make-up (averaged over the sets, not each set's own odds): 1 rare (holo about 1 pack in 3),
 // 3 uncommons and 6 commons, all different (each of those now and then a rare instead: EXTRA_RARE_CHANCES), plus 1 basic Energy: the set's own, or the closest earlier set's, and
-// about 1 pack in 50 a holo Energy instead (found only in packs). Opening one unlocks its cards.
-import { BASIC_ENERGY, GEN2_SETS, type Rarity } from './pool.js';
+// about 1 pack in 50 a holo Energy instead (found only in packs). An EX set's pack has a reverse holo in place of one common
+// (agreed with the user). Opening one unlocks its cards.
+import { BASIC_ENERGY, EX_SETS, GEN2_SETS, type Rarity } from './pool.js';
 import { chance, pick, sample, type Rng } from './random.js';
 
-/** Sets with packs: Gen 1's and Gen 2's (GEN2_SETS: Neo Genesis's, Neo Discovery's, Southern Islands', Neo Revelation's and Neo Destiny's card effects are done, the others' are still to come). */
-export const PACK_SETS = ['base1', 'base2', 'base3', 'basep', 'base4', 'base5', 'gym1', 'gym2', 'lc', ...GEN2_SETS];
+/** Sets with packs: Gen 1's, Gen 2's (GEN2_SETS) and Gen 3's (EX_SETS: locked until Gen 3's runs exist, agreed). */
+export const PACK_SETS = ['base1', 'base2', 'base3', 'basep', 'base4', 'base5', 'gym1', 'gym2', 'lc', ...GEN2_SETS, ...EX_SETS];
 
 /**
  * Stardust, the account's crafting currency, for each card pulled from a pack that the account already had (a new
  * unlock gives none), by its slot (agreed with the user): 50 a common, 100 an uncommon, 300 a rare or holo (a holo
- * Energy too); basic Energy gives none.
+ * Energy too, and a reverse holo, which counts as a holo: agreed); basic Energy gives none.
  */
-export const STARDUST_PER_CARD: Record<PackCard['slot'], number> = { common: 50, uncommon: 100, rare: 300, holo: 300, energy: 0, holoEnergy: 300 };
+export const STARDUST_PER_CARD: Record<PackCard['slot'], number> = { common: 50, uncommon: 100, rare: 300, holo: 300, energy: 0, holoEnergy: 300, reverse: 300 };
 
 /** What crafting a card costs in Stardust, by its rarity (agreed with the user): 100 a common or uncommon, 500 a rare or holo. */
 export const CRAFT_COST: Record<Rarity, number> = { common: 100, uncommon: 100, rare: 500, holo: 500 };
@@ -59,12 +60,14 @@ export interface PackSet {
   holo: string[];
   energy?: string[];
   holoEnergy?: string[];
+  /** The reverse-holo prints (EX sets): one of them takes a common's place in each pack. */
+  reverse?: string[];
 }
 
 export interface PackCard {
   cardId: string;
-  /** The slot it came from: its rarity, basic Energy, or (instead, now and then) a holo Energy. */
-  slot: Rarity | 'energy' | 'holoEnergy';
+  /** The slot it came from: its rarity, basic Energy, (instead, now and then) a holo Energy, or a reverse holo (EX sets). */
+  slot: Rarity | 'energy' | 'holoEnergy' | 'reverse';
 }
 
 /**
@@ -116,6 +119,8 @@ export function openPack(set: PackSet, rng: Rng, { forceHoloEnergy = false, forc
     return [energy, ...rest, ...extras, ...(holo ? [holo] : [])];
   }
   const rare = rareCard()!;
-  const rest = upgrade([...commons(PACK_COMMONS), ...sample(rng, set.uncommon, PACK_UNCOMMONS).map((cardId) => ({ cardId, slot: 'uncommon' as const }))]);
-  return [energy, ...rest, ...extras, rare];
+  // EX sets: a reverse holo of any card in the set instead of the last common, revealed just before the rare.
+  const reverse: PackCard[] = set.reverse?.length ? [{ cardId: pick(rng, set.reverse), slot: 'reverse' }] : [];
+  const rest = upgrade([...commons(PACK_COMMONS - reverse.length), ...sample(rng, set.uncommon, PACK_UNCOMMONS).map((cardId) => ({ cardId, slot: 'uncommon' as const }))]);
+  return [energy, ...rest, ...extras, ...reverse, rare];
 }

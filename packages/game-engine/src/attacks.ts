@@ -804,8 +804,21 @@ function createContext(
     const guard = owner.bench.findIndex((q) => q && q !== p && passive(q)?.benchGuard);
     if (target >= 0 && guard >= 0) (state.queuedChoices ??= []).push({ player: owner.id, source: 'Bench Guard', kind: 'benchGuard', target, guard });
   };
+  /** Intimidating Fang: while the opponent's Active Pokémon has it, the attack does less to any of their Pokémon (before Weakness and Resistance). */
+  const intimidated = (amount: number, owner: PlayerState) => {
+    const fang = owner.active ? passive(owner.active)?.intimidatingFang : undefined;
+    if (!fang || amount <= 0) return amount;
+    log(`Intimidating Fang reduced the damage by ${fang}.`, owner.id);
+    return Math.max(0, amount - fang);
+  };
   /** Shell Armor: 10 less attack damage. Strange Barrier: an attack by a Basic Pokémon does 10 instead of 20 or more. */
   const barriers = (p: InPlayPokemon, damage: number, owner: PlayerState) => {
+    // Hard Cocoon: the opponent's attack, on its owner's heads, does a set amount less.
+    const cocoon = passive(p)?.hardCocoon;
+    if (damage > 0 && cocoon && owner === opp && flipCoin(state, 'Hard Cocoon', owner.id)) {
+      damage = Math.max(0, damage - cocoon);
+      log(`Hard Cocoon reduced the damage to ${pokemonName(state, p)} by ${cocoon}.`, owner.id);
+    }
     if (damage > 0 && passive(p)?.shellArmor) {
       damage = Math.max(0, damage - 10);
       log(`Shell Armor reduced the damage to ${pokemonName(state, p)} by 10.`, owner.id);
@@ -933,19 +946,20 @@ function createContext(
   };
   /** Damage to a benched Pokémon or the attacker itself: Defender, then Kabuto Armor. */
   const benchedDamage = (p: InPlayPokemon, amount: number, owner: PlayerState) => {
-    amount = Math.max(0, charmed(amount) - metalLess);
+    amount = charmed(amount);
+    if (owner === opp) amount = intimidated(amount, owner);
     if (amount > 0 && sproutTower(state) && attackerDef.type === 'colorless') amount = Math.max(0, amount - 30);
-    amount = Math.max(0, amount - 10 * energyCount(state.cards, p, 'Metal Energy'));
+    if (def(state.cards, p).type === 'metal') amount = Math.max(0, amount - 10 * energyCount(state.cards, p, 'Metal Energy'));
     const damage = unownGuarded(p, barriers(p, armor(p, afterDefender(state.cards, p, amount), owner), owner), owner);
     return damage >= 30 && passive(p)?.invisibleWall ? 0 : damage;
   };
   /** Shadow Images: one flip per attack, by the attacking player; tails, the attack does no damage to the Pokémon. */
   let shadowImages: boolean | undefined;
   /**
-   * Metal Energy on an attacker that isn't Metal: its attacks do 10 less for each, before Weakness and Resistance (Neo
-   * Genesis's; Expedition's plays the same, agreed with the user).
+   * Darkness Energy (the EX rules for every set's, agreed with the user): 10 more for each to the Active Pokémon, before
+   * Weakness and Resistance, from an attacker that's Darkness or has Dark in its name.
    */
-  const metalLess = attackerDef.type === 'metal' ? 0 : 10 * energyCount(state.cards, attacker, 'Metal Energy');
+  const darkMore = () => (attackerDef.type === 'darkness' || attackerDef.name.includes('Dark') ? 10 * energyCount(state.cards, attacker, 'Darkness Energy') : 0);
   /** Whether the attack can affect this Pokémon; logs why not. Transparency flips the first time it's asked. */
   const canAffect = (player: PlayerState, p: InPlayPokemon) => {
     if (!immune(p, player) && !transparent(p, player)) return true;
@@ -1007,8 +1021,9 @@ function createContext(
       // Pewter City Gym: no Resistance for attacks by Pokémon with Brock in their names.
       const stadium = state.stadium && lookupCard(state.cards, state.stadium.card.defId).name;
       if (stadium === 'Pewter City Gym' && attackerDef.name.includes('Brock')) resistance = false;
-      // Magnifier: no Resistance for its Pokémon's attack.
+      // Magnifier: no Resistance for its Pokémon's attack. Withering Dust, from anywhere in play: none for any Active Pokémon.
       if (attachedCount(state.cards, attacker, 'Magnifier')) resistance = false;
+      if (sides.some((side) => [side.active, ...side.bench].some((p) => p && passive(p)?.witheringDust))) resistance = false;
       // Cinnabar City Gym, and Weakness Guard: no Weakness.
       const weaknessOff = (stadium === 'Cinnabar City Gym' && attackerDef.type === 'water' && defenderDef.name.includes('Blaine')) || attachedCount(state.cards, defender, 'Weakness Guard') > 0;
       // Charm: the attacker's damage is less, before Weakness and Resistance.
@@ -1021,7 +1036,13 @@ function createContext(
         amount = Math.max(0, amount - snivel.amount);
         log(`The damage to ${defenderDef.name} was reduced by ${snivel.amount}.`, opp.id);
       }
-      if (metalLess) amount = Math.max(0, amount - metalLess);
+      // As the damage is done: the attack may have discarded its Darkness Energy first (Dark Fire).
+      const dark = darkMore();
+      if (amount > 0 && dark) {
+        amount += dark;
+        log(`Darkness Energy: ${dark} more damage.`);
+      }
+      amount = intimidated(amount, opp);
       // Enervating Pollen: Resistance takes off at most 10.
       const rules = { resistance, weakness: !weaknessOff, resistanceLess: stadium === 'Resistance Gym' ? 20 : 0, resistanceCap: enervatingPollen(sides, state.cards) ? 10 : undefined };
       let damage = weakness && !swift ? applyWeaknessResistance(amount, attackerDef.type, defenderDef, defender.effects, rules) : amount;
@@ -1030,12 +1051,6 @@ function createContext(
       if (damage > 0 && misty) {
         damage += 20 * misty;
         log(`Misty: ${20 * misty} more damage.`);
-      }
-      // Darkness Energy: 10 more for each on the attacker, if the attack damages the Defending Pokémon after Weakness and Resistance.
-      const dark = energyCount(state.cards, attacker, 'Darkness Energy');
-      if (damage > 0 && dark) {
-        damage += 10 * dark;
-        log(`Darkness Energy: ${10 * dark} more damage.`);
       }
       // Strength Charm: 10 more, if the attack damages it after Weakness and Resistance; it's discarded at the end of the turn.
       const charm = toolOf(state.cards, attacker);
@@ -1084,8 +1099,8 @@ function createContext(
           damage = Math.max(0, damage - 30);
           log(`Sprout Tower reduced the damage to ${defenderDef.name} by 30.`, opp.id);
         }
-        // Metal Energy: 10 less for each on the Defending Pokémon, after Weakness and Resistance.
-        const metal = energyCount(state.cards, defender, 'Metal Energy');
+        // Metal Energy (the EX rules for every set's, agreed): 10 less for each on a Metal Defending Pokémon, after Weakness and Resistance.
+        const metal = defenderDef.type === 'metal' ? energyCount(state.cards, defender, 'Metal Energy') : 0;
         if (damage > 0 && metal) {
           damage = Math.max(0, damage - 10 * metal);
           log(`Metal Energy reduced the damage to ${defenderDef.name} by ${10 * metal}.`, opp.id);

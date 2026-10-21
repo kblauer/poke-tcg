@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_RARES_CHANCE, EXTRA_RARE_CHANCES, HOLO_CHANCE, HOLO_ENERGY_CHANCE, openPack, PACK_SETS, type PackCard } from './packs.js';
-import { BASIC_ENERGY } from './pool.js';
+import { BASIC_ENERGY, EX_SETS } from './pool.js';
 import { rngFrom } from './random.js';
 import { testPackSet } from './test-pool.js';
 
@@ -8,7 +8,7 @@ describe('openPack', () => {
   /** Rares and holos (the rare slot, and the extras). */
   const rareCount = (pack: PackCard[]) => pack.filter((c) => c.slot === 'rare' || c.slot === 'holo').length;
 
-  it.each(PACK_SETS.filter((id) => id !== 'basep'))('%s: 1 basic Energy, then commons, uncommons and rares (6, 3 and 1, less any extra rares), all different and from the set', (setId) => {
+  it.each(PACK_SETS.filter((id) => id !== 'basep' && !EX_SETS.includes(id)))('%s: 1 basic Energy, then commons, uncommons and rares (6, 3 and 1, less any extra rares), all different and from the set', (setId) => {
     const set = testPackSet(setId);
     for (let seed = 0; seed < 300; seed++) {
       const pack = openPack(set, rngFrom(seed));
@@ -65,6 +65,21 @@ describe('openPack', () => {
 
   it("Base Set's basic Energy isn't in its common slots", () => {
     expect(testPackSet('base1').common.filter((id) => Object.values(BASIC_ENERGY).includes(id))).toEqual([]);
+  });
+});
+
+describe('openPack: an EX set', () => {
+  it.each(EX_SETS)('%s: a reverse holo in place of one common, revealed just before the rare', (setId) => {
+    const set = testPackSet(setId);
+    expect(set.reverse?.length).toBeGreaterThan(50);
+    for (let seed = 0; seed < 100; seed++) {
+      const pack = openPack(set, rngFrom(seed), { forceAllRares: false });
+      if (pack.some((c) => c.slot === 'rare' || c.slot === 'holo') && pack.filter((c) => c.slot === 'rare' || c.slot === 'holo').length > 1) continue;
+      expect(pack).toHaveLength(11);
+      expect(pack.filter((c) => c.slot === 'common')).toHaveLength(5);
+      expect(pack.at(-2)!.slot).toBe('reverse');
+      expect(set.reverse).toContain(pack.at(-2)!.cardId);
+    }
   });
 });
 

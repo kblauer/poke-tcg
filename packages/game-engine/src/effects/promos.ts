@@ -32,7 +32,7 @@ const discardEnergy = (s: AttackSituation) => s.ownDiscard.filter((c) => lookupC
 const TYPES: EnergyType[] = ['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'darkness', 'metal'];
 
 /** Mewtwo's Energy Absorption: attach up to 2 Energy cards from your discard pile to Mewtwo. */
-const energyAbsorption: AttackEffect = {
+export const energyAbsorption: AttackEffect = {
   blocked: (s) => (discardEnergy(s).length ? null : 'There are no Energy cards in your discard pile'),
   choices: (s): ChoiceSpec[] => [
     { kind: 'ownDiscard', min: 1, max: 2, options: discardEnergy(s), prompt: 'Choose up to 2 Energy cards from your discard pile to attach to Mewtwo' },

@@ -7,7 +7,7 @@
 // reprints are unlocked together when they look the same (neither is holo).
 import { prisma, type Card, type Prisma } from '@poke-tcg/db';
 import { BASE4_REPRINTS } from '@poke-tcg/game-engine';
-import { cardLabel, holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, type CardData } from './cards.js';
+import { cardLabel, holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, isReverseHolo, type CardData } from './cards.js';
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
@@ -44,7 +44,8 @@ export function holoTwins(): Promise<Map<string, string>> {
     for (const r of rows) if (!isFoil(r) && !isBasicEnergyCard(r)) plain.set(`${r.setId}|${face(r)}|${r.name}`, plain.get(`${r.setId}|${face(r)}|${r.name}`) ?? r.id);
     const out = new Map<string, string>();
     for (const r of rows) {
-      const twin = isFoil(r) && !holoEnergyStyle(r) ? plain.get(`${r.setId}|${face(r)}|${r.name}`) : undefined;
+      // A reverse holo's twin is the print it's made from (a holo rare's too).
+      const twin = isReverseHolo(r) ? r.id.replace(/-reverse$/, '') : isFoil(r) && !holoEnergyStyle(r) ? plain.get(`${r.setId}|${face(r)}|${r.name}`) : undefined;
       if (twin) out.set(r.id, twin);
     }
     return out;

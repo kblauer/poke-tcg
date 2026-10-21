@@ -137,6 +137,11 @@ export type PendingChoice = {
       optional?: boolean;
       /** How many cards in all (Summon Minions: up to 2): the search repeats while there are more to take. Missing = 1. */
       count?: number;
+      /** Each a different type of basic Energy (Lady Outing) or a different name (Signs of Evolution): `taken` has those found so far. */
+      distinct?: 'type' | 'name';
+      taken?: string[];
+      /** With `attach`: then this many damage counters on the Pokémon it's attached to (Psy Shadow). */
+      counters?: number;
       /** Challenge!: once this player is done, this player searches the same way. */
       then?: PlayerId;
       /** Gift: once this player is done, this player may make the same search. */
@@ -160,6 +165,8 @@ export type PendingChoice = {
       shuffleRest?: boolean;
       /** Any number of basic Energy cards may be taken, one at a time, shown to the opponent; the rest are shuffled back (Flipper Stroke). */
       basicEnergy?: boolean;
+      /** A Basic Pokémon, Evolution or Energy card may be taken, shown to the opponent; the rest go back on top in any order (PokéNav). */
+      pokeNav?: boolean;
       /** Then this player looks at as many cards from the top of their deck, the same way (Flipper Stroke). */
       then?: PlayerId;
     }
@@ -486,6 +493,16 @@ export type PendingChoice = {
       only?: { type?: EnergyType; name?: string; bench?: boolean };
       /** The search to go on with once it's attached (more cards to find: Attract Current). */
       next?: PendingChoice;
+      /** Then this many damage counters on that Pokémon (Psy Shadow). */
+      counters?: number;
+    }
+  | {
+      /**
+       * Fast Stream: the player moves an Energy card attached to their Active Pokémon to one of their Benched Pokémon (they
+       * pick both): first the Energy card, then (`energyUid` set) the Benched Pokémon.
+       */
+      kind: 'fastStream';
+      energyUid?: string;
     }
   | {
       /** Put a card from the player's hand on top of their deck (Special Delivery). */
@@ -1050,6 +1067,11 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
     const left = (choice.count ?? 1) > 1 ? ` (${choice.count} left)` : '';
     return { kind: 'ownPokemon', purpose: 'heal', prompt: `${choice.source}: click one of your Pokémon to remove a damage counter from${left}`, options };
   }
+  if (choice.kind === 'fastStream') {
+    const owner = state.players[choice.player]!;
+    if (!choice.energyUid) return { kind: 'pickAttached', prompt: `${choice.source}: choose an Energy card attached to your Active Pokémon to move to one of your Benched Pokémon`, options: owner.active?.energy ?? [] };
+    return { kind: 'ownPokemon', purpose: 'attach', prompt: `${choice.source}: click one of your Benched Pokémon to move the Energy card to`, options: owner.bench.flatMap((p, i) => (p ? [i] : [])) };
+  }
   if (choice.kind === 'attachCard') {
     const name = lookupCard(state.cards, choice.card.defId).name;
     return { kind: 'ownPokemon', purpose: 'attach', prompt: `${choice.source}: click one of your Pokémon to attach ${name} to`, options: attachTargets(state, choice) };
@@ -1150,6 +1172,9 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
     if (choice.trainer) {
       const trainers = options.filter((c) => isTrainerCard(lookupCard(state.cards, c.defId)));
       return { kind: 'pickFromDeck', prompt: `${choice.source}: you may take a Trainer card (shown to your opponent); the rest are shuffled back`, options: trainers, optional: true };
+    }
+    if (choice.pokeNav) {
+      return { kind: 'pickFromDeck', prompt: `${choice.source}: you may take a Basic Pokémon, Evolution or Energy card (shown to your opponent); the others go back on top of your deck`, options: options.filter((c) => pokeNavFits(state.cards, c)), optional: true };
     }
     if (choice.master) {
       const pokemon = options.filter((c) => isPokemonCard(lookupCard(state.cards, c.defId)));
@@ -1352,7 +1377,8 @@ export const deckFilter = (cards: CardLibrary, choice: Extract<PendingChoice, { 
   const d = lookupCard(cards, c.defId);
   if (choice.filter === 'basicNamed') return isBasicPokemon(d) && [choice.name].flat().includes(d.name);
   if (choice.filter === 'basicType') return isBasicPokemon(d) && d.type === choice.type;
-  if (choice.filter === 'basicEnergy') return isBasicEnergy(d);
+  if (choice.distinct === 'name' && choice.taken?.includes(d.name)) return false;
+  if (choice.filter === 'basicEnergy') return isBasicEnergy(d) && !(choice.distinct === 'type' && d.kind === 'energy' && choice.taken?.includes(d.energyType));
   if (choice.filter === 'energyType') return isBasicEnergy(d) && d.kind === 'energy' && d.energyType === choice.type;
   if (choice.filter === 'baby') return isPokemonCard(d) && !!d.baby;
   if (choice.filter === 'basic') return isBasicPokemon(d);
@@ -1399,6 +1425,12 @@ const isSkyridge = (choice: PendingChoice): choice is SkyridgeChoice => (SKYRIDG
 const pickingPrizes = (choice: Extract<PendingChoice, { kind: 'lookOppDeck' }>, pile: CardInstance[]) => !choice.looking && pile.length > choice.count;
 /** Investigate: the indexes of the Prize cards not picked yet. */
 const unpickedPrizes = (choice: Extract<PendingChoice, { kind: 'lookOppDeck' }>, pile: CardInstance[]) => pile.flatMap((_, i) => (choice.picked?.includes(i) ? [] : [i]));
+
+/** A card PokéNav can take: a Basic Pokémon, Evolution or Energy card. */
+const pokeNavFits = (cards: CardLibrary, c: CardInstance) => {
+  const d = lookupCard(cards, c.defId);
+  return (d.kind === 'pokemon' && !d.trainerText) || d.kind === 'energy';
+};
 
 /** Basic Energy cards in the discard pile. */
 const basicEnergyIn = (cards: CardLibrary, pile: CardInstance[]) => pile.filter((c) => isBasicEnergy(lookupCard(cards, c.defId)));
@@ -2192,14 +2224,28 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     }
   } else if (choice.kind === 'pickFromTop') {
     const looked = me.deck.filter((c) => choice.looked.includes(c.uid));
-    const takeable = choice.trainer
+    const takeable = choice.pokeNav
+      ? looked.filter((c) => pokeNavFits(state.cards, c))
+      : choice.trainer
       ? looked.filter((c) => isTrainerCard(lookupCard(state.cards, c.defId)))
       : choice.master
         ? looked.filter((c) => isPokemonCard(lookupCard(state.cards, c.defId)))
         : looked;
     const picked = takeable.find((c) => c.uid === answer.cardUid);
     if (answer.cardUid !== undefined && !picked) return 'Choose one of the cards';
-    if (!picked && takeable.length && !choice.master && !choice.trainer) return 'Choose one of the cards';
+    if (!picked && takeable.length && !choice.master && !choice.trainer && !choice.pokeNav) return 'Choose one of the cards';
+    // PokéNav: the card taken is shown; the others stay on top, in the order the player puts them.
+    if (choice.pokeNav) {
+      if (picked) {
+        me.deck = me.deck.filter((c) => c !== picked);
+        me.hand.push(picked);
+        addLog(state, `Took ${name(picked)} from the deck.`, me.id);
+      }
+      const rest = looked.length - (picked ? 1 : 0);
+      if (rest > 1) state.pendingChoice = { player: me.id, source: choice.source, kind: 'arrangeTop', count: rest };
+      else delete state.pendingChoice;
+      return null;
+    }
     if (choice.master || choice.trainer) {
       if (picked) {
         me.deck = me.deck.filter((c) => c !== picked);
@@ -2518,11 +2564,27 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     if (order.length !== top.length || !top.every((c) => order.includes(c.uid))) return 'Put every card back';
     owner.deck.splice(0, top.length, ...order.map((uid) => top.find((c) => c.uid === uid)!));
     addLog(state, `Rearranged the top ${top.length} cards of ${owner === me ? 'the' : "the opponent's"} deck.`, me.id);
+  } else if (choice.kind === 'fastStream') {
+    if (!choice.energyUid) {
+      if (!me.active?.energy.some((e) => e.uid === answer.cardUid)) return 'Choose an Energy card attached to your Active Pokémon';
+      state.pendingChoice = { ...choice, energyUid: answer.cardUid };
+      return null;
+    }
+    const to = typeof answer.target === 'number' ? me.bench[answer.target] : null;
+    if (!to) return 'Choose one of your Benched Pokémon';
+    const energy = me.active!.energy.find((e) => e.uid === choice.energyUid)!;
+    me.active!.energy = me.active!.energy.filter((e) => e !== energy);
+    to.energy.push(energy);
+    addLog(state, `${choice.source}: moved ${lookupCard(state.cards, energy.defId).name} to ${lookupCard(state.cards, to.card.defId).name}.`, me.id);
   } else if (choice.kind === 'attachCard') {
     const p = answer.target === undefined || !attachTargets(state, choice).includes(answer.target) ? null : answer.target === 'active' ? me.active : me.bench[answer.target];
     if (!p) return 'Choose one of your highlighted Pokémon';
     p.energy.push(choice.card);
     addLog(state, `Attached ${lookupCard(state.cards, choice.card.defId).name} to ${lookupCard(state.cards, p.card.defId).name}.`, me.id);
+    if (choice.counters) {
+      p.damage += 10 * choice.counters;
+      addLog(state, `Put ${choice.counters} damage counters on ${lookupCard(state.cards, p.card.defId).name}.`, me.id);
+    }
     if (choice.next) {
       state.pendingChoice = choice.next;
       return null;
@@ -2609,12 +2671,16 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     // The next step: which Pokémon gets the card found; then the search goes on for more (Attract Current).
     if (picked && choice.attach) {
       const next = left > 0 && me.deck.some((c) => deckFilter(state.cards, choice, c)) ? { ...choice, count: left } : undefined;
-      state.pendingChoice = { player: me.id, source: choice.source, afterAttack: choice.afterAttack, kind: 'attachCard', card: picked, ...(choice.attachOnly && { only: choice.attachOnly }), ...(next && { next }) };
+      state.pendingChoice = { player: me.id, source: choice.source, afterAttack: choice.afterAttack, kind: 'attachCard', card: picked, ...(choice.attachOnly && { only: choice.attachOnly }), ...(next && { next }), ...(choice.counters && { counters: choice.counters }) };
       return null;
     }
     // More to take (Summon Minions), while there's room and something to find.
-    if (picked && left > 0 && (!choice.toBench || openBenchSlot(me.bench, state.cards, state.stadium?.card) >= 0) && me.deck.some((c) => deckFilter(state.cards, choice, c))) {
-      state.pendingChoice = { ...choice, count: left };
+    // Lady Outing: the next must be another type; Signs of Evolution: another name.
+    const found = picked && choice.distinct ? lookupCard(state.cards, picked.defId) : undefined;
+    const key = found && (choice.distinct === 'type' ? (found.kind === 'energy' ? found.energyType : undefined) : found.name);
+    const more = { ...choice, count: left, ...(key && { taken: [...(choice.taken ?? []), key] }) };
+    if (picked && left > 0 && (!choice.toBench || openBenchSlot(me.bench, state.cards, state.stadium?.card) >= 0) && me.deck.some((c) => deckFilter(state.cards, more, c))) {
+      state.pendingChoice = more;
       return null;
     }
     // Erika's Maids: the cards traded go from the hand into the deck.

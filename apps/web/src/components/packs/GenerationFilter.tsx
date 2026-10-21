@@ -2,14 +2,14 @@ import CheckBoxIcon from '@mui/icons-material/CheckBox';
 import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FilterListIcon from '@mui/icons-material/FilterList';
-import { GENERATIONS } from '@poke-tcg/campaign';
+import { PACK_GENERATIONS } from '@poke-tcg/campaign';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 /** Every generation, for the filter: "Gen 1 · Kanto"… */
-const OPTIONS = Object.entries(GENERATIONS).map(([id, g]) => ({ id: Number(id), name: `Gen ${id} · ${g.region}` }));
+const OPTIONS = Object.entries(PACK_GENERATIONS).map(([id, g]) => ({ id: Number(id), name: `Gen ${id} · ${g.region}` }));
 
-/** The generation a set's packs belong to (GENERATIONS' `packs`), if any. */
-export const packGeneration = (setId: string) => OPTIONS.find((o) => GENERATIONS[o.id]!.packs.includes(setId))?.id;
+/** The generation a set's packs belong to (PACK_GENERATIONS' `packs`: Gen 3's too, whose runs are still to come), if any. */
+export const packGeneration = (setId: string) => OPTIONS.find((o) => PACK_GENERATIONS[o.id]!.packs.includes(setId))?.id;
 
 /**
  * The Packs tab's generation filter: a dropdown with a checkbox per generation. Nothing picked (`picked` empty) shows

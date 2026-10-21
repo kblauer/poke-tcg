@@ -16,9 +16,10 @@ interface Row {
   evolveFrom: string | null;
   retreat: number | null;
   effect: string | null;
-  variants?: { holo?: boolean } | null;
+  variants?: { holo?: boolean; reverse?: boolean } | null;
   attacks?: { name: string; cost: string[] | null; damage: string | number | null; effect: string | null }[] | null;
   abilities?: { name: string; effect: string }[] | null;
+  suffix?: string | null;
 }
 
 const STAGES: Record<string, Stage> = { Basic: 'basic', Baby: 'basic', Stage1: 'stage1', Stage2: 'stage2' };
@@ -39,7 +40,8 @@ function evolvesFrom(r: Row, stage: Stage): string | null {
 
 function toDef(r: Row): CardDef | null {
   if (r.category === 'Pokemon') {
-    const stage = r.stage && STAGES[r.stage];
+    // A Pokémon-ex TCGdex has no stage for, as the API has it before a re-seed (seed.ts works it out exactly).
+    const stage = r.stage ? STAGES[r.stage] : r.evolveFrom ? 'stage1' : 'basic';
     if (!stage || !r.types?.[0] || r.hp == null) return null;
     return {
       id: r.id,
@@ -58,6 +60,7 @@ function toDef(r: Row): CardDef | null {
       }),
       power: r.abilities?.[0] ? { name: r.abilities[0].name, text: r.abilities[0].effect } : null,
       retreatCost: r.retreat ?? 0,
+      ...(r.suffix === 'ex' && { ex: true }),
     };
   }
   if (r.category === 'Energy') {
@@ -82,6 +85,7 @@ const rarity = (r: Row): Rarity => (r.variants?.holo ? 'holo' : r.rarity === 'Ra
 
 const raw = JSON.parse(readFileSync(new URL('../../db/prisma/data/tcgdex-wotc.json', import.meta.url), 'utf8')) as Row[] | { cards: Row[] };
 const rows = Array.isArray(raw) ? raw : raw.cards;
+const sets = (Array.isArray(raw) ? [] : ((raw as { sets?: { id: string; cardCount: { official: number } }[] }).sets ?? []));
 
 export const TEST_POOL: PoolCard[] = rows
   .filter((r) => POOL_SETS.includes(r.id.split('-')[0]!))
@@ -120,11 +124,22 @@ export const testDef = (id: string) => {
 };
 
 /** A set's cards for packs, as the API groups them (basic Energy left out). */
+/** As the seed's reverseHoloCard: TCGdex's reverse prints up to EX Unseen Forces, the rule after it (not Pokémon-ex, Gold Stars or secret rares). */
+const reverseHolo = (r: Row) => {
+  const set = r.id.split('-')[0]!;
+  if (!/^ex[0-9]+$/.test(set)) return false;
+  if (r.variants?.reverse) return true;
+  const official = sets.find((s) => s.id === set)?.cardCount.official ?? Infinity;
+  return Number(set.slice(2)) >= 11 && r.suffix !== 'ex' && !r.name.includes('☆') && Number(r.id.split('-')[1]) <= official;
+};
+
 export function testPackSet(setId: string): PackSet {
   const set: PackSet = { common: [], uncommon: [], rare: [], holo: [] };
   for (const r of rows) {
     if (r.id.split('-')[0] !== setId || (r.category === 'Energy' && r.name !== 'Double Colorless Energy')) continue;
     set[rarity(r) === 'holo' ? 'holo' : rarity(r)].push(r.id);
+    // The reverse-holo prints the seed makes of the EX cards (reverseHoloCard in packages/db/prisma/holo-energy.ts).
+    if (reverseHolo(r)) (set.reverse ??= []).push(`${r.id}-reverse`);
   }
   return set;
 }
