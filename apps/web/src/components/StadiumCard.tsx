@@ -7,7 +7,8 @@ import { Card } from './Card';
  * The Stadium card in play (shared by both players), face up to the left of your Active Pokémon at the bench's size,
  * with the hover preview and right-click view of any card; an empty dashed spot when there's none. It changes as soon
  * as another Stadium is played. A Stadium that can be used once during each turn (Lucky Stadium) is used by clicking
- * it, like a benched Pokémon's power: on your turn it glows when it can be used, and a click uses it at once (it's the
+ * it, like a benched Pokémon's power: on your turn it pulses with a blue outline when it can be used, as a playable card
+ * in the hand does (`.playable-pulse`), and a click uses it at once (it's the
  * only thing to do with it); when it can't be, a warning says why (`notify`). `compact` (the phone layout): just the card,
  * 1.3 times the piles' size, in the bar between the sides but lowered towards your side, and nothing when there's no Stadium.
  */
@@ -48,7 +49,7 @@ export function StadiumCard({
           // Keyed by the card, so a new Stadium replaces the old one at once.
           key={stadium.card.uid}
           className={`rounded-lg transition ${clickable ? 'cursor-pointer' : ''} ${
-            clickable && !error ? '-translate-y-1 ring-4 ring-violet-400 shadow-[0_0_18px_3px_rgba(167,139,250,0.6)]' : ''
+            clickable && !error && !busy ? 'playable-pulse' : ''
           }`}
           onClick={clickable ? use : undefined}
           title={clickable ? (error ?? `Use ${def.name}`) : undefined}

@@ -3,7 +3,7 @@ import { expandDeck, STARTER_DECK } from './decks.js';
 import { ITEMS, itemText, MAX_CONSUMABLES_PER_RUN, onlyOne, shopStock } from './items.js';
 import { RUN_TYPE_IDS, RUN_TYPES, runType, type RunType, type RunTypeId } from './run-types.js';
 import { ROUTE_4 } from './kanto-routes.js';
-import { onPath, PEWTER_GYM, ROUTE_2, routePath } from './routes.js';
+import { onPath, PEWTER_GYM, ROUTE_2, routePath, type Route } from './routes.js';
 import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, isBattleKind, isBossKind, MAX_CENTERS, REQUIRED_BATTLES, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, withConsumablesBefore, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
 import { GEN2_SETS } from './pool.js';
 import { GEN2_TEST_POOL, TEST_POOL } from './test-pool.js';
@@ -188,6 +188,16 @@ describe('createRun', () => {
     }
   });
 
+  it('no route but a surfed one has Swimmers', () => {
+    for (const id of RUN_TYPE_IDS.filter((t) => !runType(t).routes?.some((r) => r.travel === 'surf'))) {
+      for (let seed = 1; seed <= 10; seed++) {
+        // The route's trainers: not a Gym Trainer, met in their gym (Cerulean's may be Swimmer Luis, from its pool).
+        const trainers = createRun(id, deck, seed).steps.flatMap((s) => s.options.filter((o) => o.kind !== 'gymTrainer').map((o) => o.trainer ?? ''));
+        expect(trainers.filter((t) => t.startsWith('Swimmer ')), id).toEqual([]);
+      }
+    }
+  });
+
   it("Route 20's spots with no land near (surfed, out at sea) offer only battles, those ashore only non-battle encounters", () => {
     const route = runType('cinnabar').routes![0]!;
     const dry = route.spots.map((s) => [-3, -2, -1, 0, 1, 2, 3].some((dy) => [-3, -2, -1, 0, 1, 2, 3].some((dx) => Math.abs(dx) + Math.abs(dy) <= 3 && route.walkable[s.y + dy]?.[s.x + dx] === '.')));
@@ -201,8 +211,8 @@ describe('createRun', () => {
     }
   });
 
-  it('the Kanto Gym Challenge and Champion runs have a map per step: each boss in their gym or room, and the Pokémon Center', () => {
-    for (const id of ['kantoGyms', 'kantoChampion'] as const) {
+  it('the Gym Challenge and Champion runs (Kanto and Johto) have a map per step: each boss in their gym or room, and the Pokémon Center', () => {
+    for (const id of ['kantoGyms', 'kantoChampion', 'johtoGyms', 'johtoChampion'] as const) {
       const type = runType(id);
       const steps = createRun(id, deck, 1).steps;
       expect(type.routes, id).toHaveLength(steps.length);
@@ -215,6 +225,58 @@ describe('createRun', () => {
       });
     }
     expect(runType('kantoGyms').routes!.map((m) => m.name)).toEqual(['Pewter Gym', 'Cerulean Gym', 'Vermilion Gym', 'Celadon Gym', 'Pokémon Center', 'Saffron Gym', 'Fuchsia Gym', 'Cinnabar Gym', 'Viridian Gym']);
+    expect(runType('johtoGyms').routes!.map((m) => m.name)).toEqual(['Violet Gym', 'Azalea Gym', 'Goldenrod Gym', 'Ecruteak Gym', 'Pokémon Center', 'Cianwood Gym', 'Olivine Gym', 'Mahogany Gym', 'Blackthorn Gym']);
+    expect(runType('johtoChampion').routes!.slice(-5).map((m) => m.name)).toEqual(["Will's Room", "Koga's Room", "Bruno's Room", "Karen's Room", "Lance's Room"]);
+    // Johto's are HGSS's, drawn with its sprites.
+    expect(runType('johtoChampion').routes!.every((m) => m.sprites === 'hgss')).toBe(true);
+  });
+
+  it("a map's tall grass lines up with its tiles: the same rows as `walkable`", () => {
+    const maps = RUN_TYPE_IDS.flatMap((id) => [...(runType(id).routes ?? []), ...(runType(id).gym ? [runType(id).gym!] : [])]);
+    const grassy = maps.filter((m) => m.grass);
+    // FireRed's Routes 2, 4, 5, 6 and 8, and HGSS's 30, 32, 34, 35 and 45.
+    expect(new Set(grassy.map((m) => m.name))).toEqual(new Set(['Route 2', 'Route 4', 'Route 5', 'Route 6', 'Route 8', 'Route 30', 'Route 32', 'Route 34', 'Route 35', 'Route 45']));
+    for (const m of grassy) expect(m.grass!.map((r) => r.length), m.name).toEqual(m.walkable.map((r) => r.length));
+  });
+
+  it("with lineOfSight, the walk reaches the spot's line of people only as it arrives: a row by its column first, a column by its row first", () => {
+    // An open 5x5 floor.
+    const open: Route = { name: 'Open', flow: 'up', image: '', width: 80, height: 80, spots: [], walkable: ['.....', '.....', '.....', '.....', '.....'] };
+    const from = { x: 0, y: 4 };
+    const to = { x: 2, y: 0 };
+    // People in a row on row 0: only the last step is onto it, straight up its column.
+    const byColumn = routePath(open, from, to, new Set(), 'row')!;
+    expect(byColumn).toHaveLength(6);
+    expect(byColumn.filter((s) => s.tile.y === to.y)).toHaveLength(1);
+    expect(byColumn.at(-2)!.tile).toEqual({ x: 2, y: 1 });
+    // People in a column on column 2: only the last step is into it, straight across its row.
+    const byRow = routePath(open, from, to, new Set(), 'column')!;
+    expect(byRow).toHaveLength(6);
+    expect(byRow.filter((s) => s.tile.x === to.x)).toHaveLength(1);
+    expect(byRow.at(-2)!.tile).toEqual({ x: 1, y: 0 });
+    // Without it the walk is as short.
+    expect(routePath(open, from, to)).toHaveLength(6);
+  });
+
+  it("with lineOfSight, the walk gets onto the spot's column soonest and comes straight down it (Route 32's encounter 10)", () => {
+    // Its people at 14,149 and 18,149, either side of the spot (16,149): from encounter 9 the player turns to column 16 as
+    // soon as the rock allows (row 147: row 146's 16,146 isn't walkable, the user's) and walks straight down it, never beside them.
+    const route = runType('azalea').routes![0]!;
+    const walk = routePath(route, route.spots[8]!, route.spots[9]!, new Set(['14,149', '18,149']), 'row')!;
+    const firstOnColumn = walk.findIndex((s) => s.tile.x === 16);
+    expect(walk.slice(firstOnColumn).every((s) => s.tile.x === 16)).toBe(true);
+    expect(walk[firstOnColumn]!.tile.y).toBe(147);
+  });
+
+  it("every Johto gym interior: the Gym Trainer's and the leader's spots can be walked to from the door, one after the other", () => {
+    // Azalea's floors are joined by its Spinarak carts (the user's links, fading).
+    const gyms = RUN_TYPE_IDS.flatMap((id) => runType(id).gym ?? []).filter((g) => g.sprites === 'hgss');
+    expect(gyms.map((g) => g.name)).toEqual(expect.arrayContaining(['Violet Gym', 'Azalea Gym', 'Goldenrod Gym', 'Ecruteak Gym', 'Cianwood Gym', 'Olivine Gym', 'Mahogany Gym', 'Blackthorn Gym']));
+    for (const gym of gyms) {
+      const [trainer, leader] = gym.spots;
+      expect(routePath(gym, gym.entrance!, trainer!), gym.name).not.toBeNull();
+      expect(routePath(gym, trainer!, leader!), gym.name).not.toBeNull();
+    }
   });
 
   it("Pewter Gym: the Gym Trainer's and Brock's spots can be walked to from the door, one after the other", () => {
@@ -664,9 +726,32 @@ describe('conceding', () => {
 });
 
 describe('Gen 2 runs', () => {
+  it('every Johto gym run crosses its HGSS route: walked from its entrance through each spot in turn (and out at its exit)', () => {
+    for (const id of ['violet', 'azalea', 'goldenrod', 'ecruteak', 'cianwood', 'olivine', 'mahogany', 'blackthorn'] as const) {
+      const [route] = runType(id).routes!;
+      expect(route!.sprites, id).toBe('hgss');
+      const stops = [route!.entrance!, ...route!.spots, ...(route!.exit ? [route!.exit] : [])];
+      expect(stops.slice(1).map((to, i) => routePath(route!, stops[i]!, to) !== null), `${id} ${route!.name}`).toEqual(stops.slice(1).map(() => true));
+    }
+  });
+
+  it("Route 45's ledges are jumped going down only, and Route 44's ladder joins its two areas", () => {
+    const r45 = runType('blackthorn').routes![0]!;
+    expect(r45.walkable.some((r) => r.includes('v'))).toBe(true);
+    // Down the route from its first spot to its last, but not back up.
+    expect(routePath(r45, r45.spots[0]!, r45.spots.at(-1)!)).not.toBeNull();
+    expect(routePath(r45, r45.spots.at(-1)!, r45.spots[0]!)).toBeNull();
+    // From the bottom of the ice cave to the top only by its ladder (the link's fade).
+    const r44 = runType('mahogany').routes![0]!;
+    const climb = routePath(r44, r44.entrance!, r44.exit!);
+    expect(climb?.some((s) => s.fade)).toBe(true);
+    expect(routePath({ ...r44, links: [] }, r44.entrance!, r44.exit!)).toBeNull();
+  });
+
   it("a Johto gym run ends with its gym leader, and its Gym Trainer and leader play Gen 2 decks", () => {
     let s = createRun('violet', deck, 7);
-    expect(s.steps).toHaveLength(26);
+    // Route 30's 10 encounters (johto-routes.ts), the Gym Trainer and Falkner.
+    expect(s.steps).toHaveLength(12);
     expect(s.steps.at(-1)!.options[0]).toMatchObject({ kind: 'gymLeader', boss: 'falkner' });
     for (const kind of ['gymTrainer', 'gymLeader'] as const) {
       s = createRun('violet', deck, 7);

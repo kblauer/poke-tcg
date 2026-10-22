@@ -16,10 +16,12 @@ import './styles/holo/index.css';
 import { AccountMenu } from './components/AccountMenu';
 import { CardInspectProvider } from './components/CardInspectProvider';
 import { MusicControls, MusicProvider } from './components/MusicPlayer';
+import { PAGES, PageMenu } from './components/PageNav';
 import { SidePanel } from './components/SidePanel';
 import { useSession } from './lib/auth';
 import { signInWithGoogle, signOut } from './lib/supabase';
 import { queryClient, TRPCProvider, trpcClient } from './lib/trpc';
+import { PAGE_WIDTH } from './utils/layout';
 import { CommunityPage } from './pages/Community';
 import { DecksPage } from './pages/Decks';
 import { GamePage } from './pages/Game';
@@ -31,19 +33,10 @@ import { SingleBattlePage } from './pages/SingleBattle';
 // Marks the dev server's tab so it isn't confused with the deployed app.
 if (import.meta.env.DEV) document.title += ' - local';
 
-// The router sets data-status="active" on the link for the current page.
-const tab = 'rounded px-3 py-1 text-slate-400 hover:bg-slate-800 hover:text-slate-200 data-[status=active]:bg-slate-800 data-[status=active]:text-slate-100';
-const menuItem = 'rounded px-3 py-2 text-slate-300 hover:bg-slate-700 hover:text-slate-100 data-[status=active]:bg-slate-700 data-[status=active]:font-semibold data-[status=active]:text-yellow-300';
-
-/** The site's pages, in the menu's order. */
-const PAGES = [
-  { to: '/', label: 'Play' },
-  { to: '/inventory', label: 'Inventory' },
-  { to: '/packs', label: 'Packs' },
-  { to: '/decks', label: 'Collection' },
-  { to: '/community', label: 'Community Decks' },
-  { to: '/battle', label: 'Practice' },
-] as const;
+// The router sets data-status="active" on the link for the current page: each tab is its own button (icon and label),
+// the current page's lit in the logo's yellow.
+const tab =
+  'flex items-center gap-1.5 rounded-md bg-slate-800 px-3 py-1.5 font-medium text-slate-300 shadow-sm shadow-black/40 ring-1 ring-slate-700 transition hover:bg-slate-700 hover:text-white hover:ring-slate-500 active:scale-95 data-[status=active]:bg-yellow-400/15 data-[status=active]:text-yellow-200 data-[status=active]:ring-yellow-400/60';
 
 function RootLayout() {
   const session = useSession();
@@ -79,19 +72,20 @@ function RootLayout() {
   // The original header: the logo and the tabs on the left, the account on the right.
   const oneRow = session && (
     <>
-      <div className="flex items-center gap-6">
-        {logo}
-        <nav className="flex gap-1 text-sm">
-          {PAGES.map((p) => (
-            <Link key={p.to} to={p.to} className={tab} activeOptions={{ exact: p.to === '/' }}>
-              {p.label}
-            </Link>
-          ))}
-        </nav>
-      </div>
+      {logo}
+      {/* The tabs' tray stretches from the logo to the account, the tabs centred in it. */}
+      <nav className="mx-6 flex flex-1 justify-center gap-2 rounded-lg bg-slate-800/70 p-1 text-sm ring-1 ring-slate-700/70">
+        {PAGES.map((p) => (
+          <Link key={p.to} to={p.to} className={tab} activeOptions={{ exact: p.to === '/' }}>
+            <p.Icon sx={{ fontSize: 18 }} />
+            {p.label}
+          </Link>
+        ))}
+      </nav>
       <div className="flex items-center gap-3 text-sm">
         <AccountMenu email={session.user.email ?? ''} />
-        <button className="rounded bg-slate-800 px-3 py-1 hover:bg-slate-700" onClick={() => signOut()}>
+        <button className="flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium text-slate-300 ring-1 ring-slate-700 transition hover:bg-slate-800 hover:text-slate-100" onClick={() => signOut()}>
+          <LogoutIcon sx={{ fontSize: 16 }} />
           Sign out
         </button>
       </div>
@@ -101,39 +95,36 @@ function RootLayout() {
   const page = (
     // Each page sets its own width and side padding. The header is one row when it fits the window; when it would
     // wrap, the pages go in a menu behind a ☰ button (the phone's battle screen covers the header), with the music
-    // player's bar.
-    <div className="py-4">
-      <header ref={header} className="relative mb-6 flex items-center justify-between gap-2 whitespace-nowrap px-4">
-        {session && (
-          // Clipped to nothing, so it never widens the page on a narrow screen.
-          <div aria-hidden className="pointer-events-none invisible absolute inset-x-0 top-0 h-0 overflow-hidden">
-            <div ref={row} className="flex w-max items-center gap-6">
-              {oneRow}
+    // player's bar. The header is a bar across the window, its contents within the pages' side margins (PAGE_WIDTH), so
+    // the logo lines up with the panels below.
+    <div className="pb-4">
+      <div className="mb-6 border-b border-slate-800 bg-slate-900/80 shadow-md shadow-black/30">
+        <header ref={header} className={`relative flex min-h-14 items-center justify-between gap-2 whitespace-nowrap py-2 ${PAGE_WIDTH}`}>
+          {session && (
+            // Clipped to nothing, so it never widens the page on a narrow screen.
+            <div aria-hidden className="pointer-events-none invisible absolute inset-x-0 top-0 h-0 overflow-hidden">
+              <div ref={row} className="flex w-max items-center gap-6">
+                {oneRow}
+              </div>
             </div>
-          </div>
-        )}
-        {!session ? (
-          logo
-        ) : fits ? (
-          oneRow
-        ) : (
-          <div className="flex items-center gap-2">
-            <button className="flex rounded p-1 text-slate-300 transition hover:bg-slate-800 hover:text-slate-100" onClick={() => setMenu(true)} aria-label="Menu" title="Menu">
-              <MenuIcon />
-            </button>
-            {logo}
-          </div>
-        )}
-      </header>
+          )}
+          {!session ? (
+            logo
+          ) : fits ? (
+            oneRow
+          ) : (
+            <div className="flex items-center gap-2">
+              <button className="flex rounded p-1 text-slate-300 transition hover:bg-slate-800 hover:text-slate-100" onClick={() => setMenu(true)} aria-label="Menu" title="Menu">
+                <MenuIcon />
+              </button>
+              {logo}
+            </div>
+          )}
+        </header>
+      </div>
       {session && menu && !fits && (
         <SidePanel side="left" title="Poké TCG" onClose={() => setMenu(false)}>
-          <nav className="flex flex-col gap-1">
-            {PAGES.map((p) => (
-              <Link key={p.to} to={p.to} className={menuItem} activeOptions={{ exact: p.to === '/' }} onClick={() => setMenu(false)}>
-                {p.label}
-              </Link>
-            ))}
-          </nav>
+          <PageMenu onPick={() => setMenu(false)} />
           <div className="mt-auto space-y-2 border-t border-slate-700 pt-3 text-sm">
             <MusicControls onOpen={() => setMenu(false)} />
             <AccountMenu email={session.user.email ?? ''} inline />

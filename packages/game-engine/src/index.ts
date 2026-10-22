@@ -5,6 +5,7 @@ export { BASE4_REPRINTS } from './effects/base4.js';
 export { LC_REPRINTS } from './effects/lc.js';
 export * from './powers.js';
 export * from './trainers.js';
+export * from './highlight.js';
 export { effectId, FACE_DOWN, inPlayDef, shapeshiftCard, type LogEntry } from './status.js';
 export * from './cpu/index.js';
 export * from './debug.js';

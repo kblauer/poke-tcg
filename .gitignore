@@ -9,3 +9,4 @@ packages/db/src/generated/
 supabase/.temp/
 .idea/workspace.xml
 .idea/shelf/
+__pycache__/

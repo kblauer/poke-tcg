@@ -20,8 +20,9 @@ export interface Boss {
   /**
    * Gym leaders: their gym's type, for the Gym Trainer's deck before them (with `favorites`, the Pokémon that deck is built
    * from first, for a type with no basic Energy); and the badge for beating them (a key item). `trainers` are who their Gym
-   * Trainer may be, one picked each run: in Kanto the trainers in their gym in FireRed and LeafGreen (pret's gym maps);
-   * without them (Johto) any of a general list.
+   * Trainer may be, one picked each run: the trainers in their gym, in FireRed and LeafGreen for Kanto and HeartGold and
+   * SoulSilver for Johto (pret's gym maps, every room of the gym; not Azalea's Twins, a double battle), Olivine's (a gym
+   * with none) the Olivine Lighthouse's (agreed with the user); without them, any of a general list.
    */
   gym?: { city: string; type: EnergyType; badge: string; favorites?: string[]; trainers?: string[] };
   /** The key item for beating them, other than a badge (the Champion's). */

@@ -20,7 +20,8 @@ const KEEP_OPEN = 'button, input, a, [data-keep-open]';
  * click that ends the press lands on it): only a press that starts on it closes it. With a deck open (`deck`), − and + change its copies in
  * the deck; + is disabled with the reason when the card can't be added. In the deck builder (`craft`), Craft unlocks the
  * card for Stardust. The page behind it doesn't scroll while it's open (useScrollLock); it scrolls itself only when it's
- * taller than the screen. The ★ button (`favorite`) adds the card to the account's favorites, or takes it out.
+ * taller than the screen. The ★ button (`favorite`) adds the card to the account's favorites, or takes it out. For a holo,
+ * `unlocked` is how many copies the account has (see useUnlocked's `holoCopies`), shown above it.
  */
 export function CardInspector({
   card,
@@ -28,6 +29,7 @@ export function CardInspector({
   deck,
   craft,
   favorite,
+  unlocked,
   onClose,
 }: {
   card: CatalogCard;
@@ -37,6 +39,8 @@ export function CardInspector({
   craft?: { cost: number; stardust: number; blocked: string | null; pending: boolean; error?: string; onCraft: () => void };
   /** Whether the card is one of the account's favorites, and adding or taking it out. */
   favorite?: { on: boolean; onToggle: () => void };
+  /** How many copies of the card the account has unlocked, for a card that counts them. */
+  unlocked?: number;
   onClose: () => void;
 }) {
   /** A press has started on it since it opened. */
@@ -69,6 +73,11 @@ export function CardInspector({
       </button>
       <div className="m-auto flex w-full max-w-lg flex-col items-center gap-3">
         <CardViewer card={card} locked={locked} />
+        {unlocked !== undefined && (
+          <p className="text-sm text-slate-300">
+            Unlocked: <span className="font-semibold tabular-nums text-fuchsia-300">{unlocked}</span> {unlocked === 1 ? 'copy' : 'copies'}
+          </p>
+        )}
         {favorite && (
           <button
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm ring-1 transition active:scale-95 ${favorite.on ? 'bg-yellow-300/15 text-yellow-300 ring-yellow-300/60 hover:bg-yellow-300/25' : 'bg-slate-800 text-slate-200 ring-slate-600 hover:bg-slate-700'}`}

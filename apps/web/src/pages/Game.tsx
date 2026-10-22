@@ -1,21 +1,24 @@
-import type { GameAction, PlayerView } from '@poke-tcg/game-engine';
+import { lookupCard, type GameAction, type PlayerView } from '@poke-tcg/game-engine';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
-import { Board, type LastMove } from '../components/Board';
+import { useEffect, useRef, useState } from 'react';
+import { Board, type LastMove, type PlayedMove } from '../components/Board';
+import { PLAYED_CARD_MS } from '../components/PlayedCard';
+import { TURN_BANNER_MS } from '../components/TurnBanner';
 import { CoinFlip, flipsAfter, type Flip } from '../components/CoinFlip';
 import { RunStats } from '../components/run/RunStats';
 import { useIsPhone } from '../hooks/useIsPhone';
+import { useOptions } from '../hooks/useOptions';
 import { useRun } from '../hooks/useRun';
 import { useSkipFlips } from '../hooks/useSkipFlips';
 import { useTRPC } from '../lib/trpc';
 import { PAGE_WIDTH } from '../utils/layout';
 
-/** How long each move of a reply stays on screen before the next one. */
+/** How long each move of a reply stays on screen before the next one (a CPU move showing its card: PLAYED_CARD_MS; one that began a turn: TURN_BANNER_MS). */
 const MOVE_MS = 900;
 
-/** A move still to be shown: the view after it. */
-type Frame = LastMove & { view: PlayerView };
+/** A move still to be shown: the view after it, and whether it began a new turn (the TurnBanner then plays before the next move). */
+type Frame = LastMove & { view: PlayerView; newTurn: boolean };
 
 const lastEntry = (view: PlayerView) => view.log.at(-1)?.n ?? 0;
 
@@ -34,8 +37,11 @@ export function GamePage() {
   /** The next move is on screen, and the one after it follows shortly. */
   const [revealed, setRevealed] = useState(false);
   const [skipFlips] = useSkipFlips();
+  const [options] = useOptions();
   /** The move that led to the view on screen, for its animation. */
   const [lastMove, setLastMove] = useState<LastMove | null>(null);
+  /** The card the CPU's move played or used, shown large (PlayedCard): with the move, or before its coin flips. */
+  const [played, setPlayed] = useState<PlayedMove | null>(null);
 
   // The response already includes the CPU's reply, so no polling or realtime is needed. It comes as the
   // view after every move; the cache gets the last one, and they're all played back one at a time.
@@ -46,7 +52,22 @@ export function GamePage() {
         queryClient.setQueryData(viewQuery.queryKey, (old) => old && { ...old, view: frames.at(-1)!.view });
         // An action that ends the battle (won or lost) goes straight to the result: no coin flips or move-by-move replay.
         const shown = frames.at(-1)!.view.phase === 'finished' ? frames.slice(-1) : frames;
-        setReplay(shown.map((f) => ({ player: f.player, type: f.type, version: f.view.version, view: f.view })));
+        const turnOf = (i: number) => (i === 0 ? data?.view.turn : shown[i - 1]!.view.turn);
+        // A Pokémon or Energy card isn't shown when the Options tab says so (its Pokémon still glow); Trainers always are.
+        const hidden = ({ highlight, view }: (typeof shown)[number]) => {
+          const kind = highlight?.defId ? lookupCard(view.cards, highlight.defId).kind : null;
+          return (kind === 'pokemon' && !options.showPokemonPlayed) || (kind === 'energy' && !options.showEnergyPlayed);
+        };
+        setReplay(
+          shown.map((f, i) => ({
+            player: f.player,
+            type: f.type,
+            version: f.view.version,
+            highlight: f.highlight && hidden(f) ? { ...f.highlight, defId: null } : f.highlight,
+            view: f.view,
+            newTurn: f.view.turn !== turnOf(i),
+          })),
+        );
       },
       onError: () => {
         setReplay([]);
@@ -58,21 +79,31 @@ export function GamePage() {
   );
 
   // Each move's coin flips play first, while the board still shows what came before, so their results only
-  // appear once the coins have landed (or are skipped). Then the move is shown, and after a moment the next.
+  // appear once the coins have landed (or are skipped). A CPU card with coin flips is shown before them, and the coins
+  // only spin once it has burst away. Then the move is shown, and after a moment the next.
   const next = replay[0];
+  /** The card of the move shown with it (its flips came first, or it has none), unless it was shown before the flips. */
+  const cardShown = useRef(false);
+  const showCard = (frame: Frame) => frame.highlight?.defId && setPlayed({ defId: frame.highlight.defId, cards: frame.view.cards, stamp: frame.version });
   const reveal = () => {
     setFlips([]);
     setShownView(next!.view);
-    setLastMove({ player: next!.player, type: next!.type, version: next!.version });
+    setLastMove({ player: next!.player, type: next!.type, version: next!.version, highlight: next!.highlight, cardFirst: cardShown.current });
+    if (!cardShown.current) showCard(next!);
     setRevealed(true);
   };
   useEffect(() => {
+    cardShown.current = false;
     if (!next) return;
     const before = shownView ?? data?.view;
     const fresh = before ? flipsAfter(next.view.log, lastEntry(before)) : [];
     // Once the battle is over, its flips aren't shown.
-    if (fresh.length && !skipFlips && next.view.phase !== 'finished') setFlips(fresh);
-    else reveal();
+    if (!fresh.length || skipFlips || next.view.phase === 'finished') return reveal();
+    if (!next.highlight?.defId) return setFlips(fresh);
+    cardShown.current = true;
+    showCard(next);
+    const timer = setTimeout(() => setFlips(fresh), PLAYED_CARD_MS);
+    return () => clearTimeout(timer);
   }, [next]);
   useEffect(() => {
     if (!revealed) return;
@@ -83,7 +114,7 @@ export function GamePage() {
         setReplay((r) => r.slice(1));
         if (last) setShownView(null);
       },
-      last ? 0 : MOVE_MS,
+      last ? 0 : next?.newTurn ? TURN_BANNER_MS : next?.highlight?.defId && !cardShown.current ? PLAYED_CARD_MS : MOVE_MS,
     );
     return () => clearTimeout(timer);
   }, [revealed]);
@@ -106,6 +137,7 @@ export function GamePage() {
         gameId={gameId}
         view={shown}
         lastMove={lastMove}
+        played={played}
         replaying={replaying}
         send={send}
         pending={pending}

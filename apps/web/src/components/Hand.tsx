@@ -101,6 +101,7 @@ export function Hand({
   pick,
   pending,
   canPlay,
+  showPlayable = false,
   onCardClick,
   compact = false,
 }: {
@@ -113,6 +114,8 @@ export function Hand({
   pending: GameAction | null;
   /** Whether the card has somewhere to go (makes it draggable). */
   canPlay: (card: CardInstance) => boolean;
+  /** It's your turn with nothing in progress: the cards that can be played (`canPlay`) pulse with a blue outline. */
+  showPlayable?: boolean;
   onCardClick: (card: CardInstance) => void;
   compact?: boolean;
 }) {
@@ -272,6 +275,7 @@ export function Hand({
                 card={c}
                 def={lookupCard(cards, c.defId)}
                 draggable={!busy && !pick && canPlay(c)}
+                playable={showPlayable && !busy && !pick && canPlay(c)}
                 selected={selected === c.uid}
                 pick={!pick || selected === c.uid ? undefined : pick.picked.has(c.uid) ? 'picked' : pick.options.has(c.uid) ? 'option' : 'unavailable'}
                 loading={pending !== null && 'cardUid' in pending && pending.cardUid === c.uid}

@@ -1,7 +1,8 @@
 // Routes for the run map: a route's pixel map (from the FireRed/LeafGreen decompilation, rendered with its tilesets by
 // tools/routes/render_route.py) and the spots its encounters happen at, in 16px tiles from the top left. The run screen
 // zooms the map in on the current step's spot. Each route keeps which of its tiles can be walked on (`walkable`: '.'
-// walkable, '~' water (walkable only on a route tagged for surfing, `travel: 'surf'`), '#' not: trees, buildings, ledges, other water,
+// walkable, '~' water (walkable only on a route tagged for surfing, `travel: 'surf'`), 'v' a ledge jumped going down
+// only (Route 45: walked onto and off only southwards; no one stands on it), '#' not: trees, buildings, ledges, other water,
 // doorways and objects), so its spots can be checked to stay on the path.
 
 export interface RouteSpot {
@@ -23,11 +24,21 @@ export interface Route {
   spotFlows?: Partial<Record<number, 'up' | 'down' | 'left' | 'right'>>;
   /** The map image (in apps/web/public) and its size in pixels; its tiles are 16px. */
   image: string;
+  /**
+   * What's drawn over the people walking under it (Route 32's Magnet Train bridge): an image the map's size, see-through
+   * elsewhere (tools/routes/hgss/johto_routes.py's OVERHEAD).
+   */
+  overhead?: string;
   width: number;
   height: number;
   /** One spot per encounter step, in order (the run's start first); the steps after them stay at the last spot. */
   spots: RouteSpot[];
   walkable: string[];
+  /**
+   * The tall grass ('g'), one string per tile row as `walkable`, from the game's tile behaviours (tools/routes/kanto_grass.py,
+   * tools/routes/hgss/johto_routes.py): people standing in it are drawn half hidden, as in the games. None on a map without.
+   */
+  grass?: string[];
   /** Tiles joined by a building the player walks through (a gatehouse's doors on either side): a walk between them fades out and in. */
   links?: [RouteSpot, RouteSpot][];
   /**
@@ -39,6 +50,8 @@ export interface Route {
   exit?: RouteSpot;
   /** Where each spot's figure stands (a gym's trainers, as the game has them), instead of near the spot. */
   stands?: RouteSpot[];
+  /** The overworld sprites it's drawn with: HeartGold/SoulSilver's on the Johto maps ('hgss', 32x32); FireRed's otherwise. */
+  sprites?: 'hgss';
   /** How the player gets along (Route 17: on a bike, walking twice as fast; Route 20: surfing its water, '~'); on foot otherwise. */
   travel?: 'bike' | 'surf';
   /**
@@ -172,6 +185,88 @@ export const ROUTE_2: Route = {
     '#######.......##########',
     '#######.....############',
   ],
+  grass: [
+    '........................',
+    '........................',
+    '..ggggggg...............',
+    '..ggggggg...............',
+    '..ggggggg...............',
+    '..ggggggg...............',
+    '..ggggggg...............',
+    '..ggggggg...............',
+    '..ggggggg...............',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '......ggggggg...........',
+    '......ggggggg...........',
+    '......ggggggg...........',
+    '......ggggggg...........',
+    '......ggggggg...........',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+  ],
 };
 
 /**
@@ -225,8 +320,21 @@ export const onPath = (route: Route, spot: RouteSpot) => {
 /** The way the encounters go at a spot of a route (its `spotFlows`, or the map's `flow`). */
 export const flowAt = (route: Route, spot: number) => route.spotFlows?.[spot] ?? route.flow;
 
+/** Whether a tile of a route is a ledge jumped going down only ('v'). */
+const downLedge = (route: Route, spot: RouteSpot) => route.walkable[spot.y]?.[spot.x] === 'v';
+
+/** Whether a tile is tall grass (the route's `grass`), where people are drawn half hidden. */
+export const inGrass = (route: Route, spot: RouteSpot) => route.grass?.[spot.y]?.[spot.x] === 'g';
+
 /** Whether a tile of a route is water surfed across (on a route tagged for surfing). */
 export const onWater = (route: Route, spot: RouteSpot) => route.travel === 'surf' && route.walkable[spot.y]?.[spot.x] === '~';
+
+/**
+ * A gym leader's part of their gym, for a run that goes straight to them (the Gym Challenge, the Champion run; agreed with
+ * the user): the gym's map with the leader in their place (its last stand) and the player's spot below them (its last
+ * spot), the player coming in at `entrance`, 5 tiles from the leader (south where the gym allows: 4 steps from the spot).
+ */
+export const leaderRoom = (gym: Route, entrance: RouteSpot): Route => ({ ...gym, entrance, spots: [gym.spots.at(-1)!], stands: [gym.stands!.at(-1)!], spotFlows: undefined, otherSpots: gym.spots.slice(0, -1) });
 
 /** A step of a walk: the tile stepped onto, and `fade` when it's reached through a link (a gatehouse). */
 export interface RouteStep {
@@ -239,9 +347,18 @@ const tileKey = (t: RouteSpot) => `${t.x},${t.y}`;
 /**
  * The shortest walk from one tile to another over the route's walkable tiles (4 ways, as in the game) and its links,
  * around the tiles in `blocked` (people standing on the route), as the steps taken (not `from`); null if there's none.
+ * `lineOfSight` (an encounter whose people stand in a line through `to`): of the shortest walks, the one that gets onto
+ * `to`'s column (people on its row, 'row') or row (people in its column, 'column') soonest and comes straight along it,
+ * so the player steps into their line of sight only as he arrives, as in the games (agreed with the user): the fewest
+ * steps off that column (or row) before `to`.
  */
-export function routePath(route: Route, from: RouteSpot, to: RouteSpot, blocked: ReadonlySet<string> = new Set()): RouteStep[] | null {
+export function routePath(route: Route, from: RouteSpot, to: RouteSpot, blocked: ReadonlySet<string> = new Set(), lineOfSight?: 'row' | 'column'): RouteStep[] | null {
   const prev = new Map<string, { from: RouteSpot; fade: boolean } | null>([[tileKey(from), null]]);
+  const offLine = (t: RouteSpot) => (lineOfSight === 'row' ? t.x !== to.x : lineOfSight === 'column' ? t.y !== to.y : false);
+  // Each tile's steps from `from`, and (lineOfSight) its walk's steps off the line: BFS reaches a tile first by a shortest
+  // walk, and a later one as short replaces it if it has fewer steps off the line.
+  const dist = new Map<string, number>([[tileKey(from), 0]]);
+  const onRow = new Map<string, number>([[tileKey(from), 0]]);
   const queue: RouteSpot[] = [from];
   while (queue.length) {
     const here = queue.shift()!;
@@ -256,8 +373,23 @@ export function routePath(route: Route, from: RouteSpot, to: RouteSpot, blocked:
       ...linked.map((tile) => ({ tile, fade: true })),
     ];
     for (const { tile, fade } of next) {
-      if (!onPath(route, tile) || prev.has(tileKey(tile)) || blocked.has(tileKey(tile))) continue;
-      prev.set(tileKey(tile), { from: here, fade });
+      const k = tileKey(tile);
+      if (!(onPath(route, tile) || downLedge(route, tile)) || blocked.has(k)) continue;
+      // A ledge is jumped going down only: onto it and off it southwards.
+      if (!fade && (downLedge(route, tile) || downLedge(route, here)) && tile.y !== here.y + 1) continue;
+      const d = dist.get(tileKey(here))! + 1;
+      const row = onRow.get(tileKey(here))! + (offLine(tile) ? 1 : 0);
+      if (prev.has(k)) {
+        // Already reached: only a walk as short with fewer steps off the line takes its place (it's still queued).
+        if (lineOfSight && dist.get(k) === d && row < onRow.get(k)!) {
+          prev.set(k, { from: here, fade });
+          onRow.set(k, row);
+        }
+        continue;
+      }
+      prev.set(k, { from: here, fade });
+      dist.set(k, d);
+      onRow.set(k, row);
       queue.push(tile);
     }
   }

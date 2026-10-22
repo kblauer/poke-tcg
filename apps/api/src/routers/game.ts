@@ -1,7 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { boss, bossLabel, generateDeck, rngFrom, TRAINERS, trainerFavorites } from '@poke-tcg/campaign';
 import { prisma, saveGameState, type Prisma } from '@poke-tcg/db';
-import { applyAction, createGame, getPlayerView, runCpu, type CpuDifficulty, type GameAction, type GameState } from '@poke-tcg/game-engine';
+import { applyAction, createGame, getPlayerView, moveHighlights, runCpu, type CpuDifficulty, type GameAction, type GameState } from '@poke-tcg/game-engine';
 import { CPU_ID, HUMAN_ID, gameIdInput, singleBattleInput, submitActionInput, type SingleBattleInput, type SingleBattleOpponent } from '@poke-tcg/shared';
 import { ensureUser } from '../auth.js';
 import { loadCardLibrary } from '../cards.js';
@@ -18,6 +18,13 @@ const asJson = (value: unknown) => value as Prisma.InputJsonValue;
 function actionRows(entries: { playerId: string; action: GameAction }[], finalVersion: number) {
   const first = finalVersion - entries.length + 1;
   return entries.map((e, i) => ({ playerId: e.playerId, version: first + i, action: asJson(e.action) }));
+}
+
+/** The player's view after a CPU move, with the card the move shows (a Trainer shuffled away is no longer in sight). */
+function shownView(state: GameState, defId: string | null | undefined) {
+  const view = getPlayerView(state, HUMAN_ID);
+  if (defId) view.cards[defId] = state.cards[defId]!;
+  return view;
 }
 
 export async function loadOwnGame(gameId: string, userId: string) {
@@ -120,9 +127,11 @@ export const gameRouter = router({
     // A run's battle that just ended: the run records the result now (a reward, or 1 HP lost).
     if (next.phase === 'finished' && game.runId) await settleBattle(await loadOwnRun(game.runId, ctx.user.id));
 
+    // Each of the CPU's moves comes with the card it played or used and the Pokémon it changed, for the board to show.
+    const highlights = moveHighlights(result.state, CPU_ID, cpu.actions, cpu.states);
     const frames = [
-      { player: HUMAN_ID, type: input.action.type, view: getPlayerView(result.state, HUMAN_ID) },
-      ...cpu.actions.map((action, i) => ({ player: CPU_ID, type: action.type, view: getPlayerView(cpu.states[i]!, HUMAN_ID) })),
+      { player: HUMAN_ID, type: input.action.type, view: getPlayerView(result.state, HUMAN_ID), highlight: null },
+      ...cpu.actions.map((action, i) => ({ player: CPU_ID, type: action.type, view: shownView(cpu.states[i]!, highlights[i]?.defId), highlight: highlights[i] ?? null })),
     ];
     return { frames };
   }),

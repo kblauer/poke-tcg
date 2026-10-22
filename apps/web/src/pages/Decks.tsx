@@ -45,7 +45,7 @@ export function DecksPage() {
   // The catalog only changes when the seed is re-run, so load it once per session.
   const catalog = useQuery({ ...trpc.cards.list.queryOptions(), staleTime: Infinity });
   const decks = useQuery(trpc.decks.list.queryOptions());
-  const { isLocked, copies } = useUnlocked();
+  const { isLocked, copies, holoCopies } = useUnlocked();
   const favorites = useFavorites();
   const phone = useIsPhone();
   const fill = useWindowFill<HTMLDivElement>();
@@ -365,6 +365,7 @@ export function DecksPage() {
           locked={isLocked(inspected)}
           deck={editing && !loading && !readOnly ? { name, copies: counts.get(inspected.id) ?? 0, blocked: blockedFor(inspected), onChange: (by) => change(inspected, by) } : undefined}
           favorite={{ on: favorites.isFavorite(inspected.id), onToggle: () => favorites.toggle(inspected.id) }}
+          unlocked={holoCopies(inspected)}
           craft={
             inspected.craftCost !== null && stardust.data !== undefined
               ? {
