@@ -12,7 +12,7 @@
 import type { AttackContext, AttackEffect, AttackSituation, ChoiceSpec } from '../attacks.js';
 import { targetsIn } from '../attacks.js';
 import { hasType, isBasicEnergy, lookupCard } from '../cards.js';
-import { isEnergyCardOf, retreatCost, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
+import { canPayCost, isEnergyCardOf, retreatCost, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
 import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { effectId, inPlayDef, pokemonName } from '../status.js';
@@ -39,18 +39,22 @@ const same = (get: () => AttackEffect | undefined): AttackEffect => ({
 const template = (name: string, damage: number, args: TemplateArg[], attack: string): AttackEffect => ATTACK_TEMPLATES[name]!.make(damage, args, attack);
 
 
-/** The attacks Dark Link (the player's other Pokémon with Dark in their names) or Rainbow Moves (the opponent's Benched Pokémon) can copy. */
-type CopySides = { own: (InPlayPokemon | null)[]; opp: (InPlayPokemon | null)[] };
+/**
+ * The attacks Dark Link (the player's other Pokémon with Dark in their names), Rainbow Moves (the opponent's Benched
+ * Pokémon), Mimicry and Delta Copy (the opponent's Pokémon in play, `defender` too) can copy.
+ */
+type CopySides = { own: (InPlayPokemon | null)[]; opp: (InPlayPokemon | null)[]; defender: InPlayPokemon | null };
 const copyOptions = (cards: AttackSituation['cards'], name: string, pokemon: (InPlayPokemon | null)[]) =>
   pokemon.flatMap((p) => (p && !p.faceDown ? inPlayDef(cards, p).attacks.filter((a) => a.name !== name).map((attack) => ({ p, attack })) : []));
 
 /**
  * Copies an attack of one of `among`'s Pokémon (Dark Link, Rainbow Moves): the attack (with its Pokémon's name) is asked
- * first, then its Energy discard and its own questions; `flip`: heads first.
+ * first, then its Energy discard and its own questions; `flip`: heads first; `needsEnergy`: nothing happens unless the
+ * attacker has the Energy for it (Mimicry).
  */
-const copyAmong = (name: string, flip: boolean, among: (sides: CopySides, cards: AttackSituation['cards']) => (InPlayPokemon | null)[]): AttackEffect => ({
+export const copyAmong = (name: string, flip: boolean, among: (sides: CopySides, cards: AttackSituation['cards']) => (InPlayPokemon | null)[], needsEnergy = false): AttackEffect => ({
   choices(s, c) {
-    const list = copyOptions(s.cards, name, among({ own: s.ownBench, opp: s.opponentBench }, s.cards));
+    const list = copyOptions(s.cards, name, among({ own: s.ownBench, opp: s.opponentBench, defender: s.defender }, s.cards));
     if (!list.length) return [];
     const specs: ChoiceSpec[] = [{ kind: 'amount', options: list.map((_, i) => i), labels: list.map((o) => `${inPlayDef(s.cards, o.p).name}: ${o.attack.name}`), prompt: `${name}: choose an attack to copy` }];
     const picked = c.amount !== undefined ? list[c.amount] : undefined;
@@ -64,10 +68,11 @@ const copyAmong = (name: string, flip: boolean, among: (sides: CopySides, cards:
     return specs;
   },
   run(ctx) {
-    const list = copyOptions(ctx.state.cards, name, among({ own: ctx.me.bench, opp: ctx.opp.bench }, ctx.state.cards));
+    const list = copyOptions(ctx.state.cards, name, among({ own: ctx.me.bench, opp: ctx.opp.bench, defender: ctx.opp.active }, ctx.state.cards));
     const picked = ctx.choices.amount !== undefined ? list[ctx.choices.amount] : undefined;
     if (!picked) return ctx.log(`${name} had nothing to copy.`);
     if (flip && !ctx.flip()) return ctx.log(`${name} did nothing.`);
+    if (needsEnergy && !canPayCost(ctx.attacker, picked.attack, ctx.state.cards)) return ctx.log(`${name} did nothing: ${ctx.attackerDef.name} doesn't have the Energy for ${picked.attack.name}.`);
     const source = effectId(picked.p);
     const discard = attackEffect(source, picked.attack.name)?.discard;
     if (discard) {
@@ -93,8 +98,8 @@ function moveDefenderEnergy(ctx: AttackContext, uid: string | undefined, slot: n
   });
 }
 
-/** "Move 1 Energy card (a basic one, with `basic`) attached to the Defending Pokémon to 1 of your opponent's Benched Pokémon." */
-const shiftDefenderEnergy = (damage: number, basic: boolean): AttackEffect => ({
+/** "Move 1 Energy card (a basic one, with `basic`) attached to the Defending Pokémon to 1 of your opponent's Benched Pokémon"; `flip`: on heads only. */
+export const shiftDefenderEnergy = (damage: number, basic: boolean, flip = false): AttackEffect => ({
   choices(s): ChoiceSpec[] {
     const bench = benchedSlots(s.opponentBench);
     const energy = s.defender.energy.filter((e) => !e.provides && (!basic || isBasicEnergy(lookupCard(s.cards, e.defId))));
@@ -106,9 +111,20 @@ const shiftDefenderEnergy = (damage: number, basic: boolean): AttackEffect => ({
   },
   run(ctx) {
     ctx.hit(damage);
+    if (flip && !ctx.flip()) return;
     if (ctx.opp.active) moveDefenderEnergy(ctx, ctx.choices.defenderEnergyUid, ctx.choices.benchSlot);
   },
 });
+
+/** Rotating Claws: an Energy card may be discarded; then another Energy card from the discard pile to it. */
+export const rotatingClaws = (damage: number) =>
+  mayDiscardAny(damage, (ctx) => {
+    const gone = ctx.me.discard[ctx.me.discard.length - 1];
+    if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
+    if (ctx.me.discard.some((c) => c !== gone && lookupCard(ctx.state.cards, c.defId).kind === 'energy')) {
+      ctx.pend({ kind: 'attachFromDiscard', source: 'Rotating Claws', count: 1, target: 'active', anyEnergy: true, excludeUid: gone?.uid });
+    }
+  });
 
 /** "Choose 1 of your opponent's Pokémon. This attack does `per` damage for each Colorless Energy in its Retreat Cost." */
 const retreatOf = (ctx: AttackContext, p: InPlayPokemon) => retreatCost(p, ctx.state.cards, [ctx.opp, ctx.me], ctx.state.stadium?.card ?? null);
@@ -593,15 +609,7 @@ export const EX7: Record<string, Record<string, AttackEffect>> = {
     },
   },
   // Rocket's Scizor ex – Rotating Claws: an Energy card may be discarded; then another Energy card from the discard pile to it.
-  'ex7-101': {
-    'Rotating Claws': mayDiscardAny(50, (ctx) => {
-      const gone = ctx.me.discard[ctx.me.discard.length - 1];
-      if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
-      if (ctx.me.discard.some((c) => c !== gone && lookupCard(ctx.state.cards, c.defId).kind === 'energy')) {
-        ctx.pend({ kind: 'attachFromDiscard', source: 'Rotating Claws', count: 1, target: 'active', anyEnergy: true, excludeUid: gone?.uid });
-      }
-    }),
-  },
+  'ex7-101': { 'Rotating Claws': rotatingClaws(50) },
   // Rocket's Scyther ex – Slashing Strike: not again next turn.
   'ex7-102': {
     'Slashing Strike': {

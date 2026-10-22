@@ -309,6 +309,23 @@ const TCGDEX_FIXES: Record<string, Partial<TcgdexCard>> = {
       { name: 'Magnetic Blast', cost: ['Lightning'], damage: '10', effect: null },
     ],
   },
+  // EX Crystal Guardians Igglybuff and EX Dragon Frontiers Snorlax δ have a Poké-Power after their Poké-Body (from the printed cards).
+  'ex14-21': {
+    abilities: [
+      { name: 'Hover Lift', type: 'Poke-BODY', effect: 'You pay Colorless less to retreat your Jigglypuff, Wigglytuff, Wigglytuff ex, and Igglybuff.' },
+      { name: 'Baby Evolution', type: 'Poke-POWER', effect: 'Once during your turn (before your attack), you may put Jigglypuff from your hand onto Igglybuff (this counts as evolving Igglybuff) and remove all damage counters from Igglybuff.' },
+    ],
+  },
+  'ex15-10': {
+    abilities: [
+      { name: 'Bedhead', type: 'Poke-BODY', effect: 'As long as Snorlax remains Asleep between turns, put 2 damage counters on 1 of the Defending Pokémon.' },
+      { name: 'Dozing', type: 'Poke-POWER', effect: "Once during your turn (before your attack), if Snorlax is your Active Pokémon, you may remove 2 damage counters from Snorlax and Snorlax is now Asleep. This power can't be used if Snorlax is affected by a Special Condition." },
+    ],
+  },
+  // EX Dragon Frontiers Vibrava δ and Xatu δ, EX Power Keepers Aggron: TCGdex has their Poké-Body and Poké-Power the wrong way round.
+  'ex15-24': { abilities: [{ name: 'Psychic Wing', type: 'Poke-BODY', effect: 'If Vibrava has any Psychic Energy attached to it, the Retreat Cost for Vibrava is 0.' }] },
+  'ex15-25': { abilities: [{ name: 'Extra Feather', type: 'Poke-BODY', effect: 'Each of your Stage 2 Pokémon-ex does 10 more damage to the Defending Pokémon (before applying Weakness and Resistance).' }] },
+  'ex16-1': { abilities: [{ name: 'Terraforming', type: 'Poke-POWER', effect: "Once during your turn (before your attack), you may look at the top 5 cards from your deck and put them back on top of your deck in any order. This power can't be used if Aggron is affected by a Special Condition." }] },
   // EX Legend Maker Flygon ex: its second attack is Dragon Claw, and it resists Fighting too.
   'ex12-87': {
     resistances: [

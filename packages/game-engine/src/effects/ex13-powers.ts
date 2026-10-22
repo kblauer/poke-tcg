@@ -10,14 +10,14 @@
 import { isBasicEnergy, lookupCard } from '../cards.js';
 import { activeLocked, afflictBetweenTurns, counts, energyPool, type CardInstance } from '../engine.js';
 import { attachBlocked, discardsLocked, energyFromHand, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
-import { inPlayDef, pokemonName } from '../status.js';
+import { inPlayDef, isDelta, pokemonName } from '../status.js';
 import { swapActive } from '../trainers.js';
 import { babyEvolution, freeRetreat, POKE_BODY } from './ex2-powers.js';
 import { formChange } from './ex8-powers.js';
 import { EX12_POWERS } from './ex12-powers.js';
 
 /** A δ Pokémon (its name ends " δ"). */
-const isDelta = (s: Pick<PowerSituation, 'cards'>, p: Parameters<typeof inPlayDef>[1]) => / δ$/.test(inPlayDef(s.cards, p).name);
+const isDeltaHere = (s: Pick<PowerSituation, 'cards'>, p: Parameters<typeof inPlayDef>[1]) => isDelta(s.cards, p);
 
 /** Delta Supply's cards: basic Energy and δ Rainbow Energy cards in the hand. */
 const supplies = (s: PowerSituation) =>
@@ -42,10 +42,10 @@ export const EX13_POWERS: Record<string, PowerEffect> = {
   // Flygon δ – Delta Supply: once a turn, a basic Energy or δ Rainbow Energy card from the hand to one of the player's δ Pokémon.
   'ex13-7': {
     oncePerTurn: true,
-    blocked: (s) => (!supplies(s).length ? 'No basic Energy or δ Rainbow Energy cards in your hand' : ownTargets(s.me).some((t) => isDelta(s, pokemonAt(s.me, t)!)) ? null : 'You have no δ Pokémon in play'),
+    blocked: (s) => (!supplies(s).length ? 'No basic Energy or δ Rainbow Energy cards in your hand' : ownTargets(s.me).some((t) => isDeltaHere(s, pokemonAt(s.me, t)!)) ? null : 'You have no δ Pokémon in play'),
     choices: (s, c) => [
       { kind: 'handCard', field: 'cardUid', options: supplies(s), prompt: 'Choose a basic Energy or δ Rainbow Energy card from your hand' },
-      ...(c.cardUid ? [{ kind: 'ownPokemon' as const, field: 'to' as const, options: ownTargets(s.me).filter((t) => isDelta(s, pokemonAt(s.me, t)!)), prompt: 'Choose one of your δ Pokémon to attach it to' }] : []),
+      ...(c.cardUid ? [{ kind: 'ownPokemon' as const, field: 'to' as const, options: ownTargets(s.me).filter((t) => isDeltaHere(s, pokemonAt(s.me, t)!)), prompt: 'Choose one of your δ Pokémon to attach it to' }] : []),
     ],
     use(ctx) {
       const card = ctx.me.hand.find((c) => c.uid === ctx.choices.cardUid);
@@ -64,8 +64,8 @@ export const EX13_POWERS: Record<string, PowerEffect> = {
   // Kingdra δ – Dragon Curse: once a turn, as the Active Pokémon, 2 damage counters on one of the opponent's δ Pokémon.
   'ex13-10': {
     oncePerTurn: true,
-    blocked: (s) => (s.source !== 'active' ? 'Kingdra must be your Active Pokémon' : ownTargets(s.opp).some((t) => isDelta(s, pokemonAt(s.opp, t)!)) ? null : 'Your opponent has no δ Pokémon in play'),
-    choices: (s) => [{ kind: 'oppPokemon', field: 'oppTo', options: ownTargets(s.opp).filter((t) => isDelta(s, pokemonAt(s.opp, t)!)), prompt: "Choose one of your opponent's δ Pokémon to put 2 damage counters on" }],
+    blocked: (s) => (s.source !== 'active' ? 'Kingdra must be your Active Pokémon' : ownTargets(s.opp).some((t) => isDeltaHere(s, pokemonAt(s.opp, t)!)) ? null : 'Your opponent has no δ Pokémon in play'),
+    choices: (s) => [{ kind: 'oppPokemon', field: 'oppTo', options: ownTargets(s.opp).filter((t) => isDeltaHere(s, pokemonAt(s.opp, t)!)), prompt: "Choose one of your opponent's δ Pokémon to put 2 damage counters on" }],
     use(ctx) {
       const p = ctx.choices.oppTo === undefined ? null : pokemonAt(ctx.opp, ctx.choices.oppTo);
       if (!p) return;

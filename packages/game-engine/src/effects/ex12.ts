@@ -56,12 +56,12 @@ const evolvedOptions = (s: Parameters<NonNullable<AttackEffect['choices']>>[0]) 
 const atOpp = (ctx: AttackContext, slot: number) => (slot === -1 ? ctx.opp.active : ctx.opp.bench[slot]) ?? null;
 
 /** "Search your deck for a … Pokémon (excluding Pokémon-ex), show it…" (Cry for Help). */
-export const cryForHelp = (type: 'grass' | 'fire'): AttackEffect => ({
+export const cryForHelp = (type: 'grass' | 'fire' | 'lightning'): AttackEffect => ({
   run: (ctx) => void (ctx.me.deck.length && ctx.pend({ kind: 'pickFromDeck', source: 'Cry for Help', filter: 'typesNotEx', types: [type], reveal: true })),
 });
 
 /** Prevent all effects of the opponent's Pokémon-ex's attacks on it during their next turn (Speed Stroke, Ice Barrier). */
-const exProof = (damage: number): AttackEffect => ({
+export const exProof = (damage: number): AttackEffect => ({
   run(ctx) {
     ctx.hit(damage);
     (ctx.attacker.effects ??= {}).exProof = ctx.turn + 1;

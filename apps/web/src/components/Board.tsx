@@ -451,7 +451,7 @@ export function Board({
     };
     const oppPick = pokemonPick?.side === 'opp' && !busy ? pokemonPick : null;
     // How many of the CPU's Benched Pokémon an attack wants (Tunneling), while they're being tapped.
-    const benchMany = attack.spec?.kind === 'opponentBenchMany' ? Math.min(attack.spec.count, attack.spec.options.length) : 0;
+    const benchMany = attack.benchCount;
     // The attack's question, while its sheet is closed for a Pokémon to be tapped on the board.
     const phonePrompt = prompt ?? (pokemonPick && attack.spec ? attack.spec.prompt : null);
     const oppLunge = attacker === view.opponent.id ? view.version : null;

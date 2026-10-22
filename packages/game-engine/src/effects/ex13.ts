@@ -11,7 +11,7 @@ import { targetsIn } from '../attacks.js';
 import { isBasicEnergy, lookupCard, namesMatch, isTrainerCard } from '../cards.js';
 import { energyPool, type InPlayPokemon } from '../engine.js';
 import { nextRandom } from '../rng.js';
-import { inPlayDef, pokemonName } from '../status.js';
+import { inPlayDef, isDelta, pokemonName } from '../status.js';
 import { benchedSlots, headsUntilTails, opponentBenchChoice } from './common.js';
 import { discardAtRandom } from './ex1.js';
 import { discardOwn, energyCardOf, inPlay } from './ex2.js';
@@ -24,7 +24,7 @@ import { discardFree } from './neo3.js';
 import { healUpTo } from './si1.js';
 
 /** The player's δ Pokémon in play. */
-const deltas = (ctx: AttackContext) => inPlay(ctx.me).filter((p) => / δ$/.test(inPlayDef(ctx.state.cards, p).name)).length;
+const deltas = (ctx: AttackContext) => inPlay(ctx.me).filter((p) => isDelta(ctx.state.cards, p)).length;
 
 /** A Stadium with Holon in its name is in play. */
 const holonStadium = (ctx: AttackContext) => !!ctx.state.stadium && lookupCard(ctx.state.cards, ctx.state.stadium.card.defId).name.includes('Holon');
