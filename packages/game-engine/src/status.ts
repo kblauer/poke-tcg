@@ -77,7 +77,8 @@ export const FACE_DOWN: PokemonCardDef = {
  * with an Evolution card attached by Shapeshift is that card, keeping its own power. Koga's Ditto after Giant Growth
  * has 80 HP; Sabrina's Gastly's Gaseous Form adds 10 HP per Psychic Energy card (it works whatever its condition;
  * Stare stops it here, Toxic Gas and Goop Gas Attack don't, as this sees no other Pokémon). A submerged Lanturn is Water,
- * and Rocket's Hideout gives a Pokémon with Dark in its name 20 more HP.
+ * and Rocket's Hideout gives a Pokémon with Dark in its name 20 more HP. Kecleon's Energy Variation makes it every type of
+ * basic Energy card attached (`types`), and Low Pressure System gives Grass and Lightning Pokémon 10 more HP.
  */
 export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCardDef {
   if (pokemon.faceDown) return FACE_DOWN;
@@ -88,14 +89,30 @@ export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCa
     d = { ...copy, name: own.name, stage: own.stage, evolvesFrom: own.evolvesFrom, evolvesFromBasic: own.evolvesFromBasic, power: copy.power ?? own.power };
   } else if (shapeshiftCard(pokemon)) {
     d = { ...(lookupCard(cards, shapeshiftCard(pokemon)!.defId) as PokemonCardDef), power: own.power };
-  } else if (pokemon.shiftedType) d = { ...own, type: pokemon.shiftedType };
+  } else if (pokemon.shiftedType) d = { ...own, type: pokemon.shiftedType, types: undefined };
   // Crystal Type: the type of the basic Energy card attached from the hand, until the end of the turn.
-  if (pokemon.crystalType) d = { ...d, type: pokemon.crystalType };
+  if (pokemon.crystalType) d = { ...d, type: pokemon.crystalType, types: undefined };
+  // Type Change: the Defending Pokémon's types, until the end of the turn.
+  if (pokemon.typesCopied?.length) d = { ...d, type: pokemon.typesCopied[0]!, types: pokemon.typesCopied.length > 1 ? pokemon.typesCopied : undefined };
   // Submerge: Lanturn is a Water Pokémon until the end of the turn.
-  if (pokemon.submerged !== undefined) d = { ...d, type: 'water' };
+  if (pokemon.submerged !== undefined) d = { ...d, type: 'water', types: undefined };
   // Crystal Shard: Colorless while it's attached.
-  if (pokemon.attached?.some((a) => a.tool && lookupCard(cards, a.card.defId).name === 'Crystal Shard')) d = { ...d, type: 'colorless' };
+  if (pokemon.attached?.some((a) => a.tool && lookupCard(cards, a.card.defId).name === 'Crystal Shard')) d = { ...d, type: 'colorless', types: undefined };
+  // Energy Variation (a Poké-Body): every type of basic Energy card attached, while it works (refreshHideout).
+  const varied = pokemon.variedTypes;
+  if (varied?.length) {
+    d = { ...d, type: varied[0]! };
+    if (varied.length > 1) d.types = varied;
+    else delete d.types;
+  }
+  // Strange Cave, Holon Fossil, Influence: a Stage 1 Fossil Pokémon put into play as a Basic Pokémon (while it's the top card).
+  if (pokemon.asBasic && !pokemon.evolvedFrom.length) d = { ...d, stage: 'basic' };
   if (pokemon.effects?.giantGrowth) d = { ...d, hp: 80 };
+  // Sunbeam: Lunatone's HP is now 80 while its player has a Solrock with it working.
+  if (pokemon.hpSet) d = { ...d, hp: pokemon.hpSet };
+  if (pokemon.hpPlus) d = { ...d, hp: d.hp + pokemon.hpPlus };
+  // Low Pressure System: 10 more HP for a Grass or Lightning Pokémon.
+  if (pokemon.lowPressure) d = { ...d, hp: d.hp + 10 };
   // Rocket's Hideout: 20 more HP for a Pokémon with Dark in its name.
   if (pokemon.hideout) d = { ...d, hp: d.hp + 20 };
   if (own.power?.name === 'Gaseous Form' && pokemon.powerOffUntil === undefined) {
@@ -107,6 +124,12 @@ export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCa
   }
   return d;
 }
+
+/** A δ Pokémon in play: δ on its card, or (Holon Veil) any Pokémon of a player whose Ampharos δ's Holon Veil works (`veiled`). */
+export const isDelta = (cards: CardLibrary, pokemon: InPlayPokemon) => !!pokemon.veiled || / δ$/.test(inPlayDef(cards, pokemon).name);
+
+/** A δ Pokémon card out of play (deck, hand, discard pile): δ on it, or any Pokémon card of a player with Holon Veil (`veiled`). */
+export const isDeltaCard = (def: { kind: string; name: string; trainerText?: string }, veiled = false) => def.kind === 'pokemon' && !def.trainerText && (veiled || / δ$/.test(def.name));
 
 /** The Evolution card Shapeshift attached to Brock's Ninetales, if any. */
 export const shapeshiftCard = (pokemon: InPlayPokemon) => pokemon.attached?.find((a) => a.shapeshift)?.card;
@@ -144,7 +167,7 @@ export function evolvedHook(state: GameState, owner: PlayerId, pokemon: InPlayPo
 }
 
 /**
- * The first empty Bench slot a Pokémon can be put into, or -1 when the Bench is full: 5 Pokémon, or 4 while Narrow Gym
+ * The first empty Bench slot a Pokémon can be put into, or -1 when the Bench is full: 5 Pokémon, 3 while Giant Stump or 4 while Narrow Gym
  * is the Stadium in play (`stadium`).
  */
 export function openBenchSlot(bench: readonly (InPlayPokemon | null)[], cards: CardLibrary, stadium?: CardInstance | null): number {
@@ -153,7 +176,8 @@ export function openBenchSlot(bench: readonly (InPlayPokemon | null)[], cards: C
 
 /** How many more Pokémon the Bench can hold (see openBenchSlot). */
 export function benchRoom(bench: readonly (InPlayPokemon | null)[], cards: CardLibrary, stadium?: CardInstance | null): number {
-  const limit = stadium && lookupCard(cards, stadium.defId).name === 'Narrow Gym' ? 4 : bench.length;
+  const name = stadium && lookupCard(cards, stadium.defId).name;
+  const limit = name === 'Narrow Gym' ? 4 : name === 'Giant Stump' ? 3 : bench.length;
   return Math.max(0, limit - bench.filter(Boolean).length);
 }
 

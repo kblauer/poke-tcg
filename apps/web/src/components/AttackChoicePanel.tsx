@@ -21,13 +21,13 @@ export function AttackChoicePanel({ spec, view, attack }: { spec: ChoiceSpec; vi
         {spec.kind === 'ownDiscard' && <DiscardPicker key={spec.prompt} spec={spec} cards={cards} onDone={attack.answer} />}
         {spec.kind === 'opponentBenchMany' && (
           <>
-            <p className={pickHint}>Click the CPU's highlighted Benched Pokémon to choose them.</p>
+            <p className={pickHint}>Click the CPU's highlighted Pokémon to choose them.</p>
             <button
               className={`${option} disabled:opacity-40`}
-              disabled={attack.benchPicked.length !== Math.min(spec.count, spec.options.length)}
+              disabled={attack.benchPicked.length !== attack.benchCount}
               onClick={() => attack.answer(attack.benchPicked)}
             >
-              Attack ({attack.benchPicked.length}/{Math.min(spec.count, spec.options.length)})
+              Attack ({attack.benchPicked.length}/{attack.benchCount})
             </button>
           </>
         )}

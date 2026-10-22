@@ -26,6 +26,10 @@ export interface CardData {
   variants?: { holo?: boolean; normal?: boolean; reverse?: boolean; firstEdition?: boolean } | null;
   /** Holo Energy only (made by the seed, packages/db/prisma/holo-energy.ts): the holo style it's shown in. */
   holoEnergy?: HoloEnergyStyle | null;
+  /** "ex" on a Pokémon-ex (EX series). */
+  suffix?: string | null;
+  /** A reverse-holo print (made by the seed from an EX card, id "<card id>-reverse", packages/db/prisma/holo-energy.ts). */
+  reverseHolo?: boolean;
 }
 
 /** A holo Energy's style: the attributes the holo card styles select on (see HoloCard). */
@@ -44,10 +48,16 @@ export interface HoloEnergyStyle {
  */
 export const holoEnergyStyle = (card: Pick<Card, 'data'>): HoloEnergyStyle | null => (card.data as CardData).holoEnergy ?? null;
 
-/** A card's name for messages: a holo Energy's says its style ("Fire Energy (Rainbow holo)"). */
+/**
+ * A reverse-holo print (EX sets): a holo of its own, a special addition like the holos with a non-holo twin (holoTwins:
+ * its copies count, and it unlocks the card's own print, agreed with the user).
+ */
+export const isReverseHolo = (card: Pick<Card, 'data'>) => (card.data as CardData).reverseHolo === true;
+
+/** A card's name for messages: a holo Energy's says its style ("Fire Energy (Rainbow holo)"), a reverse holo says so. */
 export const cardLabel = (card: Pick<Card, 'name' | 'data'>) => {
   const style = holoEnergyStyle(card);
-  return style ? `${card.name} (${style.label} holo)` : card.name;
+  return style ? `${card.name} (${style.label} holo)` : isReverseHolo(card) ? `${card.name} (reverse holo)` : card.name;
 };
 
 /** Stage 1 Pokémon printed as evolving from Mysterious Fossil, which TCGdex leaves out. */
@@ -65,6 +75,9 @@ const MISSING_EVOLVES_FROM_BY_ID: Record<string, string> = { 'ecard1-35': 'Ekans
 
 /** The owner in an owner's Pokémon's name (Gym Heroes, Gym Challenge): "Brock's Rhydon" → "Brock's ". */
 const OWNER = /^((?:Blaine|Brock|Erika|Lt\. Surge|Misty|Sabrina|Giovanni|Koga|Rocket)'s )/;
+
+/** A second printed "Evolves from" (EX Unseen Forces Blissey ex: "Evolves from Chansey or Chansey ex"), by card id. */
+const ALSO_EVOLVES_FROM: Record<string, string[]> = { 'ex10-101': ['Chansey ex'] };
 
 /** What the card evolves from, filling in TCGdex's gaps. */
 const evolvesFrom = (card: Pick<Card, 'id' | 'name' | 'stage' | 'evolveFrom'>) => {
@@ -162,10 +175,11 @@ export function isImplemented(card: Pick<Card, 'id' | 'name' | 'kind' | 'data'>)
 export function toCardDef(card: Card): CardDef {
   const imageUrl = card.imageUrl;
   if (card.kind === 'POKEMON') {
-    const stage = card.stage && STAGES[card.stage];
+    const data = card.data as CardData;
+    // TCGdex has no stage for many Pokémon-ex; the seed works it out (stageOf), and until a re-seed it's Basic or Stage 1.
+    const stage = (card.stage && STAGES[card.stage]) || (card.stage === null ? (card.evolveFrom ? 'stage1' : 'basic') : undefined);
     const [type] = card.types;
     if (!stage || !type || card.hp == null) throw new Error(`Card ${card.id} is missing stage, type or HP`);
-    const data = card.data as CardData;
     const attacks: Attack[] = printedAttacks(data).map((a) => {
       const effect = attackEffect(card.id, attackName(a));
       // Printed cost, damage and wording where TCGdex's differ (kept with the attack's effect in the engine).
@@ -179,8 +193,35 @@ export function toCardDef(card: Card): CardDef {
       };
     });
     const baby = card.stage === 'Baby' || BABIES.has(card.id);
+    const ex = data.suffix === 'ex';
     const length = pokedexLength(data.dexId?.[0]);
-    return { id: card.id, kind: 'pokemon', name: card.name, imageUrl, type: energyType(type), hp: card.hp, stage, evolvesFrom: evolvesFrom(card), attacks, power: power(data, card.id), weakness: weakness(data), resistance: resistance(data), retreatCost: data.retreat ?? 0, holo: isHolo(card), ...(baby && { baby }), ...(length && { length }) };
+    // Both types of a Pokémon printed as two (Team Aqua's Cacturne: Grass and Darkness), and every Weakness and Resistance after the first.
+    const types = card.types.length > 1 ? { types: card.types.map(energyType) } : {};
+    const moreWeakness = (data.weaknesses ?? []).slice(1).map((w) => energyType(w.type));
+    const moreResistance = (data.resistances ?? []).slice(1).map((r) => energyType(r.type));
+    return {
+      id: card.id,
+      kind: 'pokemon',
+      name: card.name,
+      imageUrl,
+      type: energyType(type),
+      ...types,
+      hp: card.hp,
+      stage,
+      evolvesFrom: evolvesFrom(card),
+      ...(ALSO_EVOLVES_FROM[card.id.replace(/-reverse$/, '')] && { alsoEvolvesFrom: ALSO_EVOLVES_FROM[card.id.replace(/-reverse$/, '')] }),
+      attacks,
+      power: power(data, card.id),
+      weakness: weakness(data),
+      resistance: resistance(data),
+      ...(moreWeakness.length && { moreWeakness }),
+      ...(moreResistance.length && { moreResistance }),
+      retreatCost: data.retreat ?? 0,
+      holo: isHolo(card),
+      ...(baby && { baby }),
+      ...(ex && { ex }),
+      ...(length && { length }),
+    };
   }
   if (card.kind === 'ENERGY') {
     if (card.name === 'Double Colorless Energy') {
@@ -193,8 +234,15 @@ export function toCardDef(card: Card): CardDef {
       if (!known) throw new Error(`Card ${card.id} is not a supported energy`);
       return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: named, holo: isHolo(card) };
     }
-    // Rainbow Energy counts as every type while attached (1 at a time).
-    if (card.name === 'Rainbow Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'colorless', anyType: true, basic: false, holo: isHolo(card) };
+    // Double Rainbow Energy: every type, 2 at a time. Aqua Energy and Magma Energy: 2 Energy, each either of their types (energyPool).
+    if (card.name === 'Double Rainbow Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'colorless', anyType: true, amount: 2, basic: false, holo: isHolo(card) };
+    if (card.name === 'Aqua Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'water', amount: 2, basic: false, holo: isHolo(card) };
+    if (card.name === 'Magma Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'fighting', amount: 2, basic: false, holo: isHolo(card) };
+    // R Energy: 2 Darkness Energy. Dark Metal Energy: 1 Energy, Darkness or Metal (energyPool).
+    if (card.name === 'R Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'darkness', amount: 2, basic: false, holo: isHolo(card) };
+    if (card.name === 'Dark Metal Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'darkness', basic: false, holo: isHolo(card) };
+    // Rainbow Energy and Multi Energy count as every type while attached (1 at a time; Multi Energy only Colorless beside another Special Energy card: colorlessOnly).
+    if (card.name === 'Rainbow Energy' || card.name === 'Multi Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'colorless', anyType: true, basic: false, holo: isHolo(card) };
     // Miracle Energy counts as every type but provides only 2 Energy at a time.
     if (card.name === 'Miracle Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'colorless', anyType: true, amount: 2, basic: false, holo: isHolo(card) };
     // Boost Energy provides 3 Colorless Energy, Bounce Energy 2 (their other rules are the engine's).
@@ -221,6 +269,7 @@ export function toCardDef(card: Card): CardDef {
       attacks: [],
       retreatCost: 0,
       trainerText: text,
+      ...(effect.asPokemon.power && { power: effect.asPokemon.power }),
       holo: isHolo(card),
     };
   }

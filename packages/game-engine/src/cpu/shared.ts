@@ -225,7 +225,7 @@ function answers(spec: ChoiceSpec): AttackChoices[keyof AttackChoices][] {
       return sizes.flatMap((n) => combinations(spec.options, n)).map((picked) => picked.map((c) => c.uid));
     }
     case 'opponentBenchMany':
-      return slotCombinations(spec.options, Math.min(spec.count, spec.options.length));
+      return spec.repeat ? slotMultisets(spec.options, spec.count) : slotCombinations(spec.options, Math.min(spec.count, spec.options.length));
     case 'eitherDiscard':
       return spec.options.map((c) => [c.uid]);
     case 'oppDiscard':
@@ -244,6 +244,12 @@ function answers(spec: ChoiceSpec): AttackChoices[keyof AttackChoices][] {
 function slotCombinations(slots: number[], n: number): number[][] {
   if (n === 0) return [[]];
   return slots.flatMap((slot, i) => slotCombinations(slots.slice(i + 1), n - 1).map((rest) => [slot, ...rest]));
+}
+
+/** Every way to pick `n` of the slots, the same one any number of times (Rock Blast), in order. */
+function slotMultisets(slots: number[], n: number): number[][] {
+  if (n === 0) return [[]];
+  return slots.flatMap((slot, i) => slotMultisets(slots.slice(i), n - 1).map((rest) => [slot, ...rest]));
 }
 
 /**
@@ -441,7 +447,7 @@ export function evolvesInto(cards: CardLibrary, side: Pick<PlayerState, 'active'
   const from = candidate.stage === 'stage2' ? 'stage1' : 'basic';
   return inPlay(side).some(([, p]) => {
     const current = pokemonDef(cards, p);
-    return current.name === candidate.evolvesFrom && current.stage === from && !current.trainerText;
+    return (current.name === candidate.evolvesFrom || !!candidate.alsoEvolvesFrom?.includes(current.name)) && current.stage === from && !current.trainerText;
   });
 }
 
@@ -542,7 +548,7 @@ export function resolveSearch(t: Turn): GameAction {
   }
   // Returning its own Pokémon to the hand (Fairy Power): it keeps them in play. Attract Energy: its Energy stays where it is.
   if (view.kind === 'ownPokemon' && view.optional) return { type: 'RESOLVE_CHOICE' };
-  if (choice.kind === 'moveAttached') return { type: 'RESOLVE_CHOICE' };
+  if (choice.kind === 'moveAttached' || (choice.kind === 'deltaSwitch' && !choice.cardUid)) return { type: 'RESOLVE_CHOICE' };
   // Healing one of its Pokémon (Heal): the one with the most damage. Attaching (Energy Spike): the active.
   if (view.kind === 'ownPokemon') {
     if (view.purpose === 'attach') return { type: 'RESOLVE_CHOICE', target: view.options.includes('active') ? 'active' : view.options[0] };

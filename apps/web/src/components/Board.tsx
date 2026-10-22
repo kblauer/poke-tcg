@@ -228,7 +228,13 @@ export function Board({
       : attack.spec?.kind === 'opponentPokemon' || attack.spec?.kind === 'opponentPokemonTo'
         ? { side: 'opp', options: attack.spec.options, pick: attack.answer }
       : attack.spec?.kind === 'opponentBenchMany'
-        ? { side: 'opp', options: attack.spec.options, pick: (t) => attack.toggleBench(t as number), picked: attack.benchPicked }
+        ? // -1 is the Active Pokémon (Triple Breach picks among all of them).
+          {
+            side: 'opp',
+            options: attack.spec.options.map((s): Target => (s === -1 ? 'active' : s)),
+            pick: (t) => attack.toggleBench(t === 'active' ? -1 : t),
+            picked: attack.benchPicked.map((s): Target => (s === -1 ? 'active' : s)),
+          }
       : power.spec?.kind === 'ownPokemon' || power.spec?.kind === 'oppPokemon'
         ? { side: power.spec.kind === 'ownPokemon' ? 'own' : 'opp', options: power.spec.options, pick: power.answer }
         : trainer.spec?.kind === 'pokemon' && trainer.card && !trainer.error(trainer.card)
@@ -319,6 +325,7 @@ export function Board({
         recall={!!self.recall}
         bench={self.bench}
         oppBench={view.opponent.bench}
+        stadium={view.stadium?.card ?? null}
         pending={pending}
         attack={{
           ...attack,
@@ -475,7 +482,7 @@ export function Board({
     };
     const oppPick = pokemonPick?.side === 'opp' && !busy ? pokemonPick : null;
     // How many of the CPU's Benched Pokémon an attack wants (Tunneling), while they're being tapped.
-    const benchMany = attack.spec?.kind === 'opponentBenchMany' ? Math.min(attack.spec.count, attack.spec.options.length) : 0;
+    const benchMany = attack.benchCount;
     // The attack's question, while its sheet is closed for a Pokémon to be tapped on the board.
     const phonePrompt = prompt ?? (pokemonPick && attack.spec ? attack.spec.prompt : null);
     const oppLunge = attacker === view.opponent.id ? view.version : null;

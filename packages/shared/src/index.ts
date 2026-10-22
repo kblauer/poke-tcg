@@ -27,7 +27,8 @@ const attackChoicesSchema = z.object({
   boost: z.boolean().optional(),
   type: energyType.optional(),
   discardUids: z.array(z.string()).max(60).optional(),
-  benchSlots: z.array(benchSlot).max(MAX_BENCH).optional(),
+  // -1: the Active Pokémon, for an attack that picks among all of the opponent's Pokémon (Triple Breach).
+  benchSlots: z.array(z.number().int().min(-1).max(MAX_BENCH - 1)).max(MAX_BENCH + 1).optional(),
   deck: z.enum(['own', 'opponent']).optional(),
   // -1: not switching, for a "you may switch" (Teleport Blast).
   ownBenchSlot: z.number().int().min(-1).max(MAX_BENCH - 1).optional(),

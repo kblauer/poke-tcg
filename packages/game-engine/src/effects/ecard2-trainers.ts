@@ -3,7 +3,7 @@
 // ecard2.ts). Healing Berry, Memory Berry and Time Shard are Pokémon Tools whose rules live where they apply (useBerry in
 // engine.ts; Memory Berry in usableAttacks and performAttack; Time Shard in attacks.ts and resolveKnockouts). Pokémon Park's
 // rule is in energyFromHand (powers.ts); Apricorn Forest, Undersea Ruins and Power Plant are used like Lucky Stadium.
-// Darkness and Metal Energy are Neo Genesis's again (attacks.ts, betweenTurns); Rainbow Energy is Team Rocket's; Boost Energy
+// Darkness and Metal Energy play by the EX rules (attacks.ts, agreed); Rainbow Energy is Team Rocket's; Boost Energy
 // provides 3 Colorless (apps/api/src/cards.ts), goes only on an Evolved Pokémon, can't retreat (retreatError), and is
 // discarded at the end of the turn or when its Pokémon devolves (engine.ts); Crystal Energy provides 1 Energy of each type of
 // basic Energy card attached to its Pokémon (energyPool); Warp Energy switches the Active Pokémon it's attached to.

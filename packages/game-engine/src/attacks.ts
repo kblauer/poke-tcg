@@ -1,8 +1,9 @@
 // Attack resolution: legality, the choices an attack asks for, damage (weakness, resistance,
 // prevention) and the helpers card effects use. Card-specific behaviour lives in effects/.
-import { conditionProof, isBasicEnergy, lookupCard, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
+import { conditionProof, hasOwner, hasType, isBasicEnergy, lookupCard, namesMatch, typesOf, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { attackEffect, powerEffect, trainerEffect } from './effects/index.js';
 import {
+  afflictBetweenTurns,
   canPayCost,
   conditionLabel,
   activeLocked,
@@ -10,6 +11,8 @@ import {
   discardTheirEnergy,
   discardTool,
   isEnergyCardOf,
+  isSpecialEnergy,
+  energyPool,
   energyProvided,
   toolOf,
   type Affliction,
@@ -21,9 +24,9 @@ import {
   type PokemonEffects,
   type Target,
 } from './engine.js';
-import { discardsLocked, energyKept, enervatingPollen, powerActive, prehistoricMemory, scaredBy } from './powers.js';
+import { conditionBarred, conditionFree, discardsLocked, hasReact, holonWith, reactCount, energyKept, enervatingPollen, powerActive, prehistoricMemory, scaredBy } from './powers.js';
 import { shuffle } from './rng.js';
-import { addLog, baseUid, clearOnLeavingActive, effectId, energyProtected, flipCoin, inPlayDef, pokemonName, revealFaceDown, shapeshiftCard } from './status.js';
+import { addLog, baseUid, clearOnLeavingActive, effectId, isDelta, energyProtected, flipCoin, inPlayDef, pokemonName, revealFaceDown, shapeshiftCard } from './status.js';
 import type { PendingChoice, PendingChoiceInput } from './trainers.js';
 
 /** Answers to an attack's questions. Each field belongs to one kind of ChoiceSpec. */
@@ -99,8 +102,8 @@ export type ChoiceSpec = { prompt: string } & (
   /** Any number of the Energy cards attached to any of the attacking player's Pokémon (Rushing Flames). */
   | { kind: 'ownEnergyAny'; options: CardInstance[] }
   | { kind: 'ownDiscard'; min: number; max: number; options: CardInstance[] }
-  /** `count` of them, or all if there are fewer. */
-  | { kind: 'opponentBenchMany'; count: number; options: number[] }
+  /** `count` of them, or all if there are fewer. `repeat`: exactly `count` picks, the same one any number of times (Rock Blast). */
+  | { kind: 'opponentBenchMany'; count: number; options: number[]; repeat?: boolean }
   | { kind: 'deck'; options: ('own' | 'opponent')[] }
   /** Any of the opponent's Pokémon in play, clicked on the board. */
   | { kind: 'opponentPokemon'; options: Target[] }
@@ -131,6 +134,8 @@ export interface AttackSituation {
   opponentBench: (InPlayPokemon | null)[];
   ownBench: (InPlayPokemon | null)[];
   ownDiscard: CardInstance[];
+  /** The attacking player's hand (Type Match). Missing in older callers. */
+  ownHand?: CardInstance[];
   cards: CardLibrary;
   turn: number;
   /** The Stadium card in play (Vermilion City Gym, Narrow Gym). Missing = none. */
@@ -145,6 +150,8 @@ export interface AttackSituation {
   discardsLocked?: boolean;
   /** How many Prize cards the opponent has left (the Mystery Plates). Missing = not known: their questions are asked anyway. */
   opponentPrizes?: number;
+  /** How many Prize cards the attacking player has left (Rage Aura). Missing = not known. */
+  ownPrizes?: number;
 }
 
 /** An attack the Pokémon can use, and the card it's printed on (its effect's card id). */
@@ -169,7 +176,8 @@ export function usableAttacks(
     bench = [],
     defender = null,
     oppBench = [],
-  }: { recall?: boolean; bench?: readonly (InPlayPokemon | null)[]; defender?: InPlayPokemon | null; oppBench?: readonly (InPlayPokemon | null)[] } = {},
+    stadium = null,
+  }: { recall?: boolean; bench?: readonly (InPlayPokemon | null)[]; defender?: InPlayPokemon | null; oppBench?: readonly (InPlayPokemon | null)[]; stadium?: CardInstance | null } = {},
 ): UsableAttack[] {
   // Shapeshift: the attached Evolution card's attacks, with that card's effects.
   const source = shapeshiftCard(attacker)?.defId ?? effectId(attacker);
@@ -202,8 +210,19 @@ export function usableAttacks(
         return d.attacks.map((attack) => ({ attack, source: shapeshiftCard(p)?.defId ?? effectId(p), from: d.name }));
       })
     : [];
-  // Memory Berry: the attacks of the cards it evolved from, as with Recall.
-  const memory = !recall && !attacker.transformed && (attacker.attached ?? []).some((a) => a.tool && lookupCard(cards, a.card.defId).name === 'Memory Berry');
+  // Fellowship (Poké-Body): every attack of the player's Benched Pokémon with these names. Versatile (Poké-Body): every
+  // attack of every other Pokémon in play, either player's.
+  const body = attacker.powerOffUntil === undefined ? powerEffect(effectId(attacker)) : undefined;
+  const fellows = body?.fellowship;
+  const others = [...(fellows ? bench.filter((p) => p && fellows.some((n) => namesMatch(def(cards, p).name, n))) : []), ...(body?.versatile ? [...bench, defender, ...oppBench] : [])];
+  const shared = [...new Set(others)].flatMap((p) => {
+    if (!p || p.faceDown) return [];
+    const d = def(cards, p);
+    return d.attacks.map((attack) => ({ attack, source: shapeshiftCard(p)?.defId ?? effectId(p), from: d.name }));
+  });
+  // Memory Berry, and Meteor Falls (an Evolved Pokémon that isn't a Pokémon-ex): the attacks of the cards it evolved from, as with Recall.
+  const falls = !!stadium && lookupCard(cards, stadium.defId).name === 'Meteor Falls' && !def(cards, attacker).ex;
+  const memory = !recall && !attacker.transformed && (falls || (attacker.attached ?? []).some((a) => a.tool && lookupCard(cards, a.card.defId).name === 'Memory Berry'));
   const remembered = memory
     ? attacker.evolvedFrom.flatMap((c) => {
         const d = lookupCard(cards, c.defId);
@@ -215,11 +234,14 @@ export function usableAttacks(
     const attack = trainerEffect(a.card.defId)?.technicalMachine;
     return attack ? [{ attack, source: a.card.defId, from: lookupCard(cards, a.card.defId).name }] : [];
   });
-  return [...own, ...lower, ...remembered, ...linked, ...copied, ...mimicked, ...machines];
+  // A Stadium's attack (Rocket's Tricky Gym: for Pokémon with Dark or Rocket's in their names).
+  const gym = stadium ? trainerEffect(stadium.defId)?.stadiumAttack : undefined;
+  const gymAttack = gym && gym.for(def(cards, attacker).name, attacker, cards) ? [{ attack: gym.attack, source: stadium!.defId, from: lookupCard(cards, stadium!.defId).name }] : [];
+  return [...own, ...lower, ...remembered, ...linked, ...copied, ...mimicked, ...shared, ...machines, ...gymAttack];
 }
 
 /** Every attack the situation's attacker can use, by attack index (its own, then Recall's, Technical Machines'…). */
-export const situationAttacks = (s: AttackSituation) => usableAttacks(s.attacker, s.cards, { recall: s.recall, bench: s.ownBench, defender: s.defender, oppBench: s.opponentBench });
+export const situationAttacks = (s: AttackSituation) => usableAttacks(s.attacker, s.cards, { recall: s.recall, bench: s.ownBench, defender: s.defender, oppBench: s.opponentBench, stadium: s.stadium });
 const attackAt = (s: AttackSituation, attackIndex: number) => situationAttacks(s)[attackIndex];
 
 /** Whether `me`'s Active Pokémon can use the attacks of the cards it evolved from now: Recall this turn, or Prehistoric Memory. */
@@ -243,8 +265,12 @@ export interface AttackEffect {
   damage?: string;
   /** Printed Energy cost, where TCGdex has it wrong (Dark Magneton). */
   cost?: EnergyType[];
+  /** The cost it has now, when something changes it (Delta Aura); null for the printed one. */
+  costNow?: (s: AttackSituation) => EnergyType[] | null;
   /** Energy the attacker discards in order to use the attack. */
   discard?: { count: number | 'all'; type?: EnergyType };
+  /** It can be used while the attacker is Asleep (Toss and Turn). */
+  whileAsleep?: boolean;
   /** Why the attack can't be used now (beyond its energy cost). */
   blocked?: (s: AttackSituation) => string | null;
   /** Questions besides the discard. May depend on earlier answers (Metronome). */
@@ -273,7 +299,7 @@ export interface AttackContext {
    * Damages the Defending Pokémon (weakness and resistance unless turned off; `resistance: false` keeps Weakness, as
    * Hook Shot does). `swift`: nothing on the Defending Pokémon changes the damage (Swift). Returns the damage done.
    */
-  hit: (amount: number, opts?: { weakness?: boolean; resistance?: boolean; swift?: boolean }) => number;
+  hit: (amount: number, opts?: { weakness?: boolean; resistance?: boolean; swift?: boolean; keepWeakness?: boolean }) => number;
   /** Damages the attacker (no weakness or resistance). */
   selfDamage: (amount: number) => void;
   /** Damages every benched Pokémon of `player` (no weakness or resistance). */
@@ -371,7 +397,9 @@ export function attackError(s: AttackSituation, attackIndex: number): string | n
   if (!usable) return 'Invalid attack';
   const attack = usable.attack;
   const condition = s.attacker.condition;
-  if (condition === 'asleep' || condition === 'paralyzed') return `${attackerDef.name} is ${conditionLabel(condition)} and can't attack`;
+  // Toss and Turn: "This attack can be used even if … is Asleep."
+  const whileAsleep = condition === 'asleep' && attackEffect(usable.source, attack.name)?.whileAsleep;
+  if ((condition === 'asleep' && !whileAsleep) || condition === 'paralyzed') return `${attackerDef.name} is ${conditionLabel(condition)} and can't attack`;
   const amnesia = s.attacker.effects?.amnesia;
   if (amnesia && amnesia.attack === attack.name && active(amnesia.until, s.turn)) {
     return `${attackerDef.name} can't use ${attack.name} this turn`;
@@ -389,8 +417,36 @@ export function attackError(s: AttackSituation, attackIndex: number): string | n
   if (blockedTarget && blockedTarget.target === baseUid(s.defender) && active(blockedTarget.until, s.turn)) {
     return `${attackerDef.name} can't attack ${def(s.cards, s.defender).name} this turn`;
   }
-  if (!canPayCost(s.attacker, attack, s.cards)) return 'Not enough energy';
+  const sides = [{ active: s.attacker, bench: s.ownBench, ...(s.powersOff && { powersOffUntil: s.turn }) }, { active: s.defender, bench: s.opponentBench }];
+  const working = (p: InPlayPokemon) => powerActive(p, s.cards, sides) ? powerEffect(effectId(p)) : undefined;
+  // Power Saver: not while 3 or fewer Pokémon in play (both players') have its team in their names.
+  const saver = working(s.attacker)?.powerSaver;
+  if (saver && sides.flatMap((side) => [side.active, ...side.bench]).filter((p) => p && def(s.cards, p).name.includes(saver)).length <= 3) {
+    return `Power Saver: ${attackerDef.name} can't attack while 3 or fewer Pokémon in play have ${saver} in their names`;
+  }
+  // Intimidating Ring (the Defending Pokémon's), and Shining Horn (a Skarmory that's its player's only Pokémon in play):
+  // Basic Pokémon can't attack.
+  if (attackerDef.stage === 'basic') {
+    const ring = working(s.defender)?.intimidatingRing || working(s.defender)?.intimidatingArmor;
+    const horn = working(s.defender)?.shiningHorn && !s.opponentBench.some(Boolean);
+    if (ring || horn) return `${def(s.cards, s.defender).power!.name}: ${attackerDef.name} can't attack`;
+  }
+  // Deadlock: the Defending Pokémon's stops the attacker's name (the opponent's Dunsparce).
+  const locked = working(s.defender)?.deadlock;
+  if (locked && namesMatch(attackerDef.name, locked)) return `Deadlock: ${attackerDef.name} can't attack`;
+  // Mark of Antiquity: either Active Pokémon's stops the Pokémon it names, whoever's they are.
+  for (const active of [s.attacker, s.defender]) {
+    const marked = working(active)?.markOfAntiquity;
+    if (marked?.some((name) => namesMatch(attackerDef.name, name))) return `Mark of Antiquity: ${attackerDef.name} can't attack`;
+  }
+  // Primal Pull: either Active Claydol's makes an Evolved Pokémon's attacks cost 1 more Colorless Energy.
+  const pulled = s.attacker.evolvedFrom.length > 0 && [s.attacker, s.defender].some((a) => working(a)?.primalPull);
   const effect = attackEffect(usable.source, attack.name);
+  const cost = effect?.costNow?.(s) ?? attack.cost;
+  // Extra Liquid (anywhere in play, either player's): a Pokémon-ex's attacks cost 1 Colorless more (only 1, however many).
+  const liquid = !!attackerDef.ex && sides.some((side) => [side.active, ...side.bench].some((p) => p && working(p)?.extraLiquid));
+  const more = [...(pulled ? ['colorless' as const] : []), ...(liquid ? ['colorless' as const] : [])];
+  if (!canPayCost(s.attacker, { ...attack, cost: [...cost, ...more] }, s.cards)) return more.length ? `Not enough energy (${[pulled && 'Primal Pull', liquid && 'Extra Liquid'].filter(Boolean).join(', ')}: ${more.length} more Colorless Energy)` : 'Not enough energy';
   const discard = effect?.discard;
   if (discard && discard.count !== 'all' && discardOptions(s, discard.type).length < discard.count) {
     return `${attack.name} needs ${discard.count} ${discard.type ? `${typeName(discard.type)} ` : ''}Energy to discard`;
@@ -494,9 +550,33 @@ function autoAnswer(spec: ChoiceSpec): AttackChoices[keyof AttackChoices] | unde
     case 'ownDiscard':
       return spec.options.length <= spec.min ? spec.options.map((c) => c.uid) : undefined;
     case 'opponentBenchMany':
+      if (spec.repeat) return spec.options.length === 1 ? Array.from({ length: spec.count }, () => spec.options[0]!) : undefined;
       return spec.options.length <= spec.count ? spec.options : undefined;
     default:
       return spec.options.length === 1 ? spec.options[0] : undefined;
+  }
+}
+
+/** The first allowed answer to `spec` (a copied attack's questions, performCopiedAttack). */
+function firstAnswer(spec: ChoiceSpec): AttackChoices[keyof AttackChoices] {
+  switch (spec.kind) {
+    case 'ownEnergy':
+      return spec.options.slice(0, spec.count).map((e) => e.uid);
+    case 'ownEnergyUpTo':
+    case 'ownEnergyAny':
+      return [];
+    case 'ownDiscard':
+      return spec.options.slice(0, spec.min).map((c) => c.uid);
+    case 'eitherDiscard':
+      return spec.options.slice(0, 1).map((c) => c.uid);
+    case 'defenderEnergy':
+    case 'pokemonEnergy':
+    case 'oppDiscard':
+      return spec.options[0]?.uid;
+    case 'opponentBenchMany':
+      return spec.repeat ? Array.from({ length: spec.count }, () => spec.options[0]!) : spec.options.slice(0, spec.count);
+    default:
+      return spec.options[0];
   }
 }
 
@@ -522,6 +602,7 @@ function validAnswer(spec: ChoiceSpec, value: unknown): boolean {
     case 'ownDiscard':
       return pickedIds(value, spec.options.map((c) => c.uid), spec.min, spec.max);
     case 'opponentBenchMany': {
+      if (spec.repeat) return Array.isArray(value) && value.length === spec.count && value.every((v) => spec.options.includes(v));
       const n = Math.min(spec.count, spec.options.length);
       return pickedIds(value, spec.options, n, n);
     }
@@ -570,11 +651,12 @@ export const answerChoice = (choices: AttackChoices, spec: ChoiceSpec, value: At
 
 /**
  * Damage after weakness and resistance (never below 0). Conversion 1 and 2 change the types
- * through the defender's effects.
+ * through the defender's effects. An attacker of several types (Energy Variation) meets Weakness or Resistance if any of
+ * them is its type (agreed), once.
  */
 export function applyWeaknessResistance(
   amount: number,
-  attackerType: EnergyType,
+  attackerType: EnergyType | readonly EnergyType[],
   defender: PokemonCardDef,
   effects?: PokemonEffects,
   {
@@ -582,16 +664,23 @@ export function applyWeaknessResistance(
     weakness: withWeakness = true,
     resistanceLess = 0,
     resistanceCap = Infinity,
-  }: { resistance?: boolean; weakness?: boolean; resistanceLess?: number; resistanceCap?: number } = {},
+    weaknessIgnore,
+  }: { resistance?: boolean; weakness?: boolean; resistanceLess?: number; resistanceCap?: number; weaknessIgnore?: EnergyType } = {},
 ): number {
   if (amount <= 0) return 0;
   const weakness = defender.weakness && { ...defender.weakness, type: effects?.weakness ?? defender.weakness.type };
   const resistance = effects?.resistance ? { type: effects.resistance, amount: defender.resistance?.amount ?? 30 } : defender.resistance;
   let damage = amount;
+  const types: readonly EnergyType[] = typeof attackerType === 'string' ? [attackerType] : attackerType;
+  // A second printed Weakness or Resistance (Team Magma's Aggron: Grass and Water) counts too, but each applies once
+  // (agreed). Conversion's changed type replaces them all.
+  // Dark Hole (`weaknessIgnore`): Darkness Weakness doesn't apply.
+  const weakTo = (weakness ? [weakness.type, ...(effects?.weakness ? [] : (defender.moreWeakness ?? []))] : []).filter((t) => t !== weaknessIgnore);
+  const resists = resistance ? [resistance.type, ...(effects?.resistance ? [] : (defender.moreResistance ?? []))] : [];
   // Cinnabar City Gym: no Weakness for a Water Pokémon's attack on Blaine's Pokémon.
-  if (withWeakness && weakness?.type === attackerType) damage *= weakness.multiplier;
+  if (withWeakness && weakness && types.some((t) => weakTo.includes(t))) damage *= weakness.multiplier;
   // Hook Shot and Pewter City Gym: no Resistance. Resistance Gym: 20 less of it.
-  if (withResistance && resistance?.type === attackerType) damage -= Math.min(resistanceCap, Math.max(0, resistance.amount - resistanceLess));
+  if (withResistance && resistance && types.some((t) => resists.includes(t))) damage -= Math.min(resistanceCap, Math.max(0, resistance.amount - resistanceLess));
   return Math.max(0, damage);
 }
 
@@ -601,7 +690,7 @@ export function applyWeaknessResistance(
  * to include Conversion changes.
  */
 export const attackDamage = (attack: Attack, attacker: PokemonCardDef, defender: PokemonCardDef, defenderInPlay?: InPlayPokemon) =>
-  applyWeaknessResistance(attack.damage, attacker.type, defender, defenderInPlay?.effects);
+  applyWeaknessResistance(attack.damage, typesOf(attacker), defender, defenderInPlay?.effects);
 
 /**
  * Uses an attack: validates it and its choices, then resolves Confusion, Sand-attack, the
@@ -649,9 +738,11 @@ export function performAttack(
   if (attacker.condition === 'confused' && !flipCoin(state, `${attackerDef.name} is Confused`, me.id)) {
     // Frenzy: 30 more, even to itself.
     const frenzy = powerEffect(effectId(attacker))?.frenzy && powerActive(attacker, state.cards, [me, opp]) ? 30 : 0;
-    const damage = afterDefender(state.cards, attacker, 30 + frenzy);
+    // Hard Protection: no damage from its own attacks, Confusion's included (agreed).
+    const hard = powerEffect(effectId(attacker))?.hardProtection && powerActive(attacker, state.cards, [me, opp]);
+    const damage = hard ? 0 : afterDefender(state.cards, attacker, 30 + frenzy);
     attacker.damage += damage;
-    addLog(state, damage ? `${attackerDef.name} hurt itself for ${damage} damage.` : `Defender prevented the damage ${attackerDef.name} did to itself.`, me.id);
+    addLog(state, damage ? `${attackerDef.name} hurt itself for ${damage} damage.` : `The damage ${attackerDef.name} did to itself was prevented.`, me.id);
     return null;
   }
   for (const [key, name] of [['sandAttack', 'Sand-attack'], ['smokescreen', 'Smokescreen']] as const) {
@@ -659,6 +750,20 @@ export function performAttack(
       addLog(state, `${attack.name} did nothing.`, me.id);
       return null;
     }
+  }
+  // Pattern Distraction: the Defending player's working Active Spinda makes a Basic Pokémon's attack a flip; tails, it does nothing.
+  const spinda = opp.active;
+  if (spinda && attackerDef.stage === 'basic' && powerEffect(effectId(spinda))?.patternDistraction && powerActive(spinda, state.cards, [me, opp]) && !flipCoin(state, 'Pattern Distraction', me.id)) {
+    addLog(state, `${attack.name} did nothing.`, me.id);
+    return null;
+  }
+  // Holon Circle: an Active Pokémon's attack does nothing at all; then the Stadium is discarded.
+  const circle = state.stadium;
+  if (circle && lookupCard(state.cards, circle.card.defId).name === 'Holon Circle') {
+    state.players[circle.owner]!.discard.push(circle.card);
+    state.stadium = null;
+    addLog(state, `Holon Circle: ${attack.name} did nothing, and Holon Circle was discarded.`, me.id);
+    return null;
   }
   // Ink Spurt lasts until the Pokémon evolves or is benched.
   if (attacker.effects?.inkSpurt && !flipCoin(state, 'Ink Spurt', me.id)) {
@@ -698,6 +803,7 @@ export const attackSituation = (state: GameState, me: PlayerState, opp: PlayerSt
   opponentBench: opp.bench,
   ownBench: me.bench,
   ownDiscard: me.discard,
+  ownHand: me.hand,
   cards: state.cards,
   turn: state.turn,
   stadium: state.stadium?.card ?? null,
@@ -706,6 +812,7 @@ export const attackSituation = (state: GameState, me: PlayerState, opp: PlayerSt
   powersOff: me.powersOffUntil !== undefined || opp.powersOffUntil !== undefined,
   discardsLocked: discardsLocked([me, opp], state.cards),
   opponentPrizes: opp.prizes.length,
+  ownPrizes: me.prizes.length,
 });
 
 /** Whether the attack can be used with these answers: the complete choices, or why not. */
@@ -727,6 +834,39 @@ export function damageChosenBenched(state: GameState, slot: number, amount: numb
   const later: (() => void)[] = [];
   createContext(state, me, opp, {}, later, `${pokemonName(state, me.active)}'s attack`).damageBenched(opp, slot, amount);
   for (const fn of later) fn();
+}
+
+/**
+ * The current player's Active Pokémon performs a copied attack chosen after its own attack began (Skill Hack: a card in the
+ * opponent's hand), as part of that attack. The copied attack's own questions take their first answer that's allowed.
+ */
+export function performCopiedAttack(state: GameState, attack: Attack, source: string) {
+  const me = state.players[state.currentPlayer]!;
+  const opp = state.players[state.playerOrder.find((id) => id !== me.id)!]!;
+  if (!me.active || !opp.active) return;
+  const s = attackSituation(state, me, opp);
+  const effect = attackEffect(source, attack.name);
+  const choices: AttackChoices = {};
+  for (let guard = 0; guard < 10; guard++) {
+    const open = (effect?.choices?.(s, choices) ?? []).find((spec) => choices[FIELD[spec.kind]] === undefined);
+    if (!open) break;
+    (choices as Record<string, unknown>)[FIELD[open.kind]] = autoAnswer(open) ?? firstAnswer(open);
+  }
+  // Its Energy discard, if any, still has to be done (the first Energy that fits).
+  const discard = effect?.discard;
+  if (discard) {
+    const options = discardOptions(s, discard.type);
+    if (discard.count !== 'all' && options.length < discard.count) return addLog(state, `${attack.name} did nothing: not enough Energy to discard.`, me.id);
+    const gone = discard.count === 'all' ? [...me.active.energy] : options.slice(0, discard.count);
+    me.active.energy = me.active.energy.filter((e) => !gone.includes(e));
+    me.discard.push(...gone);
+    addLog(state, `${pokemonName(state, me.active)} discarded ${gone.length} Energy.`, me.id);
+  }
+  const later: (() => void)[] = [];
+  const ctx = createContext(state, me, opp, choices, later, `${pokemonName(state, me.active)}'s ${attack.name}`);
+  ctx.useAttack(attack, source);
+  for (const fn of later) fn();
+  ctx.finish();
 }
 
 /**
@@ -768,8 +908,27 @@ function createContext(
     if (hitting && damageSteps && after !== before) damageSteps.push({ label, change: after - before });
     return after;
   };
-  /** Neutral Shield: attacks by Evolved Pokémon don't affect it. */
-  const neutral = (p: InPlayPokemon) => attacker.evolvedFrom.length > 0 && !!passive(p)?.neutralShield;
+  /** Neutral Shield: attacks by Evolved Pokémon don't affect it. Safeguard: nor by Pokémon-ex; Wonder Guard: by either (the opponent's). */
+  const neutral = (p: InPlayPokemon) => {
+    const evolved = attacker.evolvedFrom.length > 0;
+    const theirs = [opp.active, ...opp.bench].includes(p);
+    // Beacon Protection, Extra Protection: only while its player has the partner in play.
+    const partner = passive(p)?.guardPartner;
+    const partnered = !partner || [opp.active, ...opp.bench].some((q) => q && namesMatch(def(state.cards, q).name, partner));
+    const from = partnered ? passive(p)?.guardFrom : undefined;
+    // Fast Protection: nor by the opponent's Basic Pokémon. Advanced Armor, Psychic Shield: nor, this turn, by the opponent's
+    // Evolved Pokémon or Pokémon-ex.
+    if (theirs && ((passive(p)?.basicProof && attackerDef.stage === 'basic') || (active(p.effects?.evolvedProof, turn) && evolved) || (active(p.effects?.exProof, turn) && attackerDef.ex))) return true;
+    // Holy Shield ('dark'): nor by Pokémon with Dark in their names.
+    if (from === 'dark') return theirs && /\bDark\b/.test(attackerDef.name);
+    // Mysterious Shard: nothing from the opponent's Pokémon-ex's attacks.
+    if (theirs && attackerDef.ex && toolOf(state.cards, p)?.name === 'Mysterious Shard') return true;
+    // Solid Shell (Cloyster δ): nothing from the opponent's attacks to its player's Benched δ Pokémon.
+    if (theirs && opp.bench.includes(p) && isDelta(state.cards, p) && [opp.active, ...opp.bench].some((q) => q && passive(q)?.deltaBenchShield)) return true;
+    // Reactive Shield: the player's Tentacruel, while one with a React Energy card attached has it working, from Pokémon-ex.
+    if (theirs && attackerDef.ex && namesMatch(def(state.cards, p).name, 'Tentacruel') && [opp.active, ...opp.bench].some((q) => q && passive(q)?.reactiveShield && hasReact(q, state.cards))) return true;
+    return (evolved && !!passive(p)?.neutralShield) || (!!from && theirs && (!!attackerDef.ex || (from === 'evolvedOrEx' && evolved)));
+  };
   /**
    * Whether the attack can't affect this Pokémon of `owner`, without flipping for Transparency: Barrier
    * or Agility, Neutral Shield, or (benched) Protective Flame or Aurora Veil.
@@ -820,7 +979,13 @@ function createContext(
     active(opp.active?.effects?.preventAll, turn) || (!!opp.active && (opp.active === fled || neutral(opp.active) || quickened(opp.active, opp) || transparent(opp.active, opp)));
   /** Shielded, or Crystal Body or Light Wave: the attack does nothing to the Defending Pokémon but damage. Logs why. */
   const untouchable = () => {
-    const crystal = !!opp.active && (!!passive(opp.active)?.crystalBody || active(opp.active.effects?.effectProof, turn));
+    // Darkness Veil: Crystal Body with Darkness Energy attached.
+    const veil = opp.active && passive(opp.active)?.crystalBodyWith;
+    // Dragon Aura's condition; Holon Energy WP with a basic Water Energy card attached.
+    const veiled =
+      (!!veil && energyPool(opp.active!, state.cards).some((e) => counts(e, veil))) ||
+      (!!opp.active && (!!passive(opp.active)?.crystalBodyWhen?.(opp.active, state.cards) || holonWith(opp.active, state.cards, 'WP', 'water')));
+    const crystal = !!opp.active && (!!passive(opp.active)?.crystalBody || veiled || active(opp.active.effects?.effectProof, turn));
     if (!shielded() && !crystal) return false;
     log(crystal && !shielded() ? `The attack's effects other than damage don't affect ${ctx.defenderDef.name}.` : `${ctx.defenderDef.name} is protected from the attack's effects.`, opp.id);
     return true;
@@ -833,8 +998,23 @@ function createContext(
     const guard = owner.bench.findIndex((q) => q && q !== p && passive(q)?.benchGuard);
     if (target >= 0 && guard >= 0) (state.queuedChoices ??= []).push({ player: owner.id, source: 'Bench Guard', kind: 'benchGuard', target, guard });
   };
+  /** Intimidating Fang: while the opponent's Active Pokémon has it, the attack does less to any of their Pokémon (before Weakness and Resistance). */
+  const intimidated = (amount: number, owner: PlayerState) => {
+    const guard = owner.active ? passive(owner.active) : undefined;
+    // Lazy Aura: only against the opponent's Pokémon-ex (agreed: the Bench too, as Intimidating Fang).
+    const less = (guard?.intimidatingFang ?? 0) + (attackerDef.ex ? (guard?.exAura ?? 0) : 0);
+    if (!less || amount <= 0) return amount;
+    log(`${def(state.cards, owner.active!).power!.name} reduced the damage by ${less}.`, owner.id);
+    return Math.max(0, amount - less);
+  };
   /** Shell Armor: 10 less attack damage. Strange Barrier: an attack by a Basic Pokémon does 10 instead of 20 or more. */
   const barriers = (p: InPlayPokemon, damage: number, owner: PlayerState) => {
+    // Hard Cocoon: the opponent's attack, on its owner's heads, does a set amount less.
+    const cocoon = passive(p)?.hardCocoon;
+    if (damage > 0 && cocoon && owner === opp && flipCoin(state, 'Hard Cocoon', owner.id)) {
+      damage = Math.max(0, damage - cocoon);
+      log(`Hard Cocoon reduced the damage to ${pokemonName(state, p)} by ${cocoon}.`, owner.id);
+    }
     if (damage > 0 && passive(p)?.shellArmor) {
       damage = noted('Shell Armor', damage, Math.max(0, damage - 10));
       log(`Shell Armor reduced the damage to ${pokemonName(state, p)} by 10.`, owner.id);
@@ -850,6 +1030,99 @@ function createContext(
     if (damage > 0 && shell && attacker.evolvedFrom.length > 0) {
       damage = noted(def(state.cards, p).power!.name, damage, Math.max(0, damage - shell));
       log(`${def(state.cards, p).power!.name} reduced the damage to ${pokemonName(state, p)} by ${shell}.`, owner.id);
+    }
+    // Energy Guard: a set amount less from the opponent's attack, with a basic Energy card attached.
+    const energyGuard = passive(p)?.energyGuard;
+    if (damage > 0 && energyGuard && owner === opp && p.energy.some((e) => !e.provides && isBasicEnergy(lookupCard(state.cards, e.defId)))) {
+      damage = Math.max(0, damage - energyGuard);
+      log(`Energy Guard reduced the damage to ${pokemonName(state, p)} by ${energyGuard}.`, owner.id);
+    }
+    // Glowing Screen: a set amount less from an attacker of its types, while its owner has its partner in play.
+    const screen = passive(p)?.partnerGuard;
+    if (damage > 0 && screen && screen.types.some((t) => hasType(attackerDef, t)) && [owner.active, ...owner.bench].some((q) => q && namesMatch(def(state.cards, q).name, screen.partner))) {
+      damage = Math.max(0, damage - screen.amount);
+      log(`${def(state.cards, p).power!.name} reduced the damage to ${pokemonName(state, p)} by ${screen.amount}.`, owner.id);
+    }
+    // Ice Wall: a set amount less from the opponent's Pokémon with a Special Energy card attached.
+    const iceWall = passive(p)?.specialGuard;
+    if (damage > 0 && iceWall && owner === opp && attacker.energy.some((e) => isSpecialEnergy(state.cards, e))) {
+      damage = Math.max(0, damage - iceWall);
+      log(`${def(state.cards, p).power!.name} reduced the damage to ${pokemonName(state, p)} by ${iceWall}.`, owner.id);
+    }
+    // Shell Retreat, Core Guard: a set amount less with Energy (of a type) attached; only from the opponent's attacks unless `anyAttack`.
+    const core = passive(p)?.coreGuard;
+    const energized = core && (core.energy ? energyPool(p, state.cards).some((e) => counts(e, core.energy!)) : p.energy.some((e) => !e.provides));
+    if (damage > 0 && core && energized && (owner === opp || core.anyAttack)) {
+      damage = Math.max(0, damage - core.amount);
+      log(`${def(state.cards, p).power!.name} reduced the damage to ${pokemonName(state, p)} by ${core.amount}.`, owner.id);
+    }
+    // Buffer Piece: 20 less from the opponent's attack.
+    if (damage > 0 && owner === opp && toolOf(state.cards, p)?.name === 'Buffer Piece') {
+      damage = Math.max(0, damage - 20);
+      log(`Buffer Piece reduced the damage to ${pokemonName(state, p)} by 20.`, owner.id);
+    }
+    // Rai-shield: a set amount less from the opponent's Pokémon-ex. Mist: a set amount less from Stage 2 Pokémon.
+    const exLess = passive(p)?.exReduction;
+    if (damage > 0 && exLess && owner === opp && attackerDef.ex) {
+      damage = Math.max(0, damage - exLess);
+      log(`${def(state.cards, p).power!.name} reduced the damage to ${pokemonName(state, p)} by ${exLess}.`, owner.id);
+    }
+    // Thick Fat: a set amount less from Pokémon of its types. Holon Energy GL with a basic Lightning Energy card: 10 less from
+    // the opponent's Pokémon-ex (agreed: after Weakness and Resistance, to its own Pokémon only). Reversal Aura: 20 less from
+    // the Active Pokémon while its player has more Prize cards left.
+    const fat = passive(p)?.typeGuard;
+    const reversed = (passive(p)?.reversalAura ?? 0) && attacker === me.active && owner.prizes.length > (owner === opp ? me : opp).prizes.length ? passive(p)!.reversalAura! : 0;
+    // Psychic Protector (agreed: chosen before the attack, used only if Flygon ex is damaged): the cards are discarded, 10 less each.
+    const protector = state.psychicProtector;
+    if (damage > 0 && owner === opp && protector?.length && passive(p)?.psychicProtector) {
+      const gone = owner.hand.filter((c) => protector.includes(c.uid));
+      owner.hand = owner.hand.filter((c) => !gone.includes(c));
+      owner.discard.push(...gone);
+      delete state.psychicProtector;
+      damage = Math.max(0, damage - 10 * gone.length);
+      log(`Psychic Protector: discarded ${gone.length} card${gone.length === 1 ? '' : 's'}; the damage to ${pokemonName(state, p)} was reduced by ${10 * gone.length}.`, owner.id);
+    }
+    // Ancient Shell: 20 less while its player has its partners in play. Reactive Protection: 10 less for each React Energy card attached.
+    const ancient = passive(p)?.partnerShell;
+    const shelled = ancient && [owner.active, ...owner.bench].some((q) => q && ancient.names.some((n) => namesMatch(def(state.cards, q).name, n))) ? ancient.amount : 0;
+    const reactive = owner === opp && passive(p)?.reactiveProtection ? 10 * reactCount(p, state.cards) : 0;
+    // Delta Protection: 40 less from the opponent's δ Pokémon. Hard Rock (only one): 20 less for its player's Groudon ex. Armor:
+    // 30 less while the opponent has 5 or more cards in the hand. Glalie's Synergy Effect: 30 less with Glacia's Stadium in play.
+    // Drake's Stadium: 10 less for a Colorless Active Pokémon, from the opponent's attack.
+    const stadiumName = state.stadium && lookupCard(state.cards, state.stadium.card.defId).name;
+    const theirs = owner === opp;
+    const delta = theirs && isDelta(state.cards, attacker) ? (passive(p)?.deltaGuard ?? 0) : 0;
+    const rock = def(state.cards, p).name === 'Groudon ex' && [owner.active, ...owner.bench].some((q) => q && passive(q)?.hardRock && energyPool(q, state.cards).length <= 1) ? 20 : 0;
+    const armor = theirs && passive(p)?.handArmor && me.hand.length >= 5 ? 30 : 0;
+    const synergy = passive(p)?.synergy;
+    const synergized = theirs && synergy && synergy.stadium === stadiumName ? (synergy.less ?? 0) + (synergy.exProof && attackerDef.ex ? 1000 : 0) : 0;
+    const drake = stadiumName === "Drake's Stadium" && owner.active === p && hasType(def(state.cards, p), 'colorless') && theirs ? 10 : 0;
+    const less = (fat && fat.types.some((t) => hasType(attackerDef, t)) ? fat.amount : 0) + (owner === opp && attackerDef.ex && holonWith(p, state.cards, 'GL', 'lightning') ? 10 : 0) + reversed + shelled + reactive + delta + rock + armor + synergized + drake;
+    if (damage > 0 && less) {
+      damage = Math.max(0, damage - less);
+      log(`The damage to ${pokemonName(state, p)} was reduced by ${less}.`, owner.id);
+    }
+    const mist = passive(p)?.stage2Guard;
+    if (damage > 0 && mist && attackerDef.stage === 'stage2') {
+      damage = Math.max(0, damage - mist);
+      log(`${def(state.cards, p).power!.name} reduced the damage to ${pokemonName(state, p)} by ${mist}.`, owner.id);
+    }
+    // Energy Protection: 10 less for each Energy card attached, at most a set amount. Dark Protection: for each Darkness
+    // Energy (provided), only against the opponent's attacks.
+    const protection = passive(p)?.energyProtection;
+    if (damage > 0 && protection && (!protection.oppOnly || owner === opp)) {
+      const attached = protection.type ? energyPool(p, state.cards).filter((e) => counts(e, protection.type!)).length : p.energy.filter((e) => !e.provides).length;
+      const less = Math.min(protection.max, 10 * attached);
+      if (less) {
+        damage = Math.max(0, damage - less);
+        log(`${def(state.cards, p).power!.name} reduced the damage to ${pokemonName(state, p)} by ${less}.`, owner.id);
+      }
+    }
+    // Powder Protection: a set amount less from a Pokémon with an owner in its name.
+    const powder = passive(p)?.ownerGuard;
+    if (damage > 0 && powder && hasOwner(attackerDef.name)) {
+      damage = Math.max(0, damage - powder);
+      log(`${def(state.cards, p).power!.name} reduced the damage to ${pokemonName(state, p)} by ${powder}.`, owner.id);
     }
     // Rock Body, Exoskeleton: a set amount less.
     const reduction = passive(p)?.damageReduction;
@@ -895,7 +1168,7 @@ function createContext(
     // Time Travel: heads, it isn't Knocked Out; it's shuffled into its owner's deck once the attack is over (resolveKnockouts).
     if (owner === opp && p.damage + damage >= hp && !p.timeTravel && passive(p)?.timeTravel) {
       if (flipCoin(state, 'Time Travel', owner.id)) {
-        p.timeTravel = true;
+        p.timeTravel = passive(p)!.timeTravel === 'bottom' ? 'bottom' : true;
         log(`Time Travel: ${pokemonName(state, p)} won't be Knocked Out; it goes back into the deck.`, owner.id);
       }
       return damage;
@@ -910,6 +1183,22 @@ function createContext(
    */
   const benchCanTake = (owner: PlayerState, p: InPlayPokemon) => {
     if (!revealFaceDown(state, owner.id, p)) return false;
+    // Submerge: no damage from the opponent's attacks while it's on the Bench.
+    if (owner === opp && passive(p)?.benchImmune) {
+      log(`${def(state.cards, p).power!.name} prevented the damage to ${pokemonName(state, p)}.`, owner.id);
+      return false;
+    }
+    // Sand Veil (its owner's, anywhere): no damage from the opponent's attacks to their Benched Pokémon.
+    const veil = owner === opp && [owner.active, ...owner.bench].find((q) => q && passive(q)?.sandVeil);
+    if (veil) {
+      log(`Sand Veil prevented the damage to ${pokemonName(state, p)}.`, owner.id);
+      return false;
+    }
+    // Power Diffusion: its owner's Active Pokémon's stops every attack's damage to their Benched Pokémon, theirs too (agreed).
+    if (owner.active && passive(owner.active)?.powerDiffusion) {
+      log(`Power Diffusion prevented the damage to ${pokemonName(state, p)}.`, owner.id);
+      return false;
+    }
     // Ice Pillar: while the Light Dewgong that used it is the Active Pokémon.
     const pillar = owner.icePillar;
     if (pillar && active(pillar.until, turn) && owner.active?.card.uid === pillar.by) {
@@ -954,7 +1243,8 @@ function createContext(
     const ownInPlay = [owner.active, ...owner.bench].filter((q): q is InPlayPokemon => !!q);
     const guard = ownInPlay.find((q) => {
       const name = def(state.cards, q).name;
-      return passive(q)?.unownGuard === attackerDef.type && ownInPlay.filter((r) => def(state.cards, r).name === name).length === 1;
+      const guarded = passive(q)?.unownGuard;
+      return !!guarded && hasType(attackerDef, guarded) && ownInPlay.filter((r) => def(state.cards, r).name === name).length === 1;
     });
     if (!guard) return damage;
     log(`${def(state.cards, guard).power!.name}: the damage to ${pokemonName(state, p)} was reduced by 30.`, owner.id);
@@ -962,19 +1252,100 @@ function createContext(
   };
   /** Damage to a benched Pokémon or the attacker itself: Defender, then Kabuto Armor. */
   const benchedDamage = (p: InPlayPokemon, amount: number, owner: PlayerState) => {
-    amount = Math.max(0, charmed(amount) - metalLess);
-    if (amount > 0 && sproutTower(state) && attackerDef.type === 'colorless') amount = Math.max(0, amount - 30);
-    amount = Math.max(0, amount - 10 * energyCount(state.cards, p, 'Metal Energy'));
-    const damage = unownGuarded(p, barriers(p, armor(p, afterDefender(state.cards, p, amount), owner), owner), owner);
-    return damage >= 30 && passive(p)?.invisibleWall ? 0 : damage;
+    // Hard Protection: no damage from its own player's attacks, its own recoil included (agreed).
+    if (owner === me && passive(p)?.hardProtection) return 0;
+    // Feebas's Submerge: on the Bench, no damage from any attack.
+    if (owner.active !== p && passive(p)?.benchImmuneAll) return 0;
+    amount = charmed(amount);
+    // Hitmonlee's Stages of Evolution: more to any of the opponent's Pokémon.
+    if (owner === opp && amount > 0) amount += passive(attacker)?.attackMore ?? 0;
+    if (owner === opp) amount = intimidated(amount, owner);
+    if (amount > 0 && sproutTower(state) && hasType(attackerDef, 'colorless')) amount = Math.max(0, amount - 30);
+    if (hasType(def(state.cards, p), 'metal')) amount = Math.max(0, amount - 10 * energyCount(state.cards, p, 'Metal Energy'));
+    let damage = unownGuarded(p, barriers(p, armor(p, afterDefender(state.cards, p, amount), owner), owner), owner);
+    if (owner === opp && damage > 0 && doubleRainbow()) damage = Math.max(0, damage - 10);
+    return (damage >= 30 && passive(p)?.invisibleWall) || magicNumber(p, damage, owner) ? 0 : damage;
+  };
+  /** Magic Odds, Magic Evens: an attack's final damage of an odd (or even) number of tens, 10 to 180, is prevented (agreed: the final damage). */
+  const magicNumber = (p: InPlayPokemon, damage: number, owner: PlayerState) => {
+    const magic = passive(p)?.magicNumbers;
+    if (!magic || damage <= 0 || damage > 180 || damage % 10 || (damage / 10) % 2 !== (magic === 'odd' ? 1 : 0)) return false;
+    log(`${def(state.cards, p).power!.name} prevented the damage to ${pokemonName(state, p)}.`, owner.id);
+    return true;
+  };
+  /** Power Gene: 10 more for each of the attacking player's working Nidoking whose names include the attacker's. */
+  const powerGene = () =>
+    [me.active, ...me.bench].reduce((n, q) => {
+      const gene = q ? passive(q)?.powerGene : undefined;
+      return n + (gene && gene.names.some((name) => namesMatch(attackerDef.name, name)) ? gene.amount : 0);
+    }, 0);
+  /** R Energy: 10 more to the Active Pokémon for each attached to the attacker (its effect not stopped by Miraculous Wind). */
+  const rEnergy = () => 10 * energyCount(state.cards, attacker, 'R Energy');
+  /** Double Rainbow Energy is attached to the attacker (its effect not stopped by Miraculous Wind). */
+  const doubleRainbow = () => attacker.energy.some((e) => !e.provides && !e.windless && lookupCard(state.cards, e.defId).name === 'Double Rainbow Energy');
+  /** Energy Grounding: used at most once a turn by each player. */
+  let grounded = false;
+  /**
+   * Energy Grounding: the opponent's attack is Knocking Out `p` (of `owner`), who has another Pokémon with it working; once
+   * the attack is over they may move one of `p`'s basic Energy cards to that Pokémon (before the Knock Out discards them).
+   */
+  const grounding = (p: InPlayPokemon, owner: PlayerState) => {
+    if (grounded || owner !== opp || p.damage < def(state.cards, p).hp || owner.groundingTurn === turn) return;
+    const lanturn = [owner.active, ...owner.bench].find((q) => q && q !== p && passive(q)?.energyGrounding);
+    if (!lanturn || !p.energy.some((e) => !e.provides && isBasicEnergy(lookupCard(state.cards, e.defId)))) return;
+    grounded = true;
+    const target: Target = owner.active === p ? 'active' : owner.bench.indexOf(p);
+    (state.queuedChoices ??= []).push({ player: owner.id, source: 'Energy Grounding', kind: 'energyGrounding', target, to: lanturn.card.uid });
+  };
+  /**
+   * EXP. ALL (EX FireRed & LeafGreen): the attack is Knocking Out `owner`'s Active Pokémon `p`; once it's over they may move one
+   * of its basic Energy cards to one of their Pokémon with EXP. ALL attached (agreed: they pick which, before the Knock Out
+   * discards it), and that EXP. ALL is discarded.
+   */
+  const expAllEx = (p: InPlayPokemon, owner: PlayerState) => {
+    if (owner !== opp || owner.active !== p || p.damage < def(state.cards, p).hp || p.expAllAsked) return;
+    const holders = owner.bench.filter((q): q is InPlayPokemon => !!q && toolOf(state.cards, q)?.name === 'EXP. ALL');
+    if (!holders.length || !p.energy.some((e) => !e.provides && isBasicEnergy(lookupCard(state.cards, e.defId)))) return;
+    p.expAllAsked = true;
+    (state.queuedChoices ??= []).push({ player: owner.id, source: 'EXP. ALL', kind: 'energyGrounding', target: 'active', to: holders[0]!.card.uid, expAll: holders.map((q) => q.card.uid) });
+  };
+  /**
+   * The attack's damage is Knocking Out `owner`'s Pokémon `p`. Curse Powder (on their Active Pokémon): 3 damage counters on the
+   * attacker. Golden Wing: once the attack is over, its owner may move up to 2 of its Energy cards (agreed: cards) to their
+   * other Pokémon, before the Knock Out discards them (as Energy Grounding).
+   */
+  const knockedOutEffects = (p: InPlayPokemon, owner: PlayerState) => {
+    if (owner !== opp || p.damage < def(state.cards, p).hp || p.koHandled) return;
+    p.koHandled = true;
+    if (owner.active === p && toolOf(state.cards, p)?.name === 'Curse Powder') {
+      attacker.damage += 30;
+      log(`Curse Powder: put 3 damage counters on ${attackerDef.name}.`, owner.id);
+    }
+    // Spiral Swirl (Poliwrath, as its player's Active Pokémon): the attacker is now Confused.
+    if (owner.active === p && passive(p)?.spiralSwirl) {
+      log('Spiral Swirl:', owner.id);
+      afflictBetweenTurns(state, me.id, attacker, 'confused');
+    }
+    const others = [owner.active, ...owner.bench].filter((q): q is InPlayPokemon => !!q && q !== p);
+    const target: Target = owner.active === p ? 'active' : owner.bench.indexOf(p);
+    if (passive(p)?.goldenWing && others.length && p.energy.some((e) => !e.provides)) {
+      (state.queuedChoices ??= []).push({ player: owner.id, source: 'Golden Wing', kind: 'energyGrounding', target, to: others[0]!.card.uid, expAll: others.map((q) => q.card.uid), goldenWing: 2 });
+    }
+    // Reactive Recharge: any number of its React Energy cards to its player's other Pokémon.
+    const react = reactCount(p, state.cards);
+    if (passive(p)?.reactiveRecharge && others.length && react) {
+      (state.queuedChoices ??= []).push({ player: owner.id, source: 'Reactive Recharge', kind: 'energyGrounding', target, to: others[0]!.card.uid, expAll: others.map((q) => q.card.uid), goldenWing: react, reactOnly: true });
+    }
+    // Shadow Curse: its player may put 3 damage counters on one of the attacking player's Pokémon.
+    if (passive(p)?.shadowCurse) (state.queuedChoices ??= []).push({ player: owner.id, source: 'Shadow Curse', kind: 'placeCounters', count: 3, active: true, together: true, optional: true });
   };
   /** Shadow Images: one flip per attack, by the attacking player; tails, the attack does no damage to the Pokémon. */
   let shadowImages: boolean | undefined;
   /**
-   * Metal Energy on an attacker that isn't Metal: its attacks do 10 less for each, before Weakness and Resistance (Neo
-   * Genesis's; Expedition's plays the same, agreed with the user).
+   * Darkness Energy (the EX rules for every set's, agreed with the user): 10 more for each to the Active Pokémon, before
+   * Weakness and Resistance, from an attacker that's Darkness or has Dark in its name.
    */
-  const metalLess = attackerDef.type === 'metal' ? 0 : 10 * energyCount(state.cards, attacker, 'Metal Energy');
+  const darkMore = () => (hasType(attackerDef, 'darkness') || attackerDef.name.includes('Dark') ? 10 * energyCount(state.cards, attacker, 'Darkness Energy') : 0);
   /** Whether the attack can affect this Pokémon; logs why not. Transparency flips the first time it's asked. */
   const canAffect = (player: PlayerState, p: InPlayPokemon) => {
     if (!immune(p, player) && !transparent(p, player)) return true;
@@ -988,16 +1359,16 @@ function createContext(
   };
 
   /** ctx.hit's damage to the Defending Pokémon, each change to it noted while tracing (traceDamage). */
-  const hitDefender = (amount: number, { weakness = true, resistance = true, swift = false }: { weakness?: boolean; resistance?: boolean; swift?: boolean } = {}): number => {
+  const hitDefender = (amount: number, { weakness = true, resistance = true, swift = false, keepWeakness = false }: { weakness?: boolean; resistance?: boolean; swift?: boolean; keepWeakness?: boolean } = {}): number => {
     const defender = opp.active!;
     const defenderDef = def(state.cards, defender);
     if (amount <= 0) return 0;
     damageSteps?.push({ label: '', change: amount });
     // A run's battle rules (Fire Pokémon do double damage…) change the base damage, before everything else,
     // and then its items' bonuses (X Attack, Charcoal…) are added.
-    for (const rule of state.rules ?? []) if (rule.kind === 'typeDamage' && rule.type === attackerDef.type) amount = noted(rule.label ?? `${typeName(rule.type)} Pokémon do ${rule.multiplier}× damage`, amount, amount * rule.multiplier);
+    for (const rule of state.rules ?? []) if (rule.kind === 'typeDamage' && hasType(attackerDef, rule.type)) amount = noted(rule.label ?? `${typeName(rule.type)} Pokémon do ${rule.multiplier}× damage`, amount, amount * rule.multiplier);
     amount = noted(attackerDef.power?.name ?? 'Frenzy', amount, amount + frenzy());
-    for (const rule of state.rules ?? []) if (rule.kind === 'damageBonus' && rule.player === me.id && (!rule.type || rule.type === attackerDef.type)) amount = noted(rule.label ?? 'Battle rule', amount, amount + rule.amount);
+    for (const rule of state.rules ?? []) if (rule.kind === 'damageBonus' && rule.player === me.id && (!rule.type || hasType(attackerDef, rule.type))) amount = noted(rule.label ?? 'Battle rule', amount, amount + rule.amount);
     // Swift: nothing on the Defending Pokémon (effects of attacks, Pokémon Powers, Defender) changes its damage.
     if (!swift && shielded()) {
       log(`${defenderDef.name} is protected from the attack.`, opp.id);
@@ -1015,28 +1386,125 @@ function createContext(
     // Pewter City Gym: no Resistance for attacks by Pokémon with Brock in their names.
     const stadium = state.stadium && lookupCard(state.cards, state.stadium.card.defId).name;
     if (stadium === 'Pewter City Gym' && attackerDef.name.includes('Brock')) resistance = false;
-    // Magnifier: no Resistance for its Pokémon's attack.
+    // Magnifier: no Resistance for its Pokémon's attack. Withering Dust, from anywhere in play: none for any Active Pokémon.
     if (attachedCount(state.cards, attacker, 'Magnifier')) resistance = false;
+    if (sides.some((side) => [side.active, ...side.bench].some((p) => p && passive(p)?.witheringDust))) resistance = false;
+    // Tropical Motion: the attacking player's Active Tropius takes the opponent's Resistance away.
+    if (me.active && passive(me.active)?.tropicalMotion) resistance = false;
+    // Holon Energy FF with a basic Fighting Energy card: the attacker's damage isn't affected by Resistance.
+    if (holonWith(attacker, state.cards, 'FF', 'fighting')) resistance = false;
+    // Ancient Tentacles: the attacking player's Omanyte line and Kabuto line ignore Resistance.
+    if ([me.active, ...me.bench].some((q) => q && passive(q)?.ancientTentacles?.some((n) => namesMatch(attackerDef.name, n)))) resistance = false;
     // Cinnabar City Gym, and Weakness Guard: no Weakness.
-    const weaknessOff = (stadium === 'Cinnabar City Gym' && attackerDef.type === 'water' && defenderDef.name.includes('Blaine')) || attachedCount(state.cards, defender, 'Weakness Guard') > 0;
+    // Ancient Tomb: no Weakness, but for Pokémon-ex and Pokémon with an owner in their names.
+    const tomb = stadium === 'Ancient Tomb' && !defenderDef.ex && !hasOwner(defenderDef.name);
+    // Dragon Veil: no Weakness for the Active Pokémon of a player with one working; Dark Condition: none with Darkness Energy attached.
+    const veiled = [opp.active, ...opp.bench].some((q) => q && passive(q)?.dragonVeil);
+    const condition = passive(defender)?.noWeaknessWith;
+    const conditioned = !!condition && energyPool(defender, state.cards).some((e) => counts(e, condition));
+    // Ancient Protection: the Defending player's Omanyte line and Kabuto line have no Weakness. Hydro Barrier: nor their
+    // Water Pokémon, while the Rayquaza δ has a Holon Energy card attached.
+    const ancientProtected = [opp.active, ...opp.bench].some((q) => q && passive(q)?.ancientProtection?.some((n) => namesMatch(defenderDef.name, n)));
+    const hydroBarred = hasType(defenderDef, 'water') && [opp.active, ...opp.bench].some((q) => q && passive(q)?.hydroBarrier && q.energy.some((e) => !e.provides && !e.windless && lookupCard(state.cards, e.defId).name.startsWith('Holon Energy')));
+    const weaknessOff = (stadium === 'Cinnabar City Gym' && attackerDef.type === 'water' && defenderDef.name.includes('Blaine')) || attachedCount(state.cards, defender, 'Weakness Guard') > 0 || tomb || veiled || conditioned || !!passive(defender)?.noWeakness || toolOf(state.cards, defender)?.name === 'Protective Orb' || holonWith(defender, state.cards, 'FF', 'fire') || ancientProtected || hydroBarred || active(defender.effects?.weaknessOffUntil, turn) || (stadium === "Glacia's Stadium" && hasType(defenderDef, 'water') && !defenderDef.ex) || (stadium === 'Holon Legacy' && isDelta(state.cards, defender));
     // Charm: the attacker's damage is less, before Weakness and Resistance.
     const before = amount;
     amount = noted('Charm', amount, charmed(amount));
     if (amount < before) log(`Charm reduced ${attackerDef.name}'s damage by ${before - amount}.`);
+    // Delta Reduction: less damage to it, before Weakness and Resistance. Extra Smoke: 10 less for each of its player's, to a Stage 2 Pokémon-ex.
+    const lessBefore = defender.effects?.reduceBefore;
+    const smoke = defenderDef.ex && defenderDef.stage === 'stage2' ? 10 * [opp.active, ...opp.bench].filter((q) => q && passive(q)?.extraSmoke).length : 0;
+    const before2 = (lessBefore && active(lessBefore.until, turn) ? lessBefore.amount : 0) + smoke;
+    if (before2 && amount > 0) {
+      amount = noted(smoke && !lessBefore ? 'Extra Smoke' : 'Less damage from an earlier attack', amount, Math.max(0, amount - before2));
+      log(`The damage to ${defenderDef.name} was reduced by ${before2}.`, opp.id);
+    }
     // Togepi's Snivel: less damage from the Pokémon it was used on, before weakness and resistance.
     const snivel = attacker.effects?.pounce;
     if (snivel?.beforeWeakness && snivel.target === baseUid(defender) && active(snivel.until, turn)) {
       amount = noted('Snivel', amount, Math.max(0, amount - snivel.amount));
       log(`The damage to ${defenderDef.name} was reduced by ${snivel.amount}.`, opp.id);
     }
-    if (metalLess) amount = noted('Metal Energy on the attacker', amount, Math.max(0, amount - metalLess));
+    // As the damage is done: the attack may have discarded its Darkness Energy first (Dark Fire).
+    // Hunch, Blaze: more with little HP left. Vigorous Aura (either Active Pokémon's): more for each Active Pokémon's attack.
+    // Pivot Throw: more to the Pokémon that used it, this turn.
+    const low = passive(attacker)?.lowHpBoost;
+    const aura = [me.active, opp.active].reduce((n, a) => n + (a ? (passive(a)?.vigorousAura ?? 0) : 0), 0);
+    const pivot = active(defender.effects?.pivot, turn) ? 10 : 0;
+    // Hitmonlee's Stages of Evolution; Solid Rage and Reversal Aura while the attacking player has more Prize cards left.
+    const behind = me.prizes.length > opp.prizes.length;
+    const rage = behind && toolOf(state.cards, attacker)?.name === 'Solid Rage' ? 20 : 0;
+    const reversal = behind ? (passive(attacker)?.reversalAura ?? 0) : 0;
+    // Paranoid, Ancient Fang: more while their condition holds. Delta Reactor (each one, agreed): 10 more for a δ Pokémon while a Holon Stadium is in play.
+    const more = passive(attacker)?.defendingMore;
+    const conditional = more && more.when(attacker, me, state.cards) ? more.more : 0;
+    const reactor = stadium?.includes('Holon') && isDelta(state.cards, attacker) ? 10 * [me.active, ...me.bench].filter((q) => q && passive(q)?.deltaReactor).length : 0;
+    // Crystal Laser: more on the turn after.
+    const laser = attacker.effects?.nextTurnMore?.turn === turn ? attacker.effects.nextTurnMore.amount : 0;
+    // Battle Aura (δ Pokémon), Extra Feather (Stage 2 Pokémon-ex): 10 more for each of the attacking player's.
+    const allies = [me.active, ...me.bench].reduce((n, q) => {
+      const kind = q ? passive(q)?.allyMore : undefined;
+      const fits = kind === 'delta' ? isDelta(state.cards, attacker) : kind === 'stage2ex' ? !!attackerDef.ex && attackerDef.stage === 'stage2' : false;
+      return n + (fits ? 10 : 0);
+    }, 0);
+    const boost = (low && attackerDef.hp - attacker.damage <= low.hpLeft ? low.more : 0) + aura + pivot + (passive(attacker)?.attackMore ?? 0) + rage + reversal + conditional + reactor + laser + allies;
+    if (amount > 0 && boost) {
+      amount = noted(attackerDef.power?.name ?? 'More damage', amount, amount + boost);
+      log(`${boost} more damage.`);
+    }
+    const dark = darkMore();
+    if (amount > 0 && dark) {
+      amount = noted('Darkness Energy', amount, amount + dark);
+      log(`Darkness Energy: ${dark} more damage.`);
+    }
+    const r = rEnergy();
+    if (amount > 0 && r) {
+      amount = noted('R Energy', amount, amount + r);
+      log(`R Energy: ${r} more damage.`);
+    }
+    const gene = powerGene();
+    if (amount > 0 && gene) {
+      amount = noted('Power Gene', amount, amount + gene);
+      log(`Power Gene: ${gene} more damage.`);
+    }
+    // Power Pinchers (its player's Active Pokémon's) and Dragon Dance: more damage, before Weakness and Resistance.
+    const pinchers = me.active ? (passive(me.active)?.powerPinchers ?? 0) : 0;
+    if (amount > 0 && pinchers) {
+      amount = noted('Power Pinchers', amount, amount + pinchers);
+      log(`Power Pinchers: ${pinchers} more damage.`);
+    }
+    // Dragon Dance, Bay Dance: more to the Defending Pokémon from whichever Pokémon attacks next turn (agreed: never the Bench).
+    if (amount > 0 && me.dragonDanceTurn === turn) {
+      const more = me.dragonDanceMore ?? 40;
+      amount = noted(me.dragonDanceSource ?? 'Dragon Dance', amount, amount + more);
+      log(`${me.dragonDanceSource ?? 'Dragon Dance'}: ${more} more damage.`);
+    }
+    // Overzealous: more while the opponent has a Pokémon-ex in play.
+    const zeal = passive(attacker)?.overzealous;
+    if (amount > 0 && zeal && [opp.active, ...opp.bench].some((q) => q && def(state.cards, q).ex)) {
+      amount = noted(attackerDef.power!.name, amount, amount + zeal);
+      log(`${attackerDef.power!.name}: ${zeal} more damage.`);
+    }
+    // Magnetic Storm: no Resistance for Psychic and Fighting Pokémon's attacks.
+    if (stadium === 'Magnetic Storm' && (hasType(attackerDef, 'psychic') || hasType(attackerDef, 'fighting'))) resistance = false;
+    // EX Deoxys's Strength Charm: 10 more before Weakness and Resistance (Expedition's adds it after); discarded at the end
+    // of the turn its Pokémon attacks.
+    const charm = toolOf(state.cards, attacker);
+    const charmEarly = charm?.name === 'Strength Charm' && /before applying Weakness/.test((lookupCard(state.cards, charm.tool.card.defId) as { text?: string }).text ?? '');
+    if (charmEarly) charm!.tool.until = turn;
+    if (amount > 0 && charmEarly) {
+      amount = noted('Strength Charm', amount, amount + 10);
+      log('Strength Charm: 10 more damage.');
+    }
+    amount = noted(opp.active ? (def(state.cards, opp.active).power?.name ?? 'Less damage') : 'Less damage', amount, intimidated(amount, opp));
     // Enervating Pollen: Resistance takes off at most 10.
-    const rules = { resistance, weakness: !weaknessOff, resistanceLess: stadium === 'Resistance Gym' ? 20 : 0, resistanceCap: enervatingPollen(sides, state.cards) ? 10 : undefined };
+    const rules = { resistance, weakness: !weaknessOff, resistanceLess: stadium === 'Resistance Gym' ? 20 : 0, resistanceCap: enervatingPollen(sides, state.cards) ? 10 : undefined, weaknessIgnore: opp.bench.some((q) => q && passive(q)?.darkHole) ? ('darkness' as const) : undefined };
+    // Brick Smash (`keepWeakness`): nothing on the Defending Pokémon but its Weakness changes the damage.
     let damage = amount;
-    if (weakness && !swift) {
+    if (weakness && (!swift || keepWeakness)) {
       // Weakness, then Resistance, noted apart.
-      const weak = applyWeaknessResistance(amount, attackerDef.type, defenderDef, defender.effects, { ...rules, resistance: false });
-      damage = applyWeaknessResistance(amount, attackerDef.type, defenderDef, defender.effects, rules);
+      const weak = applyWeaknessResistance(amount, typesOf(attackerDef), defenderDef, defender.effects, { ...rules, resistance: false });
+      damage = applyWeaknessResistance(amount, typesOf(attackerDef), defenderDef, defender.effects, swift ? { ...rules, resistance: false } : rules);
       noted(`Weakness (×${defenderDef.weakness?.multiplier ?? 2})`, amount, weak);
       noted('Resistance', weak, damage);
     }
@@ -1046,15 +1514,8 @@ function createContext(
       damage = noted('Misty', damage, damage + 20 * misty);
       log(`Misty: ${20 * misty} more damage.`);
     }
-    // Darkness Energy: 10 more for each on the attacker, if the attack damages the Defending Pokémon after Weakness and Resistance.
-    const dark = energyCount(state.cards, attacker, 'Darkness Energy');
-    if (damage > 0 && dark) {
-      damage = noted('Darkness Energy', damage, damage + 10 * dark);
-      log(`Darkness Energy: ${10 * dark} more damage.`);
-    }
     // Strength Charm: 10 more, if the attack damages it after Weakness and Resistance; it's discarded at the end of the turn.
-    const charm = toolOf(state.cards, attacker);
-    if (damage > 0 && charm?.name === 'Strength Charm') {
+    if (damage > 0 && charm?.name === 'Strength Charm' && !charmEarly) {
       damage = noted('Strength Charm', damage, damage + 10);
       charm.tool.until = turn;
       log('Strength Charm: 10 more damage.');
@@ -1069,6 +1530,11 @@ function createContext(
       damage = noted('Screech', damage, damage + 20);
       log(`Screech: 20 more damage to ${defenderDef.name}.`, opp.id);
     }
+    // Silver Wind: 30 more to it, if the attack damages it after Weakness and Resistance.
+    if (damage > 0 && !swift && active(defender.effects?.silverWind, turn)) {
+      damage = noted('Silver Wind', damage, damage + 30);
+      log(`Silver Wind: 30 more damage to ${defenderDef.name}.`, opp.id);
+    }
     if (damage > 0 && vermilionBonus) {
       damage = noted('Vermilion City Gym', damage, damage + 10);
       vermilionBonus = false;
@@ -1078,6 +1544,11 @@ function createContext(
     if (damage > 0) {
       damage = noted('PlusPower', damage, damage + 10 * attachedCount(state.cards, attacker, 'PlusPower'));
       damage = noted('Defender', damage, Math.max(0, damage - (swift ? 0 : 20 * attachedCount(state.cards, defender, 'Defender'))));
+    }
+    // Double Rainbow Energy: 10 less damage from the Pokémon it's attached to, after Weakness and Resistance.
+    if (damage > 0 && doubleRainbow()) {
+      damage = noted('Double Rainbow Energy', damage, Math.max(0, damage - 10));
+      log('Double Rainbow Energy: 10 less damage.');
     }
     // A run's items (X Defend, Leaf Jacket…) take some off too.
     const guard = ruleGuard(state, opp.id, defenderDef.type);
@@ -1098,12 +1569,12 @@ function createContext(
         log(`Minimize reduced the damage to ${defenderDef.name} by 20.`, opp.id);
       }
       // Sprout Tower: Colorless Pokémon's attacks do 30 less, after Weakness and Resistance.
-      if (damage > 0 && sproutTower(state) && attackerDef.type === 'colorless') {
+      if (damage > 0 && sproutTower(state) && hasType(attackerDef, 'colorless')) {
         damage = noted('Sprout Tower', damage, Math.max(0, damage - 30));
         log(`Sprout Tower reduced the damage to ${defenderDef.name} by 30.`, opp.id);
       }
-      // Metal Energy: 10 less for each on the Defending Pokémon, after Weakness and Resistance.
-      const metal = energyCount(state.cards, defender, 'Metal Energy');
+      // Metal Energy (the EX rules for every set's, agreed): 10 less for each on a Metal Defending Pokémon, after Weakness and Resistance.
+      const metal = hasType(defenderDef, 'metal') ? energyCount(state.cards, defender, 'Metal Energy') : 0;
       if (damage > 0 && metal) {
         damage = noted('Metal Energy', damage, Math.max(0, damage - 10 * metal));
         log(`Metal Energy reduced the damage to ${defenderDef.name} by ${10 * metal}.`, opp.id);
@@ -1148,6 +1619,7 @@ function createContext(
         damage = noted('Reflect Shield', damage, 0);
       }
     }
+    if (!swift && magicNumber(defender, damage, opp)) damage = noted(defenderDef.power?.name ?? 'Prevented', damage, 0);
     if (damage > capLeft) {
       damage = noted('Charity', damage, capLeft);
       log(`Charity: the damage to ${defenderDef.name} was reduced to ${damage}.`);
@@ -1159,6 +1631,9 @@ function createContext(
     record(defender).damage += damage;
     log(`${defenderDef.name} took ${damage} damage.`, opp.id);
     shard(defender, opp);
+    grounding(defender, opp);
+    expAllEx(defender, opp);
+    knockedOutEffects(defender, opp);
     if (effects) delete effects.shadowImages;
     passive(defender)?.onAttackDamage?.(ctx, defender);
     // Flee (asked before the attack): it switches out once the attack is over, and nothing else the attack does affects it.
@@ -1203,7 +1678,7 @@ function createContext(
     // Secrete Poison: the attacker is Poisoned and 10 damage to each of the attacking player's benched Pokémon, even if this Knocks it Out.
     if (active(effects?.secretePoison, turn)) {
       log(`Secrete Poison: ${attackerDef.name} is now Poisoned, and 10 damage to each benched Pokémon.`);
-      if (!passive(attacker)?.noConditions) attacker.poison = Math.max(attacker.poison ?? 0, 10);
+      if (!conditionFree(attacker, state.cards, passive(attacker))) attacker.poison = Math.max(attacker.poison ?? 0, 10);
       for (const p of me.bench) if (p) p.damage += 10;
     }
     if (defender.damage >= defenderDef.hp && active(effects?.destinyBond, turn)) {
@@ -1264,6 +1739,7 @@ function createContext(
         if (damage === 0) continue;
         p.damage += damage;
         shard(p, player);
+        grounding(p, player);
         if (player === opp) passive(p)?.onAttackDamage?.(ctx, p);
         benchGuard(player, p);
       }
@@ -1272,7 +1748,7 @@ function createContext(
       const defender = opp.active!;
       const name = pokemonName(state, defender);
       if (untouchable()) return;
-      if (conditionProof(def(state.cards, defender)) || passive(defender)?.noConditions || (defender.effects?.flashTouch && affliction !== 'burned') || active(defender.effects?.conditionProof, turn)) return log(`${name} can't be affected by Special Conditions.`, opp.id);
+      if (conditionProof(def(state.cards, defender)) || conditionFree(defender, state.cards, passive(defender)) || conditionBarred(passive(defender), affliction, defender) || (defender.effects?.flashTouch && affliction !== 'burned') || active(defender.effects?.conditionProof, turn)) return log(`${name} can't be affected by Special Conditions.`, opp.id);
       if ((affliction === 'poisoned' || affliction === 'toxic') && passive(defender)?.noPoison) return log(`${name} can't be Poisoned.`, opp.id);
       if (affliction !== 'burned' && active(defender.effects?.pollenShield, turn)) return log(`Pollen Shield: ${name} can't be ${affliction === 'toxic' || affliction === 'poisoned' ? 'Poisoned' : conditionLabel(affliction)}.`, opp.id);
       const guard = state.rules?.find((r) => r.kind === 'conditionGuard' && r.player === opp.id && r.conditions.includes(affliction === 'toxic' ? 'poisoned' : affliction));
@@ -1292,7 +1768,7 @@ function createContext(
       // Mirror Coat: Poisoned or Burned by the attack, it makes the attacker the same.
       if (affliction !== 'burned' && affliction !== 'poisoned' && affliction !== 'toxic') return;
       if (!passive(defender)?.mirrorCoat || me.active !== attacker) return;
-      if (conditionProof(attackerDef) || passive(attacker)?.noConditions || (affliction !== 'burned' && passive(attacker)?.noPoison)) return;
+      if (conditionProof(attackerDef) || conditionFree(attacker, state.cards, passive(attacker)) || (affliction !== 'burned' && passive(attacker)?.noPoison)) return;
       if (affliction === 'burned') attacker.burned = true;
       else attacker.poison = Math.max(attacker.poison ?? 0, affliction === 'toxic' ? 20 : 10);
       log(`Mirror Coat: ${attackerDef.name} is now ${affliction === 'burned' ? 'Burned' : 'Poisoned'}.`);
@@ -1300,12 +1776,13 @@ function createContext(
     damageBenched(player, slot, amount, { weakness = false } = {}) {
       const benched = player.bench[slot];
       if (!benched || amount <= 0 || !benchCanTake(player, benched) || !canAffect(player, benched)) return;
-      const weakened = weakness ? applyWeaknessResistance(amount, attackerDef.type, def(state.cards, benched), benched.effects) : amount;
+      const weakened = weakness ? applyWeaknessResistance(amount, typesOf(attackerDef), def(state.cards, benched), benched.effects) : amount;
       const damage = fortitude(benched, player, benchedDamage(benched, weakened, player));
       if (damage === 0) return log(`The damage to ${pokemonName(state, benched)} was prevented.`, player.id);
       benched.damage += damage;
       log(`${pokemonName(state, benched)} took ${damage} damage.`, player.id);
       shard(benched, player);
+      grounding(benched, player);
       if (player === opp) passive(benched)?.onAttackDamage?.(ctx, benched);
       benchGuard(player, benched);
     },
@@ -1355,12 +1832,12 @@ function createContext(
       log(`Drew ${drawn.length} card${drawn.length === 1 ? '' : 's'}.`);
     },
     confuseSelf() {
-      if (passive(attacker)?.noConditions || attacker.effects?.flashTouch) return log(`${attackerDef.name} can't be affected by Special Conditions.`);
+      if (conditionFree(attacker, state.cards, passive(attacker)) || conditionBarred(passive(attacker), 'confused', attacker) || attacker.effects?.flashTouch) return log(`${attackerDef.name} can't be affected by Special Conditions.`);
       attacker.condition = 'confused';
       log(`${attackerDef.name} is now Confused.`);
     },
     sleepSelf() {
-      if (passive(attacker)?.noConditions || attacker.effects?.flashTouch) return log(`${attackerDef.name} can't be affected by Special Conditions.`);
+      if (conditionFree(attacker, state.cards, passive(attacker)) || conditionBarred(passive(attacker), 'asleep', attacker) || attacker.effects?.flashTouch) return log(`${attackerDef.name} can't be affected by Special Conditions.`);
       attacker.condition = 'asleep';
       log(`${attackerDef.name} is now Asleep.`);
     },

@@ -7,7 +7,7 @@
 import type { EnergyType } from '@poke-tcg/game-engine';
 import { BOSSES, boss, ELITE_FOUR, JOHTO_ELITE_FOUR, JOHTO_GYMS, KANTO_GYMS, type Boss, type BossId } from './bosses.js';
 import { GEN1_DECK_RULES, GEN2_DECK_RULES, type DeckRules } from './decks.js';
-import { basicEnergyType, GEN2_DONE_SETS, GEN2_SETS, POOL_SETS } from './pool.js';
+import { basicEnergyType, EX_SETS, GEN2_DONE_SETS, GEN2_SETS, POOL_SETS } from './pool.js';
 import { CELADON_GYM, CERULEAN_GYM, CINNABAR_GYM, FUCHSIA_GYM, KANTO_BOSS_ROOMS, POKEMON_CENTER, POKEMON_TOWER_1F, POKEMON_TOWER_2F, POKEMON_TOWER_3F, POKEMON_TOWER_4F, POKEMON_TOWER_5F, POWER_PLANT, ROUTE_17, ROUTE_20, ROUTE_8, ROUTE_4, ROUTE_5_VERMILION, ROUTE_6, SAFFRON_GYM, VERMILION_GYM, VIRIDIAN_GYM } from './kanto-routes.js';
 import { AZALEA_GYM, BLACKTHORN_GYM, CIANWOOD_GYM, ECRUTEAK_GYM, GOLDENROD_GYM, JOHTO_BOSS_ROOMS, JOHTO_POKEMON_CENTER, MAHOGANY_GYM, OLIVINE_GYM, VIOLET_GYM } from './johto-gyms.js';
 import { ROUTE_30, ROUTE_32, ROUTE_34, ROUTE_35, ROUTE_40, ROUTE_42, ROUTE_44, ROUTE_45 } from './johto-routes.js';
@@ -201,6 +201,15 @@ export const GENERATIONS: Record<number, Generation> = {
     deckRules: GEN1_DECK_RULES,
   },
   2: { region: 'Johto', gyms: JOHTO_GYMS, gymChallenge: 'johtoGyms', packs: GEN2_SETS, poolSets: GEN2_SETS, implementedSets: GEN2_DONE_SETS, deckRules: GEN2_DECK_RULES },
+};
+
+/**
+ * Every generation's booster packs, by generation: those of GENERATIONS, and Generation 3's (Hoenn, the EX sets), whose runs
+ * are still to come (agreed with the user: its packs stay locked until then).
+ */
+export const PACK_GENERATIONS: Record<number, { region: string; packs: string[] }> = {
+  ...Object.fromEntries(Object.entries(GENERATIONS).map(([id, g]) => [id, { region: g.region, packs: g.packs }])),
+  3: { region: 'Hoenn', packs: EX_SETS },
 };
 
 /** The generation a run type belongs to. */

@@ -47,7 +47,7 @@ import { eitherCondition } from './si1.js';
 const energyOf = (ctx: Pick<AttackContext, 'state'>, p: InPlayPokemon, type: Parameters<typeof counts>[1]) => energyPool(p, ctx.state.cards).filter((t) => counts(t, type)).length;
 
 /** Discards every Trainer card attached to the Defending Pokémon (Mug, Plunder), unless the attack can't affect it. */
-function discardDefenderTrainers(ctx: AttackContext) {
+export function discardDefenderTrainers(ctx: AttackContext) {
   ctx.affectDefender(() => {
     const defender = ctx.opp.active!;
     const trainers = (defender.attached ?? []).filter((a) => lookupCard(ctx.state.cards, a.card.defId).kind === 'trainer');
@@ -74,7 +74,7 @@ function switchChosen(ctx: AttackContext) {
  * Copies one of the Defending Pokémon's attacks (Copy, Mini-Metronome), with its Energy discards and questions. `needsEnergy`:
  * nothing happens unless the attacker has the Energy for it (Copy); `flip`: heads first (Mini-Metronome).
  */
-const copyAttack = (name: string, { needsEnergy, flip }: { needsEnergy: boolean; flip: boolean }): AttackEffect => ({
+export const copyAttack = (name: string, { needsEnergy, flip }: { needsEnergy: boolean; flip: boolean }): AttackEffect => ({
   choices(s, c) {
     const attacks = inPlayDef(s.cards, s.defender).attacks;
     const options = attacks.flatMap((a, i) => (a.name === 'Copy' || a.name === 'Mini-Metronome' ? [] : [i]));

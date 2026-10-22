@@ -1,5 +1,5 @@
-// Downloads the Wizards of the Coast era card pool (1999–2003, before the EX series)
-// from TCGdex into a JSON snapshot that `prisma/seed.ts` loads into the database.
+// Downloads the card pool from TCGdex into a JSON snapshot that `prisma/seed.ts` loads into the database: the Wizards of
+// the Coast era (1999–2003) and Generation 3's EX series, EX Ruby & Sapphire to EX Power Keepers (2003–2007).
 //
 //   pnpm --filter @poke-tcg/db cards:fetch
 //
@@ -25,6 +25,12 @@ export const WOTC_SETS = [
   // Legendary Collection & e-Card series
   'lc', 'ecard1', 'bog', 'ecard2', 'ecard3',
 ];
+
+/**
+ * Generation 3's EX series, in release order. Deliberately excluded: `ex5.5` (the Poké Card Creator Pack) and `exu`
+ * (the Unseen Forces Unown Collection), side releases like the WOTC era's `miscp`.
+ */
+export const EX_SETS = ['ex1', 'ex2', 'ex3', 'ex4', 'ex5', 'ex6', 'ex7', 'ex8', 'ex9', 'ex10', 'ex11', 'ex12', 'ex13', 'ex14', 'ex15', 'ex16'];
 
 const CARD_FIELDS = `
   id localId name image category rarity illustrator hp types stage evolveFrom dexId retreat suffix
@@ -108,7 +114,7 @@ async function fetchCards(ids: string[]): Promise<TcgdexCard[]> {
 
 const sets: TcgdexSet[] = [];
 const cardIds: string[] = [];
-for (const id of WOTC_SETS) {
+for (const id of [...WOTC_SETS, ...EX_SETS]) {
   const result = await fetchSet(id);
   sets.push(result.set);
   cardIds.push(...result.cardIds);

@@ -25,12 +25,14 @@ export function useAttack({ view, send, busy }: { view: PlayerView; send: (a: Ga
           opponentBench: opponent.bench,
           ownBench: self.bench,
           ownDiscard: self.discard,
+          ownHand: self.hand,
           cards: view.cards,
           turn: view.turn,
           stadium: view.stadium?.card ?? null,
           recall: !!self.recall,
           powersOff: self.powersOffUntil !== undefined || opponent.powersOffUntil !== undefined,
           opponentPrizes: opponent.prizeCount,
+          ownPrizes: self.prizeCount,
         }
       : null;
 
@@ -72,10 +74,13 @@ export function useAttack({ view, send, busy }: { view: PlayerView; send: (a: Ga
       if (choosing && spec) proceed(choosing.attackIndex, answerChoice(choosing.choices, spec, value));
     },
     benchPicked,
-    /** Picks or unpicks one of the opponent's benched Pokémon, keeping at most as many as the question asks for. */
+    /** How many of the opponent's Pokémon the question wants: all of them if there are fewer, unless one may be picked again (Rock Blast). */
+    benchCount: spec?.kind === 'opponentBenchMany' ? (spec.repeat ? spec.count : Math.min(spec.count, spec.options.length)) : 0,
+    /** Picks or unpicks one of the opponent's benched Pokémon, keeping at most as many as the question asks for (`repeat`: every click is another pick). */
     toggleBench: (slot: number) => {
       const count = spec?.kind === 'opponentBenchMany' ? spec.count : 1;
-      setBenchPicked((p) => (p.includes(slot) ? p.filter((s) => s !== slot) : [...p, slot].slice(-count)));
+      const repeat = spec?.kind === 'opponentBenchMany' && spec.repeat;
+      setBenchPicked((p) => (p.includes(slot) && !repeat ? p.filter((s) => s !== slot) : [...p, slot].slice(-count)));
     },
     cancel,
   };

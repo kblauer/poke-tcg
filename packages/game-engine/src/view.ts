@@ -55,14 +55,23 @@ export interface PlayerView {
     freezeLockUntil?: number;
     /** The turn they last used Good Neighbor (once a turn, whichever Wigglytuff). */
     goodNeighborTurn?: number;
+    healDanceTurn?: number;
+    weatherTurn?: number;
+    quickSearchTurn?: number;
+    formChangeTurn?: number;
+    happyDanceTurn?: number;
+    powerTurns?: Record<string, number>;
     /** A search this player must finish, with the cards it reveals to them. */
     pendingChoice: PendingChoiceView | null;
     /** Last turn this player can't play Trainer cards (Headache). */
     noTrainersUntil?: number;
     /** The turn they last played a Supporter card (only one each turn). */
     supporterTurn?: number;
+    /** That Supporter card (in the discard pile; Detour, Delta Support). */
+    supporterUid?: string;
     /** Last turn they can't play Supporter cards (Addictive Pollen). */
     noSupportersUntil?: number;
+    noItemsUntil?: number;
     /** The turn they last attached an Energy card from their hand to their Active Pokémon (Harvest Bounty). */
     activeEnergyTurn?: number;
     /** Setup: done placing Pokémon, waiting for the opponent. */
@@ -101,6 +110,7 @@ export interface PlayerView {
 export const viewCounts = (view: PlayerView) => ({
   deck: view.self.deckCount,
   prizes: view.self.prizeCount,
+  faceUpPrizes: view.self.faceUpPrizes?.filter(Boolean).length ?? 0,
   oppDeck: view.opponent.deckCount,
   oppHand: view.opponent.handCount,
   oppPrizes: view.opponent.prizeCount,
@@ -168,10 +178,18 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       ...(me.bodiesOffTurn !== undefined && { bodiesOffTurn: me.bodiesOffTurn }),
       ...(me.freezeLockUntil !== undefined && { freezeLockUntil: me.freezeLockUntil }),
       ...(me.goodNeighborTurn !== undefined && { goodNeighborTurn: me.goodNeighborTurn }),
+      ...(me.healDanceTurn !== undefined && { healDanceTurn: me.healDanceTurn }),
+      ...(me.weatherTurn !== undefined && { weatherTurn: me.weatherTurn }),
+      ...(me.quickSearchTurn !== undefined && { quickSearchTurn: me.quickSearchTurn }),
+      ...(me.formChangeTurn !== undefined && { formChangeTurn: me.formChangeTurn }),
+      ...(me.happyDanceTurn !== undefined && { happyDanceTurn: me.happyDanceTurn }),
+      ...(me.powerTurns && { powerTurns: me.powerTurns }),
       pendingChoice: pending,
       noTrainersUntil: me.noTrainersUntil,
       ...(me.supporterTurn !== undefined && { supporterTurn: me.supporterTurn }),
+      ...(me.supporterUid !== undefined && { supporterUid: me.supporterUid }),
       ...(me.noSupportersUntil !== undefined && { noSupportersUntil: me.noSupportersUntil }),
+      ...(me.noItemsUntil !== undefined && { noItemsUntil: me.noItemsUntil }),
       ...(me.activeEnergyTurn !== undefined && { activeEnergyTurn: me.activeEnergyTurn }),
       ...(me.ready && { ready: true }),
       ...(peek && { peek }),

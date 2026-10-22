@@ -1,4 +1,4 @@
-import { applyWeaknessResistance, attackEffect, inPlayDef, usableAttacks, type CardLibrary, type DamageRange, type GameAction, type InPlayPokemon } from '@poke-tcg/game-engine';
+import { applyWeaknessResistance, attackDamage, attackEffect, inPlayDef, typesOf, usableAttacks, type CardInstance, type CardLibrary, type DamageRange, type GameAction, type InPlayPokemon } from '@poke-tcg/game-engine';
 import type { AttackControl } from '../hooks/useAttack';
 
 /** A change to the damage, signed: +10, −20. */
@@ -26,6 +26,7 @@ export function AttackList({
   recall = false,
   bench = [],
   oppBench = [],
+  stadium = null,
 }: {
   pokemon: InPlayPokemon;
   /** The opponent's active Pokémon, if any. */
@@ -43,20 +44,22 @@ export function AttackList({
   bench?: (InPlayPokemon | null)[];
   /** The opponent's Bench, for Psymimic's copies of their Pokémon's attacks (listed after its own, with their names). */
   oppBench?: (InPlayPokemon | null)[];
+  /** The Stadium in play, for its attack (Rocket's Tricky Gym), listed last with its name. */
+  stadium?: CardInstance | null;
 }) {
   // A Transformed Ditto has the Defending Pokémon's attacks.
   const def = inPlayDef(cards, pokemon);
   const defenderDef = defender && inPlayDef(cards, defender);
   return (
     <div className="flex flex-col gap-1">
-      {usableAttacks(pokemon, cards, { recall, bench, defender, oppBench }).map(({ attack: a, source, from }, i) => {
+      {usableAttacks(pokemon, cards, { recall, bench, defender, oppBench, stadium }).map(({ attack: a, source, from }, i) => {
         const error = attack.error(i);
         const usable = canAttack && error === null;
         // Variable damage ("30+", "10×", "?") depends on the card text, so it's shown as printed.
         const fixed = !a.damageText || /^\d+$/.test(a.damageText);
         // Off the player's turn: Weakness, then Resistance, worked out here.
-        const weak = fixed && defenderDef ? applyWeaknessResistance(a.damage, def.type, defenderDef, defender.effects, { resistance: false }) : a.damage;
-        const damage = fixed && defenderDef ? applyWeaknessResistance(a.damage, def.type, defenderDef, defender.effects) : a.damage;
+        const weak = fixed && defenderDef ? applyWeaknessResistance(a.damage, typesOf(def), defenderDef, defender.effects, { resistance: false }) : a.damage;
+        const damage = fixed && defenderDef ? attackDamage(a, def, defenderDef, defender) : a.damage;
         const unimplemented = a.text && !attackEffect(source, a.name);
         // What it would do now, worked out by the engine (only its own attacks, on its turn, when it can use them).
         const now = from ? undefined : (preview[i] ?? undefined);

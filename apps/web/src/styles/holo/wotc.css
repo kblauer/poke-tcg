@@ -16,6 +16,10 @@
   - e-Card layout (Expedition, Aquapolis, Skyridge): art window x 57–580, y 103–400, with a
     large rounded top-left corner and a smaller rounded bottom-left one. The stage badge sits
     above the art, so Stage cards use the same shape.
+  - EX layout (Generation 3, EX Ruby & Sapphire to EX Power Keepers; measured on EX Ruby & Sapphire Aggron, Delcatty
+    and Chansey ex): art window x 46–554, y 79–390. The round stage badge sits below the art, so Stage cards use the
+    same shape. Pokémon-ex have their foil on the art and on the border outside the card's frame (x 17–580, y 18–772).
+    To be checked by eye on more sets (noted on the PR).
 
 */
 
@@ -67,6 +71,20 @@
 
   --clip-stage: var(--clip);
   --clip-stage-invert: var(--clip-invert);
+}
+
+.card[data-era="ex"] {
+  --clip: inset(9.6% 7.7% 52.7% 7.7%);
+  --clip-invert: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 47.3%, 92.3% 47.3%, 92.3% 9.6%, 7.7% 9.6%, 7.7% 47.3%, 0% 47.3%);
+
+  --clip-stage: var(--clip);
+  --clip-stage-invert: var(--clip-invert);
+}
+
+/* Pokémon-ex: the foil is the border around the frame and the art window (evenodd: the frame is a hole, the art inside it filled again). */
+.card[data-era="ex"][data-pokemon-ex="true"] .card__shine,
+.card[data-era="ex"][data-pokemon-ex="true"] .card__glare:after {
+  clip-path: polygon(evenodd, 0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, 2.8% 2.2%, 96.7% 2.2%, 96.7% 93.6%, 2.8% 93.6%, 2.8% 2.2%, 7.7% 9.6%, 92.3% 9.6%, 92.3% 47.3%, 7.7% 47.3%, 7.7% 9.6%, 2.8% 2.2%, 0% 0%);
 }
 
 /* Holo Energy (Rainbow, Metal, Miracle…, and the library's styles on basic Energy) is foil across the whole card: no

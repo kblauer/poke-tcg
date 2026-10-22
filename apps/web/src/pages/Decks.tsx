@@ -18,7 +18,7 @@ import { useSwipe } from '../hooks/useSwipe';
 import { useUnlocked } from '../hooks/useUnlocked';
 import { useWindowFill } from '../hooks/useWindowFill';
 import { useTRPC } from '../lib/trpc';
-import { setGroups, type CatalogCard } from '../utils/cardList';
+import { isVersion, setGroups, type CatalogCard } from '../utils/cardList';
 import { EMPTY_DECK_FILTER, LOCKED_DECK_PROBLEM, cantAdd, changeCount, deckSize, filterForDeck, hasLockedCards, lockedWarning, problemsOf, sortForDeck, type DeckEntry, type DeckFilter, type DeckSort } from '../utils/deckBuilder';
 import { PAGE_WIDTH } from '../utils/layout';
 
@@ -149,12 +149,12 @@ export function DecksPage() {
 
   const byId = useMemo(() => new Map((catalog.data ?? []).map((c) => [c.id, c])), [catalog.data]);
   const sets = useMemo(() => (catalog.data ? setGroups(catalog.data) : []), [catalog.data]);
-  // Holo Energy only shows once it's been pulled from a pack.
-  const searchable = useMemo(() => (catalog.data ?? []).filter((c) => !c.holoEnergy || copies(c.id) > 0), [catalog.data, copies]);
+  // Holo Energy and reverse holos (versions of other cards, agreed with the user) only show once they've been gained.
+  const searchable = useMemo(() => (catalog.data ?? []).filter((c) => !isVersion(c) || copies(c.id) > 0), [catalog.data, copies]);
   const results = useMemo(() => sortForDeck(filterForDeck(searchable, filter, isLocked, favorites.isFavorite), sort), [searchable, filter, sort, isLocked, favorites.isFavorite]);
-  // The numbers of cards shown and in all: holo Energy is never counted (it's a version of a basic Energy, pulled from packs).
-  const shownCount = useMemo(() => results.filter((c) => !c.holoEnergy).length, [results]);
-  const totalCount = useMemo(() => (catalog.data ?? []).filter((c) => !c.holoEnergy).length, [catalog.data]);
+  // The numbers of cards shown and in all: holo Energy and reverse holos are never counted (they're versions of other cards).
+  const shownCount = useMemo(() => results.filter((c) => !isVersion(c)).length, [results]);
+  const totalCount = useMemo(() => (catalog.data ?? []).filter((c) => !isVersion(c)).length, [catalog.data]);
   const counts = useMemo(() => new Map(entries.map((e) => [e.cardId, e.quantity])), [entries]);
   /** The open deck is the automatic run deck: it can be looked at and copied, not changed. */
   const readOnly = deckId !== null && (decks.data?.find((d) => d.id === deckId)?.runDeck ?? false);

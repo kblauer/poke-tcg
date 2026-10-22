@@ -1,9 +1,9 @@
-import { CRAFT_COST, GENERATIONS, openPack, PACK_PRICE, PACK_SETS, rngFrom, STARDUST_PER_CARD, type PackSet } from '@poke-tcg/campaign';
+import { CRAFT_COST, GENERATIONS, openPack, PACK_GENERATIONS, PACK_PRICE, PACK_SETS, rngFrom, STARDUST_PER_CARD, type PackSet } from '@poke-tcg/campaign';
 import { prisma, type Card } from '@poke-tcg/db';
 import { craftCardInput, debugOpenPackInput, openPackInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { ensureUser } from '../auth.js';
-import { holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, type HoloEnergyStyle } from '../cards.js';
+import { holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, isReverseHolo, type HoloEnergyStyle } from '../cards.js';
 import { cardRarity } from '../pool.js';
 import { unlockedPacks } from '../progress.js';
 import { debugProcedure, protectedProcedure, router } from '../trpc.js';
@@ -23,6 +23,7 @@ type ShownCard = {
   holo: boolean;
   galaxy: boolean;
   holoEnergy: HoloEnergyStyle | null;
+  reverseHolo: boolean;
 };
 
 const shown = (row: Card): ShownCard => ({
@@ -36,6 +37,7 @@ const shown = (row: Card): ShownCard => ({
   holo: isHolo(row),
   galaxy: isGalaxyFoil(row),
   holoEnergy: holoEnergyStyle(row),
+  reverseHolo: isReverseHolo(row),
 });
 
 /**
@@ -48,7 +50,7 @@ async function packEnergy(setId: string): Promise<{ energy: Card[]; holoEnergy: 
     prisma.cardSet.findUniqueOrThrow({ where: { id: setId }, select: { releaseDate: true } }),
     prisma.card.findMany({ where: { kind: 'ENERGY' }, include: { set: { select: { releaseDate: true } } } }),
   ]);
-  const generation = Object.values(GENERATIONS).find((g) => g.packs.includes(setId));
+  const generation = Object.values(PACK_GENERATIONS).find((g) => g.packs.includes(setId));
   const basic = rows.filter((r) => isBasicEnergyCard(r) && !holoEnergyStyle(r) && (!generation || generation.packs.includes(r.setId)));
   const time = (r: (typeof rows)[number]) => r.set.releaseDate?.getTime() ?? 0;
   const own = basic.filter((r) => r.setId === setId);
@@ -74,7 +76,8 @@ function packSet(setId: string) {
       const set: PackSet = { common: [], uncommon: [], rare: [], holo: [], energy: energy.map((r) => r.id), holoEnergy: holoEnergy.map((r) => r.id) };
       const cards = new Map<string, ShownCard>();
       for (const row of [...rows, ...energy, ...holoEnergy]) cards.set(row.id, shown(row));
-      for (const row of rows) if (!isBasicEnergyCard(row)) set[cardRarity(row)].push(row.id);
+      // Reverse holos (EX sets) have a slot of their own (one in place of a common).
+      for (const row of rows) if (!isBasicEnergyCard(row)) (isReverseHolo(row) ? (set.reverse ??= []) : set[cardRarity(row)]).push(row.id);
       return { set, cards };
     })();
     entry.catch(() => loaded.delete(setId));
@@ -141,7 +144,7 @@ export const packsRouter = router({
     // The pack each generation's runs unlock next (with its region, for the hint).
     const next = new Map(Object.values(GENERATIONS).flatMap((g) => g.packs.filter((id) => !packs.has(id)).slice(0, 1).map((id) => [id, g.region] as const)));
     // The cards a pack of each set can hold, Energy left out: basic Energy is always unlocked (and may be another
-    // set's), and holo Energy is never counted in the number of cards collected.
+    // set's), and holo Energy and reverse holos (versions of other cards) are never counted in the number of cards collected.
     const packCards = new Map(contents.map(([id, set]) => [id, [...set.common, ...set.uncommon, ...set.rare, ...set.holo]]));
     return {
       bank: user.bank,
@@ -159,6 +162,8 @@ export const packsRouter = router({
           packCards: cards.length,
           locked: !packs.has(s.id),
           next: next.get(s.id) ?? null,
+          /** A generation whose runs are still to come (Gen 3's EX sets): locked until they exist. */
+          upcoming: !Object.values(GENERATIONS).some((g) => g.packs.includes(s.id)),
         };
       }),
     };

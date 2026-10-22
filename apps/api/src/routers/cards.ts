@@ -1,5 +1,5 @@
 import { prisma } from '@poke-tcg/db';
-import { baseDamage, holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, isImplemented, type CardData } from '../cards.js';
+import { baseDamage, holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, isImplemented, isReverseHolo, type CardData } from '../cards.js';
 import { publicProcedure, router } from '../trpc.js';
 import { holoTwins } from '../unlocks.js';
 import { craftCost } from './packs.js';
@@ -73,6 +73,8 @@ export const cardsRouter = router({
         galaxy: isGalaxyFoil(c),
         /** Holo Energy (found only in packs, as many copies as were pulled): its holo style. Null for other cards. */
         holoEnergy: holoEnergyStyle(c),
+        /** A reverse-holo print (EX sets): a special holo like holoTwins'. */
+        reverseHolo: isReverseHolo(c),
         /** A deck holds no more copies than were gained: holo Energy and special holos (holoTwins). */
         limitedCopies: holoEnergyStyle(c) !== null || twins.has(c.id),
         /** Stardust to craft it (packs.craft), or null for a card that can't be crafted. */

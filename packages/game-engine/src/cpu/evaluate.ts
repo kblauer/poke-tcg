@@ -239,7 +239,7 @@ export function trainerChoiceSets(t: Turn, card: CardInstance, cap = 8): Trainer
   return out;
 }
 
-export const powerSituation = (t: Turn, source: Target): PowerSituation => ({ me: t.me, opp: t.opp, counts: situationCounts(t.me, t.opp), source, cards: t.state.cards, turn: t.state.turn });
+export const powerSituation = (t: Turn, source: Target): PowerSituation => ({ me: t.me, opp: t.opp, counts: situationCounts(t.me, t.opp), source, cards: t.state.cards, turn: t.state.turn, stadium: t.state.stadium?.card ?? null });
 
 /** Every complete set of answers to a power's questions (at most `cap`). */
 export function powerChoiceSets(t: Turn, source: Target, cap = 24): PowerChoices[] {
