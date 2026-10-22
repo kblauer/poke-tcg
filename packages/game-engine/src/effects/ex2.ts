@@ -26,6 +26,12 @@ export const typeCards = (cards: CardLibrary, p: InPlayPokemon, type: EnergyType
     return isEnergyCardOf(e, cards, type) || (!e.provides && !e.windless && !e.colorlessOnly && d.kind === 'energy' && d.energyType === type);
   });
 
+/** An Energy card of `type`, basic or Special (Darkness Energy, Metal Energy), wherever it is (Lightning Burst, Super Connectivity). */
+export const energyCardOf = (cards: CardLibrary, e: CardInstance, type: EnergyType) => {
+  const d = lookupCard(cards, e.defId);
+  return isEnergyCardOf(e, cards, type) || (!e.provides && !e.windless && !e.colorlessOnly && d.kind === 'energy' && d.energyType === type);
+};
+
 /** "You may discard a `type` Energy card attached to … If you do, `then`" (Deadly Poison, Dark Bind), asked before the attack. */
 export const mayDiscardFor = (damage: number, type: EnergyType, then: (ctx: AttackContext) => void): AttackEffect => ({
   choices: (s): ChoiceSpec[] =>
