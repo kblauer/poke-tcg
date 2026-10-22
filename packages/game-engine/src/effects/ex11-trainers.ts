@@ -17,7 +17,7 @@ import { EX4_TRAINERS } from './ex4-trainers.js';
 import { EX6_TRAINERS } from './ex6-trainers.js';
 
 /** A Holon Supporter: another card from the hand is discarded first (`handUids`), then `then`. */
-const holon = (then: NonNullable<TrainerEffect['play']>, blocked?: (s: TrainerSituation) => string | null): TrainerEffect => ({
+export const holon = (then: NonNullable<TrainerEffect['play']>, blocked?: (s: TrainerSituation) => string | null): TrainerEffect => ({
   supporter: true,
   blocked: (s) => (otherHandCards(s).length ? (blocked?.(s) ?? null) : "You can't discard a card from your hand"),
   choices: (s) => [{ kind: 'cards', field: 'handUids', min: 1, max: 1, options: otherHandCards(s), prompt: 'Choose a card from your hand to discard' }],

@@ -1,7 +1,7 @@
 // Test-only: the card pool built from the TCGdex snapshot, as the API builds it from the catalog
 // (a simplified copy of apps/api/src/cards.ts's toCardDef). Not exported from the package.
 import { readFileSync } from 'node:fs';
-import { attackEffect, cardImplemented, type CardDef, type EnergyType, type Stage } from '@poke-tcg/game-engine';
+import { attackEffect, cardImplemented, trainerEffect, type CardDef, type EnergyType, type Stage } from '@poke-tcg/game-engine';
 import type { PackSet } from './packs.js';
 import { GEN2_DONE_SETS, GEN2_SETS, POOL_SETS, type PoolCard, type Rarity } from './pool.js';
 
@@ -85,7 +85,9 @@ function toDef(r: Row): CardDef | null {
     return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: t === 'darkness' || t === 'metal' ? t : 'colorless', basic: false };
   }
   if (['Clefairy Doll', 'Mysterious Fossil', 'Claw Fossil', 'Root Fossil'].includes(r.name)) {
-    return { id: r.id, kind: 'pokemon', name: r.name, imageUrl: null, type: 'colorless', hp: r.hp ?? 10, stage: 'basic', evolvesFrom: null, attacks: [], retreatCost: 0, trainerText: r.effect ?? '' };
+    // As the API has it: a Fossil's Poké-Body comes from its Trainer effect.
+    const power = trainerEffect(r.id)?.asPokemon?.power;
+    return { id: r.id, kind: 'pokemon', name: r.name, imageUrl: null, type: 'colorless', hp: r.hp ?? 10, stage: 'basic', evolvesFrom: null, attacks: [], retreatCost: 0, trainerText: r.effect ?? '', ...(power && { power }) };
   }
   return { id: r.id, kind: 'trainer', name: r.name, imageUrl: null, text: r.effect ?? '' };
 }

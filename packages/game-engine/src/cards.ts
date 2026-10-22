@@ -146,6 +146,21 @@ export const isTrainerCard = (def: CardDef) => def.kind === 'trainer' || (def.ki
 /** A basic Energy card (not Double Colorless Energy). */
 export const isBasicEnergy = (def: CardDef) => def.kind === 'energy' && def.basic !== false;
 
+/**
+ * Holon's Pokémon (printed on the cards; TCGdex leaves it out): each can be attached from the hand as a Special Energy card.
+ * 'colorless': it provides 1 Colorless Energy (Holon's Magnemite, Voltorb); 'every': only onto a Pokémon with an Energy
+ * card attached, one of which goes back to the hand, and it provides every type of Energy, 2 at a time (Holon's
+ * Electrode, Magneton, Castform).
+ */
+const HOLON_ENERGY: Record<string, 'colorless' | 'every'> = {
+  "Holon's Magnemite": 'colorless',
+  "Holon's Voltorb": 'colorless',
+  "Holon's Electrode": 'every',
+  "Holon's Magneton": 'every',
+  "Holon's Castform": 'every',
+};
+export const holonEnergy = (def: CardDef) => (def.kind === 'pokemon' ? HOLON_ENERGY[def.name] : undefined);
+
 /** A Pokémon that can't be affected by Special Conditions by its own rule: a Trainer played as one (Clefairy Doll), or Buried Fossil. */
 export const conditionProof = (def: CardDef) => def.kind === 'pokemon' && (def.trainerText !== undefined || def.name === 'Buried Fossil');
 

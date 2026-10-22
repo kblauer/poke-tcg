@@ -3,7 +3,7 @@ import { applyWeaknessResistance, attackSituation, checkAttack, performAttack, r
 import { attachBlocked, discardsLocked, energyFromHand, evolutionBlocked, primalBlock, retreatBodies, guardedBy, spiraledBy, bindingAura, conditionBarred, conditionFree, holonWith, miraculousWind, offerChainReaction, playedFromHand, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, primalLocked, trainersDusted, trainersBlocked, usePower, zoomed, type PowerChoices, type PowerEffect } from './powers.js';
 import { evolvesFromEevee, evolveWith, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
-import { conditionProof, hasOwner, hasType, namesMatch, isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
+import { conditionProof, hasOwner, hasType, holonEnergy, namesMatch, isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { addLog, baseUid, clearOnLeavingActive, effectId, evolvedHook, hasSpecialCondition, shapeshiftCard, flipCoin, inPlayDef, openBenchSlot, pokemonName, revealFaceDown, type LogEntry } from './status.js';
 import { shuffle } from './rng.js';
 import type { CpuDifficulty } from './cpu/index.js';
@@ -26,10 +26,12 @@ export interface CardInstance {
   windless?: boolean;
   /** Multi Energy beside another Special Energy card on its Pokémon: it provides Colorless Energy only (refreshMultiEnergy). */
   colorlessOnly?: boolean;
-  /** Scramble Energy while its owner has more Prize cards left: 3 Energy, each of any type (dropBoostEnergy, energyPool). */
   /** Holon Research Tower: this basic Energy card on a δ Pokémon is Metal too, 1 Energy at a time (refreshHideout, energyPool). */
   holonMetal?: boolean;
+  /** Scramble Energy while its owner has more Prize cards left: 3 Energy, each of any type (dropBoostEnergy, energyPool). */
   scrambled?: boolean;
+  /** Reactive Booster: this React Energy card provides 2 Energy of every type (refreshHideout, energyPool). */
+  reactBoost?: boolean;
 }
 
 /** Energy that pays for a Crystal Energy card: one of these types (`crystal:fire,water`), chosen as the cost needs. */
@@ -122,6 +124,12 @@ export interface PokemonEffects {
   crosscounter?: number;
   /** Attack damage to it is `amount` less, after Weakness and Resistance, through turn `until` (Lie Low, Barrier Attack). */
   reduceDamage?: { amount: number; until: number };
+  /** Attack damage to it is `amount` less, before Weakness and Resistance, through turn `until` (Delta Reduction). */
+  reduceBefore?: { amount: number; until: number };
+  /** It has no Weakness through this turn (Aqua Flower). */
+  weaknessOffUntil?: number;
+  /** On turn `turn`, its attacks do `amount` more to the Defending Pokémon, before Weakness and Resistance (Crystal Laser). */
+  nextTurnMore?: { amount: number; turn: number };
   /** The last attack it used, and when (Earthdrill needs Lie Low the turn before). */
   lastAttack?: { name: string; turn: number };
   /** Attacks it can't use again while it stays in play, even if it's benched (Hyper Needle, Ancestral Memory). */
@@ -270,8 +278,14 @@ export interface InPlayPokemon {
   hpSet?: number;
   /** Stages of Evolution (Hitmonchan), Energy Root: this much more HP (refreshHideout, inPlayDef). */
   hpPlus?: number;
+  /** Put into play by Strange Cave, Holon Fossil or Influence: treated as a Basic Pokémon (inPlayDef). */
+  asBasic?: boolean;
+  /** Full Flame: the top card it was Burned with, so evolving or devolving keeps it Burned (refreshHideout). */
+  flameBurned?: string;
   /** Crystal Type: the type it's changed to until the end of the turn (inPlayDef). */
   crystalType?: EnergyType;
+  /** Type Change: the types it has until the end of the turn (inPlayDef). */
+  typesCopied?: EnergyType[];
   /** Low Pressure System is the Stadium in play and it's a Grass or Lightning Pokémon: 10 more HP (refreshHideout, inPlayDef). */
   lowPressure?: boolean;
   /** Energy Variation, while it works: the types of the basic Energy cards attached, which it is (refreshHideout, inPlayDef). */
@@ -749,8 +763,8 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
     case 'PLAY_BENCH': {
       if (!isBenchSlot(action.slot)) return fail('Invalid bench slot');
       if (me.bench[action.slot]) return fail('That bench slot is occupied');
-      // Narrow Gym: no more than 4 benched Pokémon.
-      if (openBenchSlot(me.bench, state.cards, state.stadium?.card) < 0) return fail('Your Bench is full (Narrow Gym: 4 Pokémon at most)');
+      // Narrow Gym: no more than 4 benched Pokémon; Giant Stump: 3.
+      if (openBenchSlot(me.bench, state.cards, state.stadium?.card) < 0) return fail(`Your Bench is full (${state.stadium ? card(state.stadium.card).name : 'the Stadium'} limits it)`);
       const played = takeFromHand(me, action.cardUid);
       if (!played || !isBenchable(card(played))) return fail('Must play a Basic Pokémon from your hand');
       if (isTrainerCard(card(played)) && trainersLocked(me, state.turn)) return fail(TRAINERS_LOCKED);
@@ -824,7 +838,11 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       const handCard = me.hand.find((c) => c.uid === action.cardUid);
       if (second && handCard && !fire(handCard)) return fail('Blaine: the second Energy card must be a Fire Energy card');
       const energy = takeFromHand(me, action.cardUid);
-      if (!energy || card(energy).kind !== 'energy') return fail('Must attach an energy card from your hand');
+      // A Holon's Pokémon may be attached as a Special Energy card; Electrode, Magneton and Castform only onto a Pokémon with an
+      // Energy card attached, one of which goes back to the hand.
+      const holon = energy && holonEnergy(card(energy));
+      if (!energy || (card(energy).kind !== 'energy' && !holon)) return fail('Must attach an energy card from your hand');
+      if (holon === 'every' && !target.energy.some((e) => !e.provides)) return fail(`${card(energy).name} can only be attached to a Pokémon that already has an Energy card attached`);
       state.blaineAttach = second ? 'done' : blaine && fire(energy) ? baseUid(target) : 'done';
       if (target.effects?.noEnergy !== undefined) return fail(`Energy cards can't be attached to ${pokemonName(state, target)} this turn`);
       if (action.target === 'active' && (me.freezeLockUntil ?? 0) >= state.turn) return fail("Freeze Lock: you can't attach Energy cards from your hand to your Active Pokémon this turn");
@@ -842,6 +860,18 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       if (isSpecialEnergy(state.cards, energy) && [opp.active, ...opp.bench].some((p) => p && powerEffect(effectId(p))?.deltaMoon && powerActive(p, state.cards, [me, opp]))) {
         target.damage += 10;
         addLog(state, `Delta Moon put a damage counter on ${pokemonName(state, target)}.`, opp.id);
+      }
+      if (holon === 'every') {
+        const back = target.energy.filter((e) => !e.provides && e !== energy);
+        if (back.length === 1) {
+          target.energy = target.energy.filter((e) => e !== back[0]);
+          me.hand.push(back[0]!);
+          addLog(state, `Returned ${card(back[0]!).name} to the hand.`, me.id);
+        } else if (back.length) {
+          const choice = { player: me.id, source: card(energy).name, kind: 'discardAttached' as const, target: action.target, toHand: true, holonReturn: energy.uid };
+          if (state.pendingChoice) (state.queuedChoices ??= []).push(choice);
+          else state.pendingChoice = choice;
+        }
       }
       // Rainbow Energy's damage can Knock Out the Pokémon.
       return afterOwnMove(state, me, opp);
@@ -1296,6 +1326,8 @@ export function energyProvided(card: CardInstance, cards: CardLibrary): { type: 
   // Miraculous Wind: a Special Energy card provides Colorless Energy (as much as it usually does).
   if (card.windless) return { type: 'colorless', amount: def.kind === 'energy' ? (def.amount ?? 1) : 1 };
   if (card.colorlessOnly) return { type: 'colorless', amount: 1 };
+  // Holon's Electrode, Magneton, Castform attached as Energy: every type, 2 at a time.
+  if (holonEnergy(def) === 'every') return { type: 'any', amount: 2 };
   if (def.kind !== 'energy') return { type: 'colorless', amount: 1 };
   return { type: def.anyType ? 'any' : def.energyType, amount: def.amount ?? 1 };
 }
@@ -1304,10 +1336,10 @@ export function energyProvided(card: CardInstance, cards: CardLibrary): { type: 
  * Whether an attached card is a `type` Energy card: a basic one of that type, or Rainbow Energy (every type while in
  * play). Not Double Colorless, nor a Pokémon attached as Energy (Buzzap).
  */
-/** A Special Energy card (not basic Energy, nor a Pokémon attached as Energy). */
+/** A Special Energy card (not basic Energy, nor a Pokémon attached as Energy by a power), a Holon's Pokémon attached as Energy too. */
 export function isSpecialEnergy(cards: CardLibrary, card: CardInstance): boolean {
   const d = lookupCard(cards, card.defId);
-  return !card.provides && d.kind === 'energy' && d.basic === false;
+  return !card.provides && ((d.kind === 'energy' && d.basic === false) || !!holonEnergy(d));
 }
 
 export function isEnergyCardOf(card: CardInstance, cards: CardLibrary, type: EnergyType): boolean {
@@ -1342,12 +1374,18 @@ export const energyPool = (pokemon: InPlayPokemon, cards: CardLibrary): PoolEner
     if (e.scrambled && !e.windless) return ['any', 'any', 'any'] as PoolEnergy[];
     // Holon Research Tower: a basic Energy card on a δ Pokémon is its type or Metal.
     if (e.holonMetal && type !== 'metal') return [`crystal:${type},metal` as CrystalEnergy];
+    // Reactive Booster: a React Energy card provides 2 Energy of every type.
+    if (e.reactBoost && !e.windless) return ['any', 'any'] as PoolEnergy[];
+    // δ Rainbow Energy: every type, 1 at a time, on a δ Pokémon; Colorless otherwise.
+    if (!e.provides && !e.windless && lookupCard(cards, e.defId).name === 'δ Rainbow Energy' && / δ$/.test(inPlayDef(cards, pokemon).name)) return ['any'] as PoolEnergy[];
     return Array<PoolEnergy>(amount).fill(isCrystalEnergy(cards, e) ? crystalProvides(pokemon, cards) : type);
   });
   if (pokemon.effects?.energyBurn !== undefined) return pool.map(() => 'fire');
   // Dark Aura: all of it is Darkness Energy.
   const as = powerEffect(effectId(pokemon))?.energyAs;
-  if (as && pokemon.powerOffUntil === undefined) return pool.map(() => as);
+  // Magmar's Stages of Evolution: all of it is Fire Energy, only while it's an Evolved Pokémon.
+  const asWorks = !powerEffect(effectId(pokemon))?.evolvedOnly || pokemon.evolvedFrom.length > 0;
+  if (as && asWorks && pokemon.powerOffUntil === undefined) return pool.map(() => as);
   // Wild Growth: each basic Grass Energy card attached provides 2 Grass Energy.
   if (pokemon.wildGrowth) pool.push(...pokemon.energy.filter((e) => !e.provides && isBasicGrass(cards, e)).map((): PoolEnergy => 'grass'));
   return powerEffect(effectId(pokemon))?.photosynthesis && pokemon.powerOffUntil === undefined ? pool.map(() => 'grass') : pool;
@@ -1513,7 +1551,9 @@ function betweenTurns(state: GameState) {
   const fiery = everyone.some((s) => s.active && powerEffect(effectId(s.active))?.fieryAura && powerActive(s.active, state.cards, everyone));
   for (const { id, active, name } of actives) {
     if (!active.burned) continue;
-    const burn = fiery ? 40 : 20;
+    // Full Flame: 4 damage counters as well.
+    const flame = !!state.stadium && lookupCard(state.cards, state.stadium.card.defId).name === 'Full Flame';
+    const burn = fiery || flame ? 40 : 20;
     active.damage += burn;
     if (active.effects) delete active.effects.shadowImages;
     addLog(state, `${name} takes ${burn} Burn damage${fiery ? ' (Fiery Aura)' : ''}.`, id);
@@ -1550,6 +1590,16 @@ function betweenTurns(state: GameState) {
     for (const p of [owner.active, ...owner.bench]) {
       const checkup = p && powerActive(p, state.cards, everyone) ? powerEffect(effectId(p))?.checkup : undefined;
       if (p && checkup && [owner.active, ...owner.bench].includes(p)) checkup(state, owner, p, opp, done);
+    }
+  }
+  // Cursed Stone: a damage counter on each Pokémon with a Poké-Power (printed, working or not: agreed; the older Pokémon Powers too).
+  if (state.stadium && lookupCard(state.cards, state.stadium.card.defId).name === 'Cursed Stone') {
+    for (const owner of everyone) {
+      for (const p of [owner.active, ...owner.bench]) {
+        if (!p || !inPlayDef(state.cards, p).power || powerEffect(effectId(p))?.body) continue;
+        p.damage += 10;
+        addLog(state, `Cursed Stone put a damage counter on ${pokemonName(state, p)}.`, owner.id);
+      }
     }
   }
   // Miracle Energy, Boost Energy, Aqua Energy, Magma Energy and R Energy: discarded at the end of their owner's turn (Boost Energy: the turn it was attached).
@@ -1630,6 +1680,7 @@ function betweenTurns(state: GameState) {
       for (const e of pokemon.energy) delete e.converted;
       delete pokemon.submerged;
       delete pokemon.crystalType;
+      delete pokemon.typesCopied;
       expireEffects(pokemon, state.turn);
       if (pokemon.powerOffUntil !== undefined && pokemon.powerOffUntil <= state.turn) {
         delete pokemon.powerOffUntil;
@@ -1960,6 +2011,9 @@ function refreshHideout(state: GameState) {
       // Dual Armor: with Energy of its type attached, it's both types.
       const armor = powerEffect(effectId(p))?.dualArmor;
       if (armor && powerActive(p, state.cards, sides) && energyPool(p, state.cards).some((e) => counts(e, armor.energy))) p.variedTypes = armor.types;
+      // Dual Armor (React Energy), Reactive Colors: with a card of that name attached, it's those types.
+      const named = powerEffect(effectId(p))?.dualArmorNamed ?? powerEffect(effectId(p))?.colorsNamed;
+      if (named && powerActive(p, state.cards, sides) && p.energy.some((e) => !e.provides && !e.windless && lookupCard(state.cards, e.defId).name === named.name)) p.variedTypes = named.types;
       // EX Team Rocket Returns' Rocket's Hideout: Pokémon with Rocket's in their names too.
       const rockets = !!state.stadium && (lookupCard(state.cards, state.stadium.card.defId) as { text?: string }).text?.includes("Rocket's in its name");
       if (stadium === "Rocket's Hideout" && (/\bDark\b/.test(lookupCard(state.cards, p.card.defId).name) || (rockets && lookupCard(state.cards, p.card.defId).name.startsWith("Rocket's ")))) p.hideout = true;
@@ -1979,6 +2033,15 @@ function refreshHideout(state: GameState) {
         discardTool(state, player, p);
         addLog(state, `${tool.name} on ${pokemonName(state, p)} was discarded.`, player.id);
       }
+      // Full Flame: evolving or devolving doesn't remove Burned (a Burned Active Pokémon whose top card changed is Burned again).
+      if (stadium === 'Full Flame' && player.active === p) {
+        if (!p.burned && p.flameBurned && p.flameBurned !== p.card.uid) {
+          p.burned = true;
+          addLog(state, `Full Flame: ${pokemonName(state, p)} is still Burned.`, player.id);
+        }
+        if (p.burned) p.flameBurned = p.card.uid;
+        else delete p.flameBurned;
+      } else delete p.flameBurned;
       // Energy Root: 20 more HP and no Poké-Powers or Poké-Bodies (as Battle Frontier). Hitmonchan's Stages of Evolution: 30 more HP.
       delete p.hpPlus;
       if (toolOf(state.cards, p)?.name === 'Energy Root') {
@@ -1998,6 +2061,15 @@ function refreshHideout(state: GameState) {
   for (const player of Object.values(state.players)) {
     const own = [player.active, ...player.bench].filter((p): p is InPlayPokemon => !!p);
     const working = (key: keyof PowerEffect) => own.filter((q) => powerEffect(effectId(q))?.[key] && powerActive(q, state.cards, sides)).map((q) => powerEffect(effectId(q))!);
+    // Reactive Booster: each React Energy card on the player's Pokémon it names provides 2 Energy of every type (energyPool).
+    const boosted = working('reactiveBooster').flatMap((e) => e.reactiveBooster!);
+    for (const p of own) {
+      const name = inPlayDef(state.cards, p).name;
+      for (const e of p.energy) {
+        if (boosted.some((n) => namesMatch(name, n)) && !e.provides && !e.windless && lookupCard(state.cards, e.defId).name === 'React Energy') e.reactBoost = true;
+        else delete e.reactBoost;
+      }
+    }
     // Green Essence: the player's Active Pokémon with its Energy type attached can't have Special Conditions.
     const essence = working('greenEssence').map((e) => e.greenEssence!);
     for (const p of own) {

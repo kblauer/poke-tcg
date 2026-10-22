@@ -1,6 +1,7 @@
 // Where a hand card can be played right now. UI hints only – the server validates every move.
 import {
   evolveError,
+  holonEnergy,
   isBasicPokemon,
   isBenchable,
   lookupCard,
@@ -28,8 +29,11 @@ export function targetsFor(view: PlayerView, card: CardInstance): SlotId[] {
   // Trainers are played from the TrainerPanel; Clefairy Doll goes onto the Bench like a Basic.
   if (def.kind === 'trainer') return [];
   if (isTrainerCard(def) && trainersLocked(self, view.turn)) return [];
-  if (isBenchable(def)) return emptyBenchSlots(self);
-  if (def.kind === 'pokemon') return occupiedSlots(self).filter((slot) => evolveError(def, pokemonAt(self, slot)!, view.cards, view.turn, [self, view.opponent]) === null);
+  // A Holon's Pokémon can also be attached as Energy to one of the player's Pokémon (Electrode, Magneton, Castform: one with Energy).
+  const holon = holonEnergy(def);
+  const asEnergy = holon && !view.energyAttachedThisTurn ? occupiedSlots(self).filter((slot) => holon === 'colorless' || pokemonAt(self, slot)!.energy.some((e) => !e.provides)) : [];
+  if (isBenchable(def)) return [...emptyBenchSlots(self), ...asEnergy];
+  if (def.kind === 'pokemon') return [...new Set([...occupiedSlots(self).filter((slot) => evolveError(def, pokemonAt(self, slot)!, view.cards, view.turn, [self, view.opponent]) === null), ...asEnergy])];
   if (def.kind === 'energy') return occupiedSlots(self).filter((slot) => !view.energyAttachedThisTurn || powerPlay(view, card, slot));
   return [];
 }
@@ -80,6 +84,9 @@ export function playAction(view: PlayerView, card: CardInstance, slot: SlotId): 
   const cardUid = card.uid;
   const target = toTarget(slot);
   if (def.kind === 'energy') return powerPlay(view, card, slot) ?? { type: 'ATTACH_ENERGY', cardUid, target };
+  // A Holon's Pokémon dropped on a Pokémon it doesn't evolve is attached as Energy.
+  const onto = pokemonAt(view.self, slot);
+  if (holonEnergy(def) && onto && def.kind === 'pokemon' && (isBenchable(def) || evolveError(def, onto, view.cards, view.turn, [view.self, view.opponent]) !== null)) return { type: 'ATTACH_ENERGY', cardUid, target };
   if (!isBenchable(def)) return { type: 'EVOLVE', cardUid, target };
   return target === 'active' ? { type: 'SET_ACTIVE', cardUid } : { type: 'PLAY_BENCH', cardUid, slot: target };
 }

@@ -92,6 +92,8 @@ export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCa
   } else if (pokemon.shiftedType) d = { ...own, type: pokemon.shiftedType, types: undefined };
   // Crystal Type: the type of the basic Energy card attached from the hand, until the end of the turn.
   if (pokemon.crystalType) d = { ...d, type: pokemon.crystalType, types: undefined };
+  // Type Change: the Defending Pokémon's types, until the end of the turn.
+  if (pokemon.typesCopied?.length) d = { ...d, type: pokemon.typesCopied[0]!, types: pokemon.typesCopied.length > 1 ? pokemon.typesCopied : undefined };
   // Submerge: Lanturn is a Water Pokémon until the end of the turn.
   if (pokemon.submerged !== undefined) d = { ...d, type: 'water', types: undefined };
   // Crystal Shard: Colorless while it's attached.
@@ -103,6 +105,8 @@ export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCa
     if (varied.length > 1) d.types = varied;
     else delete d.types;
   }
+  // Strange Cave, Holon Fossil, Influence: a Stage 1 Fossil Pokémon put into play as a Basic Pokémon (while it's the top card).
+  if (pokemon.asBasic && !pokemon.evolvedFrom.length) d = { ...d, stage: 'basic' };
   if (pokemon.effects?.giantGrowth) d = { ...d, hp: 80 };
   // Sunbeam: Lunatone's HP is now 80 while its player has a Solrock with it working.
   if (pokemon.hpSet) d = { ...d, hp: pokemon.hpSet };
@@ -157,7 +161,7 @@ export function evolvedHook(state: GameState, owner: PlayerId, pokemon: InPlayPo
 }
 
 /**
- * The first empty Bench slot a Pokémon can be put into, or -1 when the Bench is full: 5 Pokémon, or 4 while Narrow Gym
+ * The first empty Bench slot a Pokémon can be put into, or -1 when the Bench is full: 5 Pokémon, 3 while Giant Stump or 4 while Narrow Gym
  * is the Stadium in play (`stadium`).
  */
 export function openBenchSlot(bench: readonly (InPlayPokemon | null)[], cards: CardLibrary, stadium?: CardInstance | null): number {
@@ -166,7 +170,8 @@ export function openBenchSlot(bench: readonly (InPlayPokemon | null)[], cards: C
 
 /** How many more Pokémon the Bench can hold (see openBenchSlot). */
 export function benchRoom(bench: readonly (InPlayPokemon | null)[], cards: CardLibrary, stadium?: CardInstance | null): number {
-  const limit = stadium && lookupCard(cards, stadium.defId).name === 'Narrow Gym' ? 4 : bench.length;
+  const name = stadium && lookupCard(cards, stadium.defId).name;
+  const limit = name === 'Narrow Gym' ? 4 : name === 'Giant Stump' ? 3 : bench.length;
   return Math.max(0, limit - bench.filter(Boolean).length);
 }
 

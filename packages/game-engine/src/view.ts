@@ -67,6 +67,8 @@ export interface PlayerView {
     noTrainersUntil?: number;
     /** The turn they last played a Supporter card (only one each turn). */
     supporterTurn?: number;
+    /** That Supporter card (in the discard pile; Detour, Delta Support). */
+    supporterUid?: string;
     /** Last turn they can't play Supporter cards (Addictive Pollen). */
     noSupportersUntil?: number;
     noItemsUntil?: number;
@@ -185,6 +187,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       pendingChoice: pending,
       noTrainersUntil: me.noTrainersUntil,
       ...(me.supporterTurn !== undefined && { supporterTurn: me.supporterTurn }),
+      ...(me.supporterUid !== undefined && { supporterUid: me.supporterUid }),
       ...(me.noSupportersUntil !== undefined && { noSupportersUntil: me.noSupportersUntil }),
       ...(me.noItemsUntil !== undefined && { noItemsUntil: me.noItemsUntil }),
       ...(me.activeEnergyTurn !== undefined && { activeEnergyTurn: me.activeEnergyTurn }),
