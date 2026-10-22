@@ -159,11 +159,11 @@ describe('EX Ruby & Sapphire', () => {
   });
 
   describe('rulings agreed with the user', () => {
-    it('"Each Defending Pokémon" is the Active one and every Benched one (no Weakness or Resistance on the Bench): Super Slap Push', () => {
+    it('"Each Defending Pokémon" is the Active one only (agreed 2026-10-22): Super Slap Push', () => {
       const s = duel('charmander', 'onix', { oppBench: ['squirtle', 'charmander'] });
       put(s, 'ash', 'active', hariyama, ['fighting']);
       const after = attack(s, 0);
-      expect([misty(after).active!.damage, misty(after).bench[0]!.damage, misty(after).bench[1]!.damage]).toEqual([20, 20, 20]);
+      expect([misty(after).active!.damage, misty(after).bench[0]!.damage, misty(after).bench[1]!.damage]).toEqual([20, 0, 0]);
     });
 
     it('Special Conditions on "each Defending Pokémon" go only on the Active one: Poison Smog', () => {

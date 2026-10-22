@@ -2,9 +2,9 @@
 // Attacks that only deal damage need no entry. "Choose 1 card from your opponent's hand without looking" is a card at
 // random. Questions whose answer depends on a flip are asked before it (Removal Beam's Energy card).
 // Rulings (agreed with the user) for the wording made for 2 Active Pokémon a side: "each Defending Pokémon" is the Active
-// Pokémon and every Benched one, damage to the Benched ones without Weakness or Resistance, Special Conditions only on the
-// Active Pokémon; "the other Defending Pokémon" is one of the Benched ones, picked by the player whose Energy card moves
-// (Fast Stream); "Active Pokémon" otherwise (Invisible Hand, Repulsion, Max Energy Source) is the one Active Pokémon.
+// Pokémon only (changed 2026-10-22: only "all Defending Pokémon" reaches the Bench); "the other Defending Pokémon" is one
+// of the Benched ones, picked by the player whose Energy card moves (Fast Stream); "Active Pokémon" otherwise (Invisible
+// Hand, Repulsion, Max Energy Source) is the one Active Pokémon.
 // "Energy attached" counts the Energy provided (Double Colorless is 2); "not used to pay for this attack's cost" is that
 // less the cost (Water Gun counts only Water Energy, its Colorless paid with other Energy first: extraEnergy).
 import { type AttackContext, type AttackEffect, type ChoiceSpec } from '../attacks.js';
@@ -61,11 +61,8 @@ export const restNextTurn = (ctx: AttackContext) => {
 /** The Energy attached to a Pokémon, by what it provides (Double Colorless is 2). */
 export const energyAmount = (ctx: AttackContext, p: InPlayPokemon) => energyPool(p, ctx.state.cards).length;
 
-/** "Each Defending Pokémon" (agreed): the Active Pokémon, and the same damage to each Benched one without Weakness or Resistance. */
-export const eachDefending = (ctx: AttackContext, damage: number) => {
-  ctx.hit(damage);
-  ctx.benchDamage(ctx.opp, damage);
-};
+/** "Each Defending Pokémon" (agreed 2026-10-22): the opponent's Active Pokémon only; only "all Defending Pokémon" reaches the Bench. */
+export const eachDefending = (ctx: AttackContext, damage: number) => void ctx.hit(damage);
 
 /** "Flip a coin. If heads, each Defending Pokémon is now …": only the Active Pokémon can have a Special Condition (agreed). */
 const flipEachDefending = (affliction: 'confused' | 'paralyzed' | 'burned'): AttackEffect => ({

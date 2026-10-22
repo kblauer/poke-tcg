@@ -293,13 +293,14 @@ export const EX3: Record<string, Record<string, AttackEffect>> = {
       },
     },
   },
-  // Gyarados – Dragon Crush: heads, 10 to each Defending Pokémon and an Energy card discarded from each (agreed).
+  // Gyarados – Dragon Crush: heads, 10 to the Defending Pokémon and an Energy card discarded from it (agreed: "each Defending
+  // Pokémon" is the Active Pokémon only).
   'ex3-32': {
     'Dragon Crush': {
       run(ctx) {
         if (!ctx.flip()) return ctx.log('Dragon Crush did nothing.');
         eachDefending(ctx, 10);
-        const targets = targetsIn(ctx.opp.active, ctx.opp.bench).filter((t) => {
+        const targets = targetsIn(ctx.opp.active, []).filter((t) => {
           const p = pokemonAtOpp(ctx, t)!;
           return p.energy.some((e) => !e.provides) && ctx.canAffect(ctx.opp, p);
         });

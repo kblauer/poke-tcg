@@ -2,7 +2,7 @@
 // building block, with the numbers and words in it. scripts/generate-ex-templates.ts matches every EX card's attack text
 // (TCGdex's, normalised: normText) against these and writes the matches to ex-template-data.ts; a set's own effects file
 // still has the last word on any attack (index.ts). Only wordings whose rules are settled are here: the EX Ruby & Sapphire
-// rulings ("each Defending Pokémon" is the Active one and every Benched one, Special Conditions only on the Active one;
+// rulings ("each Defending Pokémon" is the Active one only;
 // "Energy attached" counts the Energy provided, "not used to pay" less the cost) and the older cards' that word them alike.
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { isBasicEnergy, lookupCard, type EnergyType } from '../cards.js';

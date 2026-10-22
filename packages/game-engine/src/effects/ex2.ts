@@ -400,8 +400,10 @@ export const EX2: Record<string, Record<string, AttackEffect>> = {
         ];
       },
       run(ctx) {
-        if (ctx.choices.boost) eachDefending(ctx, 50);
-        else ctx.hit(100);
+        if (ctx.choices.boost) {
+          ctx.hit(50);
+          ctx.benchDamage(ctx.opp, 50);
+        } else ctx.hit(100);
         discardOwn(ctx, ctx.attacker.energy.filter((e) => ctx.choices.energyUids?.includes(e.uid)));
       },
     },

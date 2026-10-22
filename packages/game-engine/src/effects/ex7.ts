@@ -38,8 +38,6 @@ const same = (get: () => AttackEffect | undefined): AttackEffect => ({
 /** A shared wording's effect (ex-templates.ts), for an attack TCGdex's text keeps it from matching. */
 const template = (name: string, damage: number, args: TemplateArg[], attack: string): AttackEffect => ATTACK_TEMPLATES[name]!.make(damage, args, attack);
 
-/** The opponent's Active Pokémon only (agreed): "does `damage` damage to each Defending Pokémon". */
-const eachDefending = (damage: number): AttackEffect => ({ run: (ctx) => void ctx.hit(damage) });
 
 /** The attacks Dark Link (the player's other Pokémon with Dark in their names) or Rainbow Moves (the opponent's Benched Pokémon) can copy. */
 type CopySides = { own: (InPlayPokemon | null)[]; opp: (InPlayPokemon | null)[] };
@@ -260,8 +258,6 @@ export const EX7: Record<string, Record<string, AttackEffect>> = {
   },
   // Togetic – Rainbow Moves: an attack of one of the opponent's Benched Pokémon.
   'ex7-14': { 'Rainbow Moves': copyAmong('Rainbow Moves', false, (sides) => sides.opp) },
-  // Dark Dragonite – Double Wing Attack: 30 to the Defending Pokémon (agreed: the Active Pokémon only).
-  'ex7-15': { 'Double Wing Attack': eachDefending(30) },
   // Dark Muk – Slimy Water: 10 for each Colorless Energy in the Defending Pokémon's Retreat Cost.
   'ex7-16': { 'Slimy Water': { run: (ctx) => void ctx.hit(10 * retreatOf(ctx, ctx.defender)) } },
   // Dark Raticate – Dark Seed: the Defending Pokémon can't retreat, and 5 damage counters on it at the end of the opponent's
@@ -356,8 +352,6 @@ export const EX7: Record<string, Record<string, AttackEffect>> = {
       },
     },
   },
-  // Dark Dragonair – Double Tackle: 20 to the Defending Pokémon (agreed: the Active Pokémon only).
-  'ex7-32': { 'Double Tackle': eachDefending(20) },
   // Dark Flaaffy – Thunder Slash: a Basic Defending Pokémon is Paralyzed; not again next turn.
   'ex7-33': {
     'Thunder Slash': {
@@ -406,7 +400,7 @@ export const EX7: Record<string, Record<string, AttackEffect>> = {
   // Dark Magneton – Magnetic Lines: a basic Energy card moves from the Defending Pokémon to another of the opponent's Pokémon.
   'ex7-39': { 'Magnetic Lines': shiftDefenderEnergy(20, true) },
   // Dark Pupitar – Explosive Evolution: heads, 10 to each of the opponent's Pokémon (no Weakness or Resistance), then a Dark
-  // Tyranitar from the deck on it (agreed: only on heads, with the usual limits); Double Tackle: 20 to the Active Pokémon.
+  // Tyranitar from the deck on it (agreed: only on heads, with the usual limits).
   'ex7-40': {
     'Explosive Evolution': {
       run(ctx) {
@@ -416,7 +410,6 @@ export const EX7: Record<string, Record<string, AttackEffect>> = {
         ascension.run(ctx);
       },
     },
-    'Double Tackle': eachDefending(20),
   },
   // Dark Weezing – Darkness Charge: 2 damage counters on Dark Weezing.
   'ex7-42': {
