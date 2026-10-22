@@ -15,6 +15,7 @@ import { useUnlocked } from '../hooks/useUnlocked';
 import { useTRPC } from '../lib/trpc';
 import { cardTitle, type CatalogCard } from '../utils/cardList';
 import { DECK_SECTIONS, allGenerations, deckInGenerations, featuredPokemon, generationsOf, withCards } from '../utils/deckBuilder';
+import { PageHeader } from '../components/PageHeader';
 import { PAGE_WIDTH } from '../utils/layout';
 
 type CommunityDeck = inferRouterOutputs<AppRouter>['community']['list'][number];
@@ -67,7 +68,7 @@ export function CommunityPage() {
   );
   return (
     <div className={`space-y-4 ${PAGE_WIDTH}`}>
-      <h2 className="text-2xl font-bold">Community Decks</h2>
+      <PageHeader title="Community Decks" />
       <p className="text-sm text-slate-400">
         Decks other players have published. Import one to get it in your{' '}
         <Link to="/decks" className="text-yellow-300 hover:underline">

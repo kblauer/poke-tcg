@@ -15,8 +15,8 @@ export const LARGE_CARD = 'w-[var(--card-lg,7rem)]';
  */
 export const SIDE_COLUMN = 'w-[var(--card-sm,5rem)] shrink-0';
 
-/** Side margins of a page (the deck builder, and the board inside the game page, whose log reaches past them to the window edge). */
-export const PAGE_WIDTH = 'px-4 lg:px-24';
+/** Side margins of every page (narrow, as the site menu, NavRail, already sets the page in from the left edge). */
+export const PAGE_WIDTH = 'px-4 lg:px-8';
 
 /** Undoes PAGE_WIDTH's margins, for something that spans the page's full width (the hand). */
-export const PAGE_BLEED = '-mx-4 lg:-mx-24';
+export const PAGE_BLEED = '-mx-4 lg:-mx-8';

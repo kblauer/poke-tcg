@@ -24,7 +24,7 @@ import { DeckAndDiscard } from './DeckAndDiscard';
 import { DiscardPane } from './DiscardPane';
 import { FloatingDialog } from './FloatingDialog';
 import { Hand } from './Hand';
-import { LogMenu, LogSheet } from './LogDrawer';
+import { LogSheet } from './LogDrawer';
 import { OpponentArea, OpponentSlot, type Spotlight } from './OpponentArea';
 import { PendingChoicePanel } from './PendingChoicePanel';
 import { ActiveSheet } from './phone/ActiveSheet';
@@ -637,7 +637,7 @@ export function Board({
       >
         {/*
           Fills the window below the header (-mt/-mb undo the layout's spacing); the table, inside the margins, takes all
-          the height the hand leaves. The side panel's tabs are behind the ☰ floating at the play area's right edge (LogMenu).
+          the height the hand leaves. The logs and the debug tools are in the site menu (NavRail), the options on the Settings page.
         */}
         <div ref={table.ref} className={`-mb-4 -mt-6 flex ${busy ? 'cursor-progress' : ''}`} style={table.style}>
           {/* Clips the hand cards where they run past the bottom of the window. */}
@@ -656,13 +656,7 @@ export function Board({
             <PlayArea
               droppable={draggingTrainer && !busy}
               drop={dragging && heldCard ? { over: dropTarget !== null } : null}
-              overlay={
-                <>
-                  {tableOverlay}
-                  {/* The side panel's tabs, behind the ☰ at the middle of the play area's right edge. */}
-                  <LogMenu log={view.log} you={view.you} run={runTab} debug={debugEnabled ? { gameId, view } : undefined} />
-                </>
-              }
+              overlay={tableOverlay}
             >
               <OpponentArea
                 opponent={view.opponent}
@@ -698,10 +692,10 @@ export function Board({
                       {playerSlot('active', self.active)}
                       {attacks}
                     </div>
-                    <div data-menu-edge="own-bench" className="flex justify-center gap-2">{self.bench.map((p, i) => playerSlot(benchSlotId(i), p))}</div>
+                    <div className="flex justify-center gap-2">{self.bench.map((p, i) => playerSlot(benchSlotId(i), p))}</div>
                     <h3 className="text-center text-sm text-slate-400">You</h3>
                   </div>
-                  <div data-menu-edge="own-piles" className="mb-8">
+                  <div className="mb-8">
                     <DeckAndDiscard deckCount={self.deckCount} discard={self.discard} cards={view.cards} owner="Your" />
                   </div>
                 </div>

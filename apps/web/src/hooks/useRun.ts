@@ -94,7 +94,7 @@ export function useRun() {
       if (action.type === 'ACCEPT' && run.view.encounter?.kind === 'elite') spot(null);
       act.mutate({ runId: run.id, expectedVersion: run.version, action });
     },
-    /** Takes option `option` on the map; for a battle, `deckId` switches to that deck first. */
+    /** Takes option `option` on the map; `deckId` switches to that deck first (whatever the option). */
     choose(option: number, deckId?: string) {
       if (!run || busy) return;
       // A battle starts at once (an Ace Trainer's only once accepted): its trainer spots the player. Any other encounter's

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { BADGE_IDS, BadgeCases } from '../components/BadgeCases';
 import { EquipmentPanel } from '../components/EquipmentPanel';
 import { ItemIcon } from '../components/ItemIcon';
+import { PageHeader } from '../components/PageHeader';
 import { consumableProblem } from '../components/run/BagPanel';
 import { useTRPC } from '../lib/trpc';
 import { PAGE_WIDTH } from '../utils/layout';
@@ -54,6 +55,7 @@ export function InventoryPage() {
 
   return (
     <div className={`${PAGE_WIDTH} space-y-6`}>
+      <PageHeader title="Inventory" />
       {(equip.error ?? setSprite.error ?? useConsumable.error) && <p className="text-sm text-red-400">{(equip.error ?? setSprite.error ?? useConsumable.error)!.message}</p>}
       {using && (
         <UseConsumableDialog

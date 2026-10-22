@@ -6,6 +6,7 @@ import { Board, type LastMove, type PlayedMove } from '../components/Board';
 import { PLAYED_CARD_MS } from '../components/PlayedCard';
 import { TURN_BANNER_MS } from '../components/TurnBanner';
 import { CoinFlip, flipsAfter, type Flip } from '../components/CoinFlip';
+import { useGameLogInNav } from '../components/NavLog';
 import { RunStats } from '../components/run/RunStats';
 import { useIsPhone } from '../hooks/useIsPhone';
 import { useOptions } from '../hooks/useOptions';
@@ -37,6 +38,7 @@ export function GamePage() {
   /** The next move is on screen, and the one after it follows shortly. */
   const [revealed, setRevealed] = useState(false);
   const [skipFlips] = useSkipFlips();
+  const phone = useIsPhone();
   const [options] = useOptions();
   /** The move that led to the view on screen, for its animation. */
   const [lastMove, setLastMove] = useState<LastMove | null>(null);
@@ -119,6 +121,10 @@ export function GamePage() {
     return () => clearTimeout(timer);
   }, [revealed]);
 
+  // The log as it's played back, in the site menu's Battle log tab on a big screen (and the view for its Debug tab).
+  const logView = shownView ?? data?.view;
+  useGameLogInNav(logView ? { log: logView.log, you: logView.you, gameId, view: logView } : null);
+
   if (error) return <p className={`${PAGE_WIDTH} text-red-400`}>{error.message}</p>;
   if (!data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
 
@@ -143,7 +149,7 @@ export function GamePage() {
         pending={pending}
         error={act.error?.message}
         errorAt={act.submittedAt}
-        runTab={data.runId ? <GameRunTab /> : undefined}
+        runTab={data.runId && phone ? <GameRunTab /> : undefined}
         overlay={
           flips.length > 0 ? (
             <CoinFlip flips={flips} you={view.you} onDone={reveal} />
@@ -158,7 +164,7 @@ export function GamePage() {
   );
 }
 
-/** The side panel's Run tab during a run's battle: the run's HP, ₱, EXP and Bag. */
+/** The side panel's Run tab during a run's battle on a phone: the run's HP, ₱, EXP and Bag (on a big screen, the site menu's). */
 function GameRunTab() {
   const run = useRun();
   const data = run.overview.data;
@@ -189,7 +195,7 @@ function BattleBanner({ view, opponent }: { view: PlayerView; opponent: string |
   const phone = useIsPhone();
   if (view.phase === 'finished' || phone || (!opponent && !view.rules.length)) return null;
   return (
-    <div className="pointer-events-none fixed left-1/2 top-2 z-30 -translate-x-1/2 rounded-full bg-slate-800/90 px-4 py-1 text-xs text-slate-300 ring-1 ring-slate-600 empty:hidden">
+    <div className="pointer-events-none fixed left-1/2 top-2 z-[830] -translate-x-1/2 rounded-full bg-slate-800/90 px-4 py-1 text-xs text-slate-300 ring-1 ring-slate-600 empty:hidden">
       <BattleInfo view={view} opponent={opponent} />
     </div>
   );

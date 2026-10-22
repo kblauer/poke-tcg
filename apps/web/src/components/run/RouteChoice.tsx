@@ -3,7 +3,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { CPU_DIFFICULTY_LABELS, type EnergyType } from '@poke-tcg/game-engine';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { useContext, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useContext, useMemo, useState, type ReactNode } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { useUnlocked } from '../../hooks/useUnlocked';
 import type { RunControl, RunViewData } from '../../hooks/useRun';
@@ -113,14 +113,14 @@ const countsOf = (cards: string[]): DeckEntry[] => [...cards.reduce((m, id) => m
 /**
  * The middle of the run screen while choosing the next encounter: every option of the current step at once, the
  * battles together (each with its opponent, the 2 Pokémon types their class favours, and rewards), then one
- * deck choice for whichever battle is taken, then the other encounters together (each option a button: Option). The deck choice is the
+ * deck choice for whichever option is taken, then the other encounters together (each option a button: Option). The deck choice is the
  * run's current deck (first, as Current run) or one of the account's other decks (the switch is made as the battle is
  * chosen, with `run.choose`). Clicking an option on the map instead goes there at
  * once, with the current deck. The deck choice is a drop-down menu of deck tiles (DeckMenu), with the decks starred on the
- * Collection tab below it (Favorite decks). On a phone (useIsPhone) the other stops are headed Event.
- * With `side` (the run screen's side panel tabs, PanelTabs) it's the panel below the route map: on the left every option in
- * one column, as tiles of one height (battles first), with the deck choice under them; `side` fills the right half.
- * On a phone the usual layout, with `side` at the bottom of the panel, under the deck choice.
+ * Collection tab below it (Favorite decks). The deck picked is switched in with whichever option is taken, battle or not.
+ * On a big screen it's always two columns: the encounters on the left (battles, then the other stops, headed Encounters), the deck choice
+ * on the right. On a phone (useIsPhone) they're stacked, and the other stops are headed Event.
+ * `side` (a phone's side panel tabs, PanelTabs) goes at the bottom of the panel, under the deck choice.
  */
 export function RouteChoice({ view, run, side }: { view: RunViewData; run: RunControl; side?: ReactNode }) {
   const trpc = useTRPC();
@@ -128,8 +128,8 @@ export function RouteChoice({ view, run, side }: { view: RunViewData; run: RunCo
   const options = (view.steps[view.position]?.options ?? []).map((option, index) => ({ option, index }));
   const battles = options.filter(({ option }) => isBattleKind(option.kind));
   const others = options.filter(({ option }) => !isBattleKind(option.kind));
-  // The saved decks, with their cards for the summaries; only fetched when there's a battle to pick a deck for.
-  const decks = useQuery({ ...trpc.decks.list.queryOptions(), enabled: battles.length > 0 });
+  // The saved decks, with their cards for the summaries.
+  const decks = useQuery(trpc.decks.list.queryOptions());
   const byId = useContext(CatalogContext) ?? new Map();
   const { isLocked } = useUnlocked();
   /** null: keep the run's deck. */
@@ -171,18 +171,18 @@ export function RouteChoice({ view, run, side }: { view: RunViewData; run: RunCo
     </Option>
   ));
   const otherItems = others.map(({ option, index }) => (
-    <Option key={index} option={option} title={optionTitle(option, cardName)} lines={describe(option, cardName)} action="Go to" disabled={run.busy} onChoose={() => run.choose(index)} />
+    <Option key={index} option={option} title={optionTitle(option, cardName)} lines={describe(option, cardName)} action="Go to" disabled={run.busy} onChoose={() => run.choose(index, deckId ?? undefined)} />
   ));
   const deckChoice = (
     <div className="space-y-2">
       <div className="flex items-baseline justify-between">
-        <span className="text-sm font-semibold">Battle with</span>
+        <span className="text-sm font-semibold">{battles.length ? 'Battle with' : 'Your deck'}</span>
         <Link to="/decks" className="text-xs text-yellow-300 hover:underline">
           Build or edit decks
         </Link>
       </div>
       {/* The run's deck first (picked unless another is), then the account's other decks. */}
-      <div data-panel>
+      <div>
         <DeckMenu
           selected={deckId}
           onPick={setDeckId}
@@ -201,7 +201,7 @@ export function RouteChoice({ view, run, side }: { view: RunViewData; run: RunCo
         <span className="h-px flex-1 bg-slate-700" />
       </div>
       {favoriteDecks.length > 0 && (
-        <ul data-panel role="radiogroup" aria-label="Favorite decks" className="grid gap-2 @md:grid-cols-2">
+        <ul role="radiogroup" aria-label="Favorite decks" className="grid gap-2 @md:grid-cols-2">
           {favoriteDecks.map((d) => (
             <DeckOption key={d.id} selected={deckId === d.id} onPick={() => setDeckId(d.id)} name={d.name} disabled={d.problems.length > 0} locked={d.locked} note={d.problems[0]}>
               {d.problems.length === 0 && <DeckSummary entries={d.cards} byId={byId} isLocked={isLocked} compact={phone} />}
@@ -215,51 +215,27 @@ export function RouteChoice({ view, run, side }: { view: RunViewData; run: RunCo
     </div>
   );
 
-  // Beside the tabs (`side`): the tabs run from the top of the first tile to the bottom of the left half's last panel (the
-  // tiles, the deck menu, the favorite decks: `data-panel`), measured, again whenever the left half changes size.
-  const left = useRef<HTMLDivElement>(null);
-  const [span, setSpan] = useState<{ top: number; height: number } | null>(null);
-  const besideTabs = !!side && !phone;
-  useLayoutEffect(() => {
-    const el = left.current;
-    if (!besideTabs || !el) return;
-    const measure = () => {
-      const panels = el.querySelectorAll('[data-panel]');
-      if (!panels.length) return setSpan(null);
-      const base = el.getBoundingClientRect().top;
-      const first = panels[0]!.getBoundingClientRect();
-      const last = panels[panels.length - 1]!.getBoundingClientRect();
-      const next = { top: first.top - base, height: last.bottom - first.top };
-      setSpan((s) => (s && s.top === next.top && s.height === next.height ? s : next));
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [besideTabs, battles.length, favoriteDecks.length]);
-
-  // Beside the tabs (`side`): every option in one column, as tiles of one height, the deck choice under them, the tabs on the right half.
-  if (besideTabs) {
-    // At least 16rem tall, even beside a single tile.
-    const height = Math.max(span?.height ?? 0, 256);
+  const heading = 'text-sm font-semibold uppercase tracking-wide text-slate-400';
+  // On a big screen, always two columns: the step's encounters on the left (battles, then the other stops), the deck
+  // choice on the right.
+  if (!phone) {
     return (
-      <section aria-label="Your next encounter" className="@container grid gap-5 rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600 md:grid-cols-2">
-        <div ref={left} className="min-w-0 space-y-5">
-          <div className="space-y-3">
-            <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-400">{options.length === 1 ? 'Encounter' : 'Encounters'}</h4>
-            <ul data-panel className="grid auto-rows-fr gap-2">
-              {battleItems}
-              {otherItems}
-            </ul>
-          </div>
-          {battles.length > 0 && deckChoice}
+      <section aria-label="Your next encounter" className="grid grid-cols-2 items-start gap-6 rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600">
+        <div className="min-w-0 space-y-5">
+          {battles.length > 0 && (
+            <div className="space-y-3">
+              <h4 className={heading}>{battles.length === 1 ? 'Battle' : 'Battles'}</h4>
+              <ul className="space-y-2">{battleItems}</ul>
+            </div>
+          )}
+          {others.length > 0 && (
+            <div className="space-y-3">
+              <h4 className={heading}>{others.length === 1 ? 'Encounter' : 'Encounters'}</h4>
+              <ul className="space-y-2">{otherItems}</ul>
+            </div>
+          )}
         </div>
-        {/* From the first tile's top to the last panel's bottom on the left (`span`); the log scrolls inside. */}
-        <div className="relative" style={{ minHeight: (span?.top ?? 32) + height }}>
-          <div className="absolute inset-x-0" style={{ top: span?.top ?? 32, height }}>
-            {side}
-          </div>
-        </div>
+        <div className="@container min-w-0">{deckChoice}</div>
       </section>
     );
   }
@@ -286,7 +262,7 @@ export function RouteChoice({ view, run, side }: { view: RunViewData; run: RunCo
 
           {others.length > 0 && (
             <div className="min-w-0 flex-1 space-y-3">
-              <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-400">{phone ? (others.length === 1 ? 'Event' : 'Events') : battles.length ? 'Other stops' : 'Stops'}</h4>
+              <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-400">{others.length === 1 ? 'Event' : 'Events'}</h4>
               <ul className="space-y-2">
                 {otherItems}
               </ul>
@@ -294,6 +270,8 @@ export function RouteChoice({ view, run, side }: { view: RunViewData; run: RunCo
           )}
         </div>
       </div>
+      {/* With no battle on the step, the deck choice under the stops (it's switched in with whichever is taken). */}
+      {battles.length === 0 && deckChoice}
       {/* On a phone, the side panel's tabs under the deck choice (collapsible, 24rem tall open, the log scrolling inside). */}
       {side}
     </section>

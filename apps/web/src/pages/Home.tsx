@@ -1,7 +1,8 @@
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import { runType } from '@poke-tcg/campaign';
 import { useEffect, useRef, useState } from 'react';
-import { LogDrawer, LogSheet, PanelTabs } from '../components/LogDrawer';
+import { LogSheet, PanelTabs } from '../components/LogDrawer';
+import { PageHeader } from '../components/PageHeader';
 import { PreviewProvider } from '../components/PreviewProvider';
 import { DeckPanel } from '../components/run/DeckPanel';
 import { EncounterPanel } from '../components/run/EncounterPanel';
@@ -19,16 +20,14 @@ import { useWindowFill } from '../hooks/useWindowFill';
 import { PAGE_WIDTH } from '../utils/layout';
 
 /**
- * The run hub, laid out like the game: the page within the same side margins, filling the window, with
- * the side panel at the window's edge (its Run tab has HP, ₱, EXP, consumables and the Bag; its log tab
- * the run log). The page has the run's map and its encounter with the deck below; after a run, its
+ * The run hub, laid out like the game: the page within the same side margins, filling the window (on a big screen the
+ * run's numbers and its log are in the site menu, NavRail). The page has the run's map and its encounter with the deck below; after a run, its
  * results, the shop and the next run. A run whose type has routes (Pewter City: Route 2) shows them instead of the
  * icon map: zoomed in on the step's spot, alone in the top row, with the encounter, the cards unlocked and Concede below.
  * A new account is set up with its first run on the first visit.
  * On a phone (useIsPhone) the side panel is a round button floating in the top right corner instead, which opens its
- * tabs full screen (LogSheet, as on the phone's battle screen). With a route map, the tabs are in the panel below the map
- * instead (PanelTabs): on a big screen its right half, beside the step's options or the encounter under way; on a phone
- * under the deck choice (or the encounter).
+ * tabs full screen (LogSheet, as on the phone's battle screen); with a route map, the tabs are under the deck choice (or
+ * the encounter) instead (PanelTabs).
  */
 export function HomePage() {
   const run = useRun();
@@ -50,7 +49,7 @@ export function HomePage() {
   if (!overview.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
   const current = overview.data.run;
   const view = current?.view;
-  // The side panel's tabs: the run (HP, ₱, EXP, items) and its log.
+  // The phone's side panel tabs: the run (HP, ₱, EXP, items) and its log (on a big screen both are in the site menu, NavRail).
   const sidePanel = {
     log: (view?.log ?? []).map((text) => ({ text, player: null })),
     you: 'player',
@@ -58,12 +57,10 @@ export function HomePage() {
     run: view && <RunStats view={view} account={overview.data.account} run={run} />,
   } as const;
   const routes = view ? runType(view.type).routes : undefined;
-  // Under a route map, the side panel's tabs are in the panel below it (PanelTabs), not the window-edge LogDrawer (or, on
-  // a phone, the floating button): on a big screen the right half, beside the step's options and deck choice or the
-  // encounter under way; on a phone under the deck choice, or under the encounter.
+  // On a phone, under a route map, the side panel's tabs are in the panel below it (PanelTabs, collapsible to its tab row)
+  // rather than behind the floating button: under the deck choice, or under the encounter.
   const inline = !!routes && !!view && view.phase !== 'won' && view.phase !== 'lost';
-  // On a phone they can be collapsed to their tab row.
-  const tabs = inline && <PanelTabs {...sidePanel} collapsible={phone} />;
+  const tabs = inline && phone && <PanelTabs {...sidePanel} collapsible />;
   // The next encounter (or the one under way), the cards unlocked this run, and Concede below them, out of the way.
   const panels = view && (
     <div className="min-w-0 space-y-6">
@@ -94,14 +91,17 @@ export function HomePage() {
   );
 
   return (
-    // -mt/-mb undo the layout's spacing, as on the game page, so the side panel runs from the header to the bottom.
+    // -mt/-mb undo the layout's spacing, as on the game page, so the page fills the window from the header to the bottom.
     // Cards show the large hover preview; the wheel still scrolls the page.
     <PreviewProvider scrollZoom={false}>
       <div ref={fill.ref} className="-mb-4 -mt-6 flex" style={fill.style}>
         <div className={`min-w-0 flex-1 space-y-6 overflow-y-auto pb-4 pt-6 ${PAGE_WIDTH}`}>
           {run.error && <p className="rounded bg-red-400 px-3 py-2 text-sm font-medium text-slate-900">{run.error}</p>}
           {!current || !view ? (
-            <NewRunPicker overview={overview.data} run={run} title="Start a run" />
+            <>
+              <PageHeader title="Play" />
+              <NewRunPicker overview={overview.data} run={run} title="Start a run" />
+            </>
           ) : (
             <>
               <RunHeader view={view} />
@@ -123,7 +123,7 @@ export function HomePage() {
             </>
           )}
         </div>
-        {inline ? null : phone ? (
+        {phone && !inline && (
           <>
             <button
               className="fixed right-3 top-3 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-slate-800 text-slate-200 shadow-lg shadow-black/60 ring-1 ring-slate-600 transition active:scale-95"
@@ -135,8 +135,6 @@ export function HomePage() {
             </button>
             {panel && <LogSheet {...sidePanel} onClose={() => setPanel(false)} />}
           </>
-        ) : (
-          <LogDrawer {...sidePanel} />
         )}
       </div>
     </PreviewProvider>

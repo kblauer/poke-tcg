@@ -60,7 +60,7 @@ export function OpponentArea({
               ))}
             </div>
           )}
-          <div data-menu-edge="opp-bench" className="flex justify-center gap-2">
+          <div className="flex justify-center gap-2">
             {opponent.bench.map((p, i) => slot(`cpu-bench-${i}`, i, p))}
           </div>
           <div className="relative flex justify-center">
@@ -68,7 +68,7 @@ export function OpponentArea({
             {dialog && <FloatingDialog className="absolute bottom-0 left-1/2 z-20 w-max max-w-[min(42rem,90cqw)] -translate-x-1/2">{dialog}</FloatingDialog>}
           </div>
         </div>
-        <div data-menu-edge="opp-prizes" className="mt-8">
+        <div className="mt-8">
           <PrizeCards count={opponent.prizeCount} mirrored faceUp={opponent.prizes && { prizes: opponent.prizes, cards }} />
         </div>
       </div>
