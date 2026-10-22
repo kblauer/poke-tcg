@@ -6,6 +6,7 @@ export function HandCard({
   card,
   def,
   draggable,
+  playable = false,
   selected,
   pick,
   loading,
@@ -15,6 +16,8 @@ export function HandCard({
   card: CardInstance;
   def: CardDef;
   draggable: boolean;
+  /** It can be played now: a pulsing blue outline (`.playable-pulse`), under any other mark. */
+  playable?: boolean;
   selected: boolean;
   /** While a Trainer asks for cards from the hand: whether this one can be picked, and whether it is. */
   pick?: 'option' | 'picked' | 'unavailable';
@@ -45,7 +48,9 @@ export function HandCard({
                   ? 'opacity-40'
                   : selected
                     ? 'ring-2 ring-emerald-400'
-                    : ''
+                    : playable
+                      ? 'playable-pulse'
+                      : ''
       } ${draggable ? 'cursor-grab' : ''}`}
     >
       {/* High resolution so the text is readable when the hand zooms the card. */}

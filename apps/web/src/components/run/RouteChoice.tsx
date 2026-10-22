@@ -3,7 +3,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { CPU_DIFFICULTY_LABELS, type EnergyType } from '@poke-tcg/game-engine';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { useContext, useMemo, useState, type ReactNode } from 'react';
+import { useContext, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { useUnlocked } from '../../hooks/useUnlocked';
 import type { RunControl, RunViewData } from '../../hooks/useRun';
@@ -118,8 +118,11 @@ const countsOf = (cards: string[]): DeckEntry[] => [...cards.reduce((m, id) => m
  * chosen, with `run.choose`). Clicking an option on the map instead goes there at
  * once, with the current deck. The deck choice is a drop-down menu of deck tiles (DeckMenu), with the decks starred on the
  * Collection tab below it (Favorite decks). On a phone (useIsPhone) the other stops are headed Event.
+ * With `side` (the run screen's side panel tabs, PanelTabs) it's the panel below the route map: on the left every option in
+ * one column, as tiles of one height (battles first), with the deck choice under them; `side` fills the right half.
+ * On a phone the usual layout, with `side` at the bottom of the panel, under the deck choice.
  */
-export function RouteChoice({ view, run }: { view: RunViewData; run: RunControl }) {
+export function RouteChoice({ view, run, side }: { view: RunViewData; run: RunControl; side?: ReactNode }) {
   const trpc = useTRPC();
   const debug = useDebugEnabled();
   const options = (view.steps[view.position]?.options ?? []).map((option, index) => ({ option, index }));
@@ -138,6 +141,128 @@ export function RouteChoice({ view, run }: { view: RunViewData; run: RunControl 
   const favoriteDecks = otherDecks.filter((d) => d.favorite);
   const cardName = (id: string) => view.cards[id]?.name ?? id;
   const phone = useIsPhone();
+  const battleItems = battles.map(({ option, index }) => (
+    <Option
+      key={index}
+      option={option}
+      title={encounterLabel(option)}
+      lines={describe(option, cardName)}
+      note={<ClassTypes option={option} catalog={byId} />}
+      action={isBossKind(option.kind) || option.kind === 'gymTrainer' ? 'Challenge' : 'Battle'}
+      disabled={run.busy}
+      onChoose={() => run.choose(index, deckId ?? undefined)}
+    >
+      {/* Debug: win it without playing. DEBUG_BUILD first: a production build drops the button altogether. */}
+      {DEBUG_BUILD && debug && (
+        <button
+          className={skipButton}
+          disabled={run.busy}
+          // Not the option's own click.
+          onClick={(e) => {
+            e.stopPropagation();
+            run.skipBattle(index, deckId ?? undefined);
+          }}
+          onKeyDown={(e) => e.stopPropagation()}
+          title="Debug: win this battle without playing it"
+        >
+          Skip battle
+        </button>
+      )}
+    </Option>
+  ));
+  const otherItems = others.map(({ option, index }) => (
+    <Option key={index} option={option} title={optionTitle(option, cardName)} lines={describe(option, cardName)} action="Go to" disabled={run.busy} onChoose={() => run.choose(index)} />
+  ));
+  const deckChoice = (
+    <div className="space-y-2">
+      <div className="flex items-baseline justify-between">
+        <span className="text-sm font-semibold">Battle with</span>
+        <Link to="/decks" className="text-xs text-yellow-300 hover:underline">
+          Build or edit decks
+        </Link>
+      </div>
+      {/* The run's deck first (picked unless another is), then the account's other decks. */}
+      <div data-panel>
+        <DeckMenu
+          selected={deckId}
+          onPick={setDeckId}
+          decks={[
+            { id: null, name: 'Current run', note: view.deckName ? `${view.deckName}${traded ? ', with its trades' : ''}` : traded ? 'With its trades' : undefined, entries: runDeck },
+            ...otherDecks.map((d) => ({ id: d.id, name: d.name, note: d.problems[0], entries: d.cards, disabled: d.problems.length > 0, locked: d.locked })),
+          ]}
+          byId={byId}
+          isLocked={isLocked}
+          compact={phone}
+        />
+      </div>
+      {/* The decks starred on the Collection tab, a click away. */}
+      <div className="flex items-center gap-2 text-xs text-slate-500">
+        <span>Favorite decks</span>
+        <span className="h-px flex-1 bg-slate-700" />
+      </div>
+      {favoriteDecks.length > 0 && (
+        <ul data-panel role="radiogroup" aria-label="Favorite decks" className="grid gap-2 @md:grid-cols-2">
+          {favoriteDecks.map((d) => (
+            <DeckOption key={d.id} selected={deckId === d.id} onPick={() => setDeckId(d.id)} name={d.name} disabled={d.problems.length > 0} locked={d.locked} note={d.problems[0]}>
+              {d.problems.length === 0 && <DeckSummary entries={d.cards} byId={byId} isLocked={isLocked} compact={phone} />}
+            </DeckOption>
+          ))}
+        </ul>
+      )}
+      {deckId !== null && (
+        <p className="text-xs text-amber-300">This deck replaces your run deck for the rest of the run{traded ? ', and the cards you traded for leave it (they stay unlocked)' : ''}.</p>
+      )}
+    </div>
+  );
+
+  // Beside the tabs (`side`): the tabs run from the top of the first tile to the bottom of the left half's last panel (the
+  // tiles, the deck menu, the favorite decks: `data-panel`), measured, again whenever the left half changes size.
+  const left = useRef<HTMLDivElement>(null);
+  const [span, setSpan] = useState<{ top: number; height: number } | null>(null);
+  const besideTabs = !!side && !phone;
+  useLayoutEffect(() => {
+    const el = left.current;
+    if (!besideTabs || !el) return;
+    const measure = () => {
+      const panels = el.querySelectorAll('[data-panel]');
+      if (!panels.length) return setSpan(null);
+      const base = el.getBoundingClientRect().top;
+      const first = panels[0]!.getBoundingClientRect();
+      const last = panels[panels.length - 1]!.getBoundingClientRect();
+      const next = { top: first.top - base, height: last.bottom - first.top };
+      setSpan((s) => (s && s.top === next.top && s.height === next.height ? s : next));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [besideTabs, battles.length, favoriteDecks.length]);
+
+  // Beside the tabs (`side`): every option in one column, as tiles of one height, the deck choice under them, the tabs on the right half.
+  if (besideTabs) {
+    // At least 16rem tall, even beside a single tile.
+    const height = Math.max(span?.height ?? 0, 256);
+    return (
+      <section aria-label="Your next encounter" className="@container grid gap-5 rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600 md:grid-cols-2">
+        <div ref={left} className="min-w-0 space-y-5">
+          <div className="space-y-3">
+            <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-400">{options.length === 1 ? 'Encounter' : 'Encounters'}</h4>
+            <ul data-panel className="grid auto-rows-fr gap-2">
+              {battleItems}
+              {otherItems}
+            </ul>
+          </div>
+          {battles.length > 0 && deckChoice}
+        </div>
+        {/* From the first tile's top to the last panel's bottom on the left (`span`); the log scrolls inside. */}
+        <div className="relative" style={{ minHeight: (span?.top ?? 32) + height }}>
+          <div className="absolute inset-x-0" style={{ top: span?.top ?? 32, height }}>
+            {side}
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section aria-label="Your next encounter" className="flex flex-col gap-5 rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600">
@@ -151,77 +276,11 @@ export function RouteChoice({ view, run }: { view: RunViewData; run: RunControl 
               <div className="space-y-3">
                 <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-400">{battles.length === 1 ? 'Battle' : 'Battles'}</h4>
                 <ul className="space-y-2">
-                  {battles.map(({ option, index }) => (
-                    <Option
-                      key={index}
-                      option={option}
-                      title={encounterLabel(option)}
-                      lines={describe(option, cardName)}
-                      note={<ClassTypes option={option} catalog={byId} />}
-                      action={isBossKind(option.kind) || option.kind === 'gymTrainer' ? 'Challenge' : 'Battle'}
-                      disabled={run.busy}
-                      onChoose={() => run.choose(index, deckId ?? undefined)}
-                    >
-                      {/* Debug: win it without playing. DEBUG_BUILD first: a production build drops the button altogether. */}
-                      {DEBUG_BUILD && debug && (
-                        <button
-                          className={skipButton}
-                          disabled={run.busy}
-                          // Not the option's own click.
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            run.skipBattle(index, deckId ?? undefined);
-                          }}
-                          onKeyDown={(e) => e.stopPropagation()}
-                          title="Debug: win this battle without playing it"
-                        >
-                          Skip battle
-                        </button>
-                      )}
-                    </Option>
-                  ))}
+                  {battleItems}
                 </ul>
               </div>
 
-              <div className="space-y-2">
-                <div className="flex items-baseline justify-between">
-                  <span className="text-sm font-semibold">Battle with</span>
-                  <Link to="/decks" className="text-xs text-yellow-300 hover:underline">
-                    Build or edit decks
-                  </Link>
-                </div>
-                {/* The run's deck first (picked unless another is), then the account's other decks. */}
-                <DeckMenu
-                  selected={deckId}
-                  onPick={setDeckId}
-                  decks={[
-                    { id: null, name: 'Current run', note: view.deckName ? `${view.deckName}${traded ? ', with its trades' : ''}` : traded ? 'With its trades' : undefined, entries: runDeck },
-                    ...otherDecks.map((d) => ({ id: d.id, name: d.name, note: d.problems[0], entries: d.cards, disabled: d.problems.length > 0, locked: d.locked })),
-                  ]}
-                  byId={byId}
-                  isLocked={isLocked}
-                  compact={phone}
-                />
-                {/* The decks starred on the Collection tab, a click away. */}
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                  <span>Favorite decks</span>
-                  <span className="h-px flex-1 bg-slate-700" />
-                </div>
-                {favoriteDecks.length > 0 ? (
-                  <ul role="radiogroup" aria-label="Favorite decks" className="grid gap-2 @md:grid-cols-2">
-                    {favoriteDecks.map((d) => (
-                      <DeckOption key={d.id} selected={deckId === d.id} onPick={() => setDeckId(d.id)} name={d.name} disabled={d.problems.length > 0} locked={d.locked} note={d.problems[0]}>
-                        {d.problems.length === 0 && <DeckSummary entries={d.cards} byId={byId} isLocked={isLocked} compact={phone} />}
-                      </DeckOption>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-xs text-slate-500">Star a deck on the Collection tab to keep it here.</p>
-                )}
-                {deckId !== null && (
-                  <p className="text-xs text-amber-300">This deck replaces your run deck for the rest of the run{traded ? ', and the cards you traded for leave it (they stay unlocked)' : ''}.</p>
-                )}
-              </div>
+              {deckChoice}
             </div>
           )}
 
@@ -229,14 +288,14 @@ export function RouteChoice({ view, run }: { view: RunViewData; run: RunControl 
             <div className="min-w-0 flex-1 space-y-3">
               <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-400">{phone ? (others.length === 1 ? 'Event' : 'Events') : battles.length ? 'Other stops' : 'Stops'}</h4>
               <ul className="space-y-2">
-                {others.map(({ option, index }) => (
-                  <Option key={index} option={option} title={optionTitle(option, cardName)} lines={describe(option, cardName)} action="Go to" disabled={run.busy} onChoose={() => run.choose(index)} />
-                ))}
+                {otherItems}
               </ul>
             </div>
           )}
         </div>
       </div>
+      {/* On a phone, the side panel's tabs under the deck choice (collapsible, 24rem tall open, the log scrolling inside). */}
+      {side}
     </section>
   );
 }

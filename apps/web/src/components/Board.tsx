@@ -1,6 +1,6 @@
 import { DndContext, DragOverlay } from '@dnd-kit/core';
 import MenuIcon from '@mui/icons-material/Menu';
-import { hasBenched, inPlayDef, lookupCard, shapeshiftCard, type GameAction, type InPlayPokemon, type PlayerView, type Target } from '@poke-tcg/game-engine';
+import { hasBenched, inPlayDef, lookupCard, shapeshiftCard, type CardLibrary, type GameAction, type InPlayPokemon, type MoveHighlight, type PlayerView, type Target } from '@poke-tcg/game-engine';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAttack } from '../hooks/useAttack';
 import { useCardPlay } from '../hooks/useCardPlay';
@@ -24,8 +24,8 @@ import { DeckAndDiscard } from './DeckAndDiscard';
 import { DiscardPane } from './DiscardPane';
 import { FloatingDialog } from './FloatingDialog';
 import { Hand } from './Hand';
-import { LogDrawer, LogSheet } from './LogDrawer';
-import { OpponentArea, OpponentSlot } from './OpponentArea';
+import { LogMenu, LogSheet } from './LogDrawer';
+import { OpponentArea, OpponentSlot, type Spotlight } from './OpponentArea';
 import { PendingChoicePanel } from './PendingChoicePanel';
 import { ActiveSheet } from './phone/ActiveSheet';
 import { PhonePiles, PhonePrizes } from './phone/PhonePiles';
@@ -37,6 +37,8 @@ import { PrizeCards } from './PrizeCards';
 import { RetreatPanel } from './RetreatPanel';
 import { Slot } from './Slot';
 import { endTurnReminders } from '../utils/reminders';
+import { PLAYED_CARD_BURST_MS, PlayedCard } from './PlayedCard';
+import { TurnBanner, useNewTurn } from './TurnBanner';
 import { StadiumCard } from './StadiumCard';
 import { StatusBar } from './StatusBar';
 import { TurnOrderFlip } from './TurnOrderFlip';
@@ -48,6 +50,17 @@ export interface LastMove {
   player: string;
   type: GameAction['type'];
   version: number;
+  /** The CPU's move: the card it played or used and the Pokémon it changed (shown by PlayedCard and the slots' glow). */
+  highlight?: MoveHighlight | null;
+  /** Its card was shown before the move (ahead of its coin flips), so the Pokémon it changed glow at once. */
+  cardFirst?: boolean;
+}
+
+/** A card the CPU played or used, to show large (PlayedCard): its definition from the view after the move, and that view's version. */
+export interface PlayedMove {
+  defId: string;
+  cards: CardLibrary;
+  stamp: number;
 }
 
 /**
@@ -59,6 +72,7 @@ export interface LastMove {
 export function Board({
   view,
   lastMove = null,
+  played = null,
   replaying = false,
   send,
   pending,
@@ -72,6 +86,8 @@ export function Board({
   view: PlayerView;
   /** The move that led to `view`, if it just happened (for its animation). */
   lastMove?: LastMove | null;
+  /** The CPU's card being shown (GamePage times it: with its move, or before the move's coin flips). */
+  played?: PlayedMove | null;
   /** The CPU's reply is being shown move by move: nothing can be done until it ends. */
   replaying?: boolean;
   send: (a: GameAction) => void;
@@ -100,6 +116,19 @@ export function Board({
   const busy = pending !== null || replaying;
   // The attacker lunges at the defender in the view right after its attack.
   const attacker = lastMove?.type === 'ATTACK' && lastMove.version === view.version ? lastMove.player : null;
+  // Right after a CPU move with a card: the card is shown, and the Pokémon it changed glow.
+  const highlight = lastMove?.version === view.version ? (lastMove.highlight ?? null) : null;
+  const spotlight = (player: string): Spotlight | null => (highlight ? { targets: highlight.pokemon.filter((p) => p.player === player).map((p) => p.target), stamp: view.version, delay: highlight.defId && !lastMove?.cardFirst ? PLAYED_CARD_BURST_MS : 0 } : null);
+  const ownSpot = spotlight(view.you);
+  const oppSpot = spotlight(view.opponent.id);
+  const newTurn = useNewTurn(view);
+  const tableOverlay = (
+    <>
+      {overlay}
+      {played && <PlayedCard key={played.stamp} defId={played.defId} cards={played.cards} stamp={played.stamp} />}
+      {newTurn && <TurnBanner key={newTurn.turn} turn={newTurn} />}
+    </>
+  );
   const { self, phase } = view;
   const myTurn = isMyTurn(view);
   const promoting = mustPromote(view);
@@ -237,6 +266,7 @@ export function Board({
         dimmed={((heldCard !== undefined && !draggingTrainer) || retreat.ready || pokemonPick !== null) && pokemon !== null && !isTarget}
         loading={busySlot === id}
         lunge={id === 'active' && attacker === view.you ? { dir: 'up', stamp: view.version } : null}
+        spotlight={ownSpot?.targets.includes(target) ? ownSpot : null}
         onClick={
           busy
             ? undefined
@@ -348,6 +378,7 @@ export function Board({
       pending={pending}
       // Trainers are dragged onto the play area when they can be played.
       canPlay={(c) => (trainer.isTrainer(c) ? trainer.error(c) === null : canPlay(c))}
+      showPlayable={myTurn && !busy && !self.pendingChoice && !heldCard && !trainer.card && !attack.spec && !power.spec && !retreat.ready}
       onCardClick={(c) => {
         // A Trainer asking for cards from the hand: clicks pick them (other cards do nothing).
         if (trainer.handPick && trainer.card?.uid !== c.uid) {
@@ -466,7 +497,7 @@ export function Board({
                 <PendingChoicePanel view={view} send={send} busy={busy} />
               </FloatingDialog>
             )}
-            <PlayArea droppable={draggingTrainer && !busy} drop={dragging && heldCard ? { over: dropTarget !== null } : null} overlay={overlay} cards="phone-cards h-full">
+            <PlayArea droppable={draggingTrainer && !busy} drop={dragging && heldCard ? { over: dropTarget !== null } : null} overlay={tableOverlay} cards="phone-cards h-full">
               <PhoneTable
                 top={
                   <div className="flex h-4 shrink-0 items-center justify-between gap-2 text-[11px] leading-4 text-slate-400">
@@ -481,8 +512,8 @@ export function Board({
                   </div>
                 }
                 opponent={{
-                  bench: opponent.bench.map((p, i) => <OpponentSlot key={i} id={`cpu-bench-${i}`} target={i} pokemon={p} cards={view.cards} pick={oppPick} lunge={oppLunge} />),
-                  active: <OpponentSlot id="cpu-active" target="active" pokemon={opponent.active} cards={view.cards} large pick={oppPick} lunge={oppLunge} />,
+                  bench: opponent.bench.map((p, i) => <OpponentSlot key={i} id={`cpu-bench-${i}`} target={i} pokemon={p} cards={view.cards} pick={oppPick} lunge={oppLunge} spotlight={oppSpot} />),
+                  active: <OpponentSlot id="cpu-active" target="active" pokemon={opponent.active} cards={view.cards} large pick={oppPick} lunge={oppLunge} spotlight={oppSpot} />,
                   prizes: <PhonePrizes count={opponent.prizeCount} owner="The CPU's" faceUp={opponent.prizes && { prizes: opponent.prizes, cards: view.cards }} />,
                   piles: <PhonePiles deckCount={opponent.deckCount} discard={opponent.discard} cards={view.cards} owner="The CPU's" />,
                 }}
@@ -556,6 +587,7 @@ export function Board({
             <LogSheet
               log={view.log}
               you={view.you}
+              pages
               coinFlips
               run={runTab}
               debug={debugEnabled ? { gameId, view } : undefined}
@@ -597,9 +629,8 @@ export function Board({
         }}
       >
         {/*
-          Fills the window below the header. The game log runs from the header to the bottom of the window at its
-          edge, outside the page margins (-mt/-mb undo the layout's spacing); the table, inside the margins, takes all
-          the height the hand leaves.
+          Fills the window below the header (-mt/-mb undo the layout's spacing); the table, inside the margins, takes all
+          the height the hand leaves. The side panel's tabs are behind the ☰ floating at the play area's right edge (LogMenu).
         */}
         <div ref={table.ref} className={`-mb-4 -mt-6 flex ${busy ? 'cursor-progress' : ''}`} style={table.style}>
           {/* Clips the hand cards where they run past the bottom of the window. */}
@@ -618,13 +649,20 @@ export function Board({
             <PlayArea
               droppable={draggingTrainer && !busy}
               drop={dragging && heldCard ? { over: dropTarget !== null } : null}
-              overlay={overlay}
+              overlay={
+                <>
+                  {tableOverlay}
+                  {/* The side panel's tabs, behind the ☰ at the middle of the play area's right edge. */}
+                  <LogMenu log={view.log} you={view.you} run={runTab} debug={debugEnabled ? { gameId, view } : undefined} />
+                </>
+              }
             >
               <OpponentArea
                 opponent={view.opponent}
                 cards={view.cards}
                 pick={pokemonPick?.side === 'opp' && !busy ? pokemonPick : null}
                 lunge={attacker === view.opponent.id ? view.version : null}
+                spotlight={oppSpot}
                 dialog={oppDialog}
               />
 
@@ -653,10 +691,10 @@ export function Board({
                       {playerSlot('active', self.active)}
                       {attacks}
                     </div>
-                    <div className="flex justify-center gap-2">{self.bench.map((p, i) => playerSlot(benchSlotId(i), p))}</div>
+                    <div data-menu-edge="own-bench" className="flex justify-center gap-2">{self.bench.map((p, i) => playerSlot(benchSlotId(i), p))}</div>
                     <h3 className="text-center text-sm text-slate-400">You</h3>
                   </div>
-                  <div className="mb-8">
+                  <div data-menu-edge="own-piles" className="mb-8">
                     <DeckAndDiscard deckCount={self.deckCount} discard={self.discard} cards={view.cards} owner="Your" />
                   </div>
                 </div>
@@ -665,7 +703,6 @@ export function Board({
 
             {handView(false)}
           </div>
-          <LogDrawer log={view.log} you={view.you} coinFlips run={runTab} debug={debugEnabled ? { gameId, view } : undefined} />
           <TurnOrderFlip key={gameId} view={view} gameId={gameId} />
         </div>
 

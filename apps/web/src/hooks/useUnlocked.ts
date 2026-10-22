@@ -17,5 +17,10 @@ export function useUnlocked() {
     [owned],
   );
   const copies = useCallback((cardId: string) => owned?.get(cardId) ?? 0, [owned]);
-  return { isLocked, copies, loaded: owned !== null };
+  /** The copies unlocked of a holo, for the CardInspector: the count of one that counts them, 4 of a holo-only card once it's unlocked. Undefined for other cards. */
+  const holoCopies = useCallback(
+    (card: CatalogCard) => (card.limitedCopies ? copies(card.id) : card.holo ? (isLocked(card) ? 0 : 4) : undefined),
+    [copies, isLocked],
+  );
+  return { isLocked, copies, holoCopies, loaded: owned !== null };
 }

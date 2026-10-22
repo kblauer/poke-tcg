@@ -2,7 +2,7 @@
 // state with fixed coin flips (so it never sees the real flips to come), plus Energy arithmetic and which
 // cards are useful. Everything here is generic over cards: no card ids, and only the rules engine's own
 // effects decide what an attack does.
-import { answerChoice, attackError, attackSituation, performAttack, resolveChoices, situationAttacks, type AttackChoices, type AttackSituation, type ChoiceSpec } from '../attacks.js';
+import { answerChoice, attackError, attackSituation, performAttack, resolveChoices, situationAttacks, traceDamage, type AttackChoices, type AttackSituation, type ChoiceSpec } from '../attacks.js';
 import { isBasicEnergy, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from '../cards.js';
 import { applyAction, energyPool, energyProvided, payCost, type PoolEnergy, evolveError, opponentOf, retreatCost, retreatError, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
 import { nextRandom } from '../rng.js';
@@ -285,10 +285,12 @@ function situationOf(state: GameState, attackerId: PlayerId): AttackSituation {
   return attackSituation(state, me, opp);
 }
 
-/** The least and most damage an attack does to the Defending Pokémon. */
+/** The least and most damage an attack does to the Defending Pokémon, and what changes it from the printed damage (`steps`). */
 export interface DamageRange {
   min: number;
   max: number;
+  /** Each card or effect that changes the damage (the attack's own effect first, labelled with its name), by the least and most it changes it. */
+  steps: { label: string; min: number; max: number }[];
 }
 
 /**
@@ -305,26 +307,41 @@ export function attackDamageRanges(state: GameState, attackerId: PlayerId): (Dam
   const attacker = base.players[attackerId]!.active!;
   if (attacker.condition === 'confused') attacker.condition = null;
   const situation = situationOf(base, attackerId);
-  return situationAttacks(situation).map((_, attackIndex) => {
+  return situationAttacks(situation).map(({ attack }, attackIndex) => {
     if (attackError(situation, attackIndex)) return null;
     let min = Infinity;
     let max = -Infinity;
+    /** Each play's changes to the damage, by what made them (the attack's own effect: its damage before them, less the printed damage). */
+    const plays: Map<string, number>[] = [];
     for (const choices of choiceSets(situation, attackIndex)) {
       for (const seed of SEEDS) {
         const s = structuredClone(base);
         s.rngState = seed;
         const defender = s.players[opp.id]!.active!;
         const before = defender.damage;
+        let error = null as string | null;
+        let steps;
         try {
-          if (performAttack(s, s.players[attackerId]!, s.players[opp.id]!, attackIndex, choices)) continue;
+          steps = traceDamage(() => void (error = performAttack(s, s.players[attackerId]!, s.players[opp.id]!, attackIndex, choices)));
         } catch {
           continue;
         }
+        if (error) continue;
         min = Math.min(min, defender.damage - before);
         max = Math.max(max, defender.damage - before);
+        const own = `${attack.name}'s effect`;
+        const play = new Map([[own, -attack.damage]]);
+        for (const { label, change } of steps) play.set(label || own, (play.get(label || own) ?? 0) + change);
+        plays.push(play);
       }
     }
-    return min === Infinity ? null : { min, max };
+    if (min === Infinity) return null;
+    const labels = [...new Set(plays.flatMap((p) => [...p.keys()]))];
+    const steps = labels.flatMap((label) => {
+      const changes = plays.map((p) => p.get(label) ?? 0);
+      return changes.some((c) => c !== 0) ? [{ label, min: Math.min(...changes), max: Math.max(...changes) }] : [];
+    });
+    return { min, max, steps };
   });
 }
 

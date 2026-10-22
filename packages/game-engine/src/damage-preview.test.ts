@@ -6,9 +6,9 @@ import { attack, duel } from './effects/test-kit.js';
 describe('attack damage preview', () => {
   it('Karate Chop does 50 less 10 for each damage counter on Machoke', () => {
     const s = duel('machoke', 'squirtle', { energy: ['fighting', 'fighting', 'fighting'] });
-    expect(attackDamageRanges(s, 'ash')[0]).toEqual({ min: 50, max: 50 });
+    expect(attackDamageRanges(s, 'ash')[0]).toEqual({ min: 50, max: 50, steps: [] });
     s.players.ash!.active!.damage = 20;
-    expect(attackDamageRanges(s, 'ash')[0]).toEqual({ min: 30, max: 30 });
+    expect(attackDamageRanges(s, 'ash')[0]).toEqual({ min: 30, max: 30, steps: [{ label: "Karate Chop's effect", min: -20, max: -20 }] });
   });
 
   it('counts Weakness, on variable and plain damage alike', () => {
@@ -16,8 +16,8 @@ describe('attack damage preview', () => {
     s.players.ash!.active!.damage = 20;
     // Karate Chop 30, doubled; Submission 60, doubled.
     expect(attackDamageRanges(s, 'ash').slice(0, 2)).toEqual([
-      { min: 60, max: 60 },
-      { min: 120, max: 120 },
+      { min: 60, max: 60, steps: [{ label: "Karate Chop's effect", min: -20, max: -20 }, { label: 'Weakness (×2)', min: 30, max: 30 }] },
+      { min: 120, max: 120, steps: [{ label: 'Weakness (×2)', min: 60, max: 60 }] },
     ]);
   });
 
@@ -26,7 +26,15 @@ describe('attack damage preview', () => {
     const s = attack(duel('onix', 'squirtle', { energy: ['fighting', 'fighting'], defenderEnergy: ['water'] }), 1);
     expect(s.currentPlayer).toBe('misty');
     // Bubble's 10 is no more than 30: Harden prevents it.
-    expect(attackDamageRanges(s, 'misty')[0]).toEqual({ min: 0, max: 0 });
+    expect(attackDamageRanges(s, 'misty')[0]).toEqual({ min: 0, max: 0, steps: [{ label: 'Prevented by an earlier attack', min: -10, max: -10 }] });
+  });
+
+  it('lists PlusPower and Defender with what they change', () => {
+    const s = duel('machoke', 'squirtle', { energy: ['fighting', 'fighting', 'fighting'] });
+    const trainer = (name: string) => ({ card: { uid: name, defId: Object.values(s.cards).find((c) => c.name === name)!.id }, until: Infinity });
+    s.players.ash!.active!.attached = [trainer('PlusPower')];
+    s.players.misty!.active!.attached = [trainer('Defender')];
+    expect(attackDamageRanges(s, 'ash')[0]).toEqual({ min: 40, max: 40, steps: [{ label: 'PlusPower', min: 10, max: 10 }, { label: 'Defender', min: -20, max: -20 }] });
   });
 
   it('is null for an attack that can\'t be used', () => {

@@ -211,10 +211,10 @@ describe('Base Set attacks', () => {
 
   it("the player's view shows Water Gun's damage as it would be now, for the attack list", () => {
     const s = duel('poliwrath', 'nidoking', { energy: ['water', 'water', 'water', 'water', 'water', 'fire'] });
-    expect(getPlayerView(s, 'ash').attackDamage).toEqual([{ min: 50, max: 50 }, { min: 40, max: 40 }]);
+    expect(getPlayerView(s, 'ash').attackDamage!.map((d) => d && [d.min, d.max])).toEqual([[50, 50], [40, 40]]);
     // Only one more Water Energy than the cost: +10.
     const fewer = duel('poliwrath', 'nidoking', { energy: ['water', 'water', 'water', 'fire'] });
-    expect(getPlayerView(fewer, 'ash').attackDamage![0]).toEqual({ min: 40, max: 40 });
+    expect(getPlayerView(fewer, 'ash').attackDamage![0]).toMatchObject({ min: 40, max: 40 });
     // Not on the other player's view.
     expect(getPlayerView(s, 'misty').attackDamage).toBeUndefined();
   });

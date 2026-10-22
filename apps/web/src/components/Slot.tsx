@@ -7,10 +7,13 @@ import type { HoloMotion } from './HoloCard';
 
 /** Length of the slot animations (a Pokémon arriving, taking damage, healing, getting Energy, attacking). */
 const MOTION_MS = 450;
+/** Length of the glow on a Pokémon the CPU's card changed (`spotlight`). */
+const SPOTLIGHT_MS = 1100;
 
 /**
  * Animates what changed in the slot since the last view: a new Pokémon (played, evolved, switched in) drops
- * in, damage shakes it with a red glow, healing glows green, new Energy glows yellow, and an attack lunges.
+ * in, damage shakes it with a red glow, healing glows green, new Energy glows yellow, and an attack lunges. A Pokémon
+ * the CPU's card changed (`spotlight`) then glows white.
  * A holo (the Active Pokémon) tilts and shines along with each move (`holo`, the HoloCard's springs).
  * Nothing moves on the first render or for people who prefer reduced motion.
  */
@@ -19,9 +22,20 @@ function useSlotMotion(
   holo: RefObject<HoloMotion | null>,
   pokemon: InPlayPokemon | null,
   lunge: { dir: 'up' | 'down'; stamp: number } | null,
+  spotlight: { stamp: number; delay: number } | null,
 ) {
   const before = useRef(pokemon);
   const lunged = useRef(lunge?.stamp ?? null);
+  const lit = useRef(spotlight?.stamp ?? null);
+  // The CPU's card just changed it: it glows white twice (SPOTLIGHT_MS), after the move's own animation (or once the card shown has burst away: `delay`).
+  useEffect(() => {
+    if ((spotlight?.stamp ?? null) === lit.current) return;
+    lit.current = spotlight?.stamp ?? null;
+    const el = ref.current;
+    if (!el || spotlight === null || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const on = { filter: 'drop-shadow(0 0 16px rgb(224 242 254)) brightness(1.2)' };
+    el.animate([{ filter: 'none' }, on, { filter: 'none' }, on, { filter: 'none' }], { duration: SPOTLIGHT_MS, delay: Math.max(MOTION_MS + 180, spotlight.delay) });
+  }, [spotlight?.stamp]);
   useEffect(() => {
     const prev = before.current;
     before.current = pokemon;
@@ -77,6 +91,7 @@ export function Slot({
   dimmed = false,
   loading = false,
   lunge = null,
+  spotlight = null,
   onClick,
 }: {
   id: string;
@@ -92,12 +107,14 @@ export function Slot({
   loading?: boolean;
   /** It just attacked: it lunges towards the other side (`stamp` is the view's version, so each attack lunges once). */
   lunge?: { dir: 'up' | 'down'; stamp: number } | null;
+  /** A card the CPU played or used just changed it: it glows (`stamp` is the view's version, so each move glows once), from `delay` ms on. */
+  spotlight?: { stamp: number; delay: number } | null;
   onClick?: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id, disabled: !droppable });
   const art = useRef<HTMLDivElement>(null);
   const holo = useRef<HoloMotion>(null);
-  useSlotMotion(art, holo, pokemon, lunge);
+  useSlotMotion(art, holo, pokemon, lunge, spotlight);
   // Rings sit outside the card art, so they need to be thick and glowing to read against the card's own border.
   const ring = loading
     ? 'animate-pulse ring-4 ring-yellow-300'
@@ -116,6 +133,7 @@ export function Slot({
   return (
     <div
       ref={setNodeRef}
+      data-slot={id}
       data-keep-action
       onClick={onClick}
       className={`${size} relative aspect-[63/88] shrink-0 rounded-lg transition ${ring} ${onClick ? 'cursor-pointer' : ''} ${

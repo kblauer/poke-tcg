@@ -1,7 +1,7 @@
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import { runType } from '@poke-tcg/campaign';
 import { useEffect, useRef, useState } from 'react';
-import { LogDrawer, LogSheet } from '../components/LogDrawer';
+import { LogDrawer, LogSheet, PanelTabs } from '../components/LogDrawer';
 import { PreviewProvider } from '../components/PreviewProvider';
 import { DeckPanel } from '../components/run/DeckPanel';
 import { EncounterPanel } from '../components/run/EncounterPanel';
@@ -26,7 +26,9 @@ import { PAGE_WIDTH } from '../utils/layout';
  * icon map: zoomed in on the step's spot, alone in the top row, with the encounter, the cards unlocked and Concede below.
  * A new account is set up with its first run on the first visit.
  * On a phone (useIsPhone) the side panel is a round button floating in the top right corner instead, which opens its
- * tabs full screen (LogSheet, as on the phone's battle screen).
+ * tabs full screen (LogSheet, as on the phone's battle screen). With a route map, the tabs are in the panel below the map
+ * instead (PanelTabs): on a big screen its right half, beside the step's options or the encounter under way; on a phone
+ * under the deck choice (or the encounter).
  */
 export function HomePage() {
   const run = useRun();
@@ -56,12 +58,33 @@ export function HomePage() {
     run: view && <RunStats view={view} account={overview.data.account} run={run} />,
   } as const;
   const routes = view ? runType(view.type).routes : undefined;
+  // Under a route map, the side panel's tabs are in the panel below it (PanelTabs), not the window-edge LogDrawer (or, on
+  // a phone, the floating button): on a big screen the right half, beside the step's options and deck choice or the
+  // encounter under way; on a phone under the deck choice, or under the encounter.
+  const inline = !!routes && !!view && view.phase !== 'won' && view.phase !== 'lost';
+  // On a phone they can be collapsed to their tab row.
+  const tabs = inline && <PanelTabs {...sidePanel} collapsible={phone} />;
   // The next encounter (or the one under way), the cards unlocked this run, and Concede below them, out of the way.
   const panels = view && (
     <div className="min-w-0 space-y-6">
       {view.phase === 'map' ? (
         // A new step starts with the run's deck picked again.
-        <RouteChoice key={view.position} view={view} run={run} />
+        <RouteChoice key={view.position} view={view} run={run} side={tabs || undefined} />
+      ) : tabs && phone ? (
+        <>
+          <EncounterPanel view={view} run={run} />
+          {tabs}
+        </>
+      ) : tabs ? (
+        <div className="grid gap-5 md:grid-cols-2">
+          <div className="min-w-0">
+            <EncounterPanel view={view} run={run} />
+          </div>
+          {/* As tall as the encounter (at least 24rem), never taller: the log scrolls inside it. */}
+          <div className="relative min-h-96">
+            <div className="absolute inset-0">{tabs}</div>
+          </div>
+        </div>
       ) : (
         <EncounterPanel view={view} run={run} />
       )}
@@ -100,7 +123,7 @@ export function HomePage() {
             </>
           )}
         </div>
-        {phone ? (
+        {inline ? null : phone ? (
           <>
             <button
               className="fixed right-3 top-3 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-slate-800 text-slate-200 shadow-lg shadow-black/60 ring-1 ring-slate-600 transition active:scale-95"

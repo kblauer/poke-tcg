@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { useFavorites } from '../hooks/useFavorites';
+import { useUnlocked } from '../hooks/useUnlocked';
 import { useTRPC } from '../lib/trpc';
 import type { CatalogCard } from '../utils/cardList';
 import { CardInspector } from './CardInspector';
@@ -17,13 +18,19 @@ export function CardInspectProvider({ children }: { children: ReactNode }) {
   const byId = useMemo(() => (catalog.data ? new Map(catalog.data.map((c) => [c.id, c])) : null), [catalog.data]);
   const [inspected, setInspected] = useState<CatalogCard | null>(null);
   const close = useCallback(() => setInspected(null), []);
-  const { isFavorite, toggle } = useFavorites();
   return (
     <CatalogContext.Provider value={byId}>
       <InspectContext.Provider value={setInspected}>
         {children}
-        {inspected && <CardInspector card={inspected} locked={false} favorite={{ on: isFavorite(inspected.id), onToggle: () => toggle(inspected.id) }} onClose={close} />}
+        {inspected && <Inspected card={inspected} onClose={close} />}
       </InspectContext.Provider>
     </CatalogContext.Provider>
   );
+}
+
+/** The open CardInspector with its ★ and, for a card that counts its copies, how many are unlocked (the list loaded only once a card is open). */
+function Inspected({ card, onClose }: { card: CatalogCard; onClose: () => void }) {
+  const { isFavorite, toggle } = useFavorites();
+  const { holoCopies } = useUnlocked();
+  return <CardInspector card={card} locked={false} favorite={{ on: isFavorite(card.id), onToggle: () => toggle(card.id) }} unlocked={holoCopies(card)} onClose={onClose} />;
 }

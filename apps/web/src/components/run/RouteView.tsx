@@ -628,8 +628,9 @@ export function RouteView({ routes, gym, view, spotted }: { routes: Route[]; gym
   // The player: the map he's on (its section), where he stands (or is walking through), which way he's going, and whether he's faded out.
   const [walker, setWalker] = useState<{ section: number; tile: RouteSpot; face: Facing; walking: boolean; hidden: boolean }>({
     section: targetSection,
-    // At the run's first step he starts at the map's entrance and walks in (the walk effect, on mount).
-    tile: position === 0 && target.map.entrance ? target.map.entrance : targetSpot,
+    // At the run's start (nothing chosen yet) he starts at the map's entrance and walks in (the walk effect, on mount).
+    // Back from the first encounter (its battle's game, still step 0 while its reward is chosen) he's already there.
+    tile: position === 0 && view.phase === 'map' && view.steps[0]?.chosen === undefined && target.map.entrance ? target.map.entrance : targetSpot,
     face: flowAt(target.map, Math.min(position - target.first, target.map.spots.length - 1)),
     walking: false,
     hidden: false,
