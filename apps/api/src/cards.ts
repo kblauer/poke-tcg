@@ -234,6 +234,9 @@ export function toCardDef(card: Card): CardDef {
     if (card.name === 'Double Rainbow Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'colorless', anyType: true, amount: 2, basic: false, holo: isHolo(card) };
     if (card.name === 'Aqua Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'water', amount: 2, basic: false, holo: isHolo(card) };
     if (card.name === 'Magma Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'fighting', amount: 2, basic: false, holo: isHolo(card) };
+    // R Energy: 2 Darkness Energy. Dark Metal Energy: 1 Energy, Darkness or Metal (energyPool).
+    if (card.name === 'R Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'darkness', amount: 2, basic: false, holo: isHolo(card) };
+    if (card.name === 'Dark Metal Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'darkness', basic: false, holo: isHolo(card) };
     // Rainbow Energy and Multi Energy count as every type while attached (1 at a time; Multi Energy only Colorless beside another Special Energy card: colorlessOnly).
     if (card.name === 'Rainbow Energy' || card.name === 'Multi Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'colorless', anyType: true, basic: false, holo: isHolo(card) };
     // Miracle Energy counts as every type but provides only 2 Energy at a time.

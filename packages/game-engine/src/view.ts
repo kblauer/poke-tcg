@@ -57,6 +57,7 @@ export interface PlayerView {
     goodNeighborTurn?: number;
     healDanceTurn?: number;
     weatherTurn?: number;
+    quickSearchTurn?: number;
     /** A search this player must finish, with the cards it reveals to them. */
     pendingChoice: PendingChoiceView | null;
     /** Last turn this player can't play Trainer cards (Headache). */
@@ -172,6 +173,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       ...(me.goodNeighborTurn !== undefined && { goodNeighborTurn: me.goodNeighborTurn }),
       ...(me.healDanceTurn !== undefined && { healDanceTurn: me.healDanceTurn }),
       ...(me.weatherTurn !== undefined && { weatherTurn: me.weatherTurn }),
+      ...(me.quickSearchTurn !== undefined && { quickSearchTurn: me.quickSearchTurn }),
       pendingChoice: pending,
       noTrainersUntil: me.noTrainersUntil,
       ...(me.supporterTurn !== undefined && { supporterTurn: me.supporterTurn }),

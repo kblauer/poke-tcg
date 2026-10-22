@@ -74,7 +74,7 @@ function switchChosen(ctx: AttackContext) {
  * Copies one of the Defending Pokémon's attacks (Copy, Mini-Metronome), with its Energy discards and questions. `needsEnergy`:
  * nothing happens unless the attacker has the Energy for it (Copy); `flip`: heads first (Mini-Metronome).
  */
-const copyAttack = (name: string, { needsEnergy, flip }: { needsEnergy: boolean; flip: boolean }): AttackEffect => ({
+export const copyAttack = (name: string, { needsEnergy, flip }: { needsEnergy: boolean; flip: boolean }): AttackEffect => ({
   choices(s, c) {
     const attacks = inPlayDef(s.cards, s.defender).attacks;
     const options = attacks.flatMap((a, i) => (a.name === 'Copy' || a.name === 'Mini-Metronome' ? [] : [i]));

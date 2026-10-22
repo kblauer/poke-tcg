@@ -1,4 +1,4 @@
-import { attackDamage, attackEffect, inPlayDef, usableAttacks, type CardLibrary, type DamageRange, type GameAction, type InPlayPokemon } from '@poke-tcg/game-engine';
+import { attackDamage, attackEffect, inPlayDef, usableAttacks, type CardInstance, type CardLibrary, type DamageRange, type GameAction, type InPlayPokemon } from '@poke-tcg/game-engine';
 import type { AttackControl } from '../hooks/useAttack';
 
 /**
@@ -20,6 +20,7 @@ export function AttackList({
   recall = false,
   bench = [],
   oppBench = [],
+  stadium = null,
 }: {
   pokemon: InPlayPokemon;
   /** The opponent's active Pokémon, if any. */
@@ -37,13 +38,15 @@ export function AttackList({
   bench?: (InPlayPokemon | null)[];
   /** The opponent's Bench, for Psymimic's copies of their Pokémon's attacks (listed after its own, with their names). */
   oppBench?: (InPlayPokemon | null)[];
+  /** The Stadium in play, for its attack (Rocket's Tricky Gym), listed last with its name. */
+  stadium?: CardInstance | null;
 }) {
   // A Transformed Ditto has the Defending Pokémon's attacks.
   const def = inPlayDef(cards, pokemon);
   const defenderDef = defender && inPlayDef(cards, defender);
   return (
     <div className="flex flex-col gap-1">
-      {usableAttacks(pokemon, cards, { recall, bench, defender, oppBench }).map(({ attack: a, source, from }, i) => {
+      {usableAttacks(pokemon, cards, { recall, bench, defender, oppBench, stadium }).map(({ attack: a, source, from }, i) => {
         const error = attack.error(i);
         const usable = canAttack && error === null;
         // Variable damage ("30+", "10×", "?") depends on the card text, so it's shown as printed.

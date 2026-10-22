@@ -73,6 +73,8 @@ function toDef(r: Row): CardDef | null {
     if (r.name === 'Double Rainbow Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', anyType: true, amount: 2, basic: false };
     if (r.name === 'Aqua Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'water', amount: 2, basic: false };
     if (r.name === 'Magma Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'fighting', amount: 2, basic: false };
+    if (r.name === 'R Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'darkness', amount: 2, basic: false };
+    if (r.name === 'Dark Metal Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'darkness', basic: false };
     if (r.name === 'Boost Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', amount: 3, basic: false };
     if (r.name === 'Bounce Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', amount: 2, basic: false };
     if (r.name === 'Full Heal Energy' || r.name === 'Potion Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', basic: false };

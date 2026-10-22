@@ -25,7 +25,7 @@ export function usePower({ view, send, busy }: { view: PlayerView; send: (a: Gam
   const [using, setUsing] = useState<{ source: Target; choices: PowerChoices } | null>(null);
   /** Benched Pokémon clicked to show its Activate button. */
   const [selected, setSelected] = useState<number | null>(null);
-  const situation = (source: Target): PowerSituation => ({ me: view.self, opp: view.opponent, counts: viewCounts(view), source, cards: view.cards, turn: view.turn });
+  const situation = (source: Target): PowerSituation => ({ me: view.self, opp: view.opponent, counts: viewCounts(view), source, cards: view.cards, turn: view.turn, stadium: view.stadium?.card ?? null });
 
   const cancel = () => {
     setUsing(null);
