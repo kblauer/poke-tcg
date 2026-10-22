@@ -40,15 +40,15 @@ async function startWithDeck(userId: string, type: RunTypeId, deckId: string) {
 }
 
 /**
- * Chooses an option on the map, like `act` with CHOOSE. For a battle, `deckId` switches the run to that deck first (one of
- * the account's decks that can be played; SET_DECK), so the battle is played with it.
+ * Chooses an option on the map, like `act` with CHOOSE. `deckId` switches the run to that deck first (one of the account's
+ * decks that can be played; SET_DECK), whatever the option: a battle is then played with it.
  */
 async function chooseOption(userId: string, input: { runId: string; expectedVersion: number; option: number; deckId?: string }) {
   const run = await loadOwnRun(input.runId, userId);
   if (run.version !== input.expectedVersion) throw new TRPCError({ code: 'CONFLICT', message: 'Run changed, refresh and retry' });
   if (input.deckId === undefined) return advanceRun(run, [{ type: 'CHOOSE', option: input.option }]);
   const option = run.state.phase === 'map' ? run.state.steps[run.state.position]?.options[input.option] : undefined;
-  if (!option || !isBattleKind(option.kind)) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Decks can only be switched for a battle' });
+  if (!option) throw new TRPCError({ code: 'BAD_REQUEST', message: 'No such option' });
   const deck = await playableDeck(input.deckId, userId);
   const advanced = await advanceRun(run, [{ type: 'SET_DECK', deck: deck.cards, name: deck.name }, { type: 'CHOOSE', option: input.option }]);
   if (!deck.runDeck) await markPlayed(userId, input.deckId);

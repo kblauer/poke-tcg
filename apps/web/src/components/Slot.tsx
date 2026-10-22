@@ -133,7 +133,6 @@ export function Slot({
   return (
     <div
       ref={setNodeRef}
-      data-slot={id}
       data-keep-action
       onClick={onClick}
       className={`${size} relative aspect-[63/88] shrink-0 rounded-lg transition ${ring} ${onClick ? 'cursor-pointer' : ''} ${

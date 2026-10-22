@@ -2,6 +2,7 @@ import { itemText, ITEMS, MAX_CONSUMABLES_PER_RUN } from '@poke-tcg/campaign';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '../../lib/trpc';
 import type { RunControl, RunViewData } from '../../hooks/useRun';
+import { RunSection } from './RunSection';
 
 /**
  * Why no consumable can be used in the run now, or null: 3 per run at most, used before a battle starts, and one at a time
@@ -18,6 +19,7 @@ export function consumableProblem(view: RunViewData): string | null {
 /**
  * The consumables and misc items you own, with a Use button each: consumables last a number of battles
  * (consumableProblem: 3 per run at most, before a battle starts, one at a time), misc items keep their own per-run limits.
+ * Its heading folds it away (RunSection).
  */
 export function BagPanel({ view, run }: { view: RunViewData; run: RunControl }) {
   const trpc = useTRPC();
@@ -30,8 +32,7 @@ export function BagPanel({ view, run }: { view: RunViewData; run: RunControl }) 
     return null;
   };
   return (
-    <div className="space-y-2 rounded-lg bg-slate-800 p-3 ring-1 ring-slate-700">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Bag</h3>
+    <RunSection id="bag" title="Bag" count={usable.reduce((n, i) => n + i.quantity, 0)} className="rounded-lg bg-slate-800 p-3 ring-1 ring-slate-700">
       <ul className="space-y-1 text-sm">
         {usable.map((i) => (
           <li key={i.id} className="flex items-center gap-2" title={itemText(i)}>
@@ -49,7 +50,7 @@ export function BagPanel({ view, run }: { view: RunViewData; run: RunControl }) 
           </li>
         ))}
       </ul>
-      {run.error && <p className="text-xs text-red-400">{run.error}</p>}
-    </div>
+      {run.error && <p className="mt-2 text-xs text-red-400">{run.error}</p>}
+    </RunSection>
   );
 }

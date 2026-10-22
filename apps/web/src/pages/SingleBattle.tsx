@@ -8,6 +8,7 @@ import { DeckSummary, LOCKED_TAG, type SavedDeck } from '../components/DeckList'
 import { useUnlocked } from '../hooks/useUnlocked';
 import { useTRPC } from '../lib/trpc';
 import type { CatalogCard } from '../utils/cardList';
+import { PageHeader } from '../components/PageHeader';
 import { PAGE_WIDTH } from '../utils/layout';
 
 /** localStorage key for the last choices, so they're still picked when you come back after a battle. */
@@ -86,7 +87,7 @@ export function SingleBattlePage() {
 
   return (
     <div className={`space-y-6 ${PAGE_WIDTH}`}>
-      <h2 className="text-2xl font-bold">Single battle</h2>
+      <PageHeader title="Practice" />
       <div className="grid items-start gap-6 lg:grid-cols-[1fr_24rem]">
         <section className={panel}>
           <div className="flex items-baseline justify-between gap-3">
