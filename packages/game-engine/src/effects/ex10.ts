@@ -130,7 +130,7 @@ export const EX10: Record<string, Record<string, AttackEffect>> = {
           return ctx.log('There are no Grass Pokémon in the deck.');
         }
         if (ctx.choices.ownBenchSlot !== undefined) ctx.switchOwn(ctx.choices.ownBenchSlot);
-        ctx.pend({ kind: 'pickFromDeck', source: 'Green Dance', filter: 'pokemonType', type: 'grass', count: 2, reveal: true, ...(ctx.choices.ownBenchSlot === undefined && { optional: true }) });
+        ctx.pend({ kind: 'pickFromDeck', source: 'Green Dance', filter: 'pokemonType', type: 'grass', count: 2, reveal: true, optional: true });
       },
     },
     'Full Bloom': { run: (ctx) => void ctx.hit(inPlay(ctx.me).filter((p) => namesMatch(inPlayDef(ctx.state.cards, p).name, 'Bellossom')).length >= 3 ? 100 : 50) },
