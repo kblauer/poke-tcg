@@ -168,7 +168,7 @@ export const EX12_POWERS: Record<string, PowerEffect> = {
       ctx.me.discard = ctx.me.discard.filter((c) => c !== card);
       ctx.me.deck.unshift(card);
       ctx.source.damage += 10;
-      ctx.log(`Put ${lookupCard(ctx.state.cards, card.defId).name} on top of the deck, and a damage counter on Sealeo.`);
+      ctx.log(`Put ${lookupCard(ctx.state.cards, card.defId).name} on top of the deck, and a damage counter on ${pokemonName(ctx.state, ctx.source)}.`);
     },
   },
   // Tangela – Reactive Healing: a React Energy card attached to it from the hand removes all its damage counters.
@@ -210,7 +210,7 @@ export const EX12_POWERS: Record<string, PowerEffect> = {
   'ex12-85': {
     ...ECARD1_POWERS['ecard1-13']!,
     blocked(s) {
-      if (s.source !== 'active') return 'Banette ex must be your Active Pokémon';
+      if (s.source !== 'active') return `${inPlayDef(s.cards, pokemonAt(s.me, s.source)!).name} must be your Active Pokémon`;
       const all = [s.me.active, ...s.me.bench, s.opp.active, ...s.opp.bench].filter(Boolean);
       return all.some((p) => p!.damage >= 10) && all.length > 1 ? null : 'No Pokémon in play has damage counters to move';
     },

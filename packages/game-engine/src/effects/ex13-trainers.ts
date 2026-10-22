@@ -5,7 +5,7 @@
 // every type, 1 at a time, on a δ Pokémon, Colorless otherwise (energyPool); Holon Adventurer draws 4 when the card
 // discarded is a δ Pokémon.
 import { lookupCard, type Attack } from '../cards.js';
-import { openBenchSlot } from '../status.js';
+import { isDelta, isDeltaCard, openBenchSlot } from '../status.js';
 import { handToBenchFits, type EnergyEffect, type TrainerEffect } from '../trainers.js';
 import { EX1_ENERGY } from './ex1-trainers.js';
 import { EX2_TRAINERS } from './ex2-trainers.js';
@@ -28,7 +28,7 @@ export const EX13_TRAINERS: Record<string, TrainerEffect> = {
   'ex13-85': holon(
     (ctx) => {
       const gone = ctx.me.discard.at(-1);
-      const delta = !!gone && / δ$/.test(lookupCard(ctx.state.cards, gone.defId).name) && lookupCard(ctx.state.cards, gone.defId).kind === 'pokemon';
+      const delta = !!gone && isDeltaCard(lookupCard(ctx.state.cards, gone.defId), ctx.me.holonVeil);
       ctx.draw(ctx.me, delta ? 4 : 3);
     },
     (s) => (s.deckCount ? null : 'Your deck is empty'),
@@ -44,7 +44,7 @@ export const EX13_TRAINERS: Record<string, TrainerEffect> = {
     },
   },
   // Holon Lake (Stadium): δ Pokémon can use Delta Call.
-  'ex13-87': { stadium: true, stadiumAttack: { attack: DELTA_CALL, for: (name) => / δ$/.test(name) } },
+  'ex13-87': { stadium: true, stadiumAttack: { attack: DELTA_CALL, for: (_name, pokemon, cards) => isDelta(cards, pokemon) } },
   // Mr. Stone's Project: as EX Emerald's.
   'ex13-88': EX9_TRAINERS['ex9-79']!,
   // Professor Cozmo's Discovery (Supporter): heads, the bottom 3 cards of the deck drawn; tails, the top 2.

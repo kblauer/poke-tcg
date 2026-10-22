@@ -4,7 +4,7 @@ import { attachBlocked, discardsLocked, energyFromHand, evolutionBlocked, primal
 import { evolvesFromEevee, evolveWith, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
 import { conditionProof, hasOwner, hasType, holonEnergy, namesMatch, isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
-import { addLog, baseUid, clearOnLeavingActive, effectId, evolvedHook, hasSpecialCondition, shapeshiftCard, flipCoin, inPlayDef, openBenchSlot, pokemonName, revealFaceDown, type LogEntry } from './status.js';
+import { addLog, baseUid, clearOnLeavingActive, effectId, isDelta, evolvedHook, hasSpecialCondition, shapeshiftCard, flipCoin, inPlayDef, openBenchSlot, pokemonName, revealFaceDown, type LogEntry } from './status.js';
 import { shuffle } from './rng.js';
 import type { CpuDifficulty } from './cpu/index.js';
 
@@ -32,6 +32,10 @@ export interface CardInstance {
   scrambled?: boolean;
   /** Reactive Booster: this React Energy card provides 2 Energy of every type (refreshHideout, energyPool). */
   reactBoost?: boolean;
+  /** Crystal Beach: this Special Energy card provides 1 Colorless Energy whenever it would provide 2 or more (refreshHideout, energyPool). */
+  beached?: boolean;
+  /** Chlorophyll: this card provides only Colorless Energy on a Grass Pokémon whose player's Venusaur works: Grass instead (refreshHideout, energyPool). */
+  chlorophyll?: boolean;
 }
 
 /** Energy that pays for a Crystal Energy card: one of these types (`crystal:fire,water`), chosen as the cost needs. */
@@ -265,19 +269,27 @@ export interface InPlayPokemon {
   /** Gaze switched its power off (`powerOffUntil`) while it's benched: leaving the Bench turns it back on. */
   gazed?: boolean;
   /** Time Travel: an opponent's attack would have Knocked it Out, and a heads shuffles it into its owner's deck instead (resolveKnockouts). */
-  timeTravel?: boolean;
+  timeTravel?: boolean | 'bottom';
   /** Submerge: the turn it's a Water Pokémon (inPlayDef), until it has any Special Condition (refreshConverted). */
   submerged?: number;
   /** Rocket's Hideout is the Stadium in play and it has Dark in its name: 20 more HP (refreshHideout, inPlayDef). */
   hideout?: boolean;
   /** Space Center ('bodies') or Battle Frontier ('all'): its Poké-Powers or Poké-Bodies don't work (refreshHideout). */
-  stadiumMuted?: 'bodies' | 'all';
+  stadiumMuted?: 'bodies' | 'powers' | 'all';
   /** Green Essence: as its player's Active Pokémon, it can't have Special Conditions (refreshHideout, conditionFree). */
   greenEssence?: boolean;
   /** Sunbeam: its HP is now this (refreshHideout, inPlayDef). */
   hpSet?: number;
   /** Stages of Evolution (Hitmonchan), Energy Root: this much more HP (refreshHideout, inPlayDef). */
   hpPlus?: number;
+  /** Sidney's Stadium and a Darkness Pokémon: it can't be Asleep, Confused or Paralyzed (refreshHideout, conditionBarred). */
+  sidneyGuard?: boolean;
+  /** An Imprison marker (Gardevoir ex δ): no Poké-Powers or Poké-Bodies until it leaves play (agreed), or Tropical Heal. */
+  imprisoned?: boolean;
+  /** A Shock-wave marker (Tyranitar ex δ): Shock-wave can Knock it Out; until it leaves play (agreed), or Tropical Heal. */
+  shockwave?: boolean;
+  /** Holon Veil: its player's Ampharos δ makes it a Pokémon that has δ on its card (refreshHideout, isDelta). */
+  veiled?: boolean;
   /** Put into play by Strange Cave, Holon Fossil or Influence: treated as a Basic Pokémon (inPlayDef). */
   asBasic?: boolean;
   /** Full Flame: the top card it was Burned with, so evolving or devolving keeps it Burned (refreshHideout). */
@@ -366,6 +378,8 @@ export interface PlayerState {
   quickSearchTurn?: number;
   /** Form Change: the turn this player last used it (no more than 1 Form Change a turn). */
   formChangeTurn?: number;
+  /** Holon Veil works for this player: their Pokémon cards everywhere have δ on them (refreshHideout, isDeltaCard). */
+  holonVeil?: boolean;
   /** Happy Dance: the turn this player last used it (no more than 1 Happy Dance a turn). */
   happyDanceTurn?: number;
   /** Powers printed "You can't use more than 1 … Poké-Power each turn" (Delta Heal, Snappy Move, Duplicate): the turn each was last used, by name. */
@@ -422,6 +436,8 @@ export interface GameState {
   endTurnNow?: boolean;
   /** Choices waiting for `pendingChoice` to be finished, asked in order (Bench Guard after an attack, Narrow Gym's second player). */
   queuedChoices?: PendingChoice[];
+  /** Psychic Protector: the hand cards the Defending player chose for the attack under way (attacks.ts uses them, attackAction clears them). */
+  psychicProtector?: string[];
   /** Blaine: the Pokémon (baseUid) a Fire Energy card went to this turn as the free attachment, or 'done' after the second. */
   blaineAttach?: string;
   /**
@@ -716,6 +732,20 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       addLog(state, slot === undefined ? "Won't use Flee." : `Flee: will switch with ${pokemonName(state, me.bench[slot]!)} if the attack does damage.`, me.id);
       return attackAction(state, attacker, defending, pending.attackIndex, pending.choices, { flee: slot as number | undefined });
     }
+    // Psychic Protector: up to 4 hand cards, one at a time; then the attack happens.
+    if (pending.kind === 'protector') {
+      const card = action.cardUid === undefined ? undefined : me.hand.find((c) => c.uid === action.cardUid && !pending.picked.includes(c.uid));
+      if (action.cardUid !== undefined && !card) return fail('Choose a card from your hand');
+      const picked = card ? [...pending.picked, card.uid] : pending.picked;
+      if (card && picked.length < 4 && me.hand.length > picked.length) {
+        state.pendingChoice = { ...pending, picked };
+        return ok(state);
+      }
+      delete state.pendingChoice;
+      if (picked.length) state.psychicProtector = picked;
+      addLog(state, picked.length ? `Psychic Protector: ${picked.length} card${picked.length === 1 ? '' : 's'} chosen.` : "Won't use Psychic Protector.", me.id);
+      return attackAction(state, attacker, defending, pending.attackIndex, pending.choices);
+    }
     // Koga's Ninja Trick: the switch happens before the attack (which then hits the new Defending Pokémon), and the card is discarded.
     if (pending.kind === 'ninjaTrick') {
       const slot = action.target;
@@ -946,7 +976,13 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       addLog(state, `${pokemonName(state, me.active)} retreated for ${pokemonName(state, benched)}.`, me.id);
       // Damage stays with each Pokémon; the retreated one takes the chosen slot.
       const retreated = me.active;
+      // Metal Gravity (the opponent's, only one): with 40 HP or more left, 3 damage counters on it.
+      const gravity = inPlayDef(state.cards, retreated).hp - retreated.damage >= 40 && [opp.active, ...opp.bench].some((p) => p && powerEffect(effectId(p))?.metalGravity && powerActive(p, state.cards, [opp, me]));
       clearOnLeavingActive(retreated);
+      if (gravity) {
+        retreated.damage += 30;
+        addLog(state, `Metal Gravity put 3 damage counters on ${pokemonName(state, retreated)}.`, opp.id);
+      }
       me.bench[action.slot] = retreated;
       me.active = benched;
       if (suction && retreated.energy.length) {
@@ -1030,6 +1066,7 @@ function attackAction(
   const source = usable && `${inPlayDef(state.cards, me.active!).name}'s ${usable.attack.name}`;
   const logged = state.log?.at(-1)?.n ?? 0;
   const error = performAttack(state, me, opp, attackIndex, choices, { flee });
+  delete state.psychicProtector;
   if (error) return fail(error);
   // Before the turn ends, while a Special Condition the attack gave is still there.
   dropShapeshifts(state);
@@ -1059,9 +1096,15 @@ function preAttackQuestion(state: GameState, me: PlayerState, opp: PlayerState, 
   const defender = opp.active!;
   const ninja = !ninjaAsked && hasBenched(opp) && (defender.attached ?? []).some((a) => lookupCard(state.cards, a.card.defId).name === "Koga's Ninja Trick");
   const flee = powerEffect(effectId(defender))?.flee && powerActive(defender, state.cards, [opp, me]) && hasBenched(opp);
-  if (!ninja && !flee) return null;
+  // Psychic Protector: the Defending player's working Flygon ex, Active or Benched, with cards in the hand (agreed: asked first).
+  const protector = opp.hand.length > 0 && [opp.active, ...opp.bench].some((p) => p && powerEffect(effectId(p))?.psychicProtector && powerActive(p, state.cards, [opp, me]));
+  if (!ninja && !flee && !protector) return null;
   const checked = checkAttack(attackSituation(state, me, opp), attackIndex, given);
   if ('error' in checked) return fail(checked.error);
+  if (!ninja && !flee) {
+    state.pendingChoice = { player: opp.id, source: 'Psychic Protector', kind: 'protector', attackIndex, choices: checked.choices, picked: [] };
+    return ok(state);
+  }
   state.pendingChoice = { player: opp.id, source: ninja ? "Koga's Ninja Trick" : 'Flee', kind: ninja ? 'ninjaTrick' : 'flee', attackIndex, choices: checked.choices };
   return ok(state);
 }
@@ -1360,25 +1403,12 @@ const isBasicGrass = (cards: CardLibrary, e: CardInstance) => {
 };
 
 export const energyPool = (pokemon: InPlayPokemon, cards: CardLibrary): PoolEnergy[] => {
-  // Rare Metal, Prismatic Body: each basic Energy card provides another type (Prismatic Body: every type, 1 at a time).
-  const basicAs = pokemon.powerOffUntil === undefined ? powerEffect(effectId(pokemon))?.basicEnergyAs : undefined;
   const pool = pokemon.energy.flatMap((e) => {
-    const { type, amount } = energyProvided(e, cards);
-    if (basicAs && !e.provides && isBasicEnergy(lookupCard(cards, e.defId))) return [basicAs];
-    // Aqua Energy and Magma Energy: 2 Energy, each either of its types (agreed: any mix).
-    const team = !e.provides && !e.windless && TEAM_ENERGY[lookupCard(cards, e.defId).name];
-    if (team) return [team, team];
-    // Dark Metal Energy: 1 Energy, Darkness or Metal.
-    if (!e.provides && !e.windless && lookupCard(cards, e.defId).name === 'Dark Metal Energy') return ['crystal:darkness,metal' as CrystalEnergy];
-    // Scramble Energy: 3 Energy of any types while its owner has more Prize cards left (otherwise Colorless).
-    if (e.scrambled && !e.windless) return ['any', 'any', 'any'] as PoolEnergy[];
-    // Holon Research Tower: a basic Energy card on a δ Pokémon is its type or Metal.
-    if (e.holonMetal && type !== 'metal') return [`crystal:${type},metal` as CrystalEnergy];
-    // Reactive Booster: a React Energy card provides 2 Energy of every type.
-    if (e.reactBoost && !e.windless) return ['any', 'any'] as PoolEnergy[];
-    // δ Rainbow Energy: every type, 1 at a time, on a δ Pokémon; Colorless otherwise.
-    if (!e.provides && !e.windless && lookupCard(cards, e.defId).name === 'δ Rainbow Energy' && / δ$/.test(inPlayDef(cards, pokemon).name)) return ['any'] as PoolEnergy[];
-    return Array<PoolEnergy>(amount).fill(isCrystalEnergy(cards, e) ? crystalProvides(pokemon, cards) : type);
+    const provided = cardEnergy(pokemon, e, cards);
+    // Crystal Beach: a Special Energy card providing 2 or more Energy now, provides 1 Colorless Energy (agreed: whatever makes it 2).
+    const beached = e.beached && provided.length >= 2 ? (['colorless'] as PoolEnergy[]) : provided;
+    // Chlorophyll: an Energy card providing only Colorless Energy on its player's Grass Pokémon provides as much Grass Energy.
+    return e.chlorophyll ? beached.map((t): PoolEnergy => (t === 'colorless' ? 'grass' : t)) : beached;
   });
   if (pokemon.effects?.energyBurn !== undefined) return pool.map(() => 'fire');
   // Dark Aura: all of it is Darkness Energy.
@@ -1390,6 +1420,28 @@ export const energyPool = (pokemon: InPlayPokemon, cards: CardLibrary): PoolEner
   if (pokemon.wildGrowth) pool.push(...pokemon.energy.filter((e) => !e.provides && isBasicGrass(cards, e)).map((): PoolEnergy => 'grass'));
   return powerEffect(effectId(pokemon))?.photosynthesis && pokemon.powerOffUntil === undefined ? pool.map(() => 'grass') : pool;
 };
+
+/** The Energy one attached card provides, before Crystal Beach and Chlorophyll (energyPool). */
+export function cardEnergy(pokemon: InPlayPokemon, e: CardInstance, cards: CardLibrary): PoolEnergy[] {
+  const { type, amount } = energyProvided(e, cards);
+  // Rare Metal, Prismatic Body: each basic Energy card provides another type (Prismatic Body: every type, 1 at a time).
+  const basicAs = pokemon.powerOffUntil === undefined ? powerEffect(effectId(pokemon))?.basicEnergyAs : undefined;
+  if (basicAs && !e.provides && isBasicEnergy(lookupCard(cards, e.defId))) return [basicAs];
+  // Aqua Energy and Magma Energy: 2 Energy, each either of its types (agreed: any mix).
+  const team = !e.provides && !e.windless && TEAM_ENERGY[lookupCard(cards, e.defId).name];
+  if (team) return [team, team];
+  // Dark Metal Energy: 1 Energy, Darkness or Metal.
+  if (!e.provides && !e.windless && lookupCard(cards, e.defId).name === 'Dark Metal Energy') return ['crystal:darkness,metal' as CrystalEnergy];
+  // Scramble Energy: 3 Energy of any types while its owner has more Prize cards left (otherwise Colorless).
+  if (e.scrambled && !e.windless) return ['any', 'any', 'any'] as PoolEnergy[];
+  // Holon Research Tower: a basic Energy card on a δ Pokémon is its type or Metal.
+  if (e.holonMetal && type !== 'metal') return [`crystal:${type},metal` as CrystalEnergy];
+  // Reactive Booster: a React Energy card provides 2 Energy of every type.
+  if (e.reactBoost && !e.windless) return ['any', 'any'] as PoolEnergy[];
+  // δ Rainbow Energy: every type, 1 at a time, on a δ Pokémon; Colorless otherwise.
+  if (!e.provides && !e.windless && lookupCard(cards, e.defId).name === 'δ Rainbow Energy' && isDelta(cards, pokemon)) return ['any'] as PoolEnergy[];
+  return Array<PoolEnergy>(amount).fill(isCrystalEnergy(cards, e) ? crystalProvides(pokemon, cards) : type);
+}
 
 /** What each of the 2 Energy that Aqua Energy and Magma Energy provide can be. */
 const TEAM_ENERGY: Record<string, CrystalEnergy> = { 'Aqua Energy': 'crystal:water,darkness', 'Magma Energy': 'crystal:fighting,darkness' };
@@ -1790,7 +1842,7 @@ export function afflictBetweenTurns(state: GameState, owner: PlayerId, pokemon: 
   const effect = powerActive(pokemon, state.cards, sides) ? powerEffect(effectId(pokemon)) : undefined;
   const name = pokemonName(state, pokemon);
   const label = affliction === 'poisoned' ? 'Poisoned' : affliction === 'burned' ? 'Burned' : conditionLabel(affliction);
-  if (conditionProof(inPlayDef(state.cards, pokemon)) || conditionFree(pokemon, state.cards, effect) || (affliction === 'poisoned' && effect?.noPoison) || conditionBarred(effect, affliction)) {
+  if (conditionProof(inPlayDef(state.cards, pokemon)) || conditionFree(pokemon, state.cards, effect) || (affliction === 'poisoned' && effect?.noPoison) || conditionBarred(effect, affliction, pokemon)) {
     return addLog(state, `${name} can't be ${label}.`, owner);
   }
   const guard = state.rules?.find((r) => r.kind === 'conditionGuard' && r.player === owner && r.conditions.includes(affliction));
@@ -1874,12 +1926,20 @@ function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId | null
     // Time Travel: Knocked Out by the opponent's attack, a heads (flipped then) shuffles it and its cards into the deck instead.
     for (const p of [owner.active, ...owner.bench]) {
       if (!p?.timeTravel) continue;
+      const bottom = p.timeTravel === 'bottom';
       delete p.timeTravel;
       if (p.damage < inPlayDef(state.cards, p).hp) continue;
-      const cards = [...p.evolvedFrom, p.card, ...p.energy.map(asDiscarded), ...(p.attached ?? []).map((a) => a.card)];
-      [owner.deck, state.rngState] = shuffle([...owner.deck, ...cards], state.rngState);
       if (owner.active === p) owner.active = null;
       else owner.bench = owner.bench.map((q) => (q === p ? null : q));
+      // Celebi ☆: the cards attached are discarded, and it goes on the bottom of the deck.
+      if (bottom) {
+        owner.discard.push(...p.evolvedFrom, ...p.energy.map(asDiscarded), ...(p.attached ?? []).map((a) => a.card));
+        owner.deck.push(p.card);
+        addLog(state, `Time Travel: ${pokemonName(state, p)} isn't Knocked Out; its cards were discarded and it went on the bottom of the deck.`, id);
+        continue;
+      }
+      const cards = [...p.evolvedFrom, p.card, ...p.energy.map(asDiscarded), ...(p.attached ?? []).map((a) => a.card)];
+      [owner.deck, state.rngState] = shuffle([...owner.deck, ...cards], state.rngState);
       addLog(state, `Time Travel: ${pokemonName(state, p)} isn't Knocked Out; it was shuffled into the deck.`, id);
     }
     const knockOut = (pokemon: InPlayPokemon) => {
@@ -1903,7 +1963,7 @@ function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId | null
       const def = lookupCard(state.cards, pokemon.card.defId);
       if (def.kind === 'pokemon' && def.trainerText) return;
       // Empty Shell: the opponent takes no Prize cards for Shedinja.
-      if (powerEffect(effectId(pokemon))?.noPrizes && !pokemon.stadiumMuted) return addLog(state, `Empty Shell: no Prize cards for ${pokemonName(state, pokemon)}.`, id);
+      if (powerEffect(effectId(pokemon))?.noPrizes && pokemon.stadiumMuted !== 'all' && pokemon.stadiumMuted !== 'bodies') return addLog(state, `Empty Shell: no Prize cards for ${pokemonName(state, pokemon)}.`, id);
       // A Pokémon-ex gives up 2 Prize cards.
       for (let n = def.kind === 'pokemon' && def.ex ? 2 : 1; n > 0; n--) {
         const prize = taker.prizes.pop();
@@ -2026,6 +2086,18 @@ function refreshHideout(state: GameState) {
       delete p.stadiumMuted;
       if (stadium === 'Space Center' && d.stage === 'basic' && !d.ex && !hasOwner(d.name)) p.stadiumMuted = 'bodies';
       if (stadium === 'Battle Frontier' && p.evolvedFrom.length && (['colorless', 'darkness', 'metal'] as const).some((t) => hasType(d, t))) p.stadiumMuted = 'all';
+      // Sidney's Stadium: Darkness Pokémon can't be Asleep, Confused or Paralyzed (one already is, no longer).
+      if (stadium === "Sidney's Stadium" && hasType(d, 'darkness')) {
+        p.sidneyGuard = true;
+        if (p.condition) {
+          p.condition = null;
+          delete p.paralyzedTurn;
+          addLog(state, `Sidney's Stadium: ${pokemonName(state, p)} is no longer affected by that Special Condition.`, player.id);
+        }
+      } else delete p.sidneyGuard;
+      // Holon Legacy: no Poké-Powers for δ Pokémon. Cessation Crystal on either Active Pokémon: no powers for anyone.
+      if (stadium === 'Holon Legacy' && isDelta(state.cards, p)) p.stadiumMuted = 'powers';
+      if (sides.some((s) => s.active && toolOf(state.cards, s.active)?.name === 'Cessation Crystal')) p.stadiumMuted = 'all';
       // A Pokémon Tool that can't stay on its Pokémon (Curse Powder on a Basic Pokémon, Energy Root on a Pokémon-ex…) is discarded.
       const tool = toolOf(state.cards, p);
       const fits = tool && trainerEffect(tool.tool.card.defId)?.toolFor;
@@ -2052,7 +2124,7 @@ function refreshHideout(state: GameState) {
       if (plus && powerActive(p, state.cards, sides)) p.hpPlus = (p.hpPlus ?? 0) + plus;
       // Holon Research Tower: the basic Energy cards on a δ Pokémon are Metal too (energyPool).
       for (const e of p.energy) {
-        if (stadium === 'Holon Research Tower' && / δ$/.test(d.name) && !e.provides && isBasicEnergy(lookupCard(state.cards, e.defId))) e.holonMetal = true;
+        if (stadium === 'Holon Research Tower' && isDelta(state.cards, p) && !e.provides && isBasicEnergy(lookupCard(state.cards, e.defId))) e.holonMetal = true;
         else delete e.holonMetal;
       }
     }
@@ -2061,6 +2133,27 @@ function refreshHideout(state: GameState) {
   for (const player of Object.values(state.players)) {
     const own = [player.active, ...player.bench].filter((p): p is InPlayPokemon => !!p);
     const working = (key: keyof PowerEffect) => own.filter((q) => powerEffect(effectId(q))?.[key] && powerActive(q, state.cards, sides)).map((q) => powerEffect(effectId(q))!);
+    // Holon Veil: every Pokémon of the player's has δ on its card, for both players' cards (agreed).
+    const veil = working('holonVeil').length > 0;
+    if (veil) player.holonVeil = true;
+    else delete player.holonVeil;
+    for (const p of own) {
+      if (veil) p.veiled = true;
+      else delete p.veiled;
+    }
+    // Crystal Beach: every Special Energy card is checked for providing 2 or more (energyPool). Chlorophyll: on the player's
+    // Grass Pokémon, a card providing only Colorless Energy provides Grass instead (agreed: as much, any such card).
+    const beach = stadium === 'Crystal Beach';
+    const chlorophyll = working('chlorophyll').length > 0;
+    for (const p of own) {
+      const grass = chlorophyll && hasType(inPlayDef(state.cards, p), 'grass');
+      for (const e of p.energy) {
+        if (beach && isSpecialEnergy(state.cards, e)) e.beached = true;
+        else delete e.beached;
+        delete e.chlorophyll;
+        if (grass && cardEnergy(p, e, state.cards).every((t) => t === 'colorless')) e.chlorophyll = true;
+      }
+    }
     // Reactive Booster: each React Energy card on the player's Pokémon it names provides 2 Energy of every type (energyPool).
     const boosted = working('reactiveBooster').flatMap((e) => e.reactiveBooster!);
     for (const p of own) {

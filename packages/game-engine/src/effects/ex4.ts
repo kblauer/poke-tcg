@@ -78,7 +78,7 @@ const tailsDiscard = (damage: number): AttackEffect => ({
 });
 
 /** Damage counters on the opponent's Pokémon the player picks (Psymist, Clay Curse, Night Attack), not on those the attack can't affect. */
-function counterPicks(ctx: AttackContext, source: string, count: number) {
+export function counterPicks(ctx: AttackContext, source: string, count: number) {
   const skip = inPlay(ctx.opp).filter((p) => !ctx.canAffect(ctx.opp, p)).map((p) => p.card.uid);
   if (count > 0 && inPlay(ctx.opp).length > skip.length) ctx.pend({ kind: 'placeCounters', source, count, active: true, skip });
 }

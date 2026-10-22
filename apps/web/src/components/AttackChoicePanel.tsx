@@ -24,10 +24,10 @@ export function AttackChoicePanel({ spec, view, attack }: { spec: ChoiceSpec; vi
             <p className={pickHint}>Click the CPU's highlighted Pokémon to choose them.</p>
             <button
               className={`${option} disabled:opacity-40`}
-              disabled={attack.benchPicked.length !== Math.min(spec.count, spec.options.length)}
+              disabled={attack.benchPicked.length !== attack.benchCount}
               onClick={() => attack.answer(attack.benchPicked)}
             >
-              Attack ({attack.benchPicked.length}/{Math.min(spec.count, spec.options.length)})
+              Attack ({attack.benchPicked.length}/{attack.benchCount})
             </button>
           </>
         )}

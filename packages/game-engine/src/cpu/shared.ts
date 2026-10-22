@@ -225,7 +225,7 @@ function answers(spec: ChoiceSpec): AttackChoices[keyof AttackChoices][] {
       return sizes.flatMap((n) => combinations(spec.options, n)).map((picked) => picked.map((c) => c.uid));
     }
     case 'opponentBenchMany':
-      return slotCombinations(spec.options, Math.min(spec.count, spec.options.length));
+      return spec.repeat ? slotMultisets(spec.options, spec.count) : slotCombinations(spec.options, Math.min(spec.count, spec.options.length));
     case 'eitherDiscard':
       return spec.options.map((c) => [c.uid]);
     case 'oppDiscard':
@@ -244,6 +244,12 @@ function answers(spec: ChoiceSpec): AttackChoices[keyof AttackChoices][] {
 function slotCombinations(slots: number[], n: number): number[][] {
   if (n === 0) return [[]];
   return slots.flatMap((slot, i) => slotCombinations(slots.slice(i + 1), n - 1).map((rest) => [slot, ...rest]));
+}
+
+/** Every way to pick `n` of the slots, the same one any number of times (Rock Blast), in order. */
+function slotMultisets(slots: number[], n: number): number[][] {
+  if (n === 0) return [[]];
+  return slots.flatMap((slot, i) => slotMultisets(slots.slice(i), n - 1).map((rest) => [slot, ...rest]));
 }
 
 /**

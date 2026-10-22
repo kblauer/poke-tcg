@@ -43,7 +43,7 @@ function finishSearch(state: GameState): GameAction {
   const choice = state.pendingChoice!;
   if (view.kind === 'options') return { type: 'RESOLVE_CHOICE', count: (choice.kind === 'mayFlip' && choice.power === 'howl') || (choice.kind === 'mayUse' && choice.power === 'retroEnergy') ? 1 : 0 };
   // Attract Energy, Delta Switch ("any number"): its Energy stays where it is.
-  if (choice.kind === 'moveAttached' || (choice.kind === 'deltaSwitch' && !choice.cardUid)) return { type: 'RESOLVE_CHOICE' };
+  if (choice.kind === 'moveAttached' || choice.kind === 'protector' || (choice.kind === 'deltaSwitch' && !choice.cardUid)) return { type: 'RESOLVE_CHOICE' };
   const [pick] = view.options;
   return { type: 'RESOLVE_CHOICE', ...(pick && { cardUid: pick.uid }) };
 }

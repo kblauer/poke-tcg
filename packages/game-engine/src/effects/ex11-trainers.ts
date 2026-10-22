@@ -10,7 +10,7 @@
 // Prize cards left; Holon Scientist counts the hands once its card is discarded.
 import { isBasicEnergy, lookupCard } from '../cards.js';
 import { def, otherHandCards, type EnergyEffect, type TrainerEffect, type TrainerSituation } from '../trainers.js';
-import { inPlayDef } from '../status.js';
+import { isDelta } from '../status.js';
 import { ECARD1_TRAINERS } from './ecard1-trainers.js';
 import { EX1_ENERGY, EX1_TRAINERS } from './ex1-trainers.js';
 import { EX4_TRAINERS } from './ex4-trainers.js';
@@ -31,7 +31,7 @@ export const holon = (then: NonNullable<TrainerEffect['play']>, blocked?: (s: Tr
 
 /** The player has a δ Pokémon in play (Holon Ruins). */
 const hasDelta = (me: Pick<TrainerSituation['me'], 'active' | 'bench'>, cards: TrainerSituation['cards']) =>
-  [me.active, ...me.bench].some((p) => p && / δ$/.test(inPlayDef(cards, p).name));
+  [me.active, ...me.bench].some((p) => p && isDelta(cards, p));
 
 export const EX11_TRAINERS: Record<string, TrainerEffect> = {
   // Dual Ball: as EX Team Magma vs Team Aqua's. Great Ball, Super Scoop Up, Switch: as EX FireRed & LeafGreen's.

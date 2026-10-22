@@ -4,7 +4,7 @@ import type { AttackContext } from './attacks.js';
 import { hasType, holonEnergy, lookupCard, namesMatch, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { powerEffect } from './effects/index.js';
 import { counts, energyPool, type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
-import { addLog, effectId, flipCoin, hasSpecialCondition, inPlayDef, specialConditionLabel } from './status.js';
+import { addLog, effectId, flipCoin, hasSpecialCondition, isDelta, pokemonName, inPlayDef, specialConditionLabel } from './status.js';
 import { evolvesFromEevee, type PendingChoice, type PendingChoiceInput } from './trainers.js';
 
 /** Answers to a power's questions. Each question names the field it fills. */
@@ -172,7 +172,7 @@ export interface PowerEffect {
   /** Energy Evolution: whenever its owner attaches an Energy card to it, a flip; heads evolves it from the deck into the Energy's type (engine.ts). */
   energyEvolution?: boolean;
   /** Time Travel: if an opponent's attack would Knock it Out, a flip; heads shuffles it and its cards into its owner's deck instead (attacks.ts, resolveKnockouts). */
-  timeTravel?: boolean;
+  timeTravel?: boolean | 'bottom';
   /** Hard Shell: attack damage of 40 or less to it (after Weakness and Resistance) is 10 instead. */
   hardShell?: boolean;
   /** Crystal Body: the opponent's attacks do nothing to it but damage. */
@@ -405,6 +405,50 @@ export interface PowerEffect {
   spiralSwirl?: boolean;
   /** Golden Wing: Knocked Out by the opponent's attack's damage, its owner may move up to 2 of its Energy cards to their other Pokémon. */
   goldenWing?: boolean;
+  /**
+   * A card with a Poké-Body and a Poké-Power (Igglybuff, Snorlax δ): the effect is the body's (`body`), and `use` is the
+   * Poké-Power's, which stops as Poké-Powers do (powerError). `powerName`: the Poké-Power's printed name.
+   */
+  usePoke?: boolean;
+  powerName?: string;
+  /** Metal Gravity: the opponent's Active Pokémon that retreats with 40 HP or more left gets 3 damage counters (RETREAT; only one). */
+  metalGravity?: boolean;
+  /** Sand Veil: the opponent's attacks do no damage to its player's Benched Pokémon (attacks.ts). */
+  sandVeil?: boolean;
+  /** Delta Protection: attack damage to it from the opponent's δ Pokémon is this much less, after Weakness and Resistance. */
+  deltaGuard?: number;
+  /** Hard Rock: with 1 Energy or less on it, attack damage to its player's Groudon ex is 20 less, after Weakness and Resistance (only one). */
+  hardRock?: boolean;
+  /** Battle Aura (its player's δ Pokémon), Extra Feather (their Stage 2 Pokémon-ex): 10 more to the Defending Pokémon, each one adding up. */
+  allyMore?: 'delta' | 'stage2ex';
+  /** Extra Smoke: attack damage to its player's Stage 2 Pokémon-ex is 10 less, before Weakness and Resistance, each one adding up. */
+  extraSmoke?: boolean;
+  /** Solid Shell (Cloyster δ): attacks by the opponent's Pokémon do nothing to its player's Benched δ Pokémon. */
+  deltaBenchShield?: boolean;
+  /** Armor: with 5 or more cards in the opponent's hand, attack damage to it is 30 less, after Weakness and Resistance. */
+  handArmor?: boolean;
+  /** Fluffy Fur: damaged by the opponent's attack as its player's Active Pokémon, the attacker is now Asleep. */
+  fluffyFur?: boolean;
+  /** Intimidating Armor: as its player's Active Pokémon, the opponent's Basic Pokémon can't attack or use Poké-Powers or Poké-Bodies. */
+  intimidatingArmor?: boolean;
+  /** Synergy Effect: what it does while the Stadium named is in play (Sableye: no damage from Pokémon-ex; Glalie: 30 less). */
+  synergy?: { stadium: string; exProof?: boolean; less?: number };
+  /** Hover Lift, Jynx δ's Stages of Evolution: its player's Pokémon with these names (or of these types) retreat for 1 less, each one adding up (retreatBodies). */
+  retreatLessFor?: { names?: string[]; types?: EnergyType[] };
+  /** Extra Wing: its player's Stage 2 Pokémon-ex retreat for free (retreatBodies). */
+  extraWing?: boolean;
+  /** Flotation: with 1 Energy or less attached to it, its player's Kyogre ex retreat for free (retreatBodies). */
+  flotation?: boolean;
+  /** Extra Liquid: while it's in play, Pokémon-ex (either player's) can't use Poké-Powers, and their attacks cost 1 Colorless more (only 1, however many). */
+  extraLiquid?: boolean;
+  /** Dark Eyes: after the opponent's Pokémon uses a Poké-Power, 2 damage counters on it (usePower). */
+  darkEyes?: boolean;
+  /** Chlorophyll: on its player's Grass Pokémon, each card providing only Colorless Energy provides Grass instead (refreshHideout, energyPool). */
+  chlorophyll?: boolean;
+  /** Holon Veil: every Pokémon card of its player's (in play, deck, hand, discard pile) has δ on it (refreshHideout, isDelta). */
+  holonVeil?: boolean;
+  /** Psychic Protector: before the opponent's attack its player may choose up to 4 hand cards, discarded for 10 less damage each if it's damaged (attacks.ts). */
+  psychicProtector?: boolean;
   /** Reactive Recharge: Knocked Out by the opponent's attack's damage, its owner may move its React Energy cards to their other Pokémon. */
   reactiveRecharge?: boolean;
   /** Shadow Curse: Knocked Out by the opponent's attack's damage, its owner may put 3 damage counters on one of the opponent's Pokémon. */
@@ -475,10 +519,12 @@ export function auraStops(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sid
         (active && !!effect.wiseAura && !d.ex && !body) ||
         (active && !!effect.intimidatingRing && side !== owner && !body && d.stage === 'basic') ||
         (active && !!effect.stench && !body) ||
+        (active && !!effect.intimidatingArmor && side !== owner && d.stage === 'basic') ||
         (!!effect.rearSensor && owner?.active === pokemon && !body && d.stage === 'basic' && !d.ex) ||
         (!!effect.shade && !body && !d.ex && hasType(d, effect.shade.type) && has(effect.shade.partner)) ||
         (!!effect.dualAura && body && !d.ex && pokemon.evolvedFrom.length > 0 && (has(effect.dualAura) || has(`${effect.dualAura} ex`))) ||
-        (!!effect.deltaReserve && !body && !/ δ$/.test(d.name) && a.energy.some((e) => !e.provides && !e.windless && lookupCard(cards, e.defId).name.startsWith('Holon Energy')));
+        (!!effect.extraLiquid && !body && !!d.ex) ||
+        (!!effect.deltaReserve && !body && !isDelta(cards, pokemon) && a.energy.some((e) => !e.provides && !e.windless && lookupCard(cards, e.defId).name.startsWith('Holon Energy')));
       if (reaches && powerActive(a, cards, sides)) return powerOf(a, cards)!.name;
     }
   }
@@ -514,8 +560,8 @@ export const bindingAura = (sides: Sides, cards: CardLibrary) =>
   !!sides[1] && [sides[1].active, ...sides[1].bench].some((p) => !!p && !!powerEffect(effectId(p))?.bindingAura && powerActive(p, cards, sides));
 
 /** Insomnia, Self-control, Carefree, Magma Armor: a working power keeps this one Special Condition off the Pokémon. */
-export const conditionBarred = (effect: PowerEffect | undefined, affliction: string) =>
-  (affliction === 'asleep' && !!effect?.noSleep) || !!effect?.immuneTo?.includes(affliction as 'asleep' | 'confused' | 'paralyzed');
+export const conditionBarred = (effect: PowerEffect | undefined, affliction: string, pokemon?: InPlayPokemon) =>
+  (affliction === 'asleep' && !!effect?.noSleep) || !!effect?.immuneTo?.includes(affliction as 'asleep' | 'confused' | 'paralyzed') || (!!pokemon?.sidneyGuard && affliction !== 'poisoned' && affliction !== 'burned' && affliction !== 'toxic');
 
 export interface PowerContext {
   state: GameState;
@@ -581,7 +627,9 @@ export function powerActive(pokemon: InPlayPokemon, cards: CardLibrary, sides: S
   // Stages of Evolution: only while it's an Evolved Pokémon.
   if (effect?.evolvedOnly && !pokemon.evolvedFrom.length) return false;
   // Space Center (Poké-Bodies) and Battle Frontier (both) switch off the powers of the Pokémon they name (refreshHideout).
-  if (pokemon.stadiumMuted === 'all' || (pokemon.stadiumMuted === 'bodies' && effect?.body)) return false;
+  if (pokemon.stadiumMuted === 'all' || (pokemon.stadiumMuted === 'bodies' && effect?.body) || (pokemon.stadiumMuted === 'powers' && !effect?.body)) return false;
+  // Imprison: a Pokémon with an Imprison marker can't use Poké-Powers or Poké-Bodies.
+  if (pokemon.imprisoned) return false;
   // Ancient Wind: every Poké-Body is ignored until the end of the turn.
   if (effect?.body && sides.some((s) => s.bodiesOffTurn !== undefined)) return false;
   // Scare: a Baby Pokémon's power doesn't work while the opponent's Active Dark Feraligatr's Scare does.
@@ -766,13 +814,23 @@ export function retreatBodies(pokemon: InPlayPokemon, cards: CardLibrary, sides:
   // Dragon Lift: free for every Pokémon of its player's (not Pokémon-ex or Baby Pokémon).
   const d = inPlayDef(cards, pokemon);
   const lifted = !d.ex && !d.baby && [owner.active, ...owner.bench].some((p) => !!p && !!powerEffect(effectId(p))?.freeRetreatAll && powerActive(p, cards, sides));
+  // Extra Wing: free for its player's Stage 2 Pokémon-ex. Flotation: free for its player's Kyogre ex while the one with it has 1 Energy or less.
+  const winged = !!d.ex && d.stage === 'stage2' && [owner.active, ...owner.bench].some((p) => !!p && !!powerEffect(effectId(p))?.extraWing && powerActive(p, cards, sides));
+  const floated = d.name === 'Kyogre ex' && [owner.active, ...owner.bench].some((p) => !!p && !!powerEffect(effectId(p))?.flotation && energyPool(p, cards).length <= 1 && powerActive(p, cards, sides));
+  if (winged || floated) return -99;
+  // Hover Lift, Jynx δ's Stages of Evolution: 1 less for each of its player's working ones naming this Pokémon or one of its types.
+  const less = [owner.active, ...owner.bench].reduce((n, p) => {
+    const lift = p && powerEffect(effectId(p))?.retreatLessFor;
+    const fits = lift && ((lift.names ?? []).some((name) => namesMatch(d.name, name)) || (lift.types ?? []).some((t) => hasType(d, t)));
+    return n + (fits && powerActive(p!, cards, sides) ? 1 : 0);
+  }, 0);
   // Reactive Lift: free for its player's Water Pokémon (not Pokémon-ex) while the Wailord has a React Energy card attached.
   const reactive = !d.ex && hasType(d, 'water') && [owner.active, ...owner.bench].some((p) => !!p && !!powerEffect(effectId(p))?.reactiveLift && hasReact(p, cards) && powerActive(p, cards, sides));
   if (bonded || lifted || reactive) return -99;
   // Wobbuffet's Stages of Evolution: each of the opponent's makes their Active Pokémon cost 1 more.
   const opponent = sides[1];
   const tax = owner.active === pokemon && opponent ? [opponent.active, ...opponent.bench].reduce((n, p) => n + (p && powerActive(p, cards, sides) ? (powerEffect(effectId(p))?.retreatTax ?? 0) : 0), 0) : 0;
-  return own + tax + (owner.active === pokemon && anyWorking(sides, cards, (e) => e.glueySlime) ? 1 : 0);
+  return own + tax - less + (owner.active === pokemon && anyWorking(sides, cards, (e) => e.glueySlime) ? 1 : 0);
 }
 
 /** Spiral: the opponent's Active Pokémon (`sides[1]`'s) keeps `sides[0]`'s Confused Active Pokémon from retreating; its name, or null. */
@@ -917,17 +975,20 @@ export function powerError(s: PowerSituation): string | null {
   if (!def.power || !effect?.use) return `${def.name} has no power to use`;
   // Powers that are used all stop working while their Pokémon has a Special Condition (Poisoned and Burned too, agreed),
   // unless they say otherwise (Unown B and Y).
-  if (hasSpecialCondition(source) && !effect.ignoresConditions) return `${def.name} is ${specialConditionLabel(source)} and can't use ${def.power.name}`;
+  if (hasSpecialCondition(source) && (!effect.ignoresConditions || effect.usePoke)) return `${def.name} is ${specialConditionLabel(source)} and can't use ${def.power.name}`;
   if (goopGas([s.me, s.opp])) return `Goop Gas Attack: Pokémon Powers don't work until the end of the turn after it was played`;
   if (toxicGas([s.me, s.opp])) return `Toxic Gas: ${def.power.name} can't be used`;
   if (source.powerOffUntil !== undefined) return `${def.power.name} doesn't work until the end of your turn (Stare)`;
-  if (source.effects?.noPokePowers !== undefined) return `Dark Impact: ${def.name} can't use Poké-Powers this turn`;
+  if (source.effects?.noPokePowers !== undefined && (!effect.body || effect.usePoke)) return `Dark Impact: ${def.name} can't use Poké-Powers this turn`;
   if (darkGazed(source, s.cards, [s.me, s.opp])) return "Dark Gaze: Benched Pokémon can't use Poké-Powers";
   if (lazied(source, s.cards, [s.me, s.opp])) return "Lazy: your Pokémon can't use Poké-Powers";
   const aura = auraStops(source, s.cards, [s.me, s.opp]);
   if (aura) return `${aura}: ${def.name} can't use Poké-Powers`;
   // Space Center, Battle Frontier.
-  if (source.stadiumMuted === 'all') return `The Stadium in play: ${def.name} can't use Poké-Powers`;
+  if (source.stadiumMuted === 'all' || (source.stadiumMuted === 'powers' && (!effect.body || effect.usePoke))) return `${def.name} can't use Poké-Powers now`;
+  if (source.imprisoned) return `Imprison: ${def.name} can't use Poké-Powers`;
+  // Shield Beam: none of the player's Pokémon can use Poké-Powers during their turn after it.
+  if ((s.me.powerTurns?.['Shield Beam'] ?? -1) >= s.turn && (!effect.body || effect.usePoke)) return "Shield Beam: you can't use Poké-Powers this turn";
   // Mt. Moon: no Poké-Powers (or older Pokémon Powers) for a Pokémon with less than 70 HP.
   if (s.stadium && lookupCard(s.cards, s.stadium.defId).name === 'Mt. Moon' && !effect.body && def.hp < 70) return `Mt. Moon: ${def.name} can't use Poké-Powers`;
   const blocked = effect.blocked?.(s);
@@ -1018,8 +1079,12 @@ export function usePower(state: GameState, me: PlayerState, opp: PlayerState, so
   const source = pokemonAt(me, sourceTarget)!;
   const def = inPlayDef(state.cards, source);
   const effect = powerEffect(effectId(source))!;
-  addLog(state, `${def.name} used ${def.power!.name}.`, me.id);
+  const powerName = effect.powerName ?? def.power!.name;
+  addLog(state, `${def.name} used ${powerName}.`, me.id);
   if (effect.oncePerTurn) source.powerUsedTurn = state.turn;
+  // Dark Eyes (the opponent's Shiftry ex): after a Poké-Power is used, 2 damage counters on the Pokémon that used it.
+  const darkEyes = (!effect.body || effect.usePoke) && [opp.active, ...opp.bench].some((p) => p && powerEffect(effectId(p))?.darkEyes && powerActive(p, state.cards, [opp, me]));
+  const uid = source.card.uid;
   effect.use!({
     state,
     me,
@@ -1033,5 +1098,13 @@ export function usePower(state: GameState, me: PlayerState, opp: PlayerState, so
       state.pendingChoice = { ...choice, player: me.id } as PendingChoice;
     },
   });
+  // Dark Eyes: once the power has done its part (the Pokémon may have moved, or left play).
+  if (darkEyes) {
+    const used = [me.active, ...me.bench].find((p) => p?.card.uid === uid);
+    if (used) {
+      used.damage += 20;
+      addLog(state, `Dark Eyes put 2 damage counters on ${pokemonName(state, used)}.`, opp.id);
+    }
+  }
   return null;
 }

@@ -13,7 +13,7 @@ import { lookupCard } from '../cards.js';
 import { afflictBetweenTurns, isEnergyCardOf, type Target } from '../engine.js';
 import { discardsLocked, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
 import { nextRandom } from '../rng.js';
-import { effectId, inPlayDef, pokemonName } from '../status.js';
+import { effectId, inPlayDef, isDelta, pokemonName } from '../status.js';
 import { powerEffect } from './index.js';
 import { babyEvolution, POKE_BODY } from './ex2-powers.js';
 import { EX5_POWERS } from './ex5-powers.js';
@@ -86,7 +86,7 @@ export const EX11_POWERS: Record<string, PowerEffect> = {
     blocked: (s) => (s.me.powerTurns?.['Delta Heal'] === s.turn ? 'Delta Heal has already been used this turn' : null),
     use(ctx) {
       (ctx.me.powerTurns ??= {})['Delta Heal'] = ctx.state.turn;
-      for (const p of [ctx.me.active, ...ctx.me.bench]) if (p && / δ$/.test(inPlayDef(ctx.state.cards, p).name)) healBetween(ctx.state, ctx.me, p, 10, 'Delta Heal');
+      for (const p of [ctx.me.active, ...ctx.me.bench]) if (p && isDelta(ctx.state.cards, p)) healBetween(ctx.state, ctx.me, p, 10, 'Delta Heal');
     },
   },
   // Gardevoir δ – Energy Jump: once a turn, an Energy card from one of the player's Pokémon to another.

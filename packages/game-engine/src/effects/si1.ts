@@ -9,7 +9,7 @@
 // Genesis. Gentle Song heals the Defending Pokémon as an effect of the attack, so whatever stops those stops it.
 import { targetsIn, pokemonOn, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
 import { counts, energyPool, type InPlayPokemon, type PlayerState, type PoolEnergy } from '../engine.js';
-import type { EnergyType } from '../cards.js';
+import { hasType, type EnergyType } from '../cards.js';
 import { inPlayDef, pokemonName } from '../status.js';
 import { benchedSlots, extraEnergy, flipToInflict, flipToProtect, lure, perHeads } from './common.js';
 import { flipForMore } from './jungle.js';
@@ -81,7 +81,7 @@ const attachedTypes = (s: Pick<AttackSituation, 'attacker' | 'cards'>) => {
 };
 
 /** The opponent's Pokémon in play of `type`, by target. */
-const opponentOfType = (ctx: AttackContext, type: EnergyType) => targetsIn(ctx.opp.active, ctx.opp.bench).filter((t) => inPlayDef(ctx.state.cards, pokemonOn(ctx.opp.active, ctx.opp.bench, t)!).type === type);
+const opponentOfType = (ctx: AttackContext, type: EnergyType) => targetsIn(ctx.opp.active, ctx.opp.bench).filter((t) => hasType(inPlayDef(ctx.state.cards, pokemonOn(ctx.opp.active, ctx.opp.bench, t)!), type));
 
 /** `amount` damage (no Weakness or Resistance) to each of the opponent's Pokémon at `targets` (Rainbow Wave, Core Stream). */
 export function damageEach(ctx: AttackContext, targets: ReturnType<typeof targetsIn>, amount: number) {

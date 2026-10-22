@@ -125,6 +125,12 @@ export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCa
   return d;
 }
 
+/** A δ Pokémon in play: δ on its card, or (Holon Veil) any Pokémon of a player whose Ampharos δ's Holon Veil works (`veiled`). */
+export const isDelta = (cards: CardLibrary, pokemon: InPlayPokemon) => !!pokemon.veiled || / δ$/.test(inPlayDef(cards, pokemon).name);
+
+/** A δ Pokémon card out of play (deck, hand, discard pile): δ on it, or any Pokémon card of a player with Holon Veil (`veiled`). */
+export const isDeltaCard = (def: { kind: string; name: string; trainerText?: string }, veiled = false) => def.kind === 'pokemon' && !def.trainerText && (veiled || / δ$/.test(def.name));
+
 /** The Evolution card Shapeshift attached to Brock's Ninetales, if any. */
 export const shapeshiftCard = (pokemon: InPlayPokemon) => pokemon.attached?.find((a) => a.shapeshift)?.card;
 
