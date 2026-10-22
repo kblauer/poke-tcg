@@ -89,16 +89,20 @@ export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCa
     d = { ...copy, name: own.name, stage: own.stage, evolvesFrom: own.evolvesFrom, evolvesFromBasic: own.evolvesFromBasic, power: copy.power ?? own.power };
   } else if (shapeshiftCard(pokemon)) {
     d = { ...(lookupCard(cards, shapeshiftCard(pokemon)!.defId) as PokemonCardDef), power: own.power };
-  } else if (pokemon.shiftedType) d = { ...own, type: pokemon.shiftedType };
+  } else if (pokemon.shiftedType) d = { ...own, type: pokemon.shiftedType, types: undefined };
   // Crystal Type: the type of the basic Energy card attached from the hand, until the end of the turn.
-  if (pokemon.crystalType) d = { ...d, type: pokemon.crystalType };
+  if (pokemon.crystalType) d = { ...d, type: pokemon.crystalType, types: undefined };
   // Submerge: Lanturn is a Water Pokémon until the end of the turn.
-  if (pokemon.submerged !== undefined) d = { ...d, type: 'water' };
+  if (pokemon.submerged !== undefined) d = { ...d, type: 'water', types: undefined };
   // Crystal Shard: Colorless while it's attached.
-  if (pokemon.attached?.some((a) => a.tool && lookupCard(cards, a.card.defId).name === 'Crystal Shard')) d = { ...d, type: 'colorless' };
+  if (pokemon.attached?.some((a) => a.tool && lookupCard(cards, a.card.defId).name === 'Crystal Shard')) d = { ...d, type: 'colorless', types: undefined };
   // Energy Variation (a Poké-Body): every type of basic Energy card attached, while it works (refreshHideout).
   const varied = pokemon.variedTypes;
-  if (varied?.length) d = { ...d, type: varied[0]!, ...(varied.length > 1 && { types: varied }) };
+  if (varied?.length) {
+    d = { ...d, type: varied[0]! };
+    if (varied.length > 1) d.types = varied;
+    else delete d.types;
+  }
   if (pokemon.effects?.giantGrowth) d = { ...d, hp: 80 };
   // Low Pressure System: 10 more HP for a Grass or Lightning Pokémon.
   if (pokemon.lowPressure) d = { ...d, hp: d.hp + 10 };

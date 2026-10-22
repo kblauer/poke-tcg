@@ -1,7 +1,7 @@
 // Pokémon Powers: legality, the questions a power asks, and the context power effects run with.
 // Card-specific behaviour lives in effects/ (POWERS), next to the attack effects.
 import type { AttackContext } from './attacks.js';
-import { lookupCard, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
+import { hasType, lookupCard, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { powerEffect } from './effects/index.js';
 import { type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
 import { addLog, effectId, flipCoin, hasSpecialCondition, inPlayDef, specialConditionLabel } from './status.js';
@@ -59,7 +59,7 @@ export type PeekTarget = 'deck' | 'oppDeck' | 'oppHand' | 'prize' | 'oppPrize';
 
 /** What a power can see before it's used. View-safe: the UI builds it from a PlayerView. */
 export interface PowerSituation {
-  me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'discard' | 'powersOffUntil' | 'quickenTurn' | 'activeEnergyTurn' | 'goodNeighborTurn'>;
+  me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'discard' | 'powersOffUntil' | 'quickenTurn' | 'activeEnergyTurn' | 'goodNeighborTurn' | 'healDanceTurn' | 'weatherTurn'>;
   opp: Pick<PlayerState, 'active' | 'bench' | 'powersOffUntil' | 'discard'>;
   /** Sizes of the hidden piles (Peek). */
   counts: { deck: number; prizes: number; oppDeck: number; oppHand: number; oppPrizes: number };
@@ -271,6 +271,26 @@ export interface PowerEffect {
   primalVeil?: boolean;
   /** Primal Lock: while it's in play, the opponent can't play Pokémon Tools and theirs are discarded (primalLocked, dropLockedTools). */
   primalLock?: boolean;
+  /** Power Saver: it can't attack while 3 or fewer Pokémon in play (both players') have this in their names (attackError). */
+  powerSaver?: string;
+  /** Mark of Antiquity: as its player's Active Pokémon, the Pokémon with these names (either player's) can't attack (attackError). */
+  markOfAntiquity?: string[];
+  /** Primal Pull: as its player's Active Pokémon, each player's Evolved Pokémon pay 1 more Colorless Energy for their attacks (attackError). */
+  primalPull?: boolean;
+  /** Block Dust: as its player's Active Pokémon, the opponent can't play Trainer cards but Supporters (trainersDusted). */
+  blockDust?: boolean;
+  /** Ice Wall: attack damage to it from the opponent's Pokémon with a Special Energy card attached is this much less (attacks.ts). */
+  specialGuard?: number;
+  /** Shell Retreat, Core Guard: with Energy attached (any, or of `energy`), attack damage to it is `amount` less (`anyAttack`: its own player's attacks too). */
+  coreGuard?: { amount: number; energy?: EnergyType; anyAttack?: boolean };
+  /** Fast Feet: it can retreat while Asleep or Paralyzed (retreatError). */
+  fastFeet?: boolean;
+  /** Power Diffusion: as its player's Active Pokémon, attacks (either player's) do no damage to their Benched Pokémon (attacks.ts). */
+  powerDiffusion?: boolean;
+  /** Overzealous: while the opponent has a Pokémon-ex in play, its attacks do this much more to the Defending Pokémon (attacks.ts). */
+  overzealous?: number;
+  /** Energy Grounding: when the opponent's attack Knocks Out another of its player's Pokémon, a basic Energy card from it may go to this one (attacks.ts). */
+  energyGrounding?: boolean;
   /** Rain Dish: this much damage off it between turns, wherever it is (betweenTurns). */
   rainDish?: number;
   /** Conductivity (Ampharos ex): a damage counter on each Pokémon the opponent attaches an Energy card to from their hand; only 1, however many (conductivityEx). */
@@ -361,8 +381,19 @@ export function scaredBy(side: Pick<PlayerState, 'active' | 'bench'>, sides: Sid
 export const miraculousWind = (sides: Sides, cards: CardLibrary) =>
   sides.some((s) => !!s.active && !!powerEffect(effectId(s.active))?.miraculousWind && powerActive(s.active, cards, sides));
 
-/** Deep Sleep is working: a Dark Gengar with it, anywhere in play. */
-export const deepSleep = (sides: Sides, cards: CardLibrary) => anyWorking(sides, cards, (e) => e.deepSleep);
+/** Deep Sleep is working: a Dark Gengar with it, anywhere in play, or a Relicanth with it (a Poké-Body) as its player's Active Pokémon. */
+export const deepSleep = (sides: Sides, cards: CardLibrary) =>
+  allInPlay(sides).some((p) => {
+    const effect = powerEffect(effectId(p));
+    return !!effect?.deepSleep && (!effect.body || sides.some((s) => s.active === p)) && powerActive(p, cards, sides);
+  });
+
+/** Block Dust: why `player` can't play this Trainer card (not a Supporter) now, or null. `sides`: both players'. */
+export function trainersDusted(player: Sides[number], sides: Sides, cards: CardLibrary): string | null {
+  const opponent = sides.find((s) => s !== player);
+  const p = opponent?.active;
+  return p && powerEffect(effectId(p))?.blockDust && powerActive(p, cards, sides) ? `${powerOf(p, cards)!.name}: you can't play Trainer cards but Supporters` : null;
+}
 
 /** [Zoom]: `pokemon`, `sides[0]`'s Active Pokémon with Unown in its name, retreats for free while a benched Unown Z works. */
 export function zoomed(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sides): boolean {
@@ -583,6 +614,14 @@ export function energyFromHand(state: GameState, owner: PlayerState, target: Tar
       pokemon.damage -= 10;
       addLog(state, `Pokémon Park removed a damage counter from ${inPlayDef(state.cards, pokemon).name}.`, owner.id);
     }
+  }
+  // Island Cave: an Energy card attached from the hand to a Water, Fighting or Metal Pokémon removes its Special Conditions.
+  const stadium = state.stadium && lookupCard(state.cards, state.stadium.card.defId).name;
+  const caved = pokemon && ['water', 'fighting', 'metal'].some((t) => hasType(inPlayDef(state.cards, pokemon), t as EnergyType));
+  if (pokemon && stadium === 'Island Cave' && caved && hasSpecialCondition(pokemon)) {
+    Object.assign(pokemon, { condition: null, poison: 0, burned: false });
+    delete pokemon.paralyzedTurn;
+    addLog(state, `Island Cave: ${inPlayDef(state.cards, pokemon).name} is no longer affected by Special Conditions.`, owner.id);
   }
   // Conductivity: 10 damage to it, from the opponent's working Dark Ampharos.
   if (pokemon) conductivity(state, sides.find((s) => s !== owner)!, sides, pokemon);

@@ -25,7 +25,7 @@ const isBasicWater = (cards: CardLibrary, c: CardInstance) => {
 const POKE_BODY = { ignoresConditions: true, body: true } as const;
 
 /** Rough Skin: as the Active Pokémon, damaged by the opponent's attack (even Knocked Out), `counters` damage counters on the Attacking Pokémon. */
-const roughSkin = (counters: number): PowerEffect => ({
+export const roughSkin = (counters: number): PowerEffect => ({
   ...POKE_BODY,
   onAttackDamage(ctx, pokemon) {
     if (ctx.opp.active !== pokemon) return;

@@ -30,9 +30,15 @@ export const maxCopiesOf = (card: Pick<DeckRuleCard, 'name' | 'kind'>) => (onlyO
 /** Copies of one card a deck may hold before counting others with the same name. */
 export const copiesAllowed = (card: Pick<DeckRuleCard, 'basicEnergy' | 'name' | 'kind'>) => (card.basicEnergy ? DECK_SIZE : maxCopiesOf(card));
 
-/** Cards in a deck with exactly this name (basic Energy has no limit, so it isn't counted). */
+/**
+ * The name the 4-copy limit counts a card under (agreed): a δ (Delta Species) Pokémon counts as its base Pokémon (Kabuto δ
+ * as Kabuto); every other name is its own (Pokémon-ex, owners', Dark, Shining… print their limits or have their own names).
+ */
+export const limitName = (name: string) => name.replace(/ δ$/, '');
+
+/** Cards in a deck counted under this name (limitName; basic Energy has no limit, so it isn't counted). */
 export const copiesOfName = (entries: { card: DeckRuleCard; quantity: number }[], name: string) =>
-  entries.filter((e) => e.card.name === name && !e.card.basicEnergy).reduce((n, e) => n + e.quantity, 0);
+  entries.filter((e) => limitName(e.card.name) === limitName(name) && !e.card.basicEnergy).reduce((n, e) => n + e.quantity, 0);
 
 /** Printed on every Unown: "You may have up to 4 Basic Pokémon cards in your deck with Unown in their names." */
 export const MAX_UNOWN = 4;
@@ -48,7 +54,7 @@ export function deckProblems(entries: { card: DeckRuleCard; quantity: number }[]
   const problems: string[] = [];
   const total = entries.reduce((n, e) => n + e.quantity, 0);
   if (total !== DECK_SIZE) problems.push(`The deck has ${total} card${total === 1 ? '' : 's'}; it needs exactly ${DECK_SIZE}.`);
-  const names = new Map(entries.filter((e) => !e.card.basicEnergy).map((e) => [e.card.name, e.card] as const));
+  const names = new Map(entries.filter((e) => !e.card.basicEnergy).map((e) => [limitName(e.card.name), e.card] as const));
   for (const [name, card] of names) {
     const copies = copiesOfName(entries, name);
     if (onlyOnePerDeck(card) && copies > 1) problems.push(`${copies} cards named ${name}: at most 1.`);

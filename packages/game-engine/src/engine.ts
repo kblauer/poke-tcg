@@ -1,9 +1,9 @@
 /// <reference path="./globals.d.ts" />
 import { applyWeaknessResistance, attackSituation, checkAttack, performAttack, recallsAttacks, usableAttacks, type AttackChoices } from './attacks.js';
-import { attachBlocked, discardsLocked, energyFromHand, evolutionBlocked, primalBlock, retreatBodies, guardedBy, miraculousWind, offerChainReaction, playedFromHand, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, primalLocked, trainersBlocked, usePower, zoomed, type PowerChoices } from './powers.js';
+import { attachBlocked, discardsLocked, energyFromHand, evolutionBlocked, primalBlock, retreatBodies, guardedBy, miraculousWind, offerChainReaction, playedFromHand, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, primalLocked, trainersDusted, trainersBlocked, usePower, zoomed, type PowerChoices } from './powers.js';
 import { evolvesFromEevee, evolveWith, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
-import { hasType, isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
+import { conditionProof, hasType, isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { addLog, baseUid, clearOnLeavingActive, effectId, evolvedHook, hasSpecialCondition, shapeshiftCard, flipCoin, inPlayDef, openBenchSlot, pokemonName, revealFaceDown, type LogEntry } from './status.js';
 import { shuffle } from './rng.js';
 import type { CpuDifficulty } from './cpu/index.js';
@@ -128,6 +128,10 @@ export interface PokemonEffects {
   inkSpurt?: boolean;
   /** Attacks that damage it do 20 more (after Weakness and Resistance), through this turn (Screech). */
   screech?: number;
+  /** Silver Wind: the turn the opponent's attacks that damage it do 30 more, after Weakness and Resistance. */
+  silverWind?: number;
+  /** Extra Comet Punch: the turn its Extra Comet Punch does 50 more. */
+  cometPunch?: number;
   /** If an attack would Knock it Out, it's left with 10 HP instead, through this turn (Endure). */
   endure?: number;
   /** It can't become Asleep, Confused, Paralyzed or Poisoned, through this turn (Pollen Shield). */
@@ -160,6 +164,11 @@ export interface PokemonEffects {
   lockedOnBy?: string;
   /** Through this turn, an Energy card its owner attaches to it Poisons it (Triggered Poison). */
   triggeredPoison?: number;
+  /**
+   * Aqua Trance, Slow-Acting Poison: at the end of turn `turn` (the opponent's next), it's now `affliction`, if it's still the
+   * Active Pokémon; benching or evolving it ends this, as it ends Special Conditions (agreed).
+   */
+  delayed?: { affliction: 'asleep' | 'poisoned'; turn: number };
   /** The turn it was attacked with Night Eyes (Perish Song); benching or evolving it ends this. */
   nightEyes?: number;
   /** Attacks do nothing to it but damage, through this turn (Light Wave). */
@@ -303,6 +312,12 @@ export interface PlayerState {
   activeEnergyTurn?: number;
   /** Last turn this player can't play Supporter cards (Addictive Pollen). */
   noSupportersUntil?: number;
+  /** Energy Grounding: the turn this player last used it (once a turn). */
+  groundingTurn?: number;
+  /** Heal Dance: the turn this player last used it (once a turn, however many Bellossom). */
+  healDanceTurn?: number;
+  /** Temperamental Weather: the turn this player last used it (once a turn, however many Castform). */
+  weatherTurn?: number;
   /** Dragon Dance: the turn this player's attacks do 40 more damage to each Defending Pokémon they damage, before Weakness and Resistance. */
   dragonDanceTurn?: number;
   /** The turn Pokémon Park last removed a damage counter for this player (once during each of their turns). */
@@ -672,7 +687,12 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
     if (error) return fail(error);
     if (!state.pendingChoice) nextQueued(state, afterAttack);
     // Another step may follow (Energy Spike: pick the energy, then the Pokémon to attach it to).
-    if (state.pendingChoice) return ok(state);
+    if (state.pendingChoice) {
+      if (pending.betweenTurns) (state.pendingChoice as PendingChoice).betweenTurns = true;
+      return ok(state);
+    }
+    // Asked between turns (Team Aqua Belt): now the next turn starts.
+    if (pending.betweenTurns) return promoteOrBeginTurn(state);
     // A power's answer ends the turn (Howl).
     if (state.endTurnNow) return afterTrainer(state, state.players[state.currentPlayer]!, state.players[opponentOf(state, state.currentPlayer)]!);
     // Damage it did (Sneak Attack) can Knock Out a Pokémon during the turn.
@@ -691,10 +711,15 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       const played = takeFromHand(me, action.cardUid);
       if (!played || !isBenchable(card(played))) return fail('Must play a Basic Pokémon from your hand');
       if (isTrainerCard(card(played)) && trainersLocked(me, state.turn)) return fail(TRAINERS_LOCKED);
-      const hayFever = isTrainerCard(card(played)) && trainersBlocked([me, opp], state.cards);
+      const hayFever = isTrainerCard(card(played)) && (trainersBlocked([me, opp], state.cards) ?? trainersDusted(me, [me, opp], state.cards));
       if (hayFever) return fail(hayFever);
       me.bench[action.slot] = newInPlay(played, state.turn);
       addLog(state, `Put ${card(played).name} on the Bench.`, me.id);
+      // Team Magma Hideout: a damage counter on a Basic Pokémon played from the hand without Team Magma in its name.
+      if (state.stadium && card(state.stadium.card).name === 'Team Magma Hideout' && !isTrainerCard(card(played)) && !card(played).name.includes('Team Magma')) {
+        me.bench[action.slot]!.damage += 10;
+        addLog(state, `Team Magma Hideout put a damage counter on ${card(played).name}.`, me.id);
+      }
       // Rocket's Minefield Gym: tails puts 2 damage counters on it (agreed: the printed card leaves out the number), which can Knock it Out.
       if (state.stadium && card(state.stadium.card).name === "Rocket's Minefield Gym" && !flipCoin(state, "Rocket's Minefield Gym", me.id)) {
         me.bench[action.slot]!.damage += 20;
@@ -1163,7 +1188,9 @@ export function retreatError(
   if (heldActive(active, sides)) return `${def.name} can't retreat while ${lookupCard(cards, heldActive(active, sides)!.card.defId).name} is the Active Pokémon`;
   const guard = guardedBy(sides, cards);
   if (guard) return `${guard}: ${def.name} can't retreat`;
-  if (active.condition === 'asleep' || active.condition === 'paralyzed') {
+  // Fast Feet: it retreats even while Asleep or Paralyzed.
+  const fastFeet = !!powerEffect(effectId(active))?.fastFeet && powerActive(active, cards, sides);
+  if ((active.condition === 'asleep' || active.condition === 'paralyzed') && !fastFeet) {
     return `${lookupCard(cards, active.card.defId).name} is ${conditionLabel(active.condition)} and can't retreat`;
   }
   if (!hasBench) return 'No benched Pokémon to switch in';
@@ -1249,6 +1276,9 @@ export const energyPool = (pokemon: InPlayPokemon, cards: CardLibrary): PoolEner
   const pool = pokemon.energy.flatMap((e) => {
     const { type, amount } = energyProvided(e, cards);
     if (basicAs && !e.provides && isBasicEnergy(lookupCard(cards, e.defId))) return [basicAs];
+    // Aqua Energy and Magma Energy: 2 Energy, each either of its types (agreed: any mix).
+    const team = !e.provides && !e.windless && TEAM_ENERGY[lookupCard(cards, e.defId).name];
+    if (team) return [team, team];
     return Array<PoolEnergy>(amount).fill(isCrystalEnergy(cards, e) ? crystalProvides(pokemon, cards) : type);
   });
   if (pokemon.effects?.energyBurn !== undefined) return pool.map(() => 'fire');
@@ -1259,6 +1289,9 @@ export const energyPool = (pokemon: InPlayPokemon, cards: CardLibrary): PoolEner
   if (pokemon.wildGrowth) pool.push(...pokemon.energy.filter((e) => !e.provides && isBasicGrass(cards, e)).map((): PoolEnergy => 'grass'));
   return powerEffect(effectId(pokemon))?.photosynthesis && pokemon.powerOffUntil === undefined ? pool.map(() => 'grass') : pool;
 };
+
+/** What each of the 2 Energy that Aqua Energy and Magma Energy provide can be. */
+const TEAM_ENERGY: Record<string, CrystalEnergy> = { 'Aqua Energy': 'crystal:water,darkness', 'Magma Energy': 'crystal:fighting,darkness' };
 
 /** A Crystal Energy card (its effect not stopped by Miraculous Wind). */
 const isCrystalEnergy = (cards: CardLibrary, e: CardInstance) => !e.provides && !e.windless && lookupCard(cards, e.defId).name === 'Crystal Energy';
@@ -1317,7 +1350,34 @@ function endTurn(state: GameState): ActionResult {
   betweenTurns(state);
   // A knockout between turns isn't caused by either player; ties go to the player whose turn it was.
   const winner = resolveKnockouts(state, state.currentPlayer);
-  return winner ? finish(state, winner) : promoteOrBeginTurn(state);
+  if (winner) return finish(state, winner);
+  // Team Aqua Belt and Team Magma Belt: each player whose Active Pokémon could use one is asked (agreed: not automatically).
+  if (askBelts(state)) return ok(state);
+  return promoteOrBeginTurn(state);
+}
+
+/**
+ * Team Aqua Belt and Team Magma Belt, between turns: asks each player whose Active Pokémon has one, with a card in their deck
+ * that evolves from it, whether to use it (the usual limits for evolving apply, agreed). Returns whether anyone is asked.
+ */
+function askBelts(state: GameState): boolean {
+  const sides = state.playerOrder.map((id) => state.players[id]!);
+  const asks: PendingChoice[] = [];
+  for (const player of sides) {
+    const p = player.active;
+    const belt = p && toolOf(state.cards, p);
+    if (!p || !belt || !['Team Aqua Belt', 'Team Magma Belt'].includes(belt.name)) continue;
+    // Not on a Pokémon played or evolved this turn, nor before both players have had a turn.
+    if (state.turn < 2 || p.playedTurn === state.turn || p.effects?.noEvolve !== undefined || evolutionBlocked(sides, state.cards)) continue;
+    const current = lookupCard(state.cards, p.card.defId);
+    if (!player.deck.some((c) => { const d = card(state, c); return d.kind === 'pokemon' && evolvesOnto(d, current); })) continue;
+    asks.push({ player: player.id, source: belt.name, kind: 'mayUse', power: 'belt', target: 'active', betweenTurns: true });
+  }
+  const [first, ...rest] = asks;
+  if (!first) return false;
+  state.pendingChoice = first;
+  if (rest.length) (state.queuedChoices ??= []).push(...rest);
+  return true;
 }
 
 /** Asks the next player without an active Pokémon to promote one, or starts the next turn. */
@@ -1361,6 +1421,14 @@ function beginNextTurn(state: GameState): ActionResult {
  * both actives, in this order: Poisoned, Burned, Asleep, Paralyzed.
  */
 function betweenTurns(state: GameState) {
+  // Aqua Trance, Slow-Acting Poison: at the end of the turn they name, before the checkup (a Poisoned Pokémon takes its damage now).
+  for (const id of state.playerOrder) {
+    const active = state.players[id]!.active;
+    const delayed = active?.effects?.delayed;
+    if (!active || !delayed || delayed.turn > state.turn) continue;
+    delete active.effects!.delayed;
+    afflictBetweenTurns(state, id, active, delayed.affliction);
+  }
   const actives = state.playerOrder.flatMap((id) => {
     const active = state.players[id]!.active;
     return active ? [{ id, active, name: pokemonName(state, active) }] : [];
@@ -1402,10 +1470,10 @@ function betweenTurns(state: GameState) {
     active.condition = null;
     addLog(state, `${name} woke up.`, id);
   }
-  // Miracle Energy and Boost Energy: discarded at the end of their owner's turn (Boost Energy: the turn it was attached).
+  // Miracle Energy, Boost Energy, Aqua Energy and Magma Energy: discarded at the end of their owner's turn (Boost Energy: the turn it was attached).
   const current = state.players[state.currentPlayer]!;
   for (const p of [current.active, ...current.bench]) {
-    for (const special of ['Miracle Energy', 'Boost Energy']) {
+    for (const special of ['Miracle Energy', 'Boost Energy', 'Aqua Energy', 'Magma Energy']) {
       const gone = p?.energy.filter((e) => !e.provides && lookupCard(state.cards, e.defId).name === special) ?? [];
       if (!p || !gone.length) continue;
       p.energy = p.energy.filter((e) => !gone.includes(e));
@@ -1426,8 +1494,18 @@ function betweenTurns(state: GameState) {
     for (const p of [player.active, ...player.bench]) if (p) useBerry(state, player, p);
     for (const p of player.bench) if (p) useStarPiece(state, player, p);
   }
-  // Rain Dish: a set amount of damage off between turns, wherever it is.
+  // Desert Ruins: a damage counter on each Pokémon-ex with 100 HP or more, both players'.
   const sides = state.playerOrder.map((id) => state.players[id]!);
+  if (state.stadium && card(state, state.stadium.card).name === 'Desert Ruins') {
+    for (const player of sides) {
+      for (const p of [player.active, ...player.bench]) {
+        if (!p || !inPlayDef(state.cards, p).ex || lookupCard(state.cards, p.card.defId).kind !== 'pokemon' || (lookupCard(state.cards, p.card.defId) as PokemonCardDef).hp < 100) continue;
+        p.damage += 10;
+        addLog(state, `Desert Ruins put a damage counter on ${pokemonName(state, p)}.`, player.id);
+      }
+    }
+  }
+  // Rain Dish: a set amount of damage off between turns, wherever it is.
   for (const player of sides) {
     for (const p of [player.active, ...player.bench]) {
       const dish = p && powerActive(p, state.cards, sides) ? powerEffect(effectId(p))?.rainDish : undefined;
@@ -1568,10 +1646,28 @@ function useBerry(state: GameState, owner: PlayerState, p: InPlayPokemon) {
   discardTool(state, owner, p);
 }
 
+/** A Special Condition or Poison on `owner`'s Active Pokémon outside an attack (Aqua Trance), unless it can't be affected. */
+function afflictBetweenTurns(state: GameState, owner: PlayerId, pokemon: InPlayPokemon, affliction: 'asleep' | 'poisoned') {
+  const sides = state.playerOrder.map((id) => state.players[id]!);
+  const effect = powerActive(pokemon, state.cards, sides) ? powerEffect(effectId(pokemon)) : undefined;
+  const name = pokemonName(state, pokemon);
+  if (conditionProof(inPlayDef(state.cards, pokemon)) || effect?.noConditions || (affliction === 'poisoned' && effect?.noPoison)) {
+    return addLog(state, `${name} can't be ${affliction === 'asleep' ? 'Asleep' : 'Poisoned'}.`, owner);
+  }
+  const guard = state.rules?.find((r) => r.kind === 'conditionGuard' && r.player === owner && r.conditions.includes(affliction));
+  if (guard) return addLog(state, `${guard.label ?? 'A battle rule'} protected ${name} from that.`, owner);
+  if (affliction === 'poisoned') pokemon.poison = Math.max(pokemon.poison ?? 0, 10);
+  else {
+    pokemon.condition = 'asleep';
+    delete pokemon.paralyzedTurn;
+  }
+  addLog(state, `${name} is now ${affliction === 'asleep' ? 'Asleep' : 'Poisoned'}.`, owner);
+}
+
 function expireEffects(pokemon: InPlayPokemon, turn: number) {
   const e = pokemon.effects;
   if (!e) return;
-  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell', 'noAttack', 'noEnergy', 'fireWall', 'focusEnergy', 'crosscounter', 'screech', 'endure', 'pollenShield', 'counter', 'secretePoison', 'slime', 'pursuit', 'lockOn', 'triggeredPoison', 'effectProof', 'pulseGuard', 'dodge', 'reflectShield', 'armorUp', 'noEvolve', 'heavier', 'tailwind', 'noPokePowers', 'conditionProof', 'stockpile'] as const) {
+  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell', 'noAttack', 'noEnergy', 'fireWall', 'focusEnergy', 'crosscounter', 'screech', 'endure', 'pollenShield', 'counter', 'secretePoison', 'slime', 'pursuit', 'lockOn', 'triggeredPoison', 'effectProof', 'pulseGuard', 'dodge', 'reflectShield', 'armorUp', 'noEvolve', 'heavier', 'tailwind', 'noPokePowers', 'conditionProof', 'stockpile', 'silverWind', 'cometPunch'] as const) {
     if (e[key] !== undefined && e[key] <= turn) delete e[key];
   }
   if (e.charm && e.charm.until <= turn) delete e.charm;
@@ -1846,15 +1942,15 @@ function refreshWind(state: GameState) {
   }
 }
 
-/** Boost Energy is discarded from a Pokémon that's no longer an Evolved Pokémon (devolved). */
+/** Boost Energy and Double Rainbow Energy are discarded from a Pokémon that's no longer an Evolved Pokémon (devolved). */
 function dropBoostEnergy(state: GameState) {
   for (const player of Object.values(state.players)) {
     for (const p of [player.active, ...player.bench]) {
-      const boost = p && !p.evolvedFrom.length ? p.energy.filter((e) => !e.provides && lookupCard(state.cards, e.defId).name === 'Boost Energy') : [];
+      const boost = p && !p.evolvedFrom.length ? p.energy.filter((e) => !e.provides && ['Boost Energy', 'Double Rainbow Energy'].includes(lookupCard(state.cards, e.defId).name)) : [];
       if (!p || !boost.length) continue;
       p.energy = p.energy.filter((e) => !boost.includes(e));
       player.discard.push(...boost.map(asDiscarded));
-      addLog(state, `Boost Energy on ${pokemonName(state, p)} was discarded.`, player.id);
+      addLog(state, `${boost.map((e) => lookupCard(state.cards, e.defId).name).join(' and ')} on ${pokemonName(state, p)} was discarded.`, player.id);
     }
   }
 }

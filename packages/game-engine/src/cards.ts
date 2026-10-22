@@ -60,8 +60,12 @@ export interface PokemonCardDef {
    * in the hand, deck and discard pile, and not a Basic Pokémon card for setup or searches.
    */
   trainerText?: string;
-  /** Every type it is, when it's more than one (Kecleon's Energy Variation, in play: inPlayDef). `type` is the first. */
+  /** Every type it is, when it's more than one (printed on the card, or Kecleon's Energy Variation in play: inPlayDef). `type` is the first. */
   types?: EnergyType[];
+  /** The types of a second printed Weakness (or more), the same multiplier as `weakness`: applied once however many match (agreed). */
+  moreWeakness?: EnergyType[];
+  /** The types of a second printed Resistance (or more), the same amount as `resistance`: applied once (agreed). */
+  moreResistance?: EnergyType[];
 }
 
 /** Whether the Pokémon is of `type`: its type, or one of its types (Energy Variation). */
@@ -75,6 +79,12 @@ export const typesOf = (def: Pick<PokemonCardDef, 'type' | 'types'>): EnergyType
  * Brock's Onix, Rocket's Scizor, Lt. Surge's Raichu), Dark, Light and Shining Pokémon, δ and Gold Star (☆) Pokémon.
  */
 const VARIANT_NAME = /^(?:[A-Z][\w.]*(?: [A-Z][\w.]*)?'s|Dark|Light|Shining) | (?:δ|☆|Star)$/g;
+
+/**
+ * "A Pokémon that has an owner in its name" (Ancient Tomb, the Ancient Technical Machines; agreed): Team Aqua's and Team
+ * Magma's Pokémon, the Gym Heroes owners' (Brock's, Lt. Surge's…) and Rocket's. Dark and Light Pokémon have no owner.
+ */
+export const hasOwner = (name: string) => /^[A-Z][\w.]*(?: [A-Z][\w.]*)?'s /.test(name);
 
 /**
  * Whether a card called `name` counts as `wanted` when an effect names a Pokémon ("If the Defending Pokémon is Seviper",

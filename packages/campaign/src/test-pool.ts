@@ -51,6 +51,7 @@ function toDef(r: Row): CardDef | null {
       name: r.name.replace(/^Nidoran ([♀♂])$/, 'Nidoran$1'),
       imageUrl: null,
       type: type(r.types[0]),
+      ...(r.types.length > 1 && { types: r.types.map(type) }),
       hp: r.hp,
       stage,
       evolvesFrom: evolvesFrom(r, stage),
@@ -69,6 +70,9 @@ function toDef(r: Row): CardDef | null {
     if (r.name === 'Double Colorless Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', amount: 2, basic: false };
     if (r.name === 'Rainbow Energy' || r.name === 'Multi Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', anyType: true, basic: false };
     if (r.name === 'Miracle Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', anyType: true, amount: 2, basic: false };
+    if (r.name === 'Double Rainbow Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', anyType: true, amount: 2, basic: false };
+    if (r.name === 'Aqua Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'water', amount: 2, basic: false };
+    if (r.name === 'Magma Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'fighting', amount: 2, basic: false };
     if (r.name === 'Boost Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', amount: 3, basic: false };
     if (r.name === 'Bounce Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', amount: 2, basic: false };
     if (r.name === 'Full Heal Energy' || r.name === 'Potion Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', basic: false };

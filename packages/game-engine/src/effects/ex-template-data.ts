@@ -167,8 +167,8 @@ export const EX_TEMPLATE_DATA: Record<string, Record<string, TemplateUse>> = {
   'ex4-90': { 'Eerie Light': ['condition', 30, 'confused'], 'Acidic Poison': ['twoConditions', 60, 'poisoned', 'burned'] }, // Cradily ex
   'ex4-91': { 'Searing Flame': ['flipCondition', 10, 'burned'] }, // Entei ex
   'ex4-92': { 'Dazzle Blast': ['flipCondition', 10, 'confused'], 'Lightning Tackle': ['tailsSelfDamage', 70, 20] }, // Raikou ex
-  'ex4-96': { 'Quick Attack': ['flipForMore', 10, 10, 10] }, // Absol
-  'ex4-97': { Hypnoblast: ['condition', 10, 'asleep'] }, // Jirachi
+  'ex4-96': { 'Quick Attack': ['flipForMore', 10, 10, 10], 'Feint Attack': ['feintAttack', 0, 30] }, // Absol
+  'ex4-97': { Hypnoblast: ['condition', 10, 'asleep'], Swift: ['swift', 20] }, // Jirachi
   'ex5-4': { 'Leaf Poison': ['condition', 20, 'poisoned'] }, // Dark Celebi
   'ex5-5': { Swift: ['swift', 30] }, // Electrode
   'ex5-6': { 'Breaking Sound': ['spreadAll', 0, 10], 'Thunderous Roar': ['condition', 30, 'confused'] }, // Exploud

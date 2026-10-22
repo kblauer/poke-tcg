@@ -192,7 +192,32 @@ export function toCardDef(card: Card): CardDef {
     const baby = card.stage === 'Baby' || BABIES.has(card.id);
     const ex = data.suffix === 'ex';
     const length = pokedexLength(data.dexId?.[0]);
-    return { id: card.id, kind: 'pokemon', name: card.name, imageUrl, type: energyType(type), hp: card.hp, stage, evolvesFrom: evolvesFrom(card), attacks, power: power(data, card.id), weakness: weakness(data), resistance: resistance(data), retreatCost: data.retreat ?? 0, holo: isHolo(card), ...(baby && { baby }), ...(ex && { ex }), ...(length && { length }) };
+    // Both types of a Pokémon printed as two (Team Aqua's Cacturne: Grass and Darkness), and every Weakness and Resistance after the first.
+    const types = card.types.length > 1 ? { types: card.types.map(energyType) } : {};
+    const moreWeakness = (data.weaknesses ?? []).slice(1).map((w) => energyType(w.type));
+    const moreResistance = (data.resistances ?? []).slice(1).map((r) => energyType(r.type));
+    return {
+      id: card.id,
+      kind: 'pokemon',
+      name: card.name,
+      imageUrl,
+      type: energyType(type),
+      ...types,
+      hp: card.hp,
+      stage,
+      evolvesFrom: evolvesFrom(card),
+      attacks,
+      power: power(data, card.id),
+      weakness: weakness(data),
+      resistance: resistance(data),
+      ...(moreWeakness.length && { moreWeakness }),
+      ...(moreResistance.length && { moreResistance }),
+      retreatCost: data.retreat ?? 0,
+      holo: isHolo(card),
+      ...(baby && { baby }),
+      ...(ex && { ex }),
+      ...(length && { length }),
+    };
   }
   if (card.kind === 'ENERGY') {
     if (card.name === 'Double Colorless Energy') {
@@ -205,6 +230,10 @@ export function toCardDef(card: Card): CardDef {
       if (!known) throw new Error(`Card ${card.id} is not a supported energy`);
       return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: named, holo: isHolo(card) };
     }
+    // Double Rainbow Energy: every type, 2 at a time. Aqua Energy and Magma Energy: 2 Energy, each either of their types (energyPool).
+    if (card.name === 'Double Rainbow Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'colorless', anyType: true, amount: 2, basic: false, holo: isHolo(card) };
+    if (card.name === 'Aqua Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'water', amount: 2, basic: false, holo: isHolo(card) };
+    if (card.name === 'Magma Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'fighting', amount: 2, basic: false, holo: isHolo(card) };
     // Rainbow Energy and Multi Energy count as every type while attached (1 at a time; Multi Energy only Colorless beside another Special Energy card: colorlessOnly).
     if (card.name === 'Rainbow Energy' || card.name === 'Multi Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'colorless', anyType: true, basic: false, holo: isHolo(card) };
     // Miracle Energy counts as every type but provides only 2 Energy at a time.
