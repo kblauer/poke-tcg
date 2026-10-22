@@ -325,7 +325,7 @@ export const ATTACK_TEMPLATES: Record<string, AttackTemplate> = {
   },
 
   // Damage rules.
-  swift: { pattern: re("this attack's damage isn't affected by weakness, resistance, poke-powers, poke-bodies, or any other effects on the defending pokemon"), make: (d) => ({ run: (ctx) => void ctx.hit(d, { swift: true }) }) },
+  swift: { pattern: re("this attack's damage isn't affected by weakness, resistance, poke-powers, poke-bodies,? or any other effects on the defending pokemon"), make: (d) => ({ run: (ctx) => void ctx.hit(d, { swift: true }) }) },
   noResistance: { pattern: re("this attack's damage (?:isn't|is not) affected by resistance"), make: (d) => ({ run: (ctx) => void ctx.hit(d, { resistance: false }) }) },
   noWeaknessResistance: { pattern: re("this attack's damage isn't affected by weakness or resistance"), make: (d) => ({ run: (ctx) => void ctx.hit(d, { weakness: false }) }) },
   recoil: { pattern: re('@ does (\\d+) damage to itself'), make: (d, [self]) => recoil(d, num(self)) },
@@ -334,7 +334,7 @@ export const ATTACK_TEMPLATES: Record<string, AttackTemplate> = {
   snipe: { pattern: re(`choose 1 of your opponent's pokemon\\. this attack does (\\d+) damage to that pokemon\\.${BENCH_RULE}`), fits: (d) => d === 0, make: (_, [amount]) => snipe(num(amount), false) },
   // As Aquapolis's Feint Attack: nothing on the chosen Pokémon changes the damage.
   feintAttack: {
-    pattern: re("choose 1 of your opponent's pokemon\\. this attack does (\\d+) damage to that pokemon\\. this attack's damage isn't affected by weakness, resistance, poke-powers, poke-bodies,? or any other effects on that pokemon"),
+    pattern: re("choose 1 of your opponent's pokemon\\. this attack does (\\d+) damage to that pokemon\\. this attack's damage isn't affected by weakness, resistance, poke-powers, poke-bodies,? or any other effects on that pokemon(?:\\. \\(don't apply weakness and resistance for benched pokemon\\.\\))?"),
     fits: (d) => d === 0,
     make: (_, [amount]) => ({
       choices: (s) => opponentTargets(s, `Choose one of your opponent's Pokémon to do ${amount} damage to`),

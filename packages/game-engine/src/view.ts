@@ -55,6 +55,8 @@ export interface PlayerView {
     freezeLockUntil?: number;
     /** The turn they last used Good Neighbor (once a turn, whichever Wigglytuff). */
     goodNeighborTurn?: number;
+    healDanceTurn?: number;
+    weatherTurn?: number;
     /** A search this player must finish, with the cards it reveals to them. */
     pendingChoice: PendingChoiceView | null;
     /** Last turn this player can't play Trainer cards (Headache). */
@@ -168,6 +170,8 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       ...(me.bodiesOffTurn !== undefined && { bodiesOffTurn: me.bodiesOffTurn }),
       ...(me.freezeLockUntil !== undefined && { freezeLockUntil: me.freezeLockUntil }),
       ...(me.goodNeighborTurn !== undefined && { goodNeighborTurn: me.goodNeighborTurn }),
+      ...(me.healDanceTurn !== undefined && { healDanceTurn: me.healDanceTurn }),
+      ...(me.weatherTurn !== undefined && { weatherTurn: me.weatherTurn }),
       pendingChoice: pending,
       noTrainersUntil: me.noTrainersUntil,
       ...(me.supporterTurn !== undefined && { supporterTurn: me.supporterTurn }),

@@ -22,6 +22,41 @@ const reverseHolos = cards.flatMap((c) => reverseHoloCard(c, official.get(c.set.
 const snapshot = { sets: [...tcgdex.sets, ...custom.sets], cards: [...cards, ...holoEnergy, ...reverseHolos] };
 
 /** Where TCGdex's data differs from the printed card (checked against the card image), by card id. */
+/** EX Team Magma vs Team Aqua's evolutions: TCGdex has no "Evolves from" for any of them (read from the printed cards). */
+const EX4_EVOLVES_FROM: Record<string, Partial<TcgdexCard>> = Object.fromEntries(
+  Object.entries({
+    1: "Team Aqua's Cacnea",
+    2: "Team Aqua's Corphish",
+    4: "Team Aqua's Electrike",
+    5: "Team Aqua's Carvanha",
+    6: "Team Aqua's Sealeo",
+    7: "Team Magma's Lairon",
+    8: "Team Magma's Baltoy",
+    10: "Team Magma's Houndour",
+    11: "Team Magma's Rhyhorn",
+    13: 'Pikachu',
+    14: "Team Aqua's Corphish",
+    15: "Team Aqua's Poochyena",
+    16: "Team Aqua's Spheal",
+    18: "Team Aqua's Carvanha",
+    19: "Team Magma's Numel",
+    20: "Team Magma's Aron",
+    21: "Team Magma's Poochyena",
+    22: "Team Magma's Rhyhorn",
+    28: "Team Aqua's Chinchou",
+    29: "Team Aqua's Electrike",
+    30: "Team Aqua's Poochyena",
+    31: "Team Aqua's Spheal",
+    33: "Team Magma's Baltoy",
+    34: "Team Magma's Houndour",
+    36: "Team Magma's Aron",
+    37: "Team Magma's Poochyena",
+    89: 'Combusken',
+    90: 'Lileep',
+    93: 'Grovyle',
+  }).map(([n, from]) => [`ex4-${n}`, { evolveFrom: from }]),
+);
+
 const TCGDEX_FIXES: Record<string, Partial<TcgdexCard>> = {
   // Wizards Promo 7 Jigglypuff: 50 HP as printed (TCGdex has 70).
   'basep-7': { hp: 50 },
@@ -165,6 +200,15 @@ const TCGDEX_FIXES: Record<string, Partial<TcgdexCard>> = {
     attacks: [
       { name: 'Grind', cost: ['Colorless'], damage: '10×', effect: 'Does 10 damage times the amount of Energy attached to Graveler.' },
       { name: 'Big Explosion', cost: ['Fighting', 'Fighting', 'Colorless', 'Colorless'], damage: null, effect: "Does 80 damage to each Active Pokémon (both yours and your opponent's)." },
+    ],
+  },
+  ...EX4_EVOLVES_FROM,
+  // EX Team Magma vs Team Aqua Swampert ex: Crushing Wave prints no damage (TCGdex has "20+"); its text does 40 to the chosen Pokémon.
+  'ex4-95': {
+    evolveFrom: 'Marshtomp',
+    attacks: [
+      { name: 'Hyper Pump', cost: ['Colorless'], damage: '20+', effect: "Does 20 damage plus 20 more damage for each basic Energy attached to Swampert ex but not used to pay for this attack's Energy cost. You can't add more than 80 damage in this way." },
+      { name: 'Crushing Wave', cost: ['Water', 'Colorless', 'Colorless'], damage: null, effect: "Choose 1 of your opponent's Pokémon. This attack does 40 damage to that Pokémon. After doing damage, flip a coin. If heads, your opponent discards an Energy card, if any, attached to that Pokémon. (Don't apply Weakness and Resistance for Benched Pokémon.)" },
     ],
   },
 };
