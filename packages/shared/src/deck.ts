@@ -22,7 +22,7 @@ export const isBasicPokemonCard = (card: Pick<DeckRuleCard, 'kind' | 'stage'>) =
  * Printed on Shining Pokémon and Miracle Energy: "You can't have more than 1 [this card] in your deck" (by name, as the
  * 4-copy limit counts).
  */
-export const onlyOnePerDeck = (card: Pick<DeckRuleCard, 'name' | 'kind'>) => (card.kind === 'POKEMON' && card.name.startsWith('Shining ')) || card.name === 'Miracle Energy';
+export const onlyOnePerDeck = (card: Pick<DeckRuleCard, 'name' | 'kind'>) => (card.kind === 'POKEMON' && (card.name.startsWith('Shining ') || card.name.endsWith(' ☆'))) || card.name === 'Miracle Energy';
 
 /** The most cards with this card's name a deck may hold. */
 export const maxCopiesOf = (card: Pick<DeckRuleCard, 'name' | 'kind'>) => (onlyOnePerDeck(card) ? 1 : MAX_COPIES);
@@ -49,6 +49,12 @@ export const isUnownCard = (card: Pick<DeckRuleCard, 'name' | 'kind' | 'stage'>)
 /** Basic Pokémon cards with Unown in their names in a deck. */
 export const unownCount = (entries: { card: DeckRuleCard; quantity: number }[]) => entries.filter((e) => isUnownCard(e.card)).reduce((n, e) => n + e.quantity, 0);
 
+/** Printed on every Pokémon ☆ (Gold Star): "You can't have more than 1 Pokémon ☆ in your deck." (one in all, any name). */
+export const isStarCard = (card: Pick<DeckRuleCard, 'name' | 'kind'>) => card.kind === 'POKEMON' && card.name.endsWith(' ☆');
+
+/** Pokémon ☆ cards in a deck. */
+export const starCount = (entries: { card: DeckRuleCard; quantity: number }[]) => entries.filter((e) => isStarCard(e.card)).reduce((n, e) => n + e.quantity, 0);
+
 /** Why the deck can't be played, in plain words; empty when it follows every rule. */
 export function deckProblems(entries: { card: DeckRuleCard; quantity: number }[]): string[] {
   const problems: string[] = [];
@@ -62,6 +68,8 @@ export function deckProblems(entries: { card: DeckRuleCard; quantity: number }[]
   }
   const unown = unownCount(entries);
   if (unown > MAX_UNOWN) problems.push(`${unown} Unown: at most ${MAX_UNOWN} Basic Pokémon with Unown in their names.`);
+  const stars = starCount(entries);
+  if (stars > 1) problems.push(`${stars} Pokémon ☆: at most 1, whatever its name.`);
   if (!entries.some((e) => isBasicPokemonCard(e.card))) problems.push('The deck needs at least one Basic Pokémon.');
   return problems;
 }

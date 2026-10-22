@@ -30,6 +30,7 @@ export function useTrainer({ view, send, busy }: { view: PlayerView; send: (a: G
     turn: view.turn,
     stadium: view.stadium?.card ?? null,
     oppFaceDownPrizes: faceDownPrizes(view.opponent.prizeCount, view.opponent.faceUpPrizes),
+    prizes: { me: view.self.prizeCount, opp: view.opponent.prizeCount },
   });
 
   const cancel = () => setPlaying(null);

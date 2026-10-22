@@ -1,9 +1,9 @@
 // Pokémon Powers: legality, the questions a power asks, and the context power effects run with.
 // Card-specific behaviour lives in effects/ (POWERS), next to the attack effects.
 import type { AttackContext } from './attacks.js';
-import { hasType, lookupCard, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
+import { hasType, lookupCard, namesMatch, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { powerEffect } from './effects/index.js';
-import { type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
+import { counts, energyPool, type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
 import { addLog, effectId, flipCoin, hasSpecialCondition, inPlayDef, specialConditionLabel } from './status.js';
 import { evolvesFromEevee, type PendingChoice, type PendingChoiceInput } from './trainers.js';
 
@@ -59,7 +59,7 @@ export type PeekTarget = 'deck' | 'oppDeck' | 'oppHand' | 'prize' | 'oppPrize';
 
 /** What a power can see before it's used. View-safe: the UI builds it from a PlayerView. */
 export interface PowerSituation {
-  me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'discard' | 'powersOffUntil' | 'quickenTurn' | 'activeEnergyTurn' | 'goodNeighborTurn' | 'healDanceTurn' | 'weatherTurn'>;
+  me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'discard' | 'powersOffUntil' | 'quickenTurn' | 'activeEnergyTurn' | 'goodNeighborTurn' | 'healDanceTurn' | 'weatherTurn' | 'quickSearchTurn'>;
   opp: Pick<PlayerState, 'active' | 'bench' | 'powersOffUntil' | 'discard'>;
   /** Sizes of the hidden piles (Peek). */
   counts: { deck: number; prizes: number; oppDeck: number; oppHand: number; oppPrizes: number };
@@ -67,6 +67,8 @@ export interface PowerSituation {
   source: Target;
   cards: CardLibrary;
   turn: number;
+  /** The Stadium card in play (Mt. Moon). Missing = none. */
+  stadium?: CardInstance | null;
 }
 
 /** Card-specific power behaviour. */
@@ -258,7 +260,7 @@ export interface PowerEffect {
   /** Primal Stare: as its owner's Active Pokémon, the opponent can't play Evolution cards from the hand onto their Active Pokémon (primalBlock). */
   primalStare?: boolean;
   /** Safeguard ('ex'), Wonder Guard ('evolvedOrEx'): attacks by the opponent's Pokémon-ex (and Evolved Pokémon) don't affect it (attacks.ts). */
-  guardFrom?: 'ex' | 'evolvedOrEx';
+  guardFrom?: 'ex' | 'evolvedOrEx' | 'dark';
   /** Submerge: while it's on the Bench, the opponent's attacks do no damage to it (attacks.ts). */
   benchImmune?: boolean;
   /** Energy Guard: with a basic Energy card attached, the opponent's attack damage to it is this much less, after Weakness and Resistance. */
@@ -295,7 +297,52 @@ export interface PowerEffect {
   rainDish?: number;
   /** Conductivity (Ampharos ex): a damage counter on each Pokémon the opponent attaches an Energy card to from their hand; only 1, however many (conductivityEx). */
   conductivityEx?: boolean;
+  /**
+   * Between turns, after the checkup's Special Conditions (Sooth Dust, Acid Sampler, Eerie Aura, Sand Damage…): called for
+   * each Pokémon in play with it working. `done`: names of the bodies already used between these turns ("you can't use more
+   * than 1 Sand Damage"), by `owner.id` + name.
+   */
+  checkup?: (state: GameState, owner: PlayerState, pokemon: InPlayPokemon, opp: PlayerState, done: Set<string>) => void;
+  /** Fiery Aura: as its player's Active Pokémon, Burned Pokémon (both players') take 40 between turns instead of 20 (betweenTurns). */
+  fieryAura?: boolean;
+  /** Power Gene: its player's attacks by Pokémon with these names do `amount` more to the Defending Pokémon, for each one in play (attacks.ts). */
+  powerGene?: { names: string[]; amount: number };
+  /** Family Bonds: while it's in play, its player's Pokémon with these names retreat for free (retreatBodies). */
+  familyBonds?: string[];
+  /** Spiral: as its player's Active Pokémon, the opponent's Confused Active Pokémon can't retreat (retreatError). */
+  spiral?: boolean;
+  /** Retreat Aid (EX FireRed & LeafGreen): on the Bench, its player's Active Pokémon (not a Pokémon-ex or Baby Pokémon) retreats for this much less; they add up. */
+  retreatAidCost?: number;
+  /** Magic Odds, Magic Evens: an attack's damage to it of an odd (or even) number of tens, 10 to 180, after everything else, is prevented (attacks.ts). */
+  magicNumbers?: 'odd' | 'even';
+  /** Energy Protection: attack damage to it is 10 less for each Energy card attached, at most `max` (attacks.ts). */
+  energyProtection?: { max: number };
+  /** Powder Protection: attack damage to it from Pokémon with an owner in their names is this much less (attacks.ts). */
+  ownerGuard?: number;
+  /** Dragon Veil: while it's in play, its player's Active Pokémon has no Weakness (attacks.ts). */
+  dragonVeil?: boolean;
+  /** Dark Condition: with Energy of this type attached, it has no Weakness (attacks.ts). */
+  noWeaknessWith?: EnergyType;
+  /** Darkness Veil: with Energy of this type attached, the opponent's attacks do nothing to it but damage (attacks.ts). */
+  crystalBodyWith?: EnergyType;
+  /** Dark and Clear: with Energy of this type attached, it can't be affected by Special Conditions (conditionFree). */
+  noConditionsWith?: EnergyType;
+  /** Insomnia: it can't be Asleep. */
+  noSleep?: boolean;
+  /** Darkest Impulse: whenever the opponent evolves a Pokémon from their hand, 2 damage counters on it (one Darkest Impulse, however many). */
+  darkestImpulse?: boolean;
+  /** Dual Armor: with Energy of `energy` attached, it's these types (refreshHideout). */
+  dualArmor?: { energy: EnergyType; types: EnergyType[] };
+  /** Dark Healer: with Energy of this type attached, its Rain Dish works. */
+  rainDishWith?: EnergyType;
 }
+
+/**
+ * Whether a working power keeps `pokemon` from Special Conditions: Thick Skin (always), or Dark and Clear (with its Energy
+ * attached). `effect`: its power, when working.
+ */
+export const conditionFree = (pokemon: InPlayPokemon, cards: CardLibrary, effect: PowerEffect | undefined) =>
+  !!effect?.noConditions || (!!effect?.noConditionsWith && energyPool(pokemon, cards).some((e) => counts(e, effect.noConditionsWith!)));
 
 export interface PowerContext {
   state: GameState;
@@ -529,7 +576,19 @@ export function retreatBodies(pokemon: InPlayPokemon, cards: CardLibrary, sides:
   const [owner] = sides;
   if (!owner) return 0;
   const own = powerActive(pokemon, cards, sides) ? (powerEffect(effectId(pokemon))?.retreatChange?.(pokemon, cards, owner, sides[1]) ?? 0) : 0;
+  // Family Bonds: free for the Pokémon it names while its owner has it working in play.
+  const name = inPlayDef(cards, pokemon).name;
+  const bonded = [owner.active, ...owner.bench].some((p) => !!p && !!powerEffect(effectId(p))?.familyBonds?.some((n) => namesMatch(name, n)) && powerActive(p, cards, sides));
+  if (bonded) return -99;
   return own + (owner.active === pokemon && anyWorking(sides, cards, (e) => e.glueySlime) ? 1 : 0);
+}
+
+/** Spiral: the opponent's Active Pokémon (`sides[1]`'s) keeps `sides[0]`'s Confused Active Pokémon from retreating; its name, or null. */
+export function spiraledBy(sides: Sides, cards: CardLibrary): string | null {
+  const [owner, opponent] = sides;
+  const opposing = opponent?.active;
+  if (owner?.active?.condition !== 'confused' || !opposing || !powerEffect(effectId(opposing))?.spiral || !powerActive(opposing, cards, sides)) return null;
+  return powerOf(opposing, cards)!.name;
 }
 
 /** Enervating Pollen is working: a Pokémon with it anywhere in play. */
@@ -575,7 +634,11 @@ export function evolutionBlocked(sides: Sides, cards: CardLibrary): string | nul
 export function retreatAid(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sides): number {
   const [owner] = sides;
   if (!owner || owner.active !== pokemon) return 0;
-  return owner.bench.filter((p) => p && powerEffect(effectId(p))?.retreatAid && powerActive(p, cards, sides)).length;
+  const old = owner.bench.filter((p) => p && powerEffect(effectId(p))?.retreatAid && powerActive(p, cards, sides)).length;
+  // EX FireRed & LeafGreen's Retreat Aid: 2 less each (agreed: they add up), not for a Pokémon-ex or Baby Pokémon.
+  const d = inPlayDef(cards, pokemon);
+  const more = d.ex || d.baby ? 0 : owner.bench.reduce((n, p) => n + (p && powerActive(p, cards, sides) ? (powerEffect(effectId(p))?.retreatAidCost ?? 0) : 0), 0);
+  return old + more;
 }
 
 /** Whether a working power of `viewer`'s Pokémon shows them the opponent's hand (Clairvoyance). */
@@ -669,6 +732,8 @@ export function powerError(s: PowerSituation): string | null {
   if (source.effects?.noPokePowers !== undefined) return `Dark Impact: ${def.name} can't use Poké-Powers this turn`;
   if (darkGazed(source, s.cards, [s.me, s.opp])) return "Dark Gaze: Benched Pokémon can't use Poké-Powers";
   if (lazied(source, s.cards, [s.me, s.opp])) return "Lazy: your Pokémon can't use Poké-Powers";
+  // Mt. Moon: no Poké-Powers (or older Pokémon Powers) for a Pokémon with less than 70 HP.
+  if (s.stadium && lookupCard(s.cards, s.stadium.defId).name === 'Mt. Moon' && !effect.body && def.hp < 70) return `Mt. Moon: ${def.name} can't use Poké-Powers`;
   const blocked = effect.blocked?.(s);
   if (blocked) return blocked;
   return effect.oncePerTurn && source.powerUsedTurn === s.turn ? `${def.name} has already used ${def.power.name} this turn` : null;
@@ -748,7 +813,7 @@ export const situationCounts = (me: Pick<PlayerState, 'deck' | 'prizes'>, opp: P
 
 /** Uses the power of the Pokémon at `source`. Mutates `state`; returns an error instead if not allowed. */
 export function usePower(state: GameState, me: PlayerState, opp: PlayerState, sourceTarget: Target, given: PowerChoices): string | null {
-  const situation: PowerSituation = { me, opp, counts: situationCounts(me, opp), source: sourceTarget, cards: state.cards, turn: state.turn };
+  const situation: PowerSituation = { me, opp, counts: situationCounts(me, opp), source: sourceTarget, cards: state.cards, turn: state.turn, stadium: state.stadium?.card ?? null };
   const error = powerError(situation);
   if (error) return error;
   const resolved = resolvePowerChoices(situation, given);

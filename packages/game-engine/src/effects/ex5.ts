@@ -42,7 +42,7 @@ const lureIn = (prompt: string, then: (ctx: AttackContext) => void): AttackEffec
 });
 
 /** "Search your deck for a card that evolves from … and put it on …" for the attacker itself (Ascension), with the usual limits (agreed). */
-const ascension: AttackEffect = {
+export const ascension: AttackEffect = {
   run(ctx) {
     if (ctx.turn <= 2 || ctx.attacker.playedTurn === ctx.turn || ctx.attacker.effects?.noEvolve !== undefined) return ctx.log(`${ctx.attackerDef.name} can't evolve this turn.`);
     const current = lookupCard(ctx.state.cards, ctx.attacker.card.defId);

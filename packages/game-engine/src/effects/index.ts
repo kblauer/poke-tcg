@@ -62,11 +62,17 @@ import { EX4_ENERGY, EX4_TRAINERS } from './ex4-trainers.js';
 import { EX5 } from './ex5.js';
 import { EX5_POWERS } from './ex5-powers.js';
 import { EX5_TRAINERS } from './ex5-trainers.js';
+import { EX6 } from './ex6.js';
+import { EX6_POWERS } from './ex6-powers.js';
+import { EX6_ENERGY, EX6_TRAINERS } from './ex6-trainers.js';
+import { EX7 } from './ex7.js';
+import { EX7_POWERS } from './ex7-powers.js';
+import { EX7_ENERGY, EX7_TRAINERS } from './ex7-trainers.js';
 import { EX_TEMPLATE_DATA } from './ex-template-data.js';
 import { templateEffects } from './ex-templates.js';
 
 /** Effects by card id, then attack name. Base Set 2's and Legendary Collection's are their originals' (base4.ts, lc.ts). */
-const ORIGINAL_EFFECTS: Record<string, Record<string, AttackEffect>> = { ...BASE1, ...JUNGLE, ...FOSSIL, ...PROMOS, ...ROCKET, ...GYM1, ...GYM2, ...NEO1, ...NEO2, ...SI1, ...NEO3, ...NEO4, ...ECARD1, ...ECARD2, ...ECARD3, ...EX1, ...EX2, ...EX3, ...EX4, ...EX5 };
+const ORIGINAL_EFFECTS: Record<string, Record<string, AttackEffect>> = { ...BASE1, ...JUNGLE, ...FOSSIL, ...PROMOS, ...ROCKET, ...GYM1, ...GYM2, ...NEO1, ...NEO2, ...SI1, ...NEO3, ...NEO4, ...ECARD1, ...ECARD2, ...ECARD3, ...EX1, ...EX2, ...EX3, ...EX4, ...EX5, ...EX6, ...EX7 };
 const EFFECTS: Record<string, Record<string, AttackEffect>> = { ...ORIGINAL_EFFECTS, ...base4Reprints(ORIGINAL_EFFECTS), ...lcAttacks(ORIGINAL_EFFECTS) };
 
 /**
@@ -89,21 +95,21 @@ const printOf = (defId: string) => (defId.endsWith('-reverse') ? defId.slice(0, 
 export const attackEffect = (defId: string, attackName: string): AttackEffect | undefined => effectsOf(printOf(defId))?.[attackName];
 
 /** Pokémon Power effects by card id (WOTC cards have at most one power). Base Set 2's and Legendary Collection's are their originals' (LC's stop with any Special Condition). */
-const ORIGINAL_POWERS: Record<string, PowerEffect> = { ...BASE1_POWERS, ...JUNGLE_POWERS, ...FOSSIL_POWERS, ...PROMO_POWERS, ...ROCKET_POWERS, ...GYM1_POWERS, ...GYM2_POWERS, ...NEO1_POWERS, ...NEO2_POWERS, ...NEO3_POWERS, ...NEO4_POWERS, ...ECARD1_POWERS, ...ECARD2_POWERS, ...ECARD3_POWERS, ...EX1_POWERS, ...EX2_POWERS, ...EX3_POWERS, ...EX4_POWERS, ...EX5_POWERS };
+const ORIGINAL_POWERS: Record<string, PowerEffect> = { ...BASE1_POWERS, ...JUNGLE_POWERS, ...FOSSIL_POWERS, ...PROMO_POWERS, ...ROCKET_POWERS, ...GYM1_POWERS, ...GYM2_POWERS, ...NEO1_POWERS, ...NEO2_POWERS, ...NEO3_POWERS, ...NEO4_POWERS, ...ECARD1_POWERS, ...ECARD2_POWERS, ...ECARD3_POWERS, ...EX1_POWERS, ...EX2_POWERS, ...EX3_POWERS, ...EX4_POWERS, ...EX5_POWERS, ...EX6_POWERS, ...EX7_POWERS };
 const POWERS: Record<string, PowerEffect> = { ...ORIGINAL_POWERS, ...base4Reprints(ORIGINAL_POWERS), ...lcPowers(ORIGINAL_POWERS) };
 
 /** The behaviour of the card's Pokémon Power, if it's implemented. */
 export const powerEffect = (defId: string): PowerEffect | undefined => POWERS[printOf(defId)];
 
 /** Trainer card effects by card id. Base Set 2's and Legendary Collection's are their originals'. */
-const ORIGINAL_TRAINERS: Record<string, TrainerEffect> = { ...BASE1_TRAINERS, ...JUNGLE_TRAINERS, ...FOSSIL_TRAINERS, ...NEO1_TRAINERS, ...NEO2_TRAINERS, ...NEO3_TRAINERS, ...NEO4_TRAINERS, ...PROMO_TRAINERS, ...ROCKET_TRAINERS, ...GYM1_TRAINERS, ...GYM2_TRAINERS, ...ECARD1_TRAINERS, ...ECARD2_TRAINERS, ...ECARD3_TRAINERS, ...EX1_TRAINERS, ...EX2_TRAINERS, ...EX3_TRAINERS, ...EX4_TRAINERS, ...EX5_TRAINERS };
+const ORIGINAL_TRAINERS: Record<string, TrainerEffect> = { ...BASE1_TRAINERS, ...JUNGLE_TRAINERS, ...FOSSIL_TRAINERS, ...NEO1_TRAINERS, ...NEO2_TRAINERS, ...NEO3_TRAINERS, ...NEO4_TRAINERS, ...PROMO_TRAINERS, ...ROCKET_TRAINERS, ...GYM1_TRAINERS, ...GYM2_TRAINERS, ...ECARD1_TRAINERS, ...ECARD2_TRAINERS, ...ECARD3_TRAINERS, ...EX1_TRAINERS, ...EX2_TRAINERS, ...EX3_TRAINERS, ...EX4_TRAINERS, ...EX5_TRAINERS, ...EX6_TRAINERS, ...EX7_TRAINERS };
 const TRAINERS: Record<string, TrainerEffect> = { ...ORIGINAL_TRAINERS, ...base4Reprints(ORIGINAL_TRAINERS), ...lcReprints(ORIGINAL_TRAINERS) };
 
 /** The behaviour of a Trainer card, if it's implemented. */
 export const trainerEffect = (defId: string): TrainerEffect | undefined => TRAINERS[printOf(defId)];
 
 /** Special Energy effects by card id (Team Rocket's, reprinted in Legendary Collection). */
-const ORIGINAL_ENERGY: Record<string, EnergyEffect> = { ...ROCKET_ENERGY, ...NEO1_ENERGY, ...NEO4_ENERGY, ...ECARD1_ENERGY, ...ECARD2_ENERGY, ...ECARD3_ENERGY, ...EX1_ENERGY, ...EX2_ENERGY, ...EX4_ENERGY };
+const ORIGINAL_ENERGY: Record<string, EnergyEffect> = { ...ROCKET_ENERGY, ...NEO1_ENERGY, ...NEO4_ENERGY, ...ECARD1_ENERGY, ...ECARD2_ENERGY, ...ECARD3_ENERGY, ...EX1_ENERGY, ...EX2_ENERGY, ...EX4_ENERGY, ...EX6_ENERGY, ...EX7_ENERGY };
 const ENERGY: Record<string, EnergyEffect> = { ...ORIGINAL_ENERGY, ...lcReprints(ORIGINAL_ENERGY) };
 
 /** What the special Energy card does when attached from the hand, if it does anything. */

@@ -50,7 +50,7 @@ export const delayed = (damage: number, affliction: 'asleep' | 'poisoned'): Atta
 const isTeam = (ctx: AttackContext, team: string) => ctx.defenderDef.name.includes(team);
 
 /** Knock Over: the player may discard the Stadium in play (to its owner's discard pile). */
-const knockOver = (damage: number): AttackEffect => ({
+export const knockOver = (damage: number): AttackEffect => ({
   choices: (s): ChoiceSpec[] => (s.stadium ? [{ kind: 'boost', options: [true, false], prompt: 'Discard the Stadium card in play?' }] : []),
   run(ctx) {
     ctx.hit(damage);

@@ -289,6 +289,7 @@ export function Board({
         recall={!!self.recall}
         bench={self.bench}
         oppBench={view.opponent.bench}
+        stadium={view.stadium?.card ?? null}
         pending={pending}
         attack={{
           ...attack,

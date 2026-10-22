@@ -41,7 +41,7 @@ describe('EX Dragon', () => {
     expect(misty(s).bench[0]!.damage).toBe(60);
   });
 
-  it('Dragon Crush: heads, 10 to each of the opponent\'s Pokémon and an Energy card from each; tails nothing (agreed)', () => {
+  it('Dragon Crush: heads, 10 to the Defending Pokémon and an Energy card from it (agreed: the Active Pokémon only); tails nothing', () => {
     let s = duel('charmander', 'onix');
     put(s, 'ash', 'active', mon('ex3-32', 'Gyarados', W, 100, [['Dragon Crush', [W], 0]], { stage: 'stage1' }), ['water']);
     put(s, 'misty', 'active', big('Snorlax'), ['fire']);
@@ -49,11 +49,10 @@ describe('EX Dragon', () => {
     expect(misty(attack(flips(s, false), 0)).active!.damage).toBe(0);
     s = attack(flips(s, true), 0);
     expect(misty(s).active!.damage).toBe(10);
-    expect(misty(s).bench[0]!.damage).toBe(10);
+    expect(misty(s).bench[0]!.damage).toBe(0);
     s = resolve(s, { cardUid: misty(s).active!.energy[0]!.uid });
-    s = resolve(s, { cardUid: misty(s).bench[0]!.energy[0]!.uid });
     expect(misty(s).active!.energy).toHaveLength(0);
-    expect(misty(s).bench[0]!.energy).toHaveLength(0);
+    expect(misty(s).bench[0]!.energy).toHaveLength(1);
   });
 
   it('Wonder Guard: attacks by the opponent\'s Evolved Pokémon and Pokémon-ex do nothing to Shedinja', () => {
