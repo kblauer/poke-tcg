@@ -76,6 +76,9 @@ const MISSING_EVOLVES_FROM_BY_ID: Record<string, string> = { 'ecard1-35': 'Ekans
 /** The owner in an owner's Pokémon's name (Gym Heroes, Gym Challenge): "Brock's Rhydon" → "Brock's ". */
 const OWNER = /^((?:Blaine|Brock|Erika|Lt\. Surge|Misty|Sabrina|Giovanni|Koga|Rocket)'s )/;
 
+/** A second printed "Evolves from" (EX Unseen Forces Blissey ex: "Evolves from Chansey or Chansey ex"), by card id. */
+const ALSO_EVOLVES_FROM: Record<string, string[]> = { 'ex10-101': ['Chansey ex'] };
+
 /** What the card evolves from, filling in TCGdex's gaps. */
 const evolvesFrom = (card: Pick<Card, 'id' | 'name' | 'stage' | 'evolveFrom'>) => {
   // Team Rocket's Dark Stage 2 Pokémon evolve from the Dark Stage 1 (Dark Alakazam from Dark Kadabra); TCGdex has the plain one.
@@ -206,6 +209,7 @@ export function toCardDef(card: Card): CardDef {
       hp: card.hp,
       stage,
       evolvesFrom: evolvesFrom(card),
+      ...(ALSO_EVOLVES_FROM[card.id.replace(/-reverse$/, '')] && { alsoEvolvesFrom: ALSO_EVOLVES_FROM[card.id.replace(/-reverse$/, '')] }),
       attacks,
       power: power(data, card.id),
       weakness: weakness(data),

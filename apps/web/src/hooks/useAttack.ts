@@ -25,6 +25,7 @@ export function useAttack({ view, send, busy }: { view: PlayerView; send: (a: Ga
           opponentBench: opponent.bench,
           ownBench: self.bench,
           ownDiscard: self.discard,
+          ownHand: self.hand,
           cards: view.cards,
           turn: view.turn,
           stadium: view.stadium?.card ?? null,

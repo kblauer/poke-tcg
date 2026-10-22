@@ -106,6 +106,7 @@ export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCa
   if (pokemon.effects?.giantGrowth) d = { ...d, hp: 80 };
   // Sunbeam: Lunatone's HP is now 80 while its player has a Solrock with it working.
   if (pokemon.hpSet) d = { ...d, hp: pokemon.hpSet };
+  if (pokemon.hpPlus) d = { ...d, hp: d.hp + pokemon.hpPlus };
   // Low Pressure System: 10 more HP for a Grass or Lightning Pokémon.
   if (pokemon.lowPressure) d = { ...d, hp: d.hp + 10 };
   // Rocket's Hideout: 20 more HP for a Pokémon with Dark in its name.

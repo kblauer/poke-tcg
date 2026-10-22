@@ -59,10 +59,10 @@ export type PeekTarget = 'deck' | 'oppDeck' | 'oppHand' | 'prize' | 'oppPrize';
 
 /** What a power can see before it's used. View-safe: the UI builds it from a PlayerView. */
 export interface PowerSituation {
-  me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'discard' | 'powersOffUntil' | 'quickenTurn' | 'activeEnergyTurn' | 'goodNeighborTurn' | 'healDanceTurn' | 'weatherTurn' | 'quickSearchTurn' | 'formChangeTurn' | 'happyDanceTurn'>;
+  me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'discard' | 'powersOffUntil' | 'quickenTurn' | 'activeEnergyTurn' | 'goodNeighborTurn' | 'healDanceTurn' | 'weatherTurn' | 'quickSearchTurn' | 'formChangeTurn' | 'happyDanceTurn' | 'powerTurns'>;
   opp: Pick<PlayerState, 'active' | 'bench' | 'powersOffUntil' | 'discard'>;
   /** Sizes of the hidden piles (Peek). */
-  counts: { deck: number; prizes: number; oppDeck: number; oppHand: number; oppPrizes: number };
+  counts: { deck: number; prizes: number; oppDeck: number; oppHand: number; oppPrizes: number; /** Of `prizes`, how many are face up (Prize Shift). */ faceUpPrizes?: number };
   /** The Pokémon whose power it is. */
   source: Target;
   cards: CardLibrary;
@@ -375,6 +375,53 @@ export interface PowerEffect {
   noPrizes?: boolean;
   /** Fast Protection: attacks by the opponent's Basic Pokémon don't affect it. */
   basicProof?: boolean;
+  /** Stages of Evolution: it works only while its Pokémon is an Evolved Pokémon (powerActive). */
+  evolvedOnly?: boolean;
+  /** Stages of Evolution (Hitmonchan): its Pokémon has this much more HP (refreshHideout). */
+  hpPlus?: number;
+  /** Stages of Evolution (Hitmonlee): its attacks do this much more to the opponent's Pokémon, before Weakness and Resistance. */
+  attackMore?: number;
+  /** Stages of Evolution (Jynx): it has no Weakness. */
+  noWeakness?: boolean;
+  /** Thick Fat: attack damage to it from Pokémon of these types is `amount` less, after Weakness and Resistance. */
+  typeGuard?: { types: EnergyType[]; amount: number };
+  /** Intimidating Ring: as its player's Active Pokémon, the opponent's Basic Pokémon can't attack or use Poké-Powers. */
+  intimidatingRing?: boolean;
+  /** Overpowering Fang: as its player's Active Pokémon, no Pokémon but Pokémon-ex (both players') can use Poké-Powers or Poké-Bodies. */
+  overpoweringFang?: boolean;
+  /** Lonesome: while its player has fewer Pokémon in play than the opponent, the opponent can't play Trainer cards but Supporters. */
+  lonesome?: boolean;
+  /** Shining Horn: while it's its player's only Pokémon in play, the opponent's Basic Pokémon can't attack. */
+  shiningHorn?: boolean;
+  /** Beacon Protection, Extra Protection: `guardFrom` works only while its player has this Pokémon in play. */
+  guardPartner?: string;
+  /** Reversal Aura: while its player has more Prize cards left, 20 more to the Active Pokémon and 20 less from the Active Pokémon. */
+  reversalAura?: number;
+  /** Delta Moon: when the opponent attaches a Special Energy card from their hand, a damage counter on that Pokémon (one, however many). */
+  deltaMoon?: boolean;
+  /** Binding Aura: the opponent can't evolve an Asleep Pokémon or attach Energy cards to one from their hand. */
+  bindingAura?: boolean;
+  /** Spiral Swirl: as its player's Active Pokémon, Knocked Out by the opponent's attack's damage, the attacker is now Confused. */
+  spiralSwirl?: boolean;
+  /** Golden Wing: Knocked Out by the opponent's attack's damage, its owner may move up to 2 of its Energy cards to their other Pokémon. */
+  goldenWing?: boolean;
+}
+
+/** Wise Aura, Overpowering Fang and Intimidating Ring: an Active Pokémon's aura stopping `pokemon`'s power, or null. */
+export function auraStops(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sides): string | null {
+  const body = !!powerEffect(effectId(pokemon))?.body;
+  const d = inPlayDef(cards, pokemon);
+  for (const side of sides) {
+    const a = side.active;
+    if (!a || a === pokemon) continue;
+    const effect = powerEffect(effectId(a));
+    if (!effect || !(effect.wiseAura || effect.overpoweringFang || effect.intimidatingRing) || !powerActive(a, cards, sides)) continue;
+    if (effect.overpoweringFang && !d.ex) return powerOf(a, cards)!.name;
+    if (effect.wiseAura && !d.ex && !body) return powerOf(a, cards)!.name;
+    const theirs = !side.bench.includes(pokemon);
+    if (effect.intimidatingRing && theirs && !body && d.stage === 'basic') return powerOf(a, cards)!.name;
+  }
+  return null;
 }
 
 /**
@@ -382,7 +429,24 @@ export interface PowerEffect {
  * attached). `effect`: its power, when working.
  */
 export const conditionFree = (pokemon: InPlayPokemon, cards: CardLibrary, effect: PowerEffect | undefined) =>
+  holonWith(pokemon, cards, 'GL', 'grass') ||
   !!pokemon.greenEssence || !!effect?.noConditions || (!!effect?.noConditionsWith && energyPool(pokemon, cards).some((e) => counts(e, effect.noConditionsWith!)));
+
+/**
+ * Holon Energy FF, GL, WP: `pokemon` (not a Pokémon-ex) has that Holon Energy card attached (its effect working) and a basic
+ * Energy card of `type` too.
+ */
+export const holonWith = (pokemon: InPlayPokemon, cards: CardLibrary, holon: 'FF' | 'GL' | 'WP', type: EnergyType) =>
+  !inPlayDef(cards, pokemon).ex &&
+  pokemon.energy.some((e) => !e.provides && !e.windless && lookupCard(cards, e.defId).name === `Holon Energy ${holon}`) &&
+  pokemon.energy.some((e) => {
+    const d = lookupCard(cards, e.defId);
+    return !e.provides && d.kind === 'energy' && d.basic !== false && !d.anyType && d.energyType === type;
+  });
+
+/** Binding Aura: the opponent (`sides[1]`) has a Hypno with it working. */
+export const bindingAura = (sides: Sides, cards: CardLibrary) =>
+  !!sides[1] && [sides[1].active, ...sides[1].bench].some((p) => !!p && !!powerEffect(effectId(p))?.bindingAura && powerActive(p, cards, sides));
 
 /** Insomnia, Self-control, Carefree, Magma Armor: a working power keeps this one Special Condition off the Pokémon. */
 export const conditionBarred = (effect: PowerEffect | undefined, affliction: string) =>
@@ -448,7 +512,9 @@ export function powerActive(pokemon: InPlayPokemon, cards: CardLibrary, sides: S
   if (!effect?.ignoresConditions && (effect?.stopsOnlyWhileAsleep ? pokemon.condition === 'asleep' : hasSpecialCondition(pokemon))) return false;
   // Dark Impact: its Poké-Powers (and Pokémon Powers) don't work; Poké-Bodies do. Lazy: none of its player's do.
   if (pokemon.effects?.noPokePowers !== undefined && !effect?.body) return false;
-  if (lazied(pokemon, cards, sides) || wiseAuraStops(pokemon, cards, sides)) return false;
+  if (lazied(pokemon, cards, sides) || auraStops(pokemon, cards, sides)) return false;
+  // Stages of Evolution: only while it's an Evolved Pokémon.
+  if (effect?.evolvedOnly && !pokemon.evolvedFrom.length) return false;
   // Space Center (Poké-Bodies) and Battle Frontier (both) switch off the powers of the Pokémon they name (refreshHideout).
   if (pokemon.stadiumMuted === 'all' || (pokemon.stadiumMuted === 'bodies' && effect?.body)) return false;
   // Ancient Wind: every Poké-Body is ignored until the end of the turn.
@@ -614,6 +680,9 @@ export function attachBlocked(cards: CardLibrary, sides: Sides, pokemon: InPlayP
   const owner = sides.find((s) => s.active === pokemon);
   const glare = owner && sides.find((s) => s !== owner && s.active && powerEffect(effectId(s.active))?.cursedGlare && powerActive(s.active, cards, sides));
   if (glare && d.kind === 'energy' && d.basic === false && !['Darkness Energy', 'Metal Energy'].includes(d.name)) return `Cursed Glare: Special Energy cards can't be attached to your Active Pokémon`;
+  // Binding Aura (the other player's Hypno): nothing from the hand onto an Asleep Pokémon.
+  const holder = sides.find((s) => s.active === pokemon || s.bench.includes(pokemon));
+  if (pokemon.condition === 'asleep' && holder && bindingAura([holder, ...sides.filter((s) => s !== holder)], cards)) return "Binding Aura: Energy cards can't be attached to an Asleep Pokémon from your hand";
   if (!effect?.antiAttach || !powerActive(pokemon, cards, sides) || d.kind !== 'energy' || d.basic === false || d.energyType !== effect.antiAttach) return null;
   return `${inPlayDef(cards, pokemon).power!.name}: ${d.name} cards can't be attached to ${inPlayDef(cards, pokemon).name} from your hand`;
 }
@@ -669,12 +738,6 @@ export function lazied(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sides)
   if (powerEffect(effectId(pokemon))?.body) return false;
   const opponent = sides.find((s) => s.active !== pokemon && !s.bench.includes(pokemon));
   return !!opponent?.active && !!powerEffect(effectId(opponent.active))?.lazy && powerActive(opponent.active, cards, sides);
-}
-
-/** Wise Aura is stopping `pokemon`'s Poké-Power (not a Pokémon-ex's): either Active Pokémon has a working Wise Aura. */
-export function wiseAuraStops(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sides): boolean {
-  if (powerEffect(effectId(pokemon))?.body || inPlayDef(cards, pokemon).ex) return false;
-  return sides.some((s) => !!s.active && s.active !== pokemon && !!powerEffect(effectId(s.active))?.wiseAura && powerActive(s.active, cards, sides));
 }
 
 /** Dark Gaze is stopping the Benched Pokémon `pokemon`'s Poké-Powers: a working Dark Gaze on either Active Pokémon. */
@@ -791,7 +854,8 @@ export function powerError(s: PowerSituation): string | null {
   if (source.effects?.noPokePowers !== undefined) return `Dark Impact: ${def.name} can't use Poké-Powers this turn`;
   if (darkGazed(source, s.cards, [s.me, s.opp])) return "Dark Gaze: Benched Pokémon can't use Poké-Powers";
   if (lazied(source, s.cards, [s.me, s.opp])) return "Lazy: your Pokémon can't use Poké-Powers";
-  if (wiseAuraStops(source, s.cards, [s.me, s.opp])) return `Wise Aura: ${def.name} can't use Poké-Powers`;
+  const aura = auraStops(source, s.cards, [s.me, s.opp]);
+  if (aura) return `${aura}: ${def.name} can't use Poké-Powers`;
   // Space Center, Battle Frontier.
   if (source.stadiumMuted === 'all') return `The Stadium in play: ${def.name} can't use Poké-Powers`;
   // Mt. Moon: no Poké-Powers (or older Pokémon Powers) for a Pokémon with less than 70 HP.
@@ -865,9 +929,10 @@ export function nextPowerChoice(s: PowerSituation, given: PowerChoices): PowerCh
 }
 
 /** PowerSituation.counts from the players' state. */
-export const situationCounts = (me: Pick<PlayerState, 'deck' | 'prizes'>, opp: Pick<PlayerState, 'deck' | 'hand' | 'prizes'>): PowerSituation['counts'] => ({
+export const situationCounts = (me: Pick<PlayerState, 'deck' | 'prizes' | 'faceUpPrizes'>, opp: Pick<PlayerState, 'deck' | 'hand' | 'prizes'>): PowerSituation['counts'] => ({
   deck: me.deck.length,
   prizes: me.prizes.length,
+  faceUpPrizes: me.prizes.filter((c) => me.faceUpPrizes?.includes(c.uid)).length,
   oppDeck: opp.deck.length,
   oppHand: opp.hand.length,
   oppPrizes: opp.prizes.length,

@@ -9,7 +9,7 @@
 // does 100 to every Pokémon-ex of the opponent's (Weakness and Resistance only on the Active one).
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { targetsIn } from '../attacks.js';
-import { isBasicEnergy, lookupCard, namesMatch } from '../cards.js';
+import { isBasicEnergy, lookupCard, namesMatch, type CardLibrary } from '../cards.js';
 import { counts, energyPool, isEnergyCardOf, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { discardsLocked } from '../powers.js';
 import { effectId, inPlayDef, pokemonName } from '../status.js';
@@ -40,13 +40,18 @@ export const dragOff = (damage: number): AttackEffect => ({
   },
 });
 
-/** "Choose `n` of your opponent's Pokémon": every one of them if there are no more, else the player's picks (-1: the Active one). */
-const chooseOpponents = (n: number, damage: number, prompt: string): AttackEffect => ({
+/**
+ * "Choose `n` of your opponent's Pokémon": every one of them if there are no more, else the player's picks (-1: the Active
+ * one). `n` may depend on the attacker (Energy Bone: the Energy attached).
+ */
+export const chooseOpponents = (count: number | ((attacker: InPlayPokemon, cards: CardLibrary) => number), damage: number, prompt: string): AttackEffect => ({
   choices(s): ChoiceSpec[] {
+    const n = typeof count === 'number' ? count : count(s.attacker, s.cards);
     const all = targetsIn(s.defender, s.opponentBench);
-    return all.length > n ? [{ kind: 'opponentBenchMany', count: n, options: [-1, ...benchedSlots(s.opponentBench)], prompt }] : [];
+    return n && all.length > n ? [{ kind: 'opponentBenchMany', count: n, options: [-1, ...benchedSlots(s.opponentBench)], prompt }] : [];
   },
   run(ctx) {
+    const n = typeof count === 'number' ? count : count(ctx.attacker, ctx.state.cards);
     const all = targetsIn(ctx.opp.active, ctx.opp.bench);
     const picked: Target[] = all.length > n ? (ctx.choices.benchSlots ?? []).map((s) => (s === -1 ? 'active' : s)) : all;
     for (const t of [...new Set(picked)].slice(0, n)) damageAt(ctx, t, damage);
@@ -57,7 +62,7 @@ const chooseOpponents = (n: number, damage: number, prompt: string): AttackEffec
 const hasPower = (cards: AttackContext['state']['cards'], p: InPlayPokemon, body: boolean) => !!inPlayDef(cards, p).power && !!powerEffect(effectId(p))?.body === body;
 
 /** The opponent's Trainer cards in play: Pokémon Tools, Technical Machines and the like on their Pokémon, and their Stadium. */
-const trainersInPlay = (ctx: AttackContext) =>
+export const trainersInPlay = (ctx: AttackContext) =>
   inPlay(ctx.opp).reduce((n, p) => n + (p.attached ?? []).filter((a) => lookupCard(ctx.state.cards, a.card.defId).kind === 'trainer').length, 0) +
   (ctx.state.stadium?.owner === ctx.opp.id ? 1 : 0);
 

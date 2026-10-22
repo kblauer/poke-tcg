@@ -20,7 +20,7 @@ import { EX3_POWERS } from './ex3-powers.js';
 import { FOSSIL_POWERS } from './fossil-powers.js';
 
 /** Removes up to `amount` damage from `p` (a body between turns), logged. */
-function healBetween(state: Parameters<NonNullable<PowerEffect['checkup']>>[0], owner: PlayerState, p: InPlayPokemon, amount: number, source: string) {
+export function healBetween(state: Parameters<NonNullable<PowerEffect['checkup']>>[0], owner: PlayerState, p: InPlayPokemon, amount: number, source: string) {
   const healed = Math.min(amount, p.damage);
   if (!healed) return;
   p.damage -= healed;
@@ -28,7 +28,7 @@ function healBetween(state: Parameters<NonNullable<PowerEffect['checkup']>>[0], 
 }
 
 /** Puts `n` damage counters on `p` (a body between turns), logged. */
-function countersBetween(state: Parameters<NonNullable<PowerEffect['checkup']>>[0], owner: PlayerState, p: InPlayPokemon, n: number, source: string) {
+export function countersBetween(state: Parameters<NonNullable<PowerEffect['checkup']>>[0], owner: PlayerState, p: InPlayPokemon, n: number, source: string) {
   p.damage += 10 * n;
   addLog(state, `${source} put ${n} damage counter${n === 1 ? '' : 's'} on ${pokemonName(state, p)}.`, owner.id);
 }
