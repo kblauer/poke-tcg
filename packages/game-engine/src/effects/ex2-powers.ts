@@ -50,26 +50,26 @@ const eclipse = (partner: string, type: 'darkness' | 'fire'): PowerEffect => ({
 });
 
 /** The cards in the hand Baby Evolution can put onto the baby: `name`, or a variant of it (never a Pokémon-ex). */
-const babyCards = (s: Pick<PowerSituation, 'me' | 'cards'>, name: string): CardInstance[] =>
+const babyCards = (s: Pick<PowerSituation, 'me' | 'cards'>, name: string | string[]): CardInstance[] =>
   s.me.hand.filter((c) => {
     const d = lookupCard(s.cards, c.defId);
-    return d.kind === 'pokemon' && !d.trainerText && namesMatch(d.name, name);
+    return d.kind === 'pokemon' && !d.trainerText && [name].flat().some((n) => namesMatch(d.name, n));
   });
 
 /**
  * Baby Evolution: once during the player's turn, `name` from the hand is put onto the baby (evolving it) and all its damage
  * counters are removed. It can be used on the first turn and the turn the baby was played (agreed).
  */
-export const babyEvolution = (name: string): PowerEffect => ({
+export const babyEvolution = (name: string | string[]): PowerEffect => ({
   oncePerTurn: true,
   blocked(s) {
     const source = pokemonAt(s.me, s.source);
-    if (!babyCards(s, name).length) return `No ${name} in your hand`;
+    if (!babyCards(s, name).length) return `No ${[name].flat().join(' or ')} in your hand`;
     const blocked = evolutionBlocked([s.me, s.opp], s.cards) ?? (source && primalBlock(source, [s.me, s.opp], s.cards));
     if (blocked) return blocked;
     return source?.effects?.noEvolve !== undefined ? `${inPlayDef(s.cards, source).name} can't evolve this turn` : null;
   },
-  choices: (s) => [{ kind: 'handCard', field: 'cardUid', options: babyCards(s, name), prompt: `Choose ${name} from your hand` }],
+  choices: (s) => [{ kind: 'handCard', field: 'cardUid', options: babyCards(s, name), prompt: `Choose ${[name].flat().join(' or ')} from your hand` }],
   use(ctx) {
     const card = ctx.me.hand.find((c) => c.uid === ctx.choices.cardUid);
     if (!card) return;

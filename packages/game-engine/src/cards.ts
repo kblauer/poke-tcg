@@ -33,6 +33,8 @@ export interface PokemonCardDef {
   stage: Stage;
   /** Name of the Pokémon this evolves from (null for Basics). */
   evolvesFrom: string | null;
+  /** Other names it's printed to evolve from (EX Unseen Forces Blissey ex: Chansey or Chansey ex). */
+  alsoEvolvesFrom?: string[];
   /** Stage 2 only: name of the Basic at the bottom of its line, for Pokémon Breeder. Missing in older games. */
   evolvesFromBasic?: string | null;
   attacks: Attack[];

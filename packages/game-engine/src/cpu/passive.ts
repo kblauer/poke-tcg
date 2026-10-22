@@ -42,8 +42,8 @@ function finishSearch(state: GameState): GameAction {
   // The first option: Mind Games, Herbal Scent, Fire Boost and Softboiled flip (agreed for Mind Games). Howl, which ends the turn, isn't used.
   const choice = state.pendingChoice!;
   if (view.kind === 'options') return { type: 'RESOLVE_CHOICE', count: (choice.kind === 'mayFlip' && choice.power === 'howl') || (choice.kind === 'mayUse' && choice.power === 'retroEnergy') ? 1 : 0 };
-  // Attract Energy ("any number"): its Energy stays where it is.
-  if (choice.kind === 'moveAttached') return { type: 'RESOLVE_CHOICE' };
+  // Attract Energy, Delta Switch ("any number"): its Energy stays where it is.
+  if (choice.kind === 'moveAttached' || (choice.kind === 'deltaSwitch' && !choice.cardUid)) return { type: 'RESOLVE_CHOICE' };
   const [pick] = view.options;
   return { type: 'RESOLVE_CHOICE', ...(pick && { cardUid: pick.uid }) };
 }

@@ -1,6 +1,6 @@
 /// <reference path="./globals.d.ts" />
 import { applyWeaknessResistance, attackSituation, checkAttack, performAttack, recallsAttacks, usableAttacks, type AttackChoices } from './attacks.js';
-import { attachBlocked, discardsLocked, energyFromHand, evolutionBlocked, primalBlock, retreatBodies, guardedBy, spiraledBy, conditionBarred, conditionFree, miraculousWind, offerChainReaction, playedFromHand, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, primalLocked, trainersDusted, trainersBlocked, usePower, zoomed, type PowerChoices, type PowerEffect } from './powers.js';
+import { attachBlocked, discardsLocked, energyFromHand, evolutionBlocked, primalBlock, retreatBodies, guardedBy, spiraledBy, bindingAura, conditionBarred, conditionFree, holonWith, miraculousWind, offerChainReaction, playedFromHand, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, primalLocked, trainersDusted, trainersBlocked, usePower, zoomed, type PowerChoices, type PowerEffect } from './powers.js';
 import { evolvesFromEevee, evolveWith, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
 import { conditionProof, hasOwner, hasType, namesMatch, isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
@@ -27,6 +27,8 @@ export interface CardInstance {
   /** Multi Energy beside another Special Energy card on its Pokémon: it provides Colorless Energy only (refreshMultiEnergy). */
   colorlessOnly?: boolean;
   /** Scramble Energy while its owner has more Prize cards left: 3 Energy, each of any type (dropBoostEnergy, energyPool). */
+  /** Holon Research Tower: this basic Energy card on a δ Pokémon is Metal too, 1 Energy at a time (refreshHideout, energyPool). */
+  holonMetal?: boolean;
   scrambled?: boolean;
 }
 
@@ -142,6 +144,8 @@ export interface PokemonEffects {
   pivot?: number;
   /** Hustle Punch: the turn its base damage is 50 instead of 70. */
   hustle?: number;
+  /** Extra Comet Punch, Standing By, Steep Dive: on `turn`, this attack of its does more (its own rule). */
+  boostedAttack?: { attack: string; turn: number };
   /** If an attack would Knock it Out, it's left with 10 HP instead, through this turn (Endure). */
   endure?: number;
   /** It can't become Asleep, Confused, Paralyzed or Poisoned, through this turn (Pollen Shield). */
@@ -264,6 +268,8 @@ export interface InPlayPokemon {
   greenEssence?: boolean;
   /** Sunbeam: its HP is now this (refreshHideout, inPlayDef). */
   hpSet?: number;
+  /** Stages of Evolution (Hitmonchan), Energy Root: this much more HP (refreshHideout, inPlayDef). */
+  hpPlus?: number;
   /** Crystal Type: the type it's changed to until the end of the turn (inPlayDef). */
   crystalType?: EnergyType;
   /** Low Pressure System is the Stadium in play and it's a Grass or Lightning Pokémon: 10 more HP (refreshHideout, inPlayDef). */
@@ -277,6 +283,8 @@ export interface InPlayPokemon {
   timeShard?: boolean | 'asked';
   /** EXP. ALL (EX FireRed & LeafGreen) was offered for this Knock Out. */
   expAllAsked?: boolean;
+  /** Curse Powder and Golden Wing were handled for this Knock Out (attacks.ts, knockedOutEffects). */
+  koHandled?: boolean;
 }
 
 export interface PlayerState {
@@ -346,6 +354,8 @@ export interface PlayerState {
   formChangeTurn?: number;
   /** Happy Dance: the turn this player last used it (no more than 1 Happy Dance a turn). */
   happyDanceTurn?: number;
+  /** Powers printed "You can't use more than 1 … Poké-Power each turn" (Delta Heal, Snappy Move, Duplicate): the turn each was last used, by name. */
+  powerTurns?: Record<string, number>;
   /**
    * Dragon Dance, Bay Dance: the turn this player's attacks do `dragonDanceMore` (40 if missing) more damage to the Defending
    * Pokémon, before Weakness and Resistance (agreed: never to the Bench); `dragonDanceSource` names the attack for the log.
@@ -828,6 +838,11 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       // Miraculous Wind stops a Special Energy card's other effects (Rainbow Energy's damage counter…).
       if (!(isSpecialEnergy(state.cards, energy) && miraculousWind([me, opp], state.cards))) energyEffect(energy.defId)?.onAttach?.(state, me, target);
       energyFromHand(state, me, action.target, energy);
+      // Delta Moon: the opponent's working Umbreon δ puts a damage counter on a Pokémon a Special Energy card is attached to (one, however many; agreed).
+      if (isSpecialEnergy(state.cards, energy) && [opp.active, ...opp.bench].some((p) => p && powerEffect(effectId(p))?.deltaMoon && powerActive(p, state.cards, [me, opp]))) {
+        target.damage += 10;
+        addLog(state, `Delta Moon put a damage counter on ${pokemonName(state, target)}.`, opp.id);
+      }
       // Rainbow Energy's damage can Knock Out the Pokémon.
       return afterOwnMove(state, me, opp);
     }
@@ -1166,6 +1181,8 @@ export function evolveError(
   if (primal) return primal;
   // Dark Tentacle: not by an Evolution card from the hand or a Trainer this turn.
   if (target.effects?.noEvolve !== undefined) return `${current.name} can't evolve this turn`;
+  // Binding Aura (the opponent's Hypno): not an Asleep Pokémon, from the hand.
+  if (target.condition === 'asleep' && bindingAura(sides, cards)) return `Binding Aura: ${current.name} is Asleep and can't evolve`;
   // Giovanni: no first-turn or played-this-turn limit for the Pokémon chosen, this turn.
   if (target.giovanniTurn === turn) return null;
   // Turns 1 and 2 are each player's first turn.
@@ -1181,7 +1198,7 @@ export function evolveError(
 export function evolvesOnto(evolution: PokemonCardDef, current: CardDef): boolean {
   const evolvesFromStage = evolution.stage === 'stage2' ? 'stage1' : 'basic';
   if (current.kind !== 'pokemon' || current.stage !== evolvesFromStage || evolution.stage === 'basic') return false;
-  return current.name === evolution.evolvesFrom || (current.name === 'Buried Fossil' && evolution.evolvesFrom === 'Mysterious Fossil');
+  return current.name === evolution.evolvesFrom || !!evolution.alsoEvolvesFrom?.includes(current.name) || (current.name === 'Buried Fossil' && evolution.evolvesFrom === 'Mysterious Fossil');
 }
 
 /**
@@ -1192,7 +1209,8 @@ export function evolvesOnto(evolution: PokemonCardDef, current: CardDef): boolea
 export const retreatCost = (pokemon: InPlayPokemon, cards: CardLibrary, sides: Pick<PlayerState, 'active' | 'bench'>[] = [], stadium?: CardInstance | null) =>
   // Balloon Berry: it's discarded instead of Energy cards (RETREAT). [Zoom]: free for an Unown.
   // Tailwind: 0 this turn.
-  toolOf(cards, pokemon)?.name === 'Balloon Berry' || zoomed(pokemon, cards, sides) || pokemon.effects?.tailwind !== undefined ? 0 : Math.max(
+  // Fluffy Berry, and Holon Energy WP with a basic Psychic Energy card: 0.
+  ['Balloon Berry', 'Fluffy Berry'].includes(toolOf(cards, pokemon)?.name ?? '') || holonWith(pokemon, cards, 'WP', 'psychic') || zoomed(pokemon, cards, sides) || pokemon.effects?.tailwind !== undefined ? 0 : Math.max(
     0,
     (inPlayDef(cards, pokemon).retreatCost ?? 0) +
       // Tentacle Wrap: 1 more.
@@ -1322,6 +1340,8 @@ export const energyPool = (pokemon: InPlayPokemon, cards: CardLibrary): PoolEner
     if (!e.provides && !e.windless && lookupCard(cards, e.defId).name === 'Dark Metal Energy') return ['crystal:darkness,metal' as CrystalEnergy];
     // Scramble Energy: 3 Energy of any types while its owner has more Prize cards left (otherwise Colorless).
     if (e.scrambled && !e.windless) return ['any', 'any', 'any'] as PoolEnergy[];
+    // Holon Research Tower: a basic Energy card on a δ Pokémon is its type or Metal.
+    if (e.holonMetal && type !== 'metal') return [`crystal:${type},metal` as CrystalEnergy];
     return Array<PoolEnergy>(amount).fill(isCrystalEnergy(cards, e) ? crystalProvides(pokemon, cards) : type);
   });
   if (pokemon.effects?.energyBurn !== undefined) return pool.map(() => 'fire');
@@ -1678,14 +1698,14 @@ function useStarPiece(state: GameState, owner: PlayerState, p: InPlayPokemon) {
 }
 
 /**
- * Berry and Oran Berry (2 damage counters), Gold Berry (4), Miracle Berry (Asleep, Confused, Paralyzed or Poisoned) and Lum
+ * Berry and Oran Berry (2 damage counters), Sitrus Berry (3), Gold Berry (4), Miracle Berry (Asleep, Confused, Paralyzed or Poisoned) and Lum
  * Berry (any Special Condition): between turns,
  * if the Pokémon has that much damage (or one of those), it's removed and the Berry is discarded.
  */
 function useBerry(state: GameState, owner: PlayerState, p: InPlayPokemon) {
   const name = toolOf(state.cards, p)?.name;
   // Oran Berry (EX Ruby & Sapphire) works as Berry.
-  const amount = name === 'Berry' || name === 'Oran Berry' ? 20 : name === 'Gold Berry' ? 40 : 0;
+  const amount = name === 'Berry' || name === 'Oran Berry' ? 20 : name === 'Sitrus Berry' ? 30 : name === 'Gold Berry' ? 40 : 0;
   // Healing Berry: 20 HP or less left, 3 damage counters off.
   if (name === 'Healing Berry' && p.damage >= 10 && inPlayDef(state.cards, p).hp - p.damage <= 20) {
     const healed = Math.min(30, p.damage);
@@ -1952,6 +1972,26 @@ function refreshHideout(state: GameState) {
       delete p.stadiumMuted;
       if (stadium === 'Space Center' && d.stage === 'basic' && !d.ex && !hasOwner(d.name)) p.stadiumMuted = 'bodies';
       if (stadium === 'Battle Frontier' && p.evolvedFrom.length && (['colorless', 'darkness', 'metal'] as const).some((t) => hasType(d, t))) p.stadiumMuted = 'all';
+      // A Pokémon Tool that can't stay on its Pokémon (Curse Powder on a Basic Pokémon, Energy Root on a Pokémon-ex…) is discarded.
+      const tool = toolOf(state.cards, p);
+      const fits = tool && trainerEffect(tool.tool.card.defId)?.toolFor;
+      if (tool && fits && (!fits(d) || (trainerEffect(tool.tool.card.defId)?.evolvedToolOnly && !p.evolvedFrom.length))) {
+        discardTool(state, player, p);
+        addLog(state, `${tool.name} on ${pokemonName(state, p)} was discarded.`, player.id);
+      }
+      // Energy Root: 20 more HP and no Poké-Powers or Poké-Bodies (as Battle Frontier). Hitmonchan's Stages of Evolution: 30 more HP.
+      delete p.hpPlus;
+      if (toolOf(state.cards, p)?.name === 'Energy Root') {
+        p.hpPlus = 20;
+        p.stadiumMuted = 'all';
+      }
+      const plus = powerEffect(effectId(p))?.hpPlus;
+      if (plus && powerActive(p, state.cards, sides)) p.hpPlus = (p.hpPlus ?? 0) + plus;
+      // Holon Research Tower: the basic Energy cards on a δ Pokémon are Metal too (energyPool).
+      for (const e of p.energy) {
+        if (stadium === 'Holon Research Tower' && / δ$/.test(d.name) && !e.provides && isBasicEnergy(lookupCard(state.cards, e.defId))) e.holonMetal = true;
+        else delete e.holonMetal;
+      }
     }
   }
   // Then the bodies that change other Pokémon, now that the Stadium's have been worked out.

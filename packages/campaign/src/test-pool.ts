@@ -59,7 +59,8 @@ function toDef(r: Row): CardDef | null {
       // Each name once: TCGdex lists some attacks twice (Southern Islands Tentacruel), as the API has them.
       attacks: (r.attacks ?? []).filter((a, i, all) => all.findIndex((b) => b.name === a.name) === i).map((a) => {
         const effect = attackEffect(r.id, a.name);
-        return { name: a.name, cost: effect?.cost ?? (a.cost ?? []).map(type), damage: Number.parseInt(String(effect?.damage ?? a.damage ?? ''), 10) || 0, text: a.effect };
+        // TCGdex's "n/a" is no text, as the seed has it (EX Unseen Forces Hitmonlee's Mega Kick).
+        return { name: a.name, cost: effect?.cost ?? (a.cost ?? []).map(type), damage: Number.parseInt(String(effect?.damage ?? a.damage ?? ''), 10) || 0, text: a.effect === 'n/a' ? null : a.effect };
       }),
       power: r.abilities?.[0] ? { name: r.abilities[0].name, text: r.abilities[0].effect } : null,
       retreatCost: r.retreat ?? 0,

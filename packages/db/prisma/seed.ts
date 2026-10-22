@@ -300,6 +300,15 @@ const TCGDEX_FIXES: Record<string, Partial<TcgdexCard>> = {
     effect:
       'You can play only one Supporter card each turn. When you play this card, put it next to your Active Pokémon. When your turn ends, discard this card. Search your deck for up to 2 basic Energy cards, show them to your opponent, and put them into your hand. Shuffle your deck afterward. Or, search your discard pile for up to 2 basic Energy cards, show them to your opponent, and put them into your hand.',
   },
+  // EX Unseen Forces Blissey ex evolves from Chansey or Chansey ex (the API adds Chansey ex: ALSO_EVOLVES_FROM); EX Delta
+  // Species Magnemite's Magnetic Blast is [L] for 10.
+  'ex10-101': { evolveFrom: 'Chansey' },
+  'ex11-74': {
+    attacks: [
+      { name: 'Collect', cost: ['Colorless'], damage: null, effect: 'Draw a card.' },
+      { name: 'Magnetic Blast', cost: ['Lightning'], damage: '10', effect: null },
+    ],
+  },
   'ex7-109': {
     attacks: [
       { name: 'Tackle', cost: ['Colorless'], damage: '10', effect: null },
@@ -309,7 +318,7 @@ const TCGDEX_FIXES: Record<string, Partial<TcgdexCard>> = {
 };
 
 /** TCGdex's EX text often ends in a stray quote mark, and mangles some "é"s: tidied in every text. */
-const tidy = (text: string | null | undefined) => text?.replace(/"$/, '').replace(/Pok�+mon/g, 'Pokémon') ?? null;
+const tidy = (text: string | null | undefined) => (text === 'n/a' ? null : (text?.replace(/"$/, '').replace(/Pok�+mon/g, 'Pokémon') ?? null));
 const tidyCard = (card: TcgdexCard): TcgdexCard => ({
   ...card,
   effect: tidy(card.effect),

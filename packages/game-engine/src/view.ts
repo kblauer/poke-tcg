@@ -60,6 +60,7 @@ export interface PlayerView {
     quickSearchTurn?: number;
     formChangeTurn?: number;
     happyDanceTurn?: number;
+    powerTurns?: Record<string, number>;
     /** A search this player must finish, with the cards it reveals to them. */
     pendingChoice: PendingChoiceView | null;
     /** Last turn this player can't play Trainer cards (Headache). */
@@ -107,6 +108,7 @@ export interface PlayerView {
 export const viewCounts = (view: PlayerView) => ({
   deck: view.self.deckCount,
   prizes: view.self.prizeCount,
+  faceUpPrizes: view.self.faceUpPrizes?.filter(Boolean).length ?? 0,
   oppDeck: view.opponent.deckCount,
   oppHand: view.opponent.handCount,
   oppPrizes: view.opponent.prizeCount,
@@ -179,6 +181,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       ...(me.quickSearchTurn !== undefined && { quickSearchTurn: me.quickSearchTurn }),
       ...(me.formChangeTurn !== undefined && { formChangeTurn: me.formChangeTurn }),
       ...(me.happyDanceTurn !== undefined && { happyDanceTurn: me.happyDanceTurn }),
+      ...(me.powerTurns && { powerTurns: me.powerTurns }),
       pendingChoice: pending,
       noTrainersUntil: me.noTrainersUntil,
       ...(me.supporterTurn !== undefined && { supporterTurn: me.supporterTurn }),
