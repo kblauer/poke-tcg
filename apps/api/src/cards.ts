@@ -269,6 +269,7 @@ export function toCardDef(card: Card): CardDef {
       attacks: [],
       retreatCost: 0,
       trainerText: text,
+      ...(effect.asPokemon.power && { power: effect.asPokemon.power }),
       holo: isHolo(card),
     };
   }

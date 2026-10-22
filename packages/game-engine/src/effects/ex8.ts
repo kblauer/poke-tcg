@@ -13,7 +13,7 @@ import { isBasicEnergy, lookupCard, namesMatch, type CardLibrary } from '../card
 import { counts, energyPool, isEnergyCardOf, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { discardsLocked } from '../powers.js';
 import { effectId, inPlayDef, pokemonName } from '../status.js';
-import { powerEffect } from './index.js';
+import { powerEffect, trainerEffect } from './index.js';
 import { benchedSlots, opponentBenchChoice } from './common.js';
 import { energyAmount } from './ex1.js';
 import { discardOwn, energyCardOf, inPlay, putCounters, typeCards } from './ex2.js';
@@ -64,6 +64,8 @@ const hasPower = (cards: AttackContext['state']['cards'], p: InPlayPokemon, body
 /** The opponent's Trainer cards in play: Pokémon Tools, Technical Machines and the like on their Pokémon, and their Stadium. */
 export const trainersInPlay = (ctx: AttackContext) =>
   inPlay(ctx.opp).reduce((n, p) => n + (p.attached ?? []).filter((a) => lookupCard(ctx.state.cards, a.card.defId).kind === 'trainer').length, 0) +
+  // EX Legend Maker's and later Fossils are Trainer cards in play as well as Pokémon (agreed).
+  inPlay(ctx.opp).filter((p) => !p.evolvedFrom.length && !!trainerEffect(p.card.defId)?.asPokemon?.alsoTrainer).length +
   (ctx.state.stadium?.owner === ctx.opp.id ? 1 : 0);
 
 /** Miracle Blow, Miracle Essence: heads, the Special Condition the player picks on the Defending Pokémon. */

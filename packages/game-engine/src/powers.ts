@@ -1,7 +1,7 @@
 // Pokémon Powers: legality, the questions a power asks, and the context power effects run with.
 // Card-specific behaviour lives in effects/ (POWERS), next to the attack effects.
 import type { AttackContext } from './attacks.js';
-import { hasType, lookupCard, namesMatch, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
+import { hasType, holonEnergy, lookupCard, namesMatch, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { powerEffect } from './effects/index.js';
 import { counts, energyPool, type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
 import { addLog, effectId, flipCoin, hasSpecialCondition, inPlayDef, specialConditionLabel } from './status.js';
@@ -59,7 +59,7 @@ export type PeekTarget = 'deck' | 'oppDeck' | 'oppHand' | 'prize' | 'oppPrize';
 
 /** What a power can see before it's used. View-safe: the UI builds it from a PlayerView. */
 export interface PowerSituation {
-  me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'discard' | 'powersOffUntil' | 'quickenTurn' | 'activeEnergyTurn' | 'goodNeighborTurn' | 'healDanceTurn' | 'weatherTurn' | 'quickSearchTurn' | 'formChangeTurn' | 'happyDanceTurn' | 'powerTurns'>;
+  me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'discard' | 'powersOffUntil' | 'quickenTurn' | 'activeEnergyTurn' | 'goodNeighborTurn' | 'healDanceTurn' | 'weatherTurn' | 'quickSearchTurn' | 'formChangeTurn' | 'happyDanceTurn' | 'powerTurns' | 'supporterTurn' | 'supporterUid'>;
   opp: Pick<PlayerState, 'active' | 'bench' | 'powersOffUntil' | 'discard'>;
   /** Sizes of the hidden piles (Peek). */
   counts: { deck: number; prizes: number; oppDeck: number; oppHand: number; oppPrizes: number; /** Of `prizes`, how many are face up (Prize Shift). */ faceUpPrizes?: number };
@@ -405,21 +405,82 @@ export interface PowerEffect {
   spiralSwirl?: boolean;
   /** Golden Wing: Knocked Out by the opponent's attack's damage, its owner may move up to 2 of its Energy cards to their other Pokémon. */
   goldenWing?: boolean;
+  /** Reactive Recharge: Knocked Out by the opponent's attack's damage, its owner may move its React Energy cards to their other Pokémon. */
+  reactiveRecharge?: boolean;
+  /** Shadow Curse: Knocked Out by the opponent's attack's damage, its owner may put 3 damage counters on one of the opponent's Pokémon. */
+  shadowCurse?: boolean;
+  /** Stench: as its player's Active Pokémon, no Pokémon (either player's) can use Poké-Powers (auraStops). */
+  stench?: boolean;
+  /** Rear Sensor: while it's in play, each player's Active Basic Pokémon (not Pokémon-ex) can't use Poké-Powers (auraStops). */
+  rearSensor?: boolean;
+  /** Sol Shade, Luna Shade: while its player has `partner` in play, each player's Pokémon of `type` (not Pokémon-ex) can't use Poké-Powers. */
+  shade?: { partner: string; type: EnergyType };
+  /** Dual Aura: while its player has this Pokémon (or its -ex) in play, each player's Evolved Pokémon (not Pokémon-ex) can't use Poké-Bodies. */
+  dualAura?: string;
+  /** Delta Reserve: with a Holon Energy card attached to it, each player's Pokémon without δ can't use Poké-Powers. */
+  deltaReserve?: boolean;
+  /** Reactive Lift: with a React Energy card attached to it, its player's Water Pokémon (not Pokémon-ex) retreat for free (retreatBodies). */
+  reactiveLift?: boolean;
+  /** Wobbuffet's Stages of Evolution: while it's in play, the opponent's Active Pokémon costs this much more to retreat (they add up). */
+  retreatTax?: number;
+  /** Paranoid (while Confused), Ancient Fang (with a partner in play): its attacks do `more` more to the Defending Pokémon, before Weakness and Resistance. */
+  defendingMore?: { more: number; when: (pokemon: InPlayPokemon, owner: Pick<PlayerState, 'active' | 'bench'>, cards: CardLibrary) => boolean };
+  /** Ancient Shell: while its player has one of these in play, attack damage to it is `amount` less, after Weakness and Resistance. */
+  partnerShell?: { names: string[]; amount: number };
+  /** Reactive Protection: attack damage to it from the opponent's Pokémon is 10 less for each React Energy card attached, after Weakness and Resistance. */
+  reactiveProtection?: boolean;
+  /** Ancient Protection: its player's Pokémon with these names have no Weakness. */
+  ancientProtection?: string[];
+  /** Ancient Tentacles: its player's Pokémon with these names' attack damage isn't affected by Resistance. */
+  ancientTentacles?: string[];
+  /** Reactive Shield: with a React Energy card attached to it, attacks by the opponent's Pokémon-ex don't affect its player's Tentacruel. */
+  reactiveShield?: boolean;
+  /** Hydro Barrier: with a Holon Energy card attached to it, its player's Water Pokémon have no Weakness. */
+  hydroBarrier?: boolean;
+  /** Delta Reactor: while a Stadium with Holon in its name is in play, its player's δ Pokémon do 10 more to the Defending Pokémon (they add up). */
+  deltaReactor?: boolean;
+  /** Deadlock: as its player's Active Pokémon, the opponent's Pokémon with this name can't attack (attackError). */
+  deadlock?: string;
+  /** Pattern Distraction: as its player's Active Pokémon, the opponent's Basic Pokémon that attacks flips; tails, the attack does nothing (attacks.ts). */
+  patternDistraction?: boolean;
+  /** Dual Armor (React Energy): with a card of this name attached, it's these types (refreshHideout). */
+  dualArmorNamed?: { name: string; types: EnergyType[] };
+  /** Reactive Colors: with a card of this name attached, it's every one of these types (refreshHideout). */
+  colorsNamed?: { name: string; types: EnergyType[] };
+  /** Reactive Booster: each React Energy card on its player's Pokémon with these names provides 2 Energy of every type (refreshHideout, energyPool). */
+  reactiveBooster?: string[];
+  /** Fellowship: it can use the attacks of its player's other Pokémon with these names in play (usableAttacks). */
+  fellowship?: string[];
+  /** Versatile: it can use the attacks of every Pokémon in play, either player's (usableAttacks). */
+  versatile?: boolean;
+  /** Delta Block: while a Stadium with Holon in its name is in play, the opponent can't play Stadium cards (trainerError). */
+  deltaBlock?: boolean;
 }
 
 /** Wise Aura, Overpowering Fang and Intimidating Ring: an Active Pokémon's aura stopping `pokemon`'s power, or null. */
 export function auraStops(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sides): string | null {
   const body = !!powerEffect(effectId(pokemon))?.body;
   const d = inPlayDef(cards, pokemon);
+  const owner = sides.find((s) => s.active === pokemon || s.bench.includes(pokemon));
+  // Whether the aura reaches this Pokémon is checked before whether the aura works, so two auras never wait on each other.
   for (const side of sides) {
-    const a = side.active;
-    if (!a || a === pokemon) continue;
-    const effect = powerEffect(effectId(a));
-    if (!effect || !(effect.wiseAura || effect.overpoweringFang || effect.intimidatingRing) || !powerActive(a, cards, sides)) continue;
-    if (effect.overpoweringFang && !d.ex) return powerOf(a, cards)!.name;
-    if (effect.wiseAura && !d.ex && !body) return powerOf(a, cards)!.name;
-    const theirs = !side.bench.includes(pokemon);
-    if (effect.intimidatingRing && theirs && !body && d.stage === 'basic') return powerOf(a, cards)!.name;
+    const has = (name: string) => [side.active, ...side.bench].some((p) => !!p && namesMatch(inPlayDef(cards, p).name, name));
+    for (const a of [side.active, ...side.bench]) {
+      if (!a || a === pokemon) continue;
+      const effect = powerEffect(effectId(a));
+      if (!effect) continue;
+      const active = side.active === a;
+      const reaches =
+        (active && !!effect.overpoweringFang && !d.ex) ||
+        (active && !!effect.wiseAura && !d.ex && !body) ||
+        (active && !!effect.intimidatingRing && side !== owner && !body && d.stage === 'basic') ||
+        (active && !!effect.stench && !body) ||
+        (!!effect.rearSensor && owner?.active === pokemon && !body && d.stage === 'basic' && !d.ex) ||
+        (!!effect.shade && !body && !d.ex && hasType(d, effect.shade.type) && has(effect.shade.partner)) ||
+        (!!effect.dualAura && body && !d.ex && pokemon.evolvedFrom.length > 0 && (has(effect.dualAura) || has(`${effect.dualAura} ex`))) ||
+        (!!effect.deltaReserve && !body && !/ δ$/.test(d.name) && a.energy.some((e) => !e.provides && !e.windless && lookupCard(cards, e.defId).name.startsWith('Holon Energy')));
+      if (reaches && powerActive(a, cards, sides)) return powerOf(a, cards)!.name;
+    }
   }
   return null;
 }
@@ -443,6 +504,10 @@ export const holonWith = (pokemon: InPlayPokemon, cards: CardLibrary, holon: 'FF
     const d = lookupCard(cards, e.defId);
     return !e.provides && d.kind === 'energy' && d.basic !== false && !d.anyType && d.energyType === type;
   });
+
+/** The Pokémon has a React Energy card attached (its effect not stopped by Miraculous Wind). */
+export const hasReact = (pokemon: InPlayPokemon, cards: CardLibrary) => reactCount(pokemon, cards) > 0;
+export const reactCount = (pokemon: InPlayPokemon, cards: CardLibrary) => pokemon.energy.filter((e) => !e.provides && !e.windless && lookupCard(cards, e.defId).name === 'React Energy').length;
 
 /** Binding Aura: the opponent (`sides[1]`) has a Hypno with it working. */
 export const bindingAura = (sides: Sides, cards: CardLibrary) =>
@@ -679,7 +744,7 @@ export function attachBlocked(cards: CardLibrary, sides: Sides, pokemon: InPlayP
   // Cursed Glare: the opponent's Active Cacturne ex keeps Special Energy (but Darkness and Metal) off its owner's Active Pokémon.
   const owner = sides.find((s) => s.active === pokemon);
   const glare = owner && sides.find((s) => s !== owner && s.active && powerEffect(effectId(s.active))?.cursedGlare && powerActive(s.active, cards, sides));
-  if (glare && d.kind === 'energy' && d.basic === false && !['Darkness Energy', 'Metal Energy'].includes(d.name)) return `Cursed Glare: Special Energy cards can't be attached to your Active Pokémon`;
+  if (glare && ((d.kind === 'energy' && d.basic === false) || !!holonEnergy(d)) && !['Darkness Energy', 'Metal Energy'].includes(d.name)) return `Cursed Glare: Special Energy cards can't be attached to your Active Pokémon`;
   // Binding Aura (the other player's Hypno): nothing from the hand onto an Asleep Pokémon.
   const holder = sides.find((s) => s.active === pokemon || s.bench.includes(pokemon));
   if (pokemon.condition === 'asleep' && holder && bindingAura([holder, ...sides.filter((s) => s !== holder)], cards)) return "Binding Aura: Energy cards can't be attached to an Asleep Pokémon from your hand";
@@ -701,8 +766,13 @@ export function retreatBodies(pokemon: InPlayPokemon, cards: CardLibrary, sides:
   // Dragon Lift: free for every Pokémon of its player's (not Pokémon-ex or Baby Pokémon).
   const d = inPlayDef(cards, pokemon);
   const lifted = !d.ex && !d.baby && [owner.active, ...owner.bench].some((p) => !!p && !!powerEffect(effectId(p))?.freeRetreatAll && powerActive(p, cards, sides));
-  if (bonded || lifted) return -99;
-  return own + (owner.active === pokemon && anyWorking(sides, cards, (e) => e.glueySlime) ? 1 : 0);
+  // Reactive Lift: free for its player's Water Pokémon (not Pokémon-ex) while the Wailord has a React Energy card attached.
+  const reactive = !d.ex && hasType(d, 'water') && [owner.active, ...owner.bench].some((p) => !!p && !!powerEffect(effectId(p))?.reactiveLift && hasReact(p, cards) && powerActive(p, cards, sides));
+  if (bonded || lifted || reactive) return -99;
+  // Wobbuffet's Stages of Evolution: each of the opponent's makes their Active Pokémon cost 1 more.
+  const opponent = sides[1];
+  const tax = owner.active === pokemon && opponent ? [opponent.active, ...opponent.bench].reduce((n, p) => n + (p && powerActive(p, cards, sides) ? (powerEffect(effectId(p))?.retreatTax ?? 0) : 0), 0) : 0;
+  return own + tax + (owner.active === pokemon && anyWorking(sides, cards, (e) => e.glueySlime) ? 1 : 0);
 }
 
 /** Spiral: the opponent's Active Pokémon (`sides[1]`'s) keeps `sides[0]`'s Confused Active Pokémon from retreating; its name, or null. */

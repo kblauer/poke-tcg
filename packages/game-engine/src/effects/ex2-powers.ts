@@ -105,6 +105,24 @@ export function afflictActive(ctx: PowerContext, condition: 'confused') {
 }
 
 export const EX2_POWERS: Record<string, PowerEffect> = {
+  // Claw Fossil – Jagged Stone: damaged by the opponent's attack as its player's Active Pokémon, a damage counter on the attacker.
+  'ex2-90': {
+    ...POKE_BODY,
+    onAttackDamage(ctx, damaged) {
+      if (damaged !== ctx.opp.active) return;
+      ctx.attacker.damage += 10;
+      ctx.log(`Jagged Stone put a damage counter on ${ctx.attackerDef.name}.`, ctx.opp.id);
+    },
+  },
+  // Root Fossil – Spongy Stone: a damage counter off it between turns.
+  'ex2-92': {
+    ...POKE_BODY,
+    checkup(state, owner, pokemon) {
+      if (!pokemon.damage) return;
+      pokemon.damage -= 10;
+      addLog(state, `Spongy Stone removed a damage counter from ${pokemonName(state, pokemon)}.`, owner.id);
+    },
+  },
   // Armaldo – Primal Veil: as the Active Pokémon, neither player can play Supporter cards (supportersVeiled).
   'ex2-1': { ...POKE_BODY, primalVeil: true },
   // Cacturne, Cacnea – Poison Payback.

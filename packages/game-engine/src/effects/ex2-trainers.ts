@@ -26,6 +26,10 @@ function candyTargets(s: TrainerSituation, card: CardInstance): Target[] {
 /** Whether the player's Active Pokémon can evolve now (Wally's Training): not on the first turn, nor if it was played or evolved this turn. */
 const activeCanEvolve = (s: TrainerSituation, p: InPlayPokemon | null) => !!p && s.turn > 2 && p.playedTurn !== s.turn && p.effects?.noEvolve === undefined;
 
+/** The Fossils' printed Poké-Bodies (TCGdex has EX Sandstorm's; the later Fossils' names and text come from here too). */
+export const JAGGED_STONE = { name: 'Jagged Stone', text: "If Claw Fossil is your Active Pokémon and is damaged by an opponent's attack (even if Claw Fossil is Knocked Out), put 1 damage counter on the Attacking Pokémon." };
+export const SPONGY_STONE = { name: 'Spongy Stone', text: 'At any time between turns, remove 1 damage counter from Root Fossil.' };
+
 export const EX2_TRAINERS: Record<string, TrainerEffect> = {
   // Double Full Heal: no more Special Conditions for the Active Pokémon.
   'ex2-86': {
@@ -92,10 +96,11 @@ export const EX2_TRAINERS: Record<string, TrainerEffect> = {
     },
   },
 
-  // Claw Fossil, Mysterious Fossil, Root Fossil: played onto the Bench as Basic Pokémon, like Fossil's Mysterious Fossil.
-  'ex2-90': { asPokemon: { hp: 40 } },
+  // Claw Fossil, Mysterious Fossil, Root Fossil: played onto the Bench as Basic Pokémon, like Fossil's Mysterious Fossil. Claw
+  // Fossil's Jagged Stone and Root Fossil's Spongy Stone are in ex2-powers.ts.
+  'ex2-90': { asPokemon: { hp: 40, power: JAGGED_STONE } },
   'ex2-91': { asPokemon: { hp: 10 } },
-  'ex2-92': { asPokemon: { hp: 40 } },
+  'ex2-92': { asPokemon: { hp: 40, power: SPONGY_STONE } },
 };
 
 export const EX2_ENERGY: Record<string, EnergyEffect> = {

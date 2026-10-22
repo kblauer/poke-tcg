@@ -130,7 +130,10 @@ export type PendingChoice = {
         | 'basicMaxHp'
         | 'metalOrDelta'
         | 'holonSupporter'
-        | 'typesNotEx';
+        | 'typesNotEx'
+        | 'deltaPokemon'
+        | 'pokemonEx'
+        | 'trainerNotSupporter';
       /** 'basicMaxHp': the most HP the Basic Pokémon may have (Holon Mentor). */
       maxHp?: number;
       /** 'typesNotEx': a Pokémon (not a Pokémon-ex) of any of these types (Cry for Help). */
@@ -146,6 +149,8 @@ export type PendingChoice = {
       toTop?: boolean;
       /** The card goes onto the Bench instead of into the hand (Call for Family). */
       toBench?: boolean;
+      /** With `toBench`: the new Benched Pokémon is treated as a Basic Pokémon (Influence, Holon Fossil). */
+      asBasic?: boolean;
       /** The card found is attached to one of the player's Pokémon, chosen next (Energy Spike), instead of going to the hand. */
       attach?: boolean;
       /** With `attach`: the cards after the first go to the same Pokémon (Bursting Up). */
@@ -219,6 +224,8 @@ export type PendingChoice = {
   | {
       /** Return any number of the player's Pokémon in play, and the cards attached, to their hand, one at a time (Fairy Power). */
       kind: 'returnOwn';
+      /** Evolutionary Fan: one of the player's Evolved Pokémon, not one with this name, may be returned. */
+      evolvedNot?: string;
     }
   | {
       /** Look at the opponent's hand (Secret Mission); then discard any number of cards from the hand and draw as many (discardDraw). */
@@ -363,8 +370,13 @@ export type PendingChoice = {
       flee?: number;
     }
   | {
-      /** Narrow Gym: return 1 of the player's 5 benched Pokémon, and its cards, to their hand. */
+      /**
+       * Narrow Gym: return 1 of the player's 5 benched Pokémon, and its cards, to their hand. Giant Stump (`limit` 3,
+       * `discard`): discard benched Pokémon and their cards, one at a time, until 3 are left.
+       */
       kind: 'narrowGym';
+      limit?: number;
+      discard?: boolean;
     }
   | {
       /** Blaine's Quiz #1: the opponent of the player who played it guesses `card`'s length among `lengths` (count = index); `answer` is right. */
@@ -579,6 +591,8 @@ export type PendingChoice = {
       toHand?: boolean;
       /** With `toHand`: up to `count`, one at a time, and the player may stop (Time Shard). */
       optional?: boolean;
+      /** With `toHand`: any Energy card but this one (a Holon's Pokémon just attached as Energy), not only basic ones. */
+      holonReturn?: string;
     }
   | {
       /**
@@ -656,6 +670,8 @@ export type PendingChoice = {
       excludeUid?: string;
       /** Without `target`: only to the player's Pokémon that aren't Pokémon-ex (Extra Energy Bomb). */
       notEx?: boolean;
+      /** Without `target`: only to the player's Pokémon with this in their names (Paste: δ). */
+      onlyName?: string;
     }
   | {
       /**
@@ -702,6 +718,10 @@ export type PendingChoice = {
       active?: boolean;
       /** The opponent's Pokémon the attack can't affect (Wonder Guard…), by uid: not options. */
       skip?: string[];
+      /** All `count` on the one Pokémon clicked (Shadow Curse). */
+      together?: boolean;
+      /** The player may not (Shadow Curse). */
+      optional?: boolean;
     }
   | {
       /** Discard `count` cards from the hand, one at a time (TV Reporter); `energyOnly`: Energy cards (Crushing Mantle). */
@@ -726,6 +746,8 @@ export type PendingChoice = {
       expAll?: string[];
       /** Golden Wing instead: how many more Energy cards (any, not only basic) may move, to any of `expAll`; no Tool is discarded. */
       goldenWing?: number;
+      /** With `goldenWing`: only React Energy cards (Reactive Recharge). */
+      reactOnly?: boolean;
       cardUid?: string;
     }
   | {
@@ -762,6 +784,20 @@ export type PendingChoice = {
        */
       kind: 'oppBenchPick';
       purpose: 'gust' | 'devolve';
+    }
+  | {
+      /**
+       * Strange Cave, Holon Fossil: a Pokémon card named one of `names` from the hand onto the Bench, treated as a Basic
+       * Pokémon (`optional`: the player may not).
+       */
+      kind: 'handToBench';
+      names: string[];
+      optional?: boolean;
+    }
+  | {
+      /** Deceive: the player picks one of their own Pokémon to put `count` damage counters on (asked of the attacked player). */
+      kind: 'ownCounters';
+      count: number;
     }
   | {
       /** Blissful Support: any number of the player's Pokémon, one at a time, have all their Energy cards discarded and all damage counters removed. */
@@ -811,7 +847,13 @@ export interface EnergyEffect {
 /** Card-specific Trainer behaviour. */
 export interface TrainerEffect {
   /** Played onto the Bench as a Pokémon with this HP (Clefairy Doll) instead of with PLAY_TRAINER. */
-  asPokemon?: { hp: number };
+  asPokemon?: {
+    hp: number;
+    /** Its printed Poké-Body (the Fossils' Jagged Stone, Spongy Stone), whose effect is in the powers table. */
+    power?: { name: string; text: string };
+    /** In play it's a Trainer card as well as a Pokémon (EX Legend Maker's Fossils on; EX Sandstorm's are a Pokémon instead). */
+    alsoTrainer?: boolean;
+  };
   /** A Supporter card: only one can be played each turn (PlayerState.supporterTurn). */
   supporter?: boolean;
   /** A Technical Machine: the Pokémon it's attached to can use this attack instead of its own (usableAttacks). */
@@ -899,9 +941,11 @@ export function trainerError(s: TrainerSituation): string | null {
   // Disconnect: no Trainer cards but Supporters this turn.
   if (!effect.supporter && (s.me.noItemsUntil ?? 0) >= s.turn) return "Disconnect: you can't play Trainer cards but Supporters this turn";
   // Commanding Aura (the opponent's Active Hariyama ex): no Stadium cards. Mystic Scale (any Milotic ex): no Technical Machines.
-  const holding = (key: 'commandingAura' | 'mysticScale' | 'lonesome', pokemon: (InPlayPokemon | null)[]) =>
+  const holding = (key: 'commandingAura' | 'mysticScale' | 'lonesome' | 'deltaBlock', pokemon: (InPlayPokemon | null)[]) =>
     pokemon.some((p) => !!p && !!powerEffect(effectId(p))?.[key] && powerActive(p, s.cards, [s.me, s.opp]));
   if (effect.stadium && holding('commandingAura', [s.opp.active])) return "Commanding Aura: you can't play Stadium cards";
+  // Delta Block (the opponent's Golduck δ): no Stadium cards while one with Holon in its name is in play.
+  if (effect.stadium && s.stadium && def(s, s.stadium).name.includes('Holon') && holding('deltaBlock', [s.opp.active, ...s.opp.bench])) return "Delta Block: you can't play Stadium cards";
   // Lonesome (the opponent's Houndoom): while they have fewer Pokémon in play, no Trainer cards but Supporters.
   const inPlayCount = (side: Pick<PlayerState, 'active' | 'bench'>) => [side.active, ...side.bench].filter(Boolean).length;
   if (!effect.supporter && inPlayCount(s.opp) < inPlayCount(s.me) && holding('lonesome', [s.opp.active, ...s.opp.bench])) return "Lonesome: you can't play Trainer cards but Supporters";
@@ -1397,8 +1441,9 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
   if (choice.kind === 'discardAttached') {
     const p = (choice.target === 'active' ? player.active : player.bench[choice.target])!;
     if (choice.toHand) {
-      const options = p.energy.filter((e) => !e.provides && isBasicEnergy(lookupCard(state.cards, e.defId)));
       const from = lookupCard(state.cards, p.card.defId).name;
+      if (choice.holonReturn) return { kind: 'pickAttached', prompt: `${choice.source}: return an Energy card attached to ${from} to your hand`, options: p.energy.filter((e) => !e.provides && e.uid !== choice.holonReturn) };
+      const options = p.energy.filter((e) => !e.provides && isBasicEnergy(lookupCard(state.cards, e.defId)));
       if (choice.optional) {
         const what = (choice.count ?? 1) > 1 ? `up to ${choice.count} basic Energy cards` : 'a basic Energy card';
         return { kind: 'pickAttached', prompt: `${choice.source}: you may return ${what} from ${from} to your hand, one at a time`, options, optional: true };
@@ -1448,6 +1493,9 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
   }
   if (choice.kind === 'treaty') {
     return { kind: 'options', prompt: `${choice.source}: your opponent asks you to choose`, labels: ['Each player takes 1 of their Prize cards', 'Your opponent draws a card'] };
+  }
+  if (choice.kind === 'returnOwn' && choice.evolvedNot) {
+    return { kind: 'ownPokemon', purpose: 'return', prompt: `${choice.source}: you may click one of your Evolved Pokémon (not ${choice.evolvedNot}) to return it and its cards to your hand`, options: fanTargets(state.cards, player, choice.evolvedNot), optional: true };
   }
   if (choice.kind === 'returnOwn') {
     return { kind: 'ownPokemon', purpose: 'return', prompt: `${choice.source}: click any of your Pokémon to return it and its cards to your hand, or be done`, options: targetsOf(player), optional: true };
@@ -1551,6 +1599,7 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
   }
   if (choice.kind === 'narrowGym') {
     const options = player.bench.flatMap((p, i) => (p ? [i] : []));
+    if (choice.discard) return { kind: 'ownPokemon', purpose: 'return', prompt: `${choice.source}: no more than ${choice.limit} benched Pokémon. Click one to discard it and its cards`, options };
     return { kind: 'ownPokemon', purpose: 'return', prompt: `${choice.source}: no more than 4 benched Pokémon. Click one to return it and its cards to your hand`, options };
   }
   if (choice.kind === 'quiz') {
@@ -1621,6 +1670,12 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
         ? 'a Metal Energy card or a δ Pokémon card'
       : choice.filter === 'holonSupporter'
         ? 'a Supporter card with Holon in its name'
+      : choice.filter === 'deltaPokemon'
+        ? 'a Pokémon with δ on its card'
+      : choice.filter === 'pokemonEx'
+        ? 'a Pokémon-ex'
+      : choice.filter === 'trainerNotSupporter'
+        ? 'a Trainer card (not a Supporter card)'
       : choice.filter === 'typesNotEx'
         ? `a ${(choice.types ?? []).map(typeName).join(' or ')} Pokémon (not a Pokémon-ex)`
         : choice.filter === 'pokemon'
@@ -1690,6 +1745,10 @@ export const deckFilter = (cards: CardLibrary, choice: Extract<PendingChoice, { 
   if (choice.filter === 'basicMaxHp') return isBasicPokemon(d) && d.kind === 'pokemon' && d.hp <= (choice.maxHp ?? 0);
   if (choice.filter === 'metalOrDelta') return (d.kind === 'energy' && !d.anyType && d.energyType === 'metal') || (isPokemonCard(d) && d.kind === 'pokemon' && !d.trainerText && / δ$/.test(d.name));
   if (choice.filter === 'holonSupporter') return d.kind === 'trainer' && !!trainerEffect(c.defId)?.supporter && d.name.includes('Holon');
+  if (choice.filter === 'deltaPokemon') return isPokemonCard(d) && / δ$/.test(d.name);
+  // Extra Call: a Pokémon-ex. Moon Guidance: a Trainer card but a Supporter.
+  if (choice.filter === 'pokemonEx') return isPokemonCard(d) && d.kind === 'pokemon' && !!d.ex;
+  if (choice.filter === 'trainerNotSupporter') return isTrainerCard(d) && !trainerEffect(c.defId)?.supporter;
   if (choice.filter === 'typesNotEx') return isPokemonCard(d) && d.kind === 'pokemon' && !d.trainerText && !d.ex && (choice.types ?? []).some((t) => hasType(d, t));
   return choice.filter === 'any' || (d.kind === 'pokemon' && !d.trainerText);
 };
@@ -1713,7 +1772,7 @@ const deckStadiums = (state: GameState, player: PlayerState) => {
 const toDeckFits = (cards: CardLibrary, choice: Extract<PendingChoice, { kind: 'discardToDeck' }>, c: CardInstance) =>
   choice.filter === 'basicEnergy' ? isBasicEnergy(lookupCard(cards, c.defId)) : isPokemonCard(lookupCard(cards, c.defId));
 
-const SKYRIDGE_KINDS = ['mayUse', 'attachFromDiscard', 'discardToBench', 'moveAttached', 'oracle', 'bottomPick', 'evolveFromHand', 'mysteryZone', 'placeCounters', 'discardFromHand', 'supernatural', 'energyGrounding', 'castform', 'shiftEnergy', 'vineTease', 'removeCondition', 'oppBenchPick', 'blissful', 'deltaSwitch'] as const;
+const SKYRIDGE_KINDS = ['mayUse', 'attachFromDiscard', 'discardToBench', 'moveAttached', 'oracle', 'bottomPick', 'evolveFromHand', 'mysteryZone', 'placeCounters', 'discardFromHand', 'supernatural', 'energyGrounding', 'castform', 'shiftEnergy', 'vineTease', 'removeCondition', 'oppBenchPick', 'blissful', 'deltaSwitch', 'handToBench', 'ownCounters'] as const;
 
 /** A pending choice Skyridge's cards add (skyridgeView, resolveSkyridge). */
 type SkyridgeChoice = Extract<PendingChoice, { kind: (typeof SKYRIDGE_KINDS)[number] }>;
@@ -1781,6 +1840,26 @@ const conditionsOf = (p: InPlayPokemon): string[] => [
   ...(p.poison ? ['Poisoned'] : []),
   ...(p.burned ? ['Burned'] : []),
 ];
+
+/** Evolutionary Fan: the player's Evolved Pokémon without `not` in their names. */
+const fanTargets = (cards: CardLibrary, player: Pick<PlayerState, 'active' | 'bench'>, not: string) =>
+  targetsOf(player).filter((t) => {
+    const p = atTarget(player, t)!;
+    return p.evolvedFrom.length > 0 && !namesMatch(inPlayDef(cards, p).name, not);
+  });
+
+/** The Energy cards Energy Grounding (basic ones), Golden Wing (any) or Reactive Recharge (React Energy) can move. */
+const groundable = (cards: CardLibrary, choice: { goldenWing?: number; reactOnly?: boolean }, e: CardInstance) => {
+  if (e.provides) return false;
+  const d = lookupCard(cards, e.defId);
+  return choice.reactOnly ? d.name === 'React Energy' : !!choice.goldenWing || isBasicEnergy(d);
+};
+
+/** Strange Cave, Holon Fossil: a Pokémon card in the hand named one of `names` (their variants too; a Pokémon-ex only by its own name). */
+export const handToBenchFits = (cards: CardLibrary, names: string[], c: CardInstance) => {
+  const d = lookupCard(cards, c.defId);
+  return d.kind === 'pokemon' && !d.trainerText && names.some((n) => namesMatch(d.name, n));
+};
 
 /** Blissful Support: the player's Pokémon with Energy cards attached or damage counters on them. */
 const blissfulTargets = (player: Pick<PlayerState, 'active' | 'bench'>) => targetsOf(player).filter((t) => {
@@ -1868,6 +1947,7 @@ function skyridgeView(state: GameState, choice: SkyridgeChoice): PendingChoiceVi
       const open = (p: InPlayPokemon | null): p is InPlayPokemon => !!p && !choice.skip?.includes(p.card.uid);
       const bench = opp.bench.flatMap((p, i) => (open(p) ? [i] : []));
       const options: Target[] = choice.active && open(opp.active) ? ['active', ...bench] : bench;
+      if (choice.together) return { kind: 'oppPokemon', prompt: `${choice.source}: you may click one of your opponent's Pokémon to put ${choice.count} damage counters on`, options, ...(choice.optional && { optional: true }) };
       return { kind: 'oppPokemon', prompt: `${choice.source}: click one of your opponent's ${choice.active ? '' : 'Benched '}Pokémon to put a damage counter on${left}`, options };
     }
     case 'discardFromHand':
@@ -1885,7 +1965,7 @@ function skyridgeView(state: GameState, choice: SkyridgeChoice): PendingChoiceVi
         return { kind: 'ownPokemon', purpose: 'attach', prompt: `${choice.source}: choose ${which} takes the Energy card`, options };
       }
       // Golden Wing: any Energy card.
-      const options = p ? p.energy.filter((e) => !e.provides && (choice.goldenWing || isBasicEnergy(lookupCard(state.cards, e.defId)))) : [];
+      const options = p ? p.energy.filter((e) => groundable(state.cards, choice, e)) : [];
       const to = choice.goldenWing ? 'your other Pokémon' : choice.expAll ? 'your Pokémon with EXP. ALL attached' : 'your Lanturn';
       return { kind: 'pickAttached', prompt: `${choice.source}: you may choose a${choice.goldenWing ? 'n' : ' basic'} Energy card from ${p ? cardName(p.card) : 'it'} to attach to ${to}`, options, optional: true };
     }
@@ -1912,6 +1992,12 @@ function skyridgeView(state: GameState, choice: SkyridgeChoice): PendingChoiceVi
       const options = targetsOf(opp).filter((t) => t !== 'active' && (choice.purpose === 'gust' || atTarget(opp, t)!.evolvedFrom.length > 0));
       if (choice.purpose === 'gust') return { kind: 'oppPokemon', prompt: `${choice.source}: click one of your opponent's Benched Pokémon to switch with their Active Pokémon`, options };
       return { kind: 'oppPokemon', prompt: `${choice.source}: you may click one of your opponent's Benched Evolved Pokémon to put its top card back into their hand`, options, optional: true };
+    }
+    case 'ownCounters':
+      return { kind: 'ownPokemon', purpose: 'benchDamage', prompt: `${choice.source}: click one of your Pokémon to put ${choice.count} damage counters on`, options: targetsOf(player) };
+    case 'handToBench': {
+      const options = openBenchSlot(player.bench, state.cards, state.stadium?.card) < 0 ? [] : player.hand.filter((c) => handToBenchFits(state.cards, choice.names, c));
+      return { kind: 'pickFromHand', prompt: `${choice.source}: ${choice.optional ? 'you may put' : 'put'} ${choice.names.join(', ')} from your hand onto your Bench (as a Basic Pokémon)`, options, ...(choice.optional && { optional: true }) };
     }
     case 'blissful':
       return { kind: 'ownPokemon', purpose: 'heal', prompt: `${choice.source}: you may click your Pokémon, one at a time, to discard all their Energy cards and remove all their damage counters`, options: blissfulTargets(player), optional: true };
@@ -2079,7 +2165,7 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
       if (choice.target === undefined) {
         // Each to a Pokémon clicked next; then the next card, while there are more to attach (Extra Energy Bomb).
         const more = choice.count > 1 && discardEnergyFor(state, me, choice).length > 0;
-        return again({ player: me.id, source: choice.source, kind: 'attachCard', card: picked, ...(choice.notEx && { only: { notEx: true } }), ...(more && { next: { ...choice, count: choice.count - 1 } }), ...(choice.afterAttack && { afterAttack: true }) });
+        return again({ player: me.id, source: choice.source, kind: 'attachCard', card: picked, ...((choice.notEx || choice.onlyName) && { only: { ...(choice.notEx && { notEx: true }), ...(choice.onlyName && { name: choice.onlyName }) } }), ...(more && { next: { ...choice, count: choice.count - 1 } }), ...(choice.afterAttack && { afterAttack: true }) });
       }
       const p = atTarget(me, choice.target);
       if (!p) return null;
@@ -2147,7 +2233,13 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
     }
     case 'placeCounters': {
       const p = answer.target === 'active' && choice.active ? opp.active : typeof answer.target === 'number' ? opp.bench[answer.target] : null;
+      if (choice.optional && answer.target === undefined) return null;
       if (!p || choice.skip?.includes(p.card.uid)) return view.kind === 'oppPokemon' && view.options.length ? again(choice) ?? `Choose one of your opponent's ${choice.active ? '' : 'Benched '}Pokémon` : null;
+      if (choice.together) {
+        p.damage += 10 * choice.count;
+        addLog(state, `${choice.source}: put ${choice.count} damage counters on ${name(p.card)}.`, opp.id);
+        return null;
+      }
       p.damage += 10;
       addLog(state, `${choice.source}: put a damage counter on ${name(p.card)}.`, opp.id);
       if (choice.count > 1) return again({ ...choice, count: choice.count - 1 });
@@ -2168,7 +2260,7 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
         // Golden Wing: up to 2 Energy cards, no Tool discarded.
         if (choice.goldenWing) {
           addLog(state, `${choice.source}: moved ${name(card)} to ${name(to.card)}.`, me.id);
-          const more = choice.goldenWing > 1 && from.energy.some((e) => !e.provides);
+          const more = choice.goldenWing > 1 && from.energy.some((e) => groundable(state.cards, choice, e));
           return more ? again({ ...choice, cardUid: undefined, goldenWing: choice.goldenWing - 1 }) : null;
         }
         discardTool(state, me, to);
@@ -2251,6 +2343,22 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
       opp.hand.push(top);
       clearOnLeavingActive(p);
       addLog(state, `${choice.source}: ${name(top)} went back into the hand; it's ${name(p.card)} again.`, opp.id);
+      return null;
+    }
+    case 'ownCounters': {
+      const p = answer.target === undefined ? null : atTarget(me, answer.target);
+      if (!p) return targetsOf(me).length ? again(choice) ?? 'Choose one of your Pokémon' : null;
+      p.damage += 10 * choice.count;
+      addLog(state, `${choice.source}: put ${choice.count} damage counters on ${name(p.card)}.`, me.id);
+      return null;
+    }
+    case 'handToBench': {
+      if (!picked) return view.kind === 'pickFromHand' && view.options.length && !choice.optional ? again(choice) ?? 'Choose a card from your hand' : null;
+      const slot = openBenchSlot(me.bench, state.cards, state.stadium?.card);
+      if (slot < 0) return null;
+      me.hand = me.hand.filter((c) => c !== picked);
+      me.bench[slot] = { card: picked, evolvedFrom: [], damage: 0, energy: [], playedTurn: state.turn, asBasic: true };
+      addLog(state, `${choice.source}: put ${name(picked)} onto the Bench as a Basic Pokémon.`, me.id);
       return null;
     }
     case 'blissful': {
@@ -2812,8 +2920,9 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
       delete state.pendingChoice;
       return null;
     }
-    const energy = p.energy.find((e) => e.uid === answer.cardUid && (!choice.toHand || (!e.provides && isBasicEnergy(lookupCard(state.cards, e.defId)))));
-    if (!energy) return choice.toHand ? 'Choose a basic Energy card' : 'Choose an Energy card to discard';
+    const returnable = (e: CardInstance) => (choice.holonReturn ? !e.provides && e.uid !== choice.holonReturn : !e.provides && isBasicEnergy(lookupCard(state.cards, e.defId)));
+    const energy = p.energy.find((e) => e.uid === answer.cardUid && (!choice.toHand || returnable(e)));
+    if (!energy) return choice.toHand ? `Choose a${choice.holonReturn ? 'n' : ' basic'} Energy card` : 'Choose an Energy card to discard';
     p.energy = p.energy.filter((e) => e !== energy);
     if (choice.toHand) {
       me.hand.push(energy);
@@ -2998,7 +3107,7 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
   } else if (choice.kind === 'returnOwn') {
     if (answer.target !== undefined) {
       const p = answer.target === 'active' ? me.active : me.bench[answer.target];
-      if (!p) return 'Choose one of your Pokémon';
+      if (!p || (choice.evolvedNot && !fanTargets(state.cards, me, choice.evolvedNot).includes(answer.target))) return 'Choose one of your highlighted Pokémon';
       if (answer.target === 'active' && activeLocked(state, me.id)) return activeLocked(state, me.id)!;
       // A Buzzap'd Electrode attached as Energy is a Pokémon card again.
       me.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...card }) => card), ...(p.attached ?? []).map((a) => a.card));
@@ -3227,9 +3336,14 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
   } else if (choice.kind === 'narrowGym') {
     const p = typeof answer.target === 'number' ? me.bench[answer.target] : null;
     if (!p) return 'Choose one of your benched Pokémon';
-    me.hand.push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...card }) => card), ...(p.attached ?? []).map((a) => a.card));
+    (choice.discard ? me.discard : me.hand).push(...p.evolvedFrom, p.card, ...p.energy.map(({ provides: _, ...card }) => card), ...(p.attached ?? []).map((a) => a.card));
     me.bench[answer.target as number] = null;
-    addLog(state, `${name(p.card)} and all cards attached to it returned to the hand (${choice.source}).`, me.id);
+    addLog(state, `${name(p.card)} and all cards attached to it ${choice.discard ? 'were discarded' : 'returned to the hand'} (${choice.source}).`, me.id);
+    // Giant Stump: again while there are more than its limit.
+    if (choice.limit !== undefined && me.bench.filter(Boolean).length > choice.limit) {
+      state.pendingChoice = choice;
+      return null;
+    }
   } else if (choice.kind === 'quiz') {
     const guess = answer.count;
     if (guess === undefined || !Number.isInteger(guess) || guess < 0 || guess >= choice.lengths.length) return 'Choose a length';
@@ -3348,7 +3462,7 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
       me.deck = me.deck.filter((c) => c !== picked);
       // Archie: a Stage 2 Pokémon put onto the Bench gets `stage2Counters` damage counters.
       const stage2 = choice.stage2Counters && (lookupCard(state.cards, picked.defId) as PokemonCardDef).stage === 'stage2' ? 10 * choice.stage2Counters : 0;
-      if (choice.toBench) me.bench[benchSlot] = { card: picked, evolvedFrom: [], damage: stage2, energy: [], playedTurn: state.turn };
+      if (choice.toBench) me.bench[benchSlot] = { card: picked, evolvedFrom: [], damage: stage2, energy: [], playedTurn: state.turn, ...(choice.asBasic && { asBasic: true }) };
       else if (choice.attachToActive && me.active) me.active.energy.push(picked);
       else if (choice.attachTo !== undefined && (choice.attachTo === 'active' ? me.active : me.bench[choice.attachTo])) (choice.attachTo === 'active' ? me.active : me.bench[choice.attachTo])!.energy.push(picked);
       else if (!choice.attach && !choice.toTop) me.hand.push(picked);

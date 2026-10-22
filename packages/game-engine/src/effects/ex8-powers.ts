@@ -21,12 +21,15 @@ import { energyCardOf } from './ex2.js';
 import { EX2_POWERS, freeRetreat, POKE_BODY } from './ex2-powers.js';
 import { EX5_POWERS } from './ex5-powers.js';
 
-/** Form Change: once a turn (whichever Deoxys), another `name` from the deck takes this one's place, with everything on it. */
+/**
+ * Form Change: once a turn (whichever Deoxys), another `name` from the deck takes this one's place, with everything on it.
+ * A Deoxys (or Deoxys δ) finds a Deoxys or a Deoxys δ; a Deoxys ex only another Deoxys ex (agreed).
+ */
 export const formChange = (name: 'Deoxys' | 'Deoxys ex'): PowerEffect => ({
   blocked: (s) => (s.me.formChangeTurn === s.turn ? 'Form Change has already been used this turn' : s.counts.deck ? null : 'Your deck is empty'),
   use(ctx) {
     ctx.me.formChangeTurn = ctx.state.turn;
-    ctx.pend({ kind: 'castform', source: 'Form Change', target: ctx.sourceTarget, names: [name], formChange: true });
+    ctx.pend({ kind: 'castform', source: 'Form Change', target: ctx.sourceTarget, names: name === 'Deoxys' ? ['Deoxys', 'Deoxys δ'] : [name], formChange: true });
   },
 });
 

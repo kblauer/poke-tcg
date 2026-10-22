@@ -309,6 +309,17 @@ const TCGDEX_FIXES: Record<string, Partial<TcgdexCard>> = {
       { name: 'Magnetic Blast', cost: ['Lightning'], damage: '10', effect: null },
     ],
   },
+  // EX Legend Maker Flygon ex: its second attack is Dragon Claw, and it resists Fighting too.
+  'ex12-87': {
+    resistances: [
+      { type: 'Lightning', value: '-30' },
+      { type: 'Fighting', value: '-30' },
+    ],
+    attacks: [
+      { name: 'Reactive Blast', cost: ['Lightning', 'Colorless'], damage: '40+', effect: 'You may discard any number of React Energy cards attached to Flygon ex. If you do, this attack does 40 damage plus 30 more damage for each React Energy card you discarded.' },
+      { name: 'Dragon Claw', cost: ['Grass', 'Lightning', 'Colorless', 'Colorless', 'Colorless'], damage: '100', effect: null },
+    ],
+  },
   'ex7-109': {
     attacks: [
       { name: 'Tackle', cost: ['Colorless'], damage: '10', effect: null },
