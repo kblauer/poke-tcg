@@ -22,7 +22,7 @@ import { benchedSlots, headsUntilTails, opponentBenchChoice } from './common.js'
 import { copyAttack } from './ecard2.js';
 import { ATTACK_TEMPLATES, type TemplateArg } from './ex-templates.js';
 import { discardAtRandom } from './ex1.js';
-import { discardOwn, inPlay, putCounters, typeCards } from './ex2.js';
+import { discardOwn, energyCardOf, inPlay, putCounters, typeCards } from './ex2.js';
 import { ascension, EX5 } from './ex5.js';
 import { hyperPump, lookForFriends, lureIn, mayDiscardAny, notNextTurn, restNext, snipe } from './ex6.js';
 import { discardFromAttacker } from './gym1.js';
@@ -182,7 +182,7 @@ export const EX7: Record<string, Record<string, AttackEffect>> = {
     },
     'Dark Fire': {
       choices(s): ChoiceSpec[] {
-        const options = s.attacker.energy.filter((e) => isEnergyCardOf(e, s.cards, 'fire') || isEnergyCardOf(e, s.cards, 'darkness'));
+        const options = s.attacker.energy.filter((e) => energyCardOf(s.cards, e, 'fire') || energyCardOf(s.cards, e, 'darkness'));
         return options.length ? [{ kind: 'ownEnergyUpTo', max: 1, options, prompt: 'You may choose a Fire or Darkness Energy card to discard (20 more damage)' }] : [];
       },
       run(ctx) {

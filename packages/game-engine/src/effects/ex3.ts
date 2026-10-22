@@ -1,6 +1,6 @@
 // EX Dragon (ex3) attack effects, by card id and attack name: the ones the shared wordings (ex-templates.ts) don't play.
 // Rulings follow the card text and the EX Ruby & Sapphire ones (ex1.ts). Agreed with the user: Dragon Dance's 40 more is for
-// whichever Pokémon is its player's Active one next turn, and for damage to the opponent's Benched Pokémon too
+// whichever Pokémon is its player's Active one next turn, never for damage to the Bench (changed 2026-10-22)
 // (PlayerState.dragonDanceTurn); Dragon Crush's heads does 10 to each of the opponent's Pokémon and discards an Energy card
 // from each (nothing on tails); Luster Purge's 3 Energy count the Energy provided (Double Colorless is 2); Rainbow Energy and
 // Multi Energy count as Fire or Water for Mist Ball (and for Dragon Wave and Dragon Burst, as for every attack); Big
@@ -56,7 +56,7 @@ export const EX3: Record<string, Record<string, AttackEffect>> = {
   'ex3-2': {
     'Dragon Dance': {
       run(ctx) {
-        ctx.me.dragonDanceTurn = ctx.turn + 2;
+        Object.assign(ctx.me, { dragonDanceTurn: ctx.turn + 2, dragonDanceMore: 40, dragonDanceSource: 'Dragon Dance' });
         ctx.log('Dragon Dance: your attacks do 40 more damage next turn.');
       },
     },

@@ -274,6 +274,32 @@ const TCGDEX_FIXES: Record<string, Partial<TcgdexCard>> = {
     effect:
       "This card stays in play when you play it. Discard this card if another Stadium card comes into play. Each Pokémon with Dark or Rocket's in its name (both yours and your opponent's) can use attacks on this card instead of its own. [C] Feint Attack: Does 20 damage to 1 of your opponent's Pokémon. This attack's damage isn't affected by Weakness, Resistance, Poké-Powers, Poké-Bodies, or any other effects on that Pokémon.",
   },
+  // EX Deoxys (from the printed cards): Gyarados's Pulverize is 50+, Deoxys's Barrier Attack does 20, and Rocket's Raikou
+  // ex's Lightning Burst (a Darkness Energy card) is missing. EX Emerald: Mr. Stone's Project finds basic Energy cards.
+  'ex8-8': {
+    attacks: [
+      { name: 'Dragon Spark', cost: ['Water'], damage: null, effect: "This attack does 10 damage to each of your opponent's Pokémon. (Don't apply Weakness and Resistance for Benched Pokémon.)" },
+      { name: 'Full Retaliation', cost: ['Colorless', 'Colorless'], damage: '20×', effect: 'Does 20 damage times the number of damage counters on all of your Magikarp.' },
+      { name: 'Pulverize', cost: ['Water', 'Water', 'Colorless', 'Colorless'], damage: '50+', effect: 'If the Defending Pokémon already has at least 2 damage counters on it, this attack does 50 damage plus 50 more damage.' },
+    ],
+  },
+  'ex8-18': {
+    attacks: [{ name: 'Barrier Attack', cost: ['Psychic', 'Colorless'], damage: '20', effect: 'During your opponent\'s next turn, any damage done to Deoxys by attacks is reduced by 30 (after applying Weakness and Resistance).' }],
+  },
+  'ex8-108': {
+    abilities: [
+      {
+        name: 'Lightning Burst',
+        type: 'Poke-POWER',
+        effect:
+          "Whenever you attach a Darkness Energy card from your hand to Rocket's Raikou ex, you may choose 1 of the Defending Pokémon and switch it with 1 of your opponent's Benched Pokémon. Your opponent chooses the Benched Pokémon to switch. This power can't be used if Rocket's Raikou ex is affected by a Special Condition.",
+      },
+    ],
+  },
+  'ex9-79': {
+    effect:
+      'You can play only one Supporter card each turn. When you play this card, put it next to your Active Pokémon. When your turn ends, discard this card. Search your deck for up to 2 basic Energy cards, show them to your opponent, and put them into your hand. Shuffle your deck afterward. Or, search your discard pile for up to 2 basic Energy cards, show them to your opponent, and put them into your hand.',
+  },
   'ex7-109': {
     attacks: [
       { name: 'Tackle', cost: ['Colorless'], damage: '10', effect: null },

@@ -26,7 +26,7 @@ const big = (name: string, extra: Partial<PokemonCardDef> = {}) => mon(`big-${na
 const L = 'lightning';
 
 describe('EX Dragon', () => {
-  it('Dragon Dance: next turn, whichever Pokémon attacks does 40 more, to Benched Pokémon too (agreed)', () => {
+  it('Dragon Dance: next turn, whichever Pokémon attacks does 40 more to the Defending Pokémon, never the Bench (agreed 2026-10-22)', () => {
     let s = duel('charmander', 'onix');
     put(s, 'ash', 'active', mon('ex3-2', 'Altaria', C, 80, [['Dragon Dance', [C], 0]], { stage: 'stage1' }), ['fire']);
     put(s, 'ash', 0, mon('ex2-23', 'Steelix', 'metal', 100, [['Rage', [C], 10], ['Spinning Tail', [C, C, C], 0]], { stage: 'stage1' }), ['fire', 'fire', 'fire']);
@@ -34,11 +34,11 @@ describe('EX Dragon', () => {
     put(s, 'misty', 0, big('Onix'));
     s = attack(s, 0);
     s = endTurn(s, 'misty');
-    // Ash's next turn: Steelix in for Altaria, then Spinning Tail (20 to each) does 60 to each.
+    // Ash's next turn: Steelix in for Altaria, then Spinning Tail (20 to each): 60 to the Active Pokémon, 20 to the Benched one.
     s = act(s, 'ash', { type: 'RETREAT', slot: 0, energyUids: [ash(s).active!.energy[0]!.uid] });
     s = attack(s, 1);
     expect(misty(s).active!.damage).toBe(60);
-    expect(misty(s).bench[0]!.damage).toBe(60);
+    expect(misty(s).bench[0]!.damage).toBe(20);
   });
 
   it('Dragon Crush: heads, 10 to the Defending Pokémon and an Energy card from it (agreed: the Active Pokémon only); tails nothing', () => {

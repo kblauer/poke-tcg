@@ -199,7 +199,13 @@ export function Board({
       : attack.spec?.kind === 'opponentPokemon' || attack.spec?.kind === 'opponentPokemonTo'
         ? { side: 'opp', options: attack.spec.options, pick: attack.answer }
       : attack.spec?.kind === 'opponentBenchMany'
-        ? { side: 'opp', options: attack.spec.options, pick: (t) => attack.toggleBench(t as number), picked: attack.benchPicked }
+        ? // -1 is the Active Pokémon (Triple Breach picks among all of them).
+          {
+            side: 'opp',
+            options: attack.spec.options.map((s): Target => (s === -1 ? 'active' : s)),
+            pick: (t) => attack.toggleBench(t === 'active' ? -1 : t),
+            picked: attack.benchPicked.map((s): Target => (s === -1 ? 'active' : s)),
+          }
       : power.spec?.kind === 'ownPokemon' || power.spec?.kind === 'oppPokemon'
         ? { side: power.spec.kind === 'ownPokemon' ? 'own' : 'opp', options: power.spec.options, pick: power.answer }
         : trainer.spec?.kind === 'pokemon' && trainer.card && !trainer.error(trainer.card)

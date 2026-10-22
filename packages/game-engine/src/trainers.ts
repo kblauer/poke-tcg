@@ -49,7 +49,7 @@ type Side = Pick<PlayerState, 'active' | 'bench' | 'discard'>;
 export interface TrainerSituation {
   /** The Trainer card being played. */
   card: CardInstance;
-  me: Side & Pick<PlayerState, 'hand' | 'noTrainersUntil' | 'supporterTurn' | 'noSupportersUntil'>;
+  me: Side & Pick<PlayerState, 'hand' | 'noTrainersUntil' | 'supporterTurn' | 'noSupportersUntil' | 'noItemsUntil'>;
   opp: Side;
   deckCount: number;
   cards: CardLibrary;
@@ -133,6 +133,8 @@ export type PendingChoice = {
        */
       name?: string | string[];
       type?: EnergyType;
+      /** The card goes on top of the deck, once it's shuffled, instead of into the hand (Smooth Over). */
+      toTop?: boolean;
       /** The card goes onto the Bench instead of into the hand (Call for Family). */
       toBench?: boolean;
       /** The card found is attached to one of the player's Pokémon, chosen next (Energy Spike), instead of going to the hand. */
@@ -617,7 +619,7 @@ export type PendingChoice = {
   | {
       /** A "may" as a card is played (Energy Recharge, Flame Vapor, Streaming Mantle, Retro Energy): yes (count 0) or no (count 1). */
       kind: 'mayUse';
-      power: 'energyRecharge' | 'flameVapor' | 'streamingMantle' | 'retroEnergy' | 'belt' | 'healingShower' | 'legendaryAscent' | 'froth';
+      power: 'energyRecharge' | 'flameVapor' | 'streamingMantle' | 'retroEnergy' | 'belt' | 'healingShower' | 'legendaryAscent' | 'froth' | 'dragonBoost' | 'lightningBurst';
       /** The Pokémon it's about. */
       target: Target;
     }
@@ -722,6 +724,8 @@ export type PendingChoice = {
       names: string[];
       /** Swoop! Teleporter: the old card is discarded instead of shuffled into the deck. */
       discardOld?: boolean;
+      /** Form Change (Deoxys): its once-a-turn marker is the player's `formChangeTurn`, not Temperamental Weather's. */
+      formChange?: boolean;
     }
   | {
       /** Vine Tease: one of the player's Prize cards, picked after looking, changes places with the top card of their deck. */
@@ -850,6 +854,13 @@ export function trainerError(s: TrainerSituation): string | null {
   const dusted = !effect.supporter && trainersDusted(s.me, [s.me, s.opp], s.cards);
   if (dusted) return dusted;
   if (effect.tool && primalLocked(s.me, [s.me, s.opp], s.cards)) return "Primal Lock: you can't play Pokémon Tool cards";
+  // Disconnect: no Trainer cards but Supporters this turn.
+  if (!effect.supporter && (s.me.noItemsUntil ?? 0) >= s.turn) return "Disconnect: you can't play Trainer cards but Supporters this turn";
+  // Commanding Aura (the opponent's Active Hariyama ex): no Stadium cards. Mystic Scale (any Milotic ex): no Technical Machines.
+  const holding = (key: 'commandingAura' | 'mysticScale', pokemon: (InPlayPokemon | null)[]) =>
+    pokemon.some((p) => !!p && !!powerEffect(effectId(p))?.[key] && powerActive(p, s.cards, [s.me, s.opp]));
+  if (effect.stadium && holding('commandingAura', [s.opp.active])) return "Commanding Aura: you can't play Stadium cards";
+  if (effect.technicalMachine && holding('mysticScale', [s.me.active, ...s.me.bench, s.opp.active, ...s.opp.bench])) return "Mystic Scale: Technical Machine cards can't be played";
   // A Stadium can't be played while one with the same name is in play.
   if (effect.stadium && s.stadium && def(s, s.stadium).name === d.name) return `${d.name} is already in play`;
   if (effect.discardToHand && pokemonTower(s)) return 'Pokémon Tower: cards in discard piles stay there';
@@ -1722,6 +1733,8 @@ function skyridgeView(state: GameState, choice: SkyridgeChoice): PendingChoiceVi
         healingShower: "remove all damage counters from all of your Pokémon and your opponent's Pokémon (but Pokémon-ex)?",
         legendaryAscent: 'switch it with your Active Pokémon (then you may move basic Energy cards of its type from your other Pokémon to it)?',
         froth: "paralyze your opponent's Active Pokémon?",
+        dragonBoost: 'move any number of basic Energy cards from your other Pokémon to Rayquaza ex?',
+        lightningBurst: "have your opponent switch their Active Pokémon with one of their Benched Pokémon?",
       }[choice.power];
       return { kind: 'options', prompt: `${choice.source}: ${text}`, labels: ['Yes', 'No'] };
     }
@@ -1853,6 +1866,18 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
         if (typeof choice.target === 'number') swapActive(state, me, choice.target);
         const type = inPlayDef(state.cards, p).type;
         return otherBasicEnergy(state, me, p, type).length ? again({ player: me.id, source: choice.source, kind: 'moveAttached', target: 'active', type }) : null;
+      }
+      if (choice.power === 'dragonBoost') {
+        // Dragon Boost: any basic Energy cards from the player's other Pokémon to Rayquaza ex, one at a time.
+        return otherBasicEnergy(state, me, p).length ? again({ player: me.id, source: choice.source, kind: 'moveAttached', target: choice.target }) : null;
+      }
+      if (choice.power === 'lightningBurst') {
+        // Lightning Burst: the opponent switches their Active Pokémon with a Benched one of their choice.
+        const slots = opp.bench.flatMap((q, i) => (q ? [i] : []));
+        const locked = activeLocked(state, opp.id);
+        if (!slots.length || locked) return addLog(state, locked ?? 'Your opponent has no Benched Pokémon.', me.id), null;
+        if (slots.length === 1) return swapActive(state, opp, slots[0]!), null;
+        return again({ player: opp.id, source: choice.source, kind: 'switchIn' });
       }
       if (choice.power === 'froth') {
         // Froth: the opponent's Active Pokémon is now Paralyzed, unless it can't be.
@@ -2044,7 +2069,7 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
           delete p.powerUsedTurn;
         } else {
           me.deck.push(old);
-          me.weatherTurn = state.turn;
+          if (!choice.formChange) me.weatherTurn = state.turn;
         }
         addLog(state, `${choice.source}: switched ${name(old)} with ${name(picked)}.`, me.id);
       }
@@ -3140,11 +3165,13 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
       if (choice.toBench) me.bench[benchSlot] = { card: picked, evolvedFrom: [], damage: stage2, energy: [], playedTurn: state.turn };
       else if (choice.attachToActive && me.active) me.active.energy.push(picked);
       else if (choice.attachTo !== undefined && (choice.attachTo === 'active' ? me.active : me.bench[choice.attachTo])) (choice.attachTo === 'active' ? me.active : me.bench[choice.attachTo])!.energy.push(picked);
-      else if (!choice.attach) me.hand.push(picked);
+      else if (!choice.attach && !choice.toTop) me.hand.push(picked);
     }
     const traded = choice.tradeUid !== undefined && picked ? me.hand.find((c) => c.uid === choice.tradeUid) : undefined;
     if (traded) me.hand = me.hand.filter((c) => c !== traded);
     [me.deck, state.rngState] = shuffle(traded ? [...me.deck, traded] : me.deck, state.rngState);
+    // Smooth Over: the card goes on top of the shuffled deck.
+    if (picked && choice.toTop) me.deck.unshift(picked);
     const name = (c: CardInstance) => lookupCard(state.cards, c.defId).name;
     addLog(
       state,
@@ -3157,6 +3184,8 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
               ? `Attached ${name(picked)} from the deck to ${lookupCard(state.cards, me.active.card.defId).name}.`
             : choice.attachTo !== undefined
               ? `Attached ${name(picked)} from the deck.`
+            : choice.toTop
+              ? 'Put a card on top of the deck.'
             : choice.reveal || choice.attach
               ? `${choice.attach ? 'Found' : 'Took'} ${name(picked)} ${choice.attach ? 'in' : 'from'} the deck.`
               : 'Took a card from the deck.'

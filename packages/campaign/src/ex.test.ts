@@ -8,7 +8,7 @@ import { catalogDef } from './test-pool.js';
 const rows: { id: string; name: string }[] = JSON.parse(readFileSync(new URL('../../db/prisma/data/tcgdex-wotc.json', import.meta.url), 'utf8')).cards;
 
 /** The EX sets whose card effects are done. */
-const DONE = ['ex1', 'ex2', 'ex3', 'ex4', 'ex5', 'ex6', 'ex7'];
+const DONE = ['ex1', 'ex2', 'ex3', 'ex4', 'ex5', 'ex6', 'ex7', 'ex8', 'ex9'];
 
 describe.each(DONE)('%s', (set) => {
   it('has every card implemented', () => {

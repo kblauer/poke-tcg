@@ -59,7 +59,7 @@ export type PeekTarget = 'deck' | 'oppDeck' | 'oppHand' | 'prize' | 'oppPrize';
 
 /** What a power can see before it's used. View-safe: the UI builds it from a PlayerView. */
 export interface PowerSituation {
-  me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'discard' | 'powersOffUntil' | 'quickenTurn' | 'activeEnergyTurn' | 'goodNeighborTurn' | 'healDanceTurn' | 'weatherTurn' | 'quickSearchTurn'>;
+  me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'discard' | 'powersOffUntil' | 'quickenTurn' | 'activeEnergyTurn' | 'goodNeighborTurn' | 'healDanceTurn' | 'weatherTurn' | 'quickSearchTurn' | 'formChangeTurn' | 'happyDanceTurn'>;
   opp: Pick<PlayerState, 'active' | 'bench' | 'powersOffUntil' | 'discard'>;
   /** Sizes of the hidden piles (Peek). */
   counts: { deck: number; prizes: number; oppDeck: number; oppHand: number; oppPrizes: number };
@@ -316,7 +316,7 @@ export interface PowerEffect {
   /** Magic Odds, Magic Evens: an attack's damage to it of an odd (or even) number of tens, 10 to 180, after everything else, is prevented (attacks.ts). */
   magicNumbers?: 'odd' | 'even';
   /** Energy Protection: attack damage to it is 10 less for each Energy card attached, at most `max` (attacks.ts). */
-  energyProtection?: { max: number };
+  energyProtection?: { max: number; type?: EnergyType; oppOnly?: boolean };
   /** Powder Protection: attack damage to it from Pokémon with an owner in their names is this much less (attacks.ts). */
   ownerGuard?: number;
   /** Dragon Veil: while it's in play, its player's Active Pokémon has no Weakness (attacks.ts). */
@@ -325,6 +325,8 @@ export interface PowerEffect {
   noWeaknessWith?: EnergyType;
   /** Darkness Veil: with Energy of this type attached, the opponent's attacks do nothing to it but damage (attacks.ts). */
   crystalBodyWith?: EnergyType;
+  /** Dragon Aura: while this holds (basic Fire and Lightning Energy cards attached), the opponent's attacks do nothing to it but damage. */
+  crystalBodyWhen?: (pokemon: InPlayPokemon, cards: CardLibrary) => boolean;
   /** Dark and Clear: with Energy of this type attached, it can't be affected by Special Conditions (conditionFree). */
   noConditionsWith?: EnergyType;
   /** Insomnia: it can't be Asleep. */
@@ -335,6 +337,44 @@ export interface PowerEffect {
   dualArmor?: { energy: EnergyType; types: EnergyType[] };
   /** Dark Healer: with Energy of this type attached, its Rain Dish works. */
   rainDishWith?: EnergyType;
+  /** Hard Protection: no damage to it from its own player's attacks, its own recoil and Confusion included (agreed). */
+  hardProtection?: boolean;
+  /** Lazy Aura: as its player's Active Pokémon, the opponent's Pokémon-ex do this much less to any of their Pokémon, before Weakness and Resistance (agreed: the Bench too). */
+  exAura?: number;
+  /** Rai-shield: attack damage to it from the opponent's Pokémon-ex is this much less, after Weakness and Resistance. */
+  exReduction?: number;
+  /** Mist: attack damage to it from Stage 2 Pokémon (either player's) is this much less, after Weakness and Resistance. */
+  stage2Guard?: number;
+  /** Self-control, Carefree, Magma Armor: it can't have these Special Conditions. */
+  immuneTo?: ('asleep' | 'confused' | 'paralyzed')[];
+  /** Green Essence: while it's in play, its player's Active Pokémon with Energy of this type attached can't have Special Conditions (refreshHideout). */
+  greenEssence?: EnergyType;
+  /** Feebas's Submerge: on the Bench, no damage from any attack, its own player's too. */
+  benchImmuneAll?: boolean;
+  /** Dragon Lift: while it's in play, its player's Pokémon (not Pokémon-ex or Baby Pokémon) retreat for free. */
+  freeRetreatAll?: boolean;
+  /** Sunbeam: while it's in play, its player's Pokémon with this name have this much HP (refreshHideout). */
+  hpOf?: { name: string; hp: number };
+  /** Hunch, Blaze: with this much HP left or less, its attacks do `more` more to the Defending Pokémon, before Weakness and Resistance. */
+  lowHpBoost?: { hpLeft: number; more: number };
+  /** Tropical Motion: as its player's Active Pokémon, the opponent's Pokémon have no Resistance. */
+  tropicalMotion?: boolean;
+  /** Vigorous Aura: as either player's Active Pokémon, each Active Pokémon's attacks do this much more to the Active Pokémon, before Weakness and Resistance. */
+  vigorousAura?: number;
+  /** Commanding Aura: as its player's Active Pokémon, the opponent can't play Stadium cards (trainerError). */
+  commandingAura?: boolean;
+  /** Cursed Glare: as its player's Active Pokémon, the opponent can't attach Special Energy (but Darkness and Metal) from the hand to their Active Pokémon. */
+  cursedGlare?: boolean;
+  /** Wise Aura: as its player's Active Pokémon, no Pokémon but Pokémon-ex can use Poké-Powers (both players'). */
+  wiseAura?: boolean;
+  /** Mystic Scale: while it's in play, no Technical Machines can be played, and those in play are discarded. */
+  mysticScale?: boolean;
+  /** Dark Hole: on the Bench, Darkness Weakness doesn't apply to its player's Pokémon. */
+  darkHole?: boolean;
+  /** Empty Shell: Knocked Out, the opponent takes no Prize cards for it. */
+  noPrizes?: boolean;
+  /** Fast Protection: attacks by the opponent's Basic Pokémon don't affect it. */
+  basicProof?: boolean;
 }
 
 /**
@@ -342,7 +382,11 @@ export interface PowerEffect {
  * attached). `effect`: its power, when working.
  */
 export const conditionFree = (pokemon: InPlayPokemon, cards: CardLibrary, effect: PowerEffect | undefined) =>
-  !!effect?.noConditions || (!!effect?.noConditionsWith && energyPool(pokemon, cards).some((e) => counts(e, effect.noConditionsWith!)));
+  !!pokemon.greenEssence || !!effect?.noConditions || (!!effect?.noConditionsWith && energyPool(pokemon, cards).some((e) => counts(e, effect.noConditionsWith!)));
+
+/** Insomnia, Self-control, Carefree, Magma Armor: a working power keeps this one Special Condition off the Pokémon. */
+export const conditionBarred = (effect: PowerEffect | undefined, affliction: string) =>
+  (affliction === 'asleep' && !!effect?.noSleep) || !!effect?.immuneTo?.includes(affliction as 'asleep' | 'confused' | 'paralyzed');
 
 export interface PowerContext {
   state: GameState;
@@ -404,7 +448,9 @@ export function powerActive(pokemon: InPlayPokemon, cards: CardLibrary, sides: S
   if (!effect?.ignoresConditions && (effect?.stopsOnlyWhileAsleep ? pokemon.condition === 'asleep' : hasSpecialCondition(pokemon))) return false;
   // Dark Impact: its Poké-Powers (and Pokémon Powers) don't work; Poké-Bodies do. Lazy: none of its player's do.
   if (pokemon.effects?.noPokePowers !== undefined && !effect?.body) return false;
-  if (lazied(pokemon, cards, sides)) return false;
+  if (lazied(pokemon, cards, sides) || wiseAuraStops(pokemon, cards, sides)) return false;
+  // Space Center (Poké-Bodies) and Battle Frontier (both) switch off the powers of the Pokémon they name (refreshHideout).
+  if (pokemon.stadiumMuted === 'all' || (pokemon.stadiumMuted === 'bodies' && effect?.body)) return false;
   // Ancient Wind: every Poké-Body is ignored until the end of the turn.
   if (effect?.body && sides.some((s) => s.bodiesOffTurn !== undefined)) return false;
   // Scare: a Baby Pokémon's power doesn't work while the opponent's Active Dark Feraligatr's Scare does.
@@ -564,6 +610,10 @@ export function trainerProof(side: Pick<PlayerState, 'active'>, sides: Sides, ca
 export function attachBlocked(cards: CardLibrary, sides: Sides, pokemon: InPlayPokemon, energy: CardInstance): string | null {
   const effect = powerEffect(effectId(pokemon));
   const d = lookupCard(cards, energy.defId);
+  // Cursed Glare: the opponent's Active Cacturne ex keeps Special Energy (but Darkness and Metal) off its owner's Active Pokémon.
+  const owner = sides.find((s) => s.active === pokemon);
+  const glare = owner && sides.find((s) => s !== owner && s.active && powerEffect(effectId(s.active))?.cursedGlare && powerActive(s.active, cards, sides));
+  if (glare && d.kind === 'energy' && d.basic === false && !['Darkness Energy', 'Metal Energy'].includes(d.name)) return `Cursed Glare: Special Energy cards can't be attached to your Active Pokémon`;
   if (!effect?.antiAttach || !powerActive(pokemon, cards, sides) || d.kind !== 'energy' || d.basic === false || d.energyType !== effect.antiAttach) return null;
   return `${inPlayDef(cards, pokemon).power!.name}: ${d.name} cards can't be attached to ${inPlayDef(cards, pokemon).name} from your hand`;
 }
@@ -579,7 +629,10 @@ export function retreatBodies(pokemon: InPlayPokemon, cards: CardLibrary, sides:
   // Family Bonds: free for the Pokémon it names while its owner has it working in play.
   const name = inPlayDef(cards, pokemon).name;
   const bonded = [owner.active, ...owner.bench].some((p) => !!p && !!powerEffect(effectId(p))?.familyBonds?.some((n) => namesMatch(name, n)) && powerActive(p, cards, sides));
-  if (bonded) return -99;
+  // Dragon Lift: free for every Pokémon of its player's (not Pokémon-ex or Baby Pokémon).
+  const d = inPlayDef(cards, pokemon);
+  const lifted = !d.ex && !d.baby && [owner.active, ...owner.bench].some((p) => !!p && !!powerEffect(effectId(p))?.freeRetreatAll && powerActive(p, cards, sides));
+  if (bonded || lifted) return -99;
   return own + (owner.active === pokemon && anyWorking(sides, cards, (e) => e.glueySlime) ? 1 : 0);
 }
 
@@ -616,6 +669,12 @@ export function lazied(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sides)
   if (powerEffect(effectId(pokemon))?.body) return false;
   const opponent = sides.find((s) => s.active !== pokemon && !s.bench.includes(pokemon));
   return !!opponent?.active && !!powerEffect(effectId(opponent.active))?.lazy && powerActive(opponent.active, cards, sides);
+}
+
+/** Wise Aura is stopping `pokemon`'s Poké-Power (not a Pokémon-ex's): either Active Pokémon has a working Wise Aura. */
+export function wiseAuraStops(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sides): boolean {
+  if (powerEffect(effectId(pokemon))?.body || inPlayDef(cards, pokemon).ex) return false;
+  return sides.some((s) => !!s.active && s.active !== pokemon && !!powerEffect(effectId(s.active))?.wiseAura && powerActive(s.active, cards, sides));
 }
 
 /** Dark Gaze is stopping the Benched Pokémon `pokemon`'s Poké-Powers: a working Dark Gaze on either Active Pokémon. */
@@ -732,6 +791,9 @@ export function powerError(s: PowerSituation): string | null {
   if (source.effects?.noPokePowers !== undefined) return `Dark Impact: ${def.name} can't use Poké-Powers this turn`;
   if (darkGazed(source, s.cards, [s.me, s.opp])) return "Dark Gaze: Benched Pokémon can't use Poké-Powers";
   if (lazied(source, s.cards, [s.me, s.opp])) return "Lazy: your Pokémon can't use Poké-Powers";
+  if (wiseAuraStops(source, s.cards, [s.me, s.opp])) return `Wise Aura: ${def.name} can't use Poké-Powers`;
+  // Space Center, Battle Frontier.
+  if (source.stadiumMuted === 'all') return `The Stadium in play: ${def.name} can't use Poké-Powers`;
   // Mt. Moon: no Poké-Powers (or older Pokémon Powers) for a Pokémon with less than 70 HP.
   if (s.stadium && lookupCard(s.cards, s.stadium.defId).name === 'Mt. Moon' && !effect.body && def.hp < 70) return `Mt. Moon: ${def.name} can't use Poké-Powers`;
   const blocked = effect.blocked?.(s);

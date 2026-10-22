@@ -58,6 +58,8 @@ export interface PlayerView {
     healDanceTurn?: number;
     weatherTurn?: number;
     quickSearchTurn?: number;
+    formChangeTurn?: number;
+    happyDanceTurn?: number;
     /** A search this player must finish, with the cards it reveals to them. */
     pendingChoice: PendingChoiceView | null;
     /** Last turn this player can't play Trainer cards (Headache). */
@@ -66,6 +68,7 @@ export interface PlayerView {
     supporterTurn?: number;
     /** Last turn they can't play Supporter cards (Addictive Pollen). */
     noSupportersUntil?: number;
+    noItemsUntil?: number;
     /** The turn they last attached an Energy card from their hand to their Active Pokémon (Harvest Bounty). */
     activeEnergyTurn?: number;
     /** Setup: done placing Pokémon, waiting for the opponent. */
@@ -174,10 +177,13 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       ...(me.healDanceTurn !== undefined && { healDanceTurn: me.healDanceTurn }),
       ...(me.weatherTurn !== undefined && { weatherTurn: me.weatherTurn }),
       ...(me.quickSearchTurn !== undefined && { quickSearchTurn: me.quickSearchTurn }),
+      ...(me.formChangeTurn !== undefined && { formChangeTurn: me.formChangeTurn }),
+      ...(me.happyDanceTurn !== undefined && { happyDanceTurn: me.happyDanceTurn }),
       pendingChoice: pending,
       noTrainersUntil: me.noTrainersUntil,
       ...(me.supporterTurn !== undefined && { supporterTurn: me.supporterTurn }),
       ...(me.noSupportersUntil !== undefined && { noSupportersUntil: me.noSupportersUntil }),
+      ...(me.noItemsUntil !== undefined && { noItemsUntil: me.noItemsUntil }),
       ...(me.activeEnergyTurn !== undefined && { activeEnergyTurn: me.activeEnergyTurn }),
       ...(me.ready && { ready: true }),
       ...(peek && { peek }),
