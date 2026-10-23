@@ -378,8 +378,8 @@ export function Board({
   const movePrompt = prompt ?? (moveSpec ? `${moveSpec.prompt}: ${phone ? 'tap' : 'click'} one of your highlighted Pokémon` : null);
   /**
    * The panel over a card, centred on it like a slot's label: the Active's attacks, power, Retreat and other moves
-   * (attackPanels, activeMoves), with an attack's or power's questions; a benched Pokémon's power, with a Use button
-   * (or why it can't be used now), or its questions.
+   * (attackPanels, activeMoves), with an attack's or power's questions; a benched Pokémon's power: its name and a Use
+   * button (or why it can't be used now; not its text, agreed 2026-10-23), or its questions.
    */
   const cardPanel = (target: Target) => {
     const benched = typeof target === 'number' ? power.powers.find((p) => p.source === target) : undefined;
@@ -402,7 +402,6 @@ export function Board({
           benched && (
             <>
               <p className="font-semibold text-violet-200">{benched.name}</p>
-              {benched.text && <p className="text-[11px] leading-snug text-slate-300">{benched.text}</p>}
               {benched.error && <p className="text-[11px] text-amber-300">{benched.error}</p>}
               <button
                 className="rounded bg-violet-700 px-2 py-1 text-left transition hover:bg-violet-600 active:scale-95 disabled:opacity-40 disabled:hover:bg-violet-700"
@@ -536,7 +535,7 @@ export function Board({
   const statusBar = (compact: boolean) => (
     <StatusBar
       compact={compact}
-      status={statusText(view)}
+      status={statusText(view, compact)}
       canEndTurn={myTurn}
       setup={phase === 'setup' && !self.ready ? { canReset: !!self.active || self.bench.some(Boolean), canStart: !!self.active } : null}
       endTurn={() => turnReminders.check('end', () => send({ type: 'END_TURN' }))}

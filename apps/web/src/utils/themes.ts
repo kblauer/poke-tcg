@@ -5,6 +5,9 @@
  * `<html>`; no component changes. A theme is a hue and a strength for each: the shades keep Tailwind's own lightness
  * steps, so every text and background pair stays as readable as the default. Only yellow 50–400 (the accent shades) are
  * themed: 500 and darker mean things in play (Paralyzed, Lightning, the gym leader's icon) and stay yellow.
+ * A `light` theme turns both round (LIGHT_NEUTRAL, LIGHT_ACCENT): slate-950, the page, a subdued white and slate-50 to 200,
+ * the text, near black, the accent shades dark, so every pair the dark themes use reads the other way up. Text that must
+ * stay light on slate is slate-50 (not white), which a light theme makes dark.
  */
 
 export interface ColorTheme {
@@ -20,6 +23,8 @@ export interface ColorTheme {
   /** The accent's OKLCH hue, and its strength (1: as strong as Tailwind's yellow, or as much as the hue allows). */
   accent: number;
   accentTint?: number;
+  /** Dark text on light backgrounds (the shades turned round, see LIGHT_NEUTRAL); the browser's controls light too (color-scheme). */
+  light?: boolean;
 }
 
 export const DEFAULT_THEME = 'slate';
@@ -28,6 +33,8 @@ export const GENERATION_NAMES: Record<ColorTheme['gen'], string> = { 0: 'Default
 
 export const COLOR_THEMES: ColorTheme[] = [
   { id: DEFAULT_THEME, name: 'Slate', gen: 0, from: 'The original look', hue: 257, tint: 1, accent: 95 },
+  // Light (agreed 2026-10-23): FireRed's start menu, near-black text on a soft white, its frame's blue-grey for the accent.
+  { id: 'start-menu', name: 'Start Menu', gen: 0, from: "UI: FireRed's start menu, dark text on white", hue: 265, tint: 0.5, accent: 262, accentTint: 0.45, light: true },
 
   { id: 'bulbasaur', name: 'Bulbasaur', gen: 1, from: 'Starter: teal skin, a green bulb', hue: 175, tint: 1.6, accent: 140 },
   { id: 'charmander', name: 'Charmander', gen: 1, from: 'Starter: orange scales, a tail flame', hue: 45, tint: 1.6, accent: 75 },
@@ -67,6 +74,16 @@ const NEUTRAL: [shade: number, l: number, c: number][] = [
   [600, 0.446, 0.043], [700, 0.372, 0.044], [800, 0.279, 0.041], [900, 0.208, 0.042], [950, 0.129, 0.042],
 ];
 const ACCENT: [shade: number, l: number, c: number][] = [[50, 0.987, 0.026], [100, 0.973, 0.071], [200, 0.945, 0.129], [300, 0.905, 0.182], [400, 0.852, 0.199]];
+/**
+ * A light theme's shades: the lightness each neutral takes, turned round (the page, slate-950, a subdued white rather
+ * than a bright one; the text, slate-100, near black), with the chroma of the shade it stands in for; and the accent's,
+ * dark enough to read as text on it.
+ */
+const LIGHT_NEUTRAL: Record<number, [l: number, mirror: number]> = {
+  50: [0.2, 950], 100: [0.26, 900], 200: [0.33, 800], 300: [0.4, 700], 400: [0.5, 600], 500: [0.58, 500],
+  600: [0.68, 400], 700: [0.8, 300], 800: [0.865, 200], 900: [0.91, 100], 950: [0.945, 50],
+};
+const LIGHT_ACCENT: Record<number, number> = { 50: 0.5, 100: 0.47, 200: 0.44, 300: 0.4, 400: 0.37 };
 
 /** An OKLCH colour in linear sRGB (outside 0–1 when sRGB can't show it). */
 function linearRgb(l: number, c: number, h: number): number[] {
@@ -102,6 +119,8 @@ function rgbTriplet(l: number, c: number, h: number): string {
  */
 export function playmatColors(t: ColorTheme): { line: string; glow: string } {
   if (t.id === DEFAULT_THEME) return { line: '148, 163, 184', glow: '125, 211, 252' };
+  // On a light playmat: darker lines (its slate-400) and a deeper glow.
+  if (t.light) return { line: rgbTriplet(LIGHT_NEUTRAL[400]![0], 0.04 * t.tint, t.hue), glow: rgbTriplet(0.55, 0.12 * Math.min(1, t.tint * 2), t.hue) };
   return { line: rgbTriplet(0.704, 0.04 * t.tint, t.hue), glow: rgbTriplet(0.828, 0.111 * Math.min(1, t.tint), t.hue) };
 }
 
@@ -140,6 +159,15 @@ function accentShade(l: number, c: number, h: number): string {
 /** The CSS variables a theme sets on `<html>`: `--color-slate-*` and `--color-yellow-50`…`400`. */
 export function themeVars(t: ColorTheme): Record<string, string> {
   const vars: Record<string, string> = {};
+  if (t.light) {
+    const chroma = new Map(NEUTRAL.map(([shade, , c]) => [shade, c]));
+    for (const [shade] of NEUTRAL) {
+      const [l, mirror] = LIGHT_NEUTRAL[shade]!;
+      vars[`--color-slate-${shade}`] = oklch(l, chroma.get(mirror)! * t.tint, t.hue);
+    }
+    for (const [shade, , c] of ACCENT) vars[`--color-yellow-${shade}`] = oklch(LIGHT_ACCENT[shade]!, Math.max(c, 0.1) * (t.accentTint ?? 1), t.accent);
+    return vars;
+  }
   for (const [shade, l, c] of NEUTRAL) vars[`--color-slate-${shade}`] = oklch(l, c * t.tint, t.hue);
   for (const [shade, l, c] of ACCENT) vars[`--color-yellow-${shade}`] = accentShade(l, c * (t.accentTint ?? 1), t.accent);
   return vars;

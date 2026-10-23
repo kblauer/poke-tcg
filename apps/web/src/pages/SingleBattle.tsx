@@ -87,7 +87,7 @@ export function SingleBattlePage() {
 
   return (
     <div className={`space-y-6 ${PAGE_WIDTH}`}>
-      <PageHeader title="Practice" />
+      <PageHeader title="Training" />
       <div className="grid items-start gap-6 lg:grid-cols-[1fr_24rem]">
         <section className={panel}>
           <div className="flex items-baseline justify-between gap-3">

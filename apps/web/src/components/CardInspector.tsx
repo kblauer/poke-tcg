@@ -68,7 +68,7 @@ export function CardInspector({
         if (pressed.current && !(e.target as Element).closest(KEEP_OPEN)) onClose();
       }}
     >
-      <button className="fixed right-3 top-3 z-10 flex rounded-full bg-slate-800/80 p-2 text-slate-200 ring-1 ring-slate-600 transition hover:bg-slate-700 hover:text-white" onClick={onClose} aria-label="Close" title="Close">
+      <button className="fixed right-3 top-3 z-10 flex rounded-full bg-slate-800/80 p-2 text-slate-200 ring-1 ring-slate-600 transition hover:bg-slate-700 hover:text-slate-50" onClick={onClose} aria-label="Close" title="Close">
         <CloseIcon />
       </button>
       <div className="m-auto flex w-full max-w-lg flex-col items-center gap-3">
