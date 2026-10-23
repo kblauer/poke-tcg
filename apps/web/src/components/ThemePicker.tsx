@@ -1,53 +1,85 @@
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import { useState } from 'react';
 import { useColorTheme } from '../hooks/useColorTheme';
-import { COLOR_THEMES, type ColorTheme, GENERATION_NAMES, themeVars } from '../utils/themes';
+import { COLOR_THEMES, type ColorTheme, DEFAULT_THEME, findTheme, GENERATION_NAMES, themeVars } from '../utils/themes';
 
 /** A small picture of the app in a theme's colours: the page, a panel with a line of text, and the accent. */
 function Swatch({ theme }: { theme: ColorTheme }) {
   const v = themeVars(theme);
   return (
-    <div className="flex h-12 items-center gap-2 rounded p-2" style={{ background: v['--color-slate-950'] }}>
-      <div className="flex h-full flex-1 flex-col justify-center gap-1 rounded px-2" style={{ background: v['--color-slate-800'], boxShadow: `inset 0 0 0 1px ${v['--color-slate-600']}` }}>
-        <span className="h-1.5 w-3/4 rounded-full" style={{ background: v['--color-slate-100'] }} />
-        <span className="h-1.5 w-1/2 rounded-full" style={{ background: v['--color-slate-400'] }} />
+    <div className="flex h-8 items-center gap-1.5 rounded p-1.5" style={{ background: v['--color-slate-950'] }}>
+      <div className="flex h-full flex-1 flex-col justify-center gap-1 rounded px-1.5" style={{ background: v['--color-slate-800'], boxShadow: `inset 0 0 0 1px ${v['--color-slate-600']}` }}>
+        <span className="h-1 w-3/4 rounded-full" style={{ background: v['--color-slate-100'] }} />
+        <span className="h-1 w-1/2 rounded-full" style={{ background: v['--color-slate-400'] }} />
       </div>
-      <span className="h-5 w-5 shrink-0 rounded-full" style={{ background: v['--color-yellow-300'] }} />
+      <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ background: v['--color-yellow-300'] }} />
     </div>
   );
 }
 
+/** A theme's tile: its swatch and name (where its colours come from on hover), ringed when it's in use. */
+function ThemeTile({ theme, current, onPick }: { theme: ColorTheme; current: boolean; onPick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onPick}
+      aria-pressed={current}
+      title={theme.from}
+      className={`flex w-full flex-col gap-1 rounded-md bg-slate-900 p-1.5 text-left text-xs transition hover:bg-slate-700 ${current ? 'ring-2 ring-yellow-400/70' : 'ring-1 ring-slate-700'}`}
+    >
+      <Swatch theme={theme} />
+      <span className={`truncate font-semibold ${current ? 'text-yellow-300' : ''}`}>{theme.name}</span>
+    </button>
+  );
+}
+
 /**
- * The Settings page's colour themes (`COLOR_THEMES`), grouped by generation; a click puts one on at once and it's
- * remembered in the browser (`useColorTheme`).
+ * The Settings page's colour themes (`COLOR_THEMES`): Slate, then an accordion per generation, the one holding the theme
+ * in use open at first (Generation 1 with Slate); a click puts one on at once and it's remembered in the browser
+ * (`useColorTheme`).
  */
 export function ThemePicker() {
   const [current, setTheme] = useColorTheme();
-  const gens = [...new Set(COLOR_THEMES.map((t) => t.gen))];
+  const gens = [...new Set(COLOR_THEMES.map((t) => t.gen))].filter((g) => g !== 0);
+  const [open, setOpen] = useState(() => new Set<number>([findTheme(current).gen || 1]));
+  const toggle = (gen: number) =>
+    setOpen((o) => {
+      const next = new Set(o);
+      if (!next.delete(gen)) next.add(gen);
+      return next;
+    });
+  const tiles = 'grid grid-cols-3 gap-2 sm:grid-cols-5';
   return (
-    <div className="space-y-4">
-      {gens.map((gen) => (
-        <div key={gen} className="space-y-2">
-          <h4 className="text-sm font-semibold text-slate-300">{GENERATION_NAMES[gen]}</h4>
-          <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {COLOR_THEMES.filter((t) => t.gen === gen).map((t) => (
-              <li key={t.id}>
-                <button
-                  type="button"
-                  onClick={() => setTheme(t.id)}
-                  aria-pressed={t.id === current}
-                  className={`flex w-full flex-col gap-2 rounded-lg bg-slate-900 p-2 text-left text-sm transition hover:bg-slate-700 ${t.id === current ? 'ring-2 ring-yellow-400/70' : 'ring-1 ring-slate-700'}`}
-                >
-                  <Swatch theme={t} />
-                  <span className="flex items-baseline justify-between gap-2">
-                    <span className="font-semibold">{t.name}</span>
-                    {t.id === current && <span className="shrink-0 text-xs font-semibold text-yellow-300">In use</span>}
-                  </span>
-                  <span className="text-xs text-slate-400">{t.from}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
+    <div className="space-y-2">
+      <div className={tiles}>
+        <ThemeTile theme={findTheme(DEFAULT_THEME)} current={current === DEFAULT_THEME} onPick={() => setTheme(DEFAULT_THEME)} />
+      </div>
+      {gens.map((gen) => {
+        const themes = COLOR_THEMES.filter((t) => t.gen === gen);
+        const inUse = themes.find((t) => t.id === current);
+        const isOpen = open.has(gen);
+        return (
+          <div key={gen} className="rounded-lg bg-slate-900/60 ring-1 ring-slate-700">
+            <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-sm font-semibold text-slate-300 hover:text-white" aria-expanded={isOpen} onClick={() => toggle(gen)}>
+              <span className="flex-1 text-left">
+                {GENERATION_NAMES[gen]} <span className="font-normal text-slate-500">({themes.length})</span>
+              </span>
+              {!isOpen && inUse && <span className="text-xs font-normal text-yellow-300">{inUse.name}</span>}
+              {isOpen ? <ExpandLessIcon sx={{ fontSize: 18 }} /> : <ExpandMoreIcon sx={{ fontSize: 18 }} />}
+            </button>
+            {isOpen && (
+              <ul className={`${tiles} px-3 pb-3`}>
+                {themes.map((t) => (
+                  <li key={t.id}>
+                    <ThemeTile theme={t} current={t.id === current} onPick={() => setTheme(t.id)} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
