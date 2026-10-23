@@ -1,3 +1,4 @@
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import { Link } from '@tanstack/react-router';
 import { lazy, Suspense, useEffect, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
@@ -43,7 +44,7 @@ function loadSections(): SectionPrefs {
  * The site's menu on a big screen, down the left edge under the top bar, beside the page: minimised, a column of the
  * pages' icons (their names on hover), Settings last; `open` (toggled by the top bar's ☰), wider, with each
  * page's name beside its icon. Either way it takes its own room on the left and the page beside it stays usable.
- * Under them: open, the run's numbers and the logs (NavSections); minimised, the run's HP and ₱.
+ * Under them: open, the run's numbers and the logs (NavSections); minimised, the run's HP and ₱, and the bank.
  */
 export function NavRail({ open }: { open: boolean }) {
   const link = (p: (typeof PAGES)[number] | typeof SETTINGS_PAGE, className = '') => (
@@ -73,11 +74,11 @@ function useRunUnderWay() {
   return { run, data: data && view && view.phase !== 'won' && view.phase !== 'lost' ? { view, account: data.account } : null };
 }
 
-/** The minimised menu's run: its HP and ₱, under the pages' icons. */
+/** The minimised menu's run: its HP and ₱, and the bank, under the pages' icons. */
 function RunSummary() {
   const { data } = useRunUnderWay();
   if (!data) return null;
-  const { view } = data;
+  const { view, account } = data;
   return (
     <section className="mt-2 flex flex-col items-center gap-3 border-t border-slate-800 pt-3 text-xs font-semibold">
       <span className="relative flex flex-col items-center text-rose-400" title={`${view.hp} of ${view.maxHp} HP`}>
@@ -90,6 +91,10 @@ function RunSummary() {
         <DeltaFloat value={view.pokedollars} format={(n) => String(n)} place="inset-x-0 top-0 text-center" />
         <span className="text-base leading-5">₱</span>
         {view.pokedollars}
+      </span>
+      <span className="flex flex-col items-center text-yellow-200/70" title="₱ banked from earlier runs">
+        <AccountBalanceIcon sx={{ fontSize: 18 }} />
+        {account.bank}
       </span>
     </section>
   );

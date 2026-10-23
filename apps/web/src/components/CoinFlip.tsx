@@ -47,7 +47,7 @@ export const flipsAfter = (log: LogEntry[], since: number): Flip[] =>
  * Animates a move's coin flips one after another, each just the coin on the play area (Board puts it in the PlayArea),
  * beside the Active Pokémon of the side it comes from (placeBeside). The engine has already decided each result; this
  * replays them while the game waits (GamePage holds the move back until `onDone`). Clicking anywhere skips the rest of
- * them, and "Always skip coin flips" (the Settings page) turns the animations off (useSkipFlips). What each is for and
+ * them, and the Settings page's "Skip coin flip animations" turns the animations off (useSkipFlips). What each is for and
  * how it landed are read out to screen readers only.
  */
 export function CoinFlip({
@@ -120,7 +120,7 @@ export function CoinFlip({
   );
 }
 
-/** The room kept for your attack panel beside your Active Pokémon (.attack-column: w-36 and its 0.75rem gap), and the gap after it. */
+/** The room kept beside your Active Pokémon (.attack-column, the Peek card's: w-36 and its 0.75rem gap), and the gap after it. */
 const ATTACK_ROOM = 144 + 12;
 const GAP = 40;
 
@@ -179,6 +179,7 @@ export function SpinningCoin({
   design,
   still = false,
   headroom = true,
+  flat = false,
   label,
 }: {
   heads: boolean;
@@ -188,6 +189,8 @@ export function SpinningCoin({
   still?: boolean;
   /** Keep room above the coin for its flight (off for the Cosmetics tab's tiles, whose coin starts still). */
   headroom?: boolean;
+  /** Seen face on, with no tilt or shadow under it (a small still preview: the open deck's in the Collection). */
+  flat?: boolean;
   /** Shown just above the coin where it rests (CoinFlip: Heads! or Tails!, once it has landed). */
   label?: ReactNode;
 }) {
@@ -263,13 +266,13 @@ export function SpinningCoin({
   return (
     // With `headroom`, room above the coin for the top of its arc, so it never flies over what's above it (the flip's heading).
     <div className="shrink-0" style={{ width: px, paddingTop: headroom && moving ? rise + px * 0.08 : 0 }}>
-      <div className="relative" style={{ height: px * 1.18 }}>
+      <div className="relative" style={{ height: flat ? px : px * 1.18 }}>
         {label && <div className="pointer-events-none absolute inset-x-0 bottom-full mb-1 flex justify-center whitespace-nowrap">{label}</div>}
         {/* The shadow on the table under it. */}
-        <div ref={shadow} className="absolute left-[10%] w-[80%] rounded-[50%] bg-black/55 blur-[3px]" style={{ top: px * 0.98, height: px * 0.14 }} />
+        {!flat && <div ref={shadow} className="absolute left-[10%] w-[80%] rounded-[50%] bg-black/55 blur-[3px]" style={{ top: px * 0.98, height: px * 0.14 }} />}
         <div className="absolute inset-x-0 top-0 [perspective:600px]" style={{ height: px }}>
           {/* Seen a little from above and to one side (TILT), not head on, so its rim shows even at rest. */}
-          <div className="h-full w-full [transform-style:preserve-3d]" style={{ transform: TILT }}>
+          <div className="h-full w-full [transform-style:preserve-3d]" style={{ transform: flat ? 'none' : TILT }}>
             <div ref={body} className="relative h-full w-full [transform-style:preserve-3d]" style={{ transform: `rotateX(${final}deg)` }}>
               {/* The rim: thin discs stacked between the faces, seen edge on as the coin turns. */}
               {Array.from({ length: depth }, (_, i) => (

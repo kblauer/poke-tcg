@@ -11,13 +11,19 @@ import PublishIcon from '@mui/icons-material/Publish';
 import StarIcon from '@mui/icons-material/Star';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
 import type { AppRouter } from '@poke-tcg/api/router';
+import { COSMETICS, DEFAULT_COSMETIC, type CosmeticKind } from '@poke-tcg/campaign';
 import { DECK_NAME_LENGTH, DECK_SIZE } from '@poke-tcg/shared';
+import { useQuery } from '@tanstack/react-query';
 import type { inferRouterOutputs } from '@trpc/server';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import type { DeckCosmetics } from '../hooks/useCosmetics';
+import { useTRPC } from '../lib/trpc';
+import { cardBackUrl } from '../utils/cardBack';
 import type { CatalogCard } from '../utils/cardList';
 import { useInspectOnRightClick } from './InspectContext';
 import { DECK_SECTIONS, allGenerations, deckInGenerations, deckRatio, deckSize, featuredPokemon, type DeckEntry } from '../utils/deckBuilder';
 import { CardImage } from './CardImage';
+import { SpinningCoin } from './CoinFlip';
 import { GenerationFilter } from './packs/GenerationFilter';
 import { Toasts } from './Toasts';
 
@@ -204,20 +210,6 @@ function DeckCount({ size, ready, large = false }: { size: number; ready: boolea
 }
 
 /**
- * A deck's tile body: what it holds (DeckSummary), with its card count at the bottom right (DeckCount).
- */
-function DeckBody({ entries, size, ready, byId, isLocked, compact }: { entries: DeckEntry[]; size: number; ready: boolean; byId: Map<string, CatalogCard>; isLocked: (card: CatalogCard) => boolean; compact: boolean }) {
-  return (
-    <div className="flex items-end gap-2">
-      <div className="min-w-0 flex-1">
-        <DeckSummary entries={entries} byId={byId} isLocked={isLocked} compact={compact} />
-      </div>
-      <DeckCount size={size} ready={ready} />
-    </div>
-  );
-}
-
-/**
  * A deck tile's contents, as agreed with the user (the Collection's deck list, and the run's deck menu): its Pokémon large
  * on the left with the Pokémon/Trainer/Energy bar and its counts under them; on their right `title` (the name) with the
  * Pokémon's names (comma separated, wrapping) and any `note` under it, and `corner` (the star) and the card count at the
@@ -233,6 +225,8 @@ export function DeckTile({
   title,
   note,
   corner,
+  detail,
+  titleAbove = false,
 }: {
   entries: DeckEntry[];
   size: number;
@@ -243,11 +237,15 @@ export function DeckTile({
   title: ReactNode;
   note?: ReactNode;
   corner?: ReactNode;
+  /** Shown in place of the Pokémon's names (the open deck's cosmetics). */
+  detail?: ReactNode;
+  /** The title across the top of the tile, above the cards (the open deck's), instead of beside them. */
+  titleAbove?: boolean;
 }) {
   const dim = locked ? 'opacity-60' : '';
   const featured = featuredPokemon(entries, byId);
   const ratio = deckRatio(entries, byId);
-  return (
+  const row = (
     <div className="flex gap-2.5">
       <div className={`space-y-1 ${dim}`}>
         <FeaturedCards featured={featured} isLocked={isLocked} size="h-[4.2rem] w-[3rem]" />
@@ -255,12 +253,61 @@ export function DeckTile({
         <RatioCounts ratio={ratio} small />
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        {title}
-        <p className={`break-words text-xs leading-4 text-slate-200 ${dim}`}>{featured.map((card) => card.name).join(', ')}</p>
+        {!titleAbove && title}
+        {detail ?? <p className={`break-words text-xs leading-4 text-slate-200 ${dim}`}>{featured.map((card) => card.name).join(', ')}</p>}
         {note}
         <div className="mt-auto flex items-center justify-end gap-1">
           {corner}
           <DeckCount size={size} ready={ready} large />
+        </div>
+      </div>
+    </div>
+  );
+  return titleAbove ? (
+    <div className="space-y-2">
+      {title}
+      {row}
+    </div>
+  ) : (
+    row
+  );
+}
+
+/** A small deck tile (the Cosmetics tab's): its first Pokémon's card, its name and its card count. */
+export function CompactDeckTile({ entries, name, byId, isLocked }: { entries: DeckEntry[]; name: string; byId: Map<string, CatalogCard>; isLocked: (card: CatalogCard) => boolean }) {
+  const [card] = featuredPokemon(entries, byId);
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      {card?.imageUrl ? (
+        <CardImage src={`${card.imageUrl}/low.webp`} alt="" loading="lazy" className={`h-[2.8rem] w-[2rem] shrink-0 rounded-sm object-cover ${isLocked(card) ? 'brightness-50' : ''}`} />
+      ) : (
+        <span className="h-[2.8rem] w-[2rem] shrink-0 rounded-sm bg-slate-700" />
+      )}
+      <span className="min-w-0 flex-1 text-left">
+        <span className="block truncate text-xs font-semibold">{name}</span>
+        <span className="block text-[11px] text-slate-400">
+          {deckSize(entries)}/{DECK_SIZE}
+        </span>
+      </span>
+    </span>
+  );
+}
+
+/** A deck's card back and coin, small and side by side (CurrentDeck): its own, else the account's defaults. */
+function CosmeticsPreview({ cosmetics }: { cosmetics?: DeckCosmetics }) {
+  const trpc = useTRPC();
+  const list = useQuery({ ...trpc.cosmetics.list.queryOptions(), staleTime: 5 * 60_000 });
+  const pick = (kind: CosmeticKind) => cosmetics?.[kind] ?? list.data?.defaults[kind] ?? DEFAULT_COSMETIC[kind];
+  const name = (id: string) => COSMETICS[id]?.name ?? id;
+  const cardBack = pick('cardBack');
+  const coin = pick('coin');
+  return (
+    <div className="ml-8 flex items-center gap-2">
+      <img src={cardBackUrl(cardBack)} alt="" title={`Card back: ${name(cardBack)}`} className="h-[4.2rem] w-[3rem] rounded-sm object-cover shadow" />
+      {/* The smallest SpinningCoin is 96px wide: shrunk to the card back's height. */}
+      <div className="flex h-[4.2rem] w-[3rem] items-center justify-center" title={`Coin: ${name(coin)}`}>
+        <div className="scale-[0.45]">
+          <SpinningCoin heads size="md" design={coin} still flat headroom={false} />
         </div>
       </div>
     </div>
@@ -513,8 +560,10 @@ function SortableDeck({
 }
 
 /**
- * The open deck at the top of the deck builder: click it to go back to the deck list, or the pencil to rename it
- * (not the automatic run deck, `readOnly`).
+ * The open deck at the top of the deck builder, as the deck list's tiles show a deck (DeckTile, agreed), but with its
+ * name across the top and its card back and coin (`cosmetics`: its own, else the account's defaults; the coin face on)
+ * where the Pokémon's names go: click it to go
+ * back to the deck list, or the pencil to rename it (not the automatic run deck, `readOnly`).
  */
 export function CurrentDeck({
   name,
@@ -525,6 +574,7 @@ export function CurrentDeck({
   byId,
   isLocked,
   onBack,
+  cosmetics,
   compact = false,
 }: {
   name: string;
@@ -535,23 +585,42 @@ export function CurrentDeck({
   byId: Map<string, CatalogCard>;
   isLocked: (card: CatalogCard) => boolean;
   onBack: () => void;
-  /** A phone: DeckSummary's small version, and a shorter way back. */
+  /** Its cosmetics (decks.list's; none for a new deck). */
+  cosmetics?: DeckCosmetics;
+  /** A phone: a shorter way back. */
   compact?: boolean;
 }) {
+  // Greyed out and tagged Locked while it holds cards not unlocked yet, as in the list.
+  const locked = entries.some((e) => {
+    const card = byId.get(e.cardId);
+    return card !== undefined && isLocked(card);
+  });
   return (
     // Not a <button>: the name's text box goes inside it.
     <div
       role="button"
       tabIndex={0}
-      className={`w-full cursor-pointer rounded-lg bg-slate-900 text-left text-sm ring-1 ring-slate-700 hover:bg-slate-800 focus:outline-none focus-visible:ring-yellow-300 ${compact ? 'space-y-1 p-2' : 'space-y-2 p-3'}`}
+      className="w-full cursor-pointer rounded-lg bg-slate-800 p-2 text-left ring-1 ring-slate-700 hover:bg-slate-700 focus:outline-none focus-visible:ring-yellow-300"
       onClick={onBack}
       onKeyDown={(e) => e.key === 'Enter' && onBack()}
       title="Back to the deck list"
     >
-      <DeckTitle name={name || 'Unnamed deck'} onRename={readOnly ? undefined : onRename} compact={compact}>
-        <span className="shrink-0 text-xs text-slate-400">{compact ? '←' : '← All decks'}</span>
-      </DeckTitle>
-      <DeckBody entries={entries} size={deckSize(entries)} ready={ready} byId={byId} isLocked={isLocked} compact={compact} />
+      <DeckTile
+        entries={entries}
+        size={deckSize(entries)}
+        ready={ready}
+        locked={locked}
+        byId={byId}
+        isLocked={isLocked}
+        title={
+          <DeckTitle name={name || 'Unnamed deck'} onRename={readOnly ? undefined : onRename} large>
+            {locked && LOCKED_TAG}
+            <span className="shrink-0 text-xs text-slate-400">{compact ? '←' : '← All decks'}</span>
+          </DeckTitle>
+        }
+        detail={<CosmeticsPreview cosmetics={cosmetics} />}
+        titleAbove
+      />
     </div>
   );
 }

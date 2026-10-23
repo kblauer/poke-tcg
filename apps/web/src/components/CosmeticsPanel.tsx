@@ -1,10 +1,13 @@
 import LockIcon from '@mui/icons-material/Lock';
 import { RUN_TYPES, type CosmeticDef, type CosmeticKind } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useUnlocked } from '../hooks/useUnlocked';
 import { useTRPC } from '../lib/trpc';
 import { cardBackUrl } from '../utils/cardBack';
 import { SpinningCoin } from './CoinFlip';
+import type { CatalogCard } from '../utils/cardList';
+import { CompactDeckTile, type SavedDeck } from './DeckList';
 import { Playmat } from './Playmat';
 
 const button = 'rounded bg-slate-600 px-3 py-1 text-xs font-semibold transition hover:bg-slate-500 disabled:opacity-40';
@@ -15,9 +18,12 @@ function howToGet(def: CosmeticDef): string {
 }
 
 /**
- * The Cosmetics tab's panel (pages/Cosmetics.tsx): the coins (every coin flip's, a tile's coin flipped by a click), the card backs (the player's own face-down cards: their deck, Prize cards and packs) and
- * playmats (their side of the table), each a tile with Use (or In use), Buy with banked ₱ for one sold, or the run that
- * unlocks it. A playmat's preview answers clicks as on the table. Every one is had while debugging (the API says so).
+ * The Cosmetics tab's panel (pages/Cosmetics.tsx): the card backs (the player's own face-down cards: their deck and Prize
+ * cards), playmats (their side of the table) and coins (every coin flip's, a tile's coin flipped by a click), each a tile
+ * with Buy with banked ₱ for one sold, or the run that unlocks it; once the account has it, Assign, which picks the decks
+ * it's used for and whether it's the default for decks with none of its kind (DeckAssign, AssignDialog; agreed
+ * 2026-10-23). A playmat's preview answers clicks as on the table. Every one is had while
+ * debugging (the API says so).
  */
 export function CosmeticsPanel() {
   const trpc = useTRPC();
@@ -28,29 +34,26 @@ export function CosmeticsPanel() {
     // The bank, shown on the Packs tab and in runs.
     queryClient.invalidateQueries({ queryKey: trpc.packs.list.queryKey() });
     queryClient.invalidateQueries({ queryKey: trpc.run.overview.queryKey() });
+    // Each deck's cosmetics, shown on the open deck in the Collection.
+    queryClient.invalidateQueries({ queryKey: trpc.decks.list.queryKey() });
   };
   const buy = useMutation(trpc.cosmetics.buy.mutationOptions({ onSuccess: refresh }));
-  const use = useMutation(trpc.cosmetics.use.mutationOptions({ onSuccess: refresh }));
+  const assign = useMutation(trpc.cosmetics.assign.mutationOptions({ onSuccess: refresh }));
   if (!list.data) return null;
   const { cosmetics, bank } = list.data;
-  const busy = buy.isPending || use.isPending;
-  const error = buy.error ?? use.error;
+  const busy = buy.isPending || assign.isPending;
+  const error = buy.error ?? assign.error;
 
   const tile = (def: (typeof cosmetics)[number], preview: ReactNode) => {
-    const current = list.data[def.kind] === def.id;
     return (
-      <li key={def.id} className={`flex flex-col gap-2 rounded-lg bg-slate-800 p-3 text-sm ring-1 ${current ? 'ring-2 ring-yellow-400/70' : 'ring-slate-700'}`}>
+      <li key={def.id} className={`flex flex-col gap-2 rounded-lg bg-slate-800 p-3 text-sm ring-1 ${def.deckIds.length || def.isDefault ? 'ring-2 ring-yellow-400/70' : 'ring-slate-700'}`}>
         {preview}
         <div className="min-w-0 flex-1">
           <p className="font-semibold">{def.name}</p>
           <p className="text-xs text-slate-400">{def.description}</p>
         </div>
-        {current ? (
-          <span className="text-xs font-semibold text-yellow-300">In use</span>
-        ) : def.owned ? (
-          <button className={button} disabled={busy} onClick={() => use.mutate({ kind: def.kind, id: def.id })}>
-            Use
-          </button>
+        {def.owned ? (
+          <DeckAssign def={def} busy={busy} onAssign={(deckIds, isDefault) => assign.mutate({ id: def.id, deckIds, isDefault })} />
         ) : def.unlock.type === 'buy' ? (
           <button className={button} disabled={busy || bank < def.unlock.price} title={bank < def.unlock.price ? `You have ₱${bank} in the bank` : undefined} onClick={() => buy.mutate({ id: def.id })}>
             Buy {howToGet(def)}
@@ -72,7 +75,7 @@ export function CosmeticsPanel() {
       <section className="space-y-2">
         <div className="flex flex-wrap items-baseline gap-x-3">
           <h2 className="text-lg font-semibold">Card backs</h2>
-          <p className="text-xs text-slate-500">Your own face-down cards: your deck, Prize cards and the packs you open. Bank: ₱{bank}</p>
+          <p className="text-xs text-slate-500">Your own face-down cards: your deck and Prize cards, and (the default) the packs you open. Bank: ₱{bank}</p>
         </div>
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3">
           {of('cardBack').map((def) =>
@@ -105,6 +108,143 @@ export function CosmeticsPanel() {
           {of('coin').map((def) => tile(def, <CoinPreview id={def.id} dim={!def.owned} />))}
         </ul>
       </section>
+    </div>
+  );
+}
+
+/** What DeckAssign needs of a cosmetic (cosmetics.list's). */
+interface Assignable {
+  name: string;
+  kind: CosmeticKind;
+  unlock: CosmeticDef['unlock'];
+  deckIds: string[];
+  isDefault: boolean;
+}
+
+const KIND_NAMES: Record<CosmeticKind, string> = { cardBack: 'card back', playmat: 'playmat', coin: 'coin' };
+
+/** A cosmetic's Assign button, opening AssignDialog to pick its decks and whether it's the default. */
+function DeckAssign({ def, busy, onAssign }: { def: Assignable; busy: boolean; onAssign: (deckIds: string[], isDefault: boolean) => void }) {
+  const trpc = useTRPC();
+  const decks = useQuery(trpc.decks.list.queryOptions());
+  // The catalog only changes when the seed is re-run (as on the Collection tab).
+  const catalog = useQuery({ ...trpc.cards.list.queryOptions(), staleTime: Infinity });
+  const byId = useMemo(() => new Map((catalog.data ?? []).map((c) => [c.id, c])), [catalog.data]);
+  const { isLocked } = useUnlocked();
+  const [open, setOpen] = useState(false);
+  const own = (decks.data ?? []).filter((d) => !d.runDeck);
+  return (
+    <>
+      <button className={`${button} w-full`} disabled={busy} onClick={() => setOpen(true)}>
+        Assign
+      </button>
+      {open && (
+        <AssignDialog
+          def={def}
+          decks={own}
+          byId={byId}
+          isLocked={isLocked}
+          onSave={(deckIds, isDefault) => {
+            setOpen(false);
+            onAssign(deckIds, isDefault);
+          }}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
+  );
+}
+
+/**
+ * Which of the account's decks (not the run deck) use a cosmetic: a search by name over a scrolling list of compact deck
+ * tiles, any number ticked (a deck ticked here loses its other cosmetic of this kind, named beside it), and "Default for
+ * decks without one" (the account's default for its kind; the built-in default can't be unticked, only replaced by
+ * ticking another). Save applies it all; Cancel, a click outside or Escape leaves it as it was.
+ */
+function AssignDialog({
+  def,
+  decks,
+  byId,
+  isLocked,
+  onSave,
+  onClose,
+}: {
+  def: Assignable;
+  decks: SavedDeck[];
+  byId: Map<string, CatalogCard>;
+  isLocked: (card: CatalogCard) => boolean;
+  onSave: (deckIds: string[], isDefault: boolean) => void;
+  onClose: () => void;
+}) {
+  const trpc = useTRPC();
+  const list = useQuery(trpc.cosmetics.list.queryOptions());
+  const [picked, setPicked] = useState(() => new Set(def.deckIds));
+  const [isDefault, setIsDefault] = useState(def.isDefault);
+  const [search, setSearch] = useState('');
+  useEffect(() => {
+    const escape = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    document.addEventListener('keydown', escape);
+    return () => document.removeEventListener('keydown', escape);
+  }, [onClose]);
+  /** The name of the deck's other cosmetic of this kind, which ticking it here replaces. */
+  const otherOn = (deckId: string) => list.data?.cosmetics.find((c) => c.kind === def.kind && c.deckIds.includes(deckId) && !def.deckIds.includes(deckId))?.name;
+  const shown = decks.filter((d) => d.name.toLowerCase().includes(search.trim().toLowerCase()));
+  const toggle = (id: string) => setPicked((p) => (p.has(id) ? new Set([...p].filter((x) => x !== id)) : new Set([...p, id])));
+  // The built-in default stays the default until another is picked.
+  const fixedDefault = def.isDefault && def.unlock.type === 'default';
+  return (
+    <div className="fixed inset-0 z-[1050] flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div role="dialog" aria-label={`Assign ${def.name}`} className="flex max-h-[85dvh] w-full max-w-md flex-col gap-3 rounded-lg bg-slate-800 p-4 text-sm ring-1 ring-slate-600" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold">Assign {def.name}</h3>
+          <button className="rounded px-2 text-slate-400 hover:bg-slate-700 hover:text-slate-100" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </div>
+        <label className="flex items-center gap-2 text-slate-200" title={fixedDefault ? `Tick another ${KIND_NAMES[def.kind]} as the default to replace it` : undefined}>
+          <input type="checkbox" className="accent-yellow-300" checked={isDefault} disabled={fixedDefault} onChange={(e) => setIsDefault(e.target.checked)} />
+          Default for decks without a {KIND_NAMES[def.kind]}
+        </label>
+        <input type="search" placeholder="Search your decks…" value={search} onChange={(e) => setSearch(e.target.value)} className="rounded bg-slate-900 px-2 py-1.5 outline-none ring-1 ring-slate-600 focus:ring-slate-400" autoFocus />
+        <div className="flex items-center justify-between text-xs text-slate-400">
+          <span>
+            {picked.size} of {decks.length} decks
+          </span>
+          <span className="flex gap-3">
+            <button className="hover:text-slate-200" onClick={() => setPicked(new Set([...picked, ...shown.map((d) => d.id)]))}>
+              Tick all{search.trim() ? ' shown' : ''}
+            </button>
+            <button className="hover:text-slate-200" onClick={() => setPicked(new Set([...picked].filter((id) => !shown.some((d) => d.id === id))))}>
+              Untick all{search.trim() ? ' shown' : ''}
+            </button>
+          </span>
+        </div>
+        <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
+          {shown.map((d) => {
+            const other = picked.has(d.id) ? otherOn(d.id) : undefined;
+            return (
+              <li key={d.id}>
+                <label className={`flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 transition hover:bg-slate-700 ${picked.has(d.id) ? 'bg-slate-700/60' : ''}`}>
+                  <input type="checkbox" className="accent-yellow-300" checked={picked.has(d.id)} onChange={() => toggle(d.id)} />
+                  <span className="min-w-0 flex-1">
+                    <CompactDeckTile entries={d.cards} name={d.name} byId={byId} isLocked={isLocked} />
+                  </span>
+                  {other && <span className="shrink-0 text-[11px] text-amber-300">replaces {other}</span>}
+                </label>
+              </li>
+            );
+          })}
+          {!shown.length && <li className="px-2 py-1.5 text-xs text-slate-400">{decks.length ? 'No deck matches.' : 'No decks yet: make one on the Collection tab.'}</li>}
+        </ul>
+        <div className="flex justify-end gap-2">
+          <button className="rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="rounded bg-emerald-600 px-3 py-1 text-sm font-semibold hover:bg-emerald-500" onClick={() => onSave([...picked], isDefault)}>
+            Save
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

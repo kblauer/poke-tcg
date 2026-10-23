@@ -110,6 +110,11 @@ model Deck {
   run       Run?       @relation(fields: [runId], references: [id], onDelete: SetNull)
   /// Starred on the Collection tab: offered under the run's deck choice (Favorite decks).
   favorite  Boolean    @default(false)
+  /// The deck's own cosmetics (ids from the campaign package's COSMETICS), used in its battles; null is the account's
+  /// (User.cardBack, playmat, coin). The run deck takes the run's starting (or switched-to) deck's.
+  cardBack  String?
+  playmat   String?
+  coin      String?
   cards     DeckCard[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
@@ -173,6 +178,9 @@ model Game {
   /// The run this battle belongs to (null for test games).
   runId     String?      @db.Uuid
   run       Run?         @relation(fields: [runId], references: [id], onDelete: SetNull)
+  /// The player's deck's cosmetics when the game began ({ cardBack, playmat, coin }, each an id or null for the
+  /// account's own); null for a game without a deck of the account's (the test deck) or from before decks had them.
+  cosmetics Json?
   actions   GameAction[]
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt

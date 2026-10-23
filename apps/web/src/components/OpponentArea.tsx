@@ -26,23 +26,29 @@ export function OpponentArea({
   opponent,
   cards,
   pick,
+  drop = null,
   lunge = null,
   spotlight = null,
   dialog,
+  played,
 }: {
   opponent: PlayerView['opponent'];
   cards: CardLibrary;
   pick: { options: Target[]; pick: (t: Target) => void; picked?: Target[] } | null;
+  /** A Trainer being dragged that's for one of the CPU's Pokémon: the ones it can be dropped on. */
+  drop?: Target[] | null;
   /** Set (to the view's version) right after the CPU attacked: its active lunges at the player's. */
   lunge?: number | null;
   /** The CPU's Pokémon its card just changed (they glow: Slot's `spotlight`). */
   spotlight?: Spotlight | null;
   /** The Trainer being played or a search of the deck: floats over this side, its bottom level with the CPU's active. */
   dialog?: ReactNode;
+  /** The card the CPU just played (PlayedCard), shown over its Bench and Active. */
+  played?: ReactNode;
 }) {
   const { playmat } = useCosmetics();
   const slot = (id: string, target: Target, pokemon: InPlayPokemon | null, large?: boolean) => (
-    <OpponentSlot key={id} id={id} target={target} pokemon={pokemon} cards={cards} large={large} pick={pick} lunge={lunge} spotlight={spotlight} />
+    <OpponentSlot key={id} id={id} target={target} pokemon={pokemon} cards={cards} large={large} pick={pick} drop={drop} lunge={lunge} spotlight={spotlight} />
   );
   return (
     // The player's playmat here too (the Cosmetics tab), so the whole table matches.
@@ -65,13 +71,17 @@ export function OpponentArea({
               ))}
             </div>
           )}
-          <div className="flex justify-center gap-2">
-            {opponent.bench.map((p, i) => slot(`cpu-bench-${i}`, i, p))}
-          </div>
-          {/* The CPU's Active Pokémon's row: its coin flips go to the left of it, mirroring yours (CoinFlip). */}
-          <div data-coin-anchor="opponent" className="relative flex justify-center">
-            {slot('cpu-active', 'active', opponent.active, true)}
-            {dialog && <FloatingDialog className="absolute bottom-0 left-1/2 z-20 w-max max-w-[min(42rem,90cqw)] -translate-x-1/2">{dialog}</FloatingDialog>}
+          {/* The Bench and the Active, with the card the CPU played centred over them (`played`). */}
+          <div className="relative space-y-3">
+            <div className="flex justify-center gap-2">
+              {opponent.bench.map((p, i) => slot(`cpu-bench-${i}`, i, p))}
+            </div>
+            {/* The CPU's Active Pokémon's row: its coin flips go to the left of it, mirroring yours (CoinFlip). */}
+            <div data-coin-anchor="opponent" className="relative flex justify-center">
+              {slot('cpu-active', 'active', opponent.active, true)}
+              {dialog && <FloatingDialog className="absolute bottom-0 left-1/2 z-20 w-max max-w-[min(42rem,90cqw)] -translate-x-1/2">{dialog}</FloatingDialog>}
+            </div>
+            {played}
           </div>
         </div>
         <div className="mt-8">
@@ -82,7 +92,10 @@ export function OpponentArea({
   );
 }
 
-/** One of the CPU's slots: highlighted and clicked while an effect asks for one of its Pokémon (`pick`). Also the phone layout's. */
+/**
+ * One of the CPU's slots: highlighted and clicked while an effect asks for one of its Pokémon (`pick`), highlighted and
+ * dropped on while a Trainer for one of them is dragged (`drop`). Also the phone layout's.
+ */
 export function OpponentSlot({
   id,
   target,
@@ -90,6 +103,7 @@ export function OpponentSlot({
   cards,
   large,
   pick,
+  drop = null,
   lunge,
   spotlight = null,
 }: {
@@ -99,20 +113,24 @@ export function OpponentSlot({
   cards: CardLibrary;
   large?: boolean;
   pick: { options: Target[]; pick: (t: Target) => void; picked?: Target[] } | null;
+  /** A dragged Trainer's targets among the CPU's Pokémon (OpponentArea's `drop`). */
+  drop?: Target[] | null;
   lunge: number | null;
   spotlight?: Spotlight | null;
 }) {
   const choosable = pick?.options.includes(target) ?? false;
   const picked = pick?.picked?.includes(target) ?? false;
+  const dropHere = drop?.includes(target) ?? false;
   return (
     <Slot
       id={id}
       pokemon={pokemon}
       cards={cards}
       large={large}
-      highlight={picked ? 'power' : choosable ? 'target' : null}
-      label={picked ? 'Chosen' : choosable ? 'Choose' : null}
-      dimmed={pick !== null && pokemon !== null && !choosable}
+      droppable={dropHere}
+      highlight={picked ? 'power' : choosable || dropHere ? 'target' : null}
+      label={picked ? 'Chosen' : choosable ? 'Choose' : dropHere ? 'Play' : null}
+      dimmed={(pick !== null || drop !== null) && pokemon !== null && !choosable && !dropHere}
       onClick={choosable ? () => pick!.pick(target) : undefined}
       lunge={target === 'active' && lunge !== null ? { dir: 'down', stamp: lunge } : null}
       spotlight={spotlight?.targets.includes(target) ? spotlight : null}

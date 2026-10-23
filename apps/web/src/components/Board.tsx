@@ -28,7 +28,6 @@ import { Hand } from './Hand';
 import { LogSheet } from './LogDrawer';
 import { OpponentArea, OpponentSlot, type Spotlight } from './OpponentArea';
 import { PendingChoicePanel } from './PendingChoicePanel';
-import { ActiveSheet } from './phone/ActiveSheet';
 import { PhonePiles, PhonePrizes } from './phone/PhonePiles';
 import { PhoneTable } from './phone/PhoneTable';
 import { PlayArea } from './PlayArea';
@@ -42,7 +41,7 @@ import { endTurnReminders } from '../utils/reminders';
 import { PLAYED_CARD_BURST_MS, PlayedCard } from './PlayedCard';
 import { TurnBanner, useNewTurn } from './TurnBanner';
 import { StadiumCard } from './StadiumCard';
-import { StatusBar } from './StatusBar';
+import { StatusBar, useTurnReminders } from './StatusBar';
 import { TurnOrderFlip } from './TurnOrderFlip';
 import { Toasts } from './Toasts';
 import { TrainerPanel } from './TrainerPanel';
@@ -68,8 +67,8 @@ export interface PlayedMove {
 /**
  * The game table. Card play comes from useCardPlay; the board itself owns the hover preview. On a phone held upright
  * (useIsPhone) it's laid out for the phone instead (PhoneTable), filling the screen and locked in place
- * (useLockedScreen): your Active Pokémon's moves are in a sheet its tap opens (ActiveSheet), and the side panel's
- * tabs and Concede in a full-screen menu behind the round ☰ button (LogSheet). Everything else works the same.
+ * (useLockedScreen): the side panel's tabs and Concede are in a full-screen menu behind the round ☰ button (LogSheet).
+ * Everything else works the same, the Pokémon's moves too (cardPanel).
  */
 export function Board({
   view,
@@ -112,8 +111,7 @@ export function Board({
   const { playmat } = useCosmetics();
   const phone = useIsPhone();
   useLockedScreen(phone);
-  /** The phone layout's sheet of the Active Pokémon's moves, and its ☰ menu. */
-  const [sheet, setSheet] = useState(false);
+  /** The phone layout's ☰ menu. */
   const [menu, setMenu] = useState(false);
   /** The phone layout's spread-out view of the CPU's hand, while it's face up (Clairvoyance). */
   const [cpuHand, setCpuHand] = useState(false);
@@ -126,12 +124,14 @@ export function Board({
   const ownSpot = spotlight(view.you);
   const oppSpot = spotlight(view.opponent.id);
   const newTurn = useNewTurn(view);
+  // The CPU's card: in the middle of the play area on a phone; on a big screen over the CPU's side (OpponentArea).
+  const playedCard = (scale?: number) => played && <PlayedCard key={played.stamp} defId={played.defId} cards={played.cards} stamp={played.stamp} scale={scale} />;
   const tableOverlay = (
     <>
       {overlay}
       {/* The turn-order coin flip as a battle starts: the game's coin flip, in the same place. */}
       <TurnOrderFlip key={gameId} view={view} gameId={gameId} />
-      {played && <PlayedCard key={played.stamp} defId={played.defId} cards={played.cards} stamp={played.stamp} />}
+      {phone && playedCard()}
       {newTurn && <TurnBanner key={newTurn.turn} turn={newTurn} />}
     </>
   );
@@ -143,8 +143,10 @@ export function Board({
   const hidePreview = useCallback(() => setPreview(null), []);
   const toasts = useToasts();
   const retreat = useRetreat({ view, send, busy });
-  const attack = useAttack({ view, send, busy });
   const power = usePower({ view, send, busy });
+  // Ending the turn, by End turn or an attack, asks first while an Energy, the Stadium or a Pokémon Power could still be used.
+  const turnReminders = useTurnReminders(endTurnReminders(view, power.powers), myTurn);
+  const attack = useAttack({ view, send, busy, confirm: (go) => turnReminders.check('attack', go) });
   const trainer = useTrainer({ view, send, busy });
   /** Starting one move cancels the others (attack, retreat, power, Trainer, held card). */
   const cancelAll = () => {
@@ -160,12 +162,24 @@ export function Board({
     busy,
     onDragStart: () => {
       setPreview(null);
+      setCardMenu(null);
       retreat.cancel();
       attack.cancel();
       power.cancel();
       trainer.cancel();
     },
     onDropOnPlayArea: (c) => trainer.isTrainer(c) && trainer.drop(c),
+    // A Trainer dropped onto the Pokémon it's for: the slot's drop id names the side ("cpu-" for the CPU's) and the place.
+    onDropOnSlot: (c, slot) => {
+      if (!trainer.isTrainer(c)) return false;
+      const opp = slot.startsWith('cpu-');
+      const place = opp ? slot.slice('cpu-'.length) : slot;
+      const target: Target = place === 'active' ? 'active' : Number(place.slice('bench-'.length));
+      const targets = trainer.dropTargets(c);
+      if (targets?.side === (opp ? 'opp' : 'own') && targets.options.includes(target)) trainer.dropOn(c, target);
+      else trainer.drop(c);
+      return true;
+    },
     notify: (message) => toasts.push('warning', message),
   });
 
@@ -191,7 +205,6 @@ export function Board({
       if (Date.now() - dragEndedAt.current < 300) return;
       if (e.target instanceof Element && e.target.closest('[data-keep-action]')) return;
       cancelAllRef.current();
-      setSheet(false);
     };
     // Capture phase: checked before React handles the click, while its target is still in the page. A handler
     // that re-renders (the dialog's eye button swaps its icon) would otherwise detach the target, and a
@@ -200,8 +213,31 @@ export function Board({
     return () => window.removeEventListener('click', onClick, true);
   }, [inProgress]);
 
+  /**
+   * A big screen's moves on a card: the Pokémon whose panel is open (the Active's attacks, power and Retreat, clicked
+   * open; a benched Pokémon's power), or null. It closes with a click anywhere else, Esc, or once the game moves on.
+   */
+  const [cardMenu, setCardMenu] = useState<Target | null>(null);
+  useEffect(() => setCardMenu(null), [view.version]);
+  useEffect(() => {
+    if (cardMenu === null) return;
+    const onClick = (e: MouseEvent) => !(e.target instanceof Element && e.target.closest('[data-card-menu]')) && setCardMenu(null);
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setCardMenu(null);
+    // Capture phase, as above: before a click elsewhere re-renders its target away.
+    window.addEventListener('click', onClick, true);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('click', onClick, true);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [cardMenu]);
+
   /** A Trainer card is being dragged: the whole play area is its drop target. */
   const draggingTrainer = dragging !== null && heldCard !== undefined && trainer.isTrainer(heldCard);
+  /** One whose first question is a Pokémon (a Pokémon Tool, a Potion…): those Pokémon are drop targets too, answering it. */
+  const trainerDrop = draggingTrainer && !busy ? trainer.dropTargets(heldCard!) : null;
+  const ownDrop = trainerDrop?.side === 'own' ? trainerDrop.options : null;
+  const oppDrop = trainerDrop?.side === 'opp' ? trainerDrop.options : null;
 
   // The table runs from just under the header to the bottom of the window. The header's height isn't
   // fixed, so measure where the table starts rather than guessing.
@@ -216,12 +252,6 @@ export function Board({
   }, [view.cards]);
 
   const busySlot = pendingSlot(pending);
-
-  // The sheet closes once its move is made, and when the turn or the Active Pokémon changes.
-  useEffect(() => {
-    if (pending?.type === 'ATTACK' || pending?.type === 'RETREAT') setSheet(false);
-  }, [pending]);
-  useEffect(() => setSheet(false), [view.turn, phase, self.active?.card.uid]);
 
   /** An attack, power or Trainer asking for a Pokémon in play: it's chosen by clicking the Pokémon. */
   const pokemonPick: { side: 'own' | 'opp'; options: Target[]; pick: (t: Target) => void; picked?: Target[] } | null =
@@ -250,20 +280,23 @@ export function Board({
   const playerSlot = (id: SlotId, pokemon: InPlayPokemon | null) => {
     const switchIn = retreat.targets.has(id);
     const choosable = pokemonPick?.side === 'own' && pokemonPick.options.includes(toTarget(id));
-    const isTarget = highlighted.has(id) || switchIn || choosable;
+    const trainerTarget = pokemon !== null && (ownDrop?.includes(toTarget(id)) ?? false);
+    const isTarget = highlighted.has(id) || switchIn || choosable || trainerTarget;
     const canPromote = promoting && id !== 'active' && pokemon !== null;
     const target = toTarget(id);
-    // A benched Pokémon with a power is clicked to use it (its only option, so there's no menu); a warning says why it can't.
+    // A benched Pokémon with a power is clicked for its panel (cardMenu).
     const benchPower = myTurn && typeof target === 'number' ? power.powers.find((p) => p.source === target) : undefined;
     const powerSelected = typeof target === 'number' && power.usingSource === target;
+    // A Pokémon whose power can be used now pulses, as playable cards do, while nothing else is under way.
+    const powerUsable = myTurn && !busy && !inProgress && !self.pendingChoice && !pokemonPick && power.powers.some((p) => p.source === target && p.error === null);
     // A Trainer played as a Pokémon (Clefairy Doll) is clicked to discard it, unless it's the only Pokémon in play.
     const dollDef = pokemon && lookupCard(view.cards, pokemon.card.defId);
     const isDoll = myTurn && dollDef?.kind === 'pokemon' && !!dollDef.trainerText;
     // Secret Plan's face-down card is clicked to turn it over; Brock's Ninetales with a Shapeshift card, to discard that card.
     const faceDown = myTurn && !!pokemon?.faceDown;
     const shapeshifted = myTurn && !!pokemon && !!shapeshiftCard(pokemon);
-    // On a phone, tapping your Active Pokémon opens the sheet of its moves (those above among them).
-    const opensSheet = phone && id === 'active' && pokemon !== null && phase !== 'setup' && !heldCard && !retreat.ready;
+    // Clicking your Active Pokémon opens its moves (those above among them) in a panel on the card.
+    const opensMoves = id === 'active' && pokemon !== null && phase !== 'setup' && !heldCard && !retreat.ready;
     const slot = (
       <Slot
         key={id}
@@ -271,14 +304,15 @@ export function Board({
         pokemon={pokemon}
         cards={view.cards}
         large={id === 'active'}
-        droppable={(highlighted.has(id) || switchIn) && !busy}
+        droppable={(highlighted.has(id) || switchIn || trainerTarget) && !busy}
         highlight={isTarget ? 'target' : canPromote ? 'promote' : powerSelected ? 'power' : null}
-        label={choosable ? 'Choose' : switchIn ? 'Switch' : isTarget ? heldLabel : canPromote ? 'Promote' : null}
-        // While a card is held, retreating or a Pokémon is being chosen, fade the ones that can't be picked so the targets stand out.
-        dimmed={((heldCard !== undefined && !draggingTrainer) || retreat.ready || pokemonPick !== null) && pokemon !== null && !isTarget}
+        label={choosable ? 'Choose' : switchIn ? 'Switch' : trainerTarget ? 'Play' : isTarget ? heldLabel : canPromote ? 'Promote' : null}
+        // While a card is held (a Trainer only when it's for one of these), retreating or a Pokémon is being chosen, fade the ones that can't be picked so the targets stand out.
+        dimmed={((heldCard !== undefined && (!draggingTrainer || ownDrop !== null)) || retreat.ready || pokemonPick !== null) && pokemon !== null && !isTarget}
         loading={busySlot === id}
         lunge={id === 'active' && attacker === view.you ? { dir: 'up', stamp: view.version } : null}
         spotlight={ownSpot?.targets.includes(target) ? ownSpot : null}
+        usable={powerUsable}
         onClick={
           busy
             ? undefined
@@ -288,7 +322,7 @@ export function Board({
                 ? undefined
                 : (slotClick(id) ??
               retreat.slotClick(id) ??
-              (opensSheet ? () => setSheet(true) : undefined) ??
+              (opensMoves ? () => setCardMenu((m) => (m === 'active' ? null : 'active')) : undefined) ??
               (canPromote ? () => send({ type: 'PROMOTE', slot: target as number }) : undefined) ??
               ((faceDown || shapeshifted) && !heldCard && !retreat.ready
                 ? () => {
@@ -299,8 +333,7 @@ export function Board({
               (benchPower && !heldCard && !retreat.ready
                 ? () => {
                     cancelAll();
-                    if (benchPower.error) toasts.push('warning', `${benchPower.name}: ${benchPower.error}`);
-                    else power.start(target as number);
+                    setCardMenu((m) => (m === target ? null : target));
                   }
                 : undefined) ??
               (isDoll && !heldCard && !retreat.ready
@@ -314,8 +347,78 @@ export function Board({
       />
     );
     return (
-      <div key={id} className="relative">
+      <div key={id} className="relative" data-card-menu={cardMenu === target ? '' : undefined}>
         {slot}
+        {menuShown === target && pokemon && cardPanel(target)}
+      </div>
+    );
+  };
+
+  const doll = self.active && lookupCard(view.cards, self.active.card.defId);
+  // What a click does on a benched Pokémon (turn it face up, discard its Shapeshift card or Clefairy Doll) is, for the
+  // Active, a button among its moves (its panel, or a phone's sheet), as clicking it opens them.
+  const activeMoves: { label: string; run: () => void }[] =
+    myTurn && self.active
+      ? [
+          ...(self.active.faceDown ? [{ label: 'Turn it face up', run: () => send({ type: 'FLIP_FACE_DOWN', target: 'active' }) }] : []),
+          ...(shapeshiftCard(self.active) ? [{ label: 'Discard its Shapeshift card', run: () => send({ type: 'DISCARD_SHAPESHIFT', target: 'active' }) }] : []),
+          ...(doll?.kind === 'pokemon' && doll.trainerText
+            ? [
+                {
+                  label: `Discard ${doll.name}`,
+                  run: () => (hasBenched(self) ? send({ type: 'DISCARD_DOLL', target: 'active' }) : toasts.push('warning', `You can't discard ${doll.name}: it's your only Pokémon in play`)),
+                },
+              ]
+            : []),
+        ]
+      : [];
+
+  /** The open card panel: as cardMenu, but while an attack or power asks something it's that one's, and hidden while one of your Pokémon is to be clicked. */
+  const menuShown: Target | null = pokemonPick?.side === 'own' ? null : attack.spec ? 'active' : power.spec ? power.usingSource : cardMenu;
+  /** An attack's or power's question answered by clicking one of your Pokémon: its card panel is hidden, so it's a prompt. */
+  const moveSpec = pokemonPick?.side === 'own' ? (attack.spec ?? power.spec) : null;
+  const movePrompt = prompt ?? (moveSpec ? `${moveSpec.prompt}: ${phone ? 'tap' : 'click'} one of your highlighted Pokémon` : null);
+  /**
+   * The panel over a card, centred on it like a slot's label: the Active's attacks, power, Retreat and other moves
+   * (attackPanels, activeMoves), with an attack's or power's questions; a benched Pokémon's power, with a Use button
+   * (or why it can't be used now), or its questions.
+   */
+  const cardPanel = (target: Target) => {
+    const benched = typeof target === 'number' ? power.powers.find((p) => p.source === target) : undefined;
+    // On a phone the panel is wider than a benched card: at either end of the Bench it lines up with the card's outer edge, so it stays on the screen.
+    const across = phone && target === 0 ? 'left-0' : phone && typeof target === 'number' && target === self.bench.length - 1 ? 'right-0' : 'left-1/2 -translate-x-1/2';
+    return (
+      <div data-keep-action className={`absolute ${across} top-1/2 z-40 flex w-max min-w-36 max-w-60 -translate-y-1/2 flex-col gap-1 rounded-lg bg-slate-800/95 p-2 text-xs shadow-xl shadow-black/60 ring-1 ring-slate-600`}>
+        {target === 'active' ? (
+          <>
+            {attackPanels}
+            {activeMoves.map((m) => (
+              <button key={m.label} className="rounded bg-slate-600 px-2 py-1 text-left transition hover:bg-slate-500 active:scale-95" disabled={busy} onClick={m.run}>
+                {m.label}
+              </button>
+            ))}
+          </>
+        ) : power.spec ? (
+          <PowerPanel view={view} busy={busy} power={power} />
+        ) : (
+          benched && (
+            <>
+              <p className="font-semibold text-violet-200">{benched.name}</p>
+              {benched.text && <p className="text-[11px] leading-snug text-slate-300">{benched.text}</p>}
+              {benched.error && <p className="text-[11px] text-amber-300">{benched.error}</p>}
+              <button
+                className="rounded bg-violet-700 px-2 py-1 text-left transition hover:bg-violet-600 active:scale-95 disabled:opacity-40 disabled:hover:bg-violet-700"
+                disabled={benched.error !== null || busy}
+                onClick={() => {
+                  cancelAll();
+                  power.start(target);
+                }}
+              >
+                Use {benched.name}
+              </button>
+            </>
+          )
+        )}
       </div>
     );
   };
@@ -358,8 +461,8 @@ export function Board({
           pending={pending}
         />
       )}
-      {!phone && <PeekCard view={view} />}
-      {myTurn && !attack.spec && (
+      {/* A benched Pokémon's power asks on its own card (cardPanel). */}
+      {myTurn && !attack.spec && (!power.spec || power.usingSource === 'active') && (
         <PowerPanel
           view={view}
           busy={busy}
@@ -374,10 +477,10 @@ export function Board({
       )}
     </>
   );
-  const attacks = attackPanels && (
-    // Hangs off the active slot's right edge (.attack-column in index.css) so the slot stays centred whatever is shown here.
-    <div data-keep-action className="attack-column absolute top-1/2 flex w-36 -translate-y-1/2 flex-col gap-1">
-      {attackPanels}
+  // The card Peek looked at, on a big screen: hangs off the active slot's right edge (.attack-column in index.css) so the slot stays centred.
+  const peek = !phone && self.peek && (
+    <div data-keep-action className="attack-column absolute top-1/2 w-36 -translate-y-1/2">
+      <PeekCard view={view} />
     </div>
   );
 
@@ -438,8 +541,7 @@ export function Board({
       status={statusText(view)}
       canEndTurn={myTurn}
       setup={phase === 'setup' && !self.ready ? { canReset: !!self.active || self.bench.some(Boolean), canStart: !!self.active } : null}
-      // Ask before ending the turn while an Energy, the Stadium or a Pokémon Power could still be used.
-      reminders={endTurnReminders(view, power.powers)}
+      endTurn={() => turnReminders.check('end', () => send({ type: 'END_TURN' }))}
       pending={pending}
       send={send}
     />
@@ -457,40 +559,9 @@ export function Board({
 
   /** The phone layout (see above): the same pieces, laid out by PhoneTable. */
   const phoneBoard = () => {
-    const active = self.active;
-    const activeDef = active && inPlayDef(view.cards, active);
-    const doll = active && lookupCard(view.cards, active.card.defId);
-    // What a click on the Active Pokémon does elsewhere (the bench's clicks) is a button in its sheet here.
-    const activeMoves: { label: string; run: () => void }[] =
-      myTurn && active
-        ? [
-            ...(active.faceDown ? [{ label: 'Turn it face up', run: () => send({ type: 'FLIP_FACE_DOWN', target: 'active' }) }] : []),
-            ...(shapeshiftCard(active) ? [{ label: 'Discard its Shapeshift card', run: () => send({ type: 'DISCARD_SHAPESHIFT', target: 'active' }) }] : []),
-            ...(doll?.kind === 'pokemon' && doll.trainerText
-              ? [
-                  {
-                    label: `Discard ${doll.name}`,
-                    run: () => (hasBenched(self) ? send({ type: 'DISCARD_DOLL', target: 'active' }) : toasts.push('warning', `You can't discard ${doll.name}: it's your only Pokémon in play`)),
-                  },
-                ]
-              : []),
-          ]
-        : [];
-    // Hidden while the board is needed: a Pokémon to choose for its move, a Pokémon to retreat to, or a card being dragged.
-    const sheetShown = sheet && !!attackPanels && !pokemonPick && !retreat.ready && !dragging;
-    // A power's question answered with a button (Damage Swap's how many, Buzzap's type, Peek's pile), for a benched
-    // Pokémon's power too: in a sheet of its own when the Active's isn't open.
-    const powerQuestion = myTurn && !sheetShown && power.spec && power.spec.kind !== 'ownPokemon' && power.spec.kind !== 'oppPokemon' ? power.spec : null;
-    const powerName = power.powers.find((p) => p.source === power.usingSource)?.name;
-    const closeSheet = () => {
-      cancelAll();
-      setSheet(false);
-    };
     const oppPick = pokemonPick?.side === 'opp' && !busy ? pokemonPick : null;
     // How many of the CPU's Benched Pokémon an attack wants (Tunneling), while they're being tapped.
     const benchMany = attack.benchCount;
-    // The attack's question, while its sheet is closed for a Pokémon to be tapped on the board.
-    const phonePrompt = prompt ?? (pokemonPick && attack.spec ? attack.spec.prompt : null);
     const oppLunge = attacker === view.opponent.id ? view.version : null;
     const opponent = view.opponent;
     return (
@@ -525,8 +596,8 @@ export function Board({
                   </div>
                 }
                 opponent={{
-                  bench: opponent.bench.map((p, i) => <OpponentSlot key={i} id={`cpu-bench-${i}`} target={i} pokemon={p} cards={view.cards} pick={oppPick} lunge={oppLunge} spotlight={oppSpot} />),
-                  active: <OpponentSlot id="cpu-active" target="active" pokemon={opponent.active} cards={view.cards} large pick={oppPick} lunge={oppLunge} spotlight={oppSpot} />,
+                  bench: opponent.bench.map((p, i) => <OpponentSlot key={i} id={`cpu-bench-${i}`} target={i} pokemon={p} cards={view.cards} pick={oppPick} drop={oppDrop} lunge={oppLunge} spotlight={oppSpot} />),
+                  active: <OpponentSlot id="cpu-active" target="active" pokemon={opponent.active} cards={view.cards} large pick={oppPick} drop={oppDrop} lunge={oppLunge} spotlight={oppSpot} />,
                   prizes: <PhonePrizes count={opponent.prizeCount} owner="The CPU's" faceUp={opponent.prizes && { prizes: opponent.prizes, cards: view.cards }} />,
                   piles: <PhonePiles deckCount={opponent.deckCount} discard={opponent.discard} cards={view.cards} owner="The CPU's" />,
                 }}
@@ -572,29 +643,6 @@ export function Board({
             </PlayArea>
             {handView(true)}
           </div>
-          {sheetShown && activeDef && (
-            <ActiveSheet title={activeDef.kind === 'pokemon' ? `${activeDef.name} · ${activeDef.hp - active!.damage}/${activeDef.hp} HP` : activeDef.name} onClose={closeSheet}>
-              {attackPanels}
-              {activeMoves.map((m) => (
-                <button
-                  key={m.label}
-                  className="rounded bg-slate-600 px-2 text-left transition hover:bg-slate-500 active:scale-95"
-                  disabled={busy}
-                  onClick={() => {
-                    closeSheet();
-                    m.run();
-                  }}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </ActiveSheet>
-          )}
-          {powerQuestion && (
-            <ActiveSheet title={powerName ?? 'Pokémon Power'} onClose={cancelAll}>
-              <PowerPanel view={view} busy={busy} power={power} />
-            </ActiveSheet>
-          )}
           {menu && (
             <LogSheet
               log={view.log}
@@ -625,7 +673,8 @@ export function Board({
           )}
           {dragOverlay}
         </DndContext>
-        <Toasts toasts={toasts.toasts} prompt={phonePrompt} />
+        <Toasts toasts={toasts.toasts} prompt={movePrompt} />
+        {turnReminders.dialog}
       </PreviewContext.Provider>
     );
   };
@@ -667,9 +716,11 @@ export function Board({
                 opponent={view.opponent}
                 cards={view.cards}
                 pick={pokemonPick?.side === 'opp' && !busy ? pokemonPick : null}
+                drop={oppDrop}
                 lunge={attacker === view.opponent.id ? view.version : null}
                 spotlight={oppSpot}
                 dialog={oppDialog}
+                played={playedCard(1.4)}
               />
 
               {/* Between the two sides: whose turn it is and End turn. */}
@@ -693,11 +744,11 @@ export function Board({
                     <PrizeCards count={self.prizeCount} faceUp={self.prizes && { prizes: self.prizes, cards: view.cards }} />
                   </div>
                   <div className="min-w-0 flex-1 space-y-3">
-                    {/* Your Active Pokémon's row: the coin flips of yours go to the right of its attack panel (CoinFlip). */}
+                    {/* Your Active Pokémon's row: the coin flips of yours go to the right of the room kept beside it (the Peek card's; CoinFlip). */}
                     <div data-coin-anchor="self" className="relative flex justify-center">
                       <StadiumCard view={view} send={send} busy={busy} notify={(message) => toasts.push('warning', message)} />
                       {playerSlot('active', self.active)}
-                      {attacks}
+                      {peek}
                     </div>
                     <div className="flex justify-center gap-2">{self.bench.map((p, i) => playerSlot(benchSlotId(i), p))}</div>
                     <h3 className="text-center text-sm text-slate-400">You</h3>
@@ -716,7 +767,8 @@ export function Board({
         {dragOverlay}
       </DndContext>
       {preview && <CardPreview {...preview} onLost={hidePreview} />}
-      <Toasts toasts={toasts.toasts} prompt={prompt} />
+      <Toasts toasts={toasts.toasts} prompt={movePrompt} />
+      {turnReminders.dialog}
     </PreviewContext.Provider>
   );
 }
