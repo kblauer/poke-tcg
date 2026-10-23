@@ -30,6 +30,7 @@ packages/
   campaign/             Pure TS runs: map and encounters (reducer), deck lists and the deck generator, items, run types
   shared/               Zod schemas for API input, player ids, deck building rules (deck.ts), the trainer sprites to pick from (trainer-sprites.ts)
   db/                   Prisma 7 schema, client (pg driver adapter), migrations, seed
+scripts/dev.mjs         `pnpm dev`: asks which checkout to start the dev servers from, the main one or a worktree (see Scripts)
 supabase/               Local Supabase config (CLI)
 tools/cardbacks/        hoenn_backs.py: makes the Hoenn runs' foil card backs (Maze and Tidal) from the classic back and public/img's textures; download-sleeves.js: a browser-console snippet that saves the full-size TCG Pocket card sleeves from Bulbagarden Archives (which blocks scripted downloads), for card back cosmetics; originals/ (git-ignored) holds the PNGs the WebP copies were made from
 tools/routes/           Python scripts that fetch a FireRed map from the pret/pokefirered decompilation (fetch_map.py), draw it (render_route.py) and pick its encounter spots (pick_spots.py), make the girl player's Kanto sprites (frlg_player_sprites.py: Leaf walking, cycling and surfing, from a pokefirered checkout), and add the Kanto routes' tall grass (kanto_grass.py: `python tools/routes/kanto_grass.py`)
@@ -682,7 +683,7 @@ cp .env.example .env        # fill in values (see below)
 pnpm db:migrate             # create tables (prompts for a migration name)
 pnpm db:seed                # load the card catalog (WOTC era and EX sets, 1999–2007) from the TCGdex snapshot, plus the hand-made cards
                             # (TCGdex's mistakes are corrected on the way in: TCGDEX_FIXES in prisma/seed.ts, e.g. promo Jigglypuff's 50 HP)
-pnpm dev                    # web on :5173 and API on :8787, both with live reload
+pnpm dev                    # web on :5173 and API on :8787, both with live reload (asks which checkout first when there are worktrees)
 ```
 
 ### Option A – hosted Supabase project
@@ -716,7 +717,8 @@ Use the printed DB URL for both `DATABASE_URL` and `DIRECT_URL`, `http://127.0.0
 
 | Command | Description |
 |---|---|
-| `pnpm dev` | Run all apps with live reload |
+| `pnpm dev` | Run all apps with live reload. With worktrees (`.claude/worktrees/`), it first asks which checkout to run, the main one or a worktree (↑/↓ or a number, Enter; Esc quits; `scripts/dev.mjs`); a worktree with no `.env` gets a copy of the main checkout's, one with no `node_modules` a `pnpm install` |
+| `pnpm dev:here` (or `pnpm dev --here`) | Run all apps in this checkout without asking |
 | `pnpm build` | Build everything |
 | `pnpm typecheck` | Typecheck all packages |
 | `pnpm test` | Run Vitest suites (game engine, campaign) |
