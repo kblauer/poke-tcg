@@ -1,9 +1,10 @@
 import { useDroppable } from '@dnd-kit/core';
 import { lookupCard, type CardInstance, type CardLibrary, type GameAction } from '@poke-tcg/game-engine';
-import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useContext, useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { Card } from './Card';
 import { HandCard } from './HandCard';
 import { PAGE_BLEED } from '../utils/layout';
+import { InspectContext } from './InspectContext';
 import { PreviewContext } from './PreviewContext';
 
 /** Drop id of the hand: a card dragged back over it is put back (the drag is cancelled). */
@@ -227,8 +228,11 @@ export function Hand({
   };
   const browsed = browsing ? hand.find((c) => c.uid === browsing) : undefined;
 
+  const inspect = useContext(InspectContext);
   return (
-    // The hover preview isn't needed here: the card itself grows.
+    // The hover preview isn't needed here: the card itself grows. On a phone a long press zooms in above the hand
+    // instead of opening the CardInspector (agreed), so its cards can't open it (the release's context menu included).
+    <InspectContext.Provider value={compact ? null : inspect}>
     <PreviewContext.Provider value={() => {}}>
       {/* The full width beside the game log, past the page margins, so a big hand has room to spread. */}
       <div
@@ -244,6 +248,8 @@ export function Hand({
           onPointerMove: fingerMove,
           onPointerUp: fingerUp,
           onPointerCancel: fingerUp,
+          // Nor the browser's own menu for the card's image, on letting go of a long press.
+          onContextMenu: (e: ReactMouseEvent) => e.preventDefault(),
           // The click that ends a zoom or a slide isn't a tap.
           onClickCapture: (e: ReactMouseEvent) => {
             if (press.current?.browsed) e.stopPropagation();
@@ -304,5 +310,6 @@ export function Hand({
         })}
       </div>
     </PreviewContext.Provider>
+    </InspectContext.Provider>
   );
 }
