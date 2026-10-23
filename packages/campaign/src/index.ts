@@ -13,3 +13,4 @@ export * from './johto-routes.js';
 export * from './hoenn-gyms.js';
 export * from './hoenn-routes.js';
 export * from './cosmetics.js';
+export * from './music.js';

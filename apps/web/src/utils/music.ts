@@ -1,5 +1,5 @@
 // The music player's track list: Pokémon game music (generations 1–5) streamed from KHInsider, listed in
-// public/music/tracks.json (only tracks of a minute or more), and how the player's song list groups it.
+// public/music/tracks.json (only tracks of a minute or more, but for auto play's few hidden ones), and how the player's song list groups it.
 
 export interface Track {
   title: string;
@@ -11,6 +11,8 @@ export interface Track {
   seconds: number;
   /** The MP3, hotlinked from KHInsider's file host. */
   url: string;
+  /** Only for auto play (a jingle, a theme under a minute): left out of the song list. */
+  hidden?: boolean;
 }
 
 /** The generations to filter by; null is all of them. */
@@ -19,7 +21,7 @@ export type GenFilter = number | null;
 
 /** The tracks of a generation (or all), in list order: game by game, each game's other music before its battle music. */
 export function playlist(tracks: readonly Track[], gen: GenFilter): Track[] {
-  const shown = tracks.filter((t) => gen === null || t.gen === gen);
+  const shown = tracks.filter((t) => !t.hidden && (gen === null || t.gen === gen));
   const games = [...new Set(shown.map((t) => t.game))];
   return games.flatMap((game) => [...shown.filter((t) => t.game === game && !t.battle), ...shown.filter((t) => t.game === game && t.battle)]);
 }
