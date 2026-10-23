@@ -168,14 +168,14 @@ const LABELS: Record<Exclude<EncounterKind, BattleKind>, string> = {
 };
 
 /** Rewards for winning each kind of battle, and the least rarity of the cards offered after it. */
-/** What each kind of battle pays when won: ₱ (a range), EXP, and how rare the cards to pick from are. */
+/** What each kind of battle pays when won: ₱ (a range; tripled across the board, 2026-10-23), EXP, and how rare the cards to pick from are. */
 export const REWARDS: Record<BattleKind, { pokedollars: [number, number]; exp: number; rarity: Rarity }> = {
-  battle: { pokedollars: [100, 150], exp: 10, rarity: 'common' },
-  elite: { pokedollars: [250, 250], exp: 25, rarity: 'uncommon' },
-  gymTrainer: { pokedollars: [150, 200], exp: 15, rarity: 'uncommon' },
-  gymLeader: { pokedollars: [500, 500], exp: 100, rarity: 'rare' },
-  eliteFour: { pokedollars: [600, 600], exp: 120, rarity: 'rare' },
-  champion: { pokedollars: [1000, 1000], exp: 200, rarity: 'rare' },
+  battle: { pokedollars: [300, 450], exp: 10, rarity: 'common' },
+  elite: { pokedollars: [750, 750], exp: 25, rarity: 'uncommon' },
+  gymTrainer: { pokedollars: [450, 600], exp: 15, rarity: 'uncommon' },
+  gymLeader: { pokedollars: [1500, 1500], exp: 100, rarity: 'rare' },
+  eliteFour: { pokedollars: [1800, 1800], exp: 120, rarity: 'rare' },
+  champion: { pokedollars: [3000, 3000], exp: 200, rarity: 'rare' },
 };
 
 /**

@@ -337,7 +337,7 @@ describe('battles', () => {
   it('a win pays ₱ and EXP, then offers 3 cards to pick one of', () => {
     const s = fight(at('battle'), true);
     expect(s.encounter?.kind).toBe('reward');
-    expect(s.pokedollars).toBeGreaterThanOrEqual(STARTING_POKEDOLLARS + 100);
+    expect(s.pokedollars).toBeGreaterThanOrEqual(STARTING_POKEDOLLARS + 300);
     expect(s.exp).toBe(10);
     const offers = (s.encounter as { offers: string[] }).offers;
     expect(offers).toHaveLength(3);
