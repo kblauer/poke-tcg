@@ -6,15 +6,16 @@ let saved: (readonly [string, string])[] = [];
  * Stops the page (html and body) scrolling or bouncing until the returned release is called. Locks are counted, so
  * overlays that lock it can open and close in any order (a card inspected over a pack being opened, the battle
  * screen's): the page's own settings come back only when the last one goes, never a locked state saved by another.
+ * Only html's overflow is hidden: hiding body's too makes body a scroll box of its own (its overflow no longer passes up
+ * to the window), and the sticky top bar and site menu would stick to it instead of the window, scrolled off the top
+ * of a page opened lower down (a pack opened from the bottom of the Packs tab).
  */
 export function lockPage(): () => void {
   const els = [document.documentElement, document.body];
   if (locks++ === 0) {
     saved = els.map((el) => [el.style.overflow, el.style.overscrollBehavior] as const);
-    for (const el of els) {
-      el.style.overflow = 'hidden';
-      el.style.overscrollBehavior = 'none';
-    }
+    document.documentElement.style.overflow = 'hidden';
+    for (const el of els) el.style.overscrollBehavior = 'none';
   }
   let released = false;
   return () => {
