@@ -19,6 +19,15 @@ describe('unlocking run types', () => {
     expect(runTypeLock(RUN_TYPES.kantoGyms, { ...none, badges: new Set(badges) })).toBeNull();
   });
 
+  it("Hoenn's Gym Challenge needs its 8 badges, and its Champion run the Hoenn Gym Challenge beaten", () => {
+    const hoenn = generationBadges(generation(3));
+    expect(hoenn).toEqual(['stone-badge', 'knuckle-badge', 'dynamo-badge', 'heat-badge', 'balance-badge', 'feather-badge', 'mind-badge', 'rain-badge']);
+    expect(runTypeLock(RUN_TYPES.hoennGyms, { ...none, badges: new Set(generationBadges(kanto)) })).toBe('Earn all 8 Hoenn badges first (8 to go)');
+    expect(runTypeLock(RUN_TYPES.hoennGyms, { ...none, badges: new Set(hoenn) })).toBeNull();
+    expect(runTypeLock(RUN_TYPES.hoennChampion, { ...none, badges: new Set(hoenn) })).toBe('Beat the Hoenn Gym Challenge first');
+    expect(runTypeLock(RUN_TYPES.hoennChampion, { ...none, beaten: new Set(['hoennGyms']) })).toBeNull();
+  });
+
   it('the Champion run needs the Gym Challenge beaten, badges or not', () => {
     expect(runTypeLock(RUN_TYPES.kantoChampion, { ...none, badges: new Set(generationBadges(kanto)) })).toBe('Beat the Kanto Gym Challenge first');
     expect(runTypeLock(RUN_TYPES.kantoChampion, { ...none, beaten: new Set(['kantoGyms']) })).toBeNull();
@@ -27,10 +36,12 @@ describe('unlocking run types', () => {
 
 describe('generation packs', () => {
   it("the generations' packs are every pack set, each in one generation, one at a time in release order", () => {
-    // Gen 3's packs (the EX sets) belong to PACK_GENERATIONS only, until its runs exist.
     expect(Object.values(PACK_GENERATIONS).flatMap((g) => g.packs).sort()).toEqual([...PACK_SETS].sort());
-    expect([...kanto.packs, ...generation(2).packs, ...EX_SETS].sort()).toEqual([...PACK_SETS].sort());
+    expect([...kanto.packs, ...generation(2).packs, ...generation(3).packs].sort()).toEqual([...PACK_SETS].sort());
     expect(nextPack(generation(2), new Set(kanto.packs))).toBe('neo1');
+    // Gen 3's runs unlock the EX sets' packs, from EX Ruby & Sapphire.
+    expect(generation(3).packs).toEqual(EX_SETS);
+    expect(nextPack(generation(3), new Set([...kanto.packs, ...generation(2).packs]))).toBe('ex1');
     expect(nextPack(kanto, new Set())).toBe('base1');
     expect(nextPack(kanto, new Set(['base1']))).toBe('base2');
     expect(nextPack(kanto, new Set(kanto.packs))).toBeNull();
@@ -41,5 +52,8 @@ describe('bossTypes', () => {
   it("is the boss deck's basic Energy types, the most first", () => {
     expect(bossTypes(boss('erika'))).toEqual(['grass', 'psychic']);
     expect(bossTypes(boss('brock'))).toEqual(['fighting']);
+    // Gen 3's basic Energy (EX Ruby & Sapphire's) counts too.
+    expect(bossTypes(boss('flannery'))).toEqual(['fire']);
+    expect(bossTypes(boss('winona'))).toEqual(['colorless']);
   });
 });

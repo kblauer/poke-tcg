@@ -22,6 +22,8 @@ model User {
   stardust      Int             @default(0)
   /// The trainer sprite shown on the Inventory tab (a name from the shared package's TRAINER_SPRITES); null is the default, Hilbert.
   trainerSprite String?
+  /// The player's sprite on the run maps: 'female' for the girl (Leaf, Lyra, May); null is the boy (Red, Ethan, Brendan).
+  playerGender  String?
   /// The name the account chose to be shown by, on its Community Decks (not unique; null until it's chosen). Never the
   /// Google profile's name (displayName), which is private.
   accountName   String?

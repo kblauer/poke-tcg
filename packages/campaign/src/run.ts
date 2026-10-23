@@ -233,14 +233,18 @@ function poolAt(type: RunType, encounter: number): { pool: TrainerPool; landBatt
   let first = 0;
   for (const route of type.routes ?? []) {
     if (encounter < first + route.spots.length) {
-      const surf = route.travel === 'surf';
-      const near = surf && landNear(route, route.spots[encounter - first]!);
+      const spot = route.spots[encounter - first]!;
+      // A spot on land of a route whose land spots are ordinary (landSpots: Sootopolis City's streets) isn't a surfed one.
+      const onLand = !!route.landSpots && route.walkable[spot.y]?.[spot.x] === '.';
+      const surf = route.travel === 'surf' && !onLand;
+      const near = surf && landNear(route, spot);
       const landBattle = !!route.trainers && route.landBattle === encounter - first;
       const sea = { atSea: surf && !near, ashore: near && !landBattle };
       if (!route.trainers) return { pool: surf ? undefined : LAND_POOL, landBattle: false, ...sea };
       const classes = new Set(route.trainers.names.map(classOf));
       const others = (surf ? TRAINERS : LAND_TRAINERS).filter((t) => !classes.has(classOf(t)));
-      return { pool: landBattle ? { names: [], share: 0, others } : { ...route.trainers, others }, landBattle, ...sea };
+      // The land battle and a spot on land: anyone but the route's own trainers (no Swimmers on land).
+      return { pool: landBattle || onLand ? { names: [], share: 0, others } : { ...route.trainers, others }, landBattle, ...sea };
     }
     first += route.spots.length;
   }

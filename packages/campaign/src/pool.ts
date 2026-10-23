@@ -19,11 +19,12 @@ export const POOL_SETS = ['base1', 'base2', 'base3', 'basep', 'base4', 'base5', 
  */
 export const GEN2_SETS = ['neo1', 'neo2', 'si1', 'neo3', 'neo4', 'ecard1', 'ecard2', 'ecard3'];
 
-/**
- * Generation 3's EX sets, EX Ruby & Sapphire to EX Power Keepers, in release order: in the catalog and with booster packs
- * (locked until Gen 3's runs exist, agreed with the user), no generation yet.
- */
+/** Generation 3's EX sets, EX Ruby & Sapphire to EX Power Keepers, in release order: Gen 3 (Hoenn) runs' sets and packs. */
 export const EX_SETS = ['ex1', 'ex2', 'ex3', 'ex4', 'ex5', 'ex6', 'ex7', 'ex8', 'ex9', 'ex10', 'ex11', 'ex12', 'ex13', 'ex14', 'ex15', 'ex16'];
+
+/** Gen 3 runs' sets: the EX sets, every one's card effects done (Gen 3 runs take the cards the engine plays fully). */
+export const GEN3_SETS = EX_SETS;
+export const GEN3_DONE_SETS = EX_SETS;
 
 /** The Gen 2 sets whose card effects the engine has: Gen 2 runs take only the cards it plays fully from these. */
 export const GEN2_DONE_SETS = ['neo1', 'neo2', 'si1', 'neo3', 'neo4', 'ecard1', 'ecard2', 'ecard3'];
@@ -49,12 +50,22 @@ export const GEN2_BASIC_ENERGY: Partial<Record<EnergyType, string>> = {
   fighting: 'neo1-106',
 };
 
+/** Gen 3's basic Energy (EX Ruby & Sapphire printings). Gen 3 has no Double Colorless. */
+export const GEN3_BASIC_ENERGY: Partial<Record<EnergyType, string>> = {
+  grass: 'ex1-104',
+  fire: 'ex1-108',
+  water: 'ex1-106',
+  lightning: 'ex1-109',
+  psychic: 'ex1-107',
+  fighting: 'ex1-105',
+};
+
 /** Types with a basic Energy card, the ones decks are built around. */
 export const DECK_TYPES = Object.keys(BASIC_ENERGY) as EnergyType[];
 
-/** The type of a basic Energy card of either generation's printings above, or undefined. */
+/** The type of a basic Energy card of any generation's printings above, or undefined. */
 export const basicEnergyType = (id: string): EnergyType | undefined =>
-  (Object.entries(BASIC_ENERGY).find(([, e]) => e === id) ?? Object.entries(GEN2_BASIC_ENERGY).find(([, e]) => e === id))?.[0] as EnergyType | undefined;
+  [BASIC_ENERGY, GEN2_BASIC_ENERGY, GEN3_BASIC_ENERGY].map((set) => Object.entries(set).find(([, e]) => e === id)).find(Boolean)?.[0] as EnergyType | undefined;
 
 /** Card shop prices in ₱. */
 export const PRICES: Record<Rarity, number> = { common: 40, uncommon: 80, rare: 150, holo: 250 };

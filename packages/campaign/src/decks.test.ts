@@ -1,10 +1,10 @@
 import { canPayCost, cardImplemented, isBasicPokemon, isPokemonCard, TRAINER_CPU_ENERGY, TRAINER_CPU_PLAYS, TRAINER_CPU_RULES, type PokemonCardDef } from '@poke-tcg/game-engine';
 import { describe, expect, it } from 'vitest';
-import { BOSSES, JOHTO_ELITE_FOUR, JOHTO_GYMS } from './bosses.js';
-import { DECK_SIZE, deckErrors, expandDeck, GEN1_DECK_RULES, GEN2_DECK_RULES, generateDeck, STARTER_DECK, trainerFavorites } from './decks.js';
-import { GEN2_SETS, nameKey } from './pool.js';
+import { BOSSES, HOENN_ELITE_FOUR, HOENN_GYMS, JOHTO_ELITE_FOUR, JOHTO_GYMS } from './bosses.js';
+import { DECK_SIZE, deckErrors, expandDeck, GEN1_DECK_RULES, GEN2_DECK_RULES, GEN3_DECK_RULES, generateDeck, STARTER_DECK, trainerFavorites } from './decks.js';
+import { GEN2_SETS, GEN3_SETS, nameKey } from './pool.js';
 import { rngFrom } from './random.js';
-import { catalogDef, GEN2_TEST_POOL, TEST_POOL, testDef } from './test-pool.js';
+import { catalogDef, GEN2_TEST_POOL, GEN3_TEST_POOL, TEST_POOL, testDef } from './test-pool.js';
 
 describe('fixed decks', () => {
   it('the starter deck is a legal 60-card deck of cards from the run pool', () => {
@@ -20,7 +20,8 @@ describe('fixed decks', () => {
   });
 
   const johto = new Set<string>([...JOHTO_GYMS, ...JOHTO_ELITE_FOUR, 'johto-lance']);
-  const kanto = Object.entries(BOSSES).filter(([id]) => !johto.has(id));
+  const hoenn = new Set<string>([...HOENN_GYMS, ...HOENN_ELITE_FOUR, 'wallace']);
+  const kanto = Object.entries(BOSSES).filter(([id]) => !johto.has(id) && !hoenn.has(id));
 
   it.each(kanto)("%s's deck is a legal 60-card deck of catalog cards the engine fully implements", (_, b) => {
     const deck = expandDeck(b.deck);
@@ -33,6 +34,15 @@ describe('fixed decks', () => {
     const deck = expandDeck(BOSSES[id as keyof typeof BOSSES].deck);
     expect(deckErrors(deck, catalogDef)).toEqual([]);
     expect(deck.filter((c) => !GEN2_SETS.includes(c.split('-')[0]!))).toEqual([]);
+    const names = new Set(deck.map((c) => catalogDef(c).name));
+    expect(deck.map(catalogDef).filter((d) => isPokemonCard(d) && d.evolvesFrom && !names.has(d.evolvesFrom)).map((d) => d.name)).toEqual([]);
+  });
+
+  it.each([...hoenn])("%s's deck is a legal 60-card deck of Gen 3 cards the engine fully implements, each evolution with its earlier stage", (id) => {
+    const deck = expandDeck(BOSSES[id as keyof typeof BOSSES].deck);
+    expect(deckErrors(deck, catalogDef)).toEqual([]);
+    expect(deck.filter((c) => !GEN3_SETS.includes(c.split('-')[0]!))).toEqual([]);
+    expect(deck.filter((c) => !cardImplemented(catalogDef(c)))).toEqual([]);
     const names = new Set(deck.map((c) => catalogDef(c).name));
     expect(deck.map(catalogDef).filter((d) => isPokemonCard(d) && d.evolvesFrom && !names.has(d.evolvesFrom)).map((d) => d.name)).toEqual([]);
   });
@@ -88,9 +98,9 @@ describe('generateDeck', () => {
     expect(generateDeck(TEST_POOL, rngFrom(42))).toEqual(generateDeck(TEST_POOL, rngFrom(42)));
   });
 
-  it("holds only Trainers and special Energy the Trainer CPU plays, in a Trainer CPU's deck, in either generation", () => {
+  it("holds only Trainers and special Energy the Trainer CPU plays, in a Trainer CPU's deck, in every generation", () => {
     const plays = new Set([...TRAINER_CPU_PLAYS, ...TRAINER_CPU_RULES, ...TRAINER_CPU_ENERGY, 'doublecolorlessenergy']);
-    for (const [pool, rules] of [[TEST_POOL, GEN1_DECK_RULES], [GEN2_TEST_POOL, GEN2_DECK_RULES]] as const) {
+    for (const [pool, rules] of [[TEST_POOL, GEN1_DECK_RULES], [GEN2_TEST_POOL, GEN2_DECK_RULES], [GEN3_TEST_POOL, GEN3_DECK_RULES]] as const) {
       for (let seed = 0; seed < 100; seed++) {
         for (const d of generateDeck(pool, rngFrom(seed), { rules, difficulty: 'trainer' }).map(catalogDef)) {
           if (d.kind === 'trainer' || (d.kind === 'energy' && d.basic === false)) expect(plays, d.name).toContain(nameKey(d.name));
@@ -143,5 +153,24 @@ describe('generateDeck for Gen 2', () => {
     const deck = generateDeck(GEN2_TEST_POOL, rngFrom(3), { favorites: BOSSES.falkner.gym.favorites, rules: GEN2_DECK_RULES });
     const names = new Set(deck.map((id) => gen2Def(id).name));
     expect(BOSSES.falkner.gym.favorites.filter((n) => names.has(n)).length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('generateDeck for Gen 3', () => {
+  const gen3Def = (id: string) => GEN3_TEST_POOL.find((c) => c.def.id === id)!.def;
+  const decks = Array.from({ length: 100 }, (_, seed) => generateDeck(GEN3_TEST_POOL, rngFrom(seed), { rules: GEN3_DECK_RULES }));
+
+  it("builds legal 60-card decks of Gen 3's cards only (the EX sets), with Gen 3's basic Energy and Trainers", () => {
+    for (const deck of decks) {
+      expect(deckErrors(deck, gen3Def)).toEqual([]);
+      expect(deck.filter((id) => !GEN3_SETS.includes(id.split('-')[0]!))).toEqual([]);
+      expect(deck.filter((id) => gen3Def(id).kind === 'trainer').length).toBeGreaterThanOrEqual(12);
+    }
+  });
+
+  it("builds a Gym Trainer's deck from their gym's favourites when its type has no basic Energy (Norman's Normal)", () => {
+    const deck = generateDeck(GEN3_TEST_POOL, rngFrom(3), { favorites: BOSSES.norman.gym.favorites, rules: GEN3_DECK_RULES });
+    const names = new Set(deck.map((id) => gen3Def(id).name));
+    expect(BOSSES.norman.gym.favorites.filter((n) => names.has(n)).length).toBeGreaterThanOrEqual(3);
   });
 });

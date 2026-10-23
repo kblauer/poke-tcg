@@ -110,7 +110,7 @@ export function HomePage() {
               ) : routes ? (
                 <>
                   <div ref={routeMap}>
-                    <RouteView routes={routes} gym={runType(view.type).gym} view={view} spotted={run.spotted} />
+                    <RouteView routes={routes} gym={runType(view.type).gym} view={view} spotted={run.spotted} gender={overview.data.playerGender} />
                   </div>
                   {panels}
                 </>
