@@ -1,3 +1,4 @@
+import { GEN2_SETS, POOL_SETS } from '@poke-tcg/campaign';
 import { prisma, type Card } from '@poke-tcg/db';
 import { attackEffect, energyEffect, powerEffect, trainerEffect, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef, type Stage } from '@poke-tcg/game-engine';
 import { pokedexLength } from './lengths.js';
@@ -108,10 +109,16 @@ export const isHolo = (card: Pick<Card, 'id' | 'data'>) => (card.data as CardDat
  */
 const GALAXY_FOIL = new Set(['basep-34', 'basep-35', 'si1-1', 'si1-4', 'si1-7', 'si1-11', 'si1-14', 'si1-17']);
 
-/** Base Set 2's holo rares are shown with the galaxy foil, to set them apart from the originals they reprint (agreed with the user). */
-const isBase2Holo = (card: Pick<Card, 'id' | 'data'>) => card.id.startsWith('base4-') && isHolo(card);
+/**
+ * Gen 1's and Gen 2's holo Pokémon are shown with the galaxy foil in the art window, their Pokémon masked out of it
+ * (apps/web/public/holo-masks): asked by the user 2026-10-23, after Base Set 2's holo rares had it to set them apart
+ * from the originals they reprint. Holo Trainers and Energy keep their foil.
+ */
+const GALAXY_ART_SETS = new Set([...POOL_SETS, ...GEN2_SETS]);
+const isGalaxyArt = (card: Pick<Card, 'id' | 'data'>) =>
+  GALAXY_ART_SETS.has(card.id.slice(0, card.id.lastIndexOf('-'))) && isHolo(card) && !!(card.data as CardData).dexId?.length;
 
-export const isGalaxyFoil = (card: Pick<Card, 'id' | 'data'>) => GALAXY_FOIL.has(card.id) || isBase2Holo(card);
+export const isGalaxyFoil = (card: Pick<Card, 'id' | 'data'>) => GALAXY_FOIL.has(card.id) || isGalaxyArt(card);
 
 function energyType(tcgdexType: string): EnergyType {
   const type = tcgdexType.toLowerCase() as EnergyType;

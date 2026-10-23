@@ -20,6 +20,7 @@ import { useWindowFill } from '../hooks/useWindowFill';
 import { useTRPC } from '../lib/trpc';
 import { isVersion, setGroups, type CatalogCard } from '../utils/cardList';
 import { EMPTY_DECK_FILTER, LOCKED_DECK_PROBLEM, cantAdd, changeCount, deckSize, filterForDeck, hasLockedCards, lockedWarning, problemsOf, sortForDeck, type DeckEntry, type DeckFilter, type DeckSort } from '../utils/deckBuilder';
+import { preloadHolos } from '../utils/holoPreload';
 import { PAGE_WIDTH } from '../utils/layout';
 
 const button = 'rounded px-3 py-1 text-sm disabled:opacity-40';
@@ -114,7 +115,11 @@ export function DecksPage() {
   // The catalog only changes when the seed is re-run, so load it once per session.
   const catalog = useQuery({ ...trpc.cards.list.queryOptions(), staleTime: Infinity });
   const decks = useQuery(trpc.decks.list.queryOptions());
-  const { isLocked, copies, holoCopies } = useUnlocked();
+  const { isLocked, copies, holoCopies, loaded: unlocksLoaded } = useUnlocked();
+  // The foil textures and holo masks of the account's unlocked holos, so a card's foil is ready when it's viewed large.
+  useEffect(() => {
+    if (catalog.data && unlocksLoaded) preloadHolos(catalog.data.filter((c) => !isLocked(c)));
+  }, [catalog.data, unlocksLoaded, isLocked]);
   const favorites = useFavorites();
   const phone = useIsPhone();
   // The decks pane's width on a big screen (PaneHandle), saved once a drag ends.
