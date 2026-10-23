@@ -11,7 +11,7 @@ export interface HoloSource {
   type: string | null;
   rarity?: string | null;
   holo?: boolean;
-  /** Galaxy foil around the art (a few promos and Southern Islands). */
+  /** Galaxy foil: around the art (a few promos and Southern Islands), or in it on a holo (Gen 1's and Gen 2's holo Pokémon). */
   galaxy?: boolean;
   /** Holo Energy: the library style it's shown in (its data-* attributes). */
   holoEnergy?: { rarity: string; trainerGallery?: boolean; supertype?: string; subtypes?: string } | null;
@@ -35,12 +35,14 @@ export interface HoloAttributes {
   trainerGallery: boolean;
   /** A holo Energy (data-holo-energy): its style covers the whole card, nothing masked out (wotc.css). */
   holoEnergy: boolean;
-  /** The card's holo mask (public/holo-masks, made by tools/holo-masks): the foil shows only where it's opaque, off the Pokémon. */
+  /** Galaxy foil in the art window (data-galaxy-art): Gen 1's and Gen 2's holo Pokémon, rather than around the art. */
+  galaxyArt: boolean;
+  /**
+   * A galaxy-art holo's mask (public/holo-masks/<card id>.png, made by tools/holo-masks): the foil shows only where it's
+   * opaque, off the Pokémon.
+   */
   mask: string | null;
 }
-
-/** The holos with a mask keeping the foil off the Pokémon: Base Set's, a first try (see tools/holo-masks). */
-const MASKED = new Set(Array.from({ length: 16 }, (_, i) => `base1-${i + 1}`));
 
 const SUBTYPES: Record<string, string> = { basic: 'basic', baby: 'basic', stage1: 'stage 1', stage2: 'stage 2' };
 
@@ -51,6 +53,8 @@ export function holoAttributes(card: HoloSource): HoloAttributes {
   const set = id.slice(0, split);
   const kind = card.kind.toLowerCase();
   const style = card.holoEnergy;
+  // The galaxy foil around the art is on reverse-only prints (not holo); a holo with the galaxy foil has it in the art.
+  const galaxyArt = !style && !!card.galaxy && !!card.holo;
   return {
     types: card.type?.toLowerCase() ?? '',
     rarity: style ? style.rarity : card.reverseHolo ? 'reverse holo' : card.galaxy ? 'rare holo cosmos' : card.holo ? 'rare holo' : (card.rarity ?? 'common').toLowerCase(),
@@ -63,6 +67,7 @@ export function holoAttributes(card: HoloSource): HoloAttributes {
     pokemonEx: kind === 'pokemon' && / ex$/.test(card.name ?? ''),
     trainerGallery: style?.trainerGallery ?? false,
     holoEnergy: !!style,
-    mask: !style && (card.holo || card.galaxy) && MASKED.has(id) ? `/holo-masks/${id}.png` : null,
+    galaxyArt,
+    mask: galaxyArt ? `/holo-masks/${id}.png` : null,
   };
 }
