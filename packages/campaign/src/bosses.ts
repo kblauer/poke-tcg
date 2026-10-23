@@ -5,6 +5,7 @@
 // closest card of the same type in the catalog; each substitution is commented.
 import type { EnergyType } from '@poke-tcg/game-engine';
 import type { DeckList } from './decks.js';
+import { HOENN_BOSSES } from './hoenn-bosses.js';
 import { JOHTO_BOSSES } from './johto-bosses.js';
 
 export type BossKind = 'gymLeader' | 'eliteFour' | 'champion';
@@ -13,7 +14,7 @@ export interface Boss {
   name: string;
   title: string;
   kind: BossKind;
-  /** The deck it plays (Kanto: its TCG 1 deck), and the TCG 1 character who plays it (Kanto only: johto-bosses.ts). */
+  /** The deck it plays (Kanto: its TCG 1 deck), and the TCG 1 character who plays it (Kanto only: johto-bosses.ts, hoenn-bosses.ts). */
   deckName: string;
   counterpart?: string;
   deck: DeckList;
@@ -21,7 +22,7 @@ export interface Boss {
    * Gym leaders: their gym's type, for the Gym Trainer's deck before them (with `favorites`, the Pokémon that deck is built
    * from first, for a type with no basic Energy); and the badge for beating them (a key item). `trainers` are who their Gym
    * Trainer may be, one picked each run: the trainers in their gym, in FireRed and LeafGreen for Kanto and HeartGold and
-   * SoulSilver for Johto (pret's gym maps, every room of the gym; not Azalea's Twins, a double battle), Olivine's (a gym
+   * SoulSilver for Johto, Emerald for Hoenn (pret's gym maps, every room of the gym; not Azalea's Twins, a double battle), Olivine's (a gym
    * with none) the Olivine Lighthouse's (agreed with the user); without them, any of a general list.
    */
   gym?: { city: string; type: EnergyType; badge: string; favorites?: string[]; trainers?: string[] };
@@ -318,6 +319,7 @@ export const BOSSES = {
   lance: { name: 'Lance', title: 'Elite Four', kind: 'eliteFour', deckName: 'Legendary Dragonite', counterpart: 'Rod', deck: LEGENDARY_DRAGONITE_DECK },
   blue: { name: 'Blue', title: 'Champion', kind: 'champion', deckName: 'Legendary Ronald', counterpart: 'Ronald', deck: LEGENDARY_RONALD_DECK, prize: 'champion-ribbon' },
   ...JOHTO_BOSSES,
+  ...HOENN_BOSSES,
 } satisfies Record<string, Boss>;
 
 export type BossId = keyof typeof BOSSES;
@@ -329,6 +331,9 @@ export const ELITE_FOUR: BossId[] = ['lorelei', 'bruno', 'agatha', 'lance'];
 /** Johto's gyms in the order Gold and Silver visit them, and its Elite Four. */
 export const JOHTO_GYMS: BossId[] = ['falkner', 'bugsy', 'whitney', 'morty', 'chuck', 'jasmine', 'pryce', 'clair'];
 export const JOHTO_ELITE_FOUR: BossId[] = ['will', 'johto-koga', 'johto-bruno', 'karen'];
+/** Hoenn's gyms in the order Emerald visits them, and its Elite Four. */
+export const HOENN_GYMS: BossId[] = ['roxanne', 'brawly', 'wattson', 'flannery', 'norman', 'winona', 'tate-liza', 'juan'];
+export const HOENN_ELITE_FOUR: BossId[] = ['sidney', 'phoebe', 'glacia', 'drake'];
 
 export const boss = (id: string): Boss => {
   const b = (BOSSES as Record<string, Boss>)[id];

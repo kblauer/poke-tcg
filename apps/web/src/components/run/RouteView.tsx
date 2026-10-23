@@ -4,6 +4,7 @@ import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
 import { flowAt, inGrass, isBattleKind, isBossKind, onIce, onPath, onWater, routePath, type BossId, type EncounterKind, type MapEncounter, type Route, type RouteSpot } from '@poke-tcg/campaign';
+import type { PlayerGender } from '@poke-tcg/shared';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import type { RunViewData } from '../../hooks/useRun';
@@ -12,14 +13,16 @@ import { bobFrame, bobs, BOB_MS, encounterSprite, isItemBall, mirrored, playerSp
 import { ENCOUNTER_STYLE } from './encounterIcons';
 
 /**
- * The players' sprites (Red's and Ethan's, walking, on a bike, surfing) and the swimmers' in-water ones, fetched as soon as
+ * The players' sprites (Red's, Ethan's and Brendan's, and the girls', Leaf's, Lyra's and May's, walking, on a bike, surfing) and the swimmers' in-water ones, fetched as soon as
  * the app loads, so a switch between them (stepping off the water onto land) never shows him blank while one loads. The
  * images are kept so the browser keeps them decoded.
  */
 const PRELOADED =
   typeof window === 'undefined'
     ? []
-    : ['red', 'red_bike', 'red_surf', 'swimmer_m_water', 'swimmer_f_water', 'hgss/hero', 'hgss/cyclehero', 'hgss/swimhero'].map((name) => Object.assign(new Image(), { src: `/overworld/${name}.png` }));
+    : ['red', 'red_bike', 'red_surf', 'leaf', 'leaf_bike', 'leaf_surf', 'swimmer_m_water', 'swimmer_f_water', 'hgss/hero', 'hgss/cyclehero', 'hgss/swimhero', 'hgss/heroine', 'hgss/cycleheroine', 'hgss/swimheroine', 'rse/brendan', 'rse/brendan_bike', 'rse/brendan_surf', 'rse/may', 'rse/may_bike', 'rse/may_surf'].map(
+        (name) => Object.assign(new Image(), { src: `/overworld/${name}.png` }),
+      );
 void PRELOADED;
 
 /** How much the route's pixel map is enlarged in the view (2×: 16px tiles show 32px). */
@@ -61,7 +64,7 @@ interface RouteFigure {
   option?: number;
 }
 
-/** The sprites a map uses: HGSS's on the Johto maps (`sprites: 'hgss'`), FireRed's on the others. */
+/** The sprites a map uses: HGSS's on the Johto maps (`sprites: 'hgss'`), Emerald's on the Hoenn ones (`'rse'`), FireRed's on the others. */
 const setOf = (route: Route): SpriteSet => route.sprites ?? 'frlg';
 
 /** An option's figure: its trainer (a boss's own sprite), or the non-battle encounter's (null if it has none). */
@@ -553,7 +556,7 @@ function placeFigures(route: Route, view: RunViewData, first: number, upto: numb
  * than it). Its height is the player's: drag the handle along its bottom edge (from MIN_HEIGHT to the whole map's height,
  * or 85% of the window), remembered in localStorage (`poke-tcg.route-map`); a double-click on the handle resets it.
  */
-export function RouteView({ routes, gym, view, spotted }: { routes: Route[]; gym?: Route; view: RunViewData; spotted?: { option: number | null } | null }) {
+export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { routes: Route[]; gym?: Route; view: RunViewData; spotted?: { option: number | null } | null; gender?: PlayerGender }) {
   const box = useRef<HTMLDivElement>(null);
   // Debug only: the walkable tiles overlay (TileOverlay).
   const debug = useDebugEnabled();
@@ -673,7 +676,7 @@ export function RouteView({ routes, gym, view, spotted }: { routes: Route[]; gym
   const anyWalking = walker.walking || !!approach?.walking;
   // The player bobbing on the spot while still (Ethan surfing): the low half of the bob every other BOB_MS.
   const [bobbing, setBobbing] = useState(false);
-  const playerName = playerSprite(setOf(shown), shown.travel, onWater(shown, walker.tile));
+  const playerName = playerSprite(setOf(shown), shown.travel, onWater(shown, walker.tile), gender);
   const stillBob = bobs(playerName) && !walker.walking;
   useEffect(() => {
     if (!stillBob) return;

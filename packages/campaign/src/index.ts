@@ -10,4 +10,6 @@ export * from './routes.js';
 export * from './kanto-routes.js';
 export * from './johto-gyms.js';
 export * from './johto-routes.js';
+export * from './hoenn-gyms.js';
+export * from './hoenn-routes.js';
 export * from './cosmetics.js';

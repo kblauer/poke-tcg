@@ -89,8 +89,8 @@ export interface Route {
   exit?: RouteSpot;
   /** Where each spot's figure stands (a gym's trainers, as the game has them), instead of near the spot. */
   stands?: RouteSpot[];
-  /** The overworld sprites it's drawn with: HeartGold/SoulSilver's on the Johto maps ('hgss', 32x32); FireRed's otherwise. */
-  sprites?: 'hgss';
+  /** The overworld sprites it's drawn with: HeartGold/SoulSilver's on the Johto maps ('hgss', 32x32), Emerald's on the Hoenn ones ('rse'); FireRed's otherwise. */
+  sprites?: 'hgss' | 'rse';
   /** How the player gets along (Route 17: on a bike, walking twice as fast; Route 20: surfing its water, '~'); on foot otherwise. */
   travel?: 'bike' | 'surf';
   /**
@@ -100,6 +100,12 @@ export interface Route {
   trainers?: { names: string[]; share: number };
   /** A spot whose step is always a battle against any other trainer (not one of `trainers`): Route 20's on land by the caves. */
   landBattle?: number;
+  /**
+   * On a surfed route, its spots on land are ordinary ones (Sootopolis City's, in its streets): any encounter, battles
+   * against any trainer but a Swimmer; only its spots in the water follow the surf rules (out at sea only battles, by the
+   * shore only non-battle encounters). Without it, a surfed route's spots with land near are ashore, whatever they stand on.
+   */
+  landSpots?: boolean;
   /** Other people always there, for the look of the place (a gym's guide): their sprite (`public/overworld/`) and facing. */
   npcs?: { sprite: string; tile: RouteSpot; face: 'down' | 'up' | 'left' | 'right' }[];
 }

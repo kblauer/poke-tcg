@@ -6,8 +6,8 @@ import { ROUTE_4 } from './kanto-routes.js';
 import { JOHTO_BOSS_ROOMS, MAHOGANY_GYM } from './johto-gyms.js';
 import { onPath, PEWTER_GYM, ROUTE_2, routePath, type Route, type RouteSpot } from './routes.js';
 import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, isBattleKind, isBossKind, MAX_CENTERS, REQUIRED_BATTLES, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, withConsumablesBefore, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
-import { GEN2_SETS } from './pool.js';
-import { GEN2_TEST_POOL, TEST_POOL } from './test-pool.js';
+import { GEN2_SETS, GEN3_SETS } from './pool.js';
+import { GEN2_TEST_POOL, GEN3_TEST_POOL, TEST_POOL } from './test-pool.js';
 
 const deck = expandDeck(STARTER_DECK);
 const fresh = (seed = 1) => createRun('celadon', deck, seed);
@@ -212,8 +212,8 @@ describe('createRun', () => {
     }
   });
 
-  it('the Gym Challenge and Champion runs (Kanto and Johto) have a map per step: each boss in their gym or room, and the Pokémon Center', () => {
-    for (const id of ['kantoGyms', 'kantoChampion', 'johtoGyms', 'johtoChampion'] as const) {
+  it('the Gym Challenge and Champion runs (Kanto, Johto and Hoenn) have a map per step: each boss in their gym or room, and the Pokémon Center', () => {
+    for (const id of ['kantoGyms', 'kantoChampion', 'johtoGyms', 'johtoChampion', 'hoennGyms', 'hoennChampion'] as const) {
       const type = runType(id);
       const steps = createRun(id, deck, 1).steps;
       expect(type.routes, id).toHaveLength(steps.length);
@@ -230,13 +230,17 @@ describe('createRun', () => {
     expect(runType('johtoChampion').routes!.slice(-5).map((m) => m.name)).toEqual(["Will's Room", "Koga's Room", "Bruno's Room", "Karen's Room", "Lance's Room"]);
     // Johto's are HGSS's, drawn with its sprites.
     expect(runType('johtoChampion').routes!.every((m) => m.sprites === 'hgss')).toBe(true);
+    expect(runType('hoennGyms').routes!.map((m) => m.name)).toEqual(['Rustboro Gym', 'Dewford Gym', 'Mauville Gym', 'Lavaridge Gym', 'Pokémon Center', 'Petalburg Gym', 'Fortree Gym', 'Mossdeep Gym', 'Sootopolis Gym']);
+    expect(runType('hoennChampion').routes!.slice(-5).map((m) => m.name)).toEqual(["Sidney's Room", "Phoebe's Room", "Glacia's Room", "Drake's Room", "Champion's Room"]);
+    // Hoenn's are Emerald's, drawn with its sprites.
+    expect(runType('hoennChampion').routes!.every((m) => m.sprites === 'rse')).toBe(true);
   });
 
   it("a map's tall grass lines up with its tiles: the same rows as `walkable`", () => {
     const maps = RUN_TYPE_IDS.flatMap((id) => [...(runType(id).routes ?? []), ...(runType(id).gym ? [runType(id).gym!] : [])]);
     const grassy = maps.filter((m) => m.grass);
-    // FireRed's Routes 2, 4, 5, 6 and 8, and HGSS's 30, 32, 34, 35 and 45.
-    expect(new Set(grassy.map((m) => m.name))).toEqual(new Set(['Route 2', 'Route 4', 'Route 5', 'Route 6', 'Route 8', 'Route 30', 'Route 32', 'Route 34', 'Route 35', 'Route 45']));
+    // FireRed's Routes 2, 4, 5, 6 and 8, HGSS's 30, 32, 34, 35 and 45, and Emerald's Petalburg Woods, Routes 102, 110 and 119 and Jagged Pass.
+    expect(new Set(grassy.map((m) => m.name))).toEqual(new Set(['Route 2', 'Route 4', 'Route 5', 'Route 6', 'Route 8', 'Route 30', 'Route 32', 'Route 34', 'Route 35', 'Route 45', 'Petalburg Woods', 'Route 102', 'Route 110', 'Route 119', 'Jagged Pass']));
     for (const m of grassy) expect(m.grass!.map((r) => r.length), m.name).toEqual(m.walkable.map((r) => r.length));
   });
 
@@ -297,6 +301,17 @@ describe('createRun', () => {
       const walk = (from: RouteSpot, to: RouteSpot) => routePath(gym, from, to, people) ?? routePath(gym, from, to);
       expect(walk(gym.entrance!, trainer!), gym.name).not.toBeNull();
       expect(walk(trainer!, leader!), gym.name).not.toBeNull();
+    }
+  });
+
+  it("every Hoenn gym interior: the Gym Trainer's and the leader's spots can be walked to from the door, one after the other", () => {
+    // Petalburg Gym's rooms are joined through their doors (links, fading).
+    const gyms = RUN_TYPE_IDS.flatMap((id) => runType(id).gym ?? []).filter((g) => g.sprites === 'rse');
+    expect(gyms.map((g) => g.name)).toEqual(['Rustboro Gym', 'Dewford Gym', 'Mauville Gym', 'Lavaridge Gym', 'Petalburg Gym', 'Fortree Gym', 'Mossdeep Gym', 'Sootopolis Gym']);
+    for (const gym of gyms) {
+      const [trainer, leader] = gym.spots;
+      expect(routePath(gym, gym.entrance!, trainer!), gym.name).not.toBeNull();
+      expect(routePath(gym, trainer!, leader!), gym.name).not.toBeNull();
     }
   });
 
@@ -751,6 +766,57 @@ describe('conceding', () => {
 
   it('counts the battles of older runs from their log', () => {
     expect(battlesFought({ log: ['Beat Lass Haley: +₱200, +10 EXP.', 'Bought Potion.', 'Lost to Hiker Marcos: −1 HP.'] })).toBe(2);
+  });
+});
+
+describe('Gen 3 runs', () => {
+  const HOENN = ['rustboro', 'dewford', 'mauville', 'lavaridge', 'petalburg', 'fortree', 'mossdeep', 'sootopolis'] as const;
+
+  it('every Hoenn gym run crosses its Emerald map: walked from its entrance through each spot in turn', () => {
+    for (const id of HOENN) {
+      const [route] = runType(id).routes!;
+      expect(route!.sprites, id).toBe('rse');
+      const stops = [route!.entrance!, ...route!.spots, ...(route!.exit ? [route!.exit] : [])];
+      expect(stops.slice(1).map((to, i) => routePath(route!, stops[i]!, to) !== null), `${id} ${route!.name}`).toEqual(stops.slice(1).map(() => true));
+    }
+  });
+
+  it("Route 110 (the Mauville City run) is ridden on a bike, most of its trainers the Cycling Road's Triathletes", () => {
+    const route = runType('mauville').routes![0]!;
+    expect(route.travel).toBe('bike');
+    const trainers = Array.from({ length: 60 }, (_, seed) => createRun('mauville', deck, seed + 1).steps.slice(0, 10)).flat().flatMap((s) => s.options.filter((o) => o.kind === 'battle').map((o) => o.trainer!));
+    const share = trainers.filter((t) => t.startsWith('Triathlete ')).length / trainers.length;
+    expect(share).toBeGreaterThan(0.7);
+    expect(share).toBeLessThan(0.9);
+  });
+
+  it("Sootopolis City's spots on land are ordinary (battles against anyone but Swimmers, or other encounters), those in its lake surfed", () => {
+    const city = runType('sootopolis').routes![0]!;
+    expect(city.travel).toBe('surf');
+    const land = city.spots.map((s, i) => (city.walkable[s.y]![s.x] === '.' ? i : -1)).filter((i) => i >= 0);
+    expect(land.length).toBeGreaterThan(0);
+    const runs = Array.from({ length: 30 }, (_, seed) => createRun('sootopolis', deck, seed + 1).steps);
+    // Its first step is always a battle, as every run's.
+    expect(runs.every((steps) => steps[0]!.options.some((o) => o.kind === 'battle'))).toBe(true);
+    const onLand = runs.flatMap((steps) => land.map((i) => steps[i]!));
+    expect(onLand.some((s) => s.options.some((o) => o.kind === 'battle'))).toBe(true);
+    expect(onLand.some((s) => s.options.some((o) => !isBattleKind(o.kind)))).toBe(true);
+    expect(onLand.flatMap((s) => s.options.filter((o) => o.kind === 'battle').map((o) => o.trainer!)).filter((t) => t.startsWith('Swimmer '))).toEqual([]);
+  });
+
+  it('a Hoenn gym run ends with its gym leader, and its Gym Trainer and leader play Gen 3 decks', () => {
+    let s = createRun('rustboro', deck, 7);
+    // Petalburg Woods' 10 encounters (hoenn-routes.ts), the Gym Trainer and Roxanne.
+    expect(s.steps).toHaveLength(12);
+    expect(s.steps.at(-1)!.options[0]).toMatchObject({ kind: 'gymLeader', boss: 'roxanne' });
+    for (const kind of ['gymTrainer', 'gymLeader'] as const) {
+      s = createRun('rustboro', deck, 7);
+      s.position = s.steps.findIndex((step) => step.options[0]!.kind === kind);
+      s = act(s, { type: 'CHOOSE', option: 0 }, [], GEN3_TEST_POOL);
+      const setup = battleSetup(s, GEN3_TEST_POOL);
+      expect(setup.deck).toHaveLength(60);
+      expect(setup.deck.filter((id) => !GEN3_SETS.includes(id.split('-')[0]!))).toEqual([]);
+    }
   });
 });
 

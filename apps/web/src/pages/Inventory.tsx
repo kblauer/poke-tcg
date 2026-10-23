@@ -34,6 +34,12 @@ export function InventoryPage() {
   const inventory = useQuery(trpc.run.inventory.queryOptions());
   const equip = useMutation(trpc.run.equip.mutationOptions({ onSettled: () => queryClient.invalidateQueries({ queryKey: trpc.run.inventory.queryKey() }) }));
   const setSprite = useMutation(trpc.run.setTrainerSprite.mutationOptions({ onSettled: () => queryClient.invalidateQueries({ queryKey: trpc.run.inventory.queryKey() }) }));
+  // The player's sprite on the run maps: the run screen reads it from run.overview.
+  const setGender = useMutation(
+    trpc.run.setPlayerGender.mutationOptions({
+      onSettled: () => Promise.all([queryClient.invalidateQueries({ queryKey: trpc.run.inventory.queryKey() }), queryClient.invalidateQueries({ queryKey: trpc.run.overview.queryKey() })]),
+    }),
+  );
   // Errors show above the panel (equip.error), so a failed equip needn't throw.
   const onEquip = (slot: Parameters<typeof equip.mutate>[0]['slot'], itemId: string | null) => equip.mutateAsync({ slot, itemId }).catch(() => {});
   // The run under way (if any), whose rules say whether a consumable can be used now, and the consumable clicked (asked
@@ -47,7 +53,7 @@ export function InventoryPage() {
   );
   if (inventory.error) return <p className={`${PAGE_WIDTH} text-red-400`}>{inventory.error.message}</p>;
   if (!inventory.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
-  const { items, equipment, trainerSprite, pendingConsumables } = inventory.data;
+  const { items, equipment, trainerSprite, playerGender, pendingConsumables } = inventory.data;
   const current = overview.data?.run;
   const activeRun = current?.status === 'ACTIVE' ? current : null;
   // Used between runs: no longer in the inventory, waiting for the next run (at most its 3).
@@ -56,7 +62,7 @@ export function InventoryPage() {
   return (
     <div className={`${PAGE_WIDTH} space-y-6`}>
       <PageHeader title="Inventory" />
-      {(equip.error ?? setSprite.error ?? useConsumable.error) && <p className="text-sm text-red-400">{(equip.error ?? setSprite.error ?? useConsumable.error)!.message}</p>}
+      {(equip.error ?? setSprite.error ?? setGender.error ?? useConsumable.error) && <p className="text-sm text-red-400">{(equip.error ?? setSprite.error ?? setGender.error ?? useConsumable.error)!.message}</p>}
       {using && (
         <UseConsumableDialog
           item={using}
@@ -82,6 +88,8 @@ export function InventoryPage() {
           // Shown at once, before the server has it.
           sprite={setSprite.isPending ? setSprite.variables.sprite : trainerSprite}
           onSprite={(sprite) => setSprite.mutate({ sprite })}
+          gender={setGender.isPending ? setGender.variables.gender : playerGender}
+          onGender={(gender) => setGender.mutate({ gender })}
         />
       </section>
 

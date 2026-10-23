@@ -186,6 +186,10 @@ export const buyItemInput = z.object({ itemId: z.string().min(1).max(64) });
 export const equipInput = z.object({ slot: z.enum(EQUIP_SLOTS), itemId: z.string().min(1).max(64).nullable() });
 /** The Inventory's trainer sprite, one of Showdown's. */
 export const trainerSpriteInput = z.object({ sprite: z.enum(TRAINER_SPRITES) });
+/** The player's sprite on the run maps: the boy (Red, Ethan, Brendan) or the girl (Leaf, Lyra, May). */
+export const PLAYER_GENDERS = ['male', 'female'] as const;
+export type PlayerGender = (typeof PLAYER_GENDERS)[number];
+export const playerGenderInput = z.object({ gender: z.enum(PLAYER_GENDERS) });
 /** A cosmetic (card back or playmat) to buy, or to use (its kind's, or null for the default). */
 export const buyCosmeticInput = z.object({ id: z.enum(COSMETIC_IDS as [string, ...string[]]) });
 export const useCosmeticInput = z.object({ kind: z.enum(['cardBack', 'playmat']), id: z.enum(COSMETIC_IDS as [string, ...string[]]).nullable() });

@@ -2,7 +2,7 @@ import { bossSummary, currentGameId, EQUIP_SLOTS, isBattleKind, fitsSlot, item, 
 import { Prisma, prisma, saveGameState } from '@poke-tcg/db';
 import { applyDebug, type DebugCommand, type GameState } from '@poke-tcg/game-engine';
 import { DECK_NAME_LENGTH, HUMAN_ID } from '@poke-tcg/shared';
-import { buyItemInput, DEFAULT_TRAINER_SPRITE, equipInput, runActInput, runChooseInput, runIdInput, saveRunDeckInput, startRunInput, trainerSpriteInput, useConsumableInput, useItemInput } from '@poke-tcg/shared';
+import { buyItemInput, DEFAULT_TRAINER_SPRITE, equipInput, playerGenderInput, runActInput, runChooseInput, runIdInput, saveRunDeckInput, startRunInput, trainerSpriteInput, useConsumableInput, useItemInput, type PlayerGender } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { runPool } from '../pool.js';
 import { runTypeProgress } from '../progress.js';
@@ -70,7 +70,7 @@ export const runRouter = router({
     // First, as settling a battle that beat the run adds its EXP to the account.
     const run = await latestRun(ctx.user.id);
     const [user, decks] = await Promise.all([
-      prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { exp: true, bank: true, lastDeckId: true } }),
+      prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { exp: true, bank: true, lastDeckId: true, playerGender: true } }),
       prisma.deck.findMany({
         where: { ownerId: ctx.user.id },
         include: { cards: { include: { card: { select: { name: true, kind: true, stage: true, data: true } } } } },
@@ -84,6 +84,8 @@ export const runRouter = router({
     const runDeck = run && decks.find((d) => d.runId === run.id);
     return {
       account: { exp: user.exp, bank: user.bank },
+      // The player's sprite on the run maps (the Inventory's choice).
+      playerGender: (user.playerGender === 'female' ? 'female' : 'male') as PlayerGender,
       // The deck played most recently, the new run's deck to start with (the client falls back to the top deck when it's gone).
       lastDeckId: user.lastDeckId,
       run: run && (await clientRun(run)),
@@ -260,10 +262,11 @@ export const runRouter = router({
       prisma.inventoryItem.findMany({ where: { userId: ctx.user.id, quantity: { gt: 0 } } }),
       prisma.equipment.findMany({ where: { userId: ctx.user.id } }),
       prisma.cardUnlock.aggregate({ where: { userId: ctx.user.id }, _sum: { quantity: true }, _count: true }),
-      prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { trainerSprite: true, pendingConsumables: true } }),
+      prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { trainerSprite: true, playerGender: true, pendingConsumables: true } }),
     ]);
     return {
       trainerSprite: user.trainerSprite ?? DEFAULT_TRAINER_SPRITE,
+      playerGender: (user.playerGender === 'female' ? 'female' : 'male') as PlayerGender,
       // Consumables used between runs, waiting for the next one (item ids).
       pendingConsumables: user.pendingConsumables,
       items: items.flatMap((i) => (ITEMS[i.itemId] ? [{ ...item(i.itemId), quantity: i.quantity }] : [])),
@@ -275,6 +278,12 @@ export const runRouter = router({
   /** Sets the account's trainer sprite (the Inventory's trainer), one of Showdown's (TRAINER_SPRITES). */
   setTrainerSprite: protectedProcedure.input(trainerSpriteInput).mutation(async ({ ctx, input }) => {
     await prisma.user.update({ where: { id: ctx.user.id }, data: { trainerSprite: input.sprite } });
+    return { ok: true };
+  }),
+
+  /** Sets the player's sprite on the run maps: the boy (Red, Ethan, Brendan) or the girl (Leaf, Lyra, May). */
+  setPlayerGender: protectedProcedure.input(playerGenderInput).mutation(async ({ ctx, input }) => {
+    await prisma.user.update({ where: { id: ctx.user.id }, data: { playerGender: input.gender === 'female' ? 'female' : null } });
     return { ok: true };
   }),
 

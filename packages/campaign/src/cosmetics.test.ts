@@ -30,9 +30,12 @@ describe('cosmetics', () => {
     expect(missing).toEqual([]);
   });
 
-  it('two sleeves behind each Gym Challenge and Champion run', () => {
-    for (const run of ['kantoGyms', 'kantoChampion', 'johtoGyms', 'johtoChampion'])
-      expect(Object.values(COSMETICS).filter((c) => c.id.startsWith('sleeve-') && c.unlock.type === 'beat' && c.unlock.runType === run)).toHaveLength(2);
+  it("a foil card back and two sleeves behind each Gym Challenge and Champion run, every region's", () => {
+    for (const run of ['kantoGyms', 'kantoChampion', 'johtoGyms', 'johtoChampion', 'hoennGyms', 'hoennChampion']) {
+      const behind = Object.values(COSMETICS).filter((c) => c.kind === 'cardBack' && c.unlock.type === 'beat' && c.unlock.runType === run);
+      expect(behind.filter((c) => c.id.startsWith('sleeve-')), run).toHaveLength(2);
+      expect(behind.filter((c) => !c.id.startsWith('sleeve-')), run).toHaveLength(1);
+    }
   });
 
   it('unlocks name real run types, and each kind has its default', () => {

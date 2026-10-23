@@ -1,6 +1,6 @@
 // Deck lists: the starter deck, gym leaders' decks, and random medium-strength decks for the other trainers.
 import { isBasicPokemon, isPokemonCard, type CardDef, type EnergyType, type PokemonCardDef } from '@poke-tcg/game-engine';
-import { BASIC_ENERGY, DOUBLE_COLORLESS, GEN2_BASIC_ENERGY, nameKey, type PoolCard } from './pool.js';
+import { BASIC_ENERGY, DOUBLE_COLORLESS, GEN2_BASIC_ENERGY, GEN3_BASIC_ENERGY, nameKey, type PoolCard } from './pool.js';
 import { between, chance, pick, sample, type Rng } from './random.js';
 
 /** [card id, copies] */
@@ -188,6 +188,47 @@ const GEN2_GYM_LEADER_TRAINERS: [string, number][] = [
   ['Seer', 1],
 ];
 
+/**
+ * Gen 3's Trainers for random decks, from the EX sets, by what they do (draw, search, healing, switching), as Gen 1's and
+ * 2's: the core and extras ones the Trainer CPU plays, the gym leader's extras with disruption on top (and Rare Candy, Gen 3's
+ * Pokémon Breeder, with a Stage 2 line).
+ */
+const GEN3_CORE_TRAINERS: [string, number][] = [
+  ['Professor Birch', 2],
+  ["Steven's Advice", 1],
+  ['Potion', 2],
+  ['Switch', 2],
+];
+const GEN3_EXTRA_TRAINERS: [string, number][] = [
+  ['Great Ball', 2],
+  ['Poké Ball', 1],
+  ['Master Ball', 1],
+  ['Dual Ball', 1],
+  ['Energy Search', 1],
+  ['Energy Restore', 1],
+  ['Energy Switch', 1],
+  ["Lanette's Net Search", 1],
+  ['TV Reporter', 1],
+  ["Celio's Network", 1],
+  ['Oran Berry', 2],
+  ['Lum Berry', 1],
+  ['Sitrus Berry', 1],
+  ['Double Full Heal', 1],
+  ['Buffer Piece', 1],
+  ['Copycat', 1],
+];
+const GEN3_GYM_LEADER_TRAINERS: [string, number][] = [
+  ['Energy Removal 2', 2],
+  ['Pokémon Reversal', 1],
+  ['Warp Point', 1],
+  ['Super Scoop Up', 1],
+  ['Strength Charm', 1],
+  ['Scott', 1],
+  ['Life Herb', 1],
+  ['Protective Orb', 1],
+  ['Windstorm', 1],
+];
+
 /** Special Energy for random decks: Colorless-heavy decks take the `colorless` ones, two-type decks the `twoTypes` ones. */
 type SpecialEnergy = [name: string, copies: number, when: 'colorless' | 'twoTypes'];
 
@@ -213,31 +254,33 @@ export interface DeckRules {
 
 /**
  * The Pokémon each kind of trainer favours, by the class in their name ("Swimmer" in "Swimmer Luis"), after
- * the Generation I and II games (each list's Kanto Pokémon, then its Johto ones): their decks are built from these lines
+ * the Generation I, II and III games (each list's Kanto Pokémon, then its Johto ones, then its Hoenn ones): their decks are built from these lines
  * first (generateDeck's `favorites`), as far as the generation's pool has them.
  */
 const TRAINER_FAVORITES: Record<string, string[]> = {
-  Youngster: ['Rattata', 'Raticate', 'Ekans', 'Arbok', 'Spearow', 'Fearow', 'Sandshrew', 'Sandslash', 'Nidoran♂', 'Nidorino', 'Sentret', 'Furret', 'Hoothoot', 'Wooper', 'Quagsire'],
-  Lass: ['Nidoran♀', 'Nidorina', 'Jigglypuff', 'Wigglytuff', 'Clefairy', 'Clefable', 'Oddish', 'Gloom', 'Pidgey', 'Meowth', 'Snubbull', 'Marill', 'Hoppip', 'Togepi', 'Cleffa', 'Igglybuff'],
-  'Bug Catcher': ['Caterpie', 'Metapod', 'Butterfree', 'Weedle', 'Kakuna', 'Beedrill', 'Venonat', 'Venomoth', 'Paras', 'Parasect', 'Scyther', 'Pinsir', 'Ledyba', 'Ledian', 'Spinarak', 'Ariados', 'Yanma', 'Pineco', 'Forretress', 'Shuckle', 'Heracross'],
-  Hiker: ['Geodude', 'Graveler', 'Golem', 'Onix', 'Machop', 'Machoke', 'Machamp', 'Rhyhorn', 'Rhydon', 'Diglett', 'Dugtrio', 'Cubone', 'Marowak', 'Sudowoodo', 'Phanpy', 'Donphan', 'Larvitar', 'Pupitar', 'Teddiursa', 'Ursaring', 'Swinub', 'Piloswine'],
-  Picnicker: ['Pidgey', 'Pidgeotto', 'Oddish', 'Gloom', 'Bellsprout', 'Weepinbell', 'Pikachu', 'Raichu', 'Meowth', 'Persian', 'Hoppip', 'Skiploom', 'Jumpluff', 'Marill', 'Azumarill', 'Sentret', 'Furret'],
-  Camper: ['Sandshrew', 'Sandslash', 'Mankey', 'Primeape', 'Ekans', 'Arbok', 'Nidoran♂', 'Nidorino', 'Charmander', 'Charmeleon', 'Squirtle', 'Wartortle', 'Phanpy', 'Donphan', 'Cyndaquil', 'Quilava', 'Totodile', 'Croconaw', 'Chikorita', 'Bayleef'],
-  'Super Nerd': ['Magnemite', 'Magneton', 'Voltorb', 'Electrode', 'Grimer', 'Muk', 'Koffing', 'Weezing', 'Vulpix', 'Ninetales', 'Porygon', 'Mareep', 'Flaaffy', 'Ampharos', 'Porygon2', 'Slugma', 'Magcargo', 'Unown'],
-  Swimmer: ['Tentacool', 'Tentacruel', 'Psyduck', 'Golduck', 'Horsea', 'Seadra', 'Staryu', 'Starmie', 'Goldeen', 'Seaking', 'Shellder', 'Cloyster', 'Seel', 'Dewgong', 'Chinchou', 'Lanturn', 'Marill', 'Azumarill', 'Qwilfish', 'Mantine', 'Corsola', 'Remoraid', 'Octillery'],
-  Fisherman: ['Magikarp', 'Gyarados', 'Goldeen', 'Seaking', 'Poliwag', 'Poliwhirl', 'Poliwrath', 'Krabby', 'Kingler', 'Shellder', 'Cloyster', 'Chinchou', 'Lanturn', 'Qwilfish', 'Remoraid', 'Octillery', 'Wooper', 'Quagsire'],
-  Beauty: ['Oddish', 'Gloom', 'Vileplume', 'Bellsprout', 'Weepinbell', 'Victreebel', 'Exeggcute', 'Exeggutor', 'Clefairy', 'Clefable', 'Jigglypuff', 'Wigglytuff', 'Snubbull', 'Granbull', 'Bellossom', 'Sunkern', 'Sunflora', 'Togepi', 'Togetic'],
-  Gentleman: ['Growlithe', 'Arcanine', 'Ponyta', 'Rapidash', 'Meowth', 'Persian', 'Pikachu', 'Raichu', 'Houndour', 'Houndoom', 'Snubbull', 'Granbull', 'Stantler'],
-  Biker: ['Koffing', 'Weezing', 'Grimer', 'Muk', 'Voltorb', 'Electrode', 'Ponyta', 'Rapidash', 'Slugma', 'Magcargo', 'Houndour', 'Houndoom'],
-  Juggler: ['Abra', 'Kadabra', 'Alakazam', 'Drowzee', 'Hypno', 'Mr. Mime', 'Voltorb', 'Electrode', 'Natu', 'Xatu', 'Girafarig', 'Wobbuffet'],
-  Rocker: ['Voltorb', 'Electrode', 'Magnemite', 'Magneton', 'Pikachu', 'Raichu', 'Electabuzz', 'Jolteon', 'Mareep', 'Flaaffy', 'Ampharos', 'Elekid'],
-  Gambler: ['Meowth', 'Persian', 'Growlithe', 'Arcanine', 'Poliwag', 'Poliwhirl', 'Horsea', 'Seadra', 'Aipom', 'Murkrow', 'Sneasel'],
-  Sailor: ['Machop', 'Machoke', 'Machamp', 'Tentacool', 'Tentacruel', 'Shellder', 'Cloyster', 'Horsea', 'Seadra', 'Staryu', 'Starmie', 'Chinchou', 'Lanturn', 'Mantine', 'Tyrogue', 'Hitmontop'],
-  Psychic: ['Abra', 'Kadabra', 'Alakazam', 'Slowpoke', 'Slowbro', 'Drowzee', 'Hypno', 'Mr. Mime', 'Jynx', 'Exeggcute', 'Exeggutor', 'Natu', 'Xatu', 'Espeon', 'Girafarig', 'Smoochum', 'Wobbuffet', 'Misdreavus'],
-  'Black Belt': ['Machop', 'Machoke', 'Machamp', 'Mankey', 'Primeape', 'Hitmonlee', 'Hitmonchan', 'Geodude', 'Graveler', 'Onix', 'Tyrogue', 'Hitmontop', 'Heracross', 'Teddiursa', 'Ursaring'],
+  Youngster: ['Rattata', 'Raticate', 'Ekans', 'Arbok', 'Spearow', 'Fearow', 'Sandshrew', 'Sandslash', 'Nidoran♂', 'Nidorino', 'Sentret', 'Furret', 'Hoothoot', 'Wooper', 'Quagsire', 'Zigzagoon', 'Linoone', 'Poochyena', 'Mightyena', 'Taillow', 'Shroomish', 'Whismur', 'Electrike', 'Seedot'],
+  Lass: ['Nidoran♀', 'Nidorina', 'Jigglypuff', 'Wigglytuff', 'Clefairy', 'Clefable', 'Oddish', 'Gloom', 'Pidgey', 'Meowth', 'Snubbull', 'Marill', 'Hoppip', 'Togepi', 'Cleffa', 'Igglybuff', 'Skitty', 'Delcatty', 'Azurill', 'Roselia', 'Shroomish', 'Plusle', 'Minun', 'Lotad'],
+  'Bug Catcher': ['Caterpie', 'Metapod', 'Butterfree', 'Weedle', 'Kakuna', 'Beedrill', 'Venonat', 'Venomoth', 'Paras', 'Parasect', 'Scyther', 'Pinsir', 'Ledyba', 'Ledian', 'Spinarak', 'Ariados', 'Yanma', 'Pineco', 'Forretress', 'Shuckle', 'Heracross', 'Wurmple', 'Silcoon', 'Beautifly', 'Cascoon', 'Dustox', 'Nincada', 'Ninjask', 'Shedinja', 'Surskit', 'Masquerain', 'Volbeat', 'Illumise'],
+  Hiker: ['Geodude', 'Graveler', 'Golem', 'Onix', 'Machop', 'Machoke', 'Machamp', 'Rhyhorn', 'Rhydon', 'Diglett', 'Dugtrio', 'Cubone', 'Marowak', 'Sudowoodo', 'Phanpy', 'Donphan', 'Larvitar', 'Pupitar', 'Teddiursa', 'Ursaring', 'Swinub', 'Piloswine', 'Nosepass', 'Aron', 'Lairon', 'Aggron', 'Numel', 'Camerupt', 'Makuhita', 'Hariyama', 'Baltoy', 'Claydol', 'Trapinch', 'Torkoal', 'Relicanth'],
+  Picnicker: ['Pidgey', 'Pidgeotto', 'Oddish', 'Gloom', 'Bellsprout', 'Weepinbell', 'Pikachu', 'Raichu', 'Meowth', 'Persian', 'Hoppip', 'Skiploom', 'Jumpluff', 'Marill', 'Azumarill', 'Sentret', 'Furret', 'Skitty', 'Delcatty', 'Zigzagoon', 'Linoone', 'Swablu', 'Altaria', 'Lotad', 'Lombre', 'Roselia'],
+  Camper: ['Sandshrew', 'Sandslash', 'Mankey', 'Primeape', 'Ekans', 'Arbok', 'Nidoran♂', 'Nidorino', 'Charmander', 'Charmeleon', 'Squirtle', 'Wartortle', 'Phanpy', 'Donphan', 'Cyndaquil', 'Quilava', 'Totodile', 'Croconaw', 'Chikorita', 'Bayleef', 'Zigzagoon', 'Linoone', 'Torchic', 'Combusken', 'Treecko', 'Grovyle', 'Mudkip', 'Marshtomp', 'Spinda', 'Taillow', 'Swellow'],
+  'Super Nerd': ['Magnemite', 'Magneton', 'Voltorb', 'Electrode', 'Grimer', 'Muk', 'Koffing', 'Weezing', 'Vulpix', 'Ninetales', 'Porygon', 'Mareep', 'Flaaffy', 'Ampharos', 'Porygon2', 'Slugma', 'Magcargo', 'Unown', 'Electrike', 'Manectric', 'Plusle', 'Minun', 'Baltoy', 'Claydol', 'Beldum', 'Metang'],
+  Swimmer: ['Tentacool', 'Tentacruel', 'Psyduck', 'Golduck', 'Horsea', 'Seadra', 'Staryu', 'Starmie', 'Goldeen', 'Seaking', 'Shellder', 'Cloyster', 'Seel', 'Dewgong', 'Chinchou', 'Lanturn', 'Marill', 'Azumarill', 'Qwilfish', 'Mantine', 'Corsola', 'Remoraid', 'Octillery', 'Wingull', 'Pelipper', 'Carvanha', 'Sharpedo', 'Wailmer', 'Wailord', 'Corphish', 'Crawdaunt', 'Spheal', 'Sealeo', 'Luvdisc', 'Clamperl'],
+  Fisherman: ['Magikarp', 'Gyarados', 'Goldeen', 'Seaking', 'Poliwag', 'Poliwhirl', 'Poliwrath', 'Krabby', 'Kingler', 'Shellder', 'Cloyster', 'Chinchou', 'Lanturn', 'Qwilfish', 'Remoraid', 'Octillery', 'Wooper', 'Quagsire', 'Tentacool', 'Tentacruel', 'Wailmer', 'Barboach', 'Whiscash', 'Corphish', 'Carvanha', 'Feebas', 'Luvdisc'],
+  Beauty: ['Oddish', 'Gloom', 'Vileplume', 'Bellsprout', 'Weepinbell', 'Victreebel', 'Exeggcute', 'Exeggutor', 'Clefairy', 'Clefable', 'Jigglypuff', 'Wigglytuff', 'Snubbull', 'Granbull', 'Bellossom', 'Sunkern', 'Sunflora', 'Togepi', 'Togetic', 'Roselia', 'Skitty', 'Delcatty', 'Wingull', 'Milotic', 'Luvdisc'],
+  Gentleman: ['Growlithe', 'Arcanine', 'Ponyta', 'Rapidash', 'Meowth', 'Persian', 'Pikachu', 'Raichu', 'Houndour', 'Houndoom', 'Snubbull', 'Granbull', 'Stantler', 'Zigzagoon', 'Linoone', 'Mightyena', 'Absol', 'Spinda', 'Kecleon'],
+  Biker: ['Koffing', 'Weezing', 'Grimer', 'Muk', 'Voltorb', 'Electrode', 'Ponyta', 'Rapidash', 'Slugma', 'Magcargo', 'Houndour', 'Houndoom', 'Carvanha', 'Sharpedo', 'Gulpin', 'Swalot'],
+  Juggler: ['Abra', 'Kadabra', 'Alakazam', 'Drowzee', 'Hypno', 'Mr. Mime', 'Voltorb', 'Electrode', 'Natu', 'Xatu', 'Girafarig', 'Wobbuffet', 'Spoink', 'Grumpig', 'Chimecho', 'Ralts', 'Kirlia', 'Gardevoir'],
+  Rocker: ['Voltorb', 'Electrode', 'Magnemite', 'Magneton', 'Pikachu', 'Raichu', 'Electabuzz', 'Jolteon', 'Mareep', 'Flaaffy', 'Ampharos', 'Elekid', 'Electrike', 'Manectric', 'Whismur', 'Loudred', 'Exploud', 'Plusle', 'Minun'],
+  Gambler: ['Meowth', 'Persian', 'Growlithe', 'Arcanine', 'Poliwag', 'Poliwhirl', 'Horsea', 'Seadra', 'Aipom', 'Murkrow', 'Sneasel', 'Spinda', 'Kecleon', 'Sableye', 'Mawile', 'Zangoose', 'Seviper'],
+  Sailor: ['Machop', 'Machoke', 'Machamp', 'Tentacool', 'Tentacruel', 'Shellder', 'Cloyster', 'Horsea', 'Seadra', 'Staryu', 'Starmie', 'Chinchou', 'Lanturn', 'Mantine', 'Tyrogue', 'Hitmontop', 'Wingull', 'Pelipper', 'Makuhita', 'Hariyama', 'Wailmer'],
+  Psychic: ['Abra', 'Kadabra', 'Alakazam', 'Slowpoke', 'Slowbro', 'Drowzee', 'Hypno', 'Mr. Mime', 'Jynx', 'Exeggcute', 'Exeggutor', 'Natu', 'Xatu', 'Espeon', 'Girafarig', 'Smoochum', 'Wobbuffet', 'Misdreavus', 'Ralts', 'Kirlia', 'Gardevoir', 'Spoink', 'Grumpig', 'Lunatone', 'Solrock', 'Baltoy', 'Claydol', 'Chimecho', 'Wynaut', 'Meditite', 'Medicham'],
+  'Black Belt': ['Machop', 'Machoke', 'Machamp', 'Mankey', 'Primeape', 'Hitmonlee', 'Hitmonchan', 'Geodude', 'Graveler', 'Onix', 'Tyrogue', 'Hitmontop', 'Heracross', 'Teddiursa', 'Ursaring', 'Makuhita', 'Hariyama', 'Meditite', 'Medicham'],
   // Team Rocket's grunts (the Power Plant): their usual Pokémon, of many types, so each grunt's deck is a different mix.
-  'Rocket Grunt': ['Rattata', 'Raticate', 'Zubat', 'Golbat', 'Ekans', 'Arbok', 'Koffing', 'Weezing', 'Grimer', 'Muk', 'Drowzee', 'Hypno', 'Machop', 'Machoke', 'Sandshrew', 'Sandslash', 'Cubone', 'Marowak', 'Meowth', 'Persian', 'Houndour', 'Murkrow'],
-  'Bird Keeper': ['Pidgey', 'Pidgeotto', 'Pidgeot', 'Spearow', 'Fearow', 'Doduo', 'Dodrio', "Farfetch'd", 'Zubat', 'Golbat', 'Hoothoot', 'Noctowl', 'Natu', 'Xatu', 'Murkrow', 'Skarmory', 'Delibird'],
+  'Rocket Grunt': ['Rattata', 'Raticate', 'Zubat', 'Golbat', 'Ekans', 'Arbok', 'Koffing', 'Weezing', 'Grimer', 'Muk', 'Drowzee', 'Hypno', 'Machop', 'Machoke', 'Sandshrew', 'Sandslash', 'Cubone', 'Marowak', 'Meowth', 'Persian', 'Houndour', 'Murkrow', 'Poochyena', 'Mightyena', 'Carvanha', 'Sharpedo', 'Numel', 'Camerupt'],
+  'Bird Keeper': ['Pidgey', 'Pidgeotto', 'Pidgeot', 'Spearow', 'Fearow', 'Doduo', 'Dodrio', "Farfetch'd", 'Zubat', 'Golbat', 'Hoothoot', 'Noctowl', 'Natu', 'Xatu', 'Murkrow', 'Skarmory', 'Delibird', 'Taillow', 'Swellow', 'Wingull', 'Pelipper', 'Swablu', 'Altaria', 'Tropius'],
+  // The Seaside Cycling Road's Triathletes (Route 110, the Mauville City run): riding Pokémon, birds and Electric ones.
+  Triathlete: ['Doduo', 'Dodrio', 'Ponyta', 'Rapidash', 'Wingull', 'Pelipper', 'Taillow', 'Swellow', 'Electrike', 'Manectric', 'Magnemite', 'Magneton', 'Zigzagoon', 'Linoone'],
 };
 
 export const GEN1_DECK_RULES: DeckRules = {
@@ -260,6 +303,18 @@ export const GEN2_DECK_RULES: DeckRules = {
   gymLeaderExtra: GEN2_GYM_LEADER_TRAINERS,
   special: [['Recycle Energy', 2, 'colorless'], ['Rainbow Energy', 1, 'twoTypes']],
   gymLeaderSpecial: [['Boost Energy', 1, 'colorless'], ['Warp Energy', 1, 'colorless']],
+  owners: {},
+  types: {},
+};
+
+export const GEN3_DECK_RULES: DeckRules = {
+  basicEnergy: GEN3_BASIC_ENERGY,
+  core: GEN3_CORE_TRAINERS,
+  extra: GEN3_EXTRA_TRAINERS,
+  gymLeaderExtra: GEN3_GYM_LEADER_TRAINERS,
+  special: [['Multi Energy', 1, 'twoTypes'], ['Heal Energy', 1, 'colorless']],
+  gymLeaderSpecial: [['Boost Energy', 1, 'colorless'], ['Double Rainbow Energy', 1, 'twoTypes']],
+  breeder: 'Rare Candy',
   owners: {},
   types: {},
 };

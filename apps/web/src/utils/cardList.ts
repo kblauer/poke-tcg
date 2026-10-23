@@ -1,7 +1,7 @@
 // Catalog cards in the browser (the whole catalog is loaded once): the `CatalogCard` type, types and stages, and
 // the search and unlocked/locked filters the deck builder uses.
 import type { AppRouter } from '@poke-tcg/api/router';
-import { GENERATIONS, PACK_GENERATIONS } from '@poke-tcg/campaign';
+import { GENERATIONS } from '@poke-tcg/campaign';
 import type { inferRouterOutputs } from '@trpc/server';
 
 export type CatalogCard = inferRouterOutputs<AppRouter>['cards']['list'][number];
@@ -43,14 +43,12 @@ export interface SetGroup {
 }
 
 /**
- * The sets by generation (GENERATIONS' `poolSets`, then Gen 3's EX sets), each in release order; sets in no generation
+ * The sets by generation (GENERATIONS' `poolSets`), each in release order; sets in no generation
  * (the promos) last, under Other.
  */
 export function setGroups(cards: CatalogCard[]): SetGroup[] {
   const ids = new Map(cards.map((c) => [c.setName, c.setId]));
   const groups = Object.entries(GENERATIONS).map(([id, g]) => ({ label: `Gen ${id} · ${g.region}`, sets: setNames(cards).filter((s) => g.poolSets.includes(ids.get(s)!)) }));
-  // Gen 3 (the EX sets): no runs yet, so by its packs.
-  groups.push({ label: `Gen 3 · ${PACK_GENERATIONS[3]!.region}`, sets: setNames(cards).filter((s) => PACK_GENERATIONS[3]!.packs.includes(ids.get(s)!)) });
   const other = setNames(cards).filter((s) => !groups.some((g) => g.sets.includes(s)));
   return [...groups, ...(other.length ? [{ label: 'Other', sets: other }] : [])].filter((g) => g.sets.length);
 }

@@ -6,7 +6,7 @@ import DiamondIcon from '@mui/icons-material/Diamond';
 import FaceIcon from '@mui/icons-material/Face';
 import HikingIcon from '@mui/icons-material/Hiking';
 import { EQUIP_SLOTS, fitsSlot, itemText, SLOT_LABELS, type EquipSlot, type EquipType, type ItemDef } from '@poke-tcg/campaign';
-import { trainerSpriteUrl, type TrainerSprite } from '@poke-tcg/shared';
+import { trainerSpriteUrl, type PlayerGender, type TrainerSprite } from '@poke-tcg/shared';
 import { useEffect, useState, type ComponentType } from 'react';
 import { ItemIcon } from './ItemIcon';
 import { spriteLabel, TrainerSpritePicker } from './TrainerSpritePicker';
@@ -54,6 +54,8 @@ export function EquipmentPanel({
   onEquip,
   sprite,
   onSprite,
+  gender,
+  onGender,
 }: {
   items: OwnedItem[];
   equipment: Record<EquipSlot, string | null>;
@@ -62,6 +64,9 @@ export function EquipmentPanel({
   /** The account's trainer sprite, and setting it. */
   sprite: string;
   onSprite: (sprite: TrainerSprite) => void;
+  /** The player's sprite on the run maps (the boy or the girl), and setting it. */
+  gender: PlayerGender;
+  onGender: (gender: PlayerGender) => void;
 }) {
   const [picking, setPicking] = useState(false);
   const gear = items.filter((i) => i.category === 'equipment');
@@ -150,15 +155,29 @@ export function EquipmentPanel({
               })}
             </ul>
           </div>
-          <button
-            className="w-full rounded bg-slate-600 px-3 py-1.5 text-sm transition hover:bg-slate-500"
-            onClick={(e) => {
-              e.stopPropagation();
-              setPicking(true);
-            }}
-          >
-            Change trainer <span className="text-slate-300">({spriteLabel(sprite)})</span>
-          </button>
+          {/* Change trainer, and beside it the player's sprite on the run maps (each game's boy or girl). */}
+          <div className="flex gap-2">
+            <button
+              className="min-w-0 flex-1 truncate rounded bg-slate-600 px-3 py-1.5 text-sm transition hover:bg-slate-500"
+              onClick={(e) => {
+                e.stopPropagation();
+                setPicking(true);
+              }}
+            >
+              Change trainer <span className="text-slate-300">({spriteLabel(sprite)})</span>
+            </button>
+            <select
+              value={gender}
+              title="Your sprite on the run maps"
+              aria-label="Your sprite on the run maps"
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => onGender(e.target.value as PlayerGender)}
+              className="shrink-0 rounded bg-slate-600 px-2 py-1.5 text-sm transition hover:bg-slate-500"
+            >
+              <option value="male">Boy (Red, Ethan, Brendan)</option>
+              <option value="female">Girl (Leaf, Lyra, May)</option>
+            </select>
+          </div>
           {picking && (
             <TrainerSpritePicker
               current={sprite}

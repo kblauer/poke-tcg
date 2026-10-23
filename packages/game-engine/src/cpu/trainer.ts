@@ -79,7 +79,7 @@ export function trainerCpu(state: GameState, cpuId: PlayerId): GameAction | null
 
 /**
  * The Trainers it plays besides its own rules (agreed with the user: the Trainer CPU gets the simple ones, by nameKey).
- * Gen 1 first, then Gen 2.
+ * Gen 1 first, then Gen 2, then Gen 3.
  */
 export const TRAINER_CPU_PLAYS = new Set([
   'fullheal', 'energyretrieval', 'energysearch', 'pokeball', 'maintenance', 'revive', 'pokemontrader', 'brock', 'erika',
@@ -88,13 +88,15 @@ export const TRAINER_CPU_PLAYS = new Set([
   'goldberry', 'miracleberry', 'focusband', 'hyperpotion', 'superenergyretrieval', 'copycat', 'marysimpulse',
   'pokemonfanclub', 'professorelmstrainingmethod', 'dualball', 'fastball', 'energyswitch', 'healingberry',
   'billsmaintenance', 'energyrestore',
+  'professorbirch', 'stevensadvice', 'greatball', 'lanettesnetsearch', 'tvreporter', 'celiosnetwork', 'oranberry', 'lumberry',
+  'sitrusberry', 'doublefullheal', 'bufferpiece',
 ]);
 
 /** The Trainers its own rules play (steps 1, 3, 4 and 5), by nameKey. */
 export const TRAINER_CPU_RULES = new Set(['bill', 'professoroak', 'potion', 'superpotion', 'switch']);
 
 /** The special Energy it attaches besides Double Colorless, by nameKey. */
-export const TRAINER_CPU_ENERGY = new Set(['potionenergy', 'fullhealenergy', 'rainbowenergy', 'recycleenergy']);
+export const TRAINER_CPU_ENERGY = new Set(['potionenergy', 'fullhealenergy', 'rainbowenergy', 'recycleenergy', 'multienergy', 'healenergy']);
 
 const ALLOWED: Allowed = { trainers: (key) => TRAINER_CPU_PLAYS.has(key) };
 
