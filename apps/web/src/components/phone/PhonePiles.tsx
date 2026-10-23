@@ -20,7 +20,7 @@ function Count({ children }: { children: ReactNode }) {
 /** A face-down stack with a few offset shadows, or a dashed spot when it's empty. `mine`: the player's, in their card back. */
 function Stack({ count, mine }: { count: number; mine: boolean }) {
   return count > 0 ? (
-    <CardBack mine={mine} className={count > 1 ? 'shadow-[2px_2px_0_#0f172a,3px_3px_0_#334155]' : ''} />
+    <CardBack mine={mine} className={count > 1 ? 'shadow-[2px_2px_0_var(--color-slate-900),3px_3px_0_var(--color-slate-700)]' : ''} />
   ) : (
     <div className="aspect-[63/88] rounded-md border-2 border-dashed border-slate-700" />
   );

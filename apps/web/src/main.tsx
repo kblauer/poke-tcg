@@ -13,6 +13,8 @@ import { StrictMode, useCallback, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
 import './styles/holo/index.css';
+// Puts the saved colour theme on before the first render.
+import './hooks/useColorTheme';
 import { AccountMenu } from './components/AccountMenu';
 import { CardInspectProvider } from './components/CardInspectProvider';
 import { MusicControls, MusicProvider } from './components/MusicPlayer';

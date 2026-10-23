@@ -4,6 +4,7 @@ import { AccountNameField } from '../components/AccountMenu';
 import { useMusicSettings } from '../components/MusicPlayer';
 import { OptionsPanel } from '../components/OptionsPanel';
 import { PageHeader } from '../components/PageHeader';
+import { ThemePicker } from '../components/ThemePicker';
 import { useSkipFlips } from '../hooks/useSkipFlips';
 import { PAGE_WIDTH } from '../utils/layout';
 
@@ -17,9 +18,9 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 /**
- * The Settings page (`/settings`, under Practice in the site's menu): the account's name, and the battle options also in
- * the board's side panel (OptionsPanel, and skipping coin flip animations, as the game log's checkbox does), and the music
- * player's auto play and its soundtrack.
+ * The Settings page (`/settings`, under Practice in the site's menu): the account's name, the colour theme (`ThemePicker`),
+ * the battle options also in the board's side panel (OptionsPanel, and skipping coin flip animations, as the game log's
+ * checkbox does), and the music player's auto play and its soundtrack.
  */
 export function SettingsPage() {
   const [skipFlips, setSkipFlips] = useSkipFlips();
@@ -30,6 +31,9 @@ export function SettingsPage() {
       <div className="grid max-w-3xl gap-4">
         <Section title="Account">
           <AccountNameField label="Name" />
+        </Section>
+        <Section title="Theme">
+          <ThemePicker />
         </Section>
         <Section title="Battles">
           <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300">

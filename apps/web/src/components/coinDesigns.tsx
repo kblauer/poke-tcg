@@ -66,7 +66,7 @@ function letterFace(letter: string, gradient: string) {
 
 export const COIN_DESIGNS: Record<string, CoinDesign> = {
   'coin-classic': {
-    heads: letterFace('H', 'bg-gradient-to-br from-yellow-200 via-yellow-400 to-amber-600'),
+    heads: letterFace('H', 'bg-gradient-to-br from-amber-100 via-amber-300 to-amber-600'),
     tails: letterFace('T', 'bg-gradient-to-br from-slate-200 via-slate-400 to-slate-600'),
     rim: '#a16207',
   },
