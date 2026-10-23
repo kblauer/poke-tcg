@@ -105,7 +105,11 @@ export function NewRunPicker({ overview: given, run, title, defaultType }: { ove
   const debugLocked = new Set(unlockAll ? given.runTypes.filter((t) => t.locked !== null).map((t) => t.id) : []);
   const overview = unlockAll ? { ...given, runTypes: given.runTypes.map((t) => ({ ...t, locked: null })) } : given;
   const open = overview.runTypes.filter((t) => t.locked === null);
-  const [type, setType] = useState<RunTypeId>(open.find((t) => t.id === defaultType)?.id ?? open[0]?.id ?? overview.runTypes[0]!.id);
+  // To start with: `defaultType`, else the first open run of the latest run's generation (kept with the account, as the
+  // latest run; agreed 2026-10-23), else the first open run.
+  const lastGen = overview.run ? RUN_TYPES[overview.run.view.type].generation : null;
+  const inLastGen = open.find((t) => RUN_TYPES[t.id].generation === lastGen) ?? overview.runTypes.find((t) => RUN_TYPES[t.id].generation === lastGen);
+  const [type, setType] = useState<RunTypeId>(open.find((t) => t.id === defaultType)?.id ?? inLastGen?.id ?? open[0]?.id ?? overview.runTypes[0]!.id);
   // The generation dropdown shows one generation's runs at a time, starting with the picked run's.
   const generations = [...new Set(overview.runTypes.map((t) => RUN_TYPES[t.id].generation))];
   const [gen, setGen] = useState(RUN_TYPES[type].generation);

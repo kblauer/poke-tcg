@@ -185,7 +185,7 @@ function RunBattleMusic() {
   return null;
 }
 
-/** Auto play during a Practice battle: its opponent's theme. */
+/** Auto play during a Training battle: its opponent's theme. */
 function PracticeMusic({ opponent, gameId }: { opponent: string | null; gameId: string }) {
   usePracticeMusic(opponent, gameId);
   return null;
@@ -230,7 +230,7 @@ function BattleBanner({ view, opponent }: { view: PlayerView; opponent: string |
 
 /**
  * Once the battle is over, centred on the play area (the Board's overlay): the result and the way back, to the run
- * for a run's battle, otherwise to the Practice tab.
+ * for a run's battle, otherwise to the Training tab.
  */
 function BattleResult({ view, opponent, run }: { view: PlayerView; opponent: string | null; run: boolean }) {
   const trpc = useTRPC();

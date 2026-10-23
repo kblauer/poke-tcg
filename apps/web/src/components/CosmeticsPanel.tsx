@@ -11,7 +11,7 @@ import { useTRPC } from '../lib/trpc';
 import { cardBackUrl } from '../utils/cardBack';
 import { CHOICE_BUTTON, DIALOG, DIALOG_BACKDROP } from '../utils/styles';
 import { SpinningCoin } from './CoinFlip';
-import type { CatalogCard } from '../utils/cardList';
+import { foldText, type CatalogCard } from '../utils/cardList';
 import { CompactDeckTile, type SavedDeck } from './DeckList';
 import { Playmat } from './Playmat';
 
@@ -236,7 +236,7 @@ function AssignDialog({
   useEscape(onClose);
   /** The name of the deck's other cosmetic of this kind, which ticking it here replaces. */
   const otherOn = (deckId: string) => list.data?.cosmetics.find((c) => c.kind === def.kind && c.deckIds.includes(deckId) && !def.deckIds.includes(deckId))?.name;
-  const shown = decks.filter((d) => d.name.toLowerCase().includes(search.trim().toLowerCase()));
+  const shown = decks.filter((d) => foldText(d.name).includes(foldText(search.trim())));
   const toggle = (id: string) => setPicked((p) => (p.has(id) ? new Set([...p].filter((x) => x !== id)) : new Set([...p, id])));
   // The built-in default stays the default until another is picked.
   const fixedDefault = def.isDefault && def.unlock.type === 'default';
