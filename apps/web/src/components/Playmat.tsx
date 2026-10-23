@@ -572,8 +572,9 @@ const PATTERNS: Record<string, Pattern<unknown>> = { dots, hex, triangles, squar
  * positioned, its content positioned above it), answering clicks on the parent's empty space (not on cards, slots or
  * buttons) with its animation. "plain" (or an unknown id) draws nothing. With reduced motion the pattern stays still.
  * Mats of the same `group` (both sides of the table) share their clicks: one on either side carries on into the other.
+ * `className` is added to its box: the phone's whole-screen mat is `-z-10`, behind the screen's content but over its background.
  */
-export function Playmat({ id, group }: { id: string; group?: string }) {
+export function Playmat({ id, group, className = '' }: { id: string; group?: string; className?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const pattern = PATTERNS[id];
   const [theme] = useColorTheme();
@@ -635,7 +636,7 @@ export function Playmat({ id, group }: { id: string; group?: string }) {
   if (!pattern) return null;
   // Clipped to the parent's rounded corners here, so the parent needn't clip its own content (the Trainer dialog).
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
+    <div aria-hidden className={`pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit] ${className}`}>
       <canvas ref={canvas} className="h-full w-full" />
     </div>
   );
