@@ -18,7 +18,7 @@ const DebugPanel = __DEBUG_BUILD__ ? lazy(() => import('./DebugPanel')) : null;
 
 // The router sets data-status="active" on the link for the current page: lit in the logo's yellow.
 const item =
-  'flex h-10 shrink-0 items-center gap-3 rounded-md px-2.5 text-slate-300 transition hover:bg-slate-800 hover:text-white data-[status=active]:bg-yellow-400/15 data-[status=active]:text-yellow-200 data-[status=active]:ring-1 data-[status=active]:ring-yellow-400/60';
+  'flex h-10 shrink-0 items-center gap-3 rounded-md px-2.5 text-slate-300 transition hover:bg-slate-800 hover:text-slate-50 data-[status=active]:bg-yellow-400/15 data-[status=active]:text-yellow-200 data-[status=active]:ring-1 data-[status=active]:ring-yellow-400/60';
 
 type LogTab = 'run' | 'game' | 'debug';
 

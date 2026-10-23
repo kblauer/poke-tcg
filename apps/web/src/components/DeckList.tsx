@@ -413,7 +413,7 @@ export function DeckList({
   const pickButton = (mode: 'copy' | 'share', label: string, title: string, icon: ReactNode, disabled: boolean) => (
     <button
       data-keep-action
-      className={`flex items-center rounded p-1 transition hover:bg-slate-700 disabled:opacity-40 ${picking === mode ? 'bg-slate-700 text-yellow-300' : 'text-slate-300 hover:text-white'}`}
+      className={`flex items-center rounded p-1 transition hover:bg-slate-700 disabled:opacity-40 ${picking === mode ? 'bg-slate-700 text-yellow-300' : 'text-slate-300 hover:text-slate-50'}`}
       onClick={() => setPicking(picking === mode ? null : mode)}
       aria-pressed={picking === mode}
       disabled={disabled}
@@ -442,7 +442,7 @@ export function DeckList({
           <AddIcon sx={{ fontSize: 20 }} />
         </button>
         {pickButton('copy', 'Copy a deck', 'Copy a deck to edit the copy', <ContentCopyIcon sx={{ fontSize: 18 }} />, decks.length === 0 || busy)}
-        <button className="flex items-center rounded p-1 text-slate-300 transition hover:bg-slate-700 hover:text-white" onClick={onImport} title="Import a deck from a deck code or a deck list" aria-label="Import">
+        <button className="flex items-center rounded p-1 text-slate-300 transition hover:bg-slate-700 hover:text-slate-50" onClick={onImport} title="Import a deck from a deck code or a deck list" aria-label="Import">
           <FileDownloadIcon sx={{ fontSize: 20 }} />
         </button>
         {pickButton('share', 'Publish to Community Decks', 'Publish a deck to Community Decks (or copy its deck code)', <PublishIcon sx={{ fontSize: 20 }} />, decks.length === 0)}

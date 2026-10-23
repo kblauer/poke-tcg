@@ -22,7 +22,7 @@
 - Code style: single quotes and long lines. Never run prettier with its default config; it reformats the whole repo.
 - Keep README.md up to date. Every new file gets a row or line in the README, and new features get a section.
 - Match the comment density, naming and idioms of the surrounding code.
-- Colour themes (Settings, `utils/themes.ts`) redefine Tailwind's `--color-slate-*` and `--color-yellow-50`…`400`: chrome colours must be slate classes (yellow 50–400 for the accent) or `var(--color-slate-…)`, never a fixed hex, or the themes miss them. Yellow 500+ stays yellow for game meaning (Paralyzed, Lightning).
+- Colour themes (Settings, `utils/themes.ts`) redefine Tailwind's `--color-slate-*` and `--color-yellow-50`…`400`: chrome colours must be slate classes (yellow 50–400 for the accent) or `var(--color-slate-…)`, never a fixed hex, or the themes miss them. Yellow 500+ stays yellow for game meaning (Paralyzed, Lightning). Light themes (`light`, agreed 2026-10-23: Start Menu) turn the shades round, so text that must stay light on slate is `text-slate-50`/`hover:text-slate-50`, never `text-white`.
 - Some files have CRLF line endings, so scripted find/replace can silently miss. Prefer exact edits.
 
 ## Checks before calling work done

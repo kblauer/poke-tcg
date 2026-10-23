@@ -22,6 +22,8 @@ function apply(id: string) {
   for (const name of ALL_VARS) style.removeProperty(name);
   if (id !== DEFAULT_THEME) for (const [name, value] of Object.entries(themeVars(findTheme(id)))) style.setProperty(name, value);
   document.documentElement.dataset.colorTheme = id;
+  // A light theme gets the browser's light controls (checkboxes, selects, inputs' spinners) too.
+  document.documentElement.style.colorScheme = findTheme(id).light ? 'light' : '';
 }
 
 // Applied as soon as this module loads (main.tsx imports it), before the first render.

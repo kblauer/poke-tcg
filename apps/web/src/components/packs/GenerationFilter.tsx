@@ -61,7 +61,7 @@ export function GenerationFilter({
     <div ref={root} className="relative">
       {icon ? (
         <button
-          className={`relative flex items-center rounded p-1 transition hover:bg-slate-700 ${open ? 'bg-slate-700 text-white' : 'text-slate-300'}`}
+          className={`relative flex items-center rounded p-1 transition hover:bg-slate-700 ${open ? 'bg-slate-700 text-slate-50' : 'text-slate-300'}`}
           onClick={() => setOpen(!open)}
           aria-expanded={open}
           aria-haspopup="listbox"

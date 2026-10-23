@@ -397,7 +397,7 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
                 // Our own, not the player's (RHAP_UI.LOOP, a crossed-out icon of its own size): grey when off, white when on.
                 <button
                   key="repeat"
-                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded transition hover:bg-slate-700 ${prefs.repeat ? 'text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded transition hover:bg-slate-700 ${prefs.repeat ? 'text-slate-50' : 'text-slate-500 hover:text-slate-300'}`}
                   onClick={() => update({ repeat: !prefs.repeat })}
                   aria-pressed={prefs.repeat}
                   title={prefs.repeat ? 'Repeat on' : 'Repeat off'}

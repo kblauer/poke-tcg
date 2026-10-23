@@ -2,7 +2,7 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useState } from 'react';
 import { useColorTheme } from '../hooks/useColorTheme';
-import { COLOR_THEMES, type ColorTheme, DEFAULT_THEME, findTheme, GENERATION_NAMES, themeVars } from '../utils/themes';
+import { COLOR_THEMES, type ColorTheme, findTheme, GENERATION_NAMES, themeVars } from '../utils/themes';
 
 /** A small picture of the app in a theme's colours: the page, a panel with a line of text, and the accent. */
 function Swatch({ theme }: { theme: ColorTheme }) {
@@ -35,7 +35,7 @@ function ThemeTile({ theme, current, onPick }: { theme: ColorTheme; current: boo
 }
 
 /**
- * The Settings page's colour themes (`COLOR_THEMES`): Slate, then an accordion per generation, the one holding the theme
+ * The Settings page's colour themes (`COLOR_THEMES`): the default row (Slate and Start Menu), then an accordion per generation, the one holding the theme
  * in use open at first (Generation 1 with Slate); a click puts one on at once and it's remembered in the browser
  * (`useColorTheme`).
  */
@@ -53,7 +53,9 @@ export function ThemePicker() {
   return (
     <div className="space-y-2">
       <div className={tiles}>
-        <ThemeTile theme={findTheme(DEFAULT_THEME)} current={current === DEFAULT_THEME} onPick={() => setTheme(DEFAULT_THEME)} />
+        {COLOR_THEMES.filter((t) => t.gen === 0).map((t) => (
+          <ThemeTile key={t.id} theme={t} current={t.id === current} onPick={() => setTheme(t.id)} />
+        ))}
       </div>
       {gens.map((gen) => {
         const themes = COLOR_THEMES.filter((t) => t.gen === gen);
@@ -61,7 +63,7 @@ export function ThemePicker() {
         const isOpen = open.has(gen);
         return (
           <div key={gen}>
-            <button type="button" className="flex w-full items-center gap-1 py-1 text-sm font-semibold text-slate-300 hover:text-white" aria-expanded={isOpen} onClick={() => toggle(gen)}>
+            <button type="button" className="flex w-full items-center gap-1 py-1 text-sm font-semibold text-slate-300 hover:text-slate-50" aria-expanded={isOpen} onClick={() => toggle(gen)}>
               {isOpen ? <ExpandLessIcon sx={{ fontSize: 18 }} /> : <ExpandMoreIcon sx={{ fontSize: 18 }} />}
               <span className="flex-1 text-left">
                 {GENERATION_NAMES[gen]} <span className="font-normal text-slate-500">({themes.length})</span>
