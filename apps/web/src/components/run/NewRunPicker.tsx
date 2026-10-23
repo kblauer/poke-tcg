@@ -1,6 +1,7 @@
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import LockIcon from '@mui/icons-material/Lock';
 import { boss, bossLabel, bossTypes, generation, RUN_TYPES, type BossId, type RunTypeId } from '@poke-tcg/campaign';
+import { typeName } from '@poke-tcg/game-engine';
 import { Link } from '@tanstack/react-router';
 import { useContext, useState } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
@@ -13,8 +14,6 @@ import { CatalogContext } from '../InspectContext';
 import { EnergyIcon } from '../EnergyIcon';
 
 type RunTypeInfo = Overview['runTypes'][number];
-
-const typeName = (t: string) => t[0]!.toUpperCase() + t.slice(1);
 
 /** A boss's overworld sprite from the remake of their game (FireRed/LeafGreen for Kanto), drawn at 3× with crisp pixels. */
 function BossSprite({ id, scale = 3 }: { id: BossId; scale?: number }) {

@@ -5,7 +5,7 @@ import { RUN_TYPE_IDS, RUN_TYPES, runType, type RunType, type RunTypeId } from '
 import { ROUTE_4 } from './kanto-routes.js';
 import { JOHTO_BOSS_ROOMS, MAHOGANY_GYM } from './johto-gyms.js';
 import { onPath, PEWTER_GYM, ROUTE_2, routePath, type Route, type RouteSpot } from './routes.js';
-import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, isBattleKind, isBossKind, MAX_CENTERS, REQUIRED_BATTLES, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, withConsumablesBefore, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
+import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, isBattleKind, isBossKind, landNear, MAX_CENTERS, REQUIRED_BATTLES, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, withConsumablesBefore, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
 import { GEN2_SETS, GEN3_SETS } from './pool.js';
 import { GEN2_TEST_POOL, GEN3_TEST_POOL, TEST_POOL } from './test-pool.js';
 
@@ -41,7 +41,7 @@ describe('createRun', () => {
     for (const step of s.steps.slice(0, 10)) {
       expect(step.options.length).toBeGreaterThanOrEqual(1);
       expect(step.options.length).toBeLessThanOrEqual(3);
-      expect(step.options.every((o) => !['gymTrainer', 'gymLeader', 'eliteFour', 'champion'].includes(o.kind))).toBe(true);
+      expect(step.options.every((o) => o.kind !== 'gymTrainer' && !isBossKind(o.kind))).toBe(true);
     }
     expect(s.steps[10]!.options).toEqual([expect.objectContaining({ kind: 'gymTrainer', label: 'Celadon Gym Trainer', boss: 'erika' })]);
     expect(s.steps[11]!.options).toEqual([{ kind: 'gymLeader', label: 'Gym Leader Erika', trainer: 'Erika', boss: 'erika' }]);
@@ -201,7 +201,7 @@ describe('createRun', () => {
 
   it("Route 20's spots with no land near (surfed, out at sea) offer only battles, those ashore only non-battle encounters", () => {
     const route = runType('cinnabar').routes![0]!;
-    const dry = route.spots.map((s) => [-3, -2, -1, 0, 1, 2, 3].some((dy) => [-3, -2, -1, 0, 1, 2, 3].some((dx) => Math.abs(dx) + Math.abs(dy) <= 3 && route.walkable[s.y + dy]?.[s.x + dx] === '.')));
+    const dry = route.spots.map((s) => landNear(route, s));
     expect(dry.some((d) => !d)).toBe(true);
     for (let seed = 1; seed <= 30; seed++) {
       createRun('cinnabar', deck, seed).steps.slice(0, 10).forEach((s, i) => {

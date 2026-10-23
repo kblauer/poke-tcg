@@ -15,6 +15,7 @@ import {
 } from '@poke-tcg/game-engine';
 import { useEffect, useState } from 'react';
 import { isMyTurn } from '../utils/turn';
+import { useEscape } from './useEscape';
 
 /**
  * Using Pokémon Powers: lists the powers of the player's Pokémon in play, and runs one by asking
@@ -32,11 +33,7 @@ export function usePower({ view, send, busy }: { view: PlayerView; send: (a: Gam
     setSelected(null);
   };
   useEffect(cancel, [view.version]);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && cancel();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  useEscape(cancel);
 
   function proceed(source: Target, choices: PowerChoices) {
     if (nextPowerChoice(situation(source), choices)) return setUsing({ source, choices });

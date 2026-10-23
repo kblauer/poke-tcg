@@ -4,8 +4,7 @@
 // not, but for Route 45's, jumped going down: `v`; people and item balls aren't in it). Every map uses HGSS's overworld
 // sprites (`sprites: 'hgss'`, 32x32). Routes 40, 42 and 44 are made up (generate_johto.py), agreed with the user.
 // Written by tools/routes/hgss/johto_routes.py.
-import { SWIMMERS } from './kanto-routes.js';
-import type { Route } from './routes.js';
+import { SWIMMERS, type Route } from './routes.js';
 
 /** Route 30: Cherrygrove City (south) up to Route 31 (north), for the Violet City run (agreed with the user). Spots along the walk from the south end, picked by the generator (the user's 13,86 not walkable). */
 export const ROUTE_30: Route = {

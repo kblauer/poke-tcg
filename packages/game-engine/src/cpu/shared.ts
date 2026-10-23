@@ -522,6 +522,12 @@ export function play(t: Turn, card: CardInstance | undefined, choices?: TrainerC
   return tryAction(t.state, t.id, action) ? action : null;
 }
 
+/** Professor Oak: only once the hand is nearly spent, and never drawing the deck down to nothing. */
+export function professorOak(t: Turn): GameAction | null {
+  const oak = trainer(t, 'professoroak');
+  return oak && t.me.hand.length - 1 <= 2 && t.me.deck.length > 7 ? play(t, oak) : null;
+}
+
 export const benched = (t: Turn) => inPlay(t.me).filter(([target]) => target !== 'active') as [number, InPlayPokemon][];
 
 /** Finishing a search: the most wanted card (see wantedCards), a Basic, an Energy that helps, or anything. Pokédex: wanted cards on top. */

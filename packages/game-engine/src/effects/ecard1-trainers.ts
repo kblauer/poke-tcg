@@ -11,7 +11,7 @@
 // Bill's Maintenance can't be played with no other card in the hand (agreed with the user).
 import { isBasicEnergy, isBasicPokemon, lookupCard, type CardDef } from '../cards.js';
 import { activeLock, discardTheirEnergy, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
-import { energyKept, trainerProof } from '../powers.js';
+import { energyKept, pokemonAt, trainerProof } from '../powers.js';
 import { energyProtected, pokemonName } from '../status.js';
 import { otherHandCards, swapActive, targetsOf, theirs, type EnergyEffect, type TrainerContext, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 import { BASE1_TRAINERS } from './base1-trainers.js';
@@ -19,7 +19,7 @@ import { FOSSIL_TRAINERS } from './fossil-trainers.js';
 import { GYM2_TRAINERS } from './gym2-trainers.js';
 import { NEO1_TRAINERS, tool } from './neo1-trainers.js';
 
-const at = (side: Pick<PlayerState, 'active' | 'bench'>, t: Target) => (t === 'active' ? side.active : side.bench[t])!;
+const at = (side: Pick<PlayerState, 'active' | 'bench'>, t: Target) => pokemonAt(side, t)!;
 const card = (s: { cards: TrainerSituation['cards'] }, defId: string): CardDef => lookupCard(s.cards, defId);
 
 /** Shuffles the player's hand into their deck (Copycat, Professor Oak's Research). */

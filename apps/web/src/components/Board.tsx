@@ -14,7 +14,9 @@ import { useWindowFill } from '../hooks/useWindowFill';
 import { benchSlotId, pendingSlot, toTarget, type SlotId } from '../utils/slots';
 import { useDebugEnabled } from '../utils/debug';
 import { useCosmetics } from '../hooks/useCosmetics';
+import { useEscape } from '../hooks/useEscape';
 import { PAGE_WIDTH } from '../utils/layout';
+import { CHOICE_BUTTON } from '../utils/styles';
 import { centerOnPointer } from '../utils/dragOverlay';
 import { isMyTurn, mustPromote, statusText } from '../utils/turn';
 import { AttackChoicePanel } from './AttackChoicePanel';
@@ -220,15 +222,11 @@ export function Board({
   useEffect(() => {
     if (cardMenu === null) return;
     const onClick = (e: MouseEvent) => !(e.target instanceof Element && e.target.closest('[data-card-menu]')) && setCardMenu(null);
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setCardMenu(null);
     // Capture phase, as above: before a click elsewhere re-renders its target away.
     window.addEventListener('click', onClick, true);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('click', onClick, true);
-      window.removeEventListener('keydown', onKey);
-    };
+    return () => window.removeEventListener('click', onClick, true);
   }, [cardMenu]);
+  useEscape(() => setCardMenu(null), cardMenu !== null);
 
   /** A Trainer card is being dragged: the whole play area is its drop target. */
   const draggingTrainer = dragging !== null && heldCard !== undefined && trainer.isTrainer(heldCard);
@@ -547,7 +545,7 @@ export function Board({
   /** Floats over the CPU's side: the Trainer being played, or Skip/Done for a choice of Pokémon that can be left (Sneak Attack can be skipped; Fairy Power is done whenever the player says so). */
   const oppDialog = pendingPick?.optional ? (
     <div className="rounded-lg bg-slate-800 p-2 ring-1 ring-slate-600">
-      <button className="rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500" disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE' })}>
+      <button className={CHOICE_BUTTON} disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE' })}>
         {pendingPick.kind === 'oppPokemon' ? 'Skip' : 'Done'}
       </button>
     </div>

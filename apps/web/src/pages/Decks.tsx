@@ -21,8 +21,8 @@ import { useTRPC } from '../lib/trpc';
 import { isVersion, setGroups, type CatalogCard } from '../utils/cardList';
 import { EMPTY_DECK_FILTER, LOCKED_DECK_PROBLEM, cantAdd, changeCount, deckSize, filterForDeck, hasLockedCards, lockedWarning, problemsOf, sortForDeck, type DeckEntry, type DeckFilter, type DeckSort } from '../utils/deckBuilder';
 import { PAGE_WIDTH } from '../utils/layout';
+import { PAGE_BUTTON as button } from '../utils/styles';
 
-const button = 'rounded px-3 py-1 text-sm disabled:opacity-40';
 const READ_ONLY = "This is your run's deck, which follows the run: copy it to make changes, or save it when the run is over";
 
 /**

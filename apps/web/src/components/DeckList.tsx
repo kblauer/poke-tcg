@@ -17,9 +17,11 @@ import { useQuery } from '@tanstack/react-query';
 import type { inferRouterOutputs } from '@trpc/server';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { DeckCosmetics } from '../hooks/useCosmetics';
+import { useEscape } from '../hooks/useEscape';
 import { useTRPC } from '../lib/trpc';
 import { cardBackUrl } from '../utils/cardBack';
 import type { CatalogCard } from '../utils/cardList';
+import { CARD_THUMB_LG, CARD_THUMB_MD, CARD_THUMB_SM, CARD_THUMB_XL } from '../utils/layout';
 import { useInspectOnRightClick } from './InspectContext';
 import { DECK_SECTIONS, allGenerations, deckInGenerations, deckRatio, deckSize, featuredPokemon, type DeckEntry } from '../utils/deckBuilder';
 import { CardImage } from './CardImage';
@@ -55,7 +57,7 @@ export function DeckSummary({
   const size = deckSize(entries);
   return (
     <div className={compact ? 'w-fit space-y-1' : large ? 'w-fit shrink-0 space-y-1.5' : 'flex items-center gap-3'}>
-      <FeaturedCards featured={featuredPokemon(entries, byId)} isLocked={isLocked} size={large ? 'h-[9.375rem] w-[6.72rem]' : 'h-14 w-10'} />
+      <FeaturedCards featured={featuredPokemon(entries, byId)} isLocked={isLocked} size={large ? CARD_THUMB_XL : CARD_THUMB_MD} />
       {compact ? (
         <RatioBar ratio={ratio} size={size} height="h-1" title={DECK_SECTIONS.map(({ kind, label }) => `${ratio[kind]} ${label}`).join(' · ')} />
       ) : (
@@ -248,7 +250,7 @@ export function DeckTile({
   const row = (
     <div className="flex gap-2.5">
       <div className={`space-y-1 ${dim}`}>
-        <FeaturedCards featured={featured} isLocked={isLocked} size="h-[4.2rem] w-[3rem]" />
+        <FeaturedCards featured={featured} isLocked={isLocked} size={CARD_THUMB_LG} />
         <RatioBar ratio={ratio} size={deckSize(entries)} height="h-1.5" />
         <RatioCounts ratio={ratio} small />
       </div>
@@ -279,9 +281,9 @@ export function CompactDeckTile({ entries, name, byId, isLocked }: { entries: De
   return (
     <span className="flex min-w-0 items-center gap-2">
       {card?.imageUrl ? (
-        <CardImage src={`${card.imageUrl}/low.webp`} alt="" loading="lazy" className={`h-[2.8rem] w-[2rem] shrink-0 rounded-sm object-cover ${isLocked(card) ? 'brightness-50' : ''}`} />
+        <CardImage src={`${card.imageUrl}/low.webp`} alt="" loading="lazy" className={`${CARD_THUMB_SM} shrink-0 rounded-sm object-cover ${isLocked(card) ? 'brightness-50' : ''}`} />
       ) : (
-        <span className="h-[2.8rem] w-[2rem] shrink-0 rounded-sm bg-slate-700" />
+        <span className={`${CARD_THUMB_SM} shrink-0 rounded-sm bg-slate-700`} />
       )}
       <span className="min-w-0 flex-1 text-left">
         <span className="block truncate text-xs font-semibold">{name}</span>
@@ -303,9 +305,9 @@ function CosmeticsPreview({ cosmetics }: { cosmetics?: DeckCosmetics }) {
   const coin = pick('coin');
   return (
     <div className="ml-8 flex items-center gap-2">
-      <img src={cardBackUrl(cardBack)} alt="" title={`Card back: ${name(cardBack)}`} className="h-[4.2rem] w-[3rem] rounded-sm object-cover shadow" />
+      <img src={cardBackUrl(cardBack)} alt="" title={`Card back: ${name(cardBack)}`} className={`${CARD_THUMB_LG} rounded-sm object-cover shadow`} />
       {/* The smallest SpinningCoin is 96px wide: shrunk to the card back's height. */}
-      <div className="flex h-[4.2rem] w-[3rem] items-center justify-center" title={`Coin: ${name(coin)}`}>
+      <div className={`${CARD_THUMB_LG} flex items-center justify-center`} title={`Coin: ${name(coin)}`}>
         <div className="scale-[0.45]">
           <SpinningCoin heads size="md" design={coin} still flat headroom={false} />
         </div>
@@ -402,14 +404,10 @@ export function DeckList({
     if (!picking) return;
     // Capture phase, so it runs before the click lands; the decks and the icons are `data-keep-action`.
     const onDown = (e: PointerEvent) => !(e.target as Element).closest('[data-keep-action]') && setPicking(null);
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setPicking(null);
     window.addEventListener('pointerdown', onDown, true);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('pointerdown', onDown, true);
-      window.removeEventListener('keydown', onKey);
-    };
+    return () => window.removeEventListener('pointerdown', onDown, true);
   }, [picking]);
+  useEscape(() => setPicking(null), !!picking);
   const pick = (deckId: string) => {
     setPicking(null);
     if (picking === 'copy') onCopy(deckId);

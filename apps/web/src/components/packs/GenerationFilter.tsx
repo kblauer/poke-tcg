@@ -4,6 +4,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import { PACK_GENERATIONS } from '@poke-tcg/campaign';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEscape } from '../../hooks/useEscape';
 
 /** Every generation, for the filter: "Gen 1 · Kanto"… */
 const OPTIONS = Object.entries(PACK_GENERATIONS).map(([id, g]) => ({ id: Number(id), name: `Gen ${id} · ${g.region}` }));
@@ -41,14 +42,10 @@ export function GenerationFilter({
   useEffect(() => {
     if (!open) return;
     const onDown = (e: PointerEvent) => !root.current?.contains(e.target as Node) && setOpen(false);
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
     window.addEventListener('pointerdown', onDown);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('pointerdown', onDown);
-      window.removeEventListener('keydown', onKey);
-    };
+    return () => window.removeEventListener('pointerdown', onDown);
   }, [open]);
+  useEscape(() => setOpen(false), open);
   const toggle = (id: number) => {
     const next = new Set(picked);
     if (next.has(id)) next.delete(id);

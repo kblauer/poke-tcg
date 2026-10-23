@@ -1,10 +1,10 @@
 /// <reference path="./globals.d.ts" />
 import { applyWeaknessResistance, attackSituation, checkAttack, performAttack, recallsAttacks, usableAttacks, type AttackChoices } from './attacks.js';
-import { attachBlocked, discardsLocked, energyFromHand, evolutionBlocked, primalBlock, retreatBodies, guardedBy, spiraledBy, bindingAura, conditionBarred, conditionFree, holonWith, miraculousWind, offerChainReaction, playedFromHand, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, primalLocked, trainersDusted, trainersBlocked, usePower, zoomed, type PowerChoices, type PowerEffect } from './powers.js';
+import { attachBlocked, discardsLocked, energyFromHand, evolutionBlocked, primalBlock, retreatBodies, guardedBy, spiraledBy, bindingAura, conditionBarred, conditionFree, holonWith, miraculousWind, offerChainReaction, playedFromHand, pokemonAt, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, primalLocked, trainersDusted, trainersBlocked, usePower, zoomed, type PowerChoices, type PowerEffect } from './powers.js';
 import { evolvesFromEevee, evolveWith, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
 import { conditionProof, hasOwner, hasType, holonEnergy, namesMatch, isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
-import { addLog, baseUid, clearOnLeavingActive, effectId, isDelta, evolvedHook, hasSpecialCondition, shapeshiftCard, flipCoin, inPlayDef, openBenchSlot, pokemonName, revealFaceDown, type LogEntry } from './status.js';
+import { addLog, baseUid, clearOnLeavingActive, clearSpecialConditions, effectId, isDelta, evolvedHook, hasSpecialCondition, shapeshiftCard, flipCoin, inPlayDef, openBenchSlot, pokemonName, revealFaceDown, type LogEntry } from './status.js';
 import { shuffle } from './rng.js';
 import type { CpuDifficulty } from './cpu/index.js';
 
@@ -615,7 +615,7 @@ function energyEvolution(prev: GameState, state: GameState, playerId: PlayerId) 
   const owner = state.players[playerId]!;
   const sides = state.playerOrder.map((id) => state.players[id]!);
   for (const target of [...(owner.active ? (['active'] as Target[]) : []), ...owner.bench.flatMap((p, i) => (p ? [i] : []))]) {
-    const eevee = (target === 'active' ? owner.active : owner.bench[target])!;
+    const eevee = pokemonAt(owner, target)!;
     const had = before.get(eevee.card.uid);
     const added = had ? eevee.energy.filter((e) => !had.has(e.uid)) : [];
     if (!added.length || !powerActive(eevee, state.cards, sides)) continue;
@@ -820,7 +820,7 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
     }
 
     case 'EVOLVE': {
-      const target = action.target === 'active' ? me.active : isBenchSlot(action.target) ? me.bench[action.target] : null;
+      const target = actionTarget(me, action.target);
       if (!target) return fail('Evolve one of your Pokémon in play');
       // Secret Plan: evolving turns the face-down card over; if it isn't a Basic Pokémon, it's discarded and nothing evolves.
       if (target.faceDown) {
@@ -858,7 +858,7 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
     }
 
     case 'ATTACH_ENERGY': {
-      const target = action.target === 'active' ? me.active : isBenchSlot(action.target) ? me.bench[action.target] : null;
+      const target = actionTarget(me, action.target);
       if (!target) return fail('Attach energy to one of your Pokémon');
       // Blaine: a second Fire Energy card can go to the Pokémon with Blaine in its name that got the first.
       const fire = (c: CardInstance) => isBasicEnergy(card(c)) && (card(c) as { energyType?: EnergyType }).energyType === 'fire';
@@ -914,14 +914,14 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
     }
 
     case 'FLIP_FACE_DOWN': {
-      const target = action.target === 'active' ? me.active : isBenchSlot(action.target) ? me.bench[action.target] : null;
+      const target = actionTarget(me, action.target);
       if (!target?.faceDown) return fail('Choose one of your face-down cards');
       revealFaceDown(state, me.id, target);
       return afterOwnMove(state, me, opp);
     }
 
     case 'DISCARD_SHAPESHIFT': {
-      const target = action.target === 'active' ? me.active : isBenchSlot(action.target) ? me.bench[action.target] : null;
+      const target = actionTarget(me, action.target);
       if (!target || !shapeshiftCard(target)) return fail('Choose a Pokémon with an Evolution card attached by Shapeshift');
       discardShapeshift(state, me, target);
       // It's its own card again: its damage may Knock it Out.
@@ -1013,7 +1013,7 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
     }
 
     case 'DISCARD_DOLL': {
-      const target = action.target === 'active' ? me.active : isBenchSlot(action.target) ? me.bench[action.target] : null;
+      const target = actionTarget(me, action.target);
       const def = target && card(target.card);
       if (!target || def?.kind !== 'pokemon' || !def.trainerText) return fail('Choose a Clefairy Doll in play');
       if (!hasBenched(me)) return fail("You can't discard your only Pokémon in play");
@@ -1824,10 +1824,7 @@ function useBerry(state: GameState, owner: PlayerState, p: InPlayPokemon) {
     addLog(state, `Miracle Berry: ${pokemonName(state, p)} is no longer Asleep, Confused, Paralyzed or Poisoned.`, owner.id);
   } else if (name === 'Lum Berry' && hasSpecialCondition(p)) {
     // Lum Berry: every Special Condition, Burned included.
-    p.condition = null;
-    p.poison = 0;
-    p.burned = false;
-    delete p.paralyzedTurn;
+    clearSpecialConditions(p);
     addLog(state, `Lum Berry: ${pokemonName(state, p)} is no longer affected by Special Conditions.`, owner.id);
   } else return;
   discardTool(state, owner, p);
@@ -2013,9 +2010,13 @@ const asDiscarded = ({ provides: _, converted: _c, windless: _w, ...card }: Card
 
 const isBenchSlot = (slot: number) => Number.isInteger(slot) && slot >= 0 && slot < MAX_BENCH;
 
+/** The player's Pokémon at an action's target (nothing when the slot is empty, or isn't a Bench slot at all). */
+const actionTarget = (me: PlayerState, target: Target) => (target === 'active' ? me.active : isBenchSlot(target) ? me.bench[target] : null);
+
 export const hasBenched = (player: Pick<PlayerState, 'bench'>) => player.bench.some((p) => p !== null);
 
-function newInPlay(card: CardInstance, turn: number): InPlayPokemon {
+/** A Pokémon card as it comes into play (put onto the Bench, or the Active spot at the start). */
+export function newInPlay(card: CardInstance, turn: number): InPlayPokemon {
   return { card, evolvedFrom: [], damage: 0, energy: [], playedTurn: turn };
 }
 

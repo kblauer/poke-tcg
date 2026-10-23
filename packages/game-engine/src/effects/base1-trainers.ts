@@ -2,9 +2,9 @@
 // no prize; Scoop Up can't take your only Pokémon in play; Devolution Spray can Knock Out (prize as
 // usual); PlusPower's +10 comes before Defender's −20, both after weakness and resistance.
 import { isBasicEnergy, isBasicPokemon, isBenchable, isPokemonCard, isTrainerCard, type CardLibrary, type PokemonCardDef } from '../cards.js';
-import { activeLock, discardTheirEnergy, type CardInstance, type GameState, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
-import { energyKept, evolutionBlocked, offerChainReaction, playedFromHand, trainerProof } from '../powers.js';
-import { clearOnLeavingActive, energyProtected, evolvedHook, inPlayDef, openBenchSlot } from '../status.js';
+import { activeLock, discardTheirEnergy, newInPlay, type CardInstance, type GameState, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
+import { energyKept, evolutionBlocked, offerChainReaction, playedFromHand, pokemonAt, trainerProof } from '../powers.js';
+import { clearOnLeavingActive, clearSpecialConditions, energyProtected, evolvedHook, hasSpecialCondition, inPlayDef, openBenchSlot } from '../status.js';
 import { def, otherHandCards, own, targetsOf, theirs, type TrainerChoiceSpec, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 
 const pokemonDef = (s: { cards: TrainerSituation['cards'] }, p: InPlayPokemon): PokemonCardDef => inPlayDef(s.cards, p);
@@ -22,10 +22,9 @@ const needOthers = (s: TrainerSituation, n: number) => (otherHandCards(s).length
 
 /** The opponent's Pokémon at `t` has Energy that Trainers can remove (not with Brock's Protection attached, nor an Unown kept by Unown K). */
 const removable = (s: TrainerSituation, t: Target) => theirs(s, t)!.energy.length > 0 && !energyProtected(s.cards, theirs(s, t)!) && !energyKept(s.opp, [s.opp, s.me], s.cards, theirs(s, t)!);
-const at = (side: Pick<PlayerState, 'active' | 'bench'>, t: Target) => (t === 'active' ? side.active : side.bench[t])!;
+const at = (side: Pick<PlayerState, 'active' | 'bench'>, t: Target) => pokemonAt(side, t)!;
 /** An empty Bench slot of `side` (none while Narrow Gym leaves no room), given the Stadium in play. */
 const emptySlot = (side: Pick<PlayerState, 'bench'>, s: { cards: CardLibrary; stadium?: CardInstance | null }) => openBenchSlot(side.bench, s.cards, s.stadium);
-const newInPlay = (card: CardInstance, turn: number): InPlayPokemon => ({ card, evolvedFrom: [], damage: 0, energy: [], playedTurn: turn });
 
 /** Switches the active with the benched Pokémon in `slot`. */
 function switchActive(side: PlayerState, slot: number) {
@@ -236,13 +235,10 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
 
   // Full Heal
   'base1-82': {
-    blocked: (s) => trainerProof(s.me, [s.me, s.opp], s.cards) ?? (s.me.active?.condition || s.me.active?.poison || s.me.active?.burned ? null : 'Your Active Pokémon has no Special Condition'),
+    blocked: (s) => trainerProof(s.me, [s.me, s.opp], s.cards) ?? (s.me.active && hasSpecialCondition(s.me.active) ? null : 'Your Active Pokémon has no Special Condition'),
     play(ctx) {
       const p = ctx.me.active!;
-      p.condition = null;
-      p.poison = 0;
-      p.burned = false;
-      delete p.paralyzedTurn;
+      clearSpecialConditions(p);
       ctx.log(`${pokemonDef(ctx.state, p).name} is no longer affected by Special Conditions.`);
     },
   },

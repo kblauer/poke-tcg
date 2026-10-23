@@ -1,18 +1,17 @@
 import { TRPCError } from '@trpc/server';
 import { boss, bossLabel, generateDeck, rngFrom, TRAINERS, trainerFavorites } from '@poke-tcg/campaign';
-import { prisma, saveGameState, type Prisma } from '@poke-tcg/db';
+import { prisma, saveGameState } from '@poke-tcg/db';
 import { applyAction, createGame, getPlayerView, moveHighlights, runCpu, type CpuDifficulty, type GameAction, type GameState } from '@poke-tcg/game-engine';
 import { CPU_ID, HUMAN_ID, gameIdInput, singleBattleInput, submitActionInput, type SingleBattleInput, type SingleBattleOpponent } from '@poke-tcg/shared';
 import { ensureUser } from '../auth.js';
 import { loadCardLibrary } from '../cards.js';
+import { actionRows, asJson, newSeed } from '../games.js';
 import { cardPool } from '../pool.js';
 import { loadOwnRun, settleBattle } from '../runs.js';
 import { PLAYER_TEST_DECK, expandDeck } from '../test-decks.js';
 import type { AuthUser } from '../auth.js';
 import { protectedProcedure, router } from '../trpc.js';
 import { markPlayed, playableDeck, type DeckCosmetics } from './decks.js';
-
-const asJson = (value: unknown) => value as Prisma.InputJsonValue;
 
 /**
  * The CPU's reply to the player's action. If the CPU throws (an engine bug on a position it can't handle), nothing is lost:
@@ -31,12 +30,6 @@ function cpuTurn(state: GameState): ReturnType<typeof runCpu> {
   }
 }
 
-/** Log rows for a sequence of actions that ended at `finalVersion`. */
-function actionRows(entries: { playerId: string; action: GameAction }[], finalVersion: number) {
-  const first = finalVersion - entries.length + 1;
-  return entries.map((e, i) => ({ playerId: e.playerId, version: first + i, action: asJson(e.action) }));
-}
-
 /** The player's view after a CPU move, with the card the move shows (a Trainer shuffled away is no longer in sight). */
 function shownView(state: GameState, defId: string | null | undefined) {
   const view = getPlayerView(state, HUMAN_ID);
@@ -50,8 +43,6 @@ export async function loadOwnGame(gameId: string, userId: string) {
   if (!game || game.ownerId !== userId) throw new TRPCError({ code: 'NOT_FOUND', message: 'Game not found' });
   return { ...game, state: game.state as unknown as GameState };
 }
-
-const newSeed = () => Math.floor(Math.random() * 2 ** 31);
 
 /** The CPU's side of a single battle: a boss's own deck, or a random trainer with a random deck suiting their name, as on a run's map. */
 async function opponentSetup(opponent: SingleBattleOpponent, difficulty: CpuDifficulty): Promise<{ name: string; deck: string[] }> {

@@ -13,7 +13,7 @@
 // basic Energy cards by itself; with more than 2 attached, its owner picks up to 2 (agreed with the user).
 import { isBasicEnergy, isPokemonCard, lookupCard, type Attack, type EnergyType } from '../cards.js';
 import { discardTheirEnergy, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
-import { energyKept, powerActive, trainerProof } from '../powers.js';
+import { energyKept, pokemonAt, powerActive, trainerProof } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { benchRoom, effectId, energyProtected, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { powerEffect } from './index.js';
@@ -21,7 +21,7 @@ import { swapActive, targetsOf, type EnergyEffect, type TrainerChoiceSpec, type 
 import { tool } from './neo1-trainers.js';
 import { ROCKET_ENERGY } from './rocket-trainers.js';
 
-const at = (side: Pick<PlayerState, 'active' | 'bench'>, t: Target) => (t === 'active' ? side.active : side.bench[t])!;
+const at = (side: Pick<PlayerState, 'active' | 'bench'>, t: Target) => pokemonAt(side, t)!;
 const isBasicCard = (s: { cards: TrainerSituation['cards'] }, c: { defId: string; provides?: unknown }) => !c.provides && isBasicEnergy(lookupCard(s.cards, c.defId));
 
 /** Pokémon of `type` a Cube can be attached to, or with Skyridge's Synchronicity working (any Technical Machine). */

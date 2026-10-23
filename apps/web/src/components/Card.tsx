@@ -85,7 +85,7 @@ export function Card({
 }) {
   const setPreview = useContext(PreviewContext);
   const catalog = useContext(CatalogContext);
-  const inspect = useInspectOnRightClick()(def.id);
+  const inspect = useInspectOnRightClick({ clearsPreview: true })(def.id);
   // On a touch screen, holding a finger on the card does what right-click does.
   const openInspector = useContext(InspectContext);
   const inspectable = catalog?.get(def.id);
@@ -108,13 +108,7 @@ export function Card({
       className={`${size} relative aspect-[63/88] shrink-0 overflow-hidden rounded-lg shadow`}
       onMouseEnter={(e) => setPreview({ def, x: e.clientX, y: e.clientY, from: e.currentTarget })}
       onMouseLeave={() => setPreview(null)}
-      onContextMenu={
-        inspect.onContextMenu &&
-        ((e) => {
-          setPreview(null);
-          inspect.onContextMenu!(e);
-        })
-      }
+      {...inspect}
     >
       {holo && def.imageUrl ? (
         <HoloCard still motionRef={holoRef} img={`${def.imageUrl}/high.webp`} name={def.name} attrs={holoAttributes(holo)} />

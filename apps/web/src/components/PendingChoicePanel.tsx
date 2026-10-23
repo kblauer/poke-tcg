@@ -5,6 +5,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import { lookupCard, type GameAction, type PendingChoiceView, type PlayerView } from '@poke-tcg/game-engine';
 import { useContext, useState } from 'react';
+import { CHOICE_BUTTON } from '../utils/styles';
 import { Card } from './Card';
 import { PreviewContext } from './PreviewContext';
 
@@ -28,10 +29,10 @@ export function PendingChoicePanel({ view, send, busy }: { view: PlayerView; sen
         {choice.kind === 'arrangeTop' ? <ArrangeTop key={view.version} choice={choice} view={view} send={send} busy={busy} /> : null}
         {choice.kind === 'challenge' ? (
           <div className="flex justify-center gap-2">
-            <button className="rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500" disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE', count: 1 })}>
+            <button className={CHOICE_BUTTON} disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE', count: 1 })}>
               Accept
             </button>
-            <button className="rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500" disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE', count: 0 })}>
+            <button className={CHOICE_BUTTON} disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE', count: 0 })}>
               Decline
             </button>
           </div>
@@ -55,7 +56,7 @@ export function PendingChoicePanel({ view, send, busy }: { view: PlayerView; sen
               })}
             </div>
             {(choice.options.length === 0 || choice.optional) && (
-              <button className="rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500" disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE' })}>
+              <button className={CHOICE_BUTTON} disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE' })}>
                 Done
               </button>
             )}
@@ -65,7 +66,7 @@ export function PendingChoicePanel({ view, send, busy }: { view: PlayerView; sen
           // Lt. Surge's Treaty: one button per answer, sent as its index.
           <div className="flex flex-wrap justify-center gap-2">
             {choice.labels.map((label, i) => (
-              <button key={label} className="rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500" disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE', count: i })}>
+              <button key={label} className={CHOICE_BUTTON} disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE', count: i })}>
                 {label}
               </button>
             ))}
@@ -74,7 +75,7 @@ export function PendingChoicePanel({ view, send, busy }: { view: PlayerView; sen
         {choice.kind === 'drawCount' ? (
           <div className="flex flex-wrap justify-center gap-2">
             {Array.from({ length: choice.max + 1 }, (_, n) => n).filter((n) => !choice.allOrNone || n === 0 || n === choice.max).map((n) => (
-              <button key={n} className="rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500" disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE', count: n })}>
+              <button key={n} className={CHOICE_BUTTON} disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE', count: n })}>
                 Draw {n}
               </button>
             ))}
@@ -117,7 +118,7 @@ function PickFromDeck({
         ))}
       </div>
       {choice.optional && (
-        <button className="rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500" disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE' })}>
+        <button className={CHOICE_BUTTON} disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE' })}>
           Skip
         </button>
       )}

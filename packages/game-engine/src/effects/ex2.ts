@@ -14,10 +14,12 @@ import { isEnergyCardOf, isSpecialEnergy, type CardInstance, type InPlayPokemon,
 import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { benchRoom, clearOnLeavingActive, openBenchSlot, pokemonName } from '../status.js';
-import { benchedSlots, extraEnergy, perHeads } from './common.js';
+import { benchedSlots, extraEnergy, inPlay, perHeads } from './common.js';
 import { typedCards } from './ecard1.js';
 import { discardAtRandom, eachDefending, energyAmount } from './ex1.js';
 import { healUpTo } from './si1.js';
+
+export { inPlay };
 
 /** The Energy cards of `type` attached to a Pokémon, Special ones of that type too (Darkness Energy). */
 export const typeCards = (cards: CardLibrary, p: InPlayPokemon, type: EnergyType) =>
@@ -59,9 +61,6 @@ export function putCounters(ctx: AttackContext, owner: PlayerState, p: InPlayPok
   p.damage += 10 * n;
   ctx.log(`Put ${n} damage counter${n === 1 ? '' : 's'} on ${pokemonName(ctx.state, p)}.`, owner.id);
 }
-
-/** Every Pokémon in play on a side. */
-export const inPlay = (side: Pick<PlayerState, 'active' | 'bench'>) => [side.active, ...side.bench].filter((p): p is InPlayPokemon => !!p);
 
 /** The top (highest Stage) Evolution card of `owner`'s Evolved Pokémon `p` comes off it; returns that card. */
 export function devolve(ctx: AttackContext, owner: PlayerState, p: InPlayPokemon): CardInstance {

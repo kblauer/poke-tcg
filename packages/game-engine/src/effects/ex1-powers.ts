@@ -8,21 +8,17 @@
 // Body…: energyFromHand); Drive Off switches only the Active Pokémon, the opponent picking the Benched one.
 import { isBasicEnergy, lookupCard, type CardLibrary, type EnergyType } from '../cards.js';
 import { activeLocked, isEnergyCardOf, type CardInstance } from '../engine.js';
-import { attachBlocked, discardsLocked, energyFromHand, type PowerEffect, type PowerSituation } from '../powers.js';
-import { addLog, hasSpecialCondition, pokemonName } from '../status.js';
+import { attachBlocked, discardsLocked, energyFromHand, type PowerEffect } from '../powers.js';
+import { addLog, clearSpecialConditions, hasSpecialCondition, pokemonName } from '../status.js';
 import { swapActive } from '../trainers.js';
 import { BASE1_POWERS } from './base1-powers.js';
-
-const onlyActive = (s: PowerSituation, name: string) => (s.source === 'active' ? null : `${name} must be your Active Pokémon`);
+import { onlyActive, POKE_BODY } from './common.js';
 
 /** A basic Water Energy card. */
 const isBasicWater = (cards: CardLibrary, c: CardInstance) => {
   const d = lookupCard(cards, c.defId);
   return !c.provides && isBasicEnergy(d) && d.kind === 'energy' && d.energyType === 'water';
 };
-
-/** A Poké-Body: always on, whatever its Pokémon's Special Conditions. */
-const POKE_BODY = { ignoresConditions: true, body: true } as const;
 
 /** Rough Skin: as the Active Pokémon, damaged by the opponent's attack (even Knocked Out), `counters` damage counters on the Attacking Pokémon. */
 export const roughSkin = (counters: number): PowerEffect => ({
@@ -40,10 +36,7 @@ const naturalCure = (type: EnergyType): PowerEffect => ({
   onEnergyFromHand(state, owner, pokemon, _target, energy) {
     const d = lookupCard(state.cards, energy.defId);
     if (energy.provides || !isBasicEnergy(d) || d.kind !== 'energy' || d.energyType !== type || !hasSpecialCondition(pokemon)) return;
-    pokemon.condition = null;
-    pokemon.poison = 0;
-    pokemon.burned = false;
-    delete pokemon.paralyzedTurn;
+    clearSpecialConditions(pokemon);
     addLog(state, `Natural Cure: ${pokemonName(state, pokemon)} is no longer affected by Special Conditions.`, owner.id);
   },
 });

@@ -11,7 +11,7 @@ import { targetsIn } from '../attacks.js';
 import { isBasicEnergy, lookupCard, namesMatch, isTrainerCard } from '../cards.js';
 import { energyPool, type InPlayPokemon } from '../engine.js';
 import { nextRandom } from '../rng.js';
-import { inPlayDef, isDelta, pokemonName } from '../status.js';
+import { clearSpecialConditions, inPlayDef, isDelta, pokemonName } from '../status.js';
 import { benchedSlots, headsUntilTails, opponentBenchChoice } from './common.js';
 import { discardAtRandom } from './ex1.js';
 import { discardOwn, energyCardOf, inPlay } from './ex2.js';
@@ -110,10 +110,7 @@ export const EX13: Record<string, Record<string, AttackEffect>> = {
         ctx.hit(30);
         if (ctx.defender.damage < inPlayDef(ctx.state.cards, ctx.defender).hp) return;
         const p = ctx.attacker;
-        p.condition = null;
-        p.poison = 0;
-        p.burned = false;
-        delete p.paralyzedTurn;
+        clearSpecialConditions(p);
         healUpTo(ctx, ctx.me, p, 70);
       },
     },

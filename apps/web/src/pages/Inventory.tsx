@@ -1,13 +1,15 @@
 import { itemText, ITEMS, MAX_CONSUMABLES_PER_RUN, type ItemCategory, type ItemDef } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { BADGE_IDS, BadgeCases } from '../components/BadgeCases';
 import { EquipmentPanel } from '../components/EquipmentPanel';
 import { ItemIcon } from '../components/ItemIcon';
 import { PageHeader } from '../components/PageHeader';
 import { consumableProblem } from '../components/run/BagPanel';
+import { useEscape } from '../hooks/useEscape';
 import { useTRPC } from '../lib/trpc';
 import { PAGE_WIDTH } from '../utils/layout';
+import { DIALOG, DIALOG_BACKDROP } from '../utils/styles';
 
 type OwnedItem = ItemDef & { quantity: number };
 
@@ -165,15 +167,11 @@ function UseConsumableDialog({
   onUse: () => void;
   onClose: () => void;
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  useEscape(onClose);
   const article = /^[aeiou]/i.test(item.name) ? 'an' : 'a';
   return (
-    <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <section role="dialog" aria-label={`Use ${item.name}`} className="w-full max-w-sm space-y-3 rounded-lg bg-slate-800 p-5 shadow-xl ring-1 ring-slate-600" onClick={(e) => e.stopPropagation()}>
+    <div className={`${DIALOG_BACKDROP} z-[1100]`} onClick={onClose}>
+      <section role="dialog" aria-label={`Use ${item.name}`} className={`${DIALOG} w-full max-w-sm space-y-3 p-5 shadow-xl`} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-3">
           <ItemIcon id={item.id} className="shrink-0" />
           <h3 className="text-lg font-semibold">

@@ -22,6 +22,7 @@ import {
   nameKey,
   play,
   pokemonDef,
+  professorOak,
   resolveSearch,
   borrowedTrainerMove,
   spareEnergy,
@@ -371,12 +372,6 @@ function blaineAttach(t: Turn): GameAction | null {
   }
   if (t.state.energyAttachedThisTurn || fire.length < 2 || !blaines.some(([, p]) => gap(p) >= 2)) return null;
   return play(t, trainer(t, 'blaine'));
-}
-
-function professorOak(t: Turn): GameAction | null {
-  const oak = trainer(t, 'professoroak');
-  // Only once the hand is nearly spent, and never drawing the deck down to nothing.
-  return oak && t.me.hand.length - 1 <= 2 && t.me.deck.length > 7 ? play(t, oak) : null;
 }
 
 // ---- 4. Heal ----

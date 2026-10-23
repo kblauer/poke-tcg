@@ -2,6 +2,7 @@ import { DECK_SIZE } from '@poke-tcg/shared';
 import { useUnlocked } from '../hooks/useUnlocked';
 import { cardTitle, type CatalogCard } from '../utils/cardList';
 import { DECK_SECTIONS, cantAdd, deckSize, isHoloCard, withCards, type DeckEntry } from '../utils/deckBuilder';
+import { CARD_THUMB_XS } from '../utils/layout';
 import { useInspectOnRightClick } from './InspectContext';
 import { CardImage } from './CardImage';
 
@@ -68,9 +69,9 @@ export function DeckPanel({
                   return (
                     <li key={card.id} className={`flex items-center gap-2 ${locked ? 'opacity-50' : ''}`} {...inspectOn(card)}>
                       {card.imageUrl ? (
-                        <CardImage src={`${card.imageUrl}/low.webp`} alt="" loading="lazy" className="h-9 w-[1.6rem] shrink-0 rounded-sm object-cover" />
+                        <CardImage src={`${card.imageUrl}/low.webp`} alt="" loading="lazy" className={`${CARD_THUMB_XS} shrink-0 rounded-sm object-cover`} />
                       ) : (
-                        <div className="h-9 w-[1.6rem] shrink-0 rounded-sm bg-slate-800" />
+                        <div className={`${CARD_THUMB_XS} shrink-0 rounded-sm bg-slate-800`} />
                       )}
                       <div className="min-w-0 flex-1">
                         <div className="truncate">

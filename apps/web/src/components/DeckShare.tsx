@@ -1,23 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { DECK_CODE_LENGTH, DECK_DESCRIPTION_LENGTH } from '@poke-tcg/shared';
 import { Link } from '@tanstack/react-router';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { useEscape } from '../hooks/useEscape';
 import { useTRPC } from '../lib/trpc';
-import { AccountNameField } from './AccountMenu';
+import { BUTTON as button, DIALOG, DIALOG_BACKDROP } from '../utils/styles';
+import { AccountNameField } from './AccountNameField';
 
-const button = 'rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500 disabled:opacity-40';
 const field = 'w-full rounded bg-slate-900 p-2 text-xs text-slate-100 ring-1 ring-slate-600 focus:outline-none focus:ring-slate-400';
 
 /** A centred dialog over the page (the shared dialog style); a click outside it or Escape closes it. */
 function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
-  useEffect(() => {
-    const escape = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    document.addEventListener('keydown', escape);
-    return () => document.removeEventListener('keydown', escape);
-  }, [onClose]);
+  useEscape(onClose);
   return (
-    <div className="fixed inset-0 z-[1050] flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div role="dialog" aria-label={title} className="w-full max-w-lg space-y-3 rounded-lg bg-slate-800 p-4 text-sm ring-1 ring-slate-600" onClick={(e) => e.stopPropagation()}>
+    <div className={`${DIALOG_BACKDROP} z-[1050]`} onClick={onClose}>
+      <div role="dialog" aria-label={title} className={`${DIALOG} w-full max-w-lg space-y-3 p-4 text-sm`} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h3 className="font-semibold">{title}</h3>
           <button className="rounded px-2 text-slate-400 hover:bg-slate-700 hover:text-slate-100" onClick={onClose} aria-label="Close">

@@ -5,6 +5,7 @@ import { HAND_ZONE } from '../components/Hand';
 import { PLAY_AREA } from '../components/PlayArea';
 import type { SlotId } from '../utils/slots';
 import { playAction, targetLabel, targetsFor, whyNoTargets } from '../utils/targets';
+import { useEscape } from './useEscape';
 
 /**
  * What the dragged card is over: whatever is under the pointer, else a slot the card overlaps. The
@@ -66,11 +67,7 @@ export function useCardPlay({
     if (selected && !hand.some((c) => c.uid === selected)) setSelected(null);
   }, [hand, selected]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setSelected(null);
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  useEscape(() => setSelected(null));
 
   /** Plays a hand card onto a slot, if that's one of its targets. */
   function play(cardUid: string, slot: SlotId) {

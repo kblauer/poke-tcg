@@ -1,7 +1,7 @@
 // The account's items: what each one is and does, where it can be equipped, and the limits on using them.
 // Equipment works while it's equipped (read live, so a change applies from the next encounter); a consumable
 // works for a number of battles once used; a misc item does its one thing when used (see USE_ITEM in run.ts).
-import type { BattleRule, EnergyType, PlayerId } from '@poke-tcg/game-engine';
+import { typeName, type BattleRule, type EnergyType, type PlayerId } from '@poke-tcg/game-engine';
 import { between, rngFrom, sample } from './random.js';
 
 export type ItemCategory = 'consumable' | 'misc' | 'key' | 'equipment';
@@ -224,7 +224,6 @@ export const onlyOne = (def: ItemDef) => def.category === 'equipment' || (def.ca
 /** Whether a piece of equipment can go in the slot. */
 export const fitsSlot = (def: ItemDef, slot: EquipSlot) => def.category === 'equipment' && (def.equip === 'accessory' ? slot.startsWith('accessory') : def.equip === slot);
 
-const typeName = (t: string) => t[0]!.toUpperCase() + t.slice(1);
 const CONDITION_NAMES: Record<Condition, string> = { asleep: 'Asleep', confused: 'Confused', paralyzed: 'Paralyzed', poisoned: 'Poisoned', burned: 'Burned' };
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const orList = (words: string[]) => (words.length > 1 ? `${words.slice(0, -1).join(', ')} or ${words.at(-1)}` : words[0]!);

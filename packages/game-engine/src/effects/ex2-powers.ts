@@ -14,9 +14,9 @@ import { powerEffect } from './index.js';
 import { addLog, effectId, inPlayDef, pokemonName } from '../status.js';
 import { evolveWith } from '../trainers.js';
 import type { AttackContext } from '../attacks.js';
+import { POKE_BODY } from './common.js';
 
-/** A Poké-Body: always on, whatever its Pokémon's Special Conditions. */
-export const POKE_BODY = { ignoresConditions: true, body: true } as const;
+export { POKE_BODY };
 
 /**
  * Poison Payback, Fire Veil: as its player's Active Pokémon, damaged by the opponent's attack (even Knocked Out), the

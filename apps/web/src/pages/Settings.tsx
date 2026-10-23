@@ -1,6 +1,6 @@
 import type { Soundtrack } from '@poke-tcg/campaign';
 import { useState, type ReactNode } from 'react';
-import { AccountNameField } from '../components/AccountMenu';
+import { AccountNameField } from '../components/AccountNameField';
 import { useMusicSettings } from '../components/MusicPlayer';
 import { OptionsPanel } from '../components/OptionsPanel';
 import { PageHeader } from '../components/PageHeader';

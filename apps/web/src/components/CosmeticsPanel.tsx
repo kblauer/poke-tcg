@@ -3,11 +3,13 @@ import LockIcon from '@mui/icons-material/Lock';
 import RemoveIcon from '@mui/icons-material/Remove';
 import { RUN_TYPES, type CosmeticDef, type CosmeticKind } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
+import { useEscape } from '../hooks/useEscape';
 import { useIsPhone } from '../hooks/useIsPhone';
 import { useUnlocked } from '../hooks/useUnlocked';
 import { useTRPC } from '../lib/trpc';
 import { cardBackUrl } from '../utils/cardBack';
+import { CHOICE_BUTTON, DIALOG, DIALOG_BACKDROP } from '../utils/styles';
 import { SpinningCoin } from './CoinFlip';
 import type { CatalogCard } from '../utils/cardList';
 import { CompactDeckTile, type SavedDeck } from './DeckList';
@@ -231,11 +233,7 @@ function AssignDialog({
   const [picked, setPicked] = useState(() => new Set(def.deckIds));
   const [isDefault, setIsDefault] = useState(def.isDefault);
   const [search, setSearch] = useState('');
-  useEffect(() => {
-    const escape = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    document.addEventListener('keydown', escape);
-    return () => document.removeEventListener('keydown', escape);
-  }, [onClose]);
+  useEscape(onClose);
   /** The name of the deck's other cosmetic of this kind, which ticking it here replaces. */
   const otherOn = (deckId: string) => list.data?.cosmetics.find((c) => c.kind === def.kind && c.deckIds.includes(deckId) && !def.deckIds.includes(deckId))?.name;
   const shown = decks.filter((d) => d.name.toLowerCase().includes(search.trim().toLowerCase()));
@@ -243,8 +241,8 @@ function AssignDialog({
   // The built-in default stays the default until another is picked.
   const fixedDefault = def.isDefault && def.unlock.type === 'default';
   return (
-    <div className="fixed inset-0 z-[1050] flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div role="dialog" aria-label={`Assign ${def.name}`} className="flex max-h-[85dvh] w-full max-w-md flex-col gap-3 rounded-lg bg-slate-800 p-4 text-sm ring-1 ring-slate-600" onClick={(e) => e.stopPropagation()}>
+    <div className={`${DIALOG_BACKDROP} z-[1050]`} onClick={onClose}>
+      <div role="dialog" aria-label={`Assign ${def.name}`} className={`${DIALOG} flex max-h-[85dvh] w-full max-w-md flex-col gap-3 p-4 text-sm`} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h3 className="font-semibold">Assign {def.name}</h3>
           <button className="rounded px-2 text-slate-400 hover:bg-slate-700 hover:text-slate-100" onClick={onClose} aria-label="Close">
@@ -287,7 +285,7 @@ function AssignDialog({
           {!shown.length && <li className="px-2 py-1.5 text-xs text-slate-400">{decks.length ? 'No deck matches.' : 'No decks yet: make one on the Collection tab.'}</li>}
         </ul>
         <div className="flex justify-end gap-2">
-          <button className="rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500" onClick={onClose}>
+          <button className={CHOICE_BUTTON} onClick={onClose}>
             Cancel
           </button>
           <button className="rounded bg-emerald-600 px-3 py-1 text-sm font-semibold hover:bg-emerald-500" onClick={() => onSave([...picked], isDefault)}>

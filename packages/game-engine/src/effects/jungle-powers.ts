@@ -5,13 +5,12 @@
 // the Pokémon is chosen after heads; several Retreat Aids each take 1 off; Invisible Wall checks the
 // damage after weakness, resistance, PlusPower, Defender and other reductions.
 import type { EnergyType } from '../cards.js';
-import type { CardInstance, InPlayPokemon } from '../engine.js';
+import type { CardInstance } from '../engine.js';
 import { pokemonAt, type PeekTarget, type PowerChoiceSpec, type PowerEffect, type PowerSituation } from '../powers.js';
 import { nextRandom } from '../rng.js';
 import { inPlayDef, pokemonName } from '../status.js';
 import { damagedTargets } from '../trainers.js';
-
-const inPlay = (side: PowerSituation['me'] | PowerSituation['opp']) => [side.active, ...side.bench].filter((p): p is InPlayPokemon => !!p);
+import { inPlay } from './common.js';
 
 /** Types Shift can change Venomoth to: those of the other Pokémon in play, except Colorless and its own. */
 function shiftTypes(s: PowerSituation): EnergyType[] {

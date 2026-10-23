@@ -5,6 +5,12 @@
 // only (Route 45: walked onto and off only southwards; no one stands on it), '#' not: trees, buildings, ledges, other water,
 // doorways and objects), so its spots can be checked to stay on the path.
 
+/** The trainers met in the water of every surfed route (Kanto's Route 20, Johto's 40, Hoenn's 106, 124 and Sootopolis City): Swimmers, men and women (overworld.ts gives the women their own sprite). */
+export const SWIMMERS = [
+  'Swimmer Luis', 'Swimmer Richard', 'Swimmer Reece', 'Swimmer Matthew', 'Swimmer Douglas', 'Swimmer David', 'Swimmer Tony', 'Swimmer Barry',
+  'Swimmer Shirley', 'Swimmer Tiffany', 'Swimmer Nora', 'Swimmer Melissa', 'Swimmer Anya', 'Swimmer Alice', 'Swimmer Connie',
+];
+
 export interface RouteSpot {
   x: number;
   y: number;

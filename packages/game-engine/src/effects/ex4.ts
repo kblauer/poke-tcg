@@ -10,7 +10,8 @@ import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { targetsIn } from '../attacks.js';
 import { isBasicEnergy, lookupCard } from '../cards.js';
 import { energyProvided, isEnergyCardOf, type CardInstance, type Target } from '../engine.js';
-import { openBenchSlot, pokemonName } from '../status.js';
+import { pokemonAt } from '../powers.js';
+import { clearSpecialConditions, openBenchSlot, pokemonName } from '../status.js';
 import { benchedSlots, energyCanMove, opponentSwitches } from './common.js';
 import { discardDefenderTrainers } from './ecard2.js';
 import { typedCards } from './ecard1.js';
@@ -82,8 +83,6 @@ export function counterPicks(ctx: AttackContext, source: string, count: number) 
   const skip = inPlay(ctx.opp).filter((p) => !ctx.canAffect(ctx.opp, p)).map((p) => p.card.uid);
   if (count > 0 && inPlay(ctx.opp).length > skip.length) ctx.pend({ kind: 'placeCounters', source, count, active: true, skip });
 }
-
-const at = (ctx: AttackContext, t: Target) => (t === 'active' ? ctx.opp.active : ctx.opp.bench[t]) ?? null;
 
 export const EX4: Record<string, Record<string, AttackEffect>> = {
   // Team Aqua's Cacturne – Dark Bind.
@@ -326,8 +325,7 @@ export const EX4: Record<string, Record<string, AttackEffect>> = {
   'ex4-41': {
     Rest: {
       run(ctx) {
-        Object.assign(ctx.attacker, { condition: null, poison: 0, burned: false });
-        delete ctx.attacker.paralyzedTurn;
+        clearSpecialConditions(ctx.attacker);
         healUpTo(ctx, ctx.me, ctx.attacker, 30);
         ctx.sleepSelf();
       },
@@ -432,7 +430,7 @@ export const EX4: Record<string, Record<string, AttackEffect>> = {
         if (slot === undefined) return;
         const from = ctx.opp.bench[slot];
         ctx.damageBenched(ctx.opp, slot, 10);
-        const to = ctx.choices.oppTo !== undefined ? at(ctx, ctx.choices.oppTo) : null;
+        const to = ctx.choices.oppTo !== undefined ? pokemonAt(ctx.opp, ctx.choices.oppTo) : null;
         const card = from?.energy.find((e) => e.uid === ctx.choices.oppEnergyUid);
         if (!ctx.choices.boost || !from || !to || !card || !ctx.canAffect(ctx.opp, from)) return;
         from.energy = from.energy.filter((e) => e !== card);
@@ -467,7 +465,7 @@ export const EX4: Record<string, Record<string, AttackEffect>> = {
         const t = ctx.choices.oppTarget ?? 'active';
         if (t === 'active') ctx.hit(40);
         else ctx.damageBenched(ctx.opp, t, 40);
-        const p = at(ctx, t);
+        const p = pokemonAt(ctx.opp, t);
         if (!ctx.flip() || !p?.energy.length || !ctx.canAffect(ctx.opp, p)) return;
         ctx.opponentChooses({ kind: 'discardAttached', source: 'Crushing Wave', target: t });
       },

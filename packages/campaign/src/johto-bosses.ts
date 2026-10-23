@@ -3,33 +3,20 @@
 // around each character's team in the games (as HeartGold and SoulSilver have it), from Gen 2's sets only (GEN2_SETS:
 // Neo Genesis to Skyridge, with Southern Islands), with Gen 2's basic Energy (Neo Genesis prints) and Trainers. Only Neo
 // Genesis's card effects are done; the other sets' Pokémon attack for base damage and their Trainers can't be played yet.
-import type { EnergyType } from '@poke-tcg/game-engine';
+// A Johto boss is the same as a Kanto one (Boss, bosses.ts; a type-only import, so no cycle), with no Game Boy counterpart:
+// `favorites` are the Pokémon their Gym Trainer's random deck is built from first (for gyms whose type has no basic
+// Energy); `trainers` who their Gym Trainer may be (HGSS's in their gym; Olivine's the Lighthouse's).
+import type { Boss } from './bosses.js';
 import type { DeckList } from './decks.js';
+import { GEN2_BASIC_ENERGY } from './pool.js';
 
-/** What a Johto boss is: the same as a Kanto one (bosses.ts), with no Game Boy counterpart. */
-interface JohtoBoss {
-  name: string;
-  title: string;
-  kind: 'gymLeader' | 'eliteFour' | 'champion';
-  deckName: string;
-  deck: DeckList;
-  /**
-   * `favorites`: the Pokémon their Gym Trainer's random deck is built from first (for gyms whose type has no basic Energy);
-   * `trainers`: who their Gym Trainer may be (HGSS's in their gym; Olivine's the Lighthouse's), as Boss's in bosses.ts.
-   */
-  gym?: { city: string; type: EnergyType; badge: string; favorites?: string[]; trainers?: string[] };
-  prize?: string;
-  /** The types shown for the deck when its basic Energy doesn't say (a Colorless or Metal deck). */
-  types?: EnergyType[];
-}
-
-// Gen 2's basic Energy (Neo Genesis) and special Energy.
-const GRASS = 'neo1-108';
-const FIRE = 'neo1-107';
-const WATER = 'neo1-111';
-const LIGHTNING = 'neo1-109';
-const PSYCHIC = 'neo1-110';
-const FIGHTING = 'neo1-106';
+// Gen 2's basic Energy (Neo Genesis, pool.ts) and special Energy.
+const GRASS = GEN2_BASIC_ENERGY.grass!;
+const FIRE = GEN2_BASIC_ENERGY.fire!;
+const WATER = GEN2_BASIC_ENERGY.water!;
+const LIGHTNING = GEN2_BASIC_ENERGY.lightning!;
+const PSYCHIC = GEN2_BASIC_ENERGY.psychic!;
+const FIGHTING = GEN2_BASIC_ENERGY.fighting!;
 const DARKNESS = 'neo1-104'; // Darkness Energy (special)
 const METAL = 'neo1-19'; // Metal Energy (special)
 
@@ -382,4 +369,4 @@ export const JOHTO_BOSSES = {
   'johto-bruno': { name: 'Bruno', title: 'Elite Four', kind: 'eliteFour', deckName: 'Fighting Spirit', deck: JOHTO_BRUNO_DECK },
   karen: { name: 'Karen', title: 'Elite Four', kind: 'eliteFour', deckName: 'Dark Arts', deck: KAREN_DECK, types: ['darkness', 'fire', 'grass'] },
   'johto-lance': { name: 'Lance', title: 'Champion', kind: 'champion', deckName: 'Dragon Master', deck: JOHTO_LANCE_DECK, prize: 'johto-champion-ribbon' },
-} satisfies Record<string, JohtoBoss>;
+} satisfies Record<string, Boss>;

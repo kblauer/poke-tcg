@@ -18,9 +18,9 @@ import { EX9_POWERS } from './ex9-powers.js';
 import { EX10_POWERS } from './ex10-powers.js';
 import { EX11_POWERS } from './ex11-powers.js';
 import { EX13_POWERS } from './ex13-powers.js';
+import { targetOf } from './common.js';
 
-/** Where the Pokémon is on its player's side. */
-export const targetOf = (owner: { active: unknown; bench: unknown[] }, pokemon: unknown) => (owner.active === pokemon ? ('active' as const) : owner.bench.indexOf(pokemon));
+export { targetOf };
 
 /** "When you put this from your hand onto your Bench, you may …" (Crush Chance, the ☆ Rays): a yes-or-no question. */
 export const onBenchMay = (power: 'crushChance' | 'crimsonRay' | 'yellowRay' | 'blueRay', source: string, when: (state: Parameters<NonNullable<PowerEffect['onPlayFromHand']>>[0]) => boolean = () => true): PowerEffect => ({

@@ -4,13 +4,13 @@
 // Battles themselves are engine games: the API starts one when the run asks for it (needsBattle) and
 // reports the result back with BATTLE_OVER. The account's equipped items (`gear`) are passed in with each
 // action, so equipment takes effect from the next encounter; the consumables in effect are in the state.
-import type { BattleRule, CardDef, CpuDifficulty, EnergyType, PlayerId } from '@poke-tcg/game-engine';
+import { typeName, type BattleRule, type CardDef, type CpuDifficulty, type EnergyType, type PlayerId } from '@poke-tcg/game-engine';
 import { boss, bossLabel, type BossId, type BossKind } from './bosses.js';
 import { expandDeck, generateDeck, trainerFavorites } from './decks.js';
 import { activeEffects, battleRules, effectTotal, item, ITEMS, MAX_CONSUMABLES_PER_RUN, type ActiveEffect } from './items.js';
 import { byId, DECK_TYPES, offerable, PRICES, rarityWeight, type PoolCard, type Rarity } from './pool.js';
 import { between, chance, pick, random, rngFrom, sample, seed, weighted, type Rng } from './random.js';
-import { finalBoss, runGeneration, runType, type RunType, type RunTypeId } from './run-types.js';
+import { finalBoss, routeAt, runGeneration, runType, type RunType, type RunTypeId } from './run-types.js';
 import type { Route, RouteSpot } from './routes.js';
 
 export const MAX_HP = 3;
@@ -221,7 +221,7 @@ const LAND_TRAINERS = TRAINERS.filter((t) => classOf(t) !== 'Swimmer');
 const LAND_POOL: TrainerPool = { names: [], share: 0, others: LAND_TRAINERS };
 
 /** Whether a spot of a route has land (not water) within 3 tiles of it, for a non-battle encounter's NPC to stand on. */
-const landNear = (route: Route, spot: RouteSpot) => {
+export const landNear = (route: Route, spot: RouteSpot) => {
   for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) if (Math.abs(dx) + Math.abs(dy) <= 3 && route.walkable[spot.y + dy]?.[spot.x + dx] === '.') return true;
   return false;
 };
@@ -233,25 +233,21 @@ const landNear = (route: Route, spot: RouteSpot) => {
  * land battle's), which offers only non-battle encounters, so the route isn't all battles.
  */
 function poolAt(type: RunType, encounter: number): { pool: TrainerPool; landBattle: boolean; atSea: boolean; ashore: boolean } {
-  let first = 0;
-  for (const route of type.routes ?? []) {
-    if (encounter < first + route.spots.length) {
-      const spot = route.spots[encounter - first]!;
-      // A spot on land of a route whose land spots are ordinary (landSpots: Sootopolis City's streets) isn't a surfed one.
-      const onLand = !!route.landSpots && route.walkable[spot.y]?.[spot.x] === '.';
-      const surf = route.travel === 'surf' && !onLand;
-      const near = surf && landNear(route, spot);
-      const landBattle = !!route.trainers && route.landBattle === encounter - first;
-      const sea = { atSea: surf && !near, ashore: near && !landBattle };
-      if (!route.trainers) return { pool: surf ? undefined : LAND_POOL, landBattle: false, ...sea };
-      const classes = new Set(route.trainers.names.map(classOf));
-      const others = (surf ? TRAINERS : LAND_TRAINERS).filter((t) => !classes.has(classOf(t)));
-      // The land battle and a spot on land: anyone but the route's own trainers (no Swimmers on land).
-      return { pool: landBattle || onLand ? { names: [], share: 0, others } : { ...route.trainers, others }, landBattle, ...sea };
-    }
-    first += route.spots.length;
-  }
-  return { pool: LAND_POOL, landBattle: false, atSea: false, ashore: false };
+  const at = routeAt(type, encounter);
+  if (!at) return { pool: LAND_POOL, landBattle: false, atSea: false, ashore: false };
+  const { route, index } = at;
+  const spot = route.spots[index]!;
+  // A spot on land of a route whose land spots are ordinary (landSpots: Sootopolis City's streets) isn't a surfed one.
+  const onLand = !!route.landSpots && route.walkable[spot.y]?.[spot.x] === '.';
+  const surf = route.travel === 'surf' && !onLand;
+  const near = surf && landNear(route, spot);
+  const landBattle = !!route.trainers && route.landBattle === index;
+  const sea = { atSea: surf && !near, ashore: near && !landBattle };
+  if (!route.trainers) return { pool: surf ? undefined : LAND_POOL, landBattle: false, ...sea };
+  const classes = new Set(route.trainers.names.map(classOf));
+  const others = (surf ? TRAINERS : LAND_TRAINERS).filter((t) => !classes.has(classOf(t)));
+  // The land battle and a spot on land: anyone but the route's own trainers (no Swimmers on land).
+  return { pool: landBattle || onLand ? { names: [], share: 0, others } : { ...route.trainers, others }, landBattle, ...sea };
 }
 
 function mapEncounter(rng: Rng, kind: EncounterKind, pool?: TrainerPool): MapEncounter {
@@ -512,7 +508,6 @@ export function battleSetup(
   return { deck: generateDeck(pool, rngFrom(e.deckSeed), { type, favorites, rules: deckRules, difficulty }), difficulty, rules, opponent: e.trainer };
 }
 
-const typeName = (t: string) => t[0]!.toUpperCase() + t.slice(1);
 
 /** What an event says and what accepting it costs, for the screen. `cardName` names a card id. */
 export function eventInfo(event: RunEvent, cardName: (id: string) => string): { title: string; text: string; accept: string } {

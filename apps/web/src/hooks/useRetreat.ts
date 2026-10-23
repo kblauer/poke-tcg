@@ -1,6 +1,7 @@
 import { energyProvided, hasBenched, retreatCost, retreatError, type CardInstance, type GameAction, type PlayerView } from '@poke-tcg/game-engine';
 import { useEffect, useState } from 'react';
 import { occupiedSlots, toTarget, type SlotId } from '../utils/slots';
+import { useEscape } from './useEscape';
 import { isMyTurn } from '../utils/turn';
 
 /**
@@ -41,12 +42,7 @@ export function useRetreat({ view, send, busy }: { view: PlayerView; send: (a: G
 
   // Done (or moot) once the game state moves on.
   useEffect(cancel, [view.version]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && cancel();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  useEscape(cancel);
 
   /** Bench slots that can be switched in now. */
   const targets = new Set<SlotId>(ready ? occupiedSlots(view.self).filter((s) => s !== 'active') : []);

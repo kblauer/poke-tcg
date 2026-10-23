@@ -15,10 +15,10 @@ import { hasType, isBasicEnergy, lookupCard } from '../cards.js';
 import { canPayCost, isEnergyCardOf, retreatCost, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
 import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { effectId, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
+import { clearSpecialConditions, effectId, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { handTrainerFits } from '../trainers.js';
 import { attackEffect } from './index.js';
-import { benchedSlots, energyCanMove, headsUntilTails, opponentBenchChoice } from './common.js';
+import { benchedSlots, energyCanMove, headsUntilTails, opponentBenchChoice, same } from './common.js';
 import { copyAttack } from './ecard2.js';
 import { ATTACK_TEMPLATES, type TemplateArg } from './ex-templates.js';
 import { discardAtRandom } from './ex1.js';
@@ -27,13 +27,6 @@ import { ascension, EX5 } from './ex5.js';
 import { hyperPump, lookForFriends, lureIn, mayDiscardAny, notNextTurn, restNext, snipe } from './ex6.js';
 import { discardFromAttacker } from './gym1.js';
 import { healDefender, healUpTo } from './si1.js';
-
-/** Another set's attack effect, read when it's used (the effect tables can't be read while the modules load). */
-const same = (get: () => AttackEffect | undefined): AttackEffect => ({
-  blocked: (s) => get()?.blocked?.(s) ?? null,
-  choices: (s, c) => get()?.choices?.(s, c) ?? [],
-  run: (ctx) => get()?.run(ctx),
-});
 
 /** A shared wording's effect (ex-templates.ts), for an attack TCGdex's text keeps it from matching. */
 const template = (name: string, damage: number, args: TemplateArg[], attack: string): AttackEffect => ATTACK_TEMPLATES[name]!.make(damage, args, attack);
@@ -570,8 +563,7 @@ export const EX7: Record<string, Record<string, AttackEffect>> = {
   'ex7-79': {
     Rest: {
       run(ctx) {
-        Object.assign(ctx.attacker, { condition: null, poison: 0, burned: false });
-        delete ctx.attacker.paralyzedTurn;
+        clearSpecialConditions(ctx.attacker);
         ctx.heal('all');
         ctx.sleepSelf();
       },

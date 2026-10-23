@@ -5,7 +5,7 @@
 // From the text: Terraforming is a Poké-Power (as printed; TCGdex says Poké-Body); the Synergy Effects work while their
 // Stadium is in play; Metal Gravity is one a retreat (RETREAT); the ☆ Rays and Cursed Eyes work as the Pokémon is put onto
 // the Bench from the hand, and are their player's choice; Chilling Breath stops every Trainer card, Supporters too.
-import { afflictBetweenTurns } from '../engine.js';
+import { afflictBetweenTurns, opponentOf } from '../engine.js';
 import { type PowerEffect } from '../powers.js';
 import { lookupCard } from '../cards.js';
 import { shuffle } from '../rng.js';
@@ -91,7 +91,7 @@ export const EX16_POWERS: Record<string, PowerEffect> = {
   // Absol ex – Cursed Eyes: put onto the Bench from the hand, up to 3 damage counters move between the opponent's Pokémon.
   'ex16-92': {
     onPlayFromHand(state, owner, pokemon) {
-      const opp = state.players[state.playerOrder.find((id) => id !== owner.id)!]!;
+      const opp = state.players[opponentOf(state, owner.id)]!;
       const theirs = [opp.active, ...opp.bench].filter(Boolean);
       if (pokemon.evolvedFrom.length || !owner.bench.includes(pokemon) || theirs.length < 2 || !theirs.some((p) => p!.damage > 0)) return;
       state.pendingChoice = { player: owner.id, source: 'Cursed Eyes', kind: 'cursedEyes' };
@@ -119,7 +119,7 @@ export const EX16_POWERS: Record<string, PowerEffect> = {
   'ex16-99': {
     onPlayFromHand(state, owner, pokemon) {
       if (!pokemon.evolvedFrom.length) return;
-      const opp = state.players[state.playerOrder.find((id) => id !== owner.id)!]!;
+      const opp = state.players[opponentOf(state, owner.id)]!;
       opp.noTrainersUntil = state.turn + 1;
       addLog(state, "Chilling Breath: your opponent can't play Trainer cards during their next turn.", owner.id);
     },

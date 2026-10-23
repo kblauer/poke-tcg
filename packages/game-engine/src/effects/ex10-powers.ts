@@ -9,7 +9,7 @@
 // Flash, Bursting Up and Darker Ring work as the card evolves a Pokémon from the hand (Darker Ring's switch isn't a "may");
 // Night Cry, Snappy Move and Item Search show the card found.
 import { hasType, isBasicEnergy, lookupCard, type PokemonCardDef } from '../cards.js';
-import { counts, energyProvided, evolvesOnto, isEnergyCardOf, toolOf, type CardInstance } from '../engine.js';
+import { counts, energyProvided, evolvesOnto, isEnergyCardOf, opponentOf, toolOf, type CardInstance } from '../engine.js';
 import { attachBlocked, discardsLocked, energyFromHand, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
 import { flipCoin, inPlayDef, pokemonName } from '../status.js';
 import { EX1_POWERS } from './ex1-powers.js';
@@ -198,7 +198,7 @@ export const EX10_POWERS: Record<string, PowerEffect> = {
   }),
   // Espeon ex – Devo Flash: evolving from the hand, one of the opponent's Benched Evolved Pokémon may lose its top card to their hand.
   'ex10-102': onEvolve((state, owner) => {
-    const opp = state.players[state.playerOrder.find((id) => id !== owner.id)!]!;
+    const opp = state.players[opponentOf(state, owner.id)]!;
     if (opp.bench.some((p) => p?.evolvedFrom.length)) state.pendingChoice = { player: owner.id, source: 'Devo Flash', kind: 'oppBenchPick', purpose: 'devolve' };
   }),
   // Feraligatr ex – Overpowering Fang (powerActive).
@@ -245,14 +245,14 @@ export const EX10_POWERS: Record<string, PowerEffect> = {
   // Typhlosion ex – Bursting Up: evolving from the hand, up to as many Fire Energy cards from the deck as the opponent has Benched
   // Pokémon, all attached to one of the player's Fire Pokémon.
   'ex10-110': onEvolve((state, owner) => {
-    const opp = state.players[state.playerOrder.find((id) => id !== owner.id)!]!;
+    const opp = state.players[opponentOf(state, owner.id)]!;
     const count = opp.bench.filter(Boolean).length;
     const fire = [owner.active, ...owner.bench].some((p) => p && hasType(inPlayDef(state.cards, p), 'fire'));
     if (count && fire && owner.deck.length) state.pendingChoice = { player: owner.id, source: 'Bursting Up', kind: 'pickFromDeck', filter: 'energyType', type: 'fire', count, optional: true, attach: true, attachSame: true, attachOnly: { type: 'fire' } };
   }),
   // Umbreon ex – Darker Ring: evolving from the hand, one of the opponent's Benched Pokémon is switched with their Active Pokémon.
   'ex10-112': onEvolve((state, owner) => {
-    const opp = state.players[state.playerOrder.find((id) => id !== owner.id)!]!;
+    const opp = state.players[opponentOf(state, owner.id)]!;
     if (opp.active && opp.bench.some(Boolean)) state.pendingChoice = { player: owner.id, source: 'Darker Ring', kind: 'oppBenchPick', purpose: 'gust' };
   }),
   // Rocket's Persian ex – Night Cry: once a turn, on the Bench, a Pokémon with Dark or Rocket's in its name from the deck, shown.

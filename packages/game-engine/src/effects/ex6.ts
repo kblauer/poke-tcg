@@ -15,7 +15,7 @@ import { counts, discardTheirEnergy, energyPool, energyProvided, isEnergyCardOf,
 import { shuffle } from '../rng.js';
 import { inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { handTrainerFits } from '../trainers.js';
-import { benchedSlots, headsUntilTails, opponentBenchChoice } from './common.js';
+import { benchedSlots, headsUntilTails, opponentBenchChoice, same } from './common.js';
 import { copyAttack } from './ecard2.js';
 import { energyAmount } from './ex1.js';
 import { discardOwn, inPlay, putCounters } from './ex2.js';
@@ -26,13 +26,6 @@ import { EX3 } from './ex3.js';
 import { EX5 } from './ex5.js';
 import { energyCanGo } from './neo3.js';
 import { ROCKET } from './rocket.js';
-
-/** Another set's attack effect, read when it's used (the effect tables can't be read while the modules load). */
-const same = (get: () => AttackEffect | undefined): AttackEffect => ({
-  blocked: (s) => get()?.blocked?.(s) ?? null,
-  choices: (s, c) => get()?.choices?.(s, c) ?? [],
-  run: (ctx) => get()?.run(ctx),
-});
 
 /** "Choose 1 of your opponent's Pokémon. This attack does `damage` to that Pokémon" (no Weakness or Resistance on the Bench). */
 export const snipe = (damage: number, then?: (ctx: AttackContext) => void): AttackEffect => ({

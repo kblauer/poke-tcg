@@ -1,10 +1,9 @@
 import { energyProvided, inPlayDef, lookupCard, typeName, type CardInstance, type CardLibrary, type ChoiceSpec, type PlayerView } from '@poke-tcg/game-engine';
 import { useState } from 'react';
 import type { AttackControl } from '../hooks/useAttack';
+import { OPTION_BUTTON as option } from '../utils/styles';
 import { EnergyIcon } from './EnergyIcon';
 
-// Styled like the Trainer dialog: buttons one shade lighter than the panel.
-const option = 'rounded bg-slate-600 px-2 py-1 text-left text-xs transition hover:bg-slate-500 active:scale-95';
 /** Shown instead of buttons when the answer is a Pokémon in play, which is clicked on the board. */
 export const pickHint = 'text-emerald-300';
 

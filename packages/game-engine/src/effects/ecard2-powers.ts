@@ -15,18 +15,10 @@ import { attachBlocked, discardsLocked, energyFromHand, ownTargets, pokemonAt, p
 import { addLog, effectId, inPlayDef, pokemonName } from '../status.js';
 import { swapActive } from '../trainers.js';
 import { powerEffect } from './index.js';
-
-/** A Poké-Body: always on, whatever its Pokémon's Special Conditions. */
-const POKE_BODY = { ignoresConditions: true, body: true } as const;
-
-/** Energy cards attached to a Pokémon. */
-const energyCards = (p: InPlayPokemon) => p.energy.filter((e) => !e.provides);
+import { energyCards, onlyActive, onlyBenched, POKE_BODY } from './common.js';
 
 /** Basic Energy cards (not a Pokémon attached as Energy). */
 const isBasicCard = (cards: CardLibrary, c: CardInstance) => !c.provides && isBasicEnergy(lookupCard(cards, c.defId));
-
-const onlyActive = (s: PowerSituation, name: string) => (s.source === 'active' ? null : `${name} must be your Active Pokémon`);
-const onlyBenched = (s: PowerSituation, name: string) => (s.source !== 'active' ? null : `${name} must be on your Bench`);
 
 /** The player's Benched Pokémon, by target. */
 const benched = (s: Pick<PowerSituation, 'me'>) => ownTargets(s.me).filter((t) => t !== 'active');

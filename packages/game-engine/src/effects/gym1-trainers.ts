@@ -8,7 +8,7 @@
 // City Gym asks the player before each attack; the CPU always flips. Blaine's Quiz #1 offers 4 lengths, and the CPU
 // guesses at random.
 import { isBasicPokemon, isPokemonCard, lookupCard, type PokemonCardDef } from '../cards.js';
-import type { CardInstance, PlayerState } from '../engine.js';
+import { newInPlay, type CardInstance, type PlayerState } from '../engine.js';
 import { trainerProof } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { addLog, clearOnLeavingActive, openBenchSlot, pokemonName } from '../status.js';
@@ -59,7 +59,7 @@ const LT_SURGE: TrainerEffect = {
     const old = ctx.me.active!;
     clearOnLeavingActive(old);
     ctx.me.bench[openBenchSlot(ctx.me.bench, ctx.state.cards, ctx.state.stadium?.card)] = old;
-    ctx.me.active = { card: card!, evolvedFrom: [], damage: 0, energy: [], playedTurn: ctx.turn };
+    ctx.me.active = newInPlay(card!, ctx.turn);
     ctx.log(`${pokemonName(ctx.state, ctx.me.active)} is the new Active Pokémon; ${pokemonName(ctx.state, old)} went to the Bench.`);
   },
 };

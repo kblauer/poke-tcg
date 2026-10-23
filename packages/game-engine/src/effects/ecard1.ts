@@ -13,14 +13,17 @@ import { isBasicEnergy, lookupCard } from '../cards.js';
 import { energyPool, isEnergyCardOf, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
 import { pokemonName } from '../status.js';
 import {
+  basicEnergyOn,
   benchedSlots,
   benchTarget,
   discardToUse,
+  energyCards,
   flipToInflict,
   headsUntilTails,
   inflicts,
   leechSeed,
   opponentBenchChoice,
+  opponentTargets,
   perHeads,
   recoil,
   tailsSelfDamage,
@@ -30,16 +33,11 @@ import {
 import { withNonHolo } from './ecard1-prints.js';
 import { benchMany, discardFromAttacker, noRetreat } from './gym1.js';
 import { flipForMore } from './jungle.js';
-import { opponentTargets } from './neo1.js';
 import { attachFromDiscard } from './neo3.js';
 import { flipOrNothing } from './rocket.js';
 import { eitherCondition, healUpTo } from './si1.js';
 
-/** Basic Energy cards attached to a Pokémon (not a Pokémon attached as Energy). */
-export const basicEnergyOn = (cards: AttackSituation['cards'], p: InPlayPokemon) => p.energy.filter((e) => !e.provides && isBasicEnergy(lookupCard(cards, e.defId)));
-
-/** Energy cards attached to a Pokémon. */
-export const energyCards = (p: InPlayPokemon) => p.energy.filter((e) => !e.provides);
+export { basicEnergyOn, energyCards };
 
 /** `type` Energy cards attached to the attacker (Rainbow Energy last). */
 export const typedCards = (ctx: AttackContext, type: 'fire' | 'lightning' | 'water') => {

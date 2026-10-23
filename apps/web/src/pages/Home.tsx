@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 import { PanelTabs } from '../components/LogDrawer';
 import { PageHeader } from '../components/PageHeader';
 import { PreviewProvider } from '../components/PreviewProvider';
-import { DeckPanel } from '../components/run/DeckPanel';
+import { RunDeckPanel } from '../components/run/RunDeckPanel';
 import { EncounterPanel } from '../components/run/EncounterPanel';
 import { NewRunPicker } from '../components/run/NewRunPicker';
 import { RunHeader } from '../components/run/RunHeader';
@@ -85,7 +85,7 @@ export function HomePage() {
       ) : (
         <EncounterPanel view={view} run={run} />
       )}
-      <DeckPanel view={view} />
+      <RunDeckPanel view={view} />
       {view.phase === 'map' && <ConcedeRun view={view} run={run} />}
     </div>
   );

@@ -21,12 +21,10 @@ import { CPU_ID, HUMAN_ID } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { ensureUser, type AuthUser } from './auth.js';
 import { loadCardLibrary } from './cards.js';
+import { actionRows, asJson, newSeed } from './games.js';
 import { runPool } from './pool.js';
 import { earnedPacks, unlockPacks } from './progress.js';
 import { unlockCards } from './unlocks.js';
-
-const asJson = (value: unknown) => value as Prisma.InputJsonValue;
-const newSeed = () => Math.floor(Math.random() * 2 ** 31);
 
 export type LoadedRun = Omit<Run, 'state'> & { state: RunState };
 const loaded = (run: Run): LoadedRun => ({ ...run, state: run.state as unknown as RunState });
@@ -206,7 +204,7 @@ async function startBattle(run: LoadedRun, state: RunState, gear: string[]): Pro
       ...(cosmetics && { cosmetics }),
       state: asJson(game),
       version: game.version,
-      actions: { create: actions.map((action: GameAction, i) => ({ playerId: CPU_ID, version: game.version - actions.length + i + 1, action: asJson(action) })) },
+      actions: { create: actionRows(actions.map((action) => ({ playerId: CPU_ID, action })), game.version) },
     },
     select: { id: true },
   });
@@ -230,7 +228,7 @@ export async function abandonBattle(gameId: string) {
       version: next.version,
       status: 'FINISHED',
       winner: next.winner,
-      actions: [{ playerId: HUMAN_ID, version: next.version, action: asJson(action) }],
+      actions: actionRows([{ playerId: HUMAN_ID, action }], next.version),
     });
     if (saved) return;
   }

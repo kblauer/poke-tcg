@@ -9,7 +9,7 @@ import { isBasicEnergy, lookupCard, type EnergyType } from '../cards.js';
 import { isEnergyCardOf, PRIZE_COUNT, type Affliction, type CardInstance, type InPlayPokemon } from '../engine.js';
 import { nextRandom, shuffle } from '../rng.js';
 import { hasSpecialCondition } from '../status.js';
-import { benchedSlots, benchTarget, discardToUse, extraEnergy, flipToInflict, flipToProtect, headsUntilTails, inflicts, opponentSwitches, perHeads, recoil, tailsSelfDamage } from './common.js';
+import { benchedSlots, benchTarget, discardToUse, extraEnergy, flipToInflict, flipToProtect, headsUntilTails, inflicts, inPlay, opponentSwitches, perHeads, recoil, tailsSelfDamage } from './common.js';
 import { discardDefenderTrainers } from './ecard2.js';
 import { discardAtRandom, eachDefending, energyAmount, restNextTurn } from './ex1.js';
 import { smokescreen } from './fossil.js';
@@ -73,9 +73,6 @@ const counters = (p: InPlayPokemon) => Math.floor(p.damage / 10);
 
 /** Basic Energy cards of `type` attached to the Pokémon, as Battle Blast counts them. */
 const typedCount = (ctx: AttackContext, p: InPlayPokemon, type: EnergyType) => p.energy.filter((e) => isEnergyCardOf(e, ctx.state.cards, type)).length;
-
-const ownInPlay = (ctx: AttackContext) => [ctx.me.active, ...ctx.me.bench].filter((p): p is InPlayPokemon => !!p);
-const oppInPlay = (ctx: AttackContext) => [ctx.opp.active, ...ctx.opp.bench].filter((p): p is InPlayPokemon => !!p);
 
 /** Energy cards of `type` (or any, or basic) in the discard pile, for "search your discard pile for … and attach it to …". */
 const discardMatch = (ctx: AttackContext, kind: string) => (c: CardInstance) => {
@@ -283,17 +280,17 @@ export const ATTACK_TEMPLATES: Record<string, AttackTemplate> = {
   perOwnTypedAllMore: {
     pattern: re(`does (\\d+) damage plus (\\d+) more damage for each ${TYPE} energy attached to all of your pokemon`),
     fits: sameBase(0),
-    make: (_, [base, more, type]) => ({ run: (ctx) => void ctx.hit(num(base) + num(more) * ownInPlay(ctx).reduce((n, p) => n + typedCount(ctx, p, word(type)), 0)) }),
+    make: (_, [base, more, type]) => ({ run: (ctx) => void ctx.hit(num(base) + num(more) * inPlay(ctx.me).reduce((n, p) => n + typedCount(ctx, p, word(type)), 0)) }),
   },
   perOwnEnergyAll: {
     pattern: re('does (\\d+) damage times the amount of energy attached to all of your pokemon \\(including @\\)'),
     fits: sameBase(0),
-    make: (_, [each]) => ({ run: (ctx) => void ctx.hit(num(each) * ownInPlay(ctx).reduce((n, p) => n + energyAmount(ctx, p), 0)) }),
+    make: (_, [each]) => ({ run: (ctx) => void ctx.hit(num(each) * inPlay(ctx.me).reduce((n, p) => n + energyAmount(ctx, p), 0)) }),
   },
   perOppEnergyAllMore: {
     pattern: re("does (\\d+) damage plus (\\d+) more damage for each energy attached to all of your opponent's pokemon"),
     fits: sameBase(0),
-    make: (_, [base, more]) => ({ run: (ctx) => void ctx.hit(num(base) + num(more) * oppInPlay(ctx).reduce((n, p) => n + energyAmount(ctx, p), 0)) }),
+    make: (_, [base, more]) => ({ run: (ctx) => void ctx.hit(num(base) + num(more) * inPlay(ctx.opp).reduce((n, p) => n + energyAmount(ctx, p), 0)) }),
   },
   perConditionMore: {
     pattern: re('does (\\d+) damage plus (\\d+) more damage for each special condition affecting the defending pokemon'),
@@ -309,7 +306,7 @@ export const ATTACK_TEMPLATES: Record<string, AttackTemplate> = {
   perInPlay: {
     pattern: re("does (\\d+) damage times the number of pokemon in play \\(both yours and your opponent's\\), excluding @"),
     fits: sameBase(0),
-    make: (_, [each]) => ({ run: (ctx) => void ctx.hit(num(each) * (ownInPlay(ctx).length + oppInPlay(ctx).length - 1)) }),
+    make: (_, [each]) => ({ run: (ctx) => void ctx.hit(num(each) * (inPlay(ctx.me).length + inPlay(ctx.opp).length - 1)) }),
   },
   extraTyped: {
     pattern: re(`does (\\d+) damage plus (\\d+) more damage for each ${TYPE} energy attached to @ but not used to pay for this attack's energy cost\\. you can't add more than (\\d+) damage in this way`),
@@ -382,7 +379,7 @@ export const ATTACK_TEMPLATES: Record<string, AttackTemplate> = {
 
   // Cards.
   draw: { pattern: re('draw (?:a card|(\\d+) cards)'), make: (d, [n]) => thenDo(d, (ctx) => ctx.draw(n === undefined ? 1 : num(n))) },
-  evolvedDraw: { pattern: re('if your opponent has any evolved pokemon in play, draw (\\d+) cards'), make: (d, [n]) => thenDo(d, (ctx) => oppInPlay(ctx).some((p) => p.evolvedFrom.length > 0) && ctx.draw(num(n))) },
+  evolvedDraw: { pattern: re('if your opponent has any evolved pokemon in play, draw (\\d+) cards'), make: (d, [n]) => thenDo(d, (ctx) => inPlay(ctx.opp).some((p) => p.evolvedFrom.length > 0) && ctx.draw(num(n))) },
   randomDiscard: { pattern: re("choose 1 card from your opponent's hand without looking and discard it"), make: (d) => thenDo(d, discardAtRandom) },
   randomToDeck: {
     pattern: re("choose 1 card from your opponent's hand without looking\\. look at the card you chose, then have your opponent shuffle that card into his or her deck"),
@@ -423,7 +420,7 @@ export const ATTACK_TEMPLATES: Record<string, AttackTemplate> = {
 
   // Healing.
   heal: { pattern: re('remove (\\d+) damage counters? from @'), make: (d, [n]) => thenDo(d, (ctx) => healUpTo(ctx, ctx.me, ctx.attacker, 10 * num(n))) },
-  healAll: { pattern: re('remove 1 damage counter from each of your pokemon \\(including @\\)'), make: (d) => thenDo(d, (ctx) => ownInPlay(ctx).forEach((p) => healUpTo(ctx, ctx.me, p, 10))) },
+  healAll: { pattern: re('remove 1 damage counter from each of your pokemon \\(including @\\)'), make: (d) => thenDo(d, (ctx) => inPlay(ctx.me).forEach((p) => healUpTo(ctx, ctx.me, p, 10))) },
   drain: {
     pattern: re('after your attack, remove from @ the number of damage counters equal to the damage you did to the defending pokemon\\. if @ has fewer damage counters than that, remove all of them'),
     make: (d) => ({ run: (ctx) => healUpTo(ctx, ctx.me, ctx.attacker, ctx.hit(d)) }),

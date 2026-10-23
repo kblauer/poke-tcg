@@ -22,14 +22,17 @@ import { BASE1 } from './base1.js';
 import {
   benchedSlots,
   benchSearch,
+  damageOpponent,
   discardToUse,
   extraEnergy,
   flipToInflict,
   flipToProtect,
   inflicts,
+  inPlay,
   leechSeed,
   opponentBenchChoice,
   opponentSwitches,
+  opponentTargets,
   perHeads,
 } from './common.js';
 import { FOSSIL, smokescreen } from './fossil.js';
@@ -37,11 +40,10 @@ import { discardFromAttacker } from './gym1.js';
 import { cantAttackMe, flipForMore, rage } from './jungle.js';
 import { flipOrNothing, shuffleIntoDeck } from './rocket.js';
 
+export { damageOpponent, opponentTargets };
+
 /** Shuffles the attacking player's deck. */
 const shuffleOwnDeck = (ctx: AttackContext) => void ([ctx.me.deck, ctx.state.rngState] = shuffle(ctx.me.deck, ctx.state.rngState));
-
-/** The attacking player's Pokémon in play. */
-const ownInPlay = (ctx: AttackContext) => [ctx.me.active, ...ctx.me.bench].filter((p): p is InPlayPokemon => !!p);
 
 /** Base damage, then 10 for each damage counter on the attacker (Flail). */
 const flail: AttackEffect = { run: (ctx) => void ctx.hit(ctx.attacker.damage) };
@@ -92,14 +94,6 @@ export function hold(ctx: AttackContext, until?: number) {
     ctx.log(`${ctx.defenderDef.name} can't retreat while ${ctx.attackerDef.name} is the Active Pokémon${until !== undefined ? ', and nothing can switch it out, until the end of the next turn' : ''}.`);
   });
 }
-
-/** Damage to one of the opponent's Pokémon: the Active one without Weakness and Resistance (`swift`: without anything else on it either). */
-export function damageOpponent(ctx: AttackContext, target: Target, amount: number, swift = false) {
-  if (target === 'active') ctx.hit(amount, swift ? { swift } : { weakness: false });
-  else ctx.damageBenched(ctx.opp, target, amount);
-}
-
-export const opponentTargets = (s: AttackSituation, prompt: string): ChoiceSpec[] => [{ kind: 'opponentPokemon', options: targetsIn(s.defender, s.opponentBench), prompt }];
 
 /** Base damage; the opponent switches the Defending Pokémon (their choice), then the attacker may be switched with a benched Pokémon (Rapid Spin). */
 export const rapidSpin = (damage: number, name: string): AttackEffect => ({
@@ -182,7 +176,7 @@ export const NEO1: Record<string, Record<string, AttackEffect>> = {
       },
     },
     'Flower Dance': {
-      run: (ctx) => void ctx.hit(30 * ownInPlay(ctx).filter((p) => inPlayDef(ctx.state.cards, p).name.includes('Bellossom')).length),
+      run: (ctx) => void ctx.hit(30 * inPlay(ctx.me).filter((p) => inPlayDef(ctx.state.cards, p).name.includes('Bellossom')).length),
     },
   },
   // Feraligatr
@@ -373,7 +367,7 @@ export const NEO1: Record<string, Record<string, AttackEffect>> = {
   // Sneasel
   'neo1-25': {
     'Fury Swipes': perHeads(3, 10),
-    'Beat Up': { run: (ctx) => void ctx.hit(20 * ctx.flips(ownInPlay(ctx).length)) },
+    'Beat Up': { run: (ctx) => void ctx.hit(20 * ctx.flips(inPlay(ctx.me).length)) },
   },
   // Aipom
   'neo1-26': {

@@ -17,6 +17,7 @@ import {
   toolOf,
   type Affliction,
   type CardInstance,
+  opponentOf,
   type GameState,
   type InPlayPokemon,
   type PlayerId,
@@ -830,7 +831,7 @@ export function checkAttack(s: AttackSituation, attackIndex: number, given: Atta
  */
 export function damageChosenBenched(state: GameState, slot: number, amount: number) {
   const me = state.players[state.currentPlayer]!;
-  const opp = state.players[state.playerOrder.find((id) => id !== me.id)!]!;
+  const opp = state.players[opponentOf(state, me.id)]!;
   if (!me.active) return;
   const later: (() => void)[] = [];
   createContext(state, me, opp, {}, later, `${pokemonName(state, me.active)}'s attack`).damageBenched(opp, slot, amount);
@@ -843,7 +844,7 @@ export function damageChosenBenched(state: GameState, slot: number, amount: numb
  */
 export function performCopiedAttack(state: GameState, attack: Attack, source: string) {
   const me = state.players[state.currentPlayer]!;
-  const opp = state.players[state.playerOrder.find((id) => id !== me.id)!]!;
+  const opp = state.players[opponentOf(state, me.id)]!;
   if (!me.active || !opp.active) return;
   const s = attackSituation(state, me, opp);
   const effect = attackEffect(source, attack.name);
