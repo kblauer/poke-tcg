@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Board, type LastMove, type PlayedMove } from '../components/Board';
 import { PLAYED_CARD_MS } from '../components/PlayedCard';
 import { TURN_BANNER_MS } from '../components/TurnBanner';
-import { CoinFlip, flipsAfter, type Flip } from '../components/CoinFlip';
+import { CoinFlip, flipsAfter, useTestFlips, type Flip } from '../components/CoinFlip';
 import { useGameLogInNav } from '../components/NavLog';
 import { RunStats } from '../components/run/RunStats';
 import { useIsPhone } from '../hooks/useIsPhone';
@@ -36,6 +36,9 @@ export function GamePage() {
   const [shownView, setShownView] = useState<PlayerView | null>(null);
   /** The next move's coin flips, playing before the move is shown. */
   const [flips, setFlips] = useState<Flip[]>([]);
+  /** Debug only: a test coin flip from the Debug tab (requestTestFlip), shown over the table with the game unchanged. */
+  const [testFlip, setTestFlip] = useState<Flip[] | null>(null);
+  useTestFlips(setTestFlip);
   /** The next move is on screen, and the one after it follows shortly. */
   const [revealed, setRevealed] = useState(false);
   const [skipFlips] = useSkipFlips();
@@ -154,6 +157,9 @@ export function GamePage() {
         overlay={
           flips.length > 0 ? (
             <CoinFlip flips={flips} you={view.you} onDone={reveal} />
+          ) : testFlip ? (
+            // Shown whatever the skip setting, and done with nothing to reveal.
+            <CoinFlip flips={testFlip} you={view.you} onDone={() => setTestFlip(null)} />
           ) : (
             shown.phase === 'finished' && <BattleResult view={shown} opponent={data.opponent} run={data.runId !== null} />
           )
