@@ -121,7 +121,7 @@ export function CoinFlip({
 }
 
 /** The gap between the Active Pokémon (or the Peek card beside yours, .attack-column, when it's shown) and the coin flip's window. */
-const GAP = 24;
+const GAP = 36;
 
 /**
  * Where the coin flip's window goes in the play area (`area`): on the big screen's board, beside the Active Pokémon of
