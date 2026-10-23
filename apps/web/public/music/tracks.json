@@ -248,6 +248,15 @@
   "url": "https://vgmtreasurechest.com/soundtracks/pokemon-red-green-blue-yellow/wklcbaxl/58%20Pikachu%27s%20Beach.mp3"
  },
  {
+  "title": "Pokémon Healed",
+  "game": "Red, Green, Blue & Yellow",
+  "gen": 1,
+  "battle": false,
+  "seconds": 5,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-red-green-blue-yellow/cftaypec/19.%20Pok%C3%A9mon%20Healed.mp3",
+  "hidden": true
+ },
+ {
   "title": "Title Screen",
   "game": "FireRed & LeafGreen",
   "gen": 1,
@@ -558,6 +567,24 @@
   "battle": true,
   "seconds": 163,
   "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/stprskxj/2-02.%20Battle%21%20%28Deoxys%29.mp3"
+ },
+ {
+  "title": "Pokémon Healed",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 7,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/uccgxvif/1-23.%20Pok%C3%A9mon%20Healed.mp3",
+  "hidden": true
+ },
+ {
+  "title": "Road to Viridian City: Leaving Pallet Town",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 56,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/zpctlylj/1-13.%20Road%20to%20Viridian%20City%20-%20Leaving%20Pallet%20Town.mp3",
+  "hidden": true
  },
  {
   "title": "Title Screen (Gold & Silver)",
@@ -1094,6 +1121,15 @@
   "battle": false,
   "seconds": 84,
   "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-gold-silver-crystal/kwcxehuc/124.%20THE%20END.mp3"
+ },
+ {
+  "title": "Pokémon Healed",
+  "game": "Gold, Silver & Crystal",
+  "gen": 2,
+  "battle": false,
+  "seconds": 5,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-gold-silver-crystal/jnncuumd/24.%20Pok%C3%A9mon%20Healed.mp3",
+  "hidden": true
  },
  {
   "title": "Opening Movie",
@@ -1912,6 +1948,15 @@
   "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/ncxjhtincx/174.%20Arceus.mp3"
  },
  {
+  "title": "Pokémon Healed",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 4,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/vyvmavzqzw/16.%20Pok%C3%A9mon%20Healed.mp3",
+  "hidden": true
+ },
+ {
   "title": "Title Screen - Main Theme",
   "game": "Ruby & Sapphire",
   "gen": 3,
@@ -2398,6 +2443,24 @@
   "battle": false,
   "seconds": 196,
   "url": "https://jetta.vgmtreasurechest.com/soundtracks/pokemon-ruby-sapphire-music-super-complete/vczsoqlk/2-55.%20Steven%20Stone.mp3"
+ },
+ {
+  "title": "Pokémon Healed",
+  "game": "Ruby & Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 5,
+  "url": "https://jetta.vgmtreasurechest.com/soundtracks/pokemon-ruby-sapphire-music-super-complete/ohssjsmi/1-14.%20Pok%C3%A9mon%20Healed.mp3",
+  "hidden": true
+ },
+ {
+  "title": "Fortree City",
+  "game": "Ruby & Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 56,
+  "url": "https://jetta.vgmtreasurechest.com/soundtracks/pokemon-ruby-sapphire-music-super-complete/zuxdbtsg/2-02.%20Fortree%20City.mp3",
+  "hidden": true
  },
  {
   "title": "Abnormal Weather",
@@ -3294,6 +3357,15 @@
   "battle": false,
   "seconds": 226,
   "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/kqadsche/4-42.%20Appeal%E2%98%86Love.mp3"
+ },
+ {
+  "title": "Pokémon Healed",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 5,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/lpstrdrx/1-16.%20Pok%C3%A9mon%20Healed.mp3",
+  "hidden": true
  },
  {
   "title": "Opening Movie (Pokémon Diamond & Pokémon Pearl)",
