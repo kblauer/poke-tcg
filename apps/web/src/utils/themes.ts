@@ -68,19 +68,41 @@ const NEUTRAL: [shade: number, l: number, c: number][] = [
 ];
 const ACCENT: [shade: number, l: number, c: number][] = [[50, 0.987, 0.026], [100, 0.973, 0.071], [200, 0.945, 0.129], [300, 0.905, 0.182], [400, 0.852, 0.199]];
 
-/** Whether an OKLCH colour is inside sRGB. */
-function inGamut(l: number, c: number, h: number): boolean {
+/** An OKLCH colour in linear sRGB (outside 0–1 when sRGB can't show it). */
+function linearRgb(l: number, c: number, h: number): number[] {
   const a = c * Math.cos((h * Math.PI) / 180);
   const b = c * Math.sin((h * Math.PI) / 180);
   const lc = (l + 0.3963377774 * a + 0.2158037573 * b) ** 3;
   const mc = (l - 0.1055613458 * a - 0.0638541728 * b) ** 3;
   const sc = (l - 0.0894841775 * a - 1.291485548 * b) ** 3;
-  const rgb = [
+  return [
     4.0767416621 * lc - 3.3077115913 * mc + 0.2309699292 * sc,
     -1.2684380046 * lc + 2.6097574011 * mc - 0.3413193965 * sc,
     -0.0041960863 * lc - 0.7034186147 * mc + 1.707614701 * sc,
   ];
-  return rgb.every((v) => v >= -1e-4 && v <= 1 + 1e-4);
+}
+
+/** Whether an OKLCH colour is inside sRGB. */
+function inGamut(l: number, c: number, h: number): boolean {
+  return linearRgb(l, c, h).every((v) => v >= -1e-4 && v <= 1 + 1e-4);
+}
+
+/** An OKLCH colour (its chroma cut to sRGB) as `r, g, b` 0–255, for a canvas's `rgba(…)`. */
+function rgbTriplet(l: number, c: number, h: number): string {
+  const gamma = (v: number) => (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055);
+  return linearRgb(l, Math.min(c, maxChroma(l, h, c)), h)
+    .map((v) => Math.round(255 * Math.max(0, Math.min(1, gamma(v)))))
+    .join(', ');
+}
+
+/**
+ * The playmats' colours (Playmat.tsx draws them on a canvas, which CSS variables don't reach), as `r, g, b`: the faint
+ * resting lines (the theme's slate-400) and the light a click sends through them, a bright version of the theme's hue
+ * (as sky-300 is of slate's blue; Slate keeps exactly those), fainter for the barely tinted themes.
+ */
+export function playmatColors(t: ColorTheme): { line: string; glow: string } {
+  if (t.id === DEFAULT_THEME) return { line: '148, 163, 184', glow: '125, 211, 252' };
+  return { line: rgbTriplet(0.704, 0.04 * t.tint, t.hue), glow: rgbTriplet(0.828, 0.111 * Math.min(1, t.tint), t.hue) };
 }
 
 /** The most chroma sRGB can show at a lightness and hue, up to `max`. */

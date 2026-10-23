@@ -129,6 +129,8 @@ export function Board({
   const tableOverlay = (
     <>
       {overlay}
+      {/* The turn-order coin flip as a battle starts: the game's coin flip, in the same place. */}
+      <TurnOrderFlip key={gameId} view={view} gameId={gameId} />
       {phone && playedCard()}
       {newTurn && <TurnBanner key={newTurn.turn} turn={newTurn} />}
     </>
@@ -640,7 +642,6 @@ export function Board({
               />
             </PlayArea>
             {handView(true)}
-            <TurnOrderFlip key={gameId} view={view} gameId={gameId} />
           </div>
           {menu && (
             <LogSheet
@@ -743,7 +744,8 @@ export function Board({
                     <PrizeCards count={self.prizeCount} faceUp={self.prizes && { prizes: self.prizes, cards: view.cards }} />
                   </div>
                   <div className="min-w-0 flex-1 space-y-3">
-                    <div className="relative flex justify-center">
+                    {/* Your Active Pokémon's row: the coin flips of yours go to the right of the room kept beside it (the Peek card's; CoinFlip). */}
+                    <div data-coin-anchor="self" className="relative flex justify-center">
                       <StadiumCard view={view} send={send} busy={busy} notify={(message) => toasts.push('warning', message)} />
                       {playerSlot('active', self.active)}
                       {peek}
@@ -760,7 +762,6 @@ export function Board({
 
             {handView(false)}
           </div>
-          <TurnOrderFlip key={gameId} view={view} gameId={gameId} />
         </div>
 
         {dragOverlay}

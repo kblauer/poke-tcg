@@ -76,7 +76,8 @@ export function OpponentArea({
             <div className="flex justify-center gap-2">
               {opponent.bench.map((p, i) => slot(`cpu-bench-${i}`, i, p))}
             </div>
-            <div className="relative flex justify-center">
+            {/* The CPU's Active Pokémon's row: its coin flips go to the left of it, mirroring yours (CoinFlip). */}
+            <div data-coin-anchor="opponent" className="relative flex justify-center">
               {slot('cpu-active', 'active', opponent.active, true)}
               {dialog && <FloatingDialog className="absolute bottom-0 left-1/2 z-20 w-max max-w-[min(42rem,90cqw)] -translate-x-1/2">{dialog}</FloatingDialog>}
             </div>

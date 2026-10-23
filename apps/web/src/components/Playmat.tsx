@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react';
+import { useColorTheme } from '../hooks/useColorTheme';
+import { findTheme, playmatColors } from '../utils/themes';
 
 /**
  * A click on the mat: where (CSS pixels in the canvas) and when (performance.now()). `remote`: a click on another mat of
@@ -25,9 +27,10 @@ interface Pattern<S> {
   draw(ctx: CanvasRenderingContext2D, scene: S, ripples: Ripple[], now: number): void;
 }
 
-/** The pattern's resting lines and dots, and the light a click sends through them. */
-const LINE = 'rgba(148, 163, 184, 0.06)';
-const glow = (alpha: number) => `rgba(125, 211, 252, ${Math.max(0, Math.min(1, alpha)).toFixed(3)})`;
+/** The pattern's resting lines and dots, and the light a click sends through them: the colour theme's (`playmatColors`), set by `Playmat`. */
+let LINE = 'rgba(148, 163, 184, 0.06)';
+let glowRgb = '125, 211, 252';
+const glow = (alpha: number) => `rgba(${glowRgb}, ${Math.max(0, Math.min(1, alpha)).toFixed(3)})`;
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 
 /** Dot matrix: a grid of dots; a click sends a wave out that pushes the dots apart as it passes, lighting them. */
@@ -573,7 +576,11 @@ const PATTERNS: Record<string, Pattern<unknown>> = { dots, hex, triangles, squar
 export function Playmat({ id, group }: { id: string; group?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const pattern = PATTERNS[id];
+  const [theme] = useColorTheme();
   useEffect(() => {
+    const colors = playmatColors(findTheme(theme));
+    LINE = `rgba(${colors.line}, 0.06)`;
+    glowRgb = colors.glow;
     const el = canvas.current;
     // The canvas is in its own clipping box (rounded like the parent); the clicks come from the parent itself.
     const parent = el?.parentElement?.parentElement;
@@ -624,7 +631,7 @@ export function Playmat({ id, group }: { id: string; group?: string }) {
       parent.removeEventListener('pointerdown', onDown);
       if (frame !== null) cancelAnimationFrame(frame);
     };
-  }, [pattern, group]);
+  }, [pattern, group, theme]);
   if (!pattern) return null;
   // Clipped to the parent's rounded corners here, so the parent needn't clip its own content (the Trainer dialog).
   return (
