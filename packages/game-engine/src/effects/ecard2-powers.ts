@@ -9,8 +9,8 @@
 // type lasts until the end of the turn (a new attachment changes it again). Pure Body discards an Energy card after the
 // Fire (Entei) or Water (Suicune) Energy card is attached from the hand, as the promo Suicune's does. Extreme Speed and
 // Lightweight count Energy (Double Colorless is 2), Conductive Body the Magnemite on the Bench (both Magnemite cards).
-import { conditionProof, isBasicEnergy, lookupCard, type CardLibrary, type EnergyType } from '../cards.js';
-import { counts, energyPool, isEnergyCardOf, type CardInstance, type InPlayPokemon, type PlayerState } from '../engine.js';
+import { isBasicEnergy, lookupCard, namesMatch, type CardLibrary, type EnergyType } from '../cards.js';
+import { afflictionBlocked, counts, energyPool, isEnergyCardOf, type CardInstance, type InPlayPokemon, type PlayerState } from '../engine.js';
 import { attachBlocked, discardsLocked, energyFromHand, ownTargets, pokemonAt, powerActive, type PowerChoiceSpec, type PowerContext, type PowerEffect, type PowerSituation } from '../powers.js';
 import { addLog, effectId, inPlayDef, pokemonName } from '../status.js';
 import { swapActive } from '../trainers.js';
@@ -37,11 +37,8 @@ const benched = (s: Pick<PowerSituation, 'me'>) => ownTargets(s.me).filter((t) =
  */
 export function afflict(ctx: PowerContext, owner: PlayerState, pokemon: InPlayPokemon, condition: 'asleep') {
   const name = pokemonName(ctx.state, pokemon);
-  const thickSkinned = powerActive(pokemon, ctx.state.cards, [ctx.me, ctx.opp]) && powerEffect(effectId(pokemon))?.noConditions;
-  const shielded = (pokemon.effects?.flashTouch && owner.active === pokemon) || (pokemon.effects?.pollenShield ?? -1) >= ctx.state.turn;
-  if (conditionProof(inPlayDef(ctx.state.cards, pokemon)) || thickSkinned || shielded) return addLog(ctx.state, `${name} can't be affected by Special Conditions.`, owner.id);
-  const guard = ctx.state.rules?.find((r) => r.kind === 'conditionGuard' && r.player === owner.id && r.conditions.includes(condition));
-  if (guard) return addLog(ctx.state, `${guard.label ?? 'A battle rule'} protected ${name} from that.`, owner.id);
+  const blocked = afflictionBlocked(ctx.state, owner.id, pokemon, condition);
+  if (blocked) return addLog(ctx.state, blocked, owner.id);
   pokemon.condition = condition;
   delete pokemon.paralyzedTurn;
   addLog(ctx.state, `${name} is now Asleep.`, owner.id);
@@ -378,7 +375,7 @@ export const ECARD2_POWERS: Record<string, PowerEffect> = {
   'ecard2-83': retreat((p, cards) => -energyPool(p, cards).filter((t) => counts(t, 'grass')).length),
 
   // Magnemite – Conductive Body: 1 less to retreat for each Magnemite on your Bench.
-  'ecard2-91': retreat((_p, cards, owner) => -owner.bench.filter((q) => q && inPlayDef(cards, q).name === 'Magnemite').length),
+  'ecard2-91': retreat((_p, cards, owner) => -owner.bench.filter((q) => q && namesMatch(inPlayDef(cards, q).name, 'Magnemite')).length),
 
   // Kingdra, Lugia, Nidoking – Crystal Type.
   'ecard2-148': crystalType(['water', 'lightning', 'psychic']),

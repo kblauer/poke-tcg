@@ -3,7 +3,7 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { lazy, Suspense, useEffect, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { useRun } from '../hooks/useRun';
 import { useTRPC } from '../lib/trpc';
 import { GameLog } from './GameLog';
@@ -204,19 +204,23 @@ function NavSections() {
 
 /** A section `height` px tall (less when the menu is too short), with a bar under it that's dragged to change the height (`onHeight`). */
 function Resizable({ height, onHeight, label, children }: { height: number; onHeight: (height: number) => void; label: string; children: ReactNode }) {
+  // The bar captures the pointer, so its own move and up events follow the drag wherever it goes, and nothing is left
+  // on the window if the menu unmounts mid-drag.
+  const drag = useRef<{ startY: number; height: number } | null>(null);
   function startResize(e: ReactPointerEvent) {
     e.preventDefault();
-    const startY = e.clientY;
-    const move = (ev: PointerEvent) => onHeight(clampHeight(height + ev.clientY - startY));
-    const stop = () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', stop);
-      document.body.style.cursor = '';
-    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { startY: e.clientY, height };
     document.body.style.cursor = 'row-resize';
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', stop);
   }
+  function resize(e: ReactPointerEvent) {
+    if (drag.current) onHeight(clampHeight(drag.current.height + e.clientY - drag.current.startY));
+  }
+  function stopResize() {
+    drag.current = null;
+    document.body.style.cursor = '';
+  }
+  useEffect(() => () => void (drag.current && (document.body.style.cursor = '')), []);
   return (
     <div className="flex min-h-0 flex-col">
       <div style={{ height }} className="min-h-0 shrink">
@@ -228,6 +232,9 @@ function Resizable({ height, onHeight, label, children }: { height: number; onHe
         aria-label={`Resize ${label}`}
         title={`Drag to resize ${label}`}
         onPointerDown={startResize}
+        onPointerMove={resize}
+        onPointerUp={stopResize}
+        onPointerCancel={stopResize}
         className="group flex h-3 shrink-0 cursor-row-resize items-center justify-center"
       >
         <span className="h-1 w-10 rounded-full bg-slate-700 transition group-hover:bg-slate-500" />

@@ -628,8 +628,9 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
     case 'BATTLE_OVER': {
       if (!e || currentGameId(state) !== action.gameId) return fail('Not the current battle');
       const battle = e as BattleEncounter;
-      // The battle's consumables (`effects`, from before) count for its rewards; one of their battles is over.
-      tickBattles(state);
+      // The battle's consumables (`effects`, from before) count for its rewards; one of their battles is over (not a
+      // battle skipped by debug: nothing was fought).
+      if (!action.skipped) tickBattles(state);
       const completed = battlesCompleted(state);
       state.battlesFought = battlesFought(state) + 1;
       state.battlesCompleted = completed + (action.conceded ? 0 : 1);

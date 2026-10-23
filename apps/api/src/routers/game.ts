@@ -14,6 +14,23 @@ import { markPlayed, playableDeck, type DeckCosmetics } from './decks.js';
 
 const asJson = (value: unknown) => value as Prisma.InputJsonValue;
 
+/**
+ * The CPU's reply to the player's action. If the CPU throws (an engine bug on a position it can't handle), nothing is lost:
+ * the error is logged and the CPU concedes instead, so the game is saved whole and can be finished, rather than the
+ * player's every legal action failing the same way with no way out but conceding themselves.
+ */
+function cpuTurn(state: GameState): ReturnType<typeof runCpu> {
+  try {
+    return runCpu(state, CPU_ID);
+  } catch (error) {
+    console.error('CPU failed to play; conceding', error);
+    const action: GameAction = { type: 'CONCEDE' };
+    const result = applyAction(state, CPU_ID, action);
+    if (!result.ok) throw error;
+    return { state: result.state, actions: [action], states: [result.state] };
+  }
+}
+
 /** Log rows for a sequence of actions that ended at `finalVersion`. */
 function actionRows(entries: { playerId: string; action: GameAction }[], finalVersion: number) {
   const first = finalVersion - entries.length + 1;
@@ -113,7 +130,7 @@ export const gameRouter = router({
 
     const result = applyAction(game.state, HUMAN_ID, input.action);
     if (!result.ok) throw new TRPCError({ code: 'BAD_REQUEST', message: result.error });
-    const cpu = runCpu(result.state, CPU_ID);
+    const cpu = cpuTurn(result.state);
     const next = cpu.state;
     const log = [
       { playerId: HUMAN_ID, action: input.action },

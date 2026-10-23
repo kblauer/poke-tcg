@@ -553,6 +553,8 @@ export function resolveSearch(t: Turn): GameAction {
   if (view.kind === 'ownPokemon') {
     if (view.purpose === 'attach') return { type: 'RESOLVE_CHOICE', target: view.options.includes('active') ? 'active' : view.options[0] };
     // Taking damage from the player's attack (Cat Punch): the benched Pokémon with the most HP left.
+    // A question with nothing to click (no Pokémon that fits) is answered with nothing: `reduce` on no options would throw.
+    if (!view.options.length) return { type: 'RESOLVE_CHOICE' };
     if (view.purpose === 'benchDamage') {
       const left = (target: Target) => hpLeft(t.state.cards, at(t.me, target)!);
       return { type: 'RESOLVE_CHOICE', target: view.options.reduce((a, b) => (left(b) > left(a) ? b : a)) };
@@ -562,6 +564,7 @@ export function resolveSearch(t: Turn): GameAction {
   }
   // Damage to one of the player's Pokémon (Sneak Attack): the one with the least HP left, the Active Pokémon on a tie.
   if (view.kind === 'oppPokemon') {
+    if (!view.options.length) return { type: 'RESOLVE_CHOICE' };
     const left = (target: Target) => hpLeft(t.state.cards, at(t.opp, target)!);
     return { type: 'RESOLVE_CHOICE', target: view.options.reduce((a, b) => (left(b) < left(a) ? b : a)) };
   }
@@ -585,7 +588,8 @@ export function resolveSearch(t: Turn): GameAction {
   if (choice.kind === 'discardAttached' && choice.optional && view.kind === 'pickAttached') return view.options[0] ? { type: 'RESOLVE_CHOICE', cardUid: view.options[0].uid } : { type: 'RESOLVE_CHOICE' };
   // Pure Body: the Energy card that leaves Suicune closest to attacking.
   if (view.kind === 'pickAttached') {
-    const p = inPlay(t.me).map(([, p]) => p).find((p) => p.energy.includes(view.options[0]!))!;
+    const p = inPlay(t.me).map(([, p]) => p).find((p) => p.energy.includes(view.options[0]!));
+    if (!p) return { type: 'RESOLVE_CHOICE' };
     const without = (c: CardInstance) => closeness(t.state.cards, p, p.energy.filter((e) => e !== c));
     const pick = view.options.reduce((a, b) => (without(b) < without(a) ? b : a));
     return { type: 'RESOLVE_CHOICE', cardUid: pick.uid };

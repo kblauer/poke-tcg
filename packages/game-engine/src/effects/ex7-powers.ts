@@ -10,7 +10,7 @@
 // types with the Energy attached (refreshHideout).
 import type { AttackContext } from '../attacks.js';
 import { conditionProof, lookupCard } from '../cards.js';
-import { afflictBetweenTurns, energyPool, isEnergyCardOf, type InPlayPokemon } from '../engine.js';
+import { afflictBetweenTurns, afflictionBlocked, energyPool, isEnergyCardOf, type InPlayPokemon } from '../engine.js';
 import { powerEffect } from './index.js';
 import { conditionFree, ownTargets, pokemonAt, powerActive, type PowerEffect } from '../powers.js';
 import { shuffle } from '../rng.js';
@@ -32,8 +32,8 @@ const onKnockedOut = (then: (ctx: AttackContext) => void): PowerEffect => ({
 
 /** A Special Condition on the Attacking Pokémon from its Defending Pokémon's body, unless it can't be affected. */
 function afflictAttacker(ctx: AttackContext, condition: 'confused' | 'poisoned') {
-  const working = powerActive(ctx.attacker, ctx.state.cards, [ctx.me, ctx.opp]) ? powerEffect(effectId(ctx.attacker)) : undefined;
-  if (conditionProof(ctx.attackerDef) || conditionFree(ctx.attacker, ctx.state.cards, working) || (condition === 'poisoned' && working?.noPoison)) return ctx.log(`${ctx.attackerDef.name} can't be affected by Special Conditions.`);
+  const blocked = afflictionBlocked(ctx.state, ctx.me.id, ctx.attacker, condition);
+  if (blocked) return ctx.log(blocked);
   if (condition === 'poisoned') ctx.attacker.poison = Math.max(ctx.attacker.poison ?? 0, 10);
   else {
     ctx.attacker.condition = 'confused';

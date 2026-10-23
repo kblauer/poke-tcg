@@ -24,7 +24,7 @@ import {
   type PokemonEffects,
   type Target,
 } from './engine.js';
-import { conditionBarred, conditionFree, discardsLocked, hasReact, holonWith, reactCount, energyKept, enervatingPollen, powerActive, prehistoricMemory, scaredBy } from './powers.js';
+import { conditionBarred, conditionFree, discardsLocked, hasReact, holonWith, reactCount, energyKept, enervatingPollen, powerActive, prehistoricMemory, scaredBy, type Sides } from './powers.js';
 import { shuffle } from './rng.js';
 import { addLog, baseUid, clearOnLeavingActive, effectId, isDelta, energyProtected, flipCoin, inPlayDef, pokemonName, revealFaceDown, shapeshiftCard } from './status.js';
 import type { PendingChoice, PendingChoiceInput } from './trainers.js';
@@ -177,7 +177,8 @@ export function usableAttacks(
     defender = null,
     oppBench = [],
     stadium = null,
-  }: { recall?: boolean; bench?: readonly (InPlayPokemon | null)[]; defender?: InPlayPokemon | null; oppBench?: readonly (InPlayPokemon | null)[]; stadium?: CardInstance | null } = {},
+    sides = [{ active: attacker, bench: [...bench] }, { active: defender, bench: [...oppBench] }],
+  }: { recall?: boolean; bench?: readonly (InPlayPokemon | null)[]; defender?: InPlayPokemon | null; oppBench?: readonly (InPlayPokemon | null)[]; stadium?: CardInstance | null; /** Both players, for whether the copying powers work (Goop Gas, auras); without them, made up from the rest. */ sides?: Sides } = {},
 ): UsableAttack[] {
   // Shapeshift: the attached Evolution card's attacks, with that card's effects.
   const source = shapeshiftCard(attacker)?.defId ?? effectId(attacker);
@@ -189,21 +190,22 @@ export function usableAttacks(
           return d.kind === 'pokemon' ? d.attacks.map((attack) => ({ attack, source: d.id, from: d.name })) : [];
         })
       : [];
+  // The copying powers and bodies below work only while the power does (`powerActive`: any Special Condition for the
+  // powers, Goop Gas, Toxic Gas, auras, Imprison, Ancient Wind for the bodies).
+  const working = powerActive(attacker, cards, sides) ? powerEffect(effectId(attacker)) : undefined;
   // Psylink: a copy of every attack of the player's other Psychic Pokémon in play (all on the Bench), while it works.
-  const psylink = powerEffect(effectId(attacker))?.psylink && !attacker.condition && attacker.powerOffUntil === undefined;
-  const linked = psylink
+  const linked = working?.psylink
     ? bench.flatMap((p) => {
-        if (!p || def(cards, p).type !== 'psychic') return [];
+        if (!p || !hasType(def(cards, p), 'psychic')) return [];
         const d = def(cards, p);
         return d.attacks.map((attack) => ({ attack, source: shapeshiftCard(p)?.defId ?? effectId(p), from: d.name }));
       })
     : [];
   // Mimic: every attack of the Defending Pokémon, with its cost and effects, while the power works (as Psylink's).
-  const mimic = defender && !defender.faceDown && powerEffect(effectId(attacker))?.mimic && !attacker.condition && attacker.powerOffUntil === undefined;
+  const mimic = defender && !defender.faceDown && working?.mimic;
   const copied = mimic ? def(cards, defender).attacks.map((attack) => ({ attack, source: shapeshiftCard(defender)?.defId ?? effectId(defender), from: def(cards, defender).name })) : [];
-  // Psymimic: every attack of the opponent's Pokémon in play, while it works (it stops with any Special Condition).
-  const psymimic = powerEffect(effectId(attacker))?.psymimic && !attacker.condition && !attacker.poison && !attacker.burned && attacker.powerOffUntil === undefined;
-  const mimicked = psymimic
+  // Psymimic: every attack of the opponent's Pokémon in play, while it works.
+  const mimicked = working?.psymimic
     ? [defender, ...oppBench].flatMap((p) => {
         if (!p || p.faceDown) return [];
         const d = def(cards, p);
@@ -212,9 +214,8 @@ export function usableAttacks(
     : [];
   // Fellowship (Poké-Body): every attack of the player's Benched Pokémon with these names. Versatile (Poké-Body): every
   // attack of every other Pokémon in play, either player's.
-  const body = attacker.powerOffUntil === undefined ? powerEffect(effectId(attacker)) : undefined;
-  const fellows = body?.fellowship;
-  const others = [...(fellows ? bench.filter((p) => p && fellows.some((n) => namesMatch(def(cards, p).name, n))) : []), ...(body?.versatile ? [...bench, defender, ...oppBench] : [])];
+  const fellows = working?.fellowship;
+  const others = [...(fellows ? bench.filter((p) => p && fellows.some((n) => namesMatch(def(cards, p).name, n))) : []), ...(working?.versatile ? [...bench, defender, ...oppBench] : [])];
   const shared = [...new Set(others)].flatMap((p) => {
     if (!p || p.faceDown) return [];
     const d = def(cards, p);
@@ -353,8 +354,8 @@ const sproutTower = (state: Pick<GameState, 'stadium' | 'cards'>) => !!state.sta
 const attachedCount = (cards: CardLibrary, p: InPlayPokemon, name: string) => (p.attached ?? []).filter((a) => lookupCard(cards, a.card.defId).name === name).length;
 
 /** How much less attack damage `player`'s Pokémon of `type` take from battle rules (a run's items). */
-const ruleGuard = (state: GameState, player: PlayerId, type: EnergyType) =>
-  (state.rules ?? []).reduce((n, r) => (r.kind === 'damageGuard' && r.player === player && (!r.type || r.type === type) ? n + r.amount : n), 0);
+const ruleGuard = (state: GameState, player: PlayerId, types: readonly EnergyType[]) =>
+  (state.rules ?? []).reduce((n, r) => (r.kind === 'damageGuard' && r.player === player && (!r.type || types.includes(r.type)) ? n + r.amount : n), 0);
 
 /**
  * Attack damage without weakness or resistance (to a benched Pokémon, or to the attacker itself,
@@ -1220,8 +1221,8 @@ function createContext(
       return !e.provides && d.kind === 'energy' && d.basic !== false;
     });
     if (!holder || !basic.length) return;
-    const type = def(state.cards, holder).type;
-    const energy = basic.find((e) => isEnergyCardOf(e, state.cards, type)) ?? basic[0]!;
+    const types = typesOf(def(state.cards, holder));
+    const energy = basic.find((e) => types.some((type) => isEnergyCardOf(e, state.cards, type))) ?? basic[0]!;
     knocked.energy = knocked.energy.filter((e) => e !== energy);
     holder.energy.push(energy);
     discardTool(state, owner, holder);
@@ -1406,7 +1407,7 @@ function createContext(
     // Water Pokémon, while the Rayquaza δ has a Holon Energy card attached.
     const ancientProtected = [opp.active, ...opp.bench].some((q) => q && passive(q)?.ancientProtection?.some((n) => namesMatch(defenderDef.name, n)));
     const hydroBarred = hasType(defenderDef, 'water') && [opp.active, ...opp.bench].some((q) => q && passive(q)?.hydroBarrier && q.energy.some((e) => !e.provides && !e.windless && lookupCard(state.cards, e.defId).name.startsWith('Holon Energy')));
-    const weaknessOff = (stadium === 'Cinnabar City Gym' && attackerDef.type === 'water' && defenderDef.name.includes('Blaine')) || attachedCount(state.cards, defender, 'Weakness Guard') > 0 || tomb || veiled || conditioned || !!passive(defender)?.noWeakness || toolOf(state.cards, defender)?.name === 'Protective Orb' || holonWith(defender, state.cards, 'FF', 'fire') || ancientProtected || hydroBarred || active(defender.effects?.weaknessOffUntil, turn) || (stadium === "Glacia's Stadium" && hasType(defenderDef, 'water') && !defenderDef.ex) || (stadium === 'Holon Legacy' && isDelta(state.cards, defender));
+    const weaknessOff = (stadium === 'Cinnabar City Gym' && hasType(attackerDef, 'water') && defenderDef.name.includes('Blaine')) || attachedCount(state.cards, defender, 'Weakness Guard') > 0 || tomb || veiled || conditioned || !!passive(defender)?.noWeakness || toolOf(state.cards, defender)?.name === 'Protective Orb' || holonWith(defender, state.cards, 'FF', 'fire') || ancientProtected || hydroBarred || active(defender.effects?.weaknessOffUntil, turn) || (stadium === "Glacia's Stadium" && hasType(defenderDef, 'water') && !defenderDef.ex) || (stadium === 'Holon Legacy' && isDelta(state.cards, defender));
     // Charm: the attacker's damage is less, before Weakness and Resistance.
     const before = amount;
     amount = noted('Charm', amount, charmed(amount));
@@ -1551,7 +1552,7 @@ function createContext(
       log('Double Rainbow Energy: 10 less damage.');
     }
     // A run's items (X Defend, Leaf Jacket…) take some off too.
-    const guard = ruleGuard(state, opp.id, defenderDef.type);
+    const guard = ruleGuard(state, opp.id, typesOf(defenderDef));
     if (damage > 0 && guard > 0) {
       damage = noted(state.rules?.find((r) => r.kind === 'damageGuard' && r.player === opp.id)?.label ?? 'Battle rule', damage, Math.max(0, damage - guard));
       log(`The damage to ${defenderDef.name} was reduced by ${guard}.`, opp.id);
@@ -1613,7 +1614,7 @@ function createContext(
       }
       // Reflect Shield: its owner flips; heads prevents the damage and does 20 to the attacker (with Weakness and Resistance, as Fire Wall).
       if (damage > 0 && active(effects?.reflectShield, turn) && flipCoin(state, 'Reflect Shield', opp.id)) {
-        const back = applyWeaknessResistance(20, defenderDef.type, attackerDef, attacker.effects);
+        const back = applyWeaknessResistance(20, typesOf(defenderDef), attackerDef, attacker.effects);
         attacker.damage += back;
         log(`Reflect Shield prevented the damage to ${defenderDef.name} and did ${back} damage to ${attackerDef.name}.`, opp.id);
         damage = noted('Reflect Shield', damage, 0);
@@ -1645,13 +1646,13 @@ function createContext(
     if (me.kogaTurn === turn && attackerDef.name.includes('Koga') && opp.active === defender) ctx.inflict('poisoned');
     // Crosscounter: on heads, double the damage back to the attacker, with Weakness and Resistance, even if this Knocks it Out.
     if (active(effects?.crosscounter, turn) && flipCoin(state, 'Crosscounter', opp.id)) {
-      const back = applyWeaknessResistance(2 * damage, defenderDef.type, attackerDef, attacker.effects);
+      const back = applyWeaknessResistance(2 * damage, typesOf(defenderDef), attackerDef, attacker.effects);
       attacker.damage += back;
       log(`Crosscounter: ${defenderDef.name} did ${back} damage to ${attackerDef.name}.`, opp.id);
     }
     // Fire Wall: 10 damage back to the attacker, with Weakness and Resistance, even if this Knocks it Out.
     if (active(effects?.fireWall, turn)) {
-      const back = applyWeaknessResistance(10, defenderDef.type, attackerDef, attacker.effects);
+      const back = applyWeaknessResistance(10, typesOf(defenderDef), attackerDef, attacker.effects);
       attacker.damage += back;
       log(`Fire Wall: ${defenderDef.name} did ${back} damage to ${attackerDef.name}.`, opp.id);
     }

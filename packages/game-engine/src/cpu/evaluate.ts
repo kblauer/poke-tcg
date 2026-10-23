@@ -148,13 +148,15 @@ function settle(state: GameState): GameState | null {
   for (let guard = 0; guard < 30 && state.phase === 'playing' && state.pendingChoice; guard++) {
     const choice = state.pendingChoice;
     const t = turnOf(state, choice.player);
-    const action: GameAction =
+    const benched = inPlay(t.me).filter(([target]) => target !== 'active');
+    const action = safely<GameAction>(() =>
       choice.kind === 'switchIn'
-        ? { type: 'RESOLVE_CHOICE', target: inPlay(t.me).filter(([target]) => target !== 'active').reduce((a, b) => (hpLeft(state.cards, b[1]) > hpLeft(state.cards, a[1]) ? b : a))[0] }
+        ? { type: 'RESOLVE_CHOICE', ...(benched.length && { target: benched.reduce((a, b) => (hpLeft(state.cards, b[1]) > hpLeft(state.cards, a[1]) ? b : a))[0] }) }
         : choice.kind === 'borrowedTrainer'
           ? { type: 'RESOLVE_CHOICE' }
-          : resolveSearch(t);
-    const next = safely(() => tryAction(state, choice.player, action));
+          : resolveSearch(t),
+    );
+    const next = action && safely(() => tryAction(state, choice.player, action));
     if (!next) return null;
     state = next;
   }

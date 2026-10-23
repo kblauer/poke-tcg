@@ -41,7 +41,17 @@ type Db = Prisma.TransactionClient | typeof prisma;
  * Locks the account's user row until the transaction ends, so two requests for the same account at once (two tabs, a
  * double click) can't both pass a check that the other's write would fail: a second starter deck, a second active run.
  */
-const lockUser = (tx: Prisma.TransactionClient, userId: string) => tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId}::uuid FOR UPDATE`;
+export const lockUser = (tx: Prisma.TransactionClient, userId: string) => tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId}::uuid FOR UPDATE`;
+
+/**
+ * Takes one of the account's `itemId` (`spend`: the quantity goes down by 1; otherwise it's only checked for): true if
+ * they had one. Atomic, so two uses at once can't both take the last one.
+ */
+export async function takeItem(userId: string, itemId: string, spend: boolean, db: Db = prisma): Promise<boolean> {
+  if (!spend) return !!(await db.inventoryItem.findFirst({ where: { userId, itemId, quantity: { gte: 1 } }, select: { itemId: true } }));
+  const { count } = await db.inventoryItem.updateMany({ where: { userId, itemId, quantity: { gte: 1 } }, data: { quantity: { decrement: 1 } } });
+  return count > 0;
+}
 
 /**
  * Makes the account's automatic run deck (`Deck.runId`) a copy of this run's deck: the deck the account has (left over
@@ -205,21 +215,26 @@ async function startBattle(run: LoadedRun, state: RunState, gear: string[]): Pro
 
 /** Ends a battle the run has left (with an Escape Rope) by conceding it, so it can't be played on. */
 export async function abandonBattle(gameId: string) {
-  const game = await prisma.game.findUnique({ where: { id: gameId } });
-  if (!game || game.status === 'FINISHED') return;
-  const action: GameAction = { type: 'CONCEDE' };
-  const result = applyAction(game.state as unknown as GameState, HUMAN_ID, action);
-  if (!result.ok) return;
-  const next = result.state;
-  await saveGameState({
-    gameId,
-    expectedVersion: game.version,
-    state: next,
-    version: next.version,
-    status: 'FINISHED',
-    winner: next.winner,
-    actions: [{ playerId: HUMAN_ID, version: next.version, action: asJson(action) }],
-  });
+  // Tried again if the game moved on meanwhile (an action of the player's in another tab), so no active game is left behind.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const game = await prisma.game.findUnique({ where: { id: gameId } });
+    if (!game || game.status === 'FINISHED') return;
+    const action: GameAction = { type: 'CONCEDE' };
+    const result = applyAction(game.state as unknown as GameState, HUMAN_ID, action);
+    if (!result.ok) return;
+    const next = result.state;
+    const saved = await saveGameState({
+      gameId,
+      expectedVersion: game.version,
+      state: next,
+      version: next.version,
+      status: 'FINISHED',
+      winner: next.winner,
+      actions: [{ playerId: HUMAN_ID, version: next.version, action: asJson(action) }],
+    });
+    if (saved) return;
+  }
+  throw new TRPCError({ code: 'CONFLICT', message: 'Game state changed, refresh and retry' });
 }
 
 /**

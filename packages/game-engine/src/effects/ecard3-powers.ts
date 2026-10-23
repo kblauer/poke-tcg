@@ -12,10 +12,10 @@
 // the printed Retreat Cost 0; other changes (Gluey Slime) still apply. Dark Gaze stops Benched Pokémon's Poké-Powers and
 // the older Pokémon Powers, both players', as Dark Impact does.
 import { isBasicEnergy, lookupCard, type EnergyType } from '../cards.js';
-import { evolvesOnto, isEnergyCardOf, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
+import { afflictionBlocked, evolvesOnto, isEnergyCardOf, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { ownTargets, pokemonAt, powerActive, type PowerChoiceSpec, type PowerContext, type PowerEffect, type PowerSituation } from '../powers.js';
-import { addLog, effectId, inPlayDef, pokemonName } from '../status.js';
-import { conditionProof, isPokemonCard, type PokemonCardDef } from '../cards.js';
+import { addLog, effectId, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
+import { isPokemonCard, type PokemonCardDef } from '../cards.js';
 import type { GameState } from '../engine.js';
 import { afflict, crystalType, pureBody } from './ecard2-powers.js';
 import { powerEffect } from './index.js';
@@ -41,13 +41,8 @@ const evolvedActive = (owner: PlayerState, pokemon: InPlayPokemon) => owner.acti
  */
 function inflictOn(state: GameState, owner: PlayerState, p: InPlayPokemon, condition: 'paralyzed' | 'poisoned' | 'confused') {
   const name = pokemonName(state, p);
-  const sides = state.playerOrder.map((id) => state.players[id]!);
-  const thickSkinned = powerActive(p, state.cards, sides) && powerEffect(effectId(p))?.noConditions;
-  const shielded = (p.effects?.pollenShield ?? -1) >= state.turn || (p.effects?.conditionProof ?? -1) >= state.turn || (p.effects?.flashTouch && owner.active === p);
-  if (conditionProof(inPlayDef(state.cards, p)) || thickSkinned || shielded) return addLog(state, `${name} can't be affected by Special Conditions.`, owner.id);
-  if (condition === 'poisoned' && powerActive(p, state.cards, sides) && powerEffect(effectId(p))?.noPoison) return addLog(state, `${name} can't be Poisoned.`, owner.id);
-  const guard = state.rules?.find((r) => r.kind === 'conditionGuard' && r.player === owner.id && r.conditions.includes(condition));
-  if (guard) return addLog(state, `${guard.label ?? 'A battle rule'} protected ${name} from that.`, owner.id);
+  const blocked = afflictionBlocked(state, owner.id, p, condition);
+  if (blocked) return addLog(state, blocked, owner.id);
   if (condition === 'poisoned') p.poison = Math.max(p.poison ?? 0, 10);
   else {
     p.condition = condition;
@@ -166,7 +161,7 @@ export const ECARD3_POWERS: Record<string, PowerEffect> = {
         const d = lookupCard(state.cards, c.defId);
         return d.kind === 'pokemon' && d.stage === 'basic' && !d.baby && !d.trainerText;
       });
-      if (fits && owner.bench.some((p) => !p)) state.pendingChoice = { player: owner.id, source: 'Manipulate', kind: 'discardToBench', filter: 'basicNotBaby', manipulate: true };
+      if (fits && openBenchSlot(owner.bench, state.cards, state.stadium?.card) >= 0) state.pendingChoice = { player: owner.id, source: 'Manipulate', kind: 'discardToBench', filter: 'basicNotBaby', manipulate: true };
     },
   },
 

@@ -15,7 +15,7 @@ import { hasType, isBasicEnergy, lookupCard } from '../cards.js';
 import { canPayCost, isEnergyCardOf, retreatCost, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
 import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { effectId, inPlayDef, pokemonName } from '../status.js';
+import { effectId, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { handTrainerFits } from '../trainers.js';
 import { attackEffect } from './index.js';
 import { benchedSlots, energyCanMove, headsUntilTails, opponentBenchChoice } from './common.js';
@@ -524,7 +524,7 @@ export const EX7: Record<string, Record<string, AttackEffect>> = {
   // Ledyba – Call for Family: a Grass Basic Pokémon from the deck onto the Bench.
   'ex7-64': {
     'Call for Family': {
-      blocked: (s) => (s.ownBench.every(Boolean) ? 'Your Bench is full' : null),
+      blocked: (s) => (openBenchSlot(s.ownBench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
       run: (ctx) => void (ctx.me.deck.length && ctx.pend({ kind: 'pickFromDeck', source: 'Call for Family', filter: 'basicType', type: 'grass', toBench: true, optional: true })),
     },
   },

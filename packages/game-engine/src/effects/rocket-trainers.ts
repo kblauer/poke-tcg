@@ -6,7 +6,7 @@
 // Trans, Gather Fire), and its 10 damage when attached from the hand can Knock Out its own Pokémon. Goop Gas Attack
 // stops every Pokémon Power on both sides, including Pokémon put into play afterwards.
 import { conditionProof, isBasicEnergy, isPokemonCard, lookupCard } from '../cards.js';
-import type { CardInstance, GameState, InPlayPokemon, PlayerState } from '../engine.js';
+import { afflictionBlocked, type CardInstance, type GameState, type InPlayPokemon, type PlayerState } from '../engine.js';
 import { powerActive, trainerProof } from '../powers.js';
 import { addLog, effectId, flipCoin, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { otherHandCards, type EnergyEffect, type TrainerEffect } from '../trainers.js';
@@ -20,11 +20,6 @@ const garbage = (s: { cards: GameState['cards'] }, discard: CardInstance[]) =>
   });
 
 /** Whether this Pokémon can't be affected by Special Conditions: Clefairy Doll, or a working Thick Skinned. */
-const noConditions = (state: GameState, pokemon: InPlayPokemon) => {
-  const sides = state.playerOrder.map((id) => state.players[id]!);
-  return conditionProof(inPlayDef(state.cards, pokemon)) || (powerActive(pokemon, state.cards, sides) && !!powerEffect(effectId(pokemon))?.noConditions);
-};
-
 const HOLO: Record<string, TrainerEffect> = {
   // Here Comes Team Rocket!: each player plays with their Prize cards face up for the rest of the game.
   'base5-15': {
@@ -121,7 +116,8 @@ export const ROCKET_TRAINERS: Record<string, TrainerEffect> = {
       const name = pokemonName(ctx.state, defending);
       const proof = trainerProof(ctx.opp, [ctx.me, ctx.opp], ctx.state.cards);
       if (proof) return ctx.log(`${proof}.`, ctx.opp.id);
-      if (noConditions(ctx.state, defending)) return ctx.log(`${name} can't be affected by Special Conditions.`, ctx.opp.id);
+      const blocked = afflictionBlocked(ctx.state, ctx.opp.id, defending, 'asleep');
+      if (blocked) return ctx.log(blocked, ctx.opp.id);
       defending.condition = 'asleep';
       delete defending.paralyzedTurn;
       ctx.log(`${name} is now Asleep.`, ctx.opp.id);

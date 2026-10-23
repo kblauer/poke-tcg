@@ -12,7 +12,7 @@
 // only the damage. Rushing Flames may discard Fire Energy cards from any of the attacking player's Pokémon. Reflect Shield's
 // 20 damage gets Weakness and Resistance, as Fire Wall's does. Charm lowers every attack damage the Defending Pokémon does.
 import { pokemonOn, targetsIn, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
-import { isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard } from '../cards.js';
+import { hasType, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard } from '../cards.js';
 import { energyPool, isEnergyCardOf, isSpecialEnergy, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { shuffle } from '../rng.js';
 import { clearOnLeavingActive, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
@@ -410,7 +410,7 @@ export const NEO4: Record<string, Record<string, AttackEffect>> = {
     Beatdown: {
       text: 'If the Defending Pokémon has Dark in its name or is a Darkness Pokémon, flip a coin. If heads, this attack does 100 damage instead of 50.',
       run(ctx) {
-        const dark = /\bDark\b/.test(ctx.defenderDef.name) || ctx.defenderDef.type === 'darkness';
+        const dark = /\bDark\b/.test(ctx.defenderDef.name) || hasType(ctx.defenderDef, 'darkness');
         ctx.hit(dark && ctx.flip() ? 100 : 50);
       },
     },

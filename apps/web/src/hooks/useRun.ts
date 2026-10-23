@@ -2,7 +2,7 @@ import type { AppRouter } from '@poke-tcg/api/router';
 import { isBattleKind, type RunAction, type RunTypeId } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import { useRef, useState } from 'react';
+import { createContext, createElement, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { inferRouterOutputs } from '@trpc/server';
 import { useTRPC } from '../lib/trpc';
 
@@ -19,8 +19,12 @@ const SPOTTED_MS = 1000;
  * marks its trainer as `spotted` at once, for the route map's "!" over them, as when a trainer spots you in the games: the
  * request is sent straight away, and the game opens once it's in and the "!" has shown for SPOTTED_MS. Any other option
  * chosen is marked too, while its request runs, so the route map's NPC can start walking up to the player at once.
+ *
+ * One instance for the whole site (`RunProvider`, in the layout; `useRun` reads it): the site menu, the top bar, the run
+ * screen and the game page all share its `busy` and `spotted`, so two of them can't send a move at once, and its overview
+ * is fetched once, not again whenever one of them mounts.
  */
-export function useRun() {
+function useRunControl() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -31,6 +35,9 @@ export function useRun() {
   // The battle just chosen, while its "!" shows: the step's option (null: the encounter under way, an Ace Trainer accepted).
   const [spotted, setSpotted] = useState<{ option: number | null } | null>(null);
   const spottedAt = useRef<number | null>(null);
+  // The wait for the "!" before the game opens, cleared if the provider goes (signing out) so it can't navigate afterwards.
+  const opening = useRef<number | null>(null);
+  useEffect(() => () => void (opening.current !== null && window.clearTimeout(opening.current)), []);
   /** Marks an option chosen at once, for the route map; only a battle holds its game back for its "!" (SPOTTED_MS). */
   const spot = (option: number | null, battle = true) => {
     spottedAt.current = battle ? Date.now() : null;
@@ -50,7 +57,9 @@ export function useRun() {
         const gameId = next.gameId;
         // Once the "!" has shown long enough (at once if the request took longer).
         const wait = spottedAt.current === null ? 0 : Math.max(0, SPOTTED_MS - (Date.now() - spottedAt.current));
-        window.setTimeout(() => {
+        if (opening.current !== null) window.clearTimeout(opening.current);
+        opening.current = window.setTimeout(() => {
+          opening.current = null;
           spottedAt.current = null;
           setSpotted(null);
           navigate({ to: '/game/$gameId', params: { gameId } });
@@ -120,4 +129,18 @@ export function useRun() {
   };
 }
 
-export type RunControl = ReturnType<typeof useRun>;
+export type RunControl = ReturnType<typeof useRunControl>;
+
+const RunContext = createContext<RunControl | null>(null);
+
+/** Holds the one `useRunControl` for the site; mounted in the layout, inside the router (it navigates). */
+export function RunProvider({ children }: { children: ReactNode }) {
+  return createElement(RunContext.Provider, { value: useRunControl() }, children);
+}
+
+/** The site's run control (RunProvider). */
+export function useRun(): RunControl {
+  const control = useContext(RunContext);
+  if (!control) throw new Error('useRun needs a RunProvider');
+  return control;
+}

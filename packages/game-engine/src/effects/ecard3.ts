@@ -12,7 +12,7 @@
 // opponent's Prize cards left when the attack is used; Retro Cave's and Healing Oasis's Pokémon are asked only when that
 // count is exactly 2 (`AttackSituation.opponentPrizes`).
 import { pokemonOn, targetsIn, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
-import { isBasicEnergy, lookupCard } from '../cards.js';
+import { isBasicEnergy, lookupCard, namesMatch } from '../cards.js';
 import { energyPool, isEnergyCardOf, retreatCost, type InPlayPokemon, type Target } from '../engine.js';
 import type { EnergyType } from '../cards.js';
 import { shuffle } from '../rng.js';
@@ -491,7 +491,7 @@ export const ECARD3: Record<string, Record<string, AttackEffect>> = {
     'Water of Evolution': {
       run(ctx) {
         if (ctx.me.active !== ctx.attacker) return;
-        if (!ctx.me.hand.some((c) => lookupCard(ctx.state.cards, c.defId).name === 'Omastar')) return ctx.log('Water of Evolution: no Omastar in the hand.');
+        if (!ctx.me.hand.some((c) => namesMatch(lookupCard(ctx.state.cards, c.defId).name, 'Omastar'))) return ctx.log('Water of Evolution: no Omastar in the hand.');
         ctx.pend({ kind: 'evolveFromHand', source: 'Water of Evolution', target: 'active', names: ['Omastar'] });
       },
     },

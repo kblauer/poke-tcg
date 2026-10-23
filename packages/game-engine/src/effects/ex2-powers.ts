@@ -7,8 +7,8 @@
 // Power, Primal Aura and Primal Stare stop it); a named Pokémon matches every variant of it, never a Pokémon-ex (namesMatch).
 // From the text: Poison Payback and Fire Veil work even when the Attacking Pokémon Knocks it Out (as Rough Skin); Fan Away
 // returns the Energy card its player picks; Super Suction Cups is Guard; Primal Lock also discards the opponent's Pokémon Tools.
-import { lookupCard, namesMatch, conditionProof, type CardLibrary } from '../cards.js';
-import { type CardInstance, type InPlayPokemon, type PlayerState } from '../engine.js';
+import { conditionProof, lookupCard, namesMatch, type CardLibrary } from '../cards.js';
+import { afflictionBlocked, type CardInstance, type InPlayPokemon, type PlayerState } from '../engine.js';
 import { evolutionBlocked, playedFromHand, offerChainReaction, pokemonAt, powerActive, primalBlock, type PowerContext, type PowerEffect, type PowerSituation } from '../powers.js';
 import { powerEffect } from './index.js';
 import { addLog, effectId, inPlayDef, pokemonName } from '../status.js';
@@ -95,10 +95,8 @@ export function afflictActive(ctx: PowerContext, condition: 'confused') {
   const p = ctx.opp.active;
   if (!p) return;
   const name = pokemonName(ctx.state, p);
-  const sides = [ctx.me, ctx.opp];
-  if (conditionProof(inPlayDef(ctx.state.cards, p)) || (powerActive(p, ctx.state.cards, sides) && powerEffect(effectId(p))?.noConditions)) return addLog(ctx.state, `${name} can't be affected by Special Conditions.`, ctx.opp.id);
-  const guard = ctx.state.rules?.find((r) => r.kind === 'conditionGuard' && r.player === ctx.opp.id && r.conditions.includes(condition));
-  if (guard) return addLog(ctx.state, `${guard.label ?? 'A battle rule'} protected ${name} from that.`, ctx.opp.id);
+  const blocked = afflictionBlocked(ctx.state, ctx.opp.id, p, condition);
+  if (blocked) return addLog(ctx.state, blocked, ctx.opp.id);
   p.condition = condition;
   delete p.paralyzedTurn;
   addLog(ctx.state, `${name} is now Confused.`, ctx.opp.id);

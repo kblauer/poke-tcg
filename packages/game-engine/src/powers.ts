@@ -592,7 +592,7 @@ export function powerOf(pokemon: InPlayPokemon, cards: CardLibrary) {
   return inPlayDef(cards, pokemon).power ?? null;
 }
 
-type Sides = Pick<PlayerState, 'active' | 'bench' | 'powersOffUntil' | 'bodiesOffTurn'>[];
+export type Sides = Pick<PlayerState, 'active' | 'bench' | 'powersOffUntil' | 'bodiesOffTurn'>[];
 
 /** Goop Gas Attack: no Pokémon Powers work (it's set on both players). */
 const goopGas = (sides: Sides) => sides.some((s) => s.powersOffUntil !== undefined);
