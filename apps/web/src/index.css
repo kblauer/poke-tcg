@@ -50,14 +50,6 @@
   --card-pile: calc(var(--card-sm) * 0.62);
 }
 
-/* The phone layout's sheet of the Active Pokémon's moves (components/phone/ActiveSheet.tsx) slides up from the bottom. */
-@keyframes sheet-up {
-  from { transform: translateY(100%); }
-  to { transform: none; }
-}
-.sheet-up {
-  animation: sheet-up 200ms ease-out;
-}
 /* Side panels (components/SidePanel.tsx) slide in from their edge. */
 @keyframes panel-left {
   from { transform: translateX(-100%); }
@@ -84,7 +76,7 @@
   animation: delta-float 1.8s ease-out forwards;
 }
 @media (prefers-reduced-motion: reduce) {
-  .sheet-up, .panel-left, .panel-right { animation: none; }
+  .panel-left, .panel-right { animation: none; }
 }
 
 /* The attacks column hangs off the active slot's right edge, so the slot stays centred. */
@@ -218,13 +210,11 @@
   height: 12px;
 }
 .music-player .rhap_main-controls-button,
-.music-player .rhap_volume-button,
-.music-player .rhap_repeat-button {
+.music-player .rhap_volume-button {
   color: var(--color-slate-300);
 }
 .music-player .rhap_main-controls-button:hover,
-.music-player .rhap_volume-button:hover,
-.music-player .rhap_repeat-button:hover {
+.music-player .rhap_volume-button:hover {
   color: var(--color-slate-100);
 }
 .music-player .rhap_play-pause-button {
@@ -262,7 +252,7 @@
   .playing-bars span { animation: none; transform: scaleY(0.6); }
 }
 
-/* A card that can be played now (a card in your hand, a Stadium that can still be used): a soft blue outline that pulses, as TCG Pocket's does. */
+/* A card that can be played now (a card in your hand, a Stadium that can still be used, a Pokémon in play whose Pokémon Power can be used): a soft blue outline that pulses, as TCG Pocket's does. */
 .playable-pulse {
   animation: playable-pulse 1.8s ease-in-out infinite;
 }

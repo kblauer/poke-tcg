@@ -3,13 +3,14 @@ import CloseIcon from '@mui/icons-material/Close';
 import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import PauseIcon from '@mui/icons-material/Pause';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import RepeatIcon from '@mui/icons-material/Repeat';
 import ShuffleIcon from '@mui/icons-material/Shuffle';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import { pickSong, type MusicCue, type Song, type Soundtrack } from '@poke-tcg/campaign';
 import { useQuery } from '@tanstack/react-query';
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import AudioPlayer, { RHAP_UI } from 'react-h5-audio-player';
+import AudioPlayer from 'react-h5-audio-player';
 import 'react-h5-audio-player/lib/styles.css';
 import { duration, groupByGame, MUSIC_GENERATIONS, playlist, type GenFilter, type Track } from '../utils/music';
 
@@ -20,6 +21,8 @@ interface MusicPrefs {
   open: boolean;
   gen: GenFilter;
   shuffle: boolean;
+  /** Repeat: the song playing starts again when it ends, instead of the next. */
+  repeat: boolean;
   /** The volume slider, 0–1 (the audio plays at MAX_VOLUME of it). */
   volume: number;
   /** The last track played (its URL), ready to play again on the next visit. */
@@ -33,7 +36,7 @@ interface MusicPrefs {
 /** The loudest the songs play, at the slider's top (agreed with the user: half the audio's full volume). */
 const MAX_VOLUME = 0.5;
 
-const DEFAULTS: MusicPrefs = { open: false, gen: null, shuffle: false, volume: 0.5, track: null, autoplay: false, soundtrack: 'original' };
+const DEFAULTS: MusicPrefs = { open: false, gen: null, shuffle: false, repeat: false, volume: 0.5, track: null, autoplay: false, soundtrack: 'original' };
 
 function loadPrefs(): MusicPrefs {
   try {
@@ -217,7 +220,7 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
     afterJingle.current = current;
     switchTo(jingle, true);
   };
-  /** A song over: the jingle's back to what auto play wants (or the song it interrupted), auto play's song again, or the list's next. */
+  /** A song over: the jingle's back to what auto play wants (or the song it interrupted), auto play's song again, the same one with repeat, or the list's next. */
   const ended = () => {
     if (inJingle.current) {
       inJingle.current = false;
@@ -225,7 +228,7 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
       if (back) return switchTo(back, true);
     }
     const audio = player.current?.audio.current;
-    if (cueTrack && current === cueTrack && audio) {
+    if (((cueTrack && current === cueTrack) || prefs.repeat) && audio) {
       audio.currentTime = 0;
       return void audio.play();
     }
@@ -358,7 +361,16 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
                 </div>,
               ]}
               customAdditionalControls={[
-                RHAP_UI.LOOP,
+                // Our own, not the player's (RHAP_UI.LOOP, a crossed-out icon of its own size): grey when off, white when on.
+                <button
+                  key="repeat"
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded transition hover:bg-slate-700 ${prefs.repeat ? 'text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                  onClick={() => update({ repeat: !prefs.repeat })}
+                  aria-pressed={prefs.repeat}
+                  title={prefs.repeat ? 'Repeat on' : 'Repeat off'}
+                >
+                  <RepeatIcon sx={{ fontSize: 20 }} />
+                </button>,
                 <button
                   key="shuffle"
                   className={`${iconButton} ${prefs.shuffle ? 'text-yellow-300 hover:text-yellow-200' : ''}`}

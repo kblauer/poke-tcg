@@ -41,7 +41,27 @@ import { PreviewContext } from './PreviewContext';
 import { CardImage } from './CardImage';
 
 /**
- * Card art from TCGdex (aspect ratio 63:88), with damage and attached energy overlaid when in play. Right-clicking it
+ * A card attached to a Pokémon in play: a disc the size of its Energy's (`size` px) showing the card's art, its name
+ * on hover and the card itself in the hover preview (the Pokémon's again once the pointer leaves it).
+ */
+function AttachedIcon({ def, holder, size }: { def: CardDef; holder: CardDef; size: number }) {
+  const setPreview = useContext(PreviewContext);
+  return (
+    <span
+      title={def.name}
+      className="inline-block shrink-0 rounded-full border border-white bg-slate-700 bg-no-repeat shadow shadow-black/60"
+      style={{ width: size, height: size, backgroundImage: def.imageUrl ? `url(${def.imageUrl}/low.webp)` : undefined, backgroundSize: '260%', backgroundPosition: '50% 24%' }}
+      onMouseEnter={(e) => setPreview({ def, x: e.clientX, y: e.clientY, from: e.currentTarget })}
+      onMouseLeave={(e) => {
+        const card = e.currentTarget.closest<HTMLElement>('[data-in-play]');
+        setPreview(card ? { def: holder, x: e.clientX, y: e.clientY, from: card } : null);
+      }}
+    />
+  );
+}
+
+/**
+ * Card art from TCGdex (aspect ratio 63:88), with damage, attached energy and attached cards overlaid when in play. Right-clicking it
  * (or a long press, on a touch screen) opens it in the CardInspector. `shine`: a holo card gets its holo effect, still (the Active Pokémon);
  * `holoRef` moves its tilt and shine (the slot's animations).
  */
@@ -84,6 +104,7 @@ export function Card({
   return (
     <div
       {...hold}
+      data-in-play={inPlay ? '' : undefined}
       className={`${size} relative aspect-[63/88] shrink-0 overflow-hidden rounded-lg shadow`}
       onMouseEnter={(e) => setPreview({ def, x: e.clientX, y: e.clientY, from: e.currentTarget })}
       onMouseLeave={() => setPreview(null)}
@@ -109,6 +130,14 @@ export function Card({
       )}
       {inPlay && (
         <div className="absolute left-1 top-1 flex flex-col items-start gap-0.5">
+          {/* The cards attached to it (Pokémon Tools, Trainers that stay on it, Shapeshift), as round icons like its Energy's, above its badges. */}
+          {cards && (inPlay.attached ?? []).length > 0 && (
+            <div className="flex flex-wrap gap-0.5">
+              {inPlay.attached!.map((a) => (
+                <AttachedIcon key={a.card.uid} def={lookupCard(cards, a.card.defId)} holder={def} size={small ? 18 : 22} />
+              ))}
+            </div>
+          )}
           {statusBadges(inPlay, cards).map((b, i) => (
             <span key={`${b.label}-${i}`} title={b.title} className={`${b.className} rounded px-1 text-[10px] font-bold leading-4 text-white shadow`}>
               {b.label}

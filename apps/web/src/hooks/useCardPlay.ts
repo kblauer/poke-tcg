@@ -16,12 +16,15 @@ const collisionDetection: CollisionDetection = (args) => {
   const underPointer = pointerWithin(args);
   // Back over the hand: the card is being put back, whatever it overlaps.
   if (underPointer.some((c) => c.id === HAND_ZONE)) return [];
-  return underPointer.length ? underPointer : rectIntersection(args).filter((c) => c.id !== PLAY_AREA && c.id !== HAND_ZONE);
+  // A slot under the pointer before the play area round it (a Trainer dropped onto a Pokémon).
+  const slots = underPointer.filter((c) => c.id !== PLAY_AREA);
+  return slots.length ? slots : underPointer.length ? underPointer : rectIntersection(args).filter((c) => c.id !== PLAY_AREA && c.id !== HAND_ZONE);
 };
 
 /**
  * Playing cards from the hand, by click (select a card, then a highlighted slot; Esc cancels)
- * or by drag and drop. Trainer cards are dropped anywhere on the play area (see onDropOnPlayArea).
+ * or by drag and drop. Trainer cards are dropped anywhere on the play area (see onDropOnPlayArea), or onto the Pokémon
+ * they're for (onDropOnSlot).
  * Spread `dnd` onto the DndContext.
  */
 export function useCardPlay({
@@ -30,6 +33,7 @@ export function useCardPlay({
   busy,
   onDragStart,
   onDropOnPlayArea,
+  onDropOnSlot,
   notify,
 }: {
   view: PlayerView;
@@ -40,6 +44,8 @@ export function useCardPlay({
   onDragStart?: () => void;
   /** Called when a card is dropped anywhere on the play area (a Trainer card being played). */
   onDropOnPlayArea?: (card: CardInstance) => void;
+  /** Called when a card is dropped on a slot (either side's, by its drop id); true if that played it (a Trainer onto a Pokémon). */
+  onDropOnSlot?: (card: CardInstance, slot: string) => boolean;
   /** Tells the player something, e.g. why the clicked card can't be played. */
   notify?: (message: string) => void;
 }) {
@@ -96,10 +102,13 @@ export function useCardPlay({
     onDragEnd: ({ active, over }: DragEndEvent) => {
       setDragging(null);
       setDropTarget(null);
+      const card = hand.find((c) => c.uid === active.id);
       if (over?.id === PLAY_AREA) {
-        const card = hand.find((c) => c.uid === active.id);
         if (card) onDropOnPlayArea?.(card);
-      } else if (over) play(String(active.id), over.id as SlotId);
+      } else if (over && !(card && onDropOnSlot?.(card, String(over.id)))) {
+        // A slot, unless the drop there already played it (a Trainer onto a Pokémon).
+        play(String(active.id), over.id as SlotId);
+      }
     },
     onDragCancel: () => {
       setDragging(null);

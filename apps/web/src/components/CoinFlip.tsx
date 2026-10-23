@@ -3,7 +3,6 @@ import { DEFAULT_COSMETIC } from '@poke-tcg/campaign';
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useCosmetics } from '../hooks/useCosmetics';
 import { DEBUG_BUILD } from '../utils/debug';
-import { useSkipFlips } from '../hooks/useSkipFlips';
 import { COIN_DESIGNS } from './coinDesigns';
 
 /** How long the coin's flight takes (flick, arc, landing and settling), then how long the result stays up. */
@@ -48,13 +47,12 @@ export const flipsAfter = (log: LogEntry[], since: number): Flip[] =>
  * Animates a move's coin flips one after another, in the middle of the play area (Board puts it in the PlayArea), with
  * what each is for (the attack,
  * Trainer, power or Special Condition). The engine has already decided each result; this replays them while the
- * game waits (GamePage holds the move back until `onDone`). Clicking anywhere skips the rest of them, and
- * "Always skip coin flips" turns the animations off (useSkipFlips).
+ * game waits (GamePage holds the move back until `onDone`). Clicking anywhere skips the rest of them; the Settings
+ * page's "Skip coin flip animations" turns them off (useSkipFlips).
  */
 export function CoinFlip({ flips, you, onDone }: { flips: Flip[]; you: PlayerId; onDone: () => void }) {
   const [index, setIndex] = useState(0);
   const [landed, setLanded] = useState(false);
-  const [skip, setSkip] = useSkipFlips();
   const doneRef = useRef(onDone);
   doneRef.current = onDone;
 
@@ -89,17 +87,6 @@ export function CoinFlip({ flips, you, onDone }: { flips: Flip[]; you: PlayerId;
           {current.heads ? 'Heads!' : 'Tails!'}
         </p>
         <p className="text-xs text-slate-500">Click to skip</p>
-        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-400" onClick={(e) => e.stopPropagation()}>
-          <input
-            type="checkbox"
-            checked={skip}
-            onChange={(e) => {
-              setSkip(e.target.checked);
-              if (e.target.checked) doneRef.current();
-            }}
-          />
-          Always skip coin flips
-        </label>
       </section>
     </div>
   );
@@ -136,6 +123,7 @@ export function SpinningCoin({
   design,
   still = false,
   headroom = true,
+  flat = false,
 }: {
   heads: boolean;
   size: keyof typeof COIN_SIZES;
@@ -144,6 +132,8 @@ export function SpinningCoin({
   still?: boolean;
   /** Keep room above the coin for its flight (off for the Cosmetics tab's tiles, whose coin starts still). */
   headroom?: boolean;
+  /** Seen face on, with no tilt or shadow under it (a small still preview: the open deck's in the Collection). */
+  flat?: boolean;
 }) {
   const { coin } = useCosmetics();
   const look = COIN_DESIGNS[design ?? coin] ?? COIN_DESIGNS[DEFAULT_COSMETIC.coin]!;
@@ -217,12 +207,12 @@ export function SpinningCoin({
   return (
     // With `headroom`, room above the coin for the top of its arc, so it never flies over what's above it (the flip's heading).
     <div className="shrink-0" style={{ width: px, paddingTop: headroom && moving ? rise + px * 0.08 : 0 }}>
-      <div className="relative" style={{ height: px * 1.18 }}>
+      <div className="relative" style={{ height: flat ? px : px * 1.18 }}>
         {/* The shadow on the table under it. */}
-        <div ref={shadow} className="absolute left-[10%] w-[80%] rounded-[50%] bg-black/55 blur-[3px]" style={{ top: px * 0.98, height: px * 0.14 }} />
+        {!flat && <div ref={shadow} className="absolute left-[10%] w-[80%] rounded-[50%] bg-black/55 blur-[3px]" style={{ top: px * 0.98, height: px * 0.14 }} />}
         <div className="absolute inset-x-0 top-0 [perspective:600px]" style={{ height: px }}>
           {/* Seen a little from above and to one side (TILT), not head on, so its rim shows even at rest. */}
-          <div className="h-full w-full [transform-style:preserve-3d]" style={{ transform: TILT }}>
+          <div className="h-full w-full [transform-style:preserve-3d]" style={{ transform: flat ? 'none' : TILT }}>
             <div ref={body} className="relative h-full w-full [transform-style:preserve-3d]" style={{ transform: `rotateX(${final}deg)` }}>
               {/* The rim: thin discs stacked between the faces, seen edge on as the coin turns. */}
               {Array.from({ length: depth }, (_, i) => (

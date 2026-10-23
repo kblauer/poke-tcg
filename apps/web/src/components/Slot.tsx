@@ -27,14 +27,14 @@ function useSlotMotion(
   const before = useRef(pokemon);
   const lunged = useRef(lunge?.stamp ?? null);
   const lit = useRef(spotlight?.stamp ?? null);
-  // The CPU's card just changed it: it glows white twice (SPOTLIGHT_MS), after the move's own animation (or once the card shown has burst away: `delay`).
+  // The CPU's card just changed it: it glows white once (SPOTLIGHT_MS), after the move's own animation (or once the card shown has burst away: `delay`).
   useEffect(() => {
     if ((spotlight?.stamp ?? null) === lit.current) return;
     lit.current = spotlight?.stamp ?? null;
     const el = ref.current;
     if (!el || spotlight === null || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const on = { filter: 'drop-shadow(0 0 16px rgb(224 242 254)) brightness(1.2)' };
-    el.animate([{ filter: 'none' }, on, { filter: 'none' }, on, { filter: 'none' }], { duration: SPOTLIGHT_MS, delay: Math.max(MOTION_MS + 180, spotlight.delay) });
+    el.animate([{ filter: 'none' }, on, { filter: 'none' }], { duration: SPOTLIGHT_MS, delay: Math.max(MOTION_MS + 180, spotlight.delay) });
   }, [spotlight?.stamp]);
   useEffect(() => {
     const prev = before.current;
@@ -92,6 +92,7 @@ export function Slot({
   loading = false,
   lunge = null,
   spotlight = null,
+  usable = false,
   onClick,
 }: {
   id: string;
@@ -109,6 +110,8 @@ export function Slot({
   lunge?: { dir: 'up' | 'down'; stamp: number } | null;
   /** A card the CPU played or used just changed it: it glows (`stamp` is the view's version, so each move glows once), from `delay` ms on. */
   spotlight?: { stamp: number; delay: number } | null;
+  /** Its Pokémon Power can be used now: it pulses with the playable cards' blue outline (`.playable-pulse`). */
+  usable?: boolean;
   onClick?: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id, disabled: !droppable });
@@ -128,7 +131,9 @@ export function Slot({
             ? '-translate-y-1 ring-4 ring-violet-400 shadow-[0_0_18px_3px_rgba(167,139,250,0.6)]'
           : dimmed
             ? 'opacity-40'
-            : '';
+            : usable
+              ? 'playable-pulse'
+              : '';
   const size = large ? LARGE_CARD : SMALL_CARD;
   return (
     <div

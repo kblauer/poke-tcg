@@ -10,7 +10,7 @@ import { loadOwnRun, settleBattle } from '../runs.js';
 import { PLAYER_TEST_DECK, expandDeck } from '../test-decks.js';
 import type { AuthUser } from '../auth.js';
 import { protectedProcedure, router } from '../trpc.js';
-import { markPlayed, playableDeck } from './decks.js';
+import { markPlayed, playableDeck, type DeckCosmetics } from './decks.js';
 
 const asJson = (value: unknown) => value as Prisma.InputJsonValue;
 
@@ -47,8 +47,11 @@ async function opponentSetup(opponent: SingleBattleOpponent, difficulty: CpuDiff
   return { name, deck: generateDeck(await cardPool(), rngFrom(newSeed()), { favorites: trainerFavorites(name), difficulty: difficulty === 'gymLeader' ? 'gymLeader' : 'trainer' }) };
 }
 
-/** Starts a single battle: `playerDeck` (one card id per card) against the chosen opponent at the chosen difficulty, using cards from the catalog. */
-async function startGame(user: AuthUser, playerDeck: string[], { difficulty, opponent }: Omit<SingleBattleInput, 'deckId'>) {
+/**
+ * Starts a single battle: `playerDeck` (one card id per card) against the chosen opponent at the chosen difficulty, using
+ * cards from the catalog, with the deck's `cosmetics` (none for the test deck).
+ */
+async function startGame(user: AuthUser, playerDeck: string[], { difficulty, opponent }: Omit<SingleBattleInput, 'deckId'>, cosmetics: DeckCosmetics | null) {
   const cpu = await opponentSetup(opponent, difficulty);
   const [library] = await Promise.all([loadCardLibrary([...playerDeck, ...cpu.deck]), ensureUser(user)]);
   const seed = newSeed();
@@ -63,6 +66,7 @@ async function startGame(user: AuthUser, playerDeck: string[], { difficulty, opp
       ownerId: user.id,
       seed,
       state: asJson(state),
+      ...(cosmetics && { cosmetics }),
       version: state.version,
       actions: { create: actionRows(actions.map((action) => ({ playerId: CPU_ID, action })), state.version) },
     },
@@ -76,19 +80,22 @@ export const gameRouter = router({
    * cards, or with the test deck (`deckId` null).
    */
   create: protectedProcedure.input(singleBattleInput).mutation(async ({ ctx, input }) => {
-    const deck = input.deckId === null ? expandDeck(PLAYER_TEST_DECK) : (await playableDeck(input.deckId, ctx.user.id)).cards;
-    const game = await startGame(ctx.user, deck, input);
+    const deck = input.deckId === null ? null : await playableDeck(input.deckId, ctx.user.id);
+    const game = await startGame(ctx.user, deck?.cards ?? expandDeck(PLAYER_TEST_DECK), input, deck?.cosmetics ?? null);
     if (input.deckId !== null) await markPlayed(ctx.user.id, input.deckId);
     return game;
   }),
 
-  /** The player's filtered view of the game – never the raw state – the opponent's name, and for a run's battle, the run. */
+  /**
+   * The player's filtered view of the game – never the raw state – the opponent's name, for a run's battle the run, and
+   * its deck's cosmetics (each null, or the whole thing, for the account's).
+   */
   view: protectedProcedure.input(gameIdInput).query(async ({ ctx, input }) => {
     const game = await loadOwnGame(input.gameId, ctx.user.id);
     const encounter = game.runId ? (await loadOwnRun(game.runId, ctx.user.id)).state.encounter : null;
     const runOpponent = encounter && 'trainer' in encounter && 'gameId' in encounter && encounter.gameId === game.id ? encounter.trainer : null;
     const opponent = runOpponent ?? game.state.opponentName ?? null;
-    return { id: game.id, status: game.status, runId: game.runId, opponent, view: getPlayerView(game.state, HUMAN_ID) };
+    return { id: game.id, status: game.status, runId: game.runId, opponent, cosmetics: game.cosmetics as DeckCosmetics | null, view: getPlayerView(game.state, HUMAN_ID) };
   }),
 
   /**

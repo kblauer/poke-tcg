@@ -1,18 +1,25 @@
 import type { GameAction } from '@poke-tcg/game-engine';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 /** Something the player could still do this turn, which End turn reminds them of first. */
 export type EndTurnReminder = { kind: 'energy' | 'stadium' | 'powers'; text: string };
 
-/** localStorage keys: the player turned off that reminder ("Don't remind me"). The Energy one predates the others. */
+/** localStorage keys: the player turned off that reminder (on the Settings page). The Energy one predates the others. */
 const SKIP_KEYS: Record<EndTurnReminder['kind'], string> = {
   energy: 'poke-tcg.skip-end-turn-energy-check',
   stadium: 'poke-tcg.skip-end-turn-stadium-check',
   powers: 'poke-tcg.skip-end-turn-powers-check',
 };
 
-function reminderOff(kind: EndTurnReminder['kind']): boolean {
+/** Each reminder, as the Settings page names it (where each is turned on or off). */
+export const REMINDER_LABELS: Record<EndTurnReminder['kind'], string> = {
+  energy: "An Energy card you haven't attached",
+  stadium: "A Stadium you haven't used (Lucky Stadium)",
+  powers: "Pokémon Powers you haven't used",
+};
+
+export function reminderOff(kind: EndTurnReminder['kind']): boolean {
   try {
     return localStorage.getItem(SKIP_KEYS[kind]) === '1';
   } catch {
@@ -20,9 +27,11 @@ function reminderOff(kind: EndTurnReminder['kind']): boolean {
   }
 }
 
-function turnReminderOff(kind: EndTurnReminder['kind']) {
+/** Turns a reminder off, or back on (the Settings page). */
+export function setReminderOff(kind: EndTurnReminder['kind'], off = true) {
   try {
-    localStorage.setItem(SKIP_KEYS[kind], '1');
+    if (off) localStorage.setItem(SKIP_KEYS[kind], '1');
+    else localStorage.removeItem(SKIP_KEYS[kind]);
   } catch {
     // Not remembered: it reminds them again next time.
   }
@@ -35,42 +44,18 @@ const smallButton = 'rounded bg-slate-600 px-2 py-1 text-xs transition hover:bg-
 const endButton = 'rounded bg-blue-600 px-3 py-1 text-sm transition hover:bg-blue-500 active:scale-95';
 
 /**
- * Whose turn it is, and below it the End turn button, both centred in the middle of the table between the two sides.
- * The text line and the button row keep fixed heights (the row stays when there's no button), so the button never
- * moves as the text or the turn changes.
- * `setup`: while placing Pokémon before the battle, the
- * Reset cards (take them all back) and Start battle buttons. `reminders`: what the player could still do this turn
- * (attach Energy, use the Stadium, use Pokémon Powers); End turn lists them and asks first, except those the player
- * turned off with "Don't remind me" (each remembered in the browser). `compact` (the phone layout): one row, the
- * text (up to two lines) on the left and the buttons, smaller, on the right, where the thumb is.
+ * Asks before a move that ends the turn (End turn, or an attack) while the player could still do something this turn
+ * (`reminders`, but for those turned off on the Settings page, each remembered in the browser): `check(move, go)` runs `go` at once when there's nothing to remind them of, else opens `dialog`
+ * (render it anywhere: it's portalled to the page body), whose confirm button runs it. `active`: the player's turn;
+ * the question is moot once it's over.
  */
-export function StatusBar({
-  status,
-  canEndTurn,
-  setup = null,
-  reminders = [],
-  pending,
-  send,
-  compact = false,
-}: {
-  status: string;
-  canEndTurn: boolean;
-  setup?: { canReset: boolean; canStart: boolean } | null;
-  reminders?: EndTurnReminder[];
-  pending: GameAction | null;
-  send: (a: GameAction) => void;
-  compact?: boolean;
-}) {
-  const busy = pending !== null;
-  /** The reminders being asked about, or null. */
-  const [asking, setAsking] = useState<EndTurnReminder[] | null>(null);
-  /** The ones ticked "Don't remind me". */
-  const [silenced, setSilenced] = useState<EndTurnReminder['kind'][]>([]);
+export function useTurnReminders(reminders: EndTurnReminder[], active: boolean): { check: (move: 'end' | 'attack', go: () => void) => void; dialog: ReactNode } {
+  /** The reminders being asked about, the move and what it does, or null. */
+  const [asking, setAsking] = useState<{ reminders: EndTurnReminder[]; move: 'end' | 'attack'; go: () => void } | null>(null);
 
-  // The question is moot once the turn moves on.
   useEffect(() => {
-    if (!canEndTurn) setAsking(null);
-  }, [canEndTurn]);
+    if (!active) setAsking(null);
+  }, [active]);
   useEffect(() => {
     if (!asking) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setAsking(null);
@@ -78,18 +63,79 @@ export function StatusBar({
     return () => window.removeEventListener('keydown', onKey);
   }, [asking]);
 
-  const clickEndTurn = () => {
+  const check = (move: 'end' | 'attack', go: () => void) => {
     const open = reminders.filter((r) => !reminderOff(r.kind));
-    if (!open.length) return send({ type: 'END_TURN' });
-    setSilenced([]);
-    setAsking(open);
+    if (!open.length) return go();
+    setAsking({ reminders: open, move, go });
   };
-  const endTurn = () => {
+  const confirm = () => {
+    if (!asking) return;
     setAsking(null);
-    for (const kind of silenced) turnReminderOff(kind);
-    send({ type: 'END_TURN' });
+    asking.go();
   };
-  const toggle = (kind: EndTurnReminder['kind'], on: boolean) => setSilenced((s) => (on ? [...s, kind] : s.filter((k) => k !== kind)));
+  const attack = asking?.move === 'attack';
+  // In the page body: the play area's container-type would trap a fixed dialog.
+  const dialog =
+    asking &&
+    createPortal(
+      <div data-keep-action className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/50 p-4" onClick={() => setAsking(null)}>
+        <div
+          role="alertdialog"
+          aria-label={attack ? 'Attack now?' : 'End your turn?'}
+          className="w-full max-w-md space-y-3 rounded-lg bg-slate-800 p-4 text-left text-sm ring-1 ring-slate-600"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="font-semibold">{attack ? 'Attack now? Attacking ends your turn, and you could still:' : 'End your turn? You could still:'}</p>
+          <ul className="space-y-2">
+            {asking.reminders.map((r) => (
+              <li key={r.kind} className="text-slate-200">
+                • {r.text}
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-slate-500">Choose what you're reminded of on the Settings page.</p>
+          <div className="flex justify-end gap-2">
+            <button className={button} onClick={() => setAsking(null)} autoFocus>
+              Keep playing
+            </button>
+            <button className={endButton} onClick={confirm}>
+              {attack ? 'Attack' : 'End turn'}
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body,
+    );
+  return { check, dialog };
+}
+
+/**
+ * Whose turn it is, and below it the End turn button, both centred in the middle of the table between the two sides.
+ * The text line and the button row keep fixed heights (the row stays when there's no button), so the button never
+ * moves as the text or the turn changes.
+ * `setup`: while placing Pokémon before the battle, the
+ * Reset cards (take them all back) and Start battle buttons. `endTurn`: what End turn does, through useTurnReminders'
+ * `check` (which asks first while the player could still attach Energy, use the Stadium or a Pokémon Power). `compact` (the phone layout): one row, the
+ * text (up to two lines) on the left and the buttons, smaller, on the right, where the thumb is.
+ */
+export function StatusBar({
+  status,
+  canEndTurn,
+  setup = null,
+  endTurn,
+  pending,
+  send,
+  compact = false,
+}: {
+  status: string;
+  canEndTurn: boolean;
+  setup?: { canReset: boolean; canStart: boolean } | null;
+  endTurn: () => void;
+  pending: GameAction | null;
+  send: (a: GameAction) => void;
+  compact?: boolean;
+}) {
+  const busy = pending !== null;
   /** The big buttons (Start battle, End turn): a little smaller on a phone. */
   const big = compact ? 'px-4 py-2 text-sm' : 'min-w-36 px-6 py-2 text-base';
 
@@ -127,46 +173,12 @@ export function StatusBar({
           <button
             className={`${big} rounded-lg bg-blue-600 font-semibold shadow-lg shadow-black/40 transition hover:bg-blue-500 active:scale-95 disabled:cursor-progress`}
             disabled={busy}
-            onClick={clickEndTurn}
+            onClick={endTurn}
           >
             {pending?.type === 'END_TURN' ? 'Ending turn…' : 'End turn'}
           </button>
         )}
       </div>
-      {/* In the page body: the play area's container-type would trap a fixed dialog. */}
-      {asking &&
-        createPortal(
-          <div data-keep-action className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/50 p-4" onClick={() => setAsking(null)}>
-            <div
-              role="alertdialog"
-              aria-label="End your turn?"
-              className="w-full max-w-md space-y-3 rounded-lg bg-slate-800 p-4 text-left text-sm ring-1 ring-slate-600"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <p className="font-semibold">End your turn? You could still:</p>
-              <ul className="space-y-2">
-                {asking.map((r) => (
-                  <li key={r.kind} className="space-y-1">
-                    <p className="text-slate-200">• {r.text}</p>
-                    <label className="ml-3 flex items-center gap-2 text-xs text-slate-400">
-                      <input type="checkbox" checked={silenced.includes(r.kind)} onChange={(e) => toggle(r.kind, e.target.checked)} />
-                      Don't remind me about this
-                    </label>
-                  </li>
-                ))}
-              </ul>
-              <div className="flex justify-end gap-2">
-                <button className={button} onClick={() => setAsking(null)} autoFocus>
-                  Keep playing
-                </button>
-                <button className={endButton} onClick={endTurn}>
-                  End turn
-                </button>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
     </div>
   );
 }

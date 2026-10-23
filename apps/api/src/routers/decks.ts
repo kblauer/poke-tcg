@@ -25,6 +25,10 @@ export async function loadOwnDeck(deckId: string, userId: string) {
   return deck;
 }
 
+/** A deck's cosmetics (Deck.cardBack, playmat, coin, assigned on the Cosmetics tab): each an id, or null for the default. */
+export type DeckCosmetics = { cardBack: string | null; playmat: string | null; coin: string | null };
+export const deckCosmetics = (deck: DeckCosmetics): DeckCosmetics => ({ cardBack: deck.cardBack, playmat: deck.playmat, coin: deck.coin });
+
 /** One of the user's decks that they can change: not the automatic run deck, which copies the run's deck. */
 async function loadEditableDeck(deckId: string, userId: string) {
   const deck = await loadOwnDeck(deckId, userId);
@@ -53,11 +57,11 @@ export const playProblems = (
  * The user's deck, ready to battle with: its name, cards (one card id per card) and whether it's the automatic run deck,
  * or BAD_REQUEST with why it can't be played.
  */
-export async function playableDeck(deckId: string, userId: string): Promise<{ name: string; cards: string[]; runDeck: boolean }> {
+export async function playableDeck(deckId: string, userId: string): Promise<{ name: string; cards: string[]; runDeck: boolean; cosmetics: DeckCosmetics }> {
   const [deck, unlocked, limited] = await Promise.all([loadOwnDeck(deckId, userId), unlockedIds(userId), holoTwins()]);
   const [problem] = playProblems(deck.cards, unlocked, limited);
   if (problem) throw new TRPCError({ code: 'BAD_REQUEST', message: problem });
-  return { name: deck.name, cards: deck.cards.flatMap((c) => Array<string>(c.quantity).fill(c.cardId)), runDeck: deck.runId !== null };
+  return { name: deck.name, cards: deck.cards.flatMap((c) => Array<string>(c.quantity).fill(c.cardId)), runDeck: deck.runId !== null, cosmetics: deckCosmetics(deck) };
 }
 
 /** Remembers `deckId` as the deck the user played most recently (`User.lastDeckId`), the next run's deck to start with. */
@@ -133,6 +137,8 @@ export const decksRouter = router({
       runDeck: d.runId !== null,
       // Starred on the Collection tab (offered under the run's deck choice).
       favorite: d.favorite,
+      // The cosmetics assigned to it on the Cosmetics tab (null: the account's default).
+      cosmetics: deckCosmetics(d),
     }));
   }),
 

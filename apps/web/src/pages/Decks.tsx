@@ -253,6 +253,7 @@ export function DecksPage() {
     <div className={column}>
       <CurrentDeck
         compact={phone}
+        cosmetics={decks.data?.find((d) => d.id === deckId)?.cosmetics}
         name={name}
         readOnly={readOnly}
         onRename={(newName) => {
@@ -300,7 +301,7 @@ export function DecksPage() {
   );
   const filters = <DeckFilters filter={filter} sort={sort} sets={sets} shown={shownCount} total={totalCount} onChange={setFilter} onSortChange={setSort} compact={phone} />;
   const blockedNote = blocked && <p className={`${phone ? 'text-xs' : 'text-sm'} text-amber-300`}>{blocked}.</p>;
-  const grid = <CardGrid cards={results} selectedId={null} onSelect={(c) => change(c, 1)} counts={counts} isLocked={isLocked} holdToInspect compact={phone} />;
+  const grid = <CardGrid cards={results} selectedId={null} onSelect={(c) => change(c, 1)} onRemove={(c) => change(c, -1)} counts={counts} isLocked={isLocked} holdToInspect compact={phone} />;
   /** How many of the search's filters are set (the phone's Filters button shows it). */
   const filtersOn = (Object.keys(EMPTY_DECK_FILTER) as (keyof DeckFilter)[]).filter((k) => JSON.stringify(filter[k]) !== JSON.stringify(EMPTY_DECK_FILTER[k])).length;
   const size = deckSize(entries);
