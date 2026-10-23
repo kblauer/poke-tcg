@@ -16,11 +16,13 @@ const SPARKS = Array.from({ length: 14 }, (_, i) => ({ angle: (i / 14) * 2 * Mat
 
 /**
  * The card the CPU just played or used (a Trainer, an Energy, a Pokémon put on the Bench or evolved, the Pokémon whose
- * power it used, the Stadium), shown large in the middle of the play area while the move is on screen (PLAYED_CARD_MS), as TCG
- * Pocket does: it pops in, is held, then bursts away (it flares white and grows as it fades, with a ring of light and
- * sparks flying out). `stamp` is the view's version, so each move shows once. It can't be clicked or hovered.
+ * power it used, the Stadium), shown large while the move is on screen (PLAYED_CARD_MS), as TCG Pocket does: centred on
+ * whatever holds it (the CPU's side between its Bench and Active on a big screen, the play area on a phone), on a
+ * radial shadow; it pops in, is held, then bursts away (it flares white and grows as it fades, with a ring of light and
+ * sparks flying out). `stamp` is the view's version, so each move shows once. It can't be clicked or hovered. `scale`:
+ * its size, times the large card's.
  */
-export function PlayedCard({ defId, cards, stamp }: { defId: string; cards: CardLibrary; stamp: number }) {
+export function PlayedCard({ defId, cards, stamp, scale = 1.6 }: { defId: string; cards: CardLibrary; stamp: number; scale?: number }) {
   const card = useRef<HTMLDivElement>(null);
   const flash = useRef<HTMLDivElement>(null);
   const sparks = useRef<HTMLDivElement>(null);
@@ -54,8 +56,10 @@ export function PlayedCard({ defId, cards, stamp }: { defId: string; cards: Card
   return (
     <div className="pointer-events-none absolute inset-0 z-[900] flex items-center justify-center" role="status" aria-label={`The CPU played ${def.name}`}>
       <div className="relative">
-        <div ref={card} className="opacity-0">
-          <div className="scale-[1.6] rounded-lg shadow-[0_0_32px_rgba(0,0,0,0.85)]">
+        <div ref={card} className="relative opacity-0">
+          {/* The radial shadow behind it, fading with it. */}
+          <div style={{ transform: `scale(${scale})` }} className="absolute inset-[-45%] rounded-full bg-[radial-gradient(closest-side,rgb(0_0_0/0.75)_40%,rgb(0_0_0/0.4)_70%,transparent)]" />
+          <div style={{ transform: `scale(${scale})` }} className="relative rounded-lg shadow-[0_0_32px_rgba(0,0,0,0.85)]">
             <Card def={def} highRes />
           </div>
         </div>

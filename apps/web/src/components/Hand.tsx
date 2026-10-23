@@ -1,9 +1,10 @@
 import { useDroppable } from '@dnd-kit/core';
 import { lookupCard, type CardInstance, type CardLibrary, type GameAction } from '@poke-tcg/game-engine';
-import { useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useContext, useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { Card } from './Card';
 import { HandCard } from './HandCard';
 import { PAGE_BLEED } from '../utils/layout';
+import { InspectContext } from './InspectContext';
 import { PreviewContext } from './PreviewContext';
 
 /** Drop id of the hand: a card dragged back over it is put back (the drag is cancelled). */
@@ -12,11 +13,11 @@ export const HAND_ZONE = 'hand';
 /** Hand card width (rem); cards are 63:88. Smaller on the phone layout (`compact`). */
 const CARD_REM = 7;
 const COMPACT_REM = 4.25;
-/** How much of a card's height shows while it rests at the bottom of the screen. On a phone the whole card shows: so little of a small card would show otherwise that it couldn't be told apart. */
+/** How much of a card's height shows while it rests at the bottom of the screen: on a phone, 70% (agreed). */
 const VISIBLE = 0.70;
-const COMPACT_VISIBLE = 1;
-/** How far a tapped (or selected) card lifts clear of the others on a phone (px), as it has nothing hidden to lift into view. */
-const COMPACT_LIFT = 14;
+const COMPACT_VISIBLE = 0.7;
+/** On a phone a touched (or selected) card comes up whole and grows by this much, from its bottom edge. */
+const COMPACT_ZOOM = 1.5;
 /** A hovered card grows by this much, from its bottom edge. On a phone nothing is hovered: a finger held on a card zooms in on it instead (above the hand). */
 const ZOOM = 2.75;
 /** On a phone, holding a finger on a card this long (ms) zooms in on it; moving to another card does at once. */
@@ -88,8 +89,8 @@ function cardZ(i: number, hovered: number, raised: boolean, n: number): number {
  * beside a hovered one can spill into the page margins when they need the room.
  * Hovering a card grows it and lifts it fully into view, and slides its neighbours aside so they
  * don't cover it, squeezing them closer rather than off the edge (cardLefts); the selected card (picked by clicking) is lifted too. The page clips the parts
- * below the window (Board's column is overflow-hidden). `compact` (the phone layout): smaller cards shown whole, with no hover, across the whole screen width (there are no page margins to reach past).
- * There a tap selects a card as a click does, and holding a finger on one zooms in on it, large above the hand: sliding
+ * below the window (Board's column is overflow-hidden). `compact` (the phone layout): smaller cards, half hidden, with no hover, across the whole screen width (there are no page margins to reach past).
+ * There a tap brings the card up whole and enlarged (`touched`; down again on a tap anywhere else, or on it again) and selects it as a click does, and holding a finger on one zooms in on it, large above the hand: sliding
  * along the hand zooms in on each card the finger passes (by where the cards sit, so nothing moves under it), and
  * sliding up off the hand picks the zoomed card up to drag it into play (its own drag is started there, so the
  * slide never drags the card the press began on). Letting go without leaving the hand just closes the zoom.
@@ -127,6 +128,14 @@ export function Hand({
   const [hovered, setHovered] = useState<string | null>(null);
   /** On a phone: the card zoomed in on while a finger is held on the hand. */
   const [browsing, setBrowsing] = useState<string | null>(null);
+  /** On a phone: the card last tapped, up whole and enlarged until a tap anywhere else (or on it again). */
+  const [touched, setTouched] = useState<string | null>(null);
+  useEffect(() => {
+    if (!touched) return;
+    const down = (e: PointerEvent) => !(e.target instanceof Element && e.target.closest(`[data-hand-uid="${touched}"]`)) && setTouched(null);
+    document.addEventListener('pointerdown', down, true);
+    return () => document.removeEventListener('pointerdown', down, true);
+  }, [touched]);
   /** The finger on the hand (phone): where it went down, and whether it has zoomed in or slid (its click is then swallowed). */
   const press = useRef<{ id: number; x: number; y: number; timer: number; uid: string; browsed: boolean } | null>(null);
   /** The pointerdown passed to a card to start its drag: it gets through to the card's own handlers. */
@@ -157,10 +166,24 @@ export function Hand({
   const step = n > 1 ? Math.max(0, Math.min(cardW + GAP, (restWidth - cardW) / (n - 1))) : 0;
   const start = margin + (restWidth - (step * (n - 1) + cardW)) / 2;
   const hoveredIndex = hand.findIndex((c) => c.uid === hovered);
-  const lefts = cardLefts(n, hoveredIndex, width, cardW, step, start, PEEK_REM * rem, ZOOM);
+  // On a phone the card up and enlarged (tapped, else selected) makes way as a hovered one does, so it never covers
+  // another card (agreed 2026-10-23); held inside the hand, it grows from its bottom centre.
+  const upIndex = compact ? Math.max(hand.findIndex((c) => c.uid === touched), touched ? -1 : hand.findIndex((c) => c.uid === selected)) : -1;
+  const focus = hoveredIndex >= 0 ? hoveredIndex : upIndex;
+  const lefts = cardLefts(n, focus, width, cardW, step, start, PEEK_REM * rem, hoveredIndex >= 0 ? ZOOM : COMPACT_ZOOM);
 
-  /** The card at x (px from the hand's left edge), by where the cards sit at rest: each shows from its left edge to the next card's. */
-  const cardAt = (x: number) => hand[Math.min(n - 1, Math.max(0, step > 0 ? Math.floor((x - start) / step) : 0))];
+  /**
+   * The card at x (px from the hand's left edge), by where the cards sit now (`lefts`; the card made way for grown about
+   * its centre): of the cards there, the one on top (cardZ). Past the ends, the end card.
+   */
+  const cardAt = (x: number) => {
+    let best = -1;
+    for (let i = 0; i < n; i++) {
+      const grow = i === focus ? ((hoveredIndex >= 0 ? ZOOM : COMPACT_ZOOM) - 1) * cardW / 2 : 0;
+      if (x >= lefts[i]! - grow && x < lefts[i]! + cardW + grow && (best < 0 || cardZ(i, focus, false, n) > cardZ(best, focus, false, n))) best = i;
+    }
+    return hand[best >= 0 ? best : x < (lefts[0] ?? 0) ? 0 : n - 1];
+  };
   const endPress = () => {
     if (press.current) clearTimeout(press.current.timer);
     setBrowsing(null);
@@ -210,13 +233,20 @@ export function Hand({
   const fingerUp = (e: ReactPointerEvent) => {
     if (!press.current || e.pointerId !== press.current.id) return;
     endPress();
-    // A tap selects the card (its click goes through); after zooming in, nothing does.
-    if (!press.current.browsed) press.current = null;
+    // A tap brings the card up (or down again) and selects it (its click goes through); after zooming in, nothing does.
+    if (!press.current.browsed) {
+      const uid = press.current.uid;
+      setTouched((t) => (t === uid ? null : uid));
+      press.current = null;
+    }
   };
   const browsed = browsing ? hand.find((c) => c.uid === browsing) : undefined;
 
+  const inspect = useContext(InspectContext);
   return (
-    // The hover preview isn't needed here: the card itself grows.
+    // The hover preview isn't needed here: the card itself grows. On a phone a long press zooms in above the hand
+    // instead of opening the CardInspector (agreed), so its cards can't open it (the release's context menu included).
+    <InspectContext.Provider value={compact ? null : inspect}>
     <PreviewContext.Provider value={() => {}}>
       {/* The full width beside the game log, past the page margins, so a big hand has room to spread. */}
       <div
@@ -232,6 +262,8 @@ export function Hand({
           onPointerMove: fingerMove,
           onPointerUp: fingerUp,
           onPointerCancel: fingerUp,
+          // Nor the browser's own menu for the card's image, on letting go of a long press.
+          onContextMenu: (e: ReactMouseEvent) => e.preventDefault(),
           // The click that ends a zoom or a slide isn't a tap.
           onClickCapture: (e: ReactMouseEvent) => {
             if (press.current?.browsed) e.stopPropagation();
@@ -247,10 +279,12 @@ export function Hand({
         )}
         {hand.map((c, i) => {
           const isHovered = i === hoveredIndex;
-          const raised = isHovered || browsing === c.uid || selected === c.uid || (pick?.picked.has(c.uid) ?? false);
+          const up = i === upIndex;
+          const raised = isHovered || up || browsing === c.uid || selected === c.uid || (pick?.picked.has(c.uid) ?? false);
           const x = lefts[i]!;
           // Lifted so the whole card shows above the bottom of the screen; grown from its bottom edge.
-          const y = !raised ? 0 : compact ? -COMPACT_LIFT : -(cardH - visibleH) - (isHovered ? 0 : 4);
+          const y = !raised ? 0 : -(cardH - visibleH) - (isHovered || up ? 0 : 4);
+          const scale = isHovered ? ZOOM : up ? COMPACT_ZOOM : 1;
           return (
             <div
               key={c.uid}
@@ -265,8 +299,8 @@ export function Hand({
                 width: cardW,
                 // The card (LARGE_CARD) takes its width from --card-lg, which the board doesn't set out here.
                 ['--card-lg' as string]: `${cardW}px`,
-                transform: `translate(${x}px, ${y}px) scale(${isHovered ? ZOOM : 1})`,
-                zIndex: cardZ(i, hoveredIndex, raised, n),
+                transform: `translate(${x}px, ${y}px) scale(${scale})`,
+                zIndex: cardZ(i, focus, raised, n),
               }}
               // A touch screen fakes a hover on every tap; on a phone the held finger zooms in instead.
               onMouseEnter={compact ? undefined : () => setHovered(c.uid)}
@@ -287,5 +321,6 @@ export function Hand({
         })}
       </div>
     </PreviewContext.Provider>
+    </InspectContext.Provider>
   );
 }

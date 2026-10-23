@@ -1,6 +1,7 @@
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
-import { EQUIP_SLOTS, ITEMS, itemText, MAX_CONSUMABLES_PER_RUN } from '@poke-tcg/campaign';
+import { EQUIP_SLOTS, ITEMS, itemText } from '@poke-tcg/campaign';
 import { useQuery } from '@tanstack/react-query';
 import type { Overview, RunControl, RunViewData } from '../../hooks/useRun';
 import { useTRPC } from '../../lib/trpc';
@@ -12,13 +13,14 @@ const row = 'flex items-center justify-between gap-2 rounded bg-slate-800 px-3 p
 const label = 'text-xs uppercase tracking-wide text-slate-500';
 
 /**
- * The run's numbers, in the site menu on a big screen (NavRail) and the side panel's Run tab on a phone: HP, ₱ (and the bank), the run's EXP and the account's, consumables used,
- * the battle rules and consumables in effect, the equipment worn, the badges won this run, and the Bag. The equipment
+ * The run's numbers, in the site menu on a big screen (NavRail) and the side panel's Run tab on a phone: HP, ₱ (and the bank), the account's Stardust, the run's EXP and the
+ * account's, the battle rules and consumables in effect, the equipment worn, the badges won this run, and the Bag. The equipment
  * and the Bag fold away (RunSection).
  */
 export function RunStats({ view, account, run }: { view: RunViewData; account: Overview['account']; run: RunControl }) {
   const trpc = useTRPC();
   const inventory = useQuery(trpc.run.inventory.queryOptions());
+  const stardust = useQuery(trpc.packs.stardust.queryOptions());
   const gear = EQUIP_SLOTS.flatMap((slot) => {
     const def = ITEMS[inventory.data?.equipment[slot] ?? ''];
     return def ? [def] : [];
@@ -45,6 +47,15 @@ export function RunStats({ view, account, run }: { view: RunViewData; account: O
           <span className={label}>Bank</span>
           <span className="font-semibold text-yellow-200/70">{account.bank}</span>
         </div>
+        {stardust.data !== undefined && (
+          <div className={row} title="Stardust, from cards pulled again in packs; crafts cards in the deck builder">
+            <span className={label}>Stardust</span>
+            <span className="flex items-center gap-1 font-semibold text-sky-200">
+              <AutoAwesomeIcon sx={{ fontSize: 14 }} />
+              {stardust.data}
+            </span>
+          </div>
+        )}
         <div className={row} title="EXP earned this run, added to your account when you beat it">
           <span className={label}>Run EXP</span>
           <span className="font-semibold text-sky-300">{view.exp}</span>
@@ -52,12 +63,6 @@ export function RunStats({ view, account, run }: { view: RunViewData; account: O
         <div className={row} title="Account EXP, spent in the shop after a run">
           <span className={label}>EXP</span>
           <span className="font-semibold">{account.exp}</span>
-        </div>
-        <div className={row} title={`Consumables used this run (at most ${MAX_CONSUMABLES_PER_RUN})`}>
-          <span className={label}>Consumables</span>
-          <span className="font-semibold">
-            {view.consumablesUsed}/{MAX_CONSUMABLES_PER_RUN}
-          </span>
         </div>
       </div>
       {(view.rules.length > 0 || view.consumables.length > 0) && (

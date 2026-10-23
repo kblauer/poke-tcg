@@ -8,7 +8,7 @@ import type { RunViewData } from './useRun';
  * Pokémon Center's jingle when Nurse Joy heals (the run's HP up as its center encounter ends). Nothing once it's over.
  */
 export function useRunMusic(view: RunViewData | null | undefined) {
-  const soundtrack = useMusicSettings()?.soundtrack ?? 'original';
+  const soundtrack = useMusicSettings()?.soundtrack ?? 'remastered';
   const playing = view && view.phase !== 'won' && view.phase !== 'lost' ? view : null;
   useMusicCue(playing && runMusic(playing, soundtrack));
   const playJingle = usePlayJingle();
@@ -21,8 +21,8 @@ export function useRunMusic(view: RunViewData | null | undefined) {
   }, [view]);
 }
 
-/** Auto play in a Practice battle: its opponent's theme. */
+/** Auto play in a Training battle: its opponent's theme. */
 export function usePracticeMusic(opponent: string | null, gameId: string) {
-  const soundtrack = useMusicSettings()?.soundtrack ?? 'original';
+  const soundtrack = useMusicSettings()?.soundtrack ?? 'remastered';
   useMusicCue(practiceMusic(opponent, soundtrack, gameId));
 }

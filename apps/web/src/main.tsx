@@ -8,6 +8,7 @@ import {
   Link,
   Outlet,
   RouterProvider,
+  useRouterState,
 } from '@tanstack/react-router';
 import { StrictMode, useCallback, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -15,12 +16,14 @@ import './index.css';
 import './styles/holo/index.css';
 // Puts the saved colour theme on before the first render.
 import './hooks/useColorTheme';
-import { AccountMenu } from './components/AccountMenu';
+import './hooks/useFontStyle';
+import { AccountSettingsSync } from './components/AccountSettingsSync';
 import { CardInspectProvider } from './components/CardInspectProvider';
 import { MusicControls, MusicProvider } from './components/MusicPlayer';
 import { NavLogProvider } from './components/NavLog';
-import { NavRail } from './components/NavRail';
+import { NavRail, PhoneNavRun } from './components/NavRail';
 import { PageMenu } from './components/PageNav';
+import { TopBarStats } from './components/TopBarStats';
 import { SidePanel } from './components/SidePanel';
 import { useIsPhone } from './hooks/useIsPhone';
 import { useSession } from './lib/auth';
@@ -53,6 +56,8 @@ function loadRail(): boolean {
 function RootLayout() {
   const session = useSession();
   const phone = useIsPhone();
+  // A battle: on a phone its screen covers the top bar, which mustn't stick over it.
+  const inBattle = useRouterState({ select: (s) => s.location.pathname.startsWith('/game/') });
   /** The big screen's menu shows the pages' names (NavRail's `open`); remembered. */
   const [rail, setRail] = useState(loadRail);
   /** The phone's ☰ panel is open. */
@@ -83,13 +88,13 @@ function RootLayout() {
   );
 
   const page = (
-    // The top bar across the window: the ☰ (the menu), the logo, the account and Sign out. Below it, on a big screen, the
+    // The top bar across the window: the ☰ (the menu), the logo, and Sign out (on a phone the run's and account's figures before it). Below it, on a big screen, the
     // menu down the left edge (NavRail) beside the page, the ☰ widening it with the pages' names; on a phone the ☰ opens the menu as a panel,
     // with the music player's bar (the phone's battle screen covers the top bar). Each page sets its own width and side
     // padding (PAGE_WIDTH).
     <div>
       <header
-        className={`${phone ? '' : 'sticky top-0 z-[820]'} flex h-14 items-center justify-between gap-2 whitespace-nowrap border-b border-slate-800 bg-slate-900 px-2 shadow-md shadow-black/30 sm:px-3`}
+        className={`${phone && inBattle ? '' : 'sticky top-0 z-[820]'} flex h-14 items-center justify-between gap-2 whitespace-nowrap border-b border-slate-800 bg-slate-900 px-2 shadow-md shadow-black/30 sm:px-3`}
       >
         <div className="flex min-w-0 items-center gap-2">
           {session && (
@@ -103,21 +108,25 @@ function RootLayout() {
               <MenuIcon />
             </button>
           )}
-          <Link to="/" className="text-xl font-bold text-yellow-300">
+          {/* The logo keeps the system font; everything else is in the pixel font (index.css). */}
+          <Link to="/" className="font-system text-xl font-bold text-yellow-300">
             Poké TCG
           </Link>
         </div>
-        {session && (
-          <div className="flex min-w-0 items-center gap-2 text-sm sm:gap-3">
-            <AccountMenu email={session.user.email ?? ''} />
-            {signOutButton}
+        {/* On a phone, the run's HP and ₱, the bank and Stardust, centred between the logo and Sign out. */}
+        {session && phone && (
+          <div className="flex min-w-0 flex-1 justify-center">
+            <TopBarStats />
           </div>
         )}
+        {session && <div className="flex shrink-0 items-center text-sm">{signOutButton}</div>}
       </header>
       {session && phone && panel && (
         <SidePanel side="left" title="Poké TCG" onClose={closePanel}>
           <PageMenu onPick={closePanel} />
-          <div className="mt-3 border-t border-slate-700 pt-3">
+          {/* During a run, its numbers and log, as in the big screen's menu. */}
+          <PhoneNavRun />
+          <div className="mt-3 shrink-0 border-t border-slate-700 pt-3">
             <MusicControls onOpen={closePanel} />
           </div>
         </SidePanel>
@@ -146,9 +155,10 @@ function RootLayout() {
     </div>
   );
   // Mounted with the layout, so the music plays on from page to page; in the ☰ panel on a phone. The game page passes its
-  // log up to the site menu (NavLogProvider).
+  // log up to the site menu (NavLogProvider). The Settings page's choices follow the account (AccountSettingsSync).
   return session ? (
     <MusicProvider docked={phone}>
+      <AccountSettingsSync />
       <NavLogProvider>{page}</NavLogProvider>
     </MusicProvider>
   ) : (

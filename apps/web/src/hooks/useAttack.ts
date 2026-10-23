@@ -12,9 +12,10 @@ import { useEffect, useState } from 'react';
 
 /**
  * Using an attack: clicking it either attacks straight away or first asks the attack's questions
- * (energy to discard, a target, a type…) one at a time. Esc cancels.
+ * (energy to discard, a target, a type…) one at a time. Esc cancels. `confirm` is given the attack, once every question
+ * is answered, to send when it's sure (useTurnReminders' check: what the player could still do before the turn ends).
  */
-export function useAttack({ view, send, busy }: { view: PlayerView; send: (a: GameAction) => void; busy: boolean }) {
+export function useAttack({ view, send, busy, confirm = (go) => go() }: { view: PlayerView; send: (a: GameAction) => void; busy: boolean; confirm?: (go: () => void) => void }) {
   const [choosing, setChoosing] = useState<{ attackIndex: number; choices: AttackChoices } | null>(null);
   const { self, opponent } = view;
   const situation: AttackSituation | null =
@@ -50,7 +51,7 @@ export function useAttack({ view, send, busy }: { view: PlayerView; send: (a: Ga
     if (!situation) return;
     if (nextAttackChoice(situation, attackIndex, choices)) return setChoosing({ attackIndex, choices });
     setChoosing(null);
-    send({ type: 'ATTACK', attackIndex, choices });
+    confirm(() => send({ type: 'ATTACK', attackIndex, choices }));
   }
 
   /** The question being asked now. */

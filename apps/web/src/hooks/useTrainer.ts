@@ -6,6 +6,7 @@ import {
   type CardInstance,
   type GameAction,
   type PlayerView,
+  type Target,
   type TrainerChoices,
   type TrainerSituation,
 } from '@poke-tcg/game-engine';
@@ -15,7 +16,8 @@ import { isMyTurn } from '../utils/turn';
 /**
  * Playing a Trainer card: clicking it in the hand opens its questions (cards to discard, a target…)
  * one at a time, and answering the last one plays it. One with no questions is confirmed with a
- * Play button, or played at once when dropped on the play area. A question answered by a single
+ * Play button, or played at once when dropped on the play area; one whose first question is a Pokémon can be dropped
+ * right onto that Pokémon instead (`dropTargets`, `dropOn`). A question answered by a single
  * click in the hand or on the board has no dialog, just a `prompt`. Esc cancels.
  */
 export function useTrainer({ view, send, busy }: { view: PlayerView; send: (a: GameAction) => void; busy: boolean }) {
@@ -116,6 +118,24 @@ export function useTrainer({ view, send, busy }: { view: PlayerView; send: (a: G
       if (busy || error(card)) return;
       if (nextTrainerChoice(situation(card), {})) setPlaying({ cardUid: card.uid, choices: {} });
       else send({ type: 'PLAY_TRAINER', cardUid: card.uid, choices: {} });
+    },
+    /**
+     * A Trainer whose first question is a Pokémon (a Pokémon Tool, a Potion…): which side's and which of them, so it
+     * can be dropped right onto one; null for any other Trainer, or one that can't be played now.
+     */
+    dropTargets(card: CardInstance): { side: 'own' | 'opp'; options: Target[] } | null {
+      if (error(card)) return null;
+      const first = nextTrainerChoice(situation(card), {});
+      return first?.kind === 'pokemon' ? { side: first.side, options: first.options } : null;
+    },
+    /** Dropped on one of its `dropTargets`: that answers its first question, then it's played or asks the rest. */
+    dropOn(card: CardInstance, target: Target) {
+      if (busy || error(card)) return;
+      const first = nextTrainerChoice(situation(card), {});
+      if (first?.kind !== 'pokemon' || !first.options.includes(target)) return;
+      const choices = { [first.field]: target };
+      if (nextTrainerChoice(situation(card), choices)) setPlaying({ cardUid: card.uid, choices });
+      else send({ type: 'PLAY_TRAINER', cardUid: card.uid, choices });
     },
     /** Answers the current question; the last answer plays the card without a separate Play click. */
     answer,

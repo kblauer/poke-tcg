@@ -8,7 +8,7 @@ import { runPool } from '../pool.js';
 import { runTypeProgress } from '../progress.js';
 import { abandonBattle, advanceRun, ensureAccount, latestRun, loadOwnRun, settleBattle, startRun, syncRunDeck, type LoadedRun } from '../runs.js';
 import { holoTwins, lockedProblem, unlockedIds } from '../unlocks.js';
-import { markPlayed, playableDeck, playProblems } from './decks.js';
+import { markPlayed, playableDeck, playProblems, type DeckCosmetics } from './decks.js';
 import { debugProcedure, protectedProcedure, router } from '../trpc.js';
 
 /** The default name for saving a run's deck: the run's number among the account's runs and its type, "Run #3 – Celadon City". */
@@ -35,7 +35,7 @@ async function startWithDeck(userId: string, type: RunTypeId, deckId: string) {
   const deck = await playableDeck(deckId, userId);
   if (deck.runDeck) throw new TRPCError({ code: 'BAD_REQUEST', message: "Start a run with one of your own decks (save the run's deck first)" });
   const started = await startRun(userId, type, deck);
-  await markPlayed(userId, deckId);
+  await Promise.all([markPlayed(userId, deckId), runDeckCosmetics(userId, deck.cosmetics)]);
   return started;
 }
 
@@ -51,9 +51,12 @@ async function chooseOption(userId: string, input: { runId: string; expectedVers
   if (!option) throw new TRPCError({ code: 'BAD_REQUEST', message: 'No such option' });
   const deck = await playableDeck(input.deckId, userId);
   const advanced = await advanceRun(run, [{ type: 'SET_DECK', deck: deck.cards, name: deck.name }, { type: 'CHOOSE', option: input.option }]);
-  if (!deck.runDeck) await markPlayed(userId, input.deckId);
+  if (!deck.runDeck) await Promise.all([markPlayed(userId, input.deckId), runDeckCosmetics(userId, deck.cosmetics)]);
   return advanced;
 }
+
+/** The run deck (Deck.runId) takes the cosmetics of the deck the run starts with, or switches to: its battles use them. */
+const runDeckCosmetics = (userId: string, cosmetics: DeckCosmetics) => prisma.deck.updateMany({ where: { ownerId: userId, runId: { not: null } }, data: cosmetics });
 
 /** What the client gets for a run: its view (no RNG or opponents' deck seeds) and the battle under way. */
 async function clientRun(run: LoadedRun) {

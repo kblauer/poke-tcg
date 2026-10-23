@@ -1,4 +1,5 @@
 import LockIcon from '@mui/icons-material/Lock';
+import RemoveIcon from '@mui/icons-material/Remove';
 import { useContext, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { useHoldToInspect } from '../hooks/useHoldToInspect';
 import { useScrollLock } from '../hooks/useScrollLock';
@@ -47,17 +48,19 @@ function useRowGap(grid: RefObject<HTMLDivElement | null>, count: number) {
  * Rows overlap like a fanned-out stack: the row gap is the only space between rows, so each card
  * shows just its top strip with the name. Hovering a strip brings that card to the front. When there are
  * few enough rows, they spread out to fill the grid's height (up to whole cards, see useRowGap).
- * `counts` (the deck builder) puts a badge with each card's copies in the deck on its strip.
+ * `counts` (the deck builder) puts a badge with each card's copies in the deck on its strip, and `onRemove` a − in its top
+ * left corner that takes one copy out per press.
  * `isLocked` darkens cards the account hasn't unlocked, with a lock on the strip.
  * `holdToInspect` (the deck builder, where a click adds a copy): pressing and holding a card shows it large in
  * the middle of the screen, with its details, until the press ends (the grid and the page don't scroll meanwhile). Inside an InspectContext (the deck builder),
- * right-clicking a card opens it in the CardInspector, as does letting go of a finger's hold (a phone).
+ * right-clicking a card opens it in the CardInspector, as does a finger's hold (a phone), as soon as it registers.
  */
 export function CardGrid({
   cards,
   selectedId,
   onSelect,
   counts,
+  onRemove,
   isLocked,
   holdToInspect = false,
   compact = false,
@@ -66,6 +69,7 @@ export function CardGrid({
   selectedId: string | null;
   onSelect: (card: CatalogCard) => void;
   counts?: Map<string, number>;
+  onRemove?: (card: CatalogCard) => void;
   isLocked?: (card: CatalogCard) => boolean;
   holdToInspect?: boolean;
   /** Narrower columns (a phone), so more cards fit across: 4 on a 360px-wide screen (2340×1080). */
@@ -105,7 +109,8 @@ export function CardGrid({
                 </span>
               )}
               {isLocked?.(c) && (
-                <span className="absolute left-1 top-1 flex items-center rounded-full bg-slate-900/90 p-0.5 text-slate-300" title="Locked: win it in a run">
+                // Beside the − when there is one.
+                <span className={`absolute ${onRemove && counts?.get(c.id) ? 'left-7' : 'left-1'} top-1 flex items-center rounded-full bg-slate-900/90 p-0.5 text-slate-300`} title="Locked: win it in a run">
                   <LockIcon sx={{ fontSize: 14 }} />
                 </span>
               )}
@@ -124,6 +129,17 @@ export function CardGrid({
               aria-label={cardTitle(c)}
               className="absolute inset-x-0 top-0 z-20 aspect-[63/88] outline-none"
             />
+            {onRemove && counts?.get(c.id) ? (
+              // Above the click targets, so a press takes a copy out instead of adding one.
+              <button
+                onClick={() => onRemove(c)}
+                title={`Take a ${c.name} out of the deck`}
+                aria-label={`Take a ${c.name} out of the deck`}
+                className="absolute left-1 top-1 z-30 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900/90 text-slate-50 shadow ring-1 ring-slate-500 transition hover:bg-rose-600 active:scale-90"
+              >
+                <RemoveIcon sx={{ fontSize: 16 }} />
+              </button>
+            ) : null}
           </div>
         ))}
       </div>

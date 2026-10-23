@@ -1,10 +1,14 @@
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import FavoriteIcon from '@mui/icons-material/Favorite';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { lazy, Suspense, useEffect, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { useRun } from '../hooks/useRun';
+import { useTRPC } from '../lib/trpc';
 import { GameLog } from './GameLog';
 import { useNavGameLog } from './NavLog';
-import { PAGES, SETTINGS_PAGE } from './PageNav';
+import { PAGE_NAME, PAGES, SETTINGS_PAGE } from './PageNav';
 import { DeltaFloat } from './run/DeltaFloat';
 import { RunStats } from './run/RunStats';
 import { useDebugEnabled } from '../utils/debug';
@@ -14,7 +18,7 @@ const DebugPanel = __DEBUG_BUILD__ ? lazy(() => import('./DebugPanel')) : null;
 
 // The router sets data-status="active" on the link for the current page: lit in the logo's yellow.
 const item =
-  'flex h-10 shrink-0 items-center gap-3 rounded-md px-2.5 text-slate-300 transition hover:bg-slate-800 hover:text-white data-[status=active]:bg-yellow-400/15 data-[status=active]:text-yellow-200 data-[status=active]:ring-1 data-[status=active]:ring-yellow-400/60';
+  'flex h-10 shrink-0 items-center gap-3 rounded-md px-2.5 text-slate-300 transition hover:bg-slate-800 hover:text-slate-50 data-[status=active]:bg-yellow-400/15 data-[status=active]:text-yellow-200 data-[status=active]:ring-1 data-[status=active]:ring-yellow-400/60';
 
 type LogTab = 'run' | 'game' | 'debug';
 
@@ -43,13 +47,13 @@ function loadSections(): SectionPrefs {
  * The site's menu on a big screen, down the left edge under the top bar, beside the page: minimised, a column of the
  * pages' icons (their names on hover), Settings last; `open` (toggled by the top bar's ☰), wider, with each
  * page's name beside its icon. Either way it takes its own room on the left and the page beside it stays usable.
- * Under them: open, the run's numbers and the logs (NavSections); minimised, the run's HP and ₱.
+ * Under them: open, the run's numbers and the logs (NavSections); minimised, the run's HP and ₱, and the bank.
  */
 export function NavRail({ open }: { open: boolean }) {
   const link = (p: (typeof PAGES)[number] | typeof SETTINGS_PAGE, className = '') => (
     <Link key={p.to} to={p.to} className={`${item} ${className}`} activeOptions={{ exact: p.to === '/' }} title={open ? undefined : p.label} aria-label={p.label}>
-      <p.Icon sx={{ fontSize: 22 }} className="shrink-0" />
-      <span className={`truncate font-medium transition-opacity duration-200 ${open ? 'opacity-100' : 'opacity-0'}`}>{p.label}</span>
+      <p.Icon />
+      <span className={`truncate ${PAGE_NAME} transition-opacity duration-200 ${open ? 'opacity-100' : 'opacity-0'}`}>{p.label}</span>
     </Link>
   );
   return (
@@ -73,11 +77,30 @@ function useRunUnderWay() {
   return { run, data: data && view && view.phase !== 'won' && view.phase !== 'lost' ? { view, account: data.account } : null };
 }
 
-/** The minimised menu's run: its HP and ₱, under the pages' icons. */
+/**
+ * The phone's ☰ panel's run (main.tsx), under the pages as in the big screen's menu (agreed 2026-10-23): during a run its
+ * numbers (RunStats) and its log, scrolling with the panel; nothing between runs.
+ */
+export function PhoneNavRun() {
+  const { run, data } = useRunUnderWay();
+  if (!data) return null;
+  return (
+    <div className="mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto border-t border-slate-700 pt-3">
+      <RunStats view={data.view} account={data.account} run={run} />
+      <div className="flex h-64 flex-col rounded-lg bg-slate-950/60 ring-1 ring-slate-800">
+        <GameLog log={data.view.log.map((text) => ({ text, player: null }))} you="player" header={<h3 className="mb-2 text-sm text-slate-400">Run log</h3>} />
+      </div>
+    </div>
+  );
+}
+
+/** The minimised menu's run: its HP and ₱, the bank and Stardust, under the pages' icons. */
 function RunSummary() {
   const { data } = useRunUnderWay();
+  const trpc = useTRPC();
+  const stardust = useQuery(trpc.packs.stardust.queryOptions());
   if (!data) return null;
-  const { view } = data;
+  const { view, account } = data;
   return (
     <section className="mt-2 flex flex-col items-center gap-3 border-t border-slate-800 pt-3 text-xs font-semibold">
       <span className="relative flex flex-col items-center text-rose-400" title={`${view.hp} of ${view.maxHp} HP`}>
@@ -91,6 +114,16 @@ function RunSummary() {
         <span className="text-base leading-5">₱</span>
         {view.pokedollars}
       </span>
+      <span className="flex flex-col items-center text-yellow-200/70" title="₱ banked from earlier runs">
+        <AccountBalanceIcon sx={{ fontSize: 18 }} />
+        {account.bank}
+      </span>
+      {stardust.data !== undefined && (
+        <span className="flex flex-col items-center text-sky-200" title="Stardust">
+          <AutoAwesomeIcon sx={{ fontSize: 18 }} />
+          {stardust.data}
+        </span>
+      )}
     </section>
   );
 }

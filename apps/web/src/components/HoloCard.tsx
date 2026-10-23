@@ -96,6 +96,9 @@ export function HoloCard({
         <div
           className="card__rotator"
           onPointerMove={still ? undefined : (e) => motion.current!.interact(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect())}
+          // A finger never leaves as a mouse does: the card stays tilted while it's pressed and settles flat once it lifts off.
+          onPointerUp={still ? undefined : (e) => e.pointerType === 'touch' && motion.current!.interactEnd()}
+          onPointerCancel={still ? undefined : () => motion.current!.interactEnd()}
           onMouseOut={still ? undefined : () => motion.current!.interactEnd()}
         >
           <img className="card__back" src={CARD_BACK} alt="" loading="lazy" width="660" height="921" />

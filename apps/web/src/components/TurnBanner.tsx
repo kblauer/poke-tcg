@@ -35,9 +35,10 @@ export function useNewTurn(view: PlayerView): NewTurn | null {
 
 /**
  * "Your Turn" or "Opponent's Turn" with the turn count, on a band across the middle of the play area as TCG Pocket
- * shows it: it slides in from the right, stays a moment, then slides off to the left. It can't be clicked.
+ * shows it: it slides in from the right, stays a moment, then slides off to the left. It can't be clicked. `inBar` (the
+ * phone layout): centred on the bar between the sides instead (Board puts it there), across the screen's width.
  */
-export function TurnBanner({ turn }: { turn: NewTurn }) {
+export function TurnBanner({ turn, inBar = false }: { turn: NewTurn; inBar?: boolean }) {
   const band = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -47,7 +48,10 @@ export function TurnBanner({ turn }: { turn: NewTurn }) {
     band.current?.animate([{ ...from, easing: 'ease-out' }, { ...held, offset: at }, { ...held, offset: 1 - at, easing: 'ease-in' }, to], { duration: TURN_BANNER_MS, fill: 'forwards' });
   }, [turn.turn]);
   return (
-    <div className="pointer-events-none absolute inset-0 z-[950] flex items-center overflow-hidden" role="status">
+    <div
+      className={`pointer-events-none absolute z-[950] flex items-center ${inBar ? '-inset-x-2 top-1/2 -translate-y-1/2' : 'inset-0 overflow-hidden'}`}
+      role="status"
+    >
       <div
         ref={band}
         className={`flex w-full flex-col items-center py-3 ${

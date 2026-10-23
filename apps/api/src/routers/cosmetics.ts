@@ -1,6 +1,6 @@
 import { COSMETICS, DEFAULT_COSMETIC, hasCosmetic, type CosmeticKind } from '@poke-tcg/campaign';
 import { prisma } from '@poke-tcg/db';
-import { buyCosmeticInput, useCosmeticInput } from '@poke-tcg/shared';
+import { assignCosmeticInput, buyCosmeticInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { env } from '../env.js';
 import { protectedProcedure, router } from '../trpc.js';
@@ -9,7 +9,7 @@ import { protectedProcedure, router } from '../trpc.js';
  * What an account has of the cosmetics (hasCosmetic): the ones it bought (CosmeticUnlock), the run types it has beaten
  * (for those unlocked by beating one), and every one while debugging (never in production: env.debugEnabled).
  */
-async function cosmeticsOf(userId: string) {
+export async function cosmeticsOf(userId: string) {
   const [bought, won] = await Promise.all([
     prisma.cosmeticUnlock.findMany({ where: { userId }, select: { cosmeticId: true } }),
     prisma.run.groupBy({ by: ['type'], where: { ownerId: userId, status: 'WON' } }),
@@ -21,23 +21,27 @@ async function cosmeticsOf(userId: string) {
   };
 }
 
-/** The cosmetic of `kind` in use: the one picked if the account (still) has it, otherwise the default. */
-function inUse(kind: CosmeticKind, picked: string | null, has: (id: string) => boolean) {
+/** The account's default of `kind` (for decks with none of it): the one picked if the account (still) has it, otherwise the built-in default. */
+function defaultOf(kind: CosmeticKind, picked: string | null, has: (id: string) => boolean) {
   return picked && COSMETICS[picked]?.kind === kind && has(picked) ? picked : DEFAULT_COSMETIC[kind];
 }
 
 export const cosmeticsRouter = router({
-  /** Every cosmetic with whether the account has it, the card back, playmat and coin in use, and the ₱ in the bank. */
+  /**
+   * Every cosmetic with whether the account has it, the decks it's assigned to (`deckIds`, in the deck list's order:
+   * the account's own decks, not the run deck, which copies its starting deck's) and whether it's the default for its
+   * kind (`isDefault`); the defaults (`defaults`, used by decks with none of a kind and outside battles); and the ₱ in the bank.
+   */
   list: protectedProcedure.query(async ({ ctx }) => {
-    const [has, user] = await Promise.all([
+    const [has, user, decks] = await Promise.all([
       cosmeticsOf(ctx.user.id),
-      prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { cardBack: true, playmat: true, coin: true, bank: true } }),
+      prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { bank: true, cardBack: true, playmat: true, coin: true } }),
+      prisma.deck.findMany({ where: { ownerId: ctx.user.id, runId: null }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], select: { id: true, cardBack: true, playmat: true, coin: true } }),
     ]);
+    const defaults = { cardBack: defaultOf('cardBack', user.cardBack, has), playmat: defaultOf('playmat', user.playmat, has), coin: defaultOf('coin', user.coin, has) };
     return {
-      cosmetics: Object.values(COSMETICS).map((c) => ({ ...c, owned: has(c.id) })),
-      cardBack: inUse('cardBack', user.cardBack, has),
-      playmat: inUse('playmat', user.playmat, has),
-      coin: inUse('coin', user.coin, has),
+      cosmetics: Object.values(COSMETICS).map((c) => ({ ...c, owned: has(c.id), deckIds: decks.filter((d) => d[c.kind] === c.id).map((d) => d.id), isDefault: defaults[c.kind] === c.id })),
+      defaults,
       bank: user.bank,
     };
   }),
@@ -57,14 +61,24 @@ export const cosmeticsRouter = router({
     });
   }),
 
-  /** Puts a cosmetic the account has in use for its kind (null: back to the default). */
-  use: protectedProcedure.input(useCosmeticInput).mutation(async ({ ctx, input }) => {
-    if (input.id !== null) {
-      const def = COSMETICS[input.id]!;
-      if (def.kind !== input.kind) throw new TRPCError({ code: 'BAD_REQUEST', message: `${def.name} isn't a ${{ cardBack: 'card back', playmat: 'playmat', coin: 'coin' }[input.kind]}` });
-      if (!(await cosmeticsOf(ctx.user.id))(def.id)) throw new TRPCError({ code: 'BAD_REQUEST', message: `You don't have ${def.name} yet` });
-    }
-    await prisma.user.update({ where: { id: ctx.user.id }, data: { [input.kind]: input.id } });
+  /**
+   * Sets which of the account's decks (not the run deck) use a cosmetic it has, any number of them (agreed 2026-10-23):
+   * `deckIds` take it, replacing their cosmetic of its kind, and the decks that had it and aren't listed go back to none
+   * (the default). `isDefault`: it's the default for decks with none of its kind (and outside battles); unticked on the
+   * default, the built-in one is again.
+   */
+  assign: protectedProcedure.input(assignCosmeticInput).mutation(async ({ ctx, input }) => {
+    const def = COSMETICS[input.id]!;
+    if (!(await cosmeticsOf(ctx.user.id))(def.id)) throw new TRPCError({ code: 'BAD_REQUEST', message: `You don't have ${def.name} yet` });
+    const decks = await prisma.deck.findMany({ where: { id: { in: input.deckIds }, ownerId: ctx.user.id, runId: null }, select: { id: true } });
+    if (decks.length !== new Set(input.deckIds).size) throw new TRPCError({ code: 'BAD_REQUEST', message: "Assign it to your own decks (the run's deck takes its starting deck's)" });
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { cardBack: true, playmat: true, coin: true } });
+    const picked = user[def.kind];
+    await prisma.$transaction([
+      prisma.deck.updateMany({ where: { ownerId: ctx.user.id, runId: null, [def.kind]: def.id, id: { notIn: input.deckIds } }, data: { [def.kind]: null } }),
+      prisma.deck.updateMany({ where: { id: { in: input.deckIds } }, data: { [def.kind]: def.id } }),
+      ...(input.isDefault ? [prisma.user.update({ where: { id: ctx.user.id }, data: { [def.kind]: def.id } })] : picked === def.id ? [prisma.user.update({ where: { id: ctx.user.id }, data: { [def.kind]: null } })] : []),
+    ]);
     return { ok: true };
   }),
 });

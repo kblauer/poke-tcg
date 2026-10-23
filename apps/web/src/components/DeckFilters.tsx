@@ -6,8 +6,10 @@ import { CARD_TYPES, type SetGroup } from '../utils/cardList';
 import { EnergyIcon } from './EnergyIcon';
 import { CARD_KINDS, DECK_SORTS, EMPTY_DECK_FILTER, POKEMON_STAGES, type CardKind, type DeckFilter, type DeckSort } from '../utils/deckBuilder';
 
-const input = 'rounded bg-slate-800 px-2 py-1 text-sm outline-none ring-yellow-300 focus:ring-1';
-const toggle = 'rounded px-2 py-1 text-sm transition';
+// Every control one height, so they line up wherever they sit.
+// The filters' inputs and toggles: the pixel font at its crisp 18px (`text-chip`, index.css) (agreed 2026-10-23).
+const input = 'h-8 rounded bg-slate-800 px-2 text-chip outline-none ring-yellow-300 focus:ring-1';
+const toggle = 'inline-flex h-8 items-center gap-1 rounded px-2.5 text-chip transition';
 const on = 'bg-yellow-300 text-slate-900';
 const off = 'bg-slate-800 text-slate-300 hover:bg-slate-700';
 
@@ -164,7 +166,7 @@ export function DeckFilters({
   const favorites = (
     <button
       key="favorites"
-      className={`${toggle} flex items-center gap-1 ${filter.favorites ? on : off}`}
+      className={`${toggle} ${filter.favorites ? on : off}`}
       aria-pressed={filter.favorites}
       title="Only your favorite cards (add one with the ★ when it's open large)"
       onClick={() => set({ favorites: !filter.favorites })}
@@ -177,15 +179,16 @@ export function DeckFilters({
   const types = CARD_TYPES.map((t) => (
     <button
       key={t}
-      // On a big screen they share one line (see the layout below): smaller, then just their icons, as it narrows.
-      className={`${toggle} flex shrink-0 items-center gap-1 ${compact ? '' : '@max-[56rem]:px-1.5 @max-[56rem]:text-xs'} ${filter.types.includes(t) ? on : off}`}
+      // On a big screen they share one line (see the layout below): narrower, then just their icons, as it narrows (the
+      // widths for the pixel font's 18px: all nine named take about 64rem).
+      className={`${toggle} shrink-0 ${compact ? '' : '@max-[70rem]:px-1.5'} ${filter.types.includes(t) ? on : off}`}
       aria-pressed={filter.types.includes(t)}
       title={`${t} Pokémon and ${t} Energy${t === 'Colorless' ? ' (Double Colorless and other special Energy with no type of its own)' : ''}`}
       aria-label={t}
       onClick={() => set({ types: flip(filter.types, t) })}
     >
       <EnergyIcon type={t.toLowerCase() as EnergyType} size="panel" />
-      {!compact && <span className="hidden @[42rem]:inline">{t}</span>}
+      {!compact && <span className="hidden @[64rem]:inline">{t}</span>}
     </button>
   ));
   const stage = (
@@ -207,7 +210,7 @@ export function DeckFilters({
       aria-label={bound === 'minHp' ? 'Lowest HP' : 'Highest HP'}
       value={filter[bound] ?? ''}
       onChange={(e) => set({ [bound]: toBound(e.target.value) })}
-      className={`${input} w-16`}
+      className={`${input} w-20`}
     />
   );
   const hp = (
@@ -263,38 +266,44 @@ export function DeckFilters({
       </div>
     );
   }
+  /** A line's name, in the first column, so every line's controls start at the same place. */
+  const name = (label: string) => <span className="text-xs uppercase tracking-wide text-slate-500">{label}</span>;
   return (
-    // Five lines: the search, sets and sort (Clear filters before them); the kinds; the types (always one line); the
-    // Pokémon filters; unlocked or locked and works or not (the number of cards shown at its end).
+    // Five lines, each named in the first column: the search, sets and sort; the kinds; the types (always one line); the
+    // Pokémon filters; unlocked or locked and works or not (the number of cards shown and Clear filters at its end).
     // Related filters stay together when a line wraps.
-    <div className="space-y-2 rounded-lg bg-slate-900 p-3">
-      <div className={`${row} gap-x-4`}>
-        <span className="shrink-0">{clear}</span>
-        <div className="flex min-w-0 items-center gap-1.5">
-          {search}
-          {setPicker}
-          {sortSelect}
-        </div>
+    <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2 rounded-lg bg-slate-900 p-3">
+      {name('Search')}
+      <div className="flex min-w-0 items-center gap-1.5">
+        {search}
+        {setPicker}
+        {sortSelect}
       </div>
-      <div className={row}>
+      {name('Kind')}
+      <div className={group}>
         {favorites}
         {kinds}
         {holo}
       </div>
+      {name('Type')}
       <div className="@container">
         <div className="flex items-center gap-1.5 text-sm">{types}</div>
       </div>
-      <div className={`${row} text-slate-400`}>
-        Pokémon
+      {name('Pokémon')}
+      <div className={`${group} text-sm text-slate-400`}>
         {stage}
-        HP
+        <span className="ml-1.5">HP</span>
         {hp}
         {ability}
       </div>
+      {name('Cards')}
       <div className={`${row} gap-x-4`}>
         <div className={group}>{ownership}</div>
         <div className={group}>{implemented}</div>
-        <span className="ml-auto">{count}</span>
+        <span className="ml-auto flex items-center gap-4">
+          {count}
+          {clear}
+        </span>
       </div>
     </div>
   );

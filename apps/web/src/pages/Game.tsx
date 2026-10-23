@@ -13,6 +13,7 @@ import { useOptions } from '../hooks/useOptions';
 import { useRun } from '../hooks/useRun';
 import { usePracticeMusic, useRunMusic } from '../hooks/useRunMusic';
 import { useSkipFlips } from '../hooks/useSkipFlips';
+import { DeckCosmeticsContext } from '../hooks/useCosmetics';
 import { useTRPC } from '../lib/trpc';
 import { PAGE_WIDTH } from '../utils/layout';
 
@@ -90,21 +91,26 @@ export function GamePage() {
   const next = replay[0];
   /** The card of the move shown with it (its flips came first, or it has none), unless it was shown before the flips. */
   const cardShown = useRef(false);
+  /** The move's coin flips were played out: the Pokémon it changed don't glow after them (they do when the flips are skipped). */
+  const flipsShown = useRef(false);
   const showCard = (frame: Frame) => frame.highlight?.defId && setPlayed({ defId: frame.highlight.defId, cards: frame.view.cards, stamp: frame.version });
   const reveal = () => {
     setFlips([]);
     setShownView(next!.view);
-    setLastMove({ player: next!.player, type: next!.type, version: next!.version, highlight: next!.highlight, cardFirst: cardShown.current });
+    const highlight = flipsShown.current && next!.highlight ? { ...next!.highlight, pokemon: [] } : next!.highlight;
+    setLastMove({ player: next!.player, type: next!.type, version: next!.version, highlight, cardFirst: cardShown.current });
     if (!cardShown.current) showCard(next!);
     setRevealed(true);
   };
   useEffect(() => {
     cardShown.current = false;
+    flipsShown.current = false;
     if (!next) return;
     const before = shownView ?? data?.view;
     const fresh = before ? flipsAfter(next.view.log, lastEntry(before)) : [];
     // Once the battle is over, its flips aren't shown.
     if (!fresh.length || skipFlips || next.view.phase === 'finished') return reveal();
+    flipsShown.current = true;
     if (!next.highlight?.defId) return setFlips(fresh);
     cardShown.current = true;
     showCard(next);
@@ -142,7 +148,8 @@ export function GamePage() {
   const pending = act.isPending ? act.variables.action : null;
   const shown = shownView ?? view;
   return (
-    <>
+    // The battle's deck's own cosmetics, where it has them (useCosmetics).
+    <DeckCosmeticsContext.Provider value={data.cosmetics}>
       <Board
         gameId={gameId}
         view={shown}
@@ -164,11 +171,10 @@ export function GamePage() {
             shown.phase === 'finished' && <BattleResult view={shown} opponent={data.opponent} run={data.runId !== null} />
           )
         }
-        info={<BattleInfo view={shown} opponent={data.opponent} />}
       />
       <BattleBanner view={shown} opponent={data.opponent} />
       {data.runId ? <RunBattleMusic /> : <PracticeMusic opponent={data.opponent} gameId={gameId} />}
-    </>
+    </DeckCosmeticsContext.Provider>
   );
 }
 
@@ -178,7 +184,7 @@ function RunBattleMusic() {
   return null;
 }
 
-/** Auto play during a Practice battle: its opponent's theme. */
+/** Auto play during a Training battle: its opponent's theme. */
 function PracticeMusic({ opponent, gameId }: { opponent: string | null; gameId: string }) {
   usePracticeMusic(opponent, gameId);
   return null;
@@ -209,7 +215,7 @@ function BattleInfo({ view, opponent }: { view: PlayerView; opponent: string | n
 
 /**
  * Who you're up against and the run's battle rules (BattleInfo), at the top of the screen while the battle lasts
- * (on a phone, the board's top line has them instead).
+ * (not on a phone, whose battle screen covers it and shows neither; agreed).
  */
 function BattleBanner({ view, opponent }: { view: PlayerView; opponent: string | null }) {
   const phone = useIsPhone();
@@ -223,7 +229,7 @@ function BattleBanner({ view, opponent }: { view: PlayerView; opponent: string |
 
 /**
  * Once the battle is over, centred on the play area (the Board's overlay): the result and the way back, to the run
- * for a run's battle, otherwise to the Practice tab.
+ * for a run's battle, otherwise to the Training tab.
  */
 function BattleResult({ view, opponent, run }: { view: PlayerView; opponent: string | null; run: boolean }) {
   const trpc = useTRPC();

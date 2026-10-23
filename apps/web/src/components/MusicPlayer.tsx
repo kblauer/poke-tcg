@@ -3,14 +3,16 @@ import CloseIcon from '@mui/icons-material/Close';
 import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import PauseIcon from '@mui/icons-material/Pause';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import RepeatIcon from '@mui/icons-material/Repeat';
 import ShuffleIcon from '@mui/icons-material/Shuffle';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import { pickSong, type MusicCue, type Song, type Soundtrack } from '@poke-tcg/campaign';
 import { useQuery } from '@tanstack/react-query';
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import AudioPlayer, { RHAP_UI } from 'react-h5-audio-player';
+import AudioPlayer from 'react-h5-audio-player';
 import 'react-h5-audio-player/lib/styles.css';
+import { registerSetting, saveSetting } from '../utils/accountSettings';
 import { duration, groupByGame, MUSIC_GENERATIONS, playlist, type GenFilter, type Track } from '../utils/music';
 
 /** localStorage key for the player's settings and the last track. */
@@ -20,11 +22,13 @@ interface MusicPrefs {
   open: boolean;
   gen: GenFilter;
   shuffle: boolean;
+  /** Repeat: the song playing starts again when it ends, instead of the next. */
+  repeat: boolean;
   /** The volume slider, 0–1 (the audio plays at MAX_VOLUME of it). */
   volume: number;
   /** The last track played (its URL), ready to play again on the next visit. */
   track: string | null;
-  /** Auto play: the music follows the run (and Practice battles), looping the song that suits it (`MusicCue`). */
+  /** Auto play: the music follows the run (and Training battles), looping the song that suits it (`MusicCue`). */
   autoplay: boolean;
   /** Auto play's songs: the original games' or their remakes'. */
   soundtrack: Soundtrack;
@@ -33,7 +37,18 @@ interface MusicPrefs {
 /** The loudest the songs play, at the slider's top (agreed with the user: half the audio's full volume). */
 const MAX_VOLUME = 0.5;
 
-const DEFAULTS: MusicPrefs = { open: false, gen: null, shuffle: false, volume: 0.5, track: null, autoplay: false, soundtrack: 'original' };
+// Auto play on and the Remastered soundtrack by default (agreed 2026-10-23).
+const DEFAULTS: MusicPrefs = { open: false, gen: null, shuffle: false, repeat: false, volume: 0.5, track: null, autoplay: true, soundtrack: 'remastered' };
+
+/** Auto play and its soundtrack as the account keeps them (utils/accountSettings): the browser's, or null when it has none saved. */
+function storedAutoplay(): string | null {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PREFS_KEY) ?? 'null') as Partial<MusicPrefs> | null;
+    return saved && (saved.autoplay !== undefined || saved.soundtrack !== undefined) ? JSON.stringify({ autoplay: saved.autoplay ?? DEFAULTS.autoplay, soundtrack: saved.soundtrack ?? DEFAULTS.soundtrack }) : null;
+  } catch {
+    return null;
+  }
+}
 
 function loadPrefs(): MusicPrefs {
   try {
@@ -136,7 +151,7 @@ export function MusicControls({ onOpen }: { onOpen?: () => void }) {
  * loaded once the player is first used. The audio stays mounted while the panel is closed, so music plays on across pages.
  * Settings and the last track are remembered in localStorage (`poke-tcg.music`); nothing plays until clicked.
  * Auto play (its button beside shuffle, or the Settings page) follows the page instead: the run's map and battles, and
- * Practice battles, tell it what suits them (useMusicCue, `runMusic` in campaign's music.ts), and it loops that song;
+ * Training battles, tell it what suits them (useMusicCue, `runMusic` in campaign's music.ts), and it loops that song;
  * a Pokémon Center's heal plays its jingle first (usePlayJingle). Elsewhere the song playing plays on.
  * The bar floats at the bottom right, its panel above it; `docked` (when the site's pages are in its ☰ menu: a phone, a
  * narrow window), the bar is in the menus instead (MusicControls) and the panel opens at the bottom of the screen.
@@ -217,7 +232,7 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
     afterJingle.current = current;
     switchTo(jingle, true);
   };
-  /** A song over: the jingle's back to what auto play wants (or the song it interrupted), auto play's song again, or the list's next. */
+  /** A song over: the jingle's back to what auto play wants (or the song it interrupted), auto play's song again, the same one with repeat, or the list's next. */
   const ended = () => {
     if (inJingle.current) {
       inJingle.current = false;
@@ -225,7 +240,7 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
       if (back) return switchTo(back, true);
     }
     const audio = player.current?.audio.current;
-    if (cueTrack && current === cueTrack && audio) {
+    if (((cueTrack && current === cueTrack) || prefs.repeat) && audio) {
       audio.currentTime = 0;
       return void audio.play();
     }
@@ -289,7 +304,28 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
   const setAutoplay = (autoplay: boolean) => {
     setWanted(true);
     update({ autoplay });
+    saveSetting('music', JSON.stringify({ autoplay, soundtrack: prefs.soundtrack }));
   };
+  const setSoundtrack = (soundtrack: Soundtrack) => {
+    update({ soundtrack });
+    saveSetting('music', JSON.stringify({ autoplay: prefs.autoplay, soundtrack }));
+  };
+  // Auto play and its soundtrack follow the account (utils/accountSettings).
+  useEffect(
+    () =>
+      registerSetting('music', {
+        read: storedAutoplay,
+        apply: (value) => {
+          try {
+            const saved = JSON.parse(value ?? '{}') as Partial<Pick<MusicPrefs, 'autoplay' | 'soundtrack'>>;
+            update({ autoplay: saved.autoplay ?? DEFAULTS.autoplay, soundtrack: saved.soundtrack ?? DEFAULTS.soundtrack });
+          } catch {
+            update({ autoplay: DEFAULTS.autoplay, soundtrack: DEFAULTS.soundtrack });
+          }
+        },
+      }),
+    [],
+  );
   const state: MusicState = {
     playing,
     title: current?.title ?? null,
@@ -299,7 +335,7 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
     autoplay: prefs.autoplay,
     soundtrack: prefs.soundtrack,
     setAutoplay,
-    setSoundtrack: (soundtrack) => update({ soundtrack }),
+    setSoundtrack,
     setCue,
     playJingle,
   };
@@ -358,7 +394,16 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
                 </div>,
               ]}
               customAdditionalControls={[
-                RHAP_UI.LOOP,
+                // Our own, not the player's (RHAP_UI.LOOP, a crossed-out icon of its own size): grey when off, white when on.
+                <button
+                  key="repeat"
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded transition hover:bg-slate-700 ${prefs.repeat ? 'text-slate-50' : 'text-slate-500 hover:text-slate-300'}`}
+                  onClick={() => update({ repeat: !prefs.repeat })}
+                  aria-pressed={prefs.repeat}
+                  title={prefs.repeat ? 'Repeat on' : 'Repeat off'}
+                >
+                  <RepeatIcon sx={{ fontSize: 20 }} />
+                </button>,
                 <button
                   key="shuffle"
                   className={`${iconButton} ${prefs.shuffle ? 'text-yellow-300 hover:text-yellow-200' : ''}`}

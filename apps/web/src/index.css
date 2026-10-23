@@ -1,6 +1,145 @@
 @import "tailwindcss";
 
 /*
+ * Pixellocale v1.4 by Johste (FontStruct, SIL Open Font License: public/fonts/pixellocale-license.txt), the UI's font
+ * (agreed 2026-10-23): Tailwind's sans, so every text uses it (`font-pixel` names it too). The top bar's Poké TCG
+ * logo keeps the system font (`font-system`, Tailwind's own sans stack). Characters it lacks fall back to the system font.
+ * Its em is 9 pixels, so it's crisp at 9, 18 and 27px; it has one weight, and bold isn't faked (font-synthesis), which
+ * would smear its pixels. The Settings page's Font (`useFontStyle`, `data-font` on <html>) can switch to the standard
+ * system font instead: html[data-font="standard"] below puts back the sizes and weights the site had with it.
+ */
+/*
+ * Its own metrics reserve 1.56em above the baseline and only 0.56em below, so in a line shorter than about 1.45em its
+ * tails (g, y, p: 2 of its 9 pixels) hung below the line box and boxes that clip (truncate) cut them off. The overrides
+ * give it what its letters use: 1em above (capitals and accents) and a third below (the tails, and a pixel to spare),
+ * whole pixels at its crisp sizes (18px: 18 and 6), so lines of 1.33em or more hold every letter.
+ */
+@font-face {
+  font-family: "Pixellocale";
+  src: url("/fonts/pixellocale.woff2") format("woff2");
+  font-display: swap;
+  ascent-override: 100%;
+  descent-override: 33.3333%;
+  line-gap-override: 0%;
+}
+
+/*
+ * Pokemon Emerald by aztecwarrior28 (FontStruct, CC BY-SA 3.0: public/fonts/pokemon-emerald-license.txt, with its
+ * readme), the Settings page's Pokémon R/S/E font. Its em is 15 pixels (capitals 9, tails 2 below): its letters are
+ * small for their size (capitals 0.6em, Pixellocale's 0.78em), so it's drawn 125% (size-adjust), the same size as
+ * Pixellocale's. Crisp where that makes 15 or 30px: 12px text (text-xs) and the 24px headings (html[data-font="emerald"]
+ * below); the rest a little soft. Its ascent is 12 pixels and descent 3; the ascent is given a pixel more (13 of 15) so
+ * the em box is an even 16 and the headings' baseline lands on a whole pixel in their 40px line.
+ */
+@font-face {
+  font-family: "Pokemon Emerald";
+  src: url("/fonts/pokemon-emerald.woff2") format("woff2");
+  font-display: swap;
+  ascent-override: 86.6667%;
+  descent-override: 20%;
+  line-gap-override: 0%;
+  size-adjust: 125%;
+}
+
+/*
+ * Noto Sans JP (SIL Open Font License: public/fonts/noto-sans-jp-license.txt), the Settings page's Pokémon S/M font, a
+ * free stand-in for Sun & Moon's Rodin (Fontworks' commercial font). Self-hosted, trimmed from Google's variable font
+ * (9.6MB) to what the site writes in English (54KB, by harfbuzz's subsetter): basic Latin, Latin-1, dashes, quotes,
+ * bullet, ellipsis, ™, arrows, minus, ★ ☆, ♀ ♂ and δ, its weight axis kept from 400 to 700. It has no ₱, which (as
+ * anything else outside its unicode-range) comes from the system font.
+ */
+@font-face {
+  font-family: "Noto Sans JP";
+  src: url("/fonts/noto-sans-jp-latin.woff2") format("woff2");
+  font-weight: 400 700;
+  font-display: swap;
+  unicode-range: U+0020-007E, U+00A0-00FF, U+03B4, U+2013-2014, U+2018-201D, U+2022, U+2026, U+2122, U+2190-2193, U+2212, U+2605-2606, U+2640, U+2642;
+}
+
+@theme {
+  --font-system: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-pixel: "Pixellocale", var(--font-system);
+  --font-emerald: "Pokemon Emerald", var(--font-system);
+  /* The Pokémon S/M font (Noto Sans JP, above): a stand-in for Sun & Moon's Rodin. */
+  --font-noto: "Noto Sans JP", var(--font-system);
+  --font-sans: var(--font-pixel);
+  /* A chip's or small button's text (the Packs tab's Bank and Stardust, the Generation filter, the Collection's Decks
+     and Filters, the card search's filters): the pixel font at its crisp 18px in a 20px line, so a chip with py-1.5 stays 32px tall. */
+  --text-chip: 18px;
+  --text-chip--line-height: 20px;
+  /* The menus' page names (PageNav's PAGE_NAME) and the pages' headings (PageHeader): 18px and 27px, twice and three
+     times the pixel font's em, in lines exactly as tall as its ascent and descent (4/3 em), so the baseline is on a whole pixel. */
+  --text-nav: 18px;
+  --text-nav--line-height: 24px;
+  --text-title: 27px;
+  --text-title--line-height: 36px;
+  /* Their weights: the pixel font has only the one (font-nav, font-heading). */
+  --font-weight-nav: 400;
+  --font-weight-heading: 400;
+}
+
+html {
+  font-synthesis-weight: none;
+}
+
+/* The standard font (Settings): the system's, at the sizes and weights the site had before the pixel font; the
+   Pokémon S/M font the same, in its own. */
+html[data-font="standard"],
+html[data-font="noto"] {
+  --font-sans: var(--font-system);
+  --text-chip: 14px;
+  --text-nav: 16px;
+  --text-title: 24px;
+  --text-title--line-height: 32px;
+  --font-weight-nav: 500;
+  --font-weight-heading: 700;
+  font-synthesis-weight: auto;
+}
+html[data-font="noto"] {
+  --font-sans: var(--font-noto);
+}
+
+/* The Pokémon R/S/E font (Settings, Pokemon Emerald): the chips and menus at 18px as with Pixellocale, the headings at 24px (30, drawn 125%: crisp). */
+html[data-font="emerald"] {
+  --font-sans: var(--font-emerald);
+  --text-title: 24px;
+  --text-title--line-height: 40px;
+}
+
+/*
+ * Scroll bars (agreed 2026-10-23): minimal and dark, in the colour theme's slate-600 (which the themes redefine), with no
+ * track. The bar is 12px wide to grab, but the thumb shows 4px of it (a transparent border, clipped), and it's never
+ * shorter than 48px, so a long list's thumb can still be grabbed. Chrome, Edge and Safari take the ::-webkit-scrollbar
+ * rules; Firefox, which has no such selector, gets the colour as a thin bar (scrollbar-color). Recent Chrome drops the
+ * ::-webkit-scrollbar rules for an element with scrollbar-color, hence the @supports.
+ */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  min-height: 48px;
+  min-width: 48px;
+  border: 4px solid transparent;
+  border-radius: 9999px;
+  background: var(--color-slate-600) padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  border-width: 3px;
+  background-color: var(--color-slate-500);
+}
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-color: var(--color-slate-600) transparent;
+    scrollbar-width: thin;
+  }
+}
+
+/*
  * Coin flip (components/CoinFlip.tsx, SpinningCoin): the coin's flight and the landing's dust ring are played by the Web
  * Animations API; these are the flick's streaks and flash (each streak along its --a) and the landing's specks (each thrown
  * along its --dx), hidden until their moment (`forwards`, not `both`: nothing shows while they wait).
@@ -38,26 +177,23 @@
 /*
  * The phone board (components/phone/PhoneTable.tsx) stacks both sides in one column, TCG Pocket style: per side a
  * bench row and an active row, plus the bar between them. Its width fits five benched Pokémon; its height two
- * benches (1.4 card widths tall each) and two actives at least 1.7× as big, plus 3.5rem of lines and gaps and the bar
- * between the sides: 3.5rem, or the Stadium's height (1.126 card widths) when that's more. It's kept free even with no
- * Stadium in play, so playing one never pushes your Bench under the hand. Tall phones (19.5:9, 2340×1080) have height
- * to spare, so the actives grow into what the benches and bars leave, up to 2.1×.
+ * benches (1.4 card widths tall each) and two actives, both the same size (agreed), at least 1.36× as big, plus 2.25rem
+ * of gaps, the strip at the top for the CPU's hand (half a card width and a 0.75rem gap), 1.25rem above the hand and
+ * 0.5rem more above your Bench, and the bar between the sides: 3.5rem, or the Stadium's height (1.126 card widths) when
+ * that's more. It's kept free even with no Stadium in play, so playing one never pushes your Bench under the hand. Tall
+ * phones (19.5:9, 2340×1080) have height to spare, so the actives grow into what the benches and bars leave, up to 1.68×.
  * --card-pile is the Prize, deck and discard stacks beside the actives.
  */
 .phone-cards {
-  --card-sm: max(2.5rem, min(calc((100cqw - 2.5rem) / 5.4), calc((100cqh - 7rem) / 7.55), calc((100cqh - 3.5rem) / 8.67)));
-  --card-lg: max(calc(var(--card-sm) * 1.7), min(calc(var(--card-sm) * 2.1), calc((100cqh - 3.5rem - max(3.5rem, 1.126 * var(--card-sm)) - 2.794 * var(--card-sm)) / 2.794)));
+  --card-sm: max(2.5rem, min(calc((100cqw - 2.5rem) / 5.4), calc((100cqh - 8.25rem) / 7.09), calc((100cqh - 4.75rem) / 8.22)));
+  --card-lg: max(calc(var(--card-sm) * 1.36), min(calc(var(--card-sm) * 1.68), calc((100cqh - 4.75rem - max(3.5rem, 1.126 * var(--card-sm)) - 3.294 * var(--card-sm)) / 2.794)));
   --card-pile: calc(var(--card-sm) * 0.62);
+  /* The CPU's hand's cards, in the strip above its Bench (PhoneOppHand). */
+  --card-opp-hand: calc(var(--card-sm) * 0.8);
+  /* The strip at the top kept for the CPU's hand: the 45% of its cards below the top edge (half a card width), and a gap before its Bench. */
+  --opp-hand-strip: calc(var(--card-opp-hand) * 1.397 * 0.45 + 0.75rem);
 }
 
-/* The phone layout's sheet of the Active Pokémon's moves (components/phone/ActiveSheet.tsx) slides up from the bottom. */
-@keyframes sheet-up {
-  from { transform: translateY(100%); }
-  to { transform: none; }
-}
-.sheet-up {
-  animation: sheet-up 200ms ease-out;
-}
 /* Side panels (components/SidePanel.tsx) slide in from their edge. */
 @keyframes panel-left {
   from { transform: translateX(-100%); }
@@ -84,7 +220,7 @@
   animation: delta-float 1.8s ease-out forwards;
 }
 @media (prefers-reduced-motion: reduce) {
-  .sheet-up, .panel-left, .panel-right { animation: none; }
+  .panel-left, .panel-right { animation: none; }
 }
 
 /* The attacks column hangs off the active slot's right edge, so the slot stays centred. */
@@ -218,13 +354,11 @@
   height: 12px;
 }
 .music-player .rhap_main-controls-button,
-.music-player .rhap_volume-button,
-.music-player .rhap_repeat-button {
+.music-player .rhap_volume-button {
   color: var(--color-slate-300);
 }
 .music-player .rhap_main-controls-button:hover,
-.music-player .rhap_volume-button:hover,
-.music-player .rhap_repeat-button:hover {
+.music-player .rhap_volume-button:hover {
   color: var(--color-slate-100);
 }
 .music-player .rhap_play-pause-button {
@@ -262,7 +396,13 @@
   .playing-bars span { animation: none; transform: scaleY(0.6); }
 }
 
-/* A card that can be played now (a card in your hand, a Stadium that can still be used): a soft blue outline that pulses, as TCG Pocket's does. */
+/* The phone top bar's exact number under a tapped figure (TopBarStats), and the CPU's hand count (PhoneOppHand): it shows, then fades away. */
+@keyframes exact-fade {
+  0%, 65% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* A card that can be played now (a card in your hand, a Stadium that can still be used, a Pokémon in play whose Pokémon Power can be used): a soft blue outline that pulses, as TCG Pocket's does. */
 .playable-pulse {
   animation: playable-pulse 1.8s ease-in-out infinite;
 }
