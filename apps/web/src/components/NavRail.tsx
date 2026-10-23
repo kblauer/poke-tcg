@@ -1,8 +1,11 @@
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import FavoriteIcon from '@mui/icons-material/Favorite';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { lazy, Suspense, useEffect, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { useRun } from '../hooks/useRun';
+import { useTRPC } from '../lib/trpc';
 import { GameLog } from './GameLog';
 import { useNavGameLog } from './NavLog';
 import { PAGES, SETTINGS_PAGE } from './PageNav';
@@ -91,9 +94,11 @@ export function PhoneNavRun() {
   );
 }
 
-/** The minimised menu's run: its HP and ₱, and the bank, under the pages' icons. */
+/** The minimised menu's run: its HP and ₱, the bank and Stardust, under the pages' icons. */
 function RunSummary() {
   const { data } = useRunUnderWay();
+  const trpc = useTRPC();
+  const stardust = useQuery(trpc.packs.stardust.queryOptions());
   if (!data) return null;
   const { view, account } = data;
   return (
@@ -113,6 +118,12 @@ function RunSummary() {
         <AccountBalanceIcon sx={{ fontSize: 18 }} />
         {account.bank}
       </span>
+      {stardust.data !== undefined && (
+        <span className="flex flex-col items-center text-sky-200" title="Stardust">
+          <AutoAwesomeIcon sx={{ fontSize: 18 }} />
+          {stardust.data}
+        </span>
+      )}
     </section>
   );
 }
