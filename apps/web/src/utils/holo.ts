@@ -35,7 +35,12 @@ export interface HoloAttributes {
   trainerGallery: boolean;
   /** A holo Energy (data-holo-energy): its style covers the whole card, nothing masked out (wotc.css). */
   holoEnergy: boolean;
+  /** The card's holo mask (public/holo-masks, made by tools/holo-masks): the foil shows only where it's opaque, off the Pokémon. */
+  mask: string | null;
 }
+
+/** The holos with a mask keeping the foil off the Pokémon: Base Set's, a first try (see tools/holo-masks). */
+const MASKED = new Set(Array.from({ length: 16 }, (_, i) => `base1-${i + 1}`));
 
 const SUBTYPES: Record<string, string> = { basic: 'basic', baby: 'basic', stage1: 'stage 1', stage2: 'stage 2' };
 
@@ -58,5 +63,6 @@ export function holoAttributes(card: HoloSource): HoloAttributes {
     pokemonEx: kind === 'pokemon' && / ex$/.test(card.name ?? ''),
     trainerGallery: style?.trainerGallery ?? false,
     holoEnergy: !!style,
+    mask: !style && (card.holo || card.galaxy) && MASKED.has(id) ? `/holo-masks/${id}.png` : null,
   };
 }

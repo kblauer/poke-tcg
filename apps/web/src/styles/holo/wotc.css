@@ -54,15 +54,25 @@
   clip-path: var(--clip-galaxy);
 }
 
-/* Base Set 2's holo rares: the galaxy foil goes in the art window, where the originals they reprint have their holo
-   (the same shapes as a classic holo, stage badge cut out on Stage 1 and 2). */
-.card[data-era][data-set="base4"][data-rarity="rare holo cosmos"] .card__shine,
-.card[data-era][data-set="base4"][data-rarity="rare holo cosmos"] .card__glare:after {
+/* Base Set 2's and Base Set's holo rares: the galaxy foil goes in the art window, where the classic holos have their
+   holo (the same shapes as a classic holo, stage badge cut out on Stage 1 and 2). */
+.card[data-era]:is([data-set="base4"], [data-set="base1"])[data-rarity="rare holo cosmos"] .card__shine,
+.card[data-era]:is([data-set="base4"], [data-set="base1"])[data-rarity="rare holo cosmos"] .card__glare:after {
   clip-path: var(--clip);
 }
-.card[data-era][data-set="base4"][data-rarity="rare holo cosmos"][data-subtypes^="stage"] .card__shine,
-.card[data-era][data-set="base4"][data-rarity="rare holo cosmos"][data-subtypes^="stage"] .card__glare:after {
+.card[data-era]:is([data-set="base4"], [data-set="base1"])[data-rarity="rare holo cosmos"][data-subtypes^="stage"] .card__shine,
+.card[data-era]:is([data-set="base4"], [data-set="base1"])[data-rarity="rare holo cosmos"][data-subtypes^="stage"] .card__glare:after {
   clip-path: var(--clip-stage);
+}
+
+/* A holo mask (utils/holo.ts) keeps the foil's glare off the Pokémon too, as base.css does the shine. */
+.card[data-era].masked .card__glare:after {
+  -webkit-mask-image: var(--mask);
+  mask-image: var(--mask);
+  -webkit-mask-size: cover;
+  mask-size: cover;
+  -webkit-mask-position: center center;
+  mask-position: center center;
 }
 
 .card[data-era="ecard"] {

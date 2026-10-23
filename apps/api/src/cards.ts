@@ -108,10 +108,15 @@ export const isHolo = (card: Pick<Card, 'id' | 'data'>) => (card.data as CardDat
  */
 const GALAXY_FOIL = new Set(['basep-34', 'basep-35', 'si1-1', 'si1-4', 'si1-7', 'si1-11', 'si1-14', 'si1-17']);
 
-/** Base Set 2's holo rares are shown with the galaxy foil, to set them apart from the originals they reprint (agreed with the user). */
-const isBase2Holo = (card: Pick<Card, 'id' | 'data'>) => card.id.startsWith('base4-') && isHolo(card);
+/**
+ * Sets whose holo rares are shown with the galaxy foil in the art window: Base Set 2's, to set them apart from the
+ * originals they reprint (agreed with the user), and Base Set's, a first try at every Gen 1 and 2 holo Pokémon (asked
+ * by the user 2026-10-23), their Pokémon masked out of the foil (apps/web/public/holo-masks).
+ */
+const GALAXY_ART_SETS = new Set(['base1', 'base4']);
+const isGalaxyArt = (card: Pick<Card, 'id' | 'data'>) => GALAXY_ART_SETS.has(card.id.slice(0, card.id.lastIndexOf('-'))) && isHolo(card);
 
-export const isGalaxyFoil = (card: Pick<Card, 'id' | 'data'>) => GALAXY_FOIL.has(card.id) || isBase2Holo(card);
+export const isGalaxyFoil = (card: Pick<Card, 'id' | 'data'>) => GALAXY_FOIL.has(card.id) || isGalaxyArt(card);
 
 function energyType(tcgdexType: string): EnergyType {
   const type = tcgdexType.toLowerCase() as EnergyType;
