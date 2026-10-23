@@ -7,6 +7,19 @@ import { FACE_DOWN, type LogEntry } from './status.js';
 import { seesOpponentHand } from './powers.js';
 import { pendingChoiceView, type PendingChoiceView } from './trainers.js';
 
+/**
+ * Each state's attackDamageRanges (a WeakMap: it goes with the state), for the same state viewed more than once (the
+ * player's view and each CPU frame's are asked for again): the ranges play every attack over every coin-flip pattern.
+ * Only the current player's view has them, so the state alone is the key.
+ */
+const damageRanges = new WeakMap<GameState, (DamageRange | null)[]>();
+
+function attackDamage(state: GameState, playerId: PlayerId): (DamageRange | null)[] {
+  let ranges = damageRanges.get(state);
+  if (!ranges) damageRanges.set(state, (ranges = attackDamageRanges(state, playerId)));
+  return ranges;
+}
+
 /** What a single player is allowed to see. Never send raw GameState to a client. */
 export interface PlayerView {
   version: number;
@@ -162,7 +175,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
     rules: state.rules ?? [],
     stadium: state.stadium ?? null,
     ...(state.stadiumUsedTurn !== undefined && { stadiumUsedTurn: state.stadiumUsedTurn }),
-    ...(state.phase === 'playing' && state.currentPlayer === playerId && me.active && oppActive && { attackDamage: attackDamageRanges(state, playerId) }),
+    ...(state.phase === 'playing' && state.currentPlayer === playerId && me.active && oppActive && { attackDamage: attackDamage(state, playerId) }),
     log: state.log ?? [],
     cards,
     self: {

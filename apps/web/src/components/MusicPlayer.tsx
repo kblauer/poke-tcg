@@ -9,10 +9,15 @@ import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import { pickSong, type MusicCue, type Song, type Soundtrack } from '@poke-tcg/campaign';
 import { useQuery } from '@tanstack/react-query';
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import AudioPlayer from 'react-h5-audio-player';
-import 'react-h5-audio-player/lib/styles.css';
+import { createContext, lazy, Suspense, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import type AudioPlayerElement from 'react-h5-audio-player';
 import { duration, groupByGame, MUSIC_GENERATIONS, playlist, type GenFilter, type Track } from '../utils/music';
+
+// The audio player (and its styles) loads the first time a song is picked, not with every page.
+const AudioPlayer = lazy(async () => {
+  await import('react-h5-audio-player/lib/styles.css');
+  return import('react-h5-audio-player');
+});
 import { ICON_BUTTON } from '../utils/styles';
 
 /** localStorage key for the player's settings and the last track. */
@@ -163,7 +168,7 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
   });
   const list = useMemo(() => playlist(tracks.data ?? [], prefs.gen), [tracks.data, prefs.gen]);
   const current = useMemo(() => tracks.data?.find((t) => t.url === prefs.track) ?? null, [tracks.data, prefs.track]);
-  const player = useRef<AudioPlayer>(null);
+  const player = useRef<AudioPlayerElement>(null);
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /** The song clicked in the list (its URL): only highlighted; its play button is what plays it. */
@@ -326,6 +331,7 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
             </button>
           </div>
           {current && (
+            <Suspense fallback={null}>
             <AudioPlayer
               ref={player}
               className="music-player"
@@ -392,6 +398,7 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
                 </button>,
               ]}
             />
+            </Suspense>
           )}
           {error && <p className="px-4 pb-1 text-xs text-amber-300">{error}</p>}
 

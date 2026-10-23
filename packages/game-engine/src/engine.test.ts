@@ -57,6 +57,27 @@ describe('game engine', () => {
     expect(newGame()).toEqual(newGame());
   });
 
+  it('shares the card library between states and never changes it', () => {
+    // Every action copies the state but its library (cloneState); a frozen library throws on any write to it.
+    const freeze = (value: unknown) => {
+      if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+        Object.freeze(value);
+        for (const v of Object.values(value)) freeze(v);
+      }
+    };
+    const start = newGame();
+    freeze(start.cards);
+    let s = setup(start);
+    for (let i = 0; i < 6 && s.phase === 'playing'; i++) {
+      const bench = basicsIn(s, s.currentPlayer)[0];
+      if (bench) s = act(s, s.currentPlayer, { type: 'PLAY_BENCH', cardUid: bench.uid, slot: s.players[s.currentPlayer]!.bench.indexOf(null) });
+      s = act(s, s.currentPlayer, { type: 'END_TURN' });
+    }
+    expect(s.cards).toBe(start.cards);
+    const active = s.players.ash!.active!.card.defId;
+    expect(getPlayerView(s, 'ash').cards[active]).toBe(start.cards[active]);
+  });
+
   it('stores only the definitions the decks use', () => {
     expect(Object.keys(newGame().cards).sort()).toEqual(['charizard', 'charmander', 'charmeleon', 'fire-energy', 'squirtle', 'water-energy']);
   });

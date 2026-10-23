@@ -1,6 +1,6 @@
 // Attack resolution: legality, the choices an attack asks for, damage (weakness, resistance,
 // prevention) and the helpers card effects use. Card-specific behaviour lives in effects/.
-import { conditionProof, hasOwner, hasType, isBasicEnergy, lookupCard, namesMatch, typesOf, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
+import { conditionProof, hasOwner, hasType, isBasicEnergy, lookupCard, namesMatch, typeName, typesOf, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { attackEffect, powerEffect, trainerEffect } from './effects/index.js';
 import {
   afflictBetweenTurns,
@@ -462,8 +462,6 @@ export function attackError(s: AttackSituation, attackIndex: number): string | n
 /** Energy that can be discarded for the attack. A Transformed Ditto's Energy counts as any type. */
 export const discardOptions = (s: AttackSituation, type?: EnergyType) =>
   s.attacker.energy.filter((e) => !type || s.attacker.transformed || counts(energyProvided(e, s.cards).type, type));
-
-export const typeName = (t: EnergyType) => t[0]!.toUpperCase() + t.slice(1);
 
 /** All questions the attack asks, given the answers so far. */
 function choiceSpecs(s: AttackSituation, attackIndex: number, c: AttackChoices): ChoiceSpec[] {

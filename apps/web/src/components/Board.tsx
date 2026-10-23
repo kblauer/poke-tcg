@@ -242,9 +242,15 @@ export function Board({
   // A hovered card can disappear without a mouseleave (played, knocked out), so reset on every update.
   useEffect(() => setPreview(null), [view.version]);
 
-  // Warm the cache with the large images so the preview appears without a loading delay.
+  // Warm the cache with the large images so the preview appears without a loading delay: each card once, not again on
+  // every move (the view's cards change with every action).
+  const warmed = useRef(new Set<string>());
   useEffect(() => {
-    for (const d of Object.values(view.cards)) if (d.imageUrl) new Image().src = `${d.imageUrl}/high.webp`;
+    for (const d of Object.values(view.cards)) {
+      if (!d.imageUrl || warmed.current.has(d.id)) continue;
+      warmed.current.add(d.id);
+      new Image().src = `${d.imageUrl}/high.webp`;
+    }
   }, [view.cards]);
 
   const busySlot = pendingSlot(pending);

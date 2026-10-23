@@ -641,11 +641,20 @@ function energyEvolution(prev: GameState, state: GameState, playerId: PlayerId) 
 /** The Pokémon card definition of a card. */
 const card = (state: GameState, c: CardInstance) => lookupCard(state.cards, c.defId) as PokemonCardDef;
 
+/**
+ * A copy of the state to change. The card library is shared, not copied: nothing changes it after createGame (applyDebug
+ * replaces it), and copying its definitions was most of the cost of every action and of every move the CPU tries.
+ */
+export function cloneState(state: GameState): GameState {
+  const { cards, ...rest } = state;
+  return { ...structuredClone(rest), cards };
+}
+
 function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionResult {
   if (!prev.players[playerId]) return fail('Not a player in this game');
   if (prev.phase === 'finished') return fail('Game is over');
 
-  const state = structuredClone(prev);
+  const state = cloneState(prev);
   // Games saved before Transform existed (or set up directly, in tests) may not have Ditto's copy yet.
   refreshTransforms(state);
   // A card looked at with Peek stays in view until that player's next action.
@@ -765,7 +774,7 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
     }
     // Sabrina's ESP: the attack happens again from where it started, with new coin flips (the log keeps the first ones).
     if (pending.kind === 'reflip' && action.count === 1) {
-      const again: GameState = { ...structuredClone(pending.before), rngState: state.rngState, log: state.log, version: state.version };
+      const again: GameState = { ...cloneState(pending.before), rngState: state.rngState, log: state.log, version: state.version };
       addLog(again, "Sabrina's ESP: re-flipped the coins.", me.id);
       const [mine, theirs] = [again.players[me.id]!, again.players[opponentOf(again, me.id)]!];
       return attackAction(again, mine, theirs, pending.attackIndex, pending.choices, { flee: pending.flee, reflipped: true });
@@ -1062,7 +1071,7 @@ function attackAction(
 ): ActionResult {
   const usable = usableAttacks(me.active!, state.cards, { recall: recallsAttacks(state, me), bench: me.bench, defender: opp.active, oppBench: opp.bench, stadium: state.stadium?.card ?? null, sides: [me, opp] })[attackIndex];
   const esp = !reflipped && (me.active!.attached ?? []).some((a) => lookupCard(state.cards, a.card.defId).name === "Sabrina's ESP");
-  const before = esp ? structuredClone(state) : null;
+  const before = esp ? cloneState(state) : null;
   const source = usable && `${inPlayDef(state.cards, me.active!).name}'s ${usable.attack.name}`;
   const logged = state.log?.at(-1)?.n ?? 0;
   const error = performAttack(state, me, opp, attackIndex, choices, { flee });

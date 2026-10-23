@@ -1,8 +1,8 @@
 // Base Set (base1) attack effects, by card id and attack name. Rulings follow the 1999 rulebook;
 // where TCGdex's text differs from the printed card, `text` has the printed wording.
 // Attacks that only deal damage need no entry. Pokémon Powers aren't implemented yet.
-import { typeName, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
-import type { EnergyType } from '../cards.js';
+import type { AttackEffect, AttackSituation, ChoiceSpec } from '../attacks.js';
+import { typeName, type EnergyType } from '../cards.js';
 import { effectId, inPlayDef } from '../status.js';
 import {
   discardDefenderEnergy,
