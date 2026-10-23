@@ -74,6 +74,23 @@ function useRunUnderWay() {
   return { run, data: data && view && view.phase !== 'won' && view.phase !== 'lost' ? { view, account: data.account } : null };
 }
 
+/**
+ * The phone's ☰ panel's run (main.tsx), under the pages as in the big screen's menu (agreed 2026-10-23): during a run its
+ * numbers (RunStats) and its log, scrolling with the panel; nothing between runs.
+ */
+export function PhoneNavRun() {
+  const { run, data } = useRunUnderWay();
+  if (!data) return null;
+  return (
+    <div className="mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto border-t border-slate-700 pt-3">
+      <RunStats view={data.view} account={data.account} run={run} />
+      <div className="flex h-64 flex-col rounded-lg bg-slate-950/60 ring-1 ring-slate-800">
+        <GameLog log={data.view.log.map((text) => ({ text, player: null }))} you="player" header={<h3 className="mb-2 text-sm text-slate-400">Run log</h3>} />
+      </div>
+    </div>
+  );
+}
+
 /** The minimised menu's run: its HP and ₱, and the bank, under the pages' icons. */
 function RunSummary() {
   const { data } = useRunUnderWay();

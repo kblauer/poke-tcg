@@ -1,7 +1,6 @@
-import ListAltIcon from '@mui/icons-material/ListAlt';
 import { runType } from '@poke-tcg/campaign';
-import { useEffect, useRef, useState } from 'react';
-import { LogSheet, PanelTabs } from '../components/LogDrawer';
+import { useEffect, useRef } from 'react';
+import { PanelTabs } from '../components/LogDrawer';
 import { PageHeader } from '../components/PageHeader';
 import { PreviewProvider } from '../components/PreviewProvider';
 import { DeckPanel } from '../components/run/DeckPanel';
@@ -26,16 +25,13 @@ import { PAGE_WIDTH } from '../utils/layout';
  * results, the shop and the next run. A run whose type has routes (Pewter City: Route 2) shows them instead of the
  * icon map: zoomed in on the step's spot, alone in the top row, with the encounter, the cards unlocked and Concede below.
  * A new account is set up with its first run on the first visit.
- * On a phone (useIsPhone) the side panel is a round button floating in the top right corner instead, which opens its
- * tabs full screen (LogSheet, as on the phone's battle screen); with a route map, the tabs are under the deck choice (or
- * the encounter) instead (PanelTabs).
+ * On a phone (useIsPhone) the run's numbers and log are in the site's ☰ panel, as on a big screen (PhoneNavRun); with a
+ * route map they're also under the deck choice (or the encounter) (PanelTabs).
  */
 export function HomePage() {
   const run = useRun();
   const fill = useWindowFill<HTMLDivElement>();
   const phone = useIsPhone();
-  /** On a phone: the side panel's tabs are open. */
-  const [panel, setPanel] = useState(false);
   const { overview } = run;
   // Auto play follows the run: the route, the town, the gym, a Pokémon Center.
   useRunMusic(overview.data?.run?.view);
@@ -60,8 +56,8 @@ export function HomePage() {
     run: view && <RunStats view={view} account={overview.data.account} run={run} />,
   } as const;
   const routes = view ? runType(view.type).routes : undefined;
-  // On a phone, under a route map, the side panel's tabs are in the panel below it (PanelTabs, collapsible to its tab row)
-  // rather than behind the floating button: under the deck choice, or under the encounter.
+  // On a phone, under a route map, the side panel's tabs are in the panel below it (PanelTabs, collapsible to its tab row):
+  // under the deck choice, or under the encounter.
   const inline = !!routes && !!view && view.phase !== 'won' && view.phase !== 'lost';
   const tabs = inline && phone && <PanelTabs {...sidePanel} collapsible />;
   // The next encounter (or the one under way), the cards unlocked this run, and Concede below them, out of the way.
@@ -126,19 +122,6 @@ export function HomePage() {
             </>
           )}
         </div>
-        {phone && !inline && (
-          <>
-            <button
-              className="fixed right-3 top-3 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-slate-800 text-slate-200 shadow-lg shadow-black/60 ring-1 ring-slate-600 transition active:scale-95"
-              onClick={() => setPanel(true)}
-              aria-label="The run and its log"
-              title="The run and its log"
-            >
-              <ListAltIcon />
-            </button>
-            {panel && <LogSheet {...sidePanel} onClose={() => setPanel(false)} />}
-          </>
-        )}
       </div>
     </PreviewProvider>
   );
