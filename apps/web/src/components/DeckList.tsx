@@ -213,7 +213,8 @@ function DeckCount({ size, ready, large = false }: { size: number; ready: boolea
  * A deck tile's contents, as agreed with the user (the Collection's deck list, and the run's deck menu): its Pokémon large
  * on the left with the Pokémon/Trainer/Energy bar and its counts under them; on their right `title` (the name) with the
  * Pokémon's names (comma separated, wrapping) and any `note` under it, and `corner` (the star) and the card count at the
- * bottom right. Greyed out while it holds `locked` cards.
+ * bottom right. Greyed out while it holds `locked` cards. Its box is a container: narrower than 15rem (the Collection's
+ * decks pane dragged narrow), the right column is hidden, leaving just the cards (the title above them stays).
  */
 export function DeckTile({
   entries,
@@ -247,12 +248,12 @@ export function DeckTile({
   const ratio = deckRatio(entries, byId);
   const row = (
     <div className="flex gap-2.5">
-      <div className={`space-y-1 ${dim}`}>
+      <div className={`shrink-0 space-y-1 ${dim}`}>
         <FeaturedCards featured={featured} isLocked={isLocked} size="h-[4.2rem] w-[3rem]" />
         <RatioBar ratio={ratio} size={deckSize(entries)} height="h-1.5" />
         <RatioCounts ratio={ratio} small />
       </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <div className="flex min-w-0 flex-1 flex-col gap-1 @max-[15rem]:hidden">
         {!titleAbove && title}
         {detail ?? <p className={`break-words text-xs leading-4 text-slate-200 ${dim}`}>{featured.map((card) => card.name).join(', ')}</p>}
         {note}
@@ -263,14 +264,7 @@ export function DeckTile({
       </div>
     </div>
   );
-  return titleAbove ? (
-    <div className="space-y-2">
-      {title}
-      {row}
-    </div>
-  ) : (
-    row
-  );
+  return <div className={`@container ${titleAbove ? 'space-y-2' : ''}`}>{titleAbove ? <>{title}{row}</> : row}</div>;
 }
 
 /** A small deck tile (the Cosmetics tab's): its first Pokémon's card, its name and its card count. */
@@ -439,10 +433,11 @@ export function DeckList({
     onReorder(next);
   };
   return (
-    <div className={`flex min-h-0 flex-1 flex-col gap-2 rounded-lg bg-slate-900 text-sm ${compact ? 'p-2' : 'p-3'}`}>
-      {/* The toolbar across the top: New deck, Copy, Import, Publish and Filters (the generations, popping out) as icons. */}
-      <div className="flex items-center gap-1 border-b border-slate-700 pb-1.5">
-        <span className="mr-auto font-semibold">Decks</span>
+    <div className={`@container flex min-h-0 flex-1 flex-col gap-2 rounded-lg bg-slate-900 text-sm ${compact ? 'p-2' : 'p-3'}`}>
+      {/* The toolbar across the top: New deck, Copy, Import, Publish and Filters (the generations, popping out) as icons;
+          in a pane dragged narrow, just the icons. */}
+      <div className="flex items-center justify-end gap-1 border-b border-slate-700 pb-1.5">
+        <span className="mr-auto font-semibold @max-[14rem]:hidden">Decks</span>
         <button className="flex items-center rounded p-1 text-emerald-400 transition hover:bg-slate-700 hover:text-emerald-300" onClick={onNew} title="New deck" aria-label="New deck">
           <AddIcon sx={{ fontSize: 20 }} />
         </button>
@@ -538,7 +533,7 @@ function SortableDeck({
           if (e.key === 'Enter') onOpen(deck.id);
           else listeners?.onKeyDown?.(e);
         }}
-        title={deck.problems.join(' ') || undefined}
+        title={[deck.name, ...deck.problems].join('\n')}
       >
         <DeckTile
           entries={deck.cards}

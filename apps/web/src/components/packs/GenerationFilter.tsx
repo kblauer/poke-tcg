@@ -73,7 +73,7 @@ export function GenerationFilter({
         </button>
       ) : (
         <button
-          className={`flex items-center gap-1 rounded-lg bg-slate-800 ${compact ? 'px-2 py-0.5' : 'px-3 py-1.5'} text-sm ring-1 ring-slate-700 transition hover:ring-slate-500`}
+          className={`flex items-center gap-1 rounded-lg bg-slate-800 ${compact ? 'px-2 py-0.5' : 'px-2.5 py-1.5'} text-chip ring-1 ring-slate-700 transition hover:ring-slate-500`}
           onClick={() => setOpen(!open)}
           aria-expanded={open}
           aria-haspopup="listbox"

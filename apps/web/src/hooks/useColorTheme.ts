@@ -1,9 +1,10 @@
 import { useSyncExternalStore } from 'react';
+import { registerSetting, saveSetting } from '../utils/accountSettings';
 import { DEFAULT_THEME, findTheme, themeVars } from '../utils/themes';
 
 const KEY = 'poke-tcg.theme';
 
-// Remembered per browser; a convenience only, so storage failures just mean the default colours.
+// Remembered in the browser (applied at once) and with the account (utils/accountSettings); storage failures just mean the default colours.
 function load(): string {
   try {
     return findTheme(localStorage.getItem(KEY) ?? DEFAULT_THEME).id;
@@ -28,7 +29,8 @@ let theme = load();
 apply(theme);
 const listeners = new Set<() => void>();
 
-function setTheme(id: string) {
+/** Picks a theme: `fromAccount`, the account's (not saved back to it). */
+function setTheme(id: string, fromAccount = false) {
   theme = findTheme(id).id;
   apply(theme);
   try {
@@ -36,8 +38,20 @@ function setTheme(id: string) {
   } catch {
     // Not remembered; it still applies until the page is reloaded.
   }
+  if (!fromAccount) saveSetting('theme', theme);
   for (const l of listeners) l();
 }
+
+registerSetting('theme', {
+  read: () => {
+    try {
+      return localStorage.getItem(KEY);
+    } catch {
+      return null;
+    }
+  },
+  apply: (value) => setTheme(value ?? DEFAULT_THEME, true),
+});
 
 const subscribe = (l: () => void) => {
   listeners.add(l);
@@ -46,5 +60,5 @@ const subscribe = (l: () => void) => {
 
 /** The colour theme's id (`COLOR_THEMES`), shared by every component that shows or changes it. */
 export function useColorTheme(): [string, (id: string) => void] {
-  return [useSyncExternalStore(subscribe, () => theme), setTheme];
+  return [useSyncExternalStore(subscribe, () => theme), (id) => setTheme(id)];
 }

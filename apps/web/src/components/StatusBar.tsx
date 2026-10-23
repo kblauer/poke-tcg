@@ -1,6 +1,7 @@
 import type { GameAction } from '@poke-tcg/game-engine';
 import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { registerSetting, saveSetting } from '../utils/accountSettings';
 
 /** Something the player could still do this turn, which End turn reminds them of first. */
 export type EndTurnReminder = { kind: 'energy' | 'stadium' | 'powers'; text: string };
@@ -27,15 +28,38 @@ export function reminderOff(kind: EndTurnReminder['kind']): boolean {
   }
 }
 
-/** Turns a reminder off, or back on (the Settings page). */
-export function setReminderOff(kind: EndTurnReminder['kind'], off = true) {
+const REMINDER_KINDS = Object.keys(SKIP_KEYS) as EndTurnReminder['kind'][];
+
+/** The reminders turned off, as the account keeps them (null: none, the default). */
+function remindersOff(): string | null {
+  const off = REMINDER_KINDS.filter(reminderOff);
+  return off.length ? JSON.stringify(off) : null;
+}
+
+/** Turns a reminder off, or back on (the Settings page). `fromAccount`: the account's (not saved back to it). */
+export function setReminderOff(kind: EndTurnReminder['kind'], off = true, fromAccount = false) {
   try {
     if (off) localStorage.setItem(SKIP_KEYS[kind], '1');
     else localStorage.removeItem(SKIP_KEYS[kind]);
   } catch {
     // Not remembered: it reminds them again next time.
   }
+  if (!fromAccount) saveSetting('reminders', remindersOff());
 }
+
+// Kept with the account too (utils/accountSettings): the ones turned off.
+registerSetting('reminders', {
+  read: remindersOff,
+  apply: (value) => {
+    let off: string[] = [];
+    try {
+      off = JSON.parse(value ?? '[]') as string[];
+    } catch {
+      // Unreadable: every reminder on.
+    }
+    for (const kind of REMINDER_KINDS) setReminderOff(kind, off.includes(kind), true);
+  },
+});
 
 // Styled like the other dialogs: bg-slate-800, ring-slate-600, slate-600 buttons.
 const button = 'rounded bg-slate-600 px-3 py-1 text-sm transition hover:bg-slate-500 active:scale-95';

@@ -2,7 +2,7 @@
 // name, a Basic Pokémon) are in @poke-tcg/shared, where the API checks them too.
 import { GENERATIONS } from '@poke-tcg/campaign';
 import { DECK_SIZE, MAX_UNOWN, maxCopiesOf, copiesAllowed, copiesOfName, deckProblems, isUnownCard, unownCount, type DeckRuleCard } from '@poke-tcg/shared';
-import { CARD_TYPES, cardTitle, matchesSearch, type CatalogCard } from './cardList';
+import { CARD_TYPES, cardTitle, foldText, matchesSearch, type CatalogCard } from './cardList';
 
 /** Pokémon stages for the stage filter. */
 export const POKEMON_STAGES = [
@@ -84,7 +84,7 @@ export function filterForDeck(
   isLocked: (card: CatalogCard) => boolean = () => false,
   isFavorite: (cardId: string) => boolean = () => false,
 ): CatalogCard[] {
-  const search = f.search.trim().toLowerCase();
+  const search = foldText(f.search.trim());
   const pokemonFilters = f.stage !== null || f.minHp !== null || f.maxHp !== null || f.hasAbility;
   return cards.filter((c) => {
     if (search && !matchesSearch(c, search)) return false;
