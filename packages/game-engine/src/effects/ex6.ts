@@ -24,6 +24,7 @@ import { healUpTo } from './si1.js';
 import { EX2 } from './ex2.js';
 import { EX3 } from './ex3.js';
 import { EX5 } from './ex5.js';
+import { energyCanGo } from './neo3.js';
 import { ROCKET } from './rocket.js';
 
 /** Another set's attack effect, read when it's used (the effect tables can't be read while the modules load). */
@@ -128,7 +129,10 @@ export const delayedCondition = (damage: number, affliction: 'confused'): Attack
   },
 });
 
-/** Twister: `damage` and, for each heads of 2, an Energy card from the Defending Pokémon the player picks; 2 tails, nothing. */
+/**
+ * Twister: `damage` and, for each heads of 2, an Energy card from the Defending Pokémon the player picks; 2 tails, nothing.
+ * As Neo Revelation's: Brock's Protection and Unown [K]'s Keep keep the Energy (`energyCanGo`).
+ */
 const twister = (damage: number): AttackEffect => ({
   run(ctx) {
     const heads = ctx.flips(2);
@@ -137,7 +141,7 @@ const twister = (damage: number): AttackEffect => ({
     const defender = ctx.opp.active;
     if (!defender || defender.damage >= inPlayDef(ctx.state.cards, defender).hp || !ctx.canAffect(ctx.opp, defender)) return;
     const energy = defender.energy.filter((e) => !e.provides);
-    if (!energy.length) return;
+    if (!energy.length || !energyCanGo(ctx, defender)) return;
     if (energy.length <= heads || new Set(energy.map((e) => e.defId)).size === 1) {
       const gone = energy.slice(0, heads);
       defender.energy = defender.energy.filter((e) => !gone.includes(e));

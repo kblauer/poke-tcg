@@ -206,7 +206,7 @@ export function DecksPage() {
     setDirty(true);
   }
 
-  if (catalog.error) return <p className={`${PAGE_WIDTH} text-red-400`}>{catalog.error.message}</p>;
+  if (catalog.error && !catalog.data) return <p className={`${PAGE_WIDTH} text-red-400`}>{catalog.error.message}</p>;
   if (!catalog.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading cards…</p>;
 
   // The rules' problems (all a deck needs to be published), then its locked cards'.

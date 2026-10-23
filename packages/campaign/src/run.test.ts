@@ -507,6 +507,15 @@ describe('other encounters', () => {
     expect(after.gained).toEqual([trade.get]);
   });
 
+  it("a trade with a deck from another generation (none of its cards in the run's pool) still asks for one of its cards", () => {
+    const s = act(at('trade'), { type: 'CHOOSE', option: 0 }, [], GEN2_TEST_POOL);
+    const trade = s.encounter as Extract<RunState['encounter'], { kind: 'trade' }>;
+    expect(deck).toContain(trade.give);
+    expect(GEN2_TEST_POOL.some((c) => c.def.id === trade.get)).toBe(true);
+    const after = act(s, { type: 'ACCEPT' }, [], GEN2_TEST_POOL);
+    expect([after.deck.length, after.gained]).toEqual([60, [trade.get]]);
+  });
+
   it('a Pokémon Center heals 1 HP for ₱100, not past the maximum', () => {
     const s = act(at('center'), { type: 'CHOOSE', option: 0 });
     expect(applyRunAction(s, { type: 'ACCEPT' }, TEST_POOL)).toEqual({ ok: false, error: 'You already have full HP' });
@@ -687,6 +696,22 @@ describe('items', () => {
     gym.position = gym.steps.length - 1;
     expect(use(gym, 'repel').ok).toBe(false);
     expect(use(act(at('shop'), { type: 'CHOOSE', option: 0 }), 'repel').ok).toBe(false); // not on the map
+  });
+
+  it("Repel re-rolls with the route's own trainers: no Swimmers on land, only Swimmers in Route 20's water, its land battle a battle", () => {
+    for (let seed = 1; seed <= 12; seed++) {
+      const land = act(createRun('celadon', deck, seed), { type: 'USE_ITEM', itemId: 'repel' });
+      expect(land.steps[0]!.options.map((o) => o.trainer ?? '').filter((t) => t.startsWith('Swimmer '))).toEqual([]);
+      for (const position of [0, 4, 7]) {
+        const sea = createRun('cinnabar', deck, seed);
+        sea.position = position;
+        const options = act(sea, { type: 'USE_ITEM', itemId: 'repel' }).steps[position]!.options;
+        const battles = options.filter((o) => o.kind === 'battle').map((o) => o.trainer!);
+        // Spot 4 is the battle on land by the Seafoam Islands: always a battle, never a Swimmer.
+        if (position === 4) expect([options.length, battles.length, battles.filter((t) => t.startsWith('Swimmer '))]).toEqual([options.length, options.length, []]);
+        else expect(battles.every((t) => t.startsWith('Swimmer '))).toBe(true);
+      }
+    }
   });
 });
 

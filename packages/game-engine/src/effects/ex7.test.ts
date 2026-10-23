@@ -160,6 +160,26 @@ describe('EX Team Rocket Returns', () => {
     expect(misty(after).active!.card.defId).toBe(misty(s).bench[0]!.card.defId);
   });
 
+  it("Pow! Hand Extension: Brock's Protection keeps the Defending Pokémon's Energy, leaving only the switch", () => {
+    const s = duel('charmander', 'onix', { oppBench: ['squirtle'], defenderEnergy: ['fighting'] });
+    const uid = hand(s, 'ash', trainer('ex7-85', 'Pow! Hand Extension'));
+    s.players.ash!.prizes = [...s.players.misty!.prizes, { uid: 'extra', defId: 'fire' }];
+    misty(s).active!.attached = [{ card: { uid: 'prot', defId: id('brocksProtection') }, until: 999 }];
+    const energy = misty(s).active!.energy[0]!.uid;
+    expect(applyAction(s, 'ash', { type: 'PLAY_TRAINER', cardUid: uid, choices: { pick: 0, oppEnergyUids: [energy], oppTarget: 0 } }).ok).toBe(false);
+    const after = act(s, 'ash', { type: 'PLAY_TRAINER', cardUid: uid, choices: { pick: 1, oppTarget: 0 } });
+    expect([misty(after).active!.card.defId, misty(after).bench[0]!.energy.map((e) => e.uid)]).toEqual([id('squirtle'), [energy]]);
+  });
+
+  it("Aqua Trick can't move Energy off a Defending Pokémon with Brock's Protection", () => {
+    const s = duel('charmander', 'onix', { oppBench: ['squirtle'], defenderEnergy: ['fighting'] });
+    put(s, 'ash', 'active', mon('ex7-48', 'Seadra', W, 70, [['Aqua Trick', [W, C], 30]]), ['water', 'water']);
+    misty(s).active!.attached = [{ card: { uid: 'prot', defId: id('brocksProtection') }, until: 999 }];
+    const energy = misty(s).active!.energy[0]!.uid;
+    const after = attack(s, 0, { defenderEnergyUid: energy, benchSlot: 0 });
+    expect([misty(after).active!.damage, misty(after).active!.energy.map((e) => e.uid), misty(after).bench[0]!.energy]).toEqual([30, [energy], []]);
+  });
+
   it('Raging Thunder: 30 to one of the player\'s Pokémon, Rocket\'s Zapdos ex itself included, with no Weakness (agreed)', () => {
     const s = duel('charmander', 'onix');
     put(s, 'ash', 'active', mon('ex7-106', "Rocket's Zapdos ex", D, 100, [['Plasma', [C], 10], ['Raging Thunder', [C], 60]], { ex: true, weakness: { type: 'lightning', multiplier: 2 } }), ['fire']);

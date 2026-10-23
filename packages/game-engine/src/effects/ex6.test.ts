@@ -21,6 +21,14 @@ const DCE: CardDef = { id: 'dce', kind: 'energy', name: 'Double Colorless Energy
 const resolve = (s: GameState, answer: { cardUid?: string; target?: Target; count?: number }, player = 'ash') => act(s, player, { type: 'RESOLVE_CHOICE', ...answer });
 
 describe('EX FireRed & LeafGreen', () => {
+  it("Gyarados ex's Twister can't discard Energy from a Defending Pokémon with Brock's Protection (as Neo Revelation's)", () => {
+    const s = duel('charmander', 'onix', { defenderEnergy: ['fighting', 'fighting'] });
+    put(s, 'ash', 'active', mon('ex6-109', 'Gyarados ex', W, 150, [['Twister', [W, W, C], 40]], { ex: true }), ['water', 'water', 'water']);
+    misty(s).active!.attached = [{ card: { uid: 'prot', defId: id('brocksProtection') }, until: 999 }];
+    const after = attack(flips(s, true), 0);
+    expect([misty(after).active!.damage, misty(after).active!.energy.length, after.pendingChoice]).toEqual([40, 2, undefined]);
+  });
+
   it("Fiery Aura: Burned Pokémon take 4 damage counters between turns, both players' (agreed)", () => {
     const s = duel('charmander', 'onix');
     put(s, 'ash', 'active', mon('ex6-13', 'Rapidash', F, 80, [], { stage: 'stage1', ...power('Fiery Aura') })).burned = true;

@@ -18,7 +18,7 @@ import { shuffle } from '../rng.js';
 import { effectId, inPlayDef, pokemonName } from '../status.js';
 import { handTrainerFits } from '../trainers.js';
 import { attackEffect } from './index.js';
-import { benchedSlots, headsUntilTails, opponentBenchChoice } from './common.js';
+import { benchedSlots, energyCanMove, headsUntilTails, opponentBenchChoice } from './common.js';
 import { copyAttack } from './ecard2.js';
 import { ATTACK_TEMPLATES, type TemplateArg } from './ex-templates.js';
 import { discardAtRandom } from './ex1.js';
@@ -92,6 +92,7 @@ function moveDefenderEnergy(ctx: AttackContext, uid: string | undefined, slot: n
   const to = slot === undefined ? null : ctx.opp.bench[slot];
   if (!card || !to) return;
   ctx.affectDefender(() => {
+    if (!energyCanMove(ctx, ctx.defender)) return;
     ctx.defender.energy = ctx.defender.energy.filter((e) => e !== card);
     to.energy.push(card);
     ctx.log(`Moved ${lookupCard(ctx.state.cards, card.defId).name} from ${ctx.defenderDef.name} to ${pokemonName(ctx.state, to)}.`, ctx.opp.id);

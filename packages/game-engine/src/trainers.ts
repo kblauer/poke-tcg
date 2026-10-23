@@ -3028,7 +3028,9 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     if (!benched) return 'Choose one of your benched Pokémon';
     const locked = activeLocked(state, me.id);
     if (locked) {
+      // Nothing happens (Jaw Clamp, Sticky Nectar), and the question is over, or it would be asked again forever.
       addLog(state, `${locked}.`, me.id);
+      delete state.pendingChoice;
       return null;
     }
     const old = me.active;
@@ -3159,6 +3161,7 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
       me.deck = me.deck.filter((c) => !rest.includes(c));
       me.discard.push(...rest);
       if (rest.length) addLog(state, `${choice.source}: discarded the other ${rest.length} card${rest.length === 1 ? '' : 's'}.`, me.id);
+      delete state.pendingChoice;
       return null;
     }
     [me.deck, state.rngState] = shuffle(me.deck, state.rngState);
