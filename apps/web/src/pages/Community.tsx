@@ -14,7 +14,7 @@ import { useInspectOnRightClick } from '../components/InspectContext';
 import { useEscape } from '../hooks/useEscape';
 import { useUnlocked } from '../hooks/useUnlocked';
 import { useTRPC } from '../lib/trpc';
-import { cardTitle, type CatalogCard } from '../utils/cardList';
+import { cardTitle, foldText, type CatalogCard } from '../utils/cardList';
 import { DECK_SECTIONS, allGenerations, deckInGenerations, featuredPokemon, generationsOf, withCards } from '../utils/deckBuilder';
 import { PageHeader } from '../components/PageHeader';
 import { CARD_THUMB_XS, PAGE_WIDTH } from '../utils/layout';
@@ -56,10 +56,10 @@ export function CommunityPage() {
   if (error) return <p className={`${PAGE_WIDTH} text-red-400`}>{error}</p>;
   if (!decks.data || !catalog.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
 
-  const words = search.trim().toLowerCase();
+  const words = foldText(search.trim());
   const shown = decks.data.filter(
     (d) =>
-      (!words || [d.name, d.author, d.description].some((s) => s.toLowerCase().includes(words))) &&
+      (!words || [d.name, d.author, d.description].some((s) => foldText(s).includes(words))) &&
       deckInGenerations(d.cards, byId, shownGens),
   );
   return (

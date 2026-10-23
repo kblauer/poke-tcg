@@ -45,7 +45,7 @@ export function DiscardPane({
             <p className="text-sm font-semibold">
               {title} <span className="font-normal text-slate-400">({note})</span>
             </p>
-            <button className="rounded-full p-1 text-slate-300 hover:bg-slate-700 hover:text-white" onClick={onClose} aria-label="Close">
+            <button className="rounded-full p-1 text-slate-300 hover:bg-slate-700 hover:text-slate-50" onClick={onClose} aria-label="Close">
               <CloseIcon fontSize="small" />
             </button>
           </div>

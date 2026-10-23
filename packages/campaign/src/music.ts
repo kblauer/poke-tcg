@@ -1,4 +1,4 @@
-// The music player's auto play: which song suits what the player is doing in a run (or a Practice battle), by the run's
+// The music player's auto play: which song suits what the player is doing in a run (or a Training battle), by the run's
 // region and the soundtrack chosen (the original games' or their remakes'). Songs are named by their album and title in
 // apps/web/public/music/tracks.json (a test checks every one is there). Which song each map plays is the games' own
 // choice, read from the pret decompilations' map data (pokered, pokefirered, pokecrystal, pokeheartgold, pokeemerald):
@@ -228,7 +228,7 @@ export const healedJingle = (typeId: string, soundtrack: Soundtrack): Song => {
 const BOSS_GENERATIONS = new Map(RUN_TYPE_IDS.flatMap((id) => runBosses(runType(id)).map((b) => [b, runType(id).generation] as const)));
 
 /**
- * A Practice battle's music, from its opponent's label ("Gym Leader Brock", "Elite Four Lorelei", "Champion Blue"): the
+ * A Training battle's music, from its opponent's label ("Gym Leader Brock", "Elite Four Lorelei", "Champion Blue"): the
  * boss's region and role; a trainer's battle is Kanto's.
  */
 export function practiceMusic(opponent: string | null, soundtrack: Soundtrack, gameId: string): MusicCue {
