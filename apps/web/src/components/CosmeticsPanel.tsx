@@ -114,7 +114,7 @@ function CoinPreview({ id, dim }: { id: string; dim: boolean }) {
   const [flip, setFlip] = useState({ n: 0, heads: true });
   return (
     <button type="button" title="Flip it" className={`mx-auto flex h-32 items-end justify-center ${dim ? 'opacity-60' : ''}`} onClick={() => setFlip((f) => ({ n: f.n + 1, heads: Math.random() < 0.5 }))}>
-      <SpinningCoin key={flip.n} heads={flip.heads} size="md" design={id} still={flip.n === 0} />
+      <SpinningCoin key={flip.n} heads={flip.heads} size="md" design={id} still={flip.n === 0} headroom={false} />
     </button>
   );
 }

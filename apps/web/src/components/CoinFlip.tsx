@@ -124,7 +124,7 @@ const DUST = [-34, -22, -10, 10, 22, 34];
 
 /**
  * A 3D coin, in the player's coin cosmetic (`design`, or useCosmetics' coin), flicked up and caught by the table: it dips
- * as the thumb loads it, is flicked (a burst of streaks) and flips end over end through an arc, its rim showing as it
+ * as the thumb loads it, is flicked (a burst of streaks from it) and flips end over end through an arc, its rim showing as it
  * turns, lands (a puff of dust) on heads or tails, bounces and settles, all in `spinMs` (give it a new `key` to flip
  * again). Its shadow shrinks as it rises. `md` for coin flips during the game, `lg` for the turn-order flip; `still`
  * (or reduced motion) just shows the face it lands on.
@@ -135,12 +135,15 @@ export function SpinningCoin({
   spinMs = SPIN_MS,
   design,
   still = false,
+  headroom = true,
 }: {
   heads: boolean;
   size: keyof typeof COIN_SIZES;
   spinMs?: number;
   design?: string;
   still?: boolean;
+  /** Keep room above the coin for its flight (off for the Cosmetics tab's tiles, whose coin starts still). */
+  headroom?: boolean;
 }) {
   const { coin } = useCosmetics();
   const look = COIN_DESIGNS[design ?? coin] ?? COIN_DESIGNS[DEFAULT_COSMETIC.coin]!;
@@ -212,44 +215,47 @@ export function SpinningCoin({
     </div>
   );
   return (
-    <div className="relative shrink-0" style={{ width: px, height: px * 1.18 }}>
-      {/* The shadow on the table under it. */}
-      <div ref={shadow} className="absolute left-[10%] w-[80%] rounded-[50%] bg-black/55 blur-[3px]" style={{ top: px * 0.98, height: px * 0.14 }} />
-      <div className="absolute inset-x-0 top-0 [perspective:600px]" style={{ height: px }}>
-        {/* Seen a little from above and to one side (TILT), not head on, so its rim shows even at rest. */}
-        <div className="h-full w-full [transform-style:preserve-3d]" style={{ transform: TILT }}>
-          <div ref={body} className="relative h-full w-full [transform-style:preserve-3d]" style={{ transform: `rotateX(${final}deg)` }}>
-            {/* The rim: thin discs stacked between the faces, seen edge on as the coin turns. */}
-            {Array.from({ length: depth }, (_, i) => (
-              <div key={i} className="absolute inset-0 rounded-full" style={{ background: look.rim, transform: `translateZ(${i - half + 0.5}px)` }} />
-            ))}
-            {face(look.heads, false)}
-            {face(look.tails, true)}
+    // With `headroom`, room above the coin for the top of its arc, so it never flies over what's above it (the flip's heading).
+    <div className="shrink-0" style={{ width: px, paddingTop: headroom && moving ? rise + px * 0.08 : 0 }}>
+      <div className="relative" style={{ height: px * 1.18 }}>
+        {/* The shadow on the table under it. */}
+        <div ref={shadow} className="absolute left-[10%] w-[80%] rounded-[50%] bg-black/55 blur-[3px]" style={{ top: px * 0.98, height: px * 0.14 }} />
+        <div className="absolute inset-x-0 top-0 [perspective:600px]" style={{ height: px }}>
+          {/* Seen a little from above and to one side (TILT), not head on, so its rim shows even at rest. */}
+          <div className="h-full w-full [transform-style:preserve-3d]" style={{ transform: TILT }}>
+            <div ref={body} className="relative h-full w-full [transform-style:preserve-3d]" style={{ transform: `rotateX(${final}deg)` }}>
+              {/* The rim: thin discs stacked between the faces, seen edge on as the coin turns. */}
+              {Array.from({ length: depth }, (_, i) => (
+                <div key={i} className="absolute inset-0 rounded-full" style={{ background: look.rim, transform: `translateZ(${i - half + 0.5}px)` }} />
+              ))}
+              {face(look.heads, false)}
+              {face(look.tails, true)}
+            </div>
           </div>
         </div>
+        {moving && (
+          <>
+            {/* The flick: streaks bursting from the coin and a flash on it, where it is as it's flicked (its middle, dipped a little). */}
+            <div className="pointer-events-none absolute left-1/2" style={{ top: px * 0.56 }}>
+              <span className="coin-flash absolute -left-3 -top-3 h-6 w-6 rounded-full bg-white/80" style={{ animationDelay: `${spinMs * FLICK}ms` }} />
+              {STREAKS.map((a) => (
+                <span key={a} className="coin-streak absolute -left-px h-2.5 w-0.5 rounded-full bg-white/90" style={{ '--a': `${a}deg`, animationDelay: `${spinMs * FLICK}ms` } as CSSProperties} />
+              ))}
+            </div>
+            {/* The landing: a ring of dust spreading over the table, and a few specks thrown up. */}
+            <div className="pointer-events-none absolute left-1/2" style={{ top: px * 1.05 }}>
+              <span
+                ref={dust}
+                className="absolute rounded-[50%] border-2 border-slate-300/60 opacity-30"
+                style={{ width: px * 1.2, height: px * 0.24, left: -px * 0.6, top: -px * 0.12, transform: 'scale(0.35)' }}
+              />
+              {DUST.map((dx) => (
+                <span key={dx} className="coin-dust-bit absolute -left-0.5 -top-0.5 h-1 w-1 rounded-full bg-slate-300/80" style={{ '--dx': `${(dx * px) / 96}px`, animationDelay: `${spinMs * LAND}ms` } as CSSProperties} />
+              ))}
+            </div>
+          </>
+        )}
       </div>
-      {moving && (
-        <>
-          {/* The flick: streaks bursting from the thumb under the coin, and a flash. */}
-          <div className="pointer-events-none absolute left-1/2 top-[85%]">
-            <span className="coin-flash absolute -left-3 -top-3 h-6 w-6 rounded-full bg-white/80" style={{ animationDelay: `${spinMs * FLICK}ms` }} />
-            {STREAKS.map((a) => (
-              <span key={a} className="coin-streak absolute -left-px h-2.5 w-0.5 rounded-full bg-white/90" style={{ '--a': `${a}deg`, animationDelay: `${spinMs * FLICK}ms` } as CSSProperties} />
-            ))}
-          </div>
-          {/* The landing: a ring of dust spreading over the table, and a few specks thrown up. */}
-          <div className="pointer-events-none absolute left-1/2" style={{ top: px * 1.05 }}>
-            <span
-              ref={dust}
-              className="absolute rounded-[50%] border-2 border-slate-300/60 opacity-30"
-              style={{ width: px * 1.2, height: px * 0.24, left: -px * 0.6, top: -px * 0.12, transform: 'scale(0.35)' }}
-            />
-            {DUST.map((dx) => (
-              <span key={dx} className="coin-dust-bit absolute -left-0.5 -top-0.5 h-1 w-1 rounded-full bg-slate-300/80" style={{ '--dx': `${(dx * px) / 96}px`, animationDelay: `${spinMs * LAND}ms` } as CSSProperties} />
-            ))}
-          </div>
-        </>
-      )}
     </div>
   );
 }
