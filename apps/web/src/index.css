@@ -1,14 +1,27 @@
 @import "tailwindcss";
 
-/* Coin flip (components/CoinFlip.tsx): several spins, landing on heads (front) or tails (back). */
-@keyframes coin-heads {
-  from { transform: rotateY(0deg); }
-  to { transform: rotateY(1800deg); }
+/*
+ * Coin flip (components/CoinFlip.tsx, SpinningCoin): the coin's flight and the landing's dust ring are played by the Web
+ * Animations API; these are the flick's streaks and flash (each streak along its --a) and the landing's specks (each thrown
+ * along its --dx), hidden until their moment (`forwards`, not `both`: nothing shows while they wait).
+ */
+@keyframes coin-streak {
+  from { opacity: 0; transform: rotate(var(--a)) translateY(-8px) scaleY(0.4); }
+  30% { opacity: 1; }
+  to { opacity: 0; transform: rotate(var(--a)) translateY(-30px) scaleY(1); }
 }
-@keyframes coin-tails {
-  from { transform: rotateY(0deg); }
-  to { transform: rotateY(1980deg); }
+.coin-streak { opacity: 0; transform-origin: 50% 0; animation: coin-streak 320ms ease-out forwards; }
+@keyframes coin-flash {
+  from { opacity: 0.9; transform: scale(0.3); }
+  to { opacity: 0; transform: scale(1.8); }
 }
+.coin-flash { opacity: 0; animation: coin-flash 260ms ease-out forwards; }
+@keyframes coin-dust-bit {
+  from { opacity: 0.9; transform: translate(0, 0); }
+  50% { transform: translate(calc(var(--dx) * 0.7), -12px); }
+  to { opacity: 0; transform: translate(var(--dx), -4px); }
+}
+.coin-dust-bit { opacity: 0; animation: coin-dust-bit 460ms ease-out forwards; }
 
 /*
  * The board (components/PlayArea.tsx, with the turn bar between its two sides) sizes its cards to fill the space it has. PlayArea is the

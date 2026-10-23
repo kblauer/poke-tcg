@@ -1,9 +1,13 @@
 import type { LogEntry, PlayerId } from '@poke-tcg/game-engine';
-import { useEffect, useRef, useState } from 'react';
+import { DEFAULT_COSMETIC } from '@poke-tcg/campaign';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCosmetics } from '../hooks/useCosmetics';
+import { DEBUG_BUILD } from '../utils/debug';
 import { useSkipFlips } from '../hooks/useSkipFlips';
+import { COIN_DESIGNS } from './coinDesigns';
 
-/** How long the coin spins, then how long the result stays up. */
-export const SPIN_MS = 600;
+/** How long the coin's flight takes (flick, arc, landing and settling), then how long the result stays up. */
+export const SPIN_MS = 1000;
 const RESULT_MS = 540;
 
 /** A coin flip from the log, to animate. */
@@ -12,6 +16,28 @@ export interface Flip {
   player: PlayerId | null;
   reason: string;
   heads: boolean;
+}
+
+/**
+ * Debug only (the Debug tab's Coin flip buttons): asks the game page to show a coin flip, `heads` or tails (or either, at
+ * random), with nothing else happening: no move, no log entry, the game as it was. Never sent to the server.
+ */
+const testFlips = new EventTarget();
+export const requestTestFlip = (heads?: boolean) => testFlips.dispatchEvent(new CustomEvent('flip', { detail: heads ?? Math.random() < 0.5 }));
+
+/**
+ * The game page's side of requestTestFlip: `onFlip` is given each test flip asked for, ready to show (in debug builds only:
+ * a production build drops it all).
+ */
+export function useTestFlips(onFlip: (flips: Flip[]) => void) {
+  const latest = useRef(onFlip);
+  latest.current = onFlip;
+  useEffect(() => {
+    if (!DEBUG_BUILD) return;
+    const listener = (e: Event) => latest.current([{ n: -Date.now(), player: null, reason: 'Debug: a test coin flip (the game is unchanged)', heads: (e as CustomEvent<boolean>).detail }]);
+    testFlips.addEventListener('flip', listener);
+    return () => testFlips.removeEventListener('flip', listener);
+  }, []);
 }
 
 /** The coin flips in `log` after entry number `since`. */
@@ -79,35 +105,151 @@ export function CoinFlip({ flips, you, onDone }: { flips: Flip[]; you: PlayerId;
   );
 }
 
+/** Each coin size: its width (px), its letters' size, how high it's flicked (px) and how thick it is (px, its rim). */
 const COIN_SIZES = {
-  md: { box: 'h-24 w-24', face: 'border-[3px] text-4xl' },
-  lg: { box: 'h-40 w-40', face: 'border-4 text-6xl' },
+  md: { px: 96, text: 'text-4xl', rise: 120, depth: 8 },
+  lg: { px: 160, text: 'text-6xl', rise: 160, depth: 12 },
 };
 
+/** When the coin, flicked at FLICK, lands (fractions of the animation): it bounces and settles after. */
+const FLICK = 0.07;
+const LAND = 0.78;
+
+/** The angle the coin is seen at: tipped back and turned a little, so it never faces the viewer flat on. */
+const TILT = 'rotateX(38deg) rotateY(-7deg)';
+
+/** The flick's streaks around the thumb, and the dust thrown up on landing (their directions). */
+const STREAKS = [0, 45, 90, 135, 180, 225, 270, 315];
+const DUST = [-34, -22, -10, 10, 22, 34];
+
 /**
- * A coin that spins for `spinMs` and lands on heads or tails (give it a new `key` to flip again): `md` for
- * coin flips during the game, `lg` for the turn-order flip.
+ * A 3D coin, in the player's coin cosmetic (`design`, or useCosmetics' coin), flicked up and caught by the table: it dips
+ * as the thumb loads it, is flicked (a burst of streaks) and flips end over end through an arc, its rim showing as it
+ * turns, lands (a puff of dust) on heads or tails, bounces and settles, all in `spinMs` (give it a new `key` to flip
+ * again). Its shadow shrinks as it rises. `md` for coin flips during the game, `lg` for the turn-order flip; `still`
+ * (or reduced motion) just shows the face it lands on.
  */
-export function SpinningCoin({ heads, size, spinMs = SPIN_MS }: { heads: boolean; size: keyof typeof COIN_SIZES; spinMs?: number }) {
-  return (
-    <div className="shrink-0 [perspective:400px]">
-      <div
-        className={`relative [transform-style:preserve-3d] ${COIN_SIZES[size].box}`}
-        style={{ animation: `${heads ? 'coin-heads' : 'coin-tails'} ${spinMs}ms cubic-bezier(0.2, 0.6, 0.3, 1) forwards` }}
-      >
-        <CoinFace label="H" size={size} className="bg-gradient-to-br from-yellow-200 via-yellow-400 to-amber-600" />
-        <CoinFace label="T" size={size} className="bg-gradient-to-br from-slate-200 via-slate-400 to-slate-600 [transform:rotateY(180deg)]" />
-      </div>
+export function SpinningCoin({
+  heads,
+  size,
+  spinMs = SPIN_MS,
+  design,
+  still = false,
+}: {
+  heads: boolean;
+  size: keyof typeof COIN_SIZES;
+  spinMs?: number;
+  design?: string;
+  still?: boolean;
+}) {
+  const { coin } = useCosmetics();
+  const look = COIN_DESIGNS[design ?? coin] ?? COIN_DESIGNS[DEFAULT_COSMETIC.coin]!;
+  const { px, text, rise, depth } = COIN_SIZES[size];
+  const body = useRef<HTMLDivElement>(null);
+  const shadow = useRef<HTMLDivElement>(null);
+  const dust = useRef<HTMLSpanElement>(null);
+  const [moving] = useState(() => !still && !matchMedia('(prefers-reduced-motion: reduce)').matches);
+  // Four turns end over end, half a turn more for tails (its face is on the back).
+  const final = 1440 + (heads ? 0 : 180);
+  useLayoutEffect(() => {
+    if (!moving || !body.current || !shadow.current) return;
+    const at = (offset: number, y: number, turn: number, scale: string, easing?: string): Keyframe => ({ offset, transform: `translateY(${y}px) rotateX(${turn}deg) scale(${scale})`, easing });
+    const flight = body.current.animate(
+      [
+        at(0, 0, 0, '1', 'ease-out'),
+        // The thumb loads it: a dip, tipped back and squashed a little.
+        at(FLICK, px * 0.06, -18, '1, 0.94', 'cubic-bezier(0.2, 0.7, 0.4, 1)'),
+        // Up, slowing to the top of the arc (nearer, so a little bigger), then falling faster.
+        at(0.42, -rise, final * 0.55, '1.12', 'cubic-bezier(0.55, 0, 0.85, 0.45)'),
+        at(LAND, 0, final, '1', 'ease-out'),
+        // A small bounce, tipping over and back as it settles.
+        at(0.87, -rise * 0.1, final + 10, '1', 'ease-in'),
+        at(0.94, 0, final - 4, '1', 'ease-out'),
+        at(1, 0, final, '1'),
+      ],
+      { duration: spinMs, fill: 'forwards' },
+    );
+    const dark = shadow.current.animate(
+      [
+        { offset: 0, transform: 'scale(1)', opacity: 0.55 },
+        { offset: 0.42, transform: 'scale(0.45)', opacity: 0.15 },
+        { offset: LAND, transform: 'scale(1)', opacity: 0.55 },
+        { offset: 0.87, transform: 'scale(0.85)', opacity: 0.45 },
+        { offset: 1, transform: 'scale(1)', opacity: 0.55 },
+      ],
+      { duration: spinMs, fill: 'forwards' },
+    );
+    // The dust ring where it lands: faint on the table before the flick, fading out gradually as the coin goes up and
+    // hidden while it's in the air, then back on landing as a puff of dust spreading out, and faint again once it's settled.
+    const ring = dust.current?.animate(
+      [
+        { offset: 0, opacity: 0.3, transform: 'scale(0.35)' },
+        { offset: FLICK, opacity: 0.3, transform: 'scale(0.35)', easing: 'ease-in' },
+        { offset: 0.38, opacity: 0, transform: 'scale(0.35)' },
+        { offset: LAND - 0.001, opacity: 0, transform: 'scale(0.35)' },
+        { offset: LAND, opacity: 0.8, transform: 'scale(0.35)', easing: 'ease-out' },
+        { offset: LAND + 0.12, opacity: 0, transform: 'scale(1.5)' },
+        { offset: LAND + 0.13, opacity: 0, transform: 'scale(0.35)', easing: 'ease-out' },
+        { offset: 1, opacity: 0.3, transform: 'scale(0.35)' },
+      ],
+      { duration: spinMs, fill: 'forwards' },
+    );
+    return () => {
+      flight.cancel();
+      dark.cancel();
+      ring?.cancel();
+    };
+  }, []);
+  const half = depth / 2;
+  const face = (content: ReactNode, back: boolean) => (
+    <div
+      className={`absolute inset-0 overflow-hidden rounded-full [backface-visibility:hidden] ${text}`}
+      style={{ transform: `${back ? 'rotateX(180deg) ' : ''}translateZ(${half + 0.5}px)`, boxShadow: `inset 0 0 0 ${Math.round(px / 30)}px ${look.rim}aa` }}
+    >
+      {content}
+      {/* A soft shine, as on metal. */}
+      <div className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle_at_30%_25%,rgba(255,255,255,0.45),transparent_55%)]" />
     </div>
   );
-}
-
-function CoinFace({ label, size, className }: { label: string; size: keyof typeof COIN_SIZES; className: string }) {
   return (
-    <div
-      className={`absolute inset-0 flex items-center justify-center rounded-full border-amber-700/60 font-black text-amber-900/70 shadow-inner [backface-visibility:hidden] ${COIN_SIZES[size].face} ${className}`}
-    >
-      {label}
+    <div className="relative shrink-0" style={{ width: px, height: px * 1.18 }}>
+      {/* The shadow on the table under it. */}
+      <div ref={shadow} className="absolute left-[10%] w-[80%] rounded-[50%] bg-black/55 blur-[3px]" style={{ top: px * 0.98, height: px * 0.14 }} />
+      <div className="absolute inset-x-0 top-0 [perspective:600px]" style={{ height: px }}>
+        {/* Seen a little from above and to one side (TILT), not head on, so its rim shows even at rest. */}
+        <div className="h-full w-full [transform-style:preserve-3d]" style={{ transform: TILT }}>
+          <div ref={body} className="relative h-full w-full [transform-style:preserve-3d]" style={{ transform: `rotateX(${final}deg)` }}>
+            {/* The rim: thin discs stacked between the faces, seen edge on as the coin turns. */}
+            {Array.from({ length: depth }, (_, i) => (
+              <div key={i} className="absolute inset-0 rounded-full" style={{ background: look.rim, transform: `translateZ(${i - half + 0.5}px)` }} />
+            ))}
+            {face(look.heads, false)}
+            {face(look.tails, true)}
+          </div>
+        </div>
+      </div>
+      {moving && (
+        <>
+          {/* The flick: streaks bursting from the thumb under the coin, and a flash. */}
+          <div className="pointer-events-none absolute left-1/2 top-[85%]">
+            <span className="coin-flash absolute -left-3 -top-3 h-6 w-6 rounded-full bg-white/80" style={{ animationDelay: `${spinMs * FLICK}ms` }} />
+            {STREAKS.map((a) => (
+              <span key={a} className="coin-streak absolute -left-px h-2.5 w-0.5 rounded-full bg-white/90" style={{ '--a': `${a}deg`, animationDelay: `${spinMs * FLICK}ms` } as CSSProperties} />
+            ))}
+          </div>
+          {/* The landing: a ring of dust spreading over the table, and a few specks thrown up. */}
+          <div className="pointer-events-none absolute left-1/2" style={{ top: px * 1.05 }}>
+            <span
+              ref={dust}
+              className="absolute rounded-[50%] border-2 border-slate-300/60 opacity-30"
+              style={{ width: px * 1.2, height: px * 0.24, left: -px * 0.6, top: -px * 0.12, transform: 'scale(0.35)' }}
+            />
+            {DUST.map((dx) => (
+              <span key={dx} className="coin-dust-bit absolute -left-0.5 -top-0.5 h-1 w-1 rounded-full bg-slate-300/80" style={{ '--dx': `${(dx * px) / 96}px`, animationDelay: `${spinMs * LAND}ms` } as CSSProperties} />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

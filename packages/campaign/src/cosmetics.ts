@@ -1,10 +1,11 @@
-// Cosmetics: card backs (the player's own face-down cards) and playmats (the player's side of the table). An account has
+// Cosmetics: card backs (the player's own face-down cards), playmats (the player's side of the table) and coins (every coin
+// flip). An account has
 // the default of each from the start; the others are bought with banked ₱ on the Cosmetics tab, or unlocked by beating a
 // Gym Challenge or Champion run (agreed with the user). Every one is unlocked while debugging. Prices are placeholders.
 
 import type { RunTypeId } from './run-types.js';
 
-export type CosmeticKind = 'cardBack' | 'playmat';
+export type CosmeticKind = 'cardBack' | 'playmat' | 'coin';
 
 /** How a cosmetic is had: from the start, bought with banked ₱, or by beating a run type. */
 export type CosmeticUnlock = { type: 'default' } | { type: 'buy'; price: number } | { type: 'beat'; runType: RunTypeId };
@@ -39,6 +40,20 @@ const BASE_COSMETICS: CosmeticDef[] = [
   { id: 'hex', kind: 'playmat', name: 'Hexes', description: 'Hexagons: the one you click lights up, and the light runs out along their edges.', unlock: { type: 'beat', runType: 'kantoChampion' } },
   { id: 'constellation', kind: 'playmat', name: 'Constellation', description: 'Scattered stars: the one nearest your click lights up, and the light runs from star to star.', unlock: { type: 'beat', runType: 'johtoGyms' } },
   { id: 'triangles', kind: 'playmat', name: 'Triangles', description: 'A triangle tiling whose lines and corners light up, nudged aside, as a wave passes.', unlock: { type: 'beat', runType: 'johtoChampion' } },
+  // Coins: the coin tossed for every coin flip (the web app draws them, coinDesigns.tsx): Poké Balls and Energy for ₱, the
+  // rarer balls behind each region's Champion run.
+  { id: 'coin-classic', kind: 'coin', name: 'Classic', description: 'Gold heads, silver tails.', unlock: { type: 'default' } },
+  { id: 'coin-pokeball', kind: 'coin', name: 'Poké Ball', description: 'A Poké Ball on heads.', unlock: { type: 'buy', price: 1000 } },
+  { id: 'coin-greatball', kind: 'coin', name: 'Great Ball', description: 'A Great Ball on heads.', unlock: { type: 'buy', price: 1500 } },
+  { id: 'coin-ultraball', kind: 'coin', name: 'Ultra Ball', description: 'An Ultra Ball on heads.', unlock: { type: 'buy', price: 2000 } },
+  { id: 'coin-fire', kind: 'coin', name: 'Fire Energy', description: 'The Fire symbol, gleaming on heads.', unlock: { type: 'buy', price: 1000 } },
+  { id: 'coin-water', kind: 'coin', name: 'Water Energy', description: 'The Water symbol, gleaming on heads.', unlock: { type: 'buy', price: 1000 } },
+  { id: 'coin-grass', kind: 'coin', name: 'Grass Energy', description: 'The Grass symbol, gleaming on heads.', unlock: { type: 'buy', price: 1000 } },
+  { id: 'coin-lightning', kind: 'coin', name: 'Lightning Energy', description: 'The Lightning symbol, gleaming on heads.', unlock: { type: 'buy', price: 1000 } },
+  { id: 'coin-psychic', kind: 'coin', name: 'Psychic Energy', description: 'The Psychic symbol, gleaming on heads.', unlock: { type: 'buy', price: 1000 } },
+  { id: 'coin-masterball', kind: 'coin', name: 'Master Ball', description: 'A Master Ball on heads.', unlock: { type: 'beat', runType: 'kantoChampion' } },
+  { id: 'coin-gsball', kind: 'coin', name: 'GS Ball', description: 'The gold and silver GS Ball on heads.', unlock: { type: 'beat', runType: 'johtoChampion' } },
+  { id: 'coin-luxuryball', kind: 'coin', name: 'Luxury Ball', description: 'A Luxury Ball on heads.', unlock: { type: 'beat', runType: 'hoennChampion' } },
 ];
 
 /**
@@ -126,7 +141,7 @@ export const COSMETICS: Record<string, CosmeticDef> = Object.fromEntries(COSMETI
 export const COSMETIC_IDS = COSMETIC_LIST.map((c) => c.id);
 
 /** The cosmetic of each kind every account has from the start, used when none is picked. */
-export const DEFAULT_COSMETIC: Record<CosmeticKind, string> = { cardBack: 'classic', playmat: 'plain' };
+export const DEFAULT_COSMETIC: Record<CosmeticKind, string> = { cardBack: 'classic', playmat: 'plain', coin: 'coin-classic' };
 
 /**
  * Whether an account has a cosmetic: the defaults always, a bought one once it's bought (`bought`, its CosmeticUnlock rows),
