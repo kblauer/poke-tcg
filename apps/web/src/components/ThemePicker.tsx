@@ -60,16 +60,16 @@ export function ThemePicker() {
         const inUse = themes.find((t) => t.id === current);
         const isOpen = open.has(gen);
         return (
-          <div key={gen} className="rounded-lg bg-slate-900/60 ring-1 ring-slate-700">
-            <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-sm font-semibold text-slate-300 hover:text-white" aria-expanded={isOpen} onClick={() => toggle(gen)}>
+          <div key={gen}>
+            <button type="button" className="flex w-full items-center gap-1 py-1 text-sm font-semibold text-slate-300 hover:text-white" aria-expanded={isOpen} onClick={() => toggle(gen)}>
+              {isOpen ? <ExpandLessIcon sx={{ fontSize: 18 }} /> : <ExpandMoreIcon sx={{ fontSize: 18 }} />}
               <span className="flex-1 text-left">
                 {GENERATION_NAMES[gen]} <span className="font-normal text-slate-500">({themes.length})</span>
               </span>
               {!isOpen && inUse && <span className="text-xs font-normal text-yellow-300">{inUse.name}</span>}
-              {isOpen ? <ExpandLessIcon sx={{ fontSize: 18 }} /> : <ExpandMoreIcon sx={{ fontSize: 18 }} />}
             </button>
             {isOpen && (
-              <ul className={`${tiles} px-3 pb-3`}>
+              <ul className={`${tiles} pb-2 pt-1`}>
                 {themes.map((t) => (
                   <li key={t.id}>
                     <ThemeTile theme={t} current={t.id === current} onPick={() => setTheme(t.id)} />
