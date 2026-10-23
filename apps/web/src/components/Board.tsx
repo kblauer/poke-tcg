@@ -576,8 +576,8 @@ export function Board({
         >
           {/* The whole screen, over the site's header, held still: nothing in it pans, zooms or selects text. */}
           <div className={`fixed inset-0 z-30 flex touch-none select-none flex-col overflow-hidden bg-slate-950 [-webkit-touch-callout:none] ${busy ? 'cursor-progress' : ''}`}>
-            {/* The player's playmat (the Cosmetics tab) as the whole screen's background, both sides of the table, answering taps anywhere on it. */}
-            <Playmat id={playmat} className="-z-10" />
+            {/* The player's playmat (the Cosmetics tab) as the whole screen's background, both sides of the table, answering taps anywhere on it; drawn at 0.6 the size, to suit the phone's smaller cards. */}
+            <Playmat id={playmat} className="-z-10" scale={0.6} />
             {self.pendingChoice && !pendingPick && (
               <FloatingDialog clickThrough={false} className="absolute left-1/2 top-1/2 z-[1000] w-fit max-w-[calc(100%-1rem)] -translate-x-1/2 -translate-y-1/2 touch-pan-y">
                 <PendingChoicePanel view={view} send={send} busy={busy} />

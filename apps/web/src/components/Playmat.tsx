@@ -573,8 +573,9 @@ const PATTERNS: Record<string, Pattern<unknown>> = { dots, hex, triangles, squar
  * buttons) with its animation. "plain" (or an unknown id) draws nothing. With reduced motion the pattern stays still.
  * Mats of the same `group` (both sides of the table) share their clicks: one on either side carries on into the other.
  * `className` is added to its box: the phone's whole-screen mat is `-z-10`, behind the screen's content but over its background.
+ * `scale` draws the whole pattern (its spacing, dots, lines and waves) that much smaller or larger: the phone's is 0.6.
  */
-export function Playmat({ id, group, className = '' }: { id: string; group?: string; className?: string }) {
+export function Playmat({ id, group, className = '', scale = 1 }: { id: string; group?: string; className?: string; scale?: number }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const pattern = PATTERNS[id];
   const [theme] = useColorTheme();
@@ -595,8 +596,9 @@ export function Playmat({ id, group, className = '' }: { id: string; group?: str
     const draw = () => {
       const now = performance.now();
       ripples = ripples.filter((r) => now - r.at < pattern.duration + (r.remote ? REMOTE_EXTRA : 0));
-      ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
-      ctx.clearRect(0, 0, size.w, size.h);
+      // The pattern is laid out and drawn in its own units, `scale` CSS pixels each.
+      ctx.setTransform(devicePixelRatio * scale, 0, 0, devicePixelRatio * scale, 0, 0);
+      ctx.clearRect(0, 0, size.w / scale, size.h / scale);
       pattern.draw(ctx, scene, ripples, now);
       frame = ripples.length ? requestAnimationFrame(draw) : null;
     };
@@ -604,7 +606,7 @@ export function Playmat({ id, group, className = '' }: { id: string; group?: str
       size = { w: parent.clientWidth, h: parent.clientHeight };
       el.width = Math.round(size.w * devicePixelRatio);
       el.height = Math.round(size.h * devicePixelRatio);
-      scene = pattern.build(size.w, size.h);
+      scene = pattern.build(size.w / scale, size.h / scale);
       if (frame === null) draw();
     };
     const observer = new ResizeObserver(resize);
@@ -613,7 +615,7 @@ export function Playmat({ id, group, className = '' }: { id: string; group?: str
     /** A click at (clientX, clientY) in the window: on this mat, or (`remote`) on another of its group. */
     const add = (clientX: number, clientY: number, at: number, remote: boolean) => {
       const box = el.getBoundingClientRect();
-      ripples.push({ x: clientX - box.left, y: clientY - box.top, at, remote });
+      ripples.push({ x: (clientX - box.left) / scale, y: (clientY - box.top) / scale, at, remote });
       frame ??= requestAnimationFrame(draw);
     };
     const fromOther = (clientX: number, clientY: number, at: number) => add(clientX, clientY, at, true);
@@ -632,7 +634,7 @@ export function Playmat({ id, group, className = '' }: { id: string; group?: str
       parent.removeEventListener('pointerdown', onDown);
       if (frame !== null) cancelAnimationFrame(frame);
     };
-  }, [pattern, group, theme]);
+  }, [pattern, group, theme, scale]);
   if (!pattern) return null;
   // Clipped to the parent's rounded corners here, so the parent needn't clip its own content (the Trainer dialog).
   return (
