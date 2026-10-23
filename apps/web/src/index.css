@@ -181,31 +181,31 @@
   }
 }
 
-/* The music player (react-h5-audio-player) in the app's dark slate style. */
+/* The music player (react-h5-audio-player) in the app's dark slate style (Tailwind's variables, so it follows the colour theme). */
 .music-player.rhap_container {
   background: transparent;
   box-shadow: none;
   padding: 6px 16px 8px;
 }
 .music-player .rhap_time {
-  color: #94a3b8;
+  color: var(--color-slate-400);
   font-size: 12px;
 }
 .music-player .rhap_progress-bar,
 .music-player .rhap_volume-bar,
 .music-player .rhap_download-progress {
-  background-color: #475569;
+  background-color: var(--color-slate-600);
 }
 .music-player .rhap_progress-bar-show-download {
-  background-color: #334155;
+  background-color: var(--color-slate-700);
 }
 .music-player .rhap_progress-filled,
 .music-player .rhap_volume-filled {
-  background-color: #fde047;
+  background-color: var(--color-yellow-300);
 }
 .music-player .rhap_progress-indicator,
 .music-player .rhap_volume-indicator {
-  background: #f1f5f9;
+  background: var(--color-slate-100);
   box-shadow: none;
   width: 14px;
   height: 14px;
@@ -220,15 +220,15 @@
 .music-player .rhap_main-controls-button,
 .music-player .rhap_volume-button,
 .music-player .rhap_repeat-button {
-  color: #cbd5e1;
+  color: var(--color-slate-300);
 }
 .music-player .rhap_main-controls-button:hover,
 .music-player .rhap_volume-button:hover,
 .music-player .rhap_repeat-button:hover {
-  color: #f1f5f9;
+  color: var(--color-slate-100);
 }
 .music-player .rhap_play-pause-button {
-  color: #fde047;
+  color: var(--color-yellow-300);
 }
 
 /* The song playing in the music player's list: three bars bouncing up and down, out of step. */

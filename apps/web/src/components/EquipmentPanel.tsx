@@ -291,7 +291,7 @@ function EquipSlotBox({
           <ItemIcon id={itemId} size={ICON_SIZE} />
         ) : (
           <>
-            <Icon sx={{ fontSize: 28, color: state === 'wrong' ? '#fb7185' : '#64748b' }} />
+            <Icon sx={{ fontSize: 28, color: state === 'wrong' ? '#fb7185' : 'var(--color-slate-500)' }} />
             <span className="mt-0.5 text-[10px] text-slate-500">{SLOT_LABELS[slot]}</span>
           </>
         )}
