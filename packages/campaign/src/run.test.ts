@@ -3,7 +3,8 @@ import { expandDeck, STARTER_DECK } from './decks.js';
 import { ITEMS, itemText, MAX_CONSUMABLES_PER_RUN, onlyOne, shopStock } from './items.js';
 import { RUN_TYPE_IDS, RUN_TYPES, runType, type RunType, type RunTypeId } from './run-types.js';
 import { ROUTE_4 } from './kanto-routes.js';
-import { onPath, PEWTER_GYM, ROUTE_2, routePath, type Route } from './routes.js';
+import { JOHTO_BOSS_ROOMS, MAHOGANY_GYM } from './johto-gyms.js';
+import { onPath, PEWTER_GYM, ROUTE_2, routePath, type Route, type RouteSpot } from './routes.js';
 import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, isBattleKind, isBossKind, MAX_CENTERS, REQUIRED_BATTLES, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, withConsumablesBefore, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
 import { GEN2_SETS, GEN3_SETS } from './pool.js';
 import { GEN2_TEST_POOL, GEN3_TEST_POOL, TEST_POOL } from './test-pool.js';
@@ -243,6 +244,23 @@ describe('createRun', () => {
     for (const m of grassy) expect(m.grass!.map((r) => r.length), m.name).toEqual(m.walkable.map((r) => r.length));
   });
 
+  it("Goldenrod Gym's walks follow its track (the user's): over the bridges and back under them, never cutting across", () => {
+    const gym = runType('goldenrod').gym!;
+    const key = (t: { x: number; y: number }) => `${t.x},${t.y}`;
+    const toTrainer = routePath(gym, gym.entrance!, gym.spots[0]!)!;
+    const toLeader = routePath(gym, gym.spots[0]!, gym.spots[1]!)!;
+    // The whole track, door to Whitney, past the Gym Trainer's spot; its tiles the only walkable ones.
+    expect([...toTrainer, ...toLeader].map((s) => key(s.tile))).toEqual(gym.track!.slice(1).map(key));
+    expect(gym.walkable.flatMap((r, y) => [...r].flatMap((c, x) => (c === '.' ? [`${x},${y}`] : []))).sort()).toEqual([...new Set(gym.track!.map(key))].sort());
+    // Over the right bridge at 19,9, then back under it; under the left one at 13,8.
+    expect(toLeader.filter((s) => key(s.tile) === '19,9').map((s) => !!s.under)).toEqual([false, true]);
+    expect(toLeader.filter((s) => key(s.tile) === '13,8').map((s) => !!s.under)).toEqual([false, true]);
+    // Back the way it came, and the leader-only room's walk in from under the bridge.
+    expect(routePath(gym, gym.spots[1]!, gym.spots[0]!)!.map((s) => key(s.tile))).toEqual([...toLeader].reverse().slice(1).map((s) => key(s.tile)).concat(key(gym.spots[0]!)));
+    const room = runType('johtoGyms').routes!.find((m) => m.name === 'Goldenrod Gym')!;
+    expect(routePath(room, room.entrance!, room.spots[0]!)!.every((s) => s.under)).toBe(true);
+  });
+
   it("with lineOfSight, the walk reaches the spot's line of people only as it arrives: a row by its column first, a column by its row first", () => {
     // An open 5x5 floor.
     const open: Route = { name: 'Open', flow: 'up', image: '', width: 80, height: 80, spots: [], walkable: ['.....', '.....', '.....', '.....', '.....'] };
@@ -278,8 +296,11 @@ describe('createRun', () => {
     expect(gyms.map((g) => g.name)).toEqual(expect.arrayContaining(['Violet Gym', 'Azalea Gym', 'Goldenrod Gym', 'Ecruteak Gym', 'Cianwood Gym', 'Olivine Gym', 'Mahogany Gym', 'Blackthorn Gym']));
     for (const gym of gyms) {
       const [trainer, leader] = gym.spots;
-      expect(routePath(gym, gym.entrance!, trainer!), gym.name).not.toBeNull();
-      expect(routePath(gym, trainer!, leader!), gym.name).not.toBeNull();
+      // As the run screen walks: round the people standing there (who stop a slide on Mahogany's ice), else past them.
+      const people = new Set(gym.stands!.map((t) => `${t.x},${t.y}`));
+      const walk = (from: RouteSpot, to: RouteSpot) => routePath(gym, from, to, people) ?? routePath(gym, from, to);
+      expect(walk(gym.entrance!, trainer!), gym.name).not.toBeNull();
+      expect(walk(trainer!, leader!), gym.name).not.toBeNull();
     }
   });
 
@@ -323,6 +344,14 @@ describe('battles', () => {
     const picked = act(s, { type: 'PICK', index: 1 });
     expect(picked.gained).toEqual([offers[1]]);
     expect([picked.phase, picked.position]).toEqual(['map', 1]);
+  });
+
+  it("a battle skipped by debug gives no ₱, EXP or card, and goes on to the next step", () => {
+    let s = act(at('battle'), { type: 'CHOOSE', option: 0 });
+    s = act(s, { type: 'BATTLE_STARTED', gameId: 'g1' });
+    s = act(s, { type: 'BATTLE_OVER', gameId: 'g1', won: true, skipped: true });
+    expect([s.pokedollars, s.exp, s.gained]).toEqual([STARTING_POKEDOLLARS, 0, []]);
+    expect([s.phase, s.position, s.encounter]).toEqual(['map', 1, null]);
   });
 
   it('some trainers pay twice the ₱, some twice the EXP, some offer rarer cards', () => {
@@ -801,17 +830,61 @@ describe('Gen 2 runs', () => {
     }
   });
 
-  it("Route 45's ledges are jumped going down only, and Route 44's ladder joins its two areas", () => {
+  it("Route 45's ledges are jumped going down only, and Route 44's two maps are joined by its ladder", () => {
     const r45 = runType('blackthorn').routes![0]!;
     expect(r45.walkable.some((r) => r.includes('v'))).toBe(true);
     // Down the route from its first spot to its last, but not back up.
     expect(routePath(r45, r45.spots[0]!, r45.spots.at(-1)!)).not.toBeNull();
     expect(routePath(r45, r45.spots.at(-1)!, r45.spots[0]!)).toBeNull();
-    // From the bottom of the ice cave to the top only by its ladder (the link's fade).
-    const r44 = runType('mahogany').routes![0]!;
-    const climb = routePath(r44, r44.entrance!, r44.exit!);
-    expect(climb?.some((s) => s.fade)).toBe(true);
-    expect(routePath({ ...r44, links: [] }, r44.entrance!, r44.exit!)).toBeNull();
+    // The ice cave in two maps (the user's): the lower area up to its ladder (its exit), 5 encounters each.
+    const [r44, upper] = runType('mahogany').routes!;
+    expect([r44!.name, upper!.name, r44!.spots.length, upper!.spots.length]).toEqual(['Route 44', 'Route 44 (upper)', 5, 5]);
+    expect(r44!.exit).toEqual({ x: 8, y: 13 });
+    expect(routePath(r44!, r44!.entrance!, r44!.exit!)).not.toBeNull();
+    expect(routePath(upper!, upper!.entrance!, upper!.exit!)).not.toBeNull();
+    // Encounters 4 and 5 are on its raised area (the user's): up its stairs at 27-28,23 and down those at 15-16,15.
+    const via = (from: RouteSpot, to: RouteSpot, xs: number[], y: number) => routePath(r44!, from, to)?.some(({ tile }) => tile.y === y && xs.includes(tile.x));
+    expect(via(r44!.spots[2]!, r44!.spots[3]!, [27, 28], 23)).toBe(true);
+    expect(via(r44!.spots[4]!, r44!.exit!, [15, 16], 15)).toBe(true);
+    // Its ice is slid across (the user's): every encounter on both maps can still be walked to, in order.
+    for (const route of [r44!, upper!]) {
+      const stops = [route.entrance!, ...route.spots, route.exit!];
+      stops.slice(1).forEach((to, i) => expect(routePath(route, stops[i]!, to), `${route.name} to stop ${i + 1}`).not.toBeNull());
+    }
+    // Up onto the ice from encounter 1 (19,32): on past 19,31 to the rock at 19,25, so 19,31 can't be stopped on.
+    const slide = routePath(r44!, { x: 19, y: 32 }, { x: 19, y: 26 })!;
+    expect(slide.map((s) => [s.tile.y, !!s.slide])).toEqual([[31, true], [30, true], [29, true], [28, true], [27, true], [26, true]]);
+    expect(routePath(r44!, { x: 19, y: 32 }, { x: 19, y: 31 })).toBeNull();
+    // Someone standing on the ice stops a slide in front of them.
+    expect(routePath(r44!, { x: 19, y: 32 }, { x: 19, y: 30 }, new Set(['19,29']))?.at(-1)).toEqual({ tile: { x: 19, y: 30 }, slide: true });
+  });
+
+  it("Mahogany Gym's ice is slid across: its ice blocks and the Gym Trainer standing on it stop a slide, so Pryce can be walked to", () => {
+    const gym = MAHOGANY_GYM;
+    expect(gym.ice?.some((r) => r.includes('i'))).toBe(true);
+    // The people standing there (as the run screen has them) are in the way.
+    const people = new Set(gym.stands!.map((t) => `${t.x},${t.y}`));
+    const toTrainer = routePath(gym, gym.entrance!, gym.spots[0]!, people)!;
+    // Up onto the Gym Trainer's spot (9,13) from below, stopped there by the Gym Trainer (9,12).
+    expect(toTrainer.at(-1)).toEqual({ tile: { x: 9, y: 13 }, slide: true });
+    expect(routePath(gym, gym.spots[0]!, gym.spots[1]!, people)).not.toBeNull();
+    // Without the Gym Trainer there, his spot can't be stopped on.
+    expect(routePath(gym, gym.entrance!, gym.spots[0]!, new Set([`${gym.stands![1]!.x},${gym.stands![1]!.y}`]))).toBeNull();
+    // The Gym Challenge's room (Pryce only): in at 7,9 and up to him.
+    const room = JOHTO_BOSS_ROOMS.pryce!;
+    expect(routePath(room, room.entrance!, room.spots[0]!, new Set(room.stands!.map((t) => `${t.x},${t.y}`)))).not.toBeNull();
+  });
+
+  it("Route 42 is two maps (the user's): the first three chambers up to the ladder, then the fourth chamber, from its hole", () => {
+    const [r42, upper] = runType('olivine').routes!;
+    expect([r42!.name, upper!.name, r42!.spots.length, upper!.spots.length]).toEqual(['Route 42', 'Route 42 (upper)', 8, 2]);
+    // No fading links on either: the ladder is the first map's exit, the hole the second's entrance.
+    expect([r42!.links, upper!.links, r42!.exit, upper!.entrance]).toEqual([undefined, undefined, { x: 67, y: 23 }, { x: 57, y: 18 }]);
+    for (const [route, from, to] of [[r42!, r42!.entrance!, r42!.exit!], [upper!, upper!.entrance!, upper!.exit!]] as const) {
+      const walk = routePath(route, from, to);
+      expect(walk).not.toBeNull();
+      expect(walk!.some((s) => s.fade)).toBe(false);
+    }
   });
 
   it("a Johto gym run ends with its gym leader, and its Gym Trainer and leader play Gen 2 decks", () => {

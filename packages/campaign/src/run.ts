@@ -127,8 +127,11 @@ export type RunAction =
 /** Actions only the server sends (battles, items, the testing retry). Never accepted from clients. */
 export type RunSystemAction =
   | { type: 'BATTLE_STARTED'; gameId: string }
-  /** `conceded`: the player conceded the game, so it doesn't count as a completed battle (battlesCompleted). */
-  | { type: 'BATTLE_OVER'; gameId: string; won: boolean; conceded?: boolean }
+  /**
+   * `conceded`: the player conceded the game, so it doesn't count as a completed battle (battlesCompleted). `skipped`: won
+   * by debug's Skip battle, so it gives no ₱, EXP or card reward.
+   */
+  | { type: 'BATTLE_OVER'; gameId: string; won: boolean; conceded?: boolean; skipped?: boolean }
   | { type: 'USE_ITEM'; itemId: string }
   | { type: 'RESTORE_HP' }
   /** Switch to another of the account's decks (the server loads it and checks it can be played), on the map before choosing a battle. */
@@ -630,13 +633,14 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
       if (action.won) {
         const reward = battleReward(battle.kind, battle.focus);
         const prize = between(rng, reward.pokedollars[0] / 10, reward.pokedollars[1] / 10) * 10;
-        const pokedollars =
-          Math.round((prize * (100 + effectTotal(effects, (x) => (x.kind === 'pokedollarBonus' ? x.percent : 0)))) / 1000) * 10 +
-          effectTotal(effects, (x) => (x.kind === 'winPokedollars' ? x.amount : 0));
-        const exp = Math.round((reward.exp * (100 + effectTotal(effects, (x) => (x.kind === 'expBonus' ? x.percent : 0)))) / 100);
+        const pokedollars = action.skipped
+          ? 0
+          : Math.round((prize * (100 + effectTotal(effects, (x) => (x.kind === 'pokedollarBonus' ? x.percent : 0)))) / 1000) * 10 +
+            effectTotal(effects, (x) => (x.kind === 'winPokedollars' ? x.amount : 0));
+        const exp = action.skipped ? 0 : Math.round((reward.exp * (100 + effectTotal(effects, (x) => (x.kind === 'expBonus' ? x.percent : 0)))) / 100);
         state.pokedollars += pokedollars;
         state.exp += exp;
-        state.log.push(`Beat ${battle.trainer}: +₱${pokedollars}, +${exp} EXP.`);
+        state.log.push(action.skipped ? `Skipped the battle with ${battle.trainer} (debug): no ₱, EXP or card.` : `Beat ${battle.trainer}: +₱${pokedollars}, +${exp} EXP.`);
         const b = isBossKind(battle.kind) ? bossOf(state, battle) : null;
         const keyItem = b?.gym?.badge ?? b?.prize;
         if (keyItem) state.badges = [...(state.badges ?? []), keyItem];
@@ -644,6 +648,8 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
           state.encounter = null;
           state.phase = 'won';
           state.log.push(`Beat the ${runType(state.type).name} run!`);
+        } else if (action.skipped) {
+          nextStep(state);
         } else {
           state.encounter = { kind: 'reward', offers: offerCards(rng, pool, OFFERS + moreOffers(effects, 'reward'), reward.rarity), pokedollars, exp, trainer: battle.trainer };
         }
