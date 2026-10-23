@@ -112,7 +112,7 @@ export const runRouter = router({
 
   /**
    * Debug (a debugProcedure, refused in production): chooses a battle like `choose` (an Ace Trainer's accepted too), then
-   * wins its game at once (the WIN debug command, saved as a DEBUG action row) and settles it, so the run goes on to its rewards.
+   * wins its game at once (the WIN debug command, saved as a DEBUG action row) and settles it as skipped: no ₱, EXP or card reward.
    */
   debugSkipBattle: debugProcedure.input(runChooseInput).mutation(async ({ ctx, input }) => {
     const run = await loadOwnRun(input.runId, ctx.user.id);
@@ -136,7 +136,7 @@ export const runRouter = router({
       winner: next.winner,
       actions: [{ playerId: HUMAN_ID, version: next.version, action: { type: 'DEBUG', command } as unknown as Prisma.InputJsonValue }],
     });
-    return clientRun(await settleBattle(chosen));
+    return clientRun(await settleBattle(chosen, true));
   }),
 
   /**

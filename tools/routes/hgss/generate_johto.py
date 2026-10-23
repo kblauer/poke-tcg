@@ -149,9 +149,30 @@ def check(rows, stops, links, surf):
         assert walkable(rows[y][x], surf), ('not walkable', x, y)
 
 
-def write(out, name, scene, rows, spots, entrance, links=(), exit=None):
-    scene.render(os.path.join(out, name + '.png'))
-    json.dump({'width': len(rows[0]), 'height': len(rows), 'rows': rows, 'spots': spots, 'entrance': entrance, 'links': list(links), 'exit': exit}, open(os.path.join(out, name + '.json'), 'w'))
+def write(out, name, scene, rows, spots, entrance, links=(), exit=None, trim=False, band=None, rendered=None, ice=()):
+    """Renders the map and saves its tiles; `trim`: cropped to the rows drawn on (whole tiles), its tiles renumbered;
+    `band`: cropped to these rows (first, after last), renumbered alike; `rendered`: the scene's image, already rendered
+    (one cave cut into maps), instead of rendering it again; `ice`: its walkable ice tiles, slid across (saved as rows,
+    'i' on ice)."""
+    ice_rows = [''.join('i' if (x, y) in ice and c == '.' else '.' for x, c in enumerate(r)) for y, r in enumerate(rows)] if ice else None
+    if rendered:
+        Image.open(rendered).save(os.path.join(out, name + '.png'))
+    else:
+        scene.render(os.path.join(out, name + '.png'))
+    if trim or band:
+        im = Image.open(os.path.join(out, name + '.png'))
+        if band:
+            y0, y1 = band
+        else:
+            drawn = np.nonzero(np.asarray(im.convert('L')).max(1) > 8)[0]
+            y0, y1 = int(drawn.min() // T), int(-(-(drawn.max() + 1) // T))
+        im.crop((0, y0 * T, im.width, y1 * T)).save(os.path.join(out, name + '.png'))
+        up = lambda t: t and (t[0], t[1] - y0)
+        rows, spots, entrance, exit = rows[y0:y1], [up(s) for s in spots], up(entrance), up(exit)
+        ice_rows = ice_rows and ice_rows[y0:y1]
+        links = [[up(p) for p in l] for l in links]
+        print(name, 'trimmed to rows', y0, '-', y1 - 1, 'of the whole cave')
+    json.dump({'width': len(rows[0]), 'height': len(rows), 'rows': rows, 'spots': spots, 'entrance': entrance, 'links': list(links), 'exit': exit, 'ice': ice_rows}, open(os.path.join(out, name + '.json'), 'w'))
     print(name, len(rows[0]), 'x', len(rows), 'spots', spots, 'entrance', entrance, 'links', list(links))
 
 
@@ -370,6 +391,15 @@ def route40(a, out, seed=40):
         plan.append(nearest((16, (by + bh + next_y) // 2), sea))
     plan.append(nearest((16, end - 1), shore))
     spots = sorted(plan, key=lambda t: t[1])
+    # The band sloping into the sea round the sand (its left, right and lower edges: the upper one is hidden by the tilt)
+    # is drawn as sand, so it's land too (the user's); added once the spots are picked, so they stay where they were (none
+    # is on these tiles).
+    band = {(x + dx, y + dy) for y in range(shore_row, h) for x in range(w) if mask[y][x] and rows[y][x] == '.'
+            for dx, dy in ((-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1))}
+    rows = [''.join('.' if (x, y) in band and c == '~' else c for x, c in enumerate(r)) for y, r in enumerate(rows)]
+    # Tilted, the sand is drawn half a tile up: the row above it is half sand (a third at the corners), land too (the user's).
+    above = {(x, y - 1) for y in range(shore_row + 1, h) for x in range(w) if rows[y][x] == '.' and rows[y - 1][x] == '~'}
+    rows = [''.join('.' if (x, y) in above else c for x, c in enumerate(r)) for y, r in enumerate(rows)]
     # On the beach (its top corner is fenced off), walking down into the sea.
     entrance = nearest((16, 11), lambda x, y: rows[y][x] == '.' and y >= 10)
     check(rows, [entrance] + spots, [], surf)
@@ -430,10 +460,12 @@ def bfs_dist(rows, sources, blocked=''):
     return dist
 
 
-def shore(scene, rows, tx, wet, bank_at, bare=lambda x, y, d: False):
+def shore(scene, rows, tx, wet, bank_at, bare=lambda x, y, d: False, depth=1.0):
     """The shore round every water tile (`wet`: whether a tile is water), its bank at `bank_at(x, y)` (model units): a
     band along each edge it shares with land, mitred where two meet in a corner, and swept round a corner of land that
-    juts into the water. `bare(x, y, side)`: an edge left without one, the rock going straight into the water."""
+    juts into the water. `bare(x, y, side)`: an edge left without one, the rock going straight into the water.
+    `depth`: how many times deeper than Mt. Mortar's the water lies (its profile below the bank stretched down)."""
+    deeper = lambda prof: [(o, hh * depth if hh < 0 else hh, v) for o, hh, v in prof]
     h, w = len(rows), len(rows[0])
     is_wet = lambda x, y: not (0 <= x < w and 0 <= y < h) or wet(x, y)
     band, wash = tx['dpond_line_lm1'], tx['sea_line02']
@@ -457,7 +489,7 @@ def shore(scene, rows, tx, wet, bank_at, bare=lambda x, y, d: False):
                     elif d == (-1, 0): px, pz = x + o, y + t
                     else: px, pz = x + 1 - o, y + t
                     return (px * T, bank + hh * T, pz * T)
-                for prof, tex, alpha, blend in ((SHORE, band, 1.0, False), (WASH, wash, 0.4, True)):
+                for prof, tex, alpha, blend in ((deeper(SHORE), band, 1.0, False), (deeper(WASH), wash, 0.4, True)):
                     for (o0, h0, v0), (o1, h1, v1) in zip(prof, prof[1:]):
                         ta0, tb0 = (o0 if c0 else 0), (1 - o0 if c1 else 1)
                         ta1, tb1 = (o1 if c0 else 0), (1 - o1 if c1 else 1)
@@ -474,14 +506,14 @@ def shore(scene, rows, tx, wet, bank_at, bare=lambda x, y, d: False):
                     def arc(o, hh, a):
                         r = max(o, 0.0)
                         return ((cx - dx * r * np.sin(a)) * T, bank + hh * T, (cz - dy * r * np.cos(a)) * T)
-                    for prof, tex, alpha, blend in ((SHORE, band, 1.0, False), (WASH, wash, 0.4, True)):
+                    for prof, tex, alpha, blend in ((deeper(SHORE), band, 1.0, False), (deeper(WASH), wash, 0.4, True)):
                         for (o0, h0, v0), (o1, h1, v1) in zip(prof, prof[1:]):
                             for a0, a1 in zip(steps, steps[1:]):
                                 quad(scene, [arc(o0, h0, a0), arc(o0, h0, a1), arc(o1, h1, a1), arc(o1, h1, a0)],
                                      [(a0 / 3, v0), (a1 / 3, v0), (a1 / 3, v1), (a0 / 3, v1)], tex, col, alpha, blend)
 
 
-def cave(scene, rows, tx, floor, ice=None, ice_cells=(), tiers=4, bridge=(), raised=3):
+def cave(scene, rows, tx, floor, ice=None, ice_cells=(), tiers=4, bridge=(), raised=3, holes=(), ice_path=False, cut=None, depth=1.0):
     """Builds a cave from its tile rows as HGSS builds its caves: floor ('.'), water ('~', half a tile below the floor,
     with Mt. Mortar's shore round it; `bridge` tiles are water too, under a bridge) and rock ('#') rising away from the
     floor in tiers a tile high (up to `tiers`), each a sloped wall all round (dwall_n/s/e/w, by the side of the floor it's
@@ -490,7 +522,12 @@ def cave(scene, rows, tx, floor, ice=None, ice_cells=(), tiers=4, bridge=(), rai
     caves' surroundings do. 'u' and 'U' are floor and water up a level, on the `raised` tier (a pool for a waterfall to
     fall from, in its own floor): the walls are one field of tiers, each rock tile a tier above the lower of the floor's
     and the raised floor's nearest, so the walls rising from the floor run on into the raised floor and those behind it
-    are joined to the rest."""
+    are joined to the rest. `holes`: floor tiles left open for a ladder down's model (dun_stairdw) to show its pit.
+    `ice_path`: the ice drawn as Ice Path B2F's (the user's): see-through over its deep blue (ice_fe01b), its scalloped
+    edge (ice_fe01r) along every side it meets the floor, the edge's corner piece where it turns. `cut`: (tiles, inside)
+    floor cut away round a ladder's pit wider than its tile, as the real caves' floor is: those tiles' floor drawn in
+    small pieces, leaving out those whose middle `inside` (x, z, model units) says is in the pit. `depth`: the water
+    that many times deeper than Mt. Mortar's, its shore stretched down to it."""
     h, w = len(rows), len(rows[0])
     dist = bfs_dist(rows, '.~', blocked='uU')
     up = bfs_dist(rows, 'uU', blocked='.~')
@@ -545,6 +582,51 @@ def cave(scene, rows, tx, floor, ice=None, ice_cells=(), tiers=4, bridge=(), rai
 
     inside = lambda x, y: 0 <= x < w and 0 <= y < h
     floor_c = (0.67, 0.67, 0.67)
+
+    def floor_quad(x, y, corners, uvs, tex, col):
+        if cut is None or (x, y) not in cut[0]:
+            quad(scene, corners, uvs, tex, col)
+            return
+        c, u, n = np.array(corners, float), np.array(uvs, float), 8
+        at = lambda a, p, q: (a[0] * (1 - p) + a[1] * p) * (1 - q) + (a[3] * (1 - p) + a[2] * p) * q
+        for i in range(n):
+            for j in range(n):
+                ps = [(i / n, j / n), ((i + 1) / n, j / n), ((i + 1) / n, (j + 1) / n), (i / n, (j + 1) / n)]
+                mid = at(c, (i + 0.5) / n, (j + 0.5) / n)
+                if not cut[1](mid[0], mid[2]):
+                    quad(scene, [at(c, *pq) for pq in ps], [at(u, *pq) for pq in ps], tex, col)
+    if ice_path:
+        icy = ice * 0.71 + tx['ice_fe01b'].mean((0, 1)) * 0.29
+        icy[..., 3] = 1
+
+    def ice_tile(x, y, top, size):
+        # As Ice Path B2F: its deep blue under the striped ice (71% opaque), then the floor's scalloped edge on the ice
+        # along each side that meets the floor (plain floor on its side, the user's), by quarter tiles:
+        # ice_fe01r's left strip (the floor at u 0; a rounded segment a tile long) for a side, its bottom right quarter
+        # (the floor at u 1 and v 1) where two sides meet.
+        # (The two layers are mixed in the texture, drawn solid: see-through tiles side by side leave seams.)
+        X, Z = x * T, y * T
+        loc = [(0, 0), (1, 0), (1, 1), (0, 1)]
+        quad(scene, top, [((x + px) / size, (y + pz) / size) for px, pz in loc], icy, floor_c)
+        floor_at = lambda x, y: inside(x, y) and rows[y][x] in '.u' and (x, y) not in ice_cells
+        for sx in (-1, 1):
+            for sz in (-1, 1):
+                hs, vs = floor_at(x + sx, y), floor_at(x, y + sz)
+                if not (hs or vs):
+                    continue
+                qx, qz = (0.5 if sx > 0 else 0), (0.5 if sz > 0 else 0)
+                pts = [(qx + px * 0.5, qz + pz * 0.5) for px, pz in loc]
+                # How far in from the tile's side towards sx (sz): 0 at the side, 0.5 at the middle.
+                eh = lambda px: (1 - px) if sx > 0 else px
+                ev = lambda pz: (1 - pz) if sz > 0 else pz
+                if hs and vs:
+                    uv = [(1 - eh(px) * 0.5, 1 - ev(pz) * 0.5) for px, pz in pts]
+                elif hs:
+                    uv = [(eh(px) * 0.5, pz * 0.5) for px, pz in pts]
+                else:
+                    uv = [(ev(pz) * 0.5, px * 0.5) for px, pz in pts]
+                quad(scene, [(X + px * T, 0.3, Z + pz * T) for px, pz in pts], uv, tx['ice_fe01r'], floor_c)
+
     rim = tx['droad01_r']
     wet = lambda x, y: rows[y][x] in '~U' or (x, y) in bridge
     bank_at = lambda x, y: raised * T if rows[y][x] == 'U' else 0
@@ -555,8 +637,10 @@ def cave(scene, rows, tx, floor, ice=None, ice_cells=(), tiers=4, bridge=(), rai
             if wet(x, y):
                 bank = bank_at(x, y)
                 for t_, drop in zip((tx['sea_un'], tx['sea_on']), WATER_DROP):
-                    yy = bank - drop * T
+                    yy = bank - drop * depth * T
                     quad(scene, [(X, yy, Z), (X + T, yy, Z), (X + T, yy, Z + T), (X, yy, Z + T)], [(x / 2, y / 2), ((x + 1) / 2, y / 2), ((x + 1) / 2, (y + 1) / 2), (x / 2, (y + 1) / 2)], t_)
+            elif (x, y) in holes:
+                continue
             elif c in '.u':
                 t = ice if (x, y) in ice_cells and ice is not None else floor
                 size = t.shape[1] / 16  # tiles a texture covers
@@ -565,22 +649,25 @@ def cave(scene, rows, tx, floor, ice=None, ice_cells=(), tiers=4, bridge=(), rai
                 near = [d for d in SIDES if is_wall(x + d[0], y + d[1])]
                 if (x, y) in ice_cells and ice is not None:
                     near = []
+                    if ice_path:
+                        ice_tile(x, y, top, size)
+                        continue
                 if len(near) == 1:
                     # Along a wall: the rim, its u from the wall's edge (0.01) to the floor (0.49), v along the wall.
                     d = near[0]
                     across = lambda px, pz: 0.01 + 0.48 * edge(d, px, pz)
                     along = lambda px, pz: 0.5 * ((x + px) if d[1] else (y + pz))
                     loc = [(0, 0), (1, 0), (1, 1), (0, 1)]
-                    quad(scene, top, [(across(*l), along(*l)) for l in loc], rim, floor_c)
+                    floor_quad(x, y, top, [(across(*l), along(*l)) for l in loc], rim, floor_c)
                     continue
                 if len(near) == 2 and near[0][0] != -near[1][0] and near[0][1] != -near[1][1]:
                     # In a corner between two walls: the rim's inside corner (its u from the north or south wall, v from
                     # the west or east one, 0.99 against each).
                     ns = next(d for d in near if d[1]); ew = next(d for d in near if d[0])
                     loc = [(0, 0), (1, 0), (1, 1), (0, 1)]
-                    quad(scene, top, [(0.99 - 0.48 * edge(ns, *l), 0.99 - 0.48 * edge(ew, *l)) for l in loc], rim, floor_c)
+                    floor_quad(x, y, top, [(0.99 - 0.48 * edge(ns, *l), 0.99 - 0.48 * edge(ew, *l)) for l in loc], rim, floor_c)
                     continue
-                quad(scene, top, [(x / size, y / size), ((x + 1) / size, y / size), ((x + 1) / size, (y + 1) / size), (x / size, (y + 1) / size)], t, floor_c)
+                floor_quad(x, y, top, [(x / size, y / size), ((x + 1) / size, y / size), ((x + 1) / size, (y + 1) / size), (x / size, (y + 1) / size)], t, floor_c)
                 if not near and t is floor:
                     for dx in (-1, 1):
                         for dy in (-1, 1):
@@ -594,8 +681,8 @@ def cave(scene, rows, tx, floor, ice=None, ice_cells=(), tiers=4, bridge=(), rai
                             radii = [0, 0.25, 0.5, 0.75, 1.0]
                             for r0, r1 in zip(radii, radii[1:]):
                                 for a0, a1 in zip(angles, angles[1:]):
-                                    quad(scene, [at(r0, a0), at(r0, a1), at(r1, a1), at(r1, a0)],
-                                         [(0.01 + 0.48 * r0, a0 / 3), (0.01 + 0.48 * r0, a1 / 3), (0.01 + 0.48 * r1, a1 / 3), (0.01 + 0.48 * r1, a0 / 3)], rim, floor_c)
+                                    floor_quad(x, y, [at(r0, a0), at(r0, a1), at(r1, a1), at(r1, a0)],
+                                               [(0.01 + 0.48 * r0, a0 / 3), (0.01 + 0.48 * r0, a1 / 3), (0.01 + 0.48 * r1, a1 / 3), (0.01 + 0.48 * r1, a0 / 3)], rim, floor_c)
             elif level[y, x] <= tiers:
                 wall_tile(x, y, (level[y, x] - 1) * T, level)
             elif level[y, x] == tiers + 1:
@@ -605,15 +692,15 @@ def cave(scene, rows, tx, floor, ice=None, ice_cells=(), tiers=4, bridge=(), rai
             scene.mesh(pos, uv, col, walls[side])
     if any(c in '~U' for r in rows for c in r) or bridge:
         # The pool up top runs down between bare rock to the waterfall's edge, as Mt. Mortar's does.
-        shore(scene, rows, tx, wet, bank_at, lambda x, y, d: rows[y][x] == 'U' and is_wall(x + d[0], y + d[1]))
+        shore(scene, rows, tx, wet, bank_at, lambda x, y, d: rows[y][x] == 'U' and is_wall(x + d[0], y + d[1]), depth)
     return height
 
 
-def moon_floor(scene, rows, tx, keep, rng, clumps=7, patches=(8, 3)):
+def moon_floor(scene, rows, tx, keep, rng, clumps=7, patches=(8, 3), links=()):
     """Mt. Moon's floor dressing: clumps of its crystal rocks (drock01s, tall and small, each a tile; they block the
     tile) only against the walls, never by water, by a spot (`keep`: the entrance, spots and exit, which must all still
-    be walkable in turn) or in the way; and its patches of other ground (droad01_sub a tile, droad01_sub2 two tiles across,
-    on half tiles) on open floor. Returns the rows with the rocks' tiles blocked."""
+    be walkable in turn, through `links`) or in the way; and its patches of other ground (droad01_sub a tile, droad01_sub2
+    two tiles across, on half tiles) on open floor. Returns the rows with the rocks' tiles blocked."""
     h, w = len(rows), len(rows[0])
     rows = [list(r) for r in rows]
     cell = lambda x, y: rows[y][x] if 0 <= x < w and 0 <= y < h else '#'
@@ -624,7 +711,7 @@ def moon_floor(scene, rows, tx, keep, rng, clumps=7, patches=(8, 3)):
     def still_walkable():
         joined = [''.join(r) for r in rows]
         try:
-            check(joined, keep, [], False)
+            check(joined, keep, links, False)
             return True
         except AssertionError:
             return False
@@ -654,17 +741,26 @@ def moon_floor(scene, rows, tx, keep, rng, clumps=7, patches=(8, 3)):
             X, Z = x * T, y * T
             if rng.random() < 0.6:
                 quad(scene, [(X, 0.16 * T, Z + 1.11 * T), (X + T, 0.16 * T, Z + 1.11 * T), (X + T, 1.47 * T, Z - 0.3 * T), (X, 1.47 * T, Z - 0.3 * T)], [(0.02, 0.98), (0.48, 0.98), (0.48, 0.02), (0.02, 0.02)], rock, (0.67, 0.67, 0.67))
+                # Its top is drawn over the tile above: that one blocked too (the user's).
+                if cell(x, y - 1) == '.':
+                    rows[y - 1][x] = '#'
             else:
                 quad(scene, [(X, 0.15 * T, Z + 0.85 * T), (X + T, 0.15 * T, Z + 0.85 * T), (X + T, 0.99 * T, Z + 0.3 * T), (X, 0.99 * T, Z + 0.3 * T)], [(0.52, 0.98), (0.98, 0.98), (0.98, 0.52), (0.52, 0.52)], rock, (0.67, 0.67, 0.67))
     # The other ground, on open floor only (not along the walls' rim or by water).
-    open_ = lambda x, y: cell(x, y) == '.' and not any(cell(x + dx, y + dy) != '.' for dx in (-1, 0, 1) for dy in (-1, 0, 1))
+    other_ground(scene, tx, w, h, lambda x, y: cell(x, y) == '.' and not any(cell(x + dx, y + dy) != '.' for dx in (-1, 0, 1) for dy in (-1, 0, 1)), rng, patches)
+    return [''.join(r) for r in rows]
+
+
+def other_ground(scene, tx, w, h, open_, rng, patches, base=lambda x, y: 0.0):
+    """A cave's patches of other ground (droad01_sub a tile, droad01_sub2 two tiles across, on half tiles), `patches`
+    of each, on the tiles `open_` allows, at the floor's height there (`base`)."""
     spots_ = [(x, y) for y in range(h) for x in range(w) if open_(x, y)]
     rng.shuffle(spots_)
     used = set()
     for (x, y) in spots_[:patches[0]]:
         used.add((x, y))
-        X, Z = x * T, y * T
-        quad(scene, [(X, 0.06 * T, Z), (X + T, 0.06 * T, Z), (X + T, 0.06 * T, Z + T), (X, 0.06 * T, Z + T)], [(0, 0), (1, 0), (1, 1), (0, 1)], tx['droad01_sub'], (0.67, 0.67, 0.67))
+        X, Z, Y = x * T, y * T, base(x, y) + 0.06 * T
+        quad(scene, [(X, Y, Z), (X + T, Y, Z), (X + T, Y, Z + T), (X, Y, Z + T)], [(0, 0), (1, 0), (1, 1), (0, 1)], tx['droad01_sub'], (0.67, 0.67, 0.67))
     n = 0
     for (x, y) in spots_[patches[0]:]:
         if n >= patches[1]:
@@ -672,10 +768,9 @@ def moon_floor(scene, rows, tx, keep, rng, clumps=7, patches=(8, 3)):
         if not all(open_(x + dx, y + dy) and (x + dx, y + dy) not in used for dx in (0, 1, 2) for dy in (0, 1, 2)):
             continue
         used |= {(x + dx, y + dy) for dx in (0, 1, 2) for dy in (0, 1, 2)}
-        X, Z = (x + 0.5) * T, (y + 0.5) * T
-        quad(scene, [(X, 0.06 * T, Z), (X + 2 * T, 0.06 * T, Z), (X + 2 * T, 0.06 * T, Z + 2 * T), (X, 0.06 * T, Z + 2 * T)], [(0, 0), (1, 0), (1, 1), (0, 1)], tx['droad01_sub2'], (0.67, 0.67, 0.67))
+        X, Z, Y = (x + 0.5) * T, (y + 0.5) * T, base(x, y) + 0.06 * T
+        quad(scene, [(X, Y, Z), (X + 2 * T, Y, Z), (X + 2 * T, Y, Z + 2 * T), (X, Y, Z + 2 * T)], [(0, 0), (1, 0), (1, 1), (0, 1)], tx['droad01_sub2'], (0.67, 0.67, 0.67))
         n += 1
-    return [''.join(r) for r in rows]
 
 
 def route42(a, out, seed=42):
@@ -686,51 +781,181 @@ def route42(a, out, seed=42):
     tx.update({p['material']: p['tex'] for p in a.chunk(517, 79)[0] if p['tex'] is not None and p['material'] in ('sea_un', 'sea_on', 'sea_line02', 'dpond_line_lm1')})
     # Mt. Moon's rocks and other ground (its land model's own textures).
     tx.update({p['material']: p['tex'] for p in a.chunk(389, 70)[0] if p['material'] in ('drock01s', 'droad01_sub', 'droad01_sub2')})
-    w, h = 72, 33
+    # The fourth chamber, up the third one's ladder, is drawn above it, apart (black rock between their walls, as between
+    # the others; the user's): the first three lower by `top` rows.
+    top = 24
+    w, h = 72, 33 + top
     rows = [['#'] * w for _ in range(h)]
-    # The entrance chamber, a passage, the waterfall chamber, a passage, the last chamber (to the right edge).
-    carve(rows, 1, 14, 16, 24)
-    carve(rows, 16, 17, 25, 21)
-    carve(rows, 25, 12, 47, 29)
-    carve(rows, 47, 16, 54, 20)
-    carve(rows, 54, 10, 71, 26)
-    carve(rows, 0, 18, 1, 20)       # in from the left edge
-    carve(rows, 71, 16, 72, 19)     # out at the right edge
+    # The entrance chamber, a passage, the waterfall chamber, a passage, the third chamber (closed at the right edge).
+    carve(rows, 1, top + 14, 16, top + 24)
+    carve(rows, 16, top + 17, 25, top + 21)
+    carve(rows, 25, top + 12, 47, top + 29)
+    carve(rows, 47, top + 16, 54, top + 20)
+    carve(rows, 54, top + 10, 71, top + 26)
+    carve(rows, 0, top + 18, 1, top + 20)       # in from the left edge
+    # The fourth chamber (the user's), as big as the third, with a pool in its top half, and out at the right edge.
+    carve(rows, 54, 5, 71, 21)
+    carve(rows, 60, 7, 66, 10, '~')
+    carve(rows, 61, 10, 65, 12, '~')
+    carve(rows, 71, 11, 72, 14)
     # Up a level behind the waterfall chamber's north wall (on its third tier): a small floor with the pool the waterfall
     # falls from, running down to the edge between bare rock; the pool under it, against the wall, and its stream running
     # south out of the chamber, crossed by a bridge.
-    carve(rows, 28, 5, 44, 9, 'u')
-    carve(rows, 31, 6, 41, 12, 'U')
-    carve(rows, 31, 12, 41, 19, '~')
-    carve(rows, 34, 19, 38, 33, '~')
-    bridge = {(x, y) for x in range(34, 38) for y in (24, 25)}
+    carve(rows, 28, top + 5, 44, top + 9, 'u')
+    carve(rows, 31, top + 6, 41, top + 12, 'U')
+    carve(rows, 31, top + 12, 41, top + 19, '~')
+    carve(rows, 33, top + 19, 39, h, '~')  # a tile wider each side than the pool's foot (the user's)
+    bridge = {(x, y) for x in range(33, 39) for y in (top + 24, top + 25)}  # 48-49, 24-25 on its map (the user's)
     for x, y in bridge:
         rows[y][x] = '.'
     rows = [''.join(r) for r in rows]
     scene = Scene(w * 16, h * 16, tilt=0.6, ground=0)
-    cave(scene, rows, tx, tx['droad01'], bridge=bridge)
-    # The bridge's planks over the stream, level with the floor, and their edge down towards the water.
-    planks = tx['droad02']
-    for y in (24, 25):
-        quad(scene, [(34 * T, 0.5, y * T), (38 * T, 0.5, y * T), (38 * T, 0.5, (y + 1) * T), (34 * T, 0.5, (y + 1) * T)], [(0, 0), (2, 0), (2, 0.5), (0, 0.5)], planks)
-    quad(scene, [(34 * T, 0.5, 26 * T), (38 * T, 0.5, 26 * T), (38 * T, -3, 26 * T), (34 * T, -3, 26 * T)], [(0, 0.8), (2, 0.8), (2, 1), (0, 1)], planks, (0.46, 0.46, 0.46))
+    hx, hy = 57, 18  # the ladder down's hole in the fourth chamber
+    # Its pit and the light over it, from a real one (Mt. Moon's at -168,-184 of chunk 390, its floor 16 up); the floor
+    # round it cut away inside its rim, as the real one's is, so its shadowed sides show (the user's).
+    pit = clip([p for p in a.chunk(390, 70)[0] if p['material'] in ('d_stairhole', 'd_light')], -192, -144, -208, -160)
+    pit = place(pit, hx * T + T / 2 + 168, hy * T + T / 2 + 184, dy=-16)
+    # Its water a tile below the floor, twice Mt. Mortar's depth, the shore dropping that far (the user's): more room
+    # under the bridge.
+    depth = 2.0
+    cave(scene, rows, tx, tx['droad01'], bridge=bridge, holes={(hx, hy)}, cut=pit_cut([p for p in pit if p['material'] == 'd_stairhole'], (hx, hy)), depth=depth)
+    # The bridge over the stream: Route 48's (the user's), its planks and their shadow on the water.
+    route48 = a.textures(19)
+    plank_bridge(scene, route48['bridge_a'], route48['f_kage'], 33, 39, top + 24, top + 26, -WATER_DROP[1] * depth * T)
+    # The ladder up in the third chamber, standing near its south wall (67,47, the user's) and the hole it comes
+    # out of in the fourth chamber, near its lower left corner (the user's): Red fades from one to the other. Both are
+    # HGSS's own cave ladder models, centred on their tiles as the real caves place them: the ladder up leaning back over
+    # the wall (dun_stairup, as in Mt. Moon) and the ladder down in its lit hole (dun_stairdw, as in Mt. Mortar).
+    lx, ly = 67, top + 23
+    add(scene, place(a.building(69), lx * T + T / 2, ly * T + T / 2))
+    add(scene, place(a.building(70), hx * T + T / 2, hy * T + T / 2))
+    add(scene, pit)
+    links = [((lx, ly), (hx, hy))]
     # The waterfall: HGSS's small cave waterfall (10 tiles wide), from the pool above down to the one below, lit and
     # textured as Mt. Mortar's own (full colour; the model on its own comes out dark). It falls 4 tiles, water to water;
-    # the pools are 3 apart, so it's squashed to fit, its foot where it was.
+    # the pools are 3 apart, so it's squashed to fit, its foot where it was (both lower with the deeper water).
     real = {p['material']: p['tex'] for p in a.chunk(517, 79)[0] if 'fall' in p['material'] and p['tex'] is not None}
     squash = np.array([1, 0.75, 1])
     fall = [dict(p, tex=real.get(p['material'], p['tex']), col=np.ones_like(p['col']), pos=(p['pos'] + [0, 0.5 * T, 0]) * squash - [0, 0.5 * T, 0]) for p in a.building(319)]
-    add(scene, fall, (36 * T, 0, 11 * T))
-    spots = [(5, 16), (11, 21), (20, 19), (28, 15), (29, 25), (43, 22), (50, 18), (57, 12), (63, 22), (68, 15)]
-    entrance = (1, 18)
-    exit = (70, 17)
-    rows = moon_floor(scene, rows, tx, [entrance] + spots + [exit], rng)
+    add(scene, fall, (36 * T, -WATER_DROP[1] * (depth - 1) * T, (top + 11) * T))
+    entrance = (1, top + 18)
+    exit = (71, 12)
+    # The user's spots: 1-8 in the first three chambers, before the ladder; 9 and 10 in the fourth.
+    spots = [(5, 41), (12, 44), (28, 40), (28, 49), (43, 48), (46, 42), (59, 37), (66, 40), (57, 10), (66, 12)]
+    stops = [entrance] + spots[:8] + [(lx, ly), (hx, hy)] + spots[8:] + [exit]
+    # (Its rocks and other ground placed as when the stream was 4 wide, 34-37, so widening it moved none of them: the
+    # tiles it gained were too near the water for any.)
+    wider = {(x, y) for x in (33, 38) for y in range(top + 19, h)} - bridge
+    narrow = [''.join('.' if (x, y) in wider else c for x, c in enumerate(r)) for y, r in enumerate(rows)]
+    rows = moon_floor(scene, narrow, tx, stops, rng, clumps=9, patches=(10, 4), links=links)
+    rows = [''.join('~' if (x, y) in wider else c for x, c in enumerate(r)) for y, r in enumerate(rows)]
     rows = [r.replace('U', '#').replace('u', '#') for r in rows]
-    check(rows, [entrance] + spots + [exit], [], False)
-    write(out, 'route42', scene, rows, spots, entrance, exit=exit)
+    for x, y in ((66, 44), (67, 44), (66, 45), (66, 46), (58, 38)):  # not walkable (the user's; 58,38 is 58,14 on its map)
+        rows[y] = rows[y][:x] + '#' + rows[y][x + 1:]
+    check(rows, stops, links, False)
+    # In two maps (the user's): the first three chambers up to the ladder, its exit, faded from to the fourth chamber's
+    # map (route42_upper), in at the hole; the one render cut between them (black rock, rows 0-23 and 24 on).
+    full = os.path.join(out, 'route42_whole.png')
+    scene.render(full)
+    write(out, 'route42', scene, rows, spots[:8], entrance, exit=(lx, ly), band=(top, h), rendered=full)
+    write(out, 'route42_upper', scene, rows, spots[8:], (hx, hy), exit=exit, band=(0, top), rendered=full)
+
+
+def lift(scene, weight, height, start=0):
+    """Draws what stands on a raised area (its floor, its cliffs and the walls rising from it; scene.prims from `start`)
+    on its own tiles: each vertex moved down the map by what the tilt lifts it, up to `height` (so the raised floor
+    lies on its tiles and each cliff fills its row, not 0.6 of a tile higher, where a figure on it would stand halfway
+    down its cliff), times `weight` (a 0-1 array by tile: 1 on the raised area, eased off over the rock round it so
+    the walls bend rather than break: each tile corner takes the mean of the tiles round it, or all of it by the raised
+    area itself, and a vertex the blend of its tile's corners, so whatever meets along an edge moves alike and nothing
+    comes apart). Above `height` the walls move with it."""
+    hh, ww = weight.shape
+    pad = np.pad(weight, 1, mode='edge')
+    quads = [pad[dy:dy + hh + 1, dx:dx + ww + 1] for dy in (0, 1) for dx in (0, 1)]
+    corner = np.where(np.max(quads, axis=0) >= 1, 1.0, np.mean(quads, axis=0))
+    for i in range(start, len(scene.prims)):
+        pos, *rest = scene.prims[i]
+        pos = pos.copy()
+        u, v = np.clip(pos[:, 0] / T, 0, ww - 1e-6), np.clip(pos[:, 2] / T, 0, hh - 1e-6)
+        i0, j0 = np.floor(u).astype(int), np.floor(v).astype(int)
+        fu, fv = u - i0, v - j0
+        f = ((corner[j0, i0] * (1 - fu) + corner[j0, i0 + 1] * fu) * (1 - fv)
+             + (corner[j0 + 1, i0] * (1 - fu) + corner[j0 + 1, i0 + 1] * fu) * fv)
+        pos[:, 2] += scene.tilt * np.clip(pos[:, 1] - scene.ground, 0, height) * f
+        scene.prims[i] = (pos, *rest)
+
+
+def convex_hull(pts):
+    """The convex hull of 2-D points, anticlockwise (Andrew's monotone chain)."""
+    pts = sorted(set(map(tuple, np.round(pts, 3))))
+    cross = lambda o, a, b: (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    def half(ps):
+        out = []
+        for p in ps:
+            while len(out) >= 2 and cross(out[-2], out[-1], p) <= 0:
+                out.pop()
+            out.append(p)
+        return out[:-1]
+    return half(pts) + half(pts[::-1])
+
+
+def pit_cut(pit, hole):
+    """cave()'s `cut` for a ladder's pit (placed, its floor at 0) wider than its tile: the tiles round the hole, and
+    inside the pit's rim (its stones' inner edge, where they meet its sloping sides), as the real caves' floor is cut."""
+    rim = np.array([v[[0, 2]] for p in pit for k in range(0, len(p['pos']), 3) for v in p['pos'][k:k + 3]
+                    if v[1] > 1 and any(o[1] < -10 for o in p['pos'][k:k + 3])])
+    hx, hy = hole
+    return {(hx + dx, hy + dy) for dx in (-1, 0, 1) for dy in (-1, 0, 1)}, in_hull(convex_hull(rim))
+
+
+def in_hull(hull):
+    """Whether a point (x, z) is inside a convex hull (anticlockwise)."""
+    edges = list(zip(hull, hull[1:] + hull[:1]))
+    return lambda x, z: all((b[0] - a[0]) * (z - a[1]) - (b[1] - a[1]) * (x - a[0]) > 0 for a, b in edges)
+
+
+def plank_bridge(scene, tex, shadow, x0, x1, z0, z1, water):
+    """A bridge running left to right, as Route 48's (its land model's bridge_a: the deck 2 up, a strip 8 wide along
+    each side and the planks between, its faces 8 deep, the boards repeating every 32 along it) over tiles x0-x1 by
+    z0-z1 (tiles, the far ones not included), and its shadow (f_kage) on the water at `water` under it, darker than
+    Route 48's (60% opaque, the user's). Lit as the cave's floor is."""
+    X0, X1, Z0, Z1, top, bot, s = x0 * T, x1 * T, z0 * T, z1 * T, 2.0, -6.0, 8.0
+    c = (0.67, 0.67, 0.67)
+    v0, v1 = X0 / 32, X1 / 32
+    # The deck: the far strip, the planks, the near strip (u across it, v along).
+    for za, zb, ua, ub in ((Z0, Z0 + s, 0.5, 0.25), (Z0 + s, Z1 - s, 0.25, 0.031), (Z1 - s, Z1, 0.25, 0.5)):
+        quad(scene, [(X0, top, za), (X1, top, za), (X1, top, zb), (X0, top, zb)], [(ua, v0), (ua, v1), (ub, v1), (ub, v0)], tex, c)
+    # Its faces down towards the water, near and far, and at each end.
+    for z in (Z0, Z1):
+        quad(scene, [(X0, top, z), (X1, top, z), (X1, bot, z), (X0, bot, z)], [(0.5, v0), (0.5, v1), (0.73, v1), (0.73, v0)], tex, c)
+    for x in (X0, X1):
+        for za, zb, va, vb in ((Z0, Z0 + s, 4.016, 4.25), (Z0 + s, Z1 - s, 3.316, 3.428), (Z1 - s, Z1, 4.25, 4.016)):
+            quad(scene, [(x, top, za), (x, top, zb), (x, bot, zb), (x, bot, za)], [(0.766, va), (0.766, vb), (0.969, vb), (0.969, va)], tex, c)
+    quad(scene, [(X0, water + 0.1, Z0), (X1, water + 0.1, Z0), (X1, water + 0.1, Z1), (X0, water + 0.1, Z1)], [(0, 0), (1, 0), (1, 1), (0, 1)], shadow, alpha=0.6, blend=True)
+
+
+def big_rock(scene, tx, x, y, base=0.0):
+    """A big icy rock as Ice Path 1F's (drock01, its whole texture): its left tile x, y, two wide, leaning back over the
+    row above; `base`: the floor's height."""
+    X, Z = x * T, y * T
+    quad(scene, [(X, base + 0.69, Z + 11.31), (X + 2 * T, base + 0.69, Z + 11.31), (X + 2 * T, base + 23.31, Z - 11.31), (X, base + 23.31, Z - 11.31)], [(0.018, 0.982), (0.982, 0.982), (0.982, 0.012), (0.018, 0.012)], tx['d_rock01'], (0.67, 0.67, 0.67))
+
+
+def small_rock(scene, tx, x, y, base=0.0):
+    """A small icy rock as Ice Path B2F's (d_rock01s's lower right quarter), a tile, leaning back."""
+    X, Z = x * T, y * T
+    quad(scene, [(X, base + 0.15 * T, Z + 0.85 * T), (X + T, base + 0.15 * T, Z + 0.85 * T), (X + T, base + 0.99 * T, Z + 0.3 * T), (X, base + 0.99 * T, Z + 0.3 * T)], [(0.52, 0.98), (0.98, 0.98), (0.98, 0.52), (0.52, 0.52)], tx['d_rock01s'], (0.67, 0.67, 0.67))
 
 
 def route44(a, out):
+    """Route 44 as an ice cave in two maps (the user's): the lower area (route44) and, up its ladder, the upper area
+    (route44_upper), each drawn on its own (the other area rock) and cropped to it."""
+    for part in ('lower', 'upper'):
+        route44_part(a, out, part)
+
+
+def route44_part(a, out, part):
+    lower = part == 'lower'
     tx = a.textures(76)  # the Ice Path's
     w, h = 40, 62
     rows = [['#'] * w for _ in range(h)]
@@ -744,29 +969,142 @@ def route44(a, out):
     carve(rows, 4, 12, 16, 20)
     carve(rows, 16, 4, 36, 14)
     carve(rows, 20, 0, 24, 4)        # out at the top edge
-    hole = (12, 22)                   # the ladder down from the upper area (not walkable)
-    rows[hole[1]][hole[0]] = '#'
+    hole = (21, 21)                   # the ladder down in the upper area, where the player comes in (the user's)
+    # A raised area two tiers up in each, as Ice Path's (the user's); its edge over the ground a cliff two tiles deep
+    # (its own edge, a tier, and the ground in front of it, the lower tier: the face over the ground, the user's), but
+    # for its stairs down to the south, each 2 wide and 2 long, as Ice Path B2F's (dslope, one a tier).
+    raised = 2
+    if lower:
+        # Across the top of the lower area (12-25,36-40), along to its right (18-33,41-42, and 22-24,43) and down the
+        # right side (25-33,43-48), encounters 4 and 5 on it; its stairs at 27-28,48-49 up from the ground by encounter
+        # 3 and at 15-16,40-41 down to the ground by the ladder.
+        plateau = ({(x, y) for y in range(36, 41) for x in range(12, 26)} | {(x, y) for y in (41, 42) for x in range(18, 34)}
+                   | {(x, 43) for x in range(22, 25)} | {(x, y) for y in range(43, 49) for x in range(25, 34)})
+        stairs = [(27, 48), (15, 40)]
+    else:
+        # 16-29,20-23 in the upper area, the ladder's hole on it (21,21), its stairs down at its right end (28-29,23-24).
+        plateau = {(x, y) for y in range(20, 24) for x in range(16, 30)}
+        stairs = [(28, 23)]
+    stair_tiles = {(x + i, y + j) for x, y in stairs for i in (0, 1) for j in (0, 1)}
+    on_ground = lambda x, y: 0 <= x < w and 0 <= y < h and rows[y][x] == '.' and (x, y) not in plateau
+    around = lambda x, y: [(x + dx, y + dy) for dx in (-1, 0, 1) for dy in (-1, 0, 1)]
+    # (Ground only across a corner too: the cliff's curved corner where it turns, the user's.)
+    cliff = {(x, y) for x, y in plateau if any(on_ground(*t) for t in around(x, y))} - stair_tiles
+    foot = {t for x, y in cliff for t in around(x, y) if on_ground(*t)} - stair_tiles
+    for x, y in plateau - stair_tiles:
+        rows[y][x] = '#' if (x, y) in cliff else 'u'
+    for x, y in foot:
+        rows[y][x] = '#'
+    # (The lower area's rocks:) the ground beside its raised area's right side (22-23,45-49, inside the cliff's foot) full of icy rocks, big and small (the
+    # user's): (x, y) the big ones' left tile, two wide.
+    big = [(22, 47), (22, 49)]
+    small = [(22, 45), (23, 45)]
+    boulders = {(x, y) for y in range(45, 50) for x in range(22, 24)}
+    # More in corners (the user's): big ones at 24-25,36-37 (on the raised area) and 28-29,56-57, small ones at 32,47,
+    # 33,47 and 33,46 (on the raised area).
+    big += [(28, 57)]
+    big_up, small_up = [(24, 37)], [(32, 47), (33, 47), (33, 46)]
+    boulders |= {(x + i, y - j) for x, y in big[-1:] + big_up for i in (0, 1) for j in (0, 1)} | set(small_up)
+    # And behind the ladder, 6-10,36-37 (the user's): big ones either side, a small one behind it.
+    big += [(6, 37), (9, 37)]
+    small += [(8, 36)]
+    boulders |= {(x, y) for y in (36, 37) for x in range(6, 11)}
+    rocks = [(11, 51), (11, 55), (19, 50), (16, 52), (8, 51), (8, 54), (8, 56)]  # icy rocks (the user's; the last 3 along the left wall)
+    if not lower:
+        # The upper area's (the user's): big ones at 32-33,7-8, 26-27,12-13 and 4-5,12-13, small ones on the ice, on the
+        # raised area and in the corner at 8,28.
+        big, small, big_up = [(32, 8), (26, 13), (4, 13)], [], []
+        rocks = [(18, 4), (19, 4), (19, 5), (25, 6), (26, 6), (32, 10), (19, 9), (34, 13), (35, 12), (35, 13), (8, 28), (9, 28), (8, 27)]
+        small_up = [(18, 20), (17, 20), (29, 20)]
+        boulders = {(x + i, y - j) for x, y in big for i in (0, 1) for j in (0, 1)} | set(small_up)
+    # Each map has only its own area: the other one's rock (the areas meet at row 30).
+    for y in (range(30) if lower else range(30, h)):
+        rows[y] = ['#'] * w
     rows = [''.join(r) for r in rows]
     # Sheets of ice in each area.
     ice_cells = {(x, y) for y in range(h) for x in range(w) if rows[y][x] == '.' and ((10 <= x < 22 and 51 <= y < 57) or (16 <= x < 36 and 4 <= y < 14))}
+    ice_cells -= {(12, 52), (12, 53)}  # ground (the user's: 12,27-28 on its map); the rocks sit on the ice
+    ice_cells -= {(x, y) for y in (5, 6) for x in range(29, 34)} | {(x, y) for y in (9, 10) for x in range(23, 28)}  # ground in the upper area's (the user's)
     scene = Scene(w * 16, h * 16, tilt=0.6, ground=0)
-    cave(scene, rows, tx, tx['droad01'], ice=tx['ice_fe01'], ice_cells=ice_cells)
-    # The ladder up the lower area's north wall (above 12,36), and the hole it comes out of in the upper area.
-    # The ladder texture, cropped to the ladder itself.
-    full = tx['dun_stairdw']
-    ys, xs = np.nonzero(full[..., 3] > 0.5)
-    ladder = full[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
-    lx, ly = 12, 36
-    quad(scene, [(lx * T, 3 * T, ly * T + 0.5), ((lx + 1) * T, 3 * T, ly * T + 0.5), ((lx + 1) * T, 0, ly * T + 0.5), (lx * T, 0, ly * T + 0.5)], [(0, 0), (1, 0), (1, 1), (0, 1)], ladder)
     hx, hy = hole
-    quad(scene, [(hx * T, 0.5, hy * T), ((hx + 1) * T, 0.5, hy * T), ((hx + 1) * T, 0.5, (hy + 1) * T), (hx * T, 0.5, (hy + 1) * T)], [(0, 0), (1, 0), (1, 1), (0, 1)], tx['d_stairhole'])
-    quad(scene, [(hx * T + 2, 1, hy * T), ((hx + 1) * T - 2, 1, hy * T), ((hx + 1) * T - 2, 1, (hy + 1) * T), (hx * T + 2, 1, (hy + 1) * T)], [(0, 0), (1, 0), (1, 0.6), (0, 0.6)], ladder)
-    links = [((lx, ly), (hx, hy + 1))]
-    spots = [(19, 56), (12, 52), (26, 52), (28, 45), (16, 39), (20, 25), (9, 17), (14, 13), (25, 10), (31, 6)]
-    entrance = (19, 60)
-    exit = (22, 1)
-    check(rows, [entrance] + spots + [exit], links, False)
-    write(out, 'route44', scene, rows, spots, entrance, links=[[list(p) for p in l] for l in links], exit=exit)
+    ice_cells = {(x, y) for x, y in ice_cells if rows[y][x] == '.'}
+    # The ladder's pit (Ice Path B2F's, round its ladder down at 40,-168 of chunk 548) is wider than its tile: the floor
+    # round it cut away inside its rim (where its stones meet its sloping sides), as B2F's is, so its shadowed sides show.
+    hx, hy = hole
+    pit = clip([p for p in a.chunk(548, 76)[0] if p['material'] == 'd_stairhole'], 8, 72, -200, -136)
+    cut = pit_cut(place(pit, hx * T + T / 2 - 40, hy * T + T / 2 + 168), hole) if not lower else None
+    around_hole = cut[0] if cut else set()
+    cave(scene, rows, tx, tx['droad01'], ice=tx['ice_fe01'], ice_cells=ice_cells, holes={hole} | stair_tiles, ice_path=True, raised=raised, tiers=6, cut=cut)
+    stair = clip([p for p in a.chunk(548, 76)[0] if p['material'] == 'dslope'], 16, 48, 16, 32)  # B2F's at 16-48,16-32
+    for x, y in stairs:
+        add(scene, place(stair, x * T - 16, y * T - 16, dy=T))
+        add(scene, place(stair, x * T - 16, (y + 1) * T - 16))
+    # Ice Path's patches of other ground (its droad01_sub and droad01_sub2) on the open ground, not the ice, nor where
+    # rocks stand (the user's); up on the raised area there, lifted with it.
+    import random
+    taken = boulders | set(rocks) | stair_tiles | around_hole
+    floor_at = lambda x, y: 0 <= x < w and 0 <= y < h and rows[y][x] in '.u' and (x, y) not in ice_cells and (x, y) not in taken
+    open_ = lambda x, y: floor_at(x, y) and all(floor_at(x + dx, y + dy) and rows[y + dy][x + dx] == rows[y][x] for dx in (-1, 0, 1) for dy in (-1, 0, 1))
+    other_ground(scene, tx, w, h, open_, random.Random(44 if lower else 45), (10, 4) if lower else (8, 3), lambda x, y: raised * T if rows[y][x] == 'u' else 0.0)
+    # (The raised area's rocks on it, lifted with it.)
+    for x, y in big_up:
+        big_rock(scene, tx, x, y, raised * T)
+    for x, y in small_up:
+        small_rock(scene, tx, x, y, raised * T)
+    # The raised area drawn on its own tiles, and the rock rising from it (by how much nearer it than the ground, less
+    # farther from it, so the walls behind it stretch rather than slide; smoothed with its neighbours).
+    dist, up = bfs_dist(rows, '.~', blocked='uU'), bfs_dist(rows, 'uU', blocked='.~')
+    weight = np.where(np.array([list(r) for r in rows]) == '#', np.clip(dist - up - 0.5, 0, 1) * np.clip(1 - (up - 1) / 3, 0, 1), 0.0)
+    weight = np.minimum(sum(np.roll(np.roll(np.pad(weight, 1, mode='edge'), dy, 0), dx, 1) for dy in (-1, 0, 1) for dx in (-1, 0, 1))[1:-1, 1:-1] / 9, 0.99)
+    # The raised area, and rock beside it as high as it (its top level with it) with no ground beside it, all the way.
+    level1 = {(x, y) for y in range(h) for x in range(w) if rows[y][x] == '#' and min(dist[y, x], raised + up[y, x]) <= raised
+              and not any(on_ground(x + dx, y + dy) for dx, dy in SIDES)}
+    for x, y in plateau | foot | stair_tiles | {(x, y) for x, y in level1 if any(t in plateau for t in around(x, y))}:
+        weight[y, x] = 1
+    lift(scene, weight, raised * T)
+    rows = [r.replace('u', '.') for r in rows]
+    for x, y in big:
+        big_rock(scene, tx, x, y)
+    for x, y in small:
+        small_rock(scene, tx, x, y)
+    for x, y in boulders:
+        rows[y] = rows[y][:x] + '#' + rows[y][x + 1:]
+    # Icy rocks, as Ice Path B2F's small ones (d_rock01s's lower right quarter, leaning back), on the ice or the ground
+    # (the user's); each blocks its tile.
+    for x, y in rocks:
+        small_rock(scene, tx, x, y)
+        rows[y] = rows[y][:x] + '#' + rows[y][x + 1:]
+    if not lower:
+        upper_area(a, out, tx, scene, rows, hole, raised, ice_cells)
+        return
+    # The ladder up (8,38, the user's), HGSS's own (dun_stairup, leaning back over the wall), as on Route 42: the map's
+    # exit, faded from to the upper area's map.
+    lx, ly = 8, 38
+    add(scene, place(a.building(69), lx * T + T / 2, ly * T + T / 2))
+    # Not walkable (the user's; 29,19 and 9-10,16 on the lower map).
+    for x, y in [(29, 44), (10, 41), (9, 41)]:
+        rows[y] = rows[y][:x] + '#' + rows[y][x + 1:]
+    spots = [(19, 57), (12, 52), (27, 54), (30, 43), (19, 38)]
+    entrance = (19, 61)  # 19,36 on its map (the user's)
+    check(rows, [entrance] + spots + [(lx, ly)], [], False)
+    write(out, 'route44', scene, rows, spots, entrance, exit=(lx, ly), trim=True, ice=ice_cells)
+
+
+def upper_area(a, out, tx, scene, rows, hole, raised, ice_cells):
+    """Route 44's upper area: in at the ladder's hole on its raised area (the ladder down, HGSS's own, dun_stairdw,
+    with Ice Path B2F's own pit, the ring round it in the Ice Path's colours: the user's; its ladder down at 40,-168 of
+    chunk 548; up on the raised area and moved as `lift` moves it), down its stairs and up to the top edge."""
+    hx, hy = hole
+    up, down = raised * T, scene.tilt * raised * T
+    add(scene, place(a.building(70), hx * T + T / 2, hy * T + T / 2 + down, dy=up))
+    pit = clip([p for p in a.chunk(548, 76)[0] if p['material'] == 'd_stairhole'], 8, 72, -200, -136)
+    add(scene, place(pit, hx * T + T / 2 - 40, hy * T + T / 2 + 168 + down, dy=up))  # (its floor cut in route44_part)
+    for x, y in [(11, 17)]:  # not walkable (the user's)
+        rows[y] = rows[y][:x] + '#' + rows[y][x + 1:]
+    spots = [(23, 26), (11, 22), (10, 16), (25, 10), (31, 6)]  # the first three the user's
+    entrance, exit = (hx, hy), (22, 0)  # in at the hole, out at the top edge (the user's)
+    check(rows, [entrance] + spots + [exit], [], False)
+    write(out, 'route44_upper', scene, rows, spots, entrance, exit=exit, trim=True, ice=ice_cells)
 
 
 def main():

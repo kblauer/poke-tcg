@@ -7,7 +7,8 @@ Usage: python hgss_map.py <out prefix> <MAP_CONST>[,<MAP_CONST>...] [--tilt 0.6]
 elsewhere, to <out prefix>-overhead.png, for the route map to draw over the people walking under them.)
 Writes <out prefix>.png and <out prefix>.json: the size in tiles and `rows`, one string per tile row: '.' walkable, '#' not
 (collision, doors and warps), '~' water (surfable), and ledges by the way they're jumped: '>' east, '<' west, '^' north,
-'v' south; and `grass`, the same size: 'g' tall grass (behaviours 2 and 3), '.' not. People and item balls are not in the map data (they're events), so their tiles are walkable. Needs numpy and
+'v' south; `grass`, the same size: 'g' tall grass (behaviours 2 and 3), '.' not; and `ice` alike: 'i' ice (behaviour
+32, slid across), '.' not. People and item balls are not in the map data (they're events), so their tiles are walkable. Needs numpy and
 Pillow (pip install numpy pillow) and apicula on the PATH or given with --apicula."""
 import collections, json, os, subprocess, sys, tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -20,6 +21,7 @@ WATER = {16, 17, 19, 21}  # river, whirlpool, waterfall, sea
 LEDGES = {56: '>', 57: '<', 58: '^', 59: 'v'}
 BLOCKED = set(range(60, 64)) | set(range(94, 112))  # ladders, warps, doors
 GRASS = {2, 3}  # tall grass, very tall grass
+ICE = {32}  # ice (TILE_BEHAVIOR_ICE)
 
 
 def tile_char(lo, hi):
@@ -65,6 +67,7 @@ def main():
 
     rows = [['#'] * (cw * CHUNK) for _ in range(ch * CHUNK)]
     grass = [['.'] * (cw * CHUNK) for _ in range(ch * CHUNK)]
+    ice = [['.'] * (cw * CHUNK) for _ in range(ch * CHUNK)]
     parts, ys = [], collections.Counter()
     for c in mine:
         chunk = hd.land_chunk(land[c['land']])
@@ -75,6 +78,8 @@ def main():
                 rows[oz + ty][ox + tx] = tile_char(lo, hi)
                 if lo in GRASS:
                     grass[oz + ty][ox + tx] = 'g'
+                if lo in ICE:
+                    ice[oz + ty][ox + tx] = 'i'
         model = os.path.join(work, f"land{c['land']}.nsbmd"); open(model, 'wb').write(chunk['model'])
         glb = convert(apicula, [model, tex_path], os.path.join(work, f"land{c['land']}"))
         # The chunk's model origin is its centre.
@@ -106,7 +111,7 @@ def main():
         for glb, origin, texmtx in parts:
             top.glb(glb, origin, texmtx, only=overhead)
         top.render(out + '-overhead.png', transparent=True)
-    json.dump({'width': cw * CHUNK, 'height': ch * CHUNK, 'rows': [''.join(r) for r in rows], 'grass': [''.join(r) for r in grass], 'chunks':[[c['x'] - x0, c['y'] - y0, c['land']] for c in mine]}, open(out + '.json', 'w'))
+    json.dump({'width': cw * CHUNK, 'height': ch * CHUNK, 'rows': [''.join(r) for r in rows], 'grass': [''.join(r) for r in grass], 'ice': [''.join(r) for r in ice], 'chunks':[[c['x'] - x0, c['y'] - y0, c['land']] for c in mine]}, open(out + '.json', 'w'))
     print('rendered', consts, cw * CHUNK, 'x', ch * CHUNK, 'tiles; texture set', ar['textures'], '; ground', ground)
 
 

@@ -57,11 +57,41 @@ LEADERS = {'violet': 'falkner', 'azalea': 'bugsy', 'goldenrod': 'whitney', 'ecru
 # the Gym Trainer stands.
 USER_GYM_TRAINER = {
     'azalea': {'spot': (9, 20), 'stand': (7, 20)},
+    'goldenrod': {'spot': (7, 10), 'stand': (6, 10)},
+    'cianwood': {'spot': (5, 9), 'stand': (4, 9)},
 }
 # The user's links (fading walks between tiles the map data doesn't join), in the cropped map's tiles: Azalea's Spinarak
 # carts, from the door's floor to the middle one (9,33 to 9,23) and from there to Bugsy's (9,18 to 9,8).
 USER_LINKS = {
     'azalea': [((9, 33), (9, 23)), ((9, 18), (9, 8))],
+}
+# The user's floors (the only walkable tiles, in the cropped map's tiles): rectangles (left, top, right, bottom). Ecruteak
+# Gym: the brown walkways, Morty's platform and the entrance room, never the grey (the invisible floor's pit).
+USER_FLOORS = {
+    'ecruteak': [(2, 3, 4, 5), (1, 6, 5, 6), (3, 7, 3, 13), (3, 14, 4, 15), (4, 16, 4, 23), (5, 15, 6, 15), (6, 16, 6, 17), (5, 18, 6, 18), (2, 24, 13, 24), (5, 25, 7, 25), (12, 25, 13, 26),
+                 (12, 27, 12, 32), (9, 33, 12, 34), (9, 35, 9, 43), (8, 44, 10, 45), (7, 46, 11, 46), (6, 47, 12, 48)],
+}
+# The user's tiles not walkable (in the cropped map's tiles): rectangles (left, top, right, bottom).
+USER_BLOCKED = {
+    'cianwood': [(1, 11, 5, 11), (7, 11, 10, 11)],
+    'olivine': [(3, 5, 3, 5), (5, 5, 5, 5)],
+}
+# The user's tracks (the one way through, in the cropped map's tiles; only its tiles walkable): from the door, the corners
+# walked over the walkways and stairs, then those walked under the bridges ('under'); and the bridges' tiles (left, top,
+# right, bottom), drawn over the player while he's under them. Goldenrod Gym: the green walkways are bridges, and only the
+# line drawn is walked (the user's), past the Gym Trainer to Whitney (13,5).
+USER_TRACKS = {
+    'goldenrod': {
+        'start': (6, 25),
+        'over': [(6, 22), (3, 22), (3, 20), (2, 20), (2, 17), (4, 17), (4, 16), (6, 16), (6, 14), (7, 14), (7, 9), (10, 9), (10, 8), (17, 8), (17, 9), (22, 9), (22, 11), (23, 11), (23, 12), (26, 12), (26, 8), (19, 8)],
+        'under': [(19, 15), (13, 15), (13, 5)],
+        'bridges': [(12, 8, 14, 9), (18, 9, 20, 10)],
+    },
+}
+# The user's overheads: a gym's materials drawn over the player walking under them (hgss_map.py's --overhead), always.
+# Olivine Gym: the steel arches and their gems, from row 9 down (the gems' material has glints by Jasmine too).
+USER_OVERHEAD = {
+    'olivine': (['tekkin', 'houseki3', 'j_houseki_lm1', 'j_houseki2_lm1'], 9),
 }
 FACE = {0: 'up', 1: 'down', 2: 'left', 3: 'right'}
 STEP = {'up': (0, -1), 'down': (0, 1), 'left': (-1, 0), 'right': (1, 0)}
@@ -167,13 +197,32 @@ def crop_box(rows, door, keep):
     return x0, y0, x1, y1
 
 
-def gym_ts(const, title, doc, image, w, h, door, spots, stands, guide, rows, links=()):
+def track_tiles(track):
+    """A user track's tiles, every one on the way from corner to corner."""
+    tiles = [track['start']]
+    for x, y in track['over'] + track['under']:
+        x0, y0 = tiles[-1]
+        assert x == x0 or y == y0, ('track corner not in line', (x0, y0), (x, y))
+        dx, dy = (x > x0) - (x < x0), (y > y0) - (y < y0)
+        while tiles[-1] != (x, y):
+            tiles.append((tiles[-1][0] + dx, tiles[-1][1] + dy))
+    return tiles
+
+
+def gym_ts(const, title, doc, image, w, h, door, spots, stands, guide, rows, links=(), track=None, overhead=False, ice=None, blocks=()):
     pts = lambda ps: '\n'.join(f'    {{ x: {x}, y: {y} }},' for x, y in ps)
+    corners = lambda ps: ', '.join(f'[{x}, {y}]' for x, y in ps)
+    track_ = (f"\n  overhead: '/routes/{image.replace('.png', '_overhead.png')}',"
+              f"\n  track: trackLine([{track['start'][0]}, {track['start'][1]}], {{ to: [{corners(track['over'])}] }}, {{ under: true, to: [{corners(track['under'])}] }}),") if track else \
+        f"\n  overhead: '/routes/{image.replace('.png', '_overhead.png')}'," if overhead else ''
     links_ = '\n  links: [' + ', '.join(f'[{{ x: {a[0]}, y: {a[1]} }}, {{ x: {b[0]}, y: {b[1]} }}]' for a, b in links) + '],' if links else ''
     walk = '\n'.join(f"    '{r}'," for r in rows)
+    # The ice (the map's ice behaviour), slid across, on a gym with any.
+    ice_ = ('\n  ice: [' + ''.join(f"\n    '{r}'," for r in ice) + '\n  ],') if ice and any('i' in r for r in ice) else ''
     # Double quotes for a name with an apostrophe ("Will's Room"), as kanto-routes.ts has them.
     name = f'"{title}"' if "'" in title else f"'{title}'"
-    npcs = f"\n  npcs: [{{ sprite: 'hgss/gym_guide', tile: {{ x: {guide[0]}, y: {guide[1]} }}, face: 'down' }}]," if guide else ''
+    people = ([('hgss/gym_guide', guide)] if guide else []) + [('hgss/ice', b) for b in blocks]
+    npcs = ("\n  npcs: [" + ', '.join(f"{{ sprite: '{sprite}', tile: {{ x: {x}, y: {y} }}, face: 'down' }}" for sprite, (x, y) in people) + '],') if people else ''
     return f"""
 /** {doc} */
 export const {const}: Route = {{
@@ -183,7 +232,7 @@ export const {const}: Route = {{
   image: '/routes/{image}',
   width: {w * TILE},
   height: {h * TILE},
-  entrance: {{ x: {door[0]}, y: {door[1]} }},{links_}
+  entrance: {{ x: {door[0]}, y: {door[1]} }},{links_}{track_}
   spots: [
 {pts(spots)}
   ],
@@ -192,7 +241,7 @@ export const {const}: Route = {{
   ],{npcs}
   walkable: [
 {walk}
-  ],
+  ],{ice_}
 }};
 """
 
@@ -205,7 +254,7 @@ HEAD = """// The Johto gyms' interiors, from HeartGold/SoulSilver (the pret/poke
 // come from the user, as `links` or walkable tiles. Then the Johto Gym Challenge and Champion runs' other rooms, as Kanto's:
 // the Pokémon League's, each boss in their place and the player coming in 5 tiles from them, and Ecruteak's Pokémon
 // Center; and each boss's map for those runs (JOHTO_BOSS_ROOMS). Written by tools/routes/hgss/johto_gyms.py.
-import { leaderRoom, type Route } from './routes.js';
+import { leaderRoom, trackLine, type Route } from './routes.js';
 """
 
 
@@ -223,15 +272,29 @@ def main():
     for city, (map_const, events_file, warp_to, const, title) in GYMS.items():
         prefix = os.path.join(work, city)
         if not os.path.exists(prefix + '.png'):
-            subprocess.run([sys.executable, os.path.join(HERE, 'hgss_map.py'), prefix, map_const, '--room', '--apicula', apicula, '--cache', cache], check=True)
-        rows = json.load(open(prefix + '.json'))['rows']
+            over = ['--overhead', ','.join(USER_OVERHEAD[city][0])] if city in USER_OVERHEAD else []
+            subprocess.run([sys.executable, os.path.join(HERE, 'hgss_map.py'), prefix, map_const, '--room', *over, '--apicula', apicula, '--cache', cache], check=True)
+        rows, ice = (json.load(open(prefix + '.json')).get(k) for k in ('rows', 'ice'))
         events = json.load(open(hd.fetch(cache, EVENTS + events_file + '.json'), encoding='utf-8'))
         rows, door, spots, stands, guide, _, trainer = place(city, rows, events, warp_to)
         x0, y0, x1, y1 = crop_box(rows, door, [*spots, *stands] + ([guide] if guide else []))
         shift = lambda t: (t[0] - x0, t[1] - y0)
         rows = [r[x0:x1 + 1] for r in rows[y0:y1 + 1]]
+        ice = ice and [r[x0:x1 + 1] for r in ice[y0:y1 + 1]]
         door, spots, stands = shift(door), [shift(s) for s in spots], [shift(s) for s in stands]
         guide = guide and shift(guide)
+        # The ice blocks on the ice (Mahogany Gym's: the map's SPRITE_ICE objects), each blocking its tile: drawn as
+        # people are (HGSS's ice block sprite, hgss/ice), and slides stop against them.
+        blocks = [shift((o['x'], o['z'])) for o in events['objects'] if o['spriteId'] == 'SPRITE_ICE']
+        floors = USER_FLOORS.get(city)
+        if floors:
+            rows = [''.join('.' if any(l <= x <= r and t <= y <= b for l, t, r, b in floors) else '#' for x in range(len(row))) for y, row in enumerate(rows)]
+        track = USER_TRACKS.get(city)
+        if track:
+            on = set(track_tiles(track))
+            rows = [''.join('.' if (x, y) in on else '#' for x in range(len(r))) for y, r in enumerate(rows)]
+        blocked = USER_BLOCKED.get(city, []) + [(x, y, x, y) for x, y in blocks]
+        rows = [''.join('#' if any(l <= x <= r and t <= y <= b for l, t, r, b in blocked) else c for x, c in enumerate(row)) for y, row in enumerate(rows)]
         user = USER_GYM_TRAINER.get(city)
         if user:
             assert rows[user['spot'][1]][user['spot'][0]] == '.', (city, 'user Gym Trainer spot not walkable')
@@ -249,6 +312,16 @@ def main():
         im = Image.open(prefix + '.png').crop((x0 * TILE, y0 * TILE, (x1 + 1) * TILE, (y1 + 1) * TILE))
         image = f'{city}_gym.png'
         im.save(os.path.join(PUBLIC, image))
+        if track:
+            top = Image.new('RGBA', im.size, (0, 0, 0, 0))
+            for left, top_, right, bottom in track['bridges']:
+                box = (left * TILE, top_ * TILE, (right + 1) * TILE, (bottom + 1) * TILE)
+                top.paste(im.crop(box), box[:2])
+            top.save(os.path.join(PUBLIC, image.replace('.png', '_overhead.png')))
+        elif city in USER_OVERHEAD:
+            top = Image.open(prefix + '-overhead.png').convert('RGBA').crop((x0 * TILE, y0 * TILE, (x1 + 1) * TILE, (y1 + 1) * TILE))
+            top.paste((0, 0, 0, 0), (0, 0, top.width, USER_OVERHEAD[city][1] * TILE))
+            top.save(os.path.join(PUBLIC, image.replace('.png', '_overhead.png')))
         pv = im.convert('RGB'); d = ImageDraw.Draw(pv)
         for label, (x, y), col in [('IN', door, (0, 255, 0)), ('T', stands[0], (255, 160, 0)), ('L', stands[1], (255, 0, 0)), ('1', spots[0], (0, 200, 255)), ('2', spots[1], (0, 200, 255))] + ([('G', guide, (200, 200, 200))] if guide else []):
             d.rectangle([x * TILE, y * TILE, x * TILE + 15, y * TILE + 15], outline=col, width=2)
@@ -258,9 +331,17 @@ def main():
         doc = f"{title}, the leader's room: the Gym Trainer where {who.replace('_', ' ').title() if who != 'its girl' else who} stands ({stands[0][0]},{stands[0][1]}), the leader in their place ({stands[1][0]},{stands[1][1]})."
         if user:
             doc = f"{title}, the leader's room: the Gym Trainer at {stands[0][0]},{stands[0][1]}, the player stopping beside them at {spots[0][0]},{spots[0][1]} (the user's), the leader in their place ({stands[1][0]},{stands[1][1]})."
+        if floors:
+            doc = doc[:-1] + ", walked only on the brown walkways (the user's)."
+        if blocked and not blocks:
+            doc = doc[:-1] + ', ' + ' and '.join(f"{l if l == r else f'{l}-{r}'},{t if t == b else f'{t}-{b}'}" for l, t, r, b in blocked) + " not walkable (the user's)."
+        if city in USER_OVERHEAD:
+            doc = doc[:-1] + ", the arches drawn over the player walking under them (the user's)."
         if links:
             doc = doc[:-1] + ', the walk from floor to floor through ' + ' and '.join(f'{a[0]},{a[1]} to {b[0]},{b[1]}' for a, b in links) + ' (the user\'s links: Spinarak carts).'
-        out.append(gym_ts(const, title, doc, image, len(rows[0]), len(rows), door, spots, stands, guide, rows, links))
+        if ice and any('i' in r for r in ice):
+            doc = doc[:-1] + ", its ice slid across (the map's ice behaviour; agreed with the user), a slide stopped by its ice blocks (" + ', '.join(f'{x},{y}' for x, y in blocks) + ", the map's) and by the Gym Trainer standing on it."
+        out.append(gym_ts(const, title, doc, image, len(rows[0]), len(rows), door, spots, stands, guide, rows, links, track, city in USER_OVERHEAD, ice, blocks))
         entrances[city] = entrance_near(rows, spots[1])
         print(city, 'door', door, 'spots', spots, 'stands', stands, 'guide', guide, 'trainer', who, 'leader room entrance', entrances[city])
 

@@ -33,14 +33,29 @@ MADE_UP = {
     'route40': ('ROUTE_40', 'Route 40', 'down', """ * Route 40, made up (agreed with the user), for the Cianwood City run: surfed from Olivine's beach at the top (the real
  * route's beach chunk) down a sea lane between two columns of rocks near the edges, with sandbars of random sizes for
  * non-battle encounters to stand on (surfed routes' spots by land offer only those, out at sea only battles), and a
- * beach across the south end; its trainers Swimmers, as on Route 20.""", "\n  travel: 'surf',\n  trainers: { names: SWIMMERS, share: 1 },"),
-    'route42': ('ROUTE_42', 'Route 42', 'right', """ * Route 42, made up as a cave (agreed with the user), for the Olivine City run: from the left edge to the right through
- * three chambers of Mt. Mortar's rock (Mt. Moon's crystal rocks against the walls), the middle one with a small
- * waterfall (HGSS's dsm_fal1) falling from a pool up a level, in a small floor of its own, into a pool whose stream is
- * crossed by a bridge; leaving by the right edge.""", ''),
-    'route44': ('ROUTE_44', 'Route 44', 'up', """ * Route 44, made up as an ice cave (agreed with the user), for the Mahogany Town run: from the bottom edge up through
- * two areas of the Ice Path's rock and ice, the lower one's ladder climbing to the upper one (a fading link, from the
- * foot of the ladder to beside its hole above); leaving by the top edge.""", ''),
+ * beach across the south end; its trainers Swimmers, as on Route 20. The band sloping into the sea round the sand, and
+ * the row above the sand (drawn half a tile up), are land, as they're drawn (the user's).""", "\n  travel: 'surf',\n  trainers: { names: SWIMMERS, share: 1 },"),
+    'route42': ('ROUTE_42', 'Route 42', 'right', """ * Route 42, made up as a cave (agreed with the user), for the Olivine City run, in two maps (the user's): this, from
+ * the left edge to the right through three chambers of Mt. Mortar's rock (Mt. Moon's crystal rocks against the walls),
+ * the middle one with a small waterfall (HGSS's dsm_fal1) falling from a pool up a level, in a small floor of its own,
+ * into a pool whose stream is crossed by a bridge (Route 48's: the user's); then up the third chamber's ladder (67,23, HGSS's own), its `exit`,
+ * faded from to the fourth chamber (ROUTE_42_UPPER). The spots the user's: 1-8 here; spot 1's and 7's figures left and
+ * right of it, then above, spot 2's and 4's left and right of it, then below; 66-67,20, 66,21-22 and 58,14 not
+ * walkable (the user's).""", "\n  spotFlows: { 0: 'up', 1: 'down', 3: 'down', 6: 'up' },"),
+    'route42_upper': ('ROUTE_42_UPPER', 'Route 42 (upper)', 'right', """ * Route 42's fourth chamber (the user's name), the second of its two maps: in at the hole the third chamber's ladder
+ * comes up through (57,18, HGSS's ladder down in a lit pit copied from Mt. Moon's), with a pool, leaving by its right
+ * edge (71,12); encounters 9 and 10 (the user's; spot 9's figures left and right of it, then below).""", "\n  spotFlows: { 0: 'down' },"),
+    'route44': ('ROUTE_44', 'Route 44', 'up', """ * Route 44, made up as an ice cave (agreed with the user), for the Mahogany Town run, in two maps (the user's):
+ * this, the lower area, from the bottom edge up through the Ice Path's rock and ice to its ladder (8,13, HGSS's own
+ * ladder model, the user's), its `exit`, faded from to the upper area (ROUTE_44_UPPER). Its ice as Ice Path B2F's (the
+ * user's). A raised area two tiers up across its top and down its right side, encounters 4 and 5 on it, its cliffs two
+ * tiles deep, its stairs down at 27-28,23-24 and 15-16,15-16, and icy rocks big and small round it, as Ice Path's (the
+ * user's; as are spot 5's figures, above and below it, then left).""", "\n  spotFlows: { 4: 'left' },"),
+    'route44_upper': ('ROUTE_44_UPPER', 'Route 44 (upper)', 'up', """ * Route 44's upper area (the user's name), the second of its two maps: in at the hole the lower area's ladder
+ * comes up through (21,21, HGSS's ladder down in Ice Path B2F's own pit, the ring round it in the Ice Path's colours:
+ * the user's) on a raised area two tiers up (16-29,20-23, its cliffs two tiles deep), down its stairs at 28-29,23-24
+ * and up through its rock and ice, leaving by the top edge (encounters 1-3 at 23,26, 11,22 and 10,16, spot 1's figures
+ * above and below it, then left; icy rocks big and small: the user's).""", "\n  spotFlows: { 0: 'left' },"),
 }
 # The materials drawn over people walking under them, by route: Route 32's Magnet Train bridge (its girders and deck; not
 # its pillars, which stand on the ground).
@@ -49,6 +64,9 @@ OVERHEAD = {
 }
 # Tiles the user says can't be walked on, though the map data has them walkable, by route.
 USER_BLOCKED = {
+    'route35': [(14, 56), (17, 53), (21, 43), (11, 29), (10, 21), (6, 51)],
+    'route30': [(13, 86)],
+    'route34': [(10, 20)],
     'route32': [
         (21, 44),
         (6, 74),
@@ -67,13 +85,28 @@ USER_GRASS = {
 USER_NOT_GRASS = {
     'route32': [(8, 105), (8, 106), (8, 107)],
 }
+# Tiles the user says can be walked on, though the map data has them blocked, by route: rectangles (left, top, right, bottom).
+USER_OPEN = {
+    'route35': [(4, 60, 9, 63)],
+}
+# The user's entrances, in place of the generator's.
+USER_ENTRANCES = {
+    'route35': (6, 63),
+}
 # The user's exits: where the player walks after the last spot before fading into the gym (Route 32's Union Cave mouth).
 USER_EXITS = {
     'route32': (14, 143),
+    'route35': (26, 0),
+}
+# The user's spots whose figures stand another way (`spotFlows`): by encounter number (from 1), the way the encounters go
+# there (Route 35's 3rd, 6th and 9th: 'right', 'left' and 'right', the way the walk goes on, their figures above and below them).
+USER_SPOT_FLOWS = {
+    'route35': {3: 'right', 6: 'left', 9: 'right'},
 }
 # The user's spots on the real routes, in place of the generator's: by encounter number (from 1).
 USER_SPOTS = {
     'route32': {5: (5, 74)},
+    'route35': {1: (6, 57), 2: (7, 51), 3: (17, 49), 4: (22, 43), 5: (22, 35), 6: (17, 31), 7: (10, 29), 8: (11, 21), 9: (16, 12), 10: (26, 11)},
 }
 STEP = {'left': (-1, 0), 'right': (1, 0), 'up': (0, -1), 'down': (0, 1)}
 HEAD = """// The Johto gym runs' maps, from HeartGold/SoulSilver (the pret/pokeheartgold decompilation; tools/routes/hgss/): its
@@ -135,6 +168,7 @@ def pick(name, rows, edge, flow, image, preview):
     cands = [t for t in best if rows[t[1]][t[0]] == '.']
     far = max(toward(t) for t in cands)
     ent = min((t for t in cands if toward(t) == far), key=lambda t: abs(t[0] - w / 2) + abs(t[1] - h / 2))
+    ent = USER_ENTRANCES.get(name, ent)
     prev = bfs(rows, ent)
     dx, dy = STEP[flow]
     end = max(prev, key=lambda t: (t[0] * dx + t[1] * dy, -abs(t[0] - w / 2) - abs(t[1] - h / 2)))
@@ -162,19 +196,21 @@ def pick(name, rows, edge, flow, image, preview):
     im.save(preview)
     # An entrance on the map's very edge moves a tile in from it, as the Kanto routes' do.
     ex, ey = ent
-    if ey in (0, h - 1) or ex in (0, w - 1):
+    if name not in USER_ENTRANCES and (ey in (0, h - 1) or ex in (0, w - 1)):
         ddx, ddy = (0, -1) if ey == h - 1 else (0, 1) if ey == 0 else (-1, 0) if ex == w - 1 else (1, 0)
         if rows[ey + ddy][ex + ddx] == '.':
             ex, ey = ex + ddx, ey + ddy
     return rows, (ex, ey), spots
 
 
-def route_ts(doc, const, fields, name, image, w, h, spots, rows, grass=None):
+def route_ts(doc, const, fields, name, image, w, h, spots, rows, grass=None, ice=None):
     spots_ = '\n'.join(f'    {{ x: {x}, y: {y} }},' for x, y in spots)
     walk = '\n'.join(f"    '{r}'," for r in rows)
     # The tall grass, on a map with any.
     grass_ = ''.join(f"\n    '{r}'," for r in grass) if grass and any('g' in r for r in grass) else ''
     grass_ = f'\n  grass: [{grass_}\n  ],' if grass_ else ''
+    # The ice, on a map with any.
+    grass_ += ('\n  ice: [' + ''.join(f"\n    '{r}'," for r in ice) + '\n  ],') if ice and any('i' in r for r in ice) else ''
     return f"""
 {doc}
 export const {const}: Route = {{
@@ -211,6 +247,9 @@ def main():
         j = json.load(open(prefix + '.json'))
         for x, y in USER_BLOCKED.get(name, []):
             j['rows'][y] = j['rows'][y][:x] + '#' + j['rows'][y][x + 1:]
+        for left, top, right, bottom in USER_OPEN.get(name, []):
+            for y in range(top, bottom + 1):
+                j['rows'][y] = j['rows'][y][:left] + '.' * (right - left + 1) + j['rows'][y][right + 1:]
         for x, y in USER_GRASS.get(name, []):
             j['grass'][y] = j['grass'][y][:x] + 'g' + j['grass'][y][x + 1:]
         for x, y in USER_NOT_GRASS.get(name, []):
@@ -222,16 +261,21 @@ def main():
             x, y = USER_EXITS[name]
             assert rows[y][x] == '.', (name, 'user exit not walkable')
             fields += f'\n  exit: {{ x: {x}, y: {y} }},'
+        if name in USER_SPOT_FLOWS:
+            fields += '\n  spotFlows: { ' + ', '.join(f"{n - 1}: '{f}'" for n, f in USER_SPOT_FLOWS[name].items()) + ' },'
         if overhead:
             shutil.copy(prefix + '-overhead.png', os.path.join(PUBLIC, name + '_overhead.png'))
             fields += f"\n  overhead: '/routes/{name}_overhead.png',"
-        users = ''.join(f', spot {n} at {x},{y}' for n, (x, y) in USER_SPOTS.get(name, {}).items())
+        users = f', entrance at {USER_ENTRANCES[name][0]},{USER_ENTRANCES[name][1]}' if name in USER_ENTRANCES else ''
+        users += ''.join(f', spot {n} at {x},{y}' for n, (x, y) in USER_SPOTS.get(name, {}).items())
         blocked = USER_BLOCKED.get(name, [])
         users += f", {' '.join(f'{x},{y}' for x, y in blocked)} not walkable" if blocked else ''
+        users += ''.join(f', {l}-{r},{t}-{b} walkable' for l, t, r, b in USER_OPEN.get(name, []))
         grassy = USER_GRASS.get(name, [])
         users += f", {' '.join(f'{x},{y}' for x, y in grassy)} tall grass" if grassy else ''
         bare = USER_NOT_GRASS.get(name, [])
         users += f", {' '.join(f'{x},{y}' for x, y in bare)} not grass" if bare else ''
+        users += ''.join(f", spot {n}'s figures {'above and below' if f in ('left', 'right') else 'left and right of'} it" for n, f in USER_SPOT_FLOWS.get(name, {}).items())
         users += f', leaving by {USER_EXITS[name][0]},{USER_EXITS[name][1]} for the gym' if name in USER_EXITS else ''
         users = f' (the user\'s{users[1:]})' if users else ''
         out.append(route_ts(f'/** {title}: {what}. Spots along the walk from the {start}, picked by the generator{users}. */', const, fields, title, name + '.png', len(rows[0]), len(rows), spots, rows, j.get('grass')))
@@ -247,7 +291,7 @@ def main():
             lines.append(f"  exit: {{ x: {j['exit'][0]}, y: {j['exit'][1]} }},")
         if j['links']:
             lines.append('  links: [' + ', '.join(f'[{{ x: {p[0]}, y: {p[1]} }}, {{ x: {q[0]}, y: {q[1]} }}]' for p, q in j['links']) + '],')
-        out.append(route_ts(f'/**\n{doc}\n */', const, '\n'.join(lines) + extra, title, name + '.png', j['width'], j['height'], j['spots'], j['rows']))
+        out.append(route_ts(f'/**\n{doc}\n */', const, '\n'.join(lines) + extra, title, name + '.png', j['width'], j['height'], j['spots'], j['rows'], ice=j.get('ice')))
     open(OUT, 'w', encoding='utf-8', newline='\n').write(HEAD + ''.join(out))
     print('wrote', OUT, 'renders in', work)
 
