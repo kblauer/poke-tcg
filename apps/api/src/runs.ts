@@ -212,14 +212,14 @@ export async function abandonBattle(gameId: string) {
  * If the run's battle has finished, records the result (a win, or a loss and 1 HP), and whether the player conceded
  * it (a CONCEDE of theirs in its action rows): a conceded battle isn't a completed one (battlesCompleted).
  */
-export async function settleBattle(run: LoadedRun): Promise<LoadedRun> {
+export async function settleBattle(run: LoadedRun, skipped = false): Promise<LoadedRun> {
   const gameId = currentGameId(run.state);
   if (!gameId) return run;
   const game = await prisma.game.findUnique({ where: { id: gameId }, select: { status: true, winner: true } });
   if (!game || game.status !== 'FINISHED') return run;
   const conceded = (await prisma.gameAction.count({ where: { gameId, playerId: HUMAN_ID, action: { path: ['type'], equals: 'CONCEDE' } } })) > 0;
   try {
-    return await advanceRun(run, [{ type: 'BATTLE_OVER', gameId, won: game.winner === HUMAN_ID, ...(conceded && { conceded }) }]);
+    return await advanceRun(run, [{ type: 'BATTLE_OVER', gameId, won: game.winner === HUMAN_ID, ...(conceded && { conceded }), ...(skipped && { skipped }) }]);
   } catch (error) {
     // Settled by another request first: reload.
     if (error instanceof TRPCError && error.code === 'CONFLICT') return loaded((await prisma.run.findUniqueOrThrow({ where: { id: run.id } })));

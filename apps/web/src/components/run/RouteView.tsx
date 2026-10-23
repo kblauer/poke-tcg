@@ -3,7 +3,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
-import { flowAt, inGrass, isBattleKind, isBossKind, onPath, onWater, routePath, type BossId, type EncounterKind, type MapEncounter, type Route, type RouteSpot } from '@poke-tcg/campaign';
+import { flowAt, inGrass, isBattleKind, isBossKind, onIce, onPath, onWater, routePath, type BossId, type EncounterKind, type MapEncounter, type Route, type RouteSpot } from '@poke-tcg/campaign';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import type { RunViewData } from '../../hooks/useRun';
@@ -220,7 +220,7 @@ function walkableAreas(route: Route): number[][] {
 
 /**
  * Debug (the Show tiles button, debug builds only; also the entrance, IN, and exit, OUT, dashed): a grid over the map with every tile's x,y (hovering one tells its
- * walkable area: tiles joined 4 ways; a walk can't cross between areas), the tiles that can't be walked on red, and each spot outlined with its number,
+ * walkable area: tiles joined 4 ways; a walk can't cross between areas), the tiles that can't be walked on red, tall grass green, ice cyan, and on a surfed route water a faint blue and land a faint tan (where the player surfs or walks), and each spot outlined with its number,
  * to tell where walking connections should be.
  */
 function TileOverlay({ route }: { route: Route }) {
@@ -231,7 +231,7 @@ function TileOverlay({ route }: { route: Route }) {
         row.map((area, x) => (
           <div
             key={`${x},${y}`}
-            title={`${x},${y}${area ? ` · walkable area ${area}` : ' · not walkable'}`}
+            title={`${x},${y}${area ? ` · walkable area ${area}` : ' · not walkable'}${inGrass(route, { x, y }) ? ' · tall grass' : ''}${onIce(route, { x, y }) ? ' · ice' : ''}${area && route.travel === 'surf' ? (onWater(route, { x, y }) ? ' · water' : ' · land') : ''}`}
             className="absolute flex items-center justify-center font-mono leading-none"
             style={{
               left: x * 16,
@@ -240,7 +240,7 @@ function TileOverlay({ route }: { route: Route }) {
               height: 16,
               fontSize: 4.5,
               boxShadow: 'inset 0 0 0 0.25px rgba(15,23,42,0.6)',
-              background: area ? undefined : 'rgba(220,38,38,0.4)',
+              background: !area ? 'rgba(220,38,38,0.4)' : inGrass(route, { x, y }) ? 'rgba(34,197,94,0.4)' : onIce(route, { x, y }) ? 'rgba(34,211,238,0.3)' : route.travel !== 'surf' ? undefined : onWater(route, { x, y }) ? 'rgba(59,130,246,0.2)' : 'rgba(210,180,140,0.3)',
               color: '#0f172a',
             }}
           >
@@ -625,8 +625,10 @@ export function RouteView({ routes, gym, view, spotted }: { routes: Route[]; gym
   const target = sections[targetSection]!;
   const targetSpot = target.map.spots[Math.min(position - target.first, target.map.spots.length - 1)]!;
 
-  // The player: the map he's on (its section), where he stands (or is walking through), which way he's going, and whether he's faded out.
-  const [walker, setWalker] = useState<{ section: number; tile: RouteSpot; face: Facing; walking: boolean; hidden: boolean }>({
+  // The player: the map he's on (its section), where he stands (or is walking through), which way he's going, whether he's
+  // faded out, whether he's under a bridge (a track's: the map's overhead drawn over him only then), and whether he's
+  // sliding across ice.
+  const [walker, setWalker] = useState<{ section: number; tile: RouteSpot; face: Facing; walking: boolean; hidden: boolean; under?: boolean; sliding?: boolean }>({
     section: targetSection,
     // At the run's start (nothing chosen yet) he starts at the map's entrance and walks in (the walk effect, on mount).
     // Back from the first encounter (its battle's game, still step 0 while its reward is chosen) he's already there.
@@ -751,7 +753,7 @@ export function RouteView({ routes, gym, view, spotted }: { routes: Route[]; gym
     let start = from;
     /** Walks a path on a map from `begin`, step by step (through a link, fading out and in), from `t` on. */
     const walk = (on: Route, onSection: number, path: NonNullable<ReturnType<typeof routePath>>, begin: RouteSpot) => {
-      path.forEach(({ tile, fade }, i) => {
+      path.forEach(({ tile, fade, under, slide }, i) => {
         const face = facing(i ? path[i - 1]!.tile : begin, tile);
         if (fade) {
           later(t, () => setWalker((w) => ({ ...w, walking: false, hidden: true })));
@@ -764,14 +766,15 @@ export function RouteView({ routes, gym, view, spotted }: { routes: Route[]; gym
           t += ms.fade * 2 + ms.through;
         } else {
           later(t, () => {
-            setWalker({ section: onSection, tile, face, walking: true, hidden: false });
+            // Across ice: on the move, facing the way he goes, held mid-step, legs out (his walk cycle's first frame), as in the games.
+            setWalker({ section: onSection, tile, face, walking: true, hidden: false, under, sliding: slide });
             setGlide({ ms: ms.step / stepPace(on, tile), ease: 'linear' });
             setOffset(centreOnMap(on, tile));
           });
           t += ms.step / stepPace(on, tile);
         }
       });
-      later(t, () => setWalker((w) => ({ ...w, walking: false })));
+      later(t, () => setWalker((w) => ({ ...w, walking: false, sliding: false })));
     };
     // Into another map: walk to this one's exit (going on to the next), fade out, appear at the next one's door with the
     // view on it, fade in, then walk on from there.
@@ -803,7 +806,8 @@ export function RouteView({ routes, gym, view, spotted }: { routes: Route[]; gym
     const lineOfSight =
       there.length < 2 ? undefined : there.every((p) => p.tile.y === there[0]!.tile.y) ? 'row' : there.every((p) => p.tile.x === there[0]!.tile.x) ? 'column' : undefined;
     const path = start.x === to.x && start.y === to.y ? [] : (routePath(map, start, to, others, lineOfSight) ?? routePath(map, start, to, new Set(), lineOfSight));
-    if (path && path.length <= MAX_WALK) {
+    // A track is walked however long it is (the gym's one way through).
+    if (path && (path.length <= MAX_WALK || map.track)) {
       walk(map, targetSection, path, start);
     } else {
       later(t, () => setWalker((w) => ({ ...w, walking: false, hidden: true })));
@@ -928,15 +932,16 @@ export function RouteView({ routes, gym, view, spotted }: { routes: Route[]; gym
               bob={stillBob && bobbing}
               tile={walker.tile}
               face={redFace}
-              walkTick={walker.walking ? tick : undefined}
+              walkTick={walker.walking ? (walker.sliding ? 0 : tick) : undefined}
               moveMs={walker.walking ? ms.step / stepPace(shown, walker.tile) : 0}
               fadeMs={ms.fade}
               hidden={walker.hidden}
               grass={inGrass(shown, walker.tile)}
               title="You"
             />
-            {/* What's over the people walking under it (a bridge): above every sprite (zIndex: their row), below the bubbles and "!". */}
-            {shown.overhead && <img src={shown.overhead} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full select-none [image-rendering:pixelated]" style={{ zIndex: 899 }} />}
+            {/* What's over the people walking under it (a bridge): above every sprite (zIndex: their row), below the bubbles and "!";
+                on a track (walked over the bridge too), only while the player is under it. */}
+            {shown.overhead && (!shown.track || walker.under) && <img src={shown.overhead} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full select-none [image-rendering:pixelated]" style={{ zIndex: 899 }} />}
             {spottedFigure && <Exclamation tile={spottedFigure.tile} />}
             {DEBUG_BUILD && debug && showTiles && <TileOverlay route={shown} />}
           </div>
