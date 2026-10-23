@@ -28,7 +28,7 @@ import { Hand } from './Hand';
 import { LogSheet } from './LogDrawer';
 import { OpponentArea, OpponentSlot, type Spotlight } from './OpponentArea';
 import { PendingChoicePanel } from './PendingChoicePanel';
-import { PhonePiles, PhonePrizes } from './phone/PhonePiles';
+import { PhoneOppHand, PhonePiles, PhonePrizes } from './phone/PhonePiles';
 import { PhoneTable } from './phone/PhoneTable';
 import { PlayArea } from './PlayArea';
 import { Playmat } from './Playmat';
@@ -82,7 +82,6 @@ export function Board({
   gameId,
   runTab,
   overlay,
-  info,
 }: {
   view: PlayerView;
   /** The move that led to `view`, if it just happened (for its animation). */
@@ -103,8 +102,6 @@ export function Board({
   runTab?: ReactNode;
   /** Shown over the play area, centred on it: the coin flips (CoinFlip). */
   overlay?: ReactNode;
-  /** Who you're up against and the battle's rules: the phone layout's top line (GamePage shows them itself otherwise). */
-  info?: ReactNode;
 }) {
   const debugEnabled = useDebugEnabled();
   // The player's playmat, behind their side of the table (the Cosmetics tab).
@@ -132,7 +129,8 @@ export function Board({
       {/* The turn-order coin flip as a battle starts: the game's coin flip, in the same place. */}
       <TurnOrderFlip key={gameId} view={view} gameId={gameId} />
       {phone && playedCard()}
-      {newTurn && <TurnBanner key={newTurn.turn} turn={newTurn} />}
+      {/* On a phone it's in the bar between the sides instead, lined up with its buttons. */}
+      {newTurn && !phone && <TurnBanner key={newTurn.turn} turn={newTurn} />}
     </>
   );
   const { self, phase } = view;
@@ -585,29 +583,27 @@ export function Board({
             )}
             <PlayArea droppable={draggingTrainer && !busy} drop={dragging && heldCard ? { over: dropTarget !== null } : null} overlay={tableOverlay} cards="phone-cards h-full">
               <PhoneTable
-                top={
-                  <div className="flex h-4 shrink-0 items-center justify-between gap-2 text-[11px] leading-4 text-slate-400">
-                    <span className="min-w-0 truncate">{info}</span>
-                    {opponent.hand ? (
-                      <button data-keep-action className="shrink-0 underline" onClick={() => setCpuHand(true)}>
-                        CPU · hand {opponent.handCount} (face up)
-                      </button>
-                    ) : (
-                      <span className="shrink-0">CPU · hand {opponent.handCount}</span>
-                    )}
-                  </div>
-                }
+                // The CPU's hand behind its side (no line of who it is and its hand count; agreed), face up while Clairvoyance works.
+                oppHand={<PhoneOppHand count={opponent.handCount} faceUp={opponent.hand && { hand: opponent.hand, cards: view.cards }} onOpen={() => setCpuHand(true)} />}
                 opponent={{
                   bench: opponent.bench.map((p, i) => <OpponentSlot key={i} id={`cpu-bench-${i}`} target={i} pokemon={p} cards={view.cards} pick={oppPick} drop={oppDrop} lunge={oppLunge} spotlight={oppSpot} />),
                   active: <OpponentSlot id="cpu-active" target="active" pokemon={opponent.active} cards={view.cards} large pick={oppPick} drop={oppDrop} lunge={oppLunge} spotlight={oppSpot} />,
-                  prizes: <PhonePrizes count={opponent.prizeCount} owner="The CPU's" faceUp={opponent.prizes && { prizes: opponent.prizes, cards: view.cards }} />,
-                  piles: <PhonePiles deckCount={opponent.deckCount} discard={opponent.discard} cards={view.cards} owner="The CPU's" />,
+                  piles: (
+                    <PhonePiles
+                      deckCount={opponent.deckCount}
+                      discard={opponent.discard}
+                      cards={view.cards}
+                      owner="The CPU's"
+                      prizes={<PhonePrizes count={opponent.prizeCount} owner="The CPU's" faceUp={opponent.prizes && { prizes: opponent.prizes, cards: view.cards }} />}
+                    />
+                  ),
                 }}
                 bar={
                   <div className="relative flex min-h-14 shrink-0 items-center gap-2">
+                    {/* Over the turn banner, which passes behind it. */}
                     <button
                       data-keep-action
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800 text-slate-200 ring-1 ring-slate-600 transition active:scale-95"
+                      className="relative z-[960] flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800 text-slate-200 ring-1 ring-slate-600 transition active:scale-95"
                       aria-label="Menu: game log, run and Concede"
                       onClick={() => setMenu(true)}
                     >
@@ -627,6 +623,7 @@ export function Board({
                     ) : (
                       statusBar(true)
                     )}
+                    {newTurn && <TurnBanner key={newTurn.turn} turn={newTurn} inBar />}
                     {self.peek && (
                       <div className="absolute bottom-full left-0 z-10 mb-1 [--card-sm:var(--card-pile)]">
                         <PeekCard view={view} />
@@ -637,8 +634,15 @@ export function Board({
                 self={{
                   bench: self.bench.map((p, i) => playerSlot(benchSlotId(i), p)),
                   active: playerSlot('active', self.active),
-                  prizes: <PhonePrizes count={self.prizeCount} owner="Your" faceUp={self.prizes && { prizes: self.prizes, cards: view.cards }} />,
-                  piles: <PhonePiles deckCount={self.deckCount} discard={self.discard} cards={view.cards} owner="Your" />,
+                  piles: (
+                    <PhonePiles
+                      deckCount={self.deckCount}
+                      discard={self.discard}
+                      cards={view.cards}
+                      owner="Your"
+                      prizes={<PhonePrizes count={self.prizeCount} owner="Your" faceUp={self.prizes && { prizes: self.prizes, cards: view.cards }} />}
+                    />
+                  ),
                 }}
                 dialog={oppDialog && <FloatingDialog className="relative">{oppDialog}</FloatingDialog>}
               />

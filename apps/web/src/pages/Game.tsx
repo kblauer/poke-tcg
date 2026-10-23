@@ -171,7 +171,6 @@ export function GamePage() {
             shown.phase === 'finished' && <BattleResult view={shown} opponent={data.opponent} run={data.runId !== null} />
           )
         }
-        info={<BattleInfo view={shown} opponent={data.opponent} />}
       />
       <BattleBanner view={shown} opponent={data.opponent} />
       {data.runId ? <RunBattleMusic /> : <PracticeMusic opponent={data.opponent} gameId={gameId} />}
@@ -216,7 +215,7 @@ function BattleInfo({ view, opponent }: { view: PlayerView; opponent: string | n
 
 /**
  * Who you're up against and the run's battle rules (BattleInfo), at the top of the screen while the battle lasts
- * (on a phone, the board's top line has them instead).
+ * (not on a phone, whose battle screen covers it and shows neither; agreed).
  */
 function BattleBanner({ view, opponent }: { view: PlayerView; opponent: string | null }) {
   const phone = useIsPhone();
