@@ -1,7 +1,10 @@
+import AddIcon from '@mui/icons-material/Add';
 import LockIcon from '@mui/icons-material/Lock';
+import RemoveIcon from '@mui/icons-material/Remove';
 import { RUN_TYPES, type CosmeticDef, type CosmeticKind } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useIsPhone } from '../hooks/useIsPhone';
 import { useUnlocked } from '../hooks/useUnlocked';
 import { useTRPC } from '../lib/trpc';
 import { cardBackUrl } from '../utils/cardBack';
@@ -11,6 +14,60 @@ import { CompactDeckTile, type SavedDeck } from './DeckList';
 import { Playmat } from './Playmat';
 
 const button = 'rounded bg-slate-600 px-3 py-1 text-xs font-semibold transition hover:bg-slate-500 disabled:opacity-40';
+
+/** localStorage: the Cosmetics tab's sections folded away on a phone. */
+const COLLAPSED_KEY = 'poke-tcg.cosmetics-collapsed';
+
+/** The sections folded away, remembered per browser (a convenience: storage failures just start them all open). */
+function useCollapsed() {
+  const [collapsed, setCollapsed] = useState<CosmeticKind[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? '[]') as CosmeticKind[];
+    } catch {
+      return [];
+    }
+  });
+  const toggle = (kind: CosmeticKind) =>
+    setCollapsed((c) => {
+      const next = c.includes(kind) ? c.filter((k) => k !== kind) : [...c, kind];
+      try {
+        localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next));
+      } catch {
+        // Not remembered; it still applies until the page is reloaded.
+      }
+      return next;
+    });
+  return { collapsed, toggle };
+}
+
+/**
+ * One of the tab's sections: its title and note, then its tiles. On a phone (`foldable`) a − beside the title folds the
+ * tiles away and a + brings them back (agreed).
+ */
+function Section({ title, note, folded, onFold, foldable, children }: { title: string; note: ReactNode; folded: boolean; onFold: () => void; foldable: boolean; children: ReactNode }) {
+  return (
+    <section className="space-y-2">
+      <div className="flex flex-wrap items-baseline gap-x-3">
+        <h2 className="flex items-center gap-2 text-lg font-semibold">
+          {title}
+          {foldable && (
+            <button
+              className="flex rounded bg-slate-700 p-0.5 text-slate-200 ring-1 ring-slate-600 transition hover:bg-slate-600 active:scale-95"
+              onClick={onFold}
+              aria-expanded={!folded}
+              aria-label={`${folded ? 'Show' : 'Hide'} ${title.toLowerCase()}`}
+              title={folded ? 'Show' : 'Hide'}
+            >
+              {folded ? <AddIcon sx={{ fontSize: 16 }} /> : <RemoveIcon sx={{ fontSize: 16 }} />}
+            </button>
+          )}
+        </h2>
+        <p className="text-xs text-slate-500">{note}</p>
+      </div>
+      {!(foldable && folded) && children}
+    </section>
+  );
+}
 
 /** How a cosmetic the account doesn't have is had: its price, or the run to beat. */
 function howToGet(def: CosmeticDef): string {
@@ -39,6 +96,10 @@ export function CosmeticsPanel() {
   };
   const buy = useMutation(trpc.cosmetics.buy.mutationOptions({ onSuccess: refresh }));
   const assign = useMutation(trpc.cosmetics.assign.mutationOptions({ onSuccess: refresh }));
+  // On a phone each section folds away (its − and +).
+  const phone = useIsPhone();
+  const { collapsed, toggle } = useCollapsed();
+  const section = (kind: CosmeticKind) => ({ foldable: phone, folded: collapsed.includes(kind), onFold: () => toggle(kind) });
   if (!list.data) return null;
   const { cosmetics, bank } = list.data;
   const busy = buy.isPending || assign.isPending;
@@ -72,22 +133,15 @@ export function CosmeticsPanel() {
   return (
     <div className="space-y-6">
       {error && <p className="text-sm text-red-400">{error.message}</p>}
-      <section className="space-y-2">
-        <div className="flex flex-wrap items-baseline gap-x-3">
-          <h2 className="text-lg font-semibold">Card backs</h2>
-          <p className="text-xs text-slate-500">Your own face-down cards: your deck and Prize cards, and (the default) the packs you open. Bank: ₱{bank}</p>
-        </div>
-        <ul className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3">
+      <Section {...section('cardBack')} title="Card backs" note={<>Your own face-down cards: your deck and Prize cards, and (the default) the packs you open. Bank: ₱{bank}</>}>
+        {/* On a phone, 3 to a row (agreed). */}
+        <ul className={phone ? 'grid grid-cols-3 gap-2' : 'grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3'}>
           {of('cardBack').map((def) =>
-            tile(def, <img src={cardBackUrl(def.id)} alt="" loading="lazy" draggable={false} className={`mx-auto aspect-[63/88] w-28 rounded-md object-cover shadow-md shadow-black/60 ${def.owned ? '' : 'opacity-50 grayscale'}`} />),
+            tile(def, <img src={cardBackUrl(def.id)} alt="" loading="lazy" draggable={false} className={`mx-auto aspect-[63/88] w-full max-w-28 rounded-md object-cover shadow-md shadow-black/60 ${def.owned ? '' : 'opacity-50 grayscale'}`} />),
           )}
         </ul>
-      </section>
-      <section className="space-y-2">
-        <div className="flex flex-wrap items-baseline gap-x-3">
-          <h2 className="text-lg font-semibold">Playmats</h2>
-          <p className="text-xs text-slate-500">Your side of the table in battles. Click a preview to try it.</p>
-        </div>
+      </Section>
+      <Section {...section('playmat')} title="Playmats" note="Your side of the table in battles. Click a preview to try it.">
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-3">
           {of('playmat').map((def) =>
             tile(
@@ -98,16 +152,12 @@ export function CosmeticsPanel() {
             ),
           )}
         </ul>
-      </section>
-      <section className="space-y-2">
-        <div className="flex flex-wrap items-baseline gap-x-3">
-          <h2 className="text-lg font-semibold">Coins</h2>
-          <p className="text-xs text-slate-500">Tossed for every coin flip in battles. Click a coin to flip it.</p>
-        </div>
+      </Section>
+      <Section {...section('coin')} title="Coins" note="Tossed for every coin flip in battles. Click a coin to flip it.">
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3">
           {of('coin').map((def) => tile(def, <CoinPreview id={def.id} dim={!def.owned} />))}
         </ul>
-      </section>
+      </Section>
     </div>
   );
 }

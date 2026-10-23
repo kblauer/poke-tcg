@@ -116,7 +116,7 @@ export function useTurnReminders(reminders: EndTurnReminder[], active: boolean):
  * `setup`: while placing Pokémon before the battle, the
  * Reset cards (take them all back) and Start battle buttons. `endTurn`: what End turn does, through useTurnReminders'
  * `check` (which asks first while the player could still attach Energy, use the Stadium or a Pokémon Power). `compact` (the phone layout): one row, the
- * text (up to two lines) on the left and the buttons, smaller, on the right, where the thumb is.
+ * text (up to two lines) centred on the screen, between the two Active Pokémon, and the buttons, smaller, on the right, where the thumb is.
  */
 export function StatusBar({
   status,
@@ -143,14 +143,19 @@ export function StatusBar({
     <div className={compact ? 'flex min-w-0 flex-1 items-center gap-2' : 'flex shrink-0 flex-col items-center gap-1 text-center'}>
       {/* One line, so a longer message never pushes the button down (two beside the buttons on a phone). */}
       {compact ? (
-        <p className="line-clamp-2 min-w-0 flex-1 text-xs font-semibold leading-4">{status}</p>
+        // Centred on the screen, in line with the Active Pokémon above and below it (the bar is its containing block; agreed),
+        // with room left beside it for the Stadium and the buttons.
+        <>
+          <p className="pointer-events-none absolute left-1/2 top-1/2 line-clamp-2 w-[38%] -translate-x-1/2 -translate-y-1/2 text-center text-xs font-semibold leading-4">{status}</p>
+          <span className="flex-1" />
+        </>
       ) : (
         <p className="h-5 max-w-full truncate px-2 text-sm font-semibold leading-5">{status}</p>
       )}
       <div className={`flex h-10 items-center justify-center ${compact ? 'shrink-0 gap-2' : ''}`}>
         {setup && (
-          // Start battle in the middle, where End turn goes; Reset cards hangs off its left (beside it, on a phone).
-          <span className={compact ? 'flex items-center gap-2' : 'relative'}>
+          // Start battle in the middle, where End turn goes; Reset cards hangs off its left (on a phone, after it: agreed).
+          <span className={compact ? 'flex flex-row-reverse items-center gap-2' : 'relative'}>
             <button
               className={`${compact ? smallButton : `${button} absolute right-full top-1/2 mr-3 -translate-y-1/2`} whitespace-nowrap disabled:opacity-40`}
               disabled={busy || !setup.canReset}

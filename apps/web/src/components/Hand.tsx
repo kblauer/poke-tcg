@@ -13,9 +13,9 @@ export const HAND_ZONE = 'hand';
 /** Hand card width (rem); cards are 63:88. Smaller on the phone layout (`compact`). */
 const CARD_REM = 7;
 const COMPACT_REM = 4.25;
-/** How much of a card's height shows while it rests at the bottom of the screen: on a phone, half (agreed). */
+/** How much of a card's height shows while it rests at the bottom of the screen: on a phone, 70% (agreed). */
 const VISIBLE = 0.70;
-const COMPACT_VISIBLE = 0.5;
+const COMPACT_VISIBLE = 0.7;
 /** On a phone a touched (or selected) card comes up whole and grows by this much, from its bottom edge. */
 const COMPACT_ZOOM = 1.5;
 /** A hovered card grows by this much, from its bottom edge. On a phone nothing is hovered: a finger held on a card zooms in on it instead (above the hand). */

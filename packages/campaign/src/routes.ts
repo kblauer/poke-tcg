@@ -117,7 +117,7 @@ export interface Route {
  * the open (spots 1, 2, 9 and 10 on the main road, the others on the east strip; spots 2 to 5 and 9 from the user). Walkable as the map data has it, and
  * (from the user) the cut-tree and item ball tiles (15,69, 16,62, 11,13, 18,26; 17,54, 17,64) and the east gatehouse's
  * doors, south (18,46 and 19,46) and north (18,41 and 19,41), which link through it: every spot can be walked to from the
- * one before, the gatehouse (spots 4 to 5) the only fade.
+ * one before, the gatehouse (spots 4 to 5) the only fade. The treetops 6-15,62 and 10-13,15 are unwalkable (from the user).
  */
 export const ROUTE_2: Route = {
   name: 'Route 2',
@@ -164,7 +164,7 @@ export const ROUTE_2: Route = {
     '##..........#.#.......##',
     '####.##.###.#.........##',
     '###########...........##',
-    '##########............##',
+    '##############........##',
     '##############........##',
     '##############........##',
     '##############........##',
@@ -211,7 +211,7 @@ export const ROUTE_2: Route = {
     '##............##......##',
     '##............##......##',
     '##............##......##',
-    '##....................##',
+    '##....##########......##',
     '##....##########......##',
     '##....##########......##',
     '##....##########......##',

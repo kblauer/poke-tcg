@@ -8,6 +8,7 @@ import {
   Link,
   Outlet,
   RouterProvider,
+  useRouterState,
 } from '@tanstack/react-router';
 import { StrictMode, useCallback, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -53,6 +54,8 @@ function loadRail(): boolean {
 function RootLayout() {
   const session = useSession();
   const phone = useIsPhone();
+  // A battle: on a phone its screen covers the top bar, which mustn't stick over it.
+  const inBattle = useRouterState({ select: (s) => s.location.pathname.startsWith('/game/') });
   /** The big screen's menu shows the pages' names (NavRail's `open`); remembered. */
   const [rail, setRail] = useState(loadRail);
   /** The phone's ☰ panel is open. */
@@ -89,7 +92,7 @@ function RootLayout() {
     // padding (PAGE_WIDTH).
     <div>
       <header
-        className={`${phone ? '' : 'sticky top-0 z-[820]'} flex h-14 items-center justify-between gap-2 whitespace-nowrap border-b border-slate-800 bg-slate-900 px-2 shadow-md shadow-black/30 sm:px-3`}
+        className={`${phone && inBattle ? '' : 'sticky top-0 z-[820]'} flex h-14 items-center justify-between gap-2 whitespace-nowrap border-b border-slate-800 bg-slate-900 px-2 shadow-md shadow-black/30 sm:px-3`}
       >
         <div className="flex min-w-0 items-center gap-2">
           {session && (

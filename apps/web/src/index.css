@@ -38,16 +38,21 @@
 /*
  * The phone board (components/phone/PhoneTable.tsx) stacks both sides in one column, TCG Pocket style: per side a
  * bench row and an active row, plus the bar between them. Its width fits five benched Pokémon; its height two
- * benches (1.4 card widths tall each) and two actives at least 1.7× as big, plus 3.5rem of lines and gaps and the bar
- * between the sides: 3.5rem, or the Stadium's height (1.126 card widths) when that's more. It's kept free even with no
- * Stadium in play, so playing one never pushes your Bench under the hand. Tall phones (19.5:9, 2340×1080) have height
- * to spare, so the actives grow into what the benches and bars leave, up to 2.1×.
+ * benches (1.4 card widths tall each) and two actives, both the same size (agreed), at least 1.36× as big, plus 2.25rem
+ * of gaps, the strip at the top for the CPU's hand (half a card width and a 0.75rem gap), 1.25rem above the hand and
+ * 0.5rem more above your Bench, and the bar between the sides: 3.5rem, or the Stadium's height (1.126 card widths) when
+ * that's more. It's kept free even with no Stadium in play, so playing one never pushes your Bench under the hand. Tall
+ * phones (19.5:9, 2340×1080) have height to spare, so the actives grow into what the benches and bars leave, up to 1.68×.
  * --card-pile is the Prize, deck and discard stacks beside the actives.
  */
 .phone-cards {
-  --card-sm: max(2.5rem, min(calc((100cqw - 2.5rem) / 5.4), calc((100cqh - 7rem) / 7.55), calc((100cqh - 3.5rem) / 8.67)));
-  --card-lg: max(calc(var(--card-sm) * 1.7), min(calc(var(--card-sm) * 2.1), calc((100cqh - 3.5rem - max(3.5rem, 1.126 * var(--card-sm)) - 2.794 * var(--card-sm)) / 2.794)));
+  --card-sm: max(2.5rem, min(calc((100cqw - 2.5rem) / 5.4), calc((100cqh - 8.25rem) / 7.09), calc((100cqh - 4.75rem) / 8.22)));
+  --card-lg: max(calc(var(--card-sm) * 1.36), min(calc(var(--card-sm) * 1.68), calc((100cqh - 4.75rem - max(3.5rem, 1.126 * var(--card-sm)) - 3.294 * var(--card-sm)) / 2.794)));
   --card-pile: calc(var(--card-sm) * 0.62);
+  /* The CPU's hand's cards, in the strip above its Bench (PhoneOppHand). */
+  --card-opp-hand: calc(var(--card-sm) * 0.8);
+  /* The strip at the top kept for the CPU's hand: the 45% of its cards below the top edge (half a card width), and a gap before its Bench. */
+  --opp-hand-strip: calc(var(--card-opp-hand) * 1.397 * 0.45 + 0.75rem);
 }
 
 /* Side panels (components/SidePanel.tsx) slide in from their edge. */
@@ -252,7 +257,7 @@
   .playing-bars span { animation: none; transform: scaleY(0.6); }
 }
 
-/* The phone top bar's exact number under a tapped figure (TopBarStats): it shows, then fades away. */
+/* The phone top bar's exact number under a tapped figure (TopBarStats), and the CPU's hand count (PhoneOppHand): it shows, then fades away. */
 @keyframes exact-fade {
   0%, 65% { opacity: 1; }
   100% { opacity: 0; }

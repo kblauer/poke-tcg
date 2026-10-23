@@ -2,6 +2,7 @@ import type { LogEntry, PlayerId } from '@poke-tcg/game-engine';
 import { DEFAULT_COSMETIC } from '@poke-tcg/campaign';
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useCosmetics } from '../hooks/useCosmetics';
+import { useIsPhone } from '../hooks/useIsPhone';
 import { DEBUG_BUILD } from '../utils/debug';
 import { COIN_DESIGNS } from './coinDesigns';
 
@@ -78,6 +79,8 @@ export function CoinFlip({
     };
   }, [current?.n]);
 
+  // 30% smaller on a phone (agreed).
+  const size = useIsPhone() ? 'sm' : 'md';
   // Beside the Active Pokémon of the side the flip comes from (yours, or with none the player's; the CPU's mirrored).
   const side = current && current.player !== null && current.player !== you ? 'opponent' : 'self';
   const overlay = useRef<HTMLDivElement>(null);
@@ -93,7 +96,7 @@ export function CoinFlip({
     observer.observe(area);
     observer.observe(box);
     return () => observer.disconnect();
-  }, [side, current?.n]);
+  }, [side, size, current?.n]);
 
   if (!current) return null;
   const who = current.player === null ? '' : current.player === you ? 'You: ' : 'CPU: ';
@@ -106,7 +109,7 @@ export function CoinFlip({
         <SpinningCoin
           key={current.n}
           heads={current.heads}
-          size="md"
+          size={size}
           // Once it has landed, the result just above it (in the room its flight used).
           label={<p className={`text-2xl font-black drop-shadow-[0_2px_3px_rgba(0,0,0,0.8)] transition-opacity ${landed ? 'opacity-100' : 'opacity-0'} ${current.heads ? 'text-yellow-300' : 'text-slate-100'}`}>{current.heads ? 'Heads!' : 'Tails!'}</p>}
         />
@@ -127,10 +130,22 @@ const GAP = 36;
  * Where the coin flip's window goes in the play area (`area`): on the big screen's board, beside the Active Pokémon of
  * the side it comes from (the rows marked `data-coin-anchor`), vertically centred on that row: on your side just to the
  * right of your Active Pokémon (past the Peek card when it's shown; the attacks are a panel on the card now, so no room
- * is kept for them), on the CPU's side the mirror of that, to the left of its Active Pokémon. Kept inside the play area. Null (centred) without the rows: the phone layout.
+ * is kept for them), on the CPU's side the mirror of that, to the left of its Active Pokémon. On the phone layout, the
+ * coin in the space left of that side's Active Pokémon, its bottom level with the Active's (its row's `data-coin-spot`, PhoneTable; agreed).
+ * Kept inside the play area. Null (centred) without either.
  */
 function placeBeside(area: HTMLElement, box: HTMLElement, side: 'self' | 'opponent'): { left: number; top: number } | null {
   const table = area.parentElement;
+  const fit = (n: number, room: number) => Math.max(8, Math.min(n, room - 8));
+  const spot = table?.querySelector<HTMLElement>(`[data-coin-spot="${side}"]`);
+  if (spot) {
+    const a = area.getBoundingClientRect();
+    const s = spot.getBoundingClientRect();
+    const { offsetWidth: w, offsetHeight: h } = box;
+    // The coin is the bottom of its box (the room above it is its flight's): resting on the spot's bottom, level with the
+    // Active Pokémon's (agreed).
+    return { left: fit(s.left + s.width / 2 - w / 2 - a.left, a.width - w), top: fit(s.bottom - h - a.top, a.height - h) };
+  }
   const own = table?.querySelector<HTMLElement>('[data-coin-anchor="self"]');
   const row = table?.querySelector<HTMLElement>(`[data-coin-anchor="${side}"]`);
   const active = own?.querySelector<HTMLElement>('[data-active-slot]');
@@ -144,13 +159,14 @@ function placeBeside(area: HTMLElement, box: HTMLElement, side: 'self' | 'oppone
   const { offsetWidth: w, offsetHeight: h } = box;
   const left = side === 'self' ? middle + reach - a.left : middle - reach - w - a.left;
   const top = r.top + r.height / 2 - h / 2 - a.top;
-  const fit = (n: number, room: number) => Math.max(8, Math.min(n, room - 8));
   return { left: fit(left, a.width - w), top: fit(top, a.height - h) };
 }
 
 /** Each coin size: its width (px), its letters' size, how high it's flicked (px) and how thick it is (px, its rim). */
 const COIN_SIZES = {
   md: { px: 96, text: 'text-4xl', rise: 120, depth: 8 },
+  /** The phone's: 30% smaller (agreed). */
+  sm: { px: 67, text: 'text-2xl', rise: 84, depth: 6 },
 };
 
 /** When the coin, flicked at FLICK, lands (fractions of the animation): it bounces and settles after. */
