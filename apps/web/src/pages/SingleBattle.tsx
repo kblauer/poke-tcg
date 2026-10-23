@@ -3,11 +3,9 @@ import { CPU_DIFFICULTIES, CPU_DIFFICULTY_LABELS, type CpuDifficulty } from '@po
 import { singleBattleOpponent, type SingleBattleOpponent } from '@poke-tcg/shared';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { DeckSummary, LOCKED_TAG, type SavedDeck } from '../components/DeckList';
-import { useUnlocked } from '../hooks/useUnlocked';
 import { useTRPC } from '../lib/trpc';
-import type { CatalogCard } from '../utils/cardList';
 import { PageHeader } from '../components/PageHeader';
 import { PAGE_WIDTH } from '../utils/layout';
 
@@ -59,11 +57,7 @@ const choice = (selected: boolean) =>
 export function SingleBattlePage() {
   const trpc = useTRPC();
   const navigate = useNavigate();
-  // The catalog only changes when the seed is re-run, so load it once per session.
-  const catalog = useQuery({ ...trpc.cards.list.queryOptions(), staleTime: Infinity });
   const decks = useQuery(trpc.decks.list.queryOptions());
-  const { isLocked } = useUnlocked();
-  const byId = useMemo(() => new Map((catalog.data ?? []).map((c) => [c.id, c])), [catalog.data]);
   const [prefs, setPrefs] = useState(loadPrefs);
   const set = (patch: Partial<Prefs>) => setPrefs((p) => ({ ...p, ...patch }));
   useEffect(() => {
@@ -103,14 +97,14 @@ export function SingleBattlePage() {
               </Link>
             </span>
           </div>
-          <ChosenDeck deck={deck} byId={byId} isLocked={isLocked} />
+          <ChosenDeck deck={deck} />
 
           <div className="space-y-2">
             <span className="text-sm text-slate-400">Change deck</span>
             <ul role="radiogroup" aria-label="Deck" className="grid gap-2 sm:grid-cols-2">
               {decks.data.map((d) => (
                 <li key={d.id}>
-                  <DeckChoice deck={d} selected={d.id === deckId} byId={byId} isLocked={isLocked} onPick={() => set({ deck: d.id })} />
+                  <DeckChoice deck={d} selected={d.id === deckId} onPick={() => set({ deck: d.id })} />
                 </li>
               ))}
               <li>
@@ -196,13 +190,13 @@ export function SingleBattlePage() {
 }
 
 /** The deck the next battle uses, large: its name, headline Pokémon and card split. */
-function ChosenDeck({ deck, byId, isLocked }: { deck: SavedDeck | undefined; byId: Map<string, CatalogCard>; isLocked: (card: CatalogCard) => boolean }) {
+function ChosenDeck({ deck }: { deck: SavedDeck | undefined }) {
   return (
     <div className="space-y-3 rounded-lg bg-slate-900 p-4 ring-2 ring-yellow-300">
       <p className="text-xs uppercase tracking-wide text-slate-400">Next battle</p>
       <p className="truncate text-xl font-bold text-yellow-300">{deck?.name ?? 'Test deck'}</p>
       {deck ? (
-        <DeckSummary entries={deck.cards} byId={byId} isLocked={isLocked} />
+        <DeckSummary entries={deck.cards} />
       ) : (
         <p className="text-sm text-slate-400">The fixed Base Set test deck: Charizard and Blastoise lines, and one each of a spread of Trainers to try out.</p>
       )}
@@ -214,14 +208,10 @@ function ChosenDeck({ deck, byId, isLocked }: { deck: SavedDeck | undefined; byI
 function DeckChoice({
   deck,
   selected,
-  byId,
-  isLocked,
   onPick,
 }: {
   deck: SavedDeck;
   selected: boolean;
-  byId: Map<string, CatalogCard>;
-  isLocked: (card: CatalogCard) => boolean;
   onPick: () => void;
 }) {
   const ok = deck.problems.length === 0;
@@ -237,7 +227,7 @@ function DeckChoice({
         <span className="truncate font-medium">{deck.name}</span>
         {deck.locked && LOCKED_TAG}
       </span>
-      {ok ? <DeckSummary entries={deck.cards} byId={byId} isLocked={isLocked} /> : <span className="block truncate text-xs text-amber-300">{deck.problems[0]}</span>}
+      {ok ? <DeckSummary entries={deck.cards} /> : <span className="block truncate text-xs text-amber-300">{deck.problems[0]}</span>}
     </button>
   );
 }

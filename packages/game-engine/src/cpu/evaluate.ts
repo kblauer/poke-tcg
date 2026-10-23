@@ -91,7 +91,7 @@ function handValue(state: GameState, me: PlayerState, id: PlayerId): number {
  * stage, Energy, how ready their attacks are, Special Conditions), the hands' sizes (its own by how useful the cards
  * are) and a deck that's running out. Never the order of a deck or what's in the player's hand.
  */
-export function positionScore(state: GameState, id: PlayerId): number {
+function positionScore(state: GameState, id: PlayerId): number {
   if (state.phase === 'finished') return state.winner === id ? 100_000 : -100_000;
   const me = state.players[id]!;
   const opp = state.players[opponentOf(state, id)]!;
@@ -221,7 +221,7 @@ function stadiumValue(t: Turn, after: GameState): number {
 // ---- Every way to play a card ----
 
 /** Every complete set of answers to a Trainer's questions (at most `cap`). */
-export function trainerChoiceSets(t: Turn, card: CardInstance, cap = 8): TrainerChoices[] {
+function trainerChoiceSets(t: Turn, card: CardInstance, cap = 8): TrainerChoices[] {
   const s = trainerSituation(t.state, t.me, t.opp, card);
   const out: TrainerChoices[] = [];
   const answers = (spec: TrainerChoiceSpec): unknown[] => {

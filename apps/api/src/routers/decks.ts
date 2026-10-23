@@ -161,7 +161,7 @@ export const decksRouter = router({
       await prisma.favoriteCard.deleteMany({ where: key });
       return { ok: true };
     }
-    if (!(await prisma.card.findUnique({ where: { id: input.cardId }, select: { id: true } }))) throw new TRPCError({ code: 'NOT_FOUND', message: 'No such card' });
+    if (!(await prisma.card.findUnique({ where: { id: input.cardId }, select: { id: true } }))) throw new TRPCError({ code: 'BAD_REQUEST', message: 'No such card' });
     await prisma.favoriteCard.upsert({ where: { userId_cardId: key }, create: key, update: {} });
     return { ok: true };
   }),

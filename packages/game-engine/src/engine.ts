@@ -48,11 +48,6 @@ export type SpecialCondition = 'asleep' | 'confused' | 'paralyzed';
 export type Affliction = SpecialCondition | 'poisoned' | 'toxic' | 'burned';
 
 /**
- * Lasting effects of attacks on a Pokémon. Turn numbers are the last turn the effect applies
- * ("during your opponent's next turn" = the turn after the attack). All are removed when the
- * Pokémon is benched or evolves, except `leekSlapUsed`.
- */
-/**
  * A rule from outside the cards (a run's events and items). `label` names it on the screen and in the log.
  * - `typeDamage`: attacks by Pokémon of `type` (either player's) do `multiplier`× their base damage.
  * - `damageBonus`: attacks by `player`'s Pokémon (of `type`, if given) do `amount` more base damage.
@@ -70,6 +65,11 @@ export type BattleRule = (
   | { kind: 'luckyFlips'; player: PlayerId; flips: number }
 ) & { label?: string };
 
+/**
+ * Lasting effects of attacks on a Pokémon. Turn numbers are the last turn the effect applies
+ * ("during your opponent's next turn" = the turn after the attack). All are removed when the
+ * Pokémon is benched or evolves, except `leekSlapUsed`.
+ */
 export interface PokemonEffects {
   /** Prevent all damage done to it by attacks (Scrunch, Withdraw, Stiffen). */
   preventDamage?: number;
@@ -1333,7 +1333,7 @@ export function retreatError(
  * The opponent's Active Pokémon holding this one (Mean Look, Jaw Clamp, Sticky Nectar), if it still is: it can't retreat.
  * `sides` are both players'.
  */
-export const heldActive = (pokemon: InPlayPokemon, sides: Pick<PlayerState, 'active'>[]) => {
+const heldActive = (pokemon: InPlayPokemon, sides: Pick<PlayerState, 'active'>[]) => {
   const by = pokemon.effects?.heldBy?.by;
   return by ? (sides.find((s) => s.active && s.active !== pokemon && s.active.card.uid === by)?.active ?? null) : null;
 };
@@ -1375,16 +1375,16 @@ export function energyProvided(card: CardInstance, cards: CardLibrary): { type: 
   return { type: def.anyType ? 'any' : def.energyType, amount: def.amount ?? 1 };
 }
 
-/**
- * Whether an attached card is a `type` Energy card: a basic one of that type, or Rainbow Energy (every type while in
- * play). Not Double Colorless, nor a Pokémon attached as Energy (Buzzap).
- */
 /** A Special Energy card (not basic Energy, nor a Pokémon attached as Energy by a power), a Holon's Pokémon attached as Energy too. */
 export function isSpecialEnergy(cards: CardLibrary, card: CardInstance): boolean {
   const d = lookupCard(cards, card.defId);
   return !card.provides && ((d.kind === 'energy' && d.basic === false) || !!holonEnergy(d));
 }
 
+/**
+ * Whether an attached card is a `type` Energy card: a basic one of that type (a converted one of its new type), or Rainbow
+ * Energy (every type while in play). Not Double Colorless, a windless or Chlorophyll card, nor a Pokémon attached as Energy (Buzzap).
+ */
 export function isEnergyCardOf(card: CardInstance, cards: CardLibrary, type: EnergyType): boolean {
   if (card.provides || card.windless || card.colorlessOnly) return false;
   if (card.converted) return card.converted.type === type;
@@ -2074,6 +2074,8 @@ function finish(state: GameState, winner: PlayerId): ActionResult {
  */
 function refreshHideout(state: GameState) {
   const stadium = state.stadium && lookupCard(state.cards, state.stadium.card.defId).name;
+  // EX Team Rocket Returns' Rocket's Hideout: Pokémon with Rocket's in their names too.
+  const rockets = !!state.stadium && (lookupCard(state.cards, state.stadium.card.defId) as { text?: string }).text?.includes("Rocket's in its name");
   const sides = state.playerOrder.map((id) => state.players[id]!);
   for (const player of Object.values(state.players)) {
     for (const p of [player.active, ...player.bench]) {
@@ -2089,8 +2091,6 @@ function refreshHideout(state: GameState) {
       // Dual Armor (React Energy), Reactive Colors: with a card of that name attached, it's those types.
       const named = powerEffect(effectId(p))?.dualArmorNamed ?? powerEffect(effectId(p))?.colorsNamed;
       if (named && powerActive(p, state.cards, sides) && p.energy.some((e) => !e.provides && !e.windless && lookupCard(state.cards, e.defId).name === named.name)) p.variedTypes = named.types;
-      // EX Team Rocket Returns' Rocket's Hideout: Pokémon with Rocket's in their names too.
-      const rockets = !!state.stadium && (lookupCard(state.cards, state.stadium.card.defId) as { text?: string }).text?.includes("Rocket's in its name");
       if (stadium === "Rocket's Hideout" && (/\bDark\b/.test(lookupCard(state.cards, p.card.defId).name) || (rockets && lookupCard(state.cards, p.card.defId).name.startsWith("Rocket's ")))) p.hideout = true;
       else delete p.hideout;
       const d = inPlayDef(state.cards, p);

@@ -12,7 +12,7 @@ import { activeLocked, discardTheirEnergy, isEnergyCardOf, newInPlay, type CardI
 import { energyKept, evolutionBlocked } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { benchRoom, energyProtected, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
-import { BASE1, metronome } from './base1.js';
+import { amnesia, metronome } from './base1.js';
 import {
   benchedSlots,
   benchTarget,
@@ -951,7 +951,7 @@ export const GYM2: Record<string, Record<string, AttackEffect>> = {
         ctx.log(`${ctx.attackerDef.name} can't use Bubbles next turn.`);
       },
     },
-    Amnesia: BASE1['base1-38']!.Amnesia!,
+    Amnesia: amnesia,
   },
   // Misty's Psyduck
   'gym2-90': {

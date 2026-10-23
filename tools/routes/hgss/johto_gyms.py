@@ -254,6 +254,7 @@ HEAD = """// The Johto gyms' interiors, from HeartGold/SoulSilver (the pret/poke
 // come from the user, as `links` or walkable tiles. Then the Johto Gym Challenge and Champion runs' other rooms, as Kanto's:
 // the Pokémon League's, each boss in their place and the player coming in 5 tiles from them, and Ecruteak's Pokémon
 // Center; and each boss's map for those runs (JOHTO_BOSS_ROOMS). Written by tools/routes/hgss/johto_gyms.py.
+import type { JohtoBossId } from './bosses.js';
 import { leaderRoom, trackLine, type Route } from './routes.js';
 """
 
@@ -370,7 +371,7 @@ def main():
     # Each Johto boss's map for the Gym Challenge and Champion runs.
     lines = [f'  {LEADERS[c]}: leaderRoom({GYMS[c][3]}, {{ x: {e[0]}, y: {e[1]} }}),' for c, e in entrances.items()]
     lines += [f"  '{boss}': {const}," if '-' in boss else f'  {boss}: {const},' for boss, const in rooms.items()]
-    out.append('\n/** Each Johto boss\'s map for the Gym Challenge and Champion runs, by boss id: their gym (leaderRoom, the player coming in 5 tiles from them, south where it can) or Pokémon League room. */\nexport const JOHTO_BOSS_ROOMS: Record<string, Route> = {\n' + '\n'.join(lines) + '\n};\n')
+    out.append('\n/** Each Johto boss\'s map for the Gym Challenge and Champion runs, by boss id: their gym (leaderRoom, the player coming in 5 tiles from them, south where it can) or Pokémon League room. */\nexport const JOHTO_BOSS_ROOMS: Record<JohtoBossId, Route> = {\n' + '\n'.join(lines) + '\n};\n')
     open(OUT, 'w', encoding='utf-8', newline='\n').write(HEAD + ''.join(out))
     print('wrote', OUT, 'previews in', work)
     for p in problems:

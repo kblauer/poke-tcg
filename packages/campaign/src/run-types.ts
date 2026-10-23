@@ -7,21 +7,22 @@
 import type { EnergyType } from '@poke-tcg/game-engine';
 import { BOSSES, boss, ELITE_FOUR, HOENN_ELITE_FOUR, HOENN_GYMS, JOHTO_ELITE_FOUR, JOHTO_GYMS, KANTO_GYMS, type Boss, type BossId } from './bosses.js';
 import { GEN1_DECK_RULES, GEN2_DECK_RULES, GEN3_DECK_RULES, type DeckRules } from './decks.js';
-import { basicEnergyType, GEN2_DONE_SETS, GEN2_SETS, GEN3_DONE_SETS, GEN3_SETS, POOL_SETS } from './pool.js';
+import { BASIC_ENERGY, GEN2_BASIC_ENERGY, GEN2_DONE_SETS, GEN2_SETS, GEN3_BASIC_ENERGY, GEN3_DONE_SETS, GEN3_SETS, POOL_SETS } from './pool.js';
 import { DEWFORD_GYM, FORTREE_GYM, HOENN_BOSS_ROOMS, HOENN_POKEMON_CENTER, LAVARIDGE_GYM, MAUVILLE_GYM, MOSSDEEP_GYM, PETALBURG_GYM, RUSTBORO_GYM, SOOTOPOLIS_GYM } from './hoenn-gyms.js';
 import { JAGGED_PASS, PETALBURG_WOODS, ROUTE_102, ROUTE_106, ROUTE_110, ROUTE_119, ROUTE_124, SOOTOPOLIS_CITY } from './hoenn-routes.js';
-import { CELADON_GYM, CERULEAN_GYM, CINNABAR_GYM, FUCHSIA_GYM, KANTO_BOSS_ROOMS, POKEMON_CENTER, POKEMON_TOWER_1F, POKEMON_TOWER_2F, POKEMON_TOWER_3F, POKEMON_TOWER_4F, POKEMON_TOWER_5F, POWER_PLANT, ROUTE_17, ROUTE_20, ROUTE_8, ROUTE_4, ROUTE_5_VERMILION, ROUTE_6, SAFFRON_GYM, VERMILION_GYM, VIRIDIAN_GYM } from './kanto-routes.js';
+import { CELADON_GYM, CERULEAN_GYM, CINNABAR_GYM, FUCHSIA_GYM, KANTO_BOSS_ROOMS, POKEMON_CENTER, POKEMON_TOWER_1F, POKEMON_TOWER_2F, POKEMON_TOWER_3F, POKEMON_TOWER_4F, POKEMON_TOWER_5F, POWER_PLANT, ROUTE_17, ROUTE_20, ROUTE_8, ROUTE_4, ROUTE_5, ROUTE_6, SAFFRON_GYM, VERMILION_GYM, VIRIDIAN_GYM } from './kanto-routes.js';
 import { AZALEA_GYM, BLACKTHORN_GYM, CIANWOOD_GYM, ECRUTEAK_GYM, GOLDENROD_GYM, JOHTO_BOSS_ROOMS, JOHTO_POKEMON_CENTER, MAHOGANY_GYM, OLIVINE_GYM, VIOLET_GYM } from './johto-gyms.js';
 import { ROUTE_30, ROUTE_32, ROUTE_34, ROUTE_35, ROUTE_40, ROUTE_42, ROUTE_42_UPPER, ROUTE_44, ROUTE_44_UPPER, ROUTE_45 } from './johto-routes.js';
 import { PEWTER_GYM, ROUTE_2, type Route } from './routes.js';
 
-export interface RunSegment {
-  /** Steps with 2–3 encounters to choose from. */
+/** `Id` narrows the bosses to a region's (KantoBossId…), so a run of bosses back to back can't miss one's room (bossMaps). */
+export interface RunSegment<Id extends BossId = BossId> {
+  /** Steps with 1–3 encounters to choose from. */
   steps: number;
   /** A Pokémon Center step (its only option) after the encounters, before the bosses. */
   center?: boolean;
   /** Fought in order, after the steps. A gym leader has a Gym Trainer before them, unless `gymTrainers` is false. */
-  bosses: BossId[];
+  bosses: Id[];
   gymTrainers?: boolean;
 }
 
@@ -45,41 +46,43 @@ export interface RunType {
 }
 
 /**
- * One gym: 24 encounters, the Gym Trainer, then the gym leader (the 26th fight). `place`: "City" or "Town". With `maps` (its
- * routes and gym interior, routes.ts), one encounter per route spot instead (agreed with the user: 10), then the gym
- * (FireRed's in Kanto, kanto-routes.ts; HeartGold/SoulSilver's in Johto, johto-gyms.ts; Emerald's in Hoenn, hoenn-gyms.ts).
+ * One gym: along its `maps` (its routes and gym interior, routes.ts), one encounter per route spot (agreed with the user:
+ * 10), then the gym (FireRed's in Kanto, kanto-routes.ts; HeartGold/SoulSilver's in Johto, johto-gyms.ts; Emerald's in
+ * Hoenn, hoenn-gyms.ts): the Gym Trainer, then the gym leader. `place`: "City" or "Town".
  */
-const gymRun = (id: BossId, city: string, generation: number, place = 'City', maps?: { routes: Route[]; gym?: Route; along?: string }) => {
+const gymRun = (id: BossId, city: string, generation: number, place: string, maps: { routes: Route[]; gym?: Route; along?: string }) => {
   const b = boss(id);
   const leader = `${b.title} ${b.name} with the ${b.deckName} deck`;
-  const encounters = maps ? maps.routes.reduce((n, r) => n + r.spots.length, 0) : 24;
+  const encounters = maps.routes.reduce((n, r) => n + r.spots.length, 0);
   // Where the encounters are: the maps' names, or `along` for several of one place (the Pokémon Tower's floors).
-  const along = maps?.along ?? maps?.routes.map((r) => r.name).join(' and ');
+  const along = maps.along ?? maps.routes.map((r) => r.name).join(' and ');
   return {
     id: city.toLowerCase(),
     name: `${city} ${place}`,
-    description: maps
-      ? `Along ${along}: ${encounters} encounters, then ${maps.gym?.name ?? 'the gym'}: a Gym Trainer, and ${leader}.`
-      : `Trainers and encounters around ${city} ${place}, then the gym: a Gym Trainer, and ${leader}.`,
+    description: `Along ${along}: ${encounters} encounters, then ${maps.gym?.name ?? 'the gym'}: a Gym Trainer, and ${leader}.`,
     segments: [{ steps: encounters, bosses: [id] }],
     generation,
-    ...(maps && { routes: maps.routes, ...(maps.gym && { gym: maps.gym }) }),
+    routes: maps.routes,
+    ...(maps.gym && { gym: maps.gym }),
   };
 };
 
 /**
  * The maps of a run of bosses back to back (the Gym Challenge and Champion runs; agreed with the user), one per step in
- * order: each boss's room (`rooms`: KANTO_BOSS_ROOMS, JOHTO_BOSS_ROOMS or HOENN_BOSS_ROOMS), and the Pokémon Center's (`center`) for a
- * segment's `center`.
+ * order: each boss's room (`rooms`: KANTO_BOSS_ROOMS, JOHTO_BOSS_ROOMS or HOENN_BOSS_ROOMS, typed by the region's boss ids
+ * so a missing room fails to compile), and the Pokémon Center's (`center`) for a segment's `center`.
  */
-const bossMaps = (segments: RunSegment[], rooms: Record<string, Route> = KANTO_BOSS_ROOMS, center: Route = POKEMON_CENTER): Route[] =>
-  segments.flatMap((s) => [...(s.center ? [center] : []), ...s.bosses.map((id) => rooms[id]!)]);
+const bossMaps = <Id extends BossId>(segments: RunSegment<Id>[], rooms: Record<Id, Route>, center: Route): Route[] =>
+  segments.flatMap((s) => [...(s.center ? [center] : []), ...s.bosses.map((id) => rooms[id])]);
 
 /** A run of bosses back to back (the Gym Challenge and Champion runs): its maps are its segments' (bossMaps). */
-const bossRun = (type: Omit<RunType, 'routes'>, rooms?: Record<string, Route>, center?: Route): RunType => ({ ...type, routes: bossMaps(type.segments, rooms, center) });
+const bossRun = <Id extends BossId>(type: Omit<RunType, 'routes' | 'segments'> & { segments: RunSegment<Id>[] }, rooms: Record<Id, Route>, center: Route): RunType => ({
+  ...type,
+  routes: bossMaps(type.segments, rooms, center),
+});
 
 /** A Gym Challenge (agreed with the user): the eight gym leaders back to back, no Gym Trainers, a Pokémon Center after the fourth. */
-const gymChallenge = (gyms: BossId[]): RunSegment[] => [
+const gymChallenge = <Id extends BossId>(gyms: Id[]): RunSegment<Id>[] => [
   { steps: 0, bosses: gyms.slice(0, 4), gymTrainers: false },
   { steps: 0, center: true, bosses: gyms.slice(4), gymTrainers: false },
 ];
@@ -89,7 +92,7 @@ export const RUN_TYPES = {
   pewter: gymRun('brock', 'Pewter', 1, 'City', { routes: [ROUTE_2], gym: PEWTER_GYM }),
   cerulean: gymRun('misty', 'Cerulean', 1, 'City', { routes: [ROUTE_4], gym: CERULEAN_GYM }),
   // Route 5 to Saffron's north gatehouse, then Route 6 from its south gate (agreed with the user): 3 encounters, then 7.
-  vermilion: gymRun('surge', 'Vermilion', 1, 'City', { routes: [ROUTE_5_VERMILION, ROUTE_6], gym: VERMILION_GYM }),
+  vermilion: gymRun('surge', 'Vermilion', 1, 'City', { routes: [ROUTE_5, ROUTE_6], gym: VERMILION_GYM }),
   celadon: gymRun('erika', 'Celadon', 1, 'City', { routes: [ROUTE_8], gym: CELADON_GYM }),
   // Saffron before Fuchsia (agreed with the user): Pokémon Tower 1F to 5F, 2 encounters a floor, then the gym.
   saffron: gymRun('sabrina', 'Saffron', 1, 'City', { routes: [POKEMON_TOWER_1F, POKEMON_TOWER_2F, POKEMON_TOWER_3F, POKEMON_TOWER_4F, POKEMON_TOWER_5F], gym: SAFFRON_GYM, along: 'the Pokémon Tower, 1F to 5F' }),
@@ -106,7 +109,7 @@ export const RUN_TYPES = {
     segments: gymChallenge(KANTO_GYMS),
     generation: 1,
     requires: 'badges',
-  }),
+  }, KANTO_BOSS_ROOMS, POKEMON_CENTER),
   kantoChampion: bossRun({
     id: 'kantoChampion',
     name: 'Kanto Champion',
@@ -114,7 +117,7 @@ export const RUN_TYPES = {
     segments: [{ steps: 0, bosses: [...KANTO_GYMS, ...ELITE_FOUR, 'blue'], gymTrainers: false }],
     generation: 1,
     requires: 'gymChallenge',
-  }),
+  }, KANTO_BOSS_ROOMS, POKEMON_CENTER),
   // Each Johto gym's route and interior, from HeartGold/SoulSilver (johto-routes.ts, johto-gyms.ts; agreed with the user): 10 encounters, then the gym.
   violet: gymRun('falkner', 'Violet', 2, 'City', { routes: [ROUTE_30], gym: VIOLET_GYM }),
   azalea: gymRun('bugsy', 'Azalea', 2, 'Town', { routes: [ROUTE_32], gym: AZALEA_GYM }),
@@ -276,6 +279,10 @@ export function runTypeLock(type: RunType, account: { badges: ReadonlySet<string
   if (type.requires === 'gymChallenge' && !account.beaten.has(g.gymChallenge)) return `Beat the ${runType(g.gymChallenge).name} first`;
   return null;
 }
+
+/** The type of a basic Energy card of any generation's printings (pool.ts), or undefined. */
+const basicEnergyType = (id: string): EnergyType | undefined =>
+  [BASIC_ENERGY, GEN2_BASIC_ENERGY, GEN3_BASIC_ENERGY].map((set) => Object.entries(set).find(([, e]) => e === id)).find(Boolean)?.[0] as EnergyType | undefined;
 
 /** The types a boss's deck is built around: the ones it names (`types`), or its basic Energy's, the most first. */
 export function bossTypes(b: Boss): EnergyType[] {

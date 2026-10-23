@@ -238,7 +238,8 @@ export const runRouter = router({
 
   /**
    * The post-run shop: the items in stock after the latest run (shopStock), for EXP, and how many of each the account
-   * already has (`owned`, by item id).
+   * already has (`owned`, by item id). A query that writes: the first look after a run fixes its stock in `Run.shop`
+   * (latestStock, only while it's unset), so every later one reads the same.
    */
   shop: protectedProcedure.query(async ({ ctx }) => {
     const [user, inventory, stock] = await Promise.all([

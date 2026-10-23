@@ -18,7 +18,7 @@ import { powerActive } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { baseUid, effectId, inPlayDef, pokemonName } from '../status.js';
 import { attackEffect } from './index.js';
-import { BASE1 } from './base1.js';
+import { amnesia } from './base1.js';
 import {
   benchedSlots,
   benchSearch,
@@ -34,6 +34,7 @@ import {
   opponentSwitches,
   opponentTargets,
   perHeads,
+  same,
 } from './common.js';
 import { FOSSIL, smokescreen } from './fossil.js';
 import { discardFromAttacker } from './gym1.js';
@@ -661,7 +662,7 @@ export const NEO1: Record<string, Record<string, AttackEffect>> = {
   // Togepi
   'neo1-51': { 'Poison Barb': inflicts(10, 'poisoned') },
   // Xatu
-  'neo1-52': { Prophecy: FOSSIL['base3-8']!.Prophecy!, 'Confuse Ray': flipToInflict(30, 'confused') },
+  'neo1-52': { Prophecy: same(() => FOSSIL['base3-8']?.Prophecy), 'Confuse Ray': flipToInflict(30, 'confused') },
   // Chikorita: half the damage, rounded down to the nearest 10, as Light Screen.
   'neo1-53': { Deflector: { run: (ctx) => ctx.protect('lightScreen') } },
   // Chikorita
@@ -808,5 +809,5 @@ export const NEO1: Record<string, Record<string, AttackEffect>> = {
   // Totodile
   'neo1-81': { Leer: cantAttackMe, 'Fury Swipes': perHeads(3, 10) },
   // Wooper
-  'neo1-82': { Amnesia: BASE1['base1-38']!.Amnesia!, Slam: perHeads(2, 20) },
+  'neo1-82': { Amnesia: amnesia, Slam: perHeads(2, 20) },
 };

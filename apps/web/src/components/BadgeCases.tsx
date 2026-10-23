@@ -68,7 +68,7 @@ function BadgeCaseDialog({ gen, owned, onClose }: { gen: number; owned: Readonly
             const badge = leader.gym!.badge;
             const have = owned.has(badge);
             return (
-              <li key={id} className={`flex flex-col items-center gap-1 rounded-lg p-3 text-center ring-1 ${have ? 'bg-slate-700 ring-yellow-500/60' : 'bg-slate-900 ring-slate-700'}`}>
+              <li key={id} className={`flex flex-col items-center gap-1 rounded-lg p-3 text-center ring-1 ${have ? 'bg-slate-700 ring-yellow-400/60' : 'bg-slate-900 ring-slate-700'}`}>
                 <ItemIcon id={badge} size={64} className={have ? undefined : 'opacity-40 grayscale'} />
                 <span className={`text-sm font-semibold ${have ? '' : 'text-slate-500'}`}>{ITEMS[badge]?.name ?? badge}</span>
                 <span className="text-xs text-slate-400">

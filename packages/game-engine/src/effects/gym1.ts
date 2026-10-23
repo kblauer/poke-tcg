@@ -29,6 +29,7 @@ import {
   opponentSwitches,
   perHeads,
   recoil,
+  same,
   tailsSelfDamage,
   whirlwind,
 } from './common.js';
@@ -510,7 +511,7 @@ export const GYM1: Record<string, Record<string, AttackEffect>> = {
   // Lt. Surge's Magnemite
   'gym1-50': { 'Removal Pulse': removalFlip(10), 'Confusion Pulse': flipToInflict(20, 'confused') },
   // Lt. Surge's Raticate
-  'gym1-51': { 'Super Fang': BASE1['base1-40']!['Super Fang']! },
+  'gym1-51': { 'Super Fang': same(() => BASE1['base1-40']?.['Super Fang']) },
   // Misty's Poliwhirl
   'gym1-53': {
     Rapids: removalFlip(20),
@@ -668,7 +669,7 @@ export const GYM1: Record<string, Record<string, AttackEffect>> = {
   // Erika's Exeggcute
   'gym1-77': {
     Eggsplosion: { run: (ctx) => void ctx.hit(10 * ctx.flips(energyPool(ctx.attacker, ctx.state.cards).length)) },
-    Psychic: BASE1['base1-10']!.Psychic!,
+    Psychic: same(() => BASE1['base1-10']?.Psychic),
   },
   // Erika's Oddish
   'gym1-78': {

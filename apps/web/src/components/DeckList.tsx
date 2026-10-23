@@ -15,14 +15,15 @@ import { COSMETICS, DEFAULT_COSMETIC, type CosmeticKind } from '@poke-tcg/campai
 import { DECK_NAME_LENGTH, DECK_SIZE } from '@poke-tcg/shared';
 import { useQuery } from '@tanstack/react-query';
 import type { inferRouterOutputs } from '@trpc/server';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { DeckCosmetics } from '../hooks/useCosmetics';
 import { useEscape } from '../hooks/useEscape';
+import { useUnlocked } from '../hooks/useUnlocked';
 import { useTRPC } from '../lib/trpc';
 import { cardBackUrl } from '../utils/cardBack';
 import type { CatalogCard } from '../utils/cardList';
 import { CARD_THUMB_LG, CARD_THUMB_MD, CARD_THUMB_SM, CARD_THUMB_XL } from '../utils/layout';
-import { useInspectOnRightClick } from './InspectContext';
+import { CatalogContext, useInspectOnRightClick } from './InspectContext';
 import { DECK_SECTIONS, allGenerations, deckInGenerations, deckRatio, deckSize, featuredPokemon, type DeckEntry } from '../utils/deckBuilder';
 import { CardImage } from './CardImage';
 import { SpinningCoin } from './CoinFlip';
@@ -30,6 +31,14 @@ import { GenerationFilter } from './packs/GenerationFilter';
 import { Toasts } from './Toasts';
 
 export type SavedDeck = inferRouterOutputs<AppRouter>['decks']['list'][number];
+
+/** The catalog before it's loaded (CatalogContext is null then): the tiles show no Pokémon, as with an empty map. */
+const EMPTY_CATALOG = new Map<string, CatalogCard>();
+
+/** The card catalog by id (CatalogContext, loaded once per session by CardInspectProvider), for a deck's headline Pokémon and card split. */
+function useCatalog(): Map<string, CatalogCard> {
+  return useContext(CatalogContext) ?? EMPTY_CATALOG;
+}
 
 /** Bar colours for the deck's Pokémon, Trainers and Energy. */
 const RATIO_COLORS = { POKEMON: 'bg-rose-500', TRAINER: 'bg-sky-500', ENERGY: 'bg-amber-400' } as const;
@@ -42,22 +51,19 @@ const RATIO_COLORS = { POKEMON: 'bg-rose-500', TRAINER: 'bg-sky-500', ENERGY: 'b
  */
 export function DeckSummary({
   entries,
-  byId,
-  isLocked,
   compact = false,
   large = false,
 }: {
   entries: DeckEntry[];
-  byId: Map<string, CatalogCard>;
-  isLocked: (card: CatalogCard) => boolean;
   compact?: boolean;
   large?: boolean;
 }) {
+  const byId = useCatalog();
   const ratio = deckRatio(entries, byId);
   const size = deckSize(entries);
   return (
     <div className={compact ? 'w-fit space-y-1' : large ? 'w-fit shrink-0 space-y-1.5' : 'flex items-center gap-3'}>
-      <FeaturedCards featured={featuredPokemon(entries, byId)} isLocked={isLocked} size={large ? CARD_THUMB_XL : CARD_THUMB_MD} />
+      <FeaturedCards featured={featuredPokemon(entries, byId)} size={large ? CARD_THUMB_XL : CARD_THUMB_MD} />
       {compact ? (
         <RatioBar ratio={ratio} size={size} height="h-1" title={DECK_SECTIONS.map(({ kind, label }) => `${ratio[kind]} ${label}`).join(' · ')} />
       ) : (
@@ -70,9 +76,10 @@ export function DeckSummary({
   );
 }
 
-/** A deck's 3 headline Pokémon (featuredPokemon) as cards of `size` (Tailwind height and width); right-clicking one opens it in the CardInspector. */
-function FeaturedCards({ featured, isLocked, size }: { featured: CatalogCard[]; isLocked: (card: CatalogCard) => boolean; size: string }) {
+/** A deck's 3 headline Pokémon (featuredPokemon) as cards of `size` (Tailwind height and width), the ones not unlocked darker; right-clicking one opens it in the CardInspector. */
+function FeaturedCards({ featured, size }: { featured: CatalogCard[]; size: string }) {
   const inspectOn = useInspectOnRightClick();
+  const { isLocked } = useUnlocked();
   return (
     <div className="flex shrink-0 gap-1">
       {[0, 1, 2].map((i) => {
@@ -222,8 +229,6 @@ export function DeckTile({
   size,
   ready,
   locked = false,
-  byId,
-  isLocked,
   title,
   note,
   corner,
@@ -234,8 +239,6 @@ export function DeckTile({
   size: number;
   ready: boolean;
   locked?: boolean;
-  byId: Map<string, CatalogCard>;
-  isLocked: (card: CatalogCard) => boolean;
   title: ReactNode;
   note?: ReactNode;
   corner?: ReactNode;
@@ -244,13 +247,14 @@ export function DeckTile({
   /** The title across the top of the tile, above the cards (the open deck's), instead of beside them. */
   titleAbove?: boolean;
 }) {
+  const byId = useCatalog();
   const dim = locked ? 'opacity-60' : '';
   const featured = featuredPokemon(entries, byId);
   const ratio = deckRatio(entries, byId);
   const row = (
     <div className="flex gap-2.5">
       <div className={`space-y-1 ${dim}`}>
-        <FeaturedCards featured={featured} isLocked={isLocked} size={CARD_THUMB_LG} />
+        <FeaturedCards featured={featured} size={CARD_THUMB_LG} />
         <RatioBar ratio={ratio} size={deckSize(entries)} height="h-1.5" />
         <RatioCounts ratio={ratio} small />
       </div>
@@ -276,7 +280,9 @@ export function DeckTile({
 }
 
 /** A small deck tile (the Cosmetics tab's): its first Pokémon's card, its name and its card count. */
-export function CompactDeckTile({ entries, name, byId, isLocked }: { entries: DeckEntry[]; name: string; byId: Map<string, CatalogCard>; isLocked: (card: CatalogCard) => boolean }) {
+export function CompactDeckTile({ entries, name }: { entries: DeckEntry[]; name: string }) {
+  const byId = useCatalog();
+  const { isLocked } = useUnlocked();
   const [card] = featuredPokemon(entries, byId);
   return (
     <span className="flex min-w-0 items-center gap-2">
@@ -361,8 +367,6 @@ function DeckTitle({
  */
 export function DeckList({
   decks,
-  byId,
-  isLocked,
   onOpen,
   onNew,
   onCopy,
@@ -375,8 +379,6 @@ export function DeckList({
   compact = false,
 }: {
   decks: SavedDeck[];
-  byId: Map<string, CatalogCard>;
-  isLocked: (card: CatalogCard) => boolean;
   onOpen: (deckId: string) => void;
   onNew: () => void;
   /** Opens the Import dialog (a deck code from another player, or a text deck list). */
@@ -390,6 +392,7 @@ export function DeckList({
   busy: boolean;
   compact?: boolean;
 }) {
+  const byId = useCatalog();
   // Shown in the new order straight away, while it's saved.
   const [order, setOrder] = useState(() => decks.map((d) => d.id));
   useEffect(() => setOrder(decks.map((d) => d.id)), [decks]);
@@ -477,7 +480,7 @@ export function DeckList({
         <SortableContext items={order} strategy={verticalListSortingStrategy}>
           <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto">
             {shown.map((d) => (
-              <SortableDeck key={d.id} deck={d} byId={byId} isLocked={isLocked} onOpen={picking ? pick : onOpen} picking={picking !== null} onRename={onRename} onFavorite={onFavorite} />
+              <SortableDeck key={d.id} deck={d} onOpen={picking ? pick : onOpen} picking={picking !== null} onRename={onRename} onFavorite={onFavorite} />
             ))}
           </ul>
         </SortableContext>
@@ -488,16 +491,12 @@ export function DeckList({
 
 function SortableDeck({
   deck,
-  byId,
-  isLocked,
   onOpen,
   picking,
   onRename,
   onFavorite,
 }: {
   deck: SavedDeck;
-  byId: Map<string, CatalogCard>;
-  isLocked: (card: CatalogCard) => boolean;
   /** Opens the deck, or picks it to copy or publish while `picking` (each deck then outlined). */
   onOpen: (deckId: string) => void;
   picking: boolean;
@@ -543,8 +542,6 @@ function SortableDeck({
           size={deck.cardCount}
           ready={deck.problems.length === 0}
           locked={deck.locked}
-          byId={byId}
-          isLocked={isLocked}
           title={
             <DeckTitle name={deck.name} onRename={onRenameDeck} large>
               {deck.locked && LOCKED_TAG}
@@ -569,8 +566,6 @@ export function CurrentDeck({
   readOnly = false,
   entries,
   ready,
-  byId,
-  isLocked,
   onBack,
   cosmetics,
   compact = false,
@@ -580,14 +575,14 @@ export function CurrentDeck({
   readOnly?: boolean;
   entries: DeckEntry[];
   ready: boolean;
-  byId: Map<string, CatalogCard>;
-  isLocked: (card: CatalogCard) => boolean;
   onBack: () => void;
   /** Its cosmetics (decks.list's; none for a new deck). */
   cosmetics?: DeckCosmetics;
   /** A phone: a shorter way back. */
   compact?: boolean;
 }) {
+  const byId = useCatalog();
+  const { isLocked } = useUnlocked();
   // Greyed out and tagged Locked while it holds cards not unlocked yet, as in the list.
   const locked = entries.some((e) => {
     const card = byId.get(e.cardId);
@@ -608,8 +603,6 @@ export function CurrentDeck({
         size={deckSize(entries)}
         ready={ready}
         locked={locked}
-        byId={byId}
-        isLocked={isLocked}
         title={
           <DeckTitle name={name || 'Unnamed deck'} onRename={readOnly ? undefined : onRename} large>
             {locked && LOCKED_TAG}
