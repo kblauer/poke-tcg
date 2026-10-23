@@ -120,15 +120,14 @@ export function CoinFlip({
   );
 }
 
-/** The room kept beside your Active Pokémon (.attack-column, the Peek card's: w-36 and its 0.75rem gap), and the gap after it. */
-const ATTACK_ROOM = 144 + 12;
-const GAP = 40;
+/** The gap between the Active Pokémon (or the Peek card beside yours, .attack-column, when it's shown) and the coin flip's window. */
+const GAP = 24;
 
 /**
  * Where the coin flip's window goes in the play area (`area`): on the big screen's board, beside the Active Pokémon of
- * the side it comes from (the rows marked `data-coin-anchor`), vertically centred on that row: on your side to the right
- * of your attack panel (room kept for it even when it isn't shown, so it doesn't move), on the CPU's side the mirror of
- * that, to the left of its Active Pokémon. Kept inside the play area. Null (centred) without the rows: the phone layout.
+ * the side it comes from (the rows marked `data-coin-anchor`), vertically centred on that row: on your side just to the
+ * right of your Active Pokémon (past the Peek card when it's shown; the attacks are a panel on the card now, so no room
+ * is kept for them), on the CPU's side the mirror of that, to the left of its Active Pokémon. Kept inside the play area. Null (centred) without the rows: the phone layout.
  */
 function placeBeside(area: HTMLElement, box: HTMLElement, side: 'self' | 'opponent'): { left: number; top: number } | null {
   const table = area.parentElement;
@@ -140,7 +139,7 @@ function placeBeside(area: HTMLElement, box: HTMLElement, side: 'self' | 'oppone
   const slot = active.getBoundingClientRect();
   const middle = slot.left + slot.width / 2;
   // From the middle of the Active Pokémon to the window's near edge: the same on both sides, mirrored.
-  const reach = Math.max(slot.right + ATTACK_ROOM, own.querySelector('.attack-column')?.getBoundingClientRect().right ?? 0) + GAP - middle;
+  const reach = Math.max(slot.right, own.querySelector('.attack-column')?.getBoundingClientRect().right ?? 0) + GAP - middle;
   const r = row.getBoundingClientRect();
   const { offsetWidth: w, offsetHeight: h } = box;
   const left = side === 'self' ? middle + reach - a.left : middle - reach - w - a.left;
