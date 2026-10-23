@@ -166,10 +166,24 @@ export function Hand({
   const step = n > 1 ? Math.max(0, Math.min(cardW + GAP, (restWidth - cardW) / (n - 1))) : 0;
   const start = margin + (restWidth - (step * (n - 1) + cardW)) / 2;
   const hoveredIndex = hand.findIndex((c) => c.uid === hovered);
-  const lefts = cardLefts(n, hoveredIndex, width, cardW, step, start, PEEK_REM * rem, ZOOM);
+  // On a phone the card up and enlarged (tapped, else selected) makes way as a hovered one does, so it never covers
+  // another card (agreed 2026-10-23); held inside the hand, it grows from its bottom centre.
+  const upIndex = compact ? Math.max(hand.findIndex((c) => c.uid === touched), touched ? -1 : hand.findIndex((c) => c.uid === selected)) : -1;
+  const focus = hoveredIndex >= 0 ? hoveredIndex : upIndex;
+  const lefts = cardLefts(n, focus, width, cardW, step, start, PEEK_REM * rem, hoveredIndex >= 0 ? ZOOM : COMPACT_ZOOM);
 
-  /** The card at x (px from the hand's left edge), by where the cards sit at rest: each shows from its left edge to the next card's. */
-  const cardAt = (x: number) => hand[Math.min(n - 1, Math.max(0, step > 0 ? Math.floor((x - start) / step) : 0))];
+  /**
+   * The card at x (px from the hand's left edge), by where the cards sit now (`lefts`; the card made way for grown about
+   * its centre): of the cards there, the one on top (cardZ). Past the ends, the end card.
+   */
+  const cardAt = (x: number) => {
+    let best = -1;
+    for (let i = 0; i < n; i++) {
+      const grow = i === focus ? ((hoveredIndex >= 0 ? ZOOM : COMPACT_ZOOM) - 1) * cardW / 2 : 0;
+      if (x >= lefts[i]! - grow && x < lefts[i]! + cardW + grow && (best < 0 || cardZ(i, focus, false, n) > cardZ(best, focus, false, n))) best = i;
+    }
+    return hand[best >= 0 ? best : x < (lefts[0] ?? 0) ? 0 : n - 1];
+  };
   const endPress = () => {
     if (press.current) clearTimeout(press.current.timer);
     setBrowsing(null);
@@ -265,14 +279,12 @@ export function Hand({
         )}
         {hand.map((c, i) => {
           const isHovered = i === hoveredIndex;
-          const up = compact && (touched === c.uid || selected === c.uid);
+          const up = i === upIndex;
           const raised = isHovered || up || browsing === c.uid || selected === c.uid || (pick?.picked.has(c.uid) ?? false);
           const x = lefts[i]!;
-          // Lifted so the whole card shows above the bottom of the screen; grown from its bottom edge (on a phone, the
-          // end cards from their outer corner, so they stay on the screen).
+          // Lifted so the whole card shows above the bottom of the screen; grown from its bottom edge.
           const y = !raised ? 0 : -(cardH - visibleH) - (isHovered || up ? 0 : 4);
           const scale = isHovered ? ZOOM : up ? COMPACT_ZOOM : 1;
-          const origin = up && i === 0 ? 'bottom left' : up && i === n - 1 ? 'bottom right' : 'bottom';
           return (
             <div
               key={c.uid}
@@ -288,8 +300,7 @@ export function Hand({
                 // The card (LARGE_CARD) takes its width from --card-lg, which the board doesn't set out here.
                 ['--card-lg' as string]: `${cardW}px`,
                 transform: `translate(${x}px, ${y}px) scale(${scale})`,
-                transformOrigin: origin,
-                zIndex: cardZ(i, hoveredIndex, raised, n),
+                zIndex: cardZ(i, focus, raised, n),
               }}
               // A touch screen fakes a hover on every tap; on a phone the held finger zooms in instead.
               onMouseEnter={compact ? undefined : () => setHovered(c.uid)}

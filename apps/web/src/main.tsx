@@ -16,6 +16,8 @@ import './index.css';
 import './styles/holo/index.css';
 // Puts the saved colour theme on before the first render.
 import './hooks/useColorTheme';
+import './hooks/useFontStyle';
+import { AccountSettingsSync } from './components/AccountSettingsSync';
 import { CardInspectProvider } from './components/CardInspectProvider';
 import { MusicControls, MusicProvider } from './components/MusicPlayer';
 import { NavLogProvider } from './components/NavLog';
@@ -107,7 +109,8 @@ function RootLayout() {
               <MenuIcon />
             </button>
           )}
-          <Link to="/" className="text-xl font-bold text-yellow-300">
+          {/* The logo keeps the system font; everything else is in the pixel font (index.css). */}
+          <Link to="/" className="font-system text-xl font-bold text-yellow-300">
             Poké TCG
           </Link>
         </div>
@@ -153,9 +156,10 @@ function RootLayout() {
     </div>
   );
   // Mounted with the layout, so the music plays on from page to page; in the ☰ panel on a phone. The game page passes its
-  // log up to the site menu (NavLogProvider).
+  // log up to the site menu (NavLogProvider). The Settings page's choices follow the account (AccountSettingsSync).
   return session ? (
     <MusicProvider docked={phone}>
+      <AccountSettingsSync />
       <NavLogProvider>
         <RunProvider>{page}</RunProvider>
       </NavLogProvider>

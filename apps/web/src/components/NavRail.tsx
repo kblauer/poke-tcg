@@ -8,7 +8,7 @@ import { useRun } from '../hooks/useRun';
 import { useTRPC } from '../lib/trpc';
 import { GameLog } from './GameLog';
 import { useNavGameLog } from './NavLog';
-import { PAGES, SETTINGS_PAGE } from './PageNav';
+import { PAGE_NAME, PAGES, SETTINGS_PAGE } from './PageNav';
 import { DeltaFloat } from './run/DeltaFloat';
 import { RunStats } from './run/RunStats';
 import { useDebugEnabled } from '../utils/debug';
@@ -18,7 +18,7 @@ const DebugPanel = __DEBUG_BUILD__ ? lazy(() => import('./DebugPanel')) : null;
 
 // The router sets data-status="active" on the link for the current page: lit in the logo's yellow.
 const item =
-  'flex h-10 shrink-0 items-center gap-3 rounded-md px-2.5 text-slate-300 transition hover:bg-slate-800 hover:text-white data-[status=active]:bg-yellow-400/15 data-[status=active]:text-yellow-200 data-[status=active]:ring-1 data-[status=active]:ring-yellow-400/60';
+  'flex h-10 shrink-0 items-center gap-3 rounded-md px-2.5 text-slate-300 transition hover:bg-slate-800 hover:text-slate-50 data-[status=active]:bg-yellow-400/15 data-[status=active]:text-yellow-200 data-[status=active]:ring-1 data-[status=active]:ring-yellow-400/60';
 
 type LogTab = 'run' | 'game' | 'debug';
 
@@ -52,8 +52,8 @@ function loadSections(): SectionPrefs {
 export function NavRail({ open }: { open: boolean }) {
   const link = (p: (typeof PAGES)[number] | typeof SETTINGS_PAGE, className = '') => (
     <Link key={p.to} to={p.to} className={`${item} ${className}`} activeOptions={{ exact: p.to === '/' }} title={open ? undefined : p.label} aria-label={p.label}>
-      <p.Icon sx={{ fontSize: 22 }} className="shrink-0" />
-      <span className={`truncate font-medium transition-opacity duration-200 ${open ? 'opacity-100' : 'opacity-0'}`}>{p.label}</span>
+      <p.Icon />
+      <span className={`truncate ${PAGE_NAME} transition-opacity duration-200 ${open ? 'opacity-100' : 'opacity-0'}`}>{p.label}</span>
     </Link>
   );
   return (
