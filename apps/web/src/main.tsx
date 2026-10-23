@@ -15,12 +15,12 @@ import './index.css';
 import './styles/holo/index.css';
 // Puts the saved colour theme on before the first render.
 import './hooks/useColorTheme';
-import { AccountMenu } from './components/AccountMenu';
 import { CardInspectProvider } from './components/CardInspectProvider';
 import { MusicControls, MusicProvider } from './components/MusicPlayer';
 import { NavLogProvider } from './components/NavLog';
-import { NavRail } from './components/NavRail';
+import { NavRail, PhoneNavRun } from './components/NavRail';
 import { PageMenu } from './components/PageNav';
+import { TopBarStats } from './components/TopBarStats';
 import { SidePanel } from './components/SidePanel';
 import { useIsPhone } from './hooks/useIsPhone';
 import { useSession } from './lib/auth';
@@ -83,7 +83,7 @@ function RootLayout() {
   );
 
   const page = (
-    // The top bar across the window: the ☰ (the menu), the logo, the account and Sign out. Below it, on a big screen, the
+    // The top bar across the window: the ☰ (the menu), the logo, and Sign out (on a phone the run's and account's figures before it). Below it, on a big screen, the
     // menu down the left edge (NavRail) beside the page, the ☰ widening it with the pages' names; on a phone the ☰ opens the menu as a panel,
     // with the music player's bar (the phone's battle screen covers the top bar). Each page sets its own width and side
     // padding (PAGE_WIDTH).
@@ -107,17 +107,20 @@ function RootLayout() {
             Poké TCG
           </Link>
         </div>
-        {session && (
-          <div className="flex min-w-0 items-center gap-2 text-sm sm:gap-3">
-            <AccountMenu email={session.user.email ?? ''} />
-            {signOutButton}
+        {/* On a phone, the run's HP and ₱, the bank and Stardust, centred between the logo and Sign out. */}
+        {session && phone && (
+          <div className="flex min-w-0 flex-1 justify-center">
+            <TopBarStats />
           </div>
         )}
+        {session && <div className="flex shrink-0 items-center text-sm">{signOutButton}</div>}
       </header>
       {session && phone && panel && (
         <SidePanel side="left" title="Poké TCG" onClose={closePanel}>
           <PageMenu onPick={closePanel} />
-          <div className="mt-3 border-t border-slate-700 pt-3">
+          {/* During a run, its numbers and log, as in the big screen's menu. */}
+          <PhoneNavRun />
+          <div className="mt-3 shrink-0 border-t border-slate-700 pt-3">
             <MusicControls onOpen={closePanel} />
           </div>
         </SidePanel>

@@ -1,9 +1,6 @@
-import AccountCircleIcon from '@mui/icons-material/AccountCircle';
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ACCOUNT_NAME_LENGTH, accountNameInput } from '@poke-tcg/shared';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useTRPC } from '../lib/trpc';
 
 const button = 'rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500 disabled:opacity-40';
@@ -74,56 +71,5 @@ export function AccountNameField({ label = 'Shared as' }: { label?: string }) {
       {editing.trim() && invalid && <p className="text-xs text-amber-300">{invalid}</p>}
       {save.error && <p className="text-xs text-red-400">{save.error.message}</p>}
     </form>
-  );
-}
-
-/**
- * The account in the header, where its email used to be: its account name (or "Choose a name"), which opens to show
- * the email and change the name (AccountNameField). In the header's one row it opens a panel below it (closed by a
- * click outside or Escape); `inline` (the ☰ menu) opens in place.
- */
-export function AccountMenu({ email, inline = false }: { email: string; inline?: boolean }) {
-  const trpc = useTRPC();
-  const name = useQuery(trpc.community.accountName.queryOptions());
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open || inline) return;
-    const close = (e: PointerEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
-    const escape = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
-    document.addEventListener('pointerdown', close);
-    document.addEventListener('keydown', escape);
-    return () => {
-      document.removeEventListener('pointerdown', close);
-      document.removeEventListener('keydown', escape);
-    };
-  }, [open, inline]);
-  const details = (
-    <div className="space-y-2">
-      <p className="truncate text-xs text-slate-400" title={email}>
-        {email}
-      </p>
-      <AccountNameField label="Name" />
-    </div>
-  );
-  return (
-    <div ref={ref} className={inline ? 'space-y-2' : 'relative'}>
-      <button
-        className={`flex max-w-full items-center gap-1 rounded px-2 py-1 text-slate-300 hover:bg-slate-800 hover:text-slate-100 ${inline ? 'w-full bg-slate-800' : ''}`}
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        title="Your account"
-      >
-        <AccountCircleIcon sx={{ fontSize: 18 }} className="shrink-0 text-slate-400" />
-        <span className={`truncate ${name.data ? '' : 'italic text-slate-400'}`}>{name.data ?? (name.data === null ? 'Choose a name' : '…')}</span>
-        {open ? <ExpandLessIcon sx={{ fontSize: 16 }} className="shrink-0" /> : <ExpandMoreIcon sx={{ fontSize: 16 }} className="shrink-0" />}
-      </button>
-      {open &&
-        (inline ? (
-          <div className="rounded bg-slate-800 p-2">{details}</div>
-        ) : (
-          <div className="absolute right-0 top-full z-[1000] mt-2 w-72 whitespace-normal rounded-lg bg-slate-800 p-3 shadow-xl shadow-black/60 ring-1 ring-slate-600">{details}</div>
-        ))}
-    </div>
   );
 }
