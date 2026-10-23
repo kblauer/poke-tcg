@@ -16,7 +16,7 @@ const STRIP = 'h-[calc(var(--card-sm,5rem)*0.2)]';
 export function PrizeCards({ count, mirrored = false, faceUp }: { count: number; mirrored?: boolean; faceUp?: { prizes: CardInstance[]; cards: CardLibrary } }) {
   const card = (i: number) => {
     const prize = faceUp?.prizes[i];
-    return prize ? <Card def={lookupCard(faceUp.cards, prize.defId)} small /> : <CardBack />;
+    return prize ? <Card def={lookupCard(faceUp.cards, prize.defId)} small /> : <CardBack mine={!mirrored} />;
   };
   const label = <p className={`text-center text-xs text-slate-400 ${mirrored ? 'mt-1' : 'mb-1'}`}>Prizes {count}</p>;
   return (

@@ -1,6 +1,7 @@
 import BackpackIcon from '@mui/icons-material/Backpack';
 import CollectionsBookmarkIcon from '@mui/icons-material/CollectionsBookmark';
 import GroupsIcon from '@mui/icons-material/Groups';
+import PaletteIcon from '@mui/icons-material/Palette';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import SettingsIcon from '@mui/icons-material/Settings';
 import SportsMartialArtsIcon from '@mui/icons-material/SportsMartialArts';
@@ -23,6 +24,7 @@ const PackIcon = createSvgIcon(
 export const PAGES = [
   { to: '/', label: 'Play', Icon: PlayArrowIcon },
   { to: '/inventory', label: 'Inventory', Icon: BackpackIcon },
+  { to: '/cosmetics', label: 'Cosmetics', Icon: PaletteIcon },
   { to: '/packs', label: 'Packs', Icon: PackIcon },
   { to: '/decks', label: 'Collection', Icon: CollectionsBookmarkIcon },
   { to: '/community', label: 'Community Decks', Icon: GroupsIcon },

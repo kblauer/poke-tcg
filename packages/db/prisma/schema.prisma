@@ -31,6 +31,9 @@ model User {
   /// Consumables used from the Inventory while no run was under way (item ids, already taken from the inventory; at most a
   /// run's 3): they all take effect when the next run starts (among that run's 3), then this is cleared.
   pendingConsumables String[]   @default([])
+  /// The cosmetics in use (ids from the campaign package's COSMETICS): the player's card back and playmat; null is the default.
+  cardBack      String?
+  playmat       String?
   decks         Deck[]
   games         Game[]
   runs          Run[]
@@ -39,6 +42,7 @@ model User {
   favoriteCards FavoriteCard[]
   communityDecks CommunityDeck[]
   items        InventoryItem[]
+  cosmetics    CosmeticUnlock[]
   equipment     Equipment[]
 }
 
@@ -249,6 +253,17 @@ model FavoriteCard {
 
 /// Booster packs an account can buy (by set id, e.g. "base2"): a run's first battle finished without conceding unlocks
 /// its generation's next pack, beating a run all of them (see the campaign package's GENERATIONS).
+/// Cosmetics an account has bought (`cosmeticId`: a key of the campaign package's COSMETICS). The defaults, and those
+/// unlocked by beating a run type, have no row: they're worked out (hasCosmetic).
+model CosmeticUnlock {
+  userId     String   @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cosmeticId String
+  createdAt  DateTime @default(now())
+
+  @@id([userId, cosmeticId])
+}
+
 model PackUnlock {
   userId    String   @db.Uuid
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -17,10 +17,10 @@ function Count({ children }: { children: ReactNode }) {
   );
 }
 
-/** A face-down stack with a few offset shadows, or a dashed spot when it's empty. */
-function Stack({ count }: { count: number }) {
+/** A face-down stack with a few offset shadows, or a dashed spot when it's empty. `mine`: the player's, in their card back. */
+function Stack({ count, mine }: { count: number; mine: boolean }) {
   return count > 0 ? (
-    <CardBack className={count > 1 ? 'shadow-[2px_2px_0_#0f172a,3px_3px_0_#334155]' : ''} />
+    <CardBack mine={mine} className={count > 1 ? 'shadow-[2px_2px_0_#0f172a,3px_3px_0_#334155]' : ''} />
   ) : (
     <div className="aspect-[63/88] rounded-md border-2 border-dashed border-slate-700" />
   );
@@ -41,7 +41,7 @@ export function PhonePrizes({ count, owner, faceUp }: { count: number; owner: st
           <Card def={lookupCard(faceUp.cards, top.defId)} small />
         </div>
       ) : (
-        <Stack count={count} />
+        <Stack count={count} mine={owner === 'Your'} />
       )}
       <Count>{count}</Count>
       {viewing && faceUp && <DiscardPane title={`${owner} Prize cards`} note={`${shown.length}, face up`} discard={shown} cards={faceUp.cards} onClose={() => setViewing(false)} />}
@@ -64,12 +64,12 @@ export function PhonePiles({ deckCount, discard, cards, owner }: { deckCount: nu
             <Card def={lookupCard(cards, top.defId)} small />
           </div>
         ) : (
-          <Stack count={0} />
+          <Stack count={0} mine={false} />
         )}
         <Count>{discard.length}</Count>
       </div>
       <div className={PILE} title={`${owner} deck: ${deckCount}`}>
-        <Stack count={deckCount} />
+        <Stack count={deckCount} mine={owner === 'Your'} />
         <Count>{deckCount}</Count>
       </div>
       {browsing && <DiscardPane title={`${owner} discard pile`} discard={discard} cards={cards} onClose={() => setBrowsing(false)} />}

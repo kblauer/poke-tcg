@@ -13,6 +13,7 @@ import { useRetreat } from '../hooks/useRetreat';
 import { useWindowFill } from '../hooks/useWindowFill';
 import { benchSlotId, pendingSlot, toTarget, type SlotId } from '../utils/slots';
 import { useDebugEnabled } from '../utils/debug';
+import { useCosmetics } from '../hooks/useCosmetics';
 import { PAGE_WIDTH } from '../utils/layout';
 import { centerOnPointer } from '../utils/dragOverlay';
 import { isMyTurn, mustPromote, statusText } from '../utils/turn';
@@ -31,6 +32,7 @@ import { ActiveSheet } from './phone/ActiveSheet';
 import { PhonePiles, PhonePrizes } from './phone/PhonePiles';
 import { PhoneTable } from './phone/PhoneTable';
 import { PlayArea } from './PlayArea';
+import { Playmat } from './Playmat';
 import { PeekCard, PowerPanel } from './PowerPanel';
 import { PreviewContext, type Preview } from './PreviewContext';
 import { PrizeCards } from './PrizeCards';
@@ -106,6 +108,8 @@ export function Board({
   info?: ReactNode;
 }) {
   const debugEnabled = useDebugEnabled();
+  // The player's playmat, behind their side of the table (the Cosmetics tab).
+  const { playmat } = useCosmetics();
   const phone = useIsPhone();
   useLockedScreen(phone);
   /** The phone layout's sheet of the Active Pokémon's moves, and its ☰ menu. */
@@ -670,10 +674,11 @@ export function Board({
               {/* Between the two sides: whose turn it is and End turn. */}
               {statusBar(false)}
 
-              {/* Prize cards on the left of the play area; discard pile and deck on the right. */}
-              <section className="flex min-h-0 flex-1 items-center rounded-lg bg-slate-900 p-3">
+              {/* Prize cards on the left of the play area; discard pile and deck on the right; under them the player's playmat. */}
+              <section className="relative flex min-h-0 flex-1 items-center rounded-lg bg-slate-900 p-3">
+                <Playmat id={playmat} group="table" />
                 {/* Bottom-aligned, with the side columns lifted past the "You" label (text-sm + space-y-3 = 2rem) to line up with the bench. */}
-                <div className="flex w-full items-end gap-3">
+                <div className="relative flex w-full items-end gap-3">
                   <div className="mb-8 flex flex-col gap-2">
                     {phase !== 'finished' && (
                       <button

@@ -25,6 +25,7 @@ import { useSession } from './lib/auth';
 import { signInWithGoogle, signOut } from './lib/supabase';
 import { queryClient, TRPCProvider, trpcClient } from './lib/trpc';
 import { CommunityPage } from './pages/Community';
+import { CosmeticsPage } from './pages/Cosmetics';
 import { DecksPage } from './pages/Decks';
 import { GamePage } from './pages/Game';
 import { HomePage } from './pages/Home';
@@ -167,9 +168,10 @@ const communityRoute = createRoute({ getParentRoute: () => rootRoute, path: '/co
 const battleRoute = createRoute({ getParentRoute: () => rootRoute, path: '/battle', component: SingleBattlePage });
 const inventoryRoute = createRoute({ getParentRoute: () => rootRoute, path: '/inventory', component: InventoryPage });
 const packsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/packs', component: PacksPage });
+const cosmeticsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/cosmetics', component: CosmeticsPage });
 const settingsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/settings', component: SettingsPage });
 
-const router = createRouter({ routeTree: rootRoute.addChildren([homeRoute, battleRoute, gameRoute, decksRoute, communityRoute, inventoryRoute, packsRoute, settingsRoute]) });
+const router = createRouter({ routeTree: rootRoute.addChildren([homeRoute, battleRoute, gameRoute, decksRoute, communityRoute, inventoryRoute, cosmeticsRoute, packsRoute, settingsRoute]) });
 
 declare module '@tanstack/react-router' {
   interface Register {
