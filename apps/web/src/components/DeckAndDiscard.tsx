@@ -31,7 +31,7 @@ export function DeckAndDiscard({
   const deck = (
     <Pile key="deck" label={`Deck ${deckCount}`} empty={deckCount === 0} labelBelow={mirrored}>
       {/* A few offset shadows suggest the stack. */}
-      {deckCount > 0 && <CardBack className={deckCount > 1 ? 'shadow-[2px_2px_0_#0f172a,4px_4px_0_#334155]' : ''} />}
+      {deckCount > 0 && <CardBack mine={!mirrored} className={deckCount > 1 ? 'shadow-[2px_2px_0_#0f172a,4px_4px_0_#334155]' : ''} />}
     </Pile>
   );
   const discardPile = (

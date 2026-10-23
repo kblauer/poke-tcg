@@ -5,13 +5,16 @@ import { useQuery } from '@tanstack/react-query';
 import type { Overview, RunControl, RunViewData } from '../../hooks/useRun';
 import { useTRPC } from '../../lib/trpc';
 import { BagPanel } from './BagPanel';
+import { DeltaFloat } from './DeltaFloat';
+import { RunSection } from './RunSection';
 
 const row = 'flex items-center justify-between gap-2 rounded bg-slate-800 px-3 py-1.5';
 const label = 'text-xs uppercase tracking-wide text-slate-500';
 
 /**
- * The run tab of the side panel: HP, ₱ (and the bank), the run's EXP and the account's, consumables used,
- * the battle rules and consumables in effect, the equipment worn, the badges won this run, and the Bag.
+ * The run's numbers, in the site menu on a big screen (NavRail) and the side panel's Run tab on a phone: HP, ₱ (and the bank), the run's EXP and the account's, consumables used,
+ * the battle rules and consumables in effect, the equipment worn, the badges won this run, and the Bag. The equipment
+ * and the Bag fold away (RunSection).
  */
 export function RunStats({ view, account, run }: { view: RunViewData; account: Overview['account']; run: RunControl }) {
   const trpc = useTRPC();
@@ -25,13 +28,18 @@ export function RunStats({ view, account, run }: { view: RunViewData; account: O
       <div className="space-y-1">
         <div className={row} title={`${view.hp} of ${view.maxHp} HP: losing a battle costs 1`}>
           <span className={label}>HP</span>
-          <span className="flex text-rose-400">
+          <span className="relative flex text-rose-400">
+            {/* A change floats up beside the number (DeltaFloat), as for ₱ below. */}
+            <DeltaFloat value={view.hp} format={(n) => `${n} HP`} place="right-full top-1/2 -mt-2.5 mr-2" />
             {Array.from({ length: view.maxHp }, (_, i) => (i < view.hp ? <FavoriteIcon key={i} fontSize="small" /> : <FavoriteBorderIcon key={i} fontSize="small" />))}
           </span>
         </div>
         <div className={row} title="₱ to spend in this run; banked when the run ends">
           <span className={label}>₱</span>
-          <span className="font-semibold text-yellow-300">{view.pokedollars}</span>
+          <span className="relative font-semibold text-yellow-300">
+            <DeltaFloat value={view.pokedollars} format={(n) => `₱${n}`} place="right-full top-1/2 -mt-2.5 mr-2" />
+            {view.pokedollars}
+          </span>
         </div>
         <div className={row} title="₱ banked from earlier runs">
           <span className={label}>Bank</span>
@@ -68,14 +76,15 @@ export function RunStats({ view, account, run }: { view: RunViewData; account: O
         </div>
       )}
       {gear.length > 0 && (
-        <div className="space-y-1 text-xs">
-          <h4 className={label}>Equipped</h4>
-          {gear.map((def, i) => (
-            <p key={i} className="rounded bg-slate-800 px-2 py-1">
-              <span className="font-semibold">{def.name}</span> <span className="text-slate-400">{itemText(def)}</span>
-            </p>
-          ))}
-        </div>
+        <RunSection id="equipped" title="Equipped" count={gear.length}>
+          <div className="space-y-1 text-xs">
+            {gear.map((def, i) => (
+              <p key={i} className="rounded bg-slate-800 px-2 py-1">
+                <span className="font-semibold">{def.name}</span> <span className="text-slate-400">{itemText(def)}</span>
+              </p>
+            ))}
+          </div>
+        </RunSection>
       )}
       {(view.badges ?? []).length > 0 && (
         <div className="space-y-1 text-xs">

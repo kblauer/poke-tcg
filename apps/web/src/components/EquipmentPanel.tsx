@@ -112,9 +112,11 @@ export function EquipmentPanel({
   return (
     <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => (setDragging(null), setHeld(null))}>
       {/* Clicking anywhere else in the panel puts a clicked piece down. */}
-      <div className="grid gap-4 [--slot:4.5rem] lg:grid-cols-[auto_1fr]" onClick={() => (setHeld(null), setChosenSlot(null))}>
-        <div className="space-y-2">
-          <h2 className="flex h-7 items-center text-lg font-semibold">Equipped</h2>
+      {/* On a big screen two columns, the headings in the first row (Equipped, and the hint on the grid's side) sharing a
+          baseline; stacked otherwise, each heading over its part. */}
+      <div className="grid gap-x-4 gap-y-2 [--slot:4.5rem] lg:grid-cols-[auto_1fr]" onClick={() => (setHeld(null), setChosenSlot(null))}>
+        <h2 className="self-baseline text-lg font-semibold lg:col-start-1 lg:row-start-1">Equipped</h2>
+        <div className="space-y-2 lg:col-start-1 lg:row-start-2">
           {/* The trainer on the left of the box, the slots (2×3) on its right: the trainer's side narrows (cropping the sprite's empty sides) before they'd overlap. */}
           <div className="flex gap-3 rounded-lg bg-slate-900 p-3 ring-1 ring-slate-700">
             <div className="relative w-44 min-w-0 shrink overflow-hidden">
@@ -169,12 +171,8 @@ export function EquipmentPanel({
           )}
         </div>
 
-        <div className="space-y-2">
-          {/* Headed as the Inventory's other sections are (Consumables, Miscellaneous items), level with Equipped, the hint beside it. */}
-          <div className="flex min-h-7 items-center gap-3">
-            <h2 className="shrink-0 text-lg font-semibold">Equipment</h2>
-            <p className="text-xs text-slate-500">Drag a piece onto its slot, or click it and then the slot. It works in your runs from the next encounter.</p>
-          </div>
+        <p className="mt-2 self-baseline text-xs text-slate-500 lg:col-start-2 lg:row-start-1 lg:mt-0">Drag a piece onto its slot, or click it and then the slot.</p>
+        <div className="space-y-2 lg:col-start-2 lg:row-start-2">
           {/* Only the pieces not equipped: one worn in a slot leaves the grid (a spare copy stays, with how many are left). Its
               first row level with the first row of slots (pt-3: the Equipped box's padding). */}
           {spares.length > 0 && (
