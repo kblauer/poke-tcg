@@ -1,3 +1,4 @@
+import AutoModeIcon from '@mui/icons-material/AutoMode';
 import CloseIcon from '@mui/icons-material/Close';
 import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import PauseIcon from '@mui/icons-material/Pause';
@@ -5,6 +6,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ShuffleIcon from '@mui/icons-material/Shuffle';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
+import { pickSong, type MusicCue, type Song, type Soundtrack } from '@poke-tcg/campaign';
 import { useQuery } from '@tanstack/react-query';
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import AudioPlayer, { RHAP_UI } from 'react-h5-audio-player';
@@ -22,12 +24,16 @@ interface MusicPrefs {
   volume: number;
   /** The last track played (its URL), ready to play again on the next visit. */
   track: string | null;
+  /** Auto play: the music follows the run (and Practice battles), looping the song that suits it (`MusicCue`). */
+  autoplay: boolean;
+  /** Auto play's songs: the original games' or their remakes'. */
+  soundtrack: Soundtrack;
 }
 
 /** The loudest the songs play, at the slider's top (agreed with the user: half the audio's full volume). */
 const MAX_VOLUME = 0.5;
 
-const DEFAULTS: MusicPrefs = { open: false, gen: null, shuffle: false, volume: 0.5, track: null };
+const DEFAULTS: MusicPrefs = { open: false, gen: null, shuffle: false, volume: 0.5, track: null, autoplay: false, soundtrack: 'original' };
 
 function loadPrefs(): MusicPrefs {
   try {
@@ -64,9 +70,33 @@ interface MusicState {
   open: boolean;
   togglePlay: () => void;
   toggleOpen: () => void;
+  autoplay: boolean;
+  soundtrack: Soundtrack;
+  setAutoplay: (on: boolean) => void;
+  setSoundtrack: (soundtrack: Soundtrack) => void;
+  /** What the page on screen wants auto play to play (null: nothing, the song playing plays on). */
+  setCue: (cue: MusicCue | null) => void;
+  /** A jingle (the Pokémon Center's), then back to the song it interrupted, where it was. Only while music plays. */
+  playJingle: (song: Song) => void;
 }
 
 const MusicContext = createContext<MusicState | null>(null);
+
+/** Auto play's settings (on the Settings page and the player), or null outside the music player (signed out). */
+export function useMusicSettings() {
+  const music = useContext(MusicContext);
+  return music && { autoplay: music.autoplay, soundtrack: music.soundtrack, setAutoplay: music.setAutoplay, setSoundtrack: music.setSoundtrack };
+}
+
+/** Tells auto play what suits the page while it's on screen (a run, a battle); as NavLog's useGameLogInNav does. */
+export function useMusicCue(cue: MusicCue | null) {
+  const setCue = useContext(MusicContext)?.setCue;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => setCue?.(cue), [setCue, cue?.key]);
+  useEffect(() => () => setCue?.(null), [setCue]);
+}
+
+export const usePlayJingle = () => useContext(MusicContext)?.playJingle ?? null;
 
 /**
  * The music player's small bar: play/pause and the song playing, which opens the player's panel. Floating at the bottom
@@ -105,6 +135,9 @@ export function MusicControls({ onOpen }: { onOpen?: () => void }) {
  * plays it at once (clicking the song itself only selects it, leaving what's playing alone), and when one ends the next in the list plays (a random one with shuffle). The tracks (public/music/tracks.json) are
  * loaded once the player is first used. The audio stays mounted while the panel is closed, so music plays on across pages.
  * Settings and the last track are remembered in localStorage (`poke-tcg.music`); nothing plays until clicked.
+ * Auto play (its button beside shuffle, or the Settings page) follows the page instead: the run's map and battles, and
+ * Practice battles, tell it what suits them (useMusicCue, `runMusic` in campaign's music.ts), and it loops that song;
+ * a Pokémon Center's heal plays its jingle first (usePlayJingle). Elsewhere the song playing plays on.
  * The bar floats at the bottom right, its panel above it; `docked` (when the site's pages are in its ☰ menu: a phone, a
  * narrow window), the bar is in the menus instead (MusicControls) and the panel opens at the bottom of the screen.
  */
@@ -112,8 +145,8 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
   const [prefs, setPrefs] = useState(loadPrefs);
   const update = (change: Partial<MusicPrefs>) => setPrefs((p) => ({ ...p, ...change }));
   useEffect(() => savePrefs(prefs), [prefs]);
-  // Only fetched once the player has been opened or has a track to resume.
-  const [wanted, setWanted] = useState(prefs.open || prefs.track !== null);
+  // Only fetched once the player has been opened, has a track to resume or plays by itself.
+  const [wanted, setWanted] = useState(prefs.open || prefs.track !== null || prefs.autoplay);
   const tracks = useQuery({
     queryKey: ['music-tracks'],
     queryFn: async () => {
@@ -137,6 +170,7 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
   const startNext = useRef(false);
   const play = (track: Track) => {
     setError(null);
+    inJingle.current = false;
     startNext.current = true;
     if (track.url === prefs.track) startPlaying();
     else update({ track: track.url });
@@ -150,10 +184,69 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
       if (!(e instanceof DOMException && e.name === 'AbortError')) setError("This song couldn't be played.");
     });
   };
-  // Starts the chosen song as soon as its audio has it: also the first one, whose player (and audio) has only just
-  // appeared, which the player's own autoplay (only on a change of song) would leave paused.
+
+  // Auto play: the song the page on screen wants (useMusicCue), looped. Each song auto play leaves is remembered where it
+  // was, and picks up from there when it comes back (the route's after a battle, the song a jingle interrupted).
+  const [cue, setCue] = useState<MusicCue | null>(null);
+  const findSong = (song: Song) => tracks.data?.find((t) => t.game === song.game && t.title === song.title) ?? null;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(startPlaying, [current]);
+  const cueTrack = useMemo(() => (prefs.autoplay && cue ? findSong(pickSong(cue)) : null), [prefs.autoplay, cue?.key, tracks.data]);
+  const positions = useRef(new Map<string, number>());
+  /** Where the song about to play starts (a song come back to). */
+  const resumeAt = useRef(0);
+  /** While a jingle plays: auto play waits for it to end before following the page again. */
+  const inJingle = useRef(false);
+  /** The song a jingle interrupted, gone back to after it when no page wants another. */
+  const afterJingle = useRef<Track | null>(null);
+  const switchTo = (track: Track, start: boolean) => {
+    const audio = player.current?.audio.current;
+    if (current && audio) positions.current.set(current.url, audio.currentTime);
+    startNext.current = start;
+    if (track.url === prefs.track) return startPlaying();
+    resumeAt.current = positions.current.get(track.url) ?? 0;
+    update({ track: track.url });
+  };
+  useEffect(() => {
+    if (cueTrack && !inJingle.current && cueTrack.url !== prefs.track) switchTo(cueTrack, playing);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cueTrack]);
+  const playJingle = (song: Song) => {
+    const jingle = findSong(song);
+    if (!prefs.autoplay || !playing || !jingle || inJingle.current) return;
+    inJingle.current = true;
+    afterJingle.current = current;
+    switchTo(jingle, true);
+  };
+  /** A song over: the jingle's back to what auto play wants (or the song it interrupted), auto play's song again, or the list's next. */
+  const ended = () => {
+    if (inJingle.current) {
+      inJingle.current = false;
+      const back = cueTrack ?? afterJingle.current;
+      if (back) return switchTo(back, true);
+    }
+    const audio = player.current?.audio.current;
+    if (cueTrack && current === cueTrack && audio) {
+      audio.currentTime = 0;
+      return void audio.play();
+    }
+    step(1);
+  };
+
+  // Starts the chosen song as soon as its audio has it: also the first one, whose player (and audio) has only just
+  // appeared, which the player's own autoplay (only on a change of song) would leave paused. A song come back to
+  // starts where it was (set again once its audio has loaded, as loading starts it over).
+  useEffect(() => {
+    const audio = player.current?.audio.current;
+    const at = resumeAt.current;
+    resumeAt.current = 0;
+    if (audio && at > 0) {
+      const src = audio.src;
+      audio.currentTime = at;
+      audio.addEventListener('loadedmetadata', () => audio.src === src && (audio.currentTime = at), { once: true });
+    }
+    startPlaying();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current]);
   /** The next (or previous) song in the list shown; with shuffle, any other one at random. */
   const step = (by: 1 | -1) => {
     if (!list.length) return;
@@ -168,7 +261,8 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
     const audio = player.current?.audio.current;
     if (!current) {
       setWanted(true);
-      if (list[0]) play(list[0]);
+      const first = cueTrack ?? list[0];
+      if (first) play(first);
       else update({ open: true });
     } else if (audio?.paused) void audio.play();
     else audio?.pause();
@@ -192,7 +286,23 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
     setWanted(true);
     update({ open: !prefs.open });
   };
-  const state: MusicState = { playing, title: current?.title ?? null, open: prefs.open, togglePlay, toggleOpen };
+  const setAutoplay = (autoplay: boolean) => {
+    setWanted(true);
+    update({ autoplay });
+  };
+  const state: MusicState = {
+    playing,
+    title: current?.title ?? null,
+    open: prefs.open,
+    togglePlay,
+    toggleOpen,
+    autoplay: prefs.autoplay,
+    soundtrack: prefs.soundtrack,
+    setAutoplay,
+    setSoundtrack: (soundtrack) => update({ soundtrack }),
+    setCue,
+    playJingle,
+  };
   return (
     <MusicContext.Provider value={state}>
       {children}
@@ -223,7 +333,7 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
               showJumpControls={false}
               onClickNext={() => step(1)}
               onClickPrevious={() => step(-1)}
-              onEnded={() => step(1)}
+              onEnded={ended}
               onPlay={() => setPlaying(true)}
               onPause={() => setPlaying(false)}
               onError={() => setError("This song couldn't be loaded.")}
@@ -257,6 +367,15 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
                   title={prefs.shuffle ? 'Shuffle on' : 'Shuffle off'}
                 >
                   <ShuffleIcon sx={{ fontSize: 20 }} />
+                </button>,
+                <button
+                  key="autoplay"
+                  className={`${iconButton} ${prefs.autoplay ? 'text-yellow-300 hover:text-yellow-200' : ''}`}
+                  onClick={() => setAutoplay(!prefs.autoplay)}
+                  aria-pressed={prefs.autoplay}
+                  title={prefs.autoplay ? 'Auto play on: the music follows the run' : 'Auto play off'}
+                >
+                  <AutoModeIcon sx={{ fontSize: 20 }} />
                 </button>,
               ]}
             />

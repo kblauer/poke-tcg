@@ -248,6 +248,345 @@
   "url": "https://vgmtreasurechest.com/soundtracks/pokemon-red-green-blue-yellow/wklcbaxl/58%20Pikachu%27s%20Beach.mp3"
  },
  {
+  "title": "Pokémon Healed",
+  "game": "Red, Green, Blue & Yellow",
+  "gen": 1,
+  "battle": false,
+  "seconds": 5,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-red-green-blue-yellow/cftaypec/19.%20Pok%C3%A9mon%20Healed.mp3",
+  "hidden": true
+ },
+ {
+  "title": "Title Screen",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 97,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/rnqqgivd/1-03.%20Title%20Screen.mp3"
+ },
+ {
+  "title": "Welcome to the World of Pokémon!",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 65,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/eigdyivf/1-05.%20Welcome%20to%20the%20World%20of%20Pok%C3%A9mon%21.mp3"
+ },
+ {
+  "title": "Pallet Town",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 94,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/nakchcpu/1-06.%20Pallet%20Town.mp3"
+ },
+ {
+  "title": "Battle! (Trainer)",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": true,
+  "seconds": 193,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/rveidrzx/1-11.%20Battle%21%20%28Trainer%29.mp3"
+ },
+ {
+  "title": "Pewter City",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 127,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/qexcrcnf/1-15.%20Pewter%20City.mp3"
+ },
+ {
+  "title": "Viridian Forest",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 166,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/vifamihk/1-17.%20Viridian%20Forest.mp3"
+ },
+ {
+  "title": "Battle! (Wild Pokémon)",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": true,
+  "seconds": 92,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/bfujkava/1-18.%20Battle%21%20%28Wild%20Pok%C3%A9mon%29.mp3"
+ },
+ {
+  "title": "Pokémon Center",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 73,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/hitwanpk/1-21.%20Pok%C3%A9mon%20Center.mp3"
+ },
+ {
+  "title": "Pokémon Gym",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 75,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/buthispu/1-25.%20Pok%C3%A9mon%20Gym.mp3"
+ },
+ {
+  "title": "Battle! (Gym Leader)",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": true,
+  "seconds": 126,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/gjzvfrpb/1-27.%20Battle%21%20%28Gym%20Leader%29.mp3"
+ },
+ {
+  "title": "Victory! (Gym Leader)",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 61,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/kykfyzbj/1-28.%20Victory%21%20%28Gym%20Leader%29.mp3"
+ },
+ {
+  "title": "Road to Cerulean City: Leaving Mt. Moon",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 72,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/hqgmpoaj/1-32.%20Road%20to%20Cerulean%20City%20-%20Leaving%20Mt.%20Moon.mp3"
+ },
+ {
+  "title": "Mt. Moon",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 163,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/dncbxkfy/1-34.%20Mt.%20Moon.mp3"
+ },
+ {
+  "title": "Vermilion City",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 80,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/dsevogob/1-35.%20Vermilion%20City.mp3"
+ },
+ {
+  "title": "S.S. Anne",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 133,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/shhrldii/1-36.%20S.S.%20Anne.mp3"
+ },
+ {
+  "title": "Cycling",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 78,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/owswdfpj/1-37.%20Cycling.mp3"
+ },
+ {
+  "title": "Lavender Town",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 115,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/aabfwsxm/1-38.%20Lavender%20Town.mp3"
+ },
+ {
+  "title": "Pokémon Tower",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 103,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/rwhvgwny/1-39.%20Pok%C3%A9mon%20Tower.mp3"
+ },
+ {
+  "title": "Celadon City",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 90,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/fgnxahmo/1-40.%20Celadon%20City.mp3"
+ },
+ {
+  "title": "Rocket Game Corner",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 94,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/iabgcrbj/1-41.%20Rocket%20Game%20Corner.mp3"
+ },
+ {
+  "title": "Rocket Hideout",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 126,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/gnvnfmtg/1-45.%20Rocket%20Hideout.mp3"
+ },
+ {
+  "title": "Silph Co.",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 121,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/omvqqits/1-47.%20Silph%20Co..mp3"
+ },
+ {
+  "title": "Road to Fuchsia City: Leaving Lavender Town",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 72,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/hitslasp/1-48.%20Road%20to%20Fuchsia%20City%20-%20Leaving%20Lavender%20Town.mp3"
+ },
+ {
+  "title": "Fuchsia City",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 79,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/hsrexzgg/1-50.%20Fuchsia%20City.mp3"
+ },
+ {
+  "title": "Surfing",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 73,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/ngrqduol/1-52.%20Surfing.mp3"
+ },
+ {
+  "title": "Battle! (Legendary Pokémon)",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": true,
+  "seconds": 60,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/oklxegss/1-53.%20Battle%21%20%28Legendary%20Pok%C3%A9mon%29.mp3"
+ },
+ {
+  "title": "Cinnabar Island",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 80,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/fmulvukt/1-55.%20Cinnabar%20Island.mp3"
+ },
+ {
+  "title": "Pokémon Mansion",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 126,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/opeczpaj/1-56.%20Pok%C3%A9mon%20Mansion.mp3"
+ },
+ {
+  "title": "Sevii Islands - Four Island - Five Island",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 105,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/rclvyecx/1-59.%20Sevii%20Islands%20-%20Four%20Island%20-%20Five%20Island.mp3"
+ },
+ {
+  "title": "Dodrio Berry Picking",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 63,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/qowsynvo/1-61.%20Dodrio%20Berry%20Picking.mp3"
+ },
+ {
+  "title": "Sevii Islands",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 108,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/ebrfcupq/1-63.%20Sevii%20Islands.mp3"
+ },
+ {
+  "title": "Sevii Islands - Six Island - Seven Isalnd",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 114,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/mjmhzzbj/1-64.%20Sevii%20Islands%20-%20Six%20Island%20-%20Seven%20Isalnd.mp3"
+ },
+ {
+  "title": "The Union Room",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 60,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/sipyzdps/1-65.%20The%20Union%20Room.mp3"
+ },
+ {
+  "title": "Victory Road",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 75,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/fuiiowqp/1-69.%20Victory%20Road.mp3"
+ },
+ {
+  "title": "Final Battle! (Rival)",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": true,
+  "seconds": 157,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/zfdbuwwt/1-70.%20Final%20Battle%21%20%28Rival%29.mp3"
+ },
+ {
+  "title": "Epilogue",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 68,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/eojclyix/1-71.%20Epilogue.mp3"
+ },
+ {
+  "title": "Hall of Fame",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 63,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/msbfyaim/1-72.%20Hall%20of%20Fame.mp3"
+ },
+ {
+  "title": "Staff Credits",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 254,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/narfcuqx/1-73.%20Staff%20Credits.mp3"
+ },
+ {
+  "title": "Battle! (Deoxys)",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": true,
+  "seconds": 163,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/stprskxj/2-02.%20Battle%21%20%28Deoxys%29.mp3"
+ },
+ {
+  "title": "Pokémon Healed",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 7,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/uccgxvif/1-23.%20Pok%C3%A9mon%20Healed.mp3",
+  "hidden": true
+ },
+ {
+  "title": "Road to Viridian City: Leaving Pallet Town",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 56,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/zpctlylj/1-13.%20Road%20to%20Viridian%20City%20-%20Leaving%20Pallet%20Town.mp3",
+  "hidden": true
+ },
+ {
   "title": "Title Screen (Gold & Silver)",
   "game": "Gold, Silver & Crystal",
   "gen": 2,
@@ -784,6 +1123,840 @@
   "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-gold-silver-crystal/kwcxehuc/124.%20THE%20END.mp3"
  },
  {
+  "title": "Pokémon Healed",
+  "game": "Gold, Silver & Crystal",
+  "gen": 2,
+  "battle": false,
+  "seconds": 5,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-gold-silver-crystal/jnncuumd/24.%20Pok%C3%A9mon%20Healed.mp3",
+  "hidden": true
+ },
+ {
+  "title": "Opening Movie",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 68,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/cnweeovosq/01.%20Opening%20Movie.mp3"
+ },
+ {
+  "title": "Title Screen",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 77,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/uqkjkdritm/02.%20Title%20Screen.mp3"
+ },
+ {
+  "title": "New Bark Town",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 122,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/ynmlyzlrte/04.%20New%20Bark%20Town.mp3"
+ },
+ {
+  "title": "Lyra",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 66,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/yrwhaenwtj/06.%20Lyra.mp3"
+ },
+ {
+  "title": "Elm Pokémon Lab",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 82,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/ldrvtprjfa/07.%20Elm%20Pok%C3%A9mon%20Lab.mp3"
+ },
+ {
+  "title": "Route 29",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 118,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/guirxquqhu/09.%20Route%2029.mp3"
+ },
+ {
+  "title": "Battle! (Wild Pokémon—Johto Version)",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": true,
+  "seconds": 99,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/cczsceqeju/10.%20Battle%21%20%28Wild%20Pok%C3%A9mon%E2%80%94Johto%20Version%29.mp3"
+ },
+ {
+  "title": "Cherrygrove City",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 107,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/jfikqolchk/13.%20Cherrygrove%20City.mp3"
+ },
+ {
+  "title": "Hurry Along 2",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 81,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/dibcgwwcgb/14.%20Hurry%20Along%202.mp3"
+ },
+ {
+  "title": "Pokémon Center",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 77,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/nyaijyqjri/15.%20Pok%C3%A9mon%20Center.mp3"
+ },
+ {
+  "title": "Battle! (Trainer—Johto Version)",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": true,
+  "seconds": 236,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/ahsmsweinf/18.%20Battle%21%20%28Trainer%E2%80%94Johto%20Version%29.mp3"
+ },
+ {
+  "title": "Route 30",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 77,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/spkngoxgcl/20.%20Route%2030.mp3"
+ },
+ {
+  "title": "Violet City",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 136,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/nqudhpgcme/22.%20Violet%20City.mp3"
+ },
+ {
+  "title": "Sprout Tower",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 84,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/rvqnkmroqn/23.%20Sprout%20Tower.mp3"
+ },
+ {
+  "title": "Poké Mart",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 111,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/sjfojymawh/25.%20Pok%C3%A9%20Mart.mp3"
+ },
+ {
+  "title": "Union Cave",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 137,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/phcufkrmus/28.%20Union%20Cave.mp3"
+ },
+ {
+  "title": "Ruins of Alph",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 83,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/zxokqgqhjr/30.%20Ruins%20of%20Alph.mp3"
+ },
+ {
+  "title": "Azalea Town",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 126,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/vizqsyzbzh/33.%20Azalea%20Town.mp3"
+ },
+ {
+  "title": "Battle! (Team Rocket)",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": true,
+  "seconds": 129,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/upblenfmyl/35.%20Battle%21%20%28Team%20Rocket%29.mp3"
+ },
+ {
+  "title": "Route 34",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 100,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/tjpwbxowmp/36.%20Route%2034.mp3"
+ },
+ {
+  "title": "Battle! (Rival)",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": true,
+  "seconds": 134,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/cdptlkqpwv/38.%20Battle%21%20%28Rival%29.mp3"
+ },
+ {
+  "title": "Goldenrod City",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 87,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/mnpfzvnrep/41.%20Goldenrod%20City.mp3"
+ },
+ {
+  "title": "Pokémon Gym",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 92,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/aokjhbzgax/42.%20Pok%C3%A9mon%20Gym.mp3"
+ },
+ {
+  "title": "Battle! (Gym Leader—Johto Version)",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": true,
+  "seconds": 145,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/bcvfnyblox/43.%20Battle%21%20%28Gym%20Leader%E2%80%94Johto%20Version%29.mp3"
+ },
+ {
+  "title": "Victory! (Gym Leader)",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 82,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/xcfyrdhctn/44.%20Victory%21%20%28Gym%20Leader%29.mp3"
+ },
+ {
+  "title": "Pokégear Radio - Buena's Password",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 97,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/dfrevqmsop/47.%20Pok%C3%A9gear%20Radio%20-%20Buena%27s%20Password.mp3"
+ },
+ {
+  "title": "Goldenrod Game Corner",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 151,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/rmktkfhofx/49.%20Goldenrod%20Game%20Corner.mp3"
+ },
+ {
+  "title": "Global Terminal",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 156,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/hvlvgyedxf/54.%20Global%20Terminal.mp3"
+ },
+ {
+  "title": "Wi-Fi Plaza",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 155,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/zmzusvgeqm/56.%20Wi-Fi%20Plaza.mp3"
+ },
+ {
+  "title": "Wi-Fi Plaza - Parade",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 107,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/ytprhcpsmt/59.%20Wi-Fi%20Plaza%20-%20Parade.mp3"
+ },
+ {
+  "title": "GTS",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 85,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/nlykpvtjps/61.%20GTS.mp3"
+ },
+ {
+  "title": "Bicycle",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 76,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/tvcgytxuec/64.%20Bicycle.mp3"
+ },
+ {
+  "title": "National Park",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 215,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/nvqugkjrnt/67.%20National%20Park.mp3"
+ },
+ {
+  "title": "The Bug-Catching Contest",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 60,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/fgarqxtngj/69.%20The%20Bug-Catching%20Contest.mp3"
+ },
+ {
+  "title": "Pokéathlon - In the Pokéathlon Dome",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 83,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/oxrojvllmv/73.%20Pok%C3%A9athlon%20-%20In%20the%20Pok%C3%A9athlon%20Dome.mp3"
+ },
+ {
+  "title": "Pokéathlon - Event Time!",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 102,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/xeotqgkrft/77.%20Pok%C3%A9athlon%20-%20Event%20Time%21.mp3"
+ },
+ {
+  "title": "Pokéathlon - Finals!",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 140,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/fgqpmurifb/79.%20Pok%C3%A9athlon%20-%20Finals%21.mp3"
+ },
+ {
+  "title": "Pokéathlon - Medal Ceremony",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 100,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/igulotjnxu/81.%20Pok%C3%A9athlon%20-%20Medal%20Ceremony.mp3"
+ },
+ {
+  "title": "Ecruteak City",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 169,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/gzbnywowkt/83.%20Ecruteak%20City.mp3"
+ },
+ {
+  "title": "Burned Tower",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 92,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/eneyoeounv/85.%20Burned%20Tower.mp3"
+ },
+ {
+  "title": "Pokégear Radio - Professor Oak's Pokémon Talk",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 84,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/ndpfedrjri/87.%20Pok%C3%A9gear%20Radio%20-%20Professor%20Oak%27s%20Pok%C3%A9mon%20Talk.mp3"
+ },
+ {
+  "title": "Route 38",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 111,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/ektcxqddup/89.%20Route%2038.mp3"
+ },
+ {
+  "title": "Battle! (Raikou)",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": true,
+  "seconds": 207,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/kyvngruzlr/92.%20Battle%21%20%28Raikou%29.mp3"
+ },
+ {
+  "title": "Olivine Lighthouse",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 78,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/hgftuztbgd/93.%20Olivine%20Lighthouse.mp3"
+ },
+ {
+  "title": "Surf",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 153,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/zrouotflqc/94.%20Surf.mp3"
+ },
+ {
+  "title": "Cianwood City",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 157,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/gqybyumxmr/95.%20Cianwood%20City.mp3"
+ },
+ {
+  "title": "Route 42",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 77,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/vmawgvxjxh/97.%20Route%2042.mp3"
+ },
+ {
+  "title": "Team Rocket HQ",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 101,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/uzzhtdhgkj/99.%20Team%20Rocket%20HQ.mp3"
+ },
+ {
+  "title": "Radio Tower Occupied!",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 85,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/etvctwokui/102.%20Radio%20Tower%20Occupied%21.mp3"
+ },
+ {
+  "title": "Ice Path",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 156,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/vcaihyhjea/103.%20Ice%20Path.mp3"
+ },
+ {
+  "title": "Dragon's Den",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 141,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/yodqfarsja/105.%20Dragon%27s%20Den.mp3"
+ },
+ {
+  "title": "Battle! (Entei)",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": true,
+  "seconds": 175,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/pfyrgugvar/107.%20Battle%21%20%28Entei%29.mp3"
+ },
+ {
+  "title": "Bell Tower",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 105,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/zhfbgfsawt/108.%20Bell%20Tower.mp3"
+ },
+ {
+  "title": "Battle! (Ho-Oh)",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": true,
+  "seconds": 164,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/kllnkzijwg/111.%20Battle%21%20%28Ho-Oh%29.mp3"
+ },
+ {
+  "title": "Battle! (Lugia)",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": true,
+  "seconds": 132,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/unoqdtxtda/114.%20Battle%21%20%28Lugia%29.mp3"
+ },
+ {
+  "title": "Route 26",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 74,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/slqkpxpljz/115.%20Route%2026.mp3"
+ },
+ {
+  "title": "S.S. Aqua",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 125,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/rfxpirqnqg/116.%20S.S.%20Aqua.mp3"
+ },
+ {
+  "title": "Vermilion City",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 106,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/ttvepitbke/117.%20Vermilion%20City.mp3"
+ },
+ {
+  "title": "Battle! (Gym Leader—Kanto Version)",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": true,
+  "seconds": 141,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/icnzkqweju/118.%20Battle%21%20%28Gym%20Leader%E2%80%94Kanto%20Version%29.mp3"
+ },
+ {
+  "title": "Lavender Town",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 118,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/xiatdqqydy/119.%20Lavender%20Town.mp3"
+ },
+ {
+  "title": "Rock Tunnel",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 228,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/woteuhenut/120.%20Rock%20Tunnel.mp3"
+ },
+ {
+  "title": "Battle! (Wild Pokémon—Kanto Version)",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": true,
+  "seconds": 137,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/gyyteltrso/121.%20Battle%21%20%28Wild%20Pok%C3%A9mon%E2%80%94Kanto%20Version%29.mp3"
+ },
+ {
+  "title": "Cerulean City",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 74,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/crunragptu/123.%20Cerulean%20City.mp3"
+ },
+ {
+  "title": "Route 24",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 75,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/xqriikqmlk/124.%20Route%2024.mp3"
+ },
+ {
+  "title": "Pokégear Radio - Pokémon Lullaby",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 75,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/lhlehulbnn/126.%20Pok%C3%A9gear%20Radio%20-%20Pok%C3%A9mon%20Lullaby.mp3"
+ },
+ {
+  "title": "Battle! (Suicune)",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": true,
+  "seconds": 207,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/zbcbgplgrk/127.%20Battle%21%20%28Suicune%29.mp3"
+ },
+ {
+  "title": "Celadon City",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 74,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/fhemllrian/128.%20Celadon%20City.mp3"
+ },
+ {
+  "title": "Ethan",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 66,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/xbneylxmad/129.%20Ethan.mp3"
+ },
+ {
+  "title": "Route 11",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 82,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/tqvhihuplr/130.%20Route%2011.mp3"
+ },
+ {
+  "title": "Pokégear Radio - Poké Flute",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 60,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/kqcxkdtxlh/131.%20Pok%C3%A9gear%20Radio%20-%20Pok%C3%A9%20Flute.mp3"
+ },
+ {
+  "title": "Viridian Forest",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 122,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/pakricnzid/132.%20Viridian%20Forest.mp3"
+ },
+ {
+  "title": "Pewter City",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 145,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/axbdnwuvya/134.%20Pewter%20City.mp3"
+ },
+ {
+  "title": "Route 3",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 83,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/nttzepbfpm/135.%20Route%203.mp3"
+ },
+ {
+  "title": "Route 1",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 74,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/qviwdfydvi/138.%20Route%201.mp3"
+ },
+ {
+  "title": "Pallet Town",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 113,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/asozwwvbgj/139.%20Pallet%20Town.mp3"
+ },
+ {
+  "title": "Professor Oak",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 96,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/mnmbodxqfp/140.%20Professor%20Oak.mp3"
+ },
+ {
+  "title": "Battle! (Trainer Battle—Kanto Version)",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": true,
+  "seconds": 184,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/fdlqwnraiv/143.%20Battle%21%20%28Trainer%20Battle%E2%80%94Kanto%20Version%29.mp3"
+ },
+ {
+  "title": "Cinnabar Island",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 92,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/lnirgsemcm/144.%20Cinnabar%20Island.mp3"
+ },
+ {
+  "title": "Route 47",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 147,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/reqhgezzso/145.%20Route%2047.mp3"
+ },
+ {
+  "title": "Safari Zone Gate",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 109,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/fjmbpieeiy/146.%20Safari%20Zone%20Gate.mp3"
+ },
+ {
+  "title": "Safari Zone",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 133,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/rqlxldflmu/147.%20Safari%20Zone.mp3"
+ },
+ {
+  "title": "Pokégear Radio - Variety Channel",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 84,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/weretmxfgg/148.%20Pok%C3%A9gear%20Radio%20-%20Variety%20Channel.mp3"
+ },
+ {
+  "title": "Pokégear Radio - Trainer Channel",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 92,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/cibtyfecfr/149.%20Pok%C3%A9gear%20Radio%20-%20Trainer%20Channel.mp3"
+ },
+ {
+  "title": "Victory Road",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 98,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/ttxxcidtuk/150.%20Victory%20Road.mp3"
+ },
+ {
+  "title": "The Pokémon League",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 90,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/migegttqfj/151.%20The%20Pok%C3%A9mon%20League.mp3"
+ },
+ {
+  "title": "Battle! (Champion)",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": true,
+  "seconds": 122,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/tujhxqtksj/152.%20Battle%21%20%28Champion%29.mp3"
+ },
+ {
+  "title": "The Hall of Fame",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 72,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/chjubuulpb/153.%20The%20Hall%20of%20Fame.mp3"
+ },
+ {
+  "title": "Ending Theme",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 176,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/arjdybwuzg/154.%20Ending%20Theme.mp3"
+ },
+ {
+  "title": "THE END",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 66,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/eozxghyawc/155.%20THE%20END.mp3"
+ },
+ {
+  "title": "Pokéwalker",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 80,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/hqxxqtzxzb/156.%20Pok%C3%A9walker.mp3"
+ },
+ {
+  "title": "Pokégear Radio - Route 101",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 77,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/uppuqbcait/157.%20Pok%C3%A9gear%20Radio%20-%20Route%20101.mp3"
+ },
+ {
+  "title": "Battle! (Super-Ancient Pokémon)",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": true,
+  "seconds": 98,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/ziuagdwcot/158.%20Battle%21%20%28Super-Ancient%20Pok%C3%A9mon%29.mp3"
+ },
+ {
+  "title": "Battle Tower Reception Desk",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 72,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/dqxrkojacn/159.%20Battle%20Tower%20Reception%20Desk.mp3"
+ },
+ {
+  "title": "Battle Tower (Johto)",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 153,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/ghxxkzyxad/160.%20Battle%20Tower%20%28Johto%29.mp3"
+ },
+ {
+  "title": "Battle Factory",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 172,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/adojhqefzm/162.%20Battle%20Factory.mp3"
+ },
+ {
+  "title": "Battle Hall",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 159,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/eohsebafjv/163.%20Battle%20Hall.mp3"
+ },
+ {
+  "title": "Battle Arcade",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 166,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/lgznmkejda/164.%20Battle%20Arcade.mp3"
+ },
+ {
+  "title": "Battle Castle",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 264,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/mnfngmalyw/166.%20Battle%20Castle.mp3"
+ },
+ {
+  "title": "Battle! (Frontier Brain)",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": true,
+  "seconds": 191,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/ojyjihlajp/168.%20Battle%21%20%28Frontier%20Brain%29.mp3"
+ },
+ {
+  "title": "Pokégear Radio - Route 201",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 67,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/fepechsusv/172.%20Pok%C3%A9gear%20Radio%20-%20Route%20201.mp3"
+ },
+ {
+  "title": "Sinjoh Ruins",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 183,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/omzpgseqxa/173.%20Sinjoh%20Ruins.mp3"
+ },
+ {
+  "title": "Arceus",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 153,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/ncxjhtincx/174.%20Arceus.mp3"
+ },
+ {
+  "title": "Pokémon Healed",
+  "game": "HeartGold & SoulSilver",
+  "gen": 2,
+  "battle": false,
+  "seconds": 4,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/vyvmavzqzw/16.%20Pok%C3%A9mon%20Healed.mp3",
+  "hidden": true
+ },
+ {
   "title": "Title Screen - Main Theme",
   "game": "Ruby & Sapphire",
   "gen": 3,
@@ -1272,6 +2445,24 @@
   "url": "https://jetta.vgmtreasurechest.com/soundtracks/pokemon-ruby-sapphire-music-super-complete/vczsoqlk/2-55.%20Steven%20Stone.mp3"
  },
  {
+  "title": "Pokémon Healed",
+  "game": "Ruby & Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 5,
+  "url": "https://jetta.vgmtreasurechest.com/soundtracks/pokemon-ruby-sapphire-music-super-complete/ohssjsmi/1-14.%20Pok%C3%A9mon%20Healed.mp3",
+  "hidden": true
+ },
+ {
+  "title": "Fortree City",
+  "game": "Ruby & Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 56,
+  "url": "https://jetta.vgmtreasurechest.com/soundtracks/pokemon-ruby-sapphire-music-super-complete/zuxdbtsg/2-02.%20Fortree%20City.mp3",
+  "hidden": true
+ },
+ {
   "title": "Abnormal Weather",
   "game": "Emerald",
   "gen": 3,
@@ -1360,316 +2551,821 @@
   "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-emerald-gameboy-advance-gamerip/cwdzpbkx/1-17.%20Battle%21%20%28Mew%29.mp3"
  },
  {
-  "title": "Title Screen",
-  "game": "FireRed & LeafGreen",
-  "gen": 3,
-  "battle": false,
-  "seconds": 97,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/rnqqgivd/1-03.%20Title%20Screen.mp3"
- },
- {
-  "title": "Welcome to the World of Pokémon!",
-  "game": "FireRed & LeafGreen",
-  "gen": 3,
-  "battle": false,
-  "seconds": 65,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/eigdyivf/1-05.%20Welcome%20to%20the%20World%20of%20Pok%C3%A9mon%21.mp3"
- },
- {
-  "title": "Pallet Town",
-  "game": "FireRed & LeafGreen",
-  "gen": 3,
-  "battle": false,
-  "seconds": 94,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/nakchcpu/1-06.%20Pallet%20Town.mp3"
- },
- {
-  "title": "Battle! (Trainer)",
-  "game": "FireRed & LeafGreen",
-  "gen": 3,
-  "battle": true,
-  "seconds": 193,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/rveidrzx/1-11.%20Battle%21%20%28Trainer%29.mp3"
- },
- {
-  "title": "Pewter City",
-  "game": "FireRed & LeafGreen",
-  "gen": 3,
-  "battle": false,
-  "seconds": 127,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/qexcrcnf/1-15.%20Pewter%20City.mp3"
- },
- {
-  "title": "Viridian Forest",
-  "game": "FireRed & LeafGreen",
-  "gen": 3,
-  "battle": false,
-  "seconds": 166,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/vifamihk/1-17.%20Viridian%20Forest.mp3"
- },
- {
-  "title": "Battle! (Wild Pokémon)",
-  "game": "FireRed & LeafGreen",
-  "gen": 3,
-  "battle": true,
-  "seconds": 92,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/bfujkava/1-18.%20Battle%21%20%28Wild%20Pok%C3%A9mon%29.mp3"
- },
- {
-  "title": "Pokémon Center",
-  "game": "FireRed & LeafGreen",
-  "gen": 3,
-  "battle": false,
-  "seconds": 73,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/hitwanpk/1-21.%20Pok%C3%A9mon%20Center.mp3"
- },
- {
-  "title": "Pokémon Gym",
-  "game": "FireRed & LeafGreen",
-  "gen": 3,
-  "battle": false,
-  "seconds": 75,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/buthispu/1-25.%20Pok%C3%A9mon%20Gym.mp3"
- },
- {
-  "title": "Battle! (Gym Leader)",
-  "game": "FireRed & LeafGreen",
-  "gen": 3,
-  "battle": true,
-  "seconds": 126,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/gjzvfrpb/1-27.%20Battle%21%20%28Gym%20Leader%29.mp3"
- },
- {
-  "title": "Victory! (Gym Leader)",
-  "game": "FireRed & LeafGreen",
-  "gen": 3,
-  "battle": false,
-  "seconds": 61,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/kykfyzbj/1-28.%20Victory%21%20%28Gym%20Leader%29.mp3"
- },
- {
-  "title": "Road to Cerulean City: Leaving Mt. Moon",
-  "game": "FireRed & LeafGreen",
-  "gen": 3,
-  "battle": false,
-  "seconds": 72,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/hqgmpoaj/1-32.%20Road%20to%20Cerulean%20City%20-%20Leaving%20Mt.%20Moon.mp3"
- },
- {
-  "title": "Mt. Moon",
-  "game": "FireRed & LeafGreen",
-  "gen": 3,
-  "battle": false,
-  "seconds": 163,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/dncbxkfy/1-34.%20Mt.%20Moon.mp3"
- },
- {
-  "title": "Vermilion City",
-  "game": "FireRed & LeafGreen",
-  "gen": 3,
-  "battle": false,
-  "seconds": 80,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/dsevogob/1-35.%20Vermilion%20City.mp3"
- },
- {
-  "title": "S.S. Anne",
-  "game": "FireRed & LeafGreen",
-  "gen": 3,
-  "battle": false,
-  "seconds": 133,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/shhrldii/1-36.%20S.S.%20Anne.mp3"
- },
- {
-  "title": "Cycling",
-  "game": "FireRed & LeafGreen",
-  "gen": 3,
-  "battle": false,
-  "seconds": 78,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/owswdfpj/1-37.%20Cycling.mp3"
- },
- {
-  "title": "Lavender Town",
-  "game": "FireRed & LeafGreen",
-  "gen": 3,
-  "battle": false,
-  "seconds": 115,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/aabfwsxm/1-38.%20Lavender%20Town.mp3"
- },
- {
-  "title": "Pokémon Tower",
-  "game": "FireRed & LeafGreen",
+  "title": "Title Screen - Main Theme",
+  "game": "Omega Ruby & Alpha Sapphire",
   "gen": 3,
   "battle": false,
   "seconds": 103,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/rwhvgwny/1-39.%20Pok%C3%A9mon%20Tower.mp3"
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/vyffjevr/1-03.%20Title%20Screen%20-%20Main%20Theme.mp3"
  },
  {
-  "title": "Celadon City",
-  "game": "FireRed & LeafGreen",
+  "title": "Introductions",
+  "game": "Omega Ruby & Alpha Sapphire",
   "gen": 3,
   "battle": false,
-  "seconds": 90,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/fgnxahmo/1-40.%20Celadon%20City.mp3"
+  "seconds": 107,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/xjfwvmwy/1-04.%20Introductions.mp3"
  },
  {
-  "title": "Rocket Game Corner",
-  "game": "FireRed & LeafGreen",
+  "title": "Littleroot Town",
+  "game": "Omega Ruby & Alpha Sapphire",
   "gen": 3,
   "battle": false,
-  "seconds": 94,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/iabgcrbj/1-41.%20Rocket%20Game%20Corner.mp3"
+  "seconds": 119,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/akxgqlgw/1-05.%20Littleroot%20Town.mp3"
  },
  {
-  "title": "Rocket Hideout",
-  "game": "FireRed & LeafGreen",
-  "gen": 3,
-  "battle": false,
-  "seconds": 126,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/gnvnfmtg/1-45.%20Rocket%20Hideout.mp3"
- },
- {
-  "title": "Silph Co.",
-  "game": "FireRed & LeafGreen",
-  "gen": 3,
-  "battle": false,
-  "seconds": 121,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/omvqqits/1-47.%20Silph%20Co..mp3"
- },
- {
-  "title": "Road to Fuchsia City: Leaving Lavender Town",
-  "game": "FireRed & LeafGreen",
-  "gen": 3,
-  "battle": false,
-  "seconds": 72,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/hitslasp/1-48.%20Road%20to%20Fuchsia%20City%20-%20Leaving%20Lavender%20Town.mp3"
- },
- {
-  "title": "Fuchsia City",
-  "game": "FireRed & LeafGreen",
-  "gen": 3,
-  "battle": false,
-  "seconds": 79,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/hsrexzgg/1-50.%20Fuchsia%20City.mp3"
- },
- {
-  "title": "Surfing",
-  "game": "FireRed & LeafGreen",
+  "title": "Birch Pokémon Lab",
+  "game": "Omega Ruby & Alpha Sapphire",
   "gen": 3,
   "battle": false,
   "seconds": 73,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/ngrqduol/1-52.%20Surfing.mp3"
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/ruvwuhcp/1-06.%20Birch%20Pok%C3%A9mon%20Lab.mp3"
  },
  {
-  "title": "Battle! (Legendary Pokémon)",
-  "game": "FireRed & LeafGreen",
+  "title": "May",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 73,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/tykhecxe/1-07.%20May.mp3"
+ },
+ {
+  "title": "Battle! (Wild Pokémon)",
+  "game": "Omega Ruby & Alpha Sapphire",
   "gen": 3,
   "battle": true,
-  "seconds": 60,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/oklxegss/1-53.%20Battle%21%20%28Legendary%20Pok%C3%A9mon%29.mp3"
+  "seconds": 100,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/leohsrin/1-09.%20Battle%21%20%28Wild%20Pok%C3%A9mon%29.mp3"
  },
  {
-  "title": "Cinnabar Island",
-  "game": "FireRed & LeafGreen",
+  "title": "Route 101",
+  "game": "Omega Ruby & Alpha Sapphire",
   "gen": 3,
   "battle": false,
-  "seconds": 80,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/fmulvukt/1-55.%20Cinnabar%20Island.mp3"
+  "seconds": 79,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/raadngpi/1-11.%20Route%20101.mp3"
  },
  {
-  "title": "Pokémon Mansion",
-  "game": "FireRed & LeafGreen",
+  "title": "Oldale Town",
+  "game": "Omega Ruby & Alpha Sapphire",
   "gen": 3,
   "battle": false,
-  "seconds": 126,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/opeczpaj/1-56.%20Pok%C3%A9mon%20Mansion.mp3"
+  "seconds": 87,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/vfnxzdww/1-12.%20Oldale%20Town.mp3"
  },
  {
-  "title": "Sevii Islands - Four Island - Five Island",
-  "game": "FireRed & LeafGreen",
+  "title": "Pokémon Center",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 86,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/xqnqrmkn/1-15.%20Pok%C3%A9mon%20Center.mp3"
+ },
+ {
+  "title": "Battle! (Trainer Battle)",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": true,
+  "seconds": 176,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/bnjkuuok/1-20.%20Battle%21%20%28Trainer%20Battle%29.mp3"
+ },
+ {
+  "title": "Petalburg City",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 73,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/thfddenc/1-23.%20Petalburg%20City.mp3"
+ },
+ {
+  "title": "Wally's Theme",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 83,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/udhblbyp/1-25.%20Wally%27s%20Theme.mp3"
+ },
+ {
+  "title": "Route 104",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 89,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/csgcuomq/1-26.%20Route%20104.mp3"
+ },
+ {
+  "title": "Petalburg Woods",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 87,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/vfocvxai/1-27.%20Petalburg%20Woods.mp3"
+ },
+ {
+  "title": "Battle! (Team Aqua - Team Magma)",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": true,
+  "seconds": 201,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/zleqrjym/1-29.%20Battle%21%20%28Team%20Aqua%20-%20Team%20Magma%29.mp3"
+ },
+ {
+  "title": "Rustboro City",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 132,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/xqittmel/1-31.%20Rustboro%20City.mp3"
+ },
+ {
+  "title": "Trainers' School",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 85,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/raesdneh/1-32.%20Trainers%27%20School.mp3"
+ },
+ {
+  "title": "Crossing the Sea",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 65,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/gvklauyg/1-34.%20Crossing%20the%20Sea.mp3"
+ },
+ {
+  "title": "Dewford Town",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 144,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/ntftdneh/1-35.%20Dewford%20Town.mp3"
+ },
+ {
+  "title": "Slateport City",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 174,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/voiyrqcn/1-38.%20Slateport%20City.mp3"
+ },
+ {
+  "title": "Oceanic Museum",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 151,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/jimkqytx/1-39.%20Oceanic%20Museum.mp3"
+ },
+ {
+  "title": "Leader's Theme (Team Aqua - Team Magma)",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 71,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/kesabcku/1-40.%20Leader%27s%20Theme%20%28Team%20Aqua%20-%20Team%20Magma%29.mp3"
+ },
+ {
+  "title": "Route 110",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 83,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/psrggmqt/1-41.%20Route%20110.mp3"
+ },
+ {
+  "title": "Cycling",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 109,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/wamihmoh/1-42.%20Cycling.mp3"
+ },
+ {
+  "title": "Verdanturf Town",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 101,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/mnfoeeid/1-44.%20Verdanturf%20Town.mp3"
+ },
+ {
+  "title": "Route 113",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 145,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/lykfvmwv/1-46.%20Route%20113.mp3"
+ },
+ {
+  "title": "Fallarbor Town",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 118,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/zyudjjtp/1-48.%20Fallarbor%20Town.mp3"
+ },
+ {
+  "title": "Mt. Chimney",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 205,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/rckuulwc/2-01.%20Mt.%20Chimney.mp3"
+ },
+ {
+  "title": "Route 111",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 95,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/uhdvrxlp/2-03.%20Route%20111.mp3"
+ },
+ {
+  "title": "Pokémon Gym",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 79,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/bjsjsmgx/2-05.%20Pok%C3%A9mon%20Gym.mp3"
+ },
+ {
+  "title": "Battle! (Gym Leader)",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": true,
+  "seconds": 150,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/rqdungqn/2-06.%20Battle%21%20%28Gym%20Leader%29.mp3"
+ },
+ {
+  "title": "Victory! (Gym Leader - Elite Four)",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 95,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/rspwltik/2-07.%20Victory%21%20%28Gym%20Leader%20-%20Elite%20Four%29.mp3"
+ },
+ {
+  "title": "A Path We All Must Walk",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 83,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/ndcaxmqv/2-10.%20A%20Path%20We%20All%20Must%20Walk.mp3"
+ },
+ {
+  "title": "Surf",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 152,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/eknjfycp/2-11.%20Surf.mp3"
+ },
+ {
+  "title": "Southern Island",
+  "game": "Omega Ruby & Alpha Sapphire",
   "gen": 3,
   "battle": false,
   "seconds": 105,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/rclvyecx/1-59.%20Sevii%20Islands%20-%20Four%20Island%20-%20Five%20Island.mp3"
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/lxfizzyv/2-13.%20Southern%20Island.mp3"
  },
  {
-  "title": "Dodrio Berry Picking",
-  "game": "FireRed & LeafGreen",
+  "title": "Route 119",
+  "game": "Omega Ruby & Alpha Sapphire",
   "gen": 3,
   "battle": false,
-  "seconds": 63,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/qowsynvo/1-61.%20Dodrio%20Berry%20Picking.mp3"
+  "seconds": 143,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/gsvzmkoq/2-15.%20Route%20119.mp3"
  },
  {
-  "title": "Sevii Islands",
-  "game": "FireRed & LeafGreen",
+  "title": "Explosive Encounters! Red and Blue",
+  "game": "Omega Ruby & Alpha Sapphire",
   "gen": 3,
   "battle": false,
-  "seconds": 108,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/ebrfcupq/1-63.%20Sevii%20Islands.mp3"
+  "seconds": 73,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/ljmgwplh/2-16.%20Explosive%20Encounters%21%20Red%20and%20Blue.mp3"
  },
  {
-  "title": "Sevii Islands - Six Island - Seven Isalnd",
-  "game": "FireRed & LeafGreen",
+  "title": "Fortree City",
+  "game": "Omega Ruby & Alpha Sapphire",
   "gen": 3,
   "battle": false,
-  "seconds": 114,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/mjmhzzbj/1-64.%20Sevii%20Islands%20-%20Six%20Island%20-%20Seven%20Isalnd.mp3"
+  "seconds": 89,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/ezkzuauu/2-17.%20Fortree%20City.mp3"
  },
  {
-  "title": "The Union Room",
-  "game": "FireRed & LeafGreen",
+  "title": "Route 120",
+  "game": "Omega Ruby & Alpha Sapphire",
   "gen": 3,
   "battle": false,
-  "seconds": 60,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/sipyzdps/1-65.%20The%20Union%20Room.mp3"
+  "seconds": 125,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/prnqqgiz/2-18.%20Route%20120.mp3"
+ },
+ {
+  "title": "Lilycove City",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 123,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/qeygjbgc/2-23.%20Lilycove%20City.mp3"
+ },
+ {
+  "title": "Museum",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 188,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/sfwvkqxq/2-24.%20Museum.mp3"
+ },
+ {
+  "title": "Brendan",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 73,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/vlsdpqjw/2-26.%20Brendan.mp3"
+ },
+ {
+  "title": "Battle! (Brendan - May)",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": true,
+  "seconds": 132,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/gsuwzfcv/2-27.%20Battle%21%20%28Brendan%20-%20May%29.mp3"
+ },
+ {
+  "title": "Poké Mart",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 99,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/uatrdqwh/2-30.%20Pok%C3%A9%20Mart.mp3"
+ },
+ {
+  "title": "Mt. Pyre",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 117,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/dzoxuhah/2-32.%20Mt.%20Pyre.mp3"
+ },
+ {
+  "title": "Mt. Pyre Exterior",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 154,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/dzmndbxj/2-35.%20Mt.%20Pyre%20Exterior.mp3"
+ },
+ {
+  "title": "Hideout",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 96,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/iackvxzf/3-02.%20Hideout.mp3"
+ },
+ {
+  "title": "Countdown to Destruction",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 81,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/fsvczpzf/3-04.%20Countdown%20to%20Destruction.mp3"
+ },
+ {
+  "title": "Dive",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 161,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/brdqtwan/3-05.%20Dive.mp3"
+ },
+ {
+  "title": "Team Aqua Appears!",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 64,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/bbeqtvwx/3-07.%20Team%20Aqua%20Appears%21.mp3"
+ },
+ {
+  "title": "Battle! (Team Aqua - Team Magma Leaders)",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": true,
+  "seconds": 146,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/wrrkynvo/3-08.%20Battle%21%20%28Team%20Aqua%20-%20Team%20Magma%20Leaders%29.mp3"
+ },
+ {
+  "title": "The Super-Ancient Pokémon Awaken!",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 65,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/iwmscika/3-09.%20The%20Super-Ancient%20Pok%C3%A9mon%20Awaken%21.mp3"
+ },
+ {
+  "title": "Heavy Rain",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 70,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/lemyhnvm/3-11.%20Heavy%20Rain.mp3"
+ },
+ {
+  "title": "Sootopolis City",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 120,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/xffmtgcq/3-12.%20Sootopolis%20City.mp3"
+ },
+ {
+  "title": "Cave of Origin",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 97,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/ysvxebus/3-13.%20Cave%20of%20Origin.mp3"
+ },
+ {
+  "title": "Battle! (Primal Reversion)",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": true,
+  "seconds": 99,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/eterwfny/3-14.%20Battle%21%20%28Primal%20Reversion%29.mp3"
+ },
+ {
+  "title": "Coexistence",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 231,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/ecwcxefm/3-15.%20Coexistence.mp3"
+ },
+ {
+  "title": "Soaring Dreams",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 157,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/nqoycqwj/3-17.%20Soaring%20Dreams.mp3"
+ },
+ {
+  "title": "Soaring Illusions",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 189,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/fboqlkqx/3-18.%20Soaring%20Illusions.mp3"
+ },
+ {
+  "title": "Ever Grande City",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 138,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/qkfvncyi/3-20.%20Ever%20Grande%20City.mp3"
  },
  {
   "title": "Victory Road",
-  "game": "FireRed & LeafGreen",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 108,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/yqjzwgrs/3-21.%20Victory%20Road.mp3"
+ },
+ {
+  "title": "Trainers' eyes Meet (Ace Trainer)",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 65,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/mfqouknm/3-22.%20Trainers%27%20eyes%20Meet%20%28Ace%20Trainer%29.mp3"
+ },
+ {
+  "title": "Rival's Theme",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 85,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/xydsgaka/3-23.%20Rival%27s%20Theme.mp3"
+ },
+ {
+  "title": "Battle! (Elite Four)",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": true,
+  "seconds": 122,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/djkwfkku/3-25.%20Battle%21%20%28Elite%20Four%29.mp3"
+ },
+ {
+  "title": "Champion Steven",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 67,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/sgcrdsab/3-26.%20Champion%20Steven.mp3"
+ },
+ {
+  "title": "Battle! (Steven)",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": true,
+  "seconds": 133,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/eszvcdgy/3-27.%20Battle%21%20%28Steven%29.mp3"
+ },
+ {
+  "title": "Victory! (Steven)",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 69,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/yxswfjgc/3-28.%20Victory%21%20%28Steven%29.mp3"
+ },
+ {
+  "title": "Room of Glory",
+  "game": "Omega Ruby & Alpha Sapphire",
   "gen": 3,
   "battle": false,
   "seconds": 75,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/fuiiowqp/1-69.%20Victory%20Road.mp3"
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/tlzpbkzp/3-29.%20Room%20of%20Glory.mp3"
  },
  {
-  "title": "Final Battle! (Rival)",
-  "game": "FireRed & LeafGreen",
+  "title": "The Hall of Fame",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 81,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/ahlkqzad/3-30.%20The%20Hall%20of%20Fame.mp3"
+ },
+ {
+  "title": "Let's Go Home",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 107,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/qrnqoyzb/3-31.%20Let%27s%20Go%20Home.mp3"
+ },
+ {
+  "title": "Ending Theme",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 419,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/kwdzmmxf/3-32.%20Ending%20Theme.mp3"
+ },
+ {
+  "title": "The End",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 211,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/fmtkqbio/3-33.%20The%20End.mp3"
+ },
+ {
+  "title": "The Heirs to Eternity",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 90,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/rvbwbvvs/4-01.%20The%20Heirs%20to%20Eternity.mp3"
+ },
+ {
+  "title": "Azoth",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 69,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/cihoybjr/4-02.%20Azoth.mp3"
+ },
+ {
+  "title": "Sky Pillar",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 60,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/fedfplkp/4-03.%20Sky%20Pillar.mp3"
+ },
+ {
+  "title": "The Lament of Falling Stars",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 119,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/vidrzyua/4-04.%20The%20Lament%20of%20Falling%20Stars.mp3"
+ },
+ {
+  "title": "Battle! (Super-Ancient Pokémon)",
+  "game": "Omega Ruby & Alpha Sapphire",
   "gen": 3,
   "battle": true,
-  "seconds": 157,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/zfdbuwwt/1-70.%20Final%20Battle%21%20%28Rival%29.mp3"
+  "seconds": 98,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/vbsmgtbb/4-05.%20Battle%21%20%28Super-Ancient%20Pok%C3%A9mon%29.mp3"
  },
  {
-  "title": "Epilogue",
-  "game": "FireRed & LeafGreen",
+  "title": "Battle! (Lorekeeper Zinnia)",
+  "game": "Omega Ruby & Alpha Sapphire",
   "gen": 3,
-  "battle": false,
-  "seconds": 68,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/eojclyix/1-71.%20Epilogue.mp3"
+  "battle": true,
+  "seconds": 184,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/dmzkcheb/4-06.%20Battle%21%20%28Lorekeeper%20Zinnia%29.mp3"
  },
  {
-  "title": "Hall of Fame",
-  "game": "FireRed & LeafGreen",
+  "title": "Per Aspera Ad Astra",
+  "game": "Omega Ruby & Alpha Sapphire",
   "gen": 3,
   "battle": false,
-  "seconds": 63,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/msbfyaim/1-72.%20Hall%20of%20Fame.mp3"
- },
- {
-  "title": "Staff Credits",
-  "game": "FireRed & LeafGreen",
-  "gen": 3,
-  "battle": false,
-  "seconds": 254,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/narfcuqx/1-73.%20Staff%20Credits.mp3"
+  "seconds": 89,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/rfaleoei/4-07.%20Per%20Aspera%20Ad%20Astra.mp3"
  },
  {
   "title": "Battle! (Deoxys)",
-  "game": "FireRed & LeafGreen",
+  "game": "Omega Ruby & Alpha Sapphire",
   "gen": 3,
   "battle": true,
   "seconds": 163,
-  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/stprskxj/2-02.%20Battle%21%20%28Deoxys%29.mp3"
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/bjrhkesy/4-08.%20Battle%21%20%28Deoxys%29.mp3"
+ },
+ {
+  "title": "Strains of a New Beginning -Theme of Ωrαs-",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 252,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/oamhaewv/4-09.%20Strains%20of%20a%20New%20Beginning%20-Theme%20of%20%CE%A9r%CE%B1s-.mp3"
+ },
+ {
+  "title": "Contest Lobby",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 68,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/ueofklat/4-12.%20Contest%20Lobby.mp3"
+ },
+ {
+  "title": "Lisia's Theme",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 68,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/pudiezhp/4-13.%20Lisia%27s%20Theme.mp3"
+ },
+ {
+  "title": "Pokémon Contest Spectacular - Introductions!",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 87,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/gstqysuu/4-15.%20Pok%C3%A9mon%20Contest%20Spectacular%20-%20Introductions%21.mp3"
+ },
+ {
+  "title": "Pokémon Contest Spectacular - Appeals!",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 90,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/ololngqn/4-16.%20Pok%C3%A9mon%20Contest%20Spectacular%20-%20Appeals%21.mp3"
+ },
+ {
+  "title": "Trick House",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 96,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/oszturbg/4-20.%20Trick%20House.mp3"
+ },
+ {
+  "title": "Super-Secret Bases",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 74,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/aiqeapwp/4-21.%20Super-Secret%20Bases.mp3"
+ },
+ {
+  "title": "Sea Mauville",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 88,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/aqcpqjay/4-26.%20Sea%20Mauville.mp3"
+ },
+ {
+  "title": "Sealed Chamber",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 88,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/qlfvnapy/4-27.%20Sealed%20Chamber.mp3"
+ },
+ {
+  "title": "Battle! (Regirock - Regice - Registeel)",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": true,
+  "seconds": 100,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/zyxpjayq/4-28.%20Battle%21%20%28Regirock%20-%20Regice%20-%20Registeel%29.mp3"
+ },
+ {
+  "title": "Pokémon Link",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 87,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/hrlhafzg/4-29.%20Pok%C3%A9mon%20Link.mp3"
+ },
+ {
+  "title": "Battle Resort",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 93,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/wwtchcqx/4-32.%20Battle%20Resort.mp3"
+ },
+ {
+  "title": "Battle Maison",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 84,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/namkpqno/4-33.%20Battle%20Maison.mp3"
+ },
+ {
+  "title": "Battle! (Battle Chatelaine)",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": true,
+  "seconds": 194,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/iismguhy/4-35.%20Battle%21%20%28Battle%20Chatelaine%29.mp3"
+ },
+ {
+  "title": "Happy Birthday from the Pokémon Center!",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 125,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/zbkvvrwj/4-36.%20Happy%20Birthday%20from%20the%20Pok%C3%A9mon%20Center%21.mp3"
+ },
+ {
+  "title": "Victory! (World Champion)",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 184,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/gdvwuhex/4-37.%20Victory%21%20%28World%20Champion%29.mp3"
+ },
+ {
+  "title": "Battle! (Deoxys)",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": true,
+  "seconds": 161,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/dvulvuoh/4-38.%20Battle%21%20%28Deoxys%29.mp3"
+ },
+ {
+  "title": "Battle! (Frontier Brain)",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": true,
+  "seconds": 190,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/wjgglmbx/4-39.%20Battle%21%20%28Frontier%20Brain%29.mp3"
+ },
+ {
+  "title": "Carnival Ludicolo Musical!",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 77,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/hstoofgq/4-40.%20Carnival%20Ludicolo%20Musical%21.mp3"
+ },
+ {
+  "title": "Trick Master ~Tricky Remix!~",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 113,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/ligivfql/4-41.%20Trick%20Master%20~Tricky%20Remix%21~.mp3"
+ },
+ {
+  "title": "Appeal☆Love",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 226,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/kqadsche/4-42.%20Appeal%E2%98%86Love.mp3"
+ },
+ {
+  "title": "Pokémon Healed",
+  "game": "Omega Ruby & Alpha Sapphire",
+  "gen": 3,
+  "battle": false,
+  "seconds": 5,
+  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-omega-ruby-and-alpha-sapphire-super-music-complete-nintendo-3ds/lpstrdrx/1-16.%20Pok%C3%A9mon%20Healed.mp3",
+  "hidden": true
  },
  {
   "title": "Opening Movie (Pokémon Diamond & Pokémon Pearl)",
@@ -2758,822 +4454,6 @@
   "battle": true,
   "seconds": 97,
   "url": "https://lambda.vgmtreasurechest.com/soundtracks/pok-mon-diamond-pok-mon-pearl-super-music-collection-2006/bqtoninkin/200.%20Battle%21%20%28Regirock%20-%20Regice%20-%20Registeel%29.mp3"
- },
- {
-  "title": "Opening Movie",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 68,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/cnweeovosq/01.%20Opening%20Movie.mp3"
- },
- {
-  "title": "Title Screen",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 77,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/uqkjkdritm/02.%20Title%20Screen.mp3"
- },
- {
-  "title": "New Bark Town",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 122,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/ynmlyzlrte/04.%20New%20Bark%20Town.mp3"
- },
- {
-  "title": "Lyra",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 66,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/yrwhaenwtj/06.%20Lyra.mp3"
- },
- {
-  "title": "Elm Pokémon Lab",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 82,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/ldrvtprjfa/07.%20Elm%20Pok%C3%A9mon%20Lab.mp3"
- },
- {
-  "title": "Route 29",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 118,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/guirxquqhu/09.%20Route%2029.mp3"
- },
- {
-  "title": "Battle! (Wild Pokémon—Johto Version)",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": true,
-  "seconds": 99,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/cczsceqeju/10.%20Battle%21%20%28Wild%20Pok%C3%A9mon%E2%80%94Johto%20Version%29.mp3"
- },
- {
-  "title": "Cherrygrove City",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 107,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/jfikqolchk/13.%20Cherrygrove%20City.mp3"
- },
- {
-  "title": "Hurry Along 2",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 81,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/dibcgwwcgb/14.%20Hurry%20Along%202.mp3"
- },
- {
-  "title": "Pokémon Center",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 77,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/nyaijyqjri/15.%20Pok%C3%A9mon%20Center.mp3"
- },
- {
-  "title": "Battle! (Trainer—Johto Version)",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": true,
-  "seconds": 236,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/ahsmsweinf/18.%20Battle%21%20%28Trainer%E2%80%94Johto%20Version%29.mp3"
- },
- {
-  "title": "Route 30",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 77,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/spkngoxgcl/20.%20Route%2030.mp3"
- },
- {
-  "title": "Violet City",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 136,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/nqudhpgcme/22.%20Violet%20City.mp3"
- },
- {
-  "title": "Sprout Tower",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 84,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/rvqnkmroqn/23.%20Sprout%20Tower.mp3"
- },
- {
-  "title": "Poké Mart",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 111,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/sjfojymawh/25.%20Pok%C3%A9%20Mart.mp3"
- },
- {
-  "title": "Union Cave",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 137,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/phcufkrmus/28.%20Union%20Cave.mp3"
- },
- {
-  "title": "Ruins of Alph",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 83,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/zxokqgqhjr/30.%20Ruins%20of%20Alph.mp3"
- },
- {
-  "title": "Azalea Town",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 126,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/vizqsyzbzh/33.%20Azalea%20Town.mp3"
- },
- {
-  "title": "Battle! (Team Rocket)",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": true,
-  "seconds": 129,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/upblenfmyl/35.%20Battle%21%20%28Team%20Rocket%29.mp3"
- },
- {
-  "title": "Route 34",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 100,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/tjpwbxowmp/36.%20Route%2034.mp3"
- },
- {
-  "title": "Battle! (Rival)",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": true,
-  "seconds": 134,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/cdptlkqpwv/38.%20Battle%21%20%28Rival%29.mp3"
- },
- {
-  "title": "Goldenrod City",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 87,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/mnpfzvnrep/41.%20Goldenrod%20City.mp3"
- },
- {
-  "title": "Pokémon Gym",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 92,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/aokjhbzgax/42.%20Pok%C3%A9mon%20Gym.mp3"
- },
- {
-  "title": "Battle! (Gym Leader—Johto Version)",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": true,
-  "seconds": 145,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/bcvfnyblox/43.%20Battle%21%20%28Gym%20Leader%E2%80%94Johto%20Version%29.mp3"
- },
- {
-  "title": "Victory! (Gym Leader)",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 82,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/xcfyrdhctn/44.%20Victory%21%20%28Gym%20Leader%29.mp3"
- },
- {
-  "title": "Pokégear Radio - Buena's Password",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 97,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/dfrevqmsop/47.%20Pok%C3%A9gear%20Radio%20-%20Buena%27s%20Password.mp3"
- },
- {
-  "title": "Goldenrod Game Corner",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 151,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/rmktkfhofx/49.%20Goldenrod%20Game%20Corner.mp3"
- },
- {
-  "title": "Global Terminal",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 156,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/hvlvgyedxf/54.%20Global%20Terminal.mp3"
- },
- {
-  "title": "Wi-Fi Plaza",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 155,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/zmzusvgeqm/56.%20Wi-Fi%20Plaza.mp3"
- },
- {
-  "title": "Wi-Fi Plaza - Parade",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 107,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/ytprhcpsmt/59.%20Wi-Fi%20Plaza%20-%20Parade.mp3"
- },
- {
-  "title": "GTS",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 85,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/nlykpvtjps/61.%20GTS.mp3"
- },
- {
-  "title": "Bicycle",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 76,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/tvcgytxuec/64.%20Bicycle.mp3"
- },
- {
-  "title": "National Park",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 215,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/nvqugkjrnt/67.%20National%20Park.mp3"
- },
- {
-  "title": "The Bug-Catching Contest",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 60,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/fgarqxtngj/69.%20The%20Bug-Catching%20Contest.mp3"
- },
- {
-  "title": "Pokéathlon - In the Pokéathlon Dome",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 83,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/oxrojvllmv/73.%20Pok%C3%A9athlon%20-%20In%20the%20Pok%C3%A9athlon%20Dome.mp3"
- },
- {
-  "title": "Pokéathlon - Event Time!",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 102,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/xeotqgkrft/77.%20Pok%C3%A9athlon%20-%20Event%20Time%21.mp3"
- },
- {
-  "title": "Pokéathlon - Finals!",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 140,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/fgqpmurifb/79.%20Pok%C3%A9athlon%20-%20Finals%21.mp3"
- },
- {
-  "title": "Pokéathlon - Medal Ceremony",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 100,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/igulotjnxu/81.%20Pok%C3%A9athlon%20-%20Medal%20Ceremony.mp3"
- },
- {
-  "title": "Ecruteak City",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 169,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/gzbnywowkt/83.%20Ecruteak%20City.mp3"
- },
- {
-  "title": "Burned Tower",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 92,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/eneyoeounv/85.%20Burned%20Tower.mp3"
- },
- {
-  "title": "Pokégear Radio - Professor Oak's Pokémon Talk",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 84,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/ndpfedrjri/87.%20Pok%C3%A9gear%20Radio%20-%20Professor%20Oak%27s%20Pok%C3%A9mon%20Talk.mp3"
- },
- {
-  "title": "Route 38",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 111,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/ektcxqddup/89.%20Route%2038.mp3"
- },
- {
-  "title": "Battle! (Raikou)",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": true,
-  "seconds": 207,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/kyvngruzlr/92.%20Battle%21%20%28Raikou%29.mp3"
- },
- {
-  "title": "Olivine Lighthouse",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 78,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/hgftuztbgd/93.%20Olivine%20Lighthouse.mp3"
- },
- {
-  "title": "Surf",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 153,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/zrouotflqc/94.%20Surf.mp3"
- },
- {
-  "title": "Cianwood City",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 157,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/gqybyumxmr/95.%20Cianwood%20City.mp3"
- },
- {
-  "title": "Route 42",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 77,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/vmawgvxjxh/97.%20Route%2042.mp3"
- },
- {
-  "title": "Team Rocket HQ",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 101,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/uzzhtdhgkj/99.%20Team%20Rocket%20HQ.mp3"
- },
- {
-  "title": "Radio Tower Occupied!",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 85,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/etvctwokui/102.%20Radio%20Tower%20Occupied%21.mp3"
- },
- {
-  "title": "Ice Path",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 156,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/vcaihyhjea/103.%20Ice%20Path.mp3"
- },
- {
-  "title": "Dragon's Den",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 141,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/yodqfarsja/105.%20Dragon%27s%20Den.mp3"
- },
- {
-  "title": "Battle! (Entei)",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": true,
-  "seconds": 175,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/pfyrgugvar/107.%20Battle%21%20%28Entei%29.mp3"
- },
- {
-  "title": "Bell Tower",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 105,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/zhfbgfsawt/108.%20Bell%20Tower.mp3"
- },
- {
-  "title": "Battle! (Ho-Oh)",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": true,
-  "seconds": 164,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/kllnkzijwg/111.%20Battle%21%20%28Ho-Oh%29.mp3"
- },
- {
-  "title": "Battle! (Lugia)",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": true,
-  "seconds": 132,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/unoqdtxtda/114.%20Battle%21%20%28Lugia%29.mp3"
- },
- {
-  "title": "Route 26",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 74,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/slqkpxpljz/115.%20Route%2026.mp3"
- },
- {
-  "title": "S.S. Aqua",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 125,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/rfxpirqnqg/116.%20S.S.%20Aqua.mp3"
- },
- {
-  "title": "Vermilion City",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 106,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/ttvepitbke/117.%20Vermilion%20City.mp3"
- },
- {
-  "title": "Battle! (Gym Leader—Kanto Version)",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": true,
-  "seconds": 141,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/icnzkqweju/118.%20Battle%21%20%28Gym%20Leader%E2%80%94Kanto%20Version%29.mp3"
- },
- {
-  "title": "Lavender Town",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 118,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/xiatdqqydy/119.%20Lavender%20Town.mp3"
- },
- {
-  "title": "Rock Tunnel",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 228,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/woteuhenut/120.%20Rock%20Tunnel.mp3"
- },
- {
-  "title": "Battle! (Wild Pokémon—Kanto Version)",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": true,
-  "seconds": 137,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/gyyteltrso/121.%20Battle%21%20%28Wild%20Pok%C3%A9mon%E2%80%94Kanto%20Version%29.mp3"
- },
- {
-  "title": "Cerulean City",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 74,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/crunragptu/123.%20Cerulean%20City.mp3"
- },
- {
-  "title": "Route 24",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 75,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/xqriikqmlk/124.%20Route%2024.mp3"
- },
- {
-  "title": "Pokégear Radio - Pokémon Lullaby",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 75,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/lhlehulbnn/126.%20Pok%C3%A9gear%20Radio%20-%20Pok%C3%A9mon%20Lullaby.mp3"
- },
- {
-  "title": "Battle! (Suicune)",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": true,
-  "seconds": 207,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/zbcbgplgrk/127.%20Battle%21%20%28Suicune%29.mp3"
- },
- {
-  "title": "Celadon City",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 74,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/fhemllrian/128.%20Celadon%20City.mp3"
- },
- {
-  "title": "Ethan",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 66,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/xbneylxmad/129.%20Ethan.mp3"
- },
- {
-  "title": "Route 11",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 82,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/tqvhihuplr/130.%20Route%2011.mp3"
- },
- {
-  "title": "Pokégear Radio - Poké Flute",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 60,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/kqcxkdtxlh/131.%20Pok%C3%A9gear%20Radio%20-%20Pok%C3%A9%20Flute.mp3"
- },
- {
-  "title": "Viridian Forest",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 122,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/pakricnzid/132.%20Viridian%20Forest.mp3"
- },
- {
-  "title": "Pewter City",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 145,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/axbdnwuvya/134.%20Pewter%20City.mp3"
- },
- {
-  "title": "Route 3",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 83,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/nttzepbfpm/135.%20Route%203.mp3"
- },
- {
-  "title": "Route 1",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 74,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/qviwdfydvi/138.%20Route%201.mp3"
- },
- {
-  "title": "Pallet Town",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 113,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/asozwwvbgj/139.%20Pallet%20Town.mp3"
- },
- {
-  "title": "Professor Oak",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 96,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/mnmbodxqfp/140.%20Professor%20Oak.mp3"
- },
- {
-  "title": "Battle! (Trainer Battle—Kanto Version)",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": true,
-  "seconds": 184,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/fdlqwnraiv/143.%20Battle%21%20%28Trainer%20Battle%E2%80%94Kanto%20Version%29.mp3"
- },
- {
-  "title": "Cinnabar Island",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 92,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/lnirgsemcm/144.%20Cinnabar%20Island.mp3"
- },
- {
-  "title": "Route 47",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 147,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/reqhgezzso/145.%20Route%2047.mp3"
- },
- {
-  "title": "Safari Zone Gate",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 109,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/fjmbpieeiy/146.%20Safari%20Zone%20Gate.mp3"
- },
- {
-  "title": "Safari Zone",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 133,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/rqlxldflmu/147.%20Safari%20Zone.mp3"
- },
- {
-  "title": "Pokégear Radio - Variety Channel",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 84,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/weretmxfgg/148.%20Pok%C3%A9gear%20Radio%20-%20Variety%20Channel.mp3"
- },
- {
-  "title": "Pokégear Radio - Trainer Channel",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 92,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/cibtyfecfr/149.%20Pok%C3%A9gear%20Radio%20-%20Trainer%20Channel.mp3"
- },
- {
-  "title": "Victory Road",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 98,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/ttxxcidtuk/150.%20Victory%20Road.mp3"
- },
- {
-  "title": "The Pokémon League",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 90,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/migegttqfj/151.%20The%20Pok%C3%A9mon%20League.mp3"
- },
- {
-  "title": "Battle! (Champion)",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": true,
-  "seconds": 122,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/tujhxqtksj/152.%20Battle%21%20%28Champion%29.mp3"
- },
- {
-  "title": "The Hall of Fame",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 72,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/chjubuulpb/153.%20The%20Hall%20of%20Fame.mp3"
- },
- {
-  "title": "Ending Theme",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 176,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/arjdybwuzg/154.%20Ending%20Theme.mp3"
- },
- {
-  "title": "THE END",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 66,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/eozxghyawc/155.%20THE%20END.mp3"
- },
- {
-  "title": "Pokéwalker",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 80,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/hqxxqtzxzb/156.%20Pok%C3%A9walker.mp3"
- },
- {
-  "title": "Pokégear Radio - Route 101",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 77,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/uppuqbcait/157.%20Pok%C3%A9gear%20Radio%20-%20Route%20101.mp3"
- },
- {
-  "title": "Battle! (Super-Ancient Pokémon)",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": true,
-  "seconds": 98,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/ziuagdwcot/158.%20Battle%21%20%28Super-Ancient%20Pok%C3%A9mon%29.mp3"
- },
- {
-  "title": "Battle Tower Reception Desk",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 72,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/dqxrkojacn/159.%20Battle%20Tower%20Reception%20Desk.mp3"
- },
- {
-  "title": "Battle Tower (Johto)",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 153,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/ghxxkzyxad/160.%20Battle%20Tower%20%28Johto%29.mp3"
- },
- {
-  "title": "Battle Factory",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 172,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/adojhqefzm/162.%20Battle%20Factory.mp3"
- },
- {
-  "title": "Battle Hall",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 159,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/eohsebafjv/163.%20Battle%20Hall.mp3"
- },
- {
-  "title": "Battle Arcade",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 166,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/lgznmkejda/164.%20Battle%20Arcade.mp3"
- },
- {
-  "title": "Battle Castle",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 264,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/mnfngmalyw/166.%20Battle%20Castle.mp3"
- },
- {
-  "title": "Battle! (Frontier Brain)",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": true,
-  "seconds": 191,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/ojyjihlajp/168.%20Battle%21%20%28Frontier%20Brain%29.mp3"
- },
- {
-  "title": "Pokégear Radio - Route 201",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 67,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/fepechsusv/172.%20Pok%C3%A9gear%20Radio%20-%20Route%20201.mp3"
- },
- {
-  "title": "Sinjoh Ruins",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 183,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/omzpgseqxa/173.%20Sinjoh%20Ruins.mp3"
- },
- {
-  "title": "Arceus",
-  "game": "HeartGold & SoulSilver",
-  "gen": 4,
-  "battle": false,
-  "seconds": 153,
-  "url": "https://nu.vgmtreasurechest.com/soundtracks/pokemon-heartgold-and-soulsilver/ncxjhtincx/174.%20Arceus.mp3"
  },
  {
   "title": "Title",

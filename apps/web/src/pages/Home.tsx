@@ -16,6 +16,7 @@ import { RunOver } from '../components/run/RunOver';
 import { RunStats } from '../components/run/RunStats';
 import { useIsPhone } from '../hooks/useIsPhone';
 import { useRun } from '../hooks/useRun';
+import { useRunMusic } from '../hooks/useRunMusic';
 import { useWindowFill } from '../hooks/useWindowFill';
 import { PAGE_WIDTH } from '../utils/layout';
 
@@ -36,6 +37,8 @@ export function HomePage() {
   /** On a phone: the side panel's tabs are open. */
   const [panel, setPanel] = useState(false);
   const { overview } = run;
+  // Auto play follows the run: the route, the town, the gym, a Pokémon Center.
+  useRunMusic(overview.data?.run?.view);
   // On a phone, once an encounter is over (its reward taken), the page scrolls back up to the route map, to watch the
   // player walk on to the next spot.
   const routeMap = useRef<HTMLDivElement>(null);

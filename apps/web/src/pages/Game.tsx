@@ -11,6 +11,7 @@ import { RunStats } from '../components/run/RunStats';
 import { useIsPhone } from '../hooks/useIsPhone';
 import { useOptions } from '../hooks/useOptions';
 import { useRun } from '../hooks/useRun';
+import { usePracticeMusic, useRunMusic } from '../hooks/useRunMusic';
 import { useSkipFlips } from '../hooks/useSkipFlips';
 import { useTRPC } from '../lib/trpc';
 import { PAGE_WIDTH } from '../utils/layout';
@@ -166,8 +167,21 @@ export function GamePage() {
         info={<BattleInfo view={shown} opponent={data.opponent} />}
       />
       <BattleBanner view={shown} opponent={data.opponent} />
+      {data.runId ? <RunBattleMusic /> : <PracticeMusic opponent={data.opponent} gameId={gameId} />}
     </>
   );
+}
+
+/** Auto play during a run's battle: the battle's theme, from the run's encounter. */
+function RunBattleMusic() {
+  useRunMusic(useRun().overview.data?.run?.view);
+  return null;
+}
+
+/** Auto play during a Practice battle: its opponent's theme. */
+function PracticeMusic({ opponent, gameId }: { opponent: string | null; gameId: string }) {
+  usePracticeMusic(opponent, gameId);
+  return null;
 }
 
 /** The side panel's Run tab during a run's battle on a phone: the run's HP, ₱, EXP and Bag (on a big screen, the site menu's). */
