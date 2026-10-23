@@ -2,7 +2,9 @@ import { lookupCard, type CardLibrary, type InPlayPokemon, type PlayerView, type
 import { Card } from './Card';
 import type { ReactNode } from 'react';
 import { DeckAndDiscard } from './DeckAndDiscard';
+import { useCosmetics } from '../hooks/useCosmetics';
 import { FloatingDialog } from './FloatingDialog';
+import { Playmat } from './Playmat';
 import { PrizeCards } from './PrizeCards';
 import { Slot } from './Slot';
 
@@ -38,13 +40,16 @@ export function OpponentArea({
   /** The Trainer being played or a search of the deck: floats over this side, its bottom level with the CPU's active. */
   dialog?: ReactNode;
 }) {
+  const { playmat } = useCosmetics();
   const slot = (id: string, target: Target, pokemon: InPlayPokemon | null, large?: boolean) => (
     <OpponentSlot key={id} id={id} target={target} pokemon={pokemon} cards={cards} large={large} pick={pick} lunge={lunge} spotlight={spotlight} />
   );
   return (
-    <section className="flex min-h-0 flex-1 items-center rounded-lg bg-slate-900 p-3">
+    // The player's playmat here too (the Cosmetics tab), so the whole table matches.
+    <section className="relative flex min-h-0 flex-1 items-center rounded-lg bg-slate-900 p-3">
+      <Playmat id={playmat} group="table" />
       {/* Top-aligned, with the side columns pushed down past the heading (text-sm + space-y-3 = 2rem) to line up with the bench. */}
-      <div className="flex w-full items-start gap-3">
+      <div className="relative flex w-full items-start gap-3">
         <div className="mt-8">
           <DeckAndDiscard deckCount={opponent.deckCount} discard={opponent.discard} cards={cards} owner="The CPU's" mirrored />
         </div>

@@ -1,5 +1,5 @@
 import { CPU_DIFFICULTIES, DEBUG_CONDITIONS, MAX_BENCH, type AttackChoices, type DebugCommand, type GameAction, type PowerChoices, type TrainerChoices } from '@poke-tcg/game-engine';
-import { BOSS_IDS, EQUIP_SLOTS, MAX_PACKS_AT_ONCE, PACK_SETS, RUN_TYPE_IDS, type RunAction, type RunTypeId } from '@poke-tcg/campaign';
+import { BOSS_IDS, COSMETIC_IDS, EQUIP_SLOTS, MAX_PACKS_AT_ONCE, PACK_SETS, RUN_TYPE_IDS, type RunAction, type RunTypeId } from '@poke-tcg/campaign';
 import { z } from 'zod';
 import { DECK_NAME_LENGTH } from './deck.js';
 import { TRAINER_SPRITES } from './trainer-sprites.js';
@@ -186,6 +186,9 @@ export const buyItemInput = z.object({ itemId: z.string().min(1).max(64) });
 export const equipInput = z.object({ slot: z.enum(EQUIP_SLOTS), itemId: z.string().min(1).max(64).nullable() });
 /** The Inventory's trainer sprite, one of Showdown's. */
 export const trainerSpriteInput = z.object({ sprite: z.enum(TRAINER_SPRITES) });
+/** A cosmetic (card back or playmat) to buy, or to use (its kind's, or null for the default). */
+export const buyCosmeticInput = z.object({ id: z.enum(COSMETIC_IDS as [string, ...string[]]) });
+export const useCosmeticInput = z.object({ kind: z.enum(['cardBack', 'playmat']), id: z.enum(COSMETIC_IDS as [string, ...string[]]).nullable() });
 
 export const openPackInput = z.object({
   setId: z.enum(PACK_SETS as [string, ...string[]]),

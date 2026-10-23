@@ -10,3 +10,6 @@ supabase/.temp/
 .idea/workspace.xml
 .idea/shelf/
 __pycache__/
+
+# The full-size TCG Pocket sleeve PNGs card backs are made from (tools/cardbacks/download-sleeves.js); the game uses the WebP copies in apps/web/public/cardbacks/sleeves/.
+tools/cardbacks/originals/

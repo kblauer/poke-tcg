@@ -1,5 +1,6 @@
 import { cardsRouter } from './routers/cards.js';
 import { communityRouter } from './routers/community.js';
+import { cosmeticsRouter } from './routers/cosmetics.js';
 import { debugRouter } from './routers/debug.js';
 import { decksRouter } from './routers/decks.js';
 import { gameRouter } from './routers/game.js';
@@ -16,6 +17,7 @@ export const appRouter = router({
   game: gameRouter,
   run: runRouter,
   packs: packsRouter,
+  cosmetics: cosmeticsRouter,
   debug: debugRouter,
 });
 

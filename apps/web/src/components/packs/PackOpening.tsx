@@ -7,7 +7,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import { useTRPC } from '../../lib/trpc';
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
-import { CARD_BACK } from '../../utils/cardBack';
+import { useCosmetics } from '../../hooks/useCosmetics';
 import { holoAttributes } from '../../utils/holo';
 import { HoloCard } from '../HoloCard';
 import { RunCard } from '../run/RunCard';
@@ -84,6 +84,8 @@ const isRare = (c: PackCard) => c.slot === 'rare' || isFoilSlot(c.slot) || c.hol
  * while it runs, ×2 speed doubles it and Stop auto goes back to clicking, with Resume auto to start it again).
  */
 export function PackOpening({ set, price, bank, onClose, onOpened }: { set: PackSetInfo; price: number; bank: number; onClose: () => void; onOpened: () => void }) {
+  // Face down, the cards show the player's card back (the Cosmetics tab).
+  const { cardBack } = useCosmetics();
   const trpc = useTRPC();
   const [phase, setPhase] = useState<'pack' | 'tearing' | 'burst' | 'commons' | 'reveal' | 'summary'>('pack');
   const overlay = useRef<HTMLDivElement>(null);
@@ -324,7 +326,7 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
               {/* The rares, face down in a stack. */}
               <div className="relative aspect-[63/88] w-24 transition group-hover:-translate-y-1">
                 {Array.from({ length: Math.min(queue.length, 5) }, (_, i) => (
-                  <img key={i} src={CARD_BACK} alt="" draggable={false} className="absolute inset-0 aspect-[63/88] w-full rounded-lg object-cover shadow-lg" style={{ transform: `translate(${i * 3}px, ${i * 3}px)` }} />
+                  <img key={i} src={cardBack} alt="" draggable={false} className="absolute inset-0 aspect-[63/88] w-full rounded-lg object-cover shadow-lg" style={{ transform: `translate(${i * 3}px, ${i * 3}px)` }} />
                 ))}
               </div>
               <span className="rounded bg-amber-500 px-3 py-1 text-sm font-semibold text-slate-900 group-hover:bg-amber-400">Open the rares ({queue.length})</span>
@@ -349,7 +351,7 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
           <button className="relative w-72 outline-none" onClick={next} aria-label="Next card">
             {/* The rest of the stack, face down, under the card shown. */}
             {Array.from({ length: Math.min(queue.length - index - 1, 5) }, (_, i) => (
-              <img key={i} src={CARD_BACK} alt="" draggable={false} className="absolute inset-0 aspect-[63/88] w-full rounded-xl object-cover shadow-lg" style={{ transform: `translate(${(i + 1) * 4}px, ${(i + 1) * 4}px)` }} />
+              <img key={i} src={cardBack} alt="" draggable={false} className="absolute inset-0 aspect-[63/88] w-full rounded-xl object-cover shadow-lg" style={{ transform: `translate(${(i + 1) * 4}px, ${(i + 1) * 4}px)` }} />
             ))}
             <RevealedCard key={index} card={current} leaving={leaving} />
           </button>
@@ -459,6 +461,7 @@ function RevealedCard({ card, leaving }: { card: PackCard; leaving: boolean }) {
  * gather into a single stack. Calls `onDone` when they've landed (at once with reduced motion).
  */
 function Burst({ count, onDone }: { count: number; onDone: () => void }) {
+  const { cardBack } = useCosmetics();
   const cards = useRef<(HTMLImageElement | null)[]>([]);
   useLayoutEffect(() => {
     if (reducedMotion()) return onDone();
@@ -483,7 +486,7 @@ function Burst({ count, onDone }: { count: number; onDone: () => void }) {
     // m-auto: centred in the window, as every phase is.
     <div className="relative m-auto aspect-[63/88] w-72">
       {Array.from({ length: count }, (_, i) => (
-        <img key={i} ref={(el) => void (cards.current[i] = el)} src={CARD_BACK} alt="" draggable={false} className="absolute inset-0 aspect-[63/88] w-full rounded-xl object-cover shadow-xl shadow-black/60" />
+        <img key={i} ref={(el) => void (cards.current[i] = el)} src={cardBack} alt="" draggable={false} className="absolute inset-0 aspect-[63/88] w-full rounded-xl object-cover shadow-xl shadow-black/60" />
       ))}
     </div>
   );
