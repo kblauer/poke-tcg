@@ -129,6 +129,8 @@ export function Board({
   const tableOverlay = (
     <>
       {overlay}
+      {/* The turn-order coin flip as a battle starts: the game's coin flip, in the same place. */}
+      <TurnOrderFlip key={gameId} view={view} gameId={gameId} />
       {played && <PlayedCard key={played.stamp} defId={played.defId} cards={played.cards} stamp={played.stamp} />}
       {newTurn && <TurnBanner key={newTurn.turn} turn={newTurn} />}
     </>
@@ -569,7 +571,6 @@ export function Board({
               />
             </PlayArea>
             {handView(true)}
-            <TurnOrderFlip key={gameId} view={view} gameId={gameId} />
           </div>
           {sheetShown && activeDef && (
             <ActiveSheet title={activeDef.kind === 'pokemon' ? `${activeDef.name} · ${activeDef.hp - active!.damage}/${activeDef.hp} HP` : activeDef.name} onClose={closeSheet}>
@@ -692,7 +693,8 @@ export function Board({
                     <PrizeCards count={self.prizeCount} faceUp={self.prizes && { prizes: self.prizes, cards: view.cards }} />
                   </div>
                   <div className="min-w-0 flex-1 space-y-3">
-                    <div className="relative flex justify-center">
+                    {/* Your Active Pokémon's row: the coin flips of yours go to the right of its attack panel (CoinFlip). */}
+                    <div data-coin-anchor="self" className="relative flex justify-center">
                       <StadiumCard view={view} send={send} busy={busy} notify={(message) => toasts.push('warning', message)} />
                       {playerSlot('active', self.active)}
                       {attacks}
@@ -709,7 +711,6 @@ export function Board({
 
             {handView(false)}
           </div>
-          <TurnOrderFlip key={gameId} view={view} gameId={gameId} />
         </div>
 
         {dragOverlay}

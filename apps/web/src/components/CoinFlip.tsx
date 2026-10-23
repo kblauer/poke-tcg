@@ -3,7 +3,6 @@ import { DEFAULT_COSMETIC } from '@poke-tcg/campaign';
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useCosmetics } from '../hooks/useCosmetics';
 import { DEBUG_BUILD } from '../utils/debug';
-import { useSkipFlips } from '../hooks/useSkipFlips';
 import { COIN_DESIGNS } from './coinDesigns';
 
 /** How long the coin's flight takes (flick, arc, landing and settling), then how long the result stays up. */
@@ -45,16 +44,23 @@ export const flipsAfter = (log: LogEntry[], since: number): Flip[] =>
   log.flatMap((e) => (e.coin && e.n !== undefined && e.n > since ? [{ n: e.n, player: e.player, ...e.coin }] : []));
 
 /**
- * Animates a move's coin flips one after another, in the middle of the play area (Board puts it in the PlayArea), with
- * what each is for (the attack,
- * Trainer, power or Special Condition). The engine has already decided each result; this replays them while the
- * game waits (GamePage holds the move back until `onDone`). Clicking anywhere skips the rest of them, and
- * "Always skip coin flips" turns the animations off (useSkipFlips).
+ * Animates a move's coin flips one after another, each just the coin on the play area (Board puts it in the PlayArea),
+ * beside the Active Pokémon of the side it comes from (placeBeside). The engine has already decided each result; this
+ * replays them while the game waits (GamePage holds the move back until `onDone`). Clicking anywhere skips the rest of
+ * them, and "Always skip coin flips" (the Settings page) turns the animations off (useSkipFlips). What each is for and
+ * how it landed are read out to screen readers only.
  */
-export function CoinFlip({ flips, you, onDone }: { flips: Flip[]; you: PlayerId; onDone: () => void }) {
+export function CoinFlip({
+  flips,
+  you,
+  onDone,
+}: {
+  flips: Flip[];
+  you: PlayerId;
+  onDone: () => void;
+}) {
   const [index, setIndex] = useState(0);
   const [landed, setLanded] = useState(false);
-  const [skip, setSkip] = useSkipFlips();
   const doneRef = useRef(onDone);
   doneRef.current = onDone;
 
@@ -72,43 +78,80 @@ export function CoinFlip({ flips, you, onDone }: { flips: Flip[]; you: PlayerId;
     };
   }, [current?.n]);
 
+  // Beside the Active Pokémon of the side the flip comes from (yours, or with none the player's; the CPU's mirrored).
+  const side = current && current.player !== null && current.player !== you ? 'opponent' : 'self';
+  const overlay = useRef<HTMLDivElement>(null);
+  const coin = useRef<HTMLDivElement>(null);
+  const [place, setPlace] = useState<{ left: number; top: number } | null>(null);
+  useLayoutEffect(() => {
+    const area = overlay.current;
+    const box = coin.current;
+    if (!area || !box) return;
+    const measure = () => setPlace(placeBeside(area, box, side));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(area);
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, [side, current?.n]);
+
   if (!current) return null;
-  const who = current.player === null ? null : current.player === you ? 'You' : 'CPU';
+  const who = current.player === null ? '' : current.player === you ? 'You: ' : 'CPU: ';
   return (
-    // Covers the play area (the PlayArea is its containing block), centring the coin there. The game waits for the
-    // flips, so a click anywhere on the table (not only on the coin) skips them.
-    <div data-keep-action className="absolute inset-0 z-[1150] flex cursor-pointer items-center justify-center p-4" aria-live="polite" onClick={() => doneRef.current()}>
-      <section className="flex max-w-sm flex-col items-center gap-3 rounded-2xl bg-slate-900/95 px-8 py-5 text-center shadow-2xl shadow-black/70 ring-1 ring-slate-600">
-        <p className="text-base text-slate-200">
-          {who && <span className="font-semibold">{who}: </span>}
-          {current.reason}
-          {flips.length > 1 && <span className="text-slate-500"> ({index + 1} of {flips.length})</span>}
-        </p>
-        <SpinningCoin key={current.n} heads={current.heads} size="md" />
-        <p className={`h-8 text-2xl font-black transition-opacity ${landed ? 'opacity-100' : 'opacity-0'} ${current.heads ? 'text-yellow-300' : 'text-slate-200'}`}>
-          {current.heads ? 'Heads!' : 'Tails!'}
-        </p>
-        <p className="text-xs text-slate-500">Click to skip</p>
-        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-400" onClick={(e) => e.stopPropagation()}>
-          <input
-            type="checkbox"
-            checked={skip}
-            onChange={(e) => {
-              setSkip(e.target.checked);
-              if (e.target.checked) doneRef.current();
-            }}
-          />
-          Always skip coin flips
-        </label>
-      </section>
+    // An invisible layer over the play area (the PlayArea is its containing block), holding only the coin, beside the
+    // flipping side's Active Pokémon (placeBeside) or centred where there's no room (the phone layout). The game waits for
+    // the flips, so a click anywhere on the table (not only on the coin) skips them.
+    <div ref={overlay} data-keep-action className="absolute inset-0 z-[1150] flex cursor-pointer items-center justify-center" aria-live="polite" onClick={() => doneRef.current()}>
+      <div ref={coin} style={place ? { position: 'absolute', left: place.left, top: place.top } : undefined}>
+        <SpinningCoin
+          key={current.n}
+          heads={current.heads}
+          size="md"
+          // Once it has landed, the result just above it (in the room its flight used).
+          label={<p className={`text-2xl font-black drop-shadow-[0_2px_3px_rgba(0,0,0,0.8)] transition-opacity ${landed ? 'opacity-100' : 'opacity-0'} ${current.heads ? 'text-yellow-300' : 'text-slate-100'}`}>{current.heads ? 'Heads!' : 'Tails!'}</p>}
+        />
+      </div>
+      <p className="sr-only">
+        {who}
+        {current.reason}
+        {landed ? `: ${current.heads ? 'heads' : 'tails'}.` : ''}
+      </p>
     </div>
   );
+}
+
+/** The room kept for your attack panel beside your Active Pokémon (.attack-column: w-36 and its 0.75rem gap), and the gap after it. */
+const ATTACK_ROOM = 144 + 12;
+const GAP = 40;
+
+/**
+ * Where the coin flip's window goes in the play area (`area`): on the big screen's board, beside the Active Pokémon of
+ * the side it comes from (the rows marked `data-coin-anchor`), vertically centred on that row: on your side to the right
+ * of your attack panel (room kept for it even when it isn't shown, so it doesn't move), on the CPU's side the mirror of
+ * that, to the left of its Active Pokémon. Kept inside the play area. Null (centred) without the rows: the phone layout.
+ */
+function placeBeside(area: HTMLElement, box: HTMLElement, side: 'self' | 'opponent'): { left: number; top: number } | null {
+  const table = area.parentElement;
+  const own = table?.querySelector<HTMLElement>('[data-coin-anchor="self"]');
+  const row = table?.querySelector<HTMLElement>(`[data-coin-anchor="${side}"]`);
+  const active = own?.querySelector<HTMLElement>('[data-active-slot]');
+  if (!own || !row || !active) return null;
+  const a = area.getBoundingClientRect();
+  const slot = active.getBoundingClientRect();
+  const middle = slot.left + slot.width / 2;
+  // From the middle of the Active Pokémon to the window's near edge: the same on both sides, mirrored.
+  const reach = Math.max(slot.right + ATTACK_ROOM, own.querySelector('.attack-column')?.getBoundingClientRect().right ?? 0) + GAP - middle;
+  const r = row.getBoundingClientRect();
+  const { offsetWidth: w, offsetHeight: h } = box;
+  const left = side === 'self' ? middle + reach - a.left : middle - reach - w - a.left;
+  const top = r.top + r.height / 2 - h / 2 - a.top;
+  const fit = (n: number, room: number) => Math.max(8, Math.min(n, room - 8));
+  return { left: fit(left, a.width - w), top: fit(top, a.height - h) };
 }
 
 /** Each coin size: its width (px), its letters' size, how high it's flicked (px) and how thick it is (px, its rim). */
 const COIN_SIZES = {
   md: { px: 96, text: 'text-4xl', rise: 120, depth: 8 },
-  lg: { px: 160, text: 'text-6xl', rise: 160, depth: 12 },
 };
 
 /** When the coin, flicked at FLICK, lands (fractions of the animation): it bounces and settles after. */
@@ -126,7 +169,7 @@ const DUST = [-34, -22, -10, 10, 22, 34];
  * A 3D coin, in the player's coin cosmetic (`design`, or useCosmetics' coin), flicked up and caught by the table: it dips
  * as the thumb loads it, is flicked (a burst of streaks from it) and flips end over end through an arc, its rim showing as it
  * turns, lands (a puff of dust) on heads or tails, bounces and settles, all in `spinMs` (give it a new `key` to flip
- * again). Its shadow shrinks as it rises. `md` for coin flips during the game, `lg` for the turn-order flip; `still`
+ * again). Its shadow shrinks as it rises. `md` for every coin flip (the turn-order flip's too, the same as the game's); `still`
  * (or reduced motion) just shows the face it lands on.
  */
 export function SpinningCoin({
@@ -136,6 +179,7 @@ export function SpinningCoin({
   design,
   still = false,
   headroom = true,
+  label,
 }: {
   heads: boolean;
   size: keyof typeof COIN_SIZES;
@@ -144,6 +188,8 @@ export function SpinningCoin({
   still?: boolean;
   /** Keep room above the coin for its flight (off for the Cosmetics tab's tiles, whose coin starts still). */
   headroom?: boolean;
+  /** Shown just above the coin where it rests (CoinFlip: Heads! or Tails!, once it has landed). */
+  label?: ReactNode;
 }) {
   const { coin } = useCosmetics();
   const look = COIN_DESIGNS[design ?? coin] ?? COIN_DESIGNS[DEFAULT_COSMETIC.coin]!;
@@ -218,6 +264,7 @@ export function SpinningCoin({
     // With `headroom`, room above the coin for the top of its arc, so it never flies over what's above it (the flip's heading).
     <div className="shrink-0" style={{ width: px, paddingTop: headroom && moving ? rise + px * 0.08 : 0 }}>
       <div className="relative" style={{ height: px * 1.18 }}>
+        {label && <div className="pointer-events-none absolute inset-x-0 bottom-full mb-1 flex justify-center whitespace-nowrap">{label}</div>}
         {/* The shadow on the table under it. */}
         <div ref={shadow} className="absolute left-[10%] w-[80%] rounded-[50%] bg-black/55 blur-[3px]" style={{ top: px * 0.98, height: px * 0.14 }} />
         <div className="absolute inset-x-0 top-0 [perspective:600px]" style={{ height: px }}>
