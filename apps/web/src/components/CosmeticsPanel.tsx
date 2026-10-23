@@ -1,9 +1,10 @@
 import LockIcon from '@mui/icons-material/Lock';
 import { RUN_TYPES, type CosmeticDef, type CosmeticKind } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useTRPC } from '../lib/trpc';
 import { cardBackUrl } from '../utils/cardBack';
+import { SpinningCoin } from './CoinFlip';
 import { Playmat } from './Playmat';
 
 const button = 'rounded bg-slate-600 px-3 py-1 text-xs font-semibold transition hover:bg-slate-500 disabled:opacity-40';
@@ -14,7 +15,7 @@ function howToGet(def: CosmeticDef): string {
 }
 
 /**
- * The Cosmetics tab's panel (pages/Cosmetics.tsx): the card backs (the player's own face-down cards: their deck, Prize cards and packs) and
+ * The Cosmetics tab's panel (pages/Cosmetics.tsx): the coins (every coin flip's, a tile's coin flipped by a click), the card backs (the player's own face-down cards: their deck, Prize cards and packs) and
  * playmats (their side of the table), each a tile with Use (or In use), Buy with banked ₱ for one sold, or the run that
  * unlocks it. A playmat's preview answers clicks as on the table. Every one is had while debugging (the API says so).
  */
@@ -95,6 +96,25 @@ export function CosmeticsPanel() {
           )}
         </ul>
       </section>
+      <section className="space-y-2">
+        <div className="flex flex-wrap items-baseline gap-x-3">
+          <h2 className="text-lg font-semibold">Coins</h2>
+          <p className="text-xs text-slate-500">Tossed for every coin flip in battles. Click a coin to flip it.</p>
+        </div>
+        <ul className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3">
+          {of('coin').map((def) => tile(def, <CoinPreview id={def.id} dim={!def.owned} />))}
+        </ul>
+      </section>
     </div>
+  );
+}
+
+/** A coin cosmetic's tile picture: the coin lying heads up, flipped (heads or tails at random) when clicked. */
+function CoinPreview({ id, dim }: { id: string; dim: boolean }) {
+  const [flip, setFlip] = useState({ n: 0, heads: true });
+  return (
+    <button type="button" title="Flip it" className={`mx-auto flex h-32 items-end justify-center ${dim ? 'opacity-60' : ''}`} onClick={() => setFlip((f) => ({ n: f.n + 1, heads: Math.random() < 0.5 }))}>
+      <SpinningCoin key={flip.n} heads={flip.heads} size="md" design={id} still={flip.n === 0} headroom={false} />
+    </button>
   );
 }

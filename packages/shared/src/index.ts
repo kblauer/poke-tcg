@@ -190,9 +190,9 @@ export const trainerSpriteInput = z.object({ sprite: z.enum(TRAINER_SPRITES) });
 export const PLAYER_GENDERS = ['male', 'female'] as const;
 export type PlayerGender = (typeof PLAYER_GENDERS)[number];
 export const playerGenderInput = z.object({ gender: z.enum(PLAYER_GENDERS) });
-/** A cosmetic (card back or playmat) to buy, or to use (its kind's, or null for the default). */
+/** A cosmetic (card back, playmat or coin) to buy, or to use (its kind's, or null for the default). */
 export const buyCosmeticInput = z.object({ id: z.enum(COSMETIC_IDS as [string, ...string[]]) });
-export const useCosmeticInput = z.object({ kind: z.enum(['cardBack', 'playmat']), id: z.enum(COSMETIC_IDS as [string, ...string[]]).nullable() });
+export const useCosmeticInput = z.object({ kind: z.enum(['cardBack', 'playmat', 'coin']), id: z.enum(COSMETIC_IDS as [string, ...string[]]).nullable() });
 
 export const openPackInput = z.object({
   setId: z.enum(PACK_SETS as [string, ...string[]]),

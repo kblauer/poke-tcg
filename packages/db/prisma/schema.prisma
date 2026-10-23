@@ -33,9 +33,10 @@ model User {
   /// Consumables used from the Inventory while no run was under way (item ids, already taken from the inventory; at most a
   /// run's 3): they all take effect when the next run starts (among that run's 3), then this is cleared.
   pendingConsumables String[]   @default([])
-  /// The cosmetics in use (ids from the campaign package's COSMETICS): the player's card back and playmat; null is the default.
+  /// The cosmetics in use (ids from the campaign package's COSMETICS): the player's card back, playmat and coin; null is the default.
   cardBack      String?
   playmat       String?
+  coin          String?
   decks         Deck[]
   games         Game[]
   runs          Run[]

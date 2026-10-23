@@ -42,5 +42,6 @@ describe('cosmetics', () => {
     for (const c of Object.values(COSMETICS)) if (c.unlock.type === 'beat') expect(RUN_TYPES[c.unlock.runType]).toBeDefined();
     expect(COSMETICS[DEFAULT_COSMETIC.cardBack]?.kind).toBe('cardBack');
     expect(COSMETICS[DEFAULT_COSMETIC.playmat]?.kind).toBe('playmat');
+    expect(COSMETICS[DEFAULT_COSMETIC.coin]?.kind).toBe('coin');
   });
 });

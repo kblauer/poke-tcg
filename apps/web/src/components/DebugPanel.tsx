@@ -14,6 +14,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTRPC } from '../lib/trpc';
+import { requestTestFlip } from './CoinFlip';
 import { EnergyIcon } from './EnergyIcon';
 
 /** Base Set Energy cards, for one-click adding. */
@@ -86,6 +87,22 @@ export default function DebugPanel({ gameId, view }: { gameId: string; view: Pla
             </option>
           ))}
         </select>
+      </section>
+
+      <section>
+        <h4 className={heading}>Coin flip</h4>
+        {/* Only shows a flip (in your coin): nothing is sent, and the game doesn't change. */}
+        <div className="flex flex-wrap gap-1">
+          <button className={button} onClick={() => requestTestFlip()}>
+            Random
+          </button>
+          <button className={button} onClick={() => requestTestFlip(true)}>
+            Heads
+          </button>
+          <button className={button} onClick={() => requestTestFlip(false)}>
+            Tails
+          </button>
+        </div>
       </section>
 
       <section>

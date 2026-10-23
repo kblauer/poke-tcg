@@ -27,16 +27,17 @@ function inUse(kind: CosmeticKind, picked: string | null, has: (id: string) => b
 }
 
 export const cosmeticsRouter = router({
-  /** Every cosmetic with whether the account has it, the card back and playmat in use, and the ₱ in the bank. */
+  /** Every cosmetic with whether the account has it, the card back, playmat and coin in use, and the ₱ in the bank. */
   list: protectedProcedure.query(async ({ ctx }) => {
     const [has, user] = await Promise.all([
       cosmeticsOf(ctx.user.id),
-      prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { cardBack: true, playmat: true, bank: true } }),
+      prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { cardBack: true, playmat: true, coin: true, bank: true } }),
     ]);
     return {
       cosmetics: Object.values(COSMETICS).map((c) => ({ ...c, owned: has(c.id) })),
       cardBack: inUse('cardBack', user.cardBack, has),
       playmat: inUse('playmat', user.playmat, has),
+      coin: inUse('coin', user.coin, has),
       bank: user.bank,
     };
   }),
@@ -60,7 +61,7 @@ export const cosmeticsRouter = router({
   use: protectedProcedure.input(useCosmeticInput).mutation(async ({ ctx, input }) => {
     if (input.id !== null) {
       const def = COSMETICS[input.id]!;
-      if (def.kind !== input.kind) throw new TRPCError({ code: 'BAD_REQUEST', message: `${def.name} isn't a ${input.kind === 'cardBack' ? 'card back' : 'playmat'}` });
+      if (def.kind !== input.kind) throw new TRPCError({ code: 'BAD_REQUEST', message: `${def.name} isn't a ${{ cardBack: 'card back', playmat: 'playmat', coin: 'coin' }[input.kind]}` });
       if (!(await cosmeticsOf(ctx.user.id))(def.id)) throw new TRPCError({ code: 'BAD_REQUEST', message: `You don't have ${def.name} yet` });
     }
     await prisma.user.update({ where: { id: ctx.user.id }, data: { [input.kind]: input.id } });
