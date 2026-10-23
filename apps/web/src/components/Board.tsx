@@ -746,7 +746,7 @@ export function Board({
                     <PrizeCards count={self.prizeCount} faceUp={self.prizes && { prizes: self.prizes, cards: view.cards }} />
                   </div>
                   <div className="min-w-0 flex-1 space-y-3">
-                    {/* Your Active Pokémon's row: the coin flips of yours go to the right of the room kept beside it (the Peek card's; CoinFlip). */}
+                    {/* Your Active Pokémon's row: the coin flips of yours go just to the right of it (past the Peek card when it's shown; CoinFlip). */}
                     <div data-coin-anchor="self" className="relative flex justify-center">
                       <StadiumCard view={view} send={send} busy={busy} notify={(message) => toasts.push('warning', message)} />
                       {playerSlot('active', self.active)}
