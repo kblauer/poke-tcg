@@ -285,6 +285,15 @@ export function blenderMusic(soundtrack: Soundtrack): MusicCue {
   return { key: `${music.game}:blender`, songs: [song(music, music.bike)], seed: 'blender', start: true };
 }
 
+/**
+ * Poffin cooking's music (the Extras page): Platinum plays SEQ_KINOMI1 (the Poffin House's cooking theme, "Poffins") from
+ * the berry going in to the end; starting the music, as the blender's does. The same in either soundtrack (there's no
+ * remake's in the music player's list).
+ */
+export function poffinMusic(): MusicCue {
+  return { key: 'Diamond, Pearl & Platinum:poffins', songs: [{ game: 'Diamond, Pearl & Platinum', title: 'Poffins' }], seed: 'poffins', start: true };
+}
+
 /** One of a cue's songs, the same one every time for the same seed. */
 export function pickSong(cue: MusicCue): Song {
   let hash = 0;

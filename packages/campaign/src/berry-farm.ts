@@ -15,8 +15,11 @@ export const STAGES = ['planted', 'sprouted', 'taller', 'flowering', 'berries'] 
 export type Stage = (typeof STAGES)[number];
 export const RIPE = STAGES.length - 1;
 
-/** Which berry grows on each of the map's plots: the berries in order, left to right and top to bottom; the plots after them are empty soil. */
-export const FARM_TREES = BERRIES.map((berry, i) => ({ berry: berry.id, plot: BERRY_FARM_MAP.plots[i]! }));
+/**
+ * Which berry grows on each of the map's plots: Emerald's berries in their garden (the top one), Platinum's in theirs (the
+ * one below), each in order, left to right and top to bottom; a garden's plots after them are empty soil.
+ */
+export const FARM_TREES = [3, 4].flatMap((gen, garden) => BERRIES.filter((b) => b.gen === gen).map((berry, i) => ({ berry: berry.id, plot: BERRY_FARM_MAP.gardens[garden]![i]! })));
 
 /** The farm as the account keeps it: when each berry's tree was planted (ms since the epoch). */
 export interface BerryFarm {
@@ -60,6 +63,23 @@ export function harvest(farm: BerryFarm, berry: string, now: number, rng: Rng): 
   if (!info || plantedAt === undefined) throw new Error(`No ${berry} tree on the farm`);
   if (stageAt(plantedAt, now) < RIPE) throw new Error(`The ${info.name} tree isn't ripe yet`);
   return { farm: { planted: { ...farm.planted, [berry]: now } }, count: between(rng, info.minYield, info.maxYield) };
+}
+
+/**
+ * Picks every ripe tree at once (the farm's Gather all): each tree's berries as `harvest` would give them, and the farm
+ * with those trees planted again now. Nothing when none is ripe.
+ */
+export function harvestAll(farm: BerryFarm, now: number, rng: Rng): { farm: BerryFarm; picked: Record<string, number> } {
+  const picked: Record<string, number> = {};
+  let after = farm;
+  for (const { berry } of FARM_TREES) {
+    const plantedAt = after.planted[berry];
+    if (plantedAt === undefined || stageAt(plantedAt, now) < RIPE) continue;
+    const result = harvest(after, berry, now, rng);
+    after = result.farm;
+    picked[berry] = result.count;
+  }
+  return { farm: after, picked };
 }
 
 /** An account's berries (its saved ones, as JSON): a count per berry id, only the ones it has. */

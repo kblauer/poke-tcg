@@ -58,6 +58,7 @@ model User {
   cosmetics    CosmeticUnlock[]
   equipment     Equipment[]
   pokeblocks    Pokeblock[]
+  poffins       Poffin[]
 }
 
 enum CardKind {
@@ -275,8 +276,6 @@ model FavoriteCard {
 
 /// Booster packs an account can buy (by set id, e.g. "base2"): a run's first battle finished without conceding unlocks
 /// its generation's next pack, beating a run all of them (see the campaign package's GENERATIONS).
-/// Cosmetics an account has bought (`cosmeticId`: a key of the campaign package's COSMETICS). The defaults, and those
-/// unlocked by beating a run type, have no row: they're worked out (hasCosmetic).
 /// A Pokéblock made in the Extras page's Berry Blender (the campaign package's makePokeblock): its colour (POKEBLOCK_COLORS),
 /// its 5 flavours (spicy, dry, sweet, bitter, sour), its feel, and the berries and top speed it was made with.
 model Pokeblock {
@@ -292,6 +291,28 @@ model Pokeblock {
 
   @@index([userId])
 }
+
+/// A Poffin cooked on the Extras page (the campaign package's makePoffin): its type (an index into POFFIN_TYPES), its 5
+/// flavours (spicy, dry, sweet, bitter, sour), its smoothness, and the berries, time (frames, 30 a second), spills and
+/// burns it was cooked with.
+model Poffin {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       Int
+  flavors    Int[]
+  smoothness Int
+  berries    String[]
+  frames     Int
+  spills     Int
+  burns      Int
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+}
+
+/// Cosmetics an account has bought (`cosmeticId`: a key of the campaign package's COSMETICS). The defaults, and those
+/// unlocked by beating a run type, have no row: they're worked out (hasCosmetic).
 
 model CosmeticUnlock {
   userId     String   @db.Uuid

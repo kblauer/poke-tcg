@@ -48,6 +48,7 @@ const SettingsPage = lazyRouteComponent(() => import('./pages/Settings'), 'Setti
 const ExtrasPage = lazyRouteComponent(() => import('./pages/Extras'), 'ExtrasPage');
 const BerryFarmPage = lazyRouteComponent(() => import('./pages/Extras'), 'BerryFarmPage');
 const BerryBlenderPage = lazyRouteComponent(() => import('./pages/Extras'), 'BerryBlenderPage');
+const PoffinCookingPage = lazyRouteComponent(() => import('./pages/Extras'), 'PoffinCookingPage');
 
 // The logo, in the top bar and the phone's menu: the Pokémon logo's lettering (Pokemon Solid, `font-logo`); everything
 // else is in the UI's font (index.css).
@@ -204,9 +205,10 @@ const settingsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/set
 const extrasRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras', component: ExtrasPage });
 const berryFarmRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras/berry-farm', component: BerryFarmPage });
 const berryBlenderRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras/berry-blender', component: BerryBlenderPage });
+const poffinCookingRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras/poffin-cooking', component: PoffinCookingPage });
 
 const router = createRouter({
-  routeTree: rootRoute.addChildren([homeRoute, battleRoute, gameRoute, decksRoute, communityRoute, inventoryRoute, cosmeticsRoute, packsRoute, settingsRoute, extrasRoute, berryFarmRoute, berryBlenderRoute]),
+  routeTree: rootRoute.addChildren([homeRoute, battleRoute, gameRoute, decksRoute, communityRoute, inventoryRoute, cosmeticsRoute, packsRoute, settingsRoute, extrasRoute, berryFarmRoute, berryBlenderRoute, poffinCookingRoute]),
 });
 
 declare module '@tanstack/react-router' {
