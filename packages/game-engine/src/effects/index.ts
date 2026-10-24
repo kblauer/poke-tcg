@@ -143,6 +143,20 @@ const ENERGY: Record<string, EnergyEffect> = { ...ORIGINAL_ENERGY, ...lcReprints
 export const energyEffect = (defId: string): EnergyEffect | undefined => ENERGY[printOf(defId)];
 
 /**
+ * Every card id the effect tables name (the shared EX wordings aside: they come from the snapshot itself), with the
+ * attack names each has effects for, so a test can check none is an orphan (a card not in the snapshot, or an attack it
+ * doesn't have).
+ */
+export function effectIds(): { attacks: Record<string, string[]>; powers: string[]; trainers: string[]; energy: string[] } {
+  return {
+    attacks: Object.fromEntries(Object.entries(EFFECTS).map(([id, byName]) => [id, Object.keys(byName)])),
+    powers: Object.keys(POWERS),
+    trainers: Object.keys(TRAINERS),
+    energy: Object.keys(ENERGY),
+  };
+}
+
+/**
  * Whether the engine plays the card fully: every attack with text has its effect, its Pokémon Power
  * is implemented, and a Trainer has its effect. Basic Energy and Double Colorless always are.
  */

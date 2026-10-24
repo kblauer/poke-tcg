@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import type { CardDef } from '../cards.js';
 import { duel, flips, give, id } from '../effects/test-kit.js';
 import { runCpu, trainerCpu, type GameAction, type GameState } from '../index.js';
+import { judge } from './evaluate.js';
+import { tryAction, turnOf } from './shared.js';
 
 const ash = (s: GameState) => s.players.ash!;
 const misty = (s: GameState) => s.players.misty!;
@@ -66,6 +68,46 @@ describe('CPU: cards without a rule of their own', () => {
     const actions = runCpu(s, 'ash').actions;
     expect(actions[0]).toEqual({ type: 'ATTACH_ENERGY', cardUid: potion, target: 'active' });
     expect(ash(runCpu(s, 'ash').state).active?.damage ?? 0).toBeLessThan(20 + 1);
+  });
+});
+
+describe('the generic judgement', () => {
+  it("settles the player's question as a guess: Challenge! (accepted when they can) is judged, not given up on", () => {
+    const s = cpuTurn('charmander', 'squirtle', Array(12).fill('charmander'));
+    const [challenge] = give(s, 'ash', 'challenge');
+    const gain = judge(turnOf(s, 'ash'), { type: 'PLAY_TRAINER', cardUid: challenge! }, () => 0);
+    expect(gain).not.toBeNull();
+    expect(typeof gain).toBe('number');
+  });
+
+  it("judges a Stadium by its use too (stadiumValue's recursion): Lucky Stadium can be played, then used", () => {
+    const s = cpuTurn('charmander', 'squirtle');
+    const [stadium] = give(s, 'ash', 'luckystadium');
+    const play: GameAction = { type: 'PLAY_TRAINER', cardUid: stadium! };
+    const gain = judge(turnOf(s, 'ash'), play, () => 0);
+    expect(typeof gain).toBe('number');
+    const after = tryAction(s, 'ash', play)!;
+    expect(after.stadium?.card.uid).toBe(stadium);
+    expect(tryAction(after, 'ash', { type: 'USE_STADIUM' })).not.toBeNull();
+  });
+
+  it('never changes the real state: a deep-frozen position is judged and played through without a throw', () => {
+    const freeze = (value: unknown) => {
+      if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+        Object.freeze(value);
+        for (const v of Object.values(value)) freeze(v);
+      }
+      return value;
+    };
+    const s = cpuTurn('charmander', 'squirtle', undefined, { defenderEnergy: ['water'] });
+    give(s, 'ash', 'energysearch', 'bill', 'potion', 'pluspower', 'gustofwind');
+    hand(s, trainer('ecard1-140', 'Energy Removal 2'));
+    const frozen = structuredClone(s);
+    freeze(frozen);
+    const before = JSON.stringify(frozen);
+    const { actions } = runCpu(frozen, 'ash');
+    expect(actions.length).toBeGreaterThan(0);
+    expect(JSON.stringify(frozen)).toBe(before);
   });
 });
 
