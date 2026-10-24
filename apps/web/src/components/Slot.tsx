@@ -111,7 +111,7 @@ export function Slot({
   lunge?: { dir: 'up' | 'down'; stamp: number } | null;
   /** A card the CPU played or used just changed it: it glows (`stamp` is the view's version, so each move glows once), from `delay` ms on. */
   spotlight?: { stamp: number; delay: number } | null;
-  /** Its Pokémon Power can be used now: it pulses with the playable cards' blue outline (`.playable-pulse`). */
+  /** Its Pokémon Power can be used now, or (the Active) it can attack: it pulses with the playable cards' blue outline (`.playable-pulse`). */
   usable?: boolean;
   onClick?: () => void;
 }) {
