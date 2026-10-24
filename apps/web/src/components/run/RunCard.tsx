@@ -20,6 +20,7 @@ export function RunCard({
   selected,
   badge,
   fluid = false,
+  width: size,
 }: {
   def: (CardDef & { rarity?: string }) | undefined;
   footer?: ReactNode;
@@ -29,8 +30,10 @@ export function RunCard({
   /** A chip on the card's corner (e.g. NEW for a card gained this run). */
   badge?: ReactNode;
   fluid?: boolean;
+  /** A width class in place of RUN_CARD (the pack window's larger cards). */
+  width?: string;
 }) {
-  const width = fluid ? RUN_CARD_FLUID : RUN_CARD;
+  const width = size ?? (fluid ? RUN_CARD_FLUID : RUN_CARD);
   const setPreview = useContext(PreviewContext);
   const inspect = useInspectOnRightClick({ clearsPreview: true })(def?.id);
   const body = (
