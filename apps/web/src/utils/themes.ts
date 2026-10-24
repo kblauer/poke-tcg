@@ -29,7 +29,7 @@ export interface ColorTheme {
 
 export const DEFAULT_THEME = 'slate';
 
-export const GENERATION_NAMES: Record<ColorTheme['gen'], string> = { 0: 'Default', 1: 'Generation 1 · Kanto', 2: 'Generation 2 · Johto', 3: 'Generation 3 · Hoenn' };
+export const GENERATION_NAMES: Record<ColorTheme['gen'], string> = { 0: 'System themes', 1: 'Generation 1 · Kanto', 2: 'Generation 2 · Johto', 3: 'Generation 3 · Hoenn' };
 
 export const COLOR_THEMES: ColorTheme[] = [
   { id: DEFAULT_THEME, name: 'Slate', gen: 0, from: 'The original look', hue: 257, tint: 1, accent: 95 },

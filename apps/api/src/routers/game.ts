@@ -1,7 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { boss, bossLabel, generateDeck, rngFrom, TRAINERS, trainerFavorites } from '@poke-tcg/campaign';
 import { prisma, saveGameState } from '@poke-tcg/db';
-import { applyAction, captureCheckup, createGame, getPlayerView, moveHighlights, runCpu, type CpuDifficulty, type GameAction, type GameState } from '@poke-tcg/game-engine';
+import { applyAction, captureCheckup, createGame, getPlayerView, moveHighlights, runCpu, type Checkup, type CpuDifficulty, type GameAction, type GameState } from '@poke-tcg/game-engine';
 import { CPU_ID, HUMAN_ID, gameIdInput, singleBattleInput, submitActionInput, type SingleBattleInput, type SingleBattleOpponent } from '@poke-tcg/shared';
 import { ensureUser } from '../auth.js';
 import { loadCardLibrary } from '../cards.js';
@@ -39,17 +39,18 @@ function shownView(state: GameState, defId: string | null | undefined) {
 }
 
 /**
- * A move's frames: the move, and when it ended a turn whose Pokémon Checkup flipped coins (Sleep, Burn), the checkup as
- * a frame of its own after it (an END_TURN), so the board shows the move (its attack, the Sleep it gave) before those
- * flips. `checkup`: the state as the checkup began (captureCheckup).
+ * A move's frames: the move, and when it ended a turn whose Pokémon Checkup flipped coins (Sleep, Burn) or had a Pokémon
+ * Tool work by itself (a Berry: LogEntry's `tool`), the checkup as a frame of its own after it (an END_TURN), so the
+ * board shows the move (its attack, the Sleep it gave) before those flips. A Tool's checkup is shown as it ended, then
+ * the next turn as one more frame, so the Tool's animation plays between the attack and the turn's end (the user's).
+ * `checkup`: the state as the checkup began and ended (captureCheckup); every frame has the move's version.
  */
-function moveFrames(player: string, type: GameAction['type'], after: GameState, checkup: GameState | null, highlight: ReturnType<typeof moveHighlights>[number], defId?: string | null) {
-  const from = checkup?.log?.at(-1)?.n ?? 0;
-  if (!checkup || !after.log?.some((e) => e.coin && (e.n ?? 0) > from)) return [{ player, type, view: shownView(after, defId), highlight }];
-  return [
-    { player, type, view: shownView({ ...checkup, version: after.version }, defId), highlight },
-    { player, type: 'END_TURN' as const, view: getPlayerView(after, HUMAN_ID), highlight: null },
-  ];
+function moveFrames(player: string, type: GameAction['type'], after: GameState, checkup: Checkup | null, highlight: ReturnType<typeof moveHighlights>[number], defId?: string | null) {
+  const from = checkup?.start.log?.at(-1)?.n ?? 0;
+  const tool = !!checkup?.end.log?.some((e) => e.tool && (e.n ?? 0) > from);
+  if (!checkup || (!tool && !after.log?.some((e) => e.coin && (e.n ?? 0) > from))) return [{ player, type, view: shownView(after, defId), highlight }];
+  const endTurn = (state: GameState) => ({ player, type: 'END_TURN' as const, view: getPlayerView({ ...state, version: after.version }, HUMAN_ID), highlight: null });
+  return [{ player, type, view: shownView({ ...checkup.start, version: after.version }, defId), highlight }, ...(tool ? [endTurn(checkup.end)] : []), endTurn(after)];
 }
 
 export async function loadOwnGame(gameId: string, userId: string) {

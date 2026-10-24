@@ -7,6 +7,7 @@ import { ItemShop } from './ItemShop';
 import { NewRunPicker } from './NewRunPicker';
 import { RunCard } from './RunCard';
 import { SaveRunDeck } from './SaveRunDeck';
+import { commas } from '../../utils/math';
 
 /** localStorage key: the run whose results the player closed, and which panels (see useClosed). */
 const CLOSED_KEY = 'poke-tcg.run-over-closed';
@@ -106,7 +107,7 @@ export function RunOver({ current, overview, run }: { current: ClientRun; overvi
     );
   }
   const beat = `You beat ${last.title} ${last.name}!`;
-  const rewards = `+${view.exp} EXP${won.length > 0 ? ` · ${won.join(', ')}` : ''} · ₱${view.pokedollars} banked${packs.length > 0 ? ` · ${packs.join(', ')} booster packs unlocked` : ''}`;
+  const rewards = `+${view.exp} EXP${won.length > 0 ? ` · ${won.join(', ')}` : ''} · ₱${commas(view.pokedollars)} banked${packs.length > 0 ? ` · ${packs.join(', ')} booster packs unlocked` : ''}`;
   return (
     <div className="space-y-4">
       {isClosed('shop') ? (

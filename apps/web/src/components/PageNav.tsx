@@ -5,11 +5,14 @@ import { Link } from '@tanstack/react-router';
  * one the English Laboratory booster pack of the Game Boy Color game, shrunk). Drawn at its own size, never scaled, so its
  * pixels stay sharp; the sprites leave a margin round the item, so its box is `-m-1.5` to sit in a 20px one.
  */
-function navIcon(name: string) {
+export function navIcon(name: string) {
   return function NavIcon({ className = '' }: { className?: string }) {
     return <img src={`/nav/${name}.png`} alt="" width={32} height={32} draggable={false} className={`-m-1.5 size-8 max-w-none shrink-0 [image-rendering:pixelated] ${className}`} />;
   };
 }
+
+/** The run money's icon: the Pokédollar sign (`public/nav/pokedollar.png`, drawn by tools/icons/pokedollar.py; the user's). */
+export const PokedollarIcon = navIcon('pokedollar');
 
 /**
  * A page's name in the menus: `text-nav` (index.css: the pixel font at 18px, twice its 9-pixel em, so its pixels land

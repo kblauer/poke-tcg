@@ -15,12 +15,14 @@ import { EnergyIcon } from '../EnergyIcon';
 import { CatalogContext } from '../InspectContext';
 import { DeckMenu, DeckOption } from './DeckMenu';
 import { ENCOUNTER_STYLE, EncounterBadge, encounterLabel } from './encounterIcons';
+import { commas } from '../../utils/math';
+import { PANEL_HEADING } from '../../utils/styles';
 
 /** Debug's Skip battle, under a battle's button. */
 const skipButton = 'rounded bg-slate-600 px-3 py-1 text-xs font-semibold transition hover:bg-slate-500 disabled:opacity-40';
 
 const typeName = (t: string) => t[0]!.toUpperCase() + t.slice(1);
-const range = ([low, high]: [number, number]) => (low === high ? `₱${low}` : `₱${low}–${high}`);
+const range = ([low, high]: [number, number]) => (low === high ? `₱${commas(low)}` : `₱${commas(low)}–${commas(high)}`);
 
 /** What choosing this option leads to, as briefly as can be (matching rollEncounter and battleSetup in the campaign). */
 function describe(o: MapEncounter, cardName: (id: string) => string): string[] {
@@ -64,7 +66,7 @@ function describe(o: MapEncounter, cardName: (id: string) => string): string[] {
         case 'donation':
           return [`₱${e.cost} for ${e.exp} EXP.`];
         case 'luckyFind':
-          return [`₱${e.pokedollars} on the ground.`];
+          return [`₱${commas(e.pokedollars)} on the ground.`];
       }
       return [];
     }
@@ -174,7 +176,7 @@ export function RouteChoice({ view, run, side }: { view: RunViewData; run: RunCo
   const deckChoice = (
     <div className="space-y-2">
       <div className="flex items-baseline justify-between">
-        <span className="text-sm font-semibold">{battles.length ? 'Battle with' : 'Your deck'}</span>
+        <h4 className={PANEL_HEADING}>{battles.length ? 'Battle with' : 'Your deck'}</h4>
         <Link to="/decks" className="text-xs text-yellow-300 hover:underline">
           Build or edit decks
         </Link>
@@ -211,7 +213,6 @@ export function RouteChoice({ view, run, side }: { view: RunViewData; run: RunCo
     </div>
   );
 
-  const heading = 'text-sm font-semibold uppercase tracking-wide text-slate-400';
   // On a big screen, always two columns: the step's encounters on the left (battles, then the other stops), the deck
   // choice on the right.
   if (!phone) {
@@ -220,13 +221,13 @@ export function RouteChoice({ view, run, side }: { view: RunViewData; run: RunCo
         <div className="min-w-0 space-y-5">
           {battles.length > 0 && (
             <div className="space-y-3">
-              <h4 className={heading}>{battles.length === 1 ? 'Battle' : 'Battles'}</h4>
+              <h4 className={PANEL_HEADING}>{battles.length === 1 ? 'Battle' : 'Battles'}</h4>
               <ul className="space-y-2">{battleItems}</ul>
             </div>
           )}
           {others.length > 0 && (
             <div className="space-y-3">
-              <h4 className={heading}>{others.length === 1 ? 'Encounter' : 'Encounters'}</h4>
+              <h4 className={PANEL_HEADING}>{others.length === 1 ? 'Encounter' : 'Encounters'}</h4>
               <ul className="space-y-2">{otherItems}</ul>
             </div>
           )}
@@ -246,7 +247,7 @@ export function RouteChoice({ view, run, side }: { view: RunViewData; run: RunCo
             // Only battles on this step: the trainers on the left and the deck choice on the right, when there's room.
             <div className={`@container min-w-0 flex-1 ${others.length ? 'space-y-3' : 'grid gap-3 @3xl:grid-cols-2 @3xl:items-start @3xl:gap-5'}`}>
               <div className="space-y-3">
-                <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-400">{battles.length === 1 ? 'Battle' : 'Battles'}</h4>
+                <h4 className={PANEL_HEADING}>{battles.length === 1 ? 'Battle' : 'Battles'}</h4>
                 <ul className="space-y-2">
                   {battleItems}
                 </ul>
@@ -258,7 +259,7 @@ export function RouteChoice({ view, run, side }: { view: RunViewData; run: RunCo
 
           {others.length > 0 && (
             <div className="min-w-0 flex-1 space-y-3">
-              <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-400">{others.length === 1 ? 'Event' : 'Events'}</h4>
+              <h4 className={PANEL_HEADING}>{others.length === 1 ? 'Event' : 'Events'}</h4>
               <ul className="space-y-2">
                 {otherItems}
               </ul>

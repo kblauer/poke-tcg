@@ -19,7 +19,6 @@ import { PeekCard } from '../PowerPanel';
 import { PreviewContext } from '../PreviewContext';
 import { StadiumCard } from '../StadiumCard';
 import { Toasts } from '../Toasts';
-import { TurnBanner, type useNewTurn } from '../TurnBanner';
 import { PhoneOppHand, PhonePiles, PhonePrizes } from './PhonePiles';
 import { PhoneTable } from './PhoneTable';
 
@@ -48,7 +47,6 @@ export function PhoneBoard({
   attacker,
   oppDrop,
   oppSpot,
-  newTurn,
   toasts,
   prompt,
   runTab,
@@ -60,7 +58,6 @@ export function PhoneBoard({
   handView,
   dragOverlay,
   remindersDialog,
-  setupBanner,
 }: {
   view: PlayerView;
   send: (a: GameAction) => void;
@@ -86,7 +83,6 @@ export function PhoneBoard({
   /** The CPU's Pokémon a dragged Trainer can be dropped on. */
   oppDrop: Target[] | null;
   oppSpot: Spotlight | null;
-  newTurn: ReturnType<typeof useNewTurn>;
   toasts: ReturnType<typeof useToasts>;
   /** The move in progress's instruction (Toasts' prompt). */
   prompt: string | null;
@@ -101,8 +97,6 @@ export function PhoneBoard({
   handView: (compact: boolean) => ReactNode;
   dragOverlay: ReactNode;
   remindersDialog: ReactNode;
-  /** The setup line's banner (SetupBanner), over the bar while Pokémon are placed. */
-  setupBanner: ReactNode;
 }) {
   /** The phone layout's ☰ menu. */
   const [menu, setMenu] = useState(false);
@@ -152,7 +146,7 @@ export function PhoneBoard({
               }}
               bar={
                 <div className="relative flex min-h-14 shrink-0 items-center gap-2">
-                  {/* Over the turn banner, which passes behind it. */}
+                  {/* Over the turn and setup banners, which pass behind it (TurnBanner.tsx). */}
                   <button
                     data-keep-action
                     className="relative z-[960] flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800 text-slate-200 ring-1 ring-slate-600 transition active:scale-95"
@@ -175,8 +169,6 @@ export function PhoneBoard({
                   ) : (
                     statusBar(true)
                   )}
-                  {newTurn && <TurnBanner key={newTurn.turn} turn={newTurn} inBar />}
-                  {setupBanner}
                   {self.peek && (
                     <div className="absolute bottom-full left-0 z-10 mb-1 [--card-sm:var(--card-pile)]">
                       <PeekCard view={view} />

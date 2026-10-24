@@ -24,7 +24,7 @@ import { NavLogProvider } from './components/NavLog';
 import { RunProvider } from './hooks/useRun';
 import { NavRail, PhoneNavRun } from './components/NavRail';
 import { PageMenu } from './components/PageNav';
-import { TopBarStats } from './components/TopBarStats';
+import { TopBarAccount, TopBarStats } from './components/TopBarStats';
 import { SidePanel } from './components/SidePanel';
 import { useIsPhone } from './hooks/useIsPhone';
 import { useSession } from './lib/auth';
@@ -99,7 +99,7 @@ function RootLayout() {
   );
 
   const page = (
-    // The top bar across the window: the ☰ (the menu), the logo, and Sign out (on a phone the run's and account's figures before it). Below it, on a big screen, the
+    // The top bar across the window: the ☰ (the menu), the logo, and Sign out (on a big screen the bank, EXP, Stardust and the music player's bar before it, on a phone the run's and account's figures). Below it, on a big screen, the
     // menu down the left edge (NavRail) beside the page, the ☰ widening it with the pages' names; on a phone the ☰ opens the menu as a panel,
     // with the music player's bar (the phone's battle screen covers the top bar). Each page sets its own width and side
     // padding (PAGE_WIDTH).
@@ -129,7 +129,14 @@ function RootLayout() {
             <TopBarStats />
           </div>
         )}
-        {session && <div className="flex shrink-0 items-center text-sm">{signOutButton}</div>}
+        {/* On a big screen the bank, EXP and Stardust, then the music player's bar, at the right end before Sign out (the user's); on a phone the music is in the ☰ panel. */}
+        {session && (
+          <div className="flex min-w-0 items-center gap-3 text-sm">
+            {!phone && <TopBarAccount />}
+            {!phone && <MusicControls />}
+            <span className="shrink-0">{signOutButton}</span>
+          </div>
+        )}
       </header>
       {session && phone && panel && (
         <SidePanel side="left" title={<span className={LOGO}>PoKé TcG</span>} onClose={closePanel}>

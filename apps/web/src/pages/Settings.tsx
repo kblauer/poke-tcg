@@ -7,6 +7,7 @@ import { PageHeader } from '../components/PageHeader';
 import { REMINDER_LABELS, reminderOff, setReminderOff, type EndTurnReminder } from '../components/StatusBar';
 import { ThemePicker } from '../components/ThemePicker';
 import { useFontStyle, type FontStyle } from '../hooks/useFontStyle';
+import { useExpTheme, usePokedollarTheme } from '../hooks/useThemedFigures';
 import { useSkipFlips } from '../hooks/useSkipFlips';
 import { PAGE_WIDTH } from '../utils/layout';
 
@@ -23,10 +24,13 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
  * The Settings page (`/settings`, under Training in the site's menu): the account's name, the battle options also in the board's
  * side panel (OptionsPanel, and skipping coin flip animations, as the game log's checkbox does), End turn's reminders
  * (EndTurnReminders), the music player's auto
- * play and its soundtrack, the font (`FontPicker`), and last the colour theme (`ThemePicker`).
+ * play and its soundtrack, the font (`FontPicker`), and last the colour theme (`ThemePicker`) with whether the run's EXP
+ * bar and its Pokédollars take its colour (useThemedFigures).
  */
 export function SettingsPage() {
   const [skipFlips, setSkipFlips] = useSkipFlips();
+  const [expTheme, setExpTheme] = useExpTheme();
+  const [pokedollarTheme, setPokedollarTheme] = usePokedollarTheme();
   const music = useMusicSettings();
   return (
     <div className={`space-y-4 ${PAGE_WIDTH}`}>
@@ -64,6 +68,17 @@ export function SettingsPage() {
           <FontPicker />
         </Section>
         <Section title="Theme">
+          {/* The two theme toggles on one row. */}
+          <div className="flex flex-wrap gap-x-6 gap-y-2">
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300" title="The run's EXP bar in the theme's colour (off: the game's blue)">
+              <input type="checkbox" checked={expTheme} onChange={(e) => setExpTheme(e.target.checked)} />
+              Themed EXP bar
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300" title="The run's Pokédollars in the theme's colour (off: the Pokédollar icon's gold)">
+              <input type="checkbox" checked={pokedollarTheme} onChange={(e) => setPokedollarTheme(e.target.checked)} />
+              Themed Pokédollars
+            </label>
+          </div>
           <ThemePicker />
         </Section>
       </div>

@@ -136,7 +136,7 @@ export function Exclamation({ tile }: { tile: RouteSpot }) {
  * A FireRed overworld sprite standing on a tile (its feet on the tile, its head on the one above), facing a way, in map
  * pixels; lower on the map is in front, as in the game. `frame` shows another frame of its strip (a walking one), `moveMs`
  * slides it to a new tile over that long (a step), and `hidden` fades it out. `grass`: on a tile of tall grass, its
- * bottom (GRASS_HIDES) is cut off, so the grass drawn on the map shows there instead, as in the games (agreed with the user).
+ * bottom (GRASS_HIDES) fades out (GRASS_MASK), so the grass drawn on the map shows there instead, as in the games (agreed with the user).
  */
 export function OverworldSprite({
   name,
@@ -184,7 +184,7 @@ export function OverworldSprite({
         backgroundSize: `${w * stripFrames(name)}px 32px`,
         backgroundPosition: `${-frame * w}px 0`,
         transform: mirrored(name, face) ? 'scaleX(-1)' : undefined,
-        clipPath: inGrass ? `inset(0 0 ${GRASS_HIDES}px 0)` : undefined,
+        ...(inGrass && GRASS_MASK),
         zIndex: tile.y,
       }}
     />
@@ -193,6 +193,14 @@ export function OverworldSprite({
 
 /** How much of someone standing in tall grass it hides, in map pixels: the bottom half of their tile, their feet and legs. */
 const GRASS_HIDES = 8;
+/** Over how many map pixels, across that line, they fade into the grass (the user's, in place of a hard edge). */
+const GRASS_FADE = 4;
+/** The mask hiding their bottom in tall grass: whole down to GRASS_FADE / 2 above the line, gone GRASS_FADE / 2 below it. */
+const GRASS_MASK = (() => {
+  const line = 32 - GRASS_HIDES;
+  const mask = `linear-gradient(to bottom, black ${line - GRASS_FADE / 2}px, transparent ${line + GRASS_FADE / 2}px)`;
+  return { maskImage: mask, WebkitMaskImage: mask };
+})();
 
 /**
  * A speech bubble over a figure's head with its encounter's icon (ENCOUNTER_STYLE, as in the encounter panels), in map

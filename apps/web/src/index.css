@@ -247,6 +247,24 @@ html[data-font="emerald"] {
 .delta-float {
   animation: delta-float 1.8s ease-out forwards;
 }
+/* A Pokémon Tool at work over its Pokémon (ToolPops: a Berry's "+20"): pops in, rises a little, fades; its length is set inline. */
+@keyframes tool-pop {
+  0% { opacity: 0; transform: translateY(0.75rem) scale(0.7); }
+  15% { opacity: 1; transform: translateY(0) scale(1.15); }
+  25% { transform: scale(1); }
+  75% { opacity: 1; transform: translateY(-0.5rem); }
+  100% { opacity: 0; transform: translateY(-1.5rem); }
+}
+.tool-pop {
+  animation: tool-pop 1.5s ease-out forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tool-pop { animation-name: tool-pop-fade; }
+}
+@keyframes tool-pop-fade {
+  0%, 100% { opacity: 0; }
+  15%, 75% { opacity: 1; }
+}
 @media (prefers-reduced-motion: reduce) {
   .panel-left, .panel-right { animation: none; }
 }

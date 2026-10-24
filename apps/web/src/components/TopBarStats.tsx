@@ -1,10 +1,13 @@
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import FavoriteIcon from '@mui/icons-material/Favorite';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { useRun } from '../hooks/useRun';
 import { useTRPC } from '../lib/trpc';
+import { navIcon, PokedollarIcon } from './PageNav';
+import { HpBar } from './run/HpBar';
+import { usePokedollarColor } from '../hooks/useThemedFigures';
+import { commas } from '../utils/math';
 
 /** How long a tapped figure's exact number shows below it (ms), fading out over its last part. */
 const EXACT_MS = 1600;
@@ -18,9 +21,9 @@ export function shortNumber(n: number): string {
 }
 
 /** One figure: its icon and number, its meaning on hover. */
-function Stat({ icon, value, title, className }: { icon: ReactNode; value: ReactNode; title: string; className: string }) {
+function Stat({ icon, value, title, className, style }: { icon: ReactNode; value: ReactNode; title: string; className: string; style?: CSSProperties }) {
   return (
-    <span className={`flex shrink-0 items-center gap-0.5 text-xs font-semibold ${className}`} title={title} aria-label={`${title}: ${value}`}>
+    <span className={`flex shrink-0 items-center gap-0.5 text-xs font-semibold ${className}`} style={style} title={title} aria-label={`${title}: ${value}`}>
       {icon}
       {value}
     </span>
@@ -57,13 +60,42 @@ function ShortStat({ icon, value, title, className }: { icon: ReactNode; value: 
 }
 
 /**
+ * The big screen's top bar's account figures (the user's, at its right end before the music player's bar): the bank,
+ * EXP and Stardust, run or not, each with its pokesprite item (navIcon: the Big Nugget, the Exp.
+ * Share, Stardust). The bank and Stardust over 999 in short (shortNumber: 1.2k), the exact number alone on hover (the
+ * user's); EXP in full, its meaning on hover.
+ */
+export function TopBarAccount() {
+  const trpc = useTRPC();
+  const account = useRun().overview.data?.account;
+  const stardust = useQuery(trpc.packs.stardust.queryOptions());
+  if (!account) return null;
+  const figures = [
+    { key: 'bank', title: '₱ banked from earlier runs', Icon: navIcon('bank'), value: account.bank, short: true, className: 'text-yellow-200/70' },
+    { key: 'exp', title: 'EXP, spent in the shop after a run', Icon: navIcon('exp'), value: account.exp, short: false, className: 'text-sky-300' },
+    ...(stardust.data !== undefined ? [{ key: 'dust', title: 'Stardust, from cards pulled again in packs; crafts cards in the deck builder', Icon: navIcon('stardust'), value: stardust.data, short: true, className: 'text-sky-200' }] : []),
+  ];
+  return (
+    <div className="flex shrink-0 items-center gap-4 text-sm font-semibold">
+      {figures.map((f) => (
+        <span key={f.key} className={`flex items-center gap-1 ${f.className}`} title={f.short ? f.value.toLocaleString() : f.title} aria-label={`${f.title}: ${f.value}`}>
+          <f.Icon />
+          {f.short ? shortNumber(f.value) : f.value.toLocaleString()}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/**
  * The phone's top bar's figures (agreed 2026-10-23; the account name is changed on the Settings page): during a run its
- * HP and ₱, then the bank and Stardust, over 999 in short (1.2k: shortNumber), a tap on one showing its exact number
+ * HP (HpBar) and ₱, then the bank and Stardust, over 999 in short (1.2k: shortNumber), a tap on one showing its exact number
  * briefly (ShortStat).
  */
 export function TopBarStats() {
   const trpc = useTRPC();
   const { overview } = useRun();
+  const money = usePokedollarColor();
   const stardust = useQuery(trpc.packs.stardust.queryOptions());
   const data = overview.data;
   const view = data?.run?.view;
@@ -72,8 +104,8 @@ export function TopBarStats() {
     <div className="flex min-w-0 items-center gap-2.5">
       {inRun && (
         <>
-          <Stat icon={<FavoriteIcon sx={{ fontSize: 14 }} />} value={`${view.hp}/${view.maxHp}`} title="HP" className="text-rose-400" />
-          <Stat icon={<span className="text-sm leading-none">₱</span>} value={view.pokedollars} title="₱ to spend in this run" className="text-yellow-300" />
+          <HpBar hp={view.hp} maxHp={view.maxHp} track="w-10" />
+          <Stat icon={<PokedollarIcon />} value={commas(view.pokedollars)} title="₱ to spend in this run" className={money.className} style={money.style} />
         </>
       )}
       {data && <ShortStat icon={<AccountBalanceIcon sx={{ fontSize: 14 }} />} value={data.account.bank} title="₱ in the bank" className="text-yellow-200/70" />}

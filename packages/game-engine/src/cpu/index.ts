@@ -1,5 +1,5 @@
 // CPU opponents: one file per difficulty, with what they share in shared.ts.
-import { captureCheckup, type GameAction, type GameState, type PlayerId } from '../engine.js';
+import { captureCheckup, type Checkup, type GameAction, type GameState, type PlayerId } from '../engine.js';
 import { gymLeaderCpu } from './gym-leader.js';
 import { passiveCpu } from './passive.js';
 import { trainerCpu } from './trainer.js';
@@ -27,16 +27,16 @@ export const cpuFor = (difficulty: CpuDifficulty = DEFAULT_CPU_DIFFICULTY): CpuD
 /**
  * Applies CPU actions until it's no longer the CPU's move, playing at the game's difficulty unless
  * `decide` is given. `states` has the state after each action, for replaying them one by one, and `checkups` for
- * each the state as its turn's Pokémon Checkup began (null when it didn't end a turn; captureCheckup).
+ * each the state as its turn's Pokémon Checkup began and ended (null when it didn't end a turn; captureCheckup).
  */
 export function runCpu(
   state: GameState,
   cpuId: PlayerId,
   decide: CpuDecide = cpuFor(state.cpuDifficulty),
-): { state: GameState; actions: GameAction[]; states: GameState[]; checkups: (GameState | null)[] } {
+): { state: GameState; actions: GameAction[]; states: GameState[]; checkups: (Checkup | null)[] } {
   const actions: GameAction[] = [];
   const states: GameState[] = [];
-  const checkups: (GameState | null)[] = [];
+  const checkups: (Checkup | null)[] = [];
   for (let action = decide(state, cpuId); action; action = decide(state, cpuId)) {
     const { result: next, checkup } = captureCheckup(() => tryAction(state, cpuId, action));
     if (!next) throw new Error(`CPU made an illegal move (${action.type})`);

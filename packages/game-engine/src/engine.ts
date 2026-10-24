@@ -4,7 +4,7 @@ import { attachBlocked, discardsLocked, energyFromHand, evolutionBlocked, primal
 import { evolvesFromEevee, evolveWith, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
 import { conditionProof, hasOwner, hasType, holonEnergy, namesMatch, isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
-import { addLog, baseUid, clearOnLeavingActive, clearSpecialConditions, effectId, isDelta, evolvedHook, hasSpecialCondition, shapeshiftCard, flipCoin, inPlayDef, openBenchSlot, pokemonName, revealFaceDown, type LogEntry } from './status.js';
+import { addLog, baseUid, clearOnLeavingActive, clearSpecialConditions, effectId, isDelta, evolvedHook, hasSpecialCondition, shapeshiftCard, flipCoin, inPlayDef, logTool, openBenchSlot, pokemonName, revealFaceDown, type LogEntry } from './status.js';
 import { shuffle } from './rng.js';
 import type { CpuDifficulty } from './cpu/index.js';
 
@@ -569,23 +569,32 @@ export function createGame(p1: NewGamePlayer, p2: NewGamePlayer, seed: number, l
 /** The reason on the turn-order coin flip's log entry, so the UI can pick it out. */
 export const TURN_ORDER_FLIP = 'Coin flip for turn order';
 
-/** While `captureCheckup` runs: told the state as an ending turn reaches its Pokémon Checkup. */
-let onCheckup: ((state: GameState) => void) | null = null;
+/** An ending turn's Pokémon Checkup: the state as it began, and as it ended (before the next turn begins). */
+export interface Checkup {
+  start: GameState;
+  end: GameState;
+}
+
+/** While `captureCheckup` runs: told the state as an ending turn's Pokémon Checkup begins and ends. */
+let onCheckup: ((state: GameState, at: keyof Checkup) => void) | null = null;
 
 /**
- * Runs `run` (an applyAction), and returns with its result a copy of the state as the turn's Pokémon Checkup began
- * (null when no turn ended), so the board can show the move (an attack's Sleep) before the checkup's coin flips. Only
- * around real moves (the API, runCpu's), never the CPU's imagined ones.
+ * Runs `run` (an applyAction), and returns with its result copies of the state as the turn's Pokémon Checkup began and
+ * ended (null when no turn ended), so the board can show the move (an attack's Sleep) before the checkup's coin flips,
+ * and what the checkup did (a Berry's heal) before the next turn. Only around real moves (the API, runCpu's), never the
+ * CPU's imagined ones.
  */
-export function captureCheckup<T>(run: () => T): { result: T; checkup: GameState | null } {
-  let checkup: GameState | null = null;
+export function captureCheckup<T>(run: () => T): { result: T; checkup: Checkup | null } {
+  let start: GameState | null = null;
+  let end: GameState | null = null;
   const outer = onCheckup;
-  onCheckup = (state) => {
-    checkup ??= structuredClone(state);
+  onCheckup = (state, at) => {
+    if (at === 'start') start ??= structuredClone(state);
+    else end ??= structuredClone(state);
   };
   try {
     const result = run();
-    return { result, checkup };
+    return { result, checkup: start && end ? { start, end } : null };
   } finally {
     onCheckup = outer;
   }
@@ -1531,8 +1540,9 @@ export function payCost(pool: PoolEnergy[], cost: EnergyType[]): number {
  * effects), knockouts from it, then promotions and the next player's turn.
  */
 function endTurn(state: GameState): ActionResult {
-  onCheckup?.(state);
+  onCheckup?.(state, 'start');
   betweenTurns(state);
+  onCheckup?.(state, 'end');
   // A knockout between turns isn't caused by either player; ties go to the player whose turn it was.
   const winner = resolveKnockouts(state, state.currentPlayer);
   if (winner) return finish(state, winner);
@@ -1842,22 +1852,24 @@ function useBerry(state: GameState, owner: PlayerState, p: InPlayPokemon) {
   // Oran Berry (EX Ruby & Sapphire) works as Berry.
   const amount = name === 'Berry' || name === 'Oran Berry' ? 20 : name === 'Sitrus Berry' ? 30 : name === 'Gold Berry' ? 40 : 0;
   // Healing Berry: 20 HP or less left, 3 damage counters off.
+  // Each logged with what it did (logTool), for the board's animation over the Pokémon.
+  const uid = p.card.uid;
   if (name === 'Healing Berry' && p.damage >= 10 && inPlayDef(state.cards, p).hp - p.damage <= 20) {
     const healed = Math.min(30, p.damage);
     p.damage -= healed;
-    addLog(state, `Healing Berry: ${pokemonName(state, p)} healed ${healed} damage.`, owner.id);
-  } else if (amount && p.damage >= amount) {
+    logTool(state, `Healing Berry: ${pokemonName(state, p)} healed ${healed} damage.`, owner.id, { uid, name, heal: healed });
+  } else if (name && amount && p.damage >= amount) {
     p.damage -= amount;
-    addLog(state, `${name}: ${pokemonName(state, p)} healed ${amount} damage.`, owner.id);
+    logTool(state, `${name}: ${pokemonName(state, p)} healed ${amount} damage.`, owner.id, { uid, name, heal: amount });
   } else if (name === 'Miracle Berry' && (p.condition || p.poison)) {
     p.condition = null;
     p.poison = 0;
     delete p.paralyzedTurn;
-    addLog(state, `Miracle Berry: ${pokemonName(state, p)} is no longer Asleep, Confused, Paralyzed or Poisoned.`, owner.id);
+    logTool(state, `Miracle Berry: ${pokemonName(state, p)} is no longer Asleep, Confused, Paralyzed or Poisoned.`, owner.id, { uid, name });
   } else if (name === 'Lum Berry' && hasSpecialCondition(p)) {
     // Lum Berry: every Special Condition, Burned included.
     clearSpecialConditions(p);
-    addLog(state, `Lum Berry: ${pokemonName(state, p)} is no longer affected by Special Conditions.`, owner.id);
+    logTool(state, `Lum Berry: ${pokemonName(state, p)} is no longer affected by Special Conditions.`, owner.id, { uid, name });
   } else return;
   discardTool(state, owner, p);
 }

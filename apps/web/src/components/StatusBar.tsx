@@ -130,14 +130,15 @@ export function useTurnReminders(reminders: EndTurnReminder[], active: boolean):
 }
 
 /**
- * Whose turn it is, and below it the End turn button, both centred in the middle of the table between the two sides.
- * The text line and the button row keep fixed heights (the row stays when there's no button), so the button never
- * moves as the text or the turn changes.
+ * The End turn button, centred in the middle of the table between the two sides (no line above it, the user's: the
+ * turn banner says whose turn it is), or in its place a message while there's no End turn (a promotion,
+ * the result). The button row keeps its height (it stays when there's no button), so the button never moves.
  * `setup`: while placing Pokémon before the battle, the
  * Reset cards (take them all back) and Start battle buttons. `endTurn`: what End turn does, through useTurnReminders'
  * `check` (which asks first while the player could still attach Energy, use the Stadium or a Pokémon Power). `compact` (the phone layout): one row, the
  * text (up to two lines) centred on the screen, between the two Active Pokémon, and the buttons, smaller, on the right, where the thumb is;
  * during setup no text (Board's SetupBanner shows it) and Start battle centred on the screen, Reset cards on its right.
+ * The turn and setup banners pass behind the buttons, their text either side of them (`data-banner-row`, `data-banner-avoid`).
  */
 export function StatusBar({
   status,
@@ -161,7 +162,8 @@ export function StatusBar({
   const big = compact ? 'px-4 py-2 text-sm' : 'min-w-36 px-6 py-2 text-base';
 
   return (
-    <div className={compact ? 'flex min-w-0 flex-1 items-center gap-2' : 'flex shrink-0 flex-col items-center gap-1 text-center'}>
+    // The turn and setup banners centre on this bar between the two sides (data-banner-row; TurnBanner.tsx).
+    <div data-banner-row className={compact ? 'flex min-w-0 flex-1 items-center gap-2' : 'relative flex shrink-0 flex-col items-center text-center'}>
       {/* One line, so a longer message never pushes the button down (two beside the buttons on a phone). */}
       {compact ? (
         // Centred on the screen, in line with the Active Pokémon above and below it (the bar is its containing block; agreed),
@@ -171,15 +173,19 @@ export function StatusBar({
           <span className="flex-1" />
         </>
       ) : (
-        <p className="h-5 max-w-full truncate px-2 text-sm font-semibold leading-5">{status}</p>
+        // No line above the buttons (the user's): they're the bar's middle, where the banner centres; a message shows in
+        // End turn's place instead, while there's no End turn (a promotion, the result).
+        !setup && !canEndTurn && status && <p className="absolute inset-x-0 top-1/2 -translate-y-1/2 truncate px-2 text-sm font-semibold leading-5">{status}</p>
       )}
+      {/* The turn and setup banners keep their text clear of its buttons (TurnBanner.tsx), which sit above them, solid even when disabled so the banner never shows through. */}
       <div className={`flex h-10 items-center justify-center ${compact ? 'shrink-0 gap-2' : ''}`}>
         {setup && (
           // Start battle in the middle, where End turn goes; Reset cards hangs off its left (on a phone, centred on the
           // screen with Reset cards on its right, the setup line on a banner above: agreed).
           <span className={compact ? 'absolute left-1/2 top-1/2 z-[960] -translate-x-1/2 -translate-y-1/2' : 'relative'}>
             <button
-              className={`${compact ? `${smallButton} absolute left-full top-1/2 ml-2 -translate-y-1/2` : `${button} absolute right-full top-1/2 mr-3 -translate-y-1/2`} whitespace-nowrap disabled:opacity-40`}
+              data-banner-avoid
+              className={`${compact ? `${smallButton} absolute left-full top-1/2 ml-2 -translate-y-1/2` : `${button} absolute right-full top-1/2 mr-3 -translate-y-1/2`} z-[960] whitespace-nowrap disabled:bg-slate-700 disabled:text-slate-500`}
               disabled={busy || !setup.canReset}
               onClick={() => send({ type: 'RESET_SETUP' })}
               title="Take the Pokémon you've placed back into your hand"
@@ -187,7 +193,8 @@ export function StatusBar({
               Reset cards
             </button>
             <button
-              className={`${big} whitespace-nowrap rounded-lg bg-emerald-600 font-semibold shadow-lg shadow-black/40 transition hover:bg-emerald-500 active:scale-95 disabled:opacity-40`}
+              data-banner-avoid
+              className={`${big} relative z-[960] whitespace-nowrap rounded-lg bg-emerald-600 font-semibold shadow-lg shadow-black/40 transition enabled:hover:bg-emerald-500 active:scale-95 disabled:bg-slate-700 disabled:text-slate-400 disabled:shadow-none`}
               disabled={busy || !setup.canStart}
               onClick={() => send({ type: 'START_BATTLE' })}
               title={setup.canStart ? 'Done placing your Pokémon' : 'Choose an Active Pokémon first'}
@@ -198,7 +205,8 @@ export function StatusBar({
         )}
         {canEndTurn && (
           <button
-            className={`${big} rounded-lg bg-blue-600 font-semibold shadow-lg shadow-black/40 transition hover:bg-blue-500 active:scale-95 disabled:cursor-progress`}
+            data-banner-avoid
+            className={`${big} relative z-[960] rounded-lg bg-blue-600 font-semibold shadow-lg shadow-black/40 transition hover:bg-blue-500 active:scale-95 disabled:cursor-progress`}
             disabled={busy}
             onClick={endTurn}
           >
