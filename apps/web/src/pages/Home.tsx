@@ -15,12 +15,14 @@ import { RunOver } from '../components/run/RunOver';
 import { RunStats } from '../components/run/RunStats';
 import { useIsPhone } from '../hooks/useIsPhone';
 import { useRun } from '../hooks/useRun';
+import { usePlayRedirect } from '../hooks/useTower';
+import { ReturnToHome } from '../components/ReturnToHome';
 import { useRunMusic } from '../hooks/useRunMusic';
 import { useWindowFill } from '../hooks/useWindowFill';
 import { PAGE_WIDTH } from '../utils/layout';
 
 /**
- * The run hub, laid out like the game: the page within the same side margins, filling the window (on a big screen the
+ * The Badge Challenge (`/badge`, from the Play tab's menu): the run hub, laid out like the game: the page within the same side margins, filling the window (on a big screen the
  * run's numbers and its log are in the site menu, NavRail). The page has the run's map and its encounter with the deck below; after a run, its
  * results, the shop and the next run. A run whose type has routes (Pewter City: Route 2) shows them instead of the
  * icon map: zoomed in on the step's spot, alone in the top row, with the encounter, the cards unlocked and Concede below.
@@ -33,6 +35,8 @@ export function HomePage() {
   const fill = useWindowFill<HTMLDivElement>();
   const phone = useIsPhone();
   const { overview } = run;
+  // A Battle Tower challenge under way keeps the Play tab on it.
+  usePlayRedirect();
   // Auto play follows the run: the route, the town, the gym, a Pokémon Center.
   useRunMusic();
   // On a phone, once an encounter is over (its reward taken), the page scrolls back up to the route map, to watch the
@@ -100,7 +104,7 @@ export function HomePage() {
           {!current || !view ? (
             <>
               <PageHeader title="Play" />
-              <NewRunPicker overview={overview.data} run={run} title="Start a run" />
+              <NewRunPicker overview={overview.data} run={run} title="Start a run" extra={<ReturnToHome />} />
             </>
           ) : (
             <>

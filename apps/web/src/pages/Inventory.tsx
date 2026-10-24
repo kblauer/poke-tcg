@@ -1,4 +1,4 @@
-import { itemText, ITEMS, MAX_CONSUMABLES_PER_RUN, type ItemCategory, type ItemDef } from '@poke-tcg/campaign';
+import { itemText, ITEMS, MAX_CONSUMABLES_PER_RUN, parsePendingConsumable, type ItemCategory, type ItemDef } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { BADGE_IDS, BadgeCases } from '../components/BadgeCases';
@@ -58,8 +58,13 @@ export function InventoryPage() {
   const { items, equipment, trainerSprite, playerGender, pendingConsumables } = inventory.data;
   const current = overview.data?.run;
   const activeRun = current?.status === 'ACTIVE' ? current : null;
-  // Used between runs: no longer in the inventory, waiting for the next run (at most its 3).
-  const waiting = pendingConsumables.map((id) => ITEMS[id]?.name ?? id);
+  // Used between runs, or carried over from a conceded run with the battles they had left: no longer in the inventory,
+  // waiting for the next run (at most its 3).
+  const waiting = pendingConsumables.map((entry) => {
+    const { itemId, battlesLeft } = parsePendingConsumable(entry);
+    const name = ITEMS[itemId]?.name ?? itemId;
+    return battlesLeft === undefined ? name : `${name} (${battlesLeft} ${battlesLeft === 1 ? 'battle' : 'battles'} left)`;
+  });
 
   return (
     <div className={`${PAGE_WIDTH} space-y-6`}>

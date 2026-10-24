@@ -3,7 +3,7 @@ import LockIcon from '@mui/icons-material/Lock';
 import { boss, bossLabel, bossTypes, generation, generationLock, RUN_TYPES, type BossId, type RunTypeId } from '@poke-tcg/campaign';
 import { typeName } from '@poke-tcg/game-engine';
 import { Link } from '@tanstack/react-router';
-import { useContext, useState } from 'react';
+import { useContext, useState, type ReactNode } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import type { Overview, RunControl } from '../../hooks/useRun';
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
@@ -93,9 +93,10 @@ function RunTypeOption({ info, selected, onPick }: { info: RunTypeInfo; selected
  * (RunTypeOption) for the generation picked in the dropdown (Gen 1 · Kanto, Gen 2 · Johto…); locked ones can't be picked, nor
  * can a generation whose previous one's Gym Challenge isn't beaten yet (generationLock; listed, saying so). The
  * deck is picked from a drop-down menu of deck tiles (DeckMenu, as when battling in a run), with the favorite decks under
- * it; those that break the rules or hold cards you haven't unlocked are listed with why, and can't be picked.
+ * it; those that break the rules or hold cards you haven't unlocked are listed with why, and can't be picked. `extra` goes
+ * beside the Start new run button (Return to Home).
  */
-export function NewRunPicker({ overview: given, run, title, defaultType }: { overview: Overview; run: RunControl; title: string; defaultType?: RunTypeId }) {
+export function NewRunPicker({ overview: given, run, title, defaultType, extra }: { overview: Overview; run: RunControl; title: string; defaultType?: RunTypeId; extra?: ReactNode }) {
   // Debug mode unlocks every run type (started with debugStart); `debugLocked`: the ones that were locked.
   // The catalog (the deck menu waits for it).
   const byId = useContext(CatalogContext);
@@ -197,13 +198,16 @@ export function NewRunPicker({ overview: given, run, title, defaultType }: { ove
       </div>
 
       <p className="text-xs text-slate-500">The new run starts with ₱500 and 3 HP.</p>
-      <button
-        className="rounded bg-blue-600 px-5 py-2 font-semibold transition hover:bg-blue-500 active:scale-95 disabled:opacity-40"
-        disabled={run.busy || !deckId || chosen?.locked !== null}
-        onClick={() => deckId && run.start(type, deckId, debugLocked.has(type))}
-      >
-        Start the run
-      </button>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          className="rounded bg-blue-600 px-5 py-2 font-semibold transition hover:bg-blue-500 active:scale-95 disabled:opacity-40"
+          disabled={run.busy || !deckId || chosen?.locked !== null}
+          onClick={() => deckId && run.start(type, deckId, debugLocked.has(type))}
+        >
+          Start new run
+        </button>
+        {extra}
+      </div>
     </section>
   );
 }

@@ -1,4 +1,4 @@
-import { healedJingle, practiceMusic, runMusic, victoryMusic } from '@poke-tcg/campaign';
+import { battleMusic, healedJingle, practiceMusic, runMusic, victoryMusic } from '@poke-tcg/campaign';
 import { useEffect, useRef } from 'react';
 import { useMusicCue, useMusicSettings, usePlayJingle } from '../components/MusicPlayer';
 import { useRun } from './useRun';
@@ -29,4 +29,10 @@ export function useRunMusic() {
 export function usePracticeMusic(opponent: string | null, gameId: string) {
   const soundtrack = useMusicSettings()?.soundtrack ?? 'remastered';
   useMusicCue(practiceMusic(opponent, soundtrack, gameId));
+}
+
+/** Auto play in a Battle Tower battle: a trainer's battle theme of its floor's generation (none until it's known). */
+export function useTowerBattleMusic(gen: number | null, gameId: string) {
+  const soundtrack = useMusicSettings()?.soundtrack ?? 'remastered';
+  useMusicCue(gen ? battleMusic(gen, soundtrack, 'battle', gameId) : null);
 }

@@ -36,7 +36,9 @@ if (import.meta.env.DEV) document.title += ' - local';
 
 // Each page is its own chunk, fetched when it's first opened (the battle screen's brings the rules engine with it; the
 // others don't need it), so the first load is the layout alone.
+const PlayPage = lazyRouteComponent(() => import('./pages/Play'), 'PlayPage');
 const HomePage = lazyRouteComponent(() => import('./pages/Home'), 'HomePage');
+const TowerPage = lazyRouteComponent(() => import('./pages/Tower'), 'TowerPage');
 const GamePage = lazyRouteComponent(() => import('./pages/Game'), 'GamePage');
 const DecksPage = lazyRouteComponent(() => import('./pages/Decks'), 'DecksPage');
 const CommunityPage = lazyRouteComponent(() => import('./pages/Community'), 'CommunityPage');
@@ -187,7 +189,10 @@ function RootLayout() {
 }
 
 const rootRoute = createRootRoute({ component: RootLayout });
-const homeRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', component: HomePage });
+// The Play tab: its menu of modes (`/`), the Badge Challenge (the runs), the Battle Tower and Training (`/battle`).
+const playRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', component: PlayPage });
+const homeRoute = createRoute({ getParentRoute: () => rootRoute, path: '/badge', component: HomePage });
+const towerRoute = createRoute({ getParentRoute: () => rootRoute, path: '/tower', component: TowerPage });
 const gameRoute = createRoute({ getParentRoute: () => rootRoute, path: '/game/$gameId', component: GamePage });
 // `?deck=<id>` opens that deck, `?deck=new` a new one (the Single battle tab's links).
 const decksRoute = createRoute({
@@ -208,7 +213,7 @@ const berryBlenderRoute = createRoute({ getParentRoute: () => rootRoute, path: '
 const poffinCookingRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras/poffin-cooking', component: PoffinCookingPage });
 
 const router = createRouter({
-  routeTree: rootRoute.addChildren([homeRoute, battleRoute, gameRoute, decksRoute, communityRoute, inventoryRoute, cosmeticsRoute, packsRoute, settingsRoute, extrasRoute, berryFarmRoute, berryBlenderRoute, poffinCookingRoute]),
+  routeTree: rootRoute.addChildren([playRoute, homeRoute, towerRoute, battleRoute, gameRoute, decksRoute, communityRoute, inventoryRoute, cosmeticsRoute, packsRoute, settingsRoute, extrasRoute, berryFarmRoute, berryBlenderRoute, poffinCookingRoute]),
 });
 
 declare module '@tanstack/react-router' {

@@ -12,7 +12,8 @@ import { RunStats } from '../components/run/RunStats';
 import { useIsPhone } from '../hooks/useIsPhone';
 import { useOptions } from '../hooks/useOptions';
 import { useRun } from '../hooks/useRun';
-import { usePracticeMusic, useRunMusic } from '../hooks/useRunMusic';
+import { usePracticeMusic, useRunMusic, useTowerBattleMusic } from '../hooks/useRunMusic';
+import { useTowerOverview } from '../hooks/useTower';
 import { useSkipFlips } from '../hooks/useSkipFlips';
 import { DeckCosmeticsContext } from '../hooks/useCosmetics';
 import { useTRPC } from '../lib/trpc';
@@ -190,12 +191,12 @@ export function GamePage() {
               // Shown whatever the skip setting, and done with nothing to reveal.
               <CoinFlip flips={testFlip} you={view.you} onDone={() => setTestFlip(null)} />
             ) : (
-              shown.phase === 'finished' && <BattleResult view={shown} opponent={data.opponent} run={data.runId !== null} />
+              shown.phase === 'finished' && <BattleResult view={shown} opponent={data.opponent} mode={data.runId ? 'run' : data.towerId ? 'tower' : 'training'} />
             )
           }
         />
       </ToolPopsContext.Provider>
-      {data.runId ? <RunBattleMusic /> : <PracticeMusic opponent={data.opponent} gameId={gameId} />}
+      {data.runId ? <RunBattleMusic /> : data.towerId ? <TowerBattleMusic gameId={gameId} /> : <PracticeMusic opponent={data.opponent} gameId={gameId} />}
     </DeckCosmeticsContext.Provider>
   );
 }
@@ -203,6 +204,12 @@ export function GamePage() {
 /** Auto play during a run's battle: the battle's theme, from the run's encounter. */
 function RunBattleMusic() {
   useRunMusic();
+  return null;
+}
+
+/** Auto play during a Battle Tower battle: a trainer's battle theme of its floor's generation. */
+function TowerBattleMusic({ gameId }: { gameId: string }) {
+  useTowerBattleMusic(useTowerOverview().data?.challenge?.view.generation ?? null, gameId);
   return null;
 }
 
@@ -222,12 +229,35 @@ function GameRunTab() {
 
 /**
  * Once the battle is over, centred on the play area (the Board's overlay): the result and the way back, to the run
- * for a run's battle, otherwise to the Training tab.
+ * for a run's battle, to the Battle Tower for a challenge's, otherwise to the Training tab.
  */
-function BattleResult({ view, opponent, run }: { view: PlayerView; opponent: string | null; run: boolean }) {
+function BattleResult({ view, opponent, mode }: { view: PlayerView; opponent: string | null; mode: 'run' | 'tower' | 'training' }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const won = view.winner === view.you;
+  const run = mode === 'run';
+  // A tower win's streak (the user's popup): the challenge's wins, this one included even before its settled state is fetched.
+  const challenge = useTowerOverview(mode === 'tower').data?.challenge;
+  const streak = challenge ? (challenge.view.phase === 'battle' ? challenge.view.wins + 1 : challenge.view.wins) : null;
+  if (mode === 'tower') {
+    return (
+      <div className="pointer-events-none absolute inset-0 z-[1100] flex items-center justify-center p-4">
+        <div data-keep-action className="pointer-events-auto w-fit space-y-3 rounded-lg bg-slate-800 p-6 text-center shadow-2xl ring-1 ring-slate-600">
+          <p className={`text-2xl font-bold ${won ? 'text-yellow-300' : 'text-rose-300'}`}>{won ? `You beat ${opponent ?? 'your opponent'}!` : `${opponent ?? 'Your opponent'} won.`}</p>
+          <p className="text-sm text-slate-400">
+            {won ? (streak !== null ? `You've won ${streak} ${streak === 1 ? 'battle' : 'battles'} in a row.` : '') : 'Your Battle Tower challenge is over.'}
+          </p>
+          <Link
+            to="/tower"
+            onClick={() => queryClient.invalidateQueries({ queryKey: trpc.tower.overview.queryKey() })}
+            className="inline-block rounded bg-blue-600 px-5 py-2 font-semibold transition hover:bg-blue-500 active:scale-95"
+          >
+            {won ? 'Continue' : 'Back to the Battle Tower'}
+          </Link>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="pointer-events-none absolute inset-0 z-[1100] flex items-center justify-center p-4">
       <div data-keep-action className="pointer-events-auto w-fit space-y-3 rounded-lg bg-slate-800 p-6 text-center shadow-2xl ring-1 ring-slate-600">
@@ -236,7 +266,7 @@ function BattleResult({ view, opponent, run }: { view: PlayerView; opponent: str
           <>
             <p className="text-sm text-slate-400">{won ? 'Your reward is waiting.' : 'You lose 1 HP.'}</p>
             <Link
-              to="/"
+              to="/badge"
               onClick={() => queryClient.invalidateQueries({ queryKey: trpc.run.overview.queryKey() })}
               className="inline-block rounded bg-blue-600 px-5 py-2 font-semibold transition hover:bg-blue-500 active:scale-95"
             >

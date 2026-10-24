@@ -20,3 +20,6 @@ export * from './berry-blender.js';
 export * from './berry-farm.js';
 export * from './berry-farm-map.js';
 export * from './poffin-cooking.js';
+export * from './tower.js';
+export * from './battle-tower-trainers.js';
+export * from './battle-tower-maps.js';

@@ -186,6 +186,36 @@ html[data-font="emerald"] {
   to { opacity: 0; transform: translate(-50%, -10px); }
 }
 
+/* The Battle Tower's battle transitions (TowerScene's BattleTransition): the double white flash, then the screen closing. */
+@keyframes tower-flash {
+  0%, 22%, 50% { opacity: 0; }
+  11%, 36% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes tower-wipe-x {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes tower-wipe-y {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+/* The iris: a see-through circle in the middle whose black shadow covers the rest, shrinking to nothing. */
+@keyframes tower-iris {
+  from { width: 180%; }
+  to { width: 0%; }
+}
+@keyframes tower-diagonal {
+  from { clip-path: polygon(0 0, 0 0, 0 0); }
+  to { clip-path: polygon(0 0, 200% 0, 0 200%); }
+}
+
+/* The Battle Tower's elevator riding up (TowerScene): the room shaking a pixel up and down (`translate`, so its zoom stays). */
+@keyframes tower-ride {
+  from { translate: 0 0; }
+  to { translate: 0 1px; }
+}
+
 /*
  * The board (components/PlayArea.tsx, with the turn bar between its two sides) sizes its cards to fill the space it has. PlayArea is the
  * size container; this inner element turns its size into card widths. Small cards (bench, prizes,

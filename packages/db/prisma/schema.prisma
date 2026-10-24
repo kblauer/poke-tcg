@@ -47,9 +47,15 @@ model User {
   berries       Json            @default("{}")
   /// The Berry Blender's top speed ever, in hundredths of an RPM (as the game's record).
   blenderRecord Int             @default(0)
+  /// The highest Battle Tower floor beaten in any challenge (0 for none): later challenges can start on the floor after
+  /// each checkpoint up to it (the campaign package's startFloors).
+  towerBest     Int             @default(0)
+  /// Battle Points: the Battle Tower's currency, won with each of its wins and spent in its lobby's BP Shop (packs, for now).
+  bp            Int             @default(0)
   decks         Deck[]
   games         Game[]
   runs          Run[]
+  towers        TowerChallenge[]
   cardUnlocks   CardUnlock[]
   packUnlocks   PackUnlock[]
   favoriteCards FavoriteCard[]
@@ -190,6 +196,9 @@ model Game {
   /// The run this battle belongs to (null for test games).
   runId     String?      @db.Uuid
   run       Run?         @relation(fields: [runId], references: [id], onDelete: SetNull)
+  /// The Battle Tower challenge this battle belongs to (null outside one).
+  towerId   String?      @db.Uuid
+  tower     TowerChallenge? @relation(fields: [towerId], references: [id], onDelete: SetNull)
   /// The player's deck's cosmetics when the game began ({ cardBack, playmat, coin }, each an id or null for the
   /// account's own); null for a game without a deck of the account's (the test deck) or from before decks had them.
   cosmetics Json?
@@ -248,6 +257,37 @@ model Run {
   updatedAt DateTime  @updatedAt
 
   @@index([ownerId, createdAt])
+}
+
+enum TowerStatus {
+  ACTIVE
+  LOST
+  /// Floor 100 beaten.
+  WON
+}
+
+/// A Battle Tower challenge (see @poke-tcg/campaign's tower.ts): battles won one after another with one deck until one is
+/// lost (or given up), or floor 100 is beaten (WON). An ACTIVE one keeps its saved flag in its state. Its deck is kept only here, in
+/// `state.deck` (never a Deck row, so it's in no deck list), and shown only to take the challenge up.
+model TowerChallenge {
+  id        String      @id @default(uuid()) @db.Uuid
+  ownerId   String      @db.Uuid
+  owner     User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  status    TowerStatus @default(ACTIVE)
+  /// The campaign package's TowerState (floor, deck, opponent). Contains RNG state – never return it to clients directly.
+  state     Json
+  /// Mirrors state.version; used for optimistic concurrency on writes.
+  version   Int
+  seed      Int
+  /// The account deck it was started with (not a relation: the deck can be changed or deleted, the challenge's copy stays).
+  deckId    String?     @db.Uuid
+  /// That deck's cosmetics when it was started ({ cardBack, playmat, coin }, as Game.cosmetics), for every battle.
+  cosmetics Json?
+  games     Game[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([ownerId, status])
 }
 
 /// Cards an account has unlocked by beating runs, for the deck builder (to come).

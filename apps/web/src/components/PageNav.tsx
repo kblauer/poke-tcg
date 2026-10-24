@@ -1,4 +1,5 @@
-import { Link } from '@tanstack/react-router';
+import { Link, useRouterState } from '@tanstack/react-router';
+import { isPlayPath } from '../hooks/useTower';
 
 /**
  * A page's icon: a 32×32 pixel-art sprite in `public/nav/` (agreed 2026-10-23; most from pokesprite's items, the Packs
@@ -20,7 +21,7 @@ export const PokedollarIcon = navIcon('pokedollar');
  */
 export const PAGE_NAME = 'text-nav font-nav';
 
-/** The site's pages, in the menu's order, each with its icon. */
+/** The site's pages, in the menu's order, each with its icon. Training is one of Play's modes (its menu, the user's), not a page of its own. */
 export const PAGES = [
   { to: '/', label: 'Play', Icon: navIcon('play') },
   { to: '/inventory', label: 'Inventory', Icon: navIcon('inventory') },
@@ -28,9 +29,19 @@ export const PAGES = [
   { to: '/packs', label: 'Packs', Icon: navIcon('packs') },
   { to: '/decks', label: 'Collection', Icon: navIcon('collection') },
   { to: '/community', label: 'Community Decks', Icon: navIcon('community') },
-  { to: '/battle', label: 'Training', Icon: navIcon('training') },
   { to: '/extras', label: 'Extras', Icon: navIcon('extras') },
 ] as const;
+
+/**
+ * Whether Play is lit in the menus: on its menu, any of its modes (the Badge Challenge, the Battle Tower, Training) and their
+ * battles. Passed as the link's `data-status`, which the router only sets itself on its own path.
+ */
+export function usePlayLit() {
+  const path = useRouterState({ select: (s) => s.location.pathname });
+  return isPlayPath(path) || path.startsWith('/game/');
+}
+/** The `data-status` for a page's link: Play's while usePlayLit. */
+export const litStatus = (to: string, playLit: boolean) => (to === '/' && playLit ? 'active' : undefined);
 
 /** The Settings page: last in the menus, below the pages. */
 export const SETTINGS_PAGE = { to: '/settings', label: 'Settings', Icon: navIcon('settings') } as const;
@@ -48,11 +59,12 @@ const iconItem =
  * screen's menu (LogSheet). `onPick` closes the menu.
  */
 export function PageMenu({ onPick, iconsOnly = false }: { onPick: () => void; iconsOnly?: boolean }) {
+  const playLit = usePlayLit();
   if (iconsOnly) {
     return (
       <nav className="flex gap-1.5">
         {PAGES.map((p) => (
-          <Link key={p.to} to={p.to} className={iconItem} activeOptions={{ exact: p.to === '/' }} onClick={onPick} title={p.label} aria-label={p.label}>
+          <Link key={p.to} to={p.to} className={iconItem} activeOptions={{ exact: p.to === '/' }} data-status={litStatus(p.to, playLit)} onClick={onPick} title={p.label} aria-label={p.label}>
             <p.Icon />
           </Link>
         ))}
@@ -62,7 +74,7 @@ export function PageMenu({ onPick, iconsOnly = false }: { onPick: () => void; ic
   return (
     <nav className="flex min-h-0 flex-1 flex-col gap-1">
       {PAGES.map((p) => (
-        <Link key={p.to} to={p.to} className={menuItem} activeOptions={{ exact: p.to === '/' }} onClick={onPick}>
+        <Link key={p.to} to={p.to} className={menuItem} activeOptions={{ exact: p.to === '/' }} data-status={litStatus(p.to, playLit)} onClick={onPick}>
           <p.Icon />
           <span className={`truncate ${PAGE_NAME}`}>{p.label}</span>
         </Link>

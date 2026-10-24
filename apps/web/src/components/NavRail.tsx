@@ -3,7 +3,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { useRun } from '../hooks/useRun';
 import { GameLog } from './GameLog';
 import { useNavGameLog } from './NavLog';
-import { PAGE_NAME, PAGES, PokedollarIcon, SETTINGS_PAGE } from './PageNav';
+import { litStatus, PAGE_NAME, PAGES, PokedollarIcon, SETTINGS_PAGE, usePlayLit } from './PageNav';
 import { DeltaFloat } from './run/DeltaFloat';
 import { HpBar } from './run/HpBar';
 import { usePokedollarColor } from '../hooks/useThemedFigures';
@@ -45,8 +45,9 @@ function loadSections(): SectionPrefs {
  * Stardust are in the top bar: TopBarAccount).
  */
 export function NavRail({ open }: { open: boolean }) {
+  const playLit = usePlayLit();
   const link = (p: (typeof PAGES)[number] | typeof SETTINGS_PAGE, className = '') => (
-    <Link key={p.to} to={p.to} className={`${item} ${className}`} activeOptions={{ exact: p.to === '/' }} title={open ? undefined : p.label} aria-label={p.label}>
+    <Link key={p.to} to={p.to} className={`${item} ${className}`} activeOptions={{ exact: p.to === '/' }} data-status={litStatus(p.to, playLit)} title={open ? undefined : p.label} aria-label={p.label}>
       <p.Icon />
       <span className={`truncate ${PAGE_NAME} transition-opacity duration-200 ${open ? 'opacity-100' : 'opacity-0'}`}>{p.label}</span>
     </Link>

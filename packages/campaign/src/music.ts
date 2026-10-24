@@ -300,3 +300,30 @@ export function pickSong(cue: MusicCue): Song {
   for (const c of cue.seed) hash = (hash * 31 + c.charCodeAt(0)) >>> 0;
   return cue.songs[hash % cue.songs.length]!;
 }
+
+/**
+ * Each generation's Battle Tower music (`towerMusic`), by soundtrack: its lobby's and its rooms' (the elevator, corridor and
+ * battle room). Gen 2 is Gold, Silver & Crystal's Battle Tower, or HeartGold & SoulSilver's reception desk and Battle Tower
+ * (Johto); Gen 3 Emerald's Battle Tower in both (Omega Ruby & Alpha Sapphire has none). Gen 1's would be FireRed's Trainer
+ * Tower (MUS_TRAINER_TOWER, its three rooms' music), but it isn't in the music player's list: until it is, Gen 1's floors play
+ * Gen 2's, so autoplay always moves off a battle's music when the player is back in the tower (the user's).
+ */
+const JOHTO_TOWER: Record<Soundtrack, { lobby: Song; rooms: Song }> = {
+  original: { lobby: { game: 'Gold, Silver & Crystal', title: 'Battle Tower' }, rooms: { game: 'Gold, Silver & Crystal', title: 'Battle Tower' } },
+  remastered: { lobby: { game: 'HeartGold & SoulSilver', title: 'Battle Tower Reception Desk' }, rooms: { game: 'HeartGold & SoulSilver', title: 'Battle Tower (Johto)' } },
+};
+const TOWER_MUSIC: Record<number, Record<Soundtrack, { lobby: Song; rooms: Song }>> = {
+  1: JOHTO_TOWER,
+  2: JOHTO_TOWER,
+  3: {
+    original: { lobby: { game: 'Emerald', title: 'Battle Tower' }, rooms: { game: 'Emerald', title: 'Battle Tower' } },
+    remastered: { lobby: { game: 'Emerald', title: 'Battle Tower' }, rooms: { game: 'Emerald', title: 'Battle Tower' } },
+  },
+};
+
+/** The Battle Tower's music for a generation's lobby or rooms (TOWER_MUSIC; past the last generation with its own, that one's). */
+export function towerMusic(gen: number, soundtrack: Soundtrack, place: 'lobby' | 'rooms'): MusicCue {
+  const last = Math.max(...Object.keys(TOWER_MUSIC).map(Number));
+  const s = TOWER_MUSIC[Math.min(Math.max(gen, 1), last)]![soundtrack][place];
+  return { key: `${s.game}:tower:${s.title}`, songs: [s], seed: 'tower' };
+}

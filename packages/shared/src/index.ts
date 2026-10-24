@@ -1,5 +1,5 @@
 import { CPU_DIFFICULTIES, DEBUG_CONDITIONS, MAX_BENCH, type AttackChoices, type DebugCommand, type GameAction, type PowerChoices, type TrainerChoices } from '@poke-tcg/game-engine';
-import { BERRIES, BOSS_IDS, COSMETIC_IDS, EQUIP_SLOTS, MAX_PACKS_AT_ONCE, PACK_SETS, RUN_TYPE_IDS, type RunAction, type RunTypeId } from '@poke-tcg/campaign';
+import { BERRIES, BOSS_IDS, COSMETIC_IDS, EQUIP_SLOTS, MAX_PACKS_AT_ONCE, PACK_SETS, RUN_TYPE_IDS, TOP_FLOOR, type RunAction, type RunTypeId, type TowerAction } from '@poke-tcg/campaign';
 import { z } from 'zod';
 import { DECK_NAME_LENGTH } from './deck.js';
 import { TRAINER_SPRITES } from './trainer-sprites.js';
@@ -193,6 +193,17 @@ export const useItemInput = z.object({ runId: z.uuid(), itemId: z.string().min(1
 /** A consumable used from the Inventory: in the run under way, or kept for the next run when there's none. */
 export const useConsumableInput = z.object({ itemId: z.string().min(1).max(64) });
 export const startRunInput = z.object({ type: z.enum(RUN_TYPE_IDS as [RunTypeId, ...RunTypeId[]]), deckId: z.uuid() });
+/** A Battle Tower challenge started with one of the account's decks, on floor 1 or the floor after a checkpoint reached. */
+export const startTowerInput = z.object({ deckId: z.uuid(), startFloor: z.number().int().min(1).max(TOP_FLOOR) });
+export const towerIdInput = z.object({ towerId: z.uuid() });
+/** The attendant's and receptionist's choices: go on, save and stop, take a saved challenge up again, give it up. */
+export const towerActionSchema = z.object({ type: z.enum(['CONTINUE', 'SAVE', 'RESUME', 'QUIT']) }) satisfies z.ZodType<TowerAction>;
+export const towerActInput = z.object({
+  towerId: z.uuid(),
+  /** The challenge version the client acted on; stale submissions are rejected. */
+  expectedVersion: z.number().int().min(0),
+  action: towerActionSchema,
+});
 export const buyItemInput = z.object({ itemId: z.string().min(1).max(64) });
 export const equipInput = z.object({ slot: z.enum(EQUIP_SLOTS), itemId: z.string().min(1).max(64).nullable() });
 /** The Inventory's trainer sprite, one of Showdown's. */
@@ -216,6 +227,8 @@ export const openPackInput = z.object({
   setId: z.enum(PACK_SETS as [string, ...string[]]),
   /** How many packs to buy and open at once. */
   count: z.number().int().min(1).max(MAX_PACKS_AT_ONCE).default(1),
+  /** Paid with ₱ from the bank (the Packs tab), or Battle Points (the Battle Tower's BP Shop). */
+  currency: z.enum(['bank', 'bp']).default('bank'),
 });
 
 /** Crafting a card with Stardust (packs.craft). */

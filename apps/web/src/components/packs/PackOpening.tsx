@@ -75,7 +75,7 @@ const isRare = (c: PackCard) => c.slot === 'rare' || isFoilSlot(c.slot) || c.hol
 
 /**
  * Opening packs, in a window over the page. Pick how many (×1, ×2, ×5, ×10 or Custom), then click the pack to
- * buy them (₱ from the bank): it shakes, its top tears off, and the cards burst out and gather into a stack.
+ * buy them (₱ from the bank, or Battle Points in the BP Shop: `currency`): it shakes, its top tears off, and the cards burst out and gather into a stack.
  * Click the stack to reveal the cards one by one (each flips up; holos shimmer, new unlocks are marked NEW), or Skip:
  * every card of every pack, pack after pack, or only the rares with the commons separated or when several packs are
  * opened on auto open. Either way it ends on the list
@@ -85,7 +85,23 @@ const isRare = (c: PackCard) => c.slot === 'rare' || isFoilSlot(c.slot) || c.hol
  * stay face down to be opened one by one), and auto open (the cards revealed move on by themselves, pausing on rares;
  * while it runs, ×2 speed doubles it and Stop auto goes back to clicking, with Resume auto to start it again).
  */
-export function PackOpening({ set, price, bank, onClose, onOpened }: { set: PackSetInfo; price: number; bank: number; onClose: () => void; onOpened: () => void }) {
+export function PackOpening({
+  set,
+  price,
+  bank,
+  onClose,
+  onOpened,
+  currency = 'bank',
+}: {
+  set: PackSetInfo;
+  price: number;
+  /** What the player has to pay with: ₱ in the bank, or (`currency` bp) Battle Points. */
+  bank: number;
+  onClose: () => void;
+  onOpened: () => void;
+  /** Paid with ₱ from the bank (the Packs tab), or Battle Points (the Battle Tower's BP Shop). */
+  currency?: 'bank' | 'bp';
+}) {
   // Face down, the cards show the player's card back (the Cosmetics tab).
   const { cardBack } = useCosmetics();
   const trpc = useTRPC();
@@ -137,7 +153,7 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
   const open = {
     isPending: buy.isPending || debugBuy.isPending,
     error: buy.error ?? debugBuy.error,
-    mutate: (input: { setId: string; count: number }) =>
+    mutate: (input: { setId: string; count: number; currency: 'bank' | 'bp' }) =>
       DEBUG_BUILD && debug && (forceHolo || forceAllRares) ? debugBuy.mutate({ ...input, holoEnergy: forceHolo, allRares: forceAllRares }) : buy.mutate(input),
   };
   const total = price * quantity;
@@ -214,7 +230,7 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
           <button
             className="rounded-md outline-none transition hover:scale-105 focus-visible:ring-4 focus-visible:ring-yellow-300 disabled:cursor-not-allowed disabled:hover:scale-100"
             disabled={phase !== 'pack' || open.isPending || !affordable}
-            onClick={() => open.mutate({ setId: set.id, count: quantity })}
+            onClick={() => open.mutate({ setId: set.id, count: quantity, currency })}
             aria-label={`Open ${quantity === 1 ? 'a' : quantity} ${set.name} pack${quantity === 1 ? '' : 's'}`}
           >
             <BoosterPack setId={set.id} name={set.name} logoUrl={set.logoUrl} art={set.art} size="xl" state={phase === 'tearing' ? 'torn' : open.isPending ? 'shaking' : 'idle'} />
@@ -291,9 +307,13 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
           )}
           {(phase === 'pack' || phase === 'tearing') && (
             <p className={`text-sm ${affordable ? 'text-slate-300' : 'text-amber-300'} ${phase === 'tearing' ? 'invisible' : ''}`}>
-              {affordable
-                ? `Click the pack to open ${quantity === 1 ? 'it' : `${quantity} packs`}: ₱${total} from your bank (₱${bank}).`
-                : `${quantity === 1 ? 'A pack costs' : `${quantity} packs cost`} ₱${total}; your bank has ₱${bank}.`}
+              {currency === 'bp'
+                ? affordable
+                  ? `Click the pack to open ${quantity === 1 ? 'it' : `${quantity} packs`}: ${total} BP of your ${bank}.`
+                  : `${quantity === 1 ? 'A pack costs' : `${quantity} packs cost`} ${total} BP; you have ${bank} BP.`
+                : affordable
+                  ? `Click the pack to open ${quantity === 1 ? 'it' : `${quantity} packs`}: ₱${total} from your bank (₱${bank}).`
+                  : `${quantity === 1 ? 'A pack costs' : `${quantity} packs cost`} ₱${total}; your bank has ₱${bank}.`}
             </p>
           )}
           {open.error && <p className="text-sm text-red-400">{open.error.message}</p>}

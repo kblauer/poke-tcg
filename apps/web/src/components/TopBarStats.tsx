@@ -1,8 +1,10 @@
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import MilitaryTechIcon from '@mui/icons-material/MilitaryTech';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { useRun } from '../hooks/useRun';
+import { useTowerBp } from '../hooks/useTower';
 import { useTRPC } from '../lib/trpc';
 import { navIcon, PokedollarIcon } from './PageNav';
 import { HpBar } from './run/HpBar';
@@ -18,6 +20,11 @@ export function shortNumber(n: number): string {
   const [unit, size] = Math.abs(n) < 1_000_000 ? ['k', 1000] : ['M', 1_000_000];
   const v = n / size;
   return `${Math.abs(v) < 10 ? Math.floor(v * 10) / 10 : Math.floor(v)}${unit}`;
+}
+
+/** The Battle Points' icon in the big screen's top bar, the size of the others' sprites (a medal: there's no pokesprite item for BP). */
+function BpIcon() {
+  return <MilitaryTechIcon sx={{ fontSize: 20 }} />;
 }
 
 /** One figure: its icon and number, its meaning on hover. */
@@ -61,7 +68,7 @@ function ShortStat({ icon, value, title, className }: { icon: ReactNode; value: 
 
 /**
  * The big screen's top bar's account figures (the user's, at its right end before the music player's bar): the bank,
- * EXP and Stardust, run or not, each with its pokesprite item (navIcon: the Big Nugget, the Exp.
+ * EXP and Stardust, run or not, and in the Battle Tower mode its Battle Points (useTowerBp), each with its pokesprite item (navIcon: the Big Nugget, the Exp.
  * Share, Stardust). The bank and Stardust over 999 in short (shortNumber: 1.2k), the exact number alone on hover (the
  * user's); EXP in full, its meaning on hover.
  */
@@ -69,11 +76,14 @@ export function TopBarAccount() {
   const trpc = useTRPC();
   const account = useRun().overview.data?.account;
   const stardust = useQuery(trpc.packs.stardust.queryOptions());
+  const bp = useTowerBp();
   if (!account) return null;
   const figures = [
     { key: 'bank', title: '₱ banked from earlier runs', Icon: navIcon('bank'), value: account.bank, short: true, className: 'text-yellow-200/70' },
     { key: 'exp', title: 'EXP, spent in the shop after a run', Icon: navIcon('exp'), value: account.exp, short: false, className: 'text-sky-300' },
     ...(stardust.data !== undefined ? [{ key: 'dust', title: 'Stardust, from cards pulled again in packs; crafts cards in the deck builder', Icon: navIcon('stardust'), value: stardust.data, short: true, className: 'text-sky-200' }] : []),
+    // Only in the Battle Tower mode (the user's): its Battle Points, spent in its BP Shop.
+    ...(bp !== null ? [{ key: 'bp', title: 'Battle Points, won in the Battle Tower; spent in its BP Shop', Icon: BpIcon, value: bp, short: true, className: 'text-emerald-300' }] : []),
   ];
   return (
     <div className="flex shrink-0 items-center gap-4 text-sm font-semibold">
@@ -89,7 +99,7 @@ export function TopBarAccount() {
 
 /**
  * The phone's top bar's figures (agreed 2026-10-23; the account name is changed on the Settings page): during a run its
- * HP (HpBar) and ₱, then the bank and Stardust, over 999 in short (1.2k: shortNumber), a tap on one showing its exact number
+ * HP (HpBar) and ₱, then the bank and Stardust (and in the Battle Tower mode its Battle Points, useTowerBp), over 999 in short (1.2k: shortNumber), a tap on one showing its exact number
  * briefly (ShortStat).
  */
 export function TopBarStats() {
@@ -97,6 +107,7 @@ export function TopBarStats() {
   const { overview } = useRun();
   const money = usePokedollarColor();
   const stardust = useQuery(trpc.packs.stardust.queryOptions());
+  const bp = useTowerBp();
   const data = overview.data;
   const view = data?.run?.view;
   const inRun = view && view.phase !== 'won' && view.phase !== 'lost';
@@ -110,6 +121,7 @@ export function TopBarStats() {
       )}
       {data && <ShortStat icon={<AccountBalanceIcon sx={{ fontSize: 14 }} />} value={data.account.bank} title="₱ in the bank" className="text-yellow-200/70" />}
       {stardust.data !== undefined && <ShortStat icon={<AutoAwesomeIcon sx={{ fontSize: 14 }} />} value={stardust.data} title="Stardust" className="text-sky-200" />}
+      {bp !== null && <ShortStat icon={<MilitaryTechIcon sx={{ fontSize: 14 }} />} value={bp} title="Battle Points" className="text-emerald-300" />}
     </div>
   );
 }

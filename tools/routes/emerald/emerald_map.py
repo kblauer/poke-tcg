@@ -6,7 +6,8 @@ Emerald's tilesets differ from FireRed's in their sizes (512 tiles and metatiles
 in their metatile attributes (16 bits each: the behaviour in the low byte).
 
 Usage: python emerald_map.py <pokeemerald checkout> <MapName, as in data/maps/, e.g. Route102> <out prefix>
-Writes <out prefix>.png and <out prefix>.json: the size in tiles, `rows` ('.' walkable, '#' not: collision, ledges, water,
+Writes <out prefix>.png, <out prefix>_overhead.png (what the game draws over the people: its top layer, see-through
+elsewhere) and <out prefix>.json: the size in tiles, `rows` ('.' walkable, '#' not: collision, ledges, water,
 doors, warps and the map's people, but for item balls and cut trees; '~' surfable water; ledges by the way they're
 jumped, '>' east, '<' west, '^' north, 'v' south), `grass` (1 where tall grass) and the map's events (map.json). Needs
 Pillow (pip install pillow)."""
@@ -93,10 +94,15 @@ def render(repo, map_name, out_prefix=None, block_people=True):
     backdrop = palettes[0][0]
     im = Image.new('RGB', (W * 16, H * 16), backdrop)
     px = im.load()
+    # What the game draws over the people (its top background layer): the second layer of each metatile whose layer type
+    # (attribute bits 12-15) is NORMAL (0) or SPLIT (2), not COVERED (1); written apart, see-through elsewhere.
+    top = Image.new('RGBA', (W * 16, H * 16), (0, 0, 0, 0))
+    tpx = top.load()
     for by in range(H):
         for bx in range(W):
             mid = blocks[by * W + bx] & 0x3FF
             entries = meta[mid * 8: mid * 8 + 8]
+            over = mid < len(attrs) and (attrs[mid] >> 12) & 0xF in (0, 2)
             for layer in range(2):
                 for q in range(4):
                     e = entries[layer * 4 + q] if layer * 4 + q < len(entries) else 0
@@ -110,6 +116,8 @@ def render(repo, map_name, out_prefix=None, block_people=True):
                             v = row[7 - x if hflip else x]
                             if v:
                                 px[ox + x, oy + y] = colors[v]
+                                if layer == 1 and over:
+                                    tpx[ox + x, oy + y] = (*colors[v], 255)
     blocked = {(o['x'], o['y']) for o in m.get('object_events', []) if block_people and o['graphics_id'] not in FREE} | {(w['x'], w['y']) for w in m.get('warp_events', [])}
     rows, grass = [], []
     for by in range(H):
@@ -133,6 +141,7 @@ def render(repo, map_name, out_prefix=None, block_people=True):
     info = {'width': W, 'height': H, 'rows': rows, 'grass': grass, 'events': {k: m.get(k, []) for k in ('object_events', 'warp_events', 'coord_events', 'bg_events')}, 'connections': m.get('connections') or []}
     if out_prefix:
         im.save(out_prefix + '.png')
+        top.save(out_prefix + '_overhead.png')
         json.dump(info, open(out_prefix + '.json', 'w'))
     return im, info
 
