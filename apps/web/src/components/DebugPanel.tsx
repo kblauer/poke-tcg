@@ -14,6 +14,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTRPC } from '../lib/trpc';
+import { foldText } from '../utils/cardList';
 import { requestTestFlip } from './CoinFlip';
 import { EnergyIcon } from './EnergyIcon';
 
@@ -60,8 +61,8 @@ export default function DebugPanel({ gameId, view }: { gameId: string; view: Pla
 
   const [search, setSearch] = useState('');
   const cards = useQuery({ ...trpc.cards.list.queryOptions(), staleTime: Infinity, enabled: search.trim().length > 0 });
-  const query = search.trim().toLowerCase();
-  const results = query ? (cards.data ?? []).filter((c) => c.name.toLowerCase().includes(query)).slice(0, MAX_RESULTS) : [];
+  const query = foldText(search.trim());
+  const results = query ? (cards.data ?? []).filter((c) => foldText(c.name).includes(query)).slice(0, MAX_RESULTS) : [];
 
   const inPlay = (side: 'self' | 'opponent') => {
     const owner = side === 'self' ? view.self : view.opponent;

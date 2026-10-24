@@ -56,9 +56,15 @@ export function setGroups(cards: CatalogCard[]): SetGroup[] {
 /** Searching for this (or as much of it as 3 letters or more) finds every Stadium Trainer. */
 const STADIUM = 'stadium';
 
-/** Whether the search text (already lower-cased) is in the card's name or one of its attacks' names, or names it a Stadium. */
+/**
+ * Text as searches compare it: lower-cased, its accents dropped, so "pokemon" finds "Pokémon" and "e" "é" (agreed
+ * 2026-10-23). Fold both the search and what it's looked for in.
+ */
+export const foldText = (text: string) => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+
+/** Whether the search text (already folded, foldText) is in the card's name or one of its attacks' names, or names it a Stadium. */
 export const matchesSearch = (card: Pick<CatalogCard, 'name' | 'attacks' | 'stadium'>, search: string) =>
-  card.name.toLowerCase().includes(search) ||
-  (card.attacks ?? []).some((a) => a?.toLowerCase().includes(search)) ||
+  foldText(card.name).includes(search) ||
+  (card.attacks ?? []).some((a) => a && foldText(a).includes(search)) ||
   (card.stadium && search.length >= 3 && STADIUM.startsWith(search));
 

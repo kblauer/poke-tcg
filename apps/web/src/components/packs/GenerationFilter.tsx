@@ -61,7 +61,7 @@ export function GenerationFilter({
     <div ref={root} className="relative">
       {icon ? (
         <button
-          className={`relative flex items-center rounded p-1 transition hover:bg-slate-700 ${open ? 'bg-slate-700 text-white' : 'text-slate-300'}`}
+          className={`relative flex items-center rounded p-1 transition hover:bg-slate-700 ${open ? 'bg-slate-700 text-slate-50' : 'text-slate-300'}`}
           onClick={() => setOpen(!open)}
           aria-expanded={open}
           aria-haspopup="listbox"
@@ -73,7 +73,7 @@ export function GenerationFilter({
         </button>
       ) : (
         <button
-          className={`flex items-center gap-1 rounded-lg bg-slate-800 ${compact ? 'px-2 py-0.5' : 'px-3 py-1.5'} text-sm ring-1 ring-slate-700 transition hover:ring-slate-500`}
+          className={`flex items-center gap-1 rounded-lg bg-slate-800 ${compact ? 'px-2 py-0.5' : 'px-2.5 py-1.5'} text-chip ring-1 ring-slate-700 transition hover:ring-slate-500`}
           onClick={() => setOpen(!open)}
           aria-expanded={open}
           aria-haspopup="listbox"
