@@ -257,10 +257,26 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
     resumeAt.current = positions.current.get(track.url) ?? 0;
     update({ track: track.url });
   };
+  // A cue that starts the music (`start`: the Berry Blender's) plays it even when it was paused, and pauses it again when
+  // that cue ends (`cueStarted`); any other only switches the song of music already playing.
+  const cueStarted = useRef(false);
   useEffect(() => {
-    if (cueTrack && !inJingle.current && cueTrack.url !== prefs.track) switchTo(cueTrack, playing);
+    if (!cueTrack || inJingle.current) return;
+    const start = playing || !!cue?.start;
+    if (start && !playing) cueStarted.current = true;
+    if (cueTrack.url !== prefs.track) switchTo(cueTrack, start);
+    else if (start && !playing) {
+      startNext.current = true;
+      startPlaying();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cueTrack]);
+  useEffect(() => {
+    if (cue?.start || !cueStarted.current) return;
+    cueStarted.current = false;
+    player.current?.audio.current?.pause();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cue?.key]);
   const playJingle = (song: Song) => {
     const jingle = findSong(song);
     if (!prefs.autoplay || !playing || !jingle || inJingle.current) return;
@@ -416,7 +432,12 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
           {current && (
             <Suspense fallback={null}>
             <AudioPlayer
-              ref={player}
+              // The first song's player only appears once its code has loaded, after the effect that starts a song ran:
+              // a song waiting to start (startNext) starts as soon as it's there.
+              ref={(el) => {
+                player.current = el;
+                if (el) startPlaying();
+              }}
               className="music-player"
               src={current.url}
               preload="none"

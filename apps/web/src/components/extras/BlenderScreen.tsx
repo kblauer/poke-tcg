@@ -153,7 +153,9 @@ export function BlenderScreen({ berry, playerName, onBlend, onDone }: { berry: s
   const names = useMemo(() => [playerName, ...BLENDER_OPPONENTS], [playerName]);
   const berries = useMemo(() => [berry, ...opponentBerries(berry)], [berry]);
   const soundtrack = useMusicSettings()?.soundtrack ?? 'original';
-  useMusicCue(stage === 'play' || stage === 'slow' ? blenderMusic(soundtrack) : null);
+  // Cycling from the game's start through the results (MUS_CYCLING), the music started if it wasn't playing; it stops for
+  // the Pokéblock's fanfare (or if the screen closes), unless it was playing already.
+  useMusicCue(['play', 'slow', 'ranking', 'results'].includes(stage) ? blenderMusic(soundtrack) : null);
   const setTempo = useRef(useMusicTempo());
   const onBlendRef = useRef(onBlend);
   onBlendRef.current = onBlend;
