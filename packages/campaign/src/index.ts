@@ -15,3 +15,7 @@ export * from './hoenn-gyms.js';
 export * from './hoenn-routes.js';
 export * from './cosmetics.js';
 export * from './music.js';
+export * from './berries.js';
+export * from './berry-blender.js';
+export * from './berry-farm.js';
+export * from './berry-farm-map.js';

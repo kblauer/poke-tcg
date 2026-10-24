@@ -2,6 +2,7 @@ import { cardsRouter } from './routers/cards.js';
 import { communityRouter } from './routers/community.js';
 import { cosmeticsRouter } from './routers/cosmetics.js';
 import { debugRouter } from './routers/debug.js';
+import { extrasRouter } from './routers/extras.js';
 import { decksRouter } from './routers/decks.js';
 import { gameRouter } from './routers/game.js';
 import { packsRouter } from './routers/packs.js';
@@ -20,6 +21,7 @@ export const appRouter = router({
   packs: packsRouter,
   cosmetics: cosmeticsRouter,
   settings: settingsRouter,
+  extras: extrasRouter,
   debug: debugRouter,
 });
 
