@@ -1,7 +1,6 @@
 // Base Set (base1) Pokémon Powers, by card id. Each stops working while its Pokémon is Asleep,
 // Confused, Paralyzed, Poisoned or Burned (agreed; checked in powerError, and by Strikes Back itself).
-import { typeName } from '../attacks.js';
-import { lookupCard, type EnergyType } from '../cards.js';
+import { lookupCard, typeName, type EnergyType } from '../cards.js';
 import { isEnergyCardOf, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
 import { energyFromHand, ownTargets, pokemonAt, type PowerChoiceSpec, type PowerEffect, type PowerSituation } from '../powers.js';
 import { clearOnLeavingActive, hasSpecialCondition, inPlayDef, pokemonName } from '../status.js';

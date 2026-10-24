@@ -4,7 +4,7 @@
 // effects decide what an attack does.
 import { answerChoice, attackError, attackSituation, performAttack, resolveChoices, situationAttacks, traceDamage, type AttackChoices, type AttackSituation, type ChoiceSpec } from '../attacks.js';
 import { isBasicEnergy, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from '../cards.js';
-import { applyAction, energyPool, energyProvided, payCost, type PoolEnergy, evolveError, opponentOf, retreatCost, retreatError, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
+import { applyAction, cloneState, energyPool, energyProvided, payCost, type PoolEnergy, evolveError, opponentOf, retreatCost, retreatError, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
 import { nextRandom } from '../rng.js';
 import { inPlayDef, openBenchSlot } from '../status.js';
 import { pendingChoiceView, type TrainerChoices } from '../trainers.js';
@@ -169,7 +169,7 @@ export const SEEDS: number[] = Array.from({ length: 8 }, (_, pattern) => {
 });
 
 /** A copy to try things on. The log isn't needed for that. */
-const scratch = (state: GameState): GameState => structuredClone({ ...state, log: [] });
+const scratch = (state: GameState): GameState => cloneState({ ...state, log: [] });
 
 /** One way to use an attack, and what it does on average. */
 export interface AttackOption {
@@ -253,12 +253,45 @@ function slotMultisets(slots: number[], n: number): number[][] {
 }
 
 /**
+ * attackOptions' answers during one CPU decision, by state (a WeakMap, so the states tried and dropped go with it) and
+ * attacker. A decision's steps ask the same question of the same state many times over (retreat, heal, disrupt, boost,
+ * tickle, attack, the generic judgement's attack loss…), each a simulation of every attack over every coin-flip pattern.
+ * Only within one decision (withAttackMemo): a state is never changed while one runs, but tests change states in place
+ * between runs.
+ */
+let memo: WeakMap<GameState, Map<string, AttackOption[]>> | null = null;
+
+/** Runs one CPU decision with attackOptions' memo on. A decision inside another (borrowedTrainerMove's) shares the outer one's. */
+export function withAttackMemo<T>(decide: () => T): T {
+  if (memo) return decide();
+  memo = new WeakMap();
+  try {
+    return decide();
+  } finally {
+    memo = null;
+  }
+}
+
+/**
  * What each of `attackerId`'s attacks would do to the opponent now, one option per attack (its best
  * answers to the attack's questions). With `nextTurn`, it's the opponent's coming turn instead: effects
  * lasting "until the end of the opponent's next turn" still apply, and the first-turn rule doesn't.
  * Confusion is left out, since it affects every attack alike (the CPU retreats from it instead).
  */
 export function attackOptions(state: GameState, attackerId: PlayerId, { nextTurn = false } = {}): AttackOption[] {
+  const key = `${attackerId}|${nextTurn}`;
+  const known = memo?.get(state)?.get(key);
+  if (known) return known;
+  const options = simulateAttacks(state, attackerId, nextTurn);
+  if (memo) {
+    let byKey = memo.get(state);
+    if (!byKey) memo.set(state, (byKey = new Map()));
+    byKey.set(key, options);
+  }
+  return options;
+}
+
+function simulateAttacks(state: GameState, attackerId: PlayerId, nextTurn: boolean): AttackOption[] {
   const me = state.players[attackerId]!;
   const opp = state.players[opponentOf(state, attackerId)]!;
   if (!me.active || !opp.active || (!nextTurn && state.turn === 1)) return [];
@@ -321,7 +354,7 @@ export function attackDamageRanges(state: GameState, attackerId: PlayerId): (Dam
     const plays: Map<string, number>[] = [];
     for (const choices of choiceSets(situation, attackIndex)) {
       for (const seed of SEEDS) {
-        const s = structuredClone(base);
+        const s = cloneState(base);
         s.rngState = seed;
         const defender = s.players[opp.id]!.active!;
         const before = defender.damage;
@@ -354,7 +387,7 @@ export function attackDamageRanges(state: GameState, attackerId: PlayerId): (Dam
 function simulate(base: GameState, attackerId: PlayerId, attackIndex: number, choices: AttackChoices, cost: number): AttackOption | null {
   let kos = 0, damage = 0, inflicts = 0, costly = false, keeps = 0;
   for (const seed of SEEDS) {
-    const s = structuredClone(base);
+    const s = cloneState(base);
     s.rngState = seed;
     const me = s.players[attackerId]!;
     const opp = s.players[opponentOf(s, attackerId)]!;
@@ -643,7 +676,7 @@ function optionAnswer(t: Turn, count: number): number {
  */
 export function borrowedTrainerMove(state: GameState, cpuId: PlayerId, decide: (state: GameState, cpuId: PlayerId) => GameAction | null): GameAction {
   const uid = state.borrowed?.uid;
-  const scratch = structuredClone(state);
+  const scratch = cloneState(state);
   delete scratch.pendingChoice;
   scratch.currentPlayer = cpuId;
   scratch.energyAttachedThisTurn = true;

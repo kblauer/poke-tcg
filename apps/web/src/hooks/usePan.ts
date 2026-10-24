@@ -33,9 +33,10 @@ function saveHeight(height: number) {
  * the handle's double-click), its size as measured, and where the map it shows (`map`) sits in it: the `offset` it's
  * drawn at, kept inside the map (`centreOn`, `centreOnMap` for a map it's about to switch to), and the `glide` it moves
  * with when it moves on its own. Dragging and the mouse wheel pan it (up and down; sideways with a trackpad or Shift),
- * unless `panLocked` (a phone's lock button): then they scroll the page.
+ * unless `panLocked` (a phone's lock button): then they scroll the page. While dragging, the map (`mapEl`, the element
+ * drawn at `offset`) is moved directly, and `offset` catches up when the drag ends: no render per pointer move.
  */
-export function usePan({ box, map, mapHeight, panLocked }: { box: RefObject<HTMLDivElement | null>; map: Route; mapHeight: number; panLocked: boolean }) {
+export function usePan({ box, mapEl, map, mapHeight, panLocked }: { box: RefObject<HTMLDivElement | null>; mapEl: RefObject<HTMLDivElement | null>; map: Route; mapHeight: number; panLocked: boolean }) {
   const [height, setHeight] = useState(loadHeight);
   const resize = useRef<{ y: number; height: number } | null>(null);
   const maxHeight = () => Math.max(MIN_HEIGHT, Math.min(mapHeight * ZOOM, Math.round(window.innerHeight * 0.85)));
@@ -61,7 +62,8 @@ export function usePan({ box, map, mapHeight, panLocked }: { box: RefObject<HTML
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   // How the view moves when it moves on its own (following the player, or gliding to his new spot); null while it's panned.
   const [glide, setGlide] = useState<Glide | null>(null);
-  const drag = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+  /** The drag under way: where it started (the pointer and the offset), and the offset it has reached (`at`). */
+  const drag = useRef<{ x: number; y: number; ox: number; oy: number; at?: { x: number; y: number } } | null>(null);
 
   useLayoutEffect(() => {
     const el = box.current;
@@ -120,12 +122,20 @@ export function usePan({ box, map, mapHeight, panLocked }: { box: RefObject<HTML
   };
   const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     const d = drag.current;
-    if (d) setOffset(clamp({ x: d.ox + e.clientX - d.x, y: d.oy + e.clientY - d.y }));
+    if (!d) return;
+    d.at = clamp({ x: d.ox + e.clientX - d.x, y: d.oy + e.clientY - d.y });
+    const el = mapEl.current;
+    if (el) el.style.transform = mapTransform(d.at);
+    else setOffset(d.at);
   };
-  /** Ends a drag (also when the map is locked mid-drag). */
+  /** Ends a drag (also when the map is locked mid-drag): the offset catches up with where the map was dragged to. */
   const endDrag = () => {
+    if (drag.current?.at) setOffset(drag.current.at);
     drag.current = null;
   };
 
   return { height, onResizeDown, onResizeMove, onResizeUp, resetHeight, size, offset, setOffset, glide, setGlide, centreOn, centreOnMap, onPointerDown, onPointerMove, endDrag };
 }
+
+/** The map's CSS transform at an offset: drawn there, at ZOOM. */
+export const mapTransform = (o: { x: number; y: number }) => `translate(${o.x}px, ${o.y}px) scale(${ZOOM})`;

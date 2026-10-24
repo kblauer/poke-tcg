@@ -5,7 +5,7 @@
 // CPU could see. It's played if the position is better than before.
 import { isBasicEnergy, isPokemonCard, isTrainerCard, lookupCard, type CardLibrary } from '../cards.js';
 import { applyWeaknessResistance } from '../attacks.js';
-import { energyPool, opponentOf, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
+import { cloneState, energyPool, opponentOf, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
 import { powerError, powerOf, resolvePowerChoices, situationCounts, type PowerChoices, type PowerChoiceSpec, type PowerSituation } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { trainerEffect } from '../effects/index.js';
@@ -122,7 +122,7 @@ function reach(cards: CardLibrary, attacker: InPlayPokemon, defender: InPlayPoke
  * deck and Prize cards), and the coin flips seeded.
  */
 function imagine(state: GameState, id: PlayerId, { shuffle: seed, flips }: (typeof IMAGINED)[number]): GameState {
-  const s: GameState = structuredClone({ ...state, log: [] });
+  const s: GameState = cloneState({ ...state, log: [] });
   let rng = seed;
   const me = s.players[id]!;
   const opp = s.players[opponentOf(s, id)]!;

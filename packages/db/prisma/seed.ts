@@ -374,8 +374,17 @@ function stageOf(card: TcgdexCard): string | null {
   const exEvolving = card.stage === 'Basic' && !!card.evolveFrom && /^ex[0-9]+$/.test(card.set.id);
   if (card.category !== 'Pokemon' || (card.stage && !exEvolving)) return card.stage;
   if (!card.evolveFrom) return 'Basic';
-  const from = cards.find((c) => c.category === 'Pokemon' && c.stage && printedName(c.name) === printedName(card.evolveFrom!));
-  return from?.stage === 'Stage1' ? 'Stage2' : 'Stage1';
+  return printedStages().get(printedName(card.evolveFrom)) === 'Stage1' ? 'Stage2' : 'Stage1';
+}
+
+/** The printed stage of each Pokémon name (its first card's with a stage, as TCGdex gives it), built once for stageOf. */
+let stages: Map<string, string> | undefined;
+function printedStages(): Map<string, string> {
+  if (!stages) {
+    stages = new Map();
+    for (const c of cards) if (c.category === 'Pokemon' && c.stage && !stages.has(printedName(c.name))) stages.set(printedName(c.name), c.stage);
+  }
+  return stages;
 }
 
 /**

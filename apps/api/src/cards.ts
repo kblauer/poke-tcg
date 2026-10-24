@@ -30,6 +30,32 @@ export const cardLabel = (card: Pick<Card, 'name' | 'data'>) => {
 export const toCardDef = (card: Card): CardDef => catalogCardDef(card, pokedexLength((card.data as CardData).dexId?.[0]));
 
 /** Loads the definitions for the given card ids from the catalog. */
+/** A catalog card as cards.list and deck-text.ts read it: the fields they show, filter and sort by, with its set's name and release date. */
+export type CatalogRow = Pick<Card, 'id' | 'setId' | 'name' | 'localId' | 'kind' | 'imageUrl' | 'rarity' | 'hp' | 'types' | 'stage' | 'evolveFrom' | 'data'> & { set: { name: string; releaseDate: Date | null } };
+
+let catalog: Promise<CatalogRow[]> | undefined;
+
+/**
+ * The whole catalog (about 3,400 rows with their data), in set release order then card number, loaded once per
+ * instance like holoTwins: it only changes with the seed, and every deck builder visit and text import reads it.
+ */
+export function catalogRows(): Promise<CatalogRow[]> {
+  catalog ??= prisma.card
+    .findMany({
+      select: { id: true, setId: true, name: true, localId: true, kind: true, imageUrl: true, rarity: true, hp: true, types: true, stage: true, evolveFrom: true, data: true, set: { select: { name: true, releaseDate: true } } },
+    })
+    .then((rows) =>
+      rows.sort(
+        (a, b) =>
+          (a.set.releaseDate?.getTime() ?? 0) - (b.set.releaseDate?.getTime() ?? 0) ||
+          a.set.name.localeCompare(b.set.name) ||
+          a.localId.localeCompare(b.localId, undefined, { numeric: true }),
+      ),
+    );
+  catalog.catch(() => (catalog = undefined));
+  return catalog;
+}
+
 export async function loadCardLibrary(ids: Iterable<string>): Promise<CardLibrary> {
   const unique = [...new Set(ids)];
   const rows = await prisma.card.findMany({ where: { id: { in: unique } } });

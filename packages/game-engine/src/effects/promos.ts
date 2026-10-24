@@ -5,8 +5,8 @@
 // instead of 10 to a Defending Pokémon with a Lightning Rod marker, and 20 to each marked benched one, all
 // with Weakness and Resistance. Marill's Water Gun counts any Energy (the printed text names no type).
 // "Your opponent chooses" (Cat Punch, Rapid Spin, Fling): they pick the benched Pokémon once the attack is over.
-import { benchShielded, discardOptions, pokemonOn, targetsIn, typeName, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
-import { lookupCard, type EnergyType } from '../cards.js';
+import { benchShielded, discardOptions, pokemonOn, targetsIn, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
+import { lookupCard, typeName, type EnergyType } from '../cards.js';
 import { energyPool, isEnergyCardOf, type InPlayPokemon, type Target } from '../engine.js';
 import { baseUid, clearOnLeavingActive, effectId, inPlayDef, pokemonName } from '../status.js';
 import {

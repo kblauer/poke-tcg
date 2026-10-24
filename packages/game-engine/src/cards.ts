@@ -127,6 +127,9 @@ export type CardDef = PokemonCardDef | EnergyCardDef | TrainerCardDef;
 /** Card definitions by id. Built from the database and stored in each game's state. */
 export type CardLibrary = Record<string, CardDef>;
 
+/** An Energy type as printed ("Fire"). Here, not in attacks.ts, so the campaign's and the UI's labels don't load the rules with it. */
+export const typeName = (t: EnergyType) => t[0]!.toUpperCase() + t.slice(1);
+
 export function lookupCard(cards: CardLibrary, defId: string): CardDef {
   const def = cards[defId];
   if (!def) throw new Error(`Unknown card: ${defId}`);

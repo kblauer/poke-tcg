@@ -1,5 +1,4 @@
-import { prisma } from '@poke-tcg/db';
-import { baseDamage, holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, isImplemented, isReverseHolo, type CardData } from '../cards.js';
+import { baseDamage, catalogRows, holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, isImplemented, isReverseHolo, type CardData } from '../cards.js';
 import { publicProcedure, router } from '../trpc.js';
 import { holoTwins } from '../unlocks.js';
 import { craftCost } from './packs.js';
@@ -9,34 +8,24 @@ const TYPES = new Set(['Grass', 'Fire', 'Water', 'Lightning', 'Psychic', 'Fighti
 export const cardsRouter = router({
   /**
    * The whole catalog for the deck builder, slimmed down to what it shows, filters and sorts by.
-   * In set release order, then card number.
+   * In set release order, then card number. Computed once per instance (the catalog only changes with the seed); the
+   * response is cacheable too (app.ts sets Cache-Control on this route).
    */
-  list: publicProcedure.query(async () => {
-    const twins = await holoTwins();
-    const rows = await prisma.card.findMany({
-      select: {
-        id: true,
-        setId: true,
-        name: true,
-        localId: true,
-        kind: true,
-        imageUrl: true,
-        rarity: true,
-        hp: true,
-        types: true,
-        stage: true,
-        evolveFrom: true,
-        data: true,
-        set: { select: { name: true, releaseDate: true } },
-      },
-    });
-    rows.sort(
-      (a, b) =>
-        (a.set.releaseDate?.getTime() ?? 0) - (b.set.releaseDate?.getTime() ?? 0) ||
-        a.set.name.localeCompare(b.set.name) ||
-        a.localId.localeCompare(b.localId, undefined, { numeric: true }),
-    );
-    return rows.map((c, order) => {
+  list: publicProcedure.query(() => catalogList()),
+});
+
+let listed: Promise<CatalogCard[]> | undefined;
+type CatalogCard = Awaited<ReturnType<typeof buildCatalogList>>[number];
+
+function catalogList(): Promise<CatalogCard[]> {
+  listed ??= buildCatalogList();
+  listed.catch(() => (listed = undefined));
+  return listed;
+}
+
+async function buildCatalogList() {
+  const [twins, rows] = await Promise.all([holoTwins(), catalogRows()]);
+  return rows.map((c, order) => {
       const attacks = (c.data as CardData).attacks ?? [];
       // Energy cards mostly have no types listed; basic ones are named "<Type> Energy".
       const energyType = c.kind === 'ENERGY' ? c.name.replace(/ Energy$/, '') : null;
@@ -92,5 +81,4 @@ export const cardsRouter = router({
         implemented: isImplemented(c),
       };
     });
-  }),
-});
+}

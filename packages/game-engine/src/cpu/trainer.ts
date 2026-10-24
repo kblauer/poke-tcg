@@ -23,6 +23,7 @@ import {
   trainer,
   tryAction,
   turnOf,
+  withAttackMemo,
   type AttackOption,
   type Turn,
 } from './shared.js';
@@ -48,6 +49,10 @@ import { bestMove, plainEnergy, specialAttachment, type Allowed } from './evalua
  * look for the cheapest Knock Out. After a Knock Out it promotes the Pokémon with the most HP left.
  */
 export function trainerCpu(state: GameState, cpuId: PlayerId): GameAction | null {
+  return withAttackMemo(() => decide(state, cpuId));
+}
+
+function decide(state: GameState, cpuId: PlayerId): GameAction | null {
   const cpu = state.players[cpuId];
   if (!cpu) throw new Error(`Unknown CPU player ${cpuId}`);
 

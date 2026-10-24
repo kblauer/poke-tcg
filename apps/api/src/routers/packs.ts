@@ -47,10 +47,8 @@ const shown = (row: Card): ShownCard => ({
  * generation's sets (Legendary Collection, a Gen 1 set released after Neo Genesis, gets Gym Challenge's).
  */
 async function packEnergy(setId: string): Promise<{ energy: Card[]; holoEnergy: Card[] }> {
-  const [target, rows] = await Promise.all([
-    prisma.cardSet.findUniqueOrThrow({ where: { id: setId }, select: { releaseDate: true } }),
-    prisma.card.findMany({ where: { kind: 'ENERGY' }, include: { set: { select: { releaseDate: true } } } }),
-  ]);
+  const [dates, rows] = await Promise.all([setDates(), energyCards()]);
+  const target = { releaseDate: dates.get(setId) ?? null };
   const generation = Object.values(PACK_GENERATIONS).find((g) => g.packs.includes(setId));
   const basic = rows.filter((r) => isBasicEnergyCard(r) && !holoEnergyStyle(r) && (!generation || generation.packs.includes(r.setId)));
   const time = (r: (typeof rows)[number]) => r.set.releaseDate?.getTime() ?? 0;
@@ -62,6 +60,12 @@ async function packEnergy(setId: string): Promise<{ energy: Card[]; holoEnergy: 
   const holoEnergy = rows.filter((r) => holoEnergyStyle(r) && ids.has(r.id.replace(/-holo-[a-z-]+$/, '')));
   return { energy, holoEnergy };
 }
+
+/** Every Energy card with its set's release date, and every set's release date: loaded once, shared by every set's packEnergy (the catalog only changes with the seed). */
+let energyRows: Promise<(Card & { set: { releaseDate: Date | null } })[]> | undefined;
+const energyCards = () => (energyRows ??= prisma.card.findMany({ where: { kind: 'ENERGY' }, include: { set: { select: { releaseDate: true } } } }));
+let setRows: Promise<Map<string, Date | null>> | undefined;
+const setDates = () => (setRows ??= prisma.cardSet.findMany({ select: { id: true, releaseDate: true } }).then((sets) => new Map(sets.map((s) => [s.id, s.releaseDate]))));
 
 const loaded = new Map<string, Promise<{ set: PackSet; cards: Map<string, ShownCard> }>>();
 

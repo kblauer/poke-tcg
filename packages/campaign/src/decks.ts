@@ -1,6 +1,6 @@
 // Deck lists: the starter deck, gym leaders' decks, and random medium-strength decks for the other trainers.
 import { isBasicPokemon, isPokemonCard, type CardDef, type EnergyType, type PokemonCardDef } from '@poke-tcg/game-engine';
-import { BASIC_ENERGY, DOUBLE_COLORLESS, GEN2_BASIC_ENERGY, GEN3_BASIC_ENERGY, nameKey, type PoolCard } from './pool.js';
+import { BASIC_ENERGY, byId, DOUBLE_COLORLESS, GEN2_BASIC_ENERGY, GEN3_BASIC_ENERGY, nameKey, type PoolCard } from './pool.js';
 import { between, chance, pick, sample, type Rng } from './random.js';
 
 /** [card id, copies] */
@@ -59,9 +59,17 @@ const strength = (d: PokemonCardDef) => Math.max(0, ...d.attacks.map((a) => a.da
 /** Every evolution line in the pool (Basics alone, Basic → Stage 1, Basic → Stage 1 → Stage 2), one random print per stage. */
 function evolutionLines(pool: readonly PoolCard[], rng: Rng): Line[] {
   const pokemon = pool.map((c) => c.def).filter(isPokemonCard);
+  // Indexed once by stage and name, and by stage and what they evolve from (in pool order, as filtering the pool would give).
+  const byName = new Map<string, PokemonCardDef[]>();
+  const byFrom = new Map<string, PokemonCardDef[]>();
+  const index = (map: Map<string, PokemonCardDef[]>, key: string, d: PokemonCardDef) => map.set(key, [...(map.get(key) ?? []), d]);
+  for (const d of pokemon) {
+    index(byName, `${d.stage}|${d.name}`, d);
+    if (d.evolvesFrom) index(byFrom, `${d.stage}|${d.evolvesFrom}`, d);
+  }
   const prints = (stage: PokemonCardDef['stage'], name: string, from?: string) =>
-    pokemon.filter((d) => d.stage === stage && d.name === name && (from === undefined || d.evolvesFrom === from));
-  const names = (stage: PokemonCardDef['stage'], from: string) => [...new Set(pokemon.filter((d) => d.stage === stage && d.evolvesFrom === from).map((d) => d.name))];
+    (byName.get(`${stage}|${name}`) ?? []).filter((d) => from === undefined || d.evolvesFrom === from);
+  const names = (stage: PokemonCardDef['stage'], from: string) => [...new Set((byFrom.get(`${stage}|${from}`) ?? []).map((d) => d.name))];
   const lines: PokemonCardDef[][] = [];
   for (const basic of new Set(pokemon.filter((d) => isBasicPokemon(d)).map((d) => d.name))) {
     const b = pick(rng, prints('basic', basic));
@@ -398,12 +406,16 @@ export function generateDeck(
   const deck: string[] = [];
   for (const line of chosen) line.stages.forEach((d, i) => deck.push(...Array<string>(LINE_COPIES[line.stages.length]![i]!).fill(d.id)));
 
-  // Trainers: the core ones, Pokémon Breeder with a Stage 2 line, then random extras up to 14–16.
-  const trainer = (name: string) => pool.find((c) => c.def.kind !== 'pokemon' || c.def.trainerText ? nameKey(c.def.name) === nameKey(name) : false)?.def.id;
+  // Trainers: the core ones, Pokémon Breeder with a Stage 2 line, then random extras up to 14–16. The pool's Trainers (and
+  // Energy) by nameKey, the first print of each as the pool has them, and every card by id, looked up without a search each.
+  const cards = byId(pool);
+  const trainerIds = new Map<string, string>();
+  for (const c of pool) if (c.def.kind !== 'pokemon' || c.def.trainerText) trainerIds.set(nameKey(c.def.name), trainerIds.get(nameKey(c.def.name)) ?? c.def.id);
+  const trainer = (name: string) => trainerIds.get(nameKey(name));
   const trainerTarget = between(rng, 14, 16);
   const plan: [string, number][] = [...rules.core];
   if (gymLeader && rules.breeder && chosen.some((l) => l.stages.length === 3)) plan.push([rules.breeder, 1]);
-  const owned = (owner: string) => deck.filter((id) => pool.find((c) => c.def.id === id)?.def.name.startsWith(`${owner}'s `)).length;
+  const owned = (owner: string) => deck.filter((id) => cards.get(id)?.def.name.startsWith(`${owner}'s `)).length;
   if (gymLeader) for (const [owner, cards] of Object.entries(rules.owners)) if (owned(owner) >= 4) plan.push(...cards);
   for (const t of types) plan.push(...(rules.types[t] ?? []));
   const extra = gymLeader ? [...rules.extra, ...rules.gymLeaderExtra] : rules.extra;
@@ -425,7 +437,7 @@ export function generateDeck(
   const symbols = new Map<EnergyType, number>();
   let colorless = 0;
   for (const id of deck) {
-    const d = pool.find((c) => c.def.id === id)!.def;
+    const d = cards.get(id)!.def;
     if (d.kind !== 'pokemon') continue;
     for (const t of d.attacks.flatMap((a) => a.cost)) {
       if (t === 'colorless') colorless++;
