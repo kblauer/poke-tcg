@@ -2,8 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ACCOUNT_NAME_LENGTH, accountNameInput } from '@poke-tcg/shared';
 import { useState } from 'react';
 import { useTRPC } from '../lib/trpc';
-
-const button = 'rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500 disabled:opacity-40';
+import { BUTTON as button } from '../utils/styles';
 
 /**
  * The account's name (community.accountName), with Change to edit it (any name: it isn't unique). It's what other players

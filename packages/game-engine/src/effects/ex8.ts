@@ -10,9 +10,9 @@
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { targetsIn } from '../attacks.js';
 import { isBasicEnergy, lookupCard, namesMatch, type CardLibrary } from '../cards.js';
-import { counts, energyPool, isEnergyCardOf, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
-import { discardsLocked } from '../powers.js';
-import { effectId, inPlayDef, pokemonName } from '../status.js';
+import { counts, energyPool, isEnergyCardOf, type InPlayPokemon, type Target } from '../engine.js';
+import { discardsLocked, pokemonAt } from '../powers.js';
+import { clearSpecialConditions, effectId, inPlayDef, pokemonName } from '../status.js';
 import { powerEffect, trainerEffect } from './index.js';
 import { benchedSlots, opponentBenchChoice } from './common.js';
 import { energyAmount } from './ex1.js';
@@ -21,8 +21,6 @@ import { knockOver } from './ex4.js';
 import { ascension } from './ex5.js';
 import { chargeUp, snipe } from './ex6.js';
 import { fly, healUpTo } from './si1.js';
-
-const at = (side: Pick<PlayerState, 'active' | 'bench'>, t: Target) => (t === 'active' ? side.active : side.bench[t]) ?? null;
 
 /** `damage` to one of the opponent's Pokémon at `t` (no Weakness or Resistance on the Bench). */
 const damageAt = (ctx: AttackContext, t: Target, damage: number) => (t === 'active' ? void ctx.hit(damage) : ctx.damageBenched(ctx.opp, t, damage));
@@ -323,7 +321,7 @@ export const EX8: Record<string, Record<string, AttackEffect>> = {
         if (slot === undefined || !from) return;
         ctx.damageBenched(ctx.opp, slot, 10);
         const card = from.energy.find((e) => e.uid === ctx.choices.oppEnergyUid);
-        const to = ctx.choices.oppTo === undefined ? null : at(ctx.opp, ctx.choices.oppTo);
+        const to = ctx.choices.oppTo === undefined ? null : pokemonAt(ctx.opp, ctx.choices.oppTo);
         if (!card || !to || to === from || !ctx.canAffect(ctx.opp, from)) return;
         from.energy = from.energy.filter((e) => e !== card);
         to.energy.push(card);
@@ -335,7 +333,7 @@ export const EX8: Record<string, Record<string, AttackEffect>> = {
   'ex8-49': {
     'Mid-air Crush': snipe(20, (ctx) => {
       const t = ctx.choices.oppTarget ?? 'active';
-      const p = at(ctx.opp, t);
+      const p = pokemonAt(ctx.opp, t);
       if (ctx.flip() && p && p.energy.some((e) => !e.provides) && ctx.canAffect(ctx.opp, p)) ctx.opponentChooses({ kind: 'discardAttached', source: 'Mid-air Crush', target: t });
     }),
   },
@@ -504,8 +502,7 @@ export const EX8: Record<string, Record<string, AttackEffect>> = {
     'Miraculous Light': {
       run(ctx) {
         ctx.hit(10);
-        Object.assign(ctx.attacker, { condition: null, poison: 0, burned: false });
-        delete ctx.attacker.paralyzedTurn;
+        clearSpecialConditions(ctx.attacker);
         healUpTo(ctx, ctx.me, ctx.attacker, 10);
       },
     },

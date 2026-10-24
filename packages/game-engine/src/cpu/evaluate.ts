@@ -5,7 +5,7 @@
 // CPU could see. It's played if the position is better than before.
 import { isBasicEnergy, isPokemonCard, isTrainerCard, lookupCard, type CardLibrary } from '../cards.js';
 import { applyWeaknessResistance } from '../attacks.js';
-import { energyPool, opponentOf, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
+import { cloneState, energyPool, opponentOf, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
 import { powerError, powerOf, resolvePowerChoices, situationCounts, type PowerChoices, type PowerChoiceSpec, type PowerSituation } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { trainerEffect } from '../effects/index.js';
@@ -91,7 +91,7 @@ function handValue(state: GameState, me: PlayerState, id: PlayerId): number {
  * stage, Energy, how ready their attacks are, Special Conditions), the hands' sizes (its own by how useful the cards
  * are) and a deck that's running out. Never the order of a deck or what's in the player's hand.
  */
-export function positionScore(state: GameState, id: PlayerId): number {
+function positionScore(state: GameState, id: PlayerId): number {
   if (state.phase === 'finished') return state.winner === id ? 100_000 : -100_000;
   const me = state.players[id]!;
   const opp = state.players[opponentOf(state, id)]!;
@@ -122,7 +122,7 @@ function reach(cards: CardLibrary, attacker: InPlayPokemon, defender: InPlayPoke
  * deck and Prize cards), and the coin flips seeded.
  */
 function imagine(state: GameState, id: PlayerId, { shuffle: seed, flips }: (typeof IMAGINED)[number]): GameState {
-  const s: GameState = structuredClone({ ...state, log: [] });
+  const s: GameState = cloneState({ ...state, log: [] });
   let rng = seed;
   const me = s.players[id]!;
   const opp = s.players[opponentOf(s, id)]!;
@@ -148,13 +148,15 @@ function settle(state: GameState): GameState | null {
   for (let guard = 0; guard < 30 && state.phase === 'playing' && state.pendingChoice; guard++) {
     const choice = state.pendingChoice;
     const t = turnOf(state, choice.player);
-    const action: GameAction =
+    const benched = inPlay(t.me).filter(([target]) => target !== 'active');
+    const action = safely<GameAction>(() =>
       choice.kind === 'switchIn'
-        ? { type: 'RESOLVE_CHOICE', target: inPlay(t.me).filter(([target]) => target !== 'active').reduce((a, b) => (hpLeft(state.cards, b[1]) > hpLeft(state.cards, a[1]) ? b : a))[0] }
+        ? { type: 'RESOLVE_CHOICE', ...(benched.length && { target: benched.reduce((a, b) => (hpLeft(state.cards, b[1]) > hpLeft(state.cards, a[1]) ? b : a))[0] }) }
         : choice.kind === 'borrowedTrainer'
           ? { type: 'RESOLVE_CHOICE' }
-          : resolveSearch(t);
-    const next = safely(() => tryAction(state, choice.player, action));
+          : resolveSearch(t),
+    );
+    const next = action && safely(() => tryAction(state, choice.player, action));
     if (!next) return null;
     state = next;
   }
@@ -219,7 +221,7 @@ function stadiumValue(t: Turn, after: GameState): number {
 // ---- Every way to play a card ----
 
 /** Every complete set of answers to a Trainer's questions (at most `cap`). */
-export function trainerChoiceSets(t: Turn, card: CardInstance, cap = 8): TrainerChoices[] {
+function trainerChoiceSets(t: Turn, card: CardInstance, cap = 8): TrainerChoices[] {
   const s = trainerSituation(t.state, t.me, t.opp, card);
   const out: TrainerChoices[] = [];
   const answers = (spec: TrainerChoiceSpec): unknown[] => {

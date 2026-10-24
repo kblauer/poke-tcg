@@ -1,10 +1,10 @@
 import { lookupCard, type CardInstance, type PlayerView, type TrainerChoiceSpec } from '@poke-tcg/game-engine';
 import { useState } from 'react';
 import type { TrainerControl } from '../hooks/useTrainer';
+import { OPTION_BUTTON } from '../utils/styles';
 import { pickHint } from './AttackChoicePanel';
 
-// One shade lighter than the panel (slate-800) so the buttons stand out on it.
-const option = 'rounded bg-slate-600 px-2 py-1 text-left text-xs transition hover:bg-slate-500 active:scale-95 disabled:opacity-40';
+const option = `${OPTION_BUTTON} disabled:opacity-40`;
 
 /** The Trainer card being played: its text and the current question (the last answer plays it), or a Play button if it has none. */
 export function TrainerPanel({ view, trainer }: { view: PlayerView; trainer: TrainerControl }) {

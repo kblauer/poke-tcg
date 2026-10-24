@@ -9,6 +9,7 @@ import {
   type PlayerView,
 } from '@poke-tcg/game-engine';
 import { useEffect, useState } from 'react';
+import { useEscape } from './useEscape';
 
 /**
  * Using an attack: clicking it either attacks straight away or first asks the attack's questions
@@ -40,11 +41,7 @@ export function useAttack({ view, send, busy, confirm = (go) => go() }: { view: 
   const cancel = () => setChoosing(null);
   // Done (or moot) once the game state moves on.
   useEffect(cancel, [view.version]);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && cancel();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  useEscape(cancel);
 
   /** Asks the next question, or attacks once there are none left. */
   function proceed(attackIndex: number, choices: AttackChoices) {

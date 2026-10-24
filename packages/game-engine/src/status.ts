@@ -49,6 +49,14 @@ export const effectId = (pokemon: InPlayPokemon) => pokemon.transformed ?? pokem
  */
 export const hasSpecialCondition = (pokemon: InPlayPokemon) => !!(pokemon.condition || pokemon.poison || pokemon.burned);
 
+/** Removes every Special Condition from the Pokémon, Poisoned and Burned included (Full Heal, Rest, Lum Berry…). Doesn't log. */
+export function clearSpecialConditions(pokemon: InPlayPokemon) {
+  pokemon.condition = null;
+  pokemon.poison = 0;
+  pokemon.burned = false;
+  delete pokemon.paralyzedTurn;
+}
+
 /** The label of the Pokémon's Special Condition for messages: its Asleep/Confused/Paralyzed one first. */
 export const specialConditionLabel = (pokemon: InPlayPokemon) =>
   pokemon.condition ? ({ asleep: 'Asleep', confused: 'Confused', paralyzed: 'Paralyzed' } as const)[pokemon.condition] : pokemon.burned ? 'Burned' : 'Poisoned';
@@ -188,10 +196,7 @@ export function benchRoom(bench: readonly (InPlayPokemon | null)[], cards: CardL
 export function clearOnLeavingActive(pokemon: InPlayPokemon) {
   // Ion Coating ends when the Active Pokémon leaves the Active spot.
   for (const e of pokemon.energy) if (e.converted?.activeOnly) delete e.converted;
-  pokemon.condition = null;
-  pokemon.poison = 0;
-  pokemon.burned = false;
-  delete pokemon.paralyzedTurn;
+  clearSpecialConditions(pokemon);
   const { leekSlapUsed, usedOnce } = pokemon.effects ?? {};
   pokemon.effects = { ...(leekSlapUsed && { leekSlapUsed }), ...(usedOnce && { usedOnce }) };
 }

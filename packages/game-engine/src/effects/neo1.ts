@@ -12,36 +12,39 @@
 // less. Questions whose answer depends on a flip are asked before it (Sweet Nectar, Sweet Scent, Pilfer, Fireworks), as
 // Misty's Psyduck's ESP is. Mean Look lasts while Murkrow is the Active Pokémon (benching or evolving either ends it).
 import { attackSituation, targetsIn, pokemonOn, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
-import { lookupCard } from '../cards.js';
+import { lookupCard, namesMatch } from '../cards.js';
 import { isEnergyCardOf, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { powerActive } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { baseUid, effectId, inPlayDef, pokemonName } from '../status.js';
 import { attackEffect } from './index.js';
-import { BASE1 } from './base1.js';
+import { amnesia } from './base1.js';
 import {
   benchedSlots,
   benchSearch,
+  damageOpponent,
   discardToUse,
   extraEnergy,
   flipToInflict,
   flipToProtect,
   inflicts,
+  inPlay,
   leechSeed,
   opponentBenchChoice,
   opponentSwitches,
+  opponentTargets,
   perHeads,
+  same,
 } from './common.js';
 import { FOSSIL, smokescreen } from './fossil.js';
 import { discardFromAttacker } from './gym1.js';
 import { cantAttackMe, flipForMore, rage } from './jungle.js';
 import { flipOrNothing, shuffleIntoDeck } from './rocket.js';
 
+export { damageOpponent, opponentTargets };
+
 /** Shuffles the attacking player's deck. */
 const shuffleOwnDeck = (ctx: AttackContext) => void ([ctx.me.deck, ctx.state.rngState] = shuffle(ctx.me.deck, ctx.state.rngState));
-
-/** The attacking player's Pokémon in play. */
-const ownInPlay = (ctx: AttackContext) => [ctx.me.active, ...ctx.me.bench].filter((p): p is InPlayPokemon => !!p);
 
 /** Base damage, then 10 for each damage counter on the attacker (Flail). */
 const flail: AttackEffect = { run: (ctx) => void ctx.hit(ctx.attacker.damage) };
@@ -92,14 +95,6 @@ export function hold(ctx: AttackContext, until?: number) {
     ctx.log(`${ctx.defenderDef.name} can't retreat while ${ctx.attackerDef.name} is the Active Pokémon${until !== undefined ? ', and nothing can switch it out, until the end of the next turn' : ''}.`);
   });
 }
-
-/** Damage to one of the opponent's Pokémon: the Active one without Weakness and Resistance (`swift`: without anything else on it either). */
-export function damageOpponent(ctx: AttackContext, target: Target, amount: number, swift = false) {
-  if (target === 'active') ctx.hit(amount, swift ? { swift } : { weakness: false });
-  else ctx.damageBenched(ctx.opp, target, amount);
-}
-
-export const opponentTargets = (s: AttackSituation, prompt: string): ChoiceSpec[] => [{ kind: 'opponentPokemon', options: targetsIn(s.defender, s.opponentBench), prompt }];
 
 /** Base damage; the opponent switches the Defending Pokémon (their choice), then the attacker may be switched with a benched Pokémon (Rapid Spin). */
 export const rapidSpin = (damage: number, name: string): AttackEffect => ({
@@ -182,7 +177,7 @@ export const NEO1: Record<string, Record<string, AttackEffect>> = {
       },
     },
     'Flower Dance': {
-      run: (ctx) => void ctx.hit(30 * ownInPlay(ctx).filter((p) => inPlayDef(ctx.state.cards, p).name.includes('Bellossom')).length),
+      run: (ctx) => void ctx.hit(30 * inPlay(ctx.me).filter((p) => inPlayDef(ctx.state.cards, p).name.includes('Bellossom')).length),
     },
   },
   // Feraligatr
@@ -373,7 +368,7 @@ export const NEO1: Record<string, Record<string, AttackEffect>> = {
   // Sneasel
   'neo1-25': {
     'Fury Swipes': perHeads(3, 10),
-    'Beat Up': { run: (ctx) => void ctx.hit(20 * ctx.flips(ownInPlay(ctx).length)) },
+    'Beat Up': { run: (ctx) => void ctx.hit(20 * ctx.flips(inPlay(ctx.me).length)) },
   },
   // Aipom
   'neo1-26': {
@@ -667,7 +662,7 @@ export const NEO1: Record<string, Record<string, AttackEffect>> = {
   // Togepi
   'neo1-51': { 'Poison Barb': inflicts(10, 'poisoned') },
   // Xatu
-  'neo1-52': { Prophecy: FOSSIL['base3-8']!.Prophecy!, 'Confuse Ray': flipToInflict(30, 'confused') },
+  'neo1-52': { Prophecy: same(() => FOSSIL['base3-8']?.Prophecy), 'Confuse Ray': flipToInflict(30, 'confused') },
   // Chikorita: half the damage, rounded down to the nearest 10, as Light Screen.
   'neo1-53': { Deflector: { run: (ctx) => ctx.protect('lightScreen') } },
   // Chikorita
@@ -726,7 +721,7 @@ export const NEO1: Record<string, Record<string, AttackEffect>> = {
     'Static Electricity': {
       text: 'For each Mareep in play, you may search your deck for a Lightning Energy card and attach it to Mareep. Shuffle your deck afterward.',
       run(ctx) {
-        const mareep = [ctx.me, ctx.opp].flatMap((p) => [p.active, ...p.bench]).filter((p) => p && inPlayDef(ctx.state.cards, p).name === 'Mareep').length;
+        const mareep = [ctx.me, ctx.opp].flatMap((p) => [p.active, ...p.bench]).filter((p) => p && namesMatch(inPlayDef(ctx.state.cards, p).name, 'Mareep')).length;
         ctx.pend({ kind: 'pickFromDeck', source: 'Static Electricity', filter: 'energyType', type: 'lightning', count: mareep, optional: true, attachToActive: true });
       },
     },
@@ -814,5 +809,5 @@ export const NEO1: Record<string, Record<string, AttackEffect>> = {
   // Totodile
   'neo1-81': { Leer: cantAttackMe, 'Fury Swipes': perHeads(3, 10) },
   // Wooper
-  'neo1-82': { Amnesia: BASE1['base1-38']!.Amnesia!, Slam: perHeads(2, 20) },
+  'neo1-82': { Amnesia: amnesia, Slam: perHeads(2, 20) },
 };

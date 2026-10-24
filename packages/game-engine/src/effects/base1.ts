@@ -1,8 +1,8 @@
 // Base Set (base1) attack effects, by card id and attack name. Rulings follow the 1999 rulebook;
 // where TCGdex's text differs from the printed card, `text` has the printed wording.
 // Attacks that only deal damage need no entry. Pokémon Powers aren't implemented yet.
-import { typeName, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
-import type { EnergyType } from '../cards.js';
+import type { AttackEffect, AttackSituation, ChoiceSpec } from '../attacks.js';
+import { typeName, type EnergyType } from '../cards.js';
 import { effectId, inPlayDef } from '../status.js';
 import {
   discardDefenderEnergy,
@@ -52,6 +52,23 @@ export const metronome: AttackEffect = {
     if (!copied) return ctx.log('Metronome had nothing to copy.');
     ctx.log(`Metronome copies ${copied.name}.`);
     ctx.useAttack(copied, sourceDefId);
+  },
+};
+
+/** Amnesia (Poliwhirl's; Misty's Poliwag's and Neo Genesis Wooper's too, printed text included). */
+export const amnesia: AttackEffect = {
+  text: "Choose 1 of the Defending Pokémon's attacks. That Pokémon can't use that attack during your opponent's next turn.",
+  choices: (s) => {
+    const options = defenderDef(s).attacks.map((_, i) => i);
+    return options.length ? [{ kind: 'defenderAttack', options, prompt: "Choose one of the Defending Pokémon's attacks to block" }] : [];
+  },
+  run(ctx) {
+    const attack = ctx.choices.attackIndex !== undefined ? ctx.defenderDef.attacks[ctx.choices.attackIndex] : undefined;
+    if (!attack) return;
+    ctx.affectDefender((e) => {
+      e.amnesia = { attack: attack.name, until: ctx.turn + 1 };
+      ctx.log(`${ctx.defenderDef.name} can't use ${attack.name} next turn.`);
+    });
   },
 };
 
@@ -173,24 +190,7 @@ export const BASE1: Record<string, Record<string, AttackEffect>> = {
   // Nidorino
   'base1-37': { 'Double Kick': perHeads(2, 30) },
   // Poliwhirl
-  'base1-38': {
-    Amnesia: {
-      text: "Choose 1 of the Defending Pokémon's attacks. That Pokémon can't use that attack during your opponent's next turn.",
-      choices: (s) => {
-        const options = defenderDef(s).attacks.map((_, i) => i);
-        return options.length ? [{ kind: 'defenderAttack', options, prompt: "Choose one of the Defending Pokémon's attacks to block" }] : [];
-      },
-      run(ctx) {
-        const attack = ctx.choices.attackIndex !== undefined ? ctx.defenderDef.attacks[ctx.choices.attackIndex] : undefined;
-        if (!attack) return;
-        ctx.affectDefender((e) => {
-          e.amnesia = { attack: attack.name, until: ctx.turn + 1 };
-          ctx.log(`${ctx.defenderDef.name} can't use ${attack.name} next turn.`);
-        });
-      },
-    },
-    Doubleslap: perHeads(2, 30),
-  },
+  'base1-38': { Amnesia: amnesia, Doubleslap: perHeads(2, 30) },
   // Porygon
   'base1-39': {
     'Conversion 1': {

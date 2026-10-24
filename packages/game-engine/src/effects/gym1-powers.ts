@@ -4,7 +4,7 @@
 // Rulings: Shell Armor and Rebirth ("you may") are always used, as there's never a reason not to. Restless Sleep's 20
 // damage, like Strikes Back's, has no Weakness or Resistance. Photosynthesis makes the Energy Grass for costs, counts
 // and retreating (energyPool); Stare stops it there, Toxic Gas and Goop Gas Attack don't (energyPool sees no other Pokémon).
-import { isEnergyCardOf, type InPlayPokemon, type Target } from '../engine.js';
+import { afflictionBlocked, isEnergyCardOf, type InPlayPokemon, type Target } from '../engine.js';
 import { ownTargets, pokemonAt, powerActive, type PowerEffect, type PowerSituation } from '../powers.js';
 import { addLog, clearOnLeavingActive, effectId, flipCoin, inPlayDef, pokemonName } from '../status.js';
 import { powerEffect } from './index.js';
@@ -34,9 +34,8 @@ export const GYM1_POWERS: Record<string, PowerEffect> = {
       if (ctx.opp.active !== vileplume || !flipCoin(ctx.state, 'Pollen Defense', ctx.opp.id)) return;
       const attacker = ctx.attacker;
       const name = pokemonName(ctx.state, attacker);
-      if (powerActive(attacker, ctx.state.cards, [ctx.me, ctx.opp]) && powerEffect(effectId(attacker))?.noConditions) return addLog(ctx.state, `${name} can't be affected by Special Conditions.`, ctx.me.id);
-      const guard = ctx.state.rules?.find((r) => r.kind === 'conditionGuard' && r.player === ctx.me.id && r.conditions.includes('confused'));
-      if (guard) return addLog(ctx.state, `${guard.label ?? 'A battle rule'} protected ${name} from that.`, ctx.me.id);
+      const blocked = afflictionBlocked(ctx.state, ctx.me.id, attacker, 'confused');
+      if (blocked) return addLog(ctx.state, blocked, ctx.me.id);
       attacker.condition = 'confused';
       delete attacker.paralyzedTurn;
       addLog(ctx.state, `Pollen Defense: ${name} is now Confused.`, ctx.me.id);

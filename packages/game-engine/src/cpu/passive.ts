@@ -1,5 +1,5 @@
-import { isBasicPokemon, lookupCard } from '../cards.js';
-import { openBenchSlot } from '../status.js';
+import { hasType, isBasicPokemon, lookupCard } from '../cards.js';
+import { inPlayDef, openBenchSlot } from '../status.js';
 import { evolveError, type GameAction, type GameState, type PlayerId, type PlayerState } from '../engine.js';
 import { pendingChoiceView } from '../trainers.js';
 import { acceptsChallenge, chooseActive, inPlay } from './shared.js';
@@ -71,10 +71,7 @@ function turnAction(state: GameState, cpu: PlayerState): GameAction | null {
     for (const card of cpu.hand) {
       const energy = def(card.defId);
       if (energy.kind !== 'energy') continue;
-      const target = inPlay(cpu).find(([, p]) => {
-        const pokemon = def(p.card.defId);
-        return pokemon.kind === 'pokemon' && pokemon.type === energy.energyType;
-      });
+      const target = inPlay(cpu).find(([, p]) => hasType(inPlayDef(state.cards, p), energy.energyType));
       if (target) return { type: 'ATTACH_ENERGY', cardUid: card.uid, target: target[0] };
     }
   }

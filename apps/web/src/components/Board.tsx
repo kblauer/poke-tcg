@@ -1,5 +1,4 @@
 import { DndContext, DragOverlay } from '@dnd-kit/core';
-import MenuIcon from '@mui/icons-material/Menu';
 import { hasBenched, inPlayDef, lookupCard, shapeshiftCard, type CardLibrary, type GameAction, type InPlayPokemon, type MoveHighlight, type PlayerView, type Target } from '@poke-tcg/game-engine';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAttack } from '../hooks/useAttack';
@@ -14,7 +13,9 @@ import { useWindowFill } from '../hooks/useWindowFill';
 import { benchSlotId, pendingSlot, toTarget, type SlotId } from '../utils/slots';
 import { useDebugEnabled } from '../utils/debug';
 import { useCosmetics } from '../hooks/useCosmetics';
+import { useEscape } from '../hooks/useEscape';
 import { PAGE_WIDTH } from '../utils/layout';
+import { CHOICE_BUTTON } from '../utils/styles';
 import { centerOnPointer } from '../utils/dragOverlay';
 import { isMyTurn, mustPromote, statusText } from '../utils/turn';
 import { AttackChoicePanel } from './AttackChoicePanel';
@@ -22,15 +23,13 @@ import { AttackList } from './AttackList';
 import { Card } from './Card';
 import { CardPreview } from './CardPreview';
 import { DeckAndDiscard } from './DeckAndDiscard';
-import { DiscardPane } from './DiscardPane';
 import { FloatingDialog } from './FloatingDialog';
 import { Hand } from './Hand';
-import { LogSheet } from './LogDrawer';
-import { OpponentArea, OpponentSlot, type Spotlight } from './OpponentArea';
+import { OpponentArea, type Spotlight } from './OpponentArea';
 import { BoardMusicControls } from './MusicPlayer';
+import { DiscardPane } from './DiscardPane';
 import { PendingChoicePanel } from './PendingChoicePanel';
-import { PhoneOppHand, PhonePiles, PhonePrizes } from './phone/PhonePiles';
-import { PhoneTable } from './phone/PhoneTable';
+import { PhoneBoard } from './phone/PhoneBoard';
 import { PlayArea } from './PlayArea';
 import { Playmat } from './Playmat';
 import { PeekCard, PowerPanel } from './PowerPanel';
@@ -65,9 +64,17 @@ export interface PlayedMove {
   stamp: number;
 }
 
+/** An attack, power or Trainer asking for a Pokémon in play: which side's, the ones that can be chosen, and how (and, choosing several, those picked so far). */
+export interface PokemonPick {
+  side: 'own' | 'opp';
+  options: Target[];
+  pick: (t: Target) => void;
+  picked?: Target[];
+}
+
 /**
  * The game table. Card play comes from useCardPlay; the board itself owns the hover preview. On a phone held upright
- * (useIsPhone) it's laid out for the phone instead (PhoneTable), filling the screen and locked in place
+ * (useIsPhone) it's laid out for the phone instead (PhoneBoard, PhoneTable), filling the screen and locked in place
  * (useLockedScreen): the side panel's tabs and Concede are in a full-screen menu behind the round ☰ button (LogSheet).
  * Everything else works the same, the Pokémon's moves too (cardPanel).
  */
@@ -99,7 +106,7 @@ export function Board({
   errorAt?: number;
   /** For the debug tools (game log's Debug tab). */
   gameId: string;
-  /** A run's battle: the side panel's Run tab (HP, ₱, EXP, the Bag). */
+  /** A run's battle: the side panel's Run tab on a phone (HP, ₱, EXP, the Bag; a big screen has the run in the site menu). */
   runTab?: ReactNode;
   /** Shown over the play area, centred on it: the coin flips (CoinFlip). */
   overlay?: ReactNode;
@@ -109,9 +116,7 @@ export function Board({
   const { playmat } = useCosmetics();
   const phone = useIsPhone();
   useLockedScreen(phone);
-  /** The phone layout's ☰ menu. */
-  const [menu, setMenu] = useState(false);
-  /** The spread-out view of the CPU's hand, while it's face up (Clairvoyance): a click on its hand opens it. */
+  /** The spread-out view of the CPU's hand, while it's face up (Clairvoyance): a click on its hand opens it (the phone's is PhoneBoard's own). */
   const [cpuHand, setCpuHand] = useState(false);
   const busy = pending !== null || replaying;
   // The attacker lunges at the defender in the view right after its attack.
@@ -231,15 +236,11 @@ export function Board({
   useEffect(() => {
     if (cardMenu === null) return;
     const onClick = (e: MouseEvent) => !(e.target instanceof Element && e.target.closest('[data-card-menu]')) && setCardMenu(null);
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setCardMenu(null);
     // Capture phase, as above: before a click elsewhere re-renders its target away.
     window.addEventListener('click', onClick, true);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('click', onClick, true);
-      window.removeEventListener('keydown', onKey);
-    };
+    return () => window.removeEventListener('click', onClick, true);
   }, [cardMenu]);
+  useEscape(() => setCardMenu(null), cardMenu !== null);
 
   /** A Trainer card is being dragged: the whole play area is its drop target. */
   const draggingTrainer = dragging !== null && heldCard !== undefined && trainer.isTrainer(heldCard);
@@ -255,15 +256,21 @@ export function Board({
   // A hovered card can disappear without a mouseleave (played, knocked out), so reset on every update.
   useEffect(() => setPreview(null), [view.version]);
 
-  // Warm the cache with the large images so the preview appears without a loading delay.
+  // Warm the cache with the large images so the preview appears without a loading delay: each card once, not again on
+  // every move (the view's cards change with every action).
+  const warmed = useRef(new Set<string>());
   useEffect(() => {
-    for (const d of Object.values(view.cards)) if (d.imageUrl) new Image().src = `${d.imageUrl}/high.webp`;
+    for (const d of Object.values(view.cards)) {
+      if (!d.imageUrl || warmed.current.has(d.id)) continue;
+      warmed.current.add(d.id);
+      new Image().src = `${d.imageUrl}/high.webp`;
+    }
   }, [view.cards]);
 
   const busySlot = pendingSlot(pending);
 
   /** An attack, power or Trainer asking for a Pokémon in play: it's chosen by clicking the Pokémon. */
-  const pokemonPick: { side: 'own' | 'opp'; options: Target[]; pick: (t: Target) => void; picked?: Target[] } | null =
+  const pokemonPick: PokemonPick | null =
     pendingPick
       ? { side: pendingPick.kind === 'ownPokemon' ? 'own' : 'opp', options: pendingPick.options, pick: (target) => send({ type: 'RESOLVE_CHOICE', target }) }
       : attack.spec?.kind === 'opponentBench' || attack.spec?.kind === 'ownBench'
@@ -366,7 +373,7 @@ export function Board({
 
   const doll = self.active && lookupCard(view.cards, self.active.card.defId);
   // What a click does on a benched Pokémon (turn it face up, discard its Shapeshift card or Clefairy Doll) is, for the
-  // Active, a button among its moves (its panel, or a phone's sheet), as clicking it opens them.
+  // Active, a button among its moves (its panel, on every screen), as clicking it opens them.
   const activeMoves: { label: string; run: () => void }[] =
     myTurn && self.active
       ? [
@@ -559,7 +566,7 @@ export function Board({
   /** Floats over the CPU's side: the Trainer being played, or Skip/Done for a choice of Pokémon that can be left (Sneak Attack can be skipped; Fairy Power is done whenever the player says so). */
   const oppDialog = pendingPick?.optional ? (
     <div className="rounded-lg bg-slate-800 p-2 ring-1 ring-slate-600">
-      <button className="rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500" disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE' })}>
+      <button className={CHOICE_BUTTON} disabled={busy} onClick={() => send({ type: 'RESOLVE_CHOICE' })}>
         {pendingPick.kind === 'oppPokemon' ? 'Skip' : 'Done'}
       </button>
     </div>
@@ -567,137 +574,43 @@ export function Board({
     trainer.card && !trainer.prompt && <TrainerPanel view={view} trainer={trainer} />
   );
 
-  /** The phone layout (see above): the same pieces, laid out by PhoneTable. */
-  const phoneBoard = () => {
-    const oppPick = pokemonPick?.side === 'opp' && !busy ? pokemonPick : null;
-    // How many of the CPU's Benched Pokémon an attack wants (Tunneling), while they're being tapped.
-    const benchMany = attack.benchCount;
-    const oppLunge = attacker === view.opponent.id ? view.version : null;
-    const opponent = view.opponent;
+  /** The phone layout (see above): the same pieces, laid out by PhoneBoard. */
+  if (phone) {
     return (
-      // No hover preview on a phone: a long press inspects a card instead (Card).
-      <PreviewContext.Provider value={() => {}}>
-        <DndContext
-          {...dnd}
-          onDragEnd={(e) => {
-            dragEndedAt.current = Date.now();
-            dnd.onDragEnd(e);
-          }}
-        >
-          {/* The whole screen, over the site's header, held still: nothing in it pans, zooms or selects text. */}
-          <div className={`fixed inset-0 z-30 flex touch-none select-none flex-col overflow-hidden bg-slate-950 [-webkit-touch-callout:none] ${busy ? 'cursor-progress' : ''}`}>
-            {/* The player's playmat (the Cosmetics tab) as the whole screen's background, both sides of the table, answering taps anywhere on it; drawn at 0.6 the size, to suit the phone's smaller cards. */}
-            <Playmat id={playmat} className="-z-10" scale={0.6} />
-            {self.pendingChoice && !pendingPick && (
-              <FloatingDialog clickThrough={false} className="absolute left-1/2 top-1/2 z-[1000] w-fit max-w-[calc(100%-1rem)] -translate-x-1/2 -translate-y-1/2 touch-pan-y">
-                <PendingChoicePanel view={view} send={send} busy={busy} />
-              </FloatingDialog>
-            )}
-            <PlayArea droppable={draggingTrainer && !busy} drop={dragging && heldCard ? { over: dropTarget !== null } : null} overlay={tableOverlay} cards="phone-cards h-full">
-              <PhoneTable
-                // The CPU's hand behind its side (no line of who it is and its hand count; agreed), face up while Clairvoyance works.
-                oppHand={<PhoneOppHand count={opponent.handCount} faceUp={opponent.hand && { hand: opponent.hand, cards: view.cards }} onOpen={() => setCpuHand(true)} />}
-                opponent={{
-                  bench: opponent.bench.map((p, i) => <OpponentSlot key={i} id={`cpu-bench-${i}`} target={i} pokemon={p} cards={view.cards} pick={oppPick} drop={oppDrop} lunge={oppLunge} spotlight={oppSpot} />),
-                  active: <OpponentSlot id="cpu-active" target="active" pokemon={opponent.active} cards={view.cards} large pick={oppPick} drop={oppDrop} lunge={oppLunge} spotlight={oppSpot} />,
-                  piles: (
-                    <PhonePiles
-                      deckCount={opponent.deckCount}
-                      discard={opponent.discard}
-                      cards={view.cards}
-                      owner="The CPU's"
-                      prizes={<PhonePrizes count={opponent.prizeCount} owner="The CPU's" faceUp={opponent.prizes && { prizes: opponent.prizes, cards: view.cards }} />}
-                    />
-                  ),
-                }}
-                bar={
-                  <div className="relative flex min-h-14 shrink-0 items-center gap-2">
-                    {/* Over the turn banner, which passes behind it. */}
-                    <button
-                      data-keep-action
-                      className="relative z-[960] flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800 text-slate-200 ring-1 ring-slate-600 transition active:scale-95"
-                      aria-label="Menu: game log, run and Concede"
-                      onClick={() => setMenu(true)}
-                    >
-                      <MenuIcon />
-                    </button>
-                    <StadiumCard view={view} send={send} busy={busy} notify={(message) => toasts.push('warning', message)} compact />
-                    {/* Choosing several of the CPU's Benched Pokémon (Tunneling): the sheet is closed so they can be tapped, so it's confirmed here. */}
-                    {benchMany ? (
-                      <button
-                        data-keep-action
-                        className="ml-auto rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 active:scale-95 disabled:opacity-40"
-                        disabled={busy || attack.benchPicked.length !== benchMany}
-                        onClick={() => attack.answer(attack.benchPicked)}
-                      >
-                        Attack ({attack.benchPicked.length}/{benchMany})
-                      </button>
-                    ) : (
-                      statusBar(true)
-                    )}
-                    {newTurn && <TurnBanner key={newTurn.turn} turn={newTurn} inBar />}
-                    {setupBanner && <SetupBanner text={setupLine.current.text} first={setupLine.current.first} leaving={!placing} onGone={setupBannerGone} />}
-                    {self.peek && (
-                      <div className="absolute bottom-full left-0 z-10 mb-1 [--card-sm:var(--card-pile)]">
-                        <PeekCard view={view} />
-                      </div>
-                    )}
-                  </div>
-                }
-                self={{
-                  bench: self.bench.map((p, i) => playerSlot(benchSlotId(i), p)),
-                  active: playerSlot('active', self.active),
-                  piles: (
-                    <PhonePiles
-                      deckCount={self.deckCount}
-                      discard={self.discard}
-                      cards={view.cards}
-                      owner="Your"
-                      prizes={<PhonePrizes count={self.prizeCount} owner="Your" faceUp={self.prizes && { prizes: self.prizes, cards: view.cards }} />}
-                    />
-                  ),
-                }}
-                dialog={oppDialog && <FloatingDialog className="relative">{oppDialog}</FloatingDialog>}
-              />
-            </PlayArea>
-            {handView(true)}
-          </div>
-          {menu && (
-            <LogSheet
-              log={view.log}
-              you={view.you}
-              pages
-              coinFlips
-              run={runTab}
-              debug={debugEnabled ? { gameId, view } : undefined}
-              onClose={() => setMenu(false)}
-              actions={
-                phase !== 'finished' && (
-                  <button
-                    className="rounded bg-slate-700 px-4 py-2 text-sm transition hover:bg-slate-600 active:scale-95 disabled:cursor-progress"
-                    disabled={busy}
-                    onClick={() => {
-                      setMenu(false);
-                      send({ type: 'CONCEDE' });
-                    }}
-                  >
-                    Concede
-                  </button>
-                )
-              }
-            />
-          )}
-          {cpuHand && opponent.hand && (
-            <DiscardPane title="The CPU's hand" note={`${opponent.hand.length}, face up: Clairvoyance`} discard={opponent.hand} cards={view.cards} onClose={() => setCpuHand(false)} />
-          )}
-          {dragOverlay}
-        </DndContext>
-        <Toasts toasts={toasts.toasts} prompt={movePrompt} />
-        {turnReminders.dialog}
-      </PreviewContext.Provider>
+      <PhoneBoard
+        view={view}
+        send={send}
+        busy={busy}
+        gameId={gameId}
+        playmat={playmat}
+        dnd={dnd}
+        dragEndedAt={dragEndedAt}
+        dragging={dragging}
+        heldCard={heldCard}
+        dropTarget={dropTarget}
+        draggingTrainer={draggingTrainer}
+        pokemonPick={pokemonPick}
+        pendingPick={pendingPick}
+        attack={attack}
+        attacker={attacker}
+        oppDrop={oppDrop}
+        oppSpot={oppSpot}
+        newTurn={newTurn}
+        toasts={toasts}
+        prompt={movePrompt}
+        runTab={runTab}
+        debugEnabled={debugEnabled}
+        tableOverlay={tableOverlay}
+        playerSlot={playerSlot}
+        statusBar={statusBar}
+        oppDialog={oppDialog}
+        handView={handView}
+        dragOverlay={dragOverlay}
+        setupBanner={setupBanner && <SetupBanner text={setupLine.current.text} first={setupLine.current.first} leaving={!placing} onGone={setupBannerGone} />}
+        remindersDialog={turnReminders.dialog}
+      />
     );
-  };
-  if (phone) return phoneBoard();
+  }
 
   return (
     <PreviewContext.Provider value={(p) => !dragging && setPreview(p)}>

@@ -5,6 +5,7 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  lazyRouteComponent,
   Link,
   Outlet,
   RouterProvider,
@@ -13,7 +14,6 @@ import {
 import { StrictMode, useCallback, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
-import './styles/holo/index.css';
 // Puts the saved colour theme on before the first render.
 import './hooks/useColorTheme';
 import './hooks/useFontStyle';
@@ -21,6 +21,7 @@ import { AccountSettingsSync } from './components/AccountSettingsSync';
 import { CardInspectProvider } from './components/CardInspectProvider';
 import { MusicControls, MusicProvider } from './components/MusicPlayer';
 import { NavLogProvider } from './components/NavLog';
+import { RunProvider } from './hooks/useRun';
 import { NavRail, PhoneNavRun } from './components/NavRail';
 import { PageMenu } from './components/PageNav';
 import { TopBarStats } from './components/TopBarStats';
@@ -29,18 +30,25 @@ import { useIsPhone } from './hooks/useIsPhone';
 import { useSession } from './lib/auth';
 import { signInWithGoogle, signOut } from './lib/supabase';
 import { queryClient, TRPCProvider, trpcClient } from './lib/trpc';
-import { CommunityPage } from './pages/Community';
-import { CosmeticsPage } from './pages/Cosmetics';
-import { DecksPage } from './pages/Decks';
-import { GamePage } from './pages/Game';
-import { HomePage } from './pages/Home';
-import { InventoryPage } from './pages/Inventory';
-import { PacksPage } from './pages/Packs';
-import { SettingsPage } from './pages/Settings';
-import { SingleBattlePage } from './pages/SingleBattle';
 
 // Marks the dev server's tab so it isn't confused with the deployed app.
 if (import.meta.env.DEV) document.title += ' - local';
+
+// Each page is its own chunk, fetched when it's first opened (the battle screen's brings the rules engine with it; the
+// others don't need it), so the first load is the layout alone.
+const HomePage = lazyRouteComponent(() => import('./pages/Home'), 'HomePage');
+const GamePage = lazyRouteComponent(() => import('./pages/Game'), 'GamePage');
+const DecksPage = lazyRouteComponent(() => import('./pages/Decks'), 'DecksPage');
+const CommunityPage = lazyRouteComponent(() => import('./pages/Community'), 'CommunityPage');
+const SingleBattlePage = lazyRouteComponent(() => import('./pages/SingleBattle'), 'SingleBattlePage');
+const InventoryPage = lazyRouteComponent(() => import('./pages/Inventory'), 'InventoryPage');
+const PacksPage = lazyRouteComponent(() => import('./pages/Packs'), 'PacksPage');
+const CosmeticsPage = lazyRouteComponent(() => import('./pages/Cosmetics'), 'CosmeticsPage');
+const SettingsPage = lazyRouteComponent(() => import('./pages/Settings'), 'SettingsPage');
+
+// The logo, in the top bar and the phone's menu: the Pokémon logo's lettering (Pokemon Solid, `font-logo`); everything
+// else is in the UI's font (index.css).
+const LOGO = 'font-logo text-2xl font-normal leading-none tracking-wide text-yellow-300';
 
 const RAIL_KEY = 'poke-tcg.nav-open';
 
@@ -108,9 +116,8 @@ function RootLayout() {
               <MenuIcon />
             </button>
           )}
-          {/* The logo is in the font picked on the Settings page, as everything else (index.css). */}
-          <Link to="/" className="text-nav font-heading text-yellow-300">
-            Poké TCG
+          <Link to="/" className={`${LOGO} ml-2 sm:ml-3`}>
+            PoKé TcG
           </Link>
         </div>
         {/* On a phone, the run's HP and ₱, the bank and Stardust, centred between the logo and Sign out. */}
@@ -122,7 +129,7 @@ function RootLayout() {
         {session && <div className="flex shrink-0 items-center text-sm">{signOutButton}</div>}
       </header>
       {session && phone && panel && (
-        <SidePanel side="left" title="Poké TCG" onClose={closePanel}>
+        <SidePanel side="left" title={<span className={LOGO}>PoKé TcG</span>} onClose={closePanel}>
           <PageMenu onPick={closePanel} />
           {/* During a run, its numbers and log, as in the big screen's menu. */}
           <PhoneNavRun />
@@ -159,7 +166,9 @@ function RootLayout() {
   return session ? (
     <MusicProvider docked={phone}>
       <AccountSettingsSync />
-      <NavLogProvider>{page}</NavLogProvider>
+      <NavLogProvider>
+        <RunProvider>{page}</RunProvider>
+      </NavLogProvider>
     </MusicProvider>
   ) : (
     page

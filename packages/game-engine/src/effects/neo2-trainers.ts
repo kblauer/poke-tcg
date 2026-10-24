@@ -4,7 +4,7 @@
 // Spray returns the top card only, as Devolution Beam does: Special Conditions and attack effects end, damage stays (it
 // can Knock the Pokémon Out), and it can't evolve again this turn. Ruin Wall and Energy Ark can find nothing.
 import type { CardLibrary } from '../cards.js';
-import type { CardInstance } from '../engine.js';
+import { newInPlay, type CardInstance } from '../engine.js';
 import { clearOnLeavingActive, openBenchSlot, pokemonName } from '../status.js';
 import { def, own, targetsOf, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 
@@ -36,7 +36,7 @@ export const NEO2_TRAINERS: Record<string, TrainerEffect> = {
       const slot = openBenchSlot(ctx.me.bench, ctx.state.cards, ctx.state.stadium?.card);
       if (fromHand && slot >= 0) {
         const [card] = ctx.fromHand(ctx.me, [fromHand.uid]);
-        ctx.me.bench[slot] = { card: card!, evolvedFrom: [], damage: 0, energy: [], playedTurn: ctx.turn };
+        ctx.me.bench[slot] = newInPlay(card!, ctx.turn);
         return ctx.log(`Put ${def(ctx.state, card!).name} from the hand onto the Bench.`);
       }
       ctx.pend({ kind: 'pickFromDeck', source: 'Fossil Egg', filter: 'evolvesFrom', name: 'Mysterious Fossil', toBench: true, optional: true, reveal: true });

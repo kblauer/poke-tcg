@@ -12,12 +12,12 @@
 // player's only Pokémon in play. Mind Games (Slowking) applies to all of these, Stadiums and Tools too.
 import { isBasicEnergy, isPokemonCard, lookupCard } from '../cards.js';
 import { activeLock, type CardInstance, type InPlayPokemon } from '../engine.js';
-import { trainerProof } from '../powers.js';
+import { pokemonAt, trainerProof } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { openBenchSlot, pokemonName } from '../status.js';
 import { def, otherHandCards, swapActive, targetsOf, timeCapsuleCards, type EnergyEffect, type PendingChoice, type TrainerContext, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 
-const at = (side: { active: InPlayPokemon | null; bench: (InPlayPokemon | null)[] }, t: 'active' | number) => (t === 'active' ? side.active : side.bench[t])!;
+const at = (side: { active: InPlayPokemon | null; bench: (InPlayPokemon | null)[] }, t: 'active' | number) => pokemonAt(side, t)!;
 const isEnergy = (s: { cards: TrainerSituation['cards'] }, c: CardInstance) => def(s, c).kind === 'energy';
 
 /** No more Trainer cards this turn (PokéGear, Time Capsule, Professor Elm). */

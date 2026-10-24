@@ -11,7 +11,7 @@ import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { targetsIn } from '../attacks.js';
 import { hasType, isBasicEnergy, lookupCard, namesMatch, type EnergyType } from '../cards.js';
 import { isEnergyCardOf, isSpecialEnergy } from '../engine.js';
-import { inPlayDef, pokemonName } from '../status.js';
+import { clearSpecialConditions, hasSpecialCondition, inPlayDef, pokemonName } from '../status.js';
 import { shuffle } from '../rng.js';
 import { trainerEffect } from './index.js';
 import { benchedSlots, opponentBenchChoice } from './common.js';
@@ -68,11 +68,8 @@ const behind = (ctx: AttackContext) => ctx.me.prizes.length < ctx.opp.prizes.len
 
 /** Removes a Pokémon's Special Conditions (Hyper Healing). */
 function cure(ctx: AttackContext, p: AttackContext['attacker']) {
-  if (!p.condition && !p.poison && !p.burned) return;
-  p.condition = null;
-  p.poison = 0;
-  p.burned = false;
-  delete p.paralyzedTurn;
+  if (!hasSpecialCondition(p)) return;
+  clearSpecialConditions(p);
   ctx.log(`${pokemonName(ctx.state, p)} is no longer affected by Special Conditions.`);
 }
 

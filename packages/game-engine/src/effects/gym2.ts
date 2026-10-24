@@ -7,20 +7,22 @@
 // limits besides what stops evolving (Prehistoric Power), as Rapid Evolution. Misty's Psyduck's ESP asks which attack to
 // copy before the flips. Group Attack asks how many Koga's Zubat to bench (up to the room on the Bench) before searching.
 import { targetsIn, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
-import { isBasicPokemon, isTrainerCard, lookupCard } from '../cards.js';
-import { activeLocked, discardTheirEnergy, isEnergyCardOf, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
+import { hasType, isBasicPokemon, isTrainerCard, lookupCard } from '../cards.js';
+import { activeLocked, discardTheirEnergy, isEnergyCardOf, newInPlay, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { energyKept, evolutionBlocked } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { benchRoom, energyProtected, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
-import { BASE1, metronome } from './base1.js';
+import { amnesia, metronome } from './base1.js';
 import {
   benchedSlots,
   benchTarget,
+  damageOpponent,
   discardToUse,
   flipToInflict,
   flipToProtect,
   inflicts,
   opponentBenchChoice,
+  opponentTargets,
   perHeads,
   recoil,
   tailsSelfDamage,
@@ -32,14 +34,6 @@ import { flipOrNothing, shuffleIntoDeck } from './rocket.js';
 
 /** The Fire (or Lightning…) Energy cards attached to the attacker, Rainbow Energy included. */
 const cardsOf = (ctx: AttackContext, type: 'fire' | 'lightning' | 'psychic') => ctx.attacker.energy.filter((e) => isEnergyCardOf(e, ctx.state.cards, type));
-
-const opponentTargets = (s: AttackSituation, prompt: string): ChoiceSpec[] => [{ kind: 'opponentPokemon', options: targetsIn(s.defender, s.opponentBench), prompt }];
-
-/** Damage to one of the opponent's Pokémon in play, without Weakness and Resistance. */
-function damageOpponent(ctx: AttackContext, target: Target, amount: number) {
-  if (target === 'active') ctx.hit(amount, { weakness: false });
-  else ctx.damageBenched(ctx.opp, target, amount);
-}
 
 /** The attacker can't use this attack again while it stays in play, even benched (Hyper Needle, Ancestral Memory). */
 const onceInPlay = (ctx: AttackContext, name: string) => {
@@ -636,7 +630,7 @@ export const GYM2: Record<string, Record<string, AttackEffect>> = {
   },
   // Misty's Dewgong
   'gym2-54': {
-    'Ice Throw': { damage: '20', run: (ctx) => void ctx.hit(ctx.defenderDef.type === 'fighting' ? 40 : 20) },
+    'Ice Throw': { damage: '20', run: (ctx) => void ctx.hit(hasType(ctx.defenderDef, 'fighting') ? 40 : 20) },
     'Take Down': recoil(60, 20),
   },
   // Sabrina's Haunter
@@ -663,7 +657,7 @@ export const GYM2: Record<string, Record<string, AttackEffect>> = {
         if (!owner || slot < 0) return;
         const card = owner.discard.find((c) => c.uid === uid)!;
         owner.discard = owner.discard.filter((c) => c !== card);
-        const p: InPlayPokemon = { card, evolvedFrom: [], damage: 0, energy: [], playedTurn: ctx.turn };
+        const p = newInPlay(card, ctx.turn);
         p.damage = Math.floor(inPlayDef(ctx.state.cards, p).hp / 20) * 10;
         owner.bench[slot] = p;
         ctx.log(`${pokemonName(ctx.state, p)} was put onto the Bench with ${p.damage / 10} damage counters.`, owner.id);
@@ -912,7 +906,7 @@ export const GYM2: Record<string, Record<string, AttackEffect>> = {
             const slot = openBenchSlot(ctx.me.bench, ctx.state.cards, ctx.state.stadium?.card);
             if (!wanted || slot < 0) break;
             ctx.me.deck = ctx.me.deck.filter((c) => c !== card);
-            ctx.me.bench[slot] = { card, evolvedFrom: [], damage: 0, energy: [], playedTurn: ctx.turn };
+            ctx.me.bench[slot] = newInPlay(card, ctx.turn);
             wanted--;
             ctx.log(`Put ${ZUBAT} onto the Bench.`);
           }
@@ -957,7 +951,7 @@ export const GYM2: Record<string, Record<string, AttackEffect>> = {
         ctx.log(`${ctx.attackerDef.name} can't use Bubbles next turn.`);
       },
     },
-    Amnesia: BASE1['base1-38']!.Amnesia!,
+    Amnesia: amnesia,
   },
   // Misty's Psyduck
   'gym2-90': {

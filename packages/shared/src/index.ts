@@ -89,6 +89,16 @@ covers<AttackChoices, typeof attackChoicesSchema>(true);
 covers<PowerChoices, typeof powerChoicesSchema>(true);
 covers<TrainerChoices, typeof trainerChoicesSchema>(true);
 
+/** A RESOLVE_CHOICE action: every field of the engine's is here (`covers` below), as `satisfies` doesn't catch a dropped optional one. */
+const resolveChoiceSchema = z.object({
+  type: z.literal('RESOLVE_CHOICE'),
+  cardUid: z.string().optional(),
+  order: z.array(z.string()).max(10).optional(),
+  target: target.optional(),
+  count: z.number().int().min(0).max(60).optional(),
+});
+covers<Extract<GameAction, { type: 'RESOLVE_CHOICE' }>, typeof resolveChoiceSchema>(true);
+
 /** Runtime validation for actions arriving from clients. Kept in sync with GameAction. */
 export const gameActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('SET_ACTIVE'), cardUid: z.string() }),
@@ -100,13 +110,7 @@ export const gameActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('RETREAT'), slot: benchSlot, energyUids: z.array(z.string()).max(60) }),
   z.object({ type: z.literal('USE_POWER'), source: target, choices: powerChoicesSchema.optional() }),
   z.object({ type: z.literal('PLAY_TRAINER'), cardUid: z.string(), choices: trainerChoicesSchema.optional() }),
-  z.object({
-    type: z.literal('RESOLVE_CHOICE'),
-    cardUid: z.string().optional(),
-    order: z.array(z.string()).max(10).optional(),
-    target: target.optional(),
-    count: z.number().int().min(0).max(60).optional(),
-  }),
+  resolveChoiceSchema,
   z.object({ type: z.literal('DISCARD_DOLL'), target }),
   z.object({ type: z.literal('RESET_SETUP') }),
   z.object({ type: z.literal('START_BATTLE') }),
@@ -153,14 +157,20 @@ export const debugInput = z.object({
   command: debugCommandSchema,
 });
 
-/** A player's move in a run (see RunAction in @poke-tcg/campaign). The server's own actions aren't accepted. */
+/** A player's move in a run (see RunAction in @poke-tcg/campaign). The server's own actions aren't accepted. Each member with fields `covers` its action, as RESOLVE_CHOICE's does. */
+const chooseActionSchema = z.object({ type: z.literal('CHOOSE'), option: z.number().int().min(0).max(5) });
+const pickActionSchema = z.object({ type: z.literal('PICK'), index: z.number().int().min(0).max(10) });
+const buyActionSchema = z.object({ type: z.literal('BUY'), index: z.number().int().min(0).max(10) });
+covers<Extract<RunAction, { type: 'CHOOSE' }>, typeof chooseActionSchema>(true);
+covers<Extract<RunAction, { type: 'PICK' }>, typeof pickActionSchema>(true);
+covers<Extract<RunAction, { type: 'BUY' }>, typeof buyActionSchema>(true);
 export const runActionSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('CHOOSE'), option: z.number().int().min(0).max(5) }),
+  chooseActionSchema,
   z.object({ type: z.literal('ACCEPT') }),
   z.object({ type: z.literal('LEAVE') }),
   z.object({ type: z.literal('CONCEDE') }),
-  z.object({ type: z.literal('PICK'), index: z.number().int().min(0).max(10) }),
-  z.object({ type: z.literal('BUY'), index: z.number().int().min(0).max(10) }),
+  pickActionSchema,
+  buyActionSchema,
 ]) satisfies z.ZodType<RunAction>;
 
 export const runIdInput = z.object({ runId: z.uuid() });

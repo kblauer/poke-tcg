@@ -1,10 +1,11 @@
 import { TRPCError } from '@trpc/server';
 import { boss, bossLabel, generateDeck, rngFrom, TRAINERS, trainerFavorites } from '@poke-tcg/campaign';
-import { prisma, saveGameState, type Prisma } from '@poke-tcg/db';
+import { prisma, saveGameState } from '@poke-tcg/db';
 import { applyAction, captureCheckup, createGame, getPlayerView, moveHighlights, runCpu, type CpuDifficulty, type GameAction, type GameState } from '@poke-tcg/game-engine';
 import { CPU_ID, HUMAN_ID, gameIdInput, singleBattleInput, submitActionInput, type SingleBattleInput, type SingleBattleOpponent } from '@poke-tcg/shared';
 import { ensureUser } from '../auth.js';
 import { loadCardLibrary } from '../cards.js';
+import { actionRows, asJson, newSeed } from '../games.js';
 import { cardPool } from '../pool.js';
 import { loadOwnRun, settleBattle } from '../runs.js';
 import { PLAYER_TEST_DECK, expandDeck } from '../test-decks.js';
@@ -12,12 +13,22 @@ import type { AuthUser } from '../auth.js';
 import { protectedProcedure, router } from '../trpc.js';
 import { markPlayed, playableDeck, type DeckCosmetics } from './decks.js';
 
-const asJson = (value: unknown) => value as Prisma.InputJsonValue;
-
-/** Log rows for a sequence of actions that ended at `finalVersion`. */
-function actionRows(entries: { playerId: string; action: GameAction }[], finalVersion: number) {
-  const first = finalVersion - entries.length + 1;
-  return entries.map((e, i) => ({ playerId: e.playerId, version: first + i, action: asJson(e.action) }));
+/**
+ * The CPU's reply to the player's action. If the CPU throws (an engine bug on a position it can't handle), nothing is lost:
+ * the error is logged and the CPU concedes instead, so the game is saved whole and can be finished, rather than the
+ * player's every legal action failing the same way with no way out but conceding themselves.
+ */
+function cpuTurn(state: GameState): ReturnType<typeof runCpu> {
+  try {
+    return runCpu(state, CPU_ID);
+  } catch (error) {
+    console.error('CPU failed to play; conceding', error);
+    const action: GameAction = { type: 'CONCEDE' };
+    const result = applyAction(state, CPU_ID, action);
+    if (!result.ok) throw error;
+    // Conceding ends the game: no Pokémon Checkup.
+    return { state: result.state, actions: [action], states: [result.state], checkups: [null] };
+  }
 }
 
 /** The player's view after a CPU move, with the card the move shows (a Trainer shuffled away is no longer in sight). */
@@ -47,8 +58,6 @@ export async function loadOwnGame(gameId: string, userId: string) {
   if (!game || game.ownerId !== userId) throw new TRPCError({ code: 'NOT_FOUND', message: 'Game not found' });
   return { ...game, state: game.state as unknown as GameState };
 }
-
-const newSeed = () => Math.floor(Math.random() * 2 ** 31);
 
 /** The CPU's side of a single battle: a boss's own deck, or a random trainer with a random deck suiting their name, as on a run's map. */
 async function opponentSetup(opponent: SingleBattleOpponent, difficulty: CpuDifficulty): Promise<{ name: string; deck: string[] }> {
@@ -127,7 +136,7 @@ export const gameRouter = router({
 
     const { result, checkup } = captureCheckup(() => applyAction(game.state, HUMAN_ID, input.action));
     if (!result.ok) throw new TRPCError({ code: 'BAD_REQUEST', message: result.error });
-    const cpu = runCpu(result.state, CPU_ID);
+    const cpu = cpuTurn(result.state);
     const next = cpu.state;
     const log = [
       { playerId: HUMAN_ID, action: input.action },

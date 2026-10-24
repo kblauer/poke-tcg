@@ -13,7 +13,7 @@
 // attack on the Defending Pokémon, so whatever stops those stops them. Twister, Devastate and Sneasel's Swipe go through
 // Brock's Protection, Unown K's Keep and Crystal Body like every other effect on the opponent's Energy or Pokémon.
 import { pokemonOn, targetsIn, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
-import { isBasicEnergy, lookupCard, type EnergyType } from '../cards.js';
+import { isBasicEnergy, lookupCard, namesMatch, type EnergyType } from '../cards.js';
 import { counts, discardTheirEnergy, energyPool, energyProvided, isEnergyCardOf, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
 import { discardsLocked, energyKept, evolutionBlocked } from '../powers.js';
 import { shuffle } from '../rng.js';
@@ -584,7 +584,7 @@ export const NEO3: Record<string, Record<string, AttackEffect>> = {
     'Call for Family': benchSearch('Call for Family', { filter: 'basicNamed', name: 'Murkrow' }),
     'Flock Attack': {
       run(ctx) {
-        const murkrows = ctx.me.bench.filter((p) => p && inPlayDef(ctx.state.cards, p).name === 'Murkrow').length;
+        const murkrows = ctx.me.bench.filter((p) => p && namesMatch(inPlayDef(ctx.state.cards, p).name, 'Murkrow')).length;
         ctx.hit(10 + 10 * ctx.flips(murkrows));
       },
     },

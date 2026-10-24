@@ -4,6 +4,7 @@
 // Rulings (agreed): Big Eggsplosion counts Energy provided (Double Colorless = 2 coins); Flareon's
 // Flamethrower discards a Fire Energy card and Vaporeon's Water Gun counts Water Energy only.
 import type { AttackEffect, ChoiceSpec } from '../attacks.js';
+import { namesMatch } from '../cards.js';
 import { energyPool } from '../engine.js';
 import { baseUid, inPlayDef } from '../status.js';
 import { metronome } from './base1.js';
@@ -116,7 +117,7 @@ const HOLO: Record<string, Record<string, AttackEffect>> = {
   'base2-7': {
     Boyfriends: {
       run(ctx) {
-        const nidokings = [ctx.me.active, ...ctx.me.bench].filter((p) => p && inPlayDef(ctx.state.cards, p).name === 'Nidoking').length;
+        const nidokings = [ctx.me.active, ...ctx.me.bench].filter((p) => p && namesMatch(inPlayDef(ctx.state.cards, p).name, 'Nidoking')).length;
         ctx.hit(20 + 20 * nidokings);
       },
     },

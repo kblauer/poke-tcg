@@ -135,7 +135,8 @@ export function GamePage() {
   const logView = shownView ?? data?.view;
   useGameLogInNav(logView ? { log: logView.log, you: logView.you, gameId, view: logView } : null);
 
-  if (error) return <p className={`${PAGE_WIDTH} text-red-400`}>{error.message}</p>;
+  // A failed refetch (a dropped connection on a tab focus) keeps the board up with what it has: the next action refetches.
+  if (error && !data) return <p className={`${PAGE_WIDTH} text-red-400`}>{error.message}</p>;
   if (!data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
 
   const view = data.view;

@@ -1,11 +1,11 @@
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import LockIcon from '@mui/icons-material/Lock';
 import { boss, bossLabel, bossTypes, generation, RUN_TYPES, type BossId, type RunTypeId } from '@poke-tcg/campaign';
+import { typeName } from '@poke-tcg/game-engine';
 import { Link } from '@tanstack/react-router';
 import { useContext, useState } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import type { Overview, RunControl } from '../../hooks/useRun';
-import { useUnlocked } from '../../hooks/useUnlocked';
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
 import { DeckSummary } from '../DeckList';
 import { DeckMenu, DeckOption } from './DeckMenu';
@@ -13,8 +13,6 @@ import { CatalogContext } from '../InspectContext';
 import { EnergyIcon } from '../EnergyIcon';
 
 type RunTypeInfo = Overview['runTypes'][number];
-
-const typeName = (t: string) => t[0]!.toUpperCase() + t.slice(1);
 
 /** A boss's overworld sprite from the remake of their game (FireRed/LeafGreen for Kanto), drawn at 3× with crisp pixels. */
 function BossSprite({ id, scale = 3 }: { id: BossId; scale?: number }) {
@@ -98,9 +96,8 @@ function RunTypeOption({ info, selected, onPick }: { info: RunTypeInfo; selected
  */
 export function NewRunPicker({ overview: given, run, title, defaultType }: { overview: Overview; run: RunControl; title: string; defaultType?: RunTypeId }) {
   // Debug mode unlocks every run type (started with debugStart); `debugLocked`: the ones that were locked.
-  // The catalog (for the decks' headline Pokémon) and which cards are unlocked.
+  // The catalog (the deck menu waits for it).
   const byId = useContext(CatalogContext);
-  const { isLocked } = useUnlocked();
   const debug = useDebugEnabled();
   const unlockAll = DEBUG_BUILD && debug;
   const debugLocked = new Set(unlockAll ? given.runTypes.filter((t) => t.locked !== null).map((t) => t.id) : []);
@@ -171,8 +168,6 @@ export function NewRunPicker({ overview: given, run, title, defaultType }: { ove
               selected={deckId}
               onPick={(id) => id && setPicked(id)}
               decks={overview.decks.map((d) => ({ id: d.id, name: d.name, note: d.problems[0], entries: d.cards, disabled: d.problems.length > 0, locked: d.locked }))}
-              byId={byId}
-              isLocked={isLocked}
               compact={phone}
             />
             <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -183,7 +178,7 @@ export function NewRunPicker({ overview: given, run, title, defaultType }: { ove
               <ul role="radiogroup" aria-label="Favorite decks" className="grid gap-2 @lg:grid-cols-2 @3xl:grid-cols-3">
                 {favorites.map((d) => (
                   <DeckOption key={d.id} selected={deckId === d.id} onPick={() => setPicked(d.id)} name={d.name} disabled={d.problems.length > 0} locked={d.locked} note={d.problems[0]}>
-                    {d.problems.length === 0 && <DeckSummary entries={d.cards} byId={byId} isLocked={isLocked} compact={phone} />}
+                    {d.problems.length === 0 && <DeckSummary entries={d.cards} compact={phone} />}
                   </DeckOption>
                 ))}
               </ul>

@@ -12,14 +12,15 @@
 // opponent's choice; Retro Energy asks whether to use it.
 import { isBasicEnergy, isPokemonCard, isTrainerCard, lookupCard, type Attack, type EnergyType } from '../cards.js';
 import type { InPlayPokemon, PlayerState, Target } from '../engine.js';
-import { powerActive } from '../powers.js';
+import { pokemonAt, powerActive } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { addLog, effectId, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { swapActive, targetsOf, type EnergyEffect, type TrainerEffect, type TrainerSituation } from '../trainers.js';
+import { targetOf } from './common.js';
 import { powerEffect, trainerEffect } from './index.js';
 import { tool } from './neo1-trainers.js';
 
-const at = (side: Pick<PlayerState, 'active' | 'bench'>, t: Target) => (t === 'active' ? side.active : side.bench[t])!;
+const at = (side: Pick<PlayerState, 'active' | 'bench'>, t: Target) => pokemonAt(side, t)!;
 const isBasic = (cards: TrainerSituation['cards'], c: { defId: string }) => isBasicEnergy(lookupCard(cards, c.defId));
 const attack = (name: string, cost: EnergyType[], damage: number, damageText: string | null, text: string): Attack => ({ name, cost, damage, damageText, text });
 
@@ -237,9 +238,6 @@ export const ECARD3_TRAINERS: Record<string, TrainerEffect> = {
     },
   },
 };
-
-/** Where a Pokémon of the player's is. */
-const targetOf = (owner: PlayerState, p: InPlayPokemon): Target => (owner.active === p ? 'active' : owner.bench.indexOf(p));
 
 /** Skyridge's special Energy (see the header). Bounce Energy provides 2 Colorless Energy (apps/api/src/cards.ts). */
 export const ECARD3_ENERGY: Record<string, EnergyEffect> = {

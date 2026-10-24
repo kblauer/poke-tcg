@@ -21,12 +21,10 @@ import { CPU_ID, HUMAN_ID } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { ensureUser, type AuthUser } from './auth.js';
 import { loadCardLibrary } from './cards.js';
+import { actionRows, asJson, newSeed } from './games.js';
 import { runPool } from './pool.js';
 import { earnedPacks, unlockPacks } from './progress.js';
 import { unlockCards } from './unlocks.js';
-
-const asJson = (value: unknown) => value as Prisma.InputJsonValue;
-const newSeed = () => Math.floor(Math.random() * 2 ** 31);
 
 export type LoadedRun = Omit<Run, 'state'> & { state: RunState };
 const loaded = (run: Run): LoadedRun => ({ ...run, state: run.state as unknown as RunState });
@@ -36,6 +34,22 @@ export const STARTER_DECK_NAME = 'Starter deck';
 export const RUN_DECK_NAME = 'Current run';
 
 type Db = Prisma.TransactionClient | typeof prisma;
+
+/**
+ * Locks the account's user row until the transaction ends, so two requests for the same account at once (two tabs, a
+ * double click) can't both pass a check that the other's write would fail: a second starter deck, a second active run.
+ */
+export const lockUser = (tx: Prisma.TransactionClient, userId: string) => tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId}::uuid FOR UPDATE`;
+
+/**
+ * Takes one of the account's `itemId` (`spend`: the quantity goes down by 1; otherwise it's only checked for): true if
+ * they had one. Atomic, so two uses at once can't both take the last one.
+ */
+export async function takeItem(userId: string, itemId: string, spend: boolean, db: Db = prisma): Promise<boolean> {
+  if (!spend) return !!(await db.inventoryItem.findFirst({ where: { userId, itemId, quantity: { gte: 1 } }, select: { itemId: true } }));
+  const { count } = await db.inventoryItem.updateMany({ where: { userId, itemId, quantity: { gte: 1 } }, data: { quantity: { decrement: 1 } } });
+  return count > 0;
+}
 
 /**
  * Makes the account's automatic run deck (`Deck.runId`) a copy of this run's deck: the deck the account has (left over
@@ -61,22 +75,27 @@ const statusOf = (state: RunState) => (state.phase === 'won' ? 'WON' : state.pha
  */
 export async function ensureAccount(user: AuthUser) {
   await ensureUser(user);
-  const [runs, unlocks] = await Promise.all([prisma.run.count({ where: { ownerId: user.id } }), prisma.cardUnlock.count({ where: { userId: user.id } })]);
-  if (runs && unlocks) return;
-  if (!(await prisma.deck.findFirst({ where: { ownerId: user.id, name: STARTER_DECK_NAME } }))) {
-    await prisma.deck.create({
-      data: { ownerId: user.id, name: STARTER_DECK_NAME, cards: { create: STARTER_DECK.map(([cardId, quantity]) => ({ cardId, quantity })) } },
-    });
-  }
-  if (!unlocks) await unlockCards(user.id, STARTER_DECK.map(([cardId]) => cardId));
-  if (!runs) await createRunRow(user.id, FIRST_RUN, expandDeck(STARTER_DECK), STARTER_DECK_NAME);
+  // In one transaction with the user row locked: a new account's first two requests at once would each make a starter deck and a run.
+  await prisma.$transaction(async (tx) => {
+    await lockUser(tx, user.id);
+    const runs = await tx.run.count({ where: { ownerId: user.id } });
+    const unlocks = await tx.cardUnlock.count({ where: { userId: user.id } });
+    if (runs && unlocks) return;
+    if (!(await tx.deck.findFirst({ where: { ownerId: user.id, name: STARTER_DECK_NAME } }))) {
+      await tx.deck.create({
+        data: { ownerId: user.id, name: STARTER_DECK_NAME, cards: { create: STARTER_DECK.map(([cardId, quantity]) => ({ cardId, quantity })) } },
+      });
+    }
+    if (!unlocks) await unlockCards(user.id, STARTER_DECK.map(([cardId]) => cardId), tx);
+    if (!runs) await createRunRow(user.id, FIRST_RUN, expandDeck(STARTER_DECK), STARTER_DECK_NAME, tx);
+  });
 }
 
-async function createRunRow(ownerId: string, type: RunTypeId, deck: string[], deckName: string) {
+async function createRunRow(ownerId: string, type: RunTypeId, deck: string[], deckName: string, db: Db = prisma) {
   const seed = newSeed();
   const state = createRun(type, deck, seed, deckName);
-  const run = await prisma.run.create({ data: { ownerId, type, seed, state: asJson(state), version: state.version } });
-  await syncRunDeck(ownerId, run.id, state.deck);
+  const run = await db.run.create({ data: { ownerId, type, seed, state: asJson(state), version: state.version } });
+  await syncRunDeck(ownerId, run.id, state.deck, db);
   return run;
 }
 
@@ -116,7 +135,8 @@ export async function advanceRun(run: LoadedRun, actions: (RunAction | RunSystem
   if (needsBattle(state)) {
     gameId = await startBattle(run, state, gear);
     const started = applyRunAction(state, { type: 'BATTLE_STARTED', gameId }, pool, gear);
-    if (!started.ok) throw new Error(started.error);
+    // The run just asked for the battle, so this can't fail: a server-side inconsistency if it does.
+    if (!started.ok) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: started.error });
     state = started.state;
   }
 
@@ -185,7 +205,7 @@ async function startBattle(run: LoadedRun, state: RunState, gear: string[]): Pro
       ...(cosmetics && { cosmetics }),
       state: asJson(game),
       version: game.version,
-      actions: { create: actions.map((action: GameAction, i) => ({ playerId: CPU_ID, version: game.version - actions.length + i + 1, action: asJson(action) })) },
+      actions: { create: actionRows(actions.map((action) => ({ playerId: CPU_ID, action })), game.version) },
     },
     select: { id: true },
   });
@@ -194,22 +214,40 @@ async function startBattle(run: LoadedRun, state: RunState, gear: string[]): Pro
 
 /** Ends a battle the run has left (with an Escape Rope) by conceding it, so it can't be played on. */
 export async function abandonBattle(gameId: string) {
-  const game = await prisma.game.findUnique({ where: { id: gameId } });
-  if (!game || game.status === 'FINISHED') return;
-  const action: GameAction = { type: 'CONCEDE' };
-  const result = applyAction(game.state as unknown as GameState, HUMAN_ID, action);
-  if (!result.ok) return;
-  const next = result.state;
-  await saveGameState({
-    gameId,
-    expectedVersion: game.version,
-    state: next,
-    version: next.version,
-    status: 'FINISHED',
-    winner: next.winner,
-    actions: [{ playerId: HUMAN_ID, version: next.version, action: asJson(action) }],
-  });
+  // Tried again if the game moved on meanwhile (an action of the player's in another tab), so no active game is left behind.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const game = await prisma.game.findUnique({ where: { id: gameId } });
+    if (!game || game.status === 'FINISHED') return;
+    const action: GameAction = { type: 'CONCEDE' };
+    const result = applyAction(game.state as unknown as GameState, HUMAN_ID, action);
+    if (!result.ok) return;
+    const next = result.state;
+    const saved = await saveGameState({
+      gameId,
+      expectedVersion: game.version,
+      state: next,
+      version: next.version,
+      status: 'FINISHED',
+      winner: next.winner,
+      actions: actionRows([{ playerId: HUMAN_ID, action }], next.version),
+    });
+    if (saved) return;
+  }
+  throw new TRPCError({ code: 'CONFLICT', message: 'Game state changed, refresh and retry' });
 }
+
+/**
+ * The run's BATTLE_OVER for a finished game: won when the player is its winner, `conceded` when any of the player's
+ * action rows is a CONCEDE (`concedes`: how many), `skipped` for the debug skip; the flags only when they're on, as
+ * the run's reducer keys on their presence.
+ */
+export const battleOverAction = (gameId: string, winner: string | null, concedes: number, skipped: boolean): RunSystemAction => ({
+  type: 'BATTLE_OVER',
+  gameId,
+  won: winner === HUMAN_ID,
+  ...(concedes > 0 && { conceded: true }),
+  ...(skipped && { skipped }),
+});
 
 /**
  * If the run's battle has finished, records the result (a win, or a loss and 1 HP), and whether the player conceded
@@ -220,9 +258,9 @@ export async function settleBattle(run: LoadedRun, skipped = false): Promise<Loa
   if (!gameId) return run;
   const game = await prisma.game.findUnique({ where: { id: gameId }, select: { status: true, winner: true } });
   if (!game || game.status !== 'FINISHED') return run;
-  const conceded = (await prisma.gameAction.count({ where: { gameId, playerId: HUMAN_ID, action: { path: ['type'], equals: 'CONCEDE' } } })) > 0;
+  const concedes = await prisma.gameAction.count({ where: { gameId, playerId: HUMAN_ID, action: { path: ['type'], equals: 'CONCEDE' } } });
   try {
-    return await advanceRun(run, [{ type: 'BATTLE_OVER', gameId, won: game.winner === HUMAN_ID, ...(conceded && { conceded }), ...(skipped && { skipped }) }]);
+    return await advanceRun(run, [battleOverAction(gameId, game.winner, concedes, skipped)]);
   } catch (error) {
     // Settled by another request first: reload.
     if (error instanceof TRPCError && error.code === 'CONFLICT') return loaded((await prisma.run.findUniqueOrThrow({ where: { id: run.id } })));
@@ -238,6 +276,8 @@ export async function settleBattle(run: LoadedRun, skipped = false): Promise<Loa
  */
 export async function startRun(userId: string, type: RunTypeId, deck: { name: string; cards: string[] }) {
   return prisma.$transaction(async (tx) => {
+    // The lock makes the check below hold: two Start clicks at once would otherwise both see no active run and make one each.
+    await lockUser(tx, userId);
     if (await tx.run.count({ where: { ownerId: userId, status: 'ACTIVE' } })) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'Finish your current run first' });
     }

@@ -5,11 +5,12 @@
 // instead of 10 to a Defending Pokémon with a Lightning Rod marker, and 20 to each marked benched one, all
 // with Weakness and Resistance. Marill's Water Gun counts any Energy (the printed text names no type).
 // "Your opponent chooses" (Cat Punch, Rapid Spin, Fling): they pick the benched Pokémon once the attack is over.
-import { benchShielded, discardOptions, pokemonOn, targetsIn, typeName, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
-import { isBasicEnergy, lookupCard, type EnergyType } from '../cards.js';
+import { benchShielded, discardOptions, pokemonOn, targetsIn, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
+import { lookupCard, typeName, type EnergyType } from '../cards.js';
 import { energyPool, isEnergyCardOf, type InPlayPokemon, type Target } from '../engine.js';
 import { baseUid, clearOnLeavingActive, effectId, inPlayDef, pokemonName } from '../status.js';
 import {
+  basicEnergyOn,
   benchedSlots,
   benchSearch,
   discardToUse,
@@ -81,21 +82,18 @@ const headache: AttackEffect = {
 /** Any of the opponent's Pokémon in play. */
 const opponentTargets = (s: AttackSituation) => targetsIn(s.defender, s.opponentBench);
 
-/** Basic Energy cards attached to a Pokémon (Energy Control moves these; not a Buzzap'd Electrode). */
-const basicEnergyOn = (s: AttackSituation, p: InPlayPokemon) => p.energy.filter((e) => !e.provides && isBasicEnergy(lookupCard(s.cards, e.defId)));
-
 /** Mewtwo's Energy Control: on heads, move a basic Energy card from one of the opponent's Pokémon to another of theirs. */
 const energyControl: AttackEffect = {
   choices(s, c): ChoiceSpec[] {
     const targets = opponentTargets(s);
-    const from = targets.filter((t) => basicEnergyOn(s, pokemonOn(s.defender, s.opponentBench, t)!).length);
+    const from = targets.filter((t) => basicEnergyOn(s.cards, pokemonOn(s.defender, s.opponentBench, t)!).length);
     if (targets.length < 2 || !from.length) return [];
     const specs: ChoiceSpec[] = [{ kind: 'opponentPokemon', options: from, prompt: "Choose one of your opponent's Pokémon to move a basic Energy card from (on heads)" }];
     if (c.oppTarget === undefined) return specs;
     const source = pokemonOn(s.defender, s.opponentBench, c.oppTarget)!;
     return [
       ...specs,
-      { kind: 'pokemonEnergy', options: basicEnergyOn(s, source), prompt: 'Choose the basic Energy card to move' },
+      { kind: 'pokemonEnergy', options: basicEnergyOn(s.cards, source), prompt: 'Choose the basic Energy card to move' },
       { kind: 'opponentPokemonTo', options: targets.filter((t) => t !== c.oppTarget), prompt: "Choose another of your opponent's Pokémon to attach it to" },
     ];
   },

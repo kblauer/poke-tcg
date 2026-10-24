@@ -4,7 +4,9 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import type { LogEntry, PlayerId, PlayerView } from '@poke-tcg/game-engine';
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useEscape } from '../hooks/useEscape';
 import { useSkipFlips } from '../hooks/useSkipFlips';
+import { ICON_BUTTON as iconButton } from '../utils/styles';
 import { GameLog } from './GameLog';
 import { MusicControls } from './MusicPlayer';
 import { OptionsPanel } from './OptionsPanel';
@@ -54,8 +56,6 @@ function panelTabs(logTitle: string, run: boolean, debug: boolean): { id: Tab; l
   ];
 }
 
-const iconButton = 'flex h-7 w-7 items-center justify-center rounded text-slate-400 transition hover:bg-slate-700 hover:text-slate-100';
-
 /**
  * The phone layout's version of the panel, opened by its round ☰ button: the same tabs, filling the screen, with
  * `actions` (Concede) along the bottom and a button to close it. It remembers the panel's tab (the same preferences).
@@ -87,11 +87,7 @@ export function LogSheet({
   useEffect(() => savePrefs(prefs), [prefs]);
   const tabs = panelTabs(logTitle, !!run, !!debug);
   const tab = tabs.some((t) => t.id === prefs.tab) ? prefs.tab : 'log';
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  useEscape(onClose);
   // In the page body, outside the board, which is locked against scrolling (touch-none): the log scrolls.
   return createPortal(
     <div data-keep-action role="dialog" aria-label="Menu" className="fixed inset-0 z-[1000] flex flex-col bg-slate-900 p-3 text-slate-100">

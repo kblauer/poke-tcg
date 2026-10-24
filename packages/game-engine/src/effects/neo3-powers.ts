@@ -24,10 +24,8 @@ import { isEnergyCardOf, type Target } from '../engine.js';
 import { ownTargets, pokemonAt, type PowerChoiceSpec, type PowerEffect, type PowerSituation } from '../powers.js';
 import { addLog, inPlayDef, pokemonName } from '../status.js';
 import { swapActive, type PendingChoice } from '../trainers.js';
+import { targetOf } from './common.js';
 import { TYPES } from './si1.js';
-
-/** The Pokémon's target among its owner's Pokémon in play. */
-const targetOf = (owner: { active: unknown; bench: unknown[] }, pokemon: unknown): Target | -1 => (owner.active === pokemon ? 'active' : owner.bench.indexOf(pokemon));
 
 /** Electromagnetic Power: the player's Magnemites, Magnetons and Dark Magnetons. */
 const MAGNETS = ['Magnemite', 'Magneton', 'Dark Magneton'];

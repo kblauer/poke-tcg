@@ -14,15 +14,13 @@
 // Hidden Power of its player's, flipping once per attack; [Zoom] makes an Unown's retreat cost 0. Unown G, H, L, P, Q, S, T and
 // W's powers work while Asleep, Confused or Paralyzed, as printed; [Perform] only matters while Unown P can attack.
 import { lookupCard } from '../cards.js';
-import { activeLock, type Target } from '../engine.js';
+import { activeLock, afflictionBlocked, opponentOf, type Target } from '../engine.js';
 import { discardsLocked, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { addLog, inPlayDef, pokemonName } from '../status.js';
 import { pokemonTower, swapActive, type PendingChoice } from '../trainers.js';
 import { trainerEffect } from './index.js';
-
-/** The Pokémon's target among its owner's Pokémon in play. */
-const targetOf = (owner: { active: unknown; bench: unknown[] }, pokemon: unknown): Target | -1 => (owner.active === pokemon ? 'active' : owner.bench.indexOf(pokemon));
+import { targetOf } from './common.js';
 
 /** Whether every one of the Unown `letters` is on the player's Bench ([Give], [Help], [Want]). */
 const unownOnBench = (s: Pick<PowerSituation, 'me' | 'cards'>, letters: string) => {
@@ -90,7 +88,7 @@ export const NEO4_POWERS: Record<string, PowerEffect> = {
   // Light Togetic – Gift: when played from the hand, the opponent, then you, may take a Pokémon Tool card from the deck (shown).
   'neo4-15': {
     onPlayFromHand(state, owner) {
-      const opponent = state.playerOrder.find((id) => id !== owner.id)!;
+      const opponent = opponentOf(state, owner.id);
       state.pendingChoice = { player: opponent, source: 'Gift', kind: 'pickFromDeck', filter: 'tool', optional: true, reveal: true, thenSame: owner.id };
     },
   },
@@ -130,7 +128,8 @@ export const NEO4_POWERS: Record<string, PowerEffect> = {
     text: "During your opponent's turn, if Light Piloswine is your Active Pokémon and is damaged by your opponent's attack (even if it's Knocked Out), flip a coin. If heads, the attacking Pokémon is now Asleep. This power stops working if Light Piloswine is already Asleep, Confused, or Paralyzed when your opponent attacks.",
     onAttackDamage(ctx, piloswine) {
       if (ctx.opp.active !== piloswine || !ctx.oppFlip()) return;
-      if (ctx.attacker.effects?.flashTouch) return ctx.log(`${ctx.attackerDef.name} can't be affected by Special Conditions.`);
+      const blocked = afflictionBlocked(ctx.state, ctx.me.id, ctx.attacker, 'asleep');
+      if (blocked) return ctx.log(blocked);
       ctx.attacker.condition = 'asleep';
       delete ctx.attacker.paralyzedTurn;
       ctx.log(`Fluffy Wool: ${ctx.attackerDef.name} is now Asleep.`);

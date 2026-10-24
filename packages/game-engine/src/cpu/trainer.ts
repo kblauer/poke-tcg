@@ -13,6 +13,7 @@ import {
   hpLeft,
   keepsBestAttack,
   play,
+  professorOak,
   resolveSearch,
   borrowedTrainerMove,
   spareEnergy,
@@ -22,6 +23,7 @@ import {
   trainer,
   tryAction,
   turnOf,
+  withAttackMemo,
   type AttackOption,
   type Turn,
 } from './shared.js';
@@ -47,6 +49,10 @@ import { bestMove, plainEnergy, specialAttachment, type Allowed } from './evalua
  * look for the cheapest Knock Out. After a Knock Out it promotes the Pokémon with the most HP left.
  */
 export function trainerCpu(state: GameState, cpuId: PlayerId): GameAction | null {
+  return withAttackMemo(() => decide(state, cpuId));
+}
+
+function decide(state: GameState, cpuId: PlayerId): GameAction | null {
   const cpu = state.players[cpuId];
   if (!cpu) throw new Error(`Unknown CPU player ${cpuId}`);
 
@@ -120,11 +126,6 @@ function attachEnergy(t: Turn): GameAction | null {
   const pick = attachTarget(t, energyInHand(t).filter((c) => plainEnergy(t, c)), () => true);
   const action: GameAction | null = pick && { type: 'ATTACH_ENERGY', cardUid: pick.card.uid, target: pick.target };
   return specialAttachment(t, action && tryAction(t.state, t.id, action) ? action : null, (key) => TRAINER_CPU_ENERGY.has(key));
-}
-
-function professorOak(t: Turn): GameAction | null {
-  const oak = trainer(t, 'professoroak');
-  return oak && t.me.hand.length - 1 <= 2 && t.me.deck.length > 7 ? play(t, oak) : null;
 }
 
 /** Only the Active Pokémon gets healed. */

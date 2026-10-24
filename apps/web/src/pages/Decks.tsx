@@ -3,7 +3,7 @@ import ViewListIcon from '@mui/icons-material/ViewList';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { DECK_SIZE } from '@poke-tcg/shared';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { CardGrid } from '../components/CardGrid';
 import { CardInspector } from '../components/CardInspector';
 import { DeckFilters } from '../components/DeckFilters';
@@ -22,8 +22,7 @@ import { isVersion, setGroups, type CatalogCard } from '../utils/cardList';
 import { EMPTY_DECK_FILTER, LOCKED_DECK_PROBLEM, cantAdd, changeCount, deckSize, filterForDeck, hasLockedCards, lockedWarning, problemsOf, sortForDeck, type DeckEntry, type DeckFilter, type DeckSort } from '../utils/deckBuilder';
 import { preloadHolos } from '../utils/holoPreload';
 import { PAGE_WIDTH } from '../utils/layout';
-
-const button = 'rounded px-3 py-1 text-sm disabled:opacity-40';
+import { PAGE_BUTTON as button } from '../utils/styles';
 
 /** localStorage: the decks pane's width on a big screen, in px (dragged by its handle; agreed 2026-10-23). */
 const PANE_KEY = 'poke-tcg.deck-pane';
@@ -227,7 +226,10 @@ export function DecksPage() {
   const sets = useMemo(() => (catalog.data ? setGroups(catalog.data) : []), [catalog.data]);
   // Holo Energy and reverse holos (versions of other cards, agreed with the user) only show once they've been gained.
   const searchable = useMemo(() => (catalog.data ?? []).filter((c) => !isVersion(c) || copies(c.id) > 0), [catalog.data, copies]);
-  const results = useMemo(() => sortForDeck(filterForDeck(searchable, filter, isLocked, favorites.isFavorite), sort), [searchable, filter, sort, isLocked, favorites.isFavorite]);
+  // The grid follows the filters a beat behind the typing (useDeferredValue): a keystroke shows at once, the whole catalog's
+  // filtering, sorting and re-rendering comes after it rather than holding it up.
+  const shownFilter = useDeferredValue(filter);
+  const results = useMemo(() => sortForDeck(filterForDeck(searchable, shownFilter, isLocked, favorites.isFavorite), sort), [searchable, shownFilter, sort, isLocked, favorites.isFavorite]);
   // The numbers of cards shown and in all: holo Energy and reverse holos are never counted (they're versions of other cards).
   const shownCount = useMemo(() => results.filter((c) => !isVersion(c)).length, [results]);
   const totalCount = useMemo(() => (catalog.data ?? []).filter((c) => !isVersion(c)).length, [catalog.data]);
@@ -282,7 +284,7 @@ export function DecksPage() {
     setDirty(true);
   }
 
-  if (catalog.error) return <p className={`${PAGE_WIDTH} text-red-400`}>{catalog.error.message}</p>;
+  if (catalog.error && !catalog.data) return <p className={`${PAGE_WIDTH} text-red-400`}>{catalog.error.message}</p>;
   if (!catalog.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading cards…</p>;
 
   // The rules' problems (all a deck needs to be published), then its locked cards'.
@@ -307,8 +309,6 @@ export function DecksPage() {
       {decks.data ? (
         <DeckList
           decks={decks.data}
-          byId={byId}
-          isLocked={isLocked}
           onOpen={(id) => open(id)}
           onNew={() => open(null)}
           onCopy={(id) => duplicate.mutate({ deckId: id })}
@@ -337,7 +337,7 @@ export function DecksPage() {
           setName(newName);
           setDirty(true);
         }}
-        entries={entries} ready={problems.length === 0} byId={byId} isLocked={isLocked} onBack={() => close()} />
+        entries={entries} ready={problems.length === 0} onBack={() => close()} />
       <div className={`space-y-2 rounded-lg bg-slate-900 ${phone ? 'p-2' : 'p-3'}`}>
         {readOnly ? (
           <div className="flex flex-wrap items-center gap-2">

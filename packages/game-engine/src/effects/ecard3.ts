@@ -12,12 +12,12 @@
 // opponent's Prize cards left when the attack is used; Retro Cave's and Healing Oasis's Pokémon are asked only when that
 // count is exactly 2 (`AttackSituation.opponentPrizes`).
 import { pokemonOn, targetsIn, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
-import { isBasicEnergy, lookupCard } from '../cards.js';
+import { isBasicEnergy, lookupCard, namesMatch } from '../cards.js';
 import { energyPool, isEnergyCardOf, retreatCost, type InPlayPokemon, type Target } from '../engine.js';
 import type { EnergyType } from '../cards.js';
 import { shuffle } from '../rng.js';
 import { inPlayDef, pokemonName } from '../status.js';
-import { benchedSlots, benchSearch, extraEnergy, flipToInflict, flipToProtect, headsUntilTails, inflicts, lure, opponentBenchChoice, opponentSwitches, perHeads, recoil, selfdestruct, whirlwind } from './common.js';
+import { benchedSlots, benchSearch, energyCanMove, extraEnergy, flipToInflict, flipToProtect, headsUntilTails, inflicts, inPlay, lure, opponentBenchChoice, opponentSwitches, perHeads, recoil, same, selfdestruct, whirlwind } from './common.js';
 import { ECARD1, basicEnergyOn, energyCards, plasma, putCounters, typedCards } from './ecard1.js';
 import { ECARD2 } from './ecard2.js';
 import { benchMany, benchWhere, discardFromAttacker, noRetreat, removalFlip } from './gym1.js';
@@ -35,16 +35,6 @@ const baseOr = (damage: number, alt: number, alternative: (ctx: AttackContext) =
     if (other) ctx.log(`The attack's base damage is ${alt}.`);
     ctx.hit(other ? alt : damage);
   },
-});
-
-/**
- * Another set's attack effect, looked up when it's used (the tables import each other through effects/index.ts, so they
- * can't be read while the modules load).
- */
-const same = (get: () => AttackEffect | undefined): AttackEffect => ({
-  blocked: (s) => get()?.blocked?.(s) ?? null,
-  choices: (s, c) => get()?.choices?.(s, c) ?? [],
-  run: (ctx) => get()?.run(ctx),
 });
 
 /** "Flip a coin. If heads, the Defending Pokémon is now X. If tails, … Y" (heads first). */
@@ -101,7 +91,7 @@ const energyTrick = (damage: number, basicOnly: boolean): AttackEffect => ({
     ctx.affectDefender(() => {
       const defender = ctx.opp.active!;
       const energy = defender.energy.find((e) => e.uid === uid);
-      if (!energy) return;
+      if (!energy || !energyCanMove(ctx, defender)) return;
       defender.energy = defender.energy.filter((e) => e !== energy);
       to.energy.push(energy);
       ctx.log(`Moved ${lookupCard(ctx.state.cards, energy.defId).name} from ${pokemonName(ctx.state, defender)} to ${pokemonName(ctx.state, to)}.`, ctx.opp.id);
@@ -133,9 +123,6 @@ function selfCounters(ctx: AttackContext, n: number) {
   ctx.attacker.damage += 10 * n;
   ctx.log(`Put ${n} damage counter${n === 1 ? '' : 's'} on ${ctx.attackerDef.name}.`);
 }
-
-/** The attacking player's Pokémon in play. */
-const ownInPlay = (ctx: AttackContext) => [ctx.me.active, ...ctx.me.bench].filter((p): p is InPlayPokemon => !!p);
 
 export const ECARD3: Record<string, Record<string, AttackEffect>> = {
   // Aerodactyl – Rising Lunge.
@@ -454,7 +441,7 @@ export const ECARD3: Record<string, Record<string, AttackEffect>> = {
     'Do the Wave': {
       run(ctx) {
         if (!ctx.flip()) return ctx.log('Do the Wave did nothing.');
-        ctx.hit(10 * ownInPlay(ctx).length);
+        ctx.hit(10 * inPlay(ctx.me).length);
       },
     },
   },
@@ -482,7 +469,7 @@ export const ECARD3: Record<string, Record<string, AttackEffect>> = {
   // Misdreavus – Hypnoblast; Gift of Spite: a damage counter on the Defending Pokémon for each of the player's damaged Pokémon.
   'ecard3-39': {
     Hypnoblast: flipToInflict(10, 'asleep'),
-    'Gift of Spite': { run: (ctx) => putCounters(ctx, 'active', ownInPlay(ctx).filter((p) => p.damage > 0).length) },
+    'Gift of Spite': { run: (ctx) => putCounters(ctx, 'active', inPlay(ctx.me).filter((p) => p.damage > 0).length) },
   },
   // Noctowl – Triple Smash.
   'ecard3-40': { 'Triple Smash': { run: (ctx) => void ctx.hit(10 + 10 * ctx.flips(3)) } },
@@ -491,7 +478,7 @@ export const ECARD3: Record<string, Record<string, AttackEffect>> = {
     'Water of Evolution': {
       run(ctx) {
         if (ctx.me.active !== ctx.attacker) return;
-        if (!ctx.me.hand.some((c) => lookupCard(ctx.state.cards, c.defId).name === 'Omastar')) return ctx.log('Water of Evolution: no Omastar in the hand.');
+        if (!ctx.me.hand.some((c) => namesMatch(lookupCard(ctx.state.cards, c.defId).name, 'Omastar'))) return ctx.log('Water of Evolution: no Omastar in the hand.');
         ctx.pend({ kind: 'evolveFromHand', source: 'Water of Evolution', target: 'active', names: ['Omastar'] });
       },
     },
@@ -803,7 +790,7 @@ export const ECARD3: Record<string, Record<string, AttackEffect>> = {
     'Healing Dust': {
       run(ctx) {
         const heads = ctx.flips(2);
-        for (const p of ownInPlay(ctx)) healUpTo(ctx, ctx.me, p, 10 * heads);
+        for (const p of inPlay(ctx.me)) healUpTo(ctx, ctx.me, p, 10 * heads);
       },
     },
     'Miracle Powder': {
@@ -954,7 +941,7 @@ export const ECARD3: Record<string, Record<string, AttackEffect>> = {
     'Empathic Healing': {
       run(ctx) {
         const type = ctx.attackerDef.type;
-        for (const p of ownInPlay(ctx)) if (p === ctx.attacker || inPlayDef(ctx.state.cards, p).type === type) healUpTo(ctx, ctx.me, p, 20);
+        for (const p of inPlay(ctx.me)) if (p === ctx.attacker || inPlayDef(ctx.state.cards, p).type === type) healUpTo(ctx, ctx.me, p, 20);
       },
     },
     'Mind Bend': flipToInflict(20, 'confused'),

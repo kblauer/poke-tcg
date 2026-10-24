@@ -2,8 +2,7 @@
 // Kanto ones come from FireRed: each drawn with its tilesets (emerald_map.py), 16 px to a tile, with which tiles can be
 // walked on from the map data, its tall grass, and 10 spots along the walk. Every map uses Emerald's overworld sprites
 // (`sprites: 'rse'`). Written by tools/routes/emerald/hoenn_maps.py.
-import { SWIMMERS } from './kanto-routes.js';
-import type { Route } from './routes.js';
+import { SWIMMERS, type Route } from './routes.js';
 
 /** The trainers on the Seaside Cycling Road (Route 110, the Mauville City run): its Triathletes, as Emerald has them. */
 export const TRIATHLETES = ['Triathlete Abigail', 'Triathlete Alyssa', 'Triathlete Anthony', 'Triathlete Benjamin', 'Triathlete Jacob', 'Triathlete Jasmine'];

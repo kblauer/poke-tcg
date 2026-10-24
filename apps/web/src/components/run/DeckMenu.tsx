@@ -1,7 +1,7 @@
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import type { CatalogCard } from '../../utils/cardList';
+import { useEscape } from '../../hooks/useEscape';
 import { deckSize, type DeckEntry } from '../../utils/deckBuilder';
 import { DeckTile, LOCKED_TAG } from '../DeckList';
 
@@ -27,15 +27,11 @@ export function DeckMenu({
   decks,
   selected,
   onPick,
-  byId,
-  isLocked,
   compact,
 }: {
   decks: MenuDeck[];
   selected: string | null;
   onPick: (id: string | null) => void;
-  byId: Map<string, CatalogCard>;
-  isLocked: (card: CatalogCard) => boolean;
   /** A phone: the list opens in place, below the deck picked. */
   compact: boolean;
 }) {
@@ -44,14 +40,10 @@ export function DeckMenu({
   useEffect(() => {
     if (!open) return;
     const close = (e: PointerEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
-    const escape = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
     document.addEventListener('pointerdown', close);
-    document.addEventListener('keydown', escape);
-    return () => {
-      document.removeEventListener('pointerdown', close);
-      document.removeEventListener('keydown', escape);
-    };
+    return () => document.removeEventListener('pointerdown', close);
   }, [open]);
+  useEscape(() => setOpen(false), open);
   // On a desktop the list floats over the page below the menu, or above it when there isn't room below (and there's more above).
   const [below, setBelow] = useState(false);
   const toggle = () => {
@@ -67,8 +59,6 @@ export function DeckMenu({
       size={deckSize(d.entries)}
       ready={!d.disabled}
       locked={d.locked}
-      byId={byId}
-      isLocked={isLocked}
       title={
         <span className="flex min-w-0 items-center gap-2">
           <span className="truncate text-base font-semibold">{d.name}</span>

@@ -3,13 +3,14 @@ import LockIcon from '@mui/icons-material/Lock';
 import RemoveIcon from '@mui/icons-material/Remove';
 import { RUN_TYPES, type CosmeticDef, type CosmeticKind } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { useEscape } from '../hooks/useEscape';
 import { useIsPhone } from '../hooks/useIsPhone';
-import { useUnlocked } from '../hooks/useUnlocked';
 import { useTRPC } from '../lib/trpc';
 import { cardBackUrl } from '../utils/cardBack';
+import { CHOICE_BUTTON, DIALOG, DIALOG_BACKDROP } from '../utils/styles';
 import { SpinningCoin } from './CoinFlip';
-import { foldText, type CatalogCard } from '../utils/cardList';
+import { foldText } from '../utils/cardList';
 import { CompactDeckTile, type SavedDeck } from './DeckList';
 import { Playmat } from './Playmat';
 
@@ -177,10 +178,6 @@ const KIND_NAMES: Record<CosmeticKind, string> = { cardBack: 'card back', playma
 function DeckAssign({ def, busy, onAssign }: { def: Assignable; busy: boolean; onAssign: (deckIds: string[], isDefault: boolean) => void }) {
   const trpc = useTRPC();
   const decks = useQuery(trpc.decks.list.queryOptions());
-  // The catalog only changes when the seed is re-run (as on the Collection tab).
-  const catalog = useQuery({ ...trpc.cards.list.queryOptions(), staleTime: Infinity });
-  const byId = useMemo(() => new Map((catalog.data ?? []).map((c) => [c.id, c])), [catalog.data]);
-  const { isLocked } = useUnlocked();
   const [open, setOpen] = useState(false);
   const own = (decks.data ?? []).filter((d) => !d.runDeck);
   return (
@@ -192,8 +189,6 @@ function DeckAssign({ def, busy, onAssign }: { def: Assignable; busy: boolean; o
         <AssignDialog
           def={def}
           decks={own}
-          byId={byId}
-          isLocked={isLocked}
           onSave={(deckIds, isDefault) => {
             setOpen(false);
             onAssign(deckIds, isDefault);
@@ -214,15 +209,11 @@ function DeckAssign({ def, busy, onAssign }: { def: Assignable; busy: boolean; o
 function AssignDialog({
   def,
   decks,
-  byId,
-  isLocked,
   onSave,
   onClose,
 }: {
   def: Assignable;
   decks: SavedDeck[];
-  byId: Map<string, CatalogCard>;
-  isLocked: (card: CatalogCard) => boolean;
   onSave: (deckIds: string[], isDefault: boolean) => void;
   onClose: () => void;
 }) {
@@ -231,11 +222,7 @@ function AssignDialog({
   const [picked, setPicked] = useState(() => new Set(def.deckIds));
   const [isDefault, setIsDefault] = useState(def.isDefault);
   const [search, setSearch] = useState('');
-  useEffect(() => {
-    const escape = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    document.addEventListener('keydown', escape);
-    return () => document.removeEventListener('keydown', escape);
-  }, [onClose]);
+  useEscape(onClose);
   /** The name of the deck's other cosmetic of this kind, which ticking it here replaces. */
   const otherOn = (deckId: string) => list.data?.cosmetics.find((c) => c.kind === def.kind && c.deckIds.includes(deckId) && !def.deckIds.includes(deckId))?.name;
   const shown = decks.filter((d) => foldText(d.name).includes(foldText(search.trim())));
@@ -243,8 +230,8 @@ function AssignDialog({
   // The built-in default stays the default until another is picked.
   const fixedDefault = def.isDefault && def.unlock.type === 'default';
   return (
-    <div className="fixed inset-0 z-[1050] flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div role="dialog" aria-label={`Assign ${def.name}`} className="flex max-h-[85dvh] w-full max-w-md flex-col gap-3 rounded-lg bg-slate-800 p-4 text-sm ring-1 ring-slate-600" onClick={(e) => e.stopPropagation()}>
+    <div className={`${DIALOG_BACKDROP} z-[1050]`} onClick={onClose}>
+      <div role="dialog" aria-label={`Assign ${def.name}`} className={`${DIALOG} flex max-h-[85dvh] w-full max-w-md flex-col gap-3 p-4 text-sm`} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h3 className="font-semibold">Assign {def.name}</h3>
           <button className="rounded px-2 text-slate-400 hover:bg-slate-700 hover:text-slate-100" onClick={onClose} aria-label="Close">
@@ -277,7 +264,7 @@ function AssignDialog({
                 <label className={`flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 transition hover:bg-slate-700 ${picked.has(d.id) ? 'bg-slate-700/60' : ''}`}>
                   <input type="checkbox" className="accent-yellow-300" checked={picked.has(d.id)} onChange={() => toggle(d.id)} />
                   <span className="min-w-0 flex-1">
-                    <CompactDeckTile entries={d.cards} name={d.name} byId={byId} isLocked={isLocked} />
+                    <CompactDeckTile entries={d.cards} name={d.name} />
                   </span>
                   {other && <span className="shrink-0 text-[11px] text-amber-300">replaces {other}</span>}
                 </label>
@@ -287,7 +274,7 @@ function AssignDialog({
           {!shown.length && <li className="px-2 py-1.5 text-xs text-slate-400">{decks.length ? 'No deck matches.' : 'No decks yet: make one on the Collection tab.'}</li>}
         </ul>
         <div className="flex justify-end gap-2">
-          <button className="rounded bg-slate-600 px-3 py-1 text-sm hover:bg-slate-500" onClick={onClose}>
+          <button className={CHOICE_BUTTON} onClick={onClose}>
             Cancel
           </button>
           <button className="rounded bg-emerald-600 px-3 py-1 text-sm font-semibold hover:bg-emerald-500" onClick={() => onSave([...picked], isDefault)}>

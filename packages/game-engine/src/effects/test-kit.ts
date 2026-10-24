@@ -2,6 +2,7 @@
 import type { CardLibrary, EnergyType, PokemonCardDef } from '../cards.js';
 import { applyAction, createGame, type AttackChoices, type GameAction, type GameState, type InPlayPokemon } from '../index.js';
 import { nextRandom } from '../rng.js';
+import { pendingChoiceView, resolveTrainerChoices, trainerSituation, type TrainerChoices } from '../trainers.js';
 
 // Base Set cards (the fields the engine uses), keyed by their real ids so the effects apply.
 /** Base Set Trainer card numbers and names (keyed in BY_NAME by lowercase letters only, e.g. 'pokemonbreeder'). */
@@ -615,4 +616,74 @@ export function give(state: GameState, player: string, ...names: string[]): stri
     state.players[player]!.hand.push(card);
     return card.uid;
   });
+}
+
+/**
+ * Every way to answer the pending choice, as RESOLVE_CHOICE actions: each option (the first few, when there are many)
+ * and nothing, where the question allows it, or only nothing when there's nothing to click.
+ */
+export function choiceAnswers(state: GameState): GameAction[] {
+  const view = pendingChoiceView(state, state.pendingChoice!);
+  const answer = (fields: Omit<Extract<GameAction, { type: 'RESOLVE_CHOICE' }>, 'type'> = {}): GameAction => ({ type: 'RESOLVE_CHOICE', ...fields });
+  switch (view.kind) {
+    case 'pickFromDeck':
+    case 'pickFromDiscard':
+    case 'pickFromHand':
+    case 'pickAttached':
+    case 'oppHand':
+      return [...view.options.slice(0, 3).map((c) => answer({ cardUid: c.uid })), answer()];
+    case 'ownPokemon':
+    case 'oppPokemon':
+      return [...view.options.slice(0, 3).map((t) => answer({ target: t })), answer()];
+    case 'arrangeTop':
+      return [answer({ order: view.cards.map((c) => c.uid) }), answer({ order: [...view.cards].reverse().map((c) => c.uid) })];
+    case 'challenge':
+      return [answer({ count: 1 }), answer({ count: 0 })];
+    case 'drawCount':
+      return [answer({ count: view.max }), answer({ count: 0 })];
+    case 'options':
+      return view.labels.map((_, i) => answer({ count: i }));
+  }
+}
+
+/**
+ * A choice always terminates: follows every legal answer to the pending choice (choiceAnswers), then from each question
+ * that leads to the last answer accepted (nothing, where it's allowed: a search for "any number" ends when the player
+ * stops), whoever they're for, and throws if a path is still asking after `steps` answers, or if no answer at all is
+ * accepted (the hangs fixed in #101: a held Active Pokémon's switchIn, Peal of Thunder). Returns the states reached with
+ * no choice left.
+ */
+export function settles(state: GameState, steps = 12): GameState[] {
+  const start = state.pendingChoice;
+  if (!start) throw new Error('Nothing is being asked');
+  const done: GameState[] = [];
+  const follow = (s: GameState, depth: number) => {
+    const pending = s.pendingChoice;
+    if (!pending) return void done.push(s);
+    if (depth >= steps) throw new Error(`${start.source}: still asking (${pending.source}: ${pending.kind}) after ${steps} answers`);
+    const accepted = choiceAnswers(s).map((a) => applyAction(s, pending.player, a)).filter((r) => r.ok);
+    if (!accepted.length) throw new Error(`${pending.source} (${pending.kind}): no answer is accepted`);
+    for (const r of accepted.slice(depth ? -1 : 0)) if (r.ok) follow(r.state, depth + 1);
+  };
+  follow(state, 0);
+  return done;
+}
+
+/** Plays a Trainer card with the first answer to each of its questions (the most cards where it asks for some). Throws if it can't be played. */
+export function playAuto(state: GameState, player: string, cardUid: string): GameState {
+  const me = state.players[player]!;
+  const opp = state.players[state.playerOrder.find((p) => p !== player)!]!;
+  const card = me.hand.find((c) => c.uid === cardUid);
+  if (!card) throw new Error(`${cardUid} isn't in ${player}'s hand`);
+  const situation = trainerSituation(state, me, opp, card);
+  let choices: TrainerChoices = {};
+  for (let guard = 0; guard < 10; guard++) {
+    const result = resolveTrainerChoices(situation, choices);
+    if ('choices' in result) return act(state, player, { type: 'PLAY_TRAINER', cardUid, choices: result.choices });
+    if (!result.need) throw new Error(result.error);
+    const spec = result.need;
+    const value = spec.kind === 'cards' ? spec.options.slice(0, Math.min(spec.max, spec.options.length)).map((c) => c.uid) : spec.options[0];
+    choices = { ...choices, [spec.field]: value } as TrainerChoices;
+  }
+  throw new Error(`${card.defId}: its questions never end`);
 }

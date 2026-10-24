@@ -1,10 +1,8 @@
 import { lookupCard, typeName, type PeekTarget, type PlayerView } from '@poke-tcg/game-engine';
 import { Card } from './Card';
 import type { PowerControl } from '../hooks/usePower';
+import { OPTION_BUTTON as option } from '../utils/styles';
 import { pickHint } from './AttackChoicePanel';
-
-// Styled like the Trainer dialog: buttons one shade lighter than the panel.
-const option = 'rounded bg-slate-600 px-2 py-1 text-left text-xs transition hover:bg-slate-500 active:scale-95';
 
 /**
  * The active Pokémon's Power button under its attacks, or the current question while any power

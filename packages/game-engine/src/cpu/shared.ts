@@ -4,7 +4,7 @@
 // effects decide what an attack does.
 import { answerChoice, attackError, attackSituation, performAttack, resolveChoices, situationAttacks, traceDamage, type AttackChoices, type AttackSituation, type ChoiceSpec } from '../attacks.js';
 import { isBasicEnergy, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from '../cards.js';
-import { applyAction, energyPool, energyProvided, payCost, type PoolEnergy, evolveError, opponentOf, retreatCost, retreatError, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
+import { applyAction, cloneState, energyPool, energyProvided, payCost, type PoolEnergy, evolveError, opponentOf, retreatCost, retreatError, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
 import { nextRandom } from '../rng.js';
 import { inPlayDef, openBenchSlot } from '../status.js';
 import { pendingChoiceView, type TrainerChoices } from '../trainers.js';
@@ -63,13 +63,13 @@ const provides = (cards: CardLibrary, card: CardInstance): PoolEnergy[] => {
 const poolWith = (cards: CardLibrary, p: InPlayPokemon, energy: CardInstance[]) => energyPool({ ...p, energy }, cards);
 
 /** Fewest Energy still missing for any of the Pokémon's attacks (Infinity with no attacks). */
-export function closeness(cards: CardLibrary, p: InPlayPokemon, energy = p.energy): number {
+function closeness(cards: CardLibrary, p: InPlayPokemon, energy = p.energy): number {
   const pool = poolWith(cards, p, energy);
   return Math.min(...pokemonDef(cards, p).attacks.map((a) => missingEnergy(pool, a.cost)));
 }
 
 /** What attaching `card` does for `p`: whether it helps any attack, makes a new one payable, and how close it gets. */
-export function attachEffect(cards: CardLibrary, p: InPlayPokemon, card: CardInstance) {
+function attachEffect(cards: CardLibrary, p: InPlayPokemon, card: CardInstance) {
   const attacks = pokemonDef(cards, p).attacks;
   const before = energyPool(p, cards);
   const after = [...before, ...provides(cards, card)];
@@ -135,7 +135,7 @@ export function vitalEnergy(cards: CardLibrary, p: InPlayPokemon, n: number): Ca
  * Energy to discard to retreat: enough to pay `cost`, with no card more than needed (the engine's rule),
  * keeping what the Pokémon's attacks need most and basic Energy going before special Energy.
  */
-export function retreatPayment(cards: CardLibrary, p: InPlayPokemon, cost: number): CardInstance[] | null {
+function retreatPayment(cards: CardLibrary, p: InPlayPokemon, cost: number): CardInstance[] | null {
   if (cost === 0) return [];
   let best: { picked: CardInstance[]; score: number } | null = null;
   for (let n = 1; n <= Math.min(cost, p.energy.length); n++) {
@@ -169,7 +169,7 @@ export const SEEDS: number[] = Array.from({ length: 8 }, (_, pattern) => {
 });
 
 /** A copy to try things on. The log isn't needed for that. */
-const scratch = (state: GameState): GameState => structuredClone({ ...state, log: [] });
+const scratch = (state: GameState): GameState => cloneState({ ...state, log: [] });
 
 /** One way to use an attack, and what it does on average. */
 export interface AttackOption {
@@ -253,12 +253,45 @@ function slotMultisets(slots: number[], n: number): number[][] {
 }
 
 /**
+ * attackOptions' answers during one CPU decision, by state (a WeakMap, so the states tried and dropped go with it) and
+ * attacker. A decision's steps ask the same question of the same state many times over (retreat, heal, disrupt, boost,
+ * tickle, attack, the generic judgement's attack loss…), each a simulation of every attack over every coin-flip pattern.
+ * Only within one decision (withAttackMemo): a state is never changed while one runs, but tests change states in place
+ * between runs.
+ */
+let memo: WeakMap<GameState, Map<string, AttackOption[]>> | null = null;
+
+/** Runs one CPU decision with attackOptions' memo on. A decision inside another (borrowedTrainerMove's) shares the outer one's. */
+export function withAttackMemo<T>(decide: () => T): T {
+  if (memo) return decide();
+  memo = new WeakMap();
+  try {
+    return decide();
+  } finally {
+    memo = null;
+  }
+}
+
+/**
  * What each of `attackerId`'s attacks would do to the opponent now, one option per attack (its best
  * answers to the attack's questions). With `nextTurn`, it's the opponent's coming turn instead: effects
  * lasting "until the end of the opponent's next turn" still apply, and the first-turn rule doesn't.
  * Confusion is left out, since it affects every attack alike (the CPU retreats from it instead).
  */
 export function attackOptions(state: GameState, attackerId: PlayerId, { nextTurn = false } = {}): AttackOption[] {
+  const key = `${attackerId}|${nextTurn}`;
+  const known = memo?.get(state)?.get(key);
+  if (known) return known;
+  const options = simulateAttacks(state, attackerId, nextTurn);
+  if (memo) {
+    let byKey = memo.get(state);
+    if (!byKey) memo.set(state, (byKey = new Map()));
+    byKey.set(key, options);
+  }
+  return options;
+}
+
+function simulateAttacks(state: GameState, attackerId: PlayerId, nextTurn: boolean): AttackOption[] {
   const me = state.players[attackerId]!;
   const opp = state.players[opponentOf(state, attackerId)]!;
   if (!me.active || !opp.active || (!nextTurn && state.turn === 1)) return [];
@@ -321,7 +354,7 @@ export function attackDamageRanges(state: GameState, attackerId: PlayerId): (Dam
     const plays: Map<string, number>[] = [];
     for (const choices of choiceSets(situation, attackIndex)) {
       for (const seed of SEEDS) {
-        const s = structuredClone(base);
+        const s = cloneState(base);
         s.rngState = seed;
         const defender = s.players[opp.id]!.active!;
         const before = defender.damage;
@@ -354,7 +387,7 @@ export function attackDamageRanges(state: GameState, attackerId: PlayerId): (Dam
 function simulate(base: GameState, attackerId: PlayerId, attackIndex: number, choices: AttackChoices, cost: number): AttackOption | null {
   let kos = 0, damage = 0, inflicts = 0, costly = false, keeps = 0;
   for (const seed of SEEDS) {
-    const s = structuredClone(base);
+    const s = cloneState(base);
     s.rngState = seed;
     const me = s.players[attackerId]!;
     const opp = s.players[opponentOf(s, attackerId)]!;
@@ -416,7 +449,7 @@ export const attackScore = (o: AttackOption | null) => (o ? (knocksOut(o) ? 10_0
 export const damages = (o: AttackOption | null) => !!o && (o.expected > 0 || o.koChance > 0);
 
 /** The CPU's best attack with the benched Pokémon in `slot` as its Active Pokémon instead. */
-export function attackAsActive(state: GameState, playerId: PlayerId, slot: number): AttackOption | null {
+function attackAsActive(state: GameState, playerId: PlayerId, slot: number): AttackOption | null {
   return bestAttack(attackOptions(swapIn(state, playerId, slot), playerId));
 }
 
@@ -442,7 +475,7 @@ export const threatKnocksOut = (state: GameState, playerId: PlayerId) => threat(
 // ---- Useful cards ----
 
 /** Next-stage cards for the player's Pokémon in play: the Pokémon cards (by definition) they could evolve into. */
-export function evolvesInto(cards: CardLibrary, side: Pick<PlayerState, 'active' | 'bench'>, candidate: CardDef): boolean {
+function evolvesInto(cards: CardLibrary, side: Pick<PlayerState, 'active' | 'bench'>, candidate: CardDef): boolean {
   if (!isPokemonCard(candidate) || candidate.stage === 'basic') return false;
   const from = candidate.stage === 'stage2' ? 'stage1' : 'basic';
   return inPlay(side).some(([, p]) => {
@@ -522,13 +555,19 @@ export function play(t: Turn, card: CardInstance | undefined, choices?: TrainerC
   return tryAction(t.state, t.id, action) ? action : null;
 }
 
+/** Professor Oak: only once the hand is nearly spent, and never drawing the deck down to nothing. */
+export function professorOak(t: Turn): GameAction | null {
+  const oak = trainer(t, 'professoroak');
+  return oak && t.me.hand.length - 1 <= 2 && t.me.deck.length > 7 ? play(t, oak) : null;
+}
+
 export const benched = (t: Turn) => inPlay(t.me).filter(([target]) => target !== 'active') as [number, InPlayPokemon][];
 
-/** Finishing a search: the most wanted card (see wantedCards), a Basic, an Energy that helps, or anything. Pokédex: wanted cards on top. */
 /** Challenge! (agreed): the CPU accepts whenever its Bench has room and its deck has a Basic Pokémon. */
 export const acceptsChallenge = (state: GameState, cpu: PlayerState) =>
   openBenchSlot(cpu.bench, state.cards, state.stadium?.card) >= 0 && cpu.deck.some((c) => isBasicPokemon(lookupCard(state.cards, c.defId)));
 
+/** Finishing a search: the most wanted card (see wantedCards), a Basic, an Energy that helps, or anything. Pokédex: wanted cards on top. */
 export function resolveSearch(t: Turn): GameAction {
   const view = pendingChoiceView(t.state, t.state.pendingChoice!);
   if (view.kind === 'challenge') return { type: 'RESOLVE_CHOICE', count: acceptsChallenge(t.state, t.me) ? 1 : 0 };
@@ -553,6 +592,8 @@ export function resolveSearch(t: Turn): GameAction {
   if (view.kind === 'ownPokemon') {
     if (view.purpose === 'attach') return { type: 'RESOLVE_CHOICE', target: view.options.includes('active') ? 'active' : view.options[0] };
     // Taking damage from the player's attack (Cat Punch): the benched Pokémon with the most HP left.
+    // A question with nothing to click (no Pokémon that fits) is answered with nothing: `reduce` on no options would throw.
+    if (!view.options.length) return { type: 'RESOLVE_CHOICE' };
     if (view.purpose === 'benchDamage') {
       const left = (target: Target) => hpLeft(t.state.cards, at(t.me, target)!);
       return { type: 'RESOLVE_CHOICE', target: view.options.reduce((a, b) => (left(b) > left(a) ? b : a)) };
@@ -562,6 +603,7 @@ export function resolveSearch(t: Turn): GameAction {
   }
   // Damage to one of the player's Pokémon (Sneak Attack): the one with the least HP left, the Active Pokémon on a tie.
   if (view.kind === 'oppPokemon') {
+    if (!view.options.length) return { type: 'RESOLVE_CHOICE' };
     const left = (target: Target) => hpLeft(t.state.cards, at(t.opp, target)!);
     return { type: 'RESOLVE_CHOICE', target: view.options.reduce((a, b) => (left(b) < left(a) ? b : a)) };
   }
@@ -585,7 +627,8 @@ export function resolveSearch(t: Turn): GameAction {
   if (choice.kind === 'discardAttached' && choice.optional && view.kind === 'pickAttached') return view.options[0] ? { type: 'RESOLVE_CHOICE', cardUid: view.options[0].uid } : { type: 'RESOLVE_CHOICE' };
   // Pure Body: the Energy card that leaves Suicune closest to attacking.
   if (view.kind === 'pickAttached') {
-    const p = inPlay(t.me).map(([, p]) => p).find((p) => p.energy.includes(view.options[0]!))!;
+    const p = inPlay(t.me).map(([, p]) => p).find((p) => p.energy.includes(view.options[0]!));
+    if (!p) return { type: 'RESOLVE_CHOICE' };
     const without = (c: CardInstance) => closeness(t.state.cards, p, p.energy.filter((e) => e !== c));
     const pick = view.options.reduce((a, b) => (without(b) < without(a) ? b : a));
     return { type: 'RESOLVE_CHOICE', cardUid: pick.uid };
@@ -633,7 +676,7 @@ function optionAnswer(t: Turn, count: number): number {
  */
 export function borrowedTrainerMove(state: GameState, cpuId: PlayerId, decide: (state: GameState, cpuId: PlayerId) => GameAction | null): GameAction {
   const uid = state.borrowed?.uid;
-  const scratch = structuredClone(state);
+  const scratch = cloneState(state);
   delete scratch.pendingChoice;
   scratch.currentPlayer = cpuId;
   scratch.energyAttachedThisTurn = true;

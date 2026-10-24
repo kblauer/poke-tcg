@@ -1,11 +1,10 @@
-import { generation, runType, type PoolCard, type Rarity } from '@poke-tcg/campaign';
-import { prisma, type Card } from '@poke-tcg/db';
+import { cardRarity, generation, runType, type PoolCard } from '@poke-tcg/campaign';
+import { prisma } from '@poke-tcg/db';
 import { cardImplemented, type CardDef } from '@poke-tcg/game-engine';
-import { isGalaxyFoil, isHolo, toCardDef } from './cards.js';
+import { toCardDef } from './cards.js';
 
-/** A catalog card's rarity, holos apart: holo and galaxy-foil cards (the promo Entei and Pichu, which TCGdex lists as Common) are holos. */
-export const cardRarity = (card: Pick<Card, 'id' | 'rarity' | 'data'>): Rarity =>
-  isHolo(card) || isGalaxyFoil(card) ? 'holo' : card.rarity === 'Rare' ? 'rare' : card.rarity === 'Uncommon' ? 'uncommon' : 'common';
+/** A catalog card's rarity, holos apart (the campaign's card-fixes.ts, shared with its test pool). */
+export { cardRarity };
 
 /**
  * A generation's pool: every card of its sets (`poolSets`) the engine can load, only those it plays fully from the sets

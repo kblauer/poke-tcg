@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "tsx watch --clear-screen=false src/server.ts",
     "typecheck": "tsc",
+    "test": "vitest run",
     "vercel-build": "node scripts/vercel-build.mjs"
   },
   "dependencies": {
@@ -26,6 +27,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "esbuild": "0.28.2"
+    "esbuild": "0.28.2",
+    "vitest": "^5.0.4"
   }
 }

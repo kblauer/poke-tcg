@@ -1,6 +1,7 @@
 import CloseIcon from '@mui/icons-material/Close';
-import { useEffect, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useEscape } from '../hooks/useEscape';
 import { useSwipe } from '../hooks/useSwipe';
 
 /**
@@ -9,11 +10,7 @@ import { useSwipe } from '../hooks/useSwipe';
  * themselves.
  */
 export function SidePanel({ side, title, onClose, children }: { side: 'left' | 'right'; title: ReactNode; onClose: () => void; children: ReactNode }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  useEscape(onClose);
   const swipe = useSwipe(side === 'left' ? { onLeft: onClose } : { onRight: onClose });
   return createPortal(
     <>

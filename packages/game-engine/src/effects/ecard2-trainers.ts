@@ -13,15 +13,15 @@
 // basic Energy cards by itself; with more than 2 attached, its owner picks up to 2 (agreed with the user).
 import { isBasicEnergy, isPokemonCard, lookupCard, type Attack, type EnergyType } from '../cards.js';
 import { discardTheirEnergy, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
-import { energyKept, powerActive, trainerProof } from '../powers.js';
+import { energyKept, pokemonAt, powerActive, trainerProof } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { effectId, energyProtected, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
+import { benchRoom, effectId, energyProtected, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { powerEffect } from './index.js';
 import { swapActive, targetsOf, type EnergyEffect, type TrainerChoiceSpec, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 import { tool } from './neo1-trainers.js';
 import { ROCKET_ENERGY } from './rocket-trainers.js';
 
-const at = (side: Pick<PlayerState, 'active' | 'bench'>, t: Target) => (t === 'active' ? side.active : side.bench[t])!;
+const at = (side: Pick<PlayerState, 'active' | 'bench'>, t: Target) => pokemonAt(side, t)!;
 const isBasicCard = (s: { cards: TrainerSituation['cards'] }, c: { defId: string; provides?: unknown }) => !c.provides && isBasicEnergy(lookupCard(s.cards, c.defId));
 
 /** Pokémon of `type` a Cube can be attached to, or with Skyridge's Synchronicity working (any Technical Machine). */
@@ -127,7 +127,7 @@ export const ECARD2_TRAINERS: Record<string, TrainerEffect> = {
     supporter: true,
     blocked: (s) => (openBenchSlot(s.me.bench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : s.deckCount ? null : 'Your deck is empty'),
     play(ctx) {
-      const room = ctx.me.bench.filter((p) => !p).length;
+      const room = benchRoom(ctx.me.bench, ctx.state.cards, ctx.state.stadium?.card);
       ctx.pend({ kind: 'pickFromDeck', source: 'Pokémon Fan Club', filter: 'basic', toBench: true, optional: true, count: Math.min(2, room) });
     },
   },

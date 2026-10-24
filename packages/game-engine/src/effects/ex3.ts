@@ -14,8 +14,8 @@ import { targetsIn } from '../attacks.js';
 import { isBasicEnergy, lookupCard, type EnergyType } from '../cards.js';
 import { energyProvided, isEnergyCardOf, retreatCost, type CardInstance } from '../engine.js';
 import { discardsLocked } from '../powers.js';
-import { inPlayDef, pokemonName } from '../status.js';
-import { benchedSlots, headsUntilTails, opponentBenchChoice } from './common.js';
+import { benchRoom, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
+import { benchedSlots, headsUntilTails, opponentBenchChoice, same } from './common.js';
 import { attachFromDiscard } from './neo3.js';
 import { typedCards } from './ecard1.js';
 import { eachDefending, energyAmount } from './ex1.js';
@@ -352,9 +352,9 @@ export const EX3: Record<string, Record<string, AttackEffect>> = {
   // Magikarp – Call for Family: any number of Magikarp onto the Bench.
   'ex3-60': {
     'Call for Family': {
-      blocked: (s) => (benchedSlots(s.ownBench).length >= s.ownBench.length ? 'Your Bench is full' : null),
+      blocked: (s) => (openBenchSlot(s.ownBench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
       run(ctx) {
-        const room = ctx.me.bench.filter((p) => !p).length;
+        const room = benchRoom(ctx.me.bench, ctx.state.cards, ctx.state.stadium?.card);
         if (ctx.me.deck.length && room) ctx.pend({ kind: 'pickFromDeck', source: 'Call for Family', filter: 'basicNamed', name: 'Magikarp', toBench: true, optional: true, count: room });
       },
     },
@@ -383,9 +383,9 @@ export const EX3: Record<string, Record<string, AttackEffect>> = {
   // Wurmple – Call for Friends: any number of Grass Basic Pokémon onto the Bench.
   'ex3-81': {
     'Call for Friends': {
-      blocked: (s) => (benchedSlots(s.ownBench).length >= s.ownBench.length ? 'Your Bench is full' : null),
+      blocked: (s) => (openBenchSlot(s.ownBench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
       run(ctx) {
-        const room = ctx.me.bench.filter((p) => !p).length;
+        const room = benchRoom(ctx.me.bench, ctx.state.cards, ctx.state.stadium?.card);
         if (ctx.me.deck.length && room) ctx.pend({ kind: 'pickFromDeck', source: 'Call for Friends', filter: 'basicType', type: 'grass', toBench: true, optional: true, count: room });
       },
     },
@@ -410,7 +410,7 @@ export const EX3: Record<string, Record<string, AttackEffect>> = {
     },
   },
   // Kingdra ex – Genetic Memory: as Neo Revelation Kingdra's.
-  'ex3-92': { 'Genetic Memory': NEO3['neo3-19']!['Genetic Memory']! },
+  'ex3-92': { 'Genetic Memory': same(() => NEO3['neo3-19']?.['Genetic Memory']) },
   // Latias ex – Mist Ball: a Fire and a Water Energy card discarded (Rainbow and Multi Energy count, agreed).
   'ex3-93': {
     'Mist Ball': {

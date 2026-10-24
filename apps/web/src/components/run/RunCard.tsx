@@ -1,5 +1,6 @@
 import type { CardDef } from '@poke-tcg/game-engine';
 import { useContext, type ReactNode } from 'react';
+import { RUN_CARD, RUN_CARD_FLUID } from '../../utils/layout';
 import { useInspectOnRightClick } from '../InspectContext';
 import { PreviewContext } from '../PreviewContext';
 import { CardImage } from '../CardImage';
@@ -29,9 +30,9 @@ export function RunCard({
   badge?: ReactNode;
   fluid?: boolean;
 }) {
-  const width = fluid ? 'w-full max-w-28' : 'w-28';
+  const width = fluid ? RUN_CARD_FLUID : RUN_CARD;
   const setPreview = useContext(PreviewContext);
-  const inspect = useInspectOnRightClick()(def?.id);
+  const inspect = useInspectOnRightClick({ clearsPreview: true })(def?.id);
   const body = (
     <>
       <div
@@ -39,13 +40,7 @@ export function RunCard({
         // A mouse's hover only: a tap (a reward picked on a phone) mustn't open the large preview.
         onPointerEnter={(e) => def && e.pointerType !== 'touch' && setPreview({ def, x: e.clientX, y: e.clientY, from: e.currentTarget })}
         onPointerLeave={() => setPreview(null)}
-        onContextMenu={
-          inspect.onContextMenu &&
-          ((e) => {
-            setPreview(null);
-            inspect.onContextMenu!(e);
-          })
-        }
+        {...inspect}
       >
         {def?.imageUrl ? (
           <CardImage src={`${def.imageUrl}/low.webp`} alt={def.name} loading="lazy" className={`h-full w-full rounded-lg object-cover shadow ${selected ? 'ring-4 ring-yellow-300' : ''}`} />

@@ -7,7 +7,7 @@
 // to switch with the top card of the deck.
 import { conditionProof, isBasicPokemon, isPokemonCard, lookupCard, type CardLibrary } from '../cards.js';
 import { applyWeaknessResistance } from '../attacks.js';
-import { counts, energyPool, isEnergyCardOf, type CardInstance, type GameState, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
+import { afflictionBlocked, counts, energyPool, isEnergyCardOf, type CardInstance, type GameState, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { discardsLocked, ownTargets, pokemonAt, powerActive, type PowerContext, type PowerEffect, type PowerSituation } from '../powers.js';
 import { addLog, effectId, flipCoin, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { pokemonTower, type PendingChoice, type PendingChoiceInput } from '../trainers.js';
@@ -25,10 +25,8 @@ const isFireCard = (cards: CardLibrary, c: CardInstance) => isEnergyCardOf(c, ca
 function afflict(ctx: PowerContext, owner: PlayerState, pokemon: InPlayPokemon | null, condition: 'asleep' | 'confused') {
   if (!pokemon) return;
   const name = pokemonName(ctx.state, pokemon);
-  const sides = [ctx.me, ctx.opp];
-  if (conditionProof(inPlayDef(ctx.state.cards, pokemon)) || (powerActive(pokemon, ctx.state.cards, sides) && powerEffect(effectId(pokemon))?.noConditions)) return addLog(ctx.state, `${name} can't be affected by Special Conditions.`, owner.id);
-  const guard = ctx.state.rules?.find((r) => r.kind === 'conditionGuard' && r.player === owner.id && r.conditions.includes(condition));
-  if (guard) return addLog(ctx.state, `${guard.label ?? 'A battle rule'} protected ${name} from that.`, owner.id);
+  const blocked = afflictionBlocked(ctx.state, owner.id, pokemon, condition);
+  if (blocked) return addLog(ctx.state, blocked, owner.id);
   pokemon.condition = condition;
   delete pokemon.paralyzedTurn;
   addLog(ctx.state, `${name} is now ${condition === 'asleep' ? 'Asleep' : 'Confused'}.`, owner.id);

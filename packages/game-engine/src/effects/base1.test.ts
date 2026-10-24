@@ -196,6 +196,15 @@ describe('Base Set attacks', () => {
     expect([after.pendingChoice, after.players.misty!.active!.card.defId]).toEqual([undefined, id('squirtle')]);
   });
 
+  it("Whirlwind's switch of a held Defending Pokémon (Jaw Clamp) does nothing, and the question is over", () => {
+    const s = duel('pidgeotto', 'squirtle', { energy: ['fire', 'fire'], oppBench: ['charmander', 'bulbasaur'] });
+    s.players.misty!.active!.effects = { heldBy: { by: s.players.ash!.active!.card.uid, switches: true } };
+    let after = attack(s, 0);
+    expect(getPlayerView(after, 'misty').self.pendingChoice).toMatchObject({ kind: 'ownPokemon', purpose: 'switchIn' });
+    after = act(after, 'misty', { type: 'RESOLVE_CHOICE', target: 1 });
+    expect([after.pendingChoice, after.players.misty!.active!.card.defId, after.currentPlayer]).toEqual([undefined, id('squirtle'), 'misty']);
+  });
+
   it('Whirlpool discards the chosen Energy from the defender', () => {
     const s = duel('poliwrath', 'nidoking', { energy: ['water', 'water', 'water', 'water'], defenderEnergy: ['fire', 'water'] });
     const water = s.players.misty!.active!.energy[1]!.uid;

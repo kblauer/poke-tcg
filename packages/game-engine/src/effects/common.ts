@@ -1,9 +1,55 @@
 // Building blocks for attack effects that many cards share.
-import type { AttackContext, AttackEffect, AttackSituation, ChoiceSpec } from '../attacks.js';
+import { targetsIn, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
 import type { PendingChoice } from '../trainers.js';
-import type { EnergyType } from '../cards.js';
-import { counts, energyPool, type Affliction, type PoolEnergy } from '../engine.js';
-import { openBenchSlot } from '../status.js';
+import type { PowerSituation } from '../powers.js';
+import { isBasicEnergy, lookupCard, type CardLibrary, type EnergyType } from '../cards.js';
+import { counts, energyPool, type Affliction, type InPlayPokemon, type PlayerState, type PoolEnergy, type Target } from '../engine.js';
+import { energyProtected, openBenchSlot, pokemonName } from '../status.js';
+
+/** Every Pokémon in play on a side. */
+export const inPlay = (side: Pick<PlayerState, 'active' | 'bench'>) => [side.active, ...side.bench].filter((p): p is InPlayPokemon => !!p);
+
+/** Where the Pokémon is on its player's side (-1 if it isn't there). */
+export const targetOf = (owner: { active: unknown; bench: unknown[] }, pokemon: unknown): Target => (owner.active === pokemon ? 'active' : owner.bench.indexOf(pokemon));
+
+/** Energy cards attached to a Pokémon (not a Pokémon attached as Energy). */
+export const energyCards = (p: InPlayPokemon) => p.energy.filter((e) => !e.provides);
+
+/** Basic Energy cards attached to a Pokémon (not a Pokémon attached as Energy). */
+export const basicEnergyOn = (cards: CardLibrary, p: InPlayPokemon) => p.energy.filter((e) => !e.provides && isBasicEnergy(lookupCard(cards, e.defId)));
+
+/** A Poké-Body: always on, whatever its Pokémon's Special Conditions. */
+export const POKE_BODY = { ignoresConditions: true, body: true } as const;
+
+/** "If [it] is your Active Pokémon" / "on your Bench": why a power can't be used from where its Pokémon is. */
+export const onlyActive = (s: PowerSituation, name: string) => (s.source === 'active' ? null : `${name} must be your Active Pokémon`);
+export const onlyBenched = (s: PowerSituation, name: string) => (s.source !== 'active' ? null : `${name} must be on your Bench`);
+
+/** Another set's attack, read when used (the effect tables can't be read while the modules load). */
+export const same = (get: () => AttackEffect | undefined): AttackEffect => ({
+  blocked: (s) => get()?.blocked?.(s) ?? null,
+  choices: (s, c) => get()?.choices?.(s, c) ?? [],
+  run: (ctx) => get()?.run(ctx),
+});
+
+/** Damage to one of the opponent's Pokémon: the Active one without Weakness and Resistance (`swift`: without anything else on it either). */
+export function damageOpponent(ctx: AttackContext, target: Target, amount: number, swift = false) {
+  if (target === 'active') ctx.hit(amount, swift ? { swift } : { weakness: false });
+  else ctx.damageBenched(ctx.opp, target, amount);
+}
+
+/** "Choose 1 of your opponent's Pokémon": a choice of any of them. */
+export const opponentTargets = (s: AttackSituation, prompt: string): ChoiceSpec[] => [{ kind: 'opponentPokemon', options: targetsIn(s.defender, s.opponentBench), prompt }];
+
+/**
+ * Whether an attack may move an Energy card off this Pokémon of the opponent's (to another of their Pokémon, their hand or
+ * their deck): Brock's Protection keeps it (logged). Discards go through neo3's `energyCanGo`, which also checks Unown K's Keep.
+ */
+export function energyCanMove(ctx: AttackContext, p: InPlayPokemon): boolean {
+  if (!energyProtected(ctx.state.cards, p)) return true;
+  ctx.log(`Brock's Protection: ${pokemonName(ctx.state, p)}'s Energy can't be removed.`, ctx.opp.id);
+  return false;
+}
 
 /** Base damage, then on heads the Defending Pokémon gets `affliction`. */
 export const flipToInflict = (damage: number, affliction: Affliction): AttackEffect => ({

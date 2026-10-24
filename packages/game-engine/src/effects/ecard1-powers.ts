@@ -11,30 +11,15 @@
 // card from the hand went there (each Venusaur once a turn). Burning Energy turns the basic Energy cards attached to its
 // player's Pokémon then into Fire Energy until the end of the turn. Major Tsunami: the opponent chooses their Pokémon that
 // comes in; then the player's chosen Benched Pokémon switches with Feraligatr.
-import { conditionProof, isBasicEnergy, lookupCard } from '../cards.js';
-import { type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
+import { lookupCard } from '../cards.js';
+import { afflictionBlocked, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { energyFromHand, energyKept, ownTargets, pokemonAt, powerActive, type PowerChoiceSpec, type PowerContext, type PowerEffect, type PowerSituation } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { effectId, energyProtected, inPlayDef, pokemonName } from '../status.js';
+import { clearSpecialConditions, effectId, energyProtected, hasSpecialCondition, inPlayDef, pokemonName } from '../status.js';
 import { swapActive } from '../trainers.js';
 import { withNonHolo } from './ecard1-prints.js';
 import { energyEffect, powerEffect } from './index.js';
-
-/** A Poké-Body: always on, whatever its Pokémon's Special Conditions. */
-const POKE_BODY = { ignoresConditions: true, body: true } as const;
-
-/** Basic Energy cards attached to a Pokémon (not a Pokémon attached as Energy). */
-const basicEnergyOn = (cards: PowerSituation['cards'], p: InPlayPokemon) => p.energy.filter((e) => !e.provides && isBasicEnergy(lookupCard(cards, e.defId)));
-
-/** Energy cards attached to a Pokémon. */
-const energyCards = (p: InPlayPokemon) => p.energy.filter((e) => !e.provides);
-
-/** Every Pokémon a player has in play. */
-const inPlay = (p: Pick<PlayerState, 'active' | 'bench'>) => [p.active, ...p.bench].filter((q): q is InPlayPokemon => !!q);
-
-/** "If [it] is your Active Pokémon" / "on your Bench". */
-const onlyActive = (s: PowerSituation, name: string) => (s.source === 'active' ? null : `${name} must be your Active Pokémon`);
-const onlyBenched = (s: PowerSituation, name: string) => (s.source !== 'active' ? null : `${name} must be on your Bench`);
+import { basicEnergyOn, energyCards, inPlay, onlyActive, onlyBenched, POKE_BODY } from './common.js';
 
 /** Puts `choice` for the player, or queues it if another is being asked. */
 function ask(ctx: PowerContext, choice: Parameters<PowerContext['pend']>[0]) {
@@ -101,13 +86,10 @@ const HOLO: Record<string, PowerEffect> = {
   // Butterfree – Miraculous Powder: once a turn, its player's Active Pokémon is no longer affected by any Special Condition.
   'ecard1-5': {
     oncePerTurn: true,
-    blocked: (s) => (s.me.active && (s.me.active.condition || s.me.active.poison || s.me.active.burned) ? null : 'Your Active Pokémon has no Special Condition'),
+    blocked: (s) => (s.me.active && hasSpecialCondition(s.me.active) ? null : 'Your Active Pokémon has no Special Condition'),
     use(ctx) {
       const p = ctx.me.active!;
-      p.condition = null;
-      p.poison = 0;
-      p.burned = false;
-      delete p.paralyzedTurn;
+      clearSpecialConditions(p);
       ctx.log(`${pokemonName(ctx.state, p)} is no longer affected by Special Conditions.`);
     },
   },
@@ -302,12 +284,8 @@ const HOLO: Record<string, PowerEffect> = {
 /** The opponent's Pokémon is now Poisoned, unless it can't be affected by Special Conditions or a battle rule guards it. */
 function poison(ctx: PowerContext, p: InPlayPokemon) {
   const name = pokemonName(ctx.state, p);
-  const def = inPlayDef(ctx.state.cards, p);
-  const effect = p.effects;
-  const thickSkinned = powerActive(p, ctx.state.cards, [ctx.me, ctx.opp]) && powerEffect(effectId(p))?.noConditions;
-  if (conditionProof(def) || thickSkinned || (effect?.flashTouch && ctx.opp.active === p) || (effect?.pollenShield ?? -1) >= ctx.state.turn) return ctx.log(`${name} can't be affected by Special Conditions.`);
-  const guard = ctx.state.rules?.find((r) => r.kind === 'conditionGuard' && r.player === ctx.opp.id && r.conditions.includes('poisoned'));
-  if (guard) return ctx.log(`${guard.label ?? 'A battle rule'} protected ${name} from that.`);
+  const blocked = afflictionBlocked(ctx.state, ctx.opp.id, p, 'poisoned');
+  if (blocked) return ctx.log(blocked);
   p.poison = Math.max(p.poison ?? 0, 10);
   ctx.log(`${name} is now Poisoned.`);
 }

@@ -5,17 +5,13 @@
 // stands (the player beside them, on the side they face), the leader in their place (the player below them), and the Gym
 // Guy where there is one. Walking connections the map data doesn't show (a gym's puzzle, a gatehouse) come from the user,
 // as `links` or walkable tiles.
-import { leaderRoom, PEWTER_GYM, type Route } from './routes.js';
+import type { KantoBossId } from './bosses.js';
+import { leaderRoom, PEWTER_GYM, SWIMMERS, type Route } from './routes.js';
 
 /** The trainers met on Route 17, the Cycling Road (most of its battles): Bikers. */
-export const BIKERS = ['Biker Jaren', 'Biker Ricardo', 'Biker Jared', 'Biker Malik', 'Biker Isaac', 'Biker Gerald', 'Biker Lukas', 'Biker Ernest', 'Biker Alex', 'Biker Hideo'];
-/** The trainers met in Route 20's water: Swimmers, men and women (overworld.ts gives the women their own sprite). */
-export const SWIMMERS = [
-  'Swimmer Luis', 'Swimmer Richard', 'Swimmer Reece', 'Swimmer Matthew', 'Swimmer Douglas', 'Swimmer David', 'Swimmer Tony', 'Swimmer Barry',
-  'Swimmer Shirley', 'Swimmer Tiffany', 'Swimmer Nora', 'Swimmer Melissa', 'Swimmer Anya', 'Swimmer Alice', 'Swimmer Connie',
-];
+const BIKERS = ['Biker Jaren', 'Biker Ricardo', 'Biker Jared', 'Biker Malik', 'Biker Isaac', 'Biker Gerald', 'Biker Lukas', 'Biker Ernest', 'Biker Alex', 'Biker Hideo'];
 /** The trainers met in the Power Plant (most of its battles): Team Rocket Grunts, men and women, of any type (trainerFavorites). */
-export const ROCKET_GRUNTS = ['Rocket Grunt Boris', 'Rocket Grunt Dirk', 'Rocket Grunt Hank', 'Rocket Grunt Vince', 'Rocket Grunt Rex', 'Rocket Grunt Mara', 'Rocket Grunt Lena', 'Rocket Grunt Tess', 'Rocket Grunt Rhea'];
+const ROCKET_GRUNTS = ['Rocket Grunt Boris', 'Rocket Grunt Dirk', 'Rocket Grunt Hank', 'Rocket Grunt Vince', 'Rocket Grunt Rex', 'Rocket Grunt Mara', 'Rocket Grunt Lena', 'Rocket Grunt Tess', 'Rocket Grunt Rhea'];
 
 /**
  * Route 4: Mt. Moon (west) to Cerulean City (east), for the Cerulean City run. Spots from the west end, with the user's
@@ -274,8 +270,9 @@ export const ROUTE_8: Route = {
 };
 
 /**
- * Route 5: Cerulean City (north) to Saffron City (south), for the Saffron City run. Spots from the north end. The player
- * leaves by the gatehouse to Saffron (its door tiles 24,32 and 25,32 walkable, from the user), its `exit`.
+ * Route 5: Cerulean City (north) to Saffron City (south), the Vermilion City run's first section (agreed with the user):
+ * 3 spots south (the user's: 17,10, 17,21, 22,30), leaving by the gatehouse to Saffron (its door tiles 24,32 and 25,32
+ * walkable, from the user), its `exit`, for Route 6.
  */
 export const ROUTE_5: Route = {
   flow: 'down',
@@ -286,16 +283,9 @@ export const ROUTE_5: Route = {
   height: 640,
   exit: { x: 24, y: 32 },
   spots: [
-    { x: 16, y: 2 },
-    { x: 24, y: 6 },
-    { x: 16, y: 10 },
-    { x: 30, y: 14 },
-    { x: 16, y: 18 },
-    { x: 30, y: 21 },
-    { x: 16, y: 25 },
-    { x: 18, y: 29 },
-    { x: 22, y: 31 },
-    { x: 30, y: 33 },
+    { x: 17, y: 10 },
+    { x: 17, y: 21 },
+    { x: 22, y: 30 },
   ],
   walkable: [
     '###############....#........#....###############',
@@ -698,20 +688,6 @@ export const VIRIDIAN_GYM: Route = {
     '....................',
     '................###.',
     '####################',
-  ],
-};
-
-/**
- * Route 5 again, as the Vermilion City run's first section (agreed with the user): 3 spots south (the user's: 17,10,
- * 17,21, 22,30), leaving by the gatehouse to Saffron (24,32) for Route 6.
- */
-export const ROUTE_5_VERMILION: Route = {
-  ...ROUTE_5,
-  flow: 'down',
-  spots: [
-    { x: 17, y: 10 },
-    { x: 17, y: 21 },
-    { x: 22, y: 30 },
   ],
 };
 
@@ -1235,7 +1211,7 @@ export const POKEMON_TOWER_5F: Route = {
  * Lorelei's Room at the Indigo Plateau, for the Kanto Champion run (agreed with the user): Lorelei in their place (6,5), the
  * player coming in 5 tiles south of them (6,10) and walking up to them (6,6).
  */
-export const LORELEIS_ROOM: Route = {
+const LORELEIS_ROOM: Route = {
   flow: 'up',
   entrance: { x: 6, y: 10 },
   name: "Lorelei's Room",
@@ -1265,7 +1241,7 @@ export const LORELEIS_ROOM: Route = {
  * Bruno's Room at the Indigo Plateau, for the Kanto Champion run (agreed with the user): Bruno in their place (6,5), the
  * player coming in 5 tiles south of them (6,10) and walking up to them (6,6).
  */
-export const BRUNOS_ROOM: Route = {
+const BRUNOS_ROOM: Route = {
   flow: 'up',
   entrance: { x: 6, y: 10 },
   name: "Bruno's Room",
@@ -1295,7 +1271,7 @@ export const BRUNOS_ROOM: Route = {
  * Agatha's Room at the Indigo Plateau, for the Kanto Champion run (agreed with the user): Agatha in their place (6,5), the
  * player coming in 5 tiles south of them (6,10) and walking up to them (6,6).
  */
-export const AGATHAS_ROOM: Route = {
+const AGATHAS_ROOM: Route = {
   flow: 'up',
   entrance: { x: 6, y: 10 },
   name: "Agatha's Room",
@@ -1325,7 +1301,7 @@ export const AGATHAS_ROOM: Route = {
  * Lance's Room at the Indigo Plateau, for the Kanto Champion run (agreed with the user): Lance in their place (6,8), the
  * player coming in 5 tiles south of them (6,13) and walking up to them (6,9).
  */
-export const LANCES_ROOM: Route = {
+const LANCES_ROOM: Route = {
   flow: 'up',
   entrance: { x: 6, y: 13 },
   name: "Lance's Room",
@@ -1366,7 +1342,7 @@ export const LANCES_ROOM: Route = {
  * Champion's Room at the Indigo Plateau, for the Kanto Champion run (agreed with the user): Blue in their place (6,8), the
  * player coming in 5 tiles south of them (6,13) and walking up to them (6,9).
  */
-export const CHAMPIONS_ROOM: Route = {
+const CHAMPIONS_ROOM: Route = {
   flow: 'up',
   entrance: { x: 6, y: 13 },
   name: "Champion's Room",
@@ -1428,7 +1404,7 @@ export const POKEMON_CENTER: Route = {
 };
 
 /** Each Kanto boss's map for the Gym Challenge and Champion runs, by boss id: their gym (leaderRoom) or Indigo Plateau room. */
-export const KANTO_BOSS_ROOMS: Record<string, Route> = {
+export const KANTO_BOSS_ROOMS: Record<KantoBossId, Route> = {
   brock: leaderRoom(PEWTER_GYM, { x: 6, y: 10 }),
   // From the east, beside the pool (the user's).
   misty: leaderRoom(CERULEAN_GYM, { x: 12, y: 7 }),

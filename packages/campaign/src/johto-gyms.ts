@@ -6,6 +6,7 @@
 // come from the user, as `links` or walkable tiles. Then the Johto Gym Challenge and Champion runs' other rooms, as Kanto's:
 // the Pokémon League's, each boss in their place and the player coming in 5 tiles from them, and Ecruteak's Pokémon
 // Center; and each boss's map for those runs (JOHTO_BOSS_ROOMS). Written by tools/routes/hgss/johto_gyms.py.
+import type { JohtoBossId } from './bosses.js';
 import { leaderRoom, trackLine, type Route } from './routes.js';
 
 /** Violet Gym, the leader's room: the Gym Trainer where Bird Keeper Gs Abe stands (5,14), the leader in their place (8,3). */
@@ -750,7 +751,7 @@ export const JOHTO_POKEMON_CENTER: Route = {
 };
 
 /** Each Johto boss's map for the Gym Challenge and Champion runs, by boss id: their gym (leaderRoom, the player coming in 5 tiles from them, south where it can) or Pokémon League room. */
-export const JOHTO_BOSS_ROOMS: Record<string, Route> = {
+export const JOHTO_BOSS_ROOMS: Record<JohtoBossId, Route> = {
   falkner: leaderRoom(VIOLET_GYM, { x: 8, y: 8 }),
   bugsy: leaderRoom(AZALEA_GYM, { x: 9, y: 8 }),
   whitney: leaderRoom(GOLDENROD_GYM, { x: 13, y: 9 }),

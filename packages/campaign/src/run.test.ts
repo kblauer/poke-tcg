@@ -5,7 +5,7 @@ import { RUN_TYPE_IDS, RUN_TYPES, runType, type RunType, type RunTypeId } from '
 import { ROUTE_4 } from './kanto-routes.js';
 import { JOHTO_BOSS_ROOMS, MAHOGANY_GYM } from './johto-gyms.js';
 import { onPath, PEWTER_GYM, ROUTE_2, routePath, type Route, type RouteSpot } from './routes.js';
-import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, isBattleKind, isBossKind, MAX_CENTERS, REQUIRED_BATTLES, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, withConsumablesBefore, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
+import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, isBattleKind, isBossKind, landNear, MAX_CENTERS, REQUIRED_BATTLES, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, withConsumablesBefore, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
 import { GEN2_SETS, GEN3_SETS } from './pool.js';
 import { GEN2_TEST_POOL, GEN3_TEST_POOL, TEST_POOL } from './test-pool.js';
 
@@ -41,7 +41,7 @@ describe('createRun', () => {
     for (const step of s.steps.slice(0, 10)) {
       expect(step.options.length).toBeGreaterThanOrEqual(1);
       expect(step.options.length).toBeLessThanOrEqual(3);
-      expect(step.options.every((o) => !['gymTrainer', 'gymLeader', 'eliteFour', 'champion'].includes(o.kind))).toBe(true);
+      expect(step.options.every((o) => o.kind !== 'gymTrainer' && !isBossKind(o.kind))).toBe(true);
     }
     expect(s.steps[10]!.options).toEqual([expect.objectContaining({ kind: 'gymTrainer', label: 'Celadon Gym Trainer', boss: 'erika' })]);
     expect(s.steps[11]!.options).toEqual([{ kind: 'gymLeader', label: 'Gym Leader Erika', trainer: 'Erika', boss: 'erika' }]);
@@ -201,7 +201,7 @@ describe('createRun', () => {
 
   it("Route 20's spots with no land near (surfed, out at sea) offer only battles, those ashore only non-battle encounters", () => {
     const route = runType('cinnabar').routes![0]!;
-    const dry = route.spots.map((s) => [-3, -2, -1, 0, 1, 2, 3].some((dy) => [-3, -2, -1, 0, 1, 2, 3].some((dx) => Math.abs(dx) + Math.abs(dy) <= 3 && route.walkable[s.y + dy]?.[s.x + dx] === '.')));
+    const dry = route.spots.map((s) => landNear(route, s));
     expect(dry.some((d) => !d)).toBe(true);
     for (let seed = 1; seed <= 30; seed++) {
       createRun('cinnabar', deck, seed).steps.slice(0, 10).forEach((s, i) => {
@@ -507,6 +507,15 @@ describe('other encounters', () => {
     expect(after.gained).toEqual([trade.get]);
   });
 
+  it("a trade with a deck from another generation (none of its cards in the run's pool) still asks for one of its cards", () => {
+    const s = act(at('trade'), { type: 'CHOOSE', option: 0 }, [], GEN2_TEST_POOL);
+    const trade = s.encounter as Extract<RunState['encounter'], { kind: 'trade' }>;
+    expect(deck).toContain(trade.give);
+    expect(GEN2_TEST_POOL.some((c) => c.def.id === trade.get)).toBe(true);
+    const after = act(s, { type: 'ACCEPT' }, [], GEN2_TEST_POOL);
+    expect([after.deck.length, after.gained]).toEqual([60, [trade.get]]);
+  });
+
   it('a Pokémon Center heals 1 HP for ₱100, not past the maximum', () => {
     const s = act(at('center'), { type: 'CHOOSE', option: 0 });
     expect(applyRunAction(s, { type: 'ACCEPT' }, TEST_POOL)).toEqual({ ok: false, error: 'You already have full HP' });
@@ -630,6 +639,15 @@ describe('items', () => {
     expect(s.consumables).toEqual([{ itemId: 'guard-spec', battlesLeft: 1 }]);
   });
 
+  it("a battle skipped by debug doesn't use up a consumable's battles", () => {
+    let s = act(at('battle'), { type: 'USE_ITEM', itemId: 'guard-spec' });
+    const before = s.consumables[0]!.battlesLeft;
+    s = act(s, { type: 'CHOOSE', option: 0 });
+    s = act(s, { type: 'BATTLE_STARTED', gameId: 'g1' });
+    s = act(s, { type: 'BATTLE_OVER', gameId: 'g1', won: true, skipped: true });
+    expect(s.consumables[0]!.battlesLeft).toBe(before);
+  });
+
   it("equipment and consumables' battle effects are the player's battle rules, named for the item", () => {
     let s = act(at('battle'), { type: 'USE_ITEM', itemId: 'x-attack' });
     s = act(s, { type: 'CHOOSE', option: 0 });
@@ -687,6 +705,22 @@ describe('items', () => {
     gym.position = gym.steps.length - 1;
     expect(use(gym, 'repel').ok).toBe(false);
     expect(use(act(at('shop'), { type: 'CHOOSE', option: 0 }), 'repel').ok).toBe(false); // not on the map
+  });
+
+  it("Repel re-rolls with the route's own trainers: no Swimmers on land, only Swimmers in Route 20's water, its land battle a battle", () => {
+    for (let seed = 1; seed <= 12; seed++) {
+      const land = act(createRun('celadon', deck, seed), { type: 'USE_ITEM', itemId: 'repel' });
+      expect(land.steps[0]!.options.map((o) => o.trainer ?? '').filter((t) => t.startsWith('Swimmer '))).toEqual([]);
+      for (const position of [0, 4, 7]) {
+        const sea = createRun('cinnabar', deck, seed);
+        sea.position = position;
+        const options = act(sea, { type: 'USE_ITEM', itemId: 'repel' }).steps[position]!.options;
+        const battles = options.filter((o) => o.kind === 'battle').map((o) => o.trainer!);
+        // Spot 4 is the battle on land by the Seafoam Islands: always a battle, never a Swimmer.
+        if (position === 4) expect([options.length, battles.length, battles.filter((t) => t.startsWith('Swimmer '))]).toEqual([options.length, options.length, []]);
+        else expect(battles.every((t) => t.startsWith('Swimmer '))).toBe(true);
+      }
+    }
   });
 });
 

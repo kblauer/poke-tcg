@@ -10,8 +10,9 @@
 import { hasType, isBasicEnergy, lookupCard, namesMatch, type CardLibrary, type EnergyType, type PokemonCardDef } from '../cards.js';
 import { activeLocked, counts, energyProvided, evolvesOnto, type CardInstance, type PlayerState, type Target } from '../engine.js';
 import { discardsLocked, hasReact, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
-import { addLog, inPlayDef, pokemonName } from '../status.js';
+import { addLog, clearSpecialConditions, inPlayDef, pokemonName } from '../status.js';
 import { swapActive } from '../trainers.js';
+import { targetOf } from './common.js';
 import { ECARD1_POWERS } from './ecard1-powers.js';
 import { babyEvolution, EX2_POWERS, POKE_BODY } from './ex2-powers.js';
 import { EX3_POWERS } from './ex3-powers.js';
@@ -23,9 +24,6 @@ const reactOn = (s: PowerSituation, t: Target) => pokemonAt(s.me, t)?.energy.fil
 
 /** The Fossil Pokémon lines (Ancient Shell, Fang, Protection, Tentacles). */
 const OMANYTE_KABUTO = ['Omanyte', 'Omastar', 'Kabuto', 'Kabutops', 'Kabutops ex'];
-
-/** Where the Pokémon is on its player's side. */
-const targetOf = (owner: { active: unknown; bench: unknown[] }, pokemon: unknown): Target => (owner.active === pokemon ? 'active' : owner.bench.indexOf(pokemon));
 
 /** The player has one of these in play (variants too). */
 const hasNamed = (owner: Pick<PlayerState, 'active' | 'bench'>, cards: CardLibrary, names: string[]) =>
@@ -197,10 +195,7 @@ export const EX12_POWERS: Record<string, PowerEffect> = {
     onEnergyFromHand(state, owner, pokemon, _target, energy) {
       if (!counts(energyProvided(energy, state.cards).type, 'fire')) return;
       if (pokemon.damage) pokemon.damage -= 10;
-      pokemon.condition = null;
-      pokemon.poison = 0;
-      pokemon.burned = false;
-      delete pokemon.paralyzedTurn;
+      clearSpecialConditions(pokemon);
       addLog(state, `Fire Remedy: removed a damage counter and every Special Condition from ${pokemonName(state, pokemon)}.`, owner.id);
     },
   },

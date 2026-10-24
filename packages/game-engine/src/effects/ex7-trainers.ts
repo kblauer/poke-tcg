@@ -10,7 +10,8 @@
 // Pokémon are picked before the flip; R Energy and Aqua Energy are discarded at the end of their owner's turn (betweenTurns).
 import { lookupCard } from '../cards.js';
 import { activeLocked, evolvesOnto, type Target } from '../engine.js';
-import { clearOnLeavingActive, inPlayDef, pokemonName } from '../status.js';
+import { trainerProof } from '../powers.js';
+import { clearOnLeavingActive, energyProtected, inPlayDef, pokemonName } from '../status.js';
 import { def, otherHandCards, own, swapActive, targetsOf, type EnergyEffect, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 import { ECARD1_TRAINERS } from './ecard1-trainers.js';
 import { ROCKET_TRAINERS } from './rocket-trainers.js';
@@ -65,16 +66,17 @@ export const EX7_TRAINERS: Record<string, TrainerEffect> = {
   },
 
   // Pow! Hand Extension: with more Prize cards left than the opponent, an Energy card moves from the Defending Pokémon to
-  // another of their Pokémon, or one of their Benched Pokémon (the player's pick) is switched in.
+  // another of their Pokémon, or one of their Benched Pokémon (the player's pick) is switched in. Both reach the Defending
+  // Pokémon, so Legendary Body keeps it off; Brock's Protection leaves only the switch.
   'ex7-85': {
     secretMachine: true,
     blocked(s) {
       if (s.prizes && s.prizes.me <= s.prizes.opp) return 'You can play Pow! Hand Extension only with more Prize cards left than your opponent';
-      return s.opp.active && s.opp.bench.some(Boolean) ? null : "Your opponent has no Benched Pokémon";
+      return trainerProof(s.opp, [s.me, s.opp], s.cards) ?? (s.opp.active && s.opp.bench.some(Boolean) ? null : "Your opponent has no Benched Pokémon");
     },
     choices(s, c) {
       const bench = targetsOf(s.opp).filter((t) => t !== 'active');
-      const energy = s.opp.active?.energy.filter((e) => !e.provides) ?? [];
+      const energy = s.opp.active && !energyProtected(s.cards, s.opp.active) ? s.opp.active.energy.filter((e) => !e.provides) : [];
       return [
         { kind: 'pick', field: 'pick', options: energy.length ? [0, 1] : [1], labels: ["Move an Energy card from your opponent's Active Pokémon", "Switch in one of your opponent's Benched Pokémon"], prompt: 'Pow! Hand Extension: which?' },
         ...(c.pick === 0 ? [{ kind: 'cards' as const, field: 'oppEnergyUids' as const, min: 1, max: 1, options: energy, prompt: 'Choose an Energy card attached to the Defending Pokémon' }] : []),
@@ -88,7 +90,7 @@ export const EX7_TRAINERS: Record<string, TrainerEffect> = {
       if (!to || !active) return;
       if (ctx.choices.pick === 0) {
         const card = active.energy.find((e) => ctx.choices.oppEnergyUids?.includes(e.uid));
-        if (!card) return;
+        if (!card || energyProtected(ctx.state.cards, active)) return;
         active.energy = active.energy.filter((e) => e !== card);
         to.energy.push(card);
         return ctx.log(`Moved ${lookupCard(ctx.state.cards, card.defId).name} from ${pokemonName(ctx.state, active)} to ${pokemonName(ctx.state, to)}.`, ctx.opp.id);

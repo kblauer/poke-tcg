@@ -10,9 +10,9 @@ import { lookupCard, namesMatch } from '../cards.js';
 import { isEnergyCardOf, isSpecialEnergy, type InPlayPokemon, type Target } from '../engine.js';
 import { reactCount } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { inPlayDef, pokemonName } from '../status.js';
+import { clearSpecialConditions, inPlayDef, pokemonName } from '../status.js';
 import { trainerEffect } from './index.js';
-import { benchedSlots, extraEnergy, headsUntilTails, opponentBenchChoice, selfdestruct } from './common.js';
+import { benchedSlots, extraEnergy, headsUntilTails, opponentBenchChoice, same, selfdestruct } from './common.js';
 import { ascension } from './ex5.js';
 import { discardOwn, inPlay, putCounters, typeCards } from './ex2.js';
 import { lureIn, notNextTurn, snipe } from './ex6.js';
@@ -22,14 +22,9 @@ import { FOSSIL_POKEMON } from './ex12-trainers.js';
 import { discardFree } from './neo3.js';
 import { healUpTo } from './si1.js';
 
-const reacts = (ctx: Pick<AttackContext, 'state' | 'attacker'>) => reactCount(ctx.attacker, ctx.state.cards);
+export { same };
 
-/** Another set's attack, read when used (the effect tables can't be read while the modules load). */
-export const same = (get: () => AttackEffect | undefined): AttackEffect => ({
-  blocked: (s) => get()?.blocked?.(s) ?? null,
-  choices: (s, c) => get()?.choices?.(s, c) ?? [],
-  run: (ctx) => get()?.run(ctx),
-});
+const reacts = (ctx: Pick<AttackContext, 'state' | 'attacker'>) => reactCount(ctx.attacker, ctx.state.cards);
 
 /** Foresight: as EX Deoxys Lunatone's (the top 5 cards of either deck, back in any order). */
 export const foresight = same(() => EX8['ex8-36']?.['Foresight']);
@@ -281,10 +276,7 @@ export const EX12: Record<string, Record<string, AttackEffect>> = {
     Rest: {
       run(ctx) {
         const p = ctx.attacker;
-        p.condition = null;
-        p.poison = 0;
-        p.burned = false;
-        delete p.paralyzedTurn;
+        clearSpecialConditions(p);
         healUpTo(ctx, ctx.me, p, 50);
         ctx.sleepSelf();
       },

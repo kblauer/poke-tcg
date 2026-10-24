@@ -7,7 +7,7 @@
 // of any types while its owner has more Prize cards left than the opponent, Colorless otherwise, and is discarded off a
 // Pokémon that isn't Evolved or is a Pokémon-ex (dropBoostEnergy, energyPool).
 import { lookupCard } from '../cards.js';
-import { addLog, pokemonName } from '../status.js';
+import { addLog, clearSpecialConditions, pokemonName } from '../status.js';
 import { type EnergyEffect, type TrainerEffect } from '../trainers.js';
 import { ECARD1_TRAINERS } from './ecard1-trainers.js';
 import { ECARD2_ENERGY } from './ecard2-trainers.js';
@@ -52,8 +52,7 @@ export const EX8_ENERGY: Record<string, EnergyEffect> = {
     onAttach(state, owner, pokemon) {
       const d = lookupCard(state.cards, pokemon.card.defId);
       if (d.kind !== 'pokemon' || d.ex) return;
-      Object.assign(pokemon, { condition: null, poison: 0, burned: false });
-      delete pokemon.paralyzedTurn;
+      clearSpecialConditions(pokemon);
       if (pokemon.damage) pokemon.damage -= 10;
       addLog(state, `Heal Energy: ${pokemonName(state, pokemon)} has no Special Conditions and a damage counter less.`, owner.id);
     },

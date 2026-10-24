@@ -8,6 +8,7 @@
 import { isBenchable, lookupCard, type PokemonCardDef } from '../cards.js';
 import { evolvesOnto, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
 import { evolutionBlocked, offerChainReaction, playedFromHand, primalBlock, trainerProof } from '../powers.js';
+import { clearSpecialConditions } from '../status.js';
 import { evolveWith, own, otherHandCards, targetsOf, def, type EnergyEffect, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 
 /** Your Pokémon in play (Basic ones only) that `card` can go onto with Rare Candy: a Stage 1 onto its Basic, a Stage 2 onto the Basic at the bottom of its line. */
@@ -37,8 +38,7 @@ export const EX2_TRAINERS: Record<string, TrainerEffect> = {
     play(ctx) {
       const active = ctx.me.active;
       if (!active) return;
-      Object.assign(active, { condition: null, poison: 0, burned: false });
-      delete active.paralyzedTurn;
+      clearSpecialConditions(active);
       ctx.log(`${lookupCard(ctx.state.cards, active.card.defId).name} is no longer affected by Special Conditions.`);
     },
   },

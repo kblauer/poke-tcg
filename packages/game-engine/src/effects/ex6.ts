@@ -13,9 +13,9 @@ import { targetsIn } from '../attacks.js';
 import { isBasicEnergy, lookupCard, namesMatch, type EnergyType } from '../cards.js';
 import { counts, discardTheirEnergy, energyPool, energyProvided, isEnergyCardOf, type CardInstance, type Target } from '../engine.js';
 import { shuffle } from '../rng.js';
-import { inPlayDef, pokemonName } from '../status.js';
+import { inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { handTrainerFits } from '../trainers.js';
-import { benchedSlots, headsUntilTails, opponentBenchChoice } from './common.js';
+import { benchedSlots, headsUntilTails, opponentBenchChoice, same } from './common.js';
 import { copyAttack } from './ecard2.js';
 import { energyAmount } from './ex1.js';
 import { discardOwn, inPlay, putCounters } from './ex2.js';
@@ -24,14 +24,8 @@ import { healUpTo } from './si1.js';
 import { EX2 } from './ex2.js';
 import { EX3 } from './ex3.js';
 import { EX5 } from './ex5.js';
+import { energyCanGo } from './neo3.js';
 import { ROCKET } from './rocket.js';
-
-/** Another set's attack effect, read when it's used (the effect tables can't be read while the modules load). */
-const same = (get: () => AttackEffect | undefined): AttackEffect => ({
-  blocked: (s) => get()?.blocked?.(s) ?? null,
-  choices: (s, c) => get()?.choices?.(s, c) ?? [],
-  run: (ctx) => get()?.run(ctx),
-});
 
 /** "Choose 1 of your opponent's Pokémon. This attack does `damage` to that Pokémon" (no Weakness or Resistance on the Bench). */
 export const snipe = (damage: number, then?: (ctx: AttackContext) => void): AttackEffect => ({
@@ -128,7 +122,10 @@ export const delayedCondition = (damage: number, affliction: 'confused'): Attack
   },
 });
 
-/** Twister: `damage` and, for each heads of 2, an Energy card from the Defending Pokémon the player picks; 2 tails, nothing. */
+/**
+ * Twister: `damage` and, for each heads of 2, an Energy card from the Defending Pokémon the player picks; 2 tails, nothing.
+ * As Neo Revelation's: Brock's Protection and Unown [K]'s Keep keep the Energy (`energyCanGo`).
+ */
 const twister = (damage: number): AttackEffect => ({
   run(ctx) {
     const heads = ctx.flips(2);
@@ -137,7 +134,7 @@ const twister = (damage: number): AttackEffect => ({
     const defender = ctx.opp.active;
     if (!defender || defender.damage >= inPlayDef(ctx.state.cards, defender).hp || !ctx.canAffect(ctx.opp, defender)) return;
     const energy = defender.energy.filter((e) => !e.provides);
-    if (!energy.length) return;
+    if (!energy.length || !energyCanGo(ctx, defender)) return;
     if (energy.length <= heads || new Set(energy.map((e) => e.defId)).size === 1) {
       const gone = energy.slice(0, heads);
       defender.energy = defender.energy.filter((e) => !gone.includes(e));
@@ -147,6 +144,27 @@ const twister = (damage: number): AttackEffect => ({
     ctx.pend({ kind: 'removeEach', source: 'Twister', targets: Array<Target>(heads).fill('active') });
   },
 });
+
+/** Electrode ex – Crush and Burn: any number of Energy cards from the player's Pokémon discarded, 20 more each (agreed: cards). */
+const crushAndBurn: AttackEffect = {
+  choices(s): ChoiceSpec[] {
+    const options = [s.attacker, ...s.ownBench].flatMap((p) => (p ? p.energy.filter((e) => !e.provides) : []));
+    return options.length ? [{ kind: 'ownEnergyAny', options, prompt: 'You may choose any Energy cards attached to your Pokémon to discard (20 more damage each)' }] : [];
+  },
+  run(ctx) {
+    const uids = new Set(ctx.choices.energyUids ?? []);
+    let n = 0;
+    for (const p of inPlay(ctx.me)) {
+      const gone = p.energy.filter((e) => uids.has(e.uid));
+      if (!gone.length) continue;
+      p.energy = p.energy.filter((e) => !gone.includes(e));
+      ctx.me.discard.push(...gone);
+      n += gone.length;
+      ctx.log(`Discarded ${gone.map((c) => lookupCard(ctx.state.cards, c.defId).name).join(', ')} from ${pokemonName(ctx.state, p)}.`);
+    }
+    ctx.hit(30 + 20 * n);
+  },
+};
 
 export const EX6: Record<string, Record<string, AttackEffect>> = {
   // Beedrill – Link Needle: 30 more for each other Beedrill the player has in play.
@@ -314,7 +332,7 @@ export const EX6: Record<string, Record<string, AttackEffect>> = {
   // Nidoran♂ – Call for Family: a Nidoran ♀ or Nidoran ♂ from the deck onto the Bench.
   'ex6-71': {
     'Call for Family': {
-      blocked: (s) => (s.ownBench.every(Boolean) ? 'Your Bench is full' : null),
+      blocked: (s) => (openBenchSlot(s.ownBench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
       run: (ctx) => void (ctx.me.deck.length && ctx.pend({ kind: 'pickFromDeck', source: 'Call for Family', filter: 'basicNamed', name: ['Nidoran♀', 'Nidoran♂'], toBench: true, optional: true })),
     },
   },
@@ -325,7 +343,7 @@ export const EX6: Record<string, Record<string, AttackEffect>> = {
   // Weedle – Call for Family: up to 2 Grass Basic Pokémon from the deck onto the Bench; Poison Spurt: as EX Dragon Grimer's.
   'ex6-86': {
     'Call for Family': {
-      blocked: (s) => (s.ownBench.every(Boolean) ? 'Your Bench is full' : null),
+      blocked: (s) => (openBenchSlot(s.ownBench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
       run: (ctx) => void (ctx.me.deck.length && ctx.pend({ kind: 'pickFromDeck', source: 'Call for Family', filter: 'basicType', type: 'grass', toBench: true, optional: true, count: 2 })),
     },
     'Poison Spurt': same(() => EX3['ex3-57']?.['Poison Spurt']),
@@ -362,28 +380,8 @@ export const EX6: Record<string, Record<string, AttackEffect>> = {
   },
   // Clefable ex – Metronome: one of the Defending Pokémon's attacks, with its other requirements (as Mini-Metronome).
   'ex6-106': { Metronome: copyAttack('Metronome', { needsEnergy: false, flip: false }) },
-  // Electrode ex – Crush and Burn: any number of Energy cards from the player's Pokémon discarded, 20 more each (agreed: cards).
-  'ex6-107': {
-    'Crush and Burn': {
-      choices(s): ChoiceSpec[] {
-        const options = [s.attacker, ...s.ownBench].flatMap((p) => (p ? p.energy.filter((e) => !e.provides) : []));
-        return options.length ? [{ kind: 'ownEnergyAny', options, prompt: 'You may choose any Energy cards attached to your Pokémon to discard (20 more damage each)' }] : [];
-      },
-      run(ctx) {
-        const uids = new Set(ctx.choices.energyUids ?? []);
-        let n = 0;
-        for (const p of inPlay(ctx.me)) {
-          const gone = p.energy.filter((e) => uids.has(e.uid));
-          if (!gone.length) continue;
-          p.energy = p.energy.filter((e) => !gone.includes(e));
-          ctx.me.discard.push(...gone);
-          n += gone.length;
-          ctx.log(`Discarded ${gone.map((c) => lookupCard(ctx.state.cards, c.defId).name).join(', ')} from ${pokemonName(ctx.state, p)}.`);
-        }
-        ctx.hit(30 + 20 * n);
-      },
-    },
-  },
+  // Electrode ex: "Crash and Burn" is TCGdex's name for Crush and Burn (the seed fixes it; kept for databases not yet re-seeded).
+  'ex6-107': { 'Crush and Burn': crushAndBurn, 'Crash and Burn': crushAndBurn },
   // Gengar ex – Poltergeist: the opponent's hand looked at, 10 more for each Trainer card in it.
   'ex6-108': {
     Poltergeist: {
@@ -422,9 +420,6 @@ export const EX6: Record<string, Record<string, AttackEffect>> = {
   // Zapdos ex – Electron Crush: an Energy card may be discarded for 20 more.
   'ex6-116': { 'Electron Crush': mayDiscardAny(50, () => 20) },
 };
-
-// Electrode ex: "Crash and Burn" is TCGdex's name for Crush and Burn (the seed fixes it; kept for databases not yet re-seeded).
-EX6['ex6-107']!['Crash and Burn'] = EX6['ex6-107']!['Crush and Burn']!;
 
 /** How much Fire Energy an Energy card on the attacker provides (Energy Flame makes it all Fire). */
 function fireIn(ctx: AttackContext, e: CardInstance) {

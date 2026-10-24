@@ -1,20 +1,22 @@
 import { useSyncExternalStore } from 'react';
 import { registerSetting, saveSetting } from '../utils/accountSettings';
 
-/** The UI's font (Settings): the pixel font (Pixellocale, Pokémon R/B/Y, the default), Pokémon R/S/E (the Pokemon Emerald font),
- * Pokémon S/M (Noto Sans JP), or the system's standard one. */
+/** The UI's font (Settings): the pixel font (Pixellocale, Pokémon R/B/Y), Pokémon R/S/E (the Pokemon Emerald font),
+ * Pokémon S/M (Noto Sans JP, the default), or the system's standard one. */
 export type FontStyle = 'pixel' | 'emerald' | 'noto' | 'standard';
 const FONTS: FontStyle[] = ['pixel', 'emerald', 'noto', 'standard'];
 
 const KEY = 'poke-tcg.font';
+/** Before a font is picked (in this browser or the account): Pokémon S/M. index.html's `data-font` matches it, for the first paint. */
+const DEFAULT: FontStyle = 'noto';
 
 // Remembered in the browser (applied at once) and with the account (utils/accountSettings); storage failures just mean the default font.
 function load(): FontStyle {
   try {
     const saved = localStorage.getItem(KEY) as FontStyle | null;
-    return saved && FONTS.includes(saved) ? saved : 'pixel';
+    return saved && FONTS.includes(saved) ? saved : DEFAULT;
   } catch {
-    return 'pixel';
+    return DEFAULT;
   }
 }
 
@@ -49,7 +51,7 @@ registerSetting('font', {
       return null;
     }
   },
-  apply: (value) => setFont(value && FONTS.includes(value as FontStyle) ? (value as FontStyle) : 'pixel', true),
+  apply: (value) => setFont(value && FONTS.includes(value as FontStyle) ? (value as FontStyle) : DEFAULT, true),
 });
 
 const subscribe = (l: () => void) => {

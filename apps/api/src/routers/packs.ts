@@ -7,6 +7,7 @@ import { holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, isReverseHolo
 import { cardRarity } from '../pool.js';
 import { unlockedPacks } from '../progress.js';
 import { debugProcedure, protectedProcedure, router } from '../trpc.js';
+import { lockUser } from '../runs.js';
 import { holoTwins, unlockCards, unlockedIds } from '../unlocks.js';
 
 /**
@@ -46,10 +47,8 @@ const shown = (row: Card): ShownCard => ({
  * generation's sets (Legendary Collection, a Gen 1 set released after Neo Genesis, gets Gym Challenge's).
  */
 async function packEnergy(setId: string): Promise<{ energy: Card[]; holoEnergy: Card[] }> {
-  const [target, rows] = await Promise.all([
-    prisma.cardSet.findUniqueOrThrow({ where: { id: setId }, select: { releaseDate: true } }),
-    prisma.card.findMany({ where: { kind: 'ENERGY' }, include: { set: { select: { releaseDate: true } } } }),
-  ]);
+  const [dates, rows] = await Promise.all([setDates(), energyCards()]);
+  const target = { releaseDate: dates.get(setId) ?? null };
   const generation = Object.values(PACK_GENERATIONS).find((g) => g.packs.includes(setId));
   const basic = rows.filter((r) => isBasicEnergyCard(r) && !holoEnergyStyle(r) && (!generation || generation.packs.includes(r.setId)));
   const time = (r: (typeof rows)[number]) => r.set.releaseDate?.getTime() ?? 0;
@@ -61,6 +60,12 @@ async function packEnergy(setId: string): Promise<{ energy: Card[]; holoEnergy: 
   const holoEnergy = rows.filter((r) => holoEnergyStyle(r) && ids.has(r.id.replace(/-holo-[a-z-]+$/, '')));
   return { energy, holoEnergy };
 }
+
+/** Every Energy card with its set's release date, and every set's release date: loaded once, shared by every set's packEnergy (the catalog only changes with the seed). */
+let energyRows: Promise<(Card & { set: { releaseDate: Date | null } })[]> | undefined;
+const energyCards = () => (energyRows ??= prisma.card.findMany({ where: { kind: 'ENERGY' }, include: { set: { select: { releaseDate: true } } } }));
+let setRows: Promise<Map<string, Date | null>> | undefined;
+const setDates = () => (setRows ??= prisma.cardSet.findMany({ select: { id: true, releaseDate: true } }).then((sets) => new Map(sets.map((s) => [s.id, s.releaseDate]))));
 
 const loaded = new Map<string, Promise<{ set: PackSet; cards: Map<string, ShownCard> }>>();
 
@@ -187,10 +192,13 @@ export const packsRouter = router({
     const card = await prisma.card.findUnique({ where: { id: input.cardId } });
     const cost = card && craftCost(card);
     if (!card || cost === null) throw new TRPCError({ code: 'BAD_REQUEST', message: "That card can't be crafted" });
-    const [unlocked, twins, packs] = await Promise.all([unlockedIds(ctx.user.id), holoTwins(), unlockedPacks(ctx.user.id)]);
+    const [twins, packs] = await Promise.all([holoTwins(), unlockedPacks(ctx.user.id)]);
     if (!packs.has(card.setId)) throw new TRPCError({ code: 'BAD_REQUEST', message: "Unlock this set's booster packs first" });
-    if (unlocked.has(card.id) && !twins.has(card.id)) throw new TRPCError({ code: 'BAD_REQUEST', message: `${card.name} is already unlocked` });
     return prisma.$transaction(async (tx) => {
+      // Checked with the user row locked, so crafting the same card twice at once can't take the Stardust twice.
+      await lockUser(tx, ctx.user.id);
+      const unlocked = await tx.cardUnlock.findUnique({ where: { userId_cardId: { userId: ctx.user.id, cardId: card.id } }, select: { cardId: true } });
+      if (unlocked && !twins.has(card.id)) throw new TRPCError({ code: 'BAD_REQUEST', message: `${card.name} is already unlocked` });
       const { count } = await tx.user.updateMany({ where: { id: ctx.user.id, stardust: { gte: cost } }, data: { stardust: { decrement: cost } } });
       if (!count) throw new TRPCError({ code: 'BAD_REQUEST', message: `Crafting ${card.name} takes ${cost} Stardust` });
       await unlockCards(ctx.user.id, [card.id], tx);

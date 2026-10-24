@@ -1,98 +1,81 @@
-// Test-only: the card pool built from the TCGdex snapshot, as the API builds it from the catalog
-// (a simplified copy of apps/api/src/cards.ts's toCardDef). Not exported from the package.
+// Test-only: the card pool built from the TCGdex snapshot, as the API builds it from the catalog, with the conversion
+// and fixes the API uses (card-fixes.ts, catalogCardDef) on rows shaped as the seed writes them. Not exported from the package.
 import { readFileSync } from 'node:fs';
-import { attackEffect, cardImplemented, trainerEffect, type CardDef, type EnergyType, type Stage } from '@poke-tcg/game-engine';
+import { cardImplemented, type CardDef } from '@poke-tcg/game-engine';
+import { cardRarity, catalogCardDef, type CatalogCard } from './card-fixes.js';
 import type { PackSet } from './packs.js';
-import { GEN2_DONE_SETS, GEN2_SETS, GEN3_SETS, POOL_SETS, type PoolCard, type Rarity } from './pool.js';
+import { GEN2_DONE_SETS, GEN2_SETS, GEN3_SETS, POOL_SETS, type PoolCard } from './pool.js';
 
-interface Row {
+/** A snapshot card (TcgdexCard, packages/db/prisma/tcgdex.ts): the fields the seed takes out of it, the rest its Card.data. */
+export interface Row {
   id: string;
+  localId?: string;
   name: string;
-  category: string;
+  image?: string | null;
+  category: 'Pokemon' | 'Trainer' | 'Energy';
   rarity: string | null;
   hp: number | null;
   types: string[] | null;
   stage: string | null;
   evolveFrom: string | null;
-  retreat: number | null;
-  effect: string | null;
+  set?: { id: string };
+  effect?: string | null;
   variants?: { holo?: boolean; reverse?: boolean } | null;
-  attacks?: { name: string; cost: string[] | null; damage: string | number | null; effect: string | null }[] | null;
-  abilities?: { name: string; effect: string }[] | null;
+  attacks?: { name: string | null; cost: string[] | null; damage: string | number | null; effect: string | null }[] | null;
+  abilities?: { name: string; type: string; effect: string }[] | null;
   suffix?: string | null;
 }
 
-const STAGES: Record<string, Stage> = { Basic: 'basic', Baby: 'basic', Stage1: 'stage1', Stage2: 'stage2' };
-const type = (t: string) => t.toLowerCase() as EnergyType;
+const KIND = { Pokemon: 'POKEMON', Trainer: 'TRAINER', Energy: 'ENERGY' } as const;
+
+/** The seed's `tidy`: TCGdex's "n/a" is no text, its EX text often ends in a stray quote mark and mangles some "é"s. */
+const tidy = (text: string | null | undefined) => (text === 'n/a' ? null : (text?.replace(/"$/, '').replace(/Pok�+mon/g, 'Pokémon') ?? null));
 
 /**
- * What the card evolves from, as the API has it: Team Rocket's Dark Stage 2 Pokémon from the Dark Stage 1, and an
- * owner's Pokémon (Gym Heroes) from the same owner's.
+ * A snapshot card as the seed writes it to the catalog (toCardRow in packages/db/prisma/seed.ts), as far as the tests need:
+ * the printed name (Nidoran♀ without a space: printedName), its texts tidied, and the rest of its fields as Card.data. The
+ * seed's other fixes (TCGDEX_FIXES, basic Energy never holo) aren't copied.
+ *
+ * The stage: TCGdex gives 81 Pokémon-ex (EX FireRed & LeafGreen on) no stage, and calls six of EX Dragon's evolving ones
+ * Basic (Ampharos ex, from Flaaffy). The seed's stageOf tells those six apart (`exEvolving`, copied here) and works every
+ * one's stage out from the Pokémon it evolves from; the API's catalog, not re-seeded with it yet, has them with no stage,
+ * which catalogCardDef takes as Stage 1 (Basic with no "Evolves from"). This leaves the six without a stage too, so they get
+ * the same: Stage 1 here, where a re-seeded catalog has Stage 2. It can go when a refreshed snapshot gives every Pokémon-ex
+ * its stage.
  */
-function evolvesFrom(r: Row, stage: Stage): string | null {
-  if (stage === 'stage2' && r.name.startsWith('Dark ') && r.evolveFrom && !r.evolveFrom.startsWith('Dark ')) return `Dark ${r.evolveFrom}`;
-  if (stage === 'stage2' && r.name.startsWith('Light ') && r.evolveFrom && !r.evolveFrom.startsWith('Light ')) return `Light ${r.evolveFrom}`;
-  const owner = stage !== 'basic' ? r.name.match(/^((?:Blaine|Brock|Erika|Lt\. Surge|Misty|Sabrina|Giovanni|Koga|Rocket)'s )/)?.[1] : undefined;
-  const from = r.evolveFrom ?? (r.name === "Lt. Surge's Magneton" ? 'Magnemite' : null);
-  if (owner && from) return (from.startsWith(owner) ? from : `${owner}${from}`).replace(/Nidoran([♀♂])$/, 'Nidoran $1');
-  return r.evolveFrom ?? { 'ecard1-35': 'Ekans', 'ecard1-37': 'Wartortle' }[r.id] ?? (stage === 'stage1' && ['Omanyte', 'Kabuto', 'Aerodactyl', 'Dark Omanyte'].includes(r.name) ? 'Mysterious Fossil' : null);
+export function toCatalog(r: Row): CatalogCard {
+  const { id, localId: _localId, name, image, category, rarity, hp, types, stage, evolveFrom, set: _set, ...rest } = r;
+  const exEvolving = category === 'Pokemon' && stage === 'Basic' && !!evolveFrom && /^ex[0-9]+-/.test(id);
+  const data = {
+    ...rest,
+    effect: tidy(rest.effect),
+    attacks: rest.attacks?.map((a) => ({ ...a, effect: tidy(a.effect) })) ?? rest.attacks,
+    abilities: rest.abilities?.map((a) => ({ ...a, effect: tidy(a.effect) ?? a.effect })) ?? rest.abilities,
+  };
+  return {
+    id,
+    name: name.replace(/^Nidoran ([♀♂])$/, 'Nidoran$1'),
+    kind: KIND[category],
+    imageUrl: image ?? null,
+    rarity,
+    hp,
+    types: types ?? [],
+    stage: category === 'Pokemon' && !exEvolving ? stage : null,
+    evolveFrom,
+    data,
+  };
 }
 
+/** The engine's definition of a snapshot card, or null for one it can't take (as the API's loadPool leaves those out). */
 function toDef(r: Row): CardDef | null {
-  if (r.category === 'Pokemon') {
-    // A Pokémon-ex TCGdex has no stage for, as the API has it before a re-seed (seed.ts works it out exactly).
-    // An evolving EX Pokémon-ex TCGdex calls Basic (EX Dragon's Ampharos ex) counts as one with no stage, as the seed has it.
-    const exEvolving = r.stage === 'Basic' && !!r.evolveFrom && /^ex[0-9]+-/.test(r.id);
-    const stage = r.stage && !exEvolving ? STAGES[r.stage] : r.evolveFrom ? 'stage1' : 'basic';
-    if (!stage || !r.types?.[0] || r.hp == null) return null;
-    return {
-      id: r.id,
-      kind: 'pokemon',
-      name: r.name.replace(/^Nidoran ([♀♂])$/, 'Nidoran$1'),
-      imageUrl: null,
-      type: type(r.types[0]),
-      ...(r.types.length > 1 && { types: r.types.map(type) }),
-      hp: r.hp,
-      stage,
-      evolvesFrom: evolvesFrom(r, stage),
-      // Printed cost and damage where TCGdex's differ (Dark Magneton), as the API has them.
-      // Each name once: TCGdex lists some attacks twice (Southern Islands Tentacruel), as the API has them.
-      attacks: (r.attacks ?? []).filter((a, i, all) => all.findIndex((b) => b.name === a.name) === i).map((a) => {
-        const effect = attackEffect(r.id, a.name);
-        // TCGdex's "n/a" is no text, as the seed has it (EX Unseen Forces Hitmonlee's Mega Kick).
-        return { name: a.name, cost: effect?.cost ?? (a.cost ?? []).map(type), damage: Number.parseInt(String(effect?.damage ?? a.damage ?? ''), 10) || 0, text: a.effect === 'n/a' ? null : a.effect };
-      }),
-      power: r.abilities?.[0] ? { name: r.abilities[0].name, text: r.abilities[0].effect } : null,
-      retreatCost: r.retreat ?? 0,
-      ...(r.suffix === 'ex' && { ex: true }),
-    };
+  try {
+    return catalogCardDef(toCatalog(r));
+  } catch {
+    return null;
   }
-  if (r.category === 'Energy') {
-    if (r.name === 'Double Colorless Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', amount: 2, basic: false };
-    if (r.name === 'Rainbow Energy' || r.name === 'Multi Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', anyType: true, basic: false };
-    if (r.name === 'Miracle Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', anyType: true, amount: 2, basic: false };
-    if (r.name === 'Double Rainbow Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', anyType: true, amount: 2, basic: false };
-    if (r.name === 'Aqua Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'water', amount: 2, basic: false };
-    if (r.name === 'Magma Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'fighting', amount: 2, basic: false };
-    if (r.name === 'R Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'darkness', amount: 2, basic: false };
-    if (r.name === 'Dark Metal Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'darkness', basic: false };
-    if (r.name === 'Boost Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', amount: 3, basic: false };
-    if (r.name === 'Bounce Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', amount: 2, basic: false };
-    if (r.name === 'Full Heal Energy' || r.name === 'Potion Energy') return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: 'colorless', basic: false };
-    const t = type(r.name.replace(/ Energy$/, ''));
-    if (['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting'].includes(t)) return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: t };
-    // Special Energy the engine doesn't implement yet, as the API loads it: 1 Energy of its type (Darkness, Metal), otherwise Colorless.
-    return { id: r.id, kind: 'energy', name: r.name, imageUrl: null, energyType: t === 'darkness' || t === 'metal' ? t : 'colorless', basic: false };
-  }
-  if (['Clefairy Doll', 'Mysterious Fossil', 'Claw Fossil', 'Root Fossil'].includes(r.name)) {
-    // As the API has it: a Fossil's Poké-Body comes from its Trainer effect.
-    const power = trainerEffect(r.id)?.asPokemon?.power;
-    return { id: r.id, kind: 'pokemon', name: r.name, imageUrl: null, type: 'colorless', hp: r.hp ?? 10, stage: 'basic', evolvesFrom: null, attacks: [], retreatCost: 0, trainerText: r.effect ?? '', ...(power && { power }) };
-  }
-  return { id: r.id, kind: 'trainer', name: r.name, imageUrl: null, text: r.effect ?? '' };
 }
 
-const rarity = (r: Row): Rarity => (r.variants?.holo ? 'holo' : r.rarity === 'Rare' ? 'rare' : r.rarity === 'Uncommon' ? 'uncommon' : 'common');
+const rarity = (r: Row) => cardRarity(toCatalog(r));
 
 const raw = JSON.parse(readFileSync(new URL('../../db/prisma/data/tcgdex-wotc.json', import.meta.url), 'utf8')) as Row[] | { cards: Row[] };
 const rows = Array.isArray(raw) ? raw : raw.cards;
@@ -142,7 +125,6 @@ export const testDef = (id: string) => {
   return c.def;
 };
 
-/** A set's cards for packs, as the API groups them (basic Energy left out). */
 /** As the seed's reverseHoloCard: TCGdex's reverse prints up to EX Unseen Forces, the rule after it (not Pokémon-ex, Gold Stars or secret rares). */
 const reverseHolo = (r: Row) => {
   const set = r.id.split('-')[0]!;
@@ -152,6 +134,7 @@ const reverseHolo = (r: Row) => {
   return Number(set.slice(2)) >= 11 && r.suffix !== 'ex' && !r.name.includes('☆') && Number(r.id.split('-')[1]) <= official;
 };
 
+/** A set's cards for packs, as the API groups them (basic Energy left out). */
 export function testPackSet(setId: string): PackSet {
   const set: PackSet = { common: [], uncommon: [], rare: [], holo: [] };
   for (const r of rows) {

@@ -1,10 +1,10 @@
 /// <reference path="./globals.d.ts" />
 import { applyWeaknessResistance, attackSituation, checkAttack, performAttack, recallsAttacks, usableAttacks, type AttackChoices } from './attacks.js';
-import { attachBlocked, discardsLocked, energyFromHand, evolutionBlocked, primalBlock, retreatBodies, guardedBy, spiraledBy, bindingAura, conditionBarred, conditionFree, holonWith, miraculousWind, offerChainReaction, playedFromHand, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, primalLocked, trainersDusted, trainersBlocked, usePower, zoomed, type PowerChoices, type PowerEffect } from './powers.js';
+import { attachBlocked, discardsLocked, energyFromHand, evolutionBlocked, primalBlock, retreatBodies, guardedBy, spiraledBy, bindingAura, conditionBarred, conditionFree, holonWith, miraculousWind, offerChainReaction, playedFromHand, pokemonAt, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, primalLocked, trainersDusted, trainersBlocked, usePower, zoomed, type PowerChoices, type PowerEffect } from './powers.js';
 import { evolvesFromEevee, evolveWith, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
 import { conditionProof, hasOwner, hasType, holonEnergy, namesMatch, isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
-import { addLog, baseUid, clearOnLeavingActive, effectId, isDelta, evolvedHook, hasSpecialCondition, shapeshiftCard, flipCoin, inPlayDef, openBenchSlot, pokemonName, revealFaceDown, type LogEntry } from './status.js';
+import { addLog, baseUid, clearOnLeavingActive, clearSpecialConditions, effectId, isDelta, evolvedHook, hasSpecialCondition, shapeshiftCard, flipCoin, inPlayDef, openBenchSlot, pokemonName, revealFaceDown, type LogEntry } from './status.js';
 import { shuffle } from './rng.js';
 import type { CpuDifficulty } from './cpu/index.js';
 
@@ -48,11 +48,6 @@ export type SpecialCondition = 'asleep' | 'confused' | 'paralyzed';
 export type Affliction = SpecialCondition | 'poisoned' | 'toxic' | 'burned';
 
 /**
- * Lasting effects of attacks on a Pokémon. Turn numbers are the last turn the effect applies
- * ("during your opponent's next turn" = the turn after the attack). All are removed when the
- * Pokémon is benched or evolves, except `leekSlapUsed`.
- */
-/**
  * A rule from outside the cards (a run's events and items). `label` names it on the screen and in the log.
  * - `typeDamage`: attacks by Pokémon of `type` (either player's) do `multiplier`× their base damage.
  * - `damageBonus`: attacks by `player`'s Pokémon (of `type`, if given) do `amount` more base damage.
@@ -70,6 +65,11 @@ export type BattleRule = (
   | { kind: 'luckyFlips'; player: PlayerId; flips: number }
 ) & { label?: string };
 
+/**
+ * Lasting effects of attacks on a Pokémon. Turn numbers are the last turn the effect applies
+ * ("during your opponent's next turn" = the turn after the attack). All are removed when the
+ * Pokémon is benched or evolves, except `leekSlapUsed`.
+ */
 export interface PokemonEffects {
   /** Prevent all damage done to it by attacks (Scrunch, Withdraw, Stiffen). */
   preventDamage?: number;
@@ -637,7 +637,7 @@ function energyEvolution(prev: GameState, state: GameState, playerId: PlayerId) 
   const owner = state.players[playerId]!;
   const sides = state.playerOrder.map((id) => state.players[id]!);
   for (const target of [...(owner.active ? (['active'] as Target[]) : []), ...owner.bench.flatMap((p, i) => (p ? [i] : []))]) {
-    const eevee = (target === 'active' ? owner.active : owner.bench[target])!;
+    const eevee = pokemonAt(owner, target)!;
     const had = before.get(eevee.card.uid);
     const added = had ? eevee.energy.filter((e) => !had.has(e.uid)) : [];
     if (!added.length || !powerActive(eevee, state.cards, sides)) continue;
@@ -663,11 +663,20 @@ function energyEvolution(prev: GameState, state: GameState, playerId: PlayerId) 
 /** The Pokémon card definition of a card. */
 const card = (state: GameState, c: CardInstance) => lookupCard(state.cards, c.defId) as PokemonCardDef;
 
+/**
+ * A copy of the state to change. The card library is shared, not copied: nothing changes it after createGame (applyDebug
+ * replaces it), and copying its definitions was most of the cost of every action and of every move the CPU tries.
+ */
+export function cloneState(state: GameState): GameState {
+  const { cards, ...rest } = state;
+  return { ...structuredClone(rest), cards };
+}
+
 function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionResult {
   if (!prev.players[playerId]) return fail('Not a player in this game');
   if (prev.phase === 'finished') return fail('Game is over');
 
-  const state = structuredClone(prev);
+  const state = cloneState(prev);
   // Games saved before Transform existed (or set up directly, in tests) may not have Ditto's copy yet.
   refreshTransforms(state);
   // A card looked at with Peek stays in view until that player's next action.
@@ -787,7 +796,7 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
     }
     // Sabrina's ESP: the attack happens again from where it started, with new coin flips (the log keeps the first ones).
     if (pending.kind === 'reflip' && action.count === 1) {
-      const again: GameState = { ...structuredClone(pending.before), rngState: state.rngState, log: state.log, version: state.version };
+      const again: GameState = { ...cloneState(pending.before), rngState: state.rngState, log: state.log, version: state.version };
       addLog(again, "Sabrina's ESP: re-flipped the coins.", me.id);
       const [mine, theirs] = [again.players[me.id]!, again.players[opponentOf(again, me.id)]!];
       return attackAction(again, mine, theirs, pending.attackIndex, pending.choices, { flee: pending.flee, reflipped: true });
@@ -842,7 +851,7 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
     }
 
     case 'EVOLVE': {
-      const target = action.target === 'active' ? me.active : isBenchSlot(action.target) ? me.bench[action.target] : null;
+      const target = actionTarget(me, action.target);
       if (!target) return fail('Evolve one of your Pokémon in play');
       // Secret Plan: evolving turns the face-down card over; if it isn't a Basic Pokémon, it's discarded and nothing evolves.
       if (target.faceDown) {
@@ -880,7 +889,7 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
     }
 
     case 'ATTACH_ENERGY': {
-      const target = action.target === 'active' ? me.active : isBenchSlot(action.target) ? me.bench[action.target] : null;
+      const target = actionTarget(me, action.target);
       if (!target) return fail('Attach energy to one of your Pokémon');
       // Blaine: a second Fire Energy card can go to the Pokémon with Blaine in its name that got the first.
       const fire = (c: CardInstance) => isBasicEnergy(card(c)) && (card(c) as { energyType?: EnergyType }).energyType === 'fire';
@@ -936,14 +945,14 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
     }
 
     case 'FLIP_FACE_DOWN': {
-      const target = action.target === 'active' ? me.active : isBenchSlot(action.target) ? me.bench[action.target] : null;
+      const target = actionTarget(me, action.target);
       if (!target?.faceDown) return fail('Choose one of your face-down cards');
       revealFaceDown(state, me.id, target);
       return afterOwnMove(state, me, opp);
     }
 
     case 'DISCARD_SHAPESHIFT': {
-      const target = action.target === 'active' ? me.active : isBenchSlot(action.target) ? me.bench[action.target] : null;
+      const target = actionTarget(me, action.target);
       if (!target || !shapeshiftCard(target)) return fail('Choose a Pokémon with an Evolution card attached by Shapeshift');
       discardShapeshift(state, me, target);
       // It's its own card again: its damage may Knock it Out.
@@ -1035,7 +1044,7 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
     }
 
     case 'DISCARD_DOLL': {
-      const target = action.target === 'active' ? me.active : isBenchSlot(action.target) ? me.bench[action.target] : null;
+      const target = actionTarget(me, action.target);
       const def = target && card(target.card);
       if (!target || def?.kind !== 'pokemon' || !def.trainerText) return fail('Choose a Clefairy Doll in play');
       if (!hasBenched(me)) return fail("You can't discard your only Pokémon in play");
@@ -1082,9 +1091,9 @@ function attackAction(
   choices: AttackChoices,
   { flee, reflipped = false }: { flee?: number; reflipped?: boolean } = {},
 ): ActionResult {
-  const usable = usableAttacks(me.active!, state.cards, { recall: recallsAttacks(state, me), bench: me.bench, defender: opp.active, oppBench: opp.bench, stadium: state.stadium?.card ?? null })[attackIndex];
+  const usable = usableAttacks(me.active!, state.cards, { recall: recallsAttacks(state, me), bench: me.bench, defender: opp.active, oppBench: opp.bench, stadium: state.stadium?.card ?? null, sides: [me, opp] })[attackIndex];
   const esp = !reflipped && (me.active!.attached ?? []).some((a) => lookupCard(state.cards, a.card.defId).name === "Sabrina's ESP");
-  const before = esp ? structuredClone(state) : null;
+  const before = esp ? cloneState(state) : null;
   const source = usable && `${inPlayDef(state.cards, me.active!).name}'s ${usable.attack.name}`;
   const logged = state.log?.at(-1)?.n ?? 0;
   const error = performAttack(state, me, opp, attackIndex, choices, { flee });
@@ -1355,7 +1364,7 @@ export function retreatError(
  * The opponent's Active Pokémon holding this one (Mean Look, Jaw Clamp, Sticky Nectar), if it still is: it can't retreat.
  * `sides` are both players'.
  */
-export const heldActive = (pokemon: InPlayPokemon, sides: Pick<PlayerState, 'active'>[]) => {
+const heldActive = (pokemon: InPlayPokemon, sides: Pick<PlayerState, 'active'>[]) => {
   const by = pokemon.effects?.heldBy?.by;
   return by ? (sides.find((s) => s.active && s.active !== pokemon && s.active.card.uid === by)?.active ?? null) : null;
 };
@@ -1397,16 +1406,16 @@ export function energyProvided(card: CardInstance, cards: CardLibrary): { type: 
   return { type: def.anyType ? 'any' : def.energyType, amount: def.amount ?? 1 };
 }
 
-/**
- * Whether an attached card is a `type` Energy card: a basic one of that type, or Rainbow Energy (every type while in
- * play). Not Double Colorless, nor a Pokémon attached as Energy (Buzzap).
- */
 /** A Special Energy card (not basic Energy, nor a Pokémon attached as Energy by a power), a Holon's Pokémon attached as Energy too. */
 export function isSpecialEnergy(cards: CardLibrary, card: CardInstance): boolean {
   const d = lookupCard(cards, card.defId);
   return !card.provides && ((d.kind === 'energy' && d.basic === false) || !!holonEnergy(d));
 }
 
+/**
+ * Whether an attached card is a `type` Energy card: a basic one of that type (a converted one of its new type), or Rainbow
+ * Energy (every type while in play). Not Double Colorless, a windless or Chlorophyll card, nor a Pokémon attached as Energy (Buzzap).
+ */
 export function isEnergyCardOf(card: CardInstance, cards: CardLibrary, type: EnergyType): boolean {
   if (card.provides || card.windless || card.colorlessOnly) return false;
   if (card.converted) return card.converted.type === type;
@@ -1847,10 +1856,7 @@ function useBerry(state: GameState, owner: PlayerState, p: InPlayPokemon) {
     addLog(state, `Miracle Berry: ${pokemonName(state, p)} is no longer Asleep, Confused, Paralyzed or Poisoned.`, owner.id);
   } else if (name === 'Lum Berry' && hasSpecialCondition(p)) {
     // Lum Berry: every Special Condition, Burned included.
-    p.condition = null;
-    p.poison = 0;
-    p.burned = false;
-    delete p.paralyzedTurn;
+    clearSpecialConditions(p);
     addLog(state, `Lum Berry: ${pokemonName(state, p)} is no longer affected by Special Conditions.`, owner.id);
   } else return;
   discardTool(state, owner, p);
@@ -1861,15 +1867,10 @@ function useBerry(state: GameState, owner: PlayerState, p: InPlayPokemon) {
  * Breath), unless it can't be affected.
  */
 export function afflictBetweenTurns(state: GameState, owner: PlayerId, pokemon: InPlayPokemon, affliction: 'asleep' | 'poisoned' | 'confused' | 'paralyzed' | 'burned') {
-  const sides = state.playerOrder.map((id) => state.players[id]!);
-  const effect = powerActive(pokemon, state.cards, sides) ? powerEffect(effectId(pokemon)) : undefined;
   const name = pokemonName(state, pokemon);
   const label = affliction === 'poisoned' ? 'Poisoned' : affliction === 'burned' ? 'Burned' : conditionLabel(affliction);
-  if (conditionProof(inPlayDef(state.cards, pokemon)) || conditionFree(pokemon, state.cards, effect) || (affliction === 'poisoned' && effect?.noPoison) || conditionBarred(effect, affliction, pokemon)) {
-    return addLog(state, `${name} can't be ${label}.`, owner);
-  }
-  const guard = state.rules?.find((r) => r.kind === 'conditionGuard' && r.player === owner && r.conditions.includes(affliction));
-  if (guard) return addLog(state, `${guard.label ?? 'A battle rule'} protected ${name} from that.`, owner);
+  const blocked = afflictionBlocked(state, owner, pokemon, affliction);
+  if (blocked) return addLog(state, blocked, owner);
   if (affliction === 'poisoned') pokemon.poison = Math.max(pokemon.poison ?? 0, 10);
   else if (affliction === 'burned') pokemon.burned = true;
   else {
@@ -1878,6 +1879,25 @@ export function afflictBetweenTurns(state: GameState, owner: PlayerId, pokemon: 
     if (affliction === 'paralyzed') pokemon.paralyzedTurn = state.turn;
   }
   addLog(state, `${name} is now ${label}.`, owner);
+}
+
+/**
+ * Why `pokemon` (of `owner`) can't get `affliction` now, or null: Clefairy Doll and Buried Fossil (`conditionProof`), Thick
+ * Skinned and its like (`conditionFree`), `noPoison`, `noSleep`/`immuneTo` (`conditionBarred`), Flash Touch (not for Burned),
+ * Pollen Shield and an attack's `conditionProof` effect, and a run's `conditionGuard` rule (named). Every power, body and
+ * Trainer card that gives a Special Condition outside an attack checks here (attacks' `inflict` checks the same itself).
+ */
+export function afflictionBlocked(state: GameState, owner: PlayerId, pokemon: InPlayPokemon, affliction: 'asleep' | 'poisoned' | 'confused' | 'paralyzed' | 'burned'): string | null {
+  const sides = state.playerOrder.map((id) => state.players[id]!);
+  const effect = powerActive(pokemon, state.cards, sides) ? powerEffect(effectId(pokemon)) : undefined;
+  const name = pokemonName(state, pokemon);
+  const e = pokemon.effects;
+  const shielded = (e?.flashTouch && state.players[owner]!.active === pokemon && affliction !== 'burned') || (e?.pollenShield ?? -1) >= state.turn || (e?.conditionProof ?? -1) >= state.turn;
+  if (conditionProof(inPlayDef(state.cards, pokemon)) || conditionFree(pokemon, state.cards, effect) || (affliction === 'poisoned' && effect?.noPoison) || conditionBarred(effect, affliction, pokemon) || shielded) {
+    return `${name} can't be affected by Special Conditions.`;
+  }
+  const guard = state.rules?.find((r) => r.kind === 'conditionGuard' && r.player === owner && r.conditions.includes(affliction));
+  return guard ? `${guard.label ?? 'A battle rule'} protected ${name} from that.` : null;
 }
 
 function expireEffects(pokemon: InPlayPokemon, turn: number) {
@@ -1975,7 +1995,7 @@ function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId | null
         if (back.length) addLog(state, `Time Shard: ${back.length} basic Energy card${back.length === 1 ? '' : 's'} went back to the hand.`, id);
       }
       // Rebirth: the card goes back to the hand once it's discarded, unless its power isn't working (Asleep…).
-      const reborn = !!powerEffect(pokemon.card.defId)?.rebirth && powerActive(pokemon, state.cards, sides) && !discardsLocked(sides, state.cards);
+      const reborn = !!powerEffect(effectId(pokemon))?.rebirth && powerActive(pokemon, state.cards, sides) && !discardsLocked(sides, state.cards);
       owner.discard.push(...pokemon.evolvedFrom, pokemon.card, ...pokemon.energy.map(asDiscarded), ...(pokemon.attached ?? []).map((a) => a.card));
       if (reborn) {
         owner.discard = owner.discard.filter((c) => c !== pokemon.card);
@@ -1985,8 +2005,8 @@ function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId | null
       // A Trainer played as a Pokémon (Clefairy Doll) doesn't count as a Knocked Out Pokémon: no prize.
       const def = lookupCard(state.cards, pokemon.card.defId);
       if (def.kind === 'pokemon' && def.trainerText) return;
-      // Empty Shell: the opponent takes no Prize cards for Shedinja.
-      if (powerEffect(effectId(pokemon))?.noPrizes && pokemon.stadiumMuted !== 'all' && pokemon.stadiumMuted !== 'bodies') return addLog(state, `Empty Shell: no Prize cards for ${pokemonName(state, pokemon)}.`, id);
+      // Empty Shell: the opponent takes no Prize cards for Shedinja, while the body works (Ancient Wind, Imprison and Stadiums turn it off).
+      if (powerEffect(effectId(pokemon))?.noPrizes && powerActive(pokemon, state.cards, sides)) return addLog(state, `Empty Shell: no Prize cards for ${pokemonName(state, pokemon)}.`, id);
       // A Pokémon-ex gives up 2 Prize cards.
       for (let n = def.kind === 'pokemon' && def.ex ? 2 : 1; n > 0; n--) {
         const prize = taker.prizes.pop();
@@ -2022,9 +2042,13 @@ const asDiscarded = ({ provides: _, converted: _c, windless: _w, ...card }: Card
 
 const isBenchSlot = (slot: number) => Number.isInteger(slot) && slot >= 0 && slot < MAX_BENCH;
 
+/** The player's Pokémon at an action's target (nothing when the slot is empty, or isn't a Bench slot at all). */
+const actionTarget = (me: PlayerState, target: Target) => (target === 'active' ? me.active : isBenchSlot(target) ? me.bench[target] : null);
+
 export const hasBenched = (player: Pick<PlayerState, 'bench'>) => player.bench.some((p) => p !== null);
 
-function newInPlay(card: CardInstance, turn: number): InPlayPokemon {
+/** A Pokémon card as it comes into play (put onto the Bench, or the Active spot at the start). */
+export function newInPlay(card: CardInstance, turn: number): InPlayPokemon {
   return { card, evolvedFrom: [], damage: 0, energy: [], playedTurn: turn };
 }
 
@@ -2043,7 +2067,7 @@ function refreshWildGrowth(state: GameState) {
     const inPlay = [player.active, ...player.bench].filter((p): p is InPlayPokemon => !!p);
     const growing = inPlay.some((p) => powerEffect(effectId(p))?.wildGrowth && powerActive(p, state.cards, sides));
     for (const p of inPlay) {
-      if (growing && inPlayDef(state.cards, p).type === 'grass') p.wildGrowth = true;
+      if (growing && hasType(inPlayDef(state.cards, p), 'grass')) p.wildGrowth = true;
       else delete p.wildGrowth;
     }
   }
@@ -2082,6 +2106,8 @@ function finish(state: GameState, winner: PlayerId): ActionResult {
  */
 function refreshHideout(state: GameState) {
   const stadium = state.stadium && lookupCard(state.cards, state.stadium.card.defId).name;
+  // EX Team Rocket Returns' Rocket's Hideout: Pokémon with Rocket's in their names too.
+  const rockets = !!state.stadium && (lookupCard(state.cards, state.stadium.card.defId) as { text?: string }).text?.includes("Rocket's in its name");
   const sides = state.playerOrder.map((id) => state.players[id]!);
   for (const player of Object.values(state.players)) {
     for (const p of [player.active, ...player.bench]) {
@@ -2097,8 +2123,6 @@ function refreshHideout(state: GameState) {
       // Dual Armor (React Energy), Reactive Colors: with a card of that name attached, it's those types.
       const named = powerEffect(effectId(p))?.dualArmorNamed ?? powerEffect(effectId(p))?.colorsNamed;
       if (named && powerActive(p, state.cards, sides) && p.energy.some((e) => !e.provides && !e.windless && lookupCard(state.cards, e.defId).name === named.name)) p.variedTypes = named.types;
-      // EX Team Rocket Returns' Rocket's Hideout: Pokémon with Rocket's in their names too.
-      const rockets = !!state.stadium && (lookupCard(state.cards, state.stadium.card.defId) as { text?: string }).text?.includes("Rocket's in its name");
       if (stadium === "Rocket's Hideout" && (/\bDark\b/.test(lookupCard(state.cards, p.card.defId).name) || (rockets && lookupCard(state.cards, p.card.defId).name.startsWith("Rocket's ")))) p.hideout = true;
       else delete p.hideout;
       const d = inPlayDef(state.cards, p);

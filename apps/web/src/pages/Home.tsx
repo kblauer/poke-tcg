@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 import { PanelTabs } from '../components/LogDrawer';
 import { PageHeader } from '../components/PageHeader';
 import { PreviewProvider } from '../components/PreviewProvider';
-import { DeckPanel } from '../components/run/DeckPanel';
+import { RunDeckPanel } from '../components/run/RunDeckPanel';
 import { EncounterPanel } from '../components/run/EncounterPanel';
 import { NewRunPicker } from '../components/run/NewRunPicker';
 import { RunHeader } from '../components/run/RunHeader';
@@ -44,7 +44,8 @@ export function HomePage() {
     if (phone && phase === 'map' && lastPhase.current === 'encounter') routeMap.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     lastPhase.current = phase;
   }, [phase, phone]);
-  if (overview.error) return <p className={`${PAGE_WIDTH} text-red-400`}>{overview.error.message}</p>;
+  // A failed refetch keeps the run screen (and the map's walk) up with what it has.
+  if (overview.error && !overview.data) return <p className={`${PAGE_WIDTH} text-red-400`}>{overview.error.message}</p>;
   if (!overview.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
   const current = overview.data.run;
   const view = current?.view;
@@ -84,7 +85,7 @@ export function HomePage() {
       ) : (
         <EncounterPanel view={view} run={run} />
       )}
-      <DeckPanel view={view} />
+      <RunDeckPanel view={view} />
       {view.phase === 'map' && <ConcedeRun view={view} run={run} />}
     </div>
   );

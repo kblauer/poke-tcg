@@ -14,8 +14,7 @@ export const POOL_SETS = ['base1', 'base2', 'base3', 'basep', 'base4', 'base5', 
 
 /**
  * Gen 2 runs' sets (agreed with the user): Neo Genesis to Skyridge, with Southern Islands but not Legendary Collection
- * (its Gen 1 reprints, in Gen 1's: agreed). Only Neo Genesis's, Neo Discovery's, Southern Islands', Neo Revelation's, Neo Destiny's, Expedition's, Aquapolis' and Skyridge's card effects are done (GEN2_DONE_SETS); Gen 2 runs use every card of the
- * others for now (Generation `implementedSets`).
+ * (its Gen 1 reprints, in Gen 1's: agreed). Every one's card effects are done (GEN2_DONE_SETS, Generation `implementedSets`).
  */
 export const GEN2_SETS = ['neo1', 'neo2', 'si1', 'neo3', 'neo4', 'ecard1', 'ecard2', 'ecard3'];
 
@@ -26,8 +25,8 @@ export const EX_SETS = ['ex1', 'ex2', 'ex3', 'ex4', 'ex5', 'ex6', 'ex7', 'ex8', 
 export const GEN3_SETS = EX_SETS;
 export const GEN3_DONE_SETS = EX_SETS;
 
-/** The Gen 2 sets whose card effects the engine has: Gen 2 runs take only the cards it plays fully from these. */
-export const GEN2_DONE_SETS = ['neo1', 'neo2', 'si1', 'neo3', 'neo4', 'ecard1', 'ecard2', 'ecard3'];
+/** The Gen 2 sets whose card effects the engine has (every one of them now): Gen 2 runs take only the cards it plays fully from these. */
+export const GEN2_DONE_SETS = GEN2_SETS;
 
 /** Basic Energy card ids (Base Set printings) by type, and Double Colorless Energy: Gen 1's. */
 export const BASIC_ENERGY: Partial<Record<EnergyType, string>> = {
@@ -62,10 +61,6 @@ export const GEN3_BASIC_ENERGY: Partial<Record<EnergyType, string>> = {
 
 /** Types with a basic Energy card, the ones decks are built around. */
 export const DECK_TYPES = Object.keys(BASIC_ENERGY) as EnergyType[];
-
-/** The type of a basic Energy card of any generation's printings above, or undefined. */
-export const basicEnergyType = (id: string): EnergyType | undefined =>
-  [BASIC_ENERGY, GEN2_BASIC_ENERGY, GEN3_BASIC_ENERGY].map((set) => Object.entries(set).find(([, e]) => e === id)).find(Boolean)?.[0] as EnergyType | undefined;
 
 /** Card shop prices in ₱. */
 export const PRICES: Record<Rarity, number> = { common: 40, uncommon: 80, rare: 150, holo: 250 };

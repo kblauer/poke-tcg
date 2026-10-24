@@ -12,7 +12,7 @@
 // Revive Friends and Fossil put a Stage 1 card onto the Bench as a Basic Pokémon (it can then evolve as usual).
 // Engage asks the opponent first, then the Unown's owner (the CPU takes a new hand only when it holds fewer than 4 cards).
 // Gaze switches the power off until the end of the turn, or until that Pokémon leaves the Bench.
-import { activeLock, type CardInstance } from '../engine.js';
+import { activeLock, opponentOf, type CardInstance } from '../engine.js';
 import type { PowerEffect, PowerSituation } from '../powers.js';
 import { inPlayDef, openBenchSlot } from '../status.js';
 import { withNonHolo } from './neo2-prints.js';
@@ -121,7 +121,7 @@ export const NEO2_POWERS: Record<string, PowerEffect> = {
   // Unown E – [Engage]: when played from the hand, the opponent may take a new hand of 4, then its owner may.
   'neo2-67': {
     onPlayFromHand(state, owner) {
-      const opponent = state.playerOrder.find((id) => id !== owner.id)!;
+      const opponent = opponentOf(state, owner.id);
       state.pendingChoice = { player: opponent, source: 'Engage', kind: 'engage', then: owner.id };
     },
   },
