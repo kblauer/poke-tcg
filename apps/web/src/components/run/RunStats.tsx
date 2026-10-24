@@ -15,9 +15,10 @@ const label = 'text-xs uppercase tracking-wide text-slate-500';
 /**
  * The run's numbers, in the site menu on a big screen (NavRail) and the side panel's Run tab on a phone: HP, ₱ (and the bank), the account's Stardust, the run's EXP and the
  * account's, the battle rules and consumables in effect, the equipment worn, the badges won this run, and the Bag. The equipment
- * and the Bag fold away (RunSection).
+ * and the Bag fold away (RunSection). `accountFigures` false: without the bank, Stardust and the account's EXP (the big
+ * screen's menu shows them above, NavRail's AccountFigures).
  */
-export function RunStats({ view, account, run }: { view: RunViewData; account: Overview['account']; run: RunControl }) {
+export function RunStats({ view, account, run, accountFigures = true }: { view: RunViewData; account: Overview['account']; run: RunControl; accountFigures?: boolean }) {
   const trpc = useTRPC();
   const inventory = useQuery(trpc.run.inventory.queryOptions());
   const stardust = useQuery(trpc.packs.stardust.queryOptions());
@@ -43,11 +44,13 @@ export function RunStats({ view, account, run }: { view: RunViewData; account: O
             {view.pokedollars}
           </span>
         </div>
-        <div className={row} title="₱ banked from earlier runs">
-          <span className={label}>Bank</span>
-          <span className="font-semibold text-yellow-200/70">{account.bank}</span>
-        </div>
-        {stardust.data !== undefined && (
+        {accountFigures && (
+          <div className={row} title="₱ banked from earlier runs">
+            <span className={label}>Bank</span>
+            <span className="font-semibold text-yellow-200/70">{account.bank}</span>
+          </div>
+        )}
+        {accountFigures && stardust.data !== undefined && (
           <div className={row} title="Stardust, from cards pulled again in packs; crafts cards in the deck builder">
             <span className={label}>Stardust</span>
             <span className="flex items-center gap-1 font-semibold text-sky-200">
@@ -60,10 +63,12 @@ export function RunStats({ view, account, run }: { view: RunViewData; account: O
           <span className={label}>Run EXP</span>
           <span className="font-semibold text-sky-300">{view.exp}</span>
         </div>
-        <div className={row} title="Account EXP, spent in the shop after a run">
-          <span className={label}>EXP</span>
-          <span className="font-semibold">{account.exp}</span>
-        </div>
+        {accountFigures && (
+          <div className={row} title="Account EXP, spent in the shop after a run">
+            <span className={label}>EXP</span>
+            <span className="font-semibold">{account.exp}</span>
+          </div>
+        )}
       </div>
       {(view.rules.length > 0 || view.consumables.length > 0) && (
         <div className="space-y-1 text-xs">

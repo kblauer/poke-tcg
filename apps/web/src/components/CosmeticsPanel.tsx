@@ -3,7 +3,7 @@ import LockIcon from '@mui/icons-material/Lock';
 import RemoveIcon from '@mui/icons-material/Remove';
 import { RUN_TYPES, type CosmeticDef, type CosmeticKind } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useEscape } from '../hooks/useEscape';
 import { useIsPhone } from '../hooks/useIsPhone';
 import { useTRPC } from '../lib/trpc';
@@ -70,6 +70,32 @@ function Section({ title, note, folded, onFold, foldable, children }: { title: s
   );
 }
 
+/**
+ * A grid's height for its first `rows` rows (the rest scrolled to): measured from where its tiles sit, as their heights
+ * follow their text and its columns the width; measured again when the grid or a tile changes size, `content` changes
+ * or the grid is `shown` again (a folded section).
+ * The grid must be `relative` (its tiles' offsetTop are from it). No limit when it has no more rows than that.
+ */
+function useRowsTall(rows: number, content: unknown, shown: boolean) {
+  const ref = useRef<HTMLUListElement>(null);
+  const [maxHeight, setMaxHeight] = useState<number>();
+  useLayoutEffect(() => {
+    const grid = ref.current;
+    if (!grid) return;
+    const measure = () => {
+      const tops = [...new Set([...grid.children].map((c) => (c as HTMLElement).offsetTop))].sort((a, b) => a - b);
+      const style = getComputedStyle(grid);
+      setMaxHeight(tops.length > rows ? tops[rows]! - parseFloat(style.rowGap) + parseFloat(style.paddingBottom) : undefined);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(grid);
+    for (const tile of grid.children) observer.observe(tile);
+    return () => observer.disconnect();
+  }, [rows, content, shown]);
+  return { ref, maxHeight };
+}
+
 /** How a cosmetic the account doesn't have is had: its price, or the run to beat. */
 function howToGet(def: CosmeticDef): string {
   return def.unlock.type === 'beat' ? `Beat the ${RUN_TYPES[def.unlock.runType].name} run` : def.unlock.type === 'buy' ? `₱${def.unlock.price}` : '';
@@ -101,6 +127,7 @@ export function CosmeticsPanel() {
   const phone = useIsPhone();
   const { collapsed, toggle } = useCollapsed();
   const section = (kind: CosmeticKind) => ({ foldable: phone, folded: collapsed.includes(kind), onFold: () => toggle(kind) });
+  const backs = useRowsTall(3, list.data, !(phone && collapsed.includes('cardBack')));
   if (!list.data) return null;
   const { cosmetics, bank } = list.data;
   const busy = buy.isPending || assign.isPending;
@@ -134,9 +161,9 @@ export function CosmeticsPanel() {
   return (
     <div className="space-y-6">
       {error && <p className="text-sm text-red-400">{error.message}</p>}
-      <Section {...section('cardBack')} title="Card backs" note={<>Your own face-down cards: your deck and Prize cards, and (the default) the packs you open. Bank: ₱{bank}</>}>
-        {/* On a phone, 3 to a row (agreed). */}
-        <ul className={phone ? 'grid grid-cols-3 gap-2' : 'grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3'}>
+      <Section {...section('cardBack')} title="Card backs" note="The back of your cards, and the cards you open in packs.">
+        {/* On a phone, 3 to a row (agreed); 3 rows tall, the rest scrolled to (the user's). */}
+        <ul ref={backs.ref} style={{ maxHeight: backs.maxHeight }} className={`relative overflow-y-auto p-1 pr-2 ${phone ? 'grid grid-cols-3 gap-2' : 'grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3'}`}>
           {of('cardBack').map((def) =>
             tile(def, <img src={cardBackUrl(def.id)} alt="" loading="lazy" draggable={false} className={`mx-auto aspect-[63/88] w-full max-w-28 rounded-md object-cover shadow-md shadow-black/60 ${def.owned ? '' : 'opacity-50 grayscale'}`} />),
           )}

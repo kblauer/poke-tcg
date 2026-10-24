@@ -1,5 +1,3 @@
-import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
@@ -8,9 +6,10 @@ import { useRun } from '../hooks/useRun';
 import { useTRPC } from '../lib/trpc';
 import { GameLog } from './GameLog';
 import { useNavGameLog } from './NavLog';
-import { PAGE_NAME, PAGES, SETTINGS_PAGE } from './PageNav';
+import { navIcon, PAGE_NAME, PAGES, SETTINGS_PAGE } from './PageNav';
 import { DeltaFloat } from './run/DeltaFloat';
 import { RunStats } from './run/RunStats';
+import { shortNumber } from './TopBarStats';
 import { useDebugEnabled } from '../utils/debug';
 
 // Only builds with the debug tools load (or even include) the Debug tab's panel (as in LogDrawer.tsx).
@@ -47,7 +46,8 @@ function loadSections(): SectionPrefs {
  * The site's menu on a big screen, down the left edge under the top bar, beside the page: minimised, a column of the
  * pages' icons (their names on hover), Settings last; `open` (toggled by the top bar's ☰), wider, with each
  * page's name beside its icon. Either way it takes its own room on the left and the page beside it stays usable.
- * Under them: open, the run's numbers and the logs (NavSections); minimised, the run's HP and ₱, and the bank.
+ * Under them, always, the bank, EXP and Stardust (AccountFigures); then open, the run's numbers and the logs
+ * (NavSections), minimised, the run's HP and ₱.
  */
 export function NavRail({ open }: { open: boolean }) {
   const link = (p: (typeof PAGES)[number] | typeof SETTINGS_PAGE, className = '') => (
@@ -64,6 +64,7 @@ export function NavRail({ open }: { open: boolean }) {
     >
       {PAGES.map((p) => link(p))}
       {link(SETTINGS_PAGE)}
+      <AccountFigures open={open} />
       {open ? <NavSections /> : <RunSummary />}
     </nav>
   );
@@ -94,13 +95,50 @@ export function PhoneNavRun() {
   );
 }
 
-/** The minimised menu's run: its HP and ₱, the bank and Stardust, under the pages' icons. */
+/**
+ * The account's bank, EXP and Stardust, always under the pages (the user's), run or not, each with its pokesprite item
+ * (navIcon: the Galactic Warehouse's Storage Key, the Exp. Share, Stardust): open, in a row, each with its
+ * name; minimised, a column of icons and numbers (over 999 in short, shortNumber), each one's meaning on hover.
+ */
+function AccountFigures({ open }: { open: boolean }) {
+  const trpc = useTRPC();
+  const account = useRun().overview.data?.account;
+  const stardust = useQuery(trpc.packs.stardust.queryOptions());
+  if (!account) return null;
+  const figures = [
+    { key: 'bank', title: '₱ banked from earlier runs', label: 'Bank', Icon: navIcon('bank'), value: account.bank, className: 'text-yellow-200/70' },
+    { key: 'exp', title: 'EXP, spent in the shop after a run', label: 'EXP', Icon: navIcon('exp'), value: account.exp, className: 'text-sky-300' },
+    ...(stardust.data !== undefined
+      ? [{ key: 'dust', title: 'Stardust, from cards pulled again in packs; crafts cards in the deck builder', label: 'Dust', Icon: navIcon('stardust'), value: stardust.data, className: 'text-sky-200' }]
+      : []),
+  ];
+  return open ? (
+    // Its own width, so nothing reflows while the menu widens.
+    <section className="mt-2 flex w-[16.5rem] shrink-0 justify-between gap-2 border-t border-slate-800 px-1 pt-3 text-sm font-semibold">
+      {figures.map((f) => (
+        <span key={f.key} className={`flex items-center gap-1 ${f.className}`} title={f.title}>
+          <f.Icon />
+          {f.value.toLocaleString()}
+        </span>
+      ))}
+    </section>
+  ) : (
+    <section className="mt-2 flex shrink-0 flex-col items-center gap-3 border-t border-slate-800 pt-3 text-xs font-semibold">
+      {figures.map((f) => (
+        <span key={f.key} className={`flex flex-col items-center ${f.className}`} title={`${f.title}: ${f.value.toLocaleString()}`} aria-label={`${f.label}: ${f.value}`}>
+          <f.Icon />
+          {shortNumber(f.value)}
+        </span>
+      ))}
+    </section>
+  );
+}
+
+/** The minimised menu's run: its HP and ₱, under the account's figures. */
 function RunSummary() {
   const { data } = useRunUnderWay();
-  const trpc = useTRPC();
-  const stardust = useQuery(trpc.packs.stardust.queryOptions());
   if (!data) return null;
-  const { view, account } = data;
+  const { view } = data;
   return (
     <section className="mt-2 flex flex-col items-center gap-3 border-t border-slate-800 pt-3 text-xs font-semibold">
       <span className="relative flex flex-col items-center text-rose-400" title={`${view.hp} of ${view.maxHp} HP`}>
@@ -114,23 +152,13 @@ function RunSummary() {
         <span className="text-base leading-5">₱</span>
         {view.pokedollars}
       </span>
-      <span className="flex flex-col items-center text-yellow-200/70" title="₱ banked from earlier runs">
-        <AccountBalanceIcon sx={{ fontSize: 18 }} />
-        {account.bank}
-      </span>
-      {stardust.data !== undefined && (
-        <span className="flex flex-col items-center text-sky-200" title="Stardust">
-          <AutoAwesomeIcon sx={{ fontSize: 18 }} />
-          {stardust.data}
-        </span>
-      )}
     </section>
   );
 }
 
 /**
- * The open menu's sections under the pages, set apart by a margin and a line: during a run its numbers (RunStats: HP,
- * ₱, bank, EXP, items in effect, equipment, the Bag), then the logs, with a tab each for the run's log (during a run)
+ * The open menu's sections under the account's figures, set apart by a margin and a line: during a run its numbers
+ * (RunStats: HP, ₱, the run's EXP, items in effect, equipment, the Bag; the bank, EXP and Stardust are above), then the logs, with a tab each for the run's log (during a run)
  * and the battle's (while a game is on screen, useGameLogInNav), and with the debug tools enabled (never in production) a
  * Debug tab for that game (DebugPanel). The run's section's height is set by dragging the bar
  * under it, remembered with the log tab (`poke-tcg.nav-sections`); the logs fill the rest, down to the menu's bottom.
@@ -177,7 +205,7 @@ function NavSections() {
       {data && (
         <Resizable height={prefs.run} onHeight={(run) => setPrefs((p) => ({ ...p, run }))} label="the run's section">
           <div className="h-full overflow-y-auto pr-1">
-            <RunStats view={data.view} account={data.account} run={run} />
+            <RunStats view={data.view} account={data.account} run={run} accountFigures={false} />
           </div>
         </Resizable>
       )}

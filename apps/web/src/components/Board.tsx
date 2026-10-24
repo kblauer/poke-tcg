@@ -26,7 +26,6 @@ import { DeckAndDiscard } from './DeckAndDiscard';
 import { FloatingDialog } from './FloatingDialog';
 import { Hand } from './Hand';
 import { OpponentArea, type Spotlight } from './OpponentArea';
-import { BoardMusicControls } from './MusicPlayer';
 import { DiscardPane } from './DiscardPane';
 import { PendingChoicePanel } from './PendingChoicePanel';
 import { PhoneBoard } from './phone/PhoneBoard';
@@ -670,11 +669,6 @@ export function Board({
               <div className="relative shrink-0">
                 {statusBar(false)}
                 {setupBanner && <SetupBanner text={setupLine.current.text} first={setupLine.current.first} leaving={!placing} onGone={setupBannerGone} place="inset-x-0 bottom-10" />}
-              </div>
-
-              {/* The music player's play/pause and note, in the middle of the table's right edge (not over the hand). */}
-              <div data-keep-action className="absolute right-0 top-1/2 z-20 -translate-y-1/2">
-                <BoardMusicControls />
               </div>
 
               {/* Prize cards on the left of the play area; discard pile and deck on the right; under them the player's playmat. */}
