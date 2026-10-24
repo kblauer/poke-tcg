@@ -7,7 +7,7 @@
 // Rulings (from the text): questions whose answer depends on a flip are asked before it (Crushing Blow, Bubble Jump, Ball
 // of Flame, Wash Away, Healing Water…), as in Neo Genesis. "Your opponent may…, either way you may do the same" attacks ask the
 // opponent first (Flipper Stroke, Fish Out, Mysterious Wing, Evolution Song); Searchlight asks the attacking player first.
-// Pull In's switch is asked as a yes/no and then a Benched Pokémon. Call Back can't be used while the opponent's Bench is full
+// Pull In's switch is a Benched Pokémon or none (-1, the Defending Pokémon clicked). Call Back can't be used while the opponent's Bench is full
 // (the card's "your Bench" means theirs). Bubble Jump's heads moves 2 Energy cards and returns Light Azumarill; tails does
 // only the damage. Rushing Flames may discard Fire Energy cards from any of the attacking player's Pokémon. Reflect Shield's
 // 20 damage gets Weakness and Resistance, as Fire Wall's does. Charm lowers every attack damage the Defending Pokémon does.
@@ -138,14 +138,13 @@ export const NEO4: Record<string, Record<string, AttackEffect>> = {
   // Dark Gengar: the switch first, then the damage and Sleep to the new Defending Pokémon.
   'neo4-6': {
     'Pull In': {
-      choices(s, c): ChoiceSpec[] {
+      choices(s): ChoiceSpec[] {
         const options = targetsIn(null, s.opponentBench) as number[];
-        if (!options.length) return [];
-        const ask: ChoiceSpec = { kind: 'boost', options: [true, false], prompt: "Switch one of your opponent's Benched Pokémon with the Defending Pokémon first?" };
-        return c.boost ? [ask, { kind: 'opponentBench', options, prompt: "Choose one of your opponent's Benched Pokémon to switch in" }] : [ask];
+        return options.length ? [{ kind: 'opponentBench', options: [-1, ...options], optional: true, prompt: "You may choose one of your opponent's Benched Pokémon to switch in first" }] : [];
       },
       run(ctx) {
-        if (ctx.choices.boost && ctx.choices.benchSlot !== undefined) ctx.switchDefender(ctx.choices.benchSlot);
+        const slot = ctx.choices.benchSlot;
+        if (slot !== undefined && slot >= 0) ctx.switchDefender(slot);
         ctx.hit(30);
         ctx.inflict('asleep');
       },

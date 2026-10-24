@@ -21,8 +21,13 @@ describe('Neo Destiny attacks', () => {
 
   it('Pull In: switches in the chosen Benched Pokémon first, then damages it and puts it to Sleep', () => {
     // Misty's Asleep flip between the turns: tails.
-    const s = attack(flips(duel('darkGengar', 'machoke', { energy: ['psychic', 'psychic', 'psychic'], oppBench: ['squirtle'] }), false), 0, { boost: true, benchSlot: 0 });
+    const s = attack(flips(duel('darkGengar', 'machoke', { energy: ['psychic', 'psychic', 'psychic'], oppBench: ['squirtle'] }), false), 0, { benchSlot: 0 });
     expect([misty(s).active!.card.defId, misty(s).active!.damage, misty(s).active!.condition]).toEqual([id('squirtle'), 30, 'asleep']);
+  });
+
+  it("Pull In: -1 doesn't switch", () => {
+    const s = attack(flips(duel('darkGengar', 'machoke', { energy: ['psychic', 'psychic', 'psychic'], oppBench: ['squirtle'] }), false), 0, { benchSlot: -1 });
+    expect([misty(s).active!.card.defId, misty(s).active!.damage, misty(s).active!.condition]).toEqual([id('machoke'), 30, 'asleep']);
   });
 
   it('Dark Fire: discarding a Darkness Energy card does 60', () => {

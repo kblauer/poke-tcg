@@ -27,6 +27,7 @@ import { FloatingDialog } from './FloatingDialog';
 import { Hand } from './Hand';
 import { LogSheet } from './LogDrawer';
 import { OpponentArea, OpponentSlot, type Spotlight } from './OpponentArea';
+import { BoardMusicControls } from './MusicPlayer';
 import { PendingChoicePanel } from './PendingChoicePanel';
 import { PhoneOppHand, PhonePiles, PhonePrizes } from './phone/PhonePiles';
 import { PhoneTable } from './phone/PhoneTable';
@@ -255,9 +256,10 @@ export function Board({
   const pokemonPick: { side: 'own' | 'opp'; options: Target[]; pick: (t: Target) => void; picked?: Target[] } | null =
     pendingPick
       ? { side: pendingPick.kind === 'ownPokemon' ? 'own' : 'opp', options: pendingPick.options, pick: (target) => send({ type: 'RESOLVE_CHOICE', target }) }
-      : attack.spec?.kind === 'opponentBench'
-      ? { side: 'opp', options: attack.spec.options, pick: attack.answer }
-      : attack.spec?.kind === 'ownBench' || attack.spec?.kind === 'ownPokemon' || attack.spec?.kind === 'ownPokemonTo'
+      : attack.spec?.kind === 'opponentBench' || attack.spec?.kind === 'ownBench'
+        ? // "You may switch" (Pull In, Spiral Aura, Teleport Blast): -1, not switching, is the Active Pokémon, highlighted with the Bench.
+          { side: attack.spec.kind === 'ownBench' ? 'own' : 'opp', options: [...(attack.spec.optional && !attack.spec.options.includes(-1) ? [-1] : []), ...attack.spec.options].map((s): Target => (s === -1 ? 'active' : s)), pick: (t) => attack.answer(t === 'active' ? -1 : t) }
+      : attack.spec?.kind === 'ownPokemon' || attack.spec?.kind === 'ownPokemonTo'
         ? { side: 'own', options: attack.spec.options, pick: attack.answer }
       : attack.spec?.kind === 'opponentPokemon' || attack.spec?.kind === 'opponentPokemonTo'
         ? { side: 'opp', options: attack.spec.options, pick: attack.answer }
@@ -535,7 +537,7 @@ export function Board({
   const statusBar = (compact: boolean) => (
     <StatusBar
       compact={compact}
-      status={statusText(view, compact)}
+      status={statusText(view)}
       canEndTurn={myTurn}
       setup={phase === 'setup' && !self.ready ? { canReset: !!self.active || self.bench.some(Boolean), canStart: !!self.active } : null}
       endTurn={() => turnReminders.check('end', () => send({ type: 'END_TURN' }))}
@@ -730,6 +732,11 @@ export function Board({
 
               {/* Between the two sides: whose turn it is and End turn. */}
               {statusBar(false)}
+
+              {/* The music player's play/pause and note, in the middle of the table's right edge (not over the hand). */}
+              <div data-keep-action className="absolute right-0 top-1/2 z-20 -translate-y-1/2">
+                <BoardMusicControls />
+              </div>
 
               {/* Prize cards on the left of the play area; discard pile and deck on the right; under them the player's playmat. */}
               <section className="relative flex min-h-0 flex-1 items-center rounded-lg bg-slate-900 p-3">

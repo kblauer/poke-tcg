@@ -339,8 +339,8 @@ function Option({
   );
 }
 
-/** A trainer battle's reward lean (battleReward): Big payout, Extra EXP or Rarer cards. */
+/** A trainer battle's reward lean (battleReward): Big Payout, Extra EXP or Rarer Cards, each on one line, the same size wherever it's shown. */
 export function FocusTag({ option }: { option: MapEncounter }) {
   if (!option.focus) return null;
-  return <span className="rounded bg-amber-500/20 px-1.5 text-xs font-semibold text-amber-300 ring-1 ring-amber-500/40">{REWARD_FOCUS_LABELS[option.focus]}</span>;
+  return <span className="inline-block shrink-0 whitespace-nowrap rounded bg-amber-500/20 px-1.5 text-xs font-semibold leading-5 text-amber-300 ring-1 ring-amber-500/40">{REWARD_FOCUS_LABELS[option.focus]}</span>;
 }

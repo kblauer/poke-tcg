@@ -9,7 +9,7 @@ import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import { pickSong, type MusicCue, type Song, type Soundtrack } from '@poke-tcg/campaign';
 import { useQuery } from '@tanstack/react-query';
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import AudioPlayer from 'react-h5-audio-player';
 import 'react-h5-audio-player/lib/styles.css';
 import { registerSetting, saveSetting } from '../utils/accountSettings';
@@ -93,6 +93,8 @@ interface MusicState {
   setCue: (cue: MusicCue | null) => void;
   /** A jingle (the Pokémon Center's), then back to the song it interrupted, where it was. Only while music plays. */
   playJingle: (song: Song) => void;
+  /** A page showing the bar itself (BoardMusicControls) while it's on screen: +1 when it appears, −1 when it goes. */
+  hostBar: (by: 1 | -1) => void;
 }
 
 const MusicContext = createContext<MusicState | null>(null);
@@ -116,14 +118,16 @@ export const usePlayJingle = () => useContext(MusicContext)?.playJingle ?? null;
 /**
  * The music player's small bar: play/pause and the song playing, which opens the player's panel. Floating at the bottom
  * right of the page, or (`MusicProvider`'s `docked`) in a menu: the site's ☰ menu, or the phone battle screen's.
- * `onOpen`: called when it opens the panel (a menu closes itself, so the panel can be seen).
+ * `onOpen`: called when it opens the panel (a menu closes itself, so the panel can be seen). `compact`: only the two
+ * icons, the song's title in the note's tooltip (BoardMusicControls).
  */
-export function MusicControls({ onOpen }: { onOpen?: () => void }) {
+export function MusicControls({ onOpen, compact = false }: { onOpen?: () => void; compact?: boolean }) {
   const music = useContext(MusicContext);
   if (!music) return null;
   const { playing, title, open, togglePlay, toggleOpen } = music;
+  const openTitle = open ? 'Hide the music player' : 'Show the music player';
   return (
-    <div className="flex w-fit min-w-0 items-center gap-1 rounded-full bg-slate-800 py-1 pl-1 pr-1 shadow-lg ring-1 ring-slate-600">
+    <div className={`flex w-fit min-w-0 items-center gap-1 rounded-full bg-slate-800 p-1 shadow-lg ring-1 ring-slate-600 ${compact ? 'flex-col' : ''}`}>
       <button className={`${iconButton} rounded-full`} onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'} title={playing ? 'Pause' : 'Play'}>
         {playing ? <PauseIcon sx={{ fontSize: 20 }} /> : <PlayArrowIcon sx={{ fontSize: 20 }} />}
       </button>
@@ -134,13 +138,27 @@ export function MusicControls({ onOpen }: { onOpen?: () => void }) {
           toggleOpen();
         }}
         aria-expanded={open}
-        title={open ? 'Hide the music player' : 'Show the music player'}
+        aria-label={compact ? openTitle : undefined}
+        title={compact && title ? `${title} (${openTitle.toLowerCase()})` : openTitle}
       >
         <MusicNoteIcon sx={{ fontSize: 18 }} className={playing ? 'text-yellow-300' : undefined} />
-        <span className="max-w-48 truncate">{title ?? 'Music'}</span>
+        {!compact && <span className="max-w-48 truncate">{title ?? 'Music'}</span>}
       </button>
     </div>
   );
+}
+
+/**
+ * The bar as a battle on a big screen shows it: the two icons alone, wherever the board puts it (the middle of the
+ * table's right edge), in place of the floating bar at the bottom right, which would cover the hand.
+ */
+export function BoardMusicControls() {
+  const hostBar = useContext(MusicContext)?.hostBar;
+  useEffect(() => {
+    hostBar?.(1);
+    return () => hostBar?.(-1);
+  }, [hostBar]);
+  return <MusicControls compact />;
 }
 
 /**
@@ -326,7 +344,11 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
       }),
     [],
   );
+  // While a page shows the bar itself (BoardMusicControls), the floating one is left out; its panel still opens here.
+  const [hosted, setHosted] = useState(0);
+  const hostBar = useCallback((by: 1 | -1) => setHosted((n) => n + by), []);
   const state: MusicState = {
+    hostBar,
     playing,
     title: current?.title ?? null,
     open: prefs.open,
@@ -493,7 +515,7 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
           </div>
         </section>
 
-        {!docked && <MusicControls />}
+        {!docked && hosted === 0 && <MusicControls />}
       </div>
     </MusicContext.Provider>
   );
