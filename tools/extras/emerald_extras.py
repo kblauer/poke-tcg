@@ -18,6 +18,8 @@ decompilation, as the game draws them:
   (misc.pal for the sprites but the arrows), and the frame's tiles drawn over it as the game plays (the RPM digits,
   0x72-0x7B, and the progress bar's empty to full top and bottom tiles, 0xE1-0xE9 and 0xF1-0xF9):
   apps/web/public/extras/blender/*.png;
+- the Berry Blender's sounds (the sound effects berry_blender.c plays, and the Pokéblock's fanfare), rendered by
+  m4a_render.py: apps/web/public/extras/blender/sounds/<song>.wav (the blender's whirring, se_berry_blender, its loop once);
 - the Pokéblock (graphics/pokeblock/pokeblock.png) in each colour's palette: apps/web/public/extras/pokeblocks/<colour>.png;
 - the berries' data (src/berry.c's gBerries: name, size, firmness, yields, stage duration, flavours, smoothness and
   description), but the Enigma Berry (an e-Reader event's): packages/campaign/src/berry-data.ts.
@@ -31,6 +33,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, '..', '..'))
 sys.path.insert(0, os.path.join(REPO, 'tools', 'routes', 'emerald'))
 import emerald_map  # noqa: E402
+sys.path.insert(0, HERE)
+import m4a_render  # noqa: E402
 
 PUBLIC = os.path.join(REPO, 'apps', 'web', 'public', 'extras')
 CAMPAIGN = os.path.join(REPO, 'packages', 'campaign', 'src')
@@ -323,6 +327,16 @@ def blender(repo):
         strip(sprite_frames(Image.open(os.path.join(src, name + '.png')), w, h), misc, w, h).save(os.path.join(out, name.split('_')[0] + '.png'))
 
 
+# The Berry Blender's sounds (berry_blender.c's PlaySE and PlayFanfare calls).
+BLENDER_SOUNDS = ['se_ball_tray_exit', 'se_fall', 'se_truck_door', 'se_ball_bounce_1', 'se_pin', 'se_berry_blender', 'se_ice_stairs', 'se_success', 'se_failure', 'se_select', 'mus_level_up']
+
+
+def sounds(repo):
+    out = os.path.join(PUBLIC, 'blender', 'sounds')
+    for song in BLENDER_SOUNDS:
+        m4a_render.write_wav(os.path.join(out, song + '.wav'), m4a_render.render(repo, song, loop=song == 'se_berry_blender'), 0.8)
+
+
 def pokeblocks(repo):
     """The Pokéblock's sprite in each colour's palette (graphics/pokeblock/<colour>.pal): apps/web/public/extras/pokeblocks/<colour>.png."""
     src = os.path.join(repo, 'graphics', 'pokeblock')
@@ -336,6 +350,7 @@ def pokeblocks(repo):
 def main():
     repo = sys.argv[1]
     pokeblocks(repo)
+    sounds(repo)
     berries = berry_data(repo)
     assert len(berries) == 42, len(berries)
     berry_icons(repo, berries)

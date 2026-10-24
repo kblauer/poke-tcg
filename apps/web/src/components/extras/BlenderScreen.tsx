@@ -1,3 +1,5 @@
+import VolumeOffIcon from '@mui/icons-material/VolumeOff';
+import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import {
   ARROW_FALL_ROTATION,
   berryInfo,
@@ -17,6 +19,7 @@ import {
 } from '@poke-tcg/campaign';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMusicCue, useMusicSettings } from '../MusicPlayer';
+import { BlenderSound, loadVolume, saveVolume } from './blenderSound';
 
 /** The Pokéblock the API made from the blend (`extras.blend`), for the end of the game. */
 export interface BlendResult {
@@ -155,14 +158,36 @@ export function BlenderScreen({ berry, playerName, onBlend, onDone }: { berry: s
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
 
+  // The sounds (blenderSound.ts), made with the screen and closed with it; their volume, the slider under the screen.
+  const sound = useRef<BlenderSound | null>(null);
+  const [volume, setVolume] = useState(loadVolume);
+  useEffect(() => {
+    const s = new BlenderSound(loadVolume());
+    sound.current = s;
+    return () => {
+      s.close();
+      sound.current = null;
+    };
+  }, []);
+  useEffect(() => sound.current?.setVolume(volume), [volume]);
+  // The volume before the speaker silenced it, for turning it back on.
+  const loudBefore = useRef(0);
+
   // A press: A in the game. What it does depends on where the blend is.
   const press = useRef<(yes?: boolean) => void>(() => {});
   press.current = (yes) => {
     const s = scene.current;
+    sound.current?.resume();
     if (!s) return;
     if (s.stage === 'play') s.pressed = true;
-    else if (s.stage === 'ranking' && s.frame > 47 + 21) go(s, 'results');
-    else if (s.stage === 'results' && s.frame > 23 && (result.current || failure.current)) go(s, failure.current ? 'failed' : 'made');
+    else if (s.stage === 'ranking' && s.frame > 47 + 21) {
+      sound.current?.play('se_select');
+      go(s, 'results');
+    } else if (s.stage === 'results' && s.frame > 23 && (result.current || failure.current)) {
+      // The Pokéblock's fanfare as it's made (Task_PlayPokeblockFanfare).
+      if (!failure.current) sound.current?.play('mus_level_up');
+      go(s, failure.current ? 'failed' : 'made');
+    }
     else if (s.stage === 'made') go(s, 'again');
     else if (s.stage === 'failed') onDoneRef.current(false);
     else if (s.stage === 'again') onDoneRef.current(yes ?? s.yes);
@@ -261,6 +286,7 @@ export function BlenderScreen({ berry, playerName, onBlend, onDone }: { berry: s
         } else if (s.frame > 61 * BLENDER_PLAYERS) {
           game.arrowPos = (0 - ARROW_FALL_ROTATION) & 0xffff;
           s.showCenter = true;
+          sound.current?.play('se_fall');
           go(s, 'drop');
         }
         break;
@@ -273,6 +299,7 @@ export function BlenderScreen({ berry, playerName, onBlend, onDone }: { berry: s
           game.arrowPos = 0;
           s.centerOnTop = false;
           s.lit = true;
+          sound.current?.play('se_truck_door');
           go(s, 'land');
         }
         break;
@@ -296,6 +323,7 @@ export function BlenderScreen({ berry, playerName, onBlend, onDone }: { berry: s
           if (c.state === 0 && (c.y += 8) > 88) {
             c.y = 88;
             c.state = 1;
+            sound.current?.play('se_ball_bounce_1');
           } else if (c.state === 1 && ++c.delay > 20) {
             c.state = 2;
             c.delay = 0;
@@ -310,10 +338,14 @@ export function BlenderScreen({ berry, playerName, onBlend, onDone }: { berry: s
           if (st.state === 0 && (st.y += 8) > 92) {
             st.y = 92;
             st.state = 1;
+            sound.current?.play('se_pin');
           } else if (st.state === 1 && ++st.delay > 20) st.state = 2;
           else if (st.state === 2 && (st.y += 4) > 176) {
             s.start = null;
             game.speed = 0x80;
+            // The blender's whirring starts with the game (state 21), at the least speed's pitch.
+            sound.current?.setPitch(0);
+            sound.current?.startLoop();
             go(s, 'play');
           }
         }
@@ -323,7 +355,10 @@ export function BlenderScreen({ berry, playerName, onBlend, onDone }: { berry: s
         const pressed = s.pressed;
         s.pressed = false;
         if (pressed) s.flash = 0;
-        for (const hit of blenderFrame(game, pressed, random16)) addHit(s, hit);
+        const hits = blenderFrame(game, pressed, random16);
+        for (const hit of hits) addHit(s, hit);
+        // A score's sound, and the whirring's pitch raised (or lowered) with the speed (UpdateSpeedFromHit's UpdateHitPitch).
+        if (hits.length) sound.current?.setPitch(2 * (game.speed - 0x80));
         if (game.over) go(s, 'slow');
         break;
       }
@@ -332,8 +367,10 @@ export function BlenderScreen({ berry, playerName, onBlend, onDone }: { berry: s
         game.arrowPos = (game.arrowPos + game.speed) & 0xffff;
         game.speed -= 32;
         for (const axis of ['bgX', 'bgY'] as const) game[axis] -= Math.sign(game[axis]);
+        sound.current?.setPitch(2 * (Math.max(0, game.speed) - 0x80));
         if (game.speed <= 0) {
           game.speed = 0;
+          sound.current?.stopLoop();
           onBlendRef
             .current(game.maxRpm)
             .then((r) => (result.current = r))
@@ -351,6 +388,7 @@ export function BlenderScreen({ berry, playerName, onBlend, onDone }: { berry: s
     const [ax, ay] = PLAYER_ARROW_POS[hit.player]!;
     const [qx, qy] = QUADRANT[hit.player]!;
     s.sprites.push({ kind: 'score', score: hit.score, x: ax - 10 * qx, y: ay - 10 * qy, t: 0 });
+    sound.current?.play(hit.score === 'best' ? 'se_ice_stairs' : hit.score === 'good' ? 'se_success' : 'se_failure');
     const count = (random16() % 2) + 1;
     for (let i = 0; i < count; i++) {
       // The sine table's angle from the arrow's position's low byte, as the game does.
@@ -371,6 +409,7 @@ export function BlenderScreen({ berry, playerName, onBlend, onDone }: { berry: s
       if (sp.targetY! < sp.y) {
         sp.bounceSpeed = sp.yUp = sp.bounceSpeed! - 1;
         if (++sp.bounces! > 3) return false;
+        sound.current?.play('se_ball_tray_exit');
       }
       return true;
     }
@@ -405,9 +444,44 @@ export function BlenderScreen({ berry, playerName, onBlend, onDone }: { berry: s
         className="mx-auto block aspect-[3/2] w-full max-w-[960px] cursor-pointer touch-none select-none rounded-lg bg-black ring-1 ring-slate-600 [image-rendering:pixelated]"
         aria-label="The Berry Blender: click, tap or press Space as the arrow passes yours (top left)"
       />
-      <p className="text-center text-xs text-slate-400">
-        {stage === 'play' ? 'Click, tap or press Space when the spinning arrow lines up with your arrow (top left).' : stage === 'again' ? 'Up and down to choose, Space or a click to answer.' : stage === 'loading' ? 'Starting up the Berry Blender…' : 'Click or press Space to go on.'}
-      </p>
+      <div className="mx-auto flex max-w-[960px] flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <p className="text-xs text-slate-400">
+          {stage === 'play' ? 'Click, tap or press Space when the spinning arrow lines up with your arrow (top left).' : stage === 'again' ? 'Up and down to choose, Space or a click to answer.' : stage === 'loading' ? 'Starting up the Berry Blender…' : 'Click or press Space to go on.'}
+        </p>
+        {/* The sounds' volume (the music's is the music player's own), remembered in this browser; the icon silences them and back. */}
+        <label className="flex items-center gap-2 text-xs text-slate-400">
+          <button
+            type="button"
+            className="flex h-7 w-7 items-center justify-center rounded text-slate-300 transition hover:bg-slate-700 hover:text-slate-50"
+            onClick={() => {
+              const next = volume ? 0 : loudBefore.current || 70;
+              if (volume) loudBefore.current = volume;
+              setVolume(next);
+              saveVolume(next);
+            }}
+            aria-label={volume ? 'Silence the sounds' : 'Turn the sounds back on'}
+            title={volume ? 'Silence the sounds' : 'Turn the sounds back on'}
+          >
+            {volume ? <VolumeUpIcon sx={{ fontSize: 18 }} /> : <VolumeOffIcon sx={{ fontSize: 18 }} />}
+          </button>
+          <span className="sr-only">Sound volume</span>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={volume}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              setVolume(v);
+              saveVolume(v);
+              sound.current?.resume();
+            }}
+            className="w-32 accent-yellow-300"
+            aria-label="Sound volume"
+          />
+          <span className="w-8 tabular-nums">{volume}%</span>
+        </label>
+      </div>
     </div>
   );
 
