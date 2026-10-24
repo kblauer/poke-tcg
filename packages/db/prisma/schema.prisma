@@ -47,8 +47,10 @@ model User {
   berries       Json            @default("{}")
   /// The Berry Blender's top speed ever, in hundredths of an RPM (as the game's record).
   blenderRecord Int             @default(0)
-  /// The Game Corner's Coin Case: coins bought with banked ₱ and played at the roulette and the slots (at most 9999).
+  /// The Game Corner's Coin Case: coins bought with banked ₱ and played at the roulette and the slots, or won at Voltorb Flip (at most 9999).
   coins         Int             @default(0)
+  /// Voltorb Flip's session (the campaign package's VoltorbFlipState): its last 5 rounds, for the level, and the board in play.
+  voltorbFlip   Json            @default("{}")
   decks         Deck[]
   games         Game[]
   runs          Run[]

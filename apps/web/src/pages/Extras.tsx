@@ -5,11 +5,12 @@ import { BerryBlender } from '../components/extras/BerryBlender';
 import { BerryFarm } from '../components/extras/BerryFarm';
 import { GameCorner } from '../components/extras/GameCorner';
 import { PoffinCooking } from '../components/extras/PoffinCooking';
+import { VoltorbFlip } from '../components/extras/VoltorbFlip';
 import { PageHeader } from '../components/PageHeader';
 import { PAGE_WIDTH } from '../utils/layout';
 
 /** The Extras page's minigames and modes, in its list's order: each its page, picture and a line on it. */
-const EXTRAS: { to: '/extras/berry-farm' | '/extras/berry-blender' | '/extras/poffin-cooking' | '/extras/game-corner'; title: string; text: string; picture: ReactNode }[] = [
+const EXTRAS: { to: '/extras/berry-farm' | '/extras/berry-blender' | '/extras/poffin-cooking' | '/extras/game-corner' | '/extras/voltorb-flip'; title: string; text: string; picture: ReactNode }[] = [
   {
     to: '/extras/berry-farm',
     title: 'Berry Farm',
@@ -37,6 +38,13 @@ const EXTRAS: { to: '/extras/berry-farm' | '/extras/berry-blender' | '/extras/po
     text: 'Mauville’s Game Corner: buy coins with your banked ₱ and try your luck at the roulette tables and the slot machines.',
     // The Coin Case item's icon (PokeAPI's sprites), at 3×.
     picture: <img src="/extras/coin-case.png" alt="" className="size-[90px] [image-rendering:pixelated]" />,
+  },
+  {
+    to: '/extras/voltorb-flip',
+    title: 'Voltorb Flip',
+    text: 'Goldenrod’s card game from HeartGold and SoulSilver: flip the cards to multiply your coins, but find a Voltorb and you lose them all.',
+    // The game's face-up Voltorb card (its tiles' 11th, 24×24), at 3×.
+    picture: <div className="size-[72px] bg-[url(/extras/voltorb-flip/tiles.png)] bg-[length:768px_192px] bg-[position:-264px_0] [image-rendering:pixelated]" />,
   },
 ];
 
@@ -103,6 +111,15 @@ export function GameCornerPage() {
   return (
     <ExtraPage title="Game Corner" info="The roulette and the slots, played with coins">
       <GameCorner />
+    </ExtraPage>
+  );
+}
+
+/** Voltorb Flip (`/extras/voltorb-flip`). */
+export function VoltorbFlipPage() {
+  return (
+    <ExtraPage title="Voltorb Flip" info="Flip the cards and collect coins">
+      <VoltorbFlip />
     </ExtraPage>
   );
 }

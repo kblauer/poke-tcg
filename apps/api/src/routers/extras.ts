@@ -1,6 +1,6 @@
-import { afterRound, berriesOf, buyCoinsError, COIN_OFFERS, coinRoundError, farmOf, gameCornerDay, MAX_COINS, slotMachineId, SLOT_MACHINES, farmView, GROW_MS, harvest, harvestAll, makePoffin, makePokeblock, opponentBerries, poffinLevel, pokeblockLevel, random, rngFrom, type BerryFarm } from '@poke-tcg/campaign';
+import { afterRound, berriesOf, buyCoinsError, COIN_OFFERS, coinRoundError, farmOf, gameCornerDay, MAX_COINS, slotMachineId, SLOT_MACHINES, farmView, GROW_MS, harvest, harvestAll, makePoffin, makePokeblock, afterRoundSummary, levelsGained, newBoard, newVoltorbFlipState, opponentBerries, poffinLevel, pokeblockLevel, random, rngFrom, settleRound, voltorbFlipStateOf, type BerryFarm } from '@poke-tcg/campaign';
 import { prisma } from '@poke-tcg/db';
-import { blendBerryInput, buyCoinsInput, coinRoundInput, cookPoffinInput, harvestBerryInput } from '@poke-tcg/shared';
+import { blendBerryInput, buyCoinsInput, coinRoundInput, cookPoffinInput, harvestBerryInput, voltorbRoundInput, voltorbSettleInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { asJson, newSeed } from '../games.js';
 import { lockUser } from '../runs.js';
@@ -18,8 +18,9 @@ const farmData = (farm: BerryFarm, berries: Record<string, number>, now: number)
  * the Pokéblock from the berry and the top speed, campaign's berry-blender.ts) and Poffin cooking (`poffins`, `cook`: the
  * same, the Poffin made from the berry and how the cooking went, campaign's poffin-cooking.ts) and the Game Corner
  * (`gameCorner`, `buyCoins`, `coinRound`: the roulette and slots are played in the browser, the API settles each round,
- * campaign's game-corner.ts). The account's farm, berries, blender record and coins are on `User`, its Pokéblocks in
- * `Pokeblock` and its Poffins in `Poffin`.
+ * campaign's game-corner.ts) and Voltorb Flip (`voltorbRound`, `voltorbSettle`: the API makes each board and settles
+ * each round against it, campaign's voltorb-flip.ts). The account's farm, berries, blender record, coins and Voltorb
+ * Flip session are on `User`, its Pokéblocks in `Pokeblock` and its Poffins in `Poffin`.
  */
 export const extrasRouter = router({
   /**
@@ -167,6 +168,45 @@ export const extrasRouter = router({
       const error = coinRoundError(input.game, input.bet, input.payout) ?? (user.coins < input.bet ? "You don't have enough coins" : null);
       if (error) throw new TRPCError({ code: 'BAD_REQUEST', message: error });
       return tx.user.update({ where: { id: ctx.user.id }, data: { coins: afterRound(user.coins, input.bet, input.payout) }, select: { coins: true } });
+    }),
+  ),
+
+  /**
+   * Voltorb Flip's next board (VoltorbFlipTaskEngine_NewRound_Begin): its level from the session's last rounds (a new
+   * session, from Lv. 1, when the game is entered: `restart`), saved with the session, and how many levels it moved.
+   * The board in play is given again if there is one. None while the Coin Case is full (`full`), as the game won't play.
+   */
+  voltorbRound: protectedProcedure.input(voltorbRoundInput).mutation(({ ctx, input }) =>
+    prisma.$transaction(async (tx) => {
+      await lockUser(tx, ctx.user.id);
+      const user = await tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { coins: true, voltorbFlip: true } });
+      const saved = input.restart ? newVoltorbFlipState() : voltorbFlipStateOf(user.voltorbFlip);
+      if (user.coins >= MAX_COINS) {
+        if (input.restart) await tx.user.update({ where: { id: ctx.user.id }, data: { voltorbFlip: asJson(saved) } });
+        return { full: true as const, coins: user.coins };
+      }
+      const rng = rngFrom(newSeed());
+      const state = saved.board ? saved : { ...saved, board: newBoard(saved, () => Math.floor(random(rng) * 2 ** 32)) };
+      if (state !== saved || input.restart) await tx.user.update({ where: { id: ctx.user.id }, data: { voltorbFlip: asJson(state) } });
+      return { full: false as const, coins: user.coins, board: state.board!, levelsGained: levelsGained(state) };
+    }),
+  ),
+
+  /**
+   * A Voltorb Flip round over: its flips checked against the board (settleRound; BAD_REQUEST if there's no board or the
+   * board couldn't have played them), its coins added to the Coin Case (kept to 9999) and the round kept in the session.
+   */
+  voltorbSettle: protectedProcedure.input(voltorbSettleInput).mutation(({ ctx, input }) =>
+    prisma.$transaction(async (tx) => {
+      await lockUser(tx, ctx.user.id);
+      const user = await tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { coins: true, voltorbFlip: true } });
+      const state = voltorbFlipStateOf(user.voltorbFlip);
+      if (!state.board) throw new TRPCError({ code: 'BAD_REQUEST', message: 'No round is being played' });
+      const settled = settleRound(state.board, input.flips, input.outcome);
+      if ('error' in settled) throw new TRPCError({ code: 'BAD_REQUEST', message: settled.error });
+      const coins = Math.min(MAX_COINS, user.coins + settled.payout);
+      await tx.user.update({ where: { id: ctx.user.id }, data: { coins, voltorbFlip: asJson(afterRoundSummary(state, settled.summary)) } });
+      return { coins, payout: settled.payout };
     }),
   ),
 

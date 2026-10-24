@@ -24,3 +24,4 @@ export * from './game-corner.js';
 export * from './game-corner-map.js';
 export * from './slot-machine.js';
 export * from './roulette.js';
+export * from './voltorb-flip.js';
