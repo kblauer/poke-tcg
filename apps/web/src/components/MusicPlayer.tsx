@@ -43,6 +43,9 @@ interface MusicPrefs {
 /** The loudest the songs play, at the slider's top (agreed with the user: half the audio's full volume). */
 const MAX_VOLUME = 0.5;
 
+/** How long a song takes to fade out before the next, and the next to fade in. */
+const FADE_MS = 1000;
+
 // Auto play on and the Remastered soundtrack by default (agreed 2026-10-23).
 const DEFAULTS: MusicPrefs = { open: false, gen: null, shuffle: false, repeat: false, volume: 0.5, track: null, autoplay: true, soundtrack: 'remastered' };
 
@@ -202,18 +205,77 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
   const [selected, setSelected] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
+  // Fades between songs: the audio plays at the slider's volume times `gain`, which falls to 0 over FADE_MS before a song
+  // is switched and rises again once the next one is playing (onPlaying). Timed with an interval, not animation frames,
+  // which a hidden tab doesn't run: a switch must still happen with the site in the background.
+  const gain = useRef(1);
+  const level = useRef(prefs.volume * MAX_VOLUME);
+  level.current = prefs.volume * MAX_VOLUME;
+  const fading = useRef<number | null>(null);
+  /** What a fade out does once it's silent (a switch of song); null while nothing waits for one. */
+  const afterFade = useRef<(() => void) | null>(null);
+  const setGain = (to: number) => {
+    gain.current = to;
+    const audio = player.current?.audio.current;
+    if (audio) audio.volume = level.current * to;
+  };
+  const stopFade = () => {
+    if (fading.current !== null) window.clearInterval(fading.current);
+    fading.current = null;
+    afterFade.current = null;
+  };
+  const fade = (to: number, then?: () => void) => {
+    stopFade();
+    afterFade.current = then ?? null;
+    const from = gain.current;
+    const began = performance.now();
+    fading.current = window.setInterval(() => {
+      const t = Math.min(1, (performance.now() - began) / FADE_MS);
+      setGain(from + (to - from) * t);
+      if (t < 1) return;
+      const done = afterFade.current;
+      stopFade();
+      done?.();
+    }, 30);
+  };
+  useEffect(() => () => void (fading.current !== null && window.clearInterval(fading.current)), []);
+  /** Runs `change` (a switch of song) once the song playing has faded out; at once when none plays, the next song fading in. */
+  const fadeOutThen = (change: () => void) => {
+    const audio = player.current?.audio.current;
+    if (audio && !audio.paused) return fade(0, change);
+    stopFade();
+    setGain(0);
+    change();
+  };
+  /** The switch a fade out was waiting for, made at once (the song ended, or was paused, before it was silent). */
+  const finishFade = () => {
+    const pending = afterFade.current;
+    stopFade();
+    pending?.();
+  };
+
   /** Set when a song is chosen to play: the effect below starts it once its audio is in place. */
   const startNext = useRef(false);
+  /** While a switch is made on pausing: the new song waits for play. */
+  const pausing = useRef(false);
   const play = (track: Track) => {
     setError(null);
     inJingle.current = false;
-    startNext.current = true;
-    if (track.url === prefs.track) startPlaying();
-    else update({ track: track.url });
+    shuffling.current = null;
+    if (track.url === prefs.track) {
+      // Called off: a switch waiting for this song to fade out.
+      if (afterFade.current) fade(1);
+      startNext.current = true;
+      return startPlaying();
+    }
+    fadeOutThen(() => {
+      startNext.current = true;
+      update({ track: track.url });
+    });
   };
   const startPlaying = () => {
     const audio = player.current?.audio.current;
-    if (!audio || !startNext.current) return;
+    if (!audio || !startNext.current || pausing.current) return;
     startNext.current = false;
     audio.play().catch((e: unknown) => {
       // A newer choice interrupting this one isn't an error.
@@ -222,8 +284,13 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
   };
 
   // Auto play: the song the page on screen wants (useMusicCue), looped. Each song auto play leaves is remembered where it
-  // was, and picks up from there when it comes back (the route's after a battle, the song a jingle interrupted).
+  // was, and picks up from there when it comes back (the route's after a battle, the song a jingle interrupted), but a
+  // cue's `fromStart` (a battle's) starts it over, once a cue. A cue's `then` (a beaten run's victory theme) plays once a
+  // session, then shuffles its album's music (`shuffling`), until another cue or a song picked from the list.
   const [cue, setCue] = useState<MusicCue | null>(null);
+  const shuffling = useRef<string | null>(null);
+  /** The `fromStart` cues already started (their keys): coming back to one (a page reloaded, the battle's page opening) doesn't start it over. */
+  const begun = useRef(new Set<string>());
   const findSong = (song: Song) => tracks.data?.find((t) => t.game === song.game && t.title === song.title) ?? null;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const cueTrack = useMemo(() => (prefs.autoplay && cue ? findSong(pickSong(cue)) : null), [prefs.autoplay, cue?.key, tracks.data]);
@@ -234,28 +301,39 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
   const inJingle = useRef(false);
   /** The song a jingle interrupted, gone back to after it when no page wants another. */
   const afterJingle = useRef<Track | null>(null);
-  const switchTo = (track: Track, start: boolean) => {
-    const audio = player.current?.audio.current;
-    if (current && audio) positions.current.set(current.url, audio.currentTime);
-    startNext.current = start;
-    if (track.url === prefs.track) return startPlaying();
-    resumeAt.current = positions.current.get(track.url) ?? 0;
-    update({ track: track.url });
-  };
+  /** Switches song, fading: `fromStart` plays it from the beginning (even the song playing), not where it was left. */
+  const switchTo = (track: Track, start: boolean, fromStart = false) =>
+    fadeOutThen(() => {
+      const audio = player.current?.audio.current;
+      if (current && audio) positions.current.set(current.url, audio.currentTime);
+      startNext.current = start;
+      if (track.url === prefs.track) {
+        if (fromStart && audio) audio.currentTime = 0;
+        fade(1);
+        return startPlaying();
+      }
+      resumeAt.current = fromStart ? 0 : (positions.current.get(track.url) ?? 0);
+      update({ track: track.url });
+    });
   // A cue that starts the music (`start`: the Berry Blender's) plays it even when it was paused, and pauses it again when
   // that cue ends (`cueStarted`); any other only switches the song of music already playing.
   const cueStarted = useRef(false);
   useEffect(() => {
-    if (!cueTrack || inJingle.current) return;
-    const start = playing || !!cue?.start;
+    if (!cueTrack || !cue || inJingle.current) return;
+    const again = begun.current.has(cue.key);
+    if (cue.then && again) return;
+    if (!cue.then) shuffling.current = null;
+    if (cue.fromStart) begun.current.add(cue.key);
+    const fromStart = !!cue.fromStart && !again;
+    const start = playing || !!cue.start;
     if (start && !playing) cueStarted.current = true;
-    if (cueTrack.url !== prefs.track) switchTo(cueTrack, start);
+    if (cueTrack.url !== prefs.track || fromStart) switchTo(cueTrack, start, fromStart);
     else if (start && !playing) {
       startNext.current = true;
       startPlaying();
-    }
+    } else if (afterFade.current) fade(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cueTrack]);
+  }, [cueTrack, cue?.key]);
   useEffect(() => {
     if (cue?.start || !cueStarted.current) return;
     cueStarted.current = false;
@@ -269,19 +347,34 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
     afterJingle.current = current;
     switchTo(jingle, true);
   };
-  /** A song over: the jingle's back to what auto play wants (or the song it interrupted), auto play's song again, the same one with repeat, or the list's next. */
+  /**
+   * A song over: a switch waiting for it to fade out made now; the jingle's back to what auto play wants (or the song it
+   * interrupted); after a victory theme (or a song of the shuffle after it) another song of its album; auto play's song
+   * again, the same one with repeat, or the list's next.
+   */
   const ended = () => {
+    if (afterFade.current) return finishFade();
     if (inJingle.current) {
       inJingle.current = false;
       const back = cueTrack ?? afterJingle.current;
       if (back) return switchTo(back, true);
     }
+    const album = cue?.then && cueTrack && current === cueTrack ? cue.then.shuffle : shuffling.current;
+    if (album) return shuffleFrom(album);
     const audio = player.current?.audio.current;
     if (((cueTrack && current === cueTrack) || prefs.repeat) && audio) {
       audio.currentTime = 0;
       return void audio.play();
     }
     step(1);
+  };
+  /** The shuffle after a victory theme: any of the album's music (not its battle music, nor the song just played), at random. */
+  const shuffleFrom = (game: string) => {
+    const songs = (tracks.data ?? []).filter((t) => t.game === game && !t.battle && !t.hidden && t !== current);
+    const next = songs[Math.floor(Math.random() * songs.length)];
+    if (!next) return step(1);
+    play(next);
+    shuffling.current = game;
   };
 
   // The tempo (setTempo): the audio's playback rate, its pitch kept; its default rate too, which a new song starts at.
@@ -332,7 +425,14 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
       if (first) play(first);
       else update({ open: true });
     } else if (audio?.paused) void audio.play();
-    else audio?.pause();
+    else {
+      audio?.pause();
+      // A switch waiting for the song to fade out is made at once, the new song waiting for play.
+      pausing.current = true;
+      finishFade();
+      pausing.current = false;
+      startNext.current = false;
+    }
   };
 
   // The audio plays at MAX_VOLUME of the slider (the player's own volume bar is replaced, as it sets the audio's volume directly).
@@ -340,7 +440,7 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
   useEffect(() => {
     const audio = player.current?.audio.current;
     if (!audio) return;
-    audio.volume = prefs.volume * MAX_VOLUME;
+    audio.volume = prefs.volume * MAX_VOLUME * gain.current;
     audio.muted = muted;
   }, [prefs.volume, muted, current]);
 
@@ -423,13 +523,15 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
               src={current.url}
               preload="none"
               autoPlayAfterSrcChange={false}
-              volume={prefs.volume * MAX_VOLUME}
+              volume={prefs.volume * MAX_VOLUME * gain.current}
               showSkipControls
               showJumpControls={false}
               onClickNext={() => step(1)}
               onClickPrevious={() => step(-1)}
               onEnded={ended}
               onPlay={() => setPlaying(true)}
+              // A song switched to (or played again after a switch made while paused) fades in once it's really playing.
+              onPlaying={() => gain.current < 1 && !afterFade.current && fade(1)}
               onPause={() => setPlaying(false)}
               onError={() => setError("This song couldn't be loaded.")}
               customVolumeControls={[

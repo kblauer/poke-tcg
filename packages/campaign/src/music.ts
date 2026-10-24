@@ -29,6 +29,13 @@ export interface MusicCue {
    * the cue ends; other cues only switch the song of music already playing.
    */
   start?: boolean;
+  /** Starts the song from its beginning (a battle's), never where it was last left. */
+  fromStart?: boolean;
+  /**
+   * Plays the song once instead of looping it, then shuffles the album's (`game`) other music, its battle music left out
+   * (a beaten run's victory theme). Once a session for the same key.
+   */
+  then?: { shuffle: string };
 }
 
 /** A region's music in one soundtrack (titles of its album, `game`). */
@@ -51,16 +58,19 @@ interface RegionMusic {
   gymLeader: string;
   eliteFour: string;
   champion: string;
+  /** Once a run is beaten, before the album's music is shuffled. */
+  victory: string;
 }
 
-// Kanto: Route 1's theme on Route 2, Route 3's on Routes 4–20 (the bike and surfing have their own), Pewter's in Viridian
-// and Saffron, Cerulean's in Fuchsia (FireRed's album calls it Fuchsia City); the League's rooms play the Indigo Plateau
-// theme (both albums' Victory Road). Gen 1 has no rival battle theme but the Champion's, and its Elite Four fight to the
-// Gym Leader theme.
+// Kanto: Route 1's theme on Route 2, Route 3's on Routes 4–20 (the bike and surfing have their own), Pewter's in Saffron,
+// Cerulean's in Fuchsia (FireRed's album calls it Fuchsia City); the League's rooms play the Indigo Plateau theme (both
+// albums' Victory Road). Viridian's run (the Power Plant, then Giovanni's town) plays Rocket Hideout (the user's). Gen 1 has
+// no rival battle theme but the Champion's, and its Elite Four fight to the Gym Leader theme. Red's victory jingles are all
+// under a minute (not in the list), so its beaten runs play the Hall of Fame.
 const KANTO_RED: RegionMusic = {
   game: 'Red, Green, Blue & Yellow',
   routes: { 'Route 2': 'Route 1', 'Route 4': 'Route 3', 'Route 5': 'Route 3', 'Route 6': 'Route 3', 'Route 8': 'Route 3', 'Route 17': 'Route 3', 'Route 20': 'Route 3', 'Power Plant': 'Rocket Hideout', ...floors('Pokémon Tower') },
-  towns: { pewter: 'Viridian City', cerulean: 'Cerulean City', vermilion: 'Vermilion City', celadon: 'Celadon City', saffron: 'Viridian City', fuchsia: 'Cerulean City', cinnabar: 'Cinnabar Island', viridian: 'Viridian City' },
+  towns: { pewter: 'Viridian City', cerulean: 'Cerulean City', vermilion: 'Vermilion City', celadon: 'Celadon City', saffron: 'Viridian City', fuchsia: 'Cerulean City', cinnabar: 'Cinnabar Island', viridian: 'Rocket Hideout' },
   bike: 'Bicycle',
   surf: 'Surf',
   gym: 'Pokémon Gym',
@@ -71,12 +81,13 @@ const KANTO_RED: RegionMusic = {
   gymLeader: 'Battle! (Gym Leader)',
   eliteFour: 'Battle! (Gym Leader)',
   champion: 'Final Battle! (Rival)',
+  victory: 'Hall of Fame',
 };
 
 const KANTO_FIRERED: RegionMusic = {
   game: 'FireRed & LeafGreen',
-  routes: { ...mapValues(KANTO_RED.routes, (t) => (t === 'Route 1' ? 'Road to Viridian City: Leaving Pallet Town' : t === 'Route 3' ? 'Road to Cerulean City: Leaving Mt. Moon' : t)), 'Power Plant': 'Pokémon Mansion' },
-  towns: { pewter: 'Pewter City', cerulean: 'Fuchsia City', vermilion: 'Vermilion City', celadon: 'Celadon City', saffron: 'Pewter City', fuchsia: 'Fuchsia City', cinnabar: 'Cinnabar Island', viridian: 'Pewter City' },
+  routes: mapValues(KANTO_RED.routes, (t) => (t === 'Route 1' ? 'Road to Viridian City: Leaving Pallet Town' : t === 'Route 3' ? 'Road to Cerulean City: Leaving Mt. Moon' : t)),
+  towns: { pewter: 'Pewter City', cerulean: 'Fuchsia City', vermilion: 'Vermilion City', celadon: 'Celadon City', saffron: 'Pewter City', fuchsia: 'Fuchsia City', cinnabar: 'Cinnabar Island', viridian: 'Rocket Hideout' },
   bike: 'Cycling',
   surf: 'Surfing',
   gym: 'Pokémon Gym',
@@ -87,6 +98,7 @@ const KANTO_FIRERED: RegionMusic = {
   gymLeader: 'Battle! (Gym Leader)',
   eliteFour: 'Battle! (Gym Leader)',
   champion: 'Final Battle! (Rival)',
+  victory: 'Victory! (Gym Leader)',
 };
 
 // Johto: Route 30's theme on Routes 30 and 32, Route 34's (the albums' name for Route 36's) on 34, 35, 40 and 45, Route 42's
@@ -109,6 +121,7 @@ const JOHTO_GOLD: RegionMusic = {
   gymLeader: 'Battle! (Gym Leader - Johto)',
   eliteFour: 'Battle! (Gym Leader - Johto)',
   champion: 'Battle! (Champion)',
+  victory: 'Victory! (Gym Leader)',
 };
 
 const JOHTO_HEARTGOLD: RegionMusic = {
@@ -125,6 +138,7 @@ const JOHTO_HEARTGOLD: RegionMusic = {
   gymLeader: 'Battle! (Gym Leader—Johto Version)',
   eliteFour: 'Battle! (Gym Leader—Johto Version)',
   champion: 'Battle! (Champion)',
+  victory: 'Victory! (Gym Leader)',
 };
 
 // Hoenn (Emerald's maps): Petalburg Woods' theme in Jagged Pass too, Route 101's on Route 102, Route 104's and Route 120's
@@ -147,6 +161,7 @@ const HOENN_RUBY: RegionMusic = {
   gymLeader: 'Battle! (Gym Leader)',
   eliteFour: 'Battle! (Elite Four)',
   champion: 'Battle! (Steven)',
+  victory: 'Victory! (Gym Leader)',
 };
 
 const HOENN_OMEGA_RUBY: RegionMusic = {
@@ -154,6 +169,7 @@ const HOENN_OMEGA_RUBY: RegionMusic = {
   game: 'Omega Ruby & Alpha Sapphire',
   routes: { ...HOENN_ROUTES, 'Petalburg Woods': 'Petalburg Woods', 'Jagged Pass': 'Petalburg Woods' },
   trainer: ['Battle! (Trainer Battle)', 'Battle! (Wild Pokémon)', 'Battle! (Brendan - May)'],
+  victory: 'Victory! (Gym Leader - Elite Four)',
 };
 
 /** Each generation's region's music, by soundtrack. */
@@ -216,11 +232,20 @@ export function runMusic(view: RunMusicView, soundtrack: Soundtrack): MusicCue {
   return title ? cue(`route:${title}`, title) : cue('town', town ?? music.center);
 }
 
-/** A battle's themes: a trainer's (one of them, picked by the game's id), a gym leader's, the Elite Four's or the Champion's. */
+/**
+ * A battle's themes: a trainer's (one of them, picked by the game's id), a gym leader's, the Elite Four's or the Champion's;
+ * each battle from the song's beginning.
+ */
 export function battleMusic(gen: number, soundtrack: Soundtrack, kind: BattleKind, gameId: string): MusicCue {
   const music = regionMusic(gen, soundtrack);
   const titles = kind === 'gymLeader' || kind === 'eliteFour' || kind === 'champion' ? [music[kind]] : music.trainer;
-  return { key: `${music.game}:battle:${gameId}`, songs: titles.map((t) => song(music, t)), seed: gameId };
+  return { key: `${music.game}:battle:${gameId}`, songs: titles.map((t) => song(music, t)), seed: gameId, fromStart: true };
+}
+
+/** A beaten run's music: its region's victory theme once, from the start, then the album's other music shuffled. */
+export function victoryMusic(typeId: string, soundtrack: Soundtrack, runId: string): MusicCue {
+  const music = regionMusic(runType(typeId).generation, soundtrack);
+  return { key: `${music.game}:victory:${runId}`, songs: [song(music, music.victory)], seed: runId, fromStart: true, then: { shuffle: music.game } };
 }
 
 /** The Pokémon Center's healing jingle for a run's region. */
