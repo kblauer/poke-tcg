@@ -17,8 +17,9 @@ const label = 'text-xs uppercase tracking-wide text-slate-500';
 /**
  * The run's numbers, in the site menu on a big screen (NavRail) and the side panel's Run tab on a phone: HP and the run's EXP (StatusBox), ₱ (and the bank), the account's Stardust, the
  * account's, the battle rules and consumables in effect, the equipment worn, the badges won this run, and the Bag. The equipment
- * and the Bag fold away (RunSection). `nav` (the big screen's site menu): without the bank, Stardust and the account's
- * EXP (its top bar shows them, TopBarAccount), the equipment or the Bag (the run screen shows the Bag, BagGrid; the user's).
+ * and the Bag fold away (RunSection). `nav` (the big screen's site menu): only HP, the run's EXP and ₱ (the user's): not the bank,
+ * Stardust and the account's EXP (its top bar shows them, TopBarAccount), the items in effect, the badges won, the equipment or
+ * the Bag (the run screen shows the Bag, BagGrid).
  */
 export function RunStats({ view, account, run, nav = false }: { view: RunViewData; account: Overview['account']; run: RunControl; nav?: boolean }) {
   const trpc = useTRPC();
@@ -70,7 +71,7 @@ export function RunStats({ view, account, run, nav = false }: { view: RunViewDat
           </div>
         )}
       </div>
-      {(view.rules.length > 0 || view.consumables.length > 0) && (
+      {!nav && (view.rules.length > 0 || view.consumables.length > 0) && (
         <div className="space-y-1 text-xs">
           <h4 className={label}>In effect</h4>
           {view.rules.map((r, i) => (
@@ -96,7 +97,7 @@ export function RunStats({ view, account, run, nav = false }: { view: RunViewDat
           </div>
         </RunSection>
       )}
-      {(view.badges ?? []).length > 0 && (
+      {!nav && (view.badges ?? []).length > 0 && (
         <div className="space-y-1 text-xs">
           <h4 className={label}>Won this run</h4>
           <p className="flex flex-wrap gap-1">
