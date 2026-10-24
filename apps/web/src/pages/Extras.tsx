@@ -13,22 +13,22 @@ const EXTRAS: { to: '/extras/berry-farm' | '/extras/berry-blender' | '/extras/po
     to: '/extras/berry-farm',
     title: 'Berry Farm',
     text: 'A tree of every Hoenn berry grows on the Berry Master’s farm. Come back every few hours to pick the ripe ones.',
-    // A ripe Cheri tree (the last frame of its strip), at 3×.
-    picture: <div className="h-24 w-12 bg-[url(/extras/trees/cheri.png)] bg-[length:432px_96px] bg-[position:-384px_0] [image-rendering:pixelated]" />,
+    // A ripe Oran tree (the last frame of its strip), at 3×.
+    picture: <div className="h-24 w-12 bg-[url(/extras/trees/oran.png)] bg-[length:432px_96px] bg-[position:-384px_0] [image-rendering:pixelated]" />,
   },
   {
     to: '/extras/berry-blender',
     title: 'Berry Blender',
     text: 'Blend a berry with three others, pressing as the arrow passes yours, to make a Pokéblock. The faster it spins, the better.',
-    // The blender's centre, at a third of its size.
-    picture: <div className="h-24 w-24 rounded-full bg-[url(/extras/blender/center.png)] bg-[length:256px_256px] bg-[position:-8px_-48px] [image-rendering:pixelated]" />,
+    // The Berry Juice item's icon (PokeAPI's sprites), at 3×.
+    picture: <img src="/extras/berry-juice.png" alt="" className="size-[90px] [image-rendering:pixelated]" />,
   },
   {
     to: '/extras/poffin-cooking',
     title: 'Poffin Cooking',
     text: 'Cook a berry into a Poffin as at Platinum’s Poffin House, stirring the pot the way the arrow points. Don’t let it burn or spill!',
-    // A Spicy Poffin (the first of Platinum's Poffin sprites), at 1.5×.
-    picture: <div className="h-24 w-24 bg-[url(/extras/poffin/poffins.png)] bg-[length:2784px_96px] bg-[position:0_0] [image-rendering:pixelated]" />,
+    // The Poffin Case item's icon (PokeAPI's sprites), at 3×.
+    picture: <img src="/extras/poffin-case.png" alt="" className="size-[90px] [image-rendering:pixelated]" />,
   },
 ];
 
