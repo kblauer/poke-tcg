@@ -151,6 +151,11 @@ export function Board({
   );
   const { self, phase } = view;
   const myTurn = isMyTurn(view);
+  // End turn goes the moment it's pressed and comes back on the next turn of yours once its banner has gone (the user's):
+  // the turn it was pressed on, cleared if the server turned it down (the error below).
+  const [endedOn, setEndedOn] = useState<number | null>(null);
+  useEffect(() => setEndedOn(null), [errorAt]);
+  const endTurnShown = myTurn && !newTurn && endedOn !== view.turn;
   const promoting = mustPromote(view);
 
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -556,9 +561,14 @@ export function Board({
       compact={compact}
       // The setup line is on its banner instead (SetupBanner).
       status={phase === 'setup' ? '' : statusText(view)}
-      canEndTurn={myTurn}
+      canEndTurn={endTurnShown}
       setup={phase === 'setup' && !self.ready ? { canReset: !!self.active || self.bench.some(Boolean), canStart: !!self.active } : null}
-      endTurn={() => turnReminders.check('end', () => send({ type: 'END_TURN' }))}
+      endTurn={() =>
+        turnReminders.check('end', () => {
+          setEndedOn(view.turn);
+          send({ type: 'END_TURN' });
+        })
+      }
       pending={pending}
       send={send}
     />

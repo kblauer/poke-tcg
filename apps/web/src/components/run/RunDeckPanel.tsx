@@ -5,6 +5,7 @@ import { useIsPhone } from '../../hooks/useIsPhone';
 import type { RunControl, RunViewData } from '../../hooks/useRun';
 import { BagGrid } from './BagPanel';
 import { RunCard } from './RunCard';
+import { PANEL_COUNT, PANEL_HEADING } from '../../utils/styles';
 
 const GROUPS = [
   { title: 'Pokémon', test: (kind: string, trainer: boolean) => kind === 'pokemon' && !trainer },
@@ -30,8 +31,8 @@ export function RunDeckPanel({ view, run }: { view: RunViewData; run: RunControl
       {/* The left half: the cards, wrapping within its width. */}
       <div className="min-w-0 space-y-3">
         <div className="flex items-center gap-3">
-          <h3 className="text-lg font-semibold">
-            Unlocked this run <span className="text-sm font-normal text-slate-400">({view.gained.length})</span>
+          <h3 className={PANEL_HEADING}>
+            Unlocked this run <span className={PANEL_COUNT}>({view.gained.length})</span>
           </h3>
           {phone && (
             <button

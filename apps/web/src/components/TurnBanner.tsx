@@ -1,9 +1,10 @@
 import type { PlayerView } from '@poke-tcg/game-engine';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-/** How long the turn banner takes: sliding in from the right, held across the middle, then sliding off to the left. */
+/** How long the turn banner takes: coming in (its text sliding in from both sides), held, then fading away. */
 const SLIDE_MS = 320;
-const HOLD_MS = 800;
+// Held 1.2s once in (the user's; 0.8s before), then it fades.
+const HOLD_MS = 1200;
 export const TURN_BANNER_MS = 2 * SLIDE_MS + HOLD_MS;
 
 /** A new turn on screen: whose it is and its number (the game's turn count, both players' turns together). */
@@ -35,8 +36,8 @@ export function useNewTurn(view: PlayerView): NewTurn | null {
 
 /** The banner's height (px): on a big screen, and on a phone (`compact`). */
 const HEIGHT = { big: 72, compact: 48 };
-/** Each half's text: 70% of the banner's height (the user's), less only when it wouldn't fit beside the buttons. */
-const TEXT = 0.7;
+/** Each half's text: 57% of the banner's height (the user's: 70%, then 10% smaller twice), less only when it wouldn't fit beside the buttons. */
+const TEXT = 0.57;
 /** Below this (px), a half with more than one word wraps onto two lines instead of shrinking further. */
 const MIN_ONE_LINE = 16;
 /** The space between a half's text and the banner's ends (px). */
@@ -113,11 +114,30 @@ function placeHalves(halves: Half[], height: number) {
 /**
  * A band across the play area, centred on the buttons between the two sides and behind them (they sit above it, z
  * 960), its text split either side of them (the user's): `left` centred on the play area's left half, `right` on its
- * right half, neither reaching the buttons, both the same size: 70% of the band's height unless smaller to fit (placeHalves), the positions following the buttons as
- * they are (measured every frame while it shows). It slides in from the right; `leaving` (or `hold` passing, for the
- * turn) slides it off to the left, then `onGone`. Sky blue for the player, rose for the CPU; it can't be clicked.
+ * right half, neither reaching the buttons, both the same size: 57% of the band's height unless smaller to fit
+ * (placeHalves), the positions following the buttons as they are (measured every frame while it shows). It fades in as
+ * each half's text slides in from its own side; `leaving` (or `hold` passing, for the turn) fades it away, then `onGone`. Sky blue for the player, rose for the CPU; it can't be clicked.
  */
-function SplitBanner({ left, right, mine, compact, leaving, onGone, hold }: { left: string; right: string; mine: boolean; compact: boolean; leaving?: boolean; onGone?: () => void; hold?: number }) {
+function SplitBanner({
+  left,
+  right,
+  mine,
+  compact,
+  leaving,
+  onGone,
+  hold,
+  middles = [0.25, 0.75],
+}: {
+  left: string;
+  right: string;
+  mine: boolean;
+  compact: boolean;
+  leaving?: boolean;
+  onGone?: () => void;
+  hold?: number;
+  /** Where each half's text is centred, across the play area (0–1): its halves' middles unless given. */
+  middles?: [number, number];
+}) {
   const band = useRef<HTMLDivElement>(null);
   const leftText = useRef<HTMLSpanElement>(null);
   const rightText = useRef<HTMLSpanElement>(null);
@@ -140,8 +160,8 @@ function SplitBanner({ left, right, mine, compact, leaving, onGone, hold }: { le
           // Each half's text centred on its half of the play area (the user's), both the same size, clear of the buttons.
           placeHalves(
             [
-              { text: leftText.current, middle: m.width / 4, from: EDGE, to: m.left - space.left },
-              { text: rightText.current, middle: (m.width * 3) / 4, from: m.right + space.right, to: m.width - EDGE },
+              { text: leftText.current, middle: m.width * middles[0], from: EDGE, to: m.left - space.left },
+              { text: rightText.current, middle: m.width * middles[1], from: m.right + space.right, to: m.width - EDGE },
             ],
             height,
           );
@@ -151,9 +171,20 @@ function SplitBanner({ left, right, mine, compact, leaving, onGone, hold }: { le
     };
     place();
     return () => cancelAnimationFrame(frame);
-  }, [height, space.left, space.right, left, right]);
+  }, [height, space.left, space.right, left, right, middles[0], middles[1]]);
+  // In: the band fades in as each half's text slides in from its own side, the left one from the left edge and the right
+  // one from the right (the user's); placed already (the layout effect above), so each starts just past its edge.
   useEffect(() => {
-    band.current?.animate(reduced() ? [{ opacity: 0 }, { opacity: 1 }] : [{ transform: 'translateX(100%)' }, { transform: 'none' }], { duration: SLIDE_MS, easing: 'ease-out', fill: 'forwards' });
+    const el = band.current;
+    if (!el) return;
+    el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: SLIDE_MS, easing: 'ease-out', fill: 'forwards' });
+    if (reduced()) return;
+    for (const [text, side] of [[leftText.current, -1], [rightText.current, 1]] as const) {
+      const holder = text?.parentElement;
+      if (!text || !holder) continue;
+      const off = side < 0 ? holder.offsetLeft + holder.offsetWidth : el.offsetWidth - holder.offsetLeft;
+      text.animate([{ transform: `translateX(${side * off}px)` }, { transform: 'none' }], { duration: SLIDE_MS, easing: 'ease-out', fill: 'backwards' });
+    }
   }, []);
   const [timeUp, setTimeUp] = useState(false);
   useEffect(() => {
@@ -164,18 +195,20 @@ function SplitBanner({ left, right, mine, compact, leaving, onGone, hold }: { le
   const going = leaving || timeUp;
   useEffect(() => {
     if (!going) return;
-    const out = band.current?.animate(reduced() ? [{ opacity: 1 }, { opacity: 0 }] : [{ transform: 'none' }, { transform: 'translateX(-100%)' }], { duration: SLIDE_MS, easing: 'ease-in', fill: 'forwards' });
+    // Out: it fades away where it is (the user's; it used to slide off to the left).
+    const out = band.current?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: SLIDE_MS, easing: 'ease-in', fill: 'forwards' });
     if (!out) return onGone?.();
     out.onfinish = () => onGone?.();
     return () => {
       out.onfinish = null;
     };
   }, [going, onGone]);
-  const text = 'block font-black leading-tight tracking-wide text-slate-50 drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]';
+  // A soft dark shadow behind the letters (the user's; an outline was tried), to lift them off the band.
+  const text = 'block font-black leading-tight tracking-wide text-slate-50 [text-shadow:0_2px_4px_rgb(0_0_0/0.55),0_0_14px_rgb(0_0_0/0.45)]';
   return (
     <div
       ref={band}
-      className={`pointer-events-none absolute inset-x-0 z-[950] ${mine ? 'bg-gradient-to-r from-sky-900/0 via-sky-800/95 to-sky-900/0' : 'bg-gradient-to-r from-rose-950/0 via-rose-900/95 to-rose-950/0'}`}
+      className={`pointer-events-none absolute inset-x-0 z-[950] overflow-hidden ${mine ? 'bg-gradient-to-r from-sky-900/0 via-sky-800/95 to-sky-900/0' : 'bg-gradient-to-r from-rose-950/0 via-rose-900/95 to-rose-950/0'}`}
       style={{ height }}
       role="status"
       aria-label={`${left} ${right}`}
@@ -196,18 +229,21 @@ function SplitBanner({ left, right, mine, compact, leaving, onGone, hold }: { le
 
 /**
  * The setup line on the split banner (SplitBanner): "You're going first." (or second) left of Start battle and Reset cards,
- * "Place your Basic Pokémon." right of them (the user's). It slides in from the right and stays until `leaving` (Start
- * battle), then slides off to the left and `onGone` is called. Board puts it over the play area (its overlay).
+ * "Place your Basic Pokémon." right of them (the user's). It comes in (each half from its own side) and stays until
+ * `leaving` (Start battle), then fades away and `onGone` is called. Board puts it over the play area (its overlay).
  */
 export function SetupBanner({ first, leaving, onGone, compact }: { first: boolean; leaving: boolean; onGone: () => void; compact: boolean }) {
   return <SplitBanner left={first ? "You're going first." : "You're going second."} right="Place your Basic Pokémon." mine={first} compact={compact} leaving={leaving} onGone={onGone} />;
 }
 
+/** The turn banner's halves sit nearer the middle than the setup line's: at 3/8 and 5/8 across (the user's). */
+const TURN_MIDDLES: [number, number] = [0.375, 0.625];
+
 /**
  * "Your Turn" or "Opponent's Turn" left of End turn and the turn count right of it, on the split banner (SplitBanner;
- * the user's), as TCG Pocket announces a turn: it slides in from the right, stays a moment, then slides off to the left
+ * the user's), as TCG Pocket announces a turn: each half slides in from its own side, it stays a moment, then fades away
  * (TURN_BANNER_MS). Board puts it over the play area (its overlay), on both layouts.
  */
 export function TurnBanner({ turn, compact }: { turn: NewTurn; compact: boolean }) {
-  return <SplitBanner left={turn.mine ? 'Your Turn' : "Opponent's Turn"} right={`Turn ${turn.turn}`} mine={turn.mine} compact={compact} hold={HOLD_MS} />;
+  return <SplitBanner left={turn.mine ? 'Your Turn' : "Opponent's Turn"} right={`Turn ${turn.turn}`} mine={turn.mine} compact={compact} hold={HOLD_MS} middles={TURN_MIDDLES} />;
 }

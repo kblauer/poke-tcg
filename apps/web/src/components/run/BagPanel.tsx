@@ -5,6 +5,7 @@ import { useTRPC } from '../../lib/trpc';
 import type { RunControl, RunViewData } from '../../hooks/useRun';
 import { ItemIcon } from '../ItemIcon';
 import { RunSection } from './RunSection';
+import { PANEL_COUNT, PANEL_HEADING } from '../../utils/styles';
 
 /**
  * Why no consumable can be used in the run now, or null: 3 per run at most, used before a battle starts, and one at a time
@@ -87,8 +88,8 @@ export function BagGrid({ view, run }: { view: RunViewData; run: RunControl }) {
   const problem = item && why(item);
   return (
     <div className="flex h-full flex-col gap-3">
-      <h3 className="text-lg font-semibold">
-        Bag <span className="text-sm font-normal text-slate-400">({usable.reduce((n, i) => n + i.quantity, 0)})</span>
+      <h3 className={PANEL_HEADING}>
+        Bag <span className={PANEL_COUNT}>({usable.reduce((n, i) => n + i.quantity, 0)})</span>
       </h3>
       {!item ? (
         <p className="text-sm text-slate-400">Your bag is empty: buy consumables and misc items in the shop after a run.</p>

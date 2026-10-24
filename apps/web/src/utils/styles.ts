@@ -21,3 +21,9 @@ export const DIALOG_BACKDROP = 'fixed inset-0 flex items-center justify-center b
 
 /** A dialog's box: the shared dialog style, its size and padding given beside it. */
 export const DIALOG = 'rounded-lg bg-slate-800 ring-1 ring-slate-600';
+
+/** A run screen panel's heading (Battles, Battle with, Unlocked this run, Bag…): one style for all of them (the user's). */
+export const PANEL_HEADING = 'text-lg font-semibold';
+
+/** The count beside a panel's heading: "(3)". */
+export const PANEL_COUNT = 'text-sm font-normal text-slate-400';
