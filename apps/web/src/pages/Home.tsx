@@ -44,7 +44,8 @@ export function HomePage() {
     if (phone && phase === 'map' && lastPhase.current === 'encounter') routeMap.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     lastPhase.current = phase;
   }, [phase, phone]);
-  if (overview.error) return <p className={`${PAGE_WIDTH} text-red-400`}>{overview.error.message}</p>;
+  // A failed refetch keeps the run screen (and the map's walk) up with what it has.
+  if (overview.error && !overview.data) return <p className={`${PAGE_WIDTH} text-red-400`}>{overview.error.message}</p>;
   if (!overview.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
   const current = overview.data.run;
   const view = current?.view;

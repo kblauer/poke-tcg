@@ -2,8 +2,18 @@
 import type { AttackContext, AttackEffect, AttackSituation, ChoiceSpec } from '../attacks.js';
 import type { PendingChoice } from '../trainers.js';
 import type { EnergyType } from '../cards.js';
-import { counts, energyPool, type Affliction, type PoolEnergy } from '../engine.js';
-import { openBenchSlot } from '../status.js';
+import { counts, energyPool, type Affliction, type InPlayPokemon, type PoolEnergy } from '../engine.js';
+import { energyProtected, openBenchSlot, pokemonName } from '../status.js';
+
+/**
+ * Whether an attack may move an Energy card off this Pokémon of the opponent's (to another of their Pokémon, their hand or
+ * their deck): Brock's Protection keeps it (logged). Discards go through neo3's `energyCanGo`, which also checks Unown K's Keep.
+ */
+export function energyCanMove(ctx: AttackContext, p: InPlayPokemon): boolean {
+  if (!energyProtected(ctx.state.cards, p)) return true;
+  ctx.log(`Brock's Protection: ${pokemonName(ctx.state, p)}'s Energy can't be removed.`, ctx.opp.id);
+  return false;
+}
 
 /** Base damage, then on heads the Defending Pokémon gets `affliction`. */
 export const flipToInflict = (damage: number, affliction: Affliction): AttackEffect => ({

@@ -38,6 +38,12 @@ export const RUN_DECK_NAME = 'Current run';
 type Db = Prisma.TransactionClient | typeof prisma;
 
 /**
+ * Locks the account's user row until the transaction ends, so two requests for the same account at once (two tabs, a
+ * double click) can't both pass a check that the other's write would fail: a second starter deck, a second active run.
+ */
+const lockUser = (tx: Prisma.TransactionClient, userId: string) => tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId}::uuid FOR UPDATE`;
+
+/**
  * Makes the account's automatic run deck (`Deck.runId`) a copy of this run's deck: the deck the account has (left over
  * from the last run, if it wasn't saved) is taken over, or one is made, at the top of the deck list. Called when a run
  * starts and whenever its deck changes (a trade, switching decks).
@@ -61,22 +67,27 @@ const statusOf = (state: RunState) => (state.phase === 'won' ? 'WON' : state.pha
  */
 export async function ensureAccount(user: AuthUser) {
   await ensureUser(user);
-  const [runs, unlocks] = await Promise.all([prisma.run.count({ where: { ownerId: user.id } }), prisma.cardUnlock.count({ where: { userId: user.id } })]);
-  if (runs && unlocks) return;
-  if (!(await prisma.deck.findFirst({ where: { ownerId: user.id, name: STARTER_DECK_NAME } }))) {
-    await prisma.deck.create({
-      data: { ownerId: user.id, name: STARTER_DECK_NAME, cards: { create: STARTER_DECK.map(([cardId, quantity]) => ({ cardId, quantity })) } },
-    });
-  }
-  if (!unlocks) await unlockCards(user.id, STARTER_DECK.map(([cardId]) => cardId));
-  if (!runs) await createRunRow(user.id, FIRST_RUN, expandDeck(STARTER_DECK), STARTER_DECK_NAME);
+  // In one transaction with the user row locked: a new account's first two requests at once would each make a starter deck and a run.
+  await prisma.$transaction(async (tx) => {
+    await lockUser(tx, user.id);
+    const runs = await tx.run.count({ where: { ownerId: user.id } });
+    const unlocks = await tx.cardUnlock.count({ where: { userId: user.id } });
+    if (runs && unlocks) return;
+    if (!(await tx.deck.findFirst({ where: { ownerId: user.id, name: STARTER_DECK_NAME } }))) {
+      await tx.deck.create({
+        data: { ownerId: user.id, name: STARTER_DECK_NAME, cards: { create: STARTER_DECK.map(([cardId, quantity]) => ({ cardId, quantity })) } },
+      });
+    }
+    if (!unlocks) await unlockCards(user.id, STARTER_DECK.map(([cardId]) => cardId), tx);
+    if (!runs) await createRunRow(user.id, FIRST_RUN, expandDeck(STARTER_DECK), STARTER_DECK_NAME, tx);
+  });
 }
 
-async function createRunRow(ownerId: string, type: RunTypeId, deck: string[], deckName: string) {
+async function createRunRow(ownerId: string, type: RunTypeId, deck: string[], deckName: string, db: Db = prisma) {
   const seed = newSeed();
   const state = createRun(type, deck, seed, deckName);
-  const run = await prisma.run.create({ data: { ownerId, type, seed, state: asJson(state), version: state.version } });
-  await syncRunDeck(ownerId, run.id, state.deck);
+  const run = await db.run.create({ data: { ownerId, type, seed, state: asJson(state), version: state.version } });
+  await syncRunDeck(ownerId, run.id, state.deck, db);
   return run;
 }
 
@@ -238,6 +249,8 @@ export async function settleBattle(run: LoadedRun, skipped = false): Promise<Loa
  */
 export async function startRun(userId: string, type: RunTypeId, deck: { name: string; cards: string[] }) {
   return prisma.$transaction(async (tx) => {
+    // The lock makes the check below hold: two Start clicks at once would otherwise both see no active run and make one each.
+    await lockUser(tx, userId);
     if (await tx.run.count({ where: { ownerId: userId, status: 'ACTIVE' } })) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'Finish your current run first' });
     }

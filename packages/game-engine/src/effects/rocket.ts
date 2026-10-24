@@ -17,6 +17,7 @@ import {
   benchedSlots,
   discardDefenderEnergy,
   discardToUse,
+  energyCanMove,
   extraEnergy,
   flipToInflict,
   inflicts,
@@ -207,7 +208,7 @@ const HOLO: Record<string, Record<string, AttackEffect>> = {
         ctx.affectDefender(() => {
           const defender = ctx.opp.active!;
           const energy = defender.energy.find((e) => e.uid === uid);
-          if (!energy) return;
+          if (!energy || !energyCanMove(ctx, defender)) return;
           defender.energy = defender.energy.filter((e) => e !== energy);
           to.energy.push(energy);
           ctx.log(`Moved ${lookupCard(ctx.state.cards, energy.defId).name} to ${pokemonName(ctx.state, to)}.`, ctx.opp.id);

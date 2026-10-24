@@ -14,7 +14,7 @@ import { counts, energyPool, energyProvided, isEnergyCardOf, isSpecialEnergy, ty
 import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { inPlayDef, pokemonName } from '../status.js';
-import { benchedSlots, opponentBenchChoice } from './common.js';
+import { benchedSlots, energyCanMove, opponentBenchChoice } from './common.js';
 import { energyAmount } from './ex1.js';
 import { discardOwn, inPlay, mayDiscardFor, putCounters, typeCards } from './ex2.js';
 import { pullDown } from './ex4.js';
@@ -419,6 +419,7 @@ export const EX5: Record<string, Record<string, AttackEffect>> = {
         const card = ctx.defender.energy.find((e) => e.uid === ctx.choices.defenderEnergyUid);
         if (!ctx.flip() || !card) return;
         ctx.affectDefender(() => {
+          if (!energyCanMove(ctx, ctx.defender)) return;
           ctx.defender.energy = ctx.defender.energy.filter((e) => e !== card);
           ctx.opp.hand.push(card);
           ctx.log(`Returned ${lookupCard(ctx.state.cards, card.defId).name} to the hand.`, ctx.opp.id);

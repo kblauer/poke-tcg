@@ -11,7 +11,7 @@ import { targetsIn } from '../attacks.js';
 import { isBasicEnergy, lookupCard } from '../cards.js';
 import { energyProvided, isEnergyCardOf, type CardInstance, type Target } from '../engine.js';
 import { pokemonName } from '../status.js';
-import { benchedSlots, opponentSwitches } from './common.js';
+import { benchedSlots, energyCanMove, opponentSwitches } from './common.js';
 import { discardDefenderTrainers } from './ecard2.js';
 import { typedCards } from './ecard1.js';
 import { energyAmount } from './ex1.js';
@@ -492,6 +492,7 @@ export const EX4: Record<string, Record<string, AttackEffect>> = {
         const card = ctx.defender.energy.find((e) => e.uid === ctx.choices.defenderEnergyUid);
         if (!card) return;
         ctx.affectDefender(() => {
+          if (!energyCanMove(ctx, ctx.defender)) return;
           ctx.defender.energy = ctx.defender.energy.filter((e) => e !== card);
           ctx.opp.deck.push(card);
           ctx.log(`Put ${lookupCard(ctx.state.cards, card.defId).name} at the bottom of the deck.`, ctx.opp.id);

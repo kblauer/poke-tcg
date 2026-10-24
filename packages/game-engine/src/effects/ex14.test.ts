@@ -26,6 +26,24 @@ const big = (name: string, extra: Partial<PokemonCardDef> = {}) => mon(`big-${na
 const DCE: CardDef = { id: 'dce', kind: 'energy', name: 'Double Colorless Energy', imageUrl: null, energyType: 'colorless', amount: 2, basic: false };
 
 describe('EX Crystal Guardians', () => {
+  it('Peal of Thunder: the Energy cards among the top 5 are attached one by one, the rest discarded, and the question is over', () => {
+    let s = duel('charmander', 'onix');
+    put(s, 'ash', 'active', mon('big-Charmeleon', 'Charmeleon', FI, 80, [['Tackle', [C], 10]], { stage: 'stage1' }));
+    const charizard = hand(s, 'ash', mon('ex14-4', 'Charizard δ', FI, 120, [['Tackle', [C], 10]], { stage: 'stage2', evolvesFrom: 'Charmeleon', ...power('Peal of Thunder') }));
+    ash(s).deck = [{ uid: 'e1', defId: 'fire' }, { uid: 'c1', defId: s.players.misty!.active!.card.defId }, { uid: 'e2', defId: 'water' }, { uid: 'c2', defId: s.players.misty!.active!.card.defId }, { uid: 'c3', defId: s.players.misty!.active!.card.defId }, { uid: 'c4', defId: s.players.misty!.active!.card.defId }];
+    s = act(s, 'ash', { type: 'EVOLVE', cardUid: charizard, target: 'active' });
+    expect(s.pendingChoice).toMatchObject({ kind: 'pealTarget' });
+    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', target: 'active' });
+    expect(s.pendingChoice).toMatchObject({ kind: 'pickFromTop', attachTo: 'active' });
+    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'e1' });
+    expect(s.pendingChoice).toMatchObject({ kind: 'pickFromTop' });
+    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'e2' });
+    expect(s.pendingChoice).toBeUndefined();
+    expect(ash(s).active!.energy.map((e) => e.uid)).toEqual(['e1', 'e2']);
+    expect(ash(s).discard.map((c) => c.uid)).toEqual(['c1', 'c2', 'c3']);
+    expect(ash(s).deck.map((c) => c.uid)).toEqual(['c4']);
+  });
+
   it('Crystal Beach: a Special Energy card providing 2 Energy provides 1 Colorless (agreed)', () => {
     let s = duel('charmander', 'onix');
     s.cards = { ...s.cards, dce: DCE };

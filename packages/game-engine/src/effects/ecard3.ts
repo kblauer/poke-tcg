@@ -17,7 +17,7 @@ import { energyPool, isEnergyCardOf, retreatCost, type InPlayPokemon, type Targe
 import type { EnergyType } from '../cards.js';
 import { shuffle } from '../rng.js';
 import { inPlayDef, pokemonName } from '../status.js';
-import { benchedSlots, benchSearch, extraEnergy, flipToInflict, flipToProtect, headsUntilTails, inflicts, lure, opponentBenchChoice, opponentSwitches, perHeads, recoil, selfdestruct, whirlwind } from './common.js';
+import { benchedSlots, benchSearch, energyCanMove, extraEnergy, flipToInflict, flipToProtect, headsUntilTails, inflicts, lure, opponentBenchChoice, opponentSwitches, perHeads, recoil, selfdestruct, whirlwind } from './common.js';
 import { ECARD1, basicEnergyOn, energyCards, plasma, putCounters, typedCards } from './ecard1.js';
 import { ECARD2 } from './ecard2.js';
 import { benchMany, benchWhere, discardFromAttacker, noRetreat, removalFlip } from './gym1.js';
@@ -101,7 +101,7 @@ const energyTrick = (damage: number, basicOnly: boolean): AttackEffect => ({
     ctx.affectDefender(() => {
       const defender = ctx.opp.active!;
       const energy = defender.energy.find((e) => e.uid === uid);
-      if (!energy) return;
+      if (!energy || !energyCanMove(ctx, defender)) return;
       defender.energy = defender.energy.filter((e) => e !== energy);
       to.energy.push(energy);
       ctx.log(`Moved ${lookupCard(ctx.state.cards, energy.defId).name} from ${pokemonName(ctx.state, defender)} to ${pokemonName(ctx.state, to)}.`, ctx.opp.id);

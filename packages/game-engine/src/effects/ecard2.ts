@@ -19,6 +19,7 @@ import {
   benchedSlots,
   benchTarget,
   discardToUse,
+  energyCanMove,
   extraEnergy,
   flipToInflict,
   flipToProtect,
@@ -194,7 +195,7 @@ export const ECARD2: Record<string, Record<string, AttackEffect>> = {
         ctx.affectDefender(() => {
           const defender = ctx.opp.active!;
           const card = defender.energy.find((e) => e.uid === uid);
-          if (!card) return;
+          if (!card || !energyCanMove(ctx, defender)) return;
           defender.energy = defender.energy.filter((e) => e !== card);
           ctx.opponentChooses({ kind: 'attachCard', source: 'Energy Kick', card, only: { bench: true } });
         });

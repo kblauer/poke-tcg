@@ -11,7 +11,7 @@ import { energyPool, isEnergyCardOf, isSpecialEnergy, PRIZE_COUNT } from '../eng
 import { powerActive } from '../powers.js';
 import { effectId, inPlayDef, pokemonName } from '../status.js';
 import { powerEffect, trainerEffect } from './index.js';
-import { benchedSlots } from './common.js';
+import { benchedSlots, energyCanMove } from './common.js';
 import { copyAttack } from './ecard2.js';
 import { inPlay } from './ex2.js';
 import { lureIn, mayDiscardAny, snipe } from './ex6.js';
@@ -208,7 +208,7 @@ export const EX11: Record<string, Record<string, AttackEffect>> = {
       50,
       (ctx) => {
         const card = ctx.defender.energy.find((e) => e.uid === ctx.choices.defenderEnergyUid);
-        if (!card || !ctx.canAffect(ctx.opp, ctx.defender)) return;
+        if (!card || !ctx.canAffect(ctx.opp, ctx.defender) || !energyCanMove(ctx, ctx.defender)) return;
         ctx.defender.energy = ctx.defender.energy.filter((e) => e !== card);
         const { provides: _, ...back } = card;
         ctx.opp.hand.push(back);

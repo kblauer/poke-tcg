@@ -448,11 +448,14 @@ function rollEncounter(rng: Rng, state: RunState, option: MapEncounter, pool: re
     case 'gift':
       return { kind: 'gift', offers: offerCards(rng, pool, OFFERS + moreOffers(effects, 'gift')) };
     case 'trade': {
-      // They ask for one of your cards (not basic Energy if you have anything else) and offer one at least as rare.
+      // They ask for one of your cards (not basic Energy if you have anything else) and offer one at least as rare. A deck
+      // from another generation has cards outside the run's pool: one of those is asked for then (its rarity unknown, any card
+      // is offered), so there's always something to trade.
       const cards = byId(pool);
-      const yours = [...new Set(state.deck)].filter((id) => cards.has(id));
-      const wanted = yours.filter((id) => offerable([cards.get(id)!]).length);
-      const give = pick(rng, wanted.length ? wanted : yours);
+      const yours = [...new Set(state.deck)];
+      const known = yours.filter((id) => cards.has(id));
+      const wanted = known.filter((id) => offerable([cards.get(id)!]).length);
+      const give = pick(rng, wanted.length ? wanted : known.length ? known : yours);
       const get = offerCards(rng, pool.filter((c) => c.def.id !== give), 1, cards.get(give)?.rarity)[0]!;
       return { kind: 'trade', give, get };
     }
@@ -805,12 +808,17 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
           state.log.push(`${def.name}: the Mystery here is ${mysteries.map((o) => o.label).join(' and ')}.`);
           break;
         }
-        case 'reroll':
+        case 'reroll': {
           if (notOnMap) return notOnMap;
           if (step!.options.some((o) => o.kind === 'gymTrainer' || isBossKind(o.kind))) return fail(`${def.name} doesn't work at a gym`);
-          step!.options = pairUp(rng, rollOptions(rng, state.position, centersOffered(state.steps, state.position)));
+          // Rolled as the step was when the run was made: the route's own trainers (no Swimmers on land), and a surfed route's
+          // spot at sea or its land battle always a battle, a spot ashore never one.
+          const { pool: trainers, landBattle, atSea, ashore } = poolAt(runType(state.type), state.position);
+          const options = atSea || landBattle ? [mapEncounter(rng, 'battle', trainers)] : rollOptions(rng, state.position, centersOffered(state.steps, state.position), trainers, ashore);
+          step!.options = pairUp(rng, options, trainers);
           state.log.push(`Used ${def.name}: new encounters to choose from.`);
           break;
+        }
         case 'heal':
           if (state.hp >= state.maxHp) return fail('You already have full HP');
           state.hp = Math.min(state.maxHp, state.hp + use.hp);
