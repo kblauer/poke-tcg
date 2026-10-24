@@ -22,7 +22,8 @@ import { PAGE_WIDTH } from '../utils/layout';
 const MOVE_MS = 900;
 
 /** A move still to be shown: the view after it, and whether it began a new turn (the TurnBanner then plays before the next move). */
-type Frame = LastMove & { view: PlayerView; newTurn: boolean };
+/** `flipsFrom`: the log entry its coin flips come after, when the frames before it were skipped (the battle's last move). */
+type Frame = LastMove & { view: PlayerView; newTurn: boolean; flipsFrom?: number };
 
 const lastEntry = (view: PlayerView) => view.log.at(-1)?.n ?? 0;
 
@@ -65,8 +66,12 @@ export function GamePage() {
       onSuccess: ({ frames }) => {
         if (data) setShownView(data.view);
         queryClient.setQueryData(viewQuery.queryKey, (old) => old && { ...old, view: frames.at(-1)!.view });
-        // An action that ends the battle (won or lost) goes straight to the result: no coin flips or move-by-move replay.
-        const shown = frames.at(-1)!.view.phase === 'finished' ? frames.slice(-1) : frames;
+        // An action that ends the battle (won or lost) goes straight to its last move, with no move-by-move replay; that move's
+        // coin flips still play first (the ones that decided the battle, the user's), then the result.
+        const over = frames.at(-1)!.view.phase === 'finished';
+        const shown = over ? frames.slice(-1) : frames;
+        const before = frames.at(-2)?.view ?? data?.view;
+        const flipsFrom = over && before ? lastEntry(before) : undefined;
         const turnOf = (i: number) => (i === 0 ? data?.view.turn : shown[i - 1]!.view.turn);
         // A Pokémon or Energy card isn't shown when the Options tab says so (its Pokémon still glow); Trainers always are.
         const hidden = ({ highlight, view }: (typeof shown)[number]) => {
@@ -81,6 +86,7 @@ export function GamePage() {
             highlight: f.highlight && hidden(f) ? { ...f.highlight, defId: null } : f.highlight,
             view: f.view,
             newTurn: f.view.turn !== turnOf(i),
+            ...(flipsFrom !== undefined && { flipsFrom }),
           })),
         );
       },
@@ -122,9 +128,8 @@ export function GamePage() {
     flipsShown.current = false;
     if (!next) return;
     const before = shownView ?? data?.view;
-    const fresh = before ? flipsAfter(next.view.log, lastEntry(before)) : [];
-    // Once the battle is over, its flips aren't shown.
-    if (!fresh.length || skipFlips || next.view.phase === 'finished') return reveal();
+    const fresh = next.flipsFrom !== undefined ? flipsAfter(next.view.log, next.flipsFrom) : before ? flipsAfter(next.view.log, lastEntry(before)) : [];
+    if (!fresh.length || skipFlips) return reveal();
     flipsShown.current = true;
     if (!next.highlight?.defId) return setFlips(fresh);
     cardShown.current = true;
