@@ -43,6 +43,6 @@ export const RUN_CARD = 'w-28';
 export const RUN_CARD_FLUID = 'w-full max-w-28';
 
 /** The pack window's cards: the card being revealed (as big as the screen's height allows), the commons laid out, and the list of every card opened. */
-export const PACK_REVEAL = 'w-[min(85vw,34rem,calc((100dvh_-_13rem)*0.716))]';
+export const PACK_REVEAL = 'w-[min(85vw,34rem,calc((100dvh_-_15rem)*0.716))]';
 export const PACK_COMMON = 'w-36 sm:w-44 2xl:w-52';
 export const PACK_SUMMARY = 'w-32 sm:w-40 2xl:w-44';

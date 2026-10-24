@@ -352,7 +352,7 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
               : `${packs > 1 ? `Pack ${current.pack + 1} of ${packs} · ` : ''}Card ${inPack(queue[index]!) + 1} of ${packSize(current.pack)}`}
             {autoOn ? ` · opening by itself${fast ? ' (×2)' : ''}` : ' · click to see the next'}
           </p>
-          <button className={`relative outline-none ${PACK_REVEAL}`} onClick={next} aria-label="Next card">
+          <button className={`pack-reveal relative my-4 outline-none ${PACK_REVEAL}`} onClick={next} aria-label="Next card">
             {/* The rest of the stack, face down, under the card shown. */}
             {Array.from({ length: Math.min(queue.length - index - 1, 5) }, (_, i) => (
               <img key={i} src={cardBack} alt="" draggable={false} className="absolute inset-0 aspect-[63/88] w-full rounded-xl object-cover shadow-lg" style={{ transform: `translate(${(i + 1) * 4}px, ${(i + 1) * 4}px)` }} />
