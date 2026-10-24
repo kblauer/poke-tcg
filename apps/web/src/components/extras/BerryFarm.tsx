@@ -99,16 +99,24 @@ export function BerryFarm() {
   const farm = useQuery({ ...trpc.extras.farm.queryOptions(), refetchInterval: 60_000 });
   const setFarm = (data: NonNullable<typeof farm.data>) => queryClient.setQueryData(trpc.extras.farm.queryKey(), data);
   const [picked, setPicked] = useState<PickedBerries[]>([]);
+  /** Each picked tree's berries rising from it (a single pick's, or Gather all's), and the minigames' berry lists refreshed. */
+  const showPicked = (data: NonNullable<typeof farm.data>, counts: Record<string, number>) => {
+    setFarm(data);
+    const base = Date.now();
+    const pops = Object.entries(counts).map(([berry, count], i) => ({ id: base + i, berry, count, plot: data.trees.find((t) => t.berry === berry)!.plot }));
+    setPicked((p) => [...p, ...pops]);
+    window.setTimeout(() => setPicked((p) => p.filter((x) => !pops.some((q) => q.id === x.id))), 1700);
+    for (const key of [trpc.extras.blender.queryKey(), trpc.extras.poffins.queryKey()]) queryClient.invalidateQueries({ queryKey: key });
+  };
   const harvest = useMutation(
     trpc.extras.harvest.mutationOptions({
-      onSuccess: ({ berry, count, ...data }) => {
-        setFarm(data);
-        const plot = data.trees.find((t) => t.berry === berry)!.plot;
-        const id = Date.now();
-        setPicked((p) => [...p, { id, berry, count, plot }]);
-        window.setTimeout(() => setPicked((p) => p.filter((x) => x.id !== id)), 1700);
-        queryClient.invalidateQueries({ queryKey: trpc.extras.blender.queryKey() });
-      },
+      onSuccess: ({ berry, count, ...data }) => showPicked(data, { [berry]: count }),
+      onError: (e) => toasts.push('error', e.message),
+    }),
+  );
+  const gather = useMutation(
+    trpc.extras.harvestAll.mutationOptions({
+      onSuccess: ({ picked: counts, ...data }) => showPicked(data, counts),
       onError: (e) => toasts.push('error', e.message),
     }),
   );
@@ -142,6 +150,13 @@ export function BerryFarm() {
 
   return (
     <div className="space-y-4">
+      {/* Gather all: every ripe tree picked at once (its berries rising from each), the player staying put. */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-slate-400">Emerald’s berries grow in the top garden, Platinum’s in the one below.</p>
+        <button className={BUTTON} disabled={!ripeCount || gather.isPending || harvest.isPending} onClick={() => gather.mutate()}>
+          {ripeCount ? `Gather all ripe (${ripeCount})` : 'Gather all ripe'}
+        </button>
+      </div>
       <FarmMap
         trees={trees}
         stages={stages}

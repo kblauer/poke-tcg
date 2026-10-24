@@ -3,27 +3,42 @@ import { describe, expect, it } from 'vitest';
 import { BERRIES } from './berries.js';
 import { blenderFrame, blenderRanking, blenderTempo, makePokeblock, newBlenderGame, opponentBerries, pokeblockLevel, proximity, speedToRpm, type Random16 } from './berry-blender.js';
 import { BERRY_FARM_MAP } from './berry-farm-map.js';
-import { berriesOf, FARM_TREES, farmOf, farmView, GROW_MS, harvest, RIPE, stageAt } from './berry-farm.js';
+import { berriesOf, FARM_TREES, farmOf, farmView, GROW_MS, harvest, harvestAll, RIPE, stageAt } from './berry-farm.js';
 import { blenderMusic, SOUNDTRACKS } from './music.js';
 import { rngFrom } from './random.js';
 
 const NOW = Date.UTC(2026, 9, 24, 12);
 
 describe('berries', () => {
-  it('are the 42 of Ruby, Sapphire and Emerald but the Enigma Berry, each with its icon and tree in the web app', () => {
-    expect(BERRIES).toHaveLength(42);
-    expect([BERRIES[0]!.id, BERRIES.at(-1)!.id]).toEqual(['cheri', 'starf']);
+  it("are Emerald's 42 (but the Enigma Berry) and Platinum's 22 (the Enigma Berry with them), each with its icon, tree and blender picture in the web app", () => {
+    expect(BERRIES.filter((b) => b.gen === 3)).toHaveLength(42);
+    expect(BERRIES.filter((b) => b.gen === 4)).toHaveLength(22);
+    expect([BERRIES[0]!.id, BERRIES[41]!.id, BERRIES[42]!.id, BERRIES.at(-1)!.id]).toEqual(['cheri', 'starf', 'occa', 'rowap']);
+    expect(new Set(BERRIES.map((b) => b.id)).size).toBe(BERRIES.length);
     const pub = new URL('../../../apps/web/public/extras/', import.meta.url);
-    const missing = BERRIES.flatMap((b) => [`berries/${b.id}.png`, `trees/${b.id}.png`]).filter((f) => !existsSync(new URL(f, pub)));
+    const missing = BERRIES.flatMap((b) => [`berries/${b.id}.png`, `trees/${b.id}.png`, `berry-pics/${b.id}.png`, `poffin/berries/${b.id}.png`]).filter((f) => !existsSync(new URL(f, pub)));
     expect(missing).toEqual([]);
   });
 });
 
 describe('the Berry Farm', () => {
-  it('has a plot for every berry, each picked from a walkable tile below it', () => {
-    expect(BERRY_FARM_MAP.plots.length).toBeGreaterThanOrEqual(BERRIES.length);
+  it("grows Emerald's berries in the top garden and Platinum's in the one below, each picked from a walkable tile below it", () => {
+    expect(BERRY_FARM_MAP.gardens.map((g) => g.length)).toEqual([48, 24]);
     expect(new Set(FARM_TREES.map((t) => `${t.plot.x},${t.plot.y}`)).size).toBe(BERRIES.length);
-    for (const { plot } of FARM_TREES) expect(BERRY_FARM_MAP.walkable[plot.y + 1]![plot.x]).toBe('.');
+    const garden = (p: { x: number; y: number }) => BERRY_FARM_MAP.gardens.findIndex((g) => g.some((q) => q.x === p.x && q.y === p.y));
+    for (const { berry, plot } of FARM_TREES) {
+      expect(garden(plot)).toBe(BERRIES.find((b) => b.id === berry)!.gen - 3);
+      expect(BERRY_FARM_MAP.walkable[plot.y + 1]![plot.x]).toBe('.');
+    }
+  });
+
+  it('gathers every ripe tree at once, planting them again, and only those', () => {
+    const farm = { planted: { cheri: NOW - GROW_MS, occa: NOW - 2 * GROW_MS, oran: NOW } };
+    const { farm: after, picked } = harvestAll(farm, NOW, rngFrom(3));
+    expect(Object.keys(picked).sort()).toEqual(['cheri', 'occa']);
+    expect(picked.occa).toBeGreaterThanOrEqual(2);
+    expect(after.planted).toEqual({ cheri: NOW, occa: NOW, oran: NOW });
+    expect(harvestAll(after, NOW, rngFrom(3)).picked).toEqual({});
   });
 
   it('grows a tree through its 5 stages in GROW_MS, ripe until picked', () => {
@@ -37,7 +52,7 @@ describe('the Berry Farm', () => {
   it('starts a new farm with a fifth of its trees ripe, the others ripening over the hours after', () => {
     const view = farmView(farmOf(null, NOW), NOW);
     expect(view).toHaveLength(BERRIES.length);
-    expect(view.filter((t) => t.stage === RIPE)).toHaveLength(Math.ceil(BERRIES.length / 5) - 1);
+    expect(view.filter((t) => t.stage === RIPE)).toHaveLength(BERRIES.filter((_, i) => (i * 3) % 5 === 4).length);
     expect(view.every((t) => t.ripeAt <= NOW + GROW_MS)).toBe(true);
   });
 

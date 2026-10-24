@@ -19,3 +19,4 @@ export * from './berries.js';
 export * from './berry-blender.js';
 export * from './berry-farm.js';
 export * from './berry-farm-map.js';
+export * from './poffin-cooking.js';
