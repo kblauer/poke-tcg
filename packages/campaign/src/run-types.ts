@@ -3,7 +3,8 @@
 // segment leaves them out) a Gym Trainer that must be fought, then the segment's bosses one after another. The run is
 // beaten with its last boss. A run type can have a route (routes.ts): the map its run screen shows, a spot per step.
 // Each belongs to a generation, whose booster packs its runs unlock (GENERATIONS); the Gym Challenge needs the
-// generation's badges and the Champion run a beaten Gym Challenge (runTypeLock).
+// generation's badges and the Champion run a beaten Gym Challenge, and every run of a generation the Gym Challenge of
+// the one before it (generationLock, runTypeLock).
 import type { EnergyType } from '@poke-tcg/game-engine';
 import { BOSSES, boss, ELITE_FOUR, HOENN_ELITE_FOUR, HOENN_GYMS, JOHTO_ELITE_FOUR, JOHTO_GYMS, KANTO_GYMS, type Boss, type BossId } from './bosses.js';
 import { GEN1_DECK_RULES, GEN2_DECK_RULES, GEN3_DECK_RULES, type DeckRules } from './decks.js';
@@ -267,11 +268,24 @@ export const generationBadges = (g: Generation) => g.gyms.map((id) => boss(id).g
 export const nextPack = (g: Generation, unlocked: ReadonlySet<string>) => g.packs.find((id) => !unlocked.has(id)) ?? null;
 
 /**
- * Why a run type can't be started yet, or null if it can: the Gym Challenge needs every badge of its generation (key
- * items the account has, `badges`), and the Champion run its generation's Gym Challenge beaten (`beaten`: run types won).
+ * Why a generation's runs can't be started yet, or null if they can: each generation after the first needs the Gym
+ * Challenge of the one before it beaten (`beaten`: run types won), so beating the Kanto Gym Challenge opens Johto's runs
+ * (agreed 2026-10-24).
+ */
+export function generationLock(id: number, beaten: ReadonlySet<string>): string | null {
+  const before = GENERATIONS[id - 1];
+  return before && !beaten.has(before.gymChallenge) ? `Beat the ${runType(before.gymChallenge).name} first` : null;
+}
+
+/**
+ * Why a run type can't be started yet, or null if it can: its generation must be open (generationLock), the Gym
+ * Challenge needs every badge of its generation (key items the account has, `badges`), and the Champion run its
+ * generation's Gym Challenge beaten (`beaten`: run types won).
  */
 export function runTypeLock(type: RunType, account: { badges: ReadonlySet<string>; beaten: ReadonlySet<string> }): string | null {
   const g = generation(type.generation);
+  const closed = generationLock(type.generation, account.beaten);
+  if (closed) return closed;
   if (type.requires === 'badges') {
     const missing = generationBadges(g).filter((b) => !account.badges.has(b)).length;
     return missing ? `Earn all ${g.gyms.length} ${g.region} badges first (${missing} to go)` : null;

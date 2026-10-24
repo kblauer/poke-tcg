@@ -211,7 +211,8 @@ export const runRouter = router({
 
   /**
    * Starts a new run of a type with one of the account's decks, which must be playable (banking the earlier runs' ₱).
-   * The run type must be unlocked (runTypeLock: the Gym Challenge needs every badge, the Champion run a beaten Gym Challenge).
+   * The run type must be unlocked (runTypeLock: a later generation's runs need the previous one's Gym Challenge beaten, the Gym Challenge every badge,
+   * the Champion run a beaten Gym Challenge).
    */
   start: protectedProcedure.input(startRunInput).mutation(async ({ ctx, input }) => {
     const { locked } = (await runTypeProgress(ctx.user.id))[input.type];
