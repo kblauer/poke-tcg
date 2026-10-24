@@ -178,6 +178,14 @@ html[data-font="emerald"] {
 }
 .coin-dust-bit { opacity: 0; animation: coin-dust-bit 460ms ease-out forwards; }
 
+/* The Berry Farm: a picked tree's berries ("+3"), rising from it and fading (BerryFarm's Picked; centred on the tree). */
+@keyframes berry-picked {
+  from { opacity: 0; transform: translate(-50%, 4px); }
+  15% { opacity: 1; }
+  70% { opacity: 1; }
+  to { opacity: 0; transform: translate(-50%, -10px); }
+}
+
 /*
  * The board (components/PlayArea.tsx, with the turn bar between its two sides) sizes its cards to fill the space it has. PlayArea is the
  * size container; this inner element turns its size into card widths. Small cards (bench, prizes,

@@ -45,6 +45,9 @@ const InventoryPage = lazyRouteComponent(() => import('./pages/Inventory'), 'Inv
 const PacksPage = lazyRouteComponent(() => import('./pages/Packs'), 'PacksPage');
 const CosmeticsPage = lazyRouteComponent(() => import('./pages/Cosmetics'), 'CosmeticsPage');
 const SettingsPage = lazyRouteComponent(() => import('./pages/Settings'), 'SettingsPage');
+const ExtrasPage = lazyRouteComponent(() => import('./pages/Extras'), 'ExtrasPage');
+const BerryFarmPage = lazyRouteComponent(() => import('./pages/Extras'), 'BerryFarmPage');
+const BerryBlenderPage = lazyRouteComponent(() => import('./pages/Extras'), 'BerryBlenderPage');
 
 // The logo, in the top bar and the phone's menu: the Pokémon logo's lettering (Pokemon Solid, `font-logo`); everything
 // else is in the UI's font (index.css).
@@ -198,8 +201,13 @@ const inventoryRoute = createRoute({ getParentRoute: () => rootRoute, path: '/in
 const packsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/packs', component: PacksPage });
 const cosmeticsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/cosmetics', component: CosmeticsPage });
 const settingsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/settings', component: SettingsPage });
+const extrasRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras', component: ExtrasPage });
+const berryFarmRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras/berry-farm', component: BerryFarmPage });
+const berryBlenderRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras/berry-blender', component: BerryBlenderPage });
 
-const router = createRouter({ routeTree: rootRoute.addChildren([homeRoute, battleRoute, gameRoute, decksRoute, communityRoute, inventoryRoute, cosmeticsRoute, packsRoute, settingsRoute]) });
+const router = createRouter({
+  routeTree: rootRoute.addChildren([homeRoute, battleRoute, gameRoute, decksRoute, communityRoute, inventoryRoute, cosmeticsRoute, packsRoute, settingsRoute, extrasRoute, berryFarmRoute, berryBlenderRoute]),
+});
 
 declare module '@tanstack/react-router' {
   interface Register {

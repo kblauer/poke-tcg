@@ -24,6 +24,11 @@ export interface MusicCue {
   key: string;
   songs: Song[];
   seed: string;
+  /**
+   * Starts the music if it isn't playing (the Berry Blender's: its music is part of the game), and stops it again when
+   * the cue ends; other cues only switch the song of music already playing.
+   */
+  start?: boolean;
 }
 
 /** A region's music in one soundtrack (titles of its album, `game`). */
@@ -235,6 +240,12 @@ export function practiceMusic(opponent: string | null, soundtrack: Soundtrack, g
   const label = opponent ?? '';
   const found = [...BOSS_GENERATIONS].find(([b]) => `${b.kind === 'gymLeader' ? 'Gym Leader' : b.title} ${b.name}` === label);
   return found ? battleMusic(found[1], soundtrack, found[0].kind, gameId) : battleMusic(1, soundtrack, 'battle', gameId);
+}
+
+/** The Berry Blender's music (the Extras page): Emerald plays the Cycling theme while it spins (MUS_CYCLING), in either soundtrack. */
+export function blenderMusic(soundtrack: Soundtrack): MusicCue {
+  const music = regionMusic(3, soundtrack);
+  return { key: `${music.game}:blender`, songs: [song(music, music.bike)], seed: 'blender', start: true };
 }
 
 /** One of a cue's songs, the same one every time for the same seed. */

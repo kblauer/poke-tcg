@@ -29,6 +29,7 @@ export const PAGES = [
   { to: '/decks', label: 'Collection', Icon: navIcon('collection') },
   { to: '/community', label: 'Community Decks', Icon: navIcon('community') },
   { to: '/battle', label: 'Training', Icon: navIcon('training') },
+  { to: '/extras', label: 'Extras', Icon: navIcon('extras') },
 ] as const;
 
 /** The Settings page: last in the menus, below the pages. */

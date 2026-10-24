@@ -9,7 +9,7 @@ import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import { pickSong, type MusicCue, type Song, type Soundtrack } from '@poke-tcg/campaign';
 import { useQuery } from '@tanstack/react-query';
-import { createContext, lazy, Suspense, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type AudioPlayerElement from 'react-h5-audio-player';
 import { registerSetting, saveSetting } from '../utils/accountSettings';
 import { duration, groupByGame, MUSIC_GENERATIONS, playlist, type GenFilter, type Track } from '../utils/music';
@@ -99,6 +99,8 @@ interface MusicState {
   setCue: (cue: MusicCue | null) => void;
   /** A jingle (the Pokémon Center's), then back to the song it interrupted, where it was. Only while music plays. */
   playJingle: (song: Song) => void;
+  /** The music's tempo (1: as recorded), its pitch kept, whatever plays: the Berry Blender's speed-up (useMusicTempo). */
+  setTempo: (rate: number) => void;
 }
 
 const MusicContext = createContext<MusicState | null>(null);
@@ -118,6 +120,16 @@ export function useMusicCue(cue: MusicCue | null) {
 }
 
 export const usePlayJingle = () => useContext(MusicContext)?.playJingle ?? null;
+
+/**
+ * Sets the music's tempo (1 as recorded, its pitch kept) while the page using it is on screen, back to 1 when it goes:
+ * the Berry Blender's, speeding up with the blender as the game's does (`blenderTempo`). Null outside the music player.
+ */
+export function useMusicTempo() {
+  const setTempo = useContext(MusicContext)?.setTempo ?? null;
+  useEffect(() => () => setTempo?.(1), [setTempo]);
+  return setTempo;
+}
 
 /**
  * The music player's small bar: play/pause and the song playing (only the note while nothing plays), which opens the player's panel. In the top bar's right
@@ -230,10 +242,26 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
     resumeAt.current = positions.current.get(track.url) ?? 0;
     update({ track: track.url });
   };
+  // A cue that starts the music (`start`: the Berry Blender's) plays it even when it was paused, and pauses it again when
+  // that cue ends (`cueStarted`); any other only switches the song of music already playing.
+  const cueStarted = useRef(false);
   useEffect(() => {
-    if (cueTrack && !inJingle.current && cueTrack.url !== prefs.track) switchTo(cueTrack, playing);
+    if (!cueTrack || inJingle.current) return;
+    const start = playing || !!cue?.start;
+    if (start && !playing) cueStarted.current = true;
+    if (cueTrack.url !== prefs.track) switchTo(cueTrack, start);
+    else if (start && !playing) {
+      startNext.current = true;
+      startPlaying();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cueTrack]);
+  useEffect(() => {
+    if (cue?.start || !cueStarted.current) return;
+    cueStarted.current = false;
+    player.current?.audio.current?.pause();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cue?.key]);
   const playJingle = (song: Song) => {
     const jingle = findSong(song);
     if (!prefs.autoplay || !playing || !jingle || inJingle.current) return;
@@ -256,10 +284,25 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
     step(1);
   };
 
+  // The tempo (setTempo): the audio's playback rate, its pitch kept; its default rate too, which a new song starts at.
+  const tempo = useRef(1);
+  const applyTempo = () => {
+    const audio = player.current?.audio.current;
+    if (!audio) return;
+    audio.defaultPlaybackRate = tempo.current;
+    audio.playbackRate = tempo.current;
+  };
+  const setTempo = useCallback((rate: number) => {
+    if (tempo.current === rate) return;
+    tempo.current = rate;
+    applyTempo();
+  }, []);
+
   // Starts the chosen song as soon as its audio has it: also the first one, whose player (and audio) has only just
   // appeared, which the player's own autoplay (only on a change of song) would leave paused. A song come back to
   // starts where it was (set again once its audio has loaded, as loading starts it over).
   useEffect(() => {
+    applyTempo();
     const audio = player.current?.audio.current;
     const at = resumeAt.current;
     resumeAt.current = 0;
@@ -347,6 +390,7 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
     setSoundtrack,
     setCue,
     playJingle,
+    setTempo,
   };
   return (
     <MusicContext.Provider value={state}>
@@ -369,7 +413,12 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
           {current && (
             <Suspense fallback={null}>
             <AudioPlayer
-              ref={player}
+              // The first song's player only appears once its code has loaded, after the effect that starts a song ran:
+              // a song waiting to start (startNext) starts as soon as it's there.
+              ref={(el) => {
+                player.current = el;
+                if (el) startPlaying();
+              }}
               className="music-player"
               src={current.url}
               preload="none"

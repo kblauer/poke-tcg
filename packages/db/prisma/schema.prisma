@@ -40,6 +40,13 @@ model User {
   /// The Settings page's choices kept with the account, so they follow it to any browser (the shared package's
   /// ACCOUNT_SETTINGS: theme, font, skipFlips, options, reminders, music), each the web app's own value as a string.
   settings      Json            @default("{}")
+  /// The Extras page's Berry Farm: when each berry's tree was last planted (the campaign package's BerryFarm, {} until it's
+  /// first opened; a berry missing is planted then).
+  berryFarm     Json            @default("{}")
+  /// The berries the account has, a count per berry id ('cheri'): picked on the Berry Farm, used in the Berry Blender.
+  berries       Json            @default("{}")
+  /// The Berry Blender's top speed ever, in hundredths of an RPM (as the game's record).
+  blenderRecord Int             @default(0)
   decks         Deck[]
   games         Game[]
   runs          Run[]
@@ -50,6 +57,7 @@ model User {
   items        InventoryItem[]
   cosmetics    CosmeticUnlock[]
   equipment     Equipment[]
+  pokeblocks    Pokeblock[]
 }
 
 enum CardKind {
@@ -269,6 +277,22 @@ model FavoriteCard {
 /// its generation's next pack, beating a run all of them (see the campaign package's GENERATIONS).
 /// Cosmetics an account has bought (`cosmeticId`: a key of the campaign package's COSMETICS). The defaults, and those
 /// unlocked by beating a run type, have no row: they're worked out (hasCosmetic).
+/// A Pokéblock made in the Extras page's Berry Blender (the campaign package's makePokeblock): its colour (POKEBLOCK_COLORS),
+/// its 5 flavours (spicy, dry, sweet, bitter, sour), its feel, and the berries and top speed it was made with.
+model Pokeblock {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  color     String
+  flavors   Int[]
+  feel      Int
+  berries   String[]
+  maxRpm    Int
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
 model CosmeticUnlock {
   userId     String   @db.Uuid
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)

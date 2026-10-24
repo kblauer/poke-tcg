@@ -1,5 +1,5 @@
 import { CPU_DIFFICULTIES, DEBUG_CONDITIONS, MAX_BENCH, type AttackChoices, type DebugCommand, type GameAction, type PowerChoices, type TrainerChoices } from '@poke-tcg/game-engine';
-import { BOSS_IDS, COSMETIC_IDS, EQUIP_SLOTS, MAX_PACKS_AT_ONCE, PACK_SETS, RUN_TYPE_IDS, type RunAction, type RunTypeId } from '@poke-tcg/campaign';
+import { BERRIES, BOSS_IDS, COSMETIC_IDS, EQUIP_SLOTS, MAX_PACKS_AT_ONCE, PACK_SETS, RUN_TYPE_IDS, type RunAction, type RunTypeId } from '@poke-tcg/campaign';
 import { z } from 'zod';
 import { DECK_NAME_LENGTH } from './deck.js';
 import { TRAINER_SPRITES } from './trainer-sprites.js';
@@ -204,6 +204,11 @@ export const playerGenderInput = z.object({ gender: z.enum(PLAYER_GENDERS) });
 /** A cosmetic (card back, playmat or coin) to buy, or to assign: the account's decks that use it, and whether it's the default for decks with none of its kind. */
 export const buyCosmeticInput = z.object({ id: z.enum(COSMETIC_IDS as [string, ...string[]]) });
 export const assignCosmeticInput = buyCosmeticInput.extend({ deckIds: z.array(z.uuid()).max(500), isDefault: z.boolean() });
+
+// The Extras page: a berry by its id; the Berry Blender's top speed in hundredths of an RPM (5 digits on its screen).
+const berryId = z.enum(BERRIES.map((b) => b.id) as [string, ...string[]]);
+export const harvestBerryInput = z.object({ berry: berryId });
+export const blendBerryInput = z.object({ berry: berryId, maxRpm: z.number().int().min(0).max(99999) });
 
 export const openPackInput = z.object({
   setId: z.enum(PACK_SETS as [string, ...string[]]),
