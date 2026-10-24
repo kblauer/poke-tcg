@@ -1,6 +1,6 @@
-import { lookupCard, type CardLibrary, type InPlayPokemon, type PlayerView, type Target } from '@poke-tcg/game-engine';
-import { Card } from './Card';
+import type { CardLibrary, InPlayPokemon, PlayerView, Target } from '@poke-tcg/game-engine';
 import type { ReactNode } from 'react';
+import { PhoneOppHand } from './phone/PhonePiles';
 import { DeckAndDiscard } from './DeckAndDiscard';
 import { useCosmetics } from '../hooks/useCosmetics';
 import { FloatingDialog } from './FloatingDialog';
@@ -17,8 +17,9 @@ export interface Spotlight {
 }
 
 /**
- * The CPU's side, mirrored both ways from the player's, as if sitting across the table: deck
- * above the discard pile on the left, prizes on the right, bench on top and active nearest the middle.
+ * The CPU's side, mirrored both ways from the player's, as if sitting across the table: its hand face down along the
+ * top edge (PhoneOppHand, as on a phone), deck above the discard pile on the left, prizes on the right, bench on top
+ * and active nearest the middle.
  * While an effect asks for one of the CPU's Pokémon (`pick`), the ones it can choose are highlighted and clicked to choose them.
  * When it asks for several (Gigashock), the ones clicked so far are `picked`.
  */
@@ -31,6 +32,7 @@ export function OpponentArea({
   spotlight = null,
   dialog,
   played,
+  openHand,
 }: {
   opponent: PlayerView['opponent'];
   cards: CardLibrary;
@@ -45,6 +47,8 @@ export function OpponentArea({
   dialog?: ReactNode;
   /** The card the CPU just played (PlayedCard), shown over its Bench and Active. */
   played?: ReactNode;
+  /** A click on the CPU's hand while it's face up (Clairvoyance): Board spreads it out (DiscardPane). */
+  openHand: () => void;
 }) {
   const { playmat } = useCosmetics();
   const slot = (id: string, target: Target, pokemon: InPlayPokemon | null, large?: boolean) => (
@@ -54,23 +58,16 @@ export function OpponentArea({
     // The player's playmat here too (the Cosmetics tab), so the whole table matches.
     <section className="relative flex min-h-0 flex-1 items-center rounded-lg bg-slate-900 p-3">
       <Playmat id={playmat} group="table" />
-      {/* Top-aligned, with the side columns pushed down past the heading (text-sm + space-y-3 = 2rem) to line up with the bench. */}
-      <div className="relative flex w-full items-start gap-3">
-        <div className="mt-8">
+      {/* The CPU's hand, face down and half off the top edge, as on a phone (no line of who it is or its hand size; the user's). */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-[1]">
+        <PhoneOppHand count={opponent.handCount} faceUp={opponent.hand && { hand: opponent.hand, cards }} onOpen={openHand} />
+      </div>
+      {/* Top-aligned, with the side columns pushed down past the hand's strip (--opp-hand-strip) to line up with the bench. */}
+      <div className="relative flex w-full items-start gap-3 pt-[var(--opp-hand-strip)]">
+        <div>
           <DeckAndDiscard deckCount={opponent.deckCount} discard={opponent.discard} cards={cards} owner="The CPU's" mirrored />
         </div>
-        <div className="min-w-0 flex-1 space-y-3">
-          <h3 className="text-center text-sm text-slate-400">
-            CPU · hand {opponent.handCount}
-            {opponent.hand && ' (face up: Clairvoyance)'}
-          </h3>
-          {opponent.hand && (
-            <div className="flex flex-wrap justify-center gap-1">
-              {opponent.hand.map((c) => (
-                <Card key={c.uid} def={lookupCard(cards, c.defId)} small />
-              ))}
-            </div>
-          )}
+        <div className="min-w-0 flex-1">
           {/* The Bench and the Active, with the card the CPU played centred over them (`played`). */}
           <div className="relative space-y-3">
             <div className="flex justify-center gap-2">
@@ -84,7 +81,7 @@ export function OpponentArea({
             {played}
           </div>
         </div>
-        <div className="mt-8">
+        <div>
           <PrizeCards count={opponent.prizeCount} mirrored faceUp={opponent.prizes && { prizes: opponent.prizes, cards }} />
         </div>
       </div>

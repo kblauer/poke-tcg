@@ -4,7 +4,8 @@ textures and models by render_hgss.py, as the real routes are:
 - Route 40: a surf route from the top down. Olivine's beach (the real Route 40's top chunk, to its shore), then a sea lane
   between two columns of rocks as near the edges as they go (nudged in and out at random), with sandbars of random sizes
   and shapes at random places across it, some against the rocks (built as the real one is: sand, and a wave band round
-  it), and a beach across the south end, light sand along the water giving way to dry sand behind it at random.
+  it), and a beach across the south end, light sand along the water giving way to dry sand behind it at random, and
+  grass behind that, with Cianwood City's sprouts on the sand and tufts on the grass.
 - Route 42: a cave from left to right (Mt. Mortar's textures, its walls built as HGSS's are: `cave`): three chambers joined by passages, the middle one with a
   small waterfall (HGSS's `dsm_fal1`) falling from a pool up on the north wall into a pool whose stream the path
   crosses by a bridge, Mt. Mortar's shore round the water, and Mt. Moon's rocks (against the walls) and ground patches.
@@ -178,23 +179,45 @@ def write(out, name, scene, rows, spots, entrance, links=(), exit=None, trim=Fal
 
 # --- Route 40 ---
 
-def sand(scene, tx, mask, x_off=0, dark=None):
+def rim(scene, tex, x, y, X, Z, other):
+    """The real beach's rim over a tile next to tiles of another ground (`other`: true for those tiles): a strip per
+    side it's on (its texture's u running from the other side to this one), the texture's inside corner where the other
+    ground is on two sides, or a corner piece if it's only across a corner. beach01_r2 (light sand next to dry), road01_r
+    (dry sand next to grass) and beach01_r (light sand next to grass) are laid out alike."""
+    corner_uv = [(0.99, 0.01), (0.51, 0.01), (0.51, 0.49), (0.99, 0.49)]
+    corner_turn = {(-1, 1): 0, (1, 1): 1, (1, -1): 2, (-1, -1): 3}
+    inside_uv = [(0.99, 0.51), (0.51, 0.51), (0.51, 0.99), (0.99, 0.99)]
+    inside_turn = {frozenset({(0, 1), (-1, 0)}): 0, frozenset({(0, 1), (1, 0)}): 1, frozenset({(0, -1), (1, 0)}): 2, frozenset({(0, -1), (-1, 0)}): 3}
+    over = [(X, 16.2, Z), (X + T, 16.2, Z), (X + T, 16.2, Z + T), (X, 16.2, Z + T)]
+    a0, a1 = x * 0.5, (x + 1) * 0.5
+    b0, b1 = y * 0.5, (y + 1) * 0.5
+    sides = {(0, -1): [(0.01, a0), (0.01, a1), (0.49, a1), (0.49, a0)], (0, 1): [(0.49, a0), (0.49, a1), (0.01, a1), (0.01, a0)],
+             (-1, 0): [(0.01, b0), (0.49, b0), (0.49, b1), (0.01, b1)], (1, 0): [(0.49, b0), (0.01, b0), (0.01, b1), (0.49, b1)]}
+    touching = [d for d in sides if other(x + d[0], y + d[1])]
+    k = inside_turn.get(frozenset(touching))
+    if k is not None:
+        quad(scene, over, inside_uv[k:] + inside_uv[:k], tex)
+        return
+    for d in touching:
+        quad(scene, over, sides[d], tex)
+    if not touching:
+        for (dx, dy), k in corner_turn.items():
+            if other(x + dx, y + dy):
+                quad(scene, over, corner_uv[k:] + corner_uv[:k], tex)
+
+
+def sand(scene, tx, mask, x_off=0, dark=None, grass=None):
     """Sand at the real Route 40's height, from a mask of tiles (True: sand), as the real sandbar is built: a flat top
     (beach01) and, round each edge that meets the sea, a band sloping a tile down into the water (swave_un, and over it the
     wave foam swave_p, shifted by its texture matrix as the game has it), with corner pieces at the outside corners.
     `dark`: the tiles of dry sand further from the sea (road01), with the real beach's rim between them and the light sand
     (beach01_r2: a strip along each edge; a corner piece where they meet only across a corner, and where the dry sand is
-    on two sides, the texture's inside corner, dry sand round a curve of light)."""
+    on two sides, the texture's inside corner, dry sand round a curve of light: `rim`). `grass`: the tiles of grass behind
+    the dry sand (grass01, as Cianwood City's beach has), with the dry sand's rim against it (road01_r)."""
     h, w = len(mask), len(mask[0])
     is_sand = lambda x, y: 0 <= y < h and 0 <= x < w and mask[y][x]
     is_dark = lambda x, y: dark is not None and 0 <= y < h and 0 <= x < w and dark[y][x]
-    rim = tx.get('beach01_r2')
-    # The rim's corner piece, by where the dark sand is (its texture's other half, turned to that corner).
-    corner_uv = [(0.99, 0.01), (0.51, 0.01), (0.51, 0.49), (0.99, 0.49)]
-    corner_turn = {(-1, 1): 0, (1, 1): 1, (1, -1): 2, (-1, -1): 3}
-    # The inside corner (the texture's last quarter), by the two sides the dry sand is on.
-    inside_uv = [(0.99, 0.51), (0.51, 0.51), (0.51, 0.99), (0.99, 0.99)]
-    inside_turn = {frozenset({(0, 1), (-1, 0)}): 0, frozenset({(0, 1), (1, 0)}): 1, frozenset({(0, -1), (1, 0)}): 2, frozenset({(0, -1), (-1, 0)}): 3}
+    is_grass = lambda x, y: grass is not None and 0 <= y < h and 0 <= x < w and grass[y][x]
     beach, wave, under = tx['beach01'], tx['swave_p'], tx['swave_un']
     def band(top_a, top_b, low_a, low_b, along):
         # One tile of band: its top edge along the sand, its low edge a tile out in the water.
@@ -212,30 +235,19 @@ def sand(scene, tx, mask, x_off=0, dark=None):
                 continue
             X, Z = (x + x_off) * T, y * T
             top = [(X, 16, Z), (X + T, 16, Z), (X + T, 16, Z + T), (X, 16, Z + T)]
+            if is_grass(x, y):
+                # Grass: its texture 2 tiles across, as Cianwood's.
+                quad(scene, top, [(X / 32, Z / 32), ((X + T) / 32, Z / 32), ((X + T) / 32, (Z + T) / 32), (X / 32, (Z + T) / 32)], tx['grass01'])
+                continue
             if is_dark(x, y):
                 # Dry sand: its texture a tile across, as the real beach's.
                 quad(scene, top, [(X / 16, Z / 16), ((X + T) / 16, Z / 16), ((X + T) / 16, (Z + T) / 16), (X / 16, (Z + T) / 16)], tx['road01'])
+                if grass is not None:
+                    rim(scene, tx['road01_r'], x, y, X, Z, is_grass)
                 continue
             quad(scene, top, [(X / 32, Z / 32), ((X + T) / 32, Z / 32), ((X + T) / 32, (Z + T) / 32), (X / 32, (Z + T) / 32)], beach)
             if dark is not None:
-                # The rim on light sand next to dry sand: a strip per side it's on (its texture's u running from the dry
-                # side to the light), or a corner piece if the dry sand is only across a corner.
-                over = [(X, 16.2, Z), (X + T, 16.2, Z), (X + T, 16.2, Z + T), (X, 16.2, Z + T)]
-                a0, a1 = x * 0.5, (x + 1) * 0.5
-                b0, b1 = y * 0.5, (y + 1) * 0.5
-                sides = {(0, -1): [(0.01, a0), (0.01, a1), (0.49, a1), (0.49, a0)], (0, 1): [(0.49, a0), (0.49, a1), (0.01, a1), (0.01, a0)],
-                         (-1, 0): [(0.01, b0), (0.49, b0), (0.49, b1), (0.01, b1)], (1, 0): [(0.49, b0), (0.01, b0), (0.01, b1), (0.49, b1)]}
-                touching = [d for d in sides if is_dark(x + d[0], y + d[1])]
-                k = inside_turn.get(frozenset(touching))
-                if k is not None:
-                    quad(scene, over, inside_uv[k:] + inside_uv[:k], rim)
-                    continue
-                for d in touching:
-                    quad(scene, over, sides[d], rim)
-                if not touching:
-                    for (dx, dy), k in corner_turn.items():
-                        if is_dark(x + dx, y + dy):
-                            quad(scene, over, corner_uv[k:] + corner_uv[:k], rim)
+                rim(scene, tx['beach01_r2'], x, y, X, Z, is_dark)
             if not is_sand(x, y + 1) and y + 1 < h:
                 band((X, Z + T), (X + T, Z + T), (X, Z + 2 * T), (X + T, Z + 2 * T), x)
             if not is_sand(x, y - 1) and y > 0:
@@ -261,7 +273,13 @@ def route40(a, out, seed=40):
     top, top_rows = a.chunk(62, tex)
     # Each material's texture as the real lane chunk draws it (some materials share a texture under another name).
     tx = {p['material']: p['tex'] for p in a.chunk(63, tex)[0] + top if p['tex'] is not None}
-    shore_row, lane, south = 26, 96, 8
+    # Cianwood City's beach (the same texture set): its grass, the tufts on it and the sprouts on its sand; and the set's
+    # rim between dry sand and grass, which no chunk here draws.
+    tx.update({p['material']: p['tex'] for p in a.chunk(68, tex)[0] if p['material'] in ('grass01', 'grass01_a', 'beach_sub')})
+    tx['road01_r'] = a.textures(tex)['road01_r']
+    # The south beach's grass and dressing have their own random numbers, so the rest of the map stays as it was.
+    rng_beach = random.Random(seed + 1)
+    shore_row, lane, south = 26, 96, 14
     w, h = 32, 26 + lane + south
     scene = Scene(w * 16, h * 16, tilt=0.6, ground=16)
     # The beach: the real top chunk down to its shore (its rocks below left out).
@@ -283,13 +301,14 @@ def route40(a, out, seed=40):
             for y in range(top_y, h):
                 mask[y][xx] = True
         x += step
-    # Behind its light sand, dry sand, as at the top of the route: from 2 or 3 tiles in from the shore, stepping at random.
+    # Behind its light sand, dry sand, as at the top of the route: from 4 or 5 tiles in from the shore (the user's: 2 more
+    # than at first), stepping at random.
     x = 0
     while x < w:
         step = rng.randint(2, 5)
         for xx in range(x, min(w, x + step)):
             shore_y = next(y for y in range(h) if mask[y][xx])
-            for y in range(shore_y + rng.choice((2, 2, 3)) if xx == x else first, h):
+            for y in range(shore_y + rng.choice((4, 4, 5)) if xx == x else first, h):
                 dry[y][xx] = True
             if xx == x:
                 first = next(y for y in range(h) if dry[y][xx])
@@ -297,6 +316,21 @@ def route40(a, out, seed=40):
     # Light sand all round the dry: none within 2 tiles of the sea (an inlet reaching in beside it, say).
     near_sea = lambda x, y: any(not mask[yy][xx] for yy in range(max(0, y - 2), min(h, y + 3)) for xx in range(max(0, x - 2), min(w, x + 3)))
     dry = [[dry[y][x] and not near_sea(x, y) for x in range(w)] for y in range(h)]
+    # Behind the dry sand, grass to the bottom of the map, as Cianwood's beach has (the user's): from 2 or 3 tiles into
+    # the dry sand, stepping at random, and only where dry sand is all round it (its rim is against dry sand only).
+    grass = [[False] * w for _ in range(h)]
+    x = 0
+    while x < w:
+        step = rng_beach.randint(2, 5)
+        depth = rng_beach.choice((2, 2, 3))
+        for xx in range(x, min(w, x + step)):
+            dry_y = next((y for y in range(end, h) if dry[y][xx]), h)
+            for y in range(dry_y + depth, h):
+                grass[y][xx] = True
+        x += step
+    inside = lambda x, y: not (0 <= y < h and 0 <= x < w) or dry[y][x]
+    grass = [[grass[y][x] and all(inside(x + dx, y + dy) for dx in (-1, 0, 1) for dy in (-1, 0, 1)) for x in range(w)] for y in range(h)]
+    dry = [[dry[y][x] and not grass[y][x] for x in range(w)] for y in range(h)]
     # The rock columns, a rock (2 tiles square) every 2 rows down each side, from the beach's shore to the south beach.
     rock = tx['sea_rock']
     lx, rx = 0, w - 2
@@ -343,7 +377,7 @@ def route40(a, out, seed=40):
             for yy in range(bby, bby + bbh):
                 for xx in range(bx, bx + bbw):
                     mask[yy][xx] = True
-    sand(scene, tx, mask, dark=dry)
+    sand(scene, tx, mask, dark=dry, grass=grass)
     # Two of the real beach's rocks (rock01, 2 tiles square, as at its 8,24) on the dry sand, away from its edge: the
     # outermost of a few placed at random (the user had the ones between taken out).
     boulder = tx['rock01']
@@ -368,6 +402,22 @@ def route40(a, out, seed=40):
     for x, y in rng.sample(plain, min(len(plain), rng.randint(4, 6))):
         X, Z = x * T, y * T
         quad(scene, [(X, 17, Z), (X + T, 17, Z), (X + T, 17, Z + T), (X, 17, Z + T)], [(0, 0), (1, 0), (1, 1), (0, 1)], pebbles)
+    # Cianwood's beach dressing (the user's): its little sprouts on the south beach's light sand, clear of the rim to the
+    # dry sand and a tile apart, and the tufts of grass01_a on the grass, each a tile's mark just above the ground.
+    def scatter(tiles, count, tex):
+        picked = []
+        for t in rng_beach.sample(tiles, len(tiles)):
+            if len(picked) == count:
+                break
+            if all(abs(t[0] - p[0]) > 1 or abs(t[1] - p[1]) > 1 for p in picked):
+                picked.append(t)
+        for x, y in picked:
+            X, Z = x * T, y * T
+            quad(scene, [(X, 17, Z), (X + T, 17, Z), (X + T, 17, Z + T), (X, 17, Z + T)], [(0, 0), (1, 0), (1, 1), (0, 1)], tex)
+    near = lambda x, y, of: any(0 <= y + dy < h and 0 <= x + dx < w and of[y + dy][x + dx] for dx in (-1, 0, 1) for dy in (-1, 0, 1))
+    light = [(x, y) for y in range(end, h) for x in range(w) if mask[y][x] and not dry[y][x] and not grass[y][x] and not near(x, y, dry)]
+    scatter(light, rng_beach.randint(6, 9), tx['beach_sub'])
+    scatter([(x, y) for y in range(end, h) for x in range(w) if grass[y][x]], rng_beach.randint(4, 6), tx['grass01_a'])
     for y in range(h):
         for x in range(w):
             if mask[y][x] and rows[y][x] != '#':
@@ -402,8 +452,10 @@ def route40(a, out, seed=40):
     rows = [''.join('.' if (x, y) in above else c for x, c in enumerate(r)) for y, r in enumerate(rows)]
     # On the beach (its top corner is fenced off), walking down into the sea.
     entrance = nearest((16, 11), lambda x, y: rows[y][x] == '.' and y >= 10)
-    check(rows, [entrance] + spots, [], surf)
-    write(out, 'route40', scene, rows, spots, entrance)
+    # Leaving for Cianwood's gym from the grass behind the south beach (the user's).
+    exit = (16, 130)
+    check(rows, [entrance] + spots + [exit], [], surf)
+    write(out, 'route40', scene, rows, spots, entrance, exit=exit)
 
 
 # --- The caves ---

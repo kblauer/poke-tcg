@@ -1,7 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { boss, bossLabel, generateDeck, rngFrom, TRAINERS, trainerFavorites } from '@poke-tcg/campaign';
 import { prisma, saveGameState, type Prisma } from '@poke-tcg/db';
-import { applyAction, createGame, getPlayerView, moveHighlights, runCpu, type CpuDifficulty, type GameAction, type GameState } from '@poke-tcg/game-engine';
+import { applyAction, captureCheckup, createGame, getPlayerView, moveHighlights, runCpu, type CpuDifficulty, type GameAction, type GameState } from '@poke-tcg/game-engine';
 import { CPU_ID, HUMAN_ID, gameIdInput, singleBattleInput, submitActionInput, type SingleBattleInput, type SingleBattleOpponent } from '@poke-tcg/shared';
 import { ensureUser } from '../auth.js';
 import { loadCardLibrary } from '../cards.js';
@@ -25,6 +25,20 @@ function shownView(state: GameState, defId: string | null | undefined) {
   const view = getPlayerView(state, HUMAN_ID);
   if (defId) view.cards[defId] = state.cards[defId]!;
   return view;
+}
+
+/**
+ * A move's frames: the move, and when it ended a turn whose Pokémon Checkup flipped coins (Sleep, Burn), the checkup as
+ * a frame of its own after it (an END_TURN), so the board shows the move (its attack, the Sleep it gave) before those
+ * flips. `checkup`: the state as the checkup began (captureCheckup).
+ */
+function moveFrames(player: string, type: GameAction['type'], after: GameState, checkup: GameState | null, highlight: ReturnType<typeof moveHighlights>[number], defId?: string | null) {
+  const from = checkup?.log?.at(-1)?.n ?? 0;
+  if (!checkup || !after.log?.some((e) => e.coin && (e.n ?? 0) > from)) return [{ player, type, view: shownView(after, defId), highlight }];
+  return [
+    { player, type, view: shownView({ ...checkup, version: after.version }, defId), highlight },
+    { player, type: 'END_TURN' as const, view: getPlayerView(after, HUMAN_ID), highlight: null },
+  ];
 }
 
 export async function loadOwnGame(gameId: string, userId: string) {
@@ -111,7 +125,7 @@ export const gameRouter = router({
       throw new TRPCError({ code: 'CONFLICT', message: 'Game state changed, refresh and retry' });
     }
 
-    const result = applyAction(game.state, HUMAN_ID, input.action);
+    const { result, checkup } = captureCheckup(() => applyAction(game.state, HUMAN_ID, input.action));
     if (!result.ok) throw new TRPCError({ code: 'BAD_REQUEST', message: result.error });
     const cpu = runCpu(result.state, CPU_ID);
     const next = cpu.state;
@@ -137,8 +151,8 @@ export const gameRouter = router({
     // Each of the CPU's moves comes with the card it played or used and the Pokémon it changed, for the board to show.
     const highlights = moveHighlights(result.state, CPU_ID, cpu.actions, cpu.states);
     const frames = [
-      { player: HUMAN_ID, type: input.action.type, view: getPlayerView(result.state, HUMAN_ID), highlight: null },
-      ...cpu.actions.map((action, i) => ({ player: CPU_ID, type: action.type, view: shownView(cpu.states[i]!, highlights[i]?.defId), highlight: highlights[i] ?? null })),
+      ...moveFrames(HUMAN_ID, input.action.type, result.state, checkup, null),
+      ...cpu.actions.flatMap((action, i) => moveFrames(CPU_ID, action.type, cpu.states[i]!, cpu.checkups[i]!, highlights[i] ?? null, highlights[i]?.defId)),
     ];
     return { frames };
   }),

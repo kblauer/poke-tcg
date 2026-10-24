@@ -108,8 +108,8 @@ function RootLayout() {
               <MenuIcon />
             </button>
           )}
-          {/* The logo keeps the system font; everything else is in the pixel font (index.css). */}
-          <Link to="/" className="font-system text-xl font-bold text-yellow-300">
+          {/* The logo is in the font picked on the Settings page, as everything else (index.css). */}
+          <Link to="/" className="text-nav font-heading text-yellow-300">
             Poké TCG
           </Link>
         </div>

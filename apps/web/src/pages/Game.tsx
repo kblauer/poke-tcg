@@ -172,7 +172,6 @@ export function GamePage() {
           )
         }
       />
-      <BattleBanner view={shown} opponent={data.opponent} />
       {data.runId ? <RunBattleMusic /> : <PracticeMusic opponent={data.opponent} gameId={gameId} />}
     </DeckCosmeticsContext.Provider>
   );
@@ -196,35 +195,6 @@ function GameRunTab() {
   const data = run.overview.data;
   if (!data?.run) return <p className="text-xs text-slate-500">Loading…</p>;
   return <RunStats view={data.run.view} account={data.account} run={run} />;
-}
-
-/** Who you're up against, the battle's rules and your items at work, on one line (or nothing, when there's none). */
-function BattleInfo({ view, opponent }: { view: PlayerView; opponent: string | null }) {
-  const rules = view.rules.flatMap((r) => (r.kind === 'typeDamage' ? [`${r.type[0]!.toUpperCase()}${r.type.slice(1)} Pokémon do ${r.multiplier}× damage`] : []));
-  // Your items at work in this battle (their rules carry the item's name).
-  const items = [...new Set(view.rules.flatMap((r) => (r.kind !== 'typeDamage' && r.player === view.you && r.label ? [r.label] : [])))];
-  if (!opponent && !rules.length && !items.length) return null;
-  return (
-    <>
-      {opponent && <>vs {opponent}</>}
-      {rules.length > 0 && <span className="text-violet-300">{opponent && ' · '}{rules.join(' · ')}</span>}
-      {items.length > 0 && <span className="text-emerald-300">{(opponent || rules.length > 0) && ' · '}{items.join(', ')}</span>}
-    </>
-  );
-}
-
-/**
- * Who you're up against and the run's battle rules (BattleInfo), at the top of the screen while the battle lasts
- * (not on a phone, whose battle screen covers it and shows neither; agreed).
- */
-function BattleBanner({ view, opponent }: { view: PlayerView; opponent: string | null }) {
-  const phone = useIsPhone();
-  if (view.phase === 'finished' || phone || (!opponent && !view.rules.length)) return null;
-  return (
-    <div className="pointer-events-none fixed left-1/2 top-2 z-[830] -translate-x-1/2 rounded-full bg-slate-800/90 px-4 py-1 text-xs text-slate-300 ring-1 ring-slate-600 empty:hidden">
-      <BattleInfo view={view} opponent={opponent} />
-    </div>
-  );
 }
 
 /**

@@ -140,7 +140,8 @@ export function useTurnReminders(reminders: EndTurnReminder[], active: boolean):
  * `setup`: while placing Pokémon before the battle, the
  * Reset cards (take them all back) and Start battle buttons. `endTurn`: what End turn does, through useTurnReminders'
  * `check` (which asks first while the player could still attach Energy, use the Stadium or a Pokémon Power). `compact` (the phone layout): one row, the
- * text (up to two lines) centred on the screen, between the two Active Pokémon, and the buttons, smaller, on the right, where the thumb is.
+ * text (up to two lines) centred on the screen, between the two Active Pokémon, and the buttons, smaller, on the right, where the thumb is;
+ * during setup no text (Board's SetupBanner shows it) and Start battle centred on the screen, Reset cards on its right.
  */
 export function StatusBar({
   status,
@@ -178,10 +179,11 @@ export function StatusBar({
       )}
       <div className={`flex h-10 items-center justify-center ${compact ? 'shrink-0 gap-2' : ''}`}>
         {setup && (
-          // Start battle in the middle, where End turn goes; Reset cards hangs off its left (on a phone, after it: agreed).
-          <span className={compact ? 'flex flex-row-reverse items-center gap-2' : 'relative'}>
+          // Start battle in the middle, where End turn goes; Reset cards hangs off its left (on a phone, centred on the
+          // screen with Reset cards on its right, the setup line on a banner above: agreed).
+          <span className={compact ? 'absolute left-1/2 top-1/2 z-[960] -translate-x-1/2 -translate-y-1/2' : 'relative'}>
             <button
-              className={`${compact ? smallButton : `${button} absolute right-full top-1/2 mr-3 -translate-y-1/2`} whitespace-nowrap disabled:opacity-40`}
+              className={`${compact ? `${smallButton} absolute left-full top-1/2 ml-2 -translate-y-1/2` : `${button} absolute right-full top-1/2 mr-3 -translate-y-1/2`} whitespace-nowrap disabled:opacity-40`}
               disabled={busy || !setup.canReset}
               onClick={() => send({ type: 'RESET_SETUP' })}
               title="Take the Pokémon you've placed back into your hand"
@@ -189,7 +191,7 @@ export function StatusBar({
               Reset cards
             </button>
             <button
-              className={`${big} rounded-lg bg-emerald-600 font-semibold shadow-lg shadow-black/40 transition hover:bg-emerald-500 active:scale-95 disabled:opacity-40`}
+              className={`${big} whitespace-nowrap rounded-lg bg-emerald-600 font-semibold shadow-lg shadow-black/40 transition hover:bg-emerald-500 active:scale-95 disabled:opacity-40`}
               disabled={busy || !setup.canStart}
               onClick={() => send({ type: 'START_BATTLE' })}
               title={setup.canStart ? 'Done placing your Pokémon' : 'Choose an Active Pokémon first'}

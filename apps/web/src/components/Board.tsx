@@ -40,7 +40,7 @@ import { RetreatPanel } from './RetreatPanel';
 import { Slot } from './Slot';
 import { endTurnReminders } from '../utils/reminders';
 import { PLAYED_CARD_BURST_MS, PlayedCard } from './PlayedCard';
-import { TurnBanner, useNewTurn } from './TurnBanner';
+import { SetupBanner, TurnBanner, useNewTurn } from './TurnBanner';
 import { StadiumCard } from './StadiumCard';
 import { StatusBar, useTurnReminders } from './StatusBar';
 import { TurnOrderFlip } from './TurnOrderFlip';
@@ -111,7 +111,7 @@ export function Board({
   useLockedScreen(phone);
   /** The phone layout's ☰ menu. */
   const [menu, setMenu] = useState(false);
-  /** The phone layout's spread-out view of the CPU's hand, while it's face up (Clairvoyance). */
+  /** The spread-out view of the CPU's hand, while it's face up (Clairvoyance): a click on its hand opens it. */
   const [cpuHand, setCpuHand] = useState(false);
   const busy = pending !== null || replaying;
   // The attacker lunges at the defender in the view right after its attack.
@@ -122,6 +122,16 @@ export function Board({
   const ownSpot = spotlight(view.you);
   const oppSpot = spotlight(view.opponent.id);
   const newTurn = useNewTurn(view);
+  // The phone's setup banner: out while Pokémon are being placed, sliding off once Start battle is pressed.
+  const placing = view.phase === 'setup' && !view.self.ready && pending?.type !== 'START_BATTLE';
+  const [setupBanner, setSetupBanner] = useState(placing);
+  useEffect(() => {
+    if (placing) setSetupBanner(true);
+  }, [placing]);
+  const setupBannerGone = useCallback(() => setSetupBanner(false), []);
+  // Its line as setup left it, so it doesn't turn into "Your turn" as it slides off.
+  const setupLine = useRef({ text: '', first: false });
+  if (view.phase === 'setup') setupLine.current = { text: statusText(view), first: view.currentPlayer === view.you };
   // The CPU's card: in the middle of the play area on a phone; on a big screen over the CPU's side (OpponentArea).
   const playedCard = (scale?: number) => played && <PlayedCard key={played.stamp} defId={played.defId} cards={played.cards} stamp={played.stamp} scale={scale} />;
   const tableOverlay = (
@@ -537,7 +547,8 @@ export function Board({
   const statusBar = (compact: boolean) => (
     <StatusBar
       compact={compact}
-      status={statusText(view)}
+      // On a phone the setup line is on its banner instead (SetupBanner).
+      status={compact && phase === 'setup' ? '' : statusText(view)}
       canEndTurn={myTurn}
       setup={phase === 'setup' && !self.ready ? { canReset: !!self.active || self.bench.some(Boolean), canStart: !!self.active } : null}
       endTurn={() => turnReminders.check('end', () => send({ type: 'END_TURN' }))}
@@ -625,6 +636,7 @@ export function Board({
                       statusBar(true)
                     )}
                     {newTurn && <TurnBanner key={newTurn.turn} turn={newTurn} inBar />}
+                    {setupBanner && <SetupBanner text={setupLine.current.text} first={setupLine.current.first} leaving={!placing} onGone={setupBannerGone} />}
                     {self.peek && (
                       <div className="absolute bottom-full left-0 z-10 mb-1 [--card-sm:var(--card-pile)]">
                         <PeekCard view={view} />
@@ -700,7 +712,16 @@ export function Board({
           Fills the window below the header (-mt/-mb undo the layout's spacing); the table, inside the margins, takes all
           the height the hand leaves. The logs and the debug tools are in the site menu (NavRail), the options on the Settings page.
         */}
-        <div ref={table.ref} className={`-mb-4 -mt-6 flex ${busy ? 'cursor-progress' : ''}`} style={table.style}>
+        {/*
+          No text selection on the board: select-none, and a double click's selecting stopped outright, since the browser
+          otherwise stretches it from the playmat over the Active Pokémon's image (it turned blue). Clicks still go through.
+        */}
+        <div
+          ref={table.ref}
+          className={`-mb-4 -mt-6 flex select-none ${busy ? 'cursor-progress' : ''}`}
+          style={table.style}
+          onMouseDown={(e) => e.detail > 1 && e.preventDefault()}
+        >
           {/* Clips the hand cards where they run past the bottom of the window. */}
           <div className={`relative flex min-w-0 flex-1 flex-col gap-3 overflow-hidden pt-6 ${PAGE_WIDTH}`}>
             {/*
@@ -728,6 +749,7 @@ export function Board({
                 spotlight={oppSpot}
                 dialog={oppDialog}
                 played={playedCard(1.4)}
+                openHand={() => setCpuHand(true)}
               />
 
               {/* Between the two sides: whose turn it is and End turn. */}
@@ -776,6 +798,9 @@ export function Board({
           </div>
         </div>
 
+        {cpuHand && view.opponent.hand && (
+          <DiscardPane title="The CPU's hand" note={`${view.opponent.hand.length}, face up: Clairvoyance`} discard={view.opponent.hand} cards={view.cards} onClose={() => setCpuHand(false)} />
+        )}
         {dragOverlay}
       </DndContext>
       {preview && <CardPreview {...preview} onLost={hidePreview} />}

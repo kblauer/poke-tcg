@@ -569,6 +569,28 @@ export function createGame(p1: NewGamePlayer, p2: NewGamePlayer, seed: number, l
 /** The reason on the turn-order coin flip's log entry, so the UI can pick it out. */
 export const TURN_ORDER_FLIP = 'Coin flip for turn order';
 
+/** While `captureCheckup` runs: told the state as an ending turn reaches its Pokémon Checkup. */
+let onCheckup: ((state: GameState) => void) | null = null;
+
+/**
+ * Runs `run` (an applyAction), and returns with its result a copy of the state as the turn's Pokémon Checkup began
+ * (null when no turn ended), so the board can show the move (an attack's Sleep) before the checkup's coin flips. Only
+ * around real moves (the API, runCpu's), never the CPU's imagined ones.
+ */
+export function captureCheckup<T>(run: () => T): { result: T; checkup: GameState | null } {
+  let checkup: GameState | null = null;
+  const outer = onCheckup;
+  onCheckup = (state) => {
+    checkup ??= structuredClone(state);
+  };
+  try {
+    const result = run();
+    return { result, checkup };
+  } finally {
+    onCheckup = outer;
+  }
+}
+
 /**
  * Pure reducer: validates `action` for `playerId` and returns the next state.
  * Never mutates the input. Runs identically on client (preview) and server (authority).
@@ -1500,6 +1522,7 @@ export function payCost(pool: PoolEnergy[], cost: EnergyType[]): number {
  * effects), knockouts from it, then promotions and the next player's turn.
  */
 function endTurn(state: GameState): ActionResult {
+  onCheckup?.(state);
   betweenTurns(state);
   // A knockout between turns isn't caused by either player; ties go to the player whose turn it was.
   const winner = resolveKnockouts(state, state.currentPlayer);
