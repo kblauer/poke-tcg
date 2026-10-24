@@ -3,7 +3,7 @@ import ViewListIcon from '@mui/icons-material/ViewList';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { DECK_SIZE } from '@poke-tcg/shared';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { CardGrid } from '../components/CardGrid';
 import { CardInspector } from '../components/CardInspector';
 import { DeckFilters } from '../components/DeckFilters';
@@ -20,9 +20,77 @@ import { useWindowFill } from '../hooks/useWindowFill';
 import { useTRPC } from '../lib/trpc';
 import { isVersion, setGroups, type CatalogCard } from '../utils/cardList';
 import { EMPTY_DECK_FILTER, LOCKED_DECK_PROBLEM, cantAdd, changeCount, deckSize, filterForDeck, hasLockedCards, lockedWarning, problemsOf, sortForDeck, type DeckEntry, type DeckFilter, type DeckSort } from '../utils/deckBuilder';
+import { preloadHolos } from '../utils/holoPreload';
 import { PAGE_WIDTH } from '../utils/layout';
 import { PAGE_BUTTON as button } from '../utils/styles';
 
+/** localStorage: the decks pane's width on a big screen, in px (dragged by its handle; agreed 2026-10-23). */
+const PANE_KEY = 'poke-tcg.deck-pane';
+/**
+ * The decks pane's width at first and on a double-click of its handle (24rem), and the least it's dragged to: just the
+ * tiles' three headline Pokémon (agreed), their text hidden by DeckTile's container query (3 cards and their gaps, the
+ * tile's and the list's padding, and a scrollbar).
+ */
+const PANE_DEFAULT = 384;
+const PANE_MIN = 208;
+/** The most it's dragged to: half the window, never past 720px, so the card search keeps room. */
+const paneMax = () => Math.max(PANE_MIN, Math.min(720, Math.round(window.innerWidth / 2)));
+const clampPane = (w: number) => Math.round(Math.min(paneMax(), Math.max(PANE_MIN, w)));
+
+function loadPane(): number {
+  try {
+    const w = Number(localStorage.getItem(PANE_KEY));
+    return w ? clampPane(w) : PANE_DEFAULT;
+  } catch {
+    return PANE_DEFAULT;
+  }
+}
+
+function savePane(w: number) {
+  try {
+    localStorage.setItem(PANE_KEY, String(w));
+  } catch {
+    // Not remembered: it opens at the default next time.
+  }
+}
+
+/**
+ * The handle between the decks pane and the card search on a big screen: dragged left or right it makes the pane
+ * compacter or wider (`onWidth`, from PANE_MIN to paneMax), and a double-click resets it. Hidden under lg, where the
+ * two are stacked.
+ */
+function PaneHandle({ width, onWidth }: { width: number; onWidth: (w: number, done: boolean) => void }) {
+  const drag = useRef<{ x: number; width: number } | null>(null);
+  const down = (e: ReactPointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { x: e.clientX, width };
+  };
+  const move = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (drag.current) onWidth(clampPane(drag.current.width + e.clientX - drag.current.x), false);
+  };
+  const up = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!drag.current) return;
+    onWidth(clampPane(drag.current.width + e.clientX - drag.current.x), true);
+    drag.current = null;
+  };
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize the decks pane"
+      title="Drag to resize the decks (double-click to reset)"
+      className="group hidden w-4 cursor-ew-resize touch-none items-center justify-center lg:flex"
+      onPointerDown={down}
+      onPointerMove={move}
+      onPointerUp={up}
+      onPointerCancel={up}
+      onDoubleClick={() => onWidth(PANE_DEFAULT, true)}
+    >
+      <span className="h-12 w-1 rounded-full bg-slate-700 transition group-hover:bg-slate-500" />
+    </div>
+  );
+}
 const READ_ONLY = "This is your run's deck, which follows the run: copy it to make changes, or save it when the run is over";
 
 /**
@@ -38,6 +106,7 @@ const READ_ONLY = "This is your run's deck, which follows the run: copy it to ma
  * On a phone held upright (useIsPhone) the cards fill the screen, under a bar with two buttons: one slides in the decks
  * (or the open deck, with its cards) from the left, as does a swipe to the right, the other the search from the right (SidePanel). Opening a saved deck keeps
  * the panel open, showing that deck's cards; starting a new one closes it, so cards can be tapped into it.
+ * On a big screen the handle between the decks and the search drags the decks pane wider or compacter (PaneHandle), remembered.
  */
 export function DecksPage() {
   const trpc = useTRPC();
@@ -45,9 +114,15 @@ export function DecksPage() {
   // The catalog only changes when the seed is re-run, so load it once per session.
   const catalog = useQuery({ ...trpc.cards.list.queryOptions(), staleTime: Infinity });
   const decks = useQuery(trpc.decks.list.queryOptions());
-  const { isLocked, copies, holoCopies } = useUnlocked();
+  const { isLocked, copies, holoCopies, loaded: unlocksLoaded } = useUnlocked();
+  // The foil textures and holo masks of the account's unlocked holos, so a card's foil is ready when it's viewed large.
+  useEffect(() => {
+    if (catalog.data && unlocksLoaded) preloadHolos(catalog.data.filter((c) => !isLocked(c)));
+  }, [catalog.data, unlocksLoaded, isLocked]);
   const favorites = useFavorites();
   const phone = useIsPhone();
+  // The decks pane's width on a big screen (PaneHandle), saved once a drag ends.
+  const [paneWidth, setPaneWidth] = useState(loadPane);
   const fill = useWindowFill<HTMLDivElement>();
 
   /** A deck is open (false: the deck list is shown). */
@@ -306,7 +381,7 @@ export function DecksPage() {
   /** How many of the search's filters are set (the phone's Filters button shows it). */
   const filtersOn = (Object.keys(EMPTY_DECK_FILTER) as (keyof DeckFilter)[]).filter((k) => JSON.stringify(filter[k]) !== JSON.stringify(EMPTY_DECK_FILTER[k])).length;
   const size = deckSize(entries);
-  const barButton = 'flex min-w-0 items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-sm ring-1 ring-slate-600 transition hover:bg-slate-700 active:bg-slate-700';
+  const barButton = 'flex min-w-0 items-center gap-1.5 rounded-lg bg-slate-800 px-2.5 py-1.5 text-chip ring-1 ring-slate-600 transition hover:bg-slate-700 active:bg-slate-700';
   const decksButton = (
     <button className={`${barButton} ${editing ? 'ring-yellow-300/60' : ''}`} onClick={() => setPanel('decks')}>
       <ViewListIcon sx={{ fontSize: 18 }} className="shrink-0 text-slate-400" />
@@ -352,8 +427,15 @@ export function DecksPage() {
           )}
         </div>
       ) : (
-        <div className={`${PAGE_WIDTH} grid gap-4 lg:grid-cols-[24rem_1fr]`}>
+        <div className={`${PAGE_WIDTH} grid gap-4 lg:grid-cols-[var(--deck-pane)_auto_minmax(0,1fr)] lg:gap-x-0`} style={{ '--deck-pane': `${paneWidth}px` } as CSSProperties}>
           {deckColumn}
+          <PaneHandle
+            width={paneWidth}
+            onWidth={(w, done) => {
+              setPaneWidth(w);
+              if (done) savePane(w);
+            }}
+          />
           <div className="flex h-[70vh] flex-col gap-3 lg:h-[calc(100dvh-6.5rem)]">
             {filters}
             {blockedNote}

@@ -59,6 +59,7 @@ export function HoloCard({
   still?: boolean;
   motionRef?: Ref<HoloMotion | null>;
 }) {
+  mask ??= attrs.mask ?? undefined;
   const cardRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   // Random per card, for styles with a randomised texture position (e.g. cosmos).
@@ -90,6 +91,7 @@ export function HoloCard({
       data-trainer-gallery={attrs.trainerGallery ? "true" : "false"}
       data-holo-energy={attrs.holoEnergy ? 'true' : 'false'}
       data-pokemon-ex={attrs.pokemonEx ? 'true' : 'false'}
+      data-galaxy-art={attrs.galaxyArt ? 'true' : 'false'}
       style={still ? STILL : undefined}
     >
       <div className="card__translater">
@@ -109,7 +111,8 @@ export function HoloCard({
                 '--seedx': seed.x,
                 '--seedy': seed.y,
                 '--cosmosbg': `${Math.floor(seed.x * 734)}px ${Math.floor(seed.y * 1280)}px`,
-                ...(!loading && (mask || foil) ? { '--mask': `url(${mask})`, '--foil': `url(${foil})` } : {}),
+                ...(!loading && mask ? { '--mask': `url(${mask})` } : {}),
+                ...(!loading && foil ? { '--foil': `url(${foil})` } : {}),
               } as React.CSSProperties
             }
           >

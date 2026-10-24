@@ -7,8 +7,9 @@ import { EnergyIcon } from './EnergyIcon';
 import { CARD_KINDS, DECK_SORTS, EMPTY_DECK_FILTER, POKEMON_STAGES, type CardKind, type DeckFilter, type DeckSort } from '../utils/deckBuilder';
 
 // Every control one height, so they line up wherever they sit.
-const input = 'h-8 rounded bg-slate-800 px-2 text-sm outline-none ring-yellow-300 focus:ring-1';
-const toggle = 'inline-flex h-8 items-center gap-1 rounded px-2.5 text-sm transition';
+// The filters' inputs and toggles: the pixel font at its crisp 18px (`text-chip`, index.css) (agreed 2026-10-23).
+const input = 'h-8 rounded bg-slate-800 px-2 text-chip outline-none ring-yellow-300 focus:ring-1';
+const toggle = 'inline-flex h-8 items-center gap-1 rounded px-2.5 text-chip transition';
 const on = 'bg-yellow-300 text-slate-900';
 const off = 'bg-slate-800 text-slate-300 hover:bg-slate-700';
 
@@ -178,15 +179,16 @@ export function DeckFilters({
   const types = CARD_TYPES.map((t) => (
     <button
       key={t}
-      // On a big screen they share one line (see the layout below): narrower, then just their icons, as it narrows.
-      className={`${toggle} shrink-0 ${compact ? '' : '@max-[56rem]:px-1.5'} ${filter.types.includes(t) ? on : off}`}
+      // On a big screen they share one line (see the layout below): narrower, then just their icons, as it narrows (the
+      // widths for the pixel font's 18px: all nine named take about 64rem).
+      className={`${toggle} shrink-0 ${compact ? '' : '@max-[70rem]:px-1.5'} ${filter.types.includes(t) ? on : off}`}
       aria-pressed={filter.types.includes(t)}
       title={`${t} Pokémon and ${t} Energy${t === 'Colorless' ? ' (Double Colorless and other special Energy with no type of its own)' : ''}`}
       aria-label={t}
       onClick={() => set({ types: flip(filter.types, t) })}
     >
       <EnergyIcon type={t.toLowerCase() as EnergyType} size="panel" />
-      {!compact && <span className="hidden @[42rem]:inline">{t}</span>}
+      {!compact && <span className="hidden @[64rem]:inline">{t}</span>}
     </button>
   ));
   const stage = (
@@ -208,7 +210,7 @@ export function DeckFilters({
       aria-label={bound === 'minHp' ? 'Lowest HP' : 'Highest HP'}
       value={filter[bound] ?? ''}
       onChange={(e) => set({ [bound]: toBound(e.target.value) })}
-      className={`${input} w-16`}
+      className={`${input} w-20`}
     />
   );
   const hp = (

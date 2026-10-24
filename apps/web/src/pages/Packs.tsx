@@ -55,11 +55,11 @@ export function PacksPage() {
           info={`₱${price} each, from your bank. 11 cards: a rare (holo about 1 in 3), 3 uncommons, 6 commons and a basic Energy. Every card is unlocked for your decks.`}
           actions={
             <>
-              <span className="rounded-lg bg-slate-800 px-3 py-1.5 text-sm ring-1 ring-slate-700">
+              <span className="rounded-lg bg-slate-800 px-2.5 py-1.5 text-chip ring-1 ring-slate-700">
                 Bank <span className="font-semibold text-yellow-300">₱{bank}</span>
               </span>
               <span
-                className="rounded-lg bg-slate-800 px-3 py-1.5 text-sm ring-1 ring-slate-700"
+                className="rounded-lg bg-slate-800 px-2.5 py-1.5 text-chip ring-1 ring-slate-700"
                 title="Earned for every card you pull that you already have (50 a common, 100 an uncommon, 300 a rare or holo; new cards give none); spend it crafting cards on the Collection tab (right-click a card)"
               >
                 Stardust <span className="font-semibold text-sky-200">{stardust}</span>

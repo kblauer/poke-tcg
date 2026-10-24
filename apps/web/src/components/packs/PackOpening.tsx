@@ -199,7 +199,7 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
     >
       {fireworks > 0 && <Fireworks key={fireworks} />}
       {phase !== 'tearing' && phase !== 'burst' && !open.isPending && (
-        <button className="fixed right-4 top-4 z-10 rounded-full p-2 text-slate-300 hover:bg-slate-800 hover:text-white" onClick={onClose} aria-label="Close">
+        <button className="fixed right-4 top-4 z-10 rounded-full p-2 text-slate-300 hover:bg-slate-800 hover:text-slate-50" onClick={onClose} aria-label="Close">
           <CloseIcon />
         </button>
       )}
