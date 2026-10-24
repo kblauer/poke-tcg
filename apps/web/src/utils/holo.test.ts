@@ -4,8 +4,14 @@ import { holoAttributes } from './holo';
 const card = { id: 'base1-4', name: 'Charizard', kind: 'POKEMON', stage: 'Stage2', type: 'Fire', rarity: 'Rare', holo: true };
 
 describe('holoAttributes', () => {
-  it('a holo rare Pokémon: rare holo, its stage as the subtype, the set and number from its id, the WOTC era', () => {
-    expect(holoAttributes(card)).toEqual({ types: 'fire', rarity: 'rare holo', supertype: 'pokémon', subtypes: 'stage 2', set: 'base1', number: '4', era: 'wotc', pokemonEx: false, trainerGallery: false, holoEnergy: false });
+  it('a holo rare Pokémon: rare holo, its stage as the subtype, the set and number from its id, the WOTC era, the galaxy foil in its art window', () => {
+    const attrs = holoAttributes(card);
+    expect(attrs).toMatchObject({ types: 'fire', rarity: 'rare holo', supertype: 'pokémon', subtypes: 'stage 2', set: 'base1', number: '4', era: 'wotc', pokemonEx: false, trainerGallery: false, holoEnergy: false });
+    // Galaxy foil in the art window (`galaxy` on a holo, Gen 1's and Gen 2's holo Pokémon), with the card's mask; not for a plain holo or a holo Energy.
+    expect([attrs.galaxyArt, attrs.mask]).toEqual([false, null]);
+    const galaxy = holoAttributes({ ...card, galaxy: true });
+    expect([galaxy.galaxyArt, galaxy.mask]).toEqual([true, '/holo-masks/base1-4.png']);
+    expect(holoAttributes({ ...card, galaxy: true, holo: false }).galaxyArt).toBe(false);
   });
 
   it('a plain card takes its printed rarity, a galaxy foil is "rare holo cosmos", a reverse holo keeps its card’s number', () => {

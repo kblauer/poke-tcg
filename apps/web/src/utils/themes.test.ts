@@ -19,12 +19,17 @@ describe('colour themes', () => {
     }
   });
 
-  it('keep the neutrals’ lightness steps: slate-50 is the lightest and slate-950 the darkest, for every theme', () => {
+  it('keep the neutrals’ lightness steps: slate-50 the lightest and slate-950 the darkest, turned round for a light theme', () => {
     const lightness = (v: string) => Number(/^oklch\((\d\.\d{3})/.exec(v)![1]);
+    const shades = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
+    expect(COLOR_THEMES.some((t) => t.light)).toBe(true);
     for (const theme of COLOR_THEMES) {
       const vars = themeVars(theme);
-      const steps = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950].map((s) => lightness(vars[`--color-slate-${s}`]!));
-      for (let i = 1; i < steps.length; i++) expect(steps[i]!, `${theme.id} slate-${[50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950][i]}`).toBeLessThan(steps[i - 1]!);
+      const steps = shades.map((s) => lightness(vars[`--color-slate-${s}`]!));
+      for (let i = 1; i < steps.length; i++) {
+        if (theme.light) expect(steps[i]!, `${theme.id} slate-${shades[i]}`).toBeGreaterThan(steps[i - 1]!);
+        else expect(steps[i]!, `${theme.id} slate-${shades[i]}`).toBeLessThan(steps[i - 1]!);
+      }
     }
   });
 
