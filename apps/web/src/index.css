@@ -185,9 +185,13 @@ html[data-font="emerald"] {
  * width (five benched Pokémon plus a side column of one card each side). Active Pokémon are 1.4× bigger.
  */
 .play-area-cards {
-  /* 14rem: everything on the table that isn't a card, the 4rem turn bar (status line over the End turn button) included. */
-  --card-sm: max(3rem, min(calc((100cqh - 14rem) * 0.145), calc((100cqw - 5rem) / 7)));
+  /* 12.75rem: everything on the table that isn't a card, the 4rem turn bar (status line over the End turn button)
+     included; the CPU's hand's strip at the top (half a card width more) is why it's 0.135, not 0.145 as before it. */
+  --card-sm: max(3rem, min(calc((100cqh - 12.75rem) * 0.135), calc((100cqw - 5rem) / 7)));
   --card-lg: calc(var(--card-sm) * 1.4);
+  /* The CPU's hand, half off the top of its side (PhoneOppHand, in OpponentArea), and the strip kept for it, as on a phone. */
+  --card-opp-hand: calc(var(--card-sm) * 0.8);
+  --opp-hand-strip: calc(var(--card-opp-hand) * 1.397 * 0.45 + 0.75rem);
 }
 
 /*

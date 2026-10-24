@@ -12,9 +12,9 @@ const CATEGORY: Record<string, string> = { consumable: 'Consumable', misc: 'Misc
  * bought before that rule).
  */
 function Owned({ stacks, quantity }: { stacks: boolean; quantity: number }) {
-  if (stacks) return <span className={`ml-auto text-xs ${quantity ? 'text-sky-300' : 'text-slate-500'}`}>In your bag: {quantity}</span>;
+  if (stacks) return <span className={`ml-auto whitespace-nowrap text-xs ${quantity ? 'text-sky-300' : 'text-slate-500'}`}>In your bag: {quantity}</span>;
   if (!quantity) return null;
-  return <span className="ml-auto rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold uppercase text-white">Owned{quantity > 1 ? ` ×${quantity}` : ''}</span>;
+  return <span className="ml-auto whitespace-nowrap rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-50">Owned{quantity > 1 ? ` ×${quantity}` : ''}</span>;
 }
 
 /**
@@ -40,7 +40,7 @@ export function ItemShop({ close }: { close?: ReactNode }) {
       <div className="flex items-baseline gap-3">
         <h3 className="text-lg font-semibold">Shop</h3>
         <span className="text-sm text-slate-400">Spend the EXP from your runs. Equip gear on the Inventory tab; use consumables and misc items from the Bag in a run.</span>
-        <span className="ml-auto font-semibold text-sky-300">{shop.data.exp} EXP</span>
+        <span className="ml-auto shrink-0 whitespace-nowrap font-semibold text-sky-300">{shop.data.exp} EXP</span>
         {close}
       </div>
       {buy.error && <p className="text-sm text-red-400">{buy.error.message}</p>}
@@ -51,27 +51,29 @@ export function ItemShop({ close }: { close?: ReactNode }) {
             <div className="flex flex-1 items-start gap-3">
               <ItemIcon id={item.id} />
               <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <div className="flex items-baseline gap-2">
-                  <span className="font-semibold">{item.name}</span>
-                  <span className="text-[10px] uppercase tracking-wide text-slate-500">
-                    {CATEGORY[item.category]}
-                    {item.equip && ` · ${item.equip}`}
-                  </span>
-                  <Owned stacks={!onlyOne(item)} quantity={shop.data.owned[item.id] ?? 0} />
-                </div>
+                {/* The name on its own line, its category under it, so neither gets squeezed. */}
+                <span className="font-semibold leading-tight">{item.name}</span>
+                <span className="text-[10px] uppercase tracking-wide text-slate-500">
+                  {CATEGORY[item.category]}
+                  {item.equip && ` · ${item.equip}`}
+                </span>
                 <p className="flex-1 text-xs text-slate-400" title={item.description}>
                   {itemText(item)}
                 </p>
               </div>
             </div>
-            <button
-              className="self-start rounded bg-slate-600 px-3 py-1 text-sm transition hover:bg-slate-500 active:scale-95 disabled:opacity-40"
-              // Equipment and misc items that aren't used up: only one each.
-              disabled={buy.isPending || shop.data.exp < item.price! || (onlyOne(item) && !!shop.data.owned[item.id])}
-              onClick={() => buy.mutate({ itemId: item.id })}
-            >
-              {onlyOne(item) && shop.data.owned[item.id] ? 'Already owned' : `Buy · ${item.price} EXP`}
-            </button>
+            {/* The buy button, with how many you have at the right. */}
+            <div className="mt-1 flex items-center gap-2">
+              <button
+                className="whitespace-nowrap rounded bg-slate-600 px-3 py-1 text-sm transition hover:bg-slate-500 active:scale-95 disabled:opacity-40"
+                // Equipment and misc items that aren't used up: only one each.
+                disabled={buy.isPending || shop.data.exp < item.price! || (onlyOne(item) && !!shop.data.owned[item.id])}
+                onClick={() => buy.mutate({ itemId: item.id })}
+              >
+                {onlyOne(item) && shop.data.owned[item.id] ? 'Already owned' : `Buy · ${item.price} EXP`}
+              </button>
+              <Owned stacks={!onlyOne(item)} quantity={shop.data.owned[item.id] ?? 0} />
+            </div>
           </li>
         ))}
       </ul>

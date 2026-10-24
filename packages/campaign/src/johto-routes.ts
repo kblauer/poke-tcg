@@ -1301,19 +1301,21 @@ export const ROUTE_45: Route = {
  * Route 40, made up (agreed with the user), for the Cianwood City run: surfed from Olivine's beach at the top (the real
  * route's beach chunk) down a sea lane between two columns of rocks near the edges, with sandbars of random sizes for
  * non-battle encounters to stand on (surfed routes' spots by land offer only those, out at sea only battles), and a
- * beach across the south end; its trainers Swimmers, as on Route 20. The band sloping into the sea round the sand, and
+ * beach across the south end (light sand, then dry sand and grass behind it, with Cianwood City's sprouts and tufts:
+ * the user's); its trainers Swimmers, as on Route 20. The band sloping into the sea round the sand, and
  * the row above the sand (drawn half a tile up), are land, as they're drawn (the user's).
  */
 export const ROUTE_40: Route = {
   flow: 'down',
   sprites: 'hgss',
   entrance: { x: 15, y: 11 },
+  exit: { x: 16, y: 130 },
   travel: 'surf',
   trainers: { names: SWIMMERS, share: 1 },
   name: 'Route 40',
   image: '/routes/route40.png',
   width: 512,
-  height: 2080,
+  height: 2176,
   spots: [
     { x: 16, y: 30 },
     { x: 7, y: 34 },
@@ -1454,8 +1456,14 @@ export const ROUTE_40: Route = {
     '................................',
     '................................',
     '....##..........................',
-    '....##.....................##...',
-    '...........................##...',
+    '....##...................##.....',
+    '.........................##.....',
+    '................................',
+    '................................',
+    '................................',
+    '................................',
+    '................................',
+    '................................',
     '................................',
   ],
 };

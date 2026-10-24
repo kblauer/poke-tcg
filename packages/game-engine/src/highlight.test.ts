@@ -39,6 +39,18 @@ describe('move highlights', () => {
     ]);
   });
 
+  it("a Trainer's question shows the card once: the answer shows nothing of its own", () => {
+    const s = duel('charmander', 'squirtle');
+    const [dex] = give(s, 'ash', 'pokedex');
+    expect(
+      moves(
+        s,
+        () => ({ type: 'PLAY_TRAINER', cardUid: dex! }),
+        (now) => ({ type: 'RESOLVE_CHOICE', order: now.players.ash!.deck.slice(0, 5).map((c) => c.uid).reverse() }),
+      ),
+    ).toEqual([{ defId: id('pokedex'), pokemon: [] }, null]);
+  });
+
   it('shows nothing for a move with no card: ending the turn', () => {
     expect(moves(duel('charmander', 'squirtle'), () => ({ type: 'END_TURN' }))).toEqual([null]);
   });

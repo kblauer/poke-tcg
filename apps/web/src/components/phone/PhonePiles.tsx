@@ -86,7 +86,8 @@ export function PhonePiles({ deckCount, discard, cards, owner, prizes }: { deckC
 }
 
 /**
- * The CPU's hand on the phone layout (agreed), in a strip at the top of the screen above its Bench (PhoneTable): its
+ * The CPU's hand on the phone layout (agreed), in a strip at the top of the screen above its Bench (PhoneTable), and on a
+ * big screen along the top of the CPU's side (OpponentArea, the user's): its
  * cards face down and upside down, fanned across the middle and half off the top edge, overlapping more as there are more. While
  * it's face up (Clairvoyance) they show face up, and a tap spreads them out (`onOpen`). A tap on it shows how many
  * cards it holds, briefly, in a small bubble under it (agreed).

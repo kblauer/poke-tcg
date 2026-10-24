@@ -8,7 +8,7 @@ import { CardImage } from '../CardImage';
 const RARITY: Record<string, string> = { common: 'Common', uncommon: 'Uncommon', rare: 'Rare', holo: 'Rare Holo', holoEnergy: 'Holo Energy' };
 
 /**
- * A card offered or owned in a run: its image (hovering shows the large preview, as on the game board), name
+ * A card offered or owned in a run: its image (hovering with a mouse shows the large preview, as on the game board; a tap doesn't), name
  * and rarity, with an optional footer (a price) and corner badge. Clickable when `onClick` is set; right-clicking
  * opens it in the CardInspector. `fluid` (a phone's reward row): it shrinks to share the row, at most its usual size.
  */
@@ -37,8 +37,9 @@ export function RunCard({
     <>
       <div
         className={`relative aspect-[63/88] ${width}`}
-        onMouseEnter={(e) => def && setPreview({ def, x: e.clientX, y: e.clientY, from: e.currentTarget })}
-        onMouseLeave={() => setPreview(null)}
+        // A mouse's hover only: a tap (a reward picked on a phone) mustn't open the large preview.
+        onPointerEnter={(e) => def && e.pointerType !== 'touch' && setPreview({ def, x: e.clientX, y: e.clientY, from: e.currentTarget })}
+        onPointerLeave={() => setPreview(null)}
         {...inspect}
       >
         {def?.imageUrl ? (

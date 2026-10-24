@@ -54,17 +54,15 @@ function moveCard(before: GameState, player: PlayerId, action: GameAction): stri
 /**
  * The highlights of a player's moves, one per move (null for a move with nothing to show: an attack, retreating,
  * ending the turn, the setup). `states[i]` is the state after `actions[i]`, `start` the state before the first. The
- * answer to a question its own card asked (RESOLVE_CHOICE right after it) shows that card again.
+ * answer to a question (RESOLVE_CHOICE) shows no card, only the Pokémon it changed: the card that asked was shown
+ * when it was played or used, and showing it again looked like a second one (Dual Ball, Master Ball).
  */
 export function moveHighlights(start: GameState, player: PlayerId, actions: GameAction[], states: GameState[]): (MoveHighlight | null)[] {
-  let card: string | null = null;
   return actions.map((action, i) => {
     const before = i === 0 ? start : states[i - 1]!;
     const after = states[i]!;
-    if (before.phase === 'setup') return (card = null);
-    const own = action.type === 'RESOLVE_CHOICE' ? card : moveCard(before, player, action);
-    // A Pokémon Power or Stadium keeps showing through its questions; anything else ends it.
-    card = action.type === 'RESOLVE_CHOICE' && !after.pendingChoice ? null : own;
+    if (before.phase === 'setup') return null;
+    const own = action.type === 'RESOLVE_CHOICE' ? null : moveCard(before, player, action);
     if (own === null && action.type !== 'RESOLVE_CHOICE') return null;
     const pokemon = changedPokemon(before, after);
     return own === null && !pokemon.length ? null : { defId: own, pokemon };

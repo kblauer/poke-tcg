@@ -32,7 +32,7 @@ export function PlayArea({
   // Dropping cancels (red); over the table a Trainer will be played (green). A card over a slot leaves the glow to the slot.
   const ring = !drop ? '' : !isOver ? 'ring-4 ring-red-500 shadow-[0_0_24px_rgba(239,68,68,0.5)]' : droppable ? 'ring-4 ring-emerald-300 shadow-[0_0_24px_rgba(52,211,153,0.6)]' : '';
   return (
-    <div ref={setNodeRef} className={`relative min-h-0 flex-1 rounded-lg transition [container-type:size] ${ring}`}>
+    <div ref={setNodeRef} className={`relative min-h-0 flex-1 select-none rounded-lg transition [container-type:size] ${ring}`}>
       <div className={cards}>{children}</div>
       {overlay}
     </div>

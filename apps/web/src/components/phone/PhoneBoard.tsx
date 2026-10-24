@@ -60,6 +60,7 @@ export function PhoneBoard({
   handView,
   dragOverlay,
   remindersDialog,
+  setupBanner,
 }: {
   view: PlayerView;
   send: (a: GameAction) => void;
@@ -100,6 +101,8 @@ export function PhoneBoard({
   handView: (compact: boolean) => ReactNode;
   dragOverlay: ReactNode;
   remindersDialog: ReactNode;
+  /** The setup line's banner (SetupBanner), over the bar while Pokémon are placed. */
+  setupBanner: ReactNode;
 }) {
   /** The phone layout's ☰ menu. */
   const [menu, setMenu] = useState(false);
@@ -173,6 +176,7 @@ export function PhoneBoard({
                     statusBar(true)
                   )}
                   {newTurn && <TurnBanner key={newTurn.turn} turn={newTurn} inBar />}
+                  {setupBanner}
                   {self.peek && (
                     <div className="absolute bottom-full left-0 z-10 mb-1 [--card-sm:var(--card-pile)]">
                       <PeekCard view={view} />

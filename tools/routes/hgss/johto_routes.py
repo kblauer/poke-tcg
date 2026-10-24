@@ -33,7 +33,8 @@ MADE_UP = {
     'route40': ('ROUTE_40', 'Route 40', 'down', """ * Route 40, made up (agreed with the user), for the Cianwood City run: surfed from Olivine's beach at the top (the real
  * route's beach chunk) down a sea lane between two columns of rocks near the edges, with sandbars of random sizes for
  * non-battle encounters to stand on (surfed routes' spots by land offer only those, out at sea only battles), and a
- * beach across the south end; its trainers Swimmers, as on Route 20. The band sloping into the sea round the sand, and
+ * beach across the south end (light sand, then dry sand and grass behind it, with Cianwood City's sprouts and tufts:
+ * the user's); its trainers Swimmers, as on Route 20. The band sloping into the sea round the sand, and
  * the row above the sand (drawn half a tile up), are land, as they're drawn (the user's).""", "\n  travel: 'surf',\n  trainers: { names: SWIMMERS, share: 1 },"),
     'route42': ('ROUTE_42', 'Route 42', 'right', """ * Route 42, made up as a cave (agreed with the user), for the Olivine City run, in two maps (the user's): this, from
  * the left edge to the right through three chambers of Mt. Mortar's rock (Mt. Moon's crystal rocks against the walls),

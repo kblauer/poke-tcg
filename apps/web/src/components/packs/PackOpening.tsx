@@ -4,6 +4,7 @@ import { MAX_PACKS_AT_ONCE } from '@poke-tcg/campaign';
 import { useMutation } from '@tanstack/react-query';
 import type { inferRouterOutputs } from '@trpc/server';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import { useTRPC } from '../../lib/trpc';
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
@@ -186,12 +187,14 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
 
   const newCount = cards.filter((c) => c.isNew).length;
   const rareCount = cards.filter(isRare).length;
-  return (
+  // In the page body, over the top bar (z-[820]) and the site menu (z-[810]), which otherwise covered the top of a tall
+  // summary (many packs), on every screen; under the card preview and view, the toasts and the music player.
+  return createPortal(
     <div
       data-keep-action
       ref={overlay}
       // Its content is centred, and scrolls when it's taller than the screen (a phone); the page behind stays put.
-      className="fixed inset-0 z-50 flex overflow-y-auto overscroll-contain bg-slate-950/85 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[900] flex overflow-y-auto overscroll-contain bg-slate-950/85 p-4 backdrop-blur-sm"
       // Before the pack is opened, a click on anything but a control (the pack, the quantity, the options) closes the window.
       onClick={(e) => {
         if (phase === 'pack' && !open.isPending && !(e.target as Element).closest('button, input, label, select, a')) onClose();
@@ -434,7 +437,8 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
           </div>
         </div>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }
 

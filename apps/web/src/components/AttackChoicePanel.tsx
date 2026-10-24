@@ -48,20 +48,9 @@ export function AttackChoicePanel({ spec, view, attack }: { spec: ChoiceSpec; vi
               {lookupCard(cards, e.defId).name}
             </button>
           ))}
-        {spec.kind === 'opponentBench' && <p className={pickHint}>Click one of the CPU's highlighted Benched Pokémon.</p>}
-        {/* "You may switch" (Spiral Aura, Snatch): -1 doesn't. */}
-        {spec.kind === 'opponentBench' && spec.optional && (
-          <button className={option} onClick={() => attack.answer(-1)}>
-            Don't switch
-          </button>
-        )}
-        {spec.kind === 'ownBench' && <p className={pickHint}>Click one of your highlighted Benched Pokémon.</p>}
-        {/* "You may switch" (Teleport Blast): -1 stays put. */}
-        {spec.kind === 'ownBench' && spec.optional && (
-          <button className={option} onClick={() => attack.answer(-1)}>
-            Don't switch
-          </button>
-        )}
+        {/* "You may switch" (Pull In, Spiral Aura, Snatch, Teleport Blast): the Active Pokémon is highlighted too, and clicking it is -1, skipping (Board's pokemonPick). */}
+        {spec.kind === 'opponentBench' && <p className={pickHint}>{spec.optional ? "Click one of the CPU's highlighted Pokémon (its Active: skip)." : "Click one of the CPU's highlighted Benched Pokémon."}</p>}
+        {spec.kind === 'ownBench' && <p className={pickHint}>{spec.optional ? "Click one of your highlighted Pokémon (your Active: skip)." : 'Click one of your highlighted Benched Pokémon.'}</p>}
         {(spec.kind === 'opponentPokemon' || spec.kind === 'opponentPokemonTo') && <p className={pickHint}>Click one of the CPU's highlighted Pokémon.</p>}
         {(spec.kind === 'ownPokemon' || spec.kind === 'ownPokemonTo') && <p className={pickHint}>Click one of your highlighted Pokémon.</p>}
         {spec.kind === 'boost' && (

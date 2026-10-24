@@ -34,6 +34,39 @@ export function useNewTurn(view: PlayerView): NewTurn | null {
 }
 
 /**
+ * The setup line ("You go first. Place your Basic Pokémon."), on a band like the turn's: it slides in from the right and
+ * stays until `leaving` (Start battle), then slides off to the left and `onGone` is called. It can't be clicked. Board
+ * puts it clear of the Start battle and Reset cards buttons: on a phone just above the bar between the sides (the
+ * default), on a big screen over the status line above Start battle (`place`, the box it slides across).
+ */
+export function SetupBanner({ text, first, leaving, onGone, place = '-inset-x-2 bottom-full mb-1' }: { text: string; first: boolean; leaving: boolean; onGone: () => void; place?: string }) {
+  const band = useRef<HTMLDivElement>(null);
+  const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+  useEffect(() => {
+    band.current?.animate(reduced() ? [{ opacity: 0 }, { opacity: 1 }] : [{ transform: 'translateX(100%)' }, { transform: 'none' }], { duration: SLIDE_MS, easing: 'ease-out', fill: 'forwards' });
+  }, []);
+  useEffect(() => {
+    if (!leaving) return;
+    const out = band.current?.animate(reduced() ? [{ opacity: 1 }, { opacity: 0 }] : [{ transform: 'none' }, { transform: 'translateX(-100%)' }], { duration: SLIDE_MS, easing: 'ease-in', fill: 'forwards' });
+    if (!out) return onGone();
+    out.onfinish = onGone;
+    return () => {
+      out.onfinish = null;
+    };
+  }, [leaving, onGone]);
+  return (
+    <div className={`pointer-events-none absolute z-[950] flex items-center overflow-hidden ${place}`} role="status">
+      <div
+        ref={band}
+        className={`w-full py-2 text-center ${first ? 'bg-gradient-to-r from-sky-900/0 via-sky-800/95 to-sky-900/0' : 'bg-gradient-to-r from-rose-950/0 via-rose-900/95 to-rose-950/0'}`}
+      >
+        <span className="text-sm font-semibold text-slate-50 drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">{text}</span>
+      </div>
+    </div>
+  );
+}
+
+/**
  * "Your Turn" or "Opponent's Turn" with the turn count, on a band across the middle of the play area as TCG Pocket
  * shows it: it slides in from the right, stays a moment, then slides off to the left. It can't be clicked. `inBar` (the
  * phone layout): centred on the bar between the sides instead (Board puts it there), across the screen's width.
