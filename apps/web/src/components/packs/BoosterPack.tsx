@@ -17,8 +17,11 @@ const PALETTES: Record<string, string> = {
 /** The crimped foil seal along a pack's top and bottom edges. */
 const crimp = 'bg-[repeating-linear-gradient(90deg,#e2e8f0_0_5px,#94a3b8_5px_10px)] shadow-inner';
 
-/** Each size's width (`xs`: the width of its box, for the phone's grid of packs). */
-const WIDTHS = { lg: 'w-60', sm: 'w-36', xs: 'w-full' };
+/**
+ * Each size's width (`xs`: the width of its box, for the phone's grid of packs; `xl`: the pack window's, as big as the
+ * screen's height leaves room for under the title and controls).
+ */
+const WIDTHS = { xl: 'w-[min(80vw,26rem,calc((100dvh_-_18rem)*0.58))]', lg: 'w-60', sm: 'w-36', xs: 'w-full' };
 
 /** How much of a real pack's art is its top seal, which tears off. */
 const SEAL = '9%';
@@ -67,7 +70,7 @@ export function BoosterPack({
   logoUrl: string | null;
   art?: string;
   state?: 'idle' | 'shaking' | 'torn';
-  size?: 'xs' | 'sm' | 'lg';
+  size?: 'xs' | 'sm' | 'lg' | 'xl';
 }) {
   const xs = size === 'xs';
   // The float is paused, not dropped, once the pack is clicked: it shakes and tears where it was floating.
@@ -107,13 +110,13 @@ export function BoosterPack({
         <div
           className={`absolute inset-x-0 bottom-0 ${xs ? 'top-2' : 'top-4'} flex flex-col items-center justify-between overflow-hidden rounded-b-md bg-gradient-to-b ${PALETTES[setId] ?? PALETTES.base1} shadow-2xl shadow-black/70 ring-1 ring-white/20`}
         >
-          {xs ? <span /> : <span className={`mt-3 font-bold uppercase tracking-[0.2em] text-white/80 ${size === 'lg' ? 'text-[10px]' : 'text-[8px]'}`}>Pokémon Trading Card Game</span>}
+          {xs ? <span /> : <span className={`mt-3 font-bold uppercase tracking-[0.2em] text-white/80 ${size === 'xl' ? 'text-xs' : size === 'lg' ? 'text-[10px]' : 'text-[8px]'}`}>Pokémon Trading Card Game</span>}
           {logoUrl ? (
             <img src={logoUrl} alt={name} draggable={false} className="w-4/5 drop-shadow-[0_4px_8px_rgba(0,0,0,0.7)]" />
           ) : (
             <span className={`font-black text-white ${xs ? 'text-xs' : 'text-2xl'}`}>{name}</span>
           )}
-          {xs ? <span /> : <span className={`mb-6 rounded-full bg-black/40 px-3 py-0.5 font-semibold text-yellow-200 ${size === 'lg' ? 'text-xs' : 'text-[10px]'}`}>11 cards</span>}
+          {xs ? <span /> : <span className={`mb-6 rounded-full bg-black/40 px-3 py-0.5 font-semibold text-yellow-200 ${size === 'xl' ? 'text-sm' : size === 'lg' ? 'text-xs' : 'text-[10px]'}`}>11 cards</span>}
           <div className={`absolute inset-x-0 bottom-0 ${xs ? 'h-2' : 'h-4'} ${crimp}`} />
           {/* Foil sheen. */}
           <div className="pack-sheen pointer-events-none absolute inset-0 bg-[linear-gradient(105deg,transparent_40%,rgb(255_255_255/0.4)_50%,transparent_60%)]" />

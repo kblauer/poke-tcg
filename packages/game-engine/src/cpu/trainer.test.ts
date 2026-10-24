@@ -88,3 +88,32 @@ describe('trainer CPU', () => {
     expect(moves(s)).toEqual([{ type: 'PROMOTE', slot: 1 }]);
   });
 });
+
+describe('CPU attacks that would lose the game', () => {
+  // Magnemite: Thunder Wave (10) or Selfdestruct (40, and 40 to itself: its whole HP).
+  const magnemite = (opts: Parameters<typeof duel>[2] = {}) => cpuTurn('magnemite', 'onix', { energy: ['lightning', 'lightning'], ...opts });
+  const gymLeader = (s: GameState) => runCpu({ ...s, cpuDifficulty: 'gymLeader' }, 'ash').actions.filter((a) => a.type === 'ATTACK');
+
+  it('never Selfdestructs with no Bench left, whichever the difficulty', () => {
+    const s = magnemite();
+    expect(moves(s)).toMatchObject([{ type: 'ATTACK', attackIndex: 0 }]);
+    expect(gymLeader(s)).toMatchObject([{ type: 'ATTACK', attackIndex: 0 }]);
+  });
+
+  it("never Selfdestructs when its Knock Out gives the player their last Prize card", () => {
+    const s = magnemite({ bench: ['charmander'] });
+    misty(s).prizes = misty(s).prizes.slice(0, 1);
+    expect(moves(s)).toMatchObject([{ type: 'ATTACK', attackIndex: 0 }]);
+    expect(gymLeader(s)).toMatchObject([{ type: 'ATTACK', attackIndex: 0 }]);
+  });
+
+  it('still Selfdestructs when the game goes on (the trainer CPU, for the most damage)', () => {
+    // Then it promotes its benched Pokémon.
+    expect(moves(magnemite({ bench: ['charmander'] }))[0]).toMatchObject({ type: 'ATTACK', attackIndex: 1 });
+  });
+
+  it('Selfdestructs when it wins the game too (the attacker wins a win for both)', () => {
+    const s = cpuTurn('magnemite', 'squirtle', { energy: ['lightning', 'lightning'] });
+    expect(moves(s)).toMatchObject([{ type: 'ATTACK', attackIndex: 1 }]);
+  });
+});

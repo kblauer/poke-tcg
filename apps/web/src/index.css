@@ -357,6 +357,10 @@ html[data-font="emerald"] {
 .card-flip-in { animation: card-flip-in 0.45s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
 .card-fly-out { animation: card-fly-out 0.35s ease-in forwards; }
 .badge-pop { animation: badge-pop 0.35s ease-out 0.3s both; }
+/* The card being revealed: its tilt's perspective (HoloCard's 600px) scales with the card, as it was for an 18rem card, so a big
+   card tilted toward the pointer doesn't swing out over the text above and below it (the button's my-4 covers what's left). */
+.pack-reveal { container-type: inline-size; }
+.pack-reveal .card__translater, .pack-reveal .card__rotator { perspective: 208cqw; }
 @media (prefers-reduced-motion: reduce) {
   .pack-float, .pack-sheen, .pack-shake, .pack-tear, .pack-flash, .card-flip-in, .card-fly-out, .badge-pop {
     animation: none;
