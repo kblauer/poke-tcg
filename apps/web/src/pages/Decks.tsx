@@ -3,7 +3,7 @@ import ViewListIcon from '@mui/icons-material/ViewList';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { DECK_SIZE } from '@poke-tcg/shared';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { CardGrid } from '../components/CardGrid';
 import { CardInspector } from '../components/CardInspector';
 import { DeckFilters } from '../components/DeckFilters';
@@ -283,6 +283,12 @@ export function DecksPage() {
     setEntries((e) => changeCount(e, card.id, by));
     setDirty(true);
   }
+  // The grid's handlers stay the same between renders (CardGrid and its cells are memoised, so dragging the pane or
+  // typing a name renders none of them): they call the latest `change`.
+  const latestChange = useRef(change);
+  latestChange.current = change;
+  const addCard = useCallback((card: CatalogCard) => latestChange.current(card, 1), []);
+  const removeCard = useCallback((card: CatalogCard) => latestChange.current(card, -1), []);
 
   if (catalog.error && !catalog.data) return <p className={`${PAGE_WIDTH} text-red-400`}>{catalog.error.message}</p>;
   if (!catalog.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading cards…</p>;
@@ -377,7 +383,7 @@ export function DecksPage() {
   );
   const filters = <DeckFilters filter={filter} sort={sort} sets={sets} shown={shownCount} total={totalCount} onChange={setFilter} onSortChange={setSort} compact={phone} />;
   const blockedNote = blocked && <p className={`${phone ? 'text-xs' : 'text-sm'} text-amber-300`}>{blocked}.</p>;
-  const grid = <CardGrid cards={results} selectedId={null} onSelect={(c) => change(c, 1)} onRemove={(c) => change(c, -1)} counts={counts} isLocked={isLocked} holdToInspect compact={phone} />;
+  const grid = <CardGrid cards={results} selectedId={null} onSelect={addCard} onRemove={removeCard} counts={counts} isLocked={isLocked} holdToInspect compact={phone} />;
   /** How many of the search's filters are set (the phone's Filters button shows it). */
   const filtersOn = (Object.keys(EMPTY_DECK_FILTER) as (keyof DeckFilter)[]).filter((k) => JSON.stringify(filter[k]) !== JSON.stringify(EMPTY_DECK_FILTER[k])).length;
   const size = deckSize(entries);

@@ -62,9 +62,17 @@ const STADIUM = 'stadium';
  */
 export const foldText = (text: string) => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 
+/** Each card's name and attacks' names, folded (foldText) once and kept with the card: the catalog's cards live for the session. */
+const searchTexts = new WeakMap<object, string>();
+
+/** The card's name and its attacks' names, folded, one a line (a search, being one line, never spans two). */
+function searchText(card: Pick<CatalogCard, 'name' | 'attacks'>) {
+  let text = searchTexts.get(card);
+  if (text === undefined) searchTexts.set(card, (text = [card.name, ...(card.attacks ?? [])].filter(Boolean).map((t) => foldText(t!)).join('\n')));
+  return text;
+}
+
 /** Whether the search text (already folded, foldText) is in the card's name or one of its attacks' names, or names it a Stadium. */
 export const matchesSearch = (card: Pick<CatalogCard, 'name' | 'attacks' | 'stadium'>, search: string) =>
-  foldText(card.name).includes(search) ||
-  (card.attacks ?? []).some((a) => a && foldText(a).includes(search)) ||
-  (card.stadium && search.length >= 3 && STADIUM.startsWith(search));
+  searchText(card).includes(search) || (card.stadium && search.length >= 3 && STADIUM.startsWith(search));
 
