@@ -10,6 +10,13 @@ app.use(logger());
 
 app.get('/health', (c) => c.json({ ok: true }));
 
+// The card catalog (cards.list) is the same for everyone and only changes with the seed: browsers and the CDN may keep it
+// for an hour. Only when it's asked for on its own (a batch with other, per-user procedures has another path).
+app.use('/trpc/cards.list', async (c, next) => {
+  await next();
+  if (c.req.method === 'GET' && c.res.ok) c.res.headers.set('Cache-Control', 'public, max-age=3600');
+});
+
 app.use(
   '/trpc/*',
   trpcServer({

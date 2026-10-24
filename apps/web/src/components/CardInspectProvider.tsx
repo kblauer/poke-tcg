@@ -1,11 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useMemo, useState, type ReactNode } from 'react';
 import { useFavorites } from '../hooks/useFavorites';
 import { useUnlocked } from '../hooks/useUnlocked';
 import { useTRPC } from '../lib/trpc';
 import type { CatalogCard } from '../utils/cardList';
-import { CardInspector } from './CardInspector';
 import { CatalogContext, InspectContext } from './InspectContext';
+
+// The inspector (with the holo card and its styles) loads the first time a card is opened, not with every page.
+const CardInspector = lazy(() => import('./CardInspector').then((m) => ({ default: m.CardInspector })));
 
 /**
  * Right-clicking a card anywhere in the app opens it in the CardInspector, large with its holo effect (the deck
@@ -22,7 +24,11 @@ export function CardInspectProvider({ children }: { children: ReactNode }) {
     <CatalogContext.Provider value={byId}>
       <InspectContext.Provider value={setInspected}>
         {children}
-        {inspected && <Inspected card={inspected} onClose={close} />}
+        {inspected && (
+          <Suspense fallback={null}>
+            <Inspected card={inspected} onClose={close} />
+          </Suspense>
+        )}
       </InspectContext.Provider>
     </CatalogContext.Provider>
   );

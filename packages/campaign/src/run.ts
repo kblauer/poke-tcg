@@ -431,7 +431,7 @@ const discounted = (price: number, percent: number) => Math.max(0, Math.round((p
 const moreOffers = (effects: readonly ActiveEffect[], encounter: 'gift' | 'reward' | 'shop') =>
   effectTotal(effects, (e) => (e.kind === 'moreOffers' && e.encounter === encounter ? e.count : 0));
 
-function rollEncounter(rng: Rng, state: RunState, option: MapEncounter, pool: readonly PoolCard[], effects: readonly ActiveEffect[]): Encounter {
+function rollEncounter(rng: Rng, state: RunState, option: MapEncounter, pool: readonly PoolCard[], cards: ReadonlyMap<string, PoolCard>, effects: readonly ActiveEffect[]): Encounter {
   switch (option.kind) {
     case 'elite':
       return { kind: 'elite', trainer: option.trainer!, deckSeed: seed(rng), accepted: false };
@@ -442,7 +442,6 @@ function rollEncounter(rng: Rng, state: RunState, option: MapEncounter, pool: re
     case 'champion':
       return { kind: option.kind, trainer: option.trainer!, deckSeed: seed(rng), ...(option.boss && { boss: option.boss }), ...(option.focus && { focus: option.focus }) };
     case 'shop': {
-      const cards = byId(pool);
       const discount = effectTotal(effects, (e) => (e.kind === 'shopDiscount' ? e.percent : 0));
       return {
         kind: 'shop',
@@ -455,7 +454,6 @@ function rollEncounter(rng: Rng, state: RunState, option: MapEncounter, pool: re
       // They ask for one of your cards (not basic Energy if you have anything else) and offer one at least as rare. A deck
       // from another generation has cards outside the run's pool: one of those is asked for then (its rarity unknown, any card
       // is offered), so there's always something to trade.
-      const cards = byId(pool);
       const yours = [...new Set(state.deck)];
       const known = yours.filter((id) => cards.has(id));
       const wanted = known.filter((id) => offerable([cards.get(id)!]).length);
@@ -720,7 +718,9 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
     state.rngState = rng.state;
     return ok();
   };
-  const name = (id: string) => byId(pool).get(id)?.def.name ?? id;
+  // The pool by id, built once per action (the pool holds thousands of cards).
+  const cards = byId(pool);
+  const name = (id: string) => cards.get(id)?.def.name ?? id;
   const e = state.encounter;
   const effects = activeEffects(gear, state.consumables);
   const ctx: ActionContext = { state, rng, pool, effects, name, fail, ok, done };
@@ -751,7 +751,7 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
       const option = step?.options[action.option];
       if (!step || !option) return fail('No such option');
       step.chosen = action.option;
-      state.encounter = rollEncounter(rng, state, option, pool, effects);
+      state.encounter = rollEncounter(rng, state, option, pool, cards, effects);
       state.phase = 'encounter';
       return done();
     }

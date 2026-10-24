@@ -5,9 +5,9 @@ import LockOpenIcon from '@mui/icons-material/LockOpen';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
 import { flowAt, inGrass, isBattleKind, onPath, onWater, routePath, type Route, type RouteSpot } from '@poke-tcg/campaign';
 import type { PlayerGender } from '@poke-tcg/shared';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
-import { usePan, ZOOM } from '../../hooks/usePan';
+import { mapTransform, usePan, ZOOM } from '../../hooks/usePan';
 import type { RunViewData } from '../../hooks/useRun';
 import { FADE_MS, GRASS_PACE, pace, stepPace, THROUGH_MS, useWalk, type MapSection, type Walker } from '../../hooks/useWalk';
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
@@ -16,17 +16,13 @@ import { encounterFigure, facing, key, placeFigures, setOf, type PlacedFigure } 
 import { Exclamation, Figure, OverworldSprite, TileOverlay } from './RouteSprites';
 
 /**
- * The players' sprites (Red's, Ethan's and Brendan's, and the girls', Leaf's, Lyra's and May's, walking, on a bike, surfing) and the swimmers' in-water ones, fetched as soon as
- * the app loads, so a switch between them (stepping off the water onto land) never shows him blank while one loads. The
+ * The players' sprites (Red's, Ethan's and Brendan's, and the girls', Leaf's, Lyra's and May's, walking, on a bike, surfing) and the swimmers' in-water ones, fetched when
+ * the map first shows (not on every page), so a switch between them (stepping off the water onto land) never shows him blank while one loads. The
  * images are kept so the browser keeps them decoded.
  */
-const PRELOADED =
-  typeof window === 'undefined'
-    ? []
-    : ['red', 'red_bike', 'red_surf', 'leaf', 'leaf_bike', 'leaf_surf', 'swimmer_m_water', 'swimmer_f_water', 'hgss/hero', 'hgss/cyclehero', 'hgss/swimhero', 'hgss/heroine', 'hgss/cycleheroine', 'hgss/swimheroine', 'rse/brendan', 'rse/brendan_bike', 'rse/brendan_surf', 'rse/may', 'rse/may_bike', 'rse/may_surf'].map(
-        (name) => Object.assign(new Image(), { src: `/overworld/${name}.png` }),
-      );
-void PRELOADED;
+const PRELOAD = ['red', 'red_bike', 'red_surf', 'leaf', 'leaf_bike', 'leaf_surf', 'swimmer_m_water', 'swimmer_f_water', 'hgss/hero', 'hgss/cyclehero', 'hgss/swimhero', 'hgss/heroine', 'hgss/cycleheroine', 'hgss/swimheroine', 'rse/brendan', 'rse/brendan_bike', 'rse/brendan_surf', 'rse/may', 'rse/may_bike', 'rse/may_surf'];
+let preloaded: HTMLImageElement[] | undefined;
+const preloadSprites = () => (preloaded ??= PRELOAD.map((name) => Object.assign(new Image(), { src: `/overworld/${name}.png` })));
 
 /** localStorage key for the walk speed (the speed button): 1×, 2× or 3×, every walk, fade and glide that much faster. */
 const SPEED_KEY = 'poke-tcg.route-speed';
@@ -90,6 +86,7 @@ function saveLocked(locked: boolean) {
  */
 export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { routes: Route[]; gym?: Route; view: RunViewData; spotted?: { option: number | null } | null; gender?: PlayerGender }) {
   const box = useRef<HTMLDivElement>(null);
+  useEffect(() => void preloadSprites(), []);
   // Debug only: the walkable tiles overlay (TileOverlay).
   const debug = useDebugEnabled();
   const [showTiles, setShowTiles] = useState(false);
@@ -143,8 +140,10 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
   const index = Math.min(Math.max(0, position - current.first), shown.spots.length - 1);
   const spot = shown === target.map ? targetSpot : shown.spots[index]!;
 
-  // The view: its height, its size, and where the map sits in it (panned, or moved by the walk).
-  const pan = usePan({ box, map: shown, mapHeight: Math.max(...routes.map((r) => r.height), gym?.height ?? 0), panLocked });
+  // The view: its height, its size, and where the map sits in it (panned, or moved by the walk). `mapEl` is the map, moved
+  // directly while it's dragged.
+  const mapEl = useRef<HTMLDivElement>(null);
+  const pan = usePan({ box, mapEl, map: shown, mapHeight: Math.max(...routes.map((r) => r.height), gym?.height ?? 0), panLocked });
   const { size, offset, setOffset, glide, setGlide, centreOn, centreOnMap } = pan;
   // The figures as last drawn, for the walk to go around them.
   const placedRef = useRef<PlacedFigure[]>([]);
@@ -230,7 +229,9 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
 
   // Where each non-battle encounter's NPC walked up to (the step it's for), so it stays there once passed.
   if (approach) movedRef.current.set(approach.position, approach.tile);
-  const placed = placeFigures(shown, view, current.first, current.upto, movedRef.current);
+  // Placed again only when something they depend on changes, not on every walk tick (the walk re-renders every frame).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const placed = useMemo(() => placeFigures(shown, view, current.first, current.upto, movedRef.current), [shown, view, current.first, current.upto, approach]);
   placedRef.current = placed;
   if (view.phase === 'map') choosingRef.current = placed;
   // The NPC coming up to the player (approach), for the encounter under way: drawn where it's walked to.
@@ -270,21 +271,23 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
       >
         {size.w > 0 && (
           <div
+            ref={mapEl}
             className="absolute left-0 top-0 origin-top-left"
             style={{
               width: shown.width,
               height: shown.height,
-              transform: `translate(${offset.x}px, ${offset.y}px) scale(${ZOOM})`,
+              transform: mapTransform(offset),
               transition: glide ? `transform ${glide.ms}ms ${glide.ease}` : undefined,
             }}
           >
             <img src={shown.image} alt="" draggable={false} className="h-full w-full select-none [image-rendering:pixelated]" />
             {/* The people always there (a gym's guide). */}
             {shown.npcs?.map((n, i) => <OverworldSprite key={`npc${i}`} name={n.sprite} tile={n.tile} face={n.face} grass={inGrass(shown, n.tile)} />)}
-            {placed.map((p, i) =>
+            {/* Keyed by the spot and option, not the index, so a step's change doesn't remount every figure (their transitions would snap). */}
+            {placed.map((p) =>
               isApproaching(p) ? (
                 <Figure
-                  key={i}
+                  key={`${key(p.spot)}|${p.figure.option ?? ''}|${p.figure.title}`}
                   figure={p.figure}
                   tile={approaching!.tile}
                   spot={p.spot}
@@ -295,7 +298,7 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
                   grass={inGrass(shown, approaching!.tile)}
                 />
               ) : (
-                <Figure key={i} figure={p.figure} tile={p.tile} spot={p.spot} faded={p.faded} wet={onWater(shown, p.tile)} grass={inGrass(shown, p.tile)} />
+                <Figure key={`${key(p.spot)}|${p.figure.option ?? ''}|${p.figure.title}`} figure={p.figure} tile={p.tile} spot={p.spot} faded={p.faded} wet={onWater(shown, p.tile)} grass={inGrass(shown, p.tile)} />
               ),
             )}
             <OverworldSprite

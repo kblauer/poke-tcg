@@ -1,4 +1,6 @@
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
+// The holo styles load with the first page that shows a holo card, not with every page.
+import '../styles/holo/index.css';
 import type { HoloAttributes } from '../utils/holo';
 import { adjust, clamp, round } from '../utils/math';
 import { CARD_BACK } from '../utils/cardBack';

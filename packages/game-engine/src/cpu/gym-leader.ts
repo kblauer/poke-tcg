@@ -38,6 +38,7 @@ import {
   wantedCards,
   swapIn,
   damages,
+  withAttackMemo,
   type Turn,
 } from './shared.js';
 import { energyPool, hasBenched, isEnergyCardOf, retreatCost, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type Target } from '../engine.js';
@@ -79,6 +80,10 @@ import { attackBoost, bestMove, plainEnergy, powerChoiceSets, powerSituation, sp
  * in the deck. Trainers and powers are recognised by name, so reprints work the same.
  */
 export function gymLeaderCpu(state: GameState, cpuId: PlayerId): GameAction | null {
+  return withAttackMemo(() => decide(state, cpuId));
+}
+
+function decide(state: GameState, cpuId: PlayerId): GameAction | null {
   const cpu = state.players[cpuId];
   if (!cpu) throw new Error(`Unknown CPU player ${cpuId}`);
 

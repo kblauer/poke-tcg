@@ -1,8 +1,11 @@
 import LockIcon from '@mui/icons-material/Lock';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { BoosterPack } from '../components/packs/BoosterPack';
-import { PackOpening, type PackSetInfo } from '../components/packs/PackOpening';
+import type { PackSetInfo } from '../components/packs/PackOpening';
+
+// The pack window (with its confetti and holo cards) loads when a pack is first opened.
+const PackOpening = lazy(() => import('../components/packs/PackOpening').then((m) => ({ default: m.PackOpening })));
 import { PACK_GENERATIONS } from '@poke-tcg/campaign';
 import { GenerationFilter, packGeneration } from '../components/packs/GenerationFilter';
 import { PreviewProvider } from '../components/PreviewProvider';
@@ -134,7 +137,11 @@ export function PacksPage() {
         </div>
         {phone && lockedNote && <p className="text-xs text-amber-300">{lockedNote}.</p>}
       </div>
-      {opening && <PackOpening key={opening.id} set={opening} price={price} bank={bank} onClose={() => setOpening(null)} onOpened={refresh} />}
+      {opening && (
+        <Suspense fallback={null}>
+          <PackOpening key={opening.id} set={opening} price={price} bank={bank} onClose={() => setOpening(null)} onOpened={refresh} />
+        </Suspense>
+      )}
     </PreviewProvider>
   );
 }

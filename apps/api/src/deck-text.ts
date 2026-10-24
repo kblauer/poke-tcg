@@ -1,8 +1,8 @@
 // Deck lists as text, the way decklist sites and the online game write them: a line per card, "<copies> <name> <set
 // code> <number>" ("4 Lickitung JU 38"), under optional section headers ("Pokémon: 15"). The set code and number are
 // optional ("4 Lickitung" takes the earliest print of the name). Imported like a share code (decks.importCode).
-import { prisma } from '@poke-tcg/db';
 import { DECK_SIZE } from '@poke-tcg/shared';
+import { catalogRows } from './cards.js';
 import type { DeckList } from './deck-codes.js';
 
 /** Set codes used by decklist sites (Limitless, the online game) and our own TCGdex ids, by TCGdex set id. */
@@ -80,9 +80,10 @@ const numberKey = (number: string) => number.toUpperCase().replace(/^([A-Z]*)0+(
  * by name in that set, otherwise (no set given) the name's earliest print. `missing` lists the lines that match no card.
  */
 export async function resolveDeckText(lines: DeckTextLine[]): Promise<{ deck: DeckList; missing: string[] }> {
-  const keys = [...new Set(lines.map((l) => nameKey(l.name)))];
-  const rows = (await prisma.card.findMany({ select: { id: true, setId: true, localId: true, name: true, set: { select: { releaseDate: true } } } }))
-    .filter((r) => keys.includes(nameKey(r.name)))
+  const keys = new Set(lines.map((l) => nameKey(l.name)));
+  // The catalog as loaded once for the deck builder (catalogRows), not a query of every card per import.
+  const rows = (await catalogRows())
+    .filter((r) => keys.has(nameKey(r.name)))
     .sort((a, b) => (a.set.releaseDate?.getTime() ?? 0) - (b.set.releaseDate?.getTime() ?? 0) || Number.parseInt(a.localId) - Number.parseInt(b.localId) || a.id.localeCompare(b.id));
   const cards: DeckList['cards'] = [];
   const missing: string[] = [];

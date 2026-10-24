@@ -5,6 +5,7 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  lazyRouteComponent,
   Link,
   Outlet,
   RouterProvider,
@@ -13,7 +14,6 @@ import {
 import { StrictMode, useCallback, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
-import './styles/holo/index.css';
 // Puts the saved colour theme on before the first render.
 import './hooks/useColorTheme';
 import './hooks/useFontStyle';
@@ -30,18 +30,21 @@ import { useIsPhone } from './hooks/useIsPhone';
 import { useSession } from './lib/auth';
 import { signInWithGoogle, signOut } from './lib/supabase';
 import { queryClient, TRPCProvider, trpcClient } from './lib/trpc';
-import { CommunityPage } from './pages/Community';
-import { CosmeticsPage } from './pages/Cosmetics';
-import { DecksPage } from './pages/Decks';
-import { GamePage } from './pages/Game';
-import { HomePage } from './pages/Home';
-import { InventoryPage } from './pages/Inventory';
-import { PacksPage } from './pages/Packs';
-import { SettingsPage } from './pages/Settings';
-import { SingleBattlePage } from './pages/SingleBattle';
 
 // Marks the dev server's tab so it isn't confused with the deployed app.
 if (import.meta.env.DEV) document.title += ' - local';
+
+// Each page is its own chunk, fetched when it's first opened (the battle screen's brings the rules engine with it; the
+// others don't need it), so the first load is the layout alone.
+const HomePage = lazyRouteComponent(() => import('./pages/Home'), 'HomePage');
+const GamePage = lazyRouteComponent(() => import('./pages/Game'), 'GamePage');
+const DecksPage = lazyRouteComponent(() => import('./pages/Decks'), 'DecksPage');
+const CommunityPage = lazyRouteComponent(() => import('./pages/Community'), 'CommunityPage');
+const SingleBattlePage = lazyRouteComponent(() => import('./pages/SingleBattle'), 'SingleBattlePage');
+const InventoryPage = lazyRouteComponent(() => import('./pages/Inventory'), 'InventoryPage');
+const PacksPage = lazyRouteComponent(() => import('./pages/Packs'), 'PacksPage');
+const CosmeticsPage = lazyRouteComponent(() => import('./pages/Cosmetics'), 'CosmeticsPage');
+const SettingsPage = lazyRouteComponent(() => import('./pages/Settings'), 'SettingsPage');
 
 const RAIL_KEY = 'poke-tcg.nav-open';
 

@@ -3,7 +3,7 @@
 // only runs them when debugging is enabled (never in production).
 import { lookupCard, type CardLibrary } from './cards.js';
 import { CPU_DIFFICULTIES, CPU_DIFFICULTY_LABELS, type CpuDifficulty } from './cpu/index.js';
-import { conditionLabel, opponentOf, type ActionResult, type GameState, type PlayerId, type Target } from './engine.js';
+import { cloneState, conditionLabel, opponentOf, type ActionResult, type GameState, type PlayerId, type Target } from './engine.js';
 import { addLog, inPlayDef, pokemonName } from './status.js';
 
 export type DebugCommand =
@@ -36,7 +36,8 @@ export function applyDebug(prev: GameState, playerId: PlayerId, command: DebugCo
   const fail = (error: string): ActionResult => ({ ok: false, error });
   if (!prev.players[playerId]) return fail('Not a player in this game');
   if (prev.phase === 'finished') return fail('Game is over');
-  const state = structuredClone(prev);
+  // The library is shared between states (cloneState): a new one with the extra cards, never a change to the old.
+  const state = cloneState(prev);
   state.cards = { ...state.cards, ...cards };
   const me = state.players[playerId]!;
 

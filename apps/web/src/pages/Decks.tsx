@@ -3,7 +3,7 @@ import ViewListIcon from '@mui/icons-material/ViewList';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { DECK_SIZE } from '@poke-tcg/shared';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { CardGrid } from '../components/CardGrid';
 import { CardInspector } from '../components/CardInspector';
 import { DeckFilters } from '../components/DeckFilters';
@@ -226,7 +226,10 @@ export function DecksPage() {
   const sets = useMemo(() => (catalog.data ? setGroups(catalog.data) : []), [catalog.data]);
   // Holo Energy and reverse holos (versions of other cards, agreed with the user) only show once they've been gained.
   const searchable = useMemo(() => (catalog.data ?? []).filter((c) => !isVersion(c) || copies(c.id) > 0), [catalog.data, copies]);
-  const results = useMemo(() => sortForDeck(filterForDeck(searchable, filter, isLocked, favorites.isFavorite), sort), [searchable, filter, sort, isLocked, favorites.isFavorite]);
+  // The grid follows the filters a beat behind the typing (useDeferredValue): a keystroke shows at once, the whole catalog's
+  // filtering, sorting and re-rendering comes after it rather than holding it up.
+  const shownFilter = useDeferredValue(filter);
+  const results = useMemo(() => sortForDeck(filterForDeck(searchable, shownFilter, isLocked, favorites.isFavorite), sort), [searchable, shownFilter, sort, isLocked, favorites.isFavorite]);
   // The numbers of cards shown and in all: holo Energy and reverse holos are never counted (they're versions of other cards).
   const shownCount = useMemo(() => results.filter((c) => !isVersion(c)).length, [results]);
   const totalCount = useMemo(() => (catalog.data ?? []).filter((c) => !isVersion(c)).length, [catalog.data]);
