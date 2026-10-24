@@ -3,7 +3,7 @@
 /*
  * Pixellocale v1.4 by Johste (FontStruct, SIL Open Font License: public/fonts/pixellocale-license.txt), the UI's font
  * (agreed 2026-10-23): Tailwind's sans, so every text uses it (`font-pixel` names it too). The top bar's Poké TCG
- * logo keeps the system font (`font-system`, Tailwind's own sans stack). Characters it lacks fall back to the system font.
+ * logo has its own (`font-logo`, Pokemon Solid, below). Characters it lacks fall back to the system font.
  * Its em is 9 pixels, so it's crisp at 9, 18 and 27px; it has one weight, and bold isn't faked (font-synthesis), which
  * would smear its pixels. The Settings page's Font (`useFontStyle`, `data-font` on <html>) can switch to the standard
  * system font instead: html[data-font="standard"] below puts back the sizes and weights the site had with it.
@@ -56,10 +56,26 @@
   unicode-range: U+0020-007E, U+00A0-00FF, U+03B4, U+2013-2014, U+2018-201D, U+2022, U+2026, U+2122, U+2190-2193, U+2212, U+2605-2606, U+2640, U+2642;
 }
 
+/*
+ * Pokemon Solid by Jakob Fischer (dafont.com/pokemon.font, free for personal use; the app isn't public), the top bar's
+ * and the phone menu's PoKé TcG logo in the Pokémon logo's lettering (`font-logo`). Converted from its TTF to woff2 by
+ * fontTools. Its Windows metrics reserve 2.05em above the baseline and 0.82em below, but its letters stand from the
+ * baseline to about 0.9em, so they sat low in their line; the overrides make its box what they use (centred on 0.43em).
+ */
+@font-face {
+  font-family: "Pokemon Solid";
+  src: url("/fonts/pokemon-solid.woff2") format("woff2");
+  font-display: swap;
+  ascent-override: 92%;
+  descent-override: 6%;
+  line-gap-override: 0%;
+}
+
 @theme {
   --font-system: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --font-pixel: "Pixellocale", var(--font-system);
   --font-emerald: "Pokemon Emerald", var(--font-system);
+  --font-logo: "Pokemon Solid", var(--font-system);
   /* The Pokémon S/M font (Noto Sans JP, above): a stand-in for Sun & Moon's Rodin. */
   --font-noto: "Noto Sans JP", var(--font-system);
   --font-sans: var(--font-pixel);

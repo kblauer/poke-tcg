@@ -71,7 +71,7 @@ export function SettingsPage() {
   );
 }
 
-/** The UI's fonts, each named in itself: the pixel fonts (Pokémon R/B/Y, the default, and Pokémon R/S/E) or the system's standard one. */
+/** The UI's fonts, each named in itself: the pixel fonts (Pokémon R/B/Y and Pokémon R/S/E), Pokémon S/M (the default) or the system's standard one. */
 const FONT_CHOICES: { value: FontStyle; label: string; credit?: string; family: string }[] = [
   { value: 'pixel', label: 'Pokémon R/B/Y', credit: 'Pixellocale by Johste (SIL Open Font License)', family: 'var(--font-pixel)' },
   // Its licence (CC BY-SA) asks for the credit: in the option's tooltip (and the README).
