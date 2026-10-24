@@ -1,6 +1,7 @@
 import { bankablePokedollars, battlesCompleted } from '@poke-tcg/campaign';
 import { useState } from 'react';
 import type { RunControl, RunViewData } from '../../hooks/useRun';
+import { commas } from '../../utils/math';
 
 /**
  * Giving up the run, while choosing the next step: asks first, saying what's kept. The cards gained stay unlocked;
@@ -25,7 +26,7 @@ export function ConcedeRun({ view, run }: { view: RunViewData; run: RunControl }
         <li>
           {battlesCompleted(view) > 0
             ? `₱${banked} go to your bank.`
-            : `You haven’t completed a battle without conceding it yet, so the run’s ₱${view.pokedollars} won’t be banked.`}
+            : `You haven’t completed a battle without conceding it yet, so the run’s ₱${commas(view.pokedollars)} won’t be banked.`}
         </li>
         <li>You won’t get the run’s EXP: that’s only for beating it.</li>
       </ul>

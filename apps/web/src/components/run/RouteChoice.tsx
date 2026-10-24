@@ -15,12 +15,13 @@ import { EnergyIcon } from '../EnergyIcon';
 import { CatalogContext } from '../InspectContext';
 import { DeckMenu, DeckOption } from './DeckMenu';
 import { ENCOUNTER_STYLE, EncounterBadge, encounterLabel } from './encounterIcons';
+import { commas } from '../../utils/math';
 
 /** Debug's Skip battle, under a battle's button. */
 const skipButton = 'rounded bg-slate-600 px-3 py-1 text-xs font-semibold transition hover:bg-slate-500 disabled:opacity-40';
 
 const typeName = (t: string) => t[0]!.toUpperCase() + t.slice(1);
-const range = ([low, high]: [number, number]) => (low === high ? `₱${low}` : `₱${low}–${high}`);
+const range = ([low, high]: [number, number]) => (low === high ? `₱${commas(low)}` : `₱${commas(low)}–${commas(high)}`);
 
 /** What choosing this option leads to, as briefly as can be (matching rollEncounter and battleSetup in the campaign). */
 function describe(o: MapEncounter, cardName: (id: string) => string): string[] {
@@ -64,7 +65,7 @@ function describe(o: MapEncounter, cardName: (id: string) => string): string[] {
         case 'donation':
           return [`₱${e.cost} for ${e.exp} EXP.`];
         case 'luckyFind':
-          return [`₱${e.pokedollars} on the ground.`];
+          return [`₱${commas(e.pokedollars)} on the ground.`];
       }
       return [];
     }

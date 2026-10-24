@@ -5,6 +5,7 @@ import { ENCOUNTER_STYLE, EncounterBadge } from './encounterIcons';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { useUnlocked } from '../../hooks/useUnlocked';
 import { RunCard } from './RunCard';
+import { commas } from '../../utils/math';
 
 const panel = 'space-y-4 rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600';
 const button = 'rounded bg-slate-600 px-4 py-2 font-semibold transition hover:bg-slate-500 active:scale-95 disabled:opacity-40';
@@ -73,7 +74,7 @@ export function EncounterPanel({ view, run }: { view: RunViewData; run: RunContr
         <div className={panel}>
           <h3 className="text-lg font-semibold">You beat {e.trainer}!</h3>
           <p className="text-sm text-slate-300">
-            +₱{e.pokedollars} and +{e.exp} EXP. Choose a card to take with you:
+            +₱{commas(e.pokedollars)} and +{e.exp} EXP. Choose a card to take with you:
           </p>
           <div className={phone ? 'flex gap-1' : 'flex flex-wrap gap-3'}>
             {e.offers.map((id, i) => (
@@ -107,7 +108,7 @@ export function EncounterPanel({ view, run }: { view: RunViewData; run: RunContr
           <div className="flex items-center gap-3">
             <EncounterBadge kind="shop" size={40} />
             <h3 className="text-lg font-semibold">Card shop</h3>
-            <span className="ml-auto text-sm text-yellow-300">You have ₱{view.pokedollars}</span>
+            <span className="ml-auto text-sm text-yellow-300">You have ₱{commas(view.pokedollars)}</span>
           </div>
           <div
             // Each card stretches to its column (not sized by its name), so all are the same size.

@@ -35,14 +35,15 @@ function ThemeTile({ theme, current, onPick }: { theme: ColorTheme; current: boo
 }
 
 /**
- * The Settings page's colour themes (`COLOR_THEMES`): the default row (Slate and Start Menu), then an accordion per generation, the one holding the theme
- * in use open at first (Generation 1 with Slate); a click puts one on at once and it's remembered in the browser
+ * The Settings page's colour themes (`COLOR_THEMES`): an accordion per group, System themes (Slate and Start Menu, the
+ * user's) then each generation's, the one holding the theme in use open at first; a click puts one on at once and it's remembered in the browser
  * (`useColorTheme`).
  */
 export function ThemePicker() {
   const [current, setTheme] = useColorTheme();
-  const gens = [...new Set(COLOR_THEMES.map((t) => t.gen))].filter((g) => g !== 0);
-  const [open, setOpen] = useState(() => new Set<number>([findTheme(current).gen || 1]));
+  // The system themes (Slate, Start Menu) first, as a group like the generations' (the user's).
+  const gens = [...new Set(COLOR_THEMES.map((t) => t.gen))].sort((a, b) => a - b);
+  const [open, setOpen] = useState(() => new Set<number>([findTheme(current).gen]));
   const toggle = (gen: number) =>
     setOpen((o) => {
       const next = new Set(o);
@@ -52,11 +53,6 @@ export function ThemePicker() {
   const tiles = 'grid grid-cols-3 gap-2 sm:grid-cols-5';
   return (
     <div className="space-y-2">
-      <div className={tiles}>
-        {COLOR_THEMES.filter((t) => t.gen === 0).map((t) => (
-          <ThemeTile key={t.id} theme={t} current={t.id === current} onPick={() => setTheme(t.id)} />
-        ))}
-      </div>
       {gens.map((gen) => {
         const themes = COLOR_THEMES.filter((t) => t.gen === gen);
         const inUse = themes.find((t) => t.id === current);

@@ -1,24 +1,29 @@
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import FavoriteIcon from '@mui/icons-material/Favorite';
-import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import { EQUIP_SLOTS, ITEMS, itemText } from '@poke-tcg/campaign';
 import { useQuery } from '@tanstack/react-query';
 import type { Overview, RunControl, RunViewData } from '../../hooks/useRun';
 import { useTRPC } from '../../lib/trpc';
+import { PokedollarIcon } from '../PageNav';
 import { BagPanel } from './BagPanel';
 import { DeltaFloat } from './DeltaFloat';
+import { StatusBox } from './StatusBox';
+import { usePokedollarColor } from '../../hooks/useThemedFigures';
 import { RunSection } from './RunSection';
+import { commas } from '../../utils/math';
 
 const row = 'flex items-center justify-between gap-2 rounded bg-slate-800 px-3 py-1.5';
 const label = 'text-xs uppercase tracking-wide text-slate-500';
 
 /**
- * The run's numbers, in the site menu on a big screen (NavRail) and the side panel's Run tab on a phone: HP, ₱ (and the bank), the account's Stardust, the run's EXP and the
+ * The run's numbers, in the site menu on a big screen (NavRail) and the side panel's Run tab on a phone: HP and the run's EXP (StatusBox), ₱ (and the bank), the account's Stardust, the
  * account's, the battle rules and consumables in effect, the equipment worn, the badges won this run, and the Bag. The equipment
- * and the Bag fold away (RunSection).
+ * and the Bag fold away (RunSection). `nav` (the big screen's site menu): without the bank, Stardust and the account's
+ * EXP (its top bar shows them, TopBarAccount), the equipment or the Bag (the run screen shows the Bag, BagGrid; the user's).
  */
-export function RunStats({ view, account, run }: { view: RunViewData; account: Overview['account']; run: RunControl }) {
+export function RunStats({ view, account, run, nav = false }: { view: RunViewData; account: Overview['account']; run: RunControl; nav?: boolean }) {
   const trpc = useTRPC();
+  // The run's ₱: the theme's accent or the Pokédollar icon's gold (Settings: Themed Pokédollars).
+  const money = usePokedollarColor();
   const inventory = useQuery(trpc.run.inventory.queryOptions());
   const stardust = useQuery(trpc.packs.stardust.queryOptions());
   const gear = EQUIP_SLOTS.flatMap((slot) => {
@@ -28,26 +33,28 @@ export function RunStats({ view, account, run }: { view: RunViewData; account: O
   return (
     <div className="space-y-3 text-sm">
       <div className="space-y-1">
-        <div className={row} title={`${view.hp} of ${view.maxHp} HP: losing a battle costs 1`}>
-          <span className={label}>HP</span>
-          <span className="relative flex text-rose-400">
-            {/* A change floats up beside the number (DeltaFloat), as for ₱ below. */}
-            <DeltaFloat value={view.hp} format={(n) => `${n} HP`} place="right-full top-1/2 -mt-2.5 mr-2" />
-            {Array.from({ length: view.maxHp }, (_, i) => (i < view.hp ? <FavoriteIcon key={i} fontSize="small" /> : <FavoriteBorderIcon key={i} fontSize="small" />))}
+        {/* HP and the run's EXP in Black 2's player box (StatusBox), clear of what's above it (Settings, in the site menu);
+            an HP change floats up beside it (DeltaFloat). */}
+        <div className="relative flex justify-center pb-1 pt-3 text-rose-400">
+          <DeltaFloat value={view.hp} format={(n) => `${n} HP`} place="left-0 top-0" />
+          <StatusBox hp={view.hp} maxHp={view.maxHp} exp={view.exp} />
+        </div>
+        {/* The run's ₱ centred under the box, on the panel itself, its number as big as its icon (the user's); a change floats up beside it (DeltaFloat). */}
+        <div className="flex justify-center pt-1" title="₱ to spend in this run; banked when the run ends">
+          <span className={`relative flex items-center gap-1.5 text-xl font-semibold leading-none ${money.className}`} style={money.style}>
+            <DeltaFloat value={view.pokedollars} format={(n) => `₱${commas(n)}`} place="left-full top-1/2 -mt-2.5 ml-2" />
+            {/* 2px down, so its glyph lines up with the number (centred, it sits a little high). */}
+            <PokedollarIcon className="translate-y-0.5" />
+            {commas(view.pokedollars)}
           </span>
         </div>
-        <div className={row} title="₱ to spend in this run; banked when the run ends">
-          <span className={label}>₱</span>
-          <span className="relative font-semibold text-yellow-300">
-            <DeltaFloat value={view.pokedollars} format={(n) => `₱${n}`} place="right-full top-1/2 -mt-2.5 mr-2" />
-            {view.pokedollars}
-          </span>
-        </div>
-        <div className={row} title="₱ banked from earlier runs">
-          <span className={label}>Bank</span>
-          <span className="font-semibold text-yellow-200/70">{account.bank}</span>
-        </div>
-        {stardust.data !== undefined && (
+        {!nav && (
+          <div className={row} title="₱ banked from earlier runs">
+            <span className={label}>Bank</span>
+            <span className="font-semibold text-yellow-200/70">{account.bank}</span>
+          </div>
+        )}
+        {!nav && stardust.data !== undefined && (
           <div className={row} title="Stardust, from cards pulled again in packs; crafts cards in the deck builder">
             <span className={label}>Stardust</span>
             <span className="flex items-center gap-1 font-semibold text-sky-200">
@@ -56,14 +63,12 @@ export function RunStats({ view, account, run }: { view: RunViewData; account: O
             </span>
           </div>
         )}
-        <div className={row} title="EXP earned this run, added to your account when you beat it">
-          <span className={label}>Run EXP</span>
-          <span className="font-semibold text-sky-300">{view.exp}</span>
-        </div>
-        <div className={row} title="Account EXP, spent in the shop after a run">
-          <span className={label}>EXP</span>
-          <span className="font-semibold">{account.exp}</span>
-        </div>
+        {!nav && (
+          <div className={row} title="Account EXP, spent in the shop after a run">
+            <span className={label}>EXP</span>
+            <span className="font-semibold">{account.exp}</span>
+          </div>
+        )}
       </div>
       {(view.rules.length > 0 || view.consumables.length > 0) && (
         <div className="space-y-1 text-xs">
@@ -80,7 +85,7 @@ export function RunStats({ view, account, run }: { view: RunViewData; account: O
           ))}
         </div>
       )}
-      {gear.length > 0 && (
+      {!nav && gear.length > 0 && (
         <RunSection id="equipped" title="Equipped" count={gear.length}>
           <div className="space-y-1 text-xs">
             {gear.map((def, i) => (
@@ -103,7 +108,7 @@ export function RunStats({ view, account, run }: { view: RunViewData; account: O
           </p>
         </div>
       )}
-      {view.phase !== 'won' && view.phase !== 'lost' && <BagPanel view={view} run={run} />}
+      {!nav && view.phase !== 'won' && view.phase !== 'lost' && <BagPanel view={view} run={run} />}
     </div>
   );
 }

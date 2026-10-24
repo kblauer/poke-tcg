@@ -1,17 +1,15 @@
-import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import FavoriteIcon from '@mui/icons-material/Favorite';
-import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { lazy, Suspense, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useRun } from '../hooks/useRun';
-import { useTRPC } from '../lib/trpc';
 import { GameLog } from './GameLog';
 import { useNavGameLog } from './NavLog';
-import { PAGE_NAME, PAGES, SETTINGS_PAGE } from './PageNav';
+import { PAGE_NAME, PAGES, PokedollarIcon, SETTINGS_PAGE } from './PageNav';
 import { DeltaFloat } from './run/DeltaFloat';
+import { HpBar } from './run/HpBar';
+import { usePokedollarColor } from '../hooks/useThemedFigures';
 import { RunStats } from './run/RunStats';
 import { useDebugEnabled } from '../utils/debug';
+import { commas } from '../utils/math';
 
 // Only builds with the debug tools load (or even include) the Debug tab's panel (as in LogDrawer.tsx).
 const DebugPanel = __DEBUG_BUILD__ ? lazy(() => import('./DebugPanel')) : null;
@@ -22,17 +20,13 @@ const item =
 
 type LogTab = 'run' | 'game' | 'debug';
 
-/** The open menu's sections: the run's numbers' height (px), and the log tab picked. */
+/** The open menu's sections: the log tab picked. */
 interface SectionPrefs {
-  run: number;
   tab: LogTab;
 }
 
 const SECTIONS_KEY = 'poke-tcg.nav-sections';
-const SECTION_DEFAULTS: SectionPrefs = { run: 320, tab: 'game' };
-const MIN_SECTION = 80;
-const MAX_SECTION = 1600;
-const clampHeight = (h: number) => Math.min(MAX_SECTION, Math.max(MIN_SECTION, Math.round(h)));
+const SECTION_DEFAULTS: SectionPrefs = { tab: 'game' };
 
 // Remembered per browser; a convenience only, so storage failures fall back to the defaults.
 function loadSections(): SectionPrefs {
@@ -47,7 +41,8 @@ function loadSections(): SectionPrefs {
  * The site's menu on a big screen, down the left edge under the top bar, beside the page: minimised, a column of the
  * pages' icons (their names on hover), Settings last; `open` (toggled by the top bar's ☰), wider, with each
  * page's name beside its icon. Either way it takes its own room on the left and the page beside it stays usable.
- * Under them: open, the run's numbers and the logs (NavSections); minimised, the run's HP and ₱, and the bank.
+ * Under them, open, the run's numbers and the logs (NavSections); minimised, the run's HP and ₱ (the bank, EXP and
+ * Stardust are in the top bar: TopBarAccount).
  */
 export function NavRail({ open }: { open: boolean }) {
   const link = (p: (typeof PAGES)[number] | typeof SETTINGS_PAGE, className = '') => (
@@ -94,46 +89,35 @@ export function PhoneNavRun() {
   );
 }
 
-/** The minimised menu's run: its HP and ₱, the bank and Stardust, under the pages' icons. */
+/** The minimised menu's run: its HP (HpBar) and ₱, under the pages' icons. */
 function RunSummary() {
   const { data } = useRunUnderWay();
-  const trpc = useTRPC();
-  const stardust = useQuery(trpc.packs.stardust.queryOptions());
+  const money = usePokedollarColor();
   if (!data) return null;
-  const { view, account } = data;
+  const { view } = data;
   return (
     <section className="mt-2 flex flex-col items-center gap-3 border-t border-slate-800 pt-3 text-xs font-semibold">
-      <span className="relative flex flex-col items-center text-rose-400" title={`${view.hp} of ${view.maxHp} HP`}>
-        {/* A change floats up over the number (DeltaFloat). */}
-        <DeltaFloat value={view.hp} format={(n) => String(n)} place="inset-x-0 top-0 text-center" />
-        <FavoriteIcon sx={{ fontSize: 20 }} />
-        {view.hp}/{view.maxHp}
+      <span className="relative flex flex-col items-center text-rose-400">
+        {/* A change floats up over the bar (DeltaFloat). */}
+        <DeltaFloat value={view.hp} format={(n) => String(n)} place="inset-x-0 bottom-full text-center" />
+        <HpBar hp={view.hp} maxHp={view.maxHp} track="w-7" label={false} />
       </span>
-      <span className="relative flex flex-col items-center text-yellow-300" title="₱ to spend in this run">
-        <DeltaFloat value={view.pokedollars} format={(n) => String(n)} place="inset-x-0 top-0 text-center" />
-        <span className="text-base leading-5">₱</span>
-        {view.pokedollars}
+      <span className={`relative flex flex-col items-center ${money.className}`} style={money.style} title="₱ to spend in this run">
+        <DeltaFloat value={view.pokedollars} format={commas} place="inset-x-0 top-0 text-center" />
+        <PokedollarIcon />
+        {commas(view.pokedollars)}
       </span>
-      <span className="flex flex-col items-center text-yellow-200/70" title="₱ banked from earlier runs">
-        <AccountBalanceIcon sx={{ fontSize: 18 }} />
-        {account.bank}
-      </span>
-      {stardust.data !== undefined && (
-        <span className="flex flex-col items-center text-sky-200" title="Stardust">
-          <AutoAwesomeIcon sx={{ fontSize: 18 }} />
-          {stardust.data}
-        </span>
-      )}
     </section>
   );
 }
 
 /**
- * The open menu's sections under the pages, set apart by a margin and a line: during a run its numbers (RunStats: HP,
- * ₱, bank, EXP, items in effect, equipment, the Bag), then the logs, with a tab each for the run's log (during a run)
+ * The open menu's sections under the pages, set apart by a margin and a line: during a run its numbers
+ * (RunStats: HP and EXP, ₱, items in effect, badges; the bank, EXP and Stardust are in the top bar, the Bag on the run screen), then the logs, with a tab each for the run's log (during a run)
  * and the battle's (while a game is on screen, useGameLogInNav), and with the debug tools enabled (never in production) a
- * Debug tab for that game (DebugPanel). The run's section's height is set by dragging the bar
- * under it, remembered with the log tab (`poke-tcg.nav-sections`); the logs fill the rest, down to the menu's bottom.
+ * Debug tab for that game (DebugPanel). The run's section is as tall as its numbers and the logs start right under it
+ * (the user's; it was dragged to a height before), filling the rest, down to the menu's bottom; the log tab is
+ * remembered (`poke-tcg.nav-sections`).
  */
 function NavSections() {
   const { run, data } = useRunUnderWay();
@@ -175,15 +159,15 @@ function NavSections() {
     // Its own width, so nothing reflows while the menu widens.
     <div className="mt-2 flex min-h-0 w-[16.5rem] flex-1 flex-col gap-1 overflow-hidden whitespace-normal border-t border-slate-800 pt-3">
       {data && (
-        <Resizable height={prefs.run} onHeight={(run) => setPrefs((p) => ({ ...p, run }))} label="the run's section">
-          <div className="h-full overflow-y-auto pr-1">
-            <RunStats view={data.view} account={data.account} run={run} />
-          </div>
-        </Resizable>
+        // As tall as its numbers, so the log starts right under the run's ₱ (the user's); never a scroll bar of its own
+        // (the user's): on a short window the log gives way instead.
+        <div className="mb-2 shrink-0 pr-1">
+          <RunStats view={data.view} account={data.account} run={run} nav />
+        </div>
       )}
       {tab && (
-        // The rest of the menu, down to its bottom (at least 8rem: the run's section gives way first).
-        <div data-keep-action className="flex min-h-32 flex-1 flex-col rounded-lg bg-slate-950/60 ring-1 ring-slate-800 [&>section]:p-2">
+        // The rest of the menu, down to its bottom, scrolling inside itself.
+        <div data-keep-action className="flex min-h-0 flex-1 flex-col rounded-lg bg-slate-950/60 ring-1 ring-slate-800 [&>section]:p-2">
           {tab === 'debug' && game && DebugPanel ? (
             <section className="flex min-h-0 flex-1 flex-col">
               {tabRow}
@@ -198,47 +182,6 @@ function NavSections() {
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-/** A section `height` px tall (less when the menu is too short), with a bar under it that's dragged to change the height (`onHeight`). */
-function Resizable({ height, onHeight, label, children }: { height: number; onHeight: (height: number) => void; label: string; children: ReactNode }) {
-  // The bar captures the pointer, so its own move and up events follow the drag wherever it goes, and nothing is left
-  // on the window if the menu unmounts mid-drag.
-  const drag = useRef<{ startY: number; height: number } | null>(null);
-  function startResize(e: ReactPointerEvent) {
-    e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    drag.current = { startY: e.clientY, height };
-    document.body.style.cursor = 'row-resize';
-  }
-  function resize(e: ReactPointerEvent) {
-    if (drag.current) onHeight(clampHeight(drag.current.height + e.clientY - drag.current.startY));
-  }
-  function stopResize() {
-    drag.current = null;
-    document.body.style.cursor = '';
-  }
-  useEffect(() => () => void (drag.current && (document.body.style.cursor = '')), []);
-  return (
-    <div className="flex min-h-0 flex-col">
-      <div style={{ height }} className="min-h-0 shrink">
-        {children}
-      </div>
-      <div
-        role="separator"
-        aria-orientation="horizontal"
-        aria-label={`Resize ${label}`}
-        title={`Drag to resize ${label}`}
-        onPointerDown={startResize}
-        onPointerMove={resize}
-        onPointerUp={stopResize}
-        onPointerCancel={stopResize}
-        className="group flex h-3 shrink-0 cursor-row-resize items-center justify-center"
-      >
-        <span className="h-1 w-10 rounded-full bg-slate-700 transition group-hover:bg-slate-500" />
-      </div>
     </div>
   );
 }

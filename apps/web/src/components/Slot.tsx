@@ -4,6 +4,7 @@ import { useEffect, useRef, type RefObject } from 'react';
 import { LARGE_CARD, SMALL_CARD } from '../utils/layout';
 import { Card } from './Card';
 import type { HoloMotion } from './HoloCard';
+import { ToolPopOverlay } from './ToolPops';
 
 /** Length of the slot animations (a Pokémon arriving, taking damage, healing, getting Energy, attacking). */
 const MOTION_MS = 450;
@@ -152,6 +153,8 @@ export function Slot({
           <Card def={inPlayDef(cards, pokemon)} inPlay={pokemon} cards={cards} small={!large} highRes={large} shine={large} holoRef={holo} />
         </div>
       )}
+      {/* Its Pokémon Tool just worked (a Berry's heal): what it did, over the card (ToolPops). */}
+      {pokemon && <ToolPopOverlay uid={pokemon.card.uid} />}
       {pokemon?.transformed && (
         <span className="pointer-events-none absolute left-1 top-1 rounded-full bg-violet-600 px-1.5 text-[10px] font-bold text-white shadow">Ditto</span>
       )}
