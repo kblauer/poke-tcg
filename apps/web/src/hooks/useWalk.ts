@@ -1,5 +1,6 @@
 import { inGrass, routePath, type Route, type RouteSpot } from '@poke-tcg/campaign';
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from 'react';
+import type { Jump } from '../components/run/RouteSprites';
 import { facing, key, type PlacedFigure } from '../utils/routeFigures';
 import type { Facing } from '../utils/overworld';
 
@@ -19,7 +20,8 @@ export const THROUGH_MS = 500;
 /**
  * The player on the route map (RouteView): the map he's on (its section), where he stands (or is walking through), which
  * way he's going, whether he's faded out, whether he's under a bridge (a track's: the map's overhead drawn over him only
- * then), and whether he's sliding across ice.
+ * then), whether he's sliding across ice, the ledge jump he's in the middle of (`jump`) and where he last landed one
+ * (`landed`, for its dust).
  */
 export interface Walker {
   section: number;
@@ -29,7 +31,12 @@ export interface Walker {
   hidden: boolean;
   under?: boolean;
   sliding?: boolean;
+  jump?: Jump;
+  landed?: { tile: RouteSpot; stamp: number };
 }
+
+/** How long a ledge jump takes, in steps' time: FireRed's 32 frames over its two tiles, as two steps' walk. */
+export const JUMP_STEPS = 2;
 
 /** One of the run's maps in order (the routes, then the gym), holding the steps from `first` up to `upto`. */
 export interface MapSection {
@@ -91,7 +98,7 @@ export function useWalk({
     let start = from;
     /** Walks a path on a map from `begin`, step by step (through a link, fading out and in), from `t` on. */
     const walk = (on: Route, onSection: number, path: NonNullable<ReturnType<typeof routePath>>, begin: RouteSpot) => {
-      path.forEach(({ tile, fade, under, slide }, i) => {
+      path.forEach(({ tile, fade, under, slide, jump }, i) => {
         const face = facing(i ? path[i - 1]!.tile : begin, tile);
         if (fade) {
           later(t, () => setWalker((w) => ({ ...w, walking: false, hidden: true })));
@@ -102,10 +109,21 @@ export function useWalk({
           });
           later(t + ms.fade + ms.through, () => setWalker((w) => ({ ...w, hidden: false })));
           t += ms.fade * 2 + ms.through;
+        } else if (jump) {
+          // Over a ledge (the user's): two tiles in one hop (FireRed's, JUMP_STEPS), walking as he goes, his shadow under him;
+          // the dust where he lands.
+          const jumpMs = ms.step * JUMP_STEPS;
+          later(t, () => {
+            setWalker((w) => ({ landed: w.landed, section: onSection, tile, face, walking: true, hidden: false, under, jump: { stamp: Date.now(), ms: jumpMs } }));
+            setGlide({ ms: jumpMs, ease: 'linear' });
+            setOffset(centreOnMap(on, tile));
+          });
+          later(t + jumpMs, () => setWalker((w) => ({ ...w, jump: undefined, landed: { tile, stamp: Date.now() } })));
+          t += jumpMs;
         } else {
           later(t, () => {
             // Across ice: on the move, facing the way he goes, held mid-step, legs out (his walk cycle's first frame), as in the games.
-            setWalker({ section: onSection, tile, face, walking: true, hidden: false, under, sliding: slide });
+            setWalker((w) => ({ landed: w.landed, section: onSection, tile, face, walking: true, hidden: false, under, sliding: slide }));
             setGlide({ ms: ms.step / stepPace(on, tile), ease: 'linear' });
             setOffset(centreOnMap(on, tile));
           });

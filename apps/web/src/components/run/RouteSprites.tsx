@@ -1,5 +1,5 @@
-import { inGrass, onIce, onPath, onWater, type EncounterKind, type Route, type RouteSpot } from '@poke-tcg/campaign';
-import { useEffect, useState } from 'react';
+import { inGrass, ledgeAt, onIce, onPath, onWater, type EncounterKind, type Route, type RouteSpot } from '@poke-tcg/campaign';
+import { useEffect, useRef, useState } from 'react';
 import { FADE_MS } from '../../hooks/useWalk';
 import { bobFrame, bobs, isItemBall, mirrored, spriteWidth, standFrame, stripFrames, walkFrame, waterSprite, type Facing } from '../../utils/overworld';
 import { facing, type RouteFigure } from '../../utils/routeFigures';
@@ -7,8 +7,21 @@ import { ENCOUNTER_STYLE } from './encounterIcons';
 
 /**
  * What's drawn on the route map (RouteView), in map pixels: the overworld sprites (the player's, the figures'), a
- * figure with its speech bubble, the "!" over a spotted trainer, and the debug tile overlay.
+ * figure with its speech bubble, the "!" over a spotted trainer, a ledge jump's shadow and landing dust, and the debug
+ * tile overlay.
  */
+
+/**
+ * How high a sprite is over the ground through a ledge jump, in map pixels (up is negative), from its start to its
+ * landing: FireRed's own (sJumpY_High, its "high" jump), each step of it held for 2 of the jump's 32 frames.
+ */
+const JUMP_Y = [-4, -6, -8, -10, -11, -12, -12, -12, -11, -10, -9, -8, -6, -4, 0, 0];
+
+/** A ledge jump under way: its stamp (each jump's own, to play it once) and how long it takes. */
+export interface Jump {
+  stamp: number;
+  ms: number;
+}
 
 /** The route's walkable areas: each walkable tile's area number (from 1), tiles joined 4 ways; 0 for others. */
 function walkableAreas(route: Route): number[][] {
@@ -36,33 +49,39 @@ function walkableAreas(route: Route): number[][] {
 
 /**
  * Debug (the Show tiles button, debug builds only; also the entrance, IN, and exit, OUT, dashed): a grid over the map with every tile's x,y (hovering one tells its
- * walkable area: tiles joined 4 ways; a walk can't cross between areas), the tiles that can't be walked on red, tall grass green, ice cyan, and on a surfed route water a faint blue and land a faint tan (where the player surfs or walks), and each spot outlined with its number,
+ * walkable area: tiles joined 4 ways; a walk can't cross between areas), the tiles that can't be walked on red, ledges amber with an arrow the way they're jumped (ledgeAt; never stood on), tall grass green, ice cyan, and on a surfed route water a faint blue and land a faint tan (where the player surfs or walks), and each spot outlined with its number,
  * to tell where walking connections should be.
  */
+/** A ledge's arrow on the debug grid: the way it's jumped. */
+const LEDGE_ARROWS = { down: '▼', up: '▲', left: '◀', right: '▶' } as const;
+
 export function TileOverlay({ route }: { route: Route }) {
   const areas = walkableAreas(route);
   return (
     <div className="pointer-events-auto absolute inset-0 select-none" style={{ zIndex: 2000 }}>
       {areas.flatMap((row, y) =>
-        row.map((area, x) => (
-          <div
-            key={`${x},${y}`}
-            title={`${x},${y}${area ? ` · walkable area ${area}` : ' · not walkable'}${inGrass(route, { x, y }) ? ' · tall grass' : ''}${onIce(route, { x, y }) ? ' · ice' : ''}${area && route.travel === 'surf' ? (onWater(route, { x, y }) ? ' · water' : ' · land') : ''}`}
-            className="absolute flex items-center justify-center font-mono leading-none"
-            style={{
-              left: x * 16,
-              top: y * 16,
-              width: 16,
-              height: 16,
-              fontSize: 4.5,
-              boxShadow: 'inset 0 0 0 0.25px rgba(15,23,42,0.6)',
-              background: !area ? 'rgba(220,38,38,0.4)' : inGrass(route, { x, y }) ? 'rgba(34,197,94,0.4)' : onIce(route, { x, y }) ? 'rgba(34,211,238,0.3)' : route.travel !== 'surf' ? undefined : onWater(route, { x, y }) ? 'rgba(59,130,246,0.2)' : 'rgba(210,180,140,0.3)',
-              color: '#0f172a',
-            }}
-          >
-            {x},{y}
-          </div>
-        )),
+        row.map((area, x) => {
+          const ledge = ledgeAt(route, { x, y });
+          return (
+            <div
+              key={`${x},${y}`}
+              title={`${x},${y}${ledge ? ` · ledge, jumped going ${ledge}` : area ? ` · walkable area ${area}` : ' · not walkable'}${inGrass(route, { x, y }) ? ' · tall grass' : ''}${onIce(route, { x, y }) ? ' · ice' : ''}${area && route.travel === 'surf' ? (onWater(route, { x, y }) ? ' · water' : ' · land') : ''}`}
+              className="absolute flex items-center justify-center font-mono leading-none"
+              style={{
+                left: x * 16,
+                top: y * 16,
+                width: 16,
+                height: 16,
+                fontSize: 4.5,
+                boxShadow: 'inset 0 0 0 0.25px rgba(15,23,42,0.6)',
+                background: ledge ? 'rgba(245,158,11,0.6)' : !area ? 'rgba(220,38,38,0.4)' : inGrass(route, { x, y }) ? 'rgba(34,197,94,0.4)' : onIce(route, { x, y }) ? 'rgba(34,211,238,0.3)' : route.travel !== 'surf' ? undefined : onWater(route, { x, y }) ? 'rgba(59,130,246,0.2)' : 'rgba(210,180,140,0.3)',
+                color: '#0f172a',
+              }}
+            >
+              {ledge ? <span className="font-sans font-bold" style={{ fontSize: 9 }}>{LEDGE_ARROWS[ledge]}</span> : `${x},${y}`}
+            </div>
+          );
+        }),
       )}
       {route.spots.map((s, i) => (
         <div
@@ -136,7 +155,8 @@ export function Exclamation({ tile }: { tile: RouteSpot }) {
  * A FireRed overworld sprite standing on a tile (its feet on the tile, its head on the one above), facing a way, in map
  * pixels; lower on the map is in front, as in the game. `frame` shows another frame of its strip (a walking one), `moveMs`
  * slides it to a new tile over that long (a step), and `hidden` fades it out. `grass`: on a tile of tall grass, its
- * bottom (GRASS_HIDES) fades out (GRASS_MASK), so the grass drawn on the map shows there instead, as in the games (agreed with the user).
+ * bottom (GRASS_HIDES) fades out (GRASS_MASK), so the grass drawn on the map shows there instead, as in the games (agreed with the user);
+ * stepping or jumping into it, only once it's there (`moveMs` later, the user's), stepping out of it, at once.
  */
 export function OverworldSprite({
   name,
@@ -150,6 +170,7 @@ export function OverworldSprite({
   fadeMs = FADE_MS,
   hidden = false,
   grass = false,
+  jump,
 }: {
   name: string;
   tile: RouteSpot;
@@ -164,13 +185,35 @@ export function OverworldSprite({
   fadeMs?: number;
   hidden?: boolean;
   grass?: boolean;
+  /** Jumping a ledge: it rises and falls along JUMP_Y over the jump's time (as it slides to the landing tile, `moveMs`). */
+  jump?: Jump;
 }) {
+  const el = useRef<HTMLDivElement>(null);
+  const flip = mirrored(name, face) ? 'scaleX(-1) ' : '';
+  useEffect(() => {
+    if (!jump || !el.current || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    el.current.animate(
+      JUMP_Y.map((y, i) => ({ transform: `${flip}translateY(${y}px)`, offset: i / (JUMP_Y.length - 1) })),
+      { duration: jump.ms, easing: 'linear' },
+    );
+    // Each jump once (its stamp).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jump?.stamp]);
   const w = spriteWidth(name);
   // An item ball stays whole (it lies in the grass, one tile tall).
   const inGrass = grass && !isItemBall(name);
+  const [sunk, setSunk] = useState(inGrass);
+  useEffect(() => {
+    if (!inGrass || !moveMs) return setSunk(inGrass);
+    const timer = window.setTimeout(() => setSunk(true), moveMs);
+    return () => window.clearTimeout(timer);
+    // Only on going into or out of the grass (the move's time is the one it starts with).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inGrass]);
   const frame = walkTick !== undefined ? walkFrame(name, face, walkTick) : bob && bobs(name) ? bobFrame(name, face) : standFrame(name, face);
   return (
     <div
+      ref={el}
       title={title}
       className={`absolute [image-rendering:pixelated] ${faded ? 'opacity-50' : ''}`}
       style={{
@@ -184,9 +227,51 @@ export function OverworldSprite({
         backgroundSize: `${w * stripFrames(name)}px 32px`,
         backgroundPosition: `${-frame * w}px 0`,
         transform: mirrored(name, face) ? 'scaleX(-1)' : undefined,
-        ...(inGrass && GRASS_MASK),
+        ...(inGrass && sunk && GRASS_MASK),
         zIndex: tile.y,
       }}
+    />
+  );
+}
+
+/**
+ * The shadow under a sprite jumping a ledge (FireRed's, `shadow.png`: 16x8, its bottom at the sprite's feet), on the ground
+ * while the sprite rises over it; there only while it jumps (`shown`), following the sprite's tile (`moveMs`).
+ */
+export function JumpShadow({ tile, shown, moveMs }: { tile: RouteSpot; shown: boolean; moveMs: number }) {
+  return (
+    <div
+      className="pointer-events-none absolute [image-rendering:pixelated]"
+      style={{
+        left: tile.x * 16,
+        top: tile.y * 16 + 8,
+        width: 16,
+        height: 8,
+        backgroundImage: 'url(/overworld/shadow.png)',
+        opacity: shown ? 1 : 0,
+        transition: `left ${moveMs}ms linear, top ${moveMs}ms linear`,
+        // Under the sprite on its row (sprites are drawn at their row).
+        zIndex: tile.y - 1,
+      }}
+    />
+  );
+}
+
+/** How long each of the landing dust's 3 frames shows (FireRed's: 8 of its 60 frames a second). */
+const DUST_FRAME_MS = 133;
+
+/** The dust where a ledge jump lands (FireRed's ground impact dust, `jump_dust.png`: 3 frames of 16x8, stacked), played once. */
+export function JumpDust({ tile }: { tile: RouteSpot }) {
+  const [frame, setFrame] = useState(0);
+  useEffect(() => {
+    const timers = [1, 2, 3].map((f) => window.setTimeout(() => setFrame(f), f * DUST_FRAME_MS));
+    return () => timers.forEach((t) => window.clearTimeout(t));
+  }, []);
+  if (frame > 2) return null;
+  return (
+    <div
+      className="pointer-events-none absolute [image-rendering:pixelated]"
+      style={{ left: tile.x * 16, top: tile.y * 16 + 8, width: 16, height: 8, backgroundImage: 'url(/overworld/jump_dust.png)', backgroundPosition: `0 ${-frame * 8}px`, zIndex: tile.y + 1 }}
     />
   );
 }
