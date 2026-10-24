@@ -113,7 +113,7 @@ function RunSummary() {
 
 /**
  * The open menu's sections under the pages, set apart by a margin and a line: during a run its numbers
- * (RunStats: HP and EXP, ₱, items in effect, badges; the bank, EXP and Stardust are in the top bar, the Bag on the run screen), then the logs, with a tab each for the run's log (during a run)
+ * (RunStats: only HP and EXP, and ₱; the bank, EXP and Stardust are in the top bar, the Bag on the run screen), then the logs, with a tab each for the run's log (during a run)
  * and the battle's (while a game is on screen, useGameLogInNav), and with the debug tools enabled (never in production) a
  * Debug tab for that game (DebugPanel). The run's section is as tall as its numbers and the logs start right under it
  * (the user's; it was dragged to a height before), filling the rest, down to the menu's bottom; the log tab is
