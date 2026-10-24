@@ -81,9 +81,6 @@ const bossRun = <Id extends BossId>(type: Omit<RunType, 'routes' | 'segments'> &
   routes: bossMaps(type.segments, rooms, center),
 });
 
-/** A run of bosses back to back (the Gym Challenge and Champion runs): its maps are its segments' (bossMaps). */
-const bossRun = (type: Omit<RunType, 'routes'>, rooms?: Record<string, Route>, center?: Route): RunType => ({ ...type, routes: bossMaps(type.segments, rooms, center) });
-
 /** A Gym Challenge (agreed with the user): the eight gym leaders back to back, no Gym Trainers, a Pokémon Center after the fourth. */
 const gymChallenge = <Id extends BossId>(gyms: Id[]): RunSegment<Id>[] => [
   { steps: 0, bosses: gyms.slice(0, 4), gymTrainers: false },
