@@ -14,6 +14,7 @@ import AudioPlayer from 'react-h5-audio-player';
 import 'react-h5-audio-player/lib/styles.css';
 import { registerSetting, saveSetting } from '../utils/accountSettings';
 import { duration, groupByGame, MUSIC_GENERATIONS, playlist, type GenFilter, type Track } from '../utils/music';
+import { ICON_BUTTON } from '../utils/styles';
 
 /** localStorage key for the player's settings and the last track. */
 const PREFS_KEY = 'poke-tcg.music';
@@ -67,7 +68,7 @@ function savePrefs(prefs: MusicPrefs) {
   }
 }
 
-const iconButton = 'flex h-7 w-7 shrink-0 items-center justify-center rounded text-slate-400 transition hover:bg-slate-700 hover:text-slate-100';
+const iconButton = `${ICON_BUTTON} shrink-0`;
 
 /** Three bars bouncing up and down (`.playing-bars` in index.css), beside the song playing in the list. */
 const PlayingBars = () => (

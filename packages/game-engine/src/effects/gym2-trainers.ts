@@ -8,14 +8,14 @@
 // (revealFaceDown) when it's attacked, evolved, retreated, or clicked by its owner; it has no attacks while face down.
 // Misty's Wish: the CPU declines. Sabrina's Psychic Control's card stays in the hand until it's played or the turn ends.
 import { isBasicEnergy, isBasicPokemon, isPokemonCard, lookupCard, type PokemonCardDef } from '../cards.js';
-import type { CardInstance, InPlayPokemon, PlayerState } from '../engine.js';
-import { trainerProof } from '../powers.js';
+import { newInPlay, type CardInstance, type InPlayPokemon, type PlayerState } from '../engine.js';
+import { pokemonAt, trainerProof } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { addLog, openBenchSlot, pokemonName } from '../status.js';
 import { controllable, otherHandCards, saffronTargets, targetsOf, type TrainerContext, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 
 const names = (ctx: TrainerContext, cards: CardInstance[]) => cards.map((c) => lookupCard(ctx.state.cards, c.defId).name).join(', ');
-const at = (side: Pick<PlayerState, 'active' | 'bench'>, t: 'active' | number) => (t === 'active' ? side.active : side.bench[t])!;
+const at = (side: Pick<PlayerState, 'active' | 'bench'>, t: 'active' | number) => pokemonAt(side, t)!;
 
 /** The player's Pokémon in play with `owner` in their names (and, if given, matching `also`). */
 const owners = (s: TrainerSituation, owner: string, also: (p: InPlayPokemon) => boolean = () => true) =>
@@ -224,7 +224,7 @@ export const GYM2_TRAINERS: Record<string, TrainerEffect> = {
       ctx.log(`Discarded ${names(ctx, energy)}.`);
       const card = ctx.me.discard.find((c) => c.uid === ctx.choices.discardUids![0])!;
       ctx.me.discard = ctx.me.discard.filter((c) => c !== card);
-      ctx.me.bench[openBenchSlot(ctx.me.bench, ctx.state.cards, ctx.state.stadium?.card)] = { card, evolvedFrom: [], damage: 0, energy: [], playedTurn: ctx.turn };
+      ctx.me.bench[openBenchSlot(ctx.me.bench, ctx.state.cards, ctx.state.stadium?.card)] = newInPlay(card, ctx.turn);
       ctx.log(`Put ${names(ctx, [card])} onto the Bench.`);
     },
   },

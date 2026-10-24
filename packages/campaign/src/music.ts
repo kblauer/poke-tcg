@@ -4,9 +4,8 @@
 // choice, read from the pret decompilations' map data (pokered, pokefirered, pokecrystal, pokeheartgold, pokeemerald):
 // Emerald's maps play Ruby & Sapphire's songs, and Omega Ruby & Alpha Sapphire keeps their places.
 
-import type { BattleKind, EncounterKind } from './run.js';
-import { RUN_TYPE_IDS, runBosses, runType, type RunType } from './run-types.js';
-import type { Route } from './routes.js';
+import { isBattleKind, type BattleKind, type EncounterKind } from './run.js';
+import { routeAt, RUN_TYPE_IDS, runBosses, runType } from './run-types.js';
 
 export type Soundtrack = 'original' | 'remastered';
 export const SOUNDTRACKS: Soundtrack[] = ['original', 'remastered'];
@@ -173,16 +172,6 @@ const song = (music: RegionMusic, title: string): Song => ({ game: music.game, t
 /** How many steps before the gym the town theme takes over from the route's. */
 export const TOWN_STEPS = 3;
 
-/** The route map a step of a gym run is on (as RouteView shows it: each map's spots in turn, the gym's after them all). */
-export function routeAt(type: RunType, position: number): Route | null {
-  let counted = 0;
-  for (const map of type.routes ?? []) {
-    counted += map.spots.length;
-    if (position < counted) return map;
-  }
-  return type.routes?.at(-1) ?? null;
-}
-
 /** What the music needs of a run: its view (or state) is enough. */
 export interface RunMusicView {
   type: string;
@@ -202,7 +191,7 @@ export function runMusic(view: RunMusicView, soundtrack: Soundtrack): MusicCue {
   const type = runType(view.type);
   const music = regionMusic(type.generation, soundtrack);
   const encounter = view.encounter;
-  if (encounter?.gameId && isBattle(encounter.kind)) return battleMusic(type.generation, soundtrack, encounter.kind, encounter.gameId);
+  if (encounter?.gameId && isBattleKind(encounter.kind)) return battleMusic(type.generation, soundtrack, encounter.kind, encounter.gameId);
   const cue = (key: string, title: string): MusicCue => ({ key: `${music.game}:${key}`, songs: [song(music, title)], seed: key });
   if (encounter?.kind === 'center') return cue('center', music.center);
   const position = Math.min(view.position, view.steps.length - 1);
@@ -213,15 +202,14 @@ export function runMusic(view: RunMusicView, soundtrack: Soundtrack): MusicCue {
   const gymAt = view.steps.findIndex((s) => s.options.some((o) => o.kind === 'gymTrainer' || o.kind === 'gymLeader'));
   const town = music.towns[type.id];
   if (town && gymAt >= 0 && gymAt - position <= TOWN_STEPS) return cue(`town:${type.id}`, town);
-  const route = routeAt(type, position);
+  // The step's route map (as RouteView shows it: each map's spots in turn), or the last one past them all (the gym's steps).
+  const route = routeAt(type, position)?.route ?? type.routes?.at(-1) ?? null;
   if (route?.travel === 'bike') return cue('bike', music.bike);
   // Sootopolis City is surfed, but keeps its own theme.
   if (route?.travel === 'surf' && route.name !== 'Sootopolis City') return cue('surf', music.surf);
   const title = route && music.routes[route.name];
   return title ? cue(`route:${title}`, title) : cue('town', town ?? music.center);
 }
-
-const isBattle = (kind: string): kind is BattleKind => ['battle', 'elite', 'gymTrainer', 'gymLeader', 'eliteFour', 'champion'].includes(kind);
 
 /** A battle's themes: a trainer's (one of them, picked by the game's id), a gym leader's, the Elite Four's or the Champion's. */
 export function battleMusic(gen: number, soundtrack: Soundtrack, kind: BattleKind, gameId: string): MusicCue {

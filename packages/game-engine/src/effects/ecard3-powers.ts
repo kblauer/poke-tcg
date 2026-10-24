@@ -13,21 +13,13 @@
 // the older Pokémon Powers, both players', as Dark Impact does.
 import { isBasicEnergy, lookupCard, type EnergyType } from '../cards.js';
 import { afflictionBlocked, evolvesOnto, isEnergyCardOf, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
-import { ownTargets, pokemonAt, powerActive, type PowerChoiceSpec, type PowerContext, type PowerEffect, type PowerSituation } from '../powers.js';
-import { addLog, effectId, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
+import { ownTargets, pokemonAt, powerActive, type PowerChoiceSpec, type PowerContext, type PowerEffect } from '../powers.js';
+import { addLog, clearSpecialConditions, effectId, hasSpecialCondition, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { isPokemonCard, type PokemonCardDef } from '../cards.js';
 import type { GameState } from '../engine.js';
+import { energyCards, onlyActive, onlyBenched, POKE_BODY } from './common.js';
 import { afflict, crystalType, pureBody } from './ecard2-powers.js';
 import { powerEffect } from './index.js';
-
-/** A Poké-Body: always on, whatever its Pokémon's Special Conditions. */
-const POKE_BODY = { ignoresConditions: true, body: true } as const;
-
-const onlyActive = (s: PowerSituation, name: string) => (s.source === 'active' ? null : `${name} must be your Active Pokémon`);
-const onlyBenched = (s: PowerSituation, name: string) => (s.source !== 'active' ? null : `${name} must be on your Bench`);
-
-/** Energy cards attached to a Pokémon (not a Pokémon attached as Energy). */
-const energyCards = (p: InPlayPokemon) => p.energy.filter((e) => !e.provides);
 
 /** The other player in a game. */
 const opponentOf = (state: GameState, owner: PlayerState) => state.playerOrder.map((id) => state.players[id]!).find((p) => p !== owner)!;
@@ -55,11 +47,8 @@ function inflictOn(state: GameState, owner: PlayerState, p: InPlayPokemon, condi
 const selfHealing = (type: EnergyType): PowerEffect => ({
   ...POKE_BODY,
   onEnergyFromHand(state, owner, pokemon, _target, energy) {
-    if (!isEnergyCardOf(energy, state.cards, type) || (!pokemon.condition && !pokemon.poison && !pokemon.burned)) return;
-    pokemon.condition = null;
-    pokemon.poison = 0;
-    pokemon.burned = false;
-    delete pokemon.paralyzedTurn;
+    if (!isEnergyCardOf(energy, state.cards, type) || !hasSpecialCondition(pokemon)) return;
+    clearSpecialConditions(pokemon);
     addLog(state, `Self-healing: ${pokemonName(state, pokemon)} is no longer affected by Special Conditions.`, owner.id);
   },
 });

@@ -14,7 +14,7 @@ import { afflictBetweenTurns, afflictionBlocked, energyPool, isEnergyCardOf, typ
 import { powerEffect } from './index.js';
 import { conditionFree, ownTargets, pokemonAt, powerActive, type PowerEffect } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { addLog, effectId, inPlayDef, pokemonName } from '../status.js';
+import { addLog, clearSpecialConditions, effectId, inPlayDef, pokemonName } from '../status.js';
 import { BASE1_POWERS } from './base1-powers.js';
 import { roughSkin } from './ex1-powers.js';
 import { babyEvolution, EX2_POWERS, freeRetreat, POKE_BODY } from './ex2-powers.js';
@@ -47,8 +47,7 @@ const saturation = (counters: number): PowerEffect => ({
   ...POKE_BODY,
   onEnergyFromHand(state, owner, pokemon, _target, energy) {
     if (!isEnergyCardOf(energy, state.cards, 'water')) return;
-    Object.assign(pokemon, { condition: null, poison: 0, burned: false });
-    delete pokemon.paralyzedTurn;
+    clearSpecialConditions(pokemon);
     const healed = Math.min(10 * counters, pokemon.damage);
     pokemon.damage -= healed;
     addLog(state, `Saturation: ${pokemonName(state, pokemon)} has no Special Conditions${healed ? ` and ${healed / 10} fewer damage counters` : ''}.`, owner.id);

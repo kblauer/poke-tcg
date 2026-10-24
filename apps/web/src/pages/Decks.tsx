@@ -22,8 +22,7 @@ import { isVersion, setGroups, type CatalogCard } from '../utils/cardList';
 import { EMPTY_DECK_FILTER, LOCKED_DECK_PROBLEM, cantAdd, changeCount, deckSize, filterForDeck, hasLockedCards, lockedWarning, problemsOf, sortForDeck, type DeckEntry, type DeckFilter, type DeckSort } from '../utils/deckBuilder';
 import { preloadHolos } from '../utils/holoPreload';
 import { PAGE_WIDTH } from '../utils/layout';
-
-const button = 'rounded px-3 py-1 text-sm disabled:opacity-40';
+import { PAGE_BUTTON as button } from '../utils/styles';
 
 /** localStorage: the decks pane's width on a big screen, in px (dragged by its handle; agreed 2026-10-23). */
 const PANE_KEY = 'poke-tcg.deck-pane';

@@ -6,7 +6,7 @@
 // Weakness, Resistance or anything else. Rapid Evolution has no evolution limits (only effects that stop
 // evolution, like Prehistoric Power, block it). Vanish can be used with no benched Pokémon (with none left in
 // play, its player loses). Dark Magneton is Sonicboom (CC) 20 and Magnetic Lines (LL) 30 (TCGdex has both prints wrong).
-import { targetsIn, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
+import type { AttackContext, AttackEffect, AttackSituation, ChoiceSpec } from '../attacks.js';
 import { isBasicEnergy, lookupCard, type EnergyType } from '../cards.js';
 import { activeLocked, isEnergyCardOf, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { evolutionBlocked } from '../powers.js';
@@ -15,6 +15,7 @@ import { inPlayDef, pokemonName } from '../status.js';
 import { BASE1 } from './base1.js';
 import {
   benchedSlots,
+  damageOpponent,
   discardDefenderEnergy,
   discardToUse,
   energyCanMove,
@@ -23,6 +24,7 @@ import {
   inflicts,
   opponentBenchChoice,
   opponentSwitches,
+  opponentTargets,
   perHeads,
 } from './common.js';
 import { flipForMore, rage } from './jungle.js';
@@ -34,14 +36,6 @@ export const flipOrNothing = (damage: number): AttackEffect => ({
     else ctx.log('The attack did nothing.');
   },
 });
-
-/** Damage to one of the opponent's Pokémon in play, without Weakness and Resistance. */
-function damageOpponent(ctx: AttackContext, target: Target, amount: number) {
-  if (target === 'active') ctx.hit(amount, { weakness: false });
-  else ctx.damageBenched(ctx.opp, target, amount);
-}
-
-const opponentTargets = (s: AttackSituation, prompt: string): ChoiceSpec[] => [{ kind: 'opponentPokemon', options: targetsIn(s.defender, s.opponentBench), prompt }];
 
 /** Choose 1 of the opponent's Pokémon: `damage` to it, without Weakness and Resistance (Flitter, Dig Under). */
 const anyOpponent = (damage: number): AttackEffect => ({

@@ -1,6 +1,7 @@
 import type { GameAction } from '@poke-tcg/game-engine';
 import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useEscape } from '../hooks/useEscape';
 import { registerSetting, saveSetting } from '../utils/accountSettings';
 
 /** Something the player could still do this turn, which End turn reminds them of first. */
@@ -80,12 +81,7 @@ export function useTurnReminders(reminders: EndTurnReminder[], active: boolean):
   useEffect(() => {
     if (!active) setAsking(null);
   }, [active]);
-  useEffect(() => {
-    if (!asking) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setAsking(null);
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [asking]);
+  useEscape(() => setAsking(null), !!asking);
 
   const check = (move: 'end' | 'attack', go: () => void) => {
     const open = reminders.filter((r) => !reminderOff(r.kind));

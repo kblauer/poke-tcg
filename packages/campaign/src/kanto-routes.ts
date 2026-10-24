@@ -5,15 +5,10 @@
 // stands (the player beside them, on the side they face), the leader in their place (the player below them), and the Gym
 // Guy where there is one. Walking connections the map data doesn't show (a gym's puzzle, a gatehouse) come from the user,
 // as `links` or walkable tiles.
-import { leaderRoom, PEWTER_GYM, type Route } from './routes.js';
+import { leaderRoom, PEWTER_GYM, SWIMMERS, type Route } from './routes.js';
 
 /** The trainers met on Route 17, the Cycling Road (most of its battles): Bikers. */
 export const BIKERS = ['Biker Jaren', 'Biker Ricardo', 'Biker Jared', 'Biker Malik', 'Biker Isaac', 'Biker Gerald', 'Biker Lukas', 'Biker Ernest', 'Biker Alex', 'Biker Hideo'];
-/** The trainers met in Route 20's water: Swimmers, men and women (overworld.ts gives the women their own sprite). */
-export const SWIMMERS = [
-  'Swimmer Luis', 'Swimmer Richard', 'Swimmer Reece', 'Swimmer Matthew', 'Swimmer Douglas', 'Swimmer David', 'Swimmer Tony', 'Swimmer Barry',
-  'Swimmer Shirley', 'Swimmer Tiffany', 'Swimmer Nora', 'Swimmer Melissa', 'Swimmer Anya', 'Swimmer Alice', 'Swimmer Connie',
-];
 /** The trainers met in the Power Plant (most of its battles): Team Rocket Grunts, men and women, of any type (trainerFavorites). */
 export const ROCKET_GRUNTS = ['Rocket Grunt Boris', 'Rocket Grunt Dirk', 'Rocket Grunt Hank', 'Rocket Grunt Vince', 'Rocket Grunt Rex', 'Rocket Grunt Mara', 'Rocket Grunt Lena', 'Rocket Grunt Tess', 'Rocket Grunt Rhea'];
 

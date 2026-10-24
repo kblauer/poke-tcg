@@ -1,6 +1,8 @@
 import CloseIcon from '@mui/icons-material/Close';
 import { TRAINER_SPRITES, trainerSpriteUrl, type TrainerSprite } from '@poke-tcg/shared';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useEscape } from '../hooks/useEscape';
+import { DIALOG, DIALOG_BACKDROP } from '../utils/styles';
 
 /** A sprite's name for the screen: "acetrainer-gen4dp" → "acetrainer gen4dp". */
 export const spriteLabel = (name: string) => name.replace(/-/g, ' ');
@@ -15,17 +17,13 @@ export function TrainerSpritePicker({ current, onPick, onClose }: { current: str
     const q = query.trim().toLowerCase().replace(/\s+/g, '-');
     return q ? TRAINER_SPRITES.filter((s) => s.includes(q)) : TRAINER_SPRITES;
   }, [query]);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  useEscape(onClose);
   return (
-    <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className={`${DIALOG_BACKDROP} z-[1100]`} onClick={onClose}>
       <section
         role="dialog"
         aria-label="Choose your trainer"
-        className="flex h-[min(46rem,calc(100vh-2rem))] w-full max-w-5xl flex-col gap-3 rounded-lg bg-slate-800 p-5 shadow-xl ring-1 ring-slate-600"
+        className={`${DIALOG} flex h-[min(46rem,calc(100vh-2rem))] w-full max-w-5xl flex-col gap-3 p-5 shadow-xl`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3">

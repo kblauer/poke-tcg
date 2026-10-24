@@ -3,7 +3,8 @@ import CloseIcon from '@mui/icons-material/Close';
 import RemoveIcon from '@mui/icons-material/Remove';
 import StarIcon from '@mui/icons-material/Star';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
+import { useEscape } from '../hooks/useEscape';
 import { useScrollLock } from '../hooks/useScrollLock';
 import type { CatalogCard } from '../utils/cardList';
 import { CardViewer } from './CardViewer';
@@ -47,11 +48,7 @@ export function CardInspector({
   const pressed = useRef(false);
   const overlay = useRef<HTMLDivElement>(null);
   useScrollLock(true, overlay);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  useEscape(onClose);
   return (
     <div
       // Above everything, the game's dialogs and hover preview included; clicks in it don't cancel a move in progress.

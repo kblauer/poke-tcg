@@ -20,3 +20,24 @@ export const PAGE_WIDTH = 'px-4 lg:px-8';
 
 /** Undoes PAGE_WIDTH's margins, for something that spans the page's full width (the hand). */
 export const PAGE_BLEED = '-mx-4 lg:-mx-8';
+
+// Card thumbnails off the board, at a card's 63:88 proportions, from the largest down: the sizes don't scale.
+
+/** A Community Decks tile's featured Pokémon. */
+export const CARD_THUMB_XL = 'h-[9.375rem] w-[6.72rem]';
+
+/** A deck tile's featured Pokémon, and the current deck's card back and coin. */
+export const CARD_THUMB_LG = 'h-[4.2rem] w-[3rem]';
+
+/** A deck summary's featured Pokémon (the Practice and run deck choices). */
+export const CARD_THUMB_MD = 'h-14 w-10';
+
+/** A compact deck tile's first Pokémon (the Cosmetics tab's Assign list). */
+export const CARD_THUMB_SM = 'h-[2.8rem] w-[2rem]';
+
+/** A card in a deck's card list (the deck builder's deck, a community deck's cards). */
+export const CARD_THUMB_XS = 'h-9 w-[1.6rem]';
+
+/** A run's card (RunCard: rewards, shops, the cards unlocked this run), and its `fluid` version that shrinks to share a phone's row. */
+export const RUN_CARD = 'w-28';
+export const RUN_CARD_FLUID = 'w-full max-w-28';

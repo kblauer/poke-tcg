@@ -8,19 +8,19 @@ import { useEffect, useMemo, useState } from 'react';
 import { CardImage } from '../components/CardImage';
 import { DeckSummary } from '../components/DeckList';
 import { GenerationFilter } from '../components/packs/GenerationFilter';
-import { AccountNameField } from '../components/AccountMenu';
+import { AccountNameField } from '../components/AccountNameField';
 import { CopyButton } from '../components/DeckShare';
 import { useInspectOnRightClick } from '../components/InspectContext';
+import { useEscape } from '../hooks/useEscape';
 import { useUnlocked } from '../hooks/useUnlocked';
 import { useTRPC } from '../lib/trpc';
 import { cardTitle, foldText, type CatalogCard } from '../utils/cardList';
 import { DECK_SECTIONS, allGenerations, deckInGenerations, featuredPokemon, generationsOf, withCards } from '../utils/deckBuilder';
 import { PageHeader } from '../components/PageHeader';
-import { PAGE_WIDTH } from '../utils/layout';
+import { CARD_THUMB_XS, PAGE_WIDTH } from '../utils/layout';
+import { PAGE_BUTTON as button } from '../utils/styles';
 
 type CommunityDeck = inferRouterOutputs<AppRouter>['community']['list'][number];
-
-const button = 'rounded px-3 py-1 text-sm disabled:opacity-40';
 
 /**
  * Community Decks (`/community`): decks players have published (Share on the Collection tab), the latest first, for
@@ -47,14 +47,10 @@ export function CommunityPage() {
   useEffect(() => {
     if (!focused) return;
     const away = (e: PointerEvent) => !(e.target as Element).closest?.('[data-community-tile], [role=dialog]') && setFocused(null);
-    const escape = (e: KeyboardEvent) => e.key === 'Escape' && setFocused(null);
     document.addEventListener('pointerdown', away);
-    document.addEventListener('keydown', escape);
-    return () => {
-      document.removeEventListener('pointerdown', away);
-      document.removeEventListener('keydown', escape);
-    };
+    return () => document.removeEventListener('pointerdown', away);
   }, [focused]);
+  useEscape(() => setFocused(null), !!focused);
 
   const error = decks.error?.message ?? catalog.error?.message;
   if (error) return <p className={`${PAGE_WIDTH} text-red-400`}>{error}</p>;
@@ -228,9 +224,9 @@ function CardList({ cards, isLocked }: { cards: ReturnType<typeof withCards>; is
               {section.map(({ card, quantity }) => (
                 <li key={card.id} className={`flex items-center gap-2 ${isLocked(card) ? 'opacity-50' : ''}`} {...inspectOn(card)}>
                   {card.imageUrl ? (
-                    <CardImage src={`${card.imageUrl}/low.webp`} alt="" loading="lazy" className="h-9 w-[1.6rem] shrink-0 rounded-sm object-cover" />
+                    <CardImage src={`${card.imageUrl}/low.webp`} alt="" loading="lazy" className={`${CARD_THUMB_XS} shrink-0 rounded-sm object-cover`} />
                   ) : (
-                    <div className="h-9 w-[1.6rem] shrink-0 rounded-sm bg-slate-800" />
+                    <div className={`${CARD_THUMB_XS} shrink-0 rounded-sm bg-slate-800`} />
                   )}
                   <span className="w-5 shrink-0 text-right tabular-nums">{quantity}×</span>
                   <span className="min-w-0 flex-1 truncate">

@@ -13,11 +13,11 @@
 // 20 damage gets Weakness and Resistance, as Fire Wall's does. Charm lowers every attack damage the Defending Pokémon does.
 import { pokemonOn, targetsIn, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
 import { hasType, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard } from '../cards.js';
-import { energyPool, isEnergyCardOf, isSpecialEnergy, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
+import { energyPool, isEnergyCardOf, isSpecialEnergy, newInPlay, type CardInstance, type PlayerState, type Target } from '../engine.js';
 import { shuffle } from '../rng.js';
 import { clearOnLeavingActive, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { pokemonTower } from '../trainers.js';
-import { benchTarget, discardToUse, flipToInflict, flipToProtect, headsUntilTails, inflicts, opponentBenchChoice, opponentSwitches, perHeads, recoil } from './common.js';
+import { benchTarget, discardToUse, energyCards, flipToInflict, flipToProtect, headsUntilTails, inflicts, opponentBenchChoice, opponentSwitches, perHeads, recoil } from './common.js';
 import { smokescreen } from './fossil.js';
 import { discardFromAttacker, healEach, noRetreat } from './gym1.js';
 import { discardStadium } from './gym2.js';
@@ -75,9 +75,6 @@ const evolvedOpponents = (s: AttackSituation) => targetsIn(s.defender, s.opponen
 
 /** Basic or Baby Pokémon cards in a discard pile (Call Back, Guiding Flame). */
 const basicsIn = (s: Pick<AttackSituation, 'cards'>, pile: CardInstance[] = []) => pile.filter((c) => isBasicPokemon(lookupCard(s.cards, c.defId)));
-
-/** Energy cards (not a Pokémon attached as Energy) on a Pokémon. */
-const energyCards = (p: InPlayPokemon) => p.energy.filter((e) => !e.provides);
 
 /** The player's (`me`) Pokémon names in play (Evolution Song: what may evolve). */
 const namesInPlay = (ctx: AttackContext, player: PlayerState) => [...new Set([player.active, ...player.bench].flatMap((p) => (p ? [lookupCard(ctx.state.cards, p.card.defId).name] : [])))];
@@ -680,7 +677,7 @@ export const NEO4: Record<string, Record<string, AttackEffect>> = {
         const slot = openBenchSlot(ctx.me.bench, ctx.state.cards, ctx.state.stadium?.card);
         if (!card || slot < 0 || !discardFree(ctx)) return;
         ctx.me.discard = ctx.me.discard.filter((c) => c !== card);
-        ctx.me.bench[slot] = { card, evolvedFrom: [], damage: 0, energy: [], playedTurn: ctx.turn };
+        ctx.me.bench[slot] = newInPlay(card, ctx.turn);
         ctx.log(`Put ${lookupCard(ctx.state.cards, card.defId).name} onto the Bench.`);
       },
     },

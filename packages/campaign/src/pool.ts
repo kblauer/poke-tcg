@@ -26,8 +26,8 @@ export const EX_SETS = ['ex1', 'ex2', 'ex3', 'ex4', 'ex5', 'ex6', 'ex7', 'ex8', 
 export const GEN3_SETS = EX_SETS;
 export const GEN3_DONE_SETS = EX_SETS;
 
-/** The Gen 2 sets whose card effects the engine has: Gen 2 runs take only the cards it plays fully from these. */
-export const GEN2_DONE_SETS = ['neo1', 'neo2', 'si1', 'neo3', 'neo4', 'ecard1', 'ecard2', 'ecard3'];
+/** The Gen 2 sets whose card effects the engine has (every one of them now): Gen 2 runs take only the cards it plays fully from these. */
+export const GEN2_DONE_SETS = GEN2_SETS;
 
 /** Basic Energy card ids (Base Set printings) by type, and Double Colorless Energy: Gen 1's. */
 export const BASIC_ENERGY: Partial<Record<EnergyType, string>> = {

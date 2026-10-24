@@ -75,6 +75,9 @@ const gymRun = (id: BossId, city: string, generation: number, place = 'City', ma
 const bossMaps = (segments: RunSegment[], rooms: Record<string, Route> = KANTO_BOSS_ROOMS, center: Route = POKEMON_CENTER): Route[] =>
   segments.flatMap((s) => [...(s.center ? [center] : []), ...s.bosses.map((id) => rooms[id]!)]);
 
+/** A run of bosses back to back (the Gym Challenge and Champion runs): its maps are its segments' (bossMaps). */
+const bossRun = (type: Omit<RunType, 'routes'>, rooms?: Record<string, Route>, center?: Route): RunType => ({ ...type, routes: bossMaps(type.segments, rooms, center) });
+
 /** A Gym Challenge (agreed with the user): the eight gym leaders back to back, no Gym Trainers, a Pokémon Center after the fourth. */
 const gymChallenge = (gyms: BossId[]): RunSegment[] => [
   { steps: 0, bosses: gyms.slice(0, 4), gymTrainers: false },
@@ -96,24 +99,22 @@ export const RUN_TYPES = {
   cinnabar: gymRun('blaine', 'Cinnabar', 1, 'City', { routes: [ROUTE_20], gym: CINNABAR_GYM }),
   // The Power Plant, most trainers Team Rocket Grunts (agreed with the user).
   viridian: gymRun('giovanni', 'Viridian', 1, 'City', { routes: [POWER_PLANT], gym: VIRIDIAN_GYM }),
-  kantoGyms: {
+  kantoGyms: bossRun({
     id: 'kantoGyms',
     name: 'Kanto Gym Challenge',
     description: 'All eight Kanto gym leaders back to back, Brock to Giovanni, with a Pokémon Center after the fourth.',
     segments: gymChallenge(KANTO_GYMS),
     generation: 1,
     requires: 'badges',
-    routes: bossMaps(gymChallenge(KANTO_GYMS)),
-  },
-  kantoChampion: {
+  }),
+  kantoChampion: bossRun({
     id: 'kantoChampion',
     name: 'Kanto Champion',
     description: 'All eight Kanto gym leaders, the Elite Four and Champion Blue, back to back.',
     segments: [{ steps: 0, bosses: [...KANTO_GYMS, ...ELITE_FOUR, 'blue'], gymTrainers: false }],
     generation: 1,
     requires: 'gymChallenge',
-    routes: bossMaps([{ steps: 0, bosses: [...KANTO_GYMS, ...ELITE_FOUR, 'blue'], gymTrainers: false }]),
-  },
+  }),
   // Each Johto gym's route and interior, from HeartGold/SoulSilver (johto-routes.ts, johto-gyms.ts; agreed with the user): 10 encounters, then the gym.
   violet: gymRun('falkner', 'Violet', 2, 'City', { routes: [ROUTE_30], gym: VIOLET_GYM }),
   azalea: gymRun('bugsy', 'Azalea', 2, 'Town', { routes: [ROUTE_32], gym: AZALEA_GYM }),
@@ -124,24 +125,22 @@ export const RUN_TYPES = {
   olivine: gymRun('jasmine', 'Olivine', 2, 'City', { routes: [ROUTE_42, ROUTE_42_UPPER], gym: OLIVINE_GYM }),
   mahogany: gymRun('pryce', 'Mahogany', 2, 'Town', { routes: [ROUTE_44, ROUTE_44_UPPER], gym: MAHOGANY_GYM }),
   blackthorn: gymRun('clair', 'Blackthorn', 2, 'City', { routes: [ROUTE_45], gym: BLACKTHORN_GYM }),
-  johtoGyms: {
+  johtoGyms: bossRun({
     id: 'johtoGyms',
     name: 'Johto Gym Challenge',
     description: 'All eight Johto gym leaders back to back, Falkner to Clair, with a Pokémon Center after the fourth.',
     segments: gymChallenge(JOHTO_GYMS),
-    routes: bossMaps(gymChallenge(JOHTO_GYMS), JOHTO_BOSS_ROOMS, JOHTO_POKEMON_CENTER),
     generation: 2,
     requires: 'badges',
-  },
-  johtoChampion: {
+  }, JOHTO_BOSS_ROOMS, JOHTO_POKEMON_CENTER),
+  johtoChampion: bossRun({
     id: 'johtoChampion',
     name: 'Johto Champion',
     description: 'All eight Johto gym leaders, the Elite Four and Champion Lance, back to back.',
     segments: [{ steps: 0, bosses: [...JOHTO_GYMS, ...JOHTO_ELITE_FOUR, 'johto-lance'], gymTrainers: false }],
-    routes: bossMaps([{ steps: 0, bosses: [...JOHTO_GYMS, ...JOHTO_ELITE_FOUR, 'johto-lance'], gymTrainers: false }], JOHTO_BOSS_ROOMS, JOHTO_POKEMON_CENTER),
     generation: 2,
     requires: 'gymChallenge',
-  },
+  }, JOHTO_BOSS_ROOMS, JOHTO_POKEMON_CENTER),
   // Each Hoenn gym's map and interior, from Emerald (hoenn-routes.ts, hoenn-gyms.ts): 10 encounters, then the gym, in the
   // order Emerald visits them. Dewford's and Mossdeep's routes and Sootopolis are surfed, Route 110 ridden on a bike.
   rustboro: gymRun('roxanne', 'Rustboro', 3, 'City', { routes: [PETALBURG_WOODS], gym: RUSTBORO_GYM }),
@@ -152,28 +151,39 @@ export const RUN_TYPES = {
   fortree: gymRun('winona', 'Fortree', 3, 'City', { routes: [ROUTE_119], gym: FORTREE_GYM }),
   mossdeep: gymRun('tate-liza', 'Mossdeep', 3, 'City', { routes: [ROUTE_124], gym: MOSSDEEP_GYM }),
   sootopolis: gymRun('juan', 'Sootopolis', 3, 'City', { routes: [SOOTOPOLIS_CITY], gym: SOOTOPOLIS_GYM }),
-  hoennGyms: {
+  hoennGyms: bossRun({
     id: 'hoennGyms',
     name: 'Hoenn Gym Challenge',
     description: 'All eight Hoenn gym leaders back to back, Roxanne to Juan, with a Pokémon Center after the fourth.',
     segments: gymChallenge(HOENN_GYMS),
-    routes: bossMaps(gymChallenge(HOENN_GYMS), HOENN_BOSS_ROOMS, HOENN_POKEMON_CENTER),
     generation: 3,
     requires: 'badges',
-  },
-  hoennChampion: {
+  }, HOENN_BOSS_ROOMS, HOENN_POKEMON_CENTER),
+  hoennChampion: bossRun({
     id: 'hoennChampion',
     name: 'Hoenn Champion',
     description: 'All eight Hoenn gym leaders, the Elite Four and Champion Wallace, back to back.',
     segments: [{ steps: 0, bosses: [...HOENN_GYMS, ...HOENN_ELITE_FOUR, 'wallace'], gymTrainers: false }],
-    routes: bossMaps([{ steps: 0, bosses: [...HOENN_GYMS, ...HOENN_ELITE_FOUR, 'wallace'], gymTrainers: false }], HOENN_BOSS_ROOMS, HOENN_POKEMON_CENTER),
     generation: 3,
     requires: 'gymChallenge',
-  },
+  }, HOENN_BOSS_ROOMS, HOENN_POKEMON_CENTER),
 } satisfies Record<string, RunType>;
 
 export type RunTypeId = keyof typeof RUN_TYPES;
 export const RUN_TYPE_IDS = Object.keys(RUN_TYPES) as RunTypeId[];
+
+/**
+ * The route map encounter step `position` of a run type is on (each map's spots in turn), and the step's index among its
+ * spots; null past them all (the gym's steps, or a run with no routes).
+ */
+export function routeAt(type: Pick<RunType, 'routes'>, position: number): { route: Route; index: number } | null {
+  let first = 0;
+  for (const route of type.routes ?? []) {
+    if (position < first + route.spots.length) return { route, index: position - first };
+    first += route.spots.length;
+  }
+  return null;
+}
 
 /** The run a new account starts in. */
 export const FIRST_RUN: RunTypeId = 'celadon';

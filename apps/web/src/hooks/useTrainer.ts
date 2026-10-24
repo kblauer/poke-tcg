@@ -12,6 +12,7 @@ import {
 } from '@poke-tcg/game-engine';
 import { useEffect, useState } from 'react';
 import { isMyTurn } from '../utils/turn';
+import { useEscape } from './useEscape';
 
 /**
  * Playing a Trainer card: clicking it in the hand opens its questions (cards to discard, a target…)
@@ -37,11 +38,7 @@ export function useTrainer({ view, send, busy }: { view: PlayerView; send: (a: G
 
   const cancel = () => setPlaying(null);
   useEffect(cancel, [view.version]);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && cancel();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  useEscape(cancel);
 
   /** Chaos Gym, on the CPU's tails: the card it couldn't play, which the player may play now. */
   const pending = view.self.pendingChoice;

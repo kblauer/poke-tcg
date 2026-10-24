@@ -12,7 +12,7 @@
 import { lookupCard } from '../cards.js';
 import { afflictBetweenTurns, isEnergyCardOf, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { attachBlocked, discardsLocked, energyFromHand, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
-import { addLog, inPlayDef, pokemonName } from '../status.js';
+import { addLog, hasSpecialCondition, inPlayDef, pokemonName } from '../status.js';
 import { BASE1_POWERS } from './base1-powers.js';
 import { EX1_POWERS } from './ex1-powers.js';
 import { EX2_POWERS, freeRetreat, POKE_BODY } from './ex2-powers.js';
@@ -144,7 +144,7 @@ export const EX6_POWERS: Record<string, PowerEffect> = {
     blocked(s) {
       if (s.source === 'active') return 'Wigglytuff must be on your Bench';
       const a = s.me.active;
-      return a && (a.condition || a.poison || a.burned) ? null : 'Your Active Pokémon has no Special Conditions';
+      return a && hasSpecialCondition(a) ? null : 'Your Active Pokémon has no Special Conditions';
     },
     use(ctx) {
       const a = ctx.me.active!;

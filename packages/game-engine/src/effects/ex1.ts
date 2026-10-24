@@ -11,7 +11,7 @@ import { type AttackContext, type AttackEffect, type ChoiceSpec } from '../attac
 import { isBasicEnergy, lookupCard } from '../cards.js';
 import { energyPool, isEnergyCardOf, type InPlayPokemon } from '../engine.js';
 import { nextRandom } from '../rng.js';
-import { pokemonName } from '../status.js';
+import { clearSpecialConditions, pokemonName } from '../status.js';
 import { benchedSlots, benchTarget, discardToUse, extraEnergy, flipToInflict, flipToProtect, headsUntilTails, inflicts, opponentSwitches, perHeads, recoil, tailsSelfDamage } from './common.js';
 import { basicEnergyOn, typedCards } from './ecard1.js';
 import { smokescreen } from './fossil.js';
@@ -382,8 +382,7 @@ export const EX1: Record<string, Record<string, AttackEffect>> = {
   'ex1-48': {
     Rest: {
       run(ctx) {
-        Object.assign(ctx.attacker, { condition: null, poison: 0, burned: false });
-        delete ctx.attacker.paralyzedTurn;
+        clearSpecialConditions(ctx.attacker);
         healUpTo(ctx, ctx.me, ctx.attacker, 40);
         ctx.sleepSelf();
       },

@@ -15,6 +15,7 @@ import { discardsLocked, ownTargets, pokemonAt, type PowerEffect, type PowerSitu
 import { nextRandom } from '../rng.js';
 import { effectId, inPlayDef, isDelta, pokemonName } from '../status.js';
 import { powerEffect } from './index.js';
+import { targetOf } from './common.js';
 import { babyEvolution, POKE_BODY } from './ex2-powers.js';
 import { EX5_POWERS } from './ex5-powers.js';
 import { countersBetween, healBetween } from './ex6-powers.js';
@@ -25,9 +26,6 @@ const lightningInDiscard = (s: PowerSituation) => s.me.discard.filter((c) => isE
 
 /** The player's Pokémon with an Energy card attached (Energy Jump). */
 const withEnergy = (s: PowerSituation) => ownTargets(s.me).filter((t) => pokemonAt(s.me, t)!.energy.some((e) => !e.provides));
-
-/** Where the Pokémon is (for a choice about it). */
-const targetOf = (owner: { active: unknown; bench: unknown[] }, pokemon: unknown): Target => (owner.active === pokemon ? 'active' : owner.bench.indexOf(pokemon));
 
 /** "When you play this from your hand to evolve 1 of your Pokémon, you may …": a yes-or-no question about the power. */
 const onEvolveMay = (power: 'evoFlame' | 'evoThunder' | 'evoSwirl', source: string): PowerEffect => ({

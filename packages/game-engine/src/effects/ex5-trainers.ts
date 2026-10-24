@@ -10,7 +10,7 @@
 // more than 7 cards in the hand, this one included.
 import { hasOwner, lookupCard, type Attack } from '../cards.js';
 import { type Target } from '../engine.js';
-import { pokemonName } from '../status.js';
+import { clearSpecialConditions, pokemonName } from '../status.js';
 import { def, own, targetsOf, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 
 /** The player's Pokémon an Ancient Technical Machine can go on: Evolved Pokémon, not Pokémon-ex or an owner's. */
@@ -75,8 +75,7 @@ export const EX5_TRAINERS: Record<string, TrainerEffect> = {
       if (!ctx.flip()) return ctx.log('Life Herb did nothing.');
       const t = ctx.choices.target!;
       const p = (t === 'active' ? ctx.me.active : ctx.me.bench[t])!;
-      Object.assign(p, { condition: null, poison: 0, burned: false });
-      delete p.paralyzedTurn;
+      clearSpecialConditions(p);
       const healed = Math.min(60, p.damage);
       p.damage -= healed;
       ctx.log(`${pokemonName(ctx.state, p)} is no longer affected by Special Conditions and has ${healed / 10} fewer damage counters.`);

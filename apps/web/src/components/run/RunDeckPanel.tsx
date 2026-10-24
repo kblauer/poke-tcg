@@ -17,7 +17,7 @@ const GROUPS = [
  * grouped into Pokémon, Trainers and Energy. The deck itself is on the Collection tab. On a phone (useIsPhone) it starts
  * minimised to its title and count, with a button in its top right corner to open it.
  */
-export function DeckPanel({ view }: { view: RunViewData }) {
+export function RunDeckPanel({ view }: { view: RunViewData }) {
   const phone = useIsPhone();
   const [expanded, setExpanded] = useState(false);
   const open = !phone || expanded;

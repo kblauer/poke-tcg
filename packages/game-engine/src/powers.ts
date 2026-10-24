@@ -4,7 +4,7 @@ import type { AttackContext } from './attacks.js';
 import { hasType, holonEnergy, lookupCard, namesMatch, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { powerEffect } from './effects/index.js';
 import { counts, energyPool, type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
-import { addLog, effectId, flipCoin, hasSpecialCondition, isDelta, pokemonName, inPlayDef, specialConditionLabel } from './status.js';
+import { addLog, clearSpecialConditions, effectId, flipCoin, hasSpecialCondition, isDelta, pokemonName, inPlayDef, specialConditionLabel } from './status.js';
 import { evolvesFromEevee, type PendingChoice, type PendingChoiceInput } from './trainers.js';
 
 /** Answers to a power's questions. Each question names the field it fills. */
@@ -932,8 +932,7 @@ export function energyFromHand(state: GameState, owner: PlayerState, target: Tar
   const stadium = state.stadium && lookupCard(state.cards, state.stadium.card.defId).name;
   const caved = pokemon && ['water', 'fighting', 'metal'].some((t) => hasType(inPlayDef(state.cards, pokemon), t as EnergyType));
   if (pokemon && stadium === 'Island Cave' && caved && hasSpecialCondition(pokemon)) {
-    Object.assign(pokemon, { condition: null, poison: 0, burned: false });
-    delete pokemon.paralyzedTurn;
+    clearSpecialConditions(pokemon);
     addLog(state, `Island Cave: ${inPlayDef(state.cards, pokemon).name} is no longer affected by Special Conditions.`, owner.id);
   }
   // Conductivity: 10 damage to it, from the opponent's working Dark Ampharos.

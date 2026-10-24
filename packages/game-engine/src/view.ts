@@ -2,7 +2,7 @@ import type { CardLibrary } from './cards.js';
 import { DEFAULT_CPU_DIFFICULTY, type CpuDifficulty } from './cpu/index.js';
 import { recallsAttacks } from './attacks.js';
 import { attackDamageRanges, type DamageRange } from './cpu/shared.js';
-import type { BattleRule, CardInstance, GameState, InPlayPokemon, Phase, PlayerId } from './engine.js';
+import { opponentOf, type BattleRule, type CardInstance, type GameState, type InPlayPokemon, type Phase, type PlayerId } from './engine.js';
 import { FACE_DOWN, type LogEntry } from './status.js';
 import { seesOpponentHand } from './powers.js';
 import { pendingChoiceView, type PendingChoiceView } from './trainers.js';
@@ -119,7 +119,7 @@ export const viewCounts = (view: PlayerView) => ({
 export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView {
   const me = state.players[playerId];
   if (!me) throw new Error('Not a player in this game');
-  const oppId = state.playerOrder[0] === playerId ? state.playerOrder[1] : state.playerOrder[0];
+  const oppId = opponentOf(state, playerId);
   const opp = state.players[oppId]!;
 
   // Lt. Surge's Secret Plan: the opponent's face-down cards are shown as FACE_DOWN, with nothing of the card itself.

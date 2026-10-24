@@ -7,7 +7,8 @@ import FaceIcon from '@mui/icons-material/Face';
 import HikingIcon from '@mui/icons-material/Hiking';
 import { EQUIP_SLOTS, fitsSlot, itemText, SLOT_LABELS, type EquipSlot, type EquipType, type ItemDef } from '@poke-tcg/campaign';
 import { trainerSpriteUrl, type PlayerGender, type TrainerSprite } from '@poke-tcg/shared';
-import { useEffect, useState, type ComponentType } from 'react';
+import { useState, type ComponentType } from 'react';
+import { useEscape } from '../hooks/useEscape';
 import { ItemIcon } from './ItemIcon';
 import { spriteLabel, TrainerSpritePicker } from './TrainerSpritePicker';
 
@@ -87,11 +88,7 @@ export function EquipmentPanel({
   // A finger drags only after holding a piece a moment, so a swipe over the grid scrolls the page and a tap picks it up.
   const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 6 } }));
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && (setHeld(null), setChosenSlot(null));
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  useEscape(() => (setHeld(null), setChosenSlot(null)));
 
   /** Puts the piece in the slot; with no spare, it leaves the other slot it's in first. */
   const equipTo = async (slot: EquipSlot, item: OwnedItem) => {

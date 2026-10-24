@@ -1,7 +1,9 @@
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CloseIcon from '@mui/icons-material/Close';
 import { boss, generationBadges, GENERATIONS, ITEMS } from '@poke-tcg/campaign';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useEscape } from '../hooks/useEscape';
+import { DIALOG, DIALOG_BACKDROP } from '../utils/styles';
 import { ItemIcon } from './ItemIcon';
 
 /** Every badge id, for leaving them out of the key items list (the cases show them). */
@@ -44,17 +46,13 @@ export function BadgeCases({ owned, tile }: { owned: ReadonlySet<string>; /** Th
 /** A generation's badges in gym order, each with its gym leader: the ones the account has in colour and ticked, the rest greyed out. */
 function BadgeCaseDialog({ gen, owned, onClose }: { gen: number; owned: ReadonlySet<string>; onClose: () => void }) {
   const g = GENERATIONS[gen]!;
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  useEscape(onClose);
   return (
-    <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className={`${DIALOG_BACKDROP} z-[1100]`} onClick={onClose}>
       <section
         role="dialog"
         aria-label={`${g.region} Badge Case`}
-        className="w-full max-w-2xl space-y-4 rounded-lg bg-slate-800 p-5 shadow-xl ring-1 ring-slate-600"
+        className={`${DIALOG} w-full max-w-2xl space-y-4 p-5 shadow-xl`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3">

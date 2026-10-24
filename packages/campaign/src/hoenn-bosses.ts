@@ -4,30 +4,19 @@
 // (EX Ruby & Sapphire prints) and Trainers, each with one Pokémon-ex at most as its star (2 Prize cards). Their Gym
 // Trainers are the trainers in their gym in Emerald (pret's gym maps, every room of the gym; tools/routes/emerald/
 // hoenn_maps.py prints them).
-import type { EnergyType } from '@poke-tcg/game-engine';
+// A Hoenn boss is the same as a Kanto one (Boss, bosses.ts; a type-only import, so no cycle), with no Game Boy counterpart:
+// `favorites` for a gym whose type has no basic Energy (Norman's Normal, Winona's Flying).
+import type { Boss } from './bosses.js';
 import type { DeckList } from './decks.js';
+import { GEN3_BASIC_ENERGY } from './pool.js';
 
-/** What a Hoenn boss is: the same as a Kanto one (bosses.ts), with no Game Boy counterpart. */
-interface HoennBoss {
-  name: string;
-  title: string;
-  kind: 'gymLeader' | 'eliteFour' | 'champion';
-  deckName: string;
-  deck: DeckList;
-  /** As Boss's in bosses.ts: `favorites` for a gym whose type has no basic Energy (Norman's Normal, Winona's Flying). */
-  gym?: { city: string; type: EnergyType; badge: string; favorites?: string[]; trainers?: string[] };
-  prize?: string;
-  /** The types shown for the deck when its basic Energy doesn't say (a Colorless deck). */
-  types?: EnergyType[];
-}
-
-// Gen 3's basic Energy (EX Ruby & Sapphire) and special Energy.
-const GRASS = 'ex1-104';
-const FIGHTING = 'ex1-105';
-const WATER = 'ex1-106';
-const PSYCHIC = 'ex1-107';
-const FIRE = 'ex1-108';
-const LIGHTNING = 'ex1-109';
+// Gen 3's basic Energy (EX Ruby & Sapphire, pool.ts) and special Energy.
+const GRASS = GEN3_BASIC_ENERGY.grass!;
+const FIGHTING = GEN3_BASIC_ENERGY.fighting!;
+const WATER = GEN3_BASIC_ENERGY.water!;
+const PSYCHIC = GEN3_BASIC_ENERGY.psychic!;
+const FIRE = GEN3_BASIC_ENERGY.fire!;
+const LIGHTNING = GEN3_BASIC_ENERGY.lightning!;
 const DARKNESS = 'ex1-93'; // Darkness Energy (special)
 const DARK_METAL = 'ex7-94'; // Dark Metal Energy (special)
 const MULTI = 'ex2-93'; // Multi Energy (special)
@@ -363,4 +352,4 @@ export const HOENN_BOSSES = {
   glacia: { name: 'Glacia', title: 'Elite Four', kind: 'eliteFour', deckName: 'Frozen Pride', deck: GLACIA_DECK },
   drake: { name: 'Drake', title: 'Elite Four', kind: 'eliteFour', deckName: 'Dragon Rush', deck: DRAKE_DECK, types: ['colorless'] },
   wallace: { name: 'Wallace', title: 'Champion', kind: 'champion', deckName: 'Elegant Tide', deck: WALLACE_DECK, prize: 'hoenn-champion-ribbon' },
-} satisfies Record<string, HoennBoss>;
+} satisfies Record<string, Boss>;
