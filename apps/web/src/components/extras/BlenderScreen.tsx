@@ -8,6 +8,7 @@ import {
   blenderFrame,
   blenderMusic,
   blenderRanking,
+  blenderTempo,
   newBlenderGame,
   opponentBerries,
   PLAYER_ARROW_POS,
@@ -18,7 +19,7 @@ import {
   type PokeblockColor,
 } from '@poke-tcg/campaign';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useMusicCue, useMusicSettings } from '../MusicPlayer';
+import { useMusicCue, useMusicSettings, useMusicTempo } from '../MusicPlayer';
 import { BlenderSound, loadVolume, saveVolume } from './blenderSound';
 
 /** The Pokéblock the API made from the blend (`extras.blend`), for the end of the game. */
@@ -153,6 +154,7 @@ export function BlenderScreen({ berry, playerName, onBlend, onDone }: { berry: s
   const berries = useMemo(() => [berry, ...opponentBerries(berry)], [berry]);
   const soundtrack = useMusicSettings()?.soundtrack ?? 'original';
   useMusicCue(stage === 'play' || stage === 'slow' ? blenderMusic(soundtrack) : null);
+  const setTempo = useRef(useMusicTempo());
   const onBlendRef = useRef(onBlend);
   onBlendRef.current = onBlend;
   const onDoneRef = useRef(onDone);
@@ -359,7 +361,13 @@ export function BlenderScreen({ berry, playerName, onBlend, onDone }: { berry: s
         for (const hit of hits) addHit(s, hit);
         // A score's sound, and the whirring's pitch raised (or lowered) with the speed (UpdateSpeedFromHit's UpdateHitPitch).
         if (hits.length) sound.current?.setPitch(2 * (game.speed - 0x80));
-        if (game.over) go(s, 'slow');
+        // The music speeding up above 1500 (when the game sets it: blenderTempo), and back to its own as the game ends.
+        const tempo = blenderTempo(game, hits);
+        if (tempo !== null) setTempo.current?.(tempo);
+        if (game.over) {
+          setTempo.current?.(1);
+          go(s, 'slow');
+        }
         break;
       }
       case 'slow':

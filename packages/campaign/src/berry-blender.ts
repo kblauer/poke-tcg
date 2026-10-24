@@ -209,6 +209,18 @@ export function blenderFrame(game: BlenderGame, pressed: boolean, random: Random
 }
 
 /**
+ * The music's tempo after a frame's scores (UpdateOpponentScores' m4aMPlayTempoControl), as a speed (1 the song's own):
+ * above 1500 the music speeds up with the blender, ((speed − 750) / 20 + 256) / 256, otherwise its own. Or null when the
+ * frame doesn't set it: the game only does on a Miss, or on LADDIE's (player 2's) Best or Good, a bug it shipped with (it
+ * reads the scores as gRecvCmds[BLENDER_COMM_SCORE][i], which only lines up for player 2); the speed it uses is the
+ * blender's after the frame's scores.
+ */
+export function blenderTempo(game: BlenderGame, hits: readonly BlenderHit[]): number | null {
+  if (!hits.some((h) => h.score === 'miss' || h.player === 2)) return null;
+  return game.speed > 1500 ? (Math.trunc((game.speed - 750) / 20) + 256) / 256 : 1;
+}
+
+/**
  * The places, best first (SortScores): by Bests, then Goods, then the fewest Misses; each a player's index (0 the
  * player, then MISS, LADDIE and LASSIE).
  */

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { BERRIES } from './berries.js';
-import { blenderFrame, blenderRanking, makePokeblock, newBlenderGame, opponentBerries, pokeblockLevel, proximity, speedToRpm, type Random16 } from './berry-blender.js';
+import { blenderFrame, blenderRanking, blenderTempo, makePokeblock, newBlenderGame, opponentBerries, pokeblockLevel, proximity, speedToRpm, type Random16 } from './berry-blender.js';
 import { BERRY_FARM_MAP } from './berry-farm-map.js';
 import { berriesOf, FARM_TREES, farmOf, farmView, GROW_MS, harvest, RIPE, stageAt } from './berry-farm.js';
 import { blenderMusic, SOUNDTRACKS } from './music.js';
@@ -109,6 +109,14 @@ describe('the Berry Blender', () => {
     expect(game.maxRpm).toBeGreaterThan(speedToRpm(128));
     expect(game.scores.slice(1).every(([best, good]) => best + good > 0)).toBe(true);
     expect(blenderRanking(game.scores)[0]).toBe(0);
+  });
+
+  it('speeds the music up above 1500, set only on a Miss or a score of LADDIE\'s, as the game does', () => {
+    const game = { ...newBlenderGame(), speed: 2000 };
+    expect(blenderTempo(game, [{ player: 0, score: 'best' }])).toBeNull();
+    expect(blenderTempo(game, [{ player: 1, score: 'miss' }])).toBe((62 + 256) / 256);
+    expect(blenderTempo(game, [{ player: 2, score: 'good' }])).toBe((62 + 256) / 256);
+    expect(blenderTempo({ ...game, speed: 1500 }, [{ player: 0, score: 'miss' }])).toBe(1);
   });
 
   it('ranks by Bests, then Goods, then the fewest Misses', () => {

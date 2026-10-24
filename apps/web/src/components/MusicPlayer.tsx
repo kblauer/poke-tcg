@@ -101,6 +101,8 @@ interface MusicState {
   playJingle: (song: Song) => void;
   /** A page showing the bar itself (BoardMusicControls) while it's on screen: +1 when it appears, −1 when it goes. */
   hostBar: (by: 1 | -1) => void;
+  /** The music's tempo (1: as recorded), its pitch kept, whatever plays: the Berry Blender's speed-up (useMusicTempo). */
+  setTempo: (rate: number) => void;
 }
 
 const MusicContext = createContext<MusicState | null>(null);
@@ -120,6 +122,16 @@ export function useMusicCue(cue: MusicCue | null) {
 }
 
 export const usePlayJingle = () => useContext(MusicContext)?.playJingle ?? null;
+
+/**
+ * Sets the music's tempo (1 as recorded, its pitch kept) while the page using it is on screen, back to 1 when it goes:
+ * the Berry Blender's, speeding up with the blender as the game's does (`blenderTempo`). Null outside the music player.
+ */
+export function useMusicTempo() {
+  const setTempo = useContext(MusicContext)?.setTempo ?? null;
+  useEffect(() => () => setTempo?.(1), [setTempo]);
+  return setTempo;
+}
 
 /**
  * The music player's small bar: play/pause and the song playing, which opens the player's panel. Floating at the bottom
@@ -271,10 +283,25 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
     step(1);
   };
 
+  // The tempo (setTempo): the audio's playback rate, its pitch kept; its default rate too, which a new song starts at.
+  const tempo = useRef(1);
+  const applyTempo = () => {
+    const audio = player.current?.audio.current;
+    if (!audio) return;
+    audio.defaultPlaybackRate = tempo.current;
+    audio.playbackRate = tempo.current;
+  };
+  const setTempo = useCallback((rate: number) => {
+    if (tempo.current === rate) return;
+    tempo.current = rate;
+    applyTempo();
+  }, []);
+
   // Starts the chosen song as soon as its audio has it: also the first one, whose player (and audio) has only just
   // appeared, which the player's own autoplay (only on a change of song) would leave paused. A song come back to
   // starts where it was (set again once its audio has loaded, as loading starts it over).
   useEffect(() => {
+    applyTempo();
     const audio = player.current?.audio.current;
     const at = resumeAt.current;
     resumeAt.current = 0;
@@ -366,6 +393,7 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
     setSoundtrack,
     setCue,
     playJingle,
+    setTempo,
   };
   return (
     <MusicContext.Provider value={state}>
