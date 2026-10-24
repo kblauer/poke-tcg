@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { boss } from './bosses.js';
 import { PACK_SETS } from './packs.js';
-import { bossTypes, generation, generationBadges, nextPack, PACK_GENERATIONS, RUN_TYPES, runTypeLock } from './run-types.js';
+import { bossTypes, generation, generationBadges, generationLock, nextPack, PACK_GENERATIONS, RUN_TYPE_IDS, RUN_TYPES, runTypeLock } from './run-types.js';
 import { EX_SETS } from './pool.js';
 
 const kanto = generation(1);
@@ -21,11 +21,30 @@ describe('unlocking run types', () => {
 
   it("Hoenn's Gym Challenge needs its 8 badges, and its Champion run the Hoenn Gym Challenge beaten", () => {
     const hoenn = generationBadges(generation(3));
+    const johtoBeaten = new Set(['johtoGyms']);
     expect(hoenn).toEqual(['stone-badge', 'knuckle-badge', 'dynamo-badge', 'heat-badge', 'balance-badge', 'feather-badge', 'mind-badge', 'rain-badge']);
-    expect(runTypeLock(RUN_TYPES.hoennGyms, { ...none, badges: new Set(generationBadges(kanto)) })).toBe('Earn all 8 Hoenn badges first (8 to go)');
-    expect(runTypeLock(RUN_TYPES.hoennGyms, { ...none, badges: new Set(hoenn) })).toBeNull();
-    expect(runTypeLock(RUN_TYPES.hoennChampion, { ...none, badges: new Set(hoenn) })).toBe('Beat the Hoenn Gym Challenge first');
-    expect(runTypeLock(RUN_TYPES.hoennChampion, { ...none, beaten: new Set(['hoennGyms']) })).toBeNull();
+    expect(runTypeLock(RUN_TYPES.hoennGyms, { beaten: johtoBeaten, badges: new Set(generationBadges(kanto)) })).toBe('Earn all 8 Hoenn badges first (8 to go)');
+    expect(runTypeLock(RUN_TYPES.hoennGyms, { beaten: johtoBeaten, badges: new Set(hoenn) })).toBeNull();
+    expect(runTypeLock(RUN_TYPES.hoennChampion, { beaten: johtoBeaten, badges: new Set(hoenn) })).toBe('Beat the Hoenn Gym Challenge first');
+    expect(runTypeLock(RUN_TYPES.hoennChampion, { ...none, beaten: new Set(['johtoGyms', 'hoennGyms']) })).toBeNull();
+  });
+
+  it("each generation's runs need the Gym Challenge of the one before beaten, its Champion run or not", () => {
+    expect(generationLock(1, none.beaten)).toBeNull();
+    expect(generationLock(2, none.beaten)).toBe('Beat the Kanto Gym Challenge first');
+    expect(generationLock(2, new Set(['kantoChampion']))).toBe('Beat the Kanto Gym Challenge first');
+    expect(generationLock(2, new Set(['kantoGyms']))).toBeNull();
+    expect(generationLock(3, new Set(['kantoGyms']))).toBe('Beat the Johto Gym Challenge first');
+    expect(generationLock(3, new Set(['johtoGyms']))).toBeNull();
+    // Beating the Kanto Gym Challenge opens Johto's 8 gym runs; its Gym Challenge and Champion run keep their own locks.
+    const johto = RUN_TYPE_IDS.filter((id) => RUN_TYPES[id].generation === 2);
+    expect(johto.map((id) => runTypeLock(RUN_TYPES[id], none))).toEqual(johto.map(() => 'Beat the Kanto Gym Challenge first'));
+    const open = johto.filter((id) => runTypeLock(RUN_TYPES[id], { ...none, beaten: new Set(['kantoGyms']) }) === null);
+    expect(open).toHaveLength(8);
+    expect(open).not.toContain('johtoGyms');
+    expect(runTypeLock(RUN_TYPES.johtoGyms, { ...none, beaten: new Set(['kantoGyms']) })).toBe('Earn all 8 Johto badges first (8 to go)');
+    // Badges alone never open a generation.
+    expect(runTypeLock(RUN_TYPES.johtoGyms, { ...none, badges: new Set(generationBadges(generation(2))) })).toBe('Beat the Kanto Gym Challenge first');
   });
 
   it('the Champion run needs the Gym Challenge beaten, badges or not', () => {
