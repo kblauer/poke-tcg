@@ -1,4 +1,4 @@
-import { berriesOf, farmOf, farmView, GROW_MS, harvest, makePoffin, makePokeblock, opponentBerries, poffinLevel, pokeblockLevel, random, rngFrom, type BerryFarm } from '@poke-tcg/campaign';
+import { berriesOf, farmOf, farmView, GROW_MS, harvest, harvestAll, makePoffin, makePokeblock, opponentBerries, poffinLevel, pokeblockLevel, random, rngFrom, type BerryFarm } from '@poke-tcg/campaign';
 import { prisma } from '@poke-tcg/db';
 import { blendBerryInput, cookPoffinInput, harvestBerryInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
@@ -58,6 +58,20 @@ export const extrasRouter = router({
       berries[input.berry] = (berries[input.berry] ?? 0) + picked.count;
       await tx.user.update({ where: { id: ctx.user.id }, data: { berryFarm: asJson(picked.farm), berries: asJson(berries) } });
       return { berry: input.berry, count: picked.count, ...farmData(picked.farm, berries, now) };
+    }),
+  ),
+
+  /** Gathers every ripe tree at once (the farm's Gather all): their berries added to the account's, the trees planted again. */
+  harvestAll: protectedProcedure.mutation(({ ctx }) =>
+    prisma.$transaction(async (tx) => {
+      await lockUser(tx, ctx.user.id);
+      const now = Date.now();
+      const user = await tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { berryFarm: true, berries: true } });
+      const { farm, picked } = harvestAll(farmOf(user.berryFarm, now), now, rngFrom(newSeed()));
+      const berries = berriesOf(user.berries);
+      for (const [berry, count] of Object.entries(picked)) berries[berry] = (berries[berry] ?? 0) + count;
+      if (Object.keys(picked).length) await tx.user.update({ where: { id: ctx.user.id }, data: { berryFarm: asJson(farm), berries: asJson(berries) } });
+      return { picked, ...farmData(farm, berries, now) };
     }),
   ),
 
