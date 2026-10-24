@@ -1967,9 +1967,10 @@ function newActives(state: GameState, duringTurn: boolean) {
 /**
  * Knocks out every Pokémon whose damage reached its HP; for each, its owner's opponent takes a
  * prize. Returns the winner, if any: a player wins by taking their last prize or when the
- * opponent has no Pokémon left in play. If both win at once, `favoured` wins.
+ * opponent has no Pokémon left in play. If both win at once, `favoured` wins. Exported for the CPU, which runs it on its
+ * copies to see whether an attack would lose it the game (cpu/shared.ts).
  */
-function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId | null {
+export function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId | null {
   newActives(state, state.phase === 'playing');
   // A Ditto that stopped being a copy (Asleep, switched…) has its own HP again; so has a Dark Pokémon once Rocket's Hideout is gone.
   refreshTransforms(state);

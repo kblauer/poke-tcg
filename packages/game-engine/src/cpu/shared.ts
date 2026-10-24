@@ -4,7 +4,7 @@
 // effects decide what an attack does.
 import { answerChoice, attackError, attackSituation, performAttack, resolveChoices, situationAttacks, traceDamage, type AttackChoices, type AttackSituation, type ChoiceSpec } from '../attacks.js';
 import { isBasicEnergy, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from '../cards.js';
-import { applyAction, cloneState, energyPool, energyProvided, payCost, type PoolEnergy, evolveError, opponentOf, retreatCost, retreatError, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
+import { applyAction, cloneState, energyPool, resolveKnockouts, energyProvided, payCost, type PoolEnergy, evolveError, opponentOf, retreatCost, retreatError, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
 import { nextRandom } from '../rng.js';
 import { inPlayDef, openBenchSlot } from '../status.js';
 import { pendingChoiceView, type TrainerChoices } from '../trainers.js';
@@ -187,6 +187,8 @@ export interface AttackOption {
   inflicts: number;
   /** How much the attacker's Energy is still worth afterwards (choices that discard less come first). */
   keeps: number;
+  /** Share of coin-flip outcomes in which the attack loses the attacker the game (its own Knock Out with no Bench left, or the opponent's last Prize cards). */
+  loseChance: number;
 }
 
 /** It Knocks Out often enough to count on: in at least half the outcomes. */
@@ -385,7 +387,7 @@ export function attackDamageRanges(state: GameState, attackerId: PlayerId): (Dam
 }
 
 function simulate(base: GameState, attackerId: PlayerId, attackIndex: number, choices: AttackChoices, cost: number): AttackOption | null {
-  let kos = 0, damage = 0, inflicts = 0, costly = false, keeps = 0;
+  let kos = 0, damage = 0, inflicts = 0, costly = false, keeps = 0, loses = 0;
   for (const seed of SEEDS) {
     const s = cloneState(base);
     s.rngState = seed;
@@ -414,9 +416,11 @@ function simulate(base: GameState, attackerId: PlayerId, attackIndex: number, ch
     if (ko) kos++;
     if (attacker.damage > self.damage || attacker.energy.length < self.energy) costly = true;
     keeps += energyValue(s.cards, attacker);
+    // Last, as it changes the copy: the Knock Outs the attack leaves, as the engine settles them (a win for both is the attacker's).
+    if (resolveKnockouts(s, attackerId) === opp.id) loses++;
   }
   const n = SEEDS.length;
-  return { attackIndex, choices, cost, koChance: kos / n, expected: damage / n, costly, inflicts: inflicts / n, keeps: keeps / n };
+  return { attackIndex, choices, cost, koChance: kos / n, expected: damage / n, costly, inflicts: inflicts / n, keeps: keeps / n, loseChance: loses / n };
 }
 
 /** Positive when `a` is the better way to attack: Knock Outs (cheapest first), then damage, then effects. */
@@ -429,9 +433,11 @@ function compareOptions(a: AttackOption, b: AttackOption): number {
 /**
  * The attack to use: the cheapest one that Knocks Out, otherwise the most damage. Attacks that hurt the
  * attacker or discard its Energy only when they Knock Out or nothing else does damage. Attacking ends the
- * turn anyway, so with no damage to do, any attack that costs nothing (Sing, Withdraw) beats passing.
+ * turn anyway, so with no damage to do, any attack that costs nothing (Sing, Withdraw) beats passing. Never one that could lose
+ * the game (`safe`, the user's): not losing comes before any damage, so with only those it doesn't attack.
  */
-export function bestAttack(options: AttackOption[]): AttackOption | null {
+export function bestAttack(all: AttackOption[]): AttackOption | null {
+  const options = safe(all);
   const ko = options.filter(knocksOut);
   if (ko.length) return ko.reduce((a, b) => (compareOptions(b, a) > 0 ? b : a));
   const pick = (list: AttackOption[]) => (list.length ? list.reduce((a, b) => (compareOptions(b, a) > 0 ? b : a)) : null);
@@ -441,6 +447,9 @@ export function bestAttack(options: AttackOption[]): AttackOption | null {
     pick(options.filter((o) => !o.costly))
   );
 }
+
+/** The attacks that can't lose the game, in any coin-flip outcome. */
+export const safe = (options: AttackOption[]) => options.filter((o) => o.loseChance === 0);
 
 /** One number for comparing positions: Knock Outs first, then expected damage. */
 export const attackScore = (o: AttackOption | null) => (o ? (knocksOut(o) ? 10_000 : 0) + o.koChance * 100 + o.expected : -1);
