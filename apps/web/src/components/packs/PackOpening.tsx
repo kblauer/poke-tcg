@@ -10,6 +10,7 @@ import { useTRPC } from '../../lib/trpc';
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
 import { useCosmetics } from '../../hooks/useCosmetics';
 import { holoAttributes } from '../../utils/holo';
+import { PACK_COMMON, PACK_REVEAL, PACK_SUMMARY } from '../../utils/layout';
 import { HoloCard } from '../HoloCard';
 import { RunCard } from '../run/RunCard';
 import { BoosterPack } from './BoosterPack';
@@ -209,14 +210,14 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
 
       {(phase === 'pack' || phase === 'tearing') && (
         <div className="m-auto flex flex-col items-center gap-6">
-          <h2 className="text-2xl font-bold">{set.name}</h2>
+          <h2 className="text-3xl font-bold">{set.name}</h2>
           <button
             className="rounded-md outline-none transition hover:scale-105 focus-visible:ring-4 focus-visible:ring-yellow-300 disabled:cursor-not-allowed disabled:hover:scale-100"
             disabled={phase !== 'pack' || open.isPending || !affordable}
             onClick={() => open.mutate({ setId: set.id, count: quantity })}
             aria-label={`Open ${quantity === 1 ? 'a' : quantity} ${set.name} pack${quantity === 1 ? '' : 's'}`}
           >
-            <BoosterPack setId={set.id} name={set.name} logoUrl={set.logoUrl} art={set.art} state={phase === 'tearing' ? 'torn' : open.isPending ? 'shaking' : 'idle'} />
+            <BoosterPack setId={set.id} name={set.name} logoUrl={set.logoUrl} art={set.art} size="xl" state={phase === 'tearing' ? 'torn' : open.isPending ? 'shaking' : 'idle'} />
           </button>
           {/* The controls keep their space (hidden) while the pack tears, so the pack stays where it was. */}
           {(phase === 'pack' || phase === 'tearing') && (
@@ -311,28 +312,28 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
       )}
 
       {phase === 'commons' && (
-        <div className="m-auto flex max-h-full w-full max-w-5xl flex-col items-center gap-4">
+        <div className="m-auto flex max-h-full w-full max-w-[110rem] flex-col items-center gap-4">
           <p className="text-sm text-slate-400">
             {commons.length} commons, uncommons and Energy from {packs === 1 ? 'the pack' : `${packs} packs`} ·{' '}
             {queue.length ? `${queue.length} rare${queue.length === 1 ? '' : 's'} face down` : 'no rares'}
           </p>
           {/* Laid out face up all at once, flipping in one after another. */}
-          <div className="flex min-h-0 flex-wrap justify-center gap-2 overflow-y-auto p-2">
+          <div className="flex min-h-0 flex-wrap justify-center gap-3 overflow-y-auto p-2">
             {commons.map((c, i) => (
               <div key={i} className="card-flip-in" style={{ animationDelay: `${Math.min(i, 40) * 30}ms` }}>
-                <RunCard def={{ id: c.cardId, kind: 'trainer', name: c.name, imageUrl: c.imageUrl, text: '', rarity: c.slot === 'energy' ? undefined : c.slot }} badge={c.isNew ? 'NEW' : undefined} />
+                <RunCard def={{ id: c.cardId, kind: 'trainer', name: c.name, imageUrl: c.imageUrl, text: '', rarity: c.slot === 'energy' ? undefined : c.slot }} badge={c.isNew ? 'NEW' : undefined} width={PACK_COMMON} />
               </div>
             ))}
           </div>
           {queue.length ? (
             <button className="group flex flex-col items-center gap-2 outline-none" onClick={() => setPhase('reveal')} aria-label="Open the rares">
               {/* The rares, face down in a stack. */}
-              <div className="relative aspect-[63/88] w-24 transition group-hover:-translate-y-1">
+              <div className="relative aspect-[63/88] w-32 transition group-hover:-translate-y-1">
                 {Array.from({ length: Math.min(queue.length, 5) }, (_, i) => (
                   <img key={i} src={cardBack} alt="" draggable={false} className="absolute inset-0 aspect-[63/88] w-full rounded-lg object-cover shadow-lg" style={{ transform: `translate(${i * 3}px, ${i * 3}px)` }} />
                 ))}
               </div>
-              <span className="rounded bg-amber-500 px-3 py-1 text-sm font-semibold text-slate-900 group-hover:bg-amber-400">Open the rares ({queue.length})</span>
+              <span className="rounded bg-amber-500 px-4 py-1.5 font-semibold text-slate-900 group-hover:bg-amber-400">Open the rares ({queue.length})</span>
             </button>
           ) : (
             <button className="rounded bg-blue-600 px-6 py-2 font-semibold transition hover:bg-blue-500" onClick={() => setPhase('summary')}>
@@ -351,7 +352,7 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
               : `${packs > 1 ? `Pack ${current.pack + 1} of ${packs} · ` : ''}Card ${inPack(queue[index]!) + 1} of ${packSize(current.pack)}`}
             {autoOn ? ` · opening by itself${fast ? ' (×2)' : ''}` : ' · click to see the next'}
           </p>
-          <button className="relative w-72 outline-none" onClick={next} aria-label="Next card">
+          <button className={`pack-reveal relative my-4 outline-none ${PACK_REVEAL}`} onClick={next} aria-label="Next card">
             {/* The rest of the stack, face down, under the card shown. */}
             {Array.from({ length: Math.min(queue.length - index - 1, 5) }, (_, i) => (
               <img key={i} src={cardBack} alt="" draggable={false} className="absolute inset-0 aspect-[63/88] w-full rounded-xl object-cover shadow-lg" style={{ transform: `translate(${(i + 1) * 4}px, ${(i + 1) * 4}px)` }} />
@@ -359,7 +360,7 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
             <RevealedCard key={index} card={current} leaving={leaving} />
           </button>
           <div className="flex h-8 items-center gap-3">
-            <span className={`text-sm font-semibold ${isFoilSlot(current.slot) ? 'text-fuchsia-300' : current.slot === 'rare' ? 'text-amber-300' : 'text-slate-300'}`}>
+            <span className={`text-lg font-semibold ${isFoilSlot(current.slot) ? 'text-fuchsia-300' : current.slot === 'rare' ? 'text-amber-300' : 'text-slate-300'}`}>
               {current.name} · {(set.id === 'basep' ? PROMO_SLOT_LABEL : SLOT_LABEL)[current.slot]}
               {current.holoEnergy && ` (${current.holoEnergy.label})`}
             </span>
@@ -394,9 +395,9 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
       )}
 
       {phase === 'summary' && (
-        <div className="m-auto max-h-full w-full max-w-4xl space-y-4 overflow-y-auto rounded-lg bg-slate-800 p-6 ring-1 ring-slate-600">
+        <div className="m-auto max-h-full w-full max-w-[110rem] space-y-4 overflow-y-auto rounded-lg bg-slate-800 p-6 ring-1 ring-slate-600">
           <div className="flex items-baseline gap-3">
-            <h2 className="text-xl font-bold">
+            <h2 className="text-2xl font-bold">
               {packs === 1 ? `${set.name} pack` : `${packs} ${set.name} packs`}
             </h2>
             <span className="text-sm text-emerald-300">
@@ -426,6 +427,7 @@ export function PackOpening({ set, price, bank, onClose, onOpened }: { set: Pack
                 <RunCard
                   def={{ id: c.cardId, kind: 'trainer', name: c.name, imageUrl: c.imageUrl, text: '', rarity: c.slot === 'energy' ? undefined : c.slot }}
                   badge={c.isNew ? 'NEW' : undefined}
+                  width={PACK_SUMMARY}
                 />
               </div>
             ))}
@@ -475,7 +477,8 @@ function Burst({ count, onDone }: { count: number; onDone: () => void }) {
       return el?.animate(
         [
           { transform: 'translate(0, 45%) scale(0.45)', opacity: 0 },
-          { transform: `translate(${spread * 62}px, ${-150 + spread * spread * 7}px) rotate(${spread * 8}deg) scale(0.8)`, opacity: 1, offset: 0.55 },
+          // In percentages of the card, so the fan scales with it (PACK_REVEAL).
+          { transform: `translate(${spread * 21.5}%, ${-37 + spread * spread * 1.75}%) rotate(${spread * 8}deg) scale(0.8)`, opacity: 1, offset: 0.55 },
           { transform: 'translate(0, 0) rotate(0deg) scale(1)', opacity: 1 },
         ],
         { duration: BURST_MS, delay: i * STAGGER_MS, easing: 'cubic-bezier(0.2, 0.8, 0.3, 1)', fill: 'both' },
@@ -488,7 +491,7 @@ function Burst({ count, onDone }: { count: number; onDone: () => void }) {
   }, []);
   return (
     // m-auto: centred in the window, as every phase is.
-    <div className="relative m-auto aspect-[63/88] w-72">
+    <div className={`relative m-auto aspect-[63/88] ${PACK_REVEAL}`}>
       {Array.from({ length: count }, (_, i) => (
         <img key={i} ref={(el) => void (cards.current[i] = el)} src={cardBack} alt="" draggable={false} className="absolute inset-0 aspect-[63/88] w-full rounded-xl object-cover shadow-xl shadow-black/60" />
       ))}
