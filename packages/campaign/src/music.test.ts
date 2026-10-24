@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { battleMusic, healedJingle, pickSong, practiceMusic, REGION_MUSIC, runMusic, SOUNDTRACKS, type MusicCue, type RunMusicView } from './music.js';
+import { battleMusic, healedJingle, pickSong, practiceMusic, REGION_MUSIC, runMusic, SOUNDTRACKS, victoryMusic, type MusicCue, type RunMusicView } from './music.js';
 import { createRun } from './run.js';
 import { RUN_TYPE_IDS, runType, type RunTypeId } from './run-types.js';
 
@@ -10,7 +10,7 @@ const inList = (s: { game: string; title: string }) => tracks.some((t) => t.game
 /** A run of the type, at a step (on the map, or with the given encounter under way). */
 function viewAt(type: string, position: number, encounter: RunMusicView['encounter'] = null): RunMusicView {
   const run = createRun(type as RunTypeId, [], 1);
-  return { type, position, phase: encounter ? 'encounter' : 'map', steps: run.steps, encounter };
+  return { type, position, phase: encounter ? 'encounter' : 'map', steps: run.steps, encounter, log: run.log };
 }
 const titles = (cue: MusicCue) => cue.songs.map((s) => s.title);
 
@@ -18,7 +18,7 @@ describe('auto play music', () => {
   it("every song it can play is in the music player's list (public/music/tracks.json)", () => {
     const missing = Object.values(REGION_MUSIC).flatMap((bySoundtrack) =>
       Object.values(bySoundtrack).flatMap((m) => {
-        const named = [...Object.values(m.routes), ...Object.values(m.towns), m.bike, m.surf, m.gym, m.league, m.center, m.healed, ...m.trainer, m.gymLeader, m.eliteFour, m.champion];
+        const named = [...Object.values(m.routes), ...Object.values(m.towns), m.bike, m.surf, m.gym, m.league, m.center, m.healed, ...m.trainer, m.gymLeader, m.eliteFour, m.champion, m.victory];
         return named.filter((title) => !inList({ game: m.game, title })).map((title) => `${m.game}: ${title}`);
       }),
     );
@@ -73,6 +73,41 @@ describe('auto play music', () => {
     expect(titles(runMusic(viewAt('kantoGyms', 4), 'original'))).toEqual(['Pokémon Center']);
     expect(titles(runMusic(viewAt('johtoChampion', 8), 'original'))).toEqual(['Pokémon League']);
     expect(titles(runMusic(viewAt('hoennChampion', 12), 'remastered'))).toEqual(['Victory Road']);
+  });
+
+  it('plays Rocket Hideout through the Viridian City run, in both soundtracks', () => {
+    const steps = createRun('viridian', [], 1).steps.length;
+    for (const soundtrack of SOUNDTRACKS) {
+      expect(titles(runMusic(viewAt('viridian', 0), soundtrack))).toEqual(['Rocket Hideout']);
+      expect(titles(runMusic(viewAt('viridian', steps - 3), soundtrack))).toEqual(['Rocket Hideout']);
+    }
+  });
+
+  it('plays a battle from the moment it is chosen, the same song and cue through its game, and a new one for the next battle', () => {
+    const run = createRun('pewter', [], 1);
+    const option = run.steps[0]!.options.findIndex((o) => o.kind === 'battle');
+    const view: RunMusicView = { type: 'pewter', position: 0, phase: 'map', steps: run.steps, encounter: null, log: [] };
+    const clicked = runMusic(view, 'original', 'r1', { option });
+    const started = runMusic({ ...view, phase: 'encounter', encounter: { kind: 'battle', gameId: 'g1' } }, 'original', 'r1');
+    expect(clicked.key).toBe(started.key);
+    expect(pickSong(clicked)).toEqual(pickSong(started));
+    expect(clicked.cut && clicked.fromStart).toBe(true);
+    expect(runMusic({ ...view, battlesFought: 1 }, 'original', 'r1', { option }).key).not.toBe(clicked.key);
+    // An Ace Trainer accepted (no option): the encounter's battle.
+    expect(runMusic({ ...view, phase: 'encounter', encounter: { kind: 'elite' } }, 'original', 'r1', { option: null }).cut).toBe(true);
+  });
+
+  it("starts battles from the beginning, and a beaten run's victory theme once before shuffling its album", () => {
+    expect(battleMusic(1, 'original', 'battle', 'g').fromStart).toBe(true);
+    for (const soundtrack of SOUNDTRACKS) {
+      for (const id of RUN_TYPE_IDS) {
+        const cue = victoryMusic(id, soundtrack, 'r1');
+        expect(cue.songs.every(inList), `${id} ${soundtrack}`).toBe(true);
+        expect(cue.then?.shuffle).toBe(cue.songs[0]!.game);
+      }
+    }
+    expect(titles(victoryMusic('violet', 'remastered', 'r1'))).toEqual(['Victory! (Gym Leader)']);
+    expect(titles(victoryMusic('pewter', 'original', 'r1'))).toEqual(['Hall of Fame']);
   });
 
   it("gives Practice battles their boss's region and role, and picks a battle's song the same way every time", () => {

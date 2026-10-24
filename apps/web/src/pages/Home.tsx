@@ -34,7 +34,7 @@ export function HomePage() {
   const phone = useIsPhone();
   const { overview } = run;
   // Auto play follows the run: the route, the town, the gym, a Pokémon Center.
-  useRunMusic(overview.data?.run?.view);
+  useRunMusic();
   // On a phone, once an encounter is over (its reward taken), the page scrolls back up to the route map, to watch the
   // player walk on to the next spot.
   const routeMap = useRef<HTMLDivElement>(null);
