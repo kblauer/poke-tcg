@@ -4,6 +4,7 @@ import { Link, useParams } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { Board, type LastMove, type PlayedMove } from '../components/Board';
 import { PLAYED_CARD_MS } from '../components/PlayedCard';
+import { TOOL_POP_MS, toolPopsAfter, ToolPopsContext, type ToolPop } from '../components/ToolPops';
 import { TURN_BANNER_MS } from '../components/TurnBanner';
 import { CoinFlip, flipsAfter, useTestFlips, type Flip } from '../components/CoinFlip';
 import { useGameLogInNav } from '../components/NavLog';
@@ -49,6 +50,13 @@ export function GamePage() {
   const [lastMove, setLastMove] = useState<LastMove | null>(null);
   /** The card the CPU's move played or used, shown large (PlayedCard): with the move, or before its coin flips. */
   const [played, setPlayed] = useState<PlayedMove | null>(null);
+  /** Pokémon Tools that worked by themselves in the move on screen (a Berry's heal), shown over their Pokémon (ToolPops). */
+  const [toolPops, setToolPops] = useState<ToolPop[]>([]);
+  useEffect(() => {
+    if (!toolPops.length) return;
+    const timer = setTimeout(() => setToolPops([]), TOOL_POP_MS);
+    return () => clearTimeout(timer);
+  }, [toolPops]);
 
   // The response already includes the CPU's reply, so no polling or realtime is needed. It comes as the
   // view after every move; the cache gets the last one, and they're all played back one at a time.
@@ -94,8 +102,15 @@ export function GamePage() {
   /** The move's coin flips were played out: the Pokémon it changed don't glow after them (they do when the flips are skipped). */
   const flipsShown = useRef(false);
   const showCard = (frame: Frame) => frame.highlight?.defId && setPlayed({ defId: frame.highlight.defId, cards: frame.view.cards, stamp: frame.version });
+  /** The move shown has Tools at work: the next one waits for their animation (TOOL_POP_MS). */
+  const toolsShown = useRef(false);
   const reveal = () => {
     setFlips([]);
+    // Its Tools at work (the API gives them a move of their own, after the attack and before the next turn).
+    const before = shownView ?? data?.view;
+    const pops = before ? toolPopsAfter(next!.view.log, lastEntry(before)) : [];
+    toolsShown.current = pops.length > 0;
+    if (pops.length) setToolPops(pops);
     setShownView(next!.view);
     const highlight = flipsShown.current && next!.highlight ? { ...next!.highlight, pokemon: [] } : next!.highlight;
     setLastMove({ player: next!.player, type: next!.type, version: next!.version, highlight, cardFirst: cardShown.current });
@@ -126,7 +141,7 @@ export function GamePage() {
         setReplay((r) => r.slice(1));
         if (last) setShownView(null);
       },
-      last ? 0 : next?.newTurn ? TURN_BANNER_MS : next?.highlight?.defId && !cardShown.current ? PLAYED_CARD_MS : MOVE_MS,
+      last ? 0 : toolsShown.current ? TOOL_POP_MS : next?.newTurn ? TURN_BANNER_MS : next?.highlight?.defId && !cardShown.current ? PLAYED_CARD_MS : MOVE_MS,
     );
     return () => clearTimeout(timer);
   }, [revealed]);
@@ -149,30 +164,32 @@ export function GamePage() {
   const pending = act.isPending ? act.variables.action : null;
   const shown = shownView ?? view;
   return (
-    // The battle's deck's own cosmetics, where it has them (useCosmetics).
+    // The battle's deck's own cosmetics, where it has them (useCosmetics); the Tools at work, over their Pokémon (ToolPops).
     <DeckCosmeticsContext.Provider value={data.cosmetics}>
-      <Board
-        gameId={gameId}
-        view={shown}
-        lastMove={lastMove}
-        played={played}
-        replaying={replaying}
-        send={send}
-        pending={pending}
-        error={act.error?.message}
-        errorAt={act.submittedAt}
-        runTab={data.runId && phone ? <GameRunTab /> : undefined}
-        overlay={
-          flips.length > 0 ? (
-            <CoinFlip flips={flips} you={view.you} onDone={reveal} />
-          ) : testFlip ? (
-            // Shown whatever the skip setting, and done with nothing to reveal.
-            <CoinFlip flips={testFlip} you={view.you} onDone={() => setTestFlip(null)} />
-          ) : (
-            shown.phase === 'finished' && <BattleResult view={shown} opponent={data.opponent} run={data.runId !== null} />
-          )
-        }
-      />
+      <ToolPopsContext.Provider value={toolPops}>
+        <Board
+          gameId={gameId}
+          view={shown}
+          lastMove={lastMove}
+          played={played}
+          replaying={replaying}
+          send={send}
+          pending={pending}
+          error={act.error?.message}
+          errorAt={act.submittedAt}
+          runTab={data.runId && phone ? <GameRunTab /> : undefined}
+          overlay={
+            flips.length > 0 ? (
+              <CoinFlip flips={flips} you={view.you} onDone={reveal} />
+            ) : testFlip ? (
+              // Shown whatever the skip setting, and done with nothing to reveal.
+              <CoinFlip flips={testFlip} you={view.you} onDone={() => setTestFlip(null)} />
+            ) : (
+              shown.phase === 'finished' && <BattleResult view={shown} opponent={data.opponent} run={data.runId !== null} />
+            )
+          }
+        />
+      </ToolPopsContext.Provider>
       {data.runId ? <RunBattleMusic /> : <PracticeMusic opponent={data.opponent} gameId={gameId} />}
     </DeckCosmeticsContext.Provider>
   );

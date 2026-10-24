@@ -120,7 +120,7 @@ export function useMusicCue(cue: MusicCue | null) {
 export const usePlayJingle = () => useContext(MusicContext)?.playJingle ?? null;
 
 /**
- * The music player's small bar: play/pause and the song playing, which opens the player's panel. In the top bar's right
+ * The music player's small bar: play/pause and the song playing (only the note while nothing plays), which opens the player's panel. In the top bar's right
  * end on a big screen (main.tsx, the user's), or (`MusicProvider`'s `docked`) in a menu: the site's ☰ menu, or the phone
  * battle screen's. `onOpen`: called when it opens the panel (a menu closes itself, so the panel can be seen).
  */
@@ -142,10 +142,11 @@ export function MusicControls({ onOpen }: { onOpen?: () => void }) {
           toggleOpen();
         }}
         aria-expanded={open}
-        title={openTitle}
+        title={!playing && title ? `${title} (${openTitle.toLowerCase()})` : openTitle}
       >
         <MusicNoteIcon sx={{ fontSize: 18 }} className={playing ? 'text-yellow-300' : undefined} />
-        <span className="max-w-48 truncate">{title ?? 'Music'}</span>
+        {/* Minimised to the two icons while nothing plays (the user's); the song's title in the tooltip. */}
+        {playing && <span className="max-w-48 truncate">{title ?? 'Music'}</span>}
       </button>
     </div>
   );

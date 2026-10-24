@@ -11,6 +11,9 @@ export function navIcon(name: string) {
   };
 }
 
+/** The run money's icon: the Pokédollar sign (`public/nav/pokedollar.png`, drawn by tools/icons/pokedollar.py; the user's). */
+export const PokedollarIcon = navIcon('pokedollar');
+
 /**
  * A page's name in the menus: `text-nav` (index.css: the pixel font at 18px, twice its 9-pixel em, so its pixels land
  * on whole screen pixels; the standard font's 16px, medium, with that picked in Settings).

@@ -85,7 +85,7 @@ export function HomePage() {
       ) : (
         <EncounterPanel view={view} run={run} />
       )}
-      <RunDeckPanel view={view} />
+      <RunDeckPanel view={view} run={run} />
       {view.phase === 'map' && <ConcedeRun view={view} run={run} />}
     </div>
   );

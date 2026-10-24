@@ -14,12 +14,23 @@ export interface LogEntry {
   n?: number;
   /** Set on coin flips, for the UI's coin animation. */
   coin?: { reason: string; heads: boolean };
+  /**
+   * Set when an attached Pokémon Tool works by itself (a Berry between turns), for the UI's animation over its Pokémon:
+   * the Pokémon (its card's uid), the Tool's name, and the damage it healed (none: it cured Special Conditions).
+   */
+  tool?: { uid: string; name: string; heal?: number };
 }
 
 export function addLog(state: GameState, text: string, player: PlayerId | null = null, coin?: LogEntry['coin']) {
   const log = (state.log ??= []);
   log.push({ text, player, n: (log.at(-1)?.n ?? 0) + 1, ...(coin && { coin }) });
   if (log.length > LOG_SIZE) log.splice(0, log.length - LOG_SIZE);
+}
+
+/** Logs a Pokémon Tool working by itself (LogEntry's `tool`). */
+export function logTool(state: GameState, text: string, player: PlayerId, tool: NonNullable<LogEntry['tool']>) {
+  addLog(state, text, player);
+  state.log!.at(-1)!.tool = tool;
 }
 
 /** Flips a coin with the game's RNG and logs the result. True = heads. */

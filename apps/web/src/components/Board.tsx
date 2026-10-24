@@ -133,9 +133,9 @@ export function Board({
     if (placing) setSetupBanner(true);
   }, [placing]);
   const setupBannerGone = useCallback(() => setSetupBanner(false), []);
-  // Its line as setup left it, so it doesn't turn into "Your turn" as it slides off.
-  const setupLine = useRef({ text: '', first: false });
-  if (view.phase === 'setup') setupLine.current = { text: statusText(view), first: view.currentPlayer === view.you };
+  // Who goes first as setup left it, so it doesn't change as it slides off.
+  const setupFirst = useRef(false);
+  if (view.phase === 'setup') setupFirst.current = view.currentPlayer === view.you;
   // The CPU's card: in the middle of the play area on a phone; on a big screen over the CPU's side (OpponentArea).
   const playedCard = (scale?: number) => played && <PlayedCard key={played.stamp} defId={played.defId} cards={played.cards} stamp={played.stamp} scale={scale} />;
   const tableOverlay = (
@@ -144,8 +144,9 @@ export function Board({
       {/* The turn-order coin flip as a battle starts: the game's coin flip, in the same place. */}
       <TurnOrderFlip key={gameId} view={view} gameId={gameId} />
       {phone && playedCard()}
-      {/* On a phone it's in the bar between the sides instead, lined up with its buttons. */}
-      {newTurn && !phone && <TurnBanner key={newTurn.turn} turn={newTurn} />}
+      {/* The turn's and the setup line's banners, centred on the buttons between the sides and behind them (TurnBanner.tsx). */}
+      {newTurn && <TurnBanner key={newTurn.turn} turn={newTurn} compact={phone} />}
+      {setupBanner && <SetupBanner first={setupFirst.current} leaving={!placing} onGone={setupBannerGone} compact={phone} />}
     </>
   );
   const { self, phase } = view;
@@ -594,7 +595,6 @@ export function Board({
         attacker={attacker}
         oppDrop={oppDrop}
         oppSpot={oppSpot}
-        newTurn={newTurn}
         toasts={toasts}
         prompt={movePrompt}
         runTab={runTab}
@@ -605,7 +605,6 @@ export function Board({
         oppDialog={oppDialog}
         handView={handView}
         dragOverlay={dragOverlay}
-        setupBanner={setupBanner && <SetupBanner text={setupLine.current.text} first={setupLine.current.first} leaving={!placing} onGone={setupBannerGone} />}
         remindersDialog={turnReminders.dialog}
       />
     );
@@ -664,12 +663,8 @@ export function Board({
                 openHand={() => setCpuHand(true)}
               />
 
-              {/* Between the two sides: whose turn it is and End turn. */}
-              {/* With the setup banner over its status line, above Start battle (its button row 2.5rem tall). */}
-              <div className="relative shrink-0">
-                {statusBar(false)}
-                {setupBanner && <SetupBanner text={setupLine.current.text} first={setupLine.current.first} leaving={!placing} onGone={setupBannerGone} place="inset-x-0 bottom-10" />}
-              </div>
+              {/* Between the two sides: whose turn it is and End turn (the banners pass behind its buttons). */}
+              {statusBar(false)}
 
               {/* Prize cards on the left of the play area; discard pile and deck on the right; under them the player's playmat. */}
               <section className="relative flex min-h-0 flex-1 items-center rounded-lg bg-slate-900 p-3">
