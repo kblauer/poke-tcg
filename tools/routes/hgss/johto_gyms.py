@@ -64,13 +64,33 @@ USER_GYM_TRAINER = {
 # carts, from the door's floor to the middle one (9,33 to 9,23) and from there to Bugsy's (9,18 to 9,8).
 USER_LINKS = {
     'azalea': [((9, 33), (9, 23)), ((9, 18), (9, 8))],
+    # Blackthorn Gym's warp panels, floor to floor: the door's to the middle floor's added one, the middle floor's own to
+    # the upper floor's (the Gym Trainer's), and the upper floor's added one to Clair's (the user's).
+    'blackthorn': [((7, 83), (12, 64)), ((2, 62), (22, 41)), ((13, 38), (4, 9))],
+}
+# What a gym's links are, for its doc.
+LINK_NAMES = {'azalea': 'Spinarak carts', 'blackthorn': 'warp panels'}
+# The user's added warp panels (in the cropped map's tiles): each a copy of the panel at `from` (cut from the render
+# against the floor 3 tiles right of it: only what's lighter than the floor, the beam, or blue or green, the panel),
+# pasted on these tiles. Blackthorn Gym's own four can't take the player all the way to Clair (in the game its moving
+# platforms cross the lava, which aren't drawn), so two more pair with them (the user's).
+USER_PADS = {
+    'blackthorn': {'from': (7, 83), 'at': [(12, 64), (13, 38)]},
 }
 # The user's floors (the only walkable tiles, in the cropped map's tiles): rectangles (left, top, right, bottom). Ecruteak
 # Gym: the brown walkways, Morty's platform and the entrance room, never the grey (the invisible floor's pit).
 USER_FLOORS = {
     'ecruteak': [(2, 3, 4, 5), (1, 6, 5, 6), (3, 7, 3, 13), (3, 14, 4, 15), (4, 16, 4, 23), (5, 15, 6, 15), (6, 16, 6, 17), (5, 18, 6, 18), (2, 24, 13, 24), (5, 25, 7, 25), (12, 25, 13, 26),
                  (12, 27, 12, 32), (9, 33, 12, 34), (9, 35, 9, 43), (8, 44, 10, 45), (7, 46, 11, 46), (6, 47, 12, 48)],
+    # Blackthorn Gym: its four floors (the door's, the middle one, the Gym Trainer's and Clair's), never the lava (walkable
+    # in the map data: in the game its moving platforms cross it), the statues or the spikes; the warp panels walkable.
+    'blackthorn': [(10, 3, 12, 4), (11, 5, 11, 5), (10, 6, 13, 6), (9, 7, 13, 8), (4, 9, 13, 10), (12, 37, 14, 39), (12, 40, 19, 40), (12, 41, 23, 42), (15, 43, 20, 45),
+                   (17, 46, 20, 47), (18, 48, 20, 51), (19, 52, 20, 56), (18, 57, 20, 58), (4, 60, 6, 60), (2, 61, 7, 61), (2, 62, 11, 62), (2, 63, 13, 63), (4, 64, 13, 65),
+                   (8, 66, 13, 66), (11, 67, 13, 70), (11, 80, 13, 81), (7, 82, 16, 82), (7, 83, 17, 84), (7, 85, 9, 86), (11, 85, 13, 86), (15, 85, 17, 86), (7, 87, 10, 87),
+                   (12, 87, 17, 87)],
 }
+# What a gym's floors are, for its doc.
+FLOOR_NAMES = {'ecruteak': 'the brown walkways', 'blackthorn': 'its four floors, never the lava'}
 # The user's tiles not walkable (in the cropped map's tiles): rectangles (left, top, right, bottom).
 USER_BLOCKED = {
     'cianwood': [(1, 11, 5, 11), (7, 11, 10, 11)],
@@ -197,6 +217,24 @@ def crop_box(rows, door, keep):
     return x0, y0, x1, y1
 
 
+def paste_pads(im, pads):
+    """`im` (the cropped room, RGBA) with copies of the warp panel at `pads['from']` pasted on `pads['at']` (USER_PADS)."""
+    import numpy as np
+    px = np.array(im).astype(int)
+    x, y = pads['from']
+    # The panel's tile and the beam above it, half a tile each side; the floor 3 tiles right (it repeats every 16 px).
+    left, top = x * TILE - 8, y * TILE - 16
+    a, b = px[top:top + 32, left:left + 32, :3], px[top:top + 32, left + 48:left + 80, :3]
+    lum = lambda c: c[..., 0] * 0.3 + c[..., 1] * 0.59 + c[..., 2] * 0.11
+    mask = (np.abs(a - b).sum(axis=2) > 24) & ((lum(a) > lum(b) + 6) | (a[..., 2] - a[..., 0] > 8) | (a[..., 1] - a[..., 0] > 8))
+    mask[:, :8] = False; mask[:, 25:] = False
+    sprite = np.zeros((32, 32, 4), np.uint8); sprite[..., :3] = a; sprite[..., 3] = mask * 255
+    sprite = Image.fromarray(sprite)
+    for tx, ty in pads['at']:
+        im.alpha_composite(sprite, (tx * TILE - 8, ty * TILE - 16))
+    return im
+
+
 def track_tiles(track):
     """A user track's tiles, every one on the way from corner to corner."""
     tiles = [track['start']]
@@ -311,6 +349,8 @@ def main():
         if guide and not (0 <= guide[1] < len(rows) and 0 <= guide[0] < len(rows[0])):
             guide = None
         im = Image.open(prefix + '.png').crop((x0 * TILE, y0 * TILE, (x1 + 1) * TILE, (y1 + 1) * TILE))
+        if city in USER_PADS:
+            im = paste_pads(im.convert('RGBA'), USER_PADS[city])
         image = f'{city}_gym.png'
         im.save(os.path.join(PUBLIC, image))
         if track:
@@ -333,13 +373,15 @@ def main():
         if user:
             doc = f"{title}, the leader's room: the Gym Trainer at {stands[0][0]},{stands[0][1]}, the player stopping beside them at {spots[0][0]},{spots[0][1]} (the user's), the leader in their place ({stands[1][0]},{stands[1][1]})."
         if floors:
-            doc = doc[:-1] + ", walked only on the brown walkways (the user's)."
+            doc = doc[:-1] + f", walked only on {FLOOR_NAMES[city]} (the user's)."
         if blocked and not blocks:
             doc = doc[:-1] + ', ' + ' and '.join(f"{l if l == r else f'{l}-{r}'},{t if t == b else f'{t}-{b}'}" for l, t, r, b in blocked) + " not walkable (the user's)."
         if city in USER_OVERHEAD:
             doc = doc[:-1] + ", the arches drawn over the player walking under them (the user's)."
         if links:
-            doc = doc[:-1] + ', the walk from floor to floor through ' + ' and '.join(f'{a[0]},{a[1]} to {b[0]},{b[1]}' for a, b in links) + ' (the user\'s links: Spinarak carts).'
+            doc = doc[:-1] + ', the walk from floor to floor through ' + ' and '.join(f'{a[0]},{a[1]} to {b[0]},{b[1]}' for a, b in links) + f" (the user's links: {LINK_NAMES[city]})."
+        if city in USER_PADS:
+            doc = doc[:-1] + ', ' + ' and '.join(f'{x},{y}' for x, y in USER_PADS[city]['at']) + " added warp panels (the user's: copies of the one at " + ','.join(map(str, USER_PADS[city]['from'])) + ').'
         if ice and any('i' in r for r in ice):
             doc = doc[:-1] + ", its ice slid across (the map's ice behaviour; agreed with the user), a slide stopped by its ice blocks (" + ', '.join(f'{x},{y}' for x, y in blocks) + ", the map's) and by the Gym Trainer standing on it."
         out.append(gym_ts(const, title, doc, image, len(rows[0]), len(rows), door, spots, stands, guide, rows, links, track, city in USER_OVERHEAD, ice, blocks))

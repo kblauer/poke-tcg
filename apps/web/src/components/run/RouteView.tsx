@@ -13,7 +13,7 @@ import { FADE_MS, GRASS_PACE, pace, stepPace, THROUGH_MS, useWalk, type MapSecti
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
 import { bobs, BOB_MS, isItemBall, playerSprite, STEP_MS, WALK_FRAME_MS, type Facing } from '../../utils/overworld';
 import { encounterFigure, facing, key, placeFigures, setOf, type PlacedFigure } from '../../utils/routeFigures';
-import { Exclamation, Figure, OverworldSprite, TileOverlay } from './RouteSprites';
+import { Exclamation, Figure, JumpDust, JumpShadow, OverworldSprite, TileOverlay } from './RouteSprites';
 
 /**
  * The players' sprites (Red's, Ethan's and Brendan's, and the girls', Leaf's, Lyra's and May's, walking, on a bike, surfing) and the swimmers' in-water ones, fetched when
@@ -301,13 +301,17 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
                 <Figure key={`${key(p.spot)}|${p.figure.option ?? ''}|${p.figure.title}`} figure={p.figure} tile={p.tile} spot={p.spot} faded={p.faded} wet={onWater(shown, p.tile)} grass={inGrass(shown, p.tile)} />
               ),
             )}
+            {/* A ledge jump's shadow on the ground under him, and the dust where he lands (FireRed's). */}
+            <JumpShadow tile={walker.tile} shown={!!walker.jump} moveMs={walker.jump?.ms ?? (walker.walking ? ms.step / stepPace(shown, walker.tile) : 0)} />
+            {walker.landed && <JumpDust key={walker.landed.stamp} tile={walker.landed.tile} />}
             <OverworldSprite
               name={playerName}
               bob={stillBob && bobbing}
               tile={walker.tile}
               face={redFace}
               walkTick={walker.walking ? (walker.sliding ? 0 : tick) : undefined}
-              moveMs={walker.walking ? ms.step / stepPace(shown, walker.tile) : 0}
+              moveMs={walker.jump?.ms ?? (walker.walking ? ms.step / stepPace(shown, walker.tile) : 0)}
+              jump={walker.jump}
               fadeMs={ms.fade}
               hidden={walker.hidden}
               grass={inGrass(shown, walker.tile)}

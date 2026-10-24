@@ -870,6 +870,16 @@ describe('Gen 2 runs', () => {
     // Down the route from its first spot to its last, but not back up.
     expect(routePath(r45, r45.spots[0]!, r45.spots.at(-1)!)).not.toBeNull();
     expect(routePath(r45, r45.spots.at(-1)!, r45.spots[0]!)).toBeNull();
+    // Each ledge is jumped over as one move (the user's): from the tile above it to the one below, never standing on it.
+    const down = routePath(r45, r45.spots[0]!, r45.spots.at(-1)!)!;
+    const ledge = (t: RouteSpot) => r45.walkable[t.y]?.[t.x] === 'v';
+    expect(down.some((s) => ledge(s.tile))).toBe(false);
+    const jumps = down.filter((s) => s.jump);
+    expect(jumps.length).toBeGreaterThan(0);
+    for (const s of jumps) {
+      const before = down[down.indexOf(s) - 1]?.tile ?? r45.spots[0]!;
+      expect([s.tile.x - before.x, s.tile.y - before.y, ledge({ x: s.tile.x, y: s.tile.y - 1 })]).toEqual([0, 2, true]);
+    }
     // The ice cave in two maps (the user's): the lower area up to its ladder (its exit), 5 encounters each.
     const [r44, upper] = runType('mahogany').routes!;
     expect([r44!.name, upper!.name, r44!.spots.length, upper!.spots.length]).toEqual(['Route 44', 'Route 44 (upper)', 5, 5]);

@@ -1,8 +1,8 @@
 // Routes for the run map: a route's pixel map (from the FireRed/LeafGreen decompilation, rendered with its tilesets by
 // tools/routes/render_route.py) and the spots its encounters happen at, in 16px tiles from the top left. The run screen
 // zooms the map in on the current step's spot. Each route keeps which of its tiles can be walked on (`walkable`: '.'
-// walkable, '~' water (walkable only on a route tagged for surfing, `travel: 'surf'`), 'v' a ledge jumped going down
-// only (Route 45: walked onto and off only southwards; no one stands on it), '#' not: trees, buildings, ledges, other water,
+// walkable, '~' water (walkable only on a route tagged for surfing, `travel: 'surf'`), 'v' a ledge jumped over
+// going down in one hop (Route 45: never stood on; routePath's `jump` steps), '#' not: trees, buildings, ledges, other water,
 // doorways and objects), so its spots can be checked to stay on the path.
 
 /** The trainers met in the water of every surfed route (Kanto's Route 20, Johto's 40, Hoenn's 106, 124 and Sootopolis City): Swimmers, men and women (overworld.ts gives the women their own sprite). */
@@ -371,8 +371,17 @@ export const onPath = (route: Route, spot: RouteSpot) => {
 /** The way the encounters go at a spot of a route (its `spotFlows`, or the map's `flow`). */
 export const flowAt = (route: Route, spot: number) => route.spotFlows?.[spot] ?? route.flow;
 
-/** Whether a tile of a route is a ledge jumped going down only ('v'). */
-const downLedge = (route: Route, spot: RouteSpot) => route.walkable[spot.y]?.[spot.x] === 'v';
+/** The ledge markers in `walkable` (from the games' tile behaviours: tools/routes/hgss/hgss_map.py), by the way each is jumped. */
+const LEDGES = { v: 'down', '^': 'up', '<': 'left', '>': 'right' } as const;
+
+/**
+ * The way a tile of a route is jumped over, if it's a ledge (never stood on: the user's): 'down' ('v'), 'up' ('^'),
+ * 'left' ('<') or 'right' ('>'); null otherwise. Only down ledges are jumped yet (routePath): the maps have no others.
+ */
+export const ledgeAt = (route: Route, spot: RouteSpot): (typeof LEDGES)[keyof typeof LEDGES] | null => LEDGES[route.walkable[spot.y]?.[spot.x] as keyof typeof LEDGES] ?? null;
+
+/** Whether a tile of a route is a ledge jumped going down ('v'), from the tile above it to the one below (the user's). */
+const downLedge = (route: Route, spot: RouteSpot) => ledgeAt(route, spot) === 'down';
 
 /** Whether a tile is tall grass (the route's `grass`), where people are drawn half hidden. */
 export const inGrass = (route: Route, spot: RouteSpot) => route.grass?.[spot.y]?.[spot.x] === 'g';
@@ -392,13 +401,15 @@ export const leaderRoom = (gym: Route, entrance: RouteSpot): Route => ({ ...gym,
 
 /**
  * A step of a walk: the tile stepped onto, `fade` when it's reached through a link (a gatehouse), `under` when it's
- * under a bridge (a `track`'s), and `slide` when it's slid onto across ice.
+ * under a bridge (a `track`'s), `slide` when it's slid onto across ice, and `jump` when it's jumped onto, over a ledge (two
+ * tiles at once).
  */
 export interface RouteStep {
   tile: RouteSpot;
   fade?: boolean;
   under?: boolean;
   slide?: boolean;
+  jump?: boolean;
 }
 
 const tileKey = (t: RouteSpot) => `${t.x},${t.y}`;
@@ -417,6 +428,7 @@ function trackPath(track: TrackTile[], from: RouteSpot, to: RouteSpot): RouteSte
 /**
  * The shortest walk from one tile to another over the route's walkable tiles (4 ways, as in the game) and its links,
  * around the tiles in `blocked` (people standing on the route), as the steps taken (not `from`); null if there's none.
+ * A ledge ('v') is jumped over going down, landing on the tile below it: one move (`jump`), never onto the ledge itself.
  * Onto ice (the route's `ice`), a move slides on the way it was going until the next tile is a wall or someone standing
  * there, or it's onto ground, stopping only there: the fewest moves (a slide one), its tiles all steps (`slide`).
  * `lineOfSight` (an encounter whose people stand in a line through `to`): of the shortest walks, the one that gets onto
@@ -427,7 +439,7 @@ function trackPath(track: TrackTile[], from: RouteSpot, to: RouteSpot): RouteSte
 export function routePath(route: Route, from: RouteSpot, to: RouteSpot, blocked: ReadonlySet<string> = new Set(), lineOfSight?: 'row' | 'column'): RouteStep[] | null {
   const along = route.track && trackPath(route.track, from, to);
   if (along) return along;
-  const prev = new Map<string, { from: RouteSpot; fade: boolean; via: RouteSpot[]; slide: boolean } | null>([[tileKey(from), null]]);
+  const prev = new Map<string, { from: RouteSpot; fade: boolean; via: RouteSpot[]; slide: boolean; jump: boolean } | null>([[tileKey(from), null]]);
   const offLine = (t: RouteSpot) => (lineOfSight === 'row' ? t.x !== to.x : lineOfSight === 'column' ? t.y !== to.y : false);
   // Each tile's steps from `from`, and (lineOfSight) its walk's steps off the line: BFS reaches a tile first by a shortest
   // walk, and a later one as short replaces it if it has fewer steps off the line.
@@ -439,7 +451,7 @@ export function routePath(route: Route, from: RouteSpot, to: RouteSpot, blocked:
     if (here.x === to.x && here.y === to.y) {
       const steps: RouteStep[] = [];
       for (let t = here, p = prev.get(tileKey(t)); p; t = p.from, p = prev.get(tileKey(t))) {
-        steps.unshift({ tile: t, ...(p.fade && { fade: true }), ...(p.slide && { slide: true }) });
+        steps.unshift({ tile: t, ...(p.fade && { fade: true }), ...(p.slide && { slide: true }), ...(p.jump && { jump: true }) });
         steps.unshift(...p.via.map((tile) => ({ tile, slide: true })));
       }
       return steps;
@@ -449,10 +461,16 @@ export function routePath(route: Route, from: RouteSpot, to: RouteSpot, blocked:
       ...([[0, -1], [1, 0], [0, 1], [-1, 0]] as const).map(([dx, dy]) => ({ tile: { x: here.x + dx, y: here.y + dy }, fade: false, dx, dy })),
       ...linked.map((tile) => ({ tile, fade: true, dx: 0, dy: 0 })),
     ];
-    for (const { tile: first, fade, dx, dy } of next) {
-      if (!(onPath(route, first) || downLedge(route, first)) || blocked.has(tileKey(first))) continue;
-      // A ledge is jumped going down only: onto it and off it southwards.
-      if (!fade && (downLedge(route, first) || downLedge(route, here)) && first.y !== here.y + 1) continue;
+    for (const step of next) {
+      const { fade, dx, dy } = step;
+      let first = step.tile;
+      // A ledge: jumped over going down, landing on the tile below it; no other way across or onto it.
+      const jump = !fade && downLedge(route, first);
+      if (jump) {
+        if (dy !== 1) continue;
+        first = { x: first.x, y: first.y + 1 };
+      }
+      if (!onPath(route, first) || blocked.has(tileKey(first))) continue;
       // Onto ice: on until the next tile can't be walked onto (or someone stands there), or this one is ground.
       const via: RouteSpot[] = [];
       let tile = first;
@@ -469,12 +487,12 @@ export function routePath(route: Route, from: RouteSpot, to: RouteSpot, blocked:
       if (prev.has(k)) {
         // Already reached: only a walk as short with fewer steps off the line takes its place (it's still queued).
         if (lineOfSight && dist.get(k) === d && row < onRow.get(k)!) {
-          prev.set(k, { from: here, fade, via, slide });
+          prev.set(k, { from: here, fade, via, slide, jump });
           onRow.set(k, row);
         }
         continue;
       }
-      prev.set(k, { from: here, fade, via, slide });
+      prev.set(k, { from: here, fade, via, slide, jump });
       dist.set(k, d);
       onRow.set(k, row);
       queue.push(tile);

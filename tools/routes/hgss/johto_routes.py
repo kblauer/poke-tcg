@@ -77,6 +77,16 @@ USER_BLOCKED = {
         (12, 143), (13, 143), (15, 143), (16, 143),
         (12, 146), (13, 146), (14, 146), (16, 146), (17, 146),
     ],
+    'route45': [(19, 61), (20, 61), (21, 61), (20, 114), (21, 114), (22, 114), (23, 114), (20, 113), (21, 113), (22, 113), (23, 113), (23, 83), (24, 83), (25, 83), (17, 133), (18, 133), (19, 133), (8, 147), (9, 147), (10, 147), (11, 147), (12, 147), (13, 147), (14, 147), (17, 146), (17, 147), (15, 147), (16, 147), (19, 57), (24, 108), (25, 108), (24, 109), (25, 109), (18, 110), (19, 110), (18, 111), (19, 111)],
+}
+# Ledges the user moved down to where they're drawn, by route: (left, right, row, rows down), the row's ledge tiles from
+# `left` to `right` moved that many rows down (the tiles they leave walkable).
+USER_LEDGE_MOVES = {
+    'route45': [
+        (25, 27, 25, 1), (25, 27, 33, 1), (5, 8, 39, 1), (5, 8, 45, 1), (16, 22, 47, 1), (8, 10, 67, 1), (20, 22, 71, 1), (20, 22, 74, 1),
+        (20, 22, 77, 1), (4, 10, 87, 1), (4, 9, 92, 1), (20, 25, 89, 1), (26, 28, 99, 2), (15, 17, 99, 2), (15, 17, 102, 2), (15, 17, 105, 2),
+        (4, 7, 105, 1), (24, 28, 112, 2), (4, 7, 115, 1), (17, 22, 120, 2), (5, 9, 137, 3), (18, 21, 145, 2), (6, 10, 59, 1), (20, 22, 51, 1),
+    ],
 }
 # Tiles the user says are tall grass, though the map data doesn't, by route.
 USER_GRASS = {
@@ -85,10 +95,12 @@ USER_GRASS = {
 # Tiles the user says aren't tall grass, though the map data has them as grass, by route.
 USER_NOT_GRASS = {
     'route32': [(8, 105), (8, 106), (8, 107)],
+    'route45': [(18, 93), (17, 121), (18, 121), (19, 121), (20, 121), (21, 121), (22, 121)],
 }
 # Tiles the user says can be walked on, though the map data has them blocked, by route: rectangles (left, top, right, bottom).
 USER_OPEN = {
     'route35': [(4, 60, 9, 63)],
+    'route45': [(20, 134, 22, 135), (0, 142, 0, 142), (10, 148, 17, 150), (6, 149, 9, 149), (1, 144, 5, 144)],
 }
 # The user's entrances, in place of the generator's.
 USER_ENTRANCES = {
@@ -98,15 +110,19 @@ USER_ENTRANCES = {
 USER_EXITS = {
     'route32': (14, 143),
     'route35': (26, 0),
+    'route45': (0, 142),
 }
 # The user's spots whose figures stand another way (`spotFlows`): by encounter number (from 1), the way the encounters go
 # there (Route 35's 3rd, 6th and 9th: 'right', 'left' and 'right', the way the walk goes on, their figures above and below them).
 USER_SPOT_FLOWS = {
     'route35': {3: 'right', 6: 'left', 9: 'right'},
+    'route45': {10: 'up'},
 }
 # The user's spots on the real routes, in place of the generator's: by encounter number (from 1).
 USER_SPOTS = {
     'route32': {5: (5, 74)},
+    # Below the ledge moved onto its old tile (15-17,102 to 104).
+    'route45': {8: (17, 105), 10: (6, 144)},
     'route35': {1: (6, 57), 2: (7, 51), 3: (17, 49), 4: (22, 43), 5: (22, 35), 6: (17, 31), 7: (10, 29), 8: (11, 21), 9: (16, 12), 10: (26, 11)},
 }
 STEP = {'left': (-1, 0), 'right': (1, 0), 'up': (0, -1), 'down': (0, 1)}
@@ -251,6 +267,11 @@ def main():
         for left, top, right, bottom in USER_OPEN.get(name, []):
             for y in range(top, bottom + 1):
                 j['rows'][y] = j['rows'][y][:left] + '.' * (right - left + 1) + j['rows'][y][right + 1:]
+        for left, right, y, down in USER_LEDGE_MOVES.get(name, []):
+            for x in range(left, right + 1):
+                assert j['rows'][y][x] == 'v', (name, 'user ledge move not from a ledge', x, y)
+                j['rows'][y] = j['rows'][y][:x] + '.' + j['rows'][y][x + 1:]
+                j['rows'][y + down] = j['rows'][y + down][:x] + 'v' + j['rows'][y + down][x + 1:]
         for x, y in USER_GRASS.get(name, []):
             j['grass'][y] = j['grass'][y][:x] + 'g' + j['grass'][y][x + 1:]
         for x, y in USER_NOT_GRASS.get(name, []):
@@ -272,6 +293,8 @@ def main():
         blocked = USER_BLOCKED.get(name, [])
         users += f", {' '.join(f'{x},{y}' for x, y in blocked)} not walkable" if blocked else ''
         users += ''.join(f', {l}-{r},{t}-{b} walkable' for l, t, r, b in USER_OPEN.get(name, []))
+        moved = USER_LEDGE_MOVES.get(name, [])
+        users += f", its ledges at {' '.join(f'{l}-{r},{y}' for l, r, y, _ in moved)} moved down to where they're drawn" if moved else ''
         grassy = USER_GRASS.get(name, [])
         users += f", {' '.join(f'{x},{y}' for x, y in grassy)} tall grass" if grassy else ''
         bare = USER_NOT_GRASS.get(name, [])
