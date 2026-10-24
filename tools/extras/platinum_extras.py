@@ -2,7 +2,8 @@
 Pokémon Platinum has them:
 
 - the berries' Poffin values (res/items/data/<berry>_berry.json's berryData: the five flavours and smoothness, which
-  Platinum changed for half of the Gen 3 berries), for the berries the Berry Farm grows: packages/campaign/src/berry-data-gen4.ts.
+  Platinum changed for half of the Gen 3 berries), for the berries the Berry Farm grows: packages/campaign/src/berry-data-gen4.ts;
+- the cooking's sound effects, rendered by nds_render.py: apps/web/public/extras/poffin/sounds/<nm..>.wav.
 
 Usage: python tools/extras/platinum_extras.py <pokeplatinum checkout>
 Needs Pillow."""
@@ -34,9 +35,22 @@ def berry_data(repo):
     open(os.path.join(CAMPAIGN, 'berry-data-gen4.ts'), 'w', encoding='utf-8', newline='\n').write('\n'.join(lines) + '\n')
 
 
+# The cooking's sound effects (ov83_0223B5A0.c's Sound_PlayEffect calls): each phase's lap (NM01, NM04_2, NM07_2), spill
+# (NM02, NM05) and burn (NM03, NM08), the countdown's (NM10, NM10_2), the arrow's (NM12_2), done (NM13) and the results' (NM14).
+COOK_SOUNDS = ['NM01', 'NM02', 'NM03', 'NM04_2', 'NM05', 'NM07_2', 'NM08', 'NM10', 'NM10_2', 'NM12_2', 'NM13', 'NM14']
+
+
+def sounds(repo):
+    sys.path.insert(0, HERE)
+    import nds_render
+    for name in COOK_SOUNDS:
+        nds_render.m4a_render.write_wav(os.path.join(PUBLIC, 'sounds', name.lower() + '.wav'), nds_render.render(repo, 'SEQ_SE_DP_' + name), 0.7)
+
+
 def main():
     repo = sys.argv[1]
     berry_data(repo)
+    sounds(repo)
 
 
 if __name__ == '__main__':
