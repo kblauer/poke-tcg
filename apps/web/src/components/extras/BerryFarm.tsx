@@ -1,7 +1,7 @@
 import MyLocationIcon from '@mui/icons-material/MyLocation';
 import { BERRY_FARM_MAP, RIPE, routePath, STAGES, stageAt, type Route, type RouteSpot } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { mapTransform, usePan, ZOOM } from '../../hooks/usePan';
 import { useRun } from '../../hooks/useRun';
 import { useToasts } from '../../hooks/useToasts';
@@ -31,7 +31,7 @@ const STAGE_FRAMES: [number, number][] = [[0, 0], [1, 2], [3, 4], [5, 6], [7, 8]
 /** How long a stage's first frame shows before its second (32 or 48 of the game's frames). */
 const SETTLE_MS = 700;
 
-/** "1 h 12 min", "8 min", "less than a minute". */
+/** "in 1 h 12 min", "in 8 min", "in less than a minute". */
 function timeLeft(ms: number) {
   const min = Math.ceil(ms / 60000);
   if (ms <= 0) return 'now';
@@ -77,12 +77,19 @@ function Picked({ berry, count, plot }: { berry: string; count: number; plot: Ro
   );
 }
 
+interface PickedBerries {
+  id: number;
+  berry: string;
+  count: number;
+  plot: RouteSpot;
+}
+
 /**
  * The Berry Farm (the Extras page's): Route 123's Berry Master's garden made bigger (BERRY_FARM_MAP), a tree of every
  * berry growing on it in real time (the farm's `extras.farm`; each through the game's stages, ripe GROW_HOURS after it was
  * planted). Clicking a ripe tree walks the player (Brendan or May, the account's choice) to it and picks it: its berries
  * go to the account's (listed under the map) and it's planted again; an unripe one says when it will be. The map pans like
- * a run's (usePan). Debug builds can ripen every tree at once.
+ * a run's (FarmMap). Debug builds can ripen every tree at once.
  */
 export function BerryFarm() {
   const trpc = useTRPC();
@@ -91,7 +98,7 @@ export function BerryFarm() {
   const debug = useDebugEnabled();
   const farm = useQuery({ ...trpc.extras.farm.queryOptions(), refetchInterval: 60_000 });
   const setFarm = (data: NonNullable<typeof farm.data>) => queryClient.setQueryData(trpc.extras.farm.queryKey(), data);
-  const [picked, setPicked] = useState<{ id: number; berry: string; count: number; plot: RouteSpot }[]>([]);
+  const [picked, setPicked] = useState<PickedBerries[]>([]);
   const harvest = useMutation(
     trpc.extras.harvest.mutationOptions({
       onSuccess: ({ berry, count, ...data }) => {
@@ -116,13 +123,94 @@ export function BerryFarm() {
     return () => window.clearInterval(timer);
   }, []);
   const serverNow = now + skew;
-  // Each stage's first frame on the trees' first showing (and when one grows), then its second, as the game plays them.
-  const [settled, setSettled] = useState(false);
-  useEffect(() => {
-    const timer = window.setTimeout(() => setSettled(true), SETTLE_MS);
-    return () => window.clearTimeout(timer);
-  }, []);
 
+  if (farm.error && !farm.data) return <p className="text-red-400">{farm.error.message}</p>;
+  if (!farm.data) return <p className="text-slate-400">Loading the farm…</p>;
+  const { trees, berries, growMs } = farm.data;
+  const stages = trees.map((t) => stageAt(t.ripeAt - growMs, serverNow));
+  const ripeCount = stages.filter((s) => s === RIPE).length;
+  const nextRipe = Math.min(...trees.filter((_, i) => stages[i] !== RIPE).map((t) => t.ripeAt));
+  const owned = Object.entries(berries).filter(([, n]) => n > 0);
+
+  const onUnripe = (i: number) => {
+    const tree = trees[i]!;
+    toasts.push('warning', `The ${berryName(tree.berry)} tree is ${STAGES[stages[i]!]}: its berries are ripe ${timeLeft(tree.ripeAt - serverNow)}.`);
+  };
+  const onPick = (i: number) => {
+    if (!harvest.isPending) harvest.mutate({ berry: trees[i]!.berry });
+  };
+
+  return (
+    <div className="space-y-4">
+      <FarmMap
+        trees={trees}
+        stages={stages}
+        serverNow={serverNow}
+        picked={picked}
+        gender={gender}
+        onUnripe={onUnripe}
+        onPick={onPick}
+        caption={
+          <>
+            {ripeCount ? `${ripeCount} ${ripeCount === 1 ? 'tree is' : 'trees are'} ripe` : `The next tree is ripe ${timeLeft(nextRipe - serverNow)}`} · every tree is ripe {Math.round(growMs / 3600000)} hours
+            after it's picked · drag or scroll to look around
+          </>
+        }
+      />
+
+      <section className="space-y-2">
+        <div className="flex items-center gap-3">
+          <h3 className="font-semibold">Berry Pouch</h3>
+          {DEBUG_BUILD && debug && (
+            <button className={`${BUTTON} ml-auto`} disabled={ripen.isPending} onClick={() => ripen.mutate()}>
+              Debug: ripen every tree
+            </button>
+          )}
+        </div>
+        {owned.length ? (
+          <ul className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-2">
+            {owned.map(([berry, n]) => (
+              <li key={berry} className="flex items-center gap-2 rounded bg-slate-800 px-2 py-1.5 text-sm ring-1 ring-slate-700">
+                <BerryIcon berry={berry} />
+                <span className="truncate">{berryName(berry)}</span>
+                <span className="ml-auto tabular-nums text-slate-300">×{n}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-slate-400">No berries yet: pick a ripe tree.</p>
+        )}
+      </section>
+      <Toasts toasts={toasts.toasts} />
+    </div>
+  );
+}
+
+/**
+ * The farm's map (BerryFarm's), panned like a run's (usePan): the trees at their stages, the player, and the berries just
+ * picked rising. A ripe tree clicked walks the player to the tile below it, facing it, then `onPick`s it; an unripe one
+ * is `onUnripe` at once. Only mounted once the farm has loaded: usePan measures its box when it mounts, so the box must
+ * be there then (with "Loading the farm…" in its place it never was, and the map never showed).
+ */
+function FarmMap({
+  trees,
+  stages,
+  serverNow,
+  picked,
+  gender,
+  onUnripe,
+  onPick,
+  caption,
+}: {
+  trees: { berry: string; plot: RouteSpot; ripeAt: number }[];
+  stages: number[];
+  serverNow: number;
+  picked: PickedBerries[];
+  gender: 'male' | 'female' | undefined;
+  onUnripe: (i: number) => void;
+  onPick: (i: number) => void;
+  caption: ReactNode;
+}) {
   const box = useRef<HTMLDivElement>(null);
   const mapEl = useRef<HTMLDivElement>(null);
   const pan = usePan({ box, mapEl, map: FARM, mapHeight: FARM.height, panLocked: false });
@@ -142,7 +230,13 @@ export function BerryFarm() {
     const timer = window.setInterval(() => setTick((t) => t + 1), WALK_FRAME_MS);
     return () => window.clearInterval(timer);
   }, [walker.walking]);
-  // The view opens on the player.
+  // Each stage's first frame when the trees first show, then its second, as the game plays them.
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSettled(true), SETTLE_MS);
+    return () => window.clearTimeout(timer);
+  }, []);
+  // The view opens on the middle of the farm.
   const centred = useRef(false);
   useEffect(() => {
     if (centred.current || !pan.size.w) return;
@@ -171,104 +265,61 @@ export function BerryFarm() {
       }, steps.length * STEP_MS),
     );
   };
-
-  if (farm.error && !farm.data) return <p className="text-red-400">{farm.error.message}</p>;
-  if (!farm.data) return <p className="text-slate-400">Loading the farm…</p>;
-  const { trees, berries, growMs } = farm.data;
-  const stages = trees.map((t) => stageAt(t.ripeAt - growMs, serverNow));
-  const ripeCount = stages.filter((s) => s === RIPE).length;
-  const nextRipe = Math.min(...trees.filter((_, i) => stages[i] !== RIPE).map((t) => t.ripeAt));
-  const owned = Object.entries(berries).filter(([, n]) => n > 0);
-
   const onTree = (i: number) => {
-    const tree = trees[i]!;
-    if (stages[i] !== RIPE) {
-      toasts.push('warning', `The ${berryName(tree.berry)} tree is ${STAGES[stages[i]!]}: its berries are ripe ${timeLeft(tree.ripeAt - serverNow)}.`);
-      return;
-    }
-    if (harvest.isPending) return;
-    walkTo(tree.plot, () => harvest.mutate({ berry: tree.berry }));
+    if (stages[i] !== RIPE) onUnripe(i);
+    else walkTo(trees[i]!.plot, () => onPick(i));
   };
 
   return (
-    <div className="space-y-4">
-      <figure className="mx-auto w-full space-y-1" style={{ maxWidth: Math.max(768, FARM.width * ZOOM) }}>
-        <div
-          ref={box}
-          className="relative cursor-grab touch-none overflow-hidden rounded-lg bg-slate-950 ring-1 ring-slate-600 active:cursor-grabbing"
-          style={{ height: Math.min(pan.height, FARM.height * ZOOM) }}
-          aria-label="The Berry Farm. Drag or scroll to look around; click a ripe tree to pick it."
-          onPointerDown={pan.onPointerDown}
-          onPointerMove={pan.onPointerMove}
-          onPointerUp={pan.endDrag}
-          onPointerCancel={pan.endDrag}
-        >
-          {pan.size.w > 0 && (
-            <div
-              ref={mapEl}
-              className="absolute left-0 top-0 origin-top-left"
-              style={{ width: FARM.width, height: FARM.height, transform: mapTransform(pan.offset), transition: pan.glide ? `transform ${pan.glide.ms}ms ${pan.glide.ease}` : undefined }}
-            >
-              <img src={FARM.image} alt="" draggable={false} className="h-full w-full select-none [image-rendering:pixelated]" />
-              {trees.map((t, i) => (
-                <Tree key={t.berry} berry={t.berry} plot={t.plot} stage={stages[i]!} settled={settled} ripeIn={t.ripeAt - serverNow} onClick={() => onTree(i)} />
-              ))}
-              <OverworldSprite
-                name={playerSprite('rse', undefined, false, gender ?? 'male')}
-                tile={walker.tile}
-                face={walker.face}
-                walkTick={walker.walking ? tick : undefined}
-                moveMs={walker.walking ? STEP_MS : 0}
-                title="You"
-              />
-              {picked.map((p) => (
-                <Picked key={p.id} berry={p.berry} count={p.count} plot={p.plot} />
-              ))}
-            </div>
-          )}
-          <div className="absolute right-2 top-2 z-[1000] flex flex-col gap-1">
-            <button
-              className="flex h-8 w-8 items-center justify-center rounded bg-slate-800/90 text-slate-200 ring-1 ring-slate-600 transition hover:bg-slate-700"
-              onClick={() => {
-                pan.setGlide({ ms: 700, ease: 'ease-in-out' });
-                pan.setOffset(pan.centreOn(walkerRef.current.tile));
-              }}
-              aria-label="Centre on you"
-              title="Centre on you"
-            >
-              <MyLocationIcon sx={{ fontSize: 16 }} />
-            </button>
-          </div>
-        </div>
-        <figcaption className="text-center text-xs text-slate-400">
-          {ripeCount ? `${ripeCount} ${ripeCount === 1 ? 'tree is' : 'trees are'} ripe` : `The next tree is ripe ${timeLeft(nextRipe - serverNow)}`} · every tree is ripe {Math.round(growMs / 3600000)} hours after it's picked · drag or scroll to look around
-        </figcaption>
-      </figure>
-
-      <section className="space-y-2">
-        <div className="flex items-center gap-3">
-          <h3 className="font-semibold">Berry Pouch</h3>
-          {DEBUG_BUILD && debug && (
-            <button className={`${BUTTON} ml-auto`} disabled={ripen.isPending} onClick={() => ripen.mutate()}>
-              Debug: ripen every tree
-            </button>
-          )}
-        </div>
-        {owned.length ? (
-          <ul className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-2">
-            {owned.map(([berry, n]) => (
-              <li key={berry} className="flex items-center gap-2 rounded bg-slate-800 px-2 py-1.5 text-sm ring-1 ring-slate-700">
-                <BerryIcon berry={berry} />
-                <span className="truncate">{berryName(berry)}</span>
-                <span className="ml-auto tabular-nums text-slate-300">×{n}</span>
-              </li>
+    <figure className="mx-auto w-full space-y-1" style={{ maxWidth: Math.max(768, FARM.width * ZOOM) }}>
+      <div
+        ref={box}
+        className="relative cursor-grab touch-none overflow-hidden rounded-lg bg-slate-950 ring-1 ring-slate-600 active:cursor-grabbing"
+        style={{ height: Math.min(pan.height, FARM.height * ZOOM) }}
+        aria-label="The Berry Farm. Drag or scroll to look around; click a ripe tree to pick it."
+        onPointerDown={pan.onPointerDown}
+        onPointerMove={pan.onPointerMove}
+        onPointerUp={pan.endDrag}
+        onPointerCancel={pan.endDrag}
+      >
+        {pan.size.w > 0 && (
+          <div
+            ref={mapEl}
+            className="absolute left-0 top-0 origin-top-left"
+            style={{ width: FARM.width, height: FARM.height, transform: mapTransform(pan.offset), transition: pan.glide ? `transform ${pan.glide.ms}ms ${pan.glide.ease}` : undefined }}
+          >
+            <img src={FARM.image} alt="" draggable={false} className="h-full w-full select-none [image-rendering:pixelated]" />
+            {trees.map((t, i) => (
+              <Tree key={t.berry} berry={t.berry} plot={t.plot} stage={stages[i]!} settled={settled} ripeIn={t.ripeAt - serverNow} onClick={() => onTree(i)} />
             ))}
-          </ul>
-        ) : (
-          <p className="text-sm text-slate-400">No berries yet: pick a ripe tree.</p>
+            <OverworldSprite
+              name={playerSprite('rse', undefined, false, gender ?? 'male')}
+              tile={walker.tile}
+              face={walker.face}
+              walkTick={walker.walking ? tick : undefined}
+              moveMs={walker.walking ? STEP_MS : 0}
+              title="You"
+            />
+            {picked.map((p) => (
+              <Picked key={p.id} berry={p.berry} count={p.count} plot={p.plot} />
+            ))}
+          </div>
         )}
-      </section>
-      <Toasts toasts={toasts.toasts} />
-    </div>
+        <div className="absolute right-2 top-2 z-[1000] flex flex-col gap-1">
+          <button
+            className="flex h-8 w-8 items-center justify-center rounded bg-slate-800/90 text-slate-200 ring-1 ring-slate-600 transition hover:bg-slate-700"
+            onClick={() => {
+              pan.setGlide({ ms: 700, ease: 'ease-in-out' });
+              pan.setOffset(pan.centreOn(walkerRef.current.tile));
+            }}
+            aria-label="Centre on you"
+            title="Centre on you"
+          >
+            <MyLocationIcon sx={{ fontSize: 16 }} />
+          </button>
+        </div>
+      </div>
+      <figcaption className="text-center text-xs text-slate-400">{caption}</figcaption>
+    </figure>
   );
 }
