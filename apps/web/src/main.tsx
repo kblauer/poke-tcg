@@ -46,6 +46,10 @@ const PacksPage = lazyRouteComponent(() => import('./pages/Packs'), 'PacksPage')
 const CosmeticsPage = lazyRouteComponent(() => import('./pages/Cosmetics'), 'CosmeticsPage');
 const SettingsPage = lazyRouteComponent(() => import('./pages/Settings'), 'SettingsPage');
 
+// The logo, in the top bar and the phone's menu: the Pokémon logo's lettering (Pokemon Solid, `font-logo`); everything
+// else is in the UI's font (index.css).
+const LOGO = 'font-logo text-2xl font-normal leading-none tracking-wide text-yellow-300';
+
 const RAIL_KEY = 'poke-tcg.nav-open';
 
 /** Whether the big screen's menu was left open (`RAIL_KEY`), remembered in the browser; closed when storage fails. */
@@ -112,9 +116,8 @@ function RootLayout() {
               <MenuIcon />
             </button>
           )}
-          {/* The logo keeps the system font; everything else is in the pixel font (index.css). */}
-          <Link to="/" className="font-system text-xl font-bold text-yellow-300">
-            Poké TCG
+          <Link to="/" className={`${LOGO} ml-2 sm:ml-3`}>
+            PoKé TcG
           </Link>
         </div>
         {/* On a phone, the run's HP and ₱, the bank and Stardust, centred between the logo and Sign out. */}
@@ -126,7 +129,7 @@ function RootLayout() {
         {session && <div className="flex shrink-0 items-center text-sm">{signOutButton}</div>}
       </header>
       {session && phone && panel && (
-        <SidePanel side="left" title="Poké TCG" onClose={closePanel}>
+        <SidePanel side="left" title={<span className={LOGO}>PoKé TcG</span>} onClose={closePanel}>
           <PageMenu onPick={closePanel} />
           {/* During a run, its numbers and log, as in the big screen's menu. */}
           <PhoneNavRun />
