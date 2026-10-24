@@ -211,6 +211,9 @@ export const harvestBerryInput = z.object({ berry: berryId });
 export const blendBerryInput = z.object({ berry: berryId, maxRpm: z.number().int().min(0).max(99999) });
 // A Poffin's cooking: the berry, its time in frames (30 a second; 3 phases of at most 20 seconds) and its spills and burns.
 export const cookPoffinInput = z.object({ berry: berryId, frames: z.number().int().min(1).max(3 * 20 * 30), spills: z.number().int().min(0).max(9999), burns: z.number().int().min(0).max(9999) });
+// The Game Corner: one of the counter's coin offers (COIN_OFFERS, by its coins); a round's bet and payout (coinRoundError checks them).
+export const buyCoinsInput = z.object({ coins: z.union([z.literal(50), z.literal(500)]) });
+export const coinRoundInput = z.object({ game: z.enum(['roulette', 'slots']), bet: z.number().int().min(0).max(6), payout: z.number().int().min(0).max(9999) });
 
 export const openPackInput = z.object({
   setId: z.enum(PACK_SETS as [string, ...string[]]),

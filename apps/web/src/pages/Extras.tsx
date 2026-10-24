@@ -3,12 +3,13 @@ import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import { BerryBlender } from '../components/extras/BerryBlender';
 import { BerryFarm } from '../components/extras/BerryFarm';
+import { GameCorner } from '../components/extras/GameCorner';
 import { PoffinCooking } from '../components/extras/PoffinCooking';
 import { PageHeader } from '../components/PageHeader';
 import { PAGE_WIDTH } from '../utils/layout';
 
 /** The Extras page's minigames and modes, in its list's order: each its page, picture and a line on it. */
-const EXTRAS: { to: '/extras/berry-farm' | '/extras/berry-blender' | '/extras/poffin-cooking'; title: string; text: string; picture: ReactNode }[] = [
+const EXTRAS: { to: '/extras/berry-farm' | '/extras/berry-blender' | '/extras/poffin-cooking' | '/extras/game-corner'; title: string; text: string; picture: ReactNode }[] = [
   {
     to: '/extras/berry-farm',
     title: 'Berry Farm',
@@ -29,6 +30,12 @@ const EXTRAS: { to: '/extras/berry-farm' | '/extras/berry-blender' | '/extras/po
     text: 'Cook a berry into a Poffin as at Platinum’s Poffin House, stirring the pot the way the arrow points. Don’t let it burn or spill!',
     // A Spicy Poffin (the first of Platinum's Poffin sprites), at 1.5×.
     picture: <div className="h-24 w-24 bg-[url(/extras/poffin/poffins.png)] bg-[length:2784px_96px] bg-[position:0_0] [image-rendering:pixelated]" />,
+  },
+  {
+    to: '/extras/game-corner',
+    title: 'Game Corner',
+    text: 'Mauville’s Game Corner: buy coins with your banked ₱ and try your luck at the roulette tables and the slot machines.',
+    picture: <div className="h-24 w-24 bg-[url(/extras/roulette/wheel.png)] bg-contain bg-center bg-no-repeat [image-rendering:pixelated]" />,
   },
 ];
 
@@ -86,6 +93,15 @@ export function PoffinCookingPage() {
   return (
     <ExtraPage title="Poffin Cooking" info="Cook your berries into Poffins">
       <PoffinCooking />
+    </ExtraPage>
+  );
+}
+
+/** The Mauville Game Corner (`/extras/game-corner`). */
+export function GameCornerPage() {
+  return (
+    <ExtraPage title="Game Corner" info="The roulette and the slots, played with coins">
+      <GameCorner />
     </ExtraPage>
   );
 }

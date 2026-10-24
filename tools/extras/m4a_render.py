@@ -94,12 +94,83 @@ def read_midi(path):
 
 def read_voices(repo, group):
     """A voice group's voices, by program: (type, args)."""
-    lines = open(os.path.join(repo, 'sound', 'voicegroups', group + '.inc')).read().splitlines()[1:]
+    return _group_voices(os.path.join(repo, 'sound', 'voicegroups', group + '.inc'))[0]
+
+
+def _group_voices(path):
+    """A voice group file's voices and its first key (a drumset's or keysplit's group starts at one: `voice_group name, 36`)."""
+    lines = open(path).read().splitlines()
+    head = re.match(r'\s*voice_group\s+\w+\s*(?:,\s*(\d+))?', lines[0])
     voices = []
-    for line in lines:
+    for line in lines[1:]:
         m = re.match(r'\s*(voice_\w+)\s+(.*)', line)
         voices.append((m.group(1), [a.strip() for a in m.group(2).split(',')]) if m else ('none', []))
-    return voices
+    return voices, int(head.group(1)) if head and head.group(1) else 0
+
+
+_groups = {}
+
+
+def find_group(repo, name):
+    """A voice group by its label (voicegroup_<name>), looked for in sound/voicegroups and its drumsets and keysplits."""
+    if name not in _groups:
+        base = os.path.join(repo, 'sound', 'voicegroups')
+        for folder in ('', 'drumsets', 'keysplits'):
+            d = os.path.join(base, folder)
+            for f in os.listdir(d):
+                if f.endswith('.inc') and re.match(r'\s*voice_group\s+' + re.escape(name) + r'\b', open(os.path.join(d, f)).readline()):
+                    _groups[name] = _group_voices(os.path.join(d, f))
+        if name not in _groups:
+            raise KeyError(name)
+    return _groups[name]
+
+
+_keysplits = {}
+
+
+def keysplit(repo, name):
+    """A key split table (sound/keysplit_tables.inc): each key's voice in its group (the `split index, ending_note` runs)."""
+    if not _keysplits:
+        table, last = None, 0
+        for line in open(os.path.join(repo, 'sound', 'keysplit_tables.inc')).read().splitlines():
+            m = re.match(r'\s*keysplit\s+(\w+)\s*(?:,\s*(\d+))?', line)
+            if m:
+                table = _keysplits.setdefault('keysplit_' + m.group(1), {})
+                last = int(m.group(2) or 0)
+                continue
+            m = re.match(r'\s*split\s+(\d+)\s*,\s*(\d+)', line)
+            if m and table is not None:
+                for k in range(last, int(m.group(2))):
+                    table[k] = int(m.group(1))
+                last = int(m.group(2))
+    return _keysplits[name]
+
+
+def resolve_voice(repo, voice, key):
+    """The voice a note plays and the key it plays at (ply_note): a key split's by its table; a drumset's (keysplit_all)
+    the group's voice for that key, played at that voice's own key."""
+    kind, args = voice
+    if kind == 'voice_keysplit':
+        voices, _ = find_group(repo, args[0].replace('voicegroup_', '', 1))
+        return voices[keysplit(repo, args[1]).get(key, 0)], key, False
+    if kind == 'voice_keysplit_all':
+        voices, first = find_group(repo, args[0].replace('voicegroup_', '', 1))
+        sub = voices[key - first] if 0 <= key - first < len(voices) else ('none', [])
+        return sub, int(sub[1][0]) if sub[1] else key, True
+    return voice, key, False
+
+
+_waves = {}
+
+
+def read_wave(repo, symbol):
+    """A programmable wave (the Game Boy's channel 3): its 32 4-bit samples (sound/programmable_wave_samples/<n>.pcm)."""
+    if symbol not in _waves:
+        inc = open(os.path.join(repo, 'sound', 'programmable_wave_data.inc')).read()
+        path = re.search(re.escape(symbol) + r'::\s*\.incbin\s+"([^"]+)"', inc).group(1)
+        data = open(os.path.join(repo, path), 'rb').read()[:16]
+        _waves[symbol] = [n for b in data for n in (b >> 4, b & 15)]
+    return _waves[symbol]
 
 
 _samples = {}
@@ -149,6 +220,12 @@ class Note:
         self.held, self.done = True, False
         self.phase = 0.0
         a = self.args
+        self.midi = key
+        if self.kind == 'none' or self.kind.startswith('voice_keysplit'):
+            # No voice there (a drumset's gap): silent.
+            self.kind, self.done, self.attack, self.decay, self.sustain, self.release = 'voice_square_2', True, 0, 0, 0, 0
+            self.level, self.counter, self.stage, self.sweep, self.duty, self.sweep_clock, self.reg, self.gain = 0, 0, 'release', 0, 0.5, 0.0, None, 0
+            return
         if self.kind.startswith('voice_directsound'):
             self.base_key = int(a[0])
             self.sample, self.rate, self.loop = read_sample(repo, a[2])
@@ -160,6 +237,11 @@ class Note:
                 adsr = a[4:8]
             elif self.kind.startswith('voice_square_2'):
                 self.sweep, self.duty = 0, DUTY[int(a[2]) & 3]
+                adsr = a[3:7]
+            elif self.kind.startswith('voice_programmable_wave'):
+                # Channel 3: its 32 4-bit samples played round, as a square's register sets their speed.
+                self.sweep, self.duty = 0, 0.5
+                self.wave = read_wave(repo, a[2])
                 adsr = a[3:7]
             else:  # noise
                 self.width7 = int(a[2]) & 1
@@ -283,6 +365,11 @@ class Note:
                         self.done = True
                         break
             hz = 131072 / max(1, 2048 - self.reg)
+            if hasattr(self, 'wave'):
+                # Channel 3 steps through its 32 samples at twice that (the waves hold 2 of their cycles).
+                self.phase = (self.phase + hz / 2 / RATE) % 1
+                out[i] = (self.wave[int(self.phase * 32)] - 7.5) / 7.5 * self.gain
+                continue
             self.phase = (self.phase + hz / RATE) % 1
             out[i] = (1 if self.phase < self.duty else -1) * self.gain
         return out
@@ -324,10 +411,16 @@ def render(repo, song, loop=False):
                 elif kind == 'bend':
                     s['bend'] = a
                 elif kind == 'on':
-                    s['notes'].append(Note(voices[s['prog']], a, b, repo))
+                    voice, key, rhythm = resolve_voice(repo, voices[s['prog']], a)
+                    note = Note(voice, key, b, repo)
+                    note.midi = a
+                    if rhythm and hasattr(note, 'base_key'):
+                        # A drum plays at its voice's key, a sample's pitch reckoned from key 60 as any other's.
+                        note.base_key = 60
+                    s['notes'].append(note)
                 elif kind == 'off':
                     for note in s['notes']:
-                        if note.key == a and note.held:
+                        if note.midi == a and note.held:
                             note.held = False
                             break
             tick += 1

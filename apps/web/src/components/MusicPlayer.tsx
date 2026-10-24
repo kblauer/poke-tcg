@@ -104,6 +104,8 @@ interface MusicState {
   playJingle: (song: Song) => void;
   /** The music's tempo (1: as recorded), its pitch kept, whatever plays: the Berry Blender's speed-up (useMusicTempo). */
   setTempo: (rate: number) => void;
+  /** Pauses the song playing (true) and plays it on again where it was (false): a minigame's fanfare (useMusicHold). */
+  hold: (on: boolean) => void;
 }
 
 const MusicContext = createContext<MusicState | null>(null);
@@ -132,6 +134,17 @@ export function useMusicTempo() {
   const setTempo = useContext(MusicContext)?.setTempo ?? null;
   useEffect(() => () => setTempo?.(1), [setTempo]);
   return setTempo;
+}
+
+/**
+ * Pauses the music for a while and plays it on again where it was, as the GBA's PlayFanfare does (the Game Corner's
+ * fanfares and Reel Time's song): `hold(true)` pauses the song playing (nothing if none plays), `hold(false)` plays it on;
+ * let go of when the page using it goes. A no-op outside the music player.
+ */
+export function useMusicHold() {
+  const hold = useContext(MusicContext)?.hold;
+  useEffect(() => () => hold?.(false), [hold]);
+  return useCallback((on: boolean) => hold?.(on), [hold]);
 }
 
 /**
@@ -397,6 +410,21 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
     applyTempo();
   }, []);
 
+  // A hold (useMusicHold): the song playing paused, and played on when it's let go of, unless something else has played
+  // or paused it meanwhile.
+  const held = useRef(false);
+  const hold = useCallback((on: boolean) => {
+    const audio = player.current?.audio.current;
+    if (on) {
+      if (!audio || audio.paused) return;
+      held.current = true;
+      audio.pause();
+    } else if (held.current) {
+      held.current = false;
+      if (audio?.paused) void audio.play().catch(() => {});
+    }
+  }, []);
+
   // Starts the chosen song as soon as its audio has it: also the first one, whose player (and audio) has only just
   // appeared, which the player's own autoplay (only on a change of song) would leave paused. A song come back to
   // starts where it was (set again once its audio has loaded, as loading starts it over).
@@ -497,6 +525,7 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
     setCue,
     playJingle,
     setTempo,
+    hold,
   };
   return (
     <MusicContext.Provider value={state}>
