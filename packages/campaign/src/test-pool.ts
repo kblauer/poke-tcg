@@ -7,7 +7,7 @@ import type { PackSet } from './packs.js';
 import { GEN2_DONE_SETS, GEN2_SETS, GEN3_SETS, POOL_SETS, type PoolCard } from './pool.js';
 
 /** A snapshot card (TcgdexCard, packages/db/prisma/tcgdex.ts): the fields the seed takes out of it, the rest its Card.data. */
-interface Row {
+export interface Row {
   id: string;
   localId?: string;
   name: string;
@@ -43,7 +43,7 @@ const tidy = (text: string | null | undefined) => (text === 'n/a' ? null : (text
  * the same: Stage 1 here, where a re-seeded catalog has Stage 2. It can go when a refreshed snapshot gives every Pokémon-ex
  * its stage.
  */
-function toCatalog(r: Row): CatalogCard {
+export function toCatalog(r: Row): CatalogCard {
   const { id, localId: _localId, name, image, category, rarity, hp, types, stage, evolveFrom, set: _set, ...rest } = r;
   const exEvolving = category === 'Pokemon' && stage === 'Basic' && !!evolveFrom && /^ex[0-9]+-/.test(id);
   const data = {
