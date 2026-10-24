@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { applyAction, getPlayerView, inPlayDef, type GameState, type TrainerChoices } from '../index.js';
-import { act, attack, duel, endTurn, flips, give, id, pokemon, tryAttack } from './test-kit.js';
+import { applyAction, getPlayerView, inPlayDef, usableAttacks, type GameState, type InPlayPokemon, type TrainerChoices } from '../index.js';
+import { act, attack, duel, endTurn, flips, give, id, mon, pokemon, tryAttack, C, FI, W } from './test-kit.js';
 
 const ash = (s: GameState) => s.players.ash!;
 const misty = (s: GameState) => s.players.misty!;
@@ -81,6 +81,25 @@ describe('Gym Challenge Pokémon Powers', () => {
   it("Psylink: Sabrina's Alakazam can use the attacks of your benched Psychic Pokémon", () => {
     const s = duel('sabrinasAlakazam', 'onix', { energy: ['psychic'], bench: ['sabrinasAbra'] });
     expect(misty(attack(s, 1)).active!.damage).toBe(10);
+  });
+
+  it('Psylink stops with any Special Condition, Poisoned included (agreed), like every Pokémon Power', () => {
+    const s = duel('sabrinasAlakazam', 'onix', { energy: ['psychic'], bench: ['sabrinasAbra'] });
+    const linked = usableAttacks(ash(s).active!, s.cards, { bench: ash(s).bench }).length;
+    ash(s).active!.poison = 10;
+    expect(usableAttacks(ash(s).active!, s.cards, { bench: ash(s).bench }).length).toBeLessThan(linked);
+    expect(tryAttack(s, 1)).toMatchObject({ ok: false });
+  });
+
+  it("Ice Throw does 40 to a Defending Pokémon that's Fighting among its types (Kecleon, printed dual types)", () => {
+    const s = duel('charmander', 'onix', { energy: ['water', 'water'] });
+    const dewgong = mon('gym2-54', "Misty's Dewgong", W, 80, [['Ice Throw', [W, W], 20]], { stage: 'stage1' });
+    const kecleon = mon('big-Kecleon', 'Kecleon', C, 100, [], { types: [C, FI] });
+    s.cards = { ...s.cards, [dewgong.id]: dewgong, [kecleon.id]: kecleon };
+    const inPlay = (defId: string, energy: InPlayPokemon['energy']): InPlayPokemon => ({ card: { uid: `${defId}-x`, defId }, evolvedFrom: [], damage: 0, energy, playedTurn: 0 });
+    ash(s).active = inPlay(dewgong.id, ash(s).active!.energy);
+    misty(s).active = inPlay(kecleon.id, []);
+    expect(misty(attack(s, 0)).active!.damage).toBe(40);
   });
 
   it('Relaxing Scent halves attack damage to any Pokémon, rounded up to the nearest 10', () => {

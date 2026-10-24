@@ -11,8 +11,8 @@
 // card from the hand went there (each Venusaur once a turn). Burning Energy turns the basic Energy cards attached to its
 // player's Pokémon then into Fire Energy until the end of the turn. Major Tsunami: the opponent chooses their Pokémon that
 // comes in; then the player's chosen Benched Pokémon switches with Feraligatr.
-import { conditionProof, isBasicEnergy, lookupCard } from '../cards.js';
-import { type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
+import { isBasicEnergy, lookupCard } from '../cards.js';
+import { afflictionBlocked, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { energyFromHand, energyKept, ownTargets, pokemonAt, powerActive, type PowerChoiceSpec, type PowerContext, type PowerEffect, type PowerSituation } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { effectId, energyProtected, inPlayDef, pokemonName } from '../status.js';
@@ -302,12 +302,8 @@ const HOLO: Record<string, PowerEffect> = {
 /** The opponent's Pokémon is now Poisoned, unless it can't be affected by Special Conditions or a battle rule guards it. */
 function poison(ctx: PowerContext, p: InPlayPokemon) {
   const name = pokemonName(ctx.state, p);
-  const def = inPlayDef(ctx.state.cards, p);
-  const effect = p.effects;
-  const thickSkinned = powerActive(p, ctx.state.cards, [ctx.me, ctx.opp]) && powerEffect(effectId(p))?.noConditions;
-  if (conditionProof(def) || thickSkinned || (effect?.flashTouch && ctx.opp.active === p) || (effect?.pollenShield ?? -1) >= ctx.state.turn) return ctx.log(`${name} can't be affected by Special Conditions.`);
-  const guard = ctx.state.rules?.find((r) => r.kind === 'conditionGuard' && r.player === ctx.opp.id && r.conditions.includes('poisoned'));
-  if (guard) return ctx.log(`${guard.label ?? 'A battle rule'} protected ${name} from that.`);
+  const blocked = afflictionBlocked(ctx.state, ctx.opp.id, p, 'poisoned');
+  if (blocked) return ctx.log(blocked);
   p.poison = Math.max(p.poison ?? 0, 10);
   ctx.log(`${name} is now Poisoned.`);
 }

@@ -639,6 +639,15 @@ describe('items', () => {
     expect(s.consumables).toEqual([{ itemId: 'guard-spec', battlesLeft: 1 }]);
   });
 
+  it("a battle skipped by debug doesn't use up a consumable's battles", () => {
+    let s = act(at('battle'), { type: 'USE_ITEM', itemId: 'guard-spec' });
+    const before = s.consumables[0]!.battlesLeft;
+    s = act(s, { type: 'CHOOSE', option: 0 });
+    s = act(s, { type: 'BATTLE_STARTED', gameId: 'g1' });
+    s = act(s, { type: 'BATTLE_OVER', gameId: 'g1', won: true, skipped: true });
+    expect(s.consumables[0]!.battlesLeft).toBe(before);
+  });
+
   it("equipment and consumables' battle effects are the player's battle rules, named for the item", () => {
     let s = act(at('battle'), { type: 'USE_ITEM', itemId: 'x-attack' });
     s = act(s, { type: 'CHOOSE', option: 0 });

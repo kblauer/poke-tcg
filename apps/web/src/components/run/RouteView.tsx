@@ -844,7 +844,7 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  });
+  }, [panLocked, clamp]);
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (panLocked || (e.target as HTMLElement).closest('button')) return;

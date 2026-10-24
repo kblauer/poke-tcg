@@ -109,6 +109,14 @@ describe('Neo Destiny Pokémon Powers', () => {
     expect(misty(s).active!.condition).toBe('asleep');
   });
 
+  it("Fluffy Wool's Asleep is kept off by a run's conditionGuard rule, like any Special Condition (afflictionBlocked)", () => {
+    let s = endTurn(duel('lightPiloswine', 'machoke', { defenderEnergy: ['fighting', 'fighting', 'fighting'] }), 'ash');
+    s.rules = [{ kind: 'conditionGuard', player: 'misty', conditions: ['asleep'], label: 'Awakening' }];
+    s = attack(flips(s, true), 0, {}, 'misty');
+    expect(misty(s).active!.condition ?? null).toBeNull();
+    expect(s.log?.some((l) => l.text.includes('Awakening protected'))).toBe(true);
+  });
+
   it('[Help]: with Unown H, E, L and P on the Bench, a new hand of as many cards', () => {
     const start = duel('charmander', 'machoke', { bench: ['unownH', 'unownE', 'unownL', 'unownP'] });
     const n = ash(start).hand.length;

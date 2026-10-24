@@ -7,6 +7,7 @@ import { holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, isReverseHolo
 import { cardRarity } from '../pool.js';
 import { unlockedPacks } from '../progress.js';
 import { debugProcedure, protectedProcedure, router } from '../trpc.js';
+import { lockUser } from '../runs.js';
 import { holoTwins, unlockCards, unlockedIds } from '../unlocks.js';
 
 /**
@@ -187,10 +188,13 @@ export const packsRouter = router({
     const card = await prisma.card.findUnique({ where: { id: input.cardId } });
     const cost = card && craftCost(card);
     if (!card || cost === null) throw new TRPCError({ code: 'BAD_REQUEST', message: "That card can't be crafted" });
-    const [unlocked, twins, packs] = await Promise.all([unlockedIds(ctx.user.id), holoTwins(), unlockedPacks(ctx.user.id)]);
+    const [twins, packs] = await Promise.all([holoTwins(), unlockedPacks(ctx.user.id)]);
     if (!packs.has(card.setId)) throw new TRPCError({ code: 'BAD_REQUEST', message: "Unlock this set's booster packs first" });
-    if (unlocked.has(card.id) && !twins.has(card.id)) throw new TRPCError({ code: 'BAD_REQUEST', message: `${card.name} is already unlocked` });
     return prisma.$transaction(async (tx) => {
+      // Checked with the user row locked, so crafting the same card twice at once can't take the Stardust twice.
+      await lockUser(tx, ctx.user.id);
+      const unlocked = await tx.cardUnlock.findUnique({ where: { userId_cardId: { userId: ctx.user.id, cardId: card.id } }, select: { cardId: true } });
+      if (unlocked && !twins.has(card.id)) throw new TRPCError({ code: 'BAD_REQUEST', message: `${card.name} is already unlocked` });
       const { count } = await tx.user.updateMany({ where: { id: ctx.user.id, stardust: { gte: cost } }, data: { stardust: { decrement: cost } } });
       if (!count) throw new TRPCError({ code: 'BAD_REQUEST', message: `Crafting ${card.name} takes ${cost} Stardust` });
       await unlockCards(ctx.user.id, [card.id], tx);

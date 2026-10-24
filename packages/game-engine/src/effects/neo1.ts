@@ -12,7 +12,7 @@
 // less. Questions whose answer depends on a flip are asked before it (Sweet Nectar, Sweet Scent, Pilfer, Fireworks), as
 // Misty's Psyduck's ESP is. Mean Look lasts while Murkrow is the Active Pokémon (benching or evolving either ends it).
 import { attackSituation, targetsIn, pokemonOn, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
-import { lookupCard } from '../cards.js';
+import { lookupCard, namesMatch } from '../cards.js';
 import { isEnergyCardOf, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { powerActive } from '../powers.js';
 import { shuffle } from '../rng.js';
@@ -726,7 +726,7 @@ export const NEO1: Record<string, Record<string, AttackEffect>> = {
     'Static Electricity': {
       text: 'For each Mareep in play, you may search your deck for a Lightning Energy card and attach it to Mareep. Shuffle your deck afterward.',
       run(ctx) {
-        const mareep = [ctx.me, ctx.opp].flatMap((p) => [p.active, ...p.bench]).filter((p) => p && inPlayDef(ctx.state.cards, p).name === 'Mareep').length;
+        const mareep = [ctx.me, ctx.opp].flatMap((p) => [p.active, ...p.bench]).filter((p) => p && namesMatch(inPlayDef(ctx.state.cards, p).name, 'Mareep')).length;
         ctx.pend({ kind: 'pickFromDeck', source: 'Static Electricity', filter: 'energyType', type: 'lightning', count: mareep, optional: true, attachToActive: true });
       },
     },

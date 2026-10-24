@@ -10,7 +10,7 @@
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { targetsIn } from '../attacks.js';
 import { hasType, isBasicEnergy, lookupCard, typesOf } from '../cards.js';
-import { counts, energyPool, energyProvided, isEnergyCardOf, isSpecialEnergy, type CardInstance } from '../engine.js';
+import { counts, energyPool, energyProvided, evolvesOnto, isEnergyCardOf, isSpecialEnergy, type CardInstance } from '../engine.js';
 import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { inPlayDef, pokemonName } from '../status.js';
@@ -46,7 +46,7 @@ export const ascension: AttackEffect = {
   run(ctx) {
     if (ctx.turn <= 2 || ctx.attacker.playedTurn === ctx.turn || ctx.attacker.effects?.noEvolve !== undefined) return ctx.log(`${ctx.attackerDef.name} can't evolve this turn.`);
     const current = lookupCard(ctx.state.cards, ctx.attacker.card.defId);
-    const names = [...new Set(ctx.me.deck.map((c) => lookupCard(ctx.state.cards, c.defId)).filter((d) => d.kind === 'pokemon' && d.evolvesFrom === current.name).map((d) => d.name))];
+    const names = [...new Set(ctx.me.deck.map((c) => lookupCard(ctx.state.cards, c.defId)).filter((d) => d.kind === 'pokemon' && evolvesOnto(d, current)).map((d) => d.name))];
     if (names.length) ctx.pend({ kind: 'evolveFromDeck', source: 'Ascension', target: 'active', names });
     else ctx.log('Found nothing in the deck.');
   },
@@ -300,7 +300,7 @@ export const EX5: Record<string, Record<string, AttackEffect>> = {
   'ex5-32': {
     'Coral Glow': {
       run(ctx) {
-        const basics = inPlay(ctx.opp).filter((p) => lookupCard(ctx.state.cards, p.card.defId).kind === 'pokemon' && (lookupCard(ctx.state.cards, p.card.defId) as { stage: string }).stage === 'basic').length;
+        const basics = inPlay(ctx.opp).filter((p) => inPlayDef(ctx.state.cards, p).stage === 'basic').length;
         const max = Math.min(basics, Math.max(0, 10 - ctx.me.hand.length));
         if (max && ctx.me.deck.length) ctx.pend({ kind: 'drawCount', source: 'Coral Glow', max });
       },

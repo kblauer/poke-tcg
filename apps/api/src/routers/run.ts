@@ -6,7 +6,7 @@ import { buyItemInput, DEFAULT_TRAINER_SPRITE, equipInput, playerGenderInput, ru
 import { TRPCError } from '@trpc/server';
 import { runPool } from '../pool.js';
 import { runTypeProgress } from '../progress.js';
-import { abandonBattle, advanceRun, ensureAccount, latestRun, loadOwnRun, settleBattle, startRun, syncRunDeck, type LoadedRun } from '../runs.js';
+import { abandonBattle, advanceRun, ensureAccount, latestRun, loadOwnRun, lockUser, settleBattle, startRun, syncRunDeck, takeItem, type LoadedRun } from '../runs.js';
 import { holoTwins, lockedProblem, unlockedIds } from '../unlocks.js';
 import { markPlayed, playableDeck, playProblems, type DeckCosmetics } from './decks.js';
 import { debugProcedure, protectedProcedure, router } from '../trpc.js';
@@ -132,7 +132,7 @@ export const runRouter = router({
     const result = applyDebug(game.state as unknown as GameState, HUMAN_ID, command);
     if (!result.ok) throw new TRPCError({ code: 'BAD_REQUEST', message: result.error });
     const next = result.state;
-    await saveGameState({
+    const saved = await saveGameState({
       gameId: game.id,
       expectedVersion: game.version,
       state: next,
@@ -141,6 +141,7 @@ export const runRouter = router({
       winner: next.winner,
       actions: [{ playerId: HUMAN_ID, version: next.version, action: { type: 'DEBUG', command } as unknown as Prisma.InputJsonValue }],
     });
+    if (!saved) throw new TRPCError({ code: 'CONFLICT', message: 'Game state changed, refresh and retry' });
     return clientRun(await settleBattle(chosen, true));
   }),
 
@@ -151,15 +152,21 @@ export const runRouter = router({
   useItem: protectedProcedure.input(useItemInput).mutation(async ({ ctx, input }) => {
     const def = ITEMS[input.itemId];
     if (!def || (def.category !== 'consumable' && def.category !== 'misc')) throw new TRPCError({ code: 'BAD_REQUEST', message: "That item can't be used" });
-    const owned = await prisma.inventoryItem.findUnique({ where: { userId_itemId: { userId: ctx.user.id, itemId: def.id } } });
-    if (!owned || owned.quantity < 1) throw new TRPCError({ code: 'BAD_REQUEST', message: `You have no ${def.name}` });
     const run = await loadOwnRun(input.runId, ctx.user.id);
-    const next = await advanceRun(run, [{ type: 'USE_ITEM', itemId: def.id }]);
+    // The item is taken first (atomically, so two uses at once can't both spend the last one), and given back if the run
+    // can't use it now; an item that isn't used up is only checked for.
+    const spent = def.category === 'consumable' || !!def.consumedOnUse;
+    const taken = await takeItem(ctx.user.id, def.id, spent);
+    if (!taken) throw new TRPCError({ code: 'BAD_REQUEST', message: `You have no ${def.name}` });
+    let next: Awaited<ReturnType<typeof advanceRun>>;
+    try {
+      next = await advanceRun(run, [{ type: 'USE_ITEM', itemId: def.id }]);
+    } catch (error) {
+      if (spent) await prisma.inventoryItem.update({ where: { userId_itemId: { userId: ctx.user.id, itemId: def.id } }, data: { quantity: { increment: 1 } } });
+      throw error;
+    }
     const left = currentGameId(run.state);
     if (left && currentGameId(next.state) !== left) await abandonBattle(left);
-    if (def.category === 'consumable' || def.consumedOnUse) {
-      await prisma.inventoryItem.updateMany({ where: { userId: ctx.user.id, itemId: def.id, quantity: { gt: 0 } }, data: { quantity: { decrement: 1 } } });
-    }
     return clientRun(next);
   }),
 
@@ -171,18 +178,25 @@ export const runRouter = router({
   useConsumable: protectedProcedure.input(useConsumableInput).mutation(async ({ ctx, input }) => {
     const def = ITEMS[input.itemId];
     if (def?.category !== 'consumable') throw new TRPCError({ code: 'BAD_REQUEST', message: "That item can't be used" });
-    const owned = await prisma.inventoryItem.findUnique({ where: { userId_itemId: { userId: ctx.user.id, itemId: def.id } } });
-    if (!owned || owned.quantity < 1) throw new TRPCError({ code: 'BAD_REQUEST', message: `You have no ${def.name}` });
     const active = await prisma.run.findFirst({ where: { ownerId: ctx.user.id, status: 'ACTIVE' }, select: { id: true } });
-    if (active) await advanceRun(await loadOwnRun(active.id, ctx.user.id), [{ type: 'USE_ITEM', itemId: def.id }]);
-    else {
+    if (active) {
+      const run = await loadOwnRun(active.id, ctx.user.id);
+      if (!(await takeItem(ctx.user.id, def.id, true))) throw new TRPCError({ code: 'BAD_REQUEST', message: `You have no ${def.name}` });
+      try {
+        await advanceRun(run, [{ type: 'USE_ITEM', itemId: def.id }]);
+      } catch (error) {
+        await prisma.inventoryItem.update({ where: { userId_itemId: { userId: ctx.user.id, itemId: def.id } }, data: { quantity: { increment: 1 } } });
+        throw error;
+      }
+    } else {
+      // The item is taken in the same transaction as the check, which locks its row: two uses at once can't both pass.
       await prisma.$transaction(async (tx) => {
+        if (!(await takeItem(ctx.user.id, def.id, true, tx))) throw new TRPCError({ code: 'BAD_REQUEST', message: `You have no ${def.name}` });
         const { pendingConsumables } = await tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { pendingConsumables: true } });
         if (pendingConsumables.length >= MAX_CONSUMABLES_PER_RUN) throw new TRPCError({ code: 'BAD_REQUEST', message: `${MAX_CONSUMABLES_PER_RUN} consumables are already waiting for your next run` });
         await tx.user.update({ where: { id: ctx.user.id }, data: { pendingConsumables: { push: def.id } } });
       });
     }
-    await prisma.inventoryItem.updateMany({ where: { userId: ctx.user.id, itemId: def.id, quantity: { gt: 0 } }, data: { quantity: { decrement: 1 } } });
     return { inRun: active !== null };
   }),
 
@@ -241,6 +255,8 @@ export const runRouter = router({
     if (def?.price === undefined || !(await latestStock(ctx.user.id)).some((i) => i.id === def.id)) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Not for sale' });
     const price = def.price;
     await prisma.$transaction(async (tx) => {
+      // The lock makes the one-of-a-kind check hold against two buys at once.
+      await lockUser(tx, ctx.user.id);
       if (await tx.run.count({ where: { ownerId: ctx.user.id, status: 'ACTIVE' } })) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'The shop opens after a run' });
       }

@@ -1060,7 +1060,7 @@ function attackAction(
   choices: AttackChoices,
   { flee, reflipped = false }: { flee?: number; reflipped?: boolean } = {},
 ): ActionResult {
-  const usable = usableAttacks(me.active!, state.cards, { recall: recallsAttacks(state, me), bench: me.bench, defender: opp.active, oppBench: opp.bench, stadium: state.stadium?.card ?? null })[attackIndex];
+  const usable = usableAttacks(me.active!, state.cards, { recall: recallsAttacks(state, me), bench: me.bench, defender: opp.active, oppBench: opp.bench, stadium: state.stadium?.card ?? null, sides: [me, opp] })[attackIndex];
   const esp = !reflipped && (me.active!.attached ?? []).some((a) => lookupCard(state.cards, a.card.defId).name === "Sabrina's ESP");
   const before = esp ? structuredClone(state) : null;
   const source = usable && `${inPlayDef(state.cards, me.active!).name}'s ${usable.attack.name}`;
@@ -1838,15 +1838,10 @@ function useBerry(state: GameState, owner: PlayerState, p: InPlayPokemon) {
  * Breath), unless it can't be affected.
  */
 export function afflictBetweenTurns(state: GameState, owner: PlayerId, pokemon: InPlayPokemon, affliction: 'asleep' | 'poisoned' | 'confused' | 'paralyzed' | 'burned') {
-  const sides = state.playerOrder.map((id) => state.players[id]!);
-  const effect = powerActive(pokemon, state.cards, sides) ? powerEffect(effectId(pokemon)) : undefined;
   const name = pokemonName(state, pokemon);
   const label = affliction === 'poisoned' ? 'Poisoned' : affliction === 'burned' ? 'Burned' : conditionLabel(affliction);
-  if (conditionProof(inPlayDef(state.cards, pokemon)) || conditionFree(pokemon, state.cards, effect) || (affliction === 'poisoned' && effect?.noPoison) || conditionBarred(effect, affliction, pokemon)) {
-    return addLog(state, `${name} can't be ${label}.`, owner);
-  }
-  const guard = state.rules?.find((r) => r.kind === 'conditionGuard' && r.player === owner && r.conditions.includes(affliction));
-  if (guard) return addLog(state, `${guard.label ?? 'A battle rule'} protected ${name} from that.`, owner);
+  const blocked = afflictionBlocked(state, owner, pokemon, affliction);
+  if (blocked) return addLog(state, blocked, owner);
   if (affliction === 'poisoned') pokemon.poison = Math.max(pokemon.poison ?? 0, 10);
   else if (affliction === 'burned') pokemon.burned = true;
   else {
@@ -1855,6 +1850,25 @@ export function afflictBetweenTurns(state: GameState, owner: PlayerId, pokemon: 
     if (affliction === 'paralyzed') pokemon.paralyzedTurn = state.turn;
   }
   addLog(state, `${name} is now ${label}.`, owner);
+}
+
+/**
+ * Why `pokemon` (of `owner`) can't get `affliction` now, or null: Clefairy Doll and Buried Fossil (`conditionProof`), Thick
+ * Skinned and its like (`conditionFree`), `noPoison`, `noSleep`/`immuneTo` (`conditionBarred`), Flash Touch (not for Burned),
+ * Pollen Shield and an attack's `conditionProof` effect, and a run's `conditionGuard` rule (named). Every power, body and
+ * Trainer card that gives a Special Condition outside an attack checks here (attacks' `inflict` checks the same itself).
+ */
+export function afflictionBlocked(state: GameState, owner: PlayerId, pokemon: InPlayPokemon, affliction: 'asleep' | 'poisoned' | 'confused' | 'paralyzed' | 'burned'): string | null {
+  const sides = state.playerOrder.map((id) => state.players[id]!);
+  const effect = powerActive(pokemon, state.cards, sides) ? powerEffect(effectId(pokemon)) : undefined;
+  const name = pokemonName(state, pokemon);
+  const e = pokemon.effects;
+  const shielded = (e?.flashTouch && state.players[owner]!.active === pokemon && affliction !== 'burned') || (e?.pollenShield ?? -1) >= state.turn || (e?.conditionProof ?? -1) >= state.turn;
+  if (conditionProof(inPlayDef(state.cards, pokemon)) || conditionFree(pokemon, state.cards, effect) || (affliction === 'poisoned' && effect?.noPoison) || conditionBarred(effect, affliction, pokemon) || shielded) {
+    return `${name} can't be affected by Special Conditions.`;
+  }
+  const guard = state.rules?.find((r) => r.kind === 'conditionGuard' && r.player === owner && r.conditions.includes(affliction));
+  return guard ? `${guard.label ?? 'A battle rule'} protected ${name} from that.` : null;
 }
 
 function expireEffects(pokemon: InPlayPokemon, turn: number) {
@@ -1952,7 +1966,7 @@ function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId | null
         if (back.length) addLog(state, `Time Shard: ${back.length} basic Energy card${back.length === 1 ? '' : 's'} went back to the hand.`, id);
       }
       // Rebirth: the card goes back to the hand once it's discarded, unless its power isn't working (Asleep…).
-      const reborn = !!powerEffect(pokemon.card.defId)?.rebirth && powerActive(pokemon, state.cards, sides) && !discardsLocked(sides, state.cards);
+      const reborn = !!powerEffect(effectId(pokemon))?.rebirth && powerActive(pokemon, state.cards, sides) && !discardsLocked(sides, state.cards);
       owner.discard.push(...pokemon.evolvedFrom, pokemon.card, ...pokemon.energy.map(asDiscarded), ...(pokemon.attached ?? []).map((a) => a.card));
       if (reborn) {
         owner.discard = owner.discard.filter((c) => c !== pokemon.card);
@@ -1962,8 +1976,8 @@ function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId | null
       // A Trainer played as a Pokémon (Clefairy Doll) doesn't count as a Knocked Out Pokémon: no prize.
       const def = lookupCard(state.cards, pokemon.card.defId);
       if (def.kind === 'pokemon' && def.trainerText) return;
-      // Empty Shell: the opponent takes no Prize cards for Shedinja.
-      if (powerEffect(effectId(pokemon))?.noPrizes && pokemon.stadiumMuted !== 'all' && pokemon.stadiumMuted !== 'bodies') return addLog(state, `Empty Shell: no Prize cards for ${pokemonName(state, pokemon)}.`, id);
+      // Empty Shell: the opponent takes no Prize cards for Shedinja, while the body works (Ancient Wind, Imprison and Stadiums turn it off).
+      if (powerEffect(effectId(pokemon))?.noPrizes && powerActive(pokemon, state.cards, sides)) return addLog(state, `Empty Shell: no Prize cards for ${pokemonName(state, pokemon)}.`, id);
       // A Pokémon-ex gives up 2 Prize cards.
       for (let n = def.kind === 'pokemon' && def.ex ? 2 : 1; n > 0; n--) {
         const prize = taker.prizes.pop();
@@ -2020,7 +2034,7 @@ function refreshWildGrowth(state: GameState) {
     const inPlay = [player.active, ...player.bench].filter((p): p is InPlayPokemon => !!p);
     const growing = inPlay.some((p) => powerEffect(effectId(p))?.wildGrowth && powerActive(p, state.cards, sides));
     for (const p of inPlay) {
-      if (growing && inPlayDef(state.cards, p).type === 'grass') p.wildGrowth = true;
+      if (growing && hasType(inPlayDef(state.cards, p), 'grass')) p.wildGrowth = true;
       else delete p.wildGrowth;
     }
   }

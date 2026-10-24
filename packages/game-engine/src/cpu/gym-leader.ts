@@ -1,4 +1,4 @@
-import { isBasicPokemon, isBenchable, isPokemonCard, isTrainerCard, lookupCard, type PokemonCardDef } from '../cards.js';
+import { hasType, isBasicPokemon, isBenchable, isPokemonCard, isTrainerCard, lookupCard, type PokemonCardDef } from '../cards.js';
 import { baseUid, openBenchSlot } from '../status.js';
 import {
   attackOptions,
@@ -39,7 +39,7 @@ import {
   damages,
   type Turn,
 } from './shared.js';
-import { energyPool, hasBenched, retreatCost, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type Target } from '../engine.js';
+import { energyPool, hasBenched, isEnergyCardOf, retreatCost, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type Target } from '../engine.js';
 import { powerError, powerOf, type PowerChoices } from '../powers.js';
 import { attackBoost, bestMove, plainEnergy, powerChoiceSets, powerSituation, specialAttachment, survive, type Allowed } from './evaluate.js';
 
@@ -208,7 +208,7 @@ function gymSearch(t: Turn, unseen: CardInstance[]): GameAction | null {
     if (action) return action;
   }
   // Energy its Pokémon need, of a type the hand has none of.
-  const needs = (type: 'water' | 'fire') => inPlay(t.me).some(([, p]) => pokemonDef(t.state.cards, p).type === type) && !energyInHand(t, type).length;
+  const needs = (type: 'water' | 'fire') => inPlay(t.me).some(([, p]) => hasType(pokemonDef(t.state.cards, p), type)) && !energyInHand(t, type).length;
   const tears = trainer(t, 'mistystears');
   if (tears && needs('water')) {
     const discard = junk(t, tears)[0];
@@ -295,7 +295,7 @@ function attachEnergy(t: Turn): GameAction | null {
   const cards = t.state.cards;
 
   for (const [source] of powered(t, 'raindance')) {
-    const pick = attachTarget(t, energyInHand(t, 'water'), (p) => pokemonDef(cards, p).type === 'water');
+    const pick = attachTarget(t, energyInHand(t, 'water'), (p) => hasType(pokemonDef(cards, p), 'water'));
     const action = pick && usePower(t, source, { cardUid: pick.card.uid, to: pick.target });
     if (action) return action;
   }
@@ -330,10 +330,8 @@ function energyTrans(t: Turn): GameAction | null {
   const active = t.me.active;
   if (!sources.length || !active) return null;
   const cards = t.state.cards;
-  const isGrass = (e: CardInstance) => {
-    const d = lookupCard(cards, e.defId);
-    return !e.provides && d.kind === 'energy' && d.energyType === 'grass';
-  };
+  // A basic Energy card that's Grass now (Rainbow Energy and a converted card count).
+  const isGrass = (e: CardInstance) => !e.provides && isEnergyCardOf(e, cards, 'grass');
   const donors = benched(t).flatMap(([slot, p]) => p.energy.filter(isGrass).map((energy) => ({ slot, p, energy })));
   if (!donors.length) return null;
   const pool = energyPool(active, cards);

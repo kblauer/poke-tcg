@@ -7,7 +7,7 @@
 // limits besides what stops evolving (Prehistoric Power), as Rapid Evolution. Misty's Psyduck's ESP asks which attack to
 // copy before the flips. Group Attack asks how many Koga's Zubat to bench (up to the room on the Bench) before searching.
 import { targetsIn, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
-import { isBasicPokemon, isTrainerCard, lookupCard } from '../cards.js';
+import { hasType, isBasicPokemon, isTrainerCard, lookupCard } from '../cards.js';
 import { activeLocked, discardTheirEnergy, isEnergyCardOf, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { energyKept, evolutionBlocked } from '../powers.js';
 import { shuffle } from '../rng.js';
@@ -636,7 +636,7 @@ export const GYM2: Record<string, Record<string, AttackEffect>> = {
   },
   // Misty's Dewgong
   'gym2-54': {
-    'Ice Throw': { damage: '20', run: (ctx) => void ctx.hit(ctx.defenderDef.type === 'fighting' ? 40 : 20) },
+    'Ice Throw': { damage: '20', run: (ctx) => void ctx.hit(hasType(ctx.defenderDef, 'fighting') ? 40 : 20) },
     'Take Down': recoil(60, 20),
   },
   // Sabrina's Haunter

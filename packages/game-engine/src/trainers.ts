@@ -1550,7 +1550,7 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
   }
   if (choice.kind === 'flee' || choice.kind === 'ninjaTrick') {
     const attacker = state.players[opponentOfChoice(state, choice)]!;
-    const attack = attacker.active && usableAttacks(attacker.active, state.cards, { recall: recallsAttacks(state, attacker), bench: attacker.bench, defender: player.active, oppBench: player.bench, stadium: state.stadium?.card ?? null })[choice.attackIndex]?.attack.name;
+    const attack = attacker.active && usableAttacks(attacker.active, state.cards, { recall: recallsAttacks(state, attacker), bench: attacker.bench, defender: player.active, oppBench: player.bench, stadium: state.stadium?.card ?? null, sides: [attacker, player] })[choice.attackIndex]?.attack.name;
     const options = player.bench.flatMap((p, i) => (p ? [i] : []));
     const prompt =
       choice.kind === 'flee'
@@ -1743,7 +1743,7 @@ export const deckFilter = (cards: CardLibrary, choice: Extract<PendingChoice, { 
   // A named Pokémon's variants count too (agreed: Team Aqua's Seviper, Dark Golbat…), never a Pokémon-ex.
   const named = (name: string) => [choice.name].flat().some((n) => namesMatch(name, n!));
   if (choice.filter === 'basicNamed') return isBasicPokemon(d) && named(d.name);
-  if (choice.filter === 'basicType') return isBasicPokemon(d) && d.type === choice.type;
+  if (choice.filter === 'basicType') return isBasicPokemon(d) && hasType(d, choice.type!);
   if (choice.distinct === 'name' && choice.taken?.includes(d.name)) return false;
   if (choice.distinct === 'type' && d.kind === 'pokemon' && choice.taken?.includes(d.type)) return false;
   if (choice.filter === 'basicEnergy') return isBasicEnergy(d) && !(choice.distinct === 'type' && d.kind === 'energy' && choice.taken?.includes(d.energyType));
@@ -2640,7 +2640,7 @@ const unownTargets = (state: Pick<GameState, 'players' | 'cards'>, choice: Extra
 
 /** Where Energy Bomb's (benched Pokémon) or Howl's (any of the player's Pokémon of `toType`) Energy cards may go. */
 const distributeTargets = (state: Pick<GameState, 'cards'>, player: Pick<PlayerState, 'active' | 'bench'>, choice: Extract<PendingChoice, { kind: 'distributeEnergy' }>) =>
-  choice.toType ? targetsOf(player).filter((t) => inPlayDef(state.cards, (t === 'active' ? player.active : player.bench[t])!).type === choice.toType) : player.bench.flatMap((p, i) => (p ? [i] : []));
+  choice.toType ? targetsOf(player).filter((t) => hasType(inPlayDef(state.cards, (t === 'active' ? player.active : player.bench[t])!), choice.toType!)) : player.bench.flatMap((p, i) => (p ? [i] : []));
 
 /** Saffron City Gym: the player's Pokémon with Sabrina in their names that have a basic Energy card attached. */
 export const saffronTargets = (cards: CardLibrary, player: Pick<PlayerState, 'active' | 'bench'>) =>
@@ -2825,7 +2825,7 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     if (choice.power === 'herbalScent') {
       for (const owner of Object.values(state.players)) {
         for (const g of [owner.active, ...owner.bench]) {
-          if (!g || inPlayDef(state.cards, g).type !== 'grass' || !g.damage) continue;
+          if (!g || !hasType(inPlayDef(state.cards, g), 'grass') || !g.damage) continue;
           addLog(state, `Herbal Scent: ${name(g.card)} healed ${g.damage} damage.`, owner.id);
           g.damage = 0;
         }
@@ -2873,7 +2873,7 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     if (!energy) return 'Choose a basic Energy card from your hand';
     const type = (lookupCard(state.cards, energy.defId) as { energyType: EnergyType }).energyType;
     addLog(state, `${choice.source}: showed ${name(energy)}.`, me.id);
-    if (me.deck.some((c) => { const d = lookupCard(state.cards, c.defId); return isBasicPokemon(d) && d.kind === 'pokemon' && d.type === type; })) {
+    if (me.deck.some((c) => { const d = lookupCard(state.cards, c.defId); return isBasicPokemon(d) && d.kind === 'pokemon' && hasType(d, type); })) {
       state.pendingChoice = { player: me.id, source: choice.source, kind: 'pickFromDeck', filter: 'basicType', type, toBench: true };
       return null;
     }

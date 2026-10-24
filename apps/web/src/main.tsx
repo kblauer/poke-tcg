@@ -21,6 +21,7 @@ import { AccountSettingsSync } from './components/AccountSettingsSync';
 import { CardInspectProvider } from './components/CardInspectProvider';
 import { MusicControls, MusicProvider } from './components/MusicPlayer';
 import { NavLogProvider } from './components/NavLog';
+import { RunProvider } from './hooks/useRun';
 import { NavRail, PhoneNavRun } from './components/NavRail';
 import { PageMenu } from './components/PageNav';
 import { TopBarStats } from './components/TopBarStats';
@@ -159,7 +160,9 @@ function RootLayout() {
   return session ? (
     <MusicProvider docked={phone}>
       <AccountSettingsSync />
-      <NavLogProvider>{page}</NavLogProvider>
+      <NavLogProvider>
+        <RunProvider>{page}</RunProvider>
+      </NavLogProvider>
     </MusicProvider>
   ) : (
     page
