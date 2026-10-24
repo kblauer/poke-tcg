@@ -52,7 +52,7 @@ export function EnergyIcon({ type, size = 'sm', count, title }: { type: PoolEner
     >
       <Icon sx={{ fontSize: Math.round(px * 0.7) }} />
       {count !== undefined && (
-        <span className="absolute -bottom-1 -right-1 rounded-full bg-slate-900 px-1 text-[9px] font-bold leading-3 text-white">{count}</span>
+        <span className="absolute -bottom-1 -right-1 rounded-full bg-slate-900 px-1 text-[9px] font-bold leading-3 text-slate-50">{count}</span>
       )}
     </span>
   );

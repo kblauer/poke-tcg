@@ -31,7 +31,7 @@ export function SidePanel({ side, title, onClose, children }: { side: 'left' | '
       >
         <div className="flex shrink-0 items-center justify-between gap-2">
           <p className="min-w-0 truncate text-sm font-semibold">{title}</p>
-          <button className="flex shrink-0 items-center rounded-full p-1 text-slate-300 hover:bg-slate-700 hover:text-white" onClick={onClose} aria-label="Close">
+          <button className="flex shrink-0 items-center rounded-full p-1 text-slate-300 hover:bg-slate-700 hover:text-slate-50" onClick={onClose} aria-label="Close">
             <CloseIcon fontSize="small" />
           </button>
         </div>

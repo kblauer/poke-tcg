@@ -10,8 +10,9 @@
     traced along the starburst edge down to y 144. Neo sets have a smaller round badge instead,
     traced down to y 128.
   - Galaxy foil cards (Entei and Pichu promos, Southern Islands): the foil covers the face inside
-    the yellow border (x 22–577, y 25–802) except the classic art window. Base Set 2's holo rares are shown
-    with the galaxy foil too, but in the art window, like the classic holos they reprint.
+    the yellow border (x 22–577, y 25–802) except the classic art window. Gen 1's and Gen 2's holo Pokémon are shown
+    with the galaxy foil too, but in the art window where their holo is (data-galaxy-art), the Pokémon masked out of it
+    (public/holo-masks).
   - Trainers (Gym holo trainers): art window x 55–554, y 187–458.
   - e-Card layout (Expedition, Aquapolis, Skyridge): art window x 57–580, y 103–400, with a
     large rounded top-left corner and a smaller rounded bottom-left one. The stage badge sits
@@ -54,15 +55,25 @@
   clip-path: var(--clip-galaxy);
 }
 
-/* Base Set 2's holo rares: the galaxy foil goes in the art window, where the originals they reprint have their holo
-   (the same shapes as a classic holo, stage badge cut out on Stage 1 and 2). */
-.card[data-era][data-set="base4"][data-rarity="rare holo cosmos"] .card__shine,
-.card[data-era][data-set="base4"][data-rarity="rare holo cosmos"] .card__glare:after {
+/* Gen 1's and Gen 2's holo Pokémon (data-galaxy-art): the galaxy foil goes in the art window, where they have their
+   holo (the same shapes as a classic holo, stage badge cut out on Stage 1 and 2; the e-Card shape on e-Card holos). */
+.card[data-era][data-galaxy-art="true"] .card__shine,
+.card[data-era][data-galaxy-art="true"] .card__glare:after {
   clip-path: var(--clip);
 }
-.card[data-era][data-set="base4"][data-rarity="rare holo cosmos"][data-subtypes^="stage"] .card__shine,
-.card[data-era][data-set="base4"][data-rarity="rare holo cosmos"][data-subtypes^="stage"] .card__glare:after {
+.card[data-era][data-galaxy-art="true"][data-subtypes^="stage"] .card__shine,
+.card[data-era][data-galaxy-art="true"][data-subtypes^="stage"] .card__glare:after {
   clip-path: var(--clip-stage);
+}
+
+/* A holo mask (utils/holo.ts) keeps the foil's glare off the Pokémon too, as base.css does the shine. */
+.card[data-era].masked .card__glare:after {
+  -webkit-mask-image: var(--mask);
+  mask-image: var(--mask);
+  -webkit-mask-size: cover;
+  mask-size: cover;
+  -webkit-mask-position: center center;
+  mask-position: center center;
 }
 
 .card[data-era="ecard"] {

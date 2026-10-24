@@ -135,7 +135,7 @@ export function CardGrid({
                 onClick={() => onRemove(c)}
                 title={`Take a ${c.name} out of the deck`}
                 aria-label={`Take a ${c.name} out of the deck`}
-                className="absolute left-1 top-1 z-30 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900/90 text-white shadow ring-1 ring-slate-500 transition hover:bg-rose-600 active:scale-90"
+                className="absolute left-1 top-1 z-30 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900/90 text-slate-50 shadow ring-1 ring-slate-500 transition hover:bg-rose-600 active:scale-90"
               >
                 <RemoveIcon sx={{ fontSize: 16 }} />
               </button>

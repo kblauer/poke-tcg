@@ -37,6 +37,9 @@ model User {
   cardBack      String?
   playmat       String?
   coin          String?
+  /// The Settings page's choices kept with the account, so they follow it to any browser (the shared package's
+  /// ACCOUNT_SETTINGS: theme, font, skipFlips, options, reminders, music), each the web app's own value as a string.
+  settings      Json            @default("{}")
   decks         Deck[]
   games         Game[]
   runs          Run[]
