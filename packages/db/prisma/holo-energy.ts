@@ -1,4 +1,4 @@
-// Holo Energy (agreed with the user): holo versions of basic Energy cards, found only in booster packs (about 2% of
+// Holo Energy (agreed with the user): holo versions of basic Energy cards, found only in booster packs (about 4% of
 // packs' Energy cards). Each comes in every style of the holo card library (apps/web/src/styles/holo/cards), and each
 // type and style is a card of its own in the catalog: "<energy id>-holo-<style>", e.g. "base1-98-holo-rainbow" (Fire
 // Energy, Rainbow). A pull unlocks one copy (CardUnlock.quantity), and a deck can hold only as many as were pulled.
