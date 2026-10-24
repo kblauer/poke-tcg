@@ -200,11 +200,16 @@ def render(repo, seq):
     programs = read_bank(repo, bank['name'], bank['waves'])
     path = os.path.join(repo, 'res', 'sound', 'SEQ', seq + '.mid')
     division = struct.unpack('>H', open(path, 'rb').read()[12:14])[0]
-    events = m4a_render.read_midi(path)
+    return play(m4a_render.read_midi(path), division, programs, info.get('volume', 127))
+
+
+def play(events, division, programs, volume):
+    """Plays a sequence's events (read_midi's, or sdat.py's: those add expression, CC 11, and the track's envelope
+    overrides, 'adsr') on its bank's programs at its volume: the samples (−1..1), until every note has died away."""
     end = max(e[0] for e in events)
-    seq_db = decibels(info.get('volume', 127))
+    seq_db = decibels(volume)
     tracks = {}
-    state = lambda t: tracks.setdefault(t, {'prog': 0, 'vol': 127, 'bend': 0, 'range': 2, 'mod': 0, 'lfo': 0, 'notes': []})
+    state = lambda t: tracks.setdefault(t, {'prog': 0, 'vol': 127, 'expr': 127, 'bend': 0, 'range': 2, 'mod': 0, 'lfo': 0, 'adsr': [None] * 4, 'notes': []})
     bpm, tick_time, t, ev, out, carry = 120.0, 0.0, 0.0, 0, [], 0.0
     while True:
         # The events due by this sound frame.
@@ -219,16 +224,22 @@ def render(repo, seq):
             elif kind == 'cc':
                 if a == 7:
                     s['vol'] = b
+                elif a == 11:
+                    s['expr'] = b
                 elif a == 20:
                     s['range'] = b
                 elif a == 1:
                     s['mod'] = b
             elif kind == 'bend':
                 s['bend'] = a
+            elif kind == 'adsr':
+                s['adsr'][a] = b
             elif kind == 'on':
                 regions = programs.get(s['prog'])
                 if regions:
                     region = next((r for top, r in regions if a <= top), regions[-1][1])
+                    if any(v is not None for v in s['adsr']):
+                        region = {**region, 'adsr': tuple(r if o is None else o for r, o in zip(region['adsr'], s['adsr']))}
                     s['notes'].append(Note(region, a, b))
             elif kind == 'off':
                 for note in s['notes']:
@@ -246,7 +257,7 @@ def render(repo, seq):
             pitch = s['bend'] * s['range'] / 64 + vibrato
             for note in s['notes']:
                 note.frame()
-                gain = decibels(note.velocity) + decibels(s['vol']) + seq_db
+                gain = decibels(note.velocity) + decibels(s['vol']) + decibels(s['expr']) + seq_db
                 for i, v in enumerate(note.render(n, pitch, gain)):
                     mixed[i] += v
             s['notes'] = [x for x in s['notes'] if not x.done]

@@ -214,6 +214,10 @@ export const cookPoffinInput = z.object({ berry: berryId, frames: z.number().int
 // The Game Corner: one of the counter's coin offers (COIN_OFFERS, by its coins); a round's bet and payout (coinRoundError checks them).
 export const buyCoinsInput = z.object({ coins: z.union([z.literal(50), z.literal(500)]) });
 export const coinRoundInput = z.object({ game: z.enum(['roulette', 'slots']), bet: z.number().int().min(0).max(6), payout: z.number().int().min(0).max(9999) });
+// Voltorb Flip: the next board (`restart` when the game is entered: a new session, from Lv. 1); a round's end, its cards
+// flipped in order and how it ended (settleRound checks them against the board).
+export const voltorbRoundInput = z.object({ restart: z.boolean() });
+export const voltorbSettleInput = z.object({ flips: z.array(z.number().int().min(0).max(24)).max(25), outcome: z.enum(['quit', 'won', 'lost']) });
 
 export const openPackInput = z.object({
   setId: z.enum(PACK_SETS as [string, ...string[]]),
