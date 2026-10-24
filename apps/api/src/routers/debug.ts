@@ -26,9 +26,11 @@ export const debugRouter = router({
     // A card from outside both decks: add its def to the game's library.
     let extra = {};
     if (command.type === 'ADD_TO_HAND' && !game.state.cards[command.defId]) {
-      extra = await loadCardLibrary([command.defId]).catch(() => {
+      try {
+        extra = await loadCardLibrary([command.defId]);
+      } catch {
         throw new TRPCError({ code: 'BAD_REQUEST', message: `Unknown card: ${command.defId}` });
-      });
+      }
     }
     const result = applyDebug(game.state, HUMAN_ID, command, extra);
     if (!result.ok) throw new TRPCError({ code: 'BAD_REQUEST', message: result.error });

@@ -7,6 +7,7 @@
 // walkable tiles. Then the Hoenn Gym Challenge and Champion runs' other rooms, as Kanto's and Johto's: the Pokémon
 // League's, each boss in their place and the player coming in 5 tiles from them, and Lavaridge Town's Pokémon Center; and
 // each boss's map for those runs (HOENN_BOSS_ROOMS). Written by tools/routes/emerald/hoenn_maps.py.
+import type { HoennBossId } from './bosses.js';
 import { leaderRoom, type Route } from './routes.js';
 
 /** Rustboro Gym, the leader's room: the Gym Trainer where Youngster Tommy stands (3,9), the leader in their place (5,2). */
@@ -667,7 +668,7 @@ export const HOENN_POKEMON_CENTER: Route = {
 };
 
 /** Each Hoenn boss's map for the Gym Challenge and Champion runs, by boss id: their gym (leaderRoom, the player coming in 5 tiles from them, south where it can) or Pokémon League room. */
-export const HOENN_BOSS_ROOMS: Record<string, Route> = {
+export const HOENN_BOSS_ROOMS: Record<HoennBossId, Route> = {
   roxanne: leaderRoom(RUSTBORO_GYM, { x: 3, y: 5 }),
   brawly: leaderRoom(DEWFORD_GYM, { x: 2, y: 6 }),
   wattson: leaderRoom(MAUVILLE_GYM, { x: 5, y: 7 }),

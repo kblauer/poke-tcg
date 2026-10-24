@@ -14,8 +14,7 @@ export const POOL_SETS = ['base1', 'base2', 'base3', 'basep', 'base4', 'base5', 
 
 /**
  * Gen 2 runs' sets (agreed with the user): Neo Genesis to Skyridge, with Southern Islands but not Legendary Collection
- * (its Gen 1 reprints, in Gen 1's: agreed). Only Neo Genesis's, Neo Discovery's, Southern Islands', Neo Revelation's, Neo Destiny's, Expedition's, Aquapolis' and Skyridge's card effects are done (GEN2_DONE_SETS); Gen 2 runs use every card of the
- * others for now (Generation `implementedSets`).
+ * (its Gen 1 reprints, in Gen 1's: agreed). Every one's card effects are done (GEN2_DONE_SETS, Generation `implementedSets`).
  */
 export const GEN2_SETS = ['neo1', 'neo2', 'si1', 'neo3', 'neo4', 'ecard1', 'ecard2', 'ecard3'];
 
@@ -62,10 +61,6 @@ export const GEN3_BASIC_ENERGY: Partial<Record<EnergyType, string>> = {
 
 /** Types with a basic Energy card, the ones decks are built around. */
 export const DECK_TYPES = Object.keys(BASIC_ENERGY) as EnergyType[];
-
-/** The type of a basic Energy card of any generation's printings above, or undefined. */
-export const basicEnergyType = (id: string): EnergyType | undefined =>
-  [BASIC_ENERGY, GEN2_BASIC_ENERGY, GEN3_BASIC_ENERGY].map((set) => Object.entries(set).find(([, e]) => e === id)).find(Boolean)?.[0] as EnergyType | undefined;
 
 /** Card shop prices in ₱. */
 export const PRICES: Record<Rarity, number> = { common: 40, uncommon: 80, rare: 150, holo: 250 };

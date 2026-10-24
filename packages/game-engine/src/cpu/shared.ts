@@ -63,13 +63,13 @@ const provides = (cards: CardLibrary, card: CardInstance): PoolEnergy[] => {
 const poolWith = (cards: CardLibrary, p: InPlayPokemon, energy: CardInstance[]) => energyPool({ ...p, energy }, cards);
 
 /** Fewest Energy still missing for any of the Pokémon's attacks (Infinity with no attacks). */
-export function closeness(cards: CardLibrary, p: InPlayPokemon, energy = p.energy): number {
+function closeness(cards: CardLibrary, p: InPlayPokemon, energy = p.energy): number {
   const pool = poolWith(cards, p, energy);
   return Math.min(...pokemonDef(cards, p).attacks.map((a) => missingEnergy(pool, a.cost)));
 }
 
 /** What attaching `card` does for `p`: whether it helps any attack, makes a new one payable, and how close it gets. */
-export function attachEffect(cards: CardLibrary, p: InPlayPokemon, card: CardInstance) {
+function attachEffect(cards: CardLibrary, p: InPlayPokemon, card: CardInstance) {
   const attacks = pokemonDef(cards, p).attacks;
   const before = energyPool(p, cards);
   const after = [...before, ...provides(cards, card)];
@@ -135,7 +135,7 @@ export function vitalEnergy(cards: CardLibrary, p: InPlayPokemon, n: number): Ca
  * Energy to discard to retreat: enough to pay `cost`, with no card more than needed (the engine's rule),
  * keeping what the Pokémon's attacks need most and basic Energy going before special Energy.
  */
-export function retreatPayment(cards: CardLibrary, p: InPlayPokemon, cost: number): CardInstance[] | null {
+function retreatPayment(cards: CardLibrary, p: InPlayPokemon, cost: number): CardInstance[] | null {
   if (cost === 0) return [];
   let best: { picked: CardInstance[]; score: number } | null = null;
   for (let n = 1; n <= Math.min(cost, p.energy.length); n++) {
@@ -416,7 +416,7 @@ export const attackScore = (o: AttackOption | null) => (o ? (knocksOut(o) ? 10_0
 export const damages = (o: AttackOption | null) => !!o && (o.expected > 0 || o.koChance > 0);
 
 /** The CPU's best attack with the benched Pokémon in `slot` as its Active Pokémon instead. */
-export function attackAsActive(state: GameState, playerId: PlayerId, slot: number): AttackOption | null {
+function attackAsActive(state: GameState, playerId: PlayerId, slot: number): AttackOption | null {
   return bestAttack(attackOptions(swapIn(state, playerId, slot), playerId));
 }
 
@@ -442,7 +442,7 @@ export const threatKnocksOut = (state: GameState, playerId: PlayerId) => threat(
 // ---- Useful cards ----
 
 /** Next-stage cards for the player's Pokémon in play: the Pokémon cards (by definition) they could evolve into. */
-export function evolvesInto(cards: CardLibrary, side: Pick<PlayerState, 'active' | 'bench'>, candidate: CardDef): boolean {
+function evolvesInto(cards: CardLibrary, side: Pick<PlayerState, 'active' | 'bench'>, candidate: CardDef): boolean {
   if (!isPokemonCard(candidate) || candidate.stage === 'basic') return false;
   const from = candidate.stage === 'stage2' ? 'stage1' : 'basic';
   return inPlay(side).some(([, p]) => {
@@ -530,11 +530,11 @@ export function professorOak(t: Turn): GameAction | null {
 
 export const benched = (t: Turn) => inPlay(t.me).filter(([target]) => target !== 'active') as [number, InPlayPokemon][];
 
-/** Finishing a search: the most wanted card (see wantedCards), a Basic, an Energy that helps, or anything. Pokédex: wanted cards on top. */
 /** Challenge! (agreed): the CPU accepts whenever its Bench has room and its deck has a Basic Pokémon. */
 export const acceptsChallenge = (state: GameState, cpu: PlayerState) =>
   openBenchSlot(cpu.bench, state.cards, state.stadium?.card) >= 0 && cpu.deck.some((c) => isBasicPokemon(lookupCard(state.cards, c.defId)));
 
+/** Finishing a search: the most wanted card (see wantedCards), a Basic, an Energy that helps, or anything. Pokédex: wanted cards on top. */
 export function resolveSearch(t: Turn): GameAction {
   const view = pendingChoiceView(t.state, t.state.pendingChoice!);
   if (view.kind === 'challenge') return { type: 'RESOLVE_CHOICE', count: acceptsChallenge(t.state, t.me) ? 1 : 0 };

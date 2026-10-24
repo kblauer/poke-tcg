@@ -19,7 +19,7 @@ export interface Attack {
   damage: number;
   /** Printed damage, e.g. "30+", "20×" or "?" (missing in older games). */
   damageText?: string | null;
-  /** Printed attack text. Not implemented by the engine yet – shown for reference only. */
+  /** Printed attack text, shown on the card. The rules are the effect of the attack's name (effects/); an AttackEffect's `text` overrides this where TCGdex's is wrong. */
   text: string | null;
 }
 

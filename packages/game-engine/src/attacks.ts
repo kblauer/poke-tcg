@@ -367,6 +367,9 @@ const afterDefender = (cards: CardLibrary, p: InPlayPokemon, amount: number) => 
 /** An effect turned on for "your opponent's next turn" is still active this turn. */
 const active = (until: number | undefined, turn: number) => until !== undefined && until >= turn;
 
+/** A reduction that takes all of an attack's damage, however much (Synergy Effect's "prevent all damage"): more than any attack does. */
+const ALL_DAMAGE = 1000;
+
 /** One change to an attack's damage to the Defending Pokémon, and what made it (traceDamage). An empty label is the damage the attack itself did before any of them. */
 export interface DamageStep {
   label: string;
@@ -931,14 +934,14 @@ function createContext(
     if (theirs && attackerDef.ex && namesMatch(def(state.cards, p).name, 'Tentacruel') && [opp.active, ...opp.bench].some((q) => q && passive(q)?.reactiveShield && hasReact(q, state.cards))) return true;
     return (evolved && !!passive(p)?.neutralShield) || (!!from && theirs && (!!attackerDef.ex || (from === 'evolvedOrEx' && evolved)));
   };
-  /**
-   * Whether the attack can't affect this Pokémon of `owner`, without flipping for Transparency: Barrier
-   * or Agility, Neutral Shield, or (benched) Protective Flame or Aurora Veil.
-   */
   /** Flee: the Defending Pokémon that took damage and switches out once the attack is over; nothing else the attack does affects it. */
   let fled: InPlayPokemon | null = null;
   /** [Quicken]: attacks do nothing to `owner`'s Pokémon with Unown in their names this turn. */
   const quickened = (p: InPlayPokemon, owner: PlayerState) => active(owner.quickenUntil, turn) && def(state.cards, p).name.includes('Unown');
+  /**
+   * Whether the attack can't affect this Pokémon of `owner`, without flipping for Transparency: it fled, Barrier
+   * or Agility, Neutral Shield, Quicken, or (benched) Protective Flame or Aurora Veil.
+   */
   const immune = (p: InPlayPokemon, owner: PlayerState) =>
     p === fled || active(p.effects?.preventAll, turn) || neutral(p) || quickened(p, owner) || (owner.active !== p && !!benchShielded(owner, state.cards, sides, turn));
   /** Vermilion City Gym's 10 more damage, done once. */
@@ -1097,7 +1100,7 @@ function createContext(
     const rock = def(state.cards, p).name === 'Groudon ex' && [owner.active, ...owner.bench].some((q) => q && passive(q)?.hardRock && energyPool(q, state.cards).length <= 1) ? 20 : 0;
     const armor = theirs && passive(p)?.handArmor && me.hand.length >= 5 ? 30 : 0;
     const synergy = passive(p)?.synergy;
-    const synergized = theirs && synergy && synergy.stadium === stadiumName ? (synergy.less ?? 0) + (synergy.exProof && attackerDef.ex ? 1000 : 0) : 0;
+    const synergized = theirs && synergy && synergy.stadium === stadiumName ? (synergy.less ?? 0) + (synergy.exProof && attackerDef.ex ? ALL_DAMAGE : 0) : 0;
     const drake = stadiumName === "Drake's Stadium" && owner.active === p && hasType(def(state.cards, p), 'colorless') && theirs ? 10 : 0;
     const less = (fat && fat.types.some((t) => hasType(attackerDef, t)) ? fat.amount : 0) + (owner === opp && attackerDef.ex && holonWith(p, state.cards, 'GL', 'lightning') ? 10 : 0) + reversed + shelled + reactive + delta + rock + armor + synergized + drake;
     if (damage > 0 && less) {

@@ -95,7 +95,7 @@ const ZAPPING_SELFDESTRUCT_DECK: DeckList = [
 ];
 
 /** Erika: Nikki's Flower Power Deck (Grass Club). */
-export const FLOWER_POWER_DECK: DeckList = [
+const FLOWER_POWER_DECK: DeckList = [
   ['base1-44', 4], // Bulbasaur
   ['base1-30', 3], // Ivysaur
   ['base1-15', 2], // Venusaur
@@ -304,7 +304,8 @@ const LEGENDARY_RONALD_DECK: DeckList = [
   ['base1-96', 4], // Double Colorless Energy
 ];
 
-export const BOSSES = {
+/** Kanto's bosses, with their TCG 1 decks; Johto's and Hoenn's are in their own files. */
+const KANTO_BOSSES = {
   brock: { name: 'Brock', title: 'Pewter Gym Leader', kind: 'gymLeader', deckName: 'Rock Crusher', counterpart: 'Gene', deck: ROCK_CRUSHER_DECK, gym: { city: 'Pewter', type: 'fighting', badge: 'boulder-badge', trainers: ['Camper Liam'] } },
   misty: { name: 'Misty', title: 'Cerulean Gym Leader', kind: 'gymLeader', deckName: 'Rain Dancer', counterpart: 'Amy', deck: RAIN_DANCER_DECK, gym: { city: 'Cerulean', type: 'water', badge: 'cascade-badge', trainers: ['Swimmer Luis', 'Picnicker Diana'] } },
   surge: { name: 'Lt. Surge', title: 'Vermilion Gym Leader', kind: 'gymLeader', deckName: 'Zapping Selfdestruct', counterpart: 'Isaac', deck: ZAPPING_SELFDESTRUCT_DECK, gym: { city: 'Vermilion', type: 'lightning', badge: 'thunder-badge', trainers: ['Sailor Dwayne', 'Engineer Baily', 'Gentleman Tucker'] } },
@@ -318,22 +319,30 @@ export const BOSSES = {
   agatha: { name: 'Agatha', title: 'Elite Four', kind: 'eliteFour', deckName: 'Legendary Moltres', counterpart: 'Courtney', deck: LEGENDARY_MOLTRES_DECK },
   lance: { name: 'Lance', title: 'Elite Four', kind: 'eliteFour', deckName: 'Legendary Dragonite', counterpart: 'Rod', deck: LEGENDARY_DRAGONITE_DECK },
   blue: { name: 'Blue', title: 'Champion', kind: 'champion', deckName: 'Legendary Ronald', counterpart: 'Ronald', deck: LEGENDARY_RONALD_DECK, prize: 'champion-ribbon' },
+} satisfies Record<string, Boss>;
+
+export const BOSSES = {
+  ...KANTO_BOSSES,
   ...JOHTO_BOSSES,
   ...HOENN_BOSSES,
 } satisfies Record<string, Boss>;
 
 export type BossId = keyof typeof BOSSES;
+/** Each region's boss ids: a run of its bosses back to back has a map for every one of them (KANTO_BOSS_ROOMS and the others, checked at compile time). */
+export type KantoBossId = keyof typeof KANTO_BOSSES;
+export type JohtoBossId = keyof typeof JOHTO_BOSSES;
+export type HoennBossId = keyof typeof HOENN_BOSSES;
 
 /** Kanto's gyms in the order the games visit them. */
 // Sabrina before Koga (agreed with the user).
-export const KANTO_GYMS: BossId[] = ['brock', 'misty', 'surge', 'erika', 'sabrina', 'koga', 'blaine', 'giovanni'];
-export const ELITE_FOUR: BossId[] = ['lorelei', 'bruno', 'agatha', 'lance'];
+export const KANTO_GYMS: KantoBossId[] = ['brock', 'misty', 'surge', 'erika', 'sabrina', 'koga', 'blaine', 'giovanni'];
+export const ELITE_FOUR: KantoBossId[] = ['lorelei', 'bruno', 'agatha', 'lance'];
 /** Johto's gyms in the order Gold and Silver visit them, and its Elite Four. */
-export const JOHTO_GYMS: BossId[] = ['falkner', 'bugsy', 'whitney', 'morty', 'chuck', 'jasmine', 'pryce', 'clair'];
-export const JOHTO_ELITE_FOUR: BossId[] = ['will', 'johto-koga', 'johto-bruno', 'karen'];
+export const JOHTO_GYMS: JohtoBossId[] = ['falkner', 'bugsy', 'whitney', 'morty', 'chuck', 'jasmine', 'pryce', 'clair'];
+export const JOHTO_ELITE_FOUR: JohtoBossId[] = ['will', 'johto-koga', 'johto-bruno', 'karen'];
 /** Hoenn's gyms in the order Emerald visits them, and its Elite Four. */
-export const HOENN_GYMS: BossId[] = ['roxanne', 'brawly', 'wattson', 'flannery', 'norman', 'winona', 'tate-liza', 'juan'];
-export const HOENN_ELITE_FOUR: BossId[] = ['sidney', 'phoebe', 'glacia', 'drake'];
+export const HOENN_GYMS: HoennBossId[] = ['roxanne', 'brawly', 'wattson', 'flannery', 'norman', 'winona', 'tate-liza', 'juan'];
+export const HOENN_ELITE_FOUR: HoennBossId[] = ['sidney', 'phoebe', 'glacia', 'drake'];
 
 export const boss = (id: string): Boss => {
   const b = (BOSSES as Record<string, Boss>)[id];

@@ -117,7 +117,7 @@ export function RunOver({ current, overview, run }: { current: ClientRun; overvi
       {isClosed('result') ? (
         <Minimized title={<span className="text-yellow-300">{beat}</span>} summary={`${rewards} · ${view.gained.length} cards gained`} onOpen={() => toggle('result')} />
       ) : (
-        <section className="space-y-3 rounded-lg bg-slate-800 p-5 ring-1 ring-yellow-500">
+        <section className="space-y-3 rounded-lg bg-slate-800 p-5 ring-1 ring-yellow-400">
           <div className="flex items-start gap-3">
             <h3 className="flex-1 text-lg font-semibold text-yellow-300">{beat}</h3>
             <CloseButton label="Close the results" onClick={() => toggle('result')} />

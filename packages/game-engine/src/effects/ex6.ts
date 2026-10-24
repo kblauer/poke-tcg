@@ -145,6 +145,27 @@ const twister = (damage: number): AttackEffect => ({
   },
 });
 
+/** Electrode ex – Crush and Burn: any number of Energy cards from the player's Pokémon discarded, 20 more each (agreed: cards). */
+const crushAndBurn: AttackEffect = {
+  choices(s): ChoiceSpec[] {
+    const options = [s.attacker, ...s.ownBench].flatMap((p) => (p ? p.energy.filter((e) => !e.provides) : []));
+    return options.length ? [{ kind: 'ownEnergyAny', options, prompt: 'You may choose any Energy cards attached to your Pokémon to discard (20 more damage each)' }] : [];
+  },
+  run(ctx) {
+    const uids = new Set(ctx.choices.energyUids ?? []);
+    let n = 0;
+    for (const p of inPlay(ctx.me)) {
+      const gone = p.energy.filter((e) => uids.has(e.uid));
+      if (!gone.length) continue;
+      p.energy = p.energy.filter((e) => !gone.includes(e));
+      ctx.me.discard.push(...gone);
+      n += gone.length;
+      ctx.log(`Discarded ${gone.map((c) => lookupCard(ctx.state.cards, c.defId).name).join(', ')} from ${pokemonName(ctx.state, p)}.`);
+    }
+    ctx.hit(30 + 20 * n);
+  },
+};
+
 export const EX6: Record<string, Record<string, AttackEffect>> = {
   // Beedrill – Link Needle: 30 more for each other Beedrill the player has in play.
   'ex6-1': { 'Link Needle': { run: (ctx) => void ctx.hit(50 + 30 * inPlay(ctx.me).filter((p) => p !== ctx.attacker && namesMatch(inPlayDef(ctx.state.cards, p).name, 'Beedrill')).length) } },
@@ -359,28 +380,8 @@ export const EX6: Record<string, Record<string, AttackEffect>> = {
   },
   // Clefable ex – Metronome: one of the Defending Pokémon's attacks, with its other requirements (as Mini-Metronome).
   'ex6-106': { Metronome: copyAttack('Metronome', { needsEnergy: false, flip: false }) },
-  // Electrode ex – Crush and Burn: any number of Energy cards from the player's Pokémon discarded, 20 more each (agreed: cards).
-  'ex6-107': {
-    'Crush and Burn': {
-      choices(s): ChoiceSpec[] {
-        const options = [s.attacker, ...s.ownBench].flatMap((p) => (p ? p.energy.filter((e) => !e.provides) : []));
-        return options.length ? [{ kind: 'ownEnergyAny', options, prompt: 'You may choose any Energy cards attached to your Pokémon to discard (20 more damage each)' }] : [];
-      },
-      run(ctx) {
-        const uids = new Set(ctx.choices.energyUids ?? []);
-        let n = 0;
-        for (const p of inPlay(ctx.me)) {
-          const gone = p.energy.filter((e) => uids.has(e.uid));
-          if (!gone.length) continue;
-          p.energy = p.energy.filter((e) => !gone.includes(e));
-          ctx.me.discard.push(...gone);
-          n += gone.length;
-          ctx.log(`Discarded ${gone.map((c) => lookupCard(ctx.state.cards, c.defId).name).join(', ')} from ${pokemonName(ctx.state, p)}.`);
-        }
-        ctx.hit(30 + 20 * n);
-      },
-    },
-  },
+  // Electrode ex: "Crash and Burn" is TCGdex's name for Crush and Burn (the seed fixes it; kept for databases not yet re-seeded).
+  'ex6-107': { 'Crush and Burn': crushAndBurn, 'Crash and Burn': crushAndBurn },
   // Gengar ex – Poltergeist: the opponent's hand looked at, 10 more for each Trainer card in it.
   'ex6-108': {
     Poltergeist: {
@@ -419,9 +420,6 @@ export const EX6: Record<string, Record<string, AttackEffect>> = {
   // Zapdos ex – Electron Crush: an Energy card may be discarded for 20 more.
   'ex6-116': { 'Electron Crush': mayDiscardAny(50, () => 20) },
 };
-
-// Electrode ex: "Crash and Burn" is TCGdex's name for Crush and Burn (the seed fixes it; kept for databases not yet re-seeded).
-EX6['ex6-107']!['Crash and Burn'] = EX6['ex6-107']!['Crush and Burn']!;
 
 /** How much Fire Energy an Energy card on the attacker provides (Energy Flame makes it all Fire). */
 function fireIn(ctx: AttackContext, e: CardInstance) {

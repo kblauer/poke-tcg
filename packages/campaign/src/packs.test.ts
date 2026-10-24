@@ -87,7 +87,8 @@ describe('openPack: Wizards Black Star Promos', () => {
   const set = testPackSet('basep');
 
   it('a basic Energy and 10 different promos, holos last (the last card a holo about 1 pack in 3, others now and then)', () => {
-    expect([set.uncommon, set.rare, set.holo.length]).toEqual([[], [], 6]);
+    // The 6 holos TCGdex lists, Venusaur and Cool Porygon (holos it lists as normal) and the galaxy-foil Entei and Pichu (cardRarity).
+    expect([set.uncommon, set.rare, set.holo.length]).toEqual([[], [], 10]);
     for (let seed = 0; seed < 300; seed++) {
       const pack = openPack(set, rngFrom(seed));
       expect(pack).toHaveLength(11);

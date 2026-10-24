@@ -26,6 +26,7 @@ import {
   opponentSwitches,
   opponentTargets,
   perHeads,
+  same,
 } from './common.js';
 import { flipForMore, rage } from './jungle.js';
 
@@ -417,7 +418,7 @@ export const ROCKET: Record<string, Record<string, AttackEffect>> = {
     },
   },
   // Porygon
-  'base5-48': { 'Conversion 1': BASE1['base1-39']!['Conversion 1']!, Psybeam: flipToInflict(20, 'confused') },
+  'base5-48': { 'Conversion 1': same(() => BASE1['base1-39']?.['Conversion 1']), Psybeam: flipToInflict(20, 'confused') },
   // Abra
   'base5-49': {
     // With no benched Pokémon, its player is left with none in play and loses (agreed).
@@ -433,7 +434,7 @@ export const ROCKET: Record<string, Record<string, AttackEffect>> = {
   // Drowzee
   'base5-54': { Nightmare: inflicts(10, 'asleep') },
   // Eevee
-  'base5-55': { 'Sand-attack': BASE1['base1-62']!['Sand-attack']! },
+  'base5-55': { 'Sand-attack': same(() => BASE1['base1-62']?.['Sand-attack']) },
   // Ekans
   'base5-56': { 'Poison Sting': flipToInflict(20, 'poisoned') },
   // Grimer

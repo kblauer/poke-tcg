@@ -306,8 +306,6 @@ export function DecksPage() {
       {decks.data ? (
         <DeckList
           decks={decks.data}
-          byId={byId}
-          isLocked={isLocked}
           onOpen={(id) => open(id)}
           onNew={() => open(null)}
           onCopy={(id) => duplicate.mutate({ deckId: id })}
@@ -336,7 +334,7 @@ export function DecksPage() {
           setName(newName);
           setDirty(true);
         }}
-        entries={entries} ready={problems.length === 0} byId={byId} isLocked={isLocked} onBack={() => close()} />
+        entries={entries} ready={problems.length === 0} onBack={() => close()} />
       <div className={`space-y-2 rounded-lg bg-slate-900 ${phone ? 'p-2' : 'p-3'}`}>
         {readOnly ? (
           <div className="flex flex-wrap items-center gap-2">

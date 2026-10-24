@@ -1,4 +1,4 @@
-// A run: steps of encounters chosen one at a time on a map (2–3 options each), with bosses along the way
+// A run: steps of encounters chosen one at a time on a map (1–3 options each), with bosses along the way
 // (each gym leader after a Gym Trainer that must be fought), ending with its last boss (see run-types.ts).
 // RunState is plain JSON (saved in Run.state); applyRunAction is its reducer, like the engine's applyAction.
 // Battles themselves are engine games: the API starts one when the run asks for it (needsBattle) and
@@ -167,9 +167,15 @@ const LABELS: Record<Exclude<EncounterKind, BattleKind>, string> = {
   center: 'Pokémon Center',
 };
 
-/** Rewards for winning each kind of battle, and the least rarity of the cards offered after it. */
-/** What each kind of battle pays when won: ₱ (a range; tripled across the board, 2026-10-23), EXP, and how rare the cards to pick from are. */
-export const REWARDS: Record<BattleKind, { pokedollars: [number, number]; exp: number; rarity: Rarity }> = {
+/** What a battle pays when won: ₱ (a range), EXP, and the least rarity of the cards offered after it. */
+export interface BattleReward {
+  pokedollars: [number, number];
+  exp: number;
+  rarity: Rarity;
+}
+
+/** What each kind of battle pays when won (the ₱ tripled across the board, 2026-10-23). */
+const REWARDS: Record<BattleKind, BattleReward> = {
   battle: { pokedollars: [300, 450], exp: 10, rarity: 'common' },
   elite: { pokedollars: [750, 750], exp: 25, rarity: 'uncommon' },
   gymTrainer: { pokedollars: [450, 600], exp: 15, rarity: 'uncommon' },
@@ -194,7 +200,7 @@ const FOCUS_WEIGHTS: [RewardFocus | null, number][] = [
 const RARITIES: Rarity[] = ['common', 'uncommon', 'rare', 'holo'];
 
 /** What a battle pays when won (REWARDS), with its trainer's `focus`. */
-export function battleReward(kind: BattleKind, focus?: RewardFocus): (typeof REWARDS)[BattleKind] {
+export function battleReward(kind: BattleKind, focus?: RewardFocus): BattleReward {
   const r = REWARDS[kind];
   if (focus === 'pokedollars') return { ...r, pokedollars: [r.pokedollars[0] * 2, r.pokedollars[1] * 2] };
   if (focus === 'exp') return { ...r, exp: r.exp * 2 };
@@ -332,8 +338,10 @@ export function withConsumablesBefore(prev: RunState, itemIds: readonly string[]
   return state;
 }
 
-/** A new run of `type` with `deck`. The map is fixed by the seed; what's in each encounter is rolled when it's entered. */
-/** A new run of `typeId` with the deck (`deckName`: the account deck it came from). */
+/**
+ * A new run of `typeId` with the deck (`deckName`: the account deck it came from). The map is fixed by the seed; what's in
+ * each encounter is rolled when it's entered.
+ */
 export function createRun(typeId: RunTypeId, deck: string[], runSeed: number, deckName?: string): RunState {
   const type = runType(typeId);
   const rng = rngFrom(runSeed);
@@ -463,9 +471,11 @@ function rollEncounter(rng: Rng, state: RunState, option: MapEncounter, pool: re
 }
 
 type BattleEncounter = Extract<Encounter, { deckSeed: number }>;
+/** A battle (a trainer's, a Gym Trainer's or a boss's: the one kind with an opponent's deck seed), not another stop. */
+const isBattleEncounter = (e: Encounter): e is BattleEncounter => 'deckSeed' in e;
 const battleOf = (state: RunState): BattleEncounter | null => {
   const e = state.encounter;
-  return e && isBattleKind(e.kind) ? (e as BattleEncounter) : null;
+  return e && isBattleEncounter(e) ? e : null;
 };
 
 /** Whether the run is waiting for the server to start a battle (it then sends BATTLE_STARTED). */
@@ -555,6 +565,145 @@ function tickBattles(state: RunState) {
   state.consumables = state.consumables.map((c) => ({ ...c, battlesLeft: c.battlesLeft - 1 })).filter((c) => c.battlesLeft > 0);
 }
 
+/** What applyRunAction hands the arms kept apart from it (battleOver, useItem): the state being changed and its helpers. */
+interface ActionContext {
+  state: RunState;
+  rng: Rng;
+  pool: readonly PoolCard[];
+  /** The effects of the account's gear and the run's consumables in force. */
+  effects: readonly ActiveEffect[];
+  /** A card's name, for the log. */
+  name: (id: string) => string;
+  fail: (error: string) => RunResult;
+  /** The new state; `done` also keeps the RNG's state, for arms that rolled with it. */
+  ok: () => RunResult;
+  done: () => RunResult;
+}
+
+/** BATTLE_OVER: the battle's result. Won: its rewards (₱, EXP, the cards to pick from, a boss's key item) or the run beaten; lost: 1 HP, a boss staying to be fought again. */
+function battleOver({ state, rng, pool, effects, fail, done }: ActionContext, action: Extract<RunSystemAction, { type: 'BATTLE_OVER' }>): RunResult {
+  const battle = battleOf(state);
+  if (!battle || battle.gameId !== action.gameId) return fail('Not the current battle');
+  // The battle's consumables (`effects`, from before) count for its rewards; one of their battles is over (not a
+  // battle skipped by debug: nothing was fought).
+  if (!action.skipped) tickBattles(state);
+  const completed = battlesCompleted(state);
+  state.battlesFought = battlesFought(state) + 1;
+  state.battlesCompleted = completed + (action.conceded ? 0 : 1);
+  if (action.won) {
+    const reward = battleReward(battle.kind, battle.focus);
+    const prize = between(rng, reward.pokedollars[0] / 10, reward.pokedollars[1] / 10) * 10;
+    const pokedollars = action.skipped
+      ? 0
+      : Math.round((prize * (100 + effectTotal(effects, (x) => (x.kind === 'pokedollarBonus' ? x.percent : 0)))) / 1000) * 10 +
+        effectTotal(effects, (x) => (x.kind === 'winPokedollars' ? x.amount : 0));
+    const exp = action.skipped ? 0 : Math.round((reward.exp * (100 + effectTotal(effects, (x) => (x.kind === 'expBonus' ? x.percent : 0)))) / 100);
+    state.pokedollars += pokedollars;
+    state.exp += exp;
+    state.log.push(action.skipped ? `Skipped the battle with ${battle.trainer} (debug): no ₱, EXP or card.` : `Beat ${battle.trainer}: +₱${pokedollars}, +${exp} EXP.`);
+    const b = isBossKind(battle.kind) ? bossOf(state, battle) : null;
+    const keyItem = b?.gym?.badge ?? b?.prize;
+    if (keyItem) state.badges = [...(state.badges ?? []), keyItem];
+    if (state.position === state.steps.length - 1) {
+      state.encounter = null;
+      state.phase = 'won';
+      state.log.push(`Beat the ${runType(state.type).name} run!`);
+    } else if (action.skipped) {
+      nextStep(state);
+    } else {
+      state.encounter = { kind: 'reward', offers: offerCards(rng, pool, OFFERS + moreOffers(effects, 'reward'), reward.rarity), pokedollars, exp, trainer: battle.trainer };
+    }
+    return done();
+  }
+  state.hp -= 1;
+  state.log.push(`Lost to ${battle.trainer}${action.conceded ? ' (conceded)' : ''}: −1 HP.`);
+  // A boss stays to be fought again; any other battle (a Gym Trainer too) is over, won or not.
+  if (isBossKind(battle.kind)) {
+    state.encounter = null;
+    state.phase = 'map';
+    delete state.steps[state.position]!.chosen;
+  } else {
+    nextStep(state);
+  }
+  if (state.hp <= 0) {
+    state.phase = 'lost';
+    state.log.push(bankablePokedollars(state) ? 'Out of HP: the run is lost.' : 'Out of HP: the run is lost, without completing a battle: no ₱ banked.');
+  }
+  return done();
+}
+
+/** USE_ITEM: a consumable put in effect for its battles (one at a time), or a misc item's use: escape a battle, reveal or re-roll the step's encounters, heal, sell a Nugget. */
+function useItem({ state, rng, pool, name, fail, ok, done }: ActionContext, action: Extract<RunSystemAction, { type: 'USE_ITEM' }>): RunResult {
+  const def = item(action.itemId);
+  if (def.category === 'consumable') {
+    if (state.consumablesUsed >= MAX_CONSUMABLES_PER_RUN) return fail(`Only ${MAX_CONSUMABLES_PER_RUN} consumables can be used per run`);
+    if (currentGameId(state)) return fail('Use consumables before a battle starts');
+    // One at a time (agreed with the user): another waits until the one in effect has run out.
+    const active = state.consumables[0];
+    if (active) return fail(`${item(active.itemId).name} is still active`);
+    state.consumablesUsed += 1;
+    state.consumables.push({ itemId: def.id, battlesLeft: def.battles ?? 1 });
+    state.log.push(`Used ${def.name}.`);
+    return ok();
+  }
+  if (def.category !== 'misc' || !def.use) return fail(`${def.name} can't be used`);
+  const used = state.itemUses[def.id] ?? 0;
+  if (def.perRun !== undefined && used >= def.perRun) return fail(`${def.name} can only be used ${def.perRun === 1 ? 'once' : `${def.perRun} times`} per run`);
+  const use = def.use;
+  const step = state.steps[state.position];
+  const notOnMap = state.phase !== 'map' || !step ? fail(`Use ${def.name} when choosing where to go`) : null;
+  switch (use.kind) {
+    case 'escape': {
+      const battle = battleOf(state);
+      if (!battle) return fail('There is no battle to escape from');
+      if (battle.kind === 'elite' && !battle.accepted) return fail('You can still walk away from this one');
+      // A boss or Gym Trainer stays to be fought again; any other battle is over.
+      if (isBossKind(battle.kind) || battle.kind === 'gymTrainer') {
+        state.encounter = null;
+        state.phase = 'map';
+        delete step!.chosen;
+      } else {
+        nextStep(state);
+      }
+      state.log.push(`Escaped from ${battle.trainer} with an ${def.name}.`);
+      break;
+    }
+    case 'reveal': {
+      if (notOnMap) return notOnMap;
+      const mysteries = step!.options.filter((o) => o.kind === 'event' && !o.event);
+      if (!mysteries.length) return fail('There is no Mystery here to reveal');
+      for (const o of mysteries) {
+        o.event = rollEvent(rng, state, pool);
+        o.label = eventInfo(o.event, name).title;
+      }
+      state.log.push(`${def.name}: the Mystery here is ${mysteries.map((o) => o.label).join(' and ')}.`);
+      break;
+    }
+    case 'reroll': {
+      if (notOnMap) return notOnMap;
+      if (step!.options.some((o) => o.kind === 'gymTrainer' || isBossKind(o.kind))) return fail(`${def.name} doesn't work at a gym`);
+      // Rolled as the step was when the run was made: the route's own trainers (no Swimmers on land), and a surfed route's
+      // spot at sea or its land battle always a battle, a spot ashore never one.
+      const { pool: trainers, landBattle, atSea, ashore } = poolAt(runType(state.type), state.position);
+      const options = atSea || landBattle ? [mapEncounter(rng, 'battle', trainers)] : rollOptions(rng, state.position, centersOffered(state.steps, state.position), trainers, ashore);
+      step!.options = pairUp(rng, options, trainers);
+      state.log.push(`Used ${def.name}: new encounters to choose from.`);
+      break;
+    }
+    case 'heal':
+      if (state.hp >= state.maxHp) return fail('You already have full HP');
+      state.hp = Math.min(state.maxHp, state.hp + use.hp);
+      state.log.push(`Used ${def.name}: healed ${use.hp} HP.`);
+      break;
+    case 'pokedollars':
+      state.pokedollars += use.amount;
+      state.log.push(`Sold a ${def.name} for ₱${use.amount}.`);
+      break;
+  }
+  state.itemUses[def.id] = used + 1;
+  return done();
+}
+
 /**
  * Applies a player's or the server's action to a run. Pure: returns a new state, or an error.
  * `pool` is the card pool encounters offer cards from; `gear` the account's equipped items.
@@ -574,6 +723,7 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
   const name = (id: string) => byId(pool).get(id)?.def.name ?? id;
   const e = state.encounter;
   const effects = activeEffects(gear, state.consumables);
+  const ctx: ActionContext = { state, rng, pool, effects, name, fail, ok, done };
 
   if (action.type === 'RESTORE_HP') {
     if (state.phase !== 'lost') return fail('The run is still going');
@@ -615,61 +765,14 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
     }
 
     case 'BATTLE_STARTED': {
-      if (!needsBattle(state)) return fail('No battle to start');
-      (e as Extract<Encounter, { gameId?: string }>).gameId = action.gameId;
+      const battle = battleOf(state);
+      if (!battle || !needsBattle(state)) return fail('No battle to start');
+      battle.gameId = action.gameId;
       return ok();
     }
 
-    case 'BATTLE_OVER': {
-      if (!e || currentGameId(state) !== action.gameId) return fail('Not the current battle');
-      const battle = e as BattleEncounter;
-      // The battle's consumables (`effects`, from before) count for its rewards; one of their battles is over (not a
-      // battle skipped by debug: nothing was fought).
-      if (!action.skipped) tickBattles(state);
-      const completed = battlesCompleted(state);
-      state.battlesFought = battlesFought(state) + 1;
-      state.battlesCompleted = completed + (action.conceded ? 0 : 1);
-      if (action.won) {
-        const reward = battleReward(battle.kind, battle.focus);
-        const prize = between(rng, reward.pokedollars[0] / 10, reward.pokedollars[1] / 10) * 10;
-        const pokedollars = action.skipped
-          ? 0
-          : Math.round((prize * (100 + effectTotal(effects, (x) => (x.kind === 'pokedollarBonus' ? x.percent : 0)))) / 1000) * 10 +
-            effectTotal(effects, (x) => (x.kind === 'winPokedollars' ? x.amount : 0));
-        const exp = action.skipped ? 0 : Math.round((reward.exp * (100 + effectTotal(effects, (x) => (x.kind === 'expBonus' ? x.percent : 0)))) / 100);
-        state.pokedollars += pokedollars;
-        state.exp += exp;
-        state.log.push(action.skipped ? `Skipped the battle with ${battle.trainer} (debug): no ₱, EXP or card.` : `Beat ${battle.trainer}: +₱${pokedollars}, +${exp} EXP.`);
-        const b = isBossKind(battle.kind) ? bossOf(state, battle) : null;
-        const keyItem = b?.gym?.badge ?? b?.prize;
-        if (keyItem) state.badges = [...(state.badges ?? []), keyItem];
-        if (state.position === state.steps.length - 1) {
-          state.encounter = null;
-          state.phase = 'won';
-          state.log.push(`Beat the ${runType(state.type).name} run!`);
-        } else if (action.skipped) {
-          nextStep(state);
-        } else {
-          state.encounter = { kind: 'reward', offers: offerCards(rng, pool, OFFERS + moreOffers(effects, 'reward'), reward.rarity), pokedollars, exp, trainer: battle.trainer };
-        }
-        return done();
-      }
-      state.hp -= 1;
-      state.log.push(`Lost to ${battle.trainer}${action.conceded ? ' (conceded)' : ''}: −1 HP.`);
-      // A boss stays to be fought again; any other battle (a Gym Trainer too) is over, won or not.
-      if (isBossKind(battle.kind)) {
-        state.encounter = null;
-        state.phase = 'map';
-        delete state.steps[state.position]!.chosen;
-      } else {
-        nextStep(state);
-      }
-      if (state.hp <= 0) {
-        state.phase = 'lost';
-        state.log.push(bankablePokedollars(state) ? 'Out of HP: the run is lost.' : 'Out of HP: the run is lost, without completing a battle: no ₱ banked.');
-      }
-      return done();
-    }
+    case 'BATTLE_OVER':
+      return battleOver(ctx, action);
 
     case 'ACCEPT': {
       if (!e) return fail('Nothing to accept');
@@ -758,76 +861,8 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
       return ok();
     }
 
-    case 'USE_ITEM': {
-      const def = item(action.itemId);
-      if (def.category === 'consumable') {
-        if (state.consumablesUsed >= MAX_CONSUMABLES_PER_RUN) return fail(`Only ${MAX_CONSUMABLES_PER_RUN} consumables can be used per run`);
-        if (currentGameId(state)) return fail('Use consumables before a battle starts');
-        // One at a time (agreed with the user): another waits until the one in effect has run out.
-        const active = state.consumables[0];
-        if (active) return fail(`${item(active.itemId).name} is still active`);
-        state.consumablesUsed += 1;
-        state.consumables.push({ itemId: def.id, battlesLeft: def.battles ?? 1 });
-        state.log.push(`Used ${def.name}.`);
-        return ok();
-      }
-      if (def.category !== 'misc' || !def.use) return fail(`${def.name} can't be used`);
-      const used = state.itemUses[def.id] ?? 0;
-      if (def.perRun !== undefined && used >= def.perRun) return fail(`${def.name} can only be used ${def.perRun === 1 ? 'once' : `${def.perRun} times`} per run`);
-      const use = def.use;
-      const step = state.steps[state.position];
-      const notOnMap = state.phase !== 'map' || !step ? fail(`Use ${def.name} when choosing where to go`) : null;
-      switch (use.kind) {
-        case 'escape': {
-          const battle = battleOf(state);
-          if (!battle) return fail('There is no battle to escape from');
-          if (battle.kind === 'elite' && !battle.accepted) return fail('You can still walk away from this one');
-          // A boss or Gym Trainer stays to be fought again; any other battle is over.
-          if (isBossKind(battle.kind) || battle.kind === 'gymTrainer') {
-            state.encounter = null;
-            state.phase = 'map';
-            delete step!.chosen;
-          } else {
-            nextStep(state);
-          }
-          state.log.push(`Escaped from ${battle.trainer} with an ${def.name}.`);
-          break;
-        }
-        case 'reveal': {
-          if (notOnMap) return notOnMap;
-          const mysteries = step!.options.filter((o) => o.kind === 'event' && !o.event);
-          if (!mysteries.length) return fail('There is no Mystery here to reveal');
-          for (const o of mysteries) {
-            o.event = rollEvent(rng, state, pool);
-            o.label = eventInfo(o.event, name).title;
-          }
-          state.log.push(`${def.name}: the Mystery here is ${mysteries.map((o) => o.label).join(' and ')}.`);
-          break;
-        }
-        case 'reroll': {
-          if (notOnMap) return notOnMap;
-          if (step!.options.some((o) => o.kind === 'gymTrainer' || isBossKind(o.kind))) return fail(`${def.name} doesn't work at a gym`);
-          // Rolled as the step was when the run was made: the route's own trainers (no Swimmers on land), and a surfed route's
-          // spot at sea or its land battle always a battle, a spot ashore never one.
-          const { pool: trainers, landBattle, atSea, ashore } = poolAt(runType(state.type), state.position);
-          const options = atSea || landBattle ? [mapEncounter(rng, 'battle', trainers)] : rollOptions(rng, state.position, centersOffered(state.steps, state.position), trainers, ashore);
-          step!.options = pairUp(rng, options, trainers);
-          state.log.push(`Used ${def.name}: new encounters to choose from.`);
-          break;
-        }
-        case 'heal':
-          if (state.hp >= state.maxHp) return fail('You already have full HP');
-          state.hp = Math.min(state.maxHp, state.hp + use.hp);
-          state.log.push(`Used ${def.name}: healed ${use.hp} HP.`);
-          break;
-        case 'pokedollars':
-          state.pokedollars += use.amount;
-          state.log.push(`Sold a ${def.name} for ₱${use.amount}.`);
-          break;
-      }
-      state.itemUses[def.id] = used + 1;
-      return done();
-    }
+    case 'USE_ITEM':
+      return useItem(ctx, action);
   }
 }
 
@@ -835,7 +870,7 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
 export function runView(state: RunState, pool: readonly PoolCard[]) {
   const { rngState: _, ...rest } = state;
   const e = state.encounter;
-  const encounter = e && 'deckSeed' in e ? (({ deckSeed: __, ...visible }) => visible)(e) : e;
+  const encounter = e && isBattleEncounter(e) ? (({ deckSeed: __, ...visible }) => visible)(e) : e;
   const ids = new Set([...state.deck, ...state.gained]);
   if (e?.kind === 'shop') e.stock.forEach((s) => ids.add(s.cardId));
   if (e?.kind === 'gift' || e?.kind === 'reward') e.offers.forEach((id) => ids.add(id));

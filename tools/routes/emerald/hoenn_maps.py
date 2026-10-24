@@ -443,6 +443,7 @@ GYMS_HEAD = """// The Hoenn gyms' interiors, from Pokémon Emerald (the pret/pok
 // walkable tiles. Then the Hoenn Gym Challenge and Champion runs' other rooms, as Kanto's and Johto's: the Pokémon
 // League's, each boss in their place and the player coming in 5 tiles from them, and Lavaridge Town's Pokémon Center; and
 // each boss's map for those runs (HOENN_BOSS_ROOMS). Written by tools/routes/emerald/hoenn_maps.py.
+import type { HoennBossId } from './bosses.js';
 import { leaderRoom, type Route } from './routes.js';
 """
 
@@ -527,7 +528,7 @@ def main():
 
     lines = [f"  {LEADERS[c] if '-' not in LEADERS[c] else repr(LEADERS[c])}: leaderRoom({GYMS[c][3]}, {{ x: {e[0]}, y: {e[1]} }})," for c, (e, _) in entrances.items()]
     lines += [f'  {boss}: {const},' for boss, const in rooms.items()]
-    out.append("\n/** Each Hoenn boss's map for the Gym Challenge and Champion runs, by boss id: their gym (leaderRoom, the player coming in 5 tiles from them, south where it can) or Pokémon League room. */\nexport const HOENN_BOSS_ROOMS: Record<string, Route> = {\n" + '\n'.join(lines) + '\n};\n')
+    out.append("\n/** Each Hoenn boss's map for the Gym Challenge and Champion runs, by boss id: their gym (leaderRoom, the player coming in 5 tiles from them, south where it can) or Pokémon League room. */\nexport const HOENN_BOSS_ROOMS: Record<HoennBossId, Route> = {\n" + '\n'.join(lines) + '\n};\n')
     open(GYMS_OUT, 'w', encoding='utf-8', newline='\n').write(GYMS_HEAD + ''.join(out))
     print('wrote', ROUTES_OUT, GYMS_OUT, 'previews in', work)
     for p in problems:

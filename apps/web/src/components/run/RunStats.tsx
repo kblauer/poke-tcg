@@ -96,7 +96,7 @@ export function RunStats({ view, account, run }: { view: RunViewData; account: O
           <h4 className={label}>Won this run</h4>
           <p className="flex flex-wrap gap-1">
             {view.badges!.map((id) => (
-              <span key={id} className="rounded bg-yellow-700/60 px-2 py-0.5">
+              <span key={id} className="rounded bg-yellow-400/30 px-2 py-0.5">
                 {ITEMS[id]?.name ?? id}
               </span>
             ))}

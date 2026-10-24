@@ -135,7 +135,8 @@ export async function advanceRun(run: LoadedRun, actions: (RunAction | RunSystem
   if (needsBattle(state)) {
     gameId = await startBattle(run, state, gear);
     const started = applyRunAction(state, { type: 'BATTLE_STARTED', gameId }, pool, gear);
-    if (!started.ok) throw new Error(started.error);
+    // The run just asked for the battle, so this can't fail: a server-side inconsistency if it does.
+    if (!started.ok) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: started.error });
     state = started.state;
   }
 

@@ -15,7 +15,7 @@ import { isBasicEnergy, lookupCard, type EnergyType } from '../cards.js';
 import { energyProvided, isEnergyCardOf, retreatCost, type CardInstance } from '../engine.js';
 import { discardsLocked } from '../powers.js';
 import { benchRoom, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
-import { benchedSlots, headsUntilTails, opponentBenchChoice } from './common.js';
+import { benchedSlots, headsUntilTails, opponentBenchChoice, same } from './common.js';
 import { attachFromDiscard } from './neo3.js';
 import { typedCards } from './ecard1.js';
 import { eachDefending, energyAmount } from './ex1.js';
@@ -410,7 +410,7 @@ export const EX3: Record<string, Record<string, AttackEffect>> = {
     },
   },
   // Kingdra ex – Genetic Memory: as Neo Revelation Kingdra's.
-  'ex3-92': { 'Genetic Memory': NEO3['neo3-19']!['Genetic Memory']! },
+  'ex3-92': { 'Genetic Memory': same(() => NEO3['neo3-19']?.['Genetic Memory']) },
   // Latias ex – Mist Ball: a Fire and a Water Energy card discarded (Rainbow and Multi Energy count, agreed).
   'ex3-93': {
     'Mist Ball': {

@@ -23,7 +23,7 @@ const spots = (state: GameState, player: PlayerId): [Target, InPlayPokemon | nul
 ];
 
 /** The Pokémon in play that are in `after` but not the same in `before` (a Pokémon Knocked Out or moved away isn't one). */
-export function changedPokemon(before: GameState, after: GameState): SpotRef[] {
+function changedPokemon(before: GameState, after: GameState): SpotRef[] {
   return after.playerOrder.flatMap((player) => {
     const was = new Map(spots(before, player));
     return spots(after, player).flatMap(([target, p]) => (p && JSON.stringify(p) !== JSON.stringify(was.get(target) ?? null) ? [{ player, target }] : []));

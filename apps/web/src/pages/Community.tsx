@@ -167,7 +167,7 @@ function CommunityDeckTile({
       {/* Its Pokémon large, the bar under them, and their names (one line, comma separated) over the description on their right (under them on a narrow tile), cut
           short with an ellipsis until the tile is focused. */}
       <div className="flex flex-col gap-3 @md:flex-row">
-        <DeckSummary entries={deck.cards} byId={byId} isLocked={isLocked} large />
+        <DeckSummary entries={deck.cards} large />
         <div className="min-w-0 flex-1 space-y-1">
           {featured.length > 0 && (
             <p className="truncate font-semibold text-slate-200" title={featured.map((card) => card.name).join(', ')}>

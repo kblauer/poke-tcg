@@ -191,7 +191,7 @@ export const item = (id: string): ItemDef => {
 };
 
 /** Items the post-run shop can sell, cheapest first. */
-export const SHOP_ITEMS = Object.values(ITEMS)
+const SHOP_ITEMS = Object.values(ITEMS)
   .filter((i) => i.price !== undefined)
   .sort((a, b) => a.price! - b.price!);
 
@@ -228,8 +228,8 @@ const CONDITION_NAMES: Record<Condition, string> = { asleep: 'Asleep', confused:
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const orList = (words: string[]) => (words.length > 1 ? `${words.slice(0, -1).join(', ')} or ${words.at(-1)}` : words[0]!);
 
-/** What an effect does, for the screen. */
-export function effectText(effect: ItemEffect): string {
+/** What an effect does, for the screen (itemText). */
+function effectText(effect: ItemEffect): string {
   switch (effect.kind) {
     case 'damage':
       return `${effect.type ? `Your ${typeName(effect.type)} Pokémon's attacks` : 'Your attacks'} do ${effect.amount} more damage`;

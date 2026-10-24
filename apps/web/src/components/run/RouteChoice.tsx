@@ -5,7 +5,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useContext, useMemo, useState, type ReactNode } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
-import { useUnlocked } from '../../hooks/useUnlocked';
 import type { RunControl, RunViewData } from '../../hooks/useRun';
 import { useTRPC } from '../../lib/trpc';
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
@@ -131,7 +130,6 @@ export function RouteChoice({ view, run, side }: { view: RunViewData; run: RunCo
   // The saved decks, with their cards for the summaries.
   const decks = useQuery(trpc.decks.list.queryOptions());
   const byId = useContext(CatalogContext) ?? new Map();
-  const { isLocked } = useUnlocked();
   /** null: keep the run's deck. */
   const [deckId, setDeckId] = useState<string | null>(null);
   const traded = view.deck.length !== view.startingDeck.length || view.deck.some((id, i) => id !== view.startingDeck[i]);
@@ -190,8 +188,6 @@ export function RouteChoice({ view, run, side }: { view: RunViewData; run: RunCo
             { id: null, name: 'Current run', note: view.deckName ? `${view.deckName}${traded ? ', with its trades' : ''}` : traded ? 'With its trades' : undefined, entries: runDeck },
             ...otherDecks.map((d) => ({ id: d.id, name: d.name, note: d.problems[0], entries: d.cards, disabled: d.problems.length > 0, locked: d.locked })),
           ]}
-          byId={byId}
-          isLocked={isLocked}
           compact={phone}
         />
       </div>
@@ -204,7 +200,7 @@ export function RouteChoice({ view, run, side }: { view: RunViewData; run: RunCo
         <ul role="radiogroup" aria-label="Favorite decks" className="grid gap-2 @md:grid-cols-2">
           {favoriteDecks.map((d) => (
             <DeckOption key={d.id} selected={deckId === d.id} onPick={() => setDeckId(d.id)} name={d.name} disabled={d.problems.length > 0} locked={d.locked} note={d.problems[0]}>
-              {d.problems.length === 0 && <DeckSummary entries={d.cards} byId={byId} isLocked={isLocked} compact={phone} />}
+              {d.problems.length === 0 && <DeckSummary entries={d.cards} compact={phone} />}
             </DeckOption>
           ))}
         </ul>
