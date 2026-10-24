@@ -1,4 +1,4 @@
-import { createContext, useContext, type MouseEvent } from 'react';
+import { createContext, useCallback, useContext, type MouseEvent } from 'react';
 import type { CatalogCard } from '../utils/cardList';
 import { PreviewContext } from './PreviewContext';
 
@@ -15,22 +15,26 @@ export const CatalogContext = createContext<Map<string, CatalogCard> | null>(nul
  * Props for a card element that open it in the CardInspector on right-click, instead of the browser's menu: a catalog
  * card, or a card id looked up in the catalog. Without an InspectContext, or for a card the catalog doesn't have
  * (yet), they're empty, so right-click works as usual. `clearsPreview`: a card with the large hover preview (Card,
- * RunCard) hides it first, so it doesn't sit over the inspector.
+ * RunCard) hides it first, so it doesn't sit over the inspector. The function stays the same while the contexts do (CardGrid's
+ * cells are memoised).
  */
 export function useInspectOnRightClick({ clearsPreview = false }: { clearsPreview?: boolean } = {}) {
   const inspect = useContext(InspectContext);
   const catalog = useContext(CatalogContext);
   const setPreview = useContext(PreviewContext);
-  return (card: CatalogCard | string | undefined): { onContextMenu?: (e: MouseEvent) => void } => {
-    const found = typeof card === 'string' ? catalog?.get(card) : card;
-    if (!inspect || !found) return {};
-    return {
-      onContextMenu(e: MouseEvent) {
-        if (clearsPreview) setPreview(null);
-        e.preventDefault();
-        e.stopPropagation();
-        inspect(found);
-      },
-    };
-  };
+  return useCallback(
+    (card: CatalogCard | string | undefined): { onContextMenu?: (e: MouseEvent) => void } => {
+      const found = typeof card === 'string' ? catalog?.get(card) : card;
+      if (!inspect || !found) return {};
+      return {
+        onContextMenu(e: MouseEvent) {
+          if (clearsPreview) setPreview(null);
+          e.preventDefault();
+          e.stopPropagation();
+          inspect(found);
+        },
+      };
+    },
+    [inspect, catalog, setPreview, clearsPreview],
+  );
 }

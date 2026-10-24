@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 
 /** How long a press must last to inspect an item instead of clicking it. */
 const HOLD_MS = 350;
@@ -9,7 +9,7 @@ const SLOP = 6;
  * Press and hold to inspect: holding an item for HOLD_MS makes it `inspecting` until the press ends (anywhere).
  * The click that ends the hold is
  * swallowed (`clicked` returns false), so it doesn't also count as a click. Spread `press(item)` onto the element
- * and call `clicked()` first in its onClick. `onTouchHeld`: called with the item as soon as a finger's hold registers,
+ * and call `clicked()` first in its onClick. Both stay the same between renders (CardGrid's cells are memoised). `onTouchHeld`: called with the item as soon as a finger's hold registers,
  * instead of `inspecting` (a phone has no right-click, so the deck builder opens the card in the CardInspector then).
  */
 export function useHoldToInspect<T>(onTouchHeld?: (item: T) => void) {
@@ -36,9 +36,8 @@ export function useHoldToInspect<T>(onTouchHeld?: (item: T) => void) {
     };
   }, []);
 
-  return {
-    inspecting,
-    press: (item: T) => ({
+  const press = useCallback(
+    (item: T) => ({
       onPointerDown(e: ReactPointerEvent) {
         if (e.button !== 0) return;
         held.current = false;
@@ -60,11 +59,14 @@ export function useHoldToInspect<T>(onTouchHeld?: (item: T) => void) {
         if (held.current) e.preventDefault();
       },
     }),
-    /** Whether a click is a real one (not the end of a hold). */
-    clicked: () => {
-      const real = !held.current;
-      held.current = false;
-      return real;
-    },
-  };
+    [],
+  );
+  /** Whether a click is a real one (not the end of a hold). */
+  const clicked = useCallback(() => {
+    const real = !held.current;
+    held.current = false;
+    return real;
+  }, []);
+
+  return { inspecting, press, clicked };
 }
