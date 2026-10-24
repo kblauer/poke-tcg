@@ -1,18 +1,20 @@
 import { healedJingle, practiceMusic, runMusic, victoryMusic } from '@poke-tcg/campaign';
 import { useEffect, useRef } from 'react';
 import { useMusicCue, useMusicSettings, usePlayJingle } from '../components/MusicPlayer';
-import type { ClientRun } from './useRun';
+import { useRun } from './useRun';
 
 /**
- * Auto play during a run (the run page and its battles): the song for where the run stands (`runMusic`), and the
- * Pokémon Center's jingle when Nurse Joy heals (the run's HP up as its center encounter ends). A beaten run's victory
- * theme once, then its album's music shuffled (`victoryMusic`); nothing new once a run is lost.
+ * Auto play during a run (the run page and its battles): the song for where the run stands (`runMusic`; a battle's from
+ * the click that chooses it, useRun's `spotted`), and the Pokémon Center's jingle when Nurse Joy heals (the run's HP up
+ * as its center encounter ends). A beaten run's victory theme once, then its album's music shuffled (`victoryMusic`);
+ * nothing new once a run is lost.
  */
-export function useRunMusic(run: ClientRun | null | undefined) {
+export function useRunMusic() {
+  const { run, spotted } = useRun();
   const view = run?.view;
   const soundtrack = useMusicSettings()?.soundtrack ?? 'remastered';
-  const playing = view && view.phase !== 'won' && view.phase !== 'lost' ? view : null;
-  useMusicCue(playing ? runMusic(playing, soundtrack) : run && view?.phase === 'won' ? victoryMusic(view.type, soundtrack, run.id) : null);
+  const playing = run && view && view.phase !== 'won' && view.phase !== 'lost' ? view : null;
+  useMusicCue(playing && run ? runMusic(playing, soundtrack, run.id, spotted) : run && view?.phase === 'won' ? victoryMusic(view.type, soundtrack, run.id) : null);
   const playJingle = usePlayJingle();
   const last = useRef(view);
   useEffect(() => {

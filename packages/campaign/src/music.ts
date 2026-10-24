@@ -4,7 +4,7 @@
 // choice, read from the pret decompilations' map data (pokered, pokefirered, pokecrystal, pokeheartgold, pokeemerald):
 // Emerald's maps play Ruby & Sapphire's songs, and Omega Ruby & Alpha Sapphire keeps their places.
 
-import { isBattleKind, type BattleKind, type EncounterKind } from './run.js';
+import { battlesFought, isBattleKind, type BattleKind, type EncounterKind } from './run.js';
 import { routeAt, RUN_TYPE_IDS, runBosses, runType } from './run-types.js';
 
 export type Soundtrack = 'original' | 'remastered';
@@ -31,6 +31,8 @@ export interface MusicCue {
   start?: boolean;
   /** Starts the song from its beginning (a battle's), never where it was last left. */
   fromStart?: boolean;
+  /** Switches to the song at once, without fading the one playing out or this one in (a battle's). */
+  cut?: boolean;
   /**
    * Plays the song once instead of looping it, then shuffles the album's (`game`) other music, its battle music left out
    * (a beaten run's victory theme). Once a session for the same key.
@@ -200,22 +202,32 @@ export interface RunMusicView {
   phase: string;
   steps: { options: { kind: EncounterKind }[] }[];
   encounter: { kind: string; gameId?: string } | null;
+  battlesFought?: number;
+  log: string[];
+}
+
+/** The battle just chosen on the map (its option), or the Ace Trainer just accepted (null), before its game is set up. */
+export interface SpottedBattle {
+  option: number | null;
 }
 
 /**
- * The song for the run as it stands: a battle's theme once its game is under way (a trainer's at random, a gym leader's,
- * the Elite Four's, the Champion's), the Pokémon Center's in a center (its encounter, or the Gym Challenge's center), the
+ * The song for the run as it stands: a battle's theme from the moment it's chosen (`spotted`) and through its game (a
+ * trainer's at random, a gym leader's, the Elite Four's, the Champion's; the same one throughout, by the run's id and its
+ * count of battles fought), the Pokémon Center's in a center (its encounter, or the Gym Challenge's center), the
  * gym's inside a gym, the League's in the Elite Four's and Champion's rooms, the town's over the last TOWN_STEPS steps
  * before a gym, and otherwise the route's (the bike's or Surf's on a route ridden or surfed).
  */
-export function runMusic(view: RunMusicView, soundtrack: Soundtrack): MusicCue {
+export function runMusic(view: RunMusicView, soundtrack: Soundtrack, runId = '', spotted: SpottedBattle | null = null): MusicCue {
   const type = runType(view.type);
   const music = regionMusic(type.generation, soundtrack);
   const encounter = view.encounter;
-  if (encounter?.gameId && isBattleKind(encounter.kind)) return battleMusic(type.generation, soundtrack, encounter.kind, encounter.gameId);
+  const position = Math.min(view.position, view.steps.length - 1);
+  const chosen = spotted && (spotted.option === null ? encounter?.kind : view.steps[position]?.options[spotted.option]?.kind);
+  const battle = encounter?.gameId && isBattleKind(encounter.kind) ? encounter.kind : chosen && isBattleKind(chosen) ? chosen : null;
+  if (battle) return battleMusic(type.generation, soundtrack, battle, `${runId}:${battlesFought(view)}`);
   const cue = (key: string, title: string): MusicCue => ({ key: `${music.game}:${key}`, songs: [song(music, title)], seed: key });
   if (encounter?.kind === 'center') return cue('center', music.center);
-  const position = Math.min(view.position, view.steps.length - 1);
   const kinds = view.steps[position]?.options.map((o) => o.kind) ?? [];
   if (kinds.includes('gymTrainer') || kinds.includes('gymLeader')) return cue('gym', music.gym);
   if (kinds.includes('eliteFour') || kinds.includes('champion')) return cue('league', music.league);
@@ -233,13 +245,13 @@ export function runMusic(view: RunMusicView, soundtrack: Soundtrack): MusicCue {
 }
 
 /**
- * A battle's themes: a trainer's (one of them, picked by the game's id), a gym leader's, the Elite Four's or the Champion's;
- * each battle from the song's beginning.
+ * A battle's themes: a trainer's (one of them, picked by the battle's `id`), a gym leader's, the Elite Four's or the
+ * Champion's; each battle cut straight to, from the song's beginning (the user's).
  */
-export function battleMusic(gen: number, soundtrack: Soundtrack, kind: BattleKind, gameId: string): MusicCue {
+export function battleMusic(gen: number, soundtrack: Soundtrack, kind: BattleKind, id: string): MusicCue {
   const music = regionMusic(gen, soundtrack);
   const titles = kind === 'gymLeader' || kind === 'eliteFour' || kind === 'champion' ? [music[kind]] : music.trainer;
-  return { key: `${music.game}:battle:${gameId}`, songs: titles.map((t) => song(music, t)), seed: gameId, fromStart: true };
+  return { key: `${music.game}:battle:${id}`, songs: titles.map((t) => song(music, t)), seed: id, fromStart: true, cut: true };
 }
 
 /** A beaten run's music: its region's victory theme once, from the start, then the album's other music shuffled. */

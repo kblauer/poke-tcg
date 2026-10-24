@@ -197,7 +197,7 @@ export function GamePage() {
 
 /** Auto play during a run's battle: the battle's theme, from the run's encounter. */
 function RunBattleMusic() {
-  useRunMusic(useRun().overview.data?.run);
+  useRunMusic();
   return null;
 }
 

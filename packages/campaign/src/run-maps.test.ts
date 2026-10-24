@@ -236,7 +236,7 @@ describe('music over runs with several maps', () => {
   it('every step of those runs has a song, and a step on another map with the same song keeps the same cue', () => {
     for (const id of ['vermilion', 'saffron', 'olivine', 'mahogany'] as const) {
       const run = createRun(id, deck, 1);
-      const cues = run.steps.map((_, p) => runMusic({ type: id, position: p, phase: 'map', steps: run.steps, encounter: null }, 'original'));
+      const cues = run.steps.map((_, p) => runMusic({ type: id, position: p, phase: 'map', steps: run.steps, encounter: null, log: run.log }, 'original'));
       for (const cue of cues) expect(cue.songs.length, id).toBeGreaterThan(0);
       // The route's song keeps playing across the map change (Route 5 and Route 6 share Route 3's theme), so the cue key is the same.
       if (id === 'vermilion') expect(cues[2]!.key).toBe(cues[3]!.key);

@@ -10,7 +10,7 @@ const inList = (s: { game: string; title: string }) => tracks.some((t) => t.game
 /** A run of the type, at a step (on the map, or with the given encounter under way). */
 function viewAt(type: string, position: number, encounter: RunMusicView['encounter'] = null): RunMusicView {
   const run = createRun(type as RunTypeId, [], 1);
-  return { type, position, phase: encounter ? 'encounter' : 'map', steps: run.steps, encounter };
+  return { type, position, phase: encounter ? 'encounter' : 'map', steps: run.steps, encounter, log: run.log };
 }
 const titles = (cue: MusicCue) => cue.songs.map((s) => s.title);
 
@@ -81,6 +81,20 @@ describe('auto play music', () => {
       expect(titles(runMusic(viewAt('viridian', 0), soundtrack))).toEqual(['Rocket Hideout']);
       expect(titles(runMusic(viewAt('viridian', steps - 3), soundtrack))).toEqual(['Rocket Hideout']);
     }
+  });
+
+  it('plays a battle from the moment it is chosen, the same song and cue through its game, and a new one for the next battle', () => {
+    const run = createRun('pewter', [], 1);
+    const option = run.steps[0]!.options.findIndex((o) => o.kind === 'battle');
+    const view: RunMusicView = { type: 'pewter', position: 0, phase: 'map', steps: run.steps, encounter: null, log: [] };
+    const clicked = runMusic(view, 'original', 'r1', { option });
+    const started = runMusic({ ...view, phase: 'encounter', encounter: { kind: 'battle', gameId: 'g1' } }, 'original', 'r1');
+    expect(clicked.key).toBe(started.key);
+    expect(pickSong(clicked)).toEqual(pickSong(started));
+    expect(clicked.cut && clicked.fromStart).toBe(true);
+    expect(runMusic({ ...view, battlesFought: 1 }, 'original', 'r1', { option }).key).not.toBe(clicked.key);
+    // An Ace Trainer accepted (no option): the encounter's battle.
+    expect(runMusic({ ...view, phase: 'encounter', encounter: { kind: 'elite' } }, 'original', 'r1', { option: null }).cut).toBe(true);
   });
 
   it("starts battles from the beginning, and a beaten run's victory theme once before shuffling its album", () => {

@@ -239,12 +239,15 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
     }, 30);
   };
   useEffect(() => () => void (fading.current !== null && window.clearInterval(fading.current)), []);
-  /** Runs `change` (a switch of song) once the song playing has faded out; at once when none plays, the next song fading in. */
-  const fadeOutThen = (change: () => void) => {
+  /**
+   * Runs `change` (a switch of song) once the song playing has faded out; at once when none plays, the next song fading
+   * in. `cut` (a battle's): at once and at full volume, no fade either way.
+   */
+  const fadeOutThen = (change: () => void, cut = false) => {
     const audio = player.current?.audio.current;
-    if (audio && !audio.paused) return fade(0, change);
+    if (audio && !audio.paused && !cut) return fade(0, change);
     stopFade();
-    setGain(0);
+    setGain(cut ? 1 : 0);
     change();
   };
   /** The switch a fade out was waiting for, made at once (the song ended, or was paused, before it was silent). */
@@ -285,7 +288,7 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
 
   // Auto play: the song the page on screen wants (useMusicCue), looped. Each song auto play leaves is remembered where it
   // was, and picks up from there when it comes back (the route's after a battle, the song a jingle interrupted), but a
-  // cue's `fromStart` (a battle's) starts it over, once a cue. A cue's `then` (a beaten run's victory theme) plays once a
+  // cue's `fromStart` (a battle's) starts it over, once a cue, and its `cut` (a battle's too) switches without fading. A cue's `then` (a beaten run's victory theme) plays once a
   // session, then shuffles its album's music (`shuffling`), until another cue or a song picked from the list.
   const [cue, setCue] = useState<MusicCue | null>(null);
   const shuffling = useRef<string | null>(null);
@@ -301,8 +304,11 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
   const inJingle = useRef(false);
   /** The song a jingle interrupted, gone back to after it when no page wants another. */
   const afterJingle = useRef<Track | null>(null);
-  /** Switches song, fading: `fromStart` plays it from the beginning (even the song playing), not where it was left. */
-  const switchTo = (track: Track, start: boolean, fromStart = false) =>
+  /**
+   * Switches song, fading (but for a `cut`): `fromStart` plays it from the beginning (even the song playing), not where it
+   * was left.
+   */
+  const switchTo = (track: Track, start: boolean, fromStart = false, cut = false) =>
     fadeOutThen(() => {
       const audio = player.current?.audio.current;
       if (current && audio) positions.current.set(current.url, audio.currentTime);
@@ -314,7 +320,7 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
       }
       resumeAt.current = fromStart ? 0 : (positions.current.get(track.url) ?? 0);
       update({ track: track.url });
-    });
+    }, cut);
   // A cue that starts the music (`start`: the Berry Blender's) plays it even when it was paused, and pauses it again when
   // that cue ends (`cueStarted`); any other only switches the song of music already playing.
   const cueStarted = useRef(false);
@@ -327,7 +333,7 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
     const fromStart = !!cue.fromStart && !again;
     const start = playing || !!cue.start;
     if (start && !playing) cueStarted.current = true;
-    if (cueTrack.url !== prefs.track || fromStart) switchTo(cueTrack, start, fromStart);
+    if (cueTrack.url !== prefs.track || fromStart) switchTo(cueTrack, start, fromStart, !!cue.cut && !again);
     else if (start && !playing) {
       startNext.current = true;
       startPlaying();
