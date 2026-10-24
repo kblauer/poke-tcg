@@ -1,6 +1,6 @@
-import { berriesOf, farmOf, farmView, GROW_MS, harvest, harvestAll, makePoffin, makePokeblock, opponentBerries, poffinLevel, pokeblockLevel, random, rngFrom, type BerryFarm } from '@poke-tcg/campaign';
+import { afterRound, berriesOf, buyCoinsError, COIN_OFFERS, coinRoundError, farmOf, gameCornerDay, MAX_COINS, slotMachineId, SLOT_MACHINES, farmView, GROW_MS, harvest, harvestAll, makePoffin, makePokeblock, opponentBerries, poffinLevel, pokeblockLevel, random, rngFrom, type BerryFarm } from '@poke-tcg/campaign';
 import { prisma } from '@poke-tcg/db';
-import { blendBerryInput, cookPoffinInput, harvestBerryInput } from '@poke-tcg/shared';
+import { blendBerryInput, buyCoinsInput, coinRoundInput, cookPoffinInput, harvestBerryInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { asJson, newSeed } from '../games.js';
 import { lockUser } from '../runs.js';
@@ -16,8 +16,10 @@ const farmData = (farm: BerryFarm, berries: Record<string, number>, now: number)
  * The Extras page's minigames: the Berry Farm (`farm`, `harvest`: a tree of every berry growing in real time,
  * campaign's berry-farm.ts) and the Berry Blender (`blender`, `blend`: the game is played in the browser, the API makes
  * the Pokéblock from the berry and the top speed, campaign's berry-blender.ts) and Poffin cooking (`poffins`, `cook`: the
- * same, the Poffin made from the berry and how the cooking went, campaign's poffin-cooking.ts). The account's farm,
- * berries and blender record are on `User`, its Pokéblocks in `Pokeblock` and its Poffins in `Poffin`.
+ * same, the Poffin made from the berry and how the cooking went, campaign's poffin-cooking.ts) and the Game Corner
+ * (`gameCorner`, `buyCoins`, `coinRound`: the roulette and slots are played in the browser, the API settles each round,
+ * campaign's game-corner.ts). The account's farm, berries, blender record and coins are on `User`, its Pokéblocks in
+ * `Pokeblock` and its Poffins in `Poffin`.
  */
 export const extrasRouter = router({
   /**
@@ -134,6 +136,42 @@ export const extrasRouter = router({
       return { poffin: { ...poffin, level: poffinLevel(poffin) }, berries };
     }),
   ),
+
+  /** The account's coins and banked ₱, and each slot machine's luck today (the game's machine ids, slotMachineId). */
+  gameCorner: protectedProcedure.query(async ({ ctx }) => {
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { coins: true, bank: true } });
+    const day = gameCornerDay(Date.now());
+    return { coins: user.coins, bank: user.bank, machines: Array.from({ length: SLOT_MACHINES }, (_, m) => slotMachineId(m, day)) };
+  }),
+
+  /** Buys one of the counter's coin offers with banked ₱. BAD_REQUEST if the Coin Case would overflow or the bank is short. */
+  buyCoins: protectedProcedure.input(buyCoinsInput).mutation(({ ctx, input }) =>
+    prisma.$transaction(async (tx) => {
+      await lockUser(tx, ctx.user.id);
+      const user = await tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { coins: true, bank: true } });
+      const offer = COIN_OFFERS.find((o) => o.coins === input.coins)!;
+      const error = buyCoinsError(user.coins, user.bank, offer);
+      if (error) throw new TRPCError({ code: 'BAD_REQUEST', message: error });
+      return tx.user.update({ where: { id: ctx.user.id }, data: { coins: user.coins + offer.coins, bank: user.bank - offer.price }, select: { coins: true, bank: true } });
+    }),
+  ),
+
+  /**
+   * A round of the roulette or a spin of the slots, over: its bet is taken and its payout added (the Coin Case kept to
+   * 9999). BAD_REQUEST if the account hasn't the coins for the bet or the round can't be (coinRoundError).
+   */
+  coinRound: protectedProcedure.input(coinRoundInput).mutation(({ ctx, input }) =>
+    prisma.$transaction(async (tx) => {
+      await lockUser(tx, ctx.user.id);
+      const user = await tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { coins: true } });
+      const error = coinRoundError(input.game, input.bet, input.payout) ?? (user.coins < input.bet ? "You don't have enough coins" : null);
+      if (error) throw new TRPCError({ code: 'BAD_REQUEST', message: error });
+      return tx.user.update({ where: { id: ctx.user.id }, data: { coins: afterRound(user.coins, input.bet, input.payout) }, select: { coins: true } });
+    }),
+  ),
+
+  /** Debug: fills the Coin Case (a debugProcedure: never in production). */
+  fillCoins: debugProcedure.mutation(({ ctx }) => prisma.user.update({ where: { id: ctx.user.id }, data: { coins: MAX_COINS }, select: { coins: true } })),
 
   /** Debug: every tree on the farm ripe at once (a debugProcedure: never in production). */
   ripenAll: debugProcedure.mutation(({ ctx }) =>

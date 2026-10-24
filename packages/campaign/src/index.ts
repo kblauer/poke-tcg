@@ -20,3 +20,7 @@ export * from './berry-blender.js';
 export * from './berry-farm.js';
 export * from './berry-farm-map.js';
 export * from './poffin-cooking.js';
+export * from './game-corner.js';
+export * from './game-corner-map.js';
+export * from './slot-machine.js';
+export * from './roulette.js';
