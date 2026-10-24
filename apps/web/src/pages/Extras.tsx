@@ -3,11 +3,12 @@ import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import { BerryBlender } from '../components/extras/BerryBlender';
 import { BerryFarm } from '../components/extras/BerryFarm';
+import { PoffinCooking } from '../components/extras/PoffinCooking';
 import { PageHeader } from '../components/PageHeader';
 import { PAGE_WIDTH } from '../utils/layout';
 
 /** The Extras page's minigames and modes, in its list's order: each its page, picture and a line on it. */
-const EXTRAS: { to: '/extras/berry-farm' | '/extras/berry-blender'; title: string; text: string; picture: ReactNode }[] = [
+const EXTRAS: { to: '/extras/berry-farm' | '/extras/berry-blender' | '/extras/poffin-cooking'; title: string; text: string; picture: ReactNode }[] = [
   {
     to: '/extras/berry-farm',
     title: 'Berry Farm',
@@ -21,6 +22,13 @@ const EXTRAS: { to: '/extras/berry-farm' | '/extras/berry-blender'; title: strin
     text: 'Blend a berry with three others, pressing as the arrow passes yours, to make a Pokéblock. The faster it spins, the better.',
     // The blender's centre, at a third of its size.
     picture: <div className="h-24 w-24 rounded-full bg-[url(/extras/blender/center.png)] bg-[length:256px_256px] bg-[position:-8px_-48px] [image-rendering:pixelated]" />,
+  },
+  {
+    to: '/extras/poffin-cooking',
+    title: 'Poffin Cooking',
+    text: 'Cook a berry into a Poffin as at Platinum’s Poffin House, stirring the pot the way the arrow points. Don’t let it burn or spill!',
+    // A Spicy Poffin (the first of Platinum's Poffin sprites), at 1.5×.
+    picture: <div className="h-24 w-24 bg-[url(/extras/poffin/poffins.png)] bg-[length:2784px_96px] bg-[position:0_0] [image-rendering:pixelated]" />,
   },
 ];
 
@@ -69,6 +77,15 @@ export function BerryFarmPage() {
   return (
     <ExtraPage title="Berry Farm" info="Click a ripe tree to pick its berries">
       <BerryFarm />
+    </ExtraPage>
+  );
+}
+
+/** Poffin cooking (`/extras/poffin-cooking`). */
+export function PoffinCookingPage() {
+  return (
+    <ExtraPage title="Poffin Cooking" info="Cook your berries into Poffins">
+      <PoffinCooking />
     </ExtraPage>
   );
 }

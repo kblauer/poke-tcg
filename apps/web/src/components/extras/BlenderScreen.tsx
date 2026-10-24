@@ -1,5 +1,3 @@
-import VolumeOffIcon from '@mui/icons-material/VolumeOff';
-import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import {
   ARROW_FALL_ROTATION,
   berryInfo,
@@ -20,7 +18,9 @@ import {
 } from '@poke-tcg/campaign';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMusicCue, useMusicSettings, useMusicTempo } from '../MusicPlayer';
-import { BlenderSound, loadVolume, saveVolume } from './blenderSound';
+import { BlenderSound } from './blenderSound';
+import { loadVolume } from './minigameSound';
+import { MinigameVolume } from './MinigameVolume';
 
 /** The Pokéblock the API made from the blend (`extras.blend`), for the end of the game. */
 export interface BlendResult {
@@ -174,8 +174,6 @@ export function BlenderScreen({ berry, playerName, onBlend, onDone }: { berry: s
     };
   }, []);
   useEffect(() => sound.current?.setVolume(volume), [volume]);
-  // The volume before the speaker silenced it, for turning it back on.
-  const loudBefore = useRef(0);
 
   // A press: A in the game. What it does depends on where the blend is.
   const press = useRef<(yes?: boolean) => void>(() => {});
@@ -349,7 +347,7 @@ export function BlenderScreen({ berry, playerName, onBlend, onDone }: { berry: s
             game.speed = 0x80;
             // The blender's whirring starts with the game (state 21), at the least speed's pitch.
             sound.current?.setPitch(0);
-            sound.current?.startLoop();
+            sound.current?.startWhirring();
             go(s, 'play');
           }
         }
@@ -458,39 +456,7 @@ export function BlenderScreen({ berry, playerName, onBlend, onDone }: { berry: s
         <p className="text-xs text-slate-400">
           {stage === 'play' ? 'Click, tap or press Space when the spinning arrow lines up with your arrow (top left).' : stage === 'again' ? 'Up and down to choose, Space or a click to answer.' : stage === 'loading' ? 'Starting up the Berry Blender…' : 'Click or press Space to go on.'}
         </p>
-        {/* The sounds' volume (the music's is the music player's own), remembered in this browser; the icon silences them and back. */}
-        <label className="flex items-center gap-2 text-xs text-slate-400">
-          <button
-            type="button"
-            className="flex h-7 w-7 items-center justify-center rounded text-slate-300 transition hover:bg-slate-700 hover:text-slate-50"
-            onClick={() => {
-              const next = volume ? 0 : loudBefore.current || 70;
-              if (volume) loudBefore.current = volume;
-              setVolume(next);
-              saveVolume(next);
-            }}
-            aria-label={volume ? 'Silence the sounds' : 'Turn the sounds back on'}
-            title={volume ? 'Silence the sounds' : 'Turn the sounds back on'}
-          >
-            {volume ? <VolumeUpIcon sx={{ fontSize: 18 }} /> : <VolumeOffIcon sx={{ fontSize: 18 }} />}
-          </button>
-          <span className="sr-only">Sound volume</span>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            value={volume}
-            onChange={(e) => {
-              const v = Number(e.target.value);
-              setVolume(v);
-              saveVolume(v);
-              sound.current?.resume();
-            }}
-            className="w-32 accent-yellow-300"
-            aria-label="Sound volume"
-          />
-          <span className="w-8 tabular-nums">{volume}%</span>
-        </label>
+        <MinigameVolume volume={volume} onChange={setVolume} onTouch={() => sound.current?.resume()} />
       </div>
     </div>
   );

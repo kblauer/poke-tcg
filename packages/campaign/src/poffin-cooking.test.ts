@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { poffinMusic } from './music.js';
 import { BERRIES } from './berries.js';
 import { POFFIN_BERRY_DATA } from './berry-data-gen4.js';
 import { batterScale, cookFrame, cookTime, makePoffin, MAX_SPEED, newCookGame, PHASE_FRAMES, poffinLevel, poffinName, POT_CENTER, strokeLength, wrongWay, type CookGame, type Random32 } from './poffin-cooking.js';
@@ -122,6 +124,12 @@ describe('Poffin cooking', () => {
     const foul = makePoffin(['cheri', 'cheri'], { frames: 1800, spills: 0, burns: 0 }, random32(6));
     expect(poffinName(foul)).toBe('Foul Poffin');
     expect(foul.flavors.filter((f) => f === 2)).toHaveLength(3);
+  });
+
+  it("plays Platinum's Poffins theme, in the music player's list", () => {
+    const tracks = JSON.parse(readFileSync(new URL('../../../apps/web/public/music/tracks.json', import.meta.url), 'utf8')) as { game: string; title: string }[];
+    const [song] = poffinMusic().songs;
+    expect(tracks.some((t) => t.game === song!.game && t.title === song!.title)).toBe(true);
   });
 
   it('shows the time as the results do', () => {
