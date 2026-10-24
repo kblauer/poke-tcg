@@ -122,7 +122,7 @@ export function Board({
   const ownSpot = spotlight(view.you);
   const oppSpot = spotlight(view.opponent.id);
   const newTurn = useNewTurn(view);
-  // The phone's setup banner: out while Pokémon are being placed, sliding off once Start battle is pressed.
+  // The setup banner: out while Pokémon are being placed, sliding off once Start battle is pressed.
   const placing = view.phase === 'setup' && !view.self.ready && pending?.type !== 'START_BATTLE';
   const [setupBanner, setSetupBanner] = useState(placing);
   useEffect(() => {
@@ -547,8 +547,8 @@ export function Board({
   const statusBar = (compact: boolean) => (
     <StatusBar
       compact={compact}
-      // On a phone the setup line is on its banner instead (SetupBanner).
-      status={compact && phase === 'setup' ? '' : statusText(view)}
+      // The setup line is on its banner instead (SetupBanner).
+      status={phase === 'setup' ? '' : statusText(view)}
       canEndTurn={myTurn}
       setup={phase === 'setup' && !self.ready ? { canReset: !!self.active || self.bench.some(Boolean), canStart: !!self.active } : null}
       endTurn={() => turnReminders.check('end', () => send({ type: 'END_TURN' }))}
@@ -753,7 +753,11 @@ export function Board({
               />
 
               {/* Between the two sides: whose turn it is and End turn. */}
-              {statusBar(false)}
+              {/* With the setup banner over its status line, above Start battle (its button row 2.5rem tall). */}
+              <div className="relative shrink-0">
+                {statusBar(false)}
+                {setupBanner && <SetupBanner text={setupLine.current.text} first={setupLine.current.first} leaving={!placing} onGone={setupBannerGone} place="inset-x-0 bottom-10" />}
+              </div>
 
               {/* The music player's play/pause and note, in the middle of the table's right edge (not over the hand). */}
               <div data-keep-action className="absolute right-0 top-1/2 z-20 -translate-y-1/2">
