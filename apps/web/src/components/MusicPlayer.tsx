@@ -13,6 +13,7 @@ import { createContext, lazy, Suspense, useContext, useEffect, useMemo, useRef, 
 import type AudioPlayerElement from 'react-h5-audio-player';
 import { registerSetting, saveSetting } from '../utils/accountSettings';
 import { duration, groupByGame, MUSIC_GENERATIONS, playlist, type GenFilter, type Track } from '../utils/music';
+import { ICON_BUTTON } from '../utils/styles';
 
 // The audio player (and its styles) loads the first time a song is picked, not with every page.
 const AudioPlayer = lazy(async () => {
