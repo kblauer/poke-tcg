@@ -1,5 +1,5 @@
 import { DndContext, DragOverlay } from '@dnd-kit/core';
-import { hasBenched, inPlayDef, lookupCard, shapeshiftCard, type CardLibrary, type GameAction, type InPlayPokemon, type MoveHighlight, type PlayerView, type Target } from '@poke-tcg/game-engine';
+import { hasBenched, inPlayDef, lookupCard, shapeshiftCard, usableAttacks, type CardLibrary, type GameAction, type InPlayPokemon, type MoveHighlight, type PlayerView, type Target } from '@poke-tcg/game-engine';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAttack } from '../hooks/useAttack';
 import { useCardPlay } from '../hooks/useCardPlay';
@@ -299,6 +299,16 @@ export function Board({
           ? { side: trainer.spec.side, options: trainer.spec.options, pick: trainer.answer }
           : null;
 
+  /** Nothing else is under way on your turn: a Pokémon that can attack or use its power now pulses, as playable cards do. */
+  const canMove = myTurn && !busy && !inProgress && !self.pendingChoice && !pokemonPick;
+  // Your Active Pokémon has an attack it can use now (as its attack buttons, AttackList, list and enable them).
+  const canAttack =
+    canMove &&
+    phase !== 'setup' &&
+    view.turn > 1 &&
+    !!self.active &&
+    usableAttacks(self.active, view.cards, { recall: !!self.recall, bench: self.bench, defender: view.opponent.active, oppBench: view.opponent.bench, stadium: view.stadium?.card ?? null }).some((_, i) => attack.error(i) === null);
+
   const playerSlot = (id: SlotId, pokemon: InPlayPokemon | null) => {
     const switchIn = retreat.targets.has(id);
     const choosable = pokemonPick?.side === 'own' && pokemonPick.options.includes(toTarget(id));
@@ -309,8 +319,8 @@ export function Board({
     // A benched Pokémon with a power is clicked for its panel (cardMenu).
     const benchPower = myTurn && typeof target === 'number' ? power.powers.find((p) => p.source === target) : undefined;
     const powerSelected = typeof target === 'number' && power.usingSource === target;
-    // A Pokémon whose power can be used now pulses, as playable cards do, while nothing else is under way.
-    const powerUsable = myTurn && !busy && !inProgress && !self.pendingChoice && !pokemonPick && power.powers.some((p) => p.source === target && p.error === null);
+    // A Pokémon whose power can be used now pulses, as playable cards do, while nothing else is under way; so does the Active when it can attack.
+    const powerUsable = canMove && power.powers.some((p) => p.source === target && p.error === null);
     // A Trainer played as a Pokémon (Clefairy Doll) is clicked to discard it, unless it's the only Pokémon in play.
     const dollDef = pokemon && lookupCard(view.cards, pokemon.card.defId);
     const isDoll = myTurn && dollDef?.kind === 'pokemon' && !!dollDef.trainerText;
@@ -334,7 +344,7 @@ export function Board({
         loading={busySlot === id}
         lunge={id === 'active' && attacker === view.you ? { dir: 'up', stamp: view.version } : null}
         spotlight={ownSpot?.targets.includes(target) ? ownSpot : null}
-        usable={powerUsable}
+        usable={powerUsable || (id === 'active' && canAttack)}
         onClick={
           busy
             ? undefined
