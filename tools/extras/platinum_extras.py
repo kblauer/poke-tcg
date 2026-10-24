@@ -3,11 +3,21 @@ Pokémon Platinum has them:
 
 - the berries' Poffin values (res/items/data/<berry>_berry.json's berryData: the five flavours and smoothness, which
   Platinum changed for half of the Gen 3 berries), for the berries the Berry Farm grows: packages/campaign/src/berry-data-gen4.ts;
-- the cooking's sound effects, rendered by nds_render.py: apps/web/public/extras/poffin/sounds/<nm..>.wav.
+- the cooking's sound effects, rendered by nds_render.py: apps/web/public/extras/poffin/sounds/<nm..>.wav;
+- the cooking's pictures (res/graphics/poffin_cooking/): the pot scene's tablecloth, pot, batter (3 stages) and flames
+  (flames0's picture in each of the 3 flames' palettes), whole; the top screen (top_screen_single.NSCR with
+  top_screen.png's tiles, in its second palette, as the game forces it) and the textbox (textbox.NSCR), drawn 256x192;
+  the sprites (interface, done, puff0-2), each cell drawn from its OAMs (the cell JSON: 128-byte mapping, so a cell's
+  tiles start at CharName x 4, the PNG's 8x8 tiles in order) onto a sheet, with their animations, in sprites.json;
+  the arrow (its picture is its cell, origin 48,56), and mirrored in its second palette for anticlockwise:
+  apps/web/public/extras/poffin/*.png and sprites.json;
+- each berry's picture as Platinum drops it in (res/graphics/berry_tag/<berry>.png, 64x64): apps/web/public/extras/poffin/berries/;
+- the Poffin's sprite (res/prebuilt/graphic/poruact.narc: its 64x64 sprite in each type's palette, members 0 and 3 + type),
+  a sheet of the 29 types: apps/web/public/extras/poffin/poffins.png.
 
 Usage: python tools/extras/platinum_extras.py <pokeplatinum checkout>
 Needs Pillow."""
-import json, os, re, sys
+import json, os, re, struct, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, '..', '..'))
@@ -37,7 +47,7 @@ def berry_data(repo):
 
 # The cooking's sound effects (ov83_0223B5A0.c's Sound_PlayEffect calls): each phase's lap (NM01, NM04_2, NM07_2), spill
 # (NM02, NM05) and burn (NM03, NM08), the countdown's (NM10, NM10_2), the arrow's (NM12_2), done (NM13) and the results' (NM14).
-COOK_SOUNDS = ['NM01', 'NM02', 'NM03', 'NM04_2', 'NM05', 'NM07_2', 'NM08', 'NM10', 'NM10_2', 'NM12_2', 'NM13', 'NM14']
+COOK_SOUNDS = ['NM01', 'NM02', 'NM03', 'NM04_2', 'NM05', 'NM07_2', 'NM08', 'NM09', 'NM10', 'NM10_2', 'NM12_2', 'NM13', 'NM14']
 
 
 def sounds(repo):
@@ -47,9 +57,220 @@ def sounds(repo):
         nds_render.m4a_render.write_wav(os.path.join(PUBLIC, 'sounds', name.lower() + '.wav'), nds_render.render(repo, 'SEQ_SE_DP_' + name), 0.7)
 
 
+def colour(im):
+    """An indexed image with colour 0 see-through (as the DS draws BG and sprite tiles)."""
+    from PIL import Image
+    pal = im.getpalette()
+    src = im.load()
+    out = Image.new('RGBA', im.size, (0, 0, 0, 0))
+    px = out.load()
+    for y in range(im.size[1]):
+        for x in range(im.size[0]):
+            v = src[x, y]
+            if v:
+                px[x, y] = tuple(pal[v * 3:v * 3 + 3]) + (255,)
+    return out
+
+
+def palette(im):
+    p = im.getpalette()
+    return [tuple(p[i * 3:i * 3 + 3]) for i in range(len(p) // 3)]
+
+
+def tiles(im):
+    """An indexed image's 8x8 tiles, left to right then top to bottom, each its rows of indexes."""
+    src = im.load()
+    w, h = im.size
+    return [[[src[tx * 8 + x, ty * 8 + y] for x in range(8)] for y in range(8)] for ty in range(h // 8) for tx in range(w // 8)]
+
+
+def draw_tile(px, tile, ox, oy, colours, hflip=False, vflip=False, size=None):
+    for y in range(8):
+        row = tile[7 - y if vflip else y]
+        for x in range(8):
+            v = row[7 - x if hflip else x] & 15
+            if v:
+                X, Y = ox + x, oy + y
+                if size is None or (0 <= X < size[0] and 0 <= Y < size[1]):
+                    px[X, Y] = colours[v] + (255,)
+
+
+def pictures(repo):
+    """The pot scene's pictures, drawn whole: the tablecloth and pot, the batter's 3 stages; the flames, flames0's picture in each flames' palette."""
+    from PIL import Image
+    src = os.path.join(repo, 'res', 'graphics', 'poffin_cooking')
+    os.makedirs(PUBLIC, exist_ok=True)
+    for name in ('tablecloth', 'pot', 'batter0', 'batter1', 'batter2'):
+        colour(Image.open(os.path.join(src, name + '.png'))).save(os.path.join(PUBLIC, name + '.png'))
+    flames = Image.open(os.path.join(src, 'flames0.png'))
+    for i in range(3):
+        im = flames.copy()
+        im.putpalette(Image.open(os.path.join(src, 'flames%d.png' % i)).getpalette())
+        colour(im).save(os.path.join(PUBLIC, 'flames%d.png' % i))
+
+
+def nscr_entries(path):
+    """A screen file's (NSCR) size in tiles and its entries (tile | hflip << 10 | vflip << 11 | palette << 12)."""
+    d = open(path, 'rb').read()
+    i = 16
+    assert d[i:i + 4] == b'NRCS'
+    w, h, _, size = struct.unpack('<HHII', d[i + 8:i + 20])
+    return w // 8, h // 8, struct.unpack('<%dH' % (size // 2), d[i + 20:i + 20 + size])
+
+
+def screens(repo):
+    """The top screen (top_screen_single, in top_screen.png's second palette) and the textbox (textbox.NSCR), each drawn 256x192."""
+    from PIL import Image
+    src = os.path.join(repo, 'res', 'graphics', 'poffin_cooking')
+    for name, png, nscr, row in (('top_screen', 'top_screen.png', 'top_screen_single.NSCR', 1), ('textbox', 'textbox.png', 'textbox.NSCR', 0)):
+        im = Image.open(os.path.join(src, png))
+        pal, ts = palette(im), tiles(im)
+        w, h, entries = nscr_entries(os.path.join(src, nscr))
+        out = Image.new('RGBA', (256, 192), (0, 0, 0, 0))
+        px = out.load()
+        colours = pal[16 * row:16 * row + 16]
+        for i, e in enumerate(entries):
+            tx, ty = i % w, i // w
+            if tx >= 32 or ty >= 24:
+                continue
+            t = e & 0x3FF
+            if t < len(ts) and (name == 'top_screen' or t):
+                draw_tile(px, ts[t], tx * 8, ty * 8, colours, bool(e & 0x400), bool(e & 0x800))
+        out.save(os.path.join(PUBLIC, name + '.png'))
+
+
+# The OAM sizes by shape (square, wide, tall) and size.
+OAM_SIZES = [[(8, 8), (16, 16), (32, 32), (64, 64)], [(16, 8), (32, 8), (32, 16), (64, 32)], [(8, 16), (8, 32), (16, 32), (32, 64)]]
+
+
+def sprites(repo):
+    """Each sprite resource's cells drawn from their OAMs onto a sheet (each cell its bounding box, origin given), and its animations: sprites.json."""
+    from PIL import Image
+    src = os.path.join(repo, 'res', 'graphics', 'poffin_cooking')
+    meta = {}
+    for name in ('interface', 'done', 'puff0', 'puff1', 'puff2'):
+        im = Image.open(os.path.join(src, name + '.png'))
+        pal, ts = palette(im), tiles(im)
+        cells = json.load(open(os.path.join(src, name + '_cell.json')))['cells']
+        frames, images = [], []
+        for cell in cells:
+            boxes = []
+            for oam in cell['OAM']:
+                w, h = OAM_SIZES[oam['Attr0']['Shape']][oam['Attr1']['Size']]
+                boxes.append((oam['Attr1']['XCoordinate'], oam['Attr0']['YCoordinate'], w, h))
+            if not boxes:
+                frames.append(None)
+                images.append(None)
+                continue
+            x0, y0 = min(b[0] for b in boxes), min(b[1] for b in boxes)
+            x1, y1 = max(b[0] + b[2] for b in boxes), max(b[1] + b[3] for b in boxes)
+            out = Image.new('RGBA', (x1 - x0, y1 - y0), (0, 0, 0, 0))
+            px = out.load()
+            # The first OAM is in front (the DS draws lower-numbered OAMs over higher ones): drawn last.
+            for oam, (bx, by, w, h) in reversed(list(zip(cell['OAM'], boxes))):
+                flags = oam['Attr1']['RotationScaling'] if not oam['Attr0']['Rotation'] else 0
+                hflip, vflip = bool(flags & 8), bool(flags & 16)
+                start = oam['Attr2']['CharName'] * 4
+                colours = pal[16 * oam['Attr2']['Palette']:16 * oam['Attr2']['Palette'] + 16]
+                cols = w // 8
+                for k in range((w // 8) * (h // 8)):
+                    if start + k >= len(ts):
+                        break
+                    cx, cy = k % cols, k // cols
+                    if hflip:
+                        cx = cols - 1 - cx
+                    if vflip:
+                        cy = h // 8 - 1 - cy
+                    draw_tile(px, ts[start + k], bx - x0 + cx * 8, by - y0 + cy * 8, colours, hflip, vflip)
+            frames.append({'ox': -x0, 'oy': -y0, 'w': x1 - x0, 'h': y1 - y0})
+            images.append(out)
+        # The sheet: the cells side by side.
+        x = 0
+        for f in frames:
+            if f:
+                f['x'] = x
+                x += f['w']
+        sheet = Image.new('RGBA', (max(1, x), max([f['h'] for f in frames if f] or [1])), (0, 0, 0, 0))
+        for f, image in zip(frames, images):
+            if f:
+                sheet.paste(image, (f['x'], 0))
+        sheet.save(os.path.join(PUBLIC, name + '.png'))
+        # Each animation's frames, as [cell, frames]: a frame's result is a cell through the animation's result list.
+        anim = json.load(open(os.path.join(src, name + '_anim.json')))
+        results = [r['index'] for r in anim['animationResults']]
+        meta[name] = {'cells': frames, 'anims': [[[results[fd['resultId']], fd['frameDelay']] for fd in seq['frameData']] for seq in anim['sequences']]}
+    # The arrow: its picture is its only cell (origin 48,56); anticlockwise, mirrored in its second palette.
+    im = Image.open(os.path.join(src, 'arrow.png'))
+    pal = palette(im)
+    # Only the picture's parts its OAMs cover (its middle has none).
+    oams = json.load(open(os.path.join(src, 'arrow_cell.json')))['cells'][0]['OAM']
+    covered = set()
+    for oam in oams:
+        w, h = OAM_SIZES[oam['Attr0']['Shape']][oam['Attr1']['Size']]
+        x0, y0 = 48 + oam['Attr1']['XCoordinate'], 56 + oam['Attr0']['YCoordinate']
+        covered |= {(x, y) for x in range(x0, x0 + w) for y in range(y0, y0 + h)}
+    for name, row, mirror in (('arrow_r', 0, False), ('arrow_l', 1, True)):
+        out = Image.new('RGBA', im.size, (0, 0, 0, 0))
+        px, s = out.load(), im.load()
+        for y in range(im.size[1]):
+            for x in range(im.size[0]):
+                v = s[x, y] & 15
+                if v and (x, y) in covered:
+                    px[im.size[0] - 1 - x if mirror else x, y] = pal[16 * row + v] + (255,)
+        out.save(os.path.join(PUBLIC, name + '.png'))
+    meta['arrow'] = {'ox': 48, 'oy': 56, 'w': im.size[0], 'h': im.size[1]}
+    json.dump(meta, open(os.path.join(PUBLIC, 'sprites.json'), 'w'), separators=(',', ':'))
+
+
+def berry_pictures(repo):
+    from PIL import Image
+    out = os.path.join(PUBLIC, 'berries')
+    os.makedirs(out, exist_ok=True)
+    for berry in gen3_berries():
+        colour(Image.open(os.path.join(repo, 'res', 'graphics', 'berry_tag', berry + '.png'))).save(os.path.join(out, berry + '.png'))
+
+
+def narc_members(data):
+    """A NARC's member files, in order."""
+    off = struct.unpack('<H', data[12:14])[0]
+    size, count = struct.unpack('<IH', data[off + 4:off + 10])
+    entries = [struct.unpack('<II', data[off + 12 + 8 * i:off + 20 + 8 * i]) for i in range(count)]
+    off += size
+    off += struct.unpack('<I', data[off + 4:off + 8])[0]
+    return [data[off + 8 + s:off + 8 + e] for s, e in entries]
+
+
+def poffin_sprites(repo):
+    """The Poffin's 64x64 sprite (one OAM over its 64 tiles) in each of the 29 types' palettes, side by side."""
+    from PIL import Image
+    m = narc_members(open(os.path.join(repo, 'res', 'prebuilt', 'graphic', 'poruact.narc'), 'rb').read())
+    chars = m[0][16 + 32:16 + 32 + 2048]
+    sheet = Image.new('RGBA', (64 * 29, 64), (0, 0, 0, 0))
+    px = sheet.load()
+    for ty in range(29):
+        p = m[3 + ty][16 + 24:16 + 24 + 32]
+        colours = []
+        for k in range(16):
+            c = struct.unpack('<H', p[2 * k:2 * k + 2])[0]
+            colours.append(((c & 31) * 255 // 31, ((c >> 5) & 31) * 255 // 31, ((c >> 10) & 31) * 255 // 31))
+        for t in range(64):
+            for y in range(8):
+                for x in range(8):
+                    b = chars[t * 32 + y * 4 + x // 2]
+                    v = (b >> 4) if x & 1 else (b & 15)
+                    if v:
+                        px[ty * 64 + (t % 8) * 8 + x, (t // 8) * 8 + y] = colours[v] + (255,)
+    sheet.save(os.path.join(PUBLIC, 'poffins.png'))
+
+
 def main():
     repo = sys.argv[1]
     berry_data(repo)
+    pictures(repo)
+    screens(repo)
+    sprites(repo)
+    berry_pictures(repo)
+    poffin_sprites(repo)
     sounds(repo)
 
 
