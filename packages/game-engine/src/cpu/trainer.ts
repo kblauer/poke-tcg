@@ -14,6 +14,7 @@ import {
   keepsBestAttack,
   play,
   professorOak,
+  safe,
   resolveSearch,
   borrowedTrainerMove,
   spareEnergy,
@@ -38,7 +39,8 @@ import { bestMove, plainEnergy, specialAttachment, type Allowed } from './evalua
  * 3. The turn's Energy attachment, aimed like the gym leader's. Then Professor Oak once the hand is down to 2 other cards.
  * 4. Potion on the Active Pokémon at 20+ damage, Super Potion at 40+ if it can still use its best attack.
  * 5. Retreat or Switch only when the Active Pokémon can't attack this turn or next and a benched one can now.
- * 6. Attack with whatever does the most damage, even if it costs Energy or hurts itself.
+ * 6. Attack with whatever does the most damage, even if it costs Energy or hurts itself, but never with an attack that could
+ *    lose it the game (`safe`).
  *
  * After step 2 it also plays a short list of simple Trainers (TRAINER_CPU_PLAYS: draw, search, healing, Pokémon Tools, from
  * each generation, enough for its random decks) whenever the generic judgement (evaluate.ts) finds they leave a better
@@ -147,9 +149,9 @@ function retreat(t: Turn): GameAction | null {
   return ready.length ? switchOrRetreat(t, strongestOf(t.state.cards, ready).slot, bench) : null;
 }
 
-/** The most damage on average, whatever the attack costs. With no damage to do, any attack beats passing. */
+/** The most damage on average, whatever the attack costs, unless it could lose the game. With no damage to do, any attack beats passing. */
 function attack(t: Turn): GameAction | null {
-  const options = attackOptions(t.state, t.id);
+  const options = safe(attackOptions(t.state, t.id));
   if (!options.length) return null;
   return attackWith(options.reduce((a: AttackOption, b) => (b.expected > a.expected || (b.expected === a.expected && b.koChance > a.koChance) ? b : a)));
 }
