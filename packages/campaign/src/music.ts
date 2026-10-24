@@ -237,6 +237,12 @@ export function practiceMusic(opponent: string | null, soundtrack: Soundtrack, g
   return found ? battleMusic(found[1], soundtrack, found[0].kind, gameId) : battleMusic(1, soundtrack, 'battle', gameId);
 }
 
+/** The Berry Blender's music (the Extras page): Emerald plays the Cycling theme while it spins (MUS_CYCLING), in either soundtrack. */
+export function blenderMusic(soundtrack: Soundtrack): MusicCue {
+  const music = regionMusic(3, soundtrack);
+  return { key: `${music.game}:blender`, songs: [song(music, music.bike)], seed: 'blender' };
+}
+
 /** One of a cue's songs, the same one every time for the same seed. */
 export function pickSong(cue: MusicCue): Song {
   let hash = 0;

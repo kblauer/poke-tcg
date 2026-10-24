@@ -18,6 +18,7 @@ decompilation, as the game draws them:
   (misc.pal for the sprites but the arrows), and the frame's tiles drawn over it as the game plays (the RPM digits,
   0x72-0x7B, and the progress bar's empty to full top and bottom tiles, 0xE1-0xE9 and 0xF1-0xF9):
   apps/web/public/extras/blender/*.png;
+- the Pokéblock (graphics/pokeblock/pokeblock.png) in each colour's palette: apps/web/public/extras/pokeblocks/<colour>.png;
 - the berries' data (src/berry.c's gBerries: name, size, firmness, yields, stage duration, flavours, smoothness and
   description), but the Enigma Berry (an e-Reader event's): packages/campaign/src/berry-data.ts.
 
@@ -322,8 +323,19 @@ def blender(repo):
         strip(sprite_frames(Image.open(os.path.join(src, name + '.png')), w, h), misc, w, h).save(os.path.join(out, name.split('_')[0] + '.png'))
 
 
+def pokeblocks(repo):
+    """The Pokéblock's sprite in each colour's palette (graphics/pokeblock/<colour>.pal): apps/web/public/extras/pokeblocks/<colour>.png."""
+    src = os.path.join(repo, 'graphics', 'pokeblock')
+    out = os.path.join(PUBLIC, 'pokeblocks')
+    os.makedirs(out, exist_ok=True)
+    im = Image.open(os.path.join(src, 'pokeblock.png'))
+    for name in ('red', 'blue', 'pink', 'green', 'yellow', 'purple', 'indigo', 'brown', 'liteblue', 'olive', 'gray', 'black', 'white', 'gold'):
+        colour(im, read_pal(os.path.join(src, name + '.pal'))).save(os.path.join(out, name + '.png'))
+
+
 def main():
     repo = sys.argv[1]
+    pokeblocks(repo)
     berries = berry_data(repo)
     assert len(berries) == 42, len(berries)
     berry_icons(repo, berries)

@@ -1,9 +1,10 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { BERRIES } from './berries.js';
 import { blenderFrame, blenderRanking, makePokeblock, newBlenderGame, opponentBerries, pokeblockLevel, proximity, speedToRpm, type Random16 } from './berry-blender.js';
 import { BERRY_FARM_MAP } from './berry-farm-map.js';
 import { berriesOf, FARM_TREES, farmOf, farmView, GROW_MS, harvest, RIPE, stageAt } from './berry-farm.js';
+import { blenderMusic, SOUNDTRACKS } from './music.js';
 import { rngFrom } from './random.js';
 
 const NOW = Date.UTC(2026, 9, 24, 12);
@@ -118,6 +119,15 @@ describe('the Berry Blender', () => {
     expect(opponentBerries('cheri')).toEqual(['aspear', 'rawst', 'pecha']);
     expect(opponentBerries('leppa')).toEqual(['cheri', 'pecha', 'rawst']);
     for (const b of BERRIES) expect(opponentBerries(b.id)).not.toContain(b.id);
+  });
+
+  it("plays the Cycling theme, in the music player's list in both soundtracks", () => {
+    const tracks = JSON.parse(readFileSync(new URL('../../../apps/web/public/music/tracks.json', import.meta.url), 'utf8')) as { game: string; title: string }[];
+    for (const soundtrack of SOUNDTRACKS) {
+      const [song] = blenderMusic(soundtrack).songs;
+      expect(song!.title).toBe('Cycling');
+      expect(tracks.some((t) => t.game === song!.game && t.title === song!.title)).toBe(true);
+    }
   });
 
   it('makes the Pokéblock the game does', () => {
