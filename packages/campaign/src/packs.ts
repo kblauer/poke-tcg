@@ -39,8 +39,8 @@ export const EXTRA_RARE_CHANCES = [0.04, 0.02, 0.005, 0.001];
 /** How often a pack is all rares and holos besides its Energy (agreed with the user: 0.6%). The pack screen celebrates it. */
 export const ALL_RARES_CHANCE = 0.006;
 
-/** How often the Energy card is a holo Energy (agreed with the user: 2%). */
-export const HOLO_ENERGY_CHANCE = 0.02;
+/** How often the Energy card is a holo Energy (agreed with the user: 4%, 2% until 2026-10-23). */
+export const HOLO_ENERGY_CHANCE = 0.04;
 
 export const PACK_COMMONS = 6;
 export const PACK_UNCOMMONS = 3;
