@@ -19,8 +19,8 @@
      (#flair-border-gold or -silver, FlairBorder) which maps only the yellow pixels onto the ramp by their lightness: the
      bevels stay, and the print on them (the banner's text, the stage badge's picture, the 1st Edition stamp) and the
      background around them stay as printed. For the rainbows, the tint over that silver gives it the rainbow's colour
-     at each point round the card, as the ring has it. Black turns only the art frame black (#flair-border-black): the
-     banner and Neo's tab keep their printed colours, their black text unreadable on black (the user's).
+     at each point round the card, as the ring has it. Black has no frame layer: it's the outer border alone, every
+     area inside it left as printed (the user's).
      - Classic: the frame's yellow is x 54–547, y 88–435 around the art window x 65–536, y 98–425 (Base Set Poliwag and
        Wartortle); the banner x 78–524, y 443–467.
      - Neo: the frame x 54–544, y 88–435 around x 66–533, y 98–410 (its bottom band is deeper); the stage tab top right,
@@ -172,10 +172,6 @@ div.flair-border {
   filter: url(#flair-border-silver);
 }
 
-.flair-border > .flair-border__frame[data-ramp="black"] {
-  filter: url(#flair-border-black);
-}
-
 /*
   The rainbows' tint: the rainbow (wedges from the card's centre, FlairBorder), masked to the image's yellow pixels,
   giving its colour to the silver frame copy under it and keeping that copy's light and shade. Flat, so the blend
@@ -216,57 +212,6 @@ div.flair-border {
     65.83% 7.76%, 91.5% 7.76%, 91.5% 10.3%, 65.83% 10.3%, 65.83% 7.76%,
     0 0,
     14.33% 53.82%, 85% 53.82%, 85% 57.21%, 14.33% 57.21%, 14.33% 53.82%,
-    0 0
-  );
-}
-
-/* Black's frame: the art frame alone, the banner (and Neo's tab) left as printed, their black text unreadable on black. */
-.flair-border > [data-frame="classic"][data-banner="printed"] {
-  clip-path: polygon(
-    evenodd,
-    0 0,
-    8.67% 10.42%, 91.5% 10.42%, 91.5% 52.97%, 8.67% 52.97%, 8.67% 10.42%,
-    0 0,
-    11% 12%, 89.17% 12%, 89.17% 51.39%, 11% 51.39%, 11% 12%,
-    0 0
-  );
-}
-
-.flair-border > [data-frame="neo"][data-banner="printed"] {
-  clip-path: polygon(
-    evenodd,
-    0 0,
-    8.67% 10.42%, 91.17% 10.42%, 91.17% 52.97%, 8.67% 52.97%, 8.67% 10.42%,
-    0 0,
-    11.17% 12%, 88.67% 12%, 88.67% 49.7%, 11.17% 49.7%, 11.17% 12%,
-    0 0
-  );
-}
-
-/*
-  Black on an evolved Pokémon: the art frame around its stage badge, which keeps its printed colours (the user's). The
-  frame and the art window both lose the badge's corner, cut along its lower-right edge: classic's starburst down to
-  y 146 and across to x 150, Neo's round badge (its rim sweeping into the top band) down to y 129 and across to x 106
-  (Base Set Wartortle, Neo Genesis Bayleef).
-*/
-.flair-border > [data-frame="classic"][data-banner="printed"][data-stage] {
-  clip-path: polygon(
-    evenodd,
-    0 0,
-    25% 10.42%, 91.5% 10.42%, 91.5% 52.97%, 8.67% 52.97%, 8.67% 17.7%, 14.67% 17.7%, 16.67% 16.48%, 18.67% 15.03%, 21.33% 14.3%, 24.33% 12.6%, 25% 10.42%,
-    0 0,
-    24.51% 12%, 89.17% 12%, 89.17% 51.39%, 11% 51.39%, 11% 17.7%, 14.67% 17.7%, 16.67% 16.48%, 18.67% 15.03%, 21.33% 14.3%, 24.33% 12.6%, 24.51% 12%,
-    0 0
-  );
-}
-
-.flair-border > [data-frame="neo"][data-banner="printed"][data-stage] {
-  clip-path: polygon(
-    evenodd,
-    0 0,
-    17.67% 10.42%, 91.17% 10.42%, 91.17% 52.97%, 8.67% 52.97%, 8.67% 15.64%, 11% 15.64%, 13% 15.03%, 14.33% 14.3%, 15.5% 13.58%, 16.5% 12.85%, 17.33% 12.12%, 17.67% 10.42%,
-    0 0,
-    17.35% 12%, 88.67% 12%, 88.67% 49.7%, 11.17% 49.7%, 11.17% 15.64%, 13% 15.03%, 14.33% 14.3%, 15.5% 13.58%, 16.5% 12.85%, 17.33% 12.12%, 17.35% 12%,
     0 0
   );
 }

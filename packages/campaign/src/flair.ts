@@ -27,7 +27,7 @@ export interface FlairOption {
 
 /**
  * The borders, each bought on its own (the user's prices): gold (brushed metal) 2000, PTCGP's rainbow and a softer,
- * pastel one 5000 each, and black (its banner left as printed, its text unreadable on black) 2000, a placeholder.
+ * pastel one 5000 each, and black (the outer border alone, everything inside it as printed) 2000, a placeholder.
  */
 export const BORDERS: FlairOption[] = [
   { key: 'gold', label: 'Gold', price: 2000 },
