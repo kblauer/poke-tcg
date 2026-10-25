@@ -1,6 +1,9 @@
-import { MAX_ENERGY, species, TRAINERS, type BattleEvent, type BattlerView, type StatusKind } from '@poke-tcg/idle';
-import type { CSSProperties } from 'react';
-import type { BattleSegment } from '../../hooks/useIdle';
+import { expForLevel, MAX_ENERGY, moveData, species, TRAINERS, type BattleEvent, type BattlerView, type StatusKind } from '@poke-tcg/idle';
+import { useRef, type CSSProperties } from 'react';
+import { useIsPhone } from '../../hooks/useIsPhone';
+import { isReward, type BattleSegment } from '../../hooks/useIdle';
+import { DialogueBox, dialogueKey, type Dialogue } from '../DialogueBox';
+import { MonIcon } from './PartyScreen';
 
 /** One game pixel of FireRed's 240x160 screen, in the battle box's width (container query units). */
 const px = (n: number) => `${(n * 100) / 240}cqw`;
@@ -30,15 +33,39 @@ interface SideShown {
   fainted: boolean;
 }
 
-/** What the screen shows after the events played so far: each side's Pokémon, the line, a ball thrown, who was just hit. */
-function shownState(events: BattleEvent[]) {
+/** One Pokémon's rewards in a run of them: the EXP. gained, the level it grew to, the moves it learned. */
+interface Reward {
+  uid: string;
+  gained: number;
+  level: number | null;
+  learned: string[];
+}
+
+/** What the screen shows after the events played so far: each side's Pokémon, the line (or a run of rewards, all at once), a ball thrown, who was just hit. */
+function shownState(events: BattleEvent[], party: BattleSegment['party']) {
   const sides: [SideShown, SideShown] = [{ mon: null, fainted: false }, { mon: null, fainted: false }];
   let text: string | null = null;
   let ball: Extract<BattleEvent, { t: 'ball' }> | null = null;
   let ballAt = -1;
   let hit: { side: 0 | 1; at: number } | null = null;
   let attacker: { side: 0 | 1; at: number } | null = null;
+  let rewards: Reward[] = [];
+  /** The latest line's event (a hit or an attacker since it is the one to animate). */
+  let line = -1;
+  // Each party Pokémon's EXP. (for the EXP. bar): as the battle began, then each gain's new total.
+  const exp: Record<string, number> = Object.fromEntries(party.map((m) => [m.uid, m.exp]));
   events.forEach((e, i) => {
+    if (e.t === 'exp') exp[e.uid] = e.exp;
+    // A run of rewards: each Pokémon's gathered (it starts over after any other line).
+    if (isReward(e)) {
+      if (i === 0 || !isReward(events[i - 1]!)) rewards = [];
+      const uid = (e as { uid: string }).uid;
+      let r = rewards.find((x) => x.uid === uid);
+      if (!r) rewards.push((r = { uid, gained: 0, level: null, learned: [] }));
+      if (e.t === 'exp') r.gained += e.gained;
+      if (e.t === 'level') r.level = e.level;
+      if (e.t === 'learn') r.learned.push(moveData(e.move).name);
+    } else if ('msg' in e && e.msg) rewards = [];
     switch (e.t) {
       case 'send':
         sides[e.side] = { mon: { ...e.mon }, fainted: false };
@@ -76,19 +103,26 @@ function shownState(events: BattleEvent[]) {
         ballAt = i;
         break;
     }
-    if ('msg' in e && e.msg) text = e.msg;
+    if ('msg' in e && e.msg) {
+      text = e.msg;
+      line = i;
+    }
   });
   // A ball the Pokémon broke out of shows only until the battle goes on.
   if (ball && !(ball as Extract<BattleEvent, { t: 'ball' }>).caught && ballAt < events.length - 1) ball = null;
-  return { sides, text, ball: ball as Extract<BattleEvent, { t: 'ball' }> | null, hit: hit as { side: 0 | 1; at: number } | null, attacker: attacker as { side: 0 | 1; at: number } | null };
+  return { sides, text, line, rewards, exp, ball: ball as Extract<BattleEvent, { t: 'ball' }> | null, hit: hit as { side: 0 | 1; at: number } | null, attacker: attacker as { side: 0 | 1; at: number } | null };
 }
 
 /** An HP bar's colour (FireRed's: green over half, yellow over a fifth, red below). */
 const hpColor = (hp: number, max: number) => (hp * 2 > max ? '#58d080' : hp * 5 > max ? '#f8c048' : '#f85838');
 
 /** A healthbox (drawn here, in FireRed's colours): name, gender, level, status, the HP bar, the player's HP numbers, and the energy pips. */
-function Healthbox({ mon, player, style }: { mon: BattlerView; player: boolean; style: CSSProperties }) {
+function Healthbox({ mon, player, exp, style }: { mon: BattlerView; player: boolean; exp?: number; style: CSSProperties }) {
   const s = species(mon.species);
+  // The EXP. bar's fill: the EXP. gained toward the next level (full at level 100).
+  const from = expForLevel(s.growth, mon.level);
+  const to = expForLevel(s.growth, mon.level + 1);
+  const toNext = mon.level >= 100 ? 1 : Math.min(1, Math.max(0, ((exp ?? from) - from) / (to - from)));
   const status = mon.status && STATUS[mon.status];
   return (
     <div className="absolute rounded-[0.6cqw] border-[0.4cqw] border-[#506858] bg-[#f8f8d8] text-[#404040] shadow-[0_0.5cqw_0_#285040]" style={{ ...style, width: px(player ? 104 : 100), padding: `${px(2)} ${px(4)}` }}>
@@ -113,17 +147,32 @@ function Healthbox({ mon, player, style }: { mon: BattlerView; player: boolean; 
           <div className="h-full transition-[width] duration-500" style={{ width: `${(100 * mon.hp) / mon.maxHp}%`, background: hpColor(mon.hp, mon.maxHp) }} />
         </div>
       </div>
+      {/* The energy (the mode's one addition to the screen): a pip for each, up to the most it can hold; on the player's
+          HP numbers' line (the user's: the box no taller than FireRed's), on a line of its own for the foe. */}
+      <div className="flex items-center justify-between" style={{ marginTop: px(1) }}>
+        <div className="flex items-center gap-[0.4cqw]" title={`Energy: ${mon.energy}`}>
+          {Array.from({ length: MAX_ENERGY }, (_, i) => (
+            <span key={i} className="rounded-full" style={{ width: px(4), height: px(4), background: i < mon.energy ? '#38a8f8' : '#c8d0b0' }} />
+          ))}
+        </div>
+        {player && (
+          <span className="font-semibold leading-none" style={{ fontSize: px(8) }}>
+            {mon.hp}/{mon.maxHp}
+          </span>
+        )}
+      </div>
+      {/* The player's EXP. bar, as FireRed's box has it: a dark green strip along its bottom, EXP in yellow, a striped
+          track filling light blue (healthbox_singles_player.png, healthbox.pal). */}
       {player && (
-        <div className="text-right font-semibold leading-none" style={{ fontSize: px(8), marginTop: px(1) }}>
-          {mon.hp}/{mon.maxHp}
+        <div className="flex items-center" style={{ background: '#526a62', margin: `${px(2)} calc(-1 * ${px(4)}) calc(-1 * ${px(2)})`, padding: `${px(1)} ${px(4)}`, gap: px(3) }}>
+          <span className="font-bold leading-none" style={{ color: '#ffe600', fontSize: px(6) }}>
+            EXP
+          </span>
+          <div className="flex-1 overflow-hidden" style={{ height: px(2), background: `repeating-linear-gradient(90deg, #ded5b4 0 ${px(1)}, #c5bd73 ${px(1)} ${px(2)})` }}>
+            <div className="h-full transition-[width] duration-500" style={{ width: `${toNext * 100}%`, background: '#41cdff' }} />
+          </div>
         </div>
       )}
-      {/* The energy (the mode's one addition to the screen): a pip for each, up to the most it can hold. */}
-      <div className="mt-[0.5cqw] flex items-center gap-[0.4cqw]" title={`Energy: ${mon.energy}`}>
-        {Array.from({ length: MAX_ENERGY }, (_, i) => (
-          <span key={i} className="rounded-full" style={{ width: px(4), height: px(4), background: i < mon.energy ? '#38a8f8' : '#c8d0b0' }} />
-        ))}
-      </div>
     </div>
   );
 }
@@ -149,16 +198,25 @@ function ThrownBall({ ball }: { ball: Extract<BattleEvent, { t: 'ball' }> }) {
 /**
  * A battle as it plays (README: Idle Adventure): FireRed's layout at its 240x160 scale, sized to its box (the terrain
  * background, the foe's front sprite and the player's Pokémon's back, the healthboxes, the text box), the energy pips the
- * one addition; showing the first `shown` of the battle's events.
+ * one addition; showing the first `shown` of the battle's events; `dialogue` over it in the scenes' text box (the
+ * catch-up's pages, if a battle starts before they're read).
  */
-export function BattleScreen({ battle, shown, gender }: { battle: BattleSegment; shown: number; gender: 'male' | 'female' }) {
-  const { sides, text, ball, hit, attacker } = shownState(battle.events.slice(0, shown));
+export function BattleScreen({ battle, shown, gender, dialogue }: { battle: BattleSegment; shown: number; gender: 'male' | 'female'; dialogue?: Dialogue | null }) {
+  const phone = useIsPhone();
+  const pressDialogue = useRef<(() => void) | null>(null);
+  const { sides, text, line, rewards, exp, ball, hit, attacker } = shownState(battle.events.slice(0, shown), battle.party);
+  const speciesOf = (uid: string) => battle.party.find((m) => m.uid === uid)?.species ?? 0;
+  // Where FireRed draws them (GetBattlerSpriteFinal_Y): the foe's centre at 176,40, the player's at 72,80, each 64x64
+  // picture lowered by its species' y_offset (the foe raised by its elevation).
+  const foeTop = (id: number) => 8 + species(id).pic.frontY - species(id).pic.elevation;
+  const meTop = (id: number) => 48 + species(id).pic.backY;
   const [me, foe] = sides;
   const trainer = battle.trainer ? TRAINERS[battle.trainer] : null;
-  const blink = (side: 0 | 1) => (hit && hit.side === side && hit.at >= shown - 2 ? 'idle-hit 0.5s steps(2) 2' : undefined);
-  const lunge = (side: 0 | 1) => (attacker && attacker.side === side && attacker.at >= shown - 2 ? `idle-lunge-${side} 0.3s ease-out` : undefined);
+  // Animated while their line is the latest: an attacker lunges with its "used" line, the one hit blinks as the hit lands.
+  const blink = (side: 0 | 1) => (hit && hit.side === side && hit.at >= line ? 'idle-hit 0.5s steps(2) 2' : undefined);
+  const lunge = (side: 0 | 1) => (attacker && attacker.side === side && attacker.at >= line ? `idle-lunge-${side} 0.3s ease-out` : undefined);
   return (
-    <div className="relative mx-auto aspect-[3/2] w-full max-w-[720px] overflow-hidden rounded-lg bg-black [container-type:inline-size] [image-rendering:pixelated]">
+    <div className="relative mx-auto aspect-[3/2] w-full max-w-[720px] overflow-hidden rounded-lg bg-black [container-type:inline-size] [image-rendering:pixelated]" onClick={() => pressDialogue.current?.()}>
       <img src={background(battle)} alt="" className="absolute left-0 top-0 w-full" style={{ height: px(112) }} draggable={false} />
       {/* The foe: its trainer before they send one out, then its Pokémon (or the ball it's caught in). */}
       {!foe.mon && trainer?.pic && <img src={`${GEN1}/trainers/${trainer.pic}.png`} alt="" className="absolute" style={{ left: px(144), top: px(8), width: px(64) }} draggable={false} />}
@@ -168,7 +226,7 @@ export function BattleScreen({ battle, shown, gender }: { battle: BattleSegment;
           src={`${GEN1}/pokemon/${foe.mon.shiny ? 'shiny/' : ''}front/${foe.mon.species}.png`}
           alt={species(foe.mon.species).name}
           className="absolute"
-          style={{ left: px(144), top: px(10), width: px(64), animation: blink(1) ?? lunge(1) }}
+          style={{ left: px(144), top: px(foeTop(foe.mon.species)), width: px(64), animation: blink(1) ?? lunge(1) }}
           draggable={false}
         />
       )}
@@ -180,18 +238,35 @@ export function BattleScreen({ battle, shown, gender }: { battle: BattleSegment;
           src={`${GEN1}/pokemon/${me.mon.shiny ? 'shiny/' : ''}back/${me.mon.species}.png`}
           alt={species(me.mon.species).name}
           className="absolute"
-          style={{ left: px(40), top: px(48), width: px(64), animation: blink(0) ?? lunge(0) }}
+          style={{ left: px(40), top: px(meTop(me.mon.species)), width: px(64), animation: blink(0) ?? lunge(0) }}
           draggable={false}
         />
       ) : (
         !me.mon && <img src={`${GEN1}/trainers/${gender === 'female' ? 'leaf' : 'red'}_back.png`} alt="" className="absolute" style={{ left: px(40), top: px(48), width: px(64) }} draggable={false} />
       )}
       {foe.mon && !foe.fainted && <Healthbox mon={foe.mon} player={false} style={{ left: px(13), top: px(16) }} />}
-      {me.mon && !me.fainted && <Healthbox mon={me.mon} player style={{ left: px(126), top: px(66) }} />}
-      {/* The text box: the latest line. */}
-      <div className="absolute inset-x-0 bottom-0 border-t-[0.6cqw] border-[#c87028] bg-[#283848] text-white" style={{ height: px(48), padding: `${px(6)} ${px(10)}`, fontSize: px(10), lineHeight: 1.35 }}>
-        {text}
+      {/* Just above the text box (the user's: a tiny gap), however tall the box is. */}
+      {me.mon && !me.fainted && <Healthbox mon={me.mon} player exp={exp[me.mon.uid]} style={{ left: px(126), bottom: px(51) }} />}
+      {/* The text box: the latest line, or a run of rewards all at once (the user's), growing upward to hold them. */}
+      <div className="absolute inset-x-0 bottom-0 border-t-[0.6cqw] border-[#c87028] bg-[#283848] text-white" style={{ minHeight: px(48), padding: `${px(6)} ${px(10)}`, fontSize: px(10), lineHeight: 1.35 }}>
+        {rewards.length ? (
+          <ul className="grid grid-cols-2 gap-x-[3cqw]">
+            {rewards.map((r) => (
+              <li key={r.uid} className="flex items-center gap-[1cqw]">
+                <MonIcon id={speciesOf(r.uid)} className="-my-[1cqw]" />
+                <span>
+                  {species(speciesOf(r.uid)).name} +{r.gained} EXP.
+                  {r.level !== null && <span className="text-[#f8d030]"> Lv. {r.level}!</span>}
+                  {r.learned.length > 0 && <span className="text-[#88d8f8]"> Learned {r.learned.join(', ')}!</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          text
+        )}
       </div>
+      {dialogue && <DialogueBox key={dialogueKey(dialogue)} dialogue={dialogue} pressRef={pressDialogue} phone={phone} />}
     </div>
   );
 }

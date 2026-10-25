@@ -341,12 +341,14 @@ const TOWER_MUSIC: Record<number, Record<Soundtrack, { lobby: Song; rooms: Song 
 /**
  * The Idle Adventure's songs for FireRed's maps (README: Idle Adventure): each map's own song (its map.json's `music`, the
  * game's MUS_ constant) by soundtrack, the Red album's for the original one. Pewter's and Fuchsia's themes are Viridian's
- * and Cerulean's in Red, as the run maps have them.
+ * and Cerulean's in Red, as the run maps have them. Routes 24 and 25 (MUS_ROUTE24) play the Welcome to the World of
+ * Pokémon! theme, as both games do; it and Oak's lab's songs are under a minute, `hidden` in tracks.json (the user's:
+ * a song a map needs is added however short).
  */
 export const IDLE_MAP_MUSIC: Record<Soundtrack, Record<string, Song>> = {
   original: Object.fromEntries(
     Object.entries({
-      MUS_ROUTE1: 'Route 1', MUS_ROUTE3: 'Route 3', MUS_ROUTE11: 'Route 11', MUS_ROUTE24: 'Route 3', MUS_PEWTER: 'Viridian City', MUS_VIRIDIAN_FOREST: 'Viridian Forest',
+      MUS_ROUTE1: 'Route 1', MUS_ROUTE3: 'Route 3', MUS_ROUTE11: 'Route 11', MUS_ROUTE24: 'Route 24 - Welcome to the World of Pokémon!', MUS_OAK_LAB: 'Pokémon Lab', MUS_PALLET: 'Pallet Town', MUS_PEWTER: 'Viridian City', MUS_VIRIDIAN_FOREST: 'Viridian Forest',
       MUS_MT_MOON: 'Mt. Moon', MUS_GYM: 'Pokémon Gym', MUS_LAVENDER: 'Lavender Town', MUS_CELADON: 'Celadon City', MUS_FUCHSIA: 'Cerulean City', MUS_CINNABAR: 'Cinnabar Island',
       MUS_VERMILLION: 'Vermilion City', MUS_VICTORY_ROAD: 'Victory Road', MUS_ROCKET_HIDEOUT: 'Rocket Hideout', MUS_POKE_TOWER: 'Pokémon Tower', MUS_CERULEAN: 'Cerulean City',
     }).map(([k, title]) => [k, { game: 'Red, Green, Blue & Yellow', title }]),
@@ -354,7 +356,7 @@ export const IDLE_MAP_MUSIC: Record<Soundtrack, Record<string, Song>> = {
   remastered: Object.fromEntries(
     Object.entries({
       MUS_ROUTE1: 'Road to Viridian City: Leaving Pallet Town', MUS_ROUTE3: 'Road to Cerulean City: Leaving Mt. Moon', MUS_ROUTE11: 'Road to Fuchsia City: Leaving Lavender Town',
-      MUS_ROUTE24: 'Road to Cerulean City: Leaving Mt. Moon', MUS_PEWTER: 'Pewter City', MUS_VIRIDIAN_FOREST: 'Viridian Forest', MUS_MT_MOON: 'Mt. Moon', MUS_GYM: 'Pokémon Gym',
+      MUS_ROUTE24: 'Welcome to the World of Pokémon!', MUS_OAK_LAB: "Professor Oak's Laboratory", MUS_PALLET: 'Pallet Town', MUS_PEWTER: 'Pewter City', MUS_VIRIDIAN_FOREST: 'Viridian Forest', MUS_MT_MOON: 'Mt. Moon', MUS_GYM: 'Pokémon Gym',
       MUS_LAVENDER: 'Lavender Town', MUS_CELADON: 'Celadon City', MUS_FUCHSIA: 'Fuchsia City', MUS_CINNABAR: 'Cinnabar Island', MUS_VERMILLION: 'Vermilion City',
       MUS_VICTORY_ROAD: 'Victory Road', MUS_ROCKET_HIDEOUT: 'Rocket Hideout', MUS_POKE_TOWER: 'Pokémon Tower', MUS_CERULEAN: 'Fuchsia City',
     }).map(([k, title]) => [k, { game: 'FireRed & LeafGreen', title }]),
@@ -362,17 +364,18 @@ export const IDLE_MAP_MUSIC: Record<Soundtrack, Record<string, Song>> = {
 };
 
 /**
- * The Idle Adventure's music: a map's song (IDLE_MAP_MUSIC; Surfing on the water), or a battle's: the wild, trainer,
+ * The Idle Adventure's music: a map's song (IDLE_MAP_MUSIC; Surfing on the water, the bike's on the Cycling Road, where the
+ * page says FireRed plays them), or a battle's: the wild, trainer,
  * gym leader (and Elite Four) or Champion theme, from the start, or the Hall of Fame once the Champion is beaten.
  */
-export function idleMusic(soundtrack: Soundtrack, place: { map: string; surfing?: boolean } | { battle: 'wild' | 'trainer' | 'leader' | 'champion'; id: string } | { won: true }): MusicCue {
+export function idleMusic(soundtrack: Soundtrack, place: { map: string; surfing?: boolean; cycling?: boolean } | { battle: 'wild' | 'trainer' | 'leader' | 'champion'; id: string } | { won: true }): MusicCue {
   const m = regionMusic(1, soundtrack);
   if ('won' in place) return { key: `idle:won:${m.victory}`, songs: [song(m, m.victory)], seed: 'idle' };
   if ('battle' in place) {
     const title = place.battle === 'wild' ? m.trainer[1]! : place.battle === 'trainer' ? m.trainer[0]! : place.battle === 'leader' ? m.gymLeader : m.champion;
     return { key: `idle:battle:${place.id}`, songs: [song(m, title)], seed: place.id, fromStart: true, cut: true };
   }
-  const s = place.surfing ? song(m, m.surf) : (IDLE_MAP_MUSIC[soundtrack][place.map] ?? song(m, m.routes['Route 4']!));
+  const s = place.surfing ? song(m, m.surf) : place.cycling ? song(m, m.bike) : (IDLE_MAP_MUSIC[soundtrack][place.map] ?? song(m, m.routes['Route 4']!));
   return { key: `idle:${s.game}:${s.title}`, songs: [s], seed: 'idle' };
 }
 

@@ -1,3 +1,4 @@
+import { IDLE_MAP_MUSIC, SOUNDTRACKS } from '@poke-tcg/campaign';
 import { describe, expect, it } from 'vitest';
 import { AREAS, BADGES, isTown, mapView, type WalkArea } from './areas.js';
 import { ENCOUNTERS } from './data/gen1/encounters.js';
@@ -57,5 +58,16 @@ describe('the Kanto areas', () => {
 
   it('end gyms and League rooms with their leader', () => {
     for (const a of walks.filter((x) => x.kind === 'gym' || x.kind === 'league')) expect(a.trainers.at(-1)!.key).toBe(a.leader);
+  });
+});
+
+describe("the Idle Adventure's music", () => {
+  it("has each map's own song (its MUS_ constant) in both soundtracks, Oak's lab's too: none falls back", () => {
+    const maps = new Set(['PalletTown_ProfessorOaksLab']);
+    for (const area of AREAS) {
+      if ('legs' in area) for (const leg of area.legs) for (const map of leg.maps) maps.add(map);
+      if ('map' in area) maps.add(area.map);
+    }
+    for (const map of maps) for (const soundtrack of SOUNDTRACKS) expect(IDLE_MAP_MUSIC[soundtrack][mapView(map).music], `${map} (${mapView(map).music}), ${soundtrack}`).toBeDefined();
   });
 });

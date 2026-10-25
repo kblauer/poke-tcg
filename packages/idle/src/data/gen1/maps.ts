@@ -3,6 +3,7 @@ import type { IdleMap } from '../../areas.js';
 
 /** The FireRed maps the Kanto areas walk, by name (data/maps/<name>). */
 export const KANTO_MAPS: Record<string, IdleMap> = {
+  PalletTown: { name: 'PalletTown', image: '/idle/gen1/maps/pallettown.png', width: 24, height: 20, encounters: 'PALLET_TOWN', scene: 'normal', music: 'MUS_PALLET' },
   Route1: { name: 'Route1', image: '/idle/gen1/maps/route1.png', width: 24, height: 40, encounters: 'ROUTE1', scene: 'normal', music: 'MUS_ROUTE1' },
   ViridianCity: { name: 'ViridianCity', image: '/idle/gen1/maps/viridiancity.png', width: 48, height: 40, encounters: 'VIRIDIAN_CITY', scene: 'normal', music: 'MUS_PEWTER' },
   Route2: { name: 'Route2', image: '/routes/route2.png', width: 24, height: 80, encounters: 'ROUTE2', scene: 'normal', music: 'MUS_ROUTE1' },

@@ -1,21 +1,24 @@
 import { idleMusic } from '@poke-tcg/campaign';
-import { AREAS, mapView, species, type IdleAction, type WalkArea } from '@poke-tcg/idle';
+import { AREAS, mapView, species, TICK_MS, type IdleAction, type WalkArea } from '@poke-tcg/idle';
+import { Navigate } from '@tanstack/react-router';
 import { useState } from 'react';
+import type { Dialogue } from '../components/DialogueBox';
 import { useMusicCue, useMusicSettings } from '../components/MusicPlayer';
 import { PageHeader } from '../components/PageHeader';
 import { ReturnToPlay } from '../components/ReturnToPlay';
 import { Toasts } from '../components/Toasts';
 import { AreaScene } from '../components/idle/AreaScene';
 import { BattleScreen } from '../components/idle/BattleScreen';
-import { Bag, CatchUpDialog, IdleSettings } from '../components/idle/IdleSettings';
+import { Bag, catchUpPages, IdleSettings } from '../components/idle/IdleSettings';
 import { MonIcon, PartyScreen } from '../components/idle/PartyScreen';
 import { Pokedex } from '../components/idle/Pokedex';
 import { StarterScene } from '../components/idle/StarterScene';
 import { Store, TownMenu } from '../components/idle/TownMenu';
+import { useEscape } from '../hooks/useEscape';
 import { useIdleActions, useIdleOverview, useIdlePlayback, type ClientIdleRun } from '../hooks/useIdle';
 import { useRun } from '../hooks/useRun';
 import { useToasts } from '../hooks/useToasts';
-import { DEBUG_BUILD, useDebugEnabled } from '../utils/debug';
+import { DEBUG_BUILD, useDebugEnabled, useDebugStatus } from '../utils/debug';
 import { PAGE_WIDTH } from '../utils/layout';
 import { commas } from '../utils/math';
 import { BUTTON } from '../utils/styles';
@@ -38,10 +41,19 @@ const battleKind = (trainer: string | undefined) => (!trainer ? 'wild' : trainer
  * The Idle Adventure (`/idle`, from the Play tab's menu; README: Idle Adventure, issue #133): with no run under way,
  * Professor Oak's lab and the starters (later runs, the Pokédex's caught species too); under way, the run plays itself
  * (useIdlePlayback): the player walking the area's track, its battles a turn every 3 s, the town waiting for the
- * player's choice (gym, store, on). Under the scene, the party, bag, Pokédex, settings and the run's log. A run never
- * holds the Play tab (it runs on its own).
+ * player's choice (gym, store, on); the lab's and the town's questions, the notices and what happened while away in the
+ * scene's text box (DialogueBox, the Battle Tower's and the Game Corner's). Under the scene, the party, bag, Pokédex,
+ * settings and the run's log. A run never holds the Play tab (it runs on its own). Only in local debug for now (the
+ * user's: a debug build with the debug tools on, useDebugStatus); anywhere else `/idle` goes back to the Play tab.
  */
 export function IdlePage() {
+  const debug = useDebugStatus();
+  if (debug === 'loading') return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
+  if (debug === 'off') return <Navigate to="/" replace />;
+  return <IdleAdventure />;
+}
+
+function IdleAdventure() {
   const overview = useIdleOverview();
   const actions = useIdleActions();
   const toasts = useToasts();
@@ -57,25 +69,36 @@ export function IdlePage() {
   const active = run?.status === 'ACTIVE' ? run : null;
   const settings = data?.settings;
   const { play, summary, closeSummary, actOn, acted } = useIdlePlayback(active, name, (m) => toasts.push('error', m));
+  // What happened while away, a page at a time in the scene's text box (in place of its own line); Escape closes it.
+  const [page, setPage] = useState(0);
+  const pages = summary ? catchUpPages(summary) : [];
+  const closeCatchUp = () => (setPage(0), closeSummary());
+  const catchUp: Dialogue | null = summary ? { text: pages[Math.min(page, pages.length - 1)]!, answer: () => (page < pages.length - 1 ? setPage(page + 1) : closeCatchUp()) } : null;
+  useEscape(closeCatchUp, !!summary);
 
-  // The music (auto play): the battle's theme, the Hall of Fame once won, the map's own song otherwise (Surfing on water).
-  const place = play.place ?? (run ? { area: run.view.area, leg: run.view.leg, step: run.view.step } : null);
+  // The music (auto play), as FireRed plays it where the player is: the battle's theme, the Hall of Fame once won, Oak's
+  // lab with no run under way (its starters), otherwise the map's own song; Surfing on any water the player surfs (cave
+  // water too), but on Route 23, Victory Road and the Indigo Plateau (Overworld_MusicCanOverrideMapMusic); the bike's on
+  // the Cycling Road (Route 17), where the game puts the player on the bike.
+  const place = active ? (play.place ?? { area: active.view.area, leg: active.view.leg, step: active.view.step }) : null;
   const area = place ? AREAS[place.area] : null;
-  let mapMusic: string | null = null;
+  let mapName: string | null = active ? null : 'PalletTown_ProfessorOaksLab';
   let surfing = false;
   if (area && 'legs' in area) {
     const leg = area.legs[Math.min(place!.leg, area.legs.length - 1)]!;
     const step = leg.track[Math.min(place!.step, leg.track.length - 1)]!;
-    mapMusic = mapView(leg.maps[step[0]]!).music;
-    surfing = step[4][1] === 'w';
-  } else if (area && 'map' in area) mapMusic = mapView(area.map).music;
+    mapName = leg.maps[step[0]]!;
+    surfing = (step[4][1] === 'w' || step[4][1] === 'p') && !/^(Route23|VictoryRoad_|IndigoPlateau_)/.test(mapName);
+  } else if (area && 'map' in area) mapName = area.map;
+  const mapMusic = mapName ? mapView(mapName).music : null;
+  const cycling = mapName === 'Route17';
   useMusicCue(
     play.battle
       ? idleMusic(soundtrack, { battle: battleKind(play.battle.trainer), id: `${run?.id}:${play.battle.events.length}:${play.battle.foes.map((f) => f.species).join(',')}` })
       : run?.view.phase === 'won'
         ? idleMusic(soundtrack, { won: true })
         : mapMusic
-          ? idleMusic(soundtrack, { map: mapMusic, surfing })
+          ? idleMusic(soundtrack, { map: mapMusic, surfing, cycling })
           : null,
   );
 
@@ -120,6 +143,8 @@ export function IdlePage() {
         }
       />
 
+      {active && <TickMeter turn={play.battle ? play.turn : null} tickAt={play.tickAt} />}
+
       {/* The scene: the starter's lab, the area walked, a battle, or the town's choice. */}
       {!active ? (
         <div className="space-y-3">
@@ -139,7 +164,7 @@ export function IdlePage() {
               </div>
             </section>
           )}
-          <StarterScene gender={gender} busy={actions.busy} onPick={(id) => start(id)} />
+          <StarterScene gender={gender} busy={actions.busy} onPick={(id) => start(id)} dialogue={catchUp} />
           {(data.starters.length > 3 || data.shinyStarters.length > 0) && (
             <section className="space-y-2">
               <h3 className="text-lg font-semibold">Or start from your Pokédex</h3>
@@ -157,13 +182,13 @@ export function IdlePage() {
           onGym={() => (setStore(false), void act({ type: 'GYM' }))}
           onStore={() => (setStore(true), void act({ type: 'VISIT_STORE' }))}
           onContinue={() => (setStore(false), void act({ type: 'CONTINUE' }))}
+          dialogue={catchUp}
         />
       ) : play.battle ? (
-        <BattleScreen battle={play.battle} shown={play.shown} gender={gender} />
+        <BattleScreen battle={play.battle} shown={play.shown} gender={gender} dialogue={catchUp} />
       ) : (
-        <AreaScene playback={play} gender={gender}>
+        <AreaScene playback={play} gender={gender} dialogue={catchUp ?? (play.notice ? { text: play.notice, choices: [], instant: true, answer: () => {} } : null)}>
           {play.entering && <div className="pointer-events-none absolute inset-0 bg-white" style={{ animation: 'idle-enter 0.9s linear both' }} />}
-          {play.notice && <div className="absolute inset-x-3 bottom-3 rounded-lg bg-slate-900/90 px-3 py-2 text-sm text-slate-100 ring-1 ring-slate-600">{play.notice}</div>}
         </AreaScene>
       )}
 
@@ -193,8 +218,23 @@ export function IdlePage() {
           {debug && <DebugWarp run={active} onWarp={(id) => void actions.warp(active, id).catch(failed)} />}
         </section>
       )}
-      {summary && <CatchUpDialog summary={summary} onClose={closeSummary} />}
       <Toasts toasts={toasts.toasts} />
+    </div>
+  );
+}
+
+/**
+ * The game's tick (TICK_MS), only in a battle (the user's): its turn and a narrow bar filling over the turn, from when it
+ * began. Out of one (and before the first turn) its row is kept, unseen, so the scene doesn't jump as battles come and go.
+ */
+function TickMeter({ turn, tickAt }: { turn: number | null; tickAt: number }) {
+  return (
+    <div className={`mx-auto flex w-full max-w-60 items-center gap-2 text-xs text-slate-400 ${turn === null ? 'invisible' : ''}`} aria-hidden={turn === null || undefined}>
+      <span className="shrink-0 tabular-nums">Turn {turn ?? 0}</span>
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-700">
+        {turn !== null && <div key={`${tickAt}:${turn}`} className="h-full origin-left rounded-full bg-yellow-300" style={{ animation: `idle-tick ${TICK_MS}ms linear 1 both` }} />}
+      </div>
+      <span className="shrink-0 tabular-nums">{TICK_MS / 1000} s</span>
     </div>
   );
 }
