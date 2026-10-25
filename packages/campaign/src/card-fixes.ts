@@ -123,9 +123,30 @@ const isGalaxyArt = (card: Pick<CatalogCard, 'id' | 'data'>) =>
 
 export const isGalaxyFoil = (card: Pick<CatalogCard, 'id' | 'data'>) => GALAXY_FOIL.has(card.id) || isGalaxyArt(card);
 
-/** A catalog card's rarity, holos apart: holo and galaxy-foil cards (the promo Entei and Pichu, which TCGdex lists as Common) are holos. */
+/**
+ * Gen 4's main sets (not the promos), whose rarity is read from the printed rarity: TCGdex marks many of their non-holo
+ * rares and a few commons holo. Their official card counts where a non-holo "Rare" is a secret rare (numbered after them).
+ */
+const GEN4_PRINTED_RARITY = /^(dp[0-9]+|pl[0-9]+|hgss[0-9]+|col[0-9]+)$/;
+const GEN4_OFFICIAL: Record<string, number> = { dp2: 123, dp7: 100, pl1: 127, pl2: 111, pl3: 147, pl4: 99, hgss4: 102 };
+
+/**
+ * A Gen 4 card's rarity by its printed rarity: Common, Uncommon and Rare as printed, every other (Rare Holo, Holo
+ * Rare, Rare Holo LV.X, Rare PRIME, LEGEND, Ultra Rare) and the secret rares (numbered after the set, or lettered:
+ * SH, RT, AR, SL, the Alph Lithographs) holos, as is a reverse holo. Null for a card of another set.
+ */
+function gen4Rarity(card: Pick<CatalogCard, 'id' | 'rarity' | 'data'>): Rarity | null {
+  const [set, number] = card.id.split('-') as [string, string];
+  if (!GEN4_PRINTED_RARITY.test(set)) return null;
+  if ((card.data as CardData).reverseHolo) return 'holo';
+  if (card.rarity === 'Common') return 'common';
+  if (card.rarity === 'Uncommon') return 'uncommon';
+  return card.rarity === 'Rare' && /^[0-9]+$/.test(number) && Number(number) <= (GEN4_OFFICIAL[set] ?? Infinity) ? 'rare' : 'holo';
+}
+
+/** A catalog card's rarity, holos apart: holo and galaxy-foil cards (the promo Entei and Pichu, which TCGdex lists as Common) are holos; Gen 4's by their printed rarity (gen4Rarity). */
 export const cardRarity = (card: Pick<CatalogCard, 'id' | 'rarity' | 'data'>): Rarity =>
-  isHolo(card) || isGalaxyFoil(card) ? 'holo' : card.rarity === 'Rare' ? 'rare' : card.rarity === 'Uncommon' ? 'uncommon' : 'common';
+  gen4Rarity(card) ?? (isHolo(card) || isGalaxyFoil(card) ? 'holo' : card.rarity === 'Rare' ? 'rare' : card.rarity === 'Uncommon' ? 'uncommon' : 'common');
 
 function energyType(tcgdexType: string): EnergyType {
   const type = tcgdexType.toLowerCase() as EnergyType;

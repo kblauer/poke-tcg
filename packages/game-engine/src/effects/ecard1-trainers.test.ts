@@ -37,6 +37,15 @@ describe('Expedition Trainers', () => {
     expect(applyAction(endTurn(endTurn(after, 'ash'), 'misty'), 'ash', { type: 'PLAY_TRAINER', cardUid: second }).ok).toBe(true);
   });
 
+  it('no Supporter card on the first player\'s first turn (every set, agreed)', () => {
+    const s = duel('charmander', 'onix');
+    s.turn = 1;
+    const uid = hand(s, 'ash', oaksResearch);
+    expect(applyAction(s, 'ash', { type: 'PLAY_TRAINER', cardUid: uid })).toEqual({ ok: false, error: "The first player can't play a Supporter card on turn 1" });
+    s.turn = 2;
+    expect(applyAction(s, 'ash', { type: 'PLAY_TRAINER', cardUid: uid }).ok).toBe(true);
+  });
+
   it("Professor Oak's Research: shuffle the hand into the deck, then draw 5", () => {
     const s = duel('charmander', 'onix');
     ash(s).hand = [{ uid: 'a', defId: 'fire' }, { uid: 'b', defId: 'fire' }];

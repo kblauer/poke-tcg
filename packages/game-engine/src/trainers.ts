@@ -960,6 +960,8 @@ export function trainerError(s: TrainerSituation): string | null {
   if (d.kind !== 'trainer' || !(effect?.play || effect?.stadium)) return `${d.name} can't be played this way`;
   if (trainersLocked(s.me, s.turn)) return TRAINERS_LOCKED;
   if (effect.supporter && s.me.supporterTurn === s.turn) return 'You can play only one Supporter card each turn';
+  // The Diamond & Pearl era's rule, for every set (agreed): the player going first plays no Supporter on their first turn.
+  if (effect.supporter && s.turn === 1) return "The first player can't play a Supporter card on turn 1";
   if (effect.supporter && (s.me.noSupportersUntil ?? 0) >= s.turn) return "Addictive Pollen: you can't play Supporter cards this turn";
   const hayFever = trainersBlocked([s.me, s.opp], s.cards);
   if (hayFever) return hayFever;
