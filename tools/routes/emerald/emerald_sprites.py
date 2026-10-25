@@ -76,6 +76,8 @@ SPRITES = {
     'fat_man': 'OBJ_EVENT_GFX_FAT_MAN',
     'nurse': 'OBJ_EVENT_GFX_NURSE',
     'clerk': 'OBJ_EVENT_GFX_MART_EMPLOYEE',
+    # The Battle Tower's receptionists and attendants (battle-tower-maps.ts): Teala, as Emerald's Battle Tower has them.
+    'teala': 'OBJ_EVENT_GFX_TEALA',
     'aqua_grunt_m': 'OBJ_EVENT_GFX_AQUA_MEMBER_M',
     'aqua_grunt_f': 'OBJ_EVENT_GFX_AQUA_MEMBER_F',
     'magma_grunt_m': 'OBJ_EVENT_GFX_MAGMA_MEMBER_M',

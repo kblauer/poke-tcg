@@ -4,7 +4,8 @@ the layout's map.bin, the map's map.json, include/constants/metatile_behaviors.h
 secondary tilesets' tiles.png, metatiles.bin, metatile_attributes.bin and palettes (00.pal to 15.pal) in p/ and s/, and
 <width> and <height> are the layout's size in metatiles (data/layouts/layouts.json; Route 2 is 24 by 80; fetch_map.py
 downloads all of this and prints them). The map's objects block their tiles, except item balls and cut-trees; with
-`--only GFX,...` (a gym), only objects of those graphics do (OBJ_EVENT_GFX_ left off: GYM_GUY). Needs pypng
+`--only GFX,...` (a gym), only objects of those graphics do (OBJ_EVENT_GFX_ left off: GYM_GUY). `--overhead <png>`
+also writes what the game draws over the people (its top layer: a counter's near edge, a tree's top), see-through elsewhere. Needs pypng
 (pip install --target pylib pypng, next to this script)."""
 import json, os, re, struct, sys
 
@@ -73,10 +74,21 @@ def behavior(mid):
 
 backdrop = palettes[0][0]
 pixels = [[backdrop] * (W * 16) for _ in range(H * 16)]
+# What the game draws over the people (its top background layer): the second layer of each metatile whose layer type
+# (attribute bits 29-30) is NORMAL (0) or SPLIT (2), not COVERED (1); with --overhead, written apart, see-through elsewhere.
+top = [[(0, 0, 0, 0)] * (W * 16) for _ in range(H * 16)]
+
+
+def layer_type(mid):
+    a = attr_p[mid] if mid < NUM_METATILES_PRIMARY else attr_s[mid - NUM_METATILES_PRIMARY]
+    return (a >> 29) & 3
+
+
 for by in range(H):
     for bx in range(W):
         mid = blocks[by * W + bx] & 0x3FF
         entries = metatile(mid)
+        over = layer_type(mid) in (0, 2)
         for layer in range(2):
             for q in range(4):
                 e = entries[layer * 4 + q]
@@ -89,8 +101,12 @@ for by in range(H):
                         if v == 0:
                             continue  # transparent: the layer below (or the backdrop) shows
                         pixels[oy + y][ox + x] = palettes[pal][v]
+                        if layer == 1 and over:
+                            top[oy + y][ox + x] = (*palettes[pal][v], 255)
 
 png.Writer(W * 16, H * 16, greyscale=False).write(open(out_png, 'wb'), [[c for p in row for c in p] for row in pixels])
+if '--overhead' in sys.argv:
+    png.Writer(W * 16, H * 16, greyscale=False, alpha=True).write(open(sys.argv[sys.argv.index('--overhead') + 1], 'wb'), [[c for p in row for c in p] for row in top])
 
 # Walkability: the block's collision bits clear, and not a ledge, water, door or warp tile.
 UNSAFE = re.compile(r'JUMP|WATER|DEEP|POND|OCEAN|WATERFALL|DOOR|WARP|LADDER|STAIRS|ARROW|ESCALATOR')  # MB_CAVE is an indoor floor (where Dig works), not an entrance

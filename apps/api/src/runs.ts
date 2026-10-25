@@ -3,10 +3,12 @@ import {
   applyRunAction,
   bankablePokedollars,
   battleSetup,
+  carriedConsumables,
   createRun,
   currentGameId,
   expandDeck,
   FIRST_RUN,
+  MAX_CONSUMABLES_PER_RUN,
   needsBattle,
   STARTER_DECK,
   withConsumablesBefore,
@@ -169,6 +171,17 @@ export async function advanceRun(run: LoadedRun, actions: (RunAction | RunSystem
       await tx.inventoryItem.upsert({ where: { userId_itemId: { userId: run.ownerId, itemId } }, create: { userId: run.ownerId, itemId, quantity: 1 }, update: {} });
     }
     if (reward) await giveRewards(tx, run.ownerId, state);
+    // Just lost (out of HP or conceded): its consumables still in effect wait for the next run, with the battles they have
+    // left (the user's), among its MAX_CONSUMABLES_PER_RUN. A lost run carried on (the Retry testing aid) takes them back,
+    // as it still has them.
+    const carried = run.state.phase !== 'lost' ? carriedConsumables(state) : [];
+    const taken = run.state.phase === 'lost' && state.phase !== 'lost' ? carriedConsumables(run.state) : [];
+    if (carried.length || taken.length) {
+      const { pendingConsumables } = await tx.user.findUniqueOrThrow({ where: { id: run.ownerId }, select: { pendingConsumables: true } });
+      const left = [...pendingConsumables];
+      for (const entry of taken) if (left.includes(entry)) left.splice(left.indexOf(entry), 1);
+      await tx.user.update({ where: { id: run.ownerId }, data: { pendingConsumables: [...left, ...carried].slice(0, MAX_CONSUMABLES_PER_RUN) } });
+    }
     // A trade or a switch of decks changed the run's deck: so does its automatic deck.
     if (state.deck.join() !== run.state.deck.join()) await syncRunDeck(run.ownerId, run.id, state.deck, tx);
     return true;

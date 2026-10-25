@@ -322,18 +322,40 @@ function rollOptions(rng: Rng, i: number, centers: number, pool?: TrainerPool, n
 }
 
 /**
- * The consumables used from the Inventory before the run (`itemIds`, agreed with the user) put in effect at its start,
- * all at once (not one at a time): they're among the run's MAX_CONSUMABLES_PER_RUN, so at most that many count, and
- * another can be used in the run (one at a time) once they've all run out.
+ * A consumable waiting for the next run (`User.pendingConsumables`): its id, used from the Inventory between runs; or
+ * `<id>:<battles>` for one still in effect when a run was lost (out of HP or conceded), with the battles it had left (the user's: they carry
+ * over to the next run).
  */
-export function withConsumablesBefore(prev: RunState, itemIds: readonly string[]): RunState {
+export const pendingConsumable = (itemId: string, battlesLeft?: number) => (battlesLeft === undefined ? itemId : `${itemId}:${battlesLeft}`);
+export function parsePendingConsumable(entry: string): { itemId: string; battlesLeft?: number } {
+  const [itemId, battles] = entry.split(':');
+  const left = Number(battles);
+  return battles !== undefined && Number.isInteger(left) && left > 0 ? { itemId: itemId!, battlesLeft: left } : { itemId: itemId! };
+}
+
+/** What a lost run (out of HP or conceded) hands on to the next (pendingConsumable): its consumables still in effect, with the battles they have left. */
+export const carriedConsumables = (state: RunState) => (state.phase === 'lost' ? state.consumables.map((c) => pendingConsumable(c.itemId, c.battlesLeft)) : []);
+
+/** A lost run's log: its consumables still in effect carrying over to the next run (carriedConsumables; the user's). */
+function logCarried(state: RunState) {
+  for (const c of state.consumables) state.log.push(`${ITEMS[c.itemId]?.name ?? c.itemId} carries over to your next run: ${c.battlesLeft} ${c.battlesLeft === 1 ? 'battle' : 'battles'} left.`);
+}
+
+/**
+ * The consumables waiting for the run (`entries`, pendingConsumable: used from the Inventory before it, agreed with the
+ * user, or carried over from a lost run with their battles left) put in effect at its start, all at once (not one at
+ * a time): they're among the run's MAX_CONSUMABLES_PER_RUN, so at most that many count, and another can be used in the
+ * run (one at a time) once they've all run out.
+ */
+export function withConsumablesBefore(prev: RunState, entries: readonly string[]): RunState {
   const state = structuredClone(prev);
-  for (const id of itemIds) {
-    const def = ITEMS[id];
+  for (const entry of entries) {
+    const { itemId, battlesLeft } = parsePendingConsumable(entry);
+    const def = ITEMS[itemId];
     if (def?.category !== 'consumable' || state.consumablesUsed >= MAX_CONSUMABLES_PER_RUN) continue;
     state.consumablesUsed += 1;
-    state.consumables.push({ itemId: def.id, battlesLeft: def.battles ?? 1 });
-    state.log.push(`Used ${def.name} before the run.`);
+    state.consumables.push({ itemId: def.id, battlesLeft: battlesLeft ?? def.battles ?? 1 });
+    state.log.push(battlesLeft === undefined ? `Used ${def.name} before the run.` : `${def.name} carried over from the last run: ${battlesLeft} ${battlesLeft === 1 ? 'battle' : 'battles'} left.`);
   }
   return state;
 }
@@ -626,6 +648,7 @@ function battleOver({ state, rng, pool, effects, fail, done }: ActionContext, ac
   if (state.hp <= 0) {
     state.phase = 'lost';
     state.log.push(bankablePokedollars(state) ? 'Out of HP: the run is lost.' : 'Out of HP: the run is lost, without completing a battle: no ₱ banked.');
+    logCarried(state);
   }
   return done();
 }
@@ -742,6 +765,7 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
       state.conceded = true;
       const banked = bankablePokedollars(state);
       state.log.push(banked ? `Conceded the run: ₱${banked} banked.` : 'Conceded the run before completing a battle: no ₱ banked.');
+      logCarried(state);
       return ok();
     }
 

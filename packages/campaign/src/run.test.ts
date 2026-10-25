@@ -5,7 +5,7 @@ import { RUN_TYPE_IDS, RUN_TYPES, runType, type RunType, type RunTypeId } from '
 import { ROUTE_4 } from './kanto-routes.js';
 import { JOHTO_BOSS_ROOMS, MAHOGANY_GYM } from './johto-gyms.js';
 import { onPath, PEWTER_GYM, ROUTE_2, routePath, type Route, type RouteSpot } from './routes.js';
-import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, isBattleKind, isBossKind, landNear, MAX_CENTERS, REQUIRED_BATTLES, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, withConsumablesBefore, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
+import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, isBattleKind, isBossKind, landNear, MAX_CENTERS, REQUIRED_BATTLES, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, withConsumablesBefore, carriedConsumables, parsePendingConsumable, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
 import { GEN2_SETS, GEN3_SETS } from './pool.js';
 import { GEN2_TEST_POOL, GEN3_TEST_POOL, TEST_POOL } from './test-pool.js';
 
@@ -637,6 +637,34 @@ describe('items', () => {
     s = act(at('battle'), { type: 'USE_ITEM', itemId: 'guard-spec' });
     s = fight(s, true);
     expect(s.consumables).toEqual([{ itemId: 'guard-spec', battlesLeft: 1 }]);
+  });
+
+  it("a conceded battle uses up one of its consumables' battles, as any other", () => {
+    let s = act(at('battle'), { type: 'USE_ITEM', itemId: 'antidote' });
+    s = fight(s, false, [], true);
+    expect(s.consumables).toEqual([{ itemId: 'antidote', battlesLeft: 2 }]);
+  });
+
+  it('a conceded run hands its consumables still in effect on to the next, with the battles they have left', () => {
+    let s = act(at('battle'), { type: 'USE_ITEM', itemId: 'antidote' });
+    s = { ...s, consumables: [{ itemId: 'antidote', battlesLeft: 2 }] };
+    expect(carriedConsumables(s)).toEqual([]);
+    s = act(s, { type: 'CONCEDE' });
+    expect(carriedConsumables(s)).toEqual(['antidote:2']);
+    expect(s.log.at(-1)).toBe('Antidote carries over to your next run: 2 battles left.');
+    const next = withConsumablesBefore(fresh(), [...carriedConsumables(s), 'x-attack']);
+    expect(next.consumables).toEqual([{ itemId: 'antidote', battlesLeft: 2 }, { itemId: 'x-attack', battlesLeft: 1 }]);
+    expect(next.log).toContain('Antidote carried over from the last run: 2 battles left.');
+    expect(next.consumablesUsed).toBe(2);
+    expect(parsePendingConsumable('guard-spec')).toEqual({ itemId: 'guard-spec' });
+  });
+
+  it('a run lost on HP hands its consumables still in effect on too, after the losing battle', () => {
+    let s = act({ ...at('battle'), hp: 1 }, { type: 'USE_ITEM', itemId: 'antidote' });
+    s = fight(s, false);
+    expect(s.phase).toBe('lost');
+    expect(carriedConsumables(s)).toEqual(['antidote:2']);
+    expect(s.log.at(-1)).toBe('Antidote carries over to your next run: 2 battles left.');
   });
 
   it("a battle skipped by debug doesn't use up a consumable's battles", () => {

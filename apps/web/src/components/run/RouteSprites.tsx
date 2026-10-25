@@ -151,6 +151,51 @@ export function Exclamation({ tile }: { tile: RouteSpot }) {
   );
 }
 
+/** See-through pixels on each side of every frame of a sprite's strip as drawn (useGutteredStrip). */
+const GUTTER = 2;
+const guttered = new Map<string, Promise<string>>();
+
+/**
+ * A sprite's strip redrawn with GUTTER see-through pixels each side of every frame (a data URL), made once per sprite and
+ * kept: drawn zoomed by a fraction (the Battle Tower's scenes) or between whole pixels (walking), the browser samples a
+ * sliver of the frame next to the one shown, and a neighbour's outline showed as a dark line beside the sprite (Red's
+ * walking-down frame beside his walking-up one; the user's screenshot). With a gutter, that sliver is see-through.
+ * Undefined until it's made (the file is drawn meanwhile).
+ */
+function useGutteredStrip(name: string) {
+  const [url, setUrl] = useState<string>();
+  useEffect(() => {
+    let live = true;
+    let made = guttered.get(name);
+    if (!made) {
+      made = new Promise<string>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          const w = spriteWidth(name);
+          const frames = stripFrames(name);
+          const canvas = document.createElement('canvas');
+          canvas.width = frames * (w + 2 * GUTTER);
+          canvas.height = 32;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return reject(new Error('No canvas'));
+          for (let f = 0; f < frames; f++) ctx.drawImage(img, f * w, 0, w, 32, f * (w + 2 * GUTTER) + GUTTER, 0, w, 32);
+          resolve(canvas.toDataURL());
+        };
+        img.onerror = reject;
+        img.src = `/overworld/${name}.png`;
+      });
+      // A failure is tried again next time (the file is drawn meanwhile).
+      made.catch(() => guttered.delete(name));
+      guttered.set(name, made);
+    }
+    made.then((u) => live && setUrl(u), () => {});
+    return () => {
+      live = false;
+    };
+  }, [name]);
+  return url;
+}
+
 /**
  * A FireRed overworld sprite standing on a tile (its feet on the tile, its head on the one above), facing a way, in map
  * pixels; lower on the map is in front, as in the game. `frame` shows another frame of its strip (a walking one), `moveMs`
@@ -200,6 +245,7 @@ export function OverworldSprite({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jump?.stamp]);
   const w = spriteWidth(name);
+  const strip = useGutteredStrip(name);
   // An item ball stays whole (it lies in the grass, one tile tall).
   const inGrass = grass && !isItemBall(name);
   const [sunk, setSunk] = useState(inGrass);
@@ -223,9 +269,11 @@ export function OverworldSprite({
         top: tile.y * 16 - 16,
         width: w,
         height: 32,
-        backgroundImage: `url(/overworld/${name}.png)`,
-        backgroundSize: `${w * stripFrames(name)}px 32px`,
-        backgroundPosition: `${-frame * w}px 0`,
+        // The strip with see-through gutters between its frames once it's made (useGutteredStrip), the file till then.
+        backgroundImage: `url(${strip ?? `/overworld/${name}.png`})`,
+        backgroundSize: `${(w + (strip ? 2 * GUTTER : 0)) * stripFrames(name)}px 32px`,
+        backgroundPosition: `${strip ? -frame * (w + 2 * GUTTER) - GUTTER : -frame * w}px 0`,
+        backgroundRepeat: 'no-repeat',
         transform: mirrored(name, face) ? 'scaleX(-1)' : undefined,
         ...(inGrass && sunk && GRASS_MASK),
         zIndex: tile.y,

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { battleMusic, healedJingle, pickSong, practiceMusic, REGION_MUSIC, runMusic, SOUNDTRACKS, victoryMusic, type MusicCue, type RunMusicView } from './music.js';
+import { battleMusic, healedJingle, pickSong, practiceMusic, REGION_MUSIC, runMusic, SOUNDTRACKS, towerMusic, victoryMusic, type MusicCue, type RunMusicView } from './music.js';
 import { createRun } from './run.js';
 import { RUN_TYPE_IDS, runType, type RunTypeId } from './run-types.js';
 
@@ -116,5 +116,14 @@ describe('auto play music', () => {
     expect(titles(practiceMusic('Youngster Joey', 'original', 'g'))).toEqual(['Battle! (Trainer Battle)', 'Battle! (Wild Pokémon)']);
     const cue = battleMusic(2, 'original', 'battle', 'some-game');
     expect(pickSong(cue)).toEqual(pickSong(cue));
+  });
+
+  it("plays the Battle Tower's lobby and rooms songs for every generation's floors, all in the music player's list", () => {
+    for (const soundtrack of SOUNDTRACKS) {
+      for (const gen of [1, 2, 3, 4]) for (const place of ['lobby', 'rooms'] as const) expect(inList(towerMusic(gen, soundtrack, place).songs[0]!)).toBe(true);
+      // Gen 1's floors play Gen 2's (FireRed's Trainer Tower isn't in the list).
+      expect(towerMusic(1, soundtrack, 'rooms')).toEqual(towerMusic(2, soundtrack, 'rooms'));
+    }
+    expect(towerMusic(2, 'remastered', 'lobby')!.key).not.toBe(towerMusic(2, 'remastered', 'rooms')!.key);
   });
 });

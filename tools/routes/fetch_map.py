@@ -18,6 +18,10 @@ def save(path, data):
     open(path, 'wb').write(data)
 
 
+# Tilesets drawn with another's tiles and palettes (src/data/tilesets/graphics.h: "Shared by SilphCo"), their own metatiles.
+SHARED_GRAPHICS = {'silph_co': 'condominiums'}
+
+
 def snake(tileset):
     """gTileset_CeruleanGym -> cerulean_gym (the tileset's folder under data/tilesets/)."""
     words = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', tileset.replace('gTileset_', ''))
@@ -33,8 +37,10 @@ save(os.path.join(out, 'map.bin'), get(layout['blockdata_filepath']))
 save(os.path.join(out, 'behaviors.h'), get('include/constants/metatile_behaviors.h'))
 for sub, kind, tileset in (('p', 'primary', layout['primary_tileset']), ('s', 'secondary', layout['secondary_tileset'])):
     folder = f'data/tilesets/{kind}/{snake(tileset)}'
-    for f in ('tiles.png', 'metatiles.bin', 'metatile_attributes.bin'):
+    graphics = f'data/tilesets/{kind}/{SHARED_GRAPHICS.get(snake(tileset), snake(tileset))}'
+    save(os.path.join(out, sub, 'tiles.png'), get(f'{graphics}/tiles.png'))
+    for f in ('metatiles.bin', 'metatile_attributes.bin'):
         save(os.path.join(out, sub, f), get(f'{folder}/{f}'))
     for i in range(16):
-        save(os.path.join(out, sub, '%02d.pal' % i), get(f'{folder}/palettes/%02d.pal' % i))
+        save(os.path.join(out, sub, '%02d.pal' % i), get(f'{graphics}/palettes/%02d.pal' % i))
 print(layout['width'], layout['height'])

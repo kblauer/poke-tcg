@@ -64,6 +64,8 @@ function measure(area: HTMLElement) {
   return {
     width: box.width,
     centre: row ? row.top + row.height / 2 - box.top : box.height / 2,
+    rowTop: row ? row.top - box.top : box.height / 2,
+    rowBottom: row ? row.bottom - box.top : box.height / 2,
     left: buttons.length ? Math.min(...buttons.map((r) => r.left)) - box.left : middle,
     right: buttons.length ? Math.max(...buttons.map((r) => r.right)) - box.left : middle,
     ...(() => {
@@ -72,6 +74,13 @@ function measure(area: HTMLElement) {
     })(),
   };
 }
+
+/** Stacked (a phone's setup banner): the gap between each half's band and the button row (px). */
+const STACK_GAP = 6;
+/** A phone's stacked and single banners' text, of the size it would be (the user's: half). */
+const PHONE_TEXT = 0.5;
+/** How much of the band's height its coloured strip is (inset 12% top and bottom, as the side by side bands). */
+const STRIP = 0.76;
 
 /** How much of the way from the Active Pokémon slot to its end of the play area each half's band reaches (the user's: 10% short of it). */
 const BAND_REACH = 0.9;
@@ -110,9 +119,10 @@ interface Half {
  * Sizes and places both halves' text: one size for both (the user's), 70% of the banner's `height` or the largest that
  * fits both halves' room on one line, whichever is smaller; each centred on its half of the play area where it fits,
  * moved towards its outer edge only as far as it must to clear the buttons. When that size would drop below
- * MIN_ONE_LINE (a phone's setup), both wrap onto two lines instead, again one size, as big as fits, each centred in its room.
+ * MIN_ONE_LINE (a phone's setup), both wrap onto two lines instead, again one size, as big as fits, each centred in its room
+ * (`minOneLine` 0: never, the phone's stacked and single banners, whose text is small already).
  */
-function placeHalves(halves: Half[], height: number, text: number) {
+function placeHalves(halves: Half[], height: number, text: number, minOneLine = MIN_ONE_LINE) {
   const one = height * text;
   const holder = (h: Half) => h.text.parentElement!;
   const room = halves.map((h) => Math.max(0, h.to - h.from));
@@ -123,7 +133,7 @@ function placeHalves(halves: Half[], height: number, text: number) {
   }
   const widths = halves.map((h) => h.text.offsetWidth);
   const size = Math.min(one, ...halves.map((_, i) => (one * room[i]!) / Math.max(1, widths[i]!)));
-  if (size >= MIN_ONE_LINE) {
+  if (size >= minOneLine) {
     halves.forEach((h, i) => {
       const width = (widths[i]! * size) / one;
       h.text.style.fontSize = `${size}px`;
@@ -159,6 +169,8 @@ function SplitBanner({
   onGone,
   hold,
   textSize = TEXT,
+  stacked = false,
+  single = false,
 }: {
   left: string;
   right: string;
@@ -169,6 +181,16 @@ function SplitBanner({
   hold?: number;
   /** The text's size, as a share of the band's height (TEXT unless given). */
   textSize?: number;
+  /**
+   * The halves on bands of their own above and below the button row instead of either side of it (the user's: a phone's
+   * setup line, too long to fit beside the buttons), each the play area's width, its text centred, sliding in as before.
+   */
+  stacked?: boolean;
+  /**
+   * One band across the play area at the button row, `left` and `right` on one line in the room left of the buttons, the
+   * whole band sliding in from the right, then fading out (the user's: a phone's turn banner).
+   */
+  single?: boolean;
 }) {
   const band = useRef<HTMLDivElement>(null);
   const leftText = useRef<HTMLSpanElement>(null);
@@ -188,7 +210,40 @@ function SplitBanner({
       if (el && area && leftText.current && rightText.current) {
         const m = measure(area);
         const key = `${m.width}|${m.centre}|${m.left}|${m.right}|${m.activeLeft}|${m.activeRight}`;
-        if (key !== last) {
+        if (key !== last && single) {
+          last = key;
+          el.style.top = `${m.centre - height / 2}px`;
+          if (leftBand.current) Object.assign(leftBand.current.style, { left: '0px', width: `${m.width}px` });
+          if (rightBand.current) rightBand.current.style.display = 'none';
+          rightText.current.parentElement!.style.display = 'none';
+          // Left of the buttons; with none (the CPU's turn), across the whole band, centred.
+          const to = m.left === m.right ? m.width - EDGE : m.left - space.left;
+          placeHalves([{ text: leftText.current, middle: (EDGE + to) / 2, from: EDGE, to }], height, textSize * PHONE_TEXT, 0);
+        } else if (key !== last && stacked) {
+          last = key;
+          // Above and below the buttons: the outer box from the top band's top to the bottom band's bottom.
+          const total = m.rowBottom - m.rowTop + 2 * (STACK_GAP + height);
+          el.style.top = `${m.rowTop - STACK_GAP - height}px`;
+          el.style.height = `${total}px`;
+          const strip = (band: HTMLDivElement | null, top: number) => {
+            if (!band) return;
+            Object.assign(band.style, { left: '0px', width: `${m.width}px`, top: `${top + (height * (1 - STRIP)) / 2}px`, bottom: 'auto', height: `${height * STRIP}px` });
+          };
+          strip(leftBand.current, 0);
+          strip(rightBand.current, total - height);
+          const holder = (text: HTMLElement, top: number) => Object.assign(text.parentElement!.style, { top: `${top}px`, bottom: 'auto', height: `${height}px` });
+          holder(leftText.current, 0);
+          holder(rightText.current, total - height);
+          placeHalves(
+            [
+              { text: leftText.current, middle: m.width / 2, from: EDGE, to: m.width - EDGE },
+              { text: rightText.current, middle: m.width / 2, from: EDGE, to: m.width - EDGE },
+            ],
+            height,
+            textSize * PHONE_TEXT,
+            0,
+          );
+        } else if (key !== last) {
           last = key;
           el.style.top = `${m.centre - height / 2}px`;
           // Each half's own band, from its end of the play area to the Active Pokémon slot, where it fades out (the user's).
@@ -214,12 +269,17 @@ function SplitBanner({
     };
     place();
     return () => cancelAnimationFrame(frame);
-  }, [height, space.left, space.right, left, right, textSize]);
+  }, [height, space.left, space.right, left, right, textSize, stacked, single]);
   // In: the band fades in as each half's text slides in from its own side, the left one from the left edge and the right
   // one from the right (the user's); placed already (the layout effect above), so each starts just past its edge.
   useEffect(() => {
     const el = band.current;
     if (!el) return;
+    if (single) {
+      // The whole band in from the right as it fades in.
+      el.animate(reduced() ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: 'translateX(60%)' }, { opacity: 1, transform: 'none' }], { duration: SLIDE_MS, easing: 'ease-out', fill: 'forwards' });
+      return;
+    }
     el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: SLIDE_MS, easing: 'ease-out', fill: 'forwards' });
     if (reduced()) return;
     for (const [text, side] of [[leftText.current, -1], [rightText.current, 1]] as const) {
@@ -261,7 +321,7 @@ function SplitBanner({
       <div ref={rightBand} className="absolute inset-y-[12%]" style={{ background: halfBand(mine, 'left') }} />
       <div className="absolute inset-y-0 flex items-center justify-center text-center">
         <span ref={leftText} className={text}>
-          {left}
+          {single ? `${left} · ${right}` : left}
         </span>
       </div>
       <div className="absolute inset-y-0 flex items-center justify-center text-center">
@@ -275,18 +335,21 @@ function SplitBanner({
 
 /**
  * The setup line on the split banner (SplitBanner): "You're going first." (or second) left of Start battle and Reset cards,
- * "Place your Basic Pokémon." right of them (the user's). It comes in (each half from its own side) and stays until
+ * "Place your Basic Pokémon." right of them (the user's; on a phone above and below them instead, `stacked`). It comes in (each half from its own side) and stays until
  * `leaving` (Start battle), then fades away and `onGone` is called. Board puts it over the play area (its overlay).
  */
 export function SetupBanner({ first, leaving, onGone, compact }: { first: boolean; leaving: boolean; onGone: () => void; compact: boolean }) {
-  return <SplitBanner left={first ? "You're going first." : "You're going second."} right="Place your Basic Pokémon." mine={first} compact={compact} leaving={leaving} onGone={onGone} textSize={SETUP_TEXT} />;
+  // On a phone, above and below the buttons (the user's: beside them, its text was squeezed small).
+  return <SplitBanner left={first ? "You're going first." : "You're going second."} right="Place your Basic Pokémon." mine={first} compact={compact} leaving={leaving} onGone={onGone} textSize={SETUP_TEXT} stacked={compact} />;
 }
 
 /**
  * "Your Turn" or "Opponent's Turn" left of End turn and the turn count right of it, on the split banner (SplitBanner;
  * the user's), as TCG Pocket announces a turn: each half slides in from its own side, it stays a moment, then fades away
- * (TURN_BANNER_MS). Board puts it over the play area (its overlay), on both layouts.
+ * (TURN_BANNER_MS). Board puts it over the play area (its overlay), on both layouts; on a phone one band across the button
+ * row, its text on one line left of the buttons, sliding in from the right (`single`).
  */
 export function TurnBanner({ turn, compact }: { turn: NewTurn; compact: boolean }) {
-  return <SplitBanner left={turn.mine ? 'Your Turn' : "Opponent's Turn"} right={`Turn ${turn.turn}`} mine={turn.mine} compact={compact} hold={HOLD_MS} />;
+  // On a phone one band, in from the right (the user's).
+  return <SplitBanner left={turn.mine ? 'Your Turn' : "Opponent's Turn"} right={`Turn ${turn.turn}`} mine={turn.mine} compact={compact} hold={HOLD_MS} single={compact} />;
 }

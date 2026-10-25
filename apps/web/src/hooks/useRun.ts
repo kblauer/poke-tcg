@@ -66,7 +66,7 @@ function useRunControl() {
         }, wait);
       } else if (!spottedAt.current) setSpotted(null);
       // Escaped from the battle (an Escape Rope): back to the run.
-      else if (run?.gameId && !next.gameId) navigate({ to: '/' });
+      else if (run?.gameId && !next.gameId) navigate({ to: '/badge' });
     },
     onError: () => {
       spottedAt.current = null;

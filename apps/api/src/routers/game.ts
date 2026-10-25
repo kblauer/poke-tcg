@@ -8,6 +8,7 @@ import { loadCardLibrary } from '../cards.js';
 import { actionRows, asJson, newSeed } from '../games.js';
 import { cardPool } from '../pool.js';
 import { loadOwnRun, settleBattle } from '../runs.js';
+import { loadOwnTower, settleTowerBattle, towerUnderway } from '../towers.js';
 import { PLAYER_TEST_DECK, expandDeck } from '../test-decks.js';
 import type { AuthUser } from '../auth.js';
 import { protectedProcedure, router } from '../trpc.js';
@@ -101,9 +102,10 @@ async function startGame(user: AuthUser, playerDeck: string[], { difficulty, opp
 export const gameRouter = router({
   /**
    * Starts a single battle with one of the player's decks, which must follow the deck rules and hold only unlocked
-   * cards, or with the test deck (`deckId` null).
+   * cards, or with the test deck (`deckId` null). Not during a Battle Tower challenge that isn't saved (towerUnderway).
    */
   create: protectedProcedure.input(singleBattleInput).mutation(async ({ ctx, input }) => {
+    await towerUnderway(ctx.user.id);
     const deck = input.deckId === null ? null : await playableDeck(input.deckId, ctx.user.id);
     const game = await startGame(ctx.user, deck?.cards ?? expandDeck(PLAYER_TEST_DECK), input, deck?.cosmetics ?? null);
     if (input.deckId !== null) await markPlayed(ctx.user.id, input.deckId);
@@ -111,7 +113,8 @@ export const gameRouter = router({
   }),
 
   /**
-   * The player's filtered view of the game – never the raw state – the opponent's name, for a run's battle the run, and
+   * The player's filtered view of the game – never the raw state – the opponent's name, for a run's battle the run (a
+   * Battle Tower battle's challenge), and
    * its deck's cosmetics (each null, or the whole thing, for the account's).
    */
   view: protectedProcedure.input(gameIdInput).query(async ({ ctx, input }) => {
@@ -119,7 +122,7 @@ export const gameRouter = router({
     const encounter = game.runId ? (await loadOwnRun(game.runId, ctx.user.id)).state.encounter : null;
     const runOpponent = encounter && 'trainer' in encounter && 'gameId' in encounter && encounter.gameId === game.id ? encounter.trainer : null;
     const opponent = runOpponent ?? game.state.opponentName ?? null;
-    return { id: game.id, status: game.status, runId: game.runId, opponent, cosmetics: game.cosmetics as DeckCosmetics | null, view: getPlayerView(game.state, HUMAN_ID) };
+    return { id: game.id, status: game.status, runId: game.runId, towerId: game.towerId, opponent, cosmetics: game.cosmetics as DeckCosmetics | null, view: getPlayerView(game.state, HUMAN_ID) };
   }),
 
   /**
@@ -157,6 +160,8 @@ export const gameRouter = router({
     if (!saved) throw new TRPCError({ code: 'CONFLICT', message: 'Game state changed, refresh and retry' });
     // A run's battle that just ended: the run records the result now (a reward, or 1 HP lost).
     if (next.phase === 'finished' && game.runId) await settleBattle(await loadOwnRun(game.runId, ctx.user.id));
+    // A Battle Tower battle's: the challenge goes up a floor, or ends.
+    if (next.phase === 'finished' && game.towerId) await settleTowerBattle(await loadOwnTower(game.towerId, ctx.user.id));
 
     // Each of the CPU's moves comes with the card it played or used and the Pokémon it changed, for the board to show.
     const highlights = moveHighlights(result.state, CPU_ID, cpu.actions, cpu.states);

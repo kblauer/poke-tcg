@@ -21,6 +21,8 @@ export const CRAFT_COST: Record<Rarity, number> = { common: 100, uncommon: 100, 
 
 /** Price of a pack, in banked ₱. */
 export const PACK_PRICE = 300;
+/** Price of a pack in the Battle Tower's BP Shop, in Battle Points (a placeholder, the user's: packs are its stock for now). */
+export const BP_PACK_PRICE = 1;
 
 /** The most packs bought and opened at once. */
 export const MAX_PACKS_AT_ONCE = 50;

@@ -7,6 +7,8 @@ import { useEffect, useState } from 'react';
 import { DeckSummary, LOCKED_TAG, type SavedDeck } from '../components/DeckList';
 import { useTRPC } from '../lib/trpc';
 import { PageHeader } from '../components/PageHeader';
+import { ReturnToHome } from '../components/ReturnToHome';
+import { usePlayRedirect } from '../hooks/useTower';
 import { PAGE_WIDTH } from '../utils/layout';
 
 /** localStorage key for the last choices, so they're still picked when you come back after a battle. */
@@ -50,7 +52,7 @@ const choice = (selected: boolean) =>
   `rounded-lg px-3 py-2 text-left text-sm ring-1 transition ${selected ? 'bg-slate-700 ring-yellow-300' : 'bg-slate-900 ring-slate-700 hover:ring-slate-500'}`;
 
 /**
- * Single battles outside runs (`/battle`): pick one of your decks (or the fixed test deck), a random trainer
+ * Training (`/battle`, from the Play tab's menu), single battles outside runs: pick one of your decks (or the fixed test deck), a random trainer
  * or a boss to face, and how hard the CPU plays. The deck for the next battle is shown large at the top,
  * with links to edit it or build a new one on the Collection tab. The choices are remembered between battles.
  */
@@ -68,6 +70,8 @@ export function SingleBattlePage() {
     }
   }, [prefs]);
 
+  // A Battle Tower challenge under way keeps the Play tab on it.
+  usePlayRedirect();
   const create = useMutation(trpc.game.create.mutationOptions({ onSuccess: ({ id }) => navigate({ to: '/game/$gameId', params: { gameId: id } }) }));
 
   if (decks.error) return <p className={`${PAGE_WIDTH} text-red-400`}>{decks.error.message}</p>;
@@ -183,6 +187,8 @@ export function SingleBattlePage() {
             </button>
             {create.error && <p className="text-sm text-red-400">{create.error.message}</p>}
           </div>
+          {/* Back to the Play tab's menu of modes (the user's). */}
+          <ReturnToHome />
         </section>
       </div>
     </div>

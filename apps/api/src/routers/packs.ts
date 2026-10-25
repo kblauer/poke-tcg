@@ -1,4 +1,4 @@
-import { CRAFT_COST, GENERATIONS, openPack, PACK_GENERATIONS, PACK_PRICE, PACK_SETS, rngFrom, STARDUST_PER_CARD, type PackSet } from '@poke-tcg/campaign';
+import { BP_PACK_PRICE, CRAFT_COST, GENERATIONS, openPack, PACK_GENERATIONS, PACK_PRICE, PACK_SETS, rngFrom, STARDUST_PER_CARD, type PackSet } from '@poke-tcg/campaign';
 import { prisma, type Card } from '@poke-tcg/db';
 import { craftCardInput, debugOpenPackInput, openPackInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
@@ -92,24 +92,29 @@ function packSet(setId: string) {
 }
 
 /**
- * Buys and opens `count` packs of the set with ₱ from the bank: their cards in the order they're revealed (pack
+ * Buys and opens `count` packs of the set with ₱ from the bank, or (`currency` bp) Battle Points in the BP Shop: their cards in the order they're revealed (pack
  * after pack, each with its `pack` number),
- * each unlocked (`isNew` if it wasn't before; a holo Energy adds a copy), the bank left, and the Stardust earned
+ * each unlocked (`isNew` if it wasn't before; a holo Energy adds a copy), the bank and BP left, and the Stardust earned
  * (STARDUST_PER_CARD, for the cards that weren't new) and now held.
  * The set's packs must be unlocked (PackUnlock), except with the debug cheats.
  * `force`: every pack's Energy is a holo Energy, or every pack is all rares (the debug cheats, `debugOpen`).
  */
-async function openPacks(userId: string, input: { setId: string; count: number }, force?: { forceHoloEnergy?: boolean; forceAllRares?: boolean }) {
+async function openPacks(userId: string, input: { setId: string; count: number; currency?: 'bank' | 'bp' }, force?: { forceHoloEnergy?: boolean; forceAllRares?: boolean }) {
   if (!force && !(await unlockedPacks(userId)).has(input.setId)) throw new TRPCError({ code: 'BAD_REQUEST', message: "You haven't unlocked these packs yet" });
   const { set, cards } = await packSet(input.setId);
   const rng = rngFrom(Math.floor(Math.random() * 2 ** 31));
   // Every pack's cards in reveal order, pack after pack, each tagged with its pack (from 0).
   const opened = Array.from({ length: input.count }, (_, pack) => openPack(set, rng, force).map((c) => ({ ...c, pack })));
   const pack = opened.flat();
-  const price = PACK_PRICE * input.count;
+  const bp = input.currency === 'bp';
+  const price = (bp ? BP_PACK_PRICE : PACK_PRICE) * input.count;
   return prisma.$transaction(async (tx) => {
-    const { count } = await tx.user.updateMany({ where: { id: userId, bank: { gte: price } }, data: { bank: { decrement: price } } });
-    if (!count) throw new TRPCError({ code: 'BAD_REQUEST', message: `${input.count === 1 ? 'A pack costs' : `${input.count} packs cost`} ₱${price}: not enough in the bank` });
+    // Taken only if there's enough (one atomic update, so two buys at once can't both spend the last of it).
+    const { count } = bp
+      ? await tx.user.updateMany({ where: { id: userId, bp: { gte: price } }, data: { bp: { decrement: price } } })
+      : await tx.user.updateMany({ where: { id: userId, bank: { gte: price } }, data: { bank: { decrement: price } } });
+    const cost = `${input.count === 1 ? 'A pack costs' : `${input.count} packs cost`}`;
+    if (!count) throw new TRPCError({ code: 'BAD_REQUEST', message: bp ? `${cost} ${price} BP: not enough Battle Points` : `${cost} ₱${price}: not enough in the bank` });
     const before = await unlockedIds(userId, tx);
     // Each holo pulled (holo Energy too) adds a copy; other cards are unlocked once.
     await unlockCards(userId, pack.map((c) => c.cardId), tx);
@@ -122,8 +127,8 @@ async function openPacks(userId: string, input: { setId: string; count: number }
     });
     // Stardust only for cards already obtained (agreed with the user): a new unlock gives none, a repeat gives some by rarity.
     const stardustEarned = shown.reduce((n, c) => n + (c.isNew ? 0 : STARDUST_PER_CARD[c.slot]), 0);
-    const { bank, stardust } = await tx.user.update({ where: { id: userId }, data: { stardust: { increment: stardustEarned } }, select: { bank: true, stardust: true } });
-    return { bank, stardust, stardustEarned, cards: shown };
+    const left = await tx.user.update({ where: { id: userId }, data: { stardust: { increment: stardustEarned } }, select: { bank: true, bp: true, stardust: true } });
+    return { ...left, stardustEarned, cards: shown };
   });
 }
 
