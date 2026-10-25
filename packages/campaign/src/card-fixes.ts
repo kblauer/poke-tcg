@@ -74,8 +74,8 @@ const BABIES = new Set(['basep-31', 'basep-35', 'basep-36', 'neo1-12', 'neo1-20'
 /** Gym Heroes evolutions TCGdex leaves out, by name (without the owner). */
 const TCGDEX_MISSING_EVOLVES_FROM: Record<string, string> = { "Lt. Surge's Magneton": 'Magnemite' };
 
-/** Other cards whose "Evolves from" TCGdex leaves out, by id (Expedition's non-holo Arbok and Blastoise; also fixed in the seed). */
-const MISSING_EVOLVES_FROM_BY_ID: Record<string, string> = { 'ecard1-35': 'Ekans', 'ecard1-37': 'Wartortle' };
+/** Other cards whose "Evolves from" TCGdex leaves out, by id (Expedition's non-holo Arbok and Blastoise, Unleashed Floatzel; also fixed in the seed). */
+const MISSING_EVOLVES_FROM_BY_ID: Record<string, string> = { 'ecard1-35': 'Ekans', 'ecard1-37': 'Wartortle', 'hgss2-16': 'Buizel' };
 
 /** The owner in an owner's Pokémon's name (Gym Heroes, Gym Challenge): "Brock's Rhydon" → "Brock's ". */
 const OWNER = /^((?:Blaine|Brock|Erika|Lt\. Surge|Misty|Sabrina|Giovanni|Koga|Rocket)'s )/;

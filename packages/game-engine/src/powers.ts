@@ -719,6 +719,10 @@ export interface PowerEffect {
   sleepingFace?: boolean;
   /** Green Shield: its player's Grass Pokémon have no Weakness (attacks.ts). */
   greenShield?: boolean;
+  /** Psychic Float: its player's Active Pokémon with a Psychic Energy attached retreats for free (retreatBodies). */
+  psychicFloat?: boolean;
+  /** Berserk: with damage counters on it, its attacks do 60 more to the Defending Pokémon (attacks.ts). */
+  berserk?: boolean;
 }
 
 /** Wise Aura, Overpowering Fang and Intimidating Ring: an Active Pokémon's aura stopping `pokemon`'s power, or null. */
@@ -1099,7 +1103,9 @@ export function retreatBodies(pokemon: InPlayPokemon, cards: CardLibrary, sides:
   const moonlit = [owner.active, ...owner.bench].some((p) => !!p && !!pokemonPower(p)?.moonlightVeil && powerActive(p, cards, sides)) && evolvedFromName(cards, pokemon, 'Eevee');
   // Rainbow Float: free for its player's Pokémon of a type of a basic Energy card on a working Flygon.
   const floating = [owner.active, ...owner.bench].some((p) => !!p && !!pokemonPower(p)?.rainbowFloat && powerActive(p, cards, sides) && p.energy.some((e) => !e.provides && isBasicEnergy(lookupCard(cards, e.defId)) && hasType(d, (lookupCard(cards, e.defId) as { energyType: EnergyType }).energyType)));
-  if (bonded || lifted || reactive || magnetized || moonlit || floating) return -99;
+  // Psychic Float: free for its player's Active Pokémon with a Psychic Energy attached.
+  const psychicFloat = owner.active === pokemon && energyPool(pokemon, cards).some((e) => counts(e, 'psychic')) && [owner.active, ...owner.bench].some((p) => !!p && !!pokemonPower(p)?.psychicFloat && powerActive(p, cards, sides));
+  if (bonded || lifted || reactive || magnetized || moonlit || floating || psychicFloat) return -99;
   // Unown Q's QUICK: attached as a Pokémon Tool, 1 less.
   const quick = (pokemon.attached ?? []).some((a) => a.equip && lookupCard(cards, a.card.defId).name === 'Unown Q') ? 1 : 0;
   // Sticky: 1 more for each working Ariados in play, either player's, for any Pokémon but one with its name.

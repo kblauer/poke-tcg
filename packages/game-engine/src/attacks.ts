@@ -334,7 +334,7 @@ export interface AttackContext {
    * Damages the Defending Pokémon (weakness and resistance unless turned off; `resistance: false` keeps Weakness, as
    * Hook Shot does). `swift`: nothing on the Defending Pokémon changes the damage (Swift). Returns the damage done.
    */
-  hit: (amount: number, opts?: { weakness?: boolean; resistance?: boolean; swift?: boolean; keepWeakness?: boolean }) => number;
+  hit: (amount: number, opts?: { weakness?: boolean; resistance?: boolean; swift?: boolean; keepWeakness?: boolean; keepResistance?: boolean }) => number;
   /** Damages the attacker (no weakness or resistance). */
   selfDamage: (amount: number) => void;
   /** Damages every benched Pokémon of `player` (no weakness or resistance). */
@@ -1589,7 +1589,7 @@ function createContext(
   };
 
   /** ctx.hit's damage to the Defending Pokémon, each change to it noted while tracing (traceDamage). */
-  const hitDefender = (amount: number, { weakness = true, resistance = true, swift = false, keepWeakness = false }: { weakness?: boolean; resistance?: boolean; swift?: boolean; keepWeakness?: boolean } = {}): number => {
+  const hitDefender = (amount: number, { weakness = true, resistance = true, swift = false, keepWeakness = false, keepResistance = false }: { weakness?: boolean; resistance?: boolean; swift?: boolean; keepWeakness?: boolean; keepResistance?: boolean } = {}): number => {
     const defender = opp.active!;
     const defenderDef = def(state.cards, defender);
     if (amount <= 0) return 0;
@@ -1700,7 +1700,7 @@ function createContext(
     // Sunny Day: 10 more for Grass and Fire Pokémon. Green Dignity: 10 more for each Grass Pokémon on the Bench while behind on Prize cards. No Guard: 60 more.
     const sunny = (hasType(attackerDef, 'grass') || hasType(attackerDef, 'fire')) && team.some((q) => q && passive(q)?.sunnyDay) ? 10 : 0;
     const dignity = passive(attacker)?.greenDignity && me.prizes.length > opp.prizes.length ? 10 * me.bench.filter((q) => q && hasType(def(state.cards, q), 'grass')).length : 0;
-    const noGuard = (passive(attacker)?.noGuard ? 60 : 0) + (passive(attacker)?.revengeSeed && me.grassKnockedOutTurn === turn - 1 ? 60 : 0) + (attacker.effects?.cheerfulVoice === turn ? 60 : 0) + (passive(attacker)?.overgrow && inPlayDef(state.cards, attacker).hp - attacker.damage <= 60 ? 30 : 0) + (passive(attacker)?.compoundEyes && !!opp.active && !!def(state.cards, opp.active).power && !!pokemonPower(opp.active)?.body ? 30 : 0) + (passive(attacker)?.fireFormation ? 10 * me.bench.filter((q) => q && hasType(def(state.cards, q), 'fire')).length : 0) + (passive(attacker)?.competitiveness && me.supporterTurn !== turn ? 30 : 0) + (toolOf(state.cards, attacker)?.name === 'Expert Belt' ? 20 : 0);
+    const noGuard = (passive(attacker)?.noGuard ? 60 : 0) + (passive(attacker)?.revengeSeed && me.grassKnockedOutTurn === turn - 1 ? 60 : 0) + (attacker.effects?.cheerfulVoice === turn ? 60 : 0) + (passive(attacker)?.overgrow && inPlayDef(state.cards, attacker).hp - attacker.damage <= 60 ? 30 : 0) + (passive(attacker)?.compoundEyes && !!opp.active && !!def(state.cards, opp.active).power && !!pokemonPower(opp.active)?.body ? 30 : 0) + (passive(attacker)?.fireFormation ? 10 * me.bench.filter((q) => q && hasType(def(state.cards, q), 'fire')).length : 0) + (passive(attacker)?.competitiveness && me.supporterTurn !== turn ? 30 : 0) + (toolOf(state.cards, attacker)?.name === 'Expert Belt' ? 20 : 0) + (passive(attacker)?.berserk && attacker.damage > 0 ? 60 : 0);
     const buck = me.supporterTurn === turn && me.supporterUid && me.discard.concat(me.hand).some((c) => c.uid === me.supporterUid && lookupCard(state.cards, c.defId).name === "Buck's Training") ? 10 : 0;
     const boost = (low && attackerDef.hp - attacker.damage <= low.hpLeft ? low.more : 0) + aura + pivot + (passive(attacker)?.attackMore ?? 0) + rage + reversal + conditional + reactor + laser + allies + dna + scale + fury + rivalry + revenge + enthused + buck + sunny + dignity + noGuard;
     if (amount > 0 && boost) {
@@ -1761,7 +1761,8 @@ function createContext(
     if (weakness && (!swift || keepWeakness)) {
       // Weakness, then Resistance, noted apart.
       const weak = applyWeaknessResistance(amount, typesOf(attackerDef), defenderDef, defender.effects, { ...rules, resistance: false });
-      damage = applyWeaknessResistance(amount, typesOf(attackerDef), defenderDef, defender.effects, swift ? { ...rules, resistance: false } : rules);
+      // Power Claw (`keepResistance`): Resistance too.
+      damage = applyWeaknessResistance(amount, typesOf(attackerDef), defenderDef, defender.effects, swift && !keepResistance ? { ...rules, resistance: false } : rules);
       noted(`Weakness (${rules.doubleWeakness ? '×2' : weaknessLabel(defenderDef.weakness)})`, amount, weak);
       noted('Resistance', weak, damage);
     }

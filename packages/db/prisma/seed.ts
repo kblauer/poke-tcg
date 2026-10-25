@@ -101,6 +101,7 @@ const TCGDEX_FIXES: Record<string, Partial<TcgdexCard>> = {
   ...Object.fromEntries(['ecard1-43', 'ecard1-58', 'ecard1-75', 'ecard1-107'].map((id) => [id, { weaknesses: null }])),
   'ecard1-35': { resistances: null, evolveFrom: 'Ekans' },
   'ecard1-37': { evolveFrom: 'Wartortle' },
+  'hgss2-16': { evolveFrom: 'Buizel' },
   'ecard1-57': {
     attacks: [
       { name: 'Mislead', cost: ['Fire', 'Colorless'], damage: null, effect: 'Flip 2 coins. If either of them is heads, the Defending Pokémon is now Confused.' },

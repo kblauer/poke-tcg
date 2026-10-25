@@ -93,6 +93,22 @@ export function discardOwnEnergy(ctx: AttackContext, count: number, source: stri
 }
 
 /**
+ * `count` Energy cards attached to the attacking Pokémon (only those of `types`, when given) back into the player's hand:
+ * picked by its player once the attack is over when the cards that fit differ (the same-card rule, agreed).
+ */
+export function returnOwnEnergy(ctx: AttackContext, count: number, source: string, types?: EnergyType[]) {
+  const fit = energyCards(ctx.attacker).filter((e) => !types || types.some((t) => energyCardOf(ctx.state.cards, e, t)));
+  if (!fit.length) return 0;
+  if (fit.length <= count || sameCards(ctx.state.cards, fit)) {
+    const back = fit.slice(0, count);
+    ctx.attacker.energy = ctx.attacker.energy.filter((e) => !back.includes(e));
+    ctx.me.hand.push(...back.map(({ converted: _c, windless: _w, ...c }) => c));
+    ctx.log(`Returned ${back.map((e) => lookupCard(ctx.state.cards, e.defId).name).join(', ')} to the hand.`);
+  } else askAfter(ctx, { kind: 'discardAttached', source, target: 'active', count, toHand: true, ...(types && { types }) });
+  return Math.min(count, fit.length);
+}
+
+/**
  * `count` Energy cards off one of the opponent's Pokémon (the Defending one unless `target` says), discarded (or `toBottom`
  * of their deck, or `toLostZone`; `onlySpecial`: Special Energy cards only; `types`: Energy cards of these types only): picked
  * by the attacking player once the attack is over when they differ (the same-card rule, agreed), otherwise the first ones.

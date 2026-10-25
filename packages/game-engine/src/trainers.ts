@@ -519,6 +519,8 @@ export type PendingChoice = {
       kind: 'pickFromDiscard';
       /** The card that started it, still being played: not an option. */
       excludeUid?: string;
+      /** Only a Pokémon or only a Trainer card (Good Rod). */
+      filter?: 'pokemon' | 'trainer';
     }
   | {
       /** Put up to `count` Pokémon cards from the player's discard pile into their hand, one at a time (Reel In). */
@@ -800,7 +802,7 @@ export type PendingChoice = {
   | {
       /** A "may" as a card is played (Energy Recharge, Flame Vapor, Streaming Mantle, Retro Energy): yes (count 0) or no (count 1). */
       kind: 'mayUse';
-      power: 'energyRecharge' | 'flameVapor' | 'streamingMantle' | 'retroEnergy' | 'belt' | 'healingShower' | 'legendaryAscent' | 'froth' | 'dragonBoost' | 'lightningBurst' | 'evoFlame' | 'evoThunder' | 'evoSwirl' | 'excavate' | 'crushChance' | 'crimsonRay' | 'yellowRay' | 'blueRay' | 'earthFissure' | 'sharpEye' | 'freezeUp' | 'evolutionaryVitality' | 'evolutionaryToxic' | 'flameDash' | 'aquaRecovery' | 'sereneGrace' | 'freezingScreech' | 'darknessShade' | 'flameCharge' | 'sheetLightning' | 'primalSwirl' | 'dragonPulse' | 'modeCrash' | 'curseBreath' | 'timeWalk' | 'setUp' | 'psychicBind' | 'unownBang' | 'junk' | 'castOffShell' | 'shootPoison' | 'ironShell' | 'emperorAura' | 'blazeDance' | 'sunshineSong' | 'evolutionaryGas' | 'healingBreath' | 'reverseTime' | 'letLoose' | 'flashBite' | 'brightLook' | 'disruptingSpy' | 'darknessSend' | 'dowsingCode' | 'doubleFall' | 'unownReturn' | 'unownFlash' | 'blissfulNurse' | 'oceanGrow';
+      power: 'energyRecharge' | 'flameVapor' | 'streamingMantle' | 'retroEnergy' | 'belt' | 'healingShower' | 'legendaryAscent' | 'froth' | 'dragonBoost' | 'lightningBurst' | 'evoFlame' | 'evoThunder' | 'evoSwirl' | 'excavate' | 'crushChance' | 'crimsonRay' | 'yellowRay' | 'blueRay' | 'earthFissure' | 'sharpEye' | 'freezeUp' | 'evolutionaryVitality' | 'evolutionaryToxic' | 'flameDash' | 'aquaRecovery' | 'sereneGrace' | 'freezingScreech' | 'darknessShade' | 'flameCharge' | 'sheetLightning' | 'primalSwirl' | 'dragonPulse' | 'modeCrash' | 'curseBreath' | 'timeWalk' | 'setUp' | 'psychicBind' | 'unownBang' | 'junk' | 'castOffShell' | 'shootPoison' | 'ironShell' | 'emperorAura' | 'blazeDance' | 'sunshineSong' | 'evolutionaryGas' | 'healingBreath' | 'reverseTime' | 'letLoose' | 'flashBite' | 'brightLook' | 'disruptingSpy' | 'darknessSend' | 'dowsingCode' | 'doubleFall' | 'unownReturn' | 'unownFlash' | 'blissfulNurse' | 'oceanGrow' | 'stardustSong' | 'celebrationWind' | 'hotSnort';
       /** The Pokémon it's about. */
       target: Target;
     }
@@ -1708,7 +1710,7 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
     return { kind: 'ownPokemon', purpose: 'attach', prompt: `${choice.source}: click the Pokémon to evolve into ${cardName(state, choice.card)}`, options: sporeTargets(state, choice, choice.card) };
   }
   if (choice.kind === 'pickFromDiscard') {
-    const options = discardOptions(state.players[choice.player]!, choice);
+    const options = discardOptions(state.cards, state.players[choice.player]!, choice);
     return { kind: 'pickFromDiscard', prompt: `${choice.source}: put a card from your discard pile on top of your deck`, options };
   }
   const player = state.players[choice.player]!;
@@ -2170,7 +2172,8 @@ const deckFilter = (cards: CardLibrary, choice: Extract<PendingChoice, { kind: '
   return choice.filter === 'any' || (d.kind === 'pokemon' && !d.trainerText);
 };
 
-const discardOptions = (player: PlayerState, choice: Extract<PendingChoice, { kind: 'pickFromDiscard' }>) => player.discard.filter((c) => c.uid !== choice.excludeUid);
+const discardOptions = (cards: CardLibrary, player: PlayerState, choice: Extract<PendingChoice, { kind: 'pickFromDiscard' }>) =>
+  player.discard.filter((c) => c.uid !== choice.excludeUid && (!choice.filter || (choice.filter === 'pokemon' ? isPokemonCard(lookupCard(cards, c.defId)) : isTrainerCard(lookupCard(cards, c.defId)))));
 
 /** Whether a card in the opponent's hand can be chosen (Sneak Attack: a Trainer card; Carry Off: a Pokémon card; Sudden Swipe: an Energy card). */
 const oppHandFits = (cards: CardLibrary, choice: Extract<PendingChoice, { kind: 'oppHandTrainer' }>, c: CardInstance) => {
@@ -2398,6 +2401,9 @@ function skyridgeView(state: GameState, choice: SkyridgeChoice): PendingChoiceVi
         darknessSend: "flip 3 coins? For each heads, the top card of your opponent's deck goes to the Lost Zone",
         dowsingCode: 'shuffle up to 2 Pokémon Tool cards from your discard pile into your deck?',
         unownReturn: 'return all Energy cards attached to one of your Pokémon to your hand?',
+        stardustSong: 'flip 3 coins? For each heads, a Psychic Energy card from your discard pile is attached to Jirachi',
+        celebrationWind: 'move any Energy cards among your Pokémon?',
+        hotSnort: "flip a coin? Heads, your opponent's Active Pokémon is now Burned",
         unownFlash: 'look at the top 5 cards of your deck and put them back in any order?',
         blissfulNurse: 'remove all damage counters from your Pokémon (discarding the Energy of those that had any)?',
         oceanGrow: 'look at the top 5 cards of your deck, attach the Energy cards to Lugia LEGEND and discard the rest?',
@@ -2687,6 +2693,16 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
         }
         if (opp.deck.length) (state.queuedChoices ??= []).push({ player: opp.id, source: choice.source, kind: 'drawCount', max: 4 });
         return me.deck.length ? again({ player: me.id, source: choice.source, kind: 'drawCount', max: 4 }) : null;
+      }
+      if (choice.power === 'stardustSong') {
+        if (discardsLocked([me, opp], state.cards)) return addLog(state, 'Allergic Pollen: cards in discard piles are not affected.', me.id), null;
+        const heads = [0, 1, 2].filter(() => flipCoin(state, choice.source, me.id)).length;
+        return heads && me.discard.some((c) => isBasicEnergyOf(state.cards, c, 'psychic')) ? again({ player: me.id, source: choice.source, kind: 'attachFromDiscard', count: heads, target: choice.target, type: 'psychic' }) : null;
+      }
+      if (choice.power === 'celebrationWind') return [me.active, ...me.bench].filter((q) => q).length > 1 ? again({ player: me.id, source: choice.source, kind: 'deltaSwitch', exclude: '', anyEnergy: true }) : null;
+      if (choice.power === 'hotSnort') {
+        if (opp.active && flipCoin(state, choice.source, me.id)) afflictBetweenTurns(state, opp.id, opp.active, 'burned');
+        return null;
       }
       if (choice.power === 'unownReturn') return [me.active, ...me.bench].some((q) => q?.energy.some((e) => !e.provides)) ? again({ player: me.id, source: choice.source, kind: 'returnEnergy' }) : null;
       if (choice.power === 'unownFlash') return me.deck.length ? again({ player: me.id, source: choice.source, kind: 'arrangeTop', count: Math.min(5, me.deck.length) }) : null;
@@ -4037,7 +4053,7 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
       return null;
     }
     const returnable = (e: CardInstance) => (choice.holonReturn ? !e.provides && e.uid !== choice.holonReturn : !e.provides && isBasicEnergy(lookupCard(state.cards, e.defId)));
-    const energy = p.energy.find((e) => e.uid === answer.cardUid && (!choice.toHand || returnable(e)) && (choice.toHand || discardFits(state.cards, choice, e)));
+    const energy = p.energy.find((e) => e.uid === answer.cardUid && (!choice.toHand || returnable(e)) && discardFits(state.cards, choice, e));
     if (!energy) return choice.toHand ? `Choose a${choice.holonReturn ? 'n' : ' basic'} Energy card` : 'Choose an Energy card to discard';
     p.energy = p.energy.filter((e) => e !== energy);
     if (choice.toHand) {
@@ -4643,7 +4659,7 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     // Answered in the engine, which then plays the card (or doesn't).
     return 'Flip a coin, or let it be played';
   } else if (choice.kind === 'pickFromDiscard') {
-    const options = discardOptions(me, choice);
+    const options = discardOptions(state.cards, me, choice);
     const picked = options.find((c) => c.uid === answer.cardUid);
     if (!picked && options.length > 0) return 'Choose a card from your discard pile';
     if (picked) {
