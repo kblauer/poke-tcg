@@ -113,7 +113,7 @@ const GridCell = memo(function GridCell({
         ) : (
           <div className="h-full w-full bg-slate-800 p-1 text-xs">{c.name}</div>
         )}
-        {border && c.imageUrl && <FlairBorder border={border} cardId={c.id} img={`${c.imageUrl}/low.webp`} pokemon={c.kind === 'POKEMON'} />}
+        {border && c.imageUrl && <FlairBorder border={border} cardId={c.id} />}
         {c.limitedCopies && !locked && (
           // How many were pulled: the most a deck holds.
           <span className="absolute inset-x-1 bottom-1 truncate rounded bg-fuchsia-600/90 px-1 text-center text-[10px] font-bold text-white shadow" title={`${copies} pulled: a deck holds no more`}>
