@@ -34,7 +34,7 @@ function statusBadges(p: InPlayPokemon, cards?: CardLibrary): { label: string; t
 }
 import { useFlair, usePattern } from '../hooks/useFlair';
 import { useTouchHold } from '../hooks/useTouchHold';
-import { cardEra, holoAttributes } from '../utils/holo';
+import { holoAttributes } from '../utils/holo';
 import { EnergyIcon } from './EnergyIcon';
 import { GoldBorder } from './GoldBorder';
 import { HoloCard, type HoloMotion } from './HoloCard';
@@ -124,7 +124,7 @@ export function Card({
       ) : (
         <div className={`${typeColor(def)} h-full w-full p-2 text-xs font-semibold`}>{def.name}</div>
       )}
-      {goldBorder && def.imageUrl && <GoldBorder era={cardEra(def.id)} />}
+      {goldBorder && def.imageUrl && <GoldBorder cardId={def.id} img={`${def.imageUrl}/${highRes ? 'high' : 'low'}.webp`} pokemon={def.kind === 'pokemon'} />}
       {inPlay && def.kind === 'pokemon' && inPlay.damage > 0 && (
         <span className="absolute right-1 top-1 rounded-full bg-red-600 px-1.5 text-xs font-bold text-white shadow">
           {def.hp - inPlay.damage}/{def.hp}

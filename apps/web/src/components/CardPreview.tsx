@@ -1,7 +1,6 @@
 import { useLayoutEffect, useRef } from 'react';
 import { getPreviewWidth, previewPosition, zoomPreview } from '../utils/preview';
 import { useFlair } from '../hooks/useFlair';
-import { cardEra } from '../utils/holo';
 import type { Preview } from './PreviewContext';
 import { CardImage } from './CardImage';
 import { GoldBorder } from './GoldBorder';
@@ -56,7 +55,7 @@ export function CardPreview({ def, x, y, scrollZoom = true, from, mine = true, o
       {def.imageUrl ? (
         <div className="relative overflow-hidden rounded-xl">
           <CardImage src={`${def.imageUrl}/high.webp`} alt="" className="aspect-[63/88] w-full rounded-xl shadow-2xl ring-1 ring-black/40" />
-          {goldBorder && <GoldBorder era={cardEra(def.id)} />}
+          {goldBorder && <GoldBorder cardId={def.id} img={`${def.imageUrl}/high.webp`} pokemon={def.kind === 'pokemon'} />}
         </div>
       ) : (
         <div className="aspect-[63/88] w-full rounded-xl bg-slate-800 p-4 text-lg font-semibold shadow-2xl">{def.name}</div>

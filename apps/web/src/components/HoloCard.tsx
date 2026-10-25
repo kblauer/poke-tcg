@@ -121,7 +121,7 @@ export function HoloCard({
             }
           >
             <img src={img} alt={name} onLoad={() => setLoading(false)} width="660" height="921" />
-            {goldBorder && <GoldBorder era={attrs.era} />}
+            {goldBorder && <GoldBorder cardId={`${attrs.set}-${attrs.number}`} img={img} pokemon={attrs.supertype === 'pokémon'} />}
             <div className="card__shine" />
             <div className="card__glare" />
           </div>

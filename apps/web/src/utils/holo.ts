@@ -46,10 +46,7 @@ export interface HoloAttributes {
 }
 
 /** A set's card layout (wotc.css, gold-border.css): classic (Base–Neo), e-Card, or EX (Generation 3). */
-const setEra = (set: string): HoloAttributes['era'] => (set.startsWith('ecard') ? 'ecard' : /^ex\d/.test(set) ? 'ex' : 'wotc');
-
-/** A card's layout by its id ("<set>-<number>"), for the gold border (GoldBorder). */
-export const cardEra = (id: string) => setEra(id.slice(0, id.lastIndexOf('-')));
+export const setEra = (set: string): HoloAttributes['era'] => (set.startsWith('ecard') ? 'ecard' : /^ex\d/.test(set) ? 'ex' : 'wotc');
 
 const SUBTYPES: Record<string, string> ={ basic: 'basic', baby: 'basic', stage1: 'stage 1', stage2: 'stage 2' };
 

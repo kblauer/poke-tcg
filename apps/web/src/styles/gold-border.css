@@ -2,27 +2,42 @@
 
   CARD FLAIR: GOLD BORDER (as in Pokémon TCG Pocket)
 
-  A gold frame laid over the card's printed (yellow) border: the ring between the card's edge and its frame, clipped
-  with an evenodd polygon, the art and text inside untouched. The ring is measured on 600×825 TCGdex scans, as the holo
-  shapes in holo/wotc.css are:
+  Two layers over the card (GoldBorder), measured on 600×825 TCGdex scans as the holo shapes in holo/wotc.css are:
 
-  - Classic layout (Base–Neo, Legendary Collection): the yellow border is outside x 22–577, y 25–802 (the galaxy
-    foil's outline in wotc.css).
-  - EX layout: outside x 17–580, y 18–772 (the Pokémon-ex foil's outline in wotc.css; its bottom border is deeper).
-  - e-Card layout: not measured yet; it takes the classic ring. To be checked by eye.
+  1. The ring: a gold frame laid over the card's printed (yellow) border, between the card's edge and its frame, clipped
+     with an evenodd polygon. Its sparkle and sweeping shine are drawn here, not with an image, so it scales with the card.
+     - Classic layout (Base–Neo, Legendary Collection): outside x 22–577, y 25–802 (the galaxy foil's outline in wotc.css).
+     - EX layout: outside x 17–580, y 18–772 (the Pokémon-ex foil's outline in wotc.css; its bottom border is deeper).
+     - e-Card layout: not measured yet; it takes the classic ring. To be checked by eye.
 
-  Its sparkle and sweeping shine are drawn here, not with an image, so it scales with the card.
+  2. The frame (classic and Neo Pokémon cards): the art frame, the banner under the art and Neo's stage tab turned gold.
+     A copy of the card's image, clipped to generous shapes around them, through the SVG filter #gold-border-map, which
+     maps only the yellow pixels onto a gold ramp by their lightness: the bevels stay, and the print on them (the
+     banner's text, the stage badge's picture, the 1st Edition stamp) and the background around them stay as printed.
+     - Classic: the frame's yellow is x 54–547, y 88–435 around the art window x 65–536, y 98–425 (Base Set Poliwag and
+       Wartortle); the banner x 78–524, y 443–467.
+     - Neo: the frame x 54–544, y 88–435 around x 66–533, y 98–410 (its bottom band is deeper); the stage tab top right,
+       x 398–547, y 68–88; the banner a parallelogram within x 91–505, y 447–469 (Neo Genesis Sentret and Magmar).
+     Each shape is an evenodd subpath from 0 0 and back (the connecting lines, drawn twice, enclose nothing); shapes
+     never overlap, or the overlap would be a hole.
 
 */
 
-.gold-border {
+div.gold-border {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.gold-border > .gold-border__ring {
   --left: 3.7%;
   --top: 3%;
   --right: 3.8%;
   --bottom: 2.8%;
   position: absolute;
   inset: 0;
-  pointer-events: none;
+  width: 100%;
+  height: 100%;
   clip-path: polygon(
     evenodd,
     0 0,
@@ -42,15 +57,15 @@
     linear-gradient(135deg, #7a5410 0%, #d9ae3a 14%, #fff1a6 26%, #c8951f 40%, #f6d870 55%, #a8771a 70%, #f0cd5e 84%, #7d5712 100%);
 }
 
-.gold-border[data-era="ex"] {
+.gold-border[data-era="ex"] > .gold-border__ring {
   --left: 2.8%;
   --top: 2.2%;
   --right: 3.3%;
   --bottom: 6.4%;
 }
 
-/* A band of light sweeping across now and then. */
-.gold-border::after {
+/* A band of light sweeping across the ring now and then. */
+.gold-border > .gold-border__ring::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -71,8 +86,55 @@
   }
 }
 
+/* The frame copy: the card's image again, exactly over it, recoloured by the filter and clipped to the frame's shapes. */
+.gold-border > .gold-border__frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: none;
+  filter: url(#gold-border-map);
+}
+
+.gold-border > .gold-border__frame[data-frame="classic"] {
+  clip-path: polygon(
+    evenodd,
+    0 0,
+    8.67% 10.42%, 91.5% 10.42%, 91.5% 52.97%, 8.67% 52.97%, 8.67% 10.42%,
+    0 0,
+    11% 12%, 89.17% 12%, 89.17% 51.39%, 11% 51.39%, 11% 12%,
+    0 0,
+    12.33% 53.33%, 87.83% 53.33%, 87.83% 56.97%, 12.33% 56.97%, 12.33% 53.33%,
+    0 0
+  );
+}
+
+.gold-border > .gold-border__frame[data-frame="neo"] {
+  clip-path: polygon(
+    evenodd,
+    0 0,
+    8.67% 10.42%, 91.17% 10.42%, 91.17% 52.97%, 8.67% 52.97%, 8.67% 10.42%,
+    0 0,
+    11.17% 12%, 88.67% 12%, 88.67% 49.7%, 11.17% 49.7%, 11.17% 12%,
+    0 0,
+    65.83% 7.76%, 91.5% 7.76%, 91.5% 10.3%, 65.83% 10.3%, 65.83% 7.76%,
+    0 0,
+    14.33% 53.82%, 85% 53.82%, 85% 57.21%, 14.33% 57.21%, 14.33% 53.82%,
+    0 0
+  );
+}
+
+/* The filter's own element takes no room (the holo card's layer rules size everything in it). */
+.gold-border > .gold-border__defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .gold-border::after {
+  .gold-border > .gold-border__ring::after {
     animation: none;
     opacity: 0;
   }
