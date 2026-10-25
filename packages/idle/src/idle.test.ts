@@ -155,6 +155,38 @@ describe('an idle run', () => {
     expect(AREAS[simulateSegment(strong, auto, new Set())!.state.area]!.id).toBe('pewter-gym');
   });
 
+  it('after a white-out, auto-grind trains 2 levels above the party\'s highest, then goes into the gym again', () => {
+    // A level-14 Magikarp knows only Splash: it can't win in Pewter Gym.
+    const gym = AREAS.findIndex((a) => a.id === 'pewter-gym');
+    let state: IdleState = { ...createIdleRun({ species: 129 }, 8), area: gym };
+    state.party = [{ ...state.party[0]!, level: 14, moves: ['splash'], slots: [] }];
+    const auto = { ...DEFAULT_IDLE_SETTINGS, autoGrind: true };
+    for (let i = 0; i < 20 && !state.totals.whiteOuts; i++) state = simulateSegment(state, auto, new Set())!.state;
+    expect(state.totals.whiteOuts).toBe(1);
+    expect(state.phase).toBe('grinding');
+    expect(state.grind!.level).toBe(16);
+    // Without auto-grind it waits in town.
+    let manual: IdleState = { ...createIdleRun({ species: 129 }, 8), area: gym };
+    manual.party = state.party.map((m) => ({ ...m, level: 14 }));
+    for (let i = 0; i < 20 && !manual.totals.whiteOuts; i++) manual = simulateSegment(manual, DEFAULT_IDLE_SETTINGS, new Set())!.state;
+    expect(manual.phase).toBe('town');
+  });
+
+  it('auto-buys balls on reaching a town, up to the setting, the cheapest the store sells, while the money lasts', () => {
+    const route2 = AREAS.findIndex((a) => a.id === 'route-2');
+    const leg = (AREAS[route2] as WalkArea).legs.length - 1;
+    const base = createIdleRun({ species: 4 }, 6);
+    const end = { ...base, area: route2, leg, step: (AREAS[route2] as WalkArea).legs[leg]!.track.length - 1, beaten: (AREAS[route2] as WalkArea).trainers.map((t) => t.key), bag: { 'poke-ball': 2, 'great-ball': 1 } };
+    // Pewter City sells Poké Balls at ₱200: 3 in the bag, 7 bought.
+    const s = simulateSegment(end, { ...DEFAULT_IDLE_SETTINGS, autoBalls: 10 }, new Set())!;
+    expect(s.state.bag['poke-ball']).toBe(9);
+    expect(s.state.money).toBe(end.money - 7 * 200);
+    expect(s.segment.events).toContainEqual({ t: 'bought', item: 'poke-ball', count: 7, cost: 1400 });
+    // Only what the money pays for; off at 0.
+    expect(simulateSegment({ ...end, money: 500 }, { ...DEFAULT_IDLE_SETTINGS, autoBalls: 10 }, new Set())!.state.bag['poke-ball']).toBe(4);
+    expect(simulateSegment(end, DEFAULT_IDLE_SETTINGS, new Set())!.state.bag['poke-ball']).toBe(2);
+  });
+
   it('refuses what a town doesn\'t allow', () => {
     const s = createIdleRun({ species: 1 }, 1);
     expect(applyIdleAction(s, { type: 'GYM' }).ok).toBe(false);

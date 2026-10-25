@@ -1,5 +1,5 @@
 import type { AppRouter } from '@poke-tcg/api/router';
-import { AREAS, areaIndex, FADE_MS, playing, STEP_MS, TICK_MS, type CatchUpSummary, type IdleAction, type IdleSettings, type SegmentEvent, type TownArea, type TrackStep, type WalkArea } from '@poke-tcg/idle';
+import { AREAS, areaIndex, FADE_MS, ITEMS, playing, STEP_MS, TICK_MS, type CatchUpSummary, type IdleAction, type IdleSettings, type SegmentEvent, type TownArea, type TrackStep, type WalkArea } from '@poke-tcg/idle';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type { inferRouterOutputs } from '@trpc/server';
@@ -124,6 +124,8 @@ function noticeOf(e: SegmentEvent, name: (id: number) => string): string | null 
       return `Got ₱${e.amount.toLocaleString()} for winning! (${e.why})`;
     case 'evolve':
       return `${name(e.from)} evolved into ${name(e.into)}!`;
+    case 'bought':
+      return `Bought ${e.count} ${ITEMS[e.item]?.name ?? e.item}${e.count === 1 ? '' : 's'} for ₱${e.cost.toLocaleString()}.`;
     case 'caught':
       return (e.shiny ? 'A shiny! ' : '') + (e.kept ? (e.replaced ? `${name(e.species)} joined the party in place of ${name(e.replaced)}.` : `${name(e.species)} joined the party!`) : `${name(e.species)} was registered in the Pokédex and released.`);
     case 'badge':

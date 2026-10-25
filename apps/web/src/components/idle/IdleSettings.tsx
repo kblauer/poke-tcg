@@ -1,4 +1,5 @@
-import { ITEMS, species, type CatchUpSummary, type IdleSettings as Settings, type RevivePolicy } from '@poke-tcg/idle';
+import { ITEMS, MAX_AUTO_BALLS, species, type CatchUpSummary, type IdleSettings as Settings, type RevivePolicy } from '@poke-tcg/idle';
+import { useState } from 'react';
 import { commas } from '../../utils/math';
 
 /** The Revive policies' labels (agreed with the user). */
@@ -14,6 +15,8 @@ const REVIVES: [RevivePolicy, string][] = [
  * waits on the player. They apply from the next battle. The run always goes at one pace (no speed setting: agreed).
  */
 export function IdleSettings({ settings, busy, onChange }: { settings: Settings; busy: boolean; onChange: (s: Partial<Settings>) => void }) {
+  // The ball count as typed (saved as it changes; the saved settings come back a moment later).
+  const [balls, setBalls] = useState(String(settings.autoBalls));
   const toggle = (key: 'autoHeal' | 'stopWhenFull' | 'replaceLowest' | 'autoEvolve' | 'autoGrind', label: string, note: string) => (
     <label className="flex items-start gap-2 text-sm">
       <input type="checkbox" className="mt-1" checked={settings[key]} disabled={busy} onChange={(e) => onChange({ [key]: e.target.checked })} />
@@ -49,11 +52,29 @@ export function IdleSettings({ settings, busy, onChange }: { settings: Settings;
         </select>
       </label>
       <p className="-mt-2 text-xs text-slate-400">Weakens it with moves that can't knock it out (Sleep and Paralysis first), then throws the best ball in the bag.</p>
+      <label className="flex items-center gap-2 text-sm">
+        Auto-buy balls up to
+        <input
+          type="number"
+          min={0}
+          max={MAX_AUTO_BALLS}
+          className="w-16 rounded bg-slate-700 px-2 py-1 text-right ring-1 ring-slate-600"
+          value={balls}
+          disabled={busy}
+          onChange={(e) => {
+            setBalls(e.target.value);
+            const n = Math.max(0, Math.min(MAX_AUTO_BALLS, Math.floor(Number(e.target.value)) || 0));
+            if (n !== settings.autoBalls) onChange({ autoBalls: n });
+          }}
+          onBlur={() => setBalls(String(settings.autoBalls))}
+        />
+      </label>
+      <p className="-mt-2 text-xs text-slate-400">Reaching a town with fewer balls than this (every kind counted), buys the cheapest ball its store sells up to it, as many as the money allows. 0 turns it off.</p>
       <p className="text-sm text-slate-300">With a full party:</p>
       {toggle('stopWhenFull', 'Stop catching', 'Wild Pokémon are only marked seen.')}
       {toggle('replaceLowest', 'Replace the lowest-level Pokémon', 'Its best stats go to the Pokédex first. With neither, a catch is registered and released.')}
       {toggle('autoEvolve', 'Auto-evolve with stones', "At Celadon's store, buys a stone for each Pokémon that can use one and uses it at once.")}
-      {toggle('autoGrind', 'Auto-grind before each gym', "Reaching a gym's town, trains on the route before it until your highest-level Pokémon matches the gym's highest (the Elite Four's and Champion's at the Indigo Plateau), then goes into the gym. After a white-out, waits in town.")}
+      {toggle('autoGrind', 'Auto-grind before each gym', "Reaching a gym's town, trains on the route before it until your highest-level Pokémon matches the gym's highest (the Elite Four's and Champion's at the Indigo Plateau), then goes into the gym. After a white-out there, trains 2 levels above your highest-level Pokémon, then goes in again.")}
     </div>
   );
 }

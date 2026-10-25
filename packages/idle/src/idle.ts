@@ -14,6 +14,7 @@ import { MARTS } from './data/gen1/marts.js';
 import { TRAINERS } from './data/gen1/trainers.js';
 import { evolve, levelEvolution, stoneEvolution, usableStones } from './evolution.js';
 import { abilityOf, autoSlots, basicFor, createMon, movesUpTo } from './mon.js';
+import { MAX_LEVEL } from './stats.js';
 import type { EncounterSlots, Mon, Stats } from './types.js';
 
 /** The run's starting money (the game's ₱3000: a placeholder, to balance later). */
@@ -66,12 +67,20 @@ export interface IdleSettings {
   autoEvolve: boolean;
   /**
    * Auto-grind (the user's): reaching a gym's town (or the Indigo Plateau), grind until the party's highest level is the
-   * gym's highest (grindTarget), then go into the gym; not after a white-out (the town waits for the player then).
+   * gym's highest (grindTarget), then go into the gym; after a white-out back in the town, to REGRIND_LEVELS above the party's highest, then in again.
    */
   autoGrind: boolean;
+  /**
+   * Auto-buy balls (the user's): reaching a town with fewer balls than this in the bag (every kind counted), buy the
+   * cheapest ball its store sells up to it, as many as the money allows; 0, off.
+   */
+  autoBalls: number;
 }
 
-export const DEFAULT_IDLE_SETTINGS: IdleSettings = { autoHeal: true, revives: ['last'], autoCatch: 'new', stopWhenFull: false, replaceLowest: false, autoEvolve: true, autoGrind: false };
+/** The most balls auto-buy keeps. */
+export const MAX_AUTO_BALLS = 99;
+
+export const DEFAULT_IDLE_SETTINGS: IdleSettings = { autoHeal: true, revives: ['last'], autoCatch: 'new', stopWhenFull: false, replaceLowest: false, autoEvolve: true, autoGrind: false, autoBalls: 0 };
 
 /** Wild encounter bookkeeping between steps (wild_encounter.c's sWildEncounterData). */
 interface EncounterState {
@@ -101,8 +110,8 @@ export interface IdleState {
    * town); town: waiting for the player; won: the Champion beaten; given-up.
    */
   phase: 'walking' | 'grinding' | 'town' | 'won' | 'given-up';
-  /** While grinding: the step of the town's loop (TownArea.grind) the player stands on. */
-  grind?: { at: number };
+  /** While grinding: the step of the town's loop (TownArea.grind) the player stands on, and the level it trains the party's highest to. */
+  grind?: { at: number; level: number };
   /** The Champion's team: the starter he'd have picked against the run's (FireRed's TRAINER_CHAMPION_FIRST_<his starter>). */
   rivalStarter: 'bulbasaur' | 'charmander' | 'squirtle';
   /** The run's totals, for the screen and the run's end. */
@@ -153,6 +162,7 @@ export type SegmentEvent =
       ticks: number;
     }
   | { t: 'money'; amount: number; total: number; why: string }
+  | { t: 'bought'; item: string; count: number; cost: number }
   | { t: 'evolve'; uid: string; from: number; into: number }
   | { t: 'caught'; species: number; kept: boolean; replaced?: number; shiny?: true }
   | { t: 'badge'; badge: string }
@@ -283,14 +293,14 @@ function grindError(state: IdleState): string | null {
   return null;
 }
 
-/** Back to the town's grind loop (a fade), at its first step. */
-function startGrind(state: IdleState, events: SegmentEvent[]) {
+/** Back to the town's grind loop (a fade), at its first step, to train the party's highest to `level` (the gym's highest by default). */
+function startGrind(state: IdleState, events: SegmentEvent[], level = grindTarget(state.area, state.rivalStarter)!) {
   const town = AREAS[state.area] as TownArea;
   state.phase = 'grinding';
-  state.grind = { at: 0 };
+  state.grind = { at: 0, level };
   state.encounter = { steps: 0, buff: 0, prev: '' };
   events.push({ t: 'grind', town: state.area, at: 0 });
-  state.log.push(`Went to ${areaById(town.grind!.area).name} to train up to Lv. ${grindTarget(state.area, state.rivalStarter)}.`);
+  state.log.push(`Went to ${areaById(town.grind!.area).name} to train up to Lv. ${level}.`);
 }
 
 /** Into a town's gym (or the League's first room). */
@@ -316,6 +326,28 @@ function enterArea(state: IdleState, index: number, events: SegmentEvent[]) {
     state.phase = 'walking';
     events.push({ t: 'area', area: index, leg: 0, step: 0 });
   }
+}
+
+/** The balls in a bag, every kind. */
+export const ballCount = (bag: Record<string, number>) => BALLS.reduce((n, [b]) => n + (bag[b] ?? 0), 0);
+
+/** Auto-buy balls (the user's): in a town, the cheapest ball its store sells, up to the setting's count, while the money lasts. */
+function autoBuyBalls(state: IdleState, settings: IdleSettings, events: SegmentEvent[]) {
+  const town = AREAS[state.area]!;
+  const want = Math.min(settings.autoBalls, MAX_AUTO_BALLS) - ballCount(state.bag);
+  if (!isTown(town) || want <= 0) return;
+  const stock = storeStock(town);
+  const ball = BALLS.map(([b]) => b)
+    .filter((b) => stock.includes(b))
+    .sort((a, b) => itemData(a).price - itemData(b).price)[0];
+  if (!ball) return;
+  const price = itemData(ball).price;
+  const count = Math.min(want, Math.floor(state.money / price));
+  if (count <= 0) return;
+  state.money -= count * price;
+  state.bag[ball] = (state.bag[ball] ?? 0) + count;
+  events.push({ t: 'bought', item: ball, count, cost: count * price });
+  state.log.push(`Bought ${count} ${itemData(ball).name}${count === 1 ? '' : 's'} for ₱${count * price}.`);
 }
 
 /** Buys and uses a stone for each party Pokémon that can use one the store sells (auto-evolve), while the money lasts. */
@@ -640,8 +672,8 @@ function finishGrind(state: IdleState, out: Segment) {
 function grindSegment(state: IdleState, rng: Rng, settings: IdleSettings, caught: Set<number>, out: Segment): boolean {
   const spot = (AREAS[state.area] as TownArea).grind!;
   const leg = (areaById(spot.area) as WalkArea).legs[spot.leg]!;
-  const target = grindTarget(state.area, state.rivalStarter)!;
   const grind = state.grind!;
+  const target = grind.level;
   out.events.push({ t: 'grind', town: state.area, at: grind.at });
   for (let guard = 0; guard < 5000; guard++) {
     if (topLevel(state.party) >= target) {
@@ -668,11 +700,21 @@ function grindSegment(state: IdleState, rng: Rng, settings: IdleSettings, caught
   return false;
 }
 
-/** Auto-grind on reaching a gym's town (the user's): to the gym's highest level if the party is below it, then into the gym. */
-function autoGrind(state: IdleState, out: Segment) {
+/** Levels a white-out sends auto-grind back to train (the user's: 2 above the party's highest). */
+export const REGRIND_LEVELS = 2;
+
+/**
+ * Auto-grind on reaching a gym's town (the user's): to the gym's highest level if the party is below it, then into the
+ * gym. Back in the town after a white-out (in the gym, the League or grinding), to REGRIND_LEVELS above the party's
+ * highest (the gym's highest at least), then into the gym again; past MAX_LEVEL it waits for the player.
+ */
+function autoGrind(state: IdleState, out: Segment, whitedOut: boolean) {
   const town = AREAS[state.area]!;
   if (!isTown(town) || !town.grind || townDone(state, town)) return;
-  if (topLevel(state.party) < grindTarget(state.area, state.rivalStarter)!) startGrind(state, out.events);
+  const target = grindTarget(state.area, state.rivalStarter)!;
+  const level = whitedOut ? Math.max(target, topLevel(state.party) + REGRIND_LEVELS) : target;
+  if (level > MAX_LEVEL) return;
+  if (topLevel(state.party) < level) startGrind(state, out.events, level);
   else enterGym(state, out.events);
   out.durationMs += FADE_MS;
 }
@@ -767,8 +809,10 @@ export function simulateSegment(prev: IdleState, settings: IdleSettings, caught:
     }
     break;
   }
-  // Auto-grind (the user's) on reaching a gym's town, never after a white-out (the town waits for the player then).
-  if (state.phase === 'town' && settings.autoGrind && !whitedOut) autoGrind(state, out);
+  // Auto-grind (the user's) on reaching a gym's town, after a white-out training REGRIND_LEVELS more first.
+  // Auto-buy balls on reaching a town (white-outs too), before auto-grind leaves it.
+  if (state.phase === 'town') autoBuyBalls(state, settings, out.events);
+  if (state.phase === 'town' && settings.autoGrind) autoGrind(state, out, whitedOut);
   state.rngState = rng.state;
   state.version += 1;
   if (state.log.length > 50) state.log = state.log.slice(-50);
@@ -839,7 +883,7 @@ export function idleView(state: IdleState) {
   const area: IdleArea = AREAS[state.area]!;
   // Grinding: the area the loop is in (the run's `area` stays the town), and the level it trains to.
   const grindArea = state.phase === 'grinding' && isTown(area) && area.grind ? areaById(area.grind.area) : null;
-  return { ...rest, areaId: area.id, areaName: grindArea?.name ?? area.name, store: isTown(area) ? storeStock(area) : [], grindTarget: grindTarget(state.area, state.rivalStarter) };
+  return { ...rest, areaId: area.id, areaName: grindArea?.name ?? area.name, store: isTown(area) ? storeStock(area) : [], grindTarget: state.grind?.level ?? grindTarget(state.area, state.rivalStarter) };
 }
 
 export type IdleView = ReturnType<typeof idleView>;
