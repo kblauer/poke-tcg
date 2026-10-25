@@ -1,10 +1,13 @@
 // The catalog (the Card table) as the engine's card definitions. The conversion and TCGdex's fixes are the campaign's
 // card-fixes.ts, shared with its test pool so the two can't drift apart; here is what needs the database.
 import { catalogCardDef, evolvesFrom, type CardData } from '@poke-tcg/campaign';
-import { prisma, type Card } from '@poke-tcg/db';
+import { type Card } from '@poke-tcg/db';
 import { type CardDef, type CardLibrary, type PokemonCardDef } from '@poke-tcg/game-engine';
 import { TRPCError } from '@trpc/server';
+import { catalogCards, catalogInIdOrder, type CatalogRow } from './catalog.js';
 import { pokedexLength } from './lengths.js';
+
+export { catalogCards, catalogIndex, type CatalogRow } from './catalog.js';
 
 export { baseDamage, isBasicEnergyCard, isGalaxyFoil, isHolo, isImplemented, type CardData, type HoloEnergyStyle } from '@poke-tcg/campaign';
 
@@ -29,23 +32,16 @@ export const cardLabel = (card: Pick<Card, 'name' | 'data'>) => {
 /** Converts a catalog row into the engine's card definition (catalogCardDef), with the Pokédex length for Blaine's Quiz #1. */
 export const toCardDef = (card: Card): CardDef => catalogCardDef(card, pokedexLength((card.data as CardData).dexId?.[0]));
 
-/** Loads the definitions for the given card ids from the catalog. */
-/** A catalog card as cards.list and deck-text.ts read it: the fields they show, filter and sort by, with its set's name and release date. */
-export type CatalogRow = Pick<Card, 'id' | 'setId' | 'name' | 'localId' | 'kind' | 'imageUrl' | 'rarity' | 'hp' | 'types' | 'stage' | 'evolveFrom' | 'data'> & { set: { name: string; releaseDate: Date | null } };
-
 let catalog: Promise<CatalogRow[]> | undefined;
 
 /**
- * The whole catalog (about 3,400 rows with their data), in set release order then card number, loaded once per
- * instance like holoTwins: it only changes with the seed, and every deck builder visit and text import reads it.
+ * The whole catalog (about 6,100 rows with their data), in set release order then card number (catalog.ts loads it
+ * once per instance, from the build's bundled copy where it's current): every deck builder visit and text import reads it.
  */
 export function catalogRows(): Promise<CatalogRow[]> {
-  catalog ??= prisma.card
-    .findMany({
-      select: { id: true, setId: true, name: true, localId: true, kind: true, imageUrl: true, rarity: true, hp: true, types: true, stage: true, evolveFrom: true, data: true, set: { select: { name: true, releaseDate: true } } },
-    })
+  catalog ??= catalogInIdOrder()
     .then((rows) =>
-      rows.sort(
+      [...rows].sort(
         (a, b) =>
           (a.set.releaseDate?.getTime() ?? 0) - (b.set.releaseDate?.getTime() ?? 0) ||
           a.set.name.localeCompare(b.set.name) ||
@@ -56,19 +52,18 @@ export function catalogRows(): Promise<CatalogRow[]> {
   return catalog;
 }
 
+/** Loads the definitions for the given card ids from the catalog. */
 export async function loadCardLibrary(ids: Iterable<string>): Promise<CardLibrary> {
   const unique = [...new Set(ids)];
-  const rows = await prisma.card.findMany({ where: { id: { in: unique } } });
+  const rows = await catalogCards(unique);
   const missing = unique.filter((id) => !rows.some((r) => r.id === id));
   if (missing.length) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `Cards not found in catalog: ${missing.join(', ')}` });
   const library: CardLibrary = Object.fromEntries(rows.map((r) => [r.id, toCardDef(r)]));
   // Pokémon Breeder needs the Basic at the bottom of each Stage 2 line: look up its Stage 1 by name.
   const stage2 = Object.values(library).filter((d): d is PokemonCardDef => d.kind === 'pokemon' && d.stage === 'stage2' && d.evolvesFrom !== null);
   if (stage2.length) {
-    const stage1 = await prisma.card.findMany({
-      where: { kind: 'POKEMON', stage: 'Stage1', name: { in: stage2.map((d) => d.evolvesFrom!) } },
-      select: { id: true, name: true, stage: true, evolveFrom: true },
-    });
+    const names = new Set(stage2.map((d) => d.evolvesFrom!));
+    const stage1 = (await catalogInIdOrder()).filter((c) => c.kind === 'POKEMON' && c.stage === 'Stage1' && names.has(c.name));
     for (const d of stage2) {
       const line = stage1.find((s) => s.name === d.evolvesFrom && evolvesFrom(s));
       d.evolvesFromBasic = line ? evolvesFrom(line) : null;
