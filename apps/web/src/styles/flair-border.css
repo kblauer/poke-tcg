@@ -43,17 +43,27 @@ div.flair-border {
   transform-style: flat;
   /* The ridges are sized in hundredths of the card's width (cqw), so they scale with it. */
   container-type: size;
+  /* Not clipped here (the holo card's layer rules clip everything in it): the ring's bleed must reach the card's own edge. */
+  overflow: visible;
 }
 
+/*
+  The ring runs `--bleed` past the card on every side, cut off only by the card's own rounded edge (its parent's clip,
+  the same one the image has): ending exactly at the card's edge, its edge pixels and the image's were smoothed apart,
+  and the printed yellow flickered through along the edges as the card moved.
+*/
 .flair-border > .flair-border__ring {
   --left: 3.7%;
   --top: 3%;
   --right: 3.8%;
   --bottom: 2.8%;
+  --bleed: 3px;
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  inset: auto;
+  left: calc(-1 * var(--bleed));
+  top: calc(-1 * var(--bleed));
+  width: calc(100% + 2 * var(--bleed));
+  height: calc(100% + 2 * var(--bleed));
   clip-path: polygon(
     evenodd,
     0 0,
@@ -61,11 +71,11 @@ div.flair-border {
     100% 100%,
     0 100%,
     0 0,
-    var(--left) var(--top),
-    calc(100% - var(--right)) var(--top),
-    calc(100% - var(--right)) calc(100% - var(--bottom)),
-    var(--left) calc(100% - var(--bottom)),
-    var(--left) var(--top)
+    calc(var(--left) + var(--bleed)) calc(var(--top) + var(--bleed)),
+    calc(100% - var(--right) - var(--bleed)) calc(var(--top) + var(--bleed)),
+    calc(100% - var(--right) - var(--bleed)) calc(100% - var(--bottom) - var(--bleed)),
+    calc(var(--left) + var(--bleed)) calc(100% - var(--bottom) - var(--bleed)),
+    calc(var(--left) + var(--bleed)) calc(var(--top) + var(--bleed))
   );
 }
 
@@ -111,7 +121,8 @@ div.flair-border {
 */
 .flair-border > .flair-border__ring > .flair-border__ridge {
   position: absolute;
-  inset: var(--inset);
+  /* From the card's edge, not the ring's (which bleeds past it). */
+  inset: calc(var(--inset) + var(--bleed));
   display: block;
   width: auto;
   height: auto;
