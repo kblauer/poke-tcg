@@ -34,6 +34,13 @@ div.flair-border {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  /*
+    In a holo card's 3D layers (HoloCard), in front of the card's image (base.css: 0.01px) and behind the shine (1px)
+    and glare (1.41px): at the image's own depth, tilting the card let the image show through it in places. Flat, so
+    its own layers share its plane (and the rainbows' tint blends with the frame copy under it). Elsewhere a no-op.
+  */
+  transform: translateZ(0.5px);
+  transform-style: flat;
   /* The ridges are sized in hundredths of the card's width (cqw), so they scale with it. */
   container-type: size;
 }
