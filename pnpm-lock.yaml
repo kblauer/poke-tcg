@@ -202,6 +202,9 @@ importers:
       '@poke-tcg/game-engine':
         specifier: workspace:*
         version: link:../../packages/game-engine
+      '@poke-tcg/idle':
+        specifier: workspace:*
+        version: link:../../packages/idle
       '@poke-tcg/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -257,6 +260,9 @@ importers:
       '@poke-tcg/game-engine':
         specifier: workspace:*
         version: link:../../packages/game-engine
+      '@poke-tcg/idle':
+        specifier: workspace:*
+        version: link:../../packages/idle
       '@poke-tcg/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -369,6 +375,9 @@ importers:
       '@poke-tcg/game-engine':
         specifier: workspace:*
         version: link:../game-engine
+      '@poke-tcg/idle':
+        specifier: workspace:*
+        version: link:../idle
       zod:
         specifier: ^4.6.7
         version: 4.6.7

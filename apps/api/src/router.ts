@@ -5,6 +5,7 @@ import { debugRouter } from './routers/debug.js';
 import { extrasRouter } from './routers/extras.js';
 import { decksRouter } from './routers/decks.js';
 import { gameRouter } from './routers/game.js';
+import { idleRouter } from './routers/idle.js';
 import { packsRouter } from './routers/packs.js';
 import { runRouter } from './routers/run.js';
 import { settingsRouter } from './routers/settings.js';
@@ -20,6 +21,7 @@ export const appRouter = router({
   game: gameRouter,
   run: runRouter,
   tower: towerRouter,
+  idle: idleRouter,
   packs: packsRouter,
   cosmetics: cosmeticsRouter,
   settings: settingsRouter,

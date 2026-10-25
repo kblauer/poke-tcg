@@ -5,6 +5,7 @@ import { DECK_NAME_LENGTH } from './deck.js';
 import { TRAINER_SPRITES } from './trainer-sprites.js';
 
 export * from './deck.js';
+export * from './idle.js';
 export * from './settings.js';
 export * from './trainer-sprites.js';
 

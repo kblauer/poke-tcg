@@ -1,0 +1,34 @@
+// The Idle Adventure's inputs (README: Idle Adventure): the player's actions and settings, as the idle package's types.
+import { DEX_SIZE, type IdleAction, type IdleSettings } from '@poke-tcg/idle';
+import { z } from 'zod';
+
+const uid = z.string().min(1).max(32);
+
+export const idleActionSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('GYM') }),
+  z.object({ type: z.literal('CONTINUE') }),
+  z.object({ type: z.literal('VISIT_STORE') }),
+  z.object({ type: z.literal('BUY'), item: z.string().min(1).max(40), count: z.number().int().min(1).max(99) }),
+  z.object({ type: z.literal('SET_ORDER'), uids: z.array(uid).min(1).max(6) }),
+  z.object({ type: z.literal('SET_SLOTS'), uid, slots: z.array(z.string().min(1).max(40)).max(3), auto: z.boolean().optional() }),
+  z.object({ type: z.literal('USE_STONE'), uid, item: z.string().min(1).max(40) }),
+  z.object({ type: z.literal('GIVE_UP') }),
+]) satisfies z.ZodType<IdleAction>;
+
+export const idleSettingsSchema = z.object({
+  autoHeal: z.boolean(),
+  autoCatch: z.enum(['off', 'new', 'all']),
+  stopWhenFull: z.boolean(),
+  replaceLowest: z.boolean(),
+  autoEvolve: z.boolean(),
+  speed: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+}) satisfies z.ZodType<IdleSettings>;
+
+/** A new run: its starter (one of the three, or a species the account's Pokédex has caught, from the second run on). */
+export const startIdleInput = z.object({ species: z.number().int().min(1).max(DEX_SIZE) });
+export const idleRunInput = z.object({ runId: z.uuid(), expectedVersion: z.number().int().min(0) });
+export const idleActInput = idleRunInput.extend({ action: idleActionSchema });
+/** Changes some of the settings (the rest kept). */
+export const idleSettingsInput = idleSettingsSchema.partial();
+/** Debug: a warp to an area (the run's party and bag kept). */
+export const idleWarpInput = z.object({ runId: z.uuid(), area: z.string().min(1).max(40) });
