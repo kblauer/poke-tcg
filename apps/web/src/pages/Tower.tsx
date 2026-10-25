@@ -2,6 +2,7 @@ import { battleMusic, towerMusic } from '@poke-tcg/campaign';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useRouter } from '@tanstack/react-router';
 import { useContext, useEffect, useRef, useState } from 'react';
+import { useBattleTransition } from '../components/BattleTransition';
 import { DeckSummary } from '../components/DeckList';
 import { CatalogContext } from '../components/InspectContext';
 import { useMusicCue, useMusicSettings } from '../components/MusicPlayer';
@@ -60,6 +61,13 @@ export function TowerPage() {
   const actions = useTowerActions();
   const { overview: runOverview } = useRun();
   const scene = useScene();
+  const battleTransition = useBattleTransition();
+  // A battle opens only while the page is still open (its transition can outlast the page being left).
+  const open = useRef(true);
+  useEffect(() => {
+    open.current = true;
+    return () => void (open.current = false);
+  }, []);
   const toasts = useToasts();
   const phone = useIsPhone();
   const byId = useContext(CatalogContext);
@@ -106,7 +114,7 @@ export function TowerPage() {
       start: (id, floor) => actions.start(id, floor).then(seen),
       act: (on, action) => actions.act(on, action).then(seen),
       skip: debug ? (on) => actions.skip(on) : null,
-      openGame: (gameId) => navigate({ to: '/game/$gameId', params: { gameId } }),
+      openGame: (gameId) => battleTransition(() => open.current && navigate({ to: '/game/$gameId', params: { gameId } })),
       preloadGame: (gameId) => void router.preloadRoute({ to: '/game/$gameId', params: { gameId } }).catch(() => {}),
       finish: () => setFinished(true),
       shop: setShop,

@@ -186,7 +186,7 @@ html[data-font="emerald"] {
   to { opacity: 0; transform: translate(-50%, -10px); }
 }
 
-/* The Battle Tower's battle transitions (TowerScene's BattleTransition): the double white flash, then the screen closing. */
+/* The battle transitions (components/BattleTransition.tsx; first the Battle Tower's): the double white flash, then the screen closing. */
 @keyframes tower-flash {
   0%, 22%, 50% { opacity: 0; }
   11%, 36% { opacity: 1; }

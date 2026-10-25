@@ -1,10 +1,11 @@
 import type { AppRouter } from '@poke-tcg/api/router';
 import { isBattleKind, type RunAction, type RunTypeId } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, useRouter } from '@tanstack/react-router';
 import { createContext, createElement, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { inferRouterOutputs } from '@trpc/server';
 import { useTRPC } from '../lib/trpc';
+import { useBattleTransition } from '../components/BattleTransition';
 
 export type Overview = inferRouterOutputs<AppRouter>['run']['overview'];
 export type ClientRun = NonNullable<Overview['run']>;
@@ -17,7 +18,8 @@ const SPOTTED_MS = 1000;
  * The home screen's data (account, latest run, decks, run types) and the run's moves. A move that starts a battle goes to
  * its game; every move replaces the cached run with the server's answer. Choosing a battle (or accepting an Ace Trainer's)
  * marks its trainer as `spotted` at once, for the route map's "!" over them, as when a trainer spots you in the games: the
- * request is sent straight away, and the game opens once it's in and the "!" has shown for SPOTTED_MS. Any other option
+ * request is sent straight away, and once it's in and the "!" has shown for SPOTTED_MS, the battle transition plays (the
+ * Battle Tower's, BattleTransition) and the game opens as it ends. Any other option
  * chosen is marked too, while its request runs, so the route map's NPC can start walking up to the player at once.
  *
  * One instance for the whole site (`RunProvider`, in the layout; `useRun` reads it): the site menu, the top bar, the run
@@ -28,6 +30,8 @@ function useRunControl() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const router = useRouter();
+  const battleTransition = useBattleTransition();
   const overviewKey = trpc.run.overview.queryKey();
   // Always fresh on arrival: decks edited on the Collection tab change which ones can start a run.
   const overview = useQuery({ ...trpc.run.overview.queryOptions(), staleTime: 0 });
@@ -55,14 +59,19 @@ function useRunControl() {
       }
       if (next.gameId && next.gameId !== run?.gameId) {
         const gameId = next.gameId;
+        // Its page loads while the "!" and the transition play.
+        void router.preloadRoute({ to: '/game/$gameId', params: { gameId } }).catch(() => {});
         // Once the "!" has shown long enough (at once if the request took longer).
         const wait = spottedAt.current === null ? 0 : Math.max(0, SPOTTED_MS - (Date.now() - spottedAt.current));
         if (opening.current !== null) window.clearTimeout(opening.current);
         opening.current = window.setTimeout(() => {
           opening.current = null;
-          spottedAt.current = null;
-          setSpotted(null);
-          navigate({ to: '/game/$gameId', params: { gameId } });
+          // The "!" stays up through the transition; the game opens as it ends.
+          void battleTransition(() => {
+            spottedAt.current = null;
+            setSpotted(null);
+            return navigate({ to: '/game/$gameId', params: { gameId } });
+          });
         }, wait);
       } else if (!spottedAt.current) setSpotted(null);
       // Escaped from the battle (an Escape Rope): back to the run.
