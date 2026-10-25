@@ -3,7 +3,7 @@ import { applyWeaknessResistance, attackAsks, attackError, attackSituation, chec
 import { attachBlocked, greenAroma, stickyHold, timeAura, discardsLocked, energyFromHand, evolutionBlocked, primalBlock, retreatBodies, guardedBy, spiraledBy, bindingAura, conditionBarred, conditionFree, holonWith, miraculousWind, offerChainReaction, playedFromHand, pokemonAt, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, primalLocked, trainersDusted, trainersBlocked, usePower, powerCanceller, zoomed, type PowerChoices, type PowerEffect, pokemonPower } from './powers.js';
 import { evolvesFromEevee, isPokemonSP, evolveWith, pendingChoiceView, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
-import { conditionProof, hasOwner, hasType, holonEnergy, namesMatch, isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
+import { conditionProof, hasOwner, isLegend, hasType, holonEnergy, namesMatch, isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { addLog, baseUid, clearOnLeavingActive, clearSpecialConditions, effectId, evolvedFromName, isDelta, evolvedHook, hasSpecialCondition, shapeshiftCard, flipCoin, inPlayDef, logTool, openBenchSlot, pokemonName, revealFaceDown, sameCards, type LogEntry } from './status.js';
 import { shuffle } from './rng.js';
 import type { CpuDifficulty } from './cpu/index.js';
@@ -228,6 +228,8 @@ export interface PokemonEffects {
   nightSpin?: number;
   /** Evolutionary Gas: its attacks through this turn do nothing (they can still be used). */
   fizzle?: number;
+  /** Graffiti: its attacks cost 1 Colorless more through this turn. */
+  graffiti?: number;
   /** Metal Barrier: nothing from a Pokémon LV.X's attacks through this turn. */
   lvxProof?: number;
   /** Hover Hit: no Retreat Cost through this turn. */
@@ -311,7 +313,7 @@ export interface InPlayPokemon {
    * then with `toHand` (Charity); `activeOnly` ones once it's benched (Koga's Ninja Trick). The Evolution card Shapeshift
    * attached (`shapeshift`, which Brock's Ninetales is treated as: shapeshiftCard) stays until it's discarded. Missing in older games.
    */
-  attached?: { card: CardInstance; until: number; toHand?: boolean; activeOnly?: boolean; shapeshift?: boolean; tool?: boolean; equip?: boolean }[];
+  attached?: { card: CardInstance; until: number; toHand?: boolean; activeOnly?: boolean; shapeshift?: boolean; tool?: boolean; equip?: boolean; /** A Pokémon LEGEND's other half, which goes wherever the Pokémon goes. */ legendHalf?: boolean }[];
   /**
    * The type it's changed to until it leaves play: Venomoth's Shift (until it Shifts again) or a Coloring
    * counter from Smeargle's Paint (until another replaces it).
@@ -1073,7 +1075,14 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       if (isTrainerCard(card(played)) && trainersLocked(me, state.turn)) return fail(TRAINERS_LOCKED);
       const hayFever = isTrainerCard(card(played)) && (trainersBlocked([me, opp], state.cards) ?? trainersDusted(me, [me, opp], state.cards));
       if (hayFever) return fail(hayFever);
+      // A Pokémon LEGEND: both halves together, as one Pokémon.
+      const half = isLegend(card(played)) ? me.hand.find((c) => c.uid !== played.uid && card(c).name === card(played).name && c.defId !== played.defId) ?? me.hand.find((c) => c.uid !== played.uid && card(c).name === card(played).name) : undefined;
+      if (isLegend(card(played)) && !half) return fail(`Put ${card(played).name} onto your Bench only with its other half`);
       me.bench[action.slot] = newInPlay(played, state.turn);
+      if (half) {
+        me.hand = me.hand.filter((c) => c !== half);
+        me.bench[action.slot]!.attached = [{ card: half, until: Number.MAX_SAFE_INTEGER, legendHalf: true }];
+      }
       addLog(state, `Put ${card(played).name} on the Bench.`, me.id);
       // Team Magma Hideout: a damage counter on a Basic Pokémon played from the hand without Team Magma in its name.
       if (state.stadium && card(state.stadium.card).name === 'Team Magma Hideout' && !isTrainerCard(card(played)) && !card(played).name.includes('Team Magma')) {
@@ -2444,7 +2453,7 @@ export function afflictionBlocked(state: GameState, owner: PlayerId, pokemon: In
 function expireEffects(pokemon: InPlayPokemon, turn: number) {
   const e = pokemon.effects;
   if (!e) return;
-  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell', 'noAttack', 'noEnergy', 'fireWall', 'focusEnergy', 'crosscounter', 'screech', 'endure', 'pollenShield', 'counter', 'secretePoison', 'slime', 'pursuit', 'lockOn', 'triggeredPoison', 'effectProof', 'pulseGuard', 'dodge', 'reflectShield', 'armorUp', 'noEvolve', 'heavier', 'tailwind', 'noPokePowers', 'conditionProof', 'stockpile', 'silverWind', 'cometPunch', 'evolvedProof', 'exProof', 'pivot', 'hustle', 'fizzle', 'crunch', 'sealed', 'hoverHit', 'pressure', 'jetShoot', 'lvxProof'] as const) {
+  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell', 'noAttack', 'noEnergy', 'fireWall', 'focusEnergy', 'crosscounter', 'screech', 'endure', 'pollenShield', 'counter', 'secretePoison', 'slime', 'pursuit', 'lockOn', 'triggeredPoison', 'effectProof', 'pulseGuard', 'dodge', 'reflectShield', 'armorUp', 'noEvolve', 'heavier', 'tailwind', 'noPokePowers', 'conditionProof', 'stockpile', 'silverWind', 'cometPunch', 'evolvedProof', 'exProof', 'pivot', 'hustle', 'fizzle', 'crunch', 'sealed', 'hoverHit', 'pressure', 'jetShoot', 'lvxProof', 'graffiti'] as const) {
     if (e[key] !== undefined && e[key] <= turn) delete e[key];
   }
   if (e.charm && e.charm.until <= turn) delete e.charm;
@@ -2537,7 +2546,8 @@ export function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId
       // Expert Belt: 1 more. Double Fall: 1 more for a Pokémon Salamence's attack Knocked Out this turn.
       const belt = toolOf(state.cards, pokemon)?.name === 'Expert Belt' ? 1 : 0;
       const fall = pokemon.knockedByAttack === state.turn && state.currentPlayer !== id && taker.doubleFallTurn === state.turn && !!taker.active && namesMatch(inPlayDef(state.cards, taker.active).name, 'Salamence') ? 1 : 0;
-      for (let n = (d.kind === 'pokemon' && d.ex ? 2 : 1) + skip + belt + fall; n > 0; n--) {
+      // A Pokémon-ex or a Pokémon LEGEND gives up 2 Prize cards.
+      for (let n = (d.kind === 'pokemon' && (d.ex || isLegend(d)) ? 2 : 1) + skip + belt + fall; n > 0; n--) {
         const prize = taker.prizes.pop();
         if (prize) taker.hand.push(prize);
       }

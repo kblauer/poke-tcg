@@ -220,9 +220,9 @@ export const PL2_POWERS: Record<string, PowerEffect> = {
       for (const side of [ctx.me, ctx.opp]) {
         const cards = [side.active, ...side.bench].flatMap((p) => {
           if (!p) return [];
-          const gone = [...p.energy.filter((e) => lookupCard(ctx.state.cards, e.defId).kind === 'energy'), ...(p.attached ?? []).map((a) => a.card)];
+          const gone = [...p.energy.filter((e) => lookupCard(ctx.state.cards, e.defId).kind === 'energy'), ...(p.attached ?? []).filter((a) => !a.legendHalf).map((a) => a.card)];
           p.energy = p.energy.filter((e) => lookupCard(ctx.state.cards, e.defId).kind !== 'energy');
-          p.attached = [];
+          p.attached = (p.attached ?? []).filter((a) => a.legendHalf);
           return gone.map(({ provides: _, converted: _c, windless: _w, ...c }) => c);
         });
         if (ctx.state.stadium?.owner === side.id) {

@@ -715,6 +715,10 @@ export interface PowerEffect {
   cloakEvolution?: boolean;
   /** Star Barrier: with any Energy attached, no Weakness (attacks.ts). */
   starBarrier?: boolean;
+  /** Sweet Sleeping Face: while it's Asleep, no damage from attacks (attacks.ts). */
+  sleepingFace?: boolean;
+  /** Green Shield: its player's Grass Pokémon have no Weakness (attacks.ts). */
+  greenShield?: boolean;
 }
 
 /** Wise Aura, Overpowering Fang and Intimidating Ring: an Active Pokémon's aura stopping `pokemon`'s power, or null. */

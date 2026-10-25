@@ -145,7 +145,13 @@ export function lookupCard(cards: CardLibrary, defId: string): CardDef {
 
 /** A Basic Pokémon card (not a Trainer played as one, like Clefairy Doll). */
 export const isBasicPokemon = (def: CardDef): def is PokemonCardDef & { stage: 'basic' } =>
-  def.kind === 'pokemon' && def.stage === 'basic' && !def.trainerText;
+  def.kind === 'pokemon' && def.stage === 'basic' && !def.trainerText && !isLegend(def);
+
+/**
+ * A Pokémon LEGEND half (its name ends in LEGEND): no Basic Pokémon (not for setup or for searches for Basic Pokémon), put
+ * onto the Bench from the hand only with its other half, the two one Pokémon (PLAY_BENCH), worth 2 Prize cards.
+ */
+export const isLegend = (def: CardDef) => def.kind === 'pokemon' && / LEGEND$/.test(def.name);
 
 /** A Pokémon card: Basic or Evolution (not Clefairy Doll). */
 export const isPokemonCard = (def: CardDef): def is PokemonCardDef => def.kind === 'pokemon' && !def.trainerText;

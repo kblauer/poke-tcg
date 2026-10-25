@@ -511,7 +511,9 @@ export function attackError(s: AttackSituation, attackIndex: number): string | n
   // Team Galactic's Invention G-101 Energy Gain: 1 Colorless less for a Pokémon SP.
   const gain = isPokemonSP(attackerDef.name) && toolOf(s.cards, s.attacker)?.name === "Team Galactic's Invention G-101 Energy Gain" ? 1 : 0;
   const pheromone = (NIDO_LINE.some((n) => namesMatch(attackerDef.name, n)) ? [s.attacker, ...s.ownBench].filter((p) => p && working(p)?.motherPheromone).length : 0) + regi + gain;
-  const more = [...(pulled ? ['colorless' as const] : []), ...(liquid ? ['colorless' as const] : []), ...(downer ? ['colorless' as const] : [])];
+  // Graffiti: 1 Colorless more for a while.
+  const graffiti = active(s.attacker.effects?.graffiti, s.turn);
+  const more = [...(pulled ? ['colorless' as const] : []), ...(liquid ? ['colorless' as const] : []), ...(downer ? ['colorless' as const] : []), ...(graffiti ? ['colorless' as const] : [])];
   // Battle Rush: no Colorless Energy at all while the opponent has a Pokémon of 120 HP or more in play.
   const rush = working(s.attacker)?.battleRush && [s.defender, ...s.opponentBench].some((p) => p && def(s.cards, p).hp >= 120);
   const fewer = (c: typeof cost) => {
@@ -1211,6 +1213,11 @@ function createContext(
       damage = noted(def(state.cards, p).power!.name, damage, Math.max(0, damage - root));
       log(`${def(state.cards, p).power!.name} reduced the damage to ${pokemonName(state, p)} by ${root}.`, owner.id);
     }
+    // Sweet Sleeping Face: no damage from attacks while it's Asleep.
+    if (damage > 0 && p.condition === 'asleep' && passive(p)?.sleepingFace) {
+      damage = noted('Sweet Sleeping Face', damage, 0);
+      log(`Sweet Sleeping Face prevented the damage to ${pokemonName(state, p)}.`, owner.id);
+    }
     // Aqua Mirage: no damage from the opponent's attack while its player's hand is empty.
     if (damage > 0 && owner !== me && passive(p)?.aquaMirage && !owner.hand.length) {
       damage = noted('Aqua Mirage', damage, 0);
@@ -1633,7 +1640,7 @@ function createContext(
     // Water Pokémon, while the Rayquaza δ has a Holon Energy card attached.
     const ancientProtected = [opp.active, ...opp.bench].some((q) => q && passive(q)?.ancientProtection?.some((n) => namesMatch(defenderDef.name, n)));
     const hydroBarred = hasType(defenderDef, 'water') && [opp.active, ...opp.bench].some((q) => q && passive(q)?.hydroBarrier && q.energy.some((e) => !e.provides && !e.windless && lookupCard(state.cards, e.defId).name.startsWith('Holon Energy')));
-    const weaknessOff = (stadium === 'Cinnabar City Gym' && hasType(attackerDef, 'water') && defenderDef.name.includes('Blaine')) || attachedCount(state.cards, defender, 'Weakness Guard') > 0 || tomb || veiled || conditioned || !!passive(defender)?.noWeakness || ([opp.active, ...opp.bench].some((q) => q && passive(q)?.moonlightVeil) && evolvedFromName(state.cards, defender, 'Eevee')) || ['Protective Orb', 'Bubble Coat'].includes(toolOf(state.cards, defender)?.name ?? '') || (hasType(defenderDef, 'psychic') && [opp.active, ...opp.bench].some((q) => q && passive(q)?.psychicAura)) || holonWith(defender, state.cards, 'FF', 'fire') || ancientProtected || hydroBarred || active(defender.effects?.weaknessOffUntil, turn) || (stadium === "Glacia's Stadium" && hasType(defenderDef, 'water') && !defenderDef.ex) || (stadium === 'Holon Legacy' && isDelta(state.cards, defender)) || (stadium === 'Sunyshore City Gym' && hasType(defenderDef, 'lightning')) || [opp.active, ...opp.bench].some((q) => q && passive(q)?.erasingSound) || (!!passive(defender)?.starBarrier && defender.energy.length > 0);
+    const weaknessOff = (stadium === 'Cinnabar City Gym' && hasType(attackerDef, 'water') && defenderDef.name.includes('Blaine')) || attachedCount(state.cards, defender, 'Weakness Guard') > 0 || tomb || veiled || conditioned || !!passive(defender)?.noWeakness || ([opp.active, ...opp.bench].some((q) => q && passive(q)?.moonlightVeil) && evolvedFromName(state.cards, defender, 'Eevee')) || ['Protective Orb', 'Bubble Coat'].includes(toolOf(state.cards, defender)?.name ?? '') || (hasType(defenderDef, 'psychic') && [opp.active, ...opp.bench].some((q) => q && passive(q)?.psychicAura)) || holonWith(defender, state.cards, 'FF', 'fire') || ancientProtected || hydroBarred || active(defender.effects?.weaknessOffUntil, turn) || (stadium === "Glacia's Stadium" && hasType(defenderDef, 'water') && !defenderDef.ex) || (stadium === 'Holon Legacy' && isDelta(state.cards, defender)) || (stadium === 'Sunyshore City Gym' && hasType(defenderDef, 'lightning')) || [opp.active, ...opp.bench].some((q) => q && passive(q)?.erasingSound) || (!!passive(defender)?.starBarrier && defender.energy.length > 0) || (hasType(defenderDef, 'grass') && [opp.active, ...opp.bench].some((q) => q && passive(q)?.greenShield));
     // Charm: the attacker's damage is less, before Weakness and Resistance.
     const before = amount;
     amount = noted('Charm', amount, charmed(amount));

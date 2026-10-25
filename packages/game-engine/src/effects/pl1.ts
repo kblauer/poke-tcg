@@ -319,9 +319,9 @@ export const PL1: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         const t = ctx.choices.oppTarget ?? 'active';
         const p = theirs(ctx, t);
-        if (p?.attached?.length && ctx.canAffect(ctx.opp, p)) {
-          const gone = p.attached.map((a) => a.card);
-          p.attached = [];
+        if (p?.attached?.some((a) => !a.legendHalf) && ctx.canAffect(ctx.opp, p)) {
+          const gone = p.attached.filter((a) => !a.legendHalf).map((a) => a.card);
+          p.attached = p.attached.filter((a) => a.legendHalf);
           ctx.opp.discard.push(...gone);
           ctx.log(`Discarded ${gone.map((c) => lookupCard(ctx.state.cards, c.defId).name).join(', ')} from ${pokemonName(ctx.state, p)}.`, ctx.opp.id);
         }
