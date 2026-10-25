@@ -42,8 +42,9 @@ packages/
   idle/                 Pure TS Idle Adventure (see Idle Adventure): FireRed's data, a Gen 3 battle engine played a turn a tick by the energy rule, Kanto's areas and the run rules
   shared/               Zod schemas for API input, player ids, deck building rules (deck.ts), the trainer sprites to pick from (trainer-sprites.ts)
   db/                   Prisma 7 schema, client (pg driver adapter), migrations, seed
-scripts/dev.mjs         `pnpm dev`: asks which checkout to start the dev servers from, the main one or a worktree (see Scripts); warns when `.env` points at the hosted database
+scripts/dev.mjs         `pnpm dev`: asks which checkout to start the dev servers from, the main one or a worktree, then which database, local (the default) or hosted (see Scripts)
 scripts/local-db.mjs    `pnpm db:local`: points this checkout's `.env` at a local Supabase (Docker), migrated and seeded (see Setup, Option B)
+scripts/supabase-env.mjs The local Supabase's settings (started, migrated, seeded when empty) and the hosted project's (`.env.remote`), for dev.mjs and local-db.mjs
 supabase/               Local Supabase config (CLI)
 tools/bars/             bw_bars.py: cuts the player box (its HP numbers' slash taken out) and the HP and EXP bars' tags and fill tiles (public/bars/) from The Spriters Resource's "Pokémon Black 2 and White 2 - HP Bars" sheet (ripped by GameMaster12, no credit needed; saved by hand, as the site blocks scripts)
 tools/icons/            pokedollar.py: draws the run money's icon, the Pokédollar sign as a 32x32 pixel-art sprite (public/nav/pokedollar.png, `PokedollarIcon`)
@@ -872,7 +873,7 @@ cp .env.example .env        # fill in values (see below)
 pnpm db:migrate             # create tables (prompts for a migration name)
 pnpm db:seed                # load the card catalog (WOTC era and EX sets, 1999–2007) from the TCGdex snapshot, plus the hand-made cards
                             # (TCGdex's mistakes are corrected on the way in: TCGDEX_FIXES in prisma/seed.ts, e.g. promo Jigglypuff's 50 HP)
-pnpm dev                    # web on :5173 and API on :8787, both with live reload (asks which checkout first when there are worktrees)
+pnpm dev                    # web on :5173 and API on :8787, both with live reload (asks which checkout first when there are worktrees, then which database: local by default)
 ```
 
 ### Option A – hosted Supabase project
@@ -889,7 +890,7 @@ pnpm db:local               # starts the stack, points .env at it, migrates, see
 pnpm db:local --remote      # puts the hosted values back (from .env.remote)
 ```
 
-Dev servers, worktrees and review jobs should use the local stack, not the hosted project: every API restart (`tsx watch` restarts on each save) reloads the whole card catalog, and on the hosted project that's egress (about 4 MB a restart; it was most of the project's egress in October 2026). `scripts/local-db.mjs` saves the hosted `.env` to `.env.remote` the first time, then writes the local values: the DB URL (`127.0.0.1:54322`) as `DATABASE_URL` and `DIRECT_URL`, `http://127.0.0.1:54321` as `SUPABASE_URL` and `VITE_SUPABASE_URL`, the local anon key, and an empty `SUPABASE_JWT_SECRET` (the local stack signs with ES256 and serves a JWKS, as the hosted one does). Worktrees copy the main checkout's `.env` (`pnpm dev`), so they follow it, and they all share the one local stack (Studio on http://127.0.0.1:54323). `pnpm dev` warns when `.env` still points at the hosted database. The local database starts with no accounts: sign in again for a new one. Google sign-in needs the local redirect URI (see Google OAuth). `pnpm supabase:stop` stops the stack and keeps its data.
+Dev servers, worktrees and review jobs should use the local stack, not the hosted project: every API restart (`tsx watch` restarts on each save) reloads the whole card catalog, and on the hosted project that's egress (about 4 MB a restart; it was most of the project's egress in October 2026). `pnpm dev` asks which database to run on, the local Supabase (the default, first in the list) or the hosted project (`pnpm dev --local` / `--remote` skip the question; a shell that isn't a terminal gets the local one). Local starts the stack if it isn't running, applies the checkout's migrations and seeds an empty catalog (`scripts/supabase-env.mjs`); hosted takes its values from `.env.remote` (or `.env`, while it still points at the hosted project). The choice reaches the servers as environment variables (`turbo.json`'s `globalEnv` passes them through), which win over `.env` (the API's dotenv, Vite and Prisma never override them), so `.env` is left as it is. `pnpm db:local` is for what reads `.env` itself (Prisma Studio, the seed, throwaway `_*.tmp.ts` scripts): `scripts/local-db.mjs` saves the hosted `.env` to `.env.remote` the first time, then writes the local values: the DB URL (`127.0.0.1:54322`) as `DATABASE_URL` and `DIRECT_URL`, `http://127.0.0.1:54321` as `SUPABASE_URL` and `VITE_SUPABASE_URL`, the local anon key, and an empty `SUPABASE_JWT_SECRET` (the local stack signs with ES256 and serves a JWKS, as the hosted one does). Worktrees copy the main checkout's `.env` (`pnpm dev`), so they follow it, and they all share the one local stack (Studio on http://127.0.0.1:54323). The local database starts with no accounts: sign in again for a new one. Google sign-in needs the local redirect URI (see Google OAuth). `pnpm supabase:stop` stops the stack and keeps its data.
 
 ### Google OAuth
 
@@ -907,7 +908,7 @@ Dev servers, worktrees and review jobs should use the local stack, not the hoste
 
 | Command | Description |
 |---|---|
-| `pnpm dev` | Run all apps with live reload. With worktrees (`.claude/worktrees/`), it first asks which checkout to run, the main one or a worktree (↑/↓ or a number, Enter; Esc quits; `scripts/dev.mjs`); a worktree with no `.env` gets a copy of the main checkout's, one with no `node_modules` a `pnpm install` |
+| `pnpm dev` | Run all apps with live reload. With worktrees (`.claude/worktrees/`), it first asks which checkout to run, the main one or a worktree (↑/↓ or a number, Enter; Esc quits; `scripts/dev.mjs`); a worktree with no `.env` gets a copy of the main checkout's, one with no `node_modules` a `pnpm install`. Then it asks which database: the local Supabase (the default; started, migrated and seeded as needed) or the hosted project (`.env.remote`); `--local` / `--remote` skip the question (see Setup, Option B) |
 | `pnpm dev:here` (or `pnpm dev --here`) | Run all apps in this checkout without asking |
 | `pnpm build` | Build everything |
 | `pnpm typecheck` | Typecheck all packages |

@@ -1,0 +1,55 @@
+// The database and Supabase settings the dev servers run with, shared by `pnpm dev` (scripts/dev.mjs) and `pnpm db:local`
+// (scripts/local-db.mjs): the local Supabase (Docker), started, migrated and seeded when it's empty, or the hosted project's
+// values (`.env.remote`, or `.env` itself while it still points at the hosted project).
+import { execFileSync, spawnSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+
+const shell = process.platform === 'win32';
+
+export const readText = (file) => (existsSync(file) ? readFileSync(file, 'utf8') : '');
+export const envValue = (text, key) => text.match(new RegExp(`^${key}=(.*)$`, 'm'))?.[1]?.trim().replace(/^"(.*)"$/, '$1') ?? '';
+export const isLocalUrl = (url) => /@(127\.0\.0\.1|localhost):/.test(url);
+
+/** The settings that say which database and Supabase the servers use: everything else in `.env` is the same either way. */
+export const DB_KEYS = ['DATABASE_URL', 'DIRECT_URL', 'SUPABASE_URL', 'SUPABASE_JWT_SECRET', 'VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY'];
+
+/** The hosted project's settings for the checkout `root`, or null when it has none. */
+export function hostedEnv(root) {
+  for (const file of ['.env.remote', '.env']) {
+    const text = readText(path.join(root, file));
+    const url = envValue(text, 'DATABASE_URL');
+    if (url && !isLocalUrl(url)) return Object.fromEntries(DB_KEYS.map((k) => [k, envValue(text, k)]));
+  }
+  return null;
+}
+
+const run = (cmd, args, root, env) => {
+  const r = spawnSync(cmd, args, { cwd: root, stdio: 'inherit', env, shell });
+  if (r.status) throw new Error(`${cmd} ${args.join(' ')} failed (exit ${r.status})`);
+};
+
+/**
+ * Starts the local Supabase for the checkout `root` (a no-op when it's running; every checkout shares the one stack),
+ * applies the checkout's migrations, seeds the catalog when it's empty, and returns the local settings.
+ */
+export function localEnv(root) {
+  // Only the Google client goes to the CLI: the hosted DATABASE_URL must never reach this process's children, or the migrations could run against it.
+  const text = readText(path.join(root, '.env')) || readText(path.join(root, '.env.remote'));
+  const google = ['SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID', 'SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET'];
+  const cliEnv = { ...process.env, ...Object.fromEntries(google.map((k) => [k, envValue(text, k)])) };
+  run('npx', ['supabase', 'start'], root, cliEnv);
+  const status = JSON.parse(execFileSync('npx', ['supabase', 'status', '-o', 'json'], { cwd: root, env: cliEnv, shell, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
+  // The local stack signs user tokens with ES256 and serves a JWKS, so SUPABASE_JWT_SECRET stays empty (auth.ts checks the JWKS).
+  const local = { DATABASE_URL: status.DB_URL, DIRECT_URL: status.DB_URL, SUPABASE_URL: status.API_URL, SUPABASE_JWT_SECRET: '', VITE_SUPABASE_URL: status.API_URL, VITE_SUPABASE_ANON_KEY: status.ANON_KEY };
+
+  const dbEnv = { ...process.env, ...local };
+  run('pnpm', ['--filter', '@poke-tcg/db', 'migrate:deploy'], root, dbEnv);
+  run('pnpm', ['--filter', '@poke-tcg/db', 'generate'], root, dbEnv); // the client is gitignored: a new worktree has none for the seed
+  const container = `supabase_db_${readText(path.join(root, 'supabase', 'config.toml')).match(/^project_id\s*=\s*"([^"]+)"/m)?.[1] ?? path.basename(root)}`;
+  const cards = Number(execFileSync('docker', ['exec', container, 'psql', '-U', 'postgres', '-tAc', 'select count(*) from "Card"'], { encoding: 'utf8' }).trim());
+  if (cards) console.log(`The local catalog has ${cards} cards: not re-seeding (\`pnpm db:seed\` does it).`);
+  else run('pnpm', ['--filter', '@poke-tcg/db', 'seed'], root, dbEnv);
+  console.log(`Local Supabase: ${status.API_URL} (Studio ${status.STUDIO_URL}).`);
+  return local;
+}
