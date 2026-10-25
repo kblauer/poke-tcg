@@ -5,7 +5,7 @@
 // database and Supabase lines. `pnpm db:local --remote` puts `.env.remote` back.
 import { copyFileSync, existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { envValue, isLocalUrl, localEnv, readText } from './supabase-env.mjs';
+import { envValue, isLocalUrl, localEnv, localSupabasePorts, readText, reservedPorts, reservedPortsHelp } from './supabase-env.mjs';
 
 const root = process.cwd();
 const envPath = path.join(root, '.env');
@@ -16,6 +16,12 @@ if (process.argv.includes('--remote')) {
   copyFileSync(remotePath, envPath);
   console.log('.env points at the hosted Supabase project again (from .env.remote).');
   process.exit(0);
+}
+
+const conflicts = reservedPorts(localSupabasePorts(root));
+if (conflicts.length) {
+  console.error(reservedPortsHelp(conflicts));
+  process.exit(1);
 }
 
 let text = readText(envPath) || readText(path.join(root, '.env.example'));
