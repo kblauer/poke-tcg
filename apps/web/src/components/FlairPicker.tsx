@@ -56,12 +56,12 @@ export function FlairPicker({
   if (!options.length || !flair.data) return null;
 
   const { title, noun } = SLOTS[slot];
-  const previewed = options.find((o) => o.key === shown);
-  const price = previewed?.price ?? 0;
   const mine = (f: { cardId: string; slot: string }) => f.cardId === card.id && f.slot === slot;
   const owned = new Set(flair.data.owned.filter(mine).map((f) => f.key));
   const inUse = flair.data.equipped.find(mine)?.key ?? null;
   const shown = preview === undefined ? inUse : preview;
+  const previewed = options.find((o) => o.key === shown);
+  const price = previewed?.price ?? 0;
   const has = shown === null || owned.has(shown);
   const pending = buy.isPending || equip.isPending;
   const error = buy.error?.message ?? equip.error?.message;
