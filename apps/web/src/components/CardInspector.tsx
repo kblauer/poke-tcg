@@ -3,13 +3,13 @@ import CloseIcon from '@mui/icons-material/Close';
 import RemoveIcon from '@mui/icons-material/Remove';
 import StarIcon from '@mui/icons-material/Star';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
-import { holoPattern } from '@poke-tcg/campaign';
+import { holoPattern, type FlairSlot } from '@poke-tcg/campaign';
 import { useRef, useState } from 'react';
 import { useEscape } from '../hooks/useEscape';
 import { useScrollLock } from '../hooks/useScrollLock';
 import type { CatalogCard } from '../utils/cardList';
 import { CardViewer } from './CardViewer';
-import { PatternPicker } from './PatternPicker';
+import { FlairPicker } from './FlairPicker';
 
 const small = 'flex rounded bg-slate-600 p-1 hover:bg-slate-500 disabled:opacity-30';
 
@@ -24,8 +24,8 @@ const KEEP_OPEN = 'button, input, a, [data-keep-open]';
  * the deck; + is disabled with the reason when the card can't be added. In the deck builder (`craft`), Craft unlocks the
  * card for Stardust. The page behind it doesn't scroll while it's open (useScrollLock); it scrolls itself only when it's
  * taller than the screen. The ★ button (`favorite`) adds the card to the account's favorites, or takes it out. For a holo,
- * `unlocked` is how many copies the account has (see useUnlocked's `holoCopies`), shown above it. A holo that can switch
- * its pattern has the holo patterns under it (PatternPicker, card flair), previewed on the card.
+ * `unlocked` is how many copies the account has (see useUnlocked's `holoCopies`), shown above it. Under it, the card
+ * flair the card can be given (FlairPicker: a holo's patterns, a low-rarity card's gold border), previewed on the card.
  */
 export function CardInspector({
   card,
@@ -49,8 +49,17 @@ export function CardInspector({
 }) {
   /** A press has started on it since it opened. */
   const pressed = useRef(false);
-  /** The holo pattern previewed on the card (PatternPicker): a key, null for its own, undefined for the one in use. */
-  const [preview, setPreview] = useState<string | null | undefined>(undefined);
+  /** The flair previewed on the card in each slot (FlairPicker): a key, null for its own look; a slot not in it shows the one in use. */
+  const [preview, setPreview] = useState<Partial<Record<FlairSlot, string | null>>>({});
+  const picker = (slot: FlairSlot) => (
+    <FlairPicker
+      card={card}
+      slot={slot}
+      locked={locked}
+      preview={preview[slot]}
+      onPreview={(key) => setPreview(({ [slot]: _, ...rest }) => (key === undefined ? rest : { ...rest, [slot]: key }))}
+    />
+  );
   const overlay = useRef<HTMLDivElement>(null);
   useScrollLock(true, overlay);
   useEscape(onClose);
@@ -74,7 +83,12 @@ export function CardInspector({
         <CloseIcon />
       </button>
       <div className="m-auto flex w-full max-w-lg flex-col items-center gap-3">
-        <CardViewer card={card} locked={locked} pattern={preview === undefined ? undefined : (holoPattern(preview) ?? null)} />
+        <CardViewer
+          card={card}
+          locked={locked}
+          pattern={preview.pattern === undefined ? undefined : (holoPattern(preview.pattern) ?? null)}
+          goldBorder={preview.border === undefined ? undefined : preview.border !== null}
+        />
         {unlocked !== undefined && (
           <p className="text-sm text-slate-300">
             Unlocked: <span className="font-semibold tabular-nums text-fuchsia-300">{unlocked}</span> {unlocked === 1 ? 'copy' : 'copies'}
@@ -119,7 +133,8 @@ export function CardInspector({
           </div>
         )}
         {craft && (craft.error ?? craft.blocked) && <p className="text-xs text-amber-300">{craft.error ?? craft.blocked}.</p>}
-        <PatternPicker card={card} locked={locked} preview={preview} onPreview={setPreview} />
+        {picker('pattern')}
+        {picker('border')}
       </div>
     </div>
   );

@@ -1,0 +1,79 @@
+/*
+
+  CARD FLAIR: GOLD BORDER (as in Pokémon TCG Pocket)
+
+  A gold frame laid over the card's printed (yellow) border: the ring between the card's edge and its frame, clipped
+  with an evenodd polygon, the art and text inside untouched. The ring is measured on 600×825 TCGdex scans, as the holo
+  shapes in holo/wotc.css are:
+
+  - Classic layout (Base–Neo, Legendary Collection): the yellow border is outside x 22–577, y 25–802 (the galaxy
+    foil's outline in wotc.css).
+  - EX layout: outside x 17–580, y 18–772 (the Pokémon-ex foil's outline in wotc.css; its bottom border is deeper).
+  - e-Card layout: not measured yet; it takes the classic ring. To be checked by eye.
+
+  Its sparkle and sweeping shine are drawn here, not with an image, so it scales with the card.
+
+*/
+
+.gold-border {
+  --left: 3.7%;
+  --top: 3%;
+  --right: 3.8%;
+  --bottom: 2.8%;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  clip-path: polygon(
+    evenodd,
+    0 0,
+    100% 0,
+    100% 100%,
+    0 100%,
+    0 0,
+    var(--left) var(--top),
+    calc(100% - var(--right)) var(--top),
+    calc(100% - var(--right)) calc(100% - var(--bottom)),
+    var(--left) calc(100% - var(--bottom)),
+    var(--left) var(--top)
+  );
+  background:
+    radial-gradient(circle at 30% 40%, rgb(255 255 255 / 0.75) 0 0.5px, transparent 1.2px) 0 0 / 5px 6px,
+    radial-gradient(circle at 70% 70%, rgb(255 236 170 / 0.6) 0 0.5px, transparent 1.4px) 2px 3px / 7px 8px,
+    linear-gradient(135deg, #7a5410 0%, #d9ae3a 14%, #fff1a6 26%, #c8951f 40%, #f6d870 55%, #a8771a 70%, #f0cd5e 84%, #7d5712 100%);
+}
+
+.gold-border[data-era="ex"] {
+  --left: 2.8%;
+  --top: 2.2%;
+  --right: 3.3%;
+  --bottom: 6.4%;
+}
+
+/* A band of light sweeping across now and then. */
+.gold-border::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 38%, rgb(255 255 235 / 0.85) 50%, transparent 62%) no-repeat;
+  background-size: 300% 100%;
+  mix-blend-mode: screen;
+  animation: gold-border-sheen 5s ease-in-out infinite;
+}
+
+@keyframes gold-border-sheen {
+  0%,
+  35% {
+    background-position: 100% 0;
+  }
+  75%,
+  100% {
+    background-position: 0% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gold-border::after {
+    animation: none;
+    opacity: 0;
+  }
+}

@@ -1,5 +1,5 @@
 import type { HoloPattern } from '@poke-tcg/campaign';
-import { usePattern } from '../hooks/useFlair';
+import { useFlair, usePattern } from '../hooks/useFlair';
 import { cardTitle, stageLabel, type CatalogCard } from '../utils/cardList';
 import { holoAttributes } from '../utils/holo';
 import { HoloCard } from './HoloCard';
@@ -7,11 +7,13 @@ import { CardImage } from './CardImage';
 
 /**
  * A card at full size, with its set and stats underneath (the deck builder's hold and right-click views). A
- * `locked` card (not unlocked by the account) is shown darkened and still, without the holo effect. A holo shows the
- * pattern the player chose for it (card flair), or `pattern` when given (the inspector's preview; null: its own).
+ * `locked` card (not unlocked by the account) is shown darkened and still, without the holo effect. It shows the
+ * flair the player chose for it (a holo's pattern, a low-rarity card's gold border), or `pattern` and `goldBorder` when
+ * given (the inspector's preview; null and false: its own look).
  */
-export function CardViewer({ card, locked = false, pattern }: { card: CatalogCard; locked?: boolean; pattern?: HoloPattern | null }) {
+export function CardViewer({ card, locked = false, pattern, goldBorder }: { card: CatalogCard; locked?: boolean; pattern?: HoloPattern | null; goldBorder?: boolean }) {
   const chosen = usePattern(card.id);
+  const chosenBorder = useFlair(card.id, 'border') !== null;
   const details = [stageLabel(card), card.type, card.hp !== null && `${card.hp} HP`, card.maxDamage && `max attack ${card.maxDamage}`].filter(Boolean);
   return (
     <div className="flex flex-col items-center gap-3">
@@ -21,7 +23,7 @@ export function CardViewer({ card, locked = false, pattern }: { card: CatalogCar
         {card.imageUrl && locked ? (
           <CardImage src={`${card.imageUrl}/high.webp`} alt={card.name} className="aspect-[63/88] w-full rounded-[4.5%] object-cover brightness-[.35]" />
         ) : card.imageUrl ? (
-          <HoloCard key={card.id} img={`${card.imageUrl}/high.webp`} name={card.name} attrs={holoAttributes(card, pattern === undefined ? chosen : pattern)} />
+          <HoloCard key={card.id} img={`${card.imageUrl}/high.webp`} name={card.name} attrs={holoAttributes(card, pattern === undefined ? chosen : pattern)} goldBorder={goldBorder ?? chosenBorder} />
         ) : (
           <div className="aspect-[63/88] rounded-2xl bg-slate-800 p-4 text-lg font-semibold">{card.name}</div>
         )}

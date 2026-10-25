@@ -4,6 +4,7 @@ import '../styles/holo/index.css';
 import type { HoloAttributes } from '../utils/holo';
 import { adjust, clamp, round } from '../utils/math';
 import { CARD_BACK } from '../utils/cardBack';
+import { GoldBorder } from './GoldBorder';
 import { Spring } from '../utils/spring';
 
 const INTERACT = { stiffness: 0.066, damping: 0.25 };
@@ -40,6 +41,7 @@ export type HoloMotion = { play(path: HoloKeyframe[], end: number): void };
  * and glare layers follow it. Styles are picked by the data-* attributes (rarity, subtypes, …).
  * `still`: the shine is fixed and the card doesn't move or react to the pointer (the Active Pokémon on the board).
  * `motionRef` lets a caller move it anyway (`HoloMotion`), e.g. to tilt and shine with the slot's animations.
+ * `goldBorder`: card flair's gold border over its printed border, tilting with it, under the shine and glare.
  */
 export function HoloCard({
   img,
@@ -49,6 +51,7 @@ export function HoloCard({
   mask,
   still = false,
   motionRef,
+  goldBorder = false,
 }: {
   img: string;
   name: string;
@@ -58,6 +61,7 @@ export function HoloCard({
   mask?: string;
   still?: boolean;
   motionRef?: Ref<HoloMotion | null>;
+  goldBorder?: boolean;
 }) {
   mask ??= attrs.mask ?? undefined;
   const cardRef = useRef<HTMLDivElement>(null);
@@ -117,6 +121,7 @@ export function HoloCard({
             }
           >
             <img src={img} alt={name} onLoad={() => setLoading(false)} width="660" height="921" />
+            {goldBorder && <GoldBorder era={attrs.era} />}
             <div className="card__shine" />
             <div className="card__glare" />
           </div>

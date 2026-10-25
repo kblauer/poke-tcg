@@ -45,7 +45,13 @@ export interface HoloAttributes {
   mask: string | null;
 }
 
-const SUBTYPES: Record<string, string> = { basic: 'basic', baby: 'basic', stage1: 'stage 1', stage2: 'stage 2' };
+/** A set's card layout (wotc.css, gold-border.css): classic (Base–Neo), e-Card, or EX (Generation 3). */
+const setEra = (set: string): HoloAttributes['era'] => (set.startsWith('ecard') ? 'ecard' : /^ex\d/.test(set) ? 'ex' : 'wotc');
+
+/** A card's layout by its id ("<set>-<number>"), for the gold border (GoldBorder). */
+export const cardEra = (id: string) => setEra(id.slice(0, id.lastIndexOf('-')));
+
+const SUBTYPES: Record<string, string> ={ basic: 'basic', baby: 'basic', stage1: 'stage 1', stage2: 'stage 2' };
 
 /**
  * `pattern`: a holo pattern the player bought for the card (card flair, `usePattern`), shown instead of its own: the
@@ -68,7 +74,7 @@ export function holoAttributes(card: HoloSource, pattern?: HoloPattern | null): 
     subtypes: style?.subtypes ?? (kind === 'pokemon' ? (SUBTYPES[card.stage?.toLowerCase() ?? ''] ?? 'basic') : kind === 'trainer' ? 'item' : 'basic'),
     set,
     number: id.slice(split + 1).toLowerCase(),
-    era: set.startsWith('ecard') ? 'ecard' : /^ex\d/.test(set) ? 'ex' : 'wotc',
+    era: setEra(set),
     pokemonEx: kind === 'pokemon' && / ex$/.test(card.name ?? ''),
     trainerGallery: style?.trainerGallery ?? false,
     holoEnergy: !!card.holoEnergy,

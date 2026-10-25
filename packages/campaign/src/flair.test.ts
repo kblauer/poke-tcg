@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { HOLO_ENERGY_STYLES } from '../../db/prisma/holo-energy.js';
-import { canSwitchPattern, HOLO_PATTERNS, ownPattern, patternsFor } from './flair.js';
+import { canHaveBorder, canSwitchPattern, flairFor, HOLO_PATTERNS, ownPattern, patternsFor } from './flair.js';
 
+const plain = { holo: false, galaxy: false };
 const holo = { holo: true, galaxy: false };
 const galaxy = { holo: false, galaxy: true };
 const galaxyArt = { holo: true, galaxy: true };
@@ -28,5 +29,22 @@ describe('holo patterns', () => {
     expect(patternsFor(galaxyArt).map((p) => p.key)).not.toContain('galaxy');
     expect(patternsFor(holo)).toHaveLength(HOLO_PATTERNS.length - 1);
     expect(patternsFor({ holo: false, galaxy: false })).toEqual([]);
+  });
+});
+
+describe('gold borders', () => {
+  it('only low-rarity cards: never a holo of any kind or basic Energy', () => {
+    expect(canHaveBorder(plain)).toBe(true);
+    expect(canHaveBorder(holo)).toBe(false);
+    expect(canHaveBorder(galaxy)).toBe(false);
+    expect(canHaveBorder({ ...plain, reverseHolo: true })).toBe(false);
+    expect(canHaveBorder({ ...plain, holoEnergy: { key: 'rainbow' } })).toBe(false);
+    expect(canHaveBorder({ ...plain, basicEnergy: true })).toBe(false);
+  });
+
+  it('a card gets patterns or a border, never both', () => {
+    for (const card of [plain, holo, galaxy, galaxyArt]) expect(flairFor(card, 'pattern').length > 0 && flairFor(card, 'border').length > 0).toBe(false);
+    expect(flairFor(plain, 'border').map((b) => b.key)).toEqual(['gold']);
+    expect(flairFor(holo, 'pattern')).toEqual(patternsFor(holo));
   });
 });

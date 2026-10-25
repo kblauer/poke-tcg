@@ -1,19 +1,30 @@
 // Card flair (agreed with the user 2026-10-25): looks bought with Stardust for one card, used by every copy of it in
 // every deck (account-wide) and only on the player's own cards. First, holo patterns: a card that has a holo pattern of
 // its own (a holo rare or a galaxy foil; never a reverse-holo print or a holo Energy) can be shown in any style of the
-// holo card library instead. Each pattern is bought once per card (PATTERN_PRICE): one bought for Kabutops is
+// holo card library instead. Each pattern is bought once per card (FLAIR_PRICE): one bought for Kabutops is
 // Kabutops' alone. The card's own pattern and every one bought for it can be switched to at any time, for nothing.
+// Second, gold borders (as in Pokémon TCG Pocket): a gold frame over the card's printed border, for the low-rarity
+// cards only (commons, uncommons and non-holo rares; never a holo of any kind), bought once per card (FLAIR_PRICE).
 import type { HoloEnergyStyle } from './card-fixes.js';
 
 /** A holo pattern: a style of the holo card library, as the attributes its CSS selects on (the web's HoloCard). */
 export type HoloPattern = HoloEnergyStyle;
 
-/** What can be bought for a card: one flair of each slot is shown at a time. Gold borders and effects come later. */
-export const FLAIR_SLOTS = ['pattern'] as const;
+/** What can be bought for a card: one flair of each slot is shown at a time. Effects come later. */
+export const FLAIR_SLOTS = ['pattern', 'border'] as const;
 export type FlairSlot = (typeof FLAIR_SLOTS)[number];
 
-/** Stardust for one holo pattern for one card (the user's). */
-export const PATTERN_PRICE = 5000;
+/** Stardust for one flair for one card (the user's): a holo pattern 5000, a gold border 3000. */
+export const FLAIR_PRICE: Record<FlairSlot, number> = { pattern: 5000, border: 3000 };
+
+/** A flair a card can be given in a slot: its key (stored in FlairUnlock and CardFlair) and its name. */
+export interface FlairOption {
+  key: string;
+  label: string;
+}
+
+/** The borders (one so far). */
+export const BORDERS: FlairOption[] = [{ key: 'gold', label: 'Gold' }];
 
 /**
  * Every style of the holo card library but the one made for a single card (swsh-pikachu.css): the holo Energy styles
@@ -51,6 +62,7 @@ export interface PatternCard {
   galaxy: boolean;
   holoEnergy?: unknown;
   reverseHolo?: boolean;
+  basicEnergy?: boolean;
 }
 
 /** A card whose holo pattern can be switched: one with a pattern of its own, a holo rare or a galaxy foil, but not a reverse-holo print or a holo Energy (the user's). */
@@ -61,3 +73,9 @@ export const ownPattern = (card: PatternCard) => (card.galaxy ? 'galaxy' : 'holo
 
 /** The patterns a card can be given: every library style but its own, none for a card that can't switch. */
 export const patternsFor = (card: PatternCard) => (canSwitchPattern(card) ? HOLO_PATTERNS.filter((p) => p.key !== ownPattern(card)) : []);
+
+/** A card that can have a gold border: a common, uncommon or non-holo rare (the user's), so no holo, galaxy foil, reverse-holo print or holo Energy, and no basic Energy, which has no rarity. */
+export const canHaveBorder = (card: PatternCard) => !card.holo && !card.galaxy && !card.holoEnergy && !card.reverseHolo && !card.basicEnergy;
+
+/** What a card can be given in a slot: its other patterns, or the borders. */
+export const flairFor = (card: PatternCard, slot: FlairSlot): FlairOption[] => (slot === 'pattern' ? patternsFor(card) : canHaveBorder(card) ? BORDERS : []);

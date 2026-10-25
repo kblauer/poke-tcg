@@ -274,7 +274,7 @@ export function Hand({
         {browsed && (
           // Big above the hand, in the middle of the screen, while the finger is held on its card.
           <div className="pointer-events-none absolute bottom-full left-1/2 z-[60] mb-3 w-[min(62vw,15rem)] -translate-x-1/2 drop-shadow-[0_8px_24px_rgba(0,0,0,0.7)] [--card-lg:min(62vw,15rem)]">
-            <Card def={lookupCard(cards, browsed.defId)} highRes />
+            <Card def={lookupCard(cards, browsed.defId)} highRes mine />
           </div>
         )}
         {hand.map((c, i) => {

@@ -560,7 +560,7 @@ export function Board({
           // centring the image in it keeps it centred on the pointer (centerOnPointer centres the overlay).
           <div className="flex h-full w-full items-center justify-center">
             <div className="rotate-3 cursor-grabbing opacity-90">
-              <Card def={lookupCard(view.cards, heldCard.defId)} highRes />
+              <Card def={lookupCard(view.cards, heldCard.defId)} highRes mine />
             </div>
           </div>
         ) : null}

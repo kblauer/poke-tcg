@@ -1,10 +1,14 @@
 import { useLayoutEffect, useRef } from 'react';
 import { getPreviewWidth, previewPosition, zoomPreview } from '../utils/preview';
+import { useFlair } from '../hooks/useFlair';
+import { cardEra } from '../utils/holo';
 import type { Preview } from './PreviewContext';
 import { CardImage } from './CardImage';
+import { GoldBorder } from './GoldBorder';
 
 /** The large hover preview, following the pointer. `onLost` hides it: called once the pointer has left the card it's for (`from`) or the window. */
-export function CardPreview({ def, x, y, scrollZoom = true, from, onLost }: Preview & { onLost: () => void }) {
+export function CardPreview({ def, x, y, scrollZoom = true, from, mine = true, onLost }: Preview & { onLost: () => void }) {
+  const goldBorder = useFlair(def.id, 'border', mine) !== null;
   const ref = useRef<HTMLDivElement>(null);
 
   // Follow the pointer and resize on scroll by styling the element directly,
@@ -50,7 +54,10 @@ export function CardPreview({ def, x, y, scrollZoom = true, from, onLost }: Prev
     // Above everything, including the deck-search dialog (z-[1000]).
     <div ref={ref} className="pointer-events-none fixed left-0 top-0 z-[1100]" aria-hidden>
       {def.imageUrl ? (
-        <CardImage src={`${def.imageUrl}/high.webp`} alt="" className="aspect-[63/88] w-full rounded-xl shadow-2xl ring-1 ring-black/40" />
+        <div className="relative overflow-hidden rounded-xl">
+          <CardImage src={`${def.imageUrl}/high.webp`} alt="" className="aspect-[63/88] w-full rounded-xl shadow-2xl ring-1 ring-black/40" />
+          {goldBorder && <GoldBorder era={cardEra(def.id)} />}
+        </div>
       ) : (
         <div className="aspect-[63/88] w-full rounded-xl bg-slate-800 p-4 text-lg font-semibold shadow-2xl">{def.name}</div>
       )}
