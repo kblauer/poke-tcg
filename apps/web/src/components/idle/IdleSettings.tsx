@@ -1,7 +1,5 @@
 import { ITEMS, species, type CatchUpSummary, type IdleSettings as Settings, type RevivePolicy } from '@poke-tcg/idle';
-import { useEscape } from '../../hooks/useEscape';
 import { commas } from '../../utils/math';
-import { BUTTON, DIALOG, DIALOG_BACKDROP } from '../../utils/styles';
 
 /** The Revive policies' labels (agreed with the user). */
 const REVIVES: [RevivePolicy, string][] = [
@@ -80,27 +78,17 @@ const hours = (ms: number) => {
   return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`;
 };
 
-/** What happened while the player was away (offline catch-up, agreed with the user): its totals, the Pokémon caught, evolutions, badges. */
-export function CatchUpDialog({ summary, onClose }: { summary: CatchUpSummary; onClose: () => void }) {
-  useEscape(onClose);
-  return (
-    <div className={`${DIALOG_BACKDROP} z-50`} onClick={onClose}>
-      <div className={`${DIALOG} max-w-md space-y-3 p-5`} onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-lg font-semibold">While you were away</h3>
-        <p className="text-sm text-slate-300">
-          {hours(summary.durationMs)} of adventure: {summary.battles} battles, {summary.levels} levels gained, {summary.money >= 0 ? `₱${commas(summary.money)} earned` : `₱${commas(-summary.money)} lost`}
-          {summary.whiteOuts > 0 && `, ${summary.whiteOuts} white-out${summary.whiteOuts === 1 ? '' : 's'}`}.
-        </p>
-        {summary.caught.length > 0 && <p className="text-sm">Caught: {summary.caught.map((id) => species(id).name).join(', ')}.</p>}
-        {summary.evolutions.length > 0 && <p className="text-sm">Evolved: {summary.evolutions.map((e) => `${species(e.from).name} into ${species(e.into).name}`).join(', ')}.</p>}
-        {summary.badges.length > 0 && <p className="text-sm">Won the {summary.badges.join(', ')} Badge{summary.badges.length === 1 ? '' : 's'}!</p>}
-        {summary.stopped === 'town' && <p className="text-sm text-yellow-200">Waiting in town for you.</p>}
-        <div className="text-right">
-          <button className={BUTTON} onClick={onClose}>
-            OK
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+/**
+ * What happened while the player was away (offline catch-up, agreed with the user), as pages for the scene's text box
+ * (DialogueBox): its totals, the Pokémon caught, evolutions, badges, and whether the run waits in town.
+ */
+export function catchUpPages(summary: CatchUpSummary): string[] {
+  return [
+    `While you were away: ${hours(summary.durationMs)} of adventure.
+${summary.battles} battles, ${summary.levels} levels gained, ${summary.money >= 0 ? `₱${commas(summary.money)} earned` : `₱${commas(-summary.money)} lost`}${summary.whiteOuts > 0 ? `, ${summary.whiteOuts} white-out${summary.whiteOuts === 1 ? '' : 's'}` : ''}.`,
+    ...(summary.caught.length > 0 ? [`Caught: ${summary.caught.map((id) => species(id).name).join(', ')}.`] : []),
+    ...(summary.evolutions.length > 0 ? [`Evolved: ${summary.evolutions.map((e) => `${species(e.from).name} into ${species(e.into).name}`).join(', ')}.`] : []),
+    ...(summary.badges.length > 0 ? [`Won the ${summary.badges.join(', ')} Badge${summary.badges.length === 1 ? '' : 's'}!`] : []),
+    ...(summary.stopped === 'town' ? ['Waiting in town for you.'] : []),
+  ];
 }

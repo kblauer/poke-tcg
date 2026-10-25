@@ -3,12 +3,14 @@ import { useState } from 'react';
 import type { ClientIdleRun } from '../../hooks/useIdle';
 import { commas } from '../../utils/math';
 import { BUTTON } from '../../utils/styles';
+import type { Dialogue } from '../DialogueBox';
 import { PokedollarIcon } from '../PageNav';
 import { MapScene } from './AreaScene';
 
 /**
  * A town (README: Idle Adventure): its map with the player before the Pokémon Center, and the choice the run waits for
- * (agreed with the user): the gym (or the League), the store, or on to the next route once the gym is beaten.
+ * (agreed with the user): the gym (or the League), the store, or on to the next route once the gym is beaten, as the
+ * choices of a question in the text box (DialogueBox); `dialogue` in its place (the catch-up's pages).
  */
 export function TownMenu({
   run,
@@ -17,6 +19,7 @@ export function TownMenu({
   onGym,
   onStore,
   onContinue,
+  dialogue,
 }: {
   run: ClientIdleRun;
   gender: 'male' | 'female';
@@ -24,6 +27,7 @@ export function TownMenu({
   onGym: () => void;
   onStore: () => void;
   onContinue: () => void;
+  dialogue?: Dialogue | null;
 }) {
   const town = AREAS[run.view.area] as TownArea;
   const map = mapView(town.map);
@@ -31,32 +35,17 @@ export function TownMenu({
   const badge = gym && gym.kind === 'gym' ? gym.badge! : null;
   const gymDone = !gym || (badge !== null && run.view.badges.includes(badge));
   const league = gym?.kind === 'league';
-  return (
-    <MapScene image={map.image} width={map.width} height={map.height} tile={{ x: town.stand[0], y: town.stand[1] }} player={gender === 'female' ? 'leaf' : 'red'} face="down" moveMs={0}>
-      <div className="absolute inset-x-3 bottom-3 rounded-lg bg-slate-900/90 p-3 ring-1 ring-slate-600">
-        <p className="mb-2 text-sm text-slate-200">
-          {town.name}. {gymDone ? (league ? '' : 'Where to next?') : league ? 'The Pokémon League awaits.' : `${gym?.name} is here.`}
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {gym && !gymDone && (
-            <button className="rounded bg-blue-600 px-4 py-1.5 text-sm font-semibold transition hover:bg-blue-500 active:scale-95 disabled:opacity-40" disabled={busy} onClick={onGym}>
-              {league ? 'Challenge the Elite Four' : 'Gym'}
-            </button>
-          )}
-          {town.marts.length > 0 && (
-            <button className={BUTTON} disabled={busy} onClick={onStore}>
-              Store
-            </button>
-          )}
-          {gymDone && !league && (
-            <button className="rounded bg-blue-600 px-4 py-1.5 text-sm font-semibold transition hover:bg-blue-500 active:scale-95 disabled:opacity-40" disabled={busy} onClick={onContinue}>
-              Continue
-            </button>
-          )}
-        </div>
-      </div>
-    </MapScene>
-  );
+  const options: { label: string; act: () => void }[] = [
+    ...(gym && !gymDone ? [{ label: league ? 'Challenge the Elite Four' : 'Gym', act: onGym }] : []),
+    ...(town.marts.length > 0 ? [{ label: 'Store', act: onStore }] : []),
+    ...(gymDone && !league ? [{ label: 'Continue', act: onContinue }] : []),
+  ];
+  const question: Dialogue = {
+    text: `${town.name}. ${gymDone ? (league ? '' : 'Where to next?') : league ? 'The Pokémon League awaits.' : `${gym?.name} is here.`}`.trim(),
+    choices: options.map((o) => ({ label: o.label, disabled: busy })),
+    answer: (i) => options[i]!.act(),
+  };
+  return <MapScene image={map.image} width={map.width} height={map.height} tile={{ x: town.stand[0], y: town.stand[1] }} player={gender === 'female' ? 'leaf' : 'red'} face="down" moveMs={0} dialogue={dialogue ?? question} />;
 }
 
 /** The town's store (its marts' stock, without Escape Ropes and Repels: agreed): each item's price, how many the bag holds, and buying. */
