@@ -6,7 +6,8 @@ import { setEra } from '../utils/holo';
  * The ramps a classic or Neo Pokémon card's yellow art frame and banner are mapped onto (flair-border.css), by
  * lightness, 21 steps each: gold for the gold border (#1c1204 0, #5e4010 .3, #a8771a .55, #d9ae3a .72, #f6d870 .86,
  * #fff6c8 1), silver for the rainbow ones (#15171b 0, #4d525b .3, #9ca3ad .55, #cdd2da .72, #e9ecf1 .86, #ffffff 1),
- * which the rainbow then colours.
+ * which the rainbow then colours, and black for the black one (#000000 0, #060607 .3, #121215 .55, #202026 .72, #303038
+ * .86, #45454f 1: its bevels a faint charcoal).
  */
 const RAMPS = {
   gold: {
@@ -18,6 +19,11 @@ const RAMPS = {
     r: '0.082 0.119 0.156 0.192 0.229 0.265 0.302 0.364 0.426 0.488 0.550 0.612 0.668 0.725 0.781 0.827 0.867 0.906 0.938 0.969 1.000',
     g: '0.090 0.129 0.167 0.206 0.244 0.283 0.322 0.385 0.449 0.512 0.576 0.639 0.693 0.748 0.802 0.845 0.882 0.918 0.947 0.973 1.000',
     b: '0.106 0.148 0.190 0.231 0.273 0.315 0.357 0.421 0.485 0.550 0.614 0.678 0.730 0.782 0.834 0.874 0.906 0.939 0.961 0.980 1.000',
+  },
+  black: {
+    r: '0.000 0.004 0.008 0.012 0.016 0.020 0.024 0.033 0.042 0.052 0.061 0.071 0.087 0.103 0.119 0.139 0.161 0.184 0.212 0.241 0.271',
+    g: '0.000 0.004 0.008 0.012 0.016 0.020 0.024 0.033 0.042 0.052 0.061 0.071 0.087 0.103 0.119 0.139 0.161 0.184 0.212 0.241 0.271',
+    b: '0.000 0.005 0.009 0.014 0.018 0.023 0.027 0.038 0.049 0.060 0.071 0.082 0.102 0.122 0.141 0.164 0.189 0.215 0.245 0.278 0.310',
   },
 };
 
@@ -58,18 +64,19 @@ const RIDGES = [
 
 /**
  * Card flair's border over the card it's in (its parent fills the card; flair-border.css), `border` a BORDERS key
- * (gold, rainbow, pastel): a ring over the printed border, shaped for the card's layout (the rainbows with ridges round
- * it), and on a classic or Neo Pokémon card (`pokemon`) its art frame, banner (and Neo's stage tab) recoloured to go
- * with it: a copy of the card's image (`img`, the one shown), clipped to them, whose yellow pixels are mapped onto the
- * gold or silver ramp (an SVG filter), the print on them kept; for the rainbows, the rainbow's colour over that silver
- * (the tint: rainbow wedges masked to the image's yellow pixels, `mix-blend-mode: color`).
+ * (gold, rainbow, pastel, black): a ring over the printed border, shaped for the card's layout (the rainbows with
+ * ridges round it), and on a classic or Neo Pokémon card (`pokemon`) its art frame, banner (and Neo's stage tab)
+ * recoloured to go with it: a copy of the card's image (`img`, the one shown), clipped to them, whose yellow pixels are
+ * mapped onto the gold, silver or black ramp (an SVG filter), the print on them kept; for the rainbows, the rainbow's
+ * colour over that silver (the tint: rainbow wedges masked to the image's yellow pixels, `mix-blend-mode: color`); for
+ * black, only the art frame (the banner's and tab's text would be lost on black).
  */
 export function FlairBorder({ border, cardId, img, pokemon }: { border: string; cardId: string; img: string; pokemon: boolean }) {
   const maskId = `flair-border-mask-${useId().replace(/[^\w-]/g, '')}`;
   const set = cardId.slice(0, cardId.lastIndexOf('-'));
   const era = setEra(set);
   const frame = pokemon && era === 'wotc' ? (set.startsWith('neo') ? 'neo' : 'classic') : null;
-  const ramp = border === 'gold' ? 'gold' : 'silver';
+  const ramp = border === 'gold' || border === 'black' ? border : 'silver';
   const rainbow = WEDGES[border];
   return (
     <div className="flair-border" data-border={border} data-era={era} aria-hidden>
@@ -78,7 +85,8 @@ export function FlairBorder({ border, cardId, img, pokemon }: { border: string; 
       </div>
       {frame && (
         <>
-          <img className="flair-border__frame" data-frame={frame} data-ramp={ramp} src={img} alt="" draggable={false} />
+          {/* Black leaves the banner (and Neo's tab) as printed: their black text would be lost on black. */}
+          <img className="flair-border__frame" data-frame={frame} data-ramp={ramp} data-banner={ramp === 'black' ? 'printed' : undefined} src={img} alt="" draggable={false} />
           {rainbow && (
             <svg className="flair-border__tint" data-frame={frame} viewBox={`0 0 ${SCAN.w} ${SCAN.h}`} preserveAspectRatio="xMidYMid slice">
               <mask id={maskId} maskUnits="userSpaceOnUse" x="0" y="0" width={SCAN.w} height={SCAN.h}>

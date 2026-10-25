@@ -1,11 +1,11 @@
 // Card flair (agreed with the user 2026-10-25): looks bought with Stardust for one card, used by every copy of it in
 // every deck (account-wide) and only on the player's own cards. First, holo patterns: a card that has a holo pattern of
 // its own (a holo rare or a galaxy foil; never a reverse-holo print or a holo Energy) can be shown in any style of the
-// holo card library instead. Each pattern is bought once per card (FLAIR_PRICE): one bought for Kabutops is
+// holo card library instead. Each pattern is bought once per card (PATTERN_PRICE): one bought for Kabutops is
 // Kabutops' alone. The card's own pattern and every one bought for it can be switched to at any time, for nothing.
-// Second, borders (as in Pokémon TCG Pocket): a gold or rainbow frame over the card's printed border, for the
+// Second, borders (as in Pokémon TCG Pocket): a gold, rainbow or black frame over the card's printed border, for the
 // low-rarity cards only (commons, uncommons and non-holo rares; never a holo of any kind), each bought once per card
-// (FLAIR_PRICE).
+// at its own price (BORDERS).
 import type { HoloEnergyStyle } from './card-fixes.js';
 
 /** A holo pattern: a style of the holo card library, as the attributes its CSS selects on (the web's HoloCard). */
@@ -15,20 +15,25 @@ export type HoloPattern = HoloEnergyStyle;
 export const FLAIR_SLOTS = ['pattern', 'border'] as const;
 export type FlairSlot = (typeof FLAIR_SLOTS)[number];
 
-/** Stardust for one flair for one card (the user's): a holo pattern 5000, a border 3000. */
-export const FLAIR_PRICE: Record<FlairSlot, number> = { pattern: 5000, border: 3000 };
+/** Stardust for one holo pattern for one card (the user's). */
+export const PATTERN_PRICE = 5000;
 
-/** A flair a card can be given in a slot: its key (stored in FlairUnlock and CardFlair) and its name. */
+/** A flair a card can be given in a slot: its key (stored in FlairUnlock and CardFlair), its name and its Stardust for one card. */
 export interface FlairOption {
   key: string;
   label: string;
+  price: number;
 }
 
-/** The borders: gold (brushed metal), and PTCGP's rainbow and a softer, pastel one (the user's). Each is bought on its own. */
+/**
+ * The borders, each bought on its own (the user's prices): gold (brushed metal) 2000, PTCGP's rainbow and a softer,
+ * pastel one 5000 each, and black (its banner left as printed, its text unreadable on black) 2000, a placeholder.
+ */
 export const BORDERS: FlairOption[] = [
-  { key: 'gold', label: 'Gold' },
-  { key: 'rainbow', label: 'Rainbow' },
-  { key: 'pastel', label: 'Pastel Rainbow' },
+  { key: 'gold', label: 'Gold', price: 2000 },
+  { key: 'rainbow', label: 'Rainbow', price: 5000 },
+  { key: 'pastel', label: 'Pastel Rainbow', price: 5000 },
+  { key: 'black', label: 'Black', price: 2000 },
 ];
 
 /**
@@ -83,4 +88,5 @@ export const patternsFor = (card: PatternCard) => (canSwitchPattern(card) ? HOLO
 export const canHaveBorder = (card: PatternCard) => !card.holo && !card.galaxy && !card.holoEnergy && !card.reverseHolo && !card.basicEnergy;
 
 /** What a card can be given in a slot: its other patterns, or the borders. */
-export const flairFor = (card: PatternCard, slot: FlairSlot): FlairOption[] => (slot === 'pattern' ? patternsFor(card) : canHaveBorder(card) ? BORDERS : []);
+export const flairFor = (card: PatternCard, slot: FlairSlot): FlairOption[] =>
+  slot === 'pattern' ? patternsFor(card).map((p) => ({ key: p.key, label: p.label, price: PATTERN_PRICE })) : canHaveBorder(card) ? BORDERS : [];

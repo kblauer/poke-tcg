@@ -1,4 +1,4 @@
-import { FLAIR_PRICE, flairFor, type FlairSlot } from '@poke-tcg/campaign';
+import { flairFor, type FlairSlot } from '@poke-tcg/campaign';
 import { prisma } from '@poke-tcg/db';
 import { buyFlairInput, equipFlairInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
@@ -28,7 +28,7 @@ export const flairRouter = router({
   }),
 
   /**
-   * Buys a flair for one card with Stardust (FLAIR_PRICE: a holo pattern or a gold border), and shows it on the card.
+   * Buys a flair for one card with Stardust (its price: a holo pattern's or a border's), and shows it on the card.
    * Only a card the account has unlocked that can have it (flairFor), and not one it already has for that card.
    */
   buy: protectedProcedure.input(buyFlairInput).mutation(async ({ ctx, input }) => {
@@ -36,7 +36,7 @@ export const flairRouter = router({
     const flair = options.find((o) => o.key === input.key);
     const noun = NOUN[input.slot];
     if (!flair) throw new TRPCError({ code: 'BAD_REQUEST', message: `${card.name} can't be given that ${noun}` });
-    const price = FLAIR_PRICE[input.slot];
+    const { price } = flair;
     const where = { userId: ctx.user.id, cardId: card.id, slot: input.slot };
     return prisma.$transaction(async (tx) => {
       // Checked with the user row locked, so buying twice at once can't take the Stardust twice.
@@ -46,7 +46,7 @@ export const flairRouter = router({
       const had = await tx.flairUnlock.findUnique({ where: { userId_cardId_slot_key: { ...where, key: flair.key } }, select: { key: true } });
       if (had) throw new TRPCError({ code: 'BAD_REQUEST', message: `${card.name} already has the ${flair.label} ${noun}` });
       const { count } = await tx.user.updateMany({ where: { id: ctx.user.id, stardust: { gte: price } }, data: { stardust: { decrement: price } } });
-      if (!count) throw new TRPCError({ code: 'BAD_REQUEST', message: `A ${noun} takes ${price} Stardust` });
+      if (!count) throw new TRPCError({ code: 'BAD_REQUEST', message: `The ${flair.label} ${noun} takes ${price} Stardust` });
       await tx.flairUnlock.create({ data: { ...where, key: flair.key } });
       await tx.cardFlair.upsert({ where: { userId_cardId_slot: where }, create: { ...where, key: flair.key }, update: { key: flair.key } });
       const { stardust } = await tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { stardust: true } });

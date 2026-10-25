@@ -1,5 +1,5 @@
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { FLAIR_PRICE, flairFor, holoPattern, ownPattern, type FlairSlot } from '@poke-tcg/campaign';
+import { flairFor, holoPattern, ownPattern, type FlairSlot } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useFlairList } from '../hooks/useFlair';
@@ -15,7 +15,7 @@ const SLOTS: Record<FlairSlot, { title: string; noun: string }> = { pattern: { t
  * card's borders. A box that expands from its heading (the slot and what's in use; closed by default, and closing it
  * drops its preview) to Default (the card's own look) and each option as a chip; clicking one previews it on the card
  * above (`preview`: its key, null for Default, undefined for none: the one in use). Then Use switches to one the account
- * has for this card, for nothing, and Buy buys one it hasn't for the slot's Stardust (FLAIR_PRICE) and switches to it.
+ * has for this card, for nothing, and Buy buys one it hasn't for its Stardust (shown on its chip) and switches to it.
  * Only an unlocked card buys flair.
  */
 export function FlairPicker({
@@ -56,7 +56,8 @@ export function FlairPicker({
   if (!options.length || !flair.data) return null;
 
   const { title, noun } = SLOTS[slot];
-  const price = FLAIR_PRICE[slot];
+  const previewed = options.find((o) => o.key === shown);
+  const price = previewed?.price ?? 0;
   const mine = (f: { cardId: string; slot: string }) => f.cardId === card.id && f.slot === slot;
   const owned = new Set(flair.data.owned.filter(mine).map((f) => f.key));
   const inUse = flair.data.equipped.find(mine)?.key ?? null;
@@ -64,17 +65,19 @@ export function FlairPicker({
   const has = shown === null || owned.has(shown);
   const pending = buy.isPending || equip.isPending;
   const error = buy.error?.message ?? equip.error?.message;
-  const blocked = has ? null : !unlocked ? 'Unlock this card first' : stardust.data !== undefined && stardust.data < price ? `A ${noun} takes ${price} Stardust` : null;
-  const chip = (key: string | null, label: string) => (
+  const blocked = has ? null : !unlocked ? 'Unlock this card first' : stardust.data !== undefined && stardust.data < price ? `The ${previewed?.label} ${noun} takes ${price} Stardust` : null;
+  // One not had yet shows its price after its name.
+  const chip = (key: string | null, label: string, cost?: number) => (
     <button
       key={key ?? 'default'}
       className={`rounded px-2 py-1 text-xs ring-1 transition active:scale-95 ${shown === key ? 'bg-yellow-300/15 text-yellow-200 ring-yellow-300/70' : key === null || owned.has(key) ? 'bg-slate-700 text-slate-100 ring-slate-600 hover:bg-slate-600' : 'bg-slate-800 text-slate-400 ring-slate-700 hover:bg-slate-700 hover:text-slate-200'}`}
       aria-pressed={shown === key}
-      title={key === null || owned.has(key) ? undefined : `${price} Stardust`}
+      title={key === null || owned.has(key) ? undefined : `${cost} Stardust`}
       onClick={() => onPreview(key === inUse ? undefined : key)}
     >
       {key === inUse && '✓ '}
       {label}
+      {key !== null && !owned.has(key) && <span className="ml-1 tabular-nums text-sky-200/70">{cost}</span>}
     </button>
   );
   const defaultLabel = slot === 'pattern' ? `Default (${holoPattern(ownPattern(card))!.label})` : 'Default';
@@ -99,7 +102,7 @@ export function FlairPicker({
           </div>
           <div className="flex flex-wrap gap-1.5">
             {chip(null, defaultLabel)}
-            {options.map((o) => chip(o.key, o.label))}
+            {options.map((o) => chip(o.key, o.label, o.price))}
           </div>
           <div className="flex items-center justify-end gap-2">
             {shown === inUse ? (

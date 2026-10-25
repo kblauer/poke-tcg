@@ -12,14 +12,15 @@
      Its looks (data-border): gold, brushed metal (soft vertical bands of light and shade under fine horizontal brush
      lines, from the user's reference); rainbow, the hue running round the card (a conic gradient from its centre) under
      ridges, each one rounded line all the way round (PTCGP's rainbow border, from the user's reference); pastel, the
-     same in soft colours.
+     same in soft colours; black, a faintly glossy black.
 
   2. The frame (classic and Neo Pokémon cards): the art frame, the banner under the art and Neo's stage tab recoloured
      to go with the ring. A copy of the card's image, clipped to generous shapes around them, through an SVG filter
      (#flair-border-gold or -silver, FlairBorder) which maps only the yellow pixels onto the ramp by their lightness: the
      bevels stay, and the print on them (the banner's text, the stage badge's picture, the 1st Edition stamp) and the
      background around them stay as printed. For the rainbows, the tint over that silver gives it the rainbow's colour
-     at each point round the card, as the ring has it.
+     at each point round the card, as the ring has it. Black turns only the art frame black (#flair-border-black): the
+     banner and Neo's tab keep their printed colours, their black text unreadable on black (the user's).
      - Classic: the frame's yellow is x 54–547, y 88–435 around the art window x 65–536, y 98–425 (Base Set Poliwag and
        Wartortle); the banner x 78–524, y 443–467.
      - Neo: the frame x 54–544, y 88–435 around x 66–533, y 98–410 (its bottom band is deeper); the stage tab top right,
@@ -75,6 +76,17 @@ div.flair-border {
     repeating-linear-gradient(0deg, rgb(110 70 0 / 0.1) 0 1px, transparent 1px 5px),
     repeating-linear-gradient(0deg, rgb(255 255 255 / 0.08) 0 2px, transparent 2px 11px),
     linear-gradient(90deg, #b07d16 0%, #cf9d2a 7%, #ecc659 16%, #fbe39a 25%, #fff6d2 31%, #f6d777 38%, #d5a536 47%, #e4b94d 55%, #f8e3a1 63%, #fdf0c4 67%, #e8c35d 75%, #d2a136 85%, #e9c766 93%, #b8861d 100%);
+}
+
+/* Black: a deep, faintly glossy black, soft charcoal highlights across it under fine brush lines; its shine fainter. */
+.flair-border[data-border="black"] > .flair-border__ring {
+  background:
+    repeating-linear-gradient(0deg, rgb(255 255 255 / 0.035) 0 1px, transparent 1px 3px),
+    linear-gradient(135deg, #030303 0%, #1a1a1f 22%, #08080a 45%, #25252c 68%, #0b0b0d 85%, #1c1c22 100%);
+}
+
+.flair-border[data-border="black"] > .flair-border__ring::after {
+  opacity: 0.45;
 }
 
 /* The rainbows: the hue running round the card, under ridges (below). */
@@ -160,6 +172,10 @@ div.flair-border {
   filter: url(#flair-border-silver);
 }
 
+.flair-border > .flair-border__frame[data-ramp="black"] {
+  filter: url(#flair-border-black);
+}
+
 /*
   The rainbows' tint: the rainbow (wedges from the card's centre, FlairBorder), masked to the image's yellow pixels,
   giving its colour to the silver frame copy under it and keeping that copy's light and shade. Flat, so the blend
@@ -200,6 +216,29 @@ div.flair-border {
     65.83% 7.76%, 91.5% 7.76%, 91.5% 10.3%, 65.83% 10.3%, 65.83% 7.76%,
     0 0,
     14.33% 53.82%, 85% 53.82%, 85% 57.21%, 14.33% 57.21%, 14.33% 53.82%,
+    0 0
+  );
+}
+
+/* Black's frame: the art frame alone, the banner (and Neo's tab) left as printed, their black text unreadable on black. */
+.flair-border > [data-frame="classic"][data-banner="printed"] {
+  clip-path: polygon(
+    evenodd,
+    0 0,
+    8.67% 10.42%, 91.5% 10.42%, 91.5% 52.97%, 8.67% 52.97%, 8.67% 10.42%,
+    0 0,
+    11% 12%, 89.17% 12%, 89.17% 51.39%, 11% 51.39%, 11% 12%,
+    0 0
+  );
+}
+
+.flair-border > [data-frame="neo"][data-banner="printed"] {
+  clip-path: polygon(
+    evenodd,
+    0 0,
+    8.67% 10.42%, 91.17% 10.42%, 91.17% 52.97%, 8.67% 52.97%, 8.67% 10.42%,
+    0 0,
+    11.17% 12%, 88.67% 12%, 88.67% 49.7%, 11.17% 49.7%, 11.17% 12%,
     0 0
   );
 }

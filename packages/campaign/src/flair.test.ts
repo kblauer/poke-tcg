@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HOLO_ENERGY_STYLES } from '../../db/prisma/holo-energy.js';
-import { canHaveBorder, canSwitchPattern, flairFor, HOLO_PATTERNS, ownPattern, patternsFor } from './flair.js';
+import { canHaveBorder, canSwitchPattern, flairFor, HOLO_PATTERNS, ownPattern, PATTERN_PRICE, patternsFor } from './flair.js';
 
 const plain = { holo: false, galaxy: false };
 const holo = { holo: true, galaxy: false };
@@ -44,7 +44,12 @@ describe('borders', () => {
 
   it('a card gets patterns or a border, never both', () => {
     for (const card of [plain, holo, galaxy, galaxyArt]) expect(flairFor(card, 'pattern').length > 0 && flairFor(card, 'border').length > 0).toBe(false);
-    expect(flairFor(plain, 'border').map((b) => b.key)).toEqual(['gold', 'rainbow', 'pastel']);
-    expect(flairFor(holo, 'pattern')).toEqual(patternsFor(holo));
+    expect(flairFor(plain, 'border').map((b) => b.key)).toEqual(['gold', 'rainbow', 'pastel', 'black']);
+    expect(flairFor(holo, 'pattern').map((p) => p.key)).toEqual(patternsFor(holo).map((p) => p.key));
+  });
+
+  it('each at its own price: patterns 5000, gold 2000, the rainbows 5000', () => {
+    expect(new Set(flairFor(holo, 'pattern').map((p) => p.price))).toEqual(new Set([PATTERN_PRICE]));
+    expect(Object.fromEntries(flairFor(plain, 'border').map((b) => [b.key, b.price]))).toMatchObject({ gold: 2000, rainbow: 5000, pastel: 5000 });
   });
 });
