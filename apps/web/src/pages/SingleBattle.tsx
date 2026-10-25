@@ -8,8 +8,8 @@ import { useBattleTransition } from '../components/BattleTransition';
 import { DeckSummary, LOCKED_TAG, type SavedDeck } from '../components/DeckList';
 import { useTRPC } from '../lib/trpc';
 import { PageHeader } from '../components/PageHeader';
-import { ReturnToHome } from '../components/ReturnToHome';
-import { usePlayRedirect } from '../hooks/useTower';
+import { ReturnToPlay } from '../components/ReturnToPlay';
+import { towerUnderway, useTowerOverview } from '../hooks/useTower';
 import { PAGE_WIDTH } from '../utils/layout';
 
 /** localStorage key for the last choices, so they're still picked when you come back after a battle. */
@@ -71,8 +71,8 @@ export function SingleBattlePage() {
     }
   }, [prefs]);
 
-  // A Battle Tower challenge under way keeps the Play tab on it.
-  usePlayRedirect();
+  // A Battle Tower challenge under way and not saved: no Training battle until it's saved or over (the server refuses it too).
+  const tower = towerUnderway(useTowerOverview().data?.challenge);
   const router = useRouter();
   const battleTransition = useBattleTransition();
   // The battle transition (as the Battle Tower's) while the game's page loads, the game opening as it ends.
@@ -193,15 +193,16 @@ export function SingleBattlePage() {
             </p>
             <button
               className="w-full rounded bg-blue-600 px-5 py-2 font-semibold transition hover:bg-blue-500 active:scale-95 disabled:opacity-40"
-              disabled={create.isPending || opening}
+              disabled={create.isPending || opening || tower}
               onClick={() => create.mutate({ deckId: deckId === TEST_DECK ? null : deckId, difficulty, opponent })}
             >
               {create.isPending || opening ? 'Starting…' : 'Battle!'}
             </button>
+            {tower && <p className="text-xs text-amber-300">Save or finish your Battle Tower challenge first.</p>}
             {create.error && <p className="text-sm text-red-400">{create.error.message}</p>}
           </div>
           {/* Back to the Play tab's menu of modes (the user's). */}
-          <ReturnToHome />
+          <ReturnToPlay />
         </section>
       </div>
     </div>
