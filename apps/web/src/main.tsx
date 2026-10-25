@@ -40,6 +40,7 @@ if (import.meta.env.DEV) document.title += ' - local';
 const PlayPage = lazyRouteComponent(() => import('./pages/Play'), 'PlayPage');
 const HomePage = lazyRouteComponent(() => import('./pages/Home'), 'HomePage');
 const TowerPage = lazyRouteComponent(() => import('./pages/Tower'), 'TowerPage');
+const IdlePage = lazyRouteComponent(() => import('./pages/Idle'), 'IdlePage');
 const GamePage = lazyRouteComponent(() => import('./pages/Game'), 'GamePage');
 const DecksPage = lazyRouteComponent(() => import('./pages/Decks'), 'DecksPage');
 const CommunityPage = lazyRouteComponent(() => import('./pages/Community'), 'CommunityPage');
@@ -195,10 +196,11 @@ function RootLayout() {
 }
 
 const rootRoute = createRootRoute({ component: RootLayout });
-// The Play tab: its menu of modes (`/`), the Badge Challenge (the runs), the Battle Tower and Training (`/battle`).
+// The Play tab: its menu of modes (`/`), the Badge Challenge (the runs), the Battle Tower, the Idle Adventure (`/idle`) and Training (`/battle`).
 const playRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', component: PlayPage });
 const homeRoute = createRoute({ getParentRoute: () => rootRoute, path: '/badge', component: HomePage });
 const towerRoute = createRoute({ getParentRoute: () => rootRoute, path: '/tower', component: TowerPage });
+const idleRoute = createRoute({ getParentRoute: () => rootRoute, path: '/idle', component: IdlePage });
 const gameRoute = createRoute({ getParentRoute: () => rootRoute, path: '/game/$gameId', component: GamePage });
 // `?deck=<id>` opens that deck, `?deck=new` a new one (the Single battle tab's links).
 const decksRoute = createRoute({
@@ -221,7 +223,7 @@ const gameCornerRoute = createRoute({ getParentRoute: () => rootRoute, path: '/e
 const voltorbFlipRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras/voltorb-flip', component: VoltorbFlipPage });
 
 const router = createRouter({
-  routeTree: rootRoute.addChildren([playRoute, homeRoute, towerRoute, battleRoute, gameRoute, decksRoute, communityRoute, inventoryRoute, cosmeticsRoute, packsRoute, settingsRoute, extrasRoute, berryFarmRoute, berryBlenderRoute, poffinCookingRoute, gameCornerRoute, voltorbFlipRoute]),
+  routeTree: rootRoute.addChildren([playRoute, homeRoute, towerRoute, idleRoute, battleRoute, gameRoute, decksRoute, communityRoute, inventoryRoute, cosmeticsRoute, packsRoute, settingsRoute, extrasRoute, berryFarmRoute, berryBlenderRoute, poffinCookingRoute, gameCornerRoute, voltorbFlipRoute]),
 });
 
 declare module '@tanstack/react-router' {

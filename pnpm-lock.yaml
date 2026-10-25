@@ -202,6 +202,9 @@ importers:
       '@poke-tcg/game-engine':
         specifier: workspace:*
         version: link:../../packages/game-engine
+      '@poke-tcg/idle':
+        specifier: workspace:*
+        version: link:../../packages/idle
       '@poke-tcg/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -257,6 +260,9 @@ importers:
       '@poke-tcg/game-engine':
         specifier: workspace:*
         version: link:../../packages/game-engine
+      '@poke-tcg/idle':
+        specifier: workspace:*
+        version: link:../../packages/idle
       '@poke-tcg/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -351,6 +357,16 @@ importers:
         specifier: ^5.0.4
         version: 5.0.4(@types/node@26.6.5)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
+  packages/idle:
+    dependencies:
+      '@poke-tcg/campaign':
+        specifier: workspace:*
+        version: link:../campaign
+    devDependencies:
+      vitest:
+        specifier: ^5.0.4
+        version: 5.0.4(@types/node@26.6.5)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+
   packages/shared:
     dependencies:
       '@poke-tcg/campaign':
@@ -359,6 +375,9 @@ importers:
       '@poke-tcg/game-engine':
         specifier: workspace:*
         version: link:../game-engine
+      '@poke-tcg/idle':
+        specifier: workspace:*
+        version: link:../idle
       zod:
         specifier: ^4.6.7
         version: 4.6.7

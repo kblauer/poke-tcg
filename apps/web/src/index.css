@@ -482,6 +482,33 @@ html[data-font="emerald"] {
   100% { opacity: 0; }
 }
 
+/* The Idle Adventure's battles (BattleScreen): a Pokémon hit blinks, an attacker lunges at the other side, a thrown ball shakes. */
+@keyframes idle-hit {
+  0% { opacity: 1; }
+  50% { opacity: 0; }
+}
+@keyframes idle-lunge-0 {
+  50% { transform: translate(6%, -4%); }
+}
+@keyframes idle-lunge-1 {
+  50% { transform: translate(-6%, 4%); }
+}
+@keyframes idle-ball-shake {
+  25% { transform: rotate(-25deg); }
+  75% { transform: rotate(25deg); }
+}
+/* A party icon's two frames in turn (MonIcon). */
+@keyframes idle-icon {
+  0% { background-position: 0 0; }
+  50% { background-position: 0 -32px; }
+}
+/* The flash into a battle (useIdlePlayback's `entering`). */
+@keyframes idle-enter {
+  0%, 40%, 80% { opacity: 0; }
+  20%, 60% { opacity: 1; }
+  100% { opacity: 1; }
+}
+
 /* A card that can be played now (a card in your hand, a Stadium that can still be used, a Pokémon in play whose Pokémon Power can be used): a soft blue outline that pulses, as TCG Pocket's does. */
 .playable-pulse {
   animation: playable-pulse 1.8s ease-in-out infinite;

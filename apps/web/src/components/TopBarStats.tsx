@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { useRun } from '../hooks/useRun';
+import { useIdleMoney } from '../hooks/useIdleMoney';
 import { useTowerBp } from '../hooks/useTower';
 import { useTRPC } from '../lib/trpc';
 import { navIcon, PokedollarIcon } from './PageNav';
@@ -76,8 +77,11 @@ export function TopBarAccount() {
   const account = useRun().overview.data?.account;
   const stardust = useQuery(trpc.packs.stardust.queryOptions());
   const bp = useTowerBp();
+  const idleMoney = useIdleMoney();
   if (!account) return null;
   const figures = [
+    // Only in the Idle Adventure: its run's ₱ (banked when the run ends).
+    ...(idleMoney !== null ? [{ key: 'idle', title: '₱ of this Idle Adventure run (banked when it ends)', Icon: PokedollarIcon, value: idleMoney, short: true, className: 'text-yellow-200' }] : []),
     { key: 'bank', title: '₱ banked from earlier runs', Icon: BankIcon, value: account.bank, short: true, className: 'text-yellow-200/70' },
     { key: 'exp', title: 'EXP, spent in the shop after a run', Icon: ExpIcon, value: account.exp, short: false, className: 'text-sky-300' },
     ...(stardust.data !== undefined ? [{ key: 'dust', title: 'Stardust, from cards pulled again in packs; crafts cards in the deck builder', Icon: StardustIcon, value: stardust.data, short: true, className: 'text-sky-200' }] : []),
@@ -107,6 +111,7 @@ export function TopBarStats() {
   const money = usePokedollarColor();
   const stardust = useQuery(trpc.packs.stardust.queryOptions());
   const bp = useTowerBp();
+  const idleMoney = useIdleMoney();
   const data = overview.data;
   const view = data?.run?.view;
   const inRun = view && view.phase !== 'won' && view.phase !== 'lost';
@@ -118,6 +123,7 @@ export function TopBarStats() {
           <Stat icon={<PokedollarIcon />} value={commas(view.pokedollars)} title="₱ to spend in this run" className={money.className} style={money.style} />
         </>
       )}
+      {idleMoney !== null && <ShortStat icon={<PokedollarIcon />} value={idleMoney} title="₱ of this Idle Adventure run" className="text-yellow-200" />}
       {data && <ShortStat icon={<BankIcon />} value={data.account.bank} title="₱ in the bank" className="text-yellow-200/70" />}
       {stardust.data !== undefined && <ShortStat icon={<StardustIcon />} value={stardust.data} title="Stardust" className="text-sky-200" />}
       {bp !== null && <ShortStat icon={<BpIcon />} value={bp} title="Battle Points" className="text-emerald-300" />}

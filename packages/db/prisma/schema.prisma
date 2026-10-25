@@ -56,6 +56,9 @@ model User {
   coins         Int             @default(0)
   /// Voltorb Flip's session (the campaign package's VoltorbFlipState): its last 5 rounds, for the level, and the board in play.
   voltorbFlip   Json            @default("{}")
+  /// The Idle Adventure's settings (the idle package's IdleSettings: auto-heal, auto-catch, full-party toggles,
+  /// auto-evolve, playback speed); {} is the defaults.
+  idleSettings  Json            @default("{}")
   decks         Deck[]
   games         Game[]
   runs          Run[]
@@ -69,6 +72,8 @@ model User {
   equipment     Equipment[]
   pokeblocks    Pokeblock[]
   poffins       Poffin[]
+  idleRuns      IdleRun[]
+  idleDex       IdleDex[]
 }
 
 enum CardKind {
@@ -394,4 +399,51 @@ model Equipment {
   itemId String
 
   @@id([userId, slot])
+}
+
+enum IdleStatus {
+  ACTIVE
+  /// The Champion beaten.
+  BEATEN
+  GIVEN_UP
+}
+
+/// An Idle Adventure run (README: Idle Adventure): one active per account at a time, beside any run or Battle Tower challenge.
+model IdleRun {
+  id          String     @id @default(uuid()) @db.Uuid
+  ownerId     String     @db.Uuid
+  owner       User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  status      IdleStatus @default(ACTIVE)
+  /// The idle package's IdleState (area, party, bag, money, badges). Contains RNG state – never return it to clients directly.
+  state       Json
+  /// Mirrors state.version; used for optimistic concurrency on writes.
+  version     Int
+  seed        Int
+  /// Its money has been moved to the bank (when it ended, beaten or given up).
+  banked      Boolean    @default(false)
+  /// The time the run has been played up to: each segment moves it on by its length (catch-up plays the time since).
+  simulatedAt DateTime   @default(now())
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([ownerId, status])
+}
+
+/// The Idle Adventure's Pokédex, per account and species: seen, caught, and each stat's best IV and EV ever had by any of
+/// the account's Pokémon of the species, in any run (each stat on its own). Later runs can start from a caught species.
+model IdleDex {
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// National Pokédex number.
+  species   Int
+  seen      Boolean  @default(false)
+  caught    Boolean  @default(false)
+  /// A shiny one caught: later runs can start with a shiny of the species.
+  shiny     Boolean  @default(false)
+  /// HP, Attack, Defense, Sp. Atk, Sp. Def, Speed.
+  bestIv    Int[]    @default([0, 0, 0, 0, 0, 0])
+  bestEv    Int[]    @default([0, 0, 0, 0, 0, 0])
+  updatedAt DateTime @updatedAt
+
+  @@id([userId, species])
 }
