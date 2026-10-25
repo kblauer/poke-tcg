@@ -4,7 +4,8 @@
 // fit differ (the same-card rule, agreed); Dragon
 // Pump's 2 cards are picked after the damage; Aqua Pump discards the first Water Energy cards in the hand; Gliscor, Starmie
 // and Uxie go back only with a Benched Pokémon to take their place; Cradily heals on a Knock Out by itself; Tentacle Strike's
-// first card goes to the first Pokémon picked, its second to the second; Energy Dissolve discards the first Energy card;
+// first card goes to the first Pokémon picked, its second to the second; Energy Dissolve's Energy card is picked by the
+// attacking player between turns when they differ (agreed: removeEach, betweenTurns);
 // Gut Kick's Benched Pokémon is the opponent's; Doom Desire and Energy Dissolve need the Pokémon still Active then (as Dark
 // Slumber); Mach Descent counts Swellow as Benched this turn when it wasn't the Active Pokémon as the turn began.
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';

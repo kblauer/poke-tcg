@@ -1986,12 +1986,14 @@ function betweenTurns(state: GameState) {
       active.damage -= healed;
       addLog(state, `Removed ${healed / 10} damage counters from ${pokemonName(state, active)}.`, id);
     }
-    // Doom Desire: Knocked Out. Energy Dissolve: its first Energy card discarded.
+    // Doom Desire: Knocked Out. Energy Dissolve: an Energy card discarded, picked by the attacking player when they differ (agreed).
     if (delayed.knockOut) {
       active.damage = Math.max(active.damage, inPlayDef(state.cards, active).hp);
       addLog(state, `Doom Desire: ${pokemonName(state, active)} is Knocked Out.`, id);
     }
-    const dissolved = delayed.discardEnergy ? active.energy.find((e) => !e.provides) : undefined;
+    const energy = delayed.discardEnergy ? active.energy.filter((e) => !e.provides) : [];
+    if (energy.length && !sameCards(state.cards, energy)) (state.queuedChoices ??= []).push({ player: opponentOf(state, id), source: 'Energy Dissolve', kind: 'removeEach', targets: ['active'], betweenTurns: true });
+    const dissolved = sameCards(state.cards, energy) ? energy[0] : undefined;
     if (dissolved) {
       active.energy = active.energy.filter((e) => e !== dissolved);
       state.players[id]!.discard.push(dissolved);

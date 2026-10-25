@@ -50,6 +50,28 @@ describe('Legends Awakened attacks', () => {
     expect(misty(s).discard.some((c) => c.defId === 'big-Snorlax') || s.phase === 'promote').toBe(true);
   });
 
+  it("Energy Dissolve: at the end of the opponent's next turn, the attacking player picks the Energy card when they differ", () => {
+    let s = duel('charmander', 'onix');
+    put(s, 'ash', 'active', mon('dp6-44', 'Victreebel', G, 120, [['Burning Scent', [C], 0], ['Energy Dissolve', [C], 60]], { stage: 'stage2' }), ['grass']);
+    put(s, 'misty', 'active', big('Snorlax'), ['water', 'fire']);
+    decks(s);
+    s = attack(s, 1);
+    s = endTurn(s, 'misty');
+    expect(s.pendingChoice).toMatchObject({ kind: 'removeEach', player: 'ash', source: 'Energy Dissolve', betweenTurns: true });
+    const fire = misty(s).active!.energy[1]!.uid;
+    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: fire });
+    expect([misty(s).active!.energy.map((e) => e.defId), misty(s).discard.some((c) => c.uid === fire), s.currentPlayer]).toEqual([['water'], true, 'ash']);
+  });
+
+  it('Energy Dissolve: Energy cards all alike are discarded without asking', () => {
+    let s = duel('charmander', 'onix');
+    put(s, 'ash', 'active', mon('dp6-44', 'Victreebel', G, 120, [['Burning Scent', [C], 0], ['Energy Dissolve', [C], 60]], { stage: 'stage2' }), ['grass']);
+    put(s, 'misty', 'active', big('Snorlax'), ['water', 'water']);
+    decks(s);
+    s = endTurn(attack(s, 1), 'misty');
+    expect([s.pendingChoice, misty(s).active!.energy.length, s.currentPlayer]).toEqual([undefined, 1, 'ash']);
+  });
+
   it('Magical Step: Confused, it does 60 to itself instead of 30', () => {
     let s = duel('charmander', 'onix');
     put(s, 'ash', 'active', mon('dp6-56', 'Grumpig', P, 90, [['Magical Step', [], 0]], { stage: 'stage1' }));
