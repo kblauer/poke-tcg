@@ -165,7 +165,7 @@ export const PL3_POWERS: Record<string, PowerEffect> = {
       ctx.state.endTurnNow = true;
       ctx.log('The turn ends.');
       if (discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return ctx.log('Allergic Pollen: cards in discard piles are not affected.');
-      if (ctx.me.discard.some((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy')) ctx.pend({ kind: 'attachFromDiscard', source: 'Energy Recycle', count: 3, anyEnergy: true });
+      if (ctx.me.discard.some((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy')) ctx.pend({ kind: 'attachFromDiscard', source: 'Energy Recycle', count: 3, anyEnergy: true, optional: true });
     },
   },
   // Garchomp C LV.X – Healing Breath; Rayquaza C LV.X – Dragon Spirit: as the DP Black Star Promos'.

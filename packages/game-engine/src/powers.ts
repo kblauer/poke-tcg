@@ -701,6 +701,20 @@ export interface PowerEffect {
   burningSpirit?: boolean;
   /** Aqua Mirage: with no cards in its player's hand, no damage to it from the opponent's attacks (attacks.ts). */
   aquaMirage?: boolean;
+  /** Fire Formation: its attacks do 10 more to the Defending Pokémon for each Fire Pokémon on its player's Bench (attacks.ts). */
+  fireFormation?: boolean;
+  /** Competitiveness: with no Supporter played this turn, its attacks do 30 more (attacks.ts). */
+  competitiveness?: boolean;
+  /** Cloudy Sky: 10 less attack damage to its player's Grass and Fire Pokémon (attacks.ts). */
+  cloudySky?: boolean;
+  /** Wild Guard: nothing from the opponent's Pokémon SP (attacks.ts). */
+  wildGuard?: boolean;
+  /** Keystone Seal: as the Active Pokémon, no player can play Trainer cards (trainersBlocked). */
+  keystoneSeal?: boolean;
+  /** Cloak Evolution: it can evolve the turn it's played (evolveError). */
+  cloakEvolution?: boolean;
+  /** Star Barrier: with any Energy attached, no Weakness (attacks.ts). */
+  starBarrier?: boolean;
 }
 
 /** Wise Aura, Overpowering Fang and Intimidating Ring: an Active Pokémon's aura stopping `pokemon`'s power, or null. */
@@ -968,7 +982,7 @@ export function primalLocked(player: Sides[number], sides: Sides, cards: CardLib
 
 /** Why no Trainer cards can be played (Hay Fever, by either player), or null. */
 export function trainersBlocked(sides: Sides, cards: CardLibrary): string | null {
-  const p = allInPlay(sides).find((q) => pokemonPower(q)?.noTrainers && powerActive(q, cards, sides));
+  const p = allInPlay(sides).find((q) => (pokemonPower(q)?.noTrainers || (pokemonPower(q)?.keystoneSeal && sides.some((s) => s.active === q))) && powerActive(q, cards, sides));
   return p ? `${powerOf(p, cards)!.name}: no Trainer cards can be played` : null;
 }
 

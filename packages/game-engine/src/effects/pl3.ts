@@ -467,7 +467,7 @@ export const PL3: Record<string, Record<string, AttackEffect>> = {
   'pl3-74': {
     'Draw In': {
       run(ctx) {
-        if (ctx.me.discard.some((c) => energyCardOf(ctx.state.cards, c, 'fire'))) ctx.pend({ kind: 'attachFromDiscard', source: 'Draw In', count: 2, target: 'active', type: 'fire' });
+        if (ctx.me.discard.some((c) => energyCardOf(ctx.state.cards, c, 'fire'))) ctx.pend({ kind: 'attachFromDiscard', source: 'Draw In', count: 2, target: 'active', type: 'fire', optional: true });
       },
     },
   },

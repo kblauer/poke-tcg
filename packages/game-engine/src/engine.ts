@@ -228,6 +228,8 @@ export interface PokemonEffects {
   nightSpin?: number;
   /** Evolutionary Gas: its attacks through this turn do nothing (they can still be used). */
   fizzle?: number;
+  /** Metal Barrier: nothing from a Pokémon LV.X's attacks through this turn. */
+  lvxProof?: number;
   /** Hover Hit: no Retreat Cost through this turn. */
   hoverHit?: number;
   /** Deep Sea Pressure: its Retreat Cost is 2 more through this turn. */
@@ -399,6 +401,8 @@ export interface PlayerState {
   noSpecialEnergyUntil?: number;
   /** Unown's Hidden Power: the last turn every coin this player flips is tails. */
   tailsUntil?: number;
+  /** Double Fall: the turn Salamence LV.X's attacks give 1 more Prize card for each Pokémon they Knock Out. */
+  doubleFallTurn?: number;
   /** Needle Shock: the turn this player's Pokémon last used it. */
   needleShockTurn?: number;
   /** Disconnect: through this turn, the player can't play Trainer cards but Supporters from their hand. */
@@ -1711,7 +1715,9 @@ export function evolveError(
   // Turns 1 and 2 are each player's first turn.
   if (turn <= 2) return "You can't evolve on your first turn";
   // Broken Time-Space: a Pokémon played or evolved this turn may evolve again.
-  if (target.playedTurn === turn && !(stadium && lookupCard(cards, stadium.defId).name === 'Broken Time-Space')) return `${current.name} was played or evolved this turn`;
+  // Cloak Evolution: Burmy can evolve the turn it's played.
+  const cloak = !!pokemonPower(target)?.cloakEvolution && powerActive(target, cards, sides);
+  if (target.playedTurn === turn && !cloak && !(stadium && lookupCard(cards, stadium.defId).name === 'Broken Time-Space')) return `${current.name} was played or evolved this turn`;
   return null;
 }
 
@@ -2438,7 +2444,7 @@ export function afflictionBlocked(state: GameState, owner: PlayerId, pokemon: In
 function expireEffects(pokemon: InPlayPokemon, turn: number) {
   const e = pokemon.effects;
   if (!e) return;
-  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell', 'noAttack', 'noEnergy', 'fireWall', 'focusEnergy', 'crosscounter', 'screech', 'endure', 'pollenShield', 'counter', 'secretePoison', 'slime', 'pursuit', 'lockOn', 'triggeredPoison', 'effectProof', 'pulseGuard', 'dodge', 'reflectShield', 'armorUp', 'noEvolve', 'heavier', 'tailwind', 'noPokePowers', 'conditionProof', 'stockpile', 'silverWind', 'cometPunch', 'evolvedProof', 'exProof', 'pivot', 'hustle', 'fizzle', 'crunch', 'sealed', 'hoverHit', 'pressure', 'jetShoot'] as const) {
+  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell', 'noAttack', 'noEnergy', 'fireWall', 'focusEnergy', 'crosscounter', 'screech', 'endure', 'pollenShield', 'counter', 'secretePoison', 'slime', 'pursuit', 'lockOn', 'triggeredPoison', 'effectProof', 'pulseGuard', 'dodge', 'reflectShield', 'armorUp', 'noEvolve', 'heavier', 'tailwind', 'noPokePowers', 'conditionProof', 'stockpile', 'silverWind', 'cometPunch', 'evolvedProof', 'exProof', 'pivot', 'hustle', 'fizzle', 'crunch', 'sealed', 'hoverHit', 'pressure', 'jetShoot', 'lvxProof'] as const) {
     if (e[key] !== undefined && e[key] <= turn) delete e[key];
   }
   if (e.charm && e.charm.until <= turn) delete e.charm;
@@ -2528,7 +2534,10 @@ export function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId
       const d = lookupCard(state.cards, pokemon.card.defId);
       // Moon Skip: 1 more for a Pokémon its attack Knocked Out this turn.
       const skip = pokemon.knockedByAttack === state.turn && state.currentPlayer !== id && taker.active?.effects?.morePrize === state.turn ? 1 : 0;
-      for (let n = (d.kind === 'pokemon' && d.ex ? 2 : 1) + skip; n > 0; n--) {
+      // Expert Belt: 1 more. Double Fall: 1 more for a Pokémon Salamence's attack Knocked Out this turn.
+      const belt = toolOf(state.cards, pokemon)?.name === 'Expert Belt' ? 1 : 0;
+      const fall = pokemon.knockedByAttack === state.turn && state.currentPlayer !== id && taker.doubleFallTurn === state.turn && !!taker.active && namesMatch(inPlayDef(state.cards, taker.active).name, 'Salamence') ? 1 : 0;
+      for (let n = (d.kind === 'pokemon' && d.ex ? 2 : 1) + skip + belt + fall; n > 0; n--) {
         const prize = taker.prizes.pop();
         if (prize) taker.hand.push(prize);
       }
@@ -2568,6 +2577,12 @@ export function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId
         pokemon.energy = pokemon.energy.filter((e) => !back.includes(e));
         owner.hand.push(...back.map(asDiscarded));
         if (back.length) addLog(state, `Time Shard: ${back.length} basic Energy card${back.length === 1 ? '' : 's'} went back to the hand.`, id);
+      }
+      // Lucky Egg: Knocked Out by the opponent's attack damage, cards drawn until the hand has 7.
+      if (pokemon.knockedByAttack === state.turn && state.currentPlayer !== id && toolOf(state.cards, pokemon)?.name === 'Lucky Egg' && owner.hand.length < 7) {
+        const drawn = owner.deck.splice(0, 7 - owner.hand.length);
+        owner.hand.push(...drawn);
+        addLog(state, `Lucky Egg: drew ${drawn.length} card${drawn.length === 1 ? '' : 's'}.`, id);
       }
       // Ectoplasm: the Active Dusknoir LV.X Knocked Out by the opponent's attack goes into play as a Stadium card, its other cards discarded.
       const ectoplasm = owner.active === pokemon && pokemon.levelUpFrom && attackKo(pokemon, 'ectoplasm');
@@ -2797,6 +2812,8 @@ function refreshHideout(state: GameState) {
       }
       const plus = pokemonPower(p)?.hpPlus;
       if (plus && powerActive(p, state.cards, sides)) p.hpPlus = (p.hpPlus ?? 0) + plus;
+      // Expert Belt: 20 more HP.
+      if (toolOf(state.cards, p)?.name === 'Expert Belt') p.hpPlus = (p.hpPlus ?? 0) + 20;
       // Pump Up: 40 more HP while the opponent has 3 or fewer Prize cards left. Gravitation: 20 less, however many.
       if (pokemonPower(p)?.pumpUp && powerActive(p, state.cards, sides) && state.players[opponentOf(state, player.id)]!.prizes.length <= 3) p.hpPlus = (p.hpPlus ?? 0) + 40;
       if (sides.some((side) => [side.active, ...side.bench].some((q) => q && pokemonPower(q)?.gravitation && powerActive(q, state.cards, sides)))) p.hpPlus = (p.hpPlus ?? 0) - 20;
