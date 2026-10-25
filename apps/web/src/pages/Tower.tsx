@@ -1,17 +1,19 @@
 import { battleMusic, towerMusic } from '@poke-tcg/campaign';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useRouter } from '@tanstack/react-router';
 import { useContext, useEffect, useRef, useState } from 'react';
 import { DeckSummary } from '../components/DeckList';
 import { CatalogContext } from '../components/InspectContext';
 import { useMusicCue, useMusicSettings } from '../components/MusicPlayer';
 import { PageHeader } from '../components/PageHeader';
-import { ReturnToHome } from '../components/ReturnToHome';
 import { DeckMenu } from '../components/run/DeckMenu';
 import { Toasts } from '../components/Toasts';
 import { BpShop } from '../components/tower/BpShop';
+import { VsBanner } from '../components/tower/VsBanner';
 import { TowerScene, useScene } from '../components/tower/TowerScene';
 import { afterBattleScript, lobbyScript, roomScript, type TowerContext } from '../components/tower/towerScripts';
 import { useIsPhone } from '../hooks/useIsPhone';
+import { useTRPC } from '../lib/trpc';
 import { useRun } from '../hooks/useRun';
 import { useToasts } from '../hooks/useToasts';
 import { towerUnderway, useTowerActions, useTowerOverview, type ClientTower } from '../hooks/useTower';
@@ -61,6 +63,9 @@ export function TowerPage() {
   const toasts = useToasts();
   const phone = useIsPhone();
   const byId = useContext(CatalogContext);
+  // The player's name on the VS banner: the account's chosen name (Settings).
+  const trpc = useTRPC();
+  const accountName = useQuery(trpc.community.accountName.queryOptions());
   const debugOn = useDebugEnabled();
   const debug = DEBUG_BUILD && debugOn;
   const soundtrack = useMusicSettings()?.soundtrack ?? 'remastered';
@@ -135,16 +140,27 @@ export function TowerPage() {
     <div className={`${PAGE_WIDTH} space-y-6`}>
       <PageHeader
         title="Battle Tower"
-        info={
-          underway && v
-            ? `Floor ${v.floor} · ${v.wins} ${v.wins === 1 ? 'win' : 'wins'} · ${commas(v.bp)} BP won${v.deckName ? ` · ${v.deckName}` : ''}`
-            : data && data.best > 0
-              ? `Highest floor beaten: ${data.best}`
-              : 'Win as many battles in a row as you can'
-        }
-        actions={(!underway || finished) && <ReturnToHome />}
+        info={data && data.best > 0 ? `Highest floor beaten: ${data.best}` : 'Win as many battles in a row as you can'}
       />
       <TowerScene scene={scene}>
+        {/* The challenge under way, under the map (the user's): its floor, wins and BP, then the VS banner, its deck's tile
+            against the opponent's (once they're in, from the challenge's `opponentDeck`), the next challenger unknown till then. */}
+        {underway && v && byId && (
+          <div className="space-y-2">
+            <p className="text-sm text-slate-300">
+              Floor {v.floor} · {v.wins} {v.wins === 1 ? 'win' : 'wins'} · {commas(v.bp)} BP won
+            </p>
+            <VsBanner
+              phone={phone}
+              left={{ entries: entriesOf(v.deck), name: accountName.data ?? 'You', info: v.deckName }}
+              right={
+                challenge.opponentDeck && v.opponent
+                  ? { entries: entriesOf(challenge.opponentDeck), name: `${v.opponent.trainerClass} ${v.opponent.name}`, info: challenge.opponentDeckName ? `${challenge.opponentDeckName} Deck` : undefined }
+                  : null
+              }
+            />
+          </div>
+        )}
         {/* The lobby's BP Shop (the user's): Battle Points for packs, opened by its vendor (Exchange BP at the desk). */}
         {shop && <BpShop />}
         {/* The receptionist's question: a saved challenge's deck, shown to take it up again (and only then: the user's). */}

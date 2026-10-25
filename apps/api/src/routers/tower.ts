@@ -1,4 +1,4 @@
-import { BP_PACK_PRICE, startFloors } from '@poke-tcg/campaign';
+import { BP_PACK_PRICE, startFloors, towerGameId } from '@poke-tcg/campaign';
 import { prisma } from '@poke-tcg/db';
 import { startTowerInput, towerActInput, towerIdInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
@@ -17,7 +17,7 @@ export const towerRouter = router({
     const tower = await latestTower(ctx.user.id);
     // Read after settling: a battle just won may have raised it.
     const { towerBest: best, bp } = await prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { towerBest: true, bp: true } });
-    return { challenge: tower && clientTower(tower), best, startFloors: startFloors(best), bp, packPrice: BP_PACK_PRICE };
+    return { challenge: tower && (await clientTower(tower)), best, startFloors: startFloors(best), bp, packPrice: BP_PACK_PRICE };
   }),
 
   /** Starts a new challenge (startTower: a saved one is given up). */
@@ -37,7 +37,7 @@ export const towerRouter = router({
   debugSkipBattle: debugProcedure.input(towerIdInput).mutation(async ({ ctx, input }) => {
     const tower = await loadOwnTower(input.towerId, ctx.user.id);
     const going = await advanceTower(tower, [{ type: 'CONTINUE' }]);
-    await debugWinGame(clientTower(going).gameId);
+    await debugWinGame(towerGameId(going.state));
     return clientTower(await settleTowerBattle(going, true));
   }),
 });

@@ -5,6 +5,7 @@ import { routePath, type RouteSpot, type TowerRoom } from '@poke-tcg/campaign';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { STEP_MS, WALK_FRAME_MS, type Facing } from '../../utils/overworld';
 import { facing, key } from '../../utils/routeFigures';
+import { useIsPhone } from '../../hooks/useIsPhone';
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
 import { OverworldSprite, TileOverlay } from '../run/RouteSprites';
 
@@ -38,6 +39,12 @@ const PAUSE_TICK_MS = 50;
 /** The scene's largest zoom (the run maps' 2×, a little more for the small rooms), and how tall it may be at most. */
 const MAX_ZOOM = 3;
 const MAX_HEIGHT = 0.6;
+/**
+ * On a phone, the room kept free below the scene (the user's): the deck picker, closed (its heading, the deck menu and its
+ * buttons, about 230px, and the gap above it), so it shows without scrolling when the receptionist asks for a deck; the
+ * scene is that size from the start, so nothing moves as it appears. An opened deck list may scroll.
+ */
+const PHONE_PANEL_ROOM = 250;
 
 /**
  * The battle transitions (the user's: several, one at random each battle), as the mainline games' trainer battles open:
@@ -335,24 +342,51 @@ export function TowerScene({ scene, children }: { scene: ReturnType<typeof useSc
   const pressDialogue = useRef<(() => void) | null>(null);
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
+  /** On a phone, how tall the scene may be: the screen below its top, less PHONE_PANEL_ROOM. */
+  const [phoneRoom, setPhoneRoom] = useState(0);
   useLayoutEffect(() => {
     const el = box.current;
     if (!el) return;
-    const observer = new ResizeObserver(() => setWidth(el.clientWidth));
+    const measure = () => {
+      setWidth(el.clientWidth);
+      setPhoneRoom(window.innerHeight - (el.getBoundingClientRect().top + window.scrollY) - PHONE_PANEL_ROOM);
+    };
+    const observer = new ResizeObserver(measure);
     observer.observe(el);
-    setWidth(el.clientWidth);
-    return () => observer.disconnect();
+    window.addEventListener('resize', measure);
+    measure();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', measure);
+    };
   }, []);
-  const zoom = room ? Math.max(1, Math.min(MAX_ZOOM, width / room.width, (window.innerHeight * MAX_HEIGHT) / room.height)) : 1;
+  // On a big screen the largest zoom the window's width and MAX_HEIGHT allow; on a phone (the user's) the room is as tall
+  // as the screen leaves room for (phoneRoom), wider than the window if it must be, the view following the player across it.
+  const phone = useIsPhone();
+  const fit = room ? Math.min(MAX_ZOOM, width / room.width, (window.innerHeight * MAX_HEIGHT) / room.height) : 1;
+  // A battle room (one with an opponent's place) is shown whole across, both sides of its court in view (the user's).
+  const wholeWidth = !!room?.points.opponent;
+  const zoom = room ? Math.max(1, phone ? Math.min(MAX_ZOOM, phoneRoom / room.height, wholeWidth ? width / room.width : Infinity) : fit) : 1;
+  const you = actors.player;
+  const span = room ? room.width * zoom : 0;
+  const left = !room || span <= width ? (width - span) / 2 : Math.min(0, Math.max(width - span, width / 2 - ((you?.tile.x ?? room.width / 32) * 16 + 8) * zoom));
   const people = useMemo(() => Object.entries(actors), [actors]);
   return (
     <div className="space-y-4">
       {/* A click anywhere on the scene is a click on the dialogue box (the user's): a line typing out shown whole, then on. */}
-      <div ref={box} onClick={() => pressDialogue.current?.()} className="relative mx-auto w-full overflow-hidden rounded-lg ring-1 ring-slate-600" style={{ height: room ? room.height * zoom : 240, maxWidth: room ? room.width * MAX_ZOOM : undefined, background: '#000' }}>
+      <div ref={box} onClick={() => pressDialogue.current?.()} className="relative mx-auto w-full overflow-hidden rounded-lg ring-1 ring-slate-600" style={{ height: room ? room.height * zoom : 240, maxWidth: room && !phone ? room.width * MAX_ZOOM : undefined, background: '#000' }}>
         {room && (
           <div
-            className={`absolute left-1/2 top-0 origin-top ${riding ? 'animate-[tower-ride_160ms_steps(2)_infinite]' : ''}`}
-            style={{ width: room.width, height: room.height, transform: `translateX(-50%) scale(${zoom})`, animationPlayState: paused ? 'paused' : undefined }}
+            className={`absolute top-0 origin-top-left ${riding ? 'animate-[tower-ride_160ms_steps(2)_infinite]' : ''}`}
+            style={{
+              width: room.width,
+              height: room.height,
+              left,
+              transform: `scale(${zoom})`,
+              // Following the player step by step as he walks (a phone's view across a wide room).
+              transition: you?.walking ? `left ${STEP_MS}ms linear` : undefined,
+              animationPlayState: paused ? 'paused' : undefined,
+            }}
           >
             {/* Keyed by the picture, so a new room's is a new element, never the last one's still showing while it loads. */}
             <img key={room.image} src={room.image} alt={room.name} draggable={false} className="h-full w-full select-none [image-rendering:pixelated]" />
@@ -372,7 +406,7 @@ export function TowerScene({ scene, children }: { scene: ReturnType<typeof useSc
         <div className="pointer-events-none absolute inset-0 bg-black transition-opacity" style={{ opacity: dark ? 1 : 0, transitionDuration: `${FADE_MS}ms` }} />
         {transition && <BattleTransition key={transition.stamp} kind={transition.kind} paused={paused} />}
         {/* Keyed by the line, so each one types out afresh. */}
-        {dialogue && <DialogueBox key={`${dialogue.speaker ?? ''}|${dialogue.text}|${dialogue.choices?.join('|') ?? ''}`} dialogue={dialogue} reserved={reserved} paused={paused} pressRef={pressDialogue} />}
+        {dialogue && <DialogueBox key={`${dialogue.speaker ?? ''}|${dialogue.text}|${dialogue.choices?.join('|') ?? ''}`} dialogue={dialogue} reserved={reserved} paused={paused} pressRef={pressDialogue} phone={phone} />}
         {/* Debug (DEBUG_BUILD first: a production build drops them): the tiles overlay, as on the run maps, and the pause. */}
         {DEBUG_BUILD && debug && (
           <div className="absolute right-2 top-2 z-[3000] flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
@@ -468,8 +502,11 @@ function DialogueBox({
   reserved,
   paused,
   pressRef: sceneRef,
+  phone,
 }: {
   dialogue: Dialogue;
+  /** A phone: the box the scene's width, its choices above it on the right (the user's), smaller text. */
+  phone: boolean;
   /** Choices to keep room for beside the box (the conversation's question's), shown or not. */
   reserved: string[] | null;
   paused: boolean;
@@ -520,6 +557,42 @@ function DialogueBox({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [done, dialogue.choices]);
+  const line = (
+    <>
+      {dialogue.speaker && <span className="block text-sm" style={{ color: '#5868a0' }}>{dialogue.speaker}</span>}
+      {/* The rest of the line holds its place unseen, so the box doesn't grow as it types. */}
+      <span className="whitespace-pre-line">
+        {dialogue.text.slice(0, typed)}
+        <span className="invisible">{dialogue.text.slice(typed)}</span>
+      </span>
+      {done && !dialogue.choices && <span className="ml-2 inline-block animate-bounce" style={{ color: '#e04040' }}>▼</span>}
+    </>
+  );
+  const onBox = (e: { stopPropagation: () => void }) => {
+    e.stopPropagation();
+    press();
+  };
+  if (phone) {
+    // Stacked, as the games show a question's choices over the text box: nothing beside the box to make room for.
+    return (
+      <div className="absolute inset-x-2 bottom-2 flex flex-col items-end gap-1.5">
+        {choicesUp && (
+          <ul className="whitespace-nowrap rounded-[14px] p-1.5" style={frame} role="menu">
+            {dialogue.choices!.map((c, i) => (
+              <li key={c}>
+                <button type="button" role="menuitem" autoFocus={i === 0} className="block w-full rounded px-3 py-1 text-left text-sm hover:bg-[#dde3f5] focus:bg-[#dde3f5] focus:outline-none" onClick={() => dialogue.answer(i)}>
+                  {c}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <button type="button" data-keep-action className="min-h-14 w-full cursor-pointer rounded-[14px] px-4 py-2 text-left text-sm leading-snug" style={frame} onClick={onBox} aria-label={done && !dialogue.choices ? 'Next' : undefined}>
+          {line}
+        </button>
+      </div>
+    );
+  }
   return (
     <div className="absolute inset-x-[4%] bottom-6 flex items-end gap-2">
       <button
@@ -527,19 +600,10 @@ function DialogueBox({
         data-keep-action
         className={`min-h-20 flex-1 cursor-pointer rounded-[18px] px-6 py-3 text-left text-base leading-relaxed ${choicesUp ? 'transition-transform duration-200' : ''}`}
         style={{ ...frame, transform: shift ? `translateX(${shift}px)` : undefined }}
-        onClick={(e) => {
-          e.stopPropagation();
-          press();
-        }}
+        onClick={onBox}
         aria-label={done && !dialogue.choices ? 'Next' : undefined}
       >
-        {dialogue.speaker && <span className="block text-sm" style={{ color: '#5868a0' }}>{dialogue.speaker}</span>}
-        {/* The rest of the line holds its place unseen, so the box doesn't grow as it types. */}
-        <span className="whitespace-pre-line">
-          {dialogue.text.slice(0, typed)}
-          <span className="invisible">{dialogue.text.slice(typed)}</span>
-        </span>
-        {done && !dialogue.choices && <span className="ml-2 inline-block animate-bounce" style={{ color: '#e04040' }}>▼</span>}
+        {line}
       </button>
       {/* The choices' column: as wide as its widest choice, the question's own or those kept room for, from the line's first
           letter (an unseen copy, no height, holds it), so the box never narrows as they come up; the choices once it's typed. */}

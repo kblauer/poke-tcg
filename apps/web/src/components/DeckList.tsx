@@ -102,6 +102,27 @@ function FeaturedCards({ featured, size }: { featured: CatalogCard[]; size: stri
   );
 }
 
+/**
+ * A deck's headline cards with its type bar and counts, a deck tile's left part on its own, and its headline Pokémon's
+ * names (the tile's line): the Battle Tower's VS banner lays them out apart (the user's).
+ */
+export function DeckCards({ entries, small = false }: { entries: DeckEntry[]; small?: boolean }) {
+  const byId = useCatalog();
+  const ratio = deckRatio(entries, byId);
+  return (
+    <div className="shrink-0 space-y-1">
+      <FeaturedCards featured={featuredPokemon(entries, byId)} size={small ? CARD_THUMB_SM : CARD_THUMB_LG} />
+      <RatioBar ratio={ratio} size={deckSize(entries)} height="h-1.5" />
+      <RatioCounts ratio={ratio} small />
+    </div>
+  );
+}
+export function useFeaturedNames(entries: DeckEntry[]) {
+  return featuredPokemon(entries, useCatalog())
+    .map((card) => card.name)
+    .join(', ');
+}
+
 type Ratio = ReturnType<typeof deckRatio>;
 
 /** How a deck's `size` cards split between Pokémon, Trainers and Energy, as a bar `height` high. */

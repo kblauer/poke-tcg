@@ -8,6 +8,7 @@ import {
   startFloors,
   towerBattleSetup,
   towerGameId,
+  towerOpponentDeck,
   towerGeneration,
   towerNeedsBattle,
   towerView,
@@ -166,5 +167,13 @@ export async function startTower(userId: string, deckId: string, startFloor: num
   return loaded(started);
 }
 
-/** What the client gets for a challenge: its view (no RNG or deck seeds) and the battle under way. */
-export const clientTower = (tower: LoadedTower) => ({ id: tower.id, status: tower.status, version: tower.version, gameId: towerGameId(tower.state), view: towerView(tower.state) });
+/**
+ * What the client gets for a challenge: its view (no RNG or deck seeds), the battle under way, and while it's on its
+ * opponent's deck (`opponentDeck`, card ids, and its themed name, `opponentDeckName`: the VS banner's, the user's), made
+ * again from its seed as the battle's was (towerOpponentDeck), so it's the very deck being faced.
+ */
+export async function clientTower(tower: LoadedTower) {
+  const s = tower.state;
+  const opponent = s.phase === 'battle' && s.opponent ? towerOpponentDeck(s, await cardPool(towerGeneration(s.floor))) : null;
+  return { id: tower.id, status: tower.status, version: tower.version, gameId: towerGameId(s), view: towerView(s), opponentDeck: opponent?.deck ?? null, opponentDeckName: opponent?.name ?? null };
+}

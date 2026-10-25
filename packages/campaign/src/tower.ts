@@ -5,7 +5,7 @@
 // floor 100 wins the challenge (the user's).
 // TowerState is plain JSON, like a run's (RunState); applyTowerAction is its reducer. Between battles the attendant asks
 // whether to go on, save and stop (taken up again later with the same deck) or give up the challenge (the user's).
-import type { BattleRule, CpuDifficulty } from '@poke-tcg/game-engine';
+import { typesOf, type BattleRule, type CpuDifficulty, type EnergyType } from '@poke-tcg/game-engine';
 import { TOWER_TRAINERS, type TowerTrainer } from './battle-tower-trainers.js';
 import { generateDeck, trainerFavorites } from './decks.js';
 import type { PoolCard } from './pool.js';
@@ -181,6 +181,40 @@ export function towerBattleSetup(state: TowerState, pool: readonly PoolCard[]): 
   const opponent = trainerKey(o);
   const deck = generateDeck(pool, rngFrom(o.deckSeed), { favorites: trainerFavorites(opponent), rules: generation(towerGeneration(state.floor)).deckRules, difficulty: 'gymLeader' });
   return { deck, difficulty: 'gymLeader', rules: [], opponent };
+}
+
+/**
+ * Themed names for the tower's opponents' decks, by the deck's main type (the user's: a pool of them, never the trainer's
+ * name; shown as "<name> Deck"). Ours, in the spirit of the boss decks' names.
+ */
+export const TOWER_DECK_NAMES: Record<EnergyType, string[]> = {
+  grass: ['Overgrowth', 'Jungle Ambush', 'Spore Storm', 'Leaf Blade', 'Verdant Fury', 'Thorn Garden'],
+  fire: ['Inferno', 'Firestorm', 'Blaze Rush', 'Ember Dance', 'Heat Wave', 'Wildfire'],
+  water: ['Tidal Wave', 'Undertow', 'Riptide', 'Rain Dance', 'Deep Current', 'Whirlpool'],
+  lightning: ['Thunderstruck', 'Static Shock', 'Volt Surge', 'Storm Front', 'Live Wire', 'Chain Lightning'],
+  psychic: ['Mind Games', 'Phantom Force', 'Night Shade', 'Hypnotic Haze', 'Third Eye', 'Mirror Coat'],
+  fighting: ['Rock Slide', 'Iron Fist', 'Earthquake', 'Dojo Rush', 'Ground Zero', 'Knockout'],
+  darkness: ['Night Raid', 'Shadow Play', 'Dark Pulse', 'Moonless Sky', 'Ambush', 'Black Market'],
+  metal: ['Steel Wall', 'Iron Defense', 'Metal Storm', 'Bulwark', 'Heavy Armor', 'Cold Steel'],
+  colorless: ['Wild Card', 'Swift Strike', 'Normal Force', 'Endless Stamina', 'Jack of All Trades', 'Hyper Beam'],
+};
+
+/** A deck's main type: the type the most of its Pokémon cards are (a card of two types counts for both; the first such on a tie). */
+export function mainType(deck: readonly string[], pool: readonly PoolCard[]): EnergyType {
+  const defs = new Map(pool.map((c) => [c.def.id, c.def]));
+  const counts = new Map<EnergyType, number>();
+  for (const id of deck) {
+    const def = defs.get(id);
+    if (def?.kind === 'pokemon') for (const t of typesOf(def)) counts.set(t, (counts.get(t) ?? 0) + 1);
+  }
+  return [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'colorless';
+}
+
+/** The opponent's deck (as their battle's: towerBattleSetup) and its themed name (TOWER_DECK_NAMES, picked by the deck's seed, so it keeps it). */
+export function towerOpponentDeck(state: TowerState, pool: readonly PoolCard[]): { deck: string[]; name: string } {
+  const { deck } = towerBattleSetup(state, pool);
+  const names = TOWER_DECK_NAMES[mainType(deck, pool)];
+  return { deck, name: pick(rngFrom(state.opponent!.deckSeed ^ 0x6e616d65), names) };
 }
 
 /** Applies a player's or the server's action to a challenge. Pure: returns a new state, or an error. */

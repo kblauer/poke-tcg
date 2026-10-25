@@ -37,7 +37,7 @@ export interface TowerContext {
   readonly startFloors: number[];
   /** Opens (true) or closes the BP Shop under the scene. */
   shop: (open: boolean) => void;
-  /** Go back: out of the Battle Tower, to the Play tab's menu. */
+  /** Leave Battle Tower: out of the Battle Tower, to the Play tab's menu. */
   leave: () => void;
   /** Shows the deck picker under the scene until a deck is picked (its id) or it's backed out of (null). */
   pickDeck: (floor: number) => Promise<string | null>;
@@ -73,13 +73,13 @@ const EXPLANATION = [
   'Every 5 battles you win also unlocks a checkpoint, so future Battle Tower challenges can be started from there.',
 ];
 /** The receptionist's choices (the user's). */
-const RECEPTION = ['Start challenge', 'Exchange BP', 'Explain the challenge', 'Go back'];
+const RECEPTION = ['Start challenge', 'Exchange BP', 'Explain the challenge', 'Leave Battle Tower'];
 /** After the explanation, the receptionist's question again, a box of its own (the user's words). */
 const TRY_IT = 'Would you like to try the Battle Tower challenge?';
 /** The BP Shop's vendor's welcome, and his question left up while the shop is open (the user's words). */
 const SHOP_LINE = 'Welcome to the BP Shop! You can exchange your BP here for packs of sweet, sweet cardboard.';
 const SHOP_HELP = 'How can I help you today?';
-/** The receptionist after a lost challenge, her question, and her goodbye on Go back (the user's words). */
+/** The receptionist after a lost challenge, her question, and her goodbye on Leave Battle Tower (the user's words). */
 const THANKS = 'Thanks for taking the Battle Tower Challenge!';
 const AGAIN = 'Would you like to start another Battle Tower challenge?';
 const GOODBYE = ['Thanks for visiting the Battle Tower!', 'We hope to see you again soon!'];
@@ -89,12 +89,13 @@ const GOODBYE = ['Thanks for visiting the Battle Tower!', 'We hope to see you ag
  * take it up again (SAVED_LINE). Then her welcome and its choices: Start challenge (the floor where checkpoints give a
  * choice, then the deck, picked under the scene; then up to the floor), Exchange BP (the player walks over to the BP
  * Shop's vendor, who welcomes him, and the shop opens under the scene until Return to reception, then back to the desk),
- * Explain the challenge, and Go back (out of the door, back to the Play tab's menu). Taken up or started, she leads him
+ * Explain the challenge, and Leave Battle Tower (out of the door, back to the Play tab's menu). Taken up or started, she leads him
  * to the elevator (FireRed's sends him up the stairs), and on up to the floor. The lobby is the saved challenge's floor's
  * generation's, or Gen 1's. `returning`: back from a lost challenge (the user's script): he comes down Gen 1's stairs to the
- * desk instead of in by the door, and she thanks him and asks whether he'd like to start another.
+ * desk instead of in by the door, and she thanks him and asks whether he'd like to start another (also after Save and
+ * quit, `kept` the challenge saved, Concede, and beating the top floor).
  */
-export async function lobbyScript(s: SceneSteps, ctx: TowerContext, saved: ClientTower | null, returning = false) {
+export async function lobbyScript(s: SceneSteps, ctx: TowerContext, saved: ClientTower | null, returning = false, kept: ClientTower | null = null) {
   const gen = saved ? saved.view.generation : 1;
   const lobby = TOWER_ROOMS[gen as 1 | 2 | 3].lobby;
   const set = setOf(lobby);
@@ -164,6 +165,8 @@ export async function lobbyScript(s: SceneSteps, ctx: TowerContext, saved: Clien
       await s.fadeOut();
       return ctx.leave();
     }
+    // Just saved (`kept`): a new challenge would end that one (startTower gives it up), so she checks first.
+    if (kept && (await s.ask('Starting a new challenge will end the one you just saved. Start a new one anyway?', ['No', 'Yes'])) === 0) continue;
     const floors = ctx.startFloors;
     const floor = floors.length > 1 ? floors[await s.ask('Which floor would you like to start on?', floors.map((f) => `Floor ${f}`))]! : 1;
     s.prompt('Please select the deck you would like to enter.');
@@ -318,20 +321,24 @@ async function between(s: SceneSteps, ctx: TowerContext, challenge: ClientTower,
     s.faceTo('player', 'attendant');
   }
   const from = v.startFloor > 1 ? ` from floor ${v.startFloor}` : '';
-  if (v.phase === 'lost') {
-    // The user's script: out of the Battle Room by its door, and back down to the lobby's desk.
-    await said("Aww, you lost! That's the end of your Battle Tower challenge.");
-    await said(`You won ${wins(v.wins)} in a row. Please make your way back to the lobby.`);
+  /** Out of the Battle Room by its door, and back down to the lobby's desk (the user's script), `kept`: a challenge just saved. */
+  const backToLobby = async (kept: ClientTower | null = null) => {
     ctx.finish();
     await s.walk('player', r.entrance!);
     s.show('player', false);
     await s.wait(FADE_IN_MS);
     await s.fadeOut();
-    return lobbyScript(s, ctx, null, true);
+    return lobbyScript(s, ctx, null, true, kept);
+  };
+  if (v.phase === 'lost') {
+    await said("Aww, you lost! That's the end of your Battle Tower challenge.");
+    await said(`You won ${wins(v.wins)} in a row. Please make your way back to the lobby.`);
+    return backToLobby();
   }
   if (v.phase === 'won') {
     await said(`Congratulations! You've beaten all ${TOP_FLOOR} floors of the Battle Tower: ${wins(v.wins)} in a row${from}!`);
-    return ctx.finish();
+    await said('Please make your way back to the lobby.');
+    return backToLobby();
   }
   if (result && v.last) {
     const { floor, bp, checkpoint } = v.last;
@@ -361,15 +368,16 @@ async function between(s: SceneSteps, ctx: TowerContext, challenge: ClientTower,
       return battle(s, ctx, challenge);
     }
     if (choice === 1) {
-      await ctx.act(challenge, { type: 'SAVE' });
+      const kept = await ctx.act(challenge, { type: 'SAVE' });
       await said('Your challenge has been saved. Come back any time to carry on from here!');
-      return ctx.finish();
+      await said('Please make your way back to the lobby.');
+      return backToLobby(kept);
     }
     if (choice === 2) {
       if ((await s.ask('Concede your challenge? It will end here.', ['No', 'Yes'], 'Attendant')) === 0) continue;
       const over = await ctx.act(challenge, { type: 'QUIT' });
-      await said(`Your challenge is over. You won ${wins(over.view.wins)} in a row${from}. Please come again!`);
-      return ctx.finish();
+      await said(`Your challenge is over. You won ${wins(over.view.wins)} in a row${from}. Please make your way back to the lobby.`);
+      return backToLobby();
     }
     // Debug only: the battle won at once (no ₱ or EXP), its opponent shown leaving as after a battle.
     const skipped = await ctx.skip!(challenge);

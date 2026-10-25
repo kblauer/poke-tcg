@@ -1,6 +1,3 @@
-import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import MilitaryTechIcon from '@mui/icons-material/MilitaryTech';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { useRun } from '../hooks/useRun';
@@ -22,10 +19,12 @@ export function shortNumber(n: number): string {
   return `${Math.abs(v) < 10 ? Math.floor(v * 10) / 10 : Math.floor(v)}${unit}`;
 }
 
-/** The Battle Points' icon in the big screen's top bar, the size of the others' sprites (a medal: there's no pokesprite item for BP). */
-function BpIcon() {
-  return <MilitaryTechIcon sx={{ fontSize: 20 }} />;
-}
+/** The account figures' icons, everywhere they're shown (navIcon: pokesprite's Big Nugget, Exp. Share and Stardust, and for
+ * Battle Points its Honor of Kalos, the user's). */
+const BankIcon = navIcon('bank');
+const ExpIcon = navIcon('exp');
+const StardustIcon = navIcon('stardust');
+const BpIcon = navIcon('bp');
 
 /** One figure: its icon and number, its meaning on hover. */
 function Stat({ icon, value, title, className, style }: { icon: ReactNode; value: ReactNode; title: string; className: string; style?: CSSProperties }) {
@@ -79,9 +78,9 @@ export function TopBarAccount() {
   const bp = useTowerBp();
   if (!account) return null;
   const figures = [
-    { key: 'bank', title: '₱ banked from earlier runs', Icon: navIcon('bank'), value: account.bank, short: true, className: 'text-yellow-200/70' },
-    { key: 'exp', title: 'EXP, spent in the shop after a run', Icon: navIcon('exp'), value: account.exp, short: false, className: 'text-sky-300' },
-    ...(stardust.data !== undefined ? [{ key: 'dust', title: 'Stardust, from cards pulled again in packs; crafts cards in the deck builder', Icon: navIcon('stardust'), value: stardust.data, short: true, className: 'text-sky-200' }] : []),
+    { key: 'bank', title: '₱ banked from earlier runs', Icon: BankIcon, value: account.bank, short: true, className: 'text-yellow-200/70' },
+    { key: 'exp', title: 'EXP, spent in the shop after a run', Icon: ExpIcon, value: account.exp, short: false, className: 'text-sky-300' },
+    ...(stardust.data !== undefined ? [{ key: 'dust', title: 'Stardust, from cards pulled again in packs; crafts cards in the deck builder', Icon: StardustIcon, value: stardust.data, short: true, className: 'text-sky-200' }] : []),
     // Only in the Battle Tower mode (the user's): its Battle Points, spent in its BP Shop.
     ...(bp !== null ? [{ key: 'bp', title: 'Battle Points, won in the Battle Tower; spent in its BP Shop', Icon: BpIcon, value: bp, short: true, className: 'text-emerald-300' }] : []),
   ];
@@ -119,9 +118,9 @@ export function TopBarStats() {
           <Stat icon={<PokedollarIcon />} value={commas(view.pokedollars)} title="₱ to spend in this run" className={money.className} style={money.style} />
         </>
       )}
-      {data && <ShortStat icon={<AccountBalanceIcon sx={{ fontSize: 14 }} />} value={data.account.bank} title="₱ in the bank" className="text-yellow-200/70" />}
-      {stardust.data !== undefined && <ShortStat icon={<AutoAwesomeIcon sx={{ fontSize: 14 }} />} value={stardust.data} title="Stardust" className="text-sky-200" />}
-      {bp !== null && <ShortStat icon={<MilitaryTechIcon sx={{ fontSize: 14 }} />} value={bp} title="Battle Points" className="text-emerald-300" />}
+      {data && <ShortStat icon={<BankIcon />} value={data.account.bank} title="₱ in the bank" className="text-yellow-200/70" />}
+      {stardust.data !== undefined && <ShortStat icon={<StardustIcon />} value={stardust.data} title="Stardust" className="text-sky-200" />}
+      {bp !== null && <ShortStat icon={<BpIcon />} value={bp} title="Battle Points" className="text-emerald-300" />}
     </div>
   );
 }

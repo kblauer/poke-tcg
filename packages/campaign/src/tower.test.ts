@@ -14,6 +14,9 @@ import {
   startFloors,
   TOP_FLOOR,
   towerBattleSetup,
+  towerOpponentDeck,
+  TOWER_DECK_NAMES,
+  mainType,
   towerGameId,
   towerGeneration,
   towerNeedsBattle,
@@ -169,6 +172,18 @@ describe('a Battle Tower challenge', () => {
       expect(towerView(s).opponent).not.toHaveProperty('deckSeed');
       expect(towerView(s)).not.toHaveProperty('rngState');
     }
+  });
+});
+
+describe("the tower's deck names", () => {
+  it('gives each opponent a themed name for their deck from its main type, the same every time', () => {
+    const s = act(createTower(DECK, 4, 11), { type: 'CONTINUE' });
+    const a = towerOpponentDeck(s, GEN2_TEST_POOL);
+    expect(a).toEqual(towerOpponentDeck(s, GEN2_TEST_POOL));
+    expect(a.deck).toEqual(towerBattleSetup(s, GEN2_TEST_POOL).deck);
+    expect(TOWER_DECK_NAMES[mainType(a.deck, GEN2_TEST_POOL)]).toContain(a.name);
+    expect(a.name).not.toContain(s.opponent!.name);
+    for (const names of Object.values(TOWER_DECK_NAMES)) expect(names.length).toBeGreaterThan(3);
   });
 });
 
