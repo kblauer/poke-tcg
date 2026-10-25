@@ -2,10 +2,10 @@
 // Card-specific behaviour lives in effects/ (POWERS), next to the attack effects.
 import type { AttackContext } from './attacks.js';
 import { hasType, holonEnergy, lookupCard, namesMatch, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
-import { powerEffect } from './effects/index.js';
+import { powerEffect, trainerEffect } from './effects/index.js';
 import { counts, energyPool, type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
 import { addLog, clearSpecialConditions, effectId, evolvedFromName, flipCoin, hasSpecialCondition, isDelta, lakeTrio, pokemonName, inPlayDef, sameCards, specialConditionLabel } from './status.js';
-import { evolvesFromEevee, type PendingChoice, type PendingChoiceInput } from './trainers.js';
+import { evolvesFromEevee, isPokemonSP, trainersLocked, type PendingChoice, type PendingChoiceInput } from './trainers.js';
 
 /** Answers to a power's questions. Each question names the field it fills. */
 export interface PowerChoices {
@@ -631,6 +631,28 @@ export interface PowerEffect {
   versatile?: boolean;
   /** Delta Block: while a Stadium with Holon in its name is in play, the opponent can't play Stadium cards (trainerError). */
   deltaBlock?: boolean;
+  /** Damage Bind: Pokémon with damage counters on them, both players', can't use Poké-Powers (auraStops). */
+  damageBind?: boolean;
+  /** Time Crystal: no Pokémon but Pokémon SP, both players', can use Poké-Bodies (auraStops). */
+  timeCrystal?: boolean;
+  /** Time Aura: as the Active Pokémon, the opponent can't evolve their Active Pokémon from the hand (evolveError). */
+  timeAura?: boolean;
+  /** Electric Barrier: no attack damage to its player's Benched Pokémon but Manectric (attacks.ts). */
+  electricBarrier?: boolean;
+  /** Iron Skull: its attacks' damage is changed by nothing on the Defending Pokémon but Weakness (pl1.ts). */
+  ironSkull?: boolean;
+  /** Lazy Paunch: it can't attack if it attacked during its player's last turn (attackError). */
+  lazyPaunch?: boolean;
+  /** Sinkhole (Platinum's): the opponent's Pokémon that retreats gets 2 damage counters (RETREAT). */
+  sinkholeCounters?: boolean;
+  /** Camouflage Pattern: nothing from an attacker with 2 or more Special Conditions (attacks.ts). */
+  camouflagePattern?: boolean;
+  /** Cold Feet: with a Special Condition, its attacks need no Energy (attackError). */
+  coldFeet?: boolean;
+  /** Armor Stone: coins until tails, 10 less damage from the opponent's attack for each heads (attacks.ts). */
+  armorStone?: boolean;
+  /** Thankfulness: its player's Grass Pokémon but Shaymin get 40 more HP, one however many (refreshHideout). */
+  thankfulness?: boolean;
 }
 
 /** Wise Aura, Overpowering Fang and Intimidating Ring: an Active Pokémon's aura stopping `pokemon`'s power, or null. */
@@ -656,7 +678,9 @@ export function auraStops(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sid
         (!!effect.shade && !body && !d.ex && hasType(d, effect.shade.type) && has(effect.shade.partner)) ||
         (!!effect.dualAura && body && !d.ex && pokemon.evolvedFrom.length > 0 && (has(effect.dualAura) || has(`${effect.dualAura} ex`))) ||
         (!!effect.extraLiquid && !body && !!d.ex) ||
-        (!!effect.deltaReserve && !body && !isDelta(cards, pokemon) && a.energy.some((e) => !e.provides && !e.windless && lookupCard(cards, e.defId).name.startsWith('Holon Energy')));
+        (!!effect.deltaReserve && !body && !isDelta(cards, pokemon) && a.energy.some((e) => !e.provides && !e.windless && lookupCard(cards, e.defId).name.startsWith('Holon Energy'))) ||
+        (!!effect.damageBind && !body && pokemon.damage > 0) ||
+        (!!effect.timeCrystal && body && !isPokemonSP(d.name));
       if (reaches && powerActive(a, cards, sides)) return powerOf(a, cards)!.name;
     }
   }
@@ -1042,6 +1066,13 @@ export const enervatingPollen = (sides: Sides, cards: CardLibrary) => anyWorking
  * Pokémon's, either player's: not onto a Benched Pokémon) and Primal Stare (the opponent's Active Pokémon's: not onto the
  * Active Pokémon).
  */
+/** Time Aura: the opponent's Active Dialga with it working keeps `target`, `sides[0]`'s Active Pokémon, from evolving from the hand. */
+export function timeAura(target: InPlayPokemon, sides: Sides, cards: CardLibrary): string | null {
+  const [owner, ...others] = sides;
+  if (!owner || owner.active !== target) return null;
+  return others.some((s) => !!s.active && !!pokemonPower(s.active)?.timeAura && powerActive(s.active, cards, sides)) ? "Time Aura: you can't evolve your Active Pokémon from your hand" : null;
+}
+
 export function primalBlock(target: InPlayPokemon, sides: Sides, cards: CardLibrary): string | null {
   const [owner, ...others] = sides;
   if (!owner) return null;
@@ -1267,6 +1298,10 @@ export const situationCounts = (me: Pick<PlayerState, 'deck' | 'prizes' | 'faceU
 export const powerCanceller = (state: GameState, player: PlayerState, other: PlayerState) =>
   [player.active, ...player.bench].find((p) => !!p && !!pokemonPower(p)?.powerCancel && p.powerUsedTurn !== state.turn && powerActive(p, state.cards, [player, other])) ?? null;
 
+/** The player holds Power Spray and has 3 or more Pokémon SP in play, so may play it during the opponent's turn. */
+const powerSprayer = (state: GameState, player: PlayerState) =>
+  !trainersLocked(player, state.turn) && player.hand.some((c) => trainerEffect(c.defId)?.powerSpray) && [player.active, ...player.bench].filter((p) => p && isPokemonSP(inPlayDef(state.cards, p).name)).length >= 3;
+
 export function usePower(state: GameState, me: PlayerState, opp: PlayerState, sourceTarget: Target, given: PowerChoices): string | null {
   const situation: PowerSituation = { me, opp, counts: situationCounts(me, opp), source: sourceTarget, cards: state.cards, turn: state.turn, stadium: state.stadium?.card ?? null };
   const error = powerError(situation);
@@ -1279,6 +1314,11 @@ export function usePower(state: GameState, me: PlayerState, opp: PlayerState, so
   // Power Cancel: the opponent may stop a Poké-Power (not a Poké-Body) with 2 cards from their hand, before it does anything.
   if ((!effect.body || effect.usePoke) && !state.powerCancelPassed && opp.hand.length >= 2 && powerCanceller(state, opp, me)) {
     state.pendingChoice = { player: opp.id, source: 'Power Cancel', kind: 'powerCancel', target: sourceTarget, choices: resolved.choices, picked: [] };
+    return null;
+  }
+  // Power Spray: the opponent, with 3 or more Pokémon SP in play, may play it from their hand to stop a Poké-Power.
+  if ((!effect.body || effect.usePoke) && !state.powerCancelPassed && powerSprayer(state, opp)) {
+    state.pendingChoice = { player: opp.id, source: 'Power Spray', kind: 'powerCancel', target: sourceTarget, choices: resolved.choices, picked: [], spray: true };
     return null;
   }
   const powerName = effect.powerName ?? def.power!.name;

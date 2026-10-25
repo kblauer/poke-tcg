@@ -94,19 +94,23 @@ export function discardOwnEnergy(ctx: AttackContext, count: number, source: stri
 
 /**
  * `count` Energy cards off one of the opponent's Pokémon (the Defending one unless `target` says), discarded (or `toBottom`
- * of their deck; `onlySpecial`: Special Energy cards only): picked by the attacking player once the attack is over when
- * they differ (the same-card rule, agreed), otherwise the first ones.
+ * of their deck, or `toLostZone`; `onlySpecial`: Special Energy cards only): picked by the attacking player once the attack
+ * is over when they differ (the same-card rule, agreed), otherwise the first ones.
  */
-export function removeDefenderEnergy(ctx: AttackContext, count: number, source: string, { toBottom = false, onlySpecial = false, target = 'active' as Target } = {}) {
+export function removeDefenderEnergy(ctx: AttackContext, count: number, source: string, { toBottom = false, toLostZone = false, onlySpecial = false, target = 'active' as Target } = {}) {
   const p = target === 'active' ? ctx.opp.active : ctx.opp.bench[target];
   const cards = p ? energyCards(p).filter((e) => !onlySpecial || isSpecialEnergy(ctx.state.cards, e)) : [];
   if (count <= 0 || !p || !cards.length || !ctx.canAffect(ctx.opp, p)) return;
-  if (!(toBottom ? energyCanMove(ctx, p) : energyCanGo(ctx, p))) return;
-  if (cards.length > count && !sameCards(ctx.state.cards, cards)) return askAfter(ctx, { kind: 'removeEach', source, targets: Array<Target>(count).fill(target), ...(toBottom && { toBottom }), ...(onlySpecial && { onlySpecial }) });
+  if (!(toBottom || toLostZone ? energyCanMove(ctx, p) : energyCanGo(ctx, p))) return;
+  if (cards.length > count && !sameCards(ctx.state.cards, cards)) return askAfter(ctx, { kind: 'removeEach', source, targets: Array<Target>(count).fill(target), ...(toBottom && { toBottom }), ...(toLostZone && { toLostZone }), ...(onlySpecial && { onlySpecial }) });
   const gone = cards.slice(0, count);
-  if (!toBottom && p === ctx.opp.active) return gone.forEach((e) => ctx.discardDefenderEnergy(e.uid));
+  if (!toBottom && !toLostZone && p === ctx.opp.active) return gone.forEach((e) => ctx.discardDefenderEnergy(e.uid));
   p.energy = p.energy.filter((e) => !gone.includes(e));
   const names = gone.map((e) => lookupCard(ctx.state.cards, e.defId).name).join(', ');
+  if (toLostZone) {
+    (ctx.opp.lostZone ??= []).push(...gone.map(({ converted: _c, windless: _w, ...card }) => card));
+    return ctx.log(`Put ${names} from ${pokemonName(ctx.state, p)} in the Lost Zone.`, ctx.opp.id);
+  }
   if (!toBottom) {
     ctx.log(`Discarded ${names} from ${pokemonName(ctx.state, p)}.`, ctx.opp.id);
     return discardTheirEnergy(ctx.state, ctx.opp, gone);

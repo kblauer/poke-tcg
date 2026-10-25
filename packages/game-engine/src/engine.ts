@@ -1,6 +1,6 @@
 /// <reference path="./globals.d.ts" />
 import { applyWeaknessResistance, attackAsks, attackError, attackSituation, checkAttack, nextAttackChoice, performAttack, recallsAttacks, usableAttacks, type AttackChoices } from './attacks.js';
-import { attachBlocked, discardsLocked, energyFromHand, evolutionBlocked, primalBlock, retreatBodies, guardedBy, spiraledBy, bindingAura, conditionBarred, conditionFree, holonWith, miraculousWind, offerChainReaction, playedFromHand, pokemonAt, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, primalLocked, trainersDusted, trainersBlocked, usePower, powerCanceller, zoomed, type PowerChoices, type PowerEffect, pokemonPower } from './powers.js';
+import { attachBlocked, timeAura, discardsLocked, energyFromHand, evolutionBlocked, primalBlock, retreatBodies, guardedBy, spiraledBy, bindingAura, conditionBarred, conditionFree, holonWith, miraculousWind, offerChainReaction, playedFromHand, pokemonAt, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, primalLocked, trainersDusted, trainersBlocked, usePower, powerCanceller, zoomed, type PowerChoices, type PowerEffect, pokemonPower } from './powers.js';
 import { evolvesFromEevee, evolveWith, pendingChoiceView, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
 import { conditionProof, hasOwner, hasType, holonEnergy, namesMatch, isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
@@ -226,6 +226,12 @@ export interface PokemonEffects {
   nightSpin?: number;
   /** Evolutionary Gas: its attacks through this turn do nothing (they can still be used). */
   fizzle?: number;
+  /** Cheerful Voice: its attacks do 60 more to the Defending Pokémon during this turn. */
+  cheerfulVoice?: number;
+  /** Octazooka: until it leaves the Active Spot, a coin for each attack, tails it does nothing. */
+  octazooka?: boolean;
+  /** Midnight Eyes: the turn it hit this Pokémon (Perish Song). */
+  midnightEyes?: number;
   /** Link Lightning: the turn it used Voltage Shoot and may attack once more. */
   linkLightning?: number;
   /** Invisible Tentacles: the turn its player discarded a card for the attack under way. */
@@ -875,6 +881,26 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       return error ? fail(error) : afterTrainer(state, player, other);
     }
     // Power Cancel, answered by the opponent of the player using a Poké-Power: 2 cards discarded, one at a time, stop it; else it works.
+    if (pending.kind === 'powerCancel' && pending.spray) {
+      const player = state.players[state.currentPlayer]!;
+      const other = state.players[opponentOf(state, state.currentPlayer)]!;
+      const spray = action.cardUid === undefined ? undefined : other.hand.find((c) => c.uid === action.cardUid && trainerEffect(c.defId)?.powerSpray);
+      if (action.cardUid !== undefined && !spray) return fail('Choose Power Spray from your hand');
+      delete state.pendingChoice;
+      const source = pokemonAt(player, pending.target);
+      if (spray && source) {
+        other.hand = other.hand.filter((c) => c !== spray);
+        other.discard.push(spray);
+        // It counts as that Pokémon using its Poké-Power.
+        if (pokemonPower(source)?.oncePerTurn) source.powerUsedTurn = state.turn;
+        addLog(state, `Played Power Spray: ${inPlayDef(state.cards, source).power?.name ?? 'the Poké-Power'} did nothing.`, other.id);
+        return afterTrainer(state, player, other);
+      }
+      state.powerCancelPassed = true;
+      const error = usePower(state, player, other, pending.target, pending.choices);
+      delete state.powerCancelPassed;
+      return error ? fail(error) : afterTrainer(state, player, other);
+    }
     if (pending.kind === 'powerCancel') {
       const player = state.players[state.currentPlayer]!;
       const other = state.players[opponentOf(state, state.currentPlayer)]!;
@@ -1038,6 +1064,12 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
         me.bench[action.slot]!.damage += 20;
         addLog(state, `Land Shake put 2 damage counters on ${card(played).name}.`, me.id);
       }
+      // Miasma Valley: 2 damage counters on a Basic Pokémon (not Grass or Psychic) benched from the hand.
+      const benchedDef = card(played);
+      if (state.stadium && card(state.stadium.card).name === 'Miasma Valley' && benchedDef.kind === 'pokemon' && !isTrainerCard(benchedDef) && !hasType(benchedDef, 'grass') && !hasType(benchedDef, 'psychic')) {
+        me.bench[action.slot]!.damage += 20;
+        addLog(state, `Miasma Valley put 2 damage counters on ${benchedDef.name}.`, me.id);
+      }
       // Hot Plate: 10 damage to it from a working Dark Magcargo, either player's Active Pokémon.
       if (!isTrainerCard(card(played))) hotPlate(state, me.bench[action.slot]!, me.id);
       // Unown E and I: powers that react to the Pokémon being played from the hand.
@@ -1053,14 +1085,14 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
         if (!revealFaceDown(state, me.id, target)) return afterOwnMove(state, me, opp);
         const evo = me.hand.find((c) => c.uid === action.cardUid);
         const evoDef = evo && card(evo);
-        if (evoDef?.kind === 'pokemon' && evolveError(evoDef, target, state.cards, state.turn, [me, opp])) return ok(state);
+        if (evoDef?.kind === 'pokemon' && evolveError(evoDef, target, state.cards, state.turn, [me, opp], state.stadium?.card)) return ok(state);
       }
       const evolution = takeFromHand(me, action.cardUid);
       const evolutionDef = evolution && card(evolution);
       if (!evolution || evolutionDef?.kind !== 'pokemon' || evolutionDef.stage === 'basic') {
         return fail('Must evolve with a Stage 1 or Stage 2 Pokémon (or level up with a Pokémon LV.X) from your hand');
       }
-      const error = evolveError(evolutionDef, target, state.cards, state.turn, [me, opp]);
+      const error = evolveError(evolutionDef, target, state.cards, state.turn, [me, opp], state.stadium?.card);
       if (error) return fail(error);
       // Damage and attached energy stay; the new card's HP and attacks apply from now on.
       if (evolutionDef.stage === 'levelUp') {
@@ -1101,6 +1133,11 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
         addLog(state, `Poison Sacs: ${pokemonName(state, target)} is still Poisoned.`, opp.id);
       }
       evolvedHook(state, me.id, target);
+      // Galactic HQ: 2 damage counters on a Pokémon evolved from the hand.
+      if (state.stadium && card(state.stadium.card).name === 'Galactic HQ') {
+        target.damage += 20;
+        addLog(state, `Galactic HQ put 2 damage counters on ${pokemonName(state, target)}.`, me.id);
+      }
       // Darkest Impulse: the opponent's working Dark Ampharos puts 2 damage counters on it (one, however many; agreed).
       const impulse = [opp.active, ...opp.bench].find((p) => p && pokemonPower(p)?.darkestImpulse && powerActive(p, state.cards, [me, opp]));
       if (impulse) {
@@ -1297,6 +1334,12 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
         if (flipCoin(state, 'Sinkhole', me.id)) continue;
         retreated.damage += 20;
         addLog(state, `Sinkhole did 20 damage to ${pokemonName(state, retreated)}.`, me.id);
+      }
+      // Sinkhole (Platinum's): 2 damage counters on the Pokémon that retreated, for each working one.
+      for (const p of [opp.active, ...opp.bench]) {
+        if (!p || !pokemonPower(p)?.sinkholeCounters || !powerActive(p, state.cards, [opp, me])) continue;
+        retreated.damage += 20;
+        addLog(state, `Sinkhole put 2 damage counters on ${pokemonName(state, retreated)}.`, opp.id);
       }
       return afterOwnMove(state, me, opp);
     }
@@ -1608,6 +1651,8 @@ export function evolveError(
   cards: CardLibrary,
   turn: number,
   sides: Pick<PlayerState, 'active' | 'bench'>[] = [],
+  /** The Stadium in play (Broken Time-Space). */
+  stadium?: CardInstance | null,
 ): string | null {
   const blocked = evolutionBlocked(sides, cards);
   if (blocked) return blocked;
@@ -1622,6 +1667,11 @@ export function evolveError(
   // Primal Aura and Primal Stare: not from the hand onto a Benched (or the opponent's Active) Pokémon.
   const primal = primalBlock(target, sides, cards);
   if (primal) return primal;
+  // Time Aura (the opponent's Active Dialga): not onto the Active Pokémon (levelling up isn't evolving).
+  if (evolution.stage !== 'levelUp') {
+    const aura = timeAura(target, sides, cards);
+    if (aura) return aura;
+  }
   // Dark Tentacle: not by an Evolution card from the hand or a Trainer this turn.
   if (target.effects?.noEvolve !== undefined) return `${current.name} can't evolve this turn`;
   // Binding Aura (the opponent's Hypno): not an Asleep Pokémon, from the hand.
@@ -1630,7 +1680,8 @@ export function evolveError(
   if (target.giovanniTurn === turn) return null;
   // Turns 1 and 2 are each player's first turn.
   if (turn <= 2) return "You can't evolve on your first turn";
-  if (target.playedTurn === turn) return `${current.name} was played or evolved this turn`;
+  // Broken Time-Space: a Pokémon played or evolved this turn may evolve again.
+  if (target.playedTurn === turn && !(stadium && lookupCard(cards, stadium.defId).name === 'Broken Time-Space')) return `${current.name} was played or evolved this turn`;
   return null;
 }
 
@@ -2676,6 +2727,8 @@ function refreshHideout(state: GameState) {
       }
       const plus = pokemonPower(p)?.hpPlus;
       if (plus && powerActive(p, state.cards, sides)) p.hpPlus = (p.hpPlus ?? 0) + plus;
+      // Thankfulness: its player's Grass Pokémon but Shaymin get 40 more HP (one, however many).
+      if (hasType(inPlayDef(state.cards, p), 'grass') && !namesMatch(inPlayDef(state.cards, p).name, 'Shaymin') && [player.active, ...player.bench].some((q) => q && pokemonPower(q)?.thankfulness && powerActive(q, state.cards, sides))) p.hpPlus = (p.hpPlus ?? 0) + 40;
       // Snowpoint Temple: 20 more HP for every Pokémon that isn't an Evolved Pokémon.
       if (stadium === 'Snowpoint Temple' && !p.evolvedFrom.length) p.hpPlus = (p.hpPlus ?? 0) + 20;
       // Ditto DNA: as its player's Active Pokémon, the opponent's Active Pokémon's HP.

@@ -599,6 +599,13 @@ export function resolveSearch(t: Turn): GameAction {
     if (!view.options.length || left('active') > 40) return { type: 'RESOLVE_CHOICE' };
     return { type: 'RESOLVE_CHOICE', target: view.options.reduce((a, b) => (left(b) > left(a) ? b : a)) };
   }
+  // Lost Cyclone: it keeps the Benched Pokémon with the most Energy, then the most HP left.
+  if (choice.kind === 'lostCyclone' && view.kind === 'ownPokemon' && view.options.length) {
+    const worth = (target: Target) => at(t.me, target)!.energy.length * 1000 + hpLeft(t.state.cards, at(t.me, target)!);
+    return { type: 'RESOLVE_CHOICE', target: view.options.reduce((a, b) => (worth(b) > worth(a) ? b : a)) };
+  }
+  // Temper Tantrum ("as many as you like"): it discards nothing, so no damage counters.
+  if (choice.kind === 'discardFromHand' && choice.upTo) return { type: 'RESOLVE_CHOICE' };
   // Returning its own Pokémon to the hand (Fairy Power): it keeps them in play. Attract Energy: its Energy stays where it is.
   if (view.kind === 'ownPokemon' && view.optional) return { type: 'RESOLVE_CHOICE' };
   if (choice.kind === 'moveAttached' || (choice.kind === 'deltaSwitch' && !choice.cardUid)) return { type: 'RESOLVE_CHOICE' };
@@ -677,6 +684,8 @@ function optionAnswer(t: Turn, count: number): number {
     return rhydon && hpLeft(t.state.cards, rhydon) > 10 ? 0 : 1;
   }
   if (choice.kind === 'quiz' || choice.kind === 'guess') return Math.floor(nextRandom(t.state.rngState)[0] * count);
+  // Looker's Investigation: a fresh hand of its own when it holds 3 cards or fewer, otherwise the opponent's hand goes.
+  if (choice.kind === 'looker') return t.me.hand.length <= 3 ? 0 : 1;
   // Misty's Wish: it declines (agreed); for its own, the first Prize card.
   if (choice.kind === 'mistysWish' && choice.step === 'ask') return 1;
   // Howl would end its turn as soon as Entei is benched: it doesn't use it.
@@ -720,7 +729,7 @@ export function evolve(t: Turn): GameAction | null {
     for (const card of t.me.hand) {
       const evolution = t.def(card);
       if (evolution.kind !== 'pokemon' || evolution.stage === 'basic') continue;
-      if (evolveError(evolution, p, t.state.cards, t.state.turn, [t.me, t.opp]) === null) return { type: 'EVOLVE', cardUid: card.uid, target };
+      if (evolveError(evolution, p, t.state.cards, t.state.turn, [t.me, t.opp], t.state.stadium?.card) === null) return { type: 'EVOLVE', cardUid: card.uid, target };
     }
   }
   return null;

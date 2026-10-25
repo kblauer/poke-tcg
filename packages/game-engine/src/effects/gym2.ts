@@ -64,7 +64,7 @@ function healAll(ctx: AttackContext, player: PlayerState, amount: number) {
 const basicEnergyInDiscard = (ctx: AttackContext, type: 'fire' | 'lightning') => discardEnergyOf({ ownDiscard: ctx.me.discard, cards: ctx.state.cards } as AttackSituation, type);
 
 /** Returns the attacker and every card with it to the attacking player's hand (Star Boomerang). */
-function returnSelf(ctx: AttackContext) {
+export function returnSelf(ctx: AttackContext) {
   const p = ctx.attacker;
   if (ctx.me.active !== p) return;
   const locked = activeLocked(ctx.state, ctx.me.id);

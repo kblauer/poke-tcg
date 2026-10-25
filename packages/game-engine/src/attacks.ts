@@ -27,8 +27,8 @@ import {
 } from './engine.js';
 import { conditionBarred, conditionFree, discardsLocked, hasReact, holonWith, reactCount, energyKept, enervatingPollen, powerActive, prehistoricMemory, scaredBy, type Sides, pokemonPower } from './powers.js';
 import { shuffle } from './rng.js';
-import { addLog, baseUid, clearOnLeavingActive, effectId, evolvedFromName, isDelta, energyProtected, flipCoin, inPlayDef, lakeTrio, pokemonName, previousLevel, revealFaceDown, sameCards, shapeshiftCard } from './status.js';
-import type { PendingChoice, PendingChoiceInput } from './trainers.js';
+import { addLog, baseUid, clearOnLeavingActive, hasSpecialCondition, effectId, evolvedFromName, isDelta, energyProtected, flipCoin, inPlayDef, lakeTrio, pokemonName, previousLevel, revealFaceDown, sameCards, shapeshiftCard } from './status.js';
+import { isPokemonSP, type PendingChoice, type PendingChoiceInput } from './trainers.js';
 
 /** Answers to an attack's questions. Each field belongs to one kind of ChoiceSpec. */
 export interface AttackChoices {
@@ -265,6 +265,9 @@ export function usableAttacks(
 export const situationAttacks = (s: AttackSituation) => usableAttacks(s.attacker, s.cards, { recall: s.recall, bench: s.ownBench, defender: s.defender, oppBench: s.opponentBench, stadium: s.stadium });
 const attackAt = (s: AttackSituation, attackIndex: number) => situationAttacks(s)[attackIndex];
 
+/** How many Special Conditions a Pokémon has (Camouflage Pattern). */
+const conditionCount = (p: InPlayPokemon) => (p.condition ? 1 : 0) + (p.poison ? 1 : 0) + (p.burned ? 1 : 0);
+
 /** The Nidoran line (Mother Pheromone). */
 const NIDO_LINE = ['Nidoran ♀', 'Nidorina', 'Nidoran ♂', 'Nidorino', 'Nidoking'];
 
@@ -485,6 +488,8 @@ export function attackError(s: AttackSituation, attackIndex: number): string | n
   if (!s.ownHand?.length && s.attacker.effects?.tentaclesPaid !== s.turn && [s.defender, ...s.opponentBench].some((p) => p && working(p)?.invisibleTentacles)) return `Invisible Tentacles: ${attackerDef.name} can't attack without a card in your hand to discard`;
   // Link Lightning: the second attack can't be Voltage Shoot again.
   if (s.attacker.effects?.linkLightning === s.turn && attack.name === 'Voltage Shoot') return 'Link Lightning: use another of Raichu\'s attacks';
+  // Lazy Paunch: not if it attacked during its player's last turn.
+  if (working(s.attacker)?.lazyPaunch && s.attacker.effects?.lastAttack?.turn === s.turn - 2) return `Lazy Paunch: ${attackerDef.name} attacked during your last turn`;
   // Slow Start: not until the opponent has 3 or fewer Prize cards left.
   if (working(s.attacker)?.slowStart && (s.opponentPrizes ?? 6) > 3) return `Slow Start: ${attackerDef.name} can't attack until your opponent has 3 or fewer Prize cards left`;
   // Mark of Antiquity: either Active Pokémon's stops the Pokémon it names, whoever's they are.
@@ -503,7 +508,9 @@ export function attackError(s: AttackSituation, attackIndex: number): string | n
   // Mother Pheromone: 1 Colorless less for each of the player's working Nidoqueen, for the Nidoran line.
   // Regi Form: 1 Colorless less with Regirock, Regice and Registeel in play.
   const regi = working(s.attacker)?.regiForm && ['Regirock', 'Regice', 'Registeel'].every((n) => [s.attacker, ...s.ownBench].some((p) => p && namesMatch(def(s.cards, p).name, n))) ? 1 : 0;
-  const pheromone = (NIDO_LINE.some((n) => namesMatch(attackerDef.name, n)) ? [s.attacker, ...s.ownBench].filter((p) => p && working(p)?.motherPheromone).length : 0) + regi;
+  // Team Galactic's Invention G-101 Energy Gain: 1 Colorless less for a Pokémon SP.
+  const gain = isPokemonSP(attackerDef.name) && toolOf(s.cards, s.attacker)?.name === "Team Galactic's Invention G-101 Energy Gain" ? 1 : 0;
+  const pheromone = (NIDO_LINE.some((n) => namesMatch(attackerDef.name, n)) ? [s.attacker, ...s.ownBench].filter((p) => p && working(p)?.motherPheromone).length : 0) + regi + gain;
   const more = [...(pulled ? ['colorless' as const] : []), ...(liquid ? ['colorless' as const] : []), ...(downer ? ['colorless' as const] : [])];
   // Battle Rush: no Colorless Energy at all while the opponent has a Pokémon of 120 HP or more in play.
   const rush = working(s.attacker)?.battleRush && [s.defender, ...s.opponentBench].some((p) => p && def(s.cards, p).hp >= 120);
@@ -511,7 +518,9 @@ export function attackError(s: AttackSituation, attackIndex: number): string | n
     let left = pheromone;
     return c.filter((t) => !(t === 'colorless' && (rush || left-- > 0)));
   };
-  if (!canPayCost(s.attacker, { ...attack, cost: fewer([...cost, ...more]) }, s.cards)) return more.length ? `Not enough energy (${[pulled && 'Primal Pull', liquid && 'Extra Liquid'].filter(Boolean).join(', ')}: ${more.length} more Colorless Energy)` : 'Not enough energy';
+  // Cold Feet: with a Special Condition, no Energy at all.
+  const cold = working(s.attacker)?.coldFeet && hasSpecialCondition(s.attacker);
+  if (!cold && !canPayCost(s.attacker, { ...attack, cost: fewer([...cost, ...more]) }, s.cards)) return more.length ? `Not enough energy (${[pulled && 'Primal Pull', liquid && 'Extra Liquid'].filter(Boolean).join(', ')}: ${more.length} more Colorless Energy)` : 'Not enough energy';
   const discard = effect?.discard;
   if (discard && discard.count !== 'all' && discardOptions(s, discard.type).length < discard.count) {
     return `${attack.name} needs ${discard.count} ${discard.type ? `${typeName(discard.type)} ` : ''}Energy to discard`;
@@ -823,6 +832,11 @@ export function performAttack(
       return null;
     }
   }
+  // Octazooka: while it stays Active, each attack needs heads.
+  if (attacker.effects?.octazooka && !flipCoin(state, 'Octazooka', me.id)) {
+    addLog(state, `${attack.name} did nothing.`, me.id);
+    return null;
+  }
   // Pattern Distraction: the Defending player's working Active Spinda makes a Basic Pokémon's attack a flip; tails, it does nothing.
   const spinda = opp.active;
   if (spinda && attackerDef.stage === 'basic' && pokemonPower(spinda)?.patternDistraction && powerActive(spinda, state.cards, [me, opp]) && !flipCoin(state, 'Pattern Distraction', me.id)) {
@@ -1076,6 +1090,8 @@ function createContext(
         (!!passive(opp.active)?.marvelScale && attackerDef.stage === 'levelUp') ||
         // Psybarrier: nothing from the opponent's Pokémon that aren't Evolved Pokémon.
         (!!passive(opp.active)?.psybarrier && !attacker.evolvedFrom.length) ||
+        // Camouflage Pattern: nothing from an attacker with 2 or more Special Conditions.
+        (!!passive(opp.active)?.camouflagePattern && conditionCount(attacker) >= 2) ||
         // Poison Enzyme: nothing from a Poisoned attacker.
         (!!passive(opp.active)?.poisonEnzyme && !!attacker.poison) ||
         // Night Spin: nothing from an attacker with 2 Energy or less attached.
@@ -1415,6 +1431,8 @@ function createContext(
     if (owner === me && (passive(p)?.hardProtection || active(p.effects?.selfProof, turn))) return 0;
     // Feebas's Submerge: on the Bench, no damage from any attack.
     if (owner.active !== p && passive(p)?.benchImmuneAll) return 0;
+    // Electric Barrier: its player's Benched Pokémon but Manectric take no attack damage.
+    if (owner.active !== p && !namesMatch(def(state.cards, p).name, 'Manectric') && [owner.active, ...owner.bench].some((q) => q && passive(q)?.electricBarrier)) return 0;
     amount = charmed(amount);
     // Hitmonlee's Stages of Evolution: more to any of the opponent's Pokémon.
     if (owner === opp && amount > 0) amount += passive(attacker)?.attackMore ?? 0;
@@ -1636,7 +1654,7 @@ function createContext(
     // Sunny Day: 10 more for Grass and Fire Pokémon. Green Dignity: 10 more for each Grass Pokémon on the Bench while behind on Prize cards. No Guard: 60 more.
     const sunny = (hasType(attackerDef, 'grass') || hasType(attackerDef, 'fire')) && team.some((q) => q && passive(q)?.sunnyDay) ? 10 : 0;
     const dignity = passive(attacker)?.greenDignity && me.prizes.length > opp.prizes.length ? 10 * me.bench.filter((q) => q && hasType(def(state.cards, q), 'grass')).length : 0;
-    const noGuard = (passive(attacker)?.noGuard ? 60 : 0) + (passive(attacker)?.revengeSeed && me.grassKnockedOutTurn === turn - 1 ? 60 : 0);
+    const noGuard = (passive(attacker)?.noGuard ? 60 : 0) + (passive(attacker)?.revengeSeed && me.grassKnockedOutTurn === turn - 1 ? 60 : 0) + (attacker.effects?.cheerfulVoice === turn ? 60 : 0);
     const buck = me.supporterTurn === turn && me.supporterUid && me.discard.concat(me.hand).some((c) => c.uid === me.supporterUid && lookupCard(state.cards, c.defId).name === "Buck's Training") ? 10 : 0;
     const boost = (low && attackerDef.hp - attacker.damage <= low.hpLeft ? low.more : 0) + aura + pivot + (passive(attacker)?.attackMore ?? 0) + rage + reversal + conditional + reactor + laser + allies + dna + scale + fury + rivalry + revenge + enthused + buck + sunny + dignity + noGuard;
     if (amount > 0 && boost) {
@@ -1803,6 +1821,15 @@ function createContext(
       if (damage > 0 && passive(defender)?.coldFat && defender.condition === 'asleep') {
         damage = noted('Cold Fat', damage, Math.max(0, damage - 40));
         log(`Cold Fat reduced the damage to ${defenderDef.name} by 40.`, opp.id);
+      }
+      // Armor Stone: coins until tails, 10 less for each heads.
+      if (damage > 0 && passive(defender)?.armorStone) {
+        let heads = 0;
+        while (heads < 60 && flipCoin(state, 'Armor Stone', opp.id)) heads++;
+        if (heads) {
+          damage = noted('Armor Stone', damage, Math.max(0, damage - 10 * heads));
+          log(`Armor Stone reduced the damage to ${defenderDef.name} by ${10 * heads}.`, opp.id);
+        }
       }
       // Airy Wall: no damage from an attacker with 2 or fewer Energy cards attached.
       if (damage > 0 && airy(defender)) {

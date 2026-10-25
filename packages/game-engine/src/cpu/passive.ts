@@ -63,7 +63,7 @@ function turnAction(state: GameState, cpu: PlayerState): GameAction | null {
     const evolution = def(card.defId);
     if (evolution.kind !== 'pokemon' || evolution.stage === 'basic') continue;
     const sides = state.playerOrder.map((id) => state.players[id]!);
-    const target = inPlay(cpu).find(([, p]) => evolveError(evolution, p, state.cards, state.turn, sides) === null);
+    const target = inPlay(cpu).find(([, p]) => evolveError(evolution, p, state.cards, state.turn, sides, state.stadium?.card) === null);
     if (target) return { type: 'EVOLVE', cardUid: card.uid, target: target[0] };
   }
 
