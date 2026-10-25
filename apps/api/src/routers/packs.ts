@@ -42,6 +42,12 @@ const shown = (row: Card): ShownCard => ({
 });
 
 /**
+ * Whether a card is a plain basic Energy, the only kind a pack's Energy slot gives besides holo Energy (agreed with the
+ * user): not a holo Energy, nor a reverse-holo print (EX sets' basic Energy has those; they never come from packs).
+ */
+export const packBasicEnergy = (card: Pick<Card, 'kind' | 'data'>) => isBasicEnergyCard(card) && !holoEnergyStyle(card) && !isReverseHolo(card);
+
+/**
  * The basic Energy a set's packs give, and its holo versions: the set's own basic Energy, or the closest earlier
  * set's by release date (Jungle, Fossil and the promos get Base Set's; Team Rocket gets Base Set 2's), from the same
  * generation's sets (Legendary Collection, a Gen 1 set released after Neo Genesis, gets Gym Challenge's).
@@ -50,7 +56,7 @@ async function packEnergy(setId: string): Promise<{ energy: Card[]; holoEnergy: 
   const [dates, rows] = await Promise.all([setDates(), energyCards()]);
   const target = { releaseDate: dates.get(setId) ?? null };
   const generation = Object.values(PACK_GENERATIONS).find((g) => g.packs.includes(setId));
-  const basic = rows.filter((r) => isBasicEnergyCard(r) && !holoEnergyStyle(r) && (!generation || generation.packs.includes(r.setId)));
+  const basic = rows.filter((r) => packBasicEnergy(r) && (!generation || generation.packs.includes(r.setId)));
   const time = (r: (typeof rows)[number]) => r.set.releaseDate?.getTime() ?? 0;
   const own = basic.filter((r) => r.setId === setId);
   const earlier = basic.filter((r) => time(r) <= (target.releaseDate?.getTime() ?? 0));
