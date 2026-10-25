@@ -59,7 +59,32 @@ describe('Pokémon LV.X', () => {
     expect(applyAction(s, 'ash', { type: 'EVOLVE', cardUid: uid, target: 'active' })).toEqual({ ok: false, error: "You can't evolve on your first turn" });
   });
 
-  it('keeps its LV.X card through devolving effects, and a Basic Pokémon\'s LV.X is no Basic Pokémon (agreed)', () => {
+  it('is discarded with the Evolution card under it when that is removed (agreed: Flash Cannon, Devolution Spray)', () => {
+    let s = duel('charmander', 'onix');
+    s.cards = { ...s.cards, 'dp1-130': { id: 'dp1-130', kind: 'energy', name: 'Metal Energy', imageUrl: null, energyType: 'metal' } };
+    put(s, 'ash', 'active', mon('dp1-1', 'Dialga', 'metal', 90, [['Flash Cannon', ['metal'], 40]]), ['dp1-130']);
+    const prinplup = mon('prinplup', 'Prinplup', W, 80, [], { stage: 'stage1' });
+    const target = put(s, 'misty', 'active', empoleonX);
+    s.cards = { ...s.cards, [prinplup.id]: prinplup, [empoleon.id]: empoleon };
+    target.evolvedFrom.push({ uid: 'p', defId: prinplup.id }, { uid: 'e', defId: empoleon.id });
+    expect(devolvable(s.cards, target)).toBe(true);
+    s = attack(s, 0, { boost: true });
+    expect(misty(s).active!.card.defId).toBe('prinplup');
+    expect(misty(s).discard.map((c) => c.defId)).toContain('dp1-120');
+    expect([...misty(s).deck, ...misty(s).hand].some((c) => c.uid === 'e')).toBe(true);
+
+    const own = duel('charmander', 'onix');
+    const mine = put(own, 'ash', 'active', empoleonX);
+    own.cards = { ...own.cards, [prinplup.id]: prinplup, [empoleon.id]: empoleon };
+    mine.evolvedFrom.push({ uid: 'p', defId: prinplup.id }, { uid: 'e', defId: empoleon.id });
+    const spray = hand(own, 'ash', { id: 'base1-72', kind: 'trainer', name: 'Devolution Spray', imageUrl: null, text: '' });
+    const after = applyAction(own, 'ash', { type: 'PLAY_TRAINER', cardUid: spray, choices: { target: 'active', stage: 'stage2' } });
+    if (!after.ok) throw new Error(after.error);
+    expect(ash(after.state).active!.card.defId).toBe('prinplup');
+    expect(ash(after.state).discard.map((c) => c.defId)).toEqual(expect.arrayContaining(['dp1-4', 'dp1-120']));
+  });
+
+  it("a Basic Pokémon's LV.X has no Evolution card to remove, and is no Basic Pokémon (agreed)", () => {
     const s = duel('charmander', 'onix');
     const dialga = mon('dp1-1x', 'Dialga', 'metal', 90, [], {});
     const lvx = put(s, 'ash', 'active', mon('dp4-x', 'Dialga', 'metal', 110, [], { stage: 'levelUp' }));

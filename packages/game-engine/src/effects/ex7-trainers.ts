@@ -11,7 +11,7 @@
 import { lookupCard } from '../cards.js';
 import { activeLocked, evolvesOnto, type Target } from '../engine.js';
 import { trainerProof } from '../powers.js';
-import { clearOnLeavingActive, devolvable, energyProtected, inPlayDef, pokemonName } from '../status.js';
+import { clearOnLeavingActive, devolvable, energyProtected, inPlayDef, pokemonName, removeTopEvolution } from '../status.js';
 import { def, otherHandCards, own, swapActive, targetsOf, type EnergyEffect, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 import { ECARD1_TRAINERS } from './ecard1-trainers.js';
 import { ROCKET_TRAINERS } from './rocket-trainers.js';
@@ -154,8 +154,7 @@ export const EX7_TRAINERS: Record<string, TrainerEffect> = {
     play(ctx) {
       const t = ctx.choices.target!;
       const p = (t === 'active' ? ctx.me.active : ctx.me.bench[t])!;
-      const top = p.card;
-      p.card = p.evolvedFrom.pop()!;
+      const top = removeTopEvolution(ctx.state, ctx.me, p);
       clearOnLeavingActive(p);
       ctx.shuffleIntoDeck(ctx.me, [top]);
       ctx.log(`Shuffled ${lookupCard(ctx.state.cards, top.defId).name} into the deck (${pokemonName(ctx.state, p)} devolved).`);

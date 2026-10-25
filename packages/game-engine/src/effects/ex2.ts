@@ -13,7 +13,7 @@ import { isBasicEnergy, lookupCard, namesMatch, type CardLibrary, type EnergyTyp
 import { isEnergyCardOf, isSpecialEnergy, type CardInstance, type InPlayPokemon, type PlayerState } from '../engine.js';
 import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { benchRoom, clearOnLeavingActive, devolvable, openBenchSlot, pokemonName } from '../status.js';
+import { benchRoom, clearOnLeavingActive, devolvable, openBenchSlot, pokemonName, removeTopEvolution } from '../status.js';
 import { benchedSlots, extraEnergy, inPlay, perHeads } from './common.js';
 import { typedCards } from './ecard1.js';
 import { discardAtRandom, eachDefending, energyAmount } from './ex1.js';
@@ -64,8 +64,7 @@ export function putCounters(ctx: AttackContext, owner: PlayerState, p: InPlayPok
 
 /** The top (highest Stage) Evolution card of `owner`'s Evolved Pokémon `p` comes off it; returns that card. */
 export function devolve(ctx: AttackContext, owner: PlayerState, p: InPlayPokemon): CardInstance {
-  const top = p.card;
-  p.card = p.evolvedFrom.pop()!;
+  const top = removeTopEvolution(ctx.state, owner, p);
   clearOnLeavingActive(p);
   ctx.log(`Removed ${lookupCard(ctx.state.cards, top.defId).name}: it's ${pokemonName(ctx.state, p)} again.`, owner.id);
   return top;

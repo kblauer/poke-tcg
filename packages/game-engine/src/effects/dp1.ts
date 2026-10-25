@@ -1,7 +1,7 @@
 // Diamond & Pearl (dp1) attack effects, by card id and attack name: the ones the shared wordings (ex-templates.ts) don't play.
 // The era's rules apply as the EX sets' do (agreed: for every set): "1 of the Defending Pokémon" is the Active Pokémon;
-// putting damage counters isn't attack damage (no Weakness, Resistance or Revenge). A Pokémon LV.X's card stays (agreed):
-// Flash Cannon does nothing to a Pokémon with one on top (devolvable).
+// putting damage counters isn't attack damage (no Weakness, Resistance or Revenge). Removing "the highest Stage Evolution
+// card" discards a Pokémon LV.X's card on it too (agreed: removeTopEvolution).
 // From the text: Flash Cannon and Giga Impact ask first whether to return or discard; Transback's flip is asked first, and
 // its Defending Pokémon goes into the deck before any Knock Out (as returning it to the hand does); Accelerative Dive keeps
 // all attack damage, Staraptor's own included, off it until the end of its player's next turn; Metronome copies with the
@@ -11,7 +11,7 @@ import { hasType, lookupCard, type CardLibrary } from '../cards.js';
 import { counts, discardTheirEnergy, energyPool, PRIZE_COUNT, retreatCost, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { clearOnLeavingActive, devolvable, inPlayDef, pokemonName } from '../status.js';
+import { clearOnLeavingActive, devolvable, inPlayDef, pokemonName, removeTopEvolution } from '../status.js';
 import { amnesia } from './base1.js';
 import { benchedSlots, energyCanMove, energyCards, headsUntilTails, inPlay, leechSeed, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
 import { copyAttack } from './ecard2.js';
@@ -52,11 +52,10 @@ export function shuffleIntoDeck(ctx: Pick<AttackContext, 'state' | 'log'>, owner
   ctx.log(`${pokemonName(ctx.state, p)} and all cards attached to it were shuffled into the deck.`, owner.id);
 }
 
-/** The opponent's Pokémon loses its top Evolution card (never a Pokémon LV.X's: devolvable), to `to`; as evolving does, its Special Conditions and attack effects end. */
+/** The Pokémon loses its highest Stage Evolution card (a LV.X card on it discarded), to `to`; as evolving does, its Special Conditions and attack effects end. */
 export function devolveTop(ctx: Pick<AttackContext, 'state' | 'log'>, owner: PlayerState, p: InPlayPokemon, to: 'hand' | 'deck') {
   if (!devolvable(ctx.state.cards, p)) return;
-  const top = p.card;
-  p.card = p.evolvedFrom.pop()!;
+  const top = removeTopEvolution(ctx.state, owner, p);
   clearOnLeavingActive(p);
   if (to === 'hand') owner.hand.push(top);
   else [owner.deck, ctx.state.rngState] = shuffle([...owner.deck, top], ctx.state.rngState);

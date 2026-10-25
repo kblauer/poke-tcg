@@ -8,7 +8,7 @@
 import { benchShielded, discardOptions, pokemonOn, targetsIn, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
 import { lookupCard, typeName, type CardLibrary, type EnergyType } from '../cards.js';
 import { energyPool, isEnergyCardOf, type InPlayPokemon, type Target } from '../engine.js';
-import { baseUid, clearOnLeavingActive, devolvable, effectId, inPlayDef, pokemonName } from '../status.js';
+import { baseUid, clearOnLeavingActive, devolvable, effectId, inPlayDef, pokemonName, removeTopEvolution } from '../status.js';
 import {
   basicEnergyOn,
   benchedSlots,
@@ -138,8 +138,7 @@ const devolutionBeam: AttackEffect = {
     if (target === undefined) return ctx.log('There was no Evolved Pokémon to devolve.');
     const p = pokemonOn(owner.active, owner.bench, target)!;
     if (owner === ctx.opp && !ctx.canAffect(ctx.opp, p)) return;
-    const top = p.card;
-    p.card = p.evolvedFrom.pop()!;
+    const top = removeTopEvolution(ctx.state, owner, p);
     owner.hand.push(top);
     clearOnLeavingActive(p);
     ctx.log(`${lookupCard(ctx.state.cards, top.defId).name} returned to the hand; it's ${pokemonName(ctx.state, p)} again.`, owner.id);

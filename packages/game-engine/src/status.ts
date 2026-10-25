@@ -1,7 +1,7 @@
 // Small state helpers shared by the reducer and attack effects (no imports of engine values,
 // so effect modules can use them without import cycles).
 import { lookupCard, type CardLibrary, type PokemonCardDef } from './cards.js';
-import type { CardInstance, GameState, InPlayPokemon, PlayerId } from './engine.js';
+import type { CardInstance, GameState, InPlayPokemon, PlayerId, PlayerState } from './engine.js';
 import { nextRandom } from './rng.js';
 
 export const LOG_SIZE = 100;
@@ -99,13 +99,34 @@ export const FACE_DOWN: PokemonCardDef = {
  * and Rocket's Hideout gives a Pokémon with Dark in its name 20 more HP. Kecleon's Energy Variation makes it every type of
  * basic Energy card attached (`types`), and Low Pressure System gives Grass and Lightning Pokémon 10 more HP.
  */
+/** The Pokémon's top card is a Pokémon LV.X. */
+const levelledUp = (cards: CardLibrary, pokemon: InPlayPokemon) => {
+  const top = lookupCard(cards, pokemon.card.defId);
+  return top.kind === 'pokemon' && top.stage === 'levelUp';
+};
+
 /**
- * Whether a devolving effect can take the Pokémon's top card off (Devolution Spray, Flash Cannon, Devo Flash…): it's an
- * Evolved Pokémon whose top card isn't a Pokémon LV.X (the LV.X card stays, agreed).
+ * Whether an effect that removes "the highest Stage Evolution card" can reach the Pokémon (Flash Cannon, Devo Flash, Pull
+ * Down…): an Evolution card is on it, under a Pokémon LV.X's card or not (agreed: Dialga LV.X, on a Basic Pokémon, has none).
  */
 export function devolvable(cards: CardLibrary, pokemon: InPlayPokemon): boolean {
-  const top = lookupCard(cards, pokemon.card.defId);
-  return pokemon.evolvedFrom.length > 0 && !(top.kind === 'pokemon' && top.stage === 'levelUp');
+  return pokemon.evolvedFrom.length > (levelledUp(cards, pokemon) ? 1 : 0);
+}
+
+/**
+ * Removes the Pokémon's highest Stage Evolution card and returns it, for the effect to put where it says. A Pokémon LV.X's card
+ * on it is discarded with it (agreed). An effect that removes "the top card" (Retro Energy) takes the LV.X card itself instead.
+ */
+export function removeTopEvolution(state: GameState, owner: PlayerState, pokemon: InPlayPokemon): CardInstance {
+  if (levelledUp(state.cards, pokemon)) {
+    const lvx = pokemon.card;
+    pokemon.card = pokemon.evolvedFrom.pop()!;
+    owner.discard.push(lvx);
+    addLog(state, `${lookupCard(state.cards, lvx.defId).name} LV.X was discarded with the card under it.`, owner.id);
+  }
+  const top = pokemon.card;
+  pokemon.card = pokemon.evolvedFrom.pop()!;
+  return top;
 }
 
 /** A Pokémon LV.X's previous level: the card it was put onto (null for any other Pokémon). */

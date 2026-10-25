@@ -8,7 +8,7 @@ import { powerEffect, trainerEffect } from './effects/index.js';
 import { activeLocked, afflictBetweenTurns, conditionLabel, discardTheirEnergy, discardTool, evolvesOnto, newInPlay, opponentOf, toolOf, type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
 import { nextRandom, shuffle } from './rng.js';
 import { conditionFree, offerChainReaction, powerActive, primalLocked, supportersVeiled, trainerProof, trainersBlocked, trainersDusted } from './powers.js';
-import { addLog, baseUid, benchRoom, clearOnLeavingActive, clearSpecialConditions, devolvable, effectId, isDelta, isDeltaCard, evolvedHook, flipCoin, inPlayDef, openBenchSlot, shapeshiftCard } from './status.js';
+import { addLog, baseUid, benchRoom, clearOnLeavingActive, clearSpecialConditions, devolvable, effectId, evolvedHook, flipCoin, inPlayDef, isDelta, isDeltaCard, openBenchSlot, removeTopEvolution, shapeshiftCard } from './status.js';
 
 /** Answers to a Trainer's questions. Each question names the field it fills. */
 export interface TrainerChoices {
@@ -2315,7 +2315,7 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
         const healed = Math.min(20, p.damage);
         p.damage -= healed;
         const top = p.card;
-        if (devolvable(state.cards, p)) {
+        if (p.evolvedFrom.length) {
           p.card = p.evolvedFrom.pop()!;
           me.discard.push(top);
           clearOnLeavingActive(p);
@@ -2503,8 +2503,7 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
         return null;
       }
       // Devo Flash: its top card goes back into its player's hand.
-      const top = p.card;
-      p.card = p.evolvedFrom.pop()!;
+      const top = removeTopEvolution(state, opp, p);
       opp.hand.push(top);
       clearOnLeavingActive(p);
       addLog(state, `${choice.source}: ${name(top)} went back into the hand; it's ${name(p.card)} again.`, opp.id);
@@ -2961,8 +2960,7 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
   } else if (choice.kind === 'devolveOwn') {
     const p = answer.target === undefined ? null : atTarget(me, answer.target);
     if (!p || !devolvable(state.cards, p)) return 'Choose one of your Evolved Pokémon';
-    const top = p.card;
-    p.card = p.evolvedFrom.pop()!;
+    const top = removeTopEvolution(state, me, p);
     me.discard.push(top);
     // As if it had evolved: Special Conditions and attack effects end. A Knock Out is handled after.
     clearOnLeavingActive(p);

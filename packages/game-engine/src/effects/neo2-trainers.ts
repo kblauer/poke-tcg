@@ -5,7 +5,7 @@
 // can Knock the Pokémon Out), and it can't evolve again this turn. Ruin Wall and Energy Ark can find nothing.
 import type { CardLibrary } from '../cards.js';
 import { newInPlay, type CardInstance } from '../engine.js';
-import { clearOnLeavingActive, devolvable, openBenchSlot, pokemonName } from '../status.js';
+import { clearOnLeavingActive, devolvable, openBenchSlot, pokemonName, removeTopEvolution } from '../status.js';
 import { def, own, targetsOf, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 
 const benchFull = (s: TrainerSituation) => (openBenchSlot(s.me.bench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null);
@@ -50,8 +50,7 @@ export const NEO2_TRAINERS: Record<string, TrainerEffect> = {
     play(ctx) {
       const t = ctx.choices.target!;
       const p = (t === 'active' ? ctx.me.active : ctx.me.bench[t])!;
-      const top = p.card;
-      p.card = p.evolvedFrom.pop()!;
+      const top = removeTopEvolution(ctx.state, ctx.me, p);
       ctx.me.hand.push(top);
       // As if it had evolved: Special Conditions and attack effects end. It can't evolve again this turn. A Knock Out is handled after.
       clearOnLeavingActive(p);

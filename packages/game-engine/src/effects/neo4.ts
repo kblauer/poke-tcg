@@ -15,7 +15,7 @@ import { pokemonOn, targetsIn, type AttackContext, type AttackEffect, type Attac
 import { hasType, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard } from '../cards.js';
 import { energyPool, isEnergyCardOf, isSpecialEnergy, newInPlay, type CardInstance, type PlayerState, type Target } from '../engine.js';
 import { shuffle } from '../rng.js';
-import { clearOnLeavingActive, devolvable, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
+import { clearOnLeavingActive, devolvable, inPlayDef, openBenchSlot, pokemonName, removeTopEvolution } from '../status.js';
 import { pokemonTower } from '../trainers.js';
 import { benchTarget, discardToUse, energyCards, flipToInflict, flipToProtect, headsUntilTails, inflicts, opponentBenchChoice, opponentSwitches, perHeads, recoil } from './common.js';
 import { smokescreen } from './fossil.js';
@@ -327,8 +327,7 @@ export const NEO4: Record<string, Record<string, AttackEffect>> = {
         if (!ctx.flip()) return ctx.log('Prehistoric Water did nothing.');
         const p = pokemonOn(ctx.opp.active, ctx.opp.bench, t)!;
         if (!devolvable(ctx.state.cards, p) || !(t === 'active' ? reachesDefender(ctx) : ctx.canAffect(ctx.opp, p))) return;
-        const top = p.card;
-        p.card = p.evolvedFrom.pop()!;
+        const top = removeTopEvolution(ctx.state, ctx.opp, p);
         clearOnLeavingActive(p);
         [ctx.opp.deck, ctx.state.rngState] = shuffle([...ctx.opp.deck, top], ctx.state.rngState);
         ctx.log(`${lookupCard(ctx.state.cards, top.defId).name} was shuffled into the deck; it's ${pokemonName(ctx.state, p)} again.`, ctx.opp.id);

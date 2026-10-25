@@ -16,7 +16,7 @@ import { isBasicEnergy, lookupCard, namesMatch } from '../cards.js';
 import { energyPool, isEnergyCardOf, retreatCost, type InPlayPokemon, type Target } from '../engine.js';
 import type { EnergyType } from '../cards.js';
 import { shuffle } from '../rng.js';
-import { devolvable, inPlayDef, pokemonName } from '../status.js';
+import { devolvable, inPlayDef, pokemonName, removeTopEvolution } from '../status.js';
 import { benchedSlots, benchSearch, energyCanMove, extraEnergy, flipToInflict, flipToProtect, headsUntilTails, inflicts, inPlay, lure, opponentBenchChoice, opponentSwitches, perHeads, recoil, same, selfdestruct, whirlwind } from './common.js';
 import { ECARD1, basicEnergyOn, energyCards, plasma, putCounters, typedCards } from './ecard1.js';
 import { ECARD2 } from './ecard2.js';
@@ -909,8 +909,7 @@ export const ECARD3: Record<string, Record<string, AttackEffect>> = {
         const p = t === undefined ? null : pokemonOn(ctx.opp.active, ctx.opp.bench, t);
         if (prizes !== 2 || !p || !devolvable(ctx.state.cards, p)) return;
         const devolve = () => {
-          const top = p.card;
-          p.card = p.evolvedFrom.pop()!;
+          const top = removeTopEvolution(ctx.state, ctx.opp, p);
           ctx.opp.deck.push(top);
           ctx.log(`Put ${lookupCard(ctx.state.cards, top.defId).name} on the bottom of the deck; it's ${pokemonName(ctx.state, p)} again.`, ctx.opp.id);
         };

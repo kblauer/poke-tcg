@@ -10,7 +10,7 @@ import { lookupCard, namesMatch } from '../cards.js';
 import { isEnergyCardOf, isSpecialEnergy, type InPlayPokemon, type Target } from '../engine.js';
 import { reactCount } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { clearSpecialConditions, devolvable, inPlayDef, pokemonName } from '../status.js';
+import { clearSpecialConditions, devolvable, inPlayDef, pokemonName, removeTopEvolution } from '../status.js';
 import { trainerEffect } from './index.js';
 import { benchedSlots, extraEnergy, guardNext, headsUntilTails, opponentBenchChoice, same, selfdestruct } from './common.js';
 import { ascension } from './ex5.js';
@@ -32,8 +32,7 @@ export const foresight = same(() => EX8['ex8-36']?.['Foresight']);
 /** One of the opponent's Pokémon loses its top card, shuffled into their deck (Devolution Wave, Time Spiral). */
 export function devolveIntoDeck(ctx: AttackContext, p: InPlayPokemon) {
   if (!devolvable(ctx.state.cards, p) || !ctx.canAffect(ctx.opp, p)) return;
-  const top = p.card;
-  p.card = p.evolvedFrom.pop()!;
+  const top = removeTopEvolution(ctx.state, ctx.opp, p);
   if (ctx.opp.active === p) {
     p.condition = null;
     p.poison = 0;

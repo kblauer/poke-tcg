@@ -43,9 +43,9 @@ function removeFromPlay(side: PlayerState, t: Target, keep?: CardInstance) {
   else side.bench[t] = null;
 }
 
-/** A Pokémon LV.X is never devolved (devolvable): its rank is only for the type. */
+/** A Pokémon LV.X's card is the top one: it's discarded with the Evolution card it's on (agreed). */
 const STAGE_ORDER = { basic: 0, stage1: 1, stage2: 2, levelUp: 3 } as const;
-/** Whether the Pokémon can be devolved (not with a Pokémon LV.X on top: devolvable). */
+/** Whether the Pokémon has an Evolution card (a Stage 1 or 2) for Devolution Spray to discard. */
 const hasEvolution = (s: TrainerSituation, p: InPlayPokemon) => devolvable(s.cards, p);
 
 export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
