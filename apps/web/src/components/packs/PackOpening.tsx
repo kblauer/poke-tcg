@@ -47,15 +47,16 @@ const AUTO_RARE_MS = 1600;
 /**
  * How packs open, remembered in the browser. `separate`: the commons (uncommons and Energy too) are laid out
  * face up together, and only the rares are revealed one by one. `auto`: the cards being revealed move on by themselves.
+ * `stopOnNew`: auto open stops on a card new to the collection (the user's: on by default).
  */
-type OpenOptions = { separate: boolean; auto: boolean };
+type OpenOptions = { separate: boolean; auto: boolean; stopOnNew: boolean };
 const OPTIONS_KEY = 'poke-tcg.pack-options';
 
 function loadOptions(): OpenOptions {
   try {
-    return { separate: false, auto: false, ...(JSON.parse(localStorage.getItem(OPTIONS_KEY) ?? '{}') as Partial<OpenOptions>) };
+    return { separate: false, auto: false, stopOnNew: true, ...(JSON.parse(localStorage.getItem(OPTIONS_KEY) ?? '{}') as Partial<OpenOptions>) };
   } catch {
-    return { separate: false, auto: false };
+    return { separate: false, auto: false, stopOnNew: true };
   }
 }
 
@@ -84,7 +85,8 @@ const isRare = (c: PackCard) => c.slot === 'rare' || isFoilSlot(c.slot) || c.hol
  * Two options (OpenOptions): separate the commons from the rares (the commons are laid out at once, the rares
  * stay face down to be opened one by one), and auto open (the cards revealed move on by themselves, pausing on rares;
  * while it runs, ×2 speed doubles it and Stop auto goes back to clicking, with Resume auto to start it again). It stops on
- * a card new to the collection, and a click on it goes on with auto open (the user's); packs opened without it can start
+ * a card new to the collection, and a click on it goes on with auto open (the user's; Stop on new cards, under Auto open
+ * and beside ×2 speed while it runs, turns that off); packs opened without it can start
  * it partway through (Auto open).
  */
 export function PackOpening({
@@ -217,7 +219,7 @@ export function PackOpening({
   // collection (once: Resume auto then moves on as usual), until a click.
   useEffect(() => {
     if (phase !== 'reveal' || !autoOn || leaving || !current) return;
-    if (current.isNew && pausedAt !== index) {
+    if (options.stopOnNew && current.isNew && pausedAt !== index) {
       setPausedAt(index);
       setAutoOn(false);
       return;
@@ -323,6 +325,12 @@ export function PackOpening({
                 <input type="checkbox" checked={options.auto} onChange={(e) => setOptions((o) => ({ ...o, auto: e.target.checked }))} />
                 Auto open
               </label>
+              {options.auto && (
+                <label className="flex items-center gap-2" title="Auto open waits for a click on a card new to your collection">
+                  <input type="checkbox" checked={options.stopOnNew} onChange={(e) => setOptions((o) => ({ ...o, stopOnNew: e.target.checked }))} />
+                  Stop on new cards
+                </label>
+              )}
               {/* DEBUG_BUILD first: a production build drops the checkbox altogether. */}
               {DEBUG_BUILD && debug && (
                 <label className="flex items-center gap-2 text-amber-300" title="Debug: every pack opened gets a holo Energy (packs.debugOpen, refused in production)">
@@ -429,6 +437,14 @@ export function PackOpening({
                     onClick={() => setFast(!fast)}
                   >
                     ×2 speed
+                  </button>
+                  <button
+                    className={`rounded px-4 py-1.5 text-sm font-semibold transition ${options.stopOnNew ? 'bg-yellow-300 text-slate-900' : 'bg-slate-600 hover:bg-slate-500'}`}
+                    aria-pressed={options.stopOnNew}
+                    title="Auto open waits for a click on a card new to your collection"
+                    onClick={() => setOptions((o) => ({ ...o, stopOnNew: !o.stopOnNew }))}
+                  >
+                    Stop on new
                   </button>
                   <button className="rounded bg-slate-600 px-4 py-1.5 text-sm font-semibold transition hover:bg-slate-500" onClick={() => setAutoOn(false)}>
                     Stop auto
