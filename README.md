@@ -42,7 +42,7 @@ packages/
   idle/                 Pure TS Idle Adventure (see Idle Adventure): FireRed's data, a Gen 3 battle engine played a turn a tick by the energy rule, Kanto's areas and the run rules
   shared/               Zod schemas for API input, player ids, deck building rules (deck.ts), the trainer sprites to pick from (trainer-sprites.ts)
   db/                   Prisma 7 schema, client (pg driver adapter), migrations, seed
-scripts/dev.mjs         `pnpm dev`: asks which checkout to start the dev servers from, the main one or a worktree, then which database, local (the default) or hosted (see Scripts)
+scripts/dev.mjs         `pnpm dev`: asks which checkout to start the dev servers from, the main one or a worktree, then which database, local (the default) or hosted (see Scripts); starts up behind a progress bar, then shows only the web link and the frontend's and backend's errors
 scripts/local-db.mjs    `pnpm db:local`: points this checkout's `.env` at a local Supabase (Docker), migrated and seeded (see Setup, Option B)
 scripts/supabase-env.mjs The local Supabase's settings (started, migrated, seeded when empty) and the hosted project's (`.env.remote`), for dev.mjs and local-db.mjs
 supabase/               Local Supabase config (CLI)
@@ -910,7 +910,7 @@ Dev servers, worktrees and review jobs should use the local stack, not the hoste
 
 | Command | Description |
 |---|---|
-| `pnpm dev` | Run all apps with live reload. With worktrees (`.claude/worktrees/`), it first asks which checkout to run, the main one or a worktree (↑/↓ or a number, Enter; Esc quits; `scripts/dev.mjs`); a worktree with no `.env` gets a copy of the main checkout's, one with no `node_modules` a `pnpm install`. Then it asks which database: the local Supabase (the default; started, migrated and seeded as needed) or the hosted project (`.env.remote`); `--local` / `--remote` skip the question (see Setup, Option B) |
+| `pnpm dev` | Run all apps with live reload. With worktrees (`.claude/worktrees/`), it first asks which checkout to run, the main one or a worktree (↑/↓ or a number, Enter; Esc quits; `scripts/dev.mjs`); a worktree with no `.env` gets a copy of the main checkout's, one with no `node_modules` a `pnpm install`. Then it asks which database: the local Supabase (the default; started, migrated and seeded as needed) or the hosted project (`.env.remote`); `--local` / `--remote` skip the question (see Setup, Option B). Starting up shows a progress bar instead of the usual logs (a step that fails prints its output and stops; errors from the servers are printed as they come); once both servers are up the screen is cleared to the web link and a running list of errors labelled `[frontend]` or `[backend]` (with the lines that follow them, such as a stack trace). `pnpm dev --verbose`, or a shell that isn't a terminal, shows every log as before |
 | `pnpm dev:here` (or `pnpm dev --here`) | Run all apps in this checkout without asking |
 | `pnpm build` | Build everything |
 | `pnpm typecheck` | Typecheck all packages |

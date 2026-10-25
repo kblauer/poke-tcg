@@ -31,7 +31,7 @@ if (url && !isLocalUrl(url) && !existsSync(remotePath)) {
   console.log('Saved the hosted values to .env.remote (`pnpm db:local --remote` puts them back).');
 }
 
-for (const [key, v] of Object.entries(localEnv(root))) {
+for (const [key, v] of Object.entries(await localEnv(root))) {
   const line = `${key}="${v}"`;
   const pattern = new RegExp(`^${key}=.*$`, 'm');
   text = pattern.test(text) ? text.replace(pattern, line) : `${text.trimEnd()}\n${line}\n`;
