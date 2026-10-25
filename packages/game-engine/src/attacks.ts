@@ -481,6 +481,8 @@ export function attackError(s: AttackSituation, attackIndex: number): string | n
   // Deadlock: the Defending Pokémon's stops the attacker's name (the opponent's Dunsparce).
   const locked = working(s.defender)?.deadlock;
   if (locked && namesMatch(attackerDef.name, locked)) return `Deadlock: ${attackerDef.name} can't attack`;
+  // Slow Start: not until the opponent has 3 or fewer Prize cards left.
+  if (working(s.attacker)?.slowStart && (s.opponentPrizes ?? 6) > 3) return `Slow Start: ${attackerDef.name} can't attack until your opponent has 3 or fewer Prize cards left`;
   // Mark of Antiquity: either Active Pokémon's stops the Pokémon it names, whoever's they are.
   for (const active of [s.attacker, s.defender]) {
     const marked = working(active)?.markOfAntiquity;
@@ -794,7 +796,8 @@ export function performAttack(
     const frenzy = pokemonPower(attacker)?.frenzy && powerActive(attacker, state.cards, [me, opp]) ? 30 : 0;
     // Hard Protection: no damage from its own attacks, Confusion's included (agreed).
     const hard = pokemonPower(attacker)?.hardProtection && powerActive(attacker, state.cards, [me, opp]);
-    const damage = hard ? 0 : afterDefender(state.cards, attacker, 30 + frenzy);
+    // Magical Step: 60 instead of 30.
+    const damage = hard ? 0 : afterDefender(state.cards, attacker, (attacker.effects?.magicalStep ? 60 : 30) + frenzy);
     attacker.damage += damage;
     addLog(state, damage ? `${attackerDef.name} hurt itself for ${damage} damage.` : `The damage ${attackerDef.name} did to itself was prevented.`, me.id);
     return null;
@@ -992,7 +995,13 @@ function createContext(
    * or Agility, Neutral Shield, Quicken, or (benched) Protective Flame or Aurora Veil.
    */
   const immune = (p: InPlayPokemon, owner: PlayerState) =>
-    p === fled || active(p.effects?.preventAll, turn) || neutral(p) || quickened(p, owner) || (owner.active !== p && !!benchShielded(owner, state.cards, sides, turn));
+    p === fled ||
+    active(p.effects?.preventAll, turn) ||
+    neutral(p) ||
+    quickened(p, owner) ||
+    (owner.active !== p && !!benchShielded(owner, state.cards, sides, turn)) ||
+    // UNSEEN: the player's Unown U on the Bench keeps the opponent's attacks off their Benched Unown.
+    (owner === opp && owner.active !== p && def(state.cards, p).name.startsWith('Unown') && owner.bench.some((q) => q && passive(q)?.unseen));
   /** Vermilion City Gym's 10 more damage, done once. */
   let vermilionBonus = vermilion === true;
   const transparency = new Map<string, boolean>();
@@ -1039,7 +1048,9 @@ function createContext(
         (airy(opp.active) && evolvedFromName(state.cards, opp.active, 'Mime Jr.')) ||
         (!!passive(opp.active)?.potShell && attacker.energy.some((e) => isSpecialEnergy(state.cards, e))) ||
         // Marvel Scale: nothing from the opponent's Pokémon LV.X.
-        (!!passive(opp.active)?.marvelScale && attackerDef.stage === 'levelUp')));
+        (!!passive(opp.active)?.marvelScale && attackerDef.stage === 'levelUp') ||
+        // Psybarrier: nothing from the opponent's Pokémon that aren't Evolved Pokémon.
+        (!!passive(opp.active)?.psybarrier && !attacker.evolvedFrom.length)));
   /** Airy Wall works against this attack: the attacker has 2 or fewer Energy cards attached. */
   const airy = (p: InPlayPokemon) => !!passive(p)?.airyWall && attacker.energy.filter((e) => !e.provides).length <= 2;
   /** Shielded, or Crystal Body or Light Wave: the attack does nothing to the Defending Pokémon but damage. Logs why. */
@@ -1079,7 +1090,23 @@ function createContext(
   /** Shell Armor: 10 less attack damage. Strange Barrier: an attack by a Basic Pokémon does 10 instead of 20 or more. */
   const barriers = (p: InPlayPokemon, damage: number, owner: PlayerState) => {
     const body = passive(p);
+    // Unown W's WALL: its player's Active Unown W makes the opponent's attacks do 10 less to each of their Pokémon.
+    if (damage > 0 && owner === opp && owner.active && passive(owner.active)?.wall) {
+      damage = noted('WALL', damage, Math.max(0, damage - 10));
+      log(`WALL reduced the damage to ${pokemonName(state, p)} by 10.`, owner.id);
+    }
     if (damage > 0 && owner === opp && body) {
+      // Steel Coating: 10 less for each Metal Energy attached, 20 at most.
+      const steel = body.steelCoating ? Math.min(20, 10 * energyPool(p, state.cards).filter((e) => counts(e, 'metal')).length) : 0;
+      if (steel) {
+        damage = noted('Steel Coating', damage, Math.max(0, damage - steel));
+        log(`Steel Coating reduced the damage to ${pokemonName(state, p)} by ${steel}.`, owner.id);
+      }
+      // Fossil Armor: no damage of 60 or less.
+      if (body.fossilArmor && damage > 0 && damage <= 60) {
+        log(`Fossil Armor prevented the damage to ${pokemonName(state, p)}.`, owner.id);
+        return noted('Fossil Armor', damage, 0);
+      }
       // Cotton Spore: on its owner's heads, no damage from the opponent's attack.
       if (body.cottonSpore && flipCoin(state, 'Cotton Spore', owner.id)) {
         log(`Cotton Spore prevented the damage to ${pokemonName(state, p)}.`, owner.id);
@@ -1509,7 +1536,7 @@ function createContext(
     // Water Pokémon, while the Rayquaza δ has a Holon Energy card attached.
     const ancientProtected = [opp.active, ...opp.bench].some((q) => q && passive(q)?.ancientProtection?.some((n) => namesMatch(defenderDef.name, n)));
     const hydroBarred = hasType(defenderDef, 'water') && [opp.active, ...opp.bench].some((q) => q && passive(q)?.hydroBarrier && q.energy.some((e) => !e.provides && !e.windless && lookupCard(state.cards, e.defId).name.startsWith('Holon Energy')));
-    const weaknessOff = (stadium === 'Cinnabar City Gym' && hasType(attackerDef, 'water') && defenderDef.name.includes('Blaine')) || attachedCount(state.cards, defender, 'Weakness Guard') > 0 || tomb || veiled || conditioned || !!passive(defender)?.noWeakness || ([opp.active, ...opp.bench].some((q) => q && passive(q)?.moonlightVeil) && evolvedFromName(state.cards, defender, 'Eevee')) || toolOf(state.cards, defender)?.name === 'Protective Orb' || holonWith(defender, state.cards, 'FF', 'fire') || ancientProtected || hydroBarred || active(defender.effects?.weaknessOffUntil, turn) || (stadium === "Glacia's Stadium" && hasType(defenderDef, 'water') && !defenderDef.ex) || (stadium === 'Holon Legacy' && isDelta(state.cards, defender));
+    const weaknessOff = (stadium === 'Cinnabar City Gym' && hasType(attackerDef, 'water') && defenderDef.name.includes('Blaine')) || attachedCount(state.cards, defender, 'Weakness Guard') > 0 || tomb || veiled || conditioned || !!passive(defender)?.noWeakness || ([opp.active, ...opp.bench].some((q) => q && passive(q)?.moonlightVeil) && evolvedFromName(state.cards, defender, 'Eevee')) || ['Protective Orb', 'Bubble Coat'].includes(toolOf(state.cards, defender)?.name ?? '') || (hasType(defenderDef, 'psychic') && [opp.active, ...opp.bench].some((q) => q && passive(q)?.psychicAura)) || holonWith(defender, state.cards, 'FF', 'fire') || ancientProtected || hydroBarred || active(defender.effects?.weaknessOffUntil, turn) || (stadium === "Glacia's Stadium" && hasType(defenderDef, 'water') && !defenderDef.ex) || (stadium === 'Holon Legacy' && isDelta(state.cards, defender));
     // Charm: the attacker's damage is less, before Weakness and Resistance.
     const before = amount;
     amount = noted('Charm', amount, charmed(amount));
@@ -1558,7 +1585,16 @@ function createContext(
       passive(attacker)?.rainbowScale && !attacker.energy.some((e) => isSpecialEnergy(state.cards, e)) && weakTo.some((t) => energyPool(attacker, state.cards).some((e) => counts(e, t))) ? 40 : 0;
     // Fury Blaze: 50 more while the opponent has 3 or fewer Prize cards left. Anger Point: 40 more with damage counters on it.
     const fury = (passive(attacker)?.furyBlaze && opp.prizes.length <= 3 ? 50 : 0) + (passive(attacker)?.angerPoint && attacker.damage ? 40 : 0);
-    const boost = (low && attackerDef.hp - attacker.damage <= low.hpLeft ? low.more : 0) + aura + pivot + (passive(attacker)?.attackMore ?? 0) + rage + reversal + conditional + reactor + laser + allies + dna + scale + fury;
+    // Rivalry: 50 more while the opponent has a Pokémon LV.X in play. Revenge Fang: 40 more with fewer Benched Pokémon than the opponent.
+    const rivalry = passive(attacker)?.rivalry && [opp.active, ...opp.bench].some((q) => q && def(state.cards, q).stage === 'levelUp') ? 50 : 0;
+    const revenge = passive(attacker)?.revengeFang && me.bench.filter(Boolean).length < opp.bench.filter(Boolean).length ? 40 : 0;
+    // Enthusiasm: 60 more for Poliwag, Poliwhirl and Poliwrath while the player has all three in play, with a working Politoed.
+    const poli = ['Poliwag', 'Poliwhirl', 'Poliwrath'];
+    const team = [me.active, ...me.bench];
+    const enthused = poli.some((n) => namesMatch(attackerDef.name, n)) && team.some((q) => q && passive(q)?.enthusiasm) && poli.every((n) => team.some((q) => q && namesMatch(def(state.cards, q).name, n))) ? 60 : 0;
+    // Buck's Training: 10 more while it's the player's Supporter in play.
+    const buck = me.supporterTurn === turn && me.supporterUid && me.discard.concat(me.hand).some((c) => c.uid === me.supporterUid && lookupCard(state.cards, c.defId).name === "Buck's Training") ? 10 : 0;
+    const boost = (low && attackerDef.hp - attacker.damage <= low.hpLeft ? low.more : 0) + aura + pivot + (passive(attacker)?.attackMore ?? 0) + rage + reversal + conditional + reactor + laser + allies + dna + scale + fury + rivalry + revenge + enthused + buck;
     if (amount > 0 && boost) {
       amount = noted(attackerDef.power?.name ?? 'More damage', amount, amount + boost);
       log(`${boost} more damage.`);

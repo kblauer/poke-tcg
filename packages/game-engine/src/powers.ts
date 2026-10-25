@@ -177,6 +177,30 @@ export interface PowerEffect {
   hardShell?: boolean;
   /** Crystal Body: the opponent's attacks do nothing to it but damage. */
   crystalBody?: boolean;
+  /** Slow Start: it can't attack until the opponent has 3 or fewer Prize cards left (attackError). */
+  slowStart?: boolean;
+  /** Rivalry: 50 more while the opponent has a Pokémon LV.X in play (attacks.ts). */
+  rivalry?: boolean;
+  /** Revenge Fang: 40 more while its player has fewer Benched Pokémon than the opponent (attacks.ts). */
+  revengeFang?: boolean;
+  /** Enthusiasm: Poliwag, Poliwhirl and Poliwrath do 60 more while its player has all three in play (attacks.ts). */
+  enthusiasm?: boolean;
+  /** Steel Coating: 10 less damage for each Metal Energy attached, 20 at most (attacks.ts). */
+  steelCoating?: boolean;
+  /** Fossil Armor: no attack damage of 60 or less (attacks.ts). */
+  fossilArmor?: boolean;
+  /** WALL: as its player's Active Pokémon, 10 less damage to each of their Pokémon from the opponent's attacks (attacks.ts). */
+  wall?: boolean;
+  /** Psychic Aura: its player's Psychic Pokémon have no Weakness (attacks.ts). */
+  psychicAura?: boolean;
+  /** Psybarrier: nothing from the opponent's Pokémon that aren't Evolved Pokémon (attacks.ts). */
+  psybarrier?: boolean;
+  /** UNSEEN: on the Bench, the opponent's attacks do nothing to its player's Benched Unown (attacks.ts). */
+  unseen?: boolean;
+  /** Ditto DNA: as its player's Active Pokémon, the opponent's Active Pokémon's HP (refreshHideout) and attacks (as Mimic). */
+  dittoDna?: boolean;
+  /** Resent: Knocked Out by the opponent's attack, 4 damage counters on the Attacking Pokémon and each of theirs with its name (resolveKnockouts). */
+  resent?: boolean;
   /** Primal Shell: as its player's Active Pokémon, the opponent can't play Trainer (Item) cards (trainerError). */
   primalShell?: boolean;
   /** Sunlight Veil: 20 more HP for its player's Pokémon that evolve from Eevee, however many (refreshHideout). */

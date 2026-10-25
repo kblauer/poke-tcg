@@ -9,7 +9,7 @@ import { lookupCard } from '../cards.js';
 import type { InPlayPokemon } from '../engine.js';
 import { discardsLocked, ownTargets, pokemonAt, pokemonPower, type PowerEffect, type PowerSituation } from '../powers.js';
 import { addLog, inPlayDef, pokemonName } from '../status.js';
-import { FOSSIL_NAMES } from '../trainers.js';
+import { FOSSIL_NAMES, type PendingChoice } from '../trainers.js';
 import { onlyBenched, POKE_BODY, targetOf } from './common.js';
 import { DP1_POWERS } from './dp1-powers.js';
 import { DP2_POWERS } from './dp2-powers.js';
@@ -17,23 +17,23 @@ import { EX1_POWERS } from './ex1-powers.js';
 import { EX14_POWERS } from './ex14-powers.js';
 import { energyCardOf } from './ex2.js';
 
-type MayPower = 'freezingScreech' | 'darknessShade' | 'flameCharge' | 'sheetLightning' | 'primalSwirl' | 'dragonPulse' | 'modeCrash';
+type MayPower = Extract<PendingChoice, { kind: 'mayUse' }>['power'];
 /** "When you put this from your hand onto your Bench, you may …": asked as it's benched. */
-const onBench = (power: MayPower, source: string): PowerEffect => ({
+export const onBench = (power: MayPower, source: string): PowerEffect => ({
   onPlayFromHand(state, owner, pokemon) {
     if (pokemon.evolvedFrom.length || owner.active === pokemon) return;
     state.pendingChoice = { player: owner.id, source, kind: 'mayUse', power, target: targetOf(owner, pokemon) };
   },
 });
 /** "When you put this Pokémon LV.X onto your Active …, you may …": asked as it levels up. */
-const onLevelUp = (power: MayPower, source: string): PowerEffect => ({
+export const onLevelUp = (power: MayPower, source: string): PowerEffect => ({
   onPlayFromHand(state, owner, pokemon) {
     if (!pokemon.levelUpFrom || owner.active !== pokemon) return;
     state.pendingChoice = { player: owner.id, source, kind: 'mayUse', power, target: 'active' };
   },
 });
 /** Unown Q's QUICK: from the Bench, attached to another Pokémon as a Pokémon Tool (as Unown E's EQUIP). */
-const equip = (name: string): PowerEffect => ({
+export const equip = (name: string): PowerEffect => ({
   oncePerTurn: true,
   blocked: (s) => onlyBenched(s, name) ?? (equipTargets(s).length ? null : 'None of your other Pokémon can take a Pokémon Tool'),
   choices: (s) => [{ kind: 'ownPokemon', field: 'to', options: equipTargets(s), prompt: `Choose one of your Pokémon to attach ${name} to` }],

@@ -219,7 +219,9 @@ export interface PokemonEffects {
    * Aqua Trance, Slow-Acting Poison: at the end of turn `turn` (the opponent's next), it's now `affliction`, if it's still the
    * Active Pokémon; benching or evolving it ends this, as it ends Special Conditions (agreed).
    */
-  delayed?: { affliction?: 'asleep' | 'poisoned' | 'confused'; counters?: number; turn: number };
+  delayed?: { affliction?: 'asleep' | 'poisoned' | 'confused'; counters?: number; turn: number; /** Doom Desire: Knocked Out. */ knockOut?: boolean; /** Energy Dissolve: an Energy card discarded. */ discardEnergy?: boolean };
+  /** Magical Step: Confused, it does 60 to itself instead of 30. */
+  magicalStep?: boolean;
   /** The turn it was attacked with Night Eyes (Perish Song); benching or evolving it ends this. */
   nightEyes?: number;
   /** Attacks do nothing to it but damage, through this turn (Light Wave). */
@@ -393,6 +395,8 @@ export interface PlayerState {
   benchDamageProtectedUntil?: number;
   /** The baseUid of the Active Pokémon when it was last checked (Spikes: a new one during its player's turn). */
   lastActive?: string;
+  /** Its Active Pokémon (baseUid) as its turn began (Mach Descent: a Pokémon that wasn't was on the Bench this turn). */
+  turnStartActive?: string;
   /** [Quicken]: attacks do nothing to this player's Pokémon with Unown in their names through this turn. */
   quickenUntil?: number;
   /** [Quicken]: the turn this player last used it (only 1 a turn, however many Unown Q they have). */
@@ -1411,6 +1415,7 @@ function setupAction(state: GameState, me: PlayerState, opp: PlayerState, action
         delete player.ready;
         // The first turn's changes of Active Pokémon count too (Spikes, Magma Pool).
         player.lastActive = baseUid(player.active!);
+        player.turnStartActive = player.lastActive;
         const bench = player.bench.flatMap((p) => (p ? [pokemonName(state, p)] : []));
         addLog(state, `Active: ${pokemonName(state, player.active!)}${bench.length ? `. Bench: ${bench.join(', ')}` : ''}.`, id);
       }
@@ -1779,6 +1784,7 @@ function beginNextTurn(state: GameState): ActionResult {
   delete state.blaineAttach;
   const next = state.players[state.currentPlayer]!;
   for (const player of Object.values(state.players)) if (player.active) player.lastActive = baseUid(player.active);
+  if (next.active) next.turnStartActive = baseUid(next.active);
   const drawn = next.deck.shift();
   if (!drawn) {
     addLog(state, 'No cards left to draw.', next.id);
@@ -1819,6 +1825,17 @@ function betweenTurns(state: GameState) {
     if (delayed.counters) {
       active.damage += 10 * delayed.counters;
       addLog(state, `Put ${delayed.counters} damage counters on ${pokemonName(state, active)}.`, id);
+    }
+    // Doom Desire: Knocked Out. Energy Dissolve: its first Energy card discarded.
+    if (delayed.knockOut) {
+      active.damage = Math.max(active.damage, inPlayDef(state.cards, active).hp);
+      addLog(state, `Doom Desire: ${pokemonName(state, active)} is Knocked Out.`, id);
+    }
+    const dissolved = delayed.discardEnergy ? active.energy.find((e) => !e.provides) : undefined;
+    if (dissolved) {
+      active.energy = active.energy.filter((e) => e !== dissolved);
+      state.players[id]!.discard.push(dissolved);
+      addLog(state, `Energy Dissolve: discarded ${lookupCard(state.cards, dissolved.defId).name} from ${pokemonName(state, active)}.`, id);
     }
   }
   const actives = state.playerOrder.flatMap((id) => {
@@ -1917,6 +1934,14 @@ function betweenTurns(state: GameState) {
   if (tool === 'Amulet Coin' && current.deck.length) {
     current.hand.push(current.deck.shift()!);
     addLog(state, 'Amulet Coin: drew a card.', current.id);
+  }
+  // Bubble Coat: discarded at the end of a turn its Pokémon was damaged by the opponent's attack.
+  for (const side of state.playerOrder.map((o) => state.players[o]!)) {
+    for (const p of [side.active, ...side.bench]) {
+      if (!p || toolOf(state.cards, p)?.name !== 'Bubble Coat' || side.id === state.currentPlayer || p.effects?.attackedOn?.turn !== state.turn || !p.effects.attackedOn.damage) continue;
+      discardTool(state, side, p);
+      addLog(state, `Bubble Coat on ${pokemonName(state, p)} was discarded.`, side.id);
+    }
   }
   if (tool === 'Leftovers' && current.active!.damage) {
     current.active!.damage -= 10;
@@ -2199,6 +2224,8 @@ function newActives(state: GameState, duringTurn: boolean) {
  */
 export function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId | null {
   newActives(state, state.phase === 'playing');
+  // Resent's damage counters may Knock Out the other player's Pokémon too: then it's all checked again.
+  let resented = false;
   // A Ditto that stopped being a copy (Asleep, switched…) has its own HP again; so has a Dark Pokémon once Rocket's Hideout is gone.
   refreshTransforms(state);
   refreshHideout(state);
@@ -2236,12 +2263,19 @@ export function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId
       }
     };
     /** Knocked Out by damage from the opponent's attack this turn, with a working power reacting to it (Phoenix Turn, Energy Shift). */
-    const attackKo = (pokemon: InPlayPokemon, flag: 'phoenixTurn' | 'energyShift') =>
+    const attackKo = (pokemon: InPlayPokemon, flag: 'phoenixTurn' | 'energyShift' | 'resent') =>
       pokemon.knockedByAttack === state.turn && state.currentPlayer !== id && !!pokemonPower(pokemon)?.[flag] && powerActive(pokemon, state.cards, sides);
     const isOut = (p: InPlayPokemon) => p.damage >= inPlayDef(state.cards, p).hp;
     const knockOut = (pokemon: InPlayPokemon) => {
       addLog(state, `${pokemonName(state, pokemon)} was Knocked Out.`, id);
       owner.knockedOutTurn = state.turn;
+      // Resent: 4 damage counters on the Attacking Pokémon and on each of the opponent's Pokémon with its name.
+      if (attackKo(pokemon, 'resent') && taker.active) {
+        const name = inPlayDef(state.cards, taker.active).name;
+        for (const q of [taker.active, ...taker.bench]) if (q && inPlayDef(state.cards, q).name === name) q.damage += 40;
+        addLog(state, `Resent: 4 damage counters on each of the opponent's ${name}.`, id);
+        resented = true;
+      }
       // Burning Coat: the opponent's Active Entei Knocked it Out with its attack's damage; the top 3 cards of its owner's deck are discarded.
       if (pokemon.knockedByAttack === state.turn && state.currentPlayer !== id && taker.active && pokemonPower(taker.active)?.burningCoat && powerActive(taker.active, state.cards, sides)) {
         const top = owner.deck.splice(0, 3);
@@ -2307,6 +2341,7 @@ export function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId
     }
     owner.bench = owner.bench.map((p) => (p && isOut(p) && !phoenix(p) ? (knockOut(p), shifted(p), null) : p));
   }
+  if (resented) return resolveKnockouts(state, favoured);
   const winners = state.playerOrder.filter((id) => {
     const opp = state.players[opponentOf(state, id)]!;
     return state.players[id]!.prizes.length === 0 || (!opp.active && !hasBenched(opp));
@@ -2447,6 +2482,11 @@ function refreshHideout(state: GameState) {
       }
       const plus = pokemonPower(p)?.hpPlus;
       if (plus && powerActive(p, state.cards, sides)) p.hpPlus = (p.hpPlus ?? 0) + plus;
+      // Snowpoint Temple: 20 more HP for every Pokémon that isn't an Evolved Pokémon.
+      if (stadium === 'Snowpoint Temple' && !p.evolvedFrom.length) p.hpPlus = (p.hpPlus ?? 0) + 20;
+      // Ditto DNA: as its player's Active Pokémon, the opponent's Active Pokémon's HP.
+      const copied = state.players[opponentOf(state, player.id)]!.active;
+      if (player.active === p && copied && pokemonPower(p)?.dittoDna && powerActive(p, state.cards, sides)) p.hpPlus = (p.hpPlus ?? 0) + inPlayDef(state.cards, copied).hp - inPlayDef(state.cards, p).hp;
       // Sunlight Veil: 20 more HP for its player's Pokémon that evolve from Eevee (one, however many).
       if ([player.active, ...player.bench].some((q) => q && pokemonPower(q)?.sunlightVeil && powerActive(q, state.cards, sides)) && evolvedFromName(state.cards, p, 'Eevee')) p.hpPlus = (p.hpPlus ?? 0) + 20;
       // Plant Cloak: 40 more HP with 2 or more Grass Energy attached.
