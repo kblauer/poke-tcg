@@ -8,7 +8,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { copyFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
-import { hostedEnv, localEnv } from './supabase-env.mjs';
+import { hostedEnv, localEnv, localSupabasePorts, reservedPorts, reservedPortsHelp } from './supabase-env.mjs';
 
 const here = process.cwd();
 
@@ -94,6 +94,12 @@ if (!remote && !process.argv.includes('--local') && process.stdin.isTTY) {
 }
 if (remote && !hosted) {
   console.error('No hosted Supabase values: put them in .env.remote (see .env.example).');
+  process.exit(1);
+}
+// Web on :5173, the API on :8787 (or PORT), and for the local database the Supabase stack's ports: none may be reserved by Windows.
+const conflicts = reservedPorts([5173, Number(process.env.PORT ?? 8787), ...(remote ? [] : localSupabasePorts(dir))]);
+if (conflicts.length) {
+  console.error(`\x1b[31m${reservedPortsHelp(conflicts)}\x1b[0m`);
   process.exit(1);
 }
 let database;
