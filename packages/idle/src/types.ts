@@ -124,4 +124,6 @@ export interface Mon {
   autoSlots: boolean;
   /** A held item (trainers' Pokémon only, for now). */
   item?: string;
+  /** Shiny (a wild one's 1 in 8192, kept when caught; agreed with the user: shown and recorded). */
+  shiny?: boolean;
 }

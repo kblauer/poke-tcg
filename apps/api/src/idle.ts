@@ -47,11 +47,12 @@ const maxEach = (a: number[], b: readonly number[]) => a.map((v, i) => Math.max(
  * caught or released: caught), one without only a Pokémon seen; each stat's highest IV and EV among the owned.
  */
 export function mergeNotes(notes: DexNote[]) {
-  const by = new Map<number, { caught: boolean; iv: number[]; ev: number[] }>();
+  const by = new Map<number, { caught: boolean; shiny: boolean; iv: number[]; ev: number[] }>();
   for (const n of notes) {
-    const e = by.get(n.species) ?? { caught: false, iv: [0, 0, 0, 0, 0, 0], ev: [0, 0, 0, 0, 0, 0] };
+    const e = by.get(n.species) ?? { caught: false, shiny: false, iv: [0, 0, 0, 0, 0, 0], ev: [0, 0, 0, 0, 0, 0] };
     if (n.ivs) {
       e.caught = true;
+      e.shiny ||= !!n.shiny;
       e.iv = maxEach(e.iv, n.ivs);
       e.ev = maxEach(e.ev, n.evs ?? []);
     }
@@ -73,6 +74,7 @@ export async function recordDex(tx: Prisma.TransactionClient, userId: string, no
     const data = {
       seen: true,
       caught: (old?.caught ?? false) || e.caught,
+      shiny: (old?.shiny ?? false) || e.shiny,
       bestIv: maxEach(old?.bestIv ?? [0, 0, 0, 0, 0, 0], e.iv),
       bestEv: maxEach(old?.bestEv ?? [0, 0, 0, 0, 0, 0], e.ev),
     };

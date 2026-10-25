@@ -1,5 +1,5 @@
 import { prisma } from '@poke-tcg/db';
-import { AREAS, applyIdleAction, areaIndex, CATCH_UP_CAP_MS, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, isTown, simulateSegment, starterOptions, STARTERS, visitStore, type IdleSettings, type Stats } from '@poke-tcg/idle';
+import { AREAS, applyIdleAction, areaIndex, CATCH_UP_CAP_MS, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, simulateSegment, starterOptions, STARTERS, visitStore, type IdleSettings, type Stats } from '@poke-tcg/idle';
 import { idleActInput, idleRunInput, idleSettingsInput, idleWarpInput, startIdleInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { asJson, newSeed } from '../games.js';
@@ -36,7 +36,9 @@ export const idleRouter = router({
       settings,
       // The three starters on the first run; from the second on, any species the Pokédex has caught too (agreed).
       starters: runs ? starterOptions(caught) : STARTERS,
-      dex: dex.map((d) => ({ species: d.species, seen: d.seen, caught: d.caught, bestIv: d.bestIv, bestEv: d.bestEv })),
+      // A species with a shiny caught can start shiny (agreed).
+      shinyStarters: runs ? dex.filter((d) => d.shiny).map((d) => d.species) : [],
+      dex: dex.map((d) => ({ species: d.species, seen: d.seen, caught: d.caught, shiny: d.shiny, bestIv: d.bestIv, bestEv: d.bestEv })),
     };
   }),
 
@@ -50,8 +52,9 @@ export const idleRouter = router({
       if (!(runs ? starterOptions(caught) : STARTERS).includes(input.species)) throw failed("That Pokémon can't be picked");
       // A caught species starts with its record's best IVs and EVs (a starter never caught: random IVs, no EVs).
       const record = caught.includes(input.species) ? await tx.idleDex.findUnique({ where: { userId_species: { userId: ctx.user.id, species: input.species } } }) : null;
+      if (input.shiny && !(runs && record?.shiny)) throw failed('No shiny of that Pokémon has been caught');
       const seed = newSeed();
-      const state = createIdleRun({ species: input.species, ...(record && { ivs: record.bestIv as Stats, evs: record.bestEv as Stats }) }, seed);
+      const state = createIdleRun({ species: input.species, shiny: input.shiny, ...(record && { ivs: record.bestIv as Stats, evs: record.bestEv as Stats }) }, seed);
       return tx.idleRun.create({ data: { ownerId: ctx.user.id, state: asJson(state), version: state.version, seed } });
     });
     return clientIdleRun({ ...created, state: created.state as never });
@@ -60,7 +63,7 @@ export const idleRouter = router({
   /**
    * The next segment (agreed with the user: the server resolves everything, the browser plays it back): steps until a
    * trainer or a wild Pokémon, then the whole battle, as an event log. The run is played up to the segment's end at the
-   * playback speed; asked for too far ahead of that, it's refused.
+   * pace (one pace: no speed setting, agreed); asked for too far ahead of that, it's refused.
    */
   next: protectedProcedure.input(idleRunInput).mutation(async ({ ctx, input }) => {
     const run = await loadOwnIdleRun(input.runId, ctx.user.id);
@@ -71,7 +74,7 @@ export const idleRouter = router({
     const caught = new Set(await caughtSpecies(ctx.user.id));
     const next = simulateSegment(run.state, settings, caught);
     if (!next) throw failed(run.state.phase === 'town' ? 'Waiting in town' : 'This run is over');
-    const playedTo = new Date(Math.max(now, run.simulatedAt.getTime()) + next.segment.durationMs / settings.speed);
+    const playedTo = new Date(Math.max(now, run.simulatedAt.getTime()) + next.segment.durationMs);
     const saved = await saveIdleRun(run, next.state, { dex: next.segment.dex, simulatedAt: playedTo });
     return { run: clientIdleRun(saved), segment: next.segment };
   }),
@@ -114,7 +117,7 @@ export const idleRouter = router({
     }
     // Leaving a town starts the clock again from now (time spent waiting there isn't played).
     const leaving = input.action.type === 'GYM' || input.action.type === 'CONTINUE';
-    const saved = await saveIdleRun(run, state, { dex: state.party.map((m) => ({ species: m.species, ivs: m.ivs, evs: m.evs })), ...(leaving && { simulatedAt: new Date() }) });
+    const saved = await saveIdleRun(run, state, { dex: partyNotes(state.party), ...(leaving && { simulatedAt: new Date() }) });
     return { run: clientIdleRun(saved), events };
   }),
 

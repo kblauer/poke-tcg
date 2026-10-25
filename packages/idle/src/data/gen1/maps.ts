@@ -22,7 +22,6 @@ export const KANTO_MAPS: Record<string, IdleMap> = {
   Route6: { name: 'Route6', image: '/routes/route6.png', width: 24, height: 40, encounters: 'ROUTE6', scene: 'normal', music: 'MUS_ROUTE3' },
   VermilionCity: { name: 'VermilionCity', image: '/idle/gen1/maps/vermilioncity.png', width: 48, height: 40, encounters: 'VERMILION_CITY', scene: 'normal', music: 'MUS_VERMILLION' },
   VermilionCity_Gym: { name: 'VermilionCity_Gym', image: '/routes/vermilioncity_gym.png', width: 11, height: 21, encounters: 'VERMILION_CITY_GYM', scene: 'gym', music: 'MUS_GYM' },
-  Route11: { name: 'Route11', image: '/idle/gen1/maps/route11.png', width: 72, height: 20, encounters: 'ROUTE11', scene: 'normal', music: 'MUS_ROUTE11' },
   Route9: { name: 'Route9', image: '/idle/gen1/maps/route9.png', width: 72, height: 20, encounters: 'ROUTE9', scene: 'normal', music: 'MUS_ROUTE3' },
   Route10: { name: 'Route10', image: '/idle/gen1/maps/route10.png', width: 24, height: 80, encounters: 'ROUTE10', scene: 'normal', music: 'MUS_ROUTE3' },
   RockTunnel_1F: { name: 'RockTunnel_1F', image: '/idle/gen1/maps/rocktunnel_1f.png', width: 48, height: 40, encounters: 'ROCK_TUNNEL_1F', scene: 'normal', music: 'MUS_MT_MOON' },

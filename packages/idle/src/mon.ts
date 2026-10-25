@@ -147,6 +147,7 @@ export interface NewMon {
   nature?: number;
   moves?: string[];
   item?: string;
+  shiny?: boolean;
 }
 
 /** A new Pokémon: random IVs, nature, gender and ability unless given; its level-up moves so far (or `moves`). */
@@ -168,6 +169,7 @@ export function createMon(rng: Rng, o: NewMon): Mon {
     slots: [],
     autoSlots: true,
     ...(o.item && { item: o.item }),
+    ...(o.shiny && { shiny: true }),
   };
   mon.slots = autoSlots(mon);
   return mon;

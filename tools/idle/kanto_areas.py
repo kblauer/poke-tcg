@@ -511,7 +511,6 @@ AREAS = [
     town('vermilion-city', 'Vermilion City', 'VermilionCity', ['VermilionCity_Mart_Items'], 'vermilion-gym'),
     # Through the electric barrier (the trash can puzzle's gate): the run maps' fix, from the user.
     gym('vermilion-gym', 'Vermilion Gym', 'vermilion-city', 'VermilionCity_Gym', 'leader-lt-surge', 'Thunder', fixes={'VermilionCity_Gym': [(6, 6), (6, 7), (5, 6)]}),
-    {'id': 'route-11', 'name': 'Route 11', 'kind': 'route', 'legs': [leg(['Route11'], edge('Route11', 'left'), edge('Route11', 'right'))]},
     {'id': 'route-9', 'name': 'Routes 9 and 10', 'kind': 'route', 'legs': [leg(['Route9', 'Route10'], edge('Route9', 'left'), warp('Route10', 0))]},
     {'id': 'rock-tunnel', 'name': 'Rock Tunnel', 'kind': 'dungeon', 'legs': [
         leg(['RockTunnel_1F', 'RockTunnel_B1F'], warp('RockTunnel_1F', 0), warp('RockTunnel_1F', 5), via=('RockTunnel_B1F',)),

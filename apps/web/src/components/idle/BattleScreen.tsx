@@ -94,6 +94,7 @@ function Healthbox({ mon, player, style }: { mon: BattlerView; player: boolean; 
     <div className="absolute rounded-[0.6cqw] border-[0.4cqw] border-[#506858] bg-[#f8f8d8] text-[#404040] shadow-[0_0.5cqw_0_#285040]" style={{ ...style, width: px(player ? 104 : 100), padding: `${px(2)} ${px(4)}` }}>
       <div className="flex items-baseline justify-between font-semibold leading-none" style={{ fontSize: px(9) }}>
         <span className="truncate">
+          {mon.shiny && <span className="text-[#e0a000]" title="Shiny">★</span>}
           {s.name}
           {mon.gender && <span style={{ color: mon.gender === 'male' ? '#4080f8' : '#f86860' }}>{mon.gender === 'male' ? '♂' : '♀'}</span>}
         </span>
@@ -164,7 +165,7 @@ export function BattleScreen({ battle, shown, gender }: { battle: BattleSegment;
       {foe.mon && !foe.fainted && !ball && (
         <img
           key={`f${foe.mon.uid}`}
-          src={`${GEN1}/pokemon/front/${foe.mon.species}.png`}
+          src={`${GEN1}/pokemon/${foe.mon.shiny ? 'shiny/' : ''}front/${foe.mon.species}.png`}
           alt={species(foe.mon.species).name}
           className="absolute"
           style={{ left: px(144), top: px(10), width: px(64), animation: blink(1) ?? lunge(1) }}
@@ -176,7 +177,7 @@ export function BattleScreen({ battle, shown, gender }: { battle: BattleSegment;
       {me.mon && !me.fainted ? (
         <img
           key={`p${me.mon.uid}`}
-          src={`${GEN1}/pokemon/back/${me.mon.species}.png`}
+          src={`${GEN1}/pokemon/${me.mon.shiny ? 'shiny/' : ''}back/${me.mon.species}.png`}
           alt={species(me.mon.species).name}
           className="absolute"
           style={{ left: px(40), top: px(48), width: px(64), animation: blink(0) ?? lunge(0) }}

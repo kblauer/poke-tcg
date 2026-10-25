@@ -1,8 +1,8 @@
 // The Idle Adventure's decisions in battle (README: Idle Adventure), all settings, so nothing waits on the player:
 // - the energy rule (Battle.chooseMove): the highest slot it has the energy for, else the basic move;
 // - auto-heal (agreed with the user): a Potion-class item when the active Pokémon is at half its HP or less, the one
-//   wasting least; a status cure when it has a status (the specific cure before Full Heal); a Revive on a fainted party
-//   Pokémon when the active one is the last standing (the proposed rule, to confirm);
+//   wasting least; a status cure when it has a status (the specific cure before Full Heal); a Revive by the settings'
+//   policy (the last one standing, any fainted, boss battles, the lead; none, never);
 // - auto-catch (agreed): only moves that can't Knock Out the wild Pokémon (on the highest roll with a critical hit),
 //   Sleep and Paralysis first; once none is safe, the best ball owned;
 // - a trainer's items (the game's AI_SwitchOrUseItem, simplified): a healing item at a quarter of its HP or less, a
@@ -42,9 +42,16 @@ const owned = (b: Battle) => Object.keys(b.bag).filter((k) => (b.bag[k] ?? 0) > 
 function autoHeal(b: Battle, me: Battler): Action | null {
   const items = owned(b);
   if (!items.length) return null;
+  // Revives, by the settings' policy (agreed with the user; none ticked, never): the last one standing, any fainted, a
+  // boss battle's last one standing, or the party's lead.
+  const policy = b.setup.settings.revives ?? ['last'];
   const others = b.party.filter((p) => p !== me && !p.fainted);
-  const downed = b.party.find((p) => p.fainted);
-  if (!others.length && downed) {
+  const lead = b.party[0]!;
+  const downed =
+    (policy.includes('lead') && lead.fainted && lead) ||
+    ((policy.includes('any') || (!others.length && (policy.includes('last') || (policy.includes('boss') && b.setup.boss)))) && b.party.find((p) => p.fainted)) ||
+    null;
+  if (downed) {
     const revive = items.find((i) => MEDICINE[i]?.revive === 'half') ?? items.find((i) => MEDICINE[i]?.revive === 'full');
     if (revive) return { kind: 'item', item: revive, target: downed.index };
   }

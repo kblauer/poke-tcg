@@ -12,7 +12,7 @@ pret/pokefirered decompilation:
 - marts.ts: each mart's stock (data/maps/*/scripts.inc's pokemart lists);
 - apps/web/public/idle/gen1/: the battle sprites (pokemon/front|back/<dex>.png, palettes applied, index 0 see-through),
   party icons (pokemon/icon/<dex>.png, both frames), trainer pics (trainers/<pic>.png; the player's back pics' first
-  frame) and the battle terrains (terrain/<name>.png, the 240x112 above the text box). The healthboxes are drawn by the
+  frame; pokemon/shiny/front|back/ in the shiny palettes) and the battle terrains (terrain/<name>.png, the 240x112 above the text box). The healthboxes are drawn by the
   page (BattleScreen), not taken from the game's tiles.
 Usage: python tools/idle/firered_data.py <pokefirered checkout>. Needs Pillow."""
 import json, os, re, sys
@@ -336,6 +336,8 @@ for s in species:
     folder = os.path.join('graphics', 'pokemon', species_consts[s['id']][len('SPECIES_'):].lower())
     for kind in ('front', 'back'):
         save_indexed(os.path.join(folder, kind + '.png'), os.path.join(OUT_PUB, 'pokemon', kind, f"{s['id']}.png"), os.path.join(folder, 'normal.pal'), (0, 0, 64, 64))
+        # Shiny Pokémon: the same sprites in their shiny palette (party icons have none in Gen 3).
+        save_indexed(os.path.join(folder, kind + '.png'), os.path.join(OUT_PUB, 'pokemon', 'shiny', kind, f"{s['id']}.png"), os.path.join(folder, 'shiny.pal'), (0, 0, 64, 64))
     save_indexed(os.path.join(folder, 'icon.png'), os.path.join(OUT_PUB, 'pokemon', 'icon', f"{s['id']}.png"), os.path.join('graphics', 'pokemon', 'icon_palettes', f"icon_palette_{s['icon']}.pal"))
 for pic in sorted(pics_used):
     pal = os.path.join('graphics', 'trainers', 'palettes', pic + '.pal')

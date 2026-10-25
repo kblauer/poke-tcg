@@ -56,7 +56,7 @@ export function IdlePage() {
   const run = data?.run ?? null;
   const active = run?.status === 'ACTIVE' ? run : null;
   const settings = data?.settings;
-  const { play, summary, closeSummary, actOn, acted } = useIdlePlayback(active, settings?.speed ?? 1, name, (m) => toasts.push('error', m));
+  const { play, summary, closeSummary, actOn, acted } = useIdlePlayback(active, name, (m) => toasts.push('error', m));
 
   // The music (auto play): the battle's theme, the Hall of Fame once won, the map's own song otherwise (Surfing on water).
   const place = play.place ?? (run ? { area: run.view.area, leg: run.view.leg, step: run.view.step } : null);
@@ -90,7 +90,7 @@ export function IdlePage() {
       .act(actOn(active), action)
       .then((r) => acted(r.run))
       .catch(failed);
-  const start = (id: number) => actions.start(id).catch(failed);
+  const start = (id: number, shiny = false) => actions.start(id, shiny).catch(failed);
   const v = run?.view;
   const over = run && run.status !== 'ACTIVE';
 
@@ -139,12 +139,12 @@ export function IdlePage() {
               </div>
             </section>
           )}
-          <StarterScene gender={gender} busy={actions.busy} onPick={start} />
-          {data.starters.length > 3 && (
+          <StarterScene gender={gender} busy={actions.busy} onPick={(id) => start(id)} />
+          {(data.starters.length > 3 || data.shinyStarters.length > 0) && (
             <section className="space-y-2">
               <h3 className="text-lg font-semibold">Or start from your Pokédex</h3>
               <p className="text-sm text-slate-400">Any species you've caught, at level 5 with its best IVs and EVs on record.</p>
-              <Pokedex dex={data.dex} starters={data.starters} onPick={start} busy={actions.busy} />
+              <Pokedex dex={data.dex} starters={data.starters} shinyStarters={data.shinyStarters} onPick={start} busy={actions.busy} />
             </section>
           )}
           <ReturnToHome />

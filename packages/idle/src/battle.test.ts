@@ -165,6 +165,16 @@ describe('battles', () => {
     expect(caught).toBeGreaterThan(15);
   });
 
+  it('revives by the settings\' policy', () => {
+    // A Level 5 lead against a level 40 foe faints at once; with the lead policy it's revived, with none never.
+    const weak = () => [mon(10, 5), mon(150, 60)];
+    const revived = (revives: ('last' | 'any' | 'boss' | 'lead')[]) =>
+      simulateBattle(setup(weak(), [opponentMon(mon(68, 40))], { kind: 'trainer', bag: { revive: 1 }, settings: { autoHeal: true, tryCatch: false, revives } }), rngFrom(3)).events.some((e) => e.t === 'item' && e.item === 'revive');
+    expect(revived([])).toBe(false);
+    expect(revived(['lead'])).toBe(true);
+    expect(revived(['any'])).toBe(true);
+  });
+
   it('is deterministic for a seed', () => {
     const s = setup([mon(7, 20)], [opponentMon(mon(19, 18))]);
     expect(simulateBattle(s, rngFrom(42)).events).toEqual(simulateBattle(s, rngFrom(42)).events);

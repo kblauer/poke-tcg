@@ -9,9 +9,9 @@ describe('the Idle Adventure on the server', () => {
       { species: 4, ivs: [2, 20, 1, 0, 0, 0], evs: [0, 4, 8, 0, 0, 0] },
       { species: 16, seen: true },
     ]);
-    expect(merged.get(4)).toEqual({ caught: true, iv: [31, 20, 5, 0, 0, 0], ev: [0, 10, 8, 0, 0, 0] });
+    expect(merged.get(4)).toEqual({ caught: true, shiny: false, iv: [31, 20, 5, 0, 0, 0], ev: [0, 10, 8, 0, 0, 0] });
     // Seen only: not caught, no stats.
-    expect(merged.get(16)).toEqual({ caught: false, iv: [0, 0, 0, 0, 0, 0], ev: [0, 0, 0, 0, 0, 0] });
+    expect(merged.get(16)).toEqual({ caught: false, shiny: false, iv: [0, 0, 0, 0, 0, 0], ev: [0, 0, 0, 0, 0, 0] });
   });
 
   it('gives a run its status from its phase', () => {

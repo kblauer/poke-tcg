@@ -37,6 +37,7 @@ export interface BattlerView {
   energy: number;
   /** Its party index on its side. */
   index: number;
+  shiny?: boolean;
 }
 
 /** One thing that happened in a battle, in order. `msg` is the game's line for it, when it has one. */
@@ -65,6 +66,8 @@ export interface BattleSettings {
   autoHeal: boolean;
   /** Try to catch this wild Pokémon (the run decides from the auto-catch setting, the dex and the party). */
   tryCatch: boolean;
+  /** When auto-heal uses Revives (idle.ts's RevivePolicy; none, never). */
+  revives?: ('last' | 'any' | 'boss' | 'lead')[];
 }
 
 export interface BattleSetup {
@@ -79,6 +82,8 @@ export interface BattleSetup {
   settings: BattleSettings;
   /** Badges won: Boulder (1st) raises Attack, Soul (5th) Defense, Volcano (7th) Sp. Atk and Sp. Def by 10% (FireRed's badge boosts). */
   badges: number;
+  /** A Gym Leader's, an Elite Four member's or the Champion's battle (the Revive policy's 'boss'). */
+  boss?: boolean;
   terrain: Terrain;
   /** The battle ends after this many ticks: a wild Pokémon wanders off, a trainer battle is lost (no endless stalls). */
   maxTicks?: number;
@@ -223,7 +228,7 @@ export class Battler {
   }
 
   view(): BattlerView {
-    return { uid: this.mon.uid, species: this.species, level: this.level, hp: this.hp, maxHp: this.maxHp, status: this.status, gender: this.mon.gender, energy: this.energy, index: this.index };
+    return { uid: this.mon.uid, species: this.species, level: this.level, hp: this.hp, maxHp: this.maxHp, status: this.status, gender: this.mon.gender, energy: this.energy, index: this.index, ...(this.mon.shiny && { shiny: true }) };
   }
 }
 

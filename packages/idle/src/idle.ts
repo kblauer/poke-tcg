@@ -29,18 +29,33 @@ export const PARTY_SIZE = 6;
 /** White-out: ₱1000 lost, or half the run's money if it has less (agreed). */
 export const WHITE_OUT_LOSS = 1000;
 
-/** How long things take when played at 1× (the browser plays them at the speed setting): a step (16 frames), a turn (agreed: 3 s), a battle's start and end, a fade. */
+/**
+ * How long things take (one pace, watched or offline: no speed setting, agreed with the user): a step (16 frames), a
+ * turn (agreed: 3 s), a battle's start and end, a fade.
+ */
 export const STEP_MS = 267;
 export const TICK_MS = 3000;
 export const BATTLE_MS = 4000;
 export const FADE_MS = 800;
-/** Offline catch-up's cap (a placeholder: 8 hours) and how many segments one call simulates (the browser calls again for more). */
-export const CATCH_UP_CAP_MS = 8 * 60 * 60 * 1000;
+/** Offline catch-up's cap (12 hours of absence, agreed with the user) and how many segments one call simulates (the browser calls again for more). */
+export const CATCH_UP_CAP_MS = 12 * 60 * 60 * 1000;
 export const CATCH_UP_SEGMENTS = 40;
+/** A wild Pokémon's chance of being shiny (Gen 3's 1 in 8192). */
+export const SHINY_ODDS = 8192;
+
+/**
+ * When auto-heal uses a Revive on a fainted party Pokémon (agreed with the user: any of these; none ticked, never):
+ * `last` when the active Pokémon is the last one standing, `any` as soon as one faints, `boss` only against Gym Leaders,
+ * the Elite Four and the Champion (with the last one standing), `lead` when the party's lead has fainted (on it).
+ */
+export type RevivePolicy = 'last' | 'any' | 'boss' | 'lead';
+export const REVIVE_POLICIES: RevivePolicy[] = ['last', 'any', 'boss', 'lead'];
 
 /** The player's settings for the mode (User.idleSettings): every in-battle decision is one of these. */
 export interface IdleSettings {
   autoHeal: boolean;
+  /** When Revives are used (with auto-heal on): none, never. */
+  revives: RevivePolicy[];
   /** Auto-catch: off, only species not yet caught (no caught dex record), or every wild Pokémon. */
   autoCatch: 'off' | 'new' | 'all';
   /** With a full party: skip catching (the dex still marks them seen)… */
@@ -49,11 +64,9 @@ export interface IdleSettings {
   replaceLowest: boolean;
   /** At a store selling evolution stones, buy one for each party Pokémon that can use one and use it at once. */
   autoEvolve: boolean;
-  /** Playback speed. */
-  speed: 1 | 2 | 3;
 }
 
-export const DEFAULT_IDLE_SETTINGS: IdleSettings = { autoHeal: true, autoCatch: 'new', stopWhenFull: false, replaceLowest: false, autoEvolve: true, speed: 1 };
+export const DEFAULT_IDLE_SETTINGS: IdleSettings = { autoHeal: true, revives: ['last'], autoCatch: 'new', stopWhenFull: false, replaceLowest: false, autoEvolve: true };
 
 /** Wild encounter bookkeeping between steps (wild_encounter.c's sWildEncounterData). */
 interface EncounterState {
@@ -125,7 +138,7 @@ export type SegmentEvent =
     }
   | { t: 'money'; amount: number; total: number; why: string }
   | { t: 'evolve'; uid: string; from: number; into: number }
-  | { t: 'caught'; species: number; kept: boolean; replaced?: number }
+  | { t: 'caught'; species: number; kept: boolean; replaced?: number; shiny?: true }
   | { t: 'badge'; badge: string }
   | { t: 'whiteout'; lost: number }
   | { t: 'town'; area: number }
@@ -138,11 +151,13 @@ export interface DexNote {
   caught?: true;
   ivs?: Stats;
   evs?: Stats;
+  /** One of the account's shiny Pokémon (a shiny caught makes the species a shiny starter: agreed). */
+  shiny?: true;
 }
 
 export interface Segment {
   events: SegmentEvent[];
-  /** How long it takes to play at 1×. */
+  /** How long it takes to play. */
   durationMs: number;
   dex: DexNote[];
 }
@@ -155,6 +170,8 @@ export interface StarterChoice {
   /** A dex record's best IVs and EVs (a run started from the Pokédex); random IVs and no EVs otherwise. */
   ivs?: Stats;
   evs?: Stats;
+  /** Shiny (a species the account has caught a shiny of: agreed with the user). */
+  shiny?: boolean;
 }
 
 /** The Champion's starter: the one strong against the player's (FireRed's rival), by the run's starter's type otherwise (assumption, issue #133's open question), at random for a type without one. */
@@ -169,7 +186,7 @@ function rivalStarterFor(rng: Rng, id: number): IdleState['rivalStarter'] {
 /** A new run with its starter at level 5 (a dex species keeps its record's IVs and EVs, its nature re-rolled). */
 export function createIdleRun(choice: StarterChoice, seed: number): IdleState {
   const rng = rngFrom(seed);
-  const mon = createMon(rng, { species: choice.species, level: STARTER_LEVEL, ...(choice.ivs && { ivs: choice.ivs }), ...(choice.evs && { evs: choice.evs }) });
+  const mon = createMon(rng, { species: choice.species, level: STARTER_LEVEL, ...(choice.ivs && { ivs: choice.ivs }), ...(choice.evs && { evs: choice.evs }), ...(choice.shiny && { shiny: true }) });
   const state: IdleState = {
     version: 0,
     rngState: rng.state,
@@ -428,7 +445,7 @@ function shouldCatch(state: IdleState, settings: IdleSettings, caught: ReadonlyS
 }
 
 /** Notes for the dex: every party Pokémon's IVs and EVs (they only grow). */
-const partyNotes = (party: Mon[]): DexNote[] => party.map((m) => ({ species: m.species, ivs: m.ivs, evs: m.evs }));
+export const partyNotes = (party: Mon[]): DexNote[] => party.map((m) => ({ species: m.species, ivs: m.ivs, evs: m.evs, ...(m.shiny && { shiny: true as const }) }));
 
 /**
  * Plays one battle and settles it: experience and levels kept, evolutions after it (the game's), prize money, a
@@ -440,7 +457,7 @@ function battle(state: IdleState, rng: Rng, settings: IdleSettings, caught: Set<
   const before = state.party.map((m) => m.level);
   const t = o.trainer ? TRAINERS[o.trainer] : null;
   const result = simulateBattle(
-    { kind: o.kind, party: state.party, foes: o.foes, foeItems: t?.items ?? [], bag: state.bag, settings: { autoHeal: settings.autoHeal, tryCatch }, badges: state.badges.length, terrain: terrainOf(o.tile) },
+    { kind: o.kind, party: state.party, foes: o.foes, foeItems: t?.items ?? [], bag: state.bag, settings: { autoHeal: settings.autoHeal, revives: settings.revives, tryCatch }, boss: !!o.trainer && /^(leader|elite-four|champion)/.test(o.trainer), badges: state.badges.length, terrain: terrainOf(o.tile) },
     rng,
   );
   out.events.push({
@@ -480,19 +497,19 @@ function battle(state: IdleState, rng: Rng, settings: IdleSettings, caught: Set<
     const mon: Mon = { ...result.caught, slots: autoSlots(result.caught), autoSlots: true, moves: movesUpTo(result.caught.species, result.caught.level) };
     caught.add(mon.species);
     state.totals.caught += 1;
-    out.dex.push({ species: mon.species, seen: true, caught: true, ivs: mon.ivs, evs: mon.evs });
+    out.dex.push({ species: mon.species, seen: true, caught: true, ivs: mon.ivs, evs: mon.evs, ...(mon.shiny && { shiny: true as const }) });
     if (state.party.length < PARTY_SIZE) {
       state.party.push(mon);
-      out.events.push({ t: 'caught', species: mon.species, kept: true });
+      out.events.push({ t: 'caught', species: mon.species, kept: true, ...(mon.shiny && { shiny: true as const }) });
     } else if (settings.replaceLowest) {
       let low = 0;
       state.party.forEach((m, i) => m.level < state.party[low]!.level && (low = i));
       const gone = state.party[low]!;
       out.dex.push({ species: gone.species, ivs: gone.ivs, evs: gone.evs });
       state.party[low] = mon;
-      out.events.push({ t: 'caught', species: mon.species, kept: true, replaced: gone.species });
+      out.events.push({ t: 'caught', species: mon.species, kept: true, replaced: gone.species, ...(mon.shiny && { shiny: true as const }) });
     } else {
-      out.events.push({ t: 'caught', species: mon.species, kept: false });
+      out.events.push({ t: 'caught', species: mon.species, kept: false, ...(mon.shiny && { shiny: true as const }) });
     }
     state.log.push(`Caught ${species(mon.species).name}!`);
   }
@@ -599,7 +616,7 @@ export function simulateSegment(prev: IdleState, settings: IdleSettings, caught:
     if (table && wildCheck(rng, state.encounter, table, tile, state.party[0]!)) {
       const [min, max, id] = table.mons[pickSlot(rng, kind === 'land' ? LAND_ODDS : WATER_ODDS)]!;
       const level = min + (int(rng, 65536) % (max - min + 1));
-      const wild = opponentMon(createMon(rng, { species: id, level }));
+      const wild = opponentMon(createMon(rng, { species: id, level, ...(int(rng, SHINY_ODDS) === 0 && { shiny: true }) }));
       const won = battle(state, rng, settings, caught, { kind: 'wild', foes: [wild], tile, scene: map.scene }, out);
       if (!won) whiteOut(state, out);
       break;

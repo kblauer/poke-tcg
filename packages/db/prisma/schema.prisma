@@ -438,6 +438,8 @@ model IdleDex {
   species   Int
   seen      Boolean  @default(false)
   caught    Boolean  @default(false)
+  /// A shiny one caught: later runs can start with a shiny of the species.
+  shiny     Boolean  @default(false)
   /// HP, Attack, Defense, Sp. Atk, Sp. Def, Speed.
   bestIv    Int[]    @default([0, 0, 0, 0, 0, 0])
   bestEv    Int[]    @default([0, 0, 0, 0, 0, 0])

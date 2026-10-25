@@ -31,7 +31,7 @@ export function useIdleActions() {
   const warp = useMutation(trpc.idle.debugWarp.mutationOptions({ onSuccess: setRun }));
   return {
     busy: start.isPending || act.isPending,
-    start: (species: number) => start.mutateAsync({ species }),
+    start: (species: number, shiny = false) => start.mutateAsync({ species, shiny }),
     act: (run: ClientIdleRun, action: IdleAction) => act.mutateAsync({ runId: run.id, expectedVersion: run.version, action }),
     settings: (s: Partial<IdleSettings>) => settings.mutateAsync(s),
     warp: (run: ClientIdleRun, area: string) => warp.mutateAsync({ runId: run.id, area }),
@@ -84,7 +84,7 @@ function noticeOf(e: SegmentEvent, name: (id: number) => string): string | null 
     case 'evolve':
       return `${name(e.from)} evolved into ${name(e.into)}!`;
     case 'caught':
-      return e.kept ? (e.replaced ? `${name(e.species)} joined the party in place of ${name(e.replaced)}.` : `${name(e.species)} joined the party!`) : `${name(e.species)} was registered in the Pokédex and released.`;
+      return (e.shiny ? 'A shiny! ' : '') + (e.kept ? (e.replaced ? `${name(e.species)} joined the party in place of ${name(e.replaced)}.` : `${name(e.species)} joined the party!`) : `${name(e.species)} was registered in the Pokédex and released.`);
     case 'badge':
       return `Won the ${e.badge} Badge!`;
     case 'whiteout':
@@ -99,10 +99,10 @@ function noticeOf(e: SegmentEvent, name: (id: number) => string): string | null 
 /**
  * Plays a run back (agreed with the user: the server resolves everything, the browser plays it): on opening, catches up
  * the time since it was last played (idle.catchUp, again while there's more), then asks for the next segment, plays its
- * walk at the walk speed, its battle a turn per 3 s (both at the speed setting), and asks again, until the run waits in
+ * walk a step at a time, its battle a turn per 3 s (one pace: no speed setting), and asks again, until the run waits in
  * a town or is over. Stops when the page goes.
  */
-export function useIdlePlayback(run: ClientIdleRun | null | undefined, speed: number, name: (id: number) => string, onError: (message: string) => void) {
+export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id: number) => string, onError: (message: string) => void) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const key = trpc.idle.overview.queryKey();
@@ -110,8 +110,6 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, speed: nu
   const catchUp = useMutation(trpc.idle.catchUp.mutationOptions());
   const [play, setPlay] = useState<Playback>(IDLE);
   const [summary, setSummary] = useState<CatchUpSummary | null>(null);
-  const speedRef = useRef(speed);
-  speedRef.current = speed;
   const update = useCallback((p: Partial<Playback>) => setPlay((old) => ({ ...old, ...p })), []);
   /** The run as the server last returned it (ahead of the screen while a segment plays). */
   const latest = useRef<ClientIdleRun | null>(null);
@@ -134,7 +132,7 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, speed: nu
           timers.delete(t);
           if (stopped) fail(new Stopped());
           else done();
-        }, ms / speedRef.current);
+        }, ms);
         timers.add(t);
       });
     let current = run;
@@ -157,7 +155,7 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, speed: nu
           continue;
         }
         const jump = (flags & 2) !== 0;
-        const ms = (STEP_MS * (jump ? 2 : 1)) / speedRef.current;
+        const ms = STEP_MS * (jump ? 2 : 1);
         setPlay((old) => ({
           ...old,
           place: { ...place, step: i },
@@ -256,10 +254,10 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, speed: nu
           try {
             r = await next.mutateAsync({ runId: current.id, expectedVersion: newest().version });
           } catch (e) {
-            // Played back faster than the server counted (a faster speed picked midway, a reload): wait until it's caught up.
+            // Played back faster than the server counted (a reload mid-segment): wait until it's caught up.
             if (stopped || !(e instanceof Error) || !e.message.startsWith('Still playing')) throw e;
             const ahead = new Date(newest().simulatedAt).getTime() - Date.now();
-            await wait(Math.max(1000, ahead - 10_000) * speedRef.current);
+            await wait(Math.max(1000, ahead - 10_000));
             continue;
           }
           if (stopped) return;

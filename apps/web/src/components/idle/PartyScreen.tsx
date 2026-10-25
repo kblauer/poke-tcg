@@ -66,6 +66,11 @@ export function PartyScreen({ party, bag, busy, onAct }: { party: Mon[]; bag: Re
               <MonIcon id={mon.species} />
               <div className="min-w-32 flex-1">
                 <div className="font-semibold">
+                  {mon.shiny && (
+                    <span className="mr-1 text-yellow-300" title="Shiny">
+                      ★
+                    </span>
+                  )}
                   {s.name} <span className="text-sm text-slate-400">Lv. {mon.level}</span>
                 </div>
                 <div className="mt-0.5 flex gap-1">{s.types.map((t) => <TypeBadge key={t} type={t} />)}</div>

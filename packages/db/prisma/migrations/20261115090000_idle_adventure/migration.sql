@@ -28,6 +28,7 @@ CREATE TABLE "IdleDex" (
     "species" INTEGER NOT NULL,
     "seen" BOOLEAN NOT NULL DEFAULT false,
     "caught" BOOLEAN NOT NULL DEFAULT false,
+    "shiny" BOOLEAN NOT NULL DEFAULT false,
     "bestIv" INTEGER[] DEFAULT ARRAY[0, 0, 0, 0, 0, 0]::INTEGER[],
     "bestEv" INTEGER[] DEFAULT ARRAY[0, 0, 0, 0, 0, 0]::INTEGER[],
     "updatedAt" TIMESTAMP(3) NOT NULL,

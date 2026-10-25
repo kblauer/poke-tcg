@@ -17,15 +17,15 @@ export const idleActionSchema = z.discriminatedUnion('type', [
 
 export const idleSettingsSchema = z.object({
   autoHeal: z.boolean(),
+  revives: z.array(z.enum(['last', 'any', 'boss', 'lead'])).max(4),
   autoCatch: z.enum(['off', 'new', 'all']),
   stopWhenFull: z.boolean(),
   replaceLowest: z.boolean(),
   autoEvolve: z.boolean(),
-  speed: z.union([z.literal(1), z.literal(2), z.literal(3)]),
 }) satisfies z.ZodType<IdleSettings>;
 
-/** A new run: its starter (one of the three, or a species the account's Pokédex has caught, from the second run on). */
-export const startIdleInput = z.object({ species: z.number().int().min(1).max(DEX_SIZE) });
+/** A new run: its starter (one of the three, or a species the account's Pokédex has caught, from the second run on), shiny if one was caught. */
+export const startIdleInput = z.object({ species: z.number().int().min(1).max(DEX_SIZE), shiny: z.boolean().default(false) });
 export const idleRunInput = z.object({ runId: z.uuid(), expectedVersion: z.number().int().min(0) });
 export const idleActInput = idleRunInput.extend({ action: idleActionSchema });
 /** Changes some of the settings (the rest kept). */
