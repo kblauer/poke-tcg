@@ -10,7 +10,7 @@ import { type InPlayPokemon, type Target } from '../engine.js';
 import { pokemonPower } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { inPlayDef, pokemonName } from '../status.js';
-import { benchedSlots, damageOpponent, energyCards, inPlay, opponentBenchChoice, opponentTargets, same } from './common.js';
+import { benchedSlots, damageChosen, energyCards, inPlay, opponentBenchChoice, opponentTargets, same } from './common.js';
 import { DP1, discardOwnEnergy } from './dp1.js';
 import { DP2 } from './dp2.js';
 import { DP4 } from './dp4.js';
@@ -124,7 +124,7 @@ export const DPP: Record<string, Record<string, AttackEffect>> = {
     'Darkness Lost': {
       run(ctx) {
         for (const t of ['active', ...benchedSlots(ctx.opp.bench)] as Target[]) {
-          damageOpponent(ctx, t, 30);
+          damageChosen(ctx, t, 30);
           const p = theirs(ctx, t);
           if (p && p.damage >= inPlayDef(ctx.state.cards, p).hp) p.lostZone = ctx.turn;
         }
@@ -165,7 +165,7 @@ export const DPP: Record<string, Record<string, AttackEffect>> = {
   'dpp-DP42': {
     'Power Whip': {
       choices: (s) => opponentTargets(s, "Choose one of your opponent's Pokémon to do damage to"),
-      run: (ctx) => damageOpponent(ctx, ctx.choices.oppTarget ?? 'active', 10 * energyAmount(ctx, ctx.attacker)),
+      run: (ctx) => damageChosen(ctx, ctx.choices.oppTarget ?? 'active', 10 * energyAmount(ctx, ctx.attacker)),
     },
   },
   // Probopass G – Nose Unit: 20 to each of the opponent's Pokémon with a Poké-Body. Loud Snort: no Retreat Cost until the end of the next turn.
@@ -174,7 +174,7 @@ export const DPP: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         for (const t of ['active', ...benchedSlots(ctx.opp.bench)] as Target[]) {
           const p = theirs(ctx, t);
-          if (p && inPlayDef(ctx.state.cards, p).power && pokemonPower(p)?.body) damageOpponent(ctx, t, 20);
+          if (p && inPlayDef(ctx.state.cards, p).power && pokemonPower(p)?.body) damageChosen(ctx, t, 20);
         }
       },
     },
@@ -214,7 +214,7 @@ export const DPP: Record<string, Record<string, AttackEffect>> = {
       choices: (s) => opponentTargets(s, "Choose one of your opponent's Pokémon to do 80 damage to"),
       run(ctx) {
         discardOwnEnergy(ctx, 2, 'Dragon Rush');
-        damageOpponent(ctx, ctx.choices.oppTarget ?? 'active', 80);
+        damageChosen(ctx, ctx.choices.oppTarget ?? 'active', 80);
         notNextTurn(ctx, 'Dragon Rush');
       },
     },

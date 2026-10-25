@@ -11,7 +11,7 @@ import { counts, energyPool, isSpecialEnergy, retreatCost, type InPlayPokemon, t
 import { pokemonPower } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { evolvedFromName, inPlayDef, pokemonName } from '../status.js';
-import { benchedSlots, damageOpponent, energyCards, headsUntilTails, inPlay, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
+import { benchedSlots, damageChosen, energyCards, headsUntilTails, inPlay, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
 import { DP1, discardOwnEnergy, removeDefenderEnergy } from './dp1.js';
 import { discardAtRandom, energyAmount } from './ex1.js';
 import { discardOwn, energyCardOf, EX2 } from './ex2.js';
@@ -279,7 +279,7 @@ export const DP7: Record<string, Record<string, AttackEffect>> = {
       choices: (s) => opponentTargets(s, "Choose one of your opponent's Pokémon to do 60 damage to"),
       run(ctx) {
         discardOwnEnergy(ctx, 2, 'Shooting Fire', ['fire']);
-        damageOpponent(ctx, ctx.choices.oppTarget ?? 'active', 60);
+        damageChosen(ctx, ctx.choices.oppTarget ?? 'active', 60);
       },
     },
   },
@@ -289,7 +289,7 @@ export const DP7: Record<string, Record<string, AttackEffect>> = {
       choices: (s) => opponentTargets(s, "Choose one of your opponent's Pokémon to do 30 damage to"),
       run(ctx) {
         const t = ctx.choices.oppTarget ?? 'active';
-        damageOpponent(ctx, t, 30);
+        damageChosen(ctx, t, 30);
         const p = theirs(ctx, t);
         if (p && energyCards(p).length && ctx.flip()) removeDefenderEnergy(ctx, 1, 'Bowed Whip', { target: t });
       },
@@ -325,7 +325,7 @@ export const DP7: Record<string, Record<string, AttackEffect>> = {
     'Outbreak Power': {
       choices: (s) => pickMany(s, energyPool(s.attacker, s.cards).length, "Choose your opponent's Pokémon to do 20 damage to (as many as Steelix has Energy)"),
       run(ctx) {
-        for (const t of picked(ctx, energyAmount(ctx, ctx.attacker))) damageOpponent(ctx, t, 20);
+        for (const t of picked(ctx, energyAmount(ctx, ctx.attacker))) damageChosen(ctx, t, 20);
       },
     },
   },
@@ -452,7 +452,7 @@ export const DP7: Record<string, Record<string, AttackEffect>> = {
   'dp7-51': {
     'Mach Blade': {
       choices: (s) => opponentTargets(s, "Choose one of your opponent's Pokémon to do 50 damage to (if heads)"),
-      run: (ctx) => void (ctx.flip() ? damageOpponent(ctx, ctx.choices.oppTarget ?? 'active', 50) : ctx.log('Mach Blade did nothing.')),
+      run: (ctx) => void (ctx.flip() ? damageChosen(ctx, ctx.choices.oppTarget ?? 'active', 50) : ctx.log('Mach Blade did nothing.')),
     },
   },
   // Bidoof – Self-abandonment: heads 30 to the Defending Pokémon, tails 10 to itself.
@@ -549,7 +549,7 @@ export const DP7: Record<string, Record<string, AttackEffect>> = {
         ctx.me.hand = ctx.me.hand.filter((c) => !gone.includes(c));
         ctx.me.discard.push(...gone);
         ctx.log('Discarded 2 Lightning Energy cards from the hand.');
-        damageOpponent(ctx, ctx.choices.oppTarget ?? 'active', 80);
+        damageChosen(ctx, ctx.choices.oppTarget ?? 'active', 80);
       },
     },
   },
@@ -596,7 +596,7 @@ export const DP7: Record<string, Record<string, AttackEffect>> = {
   'dp7-SH3': {
     Fastball: {
       choices: (s) => opponentTargets(s, "Choose one of your opponent's Pokémon to do 20 damage to (if heads)"),
-      run: (ctx) => void (ctx.flip() ? damageOpponent(ctx, ctx.choices.oppTarget ?? 'active', 20) : ctx.log('Fastball did nothing.')),
+      run: (ctx) => void (ctx.flip() ? damageChosen(ctx, ctx.choices.oppTarget ?? 'active', 20) : ctx.log('Fastball did nothing.')),
     },
   },
 };

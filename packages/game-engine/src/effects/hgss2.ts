@@ -10,7 +10,7 @@ import { energyPool, type Target } from '../engine.js';
 import { pokemonPower } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { devolvable, inPlayDef, removeTopEvolution } from '../status.js';
-import { benchedSlots, damageOpponent, energyCards, headsUntilTails, inPlay, leechSeed, opponentBenchChoice, opponentTargets, same } from './common.js';
+import { benchedSlots, damageChosen, energyCards, headsUntilTails, inPlay, leechSeed, opponentBenchChoice, opponentTargets, same } from './common.js';
 import { discardOwnEnergy, returnOwnEnergy } from './dp1.js';
 import { energyAmount } from './ex1.js';
 import { discardOwn, energyCardOf } from './ex2.js';
@@ -74,7 +74,7 @@ export const HGSS2: Record<string, Record<string, AttackEffect>> = {
     'Switch Cannon': {
       choices: (s): ChoiceSpec[] => [...opponentTargets(s, "Choose one of your opponent's Pokémon to do 30 damage to"), ...(benchedSlots(s.ownBench).length ? [{ kind: 'ownBench' as const, options: benchedSlots(s.ownBench), prompt: 'Switch Cannon: choose a Benched Pokémon to switch Octillery with' }] : [])],
       run(ctx) {
-        damageOpponent(ctx, ctx.choices.oppTarget ?? 'active', 30);
+        damageChosen(ctx, ctx.choices.oppTarget ?? 'active', 30);
         const slot = ctx.choices.ownBenchSlot;
         if (slot !== undefined) ctx.after(() => ctx.me.active === ctx.attacker && ctx.me.bench[slot] && ctx.switchOwn(slot));
       },
@@ -109,7 +109,7 @@ export const HGSS2: Record<string, Record<string, AttackEffect>> = {
       choices: (s) => opponentTargets(s, "Choose one of your opponent's Pokémon to do 100 damage to"),
       run(ctx) {
         returnOwnEnergy(ctx, 2, 'Hydro Launcher', ['water']);
-        damageOpponent(ctx, ctx.choices.oppTarget ?? 'active', 100);
+        damageChosen(ctx, ctx.choices.oppTarget ?? 'active', 100);
       },
     },
   },
@@ -137,7 +137,7 @@ export const HGSS2: Record<string, Record<string, AttackEffect>> = {
   'hgss2-22': {
     'Bebop Punch': {
       choices: (s) => opponentTargets(s, "Choose one of your opponent's Pokémon to do the damage to"),
-      run: (ctx) => damageOpponent(ctx, ctx.choices.oppTarget ?? 'active', 50 * headsUntilTails(ctx)),
+      run: (ctx) => damageChosen(ctx, ctx.choices.oppTarget ?? 'active', 50 * headsUntilTails(ctx)),
     },
   },
   // Metang – Energy Crane: up to 2 Psychic Energy cards from the discard pile attached to the player's Pokémon.

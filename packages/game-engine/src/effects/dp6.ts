@@ -14,7 +14,7 @@ import { counts, energyPool, type InPlayPokemon, type Target } from '../engine.j
 import { shuffle } from '../rng.js';
 import { baseUid, devolvable, evolvedFromName, inPlayDef, pokemonName, removeTopEvolution } from '../status.js';
 import { BASE1 } from './base1.js';
-import { benchedSlots, damageOpponent, energyCards, inPlay, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
+import { benchedSlots, damageChosen, energyCards, inPlay, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
 import { discardOwnEnergy } from './dp1.js';
 import { DP2 } from './dp2.js';
 import { DP5 } from './dp5.js';
@@ -82,7 +82,7 @@ export const DP6: Record<string, Record<string, AttackEffect>> = {
   'dp6-2': {
     'Draco Meteor': {
       run(ctx) {
-        for (const t of ['active', ...benchedSlots(ctx.opp.bench)] as Target[]) if (ctx.flip()) damageOpponent(ctx, t, 50);
+        for (const t of ['active', ...benchedSlots(ctx.opp.bench)] as Target[]) if (ctx.flip()) damageChosen(ctx, t, 50);
       },
     },
   },
@@ -472,7 +472,7 @@ export const DP6: Record<string, Record<string, AttackEffect>> = {
   'dp6-59': {
     'Energy Split': {
       run(ctx) {
-        for (const t of ['active', ...benchedSlots(ctx.opp.bench)] as Target[]) if (energyCards(theirs(ctx, t)!).length) damageOpponent(ctx, t, 30);
+        for (const t of ['active', ...benchedSlots(ctx.opp.bench)] as Target[]) if (energyCards(theirs(ctx, t)!).length) damageChosen(ctx, t, 30);
       },
     },
   },
@@ -536,7 +536,7 @@ export const DP6: Record<string, Record<string, AttackEffect>> = {
         const t = ctx.choices.oppTarget;
         const p = t === undefined ? null : theirs(ctx, t);
         if (!p || !inPlayDef(ctx.state.cards, p).power) return ctx.log('Core Flash did nothing.');
-        damageOpponent(ctx, t!, 50);
+        damageChosen(ctx, t!, 50);
       },
     },
   },
@@ -571,7 +571,7 @@ export const DP6: Record<string, Record<string, AttackEffect>> = {
           ctx.log(`Attached ${lookupCard(ctx.state.cards, card.defId).name} to ${pokemonName(ctx.state, p)}.`, ctx.opp.id);
           damage.set(t, (damage.get(t) ?? 0) + 20);
         });
-        for (const [t, amount] of damage) damageOpponent(ctx, t, amount);
+        for (const [t, amount] of damage) damageChosen(ctx, t, amount);
       },
     },
     'Dangerous Poison': {

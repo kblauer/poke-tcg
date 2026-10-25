@@ -13,7 +13,7 @@ import { pokemonPower, powerActive } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { clearSpecialConditions, hasSpecialCondition, inPlayDef, pokemonName } from '../status.js';
 import { isPokemonSP } from '../trainers.js';
-import { benchedSlots, damageOpponent, energyCards, headsUntilTails, inPlay, opponentBenchChoice, opponentTargets, same } from './common.js';
+import { benchedSlots, damageChosen, energyCards, headsUntilTails, inPlay, opponentBenchChoice, opponentTargets, same } from './common.js';
 import { DPP } from './dpp.js';
 import { EX1 } from './ex1.js';
 import { EX10 } from './ex10.js';
@@ -232,7 +232,7 @@ export const PL1: Record<string, Record<string, AttackEffect>> = {
     'Jet Smash': {
       choices: (s) => opponentTargets(s, "Choose one of your opponent's Pokémon to do 70 damage to"),
       run(ctx) {
-        damageOpponent(ctx, ctx.choices.oppTarget ?? 'active', 70);
+        damageChosen(ctx, ctx.choices.oppTarget ?? 'active', 70);
         notNextTurn(ctx, 'Jet Smash');
       },
     },
@@ -279,7 +279,7 @@ export const PL1: Record<string, Record<string, AttackEffect>> = {
   'pl1-30': {
     Wriggle: {
       run(ctx) {
-        for (const t of ['active', ...benchedSlots(ctx.opp.bench)] as Target[]) if (ctx.flip()) damageOpponent(ctx, t, 30);
+        for (const t of ['active', ...benchedSlots(ctx.opp.bench)] as Target[]) if (ctx.flip()) damageChosen(ctx, t, 30);
       },
     },
   },
@@ -325,7 +325,7 @@ export const PL1: Record<string, Record<string, AttackEffect>> = {
           ctx.opp.discard.push(...gone);
           ctx.log(`Discarded ${gone.map((c) => lookupCard(ctx.state.cards, c.defId).name).join(', ')} from ${pokemonName(ctx.state, p)}.`, ctx.opp.id);
         }
-        damageOpponent(ctx, t, 40);
+        damageChosen(ctx, t, 40);
       },
     },
   },
@@ -501,7 +501,7 @@ export const PL1: Record<string, Record<string, AttackEffect>> = {
       },
       run(ctx) {
         const heads = ctx.flips(2);
-        for (const s of [...new Set(ctx.choices.benchSlots ?? [-1])].slice(0, heads)) damageOpponent(ctx, s === -1 ? 'active' : s, 10);
+        for (const s of [...new Set(ctx.choices.benchSlots ?? [-1])].slice(0, heads)) damageChosen(ctx, s === -1 ? 'active' : s, 10);
       },
     },
   },
@@ -534,7 +534,7 @@ export const PL1: Record<string, Record<string, AttackEffect>> = {
       choices: (s) => opponentTargets(s, "Choose one of your opponent's Pokémon to do 20 damage to"),
       run(ctx) {
         const t = ctx.choices.oppTarget ?? 'active';
-        damageOpponent(ctx, t, theirs(ctx, t)?.damage ? 40 : 20);
+        damageChosen(ctx, t, theirs(ctx, t)?.damage ? 40 : 20);
       },
     },
   },
@@ -649,7 +649,7 @@ export const PL1: Record<string, Record<string, AttackEffect>> = {
       choices: (s) => opponentTargets(s, "Choose one of your opponent's Pokémon to do 80 damage to"),
       run(ctx) {
         discardOwnEnergy(ctx, 2, 'Hydro Shot');
-        damageOpponent(ctx, ctx.choices.oppTarget ?? 'active', 80);
+        damageChosen(ctx, ctx.choices.oppTarget ?? 'active', 80);
       },
     },
   },

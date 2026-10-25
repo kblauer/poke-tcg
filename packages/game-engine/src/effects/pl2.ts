@@ -11,7 +11,7 @@ import { hasType, isBasicEnergy, isPokemonCard, lookupCard, namesMatch } from '.
 import { afflictBetweenTurns, isEnergyCardOf, retireStadium, type InPlayPokemon, type Target } from '../engine.js';
 import { shuffle } from '../rng.js';
 import { clearSpecialConditions, evolvedFromName, hasSpecialCondition, inPlayDef, pokemonName } from '../status.js';
-import { benchedSlots, damageOpponent, energyCards, headsUntilTails, inPlay, opponentBenchChoice, opponentTargets, same } from './common.js';
+import { benchedSlots, damageChosen, energyCards, headsUntilTails, inPlay, opponentBenchChoice, opponentTargets, same } from './common.js';
 import { DP2 } from './dp2.js';
 import { DP4 } from './dp4.js';
 import { DP5 } from './dp5.js';
@@ -326,7 +326,7 @@ export const PL2: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         const t = ctx.choices.oppTarget;
         if (t === undefined || !theirs(ctx, t)?.damage) return ctx.log('Evolving Aqua did nothing.');
-        damageOpponent(ctx, t, evolvedNow(ctx) ? 60 : 40);
+        damageChosen(ctx, t, evolvedNow(ctx) ? 60 : 40);
       },
     },
   },
@@ -591,7 +591,7 @@ export const PL2: Record<string, Record<string, AttackEffect>> = {
   'pl2-95': {
     'Damage Porter': {
       choices: (s) => opponentTargets(s, "Choose one of your opponent's Pokémon to do the damage to"),
-      run: (ctx) => damageOpponent(ctx, ctx.choices.oppTarget ?? 'active', ctx.attacker.damage),
+      run: (ctx) => damageChosen(ctx, ctx.choices.oppTarget ?? 'active', ctx.attacker.damage),
     },
   },
   // Floatzel GL LV.X – Energy Cyclone: as Mysterious Treasures'.
@@ -606,7 +606,7 @@ export const PL2: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         const t = ctx.choices.oppTarget;
         if (t === undefined) return ctx.log('Extreme Attack did nothing: your opponent has no Pokémon LV.X.');
-        damageOpponent(ctx, t, 150);
+        damageChosen(ctx, t, 150);
       },
     },
   },

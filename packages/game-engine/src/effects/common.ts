@@ -38,6 +38,15 @@ export function damageOpponent(ctx: AttackContext, target: Target, amount: numbe
   else ctx.damageBenched(ctx.opp, target, amount);
 }
 
+/**
+ * Damage to one of the opponent's Pokémon, as the later sets print it ("Don't apply Weakness and Resistance for Benched
+ * Pokémon"): the Active one with Weakness and Resistance, a Benched one without.
+ */
+export function damageChosen(ctx: AttackContext, target: Target, amount: number) {
+  if (target === 'active') ctx.hit(amount);
+  else ctx.damageBenched(ctx.opp, target, amount);
+}
+
 /** "Choose 1 of your opponent's Pokémon": a choice of any of them. */
 export const opponentTargets = (s: AttackSituation, prompt: string): ChoiceSpec[] => [{ kind: 'opponentPokemon', options: targetsIn(s.defender, s.opponentBench), prompt }];
 

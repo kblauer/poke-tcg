@@ -14,7 +14,7 @@ import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { evolvedFromName, inPlayDef, pokemonName } from '../status.js';
 import { attachFromDiscard } from './neo3.js';
-import { benchedSlots, damageOpponent, energyCards, headsUntilTails, inPlay, opponentBenchChoice, opponentTargets, same, targetOf } from './common.js';
+import { benchedSlots, damageChosen, energyCards, headsUntilTails, inPlay, opponentBenchChoice, opponentTargets, same, targetOf } from './common.js';
 import { DP1, removeDefenderEnergy, shuffleIntoDeck } from './dp1.js';
 import { discardAtRandom, energyAmount, restNextTurn } from './ex1.js';
 import { discardOwn, energyCardOf } from './ex2.js';
@@ -64,7 +64,7 @@ const fromDiscard = (source: string, count: number, filter: 'energy' | 'any'): A
 const snipe = (amount: number, then?: (ctx: AttackContext) => void): AttackEffect => ({
   choices: (s) => opponentTargets(s, `Choose one of your opponent's Pokémon to do ${amount} damage to`),
   run(ctx) {
-    damageOpponent(ctx, ctx.choices.oppTarget ?? 'active', amount);
+    damageChosen(ctx, ctx.choices.oppTarget ?? 'active', amount);
     then?.(ctx);
   },
 });
@@ -611,7 +611,7 @@ export const DP2: Record<string, Record<string, AttackEffect>> = {
         const t = ctx.choices.oppTarget ?? 'active';
         const p = theirs(ctx, t);
         if (p && ctx.canAffect(ctx.opp, p)) while ((p.attached ?? []).some((a) => a.tool)) discardTool(ctx.state, ctx.opp, p);
-        damageOpponent(ctx, t, 20);
+        damageChosen(ctx, t, 20);
       },
     },
   },
@@ -642,7 +642,7 @@ export const DP2: Record<string, Record<string, AttackEffect>> = {
       choices: (s) => opponentTargets(s, "Choose one of your opponent's Pokémon to do 10 damage to for each heads"),
       run(ctx) {
         const heads = ctx.flips(energyAmount(ctx, ctx.attacker));
-        if (heads) damageOpponent(ctx, ctx.choices.oppTarget ?? 'active', 10 * heads);
+        if (heads) damageChosen(ctx, ctx.choices.oppTarget ?? 'active', 10 * heads);
       },
     },
   },

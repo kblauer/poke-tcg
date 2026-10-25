@@ -116,6 +116,14 @@ describe('Unleashed attacks', () => {
     expect([ash(s).active!.energy.map((e) => e.defId), ash(s).hand.filter((c) => c.defId === 'water').length, misty(s).active!.damage]).toEqual([['fire'], 2, 100]);
   });
 
+  it("Hydro Launcher: the Active Pokémon's Weakness applies (only Benched Pokémon go without)", () => {
+    let s = duel('charmander', 'onix');
+    put(s, 'ash', 'active', mon('hgss2-13', 'Blastoise', W, 130, [['Hydro Launcher', [C], 0]], { stage: 'stage2' }), ['water', 'water']);
+    put(s, 'misty', 'active', big('Snorlax', { weakness: { type: 'water', multiplier: 2 } }));
+    s = attack(s, 0, { oppTarget: 'active' });
+    expect(misty(s).active!.damage).toBe(200);
+  });
+
   it('Power Claw: nothing on the Defending Pokémon but Weakness and Resistance changes the damage', () => {
     const s = duel('charmander', 'onix');
     put(s, 'ash', 'active', mon('hgss2-88', 'Tyranitar', 'darkness', 160, [['Darkness Howl', [C], 0], ['Power Claw', [C], 60]], { stage: 'stage2' }), ['fire']);

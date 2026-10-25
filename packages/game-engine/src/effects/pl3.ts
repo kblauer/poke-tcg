@@ -12,7 +12,7 @@ import { energyPool, isSpecialEnergy, retireStadium, type InPlayPokemon, type Ta
 import { shuffle } from '../rng.js';
 import { inPlayDef, pokemonName } from '../status.js';
 import { isPokemonSP } from '../trainers.js';
-import { benchedSlots, damageOpponent, energyCards, inPlay, opponentBenchChoice, opponentTargets, same } from './common.js';
+import { benchedSlots, damageChosen, energyCards, inPlay, opponentBenchChoice, opponentTargets, same } from './common.js';
 import { discardOwnEnergy, removeDefenderEnergy } from './dp1.js';
 import { DP4 } from './dp4.js';
 import { DPP } from './dpp.js';
@@ -236,7 +236,7 @@ export const PL3: Record<string, Record<string, AttackEffect>> = {
     'Flame Jet': {
       choices: (s) => opponentTargets(s, "Choose one of your opponent's Pokémon (40 damage to it if heads)"),
       run(ctx) {
-        if (ctx.flip()) damageOpponent(ctx, ctx.choices.oppTarget ?? 'active', 40);
+        if (ctx.flip()) damageChosen(ctx, ctx.choices.oppTarget ?? 'active', 40);
       },
     },
   },
@@ -505,7 +505,7 @@ export const PL3: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         const tools = inPlay(ctx.opp).filter((p) => (p.attached ?? []).some((a) => a.tool)).length;
         const stadium = ctx.state.stadium?.owner === ctx.opp.id ? 1 : 0;
-        damageOpponent(ctx, ctx.choices.oppTarget ?? 'active', 30 * (tools + stadium));
+        damageChosen(ctx, ctx.choices.oppTarget ?? 'active', 30 * (tools + stadium));
       },
     },
   },

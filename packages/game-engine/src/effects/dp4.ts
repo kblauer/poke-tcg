@@ -11,7 +11,7 @@ import { pokemonPower } from '../powers.js';
 import { nextRandom, shuffle } from '../rng.js';
 import { clearSpecialConditions, evolvedFromName, inPlayDef, pokemonName } from '../status.js';
 import { useSupporterEffect } from '../trainers.js';
-import { basicEnergyOn, benchedSlots, damageOpponent, energyCards, inPlay, lure, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
+import { basicEnergyOn, benchedSlots, damageChosen, energyCards, inPlay, lure, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
 import { DP1, discardOwnEnergy, removeDefenderEnergy } from './dp1.js';
 import { DP3 } from './dp3.js';
 import { energyAmount } from './ex1.js';
@@ -59,7 +59,7 @@ export const DP4: Record<string, Record<string, AttackEffect>> = {
       choices: (s) => opponentTargets(s, "Choose one of your opponent's Pokémon to do 80 damage to"),
       run(ctx) {
         discardOwnEnergy(ctx, 2, 'Flame Kick', ['fire']);
-        damageOpponent(ctx, ctx.choices.oppTarget ?? 'active', 80);
+        damageChosen(ctx, ctx.choices.oppTarget ?? 'active', 80);
       },
     },
   },
@@ -128,7 +128,7 @@ export const DP4: Record<string, Record<string, AttackEffect>> = {
   'dp4-10': {
     'Power Whip': {
       choices: (s) => opponentTargets(s, "Choose one of your opponent's Pokémon to do damage to"),
-      run: (ctx) => damageOpponent(ctx, ctx.choices.oppTarget ?? 'active', 10 * basicEnergyOn(ctx.state.cards, ctx.attacker).length),
+      run: (ctx) => damageChosen(ctx, ctx.choices.oppTarget ?? 'active', 10 * basicEnergyOn(ctx.state.cards, ctx.attacker).length),
     },
   },
   // Togekiss – Air Scroll: heads, 30 more; tails, 3 damage counters off it.
@@ -405,7 +405,7 @@ export const DP4: Record<string, Record<string, AttackEffect>> = {
       choices: (s) => opponentTargets(s, "Choose one of your opponent's Pokémon to do 30 damage to"),
       run(ctx) {
         const picked = ctx.choices.oppTarget ?? 'active';
-        for (const t of ['active', ...benchedSlots(ctx.opp.bench)] as Target[]) damageOpponent(ctx, t, t === picked ? 30 : 10);
+        for (const t of ['active', ...benchedSlots(ctx.opp.bench)] as Target[]) damageChosen(ctx, t, t === picked ? 30 : 10);
       },
     },
   },

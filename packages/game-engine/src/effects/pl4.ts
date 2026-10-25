@@ -12,7 +12,7 @@ import { energyPool, type InPlayPokemon, type Target } from '../engine.js';
 import { shuffle } from '../rng.js';
 import { devolvable, inPlayDef, pokemonName, removeTopEvolution } from '../status.js';
 import { FOSSIL_NAMES } from '../trainers.js';
-import { benchedSlots, damageOpponent, energyCards, headsUntilTails, inPlay, opponentTargets, same } from './common.js';
+import { benchedSlots, damageChosen, energyCards, headsUntilTails, inPlay, opponentTargets, same } from './common.js';
 import { DP3 } from './dp3.js';
 import { discardOwnEnergy, removeDefenderEnergy } from './dp1.js';
 import { DPP } from './dpp.js';
@@ -274,7 +274,7 @@ export const PL4: Record<string, Record<string, AttackEffect>> = {
   'pl4-51': {
     'Cloak Shard': {
       choices: (s) => opponentTargets(s, "Choose one of your opponent's Pokémon to do the damage to"),
-      run: (ctx) => damageOpponent(ctx, ctx.choices.oppTarget ?? 'active', hasNamed(ctx, 'Wormadam Plant Cloak') ? 40 : 10),
+      run: (ctx) => damageChosen(ctx, ctx.choices.oppTarget ?? 'active', hasNamed(ctx, 'Wormadam Plant Cloak') ? 40 : 10),
     },
     'Serve Trash': {
       choices: (s): ChoiceSpec[] => ((s.opponentDiscard ?? []).length && !s.discardsLocked ? [{ kind: 'oppDiscard', options: s.opponentDiscard!, prompt: "Serve Trash: choose a card from your opponent's discard pile to put on top of their deck" }] : []),
@@ -298,7 +298,7 @@ export const PL4: Record<string, Record<string, AttackEffect>> = {
       choices: (s) => opponentTargets(s, "Choose one of your opponent's Pokémon to do 40 damage to"),
       run(ctx) {
         discardOwn(ctx, energyCards(ctx.attacker).filter((e) => energyCardOf(ctx.state.cards, e, 'lightning')));
-        damageOpponent(ctx, ctx.choices.oppTarget ?? 'active', 40);
+        damageChosen(ctx, ctx.choices.oppTarget ?? 'active', 40);
       },
     },
   },
@@ -363,7 +363,7 @@ export const PL4: Record<string, Record<string, AttackEffect>> = {
     'Sky Spear': {
       choices: (s) => opponentTargets(s, "Choose one of your opponent's Pokémon to do 80 damage to"),
       run(ctx) {
-        damageOpponent(ctx, ctx.choices.oppTarget ?? 'active', 80);
+        damageChosen(ctx, ctx.choices.oppTarget ?? 'active', 80);
         const lost = energyCards(ctx.attacker);
         ctx.attacker.energy = ctx.attacker.energy.filter((e) => !lost.includes(e));
         (ctx.me.lostZone ??= []).push(...lost.map(({ converted: _c, windless: _w, ...c }) => c));

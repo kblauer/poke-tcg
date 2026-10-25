@@ -13,7 +13,7 @@ import { counts, energyPool, isEnergyCardOf, isSpecialEnergy, retreatCost, type 
 import { discardsLocked } from '../powers.js';
 import { nextRandom, shuffle } from '../rng.js';
 import { effectId, evolvedFromName, inPlayDef, pokemonName } from '../status.js';
-import { benchedSlots, damageOpponent, energyCards, inPlay, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
+import { benchedSlots, damageChosen, energyCards, inPlay, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
 import { discardOwnEnergy } from './dp1.js';
 import { discardAtRandom, energyAmount, EX1, restNextTurn } from './ex1.js';
 import { discardOwn, energyCardOf } from './ex2.js';
@@ -201,7 +201,7 @@ export const DP3: Record<string, Record<string, AttackEffect>> = {
       choices: (s) => opponentTargets(s, "Choose one of your opponent's Pokémon to do 30 damage to for each heads"),
       run(ctx) {
         const heads = ctx.flips(2);
-        if (heads) damageOpponent(ctx, ctx.choices.oppTarget ?? 'active', 30 * heads);
+        if (heads) damageChosen(ctx, ctx.choices.oppTarget ?? 'active', 30 * heads);
       },
     },
   },
@@ -511,7 +511,7 @@ export const DP3: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         const t = ctx.choices.oppTarget ?? 'active';
         const p = theirs(ctx, t);
-        if (p) damageOpponent(ctx, t, 20 + 10 * energyAmount(ctx, p));
+        if (p) damageChosen(ctx, t, 20 + 10 * energyAmount(ctx, p));
       },
     },
   },
@@ -542,7 +542,7 @@ export const DP3: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         const heads = ctx.flips(4);
         const picks: Target[] = (ctx.choices.benchSlots ?? []).slice(0, heads).map((s) => (s === -1 ? 'active' : s));
-        for (const t of new Set(picks)) damageOpponent(ctx, t, 20 * picks.filter((p) => p === t).length);
+        for (const t of new Set(picks)) damageChosen(ctx, t, 20 * picks.filter((p) => p === t).length);
       },
     },
   },
