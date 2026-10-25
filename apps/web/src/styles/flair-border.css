@@ -243,6 +243,34 @@ div.flair-border {
   );
 }
 
+/*
+  Black on an evolved Pokémon: the art frame around its stage badge, which keeps its printed colours (the user's). The
+  frame and the art window both lose the badge's corner, cut along its lower-right edge: classic's starburst down to
+  y 146 and across to x 150, Neo's round badge (its rim sweeping into the top band) down to y 129 and across to x 106
+  (Base Set Wartortle, Neo Genesis Bayleef).
+*/
+.flair-border > [data-frame="classic"][data-banner="printed"][data-stage] {
+  clip-path: polygon(
+    evenodd,
+    0 0,
+    25% 10.42%, 91.5% 10.42%, 91.5% 52.97%, 8.67% 52.97%, 8.67% 17.7%, 14.67% 17.7%, 16.67% 16.48%, 18.67% 15.03%, 21.33% 14.3%, 24.33% 12.6%, 25% 10.42%,
+    0 0,
+    24.51% 12%, 89.17% 12%, 89.17% 51.39%, 11% 51.39%, 11% 17.7%, 14.67% 17.7%, 16.67% 16.48%, 18.67% 15.03%, 21.33% 14.3%, 24.33% 12.6%, 24.51% 12%,
+    0 0
+  );
+}
+
+.flair-border > [data-frame="neo"][data-banner="printed"][data-stage] {
+  clip-path: polygon(
+    evenodd,
+    0 0,
+    17.67% 10.42%, 91.17% 10.42%, 91.17% 52.97%, 8.67% 52.97%, 8.67% 15.64%, 11% 15.64%, 13% 15.03%, 14.33% 14.3%, 15.5% 13.58%, 16.5% 12.85%, 17.33% 12.12%, 17.67% 10.42%,
+    0 0,
+    17.35% 12%, 88.67% 12%, 88.67% 49.7%, 11.17% 49.7%, 11.17% 15.64%, 13% 15.03%, 14.33% 14.3%, 15.5% 13.58%, 16.5% 12.85%, 17.33% 12.12%, 17.35% 12%,
+    0 0
+  );
+}
+
 /* The filter's own element takes no room (the holo card's layer rules size everything in it). */
 .flair-border > .flair-border__defs {
   position: absolute;

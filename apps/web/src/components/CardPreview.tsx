@@ -55,7 +55,7 @@ export function CardPreview({ def, x, y, scrollZoom = true, from, mine = true, o
       {def.imageUrl ? (
         <div className="relative overflow-hidden rounded-xl">
           <CardImage src={`${def.imageUrl}/high.webp`} alt="" className="aspect-[63/88] w-full rounded-xl shadow-2xl ring-1 ring-black/40" />
-          {border && <FlairBorder border={border} cardId={def.id} img={`${def.imageUrl}/high.webp`} pokemon={def.kind === 'pokemon'} />}
+          {border && <FlairBorder border={border} cardId={def.id} img={`${def.imageUrl}/high.webp`} pokemon={def.kind === 'pokemon'} stage={def.kind === 'pokemon' && def.stage !== 'basic'} />}
         </div>
       ) : (
         <div className="aspect-[63/88] w-full rounded-xl bg-slate-800 p-4 text-lg font-semibold shadow-2xl">{def.name}</div>

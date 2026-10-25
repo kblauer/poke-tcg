@@ -69,9 +69,10 @@ const RIDGES = [
  * recoloured to go with it: a copy of the card's image (`img`, the one shown), clipped to them, whose yellow pixels are
  * mapped onto the gold, silver or black ramp (an SVG filter), the print on them kept; for the rainbows, the rainbow's
  * colour over that silver (the tint: rainbow wedges masked to the image's yellow pixels, `mix-blend-mode: color`); for
- * black, only the art frame (the banner's and tab's text would be lost on black).
+ * black, only the art frame (the banner's and tab's text would be lost on black), around an evolved Pokémon's stage
+ * badge (`stage`: the badge left as printed, the user's).
  */
-export function FlairBorder({ border, cardId, img, pokemon }: { border: string; cardId: string; img: string; pokemon: boolean }) {
+export function FlairBorder({ border, cardId, img, pokemon, stage = false }: { border: string; cardId: string; img: string; pokemon: boolean; stage?: boolean }) {
   const maskId = `flair-border-mask-${useId().replace(/[^\w-]/g, '')}`;
   const set = cardId.slice(0, cardId.lastIndexOf('-'));
   const era = setEra(set);
@@ -85,8 +86,17 @@ export function FlairBorder({ border, cardId, img, pokemon }: { border: string; 
       </div>
       {frame && (
         <>
-          {/* Black leaves the banner (and Neo's tab) as printed: their black text would be lost on black. */}
-          <img className="flair-border__frame" data-frame={frame} data-ramp={ramp} data-banner={ramp === 'black' ? 'printed' : undefined} src={img} alt="" draggable={false} />
+          {/* Black leaves the banner (and Neo's tab) as printed: their black text would be lost on black; and an evolved Pokémon's stage badge (`data-stage`). */}
+          <img
+            className="flair-border__frame"
+            data-frame={frame}
+            data-ramp={ramp}
+            data-banner={ramp === 'black' ? 'printed' : undefined}
+            data-stage={stage ? '' : undefined}
+            src={img}
+            alt=""
+            draggable={false}
+          />
           {rainbow && (
             <svg className="flair-border__tint" data-frame={frame} viewBox={`0 0 ${SCAN.w} ${SCAN.h}`} preserveAspectRatio="xMidYMid slice">
               <mask id={maskId} maskUnits="userSpaceOnUse" x="0" y="0" width={SCAN.w} height={SCAN.h}>
