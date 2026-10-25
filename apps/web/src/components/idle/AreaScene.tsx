@@ -1,7 +1,7 @@
 import { AREAS, mapView, type WalkArea } from '@poke-tcg/idle';
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
-import type { Playback } from '../../hooks/useIdle';
+import { placeTrack, type Playback } from '../../hooks/useIdle';
 import type { Facing } from '../../utils/overworld';
 import { DialogueBox, dialogueKey, type Dialogue } from '../DialogueBox';
 import { Exclamation, OverworldSprite } from '../run/RouteSprites';
@@ -116,7 +116,9 @@ export function AreaScene({ playback, gender, dialogue, children }: { playback: 
   const area = place && (AREAS[place.area] as WalkArea | undefined);
   if (!place || !area || !('legs' in area)) return <div className="mx-auto w-full rounded-lg bg-slate-900 ring-1 ring-slate-700" style={sceneSize(phone)}>{children}</div>;
   const leg = area.legs[Math.min(place.leg, area.legs.length - 1)]!;
-  const [m, x, y, , tileCode] = leg.track[Math.min(place.step, leg.track.length - 1)]!;
+  // Grinding, the step round the town's loop (on one of the leg's maps).
+  const track = placeTrack(place);
+  const [m, x, y, , tileCode] = track[Math.min(place.step, track.length - 1)]!;
   const map = mapView(leg.maps[m]!);
   const water = tileCode[1] === 'w' || tileCode[1] === 'p';
   const base = gender === 'female' ? 'leaf' : 'red';

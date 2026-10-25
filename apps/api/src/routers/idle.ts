@@ -1,5 +1,5 @@
 import { prisma } from '@poke-tcg/db';
-import { AREAS, applyIdleAction, areaIndex, CATCH_UP_CAP_MS, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, simulateSegment, starterOptions, STARTERS, visitStore, type IdleSettings, type Stats } from '@poke-tcg/idle';
+import { AREAS, applyIdleAction, areaIndex, CATCH_UP_CAP_MS, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, simulateSegment, starterOptions, STARTERS, visitStore, type IdleSettings, type Stats } from '@poke-tcg/idle';
 import { idleActInput, idleRunInput, idleSettingsInput, idleWarpInput, startIdleInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { asJson, newSeed } from '../games.js';
@@ -90,7 +90,7 @@ export const idleRouter = router({
     // The cap is on the whole absence, not each call: time before the last 8 hours isn't played.
     const from = Math.max(run.simulatedAt.getTime(), now - CATCH_UP_CAP_MS);
     const elapsed = now - from;
-    if (run.state.phase !== 'walking' || elapsed <= 0) return { run: clientIdleRun(run), summary: null, more: false };
+    if (!playing(run.state) || elapsed <= 0) return { run: clientIdleRun(run), summary: null, more: false };
     const settings = await idleSettings(ctx.user.id);
     const caught = new Set(await caughtSpecies(ctx.user.id));
     const { state, summary, dex } = catchUp(run.state, settings, caught, elapsed);
@@ -102,7 +102,7 @@ export const idleRouter = router({
     return { run: clientIdleRun(saved), summary, more };
   }),
 
-  /** The player's choices: in a town (gym, store, buying, on), the party's order and moves, stones, giving up. */
+  /** The player's choices: in a town (gym, grinding, store, buying, on), the party's order and moves, stones, giving up. */
   act: protectedProcedure.input(idleActInput).mutation(async ({ ctx, input }) => {
     const run = await loadOwnIdleRun(input.runId, ctx.user.id);
     checkVersion(run, input.expectedVersion);
@@ -116,7 +116,7 @@ export const idleRouter = router({
       events = visited.events;
     }
     // Leaving a town starts the clock again from now (time spent waiting there isn't played).
-    const leaving = input.action.type === 'GYM' || input.action.type === 'CONTINUE';
+    const leaving = input.action.type === 'GYM' || input.action.type === 'CONTINUE' || input.action.type === 'GRIND';
     const saved = await saveIdleRun(run, state, { dex: partyNotes(state.party), ...(leaving && { simulatedAt: new Date() }) });
     return { run: clientIdleRun(saved), events };
   }),
@@ -147,6 +147,7 @@ export const idleRouter = router({
     if (index < 0) throw failed('Unknown area');
     const state = structuredClone(run.state);
     Object.assign(state, { area: index, leg: 0, step: 0, beaten: [], phase: isTown(AREAS[index]!) ? 'town' : 'walking', version: state.version + 1 });
+    delete state.grind;
     state.log.push(`Debug: warped to ${AREAS[index]!.name}.`);
     return clientIdleRun(await saveIdleRun(run, state, { simulatedAt: new Date() }));
   }),

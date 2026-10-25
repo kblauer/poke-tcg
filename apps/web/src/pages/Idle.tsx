@@ -15,7 +15,7 @@ import { Pokedex } from '../components/idle/Pokedex';
 import { StarterScene } from '../components/idle/StarterScene';
 import { Store, TownMenu } from '../components/idle/TownMenu';
 import { useEscape } from '../hooks/useEscape';
-import { useIdleActions, useIdleOverview, useIdlePlayback, type ClientIdleRun } from '../hooks/useIdle';
+import { placeOf, placeTrack, useIdleActions, useIdleOverview, useIdlePlayback, type ClientIdleRun } from '../hooks/useIdle';
 import { useRun } from '../hooks/useRun';
 import { useToasts } from '../hooks/useToasts';
 import { DEBUG_BUILD, useDebugEnabled, useDebugStatus } from '../utils/debug';
@@ -80,13 +80,14 @@ function IdleAdventure() {
   // lab with no run under way (its starters), otherwise the map's own song; Surfing on any water the player surfs (cave
   // water too), but on Route 23, Victory Road and the Indigo Plateau (Overworld_MusicCanOverrideMapMusic); the bike's on
   // the Cycling Road (Route 17), where the game puts the player on the bike.
-  const place = active ? (play.place ?? { area: active.view.area, leg: active.view.leg, step: active.view.step }) : null;
+  const place = active ? (play.place ?? placeOf(active.view)) : null;
   const area = place ? AREAS[place.area] : null;
   let mapName: string | null = active ? null : 'PalletTown_ProfessorOaksLab';
   let surfing = false;
   if (area && 'legs' in area) {
     const leg = area.legs[Math.min(place!.leg, area.legs.length - 1)]!;
-    const step = leg.track[Math.min(place!.step, leg.track.length - 1)]!;
+    const track = placeTrack(place!);
+    const step = track[Math.min(place!.step, track.length - 1)]!;
     mapName = leg.maps[step[0]]!;
     surfing = (step[4][1] === 'w' || step[4][1] === 'p') && !/^(Route23|VictoryRoad_|IndigoPlateau_)/.test(mapName);
   } else if (area && 'map' in area) mapName = area.map;
@@ -121,9 +122,17 @@ function IdleAdventure() {
     <div className={`${PAGE_WIDTH} space-y-4`}>
       <PageHeader
         title="Idle Adventure"
-        info={active && v ? `${v.areaName} · ${v.badges.length} badge${v.badges.length === 1 ? '' : 's'} · ₱${commas(v.money)}` : 'Walk Kanto from Pallet Town to the Indigo Plateau'}
+        info={active && v ? `${v.areaName}${v.phase === 'grinding' ? ` (grinding to Lv. ${v.grindTarget})` : ''} · ${v.badges.length} badge${v.badges.length === 1 ? '' : 's'} · ₱${commas(v.money)}` : 'Walk Kanto from Pallet Town to the Indigo Plateau'}
         actions={
           active ? (
+            <span className="flex items-center gap-2">
+              {/* Grinding (the user's): back to the town's choice. */}
+              {v?.phase === 'grinding' && (
+                <button className={BUTTON} disabled={actions.busy} onClick={() => void act({ type: 'STOP_GRIND' })}>
+                  Stop grinding
+                </button>
+              )}
+              {
             confirmQuit ? (
               <span className="flex items-center gap-2 text-sm">
                 Give up this run? Its ₱ go to the bank.
@@ -138,7 +147,8 @@ function IdleAdventure() {
               <button className={BUTTON} onClick={() => setConfirmQuit(true)}>
                 Give up
               </button>
-            )
+            )}
+            </span>
           ) : undefined
         }
       />
@@ -180,6 +190,7 @@ function IdleAdventure() {
           gender={gender}
           busy={actions.busy}
           onGym={() => (setStore(false), void act({ type: 'GYM' }))}
+          onGrind={() => (setStore(false), void act({ type: 'GRIND' }))}
           onStore={() => (setStore(true), void act({ type: 'VISIT_STORE' }))}
           onContinue={() => (setStore(false), void act({ type: 'CONTINUE' }))}
           dialogue={catchUp}

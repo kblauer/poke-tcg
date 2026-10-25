@@ -1,5 +1,5 @@
 import type { AppRouter } from '@poke-tcg/api/router';
-import { AREAS, FADE_MS, STEP_MS, TICK_MS, type CatchUpSummary, type IdleAction, type IdleSettings, type SegmentEvent, type WalkArea } from '@poke-tcg/idle';
+import { AREAS, areaIndex, FADE_MS, playing, STEP_MS, TICK_MS, type CatchUpSummary, type IdleAction, type IdleSettings, type SegmentEvent, type TownArea, type TrackStep, type WalkArea } from '@poke-tcg/idle';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type { inferRouterOutputs } from '@trpc/server';
@@ -50,12 +50,29 @@ export function useIdleActions() {
   };
 }
 
-/** Where the player stands on the scene: the area, its leg and the step along its track. */
+/** Where the player stands on the scene: the area, its leg and the step along its track; grinding, `grind` (the town) and the step round its loop. */
 export interface Place {
   area: number;
   leg: number;
   step: number;
+  grind?: number;
 }
+
+/** The track a place's step is on: its leg's, or grinding, the town's loop (TownArea.grind). */
+export function placeTrack(place: Place): TrackStep[] {
+  if (place.grind !== undefined) return (AREAS[place.grind] as TownArea).grind!.loop;
+  const area = AREAS[place.area] as WalkArea;
+  return area.legs[Math.min(place.leg, area.legs.length - 1)]!.track;
+}
+
+/** The place on a town's grind loop at its step `at`. */
+function grindPlace(town: number, at: number): Place {
+  const grind = (AREAS[town] as TownArea).grind!;
+  return { area: areaIndex(grind.area), leg: grind.leg, step: at, grind: town };
+}
+
+/** Where a run stands: its area's step, or grinding, its step round the town's loop. */
+export const placeOf = (view: ClientIdleRun['view']): Place => (view.phase === 'grinding' && view.grind ? grindPlace(view.area, view.grind.at) : { area: view.area, leg: view.leg, step: view.step });
 
 /** What the scene shows while a run plays back (useIdlePlayback). */
 export interface Playback {
@@ -140,14 +157,14 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
   /** Bumped to start the playback again after an error. */
   const [restart, setRestart] = useState(0);
   const runId = run?.id ?? null;
-  const walking = run?.status === 'ACTIVE' && run.view.phase === 'walking';
+  const walking = run?.status === 'ACTIVE' && playing(run.view);
   // A hidden tab stops the playback (the browser slows its timers, so it would fall behind and the time be lost); shown
   // again, it starts over, catching up the time it was hidden as after the page was closed (the user's).
   const visible = useTabVisible();
 
   useEffect(() => {
     if (!run || !walking) {
-      if (run) update({ place: { area: run.view.area, leg: run.view.leg, step: run.view.step }, battle: null, spotted: null });
+      if (run) update({ place: placeOf(run.view), battle: null, spotted: null });
       return;
     }
     if (!visible) return;
@@ -173,10 +190,10 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
     };
 
     async function walk(e: Extract<SegmentEvent, { t: 'walk' }>, place: Place) {
-      const leg = (AREAS[place.area] as WalkArea).legs[place.leg]!;
+      const track = placeTrack(place);
       for (let i = e.from + 1; i <= e.to; i++) {
-        const [m, x, y, flags] = leg.track[i]!;
-        const [pm, px, py] = leg.track[i - 1]!;
+        const [m, x, y, flags] = track[i]!;
+        const [pm, px, py] = track[i - 1]!;
         if (flags & 1 || m !== pm) {
           // As long as the server counts it: the step and the fade.
           update({ fading: true });
@@ -198,6 +215,19 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
         await wait(STEP_MS * (jump ? 2 : 1));
       }
       place.step = e.to;
+    }
+
+    /** Steps round a grind loop (the user's: running in a circle), a step each STEP_MS. */
+    async function circle(e: Extract<SegmentEvent, { t: 'circle' }>, place: Place) {
+      const loop = placeTrack(place);
+      for (let k = 1; k <= e.steps; k++) {
+        const i = (e.from + k) % loop.length;
+        const [, x, y] = loop[i]!;
+        const [, px, py] = loop[(i + loop.length - 1) % loop.length]!;
+        setPlay((old) => ({ ...old, place: { ...place, step: i }, face: faceOf(x - px, y - py, old.face), walkTick: old.walkTick + 1, moveMs: STEP_MS }));
+        await wait(STEP_MS);
+        place.step = i;
+      }
     }
 
     async function battle(e: BattleSegment) {
@@ -249,14 +279,15 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
     }
 
     /** The place on screen (the walk moves its step along). */
-    let shown: Place = { area: current.view.area, leg: current.view.leg, step: current.view.step };
+    let shown: Place = placeOf(current.view);
 
     async function playSegment(events: SegmentEvent[]) {
       let place: Place | null = null;
       for (const e of events) {
-        if (e.t === 'area') {
-          const changed = shown.area !== e.area || shown.leg !== e.leg;
-          place = { area: e.area, leg: e.leg, step: e.step };
+        if (e.t === 'area' || e.t === 'grind') {
+          const next = e.t === 'grind' ? grindPlace(e.town, e.at) : { area: e.area, leg: e.leg, step: e.step };
+          const changed = shown.area !== next.area || shown.leg !== next.leg || shown.grind !== next.grind;
+          place = next;
           shown = place;
           if (changed) {
             update({ fading: true });
@@ -266,6 +297,8 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
           } else update({ place: { ...place }, moveMs: 0 });
         } else if (e.t === 'walk' && place) {
           await walk(e, place);
+        } else if (e.t === 'circle' && place) {
+          await circle(e, place);
         } else if (e.t === 'spotted') {
           update({ spotted: e.trainer });
           await wait(1500);
@@ -287,7 +320,7 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
 
     (async () => {
       try {
-        update({ place: { area: current.view.area, leg: current.view.leg, step: current.view.step } });
+        update({ place: placeOf(current.view) });
         // Offline catch-up first: the time since it was last played, a share at a time.
         let total: CatchUpSummary | null = null;
         for (let more = true; more; ) {
@@ -300,10 +333,10 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
         }
         if (total && total.segments > 0) {
           if (total.durationMs >= CATCH_UP_TOLD_MS) setSummary(total);
-          shown = { area: current.view.area, leg: current.view.leg, step: current.view.step };
+          shown = placeOf(current.view);
           update({ place: { ...shown } });
         }
-        while (!stopped && current.status === 'ACTIVE' && current.view.phase === 'walking') {
+        while (!stopped && current.status === 'ACTIVE' && playing(current.view)) {
           let r;
           try {
             r = await next.mutateAsync({ runId: current.id, expectedVersion: newest().version });

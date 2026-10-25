@@ -577,6 +577,54 @@ def terrain(m, x, y):
     return '.'
 
 
+# ---- Auto-grind (the user's): a loop near the exit of the area before a gym's town ----
+# Rings (w × h) tried for the loop, the roundest first: a ring's tiles walked clockwise, each a step from the next.
+RINGS = [(3, 3), (4, 3), (3, 4), (2, 3), (3, 2), (2, 2)]
+
+
+def ring(x, y, w, h):
+    return [(x + i, y) for i in range(w)] + [(x + w - 1, y + j) for j in range(1, h)] + [(x + i, y + h - 1) for i in range(w - 2, -1, -1)] + [(x, y + j) for j in range(h - 2, 0, -1)]
+
+
+def grind_loop(names, grids, track):
+    """The loop a grind runs round (agreed with the user: in a circle near the area's exit): the ring of walkable tiles
+    with wild encounters of one kind (and one battle terrain) fewest steps from the leg's last step, rounder rings
+    winning a tie or a step or two, starting on its tile nearest the exit. Steps as a track's ([map, x, y, 0, tile]);
+    None when the leg has no such ring."""
+    def tile(n):
+        m = grids[n[0]].m
+        return {1: 'l', 2: 'w'}.get(m.encounter(n[1], n[2]), '.') + terrain(m, n[1], n[2])
+    links = build_links(names, grids)
+    end = track[-1][0]
+    dist = {end: 0}
+    q = collections.deque([end])
+    while q:
+        n = q.popleft()
+        for to, _ in neighbours(grids, links, n):
+            if to not in dist:
+                dist[to] = dist[n] + 1
+                q.append(to)
+    best = None
+    for mi, g in enumerate(grids):
+        m = g.m
+        for k, (w, h) in enumerate(RINGS):
+            for y in range(m.h - h + 1):
+                for x in range(m.w - w + 1):
+                    tiles = ring(x, y, w, h)
+                    nodes = [(mi, tx, ty) for tx, ty in tiles]
+                    if not all(n in dist and (n[1], n[2]) not in g.warp_tiles and m.encounter(n[1], n[2]) in (1, 2) for n in nodes):
+                        continue
+                    if len({tile(n) for n in nodes}) != 1:
+                        continue
+                    if not all(elev_ok(m, a[1], a[2], b[1], b[2]) for a, b in zip(nodes, nodes[1:] + nodes[:1])):
+                        continue
+                    near = min(range(len(nodes)), key=lambda i: dist[nodes[i]])
+                    score = (dist[nodes[near]] + k, k)
+                    if best is None or score < best[0]:
+                        best = (score, nodes[near:] + nodes[:near])
+    return best and [[n[0], n[1], n[2], 0, tile(n)] for n in best[1]]
+
+
 def js(v):
     if isinstance(v, str):
         return "'" + v.replace('\\', '\\\\').replace("'", "\\'") + "'"
@@ -613,6 +661,9 @@ def main():
     out_areas = []
     sprites = set()
     used_maps = {}
+    # The last walked area's legs (where a gym's town grinds: its last leg, or an earlier one when the last has no wild
+    # Pokémon, as Route 23's stretch after Victory Road).
+    last_legs = []
     for a in AREAS:
         if a['kind'] == 'town':
             used_maps.setdefault(a['map'], Grid(load(a['map']), False))
@@ -620,9 +671,19 @@ def main():
             pc = next((w for w in m.warps if 'POKEMON_CENTER_1F' in w['dest_map']), m.warps[0])
             out_areas.append({'id': a['id'], 'name': a['name'], 'kind': 'town', 'map': a['map'], 'stand': [pc['x'], pc['y'] + 1],
                               'marts': a['marts'], 'gym': a['gym']})
+            if a['gym'] and last_legs:
+                for area_id, li, names, grids, track in reversed(last_legs):
+                    loop = grind_loop(names, grids, track)
+                    if loop:
+                        out_areas[-1]['grind'] = {'area': area_id, 'leg': li, 'loop': loop}
+                        print(' ', a['id'], 'grinds on', area_id, 'leg', li, names[loop[0][0]], loop[0][1:3])
+                        break
+                else:
+                    raise SystemExit(f"{a['id']}: no loop to grind on")
             continue
         legs = []
         trainers = []
+        last_legs = []
         for lg in a['legs']:
             if lg['end'] is None:
                 lg['end'] = lg['start']
@@ -637,6 +698,7 @@ def main():
                 mm = grids[node[0]].m
                 return {1: 'l', 2: 'w'}.get(mm.encounter(node[1], node[2]), '.') + terrain(mm, node[1], node[2])
             legs.append({'maps': names, 'track': [[n[0], n[1], n[2], f, tile(n)] for n, f in track]})
+            last_legs.append((a['id'], len(legs) - 1, names, grids, track))
             for t in order:
                 sprites.add(t['gfx'])
                 trainers.append({'key': t['key'], 'leg': len(legs) - 1, 'map': t['map'], 'x': t['x'], 'y': t['y'], 'face': t['face'], 'sprite': sprite_name(t['gfx']),

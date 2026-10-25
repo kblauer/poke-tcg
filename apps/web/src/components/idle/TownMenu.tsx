@@ -1,4 +1,4 @@
-import { AREAS, areaById, ITEMS, mapView, type TownArea } from '@poke-tcg/idle';
+import { AREAS, areaById, ITEMS, mapView, topLevel, type TownArea } from '@poke-tcg/idle';
 import { useState } from 'react';
 import type { ClientIdleRun } from '../../hooks/useIdle';
 import { commas } from '../../utils/math';
@@ -9,14 +9,17 @@ import { MapScene } from './AreaScene';
 
 /**
  * A town (README: Idle Adventure): its map with the player before the Pokémon Center, and the choice the run waits for
- * (agreed with the user): the gym (or the League), the store, or on to the next route once the gym is beaten, as the
- * choices of a question in the text box (DialogueBox); `dialogue` in its place (the catch-up's pages).
+ * (agreed with the user): the gym (or the League), grinding for it (the user's: training on the route before the town
+ * up to the gym's highest level, then into the gym; greyed out once the party is there), the store, or on to the next
+ * route once the gym is beaten, as the choices of a question in the text box (DialogueBox); `dialogue` in its place (the
+ * catch-up's pages).
  */
 export function TownMenu({
   run,
   gender,
   busy,
   onGym,
+  onGrind,
   onStore,
   onContinue,
   dialogue,
@@ -25,6 +28,7 @@ export function TownMenu({
   gender: 'male' | 'female';
   busy: boolean;
   onGym: () => void;
+  onGrind: () => void;
   onStore: () => void;
   onContinue: () => void;
   dialogue?: Dialogue | null;
@@ -35,14 +39,16 @@ export function TownMenu({
   const badge = gym && gym.kind === 'gym' ? gym.badge! : null;
   const gymDone = !gym || (badge !== null && run.view.badges.includes(badge));
   const league = gym?.kind === 'league';
-  const options: { label: string; act: () => void }[] = [
+  const target = run.view.grindTarget;
+  const options: { label: string; act: () => void; disabled?: boolean }[] = [
     ...(gym && !gymDone ? [{ label: league ? 'Challenge the Elite Four' : 'Gym', act: onGym }] : []),
+    ...(gym && !gymDone && town.grind && target ? [{ label: `Grind to Lv. ${target}`, act: onGrind, disabled: topLevel(run.view.party) >= target }] : []),
     ...(town.marts.length > 0 ? [{ label: 'Store', act: onStore }] : []),
     ...(gymDone && !league ? [{ label: 'Continue', act: onContinue }] : []),
   ];
   const question: Dialogue = {
     text: `${town.name}. ${gymDone ? (league ? '' : 'Where to next?') : league ? 'The Pokémon League awaits.' : `${gym?.name} is here.`}`.trim(),
-    choices: options.map((o) => ({ label: o.label, disabled: busy })),
+    choices: options.map((o) => ({ label: o.label, disabled: busy || o.disabled })),
     answer: (i) => options[i]!.act(),
   };
   return <MapScene image={map.image} width={map.width} height={map.height} tile={{ x: town.stand[0], y: town.stand[1] }} player={gender === 'female' ? 'leaf' : 'red'} face="down" moveMs={0} dialogue={dialogue ?? question} />;

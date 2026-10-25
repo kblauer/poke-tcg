@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AREAS, isTown, type WalkArea } from './areas.js';
-import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, simulateSegment, storeStock, visitStore, type IdleSettings, type IdleState } from './idle.js';
+import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, grindTarget, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState } from './idle.js';
 
 /** A player who goes into every gym and on, and keeps a few Potions and Poké Balls in the bag. */
 function townChoice(state: IdleState): IdleState {
@@ -64,6 +64,12 @@ describe('an idle run', () => {
     }
   });
 
+  it('plays to the Champion with auto-grind, each gym at its highest level or more', { timeout: 120000 }, () => {
+    const { state, segments } = play(3, { ...DEFAULT_IDLE_SETTINGS, autoGrind: true }, 40000);
+    expect(state.phase, `${state.phase} in ${AREAS[state.area]!.id} after ${segments} segments`).toBe('won');
+    expect(topLevel(state.party)).toBeGreaterThanOrEqual(grindTarget(AREAS.findIndex((a) => a.id === 'indigo-plateau'), state.rivalStarter)!);
+  });
+
   it('catches up offline until a town', () => {
     const s = createIdleRun({ species: 7 }, 9);
     const { state, summary } = catchUp(s, DEFAULT_IDLE_SETTINGS, new Set(), 60 * 60 * 1000, 1000);
@@ -85,6 +91,68 @@ describe('an idle run', () => {
     expect(leg.maps[leg.track[s.step]![0]]).toBe('PalletTown');
     expect(leg.track[s.step]!.slice(1, 3)).toEqual([6, 8]);
     expect(leg.maps.at(-1)).toBe('Route1');
+  });
+
+  it('has a grind loop before every gym: a ring of wild encounter tiles, each a step from the next', () => {
+    for (const town of AREAS.filter(isTown).filter((t) => t.gym)) {
+      const grind = town.grind!;
+      expect(grind, town.id).toBeDefined();
+      // The area walked just before the town.
+      expect(AREAS[AREAS.indexOf(town) - 1]!.id, town.id).toBe(grind.area);
+      const loop = grind.loop;
+      expect(loop.length, town.id).toBeGreaterThanOrEqual(4);
+      loop.forEach(([m, x, y, , tile], i) => {
+        const [nm, nx, ny] = loop[(i + 1) % loop.length]!;
+        expect(nm, town.id).toBe(m);
+        expect(Math.abs(nx - x) + Math.abs(ny - y), town.id).toBe(1);
+        expect('lw', town.id).toContain(tile[0]);
+      });
+    }
+  });
+
+  it("grinds to the gym's highest level (Brock's Onix, Lv. 14), then goes into the gym", () => {
+    const pewter = AREAS.findIndex((a) => a.id === 'pewter-city');
+    expect(grindTarget(pewter, 'charmander')).toBe(14);
+    const start = { ...createIdleRun({ species: 4 }, 4), area: pewter, phase: 'town' as const };
+    const grinding = applyIdleAction(start, { type: 'GRIND' });
+    expect(grinding.ok).toBe(true);
+    let state = (grinding as { state: IdleState }).state;
+    expect(state.phase).toBe('grinding');
+    let segments = 0;
+    while (state.phase === 'grinding' && segments < 500) {
+      const next = simulateSegment(state, DEFAULT_IDLE_SETTINGS, new Set())!;
+      expect(next.segment.events[0]!.t).toBe('grind');
+      state = next.state;
+      segments++;
+    }
+    // A white-out ends it in town; otherwise it reached the level and went into Pewter Gym.
+    if (state.phase === 'town') expect(state.totals.whiteOuts).toBeGreaterThan(0);
+    else {
+      expect(AREAS[state.area]!.id).toBe('pewter-gym');
+      expect(topLevel(state.party)).toBeGreaterThanOrEqual(14);
+    }
+    expect(applyIdleAction({ ...start, party: [{ ...start.party[0]!, level: 14 }] }, { type: 'GRIND' }).ok).toBe(false);
+  });
+
+  it('stops grinding back in town', () => {
+    const pewter = AREAS.findIndex((a) => a.id === 'pewter-city');
+    const s = (applyIdleAction({ ...createIdleRun({ species: 1 }, 2), area: pewter, phase: 'town' }, { type: 'GRIND' }) as { state: IdleState }).state;
+    const back = applyIdleAction(s, { type: 'STOP_GRIND' });
+    expect(back.ok && back.state.phase).toBe('town');
+    expect(back.ok && back.state.grind).toBeUndefined();
+  });
+
+  it('auto-grinds on reaching a gym town, and with the level reached, goes into the gym', () => {
+    // Route 2's end, the step before Pewter City.
+    const route2 = AREAS.findIndex((a) => a.id === 'route-2');
+    const leg = (AREAS[route2] as WalkArea).legs.length - 1;
+    const base = createIdleRun({ species: 4 }, 6);
+    const end = { ...base, area: route2, leg, step: (AREAS[route2] as WalkArea).legs[leg]!.track.length - 1, beaten: (AREAS[route2] as WalkArea).trainers.map((t) => t.key) };
+    const auto = { ...DEFAULT_IDLE_SETTINGS, autoGrind: true };
+    expect(simulateSegment(end, auto, new Set())!.state.phase).toBe('grinding');
+    expect(simulateSegment(end, DEFAULT_IDLE_SETTINGS, new Set())!.state.phase).toBe('town');
+    const strong = { ...end, party: [{ ...end.party[0]!, level: 20 }] };
+    expect(AREAS[simulateSegment(strong, auto, new Set())!.state.area]!.id).toBe('pewter-gym');
   });
 
   it('refuses what a town doesn\'t allow', () => {

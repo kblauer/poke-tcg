@@ -8,6 +8,8 @@ export const idleActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('GYM') }),
   z.object({ type: z.literal('CONTINUE') }),
   z.object({ type: z.literal('VISIT_STORE') }),
+  z.object({ type: z.literal('GRIND') }),
+  z.object({ type: z.literal('STOP_GRIND') }),
   z.object({ type: z.literal('BUY'), item: z.string().min(1).max(40), count: z.number().int().min(1).max(99) }),
   z.object({ type: z.literal('SET_ORDER'), uids: z.array(uid).min(1).max(6) }),
   z.object({ type: z.literal('SET_SLOTS'), uid, slots: z.array(z.string().min(1).max(40)).max(3), auto: z.boolean().optional() }),
@@ -22,6 +24,7 @@ export const idleSettingsSchema = z.object({
   stopWhenFull: z.boolean(),
   replaceLowest: z.boolean(),
   autoEvolve: z.boolean(),
+  autoGrind: z.boolean(),
 }) satisfies z.ZodType<IdleSettings>;
 
 /** A new run: its starter (one of the three, or a species the account's Pokédex has caught, from the second run on), shiny if one was caught. */

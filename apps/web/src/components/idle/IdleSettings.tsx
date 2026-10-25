@@ -14,7 +14,7 @@ const REVIVES: [RevivePolicy, string][] = [
  * waits on the player. They apply from the next battle. The run always goes at one pace (no speed setting: agreed).
  */
 export function IdleSettings({ settings, busy, onChange }: { settings: Settings; busy: boolean; onChange: (s: Partial<Settings>) => void }) {
-  const toggle = (key: 'autoHeal' | 'stopWhenFull' | 'replaceLowest' | 'autoEvolve', label: string, note: string) => (
+  const toggle = (key: 'autoHeal' | 'stopWhenFull' | 'replaceLowest' | 'autoEvolve' | 'autoGrind', label: string, note: string) => (
     <label className="flex items-start gap-2 text-sm">
       <input type="checkbox" className="mt-1" checked={settings[key]} disabled={busy} onChange={(e) => onChange({ [key]: e.target.checked })} />
       <span>
@@ -53,6 +53,7 @@ export function IdleSettings({ settings, busy, onChange }: { settings: Settings;
       {toggle('stopWhenFull', 'Stop catching', 'Wild Pokémon are only marked seen.')}
       {toggle('replaceLowest', 'Replace the lowest-level Pokémon', 'Its best stats go to the Pokédex first. With neither, a catch is registered and released.')}
       {toggle('autoEvolve', 'Auto-evolve with stones', "At Celadon's store, buys a stone for each Pokémon that can use one and uses it at once.")}
+      {toggle('autoGrind', 'Auto-grind before each gym', "Reaching a gym's town, trains on the route before it until your highest-level Pokémon matches the gym's highest (the Elite Four's and Champion's at the Indigo Plateau), then goes into the gym. After a white-out, waits in town.")}
     </div>
   );
 }
