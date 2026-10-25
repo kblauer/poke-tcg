@@ -254,6 +254,8 @@ export interface PokemonEffects {
   midnightEyes?: number;
   /** Link Lightning: the turn it used Voltage Shoot and may attack once more. */
   linkLightning?: number;
+  /** Moonlight Fang: attacks of the opponent's Pokémon with a Poké-Power or Poké-Body do nothing to it, through this turn. */
+  moonlightFang?: number;
   /** Invisible Tentacles: the turn its player discarded a card for the attack under way. */
   tentaclesPaid?: number;
   /** The turn it was attacked with Night Eyes (Perish Song); benching or evolving it ends this. */
@@ -749,6 +751,8 @@ function sameCardAnswer(state: GameState): { player: PlayerId; action: GameActio
   if (!takes && !SAME_CARD_MUSTS.has(choice.kind)) return null;
   // Challenge! and Gift: the other player's search waits (`then`); asked, so each player sees their own.
   if (('then' in choice && choice.then) || ('thenSame' in choice && choice.thenSame)) return null;
+  // Selfish Draw: leaving the card draws another, so taking it is a real choice.
+  if ('elseDraw' in choice && choice.elseDraw) return null;
   const view = pendingChoiceView(state, choice);
   if (!('options' in view) || !Array.isArray(view.options) || !view.options.length || typeof view.options[0] !== 'object') return null;
   if (!takes && 'optional' in view && view.optional) return null;
@@ -995,10 +999,11 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
         if (me.active) (me.active.effects ??= {}).tentaclesPaid = state.turn;
         return preAttackQuestion(state, attacker, defending, pending.attackIndex, pending.choices) ?? attackAction(state, attacker, defending, pending.attackIndex, pending.choices);
       }
-      if (pending.question === 'guessCoin') {
-        if (action.count !== 0 && action.count !== 1) return fail('Guess heads or tails');
+      // Plead: yes (count 0) or no.
+      if (pending.question === 'guessCoin' || pending.question === 'plead') {
+        if (action.count !== 0 && action.count !== 1) return fail(pending.question === 'plead' ? 'Answer yes or no' : 'Guess heads or tails');
         delete state.pendingChoice;
-        addLog(state, `${pending.source}: guessed ${action.count === 0 ? 'heads' : 'tails'}.`, me.id);
+        addLog(state, pending.question === 'plead' ? `${pending.source}: answered ${action.count === 0 ? 'yes' : 'no'}.` : `${pending.source}: guessed ${action.count === 0 ? 'heads' : 'tails'}.`, me.id);
         return attackAction(state, attacker, defending, pending.attackIndex, { ...pending.choices, answer: action.count });
       }
       const card = action.cardUid === undefined ? undefined : me.hand.find((c) => c.uid === action.cardUid && !pending.picked.includes(c.uid));
@@ -1506,7 +1511,7 @@ function preAttackQuestion(state: GameState, me: PlayerState, opp: PlayerState, 
   const protector = opp.hand.length > 0 && [opp.active, ...opp.bench].some((p) => p && pokemonPower(p)?.psychicProtector && powerActive(p, state.cards, [opp, me]));
   // Charity Tail, Trick Play: the attack's own question for the Defending player (with cards in the hand, for Charity Tail).
   const asks = attackAsks(attackSituation(state, me, opp), attackIndex);
-  const ask = asks === 'guessCoin' || (asks === 'discardTwo' && opp.hand.length >= 2) ? asks : undefined;
+  const ask = asks === 'guessCoin' || asks === 'plead' || (asks === 'discardTwo' && opp.hand.length >= 2) ? asks : undefined;
   if (!ninja && !flee && !protector && !ask) return null;
   const checked = checkAttack(attackSituation(state, me, opp), attackIndex, given);
   if ('error' in checked) return fail(checked.error);
@@ -2453,7 +2458,7 @@ export function afflictionBlocked(state: GameState, owner: PlayerId, pokemon: In
 function expireEffects(pokemon: InPlayPokemon, turn: number) {
   const e = pokemon.effects;
   if (!e) return;
-  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell', 'noAttack', 'noEnergy', 'fireWall', 'focusEnergy', 'crosscounter', 'screech', 'endure', 'pollenShield', 'counter', 'secretePoison', 'slime', 'pursuit', 'lockOn', 'triggeredPoison', 'effectProof', 'pulseGuard', 'dodge', 'reflectShield', 'armorUp', 'noEvolve', 'heavier', 'tailwind', 'noPokePowers', 'conditionProof', 'stockpile', 'silverWind', 'cometPunch', 'evolvedProof', 'exProof', 'pivot', 'hustle', 'fizzle', 'crunch', 'sealed', 'hoverHit', 'pressure', 'jetShoot', 'lvxProof', 'graffiti'] as const) {
+  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell', 'noAttack', 'noEnergy', 'fireWall', 'focusEnergy', 'crosscounter', 'screech', 'endure', 'pollenShield', 'counter', 'secretePoison', 'slime', 'pursuit', 'lockOn', 'triggeredPoison', 'effectProof', 'pulseGuard', 'dodge', 'reflectShield', 'armorUp', 'noEvolve', 'heavier', 'tailwind', 'noPokePowers', 'conditionProof', 'stockpile', 'silverWind', 'cometPunch', 'evolvedProof', 'exProof', 'pivot', 'hustle', 'fizzle', 'crunch', 'sealed', 'hoverHit', 'pressure', 'jetShoot', 'lvxProof', 'graffiti', 'moonlightFang'] as const) {
     if (e[key] !== undefined && e[key] <= turn) delete e[key];
   }
   if (e.charm && e.charm.until <= turn) delete e.charm;
@@ -2546,8 +2551,10 @@ export function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId
       // Expert Belt: 1 more. Double Fall: 1 more for a Pokémon Salamence's attack Knocked Out this turn.
       const belt = toolOf(state.cards, pokemon)?.name === 'Expert Belt' ? 1 : 0;
       const fall = pokemon.knockedByAttack === state.turn && state.currentPlayer !== id && taker.doubleFallTurn === state.turn && !!taker.active && namesMatch(inPlayDef(state.cards, taker.active).name, 'Salamence') ? 1 : 0;
+      // Space Virus: 1 more for a Pokémon the attack of the Pokémon with it Knocked Out this turn.
+      const virus = pokemon.knockedByAttack === state.turn && state.currentPlayer !== id && !!taker.active && !!pokemonPower(taker.active)?.spaceVirus && powerActive(taker.active, state.cards, sides) ? 1 : 0;
       // A Pokémon-ex or a Pokémon LEGEND gives up 2 Prize cards.
-      for (let n = (d.kind === 'pokemon' && (d.ex || isLegend(d)) ? 2 : 1) + skip + belt + fall; n > 0; n--) {
+      for (let n = (d.kind === 'pokemon' && (d.ex || isLegend(d)) ? 2 : 1) + skip + belt + fall + virus; n > 0; n--) {
         const prize = taker.prizes.pop();
         if (prize) taker.hand.push(prize);
       }

@@ -223,7 +223,9 @@ export function usableAttacks(
   const fellows = working?.fellowship;
   // LINK (Unown L): every attack of every other Unown in play, either player's.
   const unown = working?.link ? [...bench, defender, ...oppBench].filter((p) => p && def(cards, p).name.startsWith('Unown')) : [];
-  const others = [...(fellows ? bench.filter((p) => p && fellows.some((n) => namesMatch(def(cards, p).name, n))) : []), ...(working?.versatile ? [...bench, defender, ...oppBench] : []), ...unown];
+  // Evolution Memories: every attack of the player's other Pokémon in play that evolve from Eevee.
+  const eevees = working?.evolutionMemories ? bench.filter((p) => p && namesMatch(def(cards, p).evolvesFrom ?? '', 'Eevee')) : [];
+  const others = [...(fellows ? bench.filter((p) => p && fellows.some((n) => namesMatch(def(cards, p).name, n))) : []), ...(working?.versatile ? [...bench, defender, ...oppBench] : []), ...unown, ...eevees];
   const shared = [...new Set(others)].flatMap((p) => {
     if (!p || p.faceDown) return [];
     const d = def(cards, p);
@@ -307,7 +309,7 @@ export interface AttackEffect {
   /** Why the attack can't be used now (beyond its energy cost). */
   blocked?: (s: AttackSituation) => string | null;
   /** A question for the opponent before the attack (beforeAttack): Charity Tail's discard, Trick Play's guess. Its answer is `answer`. */
-  askOpponent?: 'discardTwo' | 'guessCoin';
+  askOpponent?: 'discardTwo' | 'guessCoin' | 'plead';
   /** Questions besides the discard. May depend on earlier answers (Metronome). */
   choices?: (s: AttackSituation, c: AttackChoices) => ChoiceSpec[];
   run: (ctx: AttackContext) => void;
@@ -1103,7 +1105,9 @@ function createContext(
         // Poison Enzyme: nothing from a Poisoned attacker.
         (!!passive(opp.active)?.poisonEnzyme && !!attacker.poison) ||
         // Night Spin: nothing from an attacker with 2 Energy or less attached.
-        (active(opp.active.effects?.nightSpin, turn) && energyPool(attacker, state.cards).length <= 2)));
+        (active(opp.active.effects?.nightSpin, turn) && energyPool(attacker, state.cards).length <= 2) ||
+        // Moonlight Fang: nothing from a Pokémon with a Poké-Power or Poké-Body for a while.
+        (active(opp.active.effects?.moonlightFang, turn) && !!attackerDef.power)));
   /** Airy Wall works against this attack: the attacker has 2 or fewer Energy cards attached. */
   const airy = (p: InPlayPokemon) => !!passive(p)?.airyWall && attacker.energy.filter((e) => !e.provides).length <= 2;
   /** Shielded, or Crystal Body or Light Wave: the attack does nothing to the Defending Pokémon but damage. Logs why. */
@@ -1197,6 +1201,11 @@ function createContext(
     if (damage > 0 && cocoon && owner === opp && flipCoin(state, 'Hard Cocoon', owner.id)) {
       damage = Math.max(0, damage - cocoon);
       log(`Hard Cocoon reduced the damage to ${pokemonName(state, p)} by ${cocoon}.`, owner.id);
+    }
+    // Red Armor: no damage from the opponent's Pokémon with a Special Energy card attached.
+    if (damage > 0 && owner !== me && passive(p)?.redArmor && attacker.energy.some((e) => isSpecialEnergy(state.cards, e))) {
+      damage = noted('Red Armor', damage, 0);
+      log(`Red Armor prevented the damage to ${pokemonName(state, p)}.`, owner.id);
     }
     if (damage > 0 && passive(p)?.shellArmor) {
       damage = noted('Shell Armor', damage, Math.max(0, damage - 10));
@@ -1479,6 +1488,8 @@ function createContext(
     if (owner.active !== p && toolOf(state.cards, p)?.name === 'Bench Shield') return 0;
     // Electric Barrier: its player's Benched Pokémon but Manectric take no attack damage.
     if (owner.active !== p && !namesMatch(def(state.cards, p).name, 'Manectric') && [owner.active, ...owner.bench].some((q) => q && passive(q)?.electricBarrier)) return 0;
+    // Defense Sign: no attack damage to its player's Benched Grass Pokémon.
+    if (owner.active !== p && hasType(def(state.cards, p), 'grass') && [owner.active, ...owner.bench].some((q) => q && passive(q)?.defenseSign)) return 0;
     amount = charmed(amount);
     // Hitmonlee's Stages of Evolution: more to any of the opponent's Pokémon.
     if (owner === opp && amount > 0) amount += passive(attacker)?.attackMore ?? 0;
@@ -1742,6 +1753,8 @@ function createContext(
     }
     // Sunyshore City Gym: no Resistance for Lightning Pokémon's attacks.
     if (stadium === 'Sunyshore City Gym' && hasType(attackerDef, 'lightning')) resistance = false;
+    // Ruins of Alph: no Resistance.
+    if (stadium === 'Ruins of Alph') resistance = false;
     // Magnetic Storm: no Resistance for Psychic and Fighting Pokémon's attacks.
     if (stadium === 'Magnetic Storm' && (hasType(attackerDef, 'psychic') || hasType(attackerDef, 'fighting'))) resistance = false;
     // EX Deoxys's Strength Charm: 10 more before Weakness and Resistance (Expedition's adds it after); discarded at the end

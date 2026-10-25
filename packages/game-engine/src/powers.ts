@@ -723,6 +723,16 @@ export interface PowerEffect {
   psychicFloat?: boolean;
   /** Berserk: with damage counters on it, its attacks do 60 more to the Defending Pokémon (attacks.ts). */
   berserk?: boolean;
+  /** Defense Sign: no attack damage to its player's Benched Grass Pokémon (attacks.ts). */
+  defenseSign?: boolean;
+  /** Red Armor: no damage from the opponent's Pokémon with a Special Energy card attached (attacks.ts). */
+  redArmor?: boolean;
+  /** Evolution Memories: it can use the attacks of its player's other Pokémon in play that evolve from Eevee (usableAttacks). */
+  evolutionMemories?: boolean;
+  /** Space Virus: 1 more Prize card for a Pokémon its attack Knocks Out (engine.ts). */
+  spaceVirus?: boolean;
+  /** With `retreatAidCost`: Pokémon-ex and Baby Pokémon too (Undaunted Dodrio). */
+  retreatAidAll?: boolean;
 }
 
 /** Wise Aura, Overpowering Fang and Intimidating Ring: an Active Pokémon's aura stopping `pokemon`'s power, or null. */
@@ -1185,7 +1195,7 @@ export function retreatAid(pokemon: InPlayPokemon, cards: CardLibrary, sides: Si
   const old = owner.bench.filter((p) => p && pokemonPower(p)?.retreatAid && powerActive(p, cards, sides)).length;
   // EX FireRed & LeafGreen's Retreat Aid: 2 less each (agreed: they add up), not for a Pokémon-ex or Baby Pokémon.
   const d = inPlayDef(cards, pokemon);
-  const more = d.ex || d.baby ? 0 : owner.bench.reduce((n, p) => n + (p && powerActive(p, cards, sides) ? (pokemonPower(p)?.retreatAidCost ?? 0) : 0), 0);
+  const more = owner.bench.reduce((n, p) => n + (p && powerActive(p, cards, sides) && (!(d.ex || d.baby) || pokemonPower(p)?.retreatAidAll) ? (pokemonPower(p)?.retreatAidCost ?? 0) : 0), 0);
   return old + more;
 }
 
