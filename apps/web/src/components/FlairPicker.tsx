@@ -1,5 +1,5 @@
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { flairFor, holoPattern, ownPattern, type FlairSlot } from '@poke-tcg/campaign';
+import { flairFor, holoPattern, isEffectSlot, ownPattern, type FlairSlot } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useFlairList } from '../hooks/useFlair';
@@ -8,11 +8,18 @@ import { useTRPC } from '../lib/trpc';
 import type { CatalogCard } from '../utils/cardList';
 
 /** Each slot's heading and what its flair is called. */
-const SLOTS: Record<FlairSlot, { title: string; noun: string }> = { pattern: { title: 'Holo pattern', noun: 'pattern' }, border: { title: 'Border', noun: 'border' } };
+const SLOTS: Record<FlairSlot, { title: string; noun: string }> = {
+  pattern: { title: 'Holo pattern', noun: 'pattern' },
+  border: { title: 'Border', noun: 'border' },
+  'effect-play': { title: 'Effect: comes into play', noun: 'effect' },
+  'effect-attack': { title: 'Effect: attacks', noun: 'effect' },
+  'effect-evolve': { title: 'Effect: evolves', noun: 'effect' },
+  'effect-ko': { title: 'Effect: Knocks Out', noun: 'effect' },
+};
 
 /**
  * The card view's card flair in one slot, for a card that can be given any (flairFor): a holo's patterns, a low-rarity
- * card's borders. A box that expands from its heading (the slot and what's in use; closed by default, and closing it
+ * card's borders, a Pokémon's effects at one moment (each chip click plays the effect on the card, `onPlay`). A box that expands from its heading (the slot and what's in use; closed by default, and closing it
  * drops its preview) to Default (the card's own look) and each option as a chip; clicking one previews it on the card
  * above (`preview`: its key, null for Default, undefined for none: the one in use). Then Use switches to one the account
  * has for this card, for nothing, and Buy buys one it hasn't for its Stardust (shown on its chip) and switches to it.
@@ -24,12 +31,15 @@ export function FlairPicker({
   locked,
   preview,
   onPreview,
+  onPlay,
 }: {
   card: CatalogCard;
   slot: FlairSlot;
   locked: boolean;
   preview: string | null | undefined;
   onPreview: (key: string | null | undefined) => void;
+  /** An effect's chip clicked (any of them, the one in use too): play it on the card. */
+  onPlay?: (key: string) => void;
 }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -73,14 +83,17 @@ export function FlairPicker({
       className={`rounded px-2 py-1 text-xs ring-1 transition active:scale-95 ${shown === key ? 'bg-yellow-300/15 text-yellow-200 ring-yellow-300/70' : key === null || owned.has(key) ? 'bg-slate-700 text-slate-100 ring-slate-600 hover:bg-slate-600' : 'bg-slate-800 text-slate-400 ring-slate-700 hover:bg-slate-700 hover:text-slate-200'}`}
       aria-pressed={shown === key}
       title={key === null || owned.has(key) ? undefined : `${cost} Stardust`}
-      onClick={() => onPreview(key === inUse ? undefined : key)}
+      onClick={() => {
+        onPreview(key === inUse ? undefined : key);
+        if (key !== null && isEffectSlot(slot)) onPlay?.(key);
+      }}
     >
       {key === inUse && '✓ '}
       {label}
       {key !== null && !owned.has(key) && <span className="ml-1 tabular-nums text-sky-200/70">{cost}</span>}
     </button>
   );
-  const defaultLabel = slot === 'pattern' ? `Default (${holoPattern(ownPattern(card))!.label})` : 'Default';
+  const defaultLabel = slot === 'pattern' ? `Default (${holoPattern(ownPattern(card))!.label})` : isEffectSlot(slot) ? 'None' : 'Default';
   const toggle = () => {
     // Closing it drops its preview: the card shows the flair in use again.
     if (open) onPreview(undefined);

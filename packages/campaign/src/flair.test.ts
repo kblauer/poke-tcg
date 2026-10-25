@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { HOLO_ENERGY_STYLES } from '../../db/prisma/holo-energy.js';
-import { canHaveBorder, canSwitchPattern, flairFor, HOLO_PATTERNS, ownPattern, PATTERN_PRICE, patternsFor } from './flair.js';
+import { canHaveBorder, canSwitchPattern, EFFECT_PRICE, EFFECTS, effectFamilies, effectsFor, flairFor, HOLO_PATTERNS, ownPattern, PATTERN_PRICE, patternsFor, type EffectFamily } from './flair.js';
+import { SPECIES_TYPES } from './species-types.js';
 
 const plain = { holo: false, galaxy: false };
 const holo = { holo: true, galaxy: false };
@@ -29,6 +30,35 @@ describe('holo patterns', () => {
     expect(patternsFor(galaxyArt).map((p) => p.key)).not.toContain('galaxy');
     expect(patternsFor(holo)).toHaveLength(HOLO_PATTERNS.length - 1);
     expect(patternsFor({ holo: false, galaxy: false })).toEqual([]);
+  });
+});
+
+describe('effects', () => {
+  // Kabutops (#141, Rock/Water in Generation 3), printed Fighting; a Stage 2.
+  const kabutops = { ...plain, kind: 'POKEMON', stage: 'Stage2', type: 'Fighting', dexNumber: 141 };
+  const charmander = { ...plain, kind: 'POKEMON', stage: 'Basic', type: 'Fire', dexNumber: 4 };
+  const families = (card: typeof kabutops) => new Set(effectsFor(card, 'effect-play').map((e) => e.family));
+
+  it("come from the species' Generation 3 types (Rock and Ground as earth) and the printed type, with the generic ones", () => {
+    expect(effectFamilies(kabutops)).toEqual(new Set(['fighting', 'earth', 'water']));
+    expect(families(kabutops)).toEqual(new Set(['fighting', 'earth', 'water', 'generic']));
+    expect(families(charmander)).toEqual(new Set(['fire', 'generic']));
+    // Clefairy (#35) was Normal before the Fairy type.
+    expect(effectFamilies({ ...charmander, type: 'Colorless', dexNumber: 35 })).toEqual(new Set(['normal']));
+  });
+
+  it('only Pokémon, and evolving only for evolved ones', () => {
+    expect(effectsFor({ ...plain, kind: 'TRAINER' }, 'effect-play')).toEqual([]);
+    expect(effectsFor(charmander, 'effect-evolve')).toEqual([]);
+    expect(effectsFor(kabutops, 'effect-evolve').length).toBeGreaterThan(0);
+  });
+
+  it('every family has an effect, each at the effect price, and every Pokémon from #1 to #386 has types', () => {
+    const all = new Set(EFFECTS.map((e) => e.family));
+    for (const types of SPECIES_TYPES) for (const t of types.split('/')) expect(all.has(t === 'rock' || t === 'ground' ? 'earth' : (t as EffectFamily))).toBe(true);
+    expect(SPECIES_TYPES).toHaveLength(386);
+    expect(new Set(EFFECTS.map((e) => e.price))).toEqual(new Set([EFFECT_PRICE]));
+    expect(flairFor(kabutops, 'effect-ko')).toEqual(effectsFor(kabutops, 'effect-ko'));
   });
 });
 

@@ -3,6 +3,7 @@ import { hasBenched, inPlayDef, lookupCard, shapeshiftCard, usableAttacks, type 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAttack } from '../hooks/useAttack';
 import { useCardPlay } from '../hooks/useCardPlay';
+import { useFlairMoments } from '../hooks/useFlairMoments';
 import { useIsPhone } from '../hooks/useIsPhone';
 import { useLockedScreen } from '../hooks/useLockedScreen';
 import { usePower } from '../hooks/usePower';
@@ -23,6 +24,7 @@ import { AttackList } from './AttackList';
 import { Card } from './Card';
 import { CardPreview } from './CardPreview';
 import { DeckAndDiscard } from './DeckAndDiscard';
+import { FlairEffect } from './FlairEffect';
 import { FloatingDialog } from './FloatingDialog';
 import { Hand } from './Hand';
 import { OpponentArea, type Spotlight } from './OpponentArea';
@@ -126,6 +128,8 @@ export function Board({
   const ownSpot = spotlight(view.you);
   const oppSpot = spotlight(view.opponent.id);
   const newTurn = useNewTurn(view);
+  // Card flair: the effects the player's Pokémon play as they come into play, evolve, attack and Knock Out.
+  const flairMoments = useFlairMoments(view, attacker);
   // The setup banner: out while Pokémon are being placed, sliding off once Start battle is pressed.
   const placing = view.phase === 'setup' && !view.self.ready && pending?.type !== 'START_BATTLE';
   const [setupBanner, setSetupBanner] = useState(placing);
@@ -595,9 +599,14 @@ export function Board({
     trainer.card && !trainer.prompt && <TrainerPanel view={view} trainer={trainer} />
   );
 
+  // Card flair's effects, over the board (fixed, so either layout).
+  const flairEffects = flairMoments.effects.map((e) => <FlairEffect key={e.id} effect={e.effect} moment={e.moment} box={e.box} onDone={() => flairMoments.done(e.id)} />);
+
   /** The phone layout (see above): the same pieces, laid out by PhoneBoard. */
   if (phone) {
     return (
+      <>
+      {flairEffects}
       <PhoneBoard
         view={view}
         send={send}
@@ -628,6 +637,7 @@ export function Board({
         dragOverlay={dragOverlay}
         remindersDialog={turnReminders.dialog}
       />
+      </>
     );
   }
 
@@ -731,6 +741,7 @@ export function Board({
         {dragOverlay}
       </DndContext>
       {preview && <CardPreview {...preview} onLost={hidePreview} />}
+      {flairEffects}
       <Toasts toasts={toasts.toasts} prompt={movePrompt} />
       {turnReminders.dialog}
     </PreviewContext.Provider>

@@ -3,12 +3,13 @@ import CloseIcon from '@mui/icons-material/Close';
 import RemoveIcon from '@mui/icons-material/Remove';
 import StarIcon from '@mui/icons-material/Star';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
-import { holoPattern, type FlairSlot } from '@poke-tcg/campaign';
+import { EFFECT_MOMENTS, holoPattern, isEffectSlot, type EffectMoment, type FlairSlot } from '@poke-tcg/campaign';
 import { useRef, useState } from 'react';
 import { useEscape } from '../hooks/useEscape';
 import { useScrollLock } from '../hooks/useScrollLock';
 import type { CatalogCard } from '../utils/cardList';
 import { CardViewer } from './CardViewer';
+import { FlairEffect, type Box } from './FlairEffect';
 import { FlairPicker } from './FlairPicker';
 
 const small = 'flex rounded bg-slate-600 p-1 hover:bg-slate-500 disabled:opacity-30';
@@ -51,6 +52,16 @@ export function CardInspector({
   const pressed = useRef(false);
   /** The flair previewed on the card in each slot (FlairPicker): a key, null for its own look; a slot not in it shows the one in use. */
   const [preview, setPreview] = useState<Partial<Record<FlairSlot, string | null>>>({});
+  /** An effect played on the card shown (an effect chip clicked): a new `id` plays it again. */
+  const [played, setPlayed] = useState<{ id: number; effect: string; moment: EffectMoment; box: Box } | null>(null);
+  const overlay = useRef<HTMLDivElement>(null);
+  const play = (slot: FlairSlot, effect: string) => {
+    // Over the card itself (the holo card in the viewer), not the room around it.
+    const el = overlay.current?.querySelector('.card');
+    if (!el || !isEffectSlot(slot)) return;
+    const { left, top, width, height } = el.getBoundingClientRect();
+    setPlayed((p) => ({ id: (p?.id ?? 0) + 1, effect, moment: EFFECT_MOMENTS[slot], box: { left, top, width, height } }));
+  };
   const picker = (slot: FlairSlot) => (
     <FlairPicker
       card={card}
@@ -58,9 +69,9 @@ export function CardInspector({
       locked={locked}
       preview={preview[slot]}
       onPreview={(key) => setPreview(({ [slot]: _, ...rest }) => (key === undefined ? rest : { ...rest, [slot]: key }))}
+      onPlay={(effect) => play(slot, effect)}
     />
   );
-  const overlay = useRef<HTMLDivElement>(null);
   useScrollLock(true, overlay);
   useEscape(onClose);
   return (
@@ -135,6 +146,11 @@ export function CardInspector({
         {craft && (craft.error ?? craft.blocked) && <p className="text-xs text-amber-300">{craft.error ?? craft.blocked}.</p>}
         {picker('pattern')}
         {picker('border')}
+        {picker('effect-play')}
+        {picker('effect-attack')}
+        {picker('effect-evolve')}
+        {picker('effect-ko')}
+        {played && <FlairEffect key={played.id} effect={played.effect} moment={played.moment} box={played.box} onDone={() => setPlayed(null)} />}
       </div>
     </div>
   );

@@ -2,18 +2,28 @@ import { flairFor, type FlairSlot } from '@poke-tcg/campaign';
 import { prisma } from '@poke-tcg/db';
 import { buyFlairInput, equipFlairInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
-import { catalogIndex, holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, isReverseHolo } from '../cards.js';
+import { catalogIndex, holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, isReverseHolo, type CardData } from '../cards.js';
 import { lockUser } from '../runs.js';
 import { protectedProcedure, router } from '../trpc.js';
 
 /** What a slot's flair is called in messages. */
-const NOUN: Record<FlairSlot, string> = { pattern: 'pattern', border: 'border' };
+const NOUN: Record<FlairSlot, string> = { pattern: 'pattern', border: 'border', 'effect-play': 'effect', 'effect-attack': 'effect', 'effect-evolve': 'effect', 'effect-ko': 'effect' };
 
 /** The catalog card for `cardId` and what it can be given in `slot` (flairFor), or BAD_REQUEST for an unknown card. */
 async function flairCard(cardId: string, slot: FlairSlot) {
   const card = (await catalogIndex()).get(cardId);
   if (!card) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Unknown card' });
-  const flags = { holo: isHolo(card), galaxy: isGalaxyFoil(card), holoEnergy: holoEnergyStyle(card), reverseHolo: isReverseHolo(card), basicEnergy: isBasicEnergyCard(card) };
+  const flags = {
+    holo: isHolo(card),
+    galaxy: isGalaxyFoil(card),
+    holoEnergy: holoEnergyStyle(card),
+    reverseHolo: isReverseHolo(card),
+    basicEnergy: isBasicEnergyCard(card),
+    kind: card.kind,
+    stage: card.stage,
+    type: card.types[0] ?? null,
+    dexNumber: (card.data as CardData).dexId?.[0] ?? null,
+  };
   return { card, options: flairFor(flags, slot) };
 }
 
@@ -28,7 +38,7 @@ export const flairRouter = router({
   }),
 
   /**
-   * Buys a flair for one card with Stardust (its price: a holo pattern's or a border's), and shows it on the card.
+   * Buys a flair for one card with Stardust (its price: a holo pattern's, a border's or an effect's at one moment), and shows it on the card.
    * Only a card the account has unlocked that can have it (flairFor), and not one it already has for that card.
    */
   buy: protectedProcedure.input(buyFlairInput).mutation(async ({ ctx, input }) => {
