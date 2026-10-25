@@ -320,6 +320,8 @@ export type PendingChoice = {
   | {
       /** Attach up to `count` `type` Energy cards (any Energy cards, without `type`) from the hand to the player's Active Pokémon, one at a time (Growth). */
       kind: 'attachFromHand';
+      /** Then this much damage off the Pokémon it went to (Licking-Licking Heal). */
+      healAfter?: number;
       type?: EnergyType;
       count: number;
       /** Basic Energy cards only (Sudden Growth). */
@@ -349,6 +351,8 @@ export type PendingChoice = {
       onlySpecial?: boolean;
       /** Into the opponent's Lost Zone instead (Remove Lost). */
       toLostZone?: boolean;
+      /** Only Energy cards of these types, basic or Special (Synchro Removal). */
+      types?: EnergyType[];
     }
   | {
       /** Energy Drain: discard 1 Energy card from the opponent's Active Pokémon, the attacker. */
@@ -621,6 +625,8 @@ export type PendingChoice = {
       next?: PendingChoice;
       /** Then this many damage counters on that Pokémon (Psy Shadow). */
       counters?: number;
+      /** Then this much damage off that Pokémon (Licking-Licking Heal). */
+      heal?: number;
       /** It may go into the hand instead, when no Pokémon is clicked (Mining). */
       orHand?: boolean;
       /** A Pokémon card attached as Energy providing every type, 1 at a time (Energy Shift). */
@@ -787,7 +793,7 @@ export type PendingChoice = {
   | {
       /** A "may" as a card is played (Energy Recharge, Flame Vapor, Streaming Mantle, Retro Energy): yes (count 0) or no (count 1). */
       kind: 'mayUse';
-      power: 'energyRecharge' | 'flameVapor' | 'streamingMantle' | 'retroEnergy' | 'belt' | 'healingShower' | 'legendaryAscent' | 'froth' | 'dragonBoost' | 'lightningBurst' | 'evoFlame' | 'evoThunder' | 'evoSwirl' | 'excavate' | 'crushChance' | 'crimsonRay' | 'yellowRay' | 'blueRay' | 'earthFissure' | 'sharpEye' | 'freezeUp' | 'evolutionaryVitality' | 'evolutionaryToxic' | 'flameDash' | 'aquaRecovery' | 'sereneGrace' | 'freezingScreech' | 'darknessShade' | 'flameCharge' | 'sheetLightning' | 'primalSwirl' | 'dragonPulse' | 'modeCrash' | 'curseBreath' | 'timeWalk' | 'setUp' | 'psychicBind' | 'unownBang' | 'junk' | 'castOffShell' | 'shootPoison' | 'ironShell' | 'emperorAura' | 'blazeDance' | 'sunshineSong' | 'evolutionaryGas' | 'healingBreath' | 'reverseTime' | 'letLoose' | 'flashBite' | 'brightLook';
+      power: 'energyRecharge' | 'flameVapor' | 'streamingMantle' | 'retroEnergy' | 'belt' | 'healingShower' | 'legendaryAscent' | 'froth' | 'dragonBoost' | 'lightningBurst' | 'evoFlame' | 'evoThunder' | 'evoSwirl' | 'excavate' | 'crushChance' | 'crimsonRay' | 'yellowRay' | 'blueRay' | 'earthFissure' | 'sharpEye' | 'freezeUp' | 'evolutionaryVitality' | 'evolutionaryToxic' | 'flameDash' | 'aquaRecovery' | 'sereneGrace' | 'freezingScreech' | 'darknessShade' | 'flameCharge' | 'sheetLightning' | 'primalSwirl' | 'dragonPulse' | 'modeCrash' | 'curseBreath' | 'timeWalk' | 'setUp' | 'psychicBind' | 'unownBang' | 'junk' | 'castOffShell' | 'shootPoison' | 'ironShell' | 'emperorAura' | 'blazeDance' | 'sunshineSong' | 'evolutionaryGas' | 'healingBreath' | 'reverseTime' | 'letLoose' | 'flashBite' | 'brightLook' | 'disruptingSpy' | 'darknessSend';
       /** The Pokémon it's about. */
       target: Target;
     }
@@ -962,6 +968,16 @@ export type PendingChoice = {
   | {
       /** Looker's Investigation: whose hand is shuffled into their deck, then up to 5 drawn. */
       kind: 'looker';
+    }
+  | {
+      /** Antique Magic: `count` damage counters, one at a time, on any Pokémon in play; `side` picked first. */
+      kind: 'antiqueMagic';
+      count: number;
+      side?: 'own' | 'opp';
+    }
+  | {
+      /** Darkness Restore: a Basic Pokémon from the opponent's discard pile onto their Bench. */
+      kind: 'darknessRestore';
     }
   | {
       /** Water Rescue: a Knocked Out Water Pokémon and its cards (`uids`) may go from the discard pile into the hand. */
@@ -1863,7 +1879,7 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
           : choice.kind === 'removeEach' && choice.toLostZone
           ? "put an Energy card in the Lost Zone from your opponent's"
           : "discard an Energy card from your opponent's";
-    return { kind: 'pickAttached', prompt: `${choice.source}: ${what} ${lookupCard(state.cards, p.card.defId).name}`, options: p.energy.filter((e) => !e.provides && (choice.kind !== 'removeEach' || !choice.onlySpecial || isSpecialEnergy(state.cards, e))) };
+    return { kind: 'pickAttached', prompt: `${choice.source}: ${what} ${lookupCard(state.cards, p.card.defId).name}`, options: p.energy.filter((e) => !e.provides && (choice.kind !== 'removeEach' || ((!choice.onlySpecial || isSpecialEnergy(state.cards, e)) && (!choice.types || discardFits(state.cards, { types: choice.types }, e))))) };
   }
   if (choice.kind === 'lunarPower') {
     if (!choice.card) {
@@ -2160,7 +2176,7 @@ function drawUpTo(state: GameState, me: PlayerState, size: number, source: strin
 const CONDITION_OF: Record<string, 'asleep' | 'burned' | 'poisoned' | 'confused' | 'paralyzed'> = { Asleep: 'asleep', Burned: 'burned', Poisoned: 'poisoned', Confused: 'confused', Paralyzed: 'paralyzed' };
 const CONDITION_LABEL = { asleep: 'Asleep', burned: 'Burned', poisoned: 'Poisoned', confused: 'Confused', paralyzed: 'Paralyzed' } as const;
 
-const SKYRIDGE_KINDS = ['mayUse', 'attachFromDiscard', 'discardToBench', 'moveAttached', 'oracle', 'bottomPick', 'evolveFromHand', 'mysteryZone', 'placeCounters', 'discardFromHand', 'supernatural', 'energyGrounding', 'castform', 'shiftEnergy', 'vineTease', 'removeCondition', 'chooseCondition', 'nod', 'timeWalk', 'energyLink', 'marley', 'rammingStrike', 'lostCyclone', 'looker', 'waterRescue', 'oppBenchPick', 'blissful', 'deltaSwitch', 'handToBench', 'ownCounters', 'pealTarget', 'cursedEyes', 'skillHack'] as const;
+const SKYRIDGE_KINDS = ['mayUse', 'attachFromDiscard', 'discardToBench', 'moveAttached', 'oracle', 'bottomPick', 'evolveFromHand', 'mysteryZone', 'placeCounters', 'discardFromHand', 'supernatural', 'energyGrounding', 'castform', 'shiftEnergy', 'vineTease', 'removeCondition', 'chooseCondition', 'nod', 'timeWalk', 'energyLink', 'marley', 'rammingStrike', 'lostCyclone', 'looker', 'waterRescue', 'antiqueMagic', 'darknessRestore', 'oppBenchPick', 'blissful', 'deltaSwitch', 'handToBench', 'ownCounters', 'pealTarget', 'cursedEyes', 'skillHack'] as const;
 
 /** A pending choice Skyridge's cards add (skyridgeView, resolveSkyridge). */
 type SkyridgeChoice = Extract<PendingChoice, { kind: (typeof SKYRIDGE_KINDS)[number] }>;
@@ -2344,6 +2360,8 @@ function skyridgeView(state: GameState, choice: SkyridgeChoice): PendingChoiceVi
         letLoose: 'have each player shuffle their hand into their deck and draw up to 4 cards (you first)?',
         flashBite: "put a damage counter on one of your opponent's Pokémon?",
         brightLook: "switch your opponent's Defending Pokémon with one of their Benched Pokémon?",
+        disruptingSpy: "look at the top 4 cards of your opponent's deck and put them back in any order?",
+        darknessSend: "flip 3 coins? For each heads, the top card of your opponent's deck goes to the Lost Zone",
         aquaRecovery: 'put up to 3 Water Pokémon from your discard pile into your hand?',
         sereneGrace: 'look at the top 10 cards of your deck and attach any basic Energy cards there to your Pokémon?',
         freezingScreech: "flip a coin? If heads, your opponent's Active Pokémon is Paralyzed",
@@ -2465,6 +2483,17 @@ function skyridgeView(state: GameState, choice: SkyridgeChoice): PendingChoiceVi
     case 'lostCyclone': {
       const options = player.bench.flatMap((q, i) => (q && !choice.kept.includes(i) ? [i] : []));
       return { kind: 'ownPokemon', purpose: 'return', prompt: `${choice.source}: choose a Benched Pokémon to keep (${choice.kept.length} of 3 kept; the others go to the Lost Zone)`, options };
+    }
+    case 'antiqueMagic': {
+      const left = `${choice.count} left`;
+      if (!choice.side) return { kind: 'options', prompt: `${choice.source}: put a damage counter on whose Pokémon? (${left})`, labels: ["Your opponent's", 'Your own'] };
+      const side = choice.side === 'own' ? player : state.players[opponentOfChoice(state, choice)]!;
+      const options = targetsOf(side);
+      return choice.side === 'own' ? { kind: 'ownPokemon', purpose: 'benchDamage', prompt: `${choice.source}: click one of your Pokémon to put a damage counter on (${left})`, options } : { kind: 'oppPokemon', prompt: `${choice.source}: click one of your opponent's Pokémon to put a damage counter on (${left})`, options };
+    }
+    case 'darknessRestore': {
+      const owner = state.players[opponentOfChoice(state, choice)]!;
+      return { kind: 'pickFromDiscard', prompt: `${choice.source}: choose a Basic Pokémon from your opponent's discard pile to put onto their Bench`, options: owner.discard.filter((c) => isBasicPokemon(lookupCard(state.cards, c.defId))) };
     }
     case 'waterRescue':
       return { kind: 'options', prompt: `${choice.source}: put the Knocked Out Pokémon and its cards from your discard pile into your hand?`, labels: ['Yes', 'No'] };
@@ -2616,6 +2645,14 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
         }
         if (opp.deck.length) (state.queuedChoices ??= []).push({ player: opp.id, source: choice.source, kind: 'drawCount', max: 4 });
         return me.deck.length ? again({ player: me.id, source: choice.source, kind: 'drawCount', max: 4 }) : null;
+      }
+      if (choice.power === 'disruptingSpy') return opp.deck.length ? again({ player: me.id, source: choice.source, kind: 'arrangeTop', count: Math.min(4, opp.deck.length), deckOwner: opp.id }) : null;
+      if (choice.power === 'darknessSend') {
+        const heads = [0, 1, 2].filter(() => flipCoin(state, choice.source, me.id)).length;
+        const gone = opp.deck.splice(0, heads);
+        (opp.lostZone ??= []).push(...gone);
+        if (gone.length) addLog(state, `${choice.source}: the top ${gone.length} card${gone.length === 1 ? '' : 's'} of the deck went to the Lost Zone.`, opp.id);
+        return null;
       }
       if (choice.power === 'brightLook') return opp.bench.some(Boolean) ? again({ player: me.id, source: choice.source, kind: 'oppBenchPick', purpose: 'gust' }) : null;
       if (choice.power === 'flashBite') return [opp.active, ...opp.bench].some(Boolean) ? again({ player: me.id, source: choice.source, kind: 'placeCounters', count: 1 }) : null;
@@ -3109,6 +3146,28 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
       }
       const next = choice.then ? state.players[choice.then] : undefined;
       return next ? again({ player: next.id, source: choice.source, kind: 'lostCyclone', kept: [] }) : null;
+    }
+    case 'antiqueMagic': {
+      if (!choice.side) {
+        if (answer.count !== 0 && answer.count !== 1) return retry(choice, "Your opponent's or your own");
+        return again({ ...choice, side: answer.count === 0 ? 'opp' : 'own' });
+      }
+      const side = choice.side === 'own' ? me : opp;
+      const p = answer.target === undefined ? null : atTarget(side, answer.target);
+      if (!p) return retry(choice, 'Choose one of the Pokémon');
+      p.damage += 10;
+      addLog(state, `${choice.source}: a damage counter on ${name(p.card)}.`, side.id);
+      return choice.count > 1 ? again({ player: me.id, source: choice.source, kind: 'antiqueMagic', count: choice.count - 1, ...(choice.afterAttack && { afterAttack: true }) }) : null;
+    }
+    case 'darknessRestore': {
+      const card = opp.discard.find((c) => c.uid === answer.cardUid && isBasicPokemon(lookupCard(state.cards, c.defId)));
+      if (!card) return view.kind === 'pickFromDiscard' && view.options.length ? retry(choice, 'Choose a Basic Pokémon') : null;
+      const slot = openBenchSlot(opp.bench, state.cards, state.stadium?.card);
+      if (slot < 0) return null;
+      opp.discard = opp.discard.filter((c) => c !== card);
+      opp.bench[slot] = newInPlay(card, state.turn);
+      addLog(state, `${choice.source}: ${name(card)} was put onto the Bench.`, opp.id);
+      return null;
     }
     case 'waterRescue': {
       if (answer.count !== 0 && answer.count !== 1) return retry(choice, 'Yes or no');
@@ -3644,8 +3703,17 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     const taken = (choice.taken ?? 0) + (card ? 1 : 0);
     if (card) {
       opp.hand = opp.hand.filter((c) => c !== card);
-      [opp.deck, state.rngState] = shuffle([...opp.deck, card], state.rngState);
-      addLog(state, `${choice.source}: shuffled ${name(card)} into the deck.`, opp.id);
+      // Cyrus's Initiative: on the bottom of the deck instead.
+      if (choice.place === 'bottom') {
+        opp.deck.push(card);
+        addLog(state, `${choice.source}: put ${name(card)} on the bottom of the deck.`, opp.id);
+      } else if (choice.place === 'discard') {
+        opp.discard.push(card);
+        addLog(state, `${choice.source}: discarded ${name(card)}.`, opp.id);
+      } else {
+        [opp.deck, state.rngState] = shuffle([...opp.deck, card], state.rngState);
+        addLog(state, `${choice.source}: shuffled ${name(card)} into the deck.`, opp.id);
+      }
       if (choice.count > 1 && opp.hand.length) {
         state.pendingChoice = { ...choice, count: choice.count - 1, taken };
         return null;
@@ -4199,7 +4267,7 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
       // To any of the player's Pokémon: which one is asked next, then the rest of the cards.
       if (choice.anyTarget) {
         const more = choice.count > 1 && me.hand.some((c) => attachableFromHand(state.cards, c, choice.type, choice.basic, choice.types));
-        state.pendingChoice = { player: me.id, source: choice.source, kind: 'attachCard', card, ...(choice.benchOnly && { only: { bench: true } }), ...(more && { next: { ...choice, count: choice.count - 1, attached: (choice.attached ?? 0) + 1 } }), ...(choice.afterAttack && { afterAttack: true }) };
+        state.pendingChoice = { player: me.id, source: choice.source, kind: 'attachCard', card, ...(choice.healAfter && { heal: choice.healAfter }), ...(choice.benchOnly && { only: { bench: true } }), ...(more && { next: { ...choice, count: choice.count - 1, attached: (choice.attached ?? 0) + 1 } }), ...(choice.afterAttack && { afterAttack: true }) };
         return null;
       }
       to.energy.push(card);
@@ -4213,7 +4281,7 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     const opp = state.players[opponentOfChoice(state, choice)]!;
     const [target, ...rest] = choice.kind === 'drainEnergy' ? (['active'] as Target[]) : choice.targets;
     const p = target === undefined ? null : atTarget(opp, target);
-    const fits = (e: CardInstance) => !e.provides && (choice.kind !== 'removeEach' || !choice.onlySpecial || isSpecialEnergy(state.cards, e));
+    const fits = (e: CardInstance) => !e.provides && (choice.kind !== 'removeEach' || ((!choice.onlySpecial || isSpecialEnergy(state.cards, e)) && (!choice.types || discardFits(state.cards, { types: choice.types }, e))));
     const energy = p?.energy.find((e) => e.uid === answer.cardUid && fits(e));
     if (p && p.energy.some(fits) && !energy) return 'Choose an Energy card to discard';
     if (p && energy) {
@@ -4444,6 +4512,11 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     else if (choice.asEnergy) p.energy.push({ ...choice.card, provides: { type: 'any', amount: 1 } });
     else p.energy.push(choice.card);
     addLog(state, `Attached ${lookupCard(state.cards, choice.card.defId).name} to ${lookupCard(state.cards, p.card.defId).name}.`, me.id);
+    if (choice.heal && p.damage) {
+      const healed = Math.min(choice.heal, p.damage);
+      p.damage -= healed;
+      addLog(state, `Removed ${healed / 10} damage counter${healed === 10 ? '' : 's'} from ${lookupCard(state.cards, p.card.defId).name}.`, me.id);
+    }
     if (choice.counters) {
       p.damage += 10 * choice.counters;
       addLog(state, `Put ${choice.counters} damage counters on ${lookupCard(state.cards, p.card.defId).name}.`, me.id);

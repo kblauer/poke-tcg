@@ -1,6 +1,6 @@
 /// <reference path="./globals.d.ts" />
 import { applyWeaknessResistance, attackAsks, attackError, attackSituation, checkAttack, nextAttackChoice, performAttack, recallsAttacks, usableAttacks, type AttackChoices } from './attacks.js';
-import { attachBlocked, stickyHold, timeAura, discardsLocked, energyFromHand, evolutionBlocked, primalBlock, retreatBodies, guardedBy, spiraledBy, bindingAura, conditionBarred, conditionFree, holonWith, miraculousWind, offerChainReaction, playedFromHand, pokemonAt, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, primalLocked, trainersDusted, trainersBlocked, usePower, powerCanceller, zoomed, type PowerChoices, type PowerEffect, pokemonPower } from './powers.js';
+import { attachBlocked, greenAroma, stickyHold, timeAura, discardsLocked, energyFromHand, evolutionBlocked, primalBlock, retreatBodies, guardedBy, spiraledBy, bindingAura, conditionBarred, conditionFree, holonWith, miraculousWind, offerChainReaction, playedFromHand, pokemonAt, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, primalLocked, trainersDusted, trainersBlocked, usePower, powerCanceller, zoomed, type PowerChoices, type PowerEffect, pokemonPower } from './powers.js';
 import { evolvesFromEevee, isPokemonSP, evolveWith, pendingChoiceView, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
 import { conditionProof, hasOwner, hasType, holonEnergy, namesMatch, isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
@@ -228,6 +228,16 @@ export interface PokemonEffects {
   nightSpin?: number;
   /** Evolutionary Gas: its attacks through this turn do nothing (they can still be used). */
   fizzle?: number;
+  /** Hover Hit: no Retreat Cost through this turn. */
+  hoverHit?: number;
+  /** Deep Sea Pressure: its Retreat Cost is 2 more through this turn. */
+  pressure?: number;
+  /** Jet Shoot: attack damage to it is 40 more through this turn. */
+  jetShoot?: number;
+  /** Turnaround Standby: Mawile's Swallow and Bite do 40 more during this turn. */
+  turnaround?: number;
+  /** Hibernation Spore: Asleep, it flips 2 coins to wake up. */
+  hibernation?: boolean;
   /** Crunch: attack damage to it is 40 more until the end of this turn. */
   crunch?: number;
   /** Seal Off: no Poké-Powers or Poké-Bodies through this turn. */
@@ -719,7 +729,7 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
 /** Searches that take cards (the most, one at a time, agreed): asked or not, every card the same is answered for the player. */
 const SAME_CARD_TAKES: ReadonlySet<PendingChoice['kind']> = new Set(['pickFromDeck', 'pickFromTop', 'bottomPick', 'discardToHand', 'attachFromDiscard', 'pickFromDiscard', 'discardToBench']);
 /** Picks the player must make (never optional ones: a cost the player may skip). */
-const SAME_CARD_MUSTS: ReadonlySet<PendingChoice['kind']> = new Set(['discardFromHand', 'handToDeck', 'discardAttached', 'removeEach', 'drainEnergy', 'oppHandTrainer', 'handToPrize', 'iceBind', 'beforeAttack']);
+const SAME_CARD_MUSTS: ReadonlySet<PendingChoice['kind']> = new Set(['discardFromHand', 'handToDeck', 'discardAttached', 'removeEach', 'drainEnergy', 'oppHandTrainer', 'handToPrize', 'iceBind', 'beforeAttack', 'darknessRestore']);
 
 /**
  * The answer to the pending choice when every card it offers is the same (sameCards, the same-card rule): the searches that
@@ -1115,6 +1125,12 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
         target.evolvedFrom.push(target.card);
         target.card = evolution;
         target.playedTurn = state.turn;
+        // Battle Tower: 4 damage counters off a Pokémon levelled up from the hand.
+        if (state.stadium && card(state.stadium.card).name === 'Battle Tower' && target.damage) {
+          const healed = Math.min(40, target.damage);
+          target.damage -= healed;
+          addLog(state, `Battle Tower removed ${healed / 10} damage counter${healed === 10 ? '' : 's'} from ${pokemonName(state, target)}.`, me.id);
+        }
         playedFromHand(state, me, target);
         return afterOwnMove(state, me, opp);
       }
@@ -1720,11 +1736,14 @@ export const retreatCost = (pokemon: InPlayPokemon, cards: CardLibrary, sides: P
   // Balloon Berry: it's discarded instead of Energy cards (RETREAT). [Zoom]: free for an Unown.
   // Tailwind: 0 this turn.
   // Fluffy Berry, and Holon Energy WP with a basic Psychic Energy card: 0.
-  ['Balloon Berry', 'Fluffy Berry'].includes(toolOf(cards, pokemon)?.name ?? '') || holonWith(pokemon, cards, 'WP', 'psychic') || zoomed(pokemon, cards, sides) || pokemon.effects?.tailwind !== undefined ? 0 : Math.max(
+  // Hover Hit: 0 for a while.
+  ['Balloon Berry', 'Fluffy Berry'].includes(toolOf(cards, pokemon)?.name ?? '') || holonWith(pokemon, cards, 'WP', 'psychic') || zoomed(pokemon, cards, sides) || pokemon.effects?.tailwind !== undefined || pokemon.effects?.hoverHit !== undefined ? 0 : Math.max(
     0,
     (inPlayDef(cards, pokemon).retreatCost ?? 0) +
       // Tentacle Wrap: 1 more.
-      (pokemon.effects?.heavier !== undefined ? 1 : 0) -
+      (pokemon.effects?.heavier !== undefined ? 1 : 0) +
+      // Deep Sea Pressure: 2 more.
+      (pokemon.effects?.pressure !== undefined ? 2 : 0) -
       retreatAid(pokemon, cards, sides) +
       // Poké-Bodies: Extreme Speed, Heavyweight, Lightweight, Conductive Body, Gluey Slime.
       retreatBodies(pokemon, cards, sides) +
@@ -2125,13 +2144,15 @@ function betweenTurns(state: GameState) {
       addLog(state, `Char: 2 damage counters on ${name}.`, id);
     }
   }
-  // Deep Sleep: with a Dark Gengar's working, 2 coins, and it wakes up only on 2 heads.
-  const deep = deepSleep(state.playerOrder.map((id) => state.players[id]!), state.cards);
+  // Deep Sleep: with a Dark Gengar's working, 2 coins, and it wakes up only on 2 heads. Hibernation Spore: the same for its Pokémon.
+  const deepAll = deepSleep(state.playerOrder.map((id) => state.players[id]!), state.cards);
   for (const { id, active, name } of actives) {
     if (active.condition !== 'asleep') {
       if (active.effects) delete active.effects.endlessDarkness;
+      if (active.effects) delete active.effects.hibernation;
       continue;
     }
+    const deep = deepAll || !!active.effects?.hibernation;
     // Endless Darkness: 2 coins; 2 tails Knock it Out.
     if (active.effects?.endlessDarkness) {
       const coins = [flipCoin(state, `${name} is Asleep (Endless Darkness)`, id), flipCoin(state, `${name} is Asleep (Endless Darkness)`, id)];
@@ -2407,7 +2428,7 @@ export function afflictionBlocked(state: GameState, owner: PlayerId, pokemon: In
   const name = pokemonName(state, pokemon);
   const e = pokemon.effects;
   const shielded = (e?.flashTouch && state.players[owner]!.active === pokemon && affliction !== 'burned') || (e?.pollenShield ?? -1) >= state.turn || (e?.conditionProof ?? -1) >= state.turn;
-  if (conditionProof(inPlayDef(state.cards, pokemon)) || conditionFree(pokemon, state.cards, effect) || (affliction === 'poisoned' && effect?.noPoison) || conditionBarred(effect, affliction, pokemon) || shielded) {
+  if (conditionProof(inPlayDef(state.cards, pokemon)) || conditionFree(pokemon, state.cards, effect) || (affliction === 'poisoned' && effect?.noPoison) || conditionBarred(effect, affliction, pokemon) || shielded || greenAroma(state.players[owner]!, pokemon, state.cards, sides)) {
     return `${name} can't be affected by Special Conditions.`;
   }
   const guard = state.rules?.find((r) => r.kind === 'conditionGuard' && r.player === owner && r.conditions.includes(affliction));
@@ -2417,7 +2438,7 @@ export function afflictionBlocked(state: GameState, owner: PlayerId, pokemon: In
 function expireEffects(pokemon: InPlayPokemon, turn: number) {
   const e = pokemon.effects;
   if (!e) return;
-  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell', 'noAttack', 'noEnergy', 'fireWall', 'focusEnergy', 'crosscounter', 'screech', 'endure', 'pollenShield', 'counter', 'secretePoison', 'slime', 'pursuit', 'lockOn', 'triggeredPoison', 'effectProof', 'pulseGuard', 'dodge', 'reflectShield', 'armorUp', 'noEvolve', 'heavier', 'tailwind', 'noPokePowers', 'conditionProof', 'stockpile', 'silverWind', 'cometPunch', 'evolvedProof', 'exProof', 'pivot', 'hustle', 'fizzle', 'crunch', 'sealed'] as const) {
+  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell', 'noAttack', 'noEnergy', 'fireWall', 'focusEnergy', 'crosscounter', 'screech', 'endure', 'pollenShield', 'counter', 'secretePoison', 'slime', 'pursuit', 'lockOn', 'triggeredPoison', 'effectProof', 'pulseGuard', 'dodge', 'reflectShield', 'armorUp', 'noEvolve', 'heavier', 'tailwind', 'noPokePowers', 'conditionProof', 'stockpile', 'silverWind', 'cometPunch', 'evolvedProof', 'exProof', 'pivot', 'hustle', 'fizzle', 'crunch', 'sealed', 'hoverHit', 'pressure', 'jetShoot'] as const) {
     if (e[key] !== undefined && e[key] <= turn) delete e[key];
   }
   if (e.charm && e.charm.until <= turn) delete e.charm;
@@ -2776,6 +2797,14 @@ function refreshHideout(state: GameState) {
       }
       const plus = pokemonPower(p)?.hpPlus;
       if (plus && powerActive(p, state.cards, sides)) p.hpPlus = (p.hpPlus ?? 0) + plus;
+      // Pump Up: 40 more HP while the opponent has 3 or fewer Prize cards left. Gravitation: 20 less, however many.
+      if (pokemonPower(p)?.pumpUp && powerActive(p, state.cards, sides) && state.players[opponentOf(state, player.id)]!.prizes.length <= 3) p.hpPlus = (p.hpPlus ?? 0) + 40;
+      if (sides.some((side) => [side.active, ...side.bench].some((q) => q && pokemonPower(q)?.gravitation && powerActive(q, state.cards, sides)))) p.hpPlus = (p.hpPlus ?? 0) - 20;
+      // Green Aroma: its player's Grass Pokémon lose every Special Condition.
+      if (hasSpecialCondition(p) && greenAroma(player, p, state.cards, sides)) {
+        clearSpecialConditions(p);
+        addLog(state, `Green Aroma: ${pokemonName(state, p)} has no Special Conditions.`, player.id);
+      }
       // Thankfulness: its player's Grass Pokémon but Shaymin get 40 more HP (one, however many).
       if (hasType(inPlayDef(state.cards, p), 'grass') && !namesMatch(inPlayDef(state.cards, p).name, 'Shaymin') && [player.active, ...player.bench].some((q) => q && pokemonPower(q)?.thankfulness && powerActive(q, state.cards, sides))) p.hpPlus = (p.hpPlus ?? 0) + 40;
       // Snowpoint Temple: 20 more HP for every Pokémon that isn't an Evolved Pokémon.

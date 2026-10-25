@@ -679,6 +679,28 @@ export interface PowerEffect {
   waterRescue?: boolean;
   /** Frost Wind: as the Active Pokémon, 10 less attack damage to its player's Pokémon (attacks.ts). */
   frostWind?: boolean;
+  /** Pump Up: 40 more HP while the opponent has 3 or fewer Prize cards left (refreshHideout). */
+  pumpUp?: boolean;
+  /** Gravitation: every Pokémon in play has 20 less HP, 20 however many (refreshHideout). */
+  gravitation?: boolean;
+  /** Root Protector: attack damage to it from the opponent's Pokémon that aren't Evolved Pokémon is this much less (attacks.ts). */
+  unevolvedGuard?: number;
+  /** Green Aroma: its player's Grass Pokémon have no Special Conditions and can't get any (greenAroma). */
+  greenAroma?: boolean;
+  /** Compound Eyes: its attacks do 30 more to the opponent's Active Pokémon with a Poké-Body (attacks.ts). */
+  compoundEyes?: boolean;
+  /** Erasing Sound: its player's Pokémon have no Weakness (attacks.ts). */
+  erasingSound?: boolean;
+  /** Marvel Eyes: with Solrock in play, nothing from the opponent's Pokémon LV.X to its player's Lunatone and Solrock (attacks.ts). */
+  marvelEyes?: boolean;
+  /** Focus Wall: Knocked Out by an attack doing 70 or more, it's left with 10 HP instead (attacks.ts). */
+  focusWall?: boolean;
+  /** Marvel Shell: nothing from the opponent's Pokémon that have a Poké-Power or Poké-Body (attacks.ts). */
+  marvelShell?: boolean;
+  /** Burning Spirit: attack damage to a Burned Pokémon is 40 more, 40 however many (attacks.ts). */
+  burningSpirit?: boolean;
+  /** Aqua Mirage: with no cards in its player's hand, no damage to it from the opponent's attacks (attacks.ts). */
+  aquaMirage?: boolean;
 }
 
 /** Wise Aura, Overpowering Fang and Intimidating Ring: an Active Pokémon's aura stopping `pokemon`'s power, or null. */
@@ -1332,6 +1354,10 @@ export const situationCounts = (me: Pick<PlayerState, 'deck' | 'prizes' | 'faceU
 /** The player's working Pokémon with Power Cancel not yet used this turn (Alakazam), if any. */
 export const powerCanceller = (state: GameState, player: PlayerState, other: PlayerState) =>
   [player.active, ...player.bench].find((p) => !!p && !!pokemonPower(p)?.powerCancel && p.powerUsedTurn !== state.turn && powerActive(p, state.cards, [player, other])) ?? null;
+
+/** Green Aroma: `owner`'s working Venusaur keeps their Grass Pokémon `pokemon` free of Special Conditions. */
+export const greenAroma = (owner: Pick<PlayerState, 'active' | 'bench'>, pokemon: InPlayPokemon, cards: CardLibrary, sides: Sides) =>
+  hasType(inPlayDef(cards, pokemon), 'grass') && [owner.active, ...owner.bench].some((p) => !!p && !!pokemonPower(p)?.greenAroma && powerActive(p, cards, sides));
 
 /**
  * Sticky Hold: `side`'s Pokémon now on the Bench in `slot`, switched or retreated there, may move its Energy cards to the new

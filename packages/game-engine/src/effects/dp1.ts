@@ -94,15 +94,15 @@ export function discardOwnEnergy(ctx: AttackContext, count: number, source: stri
 
 /**
  * `count` Energy cards off one of the opponent's Pokémon (the Defending one unless `target` says), discarded (or `toBottom`
- * of their deck, or `toLostZone`; `onlySpecial`: Special Energy cards only): picked by the attacking player once the attack
- * is over when they differ (the same-card rule, agreed), otherwise the first ones.
+ * of their deck, or `toLostZone`; `onlySpecial`: Special Energy cards only; `types`: Energy cards of these types only): picked
+ * by the attacking player once the attack is over when they differ (the same-card rule, agreed), otherwise the first ones.
  */
-export function removeDefenderEnergy(ctx: AttackContext, count: number, source: string, { toBottom = false, toLostZone = false, onlySpecial = false, target = 'active' as Target } = {}) {
+export function removeDefenderEnergy(ctx: AttackContext, count: number, source: string, { toBottom = false, toLostZone = false, onlySpecial = false, target = 'active' as Target, types }: { toBottom?: boolean; toLostZone?: boolean; onlySpecial?: boolean; target?: Target; types?: EnergyType[] } = {}) {
   const p = target === 'active' ? ctx.opp.active : ctx.opp.bench[target];
-  const cards = p ? energyCards(p).filter((e) => !onlySpecial || isSpecialEnergy(ctx.state.cards, e)) : [];
+  const cards = p ? energyCards(p).filter((e) => (!onlySpecial || isSpecialEnergy(ctx.state.cards, e)) && (!types || types.some((t) => energyCardOf(ctx.state.cards, e, t)))) : [];
   if (count <= 0 || !p || !cards.length || !ctx.canAffect(ctx.opp, p)) return;
   if (!(toBottom || toLostZone ? energyCanMove(ctx, p) : energyCanGo(ctx, p))) return;
-  if (cards.length > count && !sameCards(ctx.state.cards, cards)) return askAfter(ctx, { kind: 'removeEach', source, targets: Array<Target>(count).fill(target), ...(toBottom && { toBottom }), ...(toLostZone && { toLostZone }), ...(onlySpecial && { onlySpecial }) });
+  if (cards.length > count && !sameCards(ctx.state.cards, cards)) return askAfter(ctx, { kind: 'removeEach', source, targets: Array<Target>(count).fill(target), ...(toBottom && { toBottom }), ...(toLostZone && { toLostZone }), ...(onlySpecial && { onlySpecial }), ...(types && { types }) });
   const gone = cards.slice(0, count);
   if (!toBottom && !toLostZone && p === ctx.opp.active) return gone.forEach((e) => ctx.discardDefenderEnergy(e.uid));
   p.energy = p.energy.filter((e) => !gone.includes(e));
