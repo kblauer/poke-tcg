@@ -35,6 +35,7 @@ function shownState(events: BattleEvent[]) {
   const sides: [SideShown, SideShown] = [{ mon: null, fainted: false }, { mon: null, fainted: false }];
   let text: string | null = null;
   let ball: Extract<BattleEvent, { t: 'ball' }> | null = null;
+  let ballAt = -1;
   let hit: { side: 0 | 1; at: number } | null = null;
   let attacker: { side: 0 | 1; at: number } | null = null;
   events.forEach((e, i) => {
@@ -72,10 +73,13 @@ function shownState(events: BattleEvent[]) {
         break;
       case 'ball':
         ball = e;
+        ballAt = i;
         break;
     }
     if ('msg' in e && e.msg) text = e.msg;
   });
+  // A ball the Pokémon broke out of shows only until the battle goes on.
+  if (ball && !(ball as Extract<BattleEvent, { t: 'ball' }>).caught && ballAt < events.length - 1) ball = null;
   return { sides, text, ball: ball as Extract<BattleEvent, { t: 'ball' }> | null, hit: hit as { side: 0 | 1; at: number } | null, attacker: attacker as { side: 0 | 1; at: number } | null };
 }
 
@@ -157,7 +161,7 @@ export function BattleScreen({ battle, shown, gender }: { battle: BattleSegment;
       <img src={background(battle)} alt="" className="absolute left-0 top-0 w-full" style={{ height: px(112) }} draggable={false} />
       {/* The foe: its trainer before they send one out, then its Pokémon (or the ball it's caught in). */}
       {!foe.mon && trainer?.pic && <img src={`${GEN1}/trainers/${trainer.pic}.png`} alt="" className="absolute" style={{ left: px(144), top: px(8), width: px(64) }} draggable={false} />}
-      {foe.mon && !foe.fainted && !(ball && (ball.caught || shown === battle.events.findIndex((e) => e === ball) + 1)) && (
+      {foe.mon && !foe.fainted && !ball && (
         <img
           key={`f${foe.mon.uid}`}
           src={`${GEN1}/pokemon/front/${foe.mon.species}.png`}

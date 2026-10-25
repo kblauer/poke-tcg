@@ -78,7 +78,7 @@ export function MapScene({
 export function AreaScene({ playback, gender, children }: { playback: Playback; gender: 'male' | 'female'; children?: ReactNode }) {
   const place = playback.place;
   const area = place && (AREAS[place.area] as WalkArea | undefined);
-  if (!place || !area || area.kind === undefined || !('legs' in area)) return <div className={`${HEIGHT} rounded-lg bg-slate-900 ring-1 ring-slate-700`}>{children}</div>;
+  if (!place || !area || !('legs' in area)) return <div className={`${HEIGHT} rounded-lg bg-slate-900 ring-1 ring-slate-700`}>{children}</div>;
   const leg = area.legs[Math.min(place.leg, area.legs.length - 1)]!;
   const [m, x, y, , tileCode] = leg.track[Math.min(place.step, leg.track.length - 1)]!;
   const map = mapView(leg.maps[m]!);
