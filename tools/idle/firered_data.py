@@ -248,7 +248,8 @@ write('encounters.ts', 'src/data/wild_encounters.json',
 
 # ---- Trainers ----
 parties = {}
-for m in re.finditer(r'static const struct (TrainerMon\w+) (sParty_\w+)\[\] = \{(.*?)\n\};', read('src/data/trainer_parties.h'), re.S):
+# A party's body never runs into the next declaration (a one-line placeholder party has no "\n};" of its own).
+for m in re.finditer(r'static const struct (TrainerMon\w+) (sParty_\w+)\[\] = \{((?:(?!static const)[\s\S])*?)\};', read('src/data/trainer_parties.h')):
     mons = []
     for blk in blocks(m.group(3)):
         fl = {a: b.strip() for a, b in re.findall(r'\.(\w+)\s*=\s*(\{[^}]*\}|[^,\n]+)', blk)}
