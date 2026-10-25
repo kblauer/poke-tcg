@@ -1,7 +1,7 @@
 import { cardRarity, generation, runType, type PoolCard } from '@poke-tcg/campaign';
-import { prisma } from '@poke-tcg/db';
 import { cardImplemented, type CardDef } from '@poke-tcg/game-engine';
 import { toCardDef } from './cards.js';
+import { catalogInIdOrder } from './catalog.js';
 
 /** A catalog card's rarity, holos apart (the campaign's card-fixes.ts, shared with its test pool). */
 export { cardRarity };
@@ -12,7 +12,7 @@ export { cardRarity };
  */
 async function loadPool(gen: number): Promise<PoolCard[]> {
   const { poolSets, implementedSets } = generation(gen);
-  const rows = await prisma.card.findMany({ where: { setId: { in: poolSets } }, orderBy: { id: 'asc' } });
+  const rows = (await catalogInIdOrder()).filter((row) => poolSets.includes(row.setId));
   const pool = rows.flatMap((row) => {
     let def: CardDef;
     try {

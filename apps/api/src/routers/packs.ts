@@ -3,7 +3,8 @@ import { prisma, type Card } from '@poke-tcg/db';
 import { craftCardInput, debugOpenPackInput, openPackInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { ensureUser } from '../auth.js';
-import { holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, isReverseHolo, type HoloEnergyStyle } from '../cards.js';
+import { catalogIndex, holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, isReverseHolo, type HoloEnergyStyle } from '../cards.js';
+import { catalogInIdOrder } from '../catalog.js';
 import { cardRarity } from '../pool.js';
 import { unlockedPacks } from '../progress.js';
 import { debugProcedure, protectedProcedure, router } from '../trpc.js';
@@ -67,11 +68,9 @@ async function packEnergy(setId: string): Promise<{ energy: Card[]; holoEnergy: 
   return { energy, holoEnergy };
 }
 
-/** Every Energy card with its set's release date, and every set's release date: loaded once, shared by every set's packEnergy (the catalog only changes with the seed). */
-let energyRows: Promise<(Card & { set: { releaseDate: Date | null } })[]> | undefined;
-const energyCards = () => (energyRows ??= prisma.card.findMany({ where: { kind: 'ENERGY' }, include: { set: { select: { releaseDate: true } } } }));
-let setRows: Promise<Map<string, Date | null>> | undefined;
-const setDates = () => (setRows ??= prisma.cardSet.findMany({ select: { id: true, releaseDate: true } }).then((sets) => new Map(sets.map((s) => [s.id, s.releaseDate]))));
+/** Every Energy card with its set's release date, and every set's release date: from the catalog, shared by every set's packEnergy. */
+const energyCards = async () => (await catalogInIdOrder()).filter((r) => r.kind === 'ENERGY');
+const setDates = async () => new Map((await catalogInIdOrder()).map((r) => [r.setId, r.set.releaseDate]));
 
 const loaded = new Map<string, Promise<{ set: PackSet; cards: Map<string, ShownCard> }>>();
 
@@ -83,7 +82,7 @@ function packSet(setId: string) {
   let entry = loaded.get(setId);
   if (!entry) {
     entry = (async () => {
-      const [rows, { energy, holoEnergy }] = await Promise.all([prisma.card.findMany({ where: { setId } }), packEnergy(setId)]);
+      const [rows, { energy, holoEnergy }] = await Promise.all([catalogInIdOrder().then((all) => all.filter((r) => r.setId === setId)), packEnergy(setId)]);
       const set: PackSet = { common: [], uncommon: [], rare: [], holo: [], energy: energy.map((r) => r.id), holoEnergy: holoEnergy.map((r) => r.id) };
       const cards = new Map<string, ShownCard>();
       for (const row of [...rows, ...energy, ...holoEnergy]) cards.set(row.id, shown(row));
@@ -200,7 +199,7 @@ export const packsRouter = router({
    * from a set whose packs the user has unlocked, and not one already unlocked unless it counts copies.
    */
   craft: protectedProcedure.input(craftCardInput).mutation(async ({ ctx, input }) => {
-    const card = await prisma.card.findUnique({ where: { id: input.cardId } });
+    const card = (await catalogIndex()).get(input.cardId);
     const cost = card && craftCost(card);
     if (!card || cost === null) throw new TRPCError({ code: 'BAD_REQUEST', message: "That card can't be crafted" });
     const [twins, packs] = await Promise.all([holoTwins(), unlockedPacks(ctx.user.id)]);

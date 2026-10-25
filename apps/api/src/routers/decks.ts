@@ -2,7 +2,7 @@ import { TRPCError } from '@trpc/server';
 import { prisma, type Card } from '@poke-tcg/db';
 import { DECK_NAME_LENGTH, DECK_SIZE, MAX_UNOWN, maxCopiesOf, copiesOfName, unownCount, deckIdInput, deckImportInput, deckOrderInput, deckProblems, deckRenameInput, deckSaveInput, favoriteCardInput, favoriteDeckInput, type DeckRuleCard } from '@poke-tcg/shared';
 import { ensureUser, type AuthUser } from '../auth.js';
-import { isBasicEnergyCard } from '../cards.js';
+import { catalogCards, catalogIndex, isBasicEnergyCard } from '../cards.js';
 import { decodeDeck, encodeDeck, plainCards, withOwnHolos, type DeckList } from '../deck-codes.js';
 import { parseDeckText, resolveDeckText } from '../deck-text.js';
 import { protectedProcedure, router } from '../trpc.js';
@@ -81,7 +81,7 @@ async function checkCards(cards: DeckList['cards']) {
   if (new Set(cards.map((c) => c.cardId)).size !== cards.length) {
     throw new TRPCError({ code: 'BAD_REQUEST', message: 'Each card should be listed once' });
   }
-  const rows = await prisma.card.findMany({ where: { id: { in: cards.map((c) => c.cardId) } }, select: { id: true, ...cardFields.select } });
+  const rows = await catalogCards(cards.map((c) => c.cardId));
   if (rows.length !== cards.length) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Unknown card in the deck' });
   const entries = cards.map((c) => ({ card: ruleCard(rows.find((r) => r.id === c.cardId)!), quantity: c.quantity }));
   const total = entries.reduce((n, e) => n + e.quantity, 0);
@@ -161,7 +161,7 @@ export const decksRouter = router({
       await prisma.favoriteCard.deleteMany({ where: key });
       return { ok: true };
     }
-    if (!(await prisma.card.findUnique({ where: { id: input.cardId }, select: { id: true } }))) throw new TRPCError({ code: 'BAD_REQUEST', message: 'No such card' });
+    if (!(await catalogIndex()).has(input.cardId)) throw new TRPCError({ code: 'BAD_REQUEST', message: 'No such card' });
     await prisma.favoriteCard.upsert({ where: { userId_cardId: key }, create: key, update: {} });
     return { ok: true };
   }),

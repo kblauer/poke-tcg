@@ -7,7 +7,7 @@
 // reprints are unlocked together when they look the same (neither is holo).
 import { prisma, type Card, type Prisma } from '@poke-tcg/db';
 import { BASE4_REPRINTS } from '@poke-tcg/game-engine';
-import { cardLabel, catalogRows, holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, isReverseHolo, type CardData } from './cards.js';
+import { cardLabel, catalogCards, catalogRows, holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, isReverseHolo, type CardData } from './cards.js';
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
@@ -79,10 +79,10 @@ export const BASE2_PAIRS = Object.entries(BASE4_REPRINTS).map(([reprint, origina
  * `20261018090000_base2_common_unlocks` and `20261018100000_base2_common_originals`) did the same for unlocks
  * made before this.
  */
-async function base2Reprints(ids: Set<string>, db: Db): Promise<string[]> {
+async function base2Reprints(ids: Set<string>): Promise<string[]> {
   const pairs = BASE2_PAIRS.filter(([reprint, original]) => ids.has(reprint) || ids.has(original));
   if (!pairs.length) return [];
-  const rows = await db.card.findMany({ where: { id: { in: pairs.flat() } }, select: { id: true, kind: true, data: true } });
+  const rows = await catalogCards(pairs.flat());
   // Basic Energy is always unlocked, so it isn't listed.
   const plain = new Set(rows.filter((c) => !isHolo(c) && !isBasicEnergyCard(c)).map((c) => c.id));
   return pairs.filter(([reprint, original]) => plain.has(reprint) && plain.has(original)).flat();
@@ -98,9 +98,9 @@ export async function unlockCards(userId: string, cardIds: Iterable<string>, db:
   const pairs = await holoTwins();
   const ids = new Set(gained);
   for (const id of gained) if (pairs.has(id)) ids.add(pairs.get(id)!);
-  for (const id of await base2Reprints(ids, db)) ids.add(id);
+  for (const id of await base2Reprints(ids)) ids.add(id);
   if (!ids.size) return;
-  const rows = await db.card.findMany({ where: { id: { in: [...ids] } }, select: { id: true, data: true } });
+  const rows = await catalogCards(ids);
   const counted = new Set(rows.filter((c) => pairs.has(c.id) || holoEnergyStyle(c)).map((c) => c.id));
   await db.cardUnlock.createMany({ data: [...ids].filter((id) => !counted.has(id)).map((cardId) => ({ userId, cardId, quantity: 1 })), skipDuplicates: true });
   const copies = gained.filter((id) => counted.has(id)).reduce((m, id) => m.set(id, (m.get(id) ?? 0) + 1), new Map<string, number>());
