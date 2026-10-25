@@ -127,6 +127,8 @@ div.flair-border {
 /* PTCGP's order round the card: magenta and blue along the top, then violet and red down the right, green and yellow up the left. */
 .flair-border[data-border="rainbow"] > .flair-border__ring {
   --rainbow: conic-gradient(from 0deg at 50% 50%, #3a7bff, #7a4dff, #c44dff, #ff3b8d, #ff4a3b, #ff9a1f, #ffe02e, #8ee83a, #2fd16b, #22c9e8, #2f9bff, #d14dff 330deg, #3a7bff);
+  /* A little richer (the user's). */
+  filter: saturate(1.2);
 }
 
 /* The same round the card, softer: each colour mixed well towards white. */
@@ -134,6 +136,8 @@ div.flair-border {
   --ridges-light: rgb(255 255 255 / 0.6);
   --ridges-dark: rgb(60 50 90 / 0.12);
   --rainbow: conic-gradient(from 0deg at 50% 50%, #a9c3ff, #bfaeff, #ddb2ff, #ffb3cf, #ffb8b0, #ffd3a3, #fff1a8, #d3f5a8, #b3ecc6, #ace8f4, #accfff, #e6b5ff 330deg, #a9c3ff);
+  /* A little richer (the user's), still soft. */
+  filter: saturate(1.25);
 }
 
 /* A band of light sweeping across the ring now and then. */
