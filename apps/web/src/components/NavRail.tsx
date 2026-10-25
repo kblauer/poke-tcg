@@ -3,7 +3,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { useRun } from '../hooks/useRun';
 import { GameLog } from './GameLog';
 import { useNavGameLog } from './NavLog';
-import { litStatus, PAGE_NAME, PAGES, PokedollarIcon, SETTINGS_PAGE, usePlayLit } from './PageNav';
+import { litStatus, PAGE_NAME, PAGES, PlayModes, PokedollarIcon, SETTINGS_PAGE, usePlayLit } from './PageNav';
 import { DeltaFloat } from './run/DeltaFloat';
 import { HpBar } from './run/HpBar';
 import { usePokedollarColor } from '../hooks/useThemedFigures';
@@ -40,7 +40,7 @@ function loadSections(): SectionPrefs {
 /**
  * The site's menu on a big screen, down the left edge under the top bar, beside the page: minimised, a column of the
  * pages' icons (their names on hover), Settings last; `open` (toggled by the top bar's ☰), wider, with each
- * page's name beside its icon. Either way it takes its own room on the left and the page beside it stays usable.
+ * page's name beside its icon and Play's modes in an accordion under it (PlayModes, the user's). Either way it takes its own room on the left and the page beside it stays usable.
  * Under them, open, the run's numbers and the logs (NavSections); minimised, the run's HP and ₱ (the bank, EXP and
  * Stardust are in the top bar: TopBarAccount).
  */
@@ -58,7 +58,7 @@ export function NavRail({ open }: { open: boolean }) {
         open ? 'w-72' : 'w-14'
       }`}
     >
-      {PAGES.map((p) => link(p))}
+      {PAGES.map((p) => (open && p.to === '/' ? <PlayModes key={p.to} link={link(p, 'w-full')} /> : link(p)))}
       {link(SETTINGS_PAGE)}
       {open ? <NavSections /> : <RunSummary />}
     </nav>
