@@ -3,7 +3,7 @@
 // cards are useful. Everything here is generic over cards: no card ids, and only the rules engine's own
 // effects decide what an attack does.
 import { answerChoice, attackError, attackSituation, performAttack, resolveChoices, situationAttacks, traceDamage, type AttackChoices, type AttackSituation, type ChoiceSpec } from '../attacks.js';
-import { isBasicEnergy, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from '../cards.js';
+import { isBasicEnergy, isBasicPokemon, isLegend, isPokemonCard, isTrainerCard, lookupCard, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from '../cards.js';
 import { applyAction, cloneState, energyPool, resolveKnockouts, energyProvided, payCost, type PoolEnergy, evolveError, opponentOf, retreatCost, retreatError, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
 import { nextRandom } from '../rng.js';
 import { inPlayDef, openBenchSlot } from '../status.js';
@@ -679,6 +679,7 @@ export function resolveSearch(t: Turn): GameAction {
 function optionAnswer(t: Turn, count: number): number {
   const choice = t.state.pendingChoice!;
   if (choice.kind === 'treaty') return t.me.prizes.length > t.opp.prizes.length ? 1 : 0;
+  if (choice.kind === 'beforeAttack' && choice.question === 'plead') return pleadAnswer(t.state, t.id);
   if (choice.kind === 'benchGuard') {
     const rhydon = t.me.bench[choice.guard];
     return rhydon && hpLeft(t.state.cards, rhydon) > 10 ? 0 : 1;
@@ -716,11 +717,27 @@ export function borrowedTrainerMove(state: GameState, cpuId: PlayerId, decide: (
   return { type: 'RESOLVE_CHOICE' };
 }
 
-/** Puts a Basic Pokémon from the hand onto the Bench, while there's room. */
+/** Puts a Basic Pokémon from the hand onto the Bench, while there's room; then a Pokémon LEGEND whose two halves it holds (agreed 2026-10-25). */
 export function benchBasic(t: Turn): GameAction | null {
   const empty = openBenchSlot(t.me, t.state.cards, t.state.stadium?.card);
+  if (empty < 0) return null;
   const basic = t.me.hand.find((c) => isBasicPokemon(t.def(c)));
-  return empty >= 0 && basic ? { type: 'PLAY_BENCH', cardUid: basic.uid, slot: empty } : null;
+  if (basic) return { type: 'PLAY_BENCH', cardUid: basic.uid, slot: empty };
+  const legend = t.me.hand.find((c) => isLegend(t.def(c)) && t.me.hand.some((d) => d.defId !== c.defId && t.def(d).name === t.def(c).name));
+  return legend ? { type: 'PLAY_BENCH', cardUid: legend.uid, slot: empty } : null;
+}
+
+/** Lost World: the win, as soon as it can be taken (agreed 2026-10-25, every difficulty). */
+export function lostWorldWin(state: GameState, cpuId: PlayerId): GameAction | null {
+  const stadium = state.stadium && lookupCard(state.cards, state.stadium.card.defId).name;
+  const action: GameAction = { type: 'USE_STADIUM' };
+  return stadium === 'Lost World' && tryAction(state, cpuId, action) ? action : null;
+}
+
+/** Plead: yes (its opponent draws 2) only when the 20 damage would Knock Out its Active Pokémon (agreed 2026-10-25). */
+export function pleadAnswer(state: GameState, cpuId: PlayerId): number {
+  const active = state.players[cpuId]?.active;
+  return active && hpLeft(state.cards, active) <= 20 ? 0 : 1;
 }
 
 /** Evolves whatever can evolve: the Active Pokémon first, then the Bench in order. */

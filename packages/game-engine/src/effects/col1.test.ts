@@ -234,3 +234,12 @@ describe('Call of Legends Trainers', () => {
     for (const end of settles(play(duel('charmander', 'onix'), 'col1-84', 'Research Record'))) expect(end.pendingChoice).toBeUndefined();
   });
 });
+
+describe('Agreed 2026-10-25', () => {
+  it("Destructive Tsunami: tails, Kyogre takes its 40 with its own Weakness", () => {
+    const s = duel('charmander', 'onix');
+    put(s, 'ash', 'active', mon('col1-12', 'Kyogre', W, 300, [['Destructive Tsunami', [C], 0]], { weakness: { type: 'water', multiplier: 2 } }), ['water']);
+    put(s, 'misty', 'active', big('Snorlax'));
+    expect(ash(attack(flips(s, false), 0)).active!.damage).toBe(80);
+  });
+});

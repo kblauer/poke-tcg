@@ -4,8 +4,8 @@
 // the attack; Blessed Wings heals every one of the player's Pokémon, then shuffles Togekiss away; Moonlight Fang keeps off
 // attacks of Pokémon with a printed Poké-Power or Poké-Body; Plasma Arrow counts the Energy the chosen Pokémon provides;
 // Sludge Drag's Pokémon is picked by the attacking player, and with no Benched Pokémon nothing happens; Selfish Draw's card
-// is taken or discarded once the attack is over; Rambunctious Party puts every Basic Pokémon it finds onto the Bench while
-// there's room (agreed reading of "as many as you like": it always helps); Plead asks the opponent before the attack.
+// is taken or discarded once the attack is over; Rambunctious Party's Basic Pokémon are picked one at a time, the player
+// stopping when they like (agreed 2026-10-25); Plead asks the opponent before the attack.
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { hasType, isBasicPokemon, lookupCard, namesMatch } from '../cards.js';
 import { energyPool, newInPlay, type Target } from '../engine.js';
@@ -324,15 +324,9 @@ export const HGSS3: Record<string, Record<string, AttackEffect>> = {
     'Rambunctious Party': {
       run(ctx) {
         const top = ctx.me.deck.slice(0, 5);
-        for (const card of top) {
-          const slot = openBenchSlot(ctx.me, ctx.state.cards, ctx.state.stadium?.card);
-          if (slot < 0) break;
-          if (!isBasicPokemon(lookupCard(ctx.state.cards, card.defId))) continue;
-          ctx.me.deck = ctx.me.deck.filter((c) => c !== card);
-          ctx.me.bench[slot] = newInPlay(card, ctx.state.turn);
-          ctx.log(`Put ${lookupCard(ctx.state.cards, card.defId).name} onto the Bench.`);
-        }
-        [ctx.me.deck, ctx.state.rngState] = shuffle(ctx.me.deck, ctx.state.rngState);
+        ctx.log(`Rambunctious Party shows ${top.map((c) => lookupCard(ctx.state.cards, c.defId).name).join(', ')}.`);
+        if (top.some((c) => isBasicPokemon(lookupCard(ctx.state.cards, c.defId))) && openBenchSlot(ctx.me, ctx.state.cards, ctx.state.stadium?.card) >= 0) ctx.pend({ kind: 'pickFromTop', source: 'Rambunctious Party', looked: top.map((c) => c.uid), take: 5, toBench: true });
+        else [ctx.me.deck, ctx.state.rngState] = shuffle(ctx.me.deck, ctx.state.rngState);
       },
     },
   },

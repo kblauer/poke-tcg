@@ -6,7 +6,7 @@
 // checked once each action is done (moving damage counters still works); Natural Remedy works each time; Forest Breath's
 // Energy card counts as attached from the hand; Energymite Knocks Electrode Out first (its Prize card taken), then the Energy
 // cards among the top 7 are attached to the player's Pokémon one at a time; Fighting Tag needs a Fighting Energy on the
-// Active Pokémon; Dittobolic's discard is asked as Ditto comes into play.
+// Active Pokémon; Dittobolic's discard is asked whenever it applies (agreed 2026-10-25), once an action is done.
 import { lookupCard } from '../cards.js';
 import { activeLock, afflictBetweenTurns, resolveKnockouts } from '../engine.js';
 import { energyFromHand, ownTargets, pokemonAt, type PowerEffect } from '../powers.js';
@@ -56,14 +56,7 @@ export const HGSS4_POWERS: Record<string, PowerEffect> = {
   // Victreebel – Tangling Tendrils: as the Active Pokémon, the opponent's Active Pokémon retreats for 2 more (stickyGoo).
   'hgss4-12': { ...POKE_BODY, stickyGoo: 2 },
   // Ditto – Dittobolic: the opponent can have only 4 Benched Pokémon; with 5, they discard one (benchLimit).
-  'hgss4-17': {
-    ...POKE_BODY,
-    dittobolic: true,
-    onPlayFromHand(state, owner) {
-      const opp = state.players[state.playerOrder.find((id) => id !== owner.id)!]!;
-      if (opp.bench.filter(Boolean).length > 4) (state.queuedChoices ??= []).push({ player: opp.id, source: 'Dittobolic', kind: 'narrowGym', limit: 4, discard: true });
-    },
-  },
+  'hgss4-17': { ...POKE_BODY, dittobolic: true },
   // Elekid, Magby – Sweet Sleeping Face: as HeartGold & SoulSilver's.
   'hgss4-21': HGSS1_POWERS['hgss1-17']!,
   'hgss4-41': HGSS1_POWERS['hgss1-17']!,

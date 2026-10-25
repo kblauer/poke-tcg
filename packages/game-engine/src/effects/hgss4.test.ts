@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CardDef, PokemonCardDef } from '../cards.js';
-import { applyAction, getPlayerView, type GameState, type InPlayPokemon, type Target } from '../index.js';
+import { applyAction, getPlayerView, runCpu, type GameState, type InPlayPokemon, type Target } from '../index.js';
 import { usableAttacks } from '../attacks.js';
 import { act, attack, duel, flips, id, mon, settles, C, F, FI, G, L, P, W } from './test-kit.js';
 
@@ -338,5 +338,77 @@ describe('Triumphant Trainers', () => {
     s = play(s, 'hgss4-FOUR', 'Alph Lithograph');
     expect(s.pendingChoice).toMatchObject({ kind: 'lookOppDeck', own: true, prizes: true });
     expect(act(s, 'ash', { type: 'RESOLVE_CHOICE' }).pendingChoice).toBeUndefined();
+  });
+});
+
+describe('Agreed 2026-10-25', () => {
+  it('Dittobolic: with 5 Benched Pokémon, the opponent discards one once the action is done', () => {
+    let s = duel('charmander', 'onix');
+    decks(s);
+    for (const [slot, name] of ['A', 'B', 'C', 'D', 'E'].entries()) put(s, 'ash', slot, big(name));
+    put(s, 'misty', 0, mon('hgss4-17', 'Ditto', C, 40, [], body('Dittobolic')));
+    s = act(s, 'ash', { type: 'END_TURN' });
+    expect(s.pendingChoice).toMatchObject({ player: 'ash', kind: 'narrowGym', limit: 4, discard: true });
+    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', target: 2 });
+    expect([ash(s).bench.filter(Boolean).length, s.pendingChoice]).toEqual([4, undefined]);
+  });
+
+  it('Junk Arm: only with a Trainer card other than Junk Arm in the discard pile', () => {
+    const s = duel('charmander', 'onix');
+    s.cards = { ...s.cards, 'hgss4-87': trainer('hgss4-87', 'Junk Arm') };
+    ash(s).discard = [{ uid: 'junk', defId: 'hgss4-87' }];
+    ash(s).hand = [{ uid: 'arm', defId: 'hgss4-87' }, { uid: 'a', defId: 'fire' }, { uid: 'b', defId: 'water' }];
+    expect(applyAction(s, 'ash', { type: 'PLAY_TRAINER', cardUid: 'arm', choices: { handUids: ['a', 'b'] } })).toMatchObject({ ok: false, error: expect.stringMatching(/Junk Arm/) });
+  });
+
+  it("Tripping Headbutt: tails, the player's own Active Pokémon takes the 30 with its Weakness", () => {
+    const s = duel('charmander', 'onix');
+    put(s, 'ash', 'active', mon('hgss4-74', 'Psyduck', W, 300, [['Tripping Headbutt', [W], 0]], { weakness: { type: 'water', multiplier: 2 } }), ['water']);
+    put(s, 'misty', 'active', big('Snorlax'));
+    expect(ash(attack(flips(s, false), 0, { oppTarget: 'active', ownTarget: 'active' })).active!.damage).toBe(60);
+  });
+
+  it('Legend Ceremony: with two complete Pokémon LEGEND in the deck, the player picks which', () => {
+    let s = duel('charmander', 'onix');
+    put(s, 'ash', 'active', mon('hgss4-15', 'Bronzong', 'metal', 90, [['Legend Ceremony', [C], 0]], { stage: 'stage1' }), ['fire']);
+    const half = (cardId: string, name: string) => mon(cardId, name, W, 130, []);
+    s.cards = { ...s.cards, l1a: half('l1a', 'Lugia LEGEND'), l1b: half('l1b', 'Lugia LEGEND'), l2a: half('l2a', 'Ho-Oh LEGEND'), l2b: half('l2b', 'Ho-Oh LEGEND') };
+    ash(s).deck = ['l1a', 'l1b', 'l2a', 'l2b', 'fire'].map((d) => ({ uid: d, defId: d }));
+    ash(s).hand = [];
+    s = attack(s, 0);
+    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', count: 0 });
+    expect(ash(s).hand.map((c) => c.uid).sort()).toEqual(['l1a', 'l1b']);
+  });
+
+  it('the CPUs win with Lost World as soon as they can', () => {
+    for (const difficulty of ['passive', 'trainer', 'gymLeader'] as const) {
+      const s = duel('charmander', 'onix');
+      s.cpuDifficulty = difficulty;
+      stadium(s, 'col1-81', 'Lost World');
+      misty(s).lostZone = Array.from({ length: 6 }, (_, i) => ({ uid: `l${i}`, defId: id('charmander') }));
+      const run = runCpu(s, 'ash');
+      expect([run.actions[0], run.state.winner]).toEqual([{ type: 'USE_STADIUM' }, 'ash']);
+    }
+  });
+
+  it('the Trainer and gym leader CPUs bench a Pokémon LEGEND whose halves they hold', () => {
+    for (const difficulty of ['trainer', 'gymLeader'] as const) {
+      const s = duel('charmander', 'onix');
+      s.cpuDifficulty = difficulty;
+      s.cards = { ...s.cards, 'hgss1-113': mon('hgss1-113', 'Lugia LEGEND', W, 130, []), 'hgss1-114': mon('hgss1-114', 'Lugia LEGEND', W, 130, []) };
+      ash(s).hand = [{ uid: 'top', defId: 'hgss1-113' }, { uid: 'bottom', defId: 'hgss1-114' }];
+      expect(runCpu(s, 'ash').actions[0]).toEqual({ type: 'PLAY_BENCH', cardUid: 'top', slot: 0 });
+    }
+  });
+
+  it("Plead: the CPU says yes only when the 20 damage would Knock Out its Active Pokémon", () => {
+    for (const [damage, answer] of [[0, 1], [280, 0]] as const) {
+      let s = duel('charmander', 'onix');
+      s.cpuDifficulty = 'gymLeader';
+      put(s, 'ash', 'active', mon('hgss3-70', 'Togepi', C, 40, [['Plead', [C], 0]]), ['fire']);
+      put(s, 'misty', 'active', big('Snorlax')).damage = damage;
+      s = attack(s, 0);
+      expect(runCpu(s, 'misty').actions[0]).toEqual({ type: 'RESOLVE_CHOICE', count: answer });
+    }
   });
 });

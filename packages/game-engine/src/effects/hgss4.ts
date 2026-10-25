@@ -2,14 +2,15 @@
 // From the text: Toxic Fang's Poison is 2 damage counters between turns; Color Tag's type is picked before the attack; Astonish's
 // cards are picked at random (without looking); Tail Spank does nothing with fewer than 2 cards in the hand, its 2 picked once
 // the attack is over; Vicious Claw's Pokémon is picked once the attack is over; Lost Crush's Pokémon is picked before the attack, its Energy card once it's over when they differ;
-// Legend Ceremony takes the first Pokémon LEGEND whose two halves are in the deck; Thunder Shot does its 50 to the Active
+// Legend Ceremony's Pokémon LEGEND is picked when two or more have both halves in the deck (agreed); Thunder Shot does its 50 to the Active
 // Pokémon with Weakness and Resistance; Top Burner counts the Fire Energy Magmortar provides; Tentavolve checks that Tentacruel
 // evolved from Tentacool this turn; Messenger's search comes first, then Pidgey is shuffled away; Tripping Headbutt's two
-// Pokémon (the opponent's for heads, the player's for tails) are picked before the attack, the player's taking the 30 without
-// Weakness or Resistance; Hurl into Darkness looks at the hand even with nothing to take; Lost Crisis's Knocked Out Pokémon go
+// Pokémon (the opponent's for heads, the player's for tails) are picked before the attack, the player's Active Pokémon taking
+// the 30 with its Weakness and Resistance (agreed 2026-10-25); Hurl into Darkness looks at the hand even with nothing to take; Lost Crisis's Knocked Out Pokémon go
 // to the Lost Zone with their cards; Moon's Invite's damage counters are moved one at a time once the attack is over.
-import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
-import { hasType, isLegend, isPokemonCard, lookupCard, namesMatch, type EnergyType } from '../cards.js';
+import { applyWeaknessResistance, type AttackContext, type AttackEffect, type ChoiceSpec } from '../attacks.js';
+import { hasType, isPokemonCard, lookupCard, namesMatch, typesOf, type EnergyType } from '../cards.js';
+import { legendNames, takeLegend } from '../trainers.js';
 import { counts, energyPool, type CardInstance, type Target } from '../engine.js';
 import { nextRandom, shuffle } from '../rng.js';
 import { inPlayDef } from '../status.js';
@@ -28,6 +29,9 @@ const mine = (ctx: AttackContext, t: Target) => (t === 'active' ? ctx.me.active 
 const name = (ctx: AttackContext, c: CardInstance) => lookupCard(ctx.state.cards, c.defId).name;
 const boosted = (ctx: AttackContext, attack: string) => ctx.attacker.effects?.boostedAttack?.attack === attack && ctx.attacker.effects.boostedAttack.turn === ctx.turn;
 const TYPES: EnergyType[] = ['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'darkness', 'metal', 'colorless'];
+
+/** Damage to the player's own Active Pokémon (the attacker) with its own Weakness and Resistance (agreed 2026-10-25: Tripping Headbutt, Destructive Tsunami). */
+export const ownActiveDamage = (ctx: AttackContext, amount: number) => applyWeaknessResistance(amount, typesOf(ctx.attackerDef), ctx.attackerDef, ctx.attacker.effects);
 
 /** `n` cards from the opponent's hand at random, shuffled into their deck (Astonish). */
 function astonish(ctx: AttackContext, n: number) {
@@ -172,15 +176,9 @@ export const HGSS4: Record<string, Record<string, AttackEffect>> = {
   'hgss4-15': {
     'Legend Ceremony': {
       run(ctx) {
-        const deck = ctx.me.deck;
-        const legend = deck.find((c) => isLegend(lookupCard(ctx.state.cards, c.defId)) && deck.some((d) => d.defId !== c.defId && name(ctx, d) === name(ctx, c)));
-        const half = legend && deck.find((d) => d.defId !== legend.defId && name(ctx, d) === name(ctx, legend));
-        if (legend && half) {
-          ctx.me.deck = deck.filter((c) => c !== legend && c !== half);
-          ctx.me.hand.push(legend, half);
-          ctx.log(`Took both halves of ${name(ctx, legend)} from the deck.`);
-        } else ctx.log('Legend Ceremony found no Pokémon LEGEND.');
-        [ctx.me.deck, ctx.state.rngState] = shuffle(ctx.me.deck, ctx.state.rngState);
+        const names = legendNames(ctx.state.cards, ctx.me.deck);
+        if (names.length > 1) ctx.pend({ kind: 'legendPick', source: 'Legend Ceremony', names });
+        else takeLegend(ctx.state, ctx.me, names[0] ?? '', 'Legend Ceremony');
       },
     },
   },
@@ -464,7 +462,7 @@ export const HGSS4: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         if (ctx.flip()) return damageChosen(ctx, ctx.choices.oppTarget ?? 'active', 30);
         const own = ctx.choices.ownTarget ?? 'active';
-        if (own === 'active') ctx.selfDamage(30);
+        if (own === 'active') ctx.selfDamage(ownActiveDamage(ctx, 30));
         else if (mine(ctx, own)) ctx.damageBenched(ctx.me, own, 30);
       },
     },

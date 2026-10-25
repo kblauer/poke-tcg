@@ -1,6 +1,6 @@
 // Triumphant (hgss4) Trainer cards and Special Energy, by card id. Black Belt's damage, Indigo Plateau's HP and Rescue Energy
 // are the engine's own rules.
-// From the text: Junk Arm's 2 cards are picked as it's played, and it can be played with no Trainer card to take; Seeker can be
+// From the text: Junk Arm's 2 cards are picked as it's played, and it's played only with a Trainer card (not Junk Arm) in the discard pile to take (agreed 2026-10-25); Seeker can be
 // played while either player has a Benched Pokémon, a player with none returning nothing; Alph Lithograph shows the player
 // every one of their Prize cards.
 import { lookupCard } from '../cards.js';
@@ -23,13 +23,17 @@ export const HGSS4_TRAINERS: Record<string, TrainerEffect> = {
   'hgss4-86': { stadium: true, play: () => {} },
   // Junk Arm: 2 cards discarded from the hand, then a Trainer card (not Junk Arm) from the discard pile into the hand, shown.
   'hgss4-87': {
-    blocked: (s) => (otherHandCards(s).length >= 2 ? null : 'You need 2 other cards in your hand to discard'),
+    blocked: (s) =>
+      otherHandCards(s).length < 2
+        ? 'You need 2 other cards in your hand to discard'
+        : s.me.discard.some((c) => lookupCard(s.cards, c.defId).kind === 'trainer' && lookupCard(s.cards, c.defId).name !== 'Junk Arm')
+          ? null
+          : 'You have no Trainer card (other than Junk Arm) in your discard pile',
     choices: (s) => [{ kind: 'cards', field: 'handUids', min: 2, max: 2, options: otherHandCards(s), prompt: 'Junk Arm: choose 2 cards to discard' }],
     play(ctx) {
       ctx.me.discard.push(...ctx.fromHand(ctx.me, ctx.choices.handUids ?? []));
       const fits = (c: (typeof ctx.me.discard)[number]) => lookupCard(ctx.state.cards, c.defId).kind === 'trainer' && lookupCard(ctx.state.cards, c.defId).name !== 'Junk Arm';
       if (ctx.me.discard.some(fits)) ctx.pend({ kind: 'discardToHand', source: 'Junk Arm', count: 1, filter: 'trainerAny', reveal: true, excludeName: 'Junk Arm', exact: true });
-      else ctx.log('Junk Arm found no Trainer card.');
     },
   },
   // Seeker (Supporter): each player returns one of their Benched Pokémon and its cards to their hand, the player first.

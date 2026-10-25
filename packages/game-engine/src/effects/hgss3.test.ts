@@ -131,13 +131,31 @@ describe('Undaunted attacks', () => {
     expect([ash(yes).hand.length, misty(yes).active!.damage, ash(no).hand.length, misty(no).active!.damage]).toEqual([2, 0, 0, 20]);
   });
 
-  it('Rambunctious Party: the Basic Pokémon among the top 5 onto the Bench', () => {
+  it('Rambunctious Party: any of the Basic Pokémon among the top 5 onto the Bench, one at a time', () => {
     let s = duel('charmander', 'onix');
     put(s, 'ash', 'active', mon('hgss3-66', 'Slowpoke', W, 60, [['Rambunctious Party', [C], 0]]), ['fire']);
     ash(s).bench = [null, null, null, null, null];
-    ash(s).deck = [{ uid: 'b1', defId: id('charmander') }, { uid: 'e1', defId: 'fire' }, { uid: 'b2', defId: id('charmander') }, ...pile(5)];
+    ash(s).deck = [{ uid: 'b1', defId: id('charmander') }, { uid: 'e1', defId: 'fire' }, { uid: 'b2', defId: id('squirtle') }, ...pile(5)];
     s = attack(s, 0);
-    expect(ash(s).bench.filter(Boolean).length).toBe(4);
+    expect(s.pendingChoice).toMatchObject({ kind: 'pickFromTop', toBench: true });
+    for (const end of settles(s)) expect(end.pendingChoice).toBeUndefined();
+    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'b2' });
+    s = act(s, 'ash', { type: 'RESOLVE_CHOICE' });
+    expect([ash(s).bench.filter(Boolean).map((p) => p!.card.uid), s.pendingChoice]).toEqual([['b2'], undefined]);
+  });
+
+  it('Legend Box: with two complete Pokémon LEGEND among the top 10, the player picks which', () => {
+    let s = duel('charmander', 'onix');
+    const half = (cardId: string, name: string) => mon(cardId, name, W, 130, []);
+    s.cards = { ...s.cards, 'l1a': half('l1a', 'Lugia LEGEND'), 'l1b': half('l1b', 'Lugia LEGEND'), 'l2a': half('l2a', 'Ho-Oh LEGEND'), 'l2b': half('l2b', 'Ho-Oh LEGEND'), 'hgss3-75': { id: 'hgss3-75', kind: 'trainer', name: 'Legend Box', imageUrl: null, text: '' } };
+    ash(s).bench = [null, null, null, null, null];
+    ash(s).deck = ['l1a', 'l1b', 'l2a', 'l2b'].map((d) => ({ uid: d, defId: d }));
+    ash(s).hand = [{ uid: 'box', defId: 'hgss3-75' }];
+    s = act(s, 'ash', { type: 'PLAY_TRAINER', cardUid: 'box' });
+    expect(s.pendingChoice).toMatchObject({ kind: 'legendPick', names: ['Lugia LEGEND', 'Ho-Oh LEGEND'] });
+    for (const end of settles(s)) expect(end.pendingChoice).toBeUndefined();
+    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', count: 1 });
+    expect(ash(s).bench[0]!.card.defId).toBe('l2a');
   });
 
   it('Mega Tidal Wave: 30 to each Benched Pokémon for each Energy card among the opponent\'s top 5', () => {

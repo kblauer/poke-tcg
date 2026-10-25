@@ -3,7 +3,7 @@
 // be answered from a player's view, so those Trainers leave a PendingChoice that only the player
 // sees the options of, answered with RESOLVE_CHOICE.
 import { applyWeaknessResistance, damageChosenActive, damageChosenBenched, performCopiedAttack, recallsAttacks, usableAttacks, type AttackChoices } from './attacks.js';
-import { conditionProof, hasType, isBasicEnergy, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard, namesMatch, typeName, type Attack, type CardLibrary, type CardDef, type EnergyType, type PokemonCardDef } from './cards.js';
+import { conditionProof, hasType, isBasicEnergy, isBasicPokemon, isLegend, isPokemonCard, isTrainerCard, lookupCard, namesMatch, typeName, type Attack, type CardLibrary, type CardDef, type EnergyType, type PokemonCardDef } from './cards.js';
 import { powerEffect, trainerEffect } from './effects/index.js';
 import { activeLocked, afflictBetweenTurns, conditionLabel, discardTheirEnergy, isEnergyCardOf, isSpecialEnergy, retireStadium, discardTool, evolvesOnto, newInPlay, opponentOf, toolOf, type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
 import { nextRandom, shuffle } from './rng.js';
@@ -250,6 +250,8 @@ export type PendingChoice = {
       attachTo?: Target;
       /** The one card may be left: then it's discarded and a card drawn (Selfish Draw). */
       elseDraw?: boolean;
+      /** Any of the Basic Pokémon among them onto the Bench, one at a time, while there's room; the rest shuffled back (Rambunctious Party). */
+      toBench?: boolean;
       /** With `basicEnergy`: each card taken is attached to any of the player's Pokémon, asked next (Serene Grace). */
       anyTarget?: boolean;
       /** A Basic Pokémon, Evolution or Energy card may be taken, shown to the opponent; the rest go back on top in any order (PokéNav). */
@@ -1014,6 +1016,15 @@ export type PendingChoice = {
     }
   | {
       /**
+       * Legend Box (`looked`: the top cards shown) and Legend Ceremony (the whole deck): which of these Pokémon LEGEND, both
+       * halves found, the player takes (agreed 2026-10-25: asked when there's more than one).
+       */
+      kind: 'legendPick';
+      names: string[];
+      looked?: string[];
+    }
+  | {
+      /**
        * Research Record: of the top cards (`looked`), any picked go back on top in the order picked (`top`); once the player
        * is done, the rest go on the bottom in the order picked (`bottom`, `bottoming`).
        */
@@ -1531,6 +1542,35 @@ function supernaturalStep(state: GameState, me: PlayerState, opp: PlayerState, c
  * Uses the effect of the Supporter card `cardUid` in the pile `choice` names (Pick Out: a Prize card; Impersonate: the
  * player's discard pile), asking its questions first if it has any.
  */
+/** The Pokémon LEGEND whose two halves are both among `pile`, by name. */
+export const legendNames = (cards: CardLibrary, pile: readonly CardInstance[]) => {
+  const name = (c: CardInstance) => lookupCard(cards, c.defId).name;
+  return [...new Set(pile.filter((c) => isLegend(lookupCard(cards, c.defId)) && pile.some((d) => d.defId !== c.defId && name(d) === name(c))).map(name))];
+};
+
+/**
+ * Both halves of the Pokémon LEGEND `name` from the deck: with `looked` (Legend Box), onto the Bench with every Energy card
+ * among those cards attached; otherwise (Legend Ceremony) into the hand, shown. Then the deck is shuffled.
+ */
+export function takeLegend(state: GameState, me: PlayerState, legend: string, source: string, looked?: string[]) {
+  const name = (c: CardInstance) => lookupCard(state.cards, c.defId).name;
+  const pile = looked ? me.deck.filter((c) => looked.includes(c.uid)) : me.deck;
+  const top = pile.find((c) => name(c) === legend && isLegend(lookupCard(state.cards, c.defId)));
+  const half = top && pile.find((d) => d.defId !== top.defId && name(d) === legend);
+  const slot = openBenchSlot(me, state.cards, state.stadium?.card);
+  if (top && half && looked && slot >= 0) {
+    const energy = pile.filter((c) => lookupCard(state.cards, c.defId).kind === 'energy');
+    me.deck = me.deck.filter((c) => c !== top && c !== half && !energy.includes(c));
+    me.bench[slot] = { ...newInPlay(top, state.turn), energy, attached: [{ card: half, until: Number.MAX_SAFE_INTEGER, legendHalf: true }] };
+    addLog(state, `${source}: put ${legend} onto the Bench${energy.length ? ` with ${energy.map(name).join(', ')} attached` : ''}.`, me.id);
+  } else if (top && half && !looked) {
+    me.deck = me.deck.filter((c) => c !== top && c !== half);
+    me.hand.push(top, half);
+    addLog(state, `${source}: took both halves of ${legend} from the deck.`, me.id);
+  } else addLog(state, `${source} found no Pokémon LEGEND.`, me.id);
+  [me.deck, state.rngState] = shuffle(me.deck, state.rngState);
+}
+
 export function useSupporterEffect(state: GameState, me: PlayerState, opp: PlayerState, choice: Omit<SupernaturalChoice, 'player' | 'kind' | 'choices'> & { cardUid: string }) {
   supernaturalStep(state, me, opp, { player: me.id, kind: 'supernatural', ...choice, choices: {} });
 }
@@ -1880,6 +1920,10 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
     if (choice.master) {
       const pokemon = options.filter((c) => isPokemonCard(lookupCard(state.cards, c.defId)));
       return { kind: 'pickFromDeck', prompt: `${choice.source}: you may take a Basic Pokémon or Evolution card; the rest are shuffled back`, options: pokemon, optional: true };
+    }
+    if (choice.toBench) {
+      const room = openBenchSlot(player, state.cards, state.stadium?.card) >= 0;
+      return { kind: 'pickFromDeck', prompt: `${choice.source}: you may put any of these Basic Pokémon onto your Bench, one at a time; the rest are shuffled back`, options: room ? options.filter((c) => isBasicPokemon(lookupCard(state.cards, c.defId))) : [], optional: true };
     }
     if (choice.elseDraw) return { kind: 'pickFromDeck', prompt: `${choice.source}: you may put this card into your hand; if not, it's discarded and you draw a card`, options, optional: true };
     return { kind: 'pickFromDeck', prompt: `${choice.source}: put a card into your hand${left}; the rest are discarded`, options };
@@ -2257,7 +2301,7 @@ function drawUpTo(state: GameState, me: PlayerState, size: number, source: strin
 const CONDITION_OF: Record<string, 'asleep' | 'burned' | 'poisoned' | 'confused' | 'paralyzed'> = { Asleep: 'asleep', Burned: 'burned', Poisoned: 'poisoned', Confused: 'confused', Paralyzed: 'paralyzed' };
 const CONDITION_LABEL = { asleep: 'Asleep', burned: 'Burned', poisoned: 'Poisoned', confused: 'Confused', paralyzed: 'Paralyzed' } as const;
 
-const SKYRIDGE_KINDS = ['mayUse', 'attachFromDiscard', 'discardToBench', 'moveAttached', 'oracle', 'bottomPick', 'evolveFromHand', 'mysteryZone', 'placeCounters', 'discardFromHand', 'supernatural', 'energyGrounding', 'castform', 'shiftEnergy', 'vineTease', 'removeCondition', 'chooseCondition', 'nod', 'timeWalk', 'energyLink', 'marley', 'rammingStrike', 'lostCyclone', 'looker', 'waterRescue', 'antiqueMagic', 'moveCounters', 'researchRecord', 'darknessRestore', 'returnEnergy', 'oppBenchPick', 'blissful', 'deltaSwitch', 'handToBench', 'ownCounters', 'pealTarget', 'cursedEyes', 'skillHack'] as const;
+const SKYRIDGE_KINDS = ['mayUse', 'attachFromDiscard', 'discardToBench', 'moveAttached', 'oracle', 'bottomPick', 'evolveFromHand', 'mysteryZone', 'placeCounters', 'discardFromHand', 'supernatural', 'energyGrounding', 'castform', 'shiftEnergy', 'vineTease', 'removeCondition', 'chooseCondition', 'nod', 'timeWalk', 'energyLink', 'marley', 'rammingStrike', 'lostCyclone', 'looker', 'waterRescue', 'antiqueMagic', 'moveCounters', 'researchRecord', 'legendPick', 'darknessRestore', 'returnEnergy', 'oppBenchPick', 'blissful', 'deltaSwitch', 'handToBench', 'ownCounters', 'pealTarget', 'cursedEyes', 'skillHack'] as const;
 
 /** A pending choice Skyridge's cards add (skyridgeView, resolveSkyridge). */
 type SkyridgeChoice = Extract<PendingChoice, { kind: (typeof SKYRIDGE_KINDS)[number] }>;
@@ -2588,6 +2632,8 @@ function skyridgeView(state: GameState, choice: SkyridgeChoice): PendingChoiceVi
       const options = targetsOf(side);
       return choice.side === 'own' ? { kind: 'ownPokemon', purpose: 'benchDamage', prompt: `${choice.source}: click one of your Pokémon to put a damage counter on (${left})`, options } : { kind: 'oppPokemon', prompt: `${choice.source}: click one of your opponent's Pokémon to put a damage counter on (${left})`, options };
     }
+    case 'legendPick':
+      return { kind: 'options', prompt: `${choice.source}: which Pokémon LEGEND do you take?`, labels: choice.names };
     case 'researchRecord': {
       const left = player.deck.filter((c) => choice.looked.includes(c.uid) && !choice.top.includes(c.uid) && !choice.bottom.includes(c.uid));
       if (choice.bottoming) return { kind: 'pickFromDeck', prompt: `${choice.source}: the rest go on the bottom of your deck: choose the next one`, options: left };
@@ -3329,6 +3375,12 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
       p.damage += 10;
       addLog(state, `${choice.source}: a damage counter on ${name(p.card)}.`, side.id);
       return choice.count > 1 ? again({ player: me.id, source: choice.source, kind: 'antiqueMagic', count: choice.count - 1, ...(choice.afterAttack && { afterAttack: true }) }) : null;
+    }
+    case 'legendPick': {
+      const legend = answer.count === undefined ? undefined : choice.names[answer.count];
+      if (!legend) return retry(choice, 'Choose a Pokémon LEGEND');
+      takeLegend(state, me, legend, choice.source, choice.looked);
+      return null;
     }
     case 'researchRecord': {
       const left = me.deck.filter((c) => choice.looked.includes(c.uid) && !choice.top.includes(c.uid) && !choice.bottom.includes(c.uid));
@@ -4317,6 +4369,21 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
       state.pendingChoice = { player: next.id, source: choice.source, kind: 'pickFromTop', looked: next.deck.slice(0, choice.take).map((c) => c.uid), take: choice.take, basicEnergy: true, ...(choice.afterAttack && { afterAttack: true }) };
       return null;
     }
+  } else if (choice.kind === 'pickFromTop' && choice.toBench) {
+    const slot = openBenchSlot(me, state.cards, state.stadium?.card);
+    const card = me.deck.find((c) => c.uid === answer.cardUid && choice.looked.includes(c.uid) && isBasicPokemon(lookupCard(state.cards, c.defId)));
+    if (answer.cardUid !== undefined && (!card || slot < 0)) return 'Choose one of the Basic Pokémon';
+    if (card) {
+      me.deck = me.deck.filter((c) => c !== card);
+      me.bench[slot] = newInPlay(card, state.turn);
+      addLog(state, `${choice.source}: put ${name(card)} onto the Bench.`, me.id);
+      const more = me.deck.some((c) => choice.looked.includes(c.uid) && isBasicPokemon(lookupCard(state.cards, c.defId))) && openBenchSlot(me, state.cards, state.stadium?.card) >= 0;
+      if (more) {
+        state.pendingChoice = choice;
+        return null;
+      }
+    }
+    [me.deck, state.rngState] = shuffle(me.deck, state.rngState);
   } else if (choice.kind === 'pickFromTop') {
     const looked = me.deck.filter((c) => choice.looked.includes(c.uid));
     const takeable = choice.pokeNav

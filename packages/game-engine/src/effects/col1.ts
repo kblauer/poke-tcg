@@ -1,7 +1,7 @@
 // Call of Legends (col1) attack effects, by card id and attack name: the ones the shared wordings (ex-templates.ts) don't play.
 // Many reprint HeartGold & SoulSilver's series and play as those; the Shiny Legends (SL) play as their regular prints.
 // From the text: Fairy Power returns one of the player's Pokémon, Clefable too; Destructive Tsunami's tails does its 40 to each
-// of the player's own Pokémon, Kyogre included; Wormhole's opponent switches even when the player has no Benched Pokémon to
+// of the player's own Pokémon, Kyogre with its Weakness and Resistance (agreed 2026-10-25); Wormhole's opponent switches even when the player has no Benched Pokémon to
 // switch with; Clomp Clomp Clobber's Energy card is picked once the attack is over when they differ; Lost Claw's card is one
 // at random (without looking); Prehistoric Wisdom draws 3 even with no card to put in the Lost Zone; Raging Thunder's
 // Pokémon (the player's) is picked before the attack.
@@ -18,7 +18,7 @@ import { GYM2 } from './gym2.js';
 import { HGSS1 } from './hgss1.js';
 import { HGSS2 } from './hgss2.js';
 import { HGSS3 } from './hgss3.js';
-import { HGSS4 } from './hgss4.js';
+import { HGSS4, ownActiveDamage } from './hgss4.js';
 
 const name = (ctx: AttackContext, uid: { defId: string }) => lookupCard(ctx.state.cards, uid.defId).name;
 const boosted = (ctx: AttackContext, attack: string) => ctx.attacker.effects?.boostedAttack?.attack === attack && ctx.attacker.effects.boostedAttack.turn === ctx.turn;
@@ -57,7 +57,7 @@ const destructiveTsunami: AttackEffect = {
       ctx.hit(40);
       ctx.benchDamage(ctx.opp, 40);
     } else {
-      ctx.selfDamage(40);
+      ctx.selfDamage(ownActiveDamage(ctx, 40));
       ctx.benchDamage(ctx.me, 40);
     }
   },

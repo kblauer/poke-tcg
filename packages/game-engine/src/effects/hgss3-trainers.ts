@@ -1,13 +1,11 @@
 // Undaunted (hgss3) Trainer cards and Special Energy, by card id. Ruins of Alph is the engine's own rule (no Resistance).
 // From the text: Burned Tower's coin is flipped only with a basic Energy card in the discard pile; Energy Exchanger needs an
 // Energy card in the hand; Flower Shop Lady takes up to 3 Pokémon, then up to 3 basic Energy cards, one at a time; Legend Box
-// benches the first Pokémon LEGEND whose two halves it finds, with room on the Bench; Sage's Training takes 2 cards (all there
-// are when fewer); Alph Lithograph returns the Stadium to its owner's hand.
-import { isBasicEnergy, isLegend, isPokemonCard, lookupCard } from '../cards.js';
-import { newInPlay, type CardInstance } from '../engine.js';
-import { shuffle } from '../rng.js';
+// benches a Pokémon LEGEND whose two halves it finds, with room on the Bench (the player picks when there are several,
+// agreed); Sage's Training takes 2 cards (all there are when fewer); Alph Lithograph returns the Stadium to its owner's hand.
+import { isBasicEnergy, isPokemonCard, lookupCard } from '../cards.js';
 import { addLog, openBenchSlot } from '../status.js';
-import { otherHandCards, type EnergyEffect, type TrainerEffect } from '../trainers.js';
+import { legendNames, otherHandCards, takeLegend, type EnergyEffect, type TrainerEffect } from '../trainers.js';
 import { BASE1_TRAINERS } from './base1-trainers.js';
 import { DP2_ENERGY } from './dp2-trainers.js';
 
@@ -52,18 +50,11 @@ export const HGSS3_TRAINERS: Record<string, TrainerEffect> = {
     blocked: (s) => (s.deckCount ? null : 'Your deck is empty'),
     play(ctx) {
       const top = ctx.me.deck.slice(0, 10);
-      const name = (c: CardInstance) => lookupCard(ctx.state.cards, c.defId).name;
-      ctx.log(`Legend Box shows ${top.map(name).join(', ')}.`);
-      const slot = openBenchSlot(ctx.me, ctx.state.cards, ctx.state.stadium?.card);
-      const legend = slot < 0 ? undefined : top.find((c) => isLegend(lookupCard(ctx.state.cards, c.defId)) && top.some((d) => d.defId !== c.defId && name(d) === name(c)));
-      const half = legend && top.find((d) => d.defId !== legend.defId && name(d) === name(legend));
-      if (legend && half) {
-        const energy = top.filter((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy');
-        ctx.me.deck = ctx.me.deck.filter((c) => c !== legend && c !== half && !energy.includes(c));
-        ctx.me.bench[slot] = { ...newInPlay(legend, ctx.state.turn), energy, attached: [{ card: half, until: Number.MAX_SAFE_INTEGER, legendHalf: true }] };
-        ctx.log(`Put ${name(legend)} onto the Bench${energy.length ? ` with ${energy.map(name).join(', ')} attached` : ''}.`);
-      } else ctx.log('Legend Box found no Pokémon LEGEND.');
-      [ctx.me.deck, ctx.state.rngState] = shuffle(ctx.me.deck, ctx.state.rngState);
+      ctx.log(`Legend Box shows ${top.map((c) => lookupCard(ctx.state.cards, c.defId).name).join(', ')}.`);
+      const names = openBenchSlot(ctx.me, ctx.state.cards, ctx.state.stadium?.card) >= 0 ? legendNames(ctx.state.cards, top) : [];
+      const looked = top.map((c) => c.uid);
+      if (names.length > 1) ctx.pend({ kind: 'legendPick', source: 'Legend Box', names, looked });
+      else takeLegend(ctx.state, ctx.me, names[0] ?? '', 'Legend Box', looked);
     },
   },
   // Ruins of Alph: no Pokémon in play has Resistance (attacks.ts).

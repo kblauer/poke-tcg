@@ -743,7 +743,18 @@ export function applyAction(prev: GameState, playerId: PlayerId, action: GameAct
     healBlock(result.state, next.state);
     result = next;
   }
+  if (result.ok) crowdedBench(result.state);
   return result;
+}
+
+/**
+ * Dittobolic (agreed 2026-10-25: whenever it applies, checked once each action is done): a player with more Benched Pokémon
+ * than their `benchLimit` discards one and its cards, asked when nothing else is.
+ */
+function crowdedBench(state: GameState) {
+  if (state.phase !== 'playing' || state.pendingChoice || state.pendingPromotion) return;
+  const crowded = state.playerOrder.map((id) => state.players[id]!).find((p) => p.benchLimit !== undefined && p.bench.filter(Boolean).length > p.benchLimit);
+  if (crowded) state.pendingChoice = { player: crowded.id, source: 'Dittobolic', kind: 'narrowGym', limit: crowded.benchLimit, discard: true };
 }
 
 /** Heal Block works: a working Solrock with it, its player having Lunatone in play. */
@@ -799,8 +810,8 @@ function sameCardAnswer(state: GameState): { player: PlayerId; action: GameActio
   if (!takes && !SAME_CARD_MUSTS.has(choice.kind)) return null;
   // Challenge! and Gift: the other player's search waits (`then`); asked, so each player sees their own.
   if (('then' in choice && choice.then) || ('thenSame' in choice && choice.thenSame)) return null;
-  // Selfish Draw: leaving the card draws another, so taking it is a real choice.
-  if ('elseDraw' in choice && choice.elseDraw) return null;
+  // Selfish Draw: leaving the card draws another, so taking it is a real choice. Rambunctious Party: "as many as you like".
+  if (('elseDraw' in choice && choice.elseDraw) || ('toBench' in choice && choice.toBench && choice.kind === 'pickFromTop')) return null;
   const view = pendingChoiceView(state, choice);
   if (!('options' in view) || !Array.isArray(view.options) || !view.options.length || typeof view.options[0] !== 'object') return null;
   if (!takes && 'optional' in view && view.optional) return null;
