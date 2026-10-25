@@ -1,3 +1,5 @@
+import type { HoloPattern } from '@poke-tcg/campaign';
+import { usePattern } from '../hooks/useFlair';
 import { cardTitle, stageLabel, type CatalogCard } from '../utils/cardList';
 import { holoAttributes } from '../utils/holo';
 import { HoloCard } from './HoloCard';
@@ -5,9 +7,11 @@ import { CardImage } from './CardImage';
 
 /**
  * A card at full size, with its set and stats underneath (the deck builder's hold and right-click views). A
- * `locked` card (not unlocked by the account) is shown darkened and still, without the holo effect.
+ * `locked` card (not unlocked by the account) is shown darkened and still, without the holo effect. A holo shows the
+ * pattern the player chose for it (card flair), or `pattern` when given (the inspector's preview; null: its own).
  */
-export function CardViewer({ card, locked = false }: { card: CatalogCard; locked?: boolean }) {
+export function CardViewer({ card, locked = false, pattern }: { card: CatalogCard; locked?: boolean; pattern?: HoloPattern | null }) {
+  const chosen = usePattern(card.id);
   const details = [stageLabel(card), card.type, card.hp !== null && `${card.hp} HP`, card.maxDamage && `max attack ${card.maxDamage}`].filter(Boolean);
   return (
     <div className="flex flex-col items-center gap-3">
@@ -17,7 +21,7 @@ export function CardViewer({ card, locked = false }: { card: CatalogCard; locked
         {card.imageUrl && locked ? (
           <CardImage src={`${card.imageUrl}/high.webp`} alt={card.name} className="aspect-[63/88] w-full rounded-[4.5%] object-cover brightness-[.35]" />
         ) : card.imageUrl ? (
-          <HoloCard key={card.id} img={`${card.imageUrl}/high.webp`} name={card.name} attrs={holoAttributes(card)} />
+          <HoloCard key={card.id} img={`${card.imageUrl}/high.webp`} name={card.name} attrs={holoAttributes(card, pattern === undefined ? chosen : pattern)} />
         ) : (
           <div className="aspect-[63/88] rounded-2xl bg-slate-800 p-4 text-lg font-semibold">{card.name}</div>
         )}

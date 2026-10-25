@@ -1,4 +1,5 @@
 // Maps our card data onto the attributes the holo card styles (src/styles/holo) select on.
+import type { HoloPattern } from '@poke-tcg/campaign';
 
 /** What the holo styles need to know about a card. Accepts both catalog and engine card shapes. */
 export interface HoloSource {
@@ -46,13 +47,17 @@ export interface HoloAttributes {
 
 const SUBTYPES: Record<string, string> = { basic: 'basic', baby: 'basic', stage1: 'stage 1', stage2: 'stage 2' };
 
-export function holoAttributes(card: HoloSource): HoloAttributes {
+/**
+ * `pattern`: a holo pattern the player bought for the card (card flair, `usePattern`), shown instead of its own: the
+ * library style's attributes as a holo Energy's, but in the card's own shapes (the era's art window), not the whole card.
+ */
+export function holoAttributes(card: HoloSource, pattern?: HoloPattern | null): HoloAttributes {
   // A holo Energy's id is its Energy card's with "-holo-<style>" after it; a reverse holo's with "-reverse".
   const id = card.holoEnergy ? card.id.replace(/-holo-[a-z-]+$/, '') : card.id.replace(/-reverse$/, '');
   const split = id.lastIndexOf('-');
   const set = id.slice(0, split);
   const kind = card.kind.toLowerCase();
-  const style = card.holoEnergy;
+  const style = card.holoEnergy ?? pattern ?? null;
   // The galaxy foil around the art is on reverse-only prints (not holo); a holo with the galaxy foil has it in the art.
   const galaxyArt = !style && !!card.galaxy && !!card.holo;
   return {
@@ -66,7 +71,7 @@ export function holoAttributes(card: HoloSource): HoloAttributes {
     era: set.startsWith('ecard') ? 'ecard' : /^ex\d/.test(set) ? 'ex' : 'wotc',
     pokemonEx: kind === 'pokemon' && / ex$/.test(card.name ?? ''),
     trainerGallery: style?.trainerGallery ?? false,
-    holoEnergy: !!style,
+    holoEnergy: !!card.holoEnergy,
     galaxyArt,
     mask: galaxyArt ? `/holo-masks/${id}.png` : null,
   };

@@ -69,6 +69,8 @@ model User {
   communityDecks CommunityDeck[]
   items        InventoryItem[]
   cosmetics    CosmeticUnlock[]
+  flairUnlocks  FlairUnlock[]
+  cardFlair     CardFlair[]
   equipment     Equipment[]
   pokeblocks    Pokeblock[]
   poffins       Poffin[]
@@ -370,6 +372,31 @@ model CosmeticUnlock {
   createdAt  DateTime @default(now())
 
   @@id([userId, cosmeticId])
+}
+
+/// Card flair an account has bought with Stardust (the campaign package's flair.ts), each for one card alone (`cardId`):
+/// a `slot` ("pattern") and its `key` (a HOLO_PATTERNS key). The card's own look has no row: it's always had.
+model FlairUnlock {
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cardId    String
+  slot      String
+  key       String
+  createdAt DateTime @default(now())
+
+  @@id([userId, cardId, slot, key])
+}
+
+/// The flair a card shows, on every copy of it in every deck (account-wide): one `key` per `slot`, one the account
+/// bought (FlairUnlock). No row is the card's own look.
+model CardFlair {
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cardId String
+  slot   String
+  key    String
+
+  @@id([userId, cardId, slot])
 }
 
 model PackUnlock {

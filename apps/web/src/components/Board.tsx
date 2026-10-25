@@ -345,6 +345,7 @@ export function Board({
         lunge={id === 'active' && attacker === view.you ? { dir: 'up', stamp: view.version } : null}
         spotlight={ownSpot?.targets.includes(target) ? ownSpot : null}
         usable={powerUsable || (id === 'active' && canAttack)}
+        mine
         onClick={
           busy
             ? undefined

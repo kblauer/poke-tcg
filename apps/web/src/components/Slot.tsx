@@ -94,6 +94,7 @@ export function Slot({
   lunge = null,
   spotlight = null,
   usable = false,
+  mine = false,
   onClick,
 }: {
   id: string;
@@ -113,6 +114,8 @@ export function Slot({
   spotlight?: { stamp: number; delay: number } | null;
   /** Its Pokémon Power can be used now, or (the Active) it can attack: it pulses with the playable cards' blue outline (`.playable-pulse`). */
   usable?: boolean;
+  /** The player's own slot: its card shows the holo pattern they chose (card flair); the CPU's never do. */
+  mine?: boolean;
   onClick?: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id, disabled: !droppable });
@@ -150,7 +153,7 @@ export function Slot({
       {pokemon && (
         <div ref={art}>
           {/* A Transformed Ditto shows the card it's a copy of. */}
-          <Card def={inPlayDef(cards, pokemon)} inPlay={pokemon} cards={cards} small={!large} highRes={large} shine={large} holoRef={holo} />
+          <Card def={inPlayDef(cards, pokemon)} inPlay={pokemon} cards={cards} small={!large} highRes={large} shine={large} holoRef={holo} mine={mine} />
         </div>
       )}
       {/* Its Pokémon Tool just worked (a Berry's heal): what it did, over the card (ToolPops). */}

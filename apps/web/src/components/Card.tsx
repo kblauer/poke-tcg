@@ -32,6 +32,7 @@ function statusBadges(p: InPlayPokemon, cards?: CardLibrary): { label: string; t
   if (e.amnesia) badges.push({ label: 'AMN', title: `Amnesia: can't use ${e.amnesia.attack} next turn`, className: 'bg-slate-600' });
   return badges;
 }
+import { usePattern } from '../hooks/useFlair';
 import { useTouchHold } from '../hooks/useTouchHold';
 import { holoAttributes } from '../utils/holo';
 import { EnergyIcon } from './EnergyIcon';
@@ -63,7 +64,7 @@ function AttachedIcon({ def, holder, size }: { def: CardDef; holder: CardDef; si
 /**
  * Card art from TCGdex (aspect ratio 63:88), with damage, attached energy and attached cards overlaid when in play. Right-clicking it
  * (or a long press, on a touch screen) opens it in the CardInspector. `shine`: a holo card gets its holo effect, still (the Active Pokémon);
- * `holoRef` moves its tilt and shine (the slot's animations).
+ * `holoRef` moves its tilt and shine (the slot's animations). `mine`: the player's own card, shown with the holo pattern they chose for it (card flair).
  */
 export function Card({
   def,
@@ -73,6 +74,7 @@ export function Card({
   highRes,
   shine,
   holoRef,
+  mine = false,
 }: {
   def: CardDef;
   inPlay?: InPlayPokemon;
@@ -82,6 +84,7 @@ export function Card({
   highRes?: boolean;
   shine?: boolean;
   holoRef?: Ref<HoloMotion | null>;
+  mine?: boolean;
 }) {
   const setPreview = useContext(PreviewContext);
   const catalog = useContext(CatalogContext);
@@ -100,6 +103,7 @@ export function Card({
   // The catalog knows which cards are holo, and which have the galaxy foil.
   const entry = shine ? catalog?.get(def.id) : undefined;
   const holo = entry && (entry.holo || entry.galaxy) ? entry : null;
+  const pattern = usePattern(def.id, mine);
   const size = small ? SMALL_CARD : LARGE_CARD;
   return (
     <div
@@ -111,7 +115,7 @@ export function Card({
       {...inspect}
     >
       {holo && def.imageUrl ? (
-        <HoloCard still motionRef={holoRef} img={`${def.imageUrl}/high.webp`} name={def.name} attrs={holoAttributes(holo)} />
+        <HoloCard still motionRef={holoRef} img={`${def.imageUrl}/high.webp`} name={def.name} attrs={holoAttributes(holo, pattern)} />
       ) : def.imageUrl ? (
         <CardImage src={`${def.imageUrl}/${highRes ? 'high' : 'low'}.webp`} alt={def.name} loading="lazy" draggable={false} className="h-full w-full object-cover" />
       ) : (
