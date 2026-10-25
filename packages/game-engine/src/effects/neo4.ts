@@ -15,7 +15,7 @@ import { pokemonOn, targetsIn, type AttackContext, type AttackEffect, type Attac
 import { hasType, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard } from '../cards.js';
 import { energyPool, isEnergyCardOf, isSpecialEnergy, newInPlay, type CardInstance, type PlayerState, type Target } from '../engine.js';
 import { shuffle } from '../rng.js';
-import { clearOnLeavingActive, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
+import { clearOnLeavingActive, devolvable, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { pokemonTower } from '../trainers.js';
 import { benchTarget, discardToUse, energyCards, flipToInflict, flipToProtect, headsUntilTails, inflicts, opponentBenchChoice, opponentSwitches, perHeads, recoil } from './common.js';
 import { smokescreen } from './fossil.js';
@@ -71,7 +71,7 @@ function damageWithout(ctx: AttackContext, t: Target, amount: number): number {
 }
 
 /** An evolved Pokémon of the opponent's (Prehistoric Water). */
-const evolvedOpponents = (s: AttackSituation) => targetsIn(s.defender, s.opponentBench).filter((t) => pokemonOn(s.defender, s.opponentBench, t)!.evolvedFrom.length > 0);
+const evolvedOpponents = (s: AttackSituation) => targetsIn(s.defender, s.opponentBench).filter((t) => devolvable(s.cards, pokemonOn(s.defender, s.opponentBench, t)!));
 
 /** Basic or Baby Pokémon cards in a discard pile (Call Back, Guiding Flame). */
 const basicsIn = (s: Pick<AttackSituation, 'cards'>, pile: CardInstance[] = []) => pile.filter((c) => isBasicPokemon(lookupCard(s.cards, c.defId)));
@@ -326,7 +326,7 @@ export const NEO4: Record<string, Record<string, AttackEffect>> = {
         if (t === undefined) return ctx.log('Your opponent has no Evolved Pokémon.');
         if (!ctx.flip()) return ctx.log('Prehistoric Water did nothing.');
         const p = pokemonOn(ctx.opp.active, ctx.opp.bench, t)!;
-        if (!p.evolvedFrom.length || !(t === 'active' ? reachesDefender(ctx) : ctx.canAffect(ctx.opp, p))) return;
+        if (!devolvable(ctx.state.cards, p) || !(t === 'active' ? reachesDefender(ctx) : ctx.canAffect(ctx.opp, p))) return;
         const top = p.card;
         p.card = p.evolvedFrom.pop()!;
         clearOnLeavingActive(p);

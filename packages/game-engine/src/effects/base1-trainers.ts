@@ -4,7 +4,7 @@
 import { isBasicEnergy, isBasicPokemon, isBenchable, isPokemonCard, isTrainerCard, type CardLibrary, type PokemonCardDef } from '../cards.js';
 import { activeLock, discardTheirEnergy, newInPlay, type CardInstance, type GameState, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { energyKept, evolutionBlocked, offerChainReaction, playedFromHand, pokemonAt, trainerProof } from '../powers.js';
-import { clearOnLeavingActive, clearSpecialConditions, energyProtected, evolvedHook, hasSpecialCondition, inPlayDef, openBenchSlot } from '../status.js';
+import { clearOnLeavingActive, clearSpecialConditions, devolvable, energyProtected, evolvedHook, hasSpecialCondition, inPlayDef, openBenchSlot } from '../status.js';
 import { def, otherHandCards, own, targetsOf, theirs, type TrainerChoiceSpec, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 
 const pokemonDef = (s: { cards: TrainerSituation['cards'] }, p: InPlayPokemon): PokemonCardDef => inPlayDef(s.cards, p);
@@ -43,10 +43,10 @@ function removeFromPlay(side: PlayerState, t: Target, keep?: CardInstance) {
   else side.bench[t] = null;
 }
 
-/** A Pokémon LV.X's card is the top one: it goes with any Evolution card under it. */
+/** A Pokémon LV.X is never devolved (devolvable): its rank is only for the type. */
 const STAGE_ORDER = { basic: 0, stage1: 1, stage2: 2, levelUp: 3 } as const;
-/** Whether the Pokémon has an Evolution card (a Stage 1 or 2), which Devolution Spray can discard. */
-const hasEvolution = (s: TrainerSituation, p: InPlayPokemon) => [...p.evolvedFrom, p.card].some((c) => ['stage1', 'stage2'].includes((def(s, c) as PokemonCardDef).stage));
+/** Whether the Pokémon can be devolved (not with a Pokémon LV.X on top: devolvable). */
+const hasEvolution = (s: TrainerSituation, p: InPlayPokemon) => devolvable(s.cards, p);
 
 export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
   // Clefairy Doll: played onto the Bench as a 10 HP Pokémon (see isBenchable and the doll rules in the engine).

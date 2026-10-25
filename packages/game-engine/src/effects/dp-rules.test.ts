@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CardDef, PokemonCardDef } from '../cards.js';
 import { applyAction, inPlayDef, usableAttacks, type GameState, type InPlayPokemon, type Target } from '../index.js';
+import { devolvable } from '../status.js';
 import { attack, duel, mon, C, FI, W } from './test-kit.js';
 
 const ash = (s: GameState) => s.players.ash!;
@@ -26,7 +27,7 @@ const empoleon = mon('dp1-4', 'Empoleon', W, 130, [['Ice Blade', [W, C], 0]], { 
 const empoleonX = mon('dp1-120', 'Empoleon', W, 140, [['Hydro Impact', [W, W, W], 0]], { stage: 'levelUp' });
 
 describe('Pokémon LV.X', () => {
-  it('levels up the Active Pokémon of its name: its previous level\'s stage and attacks, Special Conditions removed', () => {
+  it("levels up the Active Pokémon of its name: its own stage, its previous level's attacks too; Special Conditions stay (agreed)", () => {
     const s = duel('charmander', 'onix');
     const p = put(s, 'ash', 'active', empoleon);
     p.condition = 'confused';
@@ -36,8 +37,8 @@ describe('Pokémon LV.X', () => {
     const leveled = ash(r.state).active!;
     expect(leveled.card.uid).toBe(uid);
     expect(leveled.evolvedFrom.at(-1)!.defId).toBe('dp1-4');
-    expect(leveled.condition ?? null).toBeNull();
-    expect(inPlayDef(r.state.cards, leveled)).toMatchObject({ stage: 'stage2', hp: 140 });
+    expect(leveled.condition).toBe('confused');
+    expect(inPlayDef(r.state.cards, leveled)).toMatchObject({ stage: 'levelUp', hp: 140 });
     expect(usableAttacks(leveled, r.state.cards).map((u) => [u.attack.name, u.source])).toEqual([
       ['Hydro Impact', 'dp1-120'],
       ['Ice Blade', 'dp1-4'],
@@ -56,6 +57,18 @@ describe('Pokémon LV.X', () => {
     ash(s).active!.playedTurn = 0;
     s.turn = 2;
     expect(applyAction(s, 'ash', { type: 'EVOLVE', cardUid: uid, target: 'active' })).toEqual({ ok: false, error: "You can't evolve on your first turn" });
+  });
+
+  it('keeps its LV.X card through devolving effects, and a Basic Pokémon\'s LV.X is no Basic Pokémon (agreed)', () => {
+    const s = duel('charmander', 'onix');
+    const dialga = mon('dp1-1x', 'Dialga', 'metal', 90, [], {});
+    const lvx = put(s, 'ash', 'active', mon('dp4-x', 'Dialga', 'metal', 110, [], { stage: 'levelUp' }));
+    s.cards = { ...s.cards, [dialga.id]: dialga };
+    lvx.evolvedFrom.push({ uid: 'under', defId: dialga.id });
+    expect(devolvable(s.cards, lvx)).toBe(false);
+    expect(inPlayDef(s.cards, lvx).stage).toBe('levelUp');
+    const spray = hand(s, 'ash', { id: 'base1-72', kind: 'trainer', name: 'Devolution Spray', imageUrl: null, text: '' });
+    expect(applyAction(s, 'ash', { type: 'PLAY_TRAINER', cardUid: spray }).ok).toBe(false);
   });
 
   it('is never put onto the Bench as a Basic Pokémon', () => {

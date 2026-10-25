@@ -885,8 +885,18 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       const error = evolveError(evolutionDef, target, state.cards, state.turn, [me, opp]);
       if (error) return fail(error);
       // Damage and attached energy stay; the new card's HP and attacks apply from now on.
-      // Evolving removes Special Conditions and the effects of attacks, and so does levelling up (a Pokémon LV.X).
-      addLog(state, evolutionDef.stage === 'levelUp' ? `Levelled up ${pokemonName(state, target)} to ${evolutionDef.name} LV.X.` : `Evolved ${pokemonName(state, target)} into ${evolutionDef.name}.`, me.id);
+      if (evolutionDef.stage === 'levelUp') {
+        // Levelling up (a Pokémon LV.X) isn't evolving: Special Conditions and attack effects stay (agreed), and nothing that
+        // reacts to evolving does.
+        addLog(state, `Levelled up ${pokemonName(state, target)} to ${evolutionDef.name} LV.X.`, me.id);
+        target.evolvedFrom.push(target.card);
+        target.card = evolution;
+        target.playedTurn = state.turn;
+        playedFromHand(state, me, target);
+        return afterOwnMove(state, me, opp);
+      }
+      // Evolving removes Special Conditions and the effects of attacks.
+      addLog(state, `Evolved ${pokemonName(state, target)} into ${evolutionDef.name}.`, me.id);
       target.evolvedFrom.push(target.card);
       target.card = evolution;
       target.playedTurn = state.turn;

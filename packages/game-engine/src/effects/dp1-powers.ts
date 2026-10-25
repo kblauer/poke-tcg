@@ -8,7 +8,7 @@ import { lookupCard } from '../cards.js';
 import { activeLocked, isEnergyCardOf, type CardInstance } from '../engine.js';
 import { ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
 import { nextRandom } from '../rng.js';
-import { inPlayDef, pokemonName } from '../status.js';
+import { devolvable, inPlayDef, pokemonName } from '../status.js';
 import { swapActive } from '../trainers.js';
 import { onlyBenched, targetOf } from './common.js';
 import { shuffleIntoDeck } from './dp1.js';
@@ -67,7 +67,7 @@ export const DP1_POWERS: Record<string, PowerEffect> = {
   // Shiftry – Darkness Fan: heads, one of the opponent's Benched Evolved Pokémon loses its top card, into their hand.
   'dp1-14': {
     oncePerTurn: true,
-    blocked: (s) => (s.opp.bench.some((p) => p?.evolvedFrom.length) ? null : 'Your opponent has no Benched Evolved Pokémon'),
+    blocked: (s) => (s.opp.bench.some((p) => p && devolvable(s.cards, p)) ? null : 'Your opponent has no Benched Evolved Pokémon'),
     use(ctx) {
       if (!ctx.flip()) return ctx.log('Darkness Fan did nothing.');
       ctx.pend({ kind: 'oppBenchPick', source: 'Darkness Fan', purpose: 'devolve' });

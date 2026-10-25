@@ -13,7 +13,7 @@ import { isBasicEnergy, lookupCard, namesMatch, type CardLibrary, type EnergyTyp
 import { isEnergyCardOf, isSpecialEnergy, type CardInstance, type InPlayPokemon, type PlayerState } from '../engine.js';
 import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { benchRoom, clearOnLeavingActive, openBenchSlot, pokemonName } from '../status.js';
+import { benchRoom, clearOnLeavingActive, devolvable, openBenchSlot, pokemonName } from '../status.js';
 import { benchedSlots, extraEnergy, inPlay, perHeads } from './common.js';
 import { typedCards } from './ecard1.js';
 import { discardAtRandom, eachDefending, energyAmount } from './ex1.js';
@@ -190,7 +190,7 @@ export const EX2: Record<string, Record<string, AttackEffect>> = {
   'ex2-19': {
     'Pull Down': {
       run(ctx) {
-        const evolved = inPlay(ctx.opp).filter((p) => p.evolvedFrom.length > 0);
+        const evolved = inPlay(ctx.opp).filter((p) => devolvable(ctx.state.cards, p));
         if (!evolved.length) return ctx.log('Your opponent has no Evolved Pokémon.');
         for (const p of evolved) if (ctx.canAffect(ctx.opp, p)) ctx.opp.hand.push(devolve(ctx, ctx.opp, p));
       },
@@ -278,13 +278,13 @@ export const EX2: Record<string, Record<string, AttackEffect>> = {
     Influence: benchNamed('Influence', ['Omanyte', 'Kabuto', 'Aerodactyl', 'Lileep', 'Anorith'], 2, false),
     'Time Spiral': {
       choices(s): ChoiceSpec[] {
-        const options = targetsIn(s.defender, s.opponentBench).filter((t) => (t === 'active' ? s.defender : s.opponentBench[t])!.evolvedFrom.length > 0);
+        const options = targetsIn(s.defender, s.opponentBench).filter((t) => devolvable(s.cards, (t === 'active' ? s.defender : s.opponentBench[t])!));
         return options.length ? [{ kind: 'opponentPokemon', options, prompt: "Choose one of your opponent's Evolved Pokémon" }] : [];
       },
       run(ctx) {
         const t = ctx.choices.oppTarget;
         const p = t === undefined ? null : t === 'active' ? ctx.opp.active : ctx.opp.bench[t];
-        if (!p || !p.evolvedFrom.length) return ctx.log('Your opponent has no Evolved Pokémon.');
+        if (!p || !devolvable(ctx.state.cards, p)) return ctx.log('Your opponent has no Evolved Pokémon.');
         if (!ctx.flip() || !ctx.canAffect(ctx.opp, p)) return;
         const top = devolve(ctx, ctx.opp, p);
         [ctx.opp.deck, ctx.state.rngState] = shuffle([...ctx.opp.deck, top], ctx.state.rngState);

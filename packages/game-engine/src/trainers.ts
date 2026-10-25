@@ -8,7 +8,7 @@ import { powerEffect, trainerEffect } from './effects/index.js';
 import { activeLocked, afflictBetweenTurns, conditionLabel, discardTheirEnergy, discardTool, evolvesOnto, newInPlay, opponentOf, toolOf, type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
 import { nextRandom, shuffle } from './rng.js';
 import { conditionFree, offerChainReaction, powerActive, primalLocked, supportersVeiled, trainerProof, trainersBlocked, trainersDusted } from './powers.js';
-import { addLog, baseUid, benchRoom, clearOnLeavingActive, clearSpecialConditions, effectId, isDelta, isDeltaCard, evolvedHook, flipCoin, inPlayDef, openBenchSlot, shapeshiftCard } from './status.js';
+import { addLog, baseUid, benchRoom, clearOnLeavingActive, clearSpecialConditions, devolvable, effectId, isDelta, isDeltaCard, evolvedHook, flipCoin, inPlayDef, openBenchSlot, shapeshiftCard } from './status.js';
 
 /** Answers to a Trainer's questions. Each question names the field it fills. */
 export interface TrainerChoices {
@@ -1372,7 +1372,7 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
   }
   if (choice.kind === 'devolveOwn') {
     const player = state.players[choice.player]!;
-    return { kind: 'ownPokemon', purpose: 'return', prompt: `${choice.source}: click one of your Evolved Pokémon to discard its top Evolution card`, options: targetsOf(player).filter((t) => atTarget(player, t)!.evolvedFrom.length > 0) };
+    return { kind: 'ownPokemon', purpose: 'return', prompt: `${choice.source}: click one of your Evolved Pokémon to discard its top Evolution card`, options: targetsOf(player).filter((t) => devolvable(state.cards, atTarget(player, t)!)) };
   }
   if (choice.kind === 'oppHandTrainer') {
     const hand = state.players[opponentOfChoice(state, choice)]!.hand;
@@ -2091,7 +2091,7 @@ function skyridgeView(state: GameState, choice: SkyridgeChoice): PendingChoiceVi
     }
     case 'oppBenchPick': {
       const opp = state.players[opponentOfChoice(state, choice)]!;
-      const options = targetsOf(opp).filter((t) => t !== 'active' && (choice.purpose === 'gust' || atTarget(opp, t)!.evolvedFrom.length > 0));
+      const options = targetsOf(opp).filter((t) => t !== 'active' && (choice.purpose === 'gust' || devolvable(state.cards, atTarget(opp, t)!)));
       if (choice.purpose === 'gust') return { kind: 'oppPokemon', prompt: `${choice.source}: click one of your opponent's Benched Pokémon to switch with their Active Pokémon`, options };
       return { kind: 'oppPokemon', prompt: `${choice.source}: you may click one of your opponent's Benched Evolved Pokémon to put its top card back into their hand`, options, optional: true };
     }
@@ -2315,7 +2315,7 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
         const healed = Math.min(20, p.damage);
         p.damage -= healed;
         const top = p.card;
-        if (p.evolvedFrom.length) {
+        if (devolvable(state.cards, p)) {
           p.card = p.evolvedFrom.pop()!;
           me.discard.push(top);
           clearOnLeavingActive(p);
@@ -2960,7 +2960,7 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
     return null;
   } else if (choice.kind === 'devolveOwn') {
     const p = answer.target === undefined ? null : atTarget(me, answer.target);
-    if (!p?.evolvedFrom.length) return 'Choose one of your Evolved Pokémon';
+    if (!p || !devolvable(state.cards, p)) return 'Choose one of your Evolved Pokémon';
     const top = p.card;
     p.card = p.evolvedFrom.pop()!;
     me.discard.push(top);

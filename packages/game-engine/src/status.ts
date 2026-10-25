@@ -99,6 +99,15 @@ export const FACE_DOWN: PokemonCardDef = {
  * and Rocket's Hideout gives a Pokémon with Dark in its name 20 more HP. Kecleon's Energy Variation makes it every type of
  * basic Energy card attached (`types`), and Low Pressure System gives Grass and Lightning Pokémon 10 more HP.
  */
+/**
+ * Whether a devolving effect can take the Pokémon's top card off (Devolution Spray, Flash Cannon, Devo Flash…): it's an
+ * Evolved Pokémon whose top card isn't a Pokémon LV.X (the LV.X card stays, agreed).
+ */
+export function devolvable(cards: CardLibrary, pokemon: InPlayPokemon): boolean {
+  const top = lookupCard(cards, pokemon.card.defId);
+  return pokemon.evolvedFrom.length > 0 && !(top.kind === 'pokemon' && top.stage === 'levelUp');
+}
+
 /** A Pokémon LV.X's previous level: the card it was put onto (null for any other Pokémon). */
 export function previousLevel(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCardDef | null {
   const top = lookupCard(cards, pokemon.card.defId);
@@ -132,11 +141,6 @@ export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCa
     d = { ...d, type: varied[0]! };
     if (varied.length > 1) d.types = varied;
     else delete d.types;
-  }
-  // A Pokémon LV.X has its previous level's stage (Dialga LV.X is a Basic Pokémon) and what it evolves from.
-  if (d.stage === 'levelUp') {
-    const previous = previousLevel(cards, pokemon);
-    if (previous) d = { ...d, stage: previous.stage, evolvesFrom: previous.evolvesFrom, evolvesFromBasic: previous.evolvesFromBasic };
   }
   // Strange Cave, Holon Fossil, Influence: a Stage 1 Fossil Pokémon put into play as a Basic Pokémon (while it's the top card).
   if (pokemon.asBasic && !pokemon.evolvedFrom.length) d = { ...d, stage: 'basic' };

@@ -11,7 +11,7 @@ import { targetsIn } from '../attacks.js';
 import { isBasicEnergy, lookupCard } from '../cards.js';
 import { energyProvided, isEnergyCardOf, type CardInstance, type Target } from '../engine.js';
 import { pokemonAt } from '../powers.js';
-import { clearSpecialConditions, openBenchSlot, pokemonName } from '../status.js';
+import { clearSpecialConditions, devolvable, openBenchSlot, pokemonName } from '../status.js';
 import { benchedSlots, energyCanMove, opponentSwitches } from './common.js';
 import { discardDefenderTrainers } from './ecard2.js';
 import { typedCards } from './ecard1.js';
@@ -502,7 +502,7 @@ export const EX4: Record<string, Record<string, AttackEffect>> = {
 
 /** Stone Generator (Ancient Technical Machine [Rock]) and Pull Down: each of the opponent's Evolved Pokémon loses its top Evolution card, to their hand. */
 export function pullDown(ctx: AttackContext) {
-  const evolved = inPlay(ctx.opp).filter((p) => p.evolvedFrom.length > 0);
+  const evolved = inPlay(ctx.opp).filter((p) => devolvable(ctx.state.cards, p));
   if (!evolved.length) return ctx.log('Your opponent has no Evolved Pokémon.');
   for (const p of evolved) if (ctx.canAffect(ctx.opp, p)) ctx.opp.hand.push(devolve(ctx, ctx.opp, p));
 }

@@ -5,7 +5,7 @@
 // can Knock the Pokémon Out), and it can't evolve again this turn. Ruin Wall and Energy Ark can find nothing.
 import type { CardLibrary } from '../cards.js';
 import { newInPlay, type CardInstance } from '../engine.js';
-import { clearOnLeavingActive, openBenchSlot, pokemonName } from '../status.js';
+import { clearOnLeavingActive, devolvable, openBenchSlot, pokemonName } from '../status.js';
 import { def, own, targetsOf, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 
 const benchFull = (s: TrainerSituation) => (openBenchSlot(s.me.bench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null);
@@ -18,7 +18,7 @@ const fossilsInHand = (s: { cards: CardLibrary }, hand: CardInstance[], played: 
   });
 
 /** The player's Evolved Pokémon (Hyper Devolution Spray). */
-const evolvedTargets = (s: TrainerSituation) => targetsOf(s.me).filter((t) => own(s, t)!.evolvedFrom.length > 0);
+const evolvedTargets = (s: TrainerSituation) => targetsOf(s.me).filter((t) => devolvable(s.cards, own(s, t)!));
 
 export const NEO2_TRAINERS: Record<string, TrainerEffect> = {
   // Fossil Egg: heads, a card that evolves from Mysterious Fossil from the deck (or the hand) onto the Bench, as a Basic Pokémon.
