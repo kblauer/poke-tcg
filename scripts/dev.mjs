@@ -2,7 +2,7 @@
 // Arrow keys (or a number) and Enter pick; Esc or Ctrl+C quits. `pnpm dev --here`, or a shell that isn't a terminal, skips the question and runs this checkout.
 // A worktree with no .env gets a copy of the main checkout's (it's gitignored, so new worktrees have none); one with no node_modules gets `pnpm install` first.
 import { execFileSync, spawn } from 'node:child_process';
-import { copyFileSync, existsSync } from 'node:fs';
+import { copyFileSync, existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 
@@ -78,5 +78,9 @@ if (!process.argv.includes('--here') && process.stdin.isTTY && all.length > 1) {
   }
   console.log(`Starting the dev servers in ${dir}\n`);
 }
+
+// Dev servers belong on the local Supabase (`pnpm db:local`): each API restart reloads the whole catalog, which on the hosted project is egress.
+const databaseUrl = existsSync(path.join(dir, '.env')) ? readFileSync(path.join(dir, '.env'), 'utf8').match(/^DATABASE_URL=(.*)$/m)?.[1] ?? '' : '';
+if (/supabase\.(com|co)/.test(databaseUrl)) console.log('\x1b[33mWarning: .env points at the hosted Supabase database. Run `pnpm db:local` to use a local one.\x1b[0m\n');
 
 process.exit(await run('pnpm', ['exec', 'turbo', 'run', 'dev'], dir));

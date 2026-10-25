@@ -13,6 +13,7 @@
     "db:studio": "pnpm --filter @poke-tcg/db studio",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
+    "db:local": "node scripts/local-db.mjs",
     "db:seed": "pnpm --filter @poke-tcg/db seed",
     "cards:fetch": "pnpm --filter @poke-tcg/db cards:fetch"
   },
