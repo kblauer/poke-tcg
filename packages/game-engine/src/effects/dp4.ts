@@ -10,6 +10,7 @@ import { counts, energyPool, isSpecialEnergy, type InPlayPokemon, type Target } 
 import { pokemonPower } from '../powers.js';
 import { nextRandom, shuffle } from '../rng.js';
 import { clearSpecialConditions, evolvedFromName, inPlayDef, pokemonName } from '../status.js';
+import { useSupporterEffect } from '../trainers.js';
 import { basicEnergyOn, benchedSlots, damageOpponent, energyCards, inPlay, lure, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
 import { DP1 } from './dp1.js';
 import { DP3 } from './dp3.js';
@@ -268,7 +269,7 @@ export const DP4: Record<string, Record<string, AttackEffect>> = {
         const card = down[Math.floor(r * down.length)]!;
         (owner.faceUpPrizes ??= []).push(card.uid);
         ctx.log(`Turned a Prize card face up: ${lookupCard(ctx.state.cards, card.defId).name}.`, owner.id);
-        if (trainerEffect(card.defId)?.supporter) ctx.pend({ kind: 'supernatural', source: 'Pick Out', fromPrizes: side === 'own' ? 'own' : 'opp', cardUid: card.uid, choices: {} });
+        if (trainerEffect(card.defId)?.supporter) useSupporterEffect(ctx.state, ctx.me, ctx.opp, { source: 'Pick Out', fromPrizes: side === 'own' ? 'own' : 'opp', cardUid: card.uid });
       },
     },
   },

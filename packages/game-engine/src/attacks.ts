@@ -497,11 +497,15 @@ export function attackError(s: AttackSituation, attackIndex: number): string | n
   // Downer Material (the opponent's, with their Uxie and Mesprit in play): a Basic Pokémon's attacks cost 1 Colorless more (only 1).
   const downer = attackerDef.stage === 'basic' && [s.defender, ...s.opponentBench].some((p) => p && working(p)?.downerMaterial && lakeTrio(s.cards, sides[1]!, ['Uxie', 'Mesprit']));
   // Mother Pheromone: 1 Colorless less for each of the player's working Nidoqueen, for the Nidoran line.
-  const pheromone = NIDO_LINE.some((n) => namesMatch(attackerDef.name, n)) ? [s.attacker, ...s.ownBench].filter((p) => p && working(p)?.motherPheromone).length : 0;
+  // Regi Form: 1 Colorless less with Regirock, Regice and Registeel in play.
+  const regi = working(s.attacker)?.regiForm && ['Regirock', 'Regice', 'Registeel'].every((n) => [s.attacker, ...s.ownBench].some((p) => p && namesMatch(def(s.cards, p).name, n))) ? 1 : 0;
+  const pheromone = (NIDO_LINE.some((n) => namesMatch(attackerDef.name, n)) ? [s.attacker, ...s.ownBench].filter((p) => p && working(p)?.motherPheromone).length : 0) + regi;
   const more = [...(pulled ? ['colorless' as const] : []), ...(liquid ? ['colorless' as const] : []), ...(downer ? ['colorless' as const] : [])];
+  // Battle Rush: no Colorless Energy at all while the opponent has a Pokémon of 120 HP or more in play.
+  const rush = working(s.attacker)?.battleRush && [s.defender, ...s.opponentBench].some((p) => p && def(s.cards, p).hp >= 120);
   const fewer = (c: typeof cost) => {
     let left = pheromone;
-    return c.filter((t) => !(t === 'colorless' && left-- > 0));
+    return c.filter((t) => !(t === 'colorless' && (rush || left-- > 0)));
   };
   if (!canPayCost(s.attacker, { ...attack, cost: fewer([...cost, ...more]) }, s.cards)) return more.length ? `Not enough energy (${[pulled && 'Primal Pull', liquid && 'Extra Liquid'].filter(Boolean).join(', ')}: ${more.length} more Colorless Energy)` : 'Not enough energy';
   const discard = effect?.discard;
@@ -1050,7 +1054,11 @@ function createContext(
         // Marvel Scale: nothing from the opponent's Pokémon LV.X.
         (!!passive(opp.active)?.marvelScale && attackerDef.stage === 'levelUp') ||
         // Psybarrier: nothing from the opponent's Pokémon that aren't Evolved Pokémon.
-        (!!passive(opp.active)?.psybarrier && !attacker.evolvedFrom.length)));
+        (!!passive(opp.active)?.psybarrier && !attacker.evolvedFrom.length) ||
+        // Poison Enzyme: nothing from a Poisoned attacker.
+        (!!passive(opp.active)?.poisonEnzyme && !!attacker.poison) ||
+        // Night Spin: nothing from an attacker with 2 Energy or less attached.
+        (active(opp.active.effects?.nightSpin, turn) && energyPool(attacker, state.cards).length <= 2)));
   /** Airy Wall works against this attack: the attacker has 2 or fewer Energy cards attached. */
   const airy = (p: InPlayPokemon) => !!passive(p)?.airyWall && attacker.energy.filter((e) => !e.provides).length <= 2;
   /** Shielded, or Crystal Body or Light Wave: the attack does nothing to the Defending Pokémon but damage. Logs why. */
@@ -1091,9 +1099,15 @@ function createContext(
   const barriers = (p: InPlayPokemon, damage: number, owner: PlayerState) => {
     const body = passive(p);
     // Unown W's WALL: its player's Active Unown W makes the opponent's attacks do 10 less to each of their Pokémon.
-    if (damage > 0 && owner === opp && owner.active && passive(owner.active)?.wall) {
-      damage = noted('WALL', damage, Math.max(0, damage - 10));
-      log(`WALL reduced the damage to ${pokemonName(state, p)} by 10.`, owner.id);
+    const wall = owner.active ? passive(owner.active)?.wall : undefined;
+    if (damage > 0 && owner === opp && wall) {
+      damage = noted(def(state.cards, owner.active!).power?.name ?? 'WALL', damage, Math.max(0, damage - wall));
+      log(`${def(state.cards, owner.active!).power?.name ?? 'WALL'} reduced the damage to ${pokemonName(state, p)} by ${wall}.`, owner.id);
+    }
+    // Protect Wing: 20 less from the opponent's Stage 2 Pokémon.
+    if (damage > 0 && owner === opp && owner.active && passive(owner.active)?.protectWing && attackerDef.stage === 'stage2') {
+      damage = noted('Protect Wing', damage, Math.max(0, damage - 20));
+      log(`Protect Wing reduced the damage to ${pokemonName(state, p)} by 20.`, owner.id);
     }
     if (damage > 0 && owner === opp && body) {
       // Steel Coating: 10 less for each Metal Energy attached, 20 at most.
@@ -1101,6 +1115,11 @@ function createContext(
       if (steel) {
         damage = noted('Steel Coating', damage, Math.max(0, damage - steel));
         log(`Steel Coating reduced the damage to ${pokemonName(state, p)} by ${steel}.`, owner.id);
+      }
+      // Honeycomb Defender: 40 less with 6 or more damage counters on it.
+      if (body.honeycomb && p.damage >= 60 && damage > 0) {
+        damage = noted('Honeycomb Defender', damage, Math.max(0, damage - 40));
+        log(`Honeycomb Defender reduced the damage to ${pokemonName(state, p)} by 40.`, owner.id);
       }
       // Fossil Armor: no damage of 60 or less.
       if (body.fossilArmor && damage > 0 && damage <= 60) {
@@ -1593,8 +1612,12 @@ function createContext(
     const team = [me.active, ...me.bench];
     const enthused = poli.some((n) => namesMatch(attackerDef.name, n)) && team.some((q) => q && passive(q)?.enthusiasm) && poli.every((n) => team.some((q) => q && namesMatch(def(state.cards, q).name, n))) ? 60 : 0;
     // Buck's Training: 10 more while it's the player's Supporter in play.
+    // Sunny Day: 10 more for Grass and Fire Pokémon. Green Dignity: 10 more for each Grass Pokémon on the Bench while behind on Prize cards. No Guard: 60 more.
+    const sunny = (hasType(attackerDef, 'grass') || hasType(attackerDef, 'fire')) && team.some((q) => q && passive(q)?.sunnyDay) ? 10 : 0;
+    const dignity = passive(attacker)?.greenDignity && me.prizes.length > opp.prizes.length ? 10 * me.bench.filter((q) => q && hasType(def(state.cards, q), 'grass')).length : 0;
+    const noGuard = passive(attacker)?.noGuard ? 60 : 0;
     const buck = me.supporterTurn === turn && me.supporterUid && me.discard.concat(me.hand).some((c) => c.uid === me.supporterUid && lookupCard(state.cards, c.defId).name === "Buck's Training") ? 10 : 0;
-    const boost = (low && attackerDef.hp - attacker.damage <= low.hpLeft ? low.more : 0) + aura + pivot + (passive(attacker)?.attackMore ?? 0) + rage + reversal + conditional + reactor + laser + allies + dna + scale + fury + rivalry + revenge + enthused + buck;
+    const boost = (low && attackerDef.hp - attacker.damage <= low.hpLeft ? low.more : 0) + aura + pivot + (passive(attacker)?.attackMore ?? 0) + rage + reversal + conditional + reactor + laser + allies + dna + scale + fury + rivalry + revenge + enthused + buck + sunny + dignity + noGuard;
     if (amount > 0 && boost) {
       amount = noted(attackerDef.power?.name ?? 'More damage', amount, amount + boost);
       log(`${boost} more damage.`);
@@ -1743,6 +1766,11 @@ function createContext(
       if (damage > 0 && more && active(more.until, turn)) {
         damage = noted('More damage from an earlier attack', damage, damage + more.amount);
         log(`${more.amount} more damage to ${defenderDef.name}.`, opp.id);
+      }
+      // No Guard: 60 more to it.
+      if (damage > 0 && passive(defender)?.noGuard) {
+        damage = noted('No Guard', damage, damage + 60);
+        log(`No Guard: 60 more damage to ${defenderDef.name}.`, opp.id);
       }
       // Lie Low and Barrier Attack: a set amount less, after Weakness and Resistance.
       const reduced = effects?.reduceDamage;

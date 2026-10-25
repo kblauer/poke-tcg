@@ -1,5 +1,5 @@
 /// <reference path="./globals.d.ts" />
-import { applyWeaknessResistance, attackAsks, attackSituation, checkAttack, performAttack, recallsAttacks, usableAttacks, type AttackChoices } from './attacks.js';
+import { applyWeaknessResistance, attackAsks, attackError, attackSituation, checkAttack, nextAttackChoice, performAttack, recallsAttacks, usableAttacks, type AttackChoices } from './attacks.js';
 import { attachBlocked, discardsLocked, energyFromHand, evolutionBlocked, primalBlock, retreatBodies, guardedBy, spiraledBy, bindingAura, conditionBarred, conditionFree, holonWith, miraculousWind, offerChainReaction, playedFromHand, pokemonAt, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, primalLocked, trainersDusted, trainersBlocked, usePower, powerCanceller, zoomed, type PowerChoices, type PowerEffect, pokemonPower } from './powers.js';
 import { evolvesFromEevee, evolveWith, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
@@ -222,6 +222,8 @@ export interface PokemonEffects {
   delayed?: { affliction?: 'asleep' | 'poisoned' | 'confused'; counters?: number; turn: number; /** Doom Desire: Knocked Out. */ knockOut?: boolean; /** Energy Dissolve: an Energy card discarded. */ discardEnergy?: boolean };
   /** Magical Step: Confused, it does 60 to itself instead of 30. */
   magicalStep?: boolean;
+  /** Night Spin: nothing from the opponent's Pokémon with 2 Energy or less attached, through this turn. */
+  nightSpin?: number;
   /** The turn it was attacked with Night Eyes (Perish Song); benching or evolving it ends this. */
   nightEyes?: number;
   /** Attacks do nothing to it but damage, through this turn (Light Wave). */
@@ -411,6 +413,10 @@ export interface PlayerState {
   knockedOutTurn?: number;
   /** Time Skip: this turn ends once its player has drawn. */
   turnSkipped?: number;
+  /** Emperor Aura: no Energy cards attached from the hand through this turn. */
+  noAttachUntil?: number;
+  /** Land Shake: 2 damage counters on each Basic Pokémon put onto the Bench from the hand through this turn. */
+  landShakeUntil?: number;
   /** The Supporter card played on `supporterTurn` (Detour uses its effect while it's in play). */
   supporterUid?: string;
   /** The turn this player last attached an Energy card from their hand to their Active Pokémon (Harvest Bounty). */
@@ -536,6 +542,8 @@ export type GameAction =
   | { type: 'DISCARD_SHAPESHIFT'; target: Target }
   /** Use the ability of a Special Energy card attached to the Active Pokémon (Call Energy). */
   | { type: 'USE_ENERGY'; cardUid: string }
+  /** Use the ability of the Pokémon Tool attached to one of the player's Pokémon (Energy Link). */
+  | { type: 'USE_TOOL'; target: Target }
   | { type: 'END_TURN' }
   | { type: 'CONCEDE' };
 
@@ -911,6 +919,15 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       return preAttackQuestion(state, attacker, defending, pending.attackIndex, pending.choices, true) ?? attackAction(state, attacker, defending, pending.attackIndex, pending.choices);
     }
     // Sabrina's ESP: the attack happens again from where it started, with new coin flips (the log keeps the first ones).
+    // Link Lightning: the second attack, or none (the turn ends).
+    if (pending.kind === 'linkLightning') {
+      delete state.pendingChoice;
+      const foe = state.players[opponentOf(state, me.id)]!;
+      const index = typeof action.count === 'number' ? pending.attacks[action.count] : undefined;
+      if (index !== undefined && me.active && foe.active) return attackAction(state, me, foe, index, {}, { linked: true });
+      const winner = resolveKnockouts(state, me.id);
+      return winner ? finish(state, winner) : endTurn(state);
+    }
     if (pending.kind === 'reflip' && action.count === 1) {
       const again: GameState = { ...cloneState(pending.before), rngState: state.rngState, log: state.log, version: state.version };
       addLog(again, "Sabrina's ESP: re-flipped the coins.", me.id);
@@ -962,6 +979,11 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
         me.bench[action.slot]!.damage += 20;
         addLog(state, `Rocket's Minefield Gym put 2 damage counters on ${card(played).name}.`, me.id);
       }
+      // Land Shake: 2 damage counters on a Basic Pokémon put onto the Bench from the hand.
+      if ((me.landShakeUntil ?? 0) >= state.turn && !isTrainerCard(card(played))) {
+        me.bench[action.slot]!.damage += 20;
+        addLog(state, `Land Shake put 2 damage counters on ${card(played).name}.`, me.id);
+      }
       // Hot Plate: 10 damage to it from a working Dark Magcargo, either player's Active Pokémon.
       if (!isTrainerCard(card(played))) hotPlate(state, me.bench[action.slot]!, me.id);
       // Unown E and I: powers that react to the Pokémon being played from the hand.
@@ -1007,7 +1029,13 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       // Poison Sacs (the opponent's working Toxicroak): it stays Poisoned.
       const sacs = !!target.poison && [opp.active, ...opp.bench].some((p) => p && pokemonPower(p)?.poisonSacs && powerActive(p, state.cards, [opp, me]));
       const poison = target.poison;
+      const heated = !!target.burned && heatMetal(state, opp);
+      const burnDamage = target.burnDamage;
       clearOnLeavingActive(target);
+      if (heated) {
+        Object.assign(target, { burned: true, ...(burnDamage && { burnDamage }) });
+        addLog(state, `Heat Metal: ${pokemonName(state, target)} is still Burned.`, opp.id);
+      }
       if (sacs) {
         target.poison = poison;
         addLog(state, `Poison Sacs: ${pokemonName(state, target)} is still Poisoned.`, opp.id);
@@ -1044,6 +1072,7 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       if (holon === 'every' && !target.energy.some((e) => !e.provides)) return fail(`${card(energy).name} can only be attached to a Pokémon that already has an Energy card attached`);
       state.blaineAttach = second ? 'done' : blaine && fire(energy) ? baseUid(target) : 'done';
       if ((me.noSpecialEnergyUntil ?? 0) >= state.turn && isSpecialEnergy(state.cards, energy)) return fail("Bind Pulse: you can't attach Special Energy cards from your hand this turn");
+      if ((me.noAttachUntil ?? 0) >= state.turn) return fail("Emperor Aura: you can't attach Energy cards from your hand this turn");
       if (target.effects?.noEnergy !== undefined) return fail(`Energy cards can't be attached to ${pokemonName(state, target)} this turn`);
       if (action.target === 'active' && (me.freezeLockUntil ?? 0) >= state.turn) return fail("Freeze Lock: you can't attach Energy cards from your hand to your Active Pokémon this turn");
       // Miracle Energy goes only on Shining and Light Pokémon, Boost Energy only on an Evolved Pokémon; Anti-Lightning.
@@ -1117,6 +1146,18 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       me.powerTurns = { ...me.powerTurns, [key]: state.turn };
       addLog(state, `Used ${card(energy).name}.`, me.id);
       use.run(state, me, pokemon);
+      return afterTrainer(state, me, opp);
+    }
+
+    case 'USE_TOOL': {
+      const pokemon = actionTarget(me, action.target);
+      const found = pokemon && toolOf(state.cards, pokemon);
+      const use = found && trainerEffect(found.tool.card.defId)?.useTool;
+      if (!pokemon || !found || !use) return fail('Choose one of your Pokémon with a Pokémon Tool that can be used');
+      const blocked = use.blocked?.(state, me, pokemon);
+      if (blocked) return fail(blocked);
+      addLog(state, `Used ${found.name}.`, me.id);
+      use.run(state, me, action.target);
       return afterTrainer(state, me, opp);
     }
 
@@ -1258,7 +1299,7 @@ function attackAction(
   opp: PlayerState,
   attackIndex: number,
   choices: AttackChoices,
-  { flee, reflipped = false }: { flee?: number; reflipped?: boolean } = {},
+  { flee, reflipped = false, linked = false }: { flee?: number; reflipped?: boolean; linked?: boolean } = {},
 ): ActionResult {
   const usable = usableAttacks(me.active!, state.cards, { recall: recallsAttacks(state, me), bench: me.bench, defender: opp.active, oppBench: opp.bench, stadium: state.stadium?.card ?? null, sides: [me, opp] })[attackIndex];
   const esp = !reflipped && (me.active!.attached ?? []).some((a) => lookupCard(state.cards, a.card.defId).name === "Sabrina's ESP");
@@ -1282,6 +1323,17 @@ function attackAction(
     search.afterAttack = true;
     for (const queued of state.queuedChoices ?? []) queued.afterAttack = true;
     return ok(state);
+  }
+  // Link Lightning: Voltage Shoot the turn Raichu LV.X levelled up, then another of Raichu's attacks (one that asks nothing).
+  const raichu = me.active;
+  if (!linked && usable?.attack.name === 'Voltage Shoot' && raichu?.levelUpFrom && raichu.playedTurn === state.turn && opp.active && opp.active.damage < inPlayDef(state.cards, opp.active).hp && pokemonPower(raichu)?.linkLightning && powerActive(raichu, state.cards, [me, opp])) {
+    const s = attackSituation(state, me, opp);
+    const attacks = usableAttacks(raichu, state.cards, { bench: me.bench, defender: opp.active, oppBench: opp.bench, stadium: state.stadium?.card ?? null, sides: [me, opp] });
+    const options = attacks.flatMap((a, i) => (a.attack.name !== 'Voltage Shoot' && !attackError(s, i) && 'choices' in checkAttack(s, i, {}) && !nextAttackChoice(s, i, {}) ? [i] : []));
+    if (options.length) {
+      state.pendingChoice = { player: me.id, source: 'Link Lightning', kind: 'linkLightning', attacks: options, labels: options.map((i) => attacks[i]!.attack.name) };
+      return ok(state);
+    }
   }
   // Attacking ends the turn.
   const winner = resolveKnockouts(state, me.id);
@@ -1357,6 +1409,31 @@ function afterTrainer(state: GameState, me: PlayerState, opp: PlayerState): Acti
   return afterOwnMove(state, me, opp);
 }
 
+/** Heat Metal: `side` has a working Heatran LV.X with it (the other player's Burned Pokémon stay Burned). */
+function heatMetal(state: GameState, side: PlayerState) {
+  const sides = state.playerOrder.map((id) => state.players[id]!);
+  return [side.active, ...side.bench].some((p) => p && pokemonPower(p)?.heatMetal && powerActive(p, state.cards, sides));
+}
+
+/** Whether the Pokémon Tool on a Pokémon has an ability its player can use (Energy Link, USE_TOOL). */
+export const usableTool = (cards: CardLibrary, pokemon: InPlayPokemon) => {
+  const found = toolOf(cards, pokemon);
+  return !!found && !!trainerEffect(found.tool.card.defId)?.useTool;
+};
+
+/**
+ * A Stadium leaving play: to its owner's discard pile, or, for Dusknoir LV.X put into play as a Stadium card by Ectoplasm, back
+ * into their hand.
+ */
+export function retireStadium(state: GameState) {
+  const old = state.stadium;
+  if (!old) return;
+  const pokemon = lookupCard(state.cards, old.card.defId).kind === 'pokemon';
+  (pokemon ? state.players[old.owner]!.hand : state.players[old.owner]!.discard).push(old.card);
+  addLog(state, `${lookupCard(state.cards, old.card.defId).name} ${pokemon ? 'went back into the hand' : 'was discarded'}.`, old.owner);
+  state.stadium = null;
+}
+
 /** The Special Energy cards on a Pokémon with an ability its player can use (Call Energy, USE_ENERGY). */
 export const usableEnergy = (pokemon: InPlayPokemon) => pokemon.energy.filter((e) => !e.provides && !!energyEffect(e.defId)?.use);
 
@@ -1418,6 +1495,12 @@ function setupAction(state: GameState, me: PlayerState, opp: PlayerState, action
         player.turnStartActive = player.lastActive;
         const bench = player.bench.flatMap((p) => (p ? [pokemonName(state, p)] : []));
         addLog(state, `Active: ${pokemonName(state, player.active!)}${bench.length ? `. Bench: ${bench.join(', ')}` : ''}.`, id);
+      }
+      // Overeager: a player whose Active Pokémon has it goes first, unless both do.
+      const eager = state.playerOrder.filter((id) => pokemonPower(state.players[id]!.active!)?.overeager);
+      if (eager.length === 1 && state.currentPlayer !== eager[0]) {
+        state.currentPlayer = eager[0]!;
+        addLog(state, 'Overeager: goes first.', eager[0]!);
       }
       state.phase = 'playing';
       return ok(state);
@@ -1865,7 +1948,9 @@ function betweenTurns(state: GameState) {
     active.damage += burn;
     if (active.effects) delete active.effects.shadowImages;
     addLog(state, `${name} takes ${burn} Burn damage${fiery ? ' (Fiery Aura)' : ''}.`, id);
-    if (flipCoin(state, `${name} is Burned`, id)) {
+    // Heat Metal (the opponent's): the flip is tails.
+    if (heatMetal(state, state.players[opponentOf(state, id)]!)) addLog(state, `Heat Metal: ${name} is still Burned.`, id);
+    else if (flipCoin(state, `${name} is Burned`, id)) {
       active.burned = false;
       delete active.burnDamage;
       addLog(state, `${name} is no longer Burned.`, id);
@@ -1916,6 +2001,12 @@ function betweenTurns(state: GameState) {
       const checkup = p && powerActive(p, state.cards, everyone) ? pokemonPower(p)?.checkup : undefined;
       if (p && checkup && [owner.active, ...owner.bench].includes(p)) checkup(state, owner, p, opp, done);
     }
+  }
+  // Ectoplasm: Dusknoir LV.X as a Stadium card puts a damage counter on each of its owner's opponent's Pokémon.
+  if (state.stadium && lookupCard(state.cards, state.stadium.card.defId).kind === 'pokemon') {
+    const victim = state.players[opponentOf(state, state.stadium.owner)]!;
+    for (const p of [victim.active, ...victim.bench]) if (p) p.damage += 10;
+    addLog(state, "Ectoplasm put a damage counter on each of your opponent's Pokémon.", state.stadium.owner);
   }
   // Cursed Stone: a damage counter on each Pokémon with a Poké-Power (printed, working or not: agreed; the older Pokémon Powers too).
   if (state.stadium && lookupCard(state.cards, state.stadium.card.defId).name === 'Cursed Stone') {
@@ -2263,7 +2354,7 @@ export function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId
       }
     };
     /** Knocked Out by damage from the opponent's attack this turn, with a working power reacting to it (Phoenix Turn, Energy Shift). */
-    const attackKo = (pokemon: InPlayPokemon, flag: 'phoenixTurn' | 'energyShift' | 'resent') =>
+    const attackKo = (pokemon: InPlayPokemon, flag: 'phoenixTurn' | 'energyShift' | 'resent' | 'faintingSpell' | 'ectoplasm') =>
       pokemon.knockedByAttack === state.turn && state.currentPlayer !== id && !!pokemonPower(pokemon)?.[flag] && powerActive(pokemon, state.cards, sides);
     const isOut = (p: InPlayPokemon) => p.damage >= inPlayDef(state.cards, p).hp;
     const knockOut = (pokemon: InPlayPokemon) => {
@@ -2274,6 +2365,12 @@ export function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId
         const name = inPlayDef(state.cards, taker.active).name;
         for (const q of [taker.active, ...taker.bench]) if (q && inPlayDef(state.cards, q).name === name) q.damage += 40;
         addLog(state, `Resent: 4 damage counters on each of the opponent's ${name}.`, id);
+        resented = true;
+      }
+      // Fainting Spell: heads, the Defending Pokémon is Knocked Out too.
+      if (attackKo(pokemon, 'faintingSpell') && taker.active && flipCoin(state, 'Fainting Spell', id)) {
+        taker.active.damage = Math.max(taker.active.damage, inPlayDef(state.cards, taker.active).hp);
+        addLog(state, `Fainting Spell: ${pokemonName(state, taker.active)} is Knocked Out.`, id);
         resented = true;
       }
       // Burning Coat: the opponent's Active Entei Knocked it Out with its attack's damage; the top 3 cards of its owner's deck are discarded.
@@ -2291,6 +2388,8 @@ export function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId
         owner.hand.push(...back.map(asDiscarded));
         if (back.length) addLog(state, `Time Shard: ${back.length} basic Energy card${back.length === 1 ? '' : 's'} went back to the hand.`, id);
       }
+      // Ectoplasm: the Active Dusknoir LV.X Knocked Out by the opponent's attack goes into play as a Stadium card, its other cards discarded.
+      const ectoplasm = owner.active === pokemon && pokemon.levelUpFrom && attackKo(pokemon, 'ectoplasm');
       // Rebirth: the card goes back to the hand once it's discarded, unless its power isn't working (Asleep…).
       const reborn = !!pokemonPower(pokemon)?.rebirth && powerActive(pokemon, state.cards, sides) && !discardsLocked(sides, state.cards);
       owner.discard.push(...pokemon.evolvedFrom, pokemon.card, ...pokemon.energy.map(asDiscarded), ...(pokemon.attached ?? []).map((a) => a.card));
@@ -2298,6 +2397,13 @@ export function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId
         owner.discard = owner.discard.filter((c) => c !== pokemon.card);
         owner.hand.push(pokemon.card);
         addLog(state, `Rebirth: ${pokemonName(state, pokemon)} returned to the hand.`, id);
+      }
+      if (ectoplasm) {
+        owner.discard = owner.discard.filter((c) => c !== pokemon.card);
+        retireStadium(state);
+        state.stadium = { card: pokemon.card, owner: id };
+        delete state.stadiumUsedTurn;
+        addLog(state, `Ectoplasm: ${pokemonName(state, pokemon)} is in play as a Stadium card.`, id);
       }
       // A Trainer played as a Pokémon (Clefairy Doll) doesn't count as a Knocked Out Pokémon: no prize.
       const def = lookupCard(state.cards, pokemon.card.defId);

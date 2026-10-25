@@ -189,8 +189,36 @@ export interface PowerEffect {
   steelCoating?: boolean;
   /** Fossil Armor: no attack damage of 60 or less (attacks.ts). */
   fossilArmor?: boolean;
-  /** WALL: as its player's Active Pokémon, 10 less damage to each of their Pokémon from the opponent's attacks (attacks.ts). */
-  wall?: boolean;
+  /** WALL, Snow Veil: as its player's Active Pokémon, this much less damage to each of their Pokémon from the opponent's attacks (attacks.ts). */
+  wall?: number;
+  /** Sunny Day: its player's Grass and Fire Pokémon's attacks do 10 more to the Defending Pokémon (attacks.ts). */
+  sunnyDay?: boolean;
+  /** Green Dignity: while its player has more Prize cards left, its attacks do 10 more for each Grass Pokémon on their Bench (attacks.ts). */
+  greenDignity?: boolean;
+  /** No Guard: as its player's Active Pokémon, 60 more damage both to and from it (attacks.ts). */
+  noGuard?: boolean;
+  /** Honeycomb Defender: with 6 or more damage counters, 40 less attack damage (attacks.ts). */
+  honeycomb?: boolean;
+  /** Protect Wing: as its player's Active Pokémon, 20 less damage to their Pokémon from the opponent's Stage 2 Pokémon (attacks.ts). */
+  protectWing?: boolean;
+  /** Poison Enzyme: nothing from the opponent's Poisoned Pokémon (attacks.ts). */
+  poisonEnzyme?: boolean;
+  /** Battle Rush: no Colorless Energy in its attacks' costs while the opponent has a Pokémon of 120 HP or more in play (attackError). */
+  battleRush?: boolean;
+  /** Regi Form: its attacks cost 1 Colorless less with Regirock, Regice and Registeel in play (attackError). */
+  regiForm?: boolean;
+  /** Heat Metal: the opponent's Burned Pokémon stay Burned (engine.ts). */
+  heatMetal?: boolean;
+  /** Ectoplasm: Knocked Out as the Active Pokémon by the opponent's attack, it goes into play as a Stadium card (resolveKnockouts). */
+  ectoplasm?: boolean;
+  /** Fainting Spell: Knocked Out by the opponent's attack, heads Knocks Out the Defending Pokémon (resolveKnockouts). */
+  faintingSpell?: boolean;
+  /** Darkness Drive: after the opponent uses a Poké-Power, a basic Darkness Energy card from the discard pile attached to it (usePower). */
+  darknessDrive?: boolean;
+  /** Link Lightning: Voltage Shoot the turn Raichu LV.X levelled up lets it use another attack (attackAction). */
+  linkLightning?: boolean;
+  /** Overeager: the player whose Active Pokémon it is at the start goes first (START_BATTLE). */
+  overeager?: boolean;
   /** Psychic Aura: its player's Psychic Pokémon have no Weakness (attacks.ts). */
   psychicAura?: boolean;
   /** Psybarrier: nothing from the opponent's Pokémon that aren't Evolved Pokémon (attacks.ts). */
@@ -984,6 +1012,12 @@ export function retreatBodies(pokemon: InPlayPokemon, cards: CardLibrary, sides:
   return own + tax - less - quick + sticky - jumbo + (owner.active === pokemon && anyWorking(sides, cards, (e) => e.glueySlime) ? 1 : 0);
 }
 
+/** A basic Energy card of a type (Darkness Drive). */
+const isBasicEnergyCard = (cards: CardLibrary, c: CardInstance, type: EnergyType) => {
+  const d = lookupCard(cards, c.defId);
+  return d.kind === 'energy' && d.basic !== false && d.energyType === type;
+};
+
 /** Spiral: the opponent's Active Pokémon (`sides[1]`'s) keeps `sides[0]`'s Confused Active Pokémon from retreating; its name, or null. */
 export function spiraledBy(sides: Sides, cards: CardLibrary): string | null {
   const [owner, opponent] = sides;
@@ -1258,6 +1292,16 @@ export function usePower(state: GameState, me: PlayerState, opp: PlayerState, so
       state.pendingChoice = { ...choice, player: me.id } as PendingChoice;
     },
   });
+  // Darkness Drive: the opponent's working Tyranitar takes a basic Darkness Energy card from their discard pile.
+  if (!effect.body || effect.usePoke) {
+    for (const p of [opp.active, ...opp.bench]) {
+      const card = p && pokemonPower(p)?.darknessDrive && powerActive(p, state.cards, [opp, me]) && !discardsLocked([me, opp], state.cards) ? opp.discard.find((c) => isBasicEnergyCard(state.cards, c, 'darkness')) : undefined;
+      if (!p || !card) continue;
+      opp.discard = opp.discard.filter((c) => c !== card);
+      p.energy.push(card);
+      addLog(state, `Darkness Drive: attached a Darkness Energy card to ${pokemonName(state, p)}.`, opp.id);
+    }
+  }
   // Dark Eyes: once the power has done its part (the Pokémon may have moved, or left play).
   if (darkEyes) {
     const used = [me.active, ...me.bench].find((p) => p?.card.uid === uid);

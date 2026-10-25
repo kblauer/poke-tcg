@@ -87,7 +87,7 @@ export const DP6_POWERS: Record<string, PowerEffect> = {
   'dp6-18': { ...POKE_BODY, fossilArmor: true },
   'dp6-57': { ...POKE_BODY, revengeFang: true },
   'dp6-78': { ...POKE_BODY, unseen: true },
-  'dp6-80': { ...POKE_BODY, wall: true },
+  'dp6-80': { ...POKE_BODY, wall: 10 },
   'dp6-140': { ...POKE_BODY, psychicAura: true },
   'dp6-144': { ...POKE_BODY, psybarrier: true },
   // Torkoal – White Smoke: as the Active Pokémon, nothing from the opponent's attacks to the Benched Pokémon (as Aurora Veil).
