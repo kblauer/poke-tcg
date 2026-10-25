@@ -143,11 +143,13 @@ import { HGSS3_ENERGY, HGSS3_TRAINERS } from './hgss3-trainers.js';
 import { HGSS4 } from './hgss4.js';
 import { HGSS4_POWERS } from './hgss4-powers.js';
 import { HGSS4_ENERGY, HGSS4_TRAINERS } from './hgss4-trainers.js';
+import { HGSSP } from './hgssp.js';
+import { HGSSP_POWERS } from './hgssp-powers.js';
 import { EX_TEMPLATE_DATA } from './ex-template-data.js';
 import { templateEffects } from './ex-templates.js';
 
 /** Effects by card id, then attack name. Base Set 2's and Legendary Collection's are their originals' (base4.ts, lc.ts). */
-const ORIGINAL_EFFECTS: Record<string, Record<string, AttackEffect>> = { ...BASE1, ...JUNGLE, ...FOSSIL, ...PROMOS, ...ROCKET, ...GYM1, ...GYM2, ...NEO1, ...NEO2, ...SI1, ...NEO3, ...NEO4, ...ECARD1, ...ECARD2, ...ECARD3, ...EX1, ...EX2, ...EX3, ...EX4, ...EX5, ...EX6, ...EX7, ...EX8, ...EX9, ...EX10, ...EX11, ...EX12, ...EX13, ...EX14, ...EX15, ...EX16, ...DP1, ...DP2, ...DP3, ...DP4, ...DP5, ...DP6, ...DP7, ...DPP, ...PL1, ...PL2, ...PL3, ...PL4, ...HGSS1, ...HGSS2, ...HGSS3, ...HGSS4 };
+const ORIGINAL_EFFECTS: Record<string, Record<string, AttackEffect>> = { ...BASE1, ...JUNGLE, ...FOSSIL, ...PROMOS, ...ROCKET, ...GYM1, ...GYM2, ...NEO1, ...NEO2, ...SI1, ...NEO3, ...NEO4, ...ECARD1, ...ECARD2, ...ECARD3, ...EX1, ...EX2, ...EX3, ...EX4, ...EX5, ...EX6, ...EX7, ...EX8, ...EX9, ...EX10, ...EX11, ...EX12, ...EX13, ...EX14, ...EX15, ...EX16, ...DP1, ...DP2, ...DP3, ...DP4, ...DP5, ...DP6, ...DP7, ...DPP, ...PL1, ...PL2, ...PL3, ...PL4, ...HGSS1, ...HGSS2, ...HGSS3, ...HGSS4, ...HGSSP };
 const EFFECTS: Record<string, Record<string, AttackEffect>> = { ...ORIGINAL_EFFECTS, ...base4Reprints(ORIGINAL_EFFECTS), ...lcAttacks(ORIGINAL_EFFECTS) };
 
 /**
@@ -170,7 +172,7 @@ const printOf = (defId: string) => (defId.endsWith('-reverse') ? defId.slice(0, 
 export const attackEffect = (defId: string, attackName: string): AttackEffect | undefined => effectsOf(printOf(defId))?.[attackName];
 
 /** Pokémon Power effects by card id (WOTC cards have at most one power). Base Set 2's and Legendary Collection's are their originals' (LC's stop with any Special Condition). */
-const ORIGINAL_POWERS: Record<string, PowerEffect> = { ...BASE1_POWERS, ...JUNGLE_POWERS, ...FOSSIL_POWERS, ...PROMO_POWERS, ...ROCKET_POWERS, ...GYM1_POWERS, ...GYM2_POWERS, ...NEO1_POWERS, ...NEO2_POWERS, ...NEO3_POWERS, ...NEO4_POWERS, ...ECARD1_POWERS, ...ECARD2_POWERS, ...ECARD3_POWERS, ...EX1_POWERS, ...EX2_POWERS, ...EX3_POWERS, ...EX4_POWERS, ...EX5_POWERS, ...EX6_POWERS, ...EX7_POWERS, ...EX8_POWERS, ...EX9_POWERS, ...EX10_POWERS, ...EX11_POWERS, ...EX12_POWERS, ...EX13_POWERS, ...EX14_POWERS, ...EX15_POWERS, ...EX16_POWERS, ...DP1_POWERS, ...DP2_POWERS, ...DP3_POWERS, ...DP4_POWERS, ...DP5_POWERS, ...DP6_POWERS, ...DP7_POWERS, ...DPP_POWERS, ...PL1_POWERS, ...PL2_POWERS, ...PL3_POWERS, ...PL4_POWERS, ...HGSS1_POWERS, ...HGSS2_POWERS, ...HGSS3_POWERS, ...HGSS4_POWERS };
+const ORIGINAL_POWERS: Record<string, PowerEffect> = { ...BASE1_POWERS, ...JUNGLE_POWERS, ...FOSSIL_POWERS, ...PROMO_POWERS, ...ROCKET_POWERS, ...GYM1_POWERS, ...GYM2_POWERS, ...NEO1_POWERS, ...NEO2_POWERS, ...NEO3_POWERS, ...NEO4_POWERS, ...ECARD1_POWERS, ...ECARD2_POWERS, ...ECARD3_POWERS, ...EX1_POWERS, ...EX2_POWERS, ...EX3_POWERS, ...EX4_POWERS, ...EX5_POWERS, ...EX6_POWERS, ...EX7_POWERS, ...EX8_POWERS, ...EX9_POWERS, ...EX10_POWERS, ...EX11_POWERS, ...EX12_POWERS, ...EX13_POWERS, ...EX14_POWERS, ...EX15_POWERS, ...EX16_POWERS, ...DP1_POWERS, ...DP2_POWERS, ...DP3_POWERS, ...DP4_POWERS, ...DP5_POWERS, ...DP6_POWERS, ...DP7_POWERS, ...DPP_POWERS, ...PL1_POWERS, ...PL2_POWERS, ...PL3_POWERS, ...PL4_POWERS, ...HGSS1_POWERS, ...HGSS2_POWERS, ...HGSS3_POWERS, ...HGSS4_POWERS, ...HGSSP_POWERS };
 const POWERS: Record<string, PowerEffect> = { ...ORIGINAL_POWERS, ...base4Reprints(ORIGINAL_POWERS), ...lcPowers(ORIGINAL_POWERS) };
 
 /** The behaviour of the card's Pokémon Power, if it's implemented. */
