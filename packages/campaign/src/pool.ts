@@ -25,6 +25,19 @@ export const EX_SETS = ['ex1', 'ex2', 'ex3', 'ex4', 'ex5', 'ex6', 'ex7', 'ex8', 
 export const GEN3_SETS = EX_SETS;
 export const GEN3_DONE_SETS = EX_SETS;
 
+/**
+ * Generation 4's sets (Sinnoh), in release order: the Diamond & Pearl series with its Black Star Promos, and the Platinum
+ * series (asked for 2026-10-24, on the `gen-4-packs` branch). In the card snapshot; not yet in any pool or pack: their
+ * card effects are to come, and their packs unlock with Gen 4 runs, which are to come too (the user's).
+ */
+export const GEN4_SETS = ['dp1', 'dpp', 'dp2', 'dp3', 'dp4', 'dp5', 'dp6', 'dp7', 'pl1', 'pl2', 'pl3', 'pl4'];
+
+/**
+ * The HeartGold & SoulSilver series and Call of Legends, in release order: Gen 2's (Johto's) sets, each game in its
+ * region's generation (the user's). In the card snapshot; they join GEN2_SETS once their card effects are done.
+ */
+export const HGSS_SETS = ['hgss1', 'hgssp', 'hgss2', 'hgss3', 'hgss4', 'col1'];
+
 /** The Gen 2 sets whose card effects the engine has (every one of them now): Gen 2 runs take only the cards it plays fully from these. */
 export const GEN2_DONE_SETS = GEN2_SETS;
 
