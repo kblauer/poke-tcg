@@ -1,5 +1,5 @@
 import { DndContext, DragOverlay } from '@dnd-kit/core';
-import { hasBenched, inPlayDef, lookupCard, shapeshiftCard, usableAttacks, type CardLibrary, type GameAction, type InPlayPokemon, type MoveHighlight, type PlayerView, type Target } from '@poke-tcg/game-engine';
+import { hasBenched, inPlayDef, lookupCard, shapeshiftCard, usableAttacks, usableEnergy, type CardLibrary, type GameAction, type InPlayPokemon, type MoveHighlight, type PlayerView, type Target } from '@poke-tcg/game-engine';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAttack } from '../hooks/useAttack';
 import { useCardPlay } from '../hooks/useCardPlay';
@@ -394,6 +394,8 @@ export function Board({
       ? [
           ...(self.active.faceDown ? [{ label: 'Turn it face up', run: () => send({ type: 'FLIP_FACE_DOWN', target: 'active' }) }] : []),
           ...(shapeshiftCard(self.active) ? [{ label: 'Discard its Shapeshift card', run: () => send({ type: 'DISCARD_SHAPESHIFT', target: 'active' }) }] : []),
+          // Call Energy: a Special Energy card's ability, used from the Active Pokémon.
+          ...usableEnergy(self.active).map((e) => ({ label: `Use ${lookupCard(view.cards, e.defId).name}`, run: () => send({ type: 'USE_ENERGY', cardUid: e.uid }) })),
           ...(doll?.kind === 'pokemon' && doll.trainerText
             ? [
                 {

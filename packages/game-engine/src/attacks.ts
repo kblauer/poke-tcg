@@ -1490,8 +1490,9 @@ function createContext(
     if (sides.some((side) => [side.active, ...side.bench].some((p) => p && passive(p)?.witheringDust))) resistance = false;
     // Tropical Motion: the attacking player's Active Tropius takes the opponent's Resistance away.
     if (me.active && passive(me.active)?.tropicalMotion) resistance = false;
-    // Sunlight: with Lunatone in play, the player's Psychic and Fighting Pokémon ignore Resistance.
+    // Sunlight: with Lunatone in play, the player's Psychic and Fighting Pokémon ignore Resistance. Disturbance Scales: every one of them.
     const mine = [me.active, ...me.bench];
+    if (mine.some((q) => q && passive(q)?.disturbanceScales)) resistance = false;
     if ((hasType(attackerDef, 'psychic') || hasType(attackerDef, 'fighting')) && mine.some((q) => q && passive(q)?.sunlight) && mine.some((q) => q && namesMatch(def(state.cards, q).name, 'Lunatone'))) resistance = false;
     // Holon Energy FF with a basic Fighting Energy card: the attacker's damage isn't affected by Resistance.
     if (holonWith(attacker, state.cards, 'FF', 'fighting')) resistance = false;
@@ -1508,7 +1509,7 @@ function createContext(
     // Water Pokémon, while the Rayquaza δ has a Holon Energy card attached.
     const ancientProtected = [opp.active, ...opp.bench].some((q) => q && passive(q)?.ancientProtection?.some((n) => namesMatch(defenderDef.name, n)));
     const hydroBarred = hasType(defenderDef, 'water') && [opp.active, ...opp.bench].some((q) => q && passive(q)?.hydroBarrier && q.energy.some((e) => !e.provides && !e.windless && lookupCard(state.cards, e.defId).name.startsWith('Holon Energy')));
-    const weaknessOff = (stadium === 'Cinnabar City Gym' && hasType(attackerDef, 'water') && defenderDef.name.includes('Blaine')) || attachedCount(state.cards, defender, 'Weakness Guard') > 0 || tomb || veiled || conditioned || !!passive(defender)?.noWeakness || toolOf(state.cards, defender)?.name === 'Protective Orb' || holonWith(defender, state.cards, 'FF', 'fire') || ancientProtected || hydroBarred || active(defender.effects?.weaknessOffUntil, turn) || (stadium === "Glacia's Stadium" && hasType(defenderDef, 'water') && !defenderDef.ex) || (stadium === 'Holon Legacy' && isDelta(state.cards, defender));
+    const weaknessOff = (stadium === 'Cinnabar City Gym' && hasType(attackerDef, 'water') && defenderDef.name.includes('Blaine')) || attachedCount(state.cards, defender, 'Weakness Guard') > 0 || tomb || veiled || conditioned || !!passive(defender)?.noWeakness || ([opp.active, ...opp.bench].some((q) => q && passive(q)?.moonlightVeil) && evolvedFromName(state.cards, defender, 'Eevee')) || toolOf(state.cards, defender)?.name === 'Protective Orb' || holonWith(defender, state.cards, 'FF', 'fire') || ancientProtected || hydroBarred || active(defender.effects?.weaknessOffUntil, turn) || (stadium === "Glacia's Stadium" && hasType(defenderDef, 'water') && !defenderDef.ex) || (stadium === 'Holon Legacy' && isDelta(state.cards, defender));
     // Charm: the attacker's damage is less, before Weakness and Resistance.
     const before = amount;
     amount = noted('Charm', amount, charmed(amount));

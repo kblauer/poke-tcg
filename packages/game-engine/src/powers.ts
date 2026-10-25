@@ -177,6 +177,14 @@ export interface PowerEffect {
   hardShell?: boolean;
   /** Crystal Body: the opponent's attacks do nothing to it but damage. */
   crystalBody?: boolean;
+  /** Primal Shell: as its player's Active Pokémon, the opponent can't play Trainer (Item) cards (trainerError). */
+  primalShell?: boolean;
+  /** Sunlight Veil: 20 more HP for its player's Pokémon that evolve from Eevee, however many (refreshHideout). */
+  sunlightVeil?: boolean;
+  /** Moonlight Veil: its player's Pokémon that evolve from Eevee have no Weakness and retreat for free (attacks.ts, retreatBodies). */
+  moonlightVeil?: boolean;
+  /** Disturbance Scales: its player's attacks ignore Resistance (attacks.ts). */
+  disturbanceScales?: boolean;
   /** Toxic Virus: every Poisoned Pokémon, both players', takes 1 more damage counter between turns (betweenTurns). */
   toxicVirus?: boolean;
   /** Anger Point: with damage counters on it, its attacks do 40 more to the Active Pokémon (attacks.ts). */
@@ -937,7 +945,11 @@ export function retreatBodies(pokemon: InPlayPokemon, cards: CardLibrary, sides:
   if (lake) return -99;
   // Magnetize: free for its player's Active Pokémon with any Metal Energy attached.
   const magnetized = owner.active === pokemon && energyPool(pokemon, cards).some((e) => counts(e, 'metal')) && [owner.active, ...owner.bench].some((p) => !!p && !!pokemonPower(p)?.magnetize && powerActive(p, cards, sides));
-  if (bonded || lifted || reactive || magnetized) return -99;
+  // Moonlight Veil: free for its player's Pokémon that evolve from Eevee.
+  const moonlit = [owner.active, ...owner.bench].some((p) => !!p && !!pokemonPower(p)?.moonlightVeil && powerActive(p, cards, sides)) && evolvedFromName(cards, pokemon, 'Eevee');
+  if (bonded || lifted || reactive || magnetized || moonlit) return -99;
+  // Unown Q's QUICK: attached as a Pokémon Tool, 1 less.
+  const quick = (pokemon.attached ?? []).some((a) => a.equip && lookupCard(cards, a.card.defId).name === 'Unown Q') ? 1 : 0;
   // Sticky: 1 more for each working Ariados in play, either player's, for any Pokémon but one with its name.
   const sticky = sides.reduce((n, side) => n + (side ? [side.active, ...side.bench].filter((p) => !!p && !!pokemonPower(p)?.sticky && !namesMatch(d.name, inPlayDef(cards, p).name) && powerActive(p, cards, sides)).length : 0), 0);
   // Jumbo Fin: 2 less for its player's Water Pokémon while a working Mantine has Mantyke under it.
@@ -945,7 +957,7 @@ export function retreatBodies(pokemon: InPlayPokemon, cards: CardLibrary, sides:
   // Wobbuffet's Stages of Evolution: each of the opponent's makes their Active Pokémon cost 1 more.
   const opponent = sides[1];
   const tax = owner.active === pokemon && opponent ? [opponent.active, ...opponent.bench].reduce((n, p) => n + (p && powerActive(p, cards, sides) ? (pokemonPower(p)?.retreatTax ?? 0) : 0), 0) : 0;
-  return own + tax - less + sticky - jumbo + (owner.active === pokemon && anyWorking(sides, cards, (e) => e.glueySlime) ? 1 : 0);
+  return own + tax - less - quick + sticky - jumbo + (owner.active === pokemon && anyWorking(sides, cards, (e) => e.glueySlime) ? 1 : 0);
 }
 
 /** Spiral: the opponent's Active Pokémon (`sides[1]`'s) keeps `sides[0]`'s Confused Active Pokémon from retreating; its name, or null. */

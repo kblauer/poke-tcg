@@ -4,7 +4,7 @@ import { attachBlocked, discardsLocked, energyFromHand, evolutionBlocked, primal
 import { evolvesFromEevee, evolveWith, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
 import { conditionProof, hasOwner, hasType, holonEnergy, namesMatch, isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
-import { addLog, baseUid, clearOnLeavingActive, clearSpecialConditions, effectId, isDelta, evolvedHook, hasSpecialCondition, shapeshiftCard, flipCoin, inPlayDef, logTool, openBenchSlot, pokemonName, revealFaceDown, type LogEntry } from './status.js';
+import { addLog, baseUid, clearOnLeavingActive, clearSpecialConditions, effectId, evolvedFromName, isDelta, evolvedHook, hasSpecialCondition, shapeshiftCard, flipCoin, inPlayDef, logTool, openBenchSlot, pokemonName, revealFaceDown, type LogEntry } from './status.js';
 import { shuffle } from './rng.js';
 import type { CpuDifficulty } from './cpu/index.js';
 
@@ -530,6 +530,8 @@ export type GameAction =
   | { type: 'FLIP_FACE_DOWN'; target: Target }
   /** Discard the Evolution card Shapeshift attached to Brock's Ninetales. */
   | { type: 'DISCARD_SHAPESHIFT'; target: Target }
+  /** Use the ability of a Special Energy card attached to the Active Pokémon (Call Energy). */
+  | { type: 'USE_ENERGY'; cardUid: string }
   | { type: 'END_TURN' }
   | { type: 'CONCEDE' };
 
@@ -1050,6 +1052,14 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       addLog(state, `Attached ${card(energy).name} to ${pokemonName(state, target)}.`, me.id);
       // Miraculous Wind stops a Special Energy card's other effects (Rainbow Energy's damage counter…).
       if (!(isSpecialEnergy(state.cards, energy) && miraculousWind([me, opp], state.cards))) energyEffect(energy.defId)?.onAttach?.(state, me, target);
+      // Dawn Stadium: to a Grass or Water Pokémon, a damage counter and every Special Condition off.
+      const dawn = state.stadium && card(state.stadium.card).name === 'Dawn Stadium';
+      const dawnDef = inPlayDef(state.cards, target);
+      if (dawn && (hasType(dawnDef, 'grass') || hasType(dawnDef, 'water'))) {
+        if (target.damage) target.damage -= 10;
+        clearSpecialConditions(target);
+        addLog(state, `Dawn Stadium: ${pokemonName(state, target)} has a damage counter fewer and no Special Conditions.`, me.id);
+      }
       energyFromHand(state, me, action.target, energy);
       // Shocking Tail: the opponent's working Active Pokémon with it puts 2 damage counters on the Pokémon.
       if (opp.active && pokemonPower(opp.active)?.shockingTail && powerActive(opp.active, state.cards, [opp, me])) {
@@ -1088,6 +1098,22 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       if (!target?.faceDown) return fail('Choose one of your face-down cards');
       revealFaceDown(state, me.id, target);
       return afterOwnMove(state, me, opp);
+    }
+
+    case 'USE_ENERGY': {
+      const pokemon = me.active;
+      const energy = pokemon?.energy.find((e) => e.uid === action.cardUid && !e.provides);
+      const use = energy && energyEffect(energy.defId)?.use;
+      if (!pokemon || !energy || !use) return fail('Choose a Special Energy card on your Active Pokémon that can be used');
+      if (miraculousWind([me, opp], state.cards)) return fail("Miraculous Wind: Special Energy cards' effects don't work");
+      const key = `${card(energy).name} ${energy.uid}`;
+      if ((me.powerTurns?.[key] ?? -1) >= state.turn) return fail(`You already used ${card(energy).name} this turn`);
+      const blocked = use.blocked?.(state, me, pokemon);
+      if (blocked) return fail(blocked);
+      me.powerTurns = { ...me.powerTurns, [key]: state.turn };
+      addLog(state, `Used ${card(energy).name}.`, me.id);
+      use.run(state, me, pokemon);
+      return afterTrainer(state, me, opp);
     }
 
     case 'DISCARD_SHAPESHIFT': {
@@ -1326,6 +1352,9 @@ function afterTrainer(state: GameState, me: PlayerState, opp: PlayerState): Acti
   }
   return afterOwnMove(state, me, opp);
 }
+
+/** The Special Energy cards on a Pokémon with an ability its player can use (Call Energy, USE_ENERGY). */
+export const usableEnergy = (pokemon: InPlayPokemon) => pokemon.energy.filter((e) => !e.provides && !!energyEffect(e.defId)?.use);
 
 /** Asks the next queued choice, if any; after an attack's choice, it ends the turn too (`afterAttack`). */
 function nextQueued(state: GameState, afterAttack?: boolean) {
@@ -2418,6 +2447,8 @@ function refreshHideout(state: GameState) {
       }
       const plus = pokemonPower(p)?.hpPlus;
       if (plus && powerActive(p, state.cards, sides)) p.hpPlus = (p.hpPlus ?? 0) + plus;
+      // Sunlight Veil: 20 more HP for its player's Pokémon that evolve from Eevee (one, however many).
+      if ([player.active, ...player.bench].some((q) => q && pokemonPower(q)?.sunlightVeil && powerActive(q, state.cards, sides)) && evolvedFromName(state.cards, p, 'Eevee')) p.hpPlus = (p.hpPlus ?? 0) + 20;
       // Plant Cloak: 40 more HP with 2 or more Grass Energy attached.
       if (pokemonPower(p)?.plantCloak && powerActive(p, state.cards, sides) && energyPool(p, state.cards).filter((e) => counts(e, 'grass')).length >= 2) p.hpPlus = (p.hpPlus ?? 0) + 40;
       // Holon Research Tower: the basic Energy cards on a δ Pokémon are Metal too (energyPool).

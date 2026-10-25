@@ -118,6 +118,7 @@ export const gameActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('USE_STADIUM') }),
   z.object({ type: z.literal('FLIP_FACE_DOWN'), target }),
   z.object({ type: z.literal('DISCARD_SHAPESHIFT'), target }),
+  z.object({ type: z.literal('USE_ENERGY'), cardUid: z.string() }),
   z.object({ type: z.literal('END_TURN') }),
   z.object({ type: z.literal('CONCEDE') }),
 ]) satisfies z.ZodType<GameAction>;
