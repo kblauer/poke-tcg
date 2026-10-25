@@ -124,20 +124,20 @@ div.flair-border {
   border-color: var(--ridges-dark);
 }
 
-/* PTCGP's order round the card: magenta and blue along the top, then violet and red down the right, green and yellow up the left. */
+/*
+  PTCGP's order round the card: magenta and blue along the top, then violet and red down the right, green and yellow up
+  the left. Vivid (the user's): fully saturated hues, its light ridges a little less white so they don't wash it out.
+*/
 .flair-border[data-border="rainbow"] > .flair-border__ring {
-  --rainbow: conic-gradient(from 0deg at 50% 50%, #3a7bff, #7a4dff, #c44dff, #ff3b8d, #ff4a3b, #ff9a1f, #ffe02e, #8ee83a, #2fd16b, #22c9e8, #2f9bff, #d14dff 330deg, #3a7bff);
-  /* A little richer (the user's). */
-  filter: saturate(1.2);
+  --ridges-light: rgb(255 255 255 / 0.42);
+  --rainbow: conic-gradient(from 0deg at 50% 50%, #0a5cff, #6a1aff, #b81aff, #ff0a78, #ff2a0a, #ff8a00, #ffe000, #6ee800, #00d65a, #00ccf0, #0a8cff, #cf1aff 330deg, #0a5cff);
 }
 
-/* The same round the card, softer: each colour mixed well towards white. */
+/* The same round the card, only slightly softer (the user's): each colour mixed 15% towards white from a rich rainbow. */
 .flair-border[data-border="pastel"] > .flair-border__ring {
-  --ridges-light: rgb(255 255 255 / 0.6);
-  --ridges-dark: rgb(60 50 90 / 0.12);
-  --rainbow: conic-gradient(from 0deg at 50% 50%, #a9c3ff, #bfaeff, #ddb2ff, #ffb3cf, #ffb8b0, #ffd3a3, #fff1a8, #d3f5a8, #b3ecc6, #ace8f4, #accfff, #e6b5ff 330deg, #a9c3ff);
-  /* A little richer (the user's), still soft. */
-  filter: saturate(1.25);
+  --ridges-light: rgb(255 255 255 / 0.5);
+  --ridges-dark: rgb(40 30 80 / 0.16);
+  --rainbow: conic-gradient(from 0deg at 50% 50%, #588fff, #8e68ff, #cd68ff, #ff589e, #ff6558, #ffa941, #ffe54d, #9feb58, #4ed881, #43d1eb, #4eaaff, #d868ff 330deg, #588fff);
 }
 
 /* A band of light sweeping across the ring now and then. */
