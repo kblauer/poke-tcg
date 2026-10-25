@@ -663,8 +663,8 @@ export interface PowerEffect {
   stickyHold?: boolean;
   /** Territoriality: its player's Active Pokémon damaged by the opponent's attack, 2 damage counters on the attacker (attacks.ts). */
   territoriality?: boolean;
-  /** Sand Armor: with Energy of the type attached, attack damage to it is this much less (attacks.ts). */
-  damageReductionWith?: { amount: number; type: EnergyType };
+  /** Sand Armor: with Energy of the type attached (any, without `type`: Ultra-Thick Skin), attack damage to it is this much less (attacks.ts). */
+  damageReductionWith?: { amount: number; type?: EnergyType };
   /** Energy Refresh: as the Active Pokémon, an Energy card attached from the hand takes 2 damage counters off its Pokémon (energyFromHand). */
   energyRefresh?: boolean;
   /** Colorful Body: it's every type (refreshHideout). */

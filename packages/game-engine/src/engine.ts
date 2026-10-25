@@ -1470,11 +1470,13 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
     }
 
     case 'USE_STADIUM': {
-      const error = stadiumError(state.stadium?.card ?? null, state.stadiumUsedTurn, state.turn, { me, cards: state.cards });
+      const error = stadiumError(state.stadium?.card ?? null, state.stadiumUsedTurn, state.turn, { me, cards: state.cards, oppLostZone: opp.lostZone ?? [] });
       if (error) return fail(error);
       state.stadiumUsedTurn = state.turn;
       addLog(state, `Used ${card(state.stadium!.card).name}.`, me.id);
       trainerEffect(state.stadium!.card.defId)!.useStadium!({ state, me, flip: () => flipCoin(state, card(state.stadium!.card).name, me.id) });
+      // Lost World: its player chose to win.
+      if (state.winner) return finish(state, state.winner);
       return afterOwnMove(state, me, opp);
     }
 

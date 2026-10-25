@@ -1370,7 +1370,7 @@ function createContext(
     }
     // Sand Armor: a set amount less with Energy of a type attached. Frost Wind: 10 less to the Pokémon of the player whose Active Glaceon has it.
     const sandArmor = passive(p)?.damageReductionWith;
-    if (damage > 0 && sandArmor && energyPool(p, state.cards).some((e) => counts(e, sandArmor.type))) {
+    if (damage > 0 && sandArmor && energyPool(p, state.cards).some((e) => !sandArmor.type || counts(e, sandArmor.type))) {
       damage = noted(def(state.cards, p).power!.name, damage, Math.max(0, damage - sandArmor.amount));
       log(`${def(state.cards, p).power!.name} reduced the damage to ${pokemonName(state, p)} by ${sandArmor.amount}.`, owner.id);
     }

@@ -751,6 +751,8 @@ export type PendingChoice = {
       optional?: boolean;
       /** With `toHand`: any Energy card but this one (a Holon's Pokémon just attached as Energy), not only basic ones. */
       holonReturn?: string;
+      /** The card goes to the Lost Zone instead of the discard pile (Clomp Clomp Clobber). */
+      toLostZone?: boolean;
     }
   | {
       /**
@@ -812,7 +814,7 @@ export type PendingChoice = {
   | {
       /** A "may" as a card is played (Energy Recharge, Flame Vapor, Streaming Mantle, Retro Energy): yes (count 0) or no (count 1). */
       kind: 'mayUse';
-      power: 'energyRecharge' | 'flameVapor' | 'streamingMantle' | 'retroEnergy' | 'belt' | 'healingShower' | 'legendaryAscent' | 'froth' | 'dragonBoost' | 'lightningBurst' | 'evoFlame' | 'evoThunder' | 'evoSwirl' | 'excavate' | 'crushChance' | 'crimsonRay' | 'yellowRay' | 'blueRay' | 'earthFissure' | 'sharpEye' | 'freezeUp' | 'evolutionaryVitality' | 'evolutionaryToxic' | 'flameDash' | 'aquaRecovery' | 'sereneGrace' | 'freezingScreech' | 'darknessShade' | 'flameCharge' | 'sheetLightning' | 'primalSwirl' | 'dragonPulse' | 'modeCrash' | 'curseBreath' | 'timeWalk' | 'setUp' | 'psychicBind' | 'unownBang' | 'junk' | 'castOffShell' | 'shootPoison' | 'ironShell' | 'emperorAura' | 'blazeDance' | 'sunshineSong' | 'evolutionaryGas' | 'healingBreath' | 'reverseTime' | 'letLoose' | 'flashBite' | 'brightLook' | 'disruptingSpy' | 'darknessSend' | 'dowsingCode' | 'doubleFall' | 'unownReturn' | 'unownFlash' | 'blissfulNurse' | 'oceanGrow' | 'stardustSong' | 'celebrationWind' | 'hotSnort' | 'clawSnag' | 'unownDark' | 'spookyWhirlpool' | 'unownCure' | 'mapping';
+      power: 'energyRecharge' | 'flameVapor' | 'streamingMantle' | 'retroEnergy' | 'belt' | 'healingShower' | 'legendaryAscent' | 'froth' | 'dragonBoost' | 'lightningBurst' | 'evoFlame' | 'evoThunder' | 'evoSwirl' | 'excavate' | 'crushChance' | 'crimsonRay' | 'yellowRay' | 'blueRay' | 'earthFissure' | 'sharpEye' | 'freezeUp' | 'evolutionaryVitality' | 'evolutionaryToxic' | 'flameDash' | 'aquaRecovery' | 'sereneGrace' | 'freezingScreech' | 'darknessShade' | 'flameCharge' | 'sheetLightning' | 'primalSwirl' | 'dragonPulse' | 'modeCrash' | 'curseBreath' | 'timeWalk' | 'setUp' | 'psychicBind' | 'unownBang' | 'junk' | 'castOffShell' | 'shootPoison' | 'ironShell' | 'emperorAura' | 'blazeDance' | 'sunshineSong' | 'evolutionaryGas' | 'healingBreath' | 'reverseTime' | 'letLoose' | 'flashBite' | 'brightLook' | 'disruptingSpy' | 'darknessSend' | 'dowsingCode' | 'doubleFall' | 'unownReturn' | 'unownFlash' | 'blissfulNurse' | 'oceanGrow' | 'stardustSong' | 'celebrationWind' | 'hotSnort' | 'clawSnag' | 'unownDark' | 'spookyWhirlpool' | 'unownCure' | 'mapping' | 'selfGeneration';
       /** The Pokémon it's about. */
       target: Target;
     }
@@ -1012,6 +1014,17 @@ export type PendingChoice = {
     }
   | {
       /**
+       * Research Record: of the top cards (`looked`), any picked go back on top in the order picked (`top`); once the player
+       * is done, the rest go on the bottom in the order picked (`bottom`, `bottoming`).
+       */
+      kind: 'researchRecord';
+      looked: string[];
+      top: string[];
+      bottom: string[];
+      bottoming?: boolean;
+    }
+  | {
+      /**
        * Damage counters moved one at a time (`from`, clicked first): up to `count` from the player's Pokémon to the opponent's
        * (Solar Suggestion), or (`fromSide: 'opp'`, no `count`: any number) from the opponent's Pokémon to their others (Moon's Invite).
        */
@@ -1167,7 +1180,7 @@ export interface TrainerEffect {
   /** It can be used any number of times a turn (Celadon City Gym), whenever `stadiumBlocked` allows. */
   stadiumAnyTimes?: boolean;
   /** Why the player can't use the Stadium now (Celadon City Gym: no Erika's Pokémon to cure). */
-  stadiumBlocked?: (me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'discard' | 'supporterTurn'>, cards: CardLibrary, turn: number) => string | null;
+  stadiumBlocked?: (me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'discard' | 'supporterTurn'>, cards: CardLibrary, turn: number, oppLostZone?: readonly CardInstance[]) => string | null;
   /** It puts cards from a discard pile into the hand, which Pokémon Tower stops (Energy Retrieval, Item Finder). */
   discardToHand?: boolean;
   /** A Stadium's attack the Pokémon whose names `for` accepts can use instead of their own (Rocket's Tricky Gym; usableAttacks). */
@@ -1282,11 +1295,11 @@ export function stadiumError(
   stadium: CardInstance | null,
   usedTurn: number | undefined,
   turn: number,
-  player?: { me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'discard' | 'supporterTurn'>; cards: CardLibrary },
+  player?: { me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'discard' | 'supporterTurn'>; cards: CardLibrary; /** Lost World. */ oppLostZone?: readonly CardInstance[] },
 ): string | null {
   const effect = stadium && trainerEffect(stadium.defId);
   if (!effect?.useStadium) return 'There is no Stadium to use';
-  const blocked = player && effect.stadiumBlocked?.(player.me, player.cards, turn);
+  const blocked = player && effect.stadiumBlocked?.(player.me, player.cards, turn, player.oppLostZone);
   if (blocked) return blocked;
   return !effect.stadiumAnyTimes && usedTurn === turn ? 'You already used the Stadium this turn' : null;
 }
@@ -1832,7 +1845,7 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
       return { kind: 'pickAttached', prompt: `${choice.source}: return a basic Energy card from ${from} to your hand`, options };
     }
     const left = (choice.count ?? 1) > 1 ? ` (${choice.count} left)` : '';
-    return { kind: 'pickAttached', prompt: `${choice.source}: discard an Energy card from ${lookupCard(state.cards, p.card.defId).name}${left}`, options: p.energy.filter((e) => discardFits(state.cards, choice, e)) };
+    return { kind: 'pickAttached', prompt: `${choice.source}: ${choice.toLostZone ? 'put an Energy card' : 'discard an Energy card from'} ${lookupCard(state.cards, p.card.defId).name}${choice.toLostZone ? ' in the Lost Zone' : ''}${left}`, options: p.energy.filter((e) => discardFits(state.cards, choice, e)) };
   }
   if (choice.kind === 'drawCount') {
     const max = Math.min(choice.max, player.deck.length);
@@ -2244,7 +2257,7 @@ function drawUpTo(state: GameState, me: PlayerState, size: number, source: strin
 const CONDITION_OF: Record<string, 'asleep' | 'burned' | 'poisoned' | 'confused' | 'paralyzed'> = { Asleep: 'asleep', Burned: 'burned', Poisoned: 'poisoned', Confused: 'confused', Paralyzed: 'paralyzed' };
 const CONDITION_LABEL = { asleep: 'Asleep', burned: 'Burned', poisoned: 'Poisoned', confused: 'Confused', paralyzed: 'Paralyzed' } as const;
 
-const SKYRIDGE_KINDS = ['mayUse', 'attachFromDiscard', 'discardToBench', 'moveAttached', 'oracle', 'bottomPick', 'evolveFromHand', 'mysteryZone', 'placeCounters', 'discardFromHand', 'supernatural', 'energyGrounding', 'castform', 'shiftEnergy', 'vineTease', 'removeCondition', 'chooseCondition', 'nod', 'timeWalk', 'energyLink', 'marley', 'rammingStrike', 'lostCyclone', 'looker', 'waterRescue', 'antiqueMagic', 'moveCounters', 'darknessRestore', 'returnEnergy', 'oppBenchPick', 'blissful', 'deltaSwitch', 'handToBench', 'ownCounters', 'pealTarget', 'cursedEyes', 'skillHack'] as const;
+const SKYRIDGE_KINDS = ['mayUse', 'attachFromDiscard', 'discardToBench', 'moveAttached', 'oracle', 'bottomPick', 'evolveFromHand', 'mysteryZone', 'placeCounters', 'discardFromHand', 'supernatural', 'energyGrounding', 'castform', 'shiftEnergy', 'vineTease', 'removeCondition', 'chooseCondition', 'nod', 'timeWalk', 'energyLink', 'marley', 'rammingStrike', 'lostCyclone', 'looker', 'waterRescue', 'antiqueMagic', 'moveCounters', 'researchRecord', 'darknessRestore', 'returnEnergy', 'oppBenchPick', 'blissful', 'deltaSwitch', 'handToBench', 'ownCounters', 'pealTarget', 'cursedEyes', 'skillHack'] as const;
 
 /** A pending choice Skyridge's cards add (skyridgeView, resolveSkyridge). */
 type SkyridgeChoice = Extract<PendingChoice, { kind: (typeof SKYRIDGE_KINDS)[number] }>;
@@ -2436,6 +2449,7 @@ function skyridgeView(state: GameState, choice: SkyridgeChoice): PendingChoiceVi
         spookyWhirlpool: 'have your opponent shuffle their hand into their deck and draw 6 cards?',
         unownCure: 'remove all Special Conditions from your Active Pokémon?',
         mapping: 'search your deck for a Stadium card and put it into your hand?',
+        selfGeneration: 'attach up to 2 Lightning Energy cards from your hand to Pachirisu?',
         unownDark: 'search your deck for a Darkness Energy card and put it into your hand?',
         stardustSong: 'flip 3 coins? For each heads, a Psychic Energy card from your discard pile is attached to Jirachi',
         celebrationWind: 'move any Energy cards among your Pokémon?',
@@ -2573,6 +2587,11 @@ function skyridgeView(state: GameState, choice: SkyridgeChoice): PendingChoiceVi
       const side = choice.side === 'own' ? player : state.players[opponentOfChoice(state, choice)]!;
       const options = targetsOf(side);
       return choice.side === 'own' ? { kind: 'ownPokemon', purpose: 'benchDamage', prompt: `${choice.source}: click one of your Pokémon to put a damage counter on (${left})`, options } : { kind: 'oppPokemon', prompt: `${choice.source}: click one of your opponent's Pokémon to put a damage counter on (${left})`, options };
+    }
+    case 'researchRecord': {
+      const left = player.deck.filter((c) => choice.looked.includes(c.uid) && !choice.top.includes(c.uid) && !choice.bottom.includes(c.uid));
+      if (choice.bottoming) return { kind: 'pickFromDeck', prompt: `${choice.source}: the rest go on the bottom of your deck: choose the next one`, options: left };
+      return { kind: 'pickFromDeck', prompt: `${choice.source}: choose the cards to put back on top of your deck, top first; Done: the rest go on the bottom`, options: left, optional: true };
     }
     case 'moveCounters': {
       const opp = state.players[opponentOfChoice(state, choice)]!;
@@ -2754,6 +2773,7 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
         }
         return null;
       }
+      if (choice.power === 'selfGeneration') return me.hand.some((c) => isEnergyCardOf(c, state.cards, 'lightning')) ? again({ player: me.id, source: choice.source, kind: 'attachFromHand', type: 'lightning', count: 2, target: choice.target }) : null;
       if (choice.power === 'mapping') return me.deck.length ? again({ player: me.id, source: choice.source, kind: 'pickFromDeck', filter: 'stadium', reveal: true, optional: true }) : null;
       if (choice.power === 'clawSnag') return opp.hand.length ? again({ player: me.id, source: choice.source, kind: 'oppHandTrainer', any: true, place: 'discard' }) : null;
       if (choice.power === 'unownDark') return me.deck.length ? again({ player: me.id, source: choice.source, kind: 'pickFromDeck', filter: 'typedEnergy', type: 'darkness', reveal: true, optional: true }) : null;
@@ -3309,6 +3329,19 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
       p.damage += 10;
       addLog(state, `${choice.source}: a damage counter on ${name(p.card)}.`, side.id);
       return choice.count > 1 ? again({ player: me.id, source: choice.source, kind: 'antiqueMagic', count: choice.count - 1, ...(choice.afterAttack && { afterAttack: true }) }) : null;
+    }
+    case 'researchRecord': {
+      const left = me.deck.filter((c) => choice.looked.includes(c.uid) && !choice.top.includes(c.uid) && !choice.bottom.includes(c.uid));
+      if (!picked && choice.bottoming) return retry(choice, 'Choose a card');
+      const next = !picked ? { ...choice, bottoming: true } : choice.bottoming ? { ...choice, bottom: [...choice.bottom, picked.uid] } : { ...choice, top: [...choice.top, picked.uid] };
+      const rest = left.filter((c) => c !== picked);
+      // Done when nothing is left to place, or one card is left for the bottom.
+      if (rest.length > (next.bottoming ? 1 : 0)) return again(next);
+      const bottom = [...next.bottom, ...rest.map((c) => c.uid)];
+      const at = (uids: string[]) => uids.map((u) => me.deck.find((c) => c.uid === u)!);
+      me.deck = [...at(next.top), ...me.deck.filter((c) => !choice.looked.includes(c.uid)), ...at(bottom)];
+      addLog(state, `${choice.source}: put ${next.top.length} card${next.top.length === 1 ? '' : 's'} back on top and ${bottom.length} on the bottom of the deck.`, me.id);
+      return null;
     }
     case 'moveCounters': {
       const side = choice.fromSide === 'opp' ? opp : me;
@@ -4157,6 +4190,12 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
         state.pendingChoice = { ...choice, count: left };
         return null;
       }
+      delete state.pendingChoice;
+      return null;
+    }
+    if (choice.toLostZone) {
+      (me.lostZone ??= []).push(energy);
+      addLog(state, `Put ${name(energy)} from ${name(p.card)} in the Lost Zone.`, me.id);
       delete state.pendingChoice;
       return null;
     }
