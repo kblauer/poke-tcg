@@ -7,6 +7,7 @@ import { DeckSummary } from '../components/DeckList';
 import { CatalogContext } from '../components/InspectContext';
 import { useMusicCue, useMusicSettings } from '../components/MusicPlayer';
 import { PageHeader } from '../components/PageHeader';
+import { ReturnToHome } from '../components/ReturnToHome';
 import { DeckMenu } from '../components/run/DeckMenu';
 import { Toasts } from '../components/Toasts';
 import { BpShop } from '../components/tower/BpShop';
@@ -51,8 +52,8 @@ const entriesOf = (ids: string[]) => [...ids.reduce((m, id) => m.set(id, (m.get(
  * the scripts in towerScripts.ts). Opened with no challenge under way, the player walks in to the lobby's desk, where the
  * receptionist takes a saved challenge up again or starts a new one (its floor, then its deck, picked under the scene);
  * then up to the floor and its battle. Back from a battle, its opponent says their line and leaves, and the attendant
- * asks whether to go on, save and quit, or concede. In the lobby, the BP Shop's vendor exchanges the Battle Points won for packs (BpShop). Under way, the Play tab stays here (usePlayRedirect); a battle under
- * way opens its game. Saved or over, Return to Home goes back to the Play tab's menu.
+ * asks whether to go on, save and quit, or concede. In the lobby, the BP Shop's vendor exchanges the Battle Points won for packs (BpShop). Under way, Return to Play
+ * (in the heading, the user's) goes back to the Play tab's menu, whose Battle Tower tile comes back here; a battle under way opens its game.
  */
 export function TowerPage() {
   const navigate = useNavigate();
@@ -149,6 +150,7 @@ export function TowerPage() {
       <PageHeader
         title="Battle Tower"
         info={data && data.best > 0 ? `Highest floor beaten: ${data.best}` : 'Win as many battles in a row as you can'}
+        actions={underway && <ReturnToHome label="Return to Play" />}
       />
       <TowerScene scene={scene}>
         {/* The challenge under way, under the map (the user's): its floor, wins and BP, then the VS banner, its deck's tile
@@ -189,7 +191,11 @@ export function TowerPage() {
               decks={decks.map((d) => ({ id: d.id, name: d.name, note: d.problems[0], entries: d.cards, disabled: d.problems.length > 0, locked: d.locked }))}
               compact={phone}
             />
-            {playable.length === 0 && <p className="text-xs text-amber-300">None of your decks can be played yet: fix one on the Collection tab.</p>}
+            {playable.length === 0 && (
+              <p className="text-xs text-amber-300">
+                {runOverview.data?.needsStarter ? 'Pick your starter deck in the Badge Challenge first.' : 'None of your decks can be played yet: fix one on the Collection tab.'}
+              </p>
+            )}
             <div className="flex flex-wrap gap-3">
               <button className="rounded bg-blue-600 px-5 py-2 font-semibold transition hover:bg-blue-500 active:scale-95 disabled:opacity-40" disabled={!chosen || actions.busy} onClick={() => chosen && picking.done(chosen)}>
                 Begin the challenge

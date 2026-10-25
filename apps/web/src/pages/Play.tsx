@@ -2,7 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useTRPC } from '../lib/trpc';
 import { PageHeader } from '../components/PageHeader';
-import { usePlayRedirect, useTowerOverview } from '../hooks/useTower';
+import { useTowerOverview } from '../hooks/useTower';
+import { useRun } from '../hooks/useRun';
 import { PAGE_WIDTH } from '../utils/layout';
 
 /**
@@ -46,24 +47,25 @@ const MODES: { to: '/badge' | '/tower' | '/idle' | '/battle'; title: string; tex
 
 /**
  * The Play tab (`/`): a menu of its modes (the user's), the Badge Challenge (the runs), the Battle Tower, the Idle
- * Adventure and Training, each a tile filled with a scene from the games, saying how it stands. A mode under way keeps
- * the tab on it instead (usePlayRedirect): a Battle Tower challenge that isn't saved, or a run (never an Idle Adventure
- * run: it plays on its own).
+ * Adventure and Training, each a tile filled with a scene from the games, saying how it stands. Always the menu, a run
+ * or a challenge under way or not (the user's: a new account isn't put in a run either); a mode's tile opens what's under
+ * way in it, and each has a Return to Play back here.
  */
 export function PlayPage() {
-  const { redirecting, loading } = usePlayRedirect();
   const tower = useTowerOverview().data;
+  const run = useRun().run;
   // The Idle Adventure's run, for its tile (its query only: the mode's data loads with its page).
   const trpc = useTRPC();
   const idle = useQuery(trpc.idle.overview.queryOptions()).data?.run;
-  if (loading || redirecting) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
   const challenge = tower?.challenge;
   const status: Record<(typeof MODES)[number]['to'], string | null> = {
-    '/badge': null,
+    '/badge': run && run.view.phase !== 'won' && run.view.phase !== 'lost' ? `Under way: step ${Math.min(run.view.position + 1, run.view.steps.length)} of ${run.view.steps.length}.` : null,
     '/idle': idle?.status === 'ACTIVE' ? `Under way: ${idle.view.areaName}, ${idle.view.badges.length} badge${idle.view.badges.length === 1 ? '' : 's'}.` : null,
     '/tower':
       challenge?.status === 'ACTIVE' && challenge.view.saved
         ? `Challenge saved before floor ${challenge.view.floor}.`
+        : challenge?.status === 'ACTIVE'
+          ? `Under way: floor ${challenge.view.floor}.`
         : tower && tower.best > 0
           ? `Highest floor beaten: ${tower.best}.`
           : null,
