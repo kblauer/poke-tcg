@@ -22,6 +22,7 @@ import { CardInspectProvider } from './components/CardInspectProvider';
 import { MusicControls, MusicProvider } from './components/MusicPlayer';
 import { NavLogProvider } from './components/NavLog';
 import { RunProvider } from './hooks/useRun';
+import { BattleTransitionProvider } from './components/BattleTransition';
 import { NavRail, PhoneNavRun } from './components/NavRail';
 import { PageMenu } from './components/PageNav';
 import { TopBarAccount, TopBarStats } from './components/TopBarStats';
@@ -110,6 +111,7 @@ function RootLayout() {
     // padding (PAGE_WIDTH).
     <div>
       <header
+        data-top-bar
         className={`${phone && inBattle ? '' : 'sticky top-0 z-[820]'} flex h-14 items-center justify-between gap-2 whitespace-nowrap border-b border-slate-800 bg-slate-900 px-2 shadow-md shadow-black/30 sm:px-3`}
       >
         <div className="flex min-w-0 items-center gap-2">
@@ -156,8 +158,8 @@ function RootLayout() {
       {session ? (
         <div className="flex">
           {!phone && <NavRail open={rail} />}
-          {/* Its padding, not the layout's, so the menu beside it ends at the bottom of the window. */}
-          <main className="min-w-0 flex-1 pb-4 pt-6">
+          {/* Its padding, not the layout's, so the menu beside it ends at the bottom of the window. The battle transitions cover it (`data-battle-area`), below the top bar. */}
+          <main className="min-w-0 flex-1 pb-4 pt-6" data-battle-area>
             <CardInspectProvider>
               <Outlet />
             </CardInspectProvider>
@@ -182,7 +184,9 @@ function RootLayout() {
     <MusicProvider docked={phone}>
       <AccountSettingsSync />
       <NavLogProvider>
-        <RunProvider>{page}</RunProvider>
+        <BattleTransitionProvider>
+          <RunProvider>{page}</RunProvider>
+        </BattleTransitionProvider>
       </NavLogProvider>
     </MusicProvider>
   ) : (

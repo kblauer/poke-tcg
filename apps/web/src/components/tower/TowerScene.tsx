@@ -2,12 +2,13 @@ import GridOnIcon from '@mui/icons-material/GridOn';
 import PauseIcon from '@mui/icons-material/Pause';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { routePath, type RouteSpot, type TowerRoom } from '@poke-tcg/campaign';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { STEP_MS, WALK_FRAME_MS, type Facing } from '../../utils/overworld';
 import { facing, key } from '../../utils/routeFigures';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
 import { OverworldSprite, TileOverlay } from '../run/RouteSprites';
+import { DialogueBox, type Dialogue } from '../DialogueBox';
 
 /** Someone in a Battle Tower room: their sprite, where they stand, which way they face, and whether they're walking or faded out. */
 export interface Actor {
@@ -18,14 +19,6 @@ export interface Actor {
   hidden: boolean;
   /** Their name, shown on their lines (an opponent's). */
   name?: string;
-}
-
-/** What the dialogue box shows: a line (and who says it), and the choices to answer it with, if any. */
-interface Dialogue {
-  text: string;
-  speaker?: string;
-  choices?: string[];
-  answer: (choice: number) => void;
 }
 
 /** Thrown into a script that was stopped (the page left, or another script started), so it goes no further. */
@@ -46,26 +39,6 @@ const MAX_HEIGHT = 0.6;
  */
 const PHONE_PANEL_ROOM = 250;
 
-/**
- * The battle transitions (the user's: several, one at random each battle), as the mainline games' trainer battles open:
- * each starts with the screen flashing white twice (FLASH_MS), then closes it black over WIPE_MS. blinds: bands sweeping
- * in from alternate sides; iris: a circle closing on the middle; shutters: the top and bottom halves closing; bars:
- * columns dropping and rising in turn; diagonal: a wipe from the top left corner.
- */
-const TRANSITIONS = ['blinds', 'iris', 'shutters', 'bars', 'diagonal'] as const;
-type Transition = { kind: (typeof TRANSITIONS)[number]; stamp: number };
-const FLASH_MS = 450;
-const WIPE_MS = 650;
-/** The blinds' bands and the bars' columns, each starting BAND_STAGGER_MS after the one before. */
-const BANDS = 8;
-const BAND_STAGGER_MS = 25;
-/** The whole transition, its last band's wipe included, a moment held closed at its end. */
-const TRANSITION_MS = FLASH_MS + WIPE_MS + (BANDS - 1) * BAND_STAGGER_MS + 150;
-/** How long each letter of a line takes to type out (the games' text, at about their mid speed). */
-const CHAR_MS = 25;
-/** The gap between the dialogue box and its choices (gap-2). */
-const CHOICES_GAP = 8;
-
 /** What a script's steps change: the scene's state (useScene's), and the script running and its timers. */
 interface SceneContext {
   script: { current: number };
@@ -80,7 +53,6 @@ interface SceneContext {
   setDark: (dark: boolean) => void;
   setRiding: (riding: boolean) => void;
   setReserved: (choices: string[] | null) => void;
-  setTransition: (transition: Transition | null) => void;
 }
 
 /** Resolves once the picture at `src` is loaded and decoded (cached per picture; a failed one doesn't hold the scene up). */
@@ -96,7 +68,7 @@ function loaded(src: string): Promise<void> {
 }
 
 /** One script's steps (useScene's `run`): each checks the script is still the one running, and stops it (Stopped) if not. */
-function sceneSteps(id: number, { script, timers, paused, actorsRef, roomRef, setActors, setRoomState, setDialogue, setDark, setRiding, setReserved, setTransition }: SceneContext) {
+function sceneSteps(id: number, { script, timers, paused, actorsRef, roomRef, setActors, setRoomState, setDialogue, setDark, setRiding, setReserved }: SceneContext) {
   const alive = () => {
     if (script.current !== id) throw new Stopped();
   };
@@ -168,12 +140,6 @@ function sceneSteps(id: number, { script, timers, paused, actorsRef, roomRef, se
       await wait(FADE_MS);
     },
     /** The elevator going up: the room shaking a little for RIDE_MS. */
-    /** A battle's transition, one of TRANSITIONS at random (the user's): the games' double flash, then the screen closing. It stays closed. */
-    async battleTransition() {
-      alive();
-      setTransition({ kind: TRANSITIONS[Math.floor(Math.random() * TRANSITIONS.length)]!, stamp: Date.now() });
-      await wait(TRANSITION_MS);
-    },
     async ride() {
       alive();
       setRiding(true);
@@ -271,8 +237,6 @@ export function useScene() {
   const [dialogue, setDialogue] = useState<Dialogue | null>(null);
   const [dark, setDark] = useState(true);
   const [riding, setRiding] = useState(false);
-  /** The battle transition playing (battleTransition). */
-  const [transition, setTransition] = useState<Transition | null>(null);
   /** The choices the dialogue box keeps room for (reserve). */
   const [reserved, setReserved] = useState<string[] | null>(null);
   const [tick, setTick] = useState(0);
@@ -304,7 +268,7 @@ export function useScene() {
     return () => window.clearInterval(timer);
   }, [walking, paused]);
 
-  const ctx = { script, timers, paused: pausedRef, actorsRef, roomRef, setActors, setRoomState, setDialogue, setDark, setRiding, setReserved, setTransition };
+  const ctx = { script, timers, paused: pausedRef, actorsRef, roomRef, setActors, setRoomState, setDialogue, setDark, setRiding, setReserved };
   const steps = useCallback((id: number) => sceneSteps(id, ctx), []);
 
   /** Runs a script, stopping the one running. A stopped script ends quietly; any other error is passed on to `onError`. */
@@ -315,7 +279,6 @@ export function useScene() {
       timers.current.clear();
       setDialogue(null);
       setReserved(null);
-      setTransition(null);
       body(steps(id)).catch((error) => {
         if (!(error instanceof Stopped)) onError?.(error);
       });
@@ -323,7 +286,7 @@ export function useScene() {
     [steps],
   );
 
-  return { room, actors, dialogue, dark, riding, tick, run, paused, setPaused, reserved, transition };
+  return { room, actors, dialogue, dark, riding, tick, run, paused, setPaused, reserved };
 }
 
 /**
@@ -333,7 +296,7 @@ export function useScene() {
  * shaking while the elevator rides. `children` are shown under it (the deck to pick).
  */
 export function TowerScene({ scene, children }: { scene: ReturnType<typeof useScene>; children?: ReactNode }) {
-  const { room, actors, dialogue, dark, riding, tick, paused, setPaused, reserved, transition } = scene;
+  const { room, actors, dialogue, dark, riding, tick, paused, setPaused, reserved } = scene;
   // Debug only (never in production): the tiles overlay and the pause.
   const debugOn = useDebugEnabled();
   const debug = DEBUG_BUILD && debugOn;
@@ -404,7 +367,6 @@ export function TowerScene({ scene, children }: { scene: ReturnType<typeof useSc
           </div>
         )}
         <div className="pointer-events-none absolute inset-0 bg-black transition-opacity" style={{ opacity: dark ? 1 : 0, transitionDuration: `${FADE_MS}ms` }} />
-        {transition && <BattleTransition key={transition.stamp} kind={transition.kind} paused={paused} />}
         {/* Keyed by the line, so each one types out afresh. */}
         {dialogue && <DialogueBox key={`${dialogue.speaker ?? ''}|${dialogue.text}|${dialogue.choices?.join('|') ?? ''}`} dialogue={dialogue} reserved={reserved} paused={paused} pressRef={pressDialogue} phone={phone} />}
         {/* Debug (DEBUG_BUILD first: a production build drops them): the tiles overlay, as on the run maps, and the pause. */}
@@ -436,40 +398,6 @@ export function TowerScene({ scene, children }: { scene: ReturnType<typeof useSc
   );
 }
 
-/**
- * A battle transition over the scene (TRANSITIONS): the double flash, then the screen closing (the keyframes in
- * index.css, `tower-*`), each band a little after the one before; held while debug's pause is on.
- */
-function BattleTransition({ kind, paused }: { kind: Transition['kind']; paused: boolean }) {
-  const run = (name: string, delay = 0, extra: CSSProperties = {}): CSSProperties => ({
-    animation: `${name} ${WIPE_MS}ms ease-in ${FLASH_MS + delay}ms both`,
-    animationPlayState: paused ? 'paused' : undefined,
-    ...extra,
-  });
-  const black = 'absolute bg-black';
-  return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ zIndex: 2500 }}>
-      {kind === 'blinds' &&
-        Array.from({ length: BANDS }, (_, i) => (
-          <div key={i} className={`${black} inset-x-0`} style={{ top: `${(100 / BANDS) * i}%`, height: `${100 / BANDS + 0.5}%`, transformOrigin: i % 2 ? 'right' : 'left', ...run('tower-wipe-x', i * BAND_STAGGER_MS) }} />
-        ))}
-      {kind === 'bars' &&
-        Array.from({ length: BANDS }, (_, i) => (
-          <div key={i} className={`${black} inset-y-0`} style={{ left: `${(100 / BANDS) * i}%`, width: `${100 / BANDS + 0.5}%`, transformOrigin: i % 2 ? 'bottom' : 'top', ...run('tower-wipe-y', i * BAND_STAGGER_MS) }} />
-        ))}
-      {kind === 'shutters' && (
-        <>
-          <div className={`${black} inset-x-0 top-0 h-1/2`} style={{ transformOrigin: 'top', ...run('tower-wipe-y') }} />
-          <div className={`${black} inset-x-0 bottom-0 h-1/2`} style={{ transformOrigin: 'bottom', ...run('tower-wipe-y') }} />
-        </>
-      )}
-      {kind === 'iris' && <div className="absolute left-1/2 top-1/2 aspect-square -translate-x-1/2 -translate-y-1/2 rounded-full" style={run('tower-iris', 0, { boxShadow: '0 0 0 200vmax black' })} />}
-      {kind === 'diagonal' && <div className="absolute inset-0 bg-black" style={run('tower-diagonal')} />}
-      <div className="absolute inset-0 bg-white" style={{ animation: `tower-flash ${FLASH_MS}ms linear both`, animationPlayState: paused ? 'paused' : undefined }} />
-    </div>
-  );
-}
-
 /** The scene's buttons in its top right corner, as the run map's (RouteView). */
 const SCENE_BUTTON = 'flex h-8 w-8 items-center justify-center rounded bg-slate-800/90 text-slate-200 ring-1 ring-slate-600 transition hover:bg-slate-700';
 
@@ -486,149 +414,6 @@ function PointsOverlay({ room }: { room: TowerRoom }) {
           {name}
         </div>
       ))}
-    </div>
-  );
-}
-
-/**
- * The games' text box over the scene's bottom edge: the line (an opponent's with their name over it, their Easy Chat
- * words in Emerald's capitals, as the user wants), and for a question its choices in a box of their own on the right.
- * Game art, so its colours are fixed rather than the themes' (they'd turn its white box dark). The line types out a letter
- * at a time, as in the games (the user's); a click on the box (or Enter) shows it whole, and once it's whole goes on;
- * a question's choices come up when its line is done.
- */
-function DialogueBox({
-  dialogue,
-  reserved,
-  paused,
-  pressRef: sceneRef,
-  phone,
-}: {
-  dialogue: Dialogue;
-  /** A phone: the box the scene's width, its choices above it on the right (the user's), smaller text. */
-  phone: boolean;
-  /** Choices to keep room for beside the box (the conversation's question's), shown or not. */
-  reserved: string[] | null;
-  paused: boolean;
-  pressRef: { current: (() => void) | null };
-}) {
-  const frame = { background: '#f8f8f8', color: '#303038', boxShadow: 'inset 0 0 0 3px #6878a8, inset 0 0 0 5px #c8d0e8' };
-  // Typed out a letter at a time (CHAR_MS), as in the games; held while debug's pause is on.
-  const [typed, setTyped] = useState(0);
-  const done = typed >= dialogue.text.length;
-  useEffect(() => {
-    if (done || paused) return;
-    const timer = window.setTimeout(() => setTyped((n) => n + 1), CHAR_MS);
-    return () => window.clearTimeout(timer);
-  }, [typed, done, paused]);
-  /** A click or Enter: the whole line at once while it's typing; then on from a line (a question waits for its choice). */
-  const press = () => {
-    if (!done) setTyped(dialogue.text.length);
-    else if (!dialogue.choices) dialogue.answer(0);
-  };
-  // A click anywhere on the scene does the same.
-  sceneRef.current = press;
-  useEffect(() => () => void (sceneRef.current = null), [sceneRef]);
-  // Before its choices come up, the box sits centred over the scene (the user's): shifted right by half the room kept for
-  // them (the column, measured, and the gap), at the same width; it slides back as they come up (only then: each line's
-  // box is new, and would otherwise slide in from the left).
-  const column = useRef<HTMLDivElement>(null);
-  const [columnWidth, setColumnWidth] = useState(0);
-  useLayoutEffect(() => {
-    const el = column.current;
-    if (!el) return setColumnWidth(0);
-    const observer = new ResizeObserver(() => setColumnWidth(el.offsetWidth));
-    observer.observe(el);
-    setColumnWidth(el.offsetWidth);
-    return () => observer.disconnect();
-  }, [reserved, dialogue.choices]);
-  const choicesUp = done && !!dialogue.choices?.length;
-  const shift = choicesUp || !columnWidth ? 0 : (columnWidth + CHOICES_GAP) / 2;
-  const pressRef = useRef(press);
-  pressRef.current = press;
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Enter' && e.key !== ' ') return;
-      // A choice's own button takes Enter once the choices are up.
-      if (done && dialogue.choices?.length && (e.target as HTMLElement | null)?.closest('[role="menu"]')) return;
-      e.preventDefault();
-      pressRef.current();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [done, dialogue.choices]);
-  const line = (
-    <>
-      {dialogue.speaker && <span className="block text-sm" style={{ color: '#5868a0' }}>{dialogue.speaker}</span>}
-      {/* The rest of the line holds its place unseen, so the box doesn't grow as it types. */}
-      <span className="whitespace-pre-line">
-        {dialogue.text.slice(0, typed)}
-        <span className="invisible">{dialogue.text.slice(typed)}</span>
-      </span>
-      {done && !dialogue.choices && <span className="ml-2 inline-block animate-bounce" style={{ color: '#e04040' }}>▼</span>}
-    </>
-  );
-  const onBox = (e: { stopPropagation: () => void }) => {
-    e.stopPropagation();
-    press();
-  };
-  if (phone) {
-    // Stacked, as the games show a question's choices over the text box: nothing beside the box to make room for.
-    return (
-      <div className="absolute inset-x-2 bottom-2 flex flex-col items-end gap-1.5">
-        {choicesUp && (
-          <ul className="whitespace-nowrap rounded-[14px] p-1.5" style={frame} role="menu">
-            {dialogue.choices!.map((c, i) => (
-              <li key={c}>
-                <button type="button" role="menuitem" autoFocus={i === 0} className="block w-full rounded px-3 py-1 text-left text-sm hover:bg-[#dde3f5] focus:bg-[#dde3f5] focus:outline-none" onClick={() => dialogue.answer(i)}>
-                  {c}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <button type="button" data-keep-action className="min-h-14 w-full cursor-pointer rounded-[14px] px-4 py-2 text-left text-sm leading-snug" style={frame} onClick={onBox} aria-label={done && !dialogue.choices ? 'Next' : undefined}>
-          {line}
-        </button>
-      </div>
-    );
-  }
-  return (
-    <div className="absolute inset-x-[4%] bottom-6 flex items-end gap-2">
-      <button
-        type="button"
-        data-keep-action
-        className={`min-h-20 flex-1 cursor-pointer rounded-[18px] px-6 py-3 text-left text-base leading-relaxed ${choicesUp ? 'transition-transform duration-200' : ''}`}
-        style={{ ...frame, transform: shift ? `translateX(${shift}px)` : undefined }}
-        onClick={onBox}
-        aria-label={done && !dialogue.choices ? 'Next' : undefined}
-      >
-        {line}
-      </button>
-      {/* The choices' column: as wide as its widest choice, the question's own or those kept room for, from the line's first
-          letter (an unseen copy, no height, holds it), so the box never narrows as they come up; the choices once it's typed. */}
-      {(!!dialogue.choices?.length || !!reserved?.length) && (
-        <div ref={column} className="grid shrink-0 items-end [&>*]:col-start-1 [&>*]:row-start-1">
-          <ul className="invisible h-0 overflow-hidden whitespace-nowrap px-2" aria-hidden>
-            {[...(dialogue.choices ?? []), ...(reserved ?? [])].map((c, i) => (
-              <li key={i} className="px-3 text-base">
-                {c}
-              </li>
-            ))}
-          </ul>
-          {done && !!dialogue.choices?.length && (
-            <ul className="whitespace-nowrap rounded-[18px] p-2" style={frame} role="menu">
-              {dialogue.choices.map((c, i) => (
-                <li key={c}>
-                  <button type="button" role="menuitem" autoFocus={i === 0} className="block w-full rounded px-3 py-1.5 text-left text-base hover:bg-[#dde3f5] focus:bg-[#dde3f5] focus:outline-none" onClick={() => dialogue.answer(i)}>
-                    {c}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
     </div>
   );
 }

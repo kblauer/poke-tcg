@@ -1,9 +1,9 @@
-import MyLocationIcon from '@mui/icons-material/MyLocation';
 import { buyCoinsError, COIN_OFFERS, GAME_CORNER_MAP, gameCornerMusic, MAX_COINS, routePath, type GameCornerGame, type Route, type RouteSpot } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useEscape } from '../../hooks/useEscape';
-import { mapTransform, usePan, ZOOM } from '../../hooks/usePan';
+import { useIsPhone } from '../../hooks/useIsPhone';
 import { useRun } from '../../hooks/useRun';
 import { useToasts } from '../../hooks/useToasts';
 import { useTRPC } from '../../lib/trpc';
@@ -11,6 +11,7 @@ import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
 import { playerSprite, STEP_MS, WALK_FRAME_MS, type Facing } from '../../utils/overworld';
 import { facing } from '../../utils/routeFigures';
 import { BUTTON } from '../../utils/styles';
+import { DialogueBox, type Dialogue } from '../DialogueBox';
 import { useMusicCue } from '../MusicPlayer';
 import { OverworldSprite } from '../run/RouteSprites';
 import { Toasts } from '../Toasts';
@@ -24,16 +25,10 @@ interface Standing {
   tile: RouteSpot;
   face: Facing;
 }
-/** What's being said in the message box: its pages (each its lines), the page shown, and what follows the last page. */
-interface Talk {
-  pages: string[][];
-  page: number;
-  then?: 'offers';
-}
 
 const MUSIC = gameCornerMusic();
 const { counter: COUNTER } = GAME_CORNER_MAP;
-/** The Game Corner as a run map (`Route`, sizes in pixels), for the view's panning (usePan) and the player's walks (routePath). */
+/** The Game Corner as a run map (`Route`, sizes in pixels), for the player's walks (routePath). */
 const CORNER: Route = {
   name: 'Game Corner',
   flow: 'up',
@@ -44,10 +39,19 @@ const CORNER: Route = {
   walkable: GAME_CORNER_MAP.walkable,
   sprites: 'rse',
 };
-/** The Emerald message box's and menus' colours (the game's text window, drawn as part of the game's picture). */
+/** The money and coins boxes' colours (Emerald's text window, drawn as part of the game's picture). */
 const WINDOW = 'rounded-[3px] border-2 border-[#5a6b8c] bg-white px-2 py-1 font-emerald text-[#3a3a3a] shadow-[inset_0_0_0_1px_#a4c5f6]';
 
-/** A target on the map (a machine, a table, a person): see-through, outlined on hover. */
+/**
+ * The counter's clerks stand behind it (the user's, as the Battle Tower's receptionist): drawn SINK px lower and cut off
+ * at the counter's top edge (y COUNTER_EDGE, in the map's pixels), so their legs and feet are hidden behind it.
+ */
+const COUNTER_EDGE = 45;
+const SINK = 2;
+/** On a phone the room is drawn at least this big, scrolled sideways where it's wider than the screen. */
+const MIN_ZOOM = 2;
+
+/** A target on the map (a machine, a table, a person, the door): see-through, outlined on hover. */
 function Target({ x, y, w, h, title, onClick }: { x: number; y: number; w: number; h: number; title: string; onClick: () => void }) {
   return (
     <button
@@ -62,12 +66,13 @@ function Target({ x, y, w, h, title, onClick }: { x: number; y: number; w: numbe
 }
 
 /**
- * The Mauville Game Corner (the Extras page's): the game's own room (GAME_CORNER_MAP), panned like the Berry Farm's, its
- * people where the game has them. Clicking a slot machine or a roulette table walks the player (Brendan or May) to it and
+ * The Mauville Game Corner (the Extras page's): the game's own room (GAME_CORNER_MAP) across the page's width, its people
+ * where the game has them. Clicking a slot machine or a roulette table walks the player (Brendan or May) to it and
  * sits them at it (SlotMachineScreen, with the machine's luck today; RouletteScreen, the left table 1 coin a ball, the
  * right 3); the coin clerk sells coins for banked ₱ as the game's does (her words and menu, `extras.buyCoins`); the others
- * say their lines, in Emerald's message box. Each round played is settled by the API in turn (`extras.coinRound`), while
- * the screen keeps its own count as the game does. Auto play plays the Game Corner's theme throughout.
+ * say their lines, in the Battle Tower's text box (DialogueBox, the user's). The door leads back to the Extras menu. Each
+ * round played is settled by the API in turn (`extras.coinRound`), while the screen keeps its own count as the game does.
+ * Auto play plays the Game Corner's theme throughout.
  */
 export function GameCorner() {
   const trpc = useTRPC();
@@ -161,11 +166,12 @@ export function GameCorner() {
 }
 
 /**
- * The Game Corner's room (GameCorner's), panned like a run's map (usePan): its people, the player, and the targets to
- * click. A machine or table clicked walks the player to its seat (a table's nearest side) and `onSit`s them; a person
- * clicked walks them up to talk (across the counter to its clerks), their words in the message box. The coin clerk's
- * talk ends in her menu (50 or 500 coins, or EXIT), the money and coins shown as the game shows them. Only mounted once
- * the Game Corner has loaded: usePan measures its box when it mounts.
+ * The Game Corner's room (GameCorner's), the containing box's whole width (the user's; on a phone at least MIN_ZOOM,
+ * scrolled sideways): its people, the player, and the targets to click. A machine or table clicked walks the player to
+ * its seat (a table's nearest side) and `onSit`s them; a person clicked walks them up to talk (across the counter to its
+ * clerks), their words in the text box (DialogueBox: typed out, a click anywhere on the room or Enter showing the line
+ * whole, then going on). The coin clerk's talk ends in her question (50 or 500 coins, or EXIT, as the game's menu), the
+ * money and coins shown as the game shows them. The door walks the player out, back to the Extras menu.
  */
 function CornerMap({
   standing,
@@ -184,9 +190,21 @@ function CornerMap({
   onSit: (seat: Seat) => void;
   onBuy: (offer: (typeof COIN_OFFERS)[number]) => Promise<string[][]>;
 }) {
+  const navigate = useNavigate();
+  const phone = useIsPhone();
   const box = useRef<HTMLDivElement>(null);
-  const mapEl = useRef<HTMLDivElement>(null);
-  const pan = usePan({ box, mapEl, map: CORNER, mapHeight: CORNER.height, panLocked: false });
+  // The room fills the box's width.
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const measure = () => setWidth(el.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  const zoom = width ? Math.max(phone ? MIN_ZOOM : 0, width / CORNER.width) : 0;
   const [walker, setWalker] = useState<Standing & { walking: boolean }>({ ...standing.current, walking: false });
   const walkerRef = useRef(walker);
   walkerRef.current = walker;
@@ -203,16 +221,30 @@ function CornerMap({
     const timer = window.setInterval(() => setTick((t) => t + 1), WALK_FRAME_MS);
     return () => window.clearInterval(timer);
   }, [walker.walking]);
-  // The view opens on the player.
+  // A room wider than the box (a phone) opens on the player.
   const centred = useRef(false);
   useEffect(() => {
-    if (centred.current || !pan.size.w) return;
+    const el = box.current;
+    if (centred.current || !zoom || !el) return;
     centred.current = true;
-    pan.setOffset(pan.centreOn(walkerRef.current.tile));
-  }, [pan.size.w]);
+    el.scrollLeft = (walkerRef.current.tile.x * 16 + 8) * zoom - el.clientWidth / 2;
+  }, [zoom]);
 
-  const [talk, setTalk] = useState<Talk | null>(null);
-  const [menu, setMenu] = useState<number | null>(null);
+  // What's said, a page at a time (the coin clerk's last page her question), and whether the money and coins boxes are up.
+  const [dialogue, setDialogue] = useState<(Dialogue & { id: number }) | null>(null);
+  const said = useRef(0);
+  const [atCounter, setAtCounter] = useState(false);
+  const pressDialogue = useRef<(() => void) | null>(null);
+  /** Says `pages` one after another, then asks `ask`'s question on the last page (its choices answering it), or ends. */
+  const say = (pages: string[][], ask?: { choices: string[]; answer: (choice: number) => void }) => {
+    const show = (i: number) => {
+      const last = i === pages.length - 1;
+      const text = pages[i]!.join('\n');
+      setDialogue({ id: ++said.current, text, ...(last && ask ? ask : { answer: () => (last ? setDialogue(null) : show(i + 1)) }) });
+    };
+    show(0);
+  };
+  const busy = !!dialogue;
 
   /** Walks the player to the nearest of `stands`, then faces `target` (the tile it's next to from the stand reached, or `face`) and `then`. */
   const walkTo = (stands: readonly RouteSpot[], target: (stand: RouteSpot) => RouteSpot, then: () => void, face?: Facing) => {
@@ -243,43 +275,21 @@ function CornerMap({
   };
   // A table (or a person) is faced from a stand beside it: the tile of it next to the stand.
   const nextTo = (tiles: readonly RouteSpot[]) => (stand: RouteSpot) => tiles.find((t) => Math.abs(t.x - stand.x) + Math.abs(t.y - stand.y) === 1) ?? tiles[0]!;
-  const busy = !!talk || menu !== null;
 
-  /** The message box's next page, or what follows its last: the counter's menu, or nothing. */
-  const advance = useCallback(() => {
-    if (menu !== null || !talk) return;
-    if (talk.page + 1 < talk.pages.length) return setTalk({ ...talk, page: talk.page + 1 });
-    setTalk(null);
-    if (talk.then === 'offers') setMenu(0);
-  }, [talk, menu]);
+  /** The coin clerk's question answered: one of the offers bought (her thanks, or why not), or EXIT. */
   const choose = async (i: number) => {
     if (buying) return;
-    setMenu(null);
+    setDialogue(null);
+    setAtCounter(false);
     const offer = COIN_OFFERS[i];
-    setTalk({ pages: offer ? await onBuy(offer) : COUNTER.cancel, page: 0 });
+    say(offer ? await onBuy(offer) : COUNTER.cancel);
   };
-  // A or B as the GBA's (Z, Enter or Space; X or Escape): the next page, or the menu's choice (B its EXIT).
-  useEffect(() => {
-    if (!busy) return;
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).closest('input, textarea, select')) return;
-      if (menu !== null) {
-        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') setMenu((m) => ((m ?? 0) + (e.key === 'ArrowUp' ? 2 : 1)) % 3);
-        else if (['z', 'Z', 'Enter', ' '].includes(e.key)) void choose(menu);
-        else if (['x', 'X', 'Backspace'].includes(e.key)) void choose(2);
-        else return;
-      } else if (['z', 'Z', 'Enter', ' ', 'x', 'X'].includes(e.key)) advance();
-      else return;
-      e.preventDefault();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  });
-  useEscape(useCallback(() => (menu !== null ? void choose(2) : advance()), [menu, advance]), busy);
+  // Escape (the GBA's B): EXIT at the coin clerk's question, otherwise as a click on the box.
+  useEscape(() => (dialogue?.choices ? void choose(dialogue.choices.length - 1) : pressDialogue.current?.()), busy);
 
   const onMachine = (m: number) => {
     const machine = GAME_CORNER_MAP.machines[m]!;
-    walkTo([machine.seat], () => machine.tile, () => (coins ? onSit({ game: 'slots', machine: m }) : setTalk({ pages: [['COINS are needed to play here', 'in the GAME CORNER.']], page: 0 })), machine.face);
+    walkTo([machine.seat], () => machine.tile, () => (coins ? onSit({ game: 'slots', machine: m }) : say([['COINS are needed to play here', 'in the GAME CORNER.']])), machine.face);
   };
   const onTable = (table: 0 | 1) => {
     const { tiles, stands } = GAME_CORNER_MAP.tables[table]!;
@@ -288,125 +298,98 @@ function CornerMap({
   const onPerson = (p: (typeof GAME_CORNER_MAP.people)[number]) =>
     // Across the counter its clerks are 2 tiles up, faced all the same.
     walkTo(p.stands, () => p.tile, () => {
-      if (p.role === 'coins') setTalk({ pages: [...COUNTER.hello, ...COUNTER.ask], page: 0, then: 'offers' });
-      else setTalk({ pages: p.text, page: 0 });
+      if (p.role !== 'coins') return say(p.text);
+      setAtCounter(true);
+      // The game's menu as the question's choices, its columns' spaces closed up.
+      say([...COUNTER.hello, ...COUNTER.ask], { choices: COUNTER.offers.map((o) => o.trim().replace(/\s+/g, ' ')), answer: (i) => void choose(i) });
     });
+  // Out by the door (onto its mat, facing out), back to the Extras menu.
+  const door = GAME_CORNER_MAP.door;
+  const onDoor = () => walkTo([door], () => ({ x: door.x, y: door.y + 1 }), () => navigate({ to: '/extras' }), 'down');
 
+  const clerk = (p: (typeof GAME_CORNER_MAP.people)[number]) => p.role !== 'talk';
   return (
-    <figure className="mx-auto w-full space-y-1" style={{ maxWidth: Math.max(768, CORNER.width * ZOOM) }}>
-      <div
-        ref={box}
-        className="relative cursor-grab touch-none overflow-hidden rounded-lg bg-slate-950 ring-1 ring-slate-600 active:cursor-grabbing"
-        style={{ height: Math.min(pan.height, CORNER.height * ZOOM) }}
-        aria-label="Mauville's Game Corner. Drag or scroll to look around; click a slot machine or a roulette table to play, or someone to talk to them."
-        onPointerDown={pan.onPointerDown}
-        onPointerMove={pan.onPointerMove}
-        onPointerUp={pan.endDrag}
-        onPointerCancel={pan.endDrag}
-      >
-        {pan.size.w > 0 && (
-          <div
-            ref={mapEl}
-            className="absolute left-0 top-0 origin-top-left"
-            style={{ width: CORNER.width, height: CORNER.height, transform: mapTransform(pan.offset), transition: pan.glide ? `transform ${pan.glide.ms}ms ${pan.glide.ease}` : undefined }}
-          >
-            <img src={CORNER.image} alt="" draggable={false} className="h-full w-full select-none [image-rendering:pixelated]" />
-            {GAME_CORNER_MAP.people.map((p, i) => (
-              <OverworldSprite key={i} name={`rse/${p.sprite}`} tile={p.tile} face={p.face} />
-            ))}
-            <OverworldSprite
-              name={playerSprite('rse', undefined, false, gender ?? 'male')}
-              tile={walker.tile}
-              face={walker.face}
-              walkTick={walker.walking ? tick : undefined}
-              moveMs={walker.walking ? STEP_MS : 0}
-              title="You"
-            />
-            {!busy && (
-              <>
-                {GAME_CORNER_MAP.machines.map((m, i) => (
-                  <Target key={`m${i}`} x={m.tile.x * 16} y={m.tile.y * 16} w={16} h={16} title={`Slot machine ${i + 1}`} onClick={() => onMachine(i)} />
-                ))}
-                {GAME_CORNER_MAP.tables.map((t, i) => {
-                  const xs = t.tiles.map((s) => s.x);
-                  const ys = t.tiles.map((s) => s.y);
-                  const x = Math.min(...xs);
-                  const y = Math.min(...ys);
-                  return (
-                    <Target
-                      key={`t${i}`}
-                      x={x * 16}
-                      y={y * 16}
-                      w={(Math.max(...xs) - x + 1) * 16}
-                      h={(Math.max(...ys) - y + 1) * 16}
-                      title={`Roulette, the ${i ? 'right' : 'left'} table: ${i ? 3 : 1} ${i ? 'coins' : 'coin'} a ball`}
-                      onClick={() => onTable(i as 0 | 1)}
-                    />
-                  );
-                })}
-                {GAME_CORNER_MAP.people.map((p, i) => (
-                  <Target
-                    key={`p${i}`}
-                    x={p.tile.x * 16}
-                    y={p.tile.y * 16 - 12}
-                    w={16}
-                    h={28}
-                    title={p.role === 'coins' ? 'The coin counter' : p.role === 'prizes' ? 'The prize corner' : 'Talk'}
-                    onClick={() => onPerson(p)}
-                  />
-                ))}
-              </>
-            )}
-          </div>
-        )}
+    <figure className="w-full space-y-1">
+      {/* A click anywhere on the room does as a click on the text box (the Battle Tower's). */}
+      <div className="relative overflow-hidden rounded-lg bg-slate-950 ring-1 ring-slate-600" style={{ height: zoom ? CORNER.height * zoom : 240 }} onClick={() => pressDialogue.current?.()}>
+        <div
+          ref={box}
+          className="h-full overflow-x-auto overflow-y-hidden"
+          aria-label="Mauville's Game Corner. Click a slot machine or a roulette table to play, someone to talk to them, or the door to leave."
+        >
+          {zoom > 0 && (
+            <div className="relative" style={{ width: CORNER.width * zoom, height: CORNER.height * zoom }}>
+              <div className="absolute left-0 top-0 origin-top-left" style={{ width: CORNER.width, height: CORNER.height, transform: `scale(${zoom})` }}>
+                <img src={CORNER.image} alt="" draggable={false} className="h-full w-full select-none [image-rendering:pixelated]" />
+                {GAME_CORNER_MAP.people.map((p, i) => !clerk(p) && <OverworldSprite key={i} name={`rse/${p.sprite}`} tile={p.tile} face={p.face} />)}
+                {/* The counter's clerks behind it, their legs and feet hidden (COUNTER_EDGE, SINK). */}
+                <div className="pointer-events-none absolute inset-0" style={{ clipPath: `inset(0 0 ${CORNER.height - COUNTER_EDGE}px 0)` }}>
+                  <div className="absolute inset-0" style={{ transform: `translateY(${SINK}px)` }}>
+                    {GAME_CORNER_MAP.people.map((p, i) => clerk(p) && <OverworldSprite key={i} name={`rse/${p.sprite}`} tile={p.tile} face={p.face} />)}
+                  </div>
+                </div>
+                <OverworldSprite
+                  name={playerSprite('rse', undefined, false, gender ?? 'male')}
+                  tile={walker.tile}
+                  face={walker.face}
+                  walkTick={walker.walking ? tick : undefined}
+                  moveMs={walker.walking ? STEP_MS : 0}
+                  title="You"
+                />
+                {!busy && (
+                  <>
+                    {GAME_CORNER_MAP.machines.map((m, i) => (
+                      <Target key={`m${i}`} x={m.tile.x * 16} y={m.tile.y * 16} w={16} h={16} title={`Slot machine ${i + 1}`} onClick={() => onMachine(i)} />
+                    ))}
+                    {GAME_CORNER_MAP.tables.map((t, i) => {
+                      const xs = t.tiles.map((s) => s.x);
+                      const ys = t.tiles.map((s) => s.y);
+                      const x = Math.min(...xs);
+                      const y = Math.min(...ys);
+                      return (
+                        <Target
+                          key={`t${i}`}
+                          x={x * 16}
+                          y={y * 16}
+                          w={(Math.max(...xs) - x + 1) * 16}
+                          h={(Math.max(...ys) - y + 1) * 16}
+                          title={`Roulette, the ${i ? 'right' : 'left'} table: ${i ? 3 : 1} ${i ? 'coins' : 'coin'} a ball`}
+                          onClick={() => onTable(i as 0 | 1)}
+                        />
+                      );
+                    })}
+                    {GAME_CORNER_MAP.people.map((p, i) => (
+                      <Target
+                        key={`p${i}`}
+                        x={p.tile.x * 16}
+                        y={p.tile.y * 16 - 12}
+                        w={16}
+                        h={28}
+                        title={p.role === 'coins' ? 'The coin counter' : p.role === 'prizes' ? 'The prize corner' : 'Talk'}
+                        onClick={() => onPerson(p)}
+                      />
+                    ))}
+                    {/* The door's mat, both its tiles. */}
+                    <Target x={door.x * 16} y={door.y * 16} w={32} h={16} title="Exit: back to the Extras menu" onClick={onDoor} />
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* The money and coins boxes while at the counter, as the game shows them (showmoneybox, showcoinsbox). */}
-        {(talk?.then === 'offers' || menu !== null) && (
+        {atCounter && (
           <div className="absolute left-2 top-2 z-[1000] space-y-1 text-sm">
             <div className={WINDOW}>MONEY ₱{bank.toLocaleString()}</div>
             <div className={WINDOW}>COINS {coins.toLocaleString()}</div>
           </div>
         )}
-        {menu !== null && (
-          <ul className={`${WINDOW} absolute right-2 top-2 z-[1000] text-sm`} role="menu">
-            {COUNTER.offers.map((o, i) => (
-              <li key={o}>
-                <button type="button" role="menuitem" className="flex w-full items-center gap-1 whitespace-pre text-left" onMouseEnter={() => setMenu(i)} onClick={() => void choose(i)}>
-                  <span className={menu === i ? '' : 'invisible'}>▶</span>
-                  {o}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        {talk && (
-          <button type="button" onClick={advance} className={`${WINDOW} absolute inset-x-2 bottom-2 z-[1000] min-h-[3.5rem] text-left text-sm leading-6`}>
-            {talk.pages[talk.page]!.map((line, i) => (
-              <span key={i} className="block">
-                {line}
-              </span>
-            ))}
-            {(talk.page + 1 < talk.pages.length || talk.then) && <span className="absolute bottom-1 right-2 animate-pulse text-[#e05050]">▼</span>}
-          </button>
-        )}
-
-        <div className="absolute right-2 top-2 z-[900] flex flex-col gap-1">
-          <button
-            className="flex h-8 w-8 items-center justify-center rounded bg-slate-800/90 text-slate-200 ring-1 ring-slate-600 transition hover:bg-slate-700"
-            onClick={() => {
-              pan.setGlide({ ms: 700, ease: 'ease-in-out' });
-              pan.setOffset(pan.centreOn(walkerRef.current.tile));
-            }}
-            aria-label="Centre on you"
-            title="Centre on you"
-          >
-            <MyLocationIcon sx={{ fontSize: 16 }} />
-          </button>
-        </div>
+        {dialogue && <DialogueBox key={dialogue.id} dialogue={dialogue} pressRef={pressDialogue} phone={phone} />}
       </div>
       <figcaption className="text-center text-xs text-slate-400">
         Click a slot machine or a roulette table to play (the left table 1 coin a ball, the right 3), the clerk at the counter for coins, or anyone to talk · each machine's
-        luck changes every day · drag or scroll to look around
+        luck changes every day · the door leads back to the Extras menu
       </figcaption>
     </figure>
   );

@@ -2,8 +2,9 @@ import { BOSSES, ELITE_FOUR, KANTO_GYMS, type BossId } from '@poke-tcg/campaign'
 import { CPU_DIFFICULTIES, CPU_DIFFICULTY_LABELS, type CpuDifficulty } from '@poke-tcg/game-engine';
 import { singleBattleOpponent, type SingleBattleOpponent } from '@poke-tcg/shared';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Link, useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate, useRouter } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
+import { useBattleTransition } from '../components/BattleTransition';
 import { DeckSummary, LOCKED_TAG, type SavedDeck } from '../components/DeckList';
 import { useTRPC } from '../lib/trpc';
 import { PageHeader } from '../components/PageHeader';
@@ -72,7 +73,19 @@ export function SingleBattlePage() {
 
   // A Battle Tower challenge under way keeps the Play tab on it.
   usePlayRedirect();
-  const create = useMutation(trpc.game.create.mutationOptions({ onSuccess: ({ id }) => navigate({ to: '/game/$gameId', params: { gameId: id } }) }));
+  const router = useRouter();
+  const battleTransition = useBattleTransition();
+  // The battle transition (as the Battle Tower's) while the game's page loads, the game opening as it ends.
+  const [opening, setOpening] = useState(false);
+  const create = useMutation(
+    trpc.game.create.mutationOptions({
+      onSuccess: ({ id }) => {
+        setOpening(true);
+        void router.preloadRoute({ to: '/game/$gameId', params: { gameId: id } }).catch(() => {});
+        void battleTransition(() => navigate({ to: '/game/$gameId', params: { gameId: id } }));
+      },
+    }),
+  );
 
   if (decks.error) return <p className={`${PAGE_WIDTH} text-red-400`}>{decks.error.message}</p>;
   if (!decks.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
@@ -180,10 +193,10 @@ export function SingleBattlePage() {
             </p>
             <button
               className="w-full rounded bg-blue-600 px-5 py-2 font-semibold transition hover:bg-blue-500 active:scale-95 disabled:opacity-40"
-              disabled={create.isPending}
+              disabled={create.isPending || opening}
               onClick={() => create.mutate({ deckId: deckId === TEST_DECK ? null : deckId, difficulty, opponent })}
             >
-              {create.isPending ? 'Starting…' : 'Battle!'}
+              {create.isPending || opening ? 'Starting…' : 'Battle!'}
             </button>
             {create.error && <p className="text-sm text-red-400">{create.error.message}</p>}
           </div>

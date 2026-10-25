@@ -45,8 +45,8 @@ export interface TowerContext {
   act: (challenge: ClientTower, action: TowerAction) => Promise<ClientTower>;
   /** Debug's Skip battle, when the debug tools are on (null otherwise). */
   skip: ((challenge: ClientTower) => Promise<ClientTower>) | null;
-  /** Opens the battle's game; `preloadGame` fetches its page beforehand. */
-  openGame: (gameId: string) => void;
+  /** Opens the battle's game after its battle transition (useBattleTransition); `preloadGame` fetches its page beforehand. */
+  openGame: (gameId: string) => Promise<void>;
   preloadGame: (gameId: string) => void;
   /** The challenge is saved or over: the page offers Return to Home. */
   finish: () => void;
@@ -258,11 +258,12 @@ async function battle(s: SceneSteps, ctx: TowerContext, challenge: ClientTower) 
   s.faceTo('opponent', 'player');
   s.faceTo('player', 'opponent');
   await s.say(o.before, name);
-  // The mainline games' battle transition (one of several at random), the battle opening as it ends; its music from the
-  // transition's first flash (the user's), the battle page's own cue, so it carries on into the battle.
-  if (next.gameId) ctx.battleMusic(next.view.generation, next.gameId);
-  await s.battleTransition();
-  if (next.gameId) ctx.openGame(next.gameId);
+  // The mainline games' battle transition (one of several at random) over the play area, as a run's (the user's), the
+  // battle opening as it ends; its music from the transition's first flash (the user's), the battle page's own cue, so it
+  // carries on into the battle.
+  if (!next.gameId) return;
+  ctx.battleMusic(next.view.generation, next.gameId);
+  await ctx.openGame(next.gameId);
 }
 
 /**
