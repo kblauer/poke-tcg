@@ -865,7 +865,9 @@ Debug commands go through the engine's `applyDebug` (`packages/game-engine/src/d
 
 ## Setup
 
-Requires Node 24+, pnpm, and Docker if you want local Supabase.
+Requires Node 24+, pnpm, and Docker (Docker Desktop on Windows and macOS) for the local Supabase that development runs on by default (Option B; `pnpm dev --remote` runs on the hosted project without it).
+
+Windows: Docker Desktop turns on Hyper-V/WSL, whose WinNAT reserves blocks of the dynamic port range at each boot, and a reserved port can't be listened on (Vite fails with `listen EACCES: permission denied ::1:5173`). On a machine whose dynamic range was moved down from the default 49152–65535 (`netsh int ipv4 show dynamicport tcp`), those blocks can cover 5173 and 8787; in the default range they can still cover the local Supabase's 5432x ports. `pnpm dev` and `pnpm db:local` check first (`reservedPorts` in `scripts/supabase-env.mjs`, reading `netsh interface ipv4 show excludedportrange protocol=tcp`) and print the fix: in an administrator PowerShell, `netsh int ipv4 set dynamic tcp start=49152 num=16384` and the same for `ipv6` (only for a moved-down range), then `net stop winnat` and `net start winnat` (or reboot).
 
 ```sh
 pnpm install

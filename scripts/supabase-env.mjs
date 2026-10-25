@@ -24,6 +24,52 @@ export function hostedEnv(root) {
   return null;
 }
 
+/** The local Supabase's ports: every `port` of a section of supabase/config.toml that isn't `enabled = false`. */
+export const localSupabasePorts = (root) =>
+  readText(path.join(root, 'supabase', 'config.toml'))
+    .split(/^\[/m)
+    .filter((section) => !/^enabled\s*=\s*false/m.test(section))
+    .flatMap((section) => [...section.matchAll(/^port\s*=\s*(\d+)/gm)].map((m) => Number(m[1])));
+
+/**
+ * The ports Windows has reserved (`netsh … show excludedportrange`) that the dev servers need: with Hyper-V or WSL on (Docker Desktop
+ * turns them on), WinNAT reserves blocks of the dynamic port range at each boot, and a reserved port can't be listened on (Vite's
+ * `listen EACCES`). Empty elsewhere, and when netsh can't be read.
+ */
+export function reservedPorts(ports) {
+  if (process.platform !== 'win32') return [];
+  const ranges = [];
+  for (const ip of ['ipv4', 'ipv6']) {
+    try {
+      const out = execFileSync('netsh', ['interface', ip, 'show', 'excludedportrange', 'protocol=tcp'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+      for (const m of out.matchAll(/^\s*(\d+)\s+(\d+)/gm)) ranges.push([Number(m[1]), Number(m[2])]);
+    } catch {
+      // No netsh: nothing to check.
+    }
+  }
+  return ports.filter((port) => ranges.some(([start, end]) => port >= start && port <= end)).map((port) => ({ port, range: ranges.find(([start, end]) => port >= start && port <= end) }));
+}
+
+/**
+ * What to tell the developer about reserved ports, with the fix (an administrator PowerShell). A port under 49152 is only reserved
+ * when the machine's dynamic range was moved down from Windows' default (49152–65535): put it back. A reserved port in the default
+ * range (the local Supabase's 5432x) is WinNAT's pick of the day: restarting it picks other blocks.
+ */
+export const reservedPortsHelp = (conflicts) => [
+  `Windows has reserved port${conflicts.length > 1 ? 's' : ''} the dev servers need: ${conflicts.map(({ port, range }) => `${port} (in ${range[0]}–${range[1]})`).join(', ')}.`,
+  'Hyper-V/WSL (on with Docker Desktop) reserves blocks of the dynamic port range at each boot, and a reserved port can\'t be listened on.',
+  ...(conflicts.some(({ port }) => port < 49152)
+    ? [
+        'This machine\'s dynamic range starts below the default 49152 (`netsh int ipv4 show dynamicport tcp`). Fix, once, in an administrator PowerShell',
+        '(quit Docker Desktop first, or reboot after the two netsh lines):',
+        '  netsh int ipv4 set dynamic tcp start=49152 num=16384',
+        '  netsh int ipv6 set dynamic tcp start=49152 num=16384',
+        '  net stop winnat',
+        '  net start winnat',
+      ]
+    : ['Fix, in an administrator PowerShell (quit Docker Desktop first): `net stop winnat`, then `net start winnat`, which picks other blocks.']),
+].join('\n');
+
 const run = (cmd, args, root, env) => {
   const r = spawnSync(cmd, args, { cwd: root, stdio: 'inherit', env, shell });
   if (r.status) throw new Error(`${cmd} ${args.join(' ')} failed (exit ${r.status})`);
