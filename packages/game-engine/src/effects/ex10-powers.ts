@@ -11,7 +11,7 @@
 import { hasType, isBasicEnergy, lookupCard, type PokemonCardDef } from '../cards.js';
 import { counts, energyProvided, evolvesOnto, isEnergyCardOf, opponentOf, toolOf, type CardInstance } from '../engine.js';
 import { attachBlocked, discardsLocked, energyFromHand, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
-import { flipCoin, inPlayDef, pokemonName } from '../status.js';
+import { devolvable, flipCoin, inPlayDef, pokemonName } from '../status.js';
 import { EX1_POWERS } from './ex1-powers.js';
 import { babyEvolution, EX2_POWERS, freeRetreat, POKE_BODY } from './ex2-powers.js';
 import { countersBetween, healBetween } from './ex6-powers.js';
@@ -199,7 +199,7 @@ export const EX10_POWERS: Record<string, PowerEffect> = {
   // Espeon ex – Devo Flash: evolving from the hand, one of the opponent's Benched Evolved Pokémon may lose its top card to their hand.
   'ex10-102': onEvolve((state, owner) => {
     const opp = state.players[opponentOf(state, owner.id)]!;
-    if (opp.bench.some((p) => p?.evolvedFrom.length)) state.pendingChoice = { player: owner.id, source: 'Devo Flash', kind: 'oppBenchPick', purpose: 'devolve' };
+    if (opp.bench.some((p) => p && devolvable(state.cards, p))) state.pendingChoice = { player: owner.id, source: 'Devo Flash', kind: 'oppBenchPick', purpose: 'devolve' };
   }),
   // Feraligatr ex – Overpowering Fang (powerActive).
   'ex10-103': { ...POKE_BODY, overpoweringFang: true },

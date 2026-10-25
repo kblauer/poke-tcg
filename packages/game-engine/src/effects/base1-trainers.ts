@@ -4,7 +4,7 @@
 import { isBasicEnergy, isBasicPokemon, isBenchable, isPokemonCard, isTrainerCard, type CardLibrary, type PokemonCardDef } from '../cards.js';
 import { activeLock, discardTheirEnergy, newInPlay, type CardInstance, type GameState, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { energyKept, evolutionBlocked, offerChainReaction, playedFromHand, pokemonAt, trainerProof } from '../powers.js';
-import { clearOnLeavingActive, clearSpecialConditions, energyProtected, evolvedHook, hasSpecialCondition, inPlayDef, openBenchSlot } from '../status.js';
+import { clearOnLeavingActive, clearSpecialConditions, devolvable, energyProtected, evolvedHook, hasSpecialCondition, inPlayDef, openBenchSlot } from '../status.js';
 import { def, otherHandCards, own, targetsOf, theirs, type TrainerChoiceSpec, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 
 const pokemonDef = (s: { cards: TrainerSituation['cards'] }, p: InPlayPokemon): PokemonCardDef => inPlayDef(s.cards, p);
@@ -24,7 +24,7 @@ const needOthers = (s: TrainerSituation, n: number) => (otherHandCards(s).length
 const removable = (s: TrainerSituation, t: Target) => theirs(s, t)!.energy.length > 0 && !energyProtected(s.cards, theirs(s, t)!) && !energyKept(s.opp, [s.opp, s.me], s.cards, theirs(s, t)!);
 const at = (side: Pick<PlayerState, 'active' | 'bench'>, t: Target) => pokemonAt(side, t)!;
 /** An empty Bench slot of `side` (none while Narrow Gym leaves no room), given the Stadium in play. */
-const emptySlot = (side: Pick<PlayerState, 'bench'>, s: { cards: CardLibrary; stadium?: CardInstance | null }) => openBenchSlot(side.bench, s.cards, s.stadium);
+const emptySlot = (side: Pick<PlayerState, 'bench'>, s: { cards: CardLibrary; stadium?: CardInstance | null }) => openBenchSlot(side, s.cards, s.stadium);
 
 /** Switches the active with the benched Pokémon in `slot`. */
 function switchActive(side: PlayerState, slot: number) {
@@ -43,7 +43,10 @@ function removeFromPlay(side: PlayerState, t: Target, keep?: CardInstance) {
   else side.bench[t] = null;
 }
 
-const STAGE_ORDER = { basic: 0, stage1: 1, stage2: 2 } as const;
+/** A Pokémon LV.X's card is the top one: it's discarded with the Evolution card it's on (agreed). */
+const STAGE_ORDER = { basic: 0, stage1: 1, stage2: 2, levelUp: 3 } as const;
+/** Whether the Pokémon has an Evolution card (a Stage 1 or 2) for Devolution Spray to discard. */
+const hasEvolution = (s: TrainerSituation, p: InPlayPokemon) => devolvable(s.cards, p);
 
 export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
   // Clefairy Doll: played onto the Bench as a 10 HP Pokémon (see isBenchable and the doll rules in the engine).
@@ -61,14 +64,14 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
 
   // Devolution Spray
   'base1-72': {
-    blocked: (s) => (targetsOf(s.me).some((t) => own(s, t)!.evolvedFrom.length > 0) ? null : 'None of your Pokémon are evolved'),
+    blocked: (s) => (targetsOf(s.me).some((t) => hasEvolution(s, own(s, t)!)) ? null : 'None of your Pokémon are evolved'),
     choices(s, c) {
       const specs: TrainerChoiceSpec[] = [
-        { kind: 'pokemon', field: 'target', side: 'own', options: targetsOf(s.me).filter((t) => own(s, t)!.evolvedFrom.length > 0), prompt: 'Choose one of your evolved Pokémon' },
+        { kind: 'pokemon', field: 'target', side: 'own', options: targetsOf(s.me).filter((t) => hasEvolution(s, own(s, t)!)), prompt: 'Choose one of your evolved Pokémon' },
       ];
       if (c.target === undefined) return specs;
       const p = own(s, c.target)!;
-      const stages = [...p.evolvedFrom, p.card].map((card) => (def(s, card) as PokemonCardDef).stage).filter((st) => st !== 'basic') as ('stage1' | 'stage2')[];
+      const stages = [...p.evolvedFrom, p.card].map((card) => (def(s, card) as PokemonCardDef).stage).filter((st) => st === 'stage1' || st === 'stage2') as ('stage1' | 'stage2')[];
       return [...specs, { kind: 'stage', field: 'stage', options: stages.reverse(), prompt: 'Discard Evolution cards of this Stage and higher' }];
     },
     play(ctx) {

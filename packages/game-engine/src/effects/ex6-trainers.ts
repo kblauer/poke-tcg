@@ -58,7 +58,7 @@ export const EX6_TRAINERS: Record<string, TrainerEffect> = {
 
   // Great Ball: a Basic Pokémon (not a Pokémon-ex) from the deck onto the Bench.
   'ex6-92': {
-    blocked: (s) => (!s.deckCount ? 'Your deck is empty' : openBenchSlot(s.me.bench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
+    blocked: (s) => (!s.deckCount ? 'Your deck is empty' : openBenchSlot(s.me, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
     play: (ctx) => ctx.pend({ kind: 'pickFromDeck', source: 'Great Ball', filter: 'basicNotEx', toBench: true, optional: true }),
   },
 

@@ -24,6 +24,7 @@ export const STAGES = [
   { value: 'Basic', label: 'Basic' },
   { value: 'Stage1', label: 'Stage 1' },
   { value: 'Stage2', label: 'Stage 2' },
+  { value: 'LEVEL-UP', label: 'LV.X' },
   { value: 'Trainer', label: 'Trainer' },
   { value: 'Energy', label: 'Energy' },
 ];

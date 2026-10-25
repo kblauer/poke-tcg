@@ -23,7 +23,7 @@ const onBench = (s: Pick<PowerSituation, 'me' | 'cards'>, names: string[]) => {
   return names.every((name) => benched.includes(name));
 };
 
-const benchFull = (s: PowerSituation) => (openBenchSlot(s.me.bench, s.cards) < 0 ? 'Your Bench is full' : null);
+const benchFull = (s: PowerSituation) => (openBenchSlot(s.me, s.cards) < 0 ? 'Your Bench is full' : null);
 
 /** Pokémon Gaze can choose: the opponent's benched Pokémon with a Pokémon Power. */
 const gazeTargets = (s: PowerSituation) => s.opp.bench.flatMap((p, i) => (p && inPlayDef(s.cards, p).power ? [i] : []));
@@ -130,7 +130,7 @@ export const NEO2_POWERS: Record<string, PowerEffect> = {
     name: '[Increase]',
     text: 'When you play Unown [I] from your hand, you may search your deck for a card with Unown in its name and put it onto your Bench. Shuffle your deck afterward. You can\'t use this power if your Bench is full.',
     onPlayFromHand(state, owner) {
-      if (openBenchSlot(owner.bench, state.cards, state.stadium?.card) < 0) return;
+      if (openBenchSlot(owner, state.cards, state.stadium?.card) < 0) return;
       state.pendingChoice = { player: owner.id, source: 'Increase', kind: 'pickFromDeck', filter: 'ownerBasic', name: 'Unown', toBench: true, optional: true };
     },
   },

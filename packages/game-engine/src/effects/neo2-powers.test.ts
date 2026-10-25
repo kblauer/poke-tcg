@@ -51,6 +51,7 @@ describe('Neo Discovery Pokémon Powers', () => {
     expect(tryPower(s, 0)).toMatchObject({ ok: false, error: 'You need Unown F, I, N and D on your Bench' });
     ash(s).bench[3] = pokemon('unownD');
     deckCard(s, 'ash', 'switch');
+    deckCard(s, 'ash', 'bill');
     const after = power(s, 0);
     expect(after.pendingChoice).toMatchObject({ kind: 'pickFromDeck', filter: 'trainer' });
   });
@@ -79,8 +80,8 @@ describe('Neo Discovery Pokémon Powers', () => {
     let s = duel('charmander', 'squirtle');
     const [unown] = give(s, 'ash', 'unownI');
     const found = deckCard(s, 'ash', 'unownO');
+    // The only Unown in the deck: taken without a question (the same-card rule).
     s = act(s, 'ash', { type: 'PLAY_BENCH', cardUid: unown!, slot: 0 });
-    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: found });
     expect(ash(s).bench[1]!.card.uid).toBe(found);
   });
 
@@ -122,8 +123,8 @@ describe('Neo Discovery Pokémon Powers', () => {
   it('Revive Friends: heads puts a Kabuto from the deck onto the Bench', () => {
     let s = duel('kabutoNeo', 'squirtle');
     const kabuto = deckCard(s, 'ash', 'kabutoNeo');
+    // The only Kabuto in the deck: benched without a question (the same-card rule).
     s = power(flips(s, true), 'active');
-    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: kabuto });
     expect(ash(s).bench[0]!.card.uid).toBe(kabuto);
     expect(tryPower(s, 'active')).toMatchObject({ ok: false });
   });
@@ -131,6 +132,7 @@ describe('Neo Discovery Pokémon Powers', () => {
   it('Fossil: heads puts a card that evolves from Mysterious Fossil from the deck onto the Bench', () => {
     let s = duel('omanyteNeo', 'squirtle');
     const omanyte = deckCard(s, 'ash', 'omanyte');
+    deckCard(s, 'ash', 'kabuto');
     s = power(flips(s, true), 'active');
     expect(s.pendingChoice).toMatchObject({ filter: 'evolvesFrom', name: 'Mysterious Fossil' });
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: omanyte });

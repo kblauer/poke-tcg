@@ -59,7 +59,7 @@ export const EX3_POWERS: Record<string, PowerEffect> = {
   // Ninjask – Loose Shell: played from the hand to evolve, Shedinja may go from the deck onto the Bench.
   'ex3-18': {
     onPlayFromHand(state, owner, pokemon) {
-      if (!pokemon.evolvedFrom.length || !owner.deck.length || !benchRoom(owner.bench, state.cards, state.stadium?.card)) return;
+      if (!pokemon.evolvedFrom.length || !owner.deck.length || !benchRoom(owner, state.cards, state.stadium?.card)) return;
       state.pendingChoice = { player: owner.id, source: 'Loose Shell', kind: 'pickFromDeck', filter: 'named', name: 'Shedinja', toBench: true, optional: true };
     },
   },

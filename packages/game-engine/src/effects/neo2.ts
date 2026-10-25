@@ -13,7 +13,7 @@
 import { attackSituation, usableAttacks, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec, type UsableAttack } from '../attacks.js';
 import { lookupCard } from '../cards.js';
 import { counts, energyPool, type InPlayPokemon } from '../engine.js';
-import { powerActive } from '../powers.js';
+import { powerActive, pokemonPower } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { effectId, energyProtected, inPlayDef, pokemonName } from '../status.js';
 import { attackEffect, powerEffect } from './index.js';
@@ -78,16 +78,16 @@ export const hiddenPowerOf = (damage: number): AttackEffect => ({
     const unown = ctx.attackerDef.name.includes('Unown');
     const works = (p: InPlayPokemon | null): p is InPlayPokemon => !!p && powerActive(p, ctx.state.cards, [ctx.me, ctx.opp]);
     const own = [ctx.me.active, ...ctx.me.bench].filter(works);
-    const angry = own.filter((p) => !!powerEffect(effectId(p))?.anger);
+    const angry = own.filter((p) => !!pokemonPower(p)?.anger);
     let more = unown ? Math.max(0, ...angry.map((p) => p.damage)) : 0;
     if (more) ctx.log(`Anger: ${more} more damage.`);
-    if (unown && own.some((p) => powerEffect(effectId(p))?.xxxxx)) {
+    if (unown && own.some((p) => pokemonPower(p)?.xxxxx)) {
       const heads = headsUntilTails(ctx);
       if (heads) ctx.log(`[XXXXX]: ${10 * heads} more damage.`);
       more += 10 * heads;
     }
     const last = ctx.attacker.effects?.attackedOn;
-    if (works(ctx.attacker) && powerEffect(effectId(ctx.attacker))?.perform && last?.turn === ctx.turn - 1 && last.damage) {
+    if (works(ctx.attacker) && pokemonPower(ctx.attacker)?.perform && last?.turn === ctx.turn - 1 && last.damage) {
       ctx.log(`[Perform]: ${last.damage} more damage.`);
       more += last.damage;
     }

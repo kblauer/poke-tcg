@@ -50,7 +50,7 @@ describe('EX Dragon', () => {
     s = attack(flips(s, true), 0);
     expect(misty(s).active!.damage).toBe(10);
     expect(misty(s).bench[0]!.damage).toBe(0);
-    s = resolve(s, { cardUid: misty(s).active!.energy[0]!.uid });
+    // The Fire Energy is the only card to discard, so it's discarded without asking (the same-card rule).
     expect(misty(s).active!.energy).toHaveLength(0);
     expect(misty(s).bench[0]!.energy).toHaveLength(1);
   });
@@ -118,6 +118,7 @@ describe('EX Dragon', () => {
   it('TV Reporter: draw 3 cards, then discard 1 from the hand', () => {
     let s = duel('charmander', 'onix');
     const uid = hand(s, 'ash', trainer('ex3-88', 'TV Reporter'));
+    ash(s).hand.push({ uid: 'w', defId: 'water' });
     const before = ash(s).hand.length;
     s = act(s, 'ash', { type: 'PLAY_TRAINER', cardUid: uid });
     expect(ash(s).hand).toHaveLength(before - 1 + 3);

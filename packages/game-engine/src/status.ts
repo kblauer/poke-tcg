@@ -1,8 +1,9 @@
 // Small state helpers shared by the reducer and attack effects (no imports of engine values,
 // so effect modules can use them without import cycles).
-import { lookupCard, type CardLibrary, type PokemonCardDef } from './cards.js';
-import type { CardInstance, GameState, InPlayPokemon, PlayerId } from './engine.js';
+import { lookupCard, namesMatch, type CardLibrary, type PokemonCardDef } from './cards.js';
+import type { CardInstance, GameState, InPlayPokemon, PlayerId, PlayerState } from './engine.js';
 import { nextRandom } from './rng.js';
+import { powerEffect } from './effects/index.js';
 
 export const LOG_SIZE = 100;
 
@@ -40,7 +41,10 @@ export function flipCoin(state: GameState, reason: string, player: PlayerId | nu
   // A battle rule (a run's item) can make the player's next flips heads.
   const lucky = player === null ? undefined : state.rules?.find((rule) => rule.kind === 'luckyFlips' && rule.player === player && rule.flips > 0);
   if (lucky?.kind === 'luckyFlips') lucky.flips -= 1;
-  const heads = !!lucky || r < 0.5;
+  // Hidden Power: every coin the player flips is tails for a turn.
+  // Unlucky Wind: the opponent's working Active Shiftry makes the player's coins during their own turn tails.
+  const tails = player !== null && ((state.players[player]?.tailsUntil ?? 0) >= state.turn || (state.unluckyWind === player && state.currentPlayer === player && !state.checkingUp));
+  const heads = !tails && (!!lucky || r < 0.5);
   addLog(state, `${reason}: ${heads ? 'heads' : 'tails'}.`, player, { reason, heads });
   return heads;
 }
@@ -58,6 +62,19 @@ export const effectId = (pokemon: InPlayPokemon) => pokemon.transformed ?? pokem
  * Whether the Pokémon has any Special Condition, Poisoned and Burned included. Pokémon Powers stop with any of them, also
  * the older ones printed "Asleep, Confused, or Paralyzed" (agreed with the user).
  */
+/**
+ * Every one of these cards is the same card: the same name, and attached the same way (a Pokémon attached as Energy, a converted
+ * basic Energy card). A choice among them makes no difference, so it's made for the player (agreed: the same-card rule).
+ */
+export const sameCards = (cards: CardLibrary, options: readonly CardInstance[]) =>
+  options.length > 0 &&
+  new Set(
+    options.map((c) => {
+      const d = lookupCard(cards, c.defId);
+      return `${d.name}|${d.kind === 'energy' && d.basic === false ? 's' : ''}|${c.provides ?? ''}|${c.converted ?? ''}|${c.windless ? 'w' : ''}`;
+    }),
+  ).size === 1;
+
 export const hasSpecialCondition = (pokemon: InPlayPokemon) => !!(pokemon.condition || pokemon.poison || pokemon.burned);
 
 /** Removes every Special Condition from the Pokémon, Poisoned and Burned included (Full Heal, Rest, Lum Berry…). Doesn't log. */
@@ -65,6 +82,7 @@ export function clearSpecialConditions(pokemon: InPlayPokemon) {
   pokemon.condition = null;
   pokemon.poison = 0;
   pokemon.burned = false;
+  delete pokemon.burnDamage;
   delete pokemon.paralyzedTurn;
 }
 
@@ -99,6 +117,58 @@ export const FACE_DOWN: PokemonCardDef = {
  * and Rocket's Hideout gives a Pokémon with Dark in its name 20 more HP. Kecleon's Energy Variation makes it every type of
  * basic Energy card attached (`types`), and Low Pressure System gives Grass and Lightning Pokémon 10 more HP.
  */
+/** The Pokémon's top card is a Pokémon LV.X. */
+const levelledUp = (cards: CardLibrary, pokemon: InPlayPokemon) => {
+  const top = lookupCard(cards, pokemon.card.defId);
+  return top.kind === 'pokemon' && top.stage === 'levelUp';
+};
+
+/**
+ * Whether an effect that removes "the highest Stage Evolution card" can reach the Pokémon (Flash Cannon, Devo Flash, Pull
+ * Down…): an Evolution card is on it, under a Pokémon LV.X's card or not (agreed: Dialga LV.X, on a Basic Pokémon, has none).
+ */
+export function devolvable(cards: CardLibrary, pokemon: InPlayPokemon): boolean {
+  return pokemon.evolvedFrom.length > (levelledUp(cards, pokemon) ? 1 : 0);
+}
+
+/**
+ * Removes the Pokémon's highest Stage Evolution card and returns it, for the effect to put where it says. A Pokémon LV.X's card
+ * on it is discarded with it (agreed). An effect that removes "the top card" (Retro Energy) takes the LV.X card itself instead.
+ */
+export function removeTopEvolution(state: GameState, owner: PlayerState, pokemon: InPlayPokemon): CardInstance {
+  if (levelledUp(state.cards, pokemon)) {
+    const lvx = pokemon.card;
+    pokemon.card = pokemon.evolvedFrom.pop()!;
+    owner.discard.push(lvx);
+    addLog(state, `${lookupCard(state.cards, lvx.defId).name} LV.X was discarded with the card under it.`, owner.id);
+  }
+  const top = pokemon.card;
+  pokemon.card = pokemon.evolvedFrom.pop()!;
+  return top;
+}
+
+/** A card under the Pokémon has this name, whatever its case ("if Clefairy is evolved from Cleffa", "if Mantyke is anywhere under Mantine"). */
+export function evolvedFromName(cards: CardLibrary, pokemon: InPlayPokemon, name: string): boolean {
+  const key = name.toLowerCase();
+  return pokemon.evolvedFrom.some((c) => {
+    const d = lookupCard(cards, c.defId);
+    return d.kind === 'pokemon' && d.name.toLowerCase() === key;
+  });
+}
+
+/** The side has Pokémon with each of these names in play (the lake trio's Poké-Bodies). */
+export const lakeTrio = (cards: CardLibrary, side: Pick<PlayerState, 'active' | 'bench'>, names: string[]) =>
+  names.every((n) => [side.active, ...side.bench].some((p) => p && namesMatch(inPlayDef(cards, p).name, n)));
+
+/** A Pokémon LV.X's previous level: the card it was put onto (null for any other Pokémon). */
+export function previousLevel(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCardDef | null {
+  const top = lookupCard(cards, pokemon.card.defId);
+  const under = pokemon.evolvedFrom.at(-1);
+  if (top.kind !== 'pokemon' || top.stage !== 'levelUp' || !under) return null;
+  const d = lookupCard(cards, under.defId);
+  return d.kind === 'pokemon' ? d : null;
+}
+
 export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCardDef {
   if (pokemon.faceDown) return FACE_DOWN;
   const own = lookupCard(cards, pokemon.card.defId) as PokemonCardDef;
@@ -109,6 +179,11 @@ export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCa
   } else if (shapeshiftCard(pokemon)) {
     d = { ...(lookupCard(cards, shapeshiftCard(pokemon)!.defId) as PokemonCardDef), power: own.power };
   } else if (pokemon.shiftedType) d = { ...own, type: pokemon.shiftedType, types: undefined };
+  // Multitype: a Pokémon LV.X of its previous level's type.
+  if (!pokemon.transformed && pokemon.levelUpFrom && powerEffect(own.id)?.multitype) {
+    const before = previousLevel(cards, pokemon);
+    if (before) d = { ...d, type: before.type, types: before.types };
+  }
   // Crystal Type: the type of the basic Energy card attached from the hand, until the end of the turn.
   if (pokemon.crystalType) d = { ...d, type: pokemon.crystalType, types: undefined };
   // Type Change: the Defending Pokémon's types, until the end of the turn.
@@ -124,12 +199,17 @@ export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCa
     if (varied.length > 1) d.types = varied;
     else delete d.types;
   }
+  // A Pokémon LV.X shows the power it can use (pokemonPower): its own, or its previous level's when it has none or only a Poké-Body.
+  const previous = !pokemon.transformed && pokemon.levelUpFrom ? previousLevel(cards, pokemon) : null;
+  if (previous?.power && (!d.power || (powerEffect(own.id)?.body && powerEffect(previous.id)?.use))) d = { ...d, power: previous.power };
   // Strange Cave, Holon Fossil, Influence: a Stage 1 Fossil Pokémon put into play as a Basic Pokémon (while it's the top card).
   if (pokemon.asBasic && !pokemon.evolvedFrom.length) d = { ...d, stage: 'basic' };
   if (pokemon.effects?.giantGrowth) d = { ...d, hp: 80 };
   // Sunbeam: Lunatone's HP is now 80 while its player has a Solrock with it working.
   if (pokemon.hpSet) d = { ...d, hp: pokemon.hpSet };
   if (pokemon.hpPlus) d = { ...d, hp: d.hp + pokemon.hpPlus };
+  // Unown E's EQUIP: attached as a Pokémon Tool, 10 more HP.
+  if (pokemon.attached?.some((a) => a.tool && a.equip && lookupCard(cards, a.card.defId).name === 'Unown E')) d = { ...d, hp: d.hp + 10 };
   // Low Pressure System: 10 more HP for a Grass or Lightning Pokémon.
   if (pokemon.lowPressure) d = { ...d, hp: d.hp + 10 };
   // Rocket's Hideout: 20 more HP for a Pokémon with Dark in its name.
@@ -189,15 +269,27 @@ export function evolvedHook(state: GameState, owner: PlayerId, pokemon: InPlayPo
  * The first empty Bench slot a Pokémon can be put into, or -1 when the Bench is full: 5 Pokémon, 3 while Giant Stump or 4 while Narrow Gym
  * is the Stadium in play (`stadium`).
  */
-export function openBenchSlot(bench: readonly (InPlayPokemon | null)[], cards: CardLibrary, stadium?: CardInstance | null): number {
-  return benchRoom(bench, cards, stadium) > 0 ? bench.indexOf(null) : -1;
+export function openBenchSlot(of: BenchOf, cards: CardLibrary, stadium?: CardInstance | null): number {
+  return benchRoom(of, cards, stadium) > 0 ? benchOf(of).indexOf(null) : -1;
 }
 
+/** A Bench, or its player, whose Bench may hold fewer (`benchLimit`: the opponent's Dittobolic). */
+type BenchOf = readonly (InPlayPokemon | null)[] | { bench: readonly (InPlayPokemon | null)[]; benchLimit?: number };
+const benchOf = (of: BenchOf) => ('bench' in of ? of.bench : of);
+
 /** How many more Pokémon the Bench can hold (see openBenchSlot). */
-export function benchRoom(bench: readonly (InPlayPokemon | null)[], cards: CardLibrary, stadium?: CardInstance | null): number {
+export function benchRoom(of: BenchOf, cards: CardLibrary, stadium?: CardInstance | null): number {
+  const bench = benchOf(of);
   const name = stadium && lookupCard(cards, stadium.defId).name;
-  const limit = name === 'Narrow Gym' ? 4 : name === 'Giant Stump' ? 3 : bench.length;
+  const limit = Math.min(name === 'Narrow Gym' ? 4 : name === 'Giant Stump' ? 3 : bench.length, ('bench' in of && of.benchLimit) || bench.length);
   return Math.max(0, limit - bench.filter(Boolean).length);
+}
+
+/** Damage counters moved off a Pokémon, not removed: Heal Block lets them go (engine.ts). */
+export function countersMoved(state: Pick<GameState, 'countersMoved'>, from: InPlayPokemon, amount: number) {
+  if (amount <= 0) return;
+  const moved = (state.countersMoved ??= {});
+  moved[baseUid(from)] = (moved[baseUid(from)] ?? 0) + amount;
 }
 
 /**
@@ -205,6 +297,11 @@ export function benchRoom(bench: readonly (InPlayPokemon | null)[], cards: CardL
  * ones that last while it stays in play (Leek Slap, Hyper Needle).
  */
 export function clearOnLeavingActive(pokemon: InPlayPokemon) {
+  // Dark Engage: its Darkness type ends when it leaves the Active Spot.
+  if (pokemon.darkEngaged) {
+    delete pokemon.typesCopied;
+    delete pokemon.darkEngaged;
+  }
   // Ion Coating ends when the Active Pokémon leaves the Active spot.
   for (const e of pokemon.energy) if (e.converted?.activeOnly) delete e.converted;
   clearSpecialConditions(pokemon);

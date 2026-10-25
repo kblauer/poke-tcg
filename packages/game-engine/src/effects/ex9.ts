@@ -9,7 +9,7 @@ import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { benchedSlots } from './common.js';
 import { isBasicEnergy, lookupCard, namesMatch } from '../cards.js';
 import { isEnergyCardOf } from '../engine.js';
-import { discardsLocked } from '../powers.js';
+import { discardsLocked, pokemonPower } from '../powers.js';
 import { effectId, inPlayDef, pokemonName } from '../status.js';
 import { powerEffect } from './index.js';
 import { energyAmount } from './ex1.js';
@@ -101,7 +101,7 @@ export const EX9: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         const t = ctx.choices.oppTarget ?? 'active';
         const p = t === 'active' ? ctx.opp.active : ctx.opp.bench[t];
-        const powered = !!p && !!inPlayDef(ctx.state.cards, p).power && !powerEffect(effectId(p))?.body;
+        const powered = !!p && !!inPlayDef(ctx.state.cards, p).power && !pokemonPower(p)?.body;
         if (t === 'active') ctx.hit(powered ? 50 : 30);
         else ctx.damageBenched(ctx.opp, t, powered ? 50 : 30);
       },

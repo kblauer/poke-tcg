@@ -3,7 +3,7 @@
 // cards are useful. Everything here is generic over cards: no card ids, and only the rules engine's own
 // effects decide what an attack does.
 import { answerChoice, attackError, attackSituation, performAttack, resolveChoices, situationAttacks, traceDamage, type AttackChoices, type AttackSituation, type ChoiceSpec } from '../attacks.js';
-import { isBasicEnergy, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from '../cards.js';
+import { isBasicEnergy, isBasicPokemon, isLegend, isPokemonCard, isTrainerCard, lookupCard, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from '../cards.js';
 import { applyAction, cloneState, energyPool, resolveKnockouts, energyProvided, payCost, type PoolEnergy, evolveError, opponentOf, retreatCost, retreatError, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
 import { nextRandom } from '../rng.js';
 import { inPlayDef, openBenchSlot } from '../status.js';
@@ -520,7 +520,7 @@ const lineIndex = (lines: PokemonCardDef[], d: CardDef) => lines.findIndex((l) =
 export function unusablePokemon(state: GameState, me: PlayerState, except?: CardInstance): CardInstance[] {
   const def = (c: CardInstance) => lookupCard(state.cards, c.defId);
   const names = new Set([...inPlay(me).map(([, p]) => pokemonDef(state.cards, p).name), ...me.hand.filter((c) => c !== except).map((c) => def(c).name)]);
-  const benchFull = openBenchSlot(me.bench, state.cards, state.stadium?.card) < 0;
+  const benchFull = openBenchSlot(me, state.cards, state.stadium?.card) < 0;
   return me.hand.filter((c) => {
     const d = def(c);
     if (c === except || !isPokemonCard(d)) return false;
@@ -574,7 +574,10 @@ export const benched = (t: Turn) => inPlay(t.me).filter(([target]) => target !==
 
 /** Challenge! (agreed): the CPU accepts whenever its Bench has room and its deck has a Basic Pokémon. */
 export const acceptsChallenge = (state: GameState, cpu: PlayerState) =>
-  openBenchSlot(cpu.bench, state.cards, state.stadium?.card) >= 0 && cpu.deck.some((c) => isBasicPokemon(lookupCard(state.cards, c.defId)));
+  openBenchSlot(cpu, state.cards, state.stadium?.card) >= 0 && cpu.deck.some((c) => isBasicPokemon(lookupCard(state.cards, c.defId)));
+
+/** Rock, paper or scissors for the CPU: varies with the game's random state and the log, without advancing either. */
+export const rpsHand = (state: GameState) => Math.floor(nextRandom((state.rngState + (state.log?.length ?? 0)) >>> 0)[0] * 3);
 
 /** Finishing a search: the most wanted card (see wantedCards), a Basic, an Energy that helps, or anything. Pokédex: wanted cards on top. */
 export function resolveSearch(t: Turn): GameAction {
@@ -586,6 +589,8 @@ export function resolveSearch(t: Turn): GameAction {
     return { type: 'RESOLVE_CHOICE', order: [...wanted, ...view.cards.filter((c) => !wanted.includes(c))].map((c) => c.uid) };
   }
   // Lt. Surge's Treaty: both take a Prize card unless that helps the other player more (they have fewer left).
+  // Rock-Paper-Scissors (Team Galactic's Wager): a hand the player can't foresee, from the game's random state (not advanced) and the log.
+  if (t.state.pendingChoice!.kind === 'rps') return { type: 'RESOLVE_CHOICE', count: rpsHand(t.state) };
   if (view.kind === 'options') return { type: 'RESOLVE_CHOICE', count: optionAnswer(t, view.labels.length) };
   // Flee and Koga's Ninja Trick: it switches out when its Active Pokémon has 40 HP or less left, to the benched Pokémon with the most HP left.
   const choice = t.state.pendingChoice!;
@@ -594,6 +599,13 @@ export function resolveSearch(t: Turn): GameAction {
     if (!view.options.length || left('active') > 40) return { type: 'RESOLVE_CHOICE' };
     return { type: 'RESOLVE_CHOICE', target: view.options.reduce((a, b) => (left(b) > left(a) ? b : a)) };
   }
+  // Lost Cyclone: it keeps the Benched Pokémon with the most Energy, then the most HP left.
+  if (choice.kind === 'lostCyclone' && view.kind === 'ownPokemon' && view.options.length) {
+    const worth = (target: Target) => at(t.me, target)!.energy.length * 1000 + hpLeft(t.state.cards, at(t.me, target)!);
+    return { type: 'RESOLVE_CHOICE', target: view.options.reduce((a, b) => (worth(b) > worth(a) ? b : a)) };
+  }
+  // Temper Tantrum ("as many as you like"): it discards nothing, so no damage counters.
+  if (choice.kind === 'discardFromHand' && choice.upTo) return { type: 'RESOLVE_CHOICE' };
   // Returning its own Pokémon to the hand (Fairy Power): it keeps them in play. Attract Energy: its Energy stays where it is.
   if (view.kind === 'ownPokemon' && view.optional) return { type: 'RESOLVE_CHOICE' };
   if (choice.kind === 'moveAttached' || (choice.kind === 'deltaSwitch' && !choice.cardUid)) return { type: 'RESOLVE_CHOICE' };
@@ -623,6 +635,12 @@ export function resolveSearch(t: Turn): GameAction {
   if (choice.kind === 'discardDraw') {
     const junk = [...unusableEnergy(t.state, t.me), ...unusablePokemon(t.state, t.me)][0];
     return junk ? { type: 'RESOLVE_CHOICE', cardUid: junk.uid } : { type: 'RESOLVE_CHOICE' };
+  }
+  // Ice Bind: a card rather than Paralysis, the one it wants least.
+  if (choice.kind === 'iceBind' && view.kind === 'pickFromHand') {
+    const wanted = wantedCards(t.state, t.me, view.options);
+    const pick = view.options.find((c) => !wanted.includes(c)) ?? view.options.at(-1);
+    return pick ? { type: 'RESOLVE_CHOICE', cardUid: pick.uid } : { type: 'RESOLVE_CHOICE' };
   }
   // Special Delivery: the card it wants least goes back on the deck. Sleight of Hand ("up to"): only cards it doesn't want.
   if (view.kind === 'pickFromHand') {
@@ -661,11 +679,14 @@ export function resolveSearch(t: Turn): GameAction {
 function optionAnswer(t: Turn, count: number): number {
   const choice = t.state.pendingChoice!;
   if (choice.kind === 'treaty') return t.me.prizes.length > t.opp.prizes.length ? 1 : 0;
+  if (choice.kind === 'beforeAttack' && choice.question === 'plead') return pleadAnswer(t.state, t.id);
   if (choice.kind === 'benchGuard') {
     const rhydon = t.me.bench[choice.guard];
     return rhydon && hpLeft(t.state.cards, rhydon) > 10 ? 0 : 1;
   }
   if (choice.kind === 'quiz' || choice.kind === 'guess') return Math.floor(nextRandom(t.state.rngState)[0] * count);
+  // Looker's Investigation: a fresh hand of its own when it holds 3 cards or fewer, otherwise the opponent's hand goes.
+  if (choice.kind === 'looker') return t.me.hand.length <= 3 ? 0 : 1;
   // Misty's Wish: it declines (agreed); for its own, the first Prize card.
   if (choice.kind === 'mistysWish' && choice.step === 'ask') return 1;
   // Howl would end its turn as soon as Entei is benched: it doesn't use it.
@@ -696,11 +717,27 @@ export function borrowedTrainerMove(state: GameState, cpuId: PlayerId, decide: (
   return { type: 'RESOLVE_CHOICE' };
 }
 
-/** Puts a Basic Pokémon from the hand onto the Bench, while there's room. */
+/** Puts a Basic Pokémon from the hand onto the Bench, while there's room; then a Pokémon LEGEND whose two halves it holds (agreed 2026-10-25). */
 export function benchBasic(t: Turn): GameAction | null {
-  const empty = openBenchSlot(t.me.bench, t.state.cards, t.state.stadium?.card);
+  const empty = openBenchSlot(t.me, t.state.cards, t.state.stadium?.card);
+  if (empty < 0) return null;
   const basic = t.me.hand.find((c) => isBasicPokemon(t.def(c)));
-  return empty >= 0 && basic ? { type: 'PLAY_BENCH', cardUid: basic.uid, slot: empty } : null;
+  if (basic) return { type: 'PLAY_BENCH', cardUid: basic.uid, slot: empty };
+  const legend = t.me.hand.find((c) => isLegend(t.def(c)) && t.me.hand.some((d) => d.defId !== c.defId && t.def(d).name === t.def(c).name));
+  return legend ? { type: 'PLAY_BENCH', cardUid: legend.uid, slot: empty } : null;
+}
+
+/** Lost World: the win, as soon as it can be taken (agreed 2026-10-25, every difficulty). */
+export function lostWorldWin(state: GameState, cpuId: PlayerId): GameAction | null {
+  const stadium = state.stadium && lookupCard(state.cards, state.stadium.card.defId).name;
+  const action: GameAction = { type: 'USE_STADIUM' };
+  return stadium === 'Lost World' && tryAction(state, cpuId, action) ? action : null;
+}
+
+/** Plead: yes (its opponent draws 2) only when the 20 damage would Knock Out its Active Pokémon (agreed 2026-10-25). */
+export function pleadAnswer(state: GameState, cpuId: PlayerId): number {
+  const active = state.players[cpuId]?.active;
+  return active && hpLeft(state.cards, active) <= 20 ? 0 : 1;
 }
 
 /** Evolves whatever can evolve: the Active Pokémon first, then the Bench in order. */
@@ -709,7 +746,7 @@ export function evolve(t: Turn): GameAction | null {
     for (const card of t.me.hand) {
       const evolution = t.def(card);
       if (evolution.kind !== 'pokemon' || evolution.stage === 'basic') continue;
-      if (evolveError(evolution, p, t.state.cards, t.state.turn, [t.me, t.opp]) === null) return { type: 'EVOLVE', cardUid: card.uid, target };
+      if (evolveError(evolution, p, t.state.cards, t.state.turn, [t.me, t.opp], t.state.stadium?.card) === null) return { type: 'EVOLVE', cardUid: card.uid, target };
     }
   }
   return null;

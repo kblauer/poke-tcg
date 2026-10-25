@@ -5,6 +5,7 @@ import {
   attachTarget,
   benchAttackers,
   benchBasic,
+  lostWorldWin,
   benched,
   chooseActive,
   damages,
@@ -73,6 +74,8 @@ function decide(state: GameState, cpuId: PlayerId): GameAction | null {
         return resolveSearch(turnOf(state, cpuId));
       }
       if (state.currentPlayer !== cpuId) return null;
+      const won = lostWorldWin(state, cpuId);
+      if (won) return won;
       const t = turnOf(state, cpuId);
       for (const step of STEPS) {
         const action = step(t);

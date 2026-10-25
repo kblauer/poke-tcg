@@ -134,22 +134,22 @@ describe('EX Ruby & Sapphire', () => {
 
   it('Lady Outing: up to 3 basic Energy cards, each of a different type', () => {
     const s = duel('charmander', 'onix');
-    ash(s).deck = ['fire', 'fire', 'water'].map((e, i) => ({ uid: `e${i}`, defId: id(e) }));
+    ash(s).deck = ['fire', 'fire', 'water', 'grass'].map((e, i) => ({ uid: `e${i}`, defId: id(e) }));
     const asked = act(s, 'ash', { type: 'PLAY_TRAINER', cardUid: hand(s, 'ash', trainer('ex1-83', 'Lady Outing')) });
     const one = resolve(asked, { cardUid: 'e0' });
     const options = pendingChoiceView(one, one.pendingChoice!);
-    expect(options).toMatchObject({ kind: 'pickFromDeck', options: [{ uid: 'e2' }] });
+    expect(options).toMatchObject({ kind: 'pickFromDeck', options: [{ uid: 'e3' }, { uid: 'e2' }] });
   });
 
   it('PokéNav: a Pokémon or Energy card from the top 3; the others back on top in the order chosen', () => {
     const s = duel('charmander', 'onix');
     s.cards['base1-94'] = trainer('base1-94', 'Potion');
-    ash(s).deck = [{ uid: 't1', defId: 'base1-94' }, { uid: 'p1', defId: id('charmander') }, { uid: 't2', defId: 'base1-94' }, { uid: 'x', defId: id('fire') }];
+    ash(s).deck = [{ uid: 't1', defId: 'base1-94' }, { uid: 'p1', defId: id('charmander') }, { uid: 'x', defId: id('fire') }, { uid: 't2', defId: 'base1-94' }];
     const asked = act(s, 'ash', { type: 'PLAY_TRAINER', cardUid: hand(s, 'ash', trainer('ex1-88', 'PokéNav')) });
     const took = resolve(asked, { cardUid: 'p1' });
     expect(ash(took).hand.map((c) => c.uid)).toContain('p1');
     expect(took.pendingChoice).toMatchObject({ kind: 'arrangeTop', count: 2 });
-    expect(ash(resolve(took, { order: ['t2', 't1'] })).deck.map((c) => c.uid)).toEqual(['t2', 't1', 'x']);
+    expect(ash(resolve(took, { order: ['x', 't1'] })).deck.map((c) => c.uid)).toEqual(['x', 't1', 't2']);
   });
 
   it('Professor Birch: draw until there are 6 cards in the hand', () => {
@@ -202,8 +202,8 @@ describe('EX Ruby & Sapphire', () => {
       put(s, 'ash', 'active', mon('ex1-7', 'Gardevoir', 'psychic', 100, [['Energy Burst', ['psychic'], 10]], { stage: 'stage2', ...power('Psy Shadow') }));
       ash(s).deck.push({ uid: 'psy', defId: id('psychic') });
       ash(s).bench[0]!.damage = 40;
-      const asked = usePower(s, 'active');
-      const attach = resolve(asked, { cardUid: 'psy' });
+      // The Psychic Energy is the only card it can take, so it's taken without asking (the same-card rule).
+      const attach = usePower(s, 'active');
       expect(attach.pendingChoice).toMatchObject({ kind: 'attachCard', counters: 2 });
       expect(ash(resolve(attach, { target: 0 })).discard.map((c) => c.uid)).toContain('psy');
     });
@@ -228,9 +228,10 @@ describe('EX Ruby & Sapphire', () => {
       const silcoon = mon('silcoon', 'Silcoon', G, 60, [], { stage: 'stage1', evolvesFrom: 'Wurmple' });
       s.cards.silcoon = silcoon;
       ash(s).deck = [{ uid: 's1', defId: 'silcoon' }, { uid: 's2', defId: 'silcoon' }];
-      const asked = attack(s, 0, { boost: true });
-      const one = resolve(asked, { cardUid: 's1' });
+      // Both options are Silcoons, so one is taken without asking (the same-card rule), and only one.
+      const one = attack(s, 0, { boost: true });
       expect(one.pendingChoice).toBeUndefined();
+      expect([ash(one).hand.filter((c) => c.defId === 'silcoon').length, ash(one).deck.filter((c) => c.defId === 'silcoon').length]).toEqual([1, 1]);
     });
   });
 

@@ -251,7 +251,7 @@ export const NEO1_TRAINERS: Record<string, TrainerEffect> = {
   // Pokémon March: the opponent, then you, may put a Basic Pokémon from the deck onto the Bench (unless it's full).
   'neo1-102': {
     play(ctx) {
-      const room = (p: typeof ctx.me) => openBenchSlot(p.bench, ctx.state.cards, ctx.state.stadium?.card) >= 0;
+      const room = (p: typeof ctx.me) => openBenchSlot(p, ctx.state.cards, ctx.state.stadium?.card) >= 0;
       const search = { source: 'Pokémon March', kind: 'pickFromDeck', filter: 'basic', toBench: true, optional: true, reveal: true } as const;
       if (room(ctx.opp)) ctx.state.pendingChoice = { ...search, player: ctx.opp.id, ...(room(ctx.me) && { then: ctx.me.id }) };
       else if (room(ctx.me)) ctx.pend(search);

@@ -82,7 +82,7 @@ describe('Gym Heroes Trainers', () => {
 
   it("Misty's Wrath: 2 of the top 7 cards go into the hand; the rest are discarded", () => {
     let s = duel('charmander', 'onix');
-    ash(s).deck = Array.from({ length: 9 }, (_, i) => card(`d${i}`, 'water'));
+    ash(s).deck = Array.from({ length: 9 }, (_, i) => card(`d${i}`, i === 0 ? 'fire' : 'water'));
     s = play(s, 'mistysWrath');
     expect(getPlayerView(s, 'ash').self.pendingChoice).toMatchObject({ kind: 'pickFromDeck', options: ash(s).deck.slice(0, 7) });
     s = resolve(resolve(s, 'ash', { cardUid: 'd3' }), 'ash', { cardUid: 'd5' });
@@ -92,11 +92,11 @@ describe('Gym Heroes Trainers', () => {
   it("Erika's Maids trades 2 cards from the hand for up to 2 Pokémon with Erika in their names from the deck", () => {
     let s = duel('charmander', 'onix');
     ash(s).hand = [card('h1', 'fire'), card('h2', 'water')];
-    ash(s).deck = [card('o1', 'erikasOddish'), card('o2', 'erikasGloom'), card('c1', 'charmander')];
+    ash(s).deck = [card('o1', 'erikasOddish'), card('o2', 'erikasGloom'), card('o3', 'erikasDratini'), card('c1', 'charmander')];
     s = play(s, 'erikasMaids', { handUids: ['h1', 'h2'] });
     s = resolve(s, 'ash', { cardUid: 'o2' });
     s = resolve(s, 'ash');
-    expect([ash(s).hand.map((c) => c.uid), ash(s).deck.map((c) => c.uid).sort()]).toEqual([['o2'], ['c1', 'h1', 'h2', 'o1']]);
+    expect([ash(s).hand.map((c) => c.uid), ash(s).deck.map((c) => c.uid).sort()]).toEqual([['o2'], ['c1', 'h1', 'h2', 'o1', 'o3']]);
   });
 
   it("Erika's Perfume puts Basic Pokémon from the opponent's hand onto their Bench", () => {

@@ -7,6 +7,7 @@ import {
   attachTarget,
   benchAttackers,
   benchBasic,
+  lostWorldWin,
   benched,
   bestAttack,
   chooseActive,
@@ -102,6 +103,8 @@ function decide(state: GameState, cpuId: PlayerId): GameAction | null {
         return resolveSearch(turnOf(state, cpuId));
       }
       if (state.currentPlayer !== cpuId) return null;
+      const won = lostWorldWin(state, cpuId);
+      if (won) return won;
       const t = turnOf(state, cpuId);
       for (const step of STEPS) {
         const action = step(t);
@@ -189,7 +192,7 @@ function gymSearch(t: Turn, unseen: CardInstance[]): GameAction | null {
     if (traded) return traded;
   }
   const basicInHand = t.me.hand.some((c) => isBasicPokemon(t.def(c)));
-  if (!basicInHand && openBenchSlot(t.me.bench, t.state.cards, t.state.stadium?.card) >= 0) {
+  if (!basicInHand && openBenchSlot(t.me, t.state.cards, t.state.stadium?.card) >= 0) {
     const manners = play(t, trainer(t, 'goodmanners'));
     if (manners) return manners;
   }
@@ -290,7 +293,7 @@ function develop(t: Turn): GameAction | null {
 
   // A Clefairy Doll only as a stand-in, so a Knock Out of the active can't leave nothing in play.
   const doll = t.me.hand.find((c) => isBenchable(t.def(c)) && isTrainerCard(t.def(c)));
-  const empty = openBenchSlot(t.me.bench, t.state.cards, t.state.stadium?.card);
+  const empty = openBenchSlot(t.me, t.state.cards, t.state.stadium?.card);
   if (empty >= 0 && doll && !hasBenched(t.me)) return { type: 'PLAY_BENCH', cardUid: doll.uid, slot: empty };
   return null;
 }

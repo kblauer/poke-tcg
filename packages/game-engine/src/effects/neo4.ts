@@ -15,7 +15,7 @@ import { pokemonOn, targetsIn, type AttackContext, type AttackEffect, type Attac
 import { hasType, isBasicPokemon, isPokemonCard, isTrainerCard, lookupCard } from '../cards.js';
 import { energyPool, isEnergyCardOf, isSpecialEnergy, newInPlay, type CardInstance, type PlayerState, type Target } from '../engine.js';
 import { shuffle } from '../rng.js';
-import { clearOnLeavingActive, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
+import { clearOnLeavingActive, devolvable, inPlayDef, openBenchSlot, pokemonName, removeTopEvolution } from '../status.js';
 import { pokemonTower } from '../trainers.js';
 import { benchTarget, discardToUse, energyCards, flipToInflict, flipToProtect, headsUntilTails, inflicts, opponentBenchChoice, opponentSwitches, perHeads, recoil } from './common.js';
 import { smokescreen } from './fossil.js';
@@ -71,7 +71,7 @@ function damageWithout(ctx: AttackContext, t: Target, amount: number): number {
 }
 
 /** An evolved Pokémon of the opponent's (Prehistoric Water). */
-const evolvedOpponents = (s: AttackSituation) => targetsIn(s.defender, s.opponentBench).filter((t) => pokemonOn(s.defender, s.opponentBench, t)!.evolvedFrom.length > 0);
+const evolvedOpponents = (s: AttackSituation) => targetsIn(s.defender, s.opponentBench).filter((t) => devolvable(s.cards, pokemonOn(s.defender, s.opponentBench, t)!));
 
 /** Basic or Baby Pokémon cards in a discard pile (Call Back, Guiding Flame). */
 const basicsIn = (s: Pick<AttackSituation, 'cards'>, pile: CardInstance[] = []) => pile.filter((c) => isBasicPokemon(lookupCard(s.cards, c.defId)));
@@ -150,7 +150,7 @@ export const NEO4: Record<string, Record<string, AttackEffect>> = {
   // Dark Houndoom
   'neo4-7': {
     'Eerie Howl': {
-      blocked: (s) => (openBenchSlot(s.opponentBench, s.cards, s.stadium) < 0 ? "Your opponent's Bench is full" : null),
+      blocked: (s) => (openBenchSlot({ bench: s.opponentBench, benchLimit: s.opponentBenchLimit }, s.cards, s.stadium) < 0 ? "Your opponent's Bench is full" : null),
       run: (ctx) => ctx.pend({ kind: 'oppHandToActive', source: 'Eerie Howl' }),
     },
     'Dark Fire': {
@@ -326,9 +326,8 @@ export const NEO4: Record<string, Record<string, AttackEffect>> = {
         if (t === undefined) return ctx.log('Your opponent has no Evolved Pokémon.');
         if (!ctx.flip()) return ctx.log('Prehistoric Water did nothing.');
         const p = pokemonOn(ctx.opp.active, ctx.opp.bench, t)!;
-        if (!p.evolvedFrom.length || !(t === 'active' ? reachesDefender(ctx) : ctx.canAffect(ctx.opp, p))) return;
-        const top = p.card;
-        p.card = p.evolvedFrom.pop()!;
+        if (!devolvable(ctx.state.cards, p) || !(t === 'active' ? reachesDefender(ctx) : ctx.canAffect(ctx.opp, p))) return;
+        const top = removeTopEvolution(ctx.state, ctx.opp, p);
         clearOnLeavingActive(p);
         [ctx.opp.deck, ctx.state.rngState] = shuffle([...ctx.opp.deck, top], ctx.state.rngState);
         ctx.log(`${lookupCard(ctx.state.cards, top.defId).name} was shuffled into the deck; it's ${pokemonName(ctx.state, p)} again.`, ctx.opp.id);
@@ -484,14 +483,14 @@ export const NEO4: Record<string, Record<string, AttackEffect>> = {
   // Dark Haunter
   'neo4-36': {
     'Call Back': {
-      blocked: (s) => (openBenchSlot(s.opponentBench, s.cards, s.stadium) < 0 ? "Your opponent's Bench is full" : null),
+      blocked: (s) => (openBenchSlot({ bench: s.opponentBench, benchLimit: s.opponentBenchLimit }, s.cards, s.stadium) < 0 ? "Your opponent's Bench is full" : null),
       choices(s): ChoiceSpec[] {
         const options = s.discardsLocked ? [] : basicsIn(s, s.opponentDiscard);
         return options.length ? [{ kind: 'oppDiscard', options, prompt: "Choose a Baby or Basic Pokémon from your opponent's discard pile to put onto their Bench" }] : [];
       },
       run(ctx) {
         const card = ctx.opp.discard.find((c) => c.uid === ctx.choices.oppDiscardUid);
-        const slot = openBenchSlot(ctx.opp.bench, ctx.state.cards, ctx.state.stadium?.card);
+        const slot = openBenchSlot(ctx.opp, ctx.state.cards, ctx.state.stadium?.card);
         if (!card || slot < 0 || !discardFree(ctx)) return ctx.log('Call Back did nothing.');
         ctx.opp.discard = ctx.opp.discard.filter((c) => c !== card);
         ctx.opp.bench[slot] = { card, evolvedFrom: [], damage: 10, energy: [], playedTurn: ctx.turn };
@@ -665,7 +664,7 @@ export const NEO4: Record<string, Record<string, AttackEffect>> = {
   // Light Ninetales
   'neo4-50': {
     'Guiding Flame': {
-      blocked: (s) => (openBenchSlot(s.ownBench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
+      blocked: (s) => (openBenchSlot({ bench: s.ownBench, benchLimit: s.ownBenchLimit }, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
       choices(s): ChoiceSpec[] {
         const options = basicsIn(s, s.ownDiscard);
         return options.length ? [{ kind: 'ownDiscard', min: 1, max: 1, options, prompt: 'Choose a Baby or Basic Pokémon from your discard pile to put onto your Bench' }] : [];
@@ -673,7 +672,7 @@ export const NEO4: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         ctx.hit(50);
         const card = ctx.me.discard.find((c) => c.uid === ctx.choices.discardUids?.[0]);
-        const slot = openBenchSlot(ctx.me.bench, ctx.state.cards, ctx.state.stadium?.card);
+        const slot = openBenchSlot(ctx.me, ctx.state.cards, ctx.state.stadium?.card);
         if (!card || slot < 0 || !discardFree(ctx)) return;
         ctx.me.discard = ctx.me.discard.filter((c) => c !== card);
         ctx.me.bench[slot] = newInPlay(card, ctx.turn);

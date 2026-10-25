@@ -12,13 +12,19 @@ const evolve = (s: GameState, name: string) => act(s, 'ash', { type: 'EVOLVE', c
 
 describe('Team Rocket Pokémon Powers', () => {
   it('Summon Minions: evolving into Dark Dragonite puts up to 2 Basic Pokémon from the deck onto the Bench', () => {
-    let s = evolve(duel('darkDragonair', 'onix'), 'darkDragonite');
+    // Different Basic Pokémon on top of the deck, so each pick is asked (the same-card rule).
+    const table = () => {
+      const t = duel('darkDragonair', 'onix');
+      ash(t).deck.unshift({ uid: 'sq', defId: id('squirtle') }, { uid: 'ox', defId: id('onix') });
+      return t;
+    };
+    let s = evolve(table(), 'darkDragonite');
     expect(getPlayerView(s, 'ash').self.pendingChoice).toMatchObject({ kind: 'pickFromDeck', optional: true });
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: ash(s).deck[0]!.uid });
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: ash(s).deck[0]!.uid });
     expect([ash(s).bench.filter(Boolean).length, s.pendingChoice]).toEqual([2, undefined]);
     // "Up to": taking none is fine.
-    const none = act(evolve(duel('darkDragonair', 'onix'), 'darkDragonite'), 'ash', { type: 'RESOLVE_CHOICE' });
+    const none = act(evolve(table(), 'darkDragonite'), 'ash', { type: 'RESOLVE_CHOICE' });
     expect([ash(none).bench.filter(Boolean).length, none.pendingChoice]).toEqual([0, undefined]);
   });
 
@@ -45,7 +51,8 @@ describe('Team Rocket Pokémon Powers', () => {
     ];
     s = evolve(s, 'darkSlowbro');
     expect(getPlayerView(s, 'ash').self.pendingChoice).toMatchObject({ kind: 'pickFromDiscard', options: [{ uid: 'c1' }, { uid: 'c2' }] });
-    s = act(act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'c1' }), 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'c2' });
+    // Squirtle is then the only Pokémon card left, taken without a question (the same-card rule).
+    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'c1' });
     // No Pokémon cards left, so it's over after 2.
     expect([ash(s).discard.map((c) => c.uid), s.pendingChoice]).toEqual([['f1'], undefined]);
   });
@@ -122,9 +129,9 @@ describe('Team Rocket Pokémon Powers', () => {
 
   it('Evolutionary Light takes an Evolution card from the deck', () => {
     const s = duel('darkDragonair', 'onix');
-    ash(s).deck.push({ uid: 'cm', defId: id('charmeleon') });
+    ash(s).deck.push({ uid: 'cm', defId: id('charmeleon') }, { uid: 'cz', defId: id('charizard') });
     const after = usePower(s, 'active');
-    expect(getPlayerView(after, 'ash').self.pendingChoice).toMatchObject({ kind: 'pickFromDeck', options: [{ uid: 'cm' }] });
+    expect(getPlayerView(after, 'ash').self.pendingChoice).toMatchObject({ kind: 'pickFromDeck', options: [{ uid: 'cz' }, { uid: 'cm' }] });
     expect(ash(act(after, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'cm' })).hand.map((c) => c.uid)).toContain('cm');
   });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CardDef } from '../cards.js';
 import { applyAction, type GameState } from '../index.js';
-import { act, attack, duel, endTurn, flips, mon, F } from './test-kit.js';
+import { act, attack, duel, endTurn, flips, id, mon, F } from './test-kit.js';
 
 const ash = (s: GameState) => s.players.ash!;
 const misty = (s: GameState) => s.players.misty!;
@@ -37,6 +37,15 @@ describe('Expedition Trainers', () => {
     expect(applyAction(endTurn(endTurn(after, 'ash'), 'misty'), 'ash', { type: 'PLAY_TRAINER', cardUid: second }).ok).toBe(true);
   });
 
+  it('no Supporter card on the first player\'s first turn (every set, agreed)', () => {
+    const s = duel('charmander', 'onix');
+    s.turn = 1;
+    const uid = hand(s, 'ash', oaksResearch);
+    expect(applyAction(s, 'ash', { type: 'PLAY_TRAINER', cardUid: uid })).toEqual({ ok: false, error: "The first player can't play a Supporter card on turn 1" });
+    s.turn = 2;
+    expect(applyAction(s, 'ash', { type: 'PLAY_TRAINER', cardUid: uid }).ok).toBe(true);
+  });
+
   it("Professor Oak's Research: shuffle the hand into the deck, then draw 5", () => {
     const s = duel('charmander', 'onix');
     ash(s).hand = [{ uid: 'a', defId: 'fire' }, { uid: 'b', defId: 'fire' }];
@@ -64,6 +73,8 @@ describe('Expedition Trainers', () => {
 
   it('Dual Ball: a Basic Pokémon (not a Baby) from the deck for each heads', () => {
     const s = duel('charmander', 'onix');
+    // A Squirtle among the Charmanders, so the Basic Pokémon are asked (the same-card rule).
+    ash(s).deck.unshift({ uid: 'deck-squirtle', defId: id('squirtle') });
     const after = play(flips(s, true, true), hand(s, 'ash', dualBall));
     expect(after.pendingChoice).toMatchObject({ kind: 'pickFromDeck', filter: 'basicNotBaby', count: 2 });
     expect(play(flips(s, false, false), hand(s, 'ash', dualBall)).pendingChoice).toBeUndefined();

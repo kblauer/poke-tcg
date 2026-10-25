@@ -3,7 +3,7 @@ import type { PokemonCardDef } from '../cards.js';
 import { attackEffect, type GameState, type InPlayPokemon, type Target } from '../index.js';
 import { EX_TEMPLATE_DATA } from './ex-template-data.js';
 import { ATTACK_TEMPLATES, matchTemplate, normText } from './ex-templates.js';
-import { attack, duel, flips, mon, C, FI, W } from './test-kit.js';
+import { attack, duel, flips, id, mon, C, FI, W } from './test-kit.js';
 
 const ash = (s: GameState) => s.players.ash!;
 const misty = (s: GameState) => s.players.misty!;
@@ -128,6 +128,7 @@ describe('EX shared wordings', () => {
   it('Call for Family (Beldum): a Basic Pokémon from the deck onto the Bench', () => {
     const s = duel('charmander', 'onix');
     put(s, 'ash', 'active', mon('ex5-54', 'Beldum', 'metal', 50, [['Call for Family', [C], 0]]), ['fire']);
+    ash(s).deck.push({ uid: 'sq', defId: id('squirtle') });
     const after = attack(s, 0);
     expect(after.pendingChoice).toMatchObject({ kind: 'pickFromDeck', filter: 'basic', toBench: true });
   });

@@ -12,7 +12,7 @@
 // opponent's choice; Retro Energy asks whether to use it.
 import { isBasicEnergy, isPokemonCard, isTrainerCard, lookupCard, type Attack, type EnergyType } from '../cards.js';
 import type { InPlayPokemon, PlayerState, Target } from '../engine.js';
-import { pokemonAt, powerActive } from '../powers.js';
+import { pokemonAt, powerActive, pokemonPower } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { addLog, effectId, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { swapActive, targetsOf, type EnergyEffect, type TrainerEffect, type TrainerSituation } from '../trainers.js';
@@ -25,7 +25,7 @@ const isBasic = (cards: TrainerSituation['cards'], c: { defId: string }) => isBa
 const attack = (name: string, cost: EnergyType[], damage: number, damageText: string | null, text: string): Attack => ({ name, cost, damage, damageText, text });
 
 /** Synchronicity: any Technical Machine can be attached to this Pokémon (while the Poké-Body works). */
-const synchronized = (s: TrainerSituation, p: InPlayPokemon) => !!powerEffect(effectId(p))?.synchronicity && powerActive(p, s.cards, [s.me, s.opp]);
+const synchronized = (s: TrainerSituation, p: InPlayPokemon) => !!pokemonPower(p)?.synchronicity && powerActive(p, s.cards, [s.me, s.opp]);
 
 /** A Technical Machine attached to one of the player's Pokémon `fits` allows (or one with Synchronicity), with its attack (in ecard3.ts, by this card's id). */
 const machine = (what: string, fits: (s: TrainerSituation, p: InPlayPokemon) => boolean, technicalMachine: Attack): TrainerEffect => {
@@ -229,7 +229,7 @@ export const ECARD3_TRAINERS: Record<string, TrainerEffect> = {
   'ecard3-141': {
     stadium: true,
     stadiumBlocked(me, cards) {
-      if (openBenchSlot(me.bench, cards) < 0) return 'Underground Lake: your Bench is full';
+      if (openBenchSlot(me, cards) < 0) return 'Underground Lake: your Bench is full';
       const fossil = me.discard.some((c) => ['Omanyte', 'Kabuto'].includes(lookupCard(cards, c.defId).name) && !isTrainerCard(lookupCard(cards, c.defId)));
       return fossil ? null : 'Underground Lake: no Omanyte or Kabuto in your discard pile';
     },
