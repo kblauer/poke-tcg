@@ -95,19 +95,22 @@ describe('Majestic Dawn powers', () => {
     expect(ash(attack(t, 0, undefined, 'misty')).active!.damage).toBe(30);
   });
 
-  it('Primal Shell: no Trainer cards for the opponent, but Supporters', () => {
+  it('Primal Shell: no Trainer cards for the opponent, Supporters too (agreed)', () => {
     const s = duel('charmander', 'onix');
     put(s, 'ash', 'active', big('Snorlax'));
     put(s, 'misty', 'active', mon('dp5-6', 'Kabutops', FI, 120, [], { stage: 'stage2', ...body('Primal Shell') }));
     const ball = hand(s, 'ash', trainer('dp1-110', 'Poké Ball'));
     expect(applyAction(s, 'ash', { type: 'PLAY_TRAINER', cardUid: ball })).toMatchObject({ ok: false, error: expect.stringMatching(/Primal Shell/) });
+    const rowan = hand(s, 'ash', trainer('dp1-112', 'Professor Rowan'));
+    expect(applyAction(s, 'ash', { type: 'PLAY_TRAINER', cardUid: rowan, choices: { handUids: [ball] } })).toMatchObject({ ok: false, error: expect.stringMatching(/Primal Shell/) });
   });
 
   it('Ancient Guidance: heads, a Fossil from the deck onto the Bench', () => {
     let s = duel('charmander', 'onix');
     put(s, 'ash', 'active', mon('dp5-67', 'Kabuto', FI, 80, [], { stage: 'stage1', ...body('Ancient Guidance') }));
-    s.cards = { ...s.cards, helix: mon('helix', 'Helix Fossil', C, 50, [], { trainerText: 'x' }) };
-    ash(s).deck = [{ uid: 'h', defId: 'helix' }, ...pile(3)];
+    s.cards = { ...s.cards, helix: mon('helix', 'Helix Fossil', C, 50, [], { trainerText: 'x' }), dome: mon('dome', 'Dome Fossil', C, 50, [], { trainerText: 'x' }) };
+    // Two different Fossils, so the one to bench is asked (the same-card rule).
+    ash(s).deck = [{ uid: 'h', defId: 'helix' }, { uid: 'd', defId: 'dome' }, ...pile(3)];
     s = act(flips(s, true), 'ash', { type: 'USE_POWER', source: 'active', choices: {} });
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'h' });
     expect(ash(s).bench[0]?.card.uid).toBe('h');
@@ -127,13 +130,13 @@ describe('Majestic Dawn attacks', () => {
     const s = duel('charmander', 'onix');
     put(s, 'ash', 'active', mon('dp5-97', 'Garchomp', C, 140, [['Restore', [], 0]], { stage: 'levelUp' }));
     s.cards = { ...s.cards, gabite: mon('gabite', 'Gabite', C, 80, [], { stage: 'stage1' }) };
-    ash(s).discard = [{ uid: 'g', defId: 'gabite' }, { uid: 'f1', defId: 'fire' }, { uid: 'f2', defId: 'fire' }];
+    // Two different Pokémon and Energy cards, so the Pokémon and the first Energy card are asked; the last one is taken for the player (the same-card rule).
+    ash(s).discard = [{ uid: 'g', defId: 'gabite' }, { uid: 'c', defId: id('charmander') }, { uid: 'f1', defId: 'fire' }, { uid: 'f2', defId: 'water' }];
     const asked = attack(s, 0);
     expect(asked.pendingChoice).toMatchObject({ kind: 'discardToBench', filter: 'restore' });
     for (const end of settles(asked)) expect(end.pendingChoice).toBeUndefined();
     let t = act(asked, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'g' });
     t = act(t, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'f1' });
-    t = act(t, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'f2' });
     expect([ash(t).bench[0]?.card.uid, ash(t).bench[0]?.energy.length, ash(t).bench[0]?.asBasic]).toEqual(['g', 2, true]);
   });
 
@@ -166,7 +169,8 @@ describe('Majestic Dawn Trainers and Energy', () => {
     let s = duel('charmander', 'onix');
     s.cards = { ...s.cards, 'dp5-92': energyCard('dp5-92', 'Call Energy') };
     put(s, 'ash', 'active', big('Snorlax'), ['dp5-92']);
-    ash(s).deck = pile(6);
+    // Different Basic Pokémon, so each is asked (the same-card rule).
+    ash(s).deck = [{ uid: 'deck-squirtle', defId: id('squirtle') }, { uid: 'deck-bulbasaur', defId: id('bulbasaur') }, ...pile(4)];
     misty(s).deck = pile(6);
     const uid = ash(s).active!.energy[0]!.uid;
     s = act(s, 'ash', { type: 'USE_ENERGY', cardUid: uid });

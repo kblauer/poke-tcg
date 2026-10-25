@@ -119,7 +119,8 @@ describe('Stormfront powers', () => {
     let s = duel('charmander', 'onix');
     const gigas = put(s, 'ash', 'active', mon('dp7-100', 'Regigigas', C, 150, [], { stage: 'levelUp', ...body('Sacrifice') }));
     gigas.damage = 90;
-    put(s, 'ash', 0, big('Snorlax'), ['water', 'water']);
+    // Two different Energy cards, so where they go is asked (the same-card rule).
+    put(s, 'ash', 0, big('Snorlax'), ['water', 'fire']);
     misty(s).prizes = pile(6);
     s = usePower(s, 'active', { to: 0 });
     expect([ash(s).bench[0], misty(s).prizes.length, ash(s).active!.damage]).toEqual([null, 5, 10]);
@@ -131,7 +132,8 @@ describe('Stormfront powers', () => {
     let s = duel('charmander', 'onix');
     put(s, 'ash', 'active', mon('dp7-1', 'Dusknoir', P, 120, [], { stage: 'stage2', ...body('Shadow Command') }));
     ash(s).hand = pile(6);
-    ash(s).deck = pile(5);
+    // A Water Energy drawn, so the cards to discard are asked (the same-card rule).
+    ash(s).deck = [{ uid: 'deck-water', defId: 'water' }, ...pile(4)];
     s = usePower(s, 'active');
     expect([ash(s).hand.length, ash(s).active!.damage]).toEqual([8, 20]);
     for (const end of settles(s)) expect(ash(end).hand).toHaveLength(6);
@@ -178,8 +180,9 @@ describe('Stormfront attacks', () => {
     let s = duel('charmander', 'onix');
     put(s, 'ash', 'active', mon('dp7-48', 'Sableye', 'darkness', 60, [['Impersonate', [], 0]]));
     put(s, 'misty', 'active', big('Lapras'));
-    s.cards = { ...s.cards, 'dp3-126': trainer('dp3-126', "Team Galactic's Mars") };
-    ash(s).deck = [{ uid: 'mars', defId: 'dp3-126' }, ...pile(5)];
+    s.cards = { ...s.cards, 'dp3-126': trainer('dp3-126', "Team Galactic's Mars"), 'dp1-112': trainer('dp1-112', 'Professor Rowan') };
+    // Two different Supporters, so the one to use is asked (the same-card rule).
+    ash(s).deck = [{ uid: 'mars', defId: 'dp3-126' }, { uid: 'rowan', defId: 'dp1-112' }, ...pile(5)];
     misty(s).hand = pile(2);
     const handBefore = ash(s).hand.length;
     s = attack(s, 0);
@@ -217,9 +220,83 @@ describe('Stormfront attacks', () => {
     const lvx = hand(s, 'ash', mon('dp7-99', 'Raichu', L, 110, [['Voltage Shoot', [C], 0]], { stage: 'levelUp', ...body('Link Lightning') }));
     s = act(s, 'ash', { type: 'EVOLVE', cardUid: lvx, target: 'active' });
     s = attack(s, 0, { oppTarget: 'active' });
-    expect(s.pendingChoice).toMatchObject({ kind: 'linkLightning', labels: ['Thunder'] });
-    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', count: 0 });
+    // The turn stays open for one more attack (not Voltage Shoot) or End Turn, and nothing else.
+    expect([s.currentPlayer, s.pendingChoice]).toEqual(['ash', undefined]);
+    expect(applyAction(s, 'ash', { type: 'ATTACK', attackIndex: 0, choices: { oppTarget: 'active' } })).toMatchObject({ ok: false, error: expect.stringMatching(/Link Lightning/) });
+    expect(applyAction(s, 'ash', { type: 'ATTACH_ENERGY', cardUid: ash(s).hand[0]!.uid, target: 'active' })).toMatchObject({ ok: false, error: expect.stringMatching(/Link Lightning/) });
+    const ended = act(s, 'ash', { type: 'END_TURN' });
+    expect([misty(ended).active!.damage, ended.currentPlayer]).toEqual([80, 'misty']);
+    s = attack(s, 1);
     expect([misty(s).active!.damage, s.currentPlayer]).toEqual([110, 'misty']);
+  });
+
+  it('Ramming Strike: coins until tails, and the player may start again with 2 damage counters on Mamoswine', () => {
+    let s = duel('charmander', 'onix');
+    put(s, 'ash', 'active', mon('dp7-21', 'Mamoswine', W, 140, [['Ramming Strike', [C], 0]], { stage: 'stage2' }), ['water']);
+    put(s, 'misty', 'active', big('Snorlax'));
+    decks(s);
+    s = attack(flips(s, true, true, false), 0);
+    expect(s.pendingChoice).toMatchObject({ kind: 'rammingStrike', heads: 2 });
+    s = act(flips(s, true, false), 'ash', { type: 'RESOLVE_CHOICE', count: 1 });
+    expect([ash(s).active!.damage, s.pendingChoice]).toMatchObject([20, { kind: 'rammingStrike', heads: 1 }]);
+    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', count: 0 });
+    expect([misty(s).active!.damage, s.currentPlayer]).toEqual([30, 'misty']);
+  });
+
+  it('Ramming Strike: no starting again when 2 damage counters would Knock Out Mamoswine', () => {
+    let s = duel('charmander', 'onix');
+    put(s, 'ash', 'active', mon('dp7-21', 'Mamoswine', W, 140, [['Ramming Strike', [C], 0]], { stage: 'stage2' }), ['water']).damage = 120;
+    put(s, 'misty', 'active', big('Snorlax'));
+    decks(s);
+    s = attack(flips(s, false), 0);
+    expect(applyAction(s, 'ash', { type: 'RESOLVE_CHOICE', count: 1 }).ok).toBe(false);
+    for (const end of settles(s)) expect([ash(end).active!.damage, end.currentPlayer]).toEqual([120, 'misty']);
+  });
+
+  it('Burst Ball: exactly 3 Energy cards, picked from any of the Pokémon', () => {
+    let s = duel('charmander', 'onix');
+    put(s, 'ash', 'active', mon('dp7-8', 'Raichu', L, 100, [['Burst Ball', [C], 100]], { stage: 'stage1' }), ['lightning', 'lightning', 'water']);
+    put(s, 'ash', 0, big('Snorlax'), ['fire']);
+    put(s, 'misty', 'active', big('Snorlax'));
+    decks(s);
+    const [, l2, w] = ash(s).active!.energy;
+    const fire = ash(s).bench[0]!.energy[0]!;
+    expect(applyAction(s, 'ash', { type: 'ATTACK', attackIndex: 0, choices: { energyUids: [l2!.uid, w!.uid] } }).ok).toBe(false);
+    s = attack(s, 0, { energyUids: [l2!.uid, w!.uid, fire.uid] });
+    expect([ash(s).active!.energy.length, ash(s).bench[0]!.energy.length, misty(s).active!.damage]).toEqual([1, 0, 100]);
+  });
+
+  it('Lifting: a basic Energy card for each Basic Pokémon it put onto the Bench, only for those', () => {
+    let s = duel('charmander', 'onix');
+    put(s, 'ash', 'active', mon('dp7-16', 'Drifblim', P, 100, [['Lifting', [C], 0]], { stage: 'stage1' }), ['water']);
+    put(s, 'ash', 0, big('Snorlax'));
+    put(s, 'misty', 'active', big('Snorlax'));
+    decks(s);
+    ash(s).deck = [{ uid: 'sq', defId: id('squirtle') }, { uid: 'ch', defId: id('charmander') }, { uid: 'w1', defId: 'water' }, { uid: 'f1', defId: 'fire' }];
+    s = attack(s, 0);
+    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'sq' });
+    expect(s.pendingChoice).toMatchObject({ kind: 'pickFromDeck', filter: 'basicEnergy', attachTo: 1 });
+    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'w1' });
+    // The Charmander was the only Basic left and the Fire Energy the only Energy, so they went without asking.
+    expect([ash(s).bench.map((p) => p?.energy.map((e) => e.uid)), s.currentPlayer]).toEqual([[[], ['w1'], ['f1'], undefined, undefined], 'misty']);
+  });
+
+  it('Evolutionary Gas: the attack can be used and does nothing', () => {
+    let s = duel('charmander', 'onix');
+    (put(s, 'ash', 'active', hitter(30), ['fighting']).effects ??= {}).fizzle = s.turn;
+    put(s, 'misty', 'active', big('Snorlax'));
+    decks(s);
+    s = attack(s, 0);
+    expect([misty(s).active!.damage, s.currentPlayer]).toEqual([0, 'misty']);
+  });
+
+  it('Pitch-Dark: no Trainer cards at all next turn, Supporters too', () => {
+    let s = duel('charmander', 'onix');
+    put(s, 'ash', 'active', mon('dp7-62', 'Gastly', P, 50, [['Pitch-Dark', [C], 0]]), ['water']);
+    put(s, 'misty', 'active', big('Snorlax'));
+    decks(s);
+    s = attack(s, 0);
+    expect(misty(s).noTrainersUntil).toBe(s.turn);
   });
 });
 
@@ -227,7 +304,8 @@ describe('Stormfront Trainers', () => {
   it("Poké Drawer +: 2 played at once find any 2 cards", () => {
     let s = duel('charmander', 'onix');
     ash(s).hand = [];
-    ash(s).deck = pile(5);
+    // A Water Energy in the deck, so the cards to take are asked (the same-card rule).
+    ash(s).deck = [{ uid: 'deck-water', defId: 'water' }, ...pile(4)];
     hand(s, 'ash', trainer('dp7-89', 'Poké Drawer +'));
     const first = hand(s, 'ash', trainer('dp7-89', 'Poké Drawer +'));
     s = act(s, 'ash', { type: 'PLAY_TRAINER', cardUid: first, choices: { pick: 1 } });

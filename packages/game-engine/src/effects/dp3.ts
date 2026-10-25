@@ -1,8 +1,9 @@
 // Secret Wonders (dp3) attack effects, by card id and attack name: the ones the shared wordings (ex-templates.ts) don't play.
-// From the text: "you may" discards and amounts are asked before the attack; Blast Burn and Dragon Finish discard the first
-// Energy cards that fit (nothing happens without enough); Psychic Cut asks how many face-down Prize cards to turn up; Ghost
+// From the text: "you may" discards and amounts are asked before the attack; the Energy cards Blast Burn, Blaze Roar, Flare
+// Tail and Dragon Finish discard are picked when the cards that fit differ (the same-card rule, agreed; nothing happens without
+// enough); Psychic Cut asks how many face-down Prize cards to turn up; Ghost
 // Head asks how many damage counters; Spine Missile's Pokémon are picked before the flips, the first ones for each heads;
-// Healing Milk heals one Pokémon, picked first; Rummage takes every Trainer card among the top 5; Hidden Power (Unown Z) moves
+// Healing Milk heals one Pokémon, picked first; Rummage's player picks any of the Trainer cards among the top 5 (agreed); Hidden Power (Unown Z) moves
 // every damage counter from the player's Unown; Re-creation and Trace copy with the copied attack's own questions, as Metronome;
 // Bring Down asks which Pokémon when several share the fewest HP left; Dig Trap's 6 counters are placed at the end of the
 // opponent's next turn, the Dugtrio still Active (betweenTurns); Tag Play (+) can hit only the opponent's Bench.
@@ -13,6 +14,7 @@ import { discardsLocked } from '../powers.js';
 import { nextRandom, shuffle } from '../rng.js';
 import { effectId, evolvedFromName, inPlayDef, pokemonName } from '../status.js';
 import { benchedSlots, damageOpponent, energyCards, inPlay, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
+import { discardOwnEnergy } from './dp1.js';
 import { discardAtRandom, energyAmount, EX1, restNextTurn } from './ex1.js';
 import { discardOwn, energyCardOf } from './ex2.js';
 import { EX3 } from './ex3.js';
@@ -104,9 +106,9 @@ export const DP3: Record<string, Record<string, AttackEffect>> = {
   'dp3-3': {
     'Blast Burn': {
       run(ctx) {
-        const gone = firstEnergy(ctx, ctx.flip() ? 2 : 4);
-        if (!gone) return ctx.log("Blast Burn did nothing: Charizard doesn't have enough Energy cards.");
-        discardOwn(ctx, gone);
+        const n = ctx.flip() ? 2 : 4;
+        if (energyCards(ctx.attacker).length < n) return ctx.log("Blast Burn did nothing: Charizard doesn't have enough Energy cards.");
+        discardOwnEnergy(ctx, n, 'Blast Burn');
         ctx.hit(120);
       },
     },
@@ -118,7 +120,7 @@ export const DP3: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         ctx.hit(60);
         if (ctx.choices.benchSlot !== undefined) ctx.damageBenched(ctx.opp, ctx.choices.benchSlot, 20);
-        if (!ctx.flip()) discardOwn(ctx, ctx.attacker.energy.filter((e) => energyCardOf(ctx.state.cards, e, 'fire')).slice(0, 2));
+        if (!ctx.flip()) discardOwnEnergy(ctx, 2, 'Blaze Roar', ['fire']);
       },
     },
   },
@@ -528,7 +530,7 @@ export const DP3: Record<string, Record<string, AttackEffect>> = {
     'Flare Tail': {
       run(ctx) {
         if (!ctx.flip()) return void ctx.hit(50);
-        discardOwn(ctx, ctx.attacker.energy.filter((e) => energyCardOf(ctx.state.cards, e, 'fire')).slice(0, 1));
+        discardOwnEnergy(ctx, 1, 'Flare Tail', ['fire']);
         ctx.hit(70);
       },
     },
@@ -613,16 +615,15 @@ export const DP3: Record<string, Record<string, AttackEffect>> = {
   },
   // Pinsir – Power Guillotine: base 10 unless both coins are heads.
   'dp3-59': { 'Power Guillotine': { run: (ctx) => void ctx.hit(ctx.flips(2) === 2 ? 100 : 10) } },
-  // Sableye – Rummage: every Trainer card among the top 5 into the hand, shown; the rest shuffled back. Shadow Sneak: 20 more
+  // Sableye – Rummage: any Trainer cards among the top 5 into the hand, shown; the rest shuffled back. Shadow Sneak: 20 more
   // when the players have different numbers of Prize cards left.
   'dp3-63': {
     Rummage: {
       run(ctx) {
-        const trainers = ctx.me.deck.slice(0, 5).filter((c) => isTrainerCard(lookupCard(ctx.state.cards, c.defId)));
-        ctx.me.deck = ctx.me.deck.filter((c) => !trainers.includes(c));
-        ctx.me.hand.push(...trainers);
+        const top = ctx.me.deck.slice(0, 5);
+        if (top.some((c) => isTrainerCard(lookupCard(ctx.state.cards, c.defId)))) return ctx.pend({ kind: 'pickFromTop', source: 'Rummage', looked: top.map((c) => c.uid), take: 5, trainer: true });
         [ctx.me.deck, ctx.state.rngState] = shuffle(ctx.me.deck, ctx.state.rngState);
-        ctx.log(trainers.length ? `Rummage: took ${trainers.map((c) => lookupCard(ctx.state.cards, c.defId).name).join(', ')}.` : 'Rummage found no Trainer cards.');
+        ctx.log('Rummage found no Trainer cards.');
       },
     },
     'Shadow Sneak': { run: (ctx) => void ctx.hit(ctx.me.prizes.length !== ctx.opp.prizes.length ? 40 : 20) },

@@ -61,6 +61,19 @@ export const effectId = (pokemon: InPlayPokemon) => pokemon.transformed ?? pokem
  * Whether the Pokémon has any Special Condition, Poisoned and Burned included. Pokémon Powers stop with any of them, also
  * the older ones printed "Asleep, Confused, or Paralyzed" (agreed with the user).
  */
+/**
+ * Every one of these cards is the same card: the same name, and attached the same way (a Pokémon attached as Energy, a converted
+ * basic Energy card). A choice among them makes no difference, so it's made for the player (agreed: the same-card rule).
+ */
+export const sameCards = (cards: CardLibrary, options: readonly CardInstance[]) =>
+  options.length > 0 &&
+  new Set(
+    options.map((c) => {
+      const d = lookupCard(cards, c.defId);
+      return `${d.name}|${d.kind === 'energy' && d.basic === false ? 's' : ''}|${c.provides ?? ''}|${c.converted ?? ''}|${c.windless ? 'w' : ''}`;
+    }),
+  ).size === 1;
+
 export const hasSpecialCondition = (pokemon: InPlayPokemon) => !!(pokemon.condition || pokemon.poison || pokemon.burned);
 
 /** Removes every Special Condition from the Pokémon, Poisoned and Burned included (Full Heal, Rest, Lum Berry…). Doesn't log. */
@@ -271,6 +284,11 @@ export function benchRoom(bench: readonly (InPlayPokemon | null)[], cards: CardL
  * ones that last while it stays in play (Leek Slap, Hyper Needle).
  */
 export function clearOnLeavingActive(pokemon: InPlayPokemon) {
+  // Dark Engage: its Darkness type ends when it leaves the Active Spot.
+  if (pokemon.darkEngaged) {
+    delete pokemon.typesCopied;
+    delete pokemon.darkEngaged;
+  }
   // Ion Coating ends when the Active Pokémon leaves the Active spot.
   for (const e of pokemon.energy) if (e.converted?.activeOnly) delete e.converted;
   clearSpecialConditions(pokemon);

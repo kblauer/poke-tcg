@@ -4,7 +4,7 @@ import type { AttackContext } from './attacks.js';
 import { hasType, holonEnergy, lookupCard, namesMatch, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { powerEffect } from './effects/index.js';
 import { counts, energyPool, type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
-import { addLog, clearSpecialConditions, effectId, evolvedFromName, flipCoin, hasSpecialCondition, isDelta, lakeTrio, pokemonName, inPlayDef, specialConditionLabel } from './status.js';
+import { addLog, clearSpecialConditions, effectId, evolvedFromName, flipCoin, hasSpecialCondition, isDelta, lakeTrio, pokemonName, inPlayDef, sameCards, specialConditionLabel } from './status.js';
 import { evolvesFromEevee, type PendingChoice, type PendingChoiceInput } from './trainers.js';
 
 /** Answers to a power's questions. Each question names the field it fills. */
@@ -1195,13 +1195,13 @@ function choiceSpecs(s: PowerSituation, c: PowerChoices): PowerChoiceSpec[] {
 }
 
 /** The answer when there's nothing to decide; undefined if the player must choose. */
-function autoAnswer(spec: PowerChoiceSpec): PowerChoices[keyof PowerChoices] | undefined {
+function autoAnswer(spec: PowerChoiceSpec, cards: CardLibrary): PowerChoices[keyof PowerChoices] | undefined {
   switch (spec.kind) {
     case 'handCard':
     case 'attachedEnergy':
     case 'discardCard':
-      // Identical cards (e.g. two Water Energy) make no difference.
-      return new Set(spec.options.map((e) => e.defId)).size === 1 && !spec.options.some((e) => e.provides) ? spec.options[0]!.uid : undefined;
+      // The same-card rule: identical cards (e.g. two Water Energy) make no difference.
+      return sameCards(cards, spec.options) ? spec.options[0]!.uid : undefined;
     case 'type':
       return undefined;
     default:
@@ -1229,7 +1229,7 @@ export function resolvePowerChoices(
     const open = specs.find((spec) => c[spec.field] === undefined);
     if (!open) return { choices: c };
     if (open.options.length === 0) return { error: `${open.prompt}: nothing to choose` };
-    const auto = autoAnswer(open);
+    const auto = autoAnswer(open, s.cards);
     if (auto === undefined) return { error: open.prompt, need: open };
     (c as Record<string, unknown>)[open.field] = auto;
   }

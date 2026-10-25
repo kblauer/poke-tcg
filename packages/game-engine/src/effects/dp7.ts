@@ -1,8 +1,9 @@
 // Stormfront (dp7) attack effects, by card id and attack name: the ones the shared wordings (ex-templates.ts) don't play.
-// From the text: the Energy cards discarded are the first that fit; Crash Chant discards the opponent's Pokémon Tools and
-// Technical Machines (up to 4) by itself; Burst Ball discards the Energy cards picked, then the attacker's first ones to make
-// up 3; Lifting attaches up to 2 basic Energy cards from the deck to the player's Benched Pokémon, picked one at a time;
-// Ramming Strike flips once until tails (no starting again); Dragon Beat and Bowed Whip discard the first Energy card;
+// From the text: the Energy cards discarded are picked by the attacking player when the cards that fit differ (the same-card
+// rule, agreed); Crash Chant discards the opponent's Pokémon Tools and Technical Machines (up to 4) by itself; Burst Ball's
+// player picks exactly 3 Energy cards (agreed); Lifting's basic Energy cards go only to the Pokémon it put onto the Bench, one
+// each (agreed); Ramming Strike's player may start again, with 2 damage counters on Mamoswine each time, unless they would
+// Knock it Out (agreed);
 // Ingrain's protection needs a Grass Energy card in the deck; Impersonate's Supporter is picked from the deck.
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { hasType, isBasicEnergy, isTrainerCard, lookupCard, namesMatch } from '../cards.js';
@@ -11,7 +12,7 @@ import { pokemonPower } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { evolvedFromName, inPlayDef, pokemonName } from '../status.js';
 import { benchedSlots, damageOpponent, energyCards, headsUntilTails, inPlay, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
-import { DP1 } from './dp1.js';
+import { DP1, discardOwnEnergy, removeDefenderEnergy } from './dp1.js';
 import { discardAtRandom, energyAmount } from './ex1.js';
 import { discardOwn, energyCardOf, EX2 } from './ex2.js';
 import { EX6 } from './ex6.js';
@@ -58,7 +59,7 @@ export const DP7: Record<string, Record<string, AttackEffect>> = {
   'dp7-3': {
     'Spreading Fire': {
       run(ctx) {
-        discardOwn(ctx, typed(ctx, 'fire').slice(0, 2));
+        discardOwnEnergy(ctx, 2, 'Spreading Fire', ['fire']);
         ctx.hit(80);
         ctx.benchDamage(ctx.opp, 20);
       },
@@ -111,18 +112,18 @@ export const DP7: Record<string, Record<string, AttackEffect>> = {
   // Raichu – Burst Ball: 3 Energy cards discarded from the player's Pokémon.
   'dp7-8': {
     'Burst Ball': {
-      choices: (s): ChoiceSpec[] => [{ kind: 'ownEnergyAny', options: [s.attacker, ...s.ownBench].flatMap((p) => (p ? energyCards(p) : [])), prompt: 'Burst Ball: choose 3 Energy cards to discard from your Pokémon' }],
+      choices(s): ChoiceSpec[] {
+        const options = [s.attacker, ...s.ownBench].flatMap((p) => (p ? energyCards(p) : []));
+        return [{ kind: 'ownEnergy', count: Math.min(3, options.length), options, prompt: 'Burst Ball: choose 3 Energy cards to discard from your Pokémon' }];
+      },
       run(ctx) {
         ctx.hit(100);
-        let left = 3;
         for (const p of inPlay(ctx.me)) {
-          const gone = p.energy.filter((e) => !e.provides && ctx.choices.energyUids?.includes(e.uid)).slice(0, left);
+          const gone = p.energy.filter((e) => !e.provides && ctx.choices.energyUids?.includes(e.uid));
           if (!gone.length) continue;
           p.energy = p.energy.filter((e) => !gone.includes(e));
           ctx.me.discard.push(...gone);
-          left -= gone.length;
         }
-        if (left > 0) discardOwn(ctx, energyCards(ctx.attacker).slice(0, left));
       },
     },
   },
@@ -207,8 +208,7 @@ export const DP7: Record<string, Record<string, AttackEffect>> = {
     Lifting: {
       run(ctx) {
         if (!ctx.me.deck.length) return ctx.log('Your deck is empty.');
-        ctx.pend({ kind: 'pickFromDeck', source: 'Lifting', filter: 'basic', toBench: true, optional: true, count: 2 });
-        (ctx.state.queuedChoices ??= []).push({ player: ctx.me.id, source: 'Lifting', kind: 'pickFromDeck', filter: 'basicEnergy', attach: true, attachOnly: { bench: true }, optional: true, count: 2 });
+        ctx.pend({ kind: 'pickFromDeck', source: 'Lifting', filter: 'basic', toBench: true, optional: true, count: 2, liftEnergy: true });
       },
     },
   },
@@ -248,16 +248,7 @@ export const DP7: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         ctx.hit(100);
         if (!ctx.flip()) return;
-        for (const p of inPlay(ctx.opp)) {
-          const card = energyCards(p)[0];
-          if (!card || !ctx.canAffect(ctx.opp, p)) continue;
-          if (p === ctx.opp.active) ctx.discardDefenderEnergy(card.uid);
-          else {
-            p.energy = p.energy.filter((e) => e !== card);
-            ctx.opp.discard.push(card);
-            ctx.log(`Discarded ${lookupCard(ctx.state.cards, card.defId).name} from ${pokemonName(ctx.state, p)}.`, ctx.opp.id);
-          }
-        }
+        for (const target of ['active', ...benchedSlots(ctx.opp.bench)] as Target[]) removeDefenderEnergy(ctx, 1, 'Dragon Beat', { target });
       },
     },
   },
@@ -274,7 +265,7 @@ export const DP7: Record<string, Record<string, AttackEffect>> = {
   },
   // Mamoswine – Ramming Strike: coins until tails, 30 for each heads. Parade: more for each Swinub, Piloswine and Mamoswine on the Bench.
   'dp7-21': {
-    'Ramming Strike': { run: (ctx) => void ctx.hit(30 * headsUntilTails(ctx)) },
+    'Ramming Strike': { run: (ctx) => ctx.pend({ kind: 'rammingStrike', source: 'Ramming Strike', heads: headsUntilTails(ctx) }) },
     Parade: {
       run(ctx) {
         const count = (name: string) => ctx.me.bench.filter((p) => p && namesMatch(inPlayDef(ctx.state.cards, p).name, name)).length;
@@ -287,7 +278,7 @@ export const DP7: Record<string, Record<string, AttackEffect>> = {
     'Shooting Fire': {
       choices: (s) => opponentTargets(s, "Choose one of your opponent's Pokémon to do 60 damage to"),
       run(ctx) {
-        discardOwn(ctx, typed(ctx, 'fire').slice(0, 2));
+        discardOwnEnergy(ctx, 2, 'Shooting Fire', ['fire']);
         damageOpponent(ctx, ctx.choices.oppTarget ?? 'active', 60);
       },
     },
@@ -300,12 +291,7 @@ export const DP7: Record<string, Record<string, AttackEffect>> = {
         const t = ctx.choices.oppTarget ?? 'active';
         damageOpponent(ctx, t, 30);
         const p = theirs(ctx, t);
-        const card = p && energyCards(p)[0];
-        if (!p || !card || !ctx.flip() || !ctx.canAffect(ctx.opp, p)) return;
-        if (t === 'active') return ctx.discardDefenderEnergy(card.uid);
-        p.energy = p.energy.filter((e) => e !== card);
-        ctx.opp.discard.push(card);
-        ctx.log(`Discarded ${lookupCard(ctx.state.cards, card.defId).name} from ${pokemonName(ctx.state, p)}.`, ctx.opp.id);
+        if (p && energyCards(p).length && ctx.flip()) removeDefenderEnergy(ctx, 1, 'Bowed Whip', { target: t });
       },
     },
   },
@@ -486,11 +472,11 @@ export const DP7: Record<string, Record<string, AttackEffect>> = {
   },
   // Duskull – Silhouette: a damage counter, 2 if it already has any.
   'dp7-59': { Silhouette: { run: (ctx) => putCounters(ctx, ctx.defender, ctx.defender.damage ? 2 : 1) } },
-  // Gastly – Pitch-Dark: no Trainer (Item) cards for the opponent next turn.
+  // Gastly – Pitch-Dark: no Trainer cards (Supporters and Stadiums too, agreed) for the opponent next turn.
   'dp7-62': {
     'Pitch-Dark': {
       run(ctx) {
-        ctx.opp.noItemsUntil = ctx.turn + 1;
+        ctx.opp.noTrainersUntil = ctx.turn + 1;
         ctx.log("Your opponent can't play Trainer cards next turn.", ctx.opp.id);
       },
     },

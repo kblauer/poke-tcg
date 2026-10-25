@@ -1,13 +1,14 @@
 // Majestic Dawn (dp5) attack effects, by card id and attack name: the ones the shared wordings (ex-templates.ts) don't play.
-// From the text: "you may" moves and discards are asked before the attack, and the Energy cards discarded are the first that
-// fit; Evolution Wish plays as Make a Wish (EX Hidden Legends Jirachi's, the usual limits) without its damage counter;
-// Fountain's cards go only to the Benched Pokémon; Mega Bravo counts the Fire Energy cards discarded; Hyper Whirlpool discards
-// the Defending Pokémon's first Energy cards; Restore's Pokémon plays as a Basic Pokémon, its Energy cards attached at once.
+// From the text: "you may" moves and discards are asked before the attack, and the Energy cards discarded (the attacker's and
+// the Defending Pokémon's) are picked when the cards that fit differ (the same-card rule, agreed); Evolution Wish plays as Make a Wish (EX Hidden Legends Jirachi's, the usual limits) without its damage counter;
+// Fountain's cards go only to the Benched Pokémon; Mega Bravo counts the Fire Energy cards discarded; Pearl Blast's own card is picked
+// too; Restore's Pokémon plays as a Basic Pokémon, its Energy cards attached at once.
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { isBasicEnergy, lookupCard, namesMatch } from '../cards.js';
 import { isSpecialEnergy, type InPlayPokemon, type Target } from '../engine.js';
 import { inPlayDef } from '../status.js';
 import { benchedSlots, energyCards, headsUntilTails, inPlay, opponentBenchChoice, same } from './common.js';
+import { discardOwnEnergy, removeDefenderEnergy } from './dp1.js';
 import { DP4 } from './dp4.js';
 import { energyAmount } from './ex1.js';
 import { discardOwn, energyCardOf } from './ex2.js';
@@ -68,14 +69,22 @@ export const DP5: Record<string, Record<string, AttackEffect>> = {
   // Palkia – Pearl Blast: may return an Energy card to the hand, then one of the Defending Pokémon's to the opponent's.
   'dp5-11': {
     'Pearl Blast': {
-      choices: (s): ChoiceSpec[] =>
+      choices: (s, c): ChoiceSpec[] =>
         energyCards(s.attacker).length && energyCards(s.defender).length
-          ? [may("Pearl Blast: return an Energy card on Palkia to your hand, and one on the Defending Pokémon to your opponent's?"), { kind: 'defenderEnergy', options: energyCards(s.defender), prompt: "Choose the Energy card to return to your opponent's hand" }]
+          ? [
+              may("Pearl Blast: return an Energy card on Palkia to your hand, and one on the Defending Pokémon to your opponent's?"),
+              ...(c.boost
+                ? ([
+                    { kind: 'ownEnergy', count: 1, options: energyCards(s.attacker), prompt: 'Choose the Energy card on Palkia to return to your hand' },
+                    { kind: 'defenderEnergy', options: energyCards(s.defender), prompt: "Choose the Energy card to return to your opponent's hand" },
+                  ] satisfies ChoiceSpec[])
+                : []),
+            ]
           : [],
       run(ctx) {
         ctx.hit(60);
         const theirs = ctx.defender.energy.find((e) => e.uid === ctx.choices.defenderEnergyUid);
-        const own = energyCards(ctx.attacker)[0];
+        const own = energyCards(ctx.attacker).find((e) => ctx.choices.energyUids?.includes(e.uid));
         if (!ctx.choices.boost || !own) return;
         ctx.attacker.energy = ctx.attacker.energy.filter((e) => e !== own);
         ctx.me.hand.push(own);
@@ -162,7 +171,7 @@ export const DP5: Record<string, Record<string, AttackEffect>> = {
       choices: (s): ChoiceSpec[] => (energyCards(s.defender).length ? [{ kind: 'defenderEnergy', options: energyCards(s.defender), prompt: 'Choose an Energy card to discard from the Defending Pokémon' }] : []),
       run(ctx) {
         ctx.hit(70);
-        discardOwn(ctx, energyCards(ctx.attacker).slice(0, 1));
+        discardOwnEnergy(ctx, 1, 'Kindle');
         if (ctx.choices.defenderEnergyUid) ctx.discardDefenderEnergy(ctx.choices.defenderEnergyUid);
       },
     },
@@ -183,7 +192,7 @@ export const DP5: Record<string, Record<string, AttackEffect>> = {
       choices: (s) => (energyCards(s.attacker).length >= 2 ? [may('Lightning Strike: discard 2 Energy cards for 90 damage?')] : []),
       run(ctx) {
         if (!ctx.choices.boost) return void ctx.hit(50);
-        discardOwn(ctx, energyCards(ctx.attacker).slice(0, 2));
+        discardOwnEnergy(ctx, 2, 'Lightning Strike');
         ctx.hit(90);
       },
     },
@@ -235,7 +244,7 @@ export const DP5: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         ctx.hit(60);
         const heads = headsUntilTails(ctx);
-        for (const card of energyCards(ctx.defender).slice(0, heads)) ctx.discardDefenderEnergy(card.uid);
+        removeDefenderEnergy(ctx, heads, 'Hyper Whirlpool');
       },
     },
   },
@@ -253,7 +262,7 @@ export const DP5: Record<string, Record<string, AttackEffect>> = {
     'Volt Crush': {
       run(ctx) {
         if (!ctx.flip()) return void ctx.hit(40);
-        discardOwn(ctx, energyCards(ctx.attacker).slice(0, 1));
+        discardOwnEnergy(ctx, 1, 'Volt Crush');
         ctx.hit(70);
       },
     },

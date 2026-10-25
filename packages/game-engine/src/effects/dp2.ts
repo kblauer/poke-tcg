@@ -1,8 +1,8 @@
 // Mysterious Treasures (dp2) attack effects, by card id and attack name: the ones the shared wordings (ex-templates.ts) don't play.
 // From the text: Charity Tail and Trick Play ask the opponent before the attack (beforeAttack: Charity Tail only with 2
 // or more cards in their hand); Trick Play's coin is the player's choice (heads first), Weakness and Resistance apply
-// unless the guess is right; Ice Bind asks the opponent after it (iceBind); Tail Influence takes the Defending Pokémon's
-// Energy cards in the order they were attached; Energy Cyclone asks how many Energy cards to show and takes them from the
+// unless the guess is right; Ice Bind asks the opponent after it (iceBind); Tail Influence's Energy cards are picked by the
+// attacking player when they differ (the same-card rule, agreed); Energy Cyclone asks how many Energy cards to show and takes them from the
 // hand in order; Defensive Claw heals the first damaged Teddiursa on the Bench; Bad Temper's 60 more is the Defending
 // Pokémon's next attack's, to the Active Pokémon; Persuade's new Defending Pokémon can't retreat during the opponent's next
 // turn; Pulse Barrier protects only when it discarded something; Hidden Power (Unown I) turns the Energy card face down
@@ -15,7 +15,7 @@ import { shuffle } from '../rng.js';
 import { evolvedFromName, inPlayDef, pokemonName } from '../status.js';
 import { attachFromDiscard } from './neo3.js';
 import { benchedSlots, damageOpponent, energyCards, headsUntilTails, inPlay, opponentBenchChoice, opponentTargets, same, targetOf } from './common.js';
-import { DP1, shuffleIntoDeck } from './dp1.js';
+import { DP1, removeDefenderEnergy, shuffleIntoDeck } from './dp1.js';
 import { discardAtRandom, energyAmount, restNextTurn } from './ex1.js';
 import { discardOwn, energyCardOf } from './ex2.js';
 import { EX13 } from './ex13.js';
@@ -111,12 +111,7 @@ export const DP2: Record<string, Record<string, AttackEffect>> = {
         ctx.hit(30);
         let tails = 0;
         while (!ctx.oppFlip()) tails++;
-        const defender = ctx.opp.active;
-        if (!tails || !defender || !ctx.canAffect(ctx.opp, defender)) return;
-        const gone = energyCards(defender).slice(0, tails);
-        defender.energy = defender.energy.filter((e) => !gone.includes(e));
-        ctx.opp.deck.push(...gone);
-        if (gone.length) ctx.log(`Put ${gone.length} Energy card${gone.length === 1 ? '' : 's'} on the bottom of the deck.`, ctx.opp.id);
+        removeDefenderEnergy(ctx, tails, 'Tail Influence', { toBottom: true });
       },
     },
     'Charity Tail': { askOpponent: 'discardTwo', run: (ctx) => void ctx.hit(ctx.choices.answer === 1 ? 10 : 80) },

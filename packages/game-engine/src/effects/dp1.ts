@@ -7,11 +7,12 @@
 // all attack damage, Staraptor's own included, off it until the end of its player's next turn; Metronome copies with the
 // copied attack's discards (as Aquapolis's Copy); Heave discards after the flips, but does nothing with fewer than 2 cards.
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
-import { hasType, lookupCard, type CardLibrary } from '../cards.js';
-import { counts, discardTheirEnergy, energyPool, PRIZE_COUNT, retreatCost, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
+import type { PendingChoice, PendingChoiceInput } from '../trainers.js';
+import { hasType, lookupCard, type CardLibrary, type EnergyType } from '../cards.js';
+import { counts, discardTheirEnergy, energyPool, isSpecialEnergy, PRIZE_COUNT, retreatCost, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { clearOnLeavingActive, devolvable, evolvedFromName, inPlayDef, pokemonName, removeTopEvolution } from '../status.js';
+import { clearOnLeavingActive, devolvable, evolvedFromName, inPlayDef, pokemonName, removeTopEvolution, sameCards } from '../status.js';
 import { amnesia } from './base1.js';
 import { benchedSlots, energyCanMove, energyCards, headsUntilTails, inPlay, leechSeed, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
 import { copyAttack } from './ecard2.js';
@@ -70,6 +71,49 @@ const fireInDiscard = (cards: CardLibrary, discard: CardInstance[]) =>
 
 /** How much Energy of `type` a Pokémon has (Dark Pulse). */
 const typedAmount = (cards: CardLibrary, p: InPlayPokemon, type: 'darkness') => energyPool(p, cards).filter((e) => counts(e, type)).length;
+
+/** A choice for the attacking player once the attack is over, after any already asked. */
+function askAfter(ctx: AttackContext, choice: PendingChoiceInput) {
+  if (ctx.state.pendingChoice) (ctx.state.queuedChoices ??= []).push({ ...choice, player: ctx.me.id } as PendingChoice);
+  else ctx.pend(choice);
+}
+
+/**
+ * `count` Energy cards discarded from the attacking Pokémon (only those of `types`, basic or Special, when given): picked by
+ * its player once the attack is over when the cards that fit differ (the same-card rule, agreed), otherwise the first ones.
+ * Returns how many go.
+ */
+export function discardOwnEnergy(ctx: AttackContext, count: number, source: string, types?: EnergyType[]) {
+  const fit = energyCards(ctx.attacker).filter((e) => !types || types.some((t) => energyCardOf(ctx.state.cards, e, t)));
+  const n = Math.min(count, fit.length);
+  if (!n) return 0;
+  if (fit.length <= count || sameCards(ctx.state.cards, fit)) discardOwn(ctx, fit.slice(0, count));
+  else askAfter(ctx, { kind: 'discardAttached', source, target: 'active', count, ...(types && { types }) });
+  return n;
+}
+
+/**
+ * `count` Energy cards off one of the opponent's Pokémon (the Defending one unless `target` says), discarded (or `toBottom`
+ * of their deck; `onlySpecial`: Special Energy cards only): picked by the attacking player once the attack is over when
+ * they differ (the same-card rule, agreed), otherwise the first ones.
+ */
+export function removeDefenderEnergy(ctx: AttackContext, count: number, source: string, { toBottom = false, onlySpecial = false, target = 'active' as Target } = {}) {
+  const p = target === 'active' ? ctx.opp.active : ctx.opp.bench[target];
+  const cards = p ? energyCards(p).filter((e) => !onlySpecial || isSpecialEnergy(ctx.state.cards, e)) : [];
+  if (count <= 0 || !p || !cards.length || !ctx.canAffect(ctx.opp, p)) return;
+  if (!(toBottom ? energyCanMove(ctx, p) : energyCanGo(ctx, p))) return;
+  if (cards.length > count && !sameCards(ctx.state.cards, cards)) return askAfter(ctx, { kind: 'removeEach', source, targets: Array<Target>(count).fill(target), ...(toBottom && { toBottom }), ...(onlySpecial && { onlySpecial }) });
+  const gone = cards.slice(0, count);
+  if (!toBottom && p === ctx.opp.active) return gone.forEach((e) => ctx.discardDefenderEnergy(e.uid));
+  p.energy = p.energy.filter((e) => !gone.includes(e));
+  const names = gone.map((e) => lookupCard(ctx.state.cards, e.defId).name).join(', ');
+  if (!toBottom) {
+    ctx.log(`Discarded ${names} from ${pokemonName(ctx.state, p)}.`, ctx.opp.id);
+    return discardTheirEnergy(ctx.state, ctx.opp, gone);
+  }
+  ctx.opp.deck.push(...gone.map(({ converted: _c, windless: _w, ...card }) => card));
+  ctx.log(`Put ${gone.length} Energy card${gone.length === 1 ? '' : 's'} on the bottom of the deck.`, ctx.opp.id);
+}
 
 /** A yes-or-no question asked before the attack ("you may …"): yes first. */
 const may = (prompt: string): ChoiceSpec => ({ kind: 'boost', options: [true, false], prompt });
@@ -385,8 +429,7 @@ export const DP1: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         ctx.hit(50);
         if (ctx.flip()) return;
-        const fire = ctx.attacker.energy.find((e) => energyCardOf(ctx.state.cards, e, 'fire'));
-        if (fire) discardOwn(ctx, [fire]);
+        discardOwnEnergy(ctx, 1, 'Blaze Up', ['fire']);
         ctx.benchDamage(ctx.opp, 10);
       },
     },

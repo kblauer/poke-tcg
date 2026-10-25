@@ -1,6 +1,7 @@
 // Legends Awakened (dp6) attack effects, by card id and attack name: the ones the shared wordings (ex-templates.ts) don't play,
 // and the two Technical Machines' (TCGdex has no attacks for them; from the printed cards: TS-1's Evoluter, TS-2's Devoluter).
-// From the text: "you may" choices are asked before the attack, and the Energy cards discarded are the first that fit; Dragon
+// From the text: "you may" choices are asked before the attack, and the Energy cards discarded are picked when the cards that
+// fit differ (the same-card rule, agreed); Dragon
 // Pump's 2 cards are picked after the damage; Aqua Pump discards the first Water Energy cards in the hand; Gliscor, Starmie
 // and Uxie go back only with a Benched Pokémon to take their place; Cradily heals on a Knock Out by itself; Tentacle Strike's
 // first card goes to the first Pokémon picked, its second to the second; Energy Dissolve discards the first Energy card;
@@ -13,6 +14,7 @@ import { shuffle } from '../rng.js';
 import { baseUid, devolvable, evolvedFromName, inPlayDef, pokemonName, removeTopEvolution } from '../status.js';
 import { BASE1 } from './base1.js';
 import { benchedSlots, damageOpponent, energyCards, inPlay, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
+import { discardOwnEnergy } from './dp1.js';
 import { DP2 } from './dp2.js';
 import { DP5 } from './dp5.js';
 import { energyAmount, EX1 } from './ex1.js';
@@ -66,7 +68,7 @@ const rain = (type: 'water' | 'fighting', source: string): AttackEffect => ({
 /** Discard 2 Energy of a type, then `then` (Major Earthquake, High Tide). */
 const discardTwo = (type: 'water' | 'fighting', damage: number, then: (ctx: AttackContext) => void): AttackEffect => ({
   run(ctx) {
-    discardOwn(ctx, typed(ctx, type).slice(0, 2));
+    discardOwnEnergy(ctx, 2, type === 'water' ? 'High Tide' : 'Major Earthquake', [type]);
     ctx.hit(damage);
     then(ctx);
   },
@@ -461,7 +463,7 @@ export const DP6: Record<string, Record<string, AttackEffect>> = {
     'Bright Flame': {
       run(ctx) {
         ctx.hit(60);
-        if (!ctx.flip()) discardOwn(ctx, typed(ctx, 'fire').slice(0, 2));
+        if (!ctx.flip()) discardOwnEnergy(ctx, 2, 'Bright Flame', ['fire']);
       },
     },
   },
@@ -737,9 +739,8 @@ export const DP6: Record<string, Record<string, AttackEffect>> = {
   'dp6-142': {
     'Cyber Shock': {
       run(ctx) {
-        const lightning = typed(ctx, 'lightning')[0];
-        const metal = typed(ctx, 'metal').find((e) => e !== lightning);
-        discardOwn(ctx, [lightning, metal].filter((e): e is NonNullable<typeof e> => !!e));
+        discardOwnEnergy(ctx, 1, 'Cyber Shock', ['lightning']);
+        discardOwnEnergy(ctx, 1, 'Cyber Shock', ['metal']);
         ctx.hit(80);
         ctx.inflict('paralyzed');
       },

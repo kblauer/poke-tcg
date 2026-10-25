@@ -2,11 +2,12 @@
 // Several are the engine's own rules, named by a flag: Regi Form and Battle Rush (attackError), Snow Veil (as WALL), Sunny Day,
 // Green Dignity, No Guard, Honeycomb Defender, Protect Wing and Poison Enzyme (attacks.ts), Fainting Spell and Ectoplasm
 // (resolveKnockouts), Darkness Drive (usePower), Heat Metal (engine.ts), Overeager (START_BATTLE), Link Lightning
-// (attackAction). The powers that work as their Pokémon evolves are asked then (mayUse): Emperor Aura, Blaze Dance, Sunshine
+// (attackAction: the turn stays open for any other of Raichu's attacks, its questions asked, or End Turn; agreed). The powers that work as their Pokémon evolves are asked then (mayUse): Emperor Aura, Blaze Dance, Sunshine
 // Song, Evolutionary Gas.
 // From the text: Shadow Command discards down to 6 by the player's picks; Super Connectivity takes a basic Lightning or Metal
 // Energy card; Cycler's card goes on top before the search; Sacrifice's Pokémon is Knocked Out (its Prize card taken) before
-// the Energy cards are picked, so they can be its; Darkness Drive and Fainting Spell's "you may" are always used.
+// the Energy cards are picked, so they can be its; Darkness Drive and Fainting Spell's "you may" are always used; Evolutionary
+// Gas's Pokémon can still attack, and the attack does nothing (agreed, `fizzle`).
 import { isBasicEnergy, lookupCard } from '../cards.js';
 import { afflictBetweenTurns, energyPool, isEnergyCardOf, resolveKnockouts, type Target } from '../engine.js';
 import { discardsLocked, ownTargets, pokemonAt, type PowerEffect } from '../powers.js';

@@ -108,6 +108,22 @@ describe('Secret Wonders attacks', () => {
   });
 });
 
+describe('Secret Wonders attacks, picked', () => {
+  it('Rummage: any of the Trainer cards among the top 5, picked one at a time (agreed)', () => {
+    let s = duel('charmander', 'onix');
+    put(s, 'ash', 'active', mon('dp3-63', 'Sableye', 'darkness', 60, [['Rummage', [C], 0]]), ['fighting']);
+    s.cards = { ...s.cards, potion: trainer('potion', 'Potion'), switch: trainer('switch', 'Switch'), bill: trainer('bill', 'Bill') };
+    ash(s).hand = [];
+    ash(s).deck = [{ uid: 'p', defId: 'potion' }, { uid: 'w', defId: 'switch' }, { uid: 'b', defId: 'bill' }, ...pile(s, 'ash', 5)];
+    s = attack(s, 0);
+    expect(s.pendingChoice).toMatchObject({ kind: 'pickFromTop', trainer: true, take: 5 });
+    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'p' });
+    expect(s.pendingChoice).toMatchObject({ kind: 'pickFromTop', take: 4 });
+    s = act(s, 'ash', { type: 'RESOLVE_CHOICE' });
+    expect([ash(s).hand.map((c) => c.uid), ash(s).deck.filter((c) => c.uid === 'w' || c.uid === 'b').length, s.currentPlayer]).toEqual([['p'], 2, 'misty']);
+  });
+});
+
 describe('Secret Wonders powers', () => {
   it('Miracle Aroma: heads, the player picks Asleep, Burned or Poisoned for the Defending Pokémon', () => {
     const s = duel('charmander', 'onix');
@@ -164,8 +180,11 @@ describe('Secret Wonders powers', () => {
     const east = put(s, 'ash', 'active', mon('dp3-8', 'Gastrodon East Sea', W, 100, [], { stage: 'stage1', ...body('Osmosis') }));
     east.damage = 50;
     put(s, 'ash', 0, mon('dp3-9', 'Gastrodon West Sea', FI, 100, [], { stage: 'stage1' }));
-    const after = usePower(s, 'active', { to: 0 });
+    const after = usePower(s, 'active', { to: 0, counters: 3 });
     expect([ash(after).active!.damage, ash(after).bench[0]!.damage]).toEqual([20, 30]);
+    // The player says how many (agreed).
+    const one = usePower(s, 'active', { to: 0, counters: 1 });
+    expect([ash(one).active!.damage, ash(one).bench[0]!.damage]).toEqual([40, 10]);
   });
 
   it('Teleportation: Gardevoir LV.X switched with a Benched Pokémon', () => {
@@ -234,7 +253,8 @@ describe('Secret Wonders Trainers', () => {
   it("Professor Oak's Visit: 3 cards drawn, then one from the hand on the bottom of the deck", () => {
     let s = duel('charmander', 'onix');
     ash(s).hand = [];
-    ash(s).deck = pile(s, 'ash', 6);
+    // A Water Energy among the cards drawn, so the card for the bottom is asked (the same-card rule).
+    ash(s).deck = [{ uid: 'deck-water', defId: 'water' }, ...pile(s, 'ash', 5)];
     s = act(s, 'ash', { type: 'PLAY_TRAINER', cardUid: hand(s, 'ash', trainer('dp3-122', "Professor Oak's Visit")) });
     expect(s.pendingChoice).toMatchObject({ kind: 'handToDeck', bottom: true });
     const card = ash(s).hand[0]!;

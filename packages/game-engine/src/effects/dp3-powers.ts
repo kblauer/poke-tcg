@@ -2,14 +2,14 @@
 // Several are the engine's own rules, named by a flag: Jamming (playTrainer), Fury Blaze (attacks.ts), Burning Coat, Phoenix Turn
 // and Energy Shift (Knock Outs), Cotton Spore, Pot Shell, Trash Cloak, Camouflage and Cotton Balloon (attacks.ts), Plant Cloak
 // (refreshHideout), Flame Dash and Aqua Recovery (asked as they're played, mayUse).
-// From the text: Osmosis moves as many damage counters as it can, up to 3, never enough to Knock Out the Gastrodon West Sea;
-// Balloon Sting always flips (it has no downside); Dark Engage lasts the turn, whichever Pokémon is Active (the type change
-// stays with the Pokémon that was Active when it was used); Thunder Rumble is once a turn for each Raikou; Teleportation
+// From the text: Osmosis's player says how many damage counters it moves, up to 3, never enough to Knock Out the Gastrodon
+// West Sea (agreed); Balloon Sting and Phoenix Turn always flip (agreed); Dark Engage lasts the turn, or until the Pokémon
+// that was Active when it was used leaves the Active Spot (agreed); Thunder Rumble is once a turn for each Raikou; Teleportation
 // switches Gardevoir with the Active Pokémon from the Bench, or with a Benched one from the Active Spot; KIND removes the
 // counters from the opponent's Active Pokémon; SET puts the Energy card picked on top of the deck.
-import { hasType, isBasicEnergy, lookupCard } from '../cards.js';
+import { hasType, isBasicEnergy, lookupCard, type CardLibrary } from '../cards.js';
 import { afflictBetweenTurns, counts, energyPool, isEnergyCardOf, opponentOf, type GameState, type InPlayPokemon, type PlayerId } from '../engine.js';
-import { discardsLocked, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
+import { discardsLocked, ownTargets, pokemonAt, type PowerChoiceSpec, type PowerEffect, type PowerSituation } from '../powers.js';
 import { addLog, inPlayDef, pokemonName } from '../status.js';
 import { swapActive } from '../trainers.js';
 import { inPlay, onlyActive, onlyBenched, POKE_BODY, targetOf } from './common.js';
@@ -87,11 +87,19 @@ export const DP3_POWERS: Record<string, PowerEffect> = {
       if (!source?.damage) return 'Gastrodon East Sea has no damage counters';
       return westSeas(s).length ? null : "You don't have Gastrodon West Sea in play that can take a damage counter";
     },
-    choices: (s) => [{ kind: 'ownPokemon', field: 'to', options: westSeas(s), prompt: 'Choose your Gastrodon West Sea to move damage counters to' }],
+    choices(s, c) {
+      const specs: PowerChoiceSpec[] = [{ kind: 'ownPokemon', field: 'to', options: westSeas(s), prompt: 'Choose your Gastrodon West Sea to move damage counters to' }];
+      const to = c.to === undefined ? null : pokemonAt(s.me, c.to);
+      const source = pokemonAt(s.me, s.source);
+      const most = to && source ? osmosisMost(s.cards, source, to) : 0;
+      if (most > 1) specs.push({ kind: 'counters', field: 'counters', options: Array.from({ length: most }, (_, i) => most - i), all: false, prompt: 'Osmosis: how many damage counters to move?' });
+      return specs;
+    },
     use(ctx) {
       const to = ctx.choices.to === undefined ? null : pokemonAt(ctx.me, ctx.choices.to);
       if (!to) return;
-      const n = Math.min(3, Math.floor(ctx.source.damage / 10), Math.floor((inPlayDef(ctx.state.cards, to).hp - to.damage - 1) / 10));
+      const most = osmosisMost(ctx.state.cards, ctx.source, to);
+      const n = Math.min(most, ctx.choices.counters ?? most);
       if (n <= 0) return;
       ctx.source.damage -= 10 * n;
       to.damage += 10 * n;
@@ -203,13 +211,14 @@ export const DP3_POWERS: Record<string, PowerEffect> = {
       ctx.log(`Put ${lookupCard(ctx.state.cards, card.defId).name} on top of the deck.`);
     },
   },
-  // Weavile – Dark Engage: the player's Active Pokémon is Darkness until the end of the turn.
+  // Weavile – Dark Engage: the player's Active Pokémon is Darkness until the end of the turn, or until it leaves the Active Spot.
   'dp3-40': {
     oncePerTurn: true,
     blocked: (s) => (s.me.active ? null : 'You have no Active Pokémon'),
     use(ctx) {
       if (!ctx.me.active) return;
       ctx.me.active.typesCopied = ['darkness'];
+      ctx.me.active.darkEngaged = true;
       ctx.log(`${pokemonName(ctx.state, ctx.me.active)} is Darkness type until the end of the turn.`);
     },
   },
@@ -329,6 +338,9 @@ export const DP3_POWERS: Record<string, PowerEffect> = {
     },
   },
 };
+
+/** The most damage counters Osmosis can move: up to 3, never enough to Knock Out the Gastrodon West Sea. */
+const osmosisMost = (cards: CardLibrary, from: InPlayPokemon, to: InPlayPokemon) => Math.max(0, Math.min(3, Math.floor(from.damage / 10), Math.floor((inPlayDef(cards, to).hp - to.damage - 1) / 10)));
 
 /** The player's Gastrodon West Sea that can take a damage counter without being Knocked Out (Osmosis). */
 function westSeas(s: PowerSituation) {

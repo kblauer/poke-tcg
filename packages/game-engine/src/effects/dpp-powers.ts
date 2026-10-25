@@ -3,7 +3,8 @@
 // (inPlayDef), Bind Eye (EVOLVE), Invisible Tentacles (attackError, attackAction), Revenge Seed (attacks.ts).
 // From the text: Darkrai's Enigma Berry (left out by TCGdex, from the printed card: a held item, kept as a Poké-Body) heals at
 // the end of the turn it was damaged by a Fighting Pokémon's attack, while it's still Active; Invisible Tentacles' card is
-// discarded once the attack is over; Dragon Spirit always takes the first Energy card in the discard pile; Healing Breath
+// discarded before the attack (agreed: beforeAttack's discardOne); Dragon Spirit's Energy card (basic or Special) is picked when
+// they differ (the same-card rule, agreed); Healing Breath
 // heals the Pokémon SP (G, GL, C, FB, E4, 4 in their names).
 import { hasType, lookupCard, namesMatch } from '../cards.js';
 import { type Target } from '../engine.js';
@@ -122,11 +123,8 @@ export const DPP_POWERS: Record<string, PowerEffect> = {
     ...POKE_BODY,
     onAttackDamage(ctx, pokemon) {
       if (ctx.opp.active !== pokemon || pokemon.damage >= inPlayDef(ctx.state.cards, pokemon).hp || discardsLocked([ctx.me, ctx.opp], ctx.state.cards)) return;
-      const card = ctx.opp.discard.find((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy');
-      if (!card) return;
-      ctx.opp.discard = ctx.opp.discard.filter((c) => c !== card);
-      pokemon.energy.push(card);
-      ctx.log(`Dragon Spirit: attached ${lookupCard(ctx.state.cards, card.defId).name} to ${pokemonName(ctx.state, pokemon)}.`, ctx.opp.id);
+      if (!ctx.opp.discard.some((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy')) return;
+      (ctx.state.queuedChoices ??= []).push({ player: ctx.opp.id, source: 'Dragon Spirit', kind: 'attachFromDiscard', count: 1, target: 'active', anyEnergy: true });
     },
   },
   // Cresselia – Lunar Aura: with Darkrai in play, a damage counter off it between turns.

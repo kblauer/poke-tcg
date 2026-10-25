@@ -31,6 +31,8 @@ function asked(s: GameState, kind: string, player = 'ash'): GameState[] {
 describe('pending choices terminate', () => {
   it('Computer Search: pickFromDeck', () => {
     const s = table();
+    // A card unlike the rest of the deck: with every card the same, the pick is made for the player.
+    ash(s).deck.unshift({ uid: 'deck-squirtle', defId: id('squirtle') });
     give(s, 'ash', 'potion', 'switch');
     const ends = asked(play(s, 'computersearch'), 'pickFromDeck');
     // Taken, or nothing taken: either way the deck is shuffled and the turn goes on.
@@ -50,7 +52,7 @@ describe('pending choices terminate', () => {
 
   it("Rocket's Sneak Attack: oppHand, also with no Trainer card to take", () => {
     const s = table();
-    give(s, 'misty', 'potion', 'water');
+    give(s, 'misty', 'potion', 'switch', 'water');
     asked(play(s, 'rocketSneakAttack'), 'oppHandTrainer');
     const none = table();
     give(none, 'misty', 'water');
@@ -72,7 +74,9 @@ describe('pending choices terminate', () => {
   });
 
   it("Misty's Wrath: pickFromTop (2 of 7)", () => {
-    const ends = asked(play(table(), 'mistysWrath'), 'pickFromTop');
+    const s = table();
+    ash(s).deck.unshift({ uid: 'deck-squirtle', defId: id('squirtle') });
+    const ends = asked(play(s, 'mistysWrath'), 'pickFromTop');
     for (const e of ends) expect(ash(e).hand).toHaveLength(2);
   });
 

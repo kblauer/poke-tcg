@@ -75,13 +75,14 @@ describe('EX Emerald', () => {
 
   it("Mr. Stone's Project: up to 2 basic Energy cards from the discard pile (agreed: basic Energy cards)", () => {
     let s = duel('charmander', 'onix');
-    s.players.ash!.discard.push({ uid: 'w1', defId: 'water' }, { uid: 'w2', defId: 'water' }, { uid: 'pk', defId: 'big-x' });
+    s.players.ash!.discard.push({ uid: 'w1', defId: 'water' }, { uid: 'f1', defId: 'fire' }, { uid: 'g1', defId: 'grass' }, { uid: 'pk', defId: 'big-x' });
     s.cards['big-x'] = big('X');
     const card = hand(s, 'ash', trainer('ex9-79', "Mr. Stone's Project"));
     s = act(s, 'ash', { type: 'PLAY_TRAINER', cardUid: card, choices: { pick: 1 } });
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'w1' });
-    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'w2' });
-    expect(ash(s).hand.map((c) => c.uid)).toEqual(expect.arrayContaining(['w1', 'w2']));
+    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'f1' });
+    expect(ash(s).hand.map((c) => c.uid)).toEqual(expect.arrayContaining(['w1', 'f1']));
+    expect(ash(s).discard.map((c) => c.uid)).toContain('g1');
   });
 
   it('Eruption: 20 more for each Energy card the players discard from the top of their decks', () => {

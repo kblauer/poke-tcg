@@ -7,7 +7,7 @@
 // From the text: Form Change finds any of the four Deoxys formes, Temperament any of the four Castform (one of each a turn for
 // the player); Speed Gain takes the first basic Fire or Lightning Energy cards picked; Regi Move, Regi Cycle and Regi Heal
 // discard their 2 cards first; Time Walk puts a card back only if a Pokémon was taken; Energy Reaction works by itself (it can
-// only help); Metal Chain is once a turn for each Beldum; ? asks the opponent the Pokémon's first type (the CPU at random).
+// only help); Metal Chain is once a turn for each Beldum; ? asks the opponent the Pokémon's type, either of two a right guess (agreed; the CPU at random).
 import { lookupCard, namesMatch, typesOf, type EnergyType } from '../cards.js';
 import { afflictBetweenTurns, opponentOf, type Target } from '../engine.js';
 import { discardsLocked, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
@@ -258,7 +258,7 @@ export const DP6_POWERS: Record<string, PowerEffect> = {
       const d = card && lookupCard(ctx.state.cards, card.defId);
       if (!card || d?.kind !== 'pokemon') return;
       const types = typesOf(d);
-      ctx.state.pendingChoice = { player: ctx.opp.id, source: '?: your opponent has put a Pokémon face down. Guess one of its types (wrong: they draw a card)', kind: 'guess', card, labels: TYPES.map((t) => t[0]!.toUpperCase() + t.slice(1)), answer: TYPES.indexOf(types[0]!), draw: 1, onlyWrong: true };
+      ctx.state.pendingChoice = { player: ctx.opp.id, source: '?: your opponent has put a Pokémon face down. Guess one of its types (wrong: they draw a card)', kind: 'guess', card, labels: TYPES.map((t) => t[0]!.toUpperCase() + t.slice(1)), answer: TYPES.indexOf(types[0]!), answers: types.map((t) => TYPES.indexOf(t)), draw: 1, onlyWrong: true };
     },
   },
   // Beldum – Metal Chain: a Metal Energy card attached to it from the hand, a Beldum from the deck onto the Bench (once a turn for each).

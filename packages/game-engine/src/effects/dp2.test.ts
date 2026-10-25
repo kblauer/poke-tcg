@@ -57,6 +57,8 @@ describe('Mysterious Treasures questions for the opponent', () => {
     const s = duel('charmander', 'onix');
     put(s, 'ash', 'active', mon('dp2-6', 'Bronzong', 'metal', 90, [], { stage: 'stage1', ...body('Miracle Oracle') }));
     put(s, 'misty', 0, mon('dp2-2', 'Alakazam', P, 100, [], { stage: 'stage2', ...body('Power Cancel') }));
+    // A card unlike the Charmanders in Ash's hand, so Miracle Oracle's discard is asked (the same-card rule).
+    hand(s, 'ash', s.cards.water!);
     misty(s).hand = [];
     const [a, b] = cards(s, 'misty', 2);
     let asked = act(s, 'ash', { type: 'USE_POWER', source: 'active', choices: {} });
@@ -81,6 +83,17 @@ describe('Mysterious Treasures questions for the opponent', () => {
     expect(misty(paid).active!.damage).toBe(10);
     expect(misty(act(asked, 'misty', { type: 'RESOLVE_CHOICE' })).active!.damage).toBe(80);
     for (const end of settles(asked)) expect(end.pendingChoice).toBeUndefined();
+  });
+
+  it('Tail Influence: an Energy card to the bottom of the deck for each tails, picked when they differ', () => {
+    let s = duel('charmander', 'onix');
+    put(s, 'ash', 'active', mon('dp2-3', 'Ambipom', C, 80, [['Tail Influence', [C], 30], ['Charity Tail', [C], 80]], { stage: 'stage1' }), ['grass']);
+    put(s, 'misty', 'active', big('Snorlax'), ['water', 'fire']);
+    s = attack(flips(s, false, true), 0);
+    expect(s.pendingChoice).toMatchObject({ kind: 'removeEach', toBottom: true, targets: ['active'] });
+    const water = misty(s).active!.energy[0]!.uid;
+    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: water });
+    expect([misty(s).deck.at(-1)?.uid, misty(s).active!.energy.length, s.currentPlayer]).toEqual([water, 1, 'misty']);
   });
 
   it("Trick Play: a wrong guess takes 50; a right one does 20 to Mr. Mime", () => {
@@ -280,7 +293,7 @@ describe('Mysterious Treasures attacks and Trainers', () => {
     let s = duel('charmander', 'onix');
     ash(s).hand = [];
     s.cards = { ...s.cards, pidgey: mon('pidgey', 'Pidgey', C, 40, []) };
-    ash(s).deck = [{ uid: 'g1', defId: 'grass' }, { uid: 'g2', defId: 'grass' }, { uid: 'p1', defId: 'pidgey' }, { uid: 'g3', defId: 'grass' }];
+    ash(s).deck = [{ uid: 'g1', defId: 'grass' }, { uid: 'g2', defId: 'grass' }, { uid: 'p1', defId: 'pidgey' }, { uid: 'c1', defId: id('charmander') }, { uid: 'g3', defId: 'grass' }];
     const quick = act(s, 'ash', { type: 'PLAY_TRAINER', cardUid: hand(s, 'ash', trainer('dp2-114', 'Quick Ball')) });
     expect(ash(quick).hand.map((c) => c.uid)).toEqual(['p1']);
     const dusk = act(s, 'ash', { type: 'PLAY_TRAINER', cardUid: hand(s, 'ash', trainer('dp2-110', 'Dusk Ball')) });

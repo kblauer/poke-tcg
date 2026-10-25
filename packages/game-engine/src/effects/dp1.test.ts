@@ -246,6 +246,8 @@ describe('Diamond & Pearl pending choices terminate', () => {
     const prize = duel('charmander', 'onix');
     put(prize, 'ash', 'active', mon('dp1-34', 'Noctowl', C, 90, [['See Beyond', [C], 0]], { stage: 'stage1' }), ['grass']);
     ash(prize).prizes = [{ uid: 'p1', defId: 'grass' }];
+    // A card unlike the Charmanders in the hand, so the hand card for the Prize is asked (the same-card rule).
+    ash(prize).hand.push({ uid: 'h-water', defId: 'water' });
     for (const end of settles(attack(prize, 0))) expect(end.pendingChoice).toBeUndefined();
 
     const fissure = duel('charmander', 'onix');

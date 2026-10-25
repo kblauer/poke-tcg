@@ -2,8 +2,8 @@
 // play; most promos reprint an earlier card and take its effects.
 // From the text: Roar of Time puts the 3 Pokémon picked on top after the shuffle; Reaper Pulse moves as many counters as it
 // can, up to 2; Learning levels up any of the player's Pokémon with a Pokémon LV.X of its name (the usual limits); Darkness
-// Lost sends what it Knocks Out to the Lost Zone (out of the game); Metallic Bolt and Dragon Rush discard the first Energy
-// cards that fit; Energy Flare moves any Energy cards among the player's Pokémon, one at a time.
+// Lost sends what it Knocks Out to the Lost Zone (out of the game); Metallic Bolt and Dragon Rush's Energy cards are picked
+// when the cards that fit differ (the same-card rule, agreed); Energy Flare moves any Energy cards among the player's Pokémon, one at a time.
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { isPokemonCard, lookupCard } from '../cards.js';
 import { type InPlayPokemon, type Target } from '../engine.js';
@@ -11,7 +11,7 @@ import { pokemonPower } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { inPlayDef, pokemonName } from '../status.js';
 import { benchedSlots, damageOpponent, energyCards, inPlay, opponentBenchChoice, opponentTargets, same } from './common.js';
-import { DP1 } from './dp1.js';
+import { DP1, discardOwnEnergy } from './dp1.js';
 import { DP2 } from './dp2.js';
 import { DP4 } from './dp4.js';
 import { DP6 } from './dp6.js';
@@ -193,7 +193,8 @@ export const DPP: Record<string, Record<string, AttackEffect>> = {
         const lightning = ctx.attacker.energy.find((e) => energyCardOf(ctx.state.cards, e, 'lightning'));
         const metal = ctx.attacker.energy.find((e) => e !== lightning && energyCardOf(ctx.state.cards, e, 'metal'));
         if (!ctx.choices.boost || !lightning || !metal) return void ctx.hit(60);
-        discardOwn(ctx, [lightning, metal]);
+        discardOwnEnergy(ctx, 1, 'Metallic Bolt', ['lightning']);
+        discardOwnEnergy(ctx, 1, 'Metallic Bolt', ['metal']);
         ctx.hit(120);
       },
     },
@@ -212,7 +213,7 @@ export const DPP: Record<string, Record<string, AttackEffect>> = {
     'Dragon Rush': {
       choices: (s) => opponentTargets(s, "Choose one of your opponent's Pokémon to do 80 damage to"),
       run(ctx) {
-        discardOwn(ctx, energyCards(ctx.attacker).slice(0, 2));
+        discardOwnEnergy(ctx, 2, 'Dragon Rush');
         damageOpponent(ctx, ctx.choices.oppTarget ?? 'active', 80);
         notNextTurn(ctx, 'Dragon Rush');
       },

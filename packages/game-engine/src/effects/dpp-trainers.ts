@@ -1,5 +1,5 @@
 // DP Black Star Promos (dpp) Trainer cards, by card id. Ultimate Zone is a Stadium, usable any number of times.
-// From the text: Ultimate Zone moves basic Energy cards (one at a time) from the Benched Pokémon to the Active Arceus.
+// From the text: Ultimate Zone moves Energy cards, basic or Special (agreed), one at a time, from the Benched Pokémon to the Active Arceus.
 import { namesMatch } from '../cards.js';
 import { afflictBetweenTurns } from '../engine.js';
 import { inPlayDef, pokemonName } from '../status.js';
@@ -32,13 +32,13 @@ export const DPP_TRAINERS: Record<string, TrainerEffect> = {
     blocked: (s) => (s.deckCount ? null : 'Your deck is empty'),
     play: (ctx) => ctx.pend({ kind: 'pickFromDeck', source: 'Beginning Door', filter: 'named', name: 'Arceus', reveal: true, optional: true }),
   },
-  // Ultimate Zone: any number of times a turn, basic Energy cards moved from the player's Benched Pokémon to their Active Arceus.
+  // Ultimate Zone: any number of times a turn, Energy cards moved from the player's Benched Pokémon to their Active Arceus.
   'dpp-DP55': {
     stadium: true,
     stadiumAnyTimes: true,
     stadiumBlocked: (me, cards) => (me.active && namesMatch(inPlayDef(cards, me.active).name, 'Arceus') ? null : 'Your Active Pokémon is not Arceus'),
     useStadium({ state, me }) {
-      state.pendingChoice = { player: me.id, source: 'Ultimate Zone', kind: 'moveAttached', target: 'active' };
+      state.pendingChoice = { player: me.id, source: 'Ultimate Zone', kind: 'moveAttached', target: 'active', anyEnergy: true };
     },
   },
 };

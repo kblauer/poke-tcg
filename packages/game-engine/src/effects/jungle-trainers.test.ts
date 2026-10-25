@@ -24,6 +24,7 @@ describe('Jungle Trainers', () => {
 
     it('must take a card when the deck has one it can', () => {
       const s = flips(duel('charmander', 'onix'), true);
+      ash(s).deck.push(pokemon('squirtle').card);
       const [ball] = give(s, 'ash', 'pokeball');
       expect(applyAction(play(s, ball!), 'ash', { type: 'RESOLVE_CHOICE' })).toEqual({ ok: false, error: 'Choose a card from your deck' });
     });

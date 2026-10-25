@@ -27,7 +27,7 @@ import {
 } from './engine.js';
 import { conditionBarred, conditionFree, discardsLocked, hasReact, holonWith, reactCount, energyKept, enervatingPollen, powerActive, prehistoricMemory, scaredBy, type Sides, pokemonPower } from './powers.js';
 import { shuffle } from './rng.js';
-import { addLog, baseUid, clearOnLeavingActive, effectId, evolvedFromName, isDelta, energyProtected, flipCoin, inPlayDef, lakeTrio, pokemonName, previousLevel, revealFaceDown, shapeshiftCard } from './status.js';
+import { addLog, baseUid, clearOnLeavingActive, effectId, evolvedFromName, isDelta, energyProtected, flipCoin, inPlayDef, lakeTrio, pokemonName, previousLevel, revealFaceDown, sameCards, shapeshiftCard } from './status.js';
 import type { PendingChoice, PendingChoiceInput } from './trainers.js';
 
 /** Answers to an attack's questions. Each field belongs to one kind of ChoiceSpec. */
@@ -482,7 +482,9 @@ export function attackError(s: AttackSituation, attackIndex: number): string | n
   const locked = working(s.defender)?.deadlock;
   if (locked && namesMatch(attackerDef.name, locked)) return `Deadlock: ${attackerDef.name} can't attack`;
   // Invisible Tentacles (the opponent's): attacking takes a card from the hand to discard.
-  if (!s.ownHand?.length && [s.defender, ...s.opponentBench].some((p) => p && working(p)?.invisibleTentacles)) return `Invisible Tentacles: ${attackerDef.name} can't attack without a card in your hand to discard`;
+  if (!s.ownHand?.length && s.attacker.effects?.tentaclesPaid !== s.turn && [s.defender, ...s.opponentBench].some((p) => p && working(p)?.invisibleTentacles)) return `Invisible Tentacles: ${attackerDef.name} can't attack without a card in your hand to discard`;
+  // Link Lightning: the second attack can't be Voltage Shoot again.
+  if (s.attacker.effects?.linkLightning === s.turn && attack.name === 'Voltage Shoot') return 'Link Lightning: use another of Raichu\'s attacks';
   // Slow Start: not until the opponent has 3 or fewer Prize cards left.
   if (working(s.attacker)?.slowStart && (s.opponentPrizes ?? 6) > 3) return `Slow Start: ${attackerDef.name} can't attack until your opponent has 3 or fewer Prize cards left`;
   // Mark of Antiquity: either Active Pokémon's stops the Pokémon it names, whoever's they are.
@@ -580,16 +582,17 @@ const FIELD = {
   amount: 'amount',
 } as const satisfies Record<ChoiceSpec['kind'], keyof AttackChoices>;
 
-/** The answer when there's nothing to decide (one option, or identical cards); undefined if the player must choose. */
-function autoAnswer(spec: ChoiceSpec): AttackChoices[keyof AttackChoices] | undefined {
+/**
+ * The answer when there's nothing to decide (one option, or identical cards: the same-card rule, sameCards); undefined if the
+ * player must choose. "Up to" picks of identical cards from a discard pile take the most.
+ */
+function autoAnswer(spec: ChoiceSpec, cards: CardLibrary): AttackChoices[keyof AttackChoices] | undefined {
   switch (spec.kind) {
-    case 'ownEnergy': {
-      const same = new Set(spec.options.map((e) => e.defId)).size <= 1;
-      return spec.options.length <= spec.count || same ? spec.options.slice(0, spec.count).map((e) => e.uid) : undefined;
-    }
+    case 'ownEnergy':
+      return spec.options.length <= spec.count || sameCards(cards, spec.options) ? spec.options.slice(0, spec.count).map((e) => e.uid) : undefined;
     case 'defenderEnergy':
     case 'pokemonEnergy':
-      return new Set(spec.options.map((e) => e.defId)).size === 1 ? spec.options[0]!.uid : undefined;
+      return sameCards(cards, spec.options) ? spec.options[0]!.uid : undefined;
     case 'type':
     case 'weaknessType':
     case 'deck':
@@ -602,14 +605,15 @@ function autoAnswer(spec: ChoiceSpec): AttackChoices[keyof AttackChoices] | unde
     case 'eitherDiscard':
       return spec.options.length === 1 ? [spec.options[0]!.uid] : undefined;
     case 'oppDiscard':
-      return spec.options.length === 1 ? spec.options[0]!.uid : undefined;
+      return sameCards(cards, spec.options) ? spec.options[0]!.uid : undefined;
     case 'amount':
       return spec.options.length === 1 ? spec.options[0] : undefined;
     case 'ownEnergyUpTo':
     case 'ownEnergyAny':
       return spec.options.length === 0 ? [] : undefined;
     case 'ownDiscard':
-      return spec.options.length <= spec.min ? spec.options.map((c) => c.uid) : undefined;
+      if (spec.options.length <= spec.min) return spec.options.map((c) => c.uid);
+      return sameCards(cards, spec.options) ? spec.options.slice(0, spec.max).map((c) => c.uid) : undefined;
     case 'opponentBenchMany':
       if (spec.repeat) return spec.options.length === 1 ? Array.from({ length: spec.count }, () => spec.options[0]!) : undefined;
       return spec.options.length <= spec.count ? spec.options : undefined;
@@ -691,7 +695,7 @@ export function resolveChoices(
     }
     const open = specs.find((spec) => c[FIELD[spec.kind]] === undefined);
     if (!open) return { choices: c };
-    const auto = autoAnswer(open);
+    const auto = autoAnswer(open, s.cards);
     if (auto === undefined) return { error: open.prompt, need: open };
     (c as Record<string, unknown>)[FIELD[open.kind]] = auto;
   }
@@ -808,6 +812,11 @@ export function performAttack(
     addLog(state, damage ? `${attackerDef.name} hurt itself for ${damage} damage.` : `The damage ${attackerDef.name} did to itself was prevented.`, me.id);
     return null;
   }
+  // Evolutionary Gas: the attack does nothing.
+  if (active(attacker.effects?.fizzle, state.turn)) {
+    addLog(state, `Evolutionary Gas: ${attack.name} did nothing.`, me.id);
+    return null;
+  }
   for (const [key, name] of [['sandAttack', 'Sand-attack'], ['smokescreen', 'Smokescreen']] as const) {
     if (active(attacker.effects?.[key], state.turn) && !flipCoin(state, name, me.id)) {
       addLog(state, `${attack.name} did nothing.`, me.id);
@@ -899,6 +908,16 @@ export function damageChosenBenched(state: GameState, slot: number, amount: numb
   for (const fn of later) fn();
 }
 
+/** Damage to the Defending Pokémon decided after the attack's own run (Ramming Strike), as part of that attack: as ctx.hit. */
+export function damageChosenActive(state: GameState, amount: number) {
+  const me = state.players[state.currentPlayer]!;
+  const opp = state.players[opponentOf(state, me.id)]!;
+  if (!me.active || !opp.active) return;
+  const later: (() => void)[] = [];
+  createContext(state, me, opp, {}, later, `${pokemonName(state, me.active)}'s attack`).hit(amount);
+  for (const fn of later) fn();
+}
+
 /**
  * The current player's Active Pokémon performs a copied attack chosen after its own attack began (Skill Hack: a card in the
  * opponent's hand), as part of that attack. The copied attack's own questions take their first answer that's allowed.
@@ -913,7 +932,7 @@ export function performCopiedAttack(state: GameState, attack: Attack, source: st
   for (let guard = 0; guard < 10; guard++) {
     const open = (effect?.choices?.(s, choices) ?? []).find((spec) => choices[FIELD[spec.kind]] === undefined);
     if (!open) break;
-    (choices as Record<string, unknown>)[FIELD[open.kind]] = autoAnswer(open) ?? firstAnswer(open);
+    (choices as Record<string, unknown>)[FIELD[open.kind]] = autoAnswer(open, s.cards) ?? firstAnswer(open);
   }
   // Its Energy discard, if any, still has to be done (the first Energy that fits).
   const discard = effect?.discard;

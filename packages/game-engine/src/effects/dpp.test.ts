@@ -50,10 +50,17 @@ describe('DP Black Star Promos', () => {
     decks(s);
     ash(s).hand = [];
     expect(applyAction(s, 'ash', { type: 'ATTACK', attackIndex: 0 })).toMatchObject({ ok: false, error: expect.stringMatching(/Invisible Tentacles/) });
+    // One card: discarded without asking, then the attack.
     ash(s).hand = pile(1);
+    const one = attack(s, 0);
+    expect([ash(one).hand.length, misty(one).active!.damage, one.currentPlayer]).toEqual([0, 20, 'misty']);
+    // Different cards: the player picks before the attack.
+    ash(s).hand = [];
+    hand(s, 'ash', s.cards.water!);
+    hand(s, 'ash', s.cards.fire!);
     s = attack(s, 0);
-    expect(s.pendingChoice).toMatchObject({ kind: 'discardFromHand', source: 'Invisible Tentacles' });
-    for (const end of settles(s)) expect([ash(end).hand.length, end.currentPlayer]).toEqual([0, 'misty']);
+    expect([s.pendingChoice, misty(s).active!.damage]).toMatchObject([{ kind: 'beforeAttack', question: 'discardOne', source: 'Invisible Tentacles' }, 0]);
+    for (const end of settles(s)) expect([ash(end).hand.length, misty(end).active!.damage, end.currentPlayer]).toEqual([1, 20, 'misty']);
   });
 
   it('Multitype: Arceus LV.X is its previous level\'s type', () => {
@@ -121,10 +128,10 @@ describe('DP Black Star Promos', () => {
     expect([ash(s).active!.condition, misty(s).active!.condition]).toEqual(['asleep', 'asleep']);
   });
 
-  it('Ultimate Zone: basic Energy cards moved from the Bench to the Active Arceus', () => {
+  it('Ultimate Zone: Energy cards, Special ones too, moved from the Bench to the Active Arceus', () => {
     let s = duel('charmander', 'onix');
     put(s, 'ash', 'active', mon('arceus', 'Arceus', C, 90, []));
-    put(s, 'ash', 0, big('Snorlax'), ['fire']);
+    put(s, 'ash', 0, big('Snorlax'), ['base1-96']);
     s.cards = { ...s.cards, 'dpp-DP55': trainer('dpp-DP55', 'Ultimate Zone') };
     s.stadium = { card: { uid: 'zone', defId: 'dpp-DP55' }, owner: 'misty' };
     s = act(s, 'ash', { type: 'USE_STADIUM' });

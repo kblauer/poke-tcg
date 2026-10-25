@@ -1,7 +1,7 @@
 // Great Encounters (dp4) attack effects, by card id and attack name: the ones the shared wordings (ex-templates.ts) don't play.
-// From the text: "you may" discards are asked before the attack; Flame Kick, Black Fire and Huntail's Threaten and Drop discard
-// the first Energy cards that fit; Twister and Arm Thrust discard the first Energy cards on the Defending Pokémon (Arm Thrust's
-// is picked); Guzzle attaches up to 2 basic Water Energy cards from the hand by itself; Pick Out turns over a random face-down
+// From the text: "you may" discards are asked before the attack; the Energy cards Flame Kick, Black Fire, Twister, Threaten and
+// Drop and Arm Thrust discard are picked by the attacking player when the cards that fit differ (the same-card rule, agreed);
+// Guzzle attaches up to 2 basic Water Energy cards from the hand by itself (the same card); Pick Out turns over a random face-down
 // Prize card of the side picked (they're face down, so picking one is blind); Smash Short shows the opponent's hand in the log;
 // Unown L's Hidden Power puts the cards back so the first picked is on top; Sweet Kiss asks the opponent.
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
@@ -12,7 +12,7 @@ import { nextRandom, shuffle } from '../rng.js';
 import { clearSpecialConditions, evolvedFromName, inPlayDef, pokemonName } from '../status.js';
 import { useSupporterEffect } from '../trainers.js';
 import { basicEnergyOn, benchedSlots, damageOpponent, energyCards, inPlay, lure, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
-import { DP1 } from './dp1.js';
+import { DP1, discardOwnEnergy, removeDefenderEnergy } from './dp1.js';
 import { DP3 } from './dp3.js';
 import { energyAmount } from './ex1.js';
 import { discardOwn, energyCardOf } from './ex2.js';
@@ -58,7 +58,7 @@ export const DP4: Record<string, Record<string, AttackEffect>> = {
     'Flame Kick': {
       choices: (s) => opponentTargets(s, "Choose one of your opponent's Pokémon to do 80 damage to"),
       run(ctx) {
-        discardOwn(ctx, typed(ctx, 'fire').slice(0, 2));
+        discardOwnEnergy(ctx, 2, 'Flame Kick', ['fire']);
         damageOpponent(ctx, ctx.choices.oppTarget ?? 'active', 80);
       },
     },
@@ -81,7 +81,7 @@ export const DP4: Record<string, Record<string, AttackEffect>> = {
         const slot = ctx.choices.ownBenchSlot;
         const p = slot !== undefined && slot >= 0 ? ctx.me.bench[slot] : null;
         if (!p) return;
-        discardOwn(ctx, energyCards(ctx.attacker).slice(0, 2));
+        discardOwnEnergy(ctx, 2, 'Lunar Dance');
         healUpTo(ctx, ctx.me, p, p.damage);
       },
     },
@@ -191,8 +191,7 @@ export const DP4: Record<string, Record<string, AttackEffect>> = {
       },
       run(ctx) {
         const pick = ctx.choices.amount ?? 0;
-        const card = pick ? typed(ctx, pick === 1 ? 'fire' : 'darkness')[0] : undefined;
-        if (card) discardOwn(ctx, [card]);
+        const card = pick ? discardOwnEnergy(ctx, 1, 'Black Fire', [pick === 1 ? 'fire' : 'darkness']) : 0;
         ctx.hit(card && pick === 2 ? 70 : 40);
         if (card && pick === 1) ctx.inflict('burned');
       },
@@ -280,7 +279,7 @@ export const DP4: Record<string, Record<string, AttackEffect>> = {
         const heads = ctx.flips(2);
         if (!heads) return ctx.log('Twister did nothing.');
         ctx.hit(50);
-        for (const card of energyCards(ctx.defender).slice(0, heads)) ctx.discardDefenderEnergy(card.uid);
+        removeDefenderEnergy(ctx, heads, 'Twister');
       },
     },
   },
@@ -358,8 +357,7 @@ export const DP4: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         if (!hasEnergy(ctx, ctx.attacker, 'darkness')) return void ctx.hit(30);
         ctx.hit(50);
-        const special = ctx.defender.energy.find((e) => isSpecialEnergy(ctx.state.cards, e));
-        if (special) ctx.discardDefenderEnergy(special.uid);
+        removeDefenderEnergy(ctx, 1, 'Threaten and Drop', { onlySpecial: true });
       },
     },
   },
@@ -436,13 +434,13 @@ export const DP4: Record<string, Record<string, AttackEffect>> = {
   },
   // Relicanth – Primal Calling: up to 3 Trainer cards with Fossil in their names from the deck, shown.
   'dp4-51': { 'Primal Calling': { run: (ctx) => void (ctx.me.deck.length && ctx.pend({ kind: 'pickFromDeck', source: 'Primal Calling', filter: 'fossil', count: 3, reveal: true, optional: true })) } },
-  // Seviper – Tail Blade: heads, no Trainer (Item) cards for the opponent next turn.
+  // Seviper – Tail Blade: heads, no Trainer cards (Supporters and Stadiums too, agreed) for the opponent next turn.
   'dp4-52': {
     'Tail Blade': {
       run(ctx) {
         ctx.hit(20);
         if (!ctx.flip()) return;
-        ctx.opp.noItemsUntil = ctx.turn + 1;
+        ctx.opp.noTrainersUntil = ctx.turn + 1;
         ctx.log("Your opponent can't play Trainer cards next turn.", ctx.opp.id);
       },
     },

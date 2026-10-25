@@ -1,5 +1,6 @@
 // Majestic Dawn (dp5) Poké-Powers and Poké-Bodies, by card id. Poké-Powers stop with any Special Condition, Poké-Bodies never do.
-// Several are the engine's own rules, named by a flag: Primal Shell (trainerError), Sunlight Veil (refreshHideout), Moonlight
+// Several are the engine's own rules, named by a flag: Primal Shell (trainerError: every Trainer card, Supporters and Stadiums
+// too, agreed), Sunlight Veil (refreshHideout), Moonlight
 // Veil (attacks.ts, retreatBodies), Disturbance Scales (attacks.ts); Unown Q's QUICK is an `equip` Tool (retreatBodies).
 // The powers that work as their Pokémon is put onto the Bench or levels up are asked then (mayUse): Freezing Screech,
 // Darkness Shade, Flame Charge, Sheet Lightning, Primal Swirl, Dragon Pulse, Mode Crash.

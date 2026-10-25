@@ -216,10 +216,23 @@ describe('Legends Awakened powers', () => {
     expect(ash(act(asked, 'misty', { type: 'RESOLVE_CHOICE', count: 2 })).hand.length).toBe(ash(s).hand.length + 1);
   });
 
+  it('?: either type of a Pokémon with two is a right guess (agreed)', () => {
+    const s = duel('charmander', 'onix');
+    put(s, 'ash', 'active', big('Snorlax'));
+    put(s, 'ash', 0, mon('dp6-82', 'Unown ?', P, 70, [], body('?')));
+    decks(s);
+    const dual = hand(s, 'ash', mon('dual', 'Magnemite', 'lightning', 50, [], { types: ['lightning', 'metal'] }));
+    const asked = usePower(s, 0, { cardUid: dual });
+    expect(asked.pendingChoice).toMatchObject({ kind: 'guess', answers: [3, 7] });
+    const handSize = ash(asked).hand.length;
+    expect([3, 7, 0].map((count) => ash(act(asked, 'misty', { type: 'RESOLVE_CHOICE', count })).hand.length)).toEqual([handSize, handSize, handSize + 1]);
+  });
+
   it('Speed Gain: coins until tails, basic Fire or Lightning Energy from the discard pile', () => {
     let s = duel('charmander', 'onix');
     put(s, 'ash', 'active', mon('dp6-14', 'Rayquaza', C, 100, [], body('Speed Gain')));
-    ash(s).discard = [{ uid: 'f1', defId: 'fire' }, { uid: 'l1', defId: 'lightning' }, { uid: 'w1', defId: 'water' }];
+    // A second Fire Energy, so the second card is still a choice (the same-card rule).
+    ash(s).discard = [{ uid: 'f1', defId: 'fire' }, { uid: 'f2', defId: 'fire' }, { uid: 'l1', defId: 'lightning' }, { uid: 'w1', defId: 'water' }];
     s = usePower(flips(s, true, true, false), 'active');
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'f1' });
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'l1' });

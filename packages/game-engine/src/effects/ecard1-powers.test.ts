@@ -60,13 +60,14 @@ describe('Expedition Poké-Powers and Poké-Bodies', () => {
   });
 
   it('Jet Stream: heads discards an Energy card from Blastoise, then one from the Defending Pokémon', () => {
-    const s = duel('charmander', 'onix', { defenderEnergy: ['fighting'] });
+    // Two different Energy cards on the Defending Pokémon, so the one to discard is asked (the same-card rule).
+    const s = duel('charmander', 'onix', { defenderEnergy: ['fighting', 'water'] });
     put(s, 'ash', 'active', blastoise, ['water', 'water']);
     const after = usePower(flips(s, true), 'active');
     expect(ash(after).active!.energy).toHaveLength(1);
     expect(after.pendingChoice).toMatchObject({ kind: 'removeEach', targets: ['active'] });
     const done = act(after, 'ash', { type: 'RESOLVE_CHOICE', cardUid: misty(after).active!.energy[0]!.uid });
-    expect(misty(done).active!.energy).toEqual([]);
+    expect(misty(done).active!.energy.map((e) => e.defId)).toEqual(['water']);
     expect(ash(usePower(flips(s, false), 'active')).active!.energy).toHaveLength(2);
   });
 
@@ -136,7 +137,8 @@ describe('Expedition Poké-Powers and Poké-Bodies', () => {
     expect(powerError(situation(s, 'active'))).toBeNull();
     ash(s).deck.unshift({ uid: 'deck-fire', defId: 'fire' });
     const after = usePower(s, 'active');
-    expect(after.pendingChoice).toMatchObject({ kind: 'pickFromDeck', filter: 'energyType', type: 'fire', attach: true });
+    // The deck's only Fire Energy card is taken for the player (the same-card rule): only its Pokémon is asked.
+    expect(after.pendingChoice).toMatchObject({ kind: 'attachCard', card: { uid: 'deck-fire' }, only: { bench: true } });
     ash(s).active!.energy = [{ uid: 'f', defId: 'fire' }];
     expect(powerError(situation(s, 'active'))).toBe("Your opponent doesn't have more Energy cards attached than you");
   });

@@ -63,8 +63,9 @@ describe('Great Encounters attacks', () => {
   it('Carry In: a Pokémon Tool, a Supporter and a basic Energy card from the deck, and it ends', () => {
     let s = duel('charmander', 'onix');
     put(s, 'ash', 'active', mon('dp4-21', 'Lapras', W, 80, [['Carry In', [W], 0]]), ['water']);
-    s.cards = { ...s.cards, 'dp4-97': trainer('dp4-97', 'Amulet Coin'), 'dp1-112': trainer('dp1-112', 'Professor Rowan') };
-    ash(s).deck = [{ uid: 'coin', defId: 'dp4-97' }, { uid: 'rowan', defId: 'dp1-112' }, { uid: 'w', defId: 'water' }, ...pile(3)];
+    s.cards = { ...s.cards, 'dp4-97': trainer('dp4-97', 'Amulet Coin'), 'dp4-99': trainer('dp4-99', 'Leftovers'), 'dp1-112': trainer('dp1-112', 'Professor Rowan'), 'dp1-113': trainer('dp1-113', 'Rival') };
+    // Two different cards of each kind, so each is asked (the same-card rule).
+    ash(s).deck = [{ uid: 'coin', defId: 'dp4-97' }, { uid: 'leftovers', defId: 'dp4-99' }, { uid: 'rowan', defId: 'dp1-112' }, { uid: 'rival', defId: 'dp1-113' }, { uid: 'w', defId: 'water' }, { uid: 'f', defId: 'fire' }, ...pile(3)];
     s = attack(s, 0);
     expect(s.pendingChoice).toMatchObject({ source: 'Carry In', filter: 'tool' });
     for (const end of settles(s)) expect(end.pendingChoice).toBeUndefined();
@@ -143,7 +144,8 @@ describe('Great Encounters powers', () => {
     put(s, 'ash', 'active', mon('dp4-49', 'Porygon2', C, 70, [], { stage: 'stage1', ...body('Download') }));
     ash(s).hand = [];
     const oak = hand(s, 'ash', trainer('dp3-122', "Professor Oak's Visit"));
-    ash(s).deck = pile(6);
+    // A Water Energy among the cards drawn, so the card for the bottom is asked (the same-card rule).
+    ash(s).deck = [{ uid: 'deck-water', defId: 'water' }, ...pile(5)];
     s = usePower(s, 'active');
     expect(s.pendingChoice).toMatchObject({ kind: 'supernatural', ownHand: true });
     for (const end of settles(s)) expect(end.pendingChoice).toBeUndefined();
@@ -156,7 +158,8 @@ describe('Great Encounters powers', () => {
     let s = duel('charmander', 'onix');
     put(s, 'ash', 'active', mon('togetic', 'Togetic', C, 70, [], { stage: 'stage1' }));
     put(s, 'ash', 0, big('Lapras'));
-    ash(s).deck = [{ uid: 'w1', defId: 'water' }, { uid: 'w2', defId: 'water' }, ...pile(5)];
+    // Two different Energy cards, so the first is asked; the last one left is taken for the player (the same-card rule).
+    ash(s).deck = [{ uid: 'w1', defId: 'water' }, { uid: 'w2', defId: 'fire' }, ...pile(5)];
     const togekiss = hand(s, 'ash', mon('dp4-11', 'Togekiss', C, 120, [], { stage: 'stage2', evolvesFrom: 'Togetic', ...body('Serene Grace') }));
     s = act(s, 'ash', { type: 'EVOLVE', cardUid: togekiss, target: 'active' });
     expect(s.pendingChoice).toMatchObject({ kind: 'mayUse', power: 'sereneGrace' });
@@ -164,7 +167,7 @@ describe('Great Encounters powers', () => {
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', count: 0 });
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'w1' });
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', target: 0 });
-    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'w2' });
+    // The Fire Energy, the only card left, needs only its Pokémon.
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', target: 'active' });
     if (s.pendingChoice) s = act(s, 'ash', { type: 'RESOLVE_CHOICE' });
     expect([ash(s).bench[0]!.energy.length, ash(s).active!.energy.length, s.pendingChoice]).toEqual([1, 1, undefined]);
@@ -256,8 +259,9 @@ describe('Great Encounters Trainers', () => {
 
   it('Premier Ball: a Pokémon LV.X from the deck', () => {
     let s = duel('charmander', 'onix');
-    s.cards = { ...s.cards, lvx: mon('lvx', 'Dialga', 'metal', 110, [], { stage: 'levelUp' }) };
-    ash(s).deck = [{ uid: 'lvx-1', defId: 'lvx' }, ...pile(3)];
+    s.cards = { ...s.cards, lvx: mon('lvx', 'Dialga', 'metal', 110, [], { stage: 'levelUp' }), lvx2: mon('lvx2', 'Palkia', W, 120, [], { stage: 'levelUp' }) };
+    // Two different Pokémon LV.X, so the one to take is asked (the same-card rule).
+    ash(s).deck = [{ uid: 'lvx-1', defId: 'lvx' }, { uid: 'lvx-2', defId: 'lvx2' }, ...pile(3)];
     s = act(s, 'ash', { type: 'PLAY_TRAINER', cardUid: hand(s, 'ash', trainer('dp4-101', 'Premier Ball')), choices: { pick: 0 } });
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'lvx-1' });
     expect(ash(s).hand.some((c) => c.uid === 'lvx-1')).toBe(true);

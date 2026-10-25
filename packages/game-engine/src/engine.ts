@@ -1,10 +1,10 @@
 /// <reference path="./globals.d.ts" />
 import { applyWeaknessResistance, attackAsks, attackError, attackSituation, checkAttack, nextAttackChoice, performAttack, recallsAttacks, usableAttacks, type AttackChoices } from './attacks.js';
 import { attachBlocked, discardsLocked, energyFromHand, evolutionBlocked, primalBlock, retreatBodies, guardedBy, spiraledBy, bindingAura, conditionBarred, conditionFree, holonWith, miraculousWind, offerChainReaction, playedFromHand, pokemonAt, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, primalLocked, trainersDusted, trainersBlocked, usePower, powerCanceller, zoomed, type PowerChoices, type PowerEffect, pokemonPower } from './powers.js';
-import { evolvesFromEevee, evolveWith, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
+import { evolvesFromEevee, evolveWith, pendingChoiceView, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
 import { conditionProof, hasOwner, hasType, holonEnergy, namesMatch, isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
-import { addLog, baseUid, clearOnLeavingActive, clearSpecialConditions, effectId, evolvedFromName, isDelta, evolvedHook, hasSpecialCondition, shapeshiftCard, flipCoin, inPlayDef, logTool, openBenchSlot, pokemonName, revealFaceDown, type LogEntry } from './status.js';
+import { addLog, baseUid, clearOnLeavingActive, clearSpecialConditions, effectId, evolvedFromName, isDelta, evolvedHook, hasSpecialCondition, shapeshiftCard, flipCoin, inPlayDef, logTool, openBenchSlot, pokemonName, revealFaceDown, sameCards, type LogEntry } from './status.js';
 import { shuffle } from './rng.js';
 import type { CpuDifficulty } from './cpu/index.js';
 
@@ -224,6 +224,12 @@ export interface PokemonEffects {
   magicalStep?: boolean;
   /** Night Spin: nothing from the opponent's Pokémon with 2 Energy or less attached, through this turn. */
   nightSpin?: number;
+  /** Evolutionary Gas: its attacks through this turn do nothing (they can still be used). */
+  fizzle?: number;
+  /** Link Lightning: the turn it used Voltage Shoot and may attack once more. */
+  linkLightning?: number;
+  /** Invisible Tentacles: the turn its player discarded a card for the attack under way. */
+  tentaclesPaid?: number;
   /** The turn it was attacked with Night Eyes (Perish Song); benching or evolving it ends this. */
   nightEyes?: number;
   /** Attacks do nothing to it but damage, through this turn (Light Wave). */
@@ -265,6 +271,8 @@ export interface InPlayPokemon {
   paralyzedTurn?: number;
   /** Darkness Lost: Knocked Out by its damage this turn, it goes to the Lost Zone. */
   lostZone?: number;
+  /** Dark Engage: its `typesCopied` lasts only while it's the Active Pokémon (clearOnLeavingActive). */
+  darkEngaged?: boolean;
   /** Poison damage between turns: 10, or 20 from Toxic. 0 or missing = not Poisoned. */
   poison?: number;
   /** Burned: 20 damage between turns, then a flip; heads cures it. Missing = not Burned. */
@@ -672,12 +680,47 @@ export function captureCheckup<T>(run: () => T): { result: T; checkup: Checkup |
  * Never mutates the input. Runs identically on client (preview) and server (authority).
  */
 export function applyAction(prev: GameState, playerId: PlayerId, action: GameAction): ActionResult {
-  const result = act(prev, playerId, action);
+  let result = act(prev, playerId, action);
   if (result.ok) {
     energyEvolution(prev, result.state, playerId);
     triggeredPoison(prev, result.state, playerId);
   }
+  // The same-card rule: a question whose cards are all the same card is answered for its player (then any that follows).
+  for (let guard = 0; result.ok && guard < 50; guard++) {
+    const auto = sameCardAnswer(result.state);
+    if (!auto) break;
+    const next = act(result.state, auto.player, auto.action);
+    if (!next.ok) break;
+    energyEvolution(result.state, next.state, auto.player);
+    triggeredPoison(result.state, next.state, auto.player);
+    result = next;
+  }
   return result;
+}
+
+/** Searches that take cards (the most, one at a time, agreed): asked or not, every card the same is answered for the player. */
+const SAME_CARD_TAKES: ReadonlySet<PendingChoice['kind']> = new Set(['pickFromDeck', 'pickFromTop', 'bottomPick', 'discardToHand', 'attachFromDiscard', 'pickFromDiscard', 'discardToBench']);
+/** Picks the player must make (never optional ones: a cost the player may skip). */
+const SAME_CARD_MUSTS: ReadonlySet<PendingChoice['kind']> = new Set(['discardFromHand', 'handToDeck', 'discardAttached', 'removeEach', 'drainEnergy', 'oppHandTrainer', 'handToPrize', 'iceBind', 'beforeAttack']);
+
+/**
+ * The answer to the pending choice when every card it offers is the same (sameCards, the same-card rule): the searches that
+ * take cards, and the picks that must be made. Never a "may" choice to do something (evolving from the deck, Chain Reaction,
+ * shuffling back, a Supporter's effect).
+ */
+function sameCardAnswer(state: GameState): { player: PlayerId; action: GameAction } | null {
+  const choice = state.pendingChoice;
+  if (!choice || state.phase === 'finished') return null;
+  const takes = SAME_CARD_TAKES.has(choice.kind);
+  if (!takes && !SAME_CARD_MUSTS.has(choice.kind)) return null;
+  // Challenge! and Gift: the other player's search waits (`then`); asked, so each player sees their own.
+  if (('then' in choice && choice.then) || ('thenSame' in choice && choice.thenSame)) return null;
+  const view = pendingChoiceView(state, choice);
+  if (!('options' in view) || !Array.isArray(view.options) || !view.options.length || typeof view.options[0] !== 'object') return null;
+  if (!takes && 'optional' in view && view.optional) return null;
+  const options = view.options as CardInstance[];
+  if (!sameCards(state.cards, options)) return null;
+  return { player: choice.player, action: { type: 'RESOLVE_CHOICE', cardUid: options[0]!.uid } };
 }
 
 /** The uids of the Energy attached to each of the player's Pokémon in play, by the Pokémon's top card uid. */
@@ -752,6 +795,9 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
   if (!prev.players[playerId]) return fail('Not a player in this game');
   if (prev.phase === 'finished') return fail('Game is over');
 
+  // Link Lightning's second attack: only an attack or ending the turn.
+  const linkWindow = prev.currentPlayer === playerId && linkLightningWindow(prev, playerId);
+  if (linkWindow && !['ATTACK', 'END_TURN', 'CONCEDE', 'RESOLVE_CHOICE', 'PROMOTE'].includes(action.type)) return fail('Link Lightning: use another attack or end your turn');
   const state = cloneState(prev);
   // Games saved before Transform existed (or set up directly, in tests) may not have Ditto's copy yet.
   refreshTransforms(state);
@@ -884,6 +930,17 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
     }
     // Charity Tail (2 cards discarded, one at a time, or none) and Trick Play (a guess): the answer goes into the attack's choices.
     if (pending.kind === 'beforeAttack') {
+      // Invisible Tentacles: the attacking player's card discarded, then any other question, then the attack.
+      if (pending.question === 'discardOne') {
+        const card = me.hand.find((c) => c.uid === action.cardUid);
+        if (!card) return fail('Choose a card from your hand to discard');
+        delete state.pendingChoice;
+        me.hand = me.hand.filter((c) => c !== card);
+        me.discard.push(card);
+        addLog(state, `${pending.source}: discarded ${lookupCard(state.cards, card.defId).name}.`, me.id);
+        if (me.active) (me.active.effects ??= {}).tentaclesPaid = state.turn;
+        return preAttackQuestion(state, attacker, defending, pending.attackIndex, pending.choices) ?? attackAction(state, attacker, defending, pending.attackIndex, pending.choices);
+      }
       if (pending.question === 'guessCoin') {
         if (action.count !== 0 && action.count !== 1) return fail('Guess heads or tails');
         delete state.pendingChoice;
@@ -925,15 +982,6 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       return preAttackQuestion(state, attacker, defending, pending.attackIndex, pending.choices, true) ?? attackAction(state, attacker, defending, pending.attackIndex, pending.choices);
     }
     // Sabrina's ESP: the attack happens again from where it started, with new coin flips (the log keeps the first ones).
-    // Link Lightning: the second attack, or none (the turn ends).
-    if (pending.kind === 'linkLightning') {
-      delete state.pendingChoice;
-      const foe = state.players[opponentOf(state, me.id)]!;
-      const index = typeof action.count === 'number' ? pending.attacks[action.count] : undefined;
-      if (index !== undefined && me.active && foe.active) return attackAction(state, me, foe, index, {}, { linked: true });
-      const winner = resolveKnockouts(state, me.id);
-      return winner ? finish(state, winner) : endTurn(state);
-    }
     if (pending.kind === 'reflip' && action.count === 1) {
       const again: GameState = { ...cloneState(pending.before), rngState: state.rngState, log: state.log, version: state.version };
       addLog(again, "Sabrina's ESP: re-flipped the coins.", me.id);
@@ -1311,16 +1359,17 @@ function attackAction(
   opp: PlayerState,
   attackIndex: number,
   choices: AttackChoices,
-  { flee, reflipped = false, linked = false }: { flee?: number; reflipped?: boolean; linked?: boolean } = {},
+  { flee, reflipped = false }: { flee?: number; reflipped?: boolean } = {},
 ): ActionResult {
   const usable = usableAttacks(me.active!, state.cards, { recall: recallsAttacks(state, me), bench: me.bench, defender: opp.active, oppBench: opp.bench, stadium: state.stadium?.card ?? null, sides: [me, opp] })[attackIndex];
   const esp = !reflipped && (me.active!.attached ?? []).some((a) => lookupCard(state.cards, a.card.defId).name === "Sabrina's ESP");
   const before = esp ? cloneState(state) : null;
   const source = usable && `${inPlayDef(state.cards, me.active!).name}'s ${usable.attack.name}`;
   const logged = state.log?.at(-1)?.n ?? 0;
-  const tentacles = !linked && [opp.active, ...opp.bench].some((p) => p && pokemonPower(p)?.invisibleTentacles && powerActive(p, state.cards, [opp, me]));
+  const paying = me.active;
   const error = performAttack(state, me, opp, attackIndex, choices, { flee });
-  if (!error && tentacles && me.hand.length) (state.queuedChoices ??= []).push({ player: me.id, source: 'Invisible Tentacles', kind: 'discardFromHand', count: 1 });
+  // Invisible Tentacles: a card for each attack (Link Lightning's second too).
+  delete paying?.effects?.tentaclesPaid;
   delete state.psychicProtector;
   if (error) return fail(error);
   // Before the turn ends, while a Special Condition the attack gave is still there.
@@ -1338,16 +1387,13 @@ function attackAction(
     for (const queued of state.queuedChoices ?? []) queued.afterAttack = true;
     return ok(state);
   }
-  // Link Lightning: Voltage Shoot the turn Raichu LV.X levelled up, then another of Raichu's attacks (one that asks nothing).
+  // Link Lightning: Voltage Shoot the turn Raichu LV.X levelled up leaves the turn open for one more of Raichu's attacks (its
+  // questions asked as usual) or End Turn; nothing else can be done meanwhile (linkLightningWindow).
   const raichu = me.active;
-  if (!linked && usable?.attack.name === 'Voltage Shoot' && raichu?.levelUpFrom && raichu.playedTurn === state.turn && opp.active && opp.active.damage < inPlayDef(state.cards, opp.active).hp && pokemonPower(raichu)?.linkLightning && powerActive(raichu, state.cards, [me, opp])) {
-    const s = attackSituation(state, me, opp);
-    const attacks = usableAttacks(raichu, state.cards, { bench: me.bench, defender: opp.active, oppBench: opp.bench, stadium: state.stadium?.card ?? null, sides: [me, opp] });
-    const options = attacks.flatMap((a, i) => (a.attack.name !== 'Voltage Shoot' && !attackError(s, i) && 'choices' in checkAttack(s, i, {}) && !nextAttackChoice(s, i, {}) ? [i] : []));
-    if (options.length) {
-      state.pendingChoice = { player: me.id, source: 'Link Lightning', kind: 'linkLightning', attacks: options, labels: options.map((i) => attacks[i]!.attack.name) };
-      return ok(state);
-    }
+  if (usable?.attack.name === 'Voltage Shoot' && raichu?.levelUpFrom && raichu.playedTurn === state.turn && raichu.effects?.linkLightning !== state.turn && pokemonPower(raichu)?.linkLightning && powerActive(raichu, state.cards, [me, opp])) {
+    (raichu.effects ??= {}).linkLightning = state.turn;
+    addLog(state, 'Link Lightning: Raichu may use another attack.', me.id);
+    return afterOwnMove(state, me, opp);
   }
   // Attacking ends the turn.
   const winner = resolveKnockouts(state, me.id);
@@ -1360,6 +1406,14 @@ function attackAction(
  */
 function preAttackQuestion(state: GameState, me: PlayerState, opp: PlayerState, attackIndex: number, given: AttackChoices, ninjaAsked = false): ActionResult | null {
   const defender = opp.active!;
+  // Invisible Tentacles (the opponent's): the attacking player first discards a card from their hand.
+  const tentacles = me.active?.effects?.tentaclesPaid !== state.turn && me.hand.length > 0 && [opp.active, ...opp.bench].some((p) => p && pokemonPower(p)?.invisibleTentacles && powerActive(p, state.cards, [opp, me]));
+  if (tentacles) {
+    const checked = checkAttack(attackSituation(state, me, opp), attackIndex, given);
+    if ('error' in checked) return fail(checked.error);
+    state.pendingChoice = { player: me.id, source: 'Invisible Tentacles', kind: 'beforeAttack', question: 'discardOne', attackIndex, choices: checked.choices, picked: [] };
+    return ok(state);
+  }
   const ninja = !ninjaAsked && hasBenched(opp) && (defender.attached ?? []).some((a) => lookupCard(state.cards, a.card.defId).name === "Koga's Ninja Trick");
   const flee = pokemonPower(defender)?.flee && powerActive(defender, state.cards, [opp, me]) && hasBenched(opp);
   // Psychic Protector: the Defending player's working Flygon ex, Active or Benched, with cards in the hand (agreed: asked first).
@@ -1428,6 +1482,9 @@ function heatMetal(state: GameState, side: PlayerState) {
   const sides = state.playerOrder.map((id) => state.players[id]!);
   return [side.active, ...side.bench].some((p) => p && pokemonPower(p)?.heatMetal && powerActive(p, state.cards, sides));
 }
+
+/** Link Lightning: the player's Active Raichu LV.X used Voltage Shoot this turn and may attack once more (only attacking or ending the turn). */
+export const linkLightningWindow = (state: GameState, playerId: PlayerId) => state.players[playerId]?.active?.effects?.linkLightning === state.turn;
 
 /** Whether the Pokémon Tool on a Pokémon has an ability its player can use (Energy Link, USE_TOOL). */
 export const usableTool = (cards: CardLibrary, pokemon: InPlayPokemon) => {
@@ -2138,6 +2195,7 @@ function betweenTurns(state: GameState) {
       delete pokemon.submerged;
       delete pokemon.crystalType;
       delete pokemon.typesCopied;
+      delete pokemon.darkEngaged;
       expireEffects(pokemon, state.turn);
       if (pokemon.powerOffUntil !== undefined && pokemon.powerOffUntil <= state.turn) {
         delete pokemon.powerOffUntil;
@@ -2278,7 +2336,7 @@ export function afflictionBlocked(state: GameState, owner: PlayerId, pokemon: In
 function expireEffects(pokemon: InPlayPokemon, turn: number) {
   const e = pokemon.effects;
   if (!e) return;
-  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell', 'noAttack', 'noEnergy', 'fireWall', 'focusEnergy', 'crosscounter', 'screech', 'endure', 'pollenShield', 'counter', 'secretePoison', 'slime', 'pursuit', 'lockOn', 'triggeredPoison', 'effectProof', 'pulseGuard', 'dodge', 'reflectShield', 'armorUp', 'noEvolve', 'heavier', 'tailwind', 'noPokePowers', 'conditionProof', 'stockpile', 'silverWind', 'cometPunch', 'evolvedProof', 'exProof', 'pivot', 'hustle'] as const) {
+  for (const key of ['preventDamage', 'preventAll', 'harden', 'destinyBond', 'sandAttack', 'smokescreen', 'minimize', 'noRetreat', 'swordsDance', 'energyBurn', 'lightScreen', 'mirrorShell', 'noAttack', 'noEnergy', 'fireWall', 'focusEnergy', 'crosscounter', 'screech', 'endure', 'pollenShield', 'counter', 'secretePoison', 'slime', 'pursuit', 'lockOn', 'triggeredPoison', 'effectProof', 'pulseGuard', 'dodge', 'reflectShield', 'armorUp', 'noEvolve', 'heavier', 'tailwind', 'noPokePowers', 'conditionProof', 'stockpile', 'silverWind', 'cometPunch', 'evolvedProof', 'exProof', 'pivot', 'hustle', 'fizzle'] as const) {
     if (e[key] !== undefined && e[key] <= turn) delete e[key];
   }
   if (e.charm && e.charm.until <= turn) delete e.charm;

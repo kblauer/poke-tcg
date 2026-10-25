@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CardDef } from '../cards.js';
 import { applyAction, type GameState } from '../index.js';
-import { act, attack, duel, endTurn, flips, mon, F } from './test-kit.js';
+import { act, attack, duel, endTurn, flips, id, mon, F } from './test-kit.js';
 
 const ash = (s: GameState) => s.players.ash!;
 const misty = (s: GameState) => s.players.misty!;
@@ -73,6 +73,8 @@ describe('Expedition Trainers', () => {
 
   it('Dual Ball: a Basic Pokémon (not a Baby) from the deck for each heads', () => {
     const s = duel('charmander', 'onix');
+    // A Squirtle among the Charmanders, so the Basic Pokémon are asked (the same-card rule).
+    ash(s).deck.unshift({ uid: 'deck-squirtle', defId: id('squirtle') });
     const after = play(flips(s, true, true), hand(s, 'ash', dualBall));
     expect(after.pendingChoice).toMatchObject({ kind: 'pickFromDeck', filter: 'basicNotBaby', count: 2 });
     expect(play(flips(s, false, false), hand(s, 'ash', dualBall)).pendingChoice).toBeUndefined();
