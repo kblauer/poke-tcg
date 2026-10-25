@@ -190,7 +190,7 @@ export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCa
   if (pokemon.hpSet) d = { ...d, hp: pokemon.hpSet };
   if (pokemon.hpPlus) d = { ...d, hp: d.hp + pokemon.hpPlus };
   // Unown E's EQUIP: attached as a Pokémon Tool, 10 more HP.
-  if (pokemon.attached?.some((a) => a.tool && a.equip)) d = { ...d, hp: d.hp + 10 };
+  if (pokemon.attached?.some((a) => a.tool && a.equip && lookupCard(cards, a.card.defId).name === 'Unown E')) d = { ...d, hp: d.hp + 10 };
   // Low Pressure System: 10 more HP for a Grass or Lightning Pokémon.
   if (pokemon.lowPressure) d = { ...d, hp: d.hp + 10 };
   // Rocket's Hideout: 20 more HP for a Pokémon with Dark in its name.

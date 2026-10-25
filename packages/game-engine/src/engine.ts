@@ -132,7 +132,11 @@ export interface PokemonEffects {
   /** When an attack damages it, flip; heads does double that damage back, with Weakness and Resistance (Crosscounter). */
   crosscounter?: number;
   /** Attack damage to it is `amount` less, after Weakness and Resistance, through turn `until` (Lie Low, Barrier Attack). */
-  reduceDamage?: { amount: number; until: number };
+  reduceDamage?: { amount: number; until: number; /** Only from the opponent's Evolved Pokémon (Cotton Cloud). */ evolvedOnly?: boolean };
+  /** Endless Darkness: while it's Asleep, 2 coins between turns; it wakes only on 2 heads, and 2 tails Knock it Out. */
+  endlessDarkness?: boolean;
+  /** Moon Skip: on this turn, a Pokémon its attack Knocks Out gives 1 more Prize card. */
+  morePrize?: number;
   /** Attack damage to it is `amount` less, before Weakness and Resistance, through turn `until` (Delta Reduction). */
   reduceBefore?: { amount: number; until: number };
   /** It has no Weakness through this turn (Aqua Flower). */
@@ -401,6 +405,8 @@ export interface PlayerState {
   knockedOutByAttack?: number;
   /** The last turn one of its Pokémon was Knocked Out, any way (Minus Charge, Plus Charge). */
   knockedOutTurn?: number;
+  /** Time Skip: this turn ends once its player has drawn. */
+  turnSkipped?: number;
   /** The Supporter card played on `supporterTurn` (Detour uses its effect while it's in play). */
   supporterUid?: string;
   /** The turn this player last attached an Energy card from their hand to their Active Pokémon (Harvest Bounty). */
@@ -1751,6 +1757,12 @@ function beginNextTurn(state: GameState): ActionResult {
   }
   next.hand.push(drawn);
   addLog(state, `Turn ${state.turn}.`, next.id);
+  // Time Skip: the turn ends once the card is drawn.
+  if (next.turnSkipped === state.turn) {
+    delete next.turnSkipped;
+    addLog(state, 'Time Skip: the turn ends.', next.id);
+    return endTurn(state);
+  }
   return ok(state);
 }
 
@@ -1784,9 +1796,13 @@ function betweenTurns(state: GameState) {
     const active = state.players[id]!.active;
     return active ? [{ id, active, name: pokemonName(state, active) }] : [];
   });
+  // Toxic Virus: 1 more damage counter for every Poisoned Pokémon, however many Weezing.
+  const all = state.playerOrder.map((o) => state.players[o]!);
+  const virus = all.some((side) => [side.active, ...side.bench].some((p) => p && pokemonPower(p)?.toxicVirus && powerActive(p, state.cards, all)));
   for (const { id, active, name } of actives) {
     if (!active.poison) continue;
-    active.damage += active.poison;
+    active.damage += active.poison + (virus ? 10 : 0);
+    if (virus) addLog(state, `Toxic Virus: 1 more damage counter on ${name}.`, id);
     // Shadow Images lasts until the Pokémon takes damage.
     if (active.effects) delete active.effects.shadowImages;
     addLog(state, `${name} takes ${active.poison} Poison damage.`, id);
@@ -1823,7 +1839,23 @@ function betweenTurns(state: GameState) {
   // Deep Sleep: with a Dark Gengar's working, 2 coins, and it wakes up only on 2 heads.
   const deep = deepSleep(state.playerOrder.map((id) => state.players[id]!), state.cards);
   for (const { id, active, name } of actives) {
-    if (active.condition !== 'asleep') continue;
+    if (active.condition !== 'asleep') {
+      if (active.effects) delete active.effects.endlessDarkness;
+      continue;
+    }
+    // Endless Darkness: 2 coins; 2 tails Knock it Out.
+    if (active.effects?.endlessDarkness) {
+      const coins = [flipCoin(state, `${name} is Asleep (Endless Darkness)`, id), flipCoin(state, `${name} is Asleep (Endless Darkness)`, id)];
+      if (coins.every((h) => !h)) {
+        active.damage = Math.max(active.damage, inPlayDef(state.cards, active).hp);
+        addLog(state, `Endless Darkness: ${name} is Knocked Out.`, id);
+      }
+      if (!coins.every(Boolean)) continue;
+      delete active.effects.endlessDarkness;
+      active.condition = null;
+      addLog(state, `${name} woke up.`, id);
+      continue;
+    }
     const awake = deep ? [flipCoin(state, `${name} is Asleep (Deep Sleep)`, id), flipCoin(state, `${name} is Asleep (Deep Sleep)`, id)].every(Boolean) : flipCoin(state, `${name} is Asleep`, id);
     if (!awake) continue;
     active.condition = null;
@@ -1851,6 +1883,16 @@ function betweenTurns(state: GameState) {
   }
   // Miracle Energy, Boost Energy, Aqua Energy, Magma Energy and R Energy: discarded at the end of their owner's turn (Boost Energy: the turn it was attached).
   const current = state.players[state.currentPlayer]!;
+  // Amulet Coin: a card drawn at the end of the turn; Leftovers: a damage counter off the Active Pokémon.
+  const tool = current.active && toolOf(state.cards, current.active)?.name;
+  if (tool === 'Amulet Coin' && current.deck.length) {
+    current.hand.push(current.deck.shift()!);
+    addLog(state, 'Amulet Coin: drew a card.', current.id);
+  }
+  if (tool === 'Leftovers' && current.active!.damage) {
+    current.active!.damage -= 10;
+    addLog(state, `Leftovers: removed a damage counter from ${pokemonName(state, current.active!)}.`, current.id);
+  }
   for (const p of [current.active, ...current.bench]) {
     for (const special of ['Miracle Energy', 'Boost Energy', 'Aqua Energy', 'Magma Energy', 'R Energy']) {
       const gone = p?.energy.filter((e) => !e.provides && lookupCard(state.cards, e.defId).name === special) ?? [];
@@ -2157,7 +2199,9 @@ export function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId
     /** Prize cards for the opponent: 2 for a Pokémon-ex. */
     const takePrizes = (pokemon: InPlayPokemon) => {
       const d = lookupCard(state.cards, pokemon.card.defId);
-      for (let n = d.kind === 'pokemon' && d.ex ? 2 : 1; n > 0; n--) {
+      // Moon Skip: 1 more for a Pokémon its attack Knocked Out this turn.
+      const skip = pokemon.knockedByAttack === state.turn && state.currentPlayer !== id && taker.active?.effects?.morePrize === state.turn ? 1 : 0;
+      for (let n = (d.kind === 'pokemon' && d.ex ? 2 : 1) + skip; n > 0; n--) {
         const prize = taker.prizes.pop();
         if (prize) taker.hand.push(prize);
       }

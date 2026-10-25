@@ -177,6 +177,18 @@ export interface PowerEffect {
   hardShell?: boolean;
   /** Crystal Body: the opponent's attacks do nothing to it but damage. */
   crystalBody?: boolean;
+  /** Toxic Virus: every Poisoned Pokémon, both players', takes 1 more damage counter between turns (betweenTurns). */
+  toxicVirus?: boolean;
+  /** Anger Point: with damage counters on it, its attacks do 40 more to the Active Pokémon (attacks.ts). */
+  angerPoint?: boolean;
+  /** Marvel Scale: nothing from the opponent's Pokémon LV.X's attacks (attacks.ts). */
+  marvelScale?: boolean;
+  /** Sunlight: with Lunatone in play, its player's Psychic and Fighting Pokémon ignore Resistance (attacks.ts). */
+  sunlight?: boolean;
+  /** Dark Shadow: basic Darkness Energy cards on its player's Darkness Pokémon do 10 more, as the Special card (attacks.ts). */
+  darkShadow?: boolean;
+  /** LINK: it can use every attack of every other Unown in play, either player's (usableAttacks). */
+  link?: boolean;
   /** Cotton Spore: on its owner's heads, no damage from the opponent's attack (attacks.ts). */
   cottonSpore?: boolean;
   /** Pot Shell: nothing at all from an attacker with a Special Energy card attached (attacks.ts). */

@@ -221,7 +221,9 @@ export function usableAttacks(
   // Fellowship (Poké-Body): every attack of the player's Benched Pokémon with these names. Versatile (Poké-Body): every
   // attack of every other Pokémon in play, either player's.
   const fellows = working?.fellowship;
-  const others = [...(fellows ? bench.filter((p) => p && fellows.some((n) => namesMatch(def(cards, p).name, n))) : []), ...(working?.versatile ? [...bench, defender, ...oppBench] : [])];
+  // LINK (Unown L): every attack of every other Unown in play, either player's.
+  const unown = working?.link ? [...bench, defender, ...oppBench].filter((p) => p && def(cards, p).name.startsWith('Unown')) : [];
+  const others = [...(fellows ? bench.filter((p) => p && fellows.some((n) => namesMatch(def(cards, p).name, n))) : []), ...(working?.versatile ? [...bench, defender, ...oppBench] : []), ...unown];
   const shared = [...new Set(others)].flatMap((p) => {
     if (!p || p.faceDown) return [];
     const d = def(cards, p);
@@ -1035,7 +1037,9 @@ function createContext(
         quickened(opp.active, opp) ||
         transparent(opp.active, opp) ||
         (airy(opp.active) && evolvedFromName(state.cards, opp.active, 'Mime Jr.')) ||
-        (!!passive(opp.active)?.potShell && attacker.energy.some((e) => isSpecialEnergy(state.cards, e)))));
+        (!!passive(opp.active)?.potShell && attacker.energy.some((e) => isSpecialEnergy(state.cards, e))) ||
+        // Marvel Scale: nothing from the opponent's Pokémon LV.X.
+        (!!passive(opp.active)?.marvelScale && attackerDef.stage === 'levelUp')));
   /** Airy Wall works against this attack: the attacker has 2 or fewer Energy cards attached. */
   const airy = (p: InPlayPokemon) => !!passive(p)?.airyWall && attacker.energy.filter((e) => !e.provides).length <= 2;
   /** Shielded, or Crystal Body or Light Wave: the attack does nothing to the Defending Pokémon but damage. Logs why. */
@@ -1046,7 +1050,9 @@ function createContext(
     const veiled =
       (!!veil && energyPool(opp.active!, state.cards).some((e) => counts(e, veil))) ||
       (!!opp.active && (!!passive(opp.active)?.crystalBodyWhen?.(opp.active, state.cards) || holonWith(opp.active, state.cards, 'WP', 'water')));
-    const crystal = !!opp.active && (!!passive(opp.active)?.crystalBody || veiled || active(opp.active.effects?.effectProof, turn));
+    // Unown G's GUARD: attached as a Pokémon Tool, nothing but damage.
+    const guarded = !!opp.active?.attached?.some((a) => a.equip && lookupCard(state.cards, a.card.defId).name === 'Unown G');
+    const crystal = !!opp.active && (!!passive(opp.active)?.crystalBody || veiled || guarded || active(opp.active.effects?.effectProof, turn));
     if (!shielded() && !crystal) return false;
     log(crystal && !shielded() ? `The attack's effects other than damage don't affect ${ctx.defenderDef.name}.` : `${ctx.defenderDef.name} is protected from the attack's effects.`, opp.id);
     return true;
@@ -1431,7 +1437,10 @@ function createContext(
    * Darkness Energy (the EX rules for every set's, agreed with the user): 10 more for each to the Active Pokémon, before
    * Weakness and Resistance, from an attacker that's Darkness or has Dark in its name.
    */
-  const darkMore = () => (hasType(attackerDef, 'darkness') || attackerDef.name.includes('Dark') ? 10 * energyCount(state.cards, attacker, 'Darkness Energy') : 0);
+  // Dark Shadow: each basic Darkness Energy card on its player's Darkness Pokémon does the Special card's 10 more too.
+  const darkMore = () =>
+    (hasType(attackerDef, 'darkness') || attackerDef.name.includes('Dark') ? 10 * energyCount(state.cards, attacker, 'Darkness Energy') : 0) +
+    (hasType(attackerDef, 'darkness') && [me.active, ...me.bench].some((q) => q && passive(q)?.darkShadow) ? 10 * attacker.energy.filter((e) => !e.provides && !e.windless && isEnergyCardOf(e, state.cards, 'darkness')).length : 0);
   /** Whether the attack can affect this Pokémon; logs why not. Transparency flips the first time it's asked. */
   const canAffect = (player: PlayerState, p: InPlayPokemon) => {
     if (!immune(p, player) && !transparent(p, player)) return true;
@@ -1481,6 +1490,9 @@ function createContext(
     if (sides.some((side) => [side.active, ...side.bench].some((p) => p && passive(p)?.witheringDust))) resistance = false;
     // Tropical Motion: the attacking player's Active Tropius takes the opponent's Resistance away.
     if (me.active && passive(me.active)?.tropicalMotion) resistance = false;
+    // Sunlight: with Lunatone in play, the player's Psychic and Fighting Pokémon ignore Resistance.
+    const mine = [me.active, ...me.bench];
+    if ((hasType(attackerDef, 'psychic') || hasType(attackerDef, 'fighting')) && mine.some((q) => q && passive(q)?.sunlight) && mine.some((q) => q && namesMatch(def(state.cards, q).name, 'Lunatone'))) resistance = false;
     // Holon Energy FF with a basic Fighting Energy card: the attacker's damage isn't affected by Resistance.
     if (holonWith(attacker, state.cards, 'FF', 'fighting')) resistance = false;
     // Ancient Tentacles: the attacking player's Omanyte line and Kabuto line ignore Resistance.
@@ -1543,8 +1555,8 @@ function createContext(
     const weakTo = defenderDef.weakness ? [defenderDef.weakness.type, ...(defenderDef.moreWeakness ?? [])] : [];
     const scale =
       passive(attacker)?.rainbowScale && !attacker.energy.some((e) => isSpecialEnergy(state.cards, e)) && weakTo.some((t) => energyPool(attacker, state.cards).some((e) => counts(e, t))) ? 40 : 0;
-    // Fury Blaze: 50 more while the opponent has 3 or fewer Prize cards left.
-    const fury = passive(attacker)?.furyBlaze && opp.prizes.length <= 3 ? 50 : 0;
+    // Fury Blaze: 50 more while the opponent has 3 or fewer Prize cards left. Anger Point: 40 more with damage counters on it.
+    const fury = (passive(attacker)?.furyBlaze && opp.prizes.length <= 3 ? 50 : 0) + (passive(attacker)?.angerPoint && attacker.damage ? 40 : 0);
     const boost = (low && attackerDef.hp - attacker.damage <= low.hpLeft ? low.more : 0) + aura + pivot + (passive(attacker)?.attackMore ?? 0) + rage + reversal + conditional + reactor + laser + allies + dna + scale + fury;
     if (amount > 0 && boost) {
       amount = noted(attackerDef.power?.name ?? 'More damage', amount, amount + boost);
@@ -1697,7 +1709,7 @@ function createContext(
       }
       // Lie Low and Barrier Attack: a set amount less, after Weakness and Resistance.
       const reduced = effects?.reduceDamage;
-      if (damage > 0 && reduced && active(reduced.until, turn)) {
+      if (damage > 0 && reduced && active(reduced.until, turn) && (!reduced.evolvedOnly || attacker.evolvedFrom.length > 0)) {
         damage = noted('Less damage from an earlier attack', damage, Math.max(0, damage - reduced.amount));
         log(`The damage to ${defenderDef.name} was reduced by ${reduced.amount}.`, opp.id);
       }
