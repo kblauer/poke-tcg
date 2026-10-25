@@ -8,7 +8,7 @@ import { facing, key } from '../../utils/routeFigures';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
 import { OverworldSprite, TileOverlay } from '../run/RouteSprites';
-import { DialogueBox, type Dialogue } from '../DialogueBox';
+import { DialogueBox, dialogueKey, type Dialogue } from '../DialogueBox';
 
 /** Someone in a Battle Tower room: their sprite, where they stand, which way they face, and whether they're walking or faded out. */
 export interface Actor {
@@ -368,7 +368,7 @@ export function TowerScene({ scene, children }: { scene: ReturnType<typeof useSc
         )}
         <div className="pointer-events-none absolute inset-0 bg-black transition-opacity" style={{ opacity: dark ? 1 : 0, transitionDuration: `${FADE_MS}ms` }} />
         {/* Keyed by the line, so each one types out afresh. */}
-        {dialogue && <DialogueBox key={`${dialogue.speaker ?? ''}|${dialogue.text}|${dialogue.choices?.join('|') ?? ''}`} dialogue={dialogue} reserved={reserved} paused={paused} pressRef={pressDialogue} phone={phone} />}
+        {dialogue && <DialogueBox key={dialogueKey(dialogue)} dialogue={dialogue} reserved={reserved} paused={paused} pressRef={pressDialogue} phone={phone} />}
         {/* Debug (DEBUG_BUILD first: a production build drops them): the tiles overlay, as on the run maps, and the pause. */}
         {DEBUG_BUILD && debug && (
           <div className="absolute right-2 top-2 z-[3000] flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>

@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router';
 import { useTRPC } from '../lib/trpc';
 import { PageHeader } from '../components/PageHeader';
 import { usePlayRedirect, useTowerOverview } from '../hooks/useTower';
+import { useDebugEnabled } from '../utils/debug';
 import { PAGE_WIDTH } from '../utils/layout';
 
 /**
@@ -48,14 +49,15 @@ const MODES: { to: '/badge' | '/tower' | '/idle' | '/battle'; title: string; tex
  * The Play tab (`/`): a menu of its modes (the user's), the Badge Challenge (the runs), the Battle Tower, the Idle
  * Adventure and Training, each a tile filled with a scene from the games, saying how it stands. A mode under way keeps
  * the tab on it instead (usePlayRedirect): a Battle Tower challenge that isn't saved, or a run (never an Idle Adventure
- * run: it plays on its own).
+ * run: it plays on its own). The Idle Adventure's tile is only there in local debug for now (the user's: useDebugEnabled).
  */
 export function PlayPage() {
   const { redirecting, loading } = usePlayRedirect();
   const tower = useTowerOverview().data;
   // The Idle Adventure's run, for its tile (its query only: the mode's data loads with its page).
   const trpc = useTRPC();
-  const idle = useQuery(trpc.idle.overview.queryOptions()).data?.run;
+  const idleShown = useDebugEnabled();
+  const idle = useQuery({ ...trpc.idle.overview.queryOptions(), enabled: idleShown }).data?.run;
   if (loading || redirecting) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
   const challenge = tower?.challenge;
   const status: Record<(typeof MODES)[number]['to'], string | null> = {
@@ -73,7 +75,7 @@ export function PlayPage() {
     <div className={`${PAGE_WIDTH} space-y-6`}>
       <PageHeader title="Play" info="Pick a mode" />
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(18rem,1fr))] gap-3">
-        {MODES.map((m) => (
+        {MODES.filter((m) => m.to !== '/idle' || idleShown).map((m) => (
           <li key={m.to}>
             {/* The scene fills the tile, the text about its middle over a dark band fading out above and below, every tile's starting the same way down so their titles line up (the user's) (over game art: kept light in every theme). */}
             <Link

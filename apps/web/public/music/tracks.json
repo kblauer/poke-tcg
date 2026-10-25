@@ -16,6 +16,15 @@
   "url": "https://vgmtreasurechest.com/soundtracks/pokemon-red-green-blue-yellow/syqhoybn/04%20Pallet%20Town.mp3"
  },
  {
+  "title": "Pokémon Lab",
+  "game": "Red, Green, Blue & Yellow",
+  "gen": 1,
+  "battle": false,
+  "seconds": 45,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-red-green-blue-yellow/qsskwcxf/07.%20Pok%C3%A9mon%20Lab.mp3",
+  "hidden": true
+ },
+ {
   "title": "Battle! (Trainer Battle)",
   "game": "Red, Green, Blue & Yellow",
   "gen": 1,
@@ -102,6 +111,15 @@
   "battle": false,
   "seconds": 78,
   "url": "https://vgmtreasurechest.com/soundtracks/pokemon-red-green-blue-yellow/rxpeeicm/34%20Cerulean%20City.mp3"
+ },
+ {
+  "title": "Route 24 - Welcome to the World of Pokémon!",
+  "game": "Red, Green, Blue & Yellow",
+  "gen": 1,
+  "battle": false,
+  "seconds": 59,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-red-green-blue-yellow/czrnlqyu/35%20Route%2024%20-%20Welcome%20to%20the%20World%20of%20Pok%C3%A9mon%21.mp3",
+  "hidden": true
  },
  {
   "title": "Vermilion City",
@@ -279,6 +297,15 @@
   "battle": false,
   "seconds": 94,
   "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/nakchcpu/1-06.%20Pallet%20Town.mp3"
+ },
+ {
+  "title": "Professor Oak's Laboratory",
+  "game": "FireRed & LeafGreen",
+  "gen": 1,
+  "battle": false,
+  "seconds": 48,
+  "url": "https://vgmtreasurechest.com/soundtracks/pokemon-firered-leafgreen-music-super-complete/shhqipdw/1-08.%20Professor%20Oak%27s%20Laboratory.mp3",
+  "hidden": true
  },
  {
   "title": "Battle! (Trainer)",

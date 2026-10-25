@@ -13,7 +13,13 @@ export const DEBUG_BUILD: boolean = __DEBUG_BUILD__;
  * them in production whatever the client does, see debugProcedure in the API).
  */
 export function useDebugEnabled(): boolean {
+  return useDebugStatus() === 'on';
+}
+
+/** As useDebugEnabled, but 'loading' until the API has answered (for a page that's only there in debug: the Idle Adventure). */
+export function useDebugStatus(): 'on' | 'off' | 'loading' {
   const trpc = useTRPC();
-  const { data } = useQuery({ ...trpc.debug.enabled.queryOptions(), enabled: DEBUG_BUILD, staleTime: Infinity });
-  return DEBUG_BUILD && data === true;
+  const { data, isPending } = useQuery({ ...trpc.debug.enabled.queryOptions(), enabled: DEBUG_BUILD, staleTime: Infinity });
+  if (!DEBUG_BUILD) return 'off';
+  return data === true ? 'on' : isPending ? 'loading' : 'off';
 }

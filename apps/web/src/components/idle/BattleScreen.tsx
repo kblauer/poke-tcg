@@ -1,6 +1,8 @@
 import { MAX_ENERGY, species, TRAINERS, type BattleEvent, type BattlerView, type StatusKind } from '@poke-tcg/idle';
-import type { CSSProperties } from 'react';
+import { useRef, type CSSProperties } from 'react';
+import { useIsPhone } from '../../hooks/useIsPhone';
 import type { BattleSegment } from '../../hooks/useIdle';
+import { DialogueBox, dialogueKey, type Dialogue } from '../DialogueBox';
 
 /** One game pixel of FireRed's 240x160 screen, in the battle box's width (container query units). */
 const px = (n: number) => `${(n * 100) / 240}cqw`;
@@ -149,16 +151,19 @@ function ThrownBall({ ball }: { ball: Extract<BattleEvent, { t: 'ball' }> }) {
 /**
  * A battle as it plays (README: Idle Adventure): FireRed's layout at its 240x160 scale, sized to its box (the terrain
  * background, the foe's front sprite and the player's Pokémon's back, the healthboxes, the text box), the energy pips the
- * one addition; showing the first `shown` of the battle's events.
+ * one addition; showing the first `shown` of the battle's events; `dialogue` over it in the scenes' text box (the
+ * catch-up's pages, if a battle starts before they're read).
  */
-export function BattleScreen({ battle, shown, gender }: { battle: BattleSegment; shown: number; gender: 'male' | 'female' }) {
+export function BattleScreen({ battle, shown, gender, dialogue }: { battle: BattleSegment; shown: number; gender: 'male' | 'female'; dialogue?: Dialogue | null }) {
+  const phone = useIsPhone();
+  const pressDialogue = useRef<(() => void) | null>(null);
   const { sides, text, ball, hit, attacker } = shownState(battle.events.slice(0, shown));
   const [me, foe] = sides;
   const trainer = battle.trainer ? TRAINERS[battle.trainer] : null;
   const blink = (side: 0 | 1) => (hit && hit.side === side && hit.at >= shown - 2 ? 'idle-hit 0.5s steps(2) 2' : undefined);
   const lunge = (side: 0 | 1) => (attacker && attacker.side === side && attacker.at >= shown - 2 ? `idle-lunge-${side} 0.3s ease-out` : undefined);
   return (
-    <div className="relative mx-auto aspect-[3/2] w-full max-w-[720px] overflow-hidden rounded-lg bg-black [container-type:inline-size] [image-rendering:pixelated]">
+    <div className="relative mx-auto aspect-[3/2] w-full max-w-[720px] overflow-hidden rounded-lg bg-black [container-type:inline-size] [image-rendering:pixelated]" onClick={() => pressDialogue.current?.()}>
       <img src={background(battle)} alt="" className="absolute left-0 top-0 w-full" style={{ height: px(112) }} draggable={false} />
       {/* The foe: its trainer before they send one out, then its Pokémon (or the ball it's caught in). */}
       {!foe.mon && trainer?.pic && <img src={`${GEN1}/trainers/${trainer.pic}.png`} alt="" className="absolute" style={{ left: px(144), top: px(8), width: px(64) }} draggable={false} />}
@@ -192,6 +197,7 @@ export function BattleScreen({ battle, shown, gender }: { battle: BattleSegment;
       <div className="absolute inset-x-0 bottom-0 border-t-[0.6cqw] border-[#c87028] bg-[#283848] text-white" style={{ height: px(48), padding: `${px(6)} ${px(10)}`, fontSize: px(10), lineHeight: 1.35 }}>
         {text}
       </div>
+      {dialogue && <DialogueBox key={dialogueKey(dialogue)} dialogue={dialogue} pressRef={pressDialogue} phone={phone} />}
     </div>
   );
 }
