@@ -43,7 +43,10 @@ function removeFromPlay(side: PlayerState, t: Target, keep?: CardInstance) {
   else side.bench[t] = null;
 }
 
-const STAGE_ORDER = { basic: 0, stage1: 1, stage2: 2 } as const;
+/** A Pokémon LV.X's card is the top one: it goes with any Evolution card under it. */
+const STAGE_ORDER = { basic: 0, stage1: 1, stage2: 2, levelUp: 3 } as const;
+/** Whether the Pokémon has an Evolution card (a Stage 1 or 2), which Devolution Spray can discard. */
+const hasEvolution = (s: TrainerSituation, p: InPlayPokemon) => [...p.evolvedFrom, p.card].some((c) => ['stage1', 'stage2'].includes((def(s, c) as PokemonCardDef).stage));
 
 export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
   // Clefairy Doll: played onto the Bench as a 10 HP Pokémon (see isBenchable and the doll rules in the engine).
@@ -61,14 +64,14 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
 
   // Devolution Spray
   'base1-72': {
-    blocked: (s) => (targetsOf(s.me).some((t) => own(s, t)!.evolvedFrom.length > 0) ? null : 'None of your Pokémon are evolved'),
+    blocked: (s) => (targetsOf(s.me).some((t) => hasEvolution(s, own(s, t)!)) ? null : 'None of your Pokémon are evolved'),
     choices(s, c) {
       const specs: TrainerChoiceSpec[] = [
-        { kind: 'pokemon', field: 'target', side: 'own', options: targetsOf(s.me).filter((t) => own(s, t)!.evolvedFrom.length > 0), prompt: 'Choose one of your evolved Pokémon' },
+        { kind: 'pokemon', field: 'target', side: 'own', options: targetsOf(s.me).filter((t) => hasEvolution(s, own(s, t)!)), prompt: 'Choose one of your evolved Pokémon' },
       ];
       if (c.target === undefined) return specs;
       const p = own(s, c.target)!;
-      const stages = [...p.evolvedFrom, p.card].map((card) => (def(s, card) as PokemonCardDef).stage).filter((st) => st !== 'basic') as ('stage1' | 'stage2')[];
+      const stages = [...p.evolvedFrom, p.card].map((card) => (def(s, card) as PokemonCardDef).stage).filter((st) => st === 'stage1' || st === 'stage2') as ('stage1' | 'stage2')[];
       return [...specs, { kind: 'stage', field: 'stage', options: stages.reverse(), prompt: 'Discard Evolution cards of this Stage and higher' }];
     },
     play(ctx) {

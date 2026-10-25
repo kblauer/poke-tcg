@@ -177,6 +177,8 @@ export interface PowerEffect {
   hardShell?: boolean;
   /** Crystal Body: the opponent's attacks do nothing to it but damage. */
   crystalBody?: boolean;
+  /** Magnetize: its player's Active Pokémon with any Metal Energy attached has no Retreat Cost (retreatBodies). */
+  magnetize?: boolean;
   /** Lazy: while it's its player's Active Pokémon, the opponent's Pokémon can't use Poké-Powers (or older Pokémon Powers). */
   lazy?: boolean;
   /** Withering Dust: while it's in play, no Resistance for any Active Pokémon. */
@@ -826,7 +828,9 @@ export function retreatBodies(pokemon: InPlayPokemon, cards: CardLibrary, sides:
   }, 0);
   // Reactive Lift: free for its player's Water Pokémon (not Pokémon-ex) while the Wailord has a React Energy card attached.
   const reactive = !d.ex && hasType(d, 'water') && [owner.active, ...owner.bench].some((p) => !!p && !!powerEffect(effectId(p))?.reactiveLift && hasReact(p, cards) && powerActive(p, cards, sides));
-  if (bonded || lifted || reactive) return -99;
+  // Magnetize: free for its player's Active Pokémon with any Metal Energy attached.
+  const magnetized = owner.active === pokemon && energyPool(pokemon, cards).some((e) => counts(e, 'metal')) && [owner.active, ...owner.bench].some((p) => !!p && !!powerEffect(effectId(p))?.magnetize && powerActive(p, cards, sides));
+  if (bonded || lifted || reactive || magnetized) return -99;
   // Wobbuffet's Stages of Evolution: each of the opponent's makes their Active Pokémon cost 1 more.
   const opponent = sides[1];
   const tax = owner.active === pokemon && opponent ? [opponent.active, ...opponent.bench].reduce((n, p) => n + (p && powerActive(p, cards, sides) ? (powerEffect(effectId(p))?.retreatTax ?? 0) : 0), 0) : 0;

@@ -144,6 +144,10 @@ export interface PokemonEffects {
   inkSpurt?: boolean;
   /** Attacks that damage it do 20 more (after Weakness and Resistance), through this turn (Screech). */
   screech?: number;
+  /** No damage to it from its own player's attacks (its own, to itself), through this turn (Accelerative Dive, with preventDamage). */
+  selfProof?: number;
+  /** On turn `turn` (the attacking player's next one), attacks that damage it do `amount` more, after Weakness and Resistance (Sand Eject). */
+  exposed?: { amount: number; turn: number };
   /** Silver Wind: the turn the opponent's attacks that damage it do 30 more, after Weakness and Resistance. */
   silverWind?: number;
   /** Extra Comet Punch: the turn its Extra Comet Punch does 50 more. */
@@ -262,6 +266,8 @@ export interface InPlayPokemon {
   transformed?: string;
   /** Last turn its "once during your turn" power was used (Step In, Curse). Stays when it moves. */
   powerUsedTurn?: number;
+  /** The turn an attack's damage left it with no HP (Revenge: Knocked Out by damage from an attack, resolveKnockouts). */
+  knockedByAttack?: number;
   /** Lt. Surge's Secret Plan: a card from the hand put face down onto the Bench, treated as a Basic Pokémon until it's turned over (revealFaceDown). */
   faceDown?: boolean;
   /** Giovanni: the turn it may evolve even if it was played or evolved this turn, or on the first turn. */
@@ -342,7 +348,7 @@ export interface PlayerState {
   goodNeighborTurn?: number;
   /** Misty: the turn this player's Pokémon with Misty in its name do `count` × 20 more damage to the Defending Pokémon. */
   misty?: { turn: number; count: number };
-  /** Tickling Machine: the hand, set aside face down; it comes back at the end of turn `until`. */
+  /** Tickling Machine, Supreme Command: cards from the hand, set aside face down; they come back at the end of turn `until`. */
   setAside?: { cards: CardInstance[]; until: number };
   /** Recall: the turn this player's Active Pokémon can use the attacks of the cards it evolved from. */
   recallTurn?: number;
@@ -362,6 +368,8 @@ export interface PlayerState {
   icePillar?: { until: number; by: string };
   /** The turn this player last played a Supporter card (only one each turn). */
   supporterTurn?: number;
+  /** The last turn one of its Pokémon was Knocked Out by damage from the opponent's attack (Revenge). */
+  knockedOutByAttack?: number;
   /** The Supporter card played on `supporterTurn` (Detour uses its effect while it's in play). */
   supporterUid?: string;
   /** The turn this player last attached an Energy card from their hand to their Active Pokémon (Harvest Bounty). */
@@ -872,13 +880,13 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       const evolution = takeFromHand(me, action.cardUid);
       const evolutionDef = evolution && card(evolution);
       if (!evolution || evolutionDef?.kind !== 'pokemon' || evolutionDef.stage === 'basic') {
-        return fail('Must evolve with a Stage 1 or Stage 2 Pokémon from your hand');
+        return fail('Must evolve with a Stage 1 or Stage 2 Pokémon (or level up with a Pokémon LV.X) from your hand');
       }
       const error = evolveError(evolutionDef, target, state.cards, state.turn, [me, opp]);
       if (error) return fail(error);
       // Damage and attached energy stay; the new card's HP and attacks apply from now on.
-      // Evolving removes Special Conditions and the effects of attacks.
-      addLog(state, `Evolved ${pokemonName(state, target)} into ${evolutionDef.name}.`, me.id);
+      // Evolving removes Special Conditions and the effects of attacks, and so does levelling up (a Pokémon LV.X).
+      addLog(state, evolutionDef.stage === 'levelUp' ? `Levelled up ${pokemonName(state, target)} to ${evolutionDef.name} LV.X.` : `Evolved ${pokemonName(state, target)} into ${evolutionDef.name}.`, me.id);
       target.evolvedFrom.push(target.card);
       target.card = evolution;
       target.playedTurn = state.turn;
@@ -1288,7 +1296,10 @@ export function evolveError(
   if (target.faceDown) return null;
   // Owners' Pokémon (Gym Heroes) need no rule of their own: Brock's Rhydon evolves from Brock's Rhyhorn, by name.
   const current = lookupCard(cards, target.card.defId);
-  if (!evolvesOnto(evolution, current)) return `${evolution.name} evolves from ${evolution.evolvesFrom ?? 'nothing'}`;
+  if (evolution.stage === 'levelUp') {
+    if (!evolvesOnto(evolution, current)) return `${evolution.name} LV.X levels up only from ${evolution.name}`;
+    if (!sides.some((s) => s.active === target)) return 'A Pokémon LV.X levels up only your Active Pokémon';
+  } else if (!evolvesOnto(evolution, current)) return `${evolution.name} evolves from ${evolution.evolvesFrom ?? 'nothing'}`;
   // Primal Aura and Primal Stare: not from the hand onto a Benched (or the opponent's Active) Pokémon.
   const primal = primalBlock(target, sides, cards);
   if (primal) return primal;
@@ -1309,6 +1320,8 @@ export function evolveError(
  * evolves from Mysterious Fossil and `current` is Buried Fossil (which counts as one for this).
  */
 export function evolvesOnto(evolution: PokemonCardDef, current: CardDef): boolean {
+  // A Pokémon LV.X levels up a Pokémon of its own name (the Active one: evolveError), never another LV.X.
+  if (evolution.stage === 'levelUp') return current.kind === 'pokemon' && current.stage !== 'levelUp' && current.name === evolution.name;
   const evolvesFromStage = evolution.stage === 'stage2' ? 'stage1' : 'basic';
   if (current.kind !== 'pokemon' || current.stage !== evolvesFromStage || evolution.stage === 'basic') return false;
   return current.name === evolution.evolvesFrom || !!evolution.alsoEvolvesFrom?.includes(current.name) || (current.name === 'Buried Fossil' && evolution.evolvesFrom === 'Mysterious Fossil');
@@ -2000,6 +2013,8 @@ export function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId
     }
     const knockOut = (pokemon: InPlayPokemon) => {
       addLog(state, `${pokemonName(state, pokemon)} was Knocked Out.`, id);
+      // Revenge: Knocked Out by damage from the opponent's attack, this turn.
+      if (pokemon.knockedByAttack === state.turn && state.currentPlayer !== id) owner.knockedOutByAttack = state.turn;
       // Time Shard: Knocked Out by the opponent's attack, up to 2 of its basic Energy cards go back to the hand.
       if (pokemon.timeShard === true) {
         const back = pokemon.energy.filter((e) => !e.provides && isBasicEnergy(lookupCard(state.cards, e.defId))).slice(0, 2);

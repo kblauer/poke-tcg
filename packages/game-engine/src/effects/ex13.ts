@@ -12,13 +12,13 @@ import { isBasicEnergy, lookupCard, namesMatch, isTrainerCard } from '../cards.j
 import { energyPool, type InPlayPokemon } from '../engine.js';
 import { nextRandom } from '../rng.js';
 import { clearSpecialConditions, inPlayDef, isDelta, pokemonName } from '../status.js';
-import { benchedSlots, headsUntilTails, opponentBenchChoice } from './common.js';
+import { benchedSlots, guardNext, headsUntilTails, opponentBenchChoice } from './common.js';
 import { discardAtRandom } from './ex1.js';
 import { discardOwn, energyCardOf, inPlay } from './ex2.js';
 import { snipe } from './ex6.js';
 import { EX7 } from './ex7.js';
 import { chooseOpponents } from './ex8.js';
-import { guardNext } from './ex10.js';
+
 import { devolveIntoDeck, foresight, lateCounters, same } from './ex12.js';
 import { discardFree } from './neo3.js';
 import { healUpTo } from './si1.js';

@@ -80,7 +80,7 @@ describe('evolution', () => {
     [s, basic] = give(s, 'ash', 'charmander');
     [s, energy] = give(s, 'ash', 'fire-energy');
     [s, stage1] = give(s, 'ash', 'charmeleon');
-    const notEvolution = { ok: false, error: 'Must evolve with a Stage 1 or Stage 2 Pokémon from your hand' };
+    const notEvolution = { ok: false, error: 'Must evolve with a Stage 1 or Stage 2 Pokémon (or level up with a Pokémon LV.X) from your hand' };
     expect(applyAction(s, 'ash', { type: 'EVOLVE', cardUid: basic, target: 'active' })).toEqual(notEvolution);
     expect(applyAction(s, 'ash', { type: 'EVOLVE', cardUid: energy, target: 'active' })).toEqual(notEvolution);
     expect(applyAction(s, 'ash', { type: 'EVOLVE', cardUid: stage1, target: 2 })).toEqual({ ok: false, error: 'Evolve one of your Pokémon in play' });

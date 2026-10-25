@@ -1,6 +1,6 @@
 // Attack resolution: legality, the choices an attack asks for, damage (weakness, resistance,
 // prevention) and the helpers card effects use. Card-specific behaviour lives in effects/.
-import { conditionProof, hasOwner, hasType, isBasicEnergy, lookupCard, namesMatch, typeName, typesOf, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
+import { conditionProof, hasOwner, hasType, isBasicEnergy, lookupCard, namesMatch, typeName, typesOf, weaknessLabel, type Attack, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { attackEffect, powerEffect, trainerEffect } from './effects/index.js';
 import {
   afflictBetweenTurns,
@@ -27,7 +27,7 @@ import {
 } from './engine.js';
 import { conditionBarred, conditionFree, discardsLocked, hasReact, holonWith, reactCount, energyKept, enervatingPollen, powerActive, prehistoricMemory, scaredBy, type Sides } from './powers.js';
 import { shuffle } from './rng.js';
-import { addLog, baseUid, clearOnLeavingActive, effectId, isDelta, energyProtected, flipCoin, inPlayDef, pokemonName, revealFaceDown, shapeshiftCard } from './status.js';
+import { addLog, baseUid, clearOnLeavingActive, effectId, isDelta, energyProtected, flipCoin, inPlayDef, pokemonName, previousLevel, revealFaceDown, shapeshiftCard } from './status.js';
 import type { PendingChoice, PendingChoiceInput } from './trainers.js';
 
 /** Answers to an attack's questions. Each field belongs to one kind of ChoiceSpec. */
@@ -184,6 +184,9 @@ export function usableAttacks(
   // Shapeshift: the attached Evolution card's attacks, with that card's effects.
   const source = shapeshiftCard(attacker)?.defId ?? effectId(attacker);
   const own = def(cards, attacker).attacks.map((attack) => ({ attack, source }));
+  // A Pokémon LV.X: its previous level's attacks too, with that card's effects.
+  const previous = !attacker.transformed && !shapeshiftCard(attacker) ? previousLevel(cards, attacker) : null;
+  const levels = previous ? previous.attacks.map((attack) => ({ attack, source: previous.id, from: previous.name })) : [];
   const lower =
     recall && !attacker.transformed
       ? attacker.evolvedFrom.flatMap((c) => {
@@ -239,7 +242,7 @@ export function usableAttacks(
   // A Stadium's attack (Rocket's Tricky Gym: for Pokémon with Dark or Rocket's in their names).
   const gym = stadium ? trainerEffect(stadium.defId)?.stadiumAttack : undefined;
   const gymAttack = gym && gym.for(def(cards, attacker).name, attacker, cards) ? [{ attack: gym.attack, source: stadium!.defId, from: lookupCard(cards, stadium!.defId).name }] : [];
-  return [...own, ...lower, ...remembered, ...linked, ...copied, ...mimicked, ...shared, ...machines, ...gymAttack];
+  return [...own, ...levels, ...lower, ...remembered, ...linked, ...copied, ...mimicked, ...shared, ...machines, ...gymAttack];
 }
 
 /** Every attack the situation's attacker can use, by attack index (its own, then Recall's, Technical Machines'…). */
@@ -345,8 +348,15 @@ export interface AttackContext {
 
 const def = inPlayDef;
 
-/** How many of the named special Energy card are attached to the Pokémon (Darkness Energy, Metal Energy). */
-const energyCount = (cards: CardLibrary, p: InPlayPokemon, name: string) => p.energy.filter((e) => !e.provides && !e.windless && lookupCard(cards, e.defId).name === name).length;
+/**
+ * How many of the named special Energy card are attached to the Pokémon (Darkness Energy, Metal Energy). The Diamond & Pearl
+ * series' basic Darkness and Metal Energy share their names but not their effects.
+ */
+const energyCount = (cards: CardLibrary, p: InPlayPokemon, name: string) =>
+  p.energy.filter((e) => {
+    const d = lookupCard(cards, e.defId);
+    return !e.provides && !e.windless && d.name === name && d.kind === 'energy' && d.basic === false;
+  }).length;
 
 /** Sprout Tower is the Stadium in play. */
 const sproutTower = (state: Pick<GameState, 'stadium' | 'cards'>) => !!state.stadium && lookupCard(state.cards, state.stadium.card.defId).name === 'Sprout Tower';
@@ -681,7 +691,7 @@ export function applyWeaknessResistance(
   const weakTo = (weakness ? [weakness.type, ...(effects?.weakness ? [] : (defender.moreWeakness ?? []))] : []).filter((t) => t !== weaknessIgnore);
   const resists = resistance ? [resistance.type, ...(effects?.resistance ? [] : (defender.moreResistance ?? []))] : [];
   // Cinnabar City Gym: no Weakness for a Water Pokémon's attack on Blaine's Pokémon.
-  if (withWeakness && weakness && types.some((t) => weakTo.includes(t))) damage *= weakness.multiplier;
+  if (withWeakness && weakness && types.some((t) => weakTo.includes(t))) damage = weakness.plus ? damage + weakness.plus : damage * weakness.multiplier;
   // Hook Shot and Pewter City Gym: no Resistance. Resistance Gym: 20 less of it.
   if (withResistance && resistance && types.some((t) => resists.includes(t))) damage -= Math.min(resistanceCap, Math.max(0, resistance.amount - resistanceLess));
   return Math.max(0, damage);
@@ -1255,8 +1265,8 @@ function createContext(
   };
   /** Damage to a benched Pokémon or the attacker itself: Defender, then Kabuto Armor. */
   const benchedDamage = (p: InPlayPokemon, amount: number, owner: PlayerState) => {
-    // Hard Protection: no damage from its own player's attacks, its own recoil included (agreed).
-    if (owner === me && passive(p)?.hardProtection) return 0;
+    // Hard Protection: no damage from its own player's attacks, its own recoil included (agreed). Accelerative Dive: the same, for a while.
+    if (owner === me && (passive(p)?.hardProtection || active(p.effects?.selfProof, turn))) return 0;
     // Feebas's Submerge: on the Bench, no damage from any attack.
     if (owner.active !== p && passive(p)?.benchImmuneAll) return 0;
     amount = charmed(amount);
@@ -1354,6 +1364,10 @@ function createContext(
     if (!immune(p, player) && !transparent(p, player)) return true;
     log(`${pokemonName(state, p)} is protected from the attack.`, player.id);
     return false;
+  };
+  /** Marks a Pokémon the attack's damage left with no HP (knockedByAttack, for Revenge). */
+  const ko = (pokemon: InPlayPokemon) => {
+    if (pokemon.damage >= def(state.cards, pokemon).hp) pokemon.knockedByAttack = turn;
   };
   const record = (pokemon: InPlayPokemon) => {
     const effects = (pokemon.effects ??= {});
@@ -1508,7 +1522,7 @@ function createContext(
       // Weakness, then Resistance, noted apart.
       const weak = applyWeaknessResistance(amount, typesOf(attackerDef), defenderDef, defender.effects, { ...rules, resistance: false });
       damage = applyWeaknessResistance(amount, typesOf(attackerDef), defenderDef, defender.effects, swift ? { ...rules, resistance: false } : rules);
-      noted(`Weakness (×${defenderDef.weakness?.multiplier ?? 2})`, amount, weak);
+      noted(`Weakness (${weaknessLabel(defenderDef.weakness)})`, amount, weak);
       noted('Resistance', weak, damage);
     }
     // Misty: 20 more each, for a Pokémon with Misty in its name, if the attack does damage after Weakness and Resistance.
@@ -1532,6 +1546,12 @@ function createContext(
     if (damage > 0 && !swift && active(defender.effects?.screech, turn)) {
       damage = noted('Screech', damage, damage + 20);
       log(`Screech: 20 more damage to ${defenderDef.name}.`, opp.id);
+    }
+    // Sand Eject: more to it on the turn it was set for, if the attack damages it after Weakness and Resistance.
+    const exposed = defender.effects?.exposed;
+    if (damage > 0 && !swift && exposed?.turn === turn) {
+      damage = noted('Sand Eject', damage, damage + exposed.amount);
+      log(`${exposed.amount} more damage to ${defenderDef.name}.`, opp.id);
     }
     // Silver Wind: 30 more to it, if the attack damages it after Weakness and Resistance.
     if (damage > 0 && !swift && active(defender.effects?.silverWind, turn)) {
@@ -1632,6 +1652,7 @@ function createContext(
     capLeft -= damage;
     defender.damage += damage;
     record(defender).damage += damage;
+    ko(defender);
     log(`${defenderDef.name} took ${damage} damage.`, opp.id);
     shard(defender, opp);
     grounding(defender, opp);
@@ -1741,6 +1762,7 @@ function createContext(
         if (damage < amount) log(`${pokemonName(state, p)} took ${damage} damage.`, player.id);
         if (damage === 0) continue;
         p.damage += damage;
+        ko(p);
         shard(p, player);
         grounding(p, player);
         if (player === opp) passive(p)?.onAttackDamage?.(ctx, p);
@@ -1783,6 +1805,7 @@ function createContext(
       const damage = fortitude(benched, player, benchedDamage(benched, weakened, player));
       if (damage === 0) return log(`The damage to ${pokemonName(state, benched)} was prevented.`, player.id);
       benched.damage += damage;
+      ko(benched);
       log(`${pokemonName(state, benched)} took ${damage} damage.`, player.id);
       shard(benched, player);
       grounding(benched, player);

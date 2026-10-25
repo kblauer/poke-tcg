@@ -247,3 +247,23 @@ export const benchSearch = (source: string, find: Pick<Extract<PendingChoice, { 
   blocked: (s) => (openBenchSlot(s.ownBench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
   run: (ctx) => ctx.pend({ kind: 'pickFromDeck', source, ...find, toBench: true }),
 });
+
+/** Steel Wing, Teary Eyes, Flame Screen: `amount` less damage to the attacker during the opponent's next turn, after Weakness and Resistance. */
+export const guardNext = (damage: number, amount: number): AttackEffect => ({
+  run(ctx) {
+    ctx.hit(damage);
+    (ctx.attacker.effects ??= {}).reduceDamage = { amount, until: ctx.turn + 1 };
+    ctx.log(`Damage to ${ctx.attackerDef.name} is reduced by ${amount} next turn.`);
+  },
+});
+
+/** "During your opponent's next turn, any damage done by attacks from the Defending Pokémon is reduced by N (before Weakness and Resistance)" (Charm, Delta Reduction, Negative Ion). */
+export const charmFor = (damage: number, amount: number): AttackEffect => ({
+  run(ctx) {
+    if (damage) ctx.hit(damage);
+    ctx.affectDefender((e) => {
+      e.charm = { amount, until: ctx.turn + 1 };
+      ctx.log(`${ctx.defenderDef.name}'s attacks do ${amount} less damage next turn.`, ctx.opp.id);
+    });
+  },
+});

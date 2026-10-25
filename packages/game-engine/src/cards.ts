@@ -9,7 +9,11 @@ export type EnergyType =
   | 'metal'
   | 'colorless';
 
-export type Stage = 'basic' | 'stage1' | 'stage2';
+/**
+ * A Pokémon card's stage. 'levelUp': a Pokémon LV.X (the Diamond & Pearl era), put onto the Active Pokémon of its name
+ * (evolvesOnto); in play it has its previous level's stage (inPlayDef) and can use its attacks (usableAttacks).
+ */
+export type Stage = 'basic' | 'stage1' | 'stage2' | 'levelUp';
 
 export interface Attack {
   name: string;
@@ -38,8 +42,11 @@ export interface PokemonCardDef {
   /** Stage 2 only: name of the Basic at the bottom of its line, for Pokémon Breeder. Missing in older games. */
   evolvesFromBasic?: string | null;
   attacks: Attack[];
-  /** Takes `multiplier`× damage from attackers of this type. Missing in games created before it was stored. */
-  weakness?: { type: EnergyType; multiplier: number } | null;
+  /**
+   * Takes `multiplier`× damage from attackers of this type, or `plus` more (the Diamond & Pearl series' "+20"). Missing
+   * in games created before it was stored.
+   */
+  weakness?: { type: EnergyType; multiplier: number; plus?: number } | null;
   /** Takes `amount` less damage from attackers of this type. Missing in games created before it was stored. */
   resistance?: { type: EnergyType; amount: number } | null;
   /** Pokémon Power printed on the card, if any (the effect lives in the engine's effects/). */
@@ -148,6 +155,9 @@ export const isTrainerCard = (def: CardDef) => def.kind === 'trainer' || (def.ki
 
 /** A basic Energy card (not Double Colorless Energy). */
 export const isBasicEnergy = (def: CardDef) => def.kind === 'energy' && def.basic !== false;
+
+/** A Weakness as printed: "×2", or "+20" (Diamond & Pearl series). */
+export const weaknessLabel = (weakness: PokemonCardDef['weakness']) => (weakness?.plus ? `+${weakness.plus}` : `×${weakness?.multiplier ?? 2}`);
 
 /**
  * Holon's Pokémon (printed on the cards; TCGdex leaves it out): each can be attached from the hand as a Special Energy card.

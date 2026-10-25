@@ -95,15 +95,18 @@ import { EX15_ENERGY, EX15_TRAINERS } from './ex15-trainers.js';
 import { EX16 } from './ex16.js';
 import { EX16_POWERS } from './ex16-powers.js';
 import { EX16_ENERGY, EX16_TRAINERS } from './ex16-trainers.js';
+import { DP1 } from './dp1.js';
+import { DP1_POWERS } from './dp1-powers.js';
+import { DP1_TRAINERS } from './dp1-trainers.js';
 import { EX_TEMPLATE_DATA } from './ex-template-data.js';
 import { templateEffects } from './ex-templates.js';
 
 /** Effects by card id, then attack name. Base Set 2's and Legendary Collection's are their originals' (base4.ts, lc.ts). */
-const ORIGINAL_EFFECTS: Record<string, Record<string, AttackEffect>> = { ...BASE1, ...JUNGLE, ...FOSSIL, ...PROMOS, ...ROCKET, ...GYM1, ...GYM2, ...NEO1, ...NEO2, ...SI1, ...NEO3, ...NEO4, ...ECARD1, ...ECARD2, ...ECARD3, ...EX1, ...EX2, ...EX3, ...EX4, ...EX5, ...EX6, ...EX7, ...EX8, ...EX9, ...EX10, ...EX11, ...EX12, ...EX13, ...EX14, ...EX15, ...EX16 };
+const ORIGINAL_EFFECTS: Record<string, Record<string, AttackEffect>> = { ...BASE1, ...JUNGLE, ...FOSSIL, ...PROMOS, ...ROCKET, ...GYM1, ...GYM2, ...NEO1, ...NEO2, ...SI1, ...NEO3, ...NEO4, ...ECARD1, ...ECARD2, ...ECARD3, ...EX1, ...EX2, ...EX3, ...EX4, ...EX5, ...EX6, ...EX7, ...EX8, ...EX9, ...EX10, ...EX11, ...EX12, ...EX13, ...EX14, ...EX15, ...EX16, ...DP1 };
 const EFFECTS: Record<string, Record<string, AttackEffect>> = { ...ORIGINAL_EFFECTS, ...base4Reprints(ORIGINAL_EFFECTS), ...lcAttacks(ORIGINAL_EFFECTS) };
 
 /**
- * The later EX sets' attacks worded as one of the shared wordings (ex-templates.ts), under a set's own effects, which have
+ * The later EX sets' and Gen 4's attacks worded as one of the shared wordings (ex-templates.ts), under a set's own effects, which have
  * the last word on any attack. Built on the first lookup, as ex-templates.ts can still be loading while this module does.
  */
 let allEffects: Record<string, Record<string, AttackEffect>> | undefined;
@@ -122,14 +125,14 @@ const printOf = (defId: string) => (defId.endsWith('-reverse') ? defId.slice(0, 
 export const attackEffect = (defId: string, attackName: string): AttackEffect | undefined => effectsOf(printOf(defId))?.[attackName];
 
 /** Pokémon Power effects by card id (WOTC cards have at most one power). Base Set 2's and Legendary Collection's are their originals' (LC's stop with any Special Condition). */
-const ORIGINAL_POWERS: Record<string, PowerEffect> = { ...BASE1_POWERS, ...JUNGLE_POWERS, ...FOSSIL_POWERS, ...PROMO_POWERS, ...ROCKET_POWERS, ...GYM1_POWERS, ...GYM2_POWERS, ...NEO1_POWERS, ...NEO2_POWERS, ...NEO3_POWERS, ...NEO4_POWERS, ...ECARD1_POWERS, ...ECARD2_POWERS, ...ECARD3_POWERS, ...EX1_POWERS, ...EX2_POWERS, ...EX3_POWERS, ...EX4_POWERS, ...EX5_POWERS, ...EX6_POWERS, ...EX7_POWERS, ...EX8_POWERS, ...EX9_POWERS, ...EX10_POWERS, ...EX11_POWERS, ...EX12_POWERS, ...EX13_POWERS, ...EX14_POWERS, ...EX15_POWERS, ...EX16_POWERS };
+const ORIGINAL_POWERS: Record<string, PowerEffect> = { ...BASE1_POWERS, ...JUNGLE_POWERS, ...FOSSIL_POWERS, ...PROMO_POWERS, ...ROCKET_POWERS, ...GYM1_POWERS, ...GYM2_POWERS, ...NEO1_POWERS, ...NEO2_POWERS, ...NEO3_POWERS, ...NEO4_POWERS, ...ECARD1_POWERS, ...ECARD2_POWERS, ...ECARD3_POWERS, ...EX1_POWERS, ...EX2_POWERS, ...EX3_POWERS, ...EX4_POWERS, ...EX5_POWERS, ...EX6_POWERS, ...EX7_POWERS, ...EX8_POWERS, ...EX9_POWERS, ...EX10_POWERS, ...EX11_POWERS, ...EX12_POWERS, ...EX13_POWERS, ...EX14_POWERS, ...EX15_POWERS, ...EX16_POWERS, ...DP1_POWERS };
 const POWERS: Record<string, PowerEffect> = { ...ORIGINAL_POWERS, ...base4Reprints(ORIGINAL_POWERS), ...lcPowers(ORIGINAL_POWERS) };
 
 /** The behaviour of the card's Pokémon Power, if it's implemented. */
 export const powerEffect = (defId: string): PowerEffect | undefined => POWERS[printOf(defId)];
 
 /** Trainer card effects by card id. Base Set 2's and Legendary Collection's are their originals'. */
-const ORIGINAL_TRAINERS: Record<string, TrainerEffect> = { ...BASE1_TRAINERS, ...JUNGLE_TRAINERS, ...FOSSIL_TRAINERS, ...NEO1_TRAINERS, ...NEO2_TRAINERS, ...NEO3_TRAINERS, ...NEO4_TRAINERS, ...PROMO_TRAINERS, ...ROCKET_TRAINERS, ...GYM1_TRAINERS, ...GYM2_TRAINERS, ...ECARD1_TRAINERS, ...ECARD2_TRAINERS, ...ECARD3_TRAINERS, ...EX1_TRAINERS, ...EX2_TRAINERS, ...EX3_TRAINERS, ...EX4_TRAINERS, ...EX5_TRAINERS, ...EX6_TRAINERS, ...EX7_TRAINERS, ...EX8_TRAINERS, ...EX9_TRAINERS, ...EX10_TRAINERS, ...EX11_TRAINERS, ...EX12_TRAINERS, ...EX13_TRAINERS, ...EX14_TRAINERS, ...EX15_TRAINERS, ...EX16_TRAINERS };
+const ORIGINAL_TRAINERS: Record<string, TrainerEffect> = { ...BASE1_TRAINERS, ...JUNGLE_TRAINERS, ...FOSSIL_TRAINERS, ...NEO1_TRAINERS, ...NEO2_TRAINERS, ...NEO3_TRAINERS, ...NEO4_TRAINERS, ...PROMO_TRAINERS, ...ROCKET_TRAINERS, ...GYM1_TRAINERS, ...GYM2_TRAINERS, ...ECARD1_TRAINERS, ...ECARD2_TRAINERS, ...ECARD3_TRAINERS, ...EX1_TRAINERS, ...EX2_TRAINERS, ...EX3_TRAINERS, ...EX4_TRAINERS, ...EX5_TRAINERS, ...EX6_TRAINERS, ...EX7_TRAINERS, ...EX8_TRAINERS, ...EX9_TRAINERS, ...EX10_TRAINERS, ...EX11_TRAINERS, ...EX12_TRAINERS, ...EX13_TRAINERS, ...EX14_TRAINERS, ...EX15_TRAINERS, ...EX16_TRAINERS, ...DP1_TRAINERS };
 const TRAINERS: Record<string, TrainerEffect> = { ...ORIGINAL_TRAINERS, ...base4Reprints(ORIGINAL_TRAINERS), ...lcReprints(ORIGINAL_TRAINERS) };
 
 /** The behaviour of a Trainer card, if it's implemented. */

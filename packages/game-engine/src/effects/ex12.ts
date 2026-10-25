@@ -12,12 +12,12 @@ import { reactCount } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { clearSpecialConditions, inPlayDef, pokemonName } from '../status.js';
 import { trainerEffect } from './index.js';
-import { benchedSlots, extraEnergy, headsUntilTails, opponentBenchChoice, same, selfdestruct } from './common.js';
+import { benchedSlots, extraEnergy, guardNext, headsUntilTails, opponentBenchChoice, same, selfdestruct } from './common.js';
 import { ascension } from './ex5.js';
 import { discardOwn, inPlay, putCounters, typeCards } from './ex2.js';
 import { lureIn, notNextTurn, snipe } from './ex6.js';
 import { dragOff, EX8 } from './ex8.js';
-import { guardNext } from './ex10.js';
+
 import { FOSSIL_POKEMON } from './ex12-trainers.js';
 import { discardFree } from './neo3.js';
 import { healUpTo } from './si1.js';

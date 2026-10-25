@@ -11,12 +11,12 @@ import { energyPool, isEnergyCardOf, isSpecialEnergy, PRIZE_COUNT } from '../eng
 import { powerActive } from '../powers.js';
 import { effectId, inPlayDef, pokemonName } from '../status.js';
 import { powerEffect, trainerEffect } from './index.js';
-import { benchedSlots, energyCanMove } from './common.js';
+import { benchedSlots, energyCanMove, guardNext } from './common.js';
 import { copyAttack } from './ecard2.js';
 import { inPlay } from './ex2.js';
 import { lureIn, mayDiscardAny, snipe } from './ex6.js';
 import { chooseOpponents } from './ex8.js';
-import { fireDance, guardNext } from './ex10.js';
+import { fireDance } from './ex10.js';
 import { discardFree } from './neo3.js';
 import { healUpTo } from './si1.js';
 

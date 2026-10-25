@@ -8,7 +8,7 @@ import { attackEffect, energyEffect, powerEffect, trainerEffect, type Attack, ty
 import { GEN2_SETS, POOL_SETS, type Rarity } from './pool.js';
 
 const ENERGY_TYPES = new Set<EnergyType>(['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'darkness', 'metal', 'colorless']);
-const STAGES: Record<string, Stage> = { Basic: 'basic', Baby: 'basic', Stage1: 'stage1', Stage2: 'stage2' };
+const STAGES: Record<string, Stage> = { Basic: 'basic', Baby: 'basic', Stage1: 'stage1', Stage2: 'stage2', 'LEVEL-UP': 'levelUp' };
 
 /** Shape of the TCGdex fields kept in Card.data (see packages/db/prisma/tcgdex.ts). */
 export interface CardData {
@@ -167,11 +167,13 @@ function power(data: CardData, cardId: string): PokemonCardDef['power'] {
   return ability ? { name: effect?.name ?? ability.name, text: effect?.text ?? ability.effect } : null;
 }
 
-/** First weakness as type and multiplier ("×2" → 2). */
+/** First weakness as type and multiplier ("×2" → 2), or the amount more ("+20" → plus 20: the Diamond & Pearl series'). */
 function weakness(data: CardData): PokemonCardDef['weakness'] {
   const [w] = data.weaknesses ?? [];
   if (!w) return null;
-  return { type: energyType(w.type), multiplier: Number.parseInt((w.value ?? '').replace(/^[×x]/, ''), 10) || 2 };
+  const value = (w.value ?? '').trim();
+  if (value.startsWith('+')) return { type: energyType(w.type), multiplier: 1, plus: Number.parseInt(value.slice(1), 10) };
+  return { type: energyType(w.type), multiplier: Number.parseInt(value.replace(/^[×x]/, ''), 10) || 2 };
 }
 
 /** First resistance as type and amount ("-30" → 30). */
