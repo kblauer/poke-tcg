@@ -1,7 +1,7 @@
 // A run's Pokémon (README: Idle Adventure): making them (starters, wild, trainers'), the moves they know, their basic
 // move, the energy each move costs and the default slots. The energy rule (agreed with the user): no PP; every Pokémon
-// has a basic move (energy 0, always usable) and 3 slots; each turn it uses the highest slot it has the energy for,
-// else the basic move, and gains 1 energy after acting.
+// has a basic move (energy 0, always usable) and 3 slots, used in turn: it waits on the next slot (using the basic
+// move while its energy builds), uses it, then the next, back to the first; it gains 1 energy after acting.
 import { int, type Rng } from '@poke-tcg/campaign';
 import { moveData, species } from './data.js';
 import { expForLevel } from './stats.js';

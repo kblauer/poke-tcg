@@ -36,8 +36,8 @@ const moveLabel = (key: string) => {
 
 /**
  * The party (README: Idle Adventure): its order (the lead fights first, the next comes in when one faints: agreed),
- * each Pokémon's stats, IVs and EVs, its basic move and its 3 slots, highest priority first (it uses the highest it has
- * the energy for each turn, else the basic move), and the evolution stones in the bag it can use.
+ * each Pokémon's stats, IVs and EVs, its basic move and its 3 slots, used in turn (it waits on the next one, using the
+ * basic move while its energy builds: the order is the strategy), and the evolution stones in the bag it can use.
  */
 export function PartyScreen({ party, bag, busy, onAct }: { party: Mon[]; bag: Record<string, number>; busy: boolean; onAct: (action: IdleAction) => void }) {
   const move = (i: number, by: number) => {

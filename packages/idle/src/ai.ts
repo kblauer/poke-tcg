@@ -1,5 +1,5 @@
 // The Idle Adventure's decisions in battle (README: Idle Adventure), all settings, so nothing waits on the player:
-// - the energy rule (Battle.chooseMove): the highest slot it has the energy for, else the basic move;
+// - the energy rule (Battle.chooseMove): the slots in turn, the basic move while the next one's energy builds;
 // - auto-heal (agreed with the user): a Potion-class item when the active Pokémon is at half its HP or less, the one
 //   wasting least; a status cure when it has a status (the specific cure before Full Heal); a Revive by the settings'
 //   policy (the last one standing, any fainted, boss battles, the lead; none, never);

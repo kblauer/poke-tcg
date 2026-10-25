@@ -89,6 +89,7 @@ export interface BattleSetup {
   maxTicks?: number;
 }
 
+
 export interface BattleOutcome {
   result: BattleResult;
   events: BattleEvent[];
@@ -196,6 +197,8 @@ export class Battler {
   toxicCount = 0;
   v: Volatiles = {};
   energy = 0;
+  /** The slot it's working towards (chooseMove). */
+  nextSlot = 0;
   /** The moves its slots hold and its basic move (a Transformed Pokémon's are its target's). */
   slots: string[];
   basic: string;
@@ -834,11 +837,22 @@ export class Battle {
     const forced = b.v.charging ?? b.v.rampage?.move ?? (b.v.rollout && b.lastMove) ?? (b.v.uproar && b.lastMove) ?? (b.v.bide && 'bide') ?? null;
     if (forced) return forced;
     if (b.v.encore && this.selectable(b, b.v.encore.move)) return b.v.encore.move;
-    for (const key of b.slots) {
-      const cost = energyCost(key);
-      if (cost > b.energy || !this.selectable(b, key) || statusUseless(this, b, key)) continue;
-      b.energy -= cost;
-      return key;
+    // Works through its slots in order (agreed with the user, 2026-10-25): waits on the next one, using the basic move
+    // while its energy builds, uses it, then on to the next, back to the first after the last; a slot that can't be
+    // used or would do nothing (statusUseless) is skipped. The order the player sets is the strategy.
+    const usable = (key: string) => this.selectable(b, key) && !statusUseless(this, b, key);
+    const n = b.slots.length;
+    for (let k = 0; k < n; k++) {
+      const i = (b.nextSlot + k) % n;
+      const key = b.slots[i]!;
+      if (!usable(key)) continue;
+      if (energyCost(key) <= b.energy) {
+        b.energy -= energyCost(key);
+        b.nextSlot = (i + 1) % n;
+        return key;
+      }
+      b.nextSlot = i;
+      break;
     }
     if (this.selectable(b, b.basic)) return b.basic;
     return 'struggle';
@@ -1056,7 +1070,8 @@ export class Battle {
 
   /**
    * Experience for a fainted foe (Cmd_getexp, Gen 3): base experience × its level / 7, split evenly among the player's
-   * Pokémon that faced it and haven't fainted, 1.5× for a trainer's; each also gains its EV yield. Level-ups raise the
+   * Pokémon that faced it and haven't fainted, the rest of the party half each (Gen 6's Exp. Share: agreed), 1.5× for a
+   * trainer's; each also gains its EV yield. Level-ups raise the
    * stats at once (its HP by as much as its max HP) and teach the level's moves (all kept; the slots follow if automatic).
    */
   private gainExp(foe: Battler) {
@@ -1066,13 +1081,17 @@ export class Battle {
     let each = Math.floor(Math.floor((s.baseExp * foe.level) / 7) / faced.length);
     if (each === 0) each = 1;
     if (this.setup.kind === 'trainer') each = Math.floor((each * 150) / 100);
-    for (const b of faced) {
+    // The rest of the party gets half each (Gen 6's Exp. Share; agreed with the user, 2026-10-25).
+
+    const rest = this.party.filter((b) => !b.fainted && !faced.includes(b));
+    const gains: [Battler, number][] = [...faced.map((b) => [b, each] as [Battler, number]), ...rest.map((b) => [b, Math.max(1, Math.floor(each / 2))] as [Battler, number])];
+    for (const [b, gained] of gains) {
       const mon = b.mon;
       if (mon.level >= 100) continue;
       mon.evs = addEvs(mon.evs, s.evYield);
       const growth = species(mon.species).growth;
-      mon.exp += each;
-      this.emit({ t: 'exp', uid: mon.uid, gained: each, exp: mon.exp, msg: `${species(mon.species).name} gained ${each} EXP. Points!` });
+      mon.exp += gained;
+      this.emit({ t: 'exp', uid: mon.uid, gained, exp: mon.exp, msg: `${species(mon.species).name} gained ${gained} EXP. Points!` });
       const reached = levelForExp(growth, mon.exp);
       while (mon.level < reached) {
         mon.level += 1;
