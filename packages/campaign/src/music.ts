@@ -294,6 +294,23 @@ export function poffinMusic(): MusicCue {
   return { key: 'Diamond, Pearl & Platinum:poffins', songs: [{ game: 'Diamond, Pearl & Platinum', title: 'Poffins' }], seed: 'poffins', start: true };
 }
 
+/**
+ * The Game Corner's music (the Extras page): Mauville's Game Corner plays MUS_GAME_CORNER (Ruby & Sapphire's "Game
+ * Corner") at its counter, tables and machines; the same in either soundtrack (Omega Ruby & Alpha Sapphire has no Game
+ * Corner). Only switching music already playing, as a map's does.
+ */
+export function gameCornerMusic(): MusicCue {
+  return { key: 'Ruby & Sapphire:game-corner', songs: [{ game: 'Ruby & Sapphire', title: 'Game Corner' }], seed: 'game-corner' };
+}
+
+/**
+ * Voltorb Flip's music (the Extras page): HeartGold and SoulSilver's game keeps the Goldenrod Game Corner's song
+ * (SEQ_GS_GAME) playing under it; the same in either soundtrack. Started if nothing was playing, as Poffin cooking's.
+ */
+export function voltorbFlipMusic(): MusicCue {
+  return { key: 'HeartGold & SoulSilver:game-corner', songs: [{ game: 'HeartGold & SoulSilver', title: 'Goldenrod Game Corner' }], seed: 'voltorb-flip', start: true };
+}
+
 /** One of a cue's songs, the same one every time for the same seed. */
 export function pickSong(cue: MusicCue): Song {
   let hash = 0;

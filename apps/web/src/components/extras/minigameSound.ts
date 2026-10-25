@@ -45,7 +45,7 @@ export class MinigameSound<Name extends string> {
   private ctx: AudioContext | null;
   private out: GainNode | null;
   private buffers = new Map<Name, AudioBuffer>();
-  private playing = new Map<string, { source: AudioBufferSourceNode; priority: number; ends: number }>();
+  private playing = new Map<string, { source: AudioBufferSourceNode; priority: number; ends: number; name?: Name }>();
   private loop: { source: AudioBufferSourceNode; player: string } | null = null;
   private pitch = 0;
 
@@ -93,7 +93,14 @@ export class MinigameSound<Name extends string> {
     source.buffer = buffer;
     source.connect(this.out);
     source.start();
-    this.playing.set(player, { source, priority, ends: this.ctx.currentTime + buffer.duration });
+    this.playing.set(player, { source, priority, ends: this.ctx.currentTime + buffer.duration, name });
+  }
+
+  /** Whether any of `names` (or any sound, with none given) is still playing (IsSEPlaying): never while the audio is suspended, so a minigame waiting on one can't stall. */
+  isPlaying(...names: Name[]) {
+    if (!this.ctx || this.ctx.state !== 'running') return false;
+    for (const p of this.playing.values()) if (p.ends > this.ctx.currentTime && (!names.length || (p.name !== undefined && names.includes(p.name)))) return true;
+    return false;
   }
 
   /** A sound looped on its player until `stopLoop` (the Berry Blender's whirring). */

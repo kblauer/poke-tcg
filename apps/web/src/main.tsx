@@ -51,6 +51,8 @@ const ExtrasPage = lazyRouteComponent(() => import('./pages/Extras'), 'ExtrasPag
 const BerryFarmPage = lazyRouteComponent(() => import('./pages/Extras'), 'BerryFarmPage');
 const BerryBlenderPage = lazyRouteComponent(() => import('./pages/Extras'), 'BerryBlenderPage');
 const PoffinCookingPage = lazyRouteComponent(() => import('./pages/Extras'), 'PoffinCookingPage');
+const GameCornerPage = lazyRouteComponent(() => import('./pages/Extras'), 'GameCornerPage');
+const VoltorbFlipPage = lazyRouteComponent(() => import('./pages/Extras'), 'VoltorbFlipPage');
 
 // The logo, in the top bar and the phone's menu: the Pokémon logo's lettering (Pokemon Solid, `font-logo`); everything
 // else is in the UI's font (index.css).
@@ -211,9 +213,11 @@ const extrasRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extra
 const berryFarmRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras/berry-farm', component: BerryFarmPage });
 const berryBlenderRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras/berry-blender', component: BerryBlenderPage });
 const poffinCookingRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras/poffin-cooking', component: PoffinCookingPage });
+const gameCornerRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras/game-corner', component: GameCornerPage });
+const voltorbFlipRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras/voltorb-flip', component: VoltorbFlipPage });
 
 const router = createRouter({
-  routeTree: rootRoute.addChildren([playRoute, homeRoute, towerRoute, battleRoute, gameRoute, decksRoute, communityRoute, inventoryRoute, cosmeticsRoute, packsRoute, settingsRoute, extrasRoute, berryFarmRoute, berryBlenderRoute, poffinCookingRoute]),
+  routeTree: rootRoute.addChildren([playRoute, homeRoute, towerRoute, battleRoute, gameRoute, decksRoute, communityRoute, inventoryRoute, cosmeticsRoute, packsRoute, settingsRoute, extrasRoute, berryFarmRoute, berryBlenderRoute, poffinCookingRoute, gameCornerRoute, voltorbFlipRoute]),
 });
 
 declare module '@tanstack/react-router' {

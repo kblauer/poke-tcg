@@ -52,6 +52,10 @@ model User {
   towerBest     Int             @default(0)
   /// Battle Points: the Battle Tower's currency, won with each of its wins and spent in its lobby's BP Shop (packs, for now).
   bp            Int             @default(0)
+  /// The Game Corner's Coin Case: coins bought with banked ₱ and played at the roulette and the slots, or won at Voltorb Flip (at most 9999).
+  coins         Int             @default(0)
+  /// Voltorb Flip's session (the campaign package's VoltorbFlipState): its last 5 rounds, for the level, and the board in play.
+  voltorbFlip   Json            @default("{}")
   decks         Deck[]
   games         Game[]
   runs          Run[]

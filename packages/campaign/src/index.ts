@@ -23,3 +23,8 @@ export * from './poffin-cooking.js';
 export * from './tower.js';
 export * from './battle-tower-trainers.js';
 export * from './battle-tower-maps.js';
+export * from './game-corner.js';
+export * from './game-corner-map.js';
+export * from './slot-machine.js';
+export * from './roulette.js';
+export * from './voltorb-flip.js';

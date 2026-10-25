@@ -83,6 +83,9 @@ SPRITES = {
     'magma_grunt_m': 'OBJ_EVENT_GFX_MAGMA_MEMBER_M',
     'magma_grunt_f': 'OBJ_EVENT_GFX_MAGMA_MEMBER_F',
     'item_ball': 'OBJ_EVENT_GFX_ITEM_BALL',
+    # The Game Corner's people (the Extras page's map, tools/extras/game_corner_map.py) not drawn elsewhere.
+    'girl_2': 'OBJ_EVENT_GFX_GIRL_2',
+    'cook': 'OBJ_EVENT_GFX_COOK',
 }
 # The Hoenn bosses' sprites, by boss id (for the gyms' and League's maps, and the run picker).
 BOSSES = {
