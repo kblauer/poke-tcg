@@ -21,6 +21,8 @@ import { PAGE_WIDTH } from '../utils/layout';
 
 /** How long each move of a reply stays on screen before the next one (a CPU move showing its card: PLAYED_CARD_MS; one that began a turn: TURN_BANNER_MS). */
 const MOVE_MS = 900;
+/** A move that began a turn: nothing is played until its banner has faded out (it mounts a render after the move shows). */
+const BANNER_DONE_MS = TURN_BANNER_MS + 150;
 
 /** A move still to be shown: the view after it, and whether it began a new turn (the TurnBanner then plays before the next move). */
 /** `flipsFrom`: the log entry its coin flips come after, when the frames before it were skipped (the battle's last move). */
@@ -147,7 +149,8 @@ export function GamePage() {
         setReplay((r) => r.slice(1));
         if (last) setShownView(null);
       },
-      last ? 0 : toolsShown.current ? TOOL_POP_MS : next?.newTurn ? TURN_BANNER_MS : next?.highlight?.defId && !cardShown.current ? PLAYED_CARD_MS : MOVE_MS,
+      // The last move hands the board back at once, unless it began a turn: the player's cards wait for its banner too.
+      next?.newTurn && next.view.phase !== 'finished' ? BANNER_DONE_MS : last ? 0 : toolsShown.current ? TOOL_POP_MS : next?.highlight?.defId && !cardShown.current ? PLAYED_CARD_MS : MOVE_MS,
     );
     return () => clearTimeout(timer);
   }, [revealed]);

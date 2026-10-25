@@ -569,10 +569,14 @@ export function createGame(p1: NewGamePlayer, p2: NewGamePlayer, seed: number, l
 /** The reason on the turn-order coin flip's log entry, so the UI can pick it out. */
 export const TURN_ORDER_FLIP = 'Coin flip for turn order';
 
-/** An ending turn's Pokémon Checkup: the state as it began, and as it ended (before the next turn begins). */
+/**
+ * An ending turn's Pokémon Checkup: the state as it began, and as it ended (before the next turn begins); `burn`, when a
+ * Burned Pokémon took its damage, as it stood before the Burn flips.
+ */
 export interface Checkup {
   start: GameState;
   end: GameState;
+  burn?: GameState;
 }
 
 /** While `captureCheckup` runs: told the state as an ending turn's Pokémon Checkup begins and ends. */
@@ -587,14 +591,17 @@ let onCheckup: ((state: GameState, at: keyof Checkup) => void) | null = null;
 export function captureCheckup<T>(run: () => T): { result: T; checkup: Checkup | null } {
   let start: GameState | null = null;
   let end: GameState | null = null;
+  // Set in the callback, so not narrowed to null here.
+  let burn = null as GameState | null;
   const outer = onCheckup;
   onCheckup = (state, at) => {
     if (at === 'start') start ??= structuredClone(state);
+    else if (at === 'burn') burn ??= structuredClone(state);
     else end ??= structuredClone(state);
   };
   try {
     const result = run();
-    return { result, checkup: start && end ? { start, end } : null };
+    return { result, checkup: start && end ? { start, end, ...(burn && { burn }) } : null };
   } finally {
     onCheckup = outer;
   }
@@ -1643,14 +1650,18 @@ function betweenTurns(state: GameState) {
   // Fiery Aura: an Active Rapidash's makes Burn 4 damage counters, for both players' Burned Pokémon (agreed).
   const everyone = state.playerOrder.map((id) => state.players[id]!);
   const fiery = everyone.some((s) => s.active && powerEffect(effectId(s.active))?.fieryAura && powerActive(s.active, state.cards, everyone));
-  for (const { id, active, name } of actives) {
-    if (!active.burned) continue;
+  // The Burn damage first, then its flips: the board shows the damage before the coins (the `burn` checkup frame).
+  const burned = actives.filter(({ active }) => active.burned);
+  for (const { id, active, name } of burned) {
     // Full Flame: 4 damage counters as well.
     const flame = !!state.stadium && lookupCard(state.cards, state.stadium.card.defId).name === 'Full Flame';
     const burn = fiery || flame ? 40 : 20;
     active.damage += burn;
     if (active.effects) delete active.effects.shadowImages;
     addLog(state, `${name} takes ${burn} Burn damage${fiery ? ' (Fiery Aura)' : ''}.`, id);
+  }
+  if (burned.length) onCheckup?.(state, 'burn');
+  for (const { id, active, name } of burned) {
     if (flipCoin(state, `${name} is Burned`, id)) {
       active.burned = false;
       addLog(state, `${name} is no longer Burned.`, id);

@@ -125,6 +125,8 @@ export function PackOpening({
   const [quantity, setQuantity] = useState(1);
   /** Custom picked: the number field shows instead of the quick picks being the only choice. */
   const [custom, setCustom] = useState(false);
+  /** The number field's text while it's typed in (it may be empty, so the 1 can be cleared); null shows `quantity`. */
+  const [draft, setDraft] = useState<string | null>(null);
   /** The cards' large images, fetched while the pack tears open and the cards burst out, so each is ready when it flips up. */
   const preloaded = useRef<HTMLImageElement[]>([]);
   /** Debug tools only: the next packs each get a holo Energy (packs.debugOpen, refused in production). */
@@ -265,16 +267,25 @@ export function PackOpening({
                   type="number"
                   min={1}
                   max={MAX_PACKS_AT_ONCE}
-                  value={quantity}
+                  value={draft ?? quantity}
                   autoFocus
                   disabled={open.isPending}
-                  onChange={(e) => setQuantity(Math.max(1, Math.min(MAX_PACKS_AT_ONCE, Math.floor(Number(e.target.value)) || 1)))}
+                  onChange={(e) => {
+                    const n = Math.floor(Number(e.target.value));
+                    setDraft(n > MAX_PACKS_AT_ONCE ? String(MAX_PACKS_AT_ONCE) : e.target.value);
+                    if (n >= 1) setQuantity(Math.min(MAX_PACKS_AT_ONCE, n));
+                  }}
+                  onBlur={() => setDraft(null)}
                   className="w-20 rounded bg-slate-800 px-2 py-1 text-sm outline-none ring-yellow-300 focus:ring-1"
                   aria-label={`Number of packs (1 to ${MAX_PACKS_AT_ONCE})`}
                 />
               )}
               {custom && (
-                <button className="text-xs text-slate-400 hover:text-slate-200" disabled={open.isPending} onClick={() => setQuantity(maxAffordable)}>
+                <button className="text-xs text-slate-400 hover:text-slate-200" disabled={open.isPending} onClick={() => {
+                    setDraft(null);
+                    setQuantity(maxAffordable);
+                  }}
+                >
                   Max ({maxAffordable})
                 </button>
               )}

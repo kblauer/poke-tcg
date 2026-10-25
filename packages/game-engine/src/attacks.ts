@@ -1679,10 +1679,13 @@ function createContext(
     // EXP.ALL: when the Active Pokémon is Knocked Out, a basic Energy card goes from it to the Pokémon with EXP.ALL, which is discarded.
     if (opp.active === defender && defender.damage >= defenderDef.hp) expAll(opp, defender);
     // Secrete Poison: the attacker is Poisoned and 10 damage to each of the attacking player's benched Pokémon, even if this Knocks it Out.
+    // It's Kakuna's attack's effect, so Neutral Shield keeps it off a Mew, Active or Benched, while Kakuna is Evolved.
     if (active(effects?.secretePoison, turn)) {
+      const shielded = (p: InPlayPokemon) => defender.evolvedFrom.length > 0 && !!passive(p)?.neutralShield;
       log(`Secrete Poison: ${attackerDef.name} is now Poisoned, and 10 damage to each benched Pokémon.`);
-      if (!conditionFree(attacker, state.cards, passive(attacker))) attacker.poison = Math.max(attacker.poison ?? 0, 10);
-      for (const p of me.bench) if (p) p.damage += 10;
+      if (shielded(attacker)) log(`Neutral Shield: Secrete Poison doesn't affect ${attackerDef.name}.`);
+      else if (!conditionFree(attacker, state.cards, passive(attacker))) attacker.poison = Math.max(attacker.poison ?? 0, 10);
+      for (const p of me.bench) if (p && !shielded(p)) p.damage += 10;
     }
     if (defender.damage >= defenderDef.hp && active(effects?.destinyBond, turn)) {
       attacker.damage = Math.max(attacker.damage, attackerDef.hp);
