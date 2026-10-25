@@ -14,8 +14,8 @@ export interface CardInstance {
   /** Unique within a game, e.g. "p1-17". */
   uid: string;
   defId: string;
-  /** Set on a non-Energy card attached as Energy (Buzzap): the energy it provides. */
-  provides?: { type: EnergyType; amount: number };
+  /** Set on a non-Energy card attached as Energy (Buzzap; Energy Shift: every type, 'any'): the energy it provides. */
+  provides?: { type: EnergyType | 'any'; amount: number };
   /**
    * Energy Converter: this basic Energy card is treated as `type` until the end of the turn, while the Porygon2 whose
    * top card is `by` works (refreshConverted). `activeOnly` (Ion Coating): also until its Pokémon leaves the Active spot.
@@ -149,6 +149,12 @@ export interface PokemonEffects {
   inkSpurt?: boolean;
   /** Attacks that damage it do 20 more (after Weakness and Resistance), through this turn (Screech). */
   screech?: number;
+  /** Encore: through turn `until`, `attack` is the only attack it can use. */
+  encore?: { attack: string; until: number };
+  /** Dig Trap: still the Active Pokémon at the end of turn `turn`, 6 damage counters on one of the opponent's Benched Pokémon (betweenTurns). */
+  digTrap?: number;
+  /** Ferment Poison: while it stays Poisoned, its Poké-Bodies don't work (powerActive). */
+  fermentPoison?: boolean;
   /** Attack damage to it from the opponent's Stage 2 Evolved Pokémon is `amount` less, after Weakness and Resistance, through turn `until` (Psychic Guard). */
   stage2Guard?: { amount: number; until: number };
   /** Damaged by the opponent's attack through this turn, 4 damage counters on the Attacking Pokémon (Spike Armor). */
@@ -279,6 +285,8 @@ export interface InPlayPokemon {
   powerUsedTurn?: number;
   /** The turn an attack's damage left it with no HP (Revenge: Knocked Out by damage from an attack, resolveKnockouts). */
   knockedByAttack?: number;
+  /** The Energy cards its player attached to it from the hand, by card id, on turn `turn` (Sand Sonic). */
+  fromHand?: { turn: number; defIds: string[] };
   /** Burned by Torrid Wave: this much Burn damage between turns instead of 20, while it stays Burned. */
   burnDamage?: number;
   /** The turn it evolved while Asleep (Wake-up Punch: it was Asleep before evolving). */
@@ -391,6 +399,8 @@ export interface PlayerState {
   supporterTurn?: number;
   /** The last turn one of its Pokémon was Knocked Out by damage from the opponent's attack (Revenge). */
   knockedOutByAttack?: number;
+  /** The last turn one of its Pokémon was Knocked Out, any way (Minus Charge, Plus Charge). */
+  knockedOutTurn?: number;
   /** The Supporter card played on `supporterTurn` (Detour uses its effect while it's in play). */
   supporterUid?: string;
   /** The turn this player last attached an Energy card from their hand to their Active Pokémon (Harvest Bounty). */
@@ -903,8 +913,11 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       if (pending.betweenTurns) (state.pendingChoice as PendingChoice).betweenTurns = true;
       return ok(state);
     }
-    // Asked between turns (Team Aqua Belt): now the next turn starts.
-    if (pending.betweenTurns) return promoteOrBeginTurn(state);
+    // Asked between turns (Team Aqua Belt, Dig Trap): Knock Outs, then the next turn starts.
+    if (pending.betweenTurns) {
+      const winner = resolveKnockouts(state, state.currentPlayer);
+      return winner ? finish(state, winner) : promoteOrBeginTurn(state);
+    }
     // A power's answer ends the turn (Howl).
     if (state.endTurnNow) return afterTrainer(state, state.players[state.currentPlayer]!, state.players[opponentOf(state, state.currentPlayer)]!);
     // Damage it did (Sneak Attack) can Knock Out a Pokémon during the turn.
@@ -1025,6 +1038,7 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       const notHere = energyEffect(energy.defId)?.attachError?.(inPlayDef(state.cards, target), target, state.cards) ?? attachBlocked(state.cards, [me, opp], target, energy);
       if (notHere) return fail(notHere);
       target.energy.push(energy);
+      target.fromHand = { turn: state.turn, defIds: [...(target.fromHand?.turn === state.turn ? target.fromHand.defIds : []), energy.defId] };
       state.energyAttachedThisTurn = true;
       if (action.target === 'active') me.activeEnergyTurn = state.turn;
       addLog(state, `Attached ${card(energy).name} to ${pokemonName(state, target)}.`, me.id);
@@ -1297,7 +1311,8 @@ function dropShapeshifts(state: GameState) {
  * once (no attack); otherwise Knock Outs are checked (Devolution Spray, Buzzap; Scoop Up can empty the active spot).
  */
 function afterTrainer(state: GameState, me: PlayerState, opp: PlayerState): ActionResult {
-  if (state.endTurnNow) {
+  // Waterlog: the turn ends once its question is answered (the pending choice's own resolution ends it).
+  if (state.endTurnNow && !state.pendingChoice) {
     delete state.endTurnNow;
     addLog(state, 'The turn ends.', me.id);
     const winner = resolveKnockouts(state, opp.id);
@@ -1677,12 +1692,15 @@ function endTurn(state: GameState): ActionResult {
 }
 
 /**
- * Team Aqua Belt and Team Magma Belt, between turns: asks each player whose Active Pokémon has one, with a card in their deck
- * that evolves from it, whether to use it (the usual limits for evolving apply, agreed). Returns whether anyone is asked.
+ * The questions between turns: those the checkup queued (Dig Trap), then Team Aqua Belt and Team Magma Belt: asks each player
+ * whose Active Pokémon has one, with a card in their deck that evolves from it, whether to use it (the usual limits for
+ * evolving apply, agreed). Returns whether anyone is asked.
  */
 function askBelts(state: GameState): boolean {
   const sides = state.playerOrder.map((id) => state.players[id]!);
-  const asks: PendingChoice[] = [];
+  const asks: PendingChoice[] = (state.queuedChoices ?? []).filter((c) => c.betweenTurns);
+  state.queuedChoices = state.queuedChoices?.filter((c) => !c.betweenTurns);
+  if (!state.queuedChoices?.length) delete state.queuedChoices;
   for (const player of sides) {
     const p = player.active;
     const belt = p && toolOf(state.cards, p);
@@ -1741,6 +1759,14 @@ function beginNextTurn(state: GameState): ActionResult {
  * both actives, in this order: Poisoned, Burned, Asleep, Paralyzed.
  */
 function betweenTurns(state: GameState) {
+  // Dig Trap: the Pokémon that used it, still its player's Active Pokémon, puts 6 damage counters on one of the opponent's Benched Pokémon.
+  for (const id of state.playerOrder) {
+    const active = state.players[id]!.active;
+    const opp = state.players[opponentOf(state, id)]!;
+    if (active?.effects?.digTrap === state.turn && opp.bench.some(Boolean)) {
+      (state.queuedChoices ??= []).push({ player: id, source: 'Dig Trap', kind: 'placeCounters', count: 6, together: true, betweenTurns: true });
+    }
+  }
   // Aqua Trance, Slow-Acting Poison: at the end of the turn they name, before the checkup (a Poisoned Pokémon takes its damage now).
   for (const id of state.playerOrder) {
     const active = state.players[id]!.active;
@@ -2128,8 +2154,27 @@ export function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId
       [owner.deck, state.rngState] = shuffle([...owner.deck, ...cards], state.rngState);
       addLog(state, `Time Travel: ${pokemonName(state, p)} isn't Knocked Out; it was shuffled into the deck.`, id);
     }
+    /** Prize cards for the opponent: 2 for a Pokémon-ex. */
+    const takePrizes = (pokemon: InPlayPokemon) => {
+      const d = lookupCard(state.cards, pokemon.card.defId);
+      for (let n = d.kind === 'pokemon' && d.ex ? 2 : 1; n > 0; n--) {
+        const prize = taker.prizes.pop();
+        if (prize) taker.hand.push(prize);
+      }
+    };
+    /** Knocked Out by damage from the opponent's attack this turn, with a working power reacting to it (Phoenix Turn, Energy Shift). */
+    const attackKo = (pokemon: InPlayPokemon, flag: 'phoenixTurn' | 'energyShift') =>
+      pokemon.knockedByAttack === state.turn && state.currentPlayer !== id && !!pokemonPower(pokemon)?.[flag] && powerActive(pokemon, state.cards, sides);
+    const isOut = (p: InPlayPokemon) => p.damage >= inPlayDef(state.cards, p).hp;
     const knockOut = (pokemon: InPlayPokemon) => {
       addLog(state, `${pokemonName(state, pokemon)} was Knocked Out.`, id);
+      owner.knockedOutTurn = state.turn;
+      // Burning Coat: the opponent's Active Entei Knocked it Out with its attack's damage; the top 3 cards of its owner's deck are discarded.
+      if (pokemon.knockedByAttack === state.turn && state.currentPlayer !== id && taker.active && pokemonPower(taker.active)?.burningCoat && powerActive(taker.active, state.cards, sides)) {
+        const top = owner.deck.splice(0, 3);
+        owner.discard.push(...top);
+        addLog(state, `Burning Coat: discarded the top ${top.length} cards of the deck.`, id);
+      }
       // Revenge: Knocked Out by damage from the opponent's attack, this turn.
       if (pokemon.knockedByAttack === state.turn && state.currentPlayer !== id) owner.knockedOutByAttack = state.turn;
       // Time Shard: Knocked Out by the opponent's attack, up to 2 of its basic Energy cards go back to the hand.
@@ -2153,10 +2198,25 @@ export function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId
       // Empty Shell: the opponent takes no Prize cards for Shedinja, while the body works (Ancient Wind, Imprison and Stadiums turn it off).
       if (pokemonPower(pokemon)?.noPrizes && powerActive(pokemon, state.cards, sides)) return addLog(state, `Empty Shell: no Prize cards for ${pokemonName(state, pokemon)}.`, id);
       // A Pokémon-ex gives up 2 Prize cards.
-      for (let n = def.kind === 'pokemon' && def.ex ? 2 : 1; n > 0; n--) {
-        const prize = taker.prizes.pop();
-        if (prize) taker.hand.push(prize);
-      }
+      takePrizes(pokemon);
+    };
+    /** Phoenix Turn: heads, it stays in play with no damage counters, Special Conditions or effects, its cards but Energy discarded; the opponent takes its Prize card. */
+    const phoenix = (pokemon: InPlayPokemon) => {
+      if (!attackKo(pokemon, 'phoenixTurn') || !flipCoin(state, 'Phoenix Turn', id)) return false;
+      addLog(state, `Phoenix Turn: ${pokemonName(state, pokemon)} was Knocked Out but stays in play.`, id);
+      owner.knockedOutTurn = state.turn;
+      pokemon.damage = 0;
+      clearOnLeavingActive(pokemon);
+      owner.discard.push(...(pokemon.attached ?? []).map((a) => a.card));
+      pokemon.attached = [];
+      takePrizes(pokemon);
+      return true;
+    };
+    /** Energy Shift: the Knocked Out Pokémon's card is attached to another of its player's Pokémon as Energy, instead of discarded. */
+    const shifted = (pokemon: InPlayPokemon) => {
+      if (!attackKo(pokemon, 'energyShift') || ![owner.active, ...owner.bench].some((p) => p && p !== pokemon && !isOut(p))) return;
+      owner.discard = owner.discard.filter((c) => c !== pokemon.card);
+      (state.queuedChoices ??= []).push({ player: id, source: 'Energy Shift', kind: 'attachCard', card: pokemon.card, asEnergy: true });
     };
     // Scram: with exactly 10 HP left, Brock's Primeape is shuffled into its owner's deck with every card attached.
     for (const p of [owner.active, ...owner.bench]) {
@@ -2167,12 +2227,12 @@ export function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId
       else owner.bench = owner.bench.map((q) => (q === p ? null : q));
       addLog(state, `Scram: ${pokemonName(state, p)} was shuffled into the deck.`, id);
     }
-    const isOut = (p: InPlayPokemon) => p.damage >= inPlayDef(state.cards, p).hp;
-    if (owner.active && isOut(owner.active)) {
+    if (owner.active && isOut(owner.active) && !phoenix(owner.active)) {
       knockOut(owner.active);
+      shifted(owner.active);
       owner.active = null;
     }
-    owner.bench = owner.bench.map((p) => (p && isOut(p) ? (knockOut(p), null) : p));
+    owner.bench = owner.bench.map((p) => (p && isOut(p) && !phoenix(p) ? (knockOut(p), shifted(p), null) : p));
   }
   const winners = state.playerOrder.filter((id) => {
     const opp = state.players[opponentOf(state, id)]!;
@@ -2314,6 +2374,8 @@ function refreshHideout(state: GameState) {
       }
       const plus = pokemonPower(p)?.hpPlus;
       if (plus && powerActive(p, state.cards, sides)) p.hpPlus = (p.hpPlus ?? 0) + plus;
+      // Plant Cloak: 40 more HP with 2 or more Grass Energy attached.
+      if (pokemonPower(p)?.plantCloak && powerActive(p, state.cards, sides) && energyPool(p, state.cards).filter((e) => counts(e, 'grass')).length >= 2) p.hpPlus = (p.hpPlus ?? 0) + 40;
       // Holon Research Tower: the basic Energy cards on a δ Pokémon are Metal too (energyPool).
       for (const e of p.energy) {
         if (stadium === 'Holon Research Tower' && isDelta(state.cards, p) && !e.provides && isBasicEnergy(lookupCard(state.cards, e.defId))) e.holonMetal = true;

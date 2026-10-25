@@ -448,6 +448,8 @@ export function attackError(s: AttackSituation, attackIndex: number): string | n
     return `${attackerDef.name} can't use ${attack.name} this turn`;
   }
   if (active(s.attacker.effects?.noAttack, s.turn)) return `${attackerDef.name} can't attack this turn`;
+  const encore = s.attacker.effects?.encore;
+  if (encore && active(encore.until, s.turn) && encore.attack !== attack.name) return `Encore: ${attackerDef.name} can use only ${encore.attack} this turn`;
   if (s.attacker.effects?.frozen) return `${attackerDef.name} can't attack`;
   // Scare: a Baby Pokémon can't attack while the Defending Pokémon's Scare works.
   if (attackerDef.baby) {
@@ -1027,7 +1029,13 @@ function createContext(
    */
   const shielded = () =>
     active(opp.active?.effects?.preventAll, turn) ||
-    (!!opp.active && (opp.active === fled || neutral(opp.active) || quickened(opp.active, opp) || transparent(opp.active, opp) || (airy(opp.active) && evolvedFromName(state.cards, opp.active, 'Mime Jr.'))));
+    (!!opp.active &&
+      (opp.active === fled ||
+        neutral(opp.active) ||
+        quickened(opp.active, opp) ||
+        transparent(opp.active, opp) ||
+        (airy(opp.active) && evolvedFromName(state.cards, opp.active, 'Mime Jr.')) ||
+        (!!passive(opp.active)?.potShell && attacker.energy.some((e) => isSpecialEnergy(state.cards, e)))));
   /** Airy Wall works against this attack: the attacker has 2 or fewer Energy cards attached. */
   const airy = (p: InPlayPokemon) => !!passive(p)?.airyWall && attacker.energy.filter((e) => !e.provides).length <= 2;
   /** Shielded, or Crystal Body or Light Wave: the attack does nothing to the Defending Pokémon but damage. Logs why. */
@@ -1064,6 +1072,29 @@ function createContext(
   };
   /** Shell Armor: 10 less attack damage. Strange Barrier: an attack by a Basic Pokémon does 10 instead of 20 or more. */
   const barriers = (p: InPlayPokemon, damage: number, owner: PlayerState) => {
+    const body = passive(p);
+    if (damage > 0 && owner === opp && body) {
+      // Cotton Spore: on its owner's heads, no damage from the opponent's attack.
+      if (body.cottonSpore && flipCoin(state, 'Cotton Spore', owner.id)) {
+        log(`Cotton Spore prevented the damage to ${pokemonName(state, p)}.`, owner.id);
+        return noted('Cotton Spore', damage, 0);
+      }
+      // Pot Shell: no damage from an attacker with a Special Energy card attached.
+      if (body.potShell && attacker.energy.some((e) => isSpecialEnergy(state.cards, e))) {
+        log(`Pot Shell prevented the damage to ${pokemonName(state, p)}.`, owner.id);
+        return noted('Pot Shell', damage, 0);
+      }
+      // Trash Cloak (with a Pokémon Tool attached), Camouflage (a basic Energy card of the attacker's type attached), Cotton Balloon
+      // (with Grass Energy attached, against an Evolved Pokémon): less after Weakness and Resistance.
+      const trash = body.trashCloak && (p.attached ?? []).some((a) => a.tool) ? 20 : 0;
+      const camo = body.camouflage && p.energy.some((e) => !e.provides && isBasicEnergy(lookupCard(state.cards, e.defId)) && typesOf(attackerDef).some((t) => isEnergyCardOf(e, state.cards, t))) ? 40 : 0;
+      const balloon = body.cottonBalloon && attacker.evolvedFrom.length > 0 && energyPool(p, state.cards).some((e) => counts(e, 'grass')) ? 20 : 0;
+      const less = trash + camo + balloon;
+      if (less) {
+        damage = noted(def(state.cards, p).power?.name ?? 'Less damage', damage, Math.max(0, damage - less));
+        log(`${def(state.cards, p).power?.name ?? 'A Poké-Body'} reduced the damage to ${pokemonName(state, p)} by ${less}.`, owner.id);
+      }
+    }
     // Hard Cocoon: the opponent's attack, on its owner's heads, does a set amount less.
     const cocoon = passive(p)?.hardCocoon;
     if (damage > 0 && cocoon && owner === opp && flipCoin(state, 'Hard Cocoon', owner.id)) {
@@ -1512,7 +1543,9 @@ function createContext(
     const weakTo = defenderDef.weakness ? [defenderDef.weakness.type, ...(defenderDef.moreWeakness ?? [])] : [];
     const scale =
       passive(attacker)?.rainbowScale && !attacker.energy.some((e) => isSpecialEnergy(state.cards, e)) && weakTo.some((t) => energyPool(attacker, state.cards).some((e) => counts(e, t))) ? 40 : 0;
-    const boost = (low && attackerDef.hp - attacker.damage <= low.hpLeft ? low.more : 0) + aura + pivot + (passive(attacker)?.attackMore ?? 0) + rage + reversal + conditional + reactor + laser + allies + dna + scale;
+    // Fury Blaze: 50 more while the opponent has 3 or fewer Prize cards left.
+    const fury = passive(attacker)?.furyBlaze && opp.prizes.length <= 3 ? 50 : 0;
+    const boost = (low && attackerDef.hp - attacker.damage <= low.hpLeft ? low.more : 0) + aura + pivot + (passive(attacker)?.attackMore ?? 0) + rage + reversal + conditional + reactor + laser + allies + dna + scale + fury;
     if (amount > 0 && boost) {
       amount = noted(attackerDef.power?.name ?? 'More damage', amount, amount + boost);
       log(`${boost} more damage.`);

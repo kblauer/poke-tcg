@@ -74,6 +74,8 @@ export interface PlayerView {
     formChangeTurn?: number;
     happyDanceTurn?: number;
     powerTurns?: Record<string, number>;
+    /** The last turn one of their Pokémon was Knocked Out (Minus Charge). */
+    knockedOutTurn?: number;
     /** A search this player must finish, with the cards it reveals to them. */
     pendingChoice: PendingChoiceView | null;
     /** Last turn this player can't play Trainer cards (Headache). */
@@ -197,6 +199,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       ...(me.formChangeTurn !== undefined && { formChangeTurn: me.formChangeTurn }),
       ...(me.happyDanceTurn !== undefined && { happyDanceTurn: me.happyDanceTurn }),
       ...(me.powerTurns && { powerTurns: me.powerTurns }),
+      ...(me.knockedOutTurn !== undefined && { knockedOutTurn: me.knockedOutTurn }),
       pendingChoice: pending,
       noTrainersUntil: me.noTrainersUntil,
       ...(me.supporterTurn !== undefined && { supporterTurn: me.supporterTurn }),

@@ -59,7 +59,7 @@ export type PeekTarget = 'deck' | 'oppDeck' | 'oppHand' | 'prize' | 'oppPrize';
 
 /** What a power can see before it's used. View-safe: the UI builds it from a PlayerView. */
 export interface PowerSituation {
-  me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'discard' | 'powersOffUntil' | 'quickenTurn' | 'activeEnergyTurn' | 'goodNeighborTurn' | 'healDanceTurn' | 'weatherTurn' | 'quickSearchTurn' | 'formChangeTurn' | 'happyDanceTurn' | 'powerTurns' | 'supporterTurn' | 'supporterUid'>;
+  me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'discard' | 'powersOffUntil' | 'quickenTurn' | 'activeEnergyTurn' | 'goodNeighborTurn' | 'healDanceTurn' | 'weatherTurn' | 'quickSearchTurn' | 'formChangeTurn' | 'happyDanceTurn' | 'powerTurns' | 'supporterTurn' | 'supporterUid' | 'knockedOutTurn'>;
   opp: Pick<PlayerState, 'active' | 'bench' | 'powersOffUntil' | 'discard'>;
   /** Sizes of the hidden piles (Peek). */
   counts: { deck: number; prizes: number; oppDeck: number; oppHand: number; oppPrizes: number; /** Of `prizes`, how many are face up (Prize Shift). */ faceUpPrizes?: number };
@@ -177,6 +177,28 @@ export interface PowerEffect {
   hardShell?: boolean;
   /** Crystal Body: the opponent's attacks do nothing to it but damage. */
   crystalBody?: boolean;
+  /** Cotton Spore: on its owner's heads, no damage from the opponent's attack (attacks.ts). */
+  cottonSpore?: boolean;
+  /** Pot Shell: nothing at all from an attacker with a Special Energy card attached (attacks.ts). */
+  potShell?: boolean;
+  /** Trash Cloak: with a Pokémon Tool attached, 20 less damage from the opponent's attacks, after Weakness and Resistance. */
+  trashCloak?: boolean;
+  /** Camouflage: with a basic Energy card of the attacker's type attached, 40 less damage from it, after Weakness and Resistance. */
+  camouflage?: boolean;
+  /** Cotton Balloon: with Grass Energy attached, 20 less damage from the opponent's Evolved Pokémon, after Weakness and Resistance. */
+  cottonBalloon?: boolean;
+  /** Fury Blaze: its attacks do 50 more to the Active Pokémon while the opponent has 3 or fewer Prize cards left. */
+  furyBlaze?: boolean;
+  /** Plant Cloak: 40 more HP with 2 or more Grass Energy attached (refreshHideout). */
+  plantCloak?: boolean;
+  /** Phoenix Turn: Knocked Out by the opponent's attack, heads keeps it in play, cleared (resolveKnockouts). */
+  phoenixTurn?: boolean;
+  /** Energy Shift: Knocked Out by the opponent's attack, its card is attached to another of its player's Pokémon as Energy (resolveKnockouts). */
+  energyShift?: boolean;
+  /** Burning Coat: a Pokémon its attack's damage Knocks Out costs its owner the top 3 cards of their deck (resolveKnockouts). */
+  burningCoat?: boolean;
+  /** Jamming: a damage counter on each of the opponent's Pokémon after they play a Supporter card from the hand (playTrainer). */
+  jamming?: boolean;
   /** Downer Material: with its player's Uxie and Mesprit in play, the opponent's Basic Pokémon's attacks cost 1 Colorless more (only 1). */
   downerMaterial?: boolean;
   /** Upper Material: with its player's Uxie and Azelf in play, every Uxie, Mesprit and Azelf (both players') has no Retreat Cost. */
@@ -691,6 +713,8 @@ export function powerActive(pokemon: InPlayPokemon, cards: CardLibrary, sides: S
   if (pokemon.powerOffUntil !== undefined || goopGas(sides)) return false;
   const effect = pokemonPower(pokemon);
   if (!effect?.ignoresConditions && (effect?.stopsOnlyWhileAsleep ? pokemon.condition === 'asleep' : hasSpecialCondition(pokemon))) return false;
+  // Ferment Poison: no Poké-Bodies while it stays Poisoned.
+  if (effect?.body && pokemon.effects?.fermentPoison && pokemon.poison) return false;
   // Dark Impact: its Poké-Powers (and Pokémon Powers) don't work; Poké-Bodies do. Lazy: none of its player's do.
   if (pokemon.effects?.noPokePowers !== undefined && !effect?.body) return false;
   if (lazied(pokemon, cards, sides) || auraStops(pokemon, cards, sides)) return false;
@@ -1067,6 +1091,7 @@ export function powerError(s: PowerSituation): string | null {
   if (source.imprisoned) return `Imprison: ${def.name} can't use Poké-Powers`;
   // Shield Beam: none of the player's Pokémon can use Poké-Powers during their turn after it.
   if ((s.me.powerTurns?.['Shield Beam'] ?? -1) >= s.turn && (!effect.body || effect.usePoke)) return "Shield Beam: you can't use Poké-Powers this turn";
+  if ((s.me.powerTurns?.['Psychic Lock'] ?? -1) >= s.turn && (!effect.body || effect.usePoke)) return "Psychic Lock: you can't use Poké-Powers this turn";
   // Mt. Moon: no Poké-Powers (or older Pokémon Powers) for a Pokémon with less than 70 HP.
   if (s.stadium && lookupCard(s.cards, s.stadium.defId).name === 'Mt. Moon' && !effect.body && def.hp < 70) return `Mt. Moon: ${def.name} can't use Poké-Powers`;
   const blocked = effect.blocked?.(s);
