@@ -1,5 +1,5 @@
 import { idleMusic } from '@poke-tcg/campaign';
-import { AREAS, mapView, species, type IdleAction, type WalkArea } from '@poke-tcg/idle';
+import { AREAS, mapView, species, TICK_MS, type IdleAction, type WalkArea } from '@poke-tcg/idle';
 import { Navigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import type { Dialogue } from '../components/DialogueBox';
@@ -143,6 +143,8 @@ function IdleAdventure() {
         }
       />
 
+      {active && <TickMeter turn={play.battle ? play.turn : null} tickAt={play.tickAt} />}
+
       {/* The scene: the starter's lab, the area walked, a battle, or the town's choice. */}
       {!active ? (
         <div className="space-y-3">
@@ -217,6 +219,22 @@ function IdleAdventure() {
         </section>
       )}
       <Toasts toasts={toasts.toasts} />
+    </div>
+  );
+}
+
+/**
+ * The game's tick (TICK_MS), only in a battle (the user's): its turn and a narrow bar filling over the turn, from when it
+ * began. Out of one (and before the first turn) its row is kept, unseen, so the scene doesn't jump as battles come and go.
+ */
+function TickMeter({ turn, tickAt }: { turn: number | null; tickAt: number }) {
+  return (
+    <div className={`mx-auto flex w-full max-w-60 items-center gap-2 text-xs text-slate-400 ${turn === null ? 'invisible' : ''}`} aria-hidden={turn === null || undefined}>
+      <span className="shrink-0 tabular-nums">Turn {turn ?? 0}</span>
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-700">
+        {turn !== null && <div key={`${tickAt}:${turn}`} className="h-full origin-left rounded-full bg-yellow-300" style={{ animation: `idle-tick ${TICK_MS}ms linear 1 both` }} />}
+      </div>
+      <span className="shrink-0 tabular-nums">{TICK_MS / 1000} s</span>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AREAS, isTown } from './areas.js';
+import { AREAS, isTown, type WalkArea } from './areas.js';
 import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, simulateSegment, storeStock, visitStore, type IdleSettings, type IdleState } from './idle.js';
 
 /** A player who goes into every gym and on, and keeps a few Potions and Poké Balls in the bag. */
@@ -69,6 +69,22 @@ describe('an idle run', () => {
     const { state, summary } = catchUp(s, DEFAULT_IDLE_SETTINGS, new Set(), 60 * 60 * 1000, 1000);
     expect(summary.battles).toBeGreaterThan(0);
     expect(state.phase === 'town' || summary.stopped === 'time').toBe(true);
+  });
+
+  it('catches up nothing a moment after starting: only whole segments that fit in the time away', () => {
+    const s = createIdleRun({ species: 4 }, 3);
+    expect(catchUp(s, DEFAULT_IDLE_SETTINGS, new Set(), 1000).summary.segments).toBe(0);
+    const first = simulateSegment(s, DEFAULT_IDLE_SETTINGS, new Set())!.segment.durationMs;
+    expect(catchUp(s, DEFAULT_IDLE_SETTINGS, new Set(), first - 1).summary.segments).toBe(0);
+    expect(catchUp(s, DEFAULT_IDLE_SETTINGS, new Set(), first).summary.segments).toBe(1);
+  });
+
+  it("starts just outside the player's house in Pallet Town, then walks Route 1", () => {
+    const s = createIdleRun({ species: 1 }, 1);
+    const leg = (AREAS[s.area] as WalkArea).legs[s.leg]!;
+    expect(leg.maps[leg.track[s.step]![0]]).toBe('PalletTown');
+    expect(leg.track[s.step]!.slice(1, 3)).toEqual([6, 8]);
+    expect(leg.maps.at(-1)).toBe('Route1');
   });
 
   it('refuses what a town doesn\'t allow', () => {

@@ -31,10 +31,10 @@ export const WHITE_OUT_LOSS = 1000;
 
 /**
  * How long things take (one pace, watched or offline: no speed setting, agreed with the user): a step (16 frames), a
- * turn (agreed: 3 s), a battle's start and end, a fade.
+ * turn (the user's: 6 s, 3 s before), a battle's start and end, a fade.
  */
 export const STEP_MS = 267;
-export const TICK_MS = 3000;
+export const TICK_MS = 6000;
 export const BATTLE_MS = 4000;
 export const FADE_MS = 800;
 /** Offline catch-up's cap (12 hours of absence, agreed with the user) and how many segments one call simulates (the browser calls again for more). */
@@ -644,7 +644,7 @@ export interface CatchUpSummary {
 }
 
 /**
- * Offline catch-up (agreed): segments until `elapsedMs` (capped at CATCH_UP_CAP_MS) is used up, the run reaches a
+ * Offline catch-up (agreed): whole segments while they fit in `elapsedMs` (capped at CATCH_UP_CAP_MS), until the run reaches a
  * town or is won, or `maxSegments` (one call's share: the browser calls again). Returns the new state, the time used, the
  * summary and the dex notes; the events themselves are dropped.
  */
@@ -665,6 +665,9 @@ export function catchUp(prev: IdleState, settings: IdleSettings, caught: Set<num
       summary.stopped = state.phase === 'won' ? 'won' : 'town';
       break;
     }
+    // Only whole segments that fit in the time away (the user's: a run just started, or a moment away, catches up
+    // nothing; the browser plays the segment instead).
+    if (summary.durationMs + next.segment.durationMs > budget) break;
     state = next.state;
     summary.segments += 1;
     summary.durationMs += next.segment.durationMs;

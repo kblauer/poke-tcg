@@ -43,6 +43,11 @@ export interface SpeciesData {
   height: number;
   weight: number;
   dexText: string;
+  /**
+   * Where the battle screen draws it (FireRed's GetBattlerSpriteFinal_Y): its front and back pictures' y_offset, in game
+   * pixels (lowered so it stands on its spot), and the foe's elevation (fliers and floaters raised).
+   */
+  pic: { frontY: number; backY: number; elevation: number };
 }
 
 export interface MoveData {
