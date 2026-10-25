@@ -56,7 +56,7 @@ export function IdlePage() {
   const run = data?.run ?? null;
   const active = run?.status === 'ACTIVE' ? run : null;
   const settings = data?.settings;
-  const { play, summary, closeSummary } = useIdlePlayback(active, settings?.speed ?? 1, name, (m) => toasts.push('error', m));
+  const { play, summary, closeSummary, actOn, acted } = useIdlePlayback(active, settings?.speed ?? 1, name, (m) => toasts.push('error', m));
 
   // The music (auto play): the battle's theme, the Hall of Fame once won, the map's own song otherwise (Surfing on water).
   const place = play.place ?? (run ? { area: run.view.area, leg: run.view.leg, step: run.view.step } : null);
@@ -83,7 +83,13 @@ export function IdlePage() {
   if (!data || !settings) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
 
   const failed = (e: unknown) => toasts.push('error', e instanceof Error ? e.message : 'Something went wrong. Please try again.');
-  const act = (action: IdleAction) => active && actions.act(active, action).catch(failed);
+  // Acting on the server's newest version (a segment playing is saved already), and telling the playback the answer.
+  const act = (action: IdleAction) =>
+    active &&
+    actions
+      .act(actOn(active), action)
+      .then((r) => acted(r.run))
+      .catch(failed);
   const start = (id: number) => actions.start(id).catch(failed);
   const v = run?.view;
   const over = run && run.status !== 'ACTIVE';

@@ -1,5 +1,5 @@
 import { prisma } from '@poke-tcg/db';
-import { AREAS, applyIdleAction, areaIndex, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, isTown, simulateSegment, starterOptions, STARTERS, visitStore, type IdleSettings, type Stats } from '@poke-tcg/idle';
+import { AREAS, applyIdleAction, areaIndex, CATCH_UP_CAP_MS, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, isTown, simulateSegment, starterOptions, STARTERS, visitStore, type IdleSettings, type Stats } from '@poke-tcg/idle';
 import { idleActInput, idleRunInput, idleSettingsInput, idleWarpInput, startIdleInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { asJson, newSeed } from '../games.js';
@@ -84,7 +84,9 @@ export const idleRouter = router({
     const run = await loadOwnIdleRun(input.runId, ctx.user.id);
     checkVersion(run, input.expectedVersion);
     const now = Date.now();
-    const elapsed = now - run.simulatedAt.getTime();
+    // The cap is on the whole absence, not each call: time before the last 8 hours isn't played.
+    const from = Math.max(run.simulatedAt.getTime(), now - CATCH_UP_CAP_MS);
+    const elapsed = now - from;
     if (run.state.phase !== 'walking' || elapsed <= 0) return { run: clientIdleRun(run), summary: null, more: false };
     const settings = await idleSettings(ctx.user.id);
     const caught = new Set(await caughtSpecies(ctx.user.id));
@@ -92,7 +94,7 @@ export const idleRouter = router({
     if (!summary.segments) return { run: clientIdleRun(run), summary: null, more: false };
     const more = summary.stopped === 'limit';
     // Played up to where it stopped: the time used, or now when it reached a town (time waiting there isn't played).
-    const playedTo = new Date(more ? run.simulatedAt.getTime() + summary.durationMs : now);
+    const playedTo = new Date(more ? from + summary.durationMs : now);
     const saved = await saveIdleRun(run, state, { dex, simulatedAt: playedTo });
     return { run: clientIdleRun(saved), summary, more };
   }),
@@ -136,6 +138,8 @@ export const idleRouter = router({
   /** Debug (refused in production): warps the run to an area's start (a town waits there), its party and bag kept. */
   debugWarp: debugProcedure.input(idleWarpInput).mutation(async ({ ctx, input }) => {
     const run = await loadOwnIdleRun(input.runId, ctx.user.id);
+    // Only a run under way (a finished one is banked: warping it back would make two runs under way).
+    if (run.status !== 'ACTIVE') throw failed('This run is over');
     const index = areaIndex(input.area);
     if (index < 0) throw failed('Unknown area');
     const state = structuredClone(run.state);

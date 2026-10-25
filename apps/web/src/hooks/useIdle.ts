@@ -14,7 +14,9 @@ export type BattleSegment = Extract<SegmentEvent, { t: 'battle' }>;
 /** The Idle Adventure's overview (idle.overview): the run, the settings, the starters and the Pokédex. */
 export function useIdleOverview(enabled = true) {
   const trpc = useTRPC();
-  return useQuery({ ...trpc.idle.overview.queryOptions(), staleTime: 0, enabled });
+  // Not refetched on the window's focus: the server is ahead of the screen while a segment plays, and its state (a town
+  // reached) would cut the playback short.
+  return useQuery({ ...trpc.idle.overview.queryOptions(), staleTime: 0, refetchOnWindowFocus: false, enabled });
 }
 
 /** The run's moves: starting one, the town choices and the party's, the settings; each answer put in the cached overview. */
@@ -111,6 +113,10 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, speed: nu
   const speedRef = useRef(speed);
   speedRef.current = speed;
   const update = useCallback((p: Partial<Playback>) => setPlay((old) => ({ ...old, ...p })), []);
+  /** The run as the server last returned it (ahead of the screen while a segment plays). */
+  const latest = useRef<ClientIdleRun | null>(null);
+  /** Bumped to start the playback again after an error. */
+  const [restart, setRestart] = useState(0);
   const runId = run?.id ?? null;
   const walking = run?.status === 'ACTIVE' && run.view.phase === 'walking';
 
@@ -143,10 +149,11 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, speed: nu
         const [m, x, y, flags] = leg.track[i]!;
         const [pm, px, py] = leg.track[i - 1]!;
         if (flags & 1 || m !== pm) {
+          // As long as the server counts it: the step and the fade.
           update({ fading: true });
-          await wait(FADE_MS / 2);
+          await wait((STEP_MS + FADE_MS) / 2);
           setPlay((old) => ({ ...old, place: { ...place, step: i }, moveMs: 0, fading: false }));
-          await wait(FADE_MS / 2);
+          await wait((STEP_MS + FADE_MS) / 2);
           continue;
         }
         const jump = (flags & 2) !== 0;
@@ -175,13 +182,15 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, speed: nu
         i++;
         while (i < e.events.length && e.events[i]!.t !== 'tick') i++;
         const group = e.events.slice(start, i);
-        const lines = Math.max(1, group.filter((x) => 'msg' in x && x.msg).length);
-        const per = (start === 0 ? 1600 : TICK_MS) / lines;
+        const count = group.filter((x) => 'msg' in x && x.msg).length;
+        const per = (start === 0 ? 1600 : TICK_MS) / Math.max(1, count);
         for (let j = start; j < i; j++) {
           update({ shown: j + 1 });
           const ev = e.events[j]!;
           if ('msg' in ev && ev.msg) await wait(per);
         }
+        // A turn with nothing to say (both Pokémon asleep, say) still takes its 3 s.
+        if (!count && start > 0) await wait(TICK_MS);
       }
       await wait(1400);
       update({ battle: null, shown: 0, spotted: null });
@@ -207,7 +216,7 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, speed: nu
           await walk(e, place);
         } else if (e.t === 'spotted') {
           update({ spotted: e.trainer });
-          await wait(1200);
+          await wait(1500);
         } else if (e.t === 'battle') {
           await battle(e);
         } else {
@@ -221,13 +230,18 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, speed: nu
       }
     }
 
+    /** The newest version the server has (an action taken meanwhile, `acted`, may be newer than ours). */
+    const newest = () => (latest.current && latest.current.id === current.id && latest.current.version > current.version ? latest.current : current);
+
     (async () => {
       try {
         update({ place: { area: current.view.area, leg: current.view.leg, step: current.view.step } });
         // Offline catch-up first: the time since it was last played, a share at a time.
         let total: CatchUpSummary | null = null;
-        for (let more = true; more && !stopped; ) {
-          const r = await catchUp.mutateAsync({ runId: current.id, expectedVersion: current.version });
+        for (let more = true; more; ) {
+          const r = await catchUp.mutateAsync({ runId: current.id, expectedVersion: newest().version });
+          if (stopped) return;
+          latest.current = r.run;
           setRun(r.run);
           more = r.more;
           if (r.summary) total = total ? mergeSummaries(total, r.summary) : r.summary;
@@ -238,16 +252,30 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, speed: nu
           update({ place: { ...shown } });
         }
         while (!stopped && current.status === 'ACTIVE' && current.view.phase === 'walking') {
-          const r = await next.mutateAsync({ runId: current.id, expectedVersion: current.version });
+          let r;
+          try {
+            r = await next.mutateAsync({ runId: current.id, expectedVersion: newest().version });
+          } catch (e) {
+            // Played back faster than the server counted (a faster speed picked midway, a reload): wait until it's caught up.
+            if (stopped || !(e instanceof Error) || !e.message.startsWith('Still playing')) throw e;
+            const ahead = new Date(newest().simulatedAt).getTime() - Date.now();
+            await wait(Math.max(1000, ahead - 10_000) * speedRef.current);
+            continue;
+          }
+          if (stopped) return;
+          // The server's newest state at once (actions use its version); the screen's once the segment has played.
+          latest.current = r.run;
           await playSegment(r.segment.events);
-          setRun(r.run);
+          setRun(newest().version > r.run.version ? newest() : r.run);
         }
       } catch (e) {
-        if (e instanceof Stopped) return;
+        if (e instanceof Stopped || stopped) return;
         onError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
         // Start over from the server's state after a moment (a stale version, a hiccup).
         await new Promise((done) => window.setTimeout(done, 2000));
-        if (!stopped) void queryClient.invalidateQueries({ queryKey: key });
+        if (stopped) return;
+        await queryClient.invalidateQueries({ queryKey: key });
+        if (!stopped) setRestart((n) => n + 1);
       }
     })();
     return () => {
@@ -256,9 +284,17 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, speed: nu
     };
     // Restarted only for another run or when it starts or stops walking; it reads the newest run as it goes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runId, walking]);
+  }, [runId, walking, restart]);
 
-  return { play, summary, closeSummary: () => setSummary(null) };
+  return {
+    play,
+    summary,
+    closeSummary: () => setSummary(null),
+    /** The run to act on: the server's newest (a segment playing is already saved), else the one given. */
+    actOn: (r: ClientIdleRun) => (latest.current && latest.current.id === r.id && latest.current.version > r.version ? latest.current : r),
+    /** After an action: its answer is the newest run (the playback asks for the next segment with its version). */
+    acted: (r: ClientIdleRun) => void (latest.current = r),
+  };
 }
 
 /** Two catch-up calls' summaries as one. */
