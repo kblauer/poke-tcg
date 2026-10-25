@@ -3,7 +3,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { bankablePokedollars, finalBoss, ITEMS, runType } from '@poke-tcg/campaign';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { ClientRun, Overview, RunControl } from '../../hooks/useRun';
-import { ReturnToHome } from '../ReturnToHome';
+import { ReturnToPlay } from '../ReturnToPlay';
 import { ItemShop } from './ItemShop';
 import { NewRunPicker } from './NewRunPicker';
 import { RunCard } from './RunCard';
@@ -58,7 +58,7 @@ const Minimized = ({ title, summary, onOpen }: { title: ReactNode; summary?: Rea
  * After a run. Beaten: the shop first, then the EXP it earned, the cards gained in it (already unlocked in
  * the deck builder) and the badges it won, then the next run. The results and the shop can be closed to a slim bar
  * (see useClosed). Lost: start over, or (for testing) carry on with full HP. Conceded: start over (no retry).
- * Whichever way it ended, SaveRunDeck offers to save the run's deck before the next run, and Return to Home (beside Start new
+ * Whichever way it ended, SaveRunDeck offers to save the run's deck before the next run, and Return to Play (beside Start new
  * run) goes back to the Play tab's menu (the user's).
  */
 export function RunOver({ current, overview, run }: { current: ClientRun; overview: Overview; run: RunControl }) {
@@ -85,7 +85,7 @@ export function RunOver({ current, overview, run }: { current: ClientRun; overvi
           </p>
         </section>
         {saveDeck}
-        <NewRunPicker overview={overview} run={run} extra={<ReturnToHome />} title="Start over" defaultType={view.type} />
+        <NewRunPicker overview={overview} run={run} extra={<ReturnToPlay />} title="Start over" defaultType={view.type} />
       </div>
     );
   }
@@ -104,7 +104,7 @@ export function RunOver({ current, overview, run }: { current: ClientRun; overvi
           </button>
         </section>
         {saveDeck}
-        <NewRunPicker overview={overview} run={run} extra={<ReturnToHome />} title="Start over" defaultType={view.type} />
+        <NewRunPicker overview={overview} run={run} extra={<ReturnToPlay />} title="Start over" defaultType={view.type} />
       </div>
     );
   }
@@ -141,7 +141,7 @@ export function RunOver({ current, overview, run }: { current: ClientRun; overvi
         </section>
       )}
       {saveDeck}
-      <NewRunPicker overview={overview} run={run} extra={<ReturnToHome />} title="Next run" />
+      <NewRunPicker overview={overview} run={run} extra={<ReturnToPlay />} title="Next run" />
     </div>
   );
 }

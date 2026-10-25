@@ -8,7 +8,7 @@ import { useBattleTransition } from '../components/BattleTransition';
 import { DeckSummary, LOCKED_TAG, type SavedDeck } from '../components/DeckList';
 import { useTRPC } from '../lib/trpc';
 import { PageHeader } from '../components/PageHeader';
-import { ReturnToHome } from '../components/ReturnToHome';
+import { ReturnToPlay } from '../components/ReturnToPlay';
 import { towerUnderway, useTowerOverview } from '../hooks/useTower';
 import { PAGE_WIDTH } from '../utils/layout';
 
@@ -202,7 +202,7 @@ export function SingleBattlePage() {
             {create.error && <p className="text-sm text-red-400">{create.error.message}</p>}
           </div>
           {/* Back to the Play tab's menu of modes (the user's). */}
-          <ReturnToHome />
+          <ReturnToPlay />
         </section>
       </div>
     </div>

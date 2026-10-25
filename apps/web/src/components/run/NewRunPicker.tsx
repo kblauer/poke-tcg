@@ -97,7 +97,7 @@ function RunTypeOption({ info, selected, onPick }: { info: RunTypeInfo; selected
  * it; those that break the rules or hold cards you haven't unlocked are listed with why, and can't be picked. A new
  * account's first run (`needsStarter`) picks one of the three starter decks instead (STARTER_DECKS, the user's), which
  * becomes its first deck. Not while a Battle Tower challenge is under way and not saved (the server refuses it too).
- * `extra` goes beside the Start new run button (Return to Home).
+ * `extra` goes beside the Start new run button (Return to Play).
  */
 export function NewRunPicker({ overview: given, run, title, defaultType, extra }: { overview: Overview; run: RunControl; title: string; defaultType?: RunTypeId; extra?: ReactNode }) {
   // Debug mode unlocks every run type (started with debugStart); `debugLocked`: the ones that were locked.

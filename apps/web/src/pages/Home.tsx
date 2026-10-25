@@ -15,7 +15,7 @@ import { RunOver } from '../components/run/RunOver';
 import { RunStats } from '../components/run/RunStats';
 import { useIsPhone } from '../hooks/useIsPhone';
 import { useRun } from '../hooks/useRun';
-import { ReturnToHome } from '../components/ReturnToHome';
+import { ReturnToPlay } from '../components/ReturnToPlay';
 import { useRunMusic } from '../hooks/useRunMusic';
 import { useWindowFill } from '../hooks/useWindowFill';
 import { PAGE_WIDTH } from '../utils/layout';
@@ -102,11 +102,11 @@ export function HomePage() {
           {!current || !view ? (
             <>
               <PageHeader title="Play" />
-              <NewRunPicker overview={overview.data} run={run} title="Start a run" extra={<ReturnToHome />} />
+              <NewRunPicker overview={overview.data} run={run} title="Start a run" extra={<ReturnToPlay />} />
             </>
           ) : (
             <>
-              <RunHeader view={view} actions={view.phase !== 'won' && view.phase !== 'lost' && <ReturnToHome label="Return to Play" />} />
+              <RunHeader view={view} actions={view.phase !== 'won' && view.phase !== 'lost' && <ReturnToPlay />} />
               {view.phase === 'won' || view.phase === 'lost' ? (
                 <RunOver current={current} overview={overview.data} run={run} />
               ) : routes ? (

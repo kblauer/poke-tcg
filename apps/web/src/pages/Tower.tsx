@@ -7,7 +7,7 @@ import { DeckSummary } from '../components/DeckList';
 import { CatalogContext } from '../components/InspectContext';
 import { useMusicCue, useMusicSettings } from '../components/MusicPlayer';
 import { PageHeader } from '../components/PageHeader';
-import { ReturnToHome } from '../components/ReturnToHome';
+import { ReturnToPlay } from '../components/ReturnToPlay';
 import { DeckMenu } from '../components/run/DeckMenu';
 import { Toasts } from '../components/Toasts';
 import { BpShop } from '../components/tower/BpShop';
@@ -150,7 +150,7 @@ export function TowerPage() {
       <PageHeader
         title="Battle Tower"
         info={data && data.best > 0 ? `Highest floor beaten: ${data.best}` : 'Win as many battles in a row as you can'}
-        actions={underway && <ReturnToHome label="Return to Play" />}
+        actions={underway && <ReturnToPlay />}
       />
       <TowerScene scene={scene}>
         {/* The challenge under way, under the map (the user's): its floor, wins and BP, then the VS banner, its deck's tile
