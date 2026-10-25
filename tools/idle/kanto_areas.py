@@ -650,6 +650,9 @@ def main():
                 raise SystemExit(f"{a['id']}: its leader {a['leader']} wasn't found")
         out_areas.append(area)
         print(a['id'], '-', sum(len(l['track']) for l in legs), 'steps,', len(trainers), 'trainers')
+    # Maps only shown (the starter's scene: Professor Oak's lab).
+    for n in ('PalletTown_ProfessorOaksLab',):
+        used_maps.setdefault(n, Grid(load(n), False))
     for n, g in used_maps.items():
         m = g.m
         route_png = os.path.join(PUB, 'routes', n.lower() + '.png')
@@ -668,7 +671,9 @@ def main():
             'scene': m.json.get('battle_scene', 'MAP_BATTLE_SCENE_NORMAL')[len('MAP_BATTLE_SCENE_'):].lower(),
             'music': m.json.get('music', ''),
         }
-    # Overworld sprites the trainers need, cut from the game where public/overworld/ has none.
+    # Overworld sprites the trainers need, cut from the game where public/overworld/ has none (and Professor Oak, in the
+    # starter's scene).
+    sprites.add('prof_oak')
     gfx = es.Graphics(SRC)
     for s in sorted(sprites):
         p = os.path.join(PUB, 'overworld', s + '.png')

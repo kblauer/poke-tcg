@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { battleMusic, healedJingle, pickSong, practiceMusic, REGION_MUSIC, runMusic, SOUNDTRACKS, towerMusic, victoryMusic, type MusicCue, type RunMusicView } from './music.js';
+import { battleMusic, healedJingle, IDLE_MAP_MUSIC, idleMusic, pickSong, practiceMusic, REGION_MUSIC, runMusic, SOUNDTRACKS, towerMusic, victoryMusic, type MusicCue, type RunMusicView } from './music.js';
 import { createRun } from './run.js';
 import { RUN_TYPE_IDS, runType, type RunTypeId } from './run-types.js';
 
@@ -116,6 +116,15 @@ describe('auto play music', () => {
     expect(titles(practiceMusic('Youngster Joey', 'original', 'g'))).toEqual(['Battle! (Trainer Battle)', 'Battle! (Wild Pokémon)']);
     const cue = battleMusic(2, 'original', 'battle', 'some-game');
     expect(pickSong(cue)).toEqual(pickSong(cue));
+  });
+
+  it("plays the Idle Adventure's map and battle songs, all in the music player's list", () => {
+    for (const soundtrack of SOUNDTRACKS) {
+      for (const s of Object.values(IDLE_MAP_MUSIC[soundtrack])) expect(inList(s), `${soundtrack}: ${s.title}`).toBe(true);
+      for (const battle of ['wild', 'trainer', 'leader', 'champion'] as const) expect(inList(idleMusic(soundtrack, { battle, id: 'x' }).songs[0]!)).toBe(true);
+      expect(inList(idleMusic(soundtrack, { map: 'MUS_ROUTE1', surfing: true }).songs[0]!)).toBe(true);
+      expect(inList(idleMusic(soundtrack, { won: true }).songs[0]!)).toBe(true);
+    }
   });
 
   it("plays the Battle Tower's lobby and rooms songs for every generation's floors, all in the music player's list", () => {

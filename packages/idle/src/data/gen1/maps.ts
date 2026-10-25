@@ -66,4 +66,5 @@ export const KANTO_MAPS: Record<string, IdleMap> = {
   PokemonLeague_AgathasRoom: { name: 'PokemonLeague_AgathasRoom', image: '/routes/pokemonleague_agathasroom.png', width: 13, height: 13, encounters: 'POKEMON_LEAGUE_AGATHAS_ROOM', scene: 'agatha', music: 'MUS_POKE_TOWER' },
   PokemonLeague_LancesRoom: { name: 'PokemonLeague_LancesRoom', image: '/routes/pokemonleague_lancesroom.png', width: 28, height: 24, encounters: 'POKEMON_LEAGUE_LANCES_ROOM', scene: 'lance', music: 'MUS_VICTORY_ROAD' },
   PokemonLeague_ChampionsRoom: { name: 'PokemonLeague_ChampionsRoom', image: '/routes/pokemonleague_championsroom.png', width: 13, height: 20, encounters: 'POKEMON_LEAGUE_CHAMPIONS_ROOM', scene: 'normal', music: 'MUS_VICTORY_ROAD' },
+  PalletTown_ProfessorOaksLab: { name: 'PalletTown_ProfessorOaksLab', image: '/idle/gen1/maps/pallettown_professoroakslab.png', width: 13, height: 14, encounters: 'PALLET_TOWN_PROFESSOR_OAKS_LAB', scene: 'normal', music: 'MUS_OAK_LAB' },
 };

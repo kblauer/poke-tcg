@@ -1,4 +1,6 @@
+import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
+import { useTRPC } from '../lib/trpc';
 import { PageHeader } from '../components/PageHeader';
 import { usePlayRedirect, useTowerOverview } from '../hooks/useTower';
 import { PAGE_WIDTH } from '../utils/layout';
@@ -7,7 +9,7 @@ import { PAGE_WIDTH } from '../utils/layout';
  * The Play tab's modes, in its menu's order: each its page, a line on it, and a scene from the games filling its tile
  * (`public/play/`, by tools/play/play_tiles.py; the user's), with where the tile's crop of it centres (`focus`).
  */
-const MODES: { to: '/badge' | '/tower' | '/battle'; title: string; text: string; picture: string; focus: string }[] = [
+const MODES: { to: '/badge' | '/tower' | '/idle' | '/battle'; title: string; text: string; picture: string; focus: string }[] = [
   {
     to: '/badge',
     title: 'Badge Challenge',
@@ -25,6 +27,14 @@ const MODES: { to: '/badge' | '/tower' | '/battle'; title: string; text: string;
     focus: '50% 30%',
   },
   {
+    to: '/idle',
+    title: 'Idle Adventure',
+    text: 'Pick a starter and watch your journey across Kanto play itself, from Pallet Town to the Pokémon League!',
+    // Route 1 (FireRed): Red setting off up the road from Pallet Town.
+    picture: '/play/idle.png',
+    focus: '50% 60%',
+  },
+  {
     to: '/battle',
     title: 'Training',
     text: 'Practice battling or test your deck! Single battles with no pressure and no battle rewards.',
@@ -35,17 +45,22 @@ const MODES: { to: '/badge' | '/tower' | '/battle'; title: string; text: string;
 ];
 
 /**
- * The Play tab (`/`): a menu of its modes (the user's), the Badge Challenge (the runs), the Battle Tower and Training,
- * each a tile filled with a scene from the games, saying how it stands. A mode under way keeps the tab on it instead
- * (usePlayRedirect): a Battle Tower challenge that isn't saved, or a run.
+ * The Play tab (`/`): a menu of its modes (the user's), the Badge Challenge (the runs), the Battle Tower, the Idle
+ * Adventure and Training, each a tile filled with a scene from the games, saying how it stands. A mode under way keeps
+ * the tab on it instead (usePlayRedirect): a Battle Tower challenge that isn't saved, or a run (never an Idle Adventure
+ * run: it plays on its own).
  */
 export function PlayPage() {
   const { redirecting, loading } = usePlayRedirect();
   const tower = useTowerOverview().data;
+  // The Idle Adventure's run, for its tile (its query only: the mode's data loads with its page).
+  const trpc = useTRPC();
+  const idle = useQuery(trpc.idle.overview.queryOptions()).data?.run;
   if (loading || redirecting) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
   const challenge = tower?.challenge;
   const status: Record<(typeof MODES)[number]['to'], string | null> = {
     '/badge': null,
+    '/idle': idle?.status === 'ACTIVE' ? `Under way: ${idle.view.areaName}, ${idle.view.badges.length} badge${idle.view.badges.length === 1 ? '' : 's'}.` : null,
     '/tower':
       challenge?.status === 'ACTIVE' && challenge.view.saved
         ? `Challenge saved before floor ${challenge.view.floor}.`

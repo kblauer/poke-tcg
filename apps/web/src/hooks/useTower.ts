@@ -59,8 +59,8 @@ export function useTowerActions() {
   };
 }
 
-/** The Play tab's pages: its menu, and its three modes. */
-const PLAY_PATHS = ['/', '/badge', '/tower', '/battle'];
+/** The Play tab's pages: its menu, and its four modes. */
+const PLAY_PATHS = ['/', '/badge', '/tower', '/idle', '/battle'];
 export const isPlayPath = (path: string) => PLAY_PATHS.includes(path);
 
 /**

@@ -7,7 +7,10 @@ anywhere else, so it's rendered apart and passed in:
 
     python tools/routes/fetch_map.py SaffronCity_Dojo <dir>
     python tools/routes/render_route.py <dir> <dir>/dojo.png <dir>/dojo.json 13 16
-    python tools/play/play_tiles.py <dir>/dojo.png"""
+    python tools/play/play_tiles.py <dir>/dojo.png
+
+The Idle Adventure's tile is Route 1 (tools/idle/kanto_areas.py draws it), Red setting off up the road; run with no
+argument, only it is made."""
 import os, sys
 from PIL import Image, ImageOps
 
@@ -38,10 +41,19 @@ def scene(picture, people, box):
 
 
 def main():
-    dojo = sys.argv[1]
     routes = os.path.join(PUBLIC, 'routes')
     os.makedirs(OUT, exist_ok=True)
+    # The Idle Adventure: Route 1 (tools/idle/kanto_areas.py's picture), Red setting off up the road from Pallet Town.
+    idle = {'idle': scene(os.path.join(PUBLIC, 'idle', 'gen1', 'maps', 'route1.png'), [('red', 13, 33, 'up')], (48, 368, 336, 608))}
+    if len(sys.argv) < 2:
+        # Without the dojo's picture, only the tiles that need nothing else.
+        for name, im in idle.items():
+            im.save(os.path.join(OUT, name + '.png'))
+        print('wrote', ', '.join(idle), 'to', OUT)
+        return
+    dojo = sys.argv[1]
     tiles = {
+        **idle,
         'badge': scene(os.path.join(routes, 'ceruleancity_gym.png'), [('gym_guy', 7, 16, 'down')], (16, 144, 256, 304)),
         'tower': scene(os.path.join(routes, 'battle-tower', 'hgss-lobby.png'), [('hgss/tower_staff_f', 11, 5, 'down'), ('hgss/hero', 11, 7, 'up')], (48, 16, 368, 256)),
         # The dojo's people as its map.json places them: the Karate Master at the top, its Black Belts down the sides,
