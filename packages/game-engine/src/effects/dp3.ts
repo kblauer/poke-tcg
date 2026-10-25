@@ -12,7 +12,7 @@ import { hasType, isBasicEnergy, isTrainerCard, lookupCard, namesMatch } from '.
 import { counts, energyPool, isEnergyCardOf, isSpecialEnergy, retreatCost, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
 import { discardsLocked } from '../powers.js';
 import { nextRandom, shuffle } from '../rng.js';
-import { effectId, evolvedFromName, inPlayDef, pokemonName } from '../status.js';
+import { countersMoved, effectId, evolvedFromName, inPlayDef, pokemonName } from '../status.js';
 import { benchedSlots, damageChosen, energyCards, inPlay, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
 import { discardOwnEnergy } from './dp1.js';
 import { discardAtRandom, energyAmount, EX1, restNextTurn } from './ex1.js';
@@ -45,6 +45,7 @@ function moveCounters(ctx: AttackContext, n: number) {
   const moved = Math.min(n, Math.floor(ctx.attacker.damage / 10));
   if (!moved || !ctx.canAffect(ctx.opp, ctx.defender)) return;
   ctx.attacker.damage -= 10 * moved;
+  countersMoved(ctx.state, ctx.attacker, 10 * moved);
   ctx.defender.damage += 10 * moved;
   ctx.log(`Moved ${moved} damage counter${moved === 1 ? '' : 's'} to ${ctx.defenderDef.name}.`);
 }

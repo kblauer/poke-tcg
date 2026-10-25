@@ -269,15 +269,27 @@ export function evolvedHook(state: GameState, owner: PlayerId, pokemon: InPlayPo
  * The first empty Bench slot a Pokémon can be put into, or -1 when the Bench is full: 5 Pokémon, 3 while Giant Stump or 4 while Narrow Gym
  * is the Stadium in play (`stadium`).
  */
-export function openBenchSlot(bench: readonly (InPlayPokemon | null)[], cards: CardLibrary, stadium?: CardInstance | null): number {
-  return benchRoom(bench, cards, stadium) > 0 ? bench.indexOf(null) : -1;
+export function openBenchSlot(of: BenchOf, cards: CardLibrary, stadium?: CardInstance | null): number {
+  return benchRoom(of, cards, stadium) > 0 ? benchOf(of).indexOf(null) : -1;
 }
 
+/** A Bench, or its player, whose Bench may hold fewer (`benchLimit`: the opponent's Dittobolic). */
+type BenchOf = readonly (InPlayPokemon | null)[] | { bench: readonly (InPlayPokemon | null)[]; benchLimit?: number };
+const benchOf = (of: BenchOf) => ('bench' in of ? of.bench : of);
+
 /** How many more Pokémon the Bench can hold (see openBenchSlot). */
-export function benchRoom(bench: readonly (InPlayPokemon | null)[], cards: CardLibrary, stadium?: CardInstance | null): number {
+export function benchRoom(of: BenchOf, cards: CardLibrary, stadium?: CardInstance | null): number {
+  const bench = benchOf(of);
   const name = stadium && lookupCard(cards, stadium.defId).name;
-  const limit = name === 'Narrow Gym' ? 4 : name === 'Giant Stump' ? 3 : bench.length;
+  const limit = Math.min(name === 'Narrow Gym' ? 4 : name === 'Giant Stump' ? 3 : bench.length, ('bench' in of && of.benchLimit) || bench.length);
   return Math.max(0, limit - bench.filter(Boolean).length);
+}
+
+/** Damage counters moved off a Pokémon, not removed: Heal Block lets them go (engine.ts). */
+export function countersMoved(state: Pick<GameState, 'countersMoved'>, from: InPlayPokemon, amount: number) {
+  if (amount <= 0) return;
+  const moved = (state.countersMoved ??= {});
+  moved[baseUid(from)] = (moved[baseUid(from)] ?? 0) + amount;
 }
 
 /**

@@ -9,7 +9,7 @@ import { isPokemonCard, lookupCard } from '../cards.js';
 import { type InPlayPokemon, type Target } from '../engine.js';
 import { pokemonPower } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { inPlayDef, pokemonName } from '../status.js';
+import { countersMoved, inPlayDef, pokemonName } from '../status.js';
 import { benchedSlots, damageChosen, energyCards, inPlay, opponentBenchChoice, opponentTargets, same } from './common.js';
 import { DP1, discardOwnEnergy } from './dp1.js';
 import { DP2 } from './dp2.js';
@@ -86,6 +86,7 @@ export const DPP: Record<string, Record<string, AttackEffect>> = {
         const n = Math.min(2, Math.floor(ctx.attacker.damage / 10));
         if (!p || !n || !ctx.canAffect(ctx.opp, p)) return;
         ctx.attacker.damage -= 10 * n;
+        countersMoved(ctx.state, ctx.attacker, 10 * n);
         p.damage += 10 * n;
         ctx.log(`Moved ${n} damage counter${n === 1 ? '' : 's'} to ${pokemonName(ctx.state, p)}.`, ctx.opp.id);
       },

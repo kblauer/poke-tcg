@@ -150,7 +150,7 @@ export const NEO4: Record<string, Record<string, AttackEffect>> = {
   // Dark Houndoom
   'neo4-7': {
     'Eerie Howl': {
-      blocked: (s) => (openBenchSlot(s.opponentBench, s.cards, s.stadium) < 0 ? "Your opponent's Bench is full" : null),
+      blocked: (s) => (openBenchSlot({ bench: s.opponentBench, benchLimit: s.opponentBenchLimit }, s.cards, s.stadium) < 0 ? "Your opponent's Bench is full" : null),
       run: (ctx) => ctx.pend({ kind: 'oppHandToActive', source: 'Eerie Howl' }),
     },
     'Dark Fire': {
@@ -483,14 +483,14 @@ export const NEO4: Record<string, Record<string, AttackEffect>> = {
   // Dark Haunter
   'neo4-36': {
     'Call Back': {
-      blocked: (s) => (openBenchSlot(s.opponentBench, s.cards, s.stadium) < 0 ? "Your opponent's Bench is full" : null),
+      blocked: (s) => (openBenchSlot({ bench: s.opponentBench, benchLimit: s.opponentBenchLimit }, s.cards, s.stadium) < 0 ? "Your opponent's Bench is full" : null),
       choices(s): ChoiceSpec[] {
         const options = s.discardsLocked ? [] : basicsIn(s, s.opponentDiscard);
         return options.length ? [{ kind: 'oppDiscard', options, prompt: "Choose a Baby or Basic Pokémon from your opponent's discard pile to put onto their Bench" }] : [];
       },
       run(ctx) {
         const card = ctx.opp.discard.find((c) => c.uid === ctx.choices.oppDiscardUid);
-        const slot = openBenchSlot(ctx.opp.bench, ctx.state.cards, ctx.state.stadium?.card);
+        const slot = openBenchSlot(ctx.opp, ctx.state.cards, ctx.state.stadium?.card);
         if (!card || slot < 0 || !discardFree(ctx)) return ctx.log('Call Back did nothing.');
         ctx.opp.discard = ctx.opp.discard.filter((c) => c !== card);
         ctx.opp.bench[slot] = { card, evolvedFrom: [], damage: 10, energy: [], playedTurn: ctx.turn };
@@ -664,7 +664,7 @@ export const NEO4: Record<string, Record<string, AttackEffect>> = {
   // Light Ninetales
   'neo4-50': {
     'Guiding Flame': {
-      blocked: (s) => (openBenchSlot(s.ownBench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
+      blocked: (s) => (openBenchSlot({ bench: s.ownBench, benchLimit: s.ownBenchLimit }, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
       choices(s): ChoiceSpec[] {
         const options = basicsIn(s, s.ownDiscard);
         return options.length ? [{ kind: 'ownDiscard', min: 1, max: 1, options, prompt: 'Choose a Baby or Basic Pokémon from your discard pile to put onto your Bench' }] : [];
@@ -672,7 +672,7 @@ export const NEO4: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         ctx.hit(50);
         const card = ctx.me.discard.find((c) => c.uid === ctx.choices.discardUids?.[0]);
-        const slot = openBenchSlot(ctx.me.bench, ctx.state.cards, ctx.state.stadium?.card);
+        const slot = openBenchSlot(ctx.me, ctx.state.cards, ctx.state.stadium?.card);
         if (!card || slot < 0 || !discardFree(ctx)) return;
         ctx.me.discard = ctx.me.discard.filter((c) => c !== card);
         ctx.me.bench[slot] = newInPlay(card, ctx.turn);

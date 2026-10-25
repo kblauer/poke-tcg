@@ -36,7 +36,7 @@ export const DP5_ENERGY: Record<string, EnergyEffect> = {
   // Call Energy: on the Active Pokémon, once a turn, up to 2 Basic Pokémon from the deck onto the Bench; then the turn ends.
   'dp5-92': {
     use: {
-      blocked: (state, me) => (!me.deck.length ? 'Your deck is empty' : openBenchSlot(me.bench, state.cards, state.stadium?.card) < 0 ? 'Your Bench is full' : null),
+      blocked: (state, me) => (!me.deck.length ? 'Your deck is empty' : openBenchSlot(me, state.cards, state.stadium?.card) < 0 ? 'Your Bench is full' : null),
       run(state, me) {
         state.endTurnNow = true;
         state.pendingChoice = { player: me.id, source: 'Call Energy', kind: 'pickFromDeck', filter: 'basic', toBench: true, optional: true, count: 2 };

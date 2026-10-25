@@ -78,7 +78,7 @@ export const PL2_TRAINERS: Record<string, TrainerEffect> = {
   // Pokémon Tool from the deck may be attached to it.
   'pl2-93': {
     stadium: true,
-    stadiumBlocked: (me, cards) => (openBenchSlot(me.bench, cards) < 0 ? 'Your Bench is full' : null),
+    stadiumBlocked: (me, cards) => (openBenchSlot(me, cards) < 0 ? 'Your Bench is full' : null),
     useStadium({ state, me, flip }) {
       if (!flip()) return;
       if (me.deck.length) state.pendingChoice = { player: me.id, source: 'Pokémon Contest Hall', kind: 'pickFromDeck', filter: 'basic', toBench: true, optional: true, thenTool: true };

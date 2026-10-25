@@ -12,7 +12,7 @@ import { hasType, lookupCard, type CardLibrary, type EnergyType } from '../cards
 import { counts, discardTheirEnergy, energyPool, isSpecialEnergy, PRIZE_COUNT, retreatCost, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { clearOnLeavingActive, devolvable, evolvedFromName, inPlayDef, pokemonName, removeTopEvolution, sameCards } from '../status.js';
+import { clearOnLeavingActive, countersMoved, devolvable, evolvedFromName, inPlayDef, pokemonName, removeTopEvolution, sameCards } from '../status.js';
 import { amnesia } from './base1.js';
 import { benchedSlots, energyCanMove, energyCards, headsUntilTails, inPlay, leechSeed, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
 import { copyAttack } from './ecard2.js';
@@ -360,6 +360,7 @@ export const DP1: Record<string, Record<string, AttackEffect>> = {
         const n = Math.floor(ctx.attacker.damage / 10);
         if (!n || !ctx.canAffect(ctx.opp, ctx.defender)) return;
         ctx.attacker.damage -= 10 * n;
+        countersMoved(ctx.state, ctx.attacker, 10 * n);
         ctx.defender.damage += 10 * n;
         ctx.log(`Moved ${n} damage counter${n === 1 ? '' : 's'} from Wobbuffet to ${ctx.defenderDef.name}.`);
       },
@@ -531,6 +532,7 @@ export const DP1: Record<string, Record<string, AttackEffect>> = {
         const p = theirs(ctx, ctx.choices.oppTarget ?? 'active');
         if (ctx.attacker.damage < 10 || !p || !ctx.canAffect(ctx.opp, p)) return ctx.log('Pain Payback did nothing.');
         ctx.attacker.damage -= 10;
+        countersMoved(ctx.state, ctx.attacker, 10);
         p.damage += 10;
         ctx.log(`Moved a damage counter from Gastly to ${pokemonName(ctx.state, p)}.`);
       },

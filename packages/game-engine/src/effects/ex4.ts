@@ -65,7 +65,7 @@ export const knockOver = (damage: number): AttackEffect => ({
 
 /** Call for Family: a Basic Pokémon of `type` or with `team` in its name from the deck onto the Bench. */
 const teamFamily = (type: 'grass' | 'colorless', team: string): AttackEffect => ({
-  blocked: (s) => (openBenchSlot(s.ownBench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
+  blocked: (s) => (openBenchSlot({ bench: s.ownBench, benchLimit: s.ownBenchLimit }, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
   run: (ctx) => void (ctx.me.deck.length && ctx.pend({ kind: 'pickFromDeck', source: 'Call for Family', filter: 'basicTypeOrOwner', type, name: team, toBench: true, optional: true })),
 });
 

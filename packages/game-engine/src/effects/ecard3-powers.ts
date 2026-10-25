@@ -150,7 +150,7 @@ export const ECARD3_POWERS: Record<string, PowerEffect> = {
         const d = lookupCard(state.cards, c.defId);
         return d.kind === 'pokemon' && d.stage === 'basic' && !d.baby && !d.trainerText;
       });
-      if (fits && openBenchSlot(owner.bench, state.cards, state.stadium?.card) >= 0) state.pendingChoice = { player: owner.id, source: 'Manipulate', kind: 'discardToBench', filter: 'basicNotBaby', manipulate: true };
+      if (fits && openBenchSlot(owner, state.cards, state.stadium?.card) >= 0) state.pendingChoice = { player: owner.id, source: 'Manipulate', kind: 'discardToBench', filter: 'basicNotBaby', manipulate: true };
     },
   },
 

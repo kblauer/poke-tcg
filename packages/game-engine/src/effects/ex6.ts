@@ -332,7 +332,7 @@ export const EX6: Record<string, Record<string, AttackEffect>> = {
   // Nidoran♂ – Call for Family: a Nidoran ♀ or Nidoran ♂ from the deck onto the Bench.
   'ex6-71': {
     'Call for Family': {
-      blocked: (s) => (openBenchSlot(s.ownBench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
+      blocked: (s) => (openBenchSlot({ bench: s.ownBench, benchLimit: s.ownBenchLimit }, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
       run: (ctx) => void (ctx.me.deck.length && ctx.pend({ kind: 'pickFromDeck', source: 'Call for Family', filter: 'basicNamed', name: ['Nidoran♀', 'Nidoran♂'], toBench: true, optional: true })),
     },
   },
@@ -343,7 +343,7 @@ export const EX6: Record<string, Record<string, AttackEffect>> = {
   // Weedle – Call for Family: up to 2 Grass Basic Pokémon from the deck onto the Bench; Poison Spurt: as EX Dragon Grimer's.
   'ex6-86': {
     'Call for Family': {
-      blocked: (s) => (openBenchSlot(s.ownBench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
+      blocked: (s) => (openBenchSlot({ bench: s.ownBench, benchLimit: s.ownBenchLimit }, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
       run: (ctx) => void (ctx.me.deck.length && ctx.pend({ kind: 'pickFromDeck', source: 'Call for Family', filter: 'basicType', type: 'grass', toBench: true, optional: true, count: 2 })),
     },
     'Poison Spurt': same(() => EX3['ex3-57']?.['Poison Spurt']),

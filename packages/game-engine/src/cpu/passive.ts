@@ -54,7 +54,7 @@ function turnAction(state: GameState, cpu: PlayerState): GameAction | null {
   const def = (defId: string) => lookupCard(state.cards, defId);
 
   // Bench every Basic in hand while there's room.
-  const emptySlot = openBenchSlot(cpu.bench, state.cards, state.stadium?.card);
+  const emptySlot = openBenchSlot(cpu, state.cards, state.stadium?.card);
   const basic = cpu.hand.find((c) => isBasicPokemon(def(c.defId)));
   if (emptySlot >= 0 && basic) return { type: 'PLAY_BENCH', cardUid: basic.uid, slot: emptySlot };
 

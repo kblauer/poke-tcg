@@ -10,7 +10,7 @@
 import { hasType, isBasicEnergy, lookupCard, type CardLibrary } from '../cards.js';
 import { afflictBetweenTurns, counts, energyPool, isEnergyCardOf, opponentOf, type GameState, type InPlayPokemon, type PlayerId } from '../engine.js';
 import { discardsLocked, ownTargets, pokemonAt, type PowerChoiceSpec, type PowerEffect, type PowerSituation } from '../powers.js';
-import { addLog, inPlayDef, pokemonName } from '../status.js';
+import { addLog, countersMoved, inPlayDef, pokemonName } from '../status.js';
 import { swapActive } from '../trainers.js';
 import { inPlay, onlyActive, onlyBenched, POKE_BODY, targetOf } from './common.js';
 import { roughSkin } from './ex1-powers.js';
@@ -102,6 +102,7 @@ export const DP3_POWERS: Record<string, PowerEffect> = {
       const n = Math.min(most, ctx.choices.counters ?? most);
       if (n <= 0) return;
       ctx.source.damage -= 10 * n;
+      countersMoved(ctx.state, ctx.source, 10 * n);
       to.damage += 10 * n;
       ctx.log(`Moved ${n} damage counter${n === 1 ? '' : 's'} to ${pokemonName(ctx.state, to)}.`);
     },

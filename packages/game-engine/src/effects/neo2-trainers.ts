@@ -8,7 +8,7 @@ import { newInPlay, type CardInstance } from '../engine.js';
 import { clearOnLeavingActive, devolvable, openBenchSlot, pokemonName, removeTopEvolution } from '../status.js';
 import { def, own, targetsOf, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 
-const benchFull = (s: TrainerSituation) => (openBenchSlot(s.me.bench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null);
+const benchFull = (s: TrainerSituation) => (openBenchSlot(s.me, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null);
 
 /** Cards in the hand, other than `played`, that evolve from Mysterious Fossil (Fossil Egg). */
 const fossilsInHand = (s: { cards: CardLibrary }, hand: CardInstance[], played: CardInstance) =>
@@ -33,7 +33,7 @@ export const NEO2_TRAINERS: Record<string, TrainerEffect> = {
     play(ctx) {
       if (!ctx.flip()) return ctx.log('Fossil Egg did nothing.');
       const fromHand = ctx.choices.pick ? fossilsInHand(ctx.state, ctx.me.hand, ctx.card)[ctx.choices.pick - 1] : undefined;
-      const slot = openBenchSlot(ctx.me.bench, ctx.state.cards, ctx.state.stadium?.card);
+      const slot = openBenchSlot(ctx.me, ctx.state.cards, ctx.state.stadium?.card);
       if (fromHand && slot >= 0) {
         const [card] = ctx.fromHand(ctx.me, [fromHand.uid]);
         ctx.me.bench[slot] = newInPlay(card!, ctx.turn);

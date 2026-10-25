@@ -3,7 +3,7 @@
 import { lookupCard, typeName, type EnergyType } from '../cards.js';
 import { isEnergyCardOf, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
 import { energyFromHand, ownTargets, pokemonAt, type PowerChoiceSpec, type PowerEffect, type PowerSituation } from '../powers.js';
-import { clearOnLeavingActive, hasSpecialCondition, inPlayDef, pokemonName } from '../status.js';
+import { clearOnLeavingActive, countersMoved, hasSpecialCondition, inPlayDef, pokemonName } from '../status.js';
 
 const def = (s: PowerSituation, p: InPlayPokemon) => inPlayDef(s.cards, p);
 const at = (s: PowerSituation, t: Target) => pokemonAt(s.me, t)!;
@@ -54,6 +54,7 @@ export const BASE1_POWERS: Record<string, PowerEffect> = {
       // Never more than can go (the question is only asked when more than 1 can).
       const n = Math.min(Math.max(1, ctx.choices.counters ?? 1), swapLimit(from, to, inPlayDef(ctx.state.cards, to).hp).most);
       from.damage -= 10 * n;
+      countersMoved(ctx.state, from, 10 * n);
       to.damage += 10 * n;
       ctx.log(`Moved ${n === 1 ? 'a damage counter' : `${n} damage counters`} from ${pokemonName(ctx.state, from)} to ${pokemonName(ctx.state, to)}.`);
     },

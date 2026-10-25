@@ -49,7 +49,7 @@ export const DP7_POWERS: Record<string, PowerEffect> = {
     oncePerTurn: true,
     blocked: (s) => onlyActive(s, 'Lumineon'),
     use(ctx) {
-      const room = openBenchSlot(ctx.opp.bench, ctx.state.cards, ctx.state.stadium?.card) >= 0;
+      const room = openBenchSlot(ctx.opp, ctx.state.cards, ctx.state.stadium?.card) >= 0;
       const basic = room && ctx.opp.hand.some((c) => {
         const d = lookupCard(ctx.state.cards, c.defId);
         return d.kind === 'pokemon' && d.stage === 'basic' && !d.trainerText;

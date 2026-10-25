@@ -57,6 +57,8 @@ export interface PlayerView {
     /** Prize cards turned face up one by one (Card-Flip Game), in Prize order; null while face down. */
     faceUpPrizes?: (CardInstance | null)[];
     discard: CardInstance[];
+    /** Its Lost Zone (Lost Link), when it has cards. */
+    lostZone?: CardInstance[];
     active: InPlayPokemon | null;
     /** Fixed slots; null = empty. */
     bench: (InPlayPokemon | null)[];
@@ -108,6 +110,8 @@ export interface PlayerView {
     /** Prize cards turned face up one by one (Card-Flip Game), in Prize order; null while face down. */
     faceUpPrizes?: (CardInstance | null)[];
     discard: CardInstance[];
+    /** Its Lost Zone (Lost Link), when it has cards. */
+    lostZone?: CardInstance[];
     /** Last turn no Pokémon Powers work (Goop Gas Attack). */
     powersOffUntil?: number;
     /** Ancient Wind: every Poké-Body is ignored this turn. */
@@ -207,6 +211,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       ...(me.noSupportersUntil !== undefined && { noSupportersUntil: me.noSupportersUntil }),
       ...(me.noItemsUntil !== undefined && { noItemsUntil: me.noItemsUntil }),
       ...(me.activeEnergyTurn !== undefined && { activeEnergyTurn: me.activeEnergyTurn }),
+      ...(me.lostZone?.length && { lostZone: me.lostZone }),
       ...(me.ready && { ready: true }),
       ...(peek && { peek }),
       ...(recallsAttacks(state, me) && { recall: true }),
@@ -220,6 +225,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       ...(state.prizesFaceUp && { prizes: opp.prizes }),
       ...(faceUp(opp).length && { faceUpPrizes: inOrder(opp) }),
       discard: opp.discard,
+      ...(opp.lostZone?.length && { lostZone: opp.lostZone }),
       ...(opp.powersOffUntil !== undefined && { powersOffUntil: opp.powersOffUntil }),
       ...(opp.bodiesOffTurn !== undefined && { bodiesOffTurn: opp.bodiesOffTurn }),
       active: oppActive,

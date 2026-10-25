@@ -54,7 +54,7 @@ export const HGSS3_TRAINERS: Record<string, TrainerEffect> = {
       const top = ctx.me.deck.slice(0, 10);
       const name = (c: CardInstance) => lookupCard(ctx.state.cards, c.defId).name;
       ctx.log(`Legend Box shows ${top.map(name).join(', ')}.`);
-      const slot = openBenchSlot(ctx.me.bench, ctx.state.cards, ctx.state.stadium?.card);
+      const slot = openBenchSlot(ctx.me, ctx.state.cards, ctx.state.stadium?.card);
       const legend = slot < 0 ? undefined : top.find((c) => isLegend(lookupCard(ctx.state.cards, c.defId)) && top.some((d) => d.defId !== c.defId && name(d) === name(c)));
       const half = legend && top.find((d) => d.defId !== legend.defId && name(d) === name(legend));
       if (legend && half) {

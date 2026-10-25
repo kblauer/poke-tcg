@@ -12,7 +12,7 @@ import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { isBasicEnergy, lookupCard, namesMatch } from '../cards.js';
 import { counts, energyPool, type InPlayPokemon, type Target } from '../engine.js';
 import { shuffle } from '../rng.js';
-import { baseUid, devolvable, evolvedFromName, inPlayDef, pokemonName, removeTopEvolution } from '../status.js';
+import { baseUid, countersMoved, devolvable, evolvedFromName, inPlayDef, pokemonName, removeTopEvolution } from '../status.js';
 import { BASE1 } from './base1.js';
 import { benchedSlots, damageChosen, energyCards, inPlay, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
 import { discardOwnEnergy } from './dp1.js';
@@ -206,6 +206,7 @@ export const DP6: Record<string, Record<string, AttackEffect>> = {
         const to = theirs(ctx, ctx.choices.oppTarget ?? 'active');
         if (!from || from.damage < 10 || !to || !ctx.canAffect(ctx.opp, to)) return ctx.log('Transfer Pain did nothing.');
         from.damage -= 10;
+        countersMoved(ctx.state, from, 10);
         to.damage += 10;
         ctx.log(`Moved a damage counter to ${pokemonName(ctx.state, to)}.`);
       },

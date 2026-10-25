@@ -139,6 +139,13 @@ export interface AttackSituation {
   ownDiscard: CardInstance[];
   /** The attacking player's hand (Type Match). Missing in older callers. */
   ownHand?: CardInstance[];
+  /** How many cards are in the opponent's hand (Insight). */
+  opponentHandCount?: number;
+  /** Both players' Lost Zones (Lost Link). */
+  lostZones?: CardInstance[];
+  /** How many Benched Pokémon each player can have, when fewer than 5 (Dittobolic). */
+  ownBenchLimit?: number;
+  opponentBenchLimit?: number;
   cards: CardLibrary;
   turn: number;
   /** The Stadium card in play (Vermilion City Gym, Narrow Gym). Missing = none. */
@@ -181,7 +188,8 @@ export function usableAttacks(
     oppBench = [],
     stadium = null,
     sides = [{ active: attacker, bench: [...bench] }, { active: defender, bench: [...oppBench] }],
-  }: { recall?: boolean; bench?: readonly (InPlayPokemon | null)[]; defender?: InPlayPokemon | null; oppBench?: readonly (InPlayPokemon | null)[]; stadium?: CardInstance | null; /** Both players, for whether the copying powers work (Goop Gas, auras); without them, made up from the rest. */ sides?: Sides } = {},
+    lostZones,
+  }: { recall?: boolean; bench?: readonly (InPlayPokemon | null)[]; defender?: InPlayPokemon | null; oppBench?: readonly (InPlayPokemon | null)[]; stadium?: CardInstance | null; /** Both players, for whether the copying powers work (Goop Gas, auras); without them, made up from the rest. */ sides?: Sides; /** Both Lost Zones (Lost Link); without them, the sides'. */ lostZones?: readonly CardInstance[] } = {},
 ): UsableAttack[] {
   // Shapeshift: the attached Evolution card's attacks, with that card's effects.
   const source = shapeshiftCard(attacker)?.defId ?? effectId(attacker);
@@ -252,6 +260,13 @@ export function usableAttacks(
         return d.attacks.filter((attack) => canPayCost(p, attack, cards)).map((attack) => ({ attack: { ...attack, cost: [] }, source: effectId(p), from: d.name }));
       })
     : [];
+  // Lost Link: the attacks of every Pokémon in either player's Lost Zone.
+  const lost = working?.lostLink
+    ? (lostZones ?? sides.flatMap((side) => side.lostZone ?? [])).flatMap((c) => {
+        const d = lookupCard(cards, c.defId);
+        return d.kind === 'pokemon' ? d.attacks.map((attack) => ({ attack, source: d.id, from: d.name })) : [];
+      })
+    : [];
   // A Technical Machine attached to it: its attack.
   const machines = (attacker.attached ?? []).flatMap((a) => {
     const attack = trainerEffect(a.card.defId)?.technicalMachine;
@@ -260,11 +275,11 @@ export function usableAttacks(
   // A Stadium's attack (Rocket's Tricky Gym: for Pokémon with Dark or Rocket's in their names).
   const gym = stadium ? trainerEffect(stadium.defId)?.stadiumAttack : undefined;
   const gymAttack = gym && gym.for(def(cards, attacker).name, attacker, cards) ? [{ attack: gym.attack, source: stadium!.defId, from: lookupCard(cards, stadium!.defId).name }] : [];
-  return [...own, ...levels, ...dna, ...genes, ...lower, ...remembered, ...linked, ...copied, ...mimicked, ...shared, ...machines, ...gymAttack];
+  return [...own, ...levels, ...dna, ...genes, ...lower, ...remembered, ...linked, ...copied, ...mimicked, ...shared, ...lost, ...machines, ...gymAttack];
 }
 
 /** Every attack the situation's attacker can use, by attack index (its own, then Recall's, Technical Machines'…). */
-export const situationAttacks = (s: AttackSituation) => usableAttacks(s.attacker, s.cards, { recall: s.recall, bench: s.ownBench, defender: s.defender, oppBench: s.opponentBench, stadium: s.stadium });
+export const situationAttacks = (s: AttackSituation) => usableAttacks(s.attacker, s.cards, { recall: s.recall, bench: s.ownBench, defender: s.defender, oppBench: s.opponentBench, stadium: s.stadium, ...(s.lostZones && { lostZones: s.lostZones }) });
 const attackAt = (s: AttackSituation, attackIndex: number) => situationAttacks(s)[attackIndex];
 
 /** How many Special Conditions a Pokémon has (Camouflage Pattern). */
@@ -513,17 +528,18 @@ export function attackError(s: AttackSituation, attackIndex: number): string | n
   // Team Galactic's Invention G-101 Energy Gain: 1 Colorless less for a Pokémon SP.
   const gain = isPokemonSP(attackerDef.name) && toolOf(s.cards, s.attacker)?.name === "Team Galactic's Invention G-101 Energy Gain" ? 1 : 0;
   const pheromone = (NIDO_LINE.some((n) => namesMatch(attackerDef.name, n)) ? [s.attacker, ...s.ownBench].filter((p) => p && working(p)?.motherPheromone).length : 0) + regi + gain;
-  // Graffiti: 1 Colorless more for a while.
+  // Graffiti: 1 Colorless more for a while. Headwind: 2 more.
   const graffiti = active(s.attacker.effects?.graffiti, s.turn);
-  const more = [...(pulled ? ['colorless' as const] : []), ...(liquid ? ['colorless' as const] : []), ...(downer ? ['colorless' as const] : []), ...(graffiti ? ['colorless' as const] : [])];
+  const headwind = active(s.attacker.effects?.headwind, s.turn);
+  const more = [...(pulled ? ['colorless' as const] : []), ...(liquid ? ['colorless' as const] : []), ...(downer ? ['colorless' as const] : []), ...(graffiti ? ['colorless' as const] : []), ...(headwind ? ['colorless' as const, 'colorless' as const] : [])];
   // Battle Rush: no Colorless Energy at all while the opponent has a Pokémon of 120 HP or more in play.
   const rush = working(s.attacker)?.battleRush && [s.defender, ...s.opponentBench].some((p) => p && def(s.cards, p).hp >= 120);
   const fewer = (c: typeof cost) => {
     let left = pheromone;
     return c.filter((t) => !(t === 'colorless' && (rush || left-- > 0)));
   };
-  // Cold Feet: with a Special Condition, no Energy at all.
-  const cold = working(s.attacker)?.coldFeet && hasSpecialCondition(s.attacker);
+  // Cold Feet: with a Special Condition, no Energy at all. Insight: none either, with as many cards in the hand as the opponent.
+  const cold = (working(s.attacker)?.coldFeet && hasSpecialCondition(s.attacker)) || (working(s.attacker)?.insight && s.ownHand !== undefined && s.ownHand.length === s.opponentHandCount);
   if (!cold && !canPayCost(s.attacker, { ...attack, cost: fewer([...cost, ...more]) }, s.cards)) return more.length ? `Not enough energy (${[pulled && 'Primal Pull', liquid && 'Extra Liquid'].filter(Boolean).join(', ')}: ${more.length} more Colorless Energy)` : 'Not enough energy';
   const discard = effect?.discard;
   if (discard && discard.count !== 'all' && discardOptions(s, discard.type).length < discard.count) {
@@ -894,6 +910,10 @@ export const attackSituation = (state: GameState, me: PlayerState, opp: PlayerSt
   ownBench: me.bench,
   ownDiscard: me.discard,
   ownHand: me.hand,
+  opponentHandCount: opp.hand.length,
+  lostZones: [...(me.lostZone ?? []), ...(opp.lostZone ?? [])],
+  ...(me.benchLimit !== undefined && { ownBenchLimit: me.benchLimit }),
+  ...(opp.benchLimit !== undefined && { opponentBenchLimit: opp.benchLimit }),
   cards: state.cards,
   turn: state.turn,
   stadium: state.stadium?.card ?? null,
@@ -1201,6 +1221,17 @@ function createContext(
     if (damage > 0 && cocoon && owner === opp && flipCoin(state, 'Hard Cocoon', owner.id)) {
       damage = Math.max(0, damage - cocoon);
       log(`Hard Cocoon reduced the damage to ${pokemonName(state, p)} by ${cocoon}.`, owner.id);
+    }
+    // Time Circle: no damage from the opponent's Stage 1 or Stage 2 Pokémon for a while.
+    if (damage > 0 && owner !== me && active(p.effects?.timeCircle, turn) && (attackerDef.stage === 'stage1' || attackerDef.stage === 'stage2')) {
+      damage = noted('Time Circle', damage, 0);
+      log(`Time Circle prevented the damage to ${pokemonName(state, p)}.`, owner.id);
+    }
+    // Lonely Bone: 20 less from the opponent's attacks for each Marowak in its player's discard pile.
+    const bones = owner !== me && passive(p)?.lonelyBone ? owner.discard.filter((c) => namesMatch(lookupCard(state.cards, c.defId).name, 'Marowak')).length : 0;
+    if (damage > 0 && bones) {
+      damage = noted('Lonely Bone', damage, Math.max(0, damage - 20 * bones));
+      log(`Lonely Bone reduced the damage to ${pokemonName(state, p)} by ${20 * bones}.`, owner.id);
     }
     // Red Armor: no damage from the opponent's Pokémon with a Special Energy card attached.
     if (damage > 0 && owner !== me && passive(p)?.redArmor && attacker.energy.some((e) => isSpecialEnergy(state.cards, e))) {
@@ -1711,7 +1742,7 @@ function createContext(
     // Sunny Day: 10 more for Grass and Fire Pokémon. Green Dignity: 10 more for each Grass Pokémon on the Bench while behind on Prize cards. No Guard: 60 more.
     const sunny = (hasType(attackerDef, 'grass') || hasType(attackerDef, 'fire')) && team.some((q) => q && passive(q)?.sunnyDay) ? 10 : 0;
     const dignity = passive(attacker)?.greenDignity && me.prizes.length > opp.prizes.length ? 10 * me.bench.filter((q) => q && hasType(def(state.cards, q), 'grass')).length : 0;
-    const noGuard = (passive(attacker)?.noGuard ? 60 : 0) + (passive(attacker)?.revengeSeed && me.grassKnockedOutTurn === turn - 1 ? 60 : 0) + (attacker.effects?.cheerfulVoice === turn ? 60 : 0) + (passive(attacker)?.overgrow && inPlayDef(state.cards, attacker).hp - attacker.damage <= 60 ? 30 : 0) + (passive(attacker)?.compoundEyes && !!opp.active && !!def(state.cards, opp.active).power && !!pokemonPower(opp.active)?.body ? 30 : 0) + (passive(attacker)?.fireFormation ? 10 * me.bench.filter((q) => q && hasType(def(state.cards, q), 'fire')).length : 0) + (passive(attacker)?.competitiveness && me.supporterTurn !== turn ? 30 : 0) + (toolOf(state.cards, attacker)?.name === 'Expert Belt' ? 20 : 0) + (passive(attacker)?.berserk && attacker.damage > 0 ? 60 : 0);
+    const noGuard = (passive(attacker)?.noGuard ? 60 : 0) + (passive(attacker)?.revengeSeed && me.grassKnockedOutTurn === turn - 1 ? 60 : 0) + (attacker.effects?.cheerfulVoice === turn ? 60 : 0) + (passive(attacker)?.overgrow && inPlayDef(state.cards, attacker).hp - attacker.damage <= 60 ? 30 : 0) + (passive(attacker)?.compoundEyes && !!opp.active && !!def(state.cards, opp.active).power && !!pokemonPower(opp.active)?.body ? 30 : 0) + (passive(attacker)?.fireFormation ? 10 * me.bench.filter((q) => q && hasType(def(state.cards, q), 'fire')).length : 0) + (passive(attacker)?.competitiveness && me.supporterTurn !== turn ? 30 : 0) + (toolOf(state.cards, attacker)?.name === 'Expert Belt' ? 20 : 0) + (passive(attacker)?.berserk && attacker.damage > 0 ? 60 : 0) + (me.blackBeltTurn === turn ? 40 : 0);
     const buck = me.supporterTurn === turn && me.supporterUid && me.discard.concat(me.hand).some((c) => c.uid === me.supporterUid && lookupCard(state.cards, c.defId).name === "Buck's Training") ? 10 : 0;
     const boost = (low && attackerDef.hp - attacker.damage <= low.hpLeft ? low.more : 0) + aura + pivot + (passive(attacker)?.attackMore ?? 0) + rage + reversal + conditional + reactor + laser + allies + dna + scale + fury + rivalry + revenge + enthused + buck + sunny + dignity + noGuard;
     if (amount > 0 && boost) {

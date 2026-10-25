@@ -61,7 +61,7 @@ export const DP7_TRAINERS: Record<string, TrainerEffect> = {
   'dp7-93': EX1_TRAINERS['ex1-92']!,
   // Great Ball: a Basic Pokémon from the deck onto the Bench.
   'dp7-85': {
-    blocked: (s) => (!s.deckCount ? 'Your deck is empty' : openBenchSlot(s.me.bench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
+    blocked: (s) => (!s.deckCount ? 'Your deck is empty' : openBenchSlot(s.me, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
     play: (ctx) => ctx.pend({ kind: 'pickFromDeck', source: 'Great Ball', filter: 'basic', toBench: true, optional: true }),
   },
   // Luxury Ball: a Pokémon (not a Pokémon LV.X) from the deck, shown; not with a Luxury Ball in the discard pile.

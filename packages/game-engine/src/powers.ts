@@ -733,6 +733,22 @@ export interface PowerEffect {
   spaceVirus?: boolean;
   /** With `retreatAidCost`: Pokémon-ex and Baby Pokémon too (Undaunted Dodrio). */
   retreatAidAll?: boolean;
+  /** Pheromone Stamina: 20 more HP for each Nidoqueen its player has in play (refreshHideout). */
+  pheromoneStamina?: boolean;
+  /** Heal Block: with its player's Lunatone in play, no damage counters can be removed from any Pokémon (engine.ts). */
+  healBlock?: boolean;
+  /** Dittobolic: the opponent can have only 4 Benched Pokémon (refreshHideout's `benchLimit`). */
+  dittobolic?: boolean;
+  /** Lonely Bone: 20 less damage from the opponent's attacks for each Marowak in its player's discard pile (attacks.ts). */
+  lonelyBone?: boolean;
+  /** Eye of Disaster: as the Active Pokémon, 2 damage counters on each Basic Pokémon the opponent benches from the hand (engine.ts). */
+  eyeOfDisaster?: boolean;
+  /** Catastrophe: as the Active Pokémon, the opponent's Knocked Out Pokémon go to the Lost Zone (resolveKnockouts). */
+  catastrophe?: boolean;
+  /** Lost Link: it can use the attacks of the Pokémon in either player's Lost Zone (usableAttacks). */
+  lostLink?: boolean;
+  /** Insight: with as many cards in its player's hand as the opponent's, its attacks cost nothing (attackError). */
+  insight?: boolean;
 }
 
 /** Wise Aura, Overpowering Fang and Intimidating Ring: an Active Pokémon's aura stopping `pokemon`'s power, or null. */
@@ -868,7 +884,7 @@ export function powerOf(pokemon: InPlayPokemon, cards: CardLibrary) {
   return inPlayDef(cards, pokemon).power ?? null;
 }
 
-export type Sides = Pick<PlayerState, 'active' | 'bench' | 'powersOffUntil' | 'bodiesOffTurn'>[];
+export type Sides = Pick<PlayerState, 'active' | 'bench' | 'powersOffUntil' | 'bodiesOffTurn' | 'lostZone'>[];
 
 /** Goop Gas Attack: no Pokémon Powers work (it's set on both players). */
 const goopGas = (sides: Sides) => sides.some((s) => s.powersOffUntil !== undefined);

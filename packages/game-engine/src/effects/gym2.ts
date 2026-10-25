@@ -653,7 +653,7 @@ export const GYM2: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         const uid = ctx.choices.discardUids?.[0];
         const owner = [ctx.me, ctx.opp].find((p) => p.discard.some((c) => c.uid === uid));
-        const slot = owner ? openBenchSlot(owner.bench, ctx.state.cards, ctx.state.stadium?.card) : -1;
+        const slot = owner ? openBenchSlot(owner, ctx.state.cards, ctx.state.stadium?.card) : -1;
         if (!owner || slot < 0) return;
         const card = owner.discard.find((c) => c.uid === uid)!;
         owner.discard = owner.discard.filter((c) => c !== card);
@@ -896,14 +896,14 @@ export const GYM2: Record<string, Record<string, AttackEffect>> = {
   'gym2-83': {
     'Group Attack': {
       choices(s): ChoiceSpec[] {
-        const room = benchRoom(s.ownBench, s.cards, s.stadium);
+        const room = benchRoom({ bench: s.ownBench, benchLimit: s.ownBenchLimit }, s.cards, s.stadium);
         return room ? [{ kind: 'amount', options: Array.from({ length: room + 1 }, (_, i) => i), prompt: "How many Koga's Zubat to put onto your Bench from your deck first" }] : [];
       },
       run(ctx) {
         let wanted = ctx.choices.amount ?? 0;
         if (wanted) {
           for (const card of ctx.me.deck.filter((c) => isBasicPokemon(lookupCard(ctx.state.cards, c.defId)) && lookupCard(ctx.state.cards, c.defId).name === ZUBAT)) {
-            const slot = openBenchSlot(ctx.me.bench, ctx.state.cards, ctx.state.stadium?.card);
+            const slot = openBenchSlot(ctx.me, ctx.state.cards, ctx.state.stadium?.card);
             if (!wanted || slot < 0) break;
             ctx.me.deck = ctx.me.deck.filter((c) => c !== card);
             ctx.me.bench[slot] = newInPlay(card, ctx.turn);

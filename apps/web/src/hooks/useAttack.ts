@@ -28,6 +28,8 @@ export function useAttack({ view, send, busy, confirm = (go) => go() }: { view: 
           ownBench: self.bench,
           ownDiscard: self.discard,
           ownHand: self.hand,
+          opponentHandCount: opponent.handCount,
+          lostZones: [...(self.lostZone ?? []), ...(opponent.lostZone ?? [])],
           cards: view.cards,
           turn: view.turn,
           stadium: view.stadium?.card ?? null,

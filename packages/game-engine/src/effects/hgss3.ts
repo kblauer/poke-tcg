@@ -42,7 +42,7 @@ export const HGSS3: Record<string, Record<string, AttackEffect>> = {
   'hgss3-2': {
     'Solar Suggestion': {
       run(ctx) {
-        if (inPlay(ctx.me).some((p) => p.damage > 0) && inPlay(ctx.opp).length) ctx.pend({ kind: 'solarSuggestion', source: 'Solar Suggestion', count: 4 });
+        if (inPlay(ctx.me).some((p) => p.damage > 0) && inPlay(ctx.opp).length) ctx.pend({ kind: 'moveCounters', source: 'Solar Suggestion', count: 4 });
       },
     },
   },
@@ -325,7 +325,7 @@ export const HGSS3: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         const top = ctx.me.deck.slice(0, 5);
         for (const card of top) {
-          const slot = openBenchSlot(ctx.me.bench, ctx.state.cards, ctx.state.stadium?.card);
+          const slot = openBenchSlot(ctx.me, ctx.state.cards, ctx.state.stadium?.card);
           if (slot < 0) break;
           if (!isBasicPokemon(lookupCard(ctx.state.cards, card.defId))) continue;
           ctx.me.deck = ctx.me.deck.filter((c) => c !== card);

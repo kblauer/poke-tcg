@@ -35,7 +35,7 @@ export const EX13_TRAINERS: Record<string, TrainerEffect> = {
   ),
   // Holon Fossil: heads, a Fossil Pokémon from the deck onto the Bench; tails, one from the hand; as a Basic Pokémon either way.
   'ex13-86': {
-    blocked: (s) => (openBenchSlot(s.me.bench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
+    blocked: (s) => (openBenchSlot(s.me, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
     play(ctx) {
       if (ctx.flip()) {
         if (ctx.me.deck.length) ctx.pend({ kind: 'pickFromDeck', source: 'Holon Fossil', filter: 'named', name: FOSSIL_POKEMON, toBench: true, asBasic: true, optional: true });

@@ -229,7 +229,7 @@ export const ECARD3_TRAINERS: Record<string, TrainerEffect> = {
   'ecard3-141': {
     stadium: true,
     stadiumBlocked(me, cards) {
-      if (openBenchSlot(me.bench, cards) < 0) return 'Underground Lake: your Bench is full';
+      if (openBenchSlot(me, cards) < 0) return 'Underground Lake: your Bench is full';
       const fossil = me.discard.some((c) => ['Omanyte', 'Kabuto'].includes(lookupCard(cards, c.defId).name) && !isTrainerCard(lookupCard(cards, c.defId)));
       return fossil ? null : 'Underground Lake: no Omanyte or Kabuto in your discard pile';
     },

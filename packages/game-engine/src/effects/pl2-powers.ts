@@ -13,7 +13,7 @@ import { hasType, lookupCard } from '../cards.js';
 import { afflictBetweenTurns, type InPlayPokemon, type Target } from '../engine.js';
 import { ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { addLog, clearOnLeavingActive, devolvable, inPlayDef, pokemonName, removeTopEvolution } from '../status.js';
+import { addLog, clearOnLeavingActive, countersMoved, devolvable, inPlayDef, pokemonName, removeTopEvolution } from '../status.js';
 import { isPokemonSP } from '../trainers.js';
 import { POKE_BODY } from './common.js';
 import { DP1_POWERS } from './dp1-powers.js';
@@ -192,6 +192,7 @@ export const PL2_POWERS: Record<string, PowerEffect> = {
       const to = ctx.choices.to === undefined ? null : pokemonAt(ctx.me, ctx.choices.to);
       if (!from?.damage || !to || from === to) return;
       from.damage -= 10;
+      countersMoved(ctx.state, from, 10);
       to.damage += 10;
       ctx.log(`Moved a damage counter from ${pokemonName(ctx.state, from)} to ${pokemonName(ctx.state, to)}.`);
     },

@@ -520,7 +520,7 @@ const lineIndex = (lines: PokemonCardDef[], d: CardDef) => lines.findIndex((l) =
 export function unusablePokemon(state: GameState, me: PlayerState, except?: CardInstance): CardInstance[] {
   const def = (c: CardInstance) => lookupCard(state.cards, c.defId);
   const names = new Set([...inPlay(me).map(([, p]) => pokemonDef(state.cards, p).name), ...me.hand.filter((c) => c !== except).map((c) => def(c).name)]);
-  const benchFull = openBenchSlot(me.bench, state.cards, state.stadium?.card) < 0;
+  const benchFull = openBenchSlot(me, state.cards, state.stadium?.card) < 0;
   return me.hand.filter((c) => {
     const d = def(c);
     if (c === except || !isPokemonCard(d)) return false;
@@ -574,7 +574,7 @@ export const benched = (t: Turn) => inPlay(t.me).filter(([target]) => target !==
 
 /** Challenge! (agreed): the CPU accepts whenever its Bench has room and its deck has a Basic Pokémon. */
 export const acceptsChallenge = (state: GameState, cpu: PlayerState) =>
-  openBenchSlot(cpu.bench, state.cards, state.stadium?.card) >= 0 && cpu.deck.some((c) => isBasicPokemon(lookupCard(state.cards, c.defId)));
+  openBenchSlot(cpu, state.cards, state.stadium?.card) >= 0 && cpu.deck.some((c) => isBasicPokemon(lookupCard(state.cards, c.defId)));
 
 /** Rock, paper or scissors for the CPU: varies with the game's random state and the log, without advancing either. */
 export const rpsHand = (state: GameState) => Math.floor(nextRandom((state.rngState + (state.log?.length ?? 0)) >>> 0)[0] * 3);
@@ -718,7 +718,7 @@ export function borrowedTrainerMove(state: GameState, cpuId: PlayerId, decide: (
 
 /** Puts a Basic Pokémon from the hand onto the Bench, while there's room. */
 export function benchBasic(t: Turn): GameAction | null {
-  const empty = openBenchSlot(t.me.bench, t.state.cards, t.state.stadium?.card);
+  const empty = openBenchSlot(t.me, t.state.cards, t.state.stadium?.card);
   const basic = t.me.hand.find((c) => isBasicPokemon(t.def(c)));
   return empty >= 0 && basic ? { type: 'PLAY_BENCH', cardUid: basic.uid, slot: empty } : null;
 }

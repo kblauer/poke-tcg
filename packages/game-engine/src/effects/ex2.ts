@@ -86,9 +86,9 @@ const maySwitchDefender = (s: Parameters<NonNullable<AttackEffect['choices']>>[0
 
 /** Search for named Pokémon (and, with `orBasic`, any Basic Pokémon) to put onto the Bench as Basic Pokémon (Team Assembly, Influence). */
 const benchNamed = (source: string, names: string[], most: number, orBasic: boolean): AttackEffect => ({
-  blocked: (s) => (openBenchSlot(s.ownBench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
+  blocked: (s) => (openBenchSlot({ bench: s.ownBench, benchLimit: s.ownBenchLimit }, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
   run(ctx) {
-    const room = Math.min(most, benchRoom(ctx.me.bench, ctx.state.cards, ctx.state.stadium?.card));
+    const room = Math.min(most, benchRoom(ctx.me, ctx.state.cards, ctx.state.stadium?.card));
     if (ctx.me.deck.length && room) ctx.pend({ kind: 'pickFromDeck', source, filter: 'named', name: names, orBasic, toBench: true, optional: true, count: room });
   },
 });
@@ -330,7 +330,7 @@ export const EX2: Record<string, Record<string, AttackEffect>> = {
   'ex2-60': {
     'Strike and Run': {
       run(ctx) {
-        const room = Math.min(3, benchRoom(ctx.me.bench, ctx.state.cards, ctx.state.stadium?.card));
+        const room = Math.min(3, benchRoom(ctx.me, ctx.state.cards, ctx.state.stadium?.card));
         if (room && ctx.me.deck.length) ctx.pend({ kind: 'pickFromDeck', source: 'Strike and Run', filter: 'basic', toBench: true, optional: true, count: room });
         (ctx.state.queuedChoices ??= []).push({ player: ctx.me.id, source: 'Strike and Run', kind: 'switchIn', optional: true });
       },

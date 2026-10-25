@@ -24,7 +24,7 @@ const needOthers = (s: TrainerSituation, n: number) => (otherHandCards(s).length
 const removable = (s: TrainerSituation, t: Target) => theirs(s, t)!.energy.length > 0 && !energyProtected(s.cards, theirs(s, t)!) && !energyKept(s.opp, [s.opp, s.me], s.cards, theirs(s, t)!);
 const at = (side: Pick<PlayerState, 'active' | 'bench'>, t: Target) => pokemonAt(side, t)!;
 /** An empty Bench slot of `side` (none while Narrow Gym leaves no room), given the Stadium in play. */
-const emptySlot = (side: Pick<PlayerState, 'bench'>, s: { cards: CardLibrary; stadium?: CardInstance | null }) => openBenchSlot(side.bench, s.cards, s.stadium);
+const emptySlot = (side: Pick<PlayerState, 'bench'>, s: { cards: CardLibrary; stadium?: CardInstance | null }) => openBenchSlot(side, s.cards, s.stadium);
 
 /** Switches the active with the benched Pokémon in `slot`. */
 function switchActive(side: PlayerState, slot: number) {
