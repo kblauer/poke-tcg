@@ -26,6 +26,9 @@
       <excludeFolder url="file://$MODULE_DIR$/tsconfig.base.json" />
       <excludeFolder url="file://$MODULE_DIR$/turbo.json" />
       <excludeFolder url="file://$MODULE_DIR$/vercel.json" />
+      <excludeFolder url="file://$MODULE_DIR$/.agents" />
+      <excludeFolder url="file://$MODULE_DIR$/.claude" />
+      <excludeFolder url="file://$MODULE_DIR$/skills-lock.json" />
     </content>
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
