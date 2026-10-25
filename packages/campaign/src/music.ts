@@ -348,7 +348,7 @@ const TOWER_MUSIC: Record<number, Record<Soundtrack, { lobby: Song; rooms: Song 
 export const IDLE_MAP_MUSIC: Record<Soundtrack, Record<string, Song>> = {
   original: Object.fromEntries(
     Object.entries({
-      MUS_ROUTE1: 'Route 1', MUS_ROUTE3: 'Route 3', MUS_ROUTE11: 'Route 11', MUS_ROUTE24: 'Route 24 - Welcome to the World of Pokémon!', MUS_OAK_LAB: 'Pokémon Lab', MUS_PEWTER: 'Viridian City', MUS_VIRIDIAN_FOREST: 'Viridian Forest',
+      MUS_ROUTE1: 'Route 1', MUS_ROUTE3: 'Route 3', MUS_ROUTE11: 'Route 11', MUS_ROUTE24: 'Route 24 - Welcome to the World of Pokémon!', MUS_OAK_LAB: 'Pokémon Lab', MUS_PALLET: 'Pallet Town', MUS_PEWTER: 'Viridian City', MUS_VIRIDIAN_FOREST: 'Viridian Forest',
       MUS_MT_MOON: 'Mt. Moon', MUS_GYM: 'Pokémon Gym', MUS_LAVENDER: 'Lavender Town', MUS_CELADON: 'Celadon City', MUS_FUCHSIA: 'Cerulean City', MUS_CINNABAR: 'Cinnabar Island',
       MUS_VERMILLION: 'Vermilion City', MUS_VICTORY_ROAD: 'Victory Road', MUS_ROCKET_HIDEOUT: 'Rocket Hideout', MUS_POKE_TOWER: 'Pokémon Tower', MUS_CERULEAN: 'Cerulean City',
     }).map(([k, title]) => [k, { game: 'Red, Green, Blue & Yellow', title }]),
@@ -356,7 +356,7 @@ export const IDLE_MAP_MUSIC: Record<Soundtrack, Record<string, Song>> = {
   remastered: Object.fromEntries(
     Object.entries({
       MUS_ROUTE1: 'Road to Viridian City: Leaving Pallet Town', MUS_ROUTE3: 'Road to Cerulean City: Leaving Mt. Moon', MUS_ROUTE11: 'Road to Fuchsia City: Leaving Lavender Town',
-      MUS_ROUTE24: 'Welcome to the World of Pokémon!', MUS_OAK_LAB: "Professor Oak's Laboratory", MUS_PEWTER: 'Pewter City', MUS_VIRIDIAN_FOREST: 'Viridian Forest', MUS_MT_MOON: 'Mt. Moon', MUS_GYM: 'Pokémon Gym',
+      MUS_ROUTE24: 'Welcome to the World of Pokémon!', MUS_OAK_LAB: "Professor Oak's Laboratory", MUS_PALLET: 'Pallet Town', MUS_PEWTER: 'Pewter City', MUS_VIRIDIAN_FOREST: 'Viridian Forest', MUS_MT_MOON: 'Mt. Moon', MUS_GYM: 'Pokémon Gym',
       MUS_LAVENDER: 'Lavender Town', MUS_CELADON: 'Celadon City', MUS_FUCHSIA: 'Fuchsia City', MUS_CINNABAR: 'Cinnabar Island', MUS_VERMILLION: 'Vermilion City',
       MUS_VICTORY_ROAD: 'Victory Road', MUS_ROCKET_HIDEOUT: 'Rocket Hideout', MUS_POKE_TOWER: 'Pokémon Tower', MUS_CERULEAN: 'Fuchsia City',
     }).map(([k, title]) => [k, { game: 'FireRed & LeafGreen', title }]),

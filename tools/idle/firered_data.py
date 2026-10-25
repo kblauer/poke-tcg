@@ -176,6 +176,13 @@ icon_idx = dict(re.findall(r'\[(SPECIES_\w+)\]\s*=\s*(\d)', re.search(r'gMonIcon
 dex = struct_blocks(read('src/data/pokemon/pokedex_entries.h'), 'NATIONAL_DEX_')
 dex_text = {m.group(1): ' '.join(re.findall(r'"([^"]*)"', m.group(2))).replace('\\n', ' ').replace('POKéMON', 'Pokémon').replace('  ', ' ').strip()
             for m in re.finditer(r'const u8 (g\w+PokedexText)\[\] = _\((.*?)\);', read('src/data/pokemon/pokedex_text_fr.h'), re.S)}
+# Where the battle screen draws each species (battle_anim_mons.c's GetBattlerSpriteFinal_Y): its front and back pictures'
+# y_offset (the 64x64 picture lowered so the Pokémon stands on its spot) and the foe's elevation (fliers and floaters raised).
+def pic_offsets(path):
+    return {m.group(1): int(m.group(2)) for m in re.finditer(r'\[(SPECIES_\w+)\]\s*=\s*\{[^}]*?\.y_offset\s*=\s*(\d+)', read(path), re.S)}
+front_y = pic_offsets('src/data/pokemon_graphics/front_pic_coordinates.h')
+back_y = pic_offsets('src/data/pokemon_graphics/back_pic_coordinates.h')
+elevation = {c: int(v) for c, v in re.findall(r'\[(SPECIES_\w+)\]\s*=\s*(\d+)', read('src/data/pokemon_graphics/enemy_mon_elevation.h'))}
 GROWTH = {'GROWTH_MEDIUM_FAST': 'mediumFast', 'GROWTH_ERRATIC': 'erratic', 'GROWTH_FLUCTUATING': 'fluctuating', 'GROWTH_MEDIUM_SLOW': 'mediumSlow', 'GROWTH_FAST': 'fast', 'GROWTH_SLOW': 'slow'}
 SPECIES_NAME_FIXES = {'NIDORAN_F': 'Nidoran♀', 'NIDORAN_M': 'Nidoran♂', 'FARFETCHD': "Farfetch'd", 'MR_MIME': 'Mr. Mime'}
 species = []
@@ -215,8 +222,9 @@ for n in range(1, 152):
         'height': num(entry['height']),
         'weight': num(entry['weight']),
         'dexText': dex_text.get(entry['description'], ''),
+        'pic': {'frontY': front_y[c], 'backY': back_y[c], 'elevation': elevation.get(c, 0)},
     })
-write('species.ts', 'src/data/pokemon/species_info.h, level_up_learnsets.h, evolution.h',
+write('species.ts', 'src/data/pokemon/species_info.h, level_up_learnsets.h, evolution.h, src/data/pokemon_graphics/*_coordinates.h, enemy_mon_elevation.h',
       "import type { SpeciesData } from '../../types.js';\n\n/** Kanto's 151 by National Pokédex number (index 0 is #1): base stats, names, level-up learnsets, evolutions (into Kanto's only). Stats in the order HP, Attack, Defense, Sp. Atk, Sp. Def, Speed. */\nexport const SPECIES: SpeciesData[] = [\n"
       + ''.join('  ' + js(s) + ',\n' for s in species) + '];\n')
 

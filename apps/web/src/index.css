@@ -502,6 +502,11 @@ html[data-font="emerald"] {
   0% { background-position: 0 0; }
   50% { background-position: 0 -32px; }
 }
+/* The game's tick filling up (Idle.tsx's TickMeter). */
+@keyframes idle-tick {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
 /* The flash into a battle (useIdlePlayback's `entering`). */
 @keyframes idle-enter {
   0%, 40%, 80% { opacity: 0; }

@@ -3,13 +3,23 @@ import { AREAS, FADE_MS, STEP_MS, TICK_MS, type CatchUpSummary, type IdleAction,
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type { inferRouterOutputs } from '@trpc/server';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useTRPC } from '../lib/trpc';
 import type { Facing } from '../utils/overworld';
 
 export type IdleOverview = inferRouterOutputs<AppRouter>['idle']['overview'];
 export type ClientIdleRun = NonNullable<IdleOverview['run']>;
 export type BattleSegment = Extract<SegmentEvent, { t: 'battle' }>;
+type BattleEvent = BattleSegment['events'][number];
+
+/** A Pokémon's reward after a foe faints (EXP., a level, a move learned): a run of them is shown at once, as one line's time (the user's). */
+export const isReward = (e: BattleEvent) => e.t === 'exp' || e.t === 'level' || e.t === 'learn';
+
+/** How long after an attack's line its hit lands (the HP drop and the blink). */
+const HIT_BEAT_MS = 500;
+
+/** The least time away that's told (what happened while away); a shorter catch-up just plays on. */
+const CATCH_UP_TOLD_MS = 60_000;
 
 /** The Idle Adventure's overview (idle.overview): the run, the settings, the starters and the Pokédex. */
 export function useIdleOverview(enabled = true) {
@@ -67,9 +77,23 @@ export interface Playback {
   entering: boolean;
   /** A line about what just happened (money, a catch, an evolution, a badge), shown for a moment. */
   notice: string | null;
+  /** The game's tick (TICK_MS, shown in a battle: the user's): the battle's turn (null out of battle) and when the current tick began. */
+  turn: number | null;
+  tickAt: number;
 }
 
-const IDLE: Playback = { place: null, face: 'up', walkTick: 0, moveMs: 0, jump: null, fading: false, spotted: null, battle: null, shown: 0, entering: false, notice: null };
+const IDLE: Playback = { place: null, face: 'up', walkTick: 0, moveMs: 0, jump: null, fading: false, spotted: null, battle: null, shown: 0, entering: false, notice: null, turn: null, tickAt: 0 };
+
+/** Whether the tab is showing (document.visibilityState), followed as it changes. */
+function useTabVisible() {
+  return useSyncExternalStore(
+    (changed) => {
+      document.addEventListener('visibilitychange', changed);
+      return () => document.removeEventListener('visibilitychange', changed);
+    },
+    () => document.visibilityState === 'visible',
+  );
+}
 
 /** Thrown into the playback when it's stopped (the page left), so it goes no further. */
 class Stopped extends Error {}
@@ -117,12 +141,18 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
   const [restart, setRestart] = useState(0);
   const runId = run?.id ?? null;
   const walking = run?.status === 'ACTIVE' && run.view.phase === 'walking';
+  // A hidden tab stops the playback (the browser slows its timers, so it would fall behind and the time be lost); shown
+  // again, it starts over, catching up the time it was hidden as after the page was closed (the user's).
+  const visible = useTabVisible();
 
   useEffect(() => {
     if (!run || !walking) {
       if (run) update({ place: { area: run.view.area, leg: run.view.leg, step: run.view.step }, battle: null, spotted: null });
       return;
     }
+    if (!visible) return;
+    // Whatever was playing when it stopped (a battle half shown, a fade, a line) is dropped: the server is past it.
+    update({ battle: null, shown: 0, entering: false, spotted: null, notice: null, fading: false, turn: null, tickAt: Date.now() });
     let stopped = false;
     const timers = new Set<number>();
     const wait = (ms: number) =>
@@ -135,7 +165,8 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
         }, ms);
         timers.add(t);
       });
-    let current = run;
+    // The server's newest (a segment cut short when the tab was hidden is saved already), else the run given.
+    let current = latest.current && latest.current.id === run.id && latest.current.version > run.version ? latest.current : run;
     const setRun = (r: ClientIdleRun) => {
       current = r;
       queryClient.setQueryData(key, (old) => old && { ...old, run: r });
@@ -173,25 +204,48 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
       update({ entering: true });
       await wait(900);
       update({ battle: e, shown: 0, entering: false });
-      // Each tick's events spread over its 3 s; the opening (send-outs) at a quicker pace.
+      // Each tick's events spread over its TICK_MS; the opening (send-outs) at a quicker pace. A run of rewards (EXP.,
+      // levels, moves learned) is one line: shown at once.
+      const said = (x: BattleEvent) => 'msg' in x && !!x.msg;
       let i = 0;
       while (i < e.events.length) {
         const start = i;
+        const first = e.events[start]!;
+        if (first.t === 'tick' && start > 0) update({ turn: first.n, tickAt: Date.now() });
         i++;
         while (i < e.events.length && e.events[i]!.t !== 'tick') i++;
-        const group = e.events.slice(start, i);
-        const count = group.filter((x) => 'msg' in x && x.msg).length;
-        const per = (start === 0 ? 1600 : TICK_MS) / Math.max(1, count);
+        // The group's lines, each run of rewards counted once. A line takes the silent events after it (an attack's hit:
+        // its HP drop and blink), shown a beat after it (the user's: the HP falls with the hit, not with the next line).
+        const slots: [number, number][] = [];
         for (let j = start; j < i; j++) {
-          update({ shown: j + 1 });
-          const ev = e.events[j]!;
-          if ('msg' in ev && ev.msg) await wait(per);
+          let end = j;
+          if (isReward(e.events[j]!)) while (end + 1 < i && isReward(e.events[end + 1]!)) end++;
+          else if (said(e.events[j]!)) while (end + 1 < i && !said(e.events[end + 1]!) && !isReward(e.events[end + 1]!)) end++;
+          slots.push([j, end]);
+          j = end;
         }
-        // A turn with nothing to say (both Pokémon asleep, say) still takes its 3 s.
+        const count = slots.filter(([j, end]) => e.events.slice(j, end + 1).some(said)).length;
+        const per = (start === 0 ? 1600 : TICK_MS) / Math.max(1, count);
+        const beat = Math.min(HIT_BEAT_MS, per / 2);
+        for (const [j, end] of slots) {
+          if (!e.events.slice(j, end + 1).some(said)) {
+            update({ shown: end + 1 });
+            continue;
+          }
+          // A line with silent events after it: the line, then the rest a beat later.
+          const head = isReward(e.events[j]!) ? end : j;
+          update({ shown: head + 1 });
+          if (end > head) {
+            await wait(beat);
+            update({ shown: end + 1 });
+            await wait(per - beat);
+          } else await wait(per);
+        }
+        // A turn with nothing to say (both Pokémon asleep, say) still takes its tick.
         if (!count && start > 0) await wait(TICK_MS);
       }
       await wait(1400);
-      update({ battle: null, shown: 0, spotted: null });
+      update({ battle: null, shown: 0, spotted: null, turn: null, tickAt: Date.now() });
     }
 
     /** The place on screen (the walk moves its step along). */
@@ -245,7 +299,7 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
           if (r.summary) total = total ? mergeSummaries(total, r.summary) : r.summary;
         }
         if (total && total.segments > 0) {
-          setSummary(total);
+          if (total.durationMs >= CATCH_UP_TOLD_MS) setSummary(total);
           shown = { area: current.view.area, leg: current.view.leg, step: current.view.step };
           update({ place: { ...shown } });
         }
@@ -280,9 +334,10 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
       stopped = true;
       timers.forEach((t) => window.clearTimeout(t));
     };
-    // Restarted only for another run or when it starts or stops walking; it reads the newest run as it goes.
+    // Restarted only for another run, when it starts or stops walking, or the tab is shown again; it reads the newest run
+    // as it goes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runId, walking, restart]);
+  }, [runId, walking, restart, visible]);
 
   return {
     play,
