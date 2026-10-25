@@ -215,6 +215,14 @@ export interface PowerEffect {
   faintingSpell?: boolean;
   /** Darkness Drive: after the opponent uses a Poké-Power, a basic Darkness Energy card from the discard pile attached to it (usePower). */
   darknessDrive?: boolean;
+  /** Multitype: a Pokémon LV.X of its previous level's type (inPlayDef). */
+  multitype?: boolean;
+  /** Bind Eye: as its player's Active Pokémon, the opponent's Pokémon keep their Special Conditions when they evolve (EVOLVE). */
+  bindEye?: boolean;
+  /** Invisible Tentacles: the opponent's Pokémon attack only by discarding a card from the hand (attackError, attackAction). */
+  invisibleTentacles?: boolean;
+  /** Revenge Seed: 60 more after one of its player's Grass Pokémon was Knocked Out by the opponent's attack last turn (attacks.ts). */
+  revengeSeed?: boolean;
   /** Link Lightning: Voltage Shoot the turn Raichu LV.X levelled up lets it use another attack (attackAction). */
   linkLightning?: boolean;
   /** Overeager: the player whose Active Pokémon it is at the start goes first (START_BATTLE). */

@@ -219,7 +219,7 @@ export interface PokemonEffects {
    * Aqua Trance, Slow-Acting Poison: at the end of turn `turn` (the opponent's next), it's now `affliction`, if it's still the
    * Active Pokémon; benching or evolving it ends this, as it ends Special Conditions (agreed).
    */
-  delayed?: { affliction?: 'asleep' | 'poisoned' | 'confused'; counters?: number; turn: number; /** Doom Desire: Knocked Out. */ knockOut?: boolean; /** Energy Dissolve: an Energy card discarded. */ discardEnergy?: boolean };
+  delayed?: { affliction?: 'asleep' | 'poisoned' | 'confused'; counters?: number; turn: number; /** Doom Desire: Knocked Out. */ knockOut?: boolean; /** Energy Dissolve: an Energy card discarded. */ discardEnergy?: boolean; /** Enigma Berry: this much healed. */ heal?: number };
   /** Magical Step: Confused, it does 60 to itself instead of 30. */
   magicalStep?: boolean;
   /** Night Spin: nothing from the opponent's Pokémon with 2 Energy or less attached, through this turn. */
@@ -263,6 +263,8 @@ export interface InPlayPokemon {
   condition?: SpecialCondition | null;
   /** Turn Paralysis was applied; it wears off after its owner's next turn. */
   paralyzedTurn?: number;
+  /** Darkness Lost: Knocked Out by its damage this turn, it goes to the Lost Zone. */
+  lostZone?: number;
   /** Poison damage between turns: 10, or 20 from Toxic. 0 or missing = not Poisoned. */
   poison?: number;
   /** Burned: 20 damage between turns, then a flip; heads cures it. Missing = not Burned. */
@@ -417,6 +419,10 @@ export interface PlayerState {
   noAttachUntil?: number;
   /** Land Shake: 2 damage counters on each Basic Pokémon put onto the Bench from the hand through this turn. */
   landShakeUntil?: number;
+  /** The last turn one of its Grass Pokémon was Knocked Out by damage from the opponent's attack (Revenge Seed). */
+  grassKnockedOutTurn?: number;
+  /** Cards put in the Lost Zone (Darkness Lost): out of the game. */
+  lostZone?: CardInstance[];
   /** The Supporter card played on `supporterTurn` (Detour uses its effect while it's in play). */
   supporterUid?: string;
   /** The turn this player last attached an Energy card from their hand to their Active Pokémon (Harvest Bounty). */
@@ -1031,7 +1037,13 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       const poison = target.poison;
       const heated = !!target.burned && heatMetal(state, opp);
       const burnDamage = target.burnDamage;
+      const bound = !!opp.active && !!pokemonPower(opp.active)?.bindEye && powerActive(opp.active, state.cards, [opp, me]);
+      const kept = bound ? { condition: target.condition, poison: target.poison, burned: target.burned, burnDamage: target.burnDamage, paralyzedTurn: target.paralyzedTurn } : null;
       clearOnLeavingActive(target);
+      if (kept && hasSpecialCondition({ ...target, ...kept })) {
+        Object.assign(target, kept);
+        addLog(state, `Bind Eye: ${pokemonName(state, target)} keeps its Special Conditions.`, opp.id);
+      }
       if (heated) {
         Object.assign(target, { burned: true, ...(burnDamage && { burnDamage }) });
         addLog(state, `Heat Metal: ${pokemonName(state, target)} is still Burned.`, opp.id);
@@ -1306,7 +1318,9 @@ function attackAction(
   const before = esp ? cloneState(state) : null;
   const source = usable && `${inPlayDef(state.cards, me.active!).name}'s ${usable.attack.name}`;
   const logged = state.log?.at(-1)?.n ?? 0;
+  const tentacles = !linked && [opp.active, ...opp.bench].some((p) => p && pokemonPower(p)?.invisibleTentacles && powerActive(p, state.cards, [opp, me]));
   const error = performAttack(state, me, opp, attackIndex, choices, { flee });
+  if (!error && tentacles && me.hand.length) (state.queuedChoices ??= []).push({ player: me.id, source: 'Invisible Tentacles', kind: 'discardFromHand', count: 1 });
   delete state.psychicProtector;
   if (error) return fail(error);
   // Before the turn ends, while a Special Condition the attack gave is still there.
@@ -1909,6 +1923,12 @@ function betweenTurns(state: GameState) {
       active.damage += 10 * delayed.counters;
       addLog(state, `Put ${delayed.counters} damage counters on ${pokemonName(state, active)}.`, id);
     }
+    // Enigma Berry: damage counters off.
+    if (delayed.heal && active.damage) {
+      const healed = Math.min(delayed.heal, active.damage);
+      active.damage -= healed;
+      addLog(state, `Removed ${healed / 10} damage counters from ${pokemonName(state, active)}.`, id);
+    }
     // Doom Desire: Knocked Out. Energy Dissolve: its first Energy card discarded.
     if (delayed.knockOut) {
       active.damage = Math.max(active.damage, inPlayDef(state.cards, active).hp);
@@ -2379,8 +2399,9 @@ export function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId
         owner.discard.push(...top);
         addLog(state, `Burning Coat: discarded the top ${top.length} cards of the deck.`, id);
       }
-      // Revenge: Knocked Out by damage from the opponent's attack, this turn.
+      // Revenge: Knocked Out by damage from the opponent's attack, this turn. Revenge Seed: a Grass Pokémon.
       if (pokemon.knockedByAttack === state.turn && state.currentPlayer !== id) owner.knockedOutByAttack = state.turn;
+      if (pokemon.knockedByAttack === state.turn && state.currentPlayer !== id && hasType(inPlayDef(state.cards, pokemon), 'grass')) owner.grassKnockedOutTurn = state.turn;
       // Time Shard: Knocked Out by the opponent's attack, up to 2 of its basic Energy cards go back to the hand.
       if (pokemon.timeShard === true) {
         const back = pokemon.energy.filter((e) => !e.provides && isBasicEnergy(lookupCard(state.cards, e.defId))).slice(0, 2);
@@ -2397,6 +2418,13 @@ export function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId
         owner.discard = owner.discard.filter((c) => c !== pokemon.card);
         owner.hand.push(pokemon.card);
         addLog(state, `Rebirth: ${pokemonName(state, pokemon)} returned to the hand.`, id);
+      }
+      // Darkness Lost: Knocked Out by it, the Pokémon and its cards go to the Lost Zone instead.
+      if (pokemon.lostZone === state.turn) {
+        const cards = [...pokemon.evolvedFrom, pokemon.card, ...pokemon.energy.map(asDiscarded), ...(pokemon.attached ?? []).map((a) => a.card)];
+        owner.discard = owner.discard.filter((c) => !cards.some((x) => x.uid === c.uid));
+        (owner.lostZone ??= []).push(...cards);
+        addLog(state, `${pokemonName(state, pokemon)} and its cards went to the Lost Zone.`, id);
       }
       if (ectoplasm) {
         owner.discard = owner.discard.filter((c) => c !== pokemon.card);

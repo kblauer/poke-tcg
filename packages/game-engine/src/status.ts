@@ -165,6 +165,11 @@ export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCa
   } else if (shapeshiftCard(pokemon)) {
     d = { ...(lookupCard(cards, shapeshiftCard(pokemon)!.defId) as PokemonCardDef), power: own.power };
   } else if (pokemon.shiftedType) d = { ...own, type: pokemon.shiftedType, types: undefined };
+  // Multitype: a Pokémon LV.X of its previous level's type.
+  if (!pokemon.transformed && pokemon.levelUpFrom && powerEffect(own.id)?.multitype) {
+    const before = previousLevel(cards, pokemon);
+    if (before) d = { ...d, type: before.type, types: before.types };
+  }
   // Crystal Type: the type of the basic Energy card attached from the hand, until the end of the turn.
   if (pokemon.crystalType) d = { ...d, type: pokemon.crystalType, types: undefined };
   // Type Change: the Defending Pokémon's types, until the end of the turn.

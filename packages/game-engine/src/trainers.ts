@@ -732,6 +732,8 @@ export type PendingChoice = {
       card?: CardInstance;
       /** One evolution only (Evolution Song). */
       once?: boolean;
+      /** A Pokémon LV.X levelling up one of the player's Pokémon instead (Learning). */
+      levelUp?: boolean;
       /** The usual limits for evolving apply (Make a Wish, agreed). */
       limits?: boolean;
       /** Once a Pokémon evolves, a damage counter on the Pokémon whose top card is this (Make a Wish). */
@@ -752,7 +754,7 @@ export type PendingChoice = {
   | {
       /** A "may" as a card is played (Energy Recharge, Flame Vapor, Streaming Mantle, Retro Energy): yes (count 0) or no (count 1). */
       kind: 'mayUse';
-      power: 'energyRecharge' | 'flameVapor' | 'streamingMantle' | 'retroEnergy' | 'belt' | 'healingShower' | 'legendaryAscent' | 'froth' | 'dragonBoost' | 'lightningBurst' | 'evoFlame' | 'evoThunder' | 'evoSwirl' | 'excavate' | 'crushChance' | 'crimsonRay' | 'yellowRay' | 'blueRay' | 'earthFissure' | 'sharpEye' | 'freezeUp' | 'evolutionaryVitality' | 'evolutionaryToxic' | 'flameDash' | 'aquaRecovery' | 'sereneGrace' | 'freezingScreech' | 'darknessShade' | 'flameCharge' | 'sheetLightning' | 'primalSwirl' | 'dragonPulse' | 'modeCrash' | 'curseBreath' | 'timeWalk' | 'setUp' | 'psychicBind' | 'unownBang' | 'junk' | 'castOffShell' | 'shootPoison' | 'ironShell' | 'emperorAura' | 'blazeDance' | 'sunshineSong' | 'evolutionaryGas';
+      power: 'energyRecharge' | 'flameVapor' | 'streamingMantle' | 'retroEnergy' | 'belt' | 'healingShower' | 'legendaryAscent' | 'froth' | 'dragonBoost' | 'lightningBurst' | 'evoFlame' | 'evoThunder' | 'evoSwirl' | 'excavate' | 'crushChance' | 'crimsonRay' | 'yellowRay' | 'blueRay' | 'earthFissure' | 'sharpEye' | 'freezeUp' | 'evolutionaryVitality' | 'evolutionaryToxic' | 'flameDash' | 'aquaRecovery' | 'sereneGrace' | 'freezingScreech' | 'darknessShade' | 'flameCharge' | 'sheetLightning' | 'primalSwirl' | 'dragonPulse' | 'modeCrash' | 'curseBreath' | 'timeWalk' | 'setUp' | 'psychicBind' | 'unownBang' | 'junk' | 'castOffShell' | 'shootPoison' | 'ironShell' | 'emperorAura' | 'blazeDance' | 'sunshineSong' | 'evolutionaryGas' | 'healingBreath';
       /** The Pokémon it's about. */
       target: Target;
     }
@@ -976,6 +978,8 @@ export type PendingChoice = {
       types?: EnergyType[];
       /** One move only (Stark Mountain). */
       once?: boolean;
+      /** Any Energy cards, not only basic ones (Energy Flare). */
+      anyEnergy?: boolean;
     }
   | {
       /**
@@ -2122,6 +2126,9 @@ const toBenchFits = (cards: CardLibrary, choice: Extract<PendingChoice, { kind: 
   return isBasicPokemon(d) && d.kind === 'pokemon' && !d.baby;
 };
 
+/** A Pokémon SP: G, GL, C, FB, E4 or 4 at the end of its name (Healing Breath). */
+export const isPokemonSP = (name: string) => /\s(G|GL|C|FB|E4|4)$/.test(name);
+
 /** The player's Pokémon with Energy Link attached. */
 export const energyLinked = (state: Pick<GameState, 'cards'>, player: Pick<PlayerState, 'active' | 'bench'>) =>
   targetsOf(player).filter((t) => (atTarget(player, t)!.attached ?? []).some((a) => a.tool && lookupCard(state.cards, a.card.defId).name === 'Energy Link'));
@@ -2185,10 +2192,10 @@ const deltaTargets = (player: Pick<PlayerState, 'active' | 'bench'>, choice: { e
   });
 
 /** Delta Switch: the basic Energy cards attached to the player's Pokémon that can move somewhere. */
-const deltaEnergy = (state: GameState, player: Pick<PlayerState, 'active' | 'bench'>, choice: { exclude: string; type?: EnergyType; types?: EnergyType[] }) =>
+const deltaEnergy = (state: GameState, player: Pick<PlayerState, 'active' | 'bench'>, choice: { exclude: string; type?: EnergyType; types?: EnergyType[]; anyEnergy?: boolean }) =>
   [player.active, ...player.bench].flatMap((p) =>
     p && targetsOf(player).some((t) => atTarget(player, t) !== p && atTarget(player, t)!.card.uid !== choice.exclude)
-      ? p.energy.filter((e) => !e.provides && isBasicEnergy(lookupCard(state.cards, e.defId)) && (!choice.type || isEnergyCardOf(e, state.cards, choice.type)) && (!choice.types || choice.types.some((t) => isEnergyCardOf(e, state.cards, t))))
+      ? p.energy.filter((e) => !e.provides && (choice.anyEnergy || isBasicEnergy(lookupCard(state.cards, e.defId))) && (!choice.type || isEnergyCardOf(e, state.cards, choice.type)) && (!choice.types || choice.types.some((t) => isEnergyCardOf(e, state.cards, t))))
       : [],
   );
 
@@ -2248,6 +2255,7 @@ function skyridgeView(state: GameState, choice: SkyridgeChoice): PendingChoiceVi
         blazeDance: 'flip a coin? If heads, attach up to 4 Fire Energy cards from your deck to your Pokémon',
         sunshineSong: 'evolve your Grass Pokémon with Evolution cards from your deck?',
         evolutionaryGas: "make your opponent's Active Pokémon's attack next turn do nothing?",
+        healingBreath: 'remove all damage counters from each of your Pokémon SP?',
         freezeUp: "flip 2 coins? If both are heads, your opponent's Active Pokémon and all cards attached to it are discarded",
         evolutionaryVitality: 'look at the top 5 cards of your deck and put the Energy cards among them into your hand?',
         evolutionaryToxic: "make your opponent's Active Pokémon Poisoned (2 damage counters between turns)?",
@@ -2469,6 +2477,11 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
         const slot = choice.target;
         swapActive(state, me, slot);
         return me.bench[slot]?.energy.some((e) => !e.provides) ? again({ player: me.id, source: choice.source, kind: 'shiftEnergy', from: slot, to: 'active', any: true }) : null;
+      }
+      if (choice.power === 'healingBreath') {
+        for (const q of [me.active, ...me.bench]) if (q && isPokemonSP(inPlayDef(state.cards, q).name)) q.damage = 0;
+        addLog(state, `${choice.source}: healed each of your Pokémon SP.`, me.id);
+        return null;
       }
       if (choice.power === 'emperorAura') {
         opp.noAttachUntil = state.turn + 1;
@@ -3052,7 +3065,7 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
       from.energy = from.energy.filter((e) => e !== card);
       to.energy.push(card);
       addLog(state, `${choice.source}: moved ${name(card)} from ${name(from.card)} to ${name(to.card)}.`, me.id);
-      return !choice.once && deltaEnergy(state, me, choice).length ? again({ player: me.id, source: choice.source, kind: 'deltaSwitch', exclude: choice.exclude, ...(choice.type && { type: choice.type }), ...(choice.types && { types: choice.types }) }) : null;
+      return !choice.once && deltaEnergy(state, me, choice).length ? again({ player: me.id, source: choice.source, kind: 'deltaSwitch', exclude: choice.exclude, ...(choice.type && { type: choice.type }), ...(choice.types && { types: choice.types }), ...(choice.anyEnergy && { anyEnergy: true }) }) : null;
     }
     case 'discardFromHand': {
       if (!picked) return view.kind === 'pickFromHand' && view.options.length ? retry(choice, 'Choose a card from your hand') : null;
@@ -3157,10 +3170,11 @@ function lunarTargets(cards: CardLibrary, player: Pick<PlayerState, 'bench'>, c:
 export function sporeTargets(state: Pick<GameState, 'players' | 'cards' | 'turn'>, choice: Extract<PendingChoice, { kind: 'evolveMany' }>, c: CardInstance): Target[] {
   const d = lookupCard(state.cards, c.defId);
   const player = state.players[choice.player]!;
-  if (!isPokemonCard(d) || d.stage === 'basic') return [];
+  if (!isPokemonCard(d) || d.stage === 'basic' || !!choice.levelUp !== (d.stage === 'levelUp')) return [];
   return targetsOf(player).filter((t) => {
     const p = atTarget(player, t)!;
     const from = lookupCard(state.cards, p.card.defId);
+    if (choice.levelUp) return !p.faceDown && from.kind === 'pokemon' && from.stage !== 'levelUp' && !p.levelUpFrom && evolvesOnto(d, from) && state.turn > 2 && p.playedTurn !== state.turn;
     if (p.faceDown || shapeshiftCard(p) || choice.done.includes(baseUid(p)) || !choice.names.includes(from.name)) return false;
     // Make a Wish (agreed): the usual limits, not on a Pokémon played or evolved this turn nor on the first turn.
     if (choice.limits && (state.turn <= 2 || p.playedTurn === state.turn || p.effects?.noEvolve !== undefined)) return false;
@@ -3218,13 +3232,22 @@ export const controllable = (cards: CardLibrary, c: CardInstance) => {
  */
 function evolveBySpore(state: GameState, me: PlayerState, choice: Extract<PendingChoice, { kind: 'evolveMany' }>, target: Target, card: CardInstance): null {
   const p = atTarget(me, target)!;
-  addLog(state, `Evolved ${cardName(state, p.card)} into ${cardName(state, card)} with a card from the deck.`, me.id);
   const done = [...choice.done, baseUid(p)];
-  p.evolvedFrom.push(p.card);
-  p.card = card;
-  p.playedTurn = state.turn;
-  clearOnLeavingActive(p);
-  evolvedHook(state, me.id, p);
+  if (choice.levelUp) {
+    // Levelling up isn't evolving: Special Conditions and attack effects stay (agreed).
+    addLog(state, `Levelled up ${cardName(state, p.card)} to ${cardName(state, card)} LV.X with a card from the deck.`, me.id);
+    p.levelUpFrom = p.card.defId;
+    p.evolvedFrom.push(p.card);
+    p.card = card;
+    p.playedTurn = state.turn;
+  } else {
+    addLog(state, `Evolved ${cardName(state, p.card)} into ${cardName(state, card)} with a card from the deck.`, me.id);
+    p.evolvedFrom.push(p.card);
+    p.card = card;
+    p.playedTurn = state.turn;
+    clearOnLeavingActive(p);
+    evolvedHook(state, me.id, p);
+  }
   // Make a Wish: then a damage counter on the Pokémon that used it.
   const wisher = choice.counterOn ? [me.active, ...me.bench].find((q) => q?.card.uid === choice.counterOn) : undefined;
   if (wisher) {

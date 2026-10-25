@@ -481,6 +481,8 @@ export function attackError(s: AttackSituation, attackIndex: number): string | n
   // Deadlock: the Defending Pokémon's stops the attacker's name (the opponent's Dunsparce).
   const locked = working(s.defender)?.deadlock;
   if (locked && namesMatch(attackerDef.name, locked)) return `Deadlock: ${attackerDef.name} can't attack`;
+  // Invisible Tentacles (the opponent's): attacking takes a card from the hand to discard.
+  if (!s.ownHand?.length && [s.defender, ...s.opponentBench].some((p) => p && working(p)?.invisibleTentacles)) return `Invisible Tentacles: ${attackerDef.name} can't attack without a card in your hand to discard`;
   // Slow Start: not until the opponent has 3 or fewer Prize cards left.
   if (working(s.attacker)?.slowStart && (s.opponentPrizes ?? 6) > 3) return `Slow Start: ${attackerDef.name} can't attack until your opponent has 3 or fewer Prize cards left`;
   // Mark of Antiquity: either Active Pokémon's stops the Pokémon it names, whoever's they are.
@@ -1615,7 +1617,7 @@ function createContext(
     // Sunny Day: 10 more for Grass and Fire Pokémon. Green Dignity: 10 more for each Grass Pokémon on the Bench while behind on Prize cards. No Guard: 60 more.
     const sunny = (hasType(attackerDef, 'grass') || hasType(attackerDef, 'fire')) && team.some((q) => q && passive(q)?.sunnyDay) ? 10 : 0;
     const dignity = passive(attacker)?.greenDignity && me.prizes.length > opp.prizes.length ? 10 * me.bench.filter((q) => q && hasType(def(state.cards, q), 'grass')).length : 0;
-    const noGuard = passive(attacker)?.noGuard ? 60 : 0;
+    const noGuard = (passive(attacker)?.noGuard ? 60 : 0) + (passive(attacker)?.revengeSeed && me.grassKnockedOutTurn === turn - 1 ? 60 : 0);
     const buck = me.supporterTurn === turn && me.supporterUid && me.discard.concat(me.hand).some((c) => c.uid === me.supporterUid && lookupCard(state.cards, c.defId).name === "Buck's Training") ? 10 : 0;
     const boost = (low && attackerDef.hp - attacker.damage <= low.hpLeft ? low.more : 0) + aura + pivot + (passive(attacker)?.attackMore ?? 0) + rage + reversal + conditional + reactor + laser + allies + dna + scale + fury + rivalry + revenge + enthused + buck + sunny + dignity + noGuard;
     if (amount > 0 && boost) {

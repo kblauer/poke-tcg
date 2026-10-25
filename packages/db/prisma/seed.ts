@@ -322,6 +322,8 @@ const TCGDEX_FIXES: Record<string, Partial<TcgdexCard>> = {
       { name: 'Dozing', type: 'Poke-POWER', effect: "Once during your turn (before your attack), if Snorlax is your Active Pokémon, you may remove 2 damage counters from Snorlax and Snorlax is now Asleep. This power can't be used if Snorlax is affected by a Special Condition." },
     ],
   },
+  // DP Black Star Promo Darkrai (DP24): TCGdex leaves out its held item, Enigma Berry (from the printed card), kept as a Poké-Body.
+  'dpp-DP24': { abilities: [{ name: 'Enigma Berry', type: 'Poke-BODY', effect: "If Darkrai is damaged by an attack from your opponent's Fighting Pokémon, remove 4 damage counters at the end of that turn." }] },
   // EX Dragon Frontiers Vibrava δ and Xatu δ, EX Power Keepers Aggron: TCGdex has their Poké-Body and Poké-Power the wrong way round.
   'ex15-24': { abilities: [{ name: 'Psychic Wing', type: 'Poke-BODY', effect: 'If Vibrava has any Psychic Energy attached to it, the Retreat Cost for Vibrava is 0.' }] },
   'ex15-25': { abilities: [{ name: 'Extra Feather', type: 'Poke-BODY', effect: 'Each of your Stage 2 Pokémon-ex does 10 more damage to the Defending Pokémon (before applying Weakness and Resistance).' }] },
