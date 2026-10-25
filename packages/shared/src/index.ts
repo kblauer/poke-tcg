@@ -46,6 +46,7 @@ const attackChoicesSchema = z.object({
   damageCap: z.number().int().min(-1).max(990).optional(),
   amount: z.number().int().min(0).max(60).optional(),
   oppDiscardUid: z.string().optional(),
+  answer: z.number().int().min(0).max(1).optional(),
 }) satisfies z.ZodType<AttackChoices>;
 
 /** Answers to a Pokémon Power's questions (see PowerChoices in the engine). */

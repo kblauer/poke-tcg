@@ -8,7 +8,7 @@
 import type { AttackContext, AttackEffect, AttackSituation, ChoiceSpec } from '../attacks.js';
 import { hasType, isBasicEnergy, lookupCard, namesMatch, type EnergyType } from '../cards.js';
 import { energyPool, isEnergyCardOf, isSpecialEnergy, PRIZE_COUNT } from '../engine.js';
-import { powerActive } from '../powers.js';
+import { powerActive, pokemonPower } from '../powers.js';
 import { effectId, inPlayDef, pokemonName } from '../status.js';
 import { powerEffect, trainerEffect } from './index.js';
 import { benchedSlots, energyCanMove, guardNext } from './common.js';
@@ -177,7 +177,7 @@ export const EX11: Record<string, Record<string, AttackEffect>> = {
       run(ctx) {
         ctx.hit(70);
         const sides = [ctx.me, ctx.opp];
-        if (holonCount(ctx, ctx.attacker) && powerEffect(effectId(ctx.attacker)) && powerActive(ctx.attacker, ctx.state.cards, sides)) return ctx.log('Delta Guard: no damage counters on Rayquaza.');
+        if (holonCount(ctx, ctx.attacker) && pokemonPower(ctx.attacker) && powerActive(ctx.attacker, ctx.state.cards, sides)) return ctx.log('Delta Guard: no damage counters on Rayquaza.');
         ctx.attacker.damage += 70;
         ctx.log(`Put 7 damage counters on ${ctx.attackerDef.name}.`);
       },

@@ -13,7 +13,7 @@
 // basic Energy cards by itself; with more than 2 attached, its owner picks up to 2 (agreed with the user).
 import { isBasicEnergy, isPokemonCard, lookupCard, type Attack, type EnergyType } from '../cards.js';
 import { discardTheirEnergy, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
-import { energyKept, pokemonAt, powerActive, trainerProof } from '../powers.js';
+import { energyKept, pokemonAt, powerActive, trainerProof, pokemonPower } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { benchRoom, effectId, energyProtected, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { powerEffect } from './index.js';
@@ -28,7 +28,7 @@ const isBasicCard = (s: { cards: TrainerSituation['cards'] }, c: { defId: string
 const cubeTargets = (s: TrainerSituation, type: EnergyType) =>
   targetsOf(s.me).filter((t) => {
     const p = at(s.me, t);
-    return inPlayDef(s.cards, p).type === type || (!!powerEffect(effectId(p))?.synchronicity && powerActive(p, s.cards, [s.me, s.opp]));
+    return inPlayDef(s.cards, p).type === type || (!!pokemonPower(p)?.synchronicity && powerActive(p, s.cards, [s.me, s.opp]));
   });
 
 /** A Cube: a Technical Machine for a Pokémon of `type`, with its attack (its effect is in ecard2.ts, by this card's id). */

@@ -576,6 +576,9 @@ export const benched = (t: Turn) => inPlay(t.me).filter(([target]) => target !==
 export const acceptsChallenge = (state: GameState, cpu: PlayerState) =>
   openBenchSlot(cpu.bench, state.cards, state.stadium?.card) >= 0 && cpu.deck.some((c) => isBasicPokemon(lookupCard(state.cards, c.defId)));
 
+/** Rock, paper or scissors for the CPU: varies with the game's random state and the log, without advancing either. */
+export const rpsHand = (state: GameState) => Math.floor(nextRandom((state.rngState + (state.log?.length ?? 0)) >>> 0)[0] * 3);
+
 /** Finishing a search: the most wanted card (see wantedCards), a Basic, an Energy that helps, or anything. Pokédex: wanted cards on top. */
 export function resolveSearch(t: Turn): GameAction {
   const view = pendingChoiceView(t.state, t.state.pendingChoice!);
@@ -586,6 +589,8 @@ export function resolveSearch(t: Turn): GameAction {
     return { type: 'RESOLVE_CHOICE', order: [...wanted, ...view.cards.filter((c) => !wanted.includes(c))].map((c) => c.uid) };
   }
   // Lt. Surge's Treaty: both take a Prize card unless that helps the other player more (they have fewer left).
+  // Rock-Paper-Scissors (Team Galactic's Wager): a hand the player can't foresee, from the game's random state (not advanced) and the log.
+  if (t.state.pendingChoice!.kind === 'rps') return { type: 'RESOLVE_CHOICE', count: rpsHand(t.state) };
   if (view.kind === 'options') return { type: 'RESOLVE_CHOICE', count: optionAnswer(t, view.labels.length) };
   // Flee and Koga's Ninja Trick: it switches out when its Active Pokémon has 40 HP or less left, to the benched Pokémon with the most HP left.
   const choice = t.state.pendingChoice!;
@@ -623,6 +628,12 @@ export function resolveSearch(t: Turn): GameAction {
   if (choice.kind === 'discardDraw') {
     const junk = [...unusableEnergy(t.state, t.me), ...unusablePokemon(t.state, t.me)][0];
     return junk ? { type: 'RESOLVE_CHOICE', cardUid: junk.uid } : { type: 'RESOLVE_CHOICE' };
+  }
+  // Ice Bind: a card rather than Paralysis, the one it wants least.
+  if (choice.kind === 'iceBind' && view.kind === 'pickFromHand') {
+    const wanted = wantedCards(t.state, t.me, view.options);
+    const pick = view.options.find((c) => !wanted.includes(c)) ?? view.options.at(-1);
+    return pick ? { type: 'RESOLVE_CHOICE', cardUid: pick.uid } : { type: 'RESOLVE_CHOICE' };
   }
   // Special Delivery: the card it wants least goes back on the deck. Sleight of Hand ("up to"): only cards it doesn't want.
   if (view.kind === 'pickFromHand') {

@@ -11,7 +11,7 @@ import { hasType, lookupCard, type CardLibrary } from '../cards.js';
 import { counts, discardTheirEnergy, energyPool, PRIZE_COUNT, retreatCost, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { discardsLocked } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { clearOnLeavingActive, devolvable, inPlayDef, pokemonName, removeTopEvolution } from '../status.js';
+import { clearOnLeavingActive, devolvable, evolvedFromName, inPlayDef, pokemonName, removeTopEvolution } from '../status.js';
 import { amnesia } from './base1.js';
 import { benchedSlots, energyCanMove, energyCards, headsUntilTails, inPlay, leechSeed, opponentBenchChoice, opponentSwitches, opponentTargets, same } from './common.js';
 import { copyAttack } from './ecard2.js';
@@ -19,7 +19,6 @@ import { EX1, energyAmount, restNextTurn } from './ex1.js';
 import { discardOwn, energyCardOf, EX2 } from './ex2.js';
 import { EX6 } from './ex6.js';
 import { EX8 } from './ex8.js';
-import { evolvedFrom } from './ex-templates.js';
 import { energyCanGo } from './neo3.js';
 import { discardStadium } from './gym2.js';
 import { healUpTo } from './si1.js';
@@ -151,11 +150,11 @@ export const DP1: Record<string, Record<string, AttackEffect>> = {
   // Roserade – Spike Whip: with Budew under it, 30 to one of the opponent's Benched Pokémon.
   'dp1-13': {
     'Spike Whip': {
-      choices: (s) => (evolvedFrom(s.cards, s.attacker, 'Budew') ? opponentBenchChoice(s, "Choose one of your opponent's Benched Pokémon to do 30 damage to") : []),
+      choices: (s) => (evolvedFromName(s.cards, s.attacker, 'Budew') ? opponentBenchChoice(s, "Choose one of your opponent's Benched Pokémon to do 30 damage to") : []),
       run(ctx) {
         ctx.hit(50);
         const slot = ctx.choices.benchSlot;
-        if (slot !== undefined && evolvedFrom(ctx.state.cards, ctx.attacker, 'Budew')) ctx.damageBenched(ctx.opp, slot, 30);
+        if (slot !== undefined && evolvedFromName(ctx.state.cards, ctx.attacker, 'Budew')) ctx.damageBenched(ctx.opp, slot, 30);
       },
     },
   },
@@ -186,7 +185,7 @@ export const DP1: Record<string, Record<string, AttackEffect>> = {
     'Bubble Pump': {
       run(ctx) {
         ctx.hit(energyAmount(ctx, ctx.attacker) >= 3 ? 60 : 40);
-        if (evolvedFrom(ctx.state.cards, ctx.attacker, 'Azurill') && ctx.flip()) ctx.inflict('paralyzed');
+        if (evolvedFromName(ctx.state.cards, ctx.attacker, 'Azurill') && ctx.flip()) ctx.inflict('paralyzed');
       },
     },
   },
@@ -263,7 +262,7 @@ export const DP1: Record<string, Record<string, AttackEffect>> = {
   'dp1-37': {
     'Ease Up': {
       run(ctx) {
-        ctx.hit(evolvedFrom(ctx.state.cards, ctx.attacker, 'Munchlax') ? 70 : 40);
+        ctx.hit(evolvedFromName(ctx.state.cards, ctx.attacker, 'Munchlax') ? 70 : 40);
         ctx.sleepSelf();
       },
     },
@@ -452,12 +451,12 @@ export const DP1: Record<string, Record<string, AttackEffect>> = {
   // Electabuzz – Shock Wave: a flip to Paralyze; evolved from Elekid, 20 to one of the opponent's Benched Pokémon.
   'dp1-81': {
     'Shock Wave': {
-      choices: (s) => (evolvedFrom(s.cards, s.attacker, 'Elekid') ? opponentBenchChoice(s, "Choose one of your opponent's Benched Pokémon to do 20 damage to") : []),
+      choices: (s) => (evolvedFromName(s.cards, s.attacker, 'Elekid') ? opponentBenchChoice(s, "Choose one of your opponent's Benched Pokémon to do 20 damage to") : []),
       run(ctx) {
         ctx.hit(20);
         if (ctx.flip()) ctx.inflict('paralyzed');
         const slot = ctx.choices.benchSlot;
-        if (slot !== undefined && evolvedFrom(ctx.state.cards, ctx.attacker, 'Elekid')) ctx.damageBenched(ctx.opp, slot, 20);
+        if (slot !== undefined && evolvedFromName(ctx.state.cards, ctx.attacker, 'Elekid')) ctx.damageBenched(ctx.opp, slot, 20);
       },
     },
   },
@@ -480,7 +479,7 @@ export const DP1: Record<string, Record<string, AttackEffect>> = {
   'dp1-96': {
     'Toxic Spikes': {
       run(ctx) {
-        if (evolvedFrom(ctx.state.cards, ctx.attacker, 'Budew')) ctx.hit(10);
+        if (evolvedFromName(ctx.state.cards, ctx.attacker, 'Budew')) ctx.hit(10);
         ctx.inflict('poisoned');
       },
     },

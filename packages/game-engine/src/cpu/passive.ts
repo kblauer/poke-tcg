@@ -2,7 +2,7 @@ import { hasType, isBasicPokemon, lookupCard } from '../cards.js';
 import { inPlayDef, openBenchSlot } from '../status.js';
 import { evolveError, type GameAction, type GameState, type PlayerId, type PlayerState } from '../engine.js';
 import { pendingChoiceView } from '../trainers.js';
-import { acceptsChallenge, chooseActive, inPlay } from './shared.js';
+import { acceptsChallenge, chooseActive, inPlay, rpsHand } from './shared.js';
 
 /**
  * The 'passive' CPU, with almost no strategy. Besides the moves the rules force (choose an active,
@@ -41,6 +41,7 @@ function finishSearch(state: GameState): GameAction {
   // Lt. Surge's Treaty: the first answer.
   // The first option: Mind Games, Herbal Scent, Fire Boost and Softboiled flip (agreed for Mind Games). Howl, which ends the turn, isn't used.
   const choice = state.pendingChoice!;
+  if (choice.kind === 'rps') return { type: 'RESOLVE_CHOICE', count: rpsHand(state) };
   if (view.kind === 'options') return { type: 'RESOLVE_CHOICE', count: (choice.kind === 'mayFlip' && choice.power === 'howl') || (choice.kind === 'mayUse' && choice.power === 'retroEnergy') ? 1 : 0 };
   // Attract Energy, Delta Switch ("any number"): its Energy stays where it is.
   if (choice.kind === 'moveAttached' || choice.kind === 'protector' || (choice.kind === 'deltaSwitch' && !choice.cardUid)) return { type: 'RESOLVE_CHOICE' };

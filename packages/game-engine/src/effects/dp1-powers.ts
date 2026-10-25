@@ -8,12 +8,11 @@ import { lookupCard } from '../cards.js';
 import { activeLocked, isEnergyCardOf, type CardInstance } from '../engine.js';
 import { ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
 import { nextRandom } from '../rng.js';
-import { devolvable, inPlayDef, pokemonName } from '../status.js';
+import { devolvable, evolvedFromName, inPlayDef, pokemonName } from '../status.js';
 import { swapActive } from '../trainers.js';
 import { onlyBenched, targetOf } from './common.js';
 import { shuffleIntoDeck } from './dp1.js';
 import { babyEvolution, POKE_BODY } from './ex2-powers.js';
-import { evolvedFrom } from './ex-templates.js';
 
 /** "When you play this from your hand to evolve 1 of your Pokémon, you may …": a yes-or-no question as it evolves. */
 const onEvolveMay = (power: 'earthFissure' | 'sharpEye', source: string): PowerEffect => ({
@@ -43,7 +42,7 @@ export const DP1_POWERS: Record<string, PowerEffect> = {
   'dp1-3': {
     blocked(s) {
       const source = pokemonAt(s.me, s.source);
-      if (!source || !evolvedFrom(s.cards, source, 'Elekid')) return 'Elekid isn\'t under Electivire';
+      if (!source || !evolvedFromName(s.cards, source, 'Elekid')) return 'Elekid isn\'t under Electivire';
       return ownTargets(s.me).some((t) => lightningOn(s, t).length) ? null : 'None of your other Pokémon have Lightning Energy attached';
     },
     choices: (s, c) => [

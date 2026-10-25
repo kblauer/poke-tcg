@@ -4,7 +4,7 @@ import type { AttackContext } from './attacks.js';
 import { hasType, holonEnergy, lookupCard, namesMatch, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { powerEffect } from './effects/index.js';
 import { counts, energyPool, type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
-import { addLog, clearSpecialConditions, effectId, flipCoin, hasSpecialCondition, isDelta, pokemonName, inPlayDef, specialConditionLabel } from './status.js';
+import { addLog, clearSpecialConditions, effectId, evolvedFromName, flipCoin, hasSpecialCondition, isDelta, lakeTrio, pokemonName, inPlayDef, specialConditionLabel } from './status.js';
 import { evolvesFromEevee, type PendingChoice, type PendingChoiceInput } from './trainers.js';
 
 /** Answers to a power's questions. Each question names the field it fills. */
@@ -177,6 +177,34 @@ export interface PowerEffect {
   hardShell?: boolean;
   /** Crystal Body: the opponent's attacks do nothing to it but damage. */
   crystalBody?: boolean;
+  /** Downer Material: with its player's Uxie and Mesprit in play, the opponent's Basic Pokémon's attacks cost 1 Colorless more (only 1). */
+  downerMaterial?: boolean;
+  /** Upper Material: with its player's Uxie and Azelf in play, every Uxie, Mesprit and Azelf (both players') has no Retreat Cost. */
+  upperMaterial?: boolean;
+  /** Mother Pheromone: its player's Nidoran ♀, Nidorina, Nidoran ♂, Nidorino and Nidoking's attacks cost 1 Colorless less. */
+  motherPheromone?: boolean;
+  /** Rainbow Scale: 40 more to an Active Pokémon weak to a type of Energy attached to it (none with a Special Energy card attached). */
+  rainbowScale?: boolean;
+  /** Dark Genes: its player's Murkrow can use its attacks without their Energy, while it has the Energy for them (usableAttacks). */
+  darkGenes?: boolean;
+  /** Sticky: every other Pokémon (but those with its name), both players', retreats for 1 more. */
+  sticky?: boolean;
+  /** Jumbo Fin: with Mantyke under it, its player's Water Pokémon retreat for 2 less. */
+  jumboFin?: boolean;
+  /** Airy Wall: no damage from an attacker with 2 or fewer Energy cards attached; with Mime Jr. under it, none of that attack's effects either. */
+  airyWall?: boolean;
+  /** Craggy Face: as its player's Active Pokémon, the opponent's Stage 2 Evolved Pokémon's attacks do this much less, before Weakness and Resistance. */
+  stage2Less?: number;
+  /** Cold Fat: while it's Asleep, attack damage to it is 40 less, after Weakness and Resistance. */
+  coldFat?: boolean;
+  /** Shocking Tail: as its player's Active Pokémon, 2 damage counters on any Pokémon the opponent attaches an Energy card to from their hand. */
+  shockingTail?: boolean;
+  /** Dragon DNA: it can use the attacks of its Basic Pokémon, 30 more to the Active Pokémon (usableAttacks, attacks.ts). */
+  dragonDna?: boolean;
+  /** Poison Sacs: the opponent's Pokémon stay Poisoned when they evolve. */
+  poisonSacs?: boolean;
+  /** Power Cancel: once during the opponent's turn, their Poké-Power can be stopped with 2 cards from its owner's hand (usePower). */
+  powerCancel?: boolean;
   /** Magnetize: its player's Active Pokémon with any Metal Energy attached has no Retreat Cost (retreatBodies). */
   magnetize?: boolean;
   /** Lazy: while it's its player's Active Pokémon, the opponent's Pokémon can't use Poké-Powers (or older Pokémon Powers). */
@@ -505,7 +533,7 @@ export interface PowerEffect {
 
 /** Wise Aura, Overpowering Fang and Intimidating Ring: an Active Pokémon's aura stopping `pokemon`'s power, or null. */
 export function auraStops(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sides): string | null {
-  const body = !!powerEffect(effectId(pokemon))?.body;
+  const body = !!pokemonPower(pokemon)?.body;
   const d = inPlayDef(cards, pokemon);
   const owner = sides.find((s) => s.active === pokemon || s.bench.includes(pokemon));
   // Whether the aura reaches this Pokémon is checked before whether the aura works, so two auras never wait on each other.
@@ -513,7 +541,7 @@ export function auraStops(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sid
     const has = (name: string) => [side.active, ...side.bench].some((p) => !!p && namesMatch(inPlayDef(cards, p).name, name));
     for (const a of [side.active, ...side.bench]) {
       if (!a || a === pokemon) continue;
-      const effect = powerEffect(effectId(a));
+      const effect = pokemonPower(a);
       if (!effect) continue;
       const active = side.active === a;
       const reaches =
@@ -559,7 +587,7 @@ export const reactCount = (pokemon: InPlayPokemon, cards: CardLibrary) => pokemo
 
 /** Binding Aura: the opponent (`sides[1]`) has a Hypno with it working. */
 export const bindingAura = (sides: Sides, cards: CardLibrary) =>
-  !!sides[1] && [sides[1].active, ...sides[1].bench].some((p) => !!p && !!powerEffect(effectId(p))?.bindingAura && powerActive(p, cards, sides));
+  !!sides[1] && [sides[1].active, ...sides[1].bench].some((p) => !!p && !!pokemonPower(p)?.bindingAura && powerActive(p, cards, sides));
 
 /** Insomnia, Self-control, Carefree, Magma Armor: a working power keeps this one Special Condition off the Pokémon. */
 export const conditionBarred = (effect: PowerEffect | undefined, affliction: string, pokemon?: InPlayPokemon) =>
@@ -588,6 +616,46 @@ export const ownTargets = (me: Pick<PlayerState, 'active' | 'bench'>): Target[] 
   ...(me.active ? (['active'] as Target[]) : []),
   ...me.bench.flatMap((p, i) => (p ? [i] : [])),
 ];
+
+/**
+ * A Pokémon LV.X's power and its previous level's, as one (it can use both): a Poké-Body and a usable Poké-Power are as a card
+ * printed with both (`usePoke`: the usable one stops as Poké-Powers do); two Poké-Bodies work together, a hook both have
+ * calling each. With two usable powers only the LV.X's own is usable (no Gen 4 card yet needs both).
+ */
+function mergePowers(own: PowerEffect | undefined, previous: PowerEffect | undefined): PowerEffect | undefined {
+  if (!own || !previous) return own ?? previous;
+  if (own.use && previous.use) return own;
+  const usable = own.use ? own : previous.use ? previous : null;
+  if (usable) {
+    const body = usable === own ? previous : own;
+    const { use, blocked, choices, oncePerTurn } = usable;
+    return { ...body, use, blocked, choices, oncePerTurn, usePoke: true };
+  }
+  const both: PowerEffect = { ...previous, ...own };
+  for (const key of Object.keys(own) as (keyof PowerEffect)[]) {
+    const a = own[key];
+    const b = previous[key];
+    if (typeof a === 'function' && typeof b === 'function') {
+      (both as Record<string, unknown>)[key] = (...args: unknown[]) => (a as (...x: unknown[]) => unknown)(...args) ?? (b as (...x: unknown[]) => unknown)(...args);
+    }
+  }
+  return both;
+}
+
+const mergedPowers = new Map<string, PowerEffect | undefined>();
+
+/**
+ * The power effect of a Pokémon in play (a Transformed Ditto's copy's): for a Pokémon LV.X, its own and its previous level's
+ * together (mergePowers; `levelUpFrom`, still the card under it).
+ */
+export function pokemonPower(pokemon: InPlayPokemon): PowerEffect | undefined {
+  const id = effectId(pokemon);
+  const previous = !pokemon.transformed && pokemon.levelUpFrom && pokemon.evolvedFrom.at(-1)?.defId === pokemon.levelUpFrom ? pokemon.levelUpFrom : null;
+  if (!previous) return powerEffect(id);
+  const key = `${id}+${previous}`;
+  if (!mergedPowers.has(key)) mergedPowers.set(key, mergePowers(powerEffect(id), powerEffect(previous)));
+  return mergedPowers.get(key);
+}
 
 /** The power printed on a Pokémon in play (or copied by Ditto), if any. */
 export function powerOf(pokemon: InPlayPokemon, cards: CardLibrary) {
@@ -621,7 +689,7 @@ export function powerActive(pokemon: InPlayPokemon, cards: CardLibrary, sides: S
   if (!inPlayDef(cards, pokemon).power) return false;
   // Stare: switched off until it expires between turns (betweenTurns removes it). Goop Gas Attack: all of them.
   if (pokemon.powerOffUntil !== undefined || goopGas(sides)) return false;
-  const effect = powerEffect(effectId(pokemon));
+  const effect = pokemonPower(pokemon);
   if (!effect?.ignoresConditions && (effect?.stopsOnlyWhileAsleep ? pokemon.condition === 'asleep' : hasSpecialCondition(pokemon))) return false;
   // Dark Impact: its Poké-Powers (and Pokémon Powers) don't work; Poké-Bodies do. Lazy: none of its player's do.
   if (pokemon.effects?.noPokePowers !== undefined && !effect?.body) return false;
@@ -646,19 +714,19 @@ export function powerActive(pokemon: InPlayPokemon, cards: CardLibrary, sides: S
 export function scaredBy(side: Pick<PlayerState, 'active' | 'bench'>, sides: Sides, cards: CardLibrary): string | null {
   for (const other of sides) {
     const p = other !== side ? other.active : null;
-    if (p && powerEffect(effectId(p))?.scare && powerActive(p, cards, sides)) return powerOf(p, cards)!.name;
+    if (p && pokemonPower(p)?.scare && powerActive(p, cards, sides)) return powerOf(p, cards)!.name;
   }
   return null;
 }
 
 /** Miraculous Wind is working: a Light Dragonite with it as the Active Pokémon. */
 export const miraculousWind = (sides: Sides, cards: CardLibrary) =>
-  sides.some((s) => !!s.active && !!powerEffect(effectId(s.active))?.miraculousWind && powerActive(s.active, cards, sides));
+  sides.some((s) => !!s.active && !!pokemonPower(s.active)?.miraculousWind && powerActive(s.active, cards, sides));
 
 /** Deep Sleep is working: a Dark Gengar with it, anywhere in play, or a Relicanth with it (a Poké-Body) as its player's Active Pokémon. */
 export const deepSleep = (sides: Sides, cards: CardLibrary) =>
   allInPlay(sides).some((p) => {
-    const effect = powerEffect(effectId(p));
+    const effect = pokemonPower(p);
     return !!effect?.deepSleep && (!effect.body || sides.some((s) => s.active === p)) && powerActive(p, cards, sides);
   });
 
@@ -666,14 +734,14 @@ export const deepSleep = (sides: Sides, cards: CardLibrary) =>
 export function trainersDusted(player: Sides[number], sides: Sides, cards: CardLibrary): string | null {
   const opponent = sides.find((s) => s !== player);
   const p = opponent?.active;
-  return p && powerEffect(effectId(p))?.blockDust && powerActive(p, cards, sides) ? `${powerOf(p, cards)!.name}: you can't play Trainer cards but Supporters` : null;
+  return p && pokemonPower(p)?.blockDust && powerActive(p, cards, sides) ? `${powerOf(p, cards)!.name}: you can't play Trainer cards but Supporters` : null;
 }
 
 /** [Zoom]: `pokemon`, `sides[0]`'s Active Pokémon with Unown in its name, retreats for free while a benched Unown Z works. */
 export function zoomed(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sides): boolean {
   const [owner] = sides;
   if (!owner || owner.active !== pokemon || !inPlayDef(cards, pokemon).name.includes('Unown')) return false;
-  return owner.bench.some((p) => p && powerEffect(effectId(p))?.zoom && powerActive(p, cards, sides));
+  return owner.bench.some((p) => p && pokemonPower(p)?.zoom && powerActive(p, cards, sides));
 }
 
 /** Hot Plate: 10 damage (no Weakness or Resistance) to `pokemon`, just put onto `player`'s Bench from the hand, from each working Active Dark Magcargo. */
@@ -681,7 +749,7 @@ export function hotPlate(state: GameState, pokemon: InPlayPokemon, player: Playe
   const sides = state.playerOrder.map((id) => state.players[id]!);
   for (const side of sides) {
     const p = side.active;
-    if (!p || !powerEffect(effectId(p))?.hotPlate || !powerActive(p, state.cards, sides)) continue;
+    if (!p || !pokemonPower(p)?.hotPlate || !powerActive(p, state.cards, sides)) continue;
     pokemon.damage += 10;
     addLog(state, `Hot Plate did 10 damage to ${inPlayDef(state.cards, pokemon).name}.`, player);
   }
@@ -692,7 +760,7 @@ export function hotPlate(state: GameState, pokemon: InPlayPokemon, player: Playe
  * `owner`'s Dark Ampharos, while it's their only one in play and its power works.
  */
 export function conductivity(state: GameState, owner: PlayerState, sides: Sides, target: InPlayPokemon) {
-  const ampharos = allInPlay([owner]).filter((p) => powerEffect(effectId(p))?.conductivity);
+  const ampharos = allInPlay([owner]).filter((p) => pokemonPower(p)?.conductivity);
   const dark = allInPlay([owner]).filter((p) => inPlayDef(state.cards, p).name === 'Dark Ampharos');
   if (ampharos.length !== 1 || dark.length > 1 || !powerActive(ampharos[0]!, state.cards, sides)) return;
   target.damage += 10;
@@ -704,7 +772,7 @@ export function conductivity(state: GameState, owner: PlayerState, sides: Sides,
  * (that player's opponent) has a working Ampharos ex in play; only 1, however many they have.
  */
 export function conductivityEx(state: GameState, owner: PlayerState, sides: Sides, target: InPlayPokemon) {
-  const ampharos = allInPlay([owner]).find((p) => powerEffect(effectId(p))?.conductivityEx && powerActive(p, state.cards, sides));
+  const ampharos = allInPlay([owner]).find((p) => pokemonPower(p)?.conductivityEx && powerActive(p, state.cards, sides));
   if (!ampharos) return;
   target.damage += 10;
   addLog(state, `Conductivity put a damage counter on ${inPlayDef(state.cards, target).name}.`, owner.id);
@@ -712,26 +780,26 @@ export function conductivityEx(state: GameState, owner: PlayerState, sides: Side
 
 /** Primal Veil: the power stopping Supporter cards (either Active Pokémon's, working), or null. */
 export function supportersVeiled(sides: Sides, cards: CardLibrary): string | null {
-  const p = sides.map((s) => s.active).find((a) => a && powerEffect(effectId(a))?.primalVeil && powerActive(a, cards, sides));
+  const p = sides.map((s) => s.active).find((a) => a && pokemonPower(a)?.primalVeil && powerActive(a, cards, sides));
   return p ? `${powerOf(p, cards)!.name}: no Supporter cards can be played` : null;
 }
 
 /** Primal Lock: `player`'s opponent has a working one in play, so `player` can't play Pokémon Tools (and theirs are discarded). `sides`: both players'. */
 export function primalLocked(player: Sides[number], sides: Sides, cards: CardLibrary): boolean {
   const opponent = sides.find((s) => s !== player);
-  return !!opponent && allInPlay([opponent]).some((p) => powerEffect(effectId(p))?.primalLock && powerActive(p, cards, sides));
+  return !!opponent && allInPlay([opponent]).some((p) => pokemonPower(p)?.primalLock && powerActive(p, cards, sides));
 }
 
 /** Why no Trainer cards can be played (Hay Fever, by either player), or null. */
 export function trainersBlocked(sides: Sides, cards: CardLibrary): string | null {
-  const p = allInPlay(sides).find((q) => powerEffect(effectId(q))?.noTrainers && powerActive(q, cards, sides));
+  const p = allInPlay(sides).find((q) => pokemonPower(q)?.noTrainers && powerActive(q, cards, sides));
   return p ? `${powerOf(p, cards)!.name}: no Trainer cards can be played` : null;
 }
 
 /** How much more the Active Pokémon of `sides[0]` costs to retreat: the opponent's Active Pokémon's Sticky Goo. */
 export function stickyGoo(sides: Sides, cards: CardLibrary): number {
   const opposing = sides[1]?.active;
-  return opposing && powerActive(opposing, cards, sides) ? (powerEffect(effectId(opposing))?.stickyGoo ?? 0) : 0;
+  return opposing && powerActive(opposing, cards, sides) ? (pokemonPower(opposing)?.stickyGoo ?? 0) : 0;
 }
 
 /**
@@ -740,7 +808,7 @@ export function stickyGoo(sides: Sides, cards: CardLibrary): number {
  */
 export function playedFromHand(state: GameState, owner: PlayerState, pokemon: InPlayPokemon) {
   const sides = state.playerOrder.map((id) => state.players[id]!);
-  const effect = powerEffect(effectId(pokemon));
+  const effect = pokemonPower(pokemon);
   // Dark Gaze: a Benched Pokémon's Poké-Power doesn't work as it's played either.
   if (effect?.onPlayFromHand && powerActive(pokemon, state.cards, sides) && !darkGazed(pokemon, state.cards, sides)) {
     addLog(state, `${powerOf(pokemon, state.cards)!.name}!`, owner.id);
@@ -751,13 +819,13 @@ export function playedFromHand(state: GameState, owner: PlayerState, pokemon: In
 /** The power keeping the Active Pokémon of `sides[0]` from retreating (the opponent's Guard), or null. `sides`: owner first. */
 export function guardedBy(sides: Sides, cards: CardLibrary): string | null {
   const opposing = sides[1]?.active;
-  return opposing && powerEffect(effectId(opposing))?.guard && powerActive(opposing, cards, sides) ? powerOf(opposing, cards)!.name : null;
+  return opposing && pokemonPower(opposing)?.guard && powerActive(opposing, cards, sides) ? powerOf(opposing, cards)!.name : null;
 }
 
 /** A working power of this kind on any Pokémon in play, either player's. */
 const anyWorking = (sides: Sides, cards: CardLibrary, has: (effect: PowerEffect) => boolean | undefined) =>
   allInPlay(sides).some((p) => {
-    const effect = powerEffect(effectId(p));
+    const effect = pokemonPower(p);
     return !!effect && !!has(effect) && powerActive(p, cards, sides);
   });
 
@@ -772,7 +840,7 @@ export const discardsLocked = (sides: Sides, cards: CardLibrary) => anyWorking(s
  * discarded by the opponent's attacks, Pokémon Powers or Trainer cards. `sides`: both players'.
  */
 export const energyKept = (owner: Pick<PlayerState, 'active' | 'bench' | 'powersOffUntil'>, sides: Sides, cards: CardLibrary, pokemon: InPlayPokemon) =>
-  inPlayDef(cards, pokemon).name.includes('Unown') && allInPlay([owner]).some((p) => powerEffect(effectId(p))?.keep && powerActive(p, cards, sides));
+  inPlayDef(cards, pokemon).name.includes('Unown') && allInPlay([owner]).some((p) => pokemonPower(p)?.keep && powerActive(p, cards, sides));
 
 /**
  * Legendary Body (agreed: every Trainer card, either player's, but Stadiums): `side`'s Active Pokémon with it working (or
@@ -781,7 +849,7 @@ export const energyKept = (owner: Pick<PlayerState, 'active' | 'bench' | 'powers
 export function trainerProof(side: Pick<PlayerState, 'active'>, sides: Sides, cards: CardLibrary, pokemon?: InPlayPokemon | null): string | null {
   const p = pokemon === undefined ? side.active : pokemon;
   if (!p || side.active !== p) return null;
-  return powerEffect(effectId(p))?.legendaryBody && powerActive(p, cards, sides) ? `${powerOf(p, cards)!.name}: ${inPlayDef(cards, p).name} isn't affected by Trainer cards` : null;
+  return pokemonPower(p)?.legendaryBody && powerActive(p, cards, sides) ? `${powerOf(p, cards)!.name}: ${inPlayDef(cards, p).name} isn't affected by Trainer cards` : null;
 }
 
 /**
@@ -789,11 +857,11 @@ export function trainerProof(side: Pick<PlayerState, 'active'>, sides: Sides, ca
  * type), or null. `sides`: both players'.
  */
 export function attachBlocked(cards: CardLibrary, sides: Sides, pokemon: InPlayPokemon, energy: CardInstance): string | null {
-  const effect = powerEffect(effectId(pokemon));
+  const effect = pokemonPower(pokemon);
   const d = lookupCard(cards, energy.defId);
   // Cursed Glare: the opponent's Active Cacturne ex keeps Special Energy (but Darkness and Metal) off its owner's Active Pokémon.
   const owner = sides.find((s) => s.active === pokemon);
-  const glare = owner && sides.find((s) => s !== owner && s.active && powerEffect(effectId(s.active))?.cursedGlare && powerActive(s.active, cards, sides));
+  const glare = owner && sides.find((s) => s !== owner && s.active && pokemonPower(s.active)?.cursedGlare && powerActive(s.active, cards, sides));
   if (glare && ((d.kind === 'energy' && d.basic === false) || !!holonEnergy(d)) && !['Darkness Energy', 'Metal Energy'].includes(d.name)) return `Cursed Glare: Special Energy cards can't be attached to your Active Pokémon`;
   // Binding Aura (the other player's Hypno): nothing from the hand onto an Asleep Pokémon.
   const holder = sides.find((s) => s.active === pokemon || s.bench.includes(pokemon));
@@ -809,39 +877,46 @@ export function attachBlocked(cards: CardLibrary, sides: Sides, pokemon: InPlayP
 export function retreatBodies(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sides): number {
   const [owner] = sides;
   if (!owner) return 0;
-  const own = powerActive(pokemon, cards, sides) ? (powerEffect(effectId(pokemon))?.retreatChange?.(pokemon, cards, owner, sides[1]) ?? 0) : 0;
+  const own = powerActive(pokemon, cards, sides) ? (pokemonPower(pokemon)?.retreatChange?.(pokemon, cards, owner, sides[1]) ?? 0) : 0;
   // Family Bonds: free for the Pokémon it names while its owner has it working in play.
   const name = inPlayDef(cards, pokemon).name;
-  const bonded = [owner.active, ...owner.bench].some((p) => !!p && !!powerEffect(effectId(p))?.familyBonds?.some((n) => namesMatch(name, n)) && powerActive(p, cards, sides));
+  const bonded = [owner.active, ...owner.bench].some((p) => !!p && !!pokemonPower(p)?.familyBonds?.some((n) => namesMatch(name, n)) && powerActive(p, cards, sides));
   // Dragon Lift: free for every Pokémon of its player's (not Pokémon-ex or Baby Pokémon).
   const d = inPlayDef(cards, pokemon);
-  const lifted = !d.ex && !d.baby && [owner.active, ...owner.bench].some((p) => !!p && !!powerEffect(effectId(p))?.freeRetreatAll && powerActive(p, cards, sides));
+  const lifted = !d.ex && !d.baby && [owner.active, ...owner.bench].some((p) => !!p && !!pokemonPower(p)?.freeRetreatAll && powerActive(p, cards, sides));
   // Extra Wing: free for its player's Stage 2 Pokémon-ex. Flotation: free for its player's Kyogre ex while the one with it has 1 Energy or less.
-  const winged = !!d.ex && d.stage === 'stage2' && [owner.active, ...owner.bench].some((p) => !!p && !!powerEffect(effectId(p))?.extraWing && powerActive(p, cards, sides));
-  const floated = d.name === 'Kyogre ex' && [owner.active, ...owner.bench].some((p) => !!p && !!powerEffect(effectId(p))?.flotation && energyPool(p, cards).length <= 1 && powerActive(p, cards, sides));
+  const winged = !!d.ex && d.stage === 'stage2' && [owner.active, ...owner.bench].some((p) => !!p && !!pokemonPower(p)?.extraWing && powerActive(p, cards, sides));
+  const floated = d.name === 'Kyogre ex' && [owner.active, ...owner.bench].some((p) => !!p && !!pokemonPower(p)?.flotation && energyPool(p, cards).length <= 1 && powerActive(p, cards, sides));
   if (winged || floated) return -99;
   // Hover Lift, Jynx δ's Stages of Evolution: 1 less for each of its player's working ones naming this Pokémon or one of its types.
   const less = [owner.active, ...owner.bench].reduce((n, p) => {
-    const lift = p && powerEffect(effectId(p))?.retreatLessFor;
+    const lift = p && pokemonPower(p)?.retreatLessFor;
     const fits = lift && ((lift.names ?? []).some((name) => namesMatch(d.name, name)) || (lift.types ?? []).some((t) => hasType(d, t)));
     return n + (fits && powerActive(p!, cards, sides) ? 1 : 0);
   }, 0);
   // Reactive Lift: free for its player's Water Pokémon (not Pokémon-ex) while the Wailord has a React Energy card attached.
-  const reactive = !d.ex && hasType(d, 'water') && [owner.active, ...owner.bench].some((p) => !!p && !!powerEffect(effectId(p))?.reactiveLift && hasReact(p, cards) && powerActive(p, cards, sides));
+  const reactive = !d.ex && hasType(d, 'water') && [owner.active, ...owner.bench].some((p) => !!p && !!pokemonPower(p)?.reactiveLift && hasReact(p, cards) && powerActive(p, cards, sides));
+  // Upper Material: free for every Uxie, Mesprit and Azelf, both players', while either player's working Mesprit has their Uxie and Azelf in play.
+  const lake = ['Uxie', 'Mesprit', 'Azelf'].some((n) => namesMatch(d.name, n)) && sides.some((side) => !!side && [side.active, ...side.bench].some((p) => !!p && !!pokemonPower(p)?.upperMaterial && powerActive(p, cards, sides)) && lakeTrio(cards, side, ['Uxie', 'Azelf']));
+  if (lake) return -99;
   // Magnetize: free for its player's Active Pokémon with any Metal Energy attached.
-  const magnetized = owner.active === pokemon && energyPool(pokemon, cards).some((e) => counts(e, 'metal')) && [owner.active, ...owner.bench].some((p) => !!p && !!powerEffect(effectId(p))?.magnetize && powerActive(p, cards, sides));
+  const magnetized = owner.active === pokemon && energyPool(pokemon, cards).some((e) => counts(e, 'metal')) && [owner.active, ...owner.bench].some((p) => !!p && !!pokemonPower(p)?.magnetize && powerActive(p, cards, sides));
   if (bonded || lifted || reactive || magnetized) return -99;
+  // Sticky: 1 more for each working Ariados in play, either player's, for any Pokémon but one with its name.
+  const sticky = sides.reduce((n, side) => n + (side ? [side.active, ...side.bench].filter((p) => !!p && !!pokemonPower(p)?.sticky && !namesMatch(d.name, inPlayDef(cards, p).name) && powerActive(p, cards, sides)).length : 0), 0);
+  // Jumbo Fin: 2 less for its player's Water Pokémon while a working Mantine has Mantyke under it.
+  const jumbo = hasType(d, 'water') && [owner.active, ...owner.bench].some((p) => !!p && !!pokemonPower(p)?.jumboFin && powerActive(p, cards, sides) && evolvedFromName(cards, p, 'Mantyke')) ? 2 : 0;
   // Wobbuffet's Stages of Evolution: each of the opponent's makes their Active Pokémon cost 1 more.
   const opponent = sides[1];
-  const tax = owner.active === pokemon && opponent ? [opponent.active, ...opponent.bench].reduce((n, p) => n + (p && powerActive(p, cards, sides) ? (powerEffect(effectId(p))?.retreatTax ?? 0) : 0), 0) : 0;
-  return own + tax - less + (owner.active === pokemon && anyWorking(sides, cards, (e) => e.glueySlime) ? 1 : 0);
+  const tax = owner.active === pokemon && opponent ? [opponent.active, ...opponent.bench].reduce((n, p) => n + (p && powerActive(p, cards, sides) ? (pokemonPower(p)?.retreatTax ?? 0) : 0), 0) : 0;
+  return own + tax - less + sticky - jumbo + (owner.active === pokemon && anyWorking(sides, cards, (e) => e.glueySlime) ? 1 : 0);
 }
 
 /** Spiral: the opponent's Active Pokémon (`sides[1]`'s) keeps `sides[0]`'s Confused Active Pokémon from retreating; its name, or null. */
 export function spiraledBy(sides: Sides, cards: CardLibrary): string | null {
   const [owner, opponent] = sides;
   const opposing = opponent?.active;
-  if (owner?.active?.condition !== 'confused' || !opposing || !powerEffect(effectId(opposing))?.spiral || !powerActive(opposing, cards, sides)) return null;
+  if (owner?.active?.condition !== 'confused' || !opposing || !pokemonPower(opposing)?.spiral || !powerActive(opposing, cards, sides)) return null;
   return powerOf(opposing, cards)!.name;
 }
 
@@ -856,7 +931,7 @@ export const enervatingPollen = (sides: Sides, cards: CardLibrary) => anyWorking
 export function primalBlock(target: InPlayPokemon, sides: Sides, cards: CardLibrary): string | null {
   const [owner, ...others] = sides;
   if (!owner) return null;
-  const working = (p: InPlayPokemon | null, key: 'primalAura' | 'primalStare') => !!p && !!powerEffect(effectId(p))?.[key] && powerActive(p, cards, sides);
+  const working = (p: InPlayPokemon | null, key: 'primalAura' | 'primalStare') => !!p && !!pokemonPower(p)?.[key] && powerActive(p, cards, sides);
   if (owner.active !== target && sides.some((s) => working(s.active, 'primalAura'))) return "Primal Aura: Evolution cards can't be played onto Benched Pokémon";
   if (owner.active === target && others.some((s) => working(s.active, 'primalStare'))) return "Primal Stare: Evolution cards can't be played onto your Active Pokémon";
   return null;
@@ -867,20 +942,20 @@ export function primalBlock(target: InPlayPokemon, sides: Sides, cards: CardLibr
  * Lazy. Poké-Bodies aren't stopped, so a Lazy is never asked about itself.
  */
 export function lazied(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sides): boolean {
-  if (powerEffect(effectId(pokemon))?.body) return false;
+  if (pokemonPower(pokemon)?.body) return false;
   const opponent = sides.find((s) => s.active !== pokemon && !s.bench.includes(pokemon));
-  return !!opponent?.active && !!powerEffect(effectId(opponent.active))?.lazy && powerActive(opponent.active, cards, sides);
+  return !!opponent?.active && !!pokemonPower(opponent.active)?.lazy && powerActive(opponent.active, cards, sides);
 }
 
 /** Dark Gaze is stopping the Benched Pokémon `pokemon`'s Poké-Powers: a working Dark Gaze on either Active Pokémon. */
 export function darkGazed(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sides): boolean {
-  if (sides.some((s) => s.active === pokemon) || powerEffect(effectId(pokemon))?.body) return false;
-  return sides.some((s) => !!s.active && !!powerEffect(effectId(s.active))?.darkGaze && powerActive(s.active, cards, sides));
+  if (sides.some((s) => s.active === pokemon) || pokemonPower(pokemon)?.body) return false;
+  return sides.some((s) => !!s.active && !!pokemonPower(s.active)?.darkGaze && powerActive(s.active, cards, sides));
 }
 
 /** Why no Evolution cards can be played (Prehistoric Power), or null. */
 export function evolutionBlocked(sides: Sides, cards: CardLibrary): string | null {
-  const blocker = allInPlay(sides).find((p) => powerEffect(effectId(p))?.blocksEvolution && powerActive(p, cards, sides));
+  const blocker = allInPlay(sides).find((p) => pokemonPower(p)?.blocksEvolution && powerActive(p, cards, sides));
   return blocker ? `${powerOf(blocker, cards)!.name}: no Evolution cards can be played` : null;
 }
 
@@ -888,16 +963,16 @@ export function evolutionBlocked(sides: Sides, cards: CardLibrary): string | nul
 export function retreatAid(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sides): number {
   const [owner] = sides;
   if (!owner || owner.active !== pokemon) return 0;
-  const old = owner.bench.filter((p) => p && powerEffect(effectId(p))?.retreatAid && powerActive(p, cards, sides)).length;
+  const old = owner.bench.filter((p) => p && pokemonPower(p)?.retreatAid && powerActive(p, cards, sides)).length;
   // EX FireRed & LeafGreen's Retreat Aid: 2 less each (agreed: they add up), not for a Pokémon-ex or Baby Pokémon.
   const d = inPlayDef(cards, pokemon);
-  const more = d.ex || d.baby ? 0 : owner.bench.reduce((n, p) => n + (p && powerActive(p, cards, sides) ? (powerEffect(effectId(p))?.retreatAidCost ?? 0) : 0), 0);
+  const more = d.ex || d.baby ? 0 : owner.bench.reduce((n, p) => n + (p && powerActive(p, cards, sides) ? (pokemonPower(p)?.retreatAidCost ?? 0) : 0), 0);
   return old + more;
 }
 
 /** Whether a working power of `viewer`'s Pokémon shows them the opponent's hand (Clairvoyance). */
 export const seesOpponentHand = (viewer: Pick<PlayerState, 'active' | 'bench'>, sides: Sides, cards: CardLibrary) =>
-  allInPlay([viewer]).some((p) => powerEffect(effectId(p))?.revealsHand && powerActive(p, cards, sides));
+  allInPlay([viewer]).some((p) => pokemonPower(p)?.revealsHand && powerActive(p, cards, sides));
 
 /**
  * Ditto's Transform: an active Ditto with no Special Condition (Poisoned and Burned included), with no Toxic Gas,
@@ -923,7 +998,7 @@ export function refreshTransforms(state: GameState) {
 export function energyFromHand(state: GameState, owner: PlayerState, target: Target, energy: CardInstance) {
   const pokemon = pokemonAt(owner, target);
   const sides = state.playerOrder.map((id) => state.players[id]!);
-  if (pokemon && powerActive(pokemon, state.cards, sides)) powerEffect(effectId(pokemon))?.onEnergyFromHand?.(state, owner, pokemon, target, energy);
+  if (pokemon && powerActive(pokemon, state.cards, sides)) pokemonPower(pokemon)?.onEnergyFromHand?.(state, owner, pokemon, target, energy);
   // Pokémon Park: the first time each turn a player attaches an Energy card from the hand to a Benched Pokémon, 1 damage counter off it.
   if (pokemon && target !== 'active' && state.stadium && lookupCard(state.cards, state.stadium.card.defId).name === 'Pokémon Park' && owner.parkTurn !== state.turn) {
     owner.parkTurn = state.turn;
@@ -953,13 +1028,13 @@ export function offerChainReaction(state: GameState, queue?: { player: PlayerId;
   const sides = state.playerOrder.map((id) => state.players[id]!);
   if (!queue) {
     const order = [state.currentPlayer, ...state.playerOrder.filter((id) => id !== state.currentPlayer)];
-    queue = order.flatMap((player) => allInPlay([state.players[player]!]).filter((p) => powerEffect(effectId(p))?.chainReaction).map((p) => ({ player, uid: p.card.uid })));
+    queue = order.flatMap((player) => allInPlay([state.players[player]!]).filter((p) => pokemonPower(p)?.chainReaction).map((p) => ({ player, uid: p.card.uid })));
   }
   for (const [i, { player, uid }] of queue.entries()) {
     const owner = state.players[player]!;
     const target = ownTargets(owner).find((t) => pokemonAt(owner, t)!.card.uid === uid);
     const eevee = target === undefined ? null : pokemonAt(owner, target)!;
-    if (!eevee || !powerEffect(effectId(eevee))?.chainReaction || !powerActive(eevee, state.cards, sides)) continue;
+    if (!eevee || !pokemonPower(eevee)?.chainReaction || !powerActive(eevee, state.cards, sides)) continue;
     // It counts as evolving Eevee, so the usual rules apply: not on the first turns, not the turn Eevee was played.
     if (state.turn <= 2 || eevee.playedTurn === state.turn || evolutionBlocked(sides, state.cards)) continue;
     if (!owner.deck.some((c) => evolvesFromEevee(state.cards, c))) continue;
@@ -974,7 +1049,7 @@ export function powerError(s: PowerSituation): string | null {
   const source = pokemonAt(s.me, s.source);
   if (!source) return 'No Pokémon there';
   const def = inPlayDef(s.cards, source);
-  const effect = powerEffect(effectId(source));
+  const effect = pokemonPower(source);
   if (!def.power || !effect?.use) return `${def.name} has no power to use`;
   // Powers that are used all stop working while their Pokémon has a Special Condition (Poisoned and Burned too, agreed),
   // unless they say otherwise (Unown B and Y).
@@ -1001,7 +1076,7 @@ export function powerError(s: PowerSituation): string | null {
 
 function choiceSpecs(s: PowerSituation, c: PowerChoices): PowerChoiceSpec[] {
   const source = pokemonAt(s.me, s.source)!;
-  return powerEffect(effectId(source))?.choices?.(s, c) ?? [];
+  return pokemonPower(source)?.choices?.(s, c) ?? [];
 }
 
 /** The answer when there's nothing to decide; undefined if the player must choose. */
@@ -1073,6 +1148,10 @@ export const situationCounts = (me: Pick<PlayerState, 'deck' | 'prizes' | 'faceU
 });
 
 /** Uses the power of the Pokémon at `source`. Mutates `state`; returns an error instead if not allowed. */
+/** The player's working Pokémon with Power Cancel not yet used this turn (Alakazam), if any. */
+export const powerCanceller = (state: GameState, player: PlayerState, other: PlayerState) =>
+  [player.active, ...player.bench].find((p) => !!p && !!pokemonPower(p)?.powerCancel && p.powerUsedTurn !== state.turn && powerActive(p, state.cards, [player, other])) ?? null;
+
 export function usePower(state: GameState, me: PlayerState, opp: PlayerState, sourceTarget: Target, given: PowerChoices): string | null {
   const situation: PowerSituation = { me, opp, counts: situationCounts(me, opp), source: sourceTarget, cards: state.cards, turn: state.turn, stadium: state.stadium?.card ?? null };
   const error = powerError(situation);
@@ -1081,12 +1160,17 @@ export function usePower(state: GameState, me: PlayerState, opp: PlayerState, so
   if ('error' in resolved) return resolved.error;
   const source = pokemonAt(me, sourceTarget)!;
   const def = inPlayDef(state.cards, source);
-  const effect = powerEffect(effectId(source))!;
+  const effect = pokemonPower(source)!;
+  // Power Cancel: the opponent may stop a Poké-Power (not a Poké-Body) with 2 cards from their hand, before it does anything.
+  if ((!effect.body || effect.usePoke) && !state.powerCancelPassed && opp.hand.length >= 2 && powerCanceller(state, opp, me)) {
+    state.pendingChoice = { player: opp.id, source: 'Power Cancel', kind: 'powerCancel', target: sourceTarget, choices: resolved.choices, picked: [] };
+    return null;
+  }
   const powerName = effect.powerName ?? def.power!.name;
   addLog(state, `${def.name} used ${powerName}.`, me.id);
   if (effect.oncePerTurn) source.powerUsedTurn = state.turn;
   // Dark Eyes (the opponent's Shiftry ex): after a Poké-Power is used, 2 damage counters on the Pokémon that used it.
-  const darkEyes = (!effect.body || effect.usePoke) && [opp.active, ...opp.bench].some((p) => p && powerEffect(effectId(p))?.darkEyes && powerActive(p, state.cards, [opp, me]));
+  const darkEyes = (!effect.body || effect.usePoke) && [opp.active, ...opp.bench].some((p) => p && pokemonPower(p)?.darkEyes && powerActive(p, state.cards, [opp, me]));
   const uid = source.card.uid;
   effect.use!({
     state,

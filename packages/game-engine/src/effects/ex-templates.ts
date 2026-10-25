@@ -6,12 +6,12 @@
 // rulings ("each Defending Pokémon" is the Active one only;
 // "Energy attached" counts the Energy provided, "not used to pay" less the cost) and the older cards' that word them alike.
 import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
-import { isBasicEnergy, lookupCard, type CardLibrary, type EnergyType } from '../cards.js';
+import { hasType, isBasicEnergy, lookupCard, type CardLibrary, type EnergyType } from '../cards.js';
 import type { PendingChoice } from '../trainers.js';
-import { isEnergyCardOf, PRIZE_COUNT, type Affliction, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
+import { counts, energyPool, isEnergyCardOf, PRIZE_COUNT, retreatCost, type Affliction, type CardInstance, type InPlayPokemon, type Target } from '../engine.js';
 import { nextRandom, shuffle } from '../rng.js';
-import { clearSpecialConditions, hasSpecialCondition } from '../status.js';
-import { benchedSlots, benchTarget, charmFor, discardToUse, extraEnergy, flipToInflict, flipToProtect, guardNext, headsUntilTails, inflicts, inPlay, opponentSwitches, perHeads, recoil, tailsSelfDamage } from './common.js';
+import { clearSpecialConditions, evolvedFromName, hasSpecialCondition, inPlayDef, pokemonName } from '../status.js';
+import { benchedSlots, benchSearch, benchTarget, charmFor, discardToUse, energyCanMove, extraEnergy, flipToInflict, flipToProtect, guardNext, headsUntilTails, inflicts, inPlay, lure, opponentSwitches, perHeads, recoil, tailsSelfDamage } from './common.js';
 import { discardDefenderTrainers } from './ecard2.js';
 import { discardStadium } from './gym2.js';
 import { discardAtRandom, eachDefending, energyAmount, restNextTurn } from './ex1.js';
@@ -19,7 +19,9 @@ import { smokescreen } from './fossil.js';
 import { benchMany, noRetreat } from './gym1.js';
 import { flipForMore } from './jungle.js';
 import { damageOpponent, opponentTargets, rapidSpin } from './neo1.js';
-import { attachFromDiscard } from './neo3.js';
+import { evolutionsOf } from './neo2.js';
+import { attachFromDiscard, notNextTurn } from './neo3.js';
+import { shiftDefenderEnergy } from './ex7.js';
 import { flipOrNothing } from './rocket.js';
 import { healUpTo } from './si1.js';
 
@@ -31,6 +33,8 @@ export interface AttackTemplate {
   pattern: RegExp;
   /** Passes the attack's cost on as the last argument (Energy beyond the cost). */
   cost?: true;
+  /** Passes the card's name on as the last argument (the wording names the Pokémon itself: Swarm). */
+  named?: true;
   /** Whether the wording fits the card's printed damage (the base damage it repeats must be the same). */
   fits?: (damage: number, args: TemplateArg[]) => boolean;
   /** The effect, from the printed damage, the arguments and the attack's name. */
@@ -180,12 +184,6 @@ const conditionCount = (p: InPlayPokemon) => (p.condition ? 1 : 0) + (p.poison ?
 
 const sameBase = (index: number) => (damage: number, args: TemplateArg[]) => args[index] === damage;
 
-/** The attacker evolved from a Pokémon of this name ("if Clefairy is evolved from Cleffa", "if Budew is anywhere under Roserade"): a card under it has the name. */
-export const evolvedFrom = (cards: CardLibrary, p: InPlayPokemon, name: string) =>
-  p.evolvedFrom.some((c) => {
-    const d = lookupCard(cards, c.defId);
-    return d.kind === 'pokemon' && fold(d.name) === fold(name);
-  });
 
 type DeckSearch = Pick<Extract<PendingChoice, { kind: 'pickFromDeck' }>, 'filter' | 'type'>;
 
@@ -538,7 +536,7 @@ const DP_TEMPLATES: Record<string, AttackTemplate> = {
   evolvedFromMore: {
     pattern: re('if @ is evolved from ([a-z. ]+), this attack does (\\d+) damage plus (\\d+) more damage'),
     fits: sameBase(1),
-    make: (_, [name, base, more]) => bonusIf(num(base), num(more), (ctx) => evolvedFrom(ctx.state.cards, ctx.attacker, String(name))),
+    make: (_, [name, base, more]) => bonusIf(num(base), num(more), (ctx) => evolvedFromName(ctx.state.cards, ctx.attacker, String(name))),
   },
   sameHandMore: {
     pattern: re('if you have the same number of cards in your hand as your opponent, this attack does (\\d+) damage plus (\\d+) more damage'),
@@ -694,7 +692,236 @@ const DP_TEMPLATES: Record<string, AttackTemplate> = {
       }),
   },
 };
-Object.assign(ATTACK_TEMPLATES, DP_TEMPLATES);
+/** How many Colorless Energy the Defending Pokémon's Retreat Cost is now (Centrifugal Force). */
+const defenderRetreat = (ctx: AttackContext) => retreatCost(ctx.defender, ctx.state.cards, [ctx.opp, ctx.me], ctx.state.stadium?.card);
+
+/** The damage an attack did to the attacker during the opponent's last turn (0 if none). */
+const damagedLastTurn = (ctx: AttackContext) => {
+  const last = ctx.attacker.effects?.attackedOn;
+  return last && last.turn === ctx.turn - 1 ? last.damage : 0;
+};
+
+/** All the Energy cards of `type` attached to the attacker, discarded. */
+function discardAllTyped(ctx: AttackContext, type: EnergyType) {
+  const gone = ctx.attacker.energy.filter((e) => isEnergyCardOf(e, ctx.state.cards, type));
+  if (!gone.length) return;
+  ctx.attacker.energy = ctx.attacker.energy.filter((e) => !gone.includes(e));
+  ctx.me.discard.push(...gone);
+  ctx.log(`Discarded ${gone.length} ${type} Energy from ${ctx.attackerDef.name}.`);
+}
+
+/** More of the Diamond & Pearl era's wordings (Generation 4), each on several cards. */
+const DP_TEMPLATES_2: Record<string, AttackTemplate> = {
+  // Damage choices and limits.
+  mayMoreRecoil: {
+    pattern: re('you may do (\\d+) damage plus (\\d+) more damage\\. if you do, @ does (\\d+) damage to itself'),
+    fits: sameBase(0),
+    make: (_, [base, more, self]) => ({
+      choices: () => [{ kind: 'boost', options: [true, false], prompt: `Do ${num(more)} more damage, and ${num(self)} to your own Pokémon?` }],
+      run(ctx) {
+        if (!ctx.choices.boost) return void ctx.hit(num(base));
+        ctx.hit(num(base) + num(more));
+        ctx.selfDamage(num(self));
+      },
+    }),
+  },
+  eitherTailsNothing: {
+    pattern: re('flip (\\d+) coins\\. if either of them is tails, this attack does nothing'),
+    make: (d, [n]) => ({ run: (ctx) => (ctx.flips(num(n)) === num(n) ? void ctx.hit(d) : ctx.log('The attack did nothing.')) }),
+  },
+  notNextTurnSelf: {
+    pattern: re("@ can't use ([a-z' -]+) during your next turn"),
+    fits: (_, [name]) => !!name,
+    make: (d, _, attack) => thenDo(d, (ctx) => notNextTurn(ctx, attack)),
+  },
+  takeMoreNext: {
+    pattern: re("during your opponent's next turn, any damage done to @ by attacks is increased by (\\d+) \\(after applying weakness and resistance\\)"),
+    make: (d, [amount]) =>
+      thenDo(d, (ctx) => {
+        (ctx.attacker.effects ??= {}).takeMore = { amount: num(amount), until: ctx.turn + 1 };
+        ctx.log(`Damage to ${ctx.attackerDef.name} is increased by ${amount} next turn.`);
+      }),
+  },
+  swiftKeepWeakness: {
+    pattern: re("this attack's damage isn't affected by resistance, poke-powers, poke-bodies, or any other effects on the defending pokemon"),
+    make: (d) => ({ run: (ctx) => void ctx.hit(d, { swift: true, keepWeakness: true }) }),
+  },
+  opponentTypeMore: {
+    pattern: re(`if your opponent has any ${TYPE} pokemon in play, this attack does (\\d+) damage plus (\\d+) more damage`),
+    fits: sameBase(1),
+    make: (_, [type, base, more]) => bonusIf(num(base), num(more), (ctx) => inPlay(ctx.opp).some((p) => hasType(inPlayDef(ctx.state.cards, p), word(type)))),
+  },
+  typedEnergyMore: {
+    pattern: re(`if @ has any ${TYPE} energy attached to it, this attack does (\\d+) damage plus (\\d+) more damage`),
+    fits: sameBase(1),
+    make: (_, [type, base, more]) => bonusIf(num(base), num(more), (ctx) => energyPool(ctx.attacker, ctx.state.cards).some((e) => counts(e, word(type)))),
+  },
+  retreatCostMore: {
+    pattern: re("does (\\d+) damage plus (\\d+) more damage for each colorless energy in the defending pokemon's retreat cost \\(after applying effects to the retreat cost\\)"),
+    fits: sameBase(0),
+    make: (_, [base, more]) => ({ run: (ctx) => void ctx.hit(num(base) + num(more) * defenderRetreat(ctx)) }),
+  },
+  retreatCostTimes: {
+    pattern: re("does (\\d+) damage times the number of colorless energy in the defending pokemon's retreat cost \\(after applying effects to the retreat cost\\)"),
+    fits: sameBase(0),
+    make: (_, [each]) => ({ run: (ctx) => void ctx.hit(num(each) * defenderRetreat(ctx)) }),
+  },
+  millEnergyTimes: {
+    pattern: re('discard the top (\\d+) cards from your deck\\. this attack does (\\d+) damage times the number of energy cards you discarded'),
+    fits: sameBase(1),
+    make: (_, [n, each]) => ({
+      run(ctx) {
+        const gone = ctx.me.deck.splice(0, num(n));
+        ctx.me.discard.push(...gone);
+        ctx.log(`Discarded the top ${gone.length} cards of the deck.`);
+        ctx.hit(num(each) * gone.filter((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy').length);
+      },
+    }),
+  },
+  damagedLastTurnCondition: {
+    pattern: re(`if @ was damaged by an attack during your opponent's last turn, the defending pokemon is now ${CONDITION}`),
+    make: (d, [c]) => thenDo(d, (ctx) => damagedLastTurn(ctx) > 0 && ctx.inflict(word(c))),
+  },
+  damagedLastTurnSame: {
+    pattern: re("if @ was damaged by an attack during your opponent's last turn, this attack does the same amount of damage done to @ to the defending pokemon"),
+    fits: (d) => d === 0,
+    make: () => ({ run: (ctx) => (damagedLastTurn(ctx) ? void ctx.hit(damagedLastTurn(ctx)) : ctx.log('The attack did nothing.')) }),
+  },
+  flipsTimesSelfCondition: {
+    pattern: re('flip (\\d+) coins\\. this attack does (\\d+) damage times the number of heads\\. @ is now (confused|asleep)'),
+    fits: sameBase(1),
+    make: (_, [coins, each, c]) => ({
+      run(ctx) {
+        ctx.hit(num(each) * ctx.flips(num(coins)));
+        if (c === 'confused') ctx.confuseSelf();
+        else ctx.sleepSelf();
+      },
+    }),
+  },
+  bothCondition: {
+    pattern: re('both @ and the defending pokemon are now asleep'),
+    make: (d) => thenDo(d, (ctx) => (ctx.inflict('asleep'), ctx.sleepSelf())),
+  },
+
+  // Damage to other Pokémon.
+  snipeMany: {
+    pattern: re(`choose (\\d+) of your opponent's pokemon\\. this attack does (\\d+) damage to each of them\\.${BENCH_RULE}`),
+    fits: (d) => d === 0,
+    make: (_, [n, amount]) => ({
+      choices: (s): ChoiceSpec[] => [{ kind: 'opponentBenchMany', count: num(n), options: [-1, ...benchedSlots(s.opponentBench)], prompt: `Choose ${n} of your opponent's Pokémon to do ${amount} damage to each` }],
+      run(ctx) {
+        for (const slot of new Set(ctx.choices.benchSlots ?? [])) {
+          if (slot === -1) ctx.hit(num(amount));
+          else ctx.damageBenched(ctx.opp, slot, num(amount));
+        }
+      },
+    }),
+  },
+  benchChooseMany: {
+    pattern: re(`choose (\\d+) of your opponent's benched pokemon\\. this attack does (\\d+) damage to each of them\\.${BENCH_RULE}`),
+    make: (d, [n, amount]) => benchMany(num(n), d, num(amount)),
+  },
+  benchDamaged: {
+    pattern: re(`does (\\d+) damage to each of your opponent's benched pokemon that has any damage counters on it\\.${BENCH_RULE}`),
+    make: (d, [amount]) => thenDo(d, (ctx) => ctx.opp.bench.forEach((p, i) => p && p.damage > 0 && ctx.damageBenched(ctx.opp, i, num(amount)))),
+  },
+  flipBenchAll: {
+    pattern: re(`flip a coin\\. if heads, this attack does (\\d+) damage to each of your opponent's benched pokemon\\.${BENCH_RULE}`),
+    make: (d, [amount]) => thenDo(d, (ctx) => ctx.flip() && ctx.benchDamage(ctx.opp, num(amount))),
+  },
+  lureFirst: {
+    pattern: re("switch the defending pokemon with 1 of your opponent's benched pokemon"),
+    fits: (d) => d === 0,
+    make: () => lure,
+  },
+  moveDefenderEnergy: {
+    pattern: re("move an energy card attached to the defending pokemon to another of your opponent's pokemon"),
+    make: (d) => shiftDefenderEnergy(d, false),
+  },
+
+  // Energy.
+  discardAny: { pattern: re('discard (an|\\d+) energy attached to @'), make: (d, [n]) => discardToUse(d, n === 'an' ? 1 : num(n), undefined) },
+  tailsDiscardAllTyped: {
+    pattern: re(`flip a coin\\. if tails, discard all ${TYPE} energy attached to @`),
+    make: (d, [type]) => thenDo(d, (ctx) => !ctx.flip() && discardAllTyped(ctx, word(type))),
+  },
+  moveEnergyToBench: {
+    pattern: re('move an energy card attached to @ to 1 of your benched pokemon'),
+    make: (d) => ({
+      choices: (s): ChoiceSpec[] => {
+        const options = benchedSlots(s.ownBench);
+        const energy = s.attacker.energy.filter((e) => !e.provides);
+        return options.length && energy.length
+          ? [
+              { kind: 'ownEnergy', count: 1, options: energy, prompt: 'Choose an Energy card to move' },
+              { kind: 'ownBench', options, prompt: 'Choose one of your Benched Pokémon to move it to' },
+            ]
+          : [];
+      },
+      run(ctx) {
+        ctx.hit(d);
+        const card = ctx.attacker.energy.find((e) => e.uid === ctx.choices.energyUids?.[0]);
+        const to = ctx.choices.ownBenchSlot === undefined ? null : ctx.me.bench[ctx.choices.ownBenchSlot];
+        if (!card || !to || !energyCanMove(ctx, ctx.attacker)) return;
+        ctx.attacker.energy = ctx.attacker.energy.filter((e) => e !== card);
+        to.energy.push(card);
+        ctx.log(`Moved ${lookupCard(ctx.state.cards, card.defId).name} to ${pokemonName(ctx.state, to)}.`);
+      },
+    }),
+  },
+  searchAttachMany: {
+    pattern: re(`search your deck for up to (\\d+) ${TYPE} energy cards and attach them to (any of your pokemon in any way you like|1 of your pokemon)\\. shuffle your deck afterward`),
+    make: (d, [n, type, how], attack) =>
+      thenDo(d, (ctx) => {
+        if (ctx.me.deck.length) ctx.pend({ kind: 'pickFromDeck', source: attack, filter: 'typedEnergy', type: word(type), count: num(n), optional: true, attach: true, ...(how === '1 of your pokemon' && { attachSame: true }) });
+      }),
+  },
+
+  // Healing.
+  healEach: {
+    pattern: re('remove (\\d+) damage counters? from each of your (benched )?pokemon'),
+    make: (d, [n, benched]) => thenDo(d, (ctx) => (benched ? ctx.me.bench.filter((p): p is InPlayPokemon => !!p) : inPlay(ctx.me)).forEach((p) => healUpTo(ctx, ctx.me, p, 10 * num(n)))),
+  },
+  healOne: {
+    pattern: re('remove (\\d+) damage counters? from 1 of your pokemon'),
+    make: (d, [n]) => ({
+      choices: (s): ChoiceSpec[] => {
+        const options: Target[] = [...(s.attacker.damage ? ['active' as const] : []), ...benchedSlots(s.ownBench).filter((i) => s.ownBench[i]!.damage > 0)];
+        return options.length ? [{ kind: 'ownPokemon', options, prompt: `Choose one of your Pokémon to remove ${n} damage counter${num(n) === 1 ? '' : 's'} from` }] : [];
+      },
+      run(ctx) {
+        ctx.hit(d);
+        const t = ctx.choices.ownTarget;
+        const p = t === undefined ? null : t === 'active' ? ctx.me.active : ctx.me.bench[t];
+        if (p) healUpTo(ctx, ctx.me, p, 10 * num(n));
+      },
+    }),
+  },
+
+  // Cards.
+  lookOppHand: { pattern: re("look at your opponent's hand"), make: (d, _, attack) => thenDo(d, (ctx) => ctx.pend({ kind: 'lookOppHand', source: attack })) },
+  drawUntil: { pattern: re('draw cards until you have (\\d+) cards in your hand'), make: (d, [n]) => thenDo(d, (ctx) => ctx.draw(Math.max(0, num(n) - ctx.me.hand.length))) },
+  benchSelf: {
+    pattern: re('search your deck for @ and put it onto your bench\\. shuffle your deck afterward'),
+    named: true,
+    make: (d, [name], attack) => {
+      const search = benchSearch(attack, { filter: 'basicNamed', name: String(name) });
+      return { ...search, run: (ctx) => (d && ctx.hit(d), search.run(ctx)) };
+    },
+  },
+  evolveFromDeck: {
+    pattern: re('search your deck for a card that evolves from @ and put it onto @\\. \\(this counts as evolving @\\.\\) shuffle your deck afterward'),
+    make: (d, _, attack) =>
+      thenDo(d, (ctx) => {
+        const names = evolutionsOf(ctx, ctx.attackerDef.name);
+        if (ctx.me.deck.some((c) => names.includes(lookupCard(ctx.state.cards, c.defId).name))) return ctx.pend({ kind: 'evolveFromDeck', source: attack, target: 'active', names });
+        [ctx.me.deck, ctx.state.rngState] = shuffle(ctx.me.deck, ctx.state.rngState);
+        ctx.log('Found nothing in the deck.');
+      }),
+  },
+};
+
+Object.assign(ATTACK_TEMPLATES, DP_TEMPLATES, DP_TEMPLATES_2);
 
 /** An attack's template and its arguments, as ex-template-data.ts stores them: the key, the printed damage, then the arguments. */
 export type TemplateUse = [key: string, damage: number, ...args: TemplateArg[]];
@@ -708,7 +935,7 @@ export function matchTemplate(text: string, name: string, damage: number, cost: 
     // Optional captures are alternatives or last, so leaving out the missing ones keeps the others in place.
     const args: TemplateArg[] = m.slice(1).flatMap((a) => (a === undefined ? [] : [/^\d+$/.test(a) ? Number(a) : a]));
     if (template.fits && !template.fits(damage, args)) return { misfit: key };
-    return [key, damage, ...args, ...(template.cost ? [cost.map((c) => c.toLowerCase()).join(',')] : [])];
+    return [key, damage, ...args, ...(template.cost ? [cost.map((c) => c.toLowerCase()).join(',')] : []), ...(template.named ? [name] : [])];
   }
   return null;
 }

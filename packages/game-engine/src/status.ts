@@ -1,8 +1,9 @@
 // Small state helpers shared by the reducer and attack effects (no imports of engine values,
 // so effect modules can use them without import cycles).
-import { lookupCard, type CardLibrary, type PokemonCardDef } from './cards.js';
+import { lookupCard, namesMatch, type CardLibrary, type PokemonCardDef } from './cards.js';
 import type { CardInstance, GameState, InPlayPokemon, PlayerId, PlayerState } from './engine.js';
 import { nextRandom } from './rng.js';
+import { powerEffect } from './effects/index.js';
 
 export const LOG_SIZE = 100;
 
@@ -40,7 +41,9 @@ export function flipCoin(state: GameState, reason: string, player: PlayerId | nu
   // A battle rule (a run's item) can make the player's next flips heads.
   const lucky = player === null ? undefined : state.rules?.find((rule) => rule.kind === 'luckyFlips' && rule.player === player && rule.flips > 0);
   if (lucky?.kind === 'luckyFlips') lucky.flips -= 1;
-  const heads = !!lucky || r < 0.5;
+  // Hidden Power: every coin the player flips is tails for a turn.
+  const tails = player !== null && (state.players[player]?.tailsUntil ?? 0) >= state.turn;
+  const heads = !tails && (!!lucky || r < 0.5);
   addLog(state, `${reason}: ${heads ? 'heads' : 'tails'}.`, player, { reason, heads });
   return heads;
 }
@@ -65,6 +68,7 @@ export function clearSpecialConditions(pokemon: InPlayPokemon) {
   pokemon.condition = null;
   pokemon.poison = 0;
   pokemon.burned = false;
+  delete pokemon.burnDamage;
   delete pokemon.paralyzedTurn;
 }
 
@@ -129,6 +133,19 @@ export function removeTopEvolution(state: GameState, owner: PlayerState, pokemon
   return top;
 }
 
+/** A card under the Pokémon has this name, whatever its case ("if Clefairy is evolved from Cleffa", "if Mantyke is anywhere under Mantine"). */
+export function evolvedFromName(cards: CardLibrary, pokemon: InPlayPokemon, name: string): boolean {
+  const key = name.toLowerCase();
+  return pokemon.evolvedFrom.some((c) => {
+    const d = lookupCard(cards, c.defId);
+    return d.kind === 'pokemon' && d.name.toLowerCase() === key;
+  });
+}
+
+/** The side has Pokémon with each of these names in play (the lake trio's Poké-Bodies). */
+export const lakeTrio = (cards: CardLibrary, side: Pick<PlayerState, 'active' | 'bench'>, names: string[]) =>
+  names.every((n) => [side.active, ...side.bench].some((p) => p && namesMatch(inPlayDef(cards, p).name, n)));
+
 /** A Pokémon LV.X's previous level: the card it was put onto (null for any other Pokémon). */
 export function previousLevel(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCardDef | null {
   const top = lookupCard(cards, pokemon.card.defId);
@@ -163,12 +180,17 @@ export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCa
     if (varied.length > 1) d.types = varied;
     else delete d.types;
   }
+  // A Pokémon LV.X shows the power it can use (pokemonPower): its own, or its previous level's when it has none or only a Poké-Body.
+  const previous = !pokemon.transformed && pokemon.levelUpFrom ? previousLevel(cards, pokemon) : null;
+  if (previous?.power && (!d.power || (powerEffect(own.id)?.body && powerEffect(previous.id)?.use))) d = { ...d, power: previous.power };
   // Strange Cave, Holon Fossil, Influence: a Stage 1 Fossil Pokémon put into play as a Basic Pokémon (while it's the top card).
   if (pokemon.asBasic && !pokemon.evolvedFrom.length) d = { ...d, stage: 'basic' };
   if (pokemon.effects?.giantGrowth) d = { ...d, hp: 80 };
   // Sunbeam: Lunatone's HP is now 80 while its player has a Solrock with it working.
   if (pokemon.hpSet) d = { ...d, hp: pokemon.hpSet };
   if (pokemon.hpPlus) d = { ...d, hp: d.hp + pokemon.hpPlus };
+  // Unown E's EQUIP: attached as a Pokémon Tool, 10 more HP.
+  if (pokemon.attached?.some((a) => a.tool && a.equip)) d = { ...d, hp: d.hp + 10 };
   // Low Pressure System: 10 more HP for a Grass or Lightning Pokémon.
   if (pokemon.lowPressure) d = { ...d, hp: d.hp + 10 };
   // Rocket's Hideout: 20 more HP for a Pokémon with Dark in its name.

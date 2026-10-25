@@ -12,7 +12,7 @@
 // opponent's choice; Retro Energy asks whether to use it.
 import { isBasicEnergy, isPokemonCard, isTrainerCard, lookupCard, type Attack, type EnergyType } from '../cards.js';
 import type { InPlayPokemon, PlayerState, Target } from '../engine.js';
-import { pokemonAt, powerActive } from '../powers.js';
+import { pokemonAt, powerActive, pokemonPower } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { addLog, effectId, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { swapActive, targetsOf, type EnergyEffect, type TrainerEffect, type TrainerSituation } from '../trainers.js';
@@ -25,7 +25,7 @@ const isBasic = (cards: TrainerSituation['cards'], c: { defId: string }) => isBa
 const attack = (name: string, cost: EnergyType[], damage: number, damageText: string | null, text: string): Attack => ({ name, cost, damage, damageText, text });
 
 /** Synchronicity: any Technical Machine can be attached to this Pokémon (while the Poké-Body works). */
-const synchronized = (s: TrainerSituation, p: InPlayPokemon) => !!powerEffect(effectId(p))?.synchronicity && powerActive(p, s.cards, [s.me, s.opp]);
+const synchronized = (s: TrainerSituation, p: InPlayPokemon) => !!pokemonPower(p)?.synchronicity && powerActive(p, s.cards, [s.me, s.opp]);
 
 /** A Technical Machine attached to one of the player's Pokémon `fits` allows (or one with Synchronicity), with its attack (in ecard3.ts, by this card's id). */
 const machine = (what: string, fits: (s: TrainerSituation, p: InPlayPokemon) => boolean, technicalMachine: Attack): TrainerEffect => {
