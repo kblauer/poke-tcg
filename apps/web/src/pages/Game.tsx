@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Board, type LastMove, type PlayedMove } from '../components/Board';
 import { PLAYED_CARD_MS } from '../components/PlayedCard';
 import { TOOL_POP_MS, toolPopsAfter, ToolPopsContext, type ToolPop } from '../components/ToolPops';
-import { TURN_BANNER_MS } from '../components/TurnBanner';
+import { TURN_BANNER_MS, useTurnBannerUp } from '../components/TurnBanner';
 import { CoinFlip, flipsAfter, useTestFlips, type Flip } from '../components/CoinFlip';
 import { useGameLogInNav } from '../components/NavLog';
 import { RunStats } from '../components/run/RunStats';
@@ -21,8 +21,6 @@ import { PAGE_WIDTH } from '../utils/layout';
 
 /** How long each move of a reply stays on screen before the next one (a CPU move showing its card: PLAYED_CARD_MS; one that began a turn: TURN_BANNER_MS). */
 const MOVE_MS = 900;
-/** A move that began a turn: nothing is played until its banner has faded out (it mounts a render after the move shows). */
-const BANNER_DONE_MS = TURN_BANNER_MS + 150;
 
 /** A move still to be shown: the view after it, and whether it began a new turn (the TurnBanner then plays before the next move). */
 /** `flipsFrom`: the log entry its coin flips come after, when the frames before it were skipped (the battle's last move). */
@@ -140,20 +138,23 @@ export function GamePage() {
     const timer = setTimeout(() => setFlips(fresh), PLAYED_CARD_MS);
     return () => clearTimeout(timer);
   }, [next]);
+  /** The move on screen has had its time; the next follows once no turn banner is up (useTurnBannerUp). */
+  const [due, setDue] = useState(false);
+  const bannerUp = useTurnBannerUp();
   useEffect(() => {
     if (!revealed) return;
     const last = replay.length === 1;
-    const timer = setTimeout(
-      () => {
-        setRevealed(false);
-        setReplay((r) => r.slice(1));
-        if (last) setShownView(null);
-      },
-      // The last move hands the board back at once, unless it began a turn: the player's cards wait for its banner too.
-      next?.newTurn && next.view.phase !== 'finished' ? BANNER_DONE_MS : last ? 0 : toolsShown.current ? TOOL_POP_MS : next?.highlight?.defId && !cardShown.current ? PLAYED_CARD_MS : MOVE_MS,
-    );
+    const timer = setTimeout(() => setDue(true), last ? 0 : toolsShown.current ? TOOL_POP_MS : next?.newTurn ? TURN_BANNER_MS : next?.highlight?.defId && !cardShown.current ? PLAYED_CARD_MS : MOVE_MS);
     return () => clearTimeout(timer);
   }, [revealed]);
+  // Nothing is played while a turn banner is up, the CPU's next move included, until it has faded out (the user's).
+  useEffect(() => {
+    if (!due || bannerUp) return;
+    setDue(false);
+    setRevealed(false);
+    setReplay((r) => r.slice(1));
+    if (replay.length === 1) setShownView(null);
+  }, [due, bannerUp]);
 
   // The log as it's played back, in the site menu's Battle log tab on a big screen (and the view for its Debug tab).
   const logView = shownView ?? data?.view;
@@ -164,7 +165,8 @@ export function GamePage() {
   if (!data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
 
   const view = data.view;
-  const replaying = next !== undefined;
+  // The player's cards wait for a turn banner too, their own turn's included.
+  const replaying = next !== undefined || bannerUp;
   // One move at a time: a second click would be built on a stale version and rejected. Nothing can be done while
   // the reply plays back, coin flips included.
   const send = (action: GameAction) => {
