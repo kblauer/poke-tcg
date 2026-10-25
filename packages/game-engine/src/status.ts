@@ -42,7 +42,8 @@ export function flipCoin(state: GameState, reason: string, player: PlayerId | nu
   const lucky = player === null ? undefined : state.rules?.find((rule) => rule.kind === 'luckyFlips' && rule.player === player && rule.flips > 0);
   if (lucky?.kind === 'luckyFlips') lucky.flips -= 1;
   // Hidden Power: every coin the player flips is tails for a turn.
-  const tails = player !== null && (state.players[player]?.tailsUntil ?? 0) >= state.turn;
+  // Unlucky Wind: the opponent's working Active Shiftry makes the player's coins during their own turn tails.
+  const tails = player !== null && ((state.players[player]?.tailsUntil ?? 0) >= state.turn || (state.unluckyWind === player && state.currentPlayer === player && !state.checkingUp));
   const heads = !tails && (!!lucky || r < 0.5);
   addLog(state, `${reason}: ${heads ? 'heads' : 'tails'}.`, player, { reason, heads });
   return heads;

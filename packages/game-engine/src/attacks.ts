@@ -25,7 +25,7 @@ import {
   type PokemonEffects,
   type Target,
 } from './engine.js';
-import { conditionBarred, conditionFree, discardsLocked, hasReact, holonWith, reactCount, energyKept, enervatingPollen, powerActive, prehistoricMemory, scaredBy, type Sides, pokemonPower } from './powers.js';
+import { stickyHold, conditionBarred, conditionFree, discardsLocked, hasReact, holonWith, reactCount, energyKept, enervatingPollen, powerActive, prehistoricMemory, scaredBy, type Sides, pokemonPower } from './powers.js';
 import { shuffle } from './rng.js';
 import { addLog, baseUid, clearOnLeavingActive, hasSpecialCondition, effectId, evolvedFromName, isDelta, energyProtected, flipCoin, inPlayDef, lakeTrio, pokemonName, previousLevel, revealFaceDown, sameCards, shapeshiftCard } from './status.js';
 import { isPokemonSP, type PendingChoice, type PendingChoiceInput } from './trainers.js';
@@ -1299,6 +1299,16 @@ function createContext(
       damage = Math.max(0, damage - powder);
       log(`${def(state.cards, p).power!.name} reduced the damage to ${pokemonName(state, p)} by ${powder}.`, owner.id);
     }
+    // Sand Armor: a set amount less with Energy of a type attached. Frost Wind: 10 less to the Pokémon of the player whose Active Glaceon has it.
+    const sandArmor = passive(p)?.damageReductionWith;
+    if (damage > 0 && sandArmor && energyPool(p, state.cards).some((e) => counts(e, sandArmor.type))) {
+      damage = noted(def(state.cards, p).power!.name, damage, Math.max(0, damage - sandArmor.amount));
+      log(`${def(state.cards, p).power!.name} reduced the damage to ${pokemonName(state, p)} by ${sandArmor.amount}.`, owner.id);
+    }
+    if (damage > 0 && owner !== me && owner.active && passive(owner.active)?.frostWind) {
+      damage = noted('Frost Wind', damage, Math.max(0, damage - 10));
+      log(`Frost Wind reduced the damage to ${pokemonName(state, p)} by 10.`, owner.id);
+    }
     // Rock Body, Exoskeleton: a set amount less.
     const reduction = passive(p)?.damageReduction;
     if (damage > 0 && reduction) {
@@ -1594,7 +1604,7 @@ function createContext(
     // Water Pokémon, while the Rayquaza δ has a Holon Energy card attached.
     const ancientProtected = [opp.active, ...opp.bench].some((q) => q && passive(q)?.ancientProtection?.some((n) => namesMatch(defenderDef.name, n)));
     const hydroBarred = hasType(defenderDef, 'water') && [opp.active, ...opp.bench].some((q) => q && passive(q)?.hydroBarrier && q.energy.some((e) => !e.provides && !e.windless && lookupCard(state.cards, e.defId).name.startsWith('Holon Energy')));
-    const weaknessOff = (stadium === 'Cinnabar City Gym' && hasType(attackerDef, 'water') && defenderDef.name.includes('Blaine')) || attachedCount(state.cards, defender, 'Weakness Guard') > 0 || tomb || veiled || conditioned || !!passive(defender)?.noWeakness || ([opp.active, ...opp.bench].some((q) => q && passive(q)?.moonlightVeil) && evolvedFromName(state.cards, defender, 'Eevee')) || ['Protective Orb', 'Bubble Coat'].includes(toolOf(state.cards, defender)?.name ?? '') || (hasType(defenderDef, 'psychic') && [opp.active, ...opp.bench].some((q) => q && passive(q)?.psychicAura)) || holonWith(defender, state.cards, 'FF', 'fire') || ancientProtected || hydroBarred || active(defender.effects?.weaknessOffUntil, turn) || (stadium === "Glacia's Stadium" && hasType(defenderDef, 'water') && !defenderDef.ex) || (stadium === 'Holon Legacy' && isDelta(state.cards, defender));
+    const weaknessOff = (stadium === 'Cinnabar City Gym' && hasType(attackerDef, 'water') && defenderDef.name.includes('Blaine')) || attachedCount(state.cards, defender, 'Weakness Guard') > 0 || tomb || veiled || conditioned || !!passive(defender)?.noWeakness || ([opp.active, ...opp.bench].some((q) => q && passive(q)?.moonlightVeil) && evolvedFromName(state.cards, defender, 'Eevee')) || ['Protective Orb', 'Bubble Coat'].includes(toolOf(state.cards, defender)?.name ?? '') || (hasType(defenderDef, 'psychic') && [opp.active, ...opp.bench].some((q) => q && passive(q)?.psychicAura)) || holonWith(defender, state.cards, 'FF', 'fire') || ancientProtected || hydroBarred || active(defender.effects?.weaknessOffUntil, turn) || (stadium === "Glacia's Stadium" && hasType(defenderDef, 'water') && !defenderDef.ex) || (stadium === 'Holon Legacy' && isDelta(state.cards, defender)) || (stadium === 'Sunyshore City Gym' && hasType(defenderDef, 'lightning'));
     // Charm: the attacker's damage is less, before Weakness and Resistance.
     const before = amount;
     amount = noted('Charm', amount, charmed(amount));
@@ -1654,7 +1664,7 @@ function createContext(
     // Sunny Day: 10 more for Grass and Fire Pokémon. Green Dignity: 10 more for each Grass Pokémon on the Bench while behind on Prize cards. No Guard: 60 more.
     const sunny = (hasType(attackerDef, 'grass') || hasType(attackerDef, 'fire')) && team.some((q) => q && passive(q)?.sunnyDay) ? 10 : 0;
     const dignity = passive(attacker)?.greenDignity && me.prizes.length > opp.prizes.length ? 10 * me.bench.filter((q) => q && hasType(def(state.cards, q), 'grass')).length : 0;
-    const noGuard = (passive(attacker)?.noGuard ? 60 : 0) + (passive(attacker)?.revengeSeed && me.grassKnockedOutTurn === turn - 1 ? 60 : 0) + (attacker.effects?.cheerfulVoice === turn ? 60 : 0);
+    const noGuard = (passive(attacker)?.noGuard ? 60 : 0) + (passive(attacker)?.revengeSeed && me.grassKnockedOutTurn === turn - 1 ? 60 : 0) + (attacker.effects?.cheerfulVoice === turn ? 60 : 0) + (passive(attacker)?.overgrow && inPlayDef(state.cards, attacker).hp - attacker.damage <= 60 ? 30 : 0);
     const buck = me.supporterTurn === turn && me.supporterUid && me.discard.concat(me.hand).some((c) => c.uid === me.supporterUid && lookupCard(state.cards, c.defId).name === "Buck's Training") ? 10 : 0;
     const boost = (low && attackerDef.hp - attacker.damage <= low.hpLeft ? low.more : 0) + aura + pivot + (passive(attacker)?.attackMore ?? 0) + rage + reversal + conditional + reactor + laser + allies + dna + scale + fury + rivalry + revenge + enthused + buck + sunny + dignity + noGuard;
     if (amount > 0 && boost) {
@@ -1694,6 +1704,8 @@ function createContext(
       amount = noted(attackerDef.power!.name, amount, amount + zeal);
       log(`${attackerDef.power!.name}: ${zeal} more damage.`);
     }
+    // Sunyshore City Gym: no Resistance for Lightning Pokémon's attacks.
+    if (stadium === 'Sunyshore City Gym' && hasType(attackerDef, 'lightning')) resistance = false;
     // Magnetic Storm: no Resistance for Psychic and Fighting Pokémon's attacks.
     if (stadium === 'Magnetic Storm' && (hasType(attackerDef, 'psychic') || hasType(attackerDef, 'fighting'))) resistance = false;
     // EX Deoxys's Strength Charm: 10 more before Weakness and Resistance (Expedition's adds it after); discarded at the end
@@ -1707,7 +1719,7 @@ function createContext(
     }
     amount = noted(opp.active ? (def(state.cards, opp.active).power?.name ?? 'Less damage') : 'Less damage', amount, intimidated(amount, opp));
     // Enervating Pollen: Resistance takes off at most 10.
-    const rules = { resistance, weakness: !weaknessOff, resistanceLess: stadium === 'Resistance Gym' ? 20 : 0, resistanceCap: enervatingPollen(sides, state.cards) ? 10 : undefined, weaknessIgnore: opp.bench.some((q) => q && passive(q)?.darkHole) ? ('darkness' as const) : undefined, doubleWeakness: stadium === 'Lake Boundary' };
+    const rules = { resistance, weakness: !weaknessOff, resistanceLess: stadium === 'Resistance Gym' ? 20 : 0, resistanceCap: enervatingPollen(sides, state.cards) ? 10 : undefined, weaknessIgnore: opp.bench.some((q) => q && passive(q)?.darkHole) ? ('darkness' as const) : undefined, doubleWeakness: stadium === 'Lake Boundary' || sides.some((side) => [side.active, ...side.bench].some((q) => q && passive(q)?.boundaryAura)) };
     // Brick Smash (`keepWeakness`): nothing on the Defending Pokémon but its Weakness changes the damage.
     let damage = amount;
     if (weakness && (!swift || keepWeakness)) {
@@ -1811,6 +1823,11 @@ function createContext(
         damage = noted('No Guard', damage, damage + 60);
         log(`No Guard: 60 more damage to ${defenderDef.name}.`, opp.id);
       }
+      // Crunch: 40 more to a Pokémon it marked, after Weakness and Resistance.
+      if (damage > 0 && active(effects?.crunch, turn)) {
+        damage = noted('Crunch', damage, damage + 40);
+        log(`Crunch: 40 more damage to ${defenderDef.name}.`, opp.id);
+      }
       // Lie Low and Barrier Attack: a set amount less, after Weakness and Resistance.
       const reduced = effects?.reduceDamage;
       if (damage > 0 && reduced && active(reduced.until, turn) && (!reduced.evolvedOnly || attacker.evolvedFrom.length > 0)) {
@@ -1888,6 +1905,11 @@ function createContext(
     knockedOutEffects(defender, opp);
     if (effects) delete effects.shadowImages;
     passive(defender)?.onAttackDamage?.(ctx, defender);
+    // Territoriality: the defending player's working Nidoking puts 2 damage counters on the attacker (2 however many).
+    if (damage > 0 && me.active === attacker && [opp.active, ...opp.bench].some((q) => q && passive(q)?.territoriality)) {
+      attacker.damage += 20;
+      log(`Territoriality put 2 damage counters on ${pokemonName(state, attacker)}.`, opp.id);
+    }
     // Flee (asked before the attack): it switches out once the attack is over, and nothing else the attack does affects it.
     if (flee !== undefined && !fled && opp.bench[flee] && passive(defender)?.flee && defender.damage < defenderDef.hp) {
       fled = defender;
@@ -2111,6 +2133,7 @@ function createContext(
       me.bench[slot] = attacker;
       me.active = benched;
       log(`${pokemonName(state, attacker)} switched with ${pokemonName(state, benched)}.`);
+      stickyHold(state, me, slot);
     },
     returnDefender() {
       if (untouchable()) return;

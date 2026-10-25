@@ -1,7 +1,7 @@
 // Pokémon Powers: legality, the questions a power asks, and the context power effects run with.
 // Card-specific behaviour lives in effects/ (POWERS), next to the attack effects.
 import type { AttackContext } from './attacks.js';
-import { hasType, holonEnergy, lookupCard, namesMatch, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
+import { hasType, holonEnergy, isBasicEnergy, lookupCard, namesMatch, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { powerEffect, trainerEffect } from './effects/index.js';
 import { counts, energyPool, type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
 import { addLog, clearSpecialConditions, effectId, evolvedFromName, flipCoin, hasSpecialCondition, isDelta, lakeTrio, pokemonName, inPlayDef, sameCards, specialConditionLabel } from './status.js';
@@ -653,6 +653,32 @@ export interface PowerEffect {
   armorStone?: boolean;
   /** Thankfulness: its player's Grass Pokémon but Shaymin get 40 more HP, one however many (refreshHideout). */
   thankfulness?: boolean;
+  /** Rainbow Float: its player's Pokémon of a type of a basic Energy card on it retreat for free (retreatBodies). */
+  rainbowFloat?: boolean;
+  /** Boundary Aura: every Weakness, both players', is ×2 (attacks.ts). */
+  boundaryAura?: boolean;
+  /** Unlucky Wind: as the Active Pokémon, the opponent's coins during their turn are tails (refreshHideout, flipCoin). */
+  unluckyWind?: boolean;
+  /** Sticky Hold: switched or retreated to the Bench, its Energy cards may move to the new Active Pokémon (stickyHold). */
+  stickyHold?: boolean;
+  /** Territoriality: its player's Active Pokémon damaged by the opponent's attack, 2 damage counters on the attacker (attacks.ts). */
+  territoriality?: boolean;
+  /** Sand Armor: with Energy of the type attached, attack damage to it is this much less (attacks.ts). */
+  damageReductionWith?: { amount: number; type: EnergyType };
+  /** Energy Refresh: as the Active Pokémon, an Energy card attached from the hand takes 2 damage counters off its Pokémon (energyFromHand). */
+  energyRefresh?: boolean;
+  /** Colorful Body: it's every type (refreshHideout). */
+  colorfulBody?: boolean;
+  /** Bad Sleeping Habits: while it's Asleep, the opponent's Active Pokémon can't retreat (guardedBy). */
+  badSleep?: boolean;
+  /** Overgrow: with 60 HP or less left, its attacks do 30 more to the Defending Pokémon (attacks.ts). */
+  overgrow?: boolean;
+  /** Camouflage Gas: Knocked Out while Confused, no Prize card for the opponent. */
+  camouflageGas?: boolean;
+  /** Water Rescue: its player's Water Pokémon (not Floatzel GL) Knocked Out by the opponent's attack may go back into the hand (resolveKnockouts). */
+  waterRescue?: boolean;
+  /** Frost Wind: as the Active Pokémon, 10 less attack damage to its player's Pokémon (attacks.ts). */
+  frostWind?: boolean;
 }
 
 /** Wise Aura, Overpowering Fang and Intimidating Ring: an Active Pokémon's aura stopping `pokemon`'s power, or null. */
@@ -826,8 +852,8 @@ export function powerActive(pokemon: InPlayPokemon, cards: CardLibrary, sides: S
   if (effect?.evolvedOnly && !pokemon.evolvedFrom.length) return false;
   // Space Center (Poké-Bodies) and Battle Frontier (both) switch off the powers of the Pokémon they name (refreshHideout).
   if (pokemon.stadiumMuted === 'all' || (pokemon.stadiumMuted === 'bodies' && effect?.body) || (pokemon.stadiumMuted === 'powers' && !effect?.body)) return false;
-  // Imprison: a Pokémon with an Imprison marker can't use Poké-Powers or Poké-Bodies.
-  if (pokemon.imprisoned) return false;
+  // Imprison: a Pokémon with an Imprison marker can't use Poké-Powers or Poké-Bodies. Seal Off: for a turn.
+  if (pokemon.imprisoned || pokemon.effects?.sealed !== undefined) return false;
   // Ancient Wind: every Poké-Body is ignored until the end of the turn.
   if (effect?.body && sides.some((s) => s.bodiesOffTurn !== undefined)) return false;
   // Scare: a Baby Pokémon's power doesn't work while the opponent's Active Dark Feraligatr's Scare does.
@@ -947,7 +973,7 @@ export function playedFromHand(state: GameState, owner: PlayerState, pokemon: In
 /** The power keeping the Active Pokémon of `sides[0]` from retreating (the opponent's Guard), or null. `sides`: owner first. */
 export function guardedBy(sides: Sides, cards: CardLibrary): string | null {
   const opposing = sides[1]?.active;
-  return opposing && pokemonPower(opposing)?.guard && powerActive(opposing, cards, sides) ? powerOf(opposing, cards)!.name : null;
+  return opposing && (pokemonPower(opposing)?.guard || (pokemonPower(opposing)?.badSleep && opposing.condition === 'asleep')) && powerActive(opposing, cards, sides) ? powerOf(opposing, cards)!.name : null;
 }
 
 /** A working power of this kind on any Pokémon in play, either player's. */
@@ -1031,7 +1057,9 @@ export function retreatBodies(pokemon: InPlayPokemon, cards: CardLibrary, sides:
   const magnetized = owner.active === pokemon && energyPool(pokemon, cards).some((e) => counts(e, 'metal')) && [owner.active, ...owner.bench].some((p) => !!p && !!pokemonPower(p)?.magnetize && powerActive(p, cards, sides));
   // Moonlight Veil: free for its player's Pokémon that evolve from Eevee.
   const moonlit = [owner.active, ...owner.bench].some((p) => !!p && !!pokemonPower(p)?.moonlightVeil && powerActive(p, cards, sides)) && evolvedFromName(cards, pokemon, 'Eevee');
-  if (bonded || lifted || reactive || magnetized || moonlit) return -99;
+  // Rainbow Float: free for its player's Pokémon of a type of a basic Energy card on a working Flygon.
+  const floating = [owner.active, ...owner.bench].some((p) => !!p && !!pokemonPower(p)?.rainbowFloat && powerActive(p, cards, sides) && p.energy.some((e) => !e.provides && isBasicEnergy(lookupCard(cards, e.defId)) && hasType(d, (lookupCard(cards, e.defId) as { energyType: EnergyType }).energyType)));
+  if (bonded || lifted || reactive || magnetized || moonlit || floating) return -99;
   // Unown Q's QUICK: attached as a Pokémon Tool, 1 less.
   const quick = (pokemon.attached ?? []).some((a) => a.equip && lookupCard(cards, a.card.defId).name === 'Unown Q') ? 1 : 0;
   // Sticky: 1 more for each working Ariados in play, either player's, for any Pokémon but one with its name.
@@ -1144,6 +1172,12 @@ export function energyFromHand(state: GameState, owner: PlayerState, target: Tar
   const pokemon = pokemonAt(owner, target);
   const sides = state.playerOrder.map((id) => state.players[id]!);
   if (pokemon && powerActive(pokemon, state.cards, sides)) pokemonPower(pokemon)?.onEnergyFromHand?.(state, owner, pokemon, target, energy);
+  // Energy Refresh: its player's working Active Leafeon takes 2 damage counters off the Pokémon the Energy card went to.
+  if (pokemon?.damage && owner.active && pokemonPower(owner.active)?.energyRefresh && powerActive(owner.active, state.cards, sides)) {
+    const healed = Math.min(20, pokemon.damage);
+    pokemon.damage -= healed;
+    addLog(state, `Energy Refresh removed ${healed / 10} damage counter${healed === 10 ? '' : 's'} from ${pokemonName(state, pokemon)}.`, owner.id);
+  }
   // Pokémon Park: the first time each turn a player attaches an Energy card from the hand to a Benched Pokémon, 1 damage counter off it.
   if (pokemon && target !== 'active' && state.stadium && lookupCard(state.cards, state.stadium.card.defId).name === 'Pokémon Park' && owner.parkTurn !== state.turn) {
     owner.parkTurn = state.turn;
@@ -1210,6 +1244,7 @@ export function powerError(s: PowerSituation): string | null {
   // Space Center, Battle Frontier.
   if (source.stadiumMuted === 'all' || (source.stadiumMuted === 'powers' && (!effect.body || effect.usePoke))) return `${def.name} can't use Poké-Powers now`;
   if (source.imprisoned) return `Imprison: ${def.name} can't use Poké-Powers`;
+  if (source.effects?.sealed !== undefined) return `Seal Off: ${def.name} can't use Poké-Powers this turn`;
   // Shield Beam: none of the player's Pokémon can use Poké-Powers during their turn after it.
   if ((s.me.powerTurns?.['Shield Beam'] ?? -1) >= s.turn && (!effect.body || effect.usePoke)) return "Shield Beam: you can't use Poké-Powers this turn";
   if ((s.me.powerTurns?.['Psychic Lock'] ?? -1) >= s.turn && (!effect.body || effect.usePoke)) return "Psychic Lock: you can't use Poké-Powers this turn";
@@ -1297,6 +1332,19 @@ export const situationCounts = (me: Pick<PlayerState, 'deck' | 'prizes' | 'faceU
 /** The player's working Pokémon with Power Cancel not yet used this turn (Alakazam), if any. */
 export const powerCanceller = (state: GameState, player: PlayerState, other: PlayerState) =>
   [player.active, ...player.bench].find((p) => !!p && !!pokemonPower(p)?.powerCancel && p.powerUsedTurn !== state.turn && powerActive(p, state.cards, [player, other])) ?? null;
+
+/**
+ * Sticky Hold: `side`'s Pokémon now on the Bench in `slot`, switched or retreated there, may move its Energy cards to the new
+ * Active Pokémon, asked once whatever is under way is done.
+ */
+export function stickyHold(state: GameState, side: PlayerState, slot: number) {
+  const p = side.bench[slot];
+  const sides = state.playerOrder.map((id) => state.players[id]!);
+  if (!p || !side.active || !p.energy.some((e) => !e.provides) || !pokemonPower(p)?.stickyHold || !powerActive(p, state.cards, sides)) return;
+  const choice: PendingChoice = { player: side.id, source: 'Sticky Hold', kind: 'shiftEnergy', from: slot, to: 'active', any: true };
+  if (state.pendingChoice) (state.queuedChoices ??= []).push(choice);
+  else state.pendingChoice = choice;
+}
 
 /** The player holds Power Spray and has 3 or more Pokémon SP in play, so may play it during the opponent's turn. */
 const powerSprayer = (state: GameState, player: PlayerState) =>

@@ -7,7 +7,7 @@ import { conditionProof, hasType, isBasicEnergy, isBasicPokemon, isPokemonCard, 
 import { powerEffect, trainerEffect } from './effects/index.js';
 import { activeLocked, afflictBetweenTurns, conditionLabel, discardTheirEnergy, isEnergyCardOf, isSpecialEnergy, retireStadium, discardTool, evolvesOnto, newInPlay, opponentOf, toolOf, type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
 import { nextRandom, shuffle } from './rng.js';
-import { conditionFree, discardsLocked, offerChainReaction, powerActive, primalLocked, supportersVeiled, trainerProof, trainersBlocked, trainersDusted, pokemonPower, type PowerChoices } from './powers.js';
+import { conditionFree, stickyHold, discardsLocked, offerChainReaction, powerActive, primalLocked, supportersVeiled, trainerProof, trainersBlocked, trainersDusted, pokemonPower, type PowerChoices } from './powers.js';
 import { addLog, baseUid, benchRoom, clearOnLeavingActive, clearSpecialConditions, devolvable, effectId, evolvedHook, flipCoin, inPlayDef, isDelta, isDeltaCard, openBenchSlot, removeTopEvolution, sameCards, shapeshiftCard } from './status.js';
 
 /** Answers to a Trainer's questions. Each question names the field it fills. */
@@ -144,7 +144,8 @@ export type PendingChoice = {
         | 'notLevelUp'
         | 'basicSP'
         | 'invention'
-        | 'stadiumOrInvention';
+        | 'stadiumOrInvention'
+        | 'pokemonSP';
       /** 'basicMaxHp': the most HP the Basic Pokémon may have (Holon Mentor). */
       maxHp?: number;
       /** 'typesNotEx': a Pokémon (not a Pokémon-ex) of any of these types (Cry for Help). */
@@ -164,6 +165,14 @@ export type PendingChoice = {
       useSupporter?: boolean;
       /** With `toBench`: each Pokémon put onto the Bench may then take a basic Energy card from the deck (Lifting). */
       liftEnergy?: boolean;
+      /** With `toBench`: this many damage counters on each Pokémon put onto the Bench (Calling Wave). */
+      benchCounters?: number;
+      /** With `toBench`: then a Pokémon Tool from the deck may be attached to it (Pokémon Contest Hall). */
+      thenTool?: boolean;
+      /** A Pokémon Tool found is attached to this Pokémon of the player's (Pokémon Contest Hall). */
+      toolTo?: Target;
+      /** The card found takes the place of this Pokémon's top card, which goes into the deck (Charon's Choice). */
+      swapOnto?: Target;
       /** The card goes onto the Bench instead of into the hand (Call for Family). */
       toBench?: boolean;
       /** With `toBench`: the new Benched Pokémon is treated as a Basic Pokémon (Influence, Holon Fossil). */
@@ -510,7 +519,7 @@ export type PendingChoice = {
        * Only Basic Pokémon cards, or only Evolution cards (Super Rod); or Trainer cards instead (Old Rod), basic Energy cards
        * (Energy Stadium), any card (Searchlight), or a Pokémon or basic Energy card (Fishing Tail).
        */
-      filter?: 'basic' | 'evolution' | 'trainer' | 'basicEnergy' | 'any' | 'pokemonOrBasicEnergy' | 'stadium' | 'energy' | 'waterEnergy' | 'supporter' | 'holonSupporter' | 'tool' | 'fossil' | 'waterPokemon' | 'levelUp' | 'lightningEnergy' | 'lightningOrMetal' | 'trainerAny';
+      filter?: 'basic' | 'evolution' | 'trainer' | 'basicEnergy' | 'any' | 'pokemonOrBasicEnergy' | 'stadium' | 'energy' | 'waterEnergy' | 'supporter' | 'holonSupporter' | 'tool' | 'fossil' | 'waterPokemon' | 'levelUp' | 'lightningEnergy' | 'lightningOrMetal' | 'trainerAny' | 'spOrBasicEnergy';
       /** The card taken is shown to the opponent (Fishing Tail): the log names it. */
       reveal?: boolean;
       /** The card that started it, still being played: not an option (Old Rod). */
@@ -778,7 +787,7 @@ export type PendingChoice = {
   | {
       /** A "may" as a card is played (Energy Recharge, Flame Vapor, Streaming Mantle, Retro Energy): yes (count 0) or no (count 1). */
       kind: 'mayUse';
-      power: 'energyRecharge' | 'flameVapor' | 'streamingMantle' | 'retroEnergy' | 'belt' | 'healingShower' | 'legendaryAscent' | 'froth' | 'dragonBoost' | 'lightningBurst' | 'evoFlame' | 'evoThunder' | 'evoSwirl' | 'excavate' | 'crushChance' | 'crimsonRay' | 'yellowRay' | 'blueRay' | 'earthFissure' | 'sharpEye' | 'freezeUp' | 'evolutionaryVitality' | 'evolutionaryToxic' | 'flameDash' | 'aquaRecovery' | 'sereneGrace' | 'freezingScreech' | 'darknessShade' | 'flameCharge' | 'sheetLightning' | 'primalSwirl' | 'dragonPulse' | 'modeCrash' | 'curseBreath' | 'timeWalk' | 'setUp' | 'psychicBind' | 'unownBang' | 'junk' | 'castOffShell' | 'shootPoison' | 'ironShell' | 'emperorAura' | 'blazeDance' | 'sunshineSong' | 'evolutionaryGas' | 'healingBreath' | 'reverseTime' | 'letLoose' | 'flashBite';
+      power: 'energyRecharge' | 'flameVapor' | 'streamingMantle' | 'retroEnergy' | 'belt' | 'healingShower' | 'legendaryAscent' | 'froth' | 'dragonBoost' | 'lightningBurst' | 'evoFlame' | 'evoThunder' | 'evoSwirl' | 'excavate' | 'crushChance' | 'crimsonRay' | 'yellowRay' | 'blueRay' | 'earthFissure' | 'sharpEye' | 'freezeUp' | 'evolutionaryVitality' | 'evolutionaryToxic' | 'flameDash' | 'aquaRecovery' | 'sereneGrace' | 'freezingScreech' | 'darknessShade' | 'flameCharge' | 'sheetLightning' | 'primalSwirl' | 'dragonPulse' | 'modeCrash' | 'curseBreath' | 'timeWalk' | 'setUp' | 'psychicBind' | 'unownBang' | 'junk' | 'castOffShell' | 'shootPoison' | 'ironShell' | 'emperorAura' | 'blazeDance' | 'sunshineSong' | 'evolutionaryGas' | 'healingBreath' | 'reverseTime' | 'letLoose' | 'flashBite' | 'brightLook';
       /** The Pokémon it's about. */
       target: Target;
     }
@@ -874,6 +883,8 @@ export type PendingChoice = {
       upTo?: boolean;
       /** A damage counter on this Pokémon of the player's for each card discarded (Temper Tantrum). */
       countersOn?: Target;
+      /** A damage counter off this Pokémon of the player's for each card discarded (Exercise). */
+      healOn?: Target;
       /** Only these: Pokémon Tool and Technical Machine cards (Toss), or Pokémon Tool and Rocket's Secret Machine cards (Litter). */
       only?: 'toolOrMachine' | 'toolOrSecret' | 'pokemon';
     }
@@ -951,6 +962,11 @@ export type PendingChoice = {
   | {
       /** Looker's Investigation: whose hand is shuffled into their deck, then up to 5 drawn. */
       kind: 'looker';
+    }
+  | {
+      /** Water Rescue: a Knocked Out Water Pokémon and its cards (`uids`) may go from the discard pile into the hand. */
+      kind: 'waterRescue';
+      uids: string[];
     }
   | {
       /** Time Walk: a Pokémon among the face-down Prize cards (all shown) into the hand; if one was taken (`taken`), a card from the hand as a face-down Prize card. */
@@ -1101,6 +1117,8 @@ export interface TrainerEffect {
   retreatModifier?: (pokemon: PokemonCardDef) => number;
   /** Team Galactic's Invention G-103 Power Spray: played during the opponent's turn as they use a Poké-Power (usePower). */
   powerSpray?: boolean;
+  /** A Supporter that goes back into the hand at the end of the turn instead of the discard pile (Charon's Choice; endTurn). */
+  returnsToHand?: boolean;
   /** A Pokémon Tool's ability its player may use on their turn (Energy Link: USE_TOOL). */
   useTool?: { blocked?: (state: GameState, me: PlayerState, pokemon: InPlayPokemon) => string | null; run: (state: GameState, me: PlayerState, target: Target) => void };
   /** Why the Trainer can't be played now. */
@@ -1471,6 +1489,7 @@ const discardToHandFits = (cards: CardLibrary, c: CardInstance, filter?: Extract
   if (filter === 'holonSupporter') return !!trainerEffect(c.defId)?.supporter && d.name.includes('Holon');
   if (filter === 'tool') return d.kind === 'trainer' && !!trainerEffect(c.defId)?.tool;
   if (filter === 'pokemonOrBasicEnergy') return isPokemonCard(d) || isBasicEnergy(d);
+  if (filter === 'spOrBasicEnergy') return (isPokemonCard(d) && isPokemonSP(d.name)) || isBasicEnergy(d);
   if (filter === 'fossil') return fossilCard(cards, c);
   if (filter === 'waterPokemon') return isPokemonCard(d) && d.kind === 'pokemon' && hasType(d, 'water');
   if (filter === 'levelUp') return isPokemonCard(d) && d.stage === 'levelUp';
@@ -1499,6 +1518,7 @@ export function swapActive(state: GameState, side: PlayerState, slot: number) {
   side.bench[slot] = side.active;
   side.active = benched;
   addLog(state, `${lookupCard(state.cards, benched.card.defId).name} was switched in.`, side.id);
+  stickyHold(state, side, slot);
 }
 
 /** Mind Games: how many of `owner`'s Pokémon have it working, each a flip for a Trainer `player` plays. */
@@ -1650,7 +1670,7 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
   const player = state.players[choice.player]!;
   if (choice.kind === 'discardToHand') {
     const more = choice.count > 1 ? ` (up to ${choice.count})` : '';
-    const what = { trainerAny: 'a Trainer, Supporter or Stadium card', lightningOrMetal: 'a Lightning or Metal Energy card', lightningEnergy: 'a Lightning Energy card', levelUp: 'a Pokémon LV.X', waterPokemon: 'a Water Pokémon', fossil: 'a Fossil card', basic: 'a Basic Pokémon card', evolution: 'an Evolution card', trainer: 'a Trainer card', basicEnergy: 'a basic Energy card', any: 'a card', pokemonOrBasicEnergy: 'a Pokémon or basic Energy card', stadium: 'a Stadium card', energy: 'an Energy card', waterEnergy: 'a Water Energy card', supporter: 'a Supporter card', holonSupporter: 'a Supporter card with Holon in its name', tool: 'a Pokémon Tool card' }[choice.filter ?? 'basic'];
+    const what = { trainerAny: 'a Trainer, Supporter or Stadium card', lightningOrMetal: 'a Lightning or Metal Energy card', lightningEnergy: 'a Lightning Energy card', levelUp: 'a Pokémon LV.X', waterPokemon: 'a Water Pokémon', fossil: 'a Fossil card', basic: 'a Basic Pokémon card', evolution: 'an Evolution card', trainer: 'a Trainer card', basicEnergy: 'a basic Energy card', any: 'a card', pokemonOrBasicEnergy: 'a Pokémon or basic Energy card', stadium: 'a Stadium card', energy: 'an Energy card', waterEnergy: 'a Water Energy card', supporter: 'a Supporter card', holonSupporter: 'a Supporter card with Holon in its name', tool: 'a Pokémon Tool card', spOrBasicEnergy: 'a Pokémon SP or basic Energy card' }[choice.filter ?? 'basic'];
     const pokemon = choice.filter === undefined ? 'a Basic Pokémon or Evolution card' : what;
     return { kind: 'pickFromDiscard', prompt: `${choice.source}: put ${pokemon} from your discard pile into your hand${more}`, options: player.discard.filter((c) => c.uid !== choice.excludeUid && discardToHandFits(state.cards, c, choice.filter)), optional: true };
   }
@@ -1929,6 +1949,8 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
         ? 'Helix Fossil, Dome Fossil or Old Amber'
       : choice.filter === 'basicSP'
         ? 'a Basic Pokémon SP'
+      : choice.filter === 'pokemonSP'
+        ? 'a Pokémon SP'
       : choice.filter === 'invention'
         ? "a Trainer card with Team Galactic's Invention in its name"
       : choice.filter === 'stadiumOrInvention'
@@ -2052,6 +2074,7 @@ const deckFilter = (cards: CardLibrary, choice: Extract<PendingChoice, { kind: '
   if (choice.filter === 'fossilCard') return FOSSIL_NAMES.includes(d.name);
   if (choice.filter === 'notLevelUp') return isPokemonCard(d) && d.stage !== 'levelUp';
   if (choice.filter === 'basicSP') return isBasicPokemon(d) && isPokemonSP(d.name);
+  if (choice.filter === 'pokemonSP') return isPokemonCard(d) && isPokemonSP(d.name);
   if (choice.filter === 'invention') return isTrainerCard(d) && isInvention(d.name);
   if (choice.filter === 'stadiumOrInvention') return d.kind === 'trainer' && (!!trainerEffect(c.defId)?.stadium || isInvention(d.name));
   if (choice.filter === 'basicTypes') return isBasicPokemon(d) && (choice.types ?? []).some((t) => hasType(d, t));
@@ -2137,7 +2160,7 @@ function drawUpTo(state: GameState, me: PlayerState, size: number, source: strin
 const CONDITION_OF: Record<string, 'asleep' | 'burned' | 'poisoned' | 'confused' | 'paralyzed'> = { Asleep: 'asleep', Burned: 'burned', Poisoned: 'poisoned', Confused: 'confused', Paralyzed: 'paralyzed' };
 const CONDITION_LABEL = { asleep: 'Asleep', burned: 'Burned', poisoned: 'Poisoned', confused: 'Confused', paralyzed: 'Paralyzed' } as const;
 
-const SKYRIDGE_KINDS = ['mayUse', 'attachFromDiscard', 'discardToBench', 'moveAttached', 'oracle', 'bottomPick', 'evolveFromHand', 'mysteryZone', 'placeCounters', 'discardFromHand', 'supernatural', 'energyGrounding', 'castform', 'shiftEnergy', 'vineTease', 'removeCondition', 'chooseCondition', 'nod', 'timeWalk', 'energyLink', 'marley', 'rammingStrike', 'lostCyclone', 'looker', 'oppBenchPick', 'blissful', 'deltaSwitch', 'handToBench', 'ownCounters', 'pealTarget', 'cursedEyes', 'skillHack'] as const;
+const SKYRIDGE_KINDS = ['mayUse', 'attachFromDiscard', 'discardToBench', 'moveAttached', 'oracle', 'bottomPick', 'evolveFromHand', 'mysteryZone', 'placeCounters', 'discardFromHand', 'supernatural', 'energyGrounding', 'castform', 'shiftEnergy', 'vineTease', 'removeCondition', 'chooseCondition', 'nod', 'timeWalk', 'energyLink', 'marley', 'rammingStrike', 'lostCyclone', 'looker', 'waterRescue', 'oppBenchPick', 'blissful', 'deltaSwitch', 'handToBench', 'ownCounters', 'pealTarget', 'cursedEyes', 'skillHack'] as const;
 
 /** A pending choice Skyridge's cards add (skyridgeView, resolveSkyridge). */
 type SkyridgeChoice = Extract<PendingChoice, { kind: (typeof SKYRIDGE_KINDS)[number] }>;
@@ -2320,6 +2343,7 @@ function skyridgeView(state: GameState, choice: SkyridgeChoice): PendingChoiceVi
         reverseTime: 'put up to 3 Pokémon (not Pokémon LV.X) and basic Energy cards from your discard pile on top of your deck?',
         letLoose: 'have each player shuffle their hand into their deck and draw up to 4 cards (you first)?',
         flashBite: "put a damage counter on one of your opponent's Pokémon?",
+        brightLook: "switch your opponent's Defending Pokémon with one of their Benched Pokémon?",
         aquaRecovery: 'put up to 3 Water Pokémon from your discard pile into your hand?',
         sereneGrace: 'look at the top 10 cards of your deck and attach any basic Energy cards there to your Pokémon?',
         freezingScreech: "flip a coin? If heads, your opponent's Active Pokémon is Paralyzed",
@@ -2442,6 +2466,8 @@ function skyridgeView(state: GameState, choice: SkyridgeChoice): PendingChoiceVi
       const options = player.bench.flatMap((q, i) => (q && !choice.kept.includes(i) ? [i] : []));
       return { kind: 'ownPokemon', purpose: 'return', prompt: `${choice.source}: choose a Benched Pokémon to keep (${choice.kept.length} of 3 kept; the others go to the Lost Zone)`, options };
     }
+    case 'waterRescue':
+      return { kind: 'options', prompt: `${choice.source}: put the Knocked Out Pokémon and its cards from your discard pile into your hand?`, labels: ['Yes', 'No'] };
     case 'looker':
       return { kind: 'options', prompt: `${choice.source}: who shuffles their hand into their deck and draws up to 5 cards?`, labels: ['You', 'Your opponent'] };
     case 'timeWalk': {
@@ -2591,6 +2617,7 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
         if (opp.deck.length) (state.queuedChoices ??= []).push({ player: opp.id, source: choice.source, kind: 'drawCount', max: 4 });
         return me.deck.length ? again({ player: me.id, source: choice.source, kind: 'drawCount', max: 4 }) : null;
       }
+      if (choice.power === 'brightLook') return opp.bench.some(Boolean) ? again({ player: me.id, source: choice.source, kind: 'oppBenchPick', purpose: 'gust' }) : null;
       if (choice.power === 'flashBite') return [opp.active, ...opp.bench].some(Boolean) ? again({ player: me.id, source: choice.source, kind: 'placeCounters', count: 1 }) : null;
       if (choice.power === 'healingBreath') {
         for (const q of [me.active, ...me.bench]) if (q && isPokemonSP(inPlayDef(state.cards, q).name)) q.damage = 0;
@@ -3083,6 +3110,15 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
       const next = choice.then ? state.players[choice.then] : undefined;
       return next ? again({ player: next.id, source: choice.source, kind: 'lostCyclone', kept: [] }) : null;
     }
+    case 'waterRescue': {
+      if (answer.count !== 0 && answer.count !== 1) return retry(choice, 'Yes or no');
+      if (answer.count === 1) return null;
+      const cards = me.discard.filter((c) => choice.uids.includes(c.uid));
+      me.discard = me.discard.filter((c) => !cards.includes(c));
+      me.hand.push(...cards);
+      addLog(state, `${choice.source}: ${cards.length} card${cards.length === 1 ? '' : 's'} went into the hand.`, me.id);
+      return null;
+    }
     case 'looker': {
       if (answer.count !== 0 && answer.count !== 1) return retry(choice, 'Choose a player');
       const side = answer.count === 0 ? me : opp;
@@ -3227,6 +3263,11 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
       if (countered) {
         countered.damage += 10;
         addLog(state, `${choice.source}: a damage counter on ${name(countered.card)}.`, me.id);
+      }
+      const healed = choice.healOn === undefined ? null : atTarget(me, choice.healOn);
+      if (healed?.damage) {
+        healed.damage -= 10;
+        addLog(state, `${choice.source}: a damage counter off ${name(healed.card)}.`, me.id);
       }
       if (choice.drawIfEnergy && lookupCard(state.cards, picked.defId).kind === 'energy') {
         const drawn = me.deck.splice(0, choice.drawIfEnergy);
@@ -4467,7 +4508,17 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
       me.deck = me.deck.filter((c) => c !== picked);
       // Archie: a Stage 2 Pokémon put onto the Bench gets `stage2Counters` damage counters.
       const stage2 = choice.stage2Counters && (lookupCard(state.cards, picked.defId) as PokemonCardDef).stage === 'stage2' ? 10 * choice.stage2Counters : 0;
-      if (choice.toBench) me.bench[benchSlot] = { card: picked, evolvedFrom: [], damage: stage2, energy: [], playedTurn: state.turn, ...(choice.asBasic && { asBasic: true }) };
+      if (choice.toBench) me.bench[benchSlot] = { card: picked, evolvedFrom: [], damage: stage2 + 10 * (choice.benchCounters ?? 0), energy: [], playedTurn: state.turn, ...(choice.asBasic && { asBasic: true }) };
+      else if (choice.toolTo !== undefined && atTarget(me, choice.toolTo) && !atTarget(me, choice.toolTo)!.attached?.some((a) => a.tool)) (atTarget(me, choice.toolTo)!.attached ??= []).push({ card: picked, until: Number.MAX_SAFE_INTEGER, tool: true });
+      else if (choice.swapOnto !== undefined && atTarget(me, choice.swapOnto)) {
+        // Charon's Choice: the new Rotom takes the old one's place, its cards and damage counters, with no Special Conditions or effects.
+        const p = atTarget(me, choice.swapOnto)!;
+        me.deck.push(p.card);
+        p.card = picked;
+        clearOnLeavingActive(p);
+        clearSpecialConditions(p);
+        delete p.effects;
+      }
       else if (choice.attachToActive && me.active) me.active.energy.push(picked);
       else if (choice.attachTo !== undefined && atTarget(me, choice.attachTo)) atTarget(me, choice.attachTo)!.energy.push(picked);
       else if (choice.toDiscard) me.discard.push(picked);
@@ -4498,6 +4549,8 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
         : 'Found nothing in the deck.',
       me.id,
     );
+    // Pokémon Contest Hall: a Pokémon Tool from the deck for the Pokémon just benched.
+    if (picked && choice.toBench && choice.thenTool && me.deck.some((c) => trainerEffect(c.defId)?.tool)) (state.queuedChoices ??= []).push({ player: me.id, source: choice.source, kind: 'pickFromDeck', filter: 'tool', toolTo: benchSlot, optional: true });
     // Lifting: a basic Energy card from the deck for the Pokémon just benched, once the search is done.
     if (picked && choice.toBench && choice.liftEnergy) (state.queuedChoices ??= []).push({ player: me.id, source: choice.source, kind: 'pickFromDeck', filter: 'basicEnergy', attachTo: benchSlot, optional: true, ...(choice.afterAttack && { afterAttack: true }) });
     // Impersonate: the Supporter discarded, its effect is used.
