@@ -9,7 +9,7 @@ import type { Mon, MoveData, Stats } from './types.js';
 
 /** Move effects that deal damage without a fixed power (power 1 in the data): their energy cost is set here instead. */
 const VARIABLE_DAMAGE_COST: Record<string, number> = {
-  ohko: 6, level_damage: 3, dragon_rage: 2, sonicboom: 1, super_fang: 3, flail: 3, low_kick: 3, magnitude: 3, counter: 3,
+  ohko: 6, level_damage: 3, dragon_rage: 3, sonicboom: 2, super_fang: 3, flail: 3, low_kick: 3, magnitude: 3, counter: 3,
   mirror_coat: 3, endeavor: 3, psywave: 3, present: 2, return: 4, frustration: 4, hidden_power: 3, spit_up: 4, bide: 3,
   beat_up: 3,
 };
