@@ -1,5 +1,7 @@
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { FLAIR_PRICE, flairFor, holoPattern, ownPattern, type FlairSlot } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { useFlairList } from '../hooks/useFlair';
 import { useUnlocked } from '../hooks/useUnlocked';
 import { useTRPC } from '../lib/trpc';
@@ -10,7 +12,8 @@ const SLOTS: Record<FlairSlot, { title: string; noun: string }> = { pattern: { t
 
 /**
  * The card view's card flair in one slot, for a card that can be given any (flairFor): a holo's patterns, a low-rarity
- * card's gold border. Default (the card's own look) and each option is a chip; clicking one previews it on the card
+ * card's borders. A box that expands from its heading (the slot and what's in use; closed by default, and closing it
+ * drops its preview) to Default (the card's own look) and each option as a chip; clicking one previews it on the card
  * above (`preview`: its key, null for Default, undefined for none: the one in use). Then Use switches to one the account
  * has for this card, for nothing, and Buy buys one it hasn't for the slot's Stardust (FLAIR_PRICE) and switches to it.
  * Only an unlocked card buys flair.
@@ -30,6 +33,8 @@ export function FlairPicker({
 }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  /** Expanded to its options; closed (the default) it's only its heading and what's in use. */
+  const [open, setOpen] = useState(false);
   const flair = useFlairList();
   const stardust = useQuery(trpc.packs.stardust.queryOptions());
   const { isLocked } = useUnlocked();
@@ -72,37 +77,51 @@ export function FlairPicker({
       {label}
     </button>
   );
+  const defaultLabel = slot === 'pattern' ? `Default (${holoPattern(ownPattern(card))!.label})` : 'Default';
+  const toggle = () => {
+    // Closing it drops its preview: the card shows the flair in use again.
+    if (open) onPreview(undefined);
+    setOpen(!open);
+  };
   return (
-    <div data-keep-open className="flex w-full flex-col gap-2 rounded-lg bg-slate-800 p-3 text-sm ring-1 ring-slate-600">
-      <div className="flex items-baseline justify-between gap-2">
+    <div data-keep-open className="flex w-full flex-col rounded-lg bg-slate-800 text-sm ring-1 ring-slate-600">
+      <button className="flex items-center gap-2 rounded-lg px-3 py-2 text-left transition hover:bg-slate-700/60" aria-expanded={open} onClick={toggle}>
         <span className="font-semibold">{title}</span>
-        <span className="text-xs text-slate-400">
-          Stardust <span className="font-semibold text-sky-200">{stardust.data ?? '…'}</span>
-        </span>
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        {chip(null, slot === 'pattern' ? `Default (${holoPattern(ownPattern(card))!.label})` : 'Default')}
-        {options.map((o) => chip(o.key, o.label))}
-      </div>
-      <div className="flex items-center justify-end gap-2">
-        {shown === inUse ? (
-          <span className="text-xs text-slate-400">In use</span>
-        ) : has ? (
-          <button className="rounded bg-slate-600 px-3 py-1 font-semibold transition hover:bg-slate-500 active:scale-95 disabled:opacity-40" disabled={pending} onClick={() => equip.mutate({ cardId: card.id, slot, key: shown })}>
-            {equip.isPending ? 'Switching…' : `Use this ${noun}`}
-          </button>
-        ) : (
-          <button
-            className="rounded bg-sky-700 px-3 py-1 font-semibold transition hover:bg-sky-600 active:scale-95 disabled:opacity-40 disabled:hover:bg-sky-700"
-            disabled={blocked !== null || pending}
-            title={blocked ?? `Buy this ${noun} for ${card.name} for ${price} Stardust`}
-            onClick={() => buy.mutate({ cardId: card.id, slot, key: shown! })}
-          >
-            {buy.isPending ? 'Buying…' : `Buy for ${price}`}
-          </button>
-        )}
-      </div>
-      {(error ?? blocked) && <p className="text-xs text-amber-300">{error ?? blocked}.</p>}
+        <span className="min-w-0 flex-1 truncate text-xs text-slate-400">{inUse === null ? defaultLabel : (options.find((o) => o.key === inUse)?.label ?? inUse)}</span>
+        <ExpandMoreIcon sx={{ fontSize: 20 }} className={`text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="flex flex-col gap-2 px-3 pb-3">
+          <div className="flex justify-end text-xs text-slate-400">
+            <span>
+              Stardust <span className="font-semibold text-sky-200">{stardust.data ?? '…'}</span>
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {chip(null, defaultLabel)}
+            {options.map((o) => chip(o.key, o.label))}
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            {shown === inUse ? (
+              <span className="text-xs text-slate-400">In use</span>
+            ) : has ? (
+              <button className="rounded bg-slate-600 px-3 py-1 font-semibold transition hover:bg-slate-500 active:scale-95 disabled:opacity-40" disabled={pending} onClick={() => equip.mutate({ cardId: card.id, slot, key: shown })}>
+                {equip.isPending ? 'Switching…' : `Use this ${noun}`}
+              </button>
+            ) : (
+              <button
+                className="rounded bg-sky-700 px-3 py-1 font-semibold transition hover:bg-sky-600 active:scale-95 disabled:opacity-40 disabled:hover:bg-sky-700"
+                disabled={blocked !== null || pending}
+                title={blocked ?? `Buy this ${noun} for ${card.name} for ${price} Stardust`}
+                onClick={() => buy.mutate({ cardId: card.id, slot, key: shown! })}
+              >
+                {buy.isPending ? 'Buying…' : `Buy for ${price}`}
+              </button>
+            )}
+          </div>
+          {(error ?? blocked) && <p className="text-xs text-amber-300">{error ?? blocked}.</p>}
+        </div>
+      )}
     </div>
   );
 }

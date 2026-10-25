@@ -87,7 +87,7 @@ export function CardInspector({
           card={card}
           locked={locked}
           pattern={preview.pattern === undefined ? undefined : (holoPattern(preview.pattern) ?? null)}
-          goldBorder={preview.border === undefined ? undefined : preview.border !== null}
+          border={preview.border}
         />
         {unlocked !== undefined && (
           <p className="text-sm text-slate-300">

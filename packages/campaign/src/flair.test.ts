@@ -32,7 +32,7 @@ describe('holo patterns', () => {
   });
 });
 
-describe('gold borders', () => {
+describe('borders', () => {
   it('only low-rarity cards: never a holo of any kind or basic Energy', () => {
     expect(canHaveBorder(plain)).toBe(true);
     expect(canHaveBorder(holo)).toBe(false);
@@ -44,7 +44,7 @@ describe('gold borders', () => {
 
   it('a card gets patterns or a border, never both', () => {
     for (const card of [plain, holo, galaxy, galaxyArt]) expect(flairFor(card, 'pattern').length > 0 && flairFor(card, 'border').length > 0).toBe(false);
-    expect(flairFor(plain, 'border').map((b) => b.key)).toEqual(['gold']);
+    expect(flairFor(plain, 'border').map((b) => b.key)).toEqual(['gold', 'rainbow', 'pastel']);
     expect(flairFor(holo, 'pattern')).toEqual(patternsFor(holo));
   });
 });

@@ -467,17 +467,17 @@ export function PackOpening({
 
 /**
  * One card face up, flipping in, with the card viewer's tilt toward the pointer and its holo effect (HoloCard):
- * holos shine as they do in the deck builder's card view, in the pattern chosen for them (card flair), and a card given a gold border shows it. Rares and holos have a glow behind them. `leaving`: it flies off the stack.
+ * holos shine as they do in the deck builder's card view, in the pattern chosen for them (card flair), and a card given a border shows it. Rares and holos have a glow behind them. `leaving`: it flies off the stack.
  */
 function RevealedCard({ card, leaving }: { card: PackCard; leaving: boolean }) {
   const pattern = usePattern(card.cardId);
-  const goldBorder = useFlair(card.cardId, 'border') !== null;
+  const border = useFlair(card.cardId, 'border');
   const glow = isFoilSlot(card.slot) ? 'bg-fuchsia-400/60' : card.slot === 'rare' ? 'bg-amber-300/50' : null;
   return (
     <div className={`relative w-full ${leaving ? 'card-fly-out' : 'card-flip-in'}`}>
       {glow && <div className={`pointer-events-none absolute -inset-6 rounded-[2rem] blur-2xl ${glow}`} />}
       {card.imageUrl ? (
-        <HoloCard img={`${card.imageUrl}/high.webp`} name={card.name} attrs={holoAttributes({ id: card.cardId, ...card }, pattern)} goldBorder={goldBorder} />
+        <HoloCard img={`${card.imageUrl}/high.webp`} name={card.name} attrs={holoAttributes({ id: card.cardId, ...card }, pattern)} border={border} />
       ) : (
         <div className="flex aspect-[63/88] w-full items-center justify-center rounded-xl bg-slate-700 p-4 text-lg font-semibold">{card.name}</div>
       )}

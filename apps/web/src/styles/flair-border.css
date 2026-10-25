@@ -1,0 +1,185 @@
+/*
+
+  CARD FLAIR: BORDERS (as in Pokémon TCG Pocket)
+
+  Two layers over the card (FlairBorder), measured on 600×825 TCGdex scans as the holo shapes in holo/wotc.css are:
+
+  1. The ring: the border's look laid over the card's printed (yellow) border, between the card's edge and its frame,
+     clipped with an evenodd polygon. Drawn here, not with images, so it scales with the card.
+     - Classic layout (Base–Neo, Legendary Collection): outside x 22–577, y 25–802 (the galaxy foil's outline in wotc.css).
+     - EX layout: outside x 17–580, y 18–772 (the Pokémon-ex foil's outline in wotc.css; its bottom border is deeper).
+     - e-Card layout: not measured yet; it takes the classic ring. To be checked by eye.
+     Its looks (data-border): gold, brushed metal (soft vertical bands of light and shade under fine horizontal brush
+     lines, from the user's reference); rainbow, the hue running round the card (a conic gradient from its centre) under
+     ridges parallel to each edge (PTCGP's rainbow border, from the user's reference); pastel, the same in soft colours.
+
+  2. The frame (classic and Neo Pokémon cards): the art frame, the banner under the art and Neo's stage tab recoloured
+     to go with the ring, gold for gold and silver for the rainbows. A copy of the card's image, clipped to generous
+     shapes around them, through an SVG filter (#flair-border-gold or -silver, FlairBorder) which maps only the yellow
+     pixels onto the ramp by their lightness: the bevels stay, and the print on them (the banner's text, the stage
+     badge's picture, the 1st Edition stamp) and the background around them stay as printed.
+     - Classic: the frame's yellow is x 54–547, y 88–435 around the art window x 65–536, y 98–425 (Base Set Poliwag and
+       Wartortle); the banner x 78–524, y 443–467.
+     - Neo: the frame x 54–544, y 88–435 around x 66–533, y 98–410 (its bottom band is deeper); the stage tab top right,
+       x 398–547, y 68–88; the banner a parallelogram within x 91–505, y 447–469 (Neo Genesis Sentret and Magmar).
+     Each shape is an evenodd subpath from 0 0 and back (the connecting lines, drawn twice, enclose nothing); shapes
+     never overlap, or the overlap would be a hole.
+
+*/
+
+div.flair-border {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.flair-border > .flair-border__ring {
+  --left: 3.7%;
+  --top: 3%;
+  --right: 3.8%;
+  --bottom: 2.8%;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  clip-path: polygon(
+    evenodd,
+    0 0,
+    100% 0,
+    100% 100%,
+    0 100%,
+    0 0,
+    var(--left) var(--top),
+    calc(100% - var(--right)) var(--top),
+    calc(100% - var(--right)) calc(100% - var(--bottom)),
+    var(--left) calc(100% - var(--bottom)),
+    var(--left) var(--top)
+  );
+}
+
+.flair-border[data-era="ex"] > .flair-border__ring {
+  --left: 2.8%;
+  --top: 2.2%;
+  --right: 3.3%;
+  --bottom: 6.4%;
+}
+
+/* Gold: brushed metal. Fine light and dark brush lines across, over vertical bands of light and shade. */
+.flair-border[data-border="gold"] > .flair-border__ring {
+  background:
+    repeating-linear-gradient(0deg, rgb(255 250 225 / 0.16) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(0deg, rgb(110 70 0 / 0.1) 0 1px, transparent 1px 5px),
+    repeating-linear-gradient(0deg, rgb(255 255 255 / 0.08) 0 2px, transparent 2px 11px),
+    linear-gradient(90deg, #b07d16 0%, #cf9d2a 7%, #ecc659 16%, #fbe39a 25%, #fff6d2 31%, #f6d777 38%, #d5a536 47%, #e4b94d 55%, #f8e3a1 63%, #fdf0c4 67%, #e8c35d 75%, #d2a136 85%, #e9c766 93%, #b8861d 100%);
+}
+
+/*
+  The rainbows: ridges along each edge, parallel to it (three light and dark lines across the ring on each side, sized
+  to the side's width so they scale with the card), over the hue running round the card.
+*/
+.flair-border[data-border="rainbow"] > .flair-border__ring,
+.flair-border[data-border="pastel"] > .flair-border__ring {
+  --ridges-light: rgb(255 255 255 / 0.55);
+  --ridges-dark: rgb(20 10 60 / 0.2);
+  background:
+    repeating-linear-gradient(90deg, var(--ridges-light) 0 7%, transparent 7% 19%, var(--ridges-dark) 19% 25%, transparent 25% 33.4%) left / var(--left) 100% no-repeat,
+    repeating-linear-gradient(270deg, var(--ridges-light) 0 7%, transparent 7% 19%, var(--ridges-dark) 19% 25%, transparent 25% 33.4%) right / var(--right) 100% no-repeat,
+    repeating-linear-gradient(180deg, var(--ridges-light) 0 7%, transparent 7% 19%, var(--ridges-dark) 19% 25%, transparent 25% 33.4%) top / 100% var(--top) no-repeat,
+    repeating-linear-gradient(0deg, var(--ridges-light) 0 7%, transparent 7% 19%, var(--ridges-dark) 19% 25%, transparent 25% 33.4%) bottom / 100% var(--bottom) no-repeat,
+    var(--rainbow);
+}
+
+/* PTCGP's order round the card: magenta and blue along the top, then violet and red down the right, green and yellow up the left. */
+.flair-border[data-border="rainbow"] > .flair-border__ring {
+  --rainbow: conic-gradient(from 0deg at 50% 50%, #3a7bff, #7a4dff, #c44dff, #ff3b8d, #ff4a3b, #ff9a1f, #ffe02e, #8ee83a, #2fd16b, #22c9e8, #2f9bff, #d14dff 330deg, #3a7bff);
+}
+
+/* The same round the card, softer: each colour mixed well towards white. */
+.flair-border[data-border="pastel"] > .flair-border__ring {
+  --ridges-light: rgb(255 255 255 / 0.6);
+  --ridges-dark: rgb(60 50 90 / 0.12);
+  --rainbow: conic-gradient(from 0deg at 50% 50%, #a9c3ff, #bfaeff, #ddb2ff, #ffb3cf, #ffb8b0, #ffd3a3, #fff1a8, #d3f5a8, #b3ecc6, #ace8f4, #accfff, #e6b5ff 330deg, #a9c3ff);
+}
+
+/* A band of light sweeping across the ring now and then. */
+.flair-border > .flair-border__ring::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 38%, rgb(255 255 235 / 0.85) 50%, transparent 62%) no-repeat;
+  background-size: 300% 100%;
+  mix-blend-mode: screen;
+  animation: flair-border-sheen 5s ease-in-out infinite;
+}
+
+@keyframes flair-border-sheen {
+  0%,
+  35% {
+    background-position: 100% 0;
+  }
+  75%,
+  100% {
+    background-position: 0% 0;
+  }
+}
+
+/* The frame copy: the card's image again, exactly over it, recoloured by the filter and clipped to the frame's shapes. */
+.flair-border > .flair-border__frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: none;
+}
+
+.flair-border > .flair-border__frame[data-ramp="gold"] {
+  filter: url(#flair-border-gold);
+}
+
+.flair-border > .flair-border__frame[data-ramp="silver"] {
+  filter: url(#flair-border-silver);
+}
+
+.flair-border > .flair-border__frame[data-frame="classic"] {
+  clip-path: polygon(
+    evenodd,
+    0 0,
+    8.67% 10.42%, 91.5% 10.42%, 91.5% 52.97%, 8.67% 52.97%, 8.67% 10.42%,
+    0 0,
+    11% 12%, 89.17% 12%, 89.17% 51.39%, 11% 51.39%, 11% 12%,
+    0 0,
+    12.33% 53.33%, 87.83% 53.33%, 87.83% 56.97%, 12.33% 56.97%, 12.33% 53.33%,
+    0 0
+  );
+}
+
+.flair-border > .flair-border__frame[data-frame="neo"] {
+  clip-path: polygon(
+    evenodd,
+    0 0,
+    8.67% 10.42%, 91.17% 10.42%, 91.17% 52.97%, 8.67% 52.97%, 8.67% 10.42%,
+    0 0,
+    11.17% 12%, 88.67% 12%, 88.67% 49.7%, 11.17% 49.7%, 11.17% 12%,
+    0 0,
+    65.83% 7.76%, 91.5% 7.76%, 91.5% 10.3%, 65.83% 10.3%, 65.83% 7.76%,
+    0 0,
+    14.33% 53.82%, 85% 53.82%, 85% 57.21%, 14.33% 57.21%, 14.33% 53.82%,
+    0 0
+  );
+}
+
+/* The filter's own element takes no room (the holo card's layer rules size everything in it). */
+.flair-border > .flair-border__defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flair-border > .flair-border__ring::after {
+    animation: none;
+    opacity: 0;
+  }
+}

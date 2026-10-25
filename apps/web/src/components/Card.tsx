@@ -36,7 +36,7 @@ import { useFlair, usePattern } from '../hooks/useFlair';
 import { useTouchHold } from '../hooks/useTouchHold';
 import { holoAttributes } from '../utils/holo';
 import { EnergyIcon } from './EnergyIcon';
-import { GoldBorder } from './GoldBorder';
+import { FlairBorder } from './FlairBorder';
 import { HoloCard, type HoloMotion } from './HoloCard';
 import { CatalogContext, InspectContext, useInspectOnRightClick } from './InspectContext';
 import { PreviewContext } from './PreviewContext';
@@ -65,7 +65,7 @@ function AttachedIcon({ def, holder, size }: { def: CardDef; holder: CardDef; si
 /**
  * Card art from TCGdex (aspect ratio 63:88), with damage, attached energy and attached cards overlaid when in play. Right-clicking it
  * (or a long press, on a touch screen) opens it in the CardInspector. `shine`: a holo card gets its holo effect, still (the Active Pokémon);
- * `holoRef` moves its tilt and shine (the slot's animations). `mine`: the player's own card, shown with the flair they chose for it (its holo pattern or gold border).
+ * `holoRef` moves its tilt and shine (the slot's animations). `mine`: the player's own card, shown with the flair they chose for it (its holo pattern or border).
  */
 export function Card({
   def,
@@ -105,7 +105,7 @@ export function Card({
   const entry = shine ? catalog?.get(def.id) : undefined;
   const holo = entry && (entry.holo || entry.galaxy) ? entry : null;
   const pattern = usePattern(def.id, mine);
-  const goldBorder = useFlair(def.id, 'border', mine) !== null;
+  const border = useFlair(def.id, 'border', mine);
   const size = small ? SMALL_CARD : LARGE_CARD;
   return (
     <div
@@ -124,7 +124,7 @@ export function Card({
       ) : (
         <div className={`${typeColor(def)} h-full w-full p-2 text-xs font-semibold`}>{def.name}</div>
       )}
-      {goldBorder && def.imageUrl && <GoldBorder cardId={def.id} img={`${def.imageUrl}/${highRes ? 'high' : 'low'}.webp`} pokemon={def.kind === 'pokemon'} />}
+      {border && def.imageUrl && <FlairBorder border={border} cardId={def.id} img={`${def.imageUrl}/${highRes ? 'high' : 'low'}.webp`} pokemon={def.kind === 'pokemon'} />}
       {inPlay && def.kind === 'pokemon' && inPlay.damage > 0 && (
         <span className="absolute right-1 top-1 rounded-full bg-red-600 px-1.5 text-xs font-bold text-white shadow">
           {def.hp - inPlay.damage}/{def.hp}

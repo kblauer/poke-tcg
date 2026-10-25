@@ -10,7 +10,7 @@ import { cardTitle, type CatalogCard } from '../utils/cardList';
 import { gridHeight, gridWindow, type GridLayout } from '../utils/gridWindow';
 import { CardViewer } from './CardViewer';
 import { CardImage } from './CardImage';
-import { GoldBorder } from './GoldBorder';
+import { FlairBorder } from './FlairBorder';
 
 /** The least space between rows, as Tailwind spacing (gap-y-14): enough to read each card's name, a Trainer's too (it sits under the TRAINER banner). */
 const MIN_GAP = 'calc(var(--spacing) * 14)';
@@ -97,8 +97,8 @@ const GridCell = memo(function GridCell({
   clicked: () => boolean;
   inspectOn: (card: CatalogCard) => object;
 }) {
-  // Card flair: a gold border the player gave the card (an unlocked one only).
-  const goldBorder = useFlair(c.id, 'border', !locked) !== null;
+  // Card flair: a border the player gave the card (an unlocked one only).
+  const border = useFlair(c.id, 'border', !locked);
   return (
     // Zero-height cell: the card hangs down from it and later rows paint over it.
     <div className="group relative h-0">
@@ -113,7 +113,7 @@ const GridCell = memo(function GridCell({
         ) : (
           <div className="h-full w-full bg-slate-800 p-1 text-xs">{c.name}</div>
         )}
-        {goldBorder && c.imageUrl && <GoldBorder cardId={c.id} img={`${c.imageUrl}/low.webp`} pokemon={c.kind === 'POKEMON'} />}
+        {border && c.imageUrl && <FlairBorder border={border} cardId={c.id} img={`${c.imageUrl}/low.webp`} pokemon={c.kind === 'POKEMON'} />}
         {c.limitedCopies && !locked && (
           // How many were pulled: the most a deck holds.
           <span className="absolute inset-x-1 bottom-1 truncate rounded bg-fuchsia-600/90 px-1 text-center text-[10px] font-bold text-white shadow" title={`${copies} pulled: a deck holds no more`}>
