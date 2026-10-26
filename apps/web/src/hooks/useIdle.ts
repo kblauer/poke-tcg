@@ -213,10 +213,12 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
 
     async function walk(e: Extract<SegmentEvent, { t: 'walk' }>, place: Place) {
       const track = placeTrack(place);
-      for (let i = e.from + 1; i <= e.to; i++) {
+      // Forward along the track, or back along it (a route grind pacing back and forth: the user's).
+      const dir = e.to >= e.from ? 1 : -1;
+      for (let i = e.from + dir; dir > 0 ? i <= e.to : i >= e.to; i += dir) {
         const [m, x, y, flags] = track[i]!;
-        const [pm, px, py] = track[i - 1]!;
-        if (flags & 1 || m !== pm) {
+        const [pm, px, py] = track[i - dir]!;
+        if ((dir > 0 && flags & 1) || m !== pm) {
           // As long as the server counts it: the step and the fade.
           update({ fading: true });
           await wait((STEP_MS + FADE_MS) / 2);
@@ -224,7 +226,7 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
           await wait((STEP_MS + FADE_MS) / 2);
           continue;
         }
-        const jump = (flags & 2) !== 0;
+        const jump = dir > 0 && (flags & 2) !== 0;
         const ms = STEP_MS * (jump ? 2 : 1);
         setPlay((old) => ({
           ...old,
@@ -309,7 +311,8 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
       for (const [i, e] of events.entries()) {
         if (e.t === 'area' || e.t === 'grind') {
           const next = e.t === 'grind' ? grindPlace(e.town, e.at) : { area: e.area, leg: e.leg, step: e.step };
-          const changed = shown.area !== next.area || shown.leg !== next.leg || shown.grind !== next.grind;
+          // A jump along the same track (a route grind going back, Continue route) fades too.
+          const changed = shown.area !== next.area || shown.leg !== next.leg || shown.grind !== next.grind || Math.abs(shown.step - next.step) > 1;
           place = next;
           shown = place;
           if (changed) {

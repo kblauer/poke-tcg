@@ -10,6 +10,8 @@ export const idleActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('VISIT_STORE') }),
   z.object({ type: z.literal('GRIND') }),
   z.object({ type: z.literal('STOP_GRIND') }),
+  z.object({ type: z.literal('ROUTE_GRIND') }),
+  z.object({ type: z.literal('CONTINUE_ROUTE') }),
   z.object({ type: z.literal('BUY'), item: z.string().min(1).max(40), count: z.number().int().min(1).max(99) }),
   z.object({ type: z.literal('SET_ORDER'), uids: z.array(uid).min(1).max(6) }),
   z.object({ type: z.literal('SET_SLOTS'), uid, slots: z.array(z.string().min(1).max(40)).max(3), auto: z.boolean().optional() }),

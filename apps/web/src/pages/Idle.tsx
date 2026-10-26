@@ -1,5 +1,5 @@
 import { idleMusic } from '@poke-tcg/campaign';
-import { AREAS, mapView, species, TICK_MS, type IdleAction, type WalkArea } from '@poke-tcg/idle';
+import { AREAS, mapView, routeGrindPlan, species, TICK_MS, type IdleAction, type WalkArea } from '@poke-tcg/idle';
 import { Navigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import type { Dialogue } from '../components/DialogueBox';
@@ -128,7 +128,7 @@ function IdleAdventure() {
     <div className={`${PAGE_WIDTH} space-y-4`}>
       <PageHeader
         title="Idle Adventure"
-        info={active && v ? `${v.areaName}${v.phase === 'grinding' ? ` (grinding to Lv. ${v.grindTarget})` : ''} · ${v.badges.length} badge${v.badges.length === 1 ? '' : 's'} · ₱${commas(v.money)}` : 'Walk Kanto from Pallet Town to the Indigo Plateau'}
+        info={active && v ? `${v.areaName}${v.phase === 'grinding' ? ` (grinding to Lv. ${v.grindTarget})` : v.loop ? ' (grinding)' : ''} · ${v.badges.length} badge${v.badges.length === 1 ? '' : 's'} · ₱${commas(v.money)}` : 'Walk Kanto from Pallet Town to the Indigo Plateau'}
         actions={
           active ? (
             <span className="flex items-center gap-2">
@@ -137,6 +137,10 @@ function IdleAdventure() {
                 <button className={BUTTON} disabled={actions.busy} onClick={() => void act({ type: 'STOP_GRIND' })}>
                   Stop grinding
                 </button>
+              )}
+              {/* On a route or in a dungeon, out of battle (the user's): grind there until Continue route. */}
+              {v?.phase === 'walking' && !play.battle && !play.entering && (AREAS[v.area]!.kind === 'route' || AREAS[v.area]!.kind === 'dungeon') && (
+                <RouteGrindButton view={v} busy={actions.busy} onAct={(a) => void act(a)} />
               )}
               {
             confirmQuit ? (
@@ -253,6 +257,31 @@ function TickMeter({ turn, tickAt }: { turn: number | null; tickAt: number }) {
       </div>
       <span className="shrink-0 tabular-nums">{TICK_MS / 1000} s</span>
     </div>
+  );
+}
+
+/**
+ * Start grinding / Continue route (the user's): with no wild Pokémon where the run is, the button names the route it
+ * will go back to (routeGrindPlan's), greyed out with the reason when it can't.
+ */
+function RouteGrindButton({ view, busy, onAct }: { view: ClientIdleRun['view']; busy: boolean; onAct: (a: IdleAction) => void }) {
+  if (view.loop)
+    return (
+      <button className={BUTTON} disabled={busy} onClick={() => onAct({ type: 'CONTINUE_ROUTE' })}>
+        Continue route
+      </button>
+    );
+  const plan = routeGrindPlan(view);
+  const away = !('error' in plan) && (plan.area !== view.area || (plan.kind === 'pace' && plan.leg !== view.leg));
+  return (
+    <button
+      className={BUTTON}
+      disabled={busy || 'error' in plan}
+      title={'error' in plan ? plan.error : away ? `No wild Pokémon here: goes back to ${AREAS[plan.area]!.name} to train` : undefined}
+      onClick={() => onAct({ type: 'ROUTE_GRIND' })}
+    >
+      {away ? `Start grinding in ${AREAS[plan.area]!.name}` : 'Start grinding'}
+    </button>
   );
 }
 

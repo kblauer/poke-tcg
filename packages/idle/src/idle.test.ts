@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AREAS, isTown, type WalkArea } from './areas.js';
-import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState } from './idle.js';
+import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, meetStep, routeGrindPlan, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState } from './idle.js';
 
 /** The settings with auto-grind off (it's on by default). */
 const MANUAL: IdleSettings = { ...DEFAULT_IDLE_SETTINGS, autoGrind: false };
@@ -175,6 +175,91 @@ describe('an idle run', () => {
     expect(manual.phase).toBe('town');
     // A white-out costs nothing (the user's).
     expect(manual.money).toBe(createIdleRun({ species: 129 }, 8).money);
+  });
+
+  describe('grinding on a route', () => {
+    /** A run on Route 3 with a party that wins every battle, walked until it has beaten `n` trainers there. */
+    const route3 = (n: number) => {
+      const area = AREAS.findIndex((a) => a.id === 'route-3');
+      const base = createIdleRun({ species: 6 }, 11);
+      let s: IdleState = { ...base, area, party: [{ ...base.party[0]!, level: 70, moves: ['flamethrower', 'slash', 'scratch'], slots: ['flamethrower', 'slash'] }] };
+      for (let i = 0; i < 500 && s.beaten.length < n; i++) s = simulateSegment(s, MANUAL, new Set())!.state;
+      return s;
+    };
+
+    it("fights its beaten trainers again in a loop, never past the last, until Continue route goes on from where it was", () => {
+      const start = route3(3);
+      const keys = [...start.beaten];
+      const r = applyIdleAction(start, { type: 'ROUTE_GRIND' });
+      expect(r.ok).toBe(true);
+      let s = (r as { state: IdleState }).state;
+      expect(s.loop).toMatchObject({ kind: 'trainers', keys, resume: { leg: start.leg, step: start.step } });
+      expect(s.beaten.filter((k) => keys.includes(k))).toEqual([]);
+      const area = AREAS[s.area] as WalkArea;
+      const last = Math.max(...keys.map((k) => meetStep(area, k)!.step));
+      const trainers = s.totals.trainers;
+      for (let i = 0; i < 200; i++) {
+        s = simulateSegment(s, MANUAL, new Set())!.state;
+        expect(s.step).toBeLessThanOrEqual(last);
+      }
+      // Several laps of its 3 trainers.
+      expect(s.totals.trainers - trainers).toBeGreaterThanOrEqual(6);
+      const on = applyIdleAction(s, { type: 'CONTINUE_ROUTE' });
+      expect(on.ok && on.state.loop).toBeUndefined();
+      expect(on.ok && [on.state.leg, on.state.step]).toEqual([start.leg, start.step]);
+      expect(on.ok && keys.every((k) => on.state.beaten.includes(k))).toBe(true);
+    });
+
+    it('paces over wild encounter tiles near where it is with no trainer beaten', () => {
+      let s = createIdleRun({ species: 4 }, 2);
+      s = { ...s, step: 20, party: [{ ...s.party[0]!, level: 60 }] };
+      const r = applyIdleAction(s, { type: 'ROUTE_GRIND' });
+      expect(r.ok).toBe(true);
+      let g = (r as { state: IdleState }).state;
+      const loop = g.loop as Extract<NonNullable<IdleState['loop']>, { kind: 'pace' }>;
+      expect(loop.kind).toBe('pace');
+      for (let i = 0; i < 30; i++) {
+        g = simulateSegment(g, MANUAL, new Set())!.state;
+        expect(g.step).toBeGreaterThanOrEqual(loop.from);
+        expect(g.step).toBeLessThanOrEqual(loop.to);
+      }
+      expect(g.totals.wild).toBeGreaterThan(s.totals.wild);
+      const on = applyIdleAction(g, { type: 'CONTINUE_ROUTE' });
+      expect(on.ok && on.state.step).toBe(20);
+    });
+
+    it('with no wild Pokémon where it is, goes back to the most recent stretch that has them, and Continue route returns', () => {
+      const wild = (leg: WalkArea['legs'][number]) => leg.track.some(([, , , , t]) => t[0] === 'l' || t[0] === 'w');
+      let checked = 0;
+      AREAS.forEach((a, i) => {
+        if (a.kind !== 'route' && a.kind !== 'dungeon') return;
+        (a as WalkArea).legs.forEach((leg, li) => {
+          if (wild(leg)) return;
+          checked++;
+          const plan = routeGrindPlan({ ...createIdleRun({ species: 4 }, 1), area: i, leg: li, step: leg.track.length - 1, beaten: [] });
+          expect('error' in plan, `${a.id} leg ${li}`).toBe(false);
+          const p = plan as Extract<typeof plan, { kind: 'pace' }>;
+          expect(p.kind).toBe('pace');
+          expect(p.area < i || (p.area === i && p.leg < li), `${a.id} leg ${li}`).toBe(true);
+          expect(wild((AREAS[p.area] as WalkArea).legs[p.leg]!)).toBe(true);
+        });
+      });
+      expect(checked).toBeGreaterThan(0);
+      // Route 23 past Victory Road (no wild Pokémon): back into Victory Road's caves, then back again on Continue route.
+      const vr = AREAS.findIndex((a) => a.id === 'victory-road');
+      const s: IdleState = { ...createIdleRun({ species: 4 }, 1), area: vr, leg: 1, step: 5, beaten: [] };
+      const g = applyIdleAction(s, { type: 'ROUTE_GRIND' });
+      expect(g.ok && [g.state.area, g.state.leg]).toEqual([vr, 0]);
+      const on = g.ok ? applyIdleAction(g.state, { type: 'CONTINUE_ROUTE' }) : g;
+      expect(on.ok && [on.state.area, on.state.leg, on.state.step]).toEqual([vr, 1, 5]);
+    });
+
+    it('only on a route or in a dungeon', () => {
+      const s = createIdleRun({ species: 4 }, 2);
+      expect(applyIdleAction({ ...s, area: AREAS.findIndex((a) => a.id === 'pewter-gym') }, { type: 'ROUTE_GRIND' }).ok).toBe(false);
+      expect(applyIdleAction({ ...s, area: AREAS.findIndex((a) => a.id === 'pewter-city'), phase: 'town' }, { type: 'ROUTE_GRIND' }).ok).toBe(false);
+      expect(applyIdleAction(s, { type: 'CONTINUE_ROUTE' }).ok).toBe(false);
+    });
   });
 
   it('has auto-grind on by default', () => {
