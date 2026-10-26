@@ -1,5 +1,5 @@
 import { idleMusic } from '@poke-tcg/campaign';
-import { AREAS, mapView, routeGrindPlan, species, TICK_MS, type IdleAction, type WalkArea } from '@poke-tcg/idle';
+import { AREAS, mapView, species, TICK_MS, type IdleAction, type WalkArea } from '@poke-tcg/idle';
 import { useState } from 'react';
 import type { Dialogue } from '../components/DialogueBox';
 import { useMusicCue, useMusicSettings } from '../components/MusicPlayer';
@@ -8,9 +8,11 @@ import { ReturnToPlay } from '../components/ReturnToPlay';
 import { Toasts } from '../components/Toasts';
 import { SceneTransition } from '../components/BattleTransition';
 import { AreaScene, usePreloadMaps } from '../components/idle/AreaScene';
+import { ModeToggle } from '../components/idle/ModeToggle';
 import { BattleScreen } from '../components/idle/BattleScreen';
 import { Bag, catchUpPages, IdleSettings } from '../components/idle/IdleSettings';
-import { MonIcon, PartyScreen } from '../components/idle/PartyScreen';
+import { PartyOverlay } from '../components/idle/PartyOverlay';
+import { MonIcon } from '../components/idle/MonIcon';
 import { Pokedex } from '../components/idle/Pokedex';
 import { StarterScene } from '../components/idle/StarterScene';
 import { Store, TownMenu } from '../components/idle/TownMenu';
@@ -23,9 +25,9 @@ import { PAGE_WIDTH } from '../utils/layout';
 import { commas } from '../utils/math';
 import { BUTTON } from '../utils/styles';
 
-type Tab = 'party' | 'bag' | 'dex' | 'settings' | 'log';
+// The party is an overlay over the game screen (PartyOverlay, the user's), not a tab.
+type Tab = 'bag' | 'dex' | 'settings' | 'log';
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'party', label: 'Party' },
   { id: 'bag', label: 'Bag' },
   { id: 'dex', label: 'Pokédex' },
   { id: 'settings', label: 'Settings' },
@@ -54,7 +56,9 @@ export function IdlePage() {
   const debugOn = useDebugEnabled();
   const debug = DEBUG_BUILD && debugOn;
   const soundtrack = useMusicSettings()?.soundtrack ?? 'remastered';
-  const [tab, setTab] = useState<Tab>('party');
+  const [tab, setTab] = useState<Tab>('bag');
+  // The party overlay's open (kept as the scene changes: the map, a battle, a town).
+  const [partyOpen, setPartyOpen] = useState(false);
   const [store, setStore] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
   const data = overview.data;
@@ -115,6 +119,11 @@ export function IdlePage() {
       .catch(failed);
   const start = (id: number, shiny = false) => actions.start(id, shiny).catch(failed);
   const v = run?.view;
+  // The party over the game screen (the user's): its button in the screen's top right corner, its slots sliding out.
+  const partyOverlay =
+    active && v ? (
+      <PartyOverlay party={v.party} bag={v.bag} busy={actions.busy} pending={v.pendingChanges} open={partyOpen} onToggle={setPartyOpen} onAct={(a) => void act(a)} />
+    ) : null;
   const over = run && run.status !== 'ACTIVE';
 
   return (
@@ -130,10 +139,6 @@ export function IdlePage() {
                 <button className={BUTTON} disabled={actions.busy} onClick={() => void act({ type: 'STOP_GRIND' })}>
                   Stop grinding
                 </button>
-              )}
-              {/* On a route or in a dungeon, out of battle (the user's): grind there until Continue route. */}
-              {v?.phase === 'walking' && !play.battle && !play.entering && (AREAS[v.area]!.kind === 'route' || AREAS[v.area]!.kind === 'dungeon') && (
-                <RouteGrindButtons view={v} busy={actions.busy} onAct={(a) => void act(a)} />
               )}
               {
             confirmQuit ? (
@@ -196,12 +201,22 @@ export function IdlePage() {
           onGrind={() => (setStore(false), void act({ type: 'GRIND' }))}
           onStore={() => (setStore(true), void act({ type: 'VISIT_STORE' }))}
           onContinue={() => (setStore(false), void act({ type: 'CONTINUE' }))}
+          onBack={() => (setStore(false), void act({ type: 'BACK_ROUTE' }))}
           dialogue={catchUp}
-        />
+        >
+          {partyOverlay}
+        </TownMenu>
       ) : play.battle ? (
-        <BattleScreen battle={play.battle} shown={play.shown} gender={gender} dialogue={catchUp} onThrow={throwBall} throwing={throwing} />
+        <BattleScreen battle={play.battle} shown={play.shown} gender={gender} dialogue={catchUp} onThrow={throwBall} throwing={throwing}>
+          {partyOverlay}
+        </BattleScreen>
       ) : (
         <AreaScene playback={play} gender={gender} dialogue={catchUp ?? (play.notice ? { text: play.notice, choices: [], instant: true, answer: () => {} } : null)}>
+          {!play.entering && partyOverlay}
+          {/* The route modes (the user's: Route, Wild grind, Trainer grind), on a route or in a dungeon. */}
+          {active && v?.phase === 'walking' && !play.entering && (AREAS[v.area]!.kind === 'route' || AREAS[v.area]!.kind === 'dungeon') && (
+            <ModeToggle view={v} busy={actions.busy} onAct={(a) => void act(a)} />
+          )}
           {play.entering && <SceneTransition />}
         </AreaScene>
       )}
@@ -217,13 +232,6 @@ export function IdlePage() {
               </button>
             ))}
           </div>
-          {/* Changes made during a wild battle (the user's): shown at once, applied once the battle ends (IdleState.pending). */}
-          {tab === 'party' && v.pendingChanges > 0 && (
-            <p className="rounded bg-slate-800 px-3 py-2 text-sm text-yellow-200 ring-1 ring-slate-600">
-              {v.pendingChanges === 1 ? 'This change takes' : `These ${v.pendingChanges} changes take`} effect when the battle ends.
-            </p>
-          )}
-          {tab === 'party' && <PartyScreen party={v.party} bag={v.bag} busy={actions.busy} onAct={(a) => void act(a)} />}
           {tab === 'bag' && <Bag bag={v.bag} />}
           {tab === 'dex' && <Pokedex dex={data.dex} />}
           {tab === 'settings' && <IdleSettings settings={settings} busy={false} onChange={(s) => void actions.settings(s).catch(failed)} />}
@@ -256,43 +264,6 @@ function TickMeter({ turn, tickAt }: { turn: number | null; tickAt: number }) {
       </div>
       <span className="shrink-0 tabular-nums">{TICK_MS / 1000} s</span>
     </div>
-  );
-}
-
-/**
- * The route grinds (the user's): Wild grind (wild Pokémon near where the run is; with none there, the button names the
- * route it goes back to) and Trainer grind (the route's trainers in a loop), greyed out with the reason when they can't;
- * Continue route while either goes on.
- */
-function RouteGrindButtons({ view, busy, onAct }: { view: ClientIdleRun['view']; busy: boolean; onAct: (a: IdleAction) => void }) {
-  if (view.loop)
-    return (
-      <button className={BUTTON} disabled={busy} onClick={() => onAct({ type: 'CONTINUE_ROUTE' })}>
-        Continue route
-      </button>
-    );
-  const wild = routeGrindPlan(view, 'wild');
-  const trainers = routeGrindPlan(view, 'trainers');
-  const away = !('error' in wild) && (wild.area !== view.area || (wild.kind === 'pace' && wild.leg !== view.leg));
-  return (
-    <>
-      <button
-        className={BUTTON}
-        disabled={busy || 'error' in wild}
-        title={'error' in wild ? wild.error : away ? `No wild Pokémon here: goes to ${AREAS[wild.area]!.name} to train` : 'Battle wild Pokémon nearby until Continue route'}
-        onClick={() => onAct({ type: 'WILD_GRIND' })}
-      >
-        {away ? `Wild grind in ${AREAS[wild.area]!.name}` : 'Wild grind'}
-      </button>
-      <button
-        className={BUTTON}
-        disabled={busy || 'error' in trainers}
-        title={'error' in trainers ? trainers.error : "Fight the route's trainers in a loop until Continue route (a rematch pays a quarter)"}
-        onClick={() => onAct({ type: 'TRAINER_GRIND' })}
-      >
-        Trainer grind
-      </button>
-    </>
   );
 }
 

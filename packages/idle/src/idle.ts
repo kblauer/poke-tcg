@@ -129,8 +129,10 @@ export interface IdleState {
   /** The trainers (TRAINERS' keys) whose full prize the run has had: a rematch pays REMATCH_PRIZE of it. */
   paid?: string[];
   /**
-   * The server's, not the rules': the last segment's start when it holds a wild battle, to play it again with a ball the
-   * player asked for (the battle's ball button, the user's: idle.throwBall). Any action or segment after it drops it.
+   * The server's, not the rules': the last segment's start, to play it again: from the moment the page is opened while it
+   * still plays (idle.resume, the user's: no waiting on a segment the page didn't see), and, its wild battle while
+   * `throwable`, with a ball the player asked for (the battle's ball button: idle.throwBall). The next segment replaces
+   * it; an action that isn't queued keeps it but ends `throwable` (playing it again from before would undo the action).
    */
   replay?: SegmentReplay;
   /**
@@ -151,6 +153,8 @@ export type IdleAction =
   | { type: 'GYM' }
   /** In a town: on to the next area (after its gym is beaten, if it has one). */
   | { type: 'CONTINUE' }
+  /** In a town: back to the end of the route (or dungeon) before it, wild grinding there (BACK_ROUTE, previousRoute). */
+  | { type: 'BACK_ROUTE' }
   /** In a town: open its store (auto-evolve buys and uses stones there). */
   | { type: 'VISIT_STORE' }
   /** In a gym's town: grind to the gym's highest level (then into the gym); STOP_GRIND back to the town. */
@@ -176,7 +180,12 @@ export interface SegmentReplay {
   caught: number[];
   from: number;
   throws: number[];
+  /** Its wild battle can still take a ball (and party changes are queued meanwhile); missing (older runs'), it can. */
+  throwable?: boolean;
 }
+
+/** Whether a run's last segment's wild battle can still take a ball (IdleState.replay). */
+export const throwable = (state: Pick<IdleState, 'replay'>) => !!state.replay && state.replay.throwable !== false;
 
 /** Where a route grind loops (IdleState.loop). */
 export type RouteLoop = { resume: { area: number; leg: number; step: number; beaten: string[] } } & (
@@ -354,6 +363,15 @@ function enterGym(state: IdleState, events: SegmentEvent[]) {
   state.log.push(`Went into ${AREAS[state.area]!.name}.`);
 }
 
+/** The route (or dungeon) walked just before a town (the user's: Back to it from the town), or null. */
+export function previousRoute(townIndex: number): number | null {
+  for (let i = townIndex - 1; i >= 0; i--) {
+    const kind = AREAS[i]!.kind;
+    if (kind === 'route' || kind === 'dungeon') return i;
+  }
+  return null;
+}
+
 /** Enters an area: a town waits for the player; any other starts at its first leg's first step. */
 function enterArea(state: IdleState, index: number, events: SegmentEvent[]) {
   // A route grind keeps going through a white-out back to its route's start; any other area ends it.
@@ -422,7 +440,7 @@ export const QUEUED_ACTIONS: IdleAction['type'][] = ['SET_ORDER', 'SET_SLOTS', '
  * then queued (`pending`) instead, keeping the replay (the user's).
  */
 export function applyIdleAction(prev: IdleState, action: IdleAction): IdleResult {
-  if (prev.replay && QUEUED_ACTIONS.includes(action.type)) {
+  if (throwable(prev) && QUEUED_ACTIONS.includes(action.type)) {
     const check = applyNow(withPending(prev), action);
     if (!check.ok) return check;
     const state = structuredClone(prev);
@@ -456,7 +474,8 @@ export function withPending(prev: IdleState): IdleState {
 /** The choice applied at once (applyIdleAction's rules). */
 function applyNow(prev: IdleState, action: IdleAction): IdleResult {
   const state = structuredClone(prev);
-  delete state.replay;
+  // Kept to resume the segment (idle.resume), but no ball any more: playing it again from before would undo this.
+  if (state.replay) state.replay.throwable = false;
   const fail = (error: string): IdleResult => ({ ok: false, error });
   const ok = (): IdleResult => {
     state.version += 1;
@@ -494,6 +513,23 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
       state.phase = 'town';
       delete state.grind;
       state.log.push(`Stopped training and went back to ${area.name}.`);
+      return ok();
+    }
+    case 'BACK_ROUTE': {
+      if (!inTown) return fail('Not in a town');
+      const back = previousRoute(state.area);
+      if (back === null) return fail('There is no route behind this town');
+      // Its end (the user's), its trainers beaten on the way, and a wild grind from there until Route mode walks on to
+      // this town again.
+      const area = AREAS[back] as WalkArea;
+      const leg = area.legs.length - 1;
+      const step = area.legs[leg]!.track.length - 1;
+      Object.assign(state, { area: back, leg, step, phase: 'walking', beaten: area.trainers.map((t) => t.key), encounter: { steps: 0, buff: 0, prev: '' } });
+      delete state.grind;
+      delete state.loop;
+      state.log.push(`Went back to ${area.name}.`);
+      const plan = wildPlan(back, leg, step, -1);
+      if (plan) startPacing(state, plan, { area: back, leg, step, beaten: [...state.beaten] });
       return ok();
     }
     case 'CONTINUE': {
@@ -792,7 +828,6 @@ export type RouteGrindPlan =
 export function routeGrindPlan(state: Pick<IdleState, 'phase' | 'area' | 'leg' | 'step' | 'beaten' | 'loop'>, kind: 'wild' | 'trainers'): RouteGrindPlan {
   const a = AREAS[state.area]!;
   if (state.phase !== 'walking' || (a.kind !== 'route' && a.kind !== 'dungeon')) return { error: 'Only on a route or in a dungeon' };
-  if (state.loop) return { error: 'Already grinding' };
   const area = a as WalkArea;
   if (kind === 'trainers') {
     const keys = area.trainers.map((t) => t.key).filter((k) => meetStep(area, k));
@@ -827,6 +862,9 @@ function wildPlan(areaIndex: number, leg: number, step: number, dir: 1 | -1): Ex
 
 /** Starts a route grind (WILD_GRIND, TRAINER_GRIND, by routeGrindPlan). Why it can't, or null. */
 function startRouteLoop(state: IdleState, kind: 'wild' | 'trainers'): string | null {
+  // Switching from the other grind (the mode toggle): it ends first, back where it began.
+  if (state.loop?.kind === (kind === 'wild' ? 'pace' : 'trainers')) return 'Already in that mode';
+  if (state.loop) endRouteLoop(state);
   const plan = routeGrindPlan(state, kind);
   if ('error' in plan) return plan.error;
   const resume = { area: state.area, leg: state.leg, step: state.step, beaten: [...state.beaten] };

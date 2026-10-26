@@ -7,6 +7,7 @@ const uid = z.string().min(1).max(32);
 export const idleActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('GYM') }),
   z.object({ type: z.literal('CONTINUE') }),
+  z.object({ type: z.literal('BACK_ROUTE') }),
   z.object({ type: z.literal('VISIT_STORE') }),
   z.object({ type: z.literal('GRIND') }),
   z.object({ type: z.literal('STOP_GRIND') }),

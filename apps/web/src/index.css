@@ -509,6 +509,11 @@ html[data-font="emerald"] {
   0% { background-position: 0 0; }
   50% { background-position: 0 -32px; }
 }
+/* A party icon's two frames in turn at any size (PartyOverlay: the sheet's two frames, top then bottom). */
+@keyframes idle-icon-cqw {
+  0% { background-position: 0 0; }
+  50% { background-position: 0 100%; }
+}
 /* The game's tick filling up (Idle.tsx's TickMeter). */
 @keyframes idle-tick {
   from { transform: scaleX(0); }

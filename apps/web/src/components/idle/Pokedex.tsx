@@ -1,7 +1,7 @@
 import { SPECIES, STAT_NAMES } from '@poke-tcg/idle';
 import { useState } from 'react';
 import type { IdleOverview } from '../../hooks/useIdle';
-import { TypeBadge } from './PartyScreen';
+import { TypeBadge } from './MonIcon';
 
 type DexRow = IdleOverview['dex'][number];
 
