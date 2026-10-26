@@ -93,9 +93,11 @@ function IdleAdventure() {
   } else if (area && 'map' in area) mapName = area.map;
   const mapMusic = mapName ? mapView(mapName).music : null;
   const cycling = mapName === 'Route17';
+  // A battle's song from its trainer's "!" (or a wild one's flash) on (`cue`, the user's), the same song into the battle.
+  const fight = play.battle ?? play.cue;
   useMusicCue(
-    play.battle
-      ? idleMusic(soundtrack, { battle: battleKind(play.battle.trainer), id: `${run?.id}:${play.battle.events.length}:${play.battle.foes.map((f) => f.species).join(',')}` })
+    fight
+      ? idleMusic(soundtrack, { battle: battleKind(fight.trainer), id: `${run?.id}:${fight.events.length}:${fight.foes.map((f) => f.species).join(',')}` })
       : run?.view.phase === 'won'
         ? idleMusic(soundtrack, { won: true })
         : mapMusic

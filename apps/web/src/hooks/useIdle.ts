@@ -89,6 +89,11 @@ export interface Playback {
   spotted: string | null;
   /** The battle on screen, and how many of its events have played. */
   battle: BattleSegment | null;
+  /**
+   * The battle about to start (the user's: its music starts as the trainer's "!" shows, and with a wild one's flash),
+   * then the battle on screen; the music follows it, so the song carries on into the battle.
+   */
+  cue: BattleSegment | null;
   shown: number;
   /** A battle's start: the screen flashing into it. */
   entering: boolean;
@@ -99,7 +104,7 @@ export interface Playback {
   tickAt: number;
 }
 
-const IDLE: Playback = { place: null, face: 'up', walkTick: 0, moveMs: 0, jump: null, fading: false, spotted: null, battle: null, shown: 0, entering: false, notice: null, turn: null, tickAt: 0 };
+const IDLE: Playback = { place: null, face: 'up', walkTick: 0, moveMs: 0, jump: null, fading: false, spotted: null, battle: null, cue: null, shown: 0, entering: false, notice: null, turn: null, tickAt: 0 };
 
 /** Whether the tab is showing (document.visibilityState), followed as it changes. */
 function useTabVisible() {
@@ -166,7 +171,7 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
 
   useEffect(() => {
     if (!run || !walking) {
-      if (run) update({ place: placeOf(run.view), battle: null, spotted: null });
+      if (run) update({ place: placeOf(run.view), battle: null, cue: null, spotted: null });
       // Opened in a town (the user's: no prompt waits on the player): time away past its wait is caught up too, and the
       // run, walking again, plays on (this effect again, for the rest).
       if (run?.status !== 'ACTIVE' || run.view.phase !== 'town' || !visible) return;
@@ -185,7 +190,7 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
     }
     if (!visible) return;
     // Whatever was playing when it stopped (a battle half shown, a fade, a line) is dropped: the server is past it.
-    update({ battle: null, shown: 0, entering: false, spotted: null, notice: null, fading: false, turn: null, tickAt: Date.now() });
+    update({ battle: null, cue: null, shown: 0, entering: false, spotted: null, notice: null, fading: false, turn: null, tickAt: Date.now() });
     let stopped = false;
     const timers = new Set<number>();
     const wait = (ms: number) =>
@@ -247,7 +252,7 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
     }
 
     async function battle(e: BattleSegment) {
-      update({ entering: true });
+      update({ entering: true, cue: e });
       await wait(900);
       update({ battle: e, shown: 0, entering: false });
       // Each tick's events spread over its TICK_MS; the opening (send-outs) at a quicker pace. A run of rewards (EXP.,
@@ -291,7 +296,7 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
         if (!count && start > 0) await wait(TICK_MS);
       }
       await wait(1400);
-      update({ battle: null, shown: 0, spotted: null, turn: null, tickAt: Date.now() });
+      update({ battle: null, cue: null, shown: 0, spotted: null, turn: null, tickAt: Date.now() });
     }
 
     /** The place on screen (the walk moves its step along). */
@@ -299,7 +304,7 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
 
     async function playSegment(events: SegmentEvent[]) {
       let place: Place | null = null;
-      for (const e of events) {
+      for (const [i, e] of events.entries()) {
         if (e.t === 'area' || e.t === 'grind') {
           const next = e.t === 'grind' ? grindPlace(e.town, e.at) : { area: e.area, leg: e.leg, step: e.step };
           const changed = shown.area !== next.area || shown.leg !== next.leg || shown.grind !== next.grind;
@@ -316,7 +321,9 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
         } else if (e.t === 'circle' && place) {
           await circle(e, place);
         } else if (e.t === 'spotted') {
-          update({ spotted: e.trainer });
+          // The trainer's battle (the next one in the segment): its music from the "!".
+          const next = events.slice(i + 1).find((x): x is BattleSegment => x.t === 'battle') ?? null;
+          update({ spotted: e.trainer, cue: next });
           await wait(1500);
         } else if (e.t === 'battle') {
           await battle(e);
