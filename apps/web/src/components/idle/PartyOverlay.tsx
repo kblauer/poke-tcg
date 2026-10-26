@@ -7,9 +7,12 @@ const px = (n: number) => `${(n * 100) / 240}cqw`;
 const PARTY = '/idle/gen1/party';
 /** FireRed's party text: white with its grey shadow (sFontColorTable[0]), in the Gen 3 font. */
 const TEXT = { color: '#ffffff', textShadow: `${px(1)} ${px(1)} 0 #737373`, fontFamily: '"Pokemon Emerald", monospace', lineHeight: 1 } as const;
-/** A slot's width (party/slot.png: FireRed's without its HP bar, 15 tiles: the user's), and where the slots' column begins. */
-const SLOT_W = 120;
-const LIST_LEFT = 240 - (10 + SLOT_W + 6);
+/**
+ * A slot's width (party/slot.png: FireRed's without its HP bar, 13 tiles: the user's, as narrow as fits a 10-letter name
+ * and "Lv100 ♀ 999/999"), and where the slots' column begins.
+ */
+const SLOT_W = 104;
+const LIST_LEFT = 240 - (10 + SLOT_W + 4);
 /** The panel's colours: a slot's (slot.png's border, fill and light). */
 const FRAME = { border: '#4a4a62', fill: '#3994de', light: '#83c5de', shade: '#297bb4' };
 
@@ -90,16 +93,16 @@ function Slot({ mon, top, selected, onClick }: { mon: Mon; top: number; selected
         {mon.shiny && <span style={{ color: '#ffd552' }}>★</span>}
         {s.name}
       </span>
-      <span className="absolute" style={{ ...TEXT, left: px(32), top: px(13), fontSize: px(10) }}>
+      {/* The level with its gender right after it, then HP / max HP at the slot's right (no HP bar: the user's). */}
+      <span className="absolute whitespace-nowrap" style={{ ...TEXT, left: px(28), top: px(13), fontSize: px(10) }}>
         Lv{mon.level}
+        {mon.gender && (
+          <span style={{ marginLeft: px(2), color: mon.gender === 'male' ? '#41cdff' : '#ff9c94', textShadow: `${px(1)} ${px(1)} 0 ${mon.gender === 'male' ? '#006294' : '#9c4139'}` }}>
+            {mon.gender === 'male' ? '♂' : '♀'}
+          </span>
+        )}
       </span>
-      {mon.gender && (
-        <span className="absolute" style={{ ...TEXT, left: px(64), top: px(13), fontSize: px(10), color: mon.gender === 'male' ? '#41cdff' : '#ff9c94', textShadow: `${px(1)} ${px(1)} 0 ${mon.gender === 'male' ? '#006294' : '#9c4139'}` }}>
-          {mon.gender === 'male' ? '♂' : '♀'}
-        </span>
-      )}
-      {/* HP / max HP on the level's line (no HP bar: the user's). */}
-      <span className="absolute text-right" style={{ ...TEXT, left: px(72), top: px(13), width: px(SLOT_W - 76), fontSize: px(10) }}>
+      <span className="absolute text-right" style={{ ...TEXT, right: px(4), top: px(13), fontSize: px(10) }}>
         {hp}/{hp}
       </span>
     </button>
