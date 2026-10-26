@@ -29,6 +29,7 @@ import { FloatingDialog } from './FloatingDialog';
 import { Hand } from './Hand';
 import { OpponentArea, type Spotlight } from './OpponentArea';
 import { DiscardPane, type ZoneAbilities } from './DiscardPane';
+import { useBattleShown } from './InspectContext';
 import { PendingChoicePanel } from './PendingChoicePanel';
 import { PhoneBoard } from './phone/PhoneBoard';
 import { PlayArea } from './PlayArea';
@@ -165,6 +166,8 @@ export function Board({
   const [preview, setPreview] = useState<Preview | null>(null);
   const hidePreview = useCallback(() => setPreview(null), []);
   const toasts = useToasts();
+  // A card opened in the CardInspector during the battle has no flair options (the user's).
+  useBattleShown();
   const retreat = useRetreat({ view, send, busy });
   const power = usePower({ view, send, busy });
   // Ending the turn, by End turn or an attack, asks first while an Energy, the Stadium or a Pokémon Power could still be used.
