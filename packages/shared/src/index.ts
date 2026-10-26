@@ -152,6 +152,9 @@ export const debugCommandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('WIN') }),
 ]) satisfies z.ZodType<DebugCommand>;
 
+/** The Settings page's debug switches (debug.setFlags): unlock everything that's locked, 1,000,000 ₱ in the bank. */
+export const debugFlagsInput = z.object({ unlockAll: z.boolean().optional(), million: z.boolean().optional() });
+
 export const debugInput = z.object({
   gameId: z.uuid(),
   expectedVersion: z.number().int().min(0),

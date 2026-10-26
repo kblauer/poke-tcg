@@ -2,6 +2,7 @@ import { BP_PACK_PRICE, CRAFT_COST, GENERATIONS, openPack, PACK_GENERATIONS, PAC
 import { prisma, type Card } from '@poke-tcg/db';
 import { craftCardInput, debugOpenPackInput, openPackInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
+import { unlocksAll } from '../debugFlags.js';
 import { ensureUser } from '../auth.js';
 import { catalogIndex, holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, isReverseHolo, type HoloEnergyStyle } from '../cards.js';
 import { catalogInIdOrder } from '../catalog.js';
@@ -150,12 +151,13 @@ export const packsRouter = router({
    */
   list: protectedProcedure.query(async ({ ctx }) => {
     await ensureUser(ctx.user);
-    const [user, sets, unlocked, contents, packs] = await Promise.all([
+    const [user, sets, unlocked, contents, packs, all] = await Promise.all([
       prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { bank: true, stardust: true } }),
       prisma.cardSet.findMany({ where: { id: { in: PACK_SETS } }, orderBy: { releaseDate: 'asc' } }),
       unlockedIds(ctx.user.id),
       Promise.all(PACK_SETS.map(async (id) => [id, (await packSet(id)).set] as const)),
       unlockedPacks(ctx.user.id),
+      unlocksAll(ctx.user.id),
     ]);
     // The pack each generation's runs unlock next (with its region, for the hint).
     const next = new Map(Object.values(GENERATIONS).flatMap((g) => g.packs.filter((id) => !packs.has(id)).slice(0, 1).map((id) => [id, g.region] as const)));
@@ -178,8 +180,8 @@ export const packsRouter = router({
           packCards: cards.length,
           locked: !packs.has(s.id),
           next: next.get(s.id) ?? null,
-          /** A generation whose runs are still to come (Gen 3's EX sets): locked until they exist. */
-          upcoming: !Object.values(GENERATIONS).some((g) => g.packs.includes(s.id)),
+          /** A generation whose runs are still to come (Gen 3's EX sets): locked until they exist (open with the debug switch to unlock everything, as every pack is). */
+          upcoming: !all && !Object.values(GENERATIONS).some((g) => g.packs.includes(s.id)),
         };
       }),
     };

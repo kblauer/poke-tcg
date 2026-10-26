@@ -6,6 +6,7 @@ import {
   createTower,
   floorsBeaten,
   startFloors,
+  TOP_FLOOR,
   towerBattleSetup,
   towerGameId,
   towerOpponentDeck,
@@ -21,10 +22,14 @@ import { createGame, runCpu } from '@poke-tcg/game-engine';
 import { CPU_ID, HUMAN_ID } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { loadCardLibrary } from './cards.js';
+import { unlocksAll } from './debugFlags.js';
 import { actionRows, asJson, newSeed } from './games.js';
 import { cardPool } from './pool.js';
 import { battleOverAction, lockUser } from './runs.js';
 import { markPlayed, playableDeck, type DeckCosmetics } from './routers/decks.js';
+
+/** The floors a challenge can start on (startFloors): from the highest floor beaten, or every checkpoint's with the debug switch to unlock everything (`all`, unlocksAll). */
+export const towerStarts = (best: number, all: boolean) => startFloors(all ? TOP_FLOOR : best);
 
 export type LoadedTower = Omit<TowerChallenge, 'state'> & { state: TowerState };
 const loaded = (tower: TowerChallenge): LoadedTower => ({ ...tower, state: tower.state as unknown as TowerState });
@@ -150,7 +155,7 @@ export async function startTower(userId: string, deckId: string, startFloor: num
     // The lock makes the checks below hold against two starts at once.
     await lockUser(tx, userId);
     const { towerBest } = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { towerBest: true } });
-    if (!startFloors(towerBest).includes(startFloor)) throw new TRPCError({ code: 'BAD_REQUEST', message: `A challenge can't start on floor ${startFloor} yet` });
+    if (!towerStarts(towerBest, await unlocksAll(userId, tx)).includes(startFloor)) throw new TRPCError({ code: 'BAD_REQUEST', message: `A challenge can't start on floor ${startFloor} yet` });
     const active = await tx.towerChallenge.findFirst({ where: { ownerId: userId, status: 'ACTIVE' } });
     if (active) {
       const state = active.state as unknown as TowerState;

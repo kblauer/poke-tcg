@@ -67,7 +67,8 @@ export function FlairPicker({
 
   const { title, noun } = SLOTS[slot];
   const mine = (f: { cardId: string; slot: string }) => f.cardId === card.id && f.slot === slot;
-  const owned = new Set(flair.data.owned.filter(mine).map((f) => f.key));
+  // While debugging every option is had (flair.list's allOwned).
+  const owned = new Set(flair.data.allOwned ? options.map((o) => o.key) : flair.data.owned.filter(mine).map((f) => f.key));
   const inUse = flair.data.equipped.find(mine)?.key ?? null;
   const shown = preview === undefined ? inUse : preview;
   const previewed = options.find((o) => o.key === shown);

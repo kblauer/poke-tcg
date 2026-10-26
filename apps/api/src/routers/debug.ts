@@ -1,9 +1,11 @@
 import { TRPCError } from '@trpc/server';
-import { saveGameState, type Prisma } from '@poke-tcg/db';
+import { prisma, saveGameState, type Prisma } from '@poke-tcg/db';
 import { applyDebug, getPlayerView } from '@poke-tcg/game-engine';
-import { debugInput, HUMAN_ID } from '@poke-tcg/shared';
+import { debugFlagsInput, debugInput, HUMAN_ID } from '@poke-tcg/shared';
 import { loadCardLibrary } from '../cards.js';
+import { DEBUG_BANK, debugFlags, type DebugFlags } from '../debugFlags.js';
 import { env } from '../env.js';
+import { lockUser } from '../runs.js';
 import { debugProcedure, publicProcedure, router } from '../trpc.js';
 import { loadOwnGame } from './game.js';
 
@@ -49,4 +51,36 @@ export const debugRouter = router({
     if (!saved) throw new TRPCError({ code: 'CONFLICT', message: 'Game state changed, refresh and retry' });
     return getPlayerView(next, HUMAN_ID);
   }),
+
+  /** The Settings page's debug switches (debugFlags.ts): unlocking everything that's locked, and 1,000,000 ₱ in the bank. */
+  flags: debugProcedure.query(async ({ ctx }) => {
+    const { unlockAll = false, million = false } = await debugFlags(ctx.user.id);
+    return { unlockAll, million };
+  }),
+
+  /**
+   * Sets the debug switches given. The million switch on keeps the bank (`bankBefore`) and fills it to DEBUG_BANK; off,
+   * it puts the bank it kept back (what was earned or spent meanwhile is gone). With the user row locked, so the bank kept
+   * is the one replaced.
+   */
+  setFlags: debugProcedure.input(debugFlagsInput).mutation(({ ctx, input }) =>
+    prisma.$transaction(async (tx) => {
+      await lockUser(tx, ctx.user.id);
+      const [flags, { bank }] = await Promise.all([debugFlags(ctx.user.id, tx), tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { bank: true } })]);
+      const next: DebugFlags = { ...flags };
+      let newBank = bank;
+      if (input.unlockAll !== undefined) next.unlockAll = input.unlockAll;
+      if (input.million === true && !flags.million) {
+        next.million = true;
+        next.bankBefore = bank;
+        newBank = DEBUG_BANK;
+      } else if (input.million === false && flags.million) {
+        next.million = false;
+        newBank = flags.bankBefore ?? bank;
+        delete next.bankBefore;
+      }
+      await tx.user.update({ where: { id: ctx.user.id }, data: { debugFlags: next as Prisma.InputJsonValue, bank: newBank } });
+      return { unlockAll: !!next.unlockAll, million: !!next.million };
+    }),
+  ),
 });

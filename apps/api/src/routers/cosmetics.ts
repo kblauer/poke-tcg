@@ -2,19 +2,20 @@ import { COSMETICS, DEFAULT_COSMETIC, hasCosmetic, type CosmeticKind } from '@po
 import { prisma } from '@poke-tcg/db';
 import { assignCosmeticInput, buyCosmeticInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
-import { env } from '../env.js';
+import { unlocksAll } from '../debugFlags.js';
 import { protectedProcedure, router } from '../trpc.js';
 
 /**
  * What an account has of the cosmetics (hasCosmetic): the ones it bought (CosmeticUnlock), the run types it has beaten
- * (for those unlocked by beating one), and every one while debugging (never in production: env.debugEnabled).
+ * (for those unlocked by beating one), and every one with the debug switch to unlock everything (unlocksAll, never in production).
  */
 export async function cosmeticsOf(userId: string) {
-  const [bought, won] = await Promise.all([
+  const [bought, won, all] = await Promise.all([
     prisma.cosmeticUnlock.findMany({ where: { userId }, select: { cosmeticId: true } }),
     prisma.run.groupBy({ by: ['type'], where: { ownerId: userId, status: 'WON' } }),
+    unlocksAll(userId),
   ]);
-  const account = { bought: new Set(bought.map((b) => b.cosmeticId)), beaten: new Set<string>(won.map((r) => r.type)), debug: env.debugEnabled };
+  const account = { bought: new Set(bought.map((b) => b.cosmeticId)), beaten: new Set<string>(won.map((r) => r.type)), debug: all };
   return (id: string) => {
     const def = COSMETICS[id];
     return !!def && hasCosmetic(def, account);

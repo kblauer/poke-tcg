@@ -6,7 +6,8 @@ import { Link } from '@tanstack/react-router';
 import { useContext, useState, type ReactNode } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import type { Overview, RunControl } from '../../hooks/useRun';
-import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
+import { useDebugFlags } from '../../hooks/useDebugFlags';
+import { DEBUG_BUILD } from '../../utils/debug';
 import { DeckSummary } from '../DeckList';
 import { DeckMenu, DeckOption } from './DeckMenu';
 import { CatalogContext } from '../InspectContext';
@@ -97,11 +98,11 @@ function RunTypeOption({ info, selected, onPick }: { info: RunTypeInfo; selected
  * beside the Start new run button (Return to Home).
  */
 export function NewRunPicker({ overview: given, run, title, defaultType, extra }: { overview: Overview; run: RunControl; title: string; defaultType?: RunTypeId; extra?: ReactNode }) {
-  // Debug mode unlocks every run type (started with debugStart); `debugLocked`: the ones that were locked.
+  // Debug mode's switch to unlock everything (useDebugFlags) unlocks every run type (started with debugStart); `debugLocked`: the ones that were locked.
   // The catalog (the deck menu waits for it).
   const byId = useContext(CatalogContext);
-  const debug = useDebugEnabled();
-  const unlockAll = DEBUG_BUILD && debug;
+  const debugFlags = useDebugFlags();
+  const unlockAll = DEBUG_BUILD && debugFlags.unlockAll;
   const debugLocked = new Set(unlockAll ? given.runTypes.filter((t) => t.locked !== null).map((t) => t.id) : []);
   const overview = unlockAll ? { ...given, runTypes: given.runTypes.map((t) => ({ ...t, locked: null })) } : given;
   const open = overview.runTypes.filter((t) => t.locked === null);

@@ -6,6 +6,7 @@ import { OptionsPanel } from '../components/OptionsPanel';
 import { PageHeader } from '../components/PageHeader';
 import { REMINDER_LABELS, reminderOff, setReminderOff, type EndTurnReminder } from '../components/StatusBar';
 import { ThemePicker } from '../components/ThemePicker';
+import { useDebugFlags } from '../hooks/useDebugFlags';
 import { useFontStyle, type FontStyle } from '../hooks/useFontStyle';
 import { useExpTheme, usePokedollarTheme } from '../hooks/useThemedFigures';
 import { useSkipFlips } from '../hooks/useSkipFlips';
@@ -24,8 +25,8 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
  * The Settings page (`/settings`, under Training in the site's menu): the account's name, the battle options also in the board's
  * side panel (OptionsPanel, and skipping coin flip animations, as the game log's checkbox does), End turn's reminders
  * (EndTurnReminders), the music player's auto
- * play and its soundtrack, the font (`FontPicker`), and last the colour theme (`ThemePicker`) with whether the run's EXP
- * bar and its Pokédollars take its colour (useThemedFigures).
+ * play and its soundtrack, the font (`FontPicker`), the colour theme (`ThemePicker`) with whether the run's EXP
+ * bar and its Pokédollars take its colour (useThemedFigures), and while debugging its switches (`DebugSwitches`).
  */
 export function SettingsPage() {
   const [skipFlips, setSkipFlips] = useSkipFlips();
@@ -81,6 +82,7 @@ export function SettingsPage() {
           </div>
           <ThemePicker />
         </Section>
+        <DebugSwitches />
       </div>
     </div>
   );
@@ -110,6 +112,25 @@ function FontPicker() {
         </label>
       ))}
     </div>
+  );
+}
+
+/** Debug mode's switches (useDebugFlags), shown only while debugging: unlock everything that's locked, and 1,000,000 ₱ in the bank. */
+function DebugSwitches() {
+  const flags = useDebugFlags();
+  if (!flags.debug || !flags.loaded) return null;
+  return (
+    <Section title="Debug">
+      <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300" title="Cards, booster packs, run types, Battle Tower start floors, cosmetics and card flair">
+        <input type="checkbox" checked={flags.unlockAll} disabled={flags.pending} onChange={(e) => flags.set.mutate({ unlockAll: e.target.checked })} />
+        Unlock everything that's locked
+      </label>
+      <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300" title="Off puts your bank back as it was before">
+        <input type="checkbox" checked={flags.million} disabled={flags.pending} onChange={(e) => flags.set.mutate({ million: e.target.checked })} />
+        ₱1,000,000 in the bank
+      </label>
+      {flags.set.error && <p className="text-xs text-amber-300">{flags.set.error.message}</p>}
+    </Section>
   );
 }
 
