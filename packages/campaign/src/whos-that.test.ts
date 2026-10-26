@@ -6,6 +6,7 @@ import { TEST_POOL } from './test-pool.js';
 import {
   answerKey,
   dailyPlaylist,
+  isSkip,
   namesPokemon,
   rotationCard,
   shapeFromMask,
@@ -43,6 +44,13 @@ describe("Who's That Pokémon? answers", () => {
     expect(namesPokemon('Hitmonlee', 'Hitmonchan')).toBe(false);
     expect(namesPokemon('  ', 'Pikachu')).toBe(false);
     expect(answerKey('Nidoran ♀')).toBe('nidoran');
+  });
+
+  it('"skip" passes, whatever the case; no Pokémon is called that', () => {
+    expect(isSkip('skip')).toBe(true);
+    expect(isSkip(' SKIP ')).toBe(true);
+    expect(isSkip('Skiploom')).toBe(false);
+    expect(namesPokemon('skip', 'Skiploom')).toBe(false);
   });
 });
 

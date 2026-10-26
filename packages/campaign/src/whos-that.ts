@@ -14,9 +14,17 @@ export { WHOS_THAT_CARDS };
 export const WHOS_THAT_RUN_MS = 10_000;
 export const WHOS_THAT_GRACE_MS = 1_500;
 export const WHOS_THAT_EXP = 20;
-/** The Extras mode: Pokémon a game, and the time a pass counts for (it's never the fastest). */
+/**
+ * The Extras mode: Pokémon a game, and the time a pass counts for (it's never the fastest). A Pokémon not named within
+ * that time is passed, as is one the player types "skip" for (the user's); a passed one is revealed for
+ * WHOS_THAT_REVEAL_MS, the next one's clock starting after it.
+ */
 export const WHOS_THAT_ROUNDS = 10;
 export const WHOS_THAT_PASS_MS = 30_000;
+export const WHOS_THAT_REVEAL_MS = 2_000;
+
+/** Whether a typed name is the player passing: "skip", whatever the case. */
+export const isSkip = (guess: string) => answerKey(guess) === 'skip';
 
 /** A card the game can show: a holo with a cut-out (WHOS_THAT_CARDS) and its name. */
 export interface WhosThatCard {

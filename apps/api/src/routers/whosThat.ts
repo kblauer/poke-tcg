@@ -1,5 +1,6 @@
 import {
   dailyPlaylist,
+  isSkip,
   namesPokemon,
   randomWhosThatCard,
   rngFrom,
@@ -10,6 +11,7 @@ import {
   whosThatTimes,
   WHOS_THAT_GRACE_MS,
   WHOS_THAT_PASS_MS,
+  WHOS_THAT_REVEAL_MS,
   WHOS_THAT_ROUNDS,
   WHOS_THAT_RUN_MS,
 } from '@poke-tcg/campaign';
@@ -46,18 +48,48 @@ async function names(userIds: string[]) {
   return new Map(users.map((u) => [u.id, u.accountName?.trim() || 'Anonymous']));
 }
 
+type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
 /**
- * The game moves on from the Pokémon on screen, named or passed (`passed`) after `timeMs`: the next one is shown from now,
- * or the game is finished with its times. Returns the saved game.
+ * The game moves on from the Pokémon on screen, named or passed (`passed`) after `timeMs`: the next one is shown from now
+ * (after a pass, once the passed one has been revealed: WHOS_THAT_REVEAL_MS), or the game is finished with its times.
+ * Returns the saved game.
  */
-function moveOn(tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0], game: WhosThatGame, timeMs: number, passed: boolean, now: number) {
+function moveOn(tx: Tx, game: WhosThatGame, timeMs: number, passed: boolean, now: number) {
   const times = [...game.times, timeMs];
   const passes = [...game.passed, passed];
   const finished = times.length >= game.cards.length;
+  const shownAt = new Date(passed ? now + WHOS_THAT_REVEAL_MS : now);
   return tx.whosThatGame.update({
     where: { id: game.id },
-    data: { times, passed: passes, index: game.index + 1, shownAt: new Date(now), ...(finished && { finishedAt: new Date(now), ...whosThatTimes(times, passes) }) },
+    data: { times, passed: passes, index: game.index + 1, shownAt, ...(finished && { finishedAt: new Date(now), ...whosThatTimes(times, passes) }) },
   });
+}
+
+/** The game under way, the player's own: NOT_FOUND or BAD_REQUEST otherwise. */
+async function gameUnderWay(tx: Tx, gameId: string, userId: string) {
+  const game = await tx.whosThatGame.findFirst({ where: { id: gameId, userId } });
+  if (!game) throw new TRPCError({ code: 'NOT_FOUND', message: 'No such game' });
+  if (game.finishedAt) throw new TRPCError({ code: 'BAD_REQUEST', message: 'This game is over' });
+  return game;
+}
+
+/**
+ * The Pokémon on screen passed: it counts WHOS_THAT_PASS_MS, its name and card are given for the reveal, and the next
+ * one's clock starts once it's been shown (or the game's results).
+ */
+async function passRound(tx: Tx, game: WhosThatGame, now: number) {
+  const cardId = game.cards[game.index]!;
+  const saved = await moveOn(tx, game, WHOS_THAT_PASS_MS, true, now);
+  return {
+    correct: true as const,
+    passed: true,
+    answer: whosThatAnswer(await cardName(cardId)),
+    cardId,
+    timeMs: WHOS_THAT_PASS_MS,
+    next: saved.finishedAt ? null : await round(saved, now),
+    results: saved.finishedAt ? results(saved) : null,
+  };
 }
 
 /**
@@ -87,7 +119,8 @@ export const whosThatRouter = router({
   /**
    * A name typed in a run's Who's That Pokémon?: the Pokémon's (in time, with WHOS_THAT_GRACE_MS for the round trip) wins
    * its EXP; any other is `wrong` while there's time left (an empty one is how the browser says its clock ran out), and
-   * once time is up it's missed. Won or missed, the event is settled (WHOS_THAT_OVER) and the answer given.
+   * once time is up it's missed; "skip" gives up at once (missed). Won or missed, the event is settled (WHOS_THAT_OVER)
+   * and the answer given.
    */
   runGuess: protectedProcedure.input(whosThatRunGuessInput).mutation(async ({ ctx, input }) => {
     const run = await loadOwnRun(input.runId, ctx.user.id);
@@ -96,7 +129,7 @@ export const whosThatRouter = router({
     const elapsed = Date.now() - event.startedAt;
     const name = await cardName(event.cardId);
     const won = elapsed <= WHOS_THAT_RUN_MS + WHOS_THAT_GRACE_MS && namesPokemon(input.guess, name);
-    if (!won && elapsed < WHOS_THAT_RUN_MS) return { result: 'wrong' as const, remainingMs: WHOS_THAT_RUN_MS - elapsed };
+    if (!won && elapsed < WHOS_THAT_RUN_MS && !isSkip(input.guess)) return { result: 'wrong' as const, remainingMs: WHOS_THAT_RUN_MS - elapsed };
     const answer = whosThatAnswer(name);
     const settled = await advanceRun(run, [{ type: 'WHOS_THAT_OVER', won, answer }]);
     return { result: won ? ('won' as const) : ('missed' as const), answer, cardId: event.cardId, exp: won ? event.exp : 0, run: await clientRun(settled) };
@@ -140,35 +173,35 @@ export const whosThatRouter = router({
 
   /**
    * A name typed in an Extras game: the Pokémon on screen's (`correct`) records the time since it was shown and shows the
-   * next (`next`), or finishes the game (`results`); any other is just `correct: false`.
+   * next (`next`), or finishes the game (`results`). "skip", or any name once WHOS_THAT_PASS_MS have gone by, passes it
+   * (`passed`: revealed, counting WHOS_THAT_PASS_MS: passRound). Any other is just `correct: false`, as is one sent
+   * before the Pokémon is up (while the one before is revealed).
    */
   guess: protectedProcedure.input(whosThatGuessInput).mutation(({ ctx, input }) =>
     prisma.$transaction(async (tx) => {
       await lockUser(tx, ctx.user.id);
       const now = Date.now();
-      const game = await tx.whosThatGame.findFirst({ where: { id: input.gameId, userId: ctx.user.id } });
-      if (!game) throw new TRPCError({ code: 'NOT_FOUND', message: 'No such game' });
-      if (game.finishedAt) throw new TRPCError({ code: 'BAD_REQUEST', message: 'This game is over' });
+      const game = await gameUnderWay(tx, input.gameId, ctx.user.id);
+      const timeMs = now - game.shownAt.getTime();
+      if (timeMs < 0) return { correct: false as const };
+      if (isSkip(input.guess) || timeMs >= WHOS_THAT_PASS_MS) return passRound(tx, game, now);
       const cardId = game.cards[game.index]!;
       const name = await cardName(cardId);
       if (!namesPokemon(input.guess, name)) return { correct: false as const };
-      const timeMs = now - game.shownAt.getTime();
       const saved = await moveOn(tx, game, timeMs, false, now);
-      return { correct: true as const, answer: whosThatAnswer(name), cardId, timeMs, next: saved.finishedAt ? null : await round(saved, now), results: saved.finishedAt ? results(saved) : null };
+      return { correct: true as const, passed: false, answer: whosThatAnswer(name), cardId, timeMs, next: saved.finishedAt ? null : await round(saved, now), results: saved.finishedAt ? results(saved) : null };
     }),
   ),
 
-  /** Gives up on the Pokémon on screen: its name is shown, it counts WHOS_THAT_PASS_MS (never the fastest), and the game moves on. */
+  /**
+   * Passes the Pokémon on screen (passRound): typed "skip", the Skip button, or its WHOS_THAT_PASS_MS run out (the browser
+   * asks then; any guess after it is a pass too).
+   */
   pass: protectedProcedure.input(whosThatGameInput).mutation(({ ctx, input }) =>
     prisma.$transaction(async (tx) => {
       await lockUser(tx, ctx.user.id);
       const now = Date.now();
-      const game = await tx.whosThatGame.findFirst({ where: { id: input.gameId, userId: ctx.user.id } });
-      if (!game) throw new TRPCError({ code: 'NOT_FOUND', message: 'No such game' });
-      if (game.finishedAt) throw new TRPCError({ code: 'BAD_REQUEST', message: 'This game is over' });
-      const cardId = game.cards[game.index]!;
-      const saved = await moveOn(tx, game, WHOS_THAT_PASS_MS, true, now);
-      return { answer: whosThatAnswer(await cardName(cardId)), cardId, next: saved.finishedAt ? null : await round(saved, now), results: saved.finishedAt ? results(saved) : null };
+      return passRound(tx, await gameUnderWay(tx, input.gameId, ctx.user.id), now);
     }),
   ),
 

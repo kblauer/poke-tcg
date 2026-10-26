@@ -1,7 +1,7 @@
-import { WHOS_THAT_PASS_MS, WHOS_THAT_ROUNDS } from '@poke-tcg/campaign';
+import { WHOS_THAT_PASS_MS, WHOS_THAT_REVEAL_MS, WHOS_THAT_ROUNDS } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { inferRouterOutputs } from '@trpc/server';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { AppRouter } from '@poke-tcg/api/router';
 import { useToasts } from '../../hooks/useToasts';
 import { useWindowFill } from '../../hooks/useWindowFill';
@@ -14,7 +14,8 @@ import { WhosThatScreen } from '../whos-that/WhosThatScreen';
 
 type Outputs = inferRouterOutputs<AppRouter>['whosThat'];
 type Round = Outputs['start'];
-type Results = NonNullable<Outputs['pass']['results']>;
+type Moved = Outputs['pass'];
+type Results = NonNullable<Moved['results']>;
 type Board = 'average' | 'fastest' | 'daily';
 
 const primary = 'rounded bg-blue-600 px-4 py-2 font-semibold transition hover:bg-blue-500 active:scale-95 disabled:opacity-40';
@@ -32,8 +33,9 @@ interface Done {
 
 /**
  * The Extras page's Who's That Pokémon? (README: Who's That Pokémon?): 10 Pokémon in a row, each named as fast as it can
- * be (typed on Emerald's naming screen and sent with Enter, the next one shown at once: NamingScreen; Pass shows it and
- * counts WHOS_THAT_PASS_MS), the time kept by the server
+ * be (typed on Emerald's naming screen and sent with Enter, the next one shown at once: NamingScreen). One not named in
+ * 30 seconds, or typed "skip" for (or Skip), is passed: revealed for WHOS_THAT_REVEAL_MS and counted as WHOS_THAT_PASS_MS
+ * (the user's). The time is kept by the server
  * (`whosThat.start`, `guess`, `pass`). Random Pokémon, or today's playlist (the same 10 for everyone, one go a day). The
  * leaderboards beside it (`whosThat.leaderboard`, public): best average, fastest Pokémon, and today's playlist.
  */
@@ -50,6 +52,11 @@ export function WhosThat() {
   const [done, setDone] = useState<Done[]>([]);
   const [results, setResults] = useState<Results | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  // A passed Pokémon being revealed (its shape, card and name) until `until`, and the game's results if it was the last.
+  const [reveal, setReveal] = useState<{ shape: Round['shape']; cardId: string; answer: string; until: number; results: Results | null } | null>(null);
+  const revealing = reveal !== null && now < reveal.until;
+  // The Pokémon a pass was asked for when its time ran out, so it's asked once.
+  const autoPassed = useRef<string | null>(null);
 
   const show = (next: Round) => {
     setRound(next);
@@ -61,28 +68,27 @@ export function WhosThat() {
     void queryClient.invalidateQueries({ queryKey: trpc.whosThat.status.queryKey() });
     void queryClient.invalidateQueries({ queryKey: trpc.whosThat.leaderboard.queryKey() });
   };
+  /** The Pokémon on screen named or passed (a pass is revealed first, the next one's clock starting after it). */
+  const moveOn = (r: Moved) => {
+    setDone((d) => [...d, { cardId: r.cardId, answer: r.answer, timeMs: r.timeMs, passed: r.passed }]);
+    if (r.passed && round) setReveal({ shape: round.shape, cardId: r.cardId, answer: r.answer, until: Date.now() + WHOS_THAT_REVEAL_MS, results: r.results });
+    if (r.next) show(r.next);
+    else if (r.results && !r.passed) finish(r.results);
+  };
   const onError = (err: { message: string }) => toasts.push('error', err.message);
   const start = useMutation(
     trpc.whosThat.start.mutationOptions({
       onSuccess: (r) => {
         setDone([]);
         setResults(null);
+        setReveal(null);
         show(r);
       },
       onError,
     }),
   );
   const guess = useMutation(trpc.whosThat.guess.mutationOptions({ onError }));
-  const pass = useMutation(
-    trpc.whosThat.pass.mutationOptions({
-      onSuccess: (r) => {
-        setDone((d) => [...d, { cardId: r.cardId, answer: r.answer, timeMs: WHOS_THAT_PASS_MS, passed: true }]);
-        if (r.next) show(r.next);
-        else if (r.results) finish(r.results);
-      },
-      onError,
-    }),
-  );
+  const pass = useMutation(trpc.whosThat.pass.mutationOptions({ onSuccess: moveOn, onError }));
 
   useEffect(() => {
     if (!round) return;
@@ -90,15 +96,30 @@ export function WhosThat() {
     return () => window.clearInterval(timer);
   }, [round]);
 
+  // The last Pokémon passed: the results once it's been revealed.
+  useEffect(() => {
+    if (reveal?.results && !revealing) finish(reveal.results);
+    // finish only reads setters and the query client.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reveal, revealing]);
+
+  // Not named in WHOS_THAT_PASS_MS: passed (the server counts any later guess as a pass too).
+  useEffect(() => {
+    if (!round || revealing || reveal?.results || pass.isPending || now - shownAt < WHOS_THAT_PASS_MS) return;
+    const key = `${round.gameId}:${round.index}`;
+    if (autoPassed.current === key) return;
+    autoPassed.current = key;
+    pass.mutate({ gameId: round.gameId });
+  }, [round, revealing, reveal, pass, now, shownAt]);
+
   const send = async (text: string) => {
-    if (!round) return false;
+    if (!round || revealing) return false;
     const r = await guess.mutateAsync({ gameId: round.gameId, guess: text });
     if (!r.correct) return false;
-    setDone((d) => [...d, { cardId: r.cardId, answer: r.answer, timeMs: r.timeMs, passed: false }]);
-    if (r.next) show(r.next);
-    else if (r.results) finish(r.results);
+    moveOn(r);
     return true;
   };
+  const elapsed = Math.min(WHOS_THAT_PASS_MS, Math.max(0, now - shownAt));
 
   const daily = status.data?.daily;
   return (
@@ -112,19 +133,26 @@ export function WhosThat() {
               <h3 className={PANEL_HEADING}>
                 {round.daily ? "Today's playlist: " : ''}Pokémon {round.index + 1} of {round.total}
               </h3>
-              <span className="font-mono text-lg tabular-nums">{seconds(Math.max(0, now - shownAt))}</span>
+              <span className="font-mono text-lg tabular-nums">{revealing ? seconds(WHOS_THAT_PASS_MS) : seconds(elapsed)}</span>
+            </div>
+            {/* The time left before it's passed. */}
+            <div className="-mt-2 h-1 overflow-hidden rounded bg-slate-700">
+              <div className="h-full bg-yellow-300" style={{ width: `${revealing ? 100 : (elapsed / WHOS_THAT_PASS_MS) * 100}%` }} />
             </div>
             <Fit ratio={16 / 9} grow={16}>
-              <WhosThatScreen shape={round.shape} />
+              {revealing ? <WhosThatScreen shape={reveal.shape} reveal={{ cardId: reveal.cardId, answer: reveal.answer }} /> : <WhosThatScreen shape={round.shape} />}
             </Fit>
             <Fit ratio={3 / 2} grow={11}>
-              <NamingScreen round={`${round.gameId}:${round.index}`} onSubmit={send} />
+              <NamingScreen round={`${round.gameId}:${round.index}`} onSubmit={send} disabled={revealing} />
             </Fit>
             <div className="flex items-start justify-between gap-3">
               <DoneList done={done} />
-              <button className={`${BUTTON} ml-auto shrink-0`} disabled={pass.isPending} onClick={() => pass.mutate({ gameId: round.gameId })}>
-                Pass
-              </button>
+              <div className="ml-auto flex shrink-0 items-center gap-2">
+                <span className="text-xs text-slate-400">Type SKIP to pass</span>
+                <button className={BUTTON} disabled={pass.isPending || revealing} onClick={() => pass.mutate({ gameId: round.gameId })}>
+                  Skip
+                </button>
+              </div>
             </div>
           </div>
         ) : results ? (
@@ -150,7 +178,7 @@ export function WhosThat() {
               <WhosThatScreen shape={null} />
             </Fit>
             <p className="text-sm text-slate-300">
-              Name {WHOS_THAT_ROUNDS} Pokémon from their silhouettes as fast as you can: type the name, press Enter, and the next one appears at once. A pass shows the Pokémon and counts {WHOS_THAT_PASS_MS / 1000} seconds. Your fastest and
+              Name {WHOS_THAT_ROUNDS} Pokémon from their silhouettes as fast as you can: type the name, press Enter, and the next one appears at once. After {WHOS_THAT_PASS_MS / 1000} seconds, or if you type SKIP, the Pokémon is revealed and counts as {WHOS_THAT_PASS_MS / 1000} seconds. Your fastest and
               average times go on the leaderboards.
             </p>
             <div className="flex flex-wrap gap-2">
