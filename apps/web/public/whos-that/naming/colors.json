@@ -1,0 +1,15 @@
+{
+  "keyboard": {
+    "text": "rgb(255, 255, 255)",
+    "shadow": "rgb(98, 98, 98)"
+  },
+  "name": {
+    "text": "rgb(98, 98, 98)",
+    "shadow": "rgb(213, 213, 205)"
+  },
+  "banner": {
+    "fill": "rgb(16, 115, 230)",
+    "text": "rgb(255, 255, 255)",
+    "shadow": "rgb(98, 98, 98)"
+  }
+}

@@ -1,0 +1,294 @@
+import { WHOS_THAT_PASS_MS, WHOS_THAT_REVEAL_MS, WHOS_THAT_ROUNDS } from '@poke-tcg/campaign';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { inferRouterOutputs } from '@trpc/server';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import type { AppRouter } from '@poke-tcg/api/router';
+import { useToasts } from '../../hooks/useToasts';
+import { useWindowFill } from '../../hooks/useWindowFill';
+import { useTRPC } from '../../lib/trpc';
+import { BUTTON, PANEL_HEADING } from '../../utils/styles';
+import { seconds } from '../../utils/whosThat';
+import { Toasts } from '../Toasts';
+import { NamingScreen } from '../whos-that/NamingScreen';
+import { WhosThatScreen } from '../whos-that/WhosThatScreen';
+
+type Outputs = inferRouterOutputs<AppRouter>['whosThat'];
+type Round = Outputs['start'];
+type Moved = Outputs['pass'];
+type Results = NonNullable<Moved['results']>;
+type Board = 'average' | 'fastest' | 'daily';
+
+const primary = 'rounded bg-blue-600 px-4 py-2 font-semibold transition hover:bg-blue-500 active:scale-95 disabled:opacity-40';
+const panel = 'space-y-4 rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600';
+// A panel filling its column's height, its screens sharing what the other rows leave (Fit).
+const fillPanel = 'flex min-h-0 flex-1 flex-col gap-4 rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600';
+
+/** A Pokémon done in the game under way: its name, and its time (or passed). */
+interface Done {
+  cardId: string;
+  answer: string;
+  timeMs: number;
+  passed: boolean;
+}
+
+/**
+ * The Extras page's Who's That Pokémon? (README: Who's That Pokémon?): 10 Pokémon in a row, each named as fast as it can
+ * be (typed on Emerald's naming screen and sent with Enter, the next one shown at once: NamingScreen). One not named in
+ * 30 seconds, or typed "skip" for (or Skip), is passed: revealed for WHOS_THAT_REVEAL_MS and counted as WHOS_THAT_PASS_MS
+ * (the user's). The time is kept by the server
+ * (`whosThat.start`, `guess`, `pass`). Random Pokémon, or today's playlist (the same 10 for everyone, one go a day). The
+ * leaderboards beside it (`whosThat.leaderboard`, public): best average, fastest Pokémon, and today's playlist.
+ */
+export function WhosThat() {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const toasts = useToasts();
+  const status = useQuery(trpc.whosThat.status.queryOptions());
+  // To the window's bottom, less the layout's padding under the page (main's pb-4).
+  const fill = useWindowFill<HTMLDivElement>('1rem');
+  const [round, setRound] = useState<Round | null>(null);
+  // When the Pokémon on screen was shown, by this browser's clock (the server's time, less how long it's been up).
+  const [shownAt, setShownAt] = useState(0);
+  const [done, setDone] = useState<Done[]>([]);
+  const [results, setResults] = useState<Results | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  // A passed Pokémon being revealed (its shape, card and name) until `until`, and the game's results if it was the last.
+  const [reveal, setReveal] = useState<{ shape: Round['shape']; cardId: string; answer: string; until: number; results: Results | null } | null>(null);
+  const revealing = reveal !== null && now < reveal.until;
+  // The Pokémon a pass was asked for when its time ran out, so it's asked once.
+  const autoPassed = useRef<string | null>(null);
+
+  const show = (next: Round) => {
+    setRound(next);
+    setShownAt(Date.now() - next.elapsedMs);
+  };
+  const finish = (r: Results) => {
+    setRound(null);
+    setResults(r);
+    void queryClient.invalidateQueries({ queryKey: trpc.whosThat.status.queryKey() });
+    void queryClient.invalidateQueries({ queryKey: trpc.whosThat.leaderboard.queryKey() });
+  };
+  /** The Pokémon on screen named or passed (a pass is revealed first, the next one's clock starting after it). */
+  const moveOn = (r: Moved) => {
+    setDone((d) => [...d, { cardId: r.cardId, answer: r.answer, timeMs: r.timeMs, passed: r.passed }]);
+    if (r.passed && round) setReveal({ shape: round.shape, cardId: r.cardId, answer: r.answer, until: Date.now() + WHOS_THAT_REVEAL_MS, results: r.results });
+    if (r.next) show(r.next);
+    else if (r.results && !r.passed) finish(r.results);
+  };
+  const onError = (err: { message: string }) => toasts.push('error', err.message);
+  const start = useMutation(
+    trpc.whosThat.start.mutationOptions({
+      onSuccess: (r) => {
+        setDone([]);
+        setResults(null);
+        setReveal(null);
+        show(r);
+      },
+      onError,
+    }),
+  );
+  const guess = useMutation(trpc.whosThat.guess.mutationOptions({ onError }));
+  const pass = useMutation(trpc.whosThat.pass.mutationOptions({ onSuccess: moveOn, onError }));
+
+  useEffect(() => {
+    if (!round) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 50);
+    return () => window.clearInterval(timer);
+  }, [round]);
+
+  // The last Pokémon passed: the results once it's been revealed.
+  useEffect(() => {
+    if (reveal?.results && !revealing) finish(reveal.results);
+    // finish only reads setters and the query client.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reveal, revealing]);
+
+  // Not named in WHOS_THAT_PASS_MS: passed (the server counts any later guess as a pass too).
+  useEffect(() => {
+    if (!round || revealing || reveal?.results || pass.isPending || now - shownAt < WHOS_THAT_PASS_MS) return;
+    const key = `${round.gameId}:${round.index}`;
+    if (autoPassed.current === key) return;
+    autoPassed.current = key;
+    pass.mutate({ gameId: round.gameId });
+  }, [round, revealing, reveal, pass, now, shownAt]);
+
+  const send = async (text: string) => {
+    if (!round || revealing) return false;
+    const r = await guess.mutateAsync({ gameId: round.gameId, guess: text });
+    if (!r.correct) return false;
+    moveOn(r);
+    return true;
+  };
+  const elapsed = Math.min(WHOS_THAT_PASS_MS, Math.max(0, now - shownAt));
+
+  const daily = status.data?.daily;
+  return (
+    // The page fills the window and never scrolls (the user's): the screen and the naming screen take the height left,
+    // each as large as fits; the leaderboards scroll inside their panel, and on a narrow screen leave the game the room.
+    <div ref={fill.ref} style={fill.style} className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[minmax(0,1fr)]">
+      <div className="flex min-h-0 flex-1 flex-col">
+        {round ? (
+          <div className={fillPanel}>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className={PANEL_HEADING}>
+                {round.daily ? "Today's playlist: " : ''}Pokémon {round.index + 1} of {round.total}
+              </h3>
+              <span className="font-mono text-lg tabular-nums">{revealing ? seconds(WHOS_THAT_PASS_MS) : seconds(elapsed)}</span>
+            </div>
+            {/* The time left before it's passed. */}
+            <div className="-mt-2 h-1 overflow-hidden rounded bg-slate-700">
+              <div className="h-full bg-yellow-300" style={{ width: `${revealing ? 100 : (elapsed / WHOS_THAT_PASS_MS) * 100}%` }} />
+            </div>
+            <Fit ratio={16 / 9} grow={16}>
+              {revealing ? <WhosThatScreen shape={reveal.shape} reveal={{ cardId: reveal.cardId, answer: reveal.answer }} /> : <WhosThatScreen shape={round.shape} />}
+            </Fit>
+            <Fit ratio={3 / 2} grow={11}>
+              <NamingScreen round={`${round.gameId}:${round.index}`} onSubmit={send} disabled={revealing} />
+            </Fit>
+            <div className="flex items-start justify-between gap-3">
+              <DoneList done={done} />
+              <div className="ml-auto flex shrink-0 items-center gap-2">
+                <span className="text-xs text-slate-400">Type SKIP to pass</span>
+                <button className={BUTTON} disabled={pass.isPending || revealing} onClick={() => pass.mutate({ gameId: round.gameId })}>
+                  Skip
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : results ? (
+          <div className={panel}>
+            <h3 className={PANEL_HEADING}>{results.daily ? "Today's playlist" : 'Your game'}</h3>
+            <div className="flex flex-wrap gap-6">
+              <Stat label="Average" value={seconds(results.averageMs)} />
+              <Stat label="Fastest" value={results.fastestMs === null ? '—' : seconds(results.fastestMs)} />
+            </div>
+            <DoneList done={done} />
+            <div className="flex gap-2">
+              <button className={primary} disabled={start.isPending} onClick={() => start.mutate({ daily: false })}>
+                Play again
+              </button>
+              <button className={BUTTON} onClick={() => setResults(null)}>
+                Back
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className={fillPanel}>
+            <Fit ratio={16 / 9} grow={1}>
+              <WhosThatScreen shape={null} />
+            </Fit>
+            <p className="text-sm text-slate-300">
+              Name {WHOS_THAT_ROUNDS} Pokémon from their silhouettes as fast as you can: type the name, press Enter, and the next one appears at once. After {WHOS_THAT_PASS_MS / 1000} seconds, or if you type SKIP, the Pokémon is revealed and counts as {WHOS_THAT_PASS_MS / 1000} seconds. Your fastest and
+              average times go on the leaderboards.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button className={primary} disabled={start.isPending} onClick={() => start.mutate({ daily: false })}>
+                Play
+              </button>
+              <button className={primary} disabled={start.isPending || !!daily?.finished} onClick={() => start.mutate({ daily: true })}>
+                {daily?.finished ? "Today's playlist: played" : daily ? "Continue today's playlist" : "Today's playlist"}
+              </button>
+            </div>
+            {status.data && (
+              <div className="flex flex-wrap gap-6">
+                <Stat label="Best average" value={status.data.best.averageMs === null ? '—' : seconds(status.data.best.averageMs)} />
+                <Stat label="Fastest" value={status.data.best.fastestMs === null ? '—' : seconds(status.data.best.fastestMs)} />
+                <Stat label="Games" value={String(status.data.best.games)} />
+                {daily?.finished && <Stat label="Today's playlist" value={seconds(daily.averageMs)} />}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      <Leaderboards className={round ? 'hidden lg:flex' : 'max-h-[40%] lg:max-h-none'} />
+      <Toasts toasts={toasts.toasts} />
+    </div>
+  );
+}
+
+/**
+ * A share (`grow`) of the height left in a column, its child as large as fits in it at `ratio` (width ÷ height),
+ * centred: the screens are sized by the window's height as well as its width.
+ */
+function Fit({ ratio, grow, children }: { ratio: number; grow: number; children: ReactNode }) {
+  return (
+    <div className="min-h-0 [container-type:size]" style={{ flex: `${grow} 1 0` }}>
+      <div className="mx-auto" style={{ width: `min(100cqw, ${ratio} * 100cqh)` }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-xs text-slate-400">{label}</div>
+      <div className="font-mono text-xl tabular-nums">{value}</div>
+    </div>
+  );
+}
+
+/** The Pokémon done so far, in order, with their times. */
+function DoneList({ done }: { done: Done[] }) {
+  if (!done.length) return null;
+  return (
+    <ol className="flex flex-wrap gap-2 text-sm">
+      {done.map((d, i) => (
+        <li key={i} className={`rounded px-2 py-1 ring-1 ${d.passed ? 'text-slate-400 ring-slate-600' : 'ring-slate-500'}`}>
+          {d.answer} <span className="font-mono tabular-nums text-slate-400">{d.passed ? 'passed' : seconds(d.timeMs)}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+const BOARDS: { id: Board; label: string }[] = [
+  { id: 'average', label: 'Best average' },
+  { id: 'fastest', label: 'Fastest' },
+  { id: 'daily', label: 'Today' },
+];
+
+/** The leaderboards, open to anyone: each player's best average, fastest Pokémon, and today's playlist. Their rows scroll inside the panel. */
+function Leaderboards({ className }: { className: string }) {
+  const trpc = useTRPC();
+  const [board, setBoard] = useState<Board>('average');
+  const data = useQuery(trpc.whosThat.leaderboard.queryOptions({ board }));
+  return (
+    <div className={`flex min-h-0 flex-col gap-4 self-start rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600 lg:max-h-full ${className}`}>
+      <h3 className={PANEL_HEADING}>Leaderboards</h3>
+      <div className="flex gap-1">
+        {BOARDS.map((b) => (
+          <button key={b.id} className={`rounded px-3 py-1 text-sm transition ${board === b.id ? 'bg-slate-600 text-slate-50' : 'text-slate-400 hover:bg-slate-700 hover:text-slate-50'}`} onClick={() => setBoard(b.id)}>
+            {b.label}
+          </button>
+        ))}
+      </div>
+      {board === 'daily' && data.data && <p className="text-xs text-slate-400">Today's playlist ({data.data.day}, UTC): everyone gets the same {data.data.rounds} Pokémon, one go each.</p>}
+      {data.data && !data.data.rows.length ? (
+        <p className="text-sm text-slate-400">No one yet. Be the first!</p>
+      ) : (
+        <div className="min-h-0 overflow-y-auto">
+        <table className="w-full text-sm">
+          <thead className="text-left text-xs text-slate-400">
+            <tr>
+              <th className="w-8 py-1">#</th>
+              <th className="py-1">Player</th>
+              <th className="py-1 text-right">{board === 'fastest' ? 'Fastest' : 'Average'}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.data?.rows.map((r) => (
+              <tr key={r.rank} className={r.me ? 'text-yellow-300' : ''}>
+                <td className="py-1 tabular-nums">{r.rank}</td>
+                <td className="truncate py-1">{r.name}</td>
+                <td className="py-1 text-right font-mono tabular-nums">{seconds((board === 'fastest' ? r.fastestMs : r.averageMs) ?? 0)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        </div>
+      )}
+    </div>
+  );
+}

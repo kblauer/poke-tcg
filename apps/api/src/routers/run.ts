@@ -62,7 +62,7 @@ async function chooseOption(userId: string, input: { runId: string; expectedVers
 const runDeckCosmetics = (userId: string, cosmetics: DeckCosmetics) => prisma.deck.updateMany({ where: { ownerId: userId, runId: { not: null } }, data: cosmetics });
 
 /** What the client gets for a run: its view (no RNG or opponents' deck seeds) and the battle under way. */
-async function clientRun(run: LoadedRun) {
+export async function clientRun(run: LoadedRun) {
   return { id: run.id, status: run.status, version: run.version, gameId: currentGameId(run.state), view: runView(run.state, await runPool(run.state.type)) };
 }
 

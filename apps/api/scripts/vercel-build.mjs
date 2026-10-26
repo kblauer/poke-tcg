@@ -28,6 +28,10 @@ await build({
   logLevel: 'warning',
 });
 
+// The holo masks beside the function: Who's That Pokémon? reads a round's silhouette from its card's (src/whos-that.ts),
+// so the browser is sent only the shape, never the mask's file, whose name is the answer's card.
+await cp(`${root}apps/web/public/holo-masks`, `${func}/holo-masks`, { recursive: true });
+
 // The card catalog beside the function (src/catalog.ts reads it at start), read from the deployment's database once
 // per build instead of once per instance. Without it the API still works, reading the table itself.
 try {
