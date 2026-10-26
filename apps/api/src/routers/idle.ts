@@ -125,7 +125,7 @@ export const idleRouter = router({
       events = visited.events;
     }
     // Leaving a town starts the clock again from now (time spent waiting there isn't played).
-    const leaving = input.action.type === 'GYM' || input.action.type === 'CONTINUE' || input.action.type === 'GRIND';
+    const leaving = input.action.type === 'GYM' || input.action.type === 'CONTINUE' || input.action.type === 'GRIND' || input.action.type === 'BACK_ROUTE';
     const saved = await saveIdleRun(run, state, { dex: partyNotes(state.party), ...(leaving && { simulatedAt: new Date() }) });
     return { run: clientIdleRun(saved), events };
   }),

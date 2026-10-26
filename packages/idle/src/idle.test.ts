@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AREAS, isTown, type WalkArea } from './areas.js';
 import { familyMovesUpTo } from './mon.js';
-import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, routeGrindPlan, starterOptions, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
+import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, previousRoute, routeGrindPlan, starterOptions, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
 
 type BattleSeg = Extract<SegmentEvent, { t: 'battle' }>;
 
@@ -380,6 +380,38 @@ describe('an idle run', () => {
     const next = simulateSegment(q, MANUAL, new Set())!.state;
     expect(next.pending).toBeUndefined();
     expect(next.party[0]!.uid).toBe('second');
+  });
+
+  it('goes back from a town to the end of the route before it, wild grinding there, and Route mode walks on to the town again', () => {
+    const pewter = AREAS.findIndex((a) => a.id === 'pewter-city');
+    const route2 = AREAS.findIndex((a) => a.id === 'route-2');
+    expect(previousRoute(pewter)).toBe(route2);
+    const base = createIdleRun({ species: 4 }, 2);
+    const r = applyIdleAction({ ...base, area: pewter, phase: 'town', party: [{ ...base.party[0]!, level: 40 }] }, { type: 'BACK_ROUTE' });
+    expect(r.ok).toBe(true);
+    let s = (r as { state: IdleState }).state;
+    const leg = (AREAS[route2] as WalkArea).legs.length - 1;
+    const end = (AREAS[route2] as WalkArea).legs[leg]!.track.length - 1;
+    expect(s).toMatchObject({ area: route2, phase: 'walking', loop: { kind: 'pace', resume: { area: route2, leg, step: end } } });
+    for (let i = 0; i < 10; i++) s = simulateSegment(s, MANUAL, new Set())!.state;
+    expect(s.loop?.kind).toBe('pace');
+    s = (applyIdleAction(s, { type: 'CONTINUE_ROUTE' }) as { state: IdleState }).state;
+    for (let i = 0; i < 20 && s.phase !== 'town'; i++) s = simulateSegment(s, MANUAL, new Set())!.state;
+    expect([s.phase, s.area]).toEqual(['town', pewter]);
+  });
+
+  it('switches straight from one grind to the other (the mode toggle), and refuses the one already on', () => {
+    const area = AREAS.findIndex((a) => a.id === 'route-2');
+    const base = createIdleRun({ species: 4 }, 2);
+    const s: IdleState = { ...base, area, step: 60, party: [{ ...base.party[0]!, level: 40 }] };
+    const wild = (applyIdleAction(s, { type: 'WILD_GRIND' }) as { state: IdleState }).state;
+    expect(applyIdleAction(wild, { type: 'WILD_GRIND' }).ok).toBe(false);
+    const trainers = applyIdleAction(wild, { type: 'TRAINER_GRIND' });
+    expect(trainers.ok && trainers.state.loop?.kind).toBe('trainers');
+    // Its resume is where the first grind began.
+    expect(trainers.ok && trainers.state.loop?.resume.step).toBe(60);
+    const back = trainers.ok ? applyIdleAction(trainers.state, { type: 'WILD_GRIND' }) : trainers;
+    expect(back.ok && back.state.loop?.kind).toBe('pace');
   });
 
   it('has auto-grind on by default', () => {

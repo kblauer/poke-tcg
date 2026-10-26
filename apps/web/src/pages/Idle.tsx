@@ -1,5 +1,5 @@
 import { idleMusic } from '@poke-tcg/campaign';
-import { AREAS, mapView, routeGrindPlan, species, TICK_MS, type IdleAction, type WalkArea } from '@poke-tcg/idle';
+import { AREAS, mapView, species, TICK_MS, type IdleAction, type WalkArea } from '@poke-tcg/idle';
 import { useState } from 'react';
 import type { Dialogue } from '../components/DialogueBox';
 import { useMusicCue, useMusicSettings } from '../components/MusicPlayer';
@@ -8,6 +8,7 @@ import { ReturnToPlay } from '../components/ReturnToPlay';
 import { Toasts } from '../components/Toasts';
 import { SceneTransition } from '../components/BattleTransition';
 import { AreaScene, usePreloadMaps } from '../components/idle/AreaScene';
+import { ModeToggle } from '../components/idle/ModeToggle';
 import { BattleScreen } from '../components/idle/BattleScreen';
 import { Bag, catchUpPages, IdleSettings } from '../components/idle/IdleSettings';
 import { MonIcon, PartyScreen } from '../components/idle/PartyScreen';
@@ -131,10 +132,6 @@ export function IdlePage() {
                   Stop grinding
                 </button>
               )}
-              {/* On a route or in a dungeon, out of battle (the user's): grind there until Continue route. */}
-              {v?.phase === 'walking' && !play.battle && !play.entering && (AREAS[v.area]!.kind === 'route' || AREAS[v.area]!.kind === 'dungeon') && (
-                <RouteGrindButtons view={v} busy={actions.busy} onAct={(a) => void act(a)} />
-              )}
               {
             confirmQuit ? (
               <span className="flex items-center gap-2 text-sm">
@@ -196,12 +193,17 @@ export function IdlePage() {
           onGrind={() => (setStore(false), void act({ type: 'GRIND' }))}
           onStore={() => (setStore(true), void act({ type: 'VISIT_STORE' }))}
           onContinue={() => (setStore(false), void act({ type: 'CONTINUE' }))}
+          onBack={() => (setStore(false), void act({ type: 'BACK_ROUTE' }))}
           dialogue={catchUp}
         />
       ) : play.battle ? (
         <BattleScreen battle={play.battle} shown={play.shown} gender={gender} dialogue={catchUp} onThrow={throwBall} throwing={throwing} />
       ) : (
         <AreaScene playback={play} gender={gender} dialogue={catchUp ?? (play.notice ? { text: play.notice, choices: [], instant: true, answer: () => {} } : null)}>
+          {/* The route modes (the user's: Route, Wild grind, Trainer grind), on a route or in a dungeon. */}
+          {active && v?.phase === 'walking' && !play.entering && (AREAS[v.area]!.kind === 'route' || AREAS[v.area]!.kind === 'dungeon') && (
+            <ModeToggle view={v} busy={actions.busy} onAct={(a) => void act(a)} />
+          )}
           {play.entering && <SceneTransition />}
         </AreaScene>
       )}
@@ -256,43 +258,6 @@ function TickMeter({ turn, tickAt }: { turn: number | null; tickAt: number }) {
       </div>
       <span className="shrink-0 tabular-nums">{TICK_MS / 1000} s</span>
     </div>
-  );
-}
-
-/**
- * The route grinds (the user's): Wild grind (wild Pokémon near where the run is; with none there, the button names the
- * route it goes back to) and Trainer grind (the route's trainers in a loop), greyed out with the reason when they can't;
- * Continue route while either goes on.
- */
-function RouteGrindButtons({ view, busy, onAct }: { view: ClientIdleRun['view']; busy: boolean; onAct: (a: IdleAction) => void }) {
-  if (view.loop)
-    return (
-      <button className={BUTTON} disabled={busy} onClick={() => onAct({ type: 'CONTINUE_ROUTE' })}>
-        Continue route
-      </button>
-    );
-  const wild = routeGrindPlan(view, 'wild');
-  const trainers = routeGrindPlan(view, 'trainers');
-  const away = !('error' in wild) && (wild.area !== view.area || (wild.kind === 'pace' && wild.leg !== view.leg));
-  return (
-    <>
-      <button
-        className={BUTTON}
-        disabled={busy || 'error' in wild}
-        title={'error' in wild ? wild.error : away ? `No wild Pokémon here: goes to ${AREAS[wild.area]!.name} to train` : 'Battle wild Pokémon nearby until Continue route'}
-        onClick={() => onAct({ type: 'WILD_GRIND' })}
-      >
-        {away ? `Wild grind in ${AREAS[wild.area]!.name}` : 'Wild grind'}
-      </button>
-      <button
-        className={BUTTON}
-        disabled={busy || 'error' in trainers}
-        title={'error' in trainers ? trainers.error : "Fight the route's trainers in a loop until Continue route (a rematch pays a quarter)"}
-        onClick={() => onAct({ type: 'TRAINER_GRIND' })}
-      >
-        Trainer grind
-      </button>
-    </>
   );
 }
 
