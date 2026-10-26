@@ -13,7 +13,7 @@ import { counts, discardTheirEnergy, energyPool, type Target } from '../engine.j
 import { inPlayDef, pokemonName } from '../status.js';
 import { ATTACK_TEMPLATES } from './ex-templates.js';
 import { DP3 } from './dp3.js';
-import { damageChosen, damageOpponent, energyCards, opponentTargets, same } from './common.js';
+import { benchedSlots, damageChosen, damageOpponent, energyCards, opponentTargets, same } from './common.js';
 import { energyAmount, restNextTurn } from './ex1.js';
 import { energyCardOf } from './ex2.js';
 import { energyCanGo, notNextTurn } from './neo3.js';
@@ -104,7 +104,9 @@ export const BW2: Record<string, Record<string, AttackEffect>> = {
   },
   // Whimsicott – Helping Hand: a basic Energy card from the deck onto a Benched Pokémon. Encore: as Golduck's (Secret Wonders).
   'bw2-11': {
+    // It can't be used when it would do nothing (the user's, 2026-10-26): with no Benched Pokémon.
     'Helping Hand': {
+      blocked: (s) => (benchedSlots(s.ownBench).length ? null : 'You have no Benched Pokémon'),
       run: (ctx) => void (ctx.me.deck.length && ctx.me.bench.some(Boolean) && ctx.pend({ kind: 'pickFromDeck', source: 'Helping Hand', filter: 'basicEnergy', attach: true, attachOnly: { bench: true } })),
     },
   },
@@ -241,7 +243,9 @@ export const BW2: Record<string, Record<string, AttackEffect>> = {
   // Unfezant – Tailwind: an Energy card from the hand onto any of the player's Pokémon. Feather Strike: heads 40 more, tails an
   // Energy card off the Defending Pokémon.
   'bw2-82': {
+    // It can't be used when it would do nothing (the user's, 2026-10-26): with no Energy card in the hand.
     Tailwind: {
+      blocked: (s) => (!s.ownHand || s.ownHand.some((c) => lookupCard(s.cards, c.defId).kind === 'energy') ? null : 'You have no Energy cards in your hand'),
       run: (ctx) => void (ctx.me.hand.some((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy') && ctx.pend({ kind: 'attachFromHand', source: 'Tailwind', count: 1, anyTarget: true })),
     },
     'Feather Strike': headsElseDiscard(40, () => {}, 80),

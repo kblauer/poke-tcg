@@ -4,8 +4,7 @@
 // Reshiram and Zekrom by name (a Reshiram-EX isn't one, as Mewtwo-EX isn't Mewtwo); Vengeance counts Pokémon cards; Dragon
 // Vortex counts Water and Lightning Energy cards, basic or Special (energyCardOf); Energy Bloom heals each of the player's Pokémon with any Energy attached, the attacker too; Vilify asks how many Pokémon to discard, then
 // which (the same-card rule); Transfer Junk takes up to one of each kind, the player picking them from the discard pile.
-// Implemented as printed, to ask (README: Generation 5): Lure Poison with no Benched Pokémon does nothing (there's no new
-// Defending Pokémon to Poison); Tractorbeam with no Benched Pokémon does its 40 to the Defending Pokémon; Signs of Evolution
+// Settled with the user (2026-10-26): Lure Poison with no Benched Pokémon Poisons the Active Pokémon; Tractorbeam with no Benched Pokémon does its 40 to the Defending Pokémon; Signs of Evolution
 // takes Pokémon of different types (each of its type once, as Eevee's evolutions are).
 import type { AttackContext, AttackEffect, AttackSituation, ChoiceSpec } from '../attacks.js';
 import { hasType, isPokemonCard, lookupCard, namesMatch, type CardLibrary } from '../cards.js';
@@ -169,11 +168,11 @@ export const BW9: Record<string, Record<string, AttackEffect>> = {
     'Lure Poison': {
       choices: (s) => opponentBenchChoice(s, "Lure Poison: choose one of your opponent's Benched Pokémon (heads: it's switched in and Poisoned)"),
       run(ctx) {
+        if (!ctx.flip()) return;
+        // With no Benched Pokémon to switch in, the Active Pokémon is Poisoned (the user's, 2026-10-26).
         const slot = ctx.choices.benchSlot;
-        if (slot === undefined || !ctx.opp.bench[slot] || !ctx.flip()) return;
-        const before = ctx.opp.active;
-        ctx.switchDefender(slot);
-        if (ctx.opp.active !== before) ctx.inflict('poisoned');
+        if (slot !== undefined && ctx.opp.bench[slot]) ctx.switchDefender(slot);
+        ctx.inflict('poisoned');
       },
     },
   },

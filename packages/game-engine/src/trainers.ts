@@ -240,6 +240,8 @@ export type PendingChoice = {
       looked: string[];
       take: number;
       master?: boolean;
+      /** With `master`: only a Basic Pokémon, not a Pokémon-ex or Pokémon-EX (Great Ball, the user's, 2026-10-26). */
+      basicNotEx?: boolean;
       /** As `master`, but a Trainer card may be taken (PokéGear), shown to the opponent. */
       trainer?: boolean;
       /** As `trainer`, a Supporter card only (Pokégear 3.0). */
@@ -815,8 +817,8 @@ export type PendingChoice = {
       once?: boolean;
       /** A Pokémon LV.X levelling up one of the player's Pokémon instead (Learning). */
       levelUp?: boolean;
-      /** The usual limits for evolving apply (Make a Wish, agreed). */
-      limits?: boolean;
+      /** The usual limits for evolving apply (Make a Wish, agreed); 'power': all but the first turn's (Moon Guidance, as the EX sets' Poké-Powers). */
+      limits?: boolean | 'power';
       /** Once a Pokémon evolves, a damage counter on the Pokémon whose top card is this (Make a Wish). */
       counterOn?: string;
       /** Then this player may do the same, with `thenNames` (Evolution Song). */
@@ -1997,8 +1999,8 @@ export function pendingChoiceView(state: GameState, choice: PendingChoice): Pend
       return { kind: 'pickFromDeck', prompt: `${choice.source}: you may take a Basic Pokémon, Evolution or Energy card (shown to your opponent); the others go back on top of your deck`, options: options.filter((c) => pokeNavFits(state.cards, c)), optional: true };
     }
     if (choice.master) {
-      const pokemon = options.filter((c) => isPokemonCard(lookupCard(state.cards, c.defId)));
-      return { kind: 'pickFromDeck', prompt: `${choice.source}: you may take a Basic Pokémon or Evolution card; the rest are shuffled back`, options: pokemon, optional: true };
+      const pokemon = options.filter((c) => masterFits(state.cards, choice, c));
+      return { kind: 'pickFromDeck', prompt: `${choice.source}: you may take a ${choice.basicNotEx ? 'Basic Pokémon (not a Pokémon-ex or Pokémon-EX)' : 'Basic Pokémon or Evolution card'}; the rest are shuffled back`, options: pokemon, optional: true };
     }
     if (choice.toBench) {
       const room = openBenchSlot(player, state.cards, state.stadium?.card) >= 0;
@@ -3895,6 +3897,12 @@ function lunarTargets(cards: CardLibrary, player: Pick<PlayerState, 'bench'>, c:
   });
 }
 
+/** A card Master Ball's pick may take: a Pokémon card, or with `basicNotEx` a Basic Pokémon but a Pokémon-ex or Pokémon-EX (Great Ball). */
+const masterFits = (cards: CardLibrary, choice: Extract<PendingChoice, { kind: 'pickFromTop' }>, c: CardInstance) => {
+  const d = lookupCard(cards, c.defId);
+  return isPokemonCard(d) && (!choice.basicNotEx || (isBasicPokemon(d) && d.kind === 'pokemon' && !d.ex && !d.pokemonEX));
+};
+
 /** Evolutionary Spore: the player's Pokémon this deck card can evolve (by name and stage), named one of `names`, not evolved by it yet. */
 export function sporeTargets(state: Pick<GameState, 'players' | 'cards' | 'turn'>, choice: Extract<PendingChoice, { kind: 'evolveMany' }>, c: CardInstance): Target[] {
   const d = lookupCard(state.cards, c.defId);
@@ -3906,7 +3914,7 @@ export function sporeTargets(state: Pick<GameState, 'players' | 'cards' | 'turn'
     if (choice.levelUp) return !p.faceDown && from.kind === 'pokemon' && from.stage !== 'levelUp' && !p.levelUpFrom && evolvesOnto(d, from) && state.turn > 2 && p.playedTurn !== state.turn;
     if (p.faceDown || shapeshiftCard(p) || choice.done.includes(baseUid(p)) || !choice.names.includes(from.name)) return false;
     // Make a Wish (agreed): the usual limits, not on a Pokémon played or evolved this turn nor on the first turn.
-    if (choice.limits && (state.turn <= 2 || p.playedTurn === state.turn || p.effects?.noEvolve !== undefined)) return false;
+    if (choice.limits && ((choice.limits !== 'power' && state.turn <= 2) || p.playedTurn === state.turn || p.effects?.noEvolve !== undefined)) return false;
     return from.kind === 'pokemon' && from.name === d.evolvesFrom && from.stage === (d.stage === 'stage2' ? 'stage1' : 'basic');
   });
 }
@@ -4592,7 +4600,7 @@ export function resolvePending(state: GameState, me: PlayerState, answer: { card
       : choice.trainer
       ? looked.filter((c) => isTrainerCard(lookupCard(state.cards, c.defId)))
       : choice.master
-        ? looked.filter((c) => isPokemonCard(lookupCard(state.cards, c.defId)))
+        ? looked.filter((c) => masterFits(state.cards, choice, c))
         : looked;
     const picked = takeable.find((c) => c.uid === answer.cardUid);
     if (answer.cardUid !== undefined && !picked) return 'Choose one of the cards';

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CardDef, PokemonCardDef } from '../cards.js';
-import { applyAction, retreatCost, type GameState, type InPlayPokemon, type PlayerState } from '../index.js';
+import { applyAction, CPU_DIFFICULTIES, cpuFor, retreatCost, type GameState, type InPlayPokemon, type PlayerState } from '../index.js';
 import { act, attack, C, duel, F, FI, flips, G, mon, P, settles, W } from './test-kit.js';
 
 // Legendary Treasures (README: Generation 5): its attacks, Abilities and Trainers that aren't reprints. The cards are set up
@@ -151,10 +151,11 @@ describe('attacks', () => {
     expect(ash(after).active!.effects?.amnesia).toEqual({ attack: 'Eternal Radiance', until: s.turn + 2 });
   });
 
-  it('Picnic Weather: a Teddiursa from the discard pile onto the Bench, with an Energy card from it', () => {
+  it('Picnic Weather: a Teddiursa from the discard pile onto the Bench (taken for the player), with the Energy card picked', () => {
     const s = setup(ursaring, target, { energy: ['fire', 'fire'] });
+    expect(applyAction(s, 'ash', { type: 'ATTACK', attackIndex: 0 }).ok).toBe(false);
     ash(s).discard.push({ uid: 'ted', defId: 'test-teddiursa' }, { uid: 'en', defId: 'water' });
-    const after = attack(s, 0, { discardUids: ['ted', 'en'] });
+    const after = attack(s, 0, { discardUids: ['en'] });
     expect(ash(after).bench[0]).toMatchObject({ card: { uid: 'ted' }, energy: [{ uid: 'en' }] });
   });
 });
@@ -187,6 +188,8 @@ describe('Trainers', () => {
     expect(misty(right).hand.length).toBe(misty(asked).hand.length + 3);
     const wrong = act(asked, 'misty', { type: 'RESOLVE_CHOICE', count: (choice.answer + 1) % 4 });
     expect(ash(wrong).hand.length).toBe(ash(asked).hand.length + 3);
+    // The CPU, every difficulty, always guesses right (the user's).
+    for (const difficulty of CPU_DIFFICULTIES) expect(cpuFor(difficulty)(asked, 'misty')).toMatchObject({ type: 'RESOLVE_CHOICE', count: choice.answer });
   });
 
   it('Elesa: up to 3 Pokémon Tool cards from the deck', () => {

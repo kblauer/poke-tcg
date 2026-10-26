@@ -589,7 +589,7 @@ export function Board({
       // The setup line is on its banner instead (SetupBanner).
       status={phase === 'setup' ? '' : statusText(view)}
       canEndTurn={endTurnShown}
-      setup={phase === 'setup' && !self.ready ? { canReset: !!self.active || self.bench.some(Boolean), canStart: !!self.active } : null}
+      setup={phase === 'setup' && !self.ready ? { canReset: !!self.active || self.bench.some(Boolean), canStart: !!self.active, ticket: self.hand.some((c) => lookupCard(view.cards, c.defId).name === 'First Ticket') } : null}
       endTurn={() =>
         turnReminders.check('end', () => {
           setEndedOn(view.turn);

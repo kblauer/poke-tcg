@@ -68,8 +68,19 @@ const furyCutter = (damage: number): AttackEffect => ({ run: (ctx) => void ctx.h
 const toolsIn = (hand: CardInstance[]) => hand.filter((c) => !!trainerEffect(c.defId)?.tool);
 
 export const BW5: Record<string, Record<string, AttackEffect>> = {
-  // Carnivine – Spit Squall: the Defending Pokémon and every card attached to it into the opponent's hand.
-  'bw5-5': { 'Spit Squall': { run: (ctx) => ctx.returnDefender() } },
+  // Carnivine – Lure Poison: one of the opponent's Benched Pokémon switched in and Poisoned; with none, the Active Pokémon is
+  // Poisoned (the user's, 2026-10-26, as Plasma Freeze Grimer's). Spit Squall: the Defending Pokémon and every card attached
+  // to it into the opponent's hand.
+  'bw5-5': {
+    'Lure Poison': {
+      choices: (s) => opponentBenchChoice(s, "Lure Poison: choose one of your opponent's Benched Pokémon to switch in"),
+      run(ctx) {
+        if (ctx.choices.benchSlot !== undefined) ctx.switchDefender(ctx.choices.benchSlot);
+        ctx.inflict('poisoned');
+      },
+    },
+    'Spit Squall': { run: (ctx) => ctx.returnDefender() },
+  },
   // Accelgor – Deck and Cover: Paralyzed and Poisoned, then Accelgor and its cards shuffled into the deck.
   'bw5-11': {
     'Deck and Cover': {

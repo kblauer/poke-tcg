@@ -115,7 +115,7 @@ export const gameActionSchema = z.discriminatedUnion('type', [
   resolveChoiceSchema,
   z.object({ type: z.literal('DISCARD_DOLL'), target }),
   z.object({ type: z.literal('RESET_SETUP') }),
-  z.object({ type: z.literal('START_BATTLE') }),
+  z.object({ type: z.literal('START_BATTLE'), firstTicket: z.boolean().optional() }),
   z.object({ type: z.literal('USE_STADIUM') }),
   z.object({ type: z.literal('FLIP_FACE_DOWN'), target }),
   z.object({ type: z.literal('DISCARD_SHAPESHIFT'), target }),

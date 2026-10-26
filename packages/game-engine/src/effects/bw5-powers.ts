@@ -3,8 +3,7 @@
 // From the text: Ancient Scream adds 10 for each Aerodactyl, to any of its player's Pokémon's attacks on the Active Pokémon,
 // before Weakness and Resistance (as Battle Aura's do: they add up); Scorching Scales makes Burn 4 damage counters for the
 // opponent's Burned Pokémon (4 however many Volcarona); Solar Revelation keeps everything but damage from the opponent's
-// attacks off the player's Defending Pokémon while it has any Energy attached (effects that reach the Bench, such as damage
-// counters put there, aren't stopped: a question for the user); Dark Cloak's "any Darkness Energy" is Energy provided (Blend
+// attacks off each of the player's Pokémon with any Energy attached, the Bench too (the user's, 2026-10-26; attacks.ts's revealedTo); Dark Cloak's "any Darkness Energy" is Energy provided (Blend
 // Energy too); Airhead counts the Prize cards its player has left as the attack is chosen; Softboiled can be used only when
 // the Active Pokémon has damage counters, and Diving Draw only with a card in the hand to discard.
 import { lookupCard } from '../cards.js';

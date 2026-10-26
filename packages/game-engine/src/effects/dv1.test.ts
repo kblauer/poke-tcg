@@ -85,17 +85,23 @@ describe('Dragon Vault Abilities', () => {
 });
 
 describe('First Ticket', () => {
-  it('the one player holding it goes first; it can\'t be played during a turn', () => {
+  it('played as its player starts, if they choose: they go first; kept, nothing happens; never during a turn', () => {
     const cards: Record<string, CardDef> = { ...CARDS, 'dv1-19': { id: 'dv1-19', kind: 'trainer', name: 'First Ticket', imageUrl: null, text: '' } };
     const deck = Array<string>(20).fill(id('charmander'));
     for (const holder of ['ash', 'misty']) {
       let s = createGame({ id: 'ash', deck }, { id: 'misty', deck }, 1, cards);
       s.players[holder]!.hand.push({ uid: 'ticket', defId: 'dv1-19' });
       for (const p of ['ash', 'misty']) s = act(s, p, { type: 'SET_ACTIVE', cardUid: s.players[p]!.hand.find((c) => c.defId === id('charmander'))!.uid });
-      s = act(act(s, 'ash', { type: 'START_BATTLE' }), 'misty', { type: 'START_BATTLE' });
+      const kept = act(act(s, 'ash', { type: 'START_BATTLE' }), 'misty', { type: 'START_BATTLE' });
+      expect(kept.players[holder]!.hand.map((c) => c.uid)).toContain('ticket');
+      s = act(act(s, 'ash', { type: 'START_BATTLE', firstTicket: holder === 'ash' }), 'misty', { type: 'START_BATTLE', firstTicket: holder === 'misty' });
       expect(s.currentPlayer).toBe(holder);
       expect(s.players[holder]!.discard.map((c) => c.uid)).toContain('ticket');
     }
+    // With no First Ticket in the hand it can't be chosen.
+    const none = createGame({ id: 'ash', deck }, { id: 'misty', deck }, 1, cards);
+    const ready = act(none, 'ash', { type: 'SET_ACTIVE', cardUid: none.players.ash!.hand.find((c) => c.defId === id('charmander'))!.uid });
+    expect(applyAction(ready, 'ash', { type: 'START_BATTLE', firstTicket: true }).ok).toBe(false);
     const s = duel('charmander', 'onix');
     s.cards = cards;
     ash(s).hand.push({ uid: 'later', defId: 'dv1-19' });

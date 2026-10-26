@@ -441,6 +441,8 @@ export interface PlayerState {
   faceUpPrizes?: string[];
   /** Setup: done placing Pokémon (START_BATTLE). Cleared when the battle starts. */
   ready?: boolean;
+  /** Setup: started with First Ticket (START_BATTLE's `firstTicket`), played once both are ready. Hidden from the opponent until then. */
+  firstTicket?: boolean;
   /** Last turn attacks can't affect this player's Benched Pokémon (Protective Flame). Missing = none. */
   benchProtectedUntil?: number;
   /** Last turn no Pokémon Powers work (Goop Gas Attack, set on both players). Missing = they work. */
@@ -611,7 +613,8 @@ export type GameAction =
   /** Setup: take back every Pokémon placed so far. */
   | { type: 'RESET_SETUP' }
   /** Setup: done placing Pokémon; the battle starts once both players are. */
-  | { type: 'START_BATTLE' }
+  /** `firstTicket`: the player plays a First Ticket from their hand as they start (Dragon Vault: they go first). */
+  | { type: 'START_BATTLE'; firstTicket?: boolean }
   /** Discard a Trainer played as a Pokémon (Clefairy Doll) from play. */
   | { type: 'DISCARD_DOLL'; target: Target }
   /** Use the Stadium card in play (Lucky Stadium), once during the turn. */
@@ -1746,7 +1749,9 @@ function setupAction(state: GameState, me: PlayerState, opp: PlayerState, action
     }
     case 'START_BATTLE': {
       if (!me.active) return fail('Choose an Active Pokémon first');
+      if (action.firstTicket && !me.hand.some((c) => !!trainerEffect(c.defId)?.firstTicket)) return fail('You have no First Ticket in your hand');
       me.ready = true;
+      if (action.firstTicket) me.firstTicket = true;
       addLog(state, 'Is ready.', me.id);
       if (!opp.ready) return ok(state);
       // Both are ready: turn the Pokémon face up, and the first player starts.
@@ -1765,16 +1770,21 @@ function setupAction(state: GameState, me: PlayerState, opp: PlayerState, action
         state.currentPlayer = eager[0]!;
         addLog(state, 'Overeager: goes first.', eager[0]!);
       }
-      // First Ticket (Dragon Vault): a player with one in their hand plays it instead of the flip for who goes first, and goes
-      // first; if both do, the flip stands. Played for the player whenever they can (a question for the user).
-      const ticketed = state.playerOrder.filter((id) => state.players[id]!.hand.some((c) => !!trainerEffect(c.defId)?.firstTicket));
-      if (eager.length !== 1 && ticketed.length === 1) {
-        const holder = state.players[ticketed[0]!]!;
+      // First Ticket (Dragon Vault): a player who chose to play one from their hand as they started (START_BATTLE's `firstTicket`,
+      // the user's, 2026-10-26) goes first instead of the flip; if both did, the flip stands (both are still played), and
+      // Overeager wins over it.
+      const ticketed = state.playerOrder.filter((id) => state.players[id]!.firstTicket);
+      for (const id of ticketed) {
+        const holder = state.players[id]!;
+        delete holder.firstTicket;
         const ticket = holder.hand.find((c) => !!trainerEffect(c.defId)?.firstTicket)!;
         holder.hand = holder.hand.filter((c) => c !== ticket);
         holder.discard.push(ticket);
-        state.currentPlayer = holder.id;
-        addLog(state, 'Played First Ticket: goes first.', holder.id);
+        addLog(state, 'Played First Ticket.', id);
+      }
+      if (eager.length !== 1 && ticketed.length === 1) {
+        state.currentPlayer = ticketed[0]!;
+        addLog(state, 'First Ticket: goes first.', ticketed[0]!);
       }
       state.phase = 'playing';
       return ok(state);

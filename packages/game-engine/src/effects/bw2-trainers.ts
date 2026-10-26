@@ -24,10 +24,11 @@ export const BW2_TRAINERS: Record<string, TrainerEffect> = {
   },
   // Crushing Hammer: as Expedition's Energy Removal 2.
   'bw2-92': ECARD1_TRAINERS['ecard1-140']!,
-  // Great Ball: a Pokémon among the top 7 cards of the deck into the hand, or none; the rest shuffled back.
+  // Great Ball: a Basic Pokémon, not a Pokémon-ex or Pokémon-EX (the user's, 2026-10-26), among the top 7 cards of the deck into
+  // the hand, or none; the rest shuffled back.
   'bw2-93': {
     blocked: (s) => (s.deckCount ? null : 'Your deck is empty'),
-    play: (ctx) => ctx.pend({ kind: 'pickFromTop', source: 'Great Ball', looked: ctx.me.deck.slice(0, 7).map((c) => c.uid), take: 1, master: true }),
+    play: (ctx) => ctx.pend({ kind: 'pickFromTop', source: 'Great Ball', looked: ctx.me.deck.slice(0, 7).map((c) => c.uid), take: 1, master: true, basicNotEx: true }),
   },
   // Max Potion: all damage off one of the player's Pokémon, then every Energy card attached to it discarded.
   'bw2-94': {

@@ -7,8 +7,8 @@
 // its player play 2 Supporter cards a turn, however many Magnezone (trainerError); Night Sight draws 1 card once a turn
 // (as EX Deoxys Ludicolo's Swing Dance); Premonition puts the 2 cards back in the order picked; Dual Armor makes Lucario both
 // Fighting and Metal with Metal Energy attached; Plasma Steel covers every Metal Pokémon of its player's, Klinklang too, against
-// the opponent's Pokémon-EX only; Moon Guidance evolves one of the player's Pokémon with the usual limits for evolving (as
-// Evolution Wish), on heads; Block is Guard; Bright Veil stops the opponent's Item cards choosing their Pokémon or their Energy
+// the opponent's Pokémon-EX only; Moon Guidance evolves one of the player's Pokémon on heads, as the EX sets' Poké-Powers do
+// (the user's, 2026-10-26): on the first turn too, but not a Pokémon played or evolved this turn; Block is Guard; Bright Veil stops the opponent's Item cards choosing their Pokémon or their Energy
 // (itemVeiled), and those that do something to them by themselves check it (Hypnotoxic Laser, Escape Rope); Overflow is Space
 // Virus (1 more Prize card for a Knock Out by its attack's damage); Big Wing asks the opponent which Pokémon switches in.
 import { lookupCard } from '../cards.js';
@@ -112,7 +112,7 @@ export const BW8_POWERS: Record<string, PowerEffect> = {
     use(ctx) {
       if (!ctx.flip()) return ctx.log('Moon Guidance: tails.');
       const names = [...new Set(inPlay(ctx.me).map((p) => lookupCard(ctx.state.cards, p.card.defId).name))];
-      ctx.pend({ kind: 'evolveMany', source: 'Moon Guidance', names, done: [], once: true, limits: true });
+      ctx.pend({ kind: 'evolveMany', source: 'Moon Guidance', names, done: [], once: true, limits: 'power' });
     },
   },
 

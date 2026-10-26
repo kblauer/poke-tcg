@@ -5,17 +5,23 @@
 // Fortunate Draw is Rock-Paper-Scissors (the attacking player first, a tie played again): the winner draws 3, the loser discards
 // the top 3 cards of their deck; Energy Gift attaches each Psychic Energy card to the Pokémon clicked; Dig Out's basic Energy
 // card goes to the Pokémon clicked; Eternal Radiance moves the counters only if the attack can affect the Defending Pokémon;
-// Picnic Weather takes a Teddiursa and an Energy card from the discard pile, both picked by the player; Tiptoe Step counts the
+// Picnic Weather takes a Teddiursa from the discard pile for the player and asks only for the Energy card (the user's); Tiptoe Step counts the
 // Psychic Energy attached (Energy provided).
 import type { AttackEffect, ChoiceSpec } from '../attacks.js';
-import { isBasicEnergy, lookupCard, namesMatch, typesOf } from '../cards.js';
-import { counts, energyPool, newInPlay, PRIZE_COUNT } from '../engine.js';
+import { isBasicEnergy, lookupCard, namesMatch, typesOf, type CardLibrary } from '../cards.js';
+import { counts, energyPool, newInPlay, PRIZE_COUNT, type CardInstance } from '../engine.js';
 import { countersMoved, openBenchSlot, pokemonName } from '../status.js';
 import { benchedSlots } from './common.js';
 import { removeDefenderEnergy } from './dp1.js';
 import { returnSelf } from './gym2.js';
 import { discardFree, notNextTurn, reachesDefender } from './neo3.js';
 import { healUpTo } from './si1.js';
+
+/** A Teddiursa card (Picnic Weather). */
+const isTeddiursa = (cards: CardLibrary, c: CardInstance) => {
+  const d = lookupCard(cards, c.defId);
+  return d.kind === 'pokemon' && !d.trainerText && namesMatch(d.name, 'Teddiursa');
+};
 
 export const BW11: Record<string, Record<string, AttackEffect>> = {
   // Shuckle – Share: 40 off one of the player's Benched Pokémon.
@@ -121,24 +127,21 @@ export const BW11: Record<string, Record<string, AttackEffect>> = {
     },
   },
   // Ursaring – Picnic Weather: a Teddiursa from the discard pile onto the Bench, then an Energy card from the discard pile onto it.
+  // The user's (2026-10-26): the Teddiursa is taken for the player, who picks only the Energy card; with no Teddiursa in the
+  // discard pile it can't be used.
   'bw11-RC16': {
     'Picnic Weather': {
+      blocked: (s) => (s.ownDiscard.some((c) => isTeddiursa(s.cards, c)) ? null : 'You have no Teddiursa in your discard pile'),
       choices(s): ChoiceSpec[] {
         if (s.discardsLocked || openBenchSlot({ bench: s.ownBench, benchLimit: s.ownBenchLimit }, s.cards, s.stadium) < 0) return [];
-        const teddiursa = s.ownDiscard.filter((c) => {
-          const d = lookupCard(s.cards, c.defId);
-          return d.kind === 'pokemon' && !d.trainerText && namesMatch(d.name, 'Teddiursa');
-        });
-        if (!teddiursa.length) return [];
         const energy = s.ownDiscard.filter((c) => lookupCard(s.cards, c.defId).kind === 'energy');
-        return [{ kind: 'ownDiscard', min: 1, max: energy.length ? 2 : 1, options: [...teddiursa, ...energy], prompt: 'Picnic Weather: choose a Teddiursa and an Energy card from your discard pile' }];
+        return energy.length ? [{ kind: 'ownDiscard', min: 1, max: 1, options: energy, prompt: 'Picnic Weather: choose an Energy card from your discard pile to attach to Teddiursa' }] : [];
       },
       run(ctx) {
-        const picked = ctx.me.discard.filter((c) => ctx.choices.discardUids?.includes(c.uid));
-        const teddiursa = picked.find((c) => lookupCard(ctx.state.cards, c.defId).kind === 'pokemon' && namesMatch(lookupCard(ctx.state.cards, c.defId).name, 'Teddiursa'));
+        const teddiursa = ctx.me.discard.find((c) => isTeddiursa(ctx.state.cards, c));
         const slot = openBenchSlot(ctx.me, ctx.state.cards, ctx.state.stadium?.card);
         if (!teddiursa || slot < 0 || !discardFree(ctx)) return;
-        const energy = picked.find((c) => lookupCard(ctx.state.cards, c.defId).kind === 'energy');
+        const energy = ctx.me.discard.find((c) => ctx.choices.discardUids?.includes(c.uid));
         ctx.me.discard = ctx.me.discard.filter((c) => c !== teddiursa && c !== energy);
         const p = newInPlay(teddiursa, ctx.turn);
         if (energy) p.energy.push(energy);

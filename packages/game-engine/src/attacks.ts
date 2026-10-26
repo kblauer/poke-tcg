@@ -1164,7 +1164,7 @@ function createContext(
       (!!opp.active && (!!passive(opp.active)?.crystalBodyWhen?.(opp.active, state.cards) || holonWith(opp.active, state.cards, 'WP', 'water')));
     // Unown G's GUARD: attached as a Pokémon Tool, nothing but damage.
     const guarded = !!opp.active?.attached?.some((a) => a.equip && lookupCard(state.cards, a.card.defId).name === 'Unown G');
-    // Solar Revelation: nothing but damage to any of its player's Pokémon with Energy attached (the Defending one, here).
+    // Solar Revelation: nothing but damage to any of its player's Pokémon with Energy attached (the Defending one here, the Bench in ctx.canAffect).
     const revealed = !!opp.active?.energy.length && [opp.active, ...opp.bench].some((q) => q && passive(q)?.solarRevelation);
     const crystal = !!opp.active && (!!passive(opp.active)?.crystalBody || veiled || guarded || revealed || active(opp.active.effects?.effectProof, turn));
     if (!shielded() && !crystal) return false;
@@ -1204,6 +1204,13 @@ function createContext(
       damage = noted('Protect Wing', damage, Math.max(0, damage - 20));
       log(`Protect Wing reduced the damage to ${pokemonName(state, p)} by 20.`, owner.id);
     }
+    // Cotton Spore: on its owner's heads, no damage from the opponent's attack. Smooth Coat, an Ability, the same from any
+    // attack, its own player's too (the user's, 2026-10-26: it doesn't say whose).
+    const spore = def(state.cards, p).power?.name ?? 'Cotton Spore';
+    if (damage > 0 && body?.cottonSpore && (owner === opp || body.ability) && flipCoin(state, spore, owner.id)) {
+      log(`${spore} prevented the damage to ${pokemonName(state, p)}.`, owner.id);
+      return noted(spore, damage, 0);
+    }
     if (damage > 0 && owner === opp && body) {
       // Steel Coating: 10 less for each Metal Energy attached, 20 at most.
       const steel = body.steelCoating ? Math.min(20, 10 * energyPool(p, state.cards).filter((e) => counts(e, 'metal')).length) : 0;
@@ -1221,13 +1228,6 @@ function createContext(
         log(`Fossil Armor prevented the damage to ${pokemonName(state, p)}.`, owner.id);
         return noted('Fossil Armor', damage, 0);
       }
-      // Cotton Spore: on its owner's heads, no damage from the opponent's attack.
-      // (Smooth Coat, an Ability, the same.)
-      const spore = def(state.cards, p).power?.name ?? 'Cotton Spore';
-      if (body.cottonSpore && flipCoin(state, spore, owner.id)) {
-        log(`${spore} prevented the damage to ${pokemonName(state, p)}.`, owner.id);
-        return noted(spore, damage, 0);
-      }
       // Pot Shell: no damage from an attacker with a Special Energy card attached.
       if (body.potShell && attacker.energy.some((e) => isSpecialEnergy(state.cards, e))) {
         log(`Pot Shell prevented the damage to ${pokemonName(state, p)}.`, owner.id);
@@ -1244,10 +1244,10 @@ function createContext(
         log(`${def(state.cards, p).power?.name ?? 'A Poké-Body'} reduced the damage to ${pokemonName(state, p)} by ${less}.`, owner.id);
       }
     }
-    // Hard Cocoon (Solid Rock, an Ability, the same): the opponent's attack, on its owner's heads, does a set amount less.
+    // Hard Cocoon: the opponent's attack, on its owner's heads, does a set amount less. Solid Rock, an Ability, any attack (the user's).
     const cocoon = passive(p)?.hardCocoon;
     const cocoonName = def(state.cards, p).power?.name ?? 'Hard Cocoon';
-    if (damage > 0 && cocoon && owner === opp && flipCoin(state, cocoonName, owner.id)) {
+    if (damage > 0 && cocoon && (owner === opp || passive(p)?.ability) && flipCoin(state, cocoonName, owner.id)) {
       damage = Math.max(0, damage - cocoon);
       log(`${cocoonName} reduced the damage to ${pokemonName(state, p)} by ${cocoon}.`, owner.id);
     }
@@ -1471,7 +1471,8 @@ function createContext(
       }
       return damage;
     }
-    if (owner !== opp || p.damage + damage < hp || !passive(p)?.fortitude || !flipCoin(state, 'Fortitude', owner.id)) return damage;
+    // Durable Body, an Ability, the same against any attack, its own player's too (the user's, 2026-10-26).
+    if ((owner !== opp && !passive(p)?.ability) || p.damage + damage < hp || !passive(p)?.fortitude || !flipCoin(state, def(state.cards, p).power?.name ?? 'Fortitude', owner.id)) return damage;
     log(`Fortitude: ${pokemonName(state, p)} isn't Knocked Out; it has 10 HP left.`, owner.id);
     return noted('Fortitude', damage, Math.max(0, hp - 10 - p.damage));
   };
@@ -1668,6 +1669,15 @@ function createContext(
     if (!immune(p, player) && !transparent(p, player)) return true;
     log(`${pokemonName(state, p)} is protected from the attack.`, player.id);
     return false;
+  };
+  /**
+   * Solar Revelation (the user's, 2026-10-26): no effect of the opponent's attacks but damage on any of its player's Pokémon
+   * with Energy attached, the Bench too. For the effects' own checks (ctx.canAffect): canAffect also guards damage, which this doesn't stop.
+   */
+  const revealedTo = (player: PlayerState, p: InPlayPokemon) => {
+    if (player !== opp || !p.energy.length || ![player.active, ...player.bench].some((q) => q && passive(q)?.solarRevelation)) return false;
+    log(`Solar Revelation: the attack's effects don't affect ${pokemonName(state, p)}.`, player.id);
+    return true;
   };
   /** Marks a Pokémon the attack's damage left with no HP (knockedByAttack, for Revenge). */
   const ko = (pokemon: InPlayPokemon) => {
@@ -2301,7 +2311,7 @@ function createContext(
       attacker.condition = 'asleep';
       log(`${attackerDef.name} is now Asleep.`);
     },
-    canAffect,
+    canAffect: (player, p) => canAffect(player, p) && !revealedTo(player, p),
     after: (fn) => void later.push(fn),
     switchOwn(slot) {
       const benched = me.bench[slot];

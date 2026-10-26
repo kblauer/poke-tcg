@@ -1,5 +1,5 @@
 // Noble Victories (bw3) attack effects, by card id and attack name: the ones the shared wordings (ex-templates.ts) don't play.
-// From the text: Mysterious Evolution's partner "in play" is the player's own (as agreed for the EX sets' partners); Frost
+// From the text: Mysterious Evolution's partner "in play" is either player's (the user's, 2026-10-26); Frost
 // Vanish is offered only with a Benched Pokémon to take its place; Damagriiigus moves damage counters (not damage: no Weakness
 // or Resistance, and Heal Block doesn't put them back); Core Cannon counts the Fighting Energy provided; Devour counts every
 // Durant the player has in play, the attacker too; Synchronoise reaches the opponent's Benched Pokémon that share any type
@@ -18,7 +18,7 @@ const mysteriousEvolution = (partner: string): AttackEffect => {
   const evolve = nurture('Mysterious Evolution', () => 'active');
   return {
     run(ctx) {
-      if (!inPlay(ctx.me).some((p) => namesMatch(inPlayDef(ctx.state.cards, p).name, partner))) return ctx.log(`${partner} isn't in play: Mysterious Evolution did nothing.`);
+      if (![...inPlay(ctx.me), ...inPlay(ctx.opp)].some((p) => namesMatch(inPlayDef(ctx.state.cards, p).name, partner))) return ctx.log(`${partner} isn't in play: Mysterious Evolution did nothing.`);
       evolve.run(ctx);
     },
   };

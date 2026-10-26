@@ -3,7 +3,7 @@
 // From the text: Cedric Juniper is Blaine's Quiz #1's guess (quiz): a Pokémon card from the hand with its height known, named;
 // the opponent picks its height among 4; right, they draw 3 cards, wrong, the player does; the card stays in the hand. Only
 // Pokémon whose height the catalog has can be chosen (as printed: "You can't choose a Pokémon that doesn't have the height
-// printed"); the API's lengths.ts has them for Pokédex 1–251 only. Elesa takes up to 3 Pokémon Tool cards, shown.
+// printed"); the API's lengths.ts has them for Pokédex 1–649. The CPU always guesses right (the user's, 2026-10-26). Elesa takes up to 3 Pokémon Tool cards, shown.
 import { isPokemonCard, lookupCard, type PokemonCardDef } from '../cards.js';
 import { shuffle } from '../rng.js';
 import { otherHandCards, type TrainerEffect, type TrainerSituation } from '../trainers.js';
