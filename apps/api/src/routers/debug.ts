@@ -59,9 +59,9 @@ export const debugRouter = router({
   }),
 
   /**
-   * Sets the debug switches given. The million switch on keeps the bank (`bankBefore`) and fills it to DEBUG_BANK; off,
-   * it puts the bank it kept back (what was earned or spent meanwhile is gone). With the user row locked, so the bank kept
-   * is the one replaced.
+   * Sets the debug switches given. The million switch on adds DEBUG_BANK to the bank; off, it takes it away again (never
+   * below 0), so what was earned or spent meanwhile stays (the user's). With the user row locked, so a switch can't add
+   * or take it twice.
    */
   setFlags: debugProcedure.input(debugFlagsInput).mutation(({ ctx, input }) =>
     prisma.$transaction(async (tx) => {
@@ -72,12 +72,10 @@ export const debugRouter = router({
       if (input.unlockAll !== undefined) next.unlockAll = input.unlockAll;
       if (input.million === true && !flags.million) {
         next.million = true;
-        next.bankBefore = bank;
-        newBank = DEBUG_BANK;
+        newBank = bank + DEBUG_BANK;
       } else if (input.million === false && flags.million) {
         next.million = false;
-        newBank = flags.bankBefore ?? bank;
-        delete next.bankBefore;
+        newBank = Math.max(0, bank - DEBUG_BANK);
       }
       await tx.user.update({ where: { id: ctx.user.id }, data: { debugFlags: next as Prisma.InputJsonValue, bank: newBank } });
       return { unlockAll: !!next.unlockAll, million: !!next.million };

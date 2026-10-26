@@ -40,7 +40,7 @@ model User {
   /// The Settings page's choices kept with the account, so they follow it to any browser (the shared package's
   /// ACCOUNT_SETTINGS: theme, font, skipFlips, options, reminders, music), each the web app's own value as a string.
   settings      Json            @default("{}")
-  /// The Settings page's debug switches (the API's DebugFlags: unlockAll, million, and the bank kept while million is on),
+  /// The Settings page's debug switches (the API's DebugFlags: unlockAll, and million: 1,000,000 ₱ added to the bank),
   /// read and set only while debugging (debugProcedure, never in production). {} is both off.
   debugFlags    Json            @default("{}")
   /// The Extras page's Berry Farm: when each berry's tree was last planted (the campaign package's BerryFarm, {} until it's

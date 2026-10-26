@@ -115,7 +115,7 @@ function FontPicker() {
   );
 }
 
-/** Debug mode's switches (useDebugFlags), shown only while debugging: unlock everything that's locked, and 1,000,000 ₱ in the bank. */
+/** Debug mode's switches (useDebugFlags), shown only while debugging: unlock everything that's locked, and 1,000,000 ₱ added to the bank. */
 function DebugSwitches() {
   const flags = useDebugFlags();
   if (!flags.debug || !flags.loaded) return null;
@@ -125,9 +125,9 @@ function DebugSwitches() {
         <input type="checkbox" checked={flags.unlockAll} disabled={flags.pending} onChange={(e) => flags.set.mutate({ unlockAll: e.target.checked })} />
         Unlock everything that's locked
       </label>
-      <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300" title="Off puts your bank back as it was before">
+      <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300" title="Off takes the ₱1,000,000 away again">
         <input type="checkbox" checked={flags.million} disabled={flags.pending} onChange={(e) => flags.set.mutate({ million: e.target.checked })} />
-        ₱1,000,000 in the bank
+        Add ₱1,000,000 to the bank
       </label>
       {flags.set.error && <p className="text-xs text-amber-300">{flags.set.error.message}</p>}
     </Section>

@@ -4,7 +4,7 @@ import { useDebugEnabled } from '../utils/debug';
 
 /**
  * The Settings page's debug switches (debug.flags; only while debugging): `unlockAll`, everything locked unlocked
- * (cards, packs, run types, Battle Tower floors, cosmetics, card flair), and `million`, 1,000,000 ₱ in the bank. `set`
+ * (cards, packs, run types, Battle Tower floors, cosmetics, card flair), and `million`, 1,000,000 ₱ added to the bank. `set`
  * changes them and reloads everything they touch (every query: unlocks, packs, the bank…).
  */
 export function useDebugFlags() {
