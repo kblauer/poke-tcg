@@ -133,6 +133,11 @@ export interface IdleState {
    * player asked for (the battle's ball button, the user's: idle.throwBall). Any action or segment after it drops it.
    */
   replay?: SegmentReplay;
+  /**
+   * Party changes made while a wild battle's replay is held (the user's: queued until the battle ends, so the ball button
+   * still works): applied, in order, when the next segment starts (withPending); the view shows them at once.
+   */
+  pending?: IdleAction[];
   /** The Champion's team: the starter he'd have picked against the run's (FireRed's TRAINER_CHAMPION_FIRST_<his starter>). */
   rivalStarter: 'bulbasaur' | 'charmander' | 'squirtle';
   /** The run's totals, for the screen and the run's end. */
@@ -408,8 +413,48 @@ function autoStones(state: IdleState, stock: string[], events: SegmentEvent[]) {
   }
 }
 
-/** Applies the player's choice to a run. Pure: returns a new state, or an error. */
+/** The changes queued while a wild battle's replay is held (IdleState.pending): the party's order, its moves, a stone. */
+export const QUEUED_ACTIONS: IdleAction['type'][] = ['SET_ORDER', 'SET_SLOTS', 'USE_STONE'];
+
+/**
+ * Applies the player's choice to a run. Pure: returns a new state, or an error. A party change while the last segment's
+ * wild battle can still be played again (IdleState.replay: the ball button) is checked against the run as it will be,
+ * then queued (`pending`) instead, keeping the replay (the user's).
+ */
 export function applyIdleAction(prev: IdleState, action: IdleAction): IdleResult {
+  if (prev.replay && QUEUED_ACTIONS.includes(action.type)) {
+    const check = applyNow(withPending(prev), action);
+    if (!check.ok) return check;
+    const state = structuredClone(prev);
+    state.pending = [...(prev.pending ?? []), action];
+    state.version += 1;
+    return { ok: true, state };
+  }
+  return applyNow(withPending(prev), action);
+}
+
+/**
+ * A run with its queued changes applied (IdleState.pending), in order, its version kept; a party order naming a Pokémon
+ * no longer there (or missing a new one: the battle's catch) puts the ones it names first, the rest after; a change that
+ * can't be made any more is dropped.
+ */
+export function withPending(prev: IdleState): IdleState {
+  if (!prev.pending?.length) return prev;
+  let state = structuredClone(prev);
+  delete state.pending;
+  for (const action of prev.pending) {
+    const uids = state.party.map((m) => m.uid);
+    const fitted: IdleAction = action.type === 'SET_ORDER' ? { type: 'SET_ORDER', uids: [...action.uids.filter((u) => uids.includes(u)), ...uids.filter((u) => !action.uids.includes(u))] } : action;
+    const r = applyNow(state, fitted);
+    if (r.ok) state = r.state;
+  }
+  state.version = prev.version;
+  if (prev.replay) state.replay = prev.replay;
+  return state;
+}
+
+/** The choice applied at once (applyIdleAction's rules). */
+function applyNow(prev: IdleState, action: IdleAction): IdleResult {
   const state = structuredClone(prev);
   delete state.replay;
   const fail = (error: string): IdleResult => ({ ok: false, error });
@@ -977,8 +1022,10 @@ function finishArea(state: IdleState, out: Segment) {
  * account's caught species (auto-catch's "new"), updated with this segment's catches. Returns the new state and the
  * segment (in a town, its wait: townWait), or null when the run is over.
  */
-export function simulateSegment(prev: IdleState, idleSettings: IdleSettings, caught: Set<number>, o: { throwAt?: number[] } = {}): { state: IdleState; segment: Segment } | null {
+export function simulateSegment(from: IdleState, idleSettings: IdleSettings, caught: Set<number>, o: { throwAt?: number[] } = {}): { state: IdleState; segment: Segment } | null {
   const settings: PlaySettings = { ...idleSettings, ...(o.throwAt && { throwAt: o.throwAt }) };
+  // The party changes queued during the last battle, first (withPending).
+  const prev = withPending(from);
   if (prev.phase === 'town') return townWait(prev);
   if (!playing(prev)) return null;
   const state = structuredClone(prev);
@@ -1155,12 +1202,14 @@ export function catchUp(prev: IdleState, settings: IdleSettings, caught: Set<num
 export const bankedMoney = (state: Pick<IdleState, 'phase' | 'money'>) => (state.phase === 'won' ? state.money : 0);
 
 /** What the player sees of a run: everything but the RNG, with the area it's in. */
-export function idleView(state: IdleState) {
+export function idleView(saved: IdleState) {
+  // The party changes queued during a battle shown at once (the user's), and how many wait.
+  const state = withPending(saved);
   const { rngState: _, replay: __, ...rest } = state;
   const area: IdleArea = AREAS[state.area]!;
   // Grinding: the area the loop is in (the run's `area` stays the town), and the level it trains to.
   const grindArea = state.phase === 'grinding' && isTown(area) && area.grind ? areaById(area.grind.area) : null;
-  return { ...rest, areaId: area.id, areaName: grindArea?.name ?? area.name, store: isTown(area) ? storeStock(area) : [], grindTarget: state.grind?.level ?? grindTarget(state.area, state.rivalStarter) };
+  return { ...rest, areaId: area.id, areaName: grindArea?.name ?? area.name, store: isTown(area) ? storeStock(area) : [], grindTarget: state.grind?.level ?? grindTarget(state.area, state.rivalStarter), pendingChanges: saved.pending?.length ?? 0 };
 }
 
 export type IdleView = ReturnType<typeof idleView>;

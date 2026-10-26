@@ -443,6 +443,8 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
           if (stopped) return;
           // The server's newest state at once (actions use its version); the screen's once the segment has played.
           latest.current = r.run;
+          // Party changes queued during the last battle are applied now: their note goes (the rest of the screen waits).
+          if (!r.run.view.pendingChanges) queryClient.setQueryData(key, (old) => (old?.run?.view.pendingChanges ? { ...old, run: { ...old.run, view: { ...old.run.view, pendingChanges: 0 } } } : old));
           // Its battle's pictures fetched while it walks (the user's: no black battle screen).
           for (const ev of r.segment.events) if (ev.t === 'battle') void preloadBattle(ev);
           await playSegment(r.segment.events);

@@ -149,6 +149,8 @@ export const idleRouter = router({
     if (input.tick > b.ticks) throw failed('The battle is over');
     again.state.version = run.version + 1;
     again.state.replay = { ...replay, throws };
+    // The party changes queued during this battle (applyIdleAction) still wait for its end.
+    if (run.state.pending?.length) again.state.pending = run.state.pending;
     const saved = await saveIdleRun(run, again.state, { dex: again.segment.dex, simulatedAt: new Date(replay.from + again.segment.durationMs) });
     return { run: clientIdleRun(saved), segment: again.segment };
   }),

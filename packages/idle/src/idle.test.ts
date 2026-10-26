@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AREAS, isTown, type WalkArea } from './areas.js';
 import { familyMovesUpTo } from './mon.js';
-import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, meetStep, routeGrindPlan, starterOptions, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
+import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, routeGrindPlan, starterOptions, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
 
 type BattleSeg = Extract<SegmentEvent, { t: 'battle' }>;
 
@@ -358,6 +358,28 @@ describe('an idle run', () => {
   it('offers as starters only Pokémon that evolve from none', () => {
     // Charmeleon, Pidgeotto and Vaporeon caught: not startable; Pidgey, Tauros (no evolutions) and Eevee are.
     expect(starterOptions([5, 16, 17, 128, 133, 134])).toEqual([1, 4, 7, 16, 128, 133]);
+  });
+
+  it('queues party changes while a wild battle can be played again, shows them at once and applies them at the next segment', () => {
+    // A run with two Pokémon and a held replay (a wild battle just played).
+    const base = createIdleRun({ species: 4 }, 2);
+    const second = { ...base.party[0]!, uid: 'second', species: 16 };
+    const s: IdleState = { ...base, party: [base.party[0]!, second], replay: { prev: base, settings: MANUAL, caught: [], from: 0, throws: [] } };
+    const r = applyIdleAction(s, { type: 'SET_ORDER', uids: ['second', base.party[0]!.uid] });
+    expect(r.ok).toBe(true);
+    const q = (r as { state: IdleState }).state;
+    // Queued: the replay kept, the party as it was, the view as it will be.
+    expect(q.replay).toBeDefined();
+    expect(q.pending).toHaveLength(1);
+    expect(q.party[0]!.uid).toBe(base.party[0]!.uid);
+    expect(idleView(q).party[0]!.uid).toBe('second');
+    expect(idleView(q).pendingChanges).toBe(1);
+    // A change that can't be made is refused at once.
+    expect(applyIdleAction(q, { type: 'SET_SLOTS', uid: 'nobody', slots: [] }).ok).toBe(false);
+    // The next segment starts with them applied.
+    const next = simulateSegment(q, MANUAL, new Set())!.state;
+    expect(next.pending).toBeUndefined();
+    expect(next.party[0]!.uid).toBe('second');
   });
 
   it('has auto-grind on by default', () => {
