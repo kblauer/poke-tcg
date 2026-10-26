@@ -160,7 +160,7 @@ export function Card({
           {statusBadges(inPlay, cards).length > 0 && (
             <div className="grid grid-cols-[repeat(2,max-content)] gap-0.5">
               {statusBadges(inPlay, cards).map((b, i) => (
-                <span key={`${b.label}-${i}`} title={b.title} className={`${b.className} rounded px-1.5 text-[15px] font-bold leading-6 text-white shadow`}>
+                <span key={`${b.label}-${i}`} title={b.title} className={`${b.className} rounded px-[3.6px] text-[15px] font-bold leading-[20.4px] text-white shadow`}>
                   {b.label}
                 </span>
               ))}
