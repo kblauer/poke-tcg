@@ -13,6 +13,8 @@ export interface DeckRuleCard {
   /** "Baby" | "Basic" | "Stage1" | "Stage2" for Pokémon, null otherwise. */
   stage: string | null;
   basicEnergy: boolean;
+  /** An ACE SPEC card (Black & White series; the campaign's isAceSpec): a deck may hold only 1, whatever its name. */
+  aceSpec?: boolean;
 }
 
 /** Baby Pokémon are Basic Pokémon too. Trainers played as Pokémon (Clefairy Doll, Mysterious Fossil) aren't. */
@@ -55,6 +57,9 @@ export const isStarCard = (card: Pick<DeckRuleCard, 'name' | 'kind'>) => card.ki
 /** Pokémon ☆ cards in a deck. */
 export const starCount = (entries: { card: DeckRuleCard; quantity: number }[]) => entries.filter((e) => isStarCard(e.card)).reduce((n, e) => n + e.quantity, 0);
 
+/** Printed on every ACE SPEC card: "You can't have more than 1 ACE SPEC card in your deck." (one in all, any name). */
+export const aceSpecCount = (entries: { card: DeckRuleCard; quantity: number }[]) => entries.filter((e) => e.card.aceSpec).reduce((n, e) => n + e.quantity, 0);
+
 /** Why the deck can't be played, in plain words; empty when it follows every rule. */
 export function deckProblems(entries: { card: DeckRuleCard; quantity: number }[]): string[] {
   const problems: string[] = [];
@@ -70,6 +75,8 @@ export function deckProblems(entries: { card: DeckRuleCard; quantity: number }[]
   if (unown > MAX_UNOWN) problems.push(`${unown} Unown: at most ${MAX_UNOWN} Basic Pokémon with Unown in their names.`);
   const stars = starCount(entries);
   if (stars > 1) problems.push(`${stars} Pokémon ☆: at most 1, whatever its name.`);
+  const aceSpecs = aceSpecCount(entries);
+  if (aceSpecs > 1) problems.push(`${aceSpecs} ACE SPEC cards: at most 1, whatever its name.`);
   if (!entries.some((e) => isBasicPokemonCard(e.card))) problems.push('The deck needs at least one Basic Pokémon.');
   return problems;
 }

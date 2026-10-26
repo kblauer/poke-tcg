@@ -881,6 +881,11 @@ export type PendingChoice = {
       take: number;
       /** Dusk Ball: only a Pokémon may be taken, shown; then the deck is shuffled. */
       pokemon?: boolean;
+      /**
+       * A Fossil Item (Plume Fossil, Black & White series): only a Restored Pokémon of this name, which may be revealed and
+       * put onto the Bench (or none); then the deck is shuffled.
+       */
+      restored?: string;
     }
   | {
       /** Water of Evolution: evolve the Pokémon at `target` with a card from the hand named one of `names`. */
@@ -2552,6 +2557,19 @@ function skyridgeView(state: GameState, choice: SkyridgeChoice): PendingChoiceVi
     }
     case 'bottomPick': {
       const left = choice.take > 1 ? ` (${choice.take} left)` : '';
+      if (choice.restored) {
+        const restored = (c: CardInstance) => {
+          const def = lookupCard(state.cards, c.defId);
+          return def.kind === 'pokemon' && !!def.restored && namesMatch(def.name, choice.restored!);
+        };
+        const room = openBenchSlot(player, state.cards, state.stadium?.card) >= 0;
+        return {
+          kind: 'pickFromDeck',
+          prompt: `${choice.source}: you may put ${choice.restored} from the bottom 7 cards of your deck onto your Bench; then your deck is shuffled`,
+          options: room ? player.deck.filter((c) => choice.looked.includes(c.uid) && restored(c)) : [],
+          optional: true,
+        };
+      }
       if (choice.pokemon) return { kind: 'pickFromDeck', prompt: `${choice.source}: put a Pokémon from the bottom 7 cards of your deck into your hand; then your deck is shuffled`, options: player.deck.filter((c) => choice.looked.includes(c.uid) && isPokemonCard(lookupCard(state.cards, c.defId))) };
       return { kind: 'pickFromDeck', prompt: `${choice.source}: put one of the bottom cards of your deck into your hand${left}; the rest go back to the bottom`, options: player.deck.filter((c) => choice.looked.includes(c.uid)) };
     }
@@ -3190,6 +3208,17 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
       return null;
     }
     case 'bottomPick': {
+      // A Fossil Item: the Restored Pokémon found (if the player reveals it) onto the Bench; the deck shuffled either way.
+      if (choice.restored) {
+        const slot = openBenchSlot(me, state.cards, state.stadium?.card);
+        if (picked && slot >= 0) {
+          me.deck = me.deck.filter((c) => c !== picked);
+          me.bench[slot] = newInPlay(picked, state.turn);
+          addLog(state, `${choice.source}: put ${name(picked)} onto the Bench.`, me.id);
+        } else addLog(state, `${choice.source}: found no ${choice.restored} to put onto the Bench.`, me.id);
+        [me.deck, state.rngState] = shuffle(me.deck, state.rngState);
+        return null;
+      }
       if (!picked) {
         if (view.kind === 'pickFromDeck' && view.options.length) return retry(choice, 'Choose one of the cards');
         if (choice.pokemon) [me.deck, state.rngState] = shuffle(me.deck, state.rngState);

@@ -148,6 +148,9 @@ import { HGSSP_POWERS } from './hgssp-powers.js';
 import { COL1 } from './col1.js';
 import { COL1_POWERS } from './col1-powers.js';
 import { COL1_ENERGY, COL1_TRAINERS } from './col1-trainers.js';
+import { BW3_TRAINERS } from './bw3-trainers.js';
+import { BW5_TRAINERS } from './bw5-trainers.js';
+import { BW10_TRAINERS } from './bw10-trainers.js';
 import { EX_TEMPLATE_DATA } from './ex-template-data.js';
 import { templateEffects } from './ex-templates.js';
 
@@ -182,7 +185,7 @@ const POWERS: Record<string, PowerEffect> = { ...ORIGINAL_POWERS, ...base4Reprin
 export const powerEffect = (defId: string): PowerEffect | undefined => POWERS[printOf(defId)];
 
 /** Trainer card effects by card id. Base Set 2's and Legendary Collection's are their originals'. */
-const ORIGINAL_TRAINERS: Record<string, TrainerEffect> = { ...BASE1_TRAINERS, ...JUNGLE_TRAINERS, ...FOSSIL_TRAINERS, ...NEO1_TRAINERS, ...NEO2_TRAINERS, ...NEO3_TRAINERS, ...NEO4_TRAINERS, ...PROMO_TRAINERS, ...ROCKET_TRAINERS, ...GYM1_TRAINERS, ...GYM2_TRAINERS, ...ECARD1_TRAINERS, ...ECARD2_TRAINERS, ...ECARD3_TRAINERS, ...EX1_TRAINERS, ...EX2_TRAINERS, ...EX3_TRAINERS, ...EX4_TRAINERS, ...EX5_TRAINERS, ...EX6_TRAINERS, ...EX7_TRAINERS, ...EX8_TRAINERS, ...EX9_TRAINERS, ...EX10_TRAINERS, ...EX11_TRAINERS, ...EX12_TRAINERS, ...EX13_TRAINERS, ...EX14_TRAINERS, ...EX15_TRAINERS, ...EX16_TRAINERS, ...DP1_TRAINERS, ...DP2_TRAINERS, ...DP3_TRAINERS, ...DP4_TRAINERS, ...DP5_TRAINERS, ...DP6_TRAINERS, ...DP7_TRAINERS, ...DPP_TRAINERS, ...PL1_TRAINERS, ...PL2_TRAINERS, ...PL3_TRAINERS, ...PL4_TRAINERS, ...HGSS1_TRAINERS, ...HGSS2_TRAINERS, ...HGSS3_TRAINERS, ...HGSS4_TRAINERS, ...COL1_TRAINERS };
+const ORIGINAL_TRAINERS: Record<string, TrainerEffect> = { ...BASE1_TRAINERS, ...JUNGLE_TRAINERS, ...FOSSIL_TRAINERS, ...NEO1_TRAINERS, ...NEO2_TRAINERS, ...NEO3_TRAINERS, ...NEO4_TRAINERS, ...PROMO_TRAINERS, ...ROCKET_TRAINERS, ...GYM1_TRAINERS, ...GYM2_TRAINERS, ...ECARD1_TRAINERS, ...ECARD2_TRAINERS, ...ECARD3_TRAINERS, ...EX1_TRAINERS, ...EX2_TRAINERS, ...EX3_TRAINERS, ...EX4_TRAINERS, ...EX5_TRAINERS, ...EX6_TRAINERS, ...EX7_TRAINERS, ...EX8_TRAINERS, ...EX9_TRAINERS, ...EX10_TRAINERS, ...EX11_TRAINERS, ...EX12_TRAINERS, ...EX13_TRAINERS, ...EX14_TRAINERS, ...EX15_TRAINERS, ...EX16_TRAINERS, ...DP1_TRAINERS, ...DP2_TRAINERS, ...DP3_TRAINERS, ...DP4_TRAINERS, ...DP5_TRAINERS, ...DP6_TRAINERS, ...DP7_TRAINERS, ...DPP_TRAINERS, ...PL1_TRAINERS, ...PL2_TRAINERS, ...PL3_TRAINERS, ...PL4_TRAINERS, ...HGSS1_TRAINERS, ...HGSS2_TRAINERS, ...HGSS3_TRAINERS, ...HGSS4_TRAINERS, ...COL1_TRAINERS, ...BW3_TRAINERS, ...BW5_TRAINERS, ...BW10_TRAINERS };
 const TRAINERS: Record<string, TrainerEffect> = { ...ORIGINAL_TRAINERS, ...base4Reprints(ORIGINAL_TRAINERS), ...lcReprints(ORIGINAL_TRAINERS) };
 
 /** The behaviour of a Trainer card, if it's implemented. */

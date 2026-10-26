@@ -3,7 +3,7 @@ import { applyWeaknessResistance, attackAsks, attackError, attackSituation, chec
 import { attachBlocked, greenAroma, stickyHold, timeAura, discardsLocked, energyFromHand, evolutionBlocked, primalBlock, retreatBodies, guardedBy, spiraledBy, bindingAura, conditionBarred, conditionFree, holonWith, miraculousWind, offerChainReaction, playedFromHand, pokemonAt, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, primalLocked, trainersDusted, trainersBlocked, usePower, powerCanceller, zoomed, type PowerChoices, type PowerEffect, pokemonPower } from './powers.js';
 import { evolvesFromEevee, isPokemonSP, evolveWith, pendingChoiceView, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
-import { conditionProof, hasOwner, isLegend, hasType, holonEnergy, namesMatch, isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
+import { conditionProof, givesTwoPrizes, hasOwner, isLegend, hasType, holonEnergy, namesMatch, isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { addLog, baseUid, clearOnLeavingActive, clearSpecialConditions, effectId, evolvedFromName, isDelta, evolvedHook, hasSpecialCondition, shapeshiftCard, flipCoin, inPlayDef, logTool, openBenchSlot, pokemonName, revealFaceDown, sameCards, type LogEntry } from './status.js';
 import { shuffle } from './rng.js';
 import type { CpuDifficulty } from './cpu/index.js';
@@ -1142,6 +1142,7 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       // Narrow Gym: no more than 4 benched Pokémon; Giant Stump: 3; the opponent's Dittobolic: 4.
       if (openBenchSlot(me, state.cards, state.stadium?.card) < 0) return fail(me.bench.some((p) => !p) ? `Your Bench is full (${me.benchLimit ? 'Dittobolic' : state.stadium ? card(state.stadium.card).name : 'the Stadium'} limits it)` : 'Your Bench is full');
       const played = takeFromHand(me, action.cardUid);
+      if (played && card(played).kind === 'pokemon' && (card(played) as PokemonCardDef).restored) return fail(`${card(played).name} is a Restored Pokémon: only its Fossil puts it onto your Bench`);
       if (!played || !isBenchable(card(played))) return fail('Must play a Basic Pokémon from your hand');
       if (isTrainerCard(card(played)) && trainersLocked(me, state.turn)) return fail(TRAINERS_LOCKED);
       const hayFever = isTrainerCard(card(played)) && (trainersBlocked([me, opp], state.cards) ?? trainersDusted(me, [me, opp], state.cards));
@@ -2630,8 +2631,8 @@ export function resolveKnockouts(state: GameState, favoured: PlayerId): PlayerId
       const fall = pokemon.knockedByAttack === state.turn && state.currentPlayer !== id && taker.doubleFallTurn === state.turn && !!taker.active && namesMatch(inPlayDef(state.cards, taker.active).name, 'Salamence') ? 1 : 0;
       // Space Virus: 1 more for a Pokémon the attack of the Pokémon with it Knocked Out this turn.
       const virus = pokemon.knockedByAttack === state.turn && state.currentPlayer !== id && !!taker.active && !!pokemonPower(taker.active)?.spaceVirus && powerActive(taker.active, state.cards, sides) ? 1 : 0;
-      // A Pokémon-ex or a Pokémon LEGEND gives up 2 Prize cards.
-      for (let n = (d.kind === 'pokemon' && (d.ex || isLegend(d)) ? 2 : 1) + skip + belt + fall + virus; n > 0; n--) {
+      // A Pokémon-ex, a Pokémon-EX or a Pokémon LEGEND gives up 2 Prize cards.
+      for (let n = (givesTwoPrizes(d) ? 2 : 1) + skip + belt + fall + virus; n > 0; n--) {
         const prize = taker.prizes.pop();
         if (prize) taker.hand.push(prize);
       }

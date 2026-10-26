@@ -7,7 +7,9 @@ export type EnergyType =
   | 'fighting'
   | 'darkness'
   | 'metal'
-  | 'colorless';
+  | 'colorless'
+  /** Generation 5's Dragon Pokémon (Black & White series): a type with no basic Energy of its own. */
+  | 'dragon';
 
 /**
  * A Pokémon card's stage. 'levelUp': a Pokémon LV.X (the Diamond & Pearl era), put onto the Active Pokémon of its name
@@ -65,6 +67,19 @@ export interface PokemonCardDef {
   /** A Pokémon-ex (EX series): when it's Knocked Out, its opponent takes 2 Prize cards. Missing = not one. */
   ex?: boolean;
   /**
+   * A Pokémon-EX (Black & White series, "Mewtwo-EX"): also 2 Prize cards when Knocked Out, but a kind of its own, not a
+   * Pokémon-ex (agreed: "Pokémon-ex" text never affects it, nor "Pokémon-EX" text a Pokémon-ex). Missing = not one.
+   */
+  pokemonEX?: boolean;
+  /**
+   * A Restored Pokémon (Black & White series: Archen, Tirtouga…): unevolved in play, as a Basic, but no Basic Pokémon (not
+   * for setup or searches for Basic Pokémon), and put onto the Bench only by its Fossil Item (Plume Fossil…), never from
+   * the hand (PLAY_BENCH). Missing = not one.
+   */
+  restored?: boolean;
+  /** A Team Plasma card (Plasma Storm, Plasma Freeze, Plasma Blast: "Team Plasma" printed by the name). Missing = not one. */
+  teamPlasma?: boolean;
+  /**
    * Set on a Trainer card played as a Pokémon (Clefairy Doll): its printed text. It's a Trainer card
    * in the hand, deck and discard pile, and not a Basic Pokémon card for setup or searches.
    */
@@ -117,6 +132,8 @@ export interface EnergyCardDef {
   anyType?: boolean;
   /** Printed as a holofoil. Display only. */
   holo?: boolean;
+  /** A Team Plasma card (Plasma Energy). Missing = not one. */
+  teamPlasma?: boolean;
 }
 
 export interface TrainerCardDef {
@@ -127,6 +144,10 @@ export interface TrainerCardDef {
   text: string;
   /** Printed as a holofoil. Display only. */
   holo?: boolean;
+  /** An ACE SPEC card (Black & White series): a deck may hold only 1 of them, whatever their names (the shared deck rules). */
+  aceSpec?: boolean;
+  /** A Team Plasma card (Colress Machine, Team Plasma Ball…). Missing = not one. */
+  teamPlasma?: boolean;
 }
 
 export type CardDef = PokemonCardDef | EnergyCardDef | TrainerCardDef;
@@ -143,9 +164,12 @@ export function lookupCard(cards: CardLibrary, defId: string): CardDef {
   return def;
 }
 
-/** A Basic Pokémon card (not a Trainer played as one, like Clefairy Doll). */
+/** A Basic Pokémon card (not a Trainer played as one, like Clefairy Doll, nor a Pokémon LEGEND or a Restored Pokémon). */
 export const isBasicPokemon = (def: CardDef): def is PokemonCardDef & { stage: 'basic' } =>
-  def.kind === 'pokemon' && def.stage === 'basic' && !def.trainerText && !isLegend(def);
+  def.kind === 'pokemon' && def.stage === 'basic' && !def.trainerText && !isLegend(def) && !def.restored;
+
+/** A Pokémon worth 2 Prize cards when Knocked Out: a Pokémon-ex, a Pokémon-EX or a Pokémon LEGEND. */
+export const givesTwoPrizes = (def: CardDef) => def.kind === 'pokemon' && (!!def.ex || !!def.pokemonEX || isLegend(def));
 
 /**
  * A Pokémon LEGEND half (its name ends in LEGEND): no Basic Pokémon (not for setup or for searches for Basic Pokémon), put
@@ -183,5 +207,5 @@ export const holonEnergy = (def: CardDef) => (def.kind === 'pokemon' ? HOLON_ENE
 /** A Pokémon that can't be affected by Special Conditions by its own rule: a Trainer played as one (Clefairy Doll), or Buried Fossil. */
 export const conditionProof = (def: CardDef) => def.kind === 'pokemon' && (def.trainerText !== undefined || def.name === 'Buried Fossil');
 
-/** Can be played onto the Bench: a Basic Pokémon, or a Trainer played as one. */
-export const isBenchable = (def: CardDef) => def.kind === 'pokemon' && def.stage === 'basic';
+/** Can be played onto the Bench: a Basic Pokémon, or a Trainer played as one (not a Restored Pokémon: only its Fossil benches it). */
+export const isBenchable = (def: CardDef) => def.kind === 'pokemon' && def.stage === 'basic' && !def.restored;

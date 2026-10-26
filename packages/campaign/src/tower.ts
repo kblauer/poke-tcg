@@ -197,6 +197,8 @@ export const TOWER_DECK_NAMES: Record<EnergyType, string[]> = {
   darkness: ['Night Raid', 'Shadow Play', 'Dark Pulse', 'Moonless Sky', 'Ambush', 'Black Market'],
   metal: ['Steel Wall', 'Iron Defense', 'Metal Storm', 'Bulwark', 'Heavy Armor', 'Cold Steel'],
   colorless: ['Wild Card', 'Swift Strike', 'Normal Force', 'Endless Stamina', 'Jack of All Trades', 'Hyper Beam'],
+  // Generation 5's Dragon type (no tower deck has it yet: the tower's opponents play Gen 1–3 cards).
+  dragon: ['Dragon Rage', 'Draco Meteor', 'Outrage', 'Dragon Dance', 'Twister', 'Dragon Tail'],
 };
 
 /** A deck's main type: the type the most of its Pokémon cards are (a card of two types counts for both; the first such on a tie). */

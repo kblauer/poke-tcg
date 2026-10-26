@@ -547,6 +547,12 @@ const BY_NAME: CardLibrary = {
   fighting: { id: 'fighting', kind: 'energy', name: 'Fighting Energy', imageUrl: null, energyType: 'fighting' },
   grass: { id: 'grass', kind: 'energy', name: 'Grass Energy', imageUrl: null, energyType: 'grass' },
   dce: { id: 'base1-96', kind: 'energy', name: 'Double Colorless Energy', imageUrl: null, energyType: 'colorless', amount: 2, basic: false },
+  // The Black & White series' shared rules (bw-shared.test.ts): a Pokémon-EX, a Restored Pokémon and its Fossil, Dragons.
+  mewtwoEX: mon('bw4-54', 'Mewtwo-EX', P, 170, [['X Ball', [C, C], 20]], { pokemonEX: true, weakness: { type: P, multiplier: 2 } }),
+  archen: mon('bw3-66', 'Archen', FI, 70, [['Rock Smash', [C, C], 20]], { restored: true }),
+  archenPlasma: mon('bw10-53', 'Archen', FI, 70, [['Rock Smash', [C, C], 20]], { restored: true }),
+  plumeFossil: { id: 'bw3-93', kind: 'trainer', name: 'Plume Fossil', imageUrl: null, text: '' },
+  axew: mon('bw6-87', 'Axew', 'dragon', 60, [['Scratch', [C], 10], ['Dragon Rage', [C, C], 40]], { weakness: { type: 'dragon', multiplier: 2 } }),
   ...Object.fromEntries(
     TRAINERS.map(([n, name]) => [name.toLowerCase().replace(/[^a-z]/g, ''), { id: `base1-${n}`, kind: 'trainer' as const, name, imageUrl: null, text: '' }]),
   ),

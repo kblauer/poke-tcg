@@ -16,7 +16,7 @@ export const CPU_ID = 'cpu';
 const benchSlot = z.number().int().min(0).max(MAX_BENCH - 1);
 const target = z.union([z.literal('active'), benchSlot]);
 
-const energyType = z.enum(['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'darkness', 'metal', 'colorless']);
+const energyType = z.enum(['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'darkness', 'metal', 'colorless', 'dragon']);
 
 /** Answers to an attack's questions (see AttackChoices in the engine). */
 const attackChoicesSchema = z.object({
