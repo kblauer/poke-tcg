@@ -3,7 +3,8 @@ pret/pokefirered decompilation, as FireRed draws its party menu (src/party_menu.
 
   bg.png              the screen's background (graphics/party_menu/bg.bin over bg.png's tiles, its 11 palettes)
   slot.png, slot_selected.png, slot_fainted.png, slot_fainted_selected.png
-                      a wide party slot (slot_wide.bin, 18 by 3 tiles), in the colours LoadPartyBoxPalette gives it: its
+                      a party slot without its HP bar (slot_wide_no_hp.bin: the user's), narrowed to SLOT_TILES tiles
+                      (its first column, its middle repeated, its last), in the colours LoadPartyBoxPalette gives it: its
                       window's palette (4) with colours 1, 4-8 taken from the palette buffer (sPartyBoxEmptySlotPalIds1/2,
                       sPartyBoxCurrSelectionPalIds1/2, sPartyBoxFaintedPalIds1/2, sPartyBoxCurrSelectionFaintedPalIds)
   cancel.png          the CANCEL button's frame (cancel_button.bin, 7 by 2 tiles, palette 1: CopyToBgTilemapBufferRect's 17)
@@ -72,7 +73,10 @@ draw([entry(bgmap[y * 32 + x]) for y in range(20) for x in range(30)], 30, 20, l
 
 # A wide slot: its tiles (u8 numbers into the tileset) in its window's palette with the box colours swapped in.
 WINDOW_PAL = 4
-SLOT = list(open(os.path.join(GFX, 'slot_wide.bin'), 'rb').read())
+# Without its HP bar (the user's), its every middle column the same tile: narrowed to SLOT_TILES (the overlay's).
+SLOT_TILES = 15
+WIDE = list(open(os.path.join(GFX, 'slot_wide_no_hp.bin'), 'rb').read())
+SLOT = [WIDE[r * 18 + c] for r in range(3) for c in [0] + [1] * (SLOT_TILES - 2) + [17]]
 OFFSETS1, OFFSETS2 = (4, 5, 6), (1, 7, 8)
 STATES = {
     'slot': ((52, 53, 54), (49, 55, 56)),
@@ -84,7 +88,7 @@ for name, (ids1, ids2) in STATES.items():
     pal = list(PAL[WINDOW_PAL * 16:WINDOW_PAL * 16 + 16])
     for o, i in zip(OFFSETS1 + OFFSETS2, ids1 + ids2):
         pal[o] = PAL[i]
-    draw([(t, 0, 0, 0) for t in SLOT], 18, 3, lambda p, pal=pal: pal).save(os.path.join(OUT, name + '.png'))
+    draw([(t, 0, 0, 0) for t in SLOT], SLOT_TILES, 3, lambda p, pal=pal: pal).save(os.path.join(OUT, name + '.png'))
 
 # The CANCEL button's frame (its text is drawn over it).
 draw([(e & 0x3FF, (e >> 10) & 1, (e >> 11) & 1, 1) for e in u16s('cancel_button.bin')], 7, 2, lambda p: PAL[p * 16:p * 16 + 16]).save(os.path.join(OUT, 'cancel.png'))

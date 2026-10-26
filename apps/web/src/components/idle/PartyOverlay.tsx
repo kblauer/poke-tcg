@@ -7,8 +7,9 @@ const px = (n: number) => `${(n * 100) / 240}cqw`;
 const PARTY = '/idle/gen1/party';
 /** FireRed's party text: white with its grey shadow (sFontColorTable[0]), in the Gen 3 font. */
 const TEXT = { color: '#ffffff', textShadow: `${px(1)} ${px(1)} 0 #737373`, fontFamily: '"Pokemon Emerald", monospace', lineHeight: 1 } as const;
-/** The HP bar's colours, as the party screen's (sHPBarGreen/Yellow/RedPalIds): green over half, yellow over a fifth, red below. */
-const hpColors = (hp: number, max: number) => (hp * 2 > max ? ['#73ffac', '#5ad583'] : hp * 5 > max ? ['#ffe639', '#cdac08'] : ['#ff7331', '#c53900']);
+/** A slot's width (party/slot.png: FireRed's without its HP bar, 15 tiles: the user's), and where the slots' column begins. */
+const SLOT_W = 120;
+const LIST_LEFT = 240 - (10 + SLOT_W + 6);
 /** The panel's colours: a slot's (slot.png's border, fill and light). */
 const FRAME = { border: '#4a4a62', fill: '#3994de', light: '#83c5de', shade: '#297bb4' };
 
@@ -37,13 +38,13 @@ export function PartyOverlay({ party, bag, busy, pending, open, onToggle, onAct 
       {/* The party's slots, sliding out from the right over FireRed's party background. */}
       <div
         className="pointer-events-auto absolute top-0 h-full transition-transform duration-300 ease-out"
-        style={{ left: px(80), width: px(160), transform: open ? 'none' : 'translateX(101%)', backgroundImage: `url(${PARTY}/bg.png)`, backgroundSize: `${px(240)} ${px(160)}`, backgroundPosition: `-${px(80)} 0` }}
+        style={{ left: px(LIST_LEFT), width: px(240 - LIST_LEFT), transform: open ? 'none' : 'translateX(101%)', backgroundImage: `url(${PARTY}/bg.png)`, backgroundSize: `${px(240)} ${px(160)}`, backgroundPosition: `-${px(LIST_LEFT)} 0` }}
         aria-hidden={!open}
       >
         {party.map((m, i) => (
           <Slot key={m.uid} mon={m} top={i * 24} selected={m.uid === chosen} onClick={() => setChosen(m.uid === chosen ? null : m.uid)} />
         ))}
-        <button type="button" className="absolute" style={{ left: px(98), top: px(144), width: px(56), height: px(16), backgroundImage: `url(${PARTY}/cancel.png)`, backgroundSize: '100% 100%' }} onClick={close}>
+        <button type="button" className="absolute" style={{ left: px(10 + SLOT_W - 56), top: px(144), width: px(56), height: px(16), backgroundImage: `url(${PARTY}/cancel.png)`, backgroundSize: '100% 100%' }} onClick={close}>
           <span className="block text-center" style={{ ...TEXT, fontSize: px(10), paddingTop: px(2) }}>CANCEL</span>
         </button>
       </div>
@@ -55,7 +56,7 @@ export function PartyOverlay({ party, bag, busy, pending, open, onToggle, onAct 
           type="button"
           className="pointer-events-auto absolute rounded-full transition hover:scale-110"
           // In the top right corner; open, just left of the slots (so it never covers the first one's HP).
-          style={{ ...(open ? { left: px(50) } : { right: px(4) }), top: px(2), width: px(26), height: px(26), background: open ? 'rgba(255,255,255,0.35)' : 'rgba(15,23,42,0.35)', boxShadow: `0 0 0 ${px(1)} rgba(255,255,255,0.4)` }}
+          style={{ ...(open ? { left: px(LIST_LEFT - 30) } : { right: px(4) }), top: px(2), width: px(26), height: px(26), background: open ? 'rgba(255,255,255,0.35)' : 'rgba(15,23,42,0.35)', boxShadow: `0 0 0 ${px(1)} rgba(255,255,255,0.4)` }}
           title={open ? 'Close the party' : 'Party'}
           aria-label={open ? 'Close the party' : 'Party'}
           aria-expanded={open}
@@ -71,14 +72,13 @@ export function PartyOverlay({ party, bag, busy, pending, open, onToggle, onAct 
   );
 }
 
-/** A party slot (FireRed's right-column one, 144x24): the Pokémon's icon on its Poké Ball, name, gender, level, HP bar and HP. */
+/** A party slot (FireRed's right-column one without its HP bar, narrowed: SLOT_W): the Pokémon's icon on its Poké Ball, name, gender, level and HP. */
 function Slot({ mon, top, selected, onClick }: { mon: Mon; top: number; selected: boolean; onClick: () => void }) {
   const s = species(mon.species);
   // Between battles the party is at full HP (the run heals it after every battle).
   const hp = calcStats(mon.species, mon.level, mon.ivs, mon.evs, mon.nature)[0];
-  const [c1, c2] = hpColors(hp, hp);
   return (
-    <button type="button" className="absolute text-left" style={{ left: px(10), top: px(top), width: px(144), height: px(24) }} onClick={onClick} aria-pressed={selected} title={`${s.name}: details`}>
+    <button type="button" className="absolute text-left" style={{ left: px(10), top: px(top), width: px(SLOT_W), height: px(24) }} onClick={onClick} aria-pressed={selected} title={`${s.name}: details`}>
       <span className="absolute inset-0" style={{ backgroundImage: `url(${PARTY}/${selected ? 'slot_selected' : 'slot'}.png)`, backgroundSize: '100% 100%' }} />
       {/* The ball (closed, open when chosen) and the icon over it, as FireRed places them (sPartyMenuSpriteCoords). */}
       <span className="absolute" style={{ left: px(-10), top: px(1), width: px(32), height: px(32), backgroundImage: `url(${PARTY}/pokeball.png)`, backgroundSize: `${px(32)} ${px(64)}`, backgroundPosition: `0 ${selected ? `-${px(32)}` : '0'}` }} />
@@ -98,9 +98,8 @@ function Slot({ mon, top, selected, onClick }: { mon: Mon; top: number; selected
           {mon.gender === 'male' ? '♂' : '♀'}
         </span>
       )}
-      {/* The HP bar's fill (its frame is the slot's), then HP / max HP under it. */}
-      <span className="absolute" style={{ left: px(88), top: px(10), width: px(48), height: px(3), background: `linear-gradient(${c1} 0 67%, ${c2} 67%)` }} />
-      <span className="absolute text-right" style={{ ...TEXT, left: px(88), top: px(14), width: px(52), fontSize: px(10) }}>
+      {/* HP / max HP on the level's line (no HP bar: the user's). */}
+      <span className="absolute text-right" style={{ ...TEXT, left: px(72), top: px(13), width: px(SLOT_W - 76), fontSize: px(10) }}>
         {hp}/{hp}
       </span>
     </button>
