@@ -44,14 +44,29 @@ import { CardImage } from './CardImage';
 
 /**
  * A card attached to a Pokémon in play: a disc the size of its Energy's (`size` px) showing the card's art, its name
- * on hover and the card itself in the hover preview (the Pokémon's again once the pointer leaves it).
+ * on hover and the card itself in the hover preview (the Pokémon's again once the pointer leaves it). A click (or tap) opens
+ * the card, its text and all, in the CardInspector, closed by a click anywhere else (the user's, 2026-10-26); the click
+ * goes no further, so the Pokémon's own (its moves, a slot's drop) doesn't happen.
  */
 function AttachedIcon({ def, holder, size }: { def: CardDef; holder: CardDef; size: number }) {
   const setPreview = useContext(PreviewContext);
+  const catalog = useContext(CatalogContext);
+  const openInspector = useContext(InspectContext);
+  const entry = catalog?.get(def.id);
   return (
     <span
       title={def.name}
-      className="inline-block shrink-0 rounded-full border border-white bg-slate-700 bg-no-repeat shadow shadow-black/60"
+      role={openInspector && entry ? 'button' : undefined}
+      onClick={
+        openInspector && entry
+          ? (e) => {
+              e.stopPropagation();
+              setPreview(null);
+              openInspector(entry);
+            }
+          : undefined
+      }
+      className={`inline-block shrink-0 rounded-full border border-white bg-slate-700 bg-no-repeat shadow shadow-black/60 ${openInspector && entry ? 'cursor-pointer' : ''}`}
       style={{ width: size, height: size, backgroundImage: def.imageUrl ? `url(${def.imageUrl}/low.webp)` : undefined, backgroundSize: '260%', backgroundPosition: '50% 24%' }}
       onMouseEnter={(e) => setPreview({ def, x: e.clientX, y: e.clientY, from: e.currentTarget, mine: !!e.currentTarget.closest('[data-mine]') })}
       onMouseLeave={(e) => {
@@ -131,20 +146,26 @@ export function Card({
         </span>
       )}
       {inPlay && (
-        <div className="absolute left-1 top-1 flex flex-col items-start gap-0.5">
-          {/* The cards attached to it (Pokémon Tools, Trainers that stay on it, Shapeshift), as round icons like its Energy's, above its badges. */}
+        // The user's (2026-10-26): the cards attached to it (Pokémon Tools, Trainers that stay on it, Shapeshift), round icons like
+        // its Energy's, two to a row in the top left corner, left to right then top to bottom; its badges (Special Conditions and
+        // the rest) to their right, half as big again, in the same two-wide layout.
+        <div className="absolute left-1 top-1 flex items-start gap-0.5">
           {cards && (inPlay.attached ?? []).length > 0 && (
-            <div className="flex flex-wrap gap-0.5">
+            <div className="grid grid-cols-[repeat(2,max-content)] gap-0.5">
               {inPlay.attached!.map((a) => (
                 <AttachedIcon key={a.card.uid} def={lookupCard(cards, a.card.defId)} holder={def} size={small ? 18 : 22} />
               ))}
             </div>
           )}
-          {statusBadges(inPlay, cards).map((b, i) => (
-            <span key={`${b.label}-${i}`} title={b.title} className={`${b.className} rounded px-1 text-[10px] font-bold leading-4 text-white shadow`}>
-              {b.label}
-            </span>
-          ))}
+          {statusBadges(inPlay, cards).length > 0 && (
+            <div className="grid grid-cols-[repeat(2,max-content)] gap-0.5">
+              {statusBadges(inPlay, cards).map((b, i) => (
+                <span key={`${b.label}-${i}`} title={b.title} className={`${b.className} rounded px-1.5 text-[15px] font-bold leading-6 text-white shadow`}>
+                  {b.label}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
       {inPlay && cards && inPlay.energy.length > 0 && (
