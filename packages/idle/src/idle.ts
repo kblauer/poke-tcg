@@ -842,7 +842,8 @@ function restartTrainerLoop(state: IdleState, out: Segment) {
 
 /**
  * A white-out: back to the area's start (a gym or League room, or grinding: its town), its trainers to fight again; no
- * money lost (the user's, 2026-10-25: no penalty; it was ₱1000, or half the money with less).
+ * money lost (the user's, 2026-10-25: no penalty; it was ₱1000, or half the money with less). On a route or in a dungeon
+ * a wild grind starts near its start (the user's: a trainer grind turns into one, and with none on, one is forced on).
  */
 function whiteOut(state: IdleState, out: Segment) {
   state.totals.whiteOuts += 1;
@@ -866,6 +867,11 @@ function whiteOut(state: IdleState, out: Segment) {
       Object.assign(state, { leg: loop.resume.leg, step: loop.resume.step });
       delete state.loop;
     }
+  } else if (!loop && (a.kind === 'route' || a.kind === 'dungeon')) {
+    // Whited out on a route with no grind on (the user's, 2026-10-26): a wild grind near its start, until Continue route
+    // goes on from its start.
+    const plan = wildPlan(state.area, 0, 0, 1);
+    if (plan) startPacing(state, plan, { area: state.area, leg: 0, step: 0, beaten: [...state.beaten] });
   }
 }
 

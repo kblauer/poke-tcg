@@ -29,11 +29,20 @@ function play(seed: number, settings: IdleSettings, maxSegments: number) {
   let state = createIdleRun({ species: [1, 4, 7][seed % 3]! }, seed);
   const caught = new Set<number>();
   let segments = 0;
+  // A route grind (a white-out starts one): the player presses Continue route once the best Pokémon is 2 levels up.
+  let grindFrom: number | null = null;
   while (state.phase !== 'won' && segments < maxSegments) {
     if (state.phase === 'town') {
       state = visitStore(state, settings).state;
       state = townChoice(state);
       continue;
+    }
+    if (!state.loop) grindFrom = null;
+    else if (grindFrom === null) grindFrom = topLevel(state.party);
+    else if (topLevel(state.party) >= grindFrom + 2) {
+      const on = applyIdleAction(state, { type: 'CONTINUE_ROUTE' });
+      if (on.ok) state = on.state;
+      grindFrom = null;
     }
     const next = simulateSegment(state, settings, caught);
     if (!next) break;
@@ -309,6 +318,21 @@ describe('an idle run', () => {
     // …then a Great Ball.
     const turn2 = b.events.slice(tick2(b.events), b.events.findIndex((e) => e.t === 'tick' && e.n === 3) >>> 0);
     expect(turn2.some((e) => e.t === 'ball' && e.item === 'great-ball')).toBe(true);
+  });
+
+  it('a white-out on a route with no grind on goes back to its start and starts a wild grind there', () => {
+    // A level-2 Magikarp knowing only Splash, on Route 2: the first battle whites it out.
+    const area = AREAS.findIndex((a) => a.id === 'route-2');
+    const base = createIdleRun({ species: 129 }, 3);
+    let s: IdleState = { ...base, area, step: 40, party: [{ ...base.party[0]!, level: 2, moves: ['splash'], slots: [] }] };
+    for (let i = 0; i < 100 && !s.totals.whiteOuts; i++) s = simulateSegment(s, MANUAL, new Set())!.state;
+    expect(s.totals.whiteOuts).toBe(1);
+    expect(s.loop).toMatchObject({ kind: 'pace', resume: { area, leg: 0, step: 0 } });
+    expect([s.area, s.leg]).toEqual([area, 0]);
+    expect(s.step).toBeLessThan(30);
+    // Continue route goes on from the route's start.
+    const on = applyIdleAction(s, { type: 'CONTINUE_ROUTE' });
+    expect(on.ok && [on.state.area, on.state.leg, on.state.loop]).toEqual([area, 0, undefined]);
   });
 
   it('has auto-grind on by default', () => {
