@@ -1754,6 +1754,12 @@ function createContext(
       amount = noted('Darkness Energy', amount, amount + dark);
       log(`Darkness Energy: ${dark} more damage.`);
     }
+    // PlusPower (Black & White series): 10 more for each played this turn, before Weakness and Resistance.
+    const plus = me.plusPowers?.turn === turn ? 10 * me.plusPowers.count : 0;
+    if (amount > 0 && plus) {
+      amount = noted('PlusPower', amount, amount + plus);
+      log(`PlusPower: ${plus} more damage.`);
+    }
     const r = rEnergy();
     if (amount > 0 && r) {
       amount = noted('R Energy', amount, amount + r);

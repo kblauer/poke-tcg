@@ -21,6 +21,9 @@ export const basicEnergyOn = (cards: CardLibrary, p: InPlayPokemon) => p.energy.
 /** A Poké-Body: always on, whatever its Pokémon's Special Conditions. */
 export const POKE_BODY = { ignoresConditions: true, body: true } as const;
 
+/** An Ability (Black & White series): a kind of its own, whatever its Pokémon's Special Conditions (agreed; powerActive, powerError). */
+export const ABILITY = { ability: true, ignoresConditions: true } as const;
+
 /** "If [it] is your Active Pokémon" / "on your Bench": why a power can't be used from where its Pokémon is. */
 export const onlyActive = (s: PowerSituation, name: string) => (s.source === 'active' ? null : `${name} must be your Active Pokémon`);
 export const onlyBenched = (s: PowerSituation, name: string) => (s.source !== 'active' ? null : `${name} must be on your Bench`);

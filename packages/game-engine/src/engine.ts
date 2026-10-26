@@ -413,6 +413,8 @@ export interface PlayerState {
   doubleFallTurn?: number;
   /** Black Belt: the turn its Active Pokémon's attacks do 40 more to the opponent's Active Pokémon. */
   blackBeltTurn?: number;
+  /** PlusPower (Black & White series): this turn, its Pokémon's attacks do 10 more to the Active Pokémon for each played, before Weakness and Resistance. */
+  plusPowers?: { turn: number; count: number };
   /** How many Benched Pokémon it can have, when fewer than 5 (the opponent's Dittobolic; refreshHideout). */
   benchLimit?: number;
   /** Needle Shock: the turn this player's Pokémon last used it. */

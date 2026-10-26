@@ -553,6 +553,18 @@ const BY_NAME: CardLibrary = {
   archenPlasma: mon('bw10-53', 'Archen', FI, 70, [['Rock Smash', [C, C], 20]], { restored: true }),
   plumeFossil: { id: 'bw3-93', kind: 'trainer', name: 'Plume Fossil', imageUrl: null, text: '' },
   axew: mon('bw6-87', 'Axew', 'dragon', 60, [['Scratch', [C], 10], ['Dragon Rage', [C, C], 40]], { weakness: { type: 'dragon', multiplier: 2 } }),
+  // Black & White (bw1.test.ts).
+  serperior: mon('bw1-6', 'Serperior', G, 130, [['Leaf Tornado', [G, C], 60]], { stage: 'stage2', power: { name: 'Royal Heal', text: '' } }),
+  emboar: mon('bw1-20', 'Emboar', F, 150, [['Heat Crash', [F, F, C], 80]], { stage: 'stage2', power: { name: 'Inferno Fandango', text: '' } }),
+  samurott: mon('bw1-32', 'Samurott', W, 140, [['Hydro Pump', [W, C, C], 60]], { stage: 'stage2', power: { name: 'Shell Armor', text: '' } }),
+  reuniclus: mon('bw1-57', 'Reuniclus', P, 90, [['Psywave', [P, C], 20]], { stage: 'stage2', power: { name: 'Damage Swap', text: '' } }),
+  lillipup: mon('bw1-80', 'Lillipup', C, 50, [['Pickup', [C], 0]]),
+  cinccino: mon('bw1-89', 'Cinccino', C, 90, [['Do the Wave', [C, C], 20]], { stage: 'stage1' }),
+  bouffalant: mon('bw1-91', 'Bouffalant', C, 100, [['Revenge', [C, C], 20]]),
+  plusPowerBW: { id: 'bw1-96', kind: 'trainer', name: 'PlusPower', imageUrl: null, text: '' },
+  potionBW: { id: 'bw1-100', kind: 'trainer', name: 'Potion', imageUrl: null, text: '' },
+  juniper: { id: 'bw1-101', kind: 'trainer', name: 'Professor Juniper', imageUrl: null, text: '' },
+  reviveBW: { id: 'bw1-102', kind: 'trainer', name: 'Revive', imageUrl: null, text: '' },
   ...Object.fromEntries(
     TRAINERS.map(([n, name]) => [name.toLowerCase().replace(/[^a-z]/g, ''), { id: `base1-${n}`, kind: 'trainer' as const, name, imageUrl: null, text: '' }]),
   ),

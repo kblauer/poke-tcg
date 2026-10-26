@@ -1142,6 +1142,8 @@ const BW_TEMPLATES: Record<string, AttackTemplate> = {
     fits: sameBase(0),
     make: (_, [base, more]) => bonusIf(num(base), num(more), (ctx) => !!ctx.defenderDef.pokemonEX),
   },
+  // Blue Flare: "Discard 2 Fire Energy attached to this Pokémon" (Energy cards of that type, basic or Special).
+  discardTypedBW: { pattern: re(`discard (an?|\\d+) ${TYPE} energy attached to @`), make: (d, [n, type]) => discardToUse(d, typeof n === 'number' ? n : 1, word<EnergyType>(type)) },
   randomDiscardBW: { pattern: re("discard a random card from your opponent's hand"), make: (d) => thenDo(d, (ctx) => discardAtRandom(ctx)) },
   flipRandomDiscard: { pattern: re("flip a coin\\. if heads, discard a random card from your opponent's hand"), make: (d) => thenDo(d, (ctx) => ctx.flip() && discardAtRandom(ctx)) },
   millSelf: {
@@ -1155,7 +1157,13 @@ const BW_TEMPLATES: Record<string, AttackTemplate> = {
   },
 };
 
-Object.assign(ATTACK_TEMPLATES, DP_TEMPLATES, DP_TEMPLATES_2, DP_TEMPLATES_3, BW_TEMPLATES);
+// Every table's keys are new: a template with another's key would replace it, and the cards matched to it (by key, in
+// ex-template-data.ts) would play by the wrong one. A clash fails at load, so every test fails.
+for (const table of [DP_TEMPLATES, DP_TEMPLATES_2, DP_TEMPLATES_3, BW_TEMPLATES]) {
+  const clash = Object.keys(table).find((key) => key in ATTACK_TEMPLATES);
+  if (clash) throw new Error(`Two attack templates are called ${clash}`);
+  Object.assign(ATTACK_TEMPLATES, table);
+}
 
 /** An attack's template and its arguments, as ex-template-data.ts stores them: the key, the printed damage, then the arguments. */
 export type TemplateUse = [key: string, damage: number, ...args: TemplateArg[]];
@@ -1170,7 +1178,17 @@ const olderWording = (t: string, damage: number) =>
     .replace(/\bthis attack does (\d+) more damage\b/g, `this attack does ${damage} damage plus $1 more damage`)
     .replace(/^does (\d+) more damage\b/, `does ${damage} damage plus $1 more damage`)
     // "Heal 30 damage from…" is "Remove 3 damage counters from…".
-    .replace(/\bheal (\d+) damage from (@|each of your (?:benched )?pokemon|1 of your pokemon)\b/g, (_, n: string, who: string) => `remove ${Number(n) / 10} damage counter${Number(n) === 10 ? '' : 's'} from ${who}`)
+    .replace(/\bheal (\d+) damage from (@|each of your (?:benched )?pokemon|1 of your pokemon)(?![\w ]*pokemon)/g, (_, n: string, who: string) => `remove ${Number(n) / 10} damage counter${Number(n) === 10 ? '' : 's'} from ${who}`)
+    // "Heal from this Pokémon the same amount of damage you did" is the older drain.
+    .replace(/^heal from @ the same amount of damage you did to the defending pokemon$/, 'remove from @ the number of damage counters equal to the damage you did to the defending pokemon')
+    // "During your next turn, each of this Pokémon's attacks does 20 more damage" is to the Defending Pokémon, as the older wording says.
+    .replace(/^during your next turn, each of @'s attacks does (\d+) more damage ?\(before applying weakness and resistance\)$/, "during your next turn, each of @'s attacks does $1 more damage to the defending pokemon (before applying weakness and resistance)")
+    // "A Stage 2 Pokémon" is the older "a Stage 2 Evolved Pokémon".
+    .replace(/^if the defending pokemon is a stage (1|2) pokemon, /, 'if the defending pokemon is a stage $1 evolved pokemon, ')
+    // "Attach a [type] Energy card from your discard pile to this Pokémon" is the older "Search your discard pile for … and attach it".
+    .replace(/^attach (an energy card|an? (?:basic|grass|fire|water|lightning|psychic|fighting|darkness|metal) energy card) from your discard pile to @$/, 'search your discard pile for $1 and attach it to @')
+    // "1 of your opponent's Pokémon that has any damage counters on it" is the older "Choose 1 … that has any damage counters".
+    .replace(/^does (\d+) damage to 1 of your opponent's pokemon that (has any|doesn't have any) damage counters on it\./, "choose 1 of your opponent's pokemon that $2 damage counters on it. this attack does $1 damage to that pokemon.")
     // "This attack does 20 damage to 1 of your opponent's Pokémon" is the older "Choose 1 of your opponent's Pokémon…".
     .replace(/^this attack does (\d+) damage to 1 of your opponent's pokemon\./, "choose 1 of your opponent's pokemon. this attack does $1 damage to that pokemon.")
     .replace(/^this attack does (\d+) damage to 1 of your opponent's benched pokemon\./, "does $1 damage to 1 of your opponent's benched pokemon.")

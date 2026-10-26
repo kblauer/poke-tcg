@@ -359,6 +359,12 @@ export interface PowerEffect {
   /** A Poké-Body (always on; Dark Impact doesn't stop it). Poké-Powers and the older Pokémon Powers don't have it. */
   body?: boolean;
   /**
+   * An Ability (Black & White series): a kind of its own (agreed): never stopped by Special Conditions, nor by the older
+   * effects that stop Pokémon Powers, Poké-Powers or Poké-Bodies (Toxic Gas, Dark Impact, Ancient Wind…); only by
+   * effects that name Abilities (powerActive, powerError).
+   */
+  ability?: boolean;
+  /**
    * Extreme Speed, Heavyweight, Lightweight, Conductive Body, Psychoflow, Slippery Skin: how much its own retreat cost
    * changes (retreatCost). `opp`: the other player's Pokémon in play, when known.
    */
@@ -910,8 +916,10 @@ export const toxicGas = (sides: Sides) =>
 export function powerActive(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sides): boolean {
   if (!inPlayDef(cards, pokemon).power) return false;
   // Stare: switched off until it expires between turns (betweenTurns removes it). Goop Gas Attack: all of them.
-  if (pokemon.powerOffUntil !== undefined || goopGas(sides)) return false;
   const effect = pokemonPower(pokemon);
+  // An Ability: none of the older powers' stoppers (nor a Special Condition) switch it off (agreed).
+  if (effect?.ability) return true;
+  if (pokemon.powerOffUntil !== undefined || goopGas(sides)) return false;
   if (!effect?.ignoresConditions && (effect?.stopsOnlyWhileAsleep ? pokemon.condition === 'asleep' : hasSpecialCondition(pokemon))) return false;
   // Ferment Poison: no Poké-Bodies while it stays Poisoned.
   if (effect?.body && pokemon.effects?.fermentPoison && pokemon.poison) return false;
@@ -1302,6 +1310,8 @@ export function powerError(s: PowerSituation): string | null {
   const def = inPlayDef(s.cards, source);
   const effect = pokemonPower(source);
   if (!def.power || !effect?.use) return `${def.name} has no power to use`;
+  // An Ability: used whatever its Pokémon's Special Conditions, and none of the older powers' stoppers apply (agreed).
+  if (effect.ability) return effect.blocked?.(s) ?? (effect.oncePerTurn && source.powerUsedTurn === s.turn ? `${def.name} has already used ${def.power.name} this turn` : null);
   // Powers that are used all stop working while their Pokémon has a Special Condition (Poisoned and Burned too, agreed),
   // unless they say otherwise (Unown B and Y).
   if (hasSpecialCondition(source) && (!effect.ignoresConditions || effect.usePoke)) return `${def.name} is ${specialConditionLabel(source)} and can't use ${def.power.name}`;
