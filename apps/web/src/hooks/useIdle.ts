@@ -275,6 +275,8 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
           jump: jump ? { ms, stamp: Date.now() } : old.jump,
         }));
         await wait(STEP_MS * (jump ? 2 : 1));
+        // Landed: the jump goes, or the map scene coming back after a battle would play it again.
+        if (jump) update({ jump: null });
       }
       place.step = e.to;
     }
