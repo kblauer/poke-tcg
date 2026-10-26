@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { inferRouterOutputs } from '@trpc/server';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { TRANSITION_MS } from '../components/BattleTransition';
+import { preloadBattle } from '../components/idle/BattleScreen';
 import { useTRPC } from '../lib/trpc';
 import type { Facing } from '../utils/overworld';
 
@@ -15,6 +16,9 @@ type BattleEvent = BattleSegment['events'][number];
 
 /** A Pokémon's reward after a foe faints (EXP., a level, a move learned): a run of them is shown at once, as one line's time (the user's). */
 export const isReward = (e: BattleEvent) => e.t === 'exp' || e.t === 'level' || e.t === 'learn';
+
+/** The longest a battle's start waits, after its transition, for its pictures to load (preloadBattle). */
+const BATTLE_LOAD_MS = 3000;
 
 /** How long after an attack's line its hit lands (the HP drop and the blink). */
 const HIT_BEAT_MS = 500;
@@ -274,7 +278,11 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
     async function battle(e: BattleSegment) {
       // The play area's battle transition over the scene (SceneTransition, the user's), the battle once it's closed.
       update({ entering: true, cue: e });
+      // Its pictures fetched since the segment came (preloadBattle), the screen held closed until they're decoded (at most BATTLE_LOAD_MS more).
+      const loaded = preloadBattle(e);
       await wait(TRANSITION_MS);
+      await Promise.race([loaded, wait(BATTLE_LOAD_MS)]);
+      if (stopped) throw new Stopped();
       update({ battle: e, shown: 0, entering: false });
       onScreen.current = { battle: e, turn: 0 };
       // Each tick's events spread over its TICK_MS; the opening (send-outs) at a quicker pace. A run of rewards (EXP.,
@@ -432,6 +440,8 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
           if (stopped) return;
           // The server's newest state at once (actions use its version); the screen's once the segment has played.
           latest.current = r.run;
+          // Its battle's pictures fetched while it walks (the user's: no black battle screen).
+          for (const ev of r.segment.events) if (ev.t === 'battle') void preloadBattle(ev);
           await playSegment(r.segment.events);
           setRun(newest().version > r.run.version ? newest() : r.run);
         }

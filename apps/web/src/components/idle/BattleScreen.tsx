@@ -18,6 +18,32 @@ function background(b: BattleSegment): string {
   return `${GEN1}/terrain/${b.terrain}.png`;
 }
 
+/** The battle pictures fetched ahead (kept, so the browser keeps them decoded), by src, each with its decode. */
+const preloaded = new Map<string, { img: HTMLImageElement; decoded: Promise<void> }>();
+
+/**
+ * Fetches a battle's pictures (the user's: no battle screen black while they load): its background, the trainer's pic,
+ * both players' trainer backs, every Pokémon sent out (the foes' fronts, the party's backs, shiny or not). Resolves when
+ * they're all decoded (or failed).
+ */
+export function preloadBattle(b: BattleSegment): Promise<void> {
+  const srcs = new Set<string>([background(b), `${GEN1}/trainers/red_back.png`, `${GEN1}/trainers/leaf_back.png`]);
+  const pic = b.trainer ? TRAINERS[b.trainer]?.pic : null;
+  if (pic) srcs.add(`${GEN1}/trainers/${pic}.png`);
+  for (const e of b.events) if (e.t === 'send') srcs.add(`${GEN1}/pokemon/${e.mon.shiny ? 'shiny/' : ''}${e.side ? 'front' : 'back'}/${e.mon.species}.png`);
+  return Promise.all(
+    [...srcs].map((src) => {
+      let p = preloaded.get(src);
+      if (!p) {
+        const img = Object.assign(new Image(), { src });
+        p = { img, decoded: img.decode().catch(() => {}) };
+        preloaded.set(src, p);
+      }
+      return p.decoded;
+    }),
+  ).then(() => {});
+}
+
 /** FireRed's status labels. */
 const STATUS: Record<StatusKind, { label: string; color: string }> = {
   sleep: { label: 'SLP', color: '#8c8c8c' },
