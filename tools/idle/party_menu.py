@@ -1,7 +1,8 @@
 """Makes the Idle Adventure's party screen pictures (README: Idle Adventure, the party overlay) from a checkout of the
 pret/pokefirered decompilation, as FireRed draws its party menu (src/party_menu.c): apps/web/public/idle/gen1/party/
 
-  bg.png              the screen's background (graphics/party_menu/bg.bin over bg.png's tiles, its 11 palettes)
+  bg.png              the screen's background (graphics/party_menu/bg.bin over bg.png's tiles, its 11 palettes), its own
+                      CANCEL button covered (the overlay draws one)
   slot.png, slot_selected.png, slot_fainted.png, slot_fainted_selected.png
                       a party slot without its HP bar (slot_wide_no_hp.bin: the user's), narrowed to SLOT_TILES tiles
                       (its first column, its middle repeated, its last), in the colours LoadPartyBoxPalette gives it: its
@@ -69,7 +70,11 @@ os.makedirs(OUT, exist_ok=True)
 
 # The background: the screen's 30 by 20 tiles of its 32-wide map.
 bgmap = u16s('bg.bin')
-draw([entry(bgmap[y * 32 + x]) for y in range(20) for x in range(30)], 30, 20, lambda p: PAL[p * 16:p * 16 + 16], transparent=False).save(os.path.join(OUT, 'bg.png'))
+screen = draw([entry(bgmap[y * 32 + x]) for y in range(20) for x in range(30)], 30, 20, lambda p: PAL[p * 16:p * 16 + 16], transparent=False)
+# The background's own CANCEL button (bg1 tiles 23-29 by 17-18, cancel_button.bin's place) is covered with the two rows of
+# tiles above it: the overlay draws its CANCEL (cancel.png) where it puts it, so the background's mustn't show behind it.
+screen.paste(screen.crop((23 * 8, 15 * 8, 30 * 8, 17 * 8)), (23 * 8, 17 * 8))
+screen.save(os.path.join(OUT, 'bg.png'))
 
 # A wide slot: its tiles (u8 numbers into the tileset) in its window's palette with the box colours swapped in.
 WINDOW_PAL = 4

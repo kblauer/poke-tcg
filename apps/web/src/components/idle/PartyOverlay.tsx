@@ -1,5 +1,5 @@
 import { basicFor, calcStats, cooldownTicks, ITEMS, moveData, species, usableStones, type IdleAction, type Mon } from '@poke-tcg/idle';
-import { useState } from 'react';
+import { useRef, useState, type PointerEvent } from 'react';
 import { useEscape } from '../../hooks/useEscape';
 
 /** One game pixel of FireRed's 240x160 screen, in the game screen's width (container query units). */
@@ -9,12 +9,17 @@ const PARTY = '/idle/gen1/party';
 const TEXT = { color: '#ffffff', textShadow: `${px(1)} ${px(1)} 0 #737373`, fontFamily: '"Pokemon Emerald", monospace', lineHeight: 1 } as const;
 /**
  * A slot's width (party/slot.png: FireRed's without its HP bar or HP, 11 tiles: the user's, as narrow as fits a shiny's
- * star and a 10-letter name), and where the slots' column begins.
+ * star and a 10-letter name), its height (a slot a row), and where the slots' column begins.
  */
 const SLOT_W = 88;
+const SLOT_H = 24;
 const LIST_LEFT = 240 - (10 + SLOT_W + 4);
+/** The Pokémon's panel's width: just left of the slots' column (the user's). */
+const PANEL_W = 104;
 /** The panel's colours: a slot's (slot.png's border, fill and light). */
 const FRAME = { border: '#4a4a62', fill: '#3994de', light: '#83c5de', shade: '#297bb4' };
+/** How far (game pixels) a slot must be dragged before it's a drag, not a click. */
+const DRAG_START = 3;
 
 /** A move's line: name, its power and its cooldown in turns. */
 const moveLabel = (key: string) => {
@@ -22,13 +27,22 @@ const moveLabel = (key: string) => {
   return `${m.name} (${m.power > 1 ? m.power : m.power === 1 ? 'var.' : 'status'}, ${cooldownTicks(key)}t)`;
 };
 
+/** `order` with the one at `from` moved to `to`. */
+const moved = (order: string[], from: number, to: number) => {
+  const out = [...order];
+  const [uid] = out.splice(from, 1);
+  out.splice(to, 0, uid!);
+  return out;
+};
+
 /**
  * The party over the game screen (the user's, replacing the Party tab below it): a Pokémon button in its top right corner
  * (the lead's own FireRed menu icon, hopping) slides FireRed's party screen out from the right, its slots in one column
- * (each Pokémon's icon on its Poké Ball, name, level, HP bar and HP: party_menu.c's right-column slot), and a slot
- * clicked opens a panel in the slots' style beside it with the Pokémon's stats as a hexagon, its moves to set, its
- * order and the stones it can use. Escape, the button again or CANCEL closes it. Changes made during a wild battle wait
- * for its end (`pending`, IdleState.pending), shown at once.
+ * (each Pokémon's icon on its Poké Ball, name, level and gender: party_menu.c's right-column slot, narrowed). A slot
+ * dragged up or down reorders the party (the user's: the others make way, SET_ORDER on the drop); a slot clicked opens a
+ * panel in the slots' style just left of the column with the Pokémon's stats as a hexagon, its moves to set and the
+ * stones it can use. Escape, the button again or CANCEL closes it. Changes made during a wild battle wait for its end
+ * (`pending`, IdleState.pending), shown at once.
  */
 export function PartyOverlay({ party, bag, busy, pending, open, onToggle, onAct }: { party: Mon[]; bag: Record<string, number>; busy: boolean; pending: number; open: boolean; onToggle: (open: boolean) => void; onAct: (action: IdleAction) => void }) {
   const [chosen, setChosen] = useState<string | null>(null);
@@ -36,6 +50,37 @@ export function PartyOverlay({ party, bag, busy, pending, open, onToggle, onAct 
   const close = () => (setChosen(null), onToggle(false));
   useEscape(() => (mon ? setChosen(null) : close()), open);
   const lead = party[0];
+
+  // Dragging a slot: which, from where, how far (game pixels); the order it would drop into, the others making way.
+  const order = party.map((m) => m.uid);
+  const [drag, setDrag] = useState<{ uid: string; from: number; dy: number } | null>(null);
+  const pointer = useRef<{ uid: string; from: number; startY: number; scale: number; dragging: boolean } | null>(null);
+  /** A drag just ended (its click is no click). */
+  const dragged = useRef(false);
+  const to = drag ? Math.max(0, Math.min(order.length - 1, drag.from + Math.round(drag.dy / SLOT_H))) : -1;
+  const shown = drag ? moved(order, drag.from, to) : order;
+  const down = (uid: string, from: number) => (e: PointerEvent<HTMLButtonElement>) => {
+    if (busy || e.button !== 0) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    pointer.current = { uid, from, startY: e.clientY, scale: e.currentTarget.getBoundingClientRect().height / SLOT_H, dragging: false };
+  };
+  const move = (e: PointerEvent<HTMLButtonElement>) => {
+    const p = pointer.current;
+    if (!p) return;
+    const dy = (e.clientY - p.startY) / p.scale;
+    if (!p.dragging && Math.abs(dy) < DRAG_START) return;
+    p.dragging = true;
+    setDrag({ uid: p.uid, from: p.from, dy });
+  };
+  const up = () => {
+    const p = pointer.current;
+    pointer.current = null;
+    if (!p?.dragging) return;
+    dragged.current = true;
+    if (drag && to !== drag.from) onAct({ type: 'SET_ORDER', uids: shown });
+    setDrag(null);
+  };
+
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden [container-type:inline-size] [image-rendering:pixelated]" onClick={(e) => e.stopPropagation()}>
       {/* The party's slots, sliding out from the right over FireRed's party background. */}
@@ -44,21 +89,35 @@ export function PartyOverlay({ party, bag, busy, pending, open, onToggle, onAct 
         style={{ left: px(LIST_LEFT), width: px(240 - LIST_LEFT), transform: open ? 'none' : 'translateX(101%)', backgroundImage: `url(${PARTY}/bg.png)`, backgroundSize: `${px(240)} ${px(160)}`, backgroundPosition: `-${px(LIST_LEFT)} 0` }}
         aria-hidden={!open}
       >
-        {party.map((m, i) => (
-          <Slot key={m.uid} mon={m} top={i * 24} selected={m.uid === chosen} onClick={() => setChosen(m.uid === chosen ? null : m.uid)} />
-        ))}
+        {party.map((m, i) => {
+          const held = drag?.uid === m.uid;
+          return (
+            <Slot
+              key={m.uid}
+              mon={m}
+              top={held ? drag.from * SLOT_H + drag.dy : shown.indexOf(m.uid) * SLOT_H}
+              held={held}
+              selected={m.uid === chosen}
+              handlers={{ onPointerDown: down(m.uid, i), onPointerMove: move, onPointerUp: up, onPointerCancel: up }}
+              onClick={() => {
+                if (dragged.current) return void (dragged.current = false);
+                setChosen(m.uid === chosen ? null : m.uid);
+              }}
+            />
+          );
+        })}
         <button type="button" className="absolute" style={{ left: px(10 + SLOT_W - 56), top: px(144), width: px(56), height: px(16), backgroundImage: `url(${PARTY}/cancel.png)`, backgroundSize: '100% 100%' }} onClick={close}>
           <span className="block text-center" style={{ ...TEXT, fontSize: px(10), paddingTop: px(2) }}>CANCEL</span>
         </button>
       </div>
-      {open && mon && <MonPanel mon={mon} order={party.map((m) => m.uid)} bag={bag} busy={busy} pending={pending} onAct={onAct} onClose={() => setChosen(null)} />}
+      {open && mon && <MonPanel mon={mon} bag={bag} busy={busy} pending={pending} onAct={onAct} onClose={() => setChosen(null)} />}
       {/* The button: the lead's menu icon, hopping (the user's: where the ball button was, the ball now beside it); not
           while a Pokémon's panel is open (it has its own ✕). */}
       {lead && !(open && mon) && (
         <button
           type="button"
           className="pointer-events-auto absolute rounded-full transition hover:scale-110"
-          // In the top right corner; open, just left of the slots (so it never covers the first one's HP).
+          // In the top right corner; open, just left of the slots (so it never covers the first one).
           style={{ ...(open ? { left: px(LIST_LEFT - 30) } : { right: px(4) }), top: px(2), width: px(26), height: px(26), background: open ? 'rgba(255,255,255,0.35)' : 'rgba(15,23,42,0.35)', boxShadow: `0 0 0 ${px(1)} rgba(255,255,255,0.4)` }}
           title={open ? 'Close the party' : 'Party'}
           aria-label={open ? 'Close the party' : 'Party'}
@@ -75,17 +134,43 @@ export function PartyOverlay({ party, bag, busy, pending, open, onToggle, onAct 
   );
 }
 
-/** A party slot (FireRed's right-column one without its HP bar, narrowed: SLOT_W): the Pokémon's icon on its Poké Ball, name, level and gender (no HP: the user's). */
-function Slot({ mon, top, selected, onClick }: { mon: Mon; top: number; selected: boolean; onClick: () => void }) {
+/**
+ * A party slot (FireRed's right-column one without its HP bar, narrowed: SLOT_W): the Pokémon's icon on its Poké Ball,
+ * name, level and gender (no HP: the user's). Draggable (`handlers`): held, it follows the pointer over the others, which
+ * slide to where they'd be.
+ */
+function Slot({
+  mon,
+  top,
+  held,
+  selected,
+  handlers,
+  onClick,
+}: {
+  mon: Mon;
+  top: number;
+  held: boolean;
+  selected: boolean;
+  handlers: Record<'onPointerDown' | 'onPointerMove' | 'onPointerUp' | 'onPointerCancel', (e: PointerEvent<HTMLButtonElement>) => void>;
+  onClick: () => void;
+}) {
   const s = species(mon.species);
   return (
-    <button type="button" className="absolute text-left" style={{ left: px(10), top: px(top), width: px(SLOT_W), height: px(24) }} onClick={onClick} aria-pressed={selected} title={`${s.name}: details`}>
-      <span className="absolute inset-0" style={{ backgroundImage: `url(${PARTY}/${selected ? 'slot_selected' : 'slot'}.png)`, backgroundSize: '100% 100%' }} />
+    <button
+      type="button"
+      className={`absolute touch-none select-none text-left ${held ? 'cursor-grabbing' : 'cursor-grab'}`}
+      style={{ left: px(10), top: px(top), width: px(SLOT_W), height: px(SLOT_H), zIndex: held ? 2 : 1, transition: held ? 'none' : 'top 150ms ease-out', filter: held ? 'drop-shadow(0 0.6cqw 0 rgba(0,0,0,0.35))' : undefined }}
+      {...handlers}
+      onClick={onClick}
+      aria-pressed={selected}
+      title={`${s.name}: drag to reorder, click for details`}
+    >
+      <span className="absolute inset-0" style={{ backgroundImage: `url(${PARTY}/${selected || held ? 'slot_selected' : 'slot'}.png)`, backgroundSize: '100% 100%' }} />
       {/* The ball (closed, open when chosen) and the icon over it, as FireRed places them (sPartyMenuSpriteCoords). */}
       <span className="absolute" style={{ left: px(-10), top: px(1), width: px(32), height: px(32), backgroundImage: `url(${PARTY}/pokeball.png)`, backgroundSize: `${px(32)} ${px(64)}`, backgroundPosition: `0 ${selected ? `-${px(32)}` : '0'}` }} />
       <span
         className="absolute bg-no-repeat"
-        style={{ left: px(-8), top: px(-6), width: px(32), height: px(32), backgroundImage: `url(/idle/gen1/pokemon/icon/${mon.species}.png)`, backgroundSize: `${px(32)} ${px(64)}`, animation: `idle-icon-cqw ${selected ? '0.25s' : '0.5s'} steps(1) infinite` }}
+        style={{ left: px(-8), top: px(-6), width: px(32), height: px(32), backgroundImage: `url(/idle/gen1/pokemon/icon/${mon.species}.png)`, backgroundSize: `${px(32)} ${px(64)}`, animation: `idle-icon-cqw ${selected || held ? '0.25s' : '0.5s'} steps(1) infinite` }}
       />
       <span className="absolute whitespace-nowrap" style={{ ...TEXT, left: px(22), top: px(3), fontSize: px(11) }}>
         {mon.shiny && <span style={{ color: '#ffd552' }}>★</span>}
@@ -114,8 +199,11 @@ const HEX: { label: string; stat: number; color: string }[] = [
   { label: 'Sp. Atk', stat: 3, color: '#5878d8' },
 ];
 
-/** The stats as a hexagon (the user's: the newer games' summary): each stat's share of the Pokémon's highest, its label and value at its corner. */
-function StatHex({ stats }: { stats: number[] }) {
+/**
+ * The stats as a hexagon (the user's: the newer games' summary): each stat's share of the Pokémon's highest, its label and
+ * value at its corner; `height` game pixels tall, its width following.
+ */
+function StatHex({ stats, height }: { stats: number[]; height: number }) {
   const cx = 60;
   const cy = 48;
   const r = 26;
@@ -127,7 +215,7 @@ function StatHex({ stats }: { stats: number[] }) {
   const ring = (k: number) => HEX.map((_, i) => at(i, k).join(',')).join(' ');
   const shape = HEX.map((h, i) => at(i, Math.max(0.08, stats[h.stat]! / top)).join(',')).join(' ');
   return (
-    <svg viewBox="0 0 120 96" className="block w-full" role="img" aria-label={HEX.map((h) => `${h.label} ${stats[h.stat]}`).join(', ')}>
+    <svg viewBox="0 0 120 96" className="mx-auto block" style={{ height: px(height), width: px((height * 120) / 96) }} role="img" aria-label={HEX.map((h) => `${h.label} ${stats[h.stat]}`).join(', ')}>
       <polygon points={ring(1.05)} fill="#58b048" />
       <polygon points={ring(1)} fill="#b8f0a0" />
       {[0.66, 0.33].map((k) => (
@@ -142,7 +230,7 @@ function StatHex({ stats }: { stats: number[] }) {
         const anchor = Math.abs(x - cx) < 4 ? 'middle' : x > cx ? 'start' : 'end';
         const lx = anchor === 'start' ? x - 10 : anchor === 'end' ? x + 10 : x;
         return (
-          <g key={h.label} fontFamily='"Pokemon Emerald", monospace' fontSize={7.5} textAnchor={anchor}>
+          <g key={h.label} fontFamily='"Pokemon Emerald", monospace' fontSize={8.5} textAnchor={anchor}>
             <text x={lx} y={i === 0 ? y - 2 : i === 3 ? y + 1 : y - 3} fill="#ffffff" stroke={h.color} strokeWidth={2} paintOrder="stroke">
               {h.label}
             </text>
@@ -157,10 +245,11 @@ function StatHex({ stats }: { stats: number[] }) {
 }
 
 /**
- * The panel a slot opens (in the slots' style): the Pokémon's name, level and types, its stats as a hexagon, its basic
- * move, its 3 slots to set (or picked automatically), its place in the party and the stones in the bag it can use.
+ * The panel a slot opens (in the slots' style), just left of the slots' column and small enough not to scroll (the
+ * user's): the Pokémon's name, level and types, its stats as a hexagon, its basic move, its 3 slots to set (or picked
+ * automatically) and the stones in the bag it can use.
  */
-function MonPanel({ mon, order, bag, busy, pending, onAct, onClose }: { mon: Mon; order: string[]; bag: Record<string, number>; busy: boolean; pending: number; onAct: (a: IdleAction) => void; onClose: () => void }) {
+function MonPanel({ mon, bag, busy, pending, onAct, onClose }: { mon: Mon; bag: Record<string, number>; busy: boolean; pending: number; onAct: (a: IdleAction) => void; onClose: () => void }) {
   const s = species(mon.species);
   const stats = calcStats(mon.species, mon.level, mon.ivs, mon.evs, mon.nature);
   const basic = basicFor(mon);
@@ -172,43 +261,35 @@ function MonPanel({ mon, order, bag, busy, pending, onAct, onClose }: { mon: Mon
     else slots.splice(slot, 1);
     onAct({ type: 'SET_SLOTS', uid: mon.uid, slots: [...new Set(slots.filter(Boolean))] });
   };
-  // Its place in the party, a step earlier or later (the lead fights first).
-  const index = order.indexOf(mon.uid);
-  const move = (by: number) => {
-    const uids = [...order];
-    uids.splice(index, 1);
-    uids.splice(index + by, 0, mon.uid);
-    onAct({ type: 'SET_ORDER', uids });
-  };
-  const small = { fontSize: px(8) } as const;
+  const small = { fontSize: px(7) } as const;
   return (
     <div
       className="pointer-events-auto absolute overflow-y-auto"
-      style={{ left: px(3), top: px(3), width: px(118), maxHeight: px(154), background: FRAME.fill, border: `${px(1)} solid ${FRAME.border}`, borderRadius: px(4), boxShadow: `inset 0 0 0 ${px(1)} ${FRAME.light}`, padding: px(3) }}
+      style={{ left: px(LIST_LEFT - PANEL_W), top: px(2), width: px(PANEL_W), maxHeight: px(156), background: FRAME.fill, border: `${px(1)} solid ${FRAME.border}`, borderRadius: px(3), boxShadow: `inset 0 0 0 ${px(1)} ${FRAME.light}`, padding: px(2) }}
     >
       <div className="flex items-center justify-between">
-        <span style={{ ...TEXT, fontSize: px(11) }}>
+        <span className="truncate" style={{ ...TEXT, fontSize: px(9) }}>
           {s.name} Lv{mon.level}
         </span>
-        <button type="button" style={{ ...TEXT, fontSize: px(10), padding: `0 ${px(2)}` }} onClick={onClose} aria-label="Close">
+        <button type="button" style={{ ...TEXT, fontSize: px(8), padding: `0 ${px(1)}` }} onClick={onClose} aria-label="Close">
           ✕
         </button>
       </div>
-      {/* Its types: FireRed's labels (menu_info.png's). */}
-      <div className="flex" style={{ gap: px(2), marginTop: px(2) }}>
+      {/* Its types: FireRed's labels (menu_info.png's), at three quarters. */}
+      <div className="flex" style={{ gap: px(2), marginTop: px(1) }}>
         {s.types.map((t) => (
-          <img key={t} src={`${PARTY}/types/${t}.png`} alt={t} style={{ width: px(32), height: px(12) }} draggable={false} />
+          <img key={t} src={`${PARTY}/types/${t}.png`} alt={t} style={{ width: px(24), height: px(9) }} draggable={false} />
         ))}
       </div>
-      <div style={{ background: '#ffffff', borderRadius: px(3), marginTop: px(3), border: `${px(1)} solid ${FRAME.shade}` }}>
-        <StatHex stats={stats} />
+      <div style={{ background: '#ffffff', borderRadius: px(2), marginTop: px(2), border: `${px(1)} solid ${FRAME.shade}`, padding: `${px(1)} 0` }}>
+        <StatHex stats={stats} height={58} />
       </div>
-      <div style={{ ...TEXT, ...small, marginTop: px(3) }}>Basic: {moveData(basic).name}</div>
+      <div style={{ ...TEXT, ...small, marginTop: px(2) }}>Basic: {moveData(basic).name}</div>
       {[0, 1, 2].map((slot) => (
         <select
           key={slot}
-          className="block w-full rounded"
-          style={{ fontSize: px(8), marginTop: px(2), padding: px(1), background: '#ffffff', color: '#303030', border: `${px(1)} solid ${FRAME.border}` }}
+          className="block w-full"
+          style={{ fontSize: px(7), height: px(10), marginTop: px(1.5), padding: `0 ${px(1)}`, background: '#ffffff', color: '#303030', border: `${px(1)} solid ${FRAME.border}`, borderRadius: px(2) }}
           value={mon.slots[slot] ?? ''}
           disabled={busy}
           onChange={(e) => setSlot(slot, e.target.value)}
@@ -222,33 +303,16 @@ function MonPanel({ mon, order, bag, busy, pending, onAct, onClose }: { mon: Mon
           ))}
         </select>
       ))}
-      <label className="flex items-center" style={{ ...TEXT, ...small, gap: px(2), marginTop: px(3) }}>
-        <input type="checkbox" checked={mon.autoSlots} disabled={busy || mon.autoSlots} onChange={() => onAct({ type: 'SET_SLOTS', uid: mon.uid, slots: [], auto: true })} style={{ width: px(7), height: px(7) }} />
+      <label className="flex items-center" style={{ ...TEXT, ...small, gap: px(2), marginTop: px(2) }}>
+        <input type="checkbox" checked={mon.autoSlots} disabled={busy || mon.autoSlots} onChange={() => onAct({ type: 'SET_SLOTS', uid: mon.uid, slots: [], auto: true })} style={{ width: px(6), height: px(6) }} />
         Pick the 3 strongest
       </label>
-      <OrderButtons index={index} size={order.length} busy={busy} onMove={move} />
       {stones.map((st) => (
-        <button key={st} type="button" className="block w-full rounded" style={{ ...TEXT, ...small, marginTop: px(2), padding: px(2), background: '#38a040', border: `${px(1)} solid ${FRAME.border}` }} disabled={busy} onClick={() => onAct({ type: 'USE_STONE', uid: mon.uid, item: st })}>
+        <button key={st} type="button" className="block w-full" style={{ ...TEXT, ...small, marginTop: px(2), padding: px(1.5), background: '#38a040', border: `${px(1)} solid ${FRAME.border}`, borderRadius: px(2) }} disabled={busy} onClick={() => onAct({ type: 'USE_STONE', uid: mon.uid, item: st })}>
           Use a {ITEMS[st]!.name}
         </button>
       ))}
-      {pending > 0 && <div style={{ ...small, marginTop: px(3), color: '#ffe639', textShadow: TEXT.textShadow, fontFamily: TEXT.fontFamily }}>Changes take effect when the battle ends.</div>}
-    </div>
-  );
-}
-
-/** Earlier and later in the party (the lead fights first). */
-function OrderButtons({ index, size, busy, onMove }: { index: number; size: number; busy: boolean; onMove: (by: number) => void }) {
-  const b = { ...TEXT, fontSize: px(8), padding: `${px(1)} ${px(3)}`, background: FRAME.shade, border: `${px(1)} solid ${FRAME.border}`, borderRadius: px(2) } as const;
-  return (
-    <div className="flex items-center" style={{ gap: px(2), marginTop: px(3) }}>
-      <span style={{ ...TEXT, fontSize: px(8) }}>Order</span>
-      <button type="button" style={b} disabled={busy || index === 0} onClick={() => onMove(-1)}>
-        ▲ Earlier
-      </button>
-      <button type="button" style={b} disabled={busy || index === size - 1} onClick={() => onMove(1)}>
-        ▼ Later
-      </button>
+      {pending > 0 && <div style={{ fontSize: px(6.5), marginTop: px(2), color: '#ffe639', textShadow: TEXT.textShadow, fontFamily: TEXT.fontFamily, lineHeight: 1.1 }}>Changes take effect when the battle ends.</div>}
     </div>
   );
 }
