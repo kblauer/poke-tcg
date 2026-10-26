@@ -45,9 +45,14 @@ await json(`${func}/.vc-config.json`, {
   supportsResponseStreaming: true,
   regions: ['iad1'],
 });
+// The pictures' folders cached a day by the browser, then refreshed in the background for a week (the user's: the Idle
+// Adventure's images, maps and sprites, also the runs' and the Battle Tower's; Vercel's own default makes the browser
+// ask again on every load). Their names aren't hashed, so a changed picture shows within the day.
+const IMAGE_CACHE = 'public, max-age=86400, stale-while-revalidate=604800';
 await json(`${out}/config.json`, {
   version: 3,
   routes: [
+    { src: '^/(?:idle|routes|overworld|play)/.*', headers: { 'Cache-Control': IMAGE_CACHE }, continue: true },
     { handle: 'filesystem' },
     { src: '/api(?:/.*)?', dest: '/api' },
     { src: '/.*', dest: '/index.html' },

@@ -1,8 +1,9 @@
-import { expForLevel, MAX_ENERGY, moveData, species, TRAINERS, type BattleEvent, type BattlerView, type StatusKind } from '@poke-tcg/idle';
+import { cooldownTicks, expForLevel, moveData, species, TICK_MS, TRAINERS, type BattleEvent, type BattlerView, type StatusKind } from '@poke-tcg/idle';
 import { useRef, type CSSProperties } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { isReward, type BattleSegment } from '../../hooks/useIdle';
 import { DialogueBox, dialogueKey, type Dialogue } from '../DialogueBox';
+import { GAME_WIDTH, useGameScale } from './GameScreen';
 import { MonIcon } from './PartyScreen';
 
 /** One game pixel of FireRed's 240x160 screen, in the battle box's width (container query units). */
@@ -16,6 +17,32 @@ function background(b: BattleSegment): string {
   if (b.scene === 'gym') return `${GEN1}/terrain/indoor_gym.png`;
   if (b.terrain === 'plain') return `${GEN1}/terrain/indoor_plain.png`;
   return `${GEN1}/terrain/${b.terrain}.png`;
+}
+
+/** The battle pictures fetched ahead (kept, so the browser keeps them decoded), by src, each with its decode. */
+const preloaded = new Map<string, { img: HTMLImageElement; decoded: Promise<void> }>();
+
+/**
+ * Fetches a battle's pictures (the user's: no battle screen black while they load): its background, the trainer's pic,
+ * both players' trainer backs, every Pokémon sent out (the foes' fronts, the party's backs, shiny or not). Resolves when
+ * they're all decoded (or failed).
+ */
+export function preloadBattle(b: BattleSegment): Promise<void> {
+  const srcs = new Set<string>([background(b), `${GEN1}/trainers/red_back.png`, `${GEN1}/trainers/leaf_back.png`]);
+  const pic = b.trainer ? TRAINERS[b.trainer]?.pic : null;
+  if (pic) srcs.add(`${GEN1}/trainers/${pic}.png`);
+  for (const e of b.events) if (e.t === 'send') srcs.add(`${GEN1}/pokemon/${e.mon.shiny ? 'shiny/' : ''}${e.side ? 'front' : 'back'}/${e.mon.species}.png`);
+  return Promise.all(
+    [...srcs].map((src) => {
+      let p = preloaded.get(src);
+      if (!p) {
+        const img = Object.assign(new Image(), { src });
+        p = { img, decoded: img.decode().catch(() => {}) };
+        preloaded.set(src, p);
+      }
+      return p.decoded;
+    }),
+  ).then(() => {});
 }
 
 /** FireRed's status labels. */
@@ -52,6 +79,9 @@ function shownState(events: BattleEvent[], party: BattleSegment['party']) {
   let rewards: Reward[] = [];
   /** The latest line's event (a hit or an attacker since it is the one to animate). */
   let line = -1;
+  // When each of the player's moves began its cooldown (the event it went up at, and the ticks it had), for the smooth
+  // bars (MoveBars): a move used, Spite, or a Pokémon sent out still cooling down.
+  const cooling: Record<string, { at: number; ticks: number }> = {};
   // Each party Pokémon's EXP. (for the EXP. bar): as the battle began, then each gain's new total.
   const exp: Record<string, number> = Object.fromEntries(party.map((m) => [m.uid, m.exp]));
   events.forEach((e, i) => {
@@ -69,6 +99,10 @@ function shownState(events: BattleEvent[], party: BattleSegment['party']) {
     switch (e.t) {
       case 'send':
         sides[e.side] = { mon: { ...e.mon }, fainted: false };
+        if (e.side === 0) {
+          for (const k of Object.keys(cooling)) delete cooling[k];
+          for (const [k, n] of Object.entries(e.mon.cooldowns)) cooling[k] = { at: i, ticks: n };
+        }
         if (e.side === 1) ball = null;
         break;
       case 'hp': {
@@ -82,9 +116,13 @@ function shownState(events: BattleEvent[], party: BattleSegment['party']) {
         if (m) m.status = e.status;
         break;
       }
-      case 'energy': {
+      case 'cooldown': {
         const m = sides[e.side].mon;
-        if (m) m.energy = e.energy;
+        if (m && e.side === 0) {
+          for (const [k, n] of Object.entries(e.cooldowns)) if (n > (m.cooldowns[k] ?? 0)) cooling[k] = { at: i, ticks: n };
+          for (const k of Object.keys(cooling)) if (!e.cooldowns[k]) delete cooling[k];
+        }
+        if (m) m.cooldowns = e.cooldowns;
         break;
       }
       case 'faint':
@@ -110,13 +148,13 @@ function shownState(events: BattleEvent[], party: BattleSegment['party']) {
   });
   // A ball the Pokémon broke out of shows only until the battle goes on.
   if (ball && !(ball as Extract<BattleEvent, { t: 'ball' }>).caught && ballAt < events.length - 1) ball = null;
-  return { sides, text, line, rewards, exp, ball: ball as Extract<BattleEvent, { t: 'ball' }> | null, hit: hit as { side: 0 | 1; at: number } | null, attacker: attacker as { side: 0 | 1; at: number } | null };
+  return { sides, text, line, rewards, exp, cooling, ball: ball as Extract<BattleEvent, { t: 'ball' }> | null, hit: hit as { side: 0 | 1; at: number } | null, attacker: attacker as { side: 0 | 1; at: number } | null };
 }
 
 /** An HP bar's colour (FireRed's: green over half, yellow over a fifth, red below). */
 const hpColor = (hp: number, max: number) => (hp * 2 > max ? '#58d080' : hp * 5 > max ? '#f8c048' : '#f85838');
 
-/** A healthbox (drawn here, in FireRed's colours): name, gender, level, status, the HP bar, the player's HP numbers, and the energy pips. */
+/** A healthbox (drawn here, in FireRed's colours): name, gender, level, status, the HP bar, the player's HP numbers. */
 function Healthbox({ mon, player, exp, style }: { mon: BattlerView; player: boolean; exp?: number; style: CSSProperties }) {
   const s = species(mon.species);
   // The EXP. bar's fill: the EXP. gained toward the next level (full at level 100).
@@ -147,20 +185,13 @@ function Healthbox({ mon, player, exp, style }: { mon: BattlerView; player: bool
           <div className="h-full transition-[width] duration-500" style={{ width: `${(100 * mon.hp) / mon.maxHp}%`, background: hpColor(mon.hp, mon.maxHp) }} />
         </div>
       </div>
-      {/* The energy (the mode's one addition to the screen): a pip for each, up to the most it can hold; on the player's
-          HP numbers' line (the user's: the box no taller than FireRed's), on a line of its own for the foe. */}
-      <div className="flex items-center justify-between" style={{ marginTop: px(1) }}>
-        <div className="flex items-center gap-[0.4cqw]" title={`Energy: ${mon.energy}`}>
-          {Array.from({ length: MAX_ENERGY }, (_, i) => (
-            <span key={i} className="rounded-full" style={{ width: px(4), height: px(4), background: i < mon.energy ? '#38a8f8' : '#c8d0b0' }} />
-          ))}
-        </div>
-        {player && (
+      {player && (
+        <div className="flex justify-end" style={{ marginTop: px(1) }}>
           <span className="font-semibold leading-none" style={{ fontSize: px(8) }}>
             {mon.hp}/{mon.maxHp}
           </span>
-        )}
-      </div>
+        </div>
+      )}
       {/* The player's EXP. bar, as FireRed's box has it: a dark green strip along its bottom, EXP in yellow, a striped
           track filling light blue (healthbox_singles_player.png, healthbox.pal). */}
       {player && (
@@ -174,6 +205,64 @@ function Healthbox({ mon, player, exp, style }: { mon: BattlerView; player: bool
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * The player's Pokémon's attacks under the battle (the user's, 2026-10-25: the cooldown rule, a bar on each): its 3 slot
+ * moves, each with a bar filling as a smooth timer over its cooldown (the user's: from the moment it went up, `cooling`,
+ * over its ticks × TICK_MS, as the playback paces the ticks; full and lit when ready; cooldownTicks). Not the basic
+ * move (the user's): it never cools down.
+ */
+function MoveBars({ mon, cooling }: { mon: BattlerView; cooling: Record<string, { at: number; ticks: number }> }) {
+  return (
+    <div className="grid grid-cols-3 gap-1.5">
+      {mon.slots.map((key, i) => {
+        const total = cooldownTicks(key);
+        const left = mon.cooldowns[key] ?? 0;
+        const ready = left === 0;
+        return (
+          <div key={`${i}:${key}`} className={`rounded px-2 py-1 text-xs ring-1 ${ready ? 'bg-slate-700 ring-yellow-300/60' : 'bg-slate-800 ring-slate-600'}`} title={ready ? 'Ready' : `Ready in ${left} turn${left === 1 ? '' : 's'}`}>
+            <div className="flex justify-between gap-2">
+              <span className={`truncate ${ready ? 'text-slate-100' : 'text-slate-400'}`}>{moveData(key).name}</span>
+              <span className="shrink-0 text-slate-400">{ready ? 'ready' : `${left}/${total}`}</span>
+            </div>
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-900">
+              {ready || !cooling[key] ? (
+                <div className="h-full rounded-full" style={{ width: ready ? '100%' : `${((total - left) / total) * 100}%`, background: ready ? 'var(--color-yellow-300)' : 'var(--color-slate-400)' }} />
+              ) : (
+                // A timer from where it was when it went up (a Spite past the cooldown starts it empty), full as it's ready.
+                <div
+                  key={cooling[key].at}
+                  className="h-full origin-left rounded-full"
+                  style={{ background: 'var(--color-slate-400)', ['--from' as string]: Math.max(0, (total - cooling[key].ticks) / total), animation: `idle-cooldown ${cooling[key].ticks * TICK_MS}ms linear both` }}
+                />
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** The ball button (the user's): a Poké Ball in the battle's top right corner, its own click (not the text box's). */
+function BallButton({ disabled, title, onClick }: { disabled: boolean; title: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      disabled={disabled}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className="absolute rounded-full border-[0.5cqw] border-[#202020] shadow-[0_0.4cqw_0_rgba(0,0,0,0.4)] transition hover:scale-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
+      style={{ right: px(6), top: px(6), width: px(20), height: px(20), background: 'linear-gradient(#e83030 0 44%, #202020 44% 56%, #f8f8f8 56%)' }}
+    >
+      <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-[0.4cqw] border-[#202020] bg-[#f8f8f8]" style={{ width: px(7), height: px(7) }} />
+    </button>
   );
 }
 
@@ -197,14 +286,31 @@ function ThrownBall({ ball }: { ball: Extract<BattleEvent, { t: 'ball' }> }) {
 
 /**
  * A battle as it plays (README: Idle Adventure): FireRed's layout at its 240x160 scale, sized to its box (the terrain
- * background, the foe's front sprite and the player's Pokémon's back, the healthboxes, the text box), the energy pips the
- * one addition; showing the first `shown` of the battle's events; `dialogue` over it in the scenes' text box (the
- * catch-up's pages, if a battle starts before they're read).
+ * background, the foe's front sprite and the player's Pokémon's back, the healthboxes, the text box), and under it the
+ * player's attacks with their cooldown bars (MoveBars); showing the first `shown` of the battle's events; `dialogue` over
+ * it in the scenes' text box (the catch-up's pages, if a battle starts before they're read).
  */
-export function BattleScreen({ battle, shown, gender, dialogue }: { battle: BattleSegment; shown: number; gender: 'male' | 'female'; dialogue?: Dialogue | null }) {
+export function BattleScreen({
+  battle,
+  shown,
+  gender,
+  dialogue,
+  onThrow,
+  throwing = false,
+}: {
+  battle: BattleSegment;
+  shown: number;
+  gender: 'male' | 'female';
+  dialogue?: Dialogue | null;
+  /** The ball button (the user's): the best ball next turn. */
+  onThrow?: () => void;
+  throwing?: boolean;
+}) {
   const phone = useIsPhone();
   const pressDialogue = useRef<(() => void) | null>(null);
-  const { sides, text, line, rewards, exp, ball, hit, attacker } = shownState(battle.events.slice(0, shown), battle.party);
+  // The game screen's size (the user's: the map's, FireRed's 240x160 at a whole number of device pixels a pixel: useGameScale).
+  const { ref, scale } = useGameScale();
+  const { sides, text, line, rewards, exp, cooling, ball, hit, attacker } = shownState(battle.events.slice(0, shown), battle.party);
   const speciesOf = (uid: string) => battle.party.find((m) => m.uid === uid)?.species ?? 0;
   // Where FireRed draws them (GetBattlerSpriteFinal_Y): the foe's centre at 176,40, the player's at 72,80, each 64x64
   // picture lowered by its species' y_offset (the foe raised by its elevation).
@@ -216,7 +322,9 @@ export function BattleScreen({ battle, shown, gender, dialogue }: { battle: Batt
   const blink = (side: 0 | 1) => (hit && hit.side === side && hit.at >= line ? 'idle-hit 0.5s steps(2) 2' : undefined);
   const lunge = (side: 0 | 1) => (attacker && attacker.side === side && attacker.at >= line ? `idle-lunge-${side} 0.3s ease-out` : undefined);
   return (
-    <div className="relative mx-auto aspect-[3/2] w-full max-w-[720px] overflow-hidden rounded-lg bg-black [container-type:inline-size] [image-rendering:pixelated]" onClick={() => pressDialogue.current?.()}>
+    <div ref={ref} className="w-full">
+    <div className="mx-auto space-y-2" style={{ width: scale ? GAME_WIDTH * scale : '100%' }}>
+    <div className="relative aspect-[3/2] w-full overflow-hidden rounded-lg bg-black [container-type:inline-size] [image-rendering:pixelated]" onClick={() => pressDialogue.current?.()}>
       <img src={background(battle)} alt="" className="absolute left-0 top-0 w-full" style={{ height: px(112) }} draggable={false} />
       {/* The foe: its trainer before they send one out, then its Pokémon (or the ball it's caught in). */}
       {!foe.mon && trainer?.pic && <img src={`${GEN1}/trainers/${trainer.pic}.png`} alt="" className="absolute" style={{ left: px(144), top: px(8), width: px(64) }} draggable={false} />}
@@ -266,7 +374,19 @@ export function BattleScreen({ battle, shown, gender, dialogue }: { battle: Batt
           text
         )}
       </div>
+      {/* The ball button (the user's): the best ball in the bag next turn, a wild battle's; over until the battle's over. */}
+      {onThrow && (
+        <BallButton
+          disabled={battle.kind !== 'wild' || throwing || shown >= battle.events.length}
+          title={battle.kind !== 'wild' ? "You can't catch a trainer's Pokémon" : throwing ? 'Throwing a ball next turn…' : 'Throw the best Poké Ball next turn'}
+          onClick={onThrow}
+        />
+      )}
       {dialogue && <DialogueBox key={dialogueKey(dialogue)} dialogue={dialogue} pressRef={pressDialogue} phone={phone} />}
+    </div>
+    {/* The row kept while no Pokémon is out (the trainer's send-out), so the page doesn't jump. */}
+    <div className={me.mon && !me.fainted ? '' : 'invisible'}>{me.mon && <MoveBars mon={me.mon} cooling={cooling} />}</div>
+    </div>
     </div>
   );
 }

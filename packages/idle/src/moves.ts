@@ -1,7 +1,7 @@
 // Every move effect (battle_moves.h's EFFECT_, lower case), one implementation each, as the TCG effect tables are: each
 // gets the move in use (MoveCtx) and does what FireRed's battle script for it does (data/battle_scripts_1.s), through
 // the Battle's helpers (battle.ts). Where there are no PP or no switching in these battles, the closest sense is kept
-// (README: Idle Adventure): Spite takes energy instead of PP, Baton Pass, Follow Me, Helping Hand and Sketch fail.
+// (README: Idle Adventure): Spite adds cooldown instead of taking PP, Baton Pass, Follow Me, Helping Hand and Sketch fail.
 import type { Battle, Battler, StatusKind, Terrain, Weather } from './battle.js';
 import { hiddenPowerType } from './battle.js';
 import { allMoveKeys, effectiveness, moveData, species } from './data.js';
@@ -884,13 +884,15 @@ export const EFFECTS: Record<string, Effect> = {
   },
   spite: (ctx) =>
     onTarget(ctx, (t) => {
-      // No PP in these battles: Spite takes the energy PP would have been (2–5; README: Idle Adventure).
+      // No PP in these battles: Spite puts the target's last move out of use for the 2–5 PP it would have taken, in
+      // ticks of cooldown (README: Idle Adventure); it fails on a basic move or Struggle, which never cool down.
       const { b } = ctx;
-      if (!t.energy) return fail(b);
-      const n = Math.min(t.energy, (b.random16() & 3) + 2);
-      t.energy -= n;
-      b.emit({ t: 'energy', side: t.side, energy: t.energy });
-      b.text(`${b.Name(t)} lost ${n} energy!`);
+      const last = t.lastMove;
+      if (!last || last === t.basic || last === 'struggle' || !t.slots.includes(last)) return fail(b);
+      const n = (b.random16() & 3) + 2;
+      t.cooldowns[last] = (t.cooldowns[last] ?? 0) + n;
+      b.emit({ t: 'cooldown', side: t.side, cooldowns: { ...t.cooldowns } });
+      b.text(`It put ${b.Name(t)}'s ${moveData(last).name} out of use for ${n} more turns!`);
     }, { substitute: false }),
   stockpile: (ctx) => {
     const n = ctx.user.v.stockpile ?? 0;

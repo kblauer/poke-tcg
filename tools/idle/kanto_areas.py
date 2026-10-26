@@ -15,7 +15,7 @@ A trainer sees `trainer_sight_or_berry_tree_id` tiles straight ahead (every way 
 at anything in the way (trainer_see.c); one with no sight is battled from the tile in front.
 
 Usage: python tools/idle/kanto_areas.py <pokefirered checkout>. Needs Pillow."""
-import collections, json, os, re, struct, sys
+import collections, heapq, json, os, re, struct, sys
 from PIL import Image
 
 SRC = os.path.abspath(sys.argv[1])
@@ -256,12 +256,29 @@ def neighbours(grids, links, node):
         yield to, 1
 
 
+# A step's cost for the planner (the user's: through tall grass where it can, so the run meets wild Pokémon on every
+# route): onto a wild encounter tile (tall grass, cave floor, surfed water) GRASS_STEP, onto any other PLAIN_STEP, so a
+# walk goes through the grass whenever that's less than about four times as long as the way round it.
+PLAIN_STEP = 4
+GRASS_STEP = 1
+
+
 def bfs(grids, links, start, targets):
-    """The shortest walk from start to any of `targets` (a set of nodes): the steps [(node, flag)], or None."""
+    """The cheapest walk from start to any of `targets` (a set of nodes; Dijkstra, steps onto wild encounter tiles
+    cheaper: GRASS_STEP), the first found on a tie: the steps [(node, flag)], or None."""
+    def cost(node):
+        mi, x, y = node
+        return GRASS_STEP if grids[mi].m.encounter(x, y) in (1, 2) else PLAIN_STEP
     prev = {start: None}
-    q = collections.deque([start])
+    best = {start: 0}
+    q = [(0, 0, start)]
+    order = 1
+    done = set()
     while q:
-        n = q.popleft()
+        d, _, n = heapq.heappop(q)
+        if n in done:
+            continue
+        done.add(n)
         if n in targets:
             path = []
             while prev[n]:
@@ -270,9 +287,12 @@ def bfs(grids, links, start, targets):
                 n = p
             return path[::-1]
         for to, flag in neighbours(grids, links, n):
-            if to not in prev:
+            nd = d + cost(to)
+            if to not in best or nd < best[to]:
+                best[to] = nd
                 prev[to] = (n, flag)
-                q.append(to)
+                heapq.heappush(q, (nd, order, to))
+                order += 1
     return None
 
 
@@ -445,6 +465,40 @@ def plan_leg(leg, trainers_seen, report):
         walk(path)
         order.append(t)
     if not leg.get('ends_at_last'):
+        # A leg that has met no wild encounter tile yet (the user's: through tall grass where it can): into the middle of
+        # the nearest patch of it the leg's end can still be reached from (a wild tile 2 steps or more from the patch's
+        # edge, else 1), then on, crossing the grass in and out.
+        def wild(node):
+            mi, x, y = node
+            return grids[mi].m.encounter(x, y) in (1, 2)
+        if not any(wild(n) for n, _ in track):
+            tiles = {(mi, x, y) for mi, g in enumerate(grids) for y in range(g.m.h) for x in range(g.m.w) if g.walkable(x, y) and wild((mi, x, y))}
+            # Each wild tile's steps from the patch's edge (an edge tile: one with a walkable tile beside it that isn't wild).
+            depth = {}
+            q = collections.deque()
+            for n in tiles:
+                mi, x, y = n
+                if any(grids[mi].walkable(x + dx, y + dy) and (mi, x + dx, y + dy) not in tiles for dx, dy in DIRS.values()):
+                    depth[n] = 0
+                    q.append(n)
+            while q:
+                n = q.popleft()
+                mi, x, y = n
+                for dx, dy in DIRS.values():
+                    m = (mi, x + dx, y + dy)
+                    if m in tiles and m not in depth:
+                        depth[m] = depth[n] + 1
+                        q.append(m)
+            deep = {n for n, d in depth.items() if d >= 2}
+            patch = deep or {n for n, d in depth.items() if d >= 1} or tiles
+            while patch:
+                detour = bfs(grids, links, here, patch)
+                if detour is None:
+                    break
+                if bfs(grids, links, detour[-1][0], {end}) is not None:
+                    walk(detour)
+                    break
+                patch.discard(detour[-1][0])
         path = bfs(grids, links, here, {end})
         if path is None:
             raise SystemExit(f'{names}: no way from {here} to the end {end}')
@@ -491,8 +545,9 @@ def town(area_id, name, m, marts, gym=None, **kw):
 
 
 AREAS = [
-    # A run starts just outside the player's house (the user's: its door's warp, 6,7, one tile down), then up Route 1.
-    {'id': 'route-1', 'name': 'Route 1', 'kind': 'route', 'legs': [leg(['PalletTown', 'Route1'], ('PalletTown', 'tile', 6, 8), edge('Route1', 'up'))]},
+    # A run starts coming out of Professor Oak's lab, on its door (the user's: its warp, 16,13; the player's house's door
+    # before), then up Route 1.
+    {'id': 'route-1', 'name': 'Route 1', 'kind': 'route', 'legs': [leg(['PalletTown', 'Route1'], warp('PalletTown', 'MAP_PALLET_TOWN_PROFESSOR_OAKS_LAB'), edge('Route1', 'up'))]},
     town('viridian-city', 'Viridian City', 'ViridianCity', ['ViridianCity_Mart_Items']),
     {'id': 'route-2', 'name': 'Route 2', 'kind': 'route', 'legs': [leg(['Route2', 'ViridianForest'], edge('Route2', 'down'), edge('Route2', 'up'), via=('ViridianForest',))]},
     town('pewter-city', 'Pewter City', 'PewterCity', ['PewterCity_Mart_Items'], 'pewter-gym'),
@@ -577,6 +632,54 @@ def terrain(m, x, y):
     return '.'
 
 
+# ---- Auto-grind (the user's): a loop near the exit of the area before a gym's town ----
+# Rings (w × h) tried for the loop, the roundest first: a ring's tiles walked clockwise, each a step from the next.
+RINGS = [(3, 3), (4, 3), (3, 4), (2, 3), (3, 2), (2, 2)]
+
+
+def ring(x, y, w, h):
+    return [(x + i, y) for i in range(w)] + [(x + w - 1, y + j) for j in range(1, h)] + [(x + i, y + h - 1) for i in range(w - 2, -1, -1)] + [(x, y + j) for j in range(h - 2, 0, -1)]
+
+
+def grind_loop(names, grids, track):
+    """The loop a grind runs round (agreed with the user: in a circle near the area's exit): the ring of walkable tiles
+    with wild encounters of one kind (and one battle terrain) fewest steps from the leg's last step, rounder rings
+    winning a tie or a step or two, starting on its tile nearest the exit. Steps as a track's ([map, x, y, 0, tile]);
+    None when the leg has no such ring."""
+    def tile(n):
+        m = grids[n[0]].m
+        return {1: 'l', 2: 'w'}.get(m.encounter(n[1], n[2]), '.') + terrain(m, n[1], n[2])
+    links = build_links(names, grids)
+    end = track[-1][0]
+    dist = {end: 0}
+    q = collections.deque([end])
+    while q:
+        n = q.popleft()
+        for to, _ in neighbours(grids, links, n):
+            if to not in dist:
+                dist[to] = dist[n] + 1
+                q.append(to)
+    best = None
+    for mi, g in enumerate(grids):
+        m = g.m
+        for k, (w, h) in enumerate(RINGS):
+            for y in range(m.h - h + 1):
+                for x in range(m.w - w + 1):
+                    tiles = ring(x, y, w, h)
+                    nodes = [(mi, tx, ty) for tx, ty in tiles]
+                    if not all(n in dist and (n[1], n[2]) not in g.warp_tiles and m.encounter(n[1], n[2]) in (1, 2) for n in nodes):
+                        continue
+                    if len({tile(n) for n in nodes}) != 1:
+                        continue
+                    if not all(elev_ok(m, a[1], a[2], b[1], b[2]) for a, b in zip(nodes, nodes[1:] + nodes[:1])):
+                        continue
+                    near = min(range(len(nodes)), key=lambda i: dist[nodes[i]])
+                    score = (dist[nodes[near]] + k, k)
+                    if best is None or score < best[0]:
+                        best = (score, nodes[near:] + nodes[:near])
+    return best and [[n[0], n[1], n[2], 0, tile(n)] for n in best[1]]
+
+
 def js(v):
     if isinstance(v, str):
         return "'" + v.replace('\\', '\\\\').replace("'", "\\'") + "'"
@@ -613,6 +716,9 @@ def main():
     out_areas = []
     sprites = set()
     used_maps = {}
+    # The last walked area's legs (where a gym's town grinds: its last leg, or an earlier one when the last has no wild
+    # Pokémon, as Route 23's stretch after Victory Road).
+    last_legs = []
     for a in AREAS:
         if a['kind'] == 'town':
             used_maps.setdefault(a['map'], Grid(load(a['map']), False))
@@ -620,9 +726,19 @@ def main():
             pc = next((w for w in m.warps if 'POKEMON_CENTER_1F' in w['dest_map']), m.warps[0])
             out_areas.append({'id': a['id'], 'name': a['name'], 'kind': 'town', 'map': a['map'], 'stand': [pc['x'], pc['y'] + 1],
                               'marts': a['marts'], 'gym': a['gym']})
+            if a['gym'] and last_legs:
+                for area_id, li, names, grids, track in reversed(last_legs):
+                    loop = grind_loop(names, grids, track)
+                    if loop:
+                        out_areas[-1]['grind'] = {'area': area_id, 'leg': li, 'loop': loop}
+                        print(' ', a['id'], 'grinds on', area_id, 'leg', li, names[loop[0][0]], loop[0][1:3])
+                        break
+                else:
+                    raise SystemExit(f"{a['id']}: no loop to grind on")
             continue
         legs = []
         trainers = []
+        last_legs = []
         for lg in a['legs']:
             if lg['end'] is None:
                 lg['end'] = lg['start']
@@ -637,6 +753,19 @@ def main():
                 mm = grids[node[0]].m
                 return {1: 'l', 2: 'w'}.get(mm.encounter(node[1], node[2]), '.') + terrain(mm, node[1], node[2])
             legs.append({'maps': names, 'track': [[n[0], n[1], n[2], f, tile(n)] for n, f in track]})
+            last_legs.append((a['id'], len(legs) - 1, names, grids, track))
+            # Each trainer faces where the player meets them (the user's): the first step of the track in their sight,
+            # trainers met in turn as the run meets them (idle.ts's trainerHere: the first not yet beaten in this order).
+            met = {}
+            for node, _ in track:
+                t = next((t for t in order if t['key'] not in met and node in t['sight']), None)
+                if t:
+                    met[t['key']] = node
+            for t in order:
+                if t['key'] in met:
+                    _, mx, my = met[t['key']]
+                    dx, dy = mx - t['x'], my - t['y']
+                    t['face'] = ('right' if dx > 0 else 'left') if abs(dx) >= abs(dy) and dx else ('down' if dy > 0 else 'up')
             for t in order:
                 sprites.add(t['gfx'])
                 trainers.append({'key': t['key'], 'leg': len(legs) - 1, 'map': t['map'], 'x': t['x'], 'y': t['y'], 'face': t['face'], 'sprite': sprite_name(t['gfx']),

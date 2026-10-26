@@ -1,14 +1,14 @@
 // The Idle Adventure's battles (README: Idle Adventure): real Gen 3 single battles (FireRed's rules: pokefirered's
 // battle_main.c, battle_script_commands.c, pokemon.c's CalculateBaseDamage, battle_util.c), played by themselves one
 // turn a tick. Each tick both Pokémon act, the faster first (items before moves, then priority, then Speed, ties
-// random), then the end-of-turn effects. Moves are picked by the energy rule (mon.ts; ai.ts) instead of PP. The whole
+// random), then the end-of-turn effects. Moves are picked by the cooldown rule (mon.ts; ai.ts) instead of PP. The whole
 // battle is resolved at once from the seeded RNG and returned as an event log the browser plays back.
 // Simplifications, agreed or forced by the mode: no switching but a fainted Pokémon's replacement (the next in party
 // order) and Roar/Whirlwind; a wild Pokémon never runs; the party is healed after every battle by the run, not here.
 import { int, type Rng } from '@poke-tcg/campaign';
 import { attemptCatch } from './catch.js';
 import { effectiveness, isPhysical, itemData, moveData, species } from './data.js';
-import { abilityOf, autoSlots, basicFor, energyCost, lastFourMoves, movesAt } from './mon.js';
+import { abilityOf, autoSlots, basicFor, cooldownTicks, lastFourMoves, movePower, movesAt } from './mon.js';
 import { EFFECTS, fixedDamageEffect, type MoveCtx } from './moves.js';
 import { addEvs, calcStats, levelForExp } from './stats.js';
 import { chooseFoeItem, choosePlayerAction, type Action } from './ai.js';
@@ -34,7 +34,10 @@ export interface BattlerView {
   maxHp: number;
   status: StatusKind | null;
   gender: Mon['gender'];
-  energy: number;
+  /** Its slot moves and basic move (a Transformed Pokémon's are its target's), and the ticks each slot move still cools down (cooldownTicks; none: ready). */
+  slots: string[];
+  basic: string;
+  cooldowns: Record<string, number>;
   /** Its party index on its side. */
   index: number;
   shiny?: boolean;
@@ -50,7 +53,8 @@ export type BattleEvent =
   | { t: 'stat'; side: Side; stat: BattleStat; change: number; msg: string }
   | { t: 'faint'; side: Side; msg: string }
   | { t: 'send'; side: Side; mon: BattlerView; msg: string }
-  | { t: 'energy'; side: Side; energy: number }
+  /** A side's active Pokémon's cooldowns (a move used, a tick gone by, Spite): ticks left per move, the ready ones left out. */
+  | { t: 'cooldown'; side: Side; cooldowns: Record<string, number> }
   | { t: 'item'; side: Side; item: string; msg: string }
   | { t: 'ball'; item: string; shakes: number; caught: boolean; msg: string }
   | { t: 'exp'; uid: string; gained: number; exp: number; msg: string }
@@ -87,6 +91,8 @@ export interface BattleSetup {
   terrain: Terrain;
   /** The battle ends after this many ticks: a wild Pokémon wanders off, a trainer battle is lost (no endless stalls). */
   maxTicks?: number;
+  /** The player's own throws (the battle's ball button, the user's): from each tick listed, the best ball once, as soon as one can be thrown (a wild battle's). */
+  throwAt?: number[];
 }
 
 
@@ -196,9 +202,8 @@ export class Battler {
   sleepTurns = 0;
   toxicCount = 0;
   v: Volatiles = {};
-  energy = 0;
-  /** The slot it's working towards (chooseMove). */
-  nextSlot = 0;
+  /** The ticks each slot move still cools down (the cooldown rule, chooseMove); none: ready. Every move starts ready. */
+  cooldowns: Record<string, number> = {};
   /** The moves its slots hold and its basic move (a Transformed Pokémon's are its target's). */
   slots: string[];
   basic: string;
@@ -231,7 +236,7 @@ export class Battler {
   }
 
   view(): BattlerView {
-    return { uid: this.mon.uid, species: this.species, level: this.level, hp: this.hp, maxHp: this.maxHp, status: this.status, gender: this.mon.gender, energy: this.energy, index: this.index, ...(this.mon.shiny && { shiny: true }) };
+    return { uid: this.mon.uid, species: this.species, level: this.level, hp: this.hp, maxHp: this.maxHp, status: this.status, gender: this.mon.gender, slots: [...this.slots], basic: this.basic, cooldowns: { ...this.cooldowns }, index: this.index, ...(this.mon.shiny && { shiny: true }) };
   }
 }
 
@@ -270,6 +275,10 @@ export class Battle {
   movedThisTurn = new Set<Side>();
   /** For each foe, the player's Pokémon that faced it (they share its experience). */
   facedBy = new Map<number, Set<number>>();
+  /** Auto-catch's basic hits so far this battle (ai.ts: at most 2, then the balls). */
+  catchHits = 0;
+  /** The player's own throws made so far (BattleSetup.throwAt). */
+  throwsMade = 0;
   participated = new Set<number>();
   /** The move used last in the battle (Mirror Move's fallback is none). */
   lastMoveUsed: string | null = null;
@@ -775,23 +784,28 @@ export class Battle {
       }
       this.act(b, actions[side]);
       this.movedThisTurn.add(side);
-      if (!b.fainted) {
-        b.energy = Math.min(MAX_ENERGY, b.energy + 1);
-        this.emit({ t: 'energy', side, energy: b.energy });
-      }
       this.checkFaints();
       if (this.result) return;
     }
     this.endOfTurn();
     this.checkFaints();
     if (this.result) return;
+    // A tick gone by: every move cooling down a tick nearer ready (the one used this tick too, so a 1-tick move is ready again next tick).
+    for (const b of this.active) {
+      if (b.fainted || !Object.keys(b.cooldowns).length) continue;
+      for (const [k, n] of Object.entries(b.cooldowns)) {
+        if (n > 1) b.cooldowns[k] = n - 1;
+        else delete b.cooldowns[k];
+      }
+      this.emit({ t: 'cooldown', side: b.side, cooldowns: { ...b.cooldowns } });
+    }
     this.replaceFainted();
     for (const b of this.active) {
       Object.assign(b.v, { flinch: false, protect: false, endure: false, helpingHand: false, magicCoat: false, snatch: false, hitThisTurn: false, physicalHit: 0, specialHit: 0, firstTurn: false });
     }
   }
 
-  /** The foe's action: a trainer's item if it would use one (ai.ts), otherwise its move by the energy rule. */
+  /** The foe's action: a trainer's item if it would use one (ai.ts), otherwise its move by the cooldown rule. */
   private foeAction(): Action {
     const b = this.active[1];
     if (this.setup.kind === 'trainer') {
@@ -817,7 +831,7 @@ export class Battle {
     return this.random16() & 1 ? [1, 0] : [0, 1];
   }
 
-  // ---- Choosing a move: the energy rule ----
+  // ---- Choosing a move: the cooldown rule ----
   /** Whether a move can be picked now (Disable, Taunt, Torment, Imprison). */
   selectable(b: Battler, key: string): boolean {
     if (b.v.disabled?.move === key) return false;
@@ -828,31 +842,32 @@ export class Battle {
     return true;
   }
 
+  /** Whether a slot move is ready (off cooldown), can be picked and would do something (statusUseless). */
+  ready(b: Battler, key: string): boolean {
+    return !b.cooldowns[key] && this.selectable(b, key) && !statusUseless(this, b, key);
+  }
+
+  /** A slot move used: it cools down for its cooldownTicks (the basic move and Struggle never do). */
+  startCooldown(b: Battler, key: string) {
+    if (key === b.basic || key === 'struggle' || !b.slots.includes(key)) return;
+    b.cooldowns[key] = cooldownTicks(key);
+    this.emit({ t: 'cooldown', side: b.side, cooldowns: { ...b.cooldowns } });
+  }
+
   /**
-   * The move a Pokémon uses this turn (agreed with the user): one it's locked into (a two-turn move's second turn,
-   * Thrash, Rollout, Uproar, Bide, Encore), else the first of its slots it has the energy for that can be used and would
-   * do something (statusUseless), its energy spent; else its basic move (Struggle if even that can't be used).
+   * The move a Pokémon uses this turn: one it's locked into (a two-turn move's second turn, Thrash, Rollout, Uproar,
+   * Bide, Encore), else (the user's, 2026-10-25, replacing the energy rule) the slot move with the highest power
+   * (movePower; status moves last, the slots' order breaking ties) that's ready, which then cools down; else its basic
+   * move (Struggle if even that can't be used).
    */
   chooseMove(b: Battler): string {
     const forced = b.v.charging ?? b.v.rampage?.move ?? (b.v.rollout && b.lastMove) ?? (b.v.uproar && b.lastMove) ?? (b.v.bide && 'bide') ?? null;
     if (forced) return forced;
     if (b.v.encore && this.selectable(b, b.v.encore.move)) return b.v.encore.move;
-    // Works through its slots in order (agreed with the user, 2026-10-25): waits on the next one, using the basic move
-    // while its energy builds, uses it, then on to the next, back to the first after the last; a slot that can't be
-    // used or would do nothing (statusUseless) is skipped. The order the player sets is the strategy.
-    const usable = (key: string) => this.selectable(b, key) && !statusUseless(this, b, key);
-    const n = b.slots.length;
-    for (let k = 0; k < n; k++) {
-      const i = (b.nextSlot + k) % n;
-      const key = b.slots[i]!;
-      if (!usable(key)) continue;
-      if (energyCost(key) <= b.energy) {
-        b.energy -= energyCost(key);
-        b.nextSlot = (i + 1) % n;
-        return key;
-      }
-      b.nextSlot = i;
-      break;
+    const best = b.slots.filter((k) => this.ready(b, k)).sort((x, y) => movePower(y) - movePower(x))[0];
+    if (best) {
+      this.startCooldown(b, best);
+      return best;
     }
     if (this.selectable(b, b.basic)) return b.basic;
     return 'struggle';
@@ -1069,7 +1084,7 @@ export class Battle {
   }
 
   /**
-   * Experience for a fainted foe (Cmd_getexp, Gen 3): base experience × its level / 7, split evenly among the player's
+   * Experience for a fainted foe (Cmd_getexp, Gen 3, × EXP_RATE): base experience × its level / 7, split evenly among the player's
    * Pokémon that faced it and haven't fainted, the rest of the party half each (Gen 6's Exp. Share: agreed), 1.5× for a
    * trainer's; each also gains its EV yield. Level-ups raise the
    * stats at once (its HP by as much as its max HP) and teach the level's moves (all kept; the slots follow if automatic).
@@ -1081,6 +1096,8 @@ export class Battle {
     let each = Math.floor(Math.floor((s.baseExp * foe.level) / 7) / faced.length);
     if (each === 0) each = 1;
     if (this.setup.kind === 'trainer') each = Math.floor((each * 150) / 100);
+    // A quarter of the game's (the user's, 2026-10-25: slower, more idle), at least 1.
+    each = Math.max(1, Math.floor(each * EXP_RATE));
     // The rest of the party gets half each (Gen 6's Exp. Share; agreed with the user, 2026-10-25).
 
     const rest = this.party.filter((b) => !b.fainted && !faced.includes(b));
@@ -1231,8 +1248,6 @@ export class Battle {
   }
 }
 
-/** The highest energy a Pokémon can hold (a placeholder, to balance later). */
-export const MAX_ENERGY = 10;
 
 /** Effects with a raised critical-hit ratio. */
 const HIGH_CRIT = new Set(['high_critical', 'blaze_kick', 'poison_tail', 'razor_wind', 'sky_attack']);
@@ -1263,6 +1278,9 @@ export function abilityName(key: string) {
 }
 
 /** What each healing item does (item_effects.h): HP restored, statuses cured, revives. */
+/** The share of the game's experience a battle gives (the user's, 2026-10-25: a quarter, slower and more idle). */
+export const EXP_RATE = 0.25;
+
 export const MEDICINE: Record<string, { heal?: number | 'full'; cures?: StatusKind[] | 'all'; revive?: 'half' | 'full' }> = {
   potion: { heal: 20 },
   'super-potion': { heal: 50 },

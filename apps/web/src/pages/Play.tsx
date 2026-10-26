@@ -4,7 +4,6 @@ import { useTRPC } from '../lib/trpc';
 import { PageHeader } from '../components/PageHeader';
 import { useTowerOverview } from '../hooks/useTower';
 import { useRun } from '../hooks/useRun';
-import { useDebugEnabled } from '../utils/debug';
 import { PAGE_WIDTH } from '../utils/layout';
 
 /**
@@ -50,16 +49,14 @@ const MODES: { to: '/badge' | '/tower' | '/idle' | '/battle'; title: string; tex
  * The Play tab (`/`): a menu of its modes (the user's), the Badge Challenge (the runs), the Battle Tower, the Idle
  * Adventure and Training, each a tile filled with a scene from the games, saying how it stands. Always the menu, a run
  * or a challenge under way or not (the user's: a new account isn't put in a run either); a mode's tile opens what's under
- * way in it, and each has a Return to Play back here. The Idle Adventure's tile is only there in local debug for now
- * (the user's: useDebugEnabled).
+ * way in it, and each has a Return to Play back here.
  */
 export function PlayPage() {
   const tower = useTowerOverview().data;
   const run = useRun().run;
   // The Idle Adventure's run, for its tile (its query only: the mode's data loads with its page).
   const trpc = useTRPC();
-  const idleShown = useDebugEnabled();
-  const idle = useQuery({ ...trpc.idle.overview.queryOptions(), enabled: idleShown }).data?.run;
+  const idle = useQuery(trpc.idle.overview.queryOptions()).data?.run;
   const challenge = tower?.challenge;
   const status: Record<(typeof MODES)[number]['to'], string | null> = {
     '/badge': run && run.view.phase !== 'won' && run.view.phase !== 'lost' ? `Under way: step ${Math.min(run.view.position + 1, run.view.steps.length)} of ${run.view.steps.length}.` : null,
@@ -78,7 +75,7 @@ export function PlayPage() {
     <div className={`${PAGE_WIDTH} space-y-6`}>
       <PageHeader title="Play" info="Pick a mode" />
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(18rem,1fr))] gap-3">
-        {MODES.filter((m) => m.to !== '/idle' || idleShown).map((m) => (
+        {MODES.map((m) => (
           <li key={m.to}>
             {/* The scene fills the tile, the text about its middle over a dark band fading out above and below, every tile's starting the same way down so their titles line up (the user's) (over game art: kept light in every theme). */}
             <Link

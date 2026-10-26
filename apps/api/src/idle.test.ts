@@ -1,5 +1,6 @@
 import { createIdleRun } from '@poke-tcg/idle';
 import { describe, expect, it } from 'vitest';
+import { bankedMoney } from '@poke-tcg/idle';
 import { idleStatusOf, mergeNotes } from './idle.js';
 
 describe('the Idle Adventure on the server', () => {
@@ -19,5 +20,8 @@ describe('the Idle Adventure on the server', () => {
     expect(idleStatusOf(s)).toBe('ACTIVE');
     expect(idleStatusOf({ ...s, phase: 'won' })).toBe('BEATEN');
     expect(idleStatusOf({ ...s, phase: 'given-up' })).toBe('GIVEN_UP');
+    // Only a run that beat the Champion banks its money (the user's).
+    expect(bankedMoney({ ...s, phase: 'won', money: 5000 })).toBe(5000);
+    expect(bankedMoney({ ...s, phase: 'given-up', money: 5000 })).toBe(0);
   });
 });

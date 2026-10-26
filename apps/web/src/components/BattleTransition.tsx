@@ -6,7 +6,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
  * in from alternate sides; iris: a circle closing on the middle; shutters: the top and bottom halves closing; bars:
  * columns dropping and rising in turn; diagonal: a wipe from the top left corner. First the Battle Tower's, then every
  * Play mode's battle (the user's): a run's, after its trainer's "!", Training's and the Battle Tower's (`useBattleTransition`),
- * all over the play area.
+ * all over the play area; the Idle Adventure's over its scene (`SceneTransition`).
  */
 const TRANSITIONS = ['blinds', 'iris', 'shutters', 'bars', 'diagonal'] as const;
 type Transition = { kind: (typeof TRANSITIONS)[number]; stamp: number };
@@ -16,7 +16,7 @@ const WIPE_MS = 650;
 const BANDS = 8;
 const BAND_STAGGER_MS = 25;
 /** The whole transition, its last band's wipe included, a moment held closed at its end. */
-const TRANSITION_MS = FLASH_MS + WIPE_MS + (BANDS - 1) * BAND_STAGGER_MS + 150;
+export const TRANSITION_MS = FLASH_MS + WIPE_MS + (BANDS - 1) * BAND_STAGGER_MS + 150;
 /** How long the black takes to lift once the battle's page is open (useBattleTransition's). */
 const LIFT_MS = 300;
 
@@ -38,14 +38,36 @@ function playArea(): Bounds {
 }
 
 /**
- * A battle transition over `bounds`: the double flash, then the screen closing (the keyframes in index.css, `tower-*`),
- * each band a little after the one before. It stays closed until `lifting` fades it out.
+ * A battle transition over `bounds`: the double flash, then the screen closing (TransitionLayers). It stays closed until
+ * `lifting` fades it out.
  */
 function BattleTransition({ kind, bounds, lifting }: { kind: Transition['kind']; bounds: Bounds; lifting: boolean }) {
+  return (
+    <div className="pointer-events-none fixed overflow-hidden" style={{ ...bounds, zIndex: 10000, opacity: lifting ? 0 : 1, transition: `opacity ${LIFT_MS}ms` }}>
+      <TransitionLayers kind={kind} />
+    </div>
+  );
+}
+
+/**
+ * A battle transition inside its parent (the Idle Adventure's scene, the user's: the play area's transitions, not its
+ * own flash): one of TRANSITIONS at random, chosen when it mounts, over the parent's whole box, staying closed at its end.
+ */
+export function SceneTransition() {
+  const [kind] = useState(() => randomTransition().kind);
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      <TransitionLayers kind={kind} />
+    </div>
+  );
+}
+
+/** A transition's layers: the double flash, then the screen closing (the keyframes in index.css, `tower-*`), each band a little after the one before. */
+function TransitionLayers({ kind }: { kind: Transition['kind'] }) {
   const run = (name: string, delay = 0, extra: CSSProperties = {}): CSSProperties => ({ animation: `${name} ${WIPE_MS}ms ease-in ${FLASH_MS + delay}ms both`, ...extra });
   const black = 'absolute bg-black';
   return (
-    <div className="pointer-events-none fixed overflow-hidden" style={{ ...bounds, zIndex: 10000, opacity: lifting ? 0 : 1, transition: `opacity ${LIFT_MS}ms` }}>
+    <>
       {kind === 'blinds' &&
         Array.from({ length: BANDS }, (_, i) => (
           <div key={i} className={`${black} inset-x-0`} style={{ top: `${(100 / BANDS) * i}%`, height: `${100 / BANDS + 0.5}%`, transformOrigin: i % 2 ? 'right' : 'left', ...run('tower-wipe-x', i * BAND_STAGGER_MS) }} />
@@ -63,7 +85,7 @@ function BattleTransition({ kind, bounds, lifting }: { kind: Transition['kind'];
       {kind === 'iris' && <div className="absolute left-1/2 top-1/2 aspect-square -translate-x-1/2 -translate-y-1/2 rounded-full" style={run('tower-iris', 0, { boxShadow: '0 0 0 200vmax black' })} />}
       {kind === 'diagonal' && <div className="absolute inset-0 bg-black" style={run('tower-diagonal')} />}
       <div className="absolute inset-0 bg-white" style={{ animation: `tower-flash ${FLASH_MS}ms linear both` }} />
-    </div>
+    </>
   );
 }
 
