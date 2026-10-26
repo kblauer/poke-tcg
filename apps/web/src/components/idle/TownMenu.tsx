@@ -59,7 +59,8 @@ export function TownMenu({
   ];
   // The choice made for the player: the gym (or the League) before it's beaten, Continue after.
   const auto = gym && !gymDone ? { label: league ? 'Elite Four' : 'Gym', act: onGym } : { label: 'Continue', act: onContinue };
-  const counting = !busy;
+  // Not while stopped (the Stop mode): the town waits for the player's choice, however long.
+  const counting = !busy && !run.view.stopped;
   const [left, setLeft] = useState(TOWN_WAIT_MS / 1000);
   // Counted again from the start whenever the run changes (a purchase, the party's order) or the count resumes.
   useEffect(() => {

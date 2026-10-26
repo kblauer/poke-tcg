@@ -1,7 +1,7 @@
 import { basicFor, calcStats, cooldownTicks, ITEMS, moveData, species, usableStones, type IdleAction, type Mon } from '@poke-tcg/idle';
 import { useRef, useState, type PointerEvent } from 'react';
 import { useEscape } from '../../hooks/useEscape';
-import { MODE_TOGGLE_BOTTOM, MODE_TOGGLE_HEIGHT } from './ModeToggle';
+import { MODE_SELECT_HEIGHT } from './ModeSelect';
 
 /** One game pixel of FireRed's 240x160 screen, in the game screen's width (container query units). */
 const px = (n: number) => `${(n * 100) / 240}cqw`;
@@ -15,10 +15,10 @@ const TEXT = { color: '#ffffff', textShadow: `${px(1)} ${px(1)} 0 #737373`, font
 const SLOT_W = 88;
 const SLOT_H = 24;
 const LIST_LEFT = 240 - (10 + SLOT_W + 4);
-/** The Pokémon's panel's width (just left of the slots' column), top, and tallest: its bottom edge above the mode toggle (the user's). */
+/** The Pokémon's panel's width (just left of the slots' column), top, and tallest: its bottom edge above the mode menu (the user's), wherever the scene puts it. */
 const PANEL_W = 104;
 const PANEL_TOP = 2;
-const PANEL_MAX_H = 160 - MODE_TOGGLE_BOTTOM - MODE_TOGGLE_HEIGHT - 2 - PANEL_TOP;
+const panelMaxH = (modeBottom: number) => 160 - modeBottom - MODE_SELECT_HEIGHT - 2 - PANEL_TOP;
 /** The panel's colours: a slot's (slot.png's border, fill and light). */
 const FRAME = { border: '#4a4a62', fill: '#3994de', light: '#83c5de', shade: '#297bb4' };
 /** How far (game pixels) a slot must be dragged before it's a drag, not a click. */
@@ -47,7 +47,7 @@ const moved = (order: string[], from: number, to: number) => {
  * stones it can use. Escape, the button again or CANCEL closes it. Changes made during a wild battle wait for its end
  * (`pending`, IdleState.pending), shown at once.
  */
-export function PartyOverlay({ party, bag, busy, pending, open, onToggle, onAct }: { party: Mon[]; bag: Record<string, number>; busy: boolean; pending: number; open: boolean; onToggle: (open: boolean) => void; onAct: (action: IdleAction) => void }) {
+export function PartyOverlay({ party, bag, busy, pending, open, modeBottom, onToggle, onAct }: { party: Mon[]; bag: Record<string, number>; busy: boolean; pending: number; open: boolean; modeBottom: number; onToggle: (open: boolean) => void; onAct: (action: IdleAction) => void }) {
   const [chosen, setChosen] = useState<string | null>(null);
   const mon = party.find((m) => m.uid === chosen) ?? null;
   const close = () => (setChosen(null), onToggle(false));
@@ -113,7 +113,7 @@ export function PartyOverlay({ party, bag, busy, pending, open, onToggle, onAct 
           <span className="block text-center" style={{ ...TEXT, fontSize: px(10), paddingTop: px(2) }}>CANCEL</span>
         </button>
       </div>
-      {open && mon && <MonPanel mon={mon} bag={bag} busy={busy} pending={pending} onAct={onAct} onClose={() => setChosen(null)} />}
+      {open && mon && <MonPanel mon={mon} bag={bag} busy={busy} pending={pending} maxH={panelMaxH(modeBottom)} onAct={onAct} onClose={() => setChosen(null)} />}
       {/* The button: the lead's menu icon, hopping (the user's: where the ball button was, the ball now beside it); not
           while a Pokémon's panel is open (it has its own ✕). */}
       {lead && !(open && mon) && (
@@ -252,7 +252,7 @@ function StatHex({ stats, height }: { stats: number[]; height: number }) {
  * user's): the Pokémon's name, level and types, its stats as a hexagon, its basic move, its 3 slots to set (or picked
  * automatically) and the stones in the bag it can use.
  */
-function MonPanel({ mon, bag, busy, pending, onAct, onClose }: { mon: Mon; bag: Record<string, number>; busy: boolean; pending: number; onAct: (a: IdleAction) => void; onClose: () => void }) {
+function MonPanel({ mon, bag, busy, pending, maxH, onAct, onClose }: { mon: Mon; bag: Record<string, number>; busy: boolean; pending: number; maxH: number; onAct: (a: IdleAction) => void; onClose: () => void }) {
   const s = species(mon.species);
   const stats = calcStats(mon.species, mon.level, mon.ivs, mon.evs, mon.nature);
   const basic = basicFor(mon);
@@ -268,7 +268,7 @@ function MonPanel({ mon, bag, busy, pending, onAct, onClose }: { mon: Mon; bag: 
   return (
     <div
       className="pointer-events-auto absolute overflow-y-auto"
-      style={{ left: px(LIST_LEFT - PANEL_W), top: px(PANEL_TOP), width: px(PANEL_W), maxHeight: px(PANEL_MAX_H), background: FRAME.fill, border: `${px(1)} solid ${FRAME.border}`, borderRadius: px(3), boxShadow: `inset 0 0 0 ${px(1)} ${FRAME.light}`, padding: px(2) }}
+      style={{ left: px(LIST_LEFT - PANEL_W), top: px(PANEL_TOP), width: px(PANEL_W), maxHeight: px(maxH), background: FRAME.fill, border: `${px(1)} solid ${FRAME.border}`, borderRadius: px(3), boxShadow: `inset 0 0 0 ${px(1)} ${FRAME.light}`, padding: px(2) }}
     >
       <div className="flex items-center justify-between">
         <span className="truncate" style={{ ...TEXT, fontSize: px(9) }}>

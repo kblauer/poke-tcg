@@ -126,6 +126,8 @@ export interface IdleState {
    * route goes on from there).
    */
   loop?: RouteLoop;
+  /** Stopped where it is (the Stop mode, the user's): no segment is played, offline either, until another mode is chosen. */
+  stopped?: boolean;
   /** The trainers (TRAINERS' keys) whose full prize the run has had: a rematch pays REMATCH_PRIZE of it. */
   paid?: string[];
   /**
@@ -164,6 +166,8 @@ export type IdleAction =
   | { type: 'WILD_GRIND' }
   | { type: 'TRAINER_GRIND' }
   | { type: 'CONTINUE_ROUTE' }
+  /** The mode (the mode dropdown, the user's): Route, Wild grind, Trainer grind, or Stop (stopped where it is). */
+  | { type: 'SET_MODE'; mode: IdleMode }
   | { type: 'BUY'; item: string; count: number }
   /** The party's order (the lead fights first). */
   | { type: 'SET_ORDER'; uids: string[] }
@@ -245,7 +249,7 @@ export interface Segment {
 const rngOf = (s: IdleState): Rng => ({ state: s.rngState });
 
 /** Whether a run plays by itself (walking or grinding), not waiting for the player or over. */
-export const playing = (s: Pick<IdleState, 'phase'>) => s.phase === 'walking' || s.phase === 'grinding';
+export const playing = (s: Pick<IdleState, 'phase' | 'stopped'>) => !s.stopped && (s.phase === 'walking' || s.phase === 'grinding');
 
 // ---- Starting a run ----
 export interface StarterChoice {
@@ -432,7 +436,14 @@ function autoStones(state: IdleState, stock: string[], events: SegmentEvent[]) {
 }
 
 /** The changes queued while a wild battle's replay is held (IdleState.pending): the party's order, its moves, a stone. */
-export const QUEUED_ACTIONS: IdleAction['type'][] = ['SET_ORDER', 'SET_SLOTS', 'USE_STONE'];
+export const QUEUED_ACTIONS: IdleAction['type'][] = ['SET_ORDER', 'SET_SLOTS', 'USE_STONE', 'SET_MODE'];
+
+/** The run's modes (the mode dropdown, the user's). */
+export const IDLE_MODES = ['route', 'wild', 'trainers', 'stop'] as const;
+export type IdleMode = (typeof IDLE_MODES)[number];
+
+/** The mode a run is in: stopped, grinding wild Pokémon or trainers on a route, else going on. */
+export const modeOf = (s: Pick<IdleState, 'stopped' | 'loop'>): IdleMode => (s.stopped ? 'stop' : s.loop?.kind === 'pace' ? 'wild' : s.loop?.kind === 'trainers' ? 'trainers' : 'route');
 
 /**
  * Applies the player's choice to a run. Pure: returns a new state, or an error. A party change while the last segment's
@@ -500,6 +511,26 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
     case 'WILD_GRIND':
     case 'TRAINER_GRIND': {
       const error = startRouteLoop(state, action.type === 'WILD_GRIND' ? 'wild' : 'trainers');
+      if (error) return fail(error);
+      return ok();
+    }
+    case 'SET_MODE': {
+      if (action.mode === 'stop') {
+        if (state.stopped) return ok();
+        state.stopped = true;
+        state.log.push('Stopped.');
+        return ok();
+      }
+      const was = state.stopped;
+      delete state.stopped;
+      if (action.mode === 'route') {
+        if (state.loop) endRouteLoop(state);
+        else if (was) state.log.push('Went on.');
+        return ok();
+      }
+      // A grind: the one on already, only going on again; otherwise started (switching from the other one).
+      if (modeOf(state) === action.mode) return ok();
+      const error = startRouteLoop(state, action.mode === 'wild' ? 'wild' : 'trainers');
       if (error) return fail(error);
       return ok();
     }
@@ -1064,6 +1095,14 @@ export function simulateSegment(from: IdleState, idleSettings: IdleSettings, cau
   const settings: PlaySettings = { ...idleSettings, ...(o.throwAt && { throwAt: o.throwAt }) };
   // The party changes queued during the last battle, first (withPending).
   const prev = withPending(from);
+  // Stopped (the Stop mode): nothing played; a stop queued during the last battle is saved (its segment empty).
+  if (prev.stopped) {
+    if (!from.pending?.length) return null;
+    const state = structuredClone(prev);
+    delete state.replay;
+    state.version += 1;
+    return { state, segment: { events: [], durationMs: 0, dex: [] } };
+  }
   if (prev.phase === 'town') return townWait(prev);
   if (!playing(prev)) return null;
   const state = structuredClone(prev);
@@ -1212,7 +1251,7 @@ export function catchUp(prev: IdleState, settings: IdleSettings, caught: Set<num
     }
     const next = simulateSegment(state, settings, caught);
     if (!next) {
-      summary.stopped = 'won';
+      summary.stopped = state.phase === 'won' ? 'won' : 'time';
       break;
     }
     // Only whole segments that fit in the time away (the user's: a run just started, or a moment away, catches up

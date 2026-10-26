@@ -182,7 +182,16 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
   /** Bumped to start the playback again after an error. */
   const [restart, setRestart] = useState(0);
   const runId = run?.id ?? null;
-  const walking = run?.status === 'ACTIVE' && playing(run.view);
+  // Walking or grinding, stopped or not: the Stop mode (the user's) lets the segment playing finish, so it doesn't
+  // restart the playback; the loop ends after it instead (`parked`), and going on again restarts it.
+  const walking = run?.status === 'ACTIVE' && playing({ phase: run.view.phase });
+  const parked = useRef(false);
+  const halted = !!run?.view.stopped;
+  useEffect(() => {
+    if (halted || !parked.current) return;
+    parked.current = false;
+    setRestart((n) => n + 1);
+  }, [halted]);
   // A hidden tab stops the playback (the browser slows its timers, so it would fall behind and the time be lost); shown
   // again, it starts over, catching up the time it was hidden as after the page was closed (the user's).
   const visible = useTabVisible();
@@ -472,6 +481,11 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
           for (const ev of r.segment.events) if (ev.t === 'battle') void preloadBattle(ev);
           await playSegment(r.segment.events);
           setRun(newest().version > r.run.version ? newest() : r.run);
+        }
+        // Stopped (the Stop mode): standing where the last segment left it until another mode is chosen.
+        if (!stopped && current.status === 'ACTIVE' && current.view.stopped) {
+          parked.current = true;
+          update({ place: placeOf(current.view), battle: null, cue: null, spotted: null });
         }
       } catch (e) {
         if (e instanceof Stopped || stopped) return;

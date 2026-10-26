@@ -1,5 +1,5 @@
 import { prisma } from '@poke-tcg/db';
-import { AREAS, applyIdleAction, areaIndex, BALLS, throwable, isBaseForm, CATCH_UP_CAP_MS, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, simulateSegment, TOWN_WAIT_MS, starterOptions, STARTERS, visitStore, type IdleSettings, type Stats } from '@poke-tcg/idle';
+import { AREAS, applyIdleAction, areaIndex, BALLS, throwable, isBaseForm, CATCH_UP_CAP_MS, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, simulateSegment, TOWN_WAIT_MS, starterOptions, STARTERS, visitStore, withPending, type IdleSettings, type Stats } from '@poke-tcg/idle';
 import { idleActInput, idleRunInput, idleSettingsInput, idleThrowInput, idleWarpInput, startIdleInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { asJson, newSeed } from '../games.js';
@@ -75,7 +75,7 @@ export const idleRouter = router({
     const settings = await idleSettings(ctx.user.id);
     const caughtList = await caughtSpecies(ctx.user.id);
     const next = simulateSegment(run.state, settings, new Set(caughtList));
-    if (!next) throw failed('This run is over');
+    if (!next) throw failed(withPending(run.state).stopped ? 'Stopped' : 'This run is over');
     const from = Math.max(now, run.simulatedAt.getTime());
     const playedTo = new Date(from + next.segment.durationMs);
     // Its start kept, to play it again: from the moment a page opened meanwhile (resume), and its wild battle with a ball
@@ -125,7 +125,10 @@ export const idleRouter = router({
     }
     // Leaving a town starts the clock again from now (time spent waiting there isn't played).
     const leaving = input.action.type === 'GYM' || input.action.type === 'CONTINUE' || input.action.type === 'GRIND' || input.action.type === 'BACK_ROUTE';
-    const saved = await saveIdleRun(run, state, { dex: partyNotes(state.party), ...(leaving && { simulatedAt: new Date() }) });
+    // So does going on after the Stop mode (time stopped isn't played either); a segment still playing ends first.
+    const unstopped = withPending(run.state).stopped && !withPending(state).stopped;
+    const restart = leaving ? new Date() : unstopped ? new Date(Math.max(Date.now(), run.simulatedAt.getTime())) : null;
+    const saved = await saveIdleRun(run, state, { dex: partyNotes(state.party), ...(restart && { simulatedAt: restart }) });
     return { run: clientIdleRun(saved), events };
   }),
 

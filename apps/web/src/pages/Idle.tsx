@@ -8,7 +8,7 @@ import { ReturnToPlay } from '../components/ReturnToPlay';
 import { Toasts } from '../components/Toasts';
 import { SceneTransition } from '../components/BattleTransition';
 import { AreaScene, usePreloadMaps } from '../components/idle/AreaScene';
-import { ModeToggle } from '../components/idle/ModeToggle';
+import { MODE_SELECT_BOTTOM, MODE_SELECT_BATTLE_BOTTOM, ModeSelect } from '../components/idle/ModeSelect';
 import { BattleScreen } from '../components/idle/BattleScreen';
 import { Bag, catchUpPages, IdleSettings } from '../components/idle/IdleSettings';
 import { PartyOverlay } from '../components/idle/PartyOverlay';
@@ -119,10 +119,14 @@ export function IdlePage() {
       .catch(failed);
   const start = (id: number, shiny = false) => actions.start(id, shiny).catch(failed);
   const v = run?.view;
-  // The party over the game screen (the user's): its button in the screen's top right corner, its slots sliding out.
-  const partyOverlay =
+  // The party over the game screen (the user's): its button in the screen's top right corner, its slots sliding out; and
+  // the mode menu in its bottom left corner, on every scene (the user's), its Pokémon's panel kept above it.
+  const overlays = (modeBottom: number) =>
     active && v ? (
-      <PartyOverlay party={v.party} bag={v.bag} busy={actions.busy} pending={v.pendingChanges} open={partyOpen} onToggle={setPartyOpen} onAct={(a) => void act(a)} />
+      <>
+        <ModeSelect view={v} busy={actions.busy} bottom={modeBottom} onAct={(a) => void act(a)} />
+        <PartyOverlay party={v.party} bag={v.bag} busy={actions.busy} pending={v.pendingChanges} open={partyOpen} modeBottom={modeBottom} onToggle={setPartyOpen} onAct={(a) => void act(a)} />
+      </>
     ) : null;
   const over = run && run.status !== 'ACTIVE';
 
@@ -204,19 +208,15 @@ export function IdlePage() {
           onBack={() => (setStore(false), void act({ type: 'BACK_ROUTE' }))}
           dialogue={catchUp}
         >
-          {partyOverlay}
+          {overlays(MODE_SELECT_BOTTOM)}
         </TownMenu>
       ) : play.battle ? (
         <BattleScreen battle={play.battle} shown={play.shown} gender={gender} dialogue={catchUp} onThrow={throwBall} throwing={throwing}>
-          {partyOverlay}
+          {overlays(MODE_SELECT_BATTLE_BOTTOM)}
         </BattleScreen>
       ) : (
         <AreaScene playback={play} gender={gender} dialogue={catchUp ?? (play.notice ? { text: play.notice, choices: [], instant: true, answer: () => {} } : null)}>
-          {!play.entering && partyOverlay}
-          {/* The route modes (the user's: Route, Wild grind, Trainer grind), on a route or in a dungeon. */}
-          {active && v?.phase === 'walking' && !play.entering && (AREAS[v.area]!.kind === 'route' || AREAS[v.area]!.kind === 'dungeon') && (
-            <ModeToggle view={v} busy={actions.busy} onAct={(a) => void act(a)} />
-          )}
+          {!play.entering && overlays(MODE_SELECT_BOTTOM)}
           {play.entering && <SceneTransition />}
         </AreaScene>
       )}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AREAS, isTown, type WalkArea } from './areas.js';
 import { familyMovesUpTo } from './mon.js';
-import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, previousRoute, routeGrindPlan, starterOptions, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
+import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, modeOf, previousRoute, routeGrindPlan, starterOptions, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
 
 type BattleSeg = Extract<SegmentEvent, { t: 'battle' }>;
 
@@ -412,6 +412,61 @@ describe('an idle run', () => {
     expect(trainers.ok && trainers.state.loop?.resume.step).toBe(60);
     const back = trainers.ok ? applyIdleAction(trainers.state, { type: 'WILD_GRIND' }) : trainers;
     expect(back.ok && back.state.loop?.kind).toBe('pace');
+  });
+
+  it('stops where it is in the Stop mode (no segment, offline either) and goes on in any other mode', () => {
+    const area = AREAS.findIndex((a) => a.id === 'route-2');
+    const base = createIdleRun({ species: 4 }, 2);
+    const s: IdleState = { ...base, area, step: 60, party: [{ ...base.party[0]!, level: 40 }] };
+    const r = applyIdleAction(s, { type: 'SET_MODE', mode: 'stop' });
+    expect(r.ok).toBe(true);
+    const stopped = (r as { state: IdleState }).state;
+    expect(modeOf(stopped)).toBe('stop');
+    expect(idleView(stopped).stopped).toBe(true);
+    expect(simulateSegment(stopped, MANUAL, new Set())).toBeNull();
+    const away = catchUp(stopped, MANUAL, new Set(), 60 * 60 * 1000);
+    expect(away.summary.segments).toBe(0);
+    expect(away.state).toBe(stopped);
+    // Stopping again changes nothing; Route, Wild grind or Trainer grind go on from where it stopped.
+    expect((applyIdleAction(stopped, { type: 'SET_MODE', mode: 'stop' }) as { state: IdleState }).state.log).toEqual(stopped.log);
+    for (const mode of ['route', 'wild', 'trainers'] as const) {
+      const on = applyIdleAction(stopped, { type: 'SET_MODE', mode });
+      expect(on.ok && modeOf(on.state)).toBe(mode);
+      expect(on.ok && (on.state.loop?.resume.step ?? on.state.step)).toBe(60);
+      expect(on.ok && simulateSegment(on.state, MANUAL, new Set())).not.toBeNull();
+    }
+  });
+
+  it('switches modes with SET_MODE: a grind already on stays as it is, and Route ends one', () => {
+    const area = AREAS.findIndex((a) => a.id === 'route-2');
+    const base = createIdleRun({ species: 4 }, 2);
+    const s: IdleState = { ...base, area, step: 60, party: [{ ...base.party[0]!, level: 40 }] };
+    const wild = (applyIdleAction(s, { type: 'SET_MODE', mode: 'wild' }) as { state: IdleState }).state;
+    expect(modeOf(wild)).toBe('wild');
+    const again = applyIdleAction(wild, { type: 'SET_MODE', mode: 'wild' });
+    expect(again.ok && again.state.loop).toEqual(wild.loop);
+    const trainers = applyIdleAction(wild, { type: 'SET_MODE', mode: 'trainers' });
+    expect(trainers.ok && trainers.state.loop?.resume.step).toBe(60);
+    const route = trainers.ok ? applyIdleAction(trainers.state, { type: 'SET_MODE', mode: 'route' }) : trainers;
+    expect(route.ok && modeOf(route.state)).toBe('route');
+    // A grind that can't start is refused (no trainers in a gym's wild grass; nothing in a town).
+    expect(applyIdleAction({ ...s, area: AREAS.findIndex((a) => a.id === 'pewter-city'), phase: 'town' }, { type: 'SET_MODE', mode: 'wild' }).ok).toBe(false);
+  });
+
+  it('changes the mode once the wild battle playing is over: queued, shown at once, saved by the next segment', () => {
+    const base = createIdleRun({ species: 4 }, 2);
+    const held: IdleState = { ...base, replay: { prev: base, settings: MANUAL, caught: [], from: 0, throws: [], throwable: true } };
+    const r = applyIdleAction(held, { type: 'SET_MODE', mode: 'stop' });
+    const q = (r as { state: IdleState }).state;
+    expect(q.stopped).toBeUndefined();
+    expect(q.pending).toHaveLength(1);
+    expect(idleView(q).stopped).toBe(true);
+    // The next segment applies it and plays nothing; the one after isn't played at all.
+    const next = simulateSegment(q, MANUAL, new Set())!;
+    expect(next.segment.events).toEqual([]);
+    expect(next.state).toMatchObject({ stopped: true, version: q.version + 1 });
+    expect(next.state.pending).toBeUndefined();
+    expect(simulateSegment(next.state, MANUAL, new Set())).toBeNull();
   });
 
   it('plays a segment again from its kept start exactly as it played (resuming a page opened mid-segment)', () => {
