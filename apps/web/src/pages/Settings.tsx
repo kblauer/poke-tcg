@@ -115,7 +115,7 @@ function FontPicker() {
   );
 }
 
-/** Debug mode's switches (useDebugFlags), shown only while debugging: unlock everything that's locked, and 1,000,000 ₱ added to the bank. */
+/** Debug mode's switches (useDebugFlags), shown only while debugging: unlock everything that's locked, and 1,000,000 ₱, Stardust or EXP added. */
 function DebugSwitches() {
   const flags = useDebugFlags();
   if (!flags.debug || !flags.loaded) return null;
@@ -125,10 +125,18 @@ function DebugSwitches() {
         <input type="checkbox" checked={flags.unlockAll} disabled={flags.pending} onChange={(e) => flags.set.mutate({ unlockAll: e.target.checked })} />
         Unlock everything that's locked
       </label>
-      <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300" title="Off takes the ₱1,000,000 away again">
-        <input type="checkbox" checked={flags.million} disabled={flags.pending} onChange={(e) => flags.set.mutate({ million: e.target.checked })} />
-        Add ₱1,000,000 to the bank
-      </label>
+      {(
+        [
+          ['million', 'Add ₱1,000,000 to the bank'],
+          ['dust', 'Add 1,000,000 Stardust'],
+          ['exp', 'Add 1,000,000 EXP'],
+        ] as const
+      ).map(([flag, label]) => (
+        <label key={flag} className="flex cursor-pointer items-center gap-2 text-sm text-slate-300" title="Off takes the 1,000,000 away again">
+          <input type="checkbox" checked={flags[flag]} disabled={flags.pending} onChange={(e) => flags.set.mutate({ [flag]: e.target.checked })} />
+          {label}
+        </label>
+      ))}
       {flags.set.error && <p className="text-xs text-amber-300">{flags.set.error.message}</p>}
     </Section>
   );

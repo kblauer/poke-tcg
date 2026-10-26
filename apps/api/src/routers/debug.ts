@@ -3,7 +3,7 @@ import { prisma, saveGameState, type Prisma } from '@poke-tcg/db';
 import { applyDebug, getPlayerView } from '@poke-tcg/game-engine';
 import { debugFlagsInput, debugInput, HUMAN_ID } from '@poke-tcg/shared';
 import { loadCardLibrary } from '../cards.js';
-import { DEBUG_BANK, debugFlags, type DebugFlags } from '../debugFlags.js';
+import { CURRENCY_FLAGS, DEBUG_AMOUNT, debugFlags, type DebugFlags } from '../debugFlags.js';
 import { env } from '../env.js';
 import { lockUser } from '../runs.js';
 import { debugProcedure, publicProcedure, router } from '../trpc.js';
@@ -52,33 +52,31 @@ export const debugRouter = router({
     return getPlayerView(next, HUMAN_ID);
   }),
 
-  /** The Settings page's debug switches (debugFlags.ts): unlocking everything that's locked, and 1,000,000 ₱ in the bank. */
-  flags: debugProcedure.query(async ({ ctx }) => {
-    const { unlockAll = false, million = false } = await debugFlags(ctx.user.id);
-    return { unlockAll, million };
-  }),
+  /** The Settings page's debug switches (debugFlags.ts): unlocking everything that's locked, and 1,000,000 ₱, Stardust and EXP added. */
+  flags: debugProcedure.query(async ({ ctx }) => switches(await debugFlags(ctx.user.id))),
 
   /**
-   * Sets the debug switches given. The million switch on adds DEBUG_BANK to the bank; off, it takes it away again (never
-   * below 0), so what was earned or spent meanwhile stays (the user's). With the user row locked, so a switch can't add
-   * or take it twice.
+   * Sets the debug switches given. Each currency's switch on adds DEBUG_AMOUNT to it (the million switch the bank, the
+   * dust switch Stardust, the exp switch EXP); off, it takes it away again (never below 0), so what was earned or spent
+   * meanwhile stays (the user's). With the user row locked, so a switch can't add or take it twice.
    */
   setFlags: debugProcedure.input(debugFlagsInput).mutation(({ ctx, input }) =>
     prisma.$transaction(async (tx) => {
       await lockUser(tx, ctx.user.id);
-      const [flags, { bank }] = await Promise.all([debugFlags(ctx.user.id, tx), tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { bank: true } })]);
+      const [flags, held] = await Promise.all([debugFlags(ctx.user.id, tx), tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { bank: true, stardust: true, exp: true } })]);
       const next: DebugFlags = { ...flags };
-      let newBank = bank;
+      const amounts = { ...held };
       if (input.unlockAll !== undefined) next.unlockAll = input.unlockAll;
-      if (input.million === true && !flags.million) {
-        next.million = true;
-        newBank = bank + DEBUG_BANK;
-      } else if (input.million === false && flags.million) {
-        next.million = false;
-        newBank = Math.max(0, bank - DEBUG_BANK);
+      for (const [flag, field] of Object.entries(CURRENCY_FLAGS) as [keyof typeof CURRENCY_FLAGS, keyof typeof held][]) {
+        if (input[flag] === undefined || input[flag] === !!flags[flag]) continue;
+        next[flag] = input[flag];
+        amounts[field] = input[flag] ? held[field] + DEBUG_AMOUNT : Math.max(0, held[field] - DEBUG_AMOUNT);
       }
-      await tx.user.update({ where: { id: ctx.user.id }, data: { debugFlags: next as Prisma.InputJsonValue, bank: newBank } });
-      return { unlockAll: !!next.unlockAll, million: !!next.million };
+      await tx.user.update({ where: { id: ctx.user.id }, data: { debugFlags: next as Prisma.InputJsonValue, ...amounts } });
+      return switches(next);
     }),
   ),
 });
+
+/** The switches as the client sees them, each on or off. */
+const switches = (flags: DebugFlags) => ({ unlockAll: !!flags.unlockAll, million: !!flags.million, dust: !!flags.dust, exp: !!flags.exp });

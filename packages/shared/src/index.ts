@@ -152,8 +152,8 @@ export const debugCommandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('WIN') }),
 ]) satisfies z.ZodType<DebugCommand>;
 
-/** The Settings page's debug switches (debug.setFlags): unlock everything that's locked, 1,000,000 ₱ added to the bank. */
-export const debugFlagsInput = z.object({ unlockAll: z.boolean().optional(), million: z.boolean().optional() });
+/** The Settings page's debug switches (debug.setFlags): unlock everything that's locked, 1,000,000 ₱, Stardust or EXP added. */
+export const debugFlagsInput = z.object({ unlockAll: z.boolean().optional(), million: z.boolean().optional(), dust: z.boolean().optional(), exp: z.boolean().optional() });
 
 export const debugInput = z.object({
   gameId: z.uuid(),

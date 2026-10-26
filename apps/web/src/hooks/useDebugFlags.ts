@@ -4,8 +4,8 @@ import { useDebugEnabled } from '../utils/debug';
 
 /**
  * The Settings page's debug switches (debug.flags; only while debugging): `unlockAll`, everything locked unlocked
- * (cards, packs, run types, Battle Tower floors, cosmetics, card flair), and `million`, 1,000,000 ₱ added to the bank. `set`
- * changes them and reloads everything they touch (every query: unlocks, packs, the bank…).
+ * (cards, packs, run types, Battle Tower floors, cosmetics, card flair), and 1,000,000 added to the bank (`million`),
+ * Stardust (`dust`) and EXP (`exp`). `set` changes them and reloads everything they touch (every query: unlocks, packs, the bank…).
  */
 export function useDebugFlags() {
   const trpc = useTRPC();
@@ -13,5 +13,14 @@ export function useDebugFlags() {
   const debug = useDebugEnabled();
   const flags = useQuery({ ...trpc.debug.flags.queryOptions(), enabled: debug });
   const set = useMutation(trpc.debug.setFlags.mutationOptions({ onSuccess: () => queryClient.invalidateQueries() }));
-  return { debug, unlockAll: debug && !!flags.data?.unlockAll, million: debug && !!flags.data?.million, loaded: flags.data !== undefined, set, pending: set.isPending };
+  return {
+    debug,
+    unlockAll: debug && !!flags.data?.unlockAll,
+    million: debug && !!flags.data?.million,
+    dust: debug && !!flags.data?.dust,
+    exp: debug && !!flags.data?.exp,
+    loaded: flags.data !== undefined,
+    set,
+    pending: set.isPending,
+  };
 }
