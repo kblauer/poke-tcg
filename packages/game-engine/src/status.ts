@@ -3,7 +3,7 @@
 import { lookupCard, namesMatch, type CardLibrary, type PokemonCardDef } from './cards.js';
 import type { CardInstance, GameState, InPlayPokemon, PlayerId, PlayerState } from './engine.js';
 import { nextRandom } from './rng.js';
-import { powerEffect } from './effects/index.js';
+import { powerEffect, trainerEffect } from './effects/index.js';
 
 export const LOG_SIZE = 100;
 
@@ -207,11 +207,17 @@ export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCa
   if (pokemon.effects?.giantGrowth) d = { ...d, hp: 80 };
   // Sunbeam: Lunatone's HP is now 80 while its player has a Solrock with it working.
   if (pokemon.hpSet) d = { ...d, hp: pokemon.hpSet };
+  // Crystal Wall: Black Kyurem-EX's maximum HP is 300 (a Tool's `toolHp`).
+  const tool = pokemon.attached?.find((a) => a.tool);
+  const toolHp = tool && trainerEffect(tool.card.defId)?.toolHp?.(d);
+  if (toolHp) d = { ...d, hp: toolHp };
   if (pokemon.hpPlus) d = { ...d, hp: d.hp + pokemon.hpPlus };
   // Unown E's EQUIP: attached as a Pokémon Tool, 10 more HP.
   if (pokemon.attached?.some((a) => a.tool && a.equip && lookupCard(cards, a.card.defId).name === 'Unown E')) d = { ...d, hp: d.hp + 10 };
   // Low Pressure System: 10 more HP for a Grass or Lightning Pokémon.
   if (pokemon.lowPressure) d = { ...d, hp: d.hp + 10 };
+  // Aspertia City Gym: 20 more HP for a Colorless Pokémon.
+  if (pokemon.aspertia) d = { ...d, hp: d.hp + 20 };
   // Rocket's Hideout: 20 more HP for a Pokémon with Dark in its name.
   if (pokemon.hideout) d = { ...d, hp: d.hp + 20 };
   if (own.power?.name === 'Gaseous Form' && pokemon.powerOffUntil === undefined) {
@@ -226,6 +232,10 @@ export function inPlayDef(cards: CardLibrary, pokemon: InPlayPokemon): PokemonCa
 
 /** A δ Pokémon in play: δ on its card, or (Holon Veil) any Pokémon of a player whose Ampharos δ's Holon Veil works (`veiled`). */
 export const isDelta = (cards: CardLibrary, pokemon: InPlayPokemon) => !!pokemon.veiled || / δ$/.test(inPlayDef(cards, pokemon).name);
+
+/** A Team Plasma Pokémon in play: Team Plasma on its card, or Team Plasma Badge attached to it (Plasma Freeze). */
+export const isPlasmaPokemon = (cards: CardLibrary, pokemon: InPlayPokemon) =>
+  !!inPlayDef(cards, pokemon).teamPlasma || !!pokemon.attached?.some((a) => a.tool && lookupCard(cards, a.card.defId).name === 'Team Plasma Badge');
 
 /** A δ Pokémon card out of play (deck, hand, discard pile): δ on it, or any Pokémon card of a player with Holon Veil (`veiled`). */
 export const isDeltaCard = (def: { kind: string; name: string; trainerText?: string }, veiled = false) => def.kind === 'pokemon' && !def.trainerText && (veiled || / δ$/.test(def.name));

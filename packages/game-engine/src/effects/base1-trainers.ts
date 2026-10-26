@@ -133,7 +133,7 @@ export const BASE1_TRAINERS: Record<string, TrainerEffect> = {
   'base1-76': {
     blocked(s) {
       if (s.turn <= 2) return "You can't evolve on your first turn";
-      const blocked = evolutionBlocked([s.me, s.opp], s.cards);
+      const blocked = evolutionBlocked([s.me, s.opp], s.cards, true);
       if (blocked) return blocked;
       return otherHandCards(s).some((c) => breederTargets(s, c).length) ? null : 'No Stage 2 card in your hand matches a Basic Pokémon you can evolve';
     },

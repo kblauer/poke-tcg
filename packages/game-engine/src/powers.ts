@@ -1,6 +1,6 @@
 // Pokémon Powers: legality, the questions a power asks, and the context power effects run with.
 // Card-specific behaviour lives in effects/ (POWERS), next to the attack effects.
-import type { AttackContext } from './attacks.js';
+import type { AttackContext, AttackSituation } from './attacks.js';
 import { hasType, holonEnergy, isBasicEnergy, lookupCard, namesMatch, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
 import { powerEffect, trainerEffect } from './effects/index.js';
 import { counts, energyPool, type CardInstance, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from './engine.js';
@@ -239,6 +239,18 @@ export interface PowerEffect {
   resent?: boolean;
   /** Primal Shell: as its player's Active Pokémon, the opponent can't play Trainer (Item) cards (trainerError). */
   primalShell?: boolean;
+  /** Magic Room (an Ability): as its player's Active Pokémon, the opponent can't play Item cards (trainerError). */
+  magicRoom?: boolean;
+  /** Psychic Mirage (an Ability): each basic Psychic Energy card on its player's Psychic Pokémon provides 2 Psychic Energy, one however many (refreshWildGrowth). */
+  psychicMirage?: boolean;
+  /** Leaf Tailor (an Ability): its player's Pokémon with any Energy attached have no Weakness (attacks.ts). */
+  leafTailor?: boolean;
+  /** Victory Star (an Ability): once a turn, however many, its player may flip an attack's coins again (attackAction, as Sabrina's ESP). */
+  victoryStar?: boolean;
+  /** Craftsmanship (an Ability): this much more HP, as the Pokémon is now (refreshHideout). */
+  hpFor?: (pokemon: InPlayPokemon, cards: CardLibrary) => number;
+  /** Ancient Power (an Ability): neither player can play Pokémon from the hand to evolve their Pokémon (evolutionBlocked's `fromHand`). */
+  noHandEvolution?: boolean;
   /** Sunlight Veil: 20 more HP for its player's Pokémon that evolve from Eevee, however many (refreshHideout). */
   sunlightVeil?: boolean;
   /** Moonlight Veil: its player's Pokémon that evolve from Eevee have no Weakness and retreat for free (attacks.ts, retreatBodies). */
@@ -299,8 +311,8 @@ export interface PowerEffect {
   stage2Less?: number;
   /** Cold Fat: while it's Asleep, attack damage to it is 40 less, after Weakness and Resistance. */
   coldFat?: boolean;
-  /** Shocking Tail: as its player's Active Pokémon, 2 damage counters on any Pokémon the opponent attaches an Energy card to from their hand. */
-  shockingTail?: boolean;
+  /** Shocking Tail: as its player's Active Pokémon, 2 damage counters (or this many: Electromagnetic Wall) on any Pokémon the opponent attaches an Energy card to from their hand. */
+  shockingTail?: boolean | number;
   /** Dragon DNA: it can use the attacks of its Basic Pokémon, 30 more to the Active Pokémon (usableAttacks, attacks.ts). */
   dragonDna?: boolean;
   /** Poison Sacs: the opponent's Pokémon stay Poisoned when they evolve. */
@@ -365,6 +377,25 @@ export interface PowerEffect {
    */
   ability?: boolean;
   /**
+   * Plasma Freeze, Plasma Blast: what a working Ability does to the Pokémon in play, worked out again after every action, once
+   * the Stadium's and the other powers' changes are (refreshHideout): Dark Shade's HP, Color Change's type, Verdant Wind.
+   */
+  refresh?: (state: GameState, owner: PlayerState, pokemon: InPlayPokemon) => void;
+  /** Power Connect: its player's attacks by the Pokémon this accepts do this much more to the Active Pokémon, before Weakness and Resistance (each one adding up). */
+  activeMore?: (attacker: InPlayPokemon, cards: CardLibrary) => number;
+  /** Badge of Discipline: its player's attacks by Pokémon of this type aren't affected by Resistance. */
+  noResistanceFor?: EnergyType;
+  /** Mental Shroud: its player's Pokémon have no Weakness while this holds (its partners in play). */
+  noWeaknessWhen?: (owner: Pick<PlayerState, 'active' | 'bench'>, cards: CardLibrary) => boolean;
+  /** Drifting Balloon: its attacks cost this much Colorless Energy less (attackError). */
+  costLess?: (s: AttackSituation) => number;
+  /** Cursed Glare (Plasma Blast's): as its player's Active Pokémon, the opponent can't attach Special Energy cards from the hand to any of their Pokémon. */
+  cursedGlareAll?: boolean;
+  /** Bench Barrier: no damage from attacks, either player's, to its player's Benched Pokémon. */
+  benchBarrier?: boolean;
+  /** Sealing Scream: neither player can play ACE SPEC cards from the hand (trainerError). */
+  sealingScream?: boolean;
+  /**
    * Extreme Speed, Heavyweight, Lightweight, Conductive Body, Psychoflow, Slippery Skin: how much its own retreat cost
    * changes (retreatCost). `opp`: the other player's Pokémon in play, when known.
    */
@@ -397,8 +428,8 @@ export interface PowerEffect {
   primalAura?: boolean;
   /** Primal Stare: as its owner's Active Pokémon, the opponent can't play Evolution cards from the hand onto their Active Pokémon (primalBlock). */
   primalStare?: boolean;
-  /** Safeguard ('ex'), Wonder Guard ('evolvedOrEx'): attacks by the opponent's Pokémon-ex (and Evolved Pokémon) don't affect it (attacks.ts). */
-  guardFrom?: 'ex' | 'evolvedOrEx' | 'dark';
+  /** Safeguard ('ex'), Wonder Guard ('evolvedOrEx'): attacks by the opponent's Pokémon-ex (and Evolved Pokémon) don't affect it (attacks.ts). Safeguard (Black & White series, 'pokemonEX'): nor Pokémon-EX. */
+  guardFrom?: 'ex' | 'evolvedOrEx' | 'dark' | 'pokemonEX' | /** Bright Down: Pokémon with Abilities. */ 'ability';
   /** Submerge: while it's on the Bench, the opponent's attacks do no damage to it (attacks.ts). */
   benchImmune?: boolean;
   /** Energy Guard: with a basic Energy card attached, the opponent's attack damage to it is this much less, after Weakness and Resistance. */
@@ -557,8 +588,11 @@ export interface PowerEffect {
   deltaGuard?: number;
   /** Hard Rock: with 1 Energy or less on it, attack damage to its player's Groudon ex is 20 less, after Weakness and Resistance (only one). */
   hardRock?: boolean;
-  /** Battle Aura (its player's δ Pokémon), Extra Feather (their Stage 2 Pokémon-ex): 10 more to the Defending Pokémon, each one adding up. */
-  allyMore?: 'delta' | 'stage2ex';
+  /**
+   * Battle Aura (its player's δ Pokémon), Extra Feather (their Stage 2 Pokémon-ex): 10 more to the Defending Pokémon, each one adding up.
+   * Ancient Scream, Fight Song (Black & White series): `amount` more for its player's Pokémon (of `type`), each one adding up too.
+   */
+  allyMore?: 'delta' | 'stage2ex' | { amount: number; type?: EnergyType };
   /** Extra Smoke: attack damage to its player's Stage 2 Pokémon-ex is 10 less, before Weakness and Resistance, each one adding up. */
   extraSmoke?: boolean;
   /** Solid Shell (Cloyster δ): attacks by the opponent's Pokémon do nothing to its player's Benched δ Pokémon. */
@@ -572,7 +606,7 @@ export interface PowerEffect {
   /** Synergy Effect: what it does while the Stadium named is in play (Sableye: no damage from Pokémon-ex; Glalie: 30 less). */
   synergy?: { stadium: string; exProof?: boolean; less?: number };
   /** Hover Lift, Jynx δ's Stages of Evolution: its player's Pokémon with these names (or of these types) retreat for 1 less, each one adding up (retreatBodies). */
-  retreatLessFor?: { names?: string[]; types?: EnergyType[] };
+  retreatLessFor?: { names?: string[]; types?: EnergyType[]; /** Freeze Zone: the Pokémon this accepts (Team Plasma Pokémon). */ fits?: (pokemon: InPlayPokemon, cards: CardLibrary) => boolean; /** How much less each one makes it (missing: 1). */ amount?: number };
   /** Extra Wing: its player's Stage 2 Pokémon-ex retreat for free (retreatBodies). */
   extraWing?: boolean;
   /** Flotation: with 1 Energy or less attached to it, its player's Kyogre ex retreat for free (retreatBodies). */
@@ -741,8 +775,8 @@ export interface PowerEffect {
   retreatAidAll?: boolean;
   /** Pheromone Stamina: 20 more HP for each Nidoqueen its player has in play (refreshHideout). */
   pheromoneStamina?: boolean;
-  /** Heal Block: with its player's Lunatone in play, no damage counters can be removed from any Pokémon (engine.ts). */
-  healBlock?: boolean;
+  /** Heal Block: with its player's Lunatone in play (`'alone'`: whatever else is in play, Bronzong's), no damage counters can be removed from any Pokémon (engine.ts). */
+  healBlock?: boolean | 'alone';
   /** Dittobolic: the opponent can have only 4 Benched Pokémon (refreshHideout's `benchLimit`). */
   dittobolic?: boolean;
   /** Lonely Bone: 20 less damage from the opponent's attacks for each Marowak in its player's discard pile (attacks.ts). */
@@ -755,6 +789,41 @@ export interface PowerEffect {
   lostLink?: boolean;
   /** Insight: with as many cards in its player's hand as the opponent's, its attacks cost nothing (attackError). */
   insight?: boolean;
+  /** Airhead, Unobservant (Black & White series): why it can't attack now, or null (attackError). */
+  attackBlocked?: (s: AttackSituation) => string | null;
+  /** Scorching Scales: the opponent's Burned Pokémon take 4 damage counters between turns instead of 2 (betweenTurns; 4 however many). */
+  scorchingScales?: boolean;
+  /** Solar Revelation: the opponent's attacks do nothing but damage to its player's Pokémon with any Energy attached (attacks.ts). */
+  solarRevelation?: boolean;
+  /** Dark Cloak: its player's Pokémon with Energy of this type attached have no Retreat Cost (retreatBodies). */
+  freeRetreatWith?: EnergyType;
+  /** Garbotoxin: while it has a Pokémon Tool attached, no other Pokémon in play (either player's) has Abilities (garbotoxinStops). */
+  garbotoxin?: boolean;
+  /** Allergy Panic: every Weakness, both players', is ×4 (attacks.ts). */
+  allergyPanic?: boolean;
+  /** Time Recall: its player's Evolved Pokémon can use the attacks of the cards they evolved from (recallsAttacks). */
+  timeRecall?: boolean;
+  /** Sturdy: with no damage counters on it, an attack's damage that would Knock it Out leaves it with 10 HP instead (attacks.ts). */
+  sturdy?: boolean;
+  /** Sentinel: as its player's Active Pokémon, the opponent can't play Supporter cards (trainerError). */
+  sentinel?: boolean;
+  /** Dual Brains: while it's in play, its player may play 2 Supporter cards each turn (2, however many; trainerError). */
+  dualBrains?: boolean;
+  /** Plasma Steel: no damage to its player's Metal Pokémon from the opponent's Pokémon-EX's attacks (attacks.ts). */
+  plasmaSteel?: boolean;
+  /** Bright Veil: as its player's Active Pokémon, the opponent's Item cards do nothing to their Pokémon (itemVeiled). */
+  brightVeil?: boolean;
+  /**
+   * Aftermath, Final Wish, Spiteful Spirit: Knocked Out by damage from the opponent's attack with it working, as it's Knocked
+   * Out (resolveKnockouts; it's still in its place). `taker`: the opponent. May queue a choice (`state.queuedChoices`).
+   */
+  onKnockedOutByAttack?: (state: GameState, owner: PlayerState, pokemon: InPlayPokemon, taker: PlayerState) => void;
+}
+
+/** Bright Veil: `side`'s working Active Pokémon keeps the opponent's Item cards' effects off their Pokémon (why), or null. `sides`: both players'. */
+export function itemVeiled(side: Pick<PlayerState, 'active'>, sides: Sides, cards: CardLibrary): string | null {
+  const p = side.active;
+  return p && pokemonPower(p)?.brightVeil && powerActive(p, cards, sides) ? `${powerOf(p, cards)!.name}: Item cards don't affect your opponent's Pokémon` : null;
 }
 
 /** Wise Aura, Overpowering Fang and Intimidating Ring: an Active Pokémon's aura stopping `pokemon`'s power, or null. */
@@ -909,6 +978,10 @@ export const toxicGas = (sides: Sides) =>
     return !hasSpecialCondition(p);
   });
 
+/** Garbotoxin: a Garbodor with a Pokémon Tool attached is in play (either player's), so `pokemon`'s Ability doesn't work (Garbotoxin itself excepted). */
+export const garbotoxinStops = (pokemon: InPlayPokemon, sides: Sides) =>
+  !pokemonPower(pokemon)?.garbotoxin && allInPlay(sides).some((p) => !!pokemonPower(p)?.garbotoxin && (p.attached ?? []).some((a) => a.tool));
+
 /**
  * Whether the Pokémon's power is working: it has one, has no Special Condition (Poisoned and Burned included; only
  * Asleep, for Fossil's Transparency), and Toxic Gas isn't ignoring it.
@@ -917,8 +990,8 @@ export function powerActive(pokemon: InPlayPokemon, cards: CardLibrary, sides: S
   if (!inPlayDef(cards, pokemon).power) return false;
   // Stare: switched off until it expires between turns (betweenTurns removes it). Goop Gas Attack: all of them.
   const effect = pokemonPower(pokemon);
-  // An Ability: none of the older powers' stoppers (nor a Special Condition) switch it off (agreed).
-  if (effect?.ability) return true;
+  // An Ability: none of the older powers' stoppers (nor a Special Condition) switch it off (agreed); only Garbotoxin does.
+  if (effect?.ability) return !garbotoxinStops(pokemon, sides);
   if (pokemon.powerOffUntil !== undefined || goopGas(sides)) return false;
   if (!effect?.ignoresConditions && (effect?.stopsOnlyWhileAsleep ? pokemon.condition === 'asleep' : hasSpecialCondition(pokemon))) return false;
   // Ferment Poison: no Poké-Bodies while it stays Poisoned.
@@ -1095,6 +1168,10 @@ export function attachBlocked(cards: CardLibrary, sides: Sides, pokemon: InPlayP
   const owner = sides.find((s) => s.active === pokemon);
   const glare = owner && sides.find((s) => s !== owner && s.active && pokemonPower(s.active)?.cursedGlare && powerActive(s.active, cards, sides));
   if (glare && ((d.kind === 'energy' && d.basic === false) || !!holonEnergy(d)) && !['Darkness Energy', 'Metal Energy'].includes(d.name)) return `Cursed Glare: Special Energy cards can't be attached to your Active Pokémon`;
+  // Cursed Glare (Plasma Blast's Froslass): the opponent's Active one keeps every Special Energy card off all its owner's Pokémon.
+  const holding = sides.find((s) => s.active === pokemon || s.bench.includes(pokemon));
+  const glareAll = holding && sides.some((s) => s !== holding && s.active && pokemonPower(s.active)?.cursedGlareAll && powerActive(s.active, cards, sides));
+  if (glareAll && d.kind === 'energy' && d.basic === false) return "Cursed Glare: Special Energy cards can't be attached to your Pokémon";
   // Binding Aura (the other player's Hypno): nothing from the hand onto an Asleep Pokémon.
   const holder = sides.find((s) => s.active === pokemon || s.bench.includes(pokemon));
   if (pokemon.condition === 'asleep' && holder && bindingAura([holder, ...sides.filter((s) => s !== holder)], cards)) return "Binding Aura: Energy cards can't be attached to an Asleep Pokémon from your hand";
@@ -1123,8 +1200,8 @@ export function retreatBodies(pokemon: InPlayPokemon, cards: CardLibrary, sides:
   // Hover Lift, Jynx δ's Stages of Evolution: 1 less for each of its player's working ones naming this Pokémon or one of its types.
   const less = [owner.active, ...owner.bench].reduce((n, p) => {
     const lift = p && pokemonPower(p)?.retreatLessFor;
-    const fits = lift && ((lift.names ?? []).some((name) => namesMatch(d.name, name)) || (lift.types ?? []).some((t) => hasType(d, t)));
-    return n + (fits && powerActive(p!, cards, sides) ? 1 : 0);
+    const fits = lift && ((lift.names ?? []).some((name) => namesMatch(d.name, name)) || (lift.types ?? []).some((t) => hasType(d, t)) || !!lift.fits?.(pokemon, cards));
+    return n + (fits && powerActive(p!, cards, sides) ? (lift.amount ?? 1) : 0);
   }, 0);
   // Reactive Lift: free for its player's Water Pokémon (not Pokémon-ex) while the Wailord has a React Energy card attached.
   const reactive = !d.ex && hasType(d, 'water') && [owner.active, ...owner.bench].some((p) => !!p && !!pokemonPower(p)?.reactiveLift && hasReact(p, cards) && powerActive(p, cards, sides));
@@ -1139,7 +1216,12 @@ export function retreatBodies(pokemon: InPlayPokemon, cards: CardLibrary, sides:
   const floating = [owner.active, ...owner.bench].some((p) => !!p && !!pokemonPower(p)?.rainbowFloat && powerActive(p, cards, sides) && p.energy.some((e) => !e.provides && isBasicEnergy(lookupCard(cards, e.defId)) && hasType(d, (lookupCard(cards, e.defId) as { energyType: EnergyType }).energyType)));
   // Psychic Float: free for its player's Active Pokémon with a Psychic Energy attached.
   const psychicFloat = owner.active === pokemon && energyPool(pokemon, cards).some((e) => counts(e, 'psychic')) && [owner.active, ...owner.bench].some((p) => !!p && !!pokemonPower(p)?.psychicFloat && powerActive(p, cards, sides));
-  if (bonded || lifted || reactive || magnetized || moonlit || floating || psychicFloat) return -99;
+  // Dark Cloak: free for its player's Pokémon with Energy of its type attached.
+  const cloaked = [owner.active, ...owner.bench].some((p) => {
+    const type = p ? pokemonPower(p)?.freeRetreatWith : undefined;
+    return !!type && energyPool(pokemon, cards).some((e) => counts(e, type)) && powerActive(p!, cards, sides);
+  });
+  if (bonded || lifted || reactive || magnetized || moonlit || floating || psychicFloat || cloaked) return -99;
   // Unown Q's QUICK: attached as a Pokémon Tool, 1 less.
   const quick = (pokemon.attached ?? []).some((a) => a.equip && lookupCard(cards, a.card.defId).name === 'Unown Q') ? 1 : 0;
   // Sticky: 1 more for each working Ariados in play, either player's, for any Pokémon but one with its name.
@@ -1206,9 +1288,9 @@ export function darkGazed(pokemon: InPlayPokemon, cards: CardLibrary, sides: Sid
   return sides.some((s) => !!s.active && !!pokemonPower(s.active)?.darkGaze && powerActive(s.active, cards, sides));
 }
 
-/** Why no Evolution cards can be played (Prehistoric Power), or null. */
-export function evolutionBlocked(sides: Sides, cards: CardLibrary): string | null {
-  const blocker = allInPlay(sides).find((p) => pokemonPower(p)?.blocksEvolution && powerActive(p, cards, sides));
+/** Why no Evolution cards can be played (Prehistoric Power), or null. `fromHand`: played from the hand (Ancient Power stops only those). */
+export function evolutionBlocked(sides: Sides, cards: CardLibrary, fromHand = false): string | null {
+  const blocker = allInPlay(sides).find((p) => (pokemonPower(p)?.blocksEvolution || (fromHand && pokemonPower(p)?.noHandEvolution)) && powerActive(p, cards, sides));
   return blocker ? `${powerOf(blocker, cards)!.name}: no Evolution cards can be played` : null;
 }
 
@@ -1273,6 +1355,8 @@ export function energyFromHand(state: GameState, owner: PlayerState, target: Tar
     clearSpecialConditions(pokemon);
     addLog(state, `Island Cave: ${inPlayDef(state.cards, pokemon).name} is no longer affected by Special Conditions.`, owner.id);
   }
+  // A Stadium reacting to it (Frozen City).
+  if (pokemon && state.stadium) trainerEffect(state.stadium.card.defId)?.onEnergyFromHand?.(state, owner, pokemon);
   // Conductivity: 10 damage to it, from the opponent's working Dark Ampharos.
   if (pokemon) conductivity(state, sides.find((s) => s !== owner)!, sides, pokemon);
   if (pokemon) conductivityEx(state, sides.find((s) => s !== owner)!, sides, pokemon);
@@ -1311,7 +1395,8 @@ export function powerError(s: PowerSituation): string | null {
   const effect = pokemonPower(source);
   if (!def.power || !effect?.use) return `${def.name} has no power to use`;
   // An Ability: used whatever its Pokémon's Special Conditions, and none of the older powers' stoppers apply (agreed).
-  if (effect.ability) return effect.blocked?.(s) ?? (effect.oncePerTurn && source.powerUsedTurn === s.turn ? `${def.name} has already used ${def.power.name} this turn` : null);
+  if (effect.ability && garbotoxinStops(source, [s.me, s.opp])) return `Garbotoxin: ${def.name} has no Abilities`;
+  if (effect.ability) return effect.blocked?.(s) ??(effect.oncePerTurn && source.powerUsedTurn === s.turn ? `${def.name} has already used ${def.power.name} this turn` : null);
   // Powers that are used all stop working while their Pokémon has a Special Condition (Poisoned and Burned too, agreed),
   // unless they say otherwise (Unown B and Y).
   if (hasSpecialCondition(source) && (!effect.ignoresConditions || effect.usePoke)) return `${def.name} is ${specialConditionLabel(source)} and can't use ${def.power.name}`;
