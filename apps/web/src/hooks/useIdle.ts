@@ -167,7 +167,21 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
   useEffect(() => {
     if (!run || !walking) {
       if (run) update({ place: placeOf(run.view), battle: null, spotted: null });
-      return;
+      // Opened in a town (the user's: no prompt waits on the player): time away past its wait is caught up too, and the
+      // run, walking again, plays on (this effect again, for the rest).
+      if (run?.status !== 'ACTIVE' || run.view.phase !== 'town' || !visible) return;
+      let gone = false;
+      catchUp
+        .mutateAsync({ runId: run.id, expectedVersion: run.version })
+        .then((r) => {
+          if (gone || !r.summary) return;
+          latest.current = r.run;
+          const told = r.summary;
+          if (told.durationMs >= CATCH_UP_TOLD_MS) setSummary((old) => (old ? mergeSummaries(old, told) : told));
+          queryClient.setQueryData(key, (old) => old && { ...old, run: r.run });
+        })
+        .catch(() => {});
+      return () => void (gone = true);
     }
     if (!visible) return;
     // Whatever was playing when it stopped (a battle half shown, a fade, a line) is dropped: the server is past it.
@@ -334,7 +348,8 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
           if (r.summary) total = total ? mergeSummaries(total, r.summary) : r.summary;
         }
         if (total && total.segments > 0) {
-          if (total.durationMs >= CATCH_UP_TOLD_MS) setSummary(total);
+          const told = total;
+          if (told.durationMs >= CATCH_UP_TOLD_MS) setSummary((old) => (old ? mergeSummaries(old, told) : told));
           shown = placeOf(current.view);
           update({ place: { ...shown } });
         }

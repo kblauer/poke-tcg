@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AREAS, isTown, type WalkArea } from './areas.js';
-import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, grindTarget, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState } from './idle.js';
+import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState } from './idle.js';
 
 /** A player who goes into every gym and on, and keeps a few Potions and Poké Balls in the bag. */
 function townChoice(state: IdleState): IdleState {
@@ -170,6 +170,22 @@ describe('an idle run', () => {
     manual.party = state.party.map((m) => ({ ...m, level: 14 }));
     for (let i = 0; i < 20 && !manual.totals.whiteOuts; i++) manual = simulateSegment(manual, DEFAULT_IDLE_SETTINGS, new Set())!.state;
     expect(manual.phase).toBe('town');
+  });
+
+  it('waits 5 s in a town, then goes into its unbeaten gym, or on once it is beaten, offline too', () => {
+    const pewter = AREAS.findIndex((a) => a.id === 'pewter-city');
+    const town = { ...createIdleRun({ species: 4 }, 4), area: pewter, phase: 'town' as const };
+    const into = simulateSegment(town, DEFAULT_IDLE_SETTINGS, new Set())!;
+    expect(into.segment.durationMs).toBe(TOWN_WAIT_MS + FADE_MS);
+    expect(AREAS[into.state.area]!.id).toBe('pewter-gym');
+    const beaten = simulateSegment({ ...town, badges: ['Boulder'] }, DEFAULT_IDLE_SETTINGS, new Set())!;
+    expect(AREAS[beaten.state.area]!.id).toBe('route-3');
+    // Catch-up plays through the town's wait.
+    const { state, summary } = catchUp({ ...town, badges: ['Boulder'] }, DEFAULT_IDLE_SETTINGS, new Set(), 60 * 60 * 1000, 1000);
+    expect(summary.segments).toBeGreaterThan(1);
+    expect(state.area).toBeGreaterThan(pewter);
+    // Less than the wait away: nothing.
+    expect(catchUp(town, DEFAULT_IDLE_SETTINGS, new Set(), TOWN_WAIT_MS - 1).summary.segments).toBe(0);
   });
 
   it('auto-buys balls on reaching a town, up to the setting, the cheapest the store sells, while the money lasts', () => {

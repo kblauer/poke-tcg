@@ -111,6 +111,5 @@ ${summary.battles} battles, ${summary.levels} levels gained, ${summary.money >= 
     ...(summary.caught.length > 0 ? [`Caught: ${summary.caught.map((id) => species(id).name).join(', ')}.`] : []),
     ...(summary.evolutions.length > 0 ? [`Evolved: ${summary.evolutions.map((e) => `${species(e.from).name} into ${species(e.into).name}`).join(', ')}.`] : []),
     ...(summary.badges.length > 0 ? [`Won the ${summary.badges.join(', ')} Badge${summary.badges.length === 1 ? '' : 's'}!`] : []),
-    ...(summary.stopped === 'town' ? ['Waiting in town for you.'] : []),
   ];
 }

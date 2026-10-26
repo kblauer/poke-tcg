@@ -194,7 +194,6 @@ function IdleAdventure() {
           onStore={() => (setStore(true), void act({ type: 'VISIT_STORE' }))}
           onContinue={() => (setStore(false), void act({ type: 'CONTINUE' }))}
           dialogue={catchUp}
-          paused={store}
         />
       ) : play.battle ? (
         <BattleScreen battle={play.battle} shown={play.shown} gender={gender} dialogue={catchUp} />

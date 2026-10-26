@@ -1,4 +1,4 @@
-import { AREAS, areaById, ITEMS, mapView, topLevel, type TownArea } from '@poke-tcg/idle';
+import { AREAS, areaById, ITEMS, mapView, topLevel, TOWN_WAIT_MS, type TownArea } from '@poke-tcg/idle';
 import { useEffect, useState } from 'react';
 import type { ClientIdleRun } from '../../hooks/useIdle';
 import { commas } from '../../utils/math';
@@ -7,16 +7,14 @@ import type { Dialogue } from '../DialogueBox';
 import { PokedollarIcon } from '../PageNav';
 import { MapScene } from './AreaScene';
 
-/** How long a town waits for the player's choice before picking the gym, or Continue once it's beaten (the user's). */
-export const TOWN_AUTO_MS = 5000;
-
 /**
  * A town (README: Idle Adventure): its map with the player before the Pokémon Center, and the choice the run waits for
  * (agreed with the user): the gym (or the League), grinding for it (the user's: training on the route before the town
  * up to the gym's highest level, then into the gym; greyed out once the party is there), the store, or on to the next
  * route once the gym is beaten, as the choices of a question in the text box (DialogueBox); `dialogue` in its place (the
- * catch-up's pages). With no choice made in TOWN_AUTO_MS (the user's), it picks the gym, or Continue once the gym is
- * beaten, counting down in the scene's corner; `paused` (the store open, the catch-up's pages up) stops the count.
+ * catch-up's pages). With no choice made in TOWN_WAIT_MS (the user's: no prompt waits on the player, the store open
+ * or not), it picks the gym, or Continue once the gym is beaten, counting down in the scene's corner (the run offline
+ * does the same: the engine's townWait).
  */
 export function TownMenu({
   run,
@@ -27,7 +25,6 @@ export function TownMenu({
   onStore,
   onContinue,
   dialogue,
-  paused = false,
 }: {
   run: ClientIdleRun;
   gender: 'male' | 'female';
@@ -37,7 +34,6 @@ export function TownMenu({
   onStore: () => void;
   onContinue: () => void;
   dialogue?: Dialogue | null;
-  paused?: boolean;
 }) {
   const town = AREAS[run.view.area] as TownArea;
   const map = mapView(town.map);
@@ -53,24 +49,24 @@ export function TownMenu({
     ...(gymDone && !league ? [{ label: 'Continue', act: onContinue }] : []),
   ];
   // The choice made for the player: the gym (or the League) before it's beaten, Continue after.
-  const auto = gym && !gymDone ? { label: league ? 'Elite Four' : 'Gym', act: onGym } : gymDone && !league ? { label: 'Continue', act: onContinue } : null;
-  const counting = !!auto && !paused && !dialogue && !busy;
-  const [left, setLeft] = useState(TOWN_AUTO_MS / 1000);
+  const auto = gym && !gymDone ? { label: league ? 'Elite Four' : 'Gym', act: onGym } : { label: 'Continue', act: onContinue };
+  const counting = !busy;
+  const [left, setLeft] = useState(TOWN_WAIT_MS / 1000);
   // Counted again from the start whenever the run changes (a purchase, the party's order) or the count resumes.
   useEffect(() => {
     if (!counting) return;
-    setLeft(TOWN_AUTO_MS / 1000);
+    setLeft(TOWN_WAIT_MS / 1000);
     const started = Date.now();
     const timer = window.setInterval(() => {
-      const remaining = Math.ceil((TOWN_AUTO_MS - (Date.now() - started)) / 1000);
+      const remaining = Math.ceil((TOWN_WAIT_MS - (Date.now() - started)) / 1000);
       if (remaining > 0) return setLeft(remaining);
       window.clearInterval(timer);
-      auto!.act();
+      auto.act();
     }, 250);
     return () => window.clearInterval(timer);
     // The choice's action is read when it fires; restarting on every render would never let it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [counting, run.id, run.version, auto?.label]);
+  }, [counting, run.id, run.version, auto.label]);
   const question: Dialogue = {
     text: `${town.name}. ${gymDone ? (league ? '' : 'Where to next?') : league ? 'The Pokémon League awaits.' : `${gym?.name} is here.`}`.trim(),
     choices: options.map((o) => ({ label: o.label, disabled: busy || o.disabled })),

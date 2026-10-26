@@ -38,6 +38,8 @@ export const STEP_MS = 267;
 export const TICK_MS = 6000;
 export const BATTLE_MS = 4000;
 export const FADE_MS = 800;
+/** How long a town waits for the player's choice before taking it itself (the user's: no prompt waits on the player): the gym, or on once it's beaten. */
+export const TOWN_WAIT_MS = 5000;
 /** Offline catch-up's cap (12 hours of absence, agreed with the user) and how many segments one call simulates (the browser calls again for more). */
 export const CATCH_UP_CAP_MS = 12 * 60 * 60 * 1000;
 export const CATCH_UP_SEGMENTS = 40;
@@ -742,9 +744,10 @@ function finishArea(state: IdleState, out: Segment) {
  * The next segment of a run walking (agreed with the user): steps along the track until a trainer sees the player or
  * a wild Pokémon appears, then that whole battle; or to the area's end (a town, where it waits). `caught` is the
  * account's caught species (auto-catch's "new"), updated with this segment's catches. Returns the new state and the
- * segment, or null when the run waits for the player (in a town) or is over.
+ * segment (in a town, its wait: townWait), or null when the run is over.
  */
 export function simulateSegment(prev: IdleState, settings: IdleSettings, caught: Set<number>): { state: IdleState; segment: Segment } | null {
+  if (prev.phase === 'town') return townWait(prev);
   if (!playing(prev)) return null;
   const state = structuredClone(prev);
   const rng = rngOf(state);
@@ -819,6 +822,21 @@ export function simulateSegment(prev: IdleState, settings: IdleSettings, caught:
   return { state, segment: out };
 }
 
+/**
+ * A town's wait (the user's: no prompt waits on the player): TOWN_WAIT_MS for the player's choice, then the run takes it
+ * itself, into the gym (or the League) while it's unbeaten, otherwise on to the next area. The browser counts the wait
+ * down and takes the choice with the player's own action; this is the same for a run played offline (catchUp).
+ */
+function townWait(prev: IdleState): { state: IdleState; segment: Segment } {
+  const state = structuredClone(prev);
+  const out: Segment = { events: [{ t: 'town', area: state.area }], durationMs: TOWN_WAIT_MS + FADE_MS, dex: [] };
+  const town = AREAS[state.area] as TownArea;
+  if (!townDone(state, town)) enterGym(state, out.events);
+  else enterArea(state, afterTown(state.area), out.events);
+  state.version += 1;
+  return { state, segment: out };
+}
+
 /** What a catch-up did, for its dialog. */
 export interface CatchUpSummary {
   segments: number;
@@ -830,13 +848,13 @@ export interface CatchUpSummary {
   whiteOuts: number;
   money: number;
   badges: string[];
-  /** Stopped in a town (waiting for the player), or won. */
-  stopped: 'town' | 'won' | 'time' | 'limit';
+  /** Won, out of time away, or one call's share played (towns no longer stop it: they wait TOWN_WAIT_MS, then go on). */
+  stopped: 'won' | 'time' | 'limit';
 }
 
 /**
- * Offline catch-up (agreed): whole segments while they fit in `elapsedMs` (capped at CATCH_UP_CAP_MS), until the run reaches a
- * town or is won, or `maxSegments` (one call's share: the browser calls again). Returns the new state, the time used, the
+ * Offline catch-up (agreed): whole segments while they fit in `elapsedMs` (capped at CATCH_UP_CAP_MS), through towns (their wait, the user's),
+ * until the run is won, or `maxSegments` (one call's share: the browser calls again). Returns the new state, the time used, the
  * summary and the dex notes; the events themselves are dropped.
  */
 export function catchUp(prev: IdleState, settings: IdleSettings, caught: Set<number>, elapsedMs: number, maxSegments = CATCH_UP_SEGMENTS) {
@@ -853,7 +871,7 @@ export function catchUp(prev: IdleState, settings: IdleSettings, caught: Set<num
     }
     const next = simulateSegment(state, settings, caught);
     if (!next) {
-      summary.stopped = state.phase === 'won' ? 'won' : 'town';
+      summary.stopped = 'won';
       break;
     }
     // Only whole segments that fit in the time away (the user's: a run just started, or a moment away, catches up
@@ -871,7 +889,7 @@ export function catchUp(prev: IdleState, settings: IdleSettings, caught: Set<num
       if (e.t === 'badge') summary.badges.push(e.badge);
     }
   }
-  if (summary.stopped === 'time' && !playing(state)) summary.stopped = state.phase === 'won' ? 'won' : 'town';
+  if (state.phase === 'won') summary.stopped = 'won';
   summary.money = state.money - startMoney;
   summary.levels = state.party.reduce((s, m) => s + m.level, 0) - startLevels;
   return { state, summary, dex };

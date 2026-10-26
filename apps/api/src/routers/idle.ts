@@ -1,5 +1,5 @@
 import { prisma } from '@poke-tcg/db';
-import { AREAS, applyIdleAction, areaIndex, CATCH_UP_CAP_MS, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, simulateSegment, starterOptions, STARTERS, visitStore, type IdleSettings, type Stats } from '@poke-tcg/idle';
+import { AREAS, applyIdleAction, areaIndex, CATCH_UP_CAP_MS, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, simulateSegment, TOWN_WAIT_MS, starterOptions, STARTERS, visitStore, type IdleSettings, type Stats } from '@poke-tcg/idle';
 import { idleActInput, idleRunInput, idleSettingsInput, idleWarpInput, startIdleInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { asJson, newSeed } from '../games.js';
@@ -70,18 +70,21 @@ export const idleRouter = router({
     checkVersion(run, input.expectedVersion);
     const now = Date.now();
     if (run.simulatedAt.getTime() > now + AHEAD_MS) throw new TRPCError({ code: 'CONFLICT', message: 'Still playing the last part' });
+    // A town waits TOWN_WAIT_MS for the player's choice (the browser takes it then), then goes on by itself.
+    if (run.state.phase === 'town' && now < run.simulatedAt.getTime() + TOWN_WAIT_MS) throw failed('Waiting in town');
     const settings = await idleSettings(ctx.user.id);
     const caught = new Set(await caughtSpecies(ctx.user.id));
     const next = simulateSegment(run.state, settings, caught);
-    if (!next) throw failed(run.state.phase === 'town' ? 'Waiting in town' : 'This run is over');
+    if (!next) throw failed('This run is over');
     const playedTo = new Date(Math.max(now, run.simulatedAt.getTime()) + next.segment.durationMs);
     const saved = await saveIdleRun(run, next.state, { dex: next.segment.dex, simulatedAt: playedTo });
     return { run: clientIdleRun(saved), segment: next.segment };
   }),
 
   /**
-   * Offline catch-up (agreed): plays the time since the run was last played (at most 8 hours), up to a town or the
-   * title, a share of segments a call (`more`: call again). Returns what happened, not the events.
+   * Offline catch-up (agreed): plays the time since the run was last played (at most 12 hours), through towns (each
+   * waits TOWN_WAIT_MS, then goes on: the user's) up to the title, a share of segments a call (`more`: call again).
+   * Returns what happened, not the events.
    */
   catchUp: protectedProcedure.input(idleRunInput).mutation(async ({ ctx, input }) => {
     const run = await loadOwnIdleRun(input.runId, ctx.user.id);
@@ -90,14 +93,14 @@ export const idleRouter = router({
     // The cap is on the whole absence, not each call: time before the last 8 hours isn't played.
     const from = Math.max(run.simulatedAt.getTime(), now - CATCH_UP_CAP_MS);
     const elapsed = now - from;
-    if (!playing(run.state) || elapsed <= 0) return { run: clientIdleRun(run), summary: null, more: false };
+    if ((!playing(run.state) && run.state.phase !== 'town') || elapsed <= 0) return { run: clientIdleRun(run), summary: null, more: false };
     const settings = await idleSettings(ctx.user.id);
     const caught = new Set(await caughtSpecies(ctx.user.id));
     const { state, summary, dex } = catchUp(run.state, settings, caught, elapsed);
     if (!summary.segments) return { run: clientIdleRun(run), summary: null, more: false };
     const more = summary.stopped === 'limit';
-    // Played up to where it stopped: the time used, or now when it reached a town (time waiting there isn't played).
-    const playedTo = new Date(more ? from + summary.durationMs : now);
+    // Played up to the time used (the rest, less than a segment, is played next).
+    const playedTo = new Date(from + summary.durationMs);
     const saved = await saveIdleRun(run, state, { dex, simulatedAt: playedTo });
     return { run: clientIdleRun(saved), summary, more };
   }),
