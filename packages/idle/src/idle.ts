@@ -129,8 +129,10 @@ export interface IdleState {
   /** The trainers (TRAINERS' keys) whose full prize the run has had: a rematch pays REMATCH_PRIZE of it. */
   paid?: string[];
   /**
-   * The server's, not the rules': the last segment's start when it holds a wild battle, to play it again with a ball the
-   * player asked for (the battle's ball button, the user's: idle.throwBall). Any action or segment after it drops it.
+   * The server's, not the rules': the last segment's start, to play it again: from the moment the page is opened while it
+   * still plays (idle.resume, the user's: no waiting on a segment the page didn't see), and, its wild battle while
+   * `throwable`, with a ball the player asked for (the battle's ball button: idle.throwBall). The next segment replaces
+   * it; an action that isn't queued keeps it but ends `throwable` (playing it again from before would undo the action).
    */
   replay?: SegmentReplay;
   /**
@@ -178,7 +180,12 @@ export interface SegmentReplay {
   caught: number[];
   from: number;
   throws: number[];
+  /** Its wild battle can still take a ball (and party changes are queued meanwhile); missing (older runs'), it can. */
+  throwable?: boolean;
 }
+
+/** Whether a run's last segment's wild battle can still take a ball (IdleState.replay). */
+export const throwable = (state: Pick<IdleState, 'replay'>) => !!state.replay && state.replay.throwable !== false;
 
 /** Where a route grind loops (IdleState.loop). */
 export type RouteLoop = { resume: { area: number; leg: number; step: number; beaten: string[] } } & (
@@ -433,7 +440,7 @@ export const QUEUED_ACTIONS: IdleAction['type'][] = ['SET_ORDER', 'SET_SLOTS', '
  * then queued (`pending`) instead, keeping the replay (the user's).
  */
 export function applyIdleAction(prev: IdleState, action: IdleAction): IdleResult {
-  if (prev.replay && QUEUED_ACTIONS.includes(action.type)) {
+  if (throwable(prev) && QUEUED_ACTIONS.includes(action.type)) {
     const check = applyNow(withPending(prev), action);
     if (!check.ok) return check;
     const state = structuredClone(prev);
@@ -467,7 +474,8 @@ export function withPending(prev: IdleState): IdleState {
 /** The choice applied at once (applyIdleAction's rules). */
 function applyNow(prev: IdleState, action: IdleAction): IdleResult {
   const state = structuredClone(prev);
-  delete state.replay;
+  // Kept to resume the segment (idle.resume), but no ball any more: playing it again from before would undo this.
+  if (state.replay) state.replay.throwable = false;
   const fail = (error: string): IdleResult => ({ ok: false, error });
   const ok = (): IdleResult => {
     state.version += 1;

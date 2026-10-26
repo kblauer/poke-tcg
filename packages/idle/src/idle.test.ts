@@ -414,6 +414,33 @@ describe('an idle run', () => {
     expect(back.ok && back.state.loop?.kind).toBe('pace');
   });
 
+  it('plays a segment again from its kept start exactly as it played (resuming a page opened mid-segment)', () => {
+    let s = createIdleRun({ species: 7 }, 12);
+    for (let i = 0; i < 8; i++) {
+      const next = simulateSegment(s, MANUAL, new Set())!;
+      const again = simulateSegment(s, MANUAL, new Set())!;
+      expect(again.segment).toEqual(next.segment);
+      s = next.state;
+    }
+  });
+
+  it("keeps the start through a change that isn't queued, but no ball; queues party changes only while a ball can be thrown", () => {
+    const base = createIdleRun({ species: 4 }, 2);
+    const second = { ...base.party[0]!, uid: 'second', species: 16 };
+    const held = (throwable: boolean): IdleState => ({ ...base, party: [base.party[0]!, second], replay: { prev: base, settings: MANUAL, caught: [], from: 0, throws: [], throwable } });
+    const order = { type: 'SET_ORDER' as const, uids: ['second', base.party[0]!.uid] };
+    // A trainer's (or walking) segment: applied at once, its start kept for resuming.
+    const now = applyIdleAction(held(false), order);
+    expect(now.ok && now.state.pending).toBeUndefined();
+    expect(now.ok && now.state.party[0]!.uid).toBe('second');
+    expect(now.ok && now.state.replay?.throwable).toBe(false);
+    // A wild battle's: queued; an action that isn't queued then ends the ball but keeps the start.
+    const queued = applyIdleAction(held(true), order);
+    expect(queued.ok && queued.state.pending).toHaveLength(1);
+    const stopped = queued.ok ? applyIdleAction(queued.state, { type: 'GIVE_UP' }) : queued;
+    expect(stopped.ok && stopped.state.replay).toMatchObject({ throwable: false });
+  });
+
   it('has auto-grind on by default', () => {
     expect(DEFAULT_IDLE_SETTINGS.autoGrind).toBe(true);
   });

@@ -1,5 +1,5 @@
 import { prisma } from '@poke-tcg/db';
-import { AREAS, applyIdleAction, areaIndex, BALLS, isBaseForm, CATCH_UP_CAP_MS, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, simulateSegment, TOWN_WAIT_MS, starterOptions, STARTERS, visitStore, type IdleSettings, type Stats } from '@poke-tcg/idle';
+import { AREAS, applyIdleAction, areaIndex, BALLS, throwable, isBaseForm, CATCH_UP_CAP_MS, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, simulateSegment, TOWN_WAIT_MS, starterOptions, STARTERS, visitStore, type IdleSettings, type Stats } from '@poke-tcg/idle';
 import { idleActInput, idleRunInput, idleSettingsInput, idleThrowInput, idleWarpInput, startIdleInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { asJson, newSeed } from '../games.js';
@@ -78,11 +78,10 @@ export const idleRouter = router({
     if (!next) throw failed('This run is over');
     const from = Math.max(now, run.simulatedAt.getTime());
     const playedTo = new Date(from + next.segment.durationMs);
-    // A wild battle in it: its start kept, to play it again with a ball the player asks for (throwBall).
-    if (next.segment.events.some((e) => e.t === 'battle' && e.kind === 'wild')) {
-      const { replay: _, ...prev } = run.state;
-      next.state.replay = { prev, settings, caught: caughtList, from, throws: [] };
-    }
+    // Its start kept, to play it again: from the moment a page opened meanwhile (resume), and its wild battle with a ball
+    // the player asks for (throwBall).
+    const { replay: _, ...prev } = run.state;
+    next.state.replay = { prev, settings, caught: caughtList, from, throws: [], throwable: next.segment.events.some((e) => e.t === 'battle' && e.kind === 'wild') };
     const saved = await saveIdleRun(run, next.state, { dex: next.segment.dex, simulatedAt: playedTo });
     return { run: clientIdleRun(saved), segment: next.segment };
   }),
@@ -139,7 +138,7 @@ export const idleRouter = router({
     const run = await loadOwnIdleRun(input.runId, ctx.user.id);
     checkVersion(run, input.expectedVersion);
     const replay = run.state.replay;
-    if (!replay) throw failed('Too late to throw a ball in this battle');
+    if (!replay || !throwable(run.state)) throw failed('Too late to throw a ball in this battle');
     if (replay.throws.some((t) => t >= input.tick)) throw failed('A ball is already on its way');
     if (!BALLS.some(([b]) => (replay.prev.bag[b] ?? 0) > 0)) throw failed('No Poké Balls in the bag');
     const throws = [...replay.throws, input.tick];
@@ -153,6 +152,20 @@ export const idleRouter = router({
     if (run.state.pending?.length) again.state.pending = run.state.pending;
     const saved = await saveIdleRun(run, again.state, { dex: again.segment.dex, simulatedAt: new Date(replay.from + again.segment.durationMs) });
     return { run: clientIdleRun(saved), segment: again.segment };
+  }),
+
+  /**
+   * The segment still playing (the user's: a page opened mid-segment plays it from where it is, never waiting on it):
+   * played again from its start (IdleState.replay, the ball's too), with when it began, so the browser picks it up at
+   * now. Null when none is still playing (or the run has no start kept).
+   */
+  resume: protectedProcedure.input(idleRunInput).mutation(async ({ ctx, input }) => {
+    const run = await loadOwnIdleRun(input.runId, ctx.user.id);
+    const replay = run.state.replay;
+    if (!replay || run.simulatedAt.getTime() <= Date.now()) return null;
+    const again = simulateSegment(replay.prev, replay.settings, new Set(replay.caught), { throwAt: replay.throws });
+    if (!again) return null;
+    return { run: clientIdleRun(run), segment: again.segment, from: replay.from };
   }),
 
   /** Changes some of the mode's settings (User.idleSettings); they apply from the next battle. */

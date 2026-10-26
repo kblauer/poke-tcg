@@ -165,6 +165,7 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
   const next = useMutation(trpc.idle.next.mutationOptions());
   const catchUp = useMutation(trpc.idle.catchUp.mutationOptions());
   const throwMut = useMutation(trpc.idle.throwBall.mutationOptions());
+  const resume = useMutation(trpc.idle.resume.mutationOptions());
   const [play, setPlay] = useState<Playback>(IDLE);
   /**
    * A ball asked for (the battle's ball button, the user's): the server's answer (its segment played again with the
@@ -214,9 +215,17 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
     update({ battle: null, cue: null, shown: 0, entering: false, spotted: null, notice: null, fading: false, turn: null, tickAt: Date.now() });
     let stopped = false;
     const timers = new Set<number>();
-    const wait = (ms: number) =>
+    /**
+     * Time to fast-forward through (ms): a segment already playing when the page opened is played from its start with
+     * its waits taken out of this until it's spent (the user's: picking it up where it is, not waiting on it).
+     */
+    let skipMs = 0;
+    const wait = (full: number) =>
       new Promise<void>((done, fail) => {
         if (stopped) return fail(new Stopped());
+        const skipped = Math.min(full, skipMs);
+        skipMs -= skipped;
+        const ms = full - skipped;
         const t = window.setTimeout(() => {
           timers.delete(t);
           if (stopped) fail(new Stopped());
@@ -283,7 +292,8 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
       // Its pictures fetched since the segment came (preloadBattle), the screen held closed until they're decoded (at most BATTLE_LOAD_MS more).
       const loaded = preloadBattle(e);
       await wait(TRANSITION_MS);
-      await Promise.race([loaded, wait(BATTLE_LOAD_MS)]);
+      // (Fast-forwarding, it shows at once: the time it would wait isn't the segment's.)
+      if (skipMs <= 0) await Promise.race([loaded, wait(BATTLE_LOAD_MS)]);
       if (stopped) throw new Stopped();
       update({ battle: e, shown: 0, entering: false });
       onScreen.current = { battle: e, turn: 0 };
@@ -428,6 +438,19 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
           if (told.durationMs >= CATCH_UP_TOLD_MS) setSummary((old) => (old ? mergeSummaries(old, told) : told));
           shown = placeOf(current.view);
           update({ place: { ...shown } });
+        }
+        // A segment still playing (the page opened, or the tab came back, part way through it): played again from its
+        // start, fast-forwarded to now, instead of waiting until it would have ended.
+        if (new Date(newest().simulatedAt).getTime() > Date.now()) {
+          const r = await resume.mutateAsync({ runId: current.id, expectedVersion: newest().version }).catch(() => null);
+          if (stopped) return;
+          if (r) {
+            latest.current = r.run;
+            skipMs = Math.max(0, Date.now() - r.from);
+            await playSegment(r.segment.events);
+            skipMs = 0;
+            setRun(newest());
+          }
         }
         while (!stopped && current.status === 'ACTIVE' && playing(current.view)) {
           let r;
