@@ -563,7 +563,7 @@ export const EX_TEMPLATE_DATA: Record<string, Record<string, TemplateUse>> = {
   'ex10-103': { Tsunami: ['benchAll', 30, 10], 'Sore Spot': ['meditate', 70, 70, 10] }, // Feraligatr ex
   'ex10-107': { 'Punch and Run': ['teleport', 40], 'Swallow Up': ['swallowUp', 70, 120] }, // Politoed ex
   'ex10-108': { 'Steel Wing': ['guardAfter', 40, 20], 'Cross-Cut': ['evolvedMore', 50, 50, 30] }, // Scizor ex
-  'ex10-111': { 'Mix-Up': ['millOpponent', 70] }, // Tyranitar ex
+  'ex10-111': { 'Mix-Up': ['millOpponent', 70], 'Losing Control': ['millSelf', 120, 3] }, // Tyranitar ex
   'ex10-113': { 'Burning Turn': ['teleport', 20] }, // Entei ☆
   'ex10-114': { 'Lightning Turn': ['teleport', 20] }, // Raikou ☆
   'ex10-115': { 'Splashing Turn': ['teleport', 20] }, // Suicune ☆
@@ -1891,6 +1891,7 @@ export const EX_TEMPLATE_DATA: Record<string, Record<string, TemplateUse>> = {
   'hgss2-70': { 'Double Attack': ['benchChooseMany', 0, 2, 10] }, // Zubat
   'hgss2-84': { 'Skill Dive': ['snipe', 0, 30] }, // Crobat
   'hgss2-87': { 'Energy Stream': ['attachFromDiscard', 30], 'Gaia Crush': ['mayDiscardStadium', 100] }, // Steelix
+  'hgss2-88': { 'Megaton Tail': ['millSelf', 120, 3] }, // Tyranitar
   'hgss2-89': { 'Hammer Arm': ['millOne', 30] }, // Ursaring
   'hgss2-90': { 'Detonation Spin': ['discardTyped', 90, 'fire'] }, // Entei & Raikou LEGEND
   'hgss2-91': { 'Detonation Spin': ['discardTyped', 90, 'fire'] }, // Entei & Raikou LEGEND
@@ -2005,6 +2006,7 @@ export const EX_TEMPLATE_DATA: Record<string, Record<string, TemplateUse>> = {
   'hgss4-98': { 'Linear Attack': ['snipe', 0, 40], Sonicboom: ['noWeaknessResistance', 70] }, // Yanmega
   'col1-SL10': { 'Inferno Spear': ['discardTwoTypes', 100, 'fire', 'lightning'] }, // Rayquaza
   'col1-SL11': { Tsunami: ['spreadAll', 0, 20] }, // Suicune
+  'col1-SL3': { 'Wild Blaze': ['millSelf', 70, 3] }, // Entei
   'col1-SL5': { 'Scorching Wing': ['tailsDiscardAllTyped', 100, 'fire'] }, // Ho-Oh
   'col1-SL7': { 'Linear Attack': ['snipe', 0, 30] }, // Lugia
   'col1-4': { Psybeam: ['flipCondition', 30, 'confused'] }, // Espeon
@@ -2055,4 +2057,804 @@ export const EX_TEMPLATE_DATA: Record<string, Record<string, TemplateUse>> = {
   'col1-72': { 'Nutritional Support': ['searchAttach', 0, 'grass', '1 of your pokemon'], Poisonpowder: ['condition', 30, 'poisoned'] }, // Tangela
   'col1-74': { 'Aqua Tail': ['flipPerTypedMore', 30, 'water', 30, 20] }, // Totodile
   'col1-75': { Singe: ['flipCondition', 0, 'burned'], Ember: ['tailsDiscardTyped', 30, 'fire'] }, // Vulpix
+  'bw1-2': { 'Leaf Blade': ['flipForMore', 10, 10, 30] }, // Snivy
+  'bw1-3': { Wrap: ['flipCondition', 20, 'paralyzed'] }, // Servine
+  'bw1-4': { 'Wring Out': ['flipConditionDiscard', 30, 'paralyzed'] }, // Servine
+  'bw1-8': { 'Fury Swipes': ['perHeads', 40, 3, 40] }, // Simisage
+  'bw1-10': { 'Petal Dance': ['flipsTimesSelfCondition', 30, 3, 30, 'confused'] }, // Lilligant
+  'bw1-11': { 'Pin Missile': ['perHeads', 20, 4, 20] }, // Maractus
+  'bw1-13': { 'Double Kick': ['perHeads', 10, 2, 10] }, // Deerling
+  'bw1-16': { 'Take Down': ['recoil', 30, 10] }, // Tepig
+  'bw1-17': { 'Flame Charge': ['searchAttach', 0, 'fire', '@'] }, // Pignite
+  'bw1-18': { Flamethrower: ['discardAny', 70, 'an'] }, // Pignite
+  'bw1-19': { 'Flare Blitz': ['discardAllTyped', 150, 'fire'] }, // Emboar
+  'bw1-22': { 'Flame Burst': ['benchN', 20, 20, 2], 'Fury Swipes': ['perHeads', 40, 3, 40] }, // Simisear
+  'bw1-23': { Firebreathing: ['flipForMore', 10, 10, 10] }, // Darumaka
+  'bw1-24': { Singe: ['condition', 0, 'burned'] }, // Darumaka
+  'bw1-25': { 'Fire Fang': ['condition', 20, 'burned'], Thrash: ['flipMoreOrSelf', 70, 70, 20, 20] }, // Darmanitan
+  'bw1-26': { Outrage: ['rage', 20, 20, 10] }, // Reshiram
+  'bw1-28': { 'Razor Shell': ['flipForMore', 20, 20, 20] }, // Oshawott
+  'bw1-29': { 'Razor Shell': ['flipForMore', 40, 40, 20] }, // Dewott
+  'bw1-30': { 'Aqua Tail': ['flipPerTypedMore', 30, 'water', 30, 10] }, // Dewott
+  'bw1-31': { Pike: ['benchOne', 30, 30] }, // Samurott
+  'bw1-32': { 'Hydro Pump': ['perTypedMore', 70, 70, 10, 'water'] }, // Samurott
+  'bw1-34': { Scald: ['condition', 20, 'burned'], 'Fury Swipes': ['perHeads', 40, 3, 40] }, // Simipour
+  'bw1-35': { Crunch: ['flipDiscardDefenderEnergy', 30] }, // Basculin
+  'bw1-37': { 'Aqua Ring': ['teleport', 40] }, // Swanna
+  'bw1-39': { 'Water Pulse': ['condition', 20, 'asleep'], 'Hydro Pump': ['perTypedMore', 40, 40, 10, 'water'] }, // Alomomola
+  'bw1-41': { Stomp: ['flipForMore', 10, 10, 10] }, // Blitzle
+  'bw1-42': { Stomp: ['flipForMore', 20, 20, 20], 'Wild Charge': ['recoil', 70, 10] }, // Zebstrika
+  'bw1-43': { Electrispark: ['benchAll', 70, 10] }, // Zebstrika
+  'bw1-44': { 'Stun Needle': ['flipCondition', 10, 'paralyzed'] }, // Joltik
+  'bw1-46': { Electroweb: ['noRetreat', 20] }, // Galvantula
+  'bw1-47': { Outrage: ['rage', 20, 20, 10], 'Bolt Strike': ['recoil', 120, 40] }, // Zekrom
+  'bw1-48': { Hypnosis: ['condition', 0, 'asleep'], 'Dream Eater': ['notAsleepNothing', 60] }, // Munna
+  'bw1-49': { 'Hypnotic Ray': ['condition', 20, 'asleep'], 'Dream Eater': ['notAsleepNothing', 90] }, // Musharna
+  'bw1-51': { Attract: ['smokescreen', 0] }, // Swoobat
+  'bw1-53': { 'Poison Sting': ['condition', 20, 'poisoned'] }, // Whirlipede
+  'bw1-54': { Steamroller: ['noResistance', 60], 'Poison Claws': ['condition', 80, 'poisoned'] }, // Scolipede
+  'bw1-55': { 'Cell Culture': ['benchSelf', 0, 'Solosis'] }, // Solosis
+  'bw1-57': { Psywave: ['perDefenderEnergyMore', 30, 30, 10] }, // Reuniclus
+  'bw1-61': { 'Circle Throw': ['opponentSwitches', 30], 'Storm Throw': ['noResistance', 80] }, // Throh
+  'bw1-63': { 'Sand Tomb': ['noRetreat', 10] }, // Sandile
+  'bw1-64': { Torment: ['amnesia', 10] }, // Krokorok
+  'bw1-65': { Torment: ['amnesia', 30], Krookoroll: ['damagedMore', 60, 60, 40] }, // Krookodile
+  'bw1-67': { Taunt: ['lureFirst', 0], 'Sucker Punch': ['typedEnergyMore', 30, 'darkness', 30, 30] }, // Liepard
+  'bw1-70': { Lunge: ['tailsNothing', 30] }, // Zorua
+  'bw1-72': { 'Surprise Attack': ['tailsNothing', 20] }, // Vullaby
+  'bw1-74': { Bind: ['flipCondition', 10, 'paralyzed'] }, // Klink
+  'bw1-75': { Bind: ['flipCondition', 10, 'paralyzed'], 'Gear Grind': ['perHeads', 60, 2, 60] }, // Klang
+  'bw1-76': { 'Gear Grind': ['perHeads', 80, 2, 80] }, // Klinklang
+  'bw1-78': { 'Hyper Fang': ['tailsNothing', 30] }, // Patrat
+  'bw1-79': { 'Confuse Ray': ['condition', 0, 'confused'], 'Hyper Fang': ['tailsNothing', 60] }, // Watchog
+  'bw1-81': { Collect: ['draw', 0] }, // Lillipup
+  'bw1-82': { Collect: ['draw', 0, 3] }, // Herdier
+  'bw1-83': { 'Giga Impact': ['rest', 90] }, // Stoutland
+  'bw1-84': { 'Quick Attack': ['flipForMore', 10, 10, 10] }, // Pidove
+  'bw1-85': { 'Quick Attack': ['flipForMore', 20, 20, 30] }, // Tranquill
+  'bw1-87': { Doubleslap: ['perHeads', 30, 2, 30] }, // Audino
+  'bw1-88': { 'Tail Slap': ['perHeads', 10, 2, 10] }, // Minccino
+  'bw1-89': { 'Tail Slap': ['perHeads', 20, 2, 20] }, // Cinccino
+  'bw1-90': { 'Double Stomp': ['perHeadsMore', 30, 2, 30, 20] }, // Bouffalant
+  'bw1-91': { 'Head Charge': ['tailsSelfDamage', 80, 20] }, // Bouffalant
+  'bw1-113': { Outrage: ['rage', 20, 20, 10] }, // Reshiram
+  'bw1-114': { Outrage: ['rage', 20, 20, 10], 'Bolt Strike': ['recoil', 120, 40] }, // Zekrom
+  'bw1-115': { Thunderbolt: ['discardAll', 80] }, // Pikachu
+  'bw2-1': { Collect: ['draw', 0] }, // Pansage
+  'bw2-3': { 'String Shot': ['flipCondition', 0, 'paralyzed'] }, // Sewaddle
+  'bw2-5': { 'Double Razor Leaf': ['perHeads', 50, 2, 50] }, // Swadloon
+  'bw2-7': { 'X-Scissor': ['flipForMore', 30, 30, 50] }, // Leavanny
+  'bw2-8': { 'Triple Cutter': ['perHeads', 60, 3, 60] }, // Leavanny
+  'bw2-10': { 'Cotton Guard': ['guardAfter', 10, 10] }, // Cottonee
+  'bw2-11': { 'Cotton Guard': ['guardAfter', 30, 30] }, // Whimsicott
+  'bw2-12': { 'U-turn': ['teleport', 40] }, // Whimsicott
+  'bw2-13': { 'Stun Spore': ['flipCondition', 0, 'paralyzed'] }, // Petilil
+  'bw2-15': { 'Wild Kick': ['tailsNothing', 40] }, // Deerling
+  'bw2-16': { 'Push Down': ['opponentSwitches', 30], 'Take Down': ['recoil', 60, 20] }, // Sawsbuck
+  'bw2-17': { 'Sacred Sword': ['notNextTurnSelf', 100, 'sacred sword'] }, // Virizion
+  'bw2-18': { Collect: ['draw', 0] }, // Pansear
+  'bw2-19': { Flamethrower: ['discardAny', 70, 'an'] }, // Simisear
+  'bw2-21': { 'Rock Smash': ['flipForMore', 20, 20, 20], 'Fire Punch': ['condition', 70, 'burned'] }, // Darmanitan
+  'bw2-22': { Collect: ['draw', 0] }, // Panpour
+  'bw2-24': { Flail: ['flail', 10, 10] }, // Basculin
+  'bw2-27': { 'Wing Dance': ['agility', 30], 'Air Slash': ['discardAny', 70, 'an'] }, // Swanna
+  'bw2-28': { 'Powder Snow': ['flipCondition', 10, 'asleep'] }, // Cubchoo
+  'bw2-30': { 'Sheer Cold': ['noAttackNext', 50], 'Icicle Crash': ['noResistance', 80] }, // Beartic
+  'bw2-31': { 'Icy Wind': ['condition', 30, 'asleep'] }, // Beartic
+  'bw2-32': { Thundershock: ['flipCondition', 10, 'paralyzed'], Acrobatics: ['perHeadsMore', 10, 2, 10, 20] }, // Emolga
+  'bw2-34': { 'Stun Needle': ['flipCondition', 30, 'paralyzed'] }, // Galvantula
+  'bw2-35': { Charge: ['searchAttach', 0, 'lightning', '@'], 'Disaster Volt': ['discardAny', 80, 'an'] }, // Thundurus
+  'bw2-36': { 'Psy Bolt': ['flipCondition', 20, 'paralyzed'] }, // Woobat
+  'bw2-38': { 'Poison Sting': ['flipCondition', 0, 'poisoned'] }, // Venipede
+  'bw2-39': { Venoshock: ['conditionNamedMore', 10, 'poisoned', 10, 60], Steamroller: ['noResistance', 40] }, // Whirlipede
+  'bw2-40': { 'Wild Horn': ['perHeadsMore', 50, 2, 50, 20] }, // Scolipede
+  'bw2-41': { Reflect: ['guardAfter', 0, 40] }, // Sigilyph
+  'bw2-42': { 'Quick Turn': ['perHeads', 10, 2, 10], 'Psychic Assault': ['meditate', 40, 40, 10] }, // Sigilyph
+  'bw2-43': { 'Hypnotic Gaze': ['condition', 0, 'asleep'], 'Double Slap': ['perHeads', 20, 2, 20] }, // Gothita
+  'bw2-45': { 'Double Slap': ['perHeads', 20, 2, 20], Psybeam: ['condition', 20, 'confused'] }, // Gothorita
+  'bw2-47': { Madkinesis: ['perTypedMore', 30, 30, 20, 'psychic'] }, // Gothitelle
+  'bw2-49': { Harden: ['harden', 0, 40] }, // Roggenrola
+  'bw2-50': { 'Reckless Charge': ['recoil', 30, 10] }, // Roggenrola
+  'bw2-52': { 'Hard Crash': ['flipMoreOrSelf', 60, 60, 20, 20] }, // Boldore
+  'bw2-53': { 'Rock Bullet': ['perTypedMore', 40, 40, 20, 'fighting'] }, // Gigalith
+  'bw2-56': { 'Drill Run': ['discardDefenderEnergy', 80] }, // Excadrill
+  'bw2-57': { Dig: ['agility', 30], Earthquake: ['ownBench', 70, 10] }, // Excadrill
+  'bw2-58': { 'Scarf Hold': ['flipNoAttack', 30] }, // Throh
+  'bw2-61': { Crunch: ['flipDiscardDefenderEnergy', 40] }, // Krokorok
+  'bw2-62': { Thrash: ['flipMoreOrSelf', 70, 70, 20, 20] }, // Krookodile
+  'bw2-63': { 'Sacred Sword': ['notNextTurnSelf', 100, 'sacred sword'] }, // Terrakion
+  'bw2-64': { 'Knock Off': ['flipRandomDiscard', 20] }, // Purrloin
+  'bw2-65': { 'Claw Rend': ['damagedMore', 50, 50, 30] }, // Liepard
+  'bw2-66': { 'Rising Lunge': ['flipForMore', 20, 20, 10] }, // Zorua
+  'bw2-67': { 'Fury Swipes': ['perHeads', 20, 3, 20] }, // Zoroark
+  'bw2-68': { 'Rear Guard': ['guardAfter', 0, 30] }, // Vullaby
+  'bw2-69': { 'Bone Rush': ['untilTails', 30, 30], 'Dark Pulse': ['perOwnTypedAllMore', 20, 20, 10, 'darkness'] }, // Mandibuzz
+  'bw2-70': { 'Pin Missile': ['perHeads', 10, 4, 10] }, // Ferroseed
+  'bw2-72': { 'Steel Feelers': ['perHeads', 30, 3, 30] }, // Ferrothorn
+  'bw2-73': { 'Iron Defense': ['agility', 0] }, // Ferrothorn
+  'bw2-74': { 'Gear Grind': ['perHeads', 30, 2, 30] }, // Klink
+  'bw2-75': { 'Metal Sound': ['condition', 0, 'confused'], 'Guard Press': ['guardAfter', 60, 20] }, // Klang
+  'bw2-77': { 'Metal Horns': ['opponentSwitches', 30], 'Sacred Sword': ['notNextTurnSelf', 100, 'sacred sword'] }, // Cobalion
+  'bw2-78': { 'Hyper Fang': ['tailsNothing', 30] }, // Patrat
+  'bw2-81': { Claw: ['tailsNothing', 30] }, // Tranquill
+  'bw2-83': { 'Powerful Slap': ['flipPerEnergy', 40, 40], 'Heal Pulse': ['healOne', 0, 5] }, // Audino
+  'bw2-84': { 'Last Resort': ['tailsNothing', 30] }, // Minccino
+  'bw2-85': { Captivate: ['lureFirst', 0], 'Fluffy Tail': ['condition', 30, 'asleep'] }, // Cinccino
+  'bw2-87': { Claw: ['tailsNothing', 30] }, // Rufflet
+  'bw2-88': { 'Brave Bird': ['recoil', 90, 30] }, // Braviary
+  'bw2-97': { Charge: ['searchAttach', 0, 'lightning', '@'], 'Disaster Volt': ['discardAny', 80, 'an'] }, // Thundurus
+  'bw3-1': { 'Leaf Boomerang': ['perHeads', 20, 2, 20] }, // Sewaddle
+  'bw3-2': { 'String Shot': ['flipCondition', 20, 'paralyzed'] }, // Swadloon
+  'bw3-3': { 'Cutting Arm': ['perHeadsMore', 40, 2, 40, 20] }, // Leavanny
+  'bw3-5': { Windmill: ['teleport', 30] }, // Lilligant
+  'bw3-6': { Withdraw: ['flipPreventDamage', 0] }, // Dwebble
+  'bw3-7': { 'X-Scissor': ['flipForMore', 20, 20, 50], 'Reckless Charge': ['recoil', 80, 10] }, // Crustle
+  'bw3-8': { 'Fury Attack': ['perHeads', 10, 3, 10] }, // Karrablast
+  'bw3-10': { 'Body Slam': ['flipCondition', 30, 'paralyzed'] }, // Amoonguss
+  'bw3-12': { 'Acid Spray': ['flipDiscardDefenderEnergy', 20], 'Slashing Strike': ['notNextTurnSelf', 60, 'slashing strike'] }, // Accelgor
+  'bw3-13': { 'Double Draw': ['draw', 0, 2] }, // Virizion
+  'bw3-16': { Lunge: ['tailsNothing', 60] }, // Pansear
+  'bw3-17': { 'Double Fire': ['perHeads', 80, 2, 80] }, // Simisear
+  'bw3-18': { Singe: ['condition', 0, 'burned'] }, // Heatmor
+  'bw3-19': { Ember: ['tailsDiscardAny', 20] }, // Larvesta
+  'bw3-20': { 'Take Down': ['recoil', 30, 10] }, // Larvesta
+  'bw3-21': { 'Heat Wave': ['condition', 60, 'burned'] }, // Volcarona
+  'bw3-26': { Crunch: ['discardDefenderEnergy', 80] }, // Carracosta
+  'bw3-27': { 'Icicle Barb': ['flipForMore', 10, 10, 10] }, // Vanillite
+  'bw3-28': { 'Ice Beam': ['flipCondition', 20, 'paralyzed'] }, // Vanillish
+  'bw3-31': { 'Hydro Pump': ['perTypedMore', 10, 10, 20, 'water'] }, // Jellicent
+  'bw3-32': { 'Icy Wind': ['condition', 0, 'asleep'] }, // Cryogonal
+  'bw3-33': { 'Ice Chain': ['lureFirst', 0] }, // Cryogonal
+  'bw3-34': { Outrage: ['rage', 20, 20, 10], Glaciate: ['spreadAll', 0, 30] }, // Kyurem
+  'bw3-35': { Agility: ['agility', 10] }, // Blitzle
+  'bw3-36': { 'Quick Attack': ['flipForMore', 10, 10, 20], 'Shock Bolt': ['tailsDiscardAllTyped', 90, 'lightning'] }, // Zebstrika
+  'bw3-38': { 'Thunder Wave': ['flipCondition', 10, 'paralyzed'] }, // Tynamo
+  'bw3-41': { Acid: ['noRetreat', 30], 'Wild Charge': ['recoil', 90, 10] }, // Eelektross
+  'bw3-42': { Thunder: ['tailsSelfDamage', 60, 30] }, // Stunfisk
+  'bw3-43': { 'V-blast': ['eitherTailsNothing', 120, 2] }, // Victini
+  'bw3-44': { Perplex: ['flipCondition', 10, 'confused'] }, // Yamask
+  'bw3-45': { Ambush: ['flipForMore', 10, 10, 10] }, // Yamask
+  'bw3-46': { Perplex: ['condition', 30, 'confused'] }, // Cofagrigus
+  'bw3-47': { Ambush: ['flipForMore', 40, 40, 20] }, // Cofagrigus
+  'bw3-49': { 'Gentle Wrap': ['noRetreat', 30], 'Gunk Shot': ['condition', 60, 'poisoned'] }, // Garbodor
+  'bw3-53': { 'Dizzy Punch': ['perHeads', 30, 2, 30], 'Mind Bend': ['condition', 60, 'confused'] }, // Reuniclus
+  'bw3-57': { 'Searing Flame': ['flipCondition', 20, 'burned'] }, // Litwick
+  'bw3-58': { 'Teleportation Burst': ['teleport', 10] }, // Litwick
+  'bw3-59': { 'Luring Light': ['lureFirst', 0] }, // Lampent
+  'bw3-60': { 'Eerie Glow': ['twoConditions', 50, 'burned', 'confused'] }, // Chandelure
+  'bw3-62': { Pummel: ['flipForMore', 10, 10, 10] }, // Timburr
+  'bw3-63': { Pummel: ['flipForMore', 40, 40, 20] }, // Gurdurr
+  'bw3-65': { 'Chip Away': ['ignoreEffects', 40], 'Swing Around': ['perHeadsMore', 60, 2, 60, 30] }, // Conkeldurr
+  'bw3-66': { Acrobatics: ['perHeadsMore', 20, 2, 20, 20] }, // Archen
+  'bw3-67': { 'Rock Slide': ['benchN', 60, 10, 2] }, // Archeops
+  'bw3-68': { Trickle: ['perHeads', 30, 2, 30], Thundershock: ['flipCondition', 50, 'paralyzed'] }, // Stunfisk
+  'bw3-70': { Feint: ['noResistance', 30] }, // Mienshao
+  'bw3-71': { 'Dynamic Punch': ['flipMoreCondition', 20, 20, 20, 'confused'] }, // Golett
+  'bw3-72': { 'Hurricane Punch': ['perHeads', 50, 4, 50] }, // Golurk
+  'bw3-74': { 'Gaia Hammer': ['bothBenches', 80, 10] }, // Landorus
+  'bw3-75': { 'Iron Head': ['untilTails', 10, 10] }, // Pawniard
+  'bw3-76': { 'Finishing Blow': ['damagedMore', 20, 20, 50], 'Night Slash': ['teleport', 30] }, // Bisharp
+  'bw3-78': { 'Double Hit': ['perHeads', 20, 2, 20] }, // Zweilous
+  'bw3-79': { 'Berserker Blade': ['benchN', 60, 40, 2] }, // Hydreigon
+  'bw3-80': { 'Guard Press': ['guardAfter', 40, 20], Twineedle: ['perHeads', 70, 2, 70] }, // Escavalier
+  'bw3-82': { 'Metal Scissors': ['perTypedMore', 40, 40, 20, 'metal'] }, // Bisharp
+  'bw3-84': { 'Energy Press': ['perDefenderEnergyMore', 20, 20, 20], 'Iron Breaker': ['noAttackNext', 80] }, // Cobalion
+  'bw3-86': { 'Dual Chop': ['perHeads', 10, 2, 10] }, // Axew
+  'bw3-87': { 'Dual Chop': ['perHeads', 30, 2, 30] }, // Fraxure
+  'bw3-88': { 'Dual Chop': ['perHeads', 50, 2, 50], 'Giga Impact': ['rest', 120] }, // Haxorus
+  'bw3-89': { Clutch: ['noRetreat', 60] }, // Druddigon
+  'bw3-97': { 'Double Draw': ['draw', 0, 2] }, // Virizion
+  'bw3-100': { 'Energy Press': ['perDefenderEnergyMore', 20, 20, 20], 'Iron Breaker': ['noAttackNext', 80] }, // Cobalion
+  'bw3-102': { 'Fury Swipes': ['perHeads', 10, 3, 10], 'Pay Day': ['draw', 20] }, // Meowth
+  'bw4-1': { 'Grip and Squeeze': ['noRetreat', 70] }, // Pinsir
+  'bw4-2': { 'Trip Over': ['flipForMore', 10, 10, 10] }, // Seedot
+  'bw4-3': { 'Double Headbutt': ['perHeadsMore', 10, 2, 10, 10] }, // Kricketot
+  'bw4-4': { 'White Noise': ['condition', 20, 'asleep'] }, // Kricketune
+  'bw4-5': { Synthesis: ['searchAttach', 0, 'grass', '1 of your pokemon'], 'Revenge Blast': ['perPrizeTakenMore', 30, 30, 30] }, // Shaymin-EX
+  'bw4-7': { Collect: ['draw', 0, 3] }, // Simisage
+  'bw4-8': { 'Rising Lunge': ['flipForMore', 10, 10, 20] }, // Foongus
+  'bw4-9': { 'Rising Lunge': ['flipForMore', 20, 20, 30] }, // Amoonguss
+  'bw4-10': { Firebreathing: ['flipForMore', 10, 10, 20] }, // Growlithe
+  'bw4-13': { Crunch: ['flipDiscardDefenderEnergy', 30] }, // Arcanine
+  'bw4-14': { 'Searing Flame': ['condition', 50, 'burned'], 'Fire Blast': ['discardTyped', 90, 'fire'] }, // Moltres
+  'bw4-16': { Collect: ['draw', 0, 3] }, // Simisear
+  'bw4-19': { Ember: ['tailsDiscardAny', 40] }, // Lampent
+  'bw4-20': { 'Flame Burst': ['benchN', 30, 30, 2] }, // Chandelure
+  'bw4-21': { Outrage: ['rage', 20, 20, 10] }, // Reshiram
+  'bw4-22': { 'Glinting Claw': ['flipForMore', 50, 50, 30], 'Brave Fire': ['tailsSelfDamage', 150, 50] }, // Reshiram-EX
+  'bw4-24': { 'Confuse Ray': ['condition', 0, 'confused'], Swift: ['swift', 50] }, // Starmie
+  'bw4-25': { 'Reckless Charge': ['recoil', 40, 20] }, // Lapras
+  'bw4-26': { 'Water Arrow': ['snipe', 0, 20] }, // Lapras
+  'bw4-27': { 'Ice Beam': ['flipCondition', 50, 'paralyzed'] }, // Articuno
+  'bw4-29': { Collect: ['draw', 0, 3] }, // Simipour
+  'bw4-32': { 'Icy Wind': ['flipCondition', 50, 'asleep'] }, // Vanillish
+  'bw4-34': { Bubble: ['flipCondition', 0, 'paralyzed'], 'Spit Poison': ['condition', 0, 'poisoned'] }, // Frillish
+  'bw4-37': { Daunt: ['charm', 40, 20], Ambush: ['flipForMore', 60, 60, 30] }, // Beartic
+  'bw4-38': { 'Hail Blizzard': ['notNextTurnSelf', 120, 'hail blizzard'] }, // Kyurem-EX
+  'bw4-39': { Thundershock: ['flipCondition', 10, 'paralyzed'] }, // Pikachu
+  'bw4-40': { Thundershock: ['flipCondition', 20, 'paralyzed'], Slam: ['perHeads', 80, 2, 80] }, // Raichu
+  'bw4-41': { 'Random Spark': ['snipe', 0, 50], 'Thundering Hurricane': ['perHeads', 50, 4, 50] }, // Zapdos
+  'bw4-42': { 'Jump On': ['flipForMore', 10, 10, 10] }, // Shinx
+  'bw4-43': { 'Reckless Charge': ['recoil', 20, 10] }, // Shinx
+  'bw4-44': { 'Jump On': ['flipForMore', 20, 20, 30], 'Wild Charge': ['recoil', 60, 10] }, // Luxio
+  'bw4-45': { 'Quick Turn': ['perHeads', 20, 2, 20] }, // Luxio
+  'bw4-46': { Crunch: ['flipDiscardDefenderEnergy', 80] }, // Luxray
+  'bw4-47': { 'Thunder Jolt': ['tailsSelfDamage', 30, 10] }, // Blitzle
+  'bw4-49': { Bounce: ['teleport', 30] }, // Emolga
+  'bw4-50': { Outrage: ['rage', 20, 20, 10], 'Bolt Strike': ['recoil', 120, 40] }, // Zekrom
+  'bw4-51': { 'Glinting Claw': ['flipForMore', 50, 50, 30], 'Strong Volt': ['discardAny', 150, 2] }, // Zekrom-EX
+  'bw4-52': { 'Nasty Goo': ['flipCondition', 20, 'paralyzed'] }, // Grimer
+  'bw4-53': { 'Gentle Wrap': ['noRetreat', 20] }, // Muk
+  'bw4-54': { Psydrive: ['discardAny', 120, 'an'] }, // Mewtwo-EX
+  'bw4-56': { Psychic: ['perDefenderEnergyMore', 40, 40, 10] }, // Kirlia
+  'bw4-57': { 'Mind Shock': ['noWeaknessResistance', 60] }, // Gardevoir
+  'bw4-59': { 'Fluffy Dream': ['selfAsleep', 40] }, // Musharna
+  'bw4-60': { Synchrodraw: ['mime', 0], DarMAXitan: ['flipPerEnergy', 50, 50] }, // Darmanitan
+  'bw4-61': { 'Psy Bolt': ['flipCondition', 10, 'paralyzed'] }, // Elgyem
+  'bw4-62': { Psybeam: ['condition', 40, 'confused'] }, // Beheeyem
+  'bw4-63': { 'Quick Attack': ['flipForMore', 10, 10, 20] }, // Riolu
+  'bw4-64': { 'Aura Sphere': ['benchOne', 50, 20] }, // Lucario
+  'bw4-65': { 'Sand Jet': ['benchOne', 0, 20] }, // Hippopotas
+  'bw4-66': { 'Rock Tumble': ['noResistance', 90] }, // Hippowdon
+  'bw4-67': { 'Triple Smash': ['perHeads', 10, 3, 10] }, // Mienfoo
+  'bw4-68': { Meditate: ['meditate', 30, 30, 10] }, // Mienshao
+  'bw4-69': { Corner: ['noRetreat', 10] }, // Sneasel
+  'bw4-70': { 'Fury Swipes': ['perHeads', 30, 3, 30] }, // Weavile
+  'bw4-72': { Whirlwind: ['opponentSwitches', 60] }, // Shiftry
+  'bw4-73': { Lunge: ['tailsNothing', 40] }, // Scraggy
+  'bw4-74': { 'Rock Head': ['guardAfter', 20, 20] }, // Scrafty
+  'bw4-75': { 'Knock Away': ['flipForMore', 10, 10, 10] }, // Bronzor
+  'bw4-77': { 'Self Destruct': ['recoil', 60, 60] }, // Ferroseed
+  'bw4-78': { Sing: ['condition', 0, 'asleep'], 'Double Slap': ['perHeads', 20, 2, 20] }, // Jigglypuff
+  'bw4-79': { Hypnoblast: ['flipCondition', 60, 'asleep'] }, // Wigglytuff
+  'bw4-80': { 'Double Scratch': ['perHeads', 10, 2, 10] }, // Meowth
+  'bw4-81': { 'Shadow Claw': ['flipRandomDiscard', 30] }, // Persian
+  'bw4-82': { 'Raging Hammer': ['rage', 50, 50, 10] }, // Regigigas-EX
+  'bw4-84': { 'Call for Family': ['benchSearch', 0] }, // Minccino
+  'bw4-94': { Synthesis: ['searchAttach', 0, 'grass', '1 of your pokemon'], 'Revenge Blast': ['perPrizeTakenMore', 30, 30, 30] }, // Shaymin-EX
+  'bw4-95': { 'Glinting Claw': ['flipForMore', 50, 50, 30], 'Brave Fire': ['tailsSelfDamage', 150, 50] }, // Reshiram-EX
+  'bw4-96': { 'Hail Blizzard': ['notNextTurnSelf', 120, 'hail blizzard'] }, // Kyurem-EX
+  'bw4-97': { 'Glinting Claw': ['flipForMore', 50, 50, 30], 'Strong Volt': ['discardAny', 150, 2] }, // Zekrom-EX
+  'bw4-98': { Psydrive: ['discardAny', 120, 'an'] }, // Mewtwo-EX
+  'bw4-99': { 'Raging Hammer': ['rage', 50, 50, 10] }, // Regigigas-EX
+  'bw4-101': { 'Eerie Glow': ['twoConditions', 50, 'burned', 'confused'] }, // Chandelure
+  'bw4-103': { 'Berserker Blade': ['benchN', 60, 40, 2] }, // Hydreigon
+  'bw5-2': { 'Sleep Powder': ['condition', 20, 'asleep'], 'Poison Powder': ['condition', 50, 'poisoned'] }, // Ivysaur
+  'bw5-3': { 'Poison Powder': ['condition', 70, 'poisoned'] }, // Venusaur
+  'bw5-4': { 'Air Slash': ['discardAny', 60, 'an'] }, // Scyther
+  'bw5-5': { 'Lure Poison': ['lureCondition', 0, 'poisoned'] }, // Carnivine
+  'bw5-6': { 'Quick Attack': ['flipForMore', 10, 10, 30] }, // Leafeon
+  'bw5-8': { 'Heavy Bullet': ['flipBenchOne', 70, 20] }, // Crustle
+  'bw5-9': { 'Reckless Charge': ['recoil', 40, 10] }, // Karrablast
+  'bw5-10': { 'Body Slam': ['flipCondition', 20, 'paralyzed'] }, // Shelmet
+  'bw5-12': { 'Sand-Attack': ['smokescreen', 20] }, // Flareon
+  'bw5-13': { 'Fire Fang': ['condition', 30, 'burned'] }, // Entei-EX
+  'bw5-14': { 'Reckless Charge': ['recoil', 30, 10] }, // Torchic
+  'bw5-16': { 'Double Kick': ['perHeads', 20, 2, 20], Flamethrower: ['discardAny', 70, 'an'] }, // Combusken
+  'bw5-17': { 'Blaze Kick': ['flipMoreOrCondition', 40, 40, 30, 'burned'], Flamethrower: ['discardAny', 130, 'an'] }, // Blaziken
+  'bw5-19': { Firebreathing: ['flipForMore', 50, 50, 20] }, // Heatmor
+  'bw5-21': { 'Super Singe': ['condition', 10, 'burned'] }, // Larvesta
+  'bw5-23': { 'Big Yawn': ['bothCondition', 0], 'Shot in the Dark': ['eitherTailsNothing', 20, 2] }, // Slowpoke
+  'bw5-24': { 'Lazy Headbutt': ['selfAsleep', 80] }, // Slowbro
+  'bw5-25': { 'Muddy Water': ['benchOne', 20, 20] }, // Vaporeon
+  'bw5-26': { 'Smash Turn': ['maySwitch', 30] }, // Kyogre-EX
+  'bw5-27': { 'Fury Attack': ['perHeads', 10, 3, 10] }, // Piplup
+  'bw5-28': { 'Fury Attack': ['perHeads', 30, 3, 30] }, // Prinplup
+  'bw5-30': { 'Quick Attack': ['flipForMore', 10, 10, 30] }, // Glaceon
+  'bw5-32': { 'Bubble Beam': ['flipCondition', 30, 'paralyzed'] }, // Palpitoad
+  'bw5-33': { 'Double Spin': ['perHeads', 10, 2, 10] }, // Vanillite
+  'bw5-34': { 'Triple Spin': ['perHeads', 20, 3, 20] }, // Vanillish
+  'bw5-35': { 'Water Pulse': ['condition', 20, 'asleep'] }, // Ducklett
+  'bw5-36': { 'Healing Pirouette': ['healEach', 0, 3] }, // Swanna
+  'bw5-37': { 'Pin Missile': ['perHeads', 40, 4, 40] }, // Jolteon
+  'bw5-38': { 'Thunder Fang': ['flipCondition', 30, 'paralyzed'] }, // Raikou-EX
+  'bw5-39': { 'Positive Ion': ['flipForMore', 20, 20, 10] }, // Plusle
+  'bw5-40': { 'Negative Ion': ['charm', 0, 30], Electrishower: ['spreadAll', 0, 10] }, // Minun
+  'bw5-43': { 'Quick Turn': ['perHeads', 20, 2, 20] }, // Galvantula
+  'bw5-45': { Spark: ['benchOne', 10, 10] }, // Tynamo
+  'bw5-46': { 'Shock Bolt': ['discardAllTyped', 80, 'lightning'] }, // Eelektrik
+  'bw5-49': { 'Psy Bolt': ['flipCondition', 20, 'paralyzed'] }, // Slowking
+  'bw5-50': { Supersonic: ['flipCondition', 0, 'confused'] }, // Woobat
+  'bw5-52': { 'Lock Up': ['noRetreat', 40] }, // Cofagrigus
+  'bw5-54': { Tromp: ['benchAll', 20, 10] }, // Groudon-EX
+  'bw5-56': { 'Tunnel Strike': ['benchOne', 0, 30] }, // Excadrill
+  'bw5-57': { 'Reinforced Drill': ['toolMore', 50, 50, 30], 'Mach Claw': ['noResistance', 70] }, // Excadrill
+  'bw5-59': { 'Steel Swing': ['perHeads', 60, 2, 60] }, // Gurdurr
+  'bw5-60': { 'Slashing Strike': ['notNextTurnSelf', 80, 'slashing strike'] }, // Umbreon
+  'bw5-61': { 'Confuse Ray': ['condition', 20, 'confused'] }, // Umbreon
+  'bw5-62': { 'Confuse Ray': ['flipCondition', 10, 'confused'] }, // Sableye
+  'bw5-63': { 'Night Spear': ['benchOne', 90, 30] }, // Darkrai-EX
+  'bw5-64': { 'Sand Dive': ['flipPreventDamage', 0] }, // Sandile
+  'bw5-66': { 'Dark Clamp': ['noRetreat', 60] }, // Krookodile
+  'bw5-67': { 'Rising Lunge': ['flipForMore', 10, 10, 20] }, // Scraggy
+  'bw5-68': { 'Crushing Blow': ['flipDiscardDefenderEnergy', 70] }, // Scrafty
+  'bw5-69': { Ascension: ['evolveFromDeck', 0] }, // Zorua
+  'bw5-70': { 'Paralyzing Gaze': ['flipCondition', 0, 'paralyzed'], 'Shadow Bind': ['noRetreat', 20] }, // Zorua
+  'bw5-71': { 'Dark Rush': ['flail', 20, 20] }, // Zoroark
+  'bw5-73': { Whirlwind: ['opponentSwitches', 10] }, // Vullaby
+  'bw5-75': { 'Smash Turn': ['teleport', 20] }, // Klink
+  'bw5-77': { 'Metal Blast': ['perTypedMore', 20, 20, 20, 'metal'], 'Lock Gear': ['drawUntil', 60, 6] }, // Klinklang
+  'bw5-79': { 'Aerial Ace': ['flipForMore', 20, 20, 20] }, // Bisharp
+  'bw5-80': { Sing: ['condition', 0, 'asleep'], 'Double-Edge': ['recoil', 60, 30] }, // Chansey
+  'bw5-81': { 'Continuous Tumble': ['untilTails', 30, 30] }, // Chansey
+  'bw5-82': { 'Double-Edge': ['recoil', 90, 60] }, // Blissey
+  'bw5-83': { 'Surprise Attack': ['tailsNothing', 20] }, // Eevee
+  'bw5-85': { 'Tone-Deaf': ['flipCondition', 10, 'confused'] }, // Chatot
+  'bw5-86': { 'Take Down': ['recoil', 30, 10] }, // Lillipup
+  'bw5-87': { Roar: ['opponentSwitches', 0] }, // Herdier
+  'bw5-88': { 'Ferocious Bellow': ['charm', 60, 30] }, // Stoutland
+  'bw5-90': { 'Power Blast': ['tailsDiscardAny', 100] }, // Tornadus-EX
+  'bw5-103': { 'Fire Fang': ['condition', 30, 'burned'] }, // Entei-EX
+  'bw5-104': { 'Smash Turn': ['maySwitch', 30] }, // Kyogre-EX
+  'bw5-105': { 'Thunder Fang': ['flipCondition', 30, 'paralyzed'] }, // Raikou-EX
+  'bw5-106': { Tromp: ['benchAll', 20, 10] }, // Groudon-EX
+  'bw5-107': { 'Night Spear': ['benchOne', 90, 30] }, // Darkrai-EX
+  'bw5-108': { 'Power Blast': ['tailsDiscardAny', 100] }, // Tornadus-EX
+  'bw5-109': { 'Mind Shock': ['noWeaknessResistance', 60] }, // Gardevoir
+  'bw5-110': { 'Rock Slide': ['benchN', 60, 10, 2] }, // Archeops
+  'bw6-1': { 'Flail Around': ['perHeads', 10, 3, 10] }, // Hoppip
+  'bw6-2': { 'Bullet Seed': ['perHeads', 10, 4, 10] }, // Skiploom
+  'bw6-3': { Acrobatics: ['perHeadsMore', 20, 2, 20, 30] }, // Jumpluff
+  'bw6-4': { Whirlwind: ['opponentSwitches', 20] }, // Yanma
+  'bw6-5': { Agility: ['agility', 30] }, // Yanmega
+  'bw6-6': { 'Sleep Poison': ['flipTwoConditions', 0, 'asleep', 'poisoned'] }, // Wurmple
+  'bw6-7': { Harden: ['harden', 0, 60] }, // Silcoon
+  'bw6-8': { Drainpour: ['healEach', 40, 4, 'benched '] }, // Beautifly
+  'bw6-10': { Dig: ['agility', 10] }, // Nincada
+  'bw6-11': { 'Night Slash': ['maySwitch', 60] }, // Ninjask
+  'bw6-12': { 'Double Whip': ['perHeads', 10, 2, 10] }, // Roselia
+  'bw6-13': { 'Needling Sting': ['flipForMore', 10, 10, 20] }, // Roselia
+  'bw6-14': { 'Crosswise Whip': ['perHeads', 30, 4, 30], 'Poison Point': ['condition', 60, 'poisoned'] }, // Roserade
+  'bw6-15': { Squeeze: ['flipMoreCondition', 30, 30, 20, 'paralyzed'] }, // Roserade
+  'bw6-16': { 'Stun Needle': ['flipCondition', 20, 'paralyzed'], 'Reinforced Needle': ['toolMore', 40, 40, 40] }, // Maractus
+  'bw6-17': { 'Double Spin': ['perHeads', 10, 2, 10] }, // Foongus
+  'bw6-18': { Singe: ['condition', 0, 'burned'] }, // Vulpix
+  'bw6-19': { 'Hexed Flame': ['perConditionMore', 20, 20, 50] }, // Ninetales
+  'bw6-21': { 'Flame Screen': ['guardAfter', 40, 20], Flamethrower: ['discardAny', 90, 'an'] }, // Magmortar
+  'bw6-23': { 'Soggy Rush': ['untilTails', 10, 10] }, // Magikarp
+  'bw6-24': { 'Swing Around': ['perHeadsMore', 60, 2, 60, 30] }, // Gyarados
+  'bw6-25': { Lullaby: ['flipCondition', 0, 'asleep'] }, // Wailmer
+  'bw6-26': { 'Giant Wave': ['notNextTurnSelf', 80, 'giant wave'] }, // Wailord
+  'bw6-28': { 'Water Pulse': ['condition', 60, 'asleep'] }, // Milotic
+  'bw6-34': { Bubble: ['flipCondition', 10, 'paralyzed'] }, // Tympole
+  'bw6-35': { Supersonic: ['condition', 0, 'confused'] }, // Palpitoad
+  'bw6-37': { 'Mysterious Beam': ['flipDiscardDefenderEnergy', 30], 'Double Slap': ['perHeads', 50, 2, 50] }, // Alomomola
+  'bw6-38': { 'Cotton Guard': ['guardAfter', 0, 20], 'Thunder Jolt': ['tailsSelfDamage', 30, 10] }, // Mareep
+  'bw6-39': { 'Cotton Guard': ['guardAfter', 20, 20] }, // Flaaffy
+  'bw6-40': { Electrobullet: ['benchOne', 70, 20] }, // Ampharos
+  'bw6-41': { 'Quick Attack': ['flipForMore', 10, 10, 20] }, // Electrike
+  'bw6-42': { 'Quick Turn': ['perHeads', 20, 2, 20] }, // Electrike
+  'bw6-44': { 'Quick Attack': ['flipForMore', 30, 30, 20] }, // Manectric
+  'bw6-47': { 'Aerial Ace': ['flipForMore', 50, 50, 30] }, // Dustox
+  'bw6-52': { Psychic: ['perDefenderEnergyMore', 50, 50, 10] }, // Sigilyph
+  'bw6-53': { 'Poison Gas': ['condition', 30, 'poisoned'] }, // Trubbish
+  'bw6-56': { Hypnoblast: ['condition', 10, 'asleep'], 'Mind Shock': ['noWeaknessResistance', 40] }, // Gothorita
+  'bw6-61': { 'Bone Lock': ['noRetreat', 30] }, // Marowak
+  'bw6-64': { 'Rock Smash': ['flipForMore', 60, 60, 30] }, // Claydol
+  'bw6-65': { 'Stone Edge': ['flipForMore', 10, 10, 20] }, // Roggenrola
+  'bw6-66': { 'Rock Cannon': ['untilTails', 30, 30], Earthquake: ['ownBench', 60, 10] }, // Boldore
+  'bw6-67': { 'Reckless Charge': ['recoil', 120, 40] }, // Gigalith
+  'bw6-68': { Squeeze: ['flipMoreCondition', 40, 40, 20, 'paralyzed'] }, // Throh
+  'bw6-69': { 'Karate Chop': ['karateChop', 70, 70, 10] }, // Sawk
+  'bw6-70': { 'Muddy Water': ['benchOne', 20, 20], Rumble: ['noRetreat', 40] }, // Stunfisk
+  'bw6-71': { 'Rock Tumble': ['noResistance', 50] }, // Terrakion-EX
+  'bw6-73': { 'Diving Swipe': ['randomDiscardBW', 70] }, // Honchkrow
+  'bw6-75': { 'Fire Fang': ['condition', 70, 'burned'] }, // Houndoom
+  'bw6-76': { 'Acid Spray': ['flipDiscardDefenderEnergy', 10] }, // Stunky
+  'bw6-78': { 'Take Down': ['recoil', 30, 10] }, // Aron
+  'bw6-81': { 'Protect Charge': ['guardAfter', 80, 20] }, // Registeel-EX
+  'bw6-82': { 'Heavy Nose': ['damagedMore', 60, 60, 30] }, // Probopass
+  'bw6-83': { 'Iron Head': ['untilTails', 30, 30] }, // Durant
+  'bw6-87': { 'Sand-Attack': ['smokescreen', 0], 'Knock Away': ['flipForMore', 10, 10, 20] }, // Gible
+  'bw6-88': { Shred: ['ignoreEffects', 40] }, // Gabite
+  'bw6-90': { Dragonblade: ['millSelf', 100, 2] }, // Garchomp
+  'bw6-91': { 'Sand Tomb': ['noRetreat', 80] }, // Garchomp
+  'bw6-92': { Shred: ['ignoreEffects', 90], 'Dragon Pulse': ['millSelf', 130, 3] }, // Giratina-EX
+  'bw6-93': { 'Deep Growl': ['flipCondition', 0, 'paralyzed'], 'Power Breath': ['discardAny', 30, 'an'] }, // Deino
+  'bw6-94': { 'Guard Press': ['guardAfter', 10, 10] }, // Deino
+  'bw6-95': { Crunch: ['flipDiscardDefenderEnergy', 30] }, // Zweilous
+  'bw6-98': { 'Destructor Beam': ['flipDiscardDefenderEnergy', 90] }, // Hydreigon
+  'bw6-99': { 'Double Hit': ['perHeads', 10, 2, 10] }, // Aipom
+  'bw6-100': { 'Double Hit': ['perHeads', 20, 2, 20] }, // Ambipom
+  'bw6-101': { 'Smack \'n\' Slack': ['selfAsleep', 10] }, // Slakoth
+  'bw6-102': { Ambush: ['flipForMore', 20, 20, 40] }, // Vigoroth
+  'bw6-103': { 'Crushing Blow': ['discardDefenderEnergy', 100] }, // Slaking
+  'bw6-104': { Sing: ['condition', 0, 'asleep'] }, // Swablu
+  'bw6-106': { 'Bang Heads': ['bothConfused', 20] }, // Bidoof
+  'bw6-107': { Amnesia: ['amnesia', 40], 'Tumbling Tackle': ['bothCondition', 60] }, // Bibarel
+  'bw6-109': { 'Reckless Charge': ['recoil', 30, 10] }, // Minccino
+  'bw6-110': { 'Gold Breaker': ['pokemonEXMore', 60, 60, 60] }, // Bouffalant
+  'bw6-111': { 'Sharp Beak': ['flipForMore', 10, 10, 20] }, // Rufflet
+  'bw6-112': { 'Fury Attack': ['perHeads', 50, 3, 50] }, // Braviary
+  'bw6-121': { 'Rock Tumble': ['noResistance', 50] }, // Terrakion-EX
+  'bw6-122': { 'Protect Charge': ['guardAfter', 80, 20] }, // Registeel-EX
+  'bw6-124': { Shred: ['ignoreEffects', 90], 'Dragon Pulse': ['millSelf', 130, 3] }, // Giratina-EX
+  'bw6-126': { Psywave: ['perDefenderEnergyMore', 30, 30, 10] }, // Reuniclus
+  'bw6-127': { 'Dark Clamp': ['noRetreat', 60] }, // Krookodile
+  'bw6-128': { 'Dragon Pulse': ['millSelf', 40, 2], Shred: ['ignoreEffects', 90] }, // Rayquaza
+  'dv1-1': { Wrap: ['flipCondition', 20, 'paralyzed'] }, // Dratini
+  'dv1-2': { 'Hypnotic Gaze': ['condition', 0, 'asleep'] }, // Dratini
+  'dv1-4': { 'Healing Melody': ['healEach', 0, 1], Slam: ['perHeads', 30, 2, 30] }, // Dragonair
+  'dv1-5': { 'Hyper Beam': ['flipDiscardDefenderEnergy', 50], 'Hurricane Tail': ['perHeads', 60, 4, 60] }, // Dragonite
+  'dv1-7': { 'Knock Away': ['flipForMore', 10, 10, 20] }, // Shelgon
+  'dv1-8': { Shred: ['ignoreEffects', 90] }, // Salamence
+  'dv1-11': { 'Dragon Pulse': ['millSelf', 40, 2], Shred: ['ignoreEffects', 90] }, // Rayquaza
+  'dv1-13': { Lunge: ['tailsNothing', 30] }, // Axew
+  'dv1-17': { 'Tight Jaw': ['flipCondition', 20, 'paralyzed'], 'Dragon Tail': ['perHeads', 80, 2, 80] }, // Druddigon
+  'dv1-21': { Blizzard: ['benchAll', 90, 10] }, // Kyurem
+  'bw7-2': { 'Foul Odor': ['bothConfused', 0], 'Poison Powder': ['condition', 40, 'poisoned'] }, // Gloom
+  'bw7-3': { 'Pollen Spray': ['twoConditions', 50, 'asleep', 'poisoned'] }, // Vileplume
+  'bw7-4': { 'Petal Dance': ['flipsTimesSelfCondition', 50, 3, 50, 'confused'] }, // Bellossom
+  'bw7-9': { 'Wind Whisk': ['teleport', 60] }, // Celebi-EX
+  'bw7-12': { 'Double Slash': ['perHeads', 40, 2, 40] }, // Servine
+  'bw7-13': { 'Double Slash': ['perHeads', 50, 2, 50] }, // Serperior
+  'bw7-15': { 'Stun Spore': ['flipCondition', 20, 'paralyzed'] }, // Whimsicott
+  'bw7-16': { 'Sleep Powder': ['flipCondition', 10, 'asleep'] }, // Petilil
+  'bw7-17': { Return: ['drawUntil', 20, 6] }, // Lilligant
+  'bw7-19': { 'Raging Claws': ['rage', 50, 50, 10] }, // Charmeleon
+  'bw7-20': { 'Scorching Fire': ['discardTyped', 150, 'fire'] }, // Charizard
+  'bw7-21': { Flamethrower: ['discardAny', 60, 'an'] }, // Numel
+  'bw7-22': { Flamethrower: ['discardAny', 80, 'an'] }, // Camerupt
+  'bw7-23': { Collect: ['draw', 0], 'Relentless Flames': ['untilTails', 30, 30] }, // Victini
+  'bw7-25': { Firebreathing: ['flipForMore', 40, 40, 20] }, // Pignite
+  'bw7-26': { Firebreathing: ['flipForMore', 40, 40, 30], 'Fire Blast': ['discardAny', 120, 'an'] }, // Emboar
+  'bw7-27': { 'Reckless Charge': ['tailsSelfDamage', 30, 10] }, // Darumaka
+  'bw7-28': { 'Continuous Tumble': ['untilTails', 20, 20] }, // Darmanitan
+  'bw7-29': { 'Water Splash': ['flipForMore', 10, 10, 20] }, // Squirtle
+  'bw7-30': { Withdraw: ['flipPreventDamage', 0] }, // Wartortle
+  'bw7-31': { 'Hydro Pump': ['perTypedMore', 60, 60, 10, 'water'] }, // Blastoise
+  'bw7-32': { 'Dazzle Dance': ['flipCondition', 0, 'confused'] }, // Psyduck
+  'bw7-34': { 'Confuse Ray': ['condition', 0, 'confused'] }, // Golduck
+  'bw7-35': { Amnesia: ['amnesia', 20], Aquafall: ['discardAll', 90] }, // Golduck
+  'bw7-37': { 'Aqua Sonic': ['noResistance', 70] }, // Azumarill
+  'bw7-38': { 'Icy Wind': ['condition', 30, 'asleep'] }, // Delibird
+  'bw7-41': { 'Destructive Whirlpool': ['discardDefenderEnergy', 80] }, // Samurott
+  'bw7-43': { 'Aerial Ace': ['flipForMore', 20, 20, 20] }, // Swanna
+  'bw7-45': { 'Eerie Light': ['flipCondition', 40, 'confused'] }, // Jellicent
+  'bw7-46': { 'Ice Edge': ['flipForMore', 20, 20, 20] }, // Cryogonal
+  'bw7-47': { 'Hydro Pump': ['perTypedMore', 60, 60, 10, 'water'] }, // Keldeo
+  'bw7-48': { 'Rising Lunge': ['flipForMore', 20, 20, 20] }, // Keldeo
+  'bw7-49': { 'Secret Sword': ['perTypedMore', 50, 50, 20, 'water'] }, // Keldeo-EX
+  'bw7-50': { 'Double Voltage': ['perHeads', 40, 2, 40] }, // Pikachu
+  'bw7-54': { 'Shock Wave': ['noResistance', 80] }, // Electivire
+  'bw7-55': { Electripult: ['snipe', 0, 20] }, // Chinchou
+  'bw7-57': { 'Flame Charge': ['searchAttach', 0, 'fire', '@'], Thunder: ['tailsSelfDamage', 90, 30] }, // Zebstrika
+  'bw7-59': { 'Flail Around': ['perHeads', 10, 3, 10] }, // Spoink
+  'bw7-60': { Psybeam: ['condition', 30, 'confused'], Extrasensory: ['sameHandMore', 60, 60, 60] }, // Grumpig
+  'bw7-61': { 'Confuse Ray': ['condition', 0, 'confused'] }, // Duskull
+  'bw7-63': { 'Shadow Punch': ['noResistance', 60] }, // Dusknoir
+  'bw7-64': { 'Paralyzing Jab': ['flipCondition', 20, 'paralyzed'] }, // Croagunk
+  'bw7-65': { 'Poison Jab': ['condition', 20, 'poisoned'] }, // Croagunk
+  'bw7-66': { 'Poison Jab': ['condition', 60, 'poisoned'] }, // Toxicroak
+  'bw7-69': { Telekinesis: ['snipeNoWR', 0, 30] }, // Musharna
+  'bw7-71': { Acrobatics: ['perHeadsMore', 20, 2, 20, 20] }, // Swoobat
+  'bw7-74': { Venoshock: ['conditionNamedMore', 80, 'poisoned', 80, 40] }, // Scolipede
+  'bw7-76': { 'Destructive Beam': ['flipDiscardDefenderEnergy', 50] }, // Gothorita
+  'bw7-77': { Psychic: ['perDefenderEnergyMore', 10, 10, 20] }, // Meloetta
+  'bw7-79': { 'Sand-Attack': ['smokescreen', 20], Earthquake: ['ownBench', 80, 10] }, // Sandslash
+  'bw7-80': { 'Wicked Jab': ['flipCondition', 20, 'paralyzed'] }, // Gligar
+  'bw7-81': { 'Poison Ring': ['poisonNoRetreat', 20], 'Night Slash': ['teleport', 40] }, // Gliscor
+  'bw7-83': { 'Smithereen Smash': ['flipDiscardDefenderEnergy', 0] }, // Trapinch
+  'bw7-84': { Flail: ['flail', 10, 10] }, // Dwebble
+  'bw7-85': { 'Stone Edge': ['flipForMore', 70, 70, 20] }, // Crustle
+  'bw7-86': { 'Steady Punch': ['flipForMore', 10, 10, 10] }, // Mienfoo
+  'bw7-88': { 'Knock Off': ['randomDiscardBW', 20], 'Double Whip': ['perHeads', 70, 2, 70] }, // Mienshao
+  'bw7-89': { Hammerhead: ['benchOne', 30, 30] }, // Landorus-EX
+  'bw7-91': { 'Tail Trickery': ['condition', 0, 'confused'] }, // Liepard
+  'bw7-93': { 'Dual Cut': ['perHeads', 80, 2, 80] }, // Mandibuzz
+  'bw7-94': { 'Slashing Strike': ['notNextTurnSelf', 100, 'slashing strike'] }, // Scizor
+  'bw7-95': { Claw: ['tailsNothing', 20] }, // Skarmory
+  'bw7-96': { 'Metal Sound': ['flipCondition', 0, 'confused'], Swift: ['swift', 70] }, // Skarmory
+  'bw7-97': { 'Reckless Charge': ['recoil', 30, 10] }, // Klink
+  'bw7-98': { 'Quick Turn': ['perHeads', 20, 2, 20], 'Sand Pulse': ['benchAll', 50, 10] }, // Vibrava
+  'bw7-100': { 'Dual Claw': ['perHeads', 20, 2, 20], 'Flash Freeze': ['discardAny', 100, 'an'] }, // Black Kyurem
+  'bw7-101': { 'Dragon Fang': ['flipCondition', 60, 'paralyzed'], 'Freeze Shock': ['rest', 150] }, // Black Kyurem-EX
+  'bw7-102': { 'Damage Rush': ['untilTails', 20, 20], 'Cold Fire': ['flipForMore', 80, 80, 40] }, // White Kyurem
+  'bw7-104': { 'Paralyzing Gaze': ['flipCondition', 0, 'paralyzed'] }, // Rattata
+  'bw7-106': { 'Fake Out': ['flipCondition', 20, 'paralyzed'] }, // Meowth
+  'bw7-107': { 'Hard Swing': ['flipForMore', 20, 20, 20] }, // Farfetch’d
+  'bw7-109': { 'Double Lariat': ['perHeads', 40, 2, 40] }, // Snorlax
+  'bw7-110': { 'Attract Smack': ['flipCondition', 10, 'paralyzed'] }, // Togepi
+  'bw7-111': { 'Double Draw': ['draw', 0, 2], Dig: ['agility', 10] }, // Dunsparce
+  'bw7-113': { 'Double Slap': ['perHeads', 20, 2, 20] }, // Skitty
+  'bw7-114': { 'Double Slap': ['perHeads', 30, 2, 30] }, // Delcatty
+  'bw7-115': { 'Whimsy Tackle': ['tailsNothing', 30] }, // Spinda
+  'bw7-117': { 'Kick Away': ['opponentSwitches', 60] }, // Lopunny
+  'bw7-119': { Hypnoblast: ['condition', 20, 'asleep'] }, // Watchog
+  'bw7-120': { Roar: ['opponentSwitches', 0] }, // Lillipup
+  'bw7-121': { 'Take Down': ['recoil', 60, 10] }, // Herdier
+  'bw7-122': { 'Wild Tackle': ['tailsSelfDamage', 90, 20] }, // Stoutland
+  'bw7-123': { 'Razor Wind': ['tailsNothing', 30] }, // Pidove
+  'bw7-124': { 'Air Slash': ['discardAny', 60, 'an'] }, // Tranquill
+  'bw7-125': { 'Wing Flick': ['opponentSwitches', 40], 'Air Slash': ['tailsDiscardAny', 80] }, // Unfezant
+  'bw7-126': { 'Hip Bump': ['smokescreen', 30] }, // Audino
+  'bw7-141': { 'Wind Whisk': ['teleport', 60] }, // Celebi-EX
+  'bw7-142': { 'Secret Sword': ['perTypedMore', 50, 50, 20, 'water'] }, // Keldeo-EX
+  'bw7-144': { Hammerhead: ['benchOne', 30, 30] }, // Landorus-EX
+  'bw7-145': { 'Dragon Fang': ['flipCondition', 60, 'paralyzed'], 'Freeze Shock': ['rest', 150] }, // Black Kyurem-EX
+  'bw8-2': { 'Knock Away': ['flipForMore', 40, 40, 20] }, // Grotle
+  'bw8-3': { 'Guard Press': ['guardAfter', 60, 20] }, // Torterra
+  'bw8-7': { 'Random Peck': ['perHeadsMore', 20, 2, 20, 20] }, // Cherrim
+  'bw8-9': { 'Swaddle Guard': ['guardAfter', 0, 40], 'Surprise Attack': ['tailsNothing', 40] }, // Swadloon
+  'bw8-10': { 'Leaf Blade': ['flipForMore', 70, 70, 20] }, // Leavanny
+  'bw8-11': { 'Dazzle Dance': ['condition', 10, 'confused'], Ambush: ['flipForMore', 20, 20, 30] }, // Maractus
+  'bw8-14': { 'Destructive Flame': ['flipDiscardDefenderEnergy', 30] }, // Moltres-EX
+  'bw8-16': { 'Loud Howl': ['opponentSwitches', 0], 'Fire Tail Slap': ['discardAny', 50, 'an'] }, // Monferno
+  'bw8-17': { Torment: ['amnesia', 30], 'Malevolent Fire': ['discardAll', 120] }, // Infernape
+  'bw8-18': { 'Intensifying Burn': ['pokemonEXMore', 50, 50, 50] }, // Victini-EX
+  'bw8-19': { 'Double Fire': ['perHeads', 40, 2, 40] }, // Pansear
+  'bw8-20': { 'Searing Flame': ['condition', 20, 'burned'], 'Flame Blast': ['perTypedMore', 40, 40, 20, 'fire'] }, // Simisear
+  'bw8-21': { 'Surprise Attack': ['tailsNothing', 20] }, // Litwick
+  'bw8-25': { Blizzard: ['benchAll', 60, 10] }, // Articuno-EX
+  'bw8-26': { 'Double Headbutt': ['perHeads', 20, 2, 20] }, // Swinub
+  'bw8-27': { 'Ice Beam': ['flipCondition', 20, 'paralyzed'], 'Quintuple Headbutt': ['perHeads', 40, 5, 40] }, // Piloswine
+  'bw8-28': { 'Frost Stone': ['flipMoreCondition', 50, 50, 20, 'paralyzed'], 'Continuous Headbutt': ['untilTails', 90, 90] }, // Mamoswine
+  'bw8-29': { 'Bubble Beam': ['flipCondition', 20, 'paralyzed'] }, // Lotad
+  'bw8-30': { 'Jump On': ['flipForMore', 20, 20, 20] }, // Lombre
+  'bw8-33': { 'Hard Bite': ['flipForMore', 40, 40, 20] }, // Sharpedo
+  'bw8-35': { 'Snow Squall': ['noResistance', 10] }, // Vanillite
+  'bw8-37': { Blizzard: ['benchAll', 70, 10] }, // Vanilluxe
+  'bw8-39': { 'Aqua Bullet': ['benchOne', 40, 10] }, // Jellicent
+  'bw8-40': { Hail: ['flipSpreadAll', 0, 10] }, // Cubchoo
+  'bw8-41': { 'Powerful Rage': ['flail', 20, 20] }, // Beartic
+  'bw8-42': { 'Metal Sound': ['flipCondition', 0, 'confused'] }, // Magnemite
+  'bw8-44': { 'Metal Sound': ['condition', 0, 'confused'] }, // Magneton
+  'bw8-45': { 'Knock Away': ['flipForMore', 20, 20, 20] }, // Magneton
+  'bw8-47': { 'Tumbling Attack': ['flipForMore', 70, 70, 20] }, // Magnezone
+  'bw8-48': { Agility: ['agility', 30] }, // Zapdos-EX
+  'bw8-50': { 'Jump On': ['flipForMore', 10, 10, 10] }, // Joltik
+  'bw8-51': { 'Signal Beam': ['flipCondition', 30, 'confused'] }, // Galvantula
+  'bw8-56': { 'Double Spin': ['perHeads', 20, 2, 20] }, // Koffing
+  'bw8-57': { Smokescreen: ['smokescreen', 20] }, // Koffing
+  'bw8-58': { Smogbank: ['spreadAll', 0, 20] }, // Weezing
+  'bw8-59': { 'Psy Bolt': ['flipCondition', 0, 'paralyzed'] }, // Ralts
+  'bw8-60': { 'Psy Bolt': ['flipCondition', 20, 'paralyzed'] }, // Kirlia
+  'bw8-61': { 'Swift Lunge': ['opponentSwitches', 80] }, // Gallade
+  'bw8-62': { Hex: ['conditionMore', 50, 50, 50], 'Shadow Claw': ['randomDiscardBW', 90] }, // Giratina
+  'bw8-67': { 'Double Ducts': ['perHeads', 80, 2, 80] }, // Garbodor
+  'bw8-69': { Reflect: ['guardAfter', 0, 20], 'Smash Punch': ['tailsNothing', 30] }, // Elgyem
+  'bw8-70': { 'Lock Up': ['noRetreat', 20] }, // Beheeyem
+  'bw8-72': { 'Spinning Turn': ['teleport', 40], Wreck: ['stadiumMore', 80, 80, 60] }, // Donphan
+  'bw8-74': { 'Heat Burn': ['condition', 20, 'burned'], Explosion: ['recoil', 90, 90] }, // Solrock
+  'bw8-76': { Feint: ['noResistance', 40] }, // Riolu
+  'bw8-78': { 'Hurricane Kick': ['perPrizeTakenMore', 60, 60, 30] }, // Lucario
+  'bw8-79': { 'Knock Back': ['opponentSwitches', 20] }, // Timburr
+  'bw8-80': { 'Dynamic Punch': ['flipMoreCondition', 40, 40, 20, 'confused'] }, // Gurdurr
+  'bw8-82': { 'Tail Trickery': ['flipCondition', 0, 'confused'], 'Fury Swipes': ['perHeads', 10, 3, 10] }, // Purrloin
+  'bw8-83': { 'Fasten Claws': ['flipForMore', 20, 20, 10] }, // Purrloin
+  'bw8-84': { 'Fake Out': ['flipCondition', 30, 'paralyzed'] }, // Liepard
+  'bw8-86': { 'Kick Away': ['opponentSwitches', 30], 'Reinforced Headbutt': ['toolMore', 50, 50, 50] }, // Scrafty
+  'bw8-87': { 'Steel Wing': ['guardAfter', 40, 20] }, // Skarmory
+  'bw8-88': { Rigidify: ['guardAfter', 0, 20] }, // Klink
+  'bw8-89': { 'Gear Smash': ['perHeadsMore', 30, 2, 30, 20] }, // Klang
+  'bw8-90': { 'Heavy Bullet': ['flipBenchOne', 70, 20] }, // Klinklang
+  'bw8-91': { 'Hard Crunch': ['damagedMore', 40, 40, 30] }, // Durant
+  'bw8-92': { 'Metal Jail': ['noRetreat', 30] }, // Durant
+  'bw8-93': { 'Steel Bullet': ['swift', 100] }, // Cobalion-EX
+  'bw8-94': { 'Guard Press': ['guardAfter', 20, 20] }, // Druddigon
+  'bw8-95': { 'Black Ballista': ['discardAny', 200, 3] }, // Black Kyurem-EX
+  'bw8-96': { 'White Inferno': ['rage', 100, 100, 10] }, // White Kyurem-EX
+  'bw8-97': { 'Double Slap': ['perHeads', 20, 2, 20] }, // Clefairy
+  'bw8-99': { 'Gatling Peck': ['perHeads', 10, 5, 10] }, // Doduo
+  'bw8-100': { 'Raging Pecks': ['flipsTimesSelfCondition', 30, 3, 30, 'confused'] }, // Dodrio
+  'bw8-102': { Yawn: ['condition', 0, 'asleep'] }, // Togepi
+  'bw8-104': { Return: ['drawUntil', 30, 6] }, // Togekiss
+  'bw8-105': { Shout: ['flipRandomDiscard', 0] }, // Whismur
+  'bw8-106': { Supersonic: ['condition', 0, 'confused'] }, // Loudred
+  'bw8-109': { 'Triple Slap': ['perHeads', 20, 3, 20] }, // Skitty
+  'bw8-110': { 'Reckless Charge': ['recoil', 20, 10] }, // Patrat
+  'bw8-111': { Collect: ['draw', 0], Slam: ['perHeads', 20, 2, 20] }, // Patrat
+  'bw8-112': { 'Fast Swipe': ['randomDiscardBW', 0], 'Biting Fang': ['flipForMore', 30, 30, 20] }, // Watchog
+  'bw8-113': { 'Second Bite': ['meditate', 20, 20, 10] }, // Watchog
+  'bw8-131': { 'Intensifying Burn': ['pokemonEXMore', 50, 50, 50] }, // Victini-EX
+  'bw8-132': { Blizzard: ['benchAll', 60, 10] }, // Articuno-EX
+  'bw8-133': { 'Steel Bullet': ['swift', 100] }, // Cobalion-EX
+  'bw8-136': { 'Scorching Fire': ['discardTyped', 150, 'fire'] }, // Charizard
+  'bw8-137': { 'Hydro Pump': ['perTypedMore', 60, 60, 10, 'water'] }, // Blastoise
+  'bw9-1': { 'Triple Stab': ['perHeads', 10, 3, 10] }, // Weedle
+  'bw9-2': { Hide: ['agility', 0] }, // Kakuna
+  'bw9-5': { Stomp: ['flipForMore', 60, 60, 30] }, // Exeggutor
+  'bw9-6': { 'Reckless Charge': ['recoil', 30, 10] }, // Treecko
+  'bw9-8': { 'X-Scissor': ['flipForMore', 30, 30, 40] }, // Sceptile
+  'bw9-9': { 'Poison Sting': ['flipCondition', 0, 'poisoned'] }, // Cacnea
+  'bw9-11': { 'Leaf Blade': ['flipForMore', 60, 60, 20] }, // Leafeon
+  'bw9-12': { 'Heat Tackle': ['recoil', 90, 10] }, // Flareon
+  'bw9-14': { Singe: ['flipCondition', 0, 'burned'] }, // Litwick
+  'bw9-15': { 'Searing Flame': ['condition', 40, 'burned'] }, // Lampent
+  'bw9-17': { 'Purifying Flame': ['cureSelf', 50] }, // Reshiram
+  'bw9-18': { 'Fin Smack': ['perHeads', 10, 2, 10] }, // Horsea
+  'bw9-19': { Smokescreen: ['smokescreen', 20] }, // Seadra
+  'bw9-20': { 'Refreshing Rain': ['healEach', 0, 3], 'Gold Breaker': ['pokemonEXMore', 30, 30, 50] }, // Vaporeon
+  'bw9-21': { Slam: ['perHeads', 20, 2, 20] }, // Wooper
+  'bw9-22': { 'Mud Gun': ['typedEnergyMore', 60, 'fighting', 60, 30] }, // Quagsire
+  'bw9-23': { 'Icy Wind': ['condition', 60, 'asleep'] }, // Glaceon
+  'bw9-24': { 'Surprise Attack': ['tailsNothing', 20] }, // Tympole
+  'bw9-25': { 'Suspicious Soundwave': ['flipCondition', 30, 'confused'] }, // Palpitoad
+  'bw9-26': { 'Seismic Punch': ['bothBenches', 30, 30], 'Splashing Turn': ['teleport', 80] }, // Seismitoad
+  'bw9-27': { 'Jump On': ['flipForMore', 20, 20, 10] }, // Vanillite
+  'bw9-29': { ChillMAX: ['flipPerEnergy', 60, 60], 'Cold Breath': ['condition', 40, 'asleep'] }, // Vanilluxe
+  'bw9-31': { 'Frost Spear': ['benchOne', 30, 30], 'Blizzard Burn': ['rest', 120] }, // Kyurem
+  'bw9-34': { 'Pin Missile': ['perHeads', 20, 4, 20] }, // Jolteon
+  'bw9-36': { 'Extreme Current': ['discardAny', 90, 'an'] }, // Lanturn
+  'bw9-37': { 'Electric Tail': ['flipCondition', 10, 'paralyzed'] }, // Pachirisu
+  'bw9-39': { 'Mach Claw': ['noResistance', 50] }, // Zekrom
+  'bw9-40': { 'Poison Sting': ['flipCondition', 20, 'poisoned'] }, // Nidoran♀
+  'bw9-41': { 'Poison Sting': ['condition', 20, 'poisoned'], 'Double Kick': ['perHeads', 40, 2, 40] }, // Nidorina
+  'bw9-42': { 'Poison Horn': ['condition', 50, 'poisoned'], 'Double Stomp': ['perHeadsMore', 60, 2, 60, 30] }, // Nidoqueen
+  'bw9-44': { 'Double Kick': ['perHeads', 30, 2, 30] }, // Nidorino
+  'bw9-47': { 'Psy Bolt': ['flipCondition', 20, 'paralyzed'] }, // Mr. Mime
+  'bw9-48': { 'Psy Alert': ['drawUntil', 20, 6] }, // Espeon
+  'bw9-49': { 'Shadow Cage': ['noRetreat', 20] }, // Sableye
+  'bw9-51': { 'Psy Bolt': ['flipCondition', 10, 'paralyzed'] }, // Metang
+  'bw9-52': { 'Mind Bend': ['condition', 60, 'confused'] }, // Metagross
+  'bw9-57': { 'Elongating Arms': ['snipe', 0, 30], 'Crazy Slap': ['perHeads', 40, 4, 40] }, // Cofagrigus
+  'bw9-60': { 'Fury Swipes': ['perHeads', 30, 3, 30], 'Karate Chop': ['karateChop', 80, 80, 10] }, // Primeape
+  'bw9-61': { 'Swing Around': ['perHeads', 60, 2, 60] }, // Onix
+  'bw9-62': { 'Continuous Slap': ['untilTails', 20, 20] }, // Makuhita
+  'bw9-63': { 'Fake Out': ['flipCondition', 30, 'paralyzed'], 'Pivot Throw': ['takeMoreNext', 90, 20] }, // Hariyama
+  'bw9-65': { 'Quick Attack': ['flipForMore', 20, 20, 20] }, // Sneasel
+  'bw9-66': { Hail: ['spreadAll', 0, 10] }, // Weavile
+  'bw9-68': { 'Gentle Slap': ['flipForMore', 10, 10, 20] }, // Sandile
+  'bw9-74': { 'Cut Down': ['flipDiscardDefenderEnergy', 30] }, // Bisharp
+  'bw9-75': { 'Push Down': ['opponentSwitches', 20] }, // Deino
+  'bw9-76': { Slam: ['perHeads', 20, 2, 20] }, // Deino
+  'bw9-77': { 'Body Slam': ['flipCondition', 30, 'paralyzed'] }, // Zweilous
+  'bw9-82': { Wrap: ['flipCondition', 20, 'paralyzed'] }, // Dragonair
+  'bw9-85': { 'Barrier Break': ['swift', 70] }, // Latias-EX
+  'bw9-86': { 'Mach Flight': ['noRetreat', 40], 'Luster Purge': ['discardAll', 150] }, // Latios-EX
+  'bw9-87': { Lunge: ['tailsNothing', 30] }, // Rattata
+  'bw9-89': { Growl: ['charm', 0, 20], 'Quick Attack': ['flipForMore', 10, 10, 10] }, // Eevee
+  'bw9-96': { 'Take Down': ['tailsSelfDamage', 30, 10] }, // Staravia
+  'bw9-112': { 'Barrier Break': ['swift', 70] }, // Latias-EX
+  'bw9-113': { 'Mach Flight': ['noRetreat', 40], 'Luster Purge': ['discardAll', 150] }, // Latios-EX
+  'bw9-118': { Psychic: ['perDefenderEnergyMore', 50, 50, 10] }, // Sigilyph
+  'bw9-120': { Dragonblade: ['millSelf', 100, 2] }, // Garchomp
+  'bw10-1': { 'Sweet Scent': ['healOne', 0, 2] }, // Surskit
+  'bw10-5': { Return: ['drawUntil', 10, 6], 'Energy Press': ['perDefenderEnergyMore', 20, 20, 20] }, // Tropius
+  'bw10-7': { Yawn: ['condition', 0, 'asleep'] }, // Shelmet
+  'bw10-8': { 'Signal Beam': ['condition', 30, 'confused'] }, // Accelgor
+  'bw10-10': { 'Jet Impact': ['flipForMore', 80, 80, 20] }, // Genesect
+  'bw10-11': { 'Megalo Cannon': ['benchOne', 100, 20] }, // Genesect-EX
+  'bw10-12': { Ember: ['discardAny', 30, 'an'] }, // Larvesta
+  'bw10-14': { Bubble: ['flipCondition', 0, 'paralyzed'] }, // Squirtle
+  'bw10-15': { Bubble: ['flipCondition', 0, 'paralyzed'], 'Double Spin': ['perHeads', 30, 2, 30] }, // Wartortle
+  'bw10-16': { 'Hydro Pump': ['perTypedMore', 60, 60, 10, 'water'] }, // Blastoise
+  'bw10-17': { 'Cleanse Away': ['healEach', 0, 3, 'benched '] }, // Lapras
+  'bw10-18': { 'Bubble Beam': ['flipCondition', 20, 'paralyzed'] }, // Remoraid
+  'bw10-19': { Sharpshooting: ['snipe', 0, 30], 'Bubble Beam': ['flipCondition', 40, 'paralyzed'] }, // Octillery
+  'bw10-21': { 'Powder Snow': ['condition', 0, 'asleep'] }, // Snorunt
+  'bw10-22': { 'Powder Snow': ['condition', 30, 'asleep'] }, // Glalie
+  'bw10-23': { Blizzard: ['benchAll', 30, 10] }, // Froslass
+  'bw10-26': { 'Bang Heads': ['bothConfused', 80] }, // Abomasnow
+  'bw10-27': { Slam: ['perHeads', 30, 2, 30] }, // Tirtouga
+  'bw10-29': { Splatter: ['snipe', 0, 20] }, // Ducklett
+  'bw10-30': { Outrage: ['rage', 30, 30, 10] }, // Kyurem-EX
+  'bw10-32': { 'Thunder Wave': ['flipCondition', 20, 'paralyzed'] }, // Eelektrik
+  'bw10-33': { 'Thunder Tempest': ['perHeads', 50, 4, 50] }, // Eelektross
+  'bw10-34': { 'Creepy Wind': ['flipCondition', 0, 'confused'], 'Wind Blast': ['benchOne', 0, 40] }, // Drifloon
+  'bw10-38': { 'Trading Places': ['teleport', 0] }, // Azelf
+  'bw10-39': { 'Focused Wish': ['flipForMore', 10, 10, 20] }, // Munna
+  'bw10-40': { Psybeam: ['condition', 60, 'confused'] }, // Musharna
+  'bw10-42': { Hide: ['agility', 0] }, // Solosis
+  'bw10-43': { 'Focused Wish': ['flipForMore', 20, 20, 20] }, // Duosion
+  'bw10-44': { 'Barrier Attack': ['guardAfter', 30, 30], 'Telekinesis of Nobility': ['teleport', 70] }, // Reuniclus
+  'bw10-46': { 'Shadow Punch': ['noResistance', 80] }, // Golurk
+  'bw10-50': { 'Knock Off': ['randomDiscardBW', 60], 'Reinforced Lariat': ['toolMore', 80, 80, 40] }, // Machamp
+  'bw10-51': { 'Freestyle Strike': ['perHeads', 30, 2, 30] }, // Throh
+  'bw10-54': { Acrobatics: ['perHeadsMore', 20, 2, 20, 20] }, // Archeops
+  'bw10-55': { Roar: ['opponentSwitches', 0], Ambush: ['flipForMore', 20, 20, 10] }, // Houndour
+  'bw10-56': { 'Dark Clamp': ['noRetreat', 30] }, // Houndoom
+  'bw10-57': { 'Iron Head': ['untilTails', 10, 10] }, // Aron
+  'bw10-58': { 'Iron Head': ['untilTails', 50, 50] }, // Lairon
+  'bw10-59': { 'Knock Back': ['opponentSwitches', 50], 'Aura of the Land': ['bothBenches', 80, 20] }, // Aggron
+  'bw10-60': { Hypnostrike: ['bothCondition', 60] }, // Jirachi-EX
+  'bw10-61': { Steamroll: ['benchOne', 40, 20], 'Slashing Strike': ['notNextTurnSelf', 80, 'slashing strike'] }, // Escavalier
+  'bw10-63': { 'Knock Away': ['flipForMore', 10, 10, 20] }, // Shelgon
+  'bw10-66': { Strafe: ['maySwitch', 50] }, // Palkia-EX
+  'bw10-68': { 'Paralyzing Gaze': ['flipCondition', 0, 'paralyzed'] }, // Fraxure
+  'bw10-70': { 'Big Swing': ['eitherTailsNothing', 40, 2], Shred: ['ignoreEffects', 60] }, // Druddigon
+  'bw10-71': { 'Comet Punch': ['perHeads', 20, 4, 20] }, // Kangaskhan
+  'bw10-73': { 'Destructive Beam': ['flipDiscardDefenderEnergy', 30] }, // Porygon2
+  'bw10-74': { 'Tri Attack': ['perHeads', 50, 3, 50] }, // Porygon-Z
+  'bw10-75': { 'Fury Swipes': ['perHeads', 10, 3, 10] }, // Teddiursa
+  'bw10-77': { 'Tone-Deaf': ['condition', 20, 'confused'] }, // Chatot
+  'bw10-97': { 'Megalo Cannon': ['benchOne', 100, 20] }, // Genesect-EX
+  'bw10-98': { Hypnostrike: ['bothCondition', 60] }, // Jirachi-EX
+  'bw10-100': { Strafe: ['maySwitch', 50] }, // Palkia-EX
+  'bw10-103': { 'Double Draw': ['draw', 0, 2] }, // Virizion
+  'bw10-104': { 'Shadow Punch': ['noResistance', 60] }, // Dusknoir
+  'bw11-RC10': { Psybeam: ['condition', 40, 'confused'] }, // Gardevoir
+  'bw11-RC11': { 'Brilliant Voice': ['headsOrTails', 20, 'asleep', 'confused'] }, // Meloetta-EX
+  'bw11-RC12': { Attract: ['smokescreen', 0] }, // Stunfisk
+  'bw11-RC14': { 'Surprise Attack': ['tailsNothing', 20] }, // Eevee
+  'bw11-RC16': { 'Fury Swipes': ['perHeads', 50, 3, 50] }, // Ursaring
+  'bw11-RC17': { 'Relaxed Roll': ['untilTails', 30, 30] }, // Audino
+  'bw11-RC18': { 'Tail Slap': ['perHeads', 10, 2, 10] }, // Minccino
+  'bw11-RC2': { 'Leaf Blade': ['flipForMore', 10, 10, 30] }, // Servine
+  'bw11-RC21': { Synthesis: ['searchAttach', 0, 'grass', '1 of your pokemon'], 'Revenge Blast': ['perPrizeTakenMore', 30, 30, 30] }, // Shaymin-EX
+  'bw11-RC22': { Outrage: ['rage', 20, 20, 10] }, // Reshiram
+  'bw11-RC25': { 'Brilliant Voice': ['headsOrTails', 20, 'asleep', 'confused'] }, // Meloetta-EX
+  'bw11-RC4': { Lunge: ['tailsNothing', 40] }, // Growlithe
+  'bw11-RC6': { Charm: ['charm', 0, 20] }, // Piplup
+  'bw11-RC7': { Thundershock: ['flipCondition', 10, 'paralyzed'] }, // Pikachu
+  'bw11-RC8': { 'Hypnotic Gaze': ['condition', 0, 'asleep'] }, // Ralts
+  'bw11-RC9': { 'Double Slap': ['perHeads', 20, 2, 20] }, // Kirlia
+  'bw11-1': { Flog: ['flipForMore', 20, 20, 20] }, // Tangela
+  'bw11-2': { 'Bind Down': ['noRetreat', 30], Flog: ['flipForMore', 60, 60, 30] }, // Tangrowth
+  'bw11-3': { 'Double Stab': ['perHeads', 40, 2, 40] }, // Shuckle
+  'bw11-4': { 'Double Spin': ['perHeads', 10, 2, 10] }, // Cherubi
+  'bw11-6': { 'Leaf Blade': ['flipForMore', 10, 10, 30] }, // Snivy
+  'bw11-7': { 'Wring Out': ['flipConditionDiscard', 30, 'paralyzed'] }, // Servine
+  'bw11-9': { 'Leaf Boomerang': ['perHeads', 20, 2, 20] }, // Sewaddle
+  'bw11-11': { 'String Shot': ['flipCondition', 20, 'paralyzed'] }, // Swadloon
+  'bw11-12': { 'Cutting Arm': ['perHeadsMore', 40, 2, 40, 20] }, // Leavanny
+  'bw11-14': { 'Hard Press': ['flipCondition', 30, 'paralyzed'] }, // Crustle
+  'bw11-15': { 'Double Draw': ['draw', 0, 2] }, // Virizion
+  'bw11-16': { 'Gaia Blaster': ['perTypedMore', 50, 50, 20, 'grass'] }, // Genesect
+  'bw11-18': { 'Raging Claws': ['rage', 50, 50, 10] }, // Charmeleon
+  'bw11-19': { 'Scorching Fire': ['discardTyped', 150, 'fire'] }, // Charizard
+  'bw11-20': { Firebreathing: ['flipForMore', 20, 20, 10] }, // Vulpix
+  'bw11-22': { 'Searing Flame': ['condition', 50, 'burned'], 'Fire Blast': ['discardTyped', 90, 'fire'] }, // Moltres
+  'bw11-24': { 'Intensifying Burn': ['pokemonEXMore', 50, 50, 50] }, // Victini-EX
+  'bw11-25': { 'Take Down': ['recoil', 30, 10] }, // Tepig
+  'bw11-26': { Flamethrower: ['discardAny', 70, 'an'] }, // Pignite
+  'bw11-28': { Outrage: ['rage', 20, 20, 10] }, // Reshiram
+  'bw11-29': { 'Glinting Claw': ['flipForMore', 50, 50, 30], 'Brave Fire': ['tailsSelfDamage', 150, 50] }, // Reshiram-EX
+  'bw11-30': { 'Flailing Flop': ['tailsSelfDamage', 10, 10] }, // Magikarp
+  'bw11-32': { 'Ice Beam': ['flipCondition', 50, 'paralyzed'] }, // Articuno
+  'bw11-33': { 'Water Splash': ['flipForMore', 10, 10, 20] }, // Piplup
+  'bw11-34': { 'Water Splash': ['flipForMore', 20, 20, 30] }, // Prinplup
+  'bw11-37': { 'Razor Shell': ['flipForMore', 20, 20, 20] }, // Oshawott
+  'bw11-38': { 'Aqua Tail': ['flipPerTypedMore', 30, 'water', 30, 10] }, // Dewott
+  'bw11-39': { 'Hydro Pump': ['perTypedMore', 70, 70, 10, 'water'] }, // Samurott
+  'bw11-43': { Outrage: ['rage', 20, 20, 10], Glaciate: ['spreadAll', 0, 30] }, // Kyurem
+  'bw11-44': { 'Hail Blizzard': ['notNextTurnSelf', 120, 'hail blizzard'] }, // Kyurem-EX
+  'bw11-45': { 'Secret Sword': ['perTypedMore', 50, 50, 20, 'water'] }, // Keldeo-EX
+  'bw11-46': { 'Random Spark': ['snipe', 0, 50], 'Thundering Hurricane': ['perHeads', 50, 4, 50] }, // Zapdos
+  'bw11-47': { 'Positive Ion': ['flipForMore', 20, 20, 10] }, // Plusle
+  'bw11-48': { 'Negative Ion': ['charm', 0, 30], Electrishower: ['spreadAll', 0, 10] }, // Minun
+  'bw11-50': { Charge: ['searchAttach', 0, 'lightning', '@'], 'Disaster Volt': ['discardAny', 80, 'an'] }, // Thundurus
+  'bw11-51': { Outrage: ['rage', 20, 20, 10], 'Bolt Strike': ['recoil', 120, 40] }, // Zekrom
+  'bw11-52': { 'Glinting Claw': ['flipForMore', 50, 50, 30], 'Strong Volt': ['discardAny', 150, 2] }, // Zekrom-EX
+  'bw11-53': { Psyslash: ['discardAny', 120, 2] }, // Mewtwo
+  'bw11-54': { Psydrive: ['discardAny', 120, 'an'] }, // Mewtwo-EX
+  'bw11-56': { 'Miracle Wing': ['flipCondition', 60, 'confused'] }, // Xatu
+  'bw11-59': { 'Mind Bend': ['flipCondition', 10, 'confused'] }, // Ralts
+  'bw11-60': { 'Mind Bend': ['flipCondition', 20, 'confused'] }, // Kirlia
+  'bw11-61': { 'Tight Jaw': ['flipCondition', 30, 'paralyzed'] }, // Sableye
+  'bw11-62': { 'Poison Jab': ['condition', 20, 'poisoned'] }, // Croagunk
+  'bw11-63': { 'Poison Jab': ['condition', 60, 'poisoned'] }, // Toxicroak
+  'bw11-64': { 'Dual Cut': ['perHeads', 10, 2, 10] }, // Woobat
+  'bw11-66': { Psychic: ['perDefenderEnergyMore', 50, 50, 10] }, // Sigilyph
+  'bw11-67': { 'Poison Gas': ['condition', 30, 'poisoned'] }, // Trubbish
+  'bw11-69': { 'Hypnotic Gaze': ['condition', 0, 'asleep'], 'Double Slap': ['perHeads', 20, 2, 20] }, // Gothita
+  'bw11-70': { 'Trip Over': ['flipForMore', 10, 10, 20] }, // Gothita
+  'bw11-71': { 'Double Slap': ['perHeads', 20, 2, 20], Psybeam: ['condition', 20, 'confused'] }, // Gothorita
+  'bw11-72': { Madkinesis: ['perTypedMore', 30, 30, 20, 'psychic'] }, // Gothitelle
+  'bw11-77': { 'Eerie Glow': ['twoConditions', 70, 'burned', 'confused'] }, // Chandelure-EX
+  'bw11-78': { Psychic: ['perDefenderEnergyMore', 10, 10, 20] }, // Meloetta
+  'bw11-79': { 'Quick Attack': ['flipForMore', 10, 10, 20] }, // Riolu
+  'bw11-80': { 'Aura Sphere': ['benchOne', 50, 20] }, // Lucario
+  'bw11-81': { 'Nerve Shot': ['flipCondition', 30, 'paralyzed'] }, // Gallade
+  'bw11-82': { 'Break Ground': ['ownBench', 120, 10] }, // Excadrill-EX
+  'bw11-83': { 'Muddy Water': ['benchOne', 20, 20], Rumble: ['noRetreat', 40] }, // Stunfisk
+  'bw11-85': { 'Gaia Hammer': ['bothBenches', 80, 10] }, // Landorus
+  'bw11-86': { 'Magical Dance': ['healEach', 0, 3, 'benched '] }, // Meloetta
+  'bw11-87': { 'Hexed Mirror': ['mime', 0] }, // Spiritomb
+  'bw11-88': { 'Night Spear': ['benchOne', 90, 30] }, // Darkrai-EX
+  'bw11-89': { Ascension: ['evolveFromDeck', 0] }, // Zorua
+  'bw11-90': { 'Dark Rush': ['flail', 20, 20] }, // Zoroark
+  'bw11-91': { 'Energy Press': ['perDefenderEnergyMore', 20, 20, 20], 'Iron Breaker': ['noAttackNext', 80] }, // Cobalion
+  'bw11-93': { 'Dragon Pulse': ['millSelf', 40, 2], Shred: ['ignoreEffects', 90] }, // Rayquaza
+  'bw11-95': { Shred: ['ignoreEffects', 40] }, // Gabite
+  'bw11-96': { Dragonblade: ['millSelf', 100, 2] }, // Garchomp
+  'bw11-97': { 'Deep Growl': ['flipCondition', 0, 'paralyzed'], 'Power Breath': ['discardAny', 30, 'an'] }, // Deino
+  'bw11-98': { Crunch: ['flipDiscardDefenderEnergy', 30] }, // Zweilous
+  'bw11-100': { 'Dragon Fang': ['flipCondition', 60, 'paralyzed'], 'Freeze Shock': ['rest', 150] }, // Black Kyurem-EX
+  'bw11-103': { 'Glare and Peck': ['flipCondition', 10, 'paralyzed'] }, // Swablu
+  'bw11-104': { 'Call for Family': ['benchSearch', 0] }, // Minccino
+  'bw11-106': { Clutch: ['noRetreat', 60] }, // Druddigon
+  'bw11-107': { 'Head Charge': ['tailsSelfDamage', 80, 20] }, // Bouffalant
+  'bw11-114': { Outrage: ['rage', 20, 20, 10] }, // Reshiram
+  'bw11-115': { Outrage: ['rage', 20, 20, 10], 'Bolt Strike': ['recoil', 120, 40] }, // Zekrom
 };

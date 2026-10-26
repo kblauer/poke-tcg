@@ -46,11 +46,16 @@ const baseName = (name: string) => name.replace(/ (ex|δ|☆|Star)$/, '').replac
 
 const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-/** The attack text as the templates read it: lower case, no accents, plain apostrophes and spaces, the Pokémon's own name as "@", no full stop at the end. */
+/**
+ * The attack text as the templates read it: lower case, no accents, plain apostrophes and spaces, the Pokémon's own name
+ * as "@", no full stop at the end. The Black & White series calls the attacker "this Pokémon" where older cards name it:
+ * also "@", so the older wordings match theirs.
+ */
 export function normText(text: string, name: string): string {
-  let s = fold(text).replace(/[’‘]/g, "'").replace(/\s+/g, ' ').trim().replace(/\.$/, '');
+  // Pokémon-EX (Black & White) and Pokémon-ex (EX series) are different kinds (agreed): kept apart before the lower case.
+  let s = fold(text.replace(/Pok[ée]mon-EX\b/g, 'pokemon-EXBW')).replace(/[’‘]/g, "'").replace(/\s+/g, ' ').trim().replace(/\.$/, '');
   for (const n of new Set([name, baseName(name)])) s = s.split(fold(n)).join('@');
-  return s;
+  return s.replace(/\bthis pokemon\b/g, '@');
 }
 
 const TYPE = '(grass|fire|water|lightning|psychic|fighting|darkness|metal)';
@@ -1126,15 +1131,59 @@ const DP_TEMPLATES_3: Record<string, AttackTemplate> = {
   },
 };
 
-Object.assign(ATTACK_TEMPLATES, DP_TEMPLATES, DP_TEMPLATES_2, DP_TEMPLATES_3);
+/** The Black & White series' own wordings (README: Generation 5), each a printed rule with no older wording to match. */
+const BW_TEMPLATES: Record<string, AttackTemplate> = {
+  // Chip Away: the Defending Pokémon's effects ignored, its Weakness and Resistance still applied.
+  ignoreEffects: { pattern: re("this attack's damage isn't affected by any effects on the defending pokemon"), make: (d) => ({ run: (ctx) => void ctx.hit(d, { swift: true, keepWeakness: true, keepResistance: true }) }) },
+  noAttackNext: { pattern: re("the defending pokemon can't attack during your opponent's next turn"), make: (d) => thenDo(d, noAttack) },
+  // Gold Breaker: more against a Pokémon-EX (never a Pokémon-ex: agreed).
+  pokemonEXMore: {
+    pattern: re('if the defending pokemon is a pokemon-exbw, this attack does (\\d+) damage plus (\\d+) more damage'),
+    fits: sameBase(0),
+    make: (_, [base, more]) => bonusIf(num(base), num(more), (ctx) => !!ctx.defenderDef.pokemonEX),
+  },
+  randomDiscardBW: { pattern: re("discard a random card from your opponent's hand"), make: (d) => thenDo(d, (ctx) => discardAtRandom(ctx)) },
+  flipRandomDiscard: { pattern: re("flip a coin\\. if heads, discard a random card from your opponent's hand"), make: (d) => thenDo(d, (ctx) => ctx.flip() && discardAtRandom(ctx)) },
+  millSelf: {
+    pattern: re('discard the top (\\d+) cards of your deck'),
+    make: (d, [n]) =>
+      thenDo(d, (ctx) => {
+        const cards = ctx.me.deck.splice(0, num(n));
+        ctx.me.discard.push(...cards);
+        ctx.log(`Discarded the top ${cards.length} card${cards.length === 1 ? '' : 's'} of the deck.`);
+      }),
+  },
+};
+
+Object.assign(ATTACK_TEMPLATES, DP_TEMPLATES, DP_TEMPLATES_2, DP_TEMPLATES_3, BW_TEMPLATES);
 
 /** An attack's template and its arguments, as ex-template-data.ts stores them: the key, the printed damage, then the arguments. */
 export type TemplateUse = [key: string, damage: number, ...args: TemplateArg[]];
 
+/**
+ * The Black & White series' "more damage" wordings in the older cards' words: on a card printed "30+", "this attack does
+ * 30 more damage" is "this attack does 30 damage plus 30 more damage", and "Does 10 more damage for each…" is "Does 30
+ * damage plus 10 more damage for each…" (the same rule), so the older templates play them.
+ */
+const olderWording = (t: string, damage: number) =>
+  t
+    .replace(/\bthis attack does (\d+) more damage\b/g, `this attack does ${damage} damage plus $1 more damage`)
+    .replace(/^does (\d+) more damage\b/, `does ${damage} damage plus $1 more damage`)
+    // "Heal 30 damage from…" is "Remove 3 damage counters from…".
+    .replace(/\bheal (\d+) damage from (@|each of your (?:benched )?pokemon|1 of your pokemon)\b/g, (_, n: string, who: string) => `remove ${Number(n) / 10} damage counter${Number(n) === 10 ? '' : 's'} from ${who}`)
+    // "This attack does 20 damage to 1 of your opponent's Pokémon" is the older "Choose 1 of your opponent's Pokémon…".
+    .replace(/^this attack does (\d+) damage to 1 of your opponent's pokemon\./, "choose 1 of your opponent's pokemon. this attack does $1 damage to that pokemon.")
+    .replace(/^this attack does (\d+) damage to 1 of your opponent's benched pokemon\./, "does $1 damage to 1 of your opponent's benched pokemon.")
+    // "An Energy" attached is an Energy card; Swift's "any other effects" are the older list's (Poké-Powers, Poké-Bodies: Abilities).
+    .replace(/^discard an energy attached to the defending pokemon$/, 'discard an energy card attached to the defending pokemon')
+    .replace(/^this attack's damage isn't affected by weakness, resistance, or any other effects on the defending pokemon$/, "this attack's damage isn't affected by weakness, resistance, poke-powers, poke-bodies, or any other effects on the defending pokemon");
+
 /** The template an attack's wording matches, if any (for the generator): its key and arguments, or why the wording didn't fit. */
 export function matchTemplate(text: string, name: string, damage: number, cost: string[]): TemplateUse | { misfit: string } | null {
-  const t = normText(text, name);
+  const printed = normText(text, name);
+  const older = olderWording(printed, damage);
   for (const [key, template] of Object.entries(ATTACK_TEMPLATES)) {
+    const t = template.pattern.test(printed) ? printed : older;
     const m = template.pattern.exec(t);
     if (!m) continue;
     // Optional captures are alternatives or last, so leaving out the missing ones keeps the others in place.

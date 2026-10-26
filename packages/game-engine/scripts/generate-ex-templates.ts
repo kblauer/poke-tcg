@@ -12,7 +12,7 @@ interface Row {
   attacks?: { name: string; cost: string[] | null; damage: string | number | null; effect: string | null }[] | null;
 }
 
-const SETS = [...Array.from({ length: 15 }, (_, i) => `ex${i + 2}`), 'dp1', 'dpp', 'dp2', 'dp3', 'dp4', 'dp5', 'dp6', 'dp7', 'pl1', 'pl2', 'pl3', 'pl4', 'hgss1', 'hgssp', 'hgss2', 'hgss3', 'hgss4', 'col1'];
+const SETS = [...Array.from({ length: 15 }, (_, i) => `ex${i + 2}`), 'dp1', 'dpp', 'dp2', 'dp3', 'dp4', 'dp5', 'dp6', 'dp7', 'pl1', 'pl2', 'pl3', 'pl4', 'hgss1', 'hgssp', 'hgss2', 'hgss3', 'hgss4', 'col1', 'bw1', 'bw2', 'bw3', 'bw4', 'bw5', 'bw6', 'dv1', 'bw7', 'bw8', 'bw9', 'bw10', 'bw11'];
 const rows: Row[] = JSON.parse(readFileSync(new URL('../../db/prisma/data/tcgdex-wotc.json', import.meta.url), 'utf8')).cards;
 /** A string in single quotes, as the code has them. */
 const q = (s: string) => `'${s.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
