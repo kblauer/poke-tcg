@@ -111,6 +111,7 @@ export const gameActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('PROMOTE'), slot: benchSlot }),
   z.object({ type: z.literal('RETREAT'), slot: benchSlot, energyUids: z.array(z.string()).max(60) }),
   z.object({ type: z.literal('USE_POWER'), source: target, choices: powerChoicesSchema.optional() }),
+  z.object({ type: z.literal('USE_CARD_POWER'), cardUid: z.string() }),
   z.object({ type: z.literal('PLAY_TRAINER'), cardUid: z.string(), choices: trainerChoicesSchema.optional() }),
   resolveChoiceSchema,
   z.object({ type: z.literal('DISCARD_DOLL'), target }),

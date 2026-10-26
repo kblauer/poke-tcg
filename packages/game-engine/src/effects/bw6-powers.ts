@@ -10,9 +10,11 @@
 // an Active Pokémon held by Jaw Clamp and the like; Unobservant reads the opponent's Active Pokémon as the attack is chosen
 // (a Restored Pokémon is no Basic Pokémon). Safeguard is the older one for Pokémon-EX only (agreed: Pokémon-ex aren't
 // Pokémon-EX).
-// Not done: Ho-Oh-EX's Rebirth, used from the discard pile, which the game has no action for yet (a question for the user).
-import type { EnergyType } from '../cards.js';
-import { activeLock, type CardInstance, type GameState, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
+// Ho-Oh-EX's Rebirth is used from the discard pile (fromZone, USE_CARD_POWER: the card clicked there, the user's 2026-10-26):
+// not with a full Bench; heads, onto the Bench, then basic Energy cards of 3 different types from the discard pile, the player's
+// picks (as many types as there are, when fewer: attachFromDiscard's distinctTypes).
+import { isBasicEnergy, lookupCard, type EnergyType } from '../cards.js';
+import { activeLock, newInPlay, type CardInstance, type GameState, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { ownTargets, pokemonAt, type PowerChoiceSpec, type PowerEffect, type PowerSituation } from '../powers.js';
 import { inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { ABILITY, targetOf } from './common.js';
@@ -57,6 +59,25 @@ function moveTyped(type: EnergyType, label: string): PowerEffect {
 }
 
 export const BW6_POWERS: Record<string, PowerEffect> = {
+  // Ho-Oh-EX – Rebirth: once a turn, from the discard pile, a coin; heads, onto the Bench with basic Energy cards of 3
+  // different types from the discard pile.
+  'bw6-22': {
+    ...ABILITY,
+    fromZone: 'discard',
+    blockedFrom: (s) => (openBenchSlot(s.me, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
+    useFrom(ctx) {
+      if (!ctx.flip()) return ctx.log('Rebirth: tails.');
+      const slot = openBenchSlot(ctx.me, ctx.state.cards, ctx.state.stadium?.card);
+      ctx.me.discard = ctx.me.discard.filter((c) => c !== ctx.card);
+      ctx.me.bench[slot] = newInPlay(ctx.card, ctx.state.turn);
+      ctx.log('Rebirth: put Ho-Oh-EX onto the Bench.');
+      const types = new Set(ctx.me.discard.flatMap((c) => {
+        const d = lookupCard(ctx.state.cards, c.defId);
+        return d.kind === 'energy' && isBasicEnergy(d) ? [d.energyType] : [];
+      }));
+      if (types.size) ctx.pend({ kind: 'attachFromDiscard', source: 'Rebirth', count: Math.min(3, types.size), target: slot, distinctTypes: true });
+    },
+  },
   // Jumpluff – Leave It to the Wind: once during the player's turn, it and every card attached to it go back into the hand.
   'bw6-3': {
     ...ABILITY,

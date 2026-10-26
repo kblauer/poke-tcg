@@ -10,12 +10,13 @@
 // damage counters on it and works against any attack's damage; Sand Slammer puts damage counters (not damage) on, between
 // every two turns while Flygon is the Active Pokémon; Transform can be used as often as the player likes while Ditto is still
 // Ditto (once it's another Pokémon, the Ability is gone), and the Ditto card stays under the new card, going wherever it goes
-// (kept as a Pokémon LEGEND's other half is: `legendHalf`, never a Trainer card). Not done: Audino's Busybody, an Ability used
-// from the hand, which no action can do yet (README: Generation 5).
+// (kept as a Pokémon LEGEND's other half is: `legendHalf`, never a Trainer card). Audino's Busybody is used from the hand
+// (fromZone, USE_CARD_POWER: the card clicked there, the user's 2026-10-26): 10 off the Active Pokémon and one Special
+// Condition removed (the player's pick when it has several), then Audino discarded; it can be used with nothing to heal.
 import { isBasicPokemon, lookupCard } from '../cards.js';
 import { afflictBetweenTurns, type InPlayPokemon, type Target } from '../engine.js';
 import { energyFromHand, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
-import { addLog, countersMoved, pokemonName } from '../status.js';
+import { addLog, clearSpecialConditions, countersMoved, pokemonName } from '../status.js';
 import { swapActive } from '../trainers.js';
 import { ABILITY, inPlay, onlyBenched } from './common.js';
 import { energyCardOf } from './ex2.js';
@@ -43,6 +44,28 @@ const handBasics = (s: PowerSituation) => s.me.hand.filter((c) => isBasicPokemon
 const handWater = (s: PowerSituation) => s.me.hand.filter((c) => lookupCard(s.cards, c.defId).kind === 'energy' && energyCardOf(s.cards, c, 'water'));
 
 export const BW7_POWERS: Record<string, PowerEffect> = {
+  // Audino – Busybody: once a turn, revealed from the hand: 10 damage and a Special Condition off the Active Pokémon, then
+  // Audino discarded.
+  'bw7-126': {
+    ...ABILITY,
+    fromZone: 'hand',
+    useFrom(ctx) {
+      ctx.me.hand = ctx.me.hand.filter((c) => c !== ctx.card);
+      ctx.me.discard.push(ctx.card);
+      const p = ctx.me.active;
+      if (!p) return;
+      if (p.damage > 0) {
+        p.damage = Math.max(0, p.damage - 10);
+        ctx.log(`Busybody: healed 10 damage from ${pokemonName(ctx.state, p)}.`);
+      }
+      const conditions = (p.condition ? 1 : 0) + (p.poison ? 1 : 0) + (p.burned ? 1 : 0);
+      if (conditions > 1) ctx.pend({ kind: 'removeCondition', source: 'Busybody', target: 'active' });
+      else if (conditions) {
+        clearSpecialConditions(p);
+        ctx.log(`Busybody: ${pokemonName(ctx.state, p)} has no Special Condition now.`);
+      }
+    },
+  },
   // Vileplume – Allergy Panic: every Weakness ×4 (attacks.ts).
   'bw7-3': { ...ABILITY, allergyPanic: true },
 

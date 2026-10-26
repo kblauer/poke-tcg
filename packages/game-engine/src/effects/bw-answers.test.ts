@@ -111,3 +111,73 @@ describe('Trainers', () => {
     expect(view?.options.map((c) => c.uid)).toContain('evo');
   });
 });
+
+describe('Abilities used from the hand or the discard pile (USE_CARD_POWER)', () => {
+  const use = (s: GameState, cardUid: string) => applyAction(s, 'ash', { type: 'USE_CARD_POWER', cardUid });
+  const exeggcute = mon('bw9-4', 'Exeggcute', P, 50, [], ability('Propagation'));
+  const archen = mon('bw10-53', 'Archen', C, 80, [], ability('Prehistoric Call'));
+  const hooh = mon('bw6-22', 'Ho-Oh-EX', F, 170, [], { pokemonEX: true, ...ability('Rebirth') });
+  const audino = mon('bw7-126', 'Audino', C, 90, [], ability('Busybody'));
+  const withCards = (s: GameState, ...defs: PokemonCardDef[]) => Object.assign(s, { cards: { ...s.cards, ...Object.fromEntries(defs.map((d) => [d.id, d])) } });
+
+  it('Propagation: into the hand, once a turn for each card; Prehistoric Call: the bottom of the deck', () => {
+    const s = withCards(duel('charmander', 'onix'), exeggcute, archen);
+    ash(s).discard.push({ uid: 'egg', defId: 'bw9-4' }, { uid: 'arc', defId: 'bw10-53' });
+    expect(use(s, 'nothing').ok).toBe(false);
+    const after = act(s, 'ash', { type: 'USE_CARD_POWER', cardUid: 'egg' });
+    expect(ash(after).hand.map((c) => c.uid)).toContain('egg');
+    // Back in the discard pile, the same card can't use it again this turn.
+    ash(after).hand = ash(after).hand.filter((c) => c.uid !== 'egg');
+    ash(after).discard.push({ uid: 'egg', defId: 'bw9-4' });
+    expect(use(after, 'egg').ok).toBe(false);
+    const called = act(s, 'ash', { type: 'USE_CARD_POWER', cardUid: 'arc' });
+    expect(ash(called).deck.at(-1)!.uid).toBe('arc');
+    // In the hand, a discard-pile Ability can't be used.
+    ash(s).hand.push({ uid: 'egg2', defId: 'bw9-4' });
+    expect(use(s, 'egg2').ok).toBe(false);
+  });
+
+  it('Garbotoxin stops them', () => {
+    const s = withCards(duel('charmander', 'onix'), exeggcute);
+    ash(s).discard.push({ uid: 'egg', defId: 'bw9-4' });
+    const garbodor = put(s, 'misty', 0, mon('bw6-54', 'Garbodor', P, 100, [], { stage: 'stage1', ...ability('Garbotoxin') }));
+    s.cards = { ...s.cards, tool: { id: 'tool', kind: 'trainer', name: 'Tool', imageUrl: null, text: '' } };
+    garbodor.attached = [{ card: { uid: 't', defId: 'tool' }, until: Infinity, tool: true }];
+    expect(use(s, 'egg').ok).toBe(false);
+  });
+
+  it('Rebirth: heads, onto the Bench with basic Energy cards of 3 different types', () => {
+    const s = withCards(duel('charmander', 'onix'), hooh);
+    ash(s).discard.push({ uid: 'ho', defId: 'bw6-22' }, { uid: 'f1', defId: 'fire' }, { uid: 'f2', defId: 'fire' }, { uid: 'w1', defId: 'water' }, { uid: 'g1', defId: 'grass' });
+    const tails = act(flips(s, false), 'ash', { type: 'USE_CARD_POWER', cardUid: 'ho' });
+    expect(ash(tails).discard.map((c) => c.uid)).toContain('ho');
+    let after = act(flips(s, true), 'ash', { type: 'USE_CARD_POWER', cardUid: 'ho' });
+    const slot = ash(after).bench.findIndex((p) => p?.card.uid === 'ho');
+    expect(slot).toBeGreaterThanOrEqual(0);
+    expect(after.pendingChoice).toMatchObject({ kind: 'attachFromDiscard', count: 3, distinctTypes: true });
+    after = act(after, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'f1' });
+    const view = getPlayerView(after, 'ash').self.pendingChoice as { options: { uid: string }[] };
+    expect(view.options.map((c) => c.uid)).not.toContain('f2');
+    // The last type left (Grass) is taken for the player (the same-card rule).
+    after = act(after, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'w1' });
+    expect(ash(after).bench[slot]!.energy.map((e) => e.uid)).toEqual(['f1', 'w1', 'g1']);
+    expect(after.pendingChoice).toBeUndefined();
+    // A full Bench: it can't be used.
+    for (let i = 0; i < 5; i++) put(s, 'ash', i, big(`B${i}`));
+    expect(use(s, 'ho').ok).toBe(false);
+  });
+
+  it('Busybody: 10 off the Active Pokémon and a Special Condition, then Audino discarded', () => {
+    const s = withCards(duel('charmander', 'onix'), audino);
+    ash(s).hand.push({ uid: 'aud', defId: 'bw7-126' });
+    ash(s).active!.damage = 30;
+    ash(s).active!.condition = 'confused';
+    const after = act(s, 'ash', { type: 'USE_CARD_POWER', cardUid: 'aud' });
+    expect(ash(after).active).toMatchObject({ damage: 20, condition: null });
+    expect(ash(after).discard.map((c) => c.uid)).toContain('aud');
+    // Two Special Conditions: the player picks which.
+    ash(s).active!.poison = 10;
+    const asked = act(s, 'ash', { type: 'USE_CARD_POWER', cardUid: 'aud' });
+    expect(asked.pendingChoice).toMatchObject({ kind: 'removeCondition', target: 'active' });
+  });
+});

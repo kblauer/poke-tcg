@@ -6,14 +6,16 @@
 // Knocks Cofagrigus Out first (the opponent takes its Prize card), then its 3 damage counters go on the opponent's Pokémon one
 // at a time, as the player likes; Color Change makes Kecleon every type of the opponent's Active Pokémon while Kecleon is its
 // player's Active Pokémon; Bench Barrier keeps the damage of every attack, either player's, off its player's Benched Pokémon.
-// Not done: Exeggcute's Propagation, an Ability used from the discard pile, which the game has no way to use yet.
+// Exeggcute's Propagation is used from the discard pile (fromZone, USE_CARD_POWER: the card clicked there, the user's 2026-10-26).
 import { typesOf } from '../cards.js';
 import { opponentOf } from '../engine.js';
 import type { PowerEffect } from '../powers.js';
 import { inPlayDef, isPlasmaPokemon, pokemonName } from '../status.js';
-import { ABILITY, inPlay } from './common.js';
+import { ABILITY, fromDiscard, inPlay } from './common.js';
 
 export const BW9_POWERS: Record<string, PowerEffect> = {
+  // Exeggcute – Propagation: once a turn, from the discard pile into the hand.
+  'bw9-4': fromDiscard('hand'),
   // Chandelure – Flare Navigate: once a turn, a Fire Energy card from the deck onto one of the player's Pokémon, which then
   // takes a damage counter.
   'bw9-16': {

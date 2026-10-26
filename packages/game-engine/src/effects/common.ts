@@ -1,7 +1,7 @@
 // Building blocks for attack effects that many cards share.
 import { targetsIn, type AttackContext, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
 import type { PendingChoice } from '../trainers.js';
-import type { PowerSituation } from '../powers.js';
+import type { PowerEffect, PowerSituation } from '../powers.js';
 import { isBasicEnergy, lookupCard, type CardLibrary, type EnergyType } from '../cards.js';
 import { counts, energyPool, type Affliction, type InPlayPokemon, type PlayerState, type PoolEnergy, type Target } from '../engine.js';
 import { energyProtected, openBenchSlot, pokemonName } from '../status.js';
@@ -23,6 +23,18 @@ export const POKE_BODY = { ignoresConditions: true, body: true } as const;
 
 /** An Ability (Black & White series): a kind of its own, whatever its Pokémon's Special Conditions (agreed; powerActive, powerError). */
 export const ABILITY = { ability: true, ignoresConditions: true } as const;
+
+/** An Ability that moves its own card out of the discard pile, once a turn (Propagation: into the hand; Prehistoric Call: the bottom of the deck). */
+export const fromDiscard = (to: 'hand' | 'deckBottom'): PowerEffect => ({
+  ...ABILITY,
+  fromZone: 'discard',
+  useFrom(ctx) {
+    ctx.me.discard = ctx.me.discard.filter((c) => c !== ctx.card);
+    if (to === 'hand') ctx.me.hand.push(ctx.card);
+    else ctx.me.deck.push(ctx.card);
+    ctx.log(`Put ${lookupCard(ctx.state.cards, ctx.card.defId).name} ${to === 'hand' ? 'into the hand' : 'on the bottom of the deck'}.`);
+  },
+});
 
 /** "If [it] is your Active Pokémon" / "on your Bench": why a power can't be used from where its Pokémon is. */
 export const onlyActive = (s: PowerSituation, name: string) => (s.source === 'active' ? null : `${name} must be your Active Pokémon`);

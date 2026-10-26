@@ -6,14 +6,14 @@
 // hand off all the opponent's Pokémon while Froslass is its player's Active Pokémon; Drifting Balloon counts the opponent's Team
 // Plasma Pokémon in play; Mental Shroud needs the player's own Uxie and Azelf in play; Badge of Discipline is for the player's
 // Fighting Pokémon; Red Signal, Stellar Guidance and Breakwing ask the player ("you may").
-// Not done: Lileep's, Tirtouga's and Archen's Prehistoric Call (an Ability used from the discard pile, which the game has no way
-// to use yet), and Sigilyph's Toolbox (up to 4 Pokémon Tools on one Pokémon: every Tool rule reads one Tool a Pokémon).
+// Lileep's, Tirtouga's and Archen's Prehistoric Call is used from the discard pile (fromZone, USE_CARD_POWER: the card clicked
+// there, the user's 2026-10-26). Not done: Sigilyph's Toolbox (up to 4 Pokémon Tools on one Pokémon: every Tool rule reads one Tool a Pokémon).
 import { lookupCard, type CardLibrary } from '../cards.js';
 import { counts, energyPool, type CardInstance, type Target } from '../engine.js';
 import { ownTargets, pokemonAt, type PowerChoiceSpec, type PowerEffect, type PowerSituation } from '../powers.js';
 import { addLog, clearSpecialConditions, hasSpecialCondition, isPlasmaPokemon, lakeTrio, pokemonName } from '../status.js';
 import { isPlasmaEnergy } from './bw8-trainers.js';
-import { ABILITY, inPlay, targetOf } from './common.js';
+import { ABILITY, fromDiscard, inPlay, targetOf } from './common.js';
 
 const at = (s: PowerSituation, t: Target) => pokemonAt(s.me, t)!;
 const lookupCardName = (cards: CardLibrary, c: CardInstance) => lookupCard(cards, c.defId).name;
@@ -25,6 +25,10 @@ const plasmaOn = (s: PowerSituation, t: Target) => at(s, t).energy.filter((e: Ca
 const withTool = (s: PowerSituation) => ownTargets(s.me).filter((t) => at(s, t).attached?.some((a) => a.tool));
 
 export const BW10_POWERS: Record<string, PowerEffect> = {
+  // Lileep, Tirtouga, Archen – Prehistoric Call: once a turn, from the discard pile to the bottom of the deck.
+  'bw10-3': fromDiscard('deckBottom'),
+  'bw10-27': fromDiscard('deckBottom'),
+  'bw10-53': fromDiscard('deckBottom'),
   // Masquerain – Tool Reversal: a Pokémon Tool from one of the player's Pokémon into the hand, as often as they like.
   'bw10-2': {
     ...ABILITY,

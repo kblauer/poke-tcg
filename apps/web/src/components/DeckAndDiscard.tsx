@@ -3,7 +3,7 @@ import { useState, type HTMLAttributes, type ReactNode } from 'react';
 import { SIDE_COLUMN, SMALL_CARD } from '../utils/layout';
 import { Card } from './Card';
 import { CardBack } from './CardBack';
-import { DiscardPane } from './DiscardPane';
+import { DiscardPane, type ZoneAbilities } from './DiscardPane';
 
 /**
  * A player's deck (face down) and discard pile (top card face up) with their counts, stacked in a
@@ -18,6 +18,7 @@ export function DeckAndDiscard({
   cards,
   owner,
   mirrored = false,
+  abilities,
 }: {
   deckCount: number;
   discard: CardInstance[];
@@ -25,6 +26,8 @@ export function DeckAndDiscard({
   /** Whose piles they are, for the discard pane's title ("Your", "The CPU's"). */
   owner: string;
   mirrored?: boolean;
+  /** The player's own: Abilities used from the discard pile (DiscardPane). */
+  abilities?: ZoneAbilities;
 }) {
   const top = discard.at(-1);
   const [browsing, setBrowsing] = useState(false);
@@ -49,7 +52,7 @@ export function DeckAndDiscard({
     <div className={`${SIDE_COLUMN} flex flex-col gap-2 ${mirrored ? 'items-start' : 'items-end'}`}>
       {mirrored ? [deck, discardPile] : [discardPile, deck]}
       {/* Outside the pile, so clicks in the window don't reach the pile. */}
-      {browsing && <DiscardPane title={`${owner} discard pile`} discard={discard} cards={cards} onClose={() => setBrowsing(false)} />}
+      {browsing && <DiscardPane title={`${owner} discard pile`} discard={discard} cards={cards} onClose={() => setBrowsing(false)} abilities={abilities} />}
     </div>
   );
 }

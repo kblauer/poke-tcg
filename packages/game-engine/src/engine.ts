@@ -1,6 +1,6 @@
 /// <reference path="./globals.d.ts" />
 import { applyWeaknessResistance, attackAsks, attackError, attackSituation, checkAttack, nextAttackChoice, performAttack, recallsAttacks, usableAttacks, type AttackChoices } from './attacks.js';
-import { attachBlocked, greenAroma, stickyHold, timeAura, discardsLocked, energyFromHand, evolutionBlocked, primalBlock, retreatBodies, guardedBy, spiraledBy, bindingAura, conditionBarred, conditionFree, holonWith, miraculousWind, offerChainReaction, playedFromHand, pokemonAt, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, primalLocked, trainersDusted, trainersBlocked, usePower, powerCanceller, zoomed, type PowerChoices, type PowerEffect, pokemonPower } from './powers.js';
+import { attachBlocked, greenAroma, stickyHold, timeAura, discardsLocked, energyFromHand, evolutionBlocked, primalBlock, retreatBodies, guardedBy, spiraledBy, bindingAura, conditionBarred, conditionFree, holonWith, miraculousWind, offerChainReaction, playedFromHand, pokemonAt, powerActive, refreshTransforms, retreatAid, deepSleep, hotPlate, stickyGoo, trainerProof, primalLocked, trainersDusted, trainersBlocked, useCardPower, usePower, powerCanceller, zoomed, type PowerChoices, type PowerEffect, pokemonPower } from './powers.js';
 import { evolvesFromEevee, isPokemonSP, evolveWith, pendingChoiceView, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
 import { conditionProof, givesTwoPrizes, hasOwner, isLegend, hasType, holonEnergy, namesMatch, isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
@@ -604,6 +604,8 @@ export type GameAction =
   | { type: 'PROMOTE'; slot: number }
   /** Use the Pokémon Power of the Pokémon at `source`; `choices` answers its questions (see nextPowerChoice). */
   | { type: 'USE_POWER'; source: Target; choices?: PowerChoices }
+  /** Use the Ability of a card in the hand or discard pile (Busybody, Rebirth, Propagation, Prehistoric Call: useCardPower). */
+  | { type: 'USE_CARD_POWER'; cardUid: string }
   /** Swap the active with a benched Pokémon, discarding `energyUids` from the active to pay the retreat cost. */
   | { type: 'RETREAT'; slot: number; energyUids: string[] }
   /** Play a Trainer card from the hand; `choices` answers its questions (see nextTrainerChoice). */
@@ -1496,6 +1498,11 @@ function act(prev: GameState, playerId: PlayerId, action: GameAction): ActionRes
       if (action.source !== 'active' && !isBenchSlot(action.source)) return fail('Invalid Pokémon');
       const error = usePower(state, me, opp, action.source, action.choices ?? {});
       // Buzzap knocks out its own Pokémon: the opponent takes a prize and the active may need replacing. Playful Punch ends the turn.
+      return error ? fail(error) : afterTrainer(state, me, opp);
+    }
+
+    case 'USE_CARD_POWER': {
+      const error = useCardPower(state, me, opp, action.cardUid);
       return error ? fail(error) : afterTrainer(state, me, opp);
     }
 

@@ -867,6 +867,9 @@ export type PendingChoice = {
       countersAfter?: number;
       /** Up to `count`: the player may stop (Big Growth). */
       optional?: boolean;
+      /** Each a different type of basic Energy (Rebirth): `typesTaken` has those attached so far. */
+      distinctTypes?: boolean;
+      typesTaken?: EnergyType[];
     }
   | {
       /**
@@ -2487,7 +2490,8 @@ const shiftable = (state: GameState, from: InPlayPokemon, type?: EnergyType, any
 const atTarget = (player: Pick<PlayerState, 'active' | 'bench'>, t: Target) => (t === 'active' ? player.active : player.bench[t]) ?? null;
 
 /** The Energy cards in the discard pile an `attachFromDiscard` can take: basic ones, or (`anyEnergy`) any. */
-const discardEnergyFor = (state: GameState, player: PlayerState, choice: Extract<PendingChoice, { kind: 'attachFromDiscard' }>) => discardEnergyAll(state, player, choice).filter((c) => c.uid !== choice.excludeUid);
+const discardEnergyFor = (state: GameState, player: PlayerState, choice: Extract<PendingChoice, { kind: 'attachFromDiscard' }>) =>
+  discardEnergyAll(state, player, choice).filter((c) => c.uid !== choice.excludeUid && !(choice.distinctTypes && choice.typesTaken?.some((t) => isBasicEnergyOf(state.cards, c, t))));
 const discardEnergyAll = (state: GameState, player: PlayerState, choice: Extract<PendingChoice, { kind: 'attachFromDiscard' }>) =>
   choice.anyEnergy ? player.discard.filter((c) => lookupCard(state.cards, c.defId).kind === 'energy') : choice.types ? player.discard.filter((c) => choice.types!.some((t) => isBasicEnergyOf(state.cards, c, t))) : choice.type ? player.discard.filter((c) => isBasicEnergyOf(state.cards, c, choice.type!)) : basicEnergyIn(state.cards, player.discard);
 
@@ -3317,7 +3321,10 @@ function resolveSkyridge(state: GameState, me: PlayerState, choice: SkyridgeChoi
       if (!p) return null;
       p.energy.push(picked);
       addLog(state, `${choice.source}: attached ${name(picked)} from the discard pile to ${name(p.card)}.`, me.id);
-      if (choice.count > 1 && discardEnergyFor(state, me, choice).length) return again({ ...choice, count: choice.count - 1 });
+      const pickedDef = lookupCard(state.cards, picked.defId);
+      const type = pickedDef.kind === 'energy' ? pickedDef.energyType : undefined;
+      const next = choice.distinctTypes && type ? { ...choice, typesTaken: [...(choice.typesTaken ?? []), type] } : choice;
+      if (choice.count > 1 && discardEnergyFor(state, me, next).length) return again({ ...next, count: choice.count - 1 });
       return null;
     }
     case 'discardToBench': {

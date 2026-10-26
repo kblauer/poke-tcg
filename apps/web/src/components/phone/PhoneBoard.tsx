@@ -8,7 +8,7 @@ import type { useCosmetics } from '../../hooks/useCosmetics';
 import type { useToasts } from '../../hooks/useToasts';
 import { benchSlotId, type SlotId } from '../../utils/slots';
 import type { PokemonPick } from '../Board';
-import { DiscardPane } from '../DiscardPane';
+import { DiscardPane, type ZoneAbilities } from '../DiscardPane';
 import { FloatingDialog } from '../FloatingDialog';
 import { LogSheet } from '../LogDrawer';
 import { OpponentSlot, type Spotlight } from '../OpponentArea';
@@ -56,6 +56,7 @@ export function PhoneBoard({
   statusBar,
   oppDialog,
   handView,
+  discardAbilities,
   dragOverlay,
   remindersDialog,
 }: {
@@ -95,6 +96,8 @@ export function PhoneBoard({
   statusBar: (compact: boolean) => ReactNode;
   oppDialog: ReactNode;
   handView: (compact: boolean) => ReactNode;
+  /** Abilities used from the player's discard pile (Rebirth, Propagation…), in its spread-out view. */
+  discardAbilities: ZoneAbilities;
   dragOverlay: ReactNode;
   remindersDialog: ReactNode;
 }) {
@@ -185,6 +188,7 @@ export function PhoneBoard({
                     discard={self.discard}
                     cards={view.cards}
                     owner="Your"
+                    abilities={discardAbilities}
                     prizes={<PhonePrizes count={self.prizeCount} owner="Your" faceUp={self.prizes && { prizes: self.prizes, cards: view.cards }} />}
                   />
                 ),

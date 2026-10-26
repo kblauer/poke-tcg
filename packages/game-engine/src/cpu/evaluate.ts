@@ -6,7 +6,7 @@
 import { isBasicEnergy, isPokemonCard, isTrainerCard, lookupCard, type CardLibrary } from '../cards.js';
 import { applyWeaknessResistance } from '../attacks.js';
 import { cloneState, energyPool, opponentOf, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
-import { powerError, powerOf, resolvePowerChoices, situationCounts, type PowerChoices, type PowerChoiceSpec, type PowerSituation } from '../powers.js';
+import { cardPowerError, powerError, powerOf, resolvePowerChoices, situationCounts, type PowerChoices, type PowerChoiceSpec, type PowerSituation } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { trainerEffect } from '../effects/index.js';
 import { resolveTrainerChoices, trainerSituation, type TrainerChoices, type TrainerChoiceSpec } from '../trainers.js';
@@ -277,7 +277,7 @@ export interface Allowed {
   stadium?: (key: string) => boolean;
 }
 
-/** Every move the generic judgement looks at: each allowed Trainer with each set of answers, each power, the Stadium. */
+/** Every move the generic judgement looks at: each allowed Trainer with each set of answers, each power (in play, in the hand or the discard pile), the Stadium. */
 function candidates(t: Turn, allowed: Allowed): GameAction[] {
   const moves: GameAction[] = [];
   for (const card of trainersIn(t, allowed.trainers)) {
@@ -289,6 +289,15 @@ function candidates(t: Turn, allowed: Allowed): GameAction[] {
       // TCGdex has no name for a few powers (Unown [M], [N], [I]).
       if (!power || !allowed.powers(nameKey(power.name ?? '')) || powerError(powerSituation(t, source))) continue;
       for (const choices of powerChoiceSets(t, source, 8)) moves.push({ type: 'USE_POWER', source, choices });
+    }
+    // Abilities used from the hand or the discard pile (Busybody, Rebirth, Propagation, Prehistoric Call), one card of each.
+    const seen = new Set<string>();
+    for (const card of [...t.me.hand, ...t.me.discard]) {
+      const d = t.def(card);
+      if (seen.has(d.id) || d.kind !== 'pokemon' || !d.power || !allowed.powers(nameKey(d.power.name))) continue;
+      if (cardPowerError({ me: t.me, opp: t.opp, card, cards: t.state.cards, turn: t.state.turn, stadium: t.state.stadium?.card ?? null })) continue;
+      seen.add(d.id);
+      moves.push({ type: 'USE_CARD_POWER', cardUid: card.uid });
     }
   }
   const stadium = t.state.stadium && t.def(t.state.stadium.card);

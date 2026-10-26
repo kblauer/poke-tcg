@@ -1,5 +1,5 @@
 import { DndContext, DragOverlay } from '@dnd-kit/core';
-import { hasBenched, inPlayDef, lookupCard, shapeshiftCard, usableAttacks, usableEnergy, usableTool, type CardLibrary, type GameAction, type InPlayPokemon, type MoveHighlight, type PlayerView, type Target } from '@poke-tcg/game-engine';
+import { cardPowerError, hasBenched, inPlayDef, lookupCard, powerEffect, shapeshiftCard, usableAttacks, usableEnergy, usableTool, type CardInstance, type CardLibrary, type GameAction, type InPlayPokemon, type MoveHighlight, type PlayerView, type Target } from '@poke-tcg/game-engine';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAttack } from '../hooks/useAttack';
 import { useCardPlay } from '../hooks/useCardPlay';
@@ -28,7 +28,7 @@ import { FlairEffect } from './FlairEffect';
 import { FloatingDialog } from './FloatingDialog';
 import { Hand } from './Hand';
 import { OpponentArea, type Spotlight } from './OpponentArea';
-import { DiscardPane } from './DiscardPane';
+import { DiscardPane, type ZoneAbilities } from './DiscardPane';
 import { PendingChoicePanel } from './PendingChoicePanel';
 import { PhoneBoard } from './phone/PhoneBoard';
 import { PlayArea } from './PlayArea';
@@ -171,6 +171,28 @@ export function Board({
   const turnReminders = useTurnReminders(endTurnReminders(view, power.powers), myTurn);
   const attack = useAttack({ view, send, busy, confirm: (go) => turnReminders.check('attack', go) });
   const trainer = useTrainer({ view, send, busy });
+  /**
+   * A card's Ability used from the hand or the discard pile, not in play (Busybody; Rebirth, Propagation, Prehistoric Call): its
+   * name and why it can't be used now, or null when the card has none from there. Used like a power (the user's, 2026-10-26):
+   * a click on the card shows it, with a Use button.
+   */
+  const zoneAbility = (card: CardInstance, zone: 'hand' | 'discard') => {
+    const d = lookupCard(view.cards, card.defId);
+    if (d.kind !== 'pokemon' || !d.power || powerEffect(card.defId)?.fromZone !== zone) return null;
+    const error = !myTurn ? "It's not your turn" : self.pendingChoice ? 'Finish what you are doing first' : cardPowerError({ me: self, opp: view.opponent, card, cards: view.cards, turn: view.turn, stadium: view.stadium?.card ?? null });
+    return { name: d.power.name, error };
+  };
+  const discardAbilities: ZoneAbilities = { of: (c) => zoneAbility(c, 'discard'), use: (c) => send({ type: 'USE_CARD_POWER', cardUid: c.uid }) };
+  /** The hand card whose Ability's panel is open (Busybody): closed by a click elsewhere, Esc, or once the game moves on. */
+  const [handAbility, setHandAbility] = useState<string | null>(null);
+  useEffect(() => setHandAbility(null), [view.version]);
+  useEffect(() => {
+    if (handAbility === null) return;
+    const onClick = (e: MouseEvent) => !(e.target instanceof Element && e.target.closest(`[data-hand-ability], [data-hand-uid="${handAbility}"]`)) && setHandAbility(null);
+    window.addEventListener('click', onClick, true);
+    return () => window.removeEventListener('click', onClick, true);
+  }, [handAbility]);
+  useEscape(() => setHandAbility(null), handAbility !== null);
   /** Starting one move cancels the others (attack, retreat, power, Trainer, held card). */
   const cancelAll = () => {
     deselect();
@@ -564,11 +586,40 @@ export function Board({
           } else trainer.start(c);
         } else {
           trainer.cancel();
+          // A card with an Ability used from the hand (Busybody): a click opens (or closes) its panel; it's still played as usual.
+          if (zoneAbility(c, 'hand')) {
+            setHandAbility(handAbility === c.uid ? null : c.uid);
+            if (canPlay(c)) clickHandCard(c);
+            return;
+          }
           clickHandCard(c);
         }
       }}
+      panel={handAbility && self.hand.some((c) => c.uid === handAbility) ? { uid: handAbility, node: handAbilityPanel(self.hand.find((c) => c.uid === handAbility)!) } : null}
     />
   );
+  /** A hand card's Ability (Busybody), as a benched Pokémon's power panel: its name and a Use button, or why it can't be used. */
+  function handAbilityPanel(card: CardInstance) {
+    const ability = zoneAbility(card, 'hand');
+    if (!ability) return null;
+    return (
+      <div data-hand-ability data-keep-action className="flex w-max min-w-36 max-w-60 flex-col gap-1 rounded-lg bg-slate-800/95 p-2 text-xs shadow-xl shadow-black/60 ring-1 ring-slate-600">
+        <p className="font-semibold text-violet-200">{ability.name}</p>
+        {ability.error && <p className="text-[11px] text-amber-300">{ability.error}</p>}
+        <button
+          className="rounded bg-violet-700 px-2 py-1 text-left transition hover:bg-violet-600 active:scale-95 disabled:opacity-40 disabled:hover:bg-violet-700"
+          disabled={ability.error !== null || busy}
+          onClick={() => {
+            cancelAll();
+            setHandAbility(null);
+            send({ type: 'USE_CARD_POWER', cardUid: card.uid });
+          }}
+        >
+          Use {ability.name}
+        </button>
+      </div>
+    );
+  }
   const dragOverlay = (
       <DragOverlay dropAnimation={null} modifiers={[centerOnPointer]}>
         {dragging && heldCard ? (
@@ -646,6 +697,7 @@ export function Board({
         statusBar={statusBar}
         oppDialog={oppDialog}
         handView={handView}
+        discardAbilities={discardAbilities}
         dragOverlay={dragOverlay}
         remindersDialog={turnReminders.dialog}
       />
@@ -737,7 +789,7 @@ export function Board({
                     <h3 className="text-center text-sm text-slate-400">You</h3>
                   </div>
                   <div className="mb-8">
-                    <DeckAndDiscard deckCount={self.deckCount} discard={self.discard} cards={view.cards} owner="Your" />
+                    <DeckAndDiscard deckCount={self.deckCount} discard={self.discard} cards={view.cards} owner="Your" abilities={discardAbilities} />
                   </div>
                 </div>
               </section>

@@ -82,6 +82,13 @@ export interface PowerEffect {
   choices?: (s: PowerSituation, c: PowerChoices) => PowerChoiceSpec[];
   /** Using the power. Missing for powers that only react to something (Strikes Back). */
   use?: (ctx: PowerContext) => void;
+  /**
+   * An Ability used from the hand or the discard pile, not in play (Busybody; Rebirth, Propagation, Prehistoric Call): once a
+   * turn for each card, before the attack (USE_CARD_POWER, useCardPower). `useFrom` uses it, `blockedFrom` says why it can't.
+   */
+  fromZone?: 'hand' | 'discard';
+  useFrom?: (ctx: CardPowerContext) => void;
+  blockedFrom?: (s: CardPowerSituation) => string | null;
   /** Called when an opponent's attack damages this Pokémon (Strikes Back). */
   onAttackDamage?: (ctx: AttackContext, damaged: InPlayPokemon) => void;
   /** Usable once during each of its owner's turns (Step In, Curse). */
@@ -904,6 +911,27 @@ export interface PowerContext {
   pend: (choice: PendingChoiceInput) => void;
 }
 
+/** What an Ability used from the hand or the discard pile can see (cardPowerError). View-safe: the UI builds it from a PlayerView. */
+export interface CardPowerSituation {
+  me: Pick<PlayerState, 'active' | 'bench' | 'hand' | 'discard' | 'powerTurns' | 'benchLimit'>;
+  opp: Pick<PlayerState, 'active' | 'bench'>;
+  /** The card whose Ability it is, in the player's hand or discard pile. */
+  card: CardInstance;
+  cards: CardLibrary;
+  turn: number;
+  stadium?: CardInstance | null;
+}
+
+export interface CardPowerContext {
+  state: GameState;
+  me: PlayerState;
+  opp: PlayerState;
+  card: CardInstance;
+  log: (text: string) => void;
+  flip: () => boolean;
+  pend: (choice: PendingChoiceInput) => void;
+}
+
 /** The player's Pokémon at a target, or null. */
 export const pokemonAt = (me: Pick<PlayerState, 'active' | 'bench'>, target: Target): InPlayPokemon | null =>
   (target === 'active' ? me.active : me.bench[target]) ?? null;
@@ -1577,5 +1605,49 @@ export function usePower(state: GameState, me: PlayerState, opp: PlayerState, so
       addLog(state, `Dark Eyes put 2 damage counters on ${pokemonName(state, used)}.`, opp.id);
     }
   }
+  return null;
+}
+
+/** The `powerTurns` key of an Ability used from the hand or discard pile: once a turn for each card. */
+const cardPowerKey = (name: string, card: CardInstance) => `${name}:${card.uid}`;
+
+/**
+ * Why the card's Ability can't be used from where it is (the hand or the discard pile), or null if it can. View-safe. Garbotoxin
+ * stops these too (its text names the hand and discard pile), and Allergic Pollen those used from the discard pile.
+ */
+export function cardPowerError(s: CardPowerSituation): string | null {
+  const def = lookupCard(s.cards, s.card.defId);
+  const effect = powerEffect(s.card.defId);
+  if (def.kind !== 'pokemon' || !def.power || !effect?.fromZone || !effect.useFrom) return `${def.name} has no Ability to use from there`;
+  const zone = effect.fromZone === 'hand' ? s.me.hand : s.me.discard;
+  if (!zone.some((c) => c.uid === s.card.uid)) return `${def.name} must be in your ${effect.fromZone === 'hand' ? 'hand' : 'discard pile'}`;
+  const sides: Sides = [s.me, s.opp];
+  if (allInPlay(sides).some((p) => !!pokemonPower(p)?.garbotoxin && (p.attached ?? []).some((a) => a.tool))) return `Garbotoxin: ${def.name} has no Abilities`;
+  if (effect.fromZone === 'discard' && discardsLocked(sides, s.cards)) return `Allergic Pollen: ${def.power.name} can't be used`;
+  if ((s.me.powerTurns?.[cardPowerKey(def.power.name, s.card)] ?? -1) >= s.turn) return `${def.name} has already used ${def.power.name} this turn`;
+  return effect.blockedFrom?.(s) ?? null;
+}
+
+/** Uses the Ability of a card in the player's hand or discard pile (USE_CARD_POWER); an error, or null. */
+export function useCardPower(state: GameState, me: PlayerState, opp: PlayerState, cardUid: string): string | null {
+  const card = [...me.hand, ...me.discard].find((c) => c.uid === cardUid);
+  if (!card) return 'Choose a card in your hand or discard pile';
+  const error = cardPowerError({ me, opp, card, cards: state.cards, turn: state.turn, stadium: state.stadium?.card ?? null });
+  if (error) return error;
+  const def = lookupCard(state.cards, card.defId) as PokemonCardDef;
+  const effect = powerEffect(card.defId)!;
+  (me.powerTurns ??= {})[cardPowerKey(def.power!.name, card)] = state.turn;
+  addLog(state, `${effect.fromZone === 'hand' ? 'Revealed' : 'From the discard pile,'} ${def.name}: used ${def.power!.name}.`, me.id);
+  effect.useFrom!({
+    state,
+    me,
+    opp,
+    card,
+    log: (text) => addLog(state, text, me.id),
+    flip: () => flipCoin(state, def.power!.name, me.id),
+    pend: (choice) => {
+      state.pendingChoice = { ...choice, player: me.id } as PendingChoice;
+    },
+  });
   return null;
 }
