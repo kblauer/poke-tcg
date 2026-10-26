@@ -3,9 +3,10 @@
  * Bulbagarden Archives (archives.bulbagarden.net), Gen 2's product photos from TCGplayer and PriceCharting (Neo Genesis's
  * Lugia a Heritage Auctions scan), Gen 3's (the EX sets, all four artworks of each) scans from the Bulbagarden Archives
  * (EX Dragon's Latios, EX Team Magma vs Team Aqua's Aggron, EX Emerald's Kyogre and EX Unseen Forces' Umbreon product
- * photos from shops and listings instead), all trimmed of their margins and resized. Each set had several artworks; the
+ * photos from shops and listings instead), Gen 4's (DP, Platinum, HGSS, Call of Legends) product photos from PriceCharting and
+ * TCGplayer (the larger of the two; most about 450px tall), all trimmed of their margins and resized. Each set had several artworks; the
  * Packs tab shows a random one of each per visit. Gen 2's sets have only the artworks those sources had (one or two
- * each). The Black Star Promos and Southern Islands were never sold in booster packs, so theirs are drawn (BoosterPack).
+ * each). Gen 4's have one each (Undaunted three). The Black Star Promos and Southern Islands were never sold in booster packs, so theirs are drawn (BoosterPack).
  */
 export const PACK_ART: Record<string, string[]> = {
   base1: ['charizard', 'blastoise', 'venusaur'],
@@ -38,6 +39,22 @@ export const PACK_ART: Record<string, string[]> = {
   ex14: ['delcatty', 'blaziken', 'jirachi', 'charizard'],
   ex15: ['tyranitar', 'latias', 'salamence', 'nidoking'],
   ex16: ['aggron', 'raichu', 'walrein', 'absol'],
+  dp1: ['palkia'],
+  dp2: ['uxie-mesprit-azelf'],
+  dp3: ['gallade'],
+  dp4: ['cresselia'],
+  dp5: ['darkrai'],
+  dp6: ['lucario'],
+  dp7: ['regigigas'],
+  pl1: ['dialga'],
+  pl2: ['leafeon'],
+  pl3: ['charizard'],
+  pl4: ['arceus'],
+  hgss1: ['lugia'],
+  hgss2: ['suicune'],
+  hgss3: ['jolteon', 'rayquaza', 'skarmory'],
+  hgss4: ['palkia'],
+  col1: ['groudon'],
 };
 
 /** A random wrapper for each set that has them, as image paths: picked once per visit to the Packs tab. */

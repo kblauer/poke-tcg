@@ -46,6 +46,10 @@ function moveCard(before: GameState, player: PlayerId, action: GameAction): stri
       return at(action.target)?.card.defId ?? null;
     case 'USE_STADIUM':
       return before.stadium?.card.defId ?? null;
+    case 'USE_ENERGY':
+      return me.active?.energy.find((e) => e.uid === action.cardUid)?.defId ?? null;
+    case 'USE_TOOL':
+      return at(action.target)?.attached?.find((a) => a.tool)?.card.defId ?? null;
     default:
       return null;
   }

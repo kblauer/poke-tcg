@@ -15,7 +15,7 @@ import { lookupCard } from '../cards.js';
 import { afflictionBlocked, type CardInstance, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
 import { energyFromHand, energyKept, ownTargets, pokemonAt, powerActive, type PowerChoiceSpec, type PowerContext, type PowerEffect, type PowerSituation } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { clearSpecialConditions, effectId, energyProtected, hasSpecialCondition, inPlayDef, pokemonName } from '../status.js';
+import { clearSpecialConditions, countersMoved, effectId, energyProtected, hasSpecialCondition, inPlayDef, pokemonName } from '../status.js';
 import { swapActive } from '../trainers.js';
 import { withNonHolo } from './ecard1-prints.js';
 import { energyEffect, powerEffect } from './index.js';
@@ -173,6 +173,7 @@ const HOLO: Record<string, PowerEffect> = {
       const from = c.fromSide === 'own' ? pokemonAt(ctx.me, c.from!)! : pokemonAt(ctx.opp, c.oppFrom!)!;
       const to = c.toSide === 'own' ? pokemonAt(ctx.me, c.to!)! : pokemonAt(ctx.opp, c.oppTo!)!;
       from.damage -= 10;
+      countersMoved(ctx.state, from, 10);
       to.damage += 10;
       ctx.log(`Moved a damage counter from ${pokemonName(ctx.state, from)} to ${pokemonName(ctx.state, to)}.`);
     },

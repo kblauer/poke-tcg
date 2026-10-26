@@ -1,5 +1,5 @@
 import { DndContext, DragOverlay } from '@dnd-kit/core';
-import { hasBenched, inPlayDef, lookupCard, shapeshiftCard, usableAttacks, type CardLibrary, type GameAction, type InPlayPokemon, type MoveHighlight, type PlayerView, type Target } from '@poke-tcg/game-engine';
+import { hasBenched, inPlayDef, lookupCard, shapeshiftCard, usableAttacks, usableEnergy, usableTool, type CardLibrary, type GameAction, type InPlayPokemon, type MoveHighlight, type PlayerView, type Target } from '@poke-tcg/game-engine';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAttack } from '../hooks/useAttack';
 import { useCardPlay } from '../hooks/useCardPlay';
@@ -331,6 +331,8 @@ export function Board({
     // Secret Plan's face-down card is clicked to turn it over; Brock's Ninetales with a Shapeshift card, to discard that card.
     const faceDown = myTurn && !!pokemon?.faceDown;
     const shapeshifted = myTurn && !!pokemon && !!shapeshiftCard(pokemon);
+    // A Benched Pokémon with a Pokémon Tool that can be used (Energy Link) is clicked to use it.
+    const toolUsable = myTurn && typeof target === 'number' && !!pokemon && usableTool(view.cards, pokemon);
     // Clicking your Active Pokémon opens its moves (those above among them) in a panel on the card.
     const opensMoves = id === 'active' && pokemon !== null && phase !== 'setup' && !heldCard && !retreat.ready;
     const slot = (
@@ -373,6 +375,12 @@ export function Board({
                     setCardMenu((m) => (m === target ? null : target));
                   }
                 : undefined) ??
+              (toolUsable && !heldCard && !retreat.ready
+                ? () => {
+                    cancelAll();
+                    send({ type: 'USE_TOOL', target });
+                  }
+                : undefined) ??
               (isDoll && !heldCard && !retreat.ready
                 ? () => {
                     cancelAll();
@@ -399,6 +407,10 @@ export function Board({
       ? [
           ...(self.active.faceDown ? [{ label: 'Turn it face up', run: () => send({ type: 'FLIP_FACE_DOWN', target: 'active' }) }] : []),
           ...(shapeshiftCard(self.active) ? [{ label: 'Discard its Shapeshift card', run: () => send({ type: 'DISCARD_SHAPESHIFT', target: 'active' }) }] : []),
+          // Call Energy: a Special Energy card's ability, used from the Active Pokémon.
+          ...usableEnergy(self.active).map((e) => ({ label: `Use ${lookupCard(view.cards, e.defId).name}`, run: () => send({ type: 'USE_ENERGY', cardUid: e.uid }) })),
+          // Energy Link: a Pokémon Tool's ability.
+          ...(usableTool(view.cards, self.active) ? [{ label: `Use ${lookupCard(view.cards, self.active.attached!.find((a) => a.tool)!.card.defId).name}`, run: () => send({ type: 'USE_TOOL', target: 'active' }) }] : []),
           ...(doll?.kind === 'pokemon' && doll.trainerText
             ? [
                 {

@@ -48,15 +48,16 @@ const AUTO_RARE_MS = 1600;
 /**
  * How packs open, remembered in the browser. `separate`: the commons (uncommons and Energy too) are laid out
  * face up together, and only the rares are revealed one by one. `auto`: the cards being revealed move on by themselves.
+ * `stopOnNew`: auto open stops on a card new to the collection (the user's: on by default).
  */
-type OpenOptions = { separate: boolean; auto: boolean };
+type OpenOptions = { separate: boolean; auto: boolean; stopOnNew: boolean };
 const OPTIONS_KEY = 'poke-tcg.pack-options';
 
 function loadOptions(): OpenOptions {
   try {
-    return { separate: false, auto: false, ...(JSON.parse(localStorage.getItem(OPTIONS_KEY) ?? '{}') as Partial<OpenOptions>) };
+    return { separate: false, auto: false, stopOnNew: true, ...(JSON.parse(localStorage.getItem(OPTIONS_KEY) ?? '{}') as Partial<OpenOptions>) };
   } catch {
-    return { separate: false, auto: false };
+    return { separate: false, auto: false, stopOnNew: true };
   }
 }
 
@@ -84,7 +85,10 @@ const isRare = (c: PackCard) => c.slot === 'rare' || isFoilSlot(c.slot) || c.hol
  * (the × button, or before opening a click anywhere but the pack and its controls) goes back to the sets.
  * Two options (OpenOptions): separate the commons from the rares (the commons are laid out at once, the rares
  * stay face down to be opened one by one), and auto open (the cards revealed move on by themselves, pausing on rares;
- * while it runs, ×2 speed doubles it and Stop auto goes back to clicking, with Resume auto to start it again).
+ * while it runs, ×2 speed doubles it and Stop auto goes back to clicking, with Resume auto to start it again). It stops on
+ * a card new to the collection, and a click on it goes on with auto open (the user's; Stop on new cards, under Auto open
+ * and beside ×2 speed while it runs, turns that off); packs opened without it can start
+ * it partway through (Auto open).
  */
 export function PackOpening({
   set,
@@ -118,6 +122,16 @@ export function PackOpening({
   useEffect(() => saveOptions(options), [options]);
   /** Auto open is running for these packs (it starts with the option, and can be stopped and resumed). */
   const [autoOn, setAutoOn] = useState(false);
+  /** Auto open has run for these packs (its button then says Resume auto rather than Auto open). */
+  const [autoUsed, setAutoUsed] = useState(false);
+  /** The card (index) auto open stopped on because it's new to the collection: a click on it goes on and resumes auto open. */
+  const [pausedAt, setPausedAt] = useState<number | null>(null);
+  /** Starts or resumes auto open, from the card on screen (it doesn't stop on that one, new or not). */
+  const startAuto = () => {
+    setPausedAt(index);
+    setAutoOn(true);
+    setAutoUsed(true);
+  };
   /** Auto open at double speed. */
   const [fast, setFast] = useState(false);
   const [leaving, setLeaving] = useState(false);
@@ -126,6 +140,8 @@ export function PackOpening({
   const [quantity, setQuantity] = useState(1);
   /** Custom picked: the number field shows instead of the quick picks being the only choice. */
   const [custom, setCustom] = useState(false);
+  /** The number field's text while it's typed in (it may be empty, so the 1 can be cleared); null shows `quantity`. */
+  const [draft, setDraft] = useState<string | null>(null);
   /** The cards' large images, fetched while the pack tears open and the cards burst out, so each is ready when it flips up. */
   const preloaded = useRef<HTMLImageElement[]>([]);
   /** Debug tools only: the next packs each get a holo Energy (packs.debugOpen, refused in production). */
@@ -144,6 +160,8 @@ export function PackOpening({
       setStardustEarned(result.stardustEarned);
       onOpened();
       setAutoOn(options.auto);
+      setAutoUsed(options.auto);
+      setPausedAt(null);
       setPhase('tearing');
       setTimeout(() => setPhase('burst'), reducedMotion() ? 0 : TEAR_MS);
     },
@@ -185,6 +203,8 @@ export function PackOpening({
   /** The current card flies off the stack and the next one flips up; after the last, the list. */
   function next() {
     if (leaving) return;
+    // A click on the new card auto open stopped on goes on, and auto open with it.
+    if (pausedAt === index && !autoOn) setAutoOn(true);
     setLeaving(true);
     setTimeout(
       () => {
@@ -196,9 +216,15 @@ export function PackOpening({
     );
   }
 
-  // Auto open: each card moves on by itself, after a longer pause on a rare or holo.
+  // Auto open: each card moves on by itself, after a longer pause on a rare or holo. It stops on a card new to the
+  // collection (once: Resume auto then moves on as usual), until a click.
   useEffect(() => {
     if (phase !== 'reveal' || !autoOn || leaving || !current) return;
+    if (options.stopOnNew && current.isNew && pausedAt !== index) {
+      setPausedAt(index);
+      setAutoOn(false);
+      return;
+    }
     const timer = setTimeout(next, (isRare(current) ? AUTO_RARE_MS : AUTO_MS) / (fast ? 2 : 1));
     return () => clearTimeout(timer);
   }, [phase, index, leaving, autoOn, fast]);
@@ -266,16 +292,25 @@ export function PackOpening({
                   type="number"
                   min={1}
                   max={MAX_PACKS_AT_ONCE}
-                  value={quantity}
+                  value={draft ?? quantity}
                   autoFocus
                   disabled={open.isPending}
-                  onChange={(e) => setQuantity(Math.max(1, Math.min(MAX_PACKS_AT_ONCE, Math.floor(Number(e.target.value)) || 1)))}
+                  onChange={(e) => {
+                    const n = Math.floor(Number(e.target.value));
+                    setDraft(n > MAX_PACKS_AT_ONCE ? String(MAX_PACKS_AT_ONCE) : e.target.value);
+                    if (n >= 1) setQuantity(Math.min(MAX_PACKS_AT_ONCE, n));
+                  }}
+                  onBlur={() => setDraft(null)}
                   className="w-20 rounded bg-slate-800 px-2 py-1 text-sm outline-none ring-yellow-300 focus:ring-1"
                   aria-label={`Number of packs (1 to ${MAX_PACKS_AT_ONCE})`}
                 />
               )}
               {custom && (
-                <button className="text-xs text-slate-400 hover:text-slate-200" disabled={open.isPending} onClick={() => setQuantity(maxAffordable)}>
+                <button className="text-xs text-slate-400 hover:text-slate-200" disabled={open.isPending} onClick={() => {
+                    setDraft(null);
+                    setQuantity(maxAffordable);
+                  }}
+                >
                   Max ({maxAffordable})
                 </button>
               )}
@@ -291,6 +326,12 @@ export function PackOpening({
                 <input type="checkbox" checked={options.auto} onChange={(e) => setOptions((o) => ({ ...o, auto: e.target.checked }))} />
                 Auto open
               </label>
+              {options.auto && (
+                <label className="flex items-center gap-2" title="Auto open waits for a click on a card new to your collection">
+                  <input type="checkbox" checked={options.stopOnNew} onChange={(e) => setOptions((o) => ({ ...o, stopOnNew: e.target.checked }))} />
+                  Stop on new cards
+                </label>
+              )}
               {/* DEBUG_BUILD first: a production build drops the checkbox altogether. */}
               {DEBUG_BUILD && debug && (
                 <label className="flex items-center gap-2 text-amber-300" title="Debug: every pack opened gets a holo Energy (packs.debugOpen, refused in production)">
@@ -371,7 +412,7 @@ export function PackOpening({
             {raresOnly
               ? `${packs > 1 ? `Pack ${current.pack + 1} of ${packs} · ` : ''}Rare ${index + 1} of ${queue.length}`
               : `${packs > 1 ? `Pack ${current.pack + 1} of ${packs} · ` : ''}Card ${inPack(queue[index]!) + 1} of ${packSize(current.pack)}`}
-            {autoOn ? ` · opening by itself${fast ? ' (×2)' : ''}` : ' · click to see the next'}
+            {autoOn ? ` · opening by itself${fast ? ' (×2)' : ''}` : pausedAt === index ? ' · a new card! Click to go on' : ' · click to see the next'}
           </p>
           <button className={`pack-reveal relative my-4 outline-none ${PACK_REVEAL}`} onClick={next} aria-label="Next card">
             {/* The rest of the stack, face down, under the card shown. */}
@@ -388,9 +429,8 @@ export function PackOpening({
             {current.isNew && <span className="badge-pop rounded-full bg-emerald-500 px-2 py-0.5 text-xs font-bold text-white">NEW</span>}
           </div>
           <div className="flex items-center gap-2">
-            {/* Auto open's controls, for packs opened with it: double speed, or stop and click through instead. */}
-            {options.auto &&
-              (autoOn ? (
+            {/* Auto open's controls: double speed, or stop and click through instead; and starting it partway through. */}
+            {autoOn ? (
                 <>
                   <button
                     className={`rounded px-4 py-1.5 text-sm font-semibold transition ${fast ? 'bg-yellow-300 text-slate-900' : 'bg-slate-600 hover:bg-slate-500'}`}
@@ -399,15 +439,23 @@ export function PackOpening({
                   >
                     ×2 speed
                   </button>
+                  <button
+                    className={`rounded px-4 py-1.5 text-sm font-semibold transition ${options.stopOnNew ? 'bg-yellow-300 text-slate-900' : 'bg-slate-600 hover:bg-slate-500'}`}
+                    aria-pressed={options.stopOnNew}
+                    title="Auto open waits for a click on a card new to your collection"
+                    onClick={() => setOptions((o) => ({ ...o, stopOnNew: !o.stopOnNew }))}
+                  >
+                    Stop on new
+                  </button>
                   <button className="rounded bg-slate-600 px-4 py-1.5 text-sm font-semibold transition hover:bg-slate-500" onClick={() => setAutoOn(false)}>
                     Stop auto
                   </button>
                 </>
               ) : (
-                <button className="rounded bg-slate-600 px-4 py-1.5 text-sm font-semibold transition hover:bg-slate-500" onClick={() => setAutoOn(true)}>
-                  Resume auto
+                <button className="rounded bg-slate-600 px-4 py-1.5 text-sm font-semibold transition hover:bg-slate-500" onClick={startAuto}>
+                  {autoUsed ? 'Resume auto' : 'Auto open'}
                 </button>
-              ))}
+              )}
             <button className="rounded bg-slate-600 px-4 py-1.5 text-sm font-semibold transition hover:bg-slate-500" onClick={() => setPhase('summary')}>
               Skip
             </button>

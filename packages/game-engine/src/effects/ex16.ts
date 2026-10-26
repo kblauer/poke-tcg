@@ -9,17 +9,17 @@ import { lookupCard } from '../cards.js';
 import { type Target } from '../engine.js';
 import { inPlayDef } from '../status.js';
 import { skillHackFits } from '../trainers.js';
-import { benchedSlots } from './common.js';
+import { benchedSlots, charmFor, guardNext } from './common.js';
 import { EX1 } from './ex1.js';
 import { discardOwn, energyCardOf, EX2 } from './ex2.js';
 import { EX5 } from './ex5.js';
 import { notNextTurn } from './ex6.js';
 import { shiftDefenderEnergy } from './ex7.js';
 import { dragOff } from './ex8.js';
-import { EX10, guardNext } from './ex10.js';
+import { EX10 } from './ex10.js';
 import { EX11 } from './ex11.js';
 import { cryForHelp, EX12, same } from './ex12.js';
-import { charmFor, psychicPulse } from './ex15.js';
+import { psychicPulse } from './ex15.js';
 import { GYM1 } from './gym1.js';
 
 /** The named Stadium is in play. */

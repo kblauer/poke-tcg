@@ -231,7 +231,7 @@ export const CardGrid = memo(function CardGrid({
       {hold.inspecting && (
         // Over the page while the press lasts; the press's own events still reach the grid underneath.
         <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" role="dialog" aria-label={hold.inspecting.name}>
-          <div className="w-full max-w-lg">
+          <div className="flex h-full w-full max-w-lg flex-col">
             <CardViewer card={hold.inspecting} locked={isLocked?.(hold.inspecting) ?? false} />
           </div>
         </div>

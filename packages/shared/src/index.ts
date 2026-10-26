@@ -1,5 +1,5 @@
 import { CPU_DIFFICULTIES, DEBUG_CONDITIONS, MAX_BENCH, type AttackChoices, type DebugCommand, type GameAction, type PowerChoices, type TrainerChoices } from '@poke-tcg/game-engine';
-import { BERRIES, BOSS_IDS, COSMETIC_IDS, EQUIP_SLOTS, FLAIR_SLOTS, MAX_PACKS_AT_ONCE, PACK_SETS, RUN_TYPE_IDS, TOP_FLOOR, type RunAction, type RunTypeId, type TowerAction } from '@poke-tcg/campaign';
+import { BERRIES, BOSS_IDS, COSMETIC_IDS, EQUIP_SLOTS, FLAIR_SLOTS, MAX_PACKS_AT_ONCE, PACK_SETS, RUN_TYPE_IDS, STARTER_IDS, TOP_FLOOR, type RunAction, type RunTypeId, type TowerAction } from '@poke-tcg/campaign';
 import { z } from 'zod';
 import { DECK_NAME_LENGTH } from './deck.js';
 import { TRAINER_SPRITES } from './trainer-sprites.js';
@@ -47,6 +47,7 @@ const attackChoicesSchema = z.object({
   damageCap: z.number().int().min(-1).max(990).optional(),
   amount: z.number().int().min(0).max(60).optional(),
   oppDiscardUid: z.string().optional(),
+  answer: z.number().int().min(0).max(1).optional(),
 }) satisfies z.ZodType<AttackChoices>;
 
 /** Answers to a Pokémon Power's questions (see PowerChoices in the engine). */
@@ -118,6 +119,8 @@ export const gameActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('USE_STADIUM') }),
   z.object({ type: z.literal('FLIP_FACE_DOWN'), target }),
   z.object({ type: z.literal('DISCARD_SHAPESHIFT'), target }),
+  z.object({ type: z.literal('USE_ENERGY'), cardUid: z.string() }),
+  z.object({ type: z.literal('USE_TOOL'), target }),
   z.object({ type: z.literal('END_TURN') }),
   z.object({ type: z.literal('CONCEDE') }),
 ]) satisfies z.ZodType<GameAction>;
@@ -196,7 +199,10 @@ export const saveRunDeckInput = z.object({ runId: z.uuid(), name: z.string().tri
 export const useItemInput = z.object({ runId: z.uuid(), itemId: z.string().min(1).max(64) });
 /** A consumable used from the Inventory: in the run under way, or kept for the next run when there's none. */
 export const useConsumableInput = z.object({ itemId: z.string().min(1).max(64) });
-export const startRunInput = z.object({ type: z.enum(RUN_TYPE_IDS as [RunTypeId, ...RunTypeId[]]), deckId: z.uuid() });
+/** A new run, with one of the account's decks (`deckId`) or, on the account's first run, the starter deck it picks (`starter`): one of them. */
+export const startRunInput = z
+  .object({ type: z.enum(RUN_TYPE_IDS as [RunTypeId, ...RunTypeId[]]), deckId: z.uuid().optional(), starter: z.enum(STARTER_IDS).optional() })
+  .refine((i) => (i.deckId === undefined) !== (i.starter === undefined), { message: 'Pick a deck or a starter deck' });
 /** A Battle Tower challenge started with one of the account's decks, on floor 1 or the floor after a checkpoint reached. */
 export const startTowerInput = z.object({ deckId: z.uuid(), startFloor: z.number().int().min(1).max(TOP_FLOOR) });
 export const towerIdInput = z.object({ towerId: z.uuid() });

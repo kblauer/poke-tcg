@@ -22,13 +22,14 @@ describe('Team Rocket Trainers', () => {
   it("Rocket's Sneak Attack shows the opponent's hand; they shuffle the Trainer card chosen into their deck", () => {
     let s = duel('charmander', 'onix');
     misty(s).hand = [];
-    const [recycle] = give(s, 'misty', 'recycle', 'squirtle');
+    // Two different Trainer cards, so the pick is asked (the same-card rule).
+    const [recycle, , bill] = give(s, 'misty', 'recycle', 'squirtle', 'bill');
     const deck = misty(s).deck.length;
     s = play(s, 'rocketSneakAttack');
-    expect(getPlayerView(s, 'ash').self.pendingChoice).toMatchObject({ kind: 'oppHand', cards: misty(s).hand, options: [{ uid: recycle }] });
+    expect(getPlayerView(s, 'ash').self.pendingChoice).toMatchObject({ kind: 'oppHand', cards: misty(s).hand, options: [{ uid: recycle }, { uid: bill }] });
     expect(applyAction(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: misty(s).hand[1]!.uid })).toMatchObject({ ok: false });
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: recycle });
-    expect([misty(s).hand.map((c) => c.defId), misty(s).deck.length]).toEqual([[id('squirtle')], deck + 1]);
+    expect([misty(s).hand.map((c) => c.defId), misty(s).deck.length]).toEqual([[id('squirtle'), id('bill')], deck + 1]);
     // No Trainer cards: just look.
     misty(s).hand = [];
     expect(act(play(s, 'rocketSneakAttack'), 'ash', { type: 'RESOLVE_CHOICE' }).pendingChoice).toBeUndefined();
@@ -36,8 +37,8 @@ describe('Team Rocket Trainers', () => {
 
   it("The Boss's Way takes an Evolution card with Dark in its name", () => {
     const s = duel('charmander', 'onix');
-    ash(s).deck.push({ uid: 'dark', defId: id('darkCharmeleon') }, { uid: 'plain', defId: id('charmeleon') });
-    expect(getPlayerView(play(s, 'bossWay'), 'ash').self.pendingChoice).toMatchObject({ kind: 'pickFromDeck', options: [{ uid: 'dark' }] });
+    ash(s).deck.push({ uid: 'dark', defId: id('darkCharmeleon') }, { uid: 'plain', defId: id('charmeleon') }, { uid: 'dark2', defId: id('darkCharizard') });
+    expect(getPlayerView(play(s, 'bossWay'), 'ash').self.pendingChoice).toMatchObject({ kind: 'pickFromDeck', options: [{ uid: 'dark2' }, { uid: 'dark' }] });
   });
 
   describe('Challenge!', () => {
@@ -50,13 +51,16 @@ describe('Team Rocket Trainers', () => {
     });
 
     it('accepted: the player, then the opponent, put any number of Basic Pokémon from their deck onto their Bench', () => {
-      let s = act(play(duel('charmander', 'onix'), 'challenge'), 'misty', { type: 'RESOLVE_CHOICE', count: 1 });
+      const start = duel('charmander', 'onix');
+      // Different Basic Pokémon in Misty's deck, so her search is still asked after 2 (the same-card rule).
+      misty(start).deck.unshift({ uid: 'm-sq', defId: id('squirtle') }, { uid: 'm-ox', defId: id('onix') }, { uid: 'm-mg', defId: id('magnemite') });
+      let s = act(play(start, 'challenge'), 'misty', { type: 'RESOLVE_CHOICE', count: 1 });
       expect(s.pendingChoice).toMatchObject({ player: 'ash', kind: 'pickFromDeck', filter: 'basic', toBench: true, count: 5 });
       s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: ash(s).deck[0]!.uid });
       s = act(s, 'ash', { type: 'RESOLVE_CHOICE' });
       expect(s.pendingChoice).toMatchObject({ player: 'misty', kind: 'pickFromDeck' });
-      s = act(s, 'misty', { type: 'RESOLVE_CHOICE', cardUid: misty(s).deck[0]!.uid });
-      s = act(s, 'misty', { type: 'RESOLVE_CHOICE', cardUid: misty(s).deck[0]!.uid });
+      s = act(s, 'misty', { type: 'RESOLVE_CHOICE', cardUid: 'm-sq' });
+      s = act(s, 'misty', { type: 'RESOLVE_CHOICE', cardUid: 'm-ox' });
       s = act(s, 'misty', { type: 'RESOLVE_CHOICE' });
       expect([ash(s).bench.filter(Boolean).length, misty(s).bench.filter(Boolean).length, s.pendingChoice]).toEqual([1, 2, undefined]);
     });

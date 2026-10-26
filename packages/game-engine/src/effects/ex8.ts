@@ -11,7 +11,7 @@ import type { AttackContext, AttackEffect, ChoiceSpec } from '../attacks.js';
 import { targetsIn } from '../attacks.js';
 import { isBasicEnergy, lookupCard, namesMatch, type CardLibrary } from '../cards.js';
 import { counts, energyPool, isEnergyCardOf, type InPlayPokemon, type Target } from '../engine.js';
-import { discardsLocked, pokemonAt } from '../powers.js';
+import { discardsLocked, pokemonAt, pokemonPower } from '../powers.js';
 import { clearSpecialConditions, effectId, inPlayDef, pokemonName } from '../status.js';
 import { powerEffect, trainerEffect } from './index.js';
 import { benchedSlots, opponentBenchChoice } from './common.js';
@@ -57,7 +57,7 @@ export const chooseOpponents = (count: number | ((attacker: InPlayPokemon, cards
 });
 
 /** Whether a Pokémon's power is a Poké-Body (a Poké-Power or older Pokémon Power, `powers`). */
-const hasPower = (cards: AttackContext['state']['cards'], p: InPlayPokemon, body: boolean) => !!inPlayDef(cards, p).power && !!powerEffect(effectId(p))?.body === body;
+const hasPower = (cards: AttackContext['state']['cards'], p: InPlayPokemon, body: boolean) => !!inPlayDef(cards, p).power && !!pokemonPower(p)?.body === body;
 
 /** The opponent's Trainer cards in play: Pokémon Tools, Technical Machines and the like on their Pokémon, and their Stadium. */
 export const trainersInPlay = (ctx: AttackContext) =>

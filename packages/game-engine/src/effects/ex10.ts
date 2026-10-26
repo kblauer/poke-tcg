@@ -14,7 +14,7 @@ import { isEnergyCardOf, isSpecialEnergy } from '../engine.js';
 import { clearSpecialConditions, hasSpecialCondition, inPlayDef, pokemonName } from '../status.js';
 import { shuffle } from '../rng.js';
 import { trainerEffect } from './index.js';
-import { benchedSlots, opponentBenchChoice } from './common.js';
+import { benchedSlots, guardNext, opponentBenchChoice } from './common.js';
 import { copyAttack } from './ecard2.js';
 import { discardOwn, inPlay, putCounters, typeCards } from './ex2.js';
 import { lureIn, snipe } from './ex6.js';
@@ -48,14 +48,6 @@ export const fireDance = (damage: number): AttackEffect => ({
   },
 });
 
-/** Steel Wing, Teary Eyes, Flame Screen: `amount` less damage to the attacker during the opponent's next turn, after Weakness and Resistance. */
-export const guardNext = (damage: number, amount: number): AttackEffect => ({
-  run(ctx) {
-    ctx.hit(damage);
-    (ctx.attacker.effects ??= {}).reduceDamage = { amount, until: ctx.turn + 1 };
-    ctx.log(`Damage to ${ctx.attackerDef.name} is reduced by ${amount} next turn.`);
-  },
-});
 
 /** Next turn, this attack (by `key`) does more: Extra Comet Punch, Pulse Blast, Glide. Set for the turn after. */
 const nextTurn = (ctx: AttackContext, key: string) => {

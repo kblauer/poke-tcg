@@ -1,5 +1,5 @@
 import type { AppRouter } from '@poke-tcg/api/router';
-import { isBattleKind, type RunAction, type RunTypeId } from '@poke-tcg/campaign';
+import { isBattleKind, type RunAction, type RunTypeId, type StarterId } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useRouter } from '@tanstack/react-router';
 import { createContext, createElement, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -131,9 +131,9 @@ function useRunControl() {
     retry() {
       if (run && !busy) retry.mutate({ runId: run.id });
     },
-    /** Starts a run; `locked`: a locked run type, in debug mode (debugStart). */
-    start(type: RunTypeId, deckId: string, locked = false) {
-      if (!busy) (locked ? debugStart : start).mutate({ type, deckId });
+    /** Starts a run with one of the account's decks, or (its first run) a starter deck; `locked`: a locked run type, in debug mode (debugStart). */
+    start(type: RunTypeId, deck: { deckId: string } | { starter: StarterId }, locked = false) {
+      if (!busy) (locked ? debugStart : start).mutate({ type, ...deck });
     },
   };
 }

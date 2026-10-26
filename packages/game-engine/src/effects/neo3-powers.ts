@@ -22,7 +22,7 @@
 import { isBasicEnergy, lookupCard } from '../cards.js';
 import { isEnergyCardOf, type Target } from '../engine.js';
 import { ownTargets, pokemonAt, type PowerChoiceSpec, type PowerEffect, type PowerSituation } from '../powers.js';
-import { addLog, inPlayDef, pokemonName } from '../status.js';
+import { addLog, countersMoved, inPlayDef, pokemonName } from '../status.js';
 import { swapActive, type PendingChoice } from '../trainers.js';
 import { targetOf } from './common.js';
 import { TYPES } from './si1.js';
@@ -180,6 +180,7 @@ export const NEO3_POWERS: Record<string, PowerEffect> = {
     use(ctx) {
       const from = pokemonAt(ctx.me, ctx.choices.from!)!;
       from.damage -= 10;
+      countersMoved(ctx.state, from, 10);
       ctx.source.damage += 10;
       ctx.log(`Moved a damage counter from ${pokemonName(ctx.state, from)} to ${pokemonName(ctx.state, ctx.source)}.`);
     },

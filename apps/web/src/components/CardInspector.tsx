@@ -23,10 +23,10 @@ const KEEP_OPEN = 'button, input, a, [data-keep-open]';
  * card too). Opened by a long press, it ignores the finger lifting (the
  * click that ends the press lands on it): only a press that starts on it closes it. With a deck open (`deck`), − and + change its copies in
  * the deck; + is disabled with the reason when the card can't be added. In the deck builder (`craft`), Craft unlocks the
- * card for Stardust. The page behind it doesn't scroll while it's open (useScrollLock); it scrolls itself only when it's
- * taller than the screen. The ★ button (`favorite`) adds the card to the account's favorites, or takes it out. For a holo,
+ * card for Stardust. The page behind it doesn't scroll while it's open (useScrollLock), and it fits the window: the card
+ * shrinks to leave room for the rest (CardViewer). The ★ button (`favorite`) adds the card to the account's favorites, or takes it out. For a holo,
  * `unlocked` is how many copies the account has (see useUnlocked's `holoCopies`), shown above it. Under it, the card
- * flair the card can be given (FlairPicker: a holo's patterns, a low-rarity card's gold border), previewed on the card.
+ * flair the card can be given (FlairPicker: a holo's patterns, a low-rarity card's borders, a Pokémon's effects), previewed on the card.
  */
 export function CardInspector({
   card,
@@ -93,7 +93,8 @@ export function CardInspector({
       <button className="fixed right-3 top-3 z-10 flex rounded-full bg-slate-800/80 p-2 text-slate-200 ring-1 ring-slate-600 transition hover:bg-slate-700 hover:text-slate-50" onClick={onClose} aria-label="Close" title="Close">
         <CloseIcon />
       </button>
-      <div className="m-auto flex w-full max-w-lg flex-col items-center gap-3">
+      {/* The window's height: the card shrinks to leave room for its text and controls (CardViewer). */}
+      <div className="mx-auto flex h-full w-full max-w-lg flex-col items-center gap-3">
         <CardViewer
           card={card}
           locked={locked}

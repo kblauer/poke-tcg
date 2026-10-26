@@ -1,7 +1,7 @@
 import { canPayCost, cardImplemented, isBasicPokemon, isPokemonCard, TRAINER_CPU_ENERGY, TRAINER_CPU_PLAYS, TRAINER_CPU_RULES, type PokemonCardDef } from '@poke-tcg/game-engine';
 import { describe, expect, it } from 'vitest';
 import { BOSSES, HOENN_ELITE_FOUR, HOENN_GYMS, JOHTO_ELITE_FOUR, JOHTO_GYMS } from './bosses.js';
-import { DECK_SIZE, deckErrors, expandDeck, GEN1_DECK_RULES, GEN2_DECK_RULES, GEN3_DECK_RULES, generateDeck, STARTER_DECK, trainerFavorites } from './decks.js';
+import { DECK_SIZE, deckErrors, expandDeck, GEN1_DECK_RULES, GEN2_DECK_RULES, GEN3_DECK_RULES, generateDeck, STARTER_DECK, STARTER_DECKS, STARTER_IDS, trainerFavorites } from './decks.js';
 import { GEN2_SETS, GEN3_SETS, nameKey } from './pool.js';
 import { rngFrom } from './random.js';
 import { catalogDef, GEN2_TEST_POOL, GEN3_TEST_POOL, TEST_POOL, testDef } from './test-pool.js';
@@ -9,6 +9,15 @@ import { catalogDef, GEN2_TEST_POOL, GEN3_TEST_POOL, TEST_POOL, testDef } from '
 describe('fixed decks', () => {
   it('the starter deck is a legal 60-card deck of cards from the run pool', () => {
     expect(deckErrors(expandDeck(STARTER_DECK), testDef)).toEqual([]);
+  });
+
+  it.each(STARTER_IDS)('the %s starter is a legal 60-card deck of implemented cards, its cover in it, no Blastoise', (id) => {
+    const { list, cover } = STARTER_DECKS[id];
+    const deck = expandDeck(list);
+    expect(deckErrors(deck, testDef)).toEqual([]);
+    expect(deck.filter((c) => !cardImplemented(testDef(c)))).toEqual([]);
+    expect(deck).toContain(cover);
+    expect(deck.filter((c) => testDef(c).name === 'Blastoise')).toEqual([]);
   });
 
   it('a deck holds only 1 of each Shining Pokémon and 1 Miracle Energy', () => {

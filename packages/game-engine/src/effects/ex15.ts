@@ -11,12 +11,12 @@ import { lookupCard, type EnergyType } from '../cards.js';
 import { counts, energyPool, toolOf, type Target } from '../engine.js';
 import { powerActive } from '../powers.js';
 import { inPlayDef, isDelta, pokemonName } from '../status.js';
-import { benchedSlots, flipToInflict, opponentBenchChoice } from './common.js';
+import { benchedSlots, charmFor, flipToInflict, guardNext, opponentBenchChoice } from './common.js';
 import { discardOwn, energyCardOf, inPlay } from './ex2.js';
 import { EX6 } from './ex6.js';
 import { copyAmong, rotatingClaws } from './ex7.js';
 import { dragOff, EX8 } from './ex8.js';
-import { EX10, guardNext } from './ex10.js';
+import { EX10 } from './ex10.js';
 import { exProof, same } from './ex12.js';
 import { EX13 } from './ex13.js';
 import { damageAt } from './ex14.js';
@@ -40,16 +40,6 @@ const rageAura = (cost: EnergyType[]) => (s: AttackSituation): EnergyType[] | nu
   return behind && powerActive(s.attacker, s.cards, sides) ? cost : null;
 };
 
-/** "During your opponent's next turn, any damage done by attacks from the Defending Pokémon is reduced by N (before Weakness and Resistance)" (Charm, Delta Reduction, Negative Ion). */
-export const charmFor = (damage: number, amount: number): AttackEffect => ({
-  run(ctx) {
-    if (damage) ctx.hit(damage);
-    ctx.affectDefender((e) => {
-      e.charm = { amount, until: ctx.turn + 1 };
-      ctx.log(`${ctx.defenderDef.name}'s attacks do ${amount} less damage next turn.`, ctx.opp.id);
-    });
-  },
-});
 
 /** Psychic Pulse: 10 to each of the opponent's Benched Pokémon with damage counters. */
 export const psychicPulse = (damage: number): AttackEffect => ({

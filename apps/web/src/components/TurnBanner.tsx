@@ -1,5 +1,5 @@
 import type { PlayerView } from '@poke-tcg/game-engine';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 /** How long the turn banner takes: coming in (its text sliding in from both sides), held, then fading away. */
 const SLIDE_MS = 320;
@@ -350,6 +350,31 @@ export function SetupBanner({ first, leaving, onGone, compact }: { first: boolea
  * row, its text on one line left of the buttons, sliding in from the right (`single`).
  */
 export function TurnBanner({ turn, compact }: { turn: NewTurn; compact: boolean }) {
+  // Up from the moment it's on screen until it has faded out (or gone), for useTurnBannerUp.
+  useEffect(() => {
+    setBannerUp(true);
+    return () => setBannerUp(false);
+  }, []);
   // On a phone one band, in from the right (the user's).
-  return <SplitBanner left={turn.mine ? 'Your Turn' : "Opponent's Turn"} right={`Turn ${turn.turn}`} mine={turn.mine} compact={compact} hold={HOLD_MS} single={compact} />;
+  return <SplitBanner left={turn.mine ? 'Your Turn' : "Opponent's Turn"} right={`Turn ${turn.turn}`} mine={turn.mine} compact={compact} hold={HOLD_MS} single={compact} onGone={bannerGone} />;
+}
+
+/** A turn banner is on screen, not yet faded out. */
+let bannerUp = false;
+const bannerListeners = new Set<() => void>();
+function setBannerUp(up: boolean) {
+  bannerUp = up;
+  for (const l of bannerListeners) l();
+}
+const bannerGone = () => setBannerUp(false);
+
+/** Whether a turn banner is on screen: the game page plays no move, and takes none of the player's, until it has faded out (the user's). */
+export function useTurnBannerUp() {
+  return useSyncExternalStore(
+    (l) => {
+      bannerListeners.add(l);
+      return () => bannerListeners.delete(l);
+    },
+    () => bannerUp,
+  );
 }

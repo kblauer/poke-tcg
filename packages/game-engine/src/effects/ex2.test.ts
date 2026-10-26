@@ -192,6 +192,7 @@ describe('EX Sandstorm', () => {
   it("Strike and Run: up to 3 Basic Pokémon onto the Bench, then Dunsparce may switch with a Benched Pokémon", () => {
     let s = duel('charmander', 'onix', { bench: ['squirtle'] });
     put(s, 'ash', 'active', mon('ex2-60', 'Dunsparce', C, 50, [['Strike and Run', [C], 0]]), ['fire']);
+    ash(s).deck.push({ uid: 'sq', defId: 'base1-63' });
     s = attack(s, 0);
     expect(s.pendingChoice).toMatchObject({ kind: 'pickFromDeck', filter: 'basic', toBench: true });
     s = resolve(s, {});

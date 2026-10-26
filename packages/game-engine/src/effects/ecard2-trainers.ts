@@ -13,7 +13,7 @@
 // basic Energy cards by itself; with more than 2 attached, its owner picks up to 2 (agreed with the user).
 import { isBasicEnergy, isPokemonCard, lookupCard, type Attack, type EnergyType } from '../cards.js';
 import { discardTheirEnergy, type InPlayPokemon, type PlayerState, type Target } from '../engine.js';
-import { energyKept, pokemonAt, powerActive, trainerProof } from '../powers.js';
+import { energyKept, pokemonAt, powerActive, trainerProof, pokemonPower } from '../powers.js';
 import { shuffle } from '../rng.js';
 import { benchRoom, effectId, energyProtected, inPlayDef, openBenchSlot, pokemonName } from '../status.js';
 import { powerEffect } from './index.js';
@@ -28,7 +28,7 @@ const isBasicCard = (s: { cards: TrainerSituation['cards'] }, c: { defId: string
 const cubeTargets = (s: TrainerSituation, type: EnergyType) =>
   targetsOf(s.me).filter((t) => {
     const p = at(s.me, t);
-    return inPlayDef(s.cards, p).type === type || (!!powerEffect(effectId(p))?.synchronicity && powerActive(p, s.cards, [s.me, s.opp]));
+    return inPlayDef(s.cards, p).type === type || (!!pokemonPower(p)?.synchronicity && powerActive(p, s.cards, [s.me, s.opp]));
   });
 
 /** A Cube: a Technical Machine for a Pokémon of `type`, with its attack (its effect is in ecard2.ts, by this card's id). */
@@ -56,7 +56,7 @@ export const ECARD2_TRAINERS: Record<string, TrainerEffect> = {
   // Apricorn Forest (Stadium): once during each player's turn, with room on the Bench, flip; heads shows a basic Energy card from the hand for a Basic Pokémon of its type from the deck onto the Bench.
   'ecard2-118': {
     stadium: true,
-    stadiumBlocked: (me, cards) => (openBenchSlot(me.bench, cards) < 0 ? 'Apricorn Forest: your Bench is full' : null),
+    stadiumBlocked: (me, cards) => (openBenchSlot(me, cards) < 0 ? 'Apricorn Forest: your Bench is full' : null),
     useStadium({ state, me, flip }) {
       if (!flip()) return;
       if (!me.hand.some((c) => isBasicEnergy(lookupCard(state.cards, c.defId)))) return;
@@ -125,9 +125,9 @@ export const ECARD2_TRAINERS: Record<string, TrainerEffect> = {
   // Pokémon Fan Club (Supporter): up to 2 Baby and/or Basic Pokémon from the deck onto the Bench.
   'ecard2-130': {
     supporter: true,
-    blocked: (s) => (openBenchSlot(s.me.bench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : s.deckCount ? null : 'Your deck is empty'),
+    blocked: (s) => (openBenchSlot(s.me, s.cards, s.stadium) < 0 ? 'Your Bench is full' : s.deckCount ? null : 'Your deck is empty'),
     play(ctx) {
-      const room = benchRoom(ctx.me.bench, ctx.state.cards, ctx.state.stadium?.card);
+      const room = benchRoom(ctx.me, ctx.state.cards, ctx.state.stadium?.card);
       ctx.pend({ kind: 'pickFromDeck', source: 'Pokémon Fan Club', filter: 'basic', toBench: true, optional: true, count: Math.min(2, room) });
     },
   },

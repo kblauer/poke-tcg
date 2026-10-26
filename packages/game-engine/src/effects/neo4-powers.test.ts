@@ -76,7 +76,7 @@ describe('Neo Destiny Pokémon Powers', () => {
     let s = act(start, 'ash', { type: 'EVOLVE', cardUid: togetic!, target: 0 });
     expect(s.pendingChoice).toMatchObject({ player: 'misty', filter: 'tool' });
     s = act(s, 'misty', { type: 'RESOLVE_CHOICE', cardUid: 'focusBand-card-1' });
-    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'focusBand-card-2' });
+    // Ash's own search: his only Pokémon Tool is taken without asking (the same-card rule).
     expect([misty(s).hand.some((c) => c.uid === 'focusBand-card-1'), ash(s).hand.some((c) => c.uid === 'focusBand-card-2')]).toEqual([true, true]);
   });
 

@@ -12,7 +12,7 @@ export interface HoloSource {
   type: string | null;
   rarity?: string | null;
   holo?: boolean;
-  /** Galaxy foil: around the art (a few promos and Southern Islands), or in it on a holo (Gen 1's and Gen 2's holo Pokémon). */
+  /** Galaxy foil: around the art (a few promos and Southern Islands), or in it on a holo (Gen 1's, Gen 2's and Gen 3's holo Pokémon). */
   galaxy?: boolean;
   /** Holo Energy: the library style it's shown in (its data-* attributes). */
   holoEnergy?: { rarity: string; trainerGallery?: boolean; supertype?: string; subtypes?: string } | null;
@@ -36,7 +36,7 @@ export interface HoloAttributes {
   trainerGallery: boolean;
   /** A holo Energy (data-holo-energy): its style covers the whole card, nothing masked out (wotc.css). */
   holoEnergy: boolean;
-  /** Galaxy foil in the art window (data-galaxy-art): Gen 1's and Gen 2's holo Pokémon, rather than around the art. */
+  /** Galaxy foil in the art window (data-galaxy-art): Gen 1's, Gen 2's and Gen 3's holo Pokémon, rather than around the art. */
   galaxyArt: boolean;
   /**
    * A galaxy-art holo's mask (public/holo-masks/<card id>.png, made by tools/holo-masks): the foil shows only where it's
@@ -45,10 +45,10 @@ export interface HoloAttributes {
   mask: string | null;
 }
 
-/** A set's card layout (wotc.css, gold-border.css): classic (Base–Neo), e-Card, or EX (Generation 3). */
+/** A set's card layout (wotc.css, flair-border.css): classic (Base–Neo), e-Card, or EX (Generation 3). */
 export const setEra = (set: string): HoloAttributes['era'] => (set.startsWith('ecard') ? 'ecard' : /^ex\d/.test(set) ? 'ex' : 'wotc');
 
-const SUBTYPES: Record<string, string> ={ basic: 'basic', baby: 'basic', stage1: 'stage 1', stage2: 'stage 2' };
+const SUBTYPES: Record<string, string> = { basic: 'basic', baby: 'basic', stage1: 'stage 1', stage2: 'stage 2', 'level-up': 'level-up' };
 
 /**
  * `pattern`: a holo pattern the player bought for the card (card flair, `usePattern`), shown instead of its own: the

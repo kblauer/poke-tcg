@@ -5,10 +5,10 @@
 // can Knock the Pokémon Out), and it can't evolve again this turn. Ruin Wall and Energy Ark can find nothing.
 import type { CardLibrary } from '../cards.js';
 import { newInPlay, type CardInstance } from '../engine.js';
-import { clearOnLeavingActive, openBenchSlot, pokemonName } from '../status.js';
+import { clearOnLeavingActive, devolvable, openBenchSlot, pokemonName, removeTopEvolution } from '../status.js';
 import { def, own, targetsOf, type TrainerEffect, type TrainerSituation } from '../trainers.js';
 
-const benchFull = (s: TrainerSituation) => (openBenchSlot(s.me.bench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null);
+const benchFull = (s: TrainerSituation) => (openBenchSlot(s.me, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null);
 
 /** Cards in the hand, other than `played`, that evolve from Mysterious Fossil (Fossil Egg). */
 const fossilsInHand = (s: { cards: CardLibrary }, hand: CardInstance[], played: CardInstance) =>
@@ -18,7 +18,7 @@ const fossilsInHand = (s: { cards: CardLibrary }, hand: CardInstance[], played: 
   });
 
 /** The player's Evolved Pokémon (Hyper Devolution Spray). */
-const evolvedTargets = (s: TrainerSituation) => targetsOf(s.me).filter((t) => own(s, t)!.evolvedFrom.length > 0);
+const evolvedTargets = (s: TrainerSituation) => targetsOf(s.me).filter((t) => devolvable(s.cards, own(s, t)!));
 
 export const NEO2_TRAINERS: Record<string, TrainerEffect> = {
   // Fossil Egg: heads, a card that evolves from Mysterious Fossil from the deck (or the hand) onto the Bench, as a Basic Pokémon.
@@ -33,7 +33,7 @@ export const NEO2_TRAINERS: Record<string, TrainerEffect> = {
     play(ctx) {
       if (!ctx.flip()) return ctx.log('Fossil Egg did nothing.');
       const fromHand = ctx.choices.pick ? fossilsInHand(ctx.state, ctx.me.hand, ctx.card)[ctx.choices.pick - 1] : undefined;
-      const slot = openBenchSlot(ctx.me.bench, ctx.state.cards, ctx.state.stadium?.card);
+      const slot = openBenchSlot(ctx.me, ctx.state.cards, ctx.state.stadium?.card);
       if (fromHand && slot >= 0) {
         const [card] = ctx.fromHand(ctx.me, [fromHand.uid]);
         ctx.me.bench[slot] = newInPlay(card!, ctx.turn);
@@ -50,8 +50,7 @@ export const NEO2_TRAINERS: Record<string, TrainerEffect> = {
     play(ctx) {
       const t = ctx.choices.target!;
       const p = (t === 'active' ? ctx.me.active : ctx.me.bench[t])!;
-      const top = p.card;
-      p.card = p.evolvedFrom.pop()!;
+      const top = removeTopEvolution(ctx.state, ctx.me, p);
       ctx.me.hand.push(top);
       // As if it had evolved: Special Conditions and attack effects end. It can't evolve again this turn. A Knock Out is handled after.
       clearOnLeavingActive(p);

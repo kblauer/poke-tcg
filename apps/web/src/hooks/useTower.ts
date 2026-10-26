@@ -1,11 +1,9 @@
 import type { AppRouter } from '@poke-tcg/api/router';
 import type { TowerAction } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useRouterState } from '@tanstack/react-router';
+import { useRouterState } from '@tanstack/react-router';
 import type { inferRouterOutputs } from '@trpc/server';
-import { useEffect } from 'react';
 import { useTRPC } from '../lib/trpc';
-import { useRun } from './useRun';
 
 export type TowerOverview = inferRouterOutputs<AppRouter>['tower']['overview'];
 export type ClientTower = NonNullable<TowerOverview['challenge']>;
@@ -29,7 +27,7 @@ export function useTowerBp(): number | null {
   return path === '/tower' || (game && tower.challenge?.gameId === game) ? tower.bp : null;
 }
 
-/** A challenge under way and not saved: the Play tab stays on it (the user's) until it's saved or over. */
+/** A challenge under way and not saved: no run or Training battle starts until it's saved or over (the server refuses them). */
 export const towerUnderway = (challenge: ClientTower | null | undefined) => challenge?.status === 'ACTIVE' && !challenge.view.saved;
 
 /**
@@ -62,20 +60,3 @@ export function useTowerActions() {
 /** The Play tab's pages: its menu, and its four modes. */
 const PLAY_PATHS = ['/', '/badge', '/tower', '/idle', '/battle'];
 export const isPlayPath = (path: string) => PLAY_PATHS.includes(path);
-
-/**
- * Keeps the Play tab on the mode under way (the user's): a Battle Tower challenge under way and not saved, wherever in
- * Play; otherwise, from the menu, a run under way. Nothing while either is loading.
- */
-export function usePlayRedirect() {
-  const navigate = useNavigate();
-  const path = useRouterState({ select: (s) => s.location.pathname });
-  const tower = useTowerOverview();
-  const { run, overview } = useRun();
-  const runUnderway = !!run && run.view.phase !== 'won' && run.view.phase !== 'lost';
-  const to = towerUnderway(tower.data?.challenge) ? '/tower' : path === '/' && runUnderway ? '/badge' : null;
-  useEffect(() => {
-    if (to && to !== path) navigate({ to, replace: true });
-  }, [to, path, navigate]);
-  return { redirecting: !!to && to !== path, loading: !tower.data || !overview.data };
-}

@@ -74,10 +74,10 @@ describe('Promo cards', () => {
     it('Recharge attaches a Lightning Energy card from the deck to Pikachu', () => {
       let s = duel('pikachuP4', 'onix', { energy: ['lightning'] });
       ash(s).deck.push({ uid: 'w1', defId: 'water' }, { uid: 'l1', defId: 'lightning' });
+      // The only Lightning Energy card in the deck: attached without a question (the same-card rule).
       s = attack(s, 0);
-      expect(getPlayerView(s, 'ash').self.pendingChoice).toMatchObject({ kind: 'pickFromDeck', options: [{ uid: 'l1' }] });
-      s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'l1' });
       expect(ash(s).active!.energy.map((e) => e.uid)).toContain('l1');
+      expect(ash(s).active!.energy.map((e) => e.uid)).not.toContain('w1');
       expect(s.currentPlayer).toBe('misty');
     });
 
@@ -187,9 +187,9 @@ describe('Promo cards', () => {
 
     it("Let's Play! puts a Baby Pokémon from the deck onto the Bench", () => {
       let s = duel('pichu', 'onix', { energy: ['fire'] });
-      ash(s).deck.push({ uid: 'baby', defId: id('cleffa') });
+      ash(s).deck.push({ uid: 'baby', defId: id('cleffa') }, { uid: 'baby2', defId: id('magby') });
       s = attack(s, 0);
-      expect(getPlayerView(s, 'ash').self.pendingChoice).toMatchObject({ options: [{ uid: 'baby' }] });
+      expect(getPlayerView(s, 'ash').self.pendingChoice).toMatchObject({ options: [{ uid: 'baby' }, { uid: 'baby2' }] });
       expect(ash(act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'baby' })).bench[0]!.card.uid).toBe('baby');
     });
 

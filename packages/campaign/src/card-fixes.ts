@@ -5,10 +5,10 @@
 // a card's rarity for the pool. The seed's own fixes (TCGDEX_FIXES, printed names, Pokémon-ex stages: packages/db/prisma/
 // seed.ts) are made before the catalog is written, so they aren't here; the test pool copies the ones it needs.
 import { attackEffect, energyEffect, powerEffect, trainerEffect, type Attack, type CardDef, type EnergyType, type PokemonCardDef, type Stage } from '@poke-tcg/game-engine';
-import { GEN2_SETS, POOL_SETS, type Rarity } from './pool.js';
+import { GEN2_SETS, GEN3_SETS, POOL_SETS, type Rarity } from './pool.js';
 
 const ENERGY_TYPES = new Set<EnergyType>(['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'darkness', 'metal', 'colorless']);
-const STAGES: Record<string, Stage> = { Basic: 'basic', Baby: 'basic', Stage1: 'stage1', Stage2: 'stage2' };
+const STAGES: Record<string, Stage> = { Basic: 'basic', Baby: 'basic', Stage1: 'stage1', Stage2: 'stage2', 'LEVEL-UP': 'levelUp' };
 
 /** Shape of the TCGdex fields kept in Card.data (see packages/db/prisma/tcgdex.ts). */
 export interface CardData {
@@ -74,8 +74,8 @@ const BABIES = new Set(['basep-31', 'basep-35', 'basep-36', 'neo1-12', 'neo1-20'
 /** Gym Heroes evolutions TCGdex leaves out, by name (without the owner). */
 const TCGDEX_MISSING_EVOLVES_FROM: Record<string, string> = { "Lt. Surge's Magneton": 'Magnemite' };
 
-/** Other cards whose "Evolves from" TCGdex leaves out, by id (Expedition's non-holo Arbok and Blastoise; also fixed in the seed). */
-const MISSING_EVOLVES_FROM_BY_ID: Record<string, string> = { 'ecard1-35': 'Ekans', 'ecard1-37': 'Wartortle' };
+/** Other cards whose "Evolves from" TCGdex leaves out, by id (Expedition's non-holo Arbok and Blastoise, Unleashed Floatzel; also fixed in the seed). */
+const MISSING_EVOLVES_FROM_BY_ID: Record<string, string> = { 'ecard1-35': 'Ekans', 'ecard1-37': 'Wartortle', 'hgss2-16': 'Buizel' };
 
 /** The owner in an owner's Pokémon's name (Gym Heroes, Gym Challenge): "Brock's Rhydon" → "Brock's ". */
 const OWNER = /^((?:Blaine|Brock|Erika|Lt\. Surge|Misty|Sabrina|Giovanni|Koga|Rocket)'s )/;
@@ -113,19 +113,41 @@ export const isHolo = (card: Pick<CatalogCard, 'id' | 'data'>) => (card.data as 
 const GALAXY_FOIL = new Set(['basep-34', 'basep-35', 'si1-1', 'si1-4', 'si1-7', 'si1-11', 'si1-14', 'si1-17']);
 
 /**
- * Gen 1's and Gen 2's holo Pokémon are shown with the galaxy foil in the art window, their Pokémon masked out of it
- * (apps/web/public/holo-masks): asked by the user 2026-10-23, after Base Set 2's holo rares had it to set them apart
- * from the originals they reprint. Holo Trainers and Energy keep their foil.
+ * Gen 1's, Gen 2's and Gen 3's holo Pokémon are shown with the galaxy foil in the art window, their Pokémon masked out
+ * of it (apps/web/public/holo-masks): asked by the user 2026-10-23, after Base Set 2's holo rares had it to set them
+ * apart from the originals they reprint (Gen 3's 2026-10-24; Pokémon-ex keep their foil on the border too). Holo
+ * Trainers and Energy keep their foil, and so do reverse holos (their ids, "<card id>-reverse", name no set).
  */
-const GALAXY_ART_SETS = new Set([...POOL_SETS, ...GEN2_SETS]);
+const GALAXY_ART_SETS = new Set([...POOL_SETS, ...GEN2_SETS, ...GEN3_SETS]);
 const isGalaxyArt = (card: Pick<CatalogCard, 'id' | 'data'>) =>
   GALAXY_ART_SETS.has(card.id.slice(0, card.id.lastIndexOf('-'))) && isHolo(card) && !!(card.data as CardData).dexId?.length;
 
 export const isGalaxyFoil = (card: Pick<CatalogCard, 'id' | 'data'>) => GALAXY_FOIL.has(card.id) || isGalaxyArt(card);
 
-/** A catalog card's rarity, holos apart: holo and galaxy-foil cards (the promo Entei and Pichu, which TCGdex lists as Common) are holos. */
+/**
+ * Gen 4's main sets (not the promos), whose rarity is read from the printed rarity: TCGdex marks many of their non-holo
+ * rares and a few commons holo. Their official card counts where a non-holo "Rare" is a secret rare (numbered after them).
+ */
+const GEN4_PRINTED_RARITY = /^(dp[0-9]+|pl[0-9]+|hgss[0-9]+|col[0-9]+)$/;
+const GEN4_OFFICIAL: Record<string, number> = { dp2: 123, dp7: 100, pl1: 127, pl2: 111, pl3: 147, pl4: 99, hgss4: 102 };
+
+/**
+ * A Gen 4 card's rarity by its printed rarity: Common, Uncommon and Rare as printed, every other (Rare Holo, Holo
+ * Rare, Rare Holo LV.X, Rare PRIME, LEGEND, Ultra Rare) and the secret rares (numbered after the set, or lettered:
+ * SH, RT, AR, SL, the Alph Lithographs) holos, as is a reverse holo. Null for a card of another set.
+ */
+function gen4Rarity(card: Pick<CatalogCard, 'id' | 'rarity' | 'data'>): Rarity | null {
+  const [set, number] = card.id.split('-') as [string, string];
+  if (!GEN4_PRINTED_RARITY.test(set)) return null;
+  if ((card.data as CardData).reverseHolo) return 'holo';
+  if (card.rarity === 'Common') return 'common';
+  if (card.rarity === 'Uncommon') return 'uncommon';
+  return card.rarity === 'Rare' && /^[0-9]+$/.test(number) && Number(number) <= (GEN4_OFFICIAL[set] ?? Infinity) ? 'rare' : 'holo';
+}
+
+/** A catalog card's rarity, holos apart: holo and galaxy-foil cards (the promo Entei and Pichu, which TCGdex lists as Common) are holos; Gen 4's by their printed rarity (gen4Rarity). */
 export const cardRarity = (card: Pick<CatalogCard, 'id' | 'rarity' | 'data'>): Rarity =>
-  isHolo(card) || isGalaxyFoil(card) ? 'holo' : card.rarity === 'Rare' ? 'rare' : card.rarity === 'Uncommon' ? 'uncommon' : 'common';
+  gen4Rarity(card) ?? (isHolo(card) || isGalaxyFoil(card) ? 'holo' : card.rarity === 'Rare' ? 'rare' : card.rarity === 'Uncommon' ? 'uncommon' : 'common');
 
 function energyType(tcgdexType: string): EnergyType {
   const type = tcgdexType.toLowerCase() as EnergyType;
@@ -146,11 +168,13 @@ function power(data: CardData, cardId: string): PokemonCardDef['power'] {
   return ability ? { name: effect?.name ?? ability.name, text: effect?.text ?? ability.effect } : null;
 }
 
-/** First weakness as type and multiplier ("×2" → 2). */
+/** First weakness as type and multiplier ("×2" → 2), or the amount more ("+20" → plus 20: the Diamond & Pearl series'). */
 function weakness(data: CardData): PokemonCardDef['weakness'] {
   const [w] = data.weaknesses ?? [];
   if (!w) return null;
-  return { type: energyType(w.type), multiplier: Number.parseInt((w.value ?? '').replace(/^[×x]/, ''), 10) || 2 };
+  const value = (w.value ?? '').trim();
+  if (value.startsWith('+')) return { type: energyType(w.type), multiplier: 1, plus: Number.parseInt(value.slice(1), 10) };
+  return { type: energyType(w.type), multiplier: Number.parseInt(value.replace(/^[×x]/, ''), 10) || 2 };
 }
 
 /** First resistance as type and amount ("-30" → 30). */
