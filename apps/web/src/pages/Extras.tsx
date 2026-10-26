@@ -6,11 +6,12 @@ import { BerryFarm } from '../components/extras/BerryFarm';
 import { GameCorner } from '../components/extras/GameCorner';
 import { PoffinCooking } from '../components/extras/PoffinCooking';
 import { VoltorbFlip } from '../components/extras/VoltorbFlip';
+import { WhosThat } from '../components/extras/WhosThat';
 import { PageHeader } from '../components/PageHeader';
 import { PAGE_WIDTH } from '../utils/layout';
 
 /** The Extras page's minigames and modes, in its list's order: each its page, picture and a line on it. */
-const EXTRAS: { to: '/extras/berry-farm' | '/extras/berry-blender' | '/extras/poffin-cooking' | '/extras/game-corner' | '/extras/voltorb-flip'; title: string; text: string; picture: ReactNode }[] = [
+const EXTRAS: { to: '/extras/berry-farm' | '/extras/berry-blender' | '/extras/poffin-cooking' | '/extras/game-corner' | '/extras/voltorb-flip' | '/extras/whos-that'; title: string; text: string; picture: ReactNode }[] = [
   {
     to: '/extras/berry-farm',
     title: 'Berry Farm',
@@ -45,6 +46,13 @@ const EXTRAS: { to: '/extras/berry-farm' | '/extras/berry-blender' | '/extras/po
     text: 'Goldenrod’s card game from HeartGold and SoulSilver: flip the cards to multiply your coins, but find a Voltorb and you lose them all.',
     // The game's face-up Voltorb card (its tiles' 11th, 24×24), at 3×.
     picture: <div className="size-[72px] bg-[url(/extras/voltorb-flip/tiles.png)] bg-[length:768px_192px] bg-[position:-264px_0] [image-rendering:pixelated]" />,
+  },
+  {
+    to: '/extras/whos-that',
+    title: 'Who’s That Pokémon?',
+    text: 'Name 10 Pokémon from their silhouettes as fast as you can, or take on today’s playlist, and climb the leaderboards.',
+    // The screen itself, empty.
+    picture: <img src="/whos-that/template.webp" alt="" className="w-24 rounded" />,
   },
 ];
 
@@ -120,6 +128,15 @@ export function VoltorbFlipPage() {
   return (
     <ExtraPage title="Voltorb Flip" info="Flip the cards and collect coins">
       <VoltorbFlip />
+    </ExtraPage>
+  );
+}
+
+/** Who's That Pokémon? (`/extras/whos-that`). */
+export function WhosThatPage() {
+  return (
+    <ExtraPage title="Who’s That Pokémon?" info="Name the Pokémon from its silhouette">
+      <WhosThat />
     </ExtraPage>
   );
 }

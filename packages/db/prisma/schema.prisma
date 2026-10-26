@@ -79,6 +79,30 @@ model User {
   poffins       Poffin[]
   idleRuns      IdleRun[]
   idleDex       IdleDex[]
+  whosThat      WhosThatGame[]
+}
+
+/// A game of the Extras page's Who's That Pokémon? (README: Who's That Pokémon?): its 10 cards, the one on screen (`index`)
+/// and when the server showed it, each one named's time in ms (a pass counts the campaign package's WHOS_THAT_PASS_MS) and
+/// whether it was passed; once finished, its fastest and average times (the leaderboards'). `day` is the daily playlist's
+/// ("2026-10-26", one game a player a day), null for a game of random Pokémon.
+model WhosThatGame {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day        String?
+  cards      String[]
+  index      Int       @default(0)
+  shownAt    DateTime  @default(now())
+  times      Int[]     @default([])
+  passed     Boolean[] @default([])
+  finishedAt DateTime?
+  fastestMs  Int?
+  averageMs  Int?
+  createdAt  DateTime  @default(now())
+
+  @@unique([userId, day])
+  @@index([day, averageMs])
 }
 
 enum CardKind {

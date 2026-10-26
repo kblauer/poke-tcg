@@ -11,6 +11,7 @@ import { packsRouter } from './routers/packs.js';
 import { runRouter } from './routers/run.js';
 import { settingsRouter } from './routers/settings.js';
 import { towerRouter } from './routers/tower.js';
+import { whosThatRouter } from './routers/whosThat.js';
 import { protectedProcedure, publicProcedure, router } from './trpc.js';
 
 export const appRouter = router({
@@ -28,6 +29,7 @@ export const appRouter = router({
   flair: flairRouter,
   settings: settingsRouter,
   extras: extrasRouter,
+  whosThat: whosThatRouter,
   debug: debugRouter,
 });
 

@@ -55,6 +55,7 @@ const BerryBlenderPage = lazyRouteComponent(() => import('./pages/Extras'), 'Ber
 const PoffinCookingPage = lazyRouteComponent(() => import('./pages/Extras'), 'PoffinCookingPage');
 const GameCornerPage = lazyRouteComponent(() => import('./pages/Extras'), 'GameCornerPage');
 const VoltorbFlipPage = lazyRouteComponent(() => import('./pages/Extras'), 'VoltorbFlipPage');
+const WhosThatPage = lazyRouteComponent(() => import('./pages/Extras'), 'WhosThatPage');
 
 // The logo, in the top bar and the phone's menu: the Pokémon logo's lettering (Pokemon Solid, `font-logo`); everything
 // else is in the UI's font (index.css).
@@ -221,9 +222,10 @@ const berryBlenderRoute = createRoute({ getParentRoute: () => rootRoute, path: '
 const poffinCookingRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras/poffin-cooking', component: PoffinCookingPage });
 const gameCornerRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras/game-corner', component: GameCornerPage });
 const voltorbFlipRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras/voltorb-flip', component: VoltorbFlipPage });
+const whosThatRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras/whos-that', component: WhosThatPage });
 
 const router = createRouter({
-  routeTree: rootRoute.addChildren([playRoute, homeRoute, towerRoute, idleRoute, battleRoute, gameRoute, decksRoute, communityRoute, inventoryRoute, cosmeticsRoute, packsRoute, settingsRoute, extrasRoute, berryFarmRoute, berryBlenderRoute, poffinCookingRoute, gameCornerRoute, voltorbFlipRoute]),
+  routeTree: rootRoute.addChildren([playRoute, homeRoute, towerRoute, idleRoute, battleRoute, gameRoute, decksRoute, communityRoute, inventoryRoute, cosmeticsRoute, packsRoute, settingsRoute, extrasRoute, berryFarmRoute, berryBlenderRoute, poffinCookingRoute, gameCornerRoute, voltorbFlipRoute, whosThatRoute]),
 });
 
 declare module '@tanstack/react-router' {

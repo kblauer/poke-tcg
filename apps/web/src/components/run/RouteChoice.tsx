@@ -1,4 +1,4 @@
-import { battleReward, boss, CENTER_PRICE, eventInfo, isBattleKind, isBossKind, ITEMS, OFFERS, PRICES, REWARD_FOCUS_LABELS, SHOP_SIZE, trainerFavorites, type MapEncounter } from '@poke-tcg/campaign';
+import { battleReward, boss, CENTER_PRICE, eventInfo, isBattleKind, isBossKind, ITEMS, OFFERS, PRICES, REWARD_FOCUS_LABELS, SHOP_SIZE, trainerFavorites, WHOS_THAT_RUN_MS, type MapEncounter } from '@poke-tcg/campaign';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { CPU_DIFFICULTY_LABELS, type EnergyType } from '@poke-tcg/game-engine';
 import { useQuery } from '@tanstack/react-query';
@@ -67,6 +67,8 @@ function describe(o: MapEncounter, cardName: (id: string) => string): string[] {
           return [`₱${e.cost} for ${e.exp} EXP.`];
         case 'luckyFind':
           return [`₱${commas(e.pokedollars)} on the ground.`];
+        case 'whosThat':
+          return [`Name the Pokémon in ${WHOS_THAT_RUN_MS / 1000} s for ${e.exp} EXP.`];
       }
       return [];
     }

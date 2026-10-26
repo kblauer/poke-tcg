@@ -186,6 +186,13 @@ html[data-font="emerald"] {
   to { opacity: 0; transform: translate(-50%, -10px); }
 }
 
+/* Who's That Pokémon?'s name box shaking off a wrong name (components/whos-that/GuessInput.tsx). */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+
 /* The battle transitions (components/BattleTransition.tsx; first the Battle Tower's): the double white flash, then the screen closing. */
 @keyframes tower-flash {
   0%, 22%, 50% { opacity: 0; }

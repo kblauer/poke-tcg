@@ -5,6 +5,7 @@ import { ENCOUNTER_STYLE, EncounterBadge } from './encounterIcons';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { useUnlocked } from '../../hooks/useUnlocked';
 import { RunCard } from './RunCard';
+import { WhosThatEvent } from './WhosThatEvent';
 import { commas } from '../../utils/math';
 
 const panel = 'space-y-4 rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600';
@@ -173,6 +174,7 @@ export function EncounterPanel({ view, run }: { view: RunViewData; run: RunContr
       );
 
     case 'event':
+      if (e.event.id === 'whosThat') return <WhosThatEvent view={view} run={run} />;
       return (
         <div className={panel}>
           <div className="flex items-center gap-3">

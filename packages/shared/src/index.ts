@@ -240,6 +240,15 @@ export const coinRoundInput = z.object({ game: z.enum(['roulette', 'slots']), be
 export const voltorbRoundInput = z.object({ restart: z.boolean() });
 export const voltorbSettleInput = z.object({ flips: z.array(z.number().int().min(0).max(24)).max(25), outcome: z.enum(['quit', 'won', 'lost']) });
 
+/** Who's That Pokémon?: a typed name (a Pokémon's, at most 30 characters), a run's event, the Extras mode's games and leaderboards. */
+const whosThatGuess = z.string().max(30);
+export const whosThatRunInput = z.object({ runId: z.uuid(), expectedVersion: z.number().int().min(0) });
+export const whosThatRunGuessInput = z.object({ runId: z.uuid(), guess: whosThatGuess });
+export const whosThatStartInput = z.object({ daily: z.boolean() });
+export const whosThatGuessInput = z.object({ gameId: z.uuid(), guess: whosThatGuess });
+export const whosThatGameInput = z.object({ gameId: z.uuid() });
+export const whosThatBoardInput = z.object({ board: z.enum(['average', 'fastest', 'daily']) });
+
 export const openPackInput = z.object({
   setId: z.enum(PACK_SETS as [string, ...string[]]),
   /** How many packs to buy and open at once. */

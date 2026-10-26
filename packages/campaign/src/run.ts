@@ -12,6 +12,7 @@ import { byId, DECK_TYPES, offerable, PRICES, rarityWeight, type PoolCard, type 
 import { between, chance, pick, random, rngFrom, sample, seed, weighted, type Rng } from './random.js';
 import { finalBoss, routeAt, runGeneration, runType, type RunType, type RunTypeId } from './run-types.js';
 import type { Route, RouteSpot } from './routes.js';
+import { WHOS_THAT_EXP, WHOS_THAT_RUN_MS } from './whos-that.js';
 
 export const MAX_HP = 3;
 export const STARTING_POKEDOLLARS = 500;
@@ -52,7 +53,13 @@ export type RunEvent =
   | { id: 'gamble'; stake: number; prize: number }
   | { id: 'bargain'; cardId: string }
   | { id: 'donation'; cost: number; exp: number }
-  | { id: 'luckyFind'; pokedollars: number };
+  | { id: 'luckyFind'; pokedollars: number }
+  /**
+   * Who's That Pokémon? (whos-that.ts): name the Pokémon within 10 seconds for `exp`. Its picture is a random holo's or
+   * the rotating list's of the day (`source`). The API picks the card and starts the clock (WHOS_THAT_STARTED: `cardId`,
+   * which runView hides, and `startedAt`), and settles it (WHOS_THAT_OVER).
+   */
+  | { id: 'whosThat'; exp: number; source: 'random' | 'rotation'; cardId?: string; startedAt?: number };
 
 /** The encounter being played. */
 export type Encounter =
@@ -135,7 +142,10 @@ export type RunSystemAction =
   | { type: 'USE_ITEM'; itemId: string }
   | { type: 'RESTORE_HP' }
   /** Switch to another of the account's decks (the server loads it and checks it can be played), on the map before choosing a battle. */
-  | { type: 'SET_DECK'; deck: string[]; name: string };
+  | { type: 'SET_DECK'; deck: string[]; name: string }
+  /** A Who's That Pokémon? event's picture shown (`at`: the server's time, which the 10 seconds count from), and settled: named in time or not. */
+  | { type: 'WHOS_THAT_STARTED'; cardId: string; at: number }
+  | { type: 'WHOS_THAT_OVER'; won: boolean; answer: string };
 
 export type RunResult = { ok: true; state: RunState } | { ok: false; error: string };
 
@@ -430,7 +440,7 @@ function offerCards(rng: Rng, pool: readonly PoolCard[], n: number, minRarity: R
 }
 
 function rollEvent(rng: Rng, state: RunState, pool: readonly PoolCard[]): RunEvent {
-  const events: RunEvent['id'][] = ['typeFrenzy', 'typeFrenzy', 'gamble', 'donation', 'luckyFind'];
+  const events: RunEvent['id'][] = ['typeFrenzy', 'typeFrenzy', 'gamble', 'donation', 'luckyFind', 'whosThat'];
   if (state.hp > 1) events.push('bargain');
   switch (pick(rng, events)) {
     case 'typeFrenzy':
@@ -441,6 +451,8 @@ function rollEvent(rng: Rng, state: RunState, pool: readonly PoolCard[]): RunEve
       return { id: 'bargain', cardId: offerCards(rng, pool, 1, 'rare')[0]! };
     case 'donation':
       return { id: 'donation', cost: 50, exp: 15 };
+    case 'whosThat':
+      return { id: 'whosThat', exp: WHOS_THAT_EXP, source: chance(rng, 0.5) ? 'rotation' : 'random' };
     default:
       return { id: 'luckyFind', pokedollars: between(rng, 5, 10) * 10 };
   }
@@ -556,6 +568,12 @@ export function eventInfo(event: RunEvent, cardName: (id: string) => string): { 
       return { title: 'Pokémon Fan Club', text: `The Fan Club asks for a ₱${event.cost} donation. In return, the chairman tells you stories worth ${event.exp} EXP.`, accept: `Donate ₱${event.cost}` };
     case 'luckyFind':
       return { title: 'Lucky Find', text: `You spot ₱${event.pokedollars} on the ground.`, accept: 'Pick it up' };
+    case 'whosThat':
+      return {
+        title: "Who's That Pokémon?",
+        text: `The rest house TV is showing the quiz. Name the Pokémon from its silhouette within ${WHOS_THAT_RUN_MS / 1000} seconds to win ${event.exp} EXP.`,
+        accept: 'Play',
+      };
   }
 }
 
@@ -824,6 +842,7 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
           return ok();
         case 'event': {
           const ev = e.event;
+          if (ev.id === 'whosThat') return fail('Name the Pokémon to win');
           const info = eventInfo(ev, name);
           if (ev.id === 'typeFrenzy') {
             state.rules.push({ rule: { kind: 'typeDamage', type: ev.type, multiplier: 2 }, battlesLeft: ev.battles, label: `${typeName(ev.type)} Pokémon do double damage` });
@@ -887,6 +906,22 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
 
     case 'USE_ITEM':
       return useItem(ctx, action);
+
+    case 'WHOS_THAT_STARTED': {
+      if (e?.kind !== 'event' || e.event.id !== 'whosThat') return fail("There's no Who's That Pokémon? here");
+      if (e.event.startedAt !== undefined) return fail('It has already started');
+      e.event.cardId = action.cardId;
+      e.event.startedAt = action.at;
+      return ok();
+    }
+
+    case 'WHOS_THAT_OVER': {
+      if (e?.kind !== 'event' || e.event.id !== 'whosThat' || e.event.startedAt === undefined) return fail("No Who's That Pokémon? is being played");
+      if (action.won) state.exp += e.event.exp;
+      state.log.push(action.won ? `Who's That Pokémon?: it's ${action.answer}! +${e.event.exp} EXP.` : `Who's That Pokémon?: it was ${action.answer}.`);
+      nextStep(state);
+      return ok();
+    }
   }
 }
 
@@ -894,7 +929,9 @@ export function applyRunAction(prev: RunState, action: RunAction | RunSystemActi
 export function runView(state: RunState, pool: readonly PoolCard[]) {
   const { rngState: _, ...rest } = state;
   const e = state.encounter;
-  const encounter = e && isBattleEncounter(e) ? (({ deckSeed: __, ...visible }) => visible)(e) : e;
+  // Nor a Who's That Pokémon?'s card, which would give its answer away.
+  const encounter =
+    e && isBattleEncounter(e) ? (({ deckSeed: __, ...visible }) => visible)(e) : e?.kind === 'event' && e.event.id === 'whosThat' ? { ...e, event: (({ cardId: __, ...visible }) => visible)(e.event) } : e;
   const ids = new Set([...state.deck, ...state.gained]);
   if (e?.kind === 'shop') e.stock.forEach((s) => ids.add(s.cardId));
   if (e?.kind === 'gift' || e?.kind === 'reward') e.offers.forEach((id) => ids.add(id));
