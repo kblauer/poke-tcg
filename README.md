@@ -907,7 +907,7 @@ Dev servers, worktrees and review jobs should use the local stack, not the hoste
 
 ## Deploying to Vercel
 
-1. Import the repo into Vercel and leave the **Root Directory** as the repo root. `vercel.json` sets the build command, which writes `.vercel/output` (Build Output API): the web app as static files and the API bundled into one function serving `/api/*`.
+1. Import the repo into Vercel and leave the **Root Directory** as the repo root. `vercel.json` sets the build command, which writes `.vercel/output` (Build Output API): the web app as static files and the API bundled into one function serving `/api/*`; its routes give the pictures' folders (`/idle/`, `/routes/`, `/overworld/`, `/play/`) `Cache-Control: public, max-age=86400, stale-while-revalidate=604800` (`IMAGE_CACHE` in apps/api/scripts/vercel-build.mjs; Vercel's default made the browser ask again on every load; the names aren't hashed, so a changed picture shows within the day).
 2. Add the variables from `.env.example` in the Vercel project settings. Use the **pooled** `DATABASE_URL`.
 3. Run migrations against production from your machine or CI with `pnpm --filter @poke-tcg/db migrate:deploy`. They don't run during the Vercel build, so preview deploys can't touch the production schema.
 
