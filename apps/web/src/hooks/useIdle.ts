@@ -172,7 +172,9 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
 
   useEffect(() => {
     if (!run || !walking) {
-      if (run) update({ place: placeOf(run.view), battle: null, cue: null, spotted: null });
+      // No run under way any more (given up, won): nothing of its playback stays (its battle, its music's cue).
+      if (!run) update({ battle: null, cue: null, spotted: null, entering: false, notice: null, turn: null });
+      else update({ place: placeOf(run.view), battle: null, cue: null, spotted: null });
       // Opened in a town (the user's: no prompt waits on the player): time away past its wait is caught up too, and the
       // run, walking again, plays on (this effect again, for the rest).
       if (run?.status !== 'ACTIVE' || run.view.phase !== 'town' || !visible) return;

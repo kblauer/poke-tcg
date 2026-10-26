@@ -95,7 +95,8 @@ function IdleAdventure() {
   const mapMusic = mapName ? mapView(mapName).music : null;
   const cycling = mapName === 'Route17';
   // A battle's song from its trainer's "!" (or a wild one's flash) on (`cue`, the user's), the same song into the battle.
-  const fight = play.battle ?? play.cue;
+  // Only while a run is under way: given up, the lab's song at once (the user's).
+  const fight = active ? (play.battle ?? play.cue) : null;
   useMusicCue(
     fight
       ? idleMusic(soundtrack, { battle: battleKind(fight.trainer), id: `${run?.id}:${fight.events.length}:${fight.foes.map((f) => f.species).join(',')}` })
