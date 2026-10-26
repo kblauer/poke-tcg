@@ -15,8 +15,7 @@ import { RunOver } from '../components/run/RunOver';
 import { RunStats } from '../components/run/RunStats';
 import { useIsPhone } from '../hooks/useIsPhone';
 import { useRun } from '../hooks/useRun';
-import { usePlayRedirect } from '../hooks/useTower';
-import { ReturnToHome } from '../components/ReturnToHome';
+import { ReturnToPlay } from '../components/ReturnToPlay';
 import { useRunMusic } from '../hooks/useRunMusic';
 import { useWindowFill } from '../hooks/useWindowFill';
 import { PAGE_WIDTH } from '../utils/layout';
@@ -26,7 +25,8 @@ import { PAGE_WIDTH } from '../utils/layout';
  * run's numbers and its log are in the site menu, NavRail). The page has the run's map and its encounter with the deck below; after a run, its
  * results, the shop and the next run. A run whose type has routes (Pewter City: Route 2) shows them instead of the
  * icon map: zoomed in on the step's spot, alone in the top row, with the encounter, the cards unlocked and Concede below.
- * A new account is set up with its first run on the first visit.
+ * A new account picks one of the starter decks for its first run (NewRunPicker). During a run, Return to Play (in the
+ * heading) goes back to the Play tab's menu, whose Badge Challenge tile comes back to it.
  * On a phone (useIsPhone) the run's numbers and log are in the site's ☰ panel, as on a big screen (PhoneNavRun); with a
  * route map they're also under the deck choice (or the encounter) (PanelTabs).
  */
@@ -35,8 +35,6 @@ export function HomePage() {
   const fill = useWindowFill<HTMLDivElement>();
   const phone = useIsPhone();
   const { overview } = run;
-  // A Battle Tower challenge under way keeps the Play tab on it.
-  usePlayRedirect();
   // Auto play follows the run: the route, the town, the gym, a Pokémon Center.
   useRunMusic();
   // On a phone, once an encounter is over (its reward taken), the page scrolls back up to the route map, to watch the
@@ -104,11 +102,11 @@ export function HomePage() {
           {!current || !view ? (
             <>
               <PageHeader title="Play" />
-              <NewRunPicker overview={overview.data} run={run} title="Start a run" extra={<ReturnToHome />} />
+              <NewRunPicker overview={overview.data} run={run} title="Start a run" extra={<ReturnToPlay />} />
             </>
           ) : (
             <>
-              <RunHeader view={view} />
+              <RunHeader view={view} actions={view.phase !== 'won' && view.phase !== 'lost' && <ReturnToPlay />} />
               {view.phase === 'won' || view.phase === 'lost' ? (
                 <RunOver current={current} overview={overview.data} run={run} />
               ) : routes ? (

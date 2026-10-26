@@ -7,11 +7,11 @@ import {
   createRun,
   currentGameId,
   expandDeck,
-  FIRST_RUN,
   MAX_CONSUMABLES_PER_RUN,
   needsBattle,
-  STARTER_DECK,
+  STARTER_DECKS,
   withConsumablesBefore,
+  type StarterId,
   type RunAction,
   type RunState,
   type RunSystemAction,
@@ -72,33 +72,15 @@ export async function syncRunDeck(ownerId: string, runId: string, deck: string[]
 const statusOf = (state: RunState) => (state.phase === 'won' ? 'WON' : state.phase === 'lost' ? 'LOST' : 'ACTIVE');
 
 /**
- * Sets up a new account (or one from before runs existed): the starter deck in its deck list, every card
- * in it unlocked, and the first run with it. Safe to call on every visit; it only creates what's missing.
+ * Sets up a new account's user row. Nothing else: its starter deck and first run wait until it picks one of the starter
+ * decks in the Badge Challenge (the user's: a new account isn't put in a run; startRun with `starter`).
  */
-export async function ensureAccount(user: AuthUser) {
-  await ensureUser(user);
-  // In one transaction with the user row locked: a new account's first two requests at once would each make a starter deck and a run.
-  await prisma.$transaction(async (tx) => {
-    await lockUser(tx, user.id);
-    const runs = await tx.run.count({ where: { ownerId: user.id } });
-    const unlocks = await tx.cardUnlock.count({ where: { userId: user.id } });
-    if (runs && unlocks) return;
-    if (!(await tx.deck.findFirst({ where: { ownerId: user.id, name: STARTER_DECK_NAME } }))) {
-      await tx.deck.create({
-        data: { ownerId: user.id, name: STARTER_DECK_NAME, cards: { create: STARTER_DECK.map(([cardId, quantity]) => ({ cardId, quantity })) } },
-      });
-    }
-    if (!unlocks) await unlockCards(user.id, STARTER_DECK.map(([cardId]) => cardId), tx);
-    if (!runs) await createRunRow(user.id, FIRST_RUN, expandDeck(STARTER_DECK), STARTER_DECK_NAME, tx);
-  });
-}
+export const ensureAccount = (user: AuthUser) => ensureUser(user);
 
-async function createRunRow(ownerId: string, type: RunTypeId, deck: string[], deckName: string, db: Db = prisma) {
-  const seed = newSeed();
-  const state = createRun(type, deck, seed, deckName);
-  const run = await db.run.create({ data: { ownerId, type, seed, state: asJson(state), version: state.version } });
-  await syncRunDeck(ownerId, run.id, state.deck, db);
-  return run;
+/** Whether the account is still to pick its starter deck: it has never had a run or unlocked a card. */
+export async function needsStarter(userId: string, db: Db = prisma) {
+  const [runs, unlocks] = await Promise.all([db.run.count({ where: { ownerId: userId } }), db.cardUnlock.count({ where: { userId } })]);
+  return runs === 0 && unlocks === 0;
 }
 
 export async function loadOwnRun(runId: string, userId: string): Promise<LoadedRun> {
@@ -282,15 +264,25 @@ export async function settleBattle(run: LoadedRun, skipped = false): Promise<Loa
 }
 
 /**
- * Starts a new run of `type` with the deck; it starts with STARTING_POKEDOLLARS. Not while a run is still going.
+ * Starts a new run of `type` with the deck (or, on the account's first run, the starter deck it picked); it starts with STARTING_POKEDOLLARS. Not while a run is still going.
  * The automatic run deck (if the last run's wasn't saved) is taken over by this run (syncRunDeck).
  * Runs' ₱ are banked when they end (advanceRun); any earlier run whose ₱ weren't (one that ended before that
  * rule) is banked here first. The consumables used from the Inventory between runs (`User.pendingConsumables`) take effect (withConsumablesBefore).
  */
-export async function startRun(userId: string, type: RunTypeId, deck: { name: string; cards: string[] }) {
+export async function startRun(userId: string, type: RunTypeId, deck: { name: string; cards: string[] } | { starter: StarterId }) {
   return prisma.$transaction(async (tx) => {
-    // The lock makes the check below hold: two Start clicks at once would otherwise both see no active run and make one each.
+    // The lock makes the checks below hold: two Start clicks at once would otherwise both see no active run (or no
+    // starter yet) and make one each.
     await lockUser(tx, userId);
+    // The account's first run, with the starter deck it picked: the deck goes in its deck list, its cards unlocked.
+    if ('starter' in deck) {
+      if (!(await needsStarter(userId, tx))) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Your starter deck has already been picked' });
+      const { list } = STARTER_DECKS[deck.starter];
+      const row = await tx.deck.create({ data: { ownerId: userId, name: STARTER_DECK_NAME, cards: { create: list.map(([cardId, quantity]) => ({ cardId, quantity })) } }, select: { id: true } });
+      await unlockCards(userId, list.map(([cardId]) => cardId), tx);
+      await tx.user.update({ where: { id: userId }, data: { lastDeckId: row.id } });
+      deck = { name: STARTER_DECK_NAME, cards: expandDeck(list) };
+    }
     if (await tx.run.count({ where: { ownerId: userId, status: 'ACTIVE' } })) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'Finish your current run first' });
     }

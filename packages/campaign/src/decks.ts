@@ -11,19 +11,8 @@ export const DECK_SIZE = 60;
 /** Expands a deck list into one card id per card. */
 export const expandDeck = (list: DeckList) => list.flatMap(([id, copies]) => Array<string>(copies).fill(id));
 
-/**
- * The deck every account starts with: medium strength, Water and Lightning. Two evolution lines
- * (Poliwag 4-3-2, Pikachu 4-2), two Basics that attack on their own, 17 Trainers that draw, heal,
- * switch and disrupt, and 24 Energy.
- */
-export const STARTER_DECK: DeckList = [
-  ['base1-59', 4], // Poliwag
-  ['base1-38', 3], // Poliwhirl
-  ['base1-13', 2], // Poliwrath
-  ['base3-25', 2], // Lapras (the non-holo print: the holo one is a special holo, only from pulls)
-  ['base1-58', 4], // Pikachu
-  ['base1-14', 2], // Raichu
-  ['base1-20', 2], // Electabuzz
+/** The starter decks' Trainers, the same 17 in each: draw, heal, switch and disrupt. */
+const STARTER_TRAINERS: DeckList = [
   ['base1-91', 3], // Bill
   ['base1-88', 1], // Professor Oak
   ['base2-64', 1], // Poké Ball
@@ -36,10 +25,75 @@ export const STARTER_DECK: DeckList = [
   ['base1-80', 1], // Defender
   ['base1-92', 1], // Energy Removal
   ['base1-93', 1], // Gust of Wind
+];
+
+/**
+ * The deck every account started with before there was a choice, and the first of the three: medium strength, Water and
+ * Lightning. Two evolution lines (Poliwag 4-3-2, Pikachu 4-2), two Basics that attack on their own, the 17 Trainers and
+ * 24 Energy.
+ */
+export const STARTER_DECK: DeckList = [
+  ['base1-59', 4], // Poliwag
+  ['base1-38', 3], // Poliwhirl
+  ['base1-13', 2], // Poliwrath
+  ['base3-25', 2], // Lapras (the non-holo print: the holo one is a special holo, only from pulls)
+  ['base1-58', 4], // Pikachu
+  ['base1-14', 2], // Raichu
+  ['base1-20', 2], // Electabuzz
+  ...STARTER_TRAINERS,
   ['base1-102', 13], // Water Energy
   ['base1-100', 10], // Lightning Energy
   ['base1-96', 1], // Double Colorless Energy
 ];
+
+export const STARTER_IDS = ['water-lightning', 'fire-fighting', 'grass-psychic'] as const;
+export type StarterId = (typeof STARTER_IDS)[number];
+
+/**
+ * The starter decks a new account picks between for its first run (the user's: three, the old starter deck one of them,
+ * no Blastoise in any). Each built as the first: a Stage 2 line 4-3-2, a Stage 1 line 4-2, two Basics, the 17 Trainers,
+ * 13 + 10 Energy of its two types and a Double Colorless; `cover` is its tile's card. All Base Set and Jungle cards
+ * (Jungle's non-holo Scyther: the holo is a special holo, only from pulls).
+ */
+export const STARTER_DECKS: Record<StarterId, { name: string; text: string; cover: string; list: DeckList }> = {
+  'water-lightning': { name: 'Water & Lightning', text: 'Poliwrath and Raichu, with Lapras and Electabuzz.', cover: 'base1-13', list: STARTER_DECK },
+  'fire-fighting': {
+    name: 'Fire & Fighting',
+    text: 'Charizard and Machoke, with Hitmonchan and Magmar.',
+    cover: 'base1-4',
+    list: [
+      ['base1-46', 4], // Charmander
+      ['base1-24', 3], // Charmeleon
+      ['base1-4', 2], // Charizard
+      ['base1-52', 4], // Machop
+      ['base1-34', 2], // Machoke
+      ['base1-7', 2], // Hitmonchan
+      ['base1-36', 2], // Magmar
+      ...STARTER_TRAINERS,
+      ['base1-98', 13], // Fire Energy
+      ['base1-97', 10], // Fighting Energy
+      ['base1-96', 1], // Double Colorless Energy
+    ],
+  },
+  'grass-psychic': {
+    name: 'Grass & Psychic',
+    text: 'Venusaur and Haunter, with Scyther and Jynx.',
+    cover: 'base1-15',
+    list: [
+      ['base1-44', 4], // Bulbasaur
+      ['base1-30', 3], // Ivysaur
+      ['base1-15', 2], // Venusaur
+      ['base1-50', 4], // Gastly
+      ['base1-29', 2], // Haunter
+      ['base2-26', 2], // Scyther (the non-holo print)
+      ['base1-31', 2], // Jynx
+      ...STARTER_TRAINERS,
+      ['base1-99', 13], // Grass Energy
+      ['base1-101', 10], // Psychic Energy
+      ['base1-96', 1], // Double Colorless Energy
+    ],
+  },
+};
 
 /** An evolution line: the cards for each stage (one print of each), its type and how strong it is. */
 interface Line {

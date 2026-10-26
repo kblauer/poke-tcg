@@ -5,7 +5,7 @@
 // a card's rarity for the pool. The seed's own fixes (TCGDEX_FIXES, printed names, Pokémon-ex stages: packages/db/prisma/
 // seed.ts) are made before the catalog is written, so they aren't here; the test pool copies the ones it needs.
 import { attackEffect, energyEffect, powerEffect, trainerEffect, type Attack, type CardDef, type EnergyType, type PokemonCardDef, type Stage } from '@poke-tcg/game-engine';
-import { GEN2_SETS, POOL_SETS, type Rarity } from './pool.js';
+import { GEN2_SETS, GEN3_SETS, POOL_SETS, type Rarity } from './pool.js';
 
 const ENERGY_TYPES = new Set<EnergyType>(['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'darkness', 'metal', 'colorless']);
 const STAGES: Record<string, Stage> = { Basic: 'basic', Baby: 'basic', Stage1: 'stage1', Stage2: 'stage2', 'LEVEL-UP': 'levelUp' };
@@ -113,11 +113,12 @@ export const isHolo = (card: Pick<CatalogCard, 'id' | 'data'>) => (card.data as 
 const GALAXY_FOIL = new Set(['basep-34', 'basep-35', 'si1-1', 'si1-4', 'si1-7', 'si1-11', 'si1-14', 'si1-17']);
 
 /**
- * Gen 1's and Gen 2's holo Pokémon are shown with the galaxy foil in the art window, their Pokémon masked out of it
- * (apps/web/public/holo-masks): asked by the user 2026-10-23, after Base Set 2's holo rares had it to set them apart
- * from the originals they reprint. Holo Trainers and Energy keep their foil.
+ * Gen 1's, Gen 2's and Gen 3's holo Pokémon are shown with the galaxy foil in the art window, their Pokémon masked out
+ * of it (apps/web/public/holo-masks): asked by the user 2026-10-23, after Base Set 2's holo rares had it to set them
+ * apart from the originals they reprint (Gen 3's 2026-10-24; Pokémon-ex keep their foil on the border too). Holo
+ * Trainers and Energy keep their foil, and so do reverse holos (their ids, "<card id>-reverse", name no set).
  */
-const GALAXY_ART_SETS = new Set([...POOL_SETS, ...GEN2_SETS]);
+const GALAXY_ART_SETS = new Set([...POOL_SETS, ...GEN2_SETS, ...GEN3_SETS]);
 const isGalaxyArt = (card: Pick<CatalogCard, 'id' | 'data'>) =>
   GALAXY_ART_SETS.has(card.id.slice(0, card.id.lastIndexOf('-'))) && isHolo(card) && !!(card.data as CardData).dexId?.length;
 

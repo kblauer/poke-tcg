@@ -48,7 +48,7 @@ export interface TowerContext {
   /** Opens the battle's game after its battle transition (useBattleTransition); `preloadGame` fetches its page beforehand. */
   openGame: (gameId: string) => Promise<void>;
   preloadGame: (gameId: string) => void;
-  /** The challenge is saved or over: the page offers Return to Home. */
+  /** The challenge is saved or over: the page offers Return to Play. */
   finish: () => void;
   /** Auto play: the generation's lobby or rooms music; or a battle's (its game's), from its transition. */
   music: (gen: number, place: 'lobby' | 'rooms') => void;
