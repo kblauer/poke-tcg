@@ -8,7 +8,7 @@ import { useTRPC } from '../../lib/trpc';
 import { BUTTON, PANEL_HEADING } from '../../utils/styles';
 import { seconds } from '../../utils/whosThat';
 import { Toasts } from '../Toasts';
-import { GuessInput } from '../whos-that/GuessInput';
+import { NamingScreen } from '../whos-that/NamingScreen';
 import { WhosThatScreen } from '../whos-that/WhosThatScreen';
 
 type Outputs = inferRouterOutputs<AppRouter>['whosThat'];
@@ -29,7 +29,8 @@ interface Done {
 
 /**
  * The Extras page's Who's That Pokémon? (README: Who's That Pokémon?): 10 Pokémon in a row, each named as fast as it can
- * be (typing its name moves on at once; Pass shows it and counts WHOS_THAT_PASS_MS), the time kept by the server
+ * be (typed on Emerald's naming screen and sent with Enter, the next one shown at once: NamingScreen; Pass shows it and
+ * counts WHOS_THAT_PASS_MS), the time kept by the server
  * (`whosThat.start`, `guess`, `pass`). Random Pokémon, or today's playlist (the same 10 for everyone, one go a day). The
  * leaderboards beside it (`whosThat.leaderboard`, public): best average, fastest Pokémon, and today's playlist.
  */
@@ -107,8 +108,8 @@ export function WhosThat() {
               <span className="font-mono text-lg tabular-nums">{seconds(Math.max(0, now - shownAt))}</span>
             </div>
             <WhosThatScreen shape={round.shape} />
-            <div className="flex gap-2">
-              <GuessInput round={`${round.gameId}:${round.index}`} onGuess={send} />
+            <NamingScreen round={`${round.gameId}:${round.index}`} onSubmit={send} />
+            <div className="flex justify-end">
               <button className={BUTTON} disabled={pass.isPending} onClick={() => pass.mutate({ gameId: round.gameId })}>
                 Pass
               </button>
@@ -136,7 +137,7 @@ export function WhosThat() {
           <div className={panel}>
             <WhosThatScreen shape={null} />
             <p className="text-sm text-slate-300">
-              Name {WHOS_THAT_ROUNDS} Pokémon from their silhouettes as fast as you can: type the name and the next one appears at once. A pass shows the Pokémon and counts {WHOS_THAT_PASS_MS / 1000} seconds. Your fastest and
+              Name {WHOS_THAT_ROUNDS} Pokémon from their silhouettes as fast as you can: type the name, press Enter, and the next one appears at once. A pass shows the Pokémon and counts {WHOS_THAT_PASS_MS / 1000} seconds. Your fastest and
               average times go on the leaderboards.
             </p>
             <div className="flex flex-wrap gap-2">

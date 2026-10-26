@@ -5,7 +5,7 @@ import type { RunControl, RunViewData } from '../../hooks/useRun';
 import { useToasts } from '../../hooks/useToasts';
 import { useTRPC } from '../../lib/trpc';
 import { Toasts } from '../Toasts';
-import { GuessInput } from '../whos-that/GuessInput';
+import { NamingScreen } from '../whos-that/NamingScreen';
 import { WhosThatScreen } from '../whos-that/WhosThatScreen';
 import { EncounterBadge } from './encounterIcons';
 
@@ -15,7 +15,8 @@ const primary = 'rounded bg-blue-600 px-4 py-2 font-semibold transition hover:bg
 
 /**
  * A run's Who's That Pokémon? event (README: Who's That Pokémon?): Play shows the silhouette (`whosThat.runStart`) and
- * 10 seconds to type its name (`whosThat.runGuess`; the time is the server's, the bar only shows it); named in time wins
+ * 10 seconds to type its name on Emerald's naming screen and press Enter (NamingScreen; `whosThat.runGuess`; the time is
+ * the server's, the bar only shows it); named in time wins
  * the EXP. When the bar runs out the browser asks the server to settle it. Won or missed, the Pokémon is revealed and the
  * run moves on only with Continue (the settled run is held until then). Taken up again after a reload: the same picture,
  * the clock still running. Walking away is only before it starts.
@@ -117,10 +118,10 @@ export function WhosThatEvent({ view, run }: { view: RunViewData; run: RunContro
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-3">
-              <GuessInput round={0} onGuess={send} />
-              <span className="w-14 shrink-0 text-right font-mono text-lg tabular-nums">{(left / 1000).toFixed(1)}</span>
-            </div>
+            <>
+              <div className="text-right font-mono text-lg tabular-nums">{(left / 1000).toFixed(1)}</div>
+              <NamingScreen round={0} onSubmit={send} />
+            </>
           )}
         </>
       )}

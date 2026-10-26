@@ -186,7 +186,7 @@ html[data-font="emerald"] {
   to { opacity: 0; transform: translate(-50%, -10px); }
 }
 
-/* Who's That Pokémon?'s name box shaking off a wrong name (components/whos-that/GuessInput.tsx). */
+/* Who's That Pokémon?'s naming screen shaking off a wrong name (components/whos-that/NamingScreen.tsx). */
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
   25% { transform: translateX(-6px); }

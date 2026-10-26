@@ -1,5 +1,4 @@
-import { answerKey, CARD_SCAN, shapePixels, WHOS_THAT_CARDS, whosThatAnswer, type WhosThatShape } from '@poke-tcg/campaign';
-import type { CatalogCard } from './cardList';
+import { CARD_SCAN, shapePixels, type WhosThatShape } from '@poke-tcg/campaign';
 
 /**
  * Who's That Pokémon?'s drawing, as tools/whos-that/whos_that.py draws it (keep the two alike): the Pokémon's shape
@@ -75,19 +74,6 @@ export function drawReveal(canvas: HTMLCanvasElement, shape: WhosThatShape, imag
     layer.drawImage(image, shape.x * k, shape.y * k, shape.width * k, shape.height * k, 0, 0, width, height);
   });
   ctx.drawImage(art, x, y);
-}
-
-/**
- * Every answer's key (answerKey), from the catalog: a typed name that's one of them is worth checking at once (the
- * browser knows which Pokémon can come up, never which one is on screen).
- */
-export function answerKeys(catalog: ReadonlyMap<string, CatalogCard> | null) {
-  const keys = new Set<string>();
-  for (const id of WHOS_THAT_CARDS) {
-    const card = catalog?.get(id);
-    if (card) keys.add(answerKey(whosThatAnswer(card.name)));
-  }
-  return keys;
 }
 
 /** A time in seconds, to the hundredth ("1.23 s"). */
