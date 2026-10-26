@@ -56,7 +56,7 @@ describe('unlocking run types', () => {
 describe('generation packs', () => {
   it("the generations' packs are every pack set, each in one generation, one at a time in release order", () => {
     expect(Object.values(PACK_GENERATIONS).flatMap((g) => g.packs).sort()).toEqual([...PACK_SETS].sort());
-    expect([...kanto.packs, ...generation(2).packs, ...generation(3).packs].sort()).toEqual([...PACK_SETS].sort());
+    expect([...kanto.packs, ...generation(2).packs, ...generation(3).packs, ...PACK_GENERATIONS[4]!.packs].sort()).toEqual([...PACK_SETS].sort());
     expect(nextPack(generation(2), new Set(kanto.packs))).toBe('neo1');
     // Gen 3's runs unlock the EX sets' packs, from EX Ruby & Sapphire.
     expect(generation(3).packs).toEqual(EX_SETS);

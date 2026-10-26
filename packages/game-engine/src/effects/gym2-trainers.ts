@@ -119,11 +119,11 @@ export const GYM2_TRAINERS: Record<string, TrainerEffect> = {
 
   // Lt. Surge's Secret Plan: put a card from the hand face down onto the Bench, treated as a Basic Pokémon (revealFaceDown).
   'gym2-107': {
-    blocked: (s) => (!otherHandCards(s).length ? 'You have no other card in your hand' : openBenchSlot(s.me.bench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
+    blocked: (s) => (!otherHandCards(s).length ? 'You have no other card in your hand' : openBenchSlot(s.me, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
     choices: (s) => [{ kind: 'cards', field: 'handUids', min: 1, max: 1, options: otherHandCards(s), prompt: 'Choose a card from your hand to put face down onto your Bench' }],
     play(ctx) {
       const [card] = ctx.fromHand(ctx.me, ctx.choices.handUids!);
-      ctx.me.bench[openBenchSlot(ctx.me.bench, ctx.state.cards, ctx.state.stadium?.card)] = { card: card!, evolvedFrom: [], damage: 0, energy: [], playedTurn: ctx.turn, faceDown: true };
+      ctx.me.bench[openBenchSlot(ctx.me, ctx.state.cards, ctx.state.stadium?.card)] = { card: card!, evolvedFrom: [], damage: 0, energy: [], playedTurn: ctx.turn, faceDown: true };
       ctx.log('Put a card face down onto the Bench.');
     },
   },
@@ -212,7 +212,7 @@ export const GYM2_TRAINERS: Record<string, TrainerEffect> = {
     blocked(s) {
       if (energyInHand(s).length < 2) return 'You need 2 Energy cards in your hand to discard';
       if (!basicsInDiscard(s).length) return 'No Basic Pokémon in your discard pile';
-      return openBenchSlot(s.me.bench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null;
+      return openBenchSlot(s.me, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null;
     },
     choices: (s) => [
       { kind: 'cards', field: 'handUids', min: 2, max: 2, options: energyInHand(s), prompt: 'Choose 2 Energy cards from your hand to discard' },
@@ -224,7 +224,7 @@ export const GYM2_TRAINERS: Record<string, TrainerEffect> = {
       ctx.log(`Discarded ${names(ctx, energy)}.`);
       const card = ctx.me.discard.find((c) => c.uid === ctx.choices.discardUids![0])!;
       ctx.me.discard = ctx.me.discard.filter((c) => c !== card);
-      ctx.me.bench[openBenchSlot(ctx.me.bench, ctx.state.cards, ctx.state.stadium?.card)] = newInPlay(card, ctx.turn);
+      ctx.me.bench[openBenchSlot(ctx.me, ctx.state.cards, ctx.state.stadium?.card)] = newInPlay(card, ctx.turn);
       ctx.log(`Put ${names(ctx, [card])} onto the Bench.`);
     },
   },

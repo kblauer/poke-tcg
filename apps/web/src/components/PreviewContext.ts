@@ -14,6 +14,8 @@ export interface Preview {
    * never comes (the card removed or covered under the pointer, as when picking a reward).
    */
   from?: Element;
+  /** false: not the player's card (the CPU's on the board), so shown without the player's card flair (their gold border). */
+  mine?: boolean;
 }
 
 /** Shows (or, with null, hides) the hover preview. Provided by the Board. */

@@ -1,10 +1,14 @@
 // Downloads the card pool from TCGdex into a JSON snapshot that `prisma/seed.ts` loads into the database: the Wizards of
-// the Coast era (1999–2003) and Generation 3's EX series, EX Ruby & Sapphire to EX Power Keepers (2003–2007).
+// the Coast era (1999–2003), Generation 3's EX series, EX Ruby & Sapphire to EX Power Keepers (2003–2007), Generation 4's
+// Diamond & Pearl and Platinum series (2007–2009), and the HeartGold & SoulSilver series with Call of Legends (2010–2011,
+// Gen 2's: each game in its region's generation, the user's).
 //
 //   pnpm --filter @poke-tcg/db cards:fetch
+//   pnpm --filter @poke-tcg/db cards:fetch -- dp1 dp2     (only these sets, merged into the snapshot: every other card
+//                                                         kept as it is, so a fetch never changes cards already checked)
 //
 // The snapshot is committed so seeding is reproducible and doesn't depend on TCGdex.
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SNAPSHOT_PATH, type CardSnapshot, type TcgdexCard, type TcgdexSet } from '../prisma/tcgdex.js';
@@ -31,6 +35,15 @@ export const WOTC_SETS = [
  * (the Unseen Forces Unown Collection), side releases like the WOTC era's `miscp`.
  */
 export const EX_SETS = ['ex1', 'ex2', 'ex3', 'ex4', 'ex5', 'ex6', 'ex7', 'ex8', 'ex9', 'ex10', 'ex11', 'ex12', 'ex13', 'ex14', 'ex15', 'ex16'];
+
+/**
+ * Generation 4's sets (Sinnoh), in release order: the Diamond & Pearl series with its Black Star Promos, and the Platinum
+ * series. Deliberately excluded: `ru1` (Pokémon Rumble), the POP Series and the trainer kits, side releases as above.
+ */
+export const GEN4_SETS = ['dp1', 'dpp', 'dp2', 'dp3', 'dp4', 'dp5', 'dp6', 'dp7', 'pl1', 'pl2', 'pl3', 'pl4'];
+
+/** The HeartGold & SoulSilver series and Call of Legends, in release order: Gen 2's sets (Johto), with its Black Star Promos. */
+export const HGSS_SETS = ['hgss1', 'hgssp', 'hgss2', 'hgss3', 'hgss4', 'col1'];
 
 const CARD_FIELDS = `
   id localId name image category rarity illustrator hp types stage evolveFrom dexId retreat suffix
@@ -112,9 +125,11 @@ async function fetchCards(ids: string[]): Promise<TcgdexCard[]> {
   );
 }
 
+// Set ids on the command line: only those, merged into the existing snapshot (see the top).
+const only = process.argv.slice(2).filter((a) => !a.startsWith('-'));
 const sets: TcgdexSet[] = [];
 const cardIds: string[] = [];
-for (const id of [...WOTC_SETS, ...EX_SETS]) {
+for (const id of only.length ? only : [...WOTC_SETS, ...EX_SETS, ...GEN4_SETS, ...HGSS_SETS]) {
   const result = await fetchSet(id);
   sets.push(result.set);
   cardIds.push(...result.cardIds);
@@ -134,13 +149,16 @@ const setsWithCards = sets.filter((s) => withImages.some((c) => c.set.id === s.i
 console.log(`Skipped ${cards.length - withImages.length} cards without images`);
 for (const s of sets) if (!setsWithCards.includes(s)) console.log(`Skipped empty set ${s.name}`);
 
+const out = fileURLToPath(new URL(`../${SNAPSHOT_PATH}`, import.meta.url));
+// Merging: the fetched sets replace their own entries; every other set and card stays exactly as it was.
+const kept: CardSnapshot | null = only.length ? (JSON.parse(await readFile(out, 'utf8')) as CardSnapshot) : null;
+const fetched = new Set(sets.map((s) => s.id));
 const snapshot: CardSnapshot = {
   source: 'tcgdex',
   fetchedAt: new Date().toISOString(),
-  sets: setsWithCards,
-  cards: withImages,
+  sets: [...(kept?.sets.filter((s) => !fetched.has(s.id)) ?? []), ...setsWithCards],
+  cards: [...(kept?.cards.filter((c) => !fetched.has(c.set.id)) ?? []), ...withImages],
 };
-const out = fileURLToPath(new URL(`../${SNAPSHOT_PATH}`, import.meta.url));
 await mkdir(dirname(out), { recursive: true });
 await writeFile(out, JSON.stringify(snapshot, null, 1) + '\n');
 console.log(`Wrote ${snapshot.sets.length} sets and ${snapshot.cards.length} cards to ${SNAPSHOT_PATH}`);

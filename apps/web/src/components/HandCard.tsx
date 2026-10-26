@@ -54,7 +54,7 @@ export function HandCard({
       } ${draggable ? 'cursor-grab' : ''}`}
     >
       {/* High resolution so the text is readable when the hand zooms the card. */}
-      <Card def={def} highRes />
+      <Card def={def} highRes mine />
     </button>
   );
 }

@@ -3,11 +3,14 @@ import CloseIcon from '@mui/icons-material/Close';
 import RemoveIcon from '@mui/icons-material/Remove';
 import StarIcon from '@mui/icons-material/Star';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
-import { useRef } from 'react';
+import { EFFECT_MOMENTS, holoPattern, isEffectSlot, type EffectMoment, type FlairSlot } from '@poke-tcg/campaign';
+import { useRef, useState } from 'react';
 import { useEscape } from '../hooks/useEscape';
 import { useScrollLock } from '../hooks/useScrollLock';
 import type { CatalogCard } from '../utils/cardList';
 import { CardViewer } from './CardViewer';
+import { FlairEffect, type Box } from './FlairEffect';
+import { FlairPicker } from './FlairPicker';
 
 const small = 'flex rounded bg-slate-600 p-1 hover:bg-slate-500 disabled:opacity-30';
 
@@ -20,9 +23,10 @@ const KEEP_OPEN = 'button, input, a, [data-keep-open]';
  * card too). Opened by a long press, it ignores the finger lifting (the
  * click that ends the press lands on it): only a press that starts on it closes it. With a deck open (`deck`), − and + change its copies in
  * the deck; + is disabled with the reason when the card can't be added. In the deck builder (`craft`), Craft unlocks the
- * card for Stardust. The page behind it doesn't scroll while it's open (useScrollLock); it scrolls itself only when it's
- * taller than the screen. The ★ button (`favorite`) adds the card to the account's favorites, or takes it out. For a holo,
- * `unlocked` is how many copies the account has (see useUnlocked's `holoCopies`), shown above it.
+ * card for Stardust. The page behind it doesn't scroll while it's open (useScrollLock), and it fits the window: the card
+ * shrinks to leave room for the rest (CardViewer). The ★ button (`favorite`) adds the card to the account's favorites, or takes it out. For a holo,
+ * `unlocked` is how many copies the account has (see useUnlocked's `holoCopies`), shown above it. Under it, the card
+ * flair the card can be given (FlairPicker: a holo's patterns, a low-rarity card's borders, a Pokémon's effects), previewed on the card.
  */
 export function CardInspector({
   card,
@@ -46,7 +50,28 @@ export function CardInspector({
 }) {
   /** A press has started on it since it opened. */
   const pressed = useRef(false);
+  /** The flair previewed on the card in each slot (FlairPicker): a key, null for its own look; a slot not in it shows the one in use. */
+  const [preview, setPreview] = useState<Partial<Record<FlairSlot, string | null>>>({});
+  /** An effect played on the card shown (an effect chip clicked): a new `id` plays it again. */
+  const [played, setPlayed] = useState<{ id: number; effect: string; moment: EffectMoment; box: Box } | null>(null);
   const overlay = useRef<HTMLDivElement>(null);
+  const play = (slot: FlairSlot, effect: string) => {
+    // Over the card itself (the holo card in the viewer), not the room around it.
+    const el = overlay.current?.querySelector('.card');
+    if (!el || !isEffectSlot(slot)) return;
+    const { left, top, width, height } = el.getBoundingClientRect();
+    setPlayed((p) => ({ id: (p?.id ?? 0) + 1, effect, moment: EFFECT_MOMENTS[slot], box: { left, top, width, height } }));
+  };
+  const picker = (slot: FlairSlot) => (
+    <FlairPicker
+      card={card}
+      slot={slot}
+      locked={locked}
+      preview={preview[slot]}
+      onPreview={(key) => setPreview(({ [slot]: _, ...rest }) => (key === undefined ? rest : { ...rest, [slot]: key }))}
+      onPlay={(effect) => play(slot, effect)}
+    />
+  );
   useScrollLock(true, overlay);
   useEscape(onClose);
   return (
@@ -68,8 +93,14 @@ export function CardInspector({
       <button className="fixed right-3 top-3 z-10 flex rounded-full bg-slate-800/80 p-2 text-slate-200 ring-1 ring-slate-600 transition hover:bg-slate-700 hover:text-slate-50" onClick={onClose} aria-label="Close" title="Close">
         <CloseIcon />
       </button>
-      <div className="m-auto flex w-full max-w-lg flex-col items-center gap-3">
-        <CardViewer card={card} locked={locked} />
+      {/* The window's height: the card shrinks to leave room for its text and controls (CardViewer). */}
+      <div className="mx-auto flex h-full w-full max-w-lg flex-col items-center gap-3">
+        <CardViewer
+          card={card}
+          locked={locked}
+          pattern={preview.pattern === undefined ? undefined : (holoPattern(preview.pattern) ?? null)}
+          border={preview.border}
+        />
         {unlocked !== undefined && (
           <p className="text-sm text-slate-300">
             Unlocked: <span className="font-semibold tabular-nums text-fuchsia-300">{unlocked}</span> {unlocked === 1 ? 'copy' : 'copies'}
@@ -114,6 +145,13 @@ export function CardInspector({
           </div>
         )}
         {craft && (craft.error ?? craft.blocked) && <p className="text-xs text-amber-300">{craft.error ?? craft.blocked}.</p>}
+        {picker('pattern')}
+        {picker('border')}
+        {picker('effect-play')}
+        {picker('effect-attack')}
+        {picker('effect-evolve')}
+        {picker('effect-ko')}
+        {played && <FlairEffect key={played.id} effect={played.effect} moment={played.moment} box={played.box} onDone={() => setPlayed(null)} />}
       </div>
     </div>
   );

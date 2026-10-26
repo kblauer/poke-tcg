@@ -1,0 +1,170 @@
+/*
+
+  CARD FLAIR: BORDERS (as in Pokémon TCG Pocket)
+
+  The ring (FlairBorder): the border's look laid over the card's printed (yellow) border, between the card's edge and
+  its frame, clipped with an evenodd polygon; nothing inside the border changes (the user's: recolouring the art frame
+  and banner too was tried and looked messy). Drawn here, not with images, so it scales with the card. Measured on
+  600×825 TCGdex scans as the holo shapes in holo/wotc.css are:
+  - Classic layout (Base–Neo, Legendary Collection): outside x 22–577, y 25–802 (the galaxy foil's outline in wotc.css).
+  - EX layout: outside x 17–580, y 18–772 (the Pokémon-ex foil's outline in wotc.css; its bottom border is deeper).
+  - e-Card layout: not measured yet; it takes the classic ring. To be checked by eye.
+  Its looks (data-border): gold, brushed metal (soft vertical bands of light and shade under fine horizontal brush
+  lines, from the user's reference); rainbow, the hue running round the card (a conic gradient from its centre) under
+  ridges, each one rounded line all the way round (PTCGP's rainbow border, from the user's reference); pastel, the same
+  in soft colours; black, a faintly glossy black.
+
+*/
+
+div.flair-border {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /*
+    In a holo card's 3D layers (HoloCard), in front of the card's image (base.css: 0.01px) and behind the shine (1px)
+    and glare (1.41px): at the image's own depth, tilting the card let the image show through it in places. Flat, so
+    its own layers share its plane. Elsewhere a no-op.
+  */
+  transform: translateZ(0.5px);
+  transform-style: flat;
+  /* The ridges are sized in hundredths of the card's width (cqw), so they scale with it. */
+  container-type: size;
+  /* Not clipped here (the holo card's layer rules clip everything in it): the ring's bleed must reach the card's own edge. */
+  overflow: visible;
+}
+
+/*
+  The ring runs `--bleed` past the card on every side, cut off only by the card's own rounded edge (its parent's clip,
+  the same one the image has): ending exactly at the card's edge, its edge pixels and the image's were smoothed apart,
+  and the printed yellow flickered through along the edges as the card moved.
+*/
+.flair-border > .flair-border__ring {
+  --left: 3.7%;
+  --top: 3%;
+  --right: 3.8%;
+  --bottom: 2.8%;
+  --bleed: 3px;
+  position: absolute;
+  inset: auto;
+  left: calc(-1 * var(--bleed));
+  top: calc(-1 * var(--bleed));
+  width: calc(100% + 2 * var(--bleed));
+  height: calc(100% + 2 * var(--bleed));
+  clip-path: polygon(
+    evenodd,
+    0 0,
+    100% 0,
+    100% 100%,
+    0 100%,
+    0 0,
+    calc(var(--left) + var(--bleed)) calc(var(--top) + var(--bleed)),
+    calc(100% - var(--right) - var(--bleed)) calc(var(--top) + var(--bleed)),
+    calc(100% - var(--right) - var(--bleed)) calc(100% - var(--bottom) - var(--bleed)),
+    calc(var(--left) + var(--bleed)) calc(100% - var(--bottom) - var(--bleed)),
+    calc(var(--left) + var(--bleed)) calc(var(--top) + var(--bleed))
+  );
+}
+
+.flair-border[data-era="ex"] > .flair-border__ring {
+  --left: 2.8%;
+  --top: 2.2%;
+  --right: 3.3%;
+  --bottom: 6.4%;
+}
+
+/* Gold: brushed metal. Fine light and dark brush lines across, over vertical bands of light and shade. */
+.flair-border[data-border="gold"] > .flair-border__ring {
+  background:
+    repeating-linear-gradient(0deg, rgb(255 250 225 / 0.16) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(0deg, rgb(110 70 0 / 0.1) 0 1px, transparent 1px 5px),
+    repeating-linear-gradient(0deg, rgb(255 255 255 / 0.08) 0 2px, transparent 2px 11px),
+    linear-gradient(90deg, #b07d16 0%, #cf9d2a 7%, #ecc659 16%, #fbe39a 25%, #fff6d2 31%, #f6d777 38%, #d5a536 47%, #e4b94d 55%, #f8e3a1 63%, #fdf0c4 67%, #e8c35d 75%, #d2a136 85%, #e9c766 93%, #b8861d 100%);
+}
+
+/* Black: a deep, faintly glossy black, soft charcoal highlights across it under fine brush lines; its shine fainter. */
+.flair-border[data-border="black"] > .flair-border__ring {
+  background:
+    repeating-linear-gradient(0deg, rgb(255 255 255 / 0.035) 0 1px, transparent 1px 3px),
+    linear-gradient(135deg, #030303 0%, #1a1a1f 22%, #08080a 45%, #25252c 68%, #0b0b0d 85%, #1c1c22 100%);
+}
+
+.flair-border[data-border="black"] > .flair-border__ring::after {
+  opacity: 0.45;
+}
+
+/* The rainbows: the hue running round the card, under ridges (below). */
+.flair-border[data-border="rainbow"] > .flair-border__ring,
+.flair-border[data-border="pastel"] > .flair-border__ring {
+  --ridges-light: rgb(255 255 255 / 0.55);
+  --ridges-dark: rgb(20 10 60 / 0.2);
+  background: var(--rainbow);
+}
+
+/*
+  The rainbows' ridges: each one line all the way round the card, `--inset` in from its edge, rounding its corners as
+  the card's do (the library's card radius, 4.55% of its width, less the inset), light and dark in turn. The ring's clip
+  keeps them on the border.
+*/
+.flair-border > .flair-border__ring > .flair-border__ridge {
+  position: absolute;
+  /* From the card's edge, not the ring's (which bleeds past it). */
+  inset: calc(var(--inset) + var(--bleed));
+  display: block;
+  width: auto;
+  height: auto;
+  aspect-ratio: auto;
+  overflow: visible;
+  background: none;
+  border: 0.35cqw solid var(--ridges-light);
+  border-radius: max(0px, calc(4.55cqw - var(--inset)));
+}
+
+.flair-border > .flair-border__ring > .flair-border__ridge[data-tone="dark"] {
+  border-width: 0.3cqw;
+  border-color: var(--ridges-dark);
+}
+
+/*
+  PTCGP's order round the card: magenta and blue along the top, then violet and red down the right, green and yellow up
+  the left. Vivid (the user's): fully saturated hues, its light ridges a little less white so they don't wash it out.
+*/
+.flair-border[data-border="rainbow"] > .flair-border__ring {
+  --ridges-light: rgb(255 255 255 / 0.42);
+  --rainbow: conic-gradient(from 0deg at 50% 50%, #0a5cff, #6a1aff, #b81aff, #ff0a78, #ff2a0a, #ff8a00, #ffe000, #6ee800, #00d65a, #00ccf0, #0a8cff, #cf1aff 330deg, #0a5cff);
+}
+
+/* The same round the card, only slightly softer (the user's): each colour mixed 15% towards white from a rich rainbow. */
+.flair-border[data-border="pastel"] > .flair-border__ring {
+  --ridges-light: rgb(255 255 255 / 0.5);
+  --ridges-dark: rgb(40 30 80 / 0.16);
+  --rainbow: conic-gradient(from 0deg at 50% 50%, #588fff, #8e68ff, #cd68ff, #ff589e, #ff6558, #ffa941, #ffe54d, #9feb58, #4ed881, #43d1eb, #4eaaff, #d868ff 330deg, #588fff);
+}
+
+/* A band of light sweeping across the ring now and then. */
+.flair-border > .flair-border__ring::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 38%, rgb(255 255 235 / 0.85) 50%, transparent 62%) no-repeat;
+  background-size: 300% 100%;
+  mix-blend-mode: screen;
+  animation: flair-border-sheen 5s ease-in-out infinite;
+}
+
+@keyframes flair-border-sheen {
+  0%,
+  35% {
+    background-position: 100% 0;
+  }
+  75%,
+  100% {
+    background-position: 0% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flair-border > .flair-border__ring::after {
+    animation: none;
+    opacity: 0;
+  }
+}

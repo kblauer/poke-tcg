@@ -1,8 +1,9 @@
 import { DndContext, DragOverlay } from '@dnd-kit/core';
-import { hasBenched, inPlayDef, lookupCard, shapeshiftCard, usableAttacks, type CardLibrary, type GameAction, type InPlayPokemon, type MoveHighlight, type PlayerView, type Target } from '@poke-tcg/game-engine';
+import { hasBenched, inPlayDef, lookupCard, shapeshiftCard, usableAttacks, usableEnergy, usableTool, type CardLibrary, type GameAction, type InPlayPokemon, type MoveHighlight, type PlayerView, type Target } from '@poke-tcg/game-engine';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAttack } from '../hooks/useAttack';
 import { useCardPlay } from '../hooks/useCardPlay';
+import { useFlairMoments } from '../hooks/useFlairMoments';
 import { useIsPhone } from '../hooks/useIsPhone';
 import { useLockedScreen } from '../hooks/useLockedScreen';
 import { usePower } from '../hooks/usePower';
@@ -23,6 +24,7 @@ import { AttackList } from './AttackList';
 import { Card } from './Card';
 import { CardPreview } from './CardPreview';
 import { DeckAndDiscard } from './DeckAndDiscard';
+import { FlairEffect } from './FlairEffect';
 import { FloatingDialog } from './FloatingDialog';
 import { Hand } from './Hand';
 import { OpponentArea, type Spotlight } from './OpponentArea';
@@ -126,6 +128,8 @@ export function Board({
   const ownSpot = spotlight(view.you);
   const oppSpot = spotlight(view.opponent.id);
   const newTurn = useNewTurn(view);
+  // Card flair: the effects the player's Pokémon play as they come into play, evolve, attack and Knock Out.
+  const flairMoments = useFlairMoments(view, attacker);
   // The setup banner: out while Pokémon are being placed, sliding off once Start battle is pressed.
   const placing = view.phase === 'setup' && !view.self.ready && pending?.type !== 'START_BATTLE';
   const [setupBanner, setSetupBanner] = useState(placing);
@@ -327,6 +331,8 @@ export function Board({
     // Secret Plan's face-down card is clicked to turn it over; Brock's Ninetales with a Shapeshift card, to discard that card.
     const faceDown = myTurn && !!pokemon?.faceDown;
     const shapeshifted = myTurn && !!pokemon && !!shapeshiftCard(pokemon);
+    // A Benched Pokémon with a Pokémon Tool that can be used (Energy Link) is clicked to use it.
+    const toolUsable = myTurn && typeof target === 'number' && !!pokemon && usableTool(view.cards, pokemon);
     // Clicking your Active Pokémon opens its moves (those above among them) in a panel on the card.
     const opensMoves = id === 'active' && pokemon !== null && phase !== 'setup' && !heldCard && !retreat.ready;
     const slot = (
@@ -345,6 +351,7 @@ export function Board({
         lunge={id === 'active' && attacker === view.you ? { dir: 'up', stamp: view.version } : null}
         spotlight={ownSpot?.targets.includes(target) ? ownSpot : null}
         usable={powerUsable || (id === 'active' && canAttack)}
+        mine
         onClick={
           busy
             ? undefined
@@ -366,6 +373,12 @@ export function Board({
                 ? () => {
                     cancelAll();
                     setCardMenu((m) => (m === target ? null : target));
+                  }
+                : undefined) ??
+              (toolUsable && !heldCard && !retreat.ready
+                ? () => {
+                    cancelAll();
+                    send({ type: 'USE_TOOL', target });
                   }
                 : undefined) ??
               (isDoll && !heldCard && !retreat.ready
@@ -394,6 +407,10 @@ export function Board({
       ? [
           ...(self.active.faceDown ? [{ label: 'Turn it face up', run: () => send({ type: 'FLIP_FACE_DOWN', target: 'active' }) }] : []),
           ...(shapeshiftCard(self.active) ? [{ label: 'Discard its Shapeshift card', run: () => send({ type: 'DISCARD_SHAPESHIFT', target: 'active' }) }] : []),
+          // Call Energy: a Special Energy card's ability, used from the Active Pokémon.
+          ...usableEnergy(self.active).map((e) => ({ label: `Use ${lookupCard(view.cards, e.defId).name}`, run: () => send({ type: 'USE_ENERGY', cardUid: e.uid }) })),
+          // Energy Link: a Pokémon Tool's ability.
+          ...(usableTool(view.cards, self.active) ? [{ label: `Use ${lookupCard(view.cards, self.active.attached!.find((a) => a.tool)!.card.defId).name}`, run: () => send({ type: 'USE_TOOL', target: 'active' }) }] : []),
           ...(doll?.kind === 'pokemon' && doll.trainerText
             ? [
                 {
@@ -559,7 +576,7 @@ export function Board({
           // centring the image in it keeps it centred on the pointer (centerOnPointer centres the overlay).
           <div className="flex h-full w-full items-center justify-center">
             <div className="rotate-3 cursor-grabbing opacity-90">
-              <Card def={lookupCard(view.cards, heldCard.defId)} highRes />
+              <Card def={lookupCard(view.cards, heldCard.defId)} highRes mine />
             </div>
           </div>
         ) : null}
@@ -594,9 +611,14 @@ export function Board({
     trainer.card && !trainer.prompt && <TrainerPanel view={view} trainer={trainer} />
   );
 
+  // Card flair's effects, over the board (fixed, so either layout).
+  const flairEffects = flairMoments.effects.map((e) => <FlairEffect key={e.id} effect={e.effect} moment={e.moment} box={e.box} onDone={() => flairMoments.done(e.id)} />);
+
   /** The phone layout (see above): the same pieces, laid out by PhoneBoard. */
   if (phone) {
     return (
+      <>
+      {flairEffects}
       <PhoneBoard
         view={view}
         send={send}
@@ -627,6 +649,7 @@ export function Board({
         dragOverlay={dragOverlay}
         remindersDialog={turnReminders.dialog}
       />
+      </>
     );
   }
 
@@ -730,6 +753,7 @@ export function Board({
         {dragOverlay}
       </DndContext>
       {preview && <CardPreview {...preview} onLost={hidePreview} />}
+      {flairEffects}
       <Toasts toasts={toasts.toasts} prompt={movePrompt} />
       {turnReminders.dialog}
     </PreviewContext.Provider>

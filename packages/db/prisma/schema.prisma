@@ -40,6 +40,9 @@ model User {
   /// The Settings page's choices kept with the account, so they follow it to any browser (the shared package's
   /// ACCOUNT_SETTINGS: theme, font, skipFlips, options, reminders, music), each the web app's own value as a string.
   settings      Json            @default("{}")
+  /// The Settings page's debug switches (the API's DebugFlags: unlockAll, and million: 1,000,000 ₱ added to the bank),
+  /// read and set only while debugging (debugProcedure, never in production). {} is both off.
+  debugFlags    Json            @default("{}")
   /// The Extras page's Berry Farm: when each berry's tree was last planted (the campaign package's BerryFarm, {} until it's
   /// first opened; a berry missing is planted then).
   berryFarm     Json            @default("{}")
@@ -69,6 +72,8 @@ model User {
   communityDecks CommunityDeck[]
   items        InventoryItem[]
   cosmetics    CosmeticUnlock[]
+  flairUnlocks  FlairUnlock[]
+  cardFlair     CardFlair[]
   equipment     Equipment[]
   pokeblocks    Pokeblock[]
   poffins       Poffin[]
@@ -370,6 +375,31 @@ model CosmeticUnlock {
   createdAt  DateTime @default(now())
 
   @@id([userId, cosmeticId])
+}
+
+/// Card flair an account has bought with Stardust (the campaign package's flair.ts), each for one card alone (`cardId`):
+/// a `slot` ("pattern") and its `key` (a HOLO_PATTERNS key). The card's own look has no row: it's always had.
+model FlairUnlock {
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cardId    String
+  slot      String
+  key       String
+  createdAt DateTime @default(now())
+
+  @@id([userId, cardId, slot, key])
+}
+
+/// The flair a card shows, on every copy of it in every deck (account-wide): one `key` per `slot`, one the account
+/// bought (FlairUnlock). No row is the card's own look.
+model CardFlair {
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cardId String
+  slot   String
+  key    String
+
+  @@id([userId, cardId, slot])
 }
 
 model PackUnlock {

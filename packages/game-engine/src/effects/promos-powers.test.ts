@@ -8,13 +8,14 @@ const misty = (s: GameState) => s.players.misty!;
 describe('Wizards Promo Pokémon Powers', () => {
   it('Special Delivery draws a card, then puts a card from the hand on top of the deck', () => {
     let s = duel('charmander', 'onix', { bench: ['dragoniteP'] });
-    ash(s).hand = [];
+    // A different card in the hand, so the question is asked (the same-card rule).
+    ash(s).hand = [{ uid: 'w', defId: id('water') }];
     const top = ash(s).deck[0]!.uid;
     s = act(s, 'ash', { type: 'USE_POWER', source: 0 });
-    expect(ash(s).hand.map((c) => c.uid)).toEqual([top]);
-    expect(getPlayerView(s, 'ash').self.pendingChoice).toMatchObject({ kind: 'pickFromHand', options: [{ uid: top }] });
+    expect(ash(s).hand.map((c) => c.uid)).toEqual(['w', top]);
+    expect(getPlayerView(s, 'ash').self.pendingChoice).toMatchObject({ kind: 'pickFromHand', options: [{ uid: 'w' }, { uid: top }] });
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: top });
-    expect([ash(s).hand, ash(s).deck[0]!.uid]).toEqual([[], top]);
+    expect([ash(s).hand.map((c) => c.uid), ash(s).deck[0]!.uid]).toEqual([['w'], top]);
     expect(applyAction(s, 'ash', { type: 'USE_POWER', source: 0 })).toEqual({ ok: false, error: 'Dragonite has already used Special Delivery this turn' });
   });
 
@@ -40,6 +41,7 @@ describe('Wizards Promo Pokémon Powers', () => {
     let s = duel('charmander', 'onix', { bench: ['unownJ', 'unownO', 'unownI'] });
     expect(applyAction(s, 'ash', { type: 'USE_POWER', source: 0 })).toEqual({ ok: false, error: 'You need Unown J, O, I and N on your Bench' });
     ash(s).bench[3] = pokemon('unownN');
+    ash(s).deck.unshift({ uid: 'sq', defId: id('squirtle') });
     s = act(s, 'ash', { type: 'USE_POWER', source: 0 });
     expect(getPlayerView(s, 'ash').self.pendingChoice).toMatchObject({ kind: 'pickFromDeck' });
   });

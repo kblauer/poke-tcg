@@ -82,7 +82,7 @@ export const EX4_TRAINERS: Record<string, TrainerEffect> = {
   // Archie (Supporter): a Pokémon with Team Aqua in its name from the deck onto the Bench, as a Basic Pokémon.
   'ex4-71': {
     supporter: true,
-    blocked: (s) => (!s.deckCount ? 'Your deck is empty' : openBenchSlot(s.me.bench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
+    blocked: (s) => (!s.deckCount ? 'Your deck is empty' : openBenchSlot(s.me, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
     play: (ctx) => ctx.pend({ kind: 'pickFromDeck', source: 'Archie', filter: 'ownerPokemon', name: 'Team Aqua', toBench: true, stage2Counters: 2 }),
   },
 
@@ -100,7 +100,7 @@ export const EX4_TRAINERS: Record<string, TrainerEffect> = {
   'ex4-73': {
     supporter: true,
     blocked(s) {
-      if (openBenchSlot(s.me.bench, s.cards, s.stadium) < 0) return 'Your Bench is full';
+      if (openBenchSlot(s.me, s.cards, s.stadium) < 0) return 'Your Bench is full';
       return magmaIn(s, s.me.hand).length || magmaIn(s, s.me.discard).length ? null : 'No Pokémon with Team Magma in its name in your hand or discard pile';
     },
     choices(s, c) {
@@ -116,7 +116,7 @@ export const EX4_TRAINERS: Record<string, TrainerEffect> = {
       const uid = (fromHand ? ctx.choices.handUids : ctx.choices.discardUids)?.[0];
       const pile = fromHand ? ctx.me.hand : ctx.me.discard;
       const card = pile.find((c) => c.uid === uid);
-      const slot = openBenchSlot(ctx.me.bench, ctx.state.cards, ctx.state.stadium?.card);
+      const slot = openBenchSlot(ctx.me, ctx.state.cards, ctx.state.stadium?.card);
       if (!card || slot < 0) return;
       if (fromHand) ctx.me.hand = ctx.me.hand.filter((c) => c !== card);
       else ctx.me.discard = ctx.me.discard.filter((c) => c !== card);

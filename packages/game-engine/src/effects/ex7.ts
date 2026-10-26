@@ -517,7 +517,7 @@ export const EX7: Record<string, Record<string, AttackEffect>> = {
   // Ledyba – Call for Family: a Grass Basic Pokémon from the deck onto the Bench.
   'ex7-64': {
     'Call for Family': {
-      blocked: (s) => (openBenchSlot(s.ownBench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
+      blocked: (s) => (openBenchSlot({ bench: s.ownBench, benchLimit: s.ownBenchLimit }, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
       run: (ctx) => void (ctx.me.deck.length && ctx.pend({ kind: 'pickFromDeck', source: 'Call for Family', filter: 'basicType', type: 'grass', toBench: true, optional: true })),
     },
   },

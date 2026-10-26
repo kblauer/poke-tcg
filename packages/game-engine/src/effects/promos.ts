@@ -6,9 +6,9 @@
 // with Weakness and Resistance. Marill's Water Gun counts any Energy (the printed text names no type).
 // "Your opponent chooses" (Cat Punch, Rapid Spin, Fling): they pick the benched Pokémon once the attack is over.
 import { benchShielded, discardOptions, pokemonOn, targetsIn, type AttackEffect, type AttackSituation, type ChoiceSpec } from '../attacks.js';
-import { lookupCard, typeName, type EnergyType } from '../cards.js';
+import { lookupCard, typeName, type CardLibrary, type EnergyType } from '../cards.js';
 import { energyPool, isEnergyCardOf, type InPlayPokemon, type Target } from '../engine.js';
-import { baseUid, clearOnLeavingActive, effectId, inPlayDef, pokemonName } from '../status.js';
+import { baseUid, clearOnLeavingActive, devolvable, effectId, inPlayDef, pokemonName, removeTopEvolution } from '../status.js';
 import {
   basicEnergyOn,
   benchedSlots,
@@ -112,8 +112,8 @@ const energyControl: AttackEffect = {
 };
 
 /** Any Evolved Pokémon in play on a side (Devolution Beam). */
-const evolvedTargets = (active: InPlayPokemon | null, bench: (InPlayPokemon | null)[]) =>
-  targetsIn(active, bench).filter((t) => pokemonOn(active, bench, t)!.evolvedFrom.length > 0);
+const evolvedTargets = (cards: CardLibrary, active: InPlayPokemon | null, bench: (InPlayPokemon | null)[]) =>
+  targetsIn(active, bench).filter((t) => devolvable(cards, pokemonOn(active, bench, t)!));
 
 /**
  * Mew's Devolution Beam: return the highest Stage Evolution card on an Evolved Pokémon (either player's) to
@@ -121,8 +121,8 @@ const evolvedTargets = (active: InPlayPokemon | null, bench: (InPlayPokemon | nu
  */
 const devolutionBeam: AttackEffect = {
   choices(s, c): ChoiceSpec[] {
-    const own = evolvedTargets(s.attacker, s.ownBench);
-    const opp = evolvedTargets(s.defender, s.opponentBench);
+    const own = evolvedTargets(s.cards, s.attacker, s.ownBench);
+    const opp = evolvedTargets(s.cards, s.defender, s.opponentBench);
     const sides = [...(own.length ? (['own'] as const) : []), ...(opp.length ? (['opponent'] as const) : [])];
     if (!sides.length) return [];
     const side = c.side ?? (sides.length === 1 ? sides[0] : undefined);
@@ -138,8 +138,7 @@ const devolutionBeam: AttackEffect = {
     if (target === undefined) return ctx.log('There was no Evolved Pokémon to devolve.');
     const p = pokemonOn(owner.active, owner.bench, target)!;
     if (owner === ctx.opp && !ctx.canAffect(ctx.opp, p)) return;
-    const top = p.card;
-    p.card = p.evolvedFrom.pop()!;
+    const top = removeTopEvolution(ctx.state, owner, p);
     owner.hand.push(top);
     clearOnLeavingActive(p);
     ctx.log(`${lookupCard(ctx.state.cards, top.defId).name} returned to the hand; it's ${pokemonName(ctx.state, p)} again.`, owner.id);

@@ -2,7 +2,7 @@ import { hasType, isBasicPokemon, lookupCard } from '../cards.js';
 import { inPlayDef, openBenchSlot } from '../status.js';
 import { evolveError, type GameAction, type GameState, type PlayerId, type PlayerState } from '../engine.js';
 import { pendingChoiceView } from '../trainers.js';
-import { acceptsChallenge, chooseActive, inPlay } from './shared.js';
+import { acceptsChallenge, chooseActive, inPlay, lostWorldWin, pleadAnswer, rpsHand } from './shared.js';
 
 /**
  * The 'passive' CPU, with almost no strategy. Besides the moves the rules force (choose an active,
@@ -41,6 +41,8 @@ function finishSearch(state: GameState): GameAction {
   // Lt. Surge's Treaty: the first answer.
   // The first option: Mind Games, Herbal Scent, Fire Boost and Softboiled flip (agreed for Mind Games). Howl, which ends the turn, isn't used.
   const choice = state.pendingChoice!;
+  if (choice.kind === 'rps') return { type: 'RESOLVE_CHOICE', count: rpsHand(state) };
+  if (choice.kind === 'beforeAttack' && choice.question === 'plead') return { type: 'RESOLVE_CHOICE', count: pleadAnswer(state, choice.player) };
   if (view.kind === 'options') return { type: 'RESOLVE_CHOICE', count: (choice.kind === 'mayFlip' && choice.power === 'howl') || (choice.kind === 'mayUse' && choice.power === 'retroEnergy') ? 1 : 0 };
   // Attract Energy, Delta Switch ("any number"): its Energy stays where it is.
   if (choice.kind === 'moveAttached' || choice.kind === 'protector' || (choice.kind === 'deltaSwitch' && !choice.cardUid)) return { type: 'RESOLVE_CHOICE' };
@@ -52,8 +54,11 @@ function finishSearch(state: GameState): GameAction {
 function turnAction(state: GameState, cpu: PlayerState): GameAction | null {
   const def = (defId: string) => lookupCard(state.cards, defId);
 
+  // Lost World: the win.
+  const won = lostWorldWin(state, cpu.id);
+  if (won) return won;
   // Bench every Basic in hand while there's room.
-  const emptySlot = openBenchSlot(cpu.bench, state.cards, state.stadium?.card);
+  const emptySlot = openBenchSlot(cpu, state.cards, state.stadium?.card);
   const basic = cpu.hand.find((c) => isBasicPokemon(def(c.defId)));
   if (emptySlot >= 0 && basic) return { type: 'PLAY_BENCH', cardUid: basic.uid, slot: emptySlot };
 
@@ -62,7 +67,7 @@ function turnAction(state: GameState, cpu: PlayerState): GameAction | null {
     const evolution = def(card.defId);
     if (evolution.kind !== 'pokemon' || evolution.stage === 'basic') continue;
     const sides = state.playerOrder.map((id) => state.players[id]!);
-    const target = inPlay(cpu).find(([, p]) => evolveError(evolution, p, state.cards, state.turn, sides) === null);
+    const target = inPlay(cpu).find(([, p]) => evolveError(evolution, p, state.cards, state.turn, sides, state.stadium?.card) === null);
     if (target) return { type: 'EVOLVE', cardUid: card.uid, target: target[0] };
   }
 

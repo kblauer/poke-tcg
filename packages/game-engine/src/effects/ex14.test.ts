@@ -35,9 +35,8 @@ describe('EX Crystal Guardians', () => {
     expect(s.pendingChoice).toMatchObject({ kind: 'pealTarget' });
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', target: 'active' });
     expect(s.pendingChoice).toMatchObject({ kind: 'pickFromTop', attachTo: 'active' });
+    // The Water Energy left is the only option, so it's attached without asking (the same-card rule).
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'e1' });
-    expect(s.pendingChoice).toMatchObject({ kind: 'pickFromTop' });
-    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'e2' });
     expect(s.pendingChoice).toBeUndefined();
     expect(ash(s).active!.energy.map((e) => e.uid)).toEqual(['e1', 'e2']);
     expect(ash(s).discard.map((c) => c.uid)).toEqual(['c1', 'c2', 'c3']);
@@ -92,8 +91,8 @@ describe('EX Crystal Guardians', () => {
     for (const attachIt of [true, false]) {
       let s = duel('charmander', 'onix');
       put(s, 'ash', 'active', mon('ex14-9', 'Mawile', 'metal', 60, [['Mining', [C], 0]]), ['fire']);
-      s.cards = { ...s.cards, 'ex14-80': trainer('ex14-80', 'Memory Berry') };
-      ash(s).deck.unshift({ uid: 'berry', defId: 'ex14-80' });
+      s.cards = { ...s.cards, 'ex14-80': trainer('ex14-80', 'Memory Berry'), 'base1-94': trainer('base1-94', 'Potion') };
+      ash(s).deck.unshift({ uid: 'berry', defId: 'ex14-80' }, { uid: 'potion', defId: 'base1-94' });
       s = attack(s, 0);
       s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'berry' });
       expect(s.pendingChoice).toMatchObject({ kind: 'attachCard', orHand: true });

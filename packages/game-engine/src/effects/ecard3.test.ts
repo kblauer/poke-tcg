@@ -147,7 +147,8 @@ describe('Skyridge Pokémon', () => {
   it('Energy Recharge: evolving the Active Pokémon, 3 coins; a basic Energy card from the discard pile for each heads', () => {
     const s = duel('charmander', 'onix');
     put(s, 'ash', 'active', growlithe);
-    ash(s).discard.push({ uid: 'd1', defId: 'fire' }, { uid: 'd2', defId: 'water' }, { uid: 'd3', defId: 'fire' });
+    // Three different Energy cards, so the second is still a choice (the same-card rule).
+    ash(s).discard.push({ uid: 'd1', defId: 'fire' }, { uid: 'd2', defId: 'water' }, { uid: 'd3', defId: 'grass' });
     const asked = act(s, 'ash', { type: 'EVOLVE', cardUid: hand(s, 'ash', arcanine), target: 'active' });
     expect(asked.pendingChoice).toMatchObject({ kind: 'mayUse', power: 'energyRecharge' });
     const two = resolve(flips(asked, true, true, false), { count: 0 });
@@ -326,6 +327,8 @@ describe('Skyridge Trainers and Energy', () => {
 
   it('Underground Expedition: 2 of the bottom 4 cards into the hand', () => {
     const s = duel('charmander', 'onix');
+    // A Water Energy at the bottom, so the cards to take are asked (the same-card rule).
+    ash(s).deck.push({ uid: 'deck-water', defId: 'water' });
     const bottom = ash(s).deck.slice(-4).map((c) => c.uid);
     const done = resolve(resolve(play(s, hand(s, 'ash', trainer('ecard3-140', 'Underground Expedition'))), { cardUid: bottom[0] }), { cardUid: bottom[3] });
     expect(ash(done).hand.map((c) => c.uid)).toEqual(expect.arrayContaining([bottom[0], bottom[3]]));

@@ -352,9 +352,9 @@ export const EX3: Record<string, Record<string, AttackEffect>> = {
   // Magikarp – Call for Family: any number of Magikarp onto the Bench.
   'ex3-60': {
     'Call for Family': {
-      blocked: (s) => (openBenchSlot(s.ownBench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
+      blocked: (s) => (openBenchSlot({ bench: s.ownBench, benchLimit: s.ownBenchLimit }, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
       run(ctx) {
-        const room = benchRoom(ctx.me.bench, ctx.state.cards, ctx.state.stadium?.card);
+        const room = benchRoom(ctx.me, ctx.state.cards, ctx.state.stadium?.card);
         if (ctx.me.deck.length && room) ctx.pend({ kind: 'pickFromDeck', source: 'Call for Family', filter: 'basicNamed', name: 'Magikarp', toBench: true, optional: true, count: room });
       },
     },
@@ -383,9 +383,9 @@ export const EX3: Record<string, Record<string, AttackEffect>> = {
   // Wurmple – Call for Friends: any number of Grass Basic Pokémon onto the Bench.
   'ex3-81': {
     'Call for Friends': {
-      blocked: (s) => (openBenchSlot(s.ownBench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
+      blocked: (s) => (openBenchSlot({ bench: s.ownBench, benchLimit: s.ownBenchLimit }, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
       run(ctx) {
-        const room = benchRoom(ctx.me.bench, ctx.state.cards, ctx.state.stadium?.card);
+        const room = benchRoom(ctx.me, ctx.state.cards, ctx.state.stadium?.card);
         if (ctx.me.deck.length && room) ctx.pend({ kind: 'pickFromDeck', source: 'Call for Friends', filter: 'basicType', type: 'grass', toBench: true, optional: true, count: room });
       },
     },

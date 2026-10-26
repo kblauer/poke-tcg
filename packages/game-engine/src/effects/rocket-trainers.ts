@@ -49,7 +49,7 @@ export const ROCKET_TRAINERS: Record<string, TrainerEffect> = {
   // Challenge!: the opponent accepts (both bench any number of Basic Pokémon from their decks) or declines (you draw 2).
   'base5-74': {
     play(ctx) {
-      const full = (p: PlayerState) => openBenchSlot(p.bench, ctx.state.cards, ctx.state.stadium?.card) < 0;
+      const full = (p: PlayerState) => openBenchSlot(p, ctx.state.cards, ctx.state.stadium?.card) < 0;
       if (full(ctx.me) && full(ctx.opp)) {
         ctx.log('Both Benches are full.');
         return ctx.draw(ctx.me, 2);

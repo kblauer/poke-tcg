@@ -121,6 +121,7 @@ describe('EX Delta Species', () => {
     let s = duel('charmander', 'onix');
     put(s, 'ash', 0, mon('delta', 'Beldum δ', L, 50, []));
     s = act(s, 'ash', { type: 'PLAY_TRAINER', cardUid: hand(s, 'ash', trainer('ex11-96', 'Holon Ruins')) });
+    ash(s).hand.push({ uid: 'w', defId: 'water' });
     const size = ash(s).hand.length;
     s = act(s, 'ash', { type: 'USE_STADIUM' });
     expect(ash(s).hand).toHaveLength(size + 1);
@@ -149,6 +150,7 @@ describe('EX Delta Species', () => {
   it('Delta Control: 1 of the top 4 cards into the hand, the other 3 on the bottom of the deck', () => {
     let s = duel('charmander', 'onix');
     put(s, 'ash', 0, mon('ex11-11', 'Metagross δ', L, 100, [], { stage: 'stage2', ...power('Delta Control') }));
+    ash(s).deck[1] = { uid: 'w', defId: 'water' };
     const top = ash(s).deck.slice(0, 4).map((c) => c.uid);
     s = act(s, 'ash', { type: 'USE_POWER', source: 0, choices: {} });
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: top[1] });

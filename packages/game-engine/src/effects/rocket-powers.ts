@@ -47,7 +47,7 @@ const HOLO: Record<string, PowerEffect> = {
   // Dark Dragonite – Summon Minions: when you play it from your hand, put up to 2 Basic Pokémon from your deck onto your Bench.
   'base5-5': {
     onPlayFromHand(state, owner) {
-      if (openBenchSlot(owner.bench, state.cards, state.stadium?.card) < 0 || !owner.deck.some((c) => isBasicPokemon(lookupCard(state.cards, c.defId)))) return;
+      if (openBenchSlot(owner, state.cards, state.stadium?.card) < 0 || !owner.deck.some((c) => isBasicPokemon(lookupCard(state.cards, c.defId)))) return;
       pend(state, owner, { source: 'Summon Minions', kind: 'pickFromDeck', filter: 'basic', toBench: true, optional: true, count: 2 });
     },
   },

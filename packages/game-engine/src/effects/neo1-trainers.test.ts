@@ -136,9 +136,9 @@ describe('Neo Genesis Trainers', () => {
 
   it('PokéGear: take a Trainer card from the top 7, and no more Trainer cards this turn', () => {
     let s = table('charmander', 'squirtle');
-    ash(s).deck.splice(3, 0, card('bill', 'bill'));
+    ash(s).deck.splice(3, 0, card('bill', 'bill'), card('ball', 'pokeball'));
     s = play(s, 'pokeGear');
-    expect(getPlayerView(s, 'ash').self.pendingChoice).toMatchObject({ options: [{ uid: 'bill' }] });
+    expect(getPlayerView(s, 'ash').self.pendingChoice).toMatchObject({ options: [{ uid: 'bill' }, { uid: 'ball' }] });
     s = resolve(s, 'ash', { cardUid: 'bill' });
     expect(ash(s).hand.map((c) => c.uid)).toEqual(['bill']);
     expect(applyAction(s, 'ash', { type: 'PLAY_TRAINER', cardUid: 'bill', choices: {} })).toMatchObject({ ok: false });
@@ -234,7 +234,10 @@ describe('Neo Genesis Trainers', () => {
   });
 
   it('Pokémon March: the opponent, then the player, may bench a Basic Pokémon from the deck', () => {
-    let s = play(table('charmander', 'squirtle'), 'pokemonMarch');
+    let s = table('charmander', 'squirtle');
+    // A second Basic Pokémon in Ash's deck, so his search is still asked.
+    ash(s).deck.push(card('sq', 'squirtle'));
+    s = play(s, 'pokemonMarch');
     expect(s.pendingChoice).toMatchObject({ player: 'misty', kind: 'pickFromDeck', filter: 'basic', toBench: true, then: 'ash' });
     s = resolve(s, 'misty', { cardUid: misty(s).deck[0]!.uid });
     expect(s.pendingChoice).toMatchObject({ player: 'ash' });
@@ -244,9 +247,9 @@ describe('Neo Genesis Trainers', () => {
 
   it('Super Rod: heads takes an Evolution card from the discard pile, tails a Basic Pokémon', () => {
     let s = table('charmander', 'squirtle');
-    ash(s).discard = [card('basic', 'squirtle'), card('evo', 'charmeleon')];
-    expect(getPlayerView(play(flips(s, true), 'superRod'), 'ash').self.pendingChoice).toMatchObject({ options: [{ uid: 'evo' }] });
-    expect(getPlayerView(play(flips(s, false), 'superRod'), 'ash').self.pendingChoice).toMatchObject({ options: [{ uid: 'basic' }] });
+    ash(s).discard = [card('basic', 'squirtle'), card('evo', 'charmeleon'), card('basic2', 'charmander'), card('evo2', 'darkCharmeleon')];
+    expect(getPlayerView(play(flips(s, true), 'superRod'), 'ash').self.pendingChoice).toMatchObject({ options: [{ uid: 'evo' }, { uid: 'evo2' }] });
+    expect(getPlayerView(play(flips(s, false), 'superRod'), 'ash').self.pendingChoice).toMatchObject({ options: [{ uid: 'basic' }, { uid: 'basic2' }] });
     ash(s).discard = [card('evo', 'charmeleon')];
     expect(play(flips(s, false), 'superRod').pendingChoice).toBeUndefined();
   });

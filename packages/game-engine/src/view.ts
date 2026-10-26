@@ -57,6 +57,8 @@ export interface PlayerView {
     /** Prize cards turned face up one by one (Card-Flip Game), in Prize order; null while face down. */
     faceUpPrizes?: (CardInstance | null)[];
     discard: CardInstance[];
+    /** Its Lost Zone (Lost Link), when it has cards. */
+    lostZone?: CardInstance[];
     active: InPlayPokemon | null;
     /** Fixed slots; null = empty. */
     bench: (InPlayPokemon | null)[];
@@ -74,6 +76,8 @@ export interface PlayerView {
     formChangeTurn?: number;
     happyDanceTurn?: number;
     powerTurns?: Record<string, number>;
+    /** The last turn one of their Pokémon was Knocked Out (Minus Charge). */
+    knockedOutTurn?: number;
     /** A search this player must finish, with the cards it reveals to them. */
     pendingChoice: PendingChoiceView | null;
     /** Last turn this player can't play Trainer cards (Headache). */
@@ -106,6 +110,8 @@ export interface PlayerView {
     /** Prize cards turned face up one by one (Card-Flip Game), in Prize order; null while face down. */
     faceUpPrizes?: (CardInstance | null)[];
     discard: CardInstance[];
+    /** Its Lost Zone (Lost Link), when it has cards. */
+    lostZone?: CardInstance[];
     /** Last turn no Pokémon Powers work (Goop Gas Attack). */
     powersOffUntil?: number;
     /** Ancient Wind: every Poké-Body is ignored this turn. */
@@ -197,6 +203,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       ...(me.formChangeTurn !== undefined && { formChangeTurn: me.formChangeTurn }),
       ...(me.happyDanceTurn !== undefined && { happyDanceTurn: me.happyDanceTurn }),
       ...(me.powerTurns && { powerTurns: me.powerTurns }),
+      ...(me.knockedOutTurn !== undefined && { knockedOutTurn: me.knockedOutTurn }),
       pendingChoice: pending,
       noTrainersUntil: me.noTrainersUntil,
       ...(me.supporterTurn !== undefined && { supporterTurn: me.supporterTurn }),
@@ -204,6 +211,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       ...(me.noSupportersUntil !== undefined && { noSupportersUntil: me.noSupportersUntil }),
       ...(me.noItemsUntil !== undefined && { noItemsUntil: me.noItemsUntil }),
       ...(me.activeEnergyTurn !== undefined && { activeEnergyTurn: me.activeEnergyTurn }),
+      ...(me.lostZone?.length && { lostZone: me.lostZone }),
       ...(me.ready && { ready: true }),
       ...(peek && { peek }),
       ...(recallsAttacks(state, me) && { recall: true }),
@@ -217,6 +225,7 @@ export function getPlayerView(state: GameState, playerId: PlayerId): PlayerView 
       ...(state.prizesFaceUp && { prizes: opp.prizes }),
       ...(faceUp(opp).length && { faceUpPrizes: inOrder(opp) }),
       discard: opp.discard,
+      ...(opp.lostZone?.length && { lostZone: opp.lostZone }),
       ...(opp.powersOffUntil !== undefined && { powersOffUntil: opp.powersOffUntil }),
       ...(opp.bodiesOffTurn !== undefined && { bodiesOffTurn: opp.bodiesOffTurn }),
       active: oppActive,

@@ -31,6 +31,15 @@ describe('captureCheckup', () => {
     expect(ash(after).discard.some((c) => c.defId === id('berry'))).toBe(true);
   });
 
+  it("keeps the state after the Burn damage and before the Burn flip, and none when nothing is Burned", () => {
+    const s = duel('charmander', 'charmander');
+    misty(s).active!.burned = true;
+    const { result: after, checkup } = captureCheckup(() => endTurn(flips(s, true), 'ash'));
+    expect([misty(checkup!.burn!).active!.damage, misty(checkup!.burn!).active!.burned, coins(checkup!.burn!)]).toEqual([20, true, []]);
+    expect([misty(after).active!.burned, coins(after)]).toEqual([false, [expect.stringMatching(/Burned: heads/)]]);
+    expect(captureCheckup(() => endTurn(duel('charmander', 'charmander'), 'ash')).checkup!.burn).toBeUndefined();
+  });
+
   it('is null for a move that ends no turn', () => {
     const s = duel('clefairy', 'charmander', { energy: ['fire'], bench: ['charmander'] });
     const energy = s.players.ash!.active!.energy[0]!.uid;

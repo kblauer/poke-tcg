@@ -32,9 +32,11 @@ function statusBadges(p: InPlayPokemon, cards?: CardLibrary): { label: string; t
   if (e.amnesia) badges.push({ label: 'AMN', title: `Amnesia: can't use ${e.amnesia.attack} next turn`, className: 'bg-slate-600' });
   return badges;
 }
+import { useFlair, usePattern } from '../hooks/useFlair';
 import { useTouchHold } from '../hooks/useTouchHold';
 import { holoAttributes } from '../utils/holo';
 import { EnergyIcon } from './EnergyIcon';
+import { FlairBorder } from './FlairBorder';
 import { HoloCard, type HoloMotion } from './HoloCard';
 import { CatalogContext, InspectContext, useInspectOnRightClick } from './InspectContext';
 import { PreviewContext } from './PreviewContext';
@@ -51,10 +53,10 @@ function AttachedIcon({ def, holder, size }: { def: CardDef; holder: CardDef; si
       title={def.name}
       className="inline-block shrink-0 rounded-full border border-white bg-slate-700 bg-no-repeat shadow shadow-black/60"
       style={{ width: size, height: size, backgroundImage: def.imageUrl ? `url(${def.imageUrl}/low.webp)` : undefined, backgroundSize: '260%', backgroundPosition: '50% 24%' }}
-      onMouseEnter={(e) => setPreview({ def, x: e.clientX, y: e.clientY, from: e.currentTarget })}
+      onMouseEnter={(e) => setPreview({ def, x: e.clientX, y: e.clientY, from: e.currentTarget, mine: !!e.currentTarget.closest('[data-mine]') })}
       onMouseLeave={(e) => {
         const card = e.currentTarget.closest<HTMLElement>('[data-in-play]');
-        setPreview(card ? { def: holder, x: e.clientX, y: e.clientY, from: card } : null);
+        setPreview(card ? { def: holder, x: e.clientX, y: e.clientY, from: card, mine: card.hasAttribute('data-mine') } : null);
       }}
     />
   );
@@ -63,7 +65,7 @@ function AttachedIcon({ def, holder, size }: { def: CardDef; holder: CardDef; si
 /**
  * Card art from TCGdex (aspect ratio 63:88), with damage, attached energy and attached cards overlaid when in play. Right-clicking it
  * (or a long press, on a touch screen) opens it in the CardInspector. `shine`: a holo card gets its holo effect, still (the Active Pokémon);
- * `holoRef` moves its tilt and shine (the slot's animations).
+ * `holoRef` moves its tilt and shine (the slot's animations). `mine`: the player's own card, shown with the flair they chose for it (its holo pattern or border).
  */
 export function Card({
   def,
@@ -73,6 +75,7 @@ export function Card({
   highRes,
   shine,
   holoRef,
+  mine = false,
 }: {
   def: CardDef;
   inPlay?: InPlayPokemon;
@@ -82,6 +85,7 @@ export function Card({
   highRes?: boolean;
   shine?: boolean;
   holoRef?: Ref<HoloMotion | null>;
+  mine?: boolean;
 }) {
   const setPreview = useContext(PreviewContext);
   const catalog = useContext(CatalogContext);
@@ -100,23 +104,27 @@ export function Card({
   // The catalog knows which cards are holo, and which have the galaxy foil.
   const entry = shine ? catalog?.get(def.id) : undefined;
   const holo = entry && (entry.holo || entry.galaxy) ? entry : null;
+  const pattern = usePattern(def.id, mine);
+  const border = useFlair(def.id, 'border', mine);
   const size = small ? SMALL_CARD : LARGE_CARD;
   return (
     <div
       {...hold}
       data-in-play={inPlay ? '' : undefined}
+      data-mine={mine ? '' : undefined}
       className={`${size} relative aspect-[63/88] shrink-0 overflow-hidden rounded-lg shadow`}
-      onMouseEnter={(e) => setPreview({ def, x: e.clientX, y: e.clientY, from: e.currentTarget })}
+      onMouseEnter={(e) => setPreview({ def, x: e.clientX, y: e.clientY, from: e.currentTarget, mine })}
       onMouseLeave={() => setPreview(null)}
       {...inspect}
     >
       {holo && def.imageUrl ? (
-        <HoloCard still motionRef={holoRef} img={`${def.imageUrl}/high.webp`} name={def.name} attrs={holoAttributes(holo)} />
+        <HoloCard still motionRef={holoRef} img={`${def.imageUrl}/high.webp`} name={def.name} attrs={holoAttributes(holo, pattern)} />
       ) : def.imageUrl ? (
         <CardImage src={`${def.imageUrl}/${highRes ? 'high' : 'low'}.webp`} alt={def.name} loading="lazy" draggable={false} className="h-full w-full object-cover" />
       ) : (
         <div className={`${typeColor(def)} h-full w-full p-2 text-xs font-semibold`}>{def.name}</div>
       )}
+      {border && def.imageUrl && <FlairBorder border={border} cardId={def.id} />}
       {inPlay && def.kind === 'pokemon' && inPlay.damage > 0 && (
         <span className="absolute right-1 top-1 rounded-full bg-red-600 px-1.5 text-xs font-bold text-white shadow">
           {def.hp - inPlay.damage}/{def.hp}

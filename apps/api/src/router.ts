@@ -4,6 +4,7 @@ import { cosmeticsRouter } from './routers/cosmetics.js';
 import { debugRouter } from './routers/debug.js';
 import { extrasRouter } from './routers/extras.js';
 import { decksRouter } from './routers/decks.js';
+import { flairRouter } from './routers/flair.js';
 import { gameRouter } from './routers/game.js';
 import { idleRouter } from './routers/idle.js';
 import { packsRouter } from './routers/packs.js';
@@ -24,6 +25,7 @@ export const appRouter = router({
   idle: idleRouter,
   packs: packsRouter,
   cosmetics: cosmeticsRouter,
+  flair: flairRouter,
   settings: settingsRouter,
   extras: extrasRouter,
   debug: debugRouter,

@@ -1,4 +1,4 @@
-import { bossSummary, currentGameId, EQUIP_SLOTS, isBattleKind, fitsSlot, item, ITEMS, MAX_CONSUMABLES_PER_RUN, onlyOne, RUN_TYPE_IDS, RUN_TYPES, runView, shopStock, type EquipSlot, type RunTypeId } from '@poke-tcg/campaign';
+import { bossSummary, currentGameId, EQUIP_SLOTS, isBattleKind, fitsSlot, item, ITEMS, MAX_CONSUMABLES_PER_RUN, onlyOne, RUN_TYPE_IDS, RUN_TYPES, runView, shopStock, type EquipSlot, type RunTypeId, type StarterId } from '@poke-tcg/campaign';
 import { Prisma, prisma } from '@poke-tcg/db';
 import { DECK_NAME_LENGTH } from '@poke-tcg/shared';
 import { buyItemInput, DEFAULT_TRAINER_SPRITE, equipInput, playerGenderInput, runActInput, runChooseInput, runIdInput, saveRunDeckInput, startRunInput, trainerSpriteInput, useConsumableInput, useItemInput, type PlayerGender } from '@poke-tcg/shared';
@@ -7,7 +7,7 @@ import { debugWinGame } from '../games.js';
 import { runPool } from '../pool.js';
 import { towerUnderway } from '../towers.js';
 import { runTypeProgress } from '../progress.js';
-import { abandonBattle, advanceRun, ensureAccount, latestRun, loadOwnRun, lockUser, settleBattle, startRun, syncRunDeck, takeItem, type LoadedRun } from '../runs.js';
+import { abandonBattle, advanceRun, ensureAccount, latestRun, loadOwnRun, lockUser, needsStarter, settleBattle, startRun, syncRunDeck, takeItem, type LoadedRun } from '../runs.js';
 import { holoTwins, lockedProblem, unlockedIds } from '../unlocks.js';
 import { markPlayed, playableDeck, playProblems, type DeckCosmetics } from './decks.js';
 import { debugProcedure, protectedProcedure, router } from '../trpc.js';
@@ -31,13 +31,14 @@ async function latestStock(userId: string) {
   return stock;
 }
 
-/** Starts a run of `type` with one of the account's own decks, which must be playable. */
-async function startWithDeck(userId: string, type: RunTypeId, deckId: string) {
+/** Starts a run of `type` with one of the account's own decks, which must be playable, or (its first run) the starter deck it picked. */
+async function startWithDeck(userId: string, type: RunTypeId, { deckId, starter }: { deckId?: string; starter?: StarterId }) {
   await towerUnderway(userId);
-  const deck = await playableDeck(deckId, userId);
+  if (starter) return startRun(userId, type, { starter });
+  const deck = await playableDeck(deckId!, userId);
   if (deck.runDeck) throw new TRPCError({ code: 'BAD_REQUEST', message: "Start a run with one of your own decks (save the run's deck first)" });
   const started = await startRun(userId, type, deck);
-  await Promise.all([markPlayed(userId, deckId), runDeckCosmetics(userId, deck.cosmetics)]);
+  await Promise.all([markPlayed(userId, deckId!), runDeckCosmetics(userId, deck.cosmetics)]);
   return started;
 }
 
@@ -68,7 +69,7 @@ async function clientRun(run: LoadedRun) {
 export const runRouter = router({
   /**
    * The home screen: the account (EXP, banked ₱), its latest run, decks and the run types to pick
-   * from. Sets up a new account with the starter deck and its first run.
+   * from, and whether the account is still to pick its starter deck (`needsStarter`: a new account, its first run's).
    */
   overview: protectedProcedure.query(async ({ ctx }) => {
     await ensureAccount(ctx.user);
@@ -83,12 +84,14 @@ export const runRouter = router({
         orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
       }),
     ]);
-    const [unlocked, limited, progress] = await Promise.all([unlockedIds(ctx.user.id), holoTwins(), runTypeProgress(ctx.user.id)]);
+    const [unlocked, limited, progress, starter] = await Promise.all([unlockedIds(ctx.user.id), holoTwins(), runTypeProgress(ctx.user.id), needsStarter(ctx.user.id)]);
     // A run started before there were automatic run decks gets one now.
     if (run?.status === 'ACTIVE' && !decks.some((d) => d.runId === run.id)) await syncRunDeck(ctx.user.id, run.id, run.state.deck);
     const runDeck = run && decks.find((d) => d.runId === run.id);
     return {
       account: { exp: user.exp, bank: user.bank },
+      // A new account: its first run starts with one of the starter decks (STARTER_DECKS), picked in the run picker.
+      needsStarter: starter,
       // The player's sprite on the run maps (the Inventory's choice).
       playerGender: (user.playerGender === 'female' ? 'female' : 'male') as PlayerGender,
       // The deck played most recently, the new run's deck to start with (the client falls back to the top deck when it's gone).
@@ -203,11 +206,11 @@ export const runRouter = router({
   start: protectedProcedure.input(startRunInput).mutation(async ({ ctx, input }) => {
     const { locked } = (await runTypeProgress(ctx.user.id))[input.type];
     if (locked) throw new TRPCError({ code: 'BAD_REQUEST', message: locked });
-    return startWithDeck(ctx.user.id, input.type, input.deckId);
+    return startWithDeck(ctx.user.id, input.type, input);
   }),
 
   /** Debug (a debugProcedure, refused in production): starts a run like `start`, locked run types too. */
-  debugStart: debugProcedure.input(startRunInput).mutation(async ({ ctx, input }) => startWithDeck(ctx.user.id, input.type, input.deckId)),
+  debugStart: debugProcedure.input(startRunInput).mutation(async ({ ctx, input }) => startWithDeck(ctx.user.id, input.type, input)),
 
   /**
    * Saves the automatic run deck once its run is over: it becomes one of the account's own decks, under `name`, at the end

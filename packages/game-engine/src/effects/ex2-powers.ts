@@ -9,7 +9,7 @@
 // returns the Energy card its player picks; Super Suction Cups is Guard; Primal Lock also discards the opponent's Pokémon Tools.
 import { conditionProof, lookupCard, namesMatch, type CardLibrary } from '../cards.js';
 import { afflictionBlocked, type CardInstance, type InPlayPokemon, type PlayerState } from '../engine.js';
-import { evolutionBlocked, playedFromHand, offerChainReaction, pokemonAt, powerActive, primalBlock, type PowerContext, type PowerEffect, type PowerSituation } from '../powers.js';
+import { evolutionBlocked, playedFromHand, offerChainReaction, pokemonAt, powerActive, primalBlock, type PowerContext, type PowerEffect, type PowerSituation, pokemonPower } from '../powers.js';
 import { powerEffect } from './index.js';
 import { addLog, effectId, inPlayDef, pokemonName } from '../status.js';
 import { evolveWith } from '../trainers.js';
@@ -27,7 +27,7 @@ export const payback = (condition: 'poisoned' | 'burned'): PowerEffect => ({
   onAttackDamage(ctx: AttackContext, pokemon) {
     if (ctx.opp.active !== pokemon || ctx.me.active !== ctx.attacker) return;
     const name = ctx.attackerDef.name;
-    const working = powerActive(ctx.attacker, ctx.state.cards, [ctx.me, ctx.opp]) ? powerEffect(effectId(ctx.attacker)) : undefined;
+    const working = powerActive(ctx.attacker, ctx.state.cards, [ctx.me, ctx.opp]) ? pokemonPower(ctx.attacker) : undefined;
     if (conditionProof(ctx.attackerDef) || working?.noConditions || (condition === 'poisoned' && working?.noPoison)) return ctx.log(`${name} can't be ${condition === 'burned' ? 'Burned' : 'Poisoned'}.`);
     if (condition === 'burned') ctx.attacker.burned = true;
     else ctx.attacker.poison = Math.max(ctx.attacker.poison ?? 0, 10);

@@ -51,14 +51,14 @@ const ERIKA: TrainerEffect = { play: (ctx) => ctx.pend({ kind: 'drawCount', sour
 const LT_SURGE: TrainerEffect = {
   blocked(s) {
     if (!basicsInHand(s).length) return 'You have no Basic Pokémon cards in your hand';
-    return trainerProof(s.me, [s.me, s.opp], s.cards) ?? (openBenchSlot(s.me.bench, s.cards, s.stadium) >= 0 ? null : 'Your Bench is full');
+    return trainerProof(s.me, [s.me, s.opp], s.cards) ?? (openBenchSlot(s.me, s.cards, s.stadium) >= 0 ? null : 'Your Bench is full');
   },
   choices: (s) => [{ kind: 'cards', field: 'handUids', min: 1, max: 1, options: basicsInHand(s), prompt: 'Choose a Basic Pokémon to put into play as your Active Pokémon' }],
   play(ctx) {
     const [card] = ctx.fromHand(ctx.me, ctx.choices.handUids!);
     const old = ctx.me.active!;
     clearOnLeavingActive(old);
-    ctx.me.bench[openBenchSlot(ctx.me.bench, ctx.state.cards, ctx.state.stadium?.card)] = old;
+    ctx.me.bench[openBenchSlot(ctx.me, ctx.state.cards, ctx.state.stadium?.card)] = old;
     ctx.me.active = newInPlay(card!, ctx.turn);
     ctx.log(`${pokemonName(ctx.state, ctx.me.active)} is the new Active Pokémon; ${pokemonName(ctx.state, old)} went to the Bench.`);
   },

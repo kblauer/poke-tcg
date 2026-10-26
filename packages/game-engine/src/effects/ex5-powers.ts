@@ -102,7 +102,7 @@ export const EX5_POWERS: Record<string, PowerEffect> = {
   // Beldum – Magnetic Call: once a turn, heads puts a Metal Basic Pokémon from the deck onto the Bench.
   'ex5-29': {
     oncePerTurn: true,
-    blocked: (s) => (!s.counts.deck ? 'Your deck is empty' : openBenchSlot(s.me.bench, s.cards, s.stadium) >= 0 ? null : 'Your Bench is full'),
+    blocked: (s) => (!s.counts.deck ? 'Your deck is empty' : openBenchSlot(s.me, s.cards, s.stadium) >= 0 ? null : 'Your Bench is full'),
     use: (ctx) => (ctx.flip() ? ctx.pend({ kind: 'pickFromDeck', source: 'Magnetic Call', filter: 'basicType', type: 'metal', toBench: true, optional: true }) : ctx.log('Magnetic Call did nothing.')),
   },
   // Dodrio – Fast Feet: it can retreat while Asleep or Paralyzed (retreatError).

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import type { Dialogue } from '../components/DialogueBox';
 import { useMusicCue, useMusicSettings } from '../components/MusicPlayer';
 import { PageHeader } from '../components/PageHeader';
-import { ReturnToHome } from '../components/ReturnToHome';
+import { ReturnToPlay } from '../components/ReturnToPlay';
 import { Toasts } from '../components/Toasts';
 import { SceneTransition } from '../components/BattleTransition';
 import { AreaScene, usePreloadMaps } from '../components/idle/AreaScene';
@@ -185,7 +185,7 @@ export function IdlePage() {
               <Pokedex dex={data.dex} starters={data.starters} shinyStarters={data.shinyStarters} onPick={start} busy={actions.busy} />
             </section>
           )}
-          <ReturnToHome />
+          <ReturnToPlay />
         </div>
       ) : v?.phase === 'town' ? (
         <TownMenu

@@ -38,6 +38,15 @@ export function damageOpponent(ctx: AttackContext, target: Target, amount: numbe
   else ctx.damageBenched(ctx.opp, target, amount);
 }
 
+/**
+ * Damage to one of the opponent's Pokémon, as the later sets print it ("Don't apply Weakness and Resistance for Benched
+ * Pokémon"): the Active one with Weakness and Resistance, a Benched one without.
+ */
+export function damageChosen(ctx: AttackContext, target: Target, amount: number) {
+  if (target === 'active') ctx.hit(amount);
+  else ctx.damageBenched(ctx.opp, target, amount);
+}
+
 /** "Choose 1 of your opponent's Pokémon": a choice of any of them. */
 export const opponentTargets = (s: AttackSituation, prompt: string): ChoiceSpec[] => [{ kind: 'opponentPokemon', options: targetsIn(s.defender, s.opponentBench), prompt }];
 
@@ -244,6 +253,26 @@ export function headsUntilTails(ctx: AttackContext): number {
 
 /** Search the deck for a Basic Pokémon and put it onto the Bench (Call for Family, Sprout, Call for Friend). */
 export const benchSearch = (source: string, find: Pick<Extract<PendingChoice, { kind: 'pickFromDeck' }>, 'filter' | 'name' | 'type'>): AttackEffect => ({
-  blocked: (s) => (openBenchSlot(s.ownBench, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
+  blocked: (s) => (openBenchSlot({ bench: s.ownBench, benchLimit: s.ownBenchLimit }, s.cards, s.stadium) < 0 ? 'Your Bench is full' : null),
   run: (ctx) => ctx.pend({ kind: 'pickFromDeck', source, ...find, toBench: true }),
+});
+
+/** Steel Wing, Teary Eyes, Flame Screen: `amount` less damage to the attacker during the opponent's next turn, after Weakness and Resistance. */
+export const guardNext = (damage: number, amount: number): AttackEffect => ({
+  run(ctx) {
+    ctx.hit(damage);
+    (ctx.attacker.effects ??= {}).reduceDamage = { amount, until: ctx.turn + 1 };
+    ctx.log(`Damage to ${ctx.attackerDef.name} is reduced by ${amount} next turn.`);
+  },
+});
+
+/** "During your opponent's next turn, any damage done by attacks from the Defending Pokémon is reduced by N (before Weakness and Resistance)" (Charm, Delta Reduction, Negative Ion). */
+export const charmFor = (damage: number, amount: number): AttackEffect => ({
+  run(ctx) {
+    if (damage) ctx.hit(damage);
+    ctx.affectDefender((e) => {
+      e.charm = { amount, until: ctx.turn + 1 };
+      ctx.log(`${ctx.defenderDef.name}'s attacks do ${amount} less damage next turn.`, ctx.opp.id);
+    });
+  },
 });

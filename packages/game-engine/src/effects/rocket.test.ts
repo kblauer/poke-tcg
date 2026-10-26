@@ -142,8 +142,9 @@ describe('Team Rocket attacks', () => {
   it('Afternoon Nap attaches a Psychic Energy card from the deck to Slowpoke', () => {
     let s = duel('slowpokeR', 'onix', { energy: ['fire'] });
     ash(s).deck.push({ uid: 'p1', defId: 'psychic' }, { uid: 'f1', defId: 'fire' });
+    // The only Psychic Energy card in the deck: attached without a question (the same-card rule).
     s = attack(s, 0);
-    expect(getPlayerView(s, 'ash').self.pendingChoice).toMatchObject({ options: [{ uid: 'p1' }] });
-    expect(ash(act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'p1' })).active!.energy.map((e) => e.uid)).toContain('p1');
+    expect(ash(s).active!.energy.map((e) => e.uid)).toContain('p1');
+    expect(ash(s).active!.energy.map((e) => e.uid)).not.toContain('f1');
   });
 });
