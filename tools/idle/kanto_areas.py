@@ -491,8 +491,9 @@ def town(area_id, name, m, marts, gym=None, **kw):
 
 
 AREAS = [
-    # A run starts just outside the player's house (the user's: its door's warp, 6,7, one tile down), then up Route 1.
-    {'id': 'route-1', 'name': 'Route 1', 'kind': 'route', 'legs': [leg(['PalletTown', 'Route1'], ('PalletTown', 'tile', 6, 8), edge('Route1', 'up'))]},
+    # A run starts coming out of Professor Oak's lab, on its door (the user's: its warp, 16,13; the player's house's door
+    # before), then up Route 1.
+    {'id': 'route-1', 'name': 'Route 1', 'kind': 'route', 'legs': [leg(['PalletTown', 'Route1'], warp('PalletTown', 'MAP_PALLET_TOWN_PROFESSOR_OAKS_LAB'), edge('Route1', 'up'))]},
     town('viridian-city', 'Viridian City', 'ViridianCity', ['ViridianCity_Mart_Items']),
     {'id': 'route-2', 'name': 'Route 2', 'kind': 'route', 'legs': [leg(['Route2', 'ViridianForest'], edge('Route2', 'down'), edge('Route2', 'up'), via=('ViridianForest',))]},
     town('pewter-city', 'Pewter City', 'PewterCity', ['PewterCity_Mart_Items'], 'pewter-gym'),

@@ -105,7 +105,8 @@ export interface Playback {
   tickAt: number;
 }
 
-const IDLE: Playback = { place: null, face: 'up', walkTick: 0, moveMs: 0, jump: null, fading: false, spotted: null, battle: null, cue: null, shown: 0, entering: false, notice: null, turn: null, tickAt: 0 };
+// Facing down to begin with: out of a door (a run's start, Oak's lab's), as the game has it.
+const IDLE: Playback = { place: null, face: 'down', walkTick: 0, moveMs: 0, jump: null, fading: false, spotted: null, battle: null, cue: null, shown: 0, entering: false, notice: null, turn: null, tickAt: 0 };
 
 /** Whether the tab is showing (document.visibilityState), followed as it changes. */
 function useTabVisible() {

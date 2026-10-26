@@ -88,11 +88,11 @@ describe('an idle run', () => {
     expect(catchUp(s, DEFAULT_IDLE_SETTINGS, new Set(), first).summary.segments).toBe(1);
   });
 
-  it("starts just outside the player's house in Pallet Town, then walks Route 1", () => {
+  it("starts coming out of Professor Oak's lab in Pallet Town, then walks Route 1", () => {
     const s = createIdleRun({ species: 1 }, 1);
     const leg = (AREAS[s.area] as WalkArea).legs[s.leg]!;
     expect(leg.maps[leg.track[s.step]![0]]).toBe('PalletTown');
-    expect(leg.track[s.step]!.slice(1, 3)).toEqual([6, 8]);
+    expect(leg.track[s.step]!.slice(1, 3)).toEqual([16, 13]);
     expect(leg.maps.at(-1)).toBe('Route1');
   });
 
@@ -212,7 +212,7 @@ describe('an idle run', () => {
 
     it('paces over wild encounter tiles near where it is with no trainer beaten', () => {
       let s = createIdleRun({ species: 4 }, 2);
-      s = { ...s, step: 20, party: [{ ...s.party[0]!, level: 60 }] };
+      s = { ...s, step: 50, party: [{ ...s.party[0]!, level: 60 }] };
       const r = applyIdleAction(s, { type: 'ROUTE_GRIND' });
       expect(r.ok).toBe(true);
       let g = (r as { state: IdleState }).state;
@@ -225,7 +225,7 @@ describe('an idle run', () => {
       }
       expect(g.totals.wild).toBeGreaterThan(s.totals.wild);
       const on = applyIdleAction(g, { type: 'CONTINUE_ROUTE' });
-      expect(on.ok && on.state.step).toBe(20);
+      expect(on.ok && on.state.step).toBe(50);
     });
 
     it('with no wild Pokémon where it is, goes back to the most recent stretch that has them, and Continue route returns', () => {
