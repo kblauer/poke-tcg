@@ -1,5 +1,5 @@
 // The Idle Adventure's decisions in battle (README: Idle Adventure), all settings, so nothing waits on the player:
-// - the energy rule (Battle.chooseMove): the slots in turn, the basic move while the next one's energy builds;
+// - the cooldown rule (Battle.chooseMove): the strongest slot move off cooldown, the basic move while they all cool down;
 // - auto-heal (agreed with the user): a Potion-class item when the active Pokémon is at half its HP or less, the one
 //   wasting least; a status cure when it has a status (the specific cure before Full Heal); a Revive by the settings'
 //   policy (the last one standing, any fainted, boss battles, the lead; none, never);
@@ -10,7 +10,6 @@
 import { MEDICINE, statusUseless, type Battle, type Battler, type StatusKind } from './battle.js';
 import { BALLS } from './catch.js';
 import { moveData } from './data.js';
-import { energyCost } from './mon.js';
 
 export type Action = { kind: 'move'; move: string } | { kind: 'item'; item: string; target: number } | { kind: 'ball'; item: string };
 
@@ -107,24 +106,24 @@ function autoCatch(b: Battle, me: Battler): Action | null {
   const ball = BALLS.map(([k]) => k).find((k) => (b.bag[k] ?? 0) > 0);
   if (!ball) return null;
   if (me.v.charging || me.v.rampage || me.v.rollout || me.v.uproar || me.v.bide || me.v.recharging) return null;
-  const usable = [...me.slots.filter((k) => energyCost(k) <= me.energy), me.basic].filter((k) => b.selectable(me, k));
+  const usable = [...me.slots.filter((k) => !me.cooldowns[k]), me.basic].filter((k) => b.selectable(me, k));
   if (!target.status) {
     const status = usable.filter((k) => CATCH_STATUS[moveData(k).effect] && !statusUseless(b, me, k)).sort((x, y) => CATCH_STATUS[moveData(y).effect]! - CATCH_STATUS[moveData(x).effect]!)[0];
-    if (status) return spend(me, status);
+    if (status) return spend(b, me, status);
   }
   const safe = usable.filter((k) => moveData(k).power > 0 && maxDamage(b, me, target, k) < target.hp).sort((x, y) => maxDamage(b, me, target, y) - maxDamage(b, me, target, x))[0];
   // Still worth hitting while the target is above a quarter of its HP; below that, the ball (the HP its moves can leave is as low as it goes safely).
-  if (safe && target.hp > Math.ceil(target.maxHp / 4) && maxDamage(b, me, target, safe) > 0) return spend(me, safe);
+  if (safe && target.hp > Math.ceil(target.maxHp / 4) && maxDamage(b, me, target, safe) > 0) return spend(b, me, safe);
   return { kind: 'ball', item: ball };
 }
 
-/** A move chosen outside the energy rule (auto-catch) still costs its energy. */
-function spend(me: Battler, key: string): Action {
-  if (key !== me.basic) me.energy -= energyCost(key);
+/** A move chosen outside the cooldown rule (auto-catch) still cools down. */
+function spend(b: Battle, me: Battler, key: string): Action {
+  b.startCooldown(me, key);
   return { kind: 'move', move: key };
 }
 
-/** The player's action for the tick: auto-heal, then auto-catch on a wild Pokémon it should catch, then the energy rule. */
+/** The player's action for the tick: auto-heal, then auto-catch on a wild Pokémon it should catch, then the cooldown rule. */
 export function choosePlayerAction(b: Battle): Action {
   const me = b.active[0];
   const locked = me.v.charging || me.v.rampage || me.v.rollout || me.v.uproar || me.v.bide || me.v.recharging;

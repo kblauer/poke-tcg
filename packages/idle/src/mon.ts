@@ -1,20 +1,21 @@
 // A run's Pokémon (README: Idle Adventure): making them (starters, wild, trainers'), the moves they know, their basic
-// move, the energy each move costs and the default slots. The energy rule (agreed with the user): no PP; every Pokémon
-// has a basic move (energy 0, always usable) and 3 slots, used in turn: it waits on the next slot (using the basic
-// move while its energy builds), uses it, then the next, back to the first; it gains 1 energy after acting.
+// move, each move's cooldown and the default slots. The cooldown rule (the user's, 2026-10-25, replacing the energy
+// rule): no PP; every Pokémon has a basic move (no cooldown, always usable) and 3 slots; each tick it uses the slot move
+// with the highest power that's off cooldown (movePower), which then waits its cooldown in ticks (cooldownTicks), and
+// its basic move when every slot is cooling down.
 import { int, type Rng } from '@poke-tcg/campaign';
 import { moveData, species } from './data.js';
 import { expForLevel } from './stats.js';
 import type { Mon, MoveData, Stats } from './types.js';
 
-/** Move effects that deal damage without a fixed power (power 1 in the data): their energy cost is set here instead. */
+/** Move effects that deal damage without a fixed power (power 1 in the data): their cooldown is set here instead. */
 const VARIABLE_DAMAGE_COST: Record<string, number> = {
   ohko: 6, level_damage: 3, dragon_rage: 3, sonicboom: 2, super_fang: 3, flail: 3, low_kick: 3, magnitude: 3, counter: 3,
   mirror_coat: 3, endeavor: 3, psywave: 3, present: 2, return: 4, frustration: 4, hidden_power: 3, spit_up: 4, bide: 3,
   beat_up: 3,
 };
 
-/** Status moves' energy costs by what they do (placeholders, to balance later: agreed with the user). */
+/** Status moves' cooldowns by what they do (placeholders, to balance later: agreed with the user). */
 const SLEEP_FREEZE = new Set(['sleep', 'yawn']);
 const MAJOR_STATUS = new Set(['paralyze', 'poison', 'toxic', 'will_o_wisp', 'confuse', 'swagger', 'flatter', 'teeter_dance', 'attract']);
 const ONE_STAGE = new Set([
@@ -24,8 +25,12 @@ const ONE_STAGE = new Set([
 ]);
 const HEALING = new Set(['restore_hp', 'softboiled', 'rest', 'synthesis', 'moonlight', 'morning_sun', 'wish', 'swallow', 'ingrain']);
 
-/** A move's energy cost: by power for damaging moves, clamp(round(power / 20), 1, 6); status moves by effect (placeholders). */
-export function energyCost(key: string): number {
+/**
+ * A move's cooldown in ticks (the energy costs before it, the same numbers): by power for damaging moves,
+ * clamp(round(power / 20), 1, 6); status moves by effect (placeholders). Used, it can be used again that many ticks on
+ * (1: every tick).
+ */
+export function cooldownTicks(key: string): number {
   const m = moveData(key);
   if (m.power > 1) return Math.min(6, Math.max(1, Math.round(m.power / 20)));
   if (m.power === 1) return VARIABLE_DAMAGE_COST[m.effect] ?? 3;
@@ -34,6 +39,14 @@ export function energyCost(key: string): number {
   if (ONE_STAGE.has(m.effect)) return 2;
   if (HEALING.has(m.effect)) return 4;
   return 3;
+}
+
+/** A move's power for picking the strongest off cooldown: its power, a variable-damage move's cooldown × 20, a status move's 0. */
+export function movePower(key: string): number {
+  const m = moveData(key);
+  if (m.power > 1) return m.power;
+  if (m.power === 1) return (VARIABLE_DAMAGE_COST[m.effect] ?? 3) * 20;
+  return 0;
 }
 
 /** Whether a move deals damage (any power, fixed or variable). */

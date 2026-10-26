@@ -1,4 +1,4 @@
-import { expForLevel, MAX_ENERGY, moveData, species, TRAINERS, type BattleEvent, type BattlerView, type StatusKind } from '@poke-tcg/idle';
+import { cooldownTicks, expForLevel, moveData, species, TRAINERS, type BattleEvent, type BattlerView, type StatusKind } from '@poke-tcg/idle';
 import { useRef, type CSSProperties } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { isReward, type BattleSegment } from '../../hooks/useIdle';
@@ -82,9 +82,9 @@ function shownState(events: BattleEvent[], party: BattleSegment['party']) {
         if (m) m.status = e.status;
         break;
       }
-      case 'energy': {
+      case 'cooldown': {
         const m = sides[e.side].mon;
-        if (m) m.energy = e.energy;
+        if (m) m.cooldowns = e.cooldowns;
         break;
       }
       case 'faint':
@@ -116,7 +116,7 @@ function shownState(events: BattleEvent[], party: BattleSegment['party']) {
 /** An HP bar's colour (FireRed's: green over half, yellow over a fifth, red below). */
 const hpColor = (hp: number, max: number) => (hp * 2 > max ? '#58d080' : hp * 5 > max ? '#f8c048' : '#f85838');
 
-/** A healthbox (drawn here, in FireRed's colours): name, gender, level, status, the HP bar, the player's HP numbers, and the energy pips. */
+/** A healthbox (drawn here, in FireRed's colours): name, gender, level, status, the HP bar, the player's HP numbers. */
 function Healthbox({ mon, player, exp, style }: { mon: BattlerView; player: boolean; exp?: number; style: CSSProperties }) {
   const s = species(mon.species);
   // The EXP. bar's fill: the EXP. gained toward the next level (full at level 100).
@@ -147,20 +147,13 @@ function Healthbox({ mon, player, exp, style }: { mon: BattlerView; player: bool
           <div className="h-full transition-[width] duration-500" style={{ width: `${(100 * mon.hp) / mon.maxHp}%`, background: hpColor(mon.hp, mon.maxHp) }} />
         </div>
       </div>
-      {/* The energy (the mode's one addition to the screen): a pip for each, up to the most it can hold; on the player's
-          HP numbers' line (the user's: the box no taller than FireRed's), on a line of its own for the foe. */}
-      <div className="flex items-center justify-between" style={{ marginTop: px(1) }}>
-        <div className="flex items-center gap-[0.4cqw]" title={`Energy: ${mon.energy}`}>
-          {Array.from({ length: MAX_ENERGY }, (_, i) => (
-            <span key={i} className="rounded-full" style={{ width: px(4), height: px(4), background: i < mon.energy ? '#38a8f8' : '#c8d0b0' }} />
-          ))}
-        </div>
-        {player && (
+      {player && (
+        <div className="flex justify-end" style={{ marginTop: px(1) }}>
           <span className="font-semibold leading-none" style={{ fontSize: px(8) }}>
             {mon.hp}/{mon.maxHp}
           </span>
-        )}
-      </div>
+        </div>
+      )}
       {/* The player's EXP. bar, as FireRed's box has it: a dark green strip along its bottom, EXP in yellow, a striped
           track filling light blue (healthbox_singles_player.png, healthbox.pal). */}
       {player && (
@@ -173,6 +166,35 @@ function Healthbox({ mon, player, exp, style }: { mon: BattlerView; player: bool
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * The player's Pokémon's attacks under the battle (the user's, 2026-10-25: the cooldown rule, a bar on each): its 3 slot
+ * moves, each with a bar filling as its cooldown runs down (full and lit when ready; cooldownTicks), and its basic move,
+ * always ready, used while every slot cools down.
+ */
+function MoveBars({ mon }: { mon: BattlerView }) {
+  return (
+    <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+      {[...mon.slots, mon.basic].map((key, i) => {
+        const basic = i === mon.slots.length;
+        const total = cooldownTicks(key);
+        const left = basic ? 0 : (mon.cooldowns[key] ?? 0);
+        const ready = left === 0;
+        return (
+          <div key={`${i}:${key}`} className={`rounded px-2 py-1 text-xs ring-1 ${ready ? 'bg-slate-700 ring-yellow-300/60' : 'bg-slate-800 ring-slate-600'}`} title={basic ? 'Basic move: always ready' : ready ? 'Ready' : `Ready in ${left} turn${left === 1 ? '' : 's'}`}>
+            <div className="flex justify-between gap-2">
+              <span className={`truncate ${ready ? 'text-slate-100' : 'text-slate-400'}`}>{moveData(key).name}</span>
+              <span className="shrink-0 text-slate-400">{basic ? 'basic' : ready ? 'ready' : `${left}/${total}`}</span>
+            </div>
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-900">
+              <div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${((total - left) / total) * 100}%`, background: ready ? 'var(--color-yellow-300)' : 'var(--color-slate-400)' }} />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -197,9 +219,9 @@ function ThrownBall({ ball }: { ball: Extract<BattleEvent, { t: 'ball' }> }) {
 
 /**
  * A battle as it plays (README: Idle Adventure): FireRed's layout at its 240x160 scale, sized to its box (the terrain
- * background, the foe's front sprite and the player's Pokémon's back, the healthboxes, the text box), the energy pips the
- * one addition; showing the first `shown` of the battle's events; `dialogue` over it in the scenes' text box (the
- * catch-up's pages, if a battle starts before they're read).
+ * background, the foe's front sprite and the player's Pokémon's back, the healthboxes, the text box), and under it the
+ * player's attacks with their cooldown bars (MoveBars); showing the first `shown` of the battle's events; `dialogue` over
+ * it in the scenes' text box (the catch-up's pages, if a battle starts before they're read).
  */
 export function BattleScreen({ battle, shown, gender, dialogue }: { battle: BattleSegment; shown: number; gender: 'male' | 'female'; dialogue?: Dialogue | null }) {
   const phone = useIsPhone();
@@ -216,7 +238,8 @@ export function BattleScreen({ battle, shown, gender, dialogue }: { battle: Batt
   const blink = (side: 0 | 1) => (hit && hit.side === side && hit.at >= line ? 'idle-hit 0.5s steps(2) 2' : undefined);
   const lunge = (side: 0 | 1) => (attacker && attacker.side === side && attacker.at >= line ? `idle-lunge-${side} 0.3s ease-out` : undefined);
   return (
-    <div className="relative mx-auto aspect-[3/2] w-full max-w-[720px] overflow-hidden rounded-lg bg-black [container-type:inline-size] [image-rendering:pixelated]" onClick={() => pressDialogue.current?.()}>
+    <div className="mx-auto w-full max-w-[720px] space-y-2">
+    <div className="relative aspect-[3/2] w-full overflow-hidden rounded-lg bg-black [container-type:inline-size] [image-rendering:pixelated]" onClick={() => pressDialogue.current?.()}>
       <img src={background(battle)} alt="" className="absolute left-0 top-0 w-full" style={{ height: px(112) }} draggable={false} />
       {/* The foe: its trainer before they send one out, then its Pokémon (or the ball it's caught in). */}
       {!foe.mon && trainer?.pic && <img src={`${GEN1}/trainers/${trainer.pic}.png`} alt="" className="absolute" style={{ left: px(144), top: px(8), width: px(64) }} draggable={false} />}
@@ -267,6 +290,9 @@ export function BattleScreen({ battle, shown, gender, dialogue }: { battle: Batt
         )}
       </div>
       {dialogue && <DialogueBox key={dialogueKey(dialogue)} dialogue={dialogue} pressRef={pressDialogue} phone={phone} />}
+    </div>
+    {/* The row kept while no Pokémon is out (the trainer's send-out), so the page doesn't jump. */}
+    <div className={me.mon && !me.fainted ? '' : 'invisible'}>{me.mon && <MoveBars mon={me.mon} />}</div>
     </div>
   );
 }

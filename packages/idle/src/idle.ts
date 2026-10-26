@@ -32,10 +32,10 @@ export const WHITE_OUT_LOSS = 1000;
 
 /**
  * How long things take (one pace, watched or offline: no speed setting, agreed with the user): a step (16 frames), a
- * turn (the user's: 6 s, 3 s before), a battle's start and end, a fade.
+ * turn (the user's: 10 s; 6 s and 3 s before), a battle's start and end, a fade.
  */
 export const STEP_MS = 267;
-export const TICK_MS = 6000;
+export const TICK_MS = 10000;
 export const BATTLE_MS = 4000;
 export const FADE_MS = 800;
 /** How long a town waits for the player's choice before taking it itself (the user's: no prompt waits on the player): the gym, or on once it's beaten. */

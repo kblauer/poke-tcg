@@ -1,6 +1,6 @@
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import { abilityName, abilityOf, basicFor, calcStats, energyCost, ITEMS, moveData, NATURES, species, STAT_NAMES, usableStones, type IdleAction, type Mon } from '@poke-tcg/idle';
+import { abilityName, abilityOf, basicFor, calcStats, cooldownTicks, ITEMS, moveData, NATURES, species, STAT_NAMES, usableStones, type IdleAction, type Mon } from '@poke-tcg/idle';
 import { ICON_BUTTON } from '../../utils/styles';
 
 /** A party icon (FireRed's, two frames stacked: shown in turn, as the party screen bobs them). */
@@ -28,16 +28,16 @@ export function TypeBadge({ type }: { type: string }) {
   );
 }
 
-/** A move's line: name, type, power and its energy cost. */
+/** A move's line: name, type, power and its cooldown in turns. */
 const moveLabel = (key: string) => {
   const m = moveData(key);
-  return `${m.name} (${m.power > 1 ? m.power : m.power === 1 ? 'varies' : 'status'}, ${energyCost(key)} energy)`;
+  return `${m.name} (${m.power > 1 ? m.power : m.power === 1 ? 'varies' : 'status'}, ${cooldownTicks(key)}-turn cooldown)`;
 };
 
 /**
  * The party (README: Idle Adventure): its order (the lead fights first, the next comes in when one faints: agreed),
- * each Pokémon's stats, IVs and EVs, its basic move and its 3 slots, used in turn (it waits on the next one, using the
- * basic move while its energy builds: the order is the strategy), and the evolution stones in the bag it can use.
+ * each Pokémon's stats, IVs and EVs, its basic move and its 3 slots (each tick the strongest one off cooldown, the basic
+ * move while all three cool down: the user's cooldown rule), and the evolution stones in the bag it can use.
  */
 export function PartyScreen({ party, bag, busy, onAct }: { party: Mon[]; bag: Record<string, number>; busy: boolean; onAct: (action: IdleAction) => void }) {
   const move = (i: number, by: number) => {
@@ -122,7 +122,7 @@ export function PartyScreen({ party, bag, busy, onAct }: { party: Mon[]; bag: Re
             </table>
             <div className="mt-2 space-y-1 text-sm">
               <div className="text-xs text-slate-400">
-                Basic move: <span className="text-slate-200">{moveData(basic).name}</span> (no energy)
+                Basic move: <span className="text-slate-200">{moveData(basic).name}</span> (no cooldown)
               </div>
               {[0, 1, 2].map((slot) => (
                 <label key={slot} className="flex items-center gap-2">

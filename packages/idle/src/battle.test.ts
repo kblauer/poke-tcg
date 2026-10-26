@@ -1,6 +1,6 @@
 import { rngFrom } from '@poke-tcg/campaign';
 import { describe, expect, it } from 'vitest';
-import { Battle, simulateBattle, opponentMon, type BattleSetup } from './battle.js';
+import { Battle, EXP_RATE, simulateBattle, opponentMon, type BattleSetup } from './battle.js';
 import { catchChance, catchOdds, shakeThreshold } from './catch.js';
 import { moveData, species } from './data.js';
 import { ENCOUNTERS } from './data/gen1/encounters.js';
@@ -9,7 +9,7 @@ import { MOVES } from './data/gen1/moves.js';
 import { SPECIES } from './data/gen1/species.js';
 import { TRAINERS } from './data/gen1/trainers.js';
 import { levelEvolution, evolve } from './evolution.js';
-import { autoSlots, basicMove, createMon, energyCost, lastFourMoves } from './mon.js';
+import { autoSlots, basicMove, cooldownTicks, createMon, lastFourMoves, movePower } from './mon.js';
 import { EFFECTS } from './moves.js';
 import { calcStats, expForLevel, levelForExp } from './stats.js';
 import type { Mon, Stats } from './types.js';
@@ -90,7 +90,7 @@ describe('catching', () => {
   });
 });
 
-describe('moves and energy', () => {
+describe('moves and cooldowns', () => {
   it('picks basic moves by the agreed rule', () => {
     expect(basicMove(4)).toBe('scratch');
     expect(basicMove(5)).toBe('scratch');
@@ -99,14 +99,35 @@ describe('moves and energy', () => {
     expect(basicMove(128)).not.toBe('tackle'); // Tauros doesn't evolve: one step stronger.
   });
 
-  it('costs energy by power', () => {
-    expect(energyCost('scratch')).toBe(2);
-    expect(energyCost('ember')).toBe(2);
-    expect(energyCost('flamethrower')).toBe(5);
-    expect(energyCost('hyper-beam')).toBe(6);
-    expect(energyCost('sleep-powder')).toBe(5);
-    expect(energyCost('growl')).toBe(2);
-    expect(energyCost('thunder-wave')).toBe(4);
+  it('cools moves down by power', () => {
+    expect(cooldownTicks('scratch')).toBe(2);
+    expect(cooldownTicks('ember')).toBe(2);
+    expect(cooldownTicks('flamethrower')).toBe(5);
+    expect(cooldownTicks('hyper-beam')).toBe(6);
+    expect(cooldownTicks('sleep-powder')).toBe(5);
+    expect(cooldownTicks('growl')).toBe(2);
+    expect(cooldownTicks('thunder-wave')).toBe(4);
+    expect(movePower('seismic-toss')).toBe(60);
+    expect(movePower('growl')).toBe(0);
+  });
+
+  it('uses the strongest slot move off cooldown, the basic move while they all cool down', () => {
+    // A Charmeleon with Flamethrower (5 ticks), Slash (4) and Ember (2); Scratch its basic move.
+    const b = new Battle(setup([mon(5, 40, { moves: ['scratch', 'ember', 'slash', 'flamethrower'], slots: ['ember', 'slash', 'flamethrower'], autoSlots: false })], [mon(1, 40)]), rngFrom(1));
+    const me = b.active[0];
+    const tick = () => {
+      const m = b.chooseMove(me);
+      for (const [k, n] of Object.entries(me.cooldowns)) n > 1 ? (me.cooldowns[k] = n - 1) : delete me.cooldowns[k];
+      return m;
+    };
+    expect([tick(), tick(), tick(), tick(), tick(), tick()]).toEqual(['flamethrower', 'slash', 'ember', 'scratch', 'ember', 'flamethrower']);
+  });
+
+  it("gives a quarter of the game's experience", () => {
+    expect(EXP_RATE).toBe(0.25);
+    // Bulbasaur (base 64) at level 10, beaten by a lone Charmander: 64 × 10 / 7 = 91, a quarter 22.
+    const r = simulateBattle(setup([mon(4, 30)], [opponentMon(mon(1, 10))]), rngFrom(3));
+    expect(r.events.find((e) => e.t === 'exp')).toMatchObject({ gained: 22 });
   });
 
   it('knows the game\'s moves at a level', () => {
