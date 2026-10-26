@@ -78,6 +78,10 @@ export type BattleRule = (
  * Pokémon is benched or evolves, except `leekSlapUsed`.
  */
 export interface PokemonEffects {
+  /** Cavalry Lance (Black & White series): it has no Weakness during this turn (the opponent's next). */
+  noWeaknessTurn?: number;
+  /** Echoed Voice, Leaf Wallop (Black & White series): during `turn`, its attack called `attack` does `amount` more, before Weakness and Resistance. */
+  attackMore?: { attack: string; amount: number; turn: number };
   /** Prevent all damage done to it by attacks (Scrunch, Withdraw, Stiffen). */
   preventDamage?: number;
   /** Prevent all effects of attacks, including damage (Barrier, Agility). */
@@ -421,6 +425,8 @@ export interface PlayerState {
   needleShockTurn?: number;
   /** Disconnect: through this turn, the player can't play Trainer cards but Supporters from their hand. */
   noItemsUntil?: number;
+  /** The Black & White series' Item lock (Disconnect, Chandelure…): through this turn, no Item cards from the hand (isItemCard: Stadiums and Supporters still played). */
+  noItemCardsUntil?: number;
   /** Prize cards turned face up (by uid: Card-Flip Game); both players see them. */
   faceUpPrizes?: string[];
   /** Setup: done placing Pokémon (START_BATTLE). Cleared when the battle starts. */

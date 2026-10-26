@@ -49,7 +49,7 @@ type Side = Pick<PlayerState, 'active' | 'bench' | 'discard'>;
 export interface TrainerSituation {
   /** The Trainer card being played. */
   card: CardInstance;
-  me: Side & Pick<PlayerState, 'hand' | 'noTrainersUntil' | 'supporterTurn' | 'noSupportersUntil' | 'noItemsUntil'>;
+  me: Side & Pick<PlayerState, 'hand' | 'noTrainersUntil' | 'supporterTurn' | 'noSupportersUntil' | 'noItemsUntil' | 'noItemCardsUntil'>;
   opp: Side;
   deckCount: number;
   cards: CardLibrary;
@@ -866,7 +866,8 @@ export type PendingChoice = {
        * Pokémon as they like, one at a time: an Energy (none ends it), then where it goes (`picked`: the Energy moving).
        */
       kind: 'energyAnyWay';
-      type: EnergyType;
+      /** Missing: any Energy (Replace). */
+      type?: EnergyType;
       picked?: string;
     }
   | {
@@ -1286,6 +1287,8 @@ export function trainerError(s: TrainerSituation): string | null {
   if (effect.tool && primalLocked(s.me, [s.me, s.opp], s.cards)) return "Primal Lock: you can't play Pokémon Tool cards";
   // Disconnect: no Trainer cards but Supporters this turn.
   if (!effect.supporter && (s.me.noItemsUntil ?? 0) >= s.turn) return "Disconnect: you can't play Trainer cards but Supporters this turn";
+  // The Black & White series' Item lock: no Item cards (any Trainer but a Supporter or a Stadium, agreed) this turn.
+  if (!effect.supporter && !effect.stadium && (s.me.noItemCardsUntil ?? 0) >= s.turn) return "You can't play Item cards this turn";
   // Commanding Aura (the opponent's Active Hariyama ex): no Stadium cards. Mystic Scale (any Milotic ex): no Technical Machines.
   const holding = (key: 'commandingAura' | 'mysticScale' | 'lonesome' | 'deltaBlock' | 'primalShell', pokemon: (InPlayPokemon | null)[]) =>
     pokemon.some((p) => !!p && !!pokemonPower(p)?.[key] && powerActive(p, s.cards, [s.me, s.opp]));
@@ -2564,14 +2567,14 @@ function skyridgeView(state: GameState, choice: SkyridgeChoice): PendingChoiceVi
       return { kind: 'pickFromDiscard', prompt: `${choice.source}: you may put ${what} from your discard pile onto your Bench`, options: player.discard.filter((c) => toBenchFits(state.cards, choice, c)), optional: true };
     }
     case 'energyAnyWay': {
-      const label = `${typeName(choice.type)} Energy`;
+      const label = choice.type ? `${typeName(choice.type)} Energy` : 'Energy';
       const holder = choice.picked ? [player.active, ...player.bench].find((p) => p?.energy.some((e) => e.uid === choice.picked)) : undefined;
       if (holder) {
         const options = [...(player.active ? (['active'] as Target[]) : []), ...player.bench.flatMap((p, i) => (p ? [i] : []))].filter((t) => atTarget(player, t) !== holder);
         return { kind: 'ownPokemon', purpose: 'attach', prompt: `${choice.source}: move the ${label} to which of your Pokémon?`, options };
       }
       const pokemon = [player.active, ...player.bench].filter((p): p is InPlayPokemon => !!p);
-      const options = pokemon.length < 2 ? [] : pokemon.flatMap((p) => p.energy.filter((e) => isEnergyCardOf(e, state.cards, choice.type)));
+      const options = pokemon.length < 2 ? [] : pokemon.flatMap((p) => p.energy.filter((e) => !choice.type || isEnergyCardOf(e, state.cards, choice.type)));
       return { kind: 'pickAttached', prompt: `${choice.source}: you may move ${label} between your Pokémon, one at a time (none when you're done)`, options, optional: true };
     }
     case 'moveAttached': {
