@@ -22,9 +22,12 @@ const TEXT = { fontFamily: '"Pokemon Emerald", monospace', fontSize: px(8), line
  * Wild grind (wild Pokémon nearby, or on the most recent route with them, which its title names), Trainer grind (the
  * route's trainers in a loop) and Stop (stopped where it is, offline too); one that can't start greyed out with why.
  * Chosen with SET_MODE, which takes effect once the battle playing is over (queued during a wild one, IdleState.pending).
+ * The choice shows at once (the user's), the menu locked until the server answers; refused, it goes back to the run's.
  */
-export function ModeSelect({ view, busy, bottom, onAct }: { view: ClientIdleRun['view']; busy: boolean; bottom: number; onAct: (action: IdleAction) => void }) {
+export function ModeSelect({ view, busy, bottom, onAct }: { view: ClientIdleRun['view']; busy: boolean; bottom: number; onAct: (action: IdleAction) => unknown }) {
   const [open, setOpen] = useState(false);
+  /** The mode chosen while its answer is awaited. */
+  const [waiting, setWaiting] = useState<IdleMode | null>(null);
   const menu = useRef<HTMLDivElement>(null);
   useEscape(() => setOpen(false), open);
   // A press anywhere else closes it.
@@ -35,7 +38,7 @@ export function ModeSelect({ view, busy, bottom, onAct }: { view: ClientIdleRun[
     return () => window.removeEventListener('pointerdown', onDown, true);
   }, [open]);
 
-  const mode = modeOf(view);
+  const mode = waiting ?? modeOf(view);
   // A grind switched to begins where the one on began.
   const from = view.loop ? { ...view, ...view.loop.resume, loop: undefined } : view;
   const wild = routeGrindPlan(from, 'wild');
@@ -50,7 +53,9 @@ export function ModeSelect({ view, busy, bottom, onAct }: { view: ClientIdleRun[
   const current = options.find((o) => o.id === mode)!;
   const choose = (id: IdleMode) => {
     setOpen(false);
-    if (id !== mode) onAct({ type: 'SET_MODE', mode: id });
+    if (id === mode || waiting) return;
+    setWaiting(id);
+    void Promise.resolve(onAct({ type: 'SET_MODE', mode: id })).finally(() => setWaiting(null));
   };
 
   return (
@@ -95,8 +100,8 @@ export function ModeSelect({ view, busy, bottom, onAct }: { view: ClientIdleRun[
           type="button"
           aria-haspopup="listbox"
           aria-expanded={open}
-          title={`Mode: ${current.label}. A change takes effect once the battle playing is over.`}
-          disabled={busy}
+          title={waiting ? `Changing to ${current.label}…` : `Mode: ${current.label}. A change takes effect once the battle playing is over.`}
+          disabled={busy || !!waiting}
           className="flex items-center whitespace-nowrap disabled:cursor-default"
           style={{
             ...TEXT,

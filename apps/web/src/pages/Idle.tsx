@@ -124,7 +124,7 @@ export function IdlePage() {
   const overlays = (modeBottom: number) =>
     active && v ? (
       <>
-        <ModeSelect view={v} busy={actions.busy} bottom={modeBottom} onAct={(a) => void act(a)} />
+        <ModeSelect view={v} busy={actions.busy} bottom={modeBottom} onAct={act} />
         <PartyOverlay party={v.party} bag={v.bag} busy={actions.busy} pending={v.pendingChanges} open={partyOpen} modeBottom={modeBottom} onToggle={setPartyOpen} onAct={(a) => void act(a)} />
       </>
     ) : null;
