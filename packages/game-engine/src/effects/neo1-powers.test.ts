@@ -87,9 +87,9 @@ describe('Neo Genesis Pokémon Powers', () => {
   it('Fire Boost: when Typhlosion is played from the hand, you may flip; heads attaches up to 4 Fire Energy cards from the deck to it', () => {
     let s = flips(duel('quilava', 'machoke'), true);
     ash(s).deck = [card('f1', 'fire'), card('c1', 'charmander'), card('f2', 'fire')];
+    // Both Fire Energy cards are the same card, so both are attached without asking (the same-card rule).
     s = resolve(evolve(s, 'typhlosionBoost'), 'ash', { count: 0 });
-    expect(s.pendingChoice).toMatchObject({ kind: 'pickFromDeck', filter: 'energyType', type: 'fire', count: 4, attachTo: 'active' });
-    s = resolve(resolve(s, 'ash', { cardUid: 'f1' }), 'ash', { cardUid: 'f2' });
+    expect(s.pendingChoice).toBeUndefined();
     expect(ash(s).active!.energy.map((e) => e.uid)).toEqual(['f1', 'f2']);
   });
 
@@ -100,10 +100,10 @@ describe('Neo Genesis Pokémon Powers', () => {
 
   it("Glaring Gaze: heads looks at the opponent's hand, and they shuffle a Trainer card from it into their deck", () => {
     let s = flips(duel('noctowl', 'machoke'), true);
-    misty(s).hand = [card('p1', 'potion'), card('c1', 'charmander')];
+    misty(s).hand = [card('p1', 'potion'), card('s1', 'switch'), card('c1', 'charmander')];
     s = power(s, 'active');
     expect(s.pendingChoice).toMatchObject({ kind: 'oppHandTrainer', source: 'Glaring Gaze' });
     s = resolve(s, 'ash', { cardUid: 'p1' });
-    expect([misty(s).hand.map((c) => c.uid), misty(s).deck.some((c) => c.uid === 'p1')]).toEqual([['c1'], true]);
+    expect([misty(s).hand.map((c) => c.uid), misty(s).deck.some((c) => c.uid === 'p1')]).toEqual([['s1', 'c1'], true]);
   });
 });

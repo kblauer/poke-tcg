@@ -67,6 +67,8 @@ describe('Base Set Trainers', () => {
   describe('searches', () => {
     it('Computer Search: discard 2, then only the player sees their deck to take any card', () => {
       const s = table();
+      // A card unlike the rest of the deck, so there's a choice to make (the same-card rule).
+      s.players.ash!.deck.unshift({ uid: 'deck-squirtle', defId: id('squirtle') });
       const [search, a, b] = give(s, 'ash', 'computersearch', 'potion', 'switch');
       let after = play(s, search!, { handUids: [a!, b!] });
       expect(after.pendingChoice).toMatchObject({ player: 'ash', kind: 'pickFromDeck' });

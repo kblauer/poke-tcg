@@ -30,7 +30,7 @@ export function StadiumCard({
   // Only Stadiums with a once-a-turn use (not Pokémon Tower) can be clicked.
   const clickable = stadium !== null && stadiumError(stadium.card, undefined, view.turn) === null && isMyTurn(view) && !view.self.pendingChoice;
   // Celadon City Gym also depends on your Active Pokémon.
-  const error = stadium ? stadiumError(stadium.card, view.stadiumUsedTurn, view.turn, { me: view.self, cards: view.cards }) : null;
+  const error = stadium ? stadiumError(stadium.card, view.stadiumUsedTurn, view.turn, { me: view.self, cards: view.cards, oppLostZone: view.opponent.lostZone ?? [] }) : null;
   const use = () => {
     if (busy) return;
     if (error) notify(`${def!.name}: ${error}`);

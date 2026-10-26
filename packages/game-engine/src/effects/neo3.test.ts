@@ -161,13 +161,12 @@ describe('Neo Revelation attacks', () => {
     const start = duel('ampharos', 'machoke', { energy: ['lightning'], bench: ['raikouBurst', 'charmander'] });
     onDeck(start, 'ash', 'lightning', 'lightning');
     let s = attack(flips(start, true, true, false), 0);
-    expect(s.pendingChoice).toMatchObject({ kind: 'pickFromDeck', count: 2, attach: true });
-    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'deck-lightning-0' });
+    // Both Lightning Energy cards are the same card, so each is taken without a question (the same-card rule).
     expect(s.pendingChoice).toMatchObject({ kind: 'attachCard', only: { type: 'lightning' } });
     // Charmander (bench 1) isn't a Lightning Pokémon.
     expect(() => act(s, 'ash', { type: 'RESOLVE_CHOICE', target: 1 })).toThrow();
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', target: 0 });
-    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'deck-lightning-1' });
+    expect(s.pendingChoice).toMatchObject({ kind: 'attachCard' });
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', target: 'active' });
     expect([ash(s).bench[0]!.energy.length, ash(s).active!.energy.length, s.currentPlayer]).toEqual([1, 2, 'misty']);
   });

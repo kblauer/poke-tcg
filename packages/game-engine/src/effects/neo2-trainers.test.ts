@@ -14,6 +14,7 @@ describe('Neo Discovery Trainers', () => {
   it('Fossil Egg: heads, a card that evolves from Mysterious Fossil from the deck onto the Bench', () => {
     let s = duel('charmander', 'squirtle');
     const kabuto = deckCard(s, 'kabutoNeo');
+    deckCard(s, 'omanyteNeo');
     s = play(flips(s, true), 'fossilEgg');
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: kabuto });
     expect(ash(s).bench[0]!.card.uid).toBe(kabuto);
@@ -46,6 +47,7 @@ describe('Neo Discovery Trainers', () => {
   it('Ruin Wall: an Unown from the deck onto the Bench', () => {
     let s = duel('charmander', 'squirtle');
     const unown = deckCard(s, 'unownA');
+    deckCard(s, 'unownO');
     s = play(s, 'ruinWall');
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: unown });
     expect(ash(s).bench[0]!.card.uid).toBe(unown);

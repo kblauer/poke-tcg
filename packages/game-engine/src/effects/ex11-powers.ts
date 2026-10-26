@@ -11,7 +11,7 @@
 // (attacks.ts); Beldum's Conductive Body is as printed ("[C] less", as its player's Active Pokémon; TCGdex leaves both out).
 import { lookupCard } from '../cards.js';
 import { afflictBetweenTurns, isEnergyCardOf, type Target } from '../engine.js';
-import { discardsLocked, ownTargets, pokemonAt, type PowerEffect, type PowerSituation } from '../powers.js';
+import { discardsLocked, ownTargets, pokemonAt, type PowerEffect, type PowerSituation, pokemonPower } from '../powers.js';
 import { nextRandom } from '../rng.js';
 import { effectId, inPlayDef, isDelta, pokemonName } from '../status.js';
 import { powerEffect } from './index.js';
@@ -205,7 +205,7 @@ export const EX11_POWERS: Record<string, PowerEffect> = {
     ...POKE_BODY,
     checkup(state, owner, pokemon, opp) {
       if (owner.active !== pokemon) return;
-      for (const p of [opp.active, ...opp.bench]) if (p && inPlayDef(state.cards, p).power && powerEffect(effectId(p))?.body) countersBetween(state, opp, p, 1, 'Body Odor');
+      for (const p of [opp.active, ...opp.bench]) if (p && inPlayDef(state.cards, p).power && pokemonPower(p)?.body) countersBetween(state, opp, p, 1, 'Body Odor');
     },
   },
   // Ditto – Duplicate.

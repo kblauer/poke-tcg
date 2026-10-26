@@ -176,8 +176,8 @@ describe('Neo Revelation Pokémon Powers', () => {
   it('[Yield]: heads attaches a Psychic Energy card from the deck to a Pokémon with Unown in its name', () => {
     const start = duel('unownY', 'machoke', { bench: ['charmander'] });
     ash(start).deck.unshift(card('psychic', 1));
+    // The only Psychic Energy card in the deck is taken without a question (the same-card rule).
     let s = act(flips(start, true), 'ash', { type: 'USE_POWER', source: 'active' });
-    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'psychic-card-1' });
     expect(s.pendingChoice).toMatchObject({ kind: 'attachCard', only: { name: 'Unown' } });
     expect(() => act(s, 'ash', { type: 'RESOLVE_CHOICE', target: 0 })).toThrow();
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', target: 'active' });

@@ -47,6 +47,7 @@ const attackChoicesSchema = z.object({
   damageCap: z.number().int().min(-1).max(990).optional(),
   amount: z.number().int().min(0).max(60).optional(),
   oppDiscardUid: z.string().optional(),
+  answer: z.number().int().min(0).max(1).optional(),
 }) satisfies z.ZodType<AttackChoices>;
 
 /** Answers to a Pokémon Power's questions (see PowerChoices in the engine). */
@@ -118,6 +119,8 @@ export const gameActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('USE_STADIUM') }),
   z.object({ type: z.literal('FLIP_FACE_DOWN'), target }),
   z.object({ type: z.literal('DISCARD_SHAPESHIFT'), target }),
+  z.object({ type: z.literal('USE_ENERGY'), cardUid: z.string() }),
+  z.object({ type: z.literal('USE_TOOL'), target }),
   z.object({ type: z.literal('END_TURN') }),
   z.object({ type: z.literal('CONCEDE') }),
 ]) satisfies z.ZodType<GameAction>;

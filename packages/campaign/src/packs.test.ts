@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { ALL_RARES_CHANCE, EXTRA_RARE_CHANCES, HOLO_CHANCE, HOLO_ENERGY_CHANCE, openPack, PACK_SETS, type PackCard } from './packs.js';
-import { BASIC_ENERGY, EX_SETS } from './pool.js';
+import { ALL_RARES_CHANCE, EXTRA_RARE_CHANCES, HOLO_CHANCE, HOLO_ENERGY_CHANCE, HOLO_SET_PACK, openPack, PACK_SETS, type PackCard } from './packs.js';
+import { BASIC_ENERGY, EX_SETS, GEN4_SETS } from './pool.js';
+
+/** The sets whose packs have a reverse holo: the EX sets and Gen 4's but its promos. */
+const REVERSE_SETS = [...EX_SETS, ...GEN4_SETS.filter((id) => id !== 'dpp' && id !== 'hgssp')];
 import { rngFrom } from './random.js';
 import { testPackSet } from './test-pool.js';
 
@@ -8,7 +11,7 @@ describe('openPack', () => {
   /** Rares and holos (the rare slot, and the extras). */
   const rareCount = (pack: PackCard[]) => pack.filter((c) => c.slot === 'rare' || c.slot === 'holo').length;
 
-  it.each(PACK_SETS.filter((id) => id !== 'basep' && !EX_SETS.includes(id)))('%s: 1 basic Energy, then commons, uncommons and rares (6, 3 and 1, less any extra rares), all different and from the set', (setId) => {
+  it.each(PACK_SETS.filter((id) => !['basep', 'dpp', 'hgssp'].includes(id) && !REVERSE_SETS.includes(id)))('%s: 1 basic Energy, then commons, uncommons and rares (6, 3 and 1, less any extra rares), all different and from the set', (setId) => {
     const set = testPackSet(setId);
     for (let seed = 0; seed < 300; seed++) {
       const pack = openPack(set, rngFrom(seed));
@@ -68,8 +71,8 @@ describe('openPack', () => {
   });
 });
 
-describe('openPack: an EX set', () => {
-  it.each(EX_SETS)('%s: a reverse holo in place of one common, revealed just before the rare', (setId) => {
+describe('openPack: an EX or Gen 4 set', () => {
+  it.each(REVERSE_SETS)('%s: a reverse holo in place of one common, revealed just before the rare', (setId) => {
     const set = testPackSet(setId);
     expect(set.reverse?.length).toBeGreaterThan(50);
     for (let seed = 0; seed < 100; seed++) {
@@ -79,6 +82,19 @@ describe('openPack: an EX set', () => {
       expect(pack.filter((c) => c.slot === 'common')).toHaveLength(5);
       expect(pack.at(-2)!.slot).toBe('reverse');
       expect(set.reverse).toContain(pack.at(-2)!.cardId);
+    }
+  });
+});
+
+describe('openPack: the DP and HGSS Black Star Promos', () => {
+  it.each(['dpp', 'hgssp'])('%s: a basic Energy and HOLO_SET_PACK different promos, mostly holos', (setId) => {
+    const set = testPackSet(setId);
+    expect(set.holo.length).toBeGreaterThan(10);
+    for (let seed = 0; seed < 100; seed++) {
+      const pack = openPack(set, rngFrom(seed));
+      expect(pack).toHaveLength(1 + HOLO_SET_PACK);
+      expect(new Set(pack.slice(1).map((c) => c.cardId)).size).toBe(HOLO_SET_PACK);
+      for (const c of pack.slice(1)) expect(set[c.slot as 'common' | 'holo']).toContain(c.cardId);
     }
   });
 });

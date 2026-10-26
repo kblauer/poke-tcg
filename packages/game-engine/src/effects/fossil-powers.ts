@@ -5,7 +5,7 @@
 // against any attack, even its owner's; Kabuto Armor halves after weakness, resistance, PlusPower and Defender.
 import { activeLock, type InPlayPokemon, type Target } from '../engine.js';
 import { ownTargets, pokemonAt, type PowerChoiceSpec, type PowerEffect, type PowerSituation } from '../powers.js';
-import { clearOnLeavingActive, inPlayDef, pokemonName } from '../status.js';
+import { clearOnLeavingActive, countersMoved, inPlayDef, pokemonName } from '../status.js';
 
 const at = (s: PowerSituation, t: Target) => pokemonAt(s.me, t)!;
 const theirs = (s: PowerSituation, t: Target) => pokemonAt(s.opp, t)!;
@@ -50,6 +50,7 @@ const HOLO: Record<string, PowerEffect> = {
       const from = pokemonAt(ctx.opp, ctx.choices.oppFrom!)!;
       const to = pokemonAt(ctx.opp, ctx.choices.oppTo!)!;
       from.damage -= 10;
+      countersMoved(ctx.state, from, 10);
       to.damage += 10;
       ctx.log(`Moved a damage counter from ${pokemonName(ctx.state, from)} to ${pokemonName(ctx.state, to)}.`);
     },
@@ -79,6 +80,7 @@ export const FOSSIL_POWERS: Record<string, PowerEffect> = {
     use(ctx) {
       const from = pokemonAt(ctx.me, ctx.choices.from!)!;
       from.damage -= 10;
+      countersMoved(ctx.state, from, 10);
       ctx.source.damage += 10;
       ctx.log(`Moved a damage counter from ${pokemonName(ctx.state, from)} to ${pokemonName(ctx.state, ctx.source)}.`);
     },

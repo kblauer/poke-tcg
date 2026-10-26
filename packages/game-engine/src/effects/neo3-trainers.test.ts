@@ -47,7 +47,7 @@ describe('Neo Revelation Trainers', () => {
 
   it('Old Rod: both heads, a Pokémon card from the discard pile into the hand', () => {
     const start = duel('charmander', 'machoke');
-    ash(start).discard.push(card('squirtle', 1), card('potion', 1));
+    ash(start).discard.push(card('squirtle', 1), card('charmander', 1), card('potion', 1));
     const [rod] = give(start, 'ash', 'oldRod');
     let s = act(flips(start, true, true), 'ash', { type: 'PLAY_TRAINER', cardUid: rod! });
     expect(s.pendingChoice).toMatchObject({ kind: 'discardToHand' });
@@ -57,7 +57,7 @@ describe('Neo Revelation Trainers', () => {
 
   it('Old Rod: both tails, a Trainer card, but not the Old Rod being played', () => {
     const start = duel('charmander', 'machoke');
-    ash(start).discard.push(card('potion', 1));
+    ash(start).discard.push(card('potion', 1), card('bill', 1));
     const [rod] = give(start, 'ash', 'oldRod');
     let s = act(flips(start, false, false), 'ash', { type: 'PLAY_TRAINER', cardUid: rod! });
     expect(applyAction(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: rod! }).ok).toBe(false);
@@ -77,7 +77,7 @@ describe('Neo Revelation Trainers', () => {
 
   it('Pokémon Breeder Fields: 2 Pokémon, a flip and a search each', () => {
     const start = duel('charmander', 'machoke', { bench: ['charmander'] });
-    ash(start).deck.unshift(card('charmeleon', 1), card('charmeleon', 2));
+    ash(start).deck.unshift(card('charmeleon', 1), card('charmeleon', 2), card('charizard', 1));
     const [fields] = give(start, 'ash', 'breederFields');
     let s = act(flips(start, true, true), 'ash', { type: 'PLAY_TRAINER', cardUid: fields!, choices: { pick: 1, target: 'active', target2: 0 } });
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'charmeleon-card-1' });

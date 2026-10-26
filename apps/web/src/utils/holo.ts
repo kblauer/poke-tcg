@@ -44,7 +44,7 @@ export interface HoloAttributes {
   mask: string | null;
 }
 
-const SUBTYPES: Record<string, string> = { basic: 'basic', baby: 'basic', stage1: 'stage 1', stage2: 'stage 2' };
+const SUBTYPES: Record<string, string> = { basic: 'basic', baby: 'basic', stage1: 'stage 1', stage2: 'stage 2', 'level-up': 'level-up' };
 
 export function holoAttributes(card: HoloSource): HoloAttributes {
   // A holo Energy's id is its Energy card's with "-holo-<style>" after it; a reverse holo's with "-reverse".

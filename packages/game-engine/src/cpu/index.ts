@@ -1,5 +1,5 @@
 // CPU opponents: one file per difficulty, with what they share in shared.ts.
-import { captureCheckup, type Checkup, type GameAction, type GameState, type PlayerId } from '../engine.js';
+import { captureCheckup, linkLightningWindow, type Checkup, type GameAction, type GameState, type PlayerId } from '../engine.js';
 import { gymLeaderCpu } from './gym-leader.js';
 import { passiveCpu } from './passive.js';
 import { trainerCpu } from './trainer.js';
@@ -21,8 +21,11 @@ export const CPU_DIFFICULTY_LABELS: Record<CpuDifficulty, string> = { passive: '
 
 const CPUS: Record<CpuDifficulty, CpuDecide> = { passive: passiveCpu, trainer: trainerCpu, gymLeader: gymLeaderCpu };
 
-/** The CPU that plays at this difficulty. */
-export const cpuFor = (difficulty: CpuDifficulty = DEFAULT_CPU_DIFFICULTY): CpuDecide => CPUS[difficulty];
+/**
+ * The CPU that plays at this difficulty. In Link Lightning's window (only attacking or ending the turn left) it ends its turn.
+ */
+export const cpuFor = (difficulty: CpuDifficulty = DEFAULT_CPU_DIFFICULTY): CpuDecide => (state, cpuId) =>
+  state.currentPlayer === cpuId && !state.pendingChoice && linkLightningWindow(state, cpuId) ? { type: 'END_TURN' } : CPUS[difficulty](state, cpuId);
 
 /**
  * Applies CPU actions until it's no longer the CPU's move, playing at the game's difficulty unless

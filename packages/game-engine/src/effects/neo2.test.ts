@@ -28,6 +28,14 @@ describe('Neo Discovery attacks', () => {
     expect([misty(s).active!.poison, misty(s).active!.damage, misty(s).bench[0]!.damage]).toEqual([10, 10, 10]);
   });
 
+  it("Secrete Poison: Neutral Shield keeps it off a Mew, Active or Benched (Kakuna's an Evolved Pokémon's attack)", () => {
+    let s = duel('kakuna', 'mewN', { energy: ['grass', 'grass'], defenderEnergy: ['psychic'], oppBench: ['mewN', 'charmander'] });
+    ash(s).active!.evolvedFrom = [{ uid: 'weedle-0', defId: id('charmander') }];
+    s = attack(attack(s, 0), 0, {}, 'misty');
+    expect(ash(s).active!.damage).toBe(10);
+    expect([misty(s).active!.poison, misty(s).active!.damage, misty(s).bench[0]!.damage, misty(s).bench[1]!.damage]).toEqual([undefined, 0, 0, 10]);
+  });
+
   it("Harden (Metapod): attack damage of 20 or less next turn is prevented, more isn't", () => {
     const s = attack(duel('metapod', 'charmander', { energy: ['grass', 'grass'], defenderEnergy: ['fire', 'fire'] }), 0);
     expect(ash(attack(structuredClone(s), 0, {}, 'misty')).active!.damage).toBe(0);

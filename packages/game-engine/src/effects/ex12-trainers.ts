@@ -60,7 +60,7 @@ export const EX12_TRAINERS: Record<string, TrainerEffect> = {
   'ex12-77': {
     stadium: true,
     stadiumBlocked(me, cards) {
-      if (openBenchSlot(me.bench, cards) < 0) return 'Strange Cave: your Bench is full';
+      if (openBenchSlot(me, cards) < 0) return 'Strange Cave: your Bench is full';
       return me.hand.some((c) => handToBenchFits(cards, FOSSIL_POKEMON, c)) ? null : `Strange Cave: no ${FOSSIL_POKEMON.join(', ')} in your hand`;
     },
     useStadium({ state, me }) {

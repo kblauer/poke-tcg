@@ -125,11 +125,12 @@ export const testDef = (id: string) => {
   return c.def;
 };
 
-/** As the seed's reverseHoloCard: TCGdex's reverse prints up to EX Unseen Forces, the rule after it (not Pokémon-ex, Gold Stars or secret rares). */
+/** As the seed's reverseHoloCard: TCGdex's reverse prints up to EX Unseen Forces and in Gen 4's sets, the rule after it in the later EX sets (not Pokémon-ex, Gold Stars or secret rares). */
 const reverseHolo = (r: Row) => {
   const set = r.id.split('-')[0]!;
-  if (!/^ex[0-9]+$/.test(set)) return false;
+  if (!/^(ex|dp|pl|hgss|col)[0-9]+$/.test(set)) return false;
   if (r.variants?.reverse) return true;
+  if (!set.startsWith('ex')) return false;
   const official = sets.find((s) => s.id === set)?.cardCount.official ?? Infinity;
   return Number(set.slice(2)) >= 11 && r.suffix !== 'ex' && !r.name.includes('☆') && Number(r.id.split('-')[1]) <= official;
 };
@@ -140,7 +141,7 @@ export function testPackSet(setId: string): PackSet {
   for (const r of rows) {
     if (r.id.split('-')[0] !== setId || (r.category === 'Energy' && r.name !== 'Double Colorless Energy')) continue;
     set[rarity(r) === 'holo' ? 'holo' : rarity(r)].push(r.id);
-    // The reverse-holo prints the seed makes of the EX cards (reverseHoloCard in packages/db/prisma/holo-energy.ts).
+    // The reverse-holo prints the seed makes of the EX and Gen 4 cards (reverseHoloCard in packages/db/prisma/holo-energy.ts).
     if (reverseHolo(r)) (set.reverse ??= []).push(`${r.id}-reverse`);
   }
   return set;

@@ -271,11 +271,11 @@ describe('Gym Challenge Trainers', () => {
 
   it('Master Ball: a Basic Pokémon or Evolution card from the top 7, and the rest are shuffled back', () => {
     let s = duel('charmander', 'onix');
-    ash(s).deck = [card('w', 'water'), card('c', 'charmander'), card('f', 'fire')];
+    ash(s).deck = [card('w', 'water'), card('c', 'charmander'), card('q', 'squirtle'), card('f', 'fire')];
     s = play(s, 'masterBall');
-    expect(getPlayerView(s, 'ash').self.pendingChoice).toMatchObject({ kind: 'pickFromDeck', options: [{ uid: 'c' }], optional: true });
+    expect(getPlayerView(s, 'ash').self.pendingChoice).toMatchObject({ kind: 'pickFromDeck', options: [{ uid: 'c' }, { uid: 'q' }], optional: true });
     s = resolve(s, 'ash', { cardUid: 'c' });
-    expect([ash(s).hand.at(-1)!.uid, ash(s).deck.map((c) => c.uid).sort()]).toEqual(['c', ['f', 'w']]);
+    expect([ash(s).hand.at(-1)!.uid, ash(s).deck.map((c) => c.uid).sort()]).toEqual(['c', ['f', 'q', 'w']]);
   });
 
   it('Saffron City Gym returns a basic Energy card from a Pokémon with Sabrina in its name to the hand', () => {

@@ -33,7 +33,7 @@ export function targetsFor(view: PlayerView, card: CardInstance): SlotId[] {
   const holon = holonEnergy(def);
   const asEnergy = holon && !view.energyAttachedThisTurn ? occupiedSlots(self).filter((slot) => holon === 'colorless' || pokemonAt(self, slot)!.energy.some((e) => !e.provides)) : [];
   if (isBenchable(def)) return [...emptyBenchSlots(self), ...asEnergy];
-  if (def.kind === 'pokemon') return [...new Set([...occupiedSlots(self).filter((slot) => evolveError(def, pokemonAt(self, slot)!, view.cards, view.turn, [self, view.opponent]) === null), ...asEnergy])];
+  if (def.kind === 'pokemon') return [...new Set([...occupiedSlots(self).filter((slot) => evolveError(def, pokemonAt(self, slot)!, view.cards, view.turn, [self, view.opponent], view.stadium?.card) === null), ...asEnergy])];
   if (def.kind === 'energy') return occupiedSlots(self).filter((slot) => !view.energyAttachedThisTurn || powerPlay(view, card, slot));
   return [];
 }
@@ -69,7 +69,7 @@ export function whyNoTargets(view: PlayerView, card: CardInstance): string {
     const match = occupiedSlots(self)
       .map((slot) => pokemonAt(self, slot))
       .find((p) => p && lookupCard(view.cards, p.card.defId).name === def.evolvesFrom);
-    const reason = match && evolveError(def, match, view.cards, view.turn, [self, view.opponent]);
+    const reason = match && evolveError(def, match, view.cards, view.turn, [self, view.opponent], view.stadium?.card);
     return reason ? `${reason}.` : `No ${def.evolvesFrom} in play to evolve.`;
   }
   if (isTrainerCard(def) && trainersLocked(self, view.turn)) return "You can't play Trainer cards this turn.";
@@ -86,7 +86,7 @@ export function playAction(view: PlayerView, card: CardInstance, slot: SlotId): 
   if (def.kind === 'energy') return powerPlay(view, card, slot) ?? { type: 'ATTACH_ENERGY', cardUid, target };
   // A Holon's Pokémon dropped on a Pokémon it doesn't evolve is attached as Energy.
   const onto = pokemonAt(view.self, slot);
-  if (holonEnergy(def) && onto && def.kind === 'pokemon' && (isBenchable(def) || evolveError(def, onto, view.cards, view.turn, [view.self, view.opponent]) !== null)) return { type: 'ATTACH_ENERGY', cardUid, target };
+  if (holonEnergy(def) && onto && def.kind === 'pokemon' && (isBenchable(def) || evolveError(def, onto, view.cards, view.turn, [view.self, view.opponent], view.stadium?.card) !== null)) return { type: 'ATTACH_ENERGY', cardUid, target };
   if (!isBenchable(def)) return { type: 'EVOLVE', cardUid, target };
   return target === 'active' ? { type: 'SET_ACTIVE', cardUid } : { type: 'PLAY_BENCH', cardUid, slot: target };
 }

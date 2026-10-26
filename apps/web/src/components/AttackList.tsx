@@ -1,4 +1,4 @@
-import { applyWeaknessResistance, attackDamage, attackEffect, inPlayDef, typesOf, usableAttacks, type CardInstance, type CardLibrary, type DamageRange, type GameAction, type InPlayPokemon } from '@poke-tcg/game-engine';
+import { applyWeaknessResistance, attackDamage, attackEffect, inPlayDef, typesOf, usableAttacks, weaknessLabel, type CardInstance, type CardLibrary, type DamageRange, type GameAction, type InPlayPokemon } from '@poke-tcg/game-engine';
 import type { AttackControl } from '../hooks/useAttack';
 
 /** A change to the damage, signed: +10, −20. */
@@ -67,7 +67,7 @@ export function AttackList({
         // What changes the damage, and by how much.
         const steps = now
           ? now.steps.map((step) => `${step.label}: ${change(step.min, step.max)}`)
-          : [weak !== a.damage && `Weakness (×${defenderDef?.weakness?.multiplier ?? 2}): ${signed(weak - a.damage)}`, damage !== weak && `Resistance: ${signed(damage - weak)}`];
+          : [weak !== a.damage && `Weakness (${weaknessLabel(defenderDef?.weakness)}): ${signed(weak - a.damage)}`, damage !== weak && `Resistance: ${signed(damage - weak)}`];
         // More than printed in yellow, less in grey; a range of variable damage in pale yellow.
         const total = now ? (now.min === now.max ? now.min : null) : fixed ? damage : null;
         const tone = total === null ? (now ? 'font-semibold text-yellow-200' : '') : total > a.damage ? 'font-bold text-yellow-300' : total < a.damage ? 'text-slate-300' : '';

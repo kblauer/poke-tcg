@@ -10,6 +10,7 @@ export const POKEMON_STAGES = [
   { value: 'Basic', label: 'Basic' },
   { value: 'Stage1', label: 'Stage 1' },
   { value: 'Stage2', label: 'Stage 2' },
+  { value: 'LEVEL-UP', label: 'LV.X' },
 ];
 
 /** A card kind, for the kind toggles. */
@@ -229,7 +230,7 @@ export const DECK_SECTIONS = [
 export const deckRatio = (entries: DeckEntry[], byId: Map<string, CatalogCard>) =>
   Object.fromEntries(DECK_SECTIONS.map(({ kind }) => [kind, withCards(entries, byId).reduce((n, e) => n + (e.card.kind === kind ? e.quantity : 0), 0)])) as Record<(typeof DECK_SECTIONS)[number]['kind'], number>;
 
-const STAGE_RANK: Record<string, number> = { Baby: 0, Basic: 1, Stage1: 2, Stage2: 3 };
+const STAGE_RANK: Record<string, number> = { Baby: 0, Basic: 1, Stage1: 2, Stage2: 3, 'LEVEL-UP': 4 };
 
 /**
  * The deck's headline Pokémon, to show on its button: the highest stages first, preferring an evolved

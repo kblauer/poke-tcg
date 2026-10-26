@@ -228,11 +228,8 @@ describe('Fossil attacks', () => {
     it('Call for Family puts a Krabby from the deck onto the Bench, then the turn ends', () => {
       let s = duel('krabby', 'onix', { energy: ['water'] });
       ash(s).deck.push({ uid: 'k1', defId: id('krabby') });
+      // The only option is the Krabby, so it's taken without asking (the same-card rule).
       s = attack(s, 0);
-      expect(s.currentPlayer).toBe('ash');
-      expect(getPlayerView(s, 'ash').self.pendingChoice).toMatchObject({ kind: 'pickFromDeck', options: [{ uid: 'k1' }] });
-      expect(applyAction(s, 'ash', { type: 'END_TURN' }).ok).toBe(false);
-      s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'k1' });
       expect(ash(s).bench[0]!.card.uid).toBe('k1');
       expect(s.currentPlayer).toBe('misty');
     });

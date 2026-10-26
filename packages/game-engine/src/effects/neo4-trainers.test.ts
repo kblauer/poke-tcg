@@ -56,6 +56,7 @@ describe('Neo Destiny Trainers and Miracle Energy', () => {
   it('Energy Amplifier: an Energy card into the deck; heads takes up to 3 basic Energy cards', () => {
     const start = duel('charmander', 'machoke');
     const [amp, fire] = give(start, 'ash', 'energyAmplifier', 'fire');
+    ash(start).deck.push(card('water', 1));
     // The shuffle comes before the flip: a lucky flip instead of a seed.
     start.rules = [{ kind: 'luckyFlips', player: 'ash', flips: 1 }];
     const s = act(start, 'ash', { type: 'PLAY_TRAINER', cardUid: amp!, choices: { handUids: [fire!] } });
@@ -67,8 +68,8 @@ describe('Neo Destiny Trainers and Miracle Energy', () => {
     ash(start).discard.push(card('water', 1));
     const [stadium] = give(start, 'ash', 'energyStadium');
     let s = act(start, 'ash', { type: 'PLAY_TRAINER', cardUid: stadium! });
+    // The only basic Energy card in the discard pile: taken without a question (the same-card rule).
     s = act(flips(s, true), 'ash', { type: 'USE_STADIUM' });
-    s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'water-card-1' });
     expect(ash(s).hand.some((c) => c.uid === 'water-card-1')).toBe(true);
   });
 
@@ -94,6 +95,7 @@ describe('Neo Destiny Trainers and Miracle Energy', () => {
   it("Team Rocket's Evil Deeds: a card from the opponent's hand into their deck; then they may draw up to 2", () => {
     const start = duel('charmander', 'machoke');
     const [deeds] = give(start, 'ash', 'evilDeeds');
+    misty(start).hand.push(card('water', 1));
     let s = act(start, 'ash', { type: 'PLAY_TRAINER', cardUid: deeds! });
     s = act(s, 'ash', { type: 'RESOLVE_CHOICE', cardUid: misty(s).hand[0]!.uid });
     expect(s.pendingChoice).toMatchObject({ player: 'misty', kind: 'drawCount', max: 2 });

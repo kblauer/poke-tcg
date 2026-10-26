@@ -41,7 +41,7 @@ export function PowerPanel({ view, power, busy }: { view: PlayerView; power: Pow
           {spec.kind === 'counters' &&
             spec.options.map((n) => (
               <button key={n} className={option} onClick={() => power.answer(n)}>
-                {n === 1 ? 'No, just 1' : spec.all ? `Yes, all ${n}` : `Yes, ${n}`}
+                {spec.options.length > 2 ? `${n}` : n === 1 ? 'No, just 1' : spec.all ? `Yes, all ${n}` : `Yes, ${n}`}
               </button>
             ))}
           {spec.kind === 'side' && (

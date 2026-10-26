@@ -10,14 +10,14 @@ import { lookupCard, namesMatch } from '../cards.js';
 import { isEnergyCardOf, isSpecialEnergy, type InPlayPokemon, type Target } from '../engine.js';
 import { reactCount } from '../powers.js';
 import { shuffle } from '../rng.js';
-import { clearSpecialConditions, inPlayDef, pokemonName } from '../status.js';
+import { clearSpecialConditions, devolvable, inPlayDef, pokemonName, removeTopEvolution } from '../status.js';
 import { trainerEffect } from './index.js';
-import { benchedSlots, extraEnergy, headsUntilTails, opponentBenchChoice, same, selfdestruct } from './common.js';
+import { benchedSlots, extraEnergy, guardNext, headsUntilTails, opponentBenchChoice, same, selfdestruct } from './common.js';
 import { ascension } from './ex5.js';
 import { discardOwn, inPlay, putCounters, typeCards } from './ex2.js';
 import { lureIn, notNextTurn, snipe } from './ex6.js';
 import { dragOff, EX8 } from './ex8.js';
-import { guardNext } from './ex10.js';
+
 import { FOSSIL_POKEMON } from './ex12-trainers.js';
 import { discardFree } from './neo3.js';
 import { healUpTo } from './si1.js';
@@ -31,9 +31,8 @@ export const foresight = same(() => EX8['ex8-36']?.['Foresight']);
 
 /** One of the opponent's Pokémon loses its top card, shuffled into their deck (Devolution Wave, Time Spiral). */
 export function devolveIntoDeck(ctx: AttackContext, p: InPlayPokemon) {
-  if (!p.evolvedFrom.length || !ctx.canAffect(ctx.opp, p)) return;
-  const top = p.card;
-  p.card = p.evolvedFrom.pop()!;
+  if (!devolvable(ctx.state.cards, p) || !ctx.canAffect(ctx.opp, p)) return;
+  const top = removeTopEvolution(ctx.state, ctx.opp, p);
   if (ctx.opp.active === p) {
     p.condition = null;
     p.poison = 0;
@@ -45,8 +44,8 @@ export function devolveIntoDeck(ctx: AttackContext, p: InPlayPokemon) {
 
 /** The opponent's Evolved Pokémon, as `opponentBenchMany` options (-1: the Active one). */
 const evolvedOptions = (s: Parameters<NonNullable<AttackEffect['choices']>>[0]) => [
-  ...(s.defender.evolvedFrom.length ? [-1] : []),
-  ...benchedSlots(s.opponentBench).filter((i) => s.opponentBench[i]!.evolvedFrom.length),
+  ...(devolvable(s.cards, s.defender) ? [-1] : []),
+  ...benchedSlots(s.opponentBench).filter((i) => devolvable(s.cards, s.opponentBench[i]!)),
 ];
 const atOpp = (ctx: AttackContext, slot: number) => (slot === -1 ? ctx.opp.active : ctx.opp.bench[slot]) ?? null;
 

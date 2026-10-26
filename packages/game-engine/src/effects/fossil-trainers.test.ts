@@ -21,10 +21,10 @@ describe('Fossil Trainers', () => {
 
   it('Energy Search takes a basic Energy card from the deck', () => {
     const s = duel('charmander', 'onix');
-    ash(s).deck.push({ uid: 'f1', defId: 'fire' }, { uid: 'dce1', defId: id('dce') });
+    ash(s).deck.push({ uid: 'f1', defId: 'fire' }, { uid: 'w1', defId: 'water' }, { uid: 'dce1', defId: id('dce') });
     const [search] = give(s, 'ash', 'energysearch');
     let after = play(s, search!);
-    expect(getPlayerView(after, 'ash').self.pendingChoice).toMatchObject({ kind: 'pickFromDeck', options: [{ uid: 'f1' }] });
+    expect(getPlayerView(after, 'ash').self.pendingChoice).toMatchObject({ kind: 'pickFromDeck', options: [{ uid: 'f1' }, { uid: 'w1' }] });
     after = act(after, 'ash', { type: 'RESOLVE_CHOICE', cardUid: 'f1' });
     expect(ash(after).hand.some((c) => c.uid === 'f1')).toBe(true);
   });
