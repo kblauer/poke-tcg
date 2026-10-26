@@ -8,15 +8,31 @@
 import { prisma, type Card, type Prisma } from '@poke-tcg/db';
 import { BASE4_REPRINTS } from '@poke-tcg/game-engine';
 import { cardLabel, catalogCards, catalogRows, holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, isReverseHolo, type CardData } from './cards.js';
+import { env } from './env.js';
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
 /** The cards the user has unlocked, with how many copies (only counted holos have more than 1). Basic Energy isn't listed: it always is. */
 export type Unlocked = Map<string, number>;
 
-export async function unlockedIds(userId: string, db: Db = prisma): Promise<Unlocked> {
+/**
+ * The cards the user has unlocked. While debugging (never in production: env.debugEnabled), every card is, 4 copies of
+ * each (as every cosmetic is had then, the user's), unless `owned` asks for the ones really unlocked (opening packs:
+ * what's new and what gives Stardust).
+ */
+export async function unlockedIds(userId: string, db: Db = prisma, { owned = false }: { owned?: boolean } = {}): Promise<Unlocked> {
+  if (env.debugEnabled && !owned) return everyCard();
   const rows = await db.cardUnlock.findMany({ where: { userId }, select: { cardId: true, quantity: true } });
   return new Map(rows.map((r) => [r.cardId, r.quantity]));
+}
+
+let allCards: Promise<Unlocked> | null = null;
+
+/** Every card in the catalog, 4 copies of each: debugging's unlocks. Worked out once from catalogRows. */
+function everyCard(): Promise<Unlocked> {
+  allCards ??= catalogRows().then((rows) => new Map(rows.map((r) => [r.id, 4])));
+  allCards.catch(() => (allCards = null));
+  return allCards;
 }
 
 type FaceCard = Pick<Card, 'id' | 'setId' | 'name' | 'kind' | 'hp' | 'data'>;

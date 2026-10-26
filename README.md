@@ -883,6 +883,8 @@ The pack window has two more, **Debug: force holo Energy** and **Debug: force al
 
 In debug mode the run picker also unlocks every run type, the Gym Challenges and Champion runs included (started with `run.debugStart`, a `debugProcedure`; the picker's override is behind `__DEBUG_BUILD__` and the API's debug switch).
 
+In debug mode every card is unlocked too, 4 copies of each (`unlockedIds` in `apps/api/src/unlocks.ts`, behind the API's debug switch, so never in production), as every cosmetic already is (`cosmeticsOf`): the Collection, the deck builder, deck checks and runs see them all, and card flair can be bought for any card. Opening packs still reads the cards really unlocked (`owned`), so pulls unlock and give Stardust as they would.
+
 During a run, each battle in the next-encounter panel has a **Skip battle** button under its Battle (or Challenge) button: it chooses the battle (with the deck picked, an Ace Trainer's accepted) and wins it at once without opening the game, with no ₱, EXP or card reward, the run going straight on to the next step (`run.debugSkipBattle`, a `debugProcedure`: the battle's game is ended with the engine's `WIN` debug command, saved as a `DEBUG` action row, then settled as a won battle with `skipped` on `BATTLE_OVER`; the button is behind `__DEBUG_BUILD__` and the API's debug switch).
 
 Debug commands go through the engine's `applyDebug` (`packages/game-engine/src/debug.ts`), are written to the game log as "Debug: …", and are saved in the `GameAction` log as `{ type: 'DEBUG', command }`.

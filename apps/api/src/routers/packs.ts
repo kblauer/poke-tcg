@@ -120,7 +120,8 @@ async function openPacks(userId: string, input: { setId: string; count: number; 
       : await tx.user.updateMany({ where: { id: userId, bank: { gte: price } }, data: { bank: { decrement: price } } });
     const cost = `${input.count === 1 ? 'A pack costs' : `${input.count} packs cost`}`;
     if (!count) throw new TRPCError({ code: 'BAD_REQUEST', message: bp ? `${cost} ${price} BP: not enough Battle Points` : `${cost} ₱${price}: not enough in the bank` });
-    const before = await unlockedIds(userId, tx);
+    // The cards really unlocked, debugging or not: what's new and what gives Stardust.
+    const before = await unlockedIds(userId, tx, { owned: true });
     // Each holo pulled (holo Energy too) adds a copy; other cards are unlocked once.
     await unlockCards(userId, pack.map((c) => c.cardId), tx);
     const seen = new Set<string>();

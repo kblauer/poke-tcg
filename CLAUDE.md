@@ -121,6 +121,7 @@ Issue #99 (https://github.com/kblauer/poke-tcg/issues/99) was a whole-codebase r
 - The pack window's "Debug: force holo Energy" and "Debug: force all-rares pack" checkboxes open packs with a holo Energy each, or all rares (`packs.debugOpen`, a `debugProcedure`; the checkbox is guarded by `DEBUG_BUILD` and `useDebugEnabled`).
 - The Battle Tower's scenes (`TowerScene`) have debug buttons in their top right corner: Show tiles (as the run maps', with the room's places) and Pause (the user's, to look at the maps while Red walks).
 - In debug mode the run picker unlocks every run type (`run.debugStart` starts a locked one).
+- In debug mode (the API's `env.debugEnabled`) every card is unlocked, 4 copies each (`unlockedIds`; opening packs still reads the real unlocks, `owned`), as every cosmetic is (`cosmeticsOf`); flair can be bought for any card (the user's).
 - A run's battles have a "Skip battle" button under Battle (`run.debugSkipBattle`): the battle is chosen and its game won at once with the `WIN` debug command, then settled as a won battle that gives no ₱, EXP or card reward (`skipped` on `BATTLE_OVER`).
   - Engine: `applyDebug` in `packages/game-engine/src/debug.ts`.
   - API: `debug` router.

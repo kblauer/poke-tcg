@@ -3,6 +3,7 @@ import { prisma } from '@poke-tcg/db';
 import { buyFlairInput, equipFlairInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { catalogIndex, holoEnergyStyle, isBasicEnergyCard, isGalaxyFoil, isHolo, isReverseHolo, type CardData } from '../cards.js';
+import { env } from '../env.js';
 import { lockUser } from '../runs.js';
 import { protectedProcedure, router } from '../trpc.js';
 
@@ -52,7 +53,8 @@ export const flairRouter = router({
       // Checked with the user row locked, so buying twice at once can't take the Stardust twice.
       await lockUser(tx, ctx.user.id);
       const unlocked = await tx.cardUnlock.findUnique({ where: { userId_cardId: { userId: ctx.user.id, cardId: card.id } }, select: { cardId: true } });
-      if (!unlocked) throw new TRPCError({ code: 'BAD_REQUEST', message: `Unlock ${card.name} first` });
+      // While debugging every card is unlocked (unlockedIds).
+      if (!unlocked && !env.debugEnabled) throw new TRPCError({ code: 'BAD_REQUEST', message: `Unlock ${card.name} first` });
       const had = await tx.flairUnlock.findUnique({ where: { userId_cardId_slot_key: { ...where, key: flair.key } }, select: { key: true } });
       if (had) throw new TRPCError({ code: 'BAD_REQUEST', message: `${card.name} already has the ${flair.label} ${noun}` });
       const { count } = await tx.user.updateMany({ where: { id: ctx.user.id, stardust: { gte: price } }, data: { stardust: { decrement: price } } });
