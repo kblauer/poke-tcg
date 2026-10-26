@@ -508,6 +508,12 @@ html[data-font="emerald"] {
   to { transform: scaleX(1); }
 }
 
+/* An Idle Adventure move's cooldown bar (BattleScreen's MoveBars): filling as a smooth timer from `--from` to full. */
+@keyframes idle-cooldown {
+  from { transform: scaleX(var(--from)); }
+  to { transform: scaleX(1); }
+}
+
 /* A card that can be played now (a card in your hand, a Stadium that can still be used, a Pokémon in play whose Pokémon Power can be used): a soft blue outline that pulses, as TCG Pocket's does. */
 .playable-pulse {
   animation: playable-pulse 1.8s ease-in-out infinite;

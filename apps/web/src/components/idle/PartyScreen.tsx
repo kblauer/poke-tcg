@@ -37,7 +37,8 @@ const moveLabel = (key: string) => {
 /**
  * The party (README: Idle Adventure): its order (the lead fights first, the next comes in when one faints: agreed),
  * each Pokémon's stats, IVs and EVs, its basic move and its 3 slots (each tick the strongest one off cooldown, the basic
- * move while all three cool down: the user's cooldown rule), and the evolution stones in the bag it can use.
+ * move while all three cool down: the user's cooldown rule), and the evolution stones in the bag it can use; two columns
+ * (the user's; one on a phone), in party order left to right.
  */
 export function PartyScreen({ party, bag, busy, onAct }: { party: Mon[]; bag: Record<string, number>; busy: boolean; onAct: (action: IdleAction) => void }) {
   const move = (i: number, by: number) => {
@@ -47,7 +48,7 @@ export function PartyScreen({ party, bag, busy, onAct }: { party: Mon[]; bag: Re
     onAct({ type: 'SET_ORDER', uids });
   };
   return (
-    <ul className="space-y-3">
+    <ul className="grid gap-3 md:grid-cols-2">
       {party.map((mon, i) => {
         const s = species(mon.species);
         const stats = calcStats(mon.species, mon.level, mon.ivs, mon.evs, mon.nature);
@@ -80,10 +81,10 @@ export function PartyScreen({ party, bag, busy, onAct }: { party: Mon[]; bag: Re
                 {mon.gender && ` · ${mon.gender === 'male' ? '♂' : '♀'}`}
               </div>
               <div className="flex gap-1">
-                <button className={ICON_BUTTON} disabled={busy || i === 0} onClick={() => move(i, -1)} title="Move up" aria-label="Move up">
+                <button className={ICON_BUTTON} disabled={busy || i === 0} onClick={() => move(i, -1)} title="Earlier in the party" aria-label="Earlier in the party">
                   <ArrowUpwardIcon sx={{ fontSize: 16 }} />
                 </button>
-                <button className={ICON_BUTTON} disabled={busy || i === party.length - 1} onClick={() => move(i, 1)} title="Move down" aria-label="Move down">
+                <button className={ICON_BUTTON} disabled={busy || i === party.length - 1} onClick={() => move(i, 1)} title="Later in the party" aria-label="Later in the party">
                   <ArrowDownwardIcon sx={{ fontSize: 16 }} />
                 </button>
               </div>
