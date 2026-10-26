@@ -1,6 +1,7 @@
 import { basicFor, calcStats, cooldownTicks, ITEMS, moveData, species, usableStones, type IdleAction, type Mon } from '@poke-tcg/idle';
 import { useRef, useState, type PointerEvent } from 'react';
 import { useEscape } from '../../hooks/useEscape';
+import { MODE_TOGGLE_BOTTOM, MODE_TOGGLE_HEIGHT } from './ModeToggle';
 
 /** One game pixel of FireRed's 240x160 screen, in the game screen's width (container query units). */
 const px = (n: number) => `${(n * 100) / 240}cqw`;
@@ -14,8 +15,10 @@ const TEXT = { color: '#ffffff', textShadow: `${px(1)} ${px(1)} 0 #737373`, font
 const SLOT_W = 88;
 const SLOT_H = 24;
 const LIST_LEFT = 240 - (10 + SLOT_W + 4);
-/** The Pokémon's panel's width: just left of the slots' column (the user's). */
+/** The Pokémon's panel's width (just left of the slots' column), top, and tallest: its bottom edge above the mode toggle (the user's). */
 const PANEL_W = 104;
+const PANEL_TOP = 2;
+const PANEL_MAX_H = 160 - MODE_TOGGLE_BOTTOM - MODE_TOGGLE_HEIGHT - 2 - PANEL_TOP;
 /** The panel's colours: a slot's (slot.png's border, fill and light). */
 const FRAME = { border: '#4a4a62', fill: '#3994de', light: '#83c5de', shade: '#297bb4' };
 /** How far (game pixels) a slot must be dragged before it's a drag, not a click. */
@@ -265,7 +268,7 @@ function MonPanel({ mon, bag, busy, pending, onAct, onClose }: { mon: Mon; bag: 
   return (
     <div
       className="pointer-events-auto absolute overflow-y-auto"
-      style={{ left: px(LIST_LEFT - PANEL_W), top: px(2), width: px(PANEL_W), maxHeight: px(156), background: FRAME.fill, border: `${px(1)} solid ${FRAME.border}`, borderRadius: px(3), boxShadow: `inset 0 0 0 ${px(1)} ${FRAME.light}`, padding: px(2) }}
+      style={{ left: px(LIST_LEFT - PANEL_W), top: px(PANEL_TOP), width: px(PANEL_W), maxHeight: px(PANEL_MAX_H), background: FRAME.fill, border: `${px(1)} solid ${FRAME.border}`, borderRadius: px(3), boxShadow: `inset 0 0 0 ${px(1)} ${FRAME.light}`, padding: px(2) }}
     >
       <div className="flex items-center justify-between">
         <span className="truncate" style={{ ...TEXT, fontSize: px(9) }}>
@@ -275,14 +278,16 @@ function MonPanel({ mon, bag, busy, pending, onAct, onClose }: { mon: Mon; bag: 
           ✕
         </button>
       </div>
-      {/* Its types: FireRed's labels (menu_info.png's), at three quarters. */}
-      <div className="flex" style={{ gap: px(2), marginTop: px(1) }}>
-        {s.types.map((t) => (
-          <img key={t} src={`${PARTY}/types/${t}.png`} alt={t} style={{ width: px(24), height: px(9) }} draggable={false} />
-        ))}
-      </div>
-      <div style={{ background: '#ffffff', borderRadius: px(2), marginTop: px(2), border: `${px(1)} solid ${FRAME.shade}`, padding: `${px(1)} 0` }}>
-        <StatHex stats={stats} height={58} />
+      {/* Its types (FireRed's labels, menu_info.png's, at three quarters) over its stats, small (the user's), in one white window. */}
+      <div style={{ background: '#ffffff', borderRadius: px(2), marginTop: px(2), border: `${px(1)} solid ${FRAME.shade}`, padding: px(2) }}>
+        <div className="flex justify-center" style={{ gap: px(2) }}>
+          {s.types.map((t) => (
+            <img key={t} src={`${PARTY}/types/${t}.png`} alt={t} style={{ width: px(24), height: px(9) }} draggable={false} />
+          ))}
+        </div>
+        <div style={{ marginTop: px(1) }}>
+          <StatHex stats={stats} height={40} />
+        </div>
       </div>
       <div style={{ ...TEXT, ...small, marginTop: px(2) }}>Basic: {moveData(basic).name}</div>
       {[0, 1, 2].map((slot) => (
@@ -312,7 +317,7 @@ function MonPanel({ mon, bag, busy, pending, onAct, onClose }: { mon: Mon; bag: 
           Use a {ITEMS[st]!.name}
         </button>
       ))}
-      {pending > 0 && <div style={{ fontSize: px(6.5), marginTop: px(2), color: '#ffe639', textShadow: TEXT.textShadow, fontFamily: TEXT.fontFamily, lineHeight: 1.1 }}>Changes take effect when the battle ends.</div>}
+      {pending > 0 && <div style={{ fontSize: px(7), marginTop: px(2), color: '#ffe639', textShadow: TEXT.textShadow, fontFamily: TEXT.fontFamily, lineHeight: 1 }}>Applies when the battle ends.</div>}
     </div>
   );
 }

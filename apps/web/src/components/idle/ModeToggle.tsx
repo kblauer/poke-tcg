@@ -6,8 +6,12 @@ const px = (n: number) => `${(n * 100) / 240}cqw`;
 
 type Mode = 'route' | 'wild' | 'trainers';
 
+/** The toggle's place: the game screen's bottom left corner (the user's), its height (game pixels) fixed so nothing above it overlaps it. */
+export const MODE_TOGGLE_BOTTOM = 4;
+export const MODE_TOGGLE_HEIGHT = 15;
+
 /**
- * The route modes (the user's: a toggle in the game screen's top left corner, on a route or in a dungeon): Route (walking
+ * The route modes (the user's: a toggle in the game screen's bottom left corner, on a route or in a dungeon): Route (walking
  * on: CONTINUE_ROUTE), Wild grind (WILD_GRIND: wild Pokémon nearby, or on the most recent route with them, which its
  * title names) and Trainer grind (TRAINER_GRIND: the route's trainers in a loop); the one on lit, one that can't start
  * greyed out with why. Choosing a grind while the other is on switches straight to it.
@@ -33,8 +37,8 @@ export function ModeToggle({ view, busy, onAct }: { view: ClientIdleRun['view'];
   return (
     <div className="pointer-events-none absolute inset-0 [container-type:inline-size]">
       <div
-        className="pointer-events-auto absolute flex"
-        style={{ left: px(4), top: px(4), background: '#ffffff', border: `${px(1)} solid #4a4a62`, borderRadius: px(4), padding: px(1), gap: px(1), boxShadow: `0 ${px(1)} 0 rgba(0,0,0,0.35)` }}
+        className="pointer-events-auto absolute flex items-stretch"
+        style={{ left: px(4), bottom: px(MODE_TOGGLE_BOTTOM), height: px(MODE_TOGGLE_HEIGHT), background: '#ffffff', border: `${px(1)} solid #4a4a62`, borderRadius: px(4), padding: px(1), gap: px(1), boxShadow: `0 ${px(1)} 0 rgba(0,0,0,0.35)` }}
         role="radiogroup"
         aria-label="Mode"
         onClick={(e) => e.stopPropagation()}
@@ -52,9 +56,9 @@ export function ModeToggle({ view, busy, onAct }: { view: ClientIdleRun['view'];
               className="whitespace-nowrap transition disabled:cursor-default"
               style={{
                 fontFamily: '"Pokemon Emerald", monospace',
-                fontSize: px(9),
+                fontSize: px(8),
                 lineHeight: 1,
-                padding: `${px(2)} ${px(4)}`,
+                padding: `0 ${px(3)}`,
                 borderRadius: px(3),
                 color: on ? '#ffffff' : o.disabled ? '#a0a0a0' : '#404040',
                 background: on ? '#3994de' : 'transparent',
