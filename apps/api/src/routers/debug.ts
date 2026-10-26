@@ -1,9 +1,11 @@
 import { TRPCError } from '@trpc/server';
-import { saveGameState, type Prisma } from '@poke-tcg/db';
+import { prisma, saveGameState, type Prisma } from '@poke-tcg/db';
 import { applyDebug, getPlayerView } from '@poke-tcg/game-engine';
-import { debugInput, HUMAN_ID } from '@poke-tcg/shared';
+import { debugFlagsInput, debugInput, HUMAN_ID } from '@poke-tcg/shared';
 import { loadCardLibrary } from '../cards.js';
+import { CURRENCY_FLAGS, DEBUG_AMOUNT, debugFlags, type DebugFlags } from '../debugFlags.js';
 import { env } from '../env.js';
+import { lockUser } from '../runs.js';
 import { debugProcedure, publicProcedure, router } from '../trpc.js';
 import { loadOwnGame } from './game.js';
 
@@ -49,4 +51,32 @@ export const debugRouter = router({
     if (!saved) throw new TRPCError({ code: 'CONFLICT', message: 'Game state changed, refresh and retry' });
     return getPlayerView(next, HUMAN_ID);
   }),
+
+  /** The Settings page's debug switches (debugFlags.ts): unlocking everything that's locked, and 1,000,000 ₱, Stardust and EXP added. */
+  flags: debugProcedure.query(async ({ ctx }) => switches(await debugFlags(ctx.user.id))),
+
+  /**
+   * Sets the debug switches given. Each currency's switch on adds DEBUG_AMOUNT to it (the million switch the bank, the
+   * dust switch Stardust, the exp switch EXP); off, it takes it away again (never below 0), so what was earned or spent
+   * meanwhile stays (the user's). With the user row locked, so a switch can't add or take it twice.
+   */
+  setFlags: debugProcedure.input(debugFlagsInput).mutation(({ ctx, input }) =>
+    prisma.$transaction(async (tx) => {
+      await lockUser(tx, ctx.user.id);
+      const [flags, held] = await Promise.all([debugFlags(ctx.user.id, tx), tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { bank: true, stardust: true, exp: true } })]);
+      const next: DebugFlags = { ...flags };
+      const amounts = { ...held };
+      if (input.unlockAll !== undefined) next.unlockAll = input.unlockAll;
+      for (const [flag, field] of Object.entries(CURRENCY_FLAGS) as [keyof typeof CURRENCY_FLAGS, keyof typeof held][]) {
+        if (input[flag] === undefined || input[flag] === !!flags[flag]) continue;
+        next[flag] = input[flag];
+        amounts[field] = input[flag] ? held[field] + DEBUG_AMOUNT : Math.max(0, held[field] - DEBUG_AMOUNT);
+      }
+      await tx.user.update({ where: { id: ctx.user.id }, data: { debugFlags: next as Prisma.InputJsonValue, ...amounts } });
+      return switches(next);
+    }),
+  ),
 });
+
+/** The switches as the client sees them, each on or off. */
+const switches = (flags: DebugFlags) => ({ unlockAll: !!flags.unlockAll, million: !!flags.million, dust: !!flags.dust, exp: !!flags.exp });

@@ -1,5 +1,5 @@
 import { CPU_DIFFICULTIES, DEBUG_CONDITIONS, MAX_BENCH, type AttackChoices, type DebugCommand, type GameAction, type PowerChoices, type TrainerChoices } from '@poke-tcg/game-engine';
-import { BERRIES, BOSS_IDS, COSMETIC_IDS, EQUIP_SLOTS, MAX_PACKS_AT_ONCE, PACK_SETS, RUN_TYPE_IDS, STARTER_IDS, TOP_FLOOR, type RunAction, type RunTypeId, type TowerAction } from '@poke-tcg/campaign';
+import { BERRIES, BOSS_IDS, COSMETIC_IDS, EQUIP_SLOTS, FLAIR_SLOTS, MAX_PACKS_AT_ONCE, PACK_SETS, RUN_TYPE_IDS, STARTER_IDS, TOP_FLOOR, type RunAction, type RunTypeId, type TowerAction } from '@poke-tcg/campaign';
 import { z } from 'zod';
 import { DECK_NAME_LENGTH } from './deck.js';
 import { TRAINER_SPRITES } from './trainer-sprites.js';
@@ -155,6 +155,9 @@ export const debugCommandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('WIN') }),
 ]) satisfies z.ZodType<DebugCommand>;
 
+/** The Settings page's debug switches (debug.setFlags): unlock everything that's locked, 1,000,000 ₱, Stardust or EXP added. */
+export const debugFlagsInput = z.object({ unlockAll: z.boolean().optional(), million: z.boolean().optional(), dust: z.boolean().optional(), exp: z.boolean().optional() });
+
 export const debugInput = z.object({
   gameId: z.uuid(),
   expectedVersion: z.number().int().min(0),
@@ -247,6 +250,11 @@ export const openPackInput = z.object({
 
 /** Crafting a card with Stardust (packs.craft). */
 export const craftCardInput = z.object({ cardId: z.string().min(1).max(64) });
+
+/** Buying a card's flair with Stardust (flair.buy): its slot and key (a HOLO_PATTERNS key for a pattern, a BORDERS key for a border). */
+export const buyFlairInput = craftCardInput.extend({ slot: z.enum(FLAIR_SLOTS), key: z.string().min(1).max(32) });
+/** Switching the flair a card shows (flair.equip): one the account bought for it, or null for the card's own look. */
+export const equipFlairInput = buyFlairInput.extend({ key: z.string().min(1).max(32).nullable() });
 
 /** Adding a card to the account's favorites, or taking it out (decks.setFavorite). */
 export const favoriteCardInput = z.object({ cardId: z.string().min(1).max(64), favorite: z.boolean() });

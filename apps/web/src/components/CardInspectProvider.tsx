@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { lazy, Suspense, useCallback, useMemo, useState, type ReactNode } from 'react';
 import { useFavorites } from '../hooks/useFavorites';
+import { FlairContext, useEquippedFlair } from '../hooks/useFlair';
 import { useUnlocked } from '../hooks/useUnlocked';
 import { useTRPC } from '../lib/trpc';
 import type { CatalogCard } from '../utils/cardList';
@@ -12,24 +13,27 @@ const CardInspector = lazy(() => import('./CardInspector').then((m) => ({ defaul
 /**
  * Right-clicking a card anywhere in the app opens it in the CardInspector, large with its holo effect (the deck
  * builder's view, without its deck buttons, with its ★ for the favorites). Also provides the card catalog by id (CatalogContext), loaded once
- * per session, for cards known only by id: the game's, the run's and the packs'.
+ * per session, for cards known only by id: the game's, the run's and the packs'; and the flair each card shows (FlairContext: its holo pattern or gold border).
  */
 export function CardInspectProvider({ children }: { children: ReactNode }) {
   const trpc = useTRPC();
   const catalog = useQuery({ ...trpc.cards.list.queryOptions(), staleTime: Infinity });
   const byId = useMemo(() => (catalog.data ? new Map(catalog.data.map((c) => [c.id, c])) : null), [catalog.data]);
+  const flair = useEquippedFlair();
   const [inspected, setInspected] = useState<CatalogCard | null>(null);
   const close = useCallback(() => setInspected(null), []);
   return (
     <CatalogContext.Provider value={byId}>
-      <InspectContext.Provider value={setInspected}>
-        {children}
-        {inspected && (
-          <Suspense fallback={null}>
-            <Inspected card={inspected} onClose={close} />
-          </Suspense>
-        )}
-      </InspectContext.Provider>
+      <FlairContext.Provider value={flair}>
+        <InspectContext.Provider value={setInspected}>
+          {children}
+          {inspected && (
+            <Suspense fallback={null}>
+              <Inspected card={inspected} onClose={close} />
+            </Suspense>
+          )}
+        </InspectContext.Provider>
+      </FlairContext.Provider>
     </CatalogContext.Provider>
   );
 }

@@ -114,6 +114,31 @@
   --clip-borders: none;
 }
 
+/*
+  Full Art, Trainer Gallery V, Shiny and Shiny V looked the same on our cards (the user's): with no foil image of their
+  own (the library's cards have one each, a .masked card), all four fall back to the same texture (/img/illusion.png)
+  and the same shine. Each gets its own texture here, the library's own at the size it uses them: Full Art keeps
+  Illusion, Trainer Gallery V the Trainer Gallery waves (trainer-full-art.css's), Shiny glitter (cards.css's), Shiny V
+  the geometric pattern (secret-rare.css's). Holo Energy and card flair's patterns both.
+*/
+.card[data-era]:not(.masked)[data-trainer-gallery="true"][data-rarity="rare holo v"] .card__shine,
+.card[data-era]:not(.masked)[data-trainer-gallery="true"][data-rarity="rare holo v"] .card__shine:after {
+  --foil: url("/img/trainerbg.png");
+  --imgsize: 20%;
+}
+
+.card[data-era]:not(.masked)[data-rarity="rare shiny"] .card__shine,
+.card[data-era]:not(.masked)[data-rarity="rare shiny"] .card__shine:after {
+  --foil: url("/img/glitter.png");
+  --imgsize: 25%;
+}
+
+.card[data-era]:not(.masked)[data-rarity="rare shiny v"] .card__shine,
+.card[data-era]:not(.masked)[data-rarity="rare shiny v"] .card__shine:after {
+  --foil: url("/img/geometric.png");
+  --imgsize: 33%;
+}
+
 /* The plain glare every non-holo card gets on hover, at half strength. */
 .card[data-era]:not([data-rarity^="rare holo"]) .card__glare {
   opacity: calc(var(--card-opacity) * 0.5);
