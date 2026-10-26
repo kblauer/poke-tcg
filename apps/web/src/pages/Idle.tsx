@@ -7,7 +7,7 @@ import { useMusicCue, useMusicSettings } from '../components/MusicPlayer';
 import { PageHeader } from '../components/PageHeader';
 import { ReturnToHome } from '../components/ReturnToHome';
 import { Toasts } from '../components/Toasts';
-import { AreaScene } from '../components/idle/AreaScene';
+import { AreaScene, usePreloadMaps } from '../components/idle/AreaScene';
 import { BattleScreen } from '../components/idle/BattleScreen';
 import { Bag, catchUpPages, IdleSettings } from '../components/idle/IdleSettings';
 import { MonIcon, PartyScreen } from '../components/idle/PartyScreen';
@@ -104,6 +104,9 @@ function IdleAdventure() {
           ? idleMusic(soundtrack, { map: mapMusic, surfing, cycling })
           : null,
   );
+
+  // The maps it will show next, fetched ahead (the user's: no map drawing in bit by bit).
+  usePreloadMaps(place ? place.area : null);
 
   if (overview.error && !data) return <p className={`${PAGE_WIDTH} text-red-400`}>{overview.error.message}</p>;
   if (!data || !settings) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;

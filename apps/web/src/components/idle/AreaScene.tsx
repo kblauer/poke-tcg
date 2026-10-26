@@ -1,5 +1,5 @@
-import { AREAS, mapView, type WalkArea } from '@poke-tcg/idle';
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { AREAS, areaById, mapView, type TownArea, type WalkArea } from '@poke-tcg/idle';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { placeTrack, type Playback } from '../../hooks/useIdle';
 import type { Facing } from '../../utils/overworld';
@@ -18,6 +18,41 @@ const VIEW_HEIGHT = 17 * 16 * ZOOM;
 const sceneSize = (phone: boolean) => (phone ? { height: '22rem' } : { maxWidth: VIEW_WIDTH, height: `min(${VIEW_HEIGHT}px, max(22rem, calc(100dvh - 11rem)))` });
 /** The text box's widest (the user's: bound to less than the scene's width), and never wider than the map drawn. */
 const DIALOGUE_MAX = 768;
+
+/** The map pictures fetched ahead (kept, so the browser keeps them decoded), by src. */
+const preloaded = new Map<string, HTMLImageElement>();
+
+/** Whether a map picture is fetched and decoded already (preloaded), so it's drawn whole at once. */
+const ready = (src: string) => {
+  const img = preloaded.get(src);
+  return !!img && img.complete && img.naturalWidth > 0;
+};
+
+/**
+ * Fetches the maps the run will show next (the user's: a new map mustn't draw in bit by bit): every map of the area it's
+ * in and the next two (their towns and gyms included), and each town's grind loop's.
+ */
+export function usePreloadMaps(area: number | null) {
+  useEffect(() => {
+    if (area === null) return;
+    const names = new Set<string>();
+    for (const a of AREAS.slice(area, area + 3)) {
+      if ('legs' in a) a.legs.forEach((l) => l.maps.forEach((m) => names.add(m)));
+      else {
+        names.add(a.map);
+        const grind = (a as TownArea).grind;
+        if (grind) (areaById(grind.area) as WalkArea).legs[grind.leg]!.maps.forEach((m) => names.add(m));
+      }
+    }
+    for (const n of names) {
+      const src = mapView(n).image;
+      if (preloaded.has(src)) continue;
+      const img = Object.assign(new Image(), { src });
+      preloaded.set(src, img);
+      void img.decode().catch(() => {});
+    }
+  }, [area]);
+}
 
 /** A trainer's sprite standing in water (the Swimmers on surfed routes): FireRed's swimming one. */
 const WATER_SPRITES: Record<string, string> = { swimmer_m: 'swimmer_m_water', swimmer_f: 'swimmer_f_water' };
@@ -67,6 +102,18 @@ export function MapScene({
   // The scene's size, measured (and again as the window changes).
   const box = useRef<HTMLDivElement>(null);
   const [view, setView] = useState({ w: 0, h: 0 });
+  // The map is shown only once it's placed and its picture loaded (the user's: no pan to the player as the scene comes
+  // back after a battle, no picture drawing in bit by bit): hidden until the scene is measured and `loaded` is its
+  // picture, and the pan's slide on only from the frame after it was first placed.
+  const [loaded, setLoaded] = useState<string | null>(() => (ready(image) ? image : null));
+  const [settled, setSettled] = useState(false);
+  const measured = view.w > 0;
+  const shown = measured && loaded === image;
+  useEffect(() => {
+    if (!shown || settled) return;
+    const frame = requestAnimationFrame(() => setSettled(true));
+    return () => cancelAnimationFrame(frame);
+  }, [shown, settled]);
   useLayoutEffect(() => {
     const el = box.current;
     if (!el) return;
@@ -85,10 +132,17 @@ export function MapScene({
     <div ref={box} className="relative mx-auto w-full overflow-hidden rounded-lg bg-black ring-1 ring-slate-700" style={sceneSize(phone)} onClick={() => pressDialogue.current?.()}>
       <div
         className="absolute left-0 top-0"
-        style={{ transform: `translate(${left}px, ${top}px)`, transition: `transform ${moveMs}ms linear`, opacity: fading ? 0 : 1 }}
+        style={{ transform: `translate(${left}px, ${top}px)`, transition: settled ? `transform ${moveMs}ms linear` : 'none', opacity: fading || !shown ? 0 : 1 }}
       >
         <div className="relative origin-top-left [image-rendering:pixelated]" style={{ width: width * 16, height: height * 16, transform: `scale(${zoom})`, transition: 'opacity 300ms' }}>
-          <img src={image} alt="" draggable={false} className="absolute inset-0 max-w-none select-none" style={{ width: width * 16, height: height * 16 }} />
+          <img
+            src={image}
+            alt=""
+            draggable={false}
+            className="absolute inset-0 max-w-none select-none"
+            style={{ width: width * 16, height: height * 16 }}
+            onLoad={(e) => void e.currentTarget.decode().catch(() => {}).then(() => setLoaded(image))}
+          />
           {people.map((p) => (
             <div key={p.key}>
               <OverworldSprite name={p.sprite} tile={{ x: p.x, y: p.y }} face={p.face} />
