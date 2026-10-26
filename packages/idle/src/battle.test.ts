@@ -168,6 +168,15 @@ describe('moves and cooldowns', () => {
     expect(autoSlots({ species: 4, moves: ['scratch', 'growl', 'ember', 'metal-claw'] })).toEqual(['metal-claw', 'ember', 'growl']);
   });
 
+  it('gives experience to Pokémon that fainted in the battle too', () => {
+    // A Magikarp led out (it only splashes) faints to the Bulbasaur; the Charizard after it wins. Both faced it.
+    const r = simulateBattle(setup([mon(129, 2, { uid: 'karp' }), mon(6, 60, { uid: 'zard' })], [opponentMon(mon(1, 10))]), rngFrom(3));
+    expect(r.events.some((e) => e.t === 'faint' && e.side === 0)).toBe(true);
+    const gained = (uid: string) => r.events.find((e) => e.t === 'exp' && e.uid === uid);
+    expect(gained('karp')).toBeDefined();
+    expect(gained('zard')).toBeDefined();
+  });
+
   it('evolves at the right levels', () => {
     expect(levelEvolution({ species: 4, level: 16 })).toBe(5);
     expect(levelEvolution({ species: 4, level: 15 })).toBeNull();
