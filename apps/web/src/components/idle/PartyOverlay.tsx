@@ -8,10 +8,10 @@ const PARTY = '/idle/gen1/party';
 /** FireRed's party text: white with its grey shadow (sFontColorTable[0]), in the Gen 3 font. */
 const TEXT = { color: '#ffffff', textShadow: `${px(1)} ${px(1)} 0 #737373`, fontFamily: '"Pokemon Emerald", monospace', lineHeight: 1 } as const;
 /**
- * A slot's width (party/slot.png: FireRed's without its HP bar, 13 tiles: the user's, as narrow as fits a 10-letter name
- * and "Lv100 ♀ 999/999"), and where the slots' column begins.
+ * A slot's width (party/slot.png: FireRed's without its HP bar or HP, 11 tiles: the user's, as narrow as fits a shiny's
+ * star and a 10-letter name), and where the slots' column begins.
  */
-const SLOT_W = 104;
+const SLOT_W = 88;
 const LIST_LEFT = 240 - (10 + SLOT_W + 4);
 /** The panel's colours: a slot's (slot.png's border, fill and light). */
 const FRAME = { border: '#4a4a62', fill: '#3994de', light: '#83c5de', shade: '#297bb4' };
@@ -75,11 +75,9 @@ export function PartyOverlay({ party, bag, busy, pending, open, onToggle, onAct 
   );
 }
 
-/** A party slot (FireRed's right-column one without its HP bar, narrowed: SLOT_W): the Pokémon's icon on its Poké Ball, name, gender, level and HP. */
+/** A party slot (FireRed's right-column one without its HP bar, narrowed: SLOT_W): the Pokémon's icon on its Poké Ball, name, level and gender (no HP: the user's). */
 function Slot({ mon, top, selected, onClick }: { mon: Mon; top: number; selected: boolean; onClick: () => void }) {
   const s = species(mon.species);
-  // Between battles the party is at full HP (the run heals it after every battle).
-  const hp = calcStats(mon.species, mon.level, mon.ivs, mon.evs, mon.nature)[0];
   return (
     <button type="button" className="absolute text-left" style={{ left: px(10), top: px(top), width: px(SLOT_W), height: px(24) }} onClick={onClick} aria-pressed={selected} title={`${s.name}: details`}>
       <span className="absolute inset-0" style={{ backgroundImage: `url(${PARTY}/${selected ? 'slot_selected' : 'slot'}.png)`, backgroundSize: '100% 100%' }} />
@@ -93,7 +91,7 @@ function Slot({ mon, top, selected, onClick }: { mon: Mon; top: number; selected
         {mon.shiny && <span style={{ color: '#ffd552' }}>★</span>}
         {s.name}
       </span>
-      {/* The level with its gender right after it, then HP / max HP at the slot's right (no HP bar: the user's). */}
+      {/* The level with its gender right after it (no HP: the user's). */}
       <span className="absolute whitespace-nowrap" style={{ ...TEXT, left: px(28), top: px(13), fontSize: px(10) }}>
         Lv{mon.level}
         {mon.gender && (
@@ -101,9 +99,6 @@ function Slot({ mon, top, selected, onClick }: { mon: Mon; top: number; selected
             {mon.gender === 'male' ? '♂' : '♀'}
           </span>
         )}
-      </span>
-      <span className="absolute text-right" style={{ ...TEXT, right: px(4), top: px(13), fontSize: px(10) }}>
-        {hp}/{hp}
       </span>
     </button>
   );

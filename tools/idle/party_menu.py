@@ -74,7 +74,7 @@ draw([entry(bgmap[y * 32 + x]) for y in range(20) for x in range(30)], 30, 20, l
 # A wide slot: its tiles (u8 numbers into the tileset) in its window's palette with the box colours swapped in.
 WINDOW_PAL = 4
 # Without its HP bar (the user's), its every middle column the same tile: narrowed to SLOT_TILES (the overlay's).
-SLOT_TILES = 13
+SLOT_TILES = 11
 WIDE = list(open(os.path.join(GFX, 'slot_wide_no_hp.bin'), 'rb').read())
 SLOT = [WIDE[r * 18 + c] for r in range(3) for c in [0] + [1] * (SLOT_TILES - 2) + [17]]
 OFFSETS1, OFFSETS2 = (4, 5, 6), (1, 7, 8)
