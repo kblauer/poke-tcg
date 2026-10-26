@@ -90,6 +90,26 @@ describe('catching', () => {
   });
 });
 
+describe('auto-catch', () => {
+  /** The player's actions in a wild battle with auto-catch on: each move used or ball thrown, in order. */
+  const actions = (me: Mon, wild: Mon, seed = 1) =>
+    simulateBattle(setup([me], [opponentMon(wild)], { bag: { 'poke-ball': 20 }, settings: { autoHeal: false, tryCatch: true } }), rngFrom(seed))
+      .events.filter((e) => (e.t === 'move' && e.side === 0) || e.t === 'ball')
+      .map((e) => (e.t === 'ball' ? 'ball' : (e as { move: string }).move));
+
+  it('hits with the basic move, again above 60% HP, then throws balls', () => {
+    // A level-5 Charmander's Scratch leaves a level-10 Rattata well above 60%: two hits, then balls.
+    const a = actions(mon(4, 5), mon(19, 10));
+    expect(a.slice(0, 2)).toEqual(['scratch', 'scratch']);
+    expect(a.slice(2).every((x) => x === 'ball')).toBe(true);
+    expect(a.length).toBeGreaterThan(2);
+  });
+
+  it('throws a ball instead of a hit that could knock the Pokémon out', () => {
+    expect(actions(mon(6, 60), mon(16, 3))[0]).toBe('ball');
+  });
+});
+
 describe('moves and cooldowns', () => {
   it('picks basic moves by the agreed rule', () => {
     expect(basicMove(4)).toBe('scratch');

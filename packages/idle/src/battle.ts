@@ -273,6 +273,8 @@ export class Battle {
   movedThisTurn = new Set<Side>();
   /** For each foe, the player's Pokémon that faced it (they share its experience). */
   facedBy = new Map<number, Set<number>>();
+  /** Auto-catch's basic hits so far this battle (ai.ts: at most 2, then the balls). */
+  catchHits = 0;
   participated = new Set<number>();
   /** The move used last in the battle (Mirror Move's fallback is none). */
   lastMoveUsed: string | null = null;

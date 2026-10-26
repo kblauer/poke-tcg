@@ -51,7 +51,7 @@ export function IdleSettings({ settings, busy, onChange }: { settings: Settings;
           <option value="all">Every wild Pokémon</option>
         </select>
       </label>
-      <p className="-mt-2 text-xs text-slate-400">Weakens it with moves that can't knock it out (Sleep and Paralysis first), then throws the best ball in the bag.</p>
+      <p className="-mt-2 text-xs text-slate-400">Hits it once with the basic move, again if it's still above 60% HP, then throws the best ball in the bag every turn (it skips a hit that could knock it out).</p>
       <label className="flex items-center gap-2 text-sm">
         Auto-buy balls up to
         <input

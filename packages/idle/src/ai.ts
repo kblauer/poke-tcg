@@ -3,11 +3,11 @@
 // - auto-heal (agreed with the user): a Potion-class item when the active Pokémon is at half its HP or less, the one
 //   wasting least; a status cure when it has a status (the specific cure before Full Heal); a Revive by the settings'
 //   policy (the last one standing, any fainted, boss battles, the lead; none, never);
-// - auto-catch (agreed): only moves that can't Knock Out the wild Pokémon (on the highest roll with a critical hit),
-//   Sleep and Paralysis first; once none is safe, the best ball owned;
+// - auto-catch (the user's, 2026-10-25): the basic move once, again only while the wild Pokémon is above 60% of its HP,
+//   then the best ball owned every turn (a basic move that could Knock it Out is skipped for the ball);
 // - a trainer's items (the game's AI_SwitchOrUseItem, simplified): a healing item at a quarter of its HP or less, a
 //   status cure for a status.
-import { MEDICINE, statusUseless, type Battle, type Battler, type StatusKind } from './battle.js';
+import { MEDICINE, type Battle, type Battler, type StatusKind } from './battle.js';
 import { BALLS } from './catch.js';
 import { moveData } from './data.js';
 
@@ -97,30 +97,28 @@ export function maxDamage(b: Battle, user: Battler, target: Battler, key: string
   return damage * hits * (m.effect === 'rollout' ? 16 : 1);
 }
 
-/** Status moves auto-catch likes: putting the target to sleep, then paralyzing it. */
-const CATCH_STATUS: Record<string, number> = { sleep: 2, yawn: 1, paralyze: 1 };
+/** How much HP the wild Pokémon may still have for auto-catch's second basic hit: above 60% of it (the user's). */
+export const CATCH_SECOND_HIT = 0.6;
 
-/** Auto-catch's action for the tick: a safe move (Sleep, Paralysis, then the strongest safe hit), else the best ball. */
+/**
+ * Auto-catch's action for the tick (the user's, 2026-10-25): its basic move the first turn, again the next only if the
+ * wild Pokémon is still above CATCH_SECOND_HIT of its HP, then the best ball owned every turn; a basic move that could
+ * Knock it Out (on the highest roll with a critical hit) or can't be used is skipped for the ball. Out of balls, the
+ * battle goes on as any other.
+ */
 function autoCatch(b: Battle, me: Battler): Action | null {
   const target = b.active[1];
   const ball = BALLS.map(([k]) => k).find((k) => (b.bag[k] ?? 0) > 0);
   if (!ball) return null;
   if (me.v.charging || me.v.rampage || me.v.rollout || me.v.uproar || me.v.bide || me.v.recharging) return null;
-  const usable = [...me.slots.filter((k) => !me.cooldowns[k]), me.basic].filter((k) => b.selectable(me, k));
-  if (!target.status) {
-    const status = usable.filter((k) => CATCH_STATUS[moveData(k).effect] && !statusUseless(b, me, k)).sort((x, y) => CATCH_STATUS[moveData(y).effect]! - CATCH_STATUS[moveData(x).effect]!)[0];
-    if (status) return spend(b, me, status);
+  const hit = b.catchHits === 0 || (b.catchHits === 1 && target.hp > target.maxHp * CATCH_SECOND_HIT);
+  if (hit && b.selectable(me, me.basic) && maxDamage(b, me, target, me.basic) < target.hp) {
+    b.catchHits += 1;
+    return { kind: 'move', move: me.basic };
   }
-  const safe = usable.filter((k) => moveData(k).power > 0 && maxDamage(b, me, target, k) < target.hp).sort((x, y) => maxDamage(b, me, target, y) - maxDamage(b, me, target, x))[0];
-  // Still worth hitting while the target is above a quarter of its HP; below that, the ball (the HP its moves can leave is as low as it goes safely).
-  if (safe && target.hp > Math.ceil(target.maxHp / 4) && maxDamage(b, me, target, safe) > 0) return spend(b, me, safe);
+  // No more hits once the balls start.
+  b.catchHits = 2;
   return { kind: 'ball', item: ball };
-}
-
-/** A move chosen outside the cooldown rule (auto-catch) still cools down. */
-function spend(b: Battle, me: Battler, key: string): Action {
-  b.startCooldown(me, key);
-  return { kind: 'move', move: key };
 }
 
 /** The player's action for the tick: auto-heal, then auto-catch on a wild Pokémon it should catch, then the cooldown rule. */
