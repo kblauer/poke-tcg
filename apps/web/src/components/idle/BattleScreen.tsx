@@ -1,10 +1,10 @@
 import { cooldownTicks, expForLevel, moveData, species, TICK_MS, TRAINERS, type BattleEvent, type BattlerView, type StatusKind } from '@poke-tcg/idle';
-import { useRef, type CSSProperties } from 'react';
+import { useRef, type CSSProperties, type ReactNode } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { isReward, type BattleSegment } from '../../hooks/useIdle';
 import { DialogueBox, dialogueKey, type Dialogue } from '../DialogueBox';
 import { GAME_WIDTH, useGameScale } from './GameScreen';
-import { MonIcon } from './PartyScreen';
+import { MonIcon } from './MonIcon';
 
 /** One game pixel of FireRed's 240x160 screen, in the battle box's width (container query units). */
 const px = (n: number) => `${(n * 100) / 240}cqw`;
@@ -246,7 +246,7 @@ function MoveBars({ mon, cooling }: { mon: BattlerView; cooling: Record<string, 
   );
 }
 
-/** The ball button (the user's): a Poké Ball in the battle's top right corner, its own click (not the text box's). */
+/** The ball button (the user's): a Poké Ball in the battle's top right corner, left of the party's button, its own click (not the text box's). */
 function BallButton({ disabled, title, onClick }: { disabled: boolean; title: string; onClick: () => void }) {
   return (
     <button
@@ -259,7 +259,7 @@ function BallButton({ disabled, title, onClick }: { disabled: boolean; title: st
         onClick();
       }}
       className="absolute rounded-full border-[0.5cqw] border-[#202020] shadow-[0_0.4cqw_0_rgba(0,0,0,0.4)] transition hover:scale-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
-      style={{ right: px(6), top: px(6), width: px(20), height: px(20), background: 'linear-gradient(#e83030 0 44%, #202020 44% 56%, #f8f8f8 56%)' }}
+      style={{ right: px(36), top: px(5), width: px(20), height: px(20), background: 'linear-gradient(#e83030 0 44%, #202020 44% 56%, #f8f8f8 56%)' }}
     >
       <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-[0.4cqw] border-[#202020] bg-[#f8f8f8]" style={{ width: px(7), height: px(7) }} />
     </button>
@@ -297,6 +297,7 @@ export function BattleScreen({
   dialogue,
   onThrow,
   throwing = false,
+  children,
 }: {
   battle: BattleSegment;
   shown: number;
@@ -305,6 +306,8 @@ export function BattleScreen({
   /** The ball button (the user's): the best ball next turn. */
   onThrow?: () => void;
   throwing?: boolean;
+  /** Drawn over the battle (the party overlay, its button in the top right corner). */
+  children?: ReactNode;
 }) {
   const phone = useIsPhone();
   const pressDialogue = useRef<(() => void) | null>(null);
@@ -382,6 +385,7 @@ export function BattleScreen({
           onClick={onThrow}
         />
       )}
+      {children}
       {dialogue && <DialogueBox key={dialogueKey(dialogue)} dialogue={dialogue} pressRef={pressDialogue} phone={phone} />}
     </div>
     {/* The row kept while no Pokémon is out (the trainer's send-out), so the page doesn't jump. */}

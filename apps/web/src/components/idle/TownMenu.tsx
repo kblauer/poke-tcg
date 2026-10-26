@@ -1,5 +1,5 @@
 import { AREAS, areaById, ITEMS, mapView, topLevel, TOWN_WAIT_MS, type TownArea } from '@poke-tcg/idle';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { ClientIdleRun } from '../../hooks/useIdle';
 import { commas } from '../../utils/math';
 import { BUTTON } from '../../utils/styles';
@@ -25,6 +25,7 @@ export function TownMenu({
   onStore,
   onContinue,
   dialogue,
+  children,
 }: {
   run: ClientIdleRun;
   gender: 'male' | 'female';
@@ -34,6 +35,8 @@ export function TownMenu({
   onStore: () => void;
   onContinue: () => void;
   dialogue?: Dialogue | null;
+  /** Drawn over the town (the party overlay). */
+  children?: ReactNode;
 }) {
   const town = AREAS[run.view.area] as TownArea;
   const map = mapView(town.map);
@@ -75,10 +78,11 @@ export function TownMenu({
   return (
     <MapScene image={map.image} width={map.width} height={map.height} tile={{ x: town.stand[0], y: town.stand[1] }} player={gender === 'female' ? 'leaf' : 'red'} face="down" moveMs={0} dialogue={dialogue ?? question}>
       {counting && (
-        <div className="pointer-events-none absolute right-2 top-2 rounded bg-slate-900/80 px-2 py-1 text-xs text-slate-200 ring-1 ring-slate-600">
+        <div className="pointer-events-none absolute left-2 top-2 rounded bg-slate-900/80 px-2 py-1 text-xs text-slate-200 ring-1 ring-slate-600">
           {auto.label} in {left} s
         </div>
       )}
+      {children}
     </MapScene>
   );
 }

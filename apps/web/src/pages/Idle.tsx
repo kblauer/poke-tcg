@@ -10,7 +10,8 @@ import { SceneTransition } from '../components/BattleTransition';
 import { AreaScene, usePreloadMaps } from '../components/idle/AreaScene';
 import { BattleScreen } from '../components/idle/BattleScreen';
 import { Bag, catchUpPages, IdleSettings } from '../components/idle/IdleSettings';
-import { MonIcon, PartyScreen } from '../components/idle/PartyScreen';
+import { PartyOverlay } from '../components/idle/PartyOverlay';
+import { MonIcon } from '../components/idle/MonIcon';
 import { Pokedex } from '../components/idle/Pokedex';
 import { StarterScene } from '../components/idle/StarterScene';
 import { Store, TownMenu } from '../components/idle/TownMenu';
@@ -23,9 +24,9 @@ import { PAGE_WIDTH } from '../utils/layout';
 import { commas } from '../utils/math';
 import { BUTTON } from '../utils/styles';
 
-type Tab = 'party' | 'bag' | 'dex' | 'settings' | 'log';
+// The party is an overlay over the game screen (PartyOverlay, the user's), not a tab.
+type Tab = 'bag' | 'dex' | 'settings' | 'log';
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'party', label: 'Party' },
   { id: 'bag', label: 'Bag' },
   { id: 'dex', label: 'Pokédex' },
   { id: 'settings', label: 'Settings' },
@@ -54,7 +55,9 @@ export function IdlePage() {
   const debugOn = useDebugEnabled();
   const debug = DEBUG_BUILD && debugOn;
   const soundtrack = useMusicSettings()?.soundtrack ?? 'remastered';
-  const [tab, setTab] = useState<Tab>('party');
+  const [tab, setTab] = useState<Tab>('bag');
+  // The party overlay's open (kept as the scene changes: the map, a battle, a town).
+  const [partyOpen, setPartyOpen] = useState(false);
   const [store, setStore] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
   const data = overview.data;
@@ -115,6 +118,11 @@ export function IdlePage() {
       .catch(failed);
   const start = (id: number, shiny = false) => actions.start(id, shiny).catch(failed);
   const v = run?.view;
+  // The party over the game screen (the user's): its button in the screen's top right corner, its slots sliding out.
+  const partyOverlay =
+    active && v ? (
+      <PartyOverlay party={v.party} bag={v.bag} busy={actions.busy} pending={v.pendingChanges} open={partyOpen} onToggle={setPartyOpen} onAct={(a) => void act(a)} />
+    ) : null;
   const over = run && run.status !== 'ACTIVE';
 
   return (
@@ -197,11 +205,16 @@ export function IdlePage() {
           onStore={() => (setStore(true), void act({ type: 'VISIT_STORE' }))}
           onContinue={() => (setStore(false), void act({ type: 'CONTINUE' }))}
           dialogue={catchUp}
-        />
+        >
+          {partyOverlay}
+        </TownMenu>
       ) : play.battle ? (
-        <BattleScreen battle={play.battle} shown={play.shown} gender={gender} dialogue={catchUp} onThrow={throwBall} throwing={throwing} />
+        <BattleScreen battle={play.battle} shown={play.shown} gender={gender} dialogue={catchUp} onThrow={throwBall} throwing={throwing}>
+          {partyOverlay}
+        </BattleScreen>
       ) : (
         <AreaScene playback={play} gender={gender} dialogue={catchUp ?? (play.notice ? { text: play.notice, choices: [], instant: true, answer: () => {} } : null)}>
+          {!play.entering && partyOverlay}
           {play.entering && <SceneTransition />}
         </AreaScene>
       )}
@@ -217,13 +230,6 @@ export function IdlePage() {
               </button>
             ))}
           </div>
-          {/* Changes made during a wild battle (the user's): shown at once, applied once the battle ends (IdleState.pending). */}
-          {tab === 'party' && v.pendingChanges > 0 && (
-            <p className="rounded bg-slate-800 px-3 py-2 text-sm text-yellow-200 ring-1 ring-slate-600">
-              {v.pendingChanges === 1 ? 'This change takes' : `These ${v.pendingChanges} changes take`} effect when the battle ends.
-            </p>
-          )}
-          {tab === 'party' && <PartyScreen party={v.party} bag={v.bag} busy={actions.busy} onAct={(a) => void act(a)} />}
           {tab === 'bag' && <Bag bag={v.bag} />}
           {tab === 'dex' && <Pokedex dex={data.dex} />}
           {tab === 'settings' && <IdleSettings settings={settings} busy={false} onChange={(s) => void actions.settings(s).catch(failed)} />}
