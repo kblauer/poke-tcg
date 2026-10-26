@@ -125,7 +125,7 @@ export function usePan({ box, mapEl, map, mapHeight, panLocked }: { box: RefObje
     if (!d) return;
     d.at = clamp({ x: d.ox + e.clientX - d.x, y: d.oy + e.clientY - d.y });
     const el = mapEl.current;
-    if (el) el.style.transform = mapTransform(d.at);
+    if (el) Object.assign(el.style, { left: `${d.at.x}px`, top: `${d.at.y}px` });
     else setOffset(d.at);
   };
   /** Ends a drag (also when the map is locked mid-drag): the offset catches up with where the map was dragged to. */
@@ -137,5 +137,11 @@ export function usePan({ box, mapEl, map, mapHeight, panLocked }: { box: RefObje
   return { height, onResizeDown, onResizeMove, onResizeUp, resetHeight, size, offset, setOffset, glide, setGlide, centreOn, centreOnMap, onPointerDown, onPointerMove, endDrag };
 }
 
-/** The map's CSS transform at an offset: drawn there, at ZOOM. */
-export const mapTransform = (o: { x: number; y: number }) => `translate(${o.x}px, ${o.y}px) scale(${ZOOM})`;
+/**
+ * The map drawn at an offset, at ZOOM: placed by left and top, as the sprites on it are moved (the user's: a transform's
+ * transitions, run off the main thread, jerked back to where a walk began at each step), so they slide in step.
+ */
+export const mapPlacement = (o: { x: number; y: number }) => ({ left: o.x, top: o.y, transform: `scale(${ZOOM})` });
+
+/** The map's transition while it glides (mapPlacement's left and top). */
+export const glideTransition = (glide: Glide | null) => (glide ? `left ${glide.ms}ms ${glide.ease}, top ${glide.ms}ms ${glide.ease}` : undefined);
