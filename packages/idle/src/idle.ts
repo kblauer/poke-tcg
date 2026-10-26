@@ -13,7 +13,7 @@ import { ENCOUNTERS } from './data/gen1/encounters.js';
 import { MARTS } from './data/gen1/marts.js';
 import { TRAINERS } from './data/gen1/trainers.js';
 import { evolve, levelEvolution, stoneEvolution, usableStones } from './evolution.js';
-import { abilityOf, autoSlots, basicFor, createMon, familyMovesUpTo } from './mon.js';
+import { abilityOf, autoSlots, basicFor, createMon, familyMovesUpTo, isBaseForm } from './mon.js';
 import { MAX_LEVEL } from './stats.js';
 import type { EncounterSlots, Mon, Stats } from './types.js';
 
@@ -1165,5 +1165,8 @@ export function idleView(state: IdleState) {
 
 export type IdleView = ReturnType<typeof idleView>;
 
-/** The Pokédex's starters for a new run: the three starters always, and any species with a caught record (from the second run). */
-export const starterOptions = (caughtSpecies: number[]) => [...new Set([...STARTERS, ...caughtSpecies])].sort((a, b) => a - b);
+/**
+ * The Pokédex's starters for a new run: the three starters always, and any species with a caught record (from the second
+ * run) that evolves from none (the user's: a line's first stage, or one that doesn't evolve; never Charmeleon).
+ */
+export const starterOptions = (caughtSpecies: number[]) => [...new Set([...STARTERS, ...caughtSpecies.filter(isBaseForm)])].sort((a, b) => a - b);

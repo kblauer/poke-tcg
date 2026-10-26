@@ -72,6 +72,9 @@ const evolvesFrom = (id: number) => {
   return null;
 };
 
+/** Whether a species evolves from none: a line's first stage, or a Pokémon that doesn't evolve at all (Tauros). */
+export const isBaseForm = (id: number) => evolvesFrom(id) === null;
+
 const basicCache = new Map<number, string>();
 
 /**

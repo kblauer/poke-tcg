@@ -1,5 +1,5 @@
 import { prisma } from '@poke-tcg/db';
-import { AREAS, applyIdleAction, areaIndex, BALLS, CATCH_UP_CAP_MS, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, simulateSegment, TOWN_WAIT_MS, starterOptions, STARTERS, visitStore, type IdleSettings, type Stats } from '@poke-tcg/idle';
+import { AREAS, applyIdleAction, areaIndex, BALLS, isBaseForm, CATCH_UP_CAP_MS, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, simulateSegment, TOWN_WAIT_MS, starterOptions, STARTERS, visitStore, type IdleSettings, type Stats } from '@poke-tcg/idle';
 import { idleActInput, idleRunInput, idleSettingsInput, idleThrowInput, idleWarpInput, startIdleInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { asJson, newSeed } from '../games.js';
@@ -37,7 +37,7 @@ export const idleRouter = router({
       // The three starters on the first run; from the second on, any species the Pokédex has caught too (agreed).
       starters: runs ? starterOptions(caught) : STARTERS,
       // A species with a shiny caught can start shiny (agreed).
-      shinyStarters: runs ? dex.filter((d) => d.shiny).map((d) => d.species) : [],
+      shinyStarters: runs ? dex.filter((d) => d.shiny && isBaseForm(d.species)).map((d) => d.species) : [],
       dex: dex.map((d) => ({ species: d.species, seen: d.seen, caught: d.caught, shiny: d.shiny, bestIv: d.bestIv, bestEv: d.bestEv })),
     };
   }),

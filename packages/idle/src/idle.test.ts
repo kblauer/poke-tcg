@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AREAS, isTown, type WalkArea } from './areas.js';
 import { familyMovesUpTo } from './mon.js';
-import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, meetStep, routeGrindPlan, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
+import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, meetStep, routeGrindPlan, starterOptions, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
 
 type BattleSeg = Extract<SegmentEvent, { t: 'battle' }>;
 
@@ -353,6 +353,11 @@ describe('an idle run', () => {
     const kakuna = s.party.find((m) => m.species === 14);
     expect(kakuna).toBeDefined();
     expect(kakuna!.moves).toEqual(expect.arrayContaining(['poison-sting', 'string-shot', 'harden']));
+  });
+
+  it('offers as starters only Pokémon that evolve from none', () => {
+    // Charmeleon, Pidgeotto and Vaporeon caught: not startable; Pidgey, Tauros (no evolutions) and Eevee are.
+    expect(starterOptions([5, 16, 17, 128, 133, 134])).toEqual([1, 4, 7, 16, 128, 133]);
   });
 
   it('has auto-grind on by default', () => {
