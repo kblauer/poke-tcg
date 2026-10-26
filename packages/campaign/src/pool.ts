@@ -38,6 +38,13 @@ export const HGSS_SETS = ['hgss1', 'hgssp', 'hgss2', 'hgss3', 'hgss4', 'col1'];
  */
 export const GEN4_SETS = [...DP_SETS, ...HGSS_SETS];
 
+/**
+ * Generation 5's sets (Unova), in release order: the Black & White series, Black & White to Legendary Treasures with
+ * Dragon Vault (the user's list, 2026-10-26, on the `gen-5-packs` branch; not the BW Black Star Promos). In the card
+ * snapshot and on the Packs tab, locked until Gen 5 runs exist; in no pool yet: their card effects are to come.
+ */
+export const GEN5_SETS = ['bw1', 'bw2', 'bw3', 'bw4', 'bw5', 'bw6', 'dv1', 'bw7', 'bw8', 'bw9', 'bw10', 'bw11'];
+
 /** The Gen 2 sets whose card effects the engine has (every one of them now): Gen 2 runs take only the cards it plays fully from these. */
 export const GEN2_DONE_SETS = GEN2_SETS;
 

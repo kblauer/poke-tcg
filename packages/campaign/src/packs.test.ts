@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_RARES_CHANCE, EXTRA_RARE_CHANCES, HOLO_CHANCE, HOLO_ENERGY_CHANCE, HOLO_SET_PACK, openPack, PACK_SETS, type PackCard } from './packs.js';
-import { BASIC_ENERGY, EX_SETS, GEN4_SETS } from './pool.js';
+import { BASIC_ENERGY, EX_SETS, GEN4_SETS, GEN5_SETS } from './pool.js';
 
-/** The sets whose packs have a reverse holo: the EX sets and Gen 4's but its promos. */
-const REVERSE_SETS = [...EX_SETS, ...GEN4_SETS.filter((id) => id !== 'dpp' && id !== 'hgssp')];
+/** The sets whose packs have a reverse holo: the EX sets, Gen 4's but its promos, and Gen 5's but Dragon Vault (all holo). */
+const REVERSE_SETS = [...EX_SETS, ...GEN4_SETS.filter((id) => id !== 'dpp' && id !== 'hgssp'), ...GEN5_SETS.filter((id) => id !== 'dv1')];
 import { rngFrom } from './random.js';
 import { testPackSet } from './test-pool.js';
 
@@ -11,7 +11,7 @@ describe('openPack', () => {
   /** Rares and holos (the rare slot, and the extras). */
   const rareCount = (pack: PackCard[]) => pack.filter((c) => c.slot === 'rare' || c.slot === 'holo').length;
 
-  it.each(PACK_SETS.filter((id) => !['basep', 'dpp', 'hgssp'].includes(id) && !REVERSE_SETS.includes(id)))('%s: 1 basic Energy, then commons, uncommons and rares (6, 3 and 1, less any extra rares), all different and from the set', (setId) => {
+  it.each(PACK_SETS.filter((id) => !['basep', 'dpp', 'hgssp', 'dv1'].includes(id) && !REVERSE_SETS.includes(id)))('%s: 1 basic Energy, then commons, uncommons and rares (6, 3 and 1, less any extra rares), all different and from the set', (setId) => {
     const set = testPackSet(setId);
     for (let seed = 0; seed < 300; seed++) {
       const pack = openPack(set, rngFrom(seed));
@@ -86,8 +86,8 @@ describe('openPack: an EX or Gen 4 set', () => {
   });
 });
 
-describe('openPack: the DP and HGSS Black Star Promos', () => {
-  it.each(['dpp', 'hgssp'])('%s: a basic Energy and HOLO_SET_PACK different promos, mostly holos', (setId) => {
+describe('openPack: the DP and HGSS Black Star Promos, and Dragon Vault (every card holo)', () => {
+  it.each(['dpp', 'hgssp', 'dv1'])('%s: a basic Energy and HOLO_SET_PACK different cards, mostly holos', (setId) => {
     const set = testPackSet(setId);
     expect(set.holo.length).toBeGreaterThan(10);
     for (let seed = 0; seed < 100; seed++) {

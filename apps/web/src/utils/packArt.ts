@@ -4,9 +4,11 @@
  * Lugia a Heritage Auctions scan), Gen 3's (the EX sets, all four artworks of each) scans from the Bulbagarden Archives
  * (EX Dragon's Latios, EX Team Magma vs Team Aqua's Aggron, EX Emerald's Kyogre and EX Unseen Forces' Umbreon product
  * photos from shops and listings instead), Gen 4's (DP, Platinum, HGSS, Call of Legends) product photos from PriceCharting and
- * TCGplayer (the larger of the two; most about 450px tall), all trimmed of their margins and resized. Each set had several artworks; the
+ * TCGplayer (the larger of the two; most about 450px tall), Gen 5's (the Black & White series) product photos from
+ * TCGplayer (Emerging Powers' Tornadus, Boundaries Crossed's White Kyurem and Plasma Storm's Lugia from PriceCharting),
+ * all trimmed of their margins and resized. Each set had several artworks; the
  * Packs tab shows a random one of each per visit. Gen 2's sets have only the artworks those sources had (one or two
- * each). Gen 4's have one each (Undaunted three). The Black Star Promos and Southern Islands were never sold in booster packs, so theirs are drawn (BoosterPack).
+ * each). Gen 4's have one each (Undaunted three); Gen 5's one or two. The Black Star Promos and Southern Islands were never sold in booster packs, so theirs are drawn (BoosterPack).
  */
 export const PACK_ART: Record<string, string[]> = {
   base1: ['charizard', 'blastoise', 'venusaur'],
@@ -55,6 +57,18 @@ export const PACK_ART: Record<string, string[]> = {
   hgss3: ['jolteon', 'rayquaza', 'skarmory'],
   hgss4: ['palkia'],
   col1: ['groudon'],
+  bw1: ['reshiram'],
+  bw2: ['braviary', 'tornadus'],
+  bw3: ['victini'],
+  bw4: ['mewtwo'],
+  bw5: ['darkrai'],
+  bw6: ['giratina'],
+  dv1: ['rayquaza'],
+  bw7: ['black-kyurem', 'white-kyurem'],
+  bw8: ['articuno', 'lugia'],
+  bw9: ['deoxys'],
+  bw10: ['dialga'],
+  bw11: ['zekrom'],
 };
 
 /** A random wrapper for each set that has them, as image paths: picked once per visit to the Packs tab. */
