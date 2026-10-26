@@ -7,6 +7,7 @@ import { useMusicCue, useMusicSettings } from '../components/MusicPlayer';
 import { PageHeader } from '../components/PageHeader';
 import { ReturnToHome } from '../components/ReturnToHome';
 import { Toasts } from '../components/Toasts';
+import { SceneTransition } from '../components/BattleTransition';
 import { AreaScene, usePreloadMaps } from '../components/idle/AreaScene';
 import { BattleScreen } from '../components/idle/BattleScreen';
 import { Bag, catchUpPages, IdleSettings } from '../components/idle/IdleSettings';
@@ -204,7 +205,7 @@ function IdleAdventure() {
         <BattleScreen battle={play.battle} shown={play.shown} gender={gender} dialogue={catchUp} />
       ) : (
         <AreaScene playback={play} gender={gender} dialogue={catchUp ?? (play.notice ? { text: play.notice, choices: [], instant: true, answer: () => {} } : null)}>
-          {play.entering && <div className="pointer-events-none absolute inset-0 bg-white" style={{ animation: 'idle-enter 0.9s linear both' }} />}
+          {play.entering && <SceneTransition />}
         </AreaScene>
       )}
 

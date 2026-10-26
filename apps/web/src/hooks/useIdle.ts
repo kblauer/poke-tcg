@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type { inferRouterOutputs } from '@trpc/server';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { TRANSITION_MS } from '../components/BattleTransition';
 import { useTRPC } from '../lib/trpc';
 import type { Facing } from '../utils/overworld';
 
@@ -95,7 +96,7 @@ export interface Playback {
    */
   cue: BattleSegment | null;
   shown: number;
-  /** A battle's start: the screen flashing into it. */
+  /** A battle's start: the play area's battle transition over the scene (SceneTransition), TRANSITION_MS. */
   entering: boolean;
   /** A line about what just happened (money, a catch, an evolution, a badge), shown for a moment. */
   notice: string | null;
@@ -252,8 +253,9 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
     }
 
     async function battle(e: BattleSegment) {
+      // The play area's battle transition over the scene (SceneTransition, the user's), the battle once it's closed.
       update({ entering: true, cue: e });
-      await wait(900);
+      await wait(TRANSITION_MS);
       update({ battle: e, shown: 0, entering: false });
       // Each tick's events spread over its TICK_MS; the opening (send-outs) at a quicker pace. A run of rewards (EXP.,
       // levels, moves learned) is one line: shown at once.
