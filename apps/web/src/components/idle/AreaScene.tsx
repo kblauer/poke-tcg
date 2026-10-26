@@ -112,9 +112,11 @@ export function MapScene({
   return (
     <div ref={ref} className="w-full">
     <div className="relative mx-auto overflow-hidden rounded-lg bg-black ring-1 ring-slate-700" style={measured ? { width: view.w, height: view.h } : { width: '100%', aspectRatio: '3 / 2' }} onClick={() => pressDialogue.current?.()}>
+      {/* Panned by left and top, as the player's sprite is moved (the user's: a transform's transitions, run off the main
+          thread, jerked back to where the walk began at each step), so the two slide in step. */}
       <div
-        className="absolute left-0 top-0"
-        style={{ transform: `translate(${left}px, ${top}px)`, transition: settled ? `transform ${moveMs}ms linear` : 'none', opacity: fading || !shown ? 0 : 1 }}
+        className="absolute"
+        style={{ left, top, transition: settled ? `left ${moveMs}ms linear, top ${moveMs}ms linear` : 'none', opacity: fading || !shown ? 0 : 1 }}
       >
         <div className="relative origin-top-left [image-rendering:pixelated]" style={{ width: width * 16, height: height * 16, transform: `scale(${zoom})`, transition: 'opacity 300ms' }}>
           <img
