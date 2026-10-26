@@ -184,22 +184,21 @@ function Healthbox({ mon, player, exp, style }: { mon: BattlerView; player: bool
 /**
  * The player's Pokémon's attacks under the battle (the user's, 2026-10-25: the cooldown rule, a bar on each): its 3 slot
  * moves, each with a bar filling as a smooth timer over its cooldown (the user's: from the moment it went up, `cooling`,
- * over its ticks × TICK_MS, as the playback paces the ticks; full and lit when ready; cooldownTicks), and its basic
- * move, always ready, used while every slot cools down.
+ * over its ticks × TICK_MS, as the playback paces the ticks; full and lit when ready; cooldownTicks). Not the basic
+ * move (the user's): it never cools down.
  */
 function MoveBars({ mon, cooling }: { mon: BattlerView; cooling: Record<string, { at: number; ticks: number }> }) {
   return (
-    <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-      {[...mon.slots, mon.basic].map((key, i) => {
-        const basic = i === mon.slots.length;
+    <div className="grid grid-cols-3 gap-1.5">
+      {mon.slots.map((key, i) => {
         const total = cooldownTicks(key);
-        const left = basic ? 0 : (mon.cooldowns[key] ?? 0);
+        const left = mon.cooldowns[key] ?? 0;
         const ready = left === 0;
         return (
-          <div key={`${i}:${key}`} className={`rounded px-2 py-1 text-xs ring-1 ${ready ? 'bg-slate-700 ring-yellow-300/60' : 'bg-slate-800 ring-slate-600'}`} title={basic ? 'Basic move: always ready' : ready ? 'Ready' : `Ready in ${left} turn${left === 1 ? '' : 's'}`}>
+          <div key={`${i}:${key}`} className={`rounded px-2 py-1 text-xs ring-1 ${ready ? 'bg-slate-700 ring-yellow-300/60' : 'bg-slate-800 ring-slate-600'}`} title={ready ? 'Ready' : `Ready in ${left} turn${left === 1 ? '' : 's'}`}>
             <div className="flex justify-between gap-2">
               <span className={`truncate ${ready ? 'text-slate-100' : 'text-slate-400'}`}>{moveData(key).name}</span>
-              <span className="shrink-0 text-slate-400">{basic ? 'basic' : ready ? 'ready' : `${left}/${total}`}</span>
+              <span className="shrink-0 text-slate-400">{ready ? 'ready' : `${left}/${total}`}</span>
             </div>
             <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-900">
               {ready || !cooling[key] ? (
