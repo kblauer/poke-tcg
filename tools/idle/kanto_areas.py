@@ -15,7 +15,7 @@ A trainer sees `trainer_sight_or_berry_tree_id` tiles straight ahead (every way 
 at anything in the way (trainer_see.c); one with no sight is battled from the tile in front.
 
 Usage: python tools/idle/kanto_areas.py <pokefirered checkout>. Needs Pillow."""
-import collections, json, os, re, struct, sys
+import collections, heapq, json, os, re, struct, sys
 from PIL import Image
 
 SRC = os.path.abspath(sys.argv[1])
@@ -256,12 +256,29 @@ def neighbours(grids, links, node):
         yield to, 1
 
 
+# A step's cost for the planner (the user's: through tall grass where it can, so the run meets wild Pokémon on every
+# route): onto a wild encounter tile (tall grass, cave floor, surfed water) GRASS_STEP, onto any other PLAIN_STEP, so a
+# walk goes through the grass whenever that's less than about four times as long as the way round it.
+PLAIN_STEP = 4
+GRASS_STEP = 1
+
+
 def bfs(grids, links, start, targets):
-    """The shortest walk from start to any of `targets` (a set of nodes): the steps [(node, flag)], or None."""
+    """The cheapest walk from start to any of `targets` (a set of nodes; Dijkstra, steps onto wild encounter tiles
+    cheaper: GRASS_STEP), the first found on a tie: the steps [(node, flag)], or None."""
+    def cost(node):
+        mi, x, y = node
+        return GRASS_STEP if grids[mi].m.encounter(x, y) in (1, 2) else PLAIN_STEP
     prev = {start: None}
-    q = collections.deque([start])
+    best = {start: 0}
+    q = [(0, 0, start)]
+    order = 1
+    done = set()
     while q:
-        n = q.popleft()
+        d, _, n = heapq.heappop(q)
+        if n in done:
+            continue
+        done.add(n)
         if n in targets:
             path = []
             while prev[n]:
@@ -270,9 +287,12 @@ def bfs(grids, links, start, targets):
                 n = p
             return path[::-1]
         for to, flag in neighbours(grids, links, n):
-            if to not in prev:
+            nd = d + cost(to)
+            if to not in best or nd < best[to]:
+                best[to] = nd
                 prev[to] = (n, flag)
-                q.append(to)
+                heapq.heappush(q, (nd, order, to))
+                order += 1
     return None
 
 
@@ -445,6 +465,40 @@ def plan_leg(leg, trainers_seen, report):
         walk(path)
         order.append(t)
     if not leg.get('ends_at_last'):
+        # A leg that has met no wild encounter tile yet (the user's: through tall grass where it can): into the middle of
+        # the nearest patch of it the leg's end can still be reached from (a wild tile 2 steps or more from the patch's
+        # edge, else 1), then on, crossing the grass in and out.
+        def wild(node):
+            mi, x, y = node
+            return grids[mi].m.encounter(x, y) in (1, 2)
+        if not any(wild(n) for n, _ in track):
+            tiles = {(mi, x, y) for mi, g in enumerate(grids) for y in range(g.m.h) for x in range(g.m.w) if g.walkable(x, y) and wild((mi, x, y))}
+            # Each wild tile's steps from the patch's edge (an edge tile: one with a walkable tile beside it that isn't wild).
+            depth = {}
+            q = collections.deque()
+            for n in tiles:
+                mi, x, y = n
+                if any(grids[mi].walkable(x + dx, y + dy) and (mi, x + dx, y + dy) not in tiles for dx, dy in DIRS.values()):
+                    depth[n] = 0
+                    q.append(n)
+            while q:
+                n = q.popleft()
+                mi, x, y = n
+                for dx, dy in DIRS.values():
+                    m = (mi, x + dx, y + dy)
+                    if m in tiles and m not in depth:
+                        depth[m] = depth[n] + 1
+                        q.append(m)
+            deep = {n for n, d in depth.items() if d >= 2}
+            patch = deep or {n for n, d in depth.items() if d >= 1} or tiles
+            while patch:
+                detour = bfs(grids, links, here, patch)
+                if detour is None:
+                    break
+                if bfs(grids, links, detour[-1][0], {end}) is not None:
+                    walk(detour)
+                    break
+                patch.discard(detour[-1][0])
         path = bfs(grids, links, here, {end})
         if path is None:
             raise SystemExit(f'{names}: no way from {here} to the end {end}')
