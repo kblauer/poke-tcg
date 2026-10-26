@@ -699,6 +699,18 @@ def main():
                 return {1: 'l', 2: 'w'}.get(mm.encounter(node[1], node[2]), '.') + terrain(mm, node[1], node[2])
             legs.append({'maps': names, 'track': [[n[0], n[1], n[2], f, tile(n)] for n, f in track]})
             last_legs.append((a['id'], len(legs) - 1, names, grids, track))
+            # Each trainer faces where the player meets them (the user's): the first step of the track in their sight,
+            # trainers met in turn as the run meets them (idle.ts's trainerHere: the first not yet beaten in this order).
+            met = {}
+            for node, _ in track:
+                t = next((t for t in order if t['key'] not in met and node in t['sight']), None)
+                if t:
+                    met[t['key']] = node
+            for t in order:
+                if t['key'] in met:
+                    _, mx, my = met[t['key']]
+                    dx, dy = mx - t['x'], my - t['y']
+                    t['face'] = ('right' if dx > 0 else 'left') if abs(dx) >= abs(dy) and dx else ('down' if dy > 0 else 'up')
             for t in order:
                 sprites.add(t['gfx'])
                 trainers.append({'key': t['key'], 'leg': len(legs) - 1, 'map': t['map'], 'x': t['x'], 'y': t['y'], 'face': t['face'], 'sprite': sprite_name(t['gfx']),

@@ -14,6 +14,25 @@ describe('the Kanto areas', () => {
     expect(BADGES).toEqual(['Boulder', 'Cascade', 'Thunder', 'Rainbow', 'Soul', 'Marsh', 'Volcano', 'Earth']);
   });
 
+  it('have every trainer facing the tile where the player meets them (the first step of the track in their sight)', () => {
+    for (const a of walks) {
+      a.legs.forEach((leg, li) => {
+        const trainers = a.trainers.filter((t) => t.leg === li);
+        const met = new Set<string>();
+        for (const [m, x, y] of leg.track) {
+          // As the run meets them (idle.ts's trainerHere): the first not yet met whose sight the step is in.
+          const t = trainers.find((t) => !met.has(t.key) && t.map === m && t.sight.some(([sx, sy]) => sx === x && sy === y));
+          if (!t) continue;
+          met.add(t.key);
+          const dx = x - t.x;
+          const dy = y - t.y;
+          const face = dx && Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up';
+          expect(t.face, `${a.id}: ${t.key}`).toBe(face);
+        }
+      });
+    }
+  });
+
   it('only use known maps, trainers, marts and wild tables', () => {
     for (const a of AREAS) {
       if (isTown(a)) {
