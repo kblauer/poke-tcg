@@ -1,7 +1,7 @@
 // Idle Adventure runs on the server (README: Idle Adventure), as runs.ts and towers.ts do for theirs: loading and saving
 // a run with its version checked (CONFLICT when stale), the time it's played up to (`simulatedAt`), banking its money
 // when it ends, and the account's Pokédex (IdleDex: each species' best IVs and EVs, merged from a segment's notes).
-import { DEFAULT_IDLE_SETTINGS, idleView, type DexNote, type IdleSettings, type IdleState } from '@poke-tcg/idle';
+import { bankedMoney, DEFAULT_IDLE_SETTINGS, idleView, type DexNote, type IdleSettings, type IdleState } from '@poke-tcg/idle';
 import { prisma, type IdleRun, type Prisma } from '@poke-tcg/db';
 import { TRPCError } from '@trpc/server';
 import { asJson } from './games.js';
@@ -84,7 +84,8 @@ export async function recordDex(tx: Prisma.TransactionClient, userId: string, no
 
 /**
  * Saves a run's new state (CONFLICT if someone else saved since), with its dex notes and its time played up to; when it
- * ends (beaten or given up), its money goes to the bank once (as a Badge Challenge's ₱: `banked`).
+ * ends, its money goes to the bank once (`banked`), only if the Champion was beaten (`bankedMoney`, the user's: a run
+ * given up banks nothing).
  */
 export async function saveIdleRun(run: LoadedIdleRun, state: IdleState, o: { dex?: DexNote[]; simulatedAt?: Date } = {}): Promise<LoadedIdleRun> {
   const status = idleStatusOf(state);
@@ -96,7 +97,7 @@ export async function saveIdleRun(run: LoadedIdleRun, state: IdleState, o: { dex
       data: { state: asJson(state), version: state.version, status, ...(bank && { banked: true }), ...(o.simulatedAt && { simulatedAt: o.simulatedAt }) },
     });
     if (count === 0) return false;
-    if (bank && state.money > 0) await tx.user.update({ where: { id: run.ownerId }, data: { bank: { increment: state.money } } });
+    if (bank && bankedMoney(state) > 0) await tx.user.update({ where: { id: run.ownerId }, data: { bank: { increment: bankedMoney(state) } } });
     await recordDex(tx, run.ownerId, o.dex ?? []);
     return true;
   });

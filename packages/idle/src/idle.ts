@@ -27,8 +27,6 @@ export const STARTER_LEVEL = 5;
 export const STARTERS = [1, 4, 7];
 /** A party holds 6 Pokémon. */
 export const PARTY_SIZE = 6;
-/** White-out: ₱1000 lost, or half the run's money if it has less (agreed). */
-export const WHITE_OUT_LOSS = 1000;
 
 /**
  * How long things take (one pace, watched or offline: no speed setting, agreed with the user): a step (16 frames), a
@@ -82,7 +80,7 @@ export interface IdleSettings {
 /** The most balls auto-buy keeps. */
 export const MAX_AUTO_BALLS = 99;
 
-export const DEFAULT_IDLE_SETTINGS: IdleSettings = { autoHeal: true, revives: ['last'], autoCatch: 'new', stopWhenFull: false, replaceLowest: false, autoEvolve: true, autoGrind: false, autoBalls: 0 };
+export const DEFAULT_IDLE_SETTINGS: IdleSettings = { autoHeal: true, revives: ['last'], autoCatch: 'new', stopWhenFull: false, replaceLowest: false, autoEvolve: true, autoGrind: true, autoBalls: 0 };
 
 /** Wild encounter bookkeeping between steps (wild_encounter.c's sWildEncounterData). */
 interface EncounterState {
@@ -168,7 +166,7 @@ export type SegmentEvent =
   | { t: 'evolve'; uid: string; from: number; into: number }
   | { t: 'caught'; species: number; kept: boolean; replaced?: number; shiny?: true }
   | { t: 'badge'; badge: string }
-  | { t: 'whiteout'; lost: number }
+  | { t: 'whiteout' }
   | { t: 'town'; area: number }
   | { t: 'won' };
 
@@ -557,8 +555,7 @@ export const partyNotes = (party: Mon[]): DexNote[] => party.map((m) => ({ speci
 
 /**
  * Plays one battle and settles it: experience and levels kept, evolutions after it (the game's), prize money, a
- * badge, a caught Pokémon kept or released, or a white-out (back to the area's start, its trainers to fight again, ₱1000
- * or half the money lost).
+ * badge, a caught Pokémon kept or released, or a white-out (back to the area's start, its trainers to fight again).
  */
 function battle(state: IdleState, rng: Rng, settings: IdleSettings, caught: Set<number>, o: { kind: 'wild' | 'trainer'; foes: Mon[]; trainer?: string; tile: string; scene: string }, out: Segment) {
   const tryCatch = o.kind === 'wild' && shouldCatch(state, settings, caught, o.foes[0]!.species);
@@ -630,19 +627,20 @@ function battle(state: IdleState, rng: Rng, settings: IdleSettings, caught: Set<
   return true;
 }
 
-/** A white-out: back to the area's start (a gym or League room, or grinding: its town), its trainers to fight again, money lost. */
+/**
+ * A white-out: back to the area's start (a gym or League room, or grinding: its town), its trainers to fight again; no
+ * money lost (the user's, 2026-10-25: no penalty; it was ₱1000, or half the money with less).
+ */
 function whiteOut(state: IdleState, out: Segment) {
-  const lost = state.money >= WHITE_OUT_LOSS ? WHITE_OUT_LOSS : Math.floor(state.money / 2);
-  state.money -= lost;
   state.totals.whiteOuts += 1;
-  out.events.push({ t: 'whiteout', lost });
+  out.events.push({ t: 'whiteout' });
   if (state.phase === 'grinding') {
-    state.log.push(`Whited out training in ${areaById((AREAS[state.area] as TownArea).grind!.area).name}: lost ₱${lost}.`);
+    state.log.push(`Whited out training in ${areaById((AREAS[state.area] as TownArea).grind!.area).name}.`);
     enterArea(state, state.area, out.events);
     return;
   }
   const a = AREAS[state.area] as WalkArea;
-  state.log.push(`Whited out in ${a.name}: lost ₱${lost}.`);
+  state.log.push(`Whited out in ${a.name}.`);
   const back = a.kind === 'gym' ? areaIndex(a.town!) : a.kind === 'league' ? areaIndex('indigo-plateau') : state.area;
   enterArea(state, back, out.events);
 }
@@ -894,6 +892,9 @@ export function catchUp(prev: IdleState, settings: IdleSettings, caught: Set<num
   summary.levels = state.party.reduce((s, m) => s + m.level, 0) - startLevels;
   return { state, summary, dex };
 }
+
+/** The ₱ an ended run puts in the bank (the user's, 2026-10-25): its money once the Champion is beaten, nothing for a run given up. */
+export const bankedMoney = (state: Pick<IdleState, 'phase' | 'money'>) => (state.phase === 'won' ? state.money : 0);
 
 /** What the player sees of a run: everything but the RNG, with the area it's in. */
 export function idleView(state: IdleState) {

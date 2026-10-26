@@ -137,7 +137,7 @@ function noticeOf(e: SegmentEvent, name: (id: number) => string): string | null 
     case 'badge':
       return `Won the ${e.badge} Badge!`;
     case 'whiteout':
-      return `Blacked out! Lost ₱${e.lost.toLocaleString()} and went back to the start.`;
+      return 'Blacked out! Went back to the start.';
     case 'won':
       return 'Became the Pokémon League Champion!';
     default:

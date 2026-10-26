@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { AREAS, isTown, type WalkArea } from './areas.js';
 import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState } from './idle.js';
 
+/** The settings with auto-grind off (it's on by default). */
+const MANUAL: IdleSettings = { ...DEFAULT_IDLE_SETTINGS, autoGrind: false };
+
 /** A player who goes into every gym and on, and keeps a few Potions and Poké Balls in the bag. */
 function townChoice(state: IdleState): IdleState {
   const area = AREAS[state.area]!;
@@ -150,7 +153,7 @@ describe('an idle run', () => {
     const end = { ...base, area: route2, leg, step: (AREAS[route2] as WalkArea).legs[leg]!.track.length - 1, beaten: (AREAS[route2] as WalkArea).trainers.map((t) => t.key) };
     const auto = { ...DEFAULT_IDLE_SETTINGS, autoGrind: true };
     expect(simulateSegment(end, auto, new Set())!.state.phase).toBe('grinding');
-    expect(simulateSegment(end, DEFAULT_IDLE_SETTINGS, new Set())!.state.phase).toBe('town');
+    expect(simulateSegment(end, MANUAL, new Set())!.state.phase).toBe('town');
     const strong = { ...end, party: [{ ...end.party[0]!, level: 20 }] };
     expect(AREAS[simulateSegment(strong, auto, new Set())!.state.area]!.id).toBe('pewter-gym');
   });
@@ -168,8 +171,14 @@ describe('an idle run', () => {
     // Without auto-grind it waits in town.
     let manual: IdleState = { ...createIdleRun({ species: 129 }, 8), area: gym };
     manual.party = state.party.map((m) => ({ ...m, level: 14 }));
-    for (let i = 0; i < 20 && !manual.totals.whiteOuts; i++) manual = simulateSegment(manual, DEFAULT_IDLE_SETTINGS, new Set())!.state;
+    for (let i = 0; i < 20 && !manual.totals.whiteOuts; i++) manual = simulateSegment(manual, MANUAL, new Set())!.state;
     expect(manual.phase).toBe('town');
+    // A white-out costs nothing (the user's).
+    expect(manual.money).toBe(createIdleRun({ species: 129 }, 8).money);
+  });
+
+  it('has auto-grind on by default', () => {
+    expect(DEFAULT_IDLE_SETTINGS.autoGrind).toBe(true);
   });
 
   it('waits 5 s in a town, then goes into its unbeaten gym, or on once it is beaten, offline too', () => {

@@ -141,7 +141,7 @@ function IdleAdventure() {
               {
             confirmQuit ? (
               <span className="flex items-center gap-2 text-sm">
-                Give up this run? Its ₱ go to the bank.
+                Give up this run? Its ₱ are lost (only beating the Champion banks them).
                 <button className="rounded bg-red-700 px-3 py-1 text-sm hover:bg-red-600" onClick={() => (setConfirmQuit(false), void act({ type: 'GIVE_UP' }))}>
                   Give up
                 </button>
@@ -168,7 +168,7 @@ function IdleAdventure() {
             <section className="rounded-lg bg-slate-800 p-4 ring-1 ring-slate-600">
               <h3 className="text-lg font-semibold">{v.phase === 'won' ? 'You became the Champion!' : 'Your last run is over.'}</h3>
               <p className="text-sm text-slate-300">
-                {v.badges.length} badges, {v.totals.battles} battles, {v.totals.caught} Pokémon caught. Its ₱{commas(v.money)} went to the bank.
+                {v.badges.length} badges, {v.totals.battles} battles, {v.totals.caught} Pokémon caught. {v.phase === 'won' ? `Its ₱${commas(v.money)} went to the bank.` : `Its ₱${commas(v.money)} were lost: only beating the Champion banks them.`}
               </p>
               <div className="mt-2 flex gap-2">
                 {v.party.map((m) => (
