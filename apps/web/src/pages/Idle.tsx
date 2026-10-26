@@ -141,7 +141,7 @@ function IdleAdventure() {
               )}
               {/* On a route or in a dungeon, out of battle (the user's): grind there until Continue route. */}
               {v?.phase === 'walking' && !play.battle && !play.entering && (AREAS[v.area]!.kind === 'route' || AREAS[v.area]!.kind === 'dungeon') && (
-                <RouteGrindButton view={v} busy={actions.busy} onAct={(a) => void act(a)} />
+                <RouteGrindButtons view={v} busy={actions.busy} onAct={(a) => void act(a)} />
               )}
               {
             confirmQuit ? (
@@ -262,27 +262,39 @@ function TickMeter({ turn, tickAt }: { turn: number | null; tickAt: number }) {
 }
 
 /**
- * Start grinding / Continue route (the user's): with no wild Pokémon where the run is, the button names the route it
- * will go back to (routeGrindPlan's), greyed out with the reason when it can't.
+ * The route grinds (the user's): Wild grind (wild Pokémon near where the run is; with none there, the button names the
+ * route it goes back to) and Trainer grind (the route's trainers in a loop), greyed out with the reason when they can't;
+ * Continue route while either goes on.
  */
-function RouteGrindButton({ view, busy, onAct }: { view: ClientIdleRun['view']; busy: boolean; onAct: (a: IdleAction) => void }) {
+function RouteGrindButtons({ view, busy, onAct }: { view: ClientIdleRun['view']; busy: boolean; onAct: (a: IdleAction) => void }) {
   if (view.loop)
     return (
       <button className={BUTTON} disabled={busy} onClick={() => onAct({ type: 'CONTINUE_ROUTE' })}>
         Continue route
       </button>
     );
-  const plan = routeGrindPlan(view);
-  const away = !('error' in plan) && (plan.area !== view.area || (plan.kind === 'pace' && plan.leg !== view.leg));
+  const wild = routeGrindPlan(view, 'wild');
+  const trainers = routeGrindPlan(view, 'trainers');
+  const away = !('error' in wild) && (wild.area !== view.area || (wild.kind === 'pace' && wild.leg !== view.leg));
   return (
-    <button
-      className={BUTTON}
-      disabled={busy || 'error' in plan}
-      title={'error' in plan ? plan.error : away ? `No wild Pokémon here: goes back to ${AREAS[plan.area]!.name} to train` : undefined}
-      onClick={() => onAct({ type: 'ROUTE_GRIND' })}
-    >
-      {away ? `Start grinding in ${AREAS[plan.area]!.name}` : 'Start grinding'}
-    </button>
+    <>
+      <button
+        className={BUTTON}
+        disabled={busy || 'error' in wild}
+        title={'error' in wild ? wild.error : away ? `No wild Pokémon here: goes to ${AREAS[wild.area]!.name} to train` : 'Battle wild Pokémon nearby until Continue route'}
+        onClick={() => onAct({ type: 'WILD_GRIND' })}
+      >
+        {away ? `Wild grind in ${AREAS[wild.area]!.name}` : 'Wild grind'}
+      </button>
+      <button
+        className={BUTTON}
+        disabled={busy || 'error' in trainers}
+        title={'error' in trainers ? trainers.error : "Fight the route's trainers in a loop until Continue route (a rematch pays a quarter)"}
+        onClick={() => onAct({ type: 'TRAINER_GRIND' })}
+      >
+        Trainer grind
+      </button>
+    </>
   );
 }
 

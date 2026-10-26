@@ -189,33 +189,53 @@ describe('an idle run', () => {
       return s;
     };
 
-    it("fights its beaten trainers again in a loop, never past the last, until Continue route goes on from where it was", () => {
-      const start = route3(3);
-      const keys = [...start.beaten];
-      const r = applyIdleAction(start, { type: 'ROUTE_GRIND' });
+    it('trainer grind fights every trainer of the route in a loop, never past the last; rematches pay a quarter; Continue route goes on from where it was', () => {
+      const start = route3(1);
+      const area = AREAS[start.area] as WalkArea;
+      const keys = area.trainers.map((t) => t.key).filter((k) => meetStep(area, k));
+      const r = applyIdleAction(start, { type: 'TRAINER_GRIND' });
       expect(r.ok).toBe(true);
       let s = (r as { state: IdleState }).state;
       expect(s.loop).toMatchObject({ kind: 'trainers', keys, resume: { leg: start.leg, step: start.step } });
-      expect(s.beaten.filter((k) => keys.includes(k))).toEqual([]);
-      const area = AREAS[s.area] as WalkArea;
-      const last = Math.max(...keys.map((k) => meetStep(area, k)!.step));
-      const trainers = s.totals.trainers;
-      for (let i = 0; i < 200; i++) {
-        s = simulateSegment(s, MANUAL, new Set())!.state;
-        expect(s.step).toBeLessThanOrEqual(last);
+      expect(s.beaten).toEqual([]);
+      const last = keys.map((k) => meetStep(area, k)!).reduce((x, y) => (x.leg > y.leg || (x.leg === y.leg && x.step > y.step) ? x : y));
+      const money: { why: string; amount: number }[] = [];
+      for (let i = 0; i < 400; i++) {
+        const next = simulateSegment(s, MANUAL, new Set())!;
+        s = next.state;
+        for (const e of next.segment.events) if (e.t === 'money') money.push(e);
+        expect(s.leg < last.leg || (s.leg === last.leg && s.step <= last.step)).toBe(true);
       }
-      // Several laps of its 3 trainers.
-      expect(s.totals.trainers - trainers).toBeGreaterThanOrEqual(6);
+      // Every trainer at least twice: the full prize first, a quarter after.
+      for (const k of keys) expect(s.paid).toContain(k);
+      const first = money.find((m) => !m.why.endsWith('rematch'))!;
+      const again = money.find((m) => m.why === `${first.why}, rematch`)!;
+      expect(again.amount).toBe(Math.floor(first.amount / 4));
       const on = applyIdleAction(s, { type: 'CONTINUE_ROUTE' });
       expect(on.ok && on.state.loop).toBeUndefined();
       expect(on.ok && [on.state.leg, on.state.step]).toEqual([start.leg, start.step]);
+      // The trainers it beat count in the real run.
       expect(on.ok && keys.every((k) => on.state.beaten.includes(k))).toBe(true);
     });
 
-    it('paces over wild encounter tiles near where it is with no trainer beaten', () => {
+    it('a white-out in a trainer grind turns it to a wild grind near the route start, its beaten trainers kept', () => {
+      // Route 2 (and Viridian Forest): grass from its start.
+      const area = AREAS.findIndex((a) => a.id === 'route-2');
+      const base = createIdleRun({ species: 129 }, 3);
+      let s: IdleState = { ...base, area, beaten: [], party: [{ ...base.party[0]!, level: 2, moves: ['splash'], slots: [] }] };
+      s = (applyIdleAction(s, { type: 'TRAINER_GRIND' }) as { state: IdleState }).state;
+      for (let i = 0; i < 100 && !s.totals.whiteOuts; i++) s = simulateSegment(s, MANUAL, new Set())!.state;
+      expect(s.totals.whiteOuts).toBe(1);
+      expect(s.loop?.kind).toBe('pace');
+      expect(s.area).toBe(area);
+      expect(s.leg).toBe(0);
+      expect(s.step).toBeLessThan(30);
+    });
+
+    it('wild grind paces over wild encounter tiles near where it is', () => {
       let s = createIdleRun({ species: 4 }, 2);
       s = { ...s, step: 50, party: [{ ...s.party[0]!, level: 60 }] };
-      const r = applyIdleAction(s, { type: 'ROUTE_GRIND' });
+      const r = applyIdleAction(s, { type: 'WILD_GRIND' });
       expect(r.ok).toBe(true);
       let g = (r as { state: IdleState }).state;
       const loop = g.loop as Extract<NonNullable<IdleState['loop']>, { kind: 'pace' }>;
@@ -238,7 +258,7 @@ describe('an idle run', () => {
         (a as WalkArea).legs.forEach((leg, li) => {
           if (wild(leg)) return;
           checked++;
-          const plan = routeGrindPlan({ ...createIdleRun({ species: 4 }, 1), area: i, leg: li, step: leg.track.length - 1, beaten: [] });
+          const plan = routeGrindPlan({ ...createIdleRun({ species: 4 }, 1), area: i, leg: li, step: leg.track.length - 1, beaten: [] }, 'wild');
           expect('error' in plan, `${a.id} leg ${li}`).toBe(false);
           const p = plan as Extract<typeof plan, { kind: 'pace' }>;
           expect(p.kind).toBe('pace');
@@ -250,7 +270,7 @@ describe('an idle run', () => {
       // Route 23 past Victory Road (no wild Pokémon): back into Victory Road's caves, then back again on Continue route.
       const vr = AREAS.findIndex((a) => a.id === 'victory-road');
       const s: IdleState = { ...createIdleRun({ species: 4 }, 1), area: vr, leg: 1, step: 5, beaten: [] };
-      const g = applyIdleAction(s, { type: 'ROUTE_GRIND' });
+      const g = applyIdleAction(s, { type: 'WILD_GRIND' });
       expect(g.ok && [g.state.area, g.state.leg]).toEqual([vr, 0]);
       const on = g.ok ? applyIdleAction(g.state, { type: 'CONTINUE_ROUTE' }) : g;
       expect(on.ok && [on.state.area, on.state.leg, on.state.step]).toEqual([vr, 1, 5]);
@@ -258,9 +278,11 @@ describe('an idle run', () => {
 
     it('only on a route or in a dungeon', () => {
       const s = createIdleRun({ species: 4 }, 2);
-      expect(applyIdleAction({ ...s, area: AREAS.findIndex((a) => a.id === 'pewter-gym') }, { type: 'ROUTE_GRIND' }).ok).toBe(false);
-      expect(applyIdleAction({ ...s, area: AREAS.findIndex((a) => a.id === 'pewter-city'), phase: 'town' }, { type: 'ROUTE_GRIND' }).ok).toBe(false);
+      expect(applyIdleAction({ ...s, area: AREAS.findIndex((a) => a.id === 'pewter-gym') }, { type: 'WILD_GRIND' }).ok).toBe(false);
+      expect(applyIdleAction({ ...s, area: AREAS.findIndex((a) => a.id === 'pewter-city'), phase: 'town' }, { type: 'WILD_GRIND' }).ok).toBe(false);
       expect(applyIdleAction(s, { type: 'CONTINUE_ROUTE' }).ok).toBe(false);
+      // Route 1 has no trainers.
+      expect(applyIdleAction(s, { type: 'TRAINER_GRIND' }).ok).toBe(false);
     });
   });
 

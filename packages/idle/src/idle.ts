@@ -126,6 +126,8 @@ export interface IdleState {
    * route goes on from there).
    */
   loop?: RouteLoop;
+  /** The trainers (TRAINERS' keys) whose full prize the run has had: a rematch pays REMATCH_PRIZE of it. */
+  paid?: string[];
   /**
    * The server's, not the rules': the last segment's start when it holds a wild battle, to play it again with a ball the
    * player asked for (the battle's ball button, the user's: idle.throwBall). Any action or segment after it drops it.
@@ -149,8 +151,9 @@ export type IdleAction =
   /** In a gym's town: grind to the gym's highest level (then into the gym); STOP_GRIND back to the town. */
   | { type: 'GRIND' }
   | { type: 'STOP_GRIND' }
-  /** On a route or in a dungeon, out of battle: grind there (RouteLoop) until CONTINUE_ROUTE. */
-  | { type: 'ROUTE_GRIND' }
+  /** On a route or in a dungeon, out of battle: grind there (RouteLoop), its wild Pokémon or its trainers, until CONTINUE_ROUTE. */
+  | { type: 'WILD_GRIND' }
+  | { type: 'TRAINER_GRIND' }
   | { type: 'CONTINUE_ROUTE' }
   | { type: 'BUY'; item: string; count: number }
   /** The party's order (the lead fights first). */
@@ -430,8 +433,9 @@ export function applyIdleAction(prev: IdleState, action: IdleAction): IdleResult
       startGrind(state, []);
       return ok();
     }
-    case 'ROUTE_GRIND': {
-      const error = startRouteLoop(state);
+    case 'WILD_GRIND':
+    case 'TRAINER_GRIND': {
+      const error = startRouteLoop(state, action.type === 'WILD_GRIND' ? 'wild' : 'trainers');
       if (error) return fail(error);
       return ok();
     }
@@ -669,16 +673,23 @@ function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<
     state.log.push(`Caught ${species(mon.species).name}!`);
   }
   if (result.result === 'won' && t && o.trainer) {
-    const prize = t.money * o.foes.at(-1)!.level;
+    // The full prize the first time a trainer is beaten in a run, a quarter after that (the user's: grinding them).
+    const full = t.money * o.foes.at(-1)!.level;
+    const rematch = (state.paid ?? []).includes(o.trainer);
+    const prize = rematch ? Math.floor(full * REMATCH_PRIZE) : full;
+    if (!rematch) (state.paid ??= []).push(o.trainer);
     state.money += prize;
-    out.events.push({ t: 'money', amount: prize, total: state.money, why: `${t.class} ${t.name}` });
+    out.events.push({ t: 'money', amount: prize, total: state.money, why: `${t.class} ${t.name}${rematch ? ', rematch' : ''}` });
   }
   if (result.result === 'lost') return false;
   return true;
 }
 
 // ---- Grinding on a route (the user's, 2026-10-25) ----
-/** How many steps before the first beaten trainer a trainers loop starts, to walk up to them. */
+/** A rematch's share of a trainer's prize (the user's: the full prize only the first time). */
+export const REMATCH_PRIZE = 0.25;
+
+/** How many steps before the first trainer a trainers loop starts, to walk up to them. */
 export const LOOP_RUN_UP = 4;
 /** The most track steps a pacing loop walks back and forth over. */
 const PACE_TILES = 3;
@@ -696,21 +707,16 @@ const before = (p: { leg: number; step: number }, q: { leg: number; step: number
 
 /**
  * A pacing loop on a leg near `step`: the nearest run of PACE_TILES (or 2) track steps that are all wild encounter tiles
- * of one kind, on one map, walked onto without a fade or a ledge, behind `step` first; out of the sight of every trainer
- * not in `beaten` (null: of every trainer, on a route the run has passed, so a white-out there brings no rematch).
+ * of one kind, on one map, walked onto without a fade or a ledge, behind `step` first. Trainers' sight doesn't matter:
+ * a wild grind is wild Pokémon only, no trainer spots it (the user's).
  */
-function paceWindow(areaIndex: number, leg: number, step: number, beaten: string[] | null): { from: number; to: number } | null {
-  const a = AREAS[areaIndex] as WalkArea;
-  const track = a.legs[leg]!.track;
-  const watched = (i: number) => {
-    const [m, x, y] = track[i]!;
-    return a.trainers.some((t) => t.leg === leg && t.map === m && !beaten?.includes(t.key) && t.sight.some(([sx, sy]) => sx === x && sy === y));
-  };
+function paceWindow(areaIndex: number, leg: number, step: number): { from: number; to: number } | null {
+  const track = (AREAS[areaIndex] as WalkArea).legs[leg]!.track;
   const fits = (s: number, n: number) => {
     if (s < 0 || s + n > track.length) return false;
     for (let i = s; i < s + n; i++) {
       const [m, , , flags, tile] = track[i]!;
-      if ((tile[0] !== 'l' && tile[0] !== 'w') || tile[0] !== track[s]![4][0] || m !== track[s]![0] || (i > s && flags) || watched(i)) return false;
+      if ((tile[0] !== 'l' && tile[0] !== 'w') || tile[0] !== track[s]![4][0] || m !== track[s]![0] || (i > s && flags)) return false;
     }
     return true;
   };
@@ -725,41 +731,55 @@ function paceWindow(areaIndex: number, leg: number, step: number, beaten: string
 }
 
 /**
- * What Start grinding does from where the run stands (ROUTE_GRIND; the user's): its route's beaten trainers in a loop;
- * with none, pacing near it on its leg; with no wild Pokémon there, pacing on the most recent stretch that has them (an
- * earlier leg of its area, else the nearest earlier route or dungeon, near its end), shown on the button beforehand
- * (`area`). An error when it can't.
+ * What a route grind does from where the run stands (the user's, 2026-10-25): `trainers` (Trainer grind, TRAINER_GRIND),
+ * every trainer of its route in a loop, the first to the last, beaten or not; `wild` (Wild grind, WILD_GRIND), pacing near
+ * it on its leg, and with no wild Pokémon there, on the most recent stretch that has them (an earlier leg of its area,
+ * else the nearest earlier route or dungeon, near its end), shown on the button beforehand (`area`). An error when it can't.
  */
 export type RouteGrindPlan =
   | { kind: 'trainers'; area: number; keys: string[]; first: { leg: number; step: number } }
   | { kind: 'pace'; area: number; leg: number; from: number; to: number }
   | { error: string };
 
-export function routeGrindPlan(state: Pick<IdleState, 'phase' | 'area' | 'leg' | 'step' | 'beaten' | 'loop'>): RouteGrindPlan {
+export function routeGrindPlan(state: Pick<IdleState, 'phase' | 'area' | 'leg' | 'step' | 'beaten' | 'loop'>, kind: 'wild' | 'trainers'): RouteGrindPlan {
   const a = AREAS[state.area]!;
   if (state.phase !== 'walking' || (a.kind !== 'route' && a.kind !== 'dungeon')) return { error: 'Only on a route or in a dungeon' };
   if (state.loop) return { error: 'Already grinding' };
   const area = a as WalkArea;
-  const keys = state.beaten.filter((k) => meetStep(area, k));
-  if (keys.length) return { kind: 'trainers', area: state.area, keys, first: keys.map((k) => meetStep(area, k)!).reduce((x, y) => (before(y, x) ? y : x)) };
-  const here = paceWindow(state.area, state.leg, state.step, state.beaten);
-  if (here) return { kind: 'pace', area: state.area, leg: state.leg, ...here };
-  // No wild Pokémon here: the most recent stretch that has them, near its end.
-  for (let i = state.area; i >= 0; i--) {
-    const w = AREAS[i]!;
-    if (w.kind !== 'route' && w.kind !== 'dungeon') continue;
-    for (let leg = i === state.area ? state.leg - 1 : w.legs.length - 1; leg >= 0; leg--) {
-      const end = w.legs[leg]!.track.length - 1;
-      const found = paceWindow(i, leg, end, null);
-      if (found) return { kind: 'pace', area: i, leg, ...found };
-    }
+  if (kind === 'trainers') {
+    const keys = area.trainers.map((t) => t.key).filter((k) => meetStep(area, k));
+    if (!keys.length) return { error: 'No trainers on this route' };
+    return { kind: 'trainers', area: state.area, keys, first: keys.map((k) => meetStep(area, k)!).reduce((x, y) => (before(y, x) ? y : x)) };
   }
-  return { error: 'No wild Pokémon around here' };
+  return wildPlan(state.area, state.leg, state.step, -1) ?? { error: 'No wild Pokémon around here' };
 }
 
-/** Starts grinding on the route (ROUTE_GRIND, by routeGrindPlan). Why it can't, or null. */
-function startRouteLoop(state: IdleState): string | null {
-  const plan = routeGrindPlan(state);
+/**
+ * Where wild grinding paces from a place: near `step` on its leg, else (no wild Pokémon there) on the nearest other leg of
+ * its area the way `dir` goes (-1: back from it; 1: on from it), else the nearest earlier route or dungeon, near its end.
+ */
+function wildPlan(areaIndex: number, leg: number, step: number, dir: 1 | -1): Extract<RouteGrindPlan, { kind: 'pace' }> | null {
+  const here = paceWindow(areaIndex, leg, step);
+  if (here) return { kind: 'pace', area: areaIndex, leg, ...here };
+  const legs = (AREAS[areaIndex] as WalkArea).legs;
+  for (let l = leg + dir; l >= 0 && l < legs.length; l += dir) {
+    const found = paceWindow(areaIndex, l, dir < 0 ? legs[l]!.track.length - 1 : 0);
+    if (found) return { kind: 'pace', area: areaIndex, leg: l, ...found };
+  }
+  for (let i = areaIndex - 1; i >= 0; i--) {
+    const w = AREAS[i]!;
+    if (w.kind !== 'route' && w.kind !== 'dungeon') continue;
+    for (let l = w.legs.length - 1; l >= 0; l--) {
+      const found = paceWindow(i, l, w.legs[l]!.track.length - 1);
+      if (found) return { kind: 'pace', area: i, leg: l, ...found };
+    }
+  }
+  return null;
+}
+
+/** Starts a route grind (WILD_GRIND, TRAINER_GRIND, by routeGrindPlan). Why it can't, or null. */
+function startRouteLoop(state: IdleState, kind: 'wild' | 'trainers'): string | null {
+  const plan = routeGrindPlan(state, kind);
   if ('error' in plan) return plan.error;
   const resume = { area: state.area, leg: state.leg, step: state.step, beaten: [...state.beaten] };
   state.encounter = { steps: 0, buff: 0, prev: '' };
@@ -768,29 +788,38 @@ function startRouteLoop(state: IdleState): string | null {
     state.beaten = state.beaten.filter((k) => !plan.keys.includes(k));
     state.leg = plan.first.leg;
     state.step = Math.max(0, plan.first.step - LOOP_RUN_UP);
-    state.log.push(`Went back to fight the trainers of ${AREAS[state.area]!.name} again.`);
+    state.log.push(`Went to fight the trainers of ${AREAS[state.area]!.name}.`);
     return null;
   }
-  const away = plan.area !== state.area;
-  if (away) {
-    // A route passed earlier: its trainers were all beaten on the way.
-    state.area = plan.area;
-    state.beaten = (AREAS[plan.area] as WalkArea).trainers.map((t) => t.key);
-  }
-  state.loop = { kind: 'pace', leg: plan.leg, from: plan.from, to: plan.to, dir: 1, resume };
-  state.leg = plan.leg;
-  state.step = plan.from;
-  state.log.push(away ? `No wild Pokémon in ${resume.area === plan.area ? 'this part' : AREAS[resume.area]!.name}: went back to train in ${AREAS[plan.area]!.name}.` : `Started training in ${AREAS[state.area]!.name}.`);
+  startPacing(state, plan, resume);
   return null;
 }
 
-/** Continue route (CONTINUE_ROUTE): back where it started grinding (or on from where it is, if further along), its beaten trainers as they were and the loop's too. */
+/** Pacing on a wild grind's plan (the run's area changed for an earlier route's, its trainers beaten on the way). */
+function startPacing(state: IdleState, plan: Extract<RouteGrindPlan, { kind: 'pace' }>, resume: RouteLoop['resume']) {
+  const from = state.area;
+  if (plan.area !== state.area) {
+    state.area = plan.area;
+    state.beaten = (AREAS[plan.area] as WalkArea).trainers.map((t) => t.key);
+  }
+  const away = plan.area !== from || plan.leg !== state.leg;
+  state.loop = { kind: 'pace', leg: plan.leg, from: plan.from, to: plan.to, dir: 1, resume };
+  state.leg = plan.leg;
+  state.step = plan.from;
+  state.encounter = { steps: 0, buff: 0, prev: '' };
+  state.log.push(away ? `No wild Pokémon here: went to train in ${AREAS[plan.area]!.name}.` : `Started training in ${AREAS[state.area]!.name}.`);
+}
+
+/**
+ * Continue route (CONTINUE_ROUTE): back where it started grinding (or on from where it is, if further along), its beaten
+ * trainers as they were and those the grind beat (`resume.beaten`: they count in the real run, the user's).
+ */
 function endRouteLoop(state: IdleState) {
-  const { resume, ...loop } = state.loop!;
+  const { resume } = state.loop!;
   if (state.area !== resume.area) {
     Object.assign(state, { area: resume.area, leg: resume.leg, step: resume.step, beaten: [...resume.beaten] });
   } else {
-    state.beaten = [...new Set([...state.beaten, ...resume.beaten, ...(loop.kind === 'trainers' ? loop.keys : [])])];
+    state.beaten = [...new Set([...state.beaten, ...resume.beaten])];
     if (before({ leg: state.leg, step: state.step }, resume)) Object.assign(state, { leg: resume.leg, step: resume.step });
   }
   delete state.loop;
@@ -827,6 +856,17 @@ function whiteOut(state: IdleState, out: Segment) {
   state.log.push(`Whited out in ${a.name}.`);
   const back = a.kind === 'gym' ? areaIndex(a.town!) : a.kind === 'league' ? areaIndex('indigo-plateau') : state.area;
   enterArea(state, back, out.events);
+  // Whited out in a trainer grind (the user's): a wild grind near the route's start instead, the trainers it beat still beaten.
+  const loop = state.loop;
+  if (loop?.kind === 'trainers') {
+    state.beaten = [...loop.resume.beaten];
+    const plan = wildPlan(state.area, 0, 0, 1);
+    if (plan) startPacing(state, plan, loop.resume);
+    else {
+      Object.assign(state, { leg: loop.resume.leg, step: loop.resume.step });
+      delete state.loop;
+    }
+  }
 }
 
 /** A step's wild encounter, if one appears (its tile's table, wildCheck): the battle played; whether it was won, or null for none. */
@@ -949,8 +989,9 @@ export function simulateSegment(prev: IdleState, idleSettings: IdleSettings, cau
       return a.trainers.find((t) => t.leg === state.leg && t.map === m && !state.beaten.includes(t.key) && t.sight.some(([sx, sy]) => sx === x && sy === y));
     };
     // The first step of an area (or after a white-out) can be in a trainer's sight already (a League room's boss).
-    const seen = state.step === 0 && trainerHere(0);
     const pace = state.loop?.kind === 'pace' ? state.loop : null;
+    // A wild grind meets no trainers (the user's: wild Pokémon only).
+    const seen = !pace && state.step === 0 && trainerHere(0);
     if (pace && (state.leg !== pace.leg || state.step < pace.from || state.step > pace.to)) {
       // Back on the pacing loop (after a white-out sent it to the route's start).
       state.leg = pace.leg;
@@ -989,7 +1030,7 @@ export function simulateSegment(prev: IdleState, idleSettings: IdleSettings, cau
     }
     const [m, , , , tile] = leg.track[state.step]!;
     const map = mapView(leg.maps[m]!);
-    const trainer = trainerHere(state.step);
+    const trainer = pace ? undefined : trainerHere(state.step);
     if (trainer) {
       const key = trainerKey(state, trainer.key);
       out.events.push({ t: 'spotted', trainer: trainer.key });
@@ -1002,8 +1043,9 @@ export function simulateSegment(prev: IdleState, idleSettings: IdleSettings, cau
         state.beaten.push(trainer.key);
         state.log.push(`Beat ${TRAINERS[key]!.class} ${TRAINERS[key]!.name}.`);
         if ((a.kind === 'gym' || a.kind === 'league') && trainer.key === a.leader) finishArea(state, out);
-        // A trainers loop's last trainer beaten again: round again.
+        // A trainer beaten while grinding counts in the real run (the user's); a trainers loop's last beaten: round again.
         const loop = state.loop;
+        if (loop && !loop.resume.beaten.includes(trainer.key)) loop.resume.beaten.push(trainer.key);
         if (loop?.kind === 'trainers' && loop.keys.every((k) => state.beaten.includes(k))) restartTrainerLoop(state, out);
       }
       break;
