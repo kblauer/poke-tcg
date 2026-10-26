@@ -217,6 +217,12 @@ export function IdlePage() {
               </button>
             ))}
           </div>
+          {/* Changes made during a wild battle (the user's): shown at once, applied once the battle ends (IdleState.pending). */}
+          {tab === 'party' && v.pendingChanges > 0 && (
+            <p className="rounded bg-slate-800 px-3 py-2 text-sm text-yellow-200 ring-1 ring-slate-600">
+              {v.pendingChanges === 1 ? 'This change takes' : `These ${v.pendingChanges} changes take`} effect when the battle ends.
+            </p>
+          )}
           {tab === 'party' && <PartyScreen party={v.party} bag={v.bag} busy={actions.busy} onAct={(a) => void act(a)} />}
           {tab === 'bag' && <Bag bag={v.bag} />}
           {tab === 'dex' && <Pokedex dex={data.dex} />}

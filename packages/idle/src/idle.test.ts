@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AREAS, isTown, type WalkArea } from './areas.js';
-import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, meetStep, routeGrindPlan, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
+import { familyMovesUpTo } from './mon.js';
+import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, routeGrindPlan, starterOptions, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
 
 type BattleSeg = Extract<SegmentEvent, { t: 'battle' }>;
 
@@ -29,11 +30,20 @@ function play(seed: number, settings: IdleSettings, maxSegments: number) {
   let state = createIdleRun({ species: [1, 4, 7][seed % 3]! }, seed);
   const caught = new Set<number>();
   let segments = 0;
+  // A route grind (a white-out starts one): the player presses Continue route once the best Pokémon is 2 levels up.
+  let grindFrom: number | null = null;
   while (state.phase !== 'won' && segments < maxSegments) {
     if (state.phase === 'town') {
       state = visitStore(state, settings).state;
       state = townChoice(state);
       continue;
+    }
+    if (!state.loop) grindFrom = null;
+    else if (grindFrom === null) grindFrom = topLevel(state.party);
+    else if (topLevel(state.party) >= grindFrom + 2) {
+      const on = applyIdleAction(state, { type: 'CONTINUE_ROUTE' });
+      if (on.ok) state = on.state;
+      grindFrom = null;
     }
     const next = simulateSegment(state, settings, caught);
     if (!next) break;
@@ -309,6 +319,67 @@ describe('an idle run', () => {
     // …then a Great Ball.
     const turn2 = b.events.slice(tick2(b.events), b.events.findIndex((e) => e.t === 'tick' && e.n === 3) >>> 0);
     expect(turn2.some((e) => e.t === 'ball' && e.item === 'great-ball')).toBe(true);
+  });
+
+  it('a white-out on a route with no grind on goes back to its start and starts a wild grind there', () => {
+    // A level-2 Magikarp knowing only Splash, on Route 2: the first battle whites it out.
+    const area = AREAS.findIndex((a) => a.id === 'route-2');
+    const base = createIdleRun({ species: 129 }, 3);
+    let s: IdleState = { ...base, area, step: 40, party: [{ ...base.party[0]!, level: 2, moves: ['splash'], slots: [] }] };
+    for (let i = 0; i < 100 && !s.totals.whiteOuts; i++) s = simulateSegment(s, MANUAL, new Set())!.state;
+    expect(s.totals.whiteOuts).toBe(1);
+    expect(s.loop).toMatchObject({ kind: 'pace', resume: { area, leg: 0, step: 0 } });
+    expect([s.area, s.leg]).toEqual([area, 0]);
+    expect(s.step).toBeLessThan(30);
+    // Continue route goes on from the route's start.
+    const on = applyIdleAction(s, { type: 'CONTINUE_ROUTE' });
+    expect(on.ok && [on.state.area, on.state.leg, on.state.loop]).toEqual([area, 0, undefined]);
+  });
+
+  it("teaches a caught Pokémon every move its line learns by its level: a Kakuna knows Weedle's", () => {
+    expect(familyMovesUpTo(14, 7)).toEqual(['poison-sting', 'string-shot', 'harden']);
+    // Charizard at 40: Charmander's, Charmeleon's and its own, by level.
+    expect(familyMovesUpTo(6, 40)).toEqual(expect.arrayContaining(['scratch', 'growl', 'ember', 'metal-claw', 'smokescreen', 'scary-face', 'flamethrower', 'slash', 'wing-attack']));
+    // Catching one in Viridian Forest (wild grinding there): auto-catch every wild Pokémon with Master Balls until a Kakuna joins.
+    const area = AREAS.findIndex((a) => a.id === 'route-2');
+    const leg = (AREAS[area] as WalkArea).legs[0]!;
+    const forest = leg.maps.indexOf('ViridianForest');
+    const step = leg.track.findIndex(([m, , , , t]) => m === forest && t[0] === 'l');
+    const base = createIdleRun({ species: 4 }, 7);
+    let s: IdleState = { ...base, area, step, beaten: (AREAS[area] as WalkArea).trainers.map((t) => t.key), bag: { 'master-ball': 99 }, party: [{ ...base.party[0]!, level: 12 }] };
+    s = (applyIdleAction(s, { type: 'WILD_GRIND' }) as { state: IdleState }).state;
+    const settings = { ...MANUAL, autoCatch: 'all' as const, replaceLowest: true };
+    for (let i = 0; i < 400 && !s.party.some((m) => m.species === 14); i++) s = simulateSegment(s, settings, new Set())!.state;
+    const kakuna = s.party.find((m) => m.species === 14);
+    expect(kakuna).toBeDefined();
+    expect(kakuna!.moves).toEqual(expect.arrayContaining(['poison-sting', 'string-shot', 'harden']));
+  });
+
+  it('offers as starters only Pokémon that evolve from none', () => {
+    // Charmeleon, Pidgeotto and Vaporeon caught: not startable; Pidgey, Tauros (no evolutions) and Eevee are.
+    expect(starterOptions([5, 16, 17, 128, 133, 134])).toEqual([1, 4, 7, 16, 128, 133]);
+  });
+
+  it('queues party changes while a wild battle can be played again, shows them at once and applies them at the next segment', () => {
+    // A run with two Pokémon and a held replay (a wild battle just played).
+    const base = createIdleRun({ species: 4 }, 2);
+    const second = { ...base.party[0]!, uid: 'second', species: 16 };
+    const s: IdleState = { ...base, party: [base.party[0]!, second], replay: { prev: base, settings: MANUAL, caught: [], from: 0, throws: [] } };
+    const r = applyIdleAction(s, { type: 'SET_ORDER', uids: ['second', base.party[0]!.uid] });
+    expect(r.ok).toBe(true);
+    const q = (r as { state: IdleState }).state;
+    // Queued: the replay kept, the party as it was, the view as it will be.
+    expect(q.replay).toBeDefined();
+    expect(q.pending).toHaveLength(1);
+    expect(q.party[0]!.uid).toBe(base.party[0]!.uid);
+    expect(idleView(q).party[0]!.uid).toBe('second');
+    expect(idleView(q).pendingChanges).toBe(1);
+    // A change that can't be made is refused at once.
+    expect(applyIdleAction(q, { type: 'SET_SLOTS', uid: 'nobody', slots: [] }).ok).toBe(false);
+    // The next segment starts with them applied.
+    const next = simulateSegment(q, MANUAL, new Set())!.state;
+    expect(next.pending).toBeUndefined();
+    expect(next.party[0]!.uid).toBe('second');
   });
 
   it('has auto-grind on by default', () => {

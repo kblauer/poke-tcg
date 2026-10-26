@@ -72,6 +72,9 @@ const evolvesFrom = (id: number) => {
   return null;
 };
 
+/** Whether a species evolves from none: a line's first stage, or a Pokémon that doesn't evolve at all (Tauros). */
+export const isBaseForm = (id: number) => evolvesFrom(id) === null;
+
 const basicCache = new Map<number, string>();
 
 /**
@@ -100,18 +103,35 @@ export function basicMove(id: number): string {
 
 /**
  * A Pokémon's basic move: its species' (basicMove) once it knows it; until then (Onix at level 14 doesn't know
- * DragonBreath yet), the first damaging, high-PP move it knows, then any damaging move it knows, then Struggle.
+ * DragonBreath yet), the first damaging, high-PP move it knows, then any damaging move it knows; knowing none (a wild
+ * Kakuna's Harden, a Metapod's, a Magikarp's Splash), its species' all the same, its pre-evolution's for a species with
+ * none (the user's: never Struggle; Kakuna Poison Sting, Weedle's), known or not.
  */
 export function basicFor(mon: Pick<Mon, 'species' | 'moves'>): string {
   const rule = basicMove(mon.species);
   if (mon.moves.includes(rule) || BASIC_OVERRIDES[mon.species]) return rule;
-  return mon.moves.find(basicCandidate) ?? mon.moves.find((m) => moveData(m).power > 1) ?? mon.moves.find((m) => moveData(m).power > 0) ?? 'struggle';
+  return mon.moves.find(basicCandidate) ?? mon.moves.find((m) => moveData(m).power > 1) ?? mon.moves.find((m) => moveData(m).power > 0) ?? rule;
 }
 
 /** The level-up moves a species has learned by a level, oldest first, each once (all kept: agreed with the user). */
 export function movesUpTo(id: number, level: number): string[] {
   const out: string[] = [];
   for (const [lvl, m] of species(id).learnset) if (lvl <= level && !out.includes(m)) out.push(m);
+  return out;
+}
+
+/**
+ * The level-up moves a species and every species it evolves from learn by a level (the user's: a Pokémon caught
+ * evolved knows its line's moves, Kakuna Weedle's Poison Sting and String Shot), by the level they're learned at,
+ * the earlier evolutions' first on a tie, each once.
+ */
+export function familyMovesUpTo(id: number, level: number): string[] {
+  const line: number[] = [];
+  for (let s: number | null = id; s !== null; s = evolvesFrom(s)) line.unshift(s);
+  const learned = line.flatMap((s) => species(s).learnset.filter(([lvl]) => lvl <= level));
+  // A stable sort: by level, each species' (the earliest evolution's first) in its own order.
+  const out: string[] = [];
+  for (const [, m] of [...learned].sort((x, y) => x[0] - y[0])) if (!out.includes(m)) out.push(m);
   return out;
 }
 
