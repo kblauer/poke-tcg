@@ -1,6 +1,5 @@
 import { idleMusic } from '@poke-tcg/campaign';
 import { AREAS, mapView, routeGrindPlan, species, TICK_MS, type IdleAction, type WalkArea } from '@poke-tcg/idle';
-import { Navigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import type { Dialogue } from '../components/DialogueBox';
 import { useMusicCue, useMusicSettings } from '../components/MusicPlayer';
@@ -19,7 +18,7 @@ import { useEscape } from '../hooks/useEscape';
 import { placeOf, placeTrack, useIdleActions, useIdleOverview, useIdlePlayback, type ClientIdleRun } from '../hooks/useIdle';
 import { useRun } from '../hooks/useRun';
 import { useToasts } from '../hooks/useToasts';
-import { DEBUG_BUILD, useDebugEnabled, useDebugStatus } from '../utils/debug';
+import { DEBUG_BUILD, useDebugEnabled } from '../utils/debug';
 import { PAGE_WIDTH } from '../utils/layout';
 import { commas } from '../utils/math';
 import { BUTTON } from '../utils/styles';
@@ -41,20 +40,13 @@ const battleKind = (trainer: string | undefined) => (!trainer ? 'wild' : trainer
 /**
  * The Idle Adventure (`/idle`, from the Play tab's menu; README: Idle Adventure, issue #133): with no run under way,
  * Professor Oak's lab and the starters (later runs, the Pokédex's caught species too); under way, the run plays itself
- * (useIdlePlayback): the player walking the area's track, its battles a turn every 3 s, the town waiting for the
- * player's choice (gym, store, on); the lab's and the town's questions, the notices and what happened while away in the
+ * (useIdlePlayback): the player walking the area's track, its battles a turn every TICK_MS, the towns going on by
+ * themselves after a moment; the lab's and the town's questions, the notices and what happened while away in the
  * scene's text box (DialogueBox, the Battle Tower's and the Game Corner's). Under the scene, the party, bag, Pokédex,
- * settings and the run's log. A run never holds the Play tab (it runs on its own). Only in local debug for now (the
- * user's: a debug build with the debug tools on, useDebugStatus); anywhere else `/idle` goes back to the Play tab.
+ * settings and the run's log. A run never holds the Play tab (it runs on its own). Open to every account (the user's,
+ * 2026-10-25; only in local debug before); its debug tools (the warp) only in a debug build with them on.
  */
 export function IdlePage() {
-  const debug = useDebugStatus();
-  if (debug === 'loading') return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
-  if (debug === 'off') return <Navigate to="/" replace />;
-  return <IdleAdventure />;
-}
-
-function IdleAdventure() {
   const overview = useIdleOverview();
   const actions = useIdleActions();
   const toasts = useToasts();
