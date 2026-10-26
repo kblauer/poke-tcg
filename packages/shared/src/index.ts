@@ -157,7 +157,9 @@ export const debugCommandSchema = z.discriminatedUnion('type', [
 ]) satisfies z.ZodType<DebugCommand>;
 
 /** The Settings page's debug switches (debug.setFlags): unlock everything that's locked, 1,000,000 ₱, Stardust or EXP added. */
-export const debugFlagsInput = z.object({ unlockAll: z.boolean().optional(), million: z.boolean().optional(), dust: z.boolean().optional(), exp: z.boolean().optional() });
+export const debugFlagsInput = z.object({ unlockAll: z.boolean().optional() });
+/** A debug button adding 1,000,000 to the bank, Stardust or EXP (debug.addCurrency). */
+export const debugAddInput = z.object({ currency: z.enum(['bank', 'stardust', 'exp']) });
 
 export const debugInput = z.object({
   gameId: z.uuid(),
