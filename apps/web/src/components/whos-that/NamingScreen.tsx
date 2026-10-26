@@ -241,7 +241,7 @@ export function NamingScreen({ round, onSubmit, disabled }: { round: string | nu
       height={H * SCALE}
       onPointerDown={onPointerDown}
       aria-label={`The Pokémon's name: ${name || 'empty'}. Type it and press Enter.`}
-      className={`mx-auto block aspect-[3/2] w-full max-w-[480px] touch-none rounded-lg ring-1 ring-slate-600 select-none [image-rendering:pixelated] ${disabled ? 'opacity-60' : ''} ${wrong ? 'animate-[shake_0.3s]' : ''}`}
+      className={`mx-auto block aspect-[3/2] w-full touch-none rounded-lg ring-1 ring-slate-600 select-none [image-rendering:pixelated] ${disabled ? 'opacity-60' : ''} ${wrong ? 'animate-[shake_0.3s]' : ''}`}
     />
   );
 }

@@ -103,6 +103,7 @@ export function WhosThatEvent({ view, run }: { view: RunViewData; run: RunContro
         </>
       ) : (
         <>
+          <div className="mx-auto max-w-2xl">
           <WhosThatScreen shape={shape} reveal={result && { cardId: result.cardId, answer: result.answer }}>
             {!result && (
               <div className="absolute inset-x-0 top-0 h-2 bg-slate-900/40">
@@ -110,6 +111,7 @@ export function WhosThatEvent({ view, run }: { view: RunViewData; run: RunContro
               </div>
             )}
           </WhosThatScreen>
+          </div>
           {result ? (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-slate-300">{result.result === 'won' ? `You named it in time: +${result.exp} EXP!` : "Time's up!"}</p>
@@ -120,7 +122,9 @@ export function WhosThatEvent({ view, run }: { view: RunViewData; run: RunContro
           ) : (
             <>
               <div className="text-right font-mono text-lg tabular-nums">{(left / 1000).toFixed(1)}</div>
-              <NamingScreen round={0} onSubmit={send} />
+              <div className="mx-auto max-w-[480px]">
+                <NamingScreen round={0} onSubmit={send} />
+              </div>
             </>
           )}
         </>

@@ -1,9 +1,10 @@
 import { WHOS_THAT_PASS_MS, WHOS_THAT_ROUNDS } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { inferRouterOutputs } from '@trpc/server';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { AppRouter } from '@poke-tcg/api/router';
 import { useToasts } from '../../hooks/useToasts';
+import { useWindowFill } from '../../hooks/useWindowFill';
 import { useTRPC } from '../../lib/trpc';
 import { BUTTON, PANEL_HEADING } from '../../utils/styles';
 import { seconds } from '../../utils/whosThat';
@@ -18,6 +19,8 @@ type Board = 'average' | 'fastest' | 'daily';
 
 const primary = 'rounded bg-blue-600 px-4 py-2 font-semibold transition hover:bg-blue-500 active:scale-95 disabled:opacity-40';
 const panel = 'space-y-4 rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600';
+// A panel filling its column's height, its screens sharing what the other rows leave (Fit).
+const fillPanel = 'flex min-h-0 flex-1 flex-col gap-4 rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600';
 
 /** A Pokémon done in the game under way: its name, and its time (or passed). */
 interface Done {
@@ -39,6 +42,8 @@ export function WhosThat() {
   const queryClient = useQueryClient();
   const toasts = useToasts();
   const status = useQuery(trpc.whosThat.status.queryOptions());
+  // To the window's bottom, less the layout's padding under the page (main's pb-4).
+  const fill = useWindowFill<HTMLDivElement>('1rem');
   const [round, setRound] = useState<Round | null>(null);
   // When the Pokémon on screen was shown, by this browser's clock (the server's time, less how long it's been up).
   const [shownAt, setShownAt] = useState(0);
@@ -97,24 +102,30 @@ export function WhosThat() {
 
   const daily = status.data?.daily;
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-      <div className="space-y-4">
+    // The page fills the window and never scrolls (the user's): the screen and the naming screen take the height left,
+    // each as large as fits; the leaderboards scroll inside their panel, and on a narrow screen leave the game the room.
+    <div ref={fill.ref} style={fill.style} className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[minmax(0,1fr)]">
+      <div className="flex min-h-0 flex-1 flex-col">
         {round ? (
-          <div className={panel}>
+          <div className={fillPanel}>
             <div className="flex items-center justify-between gap-3">
               <h3 className={PANEL_HEADING}>
                 {round.daily ? "Today's playlist: " : ''}Pokémon {round.index + 1} of {round.total}
               </h3>
               <span className="font-mono text-lg tabular-nums">{seconds(Math.max(0, now - shownAt))}</span>
             </div>
-            <WhosThatScreen shape={round.shape} />
-            <NamingScreen round={`${round.gameId}:${round.index}`} onSubmit={send} />
-            <div className="flex justify-end">
-              <button className={BUTTON} disabled={pass.isPending} onClick={() => pass.mutate({ gameId: round.gameId })}>
+            <Fit ratio={16 / 9} grow={16}>
+              <WhosThatScreen shape={round.shape} />
+            </Fit>
+            <Fit ratio={3 / 2} grow={11}>
+              <NamingScreen round={`${round.gameId}:${round.index}`} onSubmit={send} />
+            </Fit>
+            <div className="flex items-start justify-between gap-3">
+              <DoneList done={done} />
+              <button className={`${BUTTON} ml-auto shrink-0`} disabled={pass.isPending} onClick={() => pass.mutate({ gameId: round.gameId })}>
                 Pass
               </button>
             </div>
-            <DoneList done={done} />
           </div>
         ) : results ? (
           <div className={panel}>
@@ -134,8 +145,10 @@ export function WhosThat() {
             </div>
           </div>
         ) : (
-          <div className={panel}>
-            <WhosThatScreen shape={null} />
+          <div className={fillPanel}>
+            <Fit ratio={16 / 9} grow={1}>
+              <WhosThatScreen shape={null} />
+            </Fit>
             <p className="text-sm text-slate-300">
               Name {WHOS_THAT_ROUNDS} Pokémon from their silhouettes as fast as you can: type the name, press Enter, and the next one appears at once. A pass shows the Pokémon and counts {WHOS_THAT_PASS_MS / 1000} seconds. Your fastest and
               average times go on the leaderboards.
@@ -159,8 +172,22 @@ export function WhosThat() {
           </div>
         )}
       </div>
-      <Leaderboards />
+      <Leaderboards className={round ? 'hidden lg:flex' : 'max-h-[40%] lg:max-h-none'} />
       <Toasts toasts={toasts.toasts} />
+    </div>
+  );
+}
+
+/**
+ * A share (`grow`) of the height left in a column, its child as large as fits in it at `ratio` (width ÷ height),
+ * centred: the screens are sized by the window's height as well as its width.
+ */
+function Fit({ ratio, grow, children }: { ratio: number; grow: number; children: ReactNode }) {
+  return (
+    <div className="min-h-0 [container-type:size]" style={{ flex: `${grow} 1 0` }}>
+      <div className="mx-auto" style={{ width: `min(100cqw, ${ratio} * 100cqh)` }}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -194,13 +221,13 @@ const BOARDS: { id: Board; label: string }[] = [
   { id: 'daily', label: 'Today' },
 ];
 
-/** The leaderboards, open to anyone: each player's best average, fastest Pokémon, and today's playlist. */
-function Leaderboards() {
+/** The leaderboards, open to anyone: each player's best average, fastest Pokémon, and today's playlist. Their rows scroll inside the panel. */
+function Leaderboards({ className }: { className: string }) {
   const trpc = useTRPC();
   const [board, setBoard] = useState<Board>('average');
   const data = useQuery(trpc.whosThat.leaderboard.queryOptions({ board }));
   return (
-    <div className={`${panel} self-start`}>
+    <div className={`flex min-h-0 flex-col gap-4 self-start rounded-lg bg-slate-800 p-5 ring-1 ring-slate-600 lg:max-h-full ${className}`}>
       <h3 className={PANEL_HEADING}>Leaderboards</h3>
       <div className="flex gap-1">
         {BOARDS.map((b) => (
@@ -213,6 +240,7 @@ function Leaderboards() {
       {data.data && !data.data.rows.length ? (
         <p className="text-sm text-slate-400">No one yet. Be the first!</p>
       ) : (
+        <div className="min-h-0 overflow-y-auto">
         <table className="w-full text-sm">
           <thead className="text-left text-xs text-slate-400">
             <tr>
@@ -231,6 +259,7 @@ function Leaderboards() {
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   );
