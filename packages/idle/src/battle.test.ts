@@ -9,7 +9,7 @@ import { MOVES } from './data/gen1/moves.js';
 import { SPECIES } from './data/gen1/species.js';
 import { TRAINERS } from './data/gen1/trainers.js';
 import { levelEvolution, evolve } from './evolution.js';
-import { autoSlots, basicMove, cooldownTicks, createMon, lastFourMoves, movePower } from './mon.js';
+import { autoSlots, basicFor, basicMove, cooldownTicks, createMon, lastFourMoves, movePower, movesUpTo } from './mon.js';
 import { EFFECTS } from './moves.js';
 import { calcStats, expForLevel, levelForExp } from './stats.js';
 import type { Mon, Stats } from './types.js';
@@ -117,6 +117,19 @@ describe('moves and cooldowns', () => {
     expect(basicMove(6)).toBe('scratch');
     expect(basicMove(11)).toBe('tackle'); // Metapod: Caterpie's.
     expect(basicMove(128)).not.toBe('tackle'); // Tauros doesn't evolve: one step stronger.
+  });
+
+  it("never gives a Pokémon Struggle as its basic move (but Ditto, which has no other), its pre-evolution's instead", () => {
+    // A wild Kakuna knows only Harden: Weedle's Poison Sting.
+    expect(basicFor({ species: 14, moves: ['harden'] })).toBe('poison-sting');
+    expect(basicFor({ species: 129, moves: ['splash'] })).toBe('tackle');
+    for (const s of SPECIES) {
+      if (s.id === 132) continue;
+      for (let l = 1; l <= 100; l++) {
+        expect(basicFor({ species: s.id, moves: lastFourMoves(s.id, l) }), `${s.name} ${l}`).not.toBe('struggle');
+        expect(basicFor({ species: s.id, moves: movesUpTo(s.id, l) }), `${s.name} ${l}`).not.toBe('struggle');
+      }
+    }
   });
 
   it('cools moves down by power', () => {

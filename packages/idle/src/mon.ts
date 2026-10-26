@@ -100,12 +100,14 @@ export function basicMove(id: number): string {
 
 /**
  * A Pokémon's basic move: its species' (basicMove) once it knows it; until then (Onix at level 14 doesn't know
- * DragonBreath yet), the first damaging, high-PP move it knows, then any damaging move it knows, then Struggle.
+ * DragonBreath yet), the first damaging, high-PP move it knows, then any damaging move it knows; knowing none (a wild
+ * Kakuna's Harden, a Metapod's, a Magikarp's Splash), its species' all the same, its pre-evolution's for a species with
+ * none (the user's: never Struggle; Kakuna Poison Sting, Weedle's), known or not.
  */
 export function basicFor(mon: Pick<Mon, 'species' | 'moves'>): string {
   const rule = basicMove(mon.species);
   if (mon.moves.includes(rule) || BASIC_OVERRIDES[mon.species]) return rule;
-  return mon.moves.find(basicCandidate) ?? mon.moves.find((m) => moveData(m).power > 1) ?? mon.moves.find((m) => moveData(m).power > 0) ?? 'struggle';
+  return mon.moves.find(basicCandidate) ?? mon.moves.find((m) => moveData(m).power > 1) ?? mon.moves.find((m) => moveData(m).power > 0) ?? rule;
 }
 
 /** The level-up moves a species has learned by a level, oldest first, each once (all kept: agreed with the user). */
