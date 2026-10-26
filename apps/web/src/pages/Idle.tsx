@@ -69,7 +69,7 @@ function IdleAdventure() {
   const run = data?.run ?? null;
   const active = run?.status === 'ACTIVE' ? run : null;
   const settings = data?.settings;
-  const { play, summary, closeSummary, actOn, acted } = useIdlePlayback(active, name, (m) => toasts.push('error', m));
+  const { play, summary, closeSummary, actOn, acted, throwBall, throwing } = useIdlePlayback(active, name, (m) => toasts.push('error', m));
   // What happened while away, a page at a time in the scene's text box (in place of its own line); Escape closes it.
   const [page, setPage] = useState(0);
   const pages = summary ? catchUpPages(summary) : [];
@@ -207,7 +207,7 @@ function IdleAdventure() {
           dialogue={catchUp}
         />
       ) : play.battle ? (
-        <BattleScreen battle={play.battle} shown={play.shown} gender={gender} dialogue={catchUp} />
+        <BattleScreen battle={play.battle} shown={play.shown} gender={gender} dialogue={catchUp} onThrow={throwBall} throwing={throwing} />
       ) : (
         <AreaScene playback={play} gender={gender} dialogue={catchUp ?? (play.notice ? { text: play.notice, choices: [], instant: true, answer: () => {} } : null)}>
           {play.entering && <SceneTransition />}

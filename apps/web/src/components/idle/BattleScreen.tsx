@@ -219,6 +219,26 @@ function MoveBars({ mon, cooling }: { mon: BattlerView; cooling: Record<string, 
   );
 }
 
+/** The ball button (the user's): a Poké Ball in the battle's top right corner, its own click (not the text box's). */
+function BallButton({ disabled, title, onClick }: { disabled: boolean; title: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      disabled={disabled}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className="absolute rounded-full border-[0.5cqw] border-[#202020] shadow-[0_0.4cqw_0_rgba(0,0,0,0.4)] transition hover:scale-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
+      style={{ right: px(6), top: px(6), width: px(20), height: px(20), background: 'linear-gradient(#e83030 0 44%, #202020 44% 56%, #f8f8f8 56%)' }}
+    >
+      <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-[0.4cqw] border-[#202020] bg-[#f8f8f8]" style={{ width: px(7), height: px(7) }} />
+    </button>
+  );
+}
+
 /** A Poké Ball thrown at the wild Pokémon: it shakes as many times as the throw got, then breaks open or stays caught. */
 function ThrownBall({ ball }: { ball: Extract<BattleEvent, { t: 'ball' }> }) {
   const color = ball.item === 'ultra-ball' ? '#383838' : ball.item === 'great-ball' ? '#3870e0' : ball.item === 'master-ball' ? '#9040c0' : '#e83030';
@@ -243,7 +263,22 @@ function ThrownBall({ ball }: { ball: Extract<BattleEvent, { t: 'ball' }> }) {
  * player's attacks with their cooldown bars (MoveBars); showing the first `shown` of the battle's events; `dialogue` over
  * it in the scenes' text box (the catch-up's pages, if a battle starts before they're read).
  */
-export function BattleScreen({ battle, shown, gender, dialogue }: { battle: BattleSegment; shown: number; gender: 'male' | 'female'; dialogue?: Dialogue | null }) {
+export function BattleScreen({
+  battle,
+  shown,
+  gender,
+  dialogue,
+  onThrow,
+  throwing = false,
+}: {
+  battle: BattleSegment;
+  shown: number;
+  gender: 'male' | 'female';
+  dialogue?: Dialogue | null;
+  /** The ball button (the user's): the best ball next turn. */
+  onThrow?: () => void;
+  throwing?: boolean;
+}) {
   const phone = useIsPhone();
   const pressDialogue = useRef<(() => void) | null>(null);
   const { sides, text, line, rewards, exp, cooling, ball, hit, attacker } = shownState(battle.events.slice(0, shown), battle.party);
@@ -309,6 +344,14 @@ export function BattleScreen({ battle, shown, gender, dialogue }: { battle: Batt
           text
         )}
       </div>
+      {/* The ball button (the user's): the best ball in the bag next turn, a wild battle's; over until the battle's over. */}
+      {onThrow && (
+        <BallButton
+          disabled={battle.kind !== 'wild' || throwing || shown >= battle.events.length}
+          title={battle.kind !== 'wild' ? "You can't catch a trainer's Pokémon" : throwing ? 'Throwing a ball next turn…' : 'Throw the best Poké Ball next turn'}
+          onClick={onThrow}
+        />
+      )}
       {dialogue && <DialogueBox key={dialogueKey(dialogue)} dialogue={dialogue} pressRef={pressDialogue} phone={phone} />}
     </div>
     {/* The row kept while no Pokémon is out (the trainer's send-out), so the page doesn't jump. */}

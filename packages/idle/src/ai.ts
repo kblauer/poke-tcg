@@ -121,10 +121,19 @@ function autoCatch(b: Battle, me: Battler): Action | null {
   return { kind: 'ball', item: ball };
 }
 
-/** The player's action for the tick: auto-heal, then auto-catch on a wild Pokémon it should catch, then the cooldown rule. */
+/** The player's action for the tick: a ball the player asked for, auto-heal, then auto-catch on a wild Pokémon it should catch, then the cooldown rule. */
 export function choosePlayerAction(b: Battle): Action {
   const me = b.active[0];
   const locked = me.v.charging || me.v.rampage || me.v.rollout || me.v.uproar || me.v.bide || me.v.recharging;
+  // The player's own throw (the ball button, the user's): the best ball, before anything else, once one is due.
+  const due = b.setup.throwAt?.filter((t) => t <= b.tick).length ?? 0;
+  if (b.setup.kind === 'wild' && !locked && due > b.throwsMade) {
+    const ball = BALLS.map(([k]) => k).find((k) => (b.bag[k] ?? 0) > 0);
+    if (ball) {
+      b.throwsMade += 1;
+      return { kind: 'ball', item: ball };
+    }
+  }
   if (!locked && b.setup.settings.autoHeal) {
     const heal = autoHeal(b, me);
     if (heal) return heal;

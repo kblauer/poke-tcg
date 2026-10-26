@@ -34,6 +34,8 @@ export const idleSettingsSchema = z.object({
 export const startIdleInput = z.object({ species: z.number().int().min(1).max(DEX_SIZE), shiny: z.boolean().default(false) });
 export const idleRunInput = z.object({ runId: z.uuid(), expectedVersion: z.number().int().min(0) });
 export const idleActInput = idleRunInput.extend({ action: idleActionSchema });
+/** The battle's ball button: a ball on this tick of the wild battle playing (the tick after the one on screen). */
+export const idleThrowInput = idleRunInput.extend({ tick: z.number().int().min(1).max(100000) });
 /** Changes some of the settings (the rest kept). */
 export const idleSettingsInput = idleSettingsSchema.partial();
 /** Debug: a warp to an area (the run's party and bag kept). */

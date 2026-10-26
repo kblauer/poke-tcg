@@ -1,6 +1,6 @@
 import { prisma } from '@poke-tcg/db';
-import { AREAS, applyIdleAction, areaIndex, CATCH_UP_CAP_MS, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, simulateSegment, TOWN_WAIT_MS, starterOptions, STARTERS, visitStore, type IdleSettings, type Stats } from '@poke-tcg/idle';
-import { idleActInput, idleRunInput, idleSettingsInput, idleWarpInput, startIdleInput } from '@poke-tcg/shared';
+import { AREAS, applyIdleAction, areaIndex, BALLS, CATCH_UP_CAP_MS, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, simulateSegment, TOWN_WAIT_MS, starterOptions, STARTERS, visitStore, type IdleSettings, type Stats } from '@poke-tcg/idle';
+import { idleActInput, idleRunInput, idleSettingsInput, idleThrowInput, idleWarpInput, startIdleInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { asJson, newSeed } from '../games.js';
 import { caughtSpecies, clientIdleRun, idleSettings, latestIdleRun, loadOwnIdleRun, saveIdleRun, type LoadedIdleRun } from '../idle.js';
@@ -73,10 +73,16 @@ export const idleRouter = router({
     // A town waits TOWN_WAIT_MS for the player's choice (the browser takes it then), then goes on by itself.
     if (run.state.phase === 'town' && now < run.simulatedAt.getTime() + TOWN_WAIT_MS) throw failed('Waiting in town');
     const settings = await idleSettings(ctx.user.id);
-    const caught = new Set(await caughtSpecies(ctx.user.id));
-    const next = simulateSegment(run.state, settings, caught);
+    const caughtList = await caughtSpecies(ctx.user.id);
+    const next = simulateSegment(run.state, settings, new Set(caughtList));
     if (!next) throw failed('This run is over');
-    const playedTo = new Date(Math.max(now, run.simulatedAt.getTime()) + next.segment.durationMs);
+    const from = Math.max(now, run.simulatedAt.getTime());
+    const playedTo = new Date(from + next.segment.durationMs);
+    // A wild battle in it: its start kept, to play it again with a ball the player asks for (throwBall).
+    if (next.segment.events.some((e) => e.t === 'battle' && e.kind === 'wild')) {
+      const { replay: _, ...prev } = run.state;
+      next.state.replay = { prev, settings, caught: caughtList, from, throws: [] };
+    }
     const saved = await saveIdleRun(run, next.state, { dex: next.segment.dex, simulatedAt: playedTo });
     return { run: clientIdleRun(saved), segment: next.segment };
   }),
@@ -124,6 +130,29 @@ export const idleRouter = router({
     return { run: clientIdleRun(saved), events };
   }),
 
+  /**
+   * The battle's ball button (the user's): the best ball on `tick` of the wild battle playing (the tick after the one on
+   * screen). The segment is played again from its start (IdleState.replay) with every ball asked for, the same up to
+   * that tick, and replaces the one saved; the browser carries on with it from that tick.
+   */
+  throwBall: protectedProcedure.input(idleThrowInput).mutation(async ({ ctx, input }) => {
+    const run = await loadOwnIdleRun(input.runId, ctx.user.id);
+    checkVersion(run, input.expectedVersion);
+    const replay = run.state.replay;
+    if (!replay) throw failed('Too late to throw a ball in this battle');
+    if (replay.throws.some((t) => t >= input.tick)) throw failed('A ball is already on its way');
+    if (!BALLS.some(([b]) => (replay.prev.bag[b] ?? 0) > 0)) throw failed('No Poké Balls in the bag');
+    const throws = [...replay.throws, input.tick];
+    const again = simulateSegment(replay.prev, replay.settings, new Set(replay.caught), { throwAt: throws });
+    const b = again?.segment.events.find((e) => e.t === 'battle');
+    if (!again || b?.t !== 'battle' || b.kind !== 'wild') throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'The battle could not be played again' });
+    if (input.tick > b.ticks) throw failed('The battle is over');
+    again.state.version = run.version + 1;
+    again.state.replay = { ...replay, throws };
+    const saved = await saveIdleRun(run, again.state, { dex: again.segment.dex, simulatedAt: new Date(replay.from + again.segment.durationMs) });
+    return { run: clientIdleRun(saved), segment: again.segment };
+  }),
+
   /** Changes some of the mode's settings (User.idleSettings); they apply from the next battle. */
   settings: protectedProcedure.input(idleSettingsInput).mutation(async ({ ctx, input }) => {
     const settings: IdleSettings = { ...(await idleSettings(ctx.user.id)), ...input };
@@ -151,6 +180,7 @@ export const idleRouter = router({
     const state = structuredClone(run.state);
     Object.assign(state, { area: index, leg: 0, step: 0, beaten: [], phase: isTown(AREAS[index]!) ? 'town' : 'walking', version: state.version + 1 });
     delete state.grind;
+    delete state.replay;
     state.log.push(`Debug: warped to ${AREAS[index]!.name}.`);
     return clientIdleRun(await saveIdleRun(run, state, { simulatedAt: new Date() }));
   }),

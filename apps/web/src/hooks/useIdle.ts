@@ -158,7 +158,16 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
   const key = trpc.idle.overview.queryKey();
   const next = useMutation(trpc.idle.next.mutationOptions());
   const catchUp = useMutation(trpc.idle.catchUp.mutationOptions());
+  const throwMut = useMutation(trpc.idle.throwBall.mutationOptions());
   const [play, setPlay] = useState<Playback>(IDLE);
+  /**
+   * A ball asked for (the battle's ball button, the user's): the server's answer (its segment played again with the
+   * ball), awaited at the battle's next tick, so the battle carries on from there with it (null if it was refused).
+   */
+  const pendingThrow = useRef<Promise<{ run: ClientIdleRun; events: SegmentEvent[] } | null> | null>(null);
+  const [throwing, setThrowing] = useState(false);
+  /** The battle playing and the tick on screen (the ball asks for the next one). */
+  const onScreen = useRef<{ battle: BattleSegment | null; turn: number }>({ battle: null, turn: 0 });
   const [summary, setSummary] = useState<CatchUpSummary | null>(null);
   const update = useCallback((p: Partial<Playback>) => setPlay((old) => ({ ...old, ...p })), []);
   /** The run as the server last returned it (ahead of the screen while a segment plays). */
@@ -193,7 +202,9 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
       return () => void (gone = true);
     }
     if (!visible) return;
-    // Whatever was playing when it stopped (a battle half shown, a fade, a line) is dropped: the server is past it.
+    // Whatever was playing when it stopped (a battle half shown, a fade, a line, a ball asked for) is dropped: the server is past it.
+    pendingThrow.current = null;
+    onScreen.current = { battle: null, turn: 0 };
     update({ battle: null, cue: null, shown: 0, entering: false, spotted: null, notice: null, fading: false, turn: null, tickAt: Date.now() });
     let stopped = false;
     const timers = new Set<number>();
@@ -257,19 +268,40 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
       }
     }
 
+    /** The rest of the segment after a ball was thrown (its segment played again: the same up to its battle). */
+    let replacement: SegmentEvent[] | null = null;
+
     async function battle(e: BattleSegment) {
       // The play area's battle transition over the scene (SceneTransition, the user's), the battle once it's closed.
       update({ entering: true, cue: e });
       await wait(TRANSITION_MS);
       update({ battle: e, shown: 0, entering: false });
+      onScreen.current = { battle: e, turn: 0 };
       // Each tick's events spread over its TICK_MS; the opening (send-outs) at a quicker pace. A run of rewards (EXP.,
       // levels, moves learned) is one line: shown at once.
       const said = (x: BattleEvent) => 'msg' in x && !!x.msg;
       let i = 0;
       while (i < e.events.length) {
+        // A ball asked for: wait for the battle played again with it (the same up to this tick), and go on with that.
+        if (pendingThrow.current) {
+          const r = await pendingThrow.current;
+          pendingThrow.current = null;
+          if (stopped) throw new Stopped();
+          const again = r?.events.find((x): x is BattleSegment => x.t === 'battle');
+          if (r && again) {
+            latest.current = r.run;
+            replacement = r.events;
+            e = again;
+            onScreen.current.battle = again;
+            update({ battle: again, cue: again });
+          }
+        }
         const start = i;
         const first = e.events[start]!;
-        if (first.t === 'tick' && start > 0) update({ turn: first.n, tickAt: Date.now() });
+        if (first.t === 'tick' && start > 0) {
+          onScreen.current.turn = first.n;
+          update({ turn: first.n, tickAt: Date.now() });
+        }
         i++;
         while (i < e.events.length && e.events[i]!.t !== 'tick') i++;
         // The group's lines, each run of rewards counted once. A line takes the silent events after it (an attack's hit:
@@ -302,6 +334,17 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
         // A turn with nothing to say (both Pokémon asleep, say) still takes its tick.
         if (!count && start > 0) await wait(TICK_MS);
       }
+      onScreen.current = { battle: null, turn: 0 };
+      // A ball asked for too late (the battle's last turn): its answer settled here, not in the next battle.
+      if (pendingThrow.current) {
+        const r = await pendingThrow.current;
+        pendingThrow.current = null;
+        if (stopped) throw new Stopped();
+        if (r) {
+          latest.current = r.run;
+          replacement = r.events;
+        }
+      }
       await wait(1400);
       update({ battle: null, cue: null, shown: 0, spotted: null, turn: null, tickAt: Date.now() });
     }
@@ -311,7 +354,10 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
 
     async function playSegment(events: SegmentEvent[]) {
       let place: Place | null = null;
-      for (const [i, e] of events.entries()) {
+      // Its events, or after a ball was thrown its replacement's (the same up to the battle: the index carries on).
+      let evs = events;
+      for (let i = 0; i < evs.length; i++) {
+        const e = evs[i]!;
         if (e.t === 'area' || e.t === 'grind') {
           const next = e.t === 'grind' ? grindPlace(e.town, e.at) : { area: e.area, leg: e.leg, step: e.step };
           // A jump along the same track (a route grind going back, Continue route) fades too.
@@ -330,11 +376,15 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
           await circle(e, place);
         } else if (e.t === 'spotted') {
           // The trainer's battle (the next one in the segment): its music from the "!".
-          const next = events.slice(i + 1).find((x): x is BattleSegment => x.t === 'battle') ?? null;
+          const next = evs.slice(i + 1).find((x): x is BattleSegment => x.t === 'battle') ?? null;
           update({ spotted: e.trainer, cue: next });
           await wait(1500);
         } else if (e.t === 'battle') {
           await battle(e);
+          if (replacement) {
+            evs = replacement;
+            replacement = null;
+          }
         } else {
           const line = noticeOf(e, name);
           if (line) {
@@ -407,6 +457,26 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
   return {
     play,
     summary,
+    /** A ball asked for and not yet answered. */
+    throwing,
+    /**
+     * The battle's ball button (the user's): the best ball on the tick after the one on screen. The server plays the
+     * segment again with it; the playback holds at the next tick until it answers, then goes on with that battle.
+     */
+    throwBall: () => {
+      const s = onScreen.current;
+      const r = latest.current;
+      if (!s.battle || s.battle.kind !== 'wild' || pendingThrow.current || !r) return;
+      setThrowing(true);
+      pendingThrow.current = throwMut
+        .mutateAsync({ runId: r.id, expectedVersion: r.version, tick: s.turn + 1 })
+        .then((x) => ({ run: x.run, events: x.segment.events }))
+        .catch((e: unknown) => {
+          onError(e instanceof Error ? e.message : 'The ball could not be thrown.');
+          return null;
+        })
+        .finally(() => setThrowing(false));
+    },
     closeSummary: () => setSummary(null),
     /** The run to act on: the server's newest (a segment playing is already saved), else the one given. */
     actOn: (r: ClientIdleRun) => (latest.current && latest.current.id === r.id && latest.current.version > r.version ? latest.current : r),

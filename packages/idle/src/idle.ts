@@ -82,6 +82,12 @@ export const MAX_AUTO_BALLS = 99;
 
 export const DEFAULT_IDLE_SETTINGS: IdleSettings = { autoHeal: true, revives: ['last'], autoCatch: 'new', stopWhenFull: false, replaceLowest: false, autoEvolve: true, autoGrind: true, autoBalls: 0 };
 
+/**
+ * The settings a segment plays by, with the player's own throws (the ball button, the user's: `throwAt`, the ticks of
+ * its wild battle a ball was asked for; the server plays the segment again from its start with them, idle.throwBall).
+ */
+type PlaySettings = IdleSettings & { throwAt?: number[] };
+
 /** Wild encounter bookkeeping between steps (wild_encounter.c's sWildEncounterData). */
 interface EncounterState {
   steps: number;
@@ -120,6 +126,11 @@ export interface IdleState {
    * route goes on from there).
    */
   loop?: RouteLoop;
+  /**
+   * The server's, not the rules': the last segment's start when it holds a wild battle, to play it again with a ball the
+   * player asked for (the battle's ball button, the user's: idle.throwBall). Any action or segment after it drops it.
+   */
+  replay?: SegmentReplay;
   /** The Champion's team: the starter he'd have picked against the run's (FireRed's TRAINER_CHAMPION_FIRST_<his starter>). */
   rivalStarter: 'bulbasaur' | 'charmander' | 'squirtle';
   /** The run's totals, for the screen and the run's end. */
@@ -149,6 +160,15 @@ export type IdleAction =
   /** Uses an evolution stone from the bag on a Pokémon. */
   | { type: 'USE_STONE'; uid: string; item: string }
   | { type: 'GIVE_UP' };
+
+/** A segment's start kept to play it again (IdleState.replay): the state before it, its settings and caught species, when it began (ms), the ticks a ball was asked for. */
+export interface SegmentReplay {
+  prev: IdleState;
+  settings: IdleSettings;
+  caught: number[];
+  from: number;
+  throws: number[];
+}
 
 /** Where a route grind loops (IdleState.loop). */
 export type RouteLoop = { resume: { area: number; leg: number; step: number; beaten: string[] } } & (
@@ -388,6 +408,7 @@ function autoStones(state: IdleState, stock: string[], events: SegmentEvent[]) {
 /** Applies the player's choice to a run. Pure: returns a new state, or an error. */
 export function applyIdleAction(prev: IdleState, action: IdleAction): IdleResult {
   const state = structuredClone(prev);
+  delete state.replay;
   const fail = (error: string): IdleResult => ({ ok: false, error });
   const ok = (): IdleResult => {
     state.version += 1;
@@ -586,12 +607,12 @@ export const partyNotes = (party: Mon[]): DexNote[] => party.map((m) => ({ speci
  * Plays one battle and settles it: experience and levels kept, evolutions after it (the game's), prize money, a
  * badge, a caught Pokémon kept or released, or a white-out (back to the area's start, its trainers to fight again).
  */
-function battle(state: IdleState, rng: Rng, settings: IdleSettings, caught: Set<number>, o: { kind: 'wild' | 'trainer'; foes: Mon[]; trainer?: string; tile: string; scene: string }, out: Segment) {
+function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<number>, o: { kind: 'wild' | 'trainer'; foes: Mon[]; trainer?: string; tile: string; scene: string }, out: Segment) {
   const tryCatch = o.kind === 'wild' && shouldCatch(state, settings, caught, o.foes[0]!.species);
   const before = state.party.map((m) => m.level);
   const t = o.trainer ? TRAINERS[o.trainer] : null;
   const result = simulateBattle(
-    { kind: o.kind, party: state.party, foes: o.foes, foeItems: t?.items ?? [], bag: state.bag, settings: { autoHeal: settings.autoHeal, revives: settings.revives, tryCatch }, boss: !!o.trainer && /^(leader|elite-four|champion)/.test(o.trainer), badges: state.badges.length, terrain: terrainOf(o.tile) },
+    { kind: o.kind, party: state.party, foes: o.foes, foeItems: t?.items ?? [], bag: state.bag, settings: { autoHeal: settings.autoHeal, revives: settings.revives, tryCatch }, boss: !!o.trainer && /^(leader|elite-four|champion)/.test(o.trainer), badges: state.badges.length, terrain: terrainOf(o.tile), ...(o.kind === 'wild' && settings.throwAt?.length && { throwAt: settings.throwAt }) },
     rng,
   );
   out.events.push({
@@ -809,7 +830,7 @@ function whiteOut(state: IdleState, out: Segment) {
 }
 
 /** A step's wild encounter, if one appears (its tile's table, wildCheck): the battle played; whether it was won, or null for none. */
-function wildStep(state: IdleState, rng: Rng, settings: IdleSettings, caught: Set<number>, tile: string, map: ReturnType<typeof mapView>, out: Segment): boolean | null {
+function wildStep(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<number>, tile: string, map: ReturnType<typeof mapView>, out: Segment): boolean | null {
   const kind = tile[0] === 'l' ? 'land' : tile[0] === 'w' ? 'water' : null;
   const table = kind && ENCOUNTERS[map.encounters]?.[kind];
   if (!table || !wildCheck(rng, state.encounter, table, tile, state.party[0]!)) return null;
@@ -832,7 +853,7 @@ function finishGrind(state: IdleState, out: Segment) {
  * as usual): round the town's loop until a wild Pokémon appears, then its battle; at the gym's highest level, into the
  * gym. Returns whether the party whited out (back in the town, waiting for the player).
  */
-function grindSegment(state: IdleState, rng: Rng, settings: IdleSettings, caught: Set<number>, out: Segment): boolean {
+function grindSegment(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<number>, out: Segment): boolean {
   const spot = (AREAS[state.area] as TownArea).grind!;
   const leg = (areaById(spot.area) as WalkArea).legs[spot.leg]!;
   const grind = state.grind!;
@@ -907,10 +928,12 @@ function finishArea(state: IdleState, out: Segment) {
  * account's caught species (auto-catch's "new"), updated with this segment's catches. Returns the new state and the
  * segment (in a town, its wait: townWait), or null when the run is over.
  */
-export function simulateSegment(prev: IdleState, settings: IdleSettings, caught: Set<number>): { state: IdleState; segment: Segment } | null {
+export function simulateSegment(prev: IdleState, idleSettings: IdleSettings, caught: Set<number>, o: { throwAt?: number[] } = {}): { state: IdleState; segment: Segment } | null {
+  const settings: PlaySettings = { ...idleSettings, ...(o.throwAt && { throwAt: o.throwAt }) };
   if (prev.phase === 'town') return townWait(prev);
   if (!playing(prev)) return null;
   const state = structuredClone(prev);
+  delete state.replay;
   const rng = rngOf(state);
   const out: Segment = { events: [], durationMs: 0, dex: [] };
   let whitedOut = false;
@@ -1010,6 +1033,7 @@ export function simulateSegment(prev: IdleState, settings: IdleSettings, caught:
  */
 function townWait(prev: IdleState): { state: IdleState; segment: Segment } {
   const state = structuredClone(prev);
+  delete state.replay;
   const out: Segment = { events: [{ t: 'town', area: state.area }], durationMs: TOWN_WAIT_MS + FADE_MS, dex: [] };
   const town = AREAS[state.area] as TownArea;
   if (!townDone(state, town)) enterGym(state, out.events);
@@ -1081,7 +1105,7 @@ export const bankedMoney = (state: Pick<IdleState, 'phase' | 'money'>) => (state
 
 /** What the player sees of a run: everything but the RNG, with the area it's in. */
 export function idleView(state: IdleState) {
-  const { rngState: _, ...rest } = state;
+  const { rngState: _, replay: __, ...rest } = state;
   const area: IdleArea = AREAS[state.area]!;
   // Grinding: the area the loop is in (the run's `area` stays the town), and the level it trains to.
   const grindArea = state.phase === 'grinding' && isTown(area) && area.grind ? areaById(area.grind.area) : null;

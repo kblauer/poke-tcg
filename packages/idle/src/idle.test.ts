@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { AREAS, isTown, type WalkArea } from './areas.js';
-import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, meetStep, routeGrindPlan, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState } from './idle.js';
+import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, meetStep, routeGrindPlan, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
+
+type BattleSeg = Extract<SegmentEvent, { t: 'battle' }>;
 
 /** The settings with auto-grind off (it's on by default). */
 const MANUAL: IdleSettings = { ...DEFAULT_IDLE_SETTINGS, autoGrind: false };
@@ -260,6 +262,28 @@ describe('an idle run', () => {
       expect(applyIdleAction({ ...s, area: AREAS.findIndex((a) => a.id === 'pewter-city'), phase: 'town' }, { type: 'ROUTE_GRIND' }).ok).toBe(false);
       expect(applyIdleAction(s, { type: 'CONTINUE_ROUTE' }).ok).toBe(false);
     });
+  });
+
+  it("plays a segment again the same up to the turn a ball was asked for, then throws it (the ball button)", () => {
+    // Walk Route 1 with auto-catch off until a segment holds a wild battle of 3 turns or more.
+    const settings = { ...MANUAL, autoCatch: 'off' as const };
+    let s: IdleState = { ...createIdleRun({ species: 4 }, 5), bag: { 'great-ball': 3 } };
+    let found: { prev: IdleState; battle: BattleSeg } | null = null;
+    for (let i = 0; i < 100 && !found; i++) {
+      const next = simulateSegment(s, settings, new Set())!;
+      const b = next.segment.events.find((e) => e.t === 'battle');
+      if (b?.t === 'battle' && b.kind === 'wild' && b.ticks >= 3) found = { prev: s, battle: b };
+      s = next.state;
+    }
+    expect(found).not.toBeNull();
+    const again = simulateSegment(found!.prev, settings, new Set(), { throwAt: [2] })!;
+    const b = again.segment.events.find((e) => e.t === 'battle') as BattleSeg;
+    const tick2 = (ev: BattleSeg['events']) => ev.findIndex((e) => e.t === 'tick' && e.n === 2);
+    // The same up to turn 2…
+    expect(b.events.slice(0, tick2(b.events))).toEqual(found!.battle.events.slice(0, tick2(found!.battle.events)));
+    // …then a Great Ball.
+    const turn2 = b.events.slice(tick2(b.events), b.events.findIndex((e) => e.t === 'tick' && e.n === 3) >>> 0);
+    expect(turn2.some((e) => e.t === 'ball' && e.item === 'great-ball')).toBe(true);
   });
 
   it('has auto-grind on by default', () => {

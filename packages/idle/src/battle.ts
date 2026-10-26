@@ -91,6 +91,8 @@ export interface BattleSetup {
   terrain: Terrain;
   /** The battle ends after this many ticks: a wild Pokémon wanders off, a trainer battle is lost (no endless stalls). */
   maxTicks?: number;
+  /** The player's own throws (the battle's ball button, the user's): from each tick listed, the best ball once, as soon as one can be thrown (a wild battle's). */
+  throwAt?: number[];
 }
 
 
@@ -275,6 +277,8 @@ export class Battle {
   facedBy = new Map<number, Set<number>>();
   /** Auto-catch's basic hits so far this battle (ai.ts: at most 2, then the balls). */
   catchHits = 0;
+  /** The player's own throws made so far (BattleSetup.throwAt). */
+  throwsMade = 0;
   participated = new Set<number>();
   /** The move used last in the battle (Mirror Move's fallback is none). */
   lastMoveUsed: string | null = null;
