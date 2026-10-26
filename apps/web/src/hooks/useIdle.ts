@@ -107,10 +107,12 @@ export interface Playback {
   /** The game's tick (TICK_MS, shown in a battle: the user's): the battle's turn (null out of battle) and when the current tick began. */
   turn: number | null;
   tickAt: number;
+  /** The segments played so far: its battle's song is keyed on it, so a ball thrown (the battle played again) carries the song on. */
+  segment: number;
 }
 
 // Facing down to begin with: out of a door (a run's start, Oak's lab's), as the game has it.
-const IDLE: Playback = { place: null, face: 'down', walkTick: 0, moveMs: 0, jump: null, fading: false, spotted: null, battle: null, cue: null, shown: 0, entering: false, notice: null, turn: null, tickAt: 0 };
+const IDLE: Playback = { place: null, face: 'down', walkTick: 0, moveMs: 0, jump: null, fading: false, spotted: null, battle: null, cue: null, shown: 0, entering: false, notice: null, turn: null, tickAt: 0, segment: 0 };
 
 /** Whether the tab is showing (document.visibilityState), followed as it changes. */
 function useTabVisible() {
@@ -361,6 +363,7 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
     let shown: Place = placeOf(current.view);
 
     async function playSegment(events: SegmentEvent[]) {
+      setPlay((old) => ({ ...old, segment: old.segment + 1 }));
       let place: Place | null = null;
       // Its events, or after a ball was thrown its replacement's (the same up to the battle: the index carries on).
       let evs = events;

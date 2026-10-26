@@ -99,7 +99,7 @@ function IdleAdventure() {
   const fight = active ? (play.battle ?? play.cue) : null;
   useMusicCue(
     fight
-      ? idleMusic(soundtrack, { battle: battleKind(fight.trainer), id: `${run?.id}:${fight.events.length}:${fight.foes.map((f) => f.species).join(',')}` })
+      ? idleMusic(soundtrack, { battle: battleKind(fight.trainer), id: `${run?.id}:${play.segment}` })
       : run?.view.phase === 'won'
         ? idleMusic(soundtrack, { won: true })
         : mapMusic
