@@ -1,4 +1,4 @@
-import { AREAS, areaById, ITEMS, mapView, topLevel, TOWN_WAIT_MS, type TownArea } from '@poke-tcg/idle';
+import { AREAS, areaById, ITEMS, mapView, previousRoute, topLevel, TOWN_WAIT_MS, type TownArea } from '@poke-tcg/idle';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { ClientIdleRun } from '../../hooks/useIdle';
 import { commas } from '../../utils/math';
@@ -24,6 +24,7 @@ export function TownMenu({
   onGrind,
   onStore,
   onContinue,
+  onBack,
   dialogue,
   children,
 }: {
@@ -34,6 +35,8 @@ export function TownMenu({
   onGrind: () => void;
   onStore: () => void;
   onContinue: () => void;
+  /** Back to the start of the route before the town (BACK_ROUTE). */
+  onBack: () => void;
   dialogue?: Dialogue | null;
   /** Drawn over the town (the party overlay). */
   children?: ReactNode;
@@ -45,11 +48,14 @@ export function TownMenu({
   const gymDone = !gym || (badge !== null && run.view.badges.includes(badge));
   const league = gym?.kind === 'league';
   const target = run.view.grindTarget;
+  const back = previousRoute(run.view.area);
   const options: { label: string; act: () => void; disabled?: boolean }[] = [
     ...(gym && !gymDone ? [{ label: league ? 'Challenge the Elite Four' : 'Gym', act: onGym }] : []),
     ...(gym && !gymDone && town.grind && target ? [{ label: `Grind to Lv. ${target}`, act: onGrind, disabled: topLevel(run.view.party) >= target }] : []),
     ...(town.marts.length > 0 ? [{ label: 'Store', act: onStore }] : []),
     ...(gymDone && !league ? [{ label: 'Continue', act: onContinue }] : []),
+    // Back to the route before the town, its progress reset (the user's).
+    ...(back !== null ? [{ label: `Back to ${AREAS[back]!.name}`, act: onBack }] : []),
   ];
   // The choice made for the player: the gym (or the League) before it's beaten, Continue after.
   const auto = gym && !gymDone ? { label: league ? 'Elite Four' : 'Gym', act: onGym } : { label: 'Continue', act: onContinue };
