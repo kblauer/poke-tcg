@@ -13,7 +13,7 @@ import { ENCOUNTERS } from './data/gen1/encounters.js';
 import { MARTS } from './data/gen1/marts.js';
 import { TRAINERS } from './data/gen1/trainers.js';
 import { evolve, levelEvolution, stoneEvolution, usableStones } from './evolution.js';
-import { abilityOf, autoSlots, basicFor, createMon, movesUpTo } from './mon.js';
+import { abilityOf, autoSlots, basicFor, createMon, familyMovesUpTo } from './mon.js';
 import { MAX_LEVEL } from './stats.js';
 import type { EncounterSlots, Mon, Stats } from './types.js';
 
@@ -653,7 +653,10 @@ function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<
     out.events.push({ t: 'money', amount: result.payDay, total: state.money, why: 'Pay Day' });
   }
   if (result.result === 'caught' && result.caught) {
-    const mon: Mon = { ...result.caught, slots: autoSlots(result.caught), autoSlots: true, moves: movesUpTo(result.caught.species, result.caught.level) };
+    // Every move its line learns by its level (the user's: an evolved Pokémon caught knows its pre-evolutions' too), its
+    // slots the strongest of them.
+    const moves = familyMovesUpTo(result.caught.species, result.caught.level);
+    const mon: Mon = { ...result.caught, moves, slots: autoSlots({ species: result.caught.species, moves }), autoSlots: true };
     caught.add(mon.species);
     state.totals.caught += 1;
     out.dex.push({ species: mon.species, seen: true, caught: true, ivs: mon.ivs, evs: mon.evs, ...(mon.shiny && { shiny: true as const }) });

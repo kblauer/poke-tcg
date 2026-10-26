@@ -117,6 +117,21 @@ export function movesUpTo(id: number, level: number): string[] {
   return out;
 }
 
+/**
+ * The level-up moves a species and every species it evolves from learn by a level (the user's: a Pokémon caught
+ * evolved knows its line's moves, Kakuna Weedle's Poison Sting and String Shot), by the level they're learned at,
+ * the earlier evolutions' first on a tie, each once.
+ */
+export function familyMovesUpTo(id: number, level: number): string[] {
+  const line: number[] = [];
+  for (let s: number | null = id; s !== null; s = evolvesFrom(s)) line.unshift(s);
+  const learned = line.flatMap((s) => species(s).learnset.filter(([lvl]) => lvl <= level));
+  // A stable sort: by level, each species' (the earliest evolution's first) in its own order.
+  const out: string[] = [];
+  for (const [, m] of [...learned].sort((x, y) => x[0] - y[0])) if (!out.includes(m)) out.push(m);
+  return out;
+}
+
 /** The moves a species learns on reaching exactly `level`. */
 export const movesAt = (id: number, level: number) => species(id).learnset.filter(([lvl]) => lvl === level).map(([, m]) => m);
 

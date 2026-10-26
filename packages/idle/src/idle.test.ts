@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AREAS, isTown, type WalkArea } from './areas.js';
+import { familyMovesUpTo } from './mon.js';
 import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, meetStep, routeGrindPlan, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
 
 type BattleSeg = Extract<SegmentEvent, { t: 'battle' }>;
@@ -333,6 +334,25 @@ describe('an idle run', () => {
     // Continue route goes on from the route's start.
     const on = applyIdleAction(s, { type: 'CONTINUE_ROUTE' });
     expect(on.ok && [on.state.area, on.state.leg, on.state.loop]).toEqual([area, 0, undefined]);
+  });
+
+  it("teaches a caught Pokémon every move its line learns by its level: a Kakuna knows Weedle's", () => {
+    expect(familyMovesUpTo(14, 7)).toEqual(['poison-sting', 'string-shot', 'harden']);
+    // Charizard at 40: Charmander's, Charmeleon's and its own, by level.
+    expect(familyMovesUpTo(6, 40)).toEqual(expect.arrayContaining(['scratch', 'growl', 'ember', 'metal-claw', 'smokescreen', 'scary-face', 'flamethrower', 'slash', 'wing-attack']));
+    // Catching one in Viridian Forest (wild grinding there): auto-catch every wild Pokémon with Master Balls until a Kakuna joins.
+    const area = AREAS.findIndex((a) => a.id === 'route-2');
+    const leg = (AREAS[area] as WalkArea).legs[0]!;
+    const forest = leg.maps.indexOf('ViridianForest');
+    const step = leg.track.findIndex(([m, , , , t]) => m === forest && t[0] === 'l');
+    const base = createIdleRun({ species: 4 }, 7);
+    let s: IdleState = { ...base, area, step, beaten: (AREAS[area] as WalkArea).trainers.map((t) => t.key), bag: { 'master-ball': 99 }, party: [{ ...base.party[0]!, level: 12 }] };
+    s = (applyIdleAction(s, { type: 'WILD_GRIND' }) as { state: IdleState }).state;
+    const settings = { ...MANUAL, autoCatch: 'all' as const, replaceLowest: true };
+    for (let i = 0; i < 400 && !s.party.some((m) => m.species === 14); i++) s = simulateSegment(s, settings, new Set())!.state;
+    const kakuna = s.party.find((m) => m.species === 14);
+    expect(kakuna).toBeDefined();
+    expect(kakuna!.moves).toEqual(expect.arrayContaining(['poison-sting', 'string-shot', 'harden']));
   });
 
   it('has auto-grind on by default', () => {
