@@ -1,21 +1,12 @@
 import { AREAS, areaById, mapView, type TownArea, type WalkArea } from '@poke-tcg/idle';
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { placeTrack, type Playback } from '../../hooks/useIdle';
 import type { Facing } from '../../utils/overworld';
 import { DialogueBox, dialogueKey, type Dialogue } from '../DialogueBox';
 import { Exclamation, OverworldSprite } from '../run/RouteSprites';
+import { GAME_HEIGHT, GAME_WIDTH, GameScreen, onDevicePixel, useGameScale } from './GameScreen';
 
-/**
- * The scene (the user's layout): a game screen centred on the page, 20 tiles by 17 at the map's 3× (the user's), narrower
- * with the page and shorter with the window (most of it below the page's header, at least 22rem); on a phone the page's
- * width, 22rem tall, at the run maps' 2×.
- */
-const ZOOM = 3;
-const PHONE_ZOOM = 2;
-const VIEW_WIDTH = 20 * 16 * ZOOM;
-const VIEW_HEIGHT = 17 * 16 * ZOOM;
-const sceneSize = (phone: boolean) => (phone ? { height: '22rem' } : { maxWidth: VIEW_WIDTH, height: `min(${VIEW_HEIGHT}px, max(22rem, calc(100dvh - 11rem)))` });
 /** The text box's widest (the user's: bound to less than the scene's width), and never wider than the map drawn. */
 const DIALOGUE_MAX = 768;
 
@@ -58,10 +49,10 @@ export function usePreloadMaps(area: number | null) {
 const WATER_SPRITES: Record<string, string> = { swimmer_m: 'swimmer_m_water', swimmer_f: 'swimmer_f_water' };
 
 /**
- * A map of the run, the player standing on `tile` (in map tiles) and `people` around: the map drawn at 3× (2× on a
- * phone), cut off at the scene's edges; across each way it fits in the scene it's centred (Oak's lab, the user's),
- * otherwise panned to keep the player in the middle (as the run maps' RouteView, without dragging), whole pixels either
- * way; fading out between maps; `children` over it (the battle's flash), and `dialogue` in the Battle Tower's text
+ * A map of the run, the player standing on `tile` (in map tiles) and `people` around: the game screen (the user's: the
+ * battle screen's size, FireRed's 15 by 10 tiles, its pixels a whole number of device pixels: useGameScale), the map cut
+ * off at its edges; across each way it fits it's centred (Oak's lab, the user's), otherwise panned to keep the player in
+ * the middle (as the run maps' RouteView, without dragging), on whole device pixels either way; fading out between maps; `children` over it (the battle's flash), and `dialogue` in the Battle Tower's text
  * box (DialogueBox, the user's: a click anywhere on the scene a click on the box), no wider than DIALOGUE_MAX or the map.
  */
 export function MapScene({
@@ -98,10 +89,9 @@ export function MapScene({
   const phone = useIsPhone();
   /** The dialogue box's click (DialogueBox sets it while it's up), for a click anywhere on the scene. */
   const pressDialogue = useRef<(() => void) | null>(null);
-  const zoom = phone ? PHONE_ZOOM : ZOOM;
-  // The scene's size, measured (and again as the window changes).
-  const box = useRef<HTMLDivElement>(null);
-  const [view, setView] = useState({ w: 0, h: 0 });
+  // The game screen's scale (CSS pixels a game pixel) and size.
+  const { ref, scale: zoom } = useGameScale();
+  const view = { w: GAME_WIDTH * zoom, h: GAME_HEIGHT * zoom };
   // The map is shown only once it's placed and its picture loaded (the user's: no pan to the player as the scene comes
   // back after a battle, no picture drawing in bit by bit): hidden until the scene is measured and `loaded` is its
   // picture, and the pan's slide on only from the frame after it was first placed.
@@ -114,22 +104,14 @@ export function MapScene({
     const frame = requestAnimationFrame(() => setSettled(true));
     return () => cancelAnimationFrame(frame);
   }, [shown, settled]);
-  useLayoutEffect(() => {
-    const el = box.current;
-    if (!el) return;
-    const fit = () => setView({ w: el.clientWidth, h: el.clientHeight });
-    const observer = new ResizeObserver(fit);
-    observer.observe(el);
-    fit();
-    return () => observer.disconnect();
-  }, []);
   // The map's offset in the scene: centred across a way it fits, else the player's tile in the middle.
   const mapW = width * 16 * zoom;
   const mapH = height * 16 * zoom;
-  const left = Math.round(mapW <= view.w ? (view.w - mapW) / 2 : view.w / 2 - (tile.x * 16 + 8) * zoom);
-  const top = Math.round(mapH <= view.h ? (view.h - mapH) / 2 : view.h / 2 - (tile.y * 16 + 8) * zoom);
+  const left = onDevicePixel(mapW <= view.w ? (view.w - mapW) / 2 : view.w / 2 - (tile.x * 16 + 8) * zoom);
+  const top = onDevicePixel(mapH <= view.h ? (view.h - mapH) / 2 : view.h / 2 - (tile.y * 16 + 8) * zoom);
   return (
-    <div ref={box} className="relative mx-auto w-full overflow-hidden rounded-lg bg-black ring-1 ring-slate-700" style={sceneSize(phone)} onClick={() => pressDialogue.current?.()}>
+    <div ref={ref} className="w-full">
+    <div className="relative mx-auto overflow-hidden rounded-lg bg-black ring-1 ring-slate-700" style={measured ? { width: view.w, height: view.h } : { width: '100%', aspectRatio: '3 / 2' }} onClick={() => pressDialogue.current?.()}>
       <div
         className="absolute left-0 top-0"
         style={{ transform: `translate(${left}px, ${top}px)`, transition: settled ? `transform ${moveMs}ms linear` : 'none', opacity: fading || !shown ? 0 : 1 }}
@@ -154,7 +136,8 @@ export function MapScene({
       </div>
       <div className="pointer-events-none absolute inset-0 bg-black transition-opacity duration-300" style={{ opacity: fading ? 1 : 0 }} />
       {children}
-      {dialogue && <DialogueBox key={dialogueKey(dialogue)} dialogue={dialogue} pressRef={pressDialogue} phone={phone} maxWidth={Math.min(DIALOGUE_MAX, width * 16 * zoom)} />}
+      {dialogue && <DialogueBox key={dialogueKey(dialogue)} dialogue={dialogue} pressRef={pressDialogue} phone={phone} maxWidth={Math.min(DIALOGUE_MAX, width * 16 * zoom, view.w)} />}
+    </div>
     </div>
   );
 }
@@ -165,10 +148,9 @@ export function MapScene({
  * `dialogue` in its text box (a notice, the catch-up's pages).
  */
 export function AreaScene({ playback, gender, dialogue, children }: { playback: Playback; gender: 'male' | 'female'; dialogue?: Dialogue | null; children?: ReactNode }) {
-  const phone = useIsPhone();
   const place = playback.place;
   const area = place && (AREAS[place.area] as WalkArea | undefined);
-  if (!place || !area || !('legs' in area)) return <div className="mx-auto w-full rounded-lg bg-slate-900 ring-1 ring-slate-700" style={sceneSize(phone)}>{children}</div>;
+  if (!place || !area || !('legs' in area)) return <GameScreen className="rounded-lg bg-slate-900 ring-1 ring-slate-700">{() => children}</GameScreen>;
   const leg = area.legs[Math.min(place.leg, area.legs.length - 1)]!;
   // Grinding, the step round the town's loop (on one of the leg's maps).
   const track = placeTrack(place);

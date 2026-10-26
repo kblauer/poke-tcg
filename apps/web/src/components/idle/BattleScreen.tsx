@@ -3,6 +3,7 @@ import { useRef, type CSSProperties } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { isReward, type BattleSegment } from '../../hooks/useIdle';
 import { DialogueBox, dialogueKey, type Dialogue } from '../DialogueBox';
+import { GAME_WIDTH, useGameScale } from './GameScreen';
 import { MonIcon } from './PartyScreen';
 
 /** One game pixel of FireRed's 240x160 screen, in the battle box's width (container query units). */
@@ -307,6 +308,8 @@ export function BattleScreen({
 }) {
   const phone = useIsPhone();
   const pressDialogue = useRef<(() => void) | null>(null);
+  // The game screen's size (the user's: the map's, FireRed's 240x160 at a whole number of device pixels a pixel: useGameScale).
+  const { ref, scale } = useGameScale();
   const { sides, text, line, rewards, exp, cooling, ball, hit, attacker } = shownState(battle.events.slice(0, shown), battle.party);
   const speciesOf = (uid: string) => battle.party.find((m) => m.uid === uid)?.species ?? 0;
   // Where FireRed draws them (GetBattlerSpriteFinal_Y): the foe's centre at 176,40, the player's at 72,80, each 64x64
@@ -319,7 +322,8 @@ export function BattleScreen({
   const blink = (side: 0 | 1) => (hit && hit.side === side && hit.at >= line ? 'idle-hit 0.5s steps(2) 2' : undefined);
   const lunge = (side: 0 | 1) => (attacker && attacker.side === side && attacker.at >= line ? `idle-lunge-${side} 0.3s ease-out` : undefined);
   return (
-    <div className="mx-auto w-full max-w-[720px] space-y-2">
+    <div ref={ref} className="w-full">
+    <div className="mx-auto space-y-2" style={{ width: scale ? GAME_WIDTH * scale : '100%' }}>
     <div className="relative aspect-[3/2] w-full overflow-hidden rounded-lg bg-black [container-type:inline-size] [image-rendering:pixelated]" onClick={() => pressDialogue.current?.()}>
       <img src={background(battle)} alt="" className="absolute left-0 top-0 w-full" style={{ height: px(112) }} draggable={false} />
       {/* The foe: its trainer before they send one out, then its Pokémon (or the ball it's caught in). */}
@@ -382,6 +386,7 @@ export function BattleScreen({
     </div>
     {/* The row kept while no Pokémon is out (the trainer's send-out), so the page doesn't jump. */}
     <div className={me.mon && !me.fainted ? '' : 'invisible'}>{me.mon && <MoveBars mon={me.mon} cooling={cooling} />}</div>
+    </div>
     </div>
   );
 }
