@@ -107,7 +107,7 @@ export interface Route {
   /** A spot whose step is always a battle against any other trainer (not one of `trainers`): Route 20's on land by the caves. */
   landBattle?: number;
   /**
-   * On a surfed route, its spots on land are ordinary ones (Sootopolis City's, in its streets): any encounter, battles
+   * On a surfed route, its spots on land are ordinary ones (Sootopolis City's, in its streets; Route 106's on the beach): any encounter, battles
    * against any trainer but a Swimmer; only its spots in the water follow the surf rules (out at sea only battles, by the
    * shore only non-battle encounters). Without it, a surfed route's spots with land near are ashore, whatever they stand on.
    */

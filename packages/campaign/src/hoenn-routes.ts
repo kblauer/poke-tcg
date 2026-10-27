@@ -123,28 +123,30 @@ export const PETALBURG_WOODS: Route = {
   ],
 };
 
-/** Route 106: surfed from Route 105 in the west to Dewford Town's beach in the east, for the Dewford Town run; its trainers Swimmers. Spots along the walk, picked by tools/routes/emerald/hoenn_maps.py. */
+/** Route 106: surfed from Route 105 in the west to Dewford Town's beach in the east, for the Dewford Town run; its trainers Swimmers, but for its last 2 spots, on the beach. Spots along the walk, from the user. */
 export const ROUTE_106: Route = {
   flow: 'right',
   sprites: 'rse',
-  entrance: { x: 10, y: 6 },
+  entrance: { x: 13, y: 0 },
+  exit: { x: 68, y: 19 },
   travel: 'surf',
   trainers: { names: SWIMMERS, share: 1 },
+  landSpots: true,
   name: 'Route 106',
   image: '/routes/route106.png',
   width: 1280,
   height: 320,
   spots: [
     { x: 15, y: 5 },
-    { x: 20, y: 9 },
-    { x: 29, y: 11 },
-    { x: 30, y: 7 },
+    { x: 22, y: 7 },
+    { x: 27, y: 9 },
+    { x: 32, y: 10 },
     { x: 38, y: 8 },
     { x: 46, y: 9 },
-    { x: 52, y: 7 },
-    { x: 60, y: 9 },
-    { x: 65, y: 11 },
-    { x: 70, y: 10 },
+    { x: 52, y: 8 },
+    { x: 58, y: 8 },
+    { x: 62, y: 15 },
+    { x: 66, y: 17 },
   ],
   walkable: [
     '~~~~~~~~##~~~~~~~~~~~~~~~~~~~##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~',

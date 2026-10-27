@@ -40,8 +40,8 @@ STEP = {'up': (0, -1), 'down': (0, 1), 'left': (-1, 0), 'right': (1, 0)}
 ROUTES = {
     'rustboro': dict(map='PetalburgWoods', edge='bottom', flow='up', const='PETALBURG_WOODS', title='Petalburg Woods', image='petalburg_woods.png',
                      what='from Route 104 at the south up through the woods towards Rustboro City, for the Rustboro City run'),
-    'dewford': dict(map='Route106', edge='left', flow='right', const='ROUTE_106', title='Route 106', image='route106.png', surf=True,
-                    what="surfed from Route 105 in the west to Dewford Town's beach in the east, for the Dewford Town run; its trainers Swimmers"),
+    'dewford': dict(map='Route106', edge='left', flow='right', const='ROUTE_106', title='Route 106', image='route106.png', surf=True, land_spots=True,
+                    what="surfed from Route 105 in the west to Dewford Town's beach in the east, for the Dewford Town run; its trainers Swimmers, but for its last 2 spots, on the beach"),
     'mauville': dict(map='Route110', edge='bottom', flow='up', const='ROUTE_110', title='Route 110', image='route110.png', bike=True,
                      what="from Slateport City at the south up to Mauville City along the Seaside Cycling Road, on a bike (walking twice as fast), for the Mauville City run; most of its trainers the Cycling Road's Triathletes"),
     'lavaridge': dict(map='JaggedPass', edge='top', flow='down', const='JAGGED_PASS', title='Jagged Pass', image='jagged_pass.png',
@@ -89,11 +89,12 @@ USER_GYM_TRAINER = {}
 USER_ROUTES = {
     'rustboro': dict(walkable=[(36, 38, 37, 43), (14, 0, 15, 5)], entrance=(36, 41), exit=(14, 2),
                      spots=[(35, 35), (24, 34), (16, 35), (7, 29), (12, 25), (22, 25), (23, 17), (12, 18), (6, 10), (15, 9)]),
+    'dewford': dict(entrance=(13, 0), exit=(68, 19),
+                    spots=[(15, 5), (22, 7), (27, 9), (32, 10), (38, 8), (46, 9), (52, 8), (58, 8), (62, 15), (66, 17)]),
 }
 # The other routes' entrances and spots as picked while the map's people still blocked their tiles, kept so that change
 # (they don't any more) leaves them where they were.
 KEPT_PICKS = {
-    'dewford': ((10, 6), [(15, 5), (20, 9), (29, 11), (30, 7), (38, 8), (46, 9), (52, 7), (60, 9), (65, 11), (70, 10)]),
     'mauville': ((24, 95), [(28, 85), (26, 79), (18, 69), (18, 55), (13, 43), (5, 39), (5, 28), (6, 14), (12, 8), (15, 2)]),
     'lavaridge': ((14, 6), [(18, 9), (19, 12), (20, 19), (19, 22), (21, 30), (16, 29), (11, 31), (12, 35), (15, 36), (15, 39)]),
     'petalburg': ((48, 10), [(45, 11), (40, 13), (37, 15), (29, 15), (23, 10), (20, 9), (13, 4), (10, 4), (5, 7), (2, 7)]),
