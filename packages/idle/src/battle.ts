@@ -208,7 +208,8 @@ export class Battler {
   slots: string[];
   /**
    * The status moves in its slots still to use once, first, in the slots' order (the user's: slots set by hand, not the
-   * automatic pick; chooseMove). Each one used is taken off; the rest of the battle goes by power.
+   * automatic pick; chooseMove), against each foe Pokémon sent out (refilled at each, openersOf). Each one used is taken
+   * off; until the next foe it goes by power as any slot move (status moves after attacks, before the basic move).
    */
   openers: string[];
   basic: string;
@@ -231,7 +232,7 @@ export class Battler {
     this.hp = this.maxHp = s[0];
     this.stats = { atk: s[1], def: s[2], spa: s[3], spd: s[4], spe: s[5] };
     this.slots = [...mon.slots];
-    this.openers = mon.autoSlots ? [] : mon.slots.filter((k) => moveData(k).power === 0);
+    this.openers = openersOf(mon);
     this.basic = basicFor(mon);
     this.item = mon.item ?? null;
     void badges;
@@ -711,6 +712,8 @@ export class Battle {
     if (b.side === 0) this.participated.add(b.index);
     const msg = b.side === 0 ? `Go! ${species(b.species).name}!` : this.setup.kind === 'wild' ? `A wild ${species(b.species).name} appeared!` : `The foe sent out ${species(b.species).name}!`;
     this.emit({ t: 'send', side: b.side, mon: b.view(), msg });
+    // A new foe Pokémon (the user's): each of the player's Pokémon opens with its hand-set status moves against it again.
+    if (b.side === 1) for (const p of this.party) p.openers = openersOf(p.mon);
     if (!first || b.side === 0) this.noteFacing();
     const spikes = this.sides[b.side].spikes;
     if (spikes && !b.types.includes('flying') && b.ability !== 'levitate') {
@@ -862,8 +865,8 @@ export class Battle {
 
   /**
    * The move a Pokémon uses this turn: one it's locked into (a two-turn move's second turn, Thrash, Rollout, Uproar,
-   * Bide, Encore), else a status move set by hand still to use once (`openers`, the user's: first, above any attack, once a
-   * battle; one that isn't ready waits), else (the user's, 2026-10-25, replacing the energy rule) the slot move with the
+   * Bide, Encore), else a status move set by hand still to use once against this foe Pokémon (`openers`, the user's: first,
+   * above any attack; one that isn't ready waits), else (the user's, 2026-10-25, replacing the energy rule) the slot move with the
    * highest power (movePower; status moves last, the slots' order breaking ties) that's ready, which then cools down;
    * else its basic move (Struggle if even that can't be used).
    */
@@ -1461,6 +1464,9 @@ export function statusUseless(b: Battle, user: Battler, key: string): boolean {
 export function simulateBattle(setup: BattleSetup, rng: Rng): BattleOutcome {
   return new Battle(setup, rng).run();
 }
+
+/** A Pokémon's status moves to open with against each foe (Battler.openers): its slots' status moves set by hand, none on the automatic pick. */
+const openersOf = (mon: Mon) => (mon.autoSlots ? [] : mon.slots.filter((k) => moveData(k).power === 0));
 
 /** A wild or trainer's Pokémon for a battle: its moves the given ones or its last 4 level-up moves, its slots the 3 strongest. */
 export function opponentMon(mon: Mon, moves?: string[]): Mon {
