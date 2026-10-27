@@ -673,6 +673,8 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
       if (action.mode === 'stop') {
         // Nothing to stop in a town (the user's); walking, it stops where it stands (the API cuts the segment playing first: cutSegment).
         if (state.stopped || state.phase === 'town') return ok();
+        // Auto-grinding (the user's): the grind ends, the player stopped where they stand on its route.
+        if (state.phase === 'grinding') leaveAutoGrind(state);
         state.stopped = true;
         state.log.push('Stopped.');
         return ok();
@@ -1297,6 +1299,26 @@ function grindSegment(state: IdleState, rng: Rng, settings: PlaySettings, caught
   return false;
 }
 
+/**
+ * Stop while auto-grinding (the user's: it quits the grind): the player on the grind route's own track where they stand on
+ * its loop, walking (that route's trainers passed, as the town was reached past them), no longer grinding; Continue run
+ * then goes on from the run's furthest place (its town). Back in the town if the loop's tile isn't on the track.
+ */
+function leaveAutoGrind(state: IdleState) {
+  const spot = (AREAS[state.area] as TownArea).grind!;
+  const route = areaIndex(spot.area);
+  const w = AREAS[route] as WalkArea;
+  const [m, x, y] = spot.loop[state.grind!.at]!;
+  const step = w.legs[spot.leg]!.track.findIndex(([tm, tx, ty]) => tm === m && tx === x && ty === y);
+  delete state.grind;
+  state.log.push(`Stopped training in ${w.name}.`);
+  if (step < 0) {
+    state.phase = 'town';
+    return;
+  }
+  Object.assign(state, { area: route, leg: spot.leg, step, phase: 'walking', beaten: w.trainers.map((t) => t.key), encounter: { steps: 0, buff: 0, prev: '' } });
+}
+
 /** Levels a white-out sends auto-grind back to train (the user's: 2 above the party's highest). */
 export const REGRIND_LEVELS = 2;
 
@@ -1494,6 +1516,14 @@ export function cutSegment(saved: IdleState, now: number): IdleState {
     if (e.t === 'area') {
       Object.assign(state, { leg: e.leg, step: e.step });
       if (i > 0) t += FADE_MS;
+    } else if (e.t === 'grind' && state.grind) {
+      state.grind.at = e.at;
+    } else if (e.t === 'circle' && state.grind) {
+      // Round the town's grind loop, a step each STEP_MS.
+      const steps = Math.min(e.steps, Math.floor((elapsed - t) / STEP_MS));
+      state.grind.at = (e.from + steps) % (AREAS[state.area] as TownArea).grind!.loop.length;
+      state.totals.steps += steps;
+      t += e.steps * STEP_MS;
     } else if (e.t === 'walk') {
       const flags = (AREAS[state.area] as WalkArea).legs[state.leg]!.track[e.to]![3];
       const d = STEP_MS * (flags & 2 ? 2 : 1) + (flags & 1 ? FADE_MS : 0);
@@ -1504,7 +1534,7 @@ export function cutSegment(saved: IdleState, now: number): IdleState {
     } else {
       // A catch already shown: the battle kept whole (its segment ends with it).
       if (e.t === 'battle' && e.result === 'caught' && elapsed >= t + catchShownMs(e)) return saved;
-      // The area's end (its town), or what stops the walk: a trainer's "!", a battle, a grind's loop.
+      // The area's end (its town), or what stops the walk: a trainer's "!", a battle.
       if (e.t === 'town') town = e.area;
       break;
     }

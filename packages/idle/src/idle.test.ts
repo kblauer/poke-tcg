@@ -674,6 +674,33 @@ describe('an idle run', () => {
     expect(battles(new Set()).some((b) => b.caughtBefore)).toBe(false);
   });
 
+  it('quits auto-grinding on Stop (stopped where the player stands on its route) and on Continue run (to the town)', () => {
+    const pewter = AREAS.findIndex((a) => a.id === 'pewter-city');
+    const spot = (AREAS[pewter] as TownArea).grind!;
+    const base = createIdleRun({ species: 4 }, 3);
+    const town: IdleState = { ...base, area: pewter, phase: 'town', reached: pewter };
+    let s = (applyIdleAction(town, { type: 'GRIND' }) as { state: IdleState }).state;
+    expect(s.phase).toBe('grinding');
+    // A segment round the loop playing (kept as idle.next keeps it), cut by Stop part way.
+    const next = simulateSegment(s, MANUAL, new Set())!;
+    const saved: IdleState = { ...next.state, replay: { prev: s, settings: MANUAL, caught: [], from: 0, throws: [] } };
+    s = cutSegment(saved, 2000);
+    const stopped = applyIdleAction(s, { type: 'SET_MODE', mode: 'stop' });
+    expect(stopped.ok).toBe(true);
+    const st = (stopped as { state: IdleState }).state;
+    expect(st).toMatchObject({ phase: 'walking', area: AREAS.findIndex((a) => a.id === spot.area), leg: spot.leg, stopped: true });
+    expect(st.grind).toBeUndefined();
+    const [m, x, y] = (AREAS[st.area] as WalkArea).legs[st.leg]!.track[st.step]!;
+    expect(spot.loop.some(([lm, lx, ly]) => lm === m && lx === x && ly === y)).toBe(true);
+    // Continue run: the town, its choices waiting.
+    const on = (applyIdleAction(st, { type: 'CONTINUE_RUN' }) as { state: IdleState }).state;
+    expect([on.phase, on.area, on.stopped]).toEqual(['town', pewter, undefined]);
+    // Continue run straight from the grind: the town too.
+    const grinding = (applyIdleAction(town, { type: 'GRIND' }) as { state: IdleState }).state;
+    const back = (applyIdleAction(grinding, { type: 'CONTINUE_RUN' }) as { state: IdleState }).state;
+    expect([back.phase, back.area, back.grind]).toEqual(['town', pewter, undefined]);
+  });
+
   it('picks a grind on the route it walks from where it is, and refuses the one already on', () => {
     const area = AREAS.findIndex((a) => a.id === 'route-2');
     const base = createIdleRun({ species: 4 }, 2);
