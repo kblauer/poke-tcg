@@ -134,6 +134,7 @@ export function BattleScene({
   background,
   trainerPic,
   events,
+  current,
   times,
   introAt,
   gender,
@@ -148,6 +149,8 @@ export function BattleScene({
   trainerPic: string | null;
   /** The events shown so far. */
   events: BattleEvent[];
+  /** Each side's Pokémon as the events shown so far leave it (its HP, status, level: the healthboxes'). */
+  current: [BattlerView | null, BattlerView | null];
   times: number[];
   introAt: number;
   gender: 'male' | 'female';
@@ -201,6 +204,8 @@ export function BattleScene({
   // The hit blink and the attacker's lunge, on the Pokémon pictures (their line the latest).
   const anim = (side: 0 | 1) =>
     hit && hit.side === side && hit.at >= line ? 'idle-hit 0.5s steps(2) 2' : attacker && attacker.side === side && attacker.at >= line ? `idle-lunge-${side} 0.3s ease-out` : undefined;
+  // A healthbox shows the Pokémon as it is now, not as it was sent out.
+  const live = (side: 0 | 1, mon: BattlerView) => (current[side]?.uid === mon.uid ? current[side]! : mon);
   const parts: ReactNode[] = [];
   let flash = 0;
   const healthboxes: ReactNode[] = [];
@@ -344,7 +349,7 @@ export function BattleScene({
       hbX = null;
     }
     if (visible && scale > 0) parts.push(<Pic key={`foe${mon.uid}`} src={monSrc(mon, 1)} x={x} y={y + y2} scale={scale} tint={tint} anim={anim(1)} />);
-    if (hbX !== null) healthboxes.push(<Healthbox key="hb1" mon={mon} player={false} x={12} y={14} style={{ transform: `translateX(${hbX}px)` }} />);
+    if (hbX !== null) healthboxes.push(<Healthbox key="hb1" mon={live(1, mon)} player={false} x={12} y={14} style={{ transform: `translateX(${hbX}px)` }} />);
   }
 
   // ---- The player's side ----
@@ -378,7 +383,7 @@ export function BattleScene({
       const fy = faint ? Math.max(0, frames(faint.at)) * 5 : 0;
       if (y + fy - 32 < GAME_HEIGHT) parts.push(<Pic key={`me${mon.uid}`} src={monSrc(mon, 0)} x={72} y={y + em.y2 + fy} scale={em.scale} tint={{ color: rgb(BALL_COLOR['poke-ball']!), level: em.tint }} anim={anim(0)} />);
       const h = o - OPEN_FRAMES.emerge;
-      if (!faint && h >= 0) healthboxes.push(<Healthbox key="hb0" mon={mon} player exp={exp[mon.uid]} x={126} y={72} style={{ transform: `translateX(${115 - clamp(h * 5, 0, 115)}px)` }} />);
+      if (!faint && h >= 0) healthboxes.push(<Healthbox key="hb0" mon={live(0, mon)} player exp={exp[mon.uid]} x={126} y={72} style={{ transform: `translateX(${115 - clamp(h * 5, 0, 115)}px)` }} />);
     }
   }
 

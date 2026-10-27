@@ -284,7 +284,7 @@ export function BattleScreen({
       {/* The scene in game pixels (FireRed's sprites, their animations, the healthboxes), scaled to the screen. */}
       {scale > 0 && (
         <div className="pointer-events-none absolute left-0 top-0 origin-top-left [image-rendering:pixelated]" style={{ width: GAME_WIDTH, height: GAME_HEIGHT, transform: `scale(${scale})` }}>
-          <BattleScene battle={battle} background={background(battle)} trainerPic={trainer?.pic ?? null} events={events} times={times.current} introAt={introAt.current} gender={gender} exp={exp} hit={hit} attacker={attacker} line={line} />
+          <BattleScene battle={battle} background={background(battle)} trainerPic={trainer?.pic ?? null} events={events} current={[sides[0].mon, sides[1].mon]} times={times.current} introAt={introAt.current} gender={gender} exp={exp} hit={hit} attacker={attacker} line={line} />
         </div>
       )}
       {/* The text box: the latest line, or a run of rewards all at once (the user's), growing upward to hold them. */}
