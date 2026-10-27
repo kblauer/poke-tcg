@@ -8,7 +8,7 @@ import { ReturnToPlay } from '../components/ReturnToPlay';
 import { Toasts } from '../components/Toasts';
 import { SceneTransition } from '../components/BattleTransition';
 import { AreaScene, usePreloadMaps } from '../components/idle/AreaScene';
-import { TOWN_MAP_BOTTOM, TOWN_MAP_BATTLE_BOTTOM, TownMap } from '../components/idle/TownMap';
+import { TOWN_MAP_BUY_TOP, TOWN_MAP_TOP, TownMap } from '../components/idle/TownMap';
 import { BattleScreen } from '../components/idle/BattleScreen';
 import { Bag, catchUpPages, IdleSettings } from '../components/idle/IdleSettings';
 import { PartyOverlay } from '../components/idle/PartyOverlay';
@@ -130,13 +130,13 @@ export function IdlePage() {
   const start = (id: number, shiny = false) => actions.start(id, shiny).catch(failed);
   const v = run?.view;
   // The party over the game screen (the user's): its button in the screen's top right corner, its slots sliding out; and
-  // the Town Map's button in its bottom left corner, on every scene (the user's, in place of the mode drop-down), its
-  // Pokémon's panel kept above it, and the map, opened, over everything.
-  const overlays = (mapBottom: number) =>
+  // the Town Map's button in its top left corner, on every scene (the user's, in place of the mode drop-down), and the
+  // map, opened, over everything.
+  const overlays = (mapTop: number) =>
     active && v ? (
       <>
-        <PartyOverlay party={v.party} bag={v.bag} busy={actions.busy} pending={v.pendingChanges} open={partyOpen} mapBottom={mapBottom} onToggle={setPartyOpen} onAct={act} />
-        <TownMap view={v} busy={actions.busy} bottom={mapBottom} gender={gender} onAct={act} />
+        <PartyOverlay party={v.party} bag={v.bag} busy={actions.busy} pending={v.pendingChanges} open={partyOpen} onToggle={setPartyOpen} onAct={act} />
+        <TownMap view={v} busy={actions.busy} top={mapTop} gender={gender} onAct={act} />
       </>
     ) : null;
   const over = run && run.status !== 'ACTIVE';
@@ -209,8 +209,8 @@ export function IdlePage() {
         </div>
       ) : v?.phase === 'town' && v.inStore ? (
         // In the town's Poké Mart (the user's): the town waits until the player leaves.
-        <MartScene key={v.area} run={active} gender={gender} busy={actions.busy} onBuy={buy} onLeave={() => void act({ type: 'LEAVE_STORE' })} dialogue={catchUp} buyChildren={overlays(TOWN_MAP_BATTLE_BOTTOM)}>
-          {overlays(TOWN_MAP_BOTTOM)}
+        <MartScene key={v.area} run={active} gender={gender} busy={actions.busy} onBuy={buy} onLeave={() => void act({ type: 'LEAVE_STORE' })} dialogue={catchUp} buyChildren={overlays(TOWN_MAP_BUY_TOP)}>
+          {overlays(TOWN_MAP_TOP)}
         </MartScene>
       ) : v?.phase === 'town' ? (
         <TownMenu
@@ -224,15 +224,15 @@ export function IdlePage() {
           onBack={() => void act({ type: 'BACK_ROUTE' })}
           dialogue={catchUp}
         >
-          {overlays(TOWN_MAP_BOTTOM)}
+          {overlays(TOWN_MAP_TOP)}
         </TownMenu>
       ) : play.battle ? (
         <BattleScreen battle={play.battle} shown={play.shown} gender={gender} dialogue={catchUp} onThrow={throwBall} throwing={throwing}>
-          {overlays(TOWN_MAP_BOTTOM)}
+          {overlays(TOWN_MAP_TOP)}
         </BattleScreen>
       ) : (
         <AreaScene playback={play} gender={gender} dialogue={catchUp ?? (play.notice ? { text: play.notice, choices: [], instant: true, answer: () => {} } : null)}>
-          {!play.entering && overlays(TOWN_MAP_BOTTOM)}
+          {!play.entering && overlays(TOWN_MAP_TOP)}
           {play.entering && <SceneTransition />}
         </AreaScene>
       )}

@@ -7,13 +7,12 @@ import type { ClientIdleRun } from '../../hooks/useIdle';
 const px = (n: number) => `${(n * 100) / 240}cqw`;
 
 /**
- * The Map button's place: the game screen's bottom left corner (the user's, where the mode drop-down was), its height
- * (game pixels) fixed so nothing above it overlaps it, the battle's too (over the text box's corner); in the store's buy
- * screen above its item icon (TOWN_MAP_BATTLE_BOTTOM).
+ * The Map button's place: the game screen's top left corner (the user's, 2026-10-27), short enough to end above the
+ * foe's healthbox in battle (y 14); in the store's buy screen just under its money box (TOWN_MAP_BUY_TOP).
  */
-export const TOWN_MAP_BOTTOM = 4;
-export const TOWN_MAP_BATTLE_BOTTOM = 52;
-export const TOWN_MAP_HEIGHT = 15;
+export const TOWN_MAP_TOP = 2;
+export const TOWN_MAP_BUY_TOP = 35;
+const TOWN_MAP_HEIGHT = 11;
 
 const FRAME = { border: '#4a4a62', on: '#3994de', shade: '#297bb4', bar: '#283860' };
 const TEXT = { fontFamily: '"Pokemon Emerald", monospace', fontSize: px(8), lineHeight: 1 };
@@ -31,14 +30,14 @@ const CHOICE_H = 50;
 const MODE_LABEL: Record<IdleMode, string> = { route: 'Route', wild: 'Wild grind', trainers: 'Trainer grind', stop: 'Stopped' };
 
 /**
- * The Town Map (the user's, in place of the mode drop-down): a Map button in the game screen's bottom left corner, on
+ * The Town Map (the user's, in place of the mode drop-down): a Map button in the game screen's top left corner, on
  * every scene, opens FireRed's Kanto map (region_map.c's, by tools/idle/town_map.py) over the game screen. Its places
  * are the run's towns, routes and dungeons (TOWN_MAP_PLACES); those not reached yet are darkened. A town clicked takes
  * the run there (TRAVEL), its usual choices waiting; a route or dungeon clicked offers Wild grind and Trainer grind there
  * (GRIND_AT; one that can't start greyed out with why, mapGrindPlan). Continue route and Stop (SET_MODE) in its corner,
  * the mode on lit. The player's icon is where the run is. Escape, × or a town closes it.
  */
-export function TownMap({ view, busy, bottom, gender, onAct }: { view: ClientIdleRun['view']; busy: boolean; bottom: number; gender: 'male' | 'female'; onAct: (action: IdleAction) => unknown }) {
+export function TownMap({ view, busy, top, gender, onAct }: { view: ClientIdleRun['view']; busy: boolean; top: number; gender: 'male' | 'female'; onAct: (action: IdleAction) => unknown }) {
   const [open, setOpen] = useState(false);
   const [hover, setHover] = useState<TownMapPlace | null>(null);
   /** The route (or dungeon) clicked: its grinds offered. */
@@ -84,7 +83,7 @@ export function TownMap({ view, busy, bottom, gender, onAct }: { view: ClientIdl
         title={`Town Map (mode: ${MODE_LABEL[mode]})`}
         disabled={busy}
         className="pointer-events-auto absolute flex items-center whitespace-nowrap disabled:cursor-default"
-        style={{ ...TEXT, ...BOX, left: px(4), bottom: px(bottom), height: px(TOWN_MAP_HEIGHT), gap: px(3), padding: `0 ${px(4)}`, color: '#404040', textShadow: `${px(1)} ${px(1)} 0 #d0d0c8` }}
+        style={{ ...TEXT, ...BOX, left: px(2), top: px(top), height: px(TOWN_MAP_HEIGHT), gap: px(3), padding: `0 ${px(3)}`, color: '#404040', textShadow: `${px(1)} ${px(1)} 0 #d0d0c8` }}
         onClick={(e) => (e.stopPropagation(), setOpen(true))}
       >
         Map
