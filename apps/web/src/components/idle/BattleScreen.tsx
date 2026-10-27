@@ -4,7 +4,7 @@ import { useIsPhone } from '../../hooks/useIsPhone';
 import { isReward, type BattleSegment } from '../../hooks/useIdle';
 import { DialogueBox, dialogueKey, type Dialogue } from '../DialogueBox';
 import { BattleScene } from './BattleScene';
-import { GAME_HEIGHT, GAME_WIDTH, useGameScale } from './GameScreen';
+import { DIALOGUE_TEXT, GAME_HEIGHT, GAME_WIDTH, useGameScale } from './GameScreen';
 import { MonIcon } from './MonIcon';
 
 /** One game pixel of FireRed's 240x160 screen, in the battle box's width (container query units). */
@@ -315,7 +315,7 @@ export function BattleScreen({
         />
       )}
       {children}
-      {dialogue && <DialogueBox key={dialogueKey(dialogue)} dialogue={dialogue} pressRef={pressDialogue} phone={phone} />}
+      {dialogue && <DialogueBox key={dialogueKey(dialogue)} dialogue={dialogue} pressRef={pressDialogue} phone={phone} fontSize={DIALOGUE_TEXT * scale || undefined} />}
     </div>
     {/* The row kept while no Pokémon is out (the trainer's send-out), so the page doesn't jump. */}
     <div className={me.mon && !me.fainted ? '' : 'invisible'}>{me.mon && <MoveBars mon={me.mon} cooling={cooling} />}</div>

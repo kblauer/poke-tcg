@@ -6,7 +6,7 @@ import type { ClientIdleRun } from '../../hooks/useIdle';
 import { DialogueBox, dialogueKey, type Dialogue } from '../DialogueBox';
 import { OverworldSprite } from '../run/RouteSprites';
 import { MapScene } from './AreaScene';
-import { GAME_HEIGHT, GAME_WIDTH, useGameScale } from './GameScreen';
+import { DIALOGUE_TEXT, GAME_HEIGHT, GAME_WIDTH, useGameScale } from './GameScreen';
 
 /** The buy screen's pictures (tools/idle/shop_menu.py). */
 const SHOP = '/idle/gen1/shop';
@@ -279,7 +279,7 @@ function BuyScreen({ run, player, busy, onBuy, onClose, children }: { run: Clien
           </div>
         )}
         {children}
-        {dialogue && <DialogueBox key={dialogueKey(dialogue)} dialogue={dialogue} pressRef={pressDialogue} phone={phone} maxWidth={GAME_WIDTH * scale} />}
+        {dialogue && <DialogueBox key={dialogueKey(dialogue)} dialogue={dialogue} pressRef={pressDialogue} phone={phone} maxWidth={GAME_WIDTH * scale} fontSize={DIALOGUE_TEXT * scale || undefined} />}
       </div>
     </div>
   );

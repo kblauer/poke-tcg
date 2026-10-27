@@ -47,6 +47,7 @@ export function DialogueBox({
   pressRef: sceneRef,
   phone,
   maxWidth,
+  fontSize,
 }: {
   dialogue: Dialogue;
   /** A phone: the box the scene's width, its choices above it on the right (the user's), smaller text. */
@@ -58,8 +59,13 @@ export function DialogueBox({
   pressRef: { current: (() => void) | null };
   /** The box's widest (with its choices' column), in CSS pixels, centred on the scene (the Idle Adventure's); none: the scene's width less a margin. */
   maxWidth?: number;
+  /** Its text's size in CSS pixels, its choices' too (the Idle Adventure's: its game screen's text size, the user's); none: the usual sizes. */
+  fontSize?: number;
 }) {
   const frame = { background: '#f8f8f8', color: '#303038', boxShadow: 'inset 0 0 0 3px #6878a8, inset 0 0 0 5px #c8d0e8' };
+  // A size given replaces the text classes' (text-sm on a phone, text-base otherwise).
+  const sized = fontSize ? { fontSize, lineHeight: 1.4 } : undefined;
+  const text = (cls: string) => (fontSize ? '' : cls);
   const choices = dialogue.choices?.map(asChoice);
   // Typed out a letter at a time (CHAR_MS), as in the games; held while debug's pause is on.
   const [typed, setTyped] = useState(dialogue.instant ? dialogue.text.length : 0);
@@ -162,6 +168,7 @@ export function DialogueBox({
           autoFocus={i === firstOpen}
           disabled={c.disabled}
           className={`block w-full rounded px-3 text-left hover:bg-[#dde3f5] focus:bg-[#dde3f5] focus:outline-none disabled:opacity-40 disabled:hover:bg-transparent ${size}`}
+          style={sized}
           onClick={(e) => (e.stopPropagation(), dialogue.answer(i))}
         >
           {label(c)}
@@ -174,10 +181,10 @@ export function DialogueBox({
       <div ref={root} className="absolute inset-x-2 bottom-2 flex flex-col items-end gap-1.5">
         {choicesUp && (
           <ul className="whitespace-nowrap rounded-[14px] p-1.5" style={frame} role="menu">
-            {menu('py-1 text-sm')}
+            {menu(`py-1 ${text('text-sm')}`)}
           </ul>
         )}
-        <Box {...boxProps} data-keep-action className="min-h-14 w-full cursor-pointer rounded-[14px] px-4 py-2 text-left text-sm leading-snug" style={frame} onClick={onBox} aria-label={done && !choices ? 'Next' : undefined}>
+        <Box {...boxProps} data-keep-action className={`min-h-14 w-full cursor-pointer rounded-[14px] px-4 py-2 text-left ${text('text-sm leading-snug')}`} style={{ ...frame, ...sized }} onClick={onBox} aria-label={done && !choices ? 'Next' : undefined}>
           {line}
         </Box>
       </div>
@@ -188,8 +195,8 @@ export function DialogueBox({
       <Box
         {...boxProps}
         data-keep-action
-        className={`min-h-20 flex-1 cursor-pointer rounded-[18px] px-6 py-3 text-left text-base leading-relaxed ${choicesUp ? 'transition-transform duration-200' : ''}`}
-        style={{ ...frame, transform: shift ? `translateX(${shift}px)` : undefined }}
+        className={`min-h-20 flex-1 cursor-pointer rounded-[18px] px-6 py-3 text-left ${text('text-base leading-relaxed')} ${choicesUp ? 'transition-transform duration-200' : ''}`}
+        style={{ ...frame, ...sized, transform: shift ? `translateX(${shift}px)` : undefined }}
         onClick={onBox}
         aria-label={done && !choices ? 'Next' : undefined}
       >
@@ -201,14 +208,14 @@ export function DialogueBox({
         <div ref={column} className="grid shrink-0 items-end [&>*]:col-start-1 [&>*]:row-start-1">
           <ul className="invisible h-0 overflow-hidden whitespace-nowrap px-2" aria-hidden>
             {[...(inline ? [] : (choices ?? [])), ...(reserved ?? []).map(asChoice)].map((c, i) => (
-              <li key={i} className="px-3 text-base">
+              <li key={i} className={`px-3 ${text('text-base')}`} style={sized}>
                 {label(c)}
               </li>
             ))}
           </ul>
           {choicesUp && (
             <ul className="whitespace-nowrap rounded-[18px] p-2" style={frame} role="menu">
-              {menu('py-1.5 text-base')}
+              {menu(`py-1.5 ${text('text-base')}`)}
             </ul>
           )}
         </div>

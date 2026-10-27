@@ -6,7 +6,7 @@ import { usePanTo } from '../../hooks/usePan';
 import type { Facing } from '../../utils/overworld';
 import { DialogueBox, dialogueKey, type Dialogue } from '../DialogueBox';
 import { Exclamation, GrassTufts, OverworldSprite, TallGrass } from '../run/RouteSprites';
-import { GAME_HEIGHT, GAME_WIDTH, GameScreen, useGameScale } from './GameScreen';
+import { DIALOGUE_TEXT, GAME_HEIGHT, GAME_WIDTH, GameScreen, useGameScale } from './GameScreen';
 
 /** The text box's widest (the user's: bound to less than the scene's width), and never wider than the map drawn. */
 const DIALOGUE_MAX = 768;
@@ -138,7 +138,7 @@ export function MapScene({
       </div>
       <div className="pointer-events-none absolute inset-0 bg-black transition-opacity duration-300" style={{ opacity: fading ? 1 : 0 }} />
       {children}
-      {dialogue && <DialogueBox key={dialogueKey(dialogue)} dialogue={dialogue} pressRef={pressDialogue} phone={phone} maxWidth={Math.min(DIALOGUE_MAX, width * 16 * zoom, view.w)} />}
+      {dialogue && <DialogueBox key={dialogueKey(dialogue)} dialogue={dialogue} pressRef={pressDialogue} phone={phone} maxWidth={Math.min(DIALOGUE_MAX, width * 16 * zoom, view.w)} fontSize={DIALOGUE_TEXT * zoom || undefined} />}
     </div>
     </div>
   );
