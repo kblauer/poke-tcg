@@ -6,6 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { STEP_MS, WALK_FRAME_MS, type Facing } from '../../utils/overworld';
 import { facing, key } from '../../utils/routeFigures';
 import { useIsPhone } from '../../hooks/useIsPhone';
+import { usePanTo } from '../../hooks/usePan';
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
 import { OverworldSprite, TileOverlay } from '../run/RouteSprites';
 import { DialogueBox, dialogueKey, type Dialogue } from '../DialogueBox';
@@ -333,6 +334,9 @@ export function TowerScene({ scene, children }: { scene: ReturnType<typeof useSc
   const you = actors.player;
   const span = room ? room.width * zoom : 0;
   const left = !room || span <= width ? (width - span) / 2 : Math.min(0, Math.max(width - span, width / 2 - ((you?.tile.x ?? room.width / 32) * 16 + 8) * zoom));
+  // Following the player step by step as he walks (a phone's view across a wide room), moved by usePanTo.
+  const roomEl = useRef<HTMLDivElement>(null);
+  usePanTo(roomEl, { x: left, y: 0 }, you?.walking ? { ms: STEP_MS, ease: 'linear' } : null, `${zoom} ${width} ${room?.image}`);
   const people = useMemo(() => Object.entries(actors), [actors]);
   return (
     <div className="space-y-4">
@@ -340,14 +344,12 @@ export function TowerScene({ scene, children }: { scene: ReturnType<typeof useSc
       <div ref={box} onClick={() => pressDialogue.current?.()} className="relative mx-auto w-full overflow-hidden rounded-lg ring-1 ring-slate-600" style={{ height: room ? room.height * zoom : 240, maxWidth: room && !phone ? room.width * MAX_ZOOM : undefined, background: '#000' }}>
         {room && (
           <div
-            className={`absolute top-0 origin-top-left ${riding ? 'animate-[tower-ride_160ms_steps(2)_infinite]' : ''}`}
+            ref={roomEl}
+            className={`absolute origin-top-left ${riding ? 'animate-[tower-ride_160ms_steps(2)_infinite]' : ''}`}
             style={{
               width: room.width,
               height: room.height,
-              left,
               transform: `scale(${zoom})`,
-              // Following the player step by step as he walks (a phone's view across a wide room).
-              transition: you?.walking ? `left ${STEP_MS}ms linear` : undefined,
               animationPlayState: paused ? 'paused' : undefined,
             }}
           >

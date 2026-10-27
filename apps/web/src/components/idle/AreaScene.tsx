@@ -2,10 +2,11 @@ import { AREAS, areaById, mapView, type TownArea, type WalkArea } from '@poke-tc
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { placeTrack, type Playback } from '../../hooks/useIdle';
+import { usePanTo } from '../../hooks/usePan';
 import type { Facing } from '../../utils/overworld';
 import { DialogueBox, dialogueKey, type Dialogue } from '../DialogueBox';
 import { Exclamation, GrassTufts, OverworldSprite, TallGrass } from '../run/RouteSprites';
-import { GAME_HEIGHT, GAME_WIDTH, GameScreen, onDevicePixel, useGameScale } from './GameScreen';
+import { GAME_HEIGHT, GAME_WIDTH, GameScreen, useGameScale } from './GameScreen';
 
 /** The text box's widest (the user's: bound to less than the scene's width), and never wider than the map drawn. */
 const DIALOGUE_MAX = 768;
@@ -98,30 +99,22 @@ export function MapScene({
   const view = { w: GAME_WIDTH * zoom, h: GAME_HEIGHT * zoom };
   // The map is shown only once it's placed and its picture loaded (the user's: no pan to the player as the scene comes
   // back after a battle, no picture drawing in bit by bit): hidden until the scene is measured and `loaded` is its
-  // picture, and the pan's slide on only from the frame after it was first placed.
+  // picture, and the pan's slide on only once it's shown (usePanTo places it at once the first time).
   const [loaded, setLoaded] = useState<string | null>(() => (ready(image) ? image : null));
-  const [settled, setSettled] = useState(false);
   const measured = view.w > 0;
   const shown = measured && loaded === image;
-  useEffect(() => {
-    if (!shown || settled) return;
-    const frame = requestAnimationFrame(() => setSettled(true));
-    return () => cancelAnimationFrame(frame);
-  }, [shown, settled]);
   // The map's offset in the scene: centred across a way it fits, else the player's tile in the middle.
   const mapW = width * 16 * zoom;
   const mapH = height * 16 * zoom;
-  const left = onDevicePixel(mapW <= view.w ? (view.w - mapW) / 2 : view.w / 2 - (tile.x * 16 + 8) * zoom);
-  const top = onDevicePixel(mapH <= view.h ? (view.h - mapH) / 2 : view.h / 2 - (tile.y * 16 + 8) * zoom);
+  const left = mapW <= view.w ? (view.w - mapW) / 2 : view.w / 2 - (tile.x * 16 + 8) * zoom;
+  const top = mapH <= view.h ? (view.h - mapH) / 2 : view.h / 2 - (tile.y * 16 + 8) * zoom;
+  const panned = useRef<HTMLDivElement>(null);
+  usePanTo(panned, { x: left, y: top }, shown && moveMs ? { ms: moveMs, ease: 'linear' } : null, `${zoom} ${image}`);
   return (
     <div ref={ref} className="w-full">
     <div className="relative mx-auto overflow-hidden rounded-lg bg-black ring-1 ring-slate-700" style={measured ? { width: view.w, height: view.h } : { width: '100%', aspectRatio: '3 / 2' }} onClick={() => pressDialogue.current?.()}>
-      {/* Panned by left and top, as the player's sprite is moved (the user's: a transform's transitions, run off the main
-          thread, jerked back to where the walk began at each step), so the two slide in step. */}
-      <div
-        className="absolute"
-        style={{ left, top, transition: settled ? `left ${moveMs}ms linear, top ${moveMs}ms linear` : 'none', opacity: fading || !shown ? 0 : 1 }}
-      >
+      {/* Placed and slid by usePanTo, in step with the player's sprite. */}
+      <div ref={panned} className="absolute" style={{ opacity: fading || !shown ? 0 : 1 }}>
         <div className="relative origin-top-left [image-rendering:pixelated]" style={{ width: width * 16, height: height * 16, transform: `scale(${zoom})`, transition: 'opacity 300ms' }}>
           <img
             src={image}

@@ -1,5 +1,6 @@
 import type { Route, RouteSpot } from '@poke-tcg/campaign';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
+import { onDevicePixel } from '../components/idle/GameScreen';
 import type { Glide } from './useWalk';
 
 /** How much the route's pixel map is enlarged in the view (2×: 16px tiles show 32px). */
@@ -134,14 +135,52 @@ export function usePan({ box, mapEl, map, mapHeight, panLocked }: { box: RefObje
     drag.current = null;
   };
 
+  // The map drawn at `offset` (once it's there: drawn after the view is measured), gliding when `glide` says.
+  usePanTo(mapEl, offset, glide, String(size.w > 0));
+
   return { height, onResizeDown, onResizeMove, onResizeUp, resetHeight, size, offset, setOffset, glide, setGlide, centreOn, centreOnMap, onPointerDown, onPointerMove, endDrag };
 }
 
-/**
- * The map drawn at an offset, at ZOOM: placed by left and top, as the sprites on it are moved (the user's: a transform's
- * transitions, run off the main thread, jerked back to where a walk began at each step), so they slide in step.
- */
-export const mapPlacement = (o: { x: number; y: number }) => ({ left: o.x, top: o.y, transform: `scale(${ZOOM})` });
+/** The map's CSS transform: drawn at ZOOM (usePanTo places it). */
+export const mapScale = `scale(${ZOOM})`;
 
-/** The map's transition while it glides (mapPlacement's left and top). */
-export const glideTransition = (glide: Glide | null) => (glide ? `left ${glide.ms}ms ${glide.ease}, top ${glide.ms}ms ${glide.ease}` : undefined);
+/** A glide's pace (Glide.ease), as the CSS easing of that name. */
+const EASES: Record<string, (k: number) => number> = {
+  linear: (k) => k,
+  'ease-in-out': (k) => (k < 0.5 ? 2 * k * k : 1 - (2 - 2 * k) ** 2 / 2),
+};
+
+/**
+ * Moves a map (`el`, by its left and top) to `to`: with a `glide`, over its time at its pace from wherever it's drawn now,
+ * a frame at a time; at once otherwise, the first time, or when `frame` (what the offset is measured in: the scale, the
+ * map, the element being there) changes; on whole device pixels. Done in script rather than by a CSS transition (the
+ * user's: the map's transition, restarted every step, kept starting again from where the walk began, jerking the map back
+ * and forth while the player walked on), so each glide starts from where the map is. Nothing else may set its left and
+ * top but a drag (usePan's, which ends by setting `to` where it was dragged).
+ */
+export function usePanTo(el: RefObject<HTMLDivElement | null>, to: { x: number; y: number }, glide: Glide | null, frame: string) {
+  /** Where the map is drawn now, and in what. */
+  const at = useRef<{ x: number; y: number; frame: string } | null>(null);
+  const ms = glide?.ms ?? 0;
+  const ease = EASES[glide?.ease ?? 'linear'] ?? EASES.linear!;
+  useLayoutEffect(() => {
+    const node = el.current;
+    if (!node) return;
+    const place = (p: { x: number; y: number }) => {
+      at.current = { ...p, frame };
+      node.style.left = `${onDevicePixel(p.x)}px`;
+      node.style.top = `${onDevicePixel(p.y)}px`;
+    };
+    const from = at.current;
+    if (!from || from.frame !== frame || ms <= 0) return place(to);
+    const start = performance.now();
+    let next = requestAnimationFrame(function slide(now) {
+      const k = ease(Math.min(1, Math.max(0, (now - start) / ms)));
+      place({ x: from.x + (to.x - from.x) * k, y: from.y + (to.y - from.y) * k });
+      if (k < 1) next = requestAnimationFrame(slide);
+    });
+    return () => cancelAnimationFrame(next);
+    // The pace is read when a glide starts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [el, to.x, to.y, ms, frame]);
+}

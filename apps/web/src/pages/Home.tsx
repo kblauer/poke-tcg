@@ -37,13 +37,12 @@ export function HomePage() {
   const { overview } = run;
   // Auto play follows the run: the route, the town, the gym, a Pokémon Center.
   useRunMusic();
-  // On a phone, once an encounter is over (its reward taken), the page scrolls back up to the route map, to watch the
-  // player walk on to the next spot.
-  const routeMap = useRef<HTMLDivElement>(null);
+  // On a phone, once an encounter is over (its reward taken), the page jumps back up to its top (the user's: at once, not just
+  // to the route map's), to watch the player walk on to the next spot.
   const phase = overview.data?.run?.view.phase;
   const lastPhase = useRef(phase);
   useEffect(() => {
-    if (phone && phase === 'map' && lastPhase.current === 'encounter') routeMap.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (phone && phase === 'map' && lastPhase.current === 'encounter') window.scrollTo({ top: 0, behavior: 'instant' });
     lastPhase.current = phase;
   }, [phase, phone]);
   // A failed refetch keeps the run screen (and the map's walk) up with what it has.
@@ -111,9 +110,7 @@ export function HomePage() {
                 <RunOver current={current} overview={overview.data} run={run} />
               ) : routes ? (
                 <>
-                  <div ref={routeMap}>
-                    <RouteView routes={routes} gym={runType(view.type).gym} view={view} spotted={run.spotted} gender={overview.data.playerGender} />
-                  </div>
+                  <RouteView routes={routes} gym={runType(view.type).gym} view={view} spotted={run.spotted} gender={overview.data.playerGender} />
                   {panels}
                 </>
               ) : (
