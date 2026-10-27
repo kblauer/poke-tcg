@@ -155,10 +155,10 @@ export function TownMap({ view, busy, gender, onAct }: { view: ClientIdleRun['vi
             />
             <MapButton
               label="Stop"
-              title={view.phase === 'town' ? 'Nothing to stop in a town' : 'Stop where you are now (a battle under way ends with no rewards), offline too, until Continue run'}
+              title={view.phase === 'town' ? 'Nothing to stop in a town (closes the map)' : 'Stop where you are now (a battle under way ends with no rewards), offline too, until Continue run'}
               on={mode === 'stop'}
               disabled={locked}
-              onClick={() => view.phase !== 'town' && mode !== 'stop' && send({ type: 'SET_MODE', mode: 'stop' }, close)}
+              onClick={() => (view.phase === 'town' ? close() : mode !== 'stop' && send({ type: 'SET_MODE', mode: 'stop' }, close))}
             />
           </div>
 
