@@ -111,6 +111,8 @@ export interface IdleState {
   step: number;
   /** The area's trainers beaten (an area's are fought again after a white-out). */
   beaten: string[];
+  /** Gym Trainers beaten in this run (not the leaders): fought once, then walked past on the way back to the leader (the user's, 2026-10-27). */
+  gymBeaten?: string[];
   party: Mon[];
   bag: Record<string, number>;
   money: number;
@@ -396,10 +398,11 @@ function enterArea(state: IdleState, index: number, events: SegmentEvent[]) {
   state.area = index;
   state.leg = 0;
   state.step = 0;
-  state.beaten = [];
+  const a = AREAS[index]!;
+  // A gym's trainers beaten before stay beaten (gymBeaten); any other area's are fought again.
+  state.beaten = a.kind === 'gym' ? (state.gymBeaten ?? []).filter((k) => (a as WalkArea).trainers.some((t) => t.key === k)) : [];
   state.encounter = { steps: 0, buff: 0, prev: '' };
   delete state.grind;
-  const a = AREAS[index]!;
   if (isTown(a)) {
     state.phase = 'town';
     events.push({ t: 'town', area: index });
@@ -1226,6 +1229,7 @@ export function simulateSegment(from: IdleState, idleSettings: IdleSettings, cau
         whitedOut = true;
       } else {
         state.beaten.push(trainer.key);
+        if (a.kind === 'gym' && trainer.key !== a.leader) state.gymBeaten = [...(state.gymBeaten ?? []), trainer.key];
         state.log.push(`Beat ${TRAINERS[key]!.class} ${TRAINERS[key]!.name}.`);
         if ((a.kind === 'gym' || a.kind === 'league') && trainer.key === a.leader) finishArea(state, out);
         // A trainer beaten while grinding counts in the real run (the user's); a trainers loop's last beaten: round again.

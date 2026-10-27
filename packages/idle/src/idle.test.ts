@@ -189,6 +189,25 @@ describe('an idle run', () => {
     expect(manual.money).toBe(createIdleRun({ species: 129 }, 8).money);
   });
 
+  it("fights a gym's Gym Trainers once a run: back in the gym, only the leader is left", () => {
+    const gym = AREAS.findIndex((a) => a.id === 'pewter-gym');
+    const town = AREAS.findIndex((a) => a.id === 'pewter-city');
+    const base = createIdleRun({ species: 6 }, 8);
+    let state: IdleState = { ...base, area: gym, party: [{ ...base.party[0]!, level: 70, moves: ['flamethrower', 'slash', 'scratch'], slots: ['flamethrower', 'slash'] }] };
+    for (let i = 0; i < 20 && !state.beaten.includes('camper-liam'); i++) state = simulateSegment(state, MANUAL, new Set())!.state;
+    expect(state.gymBeaten).toEqual(['camper-liam']);
+    // Back in Pewter City with Brock unbeaten (as after a white-out), then into the gym again: Liam is walked past.
+    const again = applyIdleAction({ ...state, area: town, phase: 'town' }, { type: 'GYM' });
+    if (!again.ok) throw new Error(again.error);
+    expect(again.state.beaten).toEqual(['camper-liam']);
+    const next = simulateSegment(again.state, MANUAL, new Set())!;
+    expect(next.segment.events.flatMap((e) => (e.t === 'spotted' ? [e.trainer] : []))).toEqual(['leader-brock']);
+    // A route's trainers aren't kept: on from the town, Route 3's are all to fight.
+    const on = applyIdleAction({ ...state, area: town, phase: 'town', badges: ['Boulder'] }, { type: 'CONTINUE' });
+    if (!on.ok) throw new Error(on.error);
+    expect(on.state.beaten).toEqual([]);
+  });
+
   describe('grinding on a route', () => {
     /** A run on Route 3 with a party that wins every battle, walked until it has beaten `n` trainers there. */
     const route3 = (n: number) => {
