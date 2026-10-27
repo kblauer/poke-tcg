@@ -54,12 +54,13 @@ import { PreviewContext } from './PreviewContext';
 import { CardImage } from './CardImage';
 
 /**
- * A card attached to a Pokémon in play: a disc the size of its Energy's (`size` px) showing the card's art, its name
+ * A card attached to a Pokémon in play: a disc the size of its Energy's (`size` px), or for a Pokémon Tool a tile (`tile`: its
+ * illustration, framed, filling its cell; the user's, 2026-10-26, after Pokémon TCG Pocket), showing the card's art, its name
  * on hover and the card itself in the hover preview (the Pokémon's again once the pointer leaves it). A click (or tap) opens
  * the card, its text and all, in the CardInspector, closed by a click anywhere else (the user's, 2026-10-26); the click
  * goes no further, so the Pokémon's own (its moves, a slot's drop) doesn't happen.
  */
-function AttachedIcon({ def, holder, size }: { def: CardDef; holder: CardDef; size: number }) {
+function AttachedIcon({ def, holder, size, tile }: { def: CardDef; holder: CardDef; size?: number; tile?: { thin: boolean } }) {
   const setPreview = useContext(PreviewContext);
   const catalog = useContext(CatalogContext);
   const openInspector = useContext(InspectContext);
@@ -77,8 +78,9 @@ function AttachedIcon({ def, holder, size }: { def: CardDef; holder: CardDef; si
             }
           : undefined
       }
-      className={`inline-block shrink-0 rounded-full border border-white bg-slate-700 bg-no-repeat shadow shadow-black/60 ${openInspector && entry ? 'cursor-pointer' : ''}`}
-      style={{ width: size, height: size, backgroundImage: def.imageUrl ? `url(${def.imageUrl}/low.webp)` : undefined, backgroundSize: '260%', backgroundPosition: '50% 24%' }}
+      className={`${tile ? `block aspect-[4/3] w-full rounded-[10%] ${tile.thin ? 'border' : 'border-2'} shadow-md shadow-black/70` : 'inline-block shrink-0 rounded-full border shadow shadow-black/60'} border-white bg-slate-700 bg-no-repeat ${openInspector && entry ? 'cursor-pointer' : ''}`}
+      // A tile shows the card's illustration (its upper part, as the printed cards frame it); an icon a disc of it.
+      style={{ ...(!tile && { width: size, height: size }), backgroundImage: def.imageUrl ? `url(${def.imageUrl}/low.webp)` : undefined, backgroundSize: tile ? '122%' : '260%', backgroundPosition: tile ? '50% 21%' : '50% 24%' }}
       onMouseEnter={(e) => setPreview({ def, x: e.clientX, y: e.clientY, from: e.currentTarget, mine: !!e.currentTarget.closest('[data-mine]') })}
       onMouseLeave={(e) => {
         const card = e.currentTarget.closest<HTMLElement>('[data-in-play]');
@@ -160,15 +162,17 @@ export function Card({
         </span>
       )}
       {inPlay && (
-        // The user's (2026-10-26): the cards attached to it (Pokémon Tools, Trainers that stay on it, Shapeshift), round icons like
-        // its Energy's, two to a row in the top left corner, left to right then top to bottom; its Special Conditions to their right
+        // The user's (2026-10-26): the cards attached to it but its Pokémon Tools (Trainers that stay on it, Shapeshift; the Tools are
+        // tiles, below), round icons like its Energy's, two to a row in the top left corner, left to right then top to bottom; its Special Conditions to their right
         // as the user's round icons, in the same two-wide layout; then its other badges, half as big again, two to a row.
         <div className="absolute left-1 right-1 top-1 flex items-start gap-0.5">
-          {cards && (inPlay.attached ?? []).length > 0 && (
+          {cards && (inPlay.attached ?? []).some((a) => !a.tool) && (
             <div className="grid grid-cols-[repeat(2,max-content)] gap-0.5">
-              {inPlay.attached!.map((a) => (
-                <AttachedIcon key={a.card.uid} def={lookupCard(cards, a.card.defId)} holder={def} size={small ? 18 : 22} />
-              ))}
+              {inPlay.attached!
+                .filter((a) => !a.tool)
+                .map((a) => (
+                  <AttachedIcon key={a.card.uid} def={lookupCard(cards, a.card.defId)} holder={def} size={small ? 18 : 22} />
+                ))}
             </div>
           )}
           {!textStatus && conditionTags(inPlay).length > 0 && (
@@ -190,6 +194,18 @@ export function Card({
               ))}
             </div>
           )}
+        </div>
+      )}
+      {inPlay && cards && (inPlay.attached ?? []).some((a) => a.tool) && (
+        // Its Pokémon Tools (the user's, 2026-10-26, after Pokémon TCG Pocket): tiles of their art on the card's left edge, over the
+        // lower part of its illustration, each a quarter of the card wide; several two to a row (a 2×2 for four: Toolbox), left to
+        // right then top to bottom.
+        <div className={`absolute left-[3%] top-[31%] grid gap-[3%] ${(inPlay.attached ?? []).filter((a) => a.tool).length > 1 ? 'w-[55%] grid-cols-2' : 'w-[26%] grid-cols-1'}`}>
+          {inPlay.attached!
+            .filter((a) => a.tool)
+            .map((a) => (
+              <AttachedIcon key={a.card.uid} def={lookupCard(cards, a.card.defId)} holder={def} tile={{ thin: !!small }} />
+            ))}
         </div>
       )}
       {inPlay && cards && inPlay.energy.length > 0 && (
