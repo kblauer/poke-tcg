@@ -7,7 +7,7 @@ import { flowAt, inGrass, isBattleKind, onPath, onWater, routePath, type Route, 
 import type { PlayerGender } from '@poke-tcg/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
-import { glideTransition, mapPlacement, usePan, ZOOM } from '../../hooks/usePan';
+import { mapScale, usePan, ZOOM } from '../../hooks/usePan';
 import type { RunViewData } from '../../hooks/useRun';
 import { FADE_MS, GRASS_PACE, pace, stepPace, THROUGH_MS, useWalk, type MapSection, type Walker } from '../../hooks/useWalk';
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
@@ -144,7 +144,7 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
   // directly while it's dragged.
   const mapEl = useRef<HTMLDivElement>(null);
   const pan = usePan({ box, mapEl, map: shown, mapHeight: Math.max(...routes.map((r) => r.height), gym?.height ?? 0), panLocked });
-  const { size, offset, setOffset, glide, setGlide, centreOn, centreOnMap } = pan;
+  const { size, setOffset, setGlide, centreOn, centreOnMap } = pan;
   // The figures as last drawn, for the walk to go around them.
   const placedRef = useRef<PlacedFigure[]>([]);
   // A non-battle encounter's NPC walking up to the player once chosen (the step it's for, where it is, which way it's going).
@@ -277,12 +277,8 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
           <div
             ref={mapEl}
             className="absolute origin-top-left"
-            style={{
-              width: shown.width,
-              height: shown.height,
-              ...mapPlacement(offset),
-              transition: glideTransition(glide),
-            }}
+            // Placed and glided by usePan (usePanTo).
+            style={{ width: shown.width, height: shown.height, transform: mapScale }}
           >
             <img src={shown.image} alt="" draggable={false} className="h-full w-full select-none [image-rendering:pixelated]" />
             {/* The people always there (a gym's guide). */}
