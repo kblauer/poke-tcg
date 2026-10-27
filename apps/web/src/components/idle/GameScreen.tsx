@@ -3,8 +3,8 @@ import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode }
 /** FireRed's screen in game pixels (the GBA's 240x160): the map shows 15 by 10 tiles of it. */
 export const GAME_WIDTH = 240;
 export const GAME_HEIGHT = 160;
-/** The text box's (DialogueBox's) text size in game pixels, the battle text box's (the user's: to match the screen's other text). */
-export const DIALOGUE_TEXT = 10;
+/** The text box's (DialogueBox's) text size in game pixels (the user's: bigger than its usual 16px to match the screen's other text, but less than the battle text box's 10). */
+export const DIALOGUE_TEXT = 6;
 /** The window's height the game screen leaves for the page around it (the header and tick meter above, the move bars below). */
 const RESERVED_HEIGHT = 200;
 /** The least it's given of the window's height, however short the window. */
