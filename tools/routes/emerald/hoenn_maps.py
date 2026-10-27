@@ -83,8 +83,7 @@ CENTER = ('LavaridgeTown_PokemonCenter_1F', 'MAP_LAVARIDGE_TOWN', 'OBJ_EVENT_GFX
 # walkable, links, Gym Trainer places.
 USER_WALKABLE = {'mauville': [(4, 7), (5, 7)]}
 USER_LINKS = {}
-# The user's Gym Trainer places, in place of the generator's: the player's spot and (if given) where the Gym Trainer stands.
-USER_GYM_TRAINER = {'rustboro': {'spot': (2, 8)}}
+USER_GYM_TRAINER = {}
 # The routes' fixes from the user: rectangles of tiles to make walkable (x0, y0, x1, y1, corners included), the entrance,
 # the exit (walked to from the last spot before the fade to the gym) and the spots, in place of the picked ones.
 USER_ROUTES = {
@@ -404,7 +403,7 @@ def place(repo, city, rows, info, cfg, names):
         tstand = next(((tspot[0] + dx, tspot[1]) for dx in (-1, 1) if rows[tspot[1]][tspot[0] + dx] == '.' and (tspot[0] + dx, tspot[1]) not in walk), (tspot[0] - 1, tspot[1]))
     user = USER_GYM_TRAINER.get(city)
     if user:
-        tspot, tstand = user['spot'], user.get('stand', tstand)
+        tspot, tstand = user['spot'], user['stand']
     guide = next(((o['x'], o['y']) for o in objs if 'GymGuide' in o.get('script', '')), None)
     guide_sprite = next((sprite_name(o['graphics_id']) for o in objs if 'GymGuide' in o.get('script', '')), None)
     gaps = []
