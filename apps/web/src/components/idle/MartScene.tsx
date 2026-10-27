@@ -244,8 +244,9 @@ function BuyScreen({ run, player, busy, onBuy, onClose, children }: { run: Clien
               ))}
             </div>
             <img src={`${SHOP}/${listing ? 'frame' : 'frame_quantity'}.png`} alt="" className="absolute left-0 top-0" style={{ width: GAME_WIDTH, height: GAME_HEIGHT }} draggable={false} />
-            {/* The money box (window 0: 1,1, 8 by 3 tiles). */}
-            <Win x={1} y={1} w={8} h={3} frame="std">
+            {/* The money box (window 0's 8 by 3 tiles; the user's: on the left, just above the description's bar, not in the
+                top left corner, where the Map button is; above IN BAG while it's there). */}
+            <Win x={1} y={step.kind === 'quantity' ? 6 : 10} w={8} h={3} frame="std">
               <Text x={0} y={1} style={{ ...NORMAL, ...DARK }}>MONEY</Text>
               <Money right={0} y={12} amount={money} />
             </Win>
