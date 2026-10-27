@@ -125,12 +125,18 @@ function Cursor({ x, y, grey }: { x: number; y: number; grey: boolean }) {
   );
 }
 
-/** A scroll arrow (the list's, the quantity's), centred on a point, bobbing as the game's do. */
-function Arrow({ x, y, up }: { x: number; y: number; up: boolean }) {
+/**
+ * A scroll arrow (the list's, the quantity's), centred on a point, bobbing as the game's do; a button doing what its
+ * key does (the user's: a click on it never reaches the screen, whose click is the text box's), its hit area a little
+ * bigger than the arrow.
+ */
+function Arrow({ x, y, up, label, onClick }: { x: number; y: number; up: boolean; label: string; onClick: () => void }) {
   return (
-    <svg className="absolute animate-pulse" style={{ left: x - 4, top: y - 3 }} width={8} height={6} viewBox="0 0 8 6" aria-hidden>
-      <path d={up ? 'M4 0L8 6H0z' : 'M0 0H8L4 6z'} fill="#626262" />
-    </svg>
+    <button type="button" aria-label={label} className="absolute flex items-center justify-center" style={{ left: x - 8, top: y - 6, width: 16, height: 12 }} onClick={(e) => (e.stopPropagation(), onClick())}>
+      <svg className="animate-pulse" width={8} height={6} viewBox="0 0 8 6" aria-hidden>
+        <path d={up ? 'M4 0L8 6H0z' : 'M0 0H8L4 6z'} fill="#626262" />
+      </svg>
+    </button>
   );
 }
 
@@ -207,6 +213,12 @@ function BuyScreen({ run, player, busy, onBuy, onClose, machines, children }: { 
   // cursor kept among the rows shown; the page doesn't scroll with it (a listener that isn't passive).
   const list = useRef<HTMLDivElement>(null);
   const wheeled = useRef(0);
+  /** The list moved `by` rows (the wheel, its arrows), the cursor kept among the rows shown. */
+  const scroll = (by: number) => {
+    const t = Math.max(0, Math.min(Math.max(0, rows.length - ROWS), top + by));
+    setTop(t);
+    setCursor(Math.max(t, Math.min(t + ROWS - 1, cursor)));
+  };
   useEffect(() => {
     const el = list.current;
     if (!el || step.kind !== 'list') return;
@@ -218,9 +230,25 @@ function BuyScreen({ run, player, busy, onBuy, onClose, machines, children }: { 
       const by = Math.trunc(wheeled.current / WHEEL_ROW);
       if (!by) return;
       wheeled.current -= by * WHEEL_ROW;
-      const t = Math.max(0, Math.min(Math.max(0, rows.length - ROWS), top + by));
-      setTop(t);
-      setCursor(Math.max(t, Math.min(t + ROWS - 1, cursor)));
+      scroll(by);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  });
+  // The wheel while choosing how many (the user's): over the screen, a notch up one more, down one fewer (as the keys).
+  const screen = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = screen.current;
+    if (!el || step.kind !== 'quantity') return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaMode === 2 ? e.deltaY * WHEEL_ROW * ROWS : e.deltaY;
+      if (Math.sign(dy) !== Math.sign(wheeled.current)) wheeled.current = 0;
+      wheeled.current += dy;
+      const by = Math.trunc(wheeled.current / WHEEL_ROW);
+      if (!by) return;
+      wheeled.current -= by * WHEEL_ROW;
+      for (let i = 0; i < Math.abs(by); i++) adjust(by < 0 ? 1 : -1);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
@@ -247,6 +275,7 @@ function BuyScreen({ run, player, busy, onBuy, onClose, machines, children }: { 
   return (
     <div ref={ref} className="w-full">
       <div
+        ref={screen}
         className="relative mx-auto overflow-hidden rounded-lg bg-black ring-1 ring-slate-700 [animation:idle-fade-in_300ms]"
         style={{ width: GAME_WIDTH * scale || '100%', height: GAME_HEIGHT * scale || undefined, aspectRatio: scale ? undefined : '3 / 2' }}
         onClick={() => pressDialogue.current?.()}
@@ -294,8 +323,8 @@ function BuyScreen({ run, player, busy, onBuy, onClose, machines, children }: { 
                 );
               })}
             </div>
-            {listing && top > 0 && <Arrow x={160} y={8} up />}
-            {listing && top + ROWS < rows.length && <Arrow x={160} y={104} up={false} />}
+            {listing && top > 0 && <Arrow x={160} y={8} up label="Scroll up" onClick={() => scroll(-1)} />}
+            {listing && top + ROWS < rows.length && <Arrow x={160} y={104} up={false} label="Scroll down" onClick={() => scroll(1)} />}
             {/* The item's description (window 5: 5,14) and icon (at 24,140), hidden while it's being bought. */}
             {listing && (
               <Text x={40} y={115} style={{ ...NORMAL, ...WHITE, lineHeight: '15px' }}>
@@ -317,8 +346,8 @@ function BuyScreen({ run, player, busy, onBuy, onClose, machines, children }: { 
                   <Text x={2} y={10} style={{ ...SMALL, ...DARK }}>×{String(count).padStart(2, '0')}</Text>
                   <Money right={2} y={10} amount={price * count} />
                 </Win>
-                {most > 1 && <Arrow x={152} y={72} up />}
-                {most > 1 && <Arrow x={152} y={104} up={false} />}
+                {most > 1 && <Arrow x={152} y={72} up label="One more" onClick={() => adjust(1)} />}
+                {most > 1 && <Arrow x={152} y={104} up={false} label="One fewer" onClick={() => adjust(-1)} />}
               </>
             )}
           </div>
