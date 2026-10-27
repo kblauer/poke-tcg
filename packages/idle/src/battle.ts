@@ -206,6 +206,11 @@ export class Battler {
   cooldowns: Record<string, number> = {};
   /** The moves its slots hold and its basic move (a Transformed Pokémon's are its target's). */
   slots: string[];
+  /**
+   * The status moves in its slots still to use once, first, in the slots' order (the user's: slots set by hand, not the
+   * automatic pick; chooseMove). Each one used is taken off; the rest of the battle goes by power.
+   */
+  openers: string[];
   basic: string;
   item: string | null;
   /** Its held item was used up (Recycle brings it back). */
@@ -226,6 +231,7 @@ export class Battler {
     this.hp = this.maxHp = s[0];
     this.stats = { atk: s[1], def: s[2], spa: s[3], spd: s[4], spe: s[5] };
     this.slots = [...mon.slots];
+    this.openers = mon.autoSlots ? [] : mon.slots.filter((k) => moveData(k).power === 0);
     this.basic = basicFor(mon);
     this.item = mon.item ?? null;
     void badges;
@@ -856,14 +862,21 @@ export class Battle {
 
   /**
    * The move a Pokémon uses this turn: one it's locked into (a two-turn move's second turn, Thrash, Rollout, Uproar,
-   * Bide, Encore), else (the user's, 2026-10-25, replacing the energy rule) the slot move with the highest power
-   * (movePower; status moves last, the slots' order breaking ties) that's ready, which then cools down; else its basic
-   * move (Struggle if even that can't be used).
+   * Bide, Encore), else a status move set by hand still to use once (`openers`, the user's: first, above any attack, once a
+   * battle; one that isn't ready waits), else (the user's, 2026-10-25, replacing the energy rule) the slot move with the
+   * highest power (movePower; status moves last, the slots' order breaking ties) that's ready, which then cools down;
+   * else its basic move (Struggle if even that can't be used).
    */
   chooseMove(b: Battler): string {
     const forced = b.v.charging ?? b.v.rampage?.move ?? (b.v.rollout && b.lastMove) ?? (b.v.uproar && b.lastMove) ?? (b.v.bide && 'bide') ?? null;
     if (forced) return forced;
     if (b.v.encore && this.selectable(b, b.v.encore.move)) return b.v.encore.move;
+    const opener = b.openers.find((k) => b.slots.includes(k) && this.ready(b, k));
+    if (opener) {
+      b.openers = b.openers.filter((k) => k !== opener);
+      this.startCooldown(b, opener);
+      return opener;
+    }
     const best = b.slots.filter((k) => this.ready(b, k)).sort((x, y) => movePower(y) - movePower(x))[0];
     if (best) {
       this.startCooldown(b, best);
@@ -1123,7 +1136,8 @@ export class Battle {
           this.emit({ t: 'learn', uid: mon.uid, move: m, msg: `${species(mon.species).name} learned ${moveData(m).name}!` });
         }
         if (mon.autoSlots) {
-          mon.slots = autoSlots(mon);
+          // The player's (only their Pokémon gain experience): with their bag's TMs.
+          mon.slots = autoSlots(mon, this.bag);
           if (!b.v.transformed) b.slots = [...mon.slots];
         }
       }

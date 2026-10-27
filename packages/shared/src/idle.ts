@@ -16,6 +16,9 @@ export const idleActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('TRAINER_GRIND') }),
   z.object({ type: z.literal('CONTINUE_ROUTE') }),
   z.object({ type: z.literal('SET_MODE'), mode: z.enum(IDLE_MODES) }),
+  z.object({ type: z.literal('CONTINUE_RUN') }),
+  z.object({ type: z.literal('TRAVEL'), area: z.number().int().min(0).max(200) }),
+  z.object({ type: z.literal('GRIND_AT'), area: z.number().int().min(0).max(200), kind: z.enum(['wild', 'trainers']) }),
   z.object({ type: z.literal('BUY'), item: z.string().min(1).max(40), count: z.number().int().min(1).max(99) }),
   z.object({ type: z.literal('SET_ORDER'), uids: z.array(uid).min(1).max(6) }),
   z.object({ type: z.literal('SET_SLOTS'), uid, slots: z.array(z.string().min(1).max(40)).max(3), auto: z.boolean().optional() }),
@@ -40,6 +43,8 @@ export const idleRunInput = z.object({ runId: z.uuid(), expectedVersion: z.numbe
 export const idleActInput = idleRunInput.extend({ action: idleActionSchema });
 /** The battle's ball button: a ball on this tick of the wild battle playing (the tick after the one on screen). */
 export const idleThrowInput = idleRunInput.extend({ tick: z.number().int().min(1).max(100000) });
+/** The player watching a town (idle.here): no version, as it changes nothing but the run's time. */
+export const idleHereInput = z.object({ runId: z.uuid() });
 /** Changes some of the settings (the rest kept). */
 export const idleSettingsInput = idleSettingsSchema.partial();
 /** Debug: a warp to an area (the run's party and bag kept). */

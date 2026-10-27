@@ -1,4 +1,4 @@
-import { ITEMS, MAX_AUTO_BALLS, species, type CatchUpSummary, type IdleSettings as Settings, type RevivePolicy } from '@poke-tcg/idle';
+import { isMachine, ITEMS, machineMove, MAX_AUTO_BALLS, moveData, species, type CatchUpSummary, type IdleSettings as Settings, type RevivePolicy } from '@poke-tcg/idle';
 import { useState } from 'react';
 import { commas } from '../../utils/math';
 
@@ -87,8 +87,9 @@ export function Bag({ bag }: { bag: Record<string, number> }) {
     <ul className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-1.5 text-sm">
       {items.map(([item, n]) => (
         <li key={item} className="flex justify-between rounded bg-slate-800 px-3 py-1.5 ring-1 ring-slate-700">
-          <span>{ITEMS[item]?.name ?? item}</span>
-          <span className="text-slate-400">×{n}</span>
+          {/* A TM or HM with its move, kept for good (no count). */}
+          <span>{isMachine(item) ? `${ITEMS[item]!.name.toUpperCase()} ${moveData(machineMove(item)).name}` : (ITEMS[item]?.name ?? item)}</span>
+          {!isMachine(item) && <span className="text-slate-400">×{n}</span>}
         </li>
       ))}
     </ul>

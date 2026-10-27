@@ -349,7 +349,7 @@ export function BattleScene({
       hbX = null;
     }
     if (visible && scale > 0) parts.push(<Pic key={`foe${mon.uid}`} src={monSrc(mon, 1)} x={x} y={y + y2} scale={scale} tint={tint} anim={anim(1)} />);
-    if (hbX !== null) healthboxes.push(<Healthbox key="hb1" mon={live(1, mon)} player={false} x={12} y={14} style={{ transform: `translateX(${hbX}px)` }} />);
+    if (hbX !== null) healthboxes.push(<Healthbox key="hb1" mon={live(1, mon)} player={false} caught={wild && !!battle.caughtBefore} x={12} y={14} style={{ transform: `translateX(${hbX}px)` }} />);
   }
 
   // ---- The player's side ----

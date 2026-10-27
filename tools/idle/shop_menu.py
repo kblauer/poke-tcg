@@ -11,7 +11,7 @@ apps/web/public/idle/gen1/shop/
   window_user.png     the player's window frame, FireRed's first (type1.png: the quantity box)
   pokedollar.png      the small font's Pokédollar sign (graphics/fonts/latin_small.png, the charmap's ¥, 0xB7: an 8x16
                       cell, 5 pixels wide), in the list's text colours (the menu window palette's 2 and 3)
-  items/<item>.png    each item a Kanto Poké Mart sells (the maps' `pokemart` lists), and the CANCEL arrow (cancel.png):
+  items/<item>.png    each item a Kanto Poké Mart sells (the maps' `pokemart` lists), every TM and HM (Buy TMs), and the CANCEL arrow (cancel.png):
                       its icon (graphics/items/icons/, src/data/item_icon_table.h) in its own palette, colour 0 see-through
 
 Usage: python tools/idle/shop_menu.py <pokefirered checkout>. Needs Pillow."""
@@ -115,9 +115,11 @@ def main():
             continue
         for block in re.findall(r'\w+_Items::\s*((?:\s*\.2byte ITEM_\w+)+)', read(p)):
             sold.update(c for c in re.findall(r'ITEM_(\w+)', block) if c != 'NONE')
+    # Every TM and HM (Buy TMs, every store's from Celadon City on: the user's), each its type's disc.
+    sold.update([f'TM{n:02}' for n in range(1, 51)] + [f'HM{n:02}' for n in range(1, 9)])
     table = {c: (pic, pal) for c, pic, pal in re.findall(r'\[ITEM_(\w+)\]\s*=\s*\{(gItemIcon_\w+), (gItemIconPalette_\w+)\}', read('src/data/item_icon_table.h'))}
     table['COUNT'] = re.search(r'\[ITEMS_COUNT\]\s*=\s*\{(gItemIcon_\w+), (gItemIconPalette_\w+)\}', read('src/data/item_icon_table.h')).groups()
-    files = dict(re.findall(r'const u32 (gItemIcon\w+)\[\] = INCBIN_U32\("(graphics/items/[\w/]+)\.\w+\.lz"\)', read('src/data/graphics/items.h')))
+    files = dict(re.findall(r'const u32 (gItemIcon\w+)\[\]\s*=\s*INCBIN_U32\("(graphics/items/[\w/]+)\.\w+\.lz"\)', read('src/data/graphics/items.h')))
     for const in sorted(sold) + ['COUNT']:
         pic, pal = table[const]
         key = 'cancel' if const == 'COUNT' else const.lower().replace('_', '-')

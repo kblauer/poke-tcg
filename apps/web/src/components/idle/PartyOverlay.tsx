@@ -1,7 +1,6 @@
-import { basicFor, calcStats, cooldownTicks, ITEMS, moveData, species, usableStones, type IdleAction, type Mon } from '@poke-tcg/idle';
+import { basicFor, calcStats, cooldownTicks, ITEMS, machineMoves, moveData, species, usableStones, type IdleAction, type Mon } from '@poke-tcg/idle';
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { useEscape } from '../../hooks/useEscape';
-import { MODE_SELECT_HEIGHT } from './ModeSelect';
 
 /** One game pixel of FireRed's 240x160 screen, in the game screen's width (container query units). */
 const px = (n: number) => `${(n * 100) / 240}cqw`;
@@ -15,10 +14,10 @@ const TEXT = { color: '#ffffff', textShadow: `${px(1)} ${px(1)} 0 #737373`, font
 const SLOT_W = 88;
 const SLOT_H = 24;
 const LIST_LEFT = 240 - (10 + SLOT_W + 4);
-/** The Pokémon's panel's width (just left of the slots' column), top, and tallest: its bottom edge above the mode menu (the user's), wherever the scene puts it. */
+/** The Pokémon's panel's width (just left of the slots' column), top, and tallest: the screen's height (the Map button is in the top left corner, clear of it). */
 const PANEL_W = 104;
 const PANEL_TOP = 2;
-const panelMaxH = (modeBottom: number) => 160 - modeBottom - MODE_SELECT_HEIGHT - 2 - PANEL_TOP;
+const PANEL_MAX_H = 160 - 2 - PANEL_TOP;
 /** The panel's colours: a slot's (slot.png's border, fill and light). */
 const FRAME = { border: '#4a4a62', fill: '#3994de', light: '#83c5de', shade: '#297bb4' };
 /** How far (game pixels) a slot must be dragged before it's a drag, not a click. */
@@ -47,7 +46,7 @@ const moved = (order: string[], from: number, to: number) => {
  * stones it can use. Escape, the button again or CANCEL closes it. Changes made during a wild battle wait for its end
  * (`pending`, IdleState.pending), shown at once.
  */
-export function PartyOverlay({ party, bag, busy, pending, open, modeBottom, onToggle, onAct }: { party: Mon[]; bag: Record<string, number>; busy: boolean; pending: number; open: boolean; modeBottom: number; onToggle: (open: boolean) => void; onAct: (action: IdleAction) => unknown }) {
+export function PartyOverlay({ party, bag, busy, pending, open, onToggle, onAct }: { party: Mon[]; bag: Record<string, number>; busy: boolean; pending: number; open: boolean; onToggle: (open: boolean) => void; onAct: (action: IdleAction) => unknown }) {
   const [chosen, setChosen] = useState<string | null>(null);
   const mon = party.find((m) => m.uid === chosen) ?? null;
   const close = () => (setChosen(null), onToggle(false));
@@ -136,7 +135,7 @@ export function PartyOverlay({ party, bag, busy, pending, open, modeBottom, onTo
       </div>
       {open && mon && (
         <div ref={panel} className="contents">
-          <MonPanel mon={mon} bag={bag} busy={busy} pending={pending} maxH={panelMaxH(modeBottom)} onAct={onAct} onClose={() => setChosen(null)} />
+          <MonPanel mon={mon} bag={bag} busy={busy} pending={pending} maxH={PANEL_MAX_H} onAct={onAct} onClose={() => setChosen(null)} />
         </div>
       )}
       {/* The button: the lead's menu icon, hopping (the user's: where the ball button was, the ball now beside it); not
@@ -276,13 +275,16 @@ function StatHex({ stats, height }: { stats: number[]; height: number }) {
 /**
  * The panel a slot opens (in the slots' style), just left of the slots' column and small enough not to scroll (the
  * user's): the Pokémon's name, level and types, its stats as a hexagon, its basic move, its 3 slots to set (or picked
- * automatically) and the stones in the bag it can use.
+ * automatically: its own moves, and the moves of the bag's TMs and HMs it can learn, the user's) and the stones in the
+ * bag it can use.
  */
 function MonPanel({ mon, bag, busy, pending, maxH, onAct, onClose }: { mon: Mon; bag: Record<string, number>; busy: boolean; pending: number; maxH: number; onAct: (a: IdleAction) => void; onClose: () => void }) {
   const s = species(mon.species);
   const stats = calcStats(mon.species, mon.level, mon.ivs, mon.evs, mon.nature);
   const basic = basicFor(mon);
   const choices = mon.moves.filter((m) => m !== basic);
+  // The moves the bag's TMs and HMs give it (those it can learn), after its own.
+  const machine = machineMoves(mon, bag).filter((m) => m !== basic);
   const stones = usableStones(mon).filter((st) => bag[st]);
   const setSlot = (slot: number, key: string) => {
     const slots = [...mon.slots];
@@ -332,6 +334,15 @@ function MonPanel({ mon, bag, busy, pending, maxH, onAct, onClose }: { mon: Mon;
               {moveLabel(k)}
             </option>
           ))}
+          {machine.length > 0 && (
+            <optgroup label="TMs and HMs">
+              {machine.map((k) => (
+                <option key={k} value={k} disabled={mon.slots.includes(k) && mon.slots[slot] !== k}>
+                  {moveLabel(k)}
+                </option>
+              ))}
+            </optgroup>
+          )}
         </select>
       ))}
       <label className="flex items-center" style={{ ...TEXT, ...small, gap: px(2), marginTop: px(2) }}>

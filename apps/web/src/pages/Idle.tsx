@@ -1,5 +1,5 @@
 import { idleMusic } from '@poke-tcg/campaign';
-import { AREAS, mapView, species, TICK_MS, type IdleAction, type WalkArea } from '@poke-tcg/idle';
+import { AREAS, cuts, mapView, species, TICK_MS, type IdleAction, type WalkArea } from '@poke-tcg/idle';
 import { useState } from 'react';
 import type { Dialogue } from '../components/DialogueBox';
 import { useMusicCue, useMusicSettings } from '../components/MusicPlayer';
@@ -8,7 +8,7 @@ import { ReturnToPlay } from '../components/ReturnToPlay';
 import { Toasts } from '../components/Toasts';
 import { SceneTransition } from '../components/BattleTransition';
 import { AreaScene, usePreloadMaps } from '../components/idle/AreaScene';
-import { MODE_SELECT_BOTTOM, MODE_SELECT_BATTLE_BOTTOM, ModeSelect } from '../components/idle/ModeSelect';
+import { TownMap } from '../components/idle/TownMap';
 import { BattleScreen } from '../components/idle/BattleScreen';
 import { Bag, catchUpPages, IdleSettings } from '../components/idle/IdleSettings';
 import { PartyOverlay } from '../components/idle/PartyOverlay';
@@ -18,7 +18,7 @@ import { StarterScene } from '../components/idle/StarterScene';
 import { MartScene } from '../components/idle/MartScene';
 import { TownMenu } from '../components/idle/TownMenu';
 import { useEscape } from '../hooks/useEscape';
-import { placeOf, placeTrack, useIdleActions, useIdleOverview, useIdlePlayback, type ClientIdleRun } from '../hooks/useIdle';
+import { placeOf, placeTrack, useIdleActions, useIdleOverview, useIdlePlayback, useTownHere, type ClientIdleRun } from '../hooks/useIdle';
 import { useRun } from '../hooks/useRun';
 import { useToasts } from '../hooks/useToasts';
 import { DEBUG_BUILD, useDebugEnabled } from '../utils/debug';
@@ -65,7 +65,9 @@ export function IdlePage() {
   const run = data?.run ?? null;
   const active = run?.status === 'ACTIVE' ? run : null;
   const settings = data?.settings;
-  const { play, summary, closeSummary, actOn, acted, throwBall, throwing } = useIdlePlayback(active, name, (m) => toasts.push('error', m));
+  const { play, summary, closeSummary, actOn, acted, interrupt, throwBall, throwing } = useIdlePlayback(active, name, (m) => toasts.push('error', m));
+  // A town on screen waits for the player however long (the user's): only time away is played by its wait.
+  useTownHere(active);
   // What happened while away, a page at a time in the scene's text box (in place of its own line); Escape closes it.
   const [page, setPage] = useState(0);
   const pages = summary ? catchUpPages(summary) : [];
@@ -115,7 +117,8 @@ export function IdlePage() {
     active &&
     actions
       .act(actOn(active), action)
-      .then((r) => acted(r.run))
+      // Stop, Continue run and the Town Map's moves act at once: the segment on screen dropped (`interrupt`).
+      .then((r) => (cuts(action) ? interrupt(r.run) : acted(r.run)))
       .catch(failed);
   // A purchase in the store: whether it went through (the buy screen says "Here you are!" only then).
   const buy = (item: string, count: number) =>
@@ -128,12 +131,13 @@ export function IdlePage() {
   const start = (id: number, shiny = false) => actions.start(id, shiny).catch(failed);
   const v = run?.view;
   // The party over the game screen (the user's): its button in the screen's top right corner, its slots sliding out; and
-  // the mode menu in its bottom left corner, on every scene (the user's), its Pokémon's panel kept above it.
-  const overlays = (modeBottom: number) =>
+  // the Town Map's button in its top left corner, on every scene (the user's, in place of the mode drop-down), and the
+  // map, opened, over everything.
+  const overlays = () =>
     active && v ? (
       <>
-        <ModeSelect view={v} busy={actions.busy} bottom={modeBottom} onAct={act} />
-        <PartyOverlay party={v.party} bag={v.bag} busy={actions.busy} pending={v.pendingChanges} open={partyOpen} modeBottom={modeBottom} onToggle={setPartyOpen} onAct={act} />
+        <PartyOverlay party={v.party} bag={v.bag} busy={actions.busy} pending={v.pendingChanges} open={partyOpen} onToggle={setPartyOpen} onAct={act} />
+        <TownMap view={v} busy={actions.busy} gender={gender} onAct={act} />
       </>
     ) : null;
   const over = run && run.status !== 'ACTIVE';
@@ -206,8 +210,8 @@ export function IdlePage() {
         </div>
       ) : v?.phase === 'town' && v.inStore ? (
         // In the town's Poké Mart (the user's): the town waits until the player leaves.
-        <MartScene key={v.area} run={active} gender={gender} busy={actions.busy} onBuy={buy} onLeave={() => void act({ type: 'LEAVE_STORE' })} dialogue={catchUp} buyChildren={overlays(MODE_SELECT_BATTLE_BOTTOM)}>
-          {overlays(MODE_SELECT_BOTTOM)}
+        <MartScene key={v.area} run={active} gender={gender} busy={actions.busy} onBuy={buy} onLeave={() => void act({ type: 'LEAVE_STORE' })} dialogue={catchUp} buyChildren={overlays()}>
+          {overlays()}
         </MartScene>
       ) : v?.phase === 'town' ? (
         <TownMenu
@@ -217,19 +221,18 @@ export function IdlePage() {
           onGym={() => void act({ type: 'GYM' })}
           onGrind={() => void act({ type: 'GRIND' })}
           onStore={() => void act({ type: 'VISIT_STORE' })}
-          onContinue={() => void act({ type: 'CONTINUE' })}
-          onBack={() => void act({ type: 'BACK_ROUTE' })}
+          onContinue={() => void act({ type: 'CONTINUE_RUN' })}
           dialogue={catchUp}
         >
-          {overlays(MODE_SELECT_BOTTOM)}
+          {overlays()}
         </TownMenu>
       ) : play.battle ? (
         <BattleScreen battle={play.battle} shown={play.shown} gender={gender} dialogue={catchUp} onThrow={throwBall} throwing={throwing}>
-          {overlays(MODE_SELECT_BOTTOM)}
+          {overlays()}
         </BattleScreen>
       ) : (
         <AreaScene playback={play} gender={gender} dialogue={catchUp ?? (play.notice ? { text: play.notice, choices: [], instant: true, answer: () => {} } : null)}>
-          {!play.entering && overlays(MODE_SELECT_BOTTOM)}
+          {!play.entering && overlays()}
           {play.entering && <SceneTransition />}
         </AreaScene>
       )}
