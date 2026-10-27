@@ -1,5 +1,5 @@
 import { basicFor, calcStats, cooldownTicks, ITEMS, moveData, species, usableStones, type IdleAction, type Mon } from '@poke-tcg/idle';
-import { useRef, useState, type PointerEvent } from 'react';
+import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { useEscape } from '../../hooks/useEscape';
 import { MODE_SELECT_HEIGHT } from './ModeSelect';
 
@@ -53,6 +53,21 @@ export function PartyOverlay({ party, bag, busy, pending, open, modeBottom, onTo
   const close = () => (setChosen(null), onToggle(false));
   useEscape(() => (mon ? setChosen(null) : close()), open);
   const lead = party[0];
+  // A press anywhere but the slots, the Pokémon's panel or the button closes them all (the user's).
+  const slots = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef(close);
+  closeRef.current = close;
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: globalThis.PointerEvent) => {
+      const t = e.target as Node;
+      if (![slots, panel, button].some((r) => r.current?.contains(t))) closeRef.current();
+    };
+    window.addEventListener('pointerdown', onDown, true);
+    return () => window.removeEventListener('pointerdown', onDown, true);
+  }, [open]);
 
   // Dragging a slot: which, from where, how far (game pixels); the order it would drop into, the others making way.
   const order = party.map((m) => m.uid);
@@ -88,6 +103,7 @@ export function PartyOverlay({ party, bag, busy, pending, open, modeBottom, onTo
     <div className="pointer-events-none absolute inset-0 overflow-hidden [container-type:inline-size] [image-rendering:pixelated]" onClick={(e) => e.stopPropagation()}>
       {/* The party's slots, sliding out from the right over FireRed's party background. */}
       <div
+        ref={slots}
         className="pointer-events-auto absolute top-0 h-full transition-transform duration-300 ease-out"
         style={{ left: px(LIST_LEFT), width: px(240 - LIST_LEFT), transform: open ? 'none' : 'translateX(101%)', backgroundImage: `url(${PARTY}/bg.png)`, backgroundSize: `${px(240)} ${px(160)}`, backgroundPosition: `-${px(LIST_LEFT)} 0` }}
         aria-hidden={!open}
@@ -113,11 +129,16 @@ export function PartyOverlay({ party, bag, busy, pending, open, modeBottom, onTo
           <span className="block text-center" style={{ ...TEXT, fontSize: px(10), paddingTop: px(2) }}>CANCEL</span>
         </button>
       </div>
-      {open && mon && <MonPanel mon={mon} bag={bag} busy={busy} pending={pending} maxH={panelMaxH(modeBottom)} onAct={onAct} onClose={() => setChosen(null)} />}
+      {open && mon && (
+        <div ref={panel} className="contents">
+          <MonPanel mon={mon} bag={bag} busy={busy} pending={pending} maxH={panelMaxH(modeBottom)} onAct={onAct} onClose={() => setChosen(null)} />
+        </div>
+      )}
       {/* The button: the lead's menu icon, hopping (the user's: where the ball button was, the ball now beside it); not
           while a Pokémon's panel is open (it has its own ✕). */}
       {lead && !(open && mon) && (
         <button
+          ref={button}
           type="button"
           className="pointer-events-auto absolute rounded-full transition hover:scale-110"
           // In the top right corner; open, just left of the slots (so it never covers the first one).
