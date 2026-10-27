@@ -792,7 +792,9 @@ def main():
             for t in order:
                 sprites.add(t['gfx'])
                 trainers.append({'key': t['key'], 'leg': len(legs) - 1, 'map': t['map'], 'x': t['x'], 'y': t['y'], 'face': t['face'], 'sprite': sprite_name(t['gfx']),
-                                 'sight': sorted([x, y] for _, x, y in t['sight'])})
+                                 'sight': sorted([x, y] for _, x, y in t['sight']),
+                                 # Standing in tall grass (MetatileBehavior_IsTallGrass): its grass drawn over their feet.
+                                 **({'grass': True} if terrain(grids[t['map']].m, t['x'], t['y']) == 'g' else {})})
         area = {'id': a['id'], 'name': a['name'], 'kind': a['kind'], 'legs': legs, 'trainers': trainers}
         for k in ('town', 'badge', 'leader'):
             if a.get(k):

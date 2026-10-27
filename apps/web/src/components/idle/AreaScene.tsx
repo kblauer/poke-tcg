@@ -4,7 +4,7 @@ import { useIsPhone } from '../../hooks/useIsPhone';
 import { placeTrack, type Playback } from '../../hooks/useIdle';
 import type { Facing } from '../../utils/overworld';
 import { DialogueBox, dialogueKey, type Dialogue } from '../DialogueBox';
-import { Exclamation, OverworldSprite } from '../run/RouteSprites';
+import { Exclamation, GrassTufts, OverworldSprite, TallGrass } from '../run/RouteSprites';
 import { GAME_HEIGHT, GAME_WIDTH, GameScreen, onDevicePixel, useGameScale } from './GameScreen';
 
 /** The text box's widest (the user's: bound to less than the scene's width), and never wider than the map drawn. */
@@ -52,7 +52,9 @@ const WATER_SPRITES: Record<string, string> = { swimmer_m: 'swimmer_m_water', sw
  * A map of the run, the player standing on `tile` (in map tiles) and `people` around: the game screen (the user's: the
  * battle screen's size, FireRed's 15 by 10 tiles, its pixels a whole number of device pixels: useGameScale), the map cut
  * off at its edges; across each way it fits it's centred (Oak's lab, the user's), otherwise panned to keep the player in
- * the middle (as the run maps' RouteView, without dragging), on whole device pixels either way; fading out between maps; `children` over it (the battle's flash), and `dialogue` in the Battle Tower's text
+ * the middle (as the run maps' RouteView, without dragging), on whole device pixels either way; fading out between maps;
+ * tall grass over the player's feet (`grass`: his tile is tall grass) and the people's (their `grass`), rustling as he
+ * steps in, as FireRed has it (GrassTufts); `children` over it (the battle's flash), and `dialogue` in the Battle Tower's text
  * box (DialogueBox, the user's: a click anywhere on the scene a click on the box), no wider than DIALOGUE_MAX or the map.
  */
 export function MapScene({
@@ -65,6 +67,7 @@ export function MapScene({
   walkTick,
   moveMs,
   jump,
+  grass = false,
   fading = false,
   people = [],
   spotted,
@@ -80,8 +83,9 @@ export function MapScene({
   walkTick?: number;
   moveMs: number;
   jump?: { ms: number; stamp: number } | null;
+  grass?: boolean;
   fading?: boolean;
-  people?: { key: string; sprite: string; x: number; y: number; face: Facing }[];
+  people?: { key: string; sprite: string; x: number; y: number; face: Facing; grass?: boolean }[];
   spotted?: string | null;
   dialogue?: Dialogue | null;
   children?: ReactNode;
@@ -134,6 +138,9 @@ export function MapScene({
             </div>
           ))}
           <OverworldSprite name={player} tile={tile} face={face} walkTick={moveMs ? walkTick : undefined} moveMs={moveMs} {...(jump && { jump })} />
+          {/* The grass after the sprites, so it's over the feet of those on its row. */}
+          {people.map((p) => p.grass && <TallGrass key={p.key} tile={{ x: p.x, y: p.y }} />)}
+          <GrassTufts tile={tile} grass={grass} map={image} moveMs={moveMs} jump={jump} />
         </div>
       </div>
       <div className="pointer-events-none absolute inset-0 bg-black transition-opacity duration-300" style={{ opacity: fading ? 1 : 0 }} />
@@ -159,10 +166,12 @@ export function AreaScene({ playback, gender, dialogue, children }: { playback: 
   const [m, x, y, , tileCode] = track[Math.min(place.step, track.length - 1)]!;
   const map = mapView(leg.maps[m]!);
   const water = tileCode[1] === 'w' || tileCode[1] === 'p';
+  // Tall grass (MB_TALL_GRASS: the tile's battle terrain).
+  const grass = tileCode[1] === 'g';
   const base = gender === 'female' ? 'leaf' : 'red';
   const people = area.trainers
     .filter((t) => t.leg === place.leg && t.map === m)
-    .map((t) => ({ key: t.key, sprite: WATER_SPRITES[t.sprite] && water ? WATER_SPRITES[t.sprite]! : t.sprite, x: t.x, y: t.y, face: t.face }));
+    .map((t) => ({ key: t.key, sprite: WATER_SPRITES[t.sprite] && water ? WATER_SPRITES[t.sprite]! : t.sprite, x: t.x, y: t.y, face: t.face, grass: t.grass }));
   return (
     <MapScene
       image={map.image}
@@ -174,6 +183,7 @@ export function AreaScene({ playback, gender, dialogue, children }: { playback: 
       walkTick={playback.walkTick}
       moveMs={playback.moveMs}
       jump={playback.jump}
+      grass={grass}
       fading={playback.fading}
       people={people}
       spotted={playback.spotted}

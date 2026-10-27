@@ -1,7 +1,8 @@
 import { inGrass, ledgeAt, onIce, onPath, onWater, type EncounterKind, type Route, type RouteSpot } from '@poke-tcg/campaign';
 import { useEffect, useRef, useState } from 'react';
+import { GRASS_FRAME_MS, RUSTLE, useTallGrass } from '../../hooks/useTallGrass';
 import { FADE_MS } from '../../hooks/useWalk';
-import { bobFrame, bobs, isItemBall, mirrored, spriteWidth, standFrame, stripFrames, walkFrame, waterSprite, type Facing } from '../../utils/overworld';
+import { bobFrame, bobs, isItemBall, mirrored, spriteWidth, standFrame, stripFrames, walkFrame, waterSprite, type Facing, type SpriteSet } from '../../utils/overworld';
 import { facing, type RouteFigure } from '../../utils/routeFigures';
 import { ENCOUNTER_STYLE } from './encounterIcons';
 
@@ -308,19 +309,67 @@ export function JumpShadow({ tile, shown, moveMs }: { tile: RouteSpot; shown: bo
 /** How long each of the landing dust's 3 frames shows (FireRed's: 8 of its 60 frames a second). */
 const DUST_FRAME_MS = 133;
 
-/** The dust where a ledge jump lands (FireRed's ground impact dust, `jump_dust.png`: 3 frames of 16x8, stacked), played once. */
-export function JumpDust({ tile }: { tile: RouteSpot }) {
+/**
+ * The dust where a ledge jump lands (FireRed's ground impact dust, `jump_dust.png`: 3 frames of 16x8, stacked), played once;
+ * `grass`, landing in tall grass, the grass thrown up instead (FLDEFF_JUMP_TALL_GRASS, `jump_tall_grass.png`: 4 frames; on
+ * Emerald's maps, `set` 'rse', its own).
+ */
+export function JumpDust({ tile, grass = false, set = 'frlg' }: { tile: RouteSpot; grass?: boolean; set?: SpriteSet }) {
+  const frames = grass ? 4 : 3;
   const [frame, setFrame] = useState(0);
   useEffect(() => {
-    const timers = [1, 2, 3].map((f) => window.setTimeout(() => setFrame(f), f * DUST_FRAME_MS));
+    const timers = Array.from({ length: frames }, (_, i) => window.setTimeout(() => setFrame(i + 1), (i + 1) * DUST_FRAME_MS));
     return () => timers.forEach((t) => window.clearTimeout(t));
-  }, []);
-  if (frame > 2) return null;
+  }, [frames]);
+  if (frame >= frames) return null;
   return (
     <div
       className="pointer-events-none absolute [image-rendering:pixelated]"
-      style={{ left: tile.x * 16, top: tile.y * 16 + 8, width: 16, height: 8, backgroundImage: 'url(/overworld/jump_dust.png)', backgroundPosition: `0 ${-frame * 8}px`, zIndex: tile.y + 1 }}
+      style={{ left: tile.x * 16, top: tile.y * 16 + 8, width: 16, height: 8, backgroundImage: `url(/overworld/${grass ? `${grassDir(set)}jump_tall_grass` : 'jump_dust'}.png)`, backgroundPosition: `0 ${-frame * 8}px`, zIndex: tile.y + 1 }}
     />
+  );
+}
+
+/** Where a map's tall grass pictures are: FireRed's, or Emerald's on the Hoenn maps (tools/routes/jump_effects.py). */
+const grassDir = (set: SpriteSet) => (set === 'rse' ? 'rse/' : '');
+
+/**
+ * Tall grass drawn over someone standing in it, on its tile (FireRed's FLDEFF_TALL_GRASS, `tall_grass.png`: 5 frames of
+ * 16x16, stacked): at rest (frame 0, its blades over their feet) or, `rustle`, rustling as they step in (frames 1 to 4,
+ * then at rest). Drawn after the sprites: in front of one on its row or above it, behind one below it (on a higher
+ * zIndex), as the game layers them; and during the rustle's first frame behind the one stepping in too (its subpriority
+ * 4 more then: UpdateTallGrassFieldEffect). Emerald's (`set` 'rse') works the same, with its own pictures.
+ */
+export function TallGrass({ tile, rustle = false, set = 'frlg' }: { tile: RouteSpot; rustle?: boolean; set?: SpriteSet }) {
+  const [step, setStep] = useState(rustle ? 0 : RUSTLE.length - 1);
+  useEffect(() => {
+    if (!rustle) return;
+    const timers = RUSTLE.slice(1).map((_, i) => window.setTimeout(() => setStep(i + 1), (i + 1) * GRASS_FRAME_MS));
+    return () => timers.forEach((t) => window.clearTimeout(t));
+  }, [rustle]);
+  const frame = RUSTLE[step]!;
+  return (
+    <div
+      className="pointer-events-none absolute [image-rendering:pixelated]"
+      style={{ left: tile.x * 16, top: tile.y * 16, width: 16, height: 16, backgroundImage: `url(/overworld/${grassDir(set)}tall_grass.png)`, backgroundPosition: `0 ${-frame * 16}px`, zIndex: frame === 1 ? Math.max(0, tile.y - 1) : tile.y }}
+    />
+  );
+}
+
+/**
+ * The tall grass over someone walking (useTallGrass: rustling as they step in, at rest where they're put, thrown up where a
+ * ledge jump lands in it), on `map` (its picture: a new one starts over); none while they're `hidden` (faded out).
+ */
+export function GrassTufts({ tile, grass, map, moveMs, jump, hidden = false, set = 'frlg' }: { tile: RouteSpot; grass: boolean; map: string; moveMs: number; jump?: { ms: number } | null; hidden?: boolean; set?: SpriteSet }) {
+  const { tufts, splash } = useTallGrass({ tile, grass, map, moveMs, jump, set });
+  if (hidden) return null;
+  return (
+    <>
+      {tufts.map((t) => (
+        <TallGrass key={t.key} tile={t} rustle={t.rustle} set={set} />
+      ))}
+      {splash && <JumpDust key={splash.stamp} tile={splash.tile} grass set={set} />}
+    </>
   );
 }
 

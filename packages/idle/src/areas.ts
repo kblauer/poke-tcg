@@ -40,6 +40,8 @@ export interface AreaTrainer {
   sprite: string;
   /** The tiles they see (stepping onto one starts the battle). */
   sight: [number, number][];
+  /** Standing in tall grass: its grass drawn over their feet (TallGrass). */
+  grass?: true;
 }
 
 export interface IdleLeg {
