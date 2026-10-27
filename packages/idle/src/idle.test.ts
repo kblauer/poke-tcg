@@ -657,6 +657,23 @@ describe('an idle run', () => {
     expect(next.segment.events.findIndex((e) => e.t === 'battle')).toBeLessThan(next.segment.events.findIndex((e) => e.t === 'badge'));
   });
 
+  it("marks a wild battle whose species was caught before it began (the healthbox's Poké Ball), never a trainer's", () => {
+    const battles = (caught: Set<number>) => {
+      let s: IdleState = { ...createIdleRun({ species: 4 }, 9), party: [{ ...createIdleRun({ species: 4 }, 9).party[0]!, level: 30 }] };
+      const out: Extract<SegmentEvent, { t: 'battle' }>[] = [];
+      for (let i = 0; i < 30 && out.length < 3; i++) {
+        const next = simulateSegment(s, MANUAL, new Set(caught))!;
+        out.push(...next.segment.events.filter((e): e is Extract<SegmentEvent, { t: 'battle' }> => e.t === 'battle' && e.kind === 'wild'));
+        s = next.state;
+      }
+      return out;
+    };
+    const all = new Set(Array.from({ length: 151 }, (_, i) => i + 1));
+    expect(battles(all).length).toBeGreaterThan(0);
+    expect(battles(all).every((b) => b.caughtBefore)).toBe(true);
+    expect(battles(new Set()).some((b) => b.caughtBefore)).toBe(false);
+  });
+
   it('picks a grind on the route it walks from where it is, and refuses the one already on', () => {
     const area = AREAS.findIndex((a) => a.id === 'route-2');
     const base = createIdleRun({ species: 4 }, 2);

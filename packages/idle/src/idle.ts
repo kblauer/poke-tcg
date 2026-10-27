@@ -254,6 +254,8 @@ export type SegmentEvent =
       events: BattleEvent[];
       result: BattleResult;
       ticks: number;
+      /** A wild Pokémon whose species the account had caught when the battle began (its healthbox's Poké Ball, FireRed's TryAddPokeballIconToHealthbox). */
+      caughtBefore?: true;
     }
   | { t: 'money'; amount: number; total: number; why: string }
   | { t: 'bought'; item: string; count: number; cost: number }
@@ -962,6 +964,7 @@ function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<
     events: result.events,
     result: result.result,
     ticks: result.ticks,
+    ...(o.kind === 'wild' && caught.has(o.foes[0]!.species) && { caughtBefore: true as const }),
   });
   // FireRed's intro and send-outs (the user's: their animations' time kept), then a tick a turn.
   out.durationMs += BATTLE_MS + openingMs(result.events, o.kind) + result.ticks * TICK_MS;

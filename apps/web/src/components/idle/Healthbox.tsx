@@ -86,7 +86,7 @@ const STATUS: Record<StatusKind, string> = { sleep: 'slp', poison: 'psn', toxic:
  * game's do. `x`, `y` the picture's top left on the screen (InitBattlerHealthboxCoords' centre less the sprite's
  * centre-to-corner: the player's 126,72, the opponent's 12,14).
  */
-export function Healthbox({ mon, player, exp, x, y, style }: { mon: BattlerView; player: boolean; exp?: number; x: number; y: number; style?: CSSProperties }) {
+export function Healthbox({ mon, player, exp, caught, x, y, style }: { mon: BattlerView; player: boolean; exp?: number; caught?: boolean; x: number; y: number; style?: CSSProperties }) {
   const s = species(mon.species);
   const hp = useBarValue(mon.hp, mon.maxHp, HP_TILES * 8, mon.uid);
   const from = expForLevel(s.growth, mon.level);
@@ -126,6 +126,9 @@ export function Healthbox({ mon, player, exp, x, y, style }: { mon: BattlerView;
         <span key={i} className="absolute" style={{ left: L.bar + 16 + i * 8, top: barY, width: 8, height: 8, backgroundImage: `url(${B}/hp_bar.png)`, backgroundPosition: `${-n * 8}px ${-color * 8}px` }} />
       ))}
       {status && <img src={`${B}/status/${status}_${player ? 0 : 1}.png`} alt={status.toUpperCase()} className="absolute" style={{ left: L.status[0], top: L.status[1] }} draggable={false} />}
+      {/* A wild Pokémon whose species is caught already: FireRed's Poké Ball left of the bar (TryAddPokeballIconToHealthbox:
+          the health bar's tile 8, 32 pixels left of its centre), where a status icon goes instead. */}
+      {!player && caught && !status && <img src={`${B}/ball_caught.png`} alt="Caught" title="Caught before" className="absolute" style={{ left: 8, top: barY }} draggable={false} />}
       {player && (
         <>
           {/* The HP numbers: the current right-aligned with its "/" (from 4 in its window at 56), the maximum (at 80). */}
