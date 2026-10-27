@@ -157,6 +157,18 @@ describe('moves and cooldowns', () => {
     expect([tick(), tick(), tick(), tick(), tick(), tick()]).toEqual(['flamethrower', 'slash', 'ember', 'scratch', 'ember', 'flamethrower']);
   });
 
+  it('uses a status move set by hand once, first, above any attack; on the automatic pick by power', () => {
+    const moves = ['scratch', 'smokescreen', 'flamethrower'];
+    const first = (autoSlots: boolean) => {
+      const b = new Battle(setup([mon(5, 40, { moves, slots: ['flamethrower', 'smokescreen'], autoSlots })], [mon(1, 40)]), rngFrom(1));
+      const me = b.active[0];
+      return [b.chooseMove(me), b.chooseMove(me)];
+    };
+    // Set by hand: Smokescreen, then Flamethrower; once used, it's no longer first.
+    expect(first(false)).toEqual(['smokescreen', 'flamethrower']);
+    expect(first(true)[0]).toBe('flamethrower');
+  });
+
   it("gives a quarter of the game's experience", () => {
     expect(EXP_RATE).toBe(0.25);
     // Bulbasaur (base 64) at level 10, beaten by a lone Charmander: 64 × 10 / 7 = 91, a quarter 22.
