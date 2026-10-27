@@ -9,7 +9,8 @@ Usage: python emerald_map.py <pokeemerald checkout> <MapName, as in data/maps/, 
 Writes <out prefix>.png, <out prefix>_overhead.png (what the game draws over the people: its top layer, see-through
 elsewhere) and <out prefix>.json: the size in tiles, `rows` ('.' walkable, '#' not: collision, ledges, water,
 doors, warps and the map's people, but for item balls and cut trees, always walkable; '~' surfable water; ledges by the way they're
-jumped, '>' east, '<' west, '^' north, 'v' south), `grass` (1 where tall grass) and the map's events (map.json). Needs
+jumped, '>' east, '<' west, '^' north, 'v' south), `grass` (1 where tall grass, long grass too), `long_grass` (1 where
+long grass, MB_LONG_GRASS: Route 119's very tall grass) and the map's events (map.json). Needs
 Pillow (pip install pillow)."""
 import json, os, re, struct, sys
 from PIL import Image
@@ -121,9 +122,9 @@ def render(repo, map_name, out_prefix=None, block_people=True):
     blocked = {(o['x'], o['y']) for o in m.get('object_events', []) if block_people and o['graphics_id'] not in FREE} | {(w['x'], w['y']) for w in m.get('warp_events', [])}
     # Item balls and cut trees are walked through (picked up, cut down), whatever the tile under them.
     free = {(o['x'], o['y']) for o in m.get('object_events', []) if o['graphics_id'] in FREE}
-    rows, grass = [], []
+    rows, grass, long_grass = [], [], []
     for by in range(H):
-        r, g = [], []
+        r, g, lg = [], [], []
         for bx in range(W):
             b = blocks[by * W + bx]
             mid, collision = b & 0x3FF, (b >> 10) & 3
@@ -138,9 +139,11 @@ def render(repo, map_name, out_prefix=None, block_people=True):
                 c = '#'
             r.append(c)
             g.append(1 if 'TALL_GRASS' in name or 'LONG_GRASS' in name else 0)
+            lg.append(1 if name == 'MB_LONG_GRASS' else 0)
         rows.append(''.join(r))
         grass.append(g)
-    info = {'width': W, 'height': H, 'rows': rows, 'grass': grass, 'events': {k: m.get(k, []) for k in ('object_events', 'warp_events', 'coord_events', 'bg_events')}, 'connections': m.get('connections') or []}
+        long_grass.append(lg)
+    info = {'width': W, 'height': H, 'rows': rows, 'grass': grass, 'long_grass': long_grass, 'events': {k: m.get(k, []) for k in ('object_events', 'warp_events', 'coord_events', 'bg_events')}, 'connections': m.get('connections') or []}
     if out_prefix:
         im.save(out_prefix + '.png')
         top.save(out_prefix + '_overhead.png')

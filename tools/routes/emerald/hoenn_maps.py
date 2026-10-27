@@ -251,7 +251,7 @@ def rows_ts(rows):
     return '\n'.join(f"    '{r}'," for r in rows)
 
 
-def route_ts(cfg, ent, spots, rows, grass, exit=None, picked_by_user=False):
+def route_ts(cfg, ent, spots, rows, grass, long_grass, exit=None, picked_by_user=False):
     surf = cfg.get('surf')
     exit_ts = f'\n  exit: {{ x: {exit[0]}, y: {exit[1]} }},' if exit else ''
     extra = "\n  travel: 'surf',\n  trainers: { names: SWIMMERS, share: 1 }," if surf else ''
@@ -261,7 +261,8 @@ def route_ts(cfg, ent, spots, rows, grass, exit=None, picked_by_user=False):
         extra = "\n  travel: 'bike',\n  trainers: { names: TRIATHLETES, share: 0.8 },"
     grass_ts = ''
     if any(any(r) for r in grass):
-        grass_ts = '\n  grass: [\n' + '\n'.join("    '" + ''.join('g' if g else '.' for g in r) + "'," for r in grass) + '\n  ],'
+        # Tall grass 'g', long grass (Route 119's very tall grass) 'L'.
+        grass_ts = '\n  grass: [\n' + '\n'.join("    '" + ''.join('L' if lg else 'g' if g else '.' for g, lg in zip(r, lr)) + "'," for r, lr in zip(grass, long_grass)) + '\n  ],'
     return f"""
 /** {cfg['title']}: {cfg['what']}. Spots along the walk, {'from the user' if picked_by_user else 'picked by tools/routes/emerald/hoenn_maps.py'}. */
 export const {cfg['const']}: Route = {{
@@ -496,7 +497,7 @@ def main():
         assert not gaps, (key, "the user's spots: no walk", gaps)
         img.save(os.path.join(PUBLIC, cfg['image']))
         preview(img, [('IN', ent, (0, 255, 0))] + ([('OUT', ext, (0, 128, 255))] if ext else []) + [(str(i + 1), s, (255, 0, 0)) for i, s in enumerate(spots)], os.path.join(work, key + '-route.png'))
-        out.append(route_ts(cfg, ent, spots, rows, info['grass'], ext, 'spots' in user))
+        out.append(route_ts(cfg, ent, spots, rows, info['grass'], info['long_grass'], ext, 'spots' in user))
         print('route', key, cfg['map'], 'entrance', ent, 'spots', spots)
     open(ROUTES_OUT, 'w', encoding='utf-8', newline='\n').write(ROUTES_HEAD + ''.join(out))
 

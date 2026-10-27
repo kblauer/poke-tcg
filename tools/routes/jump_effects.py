@@ -7,7 +7,8 @@ general_1.pal colours): `tall_grass.png`, the grass drawn over a sprite standing
 the grass at rest, 1-4 its rustle), and `jump_tall_grass.png`, the grass thrown up where a ledge jump lands in it (4 frames
 of 16x8, stacked); and Emerald's two, for the Hoenn maps (`rse/tall_grass.png`, `rse/jump_tall_grass.png`, from the
 pret/pokeemerald decompilation: the same frames and timing, its own pictures and colours; its frames side by side there,
-stacked here as FireRed's).
+stacked here as FireRed's), with its long grass's (FLDEFF_LONG_GRASS, `rse/long_grass.png`: 4 frames of 16x16, stacked;
+Route 119's very tall grass, which FireRed doesn't have).
 
     python tools/routes/jump_effects.py
 """
@@ -60,6 +61,7 @@ def main() -> None:
     grass = palette('field_effects/palettes/general_1.pal', EMERALD)
     stacked(coloured('field_effects/pics/tall_grass.png', grass, EMERALD)).save(OUT / 'rse/tall_grass.png')
     stacked(coloured('field_effects/pics/jump_tall_grass.png', grass, EMERALD)).save(OUT / 'rse/jump_tall_grass.png')
+    stacked(coloured('field_effects/pics/long_grass.png', grass, EMERALD)).save(OUT / 'rse/long_grass.png')
 
 
 if __name__ == '__main__':
