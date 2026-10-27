@@ -540,6 +540,27 @@ def league(area_id, name, m, boss, **kw):
             'legs': [leg([m], (m, 'tile', entrance['x'], entrance['y'] - 1), None, last=(boss,), ends_at_last=True, boss=boss, **kw)]}
 
 
+def mart_of(marts, sprites):
+    """A town's Poké Mart (the store, the user's): the map its first list is sold on, the player across the counter from
+    the clerk who sells it (its script's `pokemart`), two tiles ahead of them and facing them, and everyone there as the
+    map places them (the clerk facing the player)."""
+    name = marts[0][:-len('_Items')]
+    m = load(name)
+    script = read(f'data/maps/{name}/scripts.inc')
+    clerk = next(o for o in m.objects if re.search(re.escape(o['script']) + r'::(?:(?!\n\w+::)[\s\S])*?pokemart\s+' + marts[0] + r'\b', script))
+    face = facings(clerk['movement_type'])[0]
+    dx, dy = DIRS[face]
+    back = {'down': 'up', 'up': 'down', 'left': 'right', 'right': 'left'}[face]
+    people = []
+    for o in m.objects:
+        if not o['graphics_id'].startswith('OBJ_EVENT_GFX_'):
+            continue
+        gfx = o['graphics_id'].replace('OBJ_EVENT_GFX_', '').lower()
+        sprites.add(gfx)
+        people.append({'sprite': sprite_name(gfx), 'x': o['x'], 'y': o['y'], 'face': face if o is clerk else facings(o['movement_type'])[0]})
+    return {'map': name, 'x': clerk['x'] + 2 * dx, 'y': clerk['y'] + 2 * dy, 'face': back, 'people': people}
+
+
 def town(area_id, name, m, marts, gym=None, **kw):
     return {'id': area_id, 'name': name, 'kind': 'town', 'map': m, 'marts': marts, 'gym': gym, **kw}
 
@@ -724,8 +745,10 @@ def main():
             used_maps.setdefault(a['map'], Grid(load(a['map']), False))
             m = load(a['map'])
             pc = next((w for w in m.warps if 'POKEMON_CENTER_1F' in w['dest_map']), m.warps[0])
+            mart = mart_of(a['marts'], sprites)
+            used_maps.setdefault(mart['map'], Grid(load(mart['map']), False))
             out_areas.append({'id': a['id'], 'name': a['name'], 'kind': 'town', 'map': a['map'], 'stand': [pc['x'], pc['y'] + 1],
-                              'marts': a['marts'], 'gym': a['gym']})
+                              'marts': a['marts'], 'gym': a['gym'], 'mart': mart})
             if a['gym'] and last_legs:
                 for area_id, li, names, grids, track in reversed(last_legs):
                     loop = grind_loop(names, grids, track)

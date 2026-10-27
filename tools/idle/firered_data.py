@@ -4,7 +4,7 @@ pret/pokefirered decompilation:
   evolutions, the party icons' palettes);
 - moves.ts: every move (battle_moves.h, move_names.h): type, power, accuracy, PP, effect, chance, target, priority, flags;
 - abilities.ts: the ability names (abilities.h), keyed as the species' abilities are;
-- items.ts: the items (items.json): name, price, pocket, hold effect;
+- items.ts: the items (items.json): name, price, pocket, hold effect, description (as the game prints it, for the shop);
 - types.ts: the type chart (battle_main.c's gTypeEffectiveness);
 - encounters.ts: FireRed's wild encounter tables (wild_encounters.json), land and water, by map;
 - trainers.ts: FireRed's trainers (trainers.h, trainer_parties.h): class, name, pic, items, party, the class's prize
@@ -38,7 +38,7 @@ def key(const, prefix):
 def js(v):
     """A value as TypeScript source, single-quoted."""
     if isinstance(v, str):
-        return "'" + v.replace('\\', '\\\\').replace("'", "\\'") + "'"
+        return "'" + v.replace('\\', '\\\\').replace("'", "\\'").replace('\n', '\\n') + "'"
     if isinstance(v, bool):
         return 'true' if v else 'false'
     if isinstance(v, (int, float)):
@@ -234,9 +234,10 @@ for it in json.load(open(os.path.join(SRC, 'src/data/items.json'), encoding='utf
     if it['itemId'] == 'ITEM_NONE' or it['english'].startswith('?'):
         continue
     items[key(it['itemId'], 'ITEM_')] = {'name': title(it['english']), 'price': it['price'], 'pocket': it['pocket'][len('POCKET_'):].lower(),
-                                        'hold': it['holdEffect'][len('HOLD_EFFECT_'):].lower(), 'holdParam': it['holdEffectParam']}
+                                        'hold': it['holdEffect'][len('HOLD_EFFECT_'):].lower(), 'holdParam': it['holdEffectParam'],
+                                        'description': it['description_english'].replace('\\n', '\n')}
 write('items.ts', 'src/data/items.json',
-      "import type { ItemData } from '../../types.js';\n\n/** Every item, by key (ITEM_POKE_BALL: 'poke-ball'): its name, price, pocket and hold effect. */\nexport const ITEMS: Record<string, ItemData> = {\n"
+      "import type { ItemData } from '../../types.js';\n\n/** Every item, by key (ITEM_POKE_BALL: 'poke-ball'): its name, price, pocket, hold effect and description (the game's lines). */\nexport const ITEMS: Record<string, ItemData> = {\n"
       + ''.join(f'  {js(k)}: {js(v)},\n' for k, v in items.items()) + '};\n')
 
 # ---- Wild encounters (FireRed's tables, not LeafGreen's) ----

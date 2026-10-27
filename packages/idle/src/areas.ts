@@ -72,6 +72,11 @@ export interface TownArea {
   /** Its gym's area, or the League's first room (none in Viridian City the first time, Lavender Town). */
   gym?: string;
   /**
+   * Its Poké Mart (the store, the user's): the map its first list is sold on, the player's tile across the counter from
+   * the clerk who sells it and the way they face, and everyone there as the map places them (the clerk facing the player).
+   */
+  mart: { map: string; x: number; y: number; face: 'up' | 'down' | 'left' | 'right'; people: { sprite: string; x: number; y: number; face: 'up' | 'down' | 'left' | 'right' }[] };
+  /**
    * Where a run grinds before its gym (the user's): a loop round a ring of wild encounter tiles near the exit of the area
    * before the town (its last leg with wild Pokémon), each step a track's, walked round and round from the first.
    */

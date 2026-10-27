@@ -4,6 +4,7 @@
 // JSON like a run's (RunState), changed only by applyIdleAction (the player's choices) and simulateSegment (the next
 // stretch of walking and its battle, from the seeded RNG). Every decision in between is a setting, so a segment never
 // waits on the player, online or caught up offline (catchUp).
+import { openingMs } from './battle-timing.js';
 import { int, rngFrom, type Rng } from '@poke-tcg/campaign';
 import { AREAS, areaById, areaIndex, isTown, mapView, TERRAIN_LETTERS, type IdleArea, type TownArea, type WalkArea } from './areas.js';
 import { opponentMon, simulateBattle, type BattleEvent, type BattleResult, MEDICINE, type Terrain } from './battle.js';
@@ -34,10 +35,15 @@ export const PARTY_SIZE = 6;
  */
 export const STEP_MS = 267;
 export const TICK_MS = 10000;
-export const BATTLE_MS = 4000;
+/** A battle's own time besides its opening (battle-timing.ts: openingMs) and its ticks: the transition in, the screen held at its end. */
+export const BATTLE_MS = 2400;
 export const FADE_MS = 800;
-/** How long a town waits for the player's choice before taking it itself (the user's: no prompt waits on the player): the gym, or on once it's beaten. */
-export const TOWN_WAIT_MS = 5000;
+/**
+ * How long a town waits for the player's choice before taking it itself (the user's: no prompt waits on the player): the
+ * gym, or on once it's beaten. 10 s of the player doing nothing (the user's, 2026-10-26; 5 s before): the browser counts
+ * it again from any input; not at all in the store (IdleState.inStore).
+ */
+export const TOWN_WAIT_MS = 10000;
 /** Offline catch-up's cap (12 hours of absence, agreed with the user) and how many segments one call simulates (the browser calls again for more). */
 export const CATCH_UP_CAP_MS = 12 * 60 * 60 * 1000;
 export const CATCH_UP_SEGMENTS = 40;
@@ -126,6 +132,13 @@ export interface IdleState {
    * route goes on from there).
    */
   loop?: RouteLoop;
+  /** Stopped where it is (the Stop mode, the user's): no segment is played, offline either, until another mode is chosen. */
+  stopped?: boolean;
+  /**
+   * In the town's Poké Mart (the user's): the town doesn't go on by itself, watched or offline, until the player leaves it
+   * (LEAVE_STORE); only then are BUYs taken.
+   */
+  inStore?: boolean;
   /** The trainers (TRAINERS' keys) whose full prize the run has had: a rematch pays REMATCH_PRIZE of it. */
   paid?: string[];
   /**
@@ -157,6 +170,7 @@ export type IdleAction =
   | { type: 'BACK_ROUTE' }
   /** In a town: open its store (auto-evolve buys and uses stones there). */
   | { type: 'VISIT_STORE' }
+  | { type: 'LEAVE_STORE' }
   /** In a gym's town: grind to the gym's highest level (then into the gym); STOP_GRIND back to the town. */
   | { type: 'GRIND' }
   | { type: 'STOP_GRIND' }
@@ -164,6 +178,8 @@ export type IdleAction =
   | { type: 'WILD_GRIND' }
   | { type: 'TRAINER_GRIND' }
   | { type: 'CONTINUE_ROUTE' }
+  /** The mode (the mode dropdown, the user's): Route, Wild grind, Trainer grind, or Stop (stopped where it is). */
+  | { type: 'SET_MODE'; mode: IdleMode }
   | { type: 'BUY'; item: string; count: number }
   /** The party's order (the lead fights first). */
   | { type: 'SET_ORDER'; uids: string[] }
@@ -245,7 +261,7 @@ export interface Segment {
 const rngOf = (s: IdleState): Rng => ({ state: s.rngState });
 
 /** Whether a run plays by itself (walking or grinding), not waiting for the player or over. */
-export const playing = (s: Pick<IdleState, 'phase'>) => s.phase === 'walking' || s.phase === 'grinding';
+export const playing = (s: Pick<IdleState, 'phase' | 'stopped'>) => !s.stopped && (s.phase === 'walking' || s.phase === 'grinding');
 
 // ---- Starting a run ----
 export interface StarterChoice {
@@ -376,6 +392,7 @@ export function previousRoute(townIndex: number): number | null {
 function enterArea(state: IdleState, index: number, events: SegmentEvent[]) {
   // A route grind keeps going through a white-out back to its route's start; any other area ends it.
   if (index !== state.area) delete state.loop;
+  delete state.inStore;
   state.area = index;
   state.leg = 0;
   state.step = 0;
@@ -432,7 +449,14 @@ function autoStones(state: IdleState, stock: string[], events: SegmentEvent[]) {
 }
 
 /** The changes queued while a wild battle's replay is held (IdleState.pending): the party's order, its moves, a stone. */
-export const QUEUED_ACTIONS: IdleAction['type'][] = ['SET_ORDER', 'SET_SLOTS', 'USE_STONE'];
+export const QUEUED_ACTIONS: IdleAction['type'][] = ['SET_ORDER', 'SET_SLOTS', 'USE_STONE', 'SET_MODE'];
+
+/** The run's modes (the mode dropdown, the user's). */
+export const IDLE_MODES = ['route', 'wild', 'trainers', 'stop'] as const;
+export type IdleMode = (typeof IDLE_MODES)[number];
+
+/** The mode a run is in: stopped, grinding wild Pokémon or trainers on a route, else going on. */
+export const modeOf = (s: Pick<IdleState, 'stopped' | 'loop'>): IdleMode => (s.stopped ? 'stop' : s.loop?.kind === 'pace' ? 'wild' : s.loop?.kind === 'trainers' ? 'trainers' : 'route');
 
 /**
  * Applies the player's choice to a run. Pure: returns a new state, or an error. A party change while the last segment's
@@ -484,6 +508,8 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
   if (state.phase === 'won' || state.phase === 'given-up') return fail('This run is over');
   const area = AREAS[state.area]!;
   const inTown = state.phase === 'town' && isTown(area);
+  // Out of the store before going anywhere (the user's: it's left by hand).
+  if (state.inStore && (action.type === 'GYM' || action.type === 'GRIND' || action.type === 'CONTINUE' || action.type === 'BACK_ROUTE')) return fail('Leave the store first');
   switch (action.type) {
     case 'GYM': {
       if (!inTown || !area.gym) return fail('There is no gym here');
@@ -500,6 +526,26 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
     case 'WILD_GRIND':
     case 'TRAINER_GRIND': {
       const error = startRouteLoop(state, action.type === 'WILD_GRIND' ? 'wild' : 'trainers');
+      if (error) return fail(error);
+      return ok();
+    }
+    case 'SET_MODE': {
+      if (action.mode === 'stop') {
+        if (state.stopped) return ok();
+        state.stopped = true;
+        state.log.push('Stopped.');
+        return ok();
+      }
+      const was = state.stopped;
+      delete state.stopped;
+      if (action.mode === 'route') {
+        if (state.loop) endRouteLoop(state);
+        else if (was) state.log.push('Went on.');
+        return ok();
+      }
+      // A grind: the one on already, only going on again; otherwise started (switching from the other one).
+      if (modeOf(state) === action.mode) return ok();
+      const error = startRouteLoop(state, action.mode === 'wild' ? 'wild' : 'trainers');
       if (error) return fail(error);
       return ok();
     }
@@ -540,10 +586,19 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
     }
     case 'VISIT_STORE': {
       if (!inTown) return fail('Not in a town');
+      if (!area.marts.length) return fail('There is no store here');
+      if (state.inStore) return fail('In the store already');
+      state.inStore = true;
+      return ok();
+    }
+    case 'LEAVE_STORE': {
+      if (!state.inStore) return fail('Not in the store');
+      delete state.inStore;
       return ok();
     }
     case 'BUY': {
       if (!inTown) return fail('Not in a town');
+      if (!state.inStore) return fail('Not in the store');
       if (!storeStock(area).includes(action.item)) return fail('Not sold here');
       if (!Number.isInteger(action.count) || action.count < 1 || action.count > 99) return fail('Buy 1 to 99');
       const cost = itemData(action.item).price * action.count;
@@ -712,7 +767,8 @@ function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<
     result: result.result,
     ticks: result.ticks,
   });
-  out.durationMs += BATTLE_MS + result.ticks * TICK_MS;
+  // FireRed's intro and send-outs (the user's: their animations' time kept), then a tick a turn.
+  out.durationMs += BATTLE_MS + openingMs(result.events, o.kind) + result.ticks * TICK_MS;
   state.totals.battles += 1;
   if (o.kind === 'wild') state.totals.wild += 1;
   else state.totals.trainers += 1;
@@ -825,7 +881,25 @@ export type RouteGrindPlan =
   | { kind: 'pace'; area: number; leg: number; from: number; to: number }
   | { error: string };
 
+/**
+ * Where Wild or Trainer grind starts from a town (the user's: auto-grinding there, or waiting, either grind can be chosen
+ * and holds until Route): the end of the route before it (its grind loop's leg, the area's grind route), that route's
+ * trainers passed. Null outside a town, or with no route before it.
+ */
+function townGrindStart(state: Pick<IdleState, 'phase' | 'area'>): Pick<IdleState, 'area' | 'leg' | 'step' | 'beaten'> | null {
+  const town = AREAS[state.area]!;
+  if ((state.phase !== 'town' && state.phase !== 'grinding') || !isTown(town)) return null;
+  const route = town.grind ? areaIndex(town.grind.area) : previousRoute(state.area);
+  if (route === null) return null;
+  const w = AREAS[route] as WalkArea;
+  const leg = town.grind ? town.grind.leg : w.legs.length - 1;
+  return { area: route, leg, step: w.legs[leg]!.track.length - 1, beaten: w.trainers.map((t) => t.key) };
+}
+
 export function routeGrindPlan(state: Pick<IdleState, 'phase' | 'area' | 'leg' | 'step' | 'beaten' | 'loop'>, kind: 'wild' | 'trainers'): RouteGrindPlan {
+  // From a town (or its auto-grind): planned from the end of the route before it.
+  const start = townGrindStart(state);
+  if (start) state = { ...state, ...start, phase: 'walking', loop: undefined };
   const a = AREAS[state.area]!;
   if (state.phase !== 'walking' || (a.kind !== 'route' && a.kind !== 'dungeon')) return { error: 'Only on a route or in a dungeon' };
   const area = a as WalkArea;
@@ -867,6 +941,14 @@ function startRouteLoop(state: IdleState, kind: 'wild' | 'trainers'): string | n
   if (state.loop) endRouteLoop(state);
   const plan = routeGrindPlan(state, kind);
   if ('error' in plan) return plan.error;
+  // From a town (or its auto-grind: it ends): out to the end of the route before it, Route coming back from there.
+  const start = townGrindStart(state);
+  if (start) {
+    if (state.inStore) return 'Leave the store first';
+    state.log.push(`Left ${AREAS[state.area]!.name} for ${AREAS[start.area]!.name}.`);
+    Object.assign(state, start, { phase: 'walking' });
+    delete state.grind;
+  }
   const resume = { area: state.area, leg: state.leg, step: state.step, beaten: [...state.beaten] };
   state.encounter = { steps: 0, buff: 0, prev: '' };
   if (plan.kind === 'trainers') {
@@ -1064,7 +1146,16 @@ export function simulateSegment(from: IdleState, idleSettings: IdleSettings, cau
   const settings: PlaySettings = { ...idleSettings, ...(o.throwAt && { throwAt: o.throwAt }) };
   // The party changes queued during the last battle, first (withPending).
   const prev = withPending(from);
-  if (prev.phase === 'town') return townWait(prev);
+  // Stopped (the Stop mode): nothing played; a stop queued during the last battle is saved (its segment empty).
+  if (prev.stopped) {
+    if (!from.pending?.length) return null;
+    const state = structuredClone(prev);
+    delete state.replay;
+    state.version += 1;
+    return { state, segment: { events: [], durationMs: 0, dex: [] } };
+  }
+  // In the store: the town waits until the player leaves it.
+  if (prev.phase === 'town') return prev.inStore ? null : townWait(prev);
   if (!playing(prev)) return null;
   const state = structuredClone(prev);
   delete state.replay;
@@ -1212,7 +1303,7 @@ export function catchUp(prev: IdleState, settings: IdleSettings, caught: Set<num
     }
     const next = simulateSegment(state, settings, caught);
     if (!next) {
-      summary.stopped = 'won';
+      summary.stopped = state.phase === 'won' ? 'won' : 'time';
       break;
     }
     // Only whole segments that fit in the time away (the user's: a run just started, or a moment away, catches up

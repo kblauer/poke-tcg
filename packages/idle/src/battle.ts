@@ -1085,12 +1085,12 @@ export class Battle {
 
   /**
    * Experience for a fainted foe (Cmd_getexp, Gen 3, × EXP_RATE): base experience × its level / 7, split evenly among the player's
-   * Pokémon that faced it and haven't fainted, the rest of the party half each (Gen 6's Exp. Share: agreed), 1.5× for a
+   * Pokémon that faced it, fainted or not (the user's, 2026-10-26), the rest of the party half each (Gen 6's Exp. Share: agreed), 1.5× for a
    * trainer's; each also gains its EV yield. Level-ups raise the
    * stats at once (its HP by as much as its max HP) and teach the level's moves (all kept; the slots follow if automatic).
    */
   private gainExp(foe: Battler) {
-    const faced = [...(this.facedBy.get(foe.index) ?? [])].map((i) => this.party[i]!).filter((b) => !b.fainted);
+    const faced = [...(this.facedBy.get(foe.index) ?? [])].map((i) => this.party[i]!);
     if (!faced.length) return;
     const s = species(foe.species);
     let each = Math.floor(Math.floor((s.baseExp * foe.level) / 7) / faced.length);
@@ -1098,9 +1098,8 @@ export class Battle {
     if (this.setup.kind === 'trainer') each = Math.floor((each * 150) / 100);
     // A quarter of the game's (the user's, 2026-10-25: slower, more idle), at least 1.
     each = Math.max(1, Math.floor(each * EXP_RATE));
-    // The rest of the party gets half each (Gen 6's Exp. Share; agreed with the user, 2026-10-25).
-
-    const rest = this.party.filter((b) => !b.fainted && !faced.includes(b));
+    // The rest of the party gets half each (Gen 6's Exp. Share; agreed with the user, 2026-10-25), fainted ones too.
+    const rest = this.party.filter((b) => !faced.includes(b));
     const gains: [Battler, number][] = [...faced.map((b) => [b, each] as [Battler, number]), ...rest.map((b) => [b, Math.max(1, Math.floor(each / 2))] as [Battler, number])];
     for (const [b, gained] of gains) {
       const mon = b.mon;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { AREAS, isTown, type WalkArea } from './areas.js';
+import { AREAS, isTown, type TownArea, type WalkArea } from './areas.js';
 import { familyMovesUpTo } from './mon.js';
-import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, previousRoute, routeGrindPlan, starterOptions, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
+import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, modeOf, previousRoute, routeGrindPlan, starterOptions, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
 
 type BattleSeg = Extract<SegmentEvent, { t: 'battle' }>;
 
@@ -292,7 +292,8 @@ describe('an idle run', () => {
     it('only on a route or in a dungeon', () => {
       const s = createIdleRun({ species: 4 }, 2);
       expect(applyIdleAction({ ...s, area: AREAS.findIndex((a) => a.id === 'pewter-gym') }, { type: 'WILD_GRIND' }).ok).toBe(false);
-      expect(applyIdleAction({ ...s, area: AREAS.findIndex((a) => a.id === 'pewter-city'), phase: 'town' }, { type: 'WILD_GRIND' }).ok).toBe(false);
+      // (From a town it goes out to the route before it: see the auto-grind test.)
+      expect(applyIdleAction({ ...s, area: AREAS.findIndex((a) => a.id === 'pewter-city'), phase: 'town', inStore: true }, { type: 'WILD_GRIND' }).ok).toBe(false);
       expect(applyIdleAction(s, { type: 'CONTINUE_ROUTE' }).ok).toBe(false);
       // Route 1 has no trainers.
       expect(applyIdleAction(s, { type: 'TRAINER_GRIND' }).ok).toBe(false);
@@ -414,6 +415,90 @@ describe('an idle run', () => {
     expect(back.ok && back.state.loop?.kind).toBe('pace');
   });
 
+  it('stops where it is in the Stop mode (no segment, offline either) and goes on in any other mode', () => {
+    const area = AREAS.findIndex((a) => a.id === 'route-2');
+    const base = createIdleRun({ species: 4 }, 2);
+    const s: IdleState = { ...base, area, step: 60, party: [{ ...base.party[0]!, level: 40 }] };
+    const r = applyIdleAction(s, { type: 'SET_MODE', mode: 'stop' });
+    expect(r.ok).toBe(true);
+    const stopped = (r as { state: IdleState }).state;
+    expect(modeOf(stopped)).toBe('stop');
+    expect(idleView(stopped).stopped).toBe(true);
+    expect(simulateSegment(stopped, MANUAL, new Set())).toBeNull();
+    const away = catchUp(stopped, MANUAL, new Set(), 60 * 60 * 1000);
+    expect(away.summary.segments).toBe(0);
+    expect(away.state).toBe(stopped);
+    // Stopping again changes nothing; Route, Wild grind or Trainer grind go on from where it stopped.
+    expect((applyIdleAction(stopped, { type: 'SET_MODE', mode: 'stop' }) as { state: IdleState }).state.log).toEqual(stopped.log);
+    for (const mode of ['route', 'wild', 'trainers'] as const) {
+      const on = applyIdleAction(stopped, { type: 'SET_MODE', mode });
+      expect(on.ok && modeOf(on.state)).toBe(mode);
+      expect(on.ok && (on.state.loop?.resume.step ?? on.state.step)).toBe(60);
+      expect(on.ok && simulateSegment(on.state, MANUAL, new Set())).not.toBeNull();
+    }
+  });
+
+  it('switches modes with SET_MODE: a grind already on stays as it is, and Route ends one', () => {
+    const area = AREAS.findIndex((a) => a.id === 'route-2');
+    const base = createIdleRun({ species: 4 }, 2);
+    const s: IdleState = { ...base, area, step: 60, party: [{ ...base.party[0]!, level: 40 }] };
+    const wild = (applyIdleAction(s, { type: 'SET_MODE', mode: 'wild' }) as { state: IdleState }).state;
+    expect(modeOf(wild)).toBe('wild');
+    const again = applyIdleAction(wild, { type: 'SET_MODE', mode: 'wild' });
+    expect(again.ok && again.state.loop).toEqual(wild.loop);
+    const trainers = applyIdleAction(wild, { type: 'SET_MODE', mode: 'trainers' });
+    expect(trainers.ok && trainers.state.loop?.resume.step).toBe(60);
+    const route = trainers.ok ? applyIdleAction(trainers.state, { type: 'SET_MODE', mode: 'route' }) : trainers;
+    expect(route.ok && modeOf(route.state)).toBe('route');
+    // A grind that can't start is refused (in a gym; in a town's store).
+    expect(applyIdleAction({ ...s, area: AREAS.findIndex((a) => a.id === 'pewter-gym') }, { type: 'SET_MODE', mode: 'wild' }).ok).toBe(false);
+    expect(applyIdleAction({ ...s, area: AREAS.findIndex((a) => a.id === 'pewter-city'), phase: 'town', inStore: true }, { type: 'SET_MODE', mode: 'wild' }).ok).toBe(false);
+  });
+
+  it('changes the mode once the wild battle playing is over: queued, shown at once, saved by the next segment', () => {
+    const base = createIdleRun({ species: 4 }, 2);
+    const held: IdleState = { ...base, replay: { prev: base, settings: MANUAL, caught: [], from: 0, throws: [], throwable: true } };
+    const r = applyIdleAction(held, { type: 'SET_MODE', mode: 'stop' });
+    const q = (r as { state: IdleState }).state;
+    expect(q.stopped).toBeUndefined();
+    expect(q.pending).toHaveLength(1);
+    expect(idleView(q).stopped).toBe(true);
+    // The next segment applies it and plays nothing; the one after isn't played at all.
+    const next = simulateSegment(q, MANUAL, new Set())!;
+    expect(next.segment.events).toEqual([]);
+    expect(next.state).toMatchObject({ stopped: true, version: q.version + 1 });
+    expect(next.state.pending).toBeUndefined();
+    expect(simulateSegment(next.state, MANUAL, new Set())).toBeNull();
+  });
+
+  it('leaves auto-grinding for a wild or trainer grind on the route before the town, held until Route walks back to the town', () => {
+    const pewter = AREAS.findIndex((a) => a.id === 'pewter-city');
+    const route2 = AREAS.findIndex((a) => a.id === 'route-2');
+    const town = (AREAS[pewter] as TownArea).grind!;
+    const base = createIdleRun({ species: 4 }, 2);
+    // Reaching Pewter City below Brock's level: auto-grind starts.
+    let s: IdleState = (applyIdleAction({ ...base, area: pewter, phase: 'town' }, { type: 'GRIND' }) as { state: IdleState }).state;
+    expect(s.phase).toBe('grinding');
+    for (const mode of ['wild', 'trainers'] as const) {
+      const r = applyIdleAction(s, { type: 'SET_MODE', mode });
+      expect(r.ok).toBe(true);
+      const g = (r as { state: IdleState }).state;
+      expect(modeOf(g)).toBe(mode);
+      expect(g).toMatchObject({ phase: 'walking', loop: { resume: { area: route2, leg: town.leg } } });
+      expect(g.grind).toBeUndefined();
+    }
+    s = (applyIdleAction(s, { type: 'SET_MODE', mode: 'wild' }) as { state: IdleState }).state;
+    // Held: still grinding after many segments, never back in the town.
+    for (let i = 0; i < 15; i++) s = simulateSegment(s, DEFAULT_IDLE_SETTINGS, new Set())!.state;
+    expect(modeOf(s)).toBe('wild');
+    expect(s.phase).toBe('walking');
+    // Route: on from the route's end into the town, where auto-grind takes over again.
+    s = (applyIdleAction(s, { type: 'SET_MODE', mode: 'route' }) as { state: IdleState }).state;
+    for (let i = 0; i < 10 && s.phase === 'walking'; i++) s = simulateSegment(s, DEFAULT_IDLE_SETTINGS, new Set())!.state;
+    expect(s.area).toBe(pewter);
+    expect(['grinding', 'town']).toContain(s.phase);
+  });
+
   it('plays a segment again from its kept start exactly as it played (resuming a page opened mid-segment)', () => {
     let s = createIdleRun({ species: 7 }, 12);
     for (let i = 0; i < 8; i++) {
@@ -445,7 +530,7 @@ describe('an idle run', () => {
     expect(DEFAULT_IDLE_SETTINGS.autoGrind).toBe(true);
   });
 
-  it('waits 5 s in a town, then goes into its unbeaten gym, or on once it is beaten, offline too', () => {
+  it('waits 10 s in a town, then goes into its unbeaten gym, or on once it is beaten, offline too', () => {
     const pewter = AREAS.findIndex((a) => a.id === 'pewter-city');
     const town = { ...createIdleRun({ species: 4 }, 4), area: pewter, phase: 'town' as const };
     const into = simulateSegment(town, DEFAULT_IDLE_SETTINGS, new Set())!;
@@ -459,6 +544,34 @@ describe('an idle run', () => {
     expect(state.area).toBeGreaterThan(pewter);
     // Less than the wait away: nothing.
     expect(catchUp(town, DEFAULT_IDLE_SETTINGS, new Set(), TOWN_WAIT_MS - 1).summary.segments).toBe(0);
+  });
+
+  it("doesn't go on from a town while the player is in its store, which is left by hand; buys only in it", () => {
+    const pewter = AREAS.findIndex((a) => a.id === 'pewter-city');
+    const town: IdleState = { ...createIdleRun({ species: 4 }, 4), area: pewter, phase: 'town', money: 1000 };
+    expect(applyIdleAction(town, { type: 'BUY', item: 'poke-ball', count: 1 }).ok).toBe(false);
+    const inStore = (applyIdleAction(town, { type: 'VISIT_STORE' }) as { state: IdleState }).state;
+    expect(inStore.inStore).toBe(true);
+    expect(idleView(inStore).inStore).toBe(true);
+    // No wait played, watched or offline; nowhere to go but out.
+    expect(simulateSegment(inStore, DEFAULT_IDLE_SETTINGS, new Set())).toBeNull();
+    expect(catchUp(inStore, DEFAULT_IDLE_SETTINGS, new Set(), 60 * 60 * 1000).summary.segments).toBe(0);
+    expect(applyIdleAction(inStore, { type: 'GYM' }).ok).toBe(false);
+    const bought = applyIdleAction(inStore, { type: 'BUY', item: 'poke-ball', count: 2 });
+    expect(bought.ok && bought.state.bag['poke-ball']).toBe((inStore.bag['poke-ball'] ?? 0) + 2);
+    // Left: the town's wait again, then into the gym.
+    const out = (applyIdleAction(inStore, { type: 'LEAVE_STORE' }) as { state: IdleState }).state;
+    expect(out.inStore).toBeUndefined();
+    expect(applyIdleAction(out, { type: 'LEAVE_STORE' }).ok).toBe(false);
+    expect(AREAS[simulateSegment(out, DEFAULT_IDLE_SETTINGS, new Set())!.state.area]!.id).toBe('pewter-gym');
+  });
+
+  it("knows each town's Poké Mart: the player across the counter from the clerk, facing them", () => {
+    for (const a of AREAS.filter(isTown)) {
+      const m = a.mart;
+      const clerk = m.people.find((p) => p.sprite === 'clerk' && Math.abs(p.x - m.x) + Math.abs(p.y - m.y) === 2 && (p.x === m.x || p.y === m.y));
+      expect(clerk, a.id).toBeDefined();
+    }
   });
 
   it('auto-buys balls on reaching a town, up to the setting, the cheapest the store sells, while the money lasts', () => {

@@ -514,6 +514,10 @@ html[data-font="emerald"] {
   0% { background-position: 0 0; }
   50% { background-position: 0 100%; }
 }
+/* A screen coming up from black (the Idle Adventure's buy screen). */
+@keyframes idle-fade-in {
+  from { opacity: 0; }
+}
 /* The game's tick filling up (Idle.tsx's TickMeter). */
 @keyframes idle-tick {
   from { transform: scaleX(0); }

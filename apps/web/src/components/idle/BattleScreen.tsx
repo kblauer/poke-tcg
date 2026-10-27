@@ -1,9 +1,10 @@
-import { cooldownTicks, expForLevel, moveData, species, TICK_MS, TRAINERS, type BattleEvent, type BattlerView, type StatusKind } from '@poke-tcg/idle';
-import { useRef, type CSSProperties, type ReactNode } from 'react';
+import { catchTextFrame, cooldownTicks, FRAME_MS, INTRO_MS, ITEMS, moveData, species, TICK_MS, TRAINERS, type BattleEvent, type BattlerView } from '@poke-tcg/idle';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { isReward, type BattleSegment } from '../../hooks/useIdle';
 import { DialogueBox, dialogueKey, type Dialogue } from '../DialogueBox';
-import { GAME_WIDTH, useGameScale } from './GameScreen';
+import { BattleScene } from './BattleScene';
+import { GAME_HEIGHT, GAME_WIDTH, useGameScale } from './GameScreen';
 import { MonIcon } from './MonIcon';
 
 /** One game pixel of FireRed's 240x160 screen, in the battle box's width (container query units). */
@@ -28,7 +29,13 @@ const preloaded = new Map<string, { img: HTMLImageElement; decoded: Promise<void
  * they're all decoded (or failed).
  */
 export function preloadBattle(b: BattleSegment): Promise<void> {
-  const srcs = new Set<string>([background(b), `${GEN1}/trainers/red_back.png`, `${GEN1}/trainers/leaf_back.png`]);
+  const srcs = new Set<string>([
+    background(b),
+    `${GEN1}/trainers/red_back_sheet.png`,
+    `${GEN1}/trainers/leaf_back_sheet.png`,
+    // The healthboxes and the balls (BattleScene, Healthbox).
+    ...['healthbox_player', 'healthbox_opponent', 'hp_text', 'hp_bar', 'exp_bar', 'font_small', 'particles', 'balls/poke-ball'].map((n) => `${GEN1}/battle/${n}.png`),
+  ]);
   const pic = b.trainer ? TRAINERS[b.trainer]?.pic : null;
   if (pic) srcs.add(`${GEN1}/trainers/${pic}.png`);
   for (const e of b.events) if (e.t === 'send') srcs.add(`${GEN1}/pokemon/${e.mon.shiny ? 'shiny/' : ''}${e.side ? 'front' : 'back'}/${e.mon.species}.png`);
@@ -44,16 +51,6 @@ export function preloadBattle(b: BattleSegment): Promise<void> {
     }),
   ).then(() => {});
 }
-
-/** FireRed's status labels. */
-const STATUS: Record<StatusKind, { label: string; color: string }> = {
-  sleep: { label: 'SLP', color: '#8c8c8c' },
-  poison: { label: 'PSN', color: '#a040a0' },
-  toxic: { label: 'PSN', color: '#a040a0' },
-  burn: { label: 'BRN', color: '#e05030' },
-  paralysis: { label: 'PAR', color: '#c8a800' },
-  freeze: { label: 'FRZ', color: '#58b0e0' },
-};
 
 interface SideShown {
   mon: BattlerView | null;
@@ -151,63 +148,6 @@ function shownState(events: BattleEvent[], party: BattleSegment['party']) {
   return { sides, text, line, rewards, exp, cooling, ball: ball as Extract<BattleEvent, { t: 'ball' }> | null, hit: hit as { side: 0 | 1; at: number } | null, attacker: attacker as { side: 0 | 1; at: number } | null };
 }
 
-/** An HP bar's colour (FireRed's: green over half, yellow over a fifth, red below). */
-const hpColor = (hp: number, max: number) => (hp * 2 > max ? '#58d080' : hp * 5 > max ? '#f8c048' : '#f85838');
-
-/** A healthbox (drawn here, in FireRed's colours): name, gender, level, status, the HP bar, the player's HP numbers. */
-function Healthbox({ mon, player, exp, style }: { mon: BattlerView; player: boolean; exp?: number; style: CSSProperties }) {
-  const s = species(mon.species);
-  // The EXP. bar's fill: the EXP. gained toward the next level (full at level 100).
-  const from = expForLevel(s.growth, mon.level);
-  const to = expForLevel(s.growth, mon.level + 1);
-  const toNext = mon.level >= 100 ? 1 : Math.min(1, Math.max(0, ((exp ?? from) - from) / (to - from)));
-  const status = mon.status && STATUS[mon.status];
-  return (
-    <div className="absolute rounded-[0.6cqw] border-[0.4cqw] border-[#506858] bg-[#f8f8d8] text-[#404040] shadow-[0_0.5cqw_0_#285040]" style={{ ...style, width: px(player ? 104 : 100), padding: `${px(2)} ${px(4)}` }}>
-      <div className="flex items-baseline justify-between font-semibold leading-none" style={{ fontSize: px(9) }}>
-        <span className="truncate">
-          {mon.shiny && <span className="text-[#e0a000]" title="Shiny">★</span>}
-          {s.name}
-          {mon.gender && <span style={{ color: mon.gender === 'male' ? '#4080f8' : '#f86860' }}>{mon.gender === 'male' ? '♂' : '♀'}</span>}
-        </span>
-        <span>Lv{mon.level}</span>
-      </div>
-      <div className="mt-[0.6cqw] flex items-center gap-[1cqw]">
-        {status && (
-          <span className="rounded-[0.4cqw] px-[0.6cqw] font-bold leading-none text-white" style={{ background: status.color, fontSize: px(6) }}>
-            {status.label}
-          </span>
-        )}
-        <span className="font-bold leading-none text-[#f8a000]" style={{ fontSize: px(6) }}>
-          HP
-        </span>
-        <div className="h-[1.4cqw] flex-1 overflow-hidden rounded-full bg-[#506858]">
-          <div className="h-full transition-[width] duration-500" style={{ width: `${(100 * mon.hp) / mon.maxHp}%`, background: hpColor(mon.hp, mon.maxHp) }} />
-        </div>
-      </div>
-      {player && (
-        <div className="flex justify-end" style={{ marginTop: px(1) }}>
-          <span className="font-semibold leading-none" style={{ fontSize: px(8) }}>
-            {mon.hp}/{mon.maxHp}
-          </span>
-        </div>
-      )}
-      {/* The player's EXP. bar, as FireRed's box has it: a dark green strip along its bottom, EXP in yellow, a striped
-          track filling light blue (healthbox_singles_player.png, healthbox.pal). */}
-      {player && (
-        <div className="flex items-center" style={{ background: '#526a62', margin: `${px(2)} calc(-1 * ${px(4)}) calc(-1 * ${px(2)})`, padding: `${px(1)} ${px(4)}`, gap: px(3) }}>
-          <span className="font-bold leading-none" style={{ color: '#ffe600', fontSize: px(6) }}>
-            EXP
-          </span>
-          <div className="flex-1 overflow-hidden" style={{ height: px(2), background: `repeating-linear-gradient(90deg, #ded5b4 0 ${px(1)}, #c5bd73 ${px(1)} ${px(2)})` }}>
-            <div className="h-full transition-[width] duration-500" style={{ width: `${toNext * 100}%`, background: '#41cdff' }} />
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 /**
  * The player's Pokémon's attacks under the battle (the user's, 2026-10-25: the cooldown rule, a bar on each): its 3 slot
  * moves, each with a bar filling as a smooth timer over its cooldown (the user's: from the moment it went up, `cooling`,
@@ -266,24 +206,6 @@ function BallButton({ disabled, title, onClick }: { disabled: boolean; title: st
   );
 }
 
-/** A Poké Ball thrown at the wild Pokémon: it shakes as many times as the throw got, then breaks open or stays caught. */
-function ThrownBall({ ball }: { ball: Extract<BattleEvent, { t: 'ball' }> }) {
-  const color = ball.item === 'ultra-ball' ? '#383838' : ball.item === 'great-ball' ? '#3870e0' : ball.item === 'master-ball' ? '#9040c0' : '#e83030';
-  return (
-    <div
-      className="absolute rounded-full border-[0.4cqw] border-[#202020]"
-      style={{
-        left: px(172),
-        top: px(64),
-        width: px(14),
-        height: px(14),
-        background: `linear-gradient(${color} 0 45%, #202020 45% 55%, #f8f8f8 55%)`,
-        animation: ball.shakes ? `idle-ball-shake 0.5s ease-in-out ${Math.min(3, ball.shakes)}` : undefined,
-      }}
-    />
-  );
-}
-
 /**
  * A battle as it plays (README: Idle Adventure): FireRed's layout at its 240x160 scale, sized to its box (the terrain
  * background, the foe's front sprite and the player's Pokémon's back, the healthboxes, the text box), and under it the
@@ -313,51 +235,58 @@ export function BattleScreen({
   const pressDialogue = useRef<(() => void) | null>(null);
   // The game screen's size (the user's: the map's, FireRed's 240x160 at a whole number of device pixels a pixel: useGameScale).
   const { ref, scale } = useGameScale();
-  const { sides, text, line, rewards, exp, cooling, ball, hit, attacker } = shownState(battle.events.slice(0, shown), battle.party);
+  const events = battle.events.slice(0, shown);
+  const { sides, text, line, rewards, exp, cooling, hit, attacker } = shownState(events, battle.party);
   const speciesOf = (uid: string) => battle.party.find((m) => m.uid === uid)?.species ?? 0;
-  // Where FireRed draws them (GetBattlerSpriteFinal_Y): the foe's centre at 176,40, the player's at 72,80, each 64x64
-  // picture lowered by its species' y_offset (the foe raised by its elevation).
-  const foeTop = (id: number) => 8 + species(id).pic.frontY - species(id).pic.elevation;
-  const meTop = (id: number) => 48 + species(id).pic.backY;
-  const [me, foe] = sides;
+  const [me] = sides;
   const trainer = battle.trainer ? TRAINERS[battle.trainer] : null;
-  // Animated while their line is the latest: an attacker lunges with its "used" line, the one hit blinks as the hit lands.
-  const blink = (side: 0 | 1) => (hit && hit.side === side && hit.at >= line ? 'idle-hit 0.5s steps(2) 2' : undefined);
-  const lunge = (side: 0 | 1) => (attacker && attacker.side === side && attacker.at >= line ? `idle-lunge-${side} 0.3s ease-out` : undefined);
+  // When each event came up (the scene's animations run from it), and when the battle opened (its intro): a battle
+  // opened part way through (the page opened mid-battle) skips the intro, the events already shown long played.
+  const times = useRef<number[]>([]);
+  const counted = useRef(0);
+  const introAt = useRef<number | null>(null);
+  if (introAt.current === null) {
+    introAt.current = shown === 0 ? performance.now() : -1e9;
+    for (let i = 0; i < shown; i++) times.current[i] = -1e9;
+    counted.current = shown;
+  }
+  for (let i = counted.current; i < shown; i++) times.current[i] = performance.now();
+  counted.current = Math.max(counted.current, shown);
+  // The line FireRed prints (its words for the opening): "would like to battle!" once the intro's in, "Wild X appeared!",
+  // "<trainer> sent out X!", and "<player> used <ball>!" while a thrown ball's animation plays (its line after it).
+  const [, redraw] = useState(0);
+  const latest = line >= 0 ? battle.events[line]! : null;
+  const ballWait = latest?.t === 'ball' ? (times.current[line] ?? 0) + catchTextFrame(latest.shakes, latest.caught) * FRAME_MS - performance.now() : 0;
+  const introWait = shown === 0 ? introAt.current + INTRO_MS - performance.now() : 0;
+  useEffect(() => {
+    const ms = Math.max(ballWait, introWait);
+    if (ms <= 0) return;
+    const timer = window.setTimeout(() => redraw((n) => n + 1), ms + 20);
+    return () => window.clearTimeout(timer);
+  }, [ballWait > 0, introWait > 0, line, shown]);
+  const name = (id: number) => species(id).name;
+  const said =
+    shown === 0
+      ? trainer && introWait <= 0
+        ? `${trainer.class} ${trainer.name} would like to battle!`
+        : null
+      : latest?.t === 'send' && latest.side === 1
+        ? trainer
+          ? `${trainer.class} ${trainer.name} sent out ${name(latest.mon.species)}!`
+          : `Wild ${name(latest.mon.species)} appeared!`
+        : latest?.t === 'ball' && ballWait > 0
+          ? `${gender === 'female' ? 'Leaf' : 'Red'} used ${ITEMS[latest.item]?.name ?? 'a ball'}!`
+          : text;
   return (
     <div ref={ref} className="w-full">
     <div className="mx-auto space-y-2" style={{ width: scale ? GAME_WIDTH * scale : '100%' }}>
     <div className="relative aspect-[3/2] w-full overflow-hidden rounded-lg bg-black [container-type:inline-size] [image-rendering:pixelated]" onClick={() => pressDialogue.current?.()}>
-      <img src={background(battle)} alt="" className="absolute left-0 top-0 w-full" style={{ height: px(112) }} draggable={false} />
-      {/* The foe: its trainer before they send one out, then its Pokémon (or the ball it's caught in). */}
-      {!foe.mon && trainer?.pic && <img src={`${GEN1}/trainers/${trainer.pic}.png`} alt="" className="absolute" style={{ left: px(144), top: px(8), width: px(64) }} draggable={false} />}
-      {foe.mon && !foe.fainted && !ball && (
-        <img
-          key={`f${foe.mon.uid}`}
-          src={`${GEN1}/pokemon/${foe.mon.shiny ? 'shiny/' : ''}front/${foe.mon.species}.png`}
-          alt={species(foe.mon.species).name}
-          className="absolute"
-          style={{ left: px(144), top: px(foeTop(foe.mon.species)), width: px(64), animation: blink(1) ?? lunge(1) }}
-          draggable={false}
-        />
+      {/* The scene in game pixels (FireRed's sprites, their animations, the healthboxes), scaled to the screen. */}
+      {scale > 0 && (
+        <div className="pointer-events-none absolute left-0 top-0 origin-top-left [image-rendering:pixelated]" style={{ width: GAME_WIDTH, height: GAME_HEIGHT, transform: `scale(${scale})` }}>
+          <BattleScene battle={battle} background={background(battle)} trainerPic={trainer?.pic ?? null} events={events} times={times.current} introAt={introAt.current} gender={gender} exp={exp} hit={hit} attacker={attacker} line={line} />
+        </div>
       )}
-      {ball && <ThrownBall key={`b${shown}`} ball={ball} />}
-      {/* The player's Pokémon, from behind (Red or Leaf before it's out). */}
-      {me.mon && !me.fainted ? (
-        <img
-          key={`p${me.mon.uid}`}
-          src={`${GEN1}/pokemon/${me.mon.shiny ? 'shiny/' : ''}back/${me.mon.species}.png`}
-          alt={species(me.mon.species).name}
-          className="absolute"
-          style={{ left: px(40), top: px(meTop(me.mon.species)), width: px(64), animation: blink(0) ?? lunge(0) }}
-          draggable={false}
-        />
-      ) : (
-        !me.mon && <img src={`${GEN1}/trainers/${gender === 'female' ? 'leaf' : 'red'}_back.png`} alt="" className="absolute" style={{ left: px(40), top: px(48), width: px(64) }} draggable={false} />
-      )}
-      {foe.mon && !foe.fainted && <Healthbox mon={foe.mon} player={false} style={{ left: px(13), top: px(16) }} />}
-      {/* Just above the text box (the user's: a tiny gap), however tall the box is. */}
-      {me.mon && !me.fainted && <Healthbox mon={me.mon} player exp={exp[me.mon.uid]} style={{ left: px(126), bottom: px(51) }} />}
       {/* The text box: the latest line, or a run of rewards all at once (the user's), growing upward to hold them. */}
       <div className="absolute inset-x-0 bottom-0 border-t-[0.6cqw] border-[#c87028] bg-[#283848] text-white" style={{ minHeight: px(48), padding: `${px(6)} ${px(10)}`, fontSize: px(10), lineHeight: 1.35 }}>
         {rewards.length ? (
@@ -374,7 +303,7 @@ export function BattleScreen({
             ))}
           </ul>
         ) : (
-          text
+          said
         )}
       </div>
       {/* The ball button (the user's): the best ball in the bag next turn, a wild battle's; over until the battle's over. */}
