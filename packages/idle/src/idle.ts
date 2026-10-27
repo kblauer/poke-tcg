@@ -16,6 +16,7 @@ import { TRAINERS } from './data/gen1/trainers.js';
 import { evolve, levelEvolution, stoneEvolution, usableStones } from './evolution.js';
 import { abilityOf, autoSlots, basicFor, createMon, familyMovesUpTo, isBaseForm } from './mon.js';
 import { MAX_LEVEL } from './stats.js';
+import { isMachine, machinePrice, slotMoves, TM_SHOP_AREA } from './tms.js';
 import type { EncounterSlots, Mon, Stats } from './types.js';
 
 /** The run's starting money (the game's ₱3000: a placeholder, to balance later). */
@@ -410,6 +411,9 @@ export function reachedArea(state: Pick<IdleState, 'reached' | 'area' | 'loop' |
   return Math.max(state.reached ?? 0, state.area, state.loop?.resume.area ?? 0, ...gyms);
 }
 
+/** Whether every store sells TMs and HMs (Buy TMs): once the run has reached Celadon City (the user's). */
+export const tmShopOpen = (state: Pick<IdleState, 'reached' | 'area' | 'loop' | 'badges'>) => reachedArea(state) >= areaIndex(TM_SHOP_AREA);
+
 /** Why the Town Map can't take the run to a town (TRAVEL), or null: only towns reached already, not the one it waits in. */
 export function travelError(state: Pick<IdleState, 'reached' | 'area' | 'loop' | 'badges' | 'phase'>, index: number): string | null {
   const a = AREAS[index];
@@ -687,6 +691,18 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
     case 'BUY': {
       if (!inTown) return fail('Not in a town');
       if (!state.inStore) return fail('Not in the store');
+      // A TM or HM (Buy TMs, every store's from Celadon City on): one of each, kept for good (the user's).
+      if (isMachine(action.item)) {
+        if (!tmShopOpen(state)) return fail('TMs are sold from Celadon City on');
+        if (state.bag[action.item]) return fail('You have it already');
+        if (action.count !== 1) return fail('One of each');
+        const cost = machinePrice(action.item);
+        if (cost > state.money) return fail('Not enough money');
+        state.money -= cost;
+        state.bag[action.item] = 1;
+        state.log.push(`Bought ${itemData(action.item).name.toUpperCase()} for ₱${cost}.`);
+        return ok();
+      }
       if (!storeStock(area).includes(action.item)) return fail('Not sold here');
       if (!Number.isInteger(action.count) || action.count < 1 || action.count > 99) return fail('Buy 1 to 99');
       const cost = itemData(action.item).price * action.count;
@@ -710,7 +726,9 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
         return ok();
       }
       if (action.slots.length > 3 || new Set(action.slots).size !== action.slots.length) return fail('Up to 3 different moves');
-      if (action.slots.some((m) => !mon.moves.includes(m) || m === basicFor(mon))) return fail('Only moves it knows, not its basic move');
+      // Its own moves and its owned TMs' and HMs' it can learn (the user's).
+      const moves = slotMoves(mon, state.bag);
+      if (action.slots.some((m) => !moves.includes(m) || m === basicFor(mon))) return fail('Only moves it knows or a TM it can learn, not its basic move');
       mon.slots = [...action.slots];
       mon.autoSlots = false;
       return ok();

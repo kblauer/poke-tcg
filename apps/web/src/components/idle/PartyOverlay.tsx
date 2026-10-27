@@ -1,4 +1,4 @@
-import { basicFor, calcStats, cooldownTicks, ITEMS, moveData, species, usableStones, type IdleAction, type Mon } from '@poke-tcg/idle';
+import { basicFor, calcStats, cooldownTicks, ITEMS, machineMoves, moveData, species, usableStones, type IdleAction, type Mon } from '@poke-tcg/idle';
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { useEscape } from '../../hooks/useEscape';
 
@@ -275,13 +275,16 @@ function StatHex({ stats, height }: { stats: number[]; height: number }) {
 /**
  * The panel a slot opens (in the slots' style), just left of the slots' column and small enough not to scroll (the
  * user's): the Pokémon's name, level and types, its stats as a hexagon, its basic move, its 3 slots to set (or picked
- * automatically) and the stones in the bag it can use.
+ * automatically: its own moves, and the moves of the bag's TMs and HMs it can learn, the user's) and the stones in the
+ * bag it can use.
  */
 function MonPanel({ mon, bag, busy, pending, maxH, onAct, onClose }: { mon: Mon; bag: Record<string, number>; busy: boolean; pending: number; maxH: number; onAct: (a: IdleAction) => void; onClose: () => void }) {
   const s = species(mon.species);
   const stats = calcStats(mon.species, mon.level, mon.ivs, mon.evs, mon.nature);
   const basic = basicFor(mon);
   const choices = mon.moves.filter((m) => m !== basic);
+  // The moves the bag's TMs and HMs give it (those it can learn), after its own.
+  const machine = machineMoves(mon, bag).filter((m) => m !== basic);
   const stones = usableStones(mon).filter((st) => bag[st]);
   const setSlot = (slot: number, key: string) => {
     const slots = [...mon.slots];
@@ -331,6 +334,15 @@ function MonPanel({ mon, bag, busy, pending, maxH, onAct, onClose }: { mon: Mon;
               {moveLabel(k)}
             </option>
           ))}
+          {machine.length > 0 && (
+            <optgroup label="TMs and HMs">
+              {machine.map((k) => (
+                <option key={k} value={k} disabled={mon.slots.includes(k) && mon.slots[slot] !== k}>
+                  {moveLabel(k)}
+                </option>
+              ))}
+            </optgroup>
+          )}
         </select>
       ))}
       <label className="flex items-center" style={{ ...TEXT, ...small, gap: px(2), marginTop: px(2) }}>
