@@ -36,8 +36,12 @@ export const STEP_MS = 267;
 export const TICK_MS = 10000;
 export const BATTLE_MS = 4000;
 export const FADE_MS = 800;
-/** How long a town waits for the player's choice before taking it itself (the user's: no prompt waits on the player): the gym, or on once it's beaten. */
-export const TOWN_WAIT_MS = 5000;
+/**
+ * How long a town waits for the player's choice before taking it itself (the user's: no prompt waits on the player): the
+ * gym, or on once it's beaten. 10 s of the player doing nothing (the user's, 2026-10-26; 5 s before): the browser counts
+ * it again from any input; not at all in the store (IdleState.inStore).
+ */
+export const TOWN_WAIT_MS = 10000;
 /** Offline catch-up's cap (12 hours of absence, agreed with the user) and how many segments one call simulates (the browser calls again for more). */
 export const CATCH_UP_CAP_MS = 12 * 60 * 60 * 1000;
 export const CATCH_UP_SEGMENTS = 40;
@@ -128,6 +132,11 @@ export interface IdleState {
   loop?: RouteLoop;
   /** Stopped where it is (the Stop mode, the user's): no segment is played, offline either, until another mode is chosen. */
   stopped?: boolean;
+  /**
+   * In the town's Poké Mart (the user's): the town doesn't go on by itself, watched or offline, until the player leaves it
+   * (LEAVE_STORE); only then are BUYs taken.
+   */
+  inStore?: boolean;
   /** The trainers (TRAINERS' keys) whose full prize the run has had: a rematch pays REMATCH_PRIZE of it. */
   paid?: string[];
   /**
@@ -159,6 +168,7 @@ export type IdleAction =
   | { type: 'BACK_ROUTE' }
   /** In a town: open its store (auto-evolve buys and uses stones there). */
   | { type: 'VISIT_STORE' }
+  | { type: 'LEAVE_STORE' }
   /** In a gym's town: grind to the gym's highest level (then into the gym); STOP_GRIND back to the town. */
   | { type: 'GRIND' }
   | { type: 'STOP_GRIND' }
@@ -380,6 +390,7 @@ export function previousRoute(townIndex: number): number | null {
 function enterArea(state: IdleState, index: number, events: SegmentEvent[]) {
   // A route grind keeps going through a white-out back to its route's start; any other area ends it.
   if (index !== state.area) delete state.loop;
+  delete state.inStore;
   state.area = index;
   state.leg = 0;
   state.step = 0;
@@ -495,6 +506,8 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
   if (state.phase === 'won' || state.phase === 'given-up') return fail('This run is over');
   const area = AREAS[state.area]!;
   const inTown = state.phase === 'town' && isTown(area);
+  // Out of the store before going anywhere (the user's: it's left by hand).
+  if (state.inStore && (action.type === 'GYM' || action.type === 'GRIND' || action.type === 'CONTINUE' || action.type === 'BACK_ROUTE')) return fail('Leave the store first');
   switch (action.type) {
     case 'GYM': {
       if (!inTown || !area.gym) return fail('There is no gym here');
@@ -571,10 +584,19 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
     }
     case 'VISIT_STORE': {
       if (!inTown) return fail('Not in a town');
+      if (!area.marts.length) return fail('There is no store here');
+      if (state.inStore) return fail('In the store already');
+      state.inStore = true;
+      return ok();
+    }
+    case 'LEAVE_STORE': {
+      if (!state.inStore) return fail('Not in the store');
+      delete state.inStore;
       return ok();
     }
     case 'BUY': {
       if (!inTown) return fail('Not in a town');
+      if (!state.inStore) return fail('Not in the store');
       if (!storeStock(area).includes(action.item)) return fail('Not sold here');
       if (!Number.isInteger(action.count) || action.count < 1 || action.count > 99) return fail('Buy 1 to 99');
       const cost = itemData(action.item).price * action.count;
@@ -1103,7 +1125,8 @@ export function simulateSegment(from: IdleState, idleSettings: IdleSettings, cau
     state.version += 1;
     return { state, segment: { events: [], durationMs: 0, dex: [] } };
   }
-  if (prev.phase === 'town') return townWait(prev);
+  // In the store: the town waits until the player leaves it.
+  if (prev.phase === 'town') return prev.inStore ? null : townWait(prev);
   if (!playing(prev)) return null;
   const state = structuredClone(prev);
   delete state.replay;

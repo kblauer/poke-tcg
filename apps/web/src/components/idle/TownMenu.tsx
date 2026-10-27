@@ -1,20 +1,20 @@
-import { AREAS, areaById, ITEMS, mapView, previousRoute, topLevel, TOWN_WAIT_MS, type TownArea } from '@poke-tcg/idle';
+import { AREAS, areaById, mapView, previousRoute, topLevel, TOWN_WAIT_MS, type TownArea } from '@poke-tcg/idle';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { ClientIdleRun } from '../../hooks/useIdle';
-import { commas } from '../../utils/math';
-import { BUTTON } from '../../utils/styles';
 import type { Dialogue } from '../DialogueBox';
-import { PokedollarIcon } from '../PageNav';
 import { MapScene } from './AreaScene';
+
+/** What counts as the player doing something (the town's wait counted again from it). */
+const ACTIVITY = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart'] as const;
 
 /**
  * A town (README: Idle Adventure): its map with the player before the Pokémon Center, and the choice the run waits for
  * (agreed with the user): the gym (or the League), grinding for it (the user's: training on the route before the town
  * up to the gym's highest level, then into the gym; greyed out once the party is there), the store, or on to the next
  * route once the gym is beaten, as the choices of a question in the text box (DialogueBox); `dialogue` in its place (the
- * catch-up's pages). With no choice made in TOWN_WAIT_MS (the user's: no prompt waits on the player, the store open
- * or not), it picks the gym, or Continue once the gym is beaten, counting down in the scene's corner (the run offline
- * does the same: the engine's townWait).
+ * catch-up's pages). With nothing done for TOWN_WAIT_MS (the user's: 10 s of inactivity, any input counting it again; no
+ * prompt waits on the player), it picks the gym, or Continue once the gym is beaten, counting down in the scene's corner
+ * (the run offline does the same: the engine's townWait). The store (the Poké Mart, MartScene) stops it till it's left.
  */
 export function TownMenu({
   run,
@@ -62,18 +62,24 @@ export function TownMenu({
   // Not while stopped (the Stop mode): the town waits for the player's choice, however long.
   const counting = !busy && !run.view.stopped;
   const [left, setLeft] = useState(TOWN_WAIT_MS / 1000);
-  // Counted again from the start whenever the run changes (a purchase, the party's order) or the count resumes.
+  // Counted again from the start whenever the run changes (a purchase, the party's order), the count resumes, or the
+  // player does anything (ACTIVITY).
   useEffect(() => {
     if (!counting) return;
     setLeft(TOWN_WAIT_MS / 1000);
-    const started = Date.now();
+    let since = Date.now();
+    const active = () => void (since = Date.now());
+    for (const e of ACTIVITY) window.addEventListener(e, active, { passive: true });
     const timer = window.setInterval(() => {
-      const remaining = Math.ceil((TOWN_WAIT_MS - (Date.now() - started)) / 1000);
+      const remaining = Math.ceil((TOWN_WAIT_MS - (Date.now() - since)) / 1000);
       if (remaining > 0) return setLeft(remaining);
       window.clearInterval(timer);
       auto.act();
     }, 250);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearInterval(timer);
+      for (const e of ACTIVITY) window.removeEventListener(e, active);
+    };
     // The choice's action is read when it fires; restarting on every render would never let it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [counting, run.id, run.version, auto.label]);
@@ -91,46 +97,5 @@ export function TownMenu({
       )}
       {children}
     </MapScene>
-  );
-}
-
-/** The town's store (its marts' stock, without Escape Ropes and Repels: agreed): each item's price, how many the bag holds, and buying. */
-export function Store({ run, busy, onBuy }: { run: ClientIdleRun; busy: boolean; onBuy: (item: string, count: number) => void }) {
-  const [count, setCount] = useState<Record<string, number>>({});
-  const money = run.view.money;
-  return (
-    <section className="space-y-3 rounded-lg bg-slate-800 p-4 ring-1 ring-slate-600">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Poké Mart</h3>
-        <span className="flex items-center gap-1 text-sm text-yellow-200">
-          <PokedollarIcon /> {commas(money)}
-        </span>
-      </div>
-      <ul className="divide-y divide-slate-700">
-        {run.view.store.map((item) => {
-          const data = ITEMS[item]!;
-          const n = count[item] ?? 1;
-          return (
-            <li key={item} className="flex flex-wrap items-center gap-3 py-2 text-sm">
-              <span className="min-w-36 flex-1">{data.name}</span>
-              <span className="w-20 text-right text-yellow-200/80">₱{commas(data.price)}</span>
-              <span className="w-16 text-right text-slate-400">×{run.view.bag[item] ?? 0}</span>
-              <input
-                type="number"
-                min={1}
-                max={99}
-                value={n}
-                onChange={(e) => setCount({ ...count, [item]: Math.max(1, Math.min(99, Number(e.target.value) || 1)) })}
-                className="w-16 rounded bg-slate-700 px-2 py-1 text-right ring-1 ring-slate-600"
-                aria-label={`How many ${data.name}`}
-              />
-              <button className={BUTTON} disabled={busy || data.price * n > money} onClick={() => onBuy(item, n)}>
-                Buy
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
   );
 }

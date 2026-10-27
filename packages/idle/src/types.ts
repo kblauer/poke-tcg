@@ -71,6 +71,9 @@ export interface ItemData {
   pocket: string;
   hold: string;
   holdParam: number;
+  /** Its description as the game prints it (the shop's), its lines split by 
+. */
+  description: string;
 }
 
 /** A wild encounter table: its rate and its slots, [min level, max level, dex number]. */

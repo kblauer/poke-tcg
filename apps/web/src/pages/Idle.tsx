@@ -15,7 +15,8 @@ import { PartyOverlay } from '../components/idle/PartyOverlay';
 import { MonIcon } from '../components/idle/MonIcon';
 import { Pokedex } from '../components/idle/Pokedex';
 import { StarterScene } from '../components/idle/StarterScene';
-import { Store, TownMenu } from '../components/idle/TownMenu';
+import { MartScene } from '../components/idle/MartScene';
+import { TownMenu } from '../components/idle/TownMenu';
 import { useEscape } from '../hooks/useEscape';
 import { placeOf, placeTrack, useIdleActions, useIdleOverview, useIdlePlayback, type ClientIdleRun } from '../hooks/useIdle';
 import { useRun } from '../hooks/useRun';
@@ -59,7 +60,6 @@ export function IdlePage() {
   const [tab, setTab] = useState<Tab>('bag');
   // The party overlay's open (kept as the scene changes: the map, a battle, a town).
   const [partyOpen, setPartyOpen] = useState(false);
-  const [store, setStore] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
   const data = overview.data;
   const run = data?.run ?? null;
@@ -117,6 +117,14 @@ export function IdlePage() {
       .act(actOn(active), action)
       .then((r) => acted(r.run))
       .catch(failed);
+  // A purchase in the store: whether it went through (the buy screen says "Here you are!" only then).
+  const buy = (item: string, count: number) =>
+    active
+      ? actions
+          .act(actOn(active), { type: 'BUY', item, count })
+          .then((r) => (acted(r.run), true))
+          .catch((e: unknown) => (failed(e), false))
+      : Promise.resolve(false);
   const start = (id: number, shiny = false) => actions.start(id, shiny).catch(failed);
   const v = run?.view;
   // The party over the game screen (the user's): its button in the screen's top right corner, its slots sliding out; and
@@ -196,16 +204,21 @@ export function IdlePage() {
           )}
           <ReturnToPlay />
         </div>
+      ) : v?.phase === 'town' && v.inStore ? (
+        // In the town's Poké Mart (the user's): the town waits until the player leaves.
+        <MartScene key={v.area} run={active} gender={gender} busy={actions.busy} onBuy={buy} onLeave={() => void act({ type: 'LEAVE_STORE' })} dialogue={catchUp} buyChildren={overlays(MODE_SELECT_BATTLE_BOTTOM)}>
+          {overlays(MODE_SELECT_BOTTOM)}
+        </MartScene>
       ) : v?.phase === 'town' ? (
         <TownMenu
           run={active}
           gender={gender}
           busy={actions.busy}
-          onGym={() => (setStore(false), void act({ type: 'GYM' }))}
-          onGrind={() => (setStore(false), void act({ type: 'GRIND' }))}
-          onStore={() => (setStore(true), void act({ type: 'VISIT_STORE' }))}
-          onContinue={() => (setStore(false), void act({ type: 'CONTINUE' }))}
-          onBack={() => (setStore(false), void act({ type: 'BACK_ROUTE' }))}
+          onGym={() => void act({ type: 'GYM' })}
+          onGrind={() => void act({ type: 'GRIND' })}
+          onStore={() => void act({ type: 'VISIT_STORE' })}
+          onContinue={() => void act({ type: 'CONTINUE' })}
+          onBack={() => void act({ type: 'BACK_ROUTE' })}
           dialogue={catchUp}
         >
           {overlays(MODE_SELECT_BOTTOM)}
@@ -221,7 +234,6 @@ export function IdlePage() {
         </AreaScene>
       )}
 
-      {active && v?.phase === 'town' && store && <Store run={active} busy={actions.busy} onBuy={(item, count) => void act({ type: 'BUY', item, count })} />}
 
       {active && v && (
         <section className="space-y-3">

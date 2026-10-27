@@ -9,6 +9,7 @@ export const idleActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('CONTINUE') }),
   z.object({ type: z.literal('BACK_ROUTE') }),
   z.object({ type: z.literal('VISIT_STORE') }),
+  z.object({ type: z.literal('LEAVE_STORE') }),
   z.object({ type: z.literal('GRIND') }),
   z.object({ type: z.literal('STOP_GRIND') }),
   z.object({ type: z.literal('WILD_GRIND') }),

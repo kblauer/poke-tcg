@@ -75,7 +75,7 @@ export const idleRouter = router({
     const settings = await idleSettings(ctx.user.id);
     const caughtList = await caughtSpecies(ctx.user.id);
     const next = simulateSegment(run.state, settings, new Set(caughtList));
-    if (!next) throw failed(withPending(run.state).stopped ? 'Stopped' : 'This run is over');
+    if (!next) throw failed(withPending(run.state).stopped ? 'Stopped' : run.state.inStore ? 'In the store' : 'This run is over');
     const from = Math.max(now, run.simulatedAt.getTime());
     const playedTo = new Date(from + next.segment.durationMs);
     // Its start kept, to play it again: from the moment a page opened meanwhile (resume), and its wild battle with a ball
@@ -124,7 +124,8 @@ export const idleRouter = router({
       events = visited.events;
     }
     // Leaving a town starts the clock again from now (time spent waiting there isn't played).
-    const leaving = input.action.type === 'GYM' || input.action.type === 'CONTINUE' || input.action.type === 'GRIND' || input.action.type === 'BACK_ROUTE';
+    // (Leaving the store too: the town's wait starts again then, the user's.)
+    const leaving = input.action.type === 'GYM' || input.action.type === 'CONTINUE' || input.action.type === 'GRIND' || input.action.type === 'BACK_ROUTE' || input.action.type === 'LEAVE_STORE';
     // So does going on after the Stop mode (time stopped isn't played either); a segment still playing ends first.
     const unstopped = withPending(run.state).stopped && !withPending(state).stopped;
     const restart = leaving ? new Date() : unstopped ? new Date(Math.max(Date.now(), run.simulatedAt.getTime())) : null;

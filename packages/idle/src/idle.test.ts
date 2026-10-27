@@ -500,7 +500,7 @@ describe('an idle run', () => {
     expect(DEFAULT_IDLE_SETTINGS.autoGrind).toBe(true);
   });
 
-  it('waits 5 s in a town, then goes into its unbeaten gym, or on once it is beaten, offline too', () => {
+  it('waits 10 s in a town, then goes into its unbeaten gym, or on once it is beaten, offline too', () => {
     const pewter = AREAS.findIndex((a) => a.id === 'pewter-city');
     const town = { ...createIdleRun({ species: 4 }, 4), area: pewter, phase: 'town' as const };
     const into = simulateSegment(town, DEFAULT_IDLE_SETTINGS, new Set())!;
@@ -514,6 +514,34 @@ describe('an idle run', () => {
     expect(state.area).toBeGreaterThan(pewter);
     // Less than the wait away: nothing.
     expect(catchUp(town, DEFAULT_IDLE_SETTINGS, new Set(), TOWN_WAIT_MS - 1).summary.segments).toBe(0);
+  });
+
+  it("doesn't go on from a town while the player is in its store, which is left by hand; buys only in it", () => {
+    const pewter = AREAS.findIndex((a) => a.id === 'pewter-city');
+    const town: IdleState = { ...createIdleRun({ species: 4 }, 4), area: pewter, phase: 'town', money: 1000 };
+    expect(applyIdleAction(town, { type: 'BUY', item: 'poke-ball', count: 1 }).ok).toBe(false);
+    const inStore = (applyIdleAction(town, { type: 'VISIT_STORE' }) as { state: IdleState }).state;
+    expect(inStore.inStore).toBe(true);
+    expect(idleView(inStore).inStore).toBe(true);
+    // No wait played, watched or offline; nowhere to go but out.
+    expect(simulateSegment(inStore, DEFAULT_IDLE_SETTINGS, new Set())).toBeNull();
+    expect(catchUp(inStore, DEFAULT_IDLE_SETTINGS, new Set(), 60 * 60 * 1000).summary.segments).toBe(0);
+    expect(applyIdleAction(inStore, { type: 'GYM' }).ok).toBe(false);
+    const bought = applyIdleAction(inStore, { type: 'BUY', item: 'poke-ball', count: 2 });
+    expect(bought.ok && bought.state.bag['poke-ball']).toBe((inStore.bag['poke-ball'] ?? 0) + 2);
+    // Left: the town's wait again, then into the gym.
+    const out = (applyIdleAction(inStore, { type: 'LEAVE_STORE' }) as { state: IdleState }).state;
+    expect(out.inStore).toBeUndefined();
+    expect(applyIdleAction(out, { type: 'LEAVE_STORE' }).ok).toBe(false);
+    expect(AREAS[simulateSegment(out, DEFAULT_IDLE_SETTINGS, new Set())!.state.area]!.id).toBe('pewter-gym');
+  });
+
+  it("knows each town's Poké Mart: the player across the counter from the clerk, facing them", () => {
+    for (const a of AREAS.filter(isTown)) {
+      const m = a.mart;
+      const clerk = m.people.find((p) => p.sprite === 'clerk' && Math.abs(p.x - m.x) + Math.abs(p.y - m.y) === 2 && (p.x === m.x || p.y === m.y));
+      expect(clerk, a.id).toBeDefined();
+    }
   });
 
   it('auto-buys balls on reaching a town, up to the setting, the cheapest the store sells, while the money lasts', () => {
