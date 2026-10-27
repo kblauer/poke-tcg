@@ -6,6 +6,7 @@
 import { int, type Rng } from '@poke-tcg/campaign';
 import { moveData, species } from './data.js';
 import { expForLevel } from './stats.js';
+import { machineMoves } from './tms.js';
 import type { Mon, MoveData, Stats } from './types.js';
 
 /** Move effects that deal damage without a fixed power (power 1 in the data): their cooldown is set here instead. */
@@ -151,11 +152,12 @@ export function lastFourMoves(id: number, level: number): string[] {
 
 /**
  * The default slots (agreed): the 3 strongest moves it knows but its basic move, newest first on ties; status moves after
- * damaging ones, newest first.
+ * damaging ones, newest first. With the run's bag, its TMs' and HMs' moves it can learn too (the user's), a learned move
+ * first on a tie.
  */
-export function autoSlots(mon: Pick<Mon, 'species' | 'moves'>): string[] {
+export function autoSlots(mon: Pick<Mon, 'species' | 'moves'>, bag: Record<string, number> = {}): string[] {
   const basic = basicFor(mon);
-  const known = mon.moves.filter((m) => m !== basic);
+  const known = [...machineMoves(mon, bag), ...mon.moves].filter((m) => m !== basic);
   const order = known.map((m, i) => ({ m, i, power: moveData(m).power })).sort((a, b) => b.power - a.power || b.i - a.i);
   return order.slice(0, 3).map((o) => o.m);
 }

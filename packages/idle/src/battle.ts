@@ -1123,7 +1123,8 @@ export class Battle {
           this.emit({ t: 'learn', uid: mon.uid, move: m, msg: `${species(mon.species).name} learned ${moveData(m).name}!` });
         }
         if (mon.autoSlots) {
-          mon.slots = autoSlots(mon);
+          // The player's (only their Pokémon gain experience): with their bag's TMs.
+          mon.slots = autoSlots(mon, this.bag);
           if (!b.v.transformed) b.slots = [...mon.slots];
         }
       }

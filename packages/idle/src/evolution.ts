@@ -25,13 +25,16 @@ export function stoneEvolution(mon: Pick<Mon, 'species'>, item: string): number 
 /** The stones a Pokémon can use. */
 export const usableStones = (mon: Pick<Mon, 'species'>) => species(mon.species).evolutions.filter((e) => e.method === 'item' && e.item).map((e) => e.item!);
 
-/** A Pokémon evolved into `into`: the new species keeps everything, learning the new species' moves for its level (as the game does on evolving). */
-export function evolve(mon: Mon, into: number): { mon: Mon; learned: string[] } {
+/**
+ * A Pokémon evolved into `into`: the new species keeps everything, learning the new species' moves for its level (as the
+ * game does on evolving); automatic slots picked again, with the bag's TMs it can learn (`bag`, the run's).
+ */
+export function evolve(mon: Mon, into: number, bag: Record<string, number> = {}): { mon: Mon; learned: string[] } {
   const next: Mon = { ...mon, species: into, moves: [...mon.moves] };
   const learned = movesAt(into, mon.level).filter((m) => !next.moves.includes(m));
   next.moves.push(...learned);
   // A new ability slot only if the new species has fewer abilities.
   if (next.abilitySlot >= species(into).abilities.length) next.abilitySlot = 0;
-  if (next.autoSlots) next.slots = autoSlots(next);
+  if (next.autoSlots) next.slots = autoSlots(next, bag);
   return { mon: next, learned };
 }

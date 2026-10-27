@@ -47,6 +47,20 @@ describe('TMs and HMs', () => {
     expect(applyIdleAction({ ...s, inStore: undefined }, { type: 'BUY', item: 'tm28', count: 1 }).ok).toBe(false);
   });
 
+  it('takes owned machines\' moves in the automatic pick too: at once when bought, and whenever it picks again', () => {
+    const s = inStore('celadon-city', 'celadon-city', 7); // Squirtle, on the automatic pick
+    expect(s.party[0]!.autoSlots).toBe(true);
+    const owned = (applyIdleAction(s, { type: 'BUY', item: 'hm03', count: 1 }) as { state: IdleState }).state;
+    expect(owned.party[0]!.slots).toContain('surf');
+    // Picked again (Pick the 3 strongest after slots set by hand).
+    const manual = (applyIdleAction(owned, { type: 'SET_SLOTS', uid: owned.party[0]!.uid, slots: [] }) as { state: IdleState }).state;
+    const auto = applyIdleAction(manual, { type: 'SET_SLOTS', uid: owned.party[0]!.uid, slots: [], auto: true });
+    expect(auto.ok && auto.state.party[0]!.slots).toContain('surf');
+    // Never a move its species can't learn.
+    const fire = (applyIdleAction(inStore('celadon-city', 'celadon-city', 4), { type: 'BUY', item: 'hm03', count: 1 }) as { state: IdleState }).state;
+    expect(fire.party[0]!.slots).not.toContain('surf');
+  });
+
   it("puts an owned machine's move in the slots of a Pokémon that can learn it, never one that can't", () => {
     const s = inStore('celadon-city', 'celadon-city', 7); // Squirtle
     const squirtle = s.party[0]!;

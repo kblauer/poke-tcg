@@ -505,7 +505,7 @@ function autoStones(state: IdleState, stock: string[], events: SegmentEvent[]) {
     if (state.money < price) continue;
     state.money -= price;
     const into = stoneEvolution(mon, stone)!;
-    state.party[i] = evolve(mon, into).mon;
+    state.party[i] = evolve(mon, into, state.bag).mon;
     events.push({ t: 'evolve', uid: mon.uid, from: mon.species, into });
     state.log.push(`Bought a ${itemData(stone).name}: ${species(mon.species).name} evolved into ${species(into).name}!`);
   }
@@ -700,6 +700,8 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
         if (cost > state.money) return fail('Not enough money');
         state.money -= cost;
         state.bag[action.item] = 1;
+        // Pokémon on the automatic pick take its move at once if it's among their strongest.
+        for (const m of state.party) if (m.autoSlots) m.slots = autoSlots(m, state.bag);
         state.log.push(`Bought ${itemData(action.item).name.toUpperCase()} for ₱${cost}.`);
         return ok();
       }
@@ -722,7 +724,7 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
       if (!mon) return fail('Not in the party');
       if (action.auto) {
         mon.autoSlots = true;
-        mon.slots = autoSlots(mon);
+        mon.slots = autoSlots(mon, state.bag);
         return ok();
       }
       if (action.slots.length > 3 || new Set(action.slots).size !== action.slots.length) return fail('Up to 3 different moves');
@@ -742,7 +744,7 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
       state.bag[action.item]! -= 1;
       if (!state.bag[action.item]) delete state.bag[action.item];
       const from = state.party[i]!.species;
-      state.party[i] = evolve(state.party[i]!, into).mon;
+      state.party[i] = evolve(state.party[i]!, into, state.bag).mon;
       state.log.push(`${species(from).name} evolved into ${species(into).name}!`);
       return ok();
     }
@@ -888,7 +890,7 @@ function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<
     if (!into) return m;
     out.events.push({ t: 'evolve', uid: m.uid, from: m.species, into });
     state.log.push(`${species(m.species).name} evolved into ${species(into).name}!`);
-    return evolve(m, into).mon;
+    return evolve(m, into, state.bag).mon;
   });
   out.dex.push(...partyNotes(state.party));
   if (result.payDay) {
@@ -899,7 +901,7 @@ function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<
     // Every move its line learns by its level (the user's: an evolved Pokémon caught knows its pre-evolutions' too), its
     // slots the strongest of them.
     const moves = familyMovesUpTo(result.caught.species, result.caught.level);
-    const mon: Mon = { ...result.caught, moves, slots: autoSlots({ species: result.caught.species, moves }), autoSlots: true };
+    const mon: Mon = { ...result.caught, moves, slots: autoSlots({ species: result.caught.species, moves }, state.bag), autoSlots: true };
     caught.add(mon.species);
     state.totals.caught += 1;
     out.dex.push({ species: mon.species, seen: true, caught: true, ivs: mon.ivs, evs: mon.evs, ...(mon.shiny && { shiny: true as const }) });
