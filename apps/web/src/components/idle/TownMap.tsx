@@ -1,4 +1,4 @@
-import { AREAS, areaIndex, isTown, mapGrindPlan, modeOf, reachedArea, TOWN_MAP_GRID, TOWN_MAP_PLACES, townMapArea, townMapPlaceOf, travelError, type IdleAction, type IdleMode, type TownMapPlace } from '@poke-tcg/idle';
+import { AREAS, areaIndex, atProgress, isTown, mapGrindPlan, modeOf, reachedArea, TOWN_MAP_GRID, TOWN_MAP_PLACES, townMapArea, townMapPlaceOf, travelError, type IdleAction, type IdleMode, type TownMapPlace } from '@poke-tcg/idle';
 import { useState } from 'react';
 import { useEscape } from '../../hooks/useEscape';
 import type { ClientIdleRun } from '../../hooks/useIdle';
@@ -26,15 +26,16 @@ const cellY = (y: number) => MAP_Y + TOWN_MAP_GRID.y + y * TOWN_MAP_GRID.cell;
 const CHOICE_W = 88;
 const CHOICE_H = 50;
 
-const MODE_LABEL: Record<IdleMode, string> = { route: 'Route', wild: 'Wild grind', trainers: 'Trainer grind', stop: 'Stopped' };
+const MODE_LABEL: Record<IdleMode, string> = { route: 'Walking', wild: 'Wild grind', trainers: 'Trainer grind', stop: 'Stopped' };
 
 /**
  * The Town Map (the user's, in place of the mode drop-down): a Map button in the game screen's top left corner, on
  * every scene, opens FireRed's Kanto map (region_map.c's, by tools/idle/town_map.py) over the game screen. Its places
  * are the run's towns, routes and dungeons (TOWN_MAP_PLACES); those not reached yet are darkened. A town clicked takes
  * the run there (TRAVEL), its usual choices waiting; a route or dungeon clicked offers Wild grind and Trainer grind there
- * (GRIND_AT; one that can't start greyed out with why, mapGrindPlan). Continue route and Stop (SET_MODE) in its corner,
- * the mode on lit. The player's icon is where the run is. Escape, × or a town closes it.
+ * (GRIND_AT; one that can't start greyed out with why, mapGrindPlan). Continue run (CONTINUE_RUN: straight to the run's
+ * furthest place, or on from it) and Stop (SET_MODE stop: at once, a battle begun dropped; nothing in a town) in its
+ * corner, the one on lit. The player's icon is where the run is. Escape, × or a town closes it.
  */
 export function TownMap({ view, busy, gender, onAct }: { view: ClientIdleRun['view']; busy: boolean; gender: 'male' | 'female'; onAct: (action: IdleAction) => unknown }) {
   const [open, setOpen] = useState(false);
@@ -143,25 +144,22 @@ export function TownMap({ view, busy, gender, onAct }: { view: ClientIdleRun['vi
             />
           )}
 
-          {/* Continue route and Stop, over the sea in the bottom right corner (the user's). */}
+          {/* Continue run and Stop, over the sea in the bottom right corner (the user's); each closes the map when it moves the run. */}
           <div className="absolute flex flex-col" style={{ right: px(4), bottom: px(4), gap: px(2), zIndex: 4 }}>
-            {(
-              [
-                ['route', 'Continue route', view.back ? `Back to ${AREAS[view.back.area]!.name}, where you were, and on from there` : 'Walk on along the route (ends a grind)'],
-                ['stop', 'Stop', 'Stop where you are, offline too, until another mode is chosen'],
-              ] as const
-            ).map(([id, label, hint]) => (
-              // Continue route always goes (the user's): back where the map took the run from (IdleState.back), out of a
-              // grind, or on after Stop; the map closes on it. Moved by the map, it isn't lit: the run is elsewhere.
-              <MapButton
-                key={id}
-                label={label}
-                title={hint}
-                on={mode === id && !(id === 'route' && view.back)}
-                disabled={locked}
-                onClick={() => (id === 'route' ? send({ type: 'SET_MODE', mode: 'route' }, close) : mode !== id && send({ type: 'SET_MODE', mode: id }))}
-              />
-            ))}
+            <MapButton
+              label="Continue run"
+              title={atProgress(view) ? 'Walk on from here, the furthest you have been' : 'Straight to the furthest you have been in this run, and on from there'}
+              on={mode === 'route' && atProgress(view)}
+              disabled={locked}
+              onClick={() => send({ type: 'CONTINUE_RUN' }, close)}
+            />
+            <MapButton
+              label="Stop"
+              title={view.phase === 'town' ? 'Nothing to stop in a town' : 'Stop where you are now (a battle under way ends with no rewards), offline too, until Continue run'}
+              on={mode === 'stop'}
+              disabled={locked}
+              onClick={() => view.phase !== 'town' && mode !== 'stop' && send({ type: 'SET_MODE', mode: 'stop' }, close)}
+            />
           </div>
 
           {/* A route's (or dungeon's) grinds, by the cell clicked. */}

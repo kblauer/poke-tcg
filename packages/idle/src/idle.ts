@@ -122,11 +122,11 @@ export interface IdleState {
    */
   reached?: number;
   /**
-   * Where the run was before the Town Map first took it elsewhere (TRAVEL, GRIND_AT on another route; the user's): on a
-   * route (its leg, step and trainers beaten) or in a town. Continue route (SET_MODE route) goes back there and walks on;
-   * reaching it again by walking on forgets it.
+   * The furthest place the run has reached (the user's: Continue run, in a town or on the Town Map, goes straight there):
+   * its area, leg and step (a town's 0) and the trainers beaten there, marked as it walks on (never while grinding: a
+   * grind's place isn't progress); older runs' from progressOf.
    */
-  back?: MapBack;
+  progress?: Progress;
   party: Mon[];
   bag: Record<string, number>;
   money: number;
@@ -196,6 +196,8 @@ export type IdleAction =
   | { type: 'CONTINUE_ROUTE' }
   /** The mode (the Town Map's Continue route and Stop, the user's): Route, Wild grind, Trainer grind, or Stop (stopped where it is). */
   | { type: 'SET_MODE'; mode: IdleMode }
+  /** Continue run (the user's: in a town and on the Town Map): to the run's furthest place (progressOf), or on from it when there. */
+  | { type: 'CONTINUE_RUN' }
   /** The Town Map (the user's): to a town reached already, its usual choices waiting there. */
   | { type: 'TRAVEL'; area: number }
   /** The Town Map (the user's): Wild or Trainer grind on a route (or in a dungeon) reached already (mapGrindPlan). */
@@ -420,32 +422,65 @@ export function reachedArea(state: Pick<IdleState, 'reached' | 'area' | 'loop' |
 /** Whether every store sells TMs and HMs (Buy TMs): once the run has reached Celadon City (the user's). */
 export const tmShopOpen = (state: Pick<IdleState, 'reached' | 'area' | 'loop' | 'badges'>) => reachedArea(state) >= areaIndex(TM_SHOP_AREA);
 
-export type MapBack = { area: number; leg: number; step: number; beaten: string[]; town?: true };
+/** The furthest place a run has reached (IdleState.progress): an area, its leg and step (a town's 0), the trainers beaten there. */
+export type Progress = { area: number; leg: number; step: number; beaten: string[] };
 
-/** Where the run is, to come back to (IdleState.back): a route grind's place where it began, a town (or its auto-grind) the town. */
-function hereNow(state: IdleState): MapBack {
-  if (state.phase === 'town' || state.phase === 'grinding') return { area: state.area, leg: 0, step: 0, beaten: [], town: true };
-  if (state.loop) return { ...state.loop.resume, beaten: [...state.loop.resume.beaten] };
-  return { area: state.area, leg: state.leg, step: state.step, beaten: [...state.beaten] };
+type Place = { area: number; leg: number; step: number };
+
+/** An area's place in the run's order: a town whose gym is beaten just past its gym (the run is back there with the badge). */
+function rankOf(state: Pick<IdleState, 'badges'>, index: number): number {
+  const a = AREAS[index]!;
+  if (isTown(a) && a.gym) {
+    const gym = areaById(a.gym);
+    if (gym.kind === 'gym' && state.badges.includes(gym.badge!)) return areaIndex(a.gym) + 0.5;
+  }
+  return index;
 }
 
-/** Before the Town Map moves the run to `to`: where it was kept (IdleState.back), the first time only, unless `to` is on from there. */
-function keepBack(state: IdleState, to: number) {
-  const back = state.back ?? hereNow(state);
-  if (to < back.area || (to === back.area && !back.town)) state.back = back;
-  else delete state.back;
+/** Where the run stands: in a town (or grinding from it) the town. */
+const placeOfRun = (state: Pick<IdleState, 'phase' | 'area' | 'leg' | 'step'>): Place => (state.phase === 'town' || state.phase === 'grinding' ? { area: state.area, leg: 0, step: 0 } : { area: state.area, leg: state.leg, step: state.step });
+
+/** How two places of a run compare in its order (below 0: `p` comes first). */
+const comparePlaces = (state: Pick<IdleState, 'badges'>, p: Place, q: Place) => rankOf(state, p.area) - rankOf(state, q.area) || p.leg - q.leg || p.step - q.step;
+
+type ProgressState = Pick<IdleState, 'progress' | 'reached' | 'area' | 'leg' | 'step' | 'beaten' | 'loop' | 'badges' | 'phase'>;
+
+/**
+ * The run's furthest place (IdleState.progress); an older run's where it is (a route grind's where it began), or the
+ * start of the furthest area it reached when that's further on.
+ */
+export function progressOf(state: ProgressState): Progress {
+  if (state.progress) return state.progress;
+  const here: Progress = state.loop ? state.loop.resume : { ...placeOfRun(state), beaten: state.phase === 'walking' ? state.beaten : [] };
+  const reached = reachedArea(state);
+  const start = { area: reached, leg: 0, step: 0 };
+  return comparePlaces(state, start, here) > 0 ? { ...start, beaten: [] } : { ...here, beaten: [...here.beaten] };
 }
 
-/** Continue route after the Town Map moved the run: back where it was (IdleState.back), walking on from there (or waiting in its town). */
-function goBack(state: IdleState) {
-  const back = state.back!;
-  delete state.back;
+/** Whether the run stands at its furthest place (Continue run goes on from there rather than to it); never while grinding. */
+export function atProgress(state: ProgressState): boolean {
+  if (state.loop || state.phase === 'grinding') return false;
+  return comparePlaces(state, placeOfRun(state), progressOf(state)) >= 0;
+}
+
+/** Continue run away from the furthest place (CONTINUE_RUN, a town's wait offline): straight there, whatever it was doing ending. */
+function goToProgress(state: IdleState, events: SegmentEvent[]) {
+  const p = progressOf(state);
   delete state.loop;
   delete state.grind;
   delete state.inStore;
-  state.log.push(`Went back to ${AREAS[back.area]!.name}.`);
-  if (back.town) return enterArea(state, back.area, []);
-  Object.assign(state, { area: back.area, leg: back.leg, step: back.step, beaten: [...back.beaten], phase: 'walking', encounter: { steps: 0, buff: 0, prev: '' } });
+  state.log.push(`Went on with the run in ${AREAS[p.area]!.name}.`);
+  if (isTown(AREAS[p.area]!)) return enterArea(state, p.area, events);
+  Object.assign(state, { area: p.area, leg: p.leg, step: p.step, beaten: [...p.beaten], phase: 'walking', encounter: { steps: 0, buff: 0, prev: '' } });
+  events.push({ t: 'area', area: p.area, leg: p.leg, step: p.step });
+}
+
+/** The run's place marked as its furthest when it is (IdleState.progress): walking on, never grinding. */
+function markProgress(state: IdleState) {
+  if (state.loop || state.phase === 'grinding' || state.phase === 'won' || state.phase === 'given-up') return;
+  const here = placeOfRun(state);
+  if (comparePlaces(state, here, progressOf(state)) < 0) return;
+  state.progress = { ...here, beaten: state.phase === 'walking' ? [...state.beaten] : [] };
 }
 
 /** Why the Town Map can't take the run to a town (TRAVEL), or null: only towns reached already, not the one it waits in. */
@@ -486,8 +521,6 @@ export function mapGrindPlan(state: Pick<IdleState, 'reached' | 'area' | 'leg' |
 /** Enters an area: a town waits for the player; any other starts at its first leg's first step. */
 function enterArea(state: IdleState, index: number, events: SegmentEvent[]) {
   state.reached = Math.max(reachedArea(state), index);
-  // Walked on as far as where the Town Map took it from: nothing to go back to.
-  if (state.back && index >= state.back.area) delete state.back;
   // A route grind keeps going through a white-out back to its route's start; any other area ends it.
   if (index !== state.area) delete state.loop;
   delete state.inStore;
@@ -601,12 +634,14 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
   if (state.replay) state.replay.throwable = false;
   const fail = (error: string): IdleResult => ({ ok: false, error });
   const ok = (): IdleResult => {
+    markProgress(state);
     state.version += 1;
     return { ok: true, state };
   };
   if (state.phase === 'won' || state.phase === 'given-up') return fail('This run is over');
   // Kept before anything moves the run back (an older run's worked out once).
   state.reached = reachedArea(state);
+  state.progress = progressOf(state);
   const area = AREAS[state.area]!;
   const inTown = state.phase === 'town' && isTown(area);
   // Out of the store before going anywhere (the user's: it's left by hand).
@@ -632,7 +667,8 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
     }
     case 'SET_MODE': {
       if (action.mode === 'stop') {
-        if (state.stopped) return ok();
+        // Nothing to stop in a town (the user's); walking, it stops where it stands (the API cuts the segment playing first: cutSegment).
+        if (state.stopped || state.phase === 'town') return ok();
         state.stopped = true;
         state.log.push('Stopped.');
         return ok();
@@ -640,9 +676,7 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
       const was = state.stopped;
       delete state.stopped;
       if (action.mode === 'route') {
-        // Moved by the Town Map: back where it was first (the user's), walking on.
-        if (state.back) goBack(state);
-        else if (state.loop) endRouteLoop(state);
+        if (state.loop) endRouteLoop(state);
         else if (was) state.log.push('Went on.');
         return ok();
       }
@@ -656,13 +690,22 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
       const error = travelError(state, action.area);
       if (error) return fail(error);
       // Whatever it was doing ends (a route grind, a town's auto-grind, the store); the mode (Stop) stays.
-      const back = state.back ?? hereNow(state);
       delete state.loop;
       state.log.push(`Went to ${AREAS[action.area]!.name} by the Town Map.`);
       enterArea(state, action.area, []);
-      // Kept after entering (which forgets one it's reached): Continue route comes back to it.
-      state.back = back;
-      keepBack(state, action.area);
+      return ok();
+    }
+    case 'CONTINUE_RUN': {
+      const was = state.stopped;
+      delete state.stopped;
+      if (atProgress(state)) {
+        // There already: on from a town whose gym is beaten (the old Continue), else on along the way.
+        if (inTown && townDone(state, area)) enterArea(state, afterTown(state.area), []);
+        else if (was) state.log.push('Went on.');
+        return ok();
+      }
+      // Elsewhere (a town or a grind the Town Map took it to, a route grind): straight to the furthest place (the user's).
+      goToProgress(state, []);
       return ok();
     }
     case 'GRIND_AT': {
@@ -674,9 +717,8 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
         const error = startRouteLoop(state, action.kind);
         return error ? fail(error) : ok();
       }
-      // Elsewhere: at the end of that route, its trainers passed (as BACK_ROUTE); Continue route goes back where the run
-      // was (IdleState.back), or walks on from there when that was further back.
-      keepBack(state, action.area);
+      // Elsewhere: at the end of that route, its trainers passed (as BACK_ROUTE); Continue run goes back to the run's
+      // furthest place.
       delete state.loop;
       delete state.grind;
       delete state.inStore;
@@ -1362,6 +1404,7 @@ export function simulateSegment(from: IdleState, idleSettings: IdleSettings, cau
       const from = state.step;
       state.step += 1;
       state.totals.steps += 1;
+      markProgress(state);
       out.events.push({ t: 'walk', from, to: state.step });
       out.durationMs += STEP_MS * (leg.track[state.step]![3] & 2 ? 2 : 1) + (leg.track[state.step]![3] & 1 ? FADE_MS : 0);
     }
@@ -1400,10 +1443,63 @@ export function simulateSegment(from: IdleState, idleSettings: IdleSettings, cau
   // Auto-buy balls on reaching a town (white-outs too), before auto-grind leaves it.
   if (state.phase === 'town') autoBuyBalls(state, settings, out.events);
   if (state.phase === 'town' && settings.autoGrind) autoGrind(state, out, whitedOut);
+  markProgress(state);
   state.rngState = rng.state;
   state.version += 1;
   if (state.log.length > 50) state.log = state.log.slice(-50);
   return { state, segment: out };
+}
+
+/**
+ * The run as it stands at `now` while a segment plays (the user's: Stop, Continue run and the Town Map act at once): the
+ * segment's start (IdleState.replay) moved along its events as far as the player has walked, a trainer's "!" or a battle
+ * begun dropped (no rewards: the player where it began, the trainer still to fight), a town reached its town; the changes
+ * queued and the slots and the party's order set meanwhile kept. The run unchanged when no segment is playing.
+ */
+/** The choices that cut the segment playing (cutSegment) before they're applied: Stop, Continue run and the Town Map's moves. */
+export const cuts = (action: IdleAction) => action.type === 'CONTINUE_RUN' || action.type === 'TRAVEL' || action.type === 'GRIND_AT' || (action.type === 'SET_MODE' && action.mode === 'stop');
+
+export function cutSegment(saved: IdleState, now: number): IdleState {
+  const r = saved.replay;
+  if (!r) return saved;
+  const again = simulateSegment(r.prev, r.settings, new Set(r.caught), { throwAt: r.throws });
+  const elapsed = now - r.from;
+  if (!again || elapsed >= again.segment.durationMs) return saved;
+  const state = structuredClone(withPending(r.prev));
+  delete state.replay;
+  let t = 0;
+  let town: number | null = null;
+  for (const [i, e] of again.segment.events.entries()) {
+    if (e.t === 'area') {
+      Object.assign(state, { leg: e.leg, step: e.step });
+      if (i > 0) t += FADE_MS;
+    } else if (e.t === 'walk') {
+      const flags = (AREAS[state.area] as WalkArea).legs[state.leg]!.track[e.to]![3];
+      const d = STEP_MS * (flags & 2 ? 2 : 1) + (flags & 1 ? FADE_MS : 0);
+      if (elapsed < t + d) break;
+      state.step = e.to;
+      state.totals.steps += 1;
+      t += d;
+    } else {
+      // The area's end (its town), or what stops the walk: a trainer's "!", a battle, a grind's loop.
+      if (e.t === 'town') town = e.area;
+      break;
+    }
+    if (elapsed < t) break;
+  }
+  if (town !== null) enterArea(state, town, []);
+  // What the player changed meanwhile.
+  if (saved.pending?.length) state.pending = [...saved.pending];
+  const order = saved.party.map((m) => m.uid);
+  state.party.sort((a, b) => (order.includes(a.uid) ? order.indexOf(a.uid) : 99) - (order.includes(b.uid) ? order.indexOf(b.uid) : 99));
+  for (const m of state.party) {
+    const set = saved.party.find((x) => x.uid === m.uid);
+    if (set) Object.assign(m, { slots: [...set.slots], autoSlots: set.autoSlots });
+  }
+  if (saved.stopped) state.stopped = true;
+  markProgress(state);
+  state.version = saved.version;
+  return state;
 }
 
 /**
@@ -1417,6 +1513,8 @@ function townWait(prev: IdleState): { state: IdleState; segment: Segment } {
   const out: Segment = { events: [{ t: 'town', area: state.area }], durationMs: TOWN_WAIT_MS + FADE_MS, dex: [] };
   const town = AREAS[state.area] as TownArea;
   if (!townDone(state, town)) enterGym(state, out.events);
+  // Continue run (the user's): from a town behind the run's furthest place, straight there; from the furthest, on.
+  else if (!atProgress(state)) goToProgress(state, out.events);
   else enterArea(state, afterTown(state.area), out.events);
   state.version += 1;
   return { state, segment: out };

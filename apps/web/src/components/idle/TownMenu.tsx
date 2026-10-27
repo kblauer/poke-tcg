@@ -1,4 +1,4 @@
-import { AREAS, areaById, mapView, previousRoute, topLevel, type TownArea } from '@poke-tcg/idle';
+import { AREAS, areaById, atProgress, mapView, topLevel, type TownArea } from '@poke-tcg/idle';
 import type { ReactNode } from 'react';
 import type { ClientIdleRun } from '../../hooks/useIdle';
 import type { Dialogue } from '../DialogueBox';
@@ -21,7 +21,6 @@ export function TownMenu({
   onGrind,
   onStore,
   onContinue,
-  onBack,
   dialogue,
   children,
 }: {
@@ -31,9 +30,8 @@ export function TownMenu({
   onGym: () => void;
   onGrind: () => void;
   onStore: () => void;
+  /** Continue run (CONTINUE_RUN): to the run's furthest place, or on from this town when it's that. */
   onContinue: () => void;
-  /** Back to the start of the route before the town (BACK_ROUTE). */
-  onBack: () => void;
   dialogue?: Dialogue | null;
   /** Drawn over the town (the party overlay). */
   children?: ReactNode;
@@ -45,14 +43,13 @@ export function TownMenu({
   const gymDone = !gym || (badge !== null && run.view.badges.includes(badge));
   const league = gym?.kind === 'league';
   const target = run.view.grindTarget;
-  const back = previousRoute(run.view.area);
+  // Continue run (the user's): straight to the run's furthest place from a town behind it; from the furthest, on once its gym is beaten.
+  const furthest = atProgress(run.view);
   const options: { label: string; act: () => void; disabled?: boolean }[] = [
     ...(gym && !gymDone ? [{ label: league ? 'Challenge the Elite Four' : 'Gym', act: onGym }] : []),
     ...(gym && !gymDone && town.grind && target ? [{ label: `Grind to Lv. ${target}`, act: onGrind, disabled: topLevel(run.view.party) >= target }] : []),
     ...(town.marts.length > 0 ? [{ label: 'Store', act: onStore }] : []),
-    ...(gymDone && !league ? [{ label: 'Continue', act: onContinue }] : []),
-    // Back to the route before the town, its progress reset (the user's).
-    ...(back !== null ? [{ label: `Back to ${AREAS[back]!.name}`, act: onBack }] : []),
+    ...(!furthest || (gymDone && !league) ? [{ label: 'Continue run', act: onContinue }] : []),
   ];
   const question: Dialogue = {
     text: `${town.name}. ${gymDone ? (league ? '' : 'Where to next?') : league ? 'The Pokémon League awaits.' : `${gym?.name} is here.`}`.trim(),

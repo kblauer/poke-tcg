@@ -568,6 +568,15 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
     actOn: (r: ClientIdleRun) => (latest.current && latest.current.id === r.id && latest.current.version > r.version ? latest.current : r),
     /** After an action: its answer is the newest run (the playback asks for the next segment with its version). */
     acted: (r: ClientIdleRun) => void (latest.current = r),
+    /**
+     * After an action that cut the segment playing (Stop, Continue run, the Town Map's: `cuts`, the user's: at once):
+     * the segment on screen dropped and the playback started again from the server's answer.
+     */
+    interrupt: (r: ClientIdleRun) => {
+      latest.current = r;
+      parked.current = false;
+      setRestart((n) => n + 1);
+    },
   };
 }
 

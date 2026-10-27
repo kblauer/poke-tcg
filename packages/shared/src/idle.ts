@@ -16,6 +16,7 @@ export const idleActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('TRAINER_GRIND') }),
   z.object({ type: z.literal('CONTINUE_ROUTE') }),
   z.object({ type: z.literal('SET_MODE'), mode: z.enum(IDLE_MODES) }),
+  z.object({ type: z.literal('CONTINUE_RUN') }),
   z.object({ type: z.literal('TRAVEL'), area: z.number().int().min(0).max(200) }),
   z.object({ type: z.literal('GRIND_AT'), area: z.number().int().min(0).max(200), kind: z.enum(['wild', 'trainers']) }),
   z.object({ type: z.literal('BUY'), item: z.string().min(1).max(40), count: z.number().int().min(1).max(99) }),

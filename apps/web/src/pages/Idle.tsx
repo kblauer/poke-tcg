@@ -1,5 +1,5 @@
 import { idleMusic } from '@poke-tcg/campaign';
-import { AREAS, mapView, species, TICK_MS, type IdleAction, type WalkArea } from '@poke-tcg/idle';
+import { AREAS, cuts, mapView, species, TICK_MS, type IdleAction, type WalkArea } from '@poke-tcg/idle';
 import { useState } from 'react';
 import type { Dialogue } from '../components/DialogueBox';
 import { useMusicCue, useMusicSettings } from '../components/MusicPlayer';
@@ -65,7 +65,7 @@ export function IdlePage() {
   const run = data?.run ?? null;
   const active = run?.status === 'ACTIVE' ? run : null;
   const settings = data?.settings;
-  const { play, summary, closeSummary, actOn, acted, throwBall, throwing } = useIdlePlayback(active, name, (m) => toasts.push('error', m));
+  const { play, summary, closeSummary, actOn, acted, interrupt, throwBall, throwing } = useIdlePlayback(active, name, (m) => toasts.push('error', m));
   // A town on screen waits for the player however long (the user's): only time away is played by its wait.
   useTownHere(active);
   // What happened while away, a page at a time in the scene's text box (in place of its own line); Escape closes it.
@@ -117,7 +117,8 @@ export function IdlePage() {
     active &&
     actions
       .act(actOn(active), action)
-      .then((r) => acted(r.run))
+      // Stop, Continue run and the Town Map's moves act at once: the segment on screen dropped (`interrupt`).
+      .then((r) => (cuts(action) ? interrupt(r.run) : acted(r.run)))
       .catch(failed);
   // A purchase in the store: whether it went through (the buy screen says "Here you are!" only then).
   const buy = (item: string, count: number) =>
@@ -220,8 +221,7 @@ export function IdlePage() {
           onGym={() => void act({ type: 'GYM' })}
           onGrind={() => void act({ type: 'GRIND' })}
           onStore={() => void act({ type: 'VISIT_STORE' })}
-          onContinue={() => void act({ type: 'CONTINUE' })}
-          onBack={() => void act({ type: 'BACK_ROUTE' })}
+          onContinue={() => void act({ type: 'CONTINUE_RUN' })}
           dialogue={catchUp}
         >
           {overlays()}

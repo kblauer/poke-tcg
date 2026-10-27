@@ -1,5 +1,5 @@
 import { prisma } from '@poke-tcg/db';
-import { AREAS, applyIdleAction, areaIndex, BALLS, throwable, isBaseForm, CATCH_UP_CAP_MS, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, reachedArea, simulateSegment, TOWN_WAIT_MS, starterOptions, STARTERS, visitStore, withPending, type IdleSettings, type Stats } from '@poke-tcg/idle';
+import { AREAS, applyIdleAction, areaIndex, BALLS, throwable, isBaseForm, CATCH_UP_CAP_MS, catchUp, createIdleRun, cutSegment, cuts, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, reachedArea, simulateSegment, TOWN_WAIT_MS, starterOptions, STARTERS, visitStore, withPending, type IdleSettings, type Stats } from '@poke-tcg/idle';
 import { idleActInput, idleHereInput, idleRunInput, idleSettingsInput, idleThrowInput, idleWarpInput, startIdleInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { asJson, newSeed } from '../games.js';
@@ -114,7 +114,10 @@ export const idleRouter = router({
   act: protectedProcedure.input(idleActInput).mutation(async ({ ctx, input }) => {
     const run = await loadOwnIdleRun(input.runId, ctx.user.id);
     checkVersion(run, input.expectedVersion);
-    const result = applyIdleAction(run.state, input.action);
+    // Stop, Continue run and the Town Map act at once (the user's): the segment playing cut where the player is now (a
+    // battle begun dropped, no rewards), then the choice.
+    const cut = cuts(input.action);
+    const result = applyIdleAction(cut ? cutSegment(run.state, Date.now()) : run.state, input.action);
     if (!result.ok) throw failed(result.error);
     let state = result.state;
     let events: ReturnType<typeof visitStore>['events'] = [];
@@ -126,8 +129,8 @@ export const idleRouter = router({
     // Leaving a town starts the clock again from now (time spent waiting there isn't played).
     // (Leaving the store too: the town's wait starts again then, the user's.)
     // (Any action out of a waiting town too: a grind chosen there, the user's.)
-    // (The Town Map's too: the segment playing is left where it is, the run going on from its new place now.)
-    const leaving = ['GYM', 'CONTINUE', 'GRIND', 'BACK_ROUTE', 'LEAVE_STORE', 'TRAVEL', 'GRIND_AT'].includes(input.action.type) || (run.state.phase === 'town' && state.phase !== 'town');
+    // (Those that cut the segment playing too: the run goes on from where it is now.)
+    const leaving = cut || ['GYM', 'CONTINUE', 'GRIND', 'BACK_ROUTE', 'LEAVE_STORE'].includes(input.action.type) || (run.state.phase === 'town' && state.phase !== 'town');
     // So does going on after the Stop mode (time stopped isn't played either); a segment still playing ends first.
     const unstopped = withPending(run.state).stopped && !withPending(state).stopped;
     const restart = leaving ? new Date() : unstopped ? new Date(Math.max(Date.now(), run.simulatedAt.getTime())) : null;
