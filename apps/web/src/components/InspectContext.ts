@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, type MouseEvent } from 'react';
+import { createContext, useCallback, useContext, useEffect, type MouseEvent } from 'react';
 import type { CatalogCard } from '../utils/cardList';
 import { PreviewContext } from './PreviewContext';
 
@@ -7,6 +7,18 @@ import { PreviewContext } from './PreviewContext';
  * builder provides its own, with − and + for the open deck.
  */
 export const InspectContext = createContext<((card: CatalogCard) => void) | null>(null);
+
+/**
+ * Marks a battle as on screen (the game board calls it while it's shown; it returns the undo): the CardInspector then leaves
+ * out the flair options (the user's, 2026-10-26: no flair shopping during a battle).
+ */
+export const BattleShownContext = createContext<(() => () => void) | null>(null);
+
+/** While mounted, the CardInspector opened from here is a battle's (BattleShownContext). */
+export function useBattleShown() {
+  const shown = useContext(BattleShownContext);
+  useEffect(() => shown?.(), [shown]);
+}
 
 /** The card catalog by id (CardInspectProvider), for cards known only by id (the game's and runs' cards). Null until loaded. */
 export const CatalogContext = createContext<Map<string, CatalogCard> | null>(null);

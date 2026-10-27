@@ -7,6 +7,12 @@ import { DIALOG, DIALOG_BACKDROP } from '../utils/styles';
 import { Card } from './Card';
 import { PreviewContext } from './PreviewContext';
 
+/** Abilities used from where the cards are, not in play (Rebirth, Propagation, Prehistoric Call; Busybody from the hand): a card's, or null. */
+export interface ZoneAbilities {
+  of: (card: CardInstance) => { name: string; error: string | null } | null;
+  use: (card: CardInstance) => void;
+}
+
 /**
  * A discard pile spread out to view, newest card first, in a window in the middle of the screen styled like the
  * card choices (PendingChoicePanel): the same large high-res cards in a scrolling grid. Opened by clicking the pile.
@@ -19,6 +25,7 @@ export function DiscardPane({
   cards,
   onClose,
   note = `${discard.length}, newest first`,
+  abilities,
 }: {
   title: string;
   discard: CardInstance[];
@@ -26,6 +33,8 @@ export function DiscardPane({
   onClose: () => void;
   /** Beside the title. Other cards shown the same way (the phone layout's face-up prizes and CPU hand) just give their count. */
   note?: string;
+  /** The player's own discard pile: the Abilities its cards use from there (Rebirth, Propagation…), each with a Use button under its card. */
+  abilities?: ZoneAbilities;
 }) {
   const setPreview = useContext(PreviewContext);
   useEscape(onClose);
@@ -51,9 +60,28 @@ export function DiscardPane({
           </div>
           {/* Cards outside the play area take their width from --card-lg. */}
           <div className="flex max-h-[70vh] flex-wrap justify-center gap-2 overflow-y-auto p-1" style={{ '--card-lg': '8.5rem' } as CSSProperties}>
-            {[...discard].reverse().map((c) => (
-              <Card key={c.uid} def={lookupCard(cards, c.defId)} highRes />
-            ))}
+            {[...discard].reverse().map((c) => {
+              const ability = abilities?.of(c);
+              return ability ? (
+                // Its Ability under it: Use, or why it can't be used now (as a benched Pokémon's power panel).
+                <div key={c.uid} className="flex flex-col items-center gap-1">
+                  <Card def={lookupCard(cards, c.defId)} highRes />
+                  <button
+                    className="w-full rounded bg-violet-700 px-2 py-1 text-xs transition hover:bg-violet-600 active:scale-95 disabled:opacity-40 disabled:hover:bg-violet-700"
+                    disabled={ability.error !== null}
+                    onClick={() => {
+                      onClose();
+                      abilities!.use(c);
+                    }}
+                  >
+                    Use {ability.name}
+                  </button>
+                  {ability.error && <p className="max-w-[8.5rem] text-center text-[11px] text-amber-300">{ability.error}</p>}
+                </div>
+              ) : (
+                <Card key={c.uid} def={lookupCard(cards, c.defId)} highRes />
+              );
+            })}
           </div>
         </section>
       </PreviewContext.Provider>

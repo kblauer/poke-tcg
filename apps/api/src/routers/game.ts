@@ -44,15 +44,17 @@ function shownView(state: GameState, defId: string | null | undefined) {
  * Tool work by itself (a Berry: LogEntry's `tool`), the checkup as a frame of its own after it (an END_TURN), so the
  * board shows the move (its attack, the Sleep it gave) before those flips. A Tool's checkup is shown as it ended, then
  * the next turn as one more frame, so the Tool's animation plays between the attack and the turn's end (the user's).
- * A Burned Pokémon's damage is a frame too (`checkup.burn`), before its flip (the user's).
+ * A Burned Pokémon's damage is a frame too (`checkup.burn`), before its flip (the user's), and a Poisoned Pokémon's before it
+ * (`checkup.poison`), so each condition's damage animation (LogEntry's `conditionDamage`) plays on its own, one after the other.
  * `checkup`: the state as the checkup began and ended (captureCheckup); every frame has the move's version.
  */
 function moveFrames(player: string, type: GameAction['type'], after: GameState, checkup: Checkup | null, highlight: ReturnType<typeof moveHighlights>[number], defId?: string | null) {
   const from = checkup?.start.log?.at(-1)?.n ?? 0;
   const tool = !!checkup?.end.log?.some((e) => e.tool && (e.n ?? 0) > from);
-  if (!checkup || (!tool && !after.log?.some((e) => e.coin && (e.n ?? 0) > from))) return [{ player, type, view: shownView(after, defId), highlight }];
+  const hurt = !!checkup?.end.log?.some((e) => e.conditionDamage && (e.n ?? 0) > from);
+  if (!checkup || (!tool && !hurt && !after.log?.some((e) => e.coin && (e.n ?? 0) > from))) return [{ player, type, view: shownView(after, defId), highlight }];
   const endTurn = (state: GameState) => ({ player, type: 'END_TURN' as const, view: getPlayerView({ ...state, version: after.version }, HUMAN_ID), highlight: null });
-  return [{ player, type, view: shownView({ ...checkup.start, version: after.version }, defId), highlight }, ...(checkup.burn ? [endTurn(checkup.burn)] : []), ...(tool ? [endTurn(checkup.end)] : []), endTurn(after)];
+  return [{ player, type, view: shownView({ ...checkup.start, version: after.version }, defId), highlight }, ...(checkup.poison ? [endTurn(checkup.poison)] : []), ...(checkup.burn ? [endTurn(checkup.burn)] : []), ...(tool ? [endTurn(checkup.end)] : []), endTurn(after)];
 }
 
 export async function loadOwnGame(gameId: string, userId: string) {

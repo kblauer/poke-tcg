@@ -36,6 +36,7 @@ export function CardInspector({
   favorite,
   unlocked,
   onClose,
+  flair = true,
 }: {
   card: CatalogCard;
   locked: boolean;
@@ -47,6 +48,8 @@ export function CardInspector({
   /** How many copies of the card the account has unlocked, for a card that counts them. */
   unlocked?: number;
   onClose: () => void;
+  /** The flair options (FlairPicker): left out during a battle (the user's, 2026-10-26). */
+  flair?: boolean;
 }) {
   /** A press has started on it since it opened. */
   const pressed = useRef(false);
@@ -62,7 +65,7 @@ export function CardInspector({
     const { left, top, width, height } = el.getBoundingClientRect();
     setPlayed((p) => ({ id: (p?.id ?? 0) + 1, effect, moment: EFFECT_MOMENTS[slot], box: { left, top, width, height } }));
   };
-  const picker = (slot: FlairSlot) => (
+  const picker = (slot: FlairSlot) => flair && (
     <FlairPicker
       card={card}
       slot={slot}

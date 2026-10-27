@@ -1,7 +1,7 @@
 // Downloads the card pool from TCGdex into a JSON snapshot that `prisma/seed.ts` loads into the database: the Wizards of
 // the Coast era (1999–2003), Generation 3's EX series, EX Ruby & Sapphire to EX Power Keepers (2003–2007), Generation 4's
-// Diamond & Pearl and Platinum series (2007–2009), and the HeartGold & SoulSilver series with Call of Legends (2010–2011,
-// Gen 2's: each game in its region's generation, the user's).
+// Diamond & Pearl and Platinum series (2007–2009), the HeartGold & SoulSilver series with Call of Legends (2010–2011,
+// Gen 2's: each game in its region's generation, the user's), and Generation 5's Black & White series (2011–2013).
 //
 //   pnpm --filter @poke-tcg/db cards:fetch
 //   pnpm --filter @poke-tcg/db cards:fetch -- dp1 dp2     (only these sets, merged into the snapshot: every other card
@@ -44,6 +44,13 @@ export const GEN4_SETS = ['dp1', 'dpp', 'dp2', 'dp3', 'dp4', 'dp5', 'dp6', 'dp7'
 
 /** The HeartGold & SoulSilver series and Call of Legends, in release order: Gen 2's sets (Johto), with its Black Star Promos. */
 export const HGSS_SETS = ['hgss1', 'hgssp', 'hgss2', 'hgss3', 'hgss4', 'col1'];
+
+/**
+ * Generation 5's sets (Unova), in release order: the Black & White series, Black & White to Legendary Treasures with
+ * Dragon Vault (the user's list, 2026-10-26). Not in it: `bwp` (the BW Black Star Promos) and `rc` (Legendary
+ * Treasures' Radiant Collection, a set of its own on TCGdex).
+ */
+export const GEN5_SETS = ['bw1', 'bw2', 'bw3', 'bw4', 'bw5', 'bw6', 'dv1', 'bw7', 'bw8', 'bw9', 'bw10', 'bw11'];
 
 const CARD_FIELDS = `
   id localId name image category rarity illustrator hp types stage evolveFrom dexId retreat suffix
@@ -129,7 +136,7 @@ async function fetchCards(ids: string[]): Promise<TcgdexCard[]> {
 const only = process.argv.slice(2).filter((a) => !a.startsWith('-'));
 const sets: TcgdexSet[] = [];
 const cardIds: string[] = [];
-for (const id of only.length ? only : [...WOTC_SETS, ...EX_SETS, ...GEN4_SETS, ...HGSS_SETS]) {
+for (const id of only.length ? only : [...WOTC_SETS, ...EX_SETS, ...GEN4_SETS, ...HGSS_SETS, ...GEN5_SETS]) {
   const result = await fetchSet(id);
   sets.push(result.set);
   cardIds.push(...result.cardIds);
@@ -142,6 +149,33 @@ for (let i = 0; i < cardIds.length; i += BATCH_SIZE) {
   process.stdout.write(`\rFetched ${cards.length}/${cardIds.length} cards`);
 }
 process.stdout.write('\n');
+
+/**
+ * Generation 5's holos, which TCGdex lists as normal printings (its `variants` say "normal" for nearly every Black & White
+ * card): printed holo are every Pokémon-EX, the Ultra Rares (the full arts) and Secret Rares, all of Dragon Vault, the
+ * Radiant Collection (Legendary Treasures' "RC" cards), and the Rares sold only as holofoil, by TCGdex's own TCGplayer
+ * prices of the card (a holofoil printing and no normal one). Marked `holo` and not `normal`, as other sets' holos are.
+ */
+async function markGen5Holos(all: TcgdexCard[]) {
+  const gen5 = all.filter((c) => GEN5_SETS.includes(c.set.id));
+  const holoByPrinting = (c: TcgdexCard) => c.suffix === 'EX' || c.rarity === 'Ultra Rare' || c.rarity === 'Secret Rare' || c.set.id === 'dv1' || c.localId.startsWith('RC');
+  const rares = gen5.filter((c) => c.rarity === 'Rare' && !holoByPrinting(c));
+  let done = 0;
+  const holofoilOnly = new Set<string>();
+  for (let i = 0; i < rares.length; i += 8) {
+    await Promise.all(
+      rares.slice(i, i + 8).map(async (c) => {
+        const raw = await request<{ pricing?: { tcgplayer?: Record<string, unknown> } }>(`${API}/en/cards/${encodeURIComponent(c.id)}`);
+        const printings = Object.keys(raw.pricing?.tcgplayer ?? {});
+        if (printings.includes('holofoil') && !printings.includes('normal')) holofoilOnly.add(c.id);
+        process.stdout.write(`\rGen 5 rares' printings: ${++done}/${rares.length}`);
+      }),
+    );
+  }
+  if (rares.length) process.stdout.write('\n');
+  for (const c of gen5) if (holoByPrinting(c) || holofoilOnly.has(c.id)) c.variants = { firstEdition: false, reverse: false, ...c.variants, holo: true, normal: false };
+}
+await markGen5Holos(cards);
 
 // Cards without art can't be shown in the UI, so leave them out, along with any set left empty.
 const withImages = cards.filter((c) => c.image);

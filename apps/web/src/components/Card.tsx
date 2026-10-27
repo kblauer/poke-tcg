@@ -3,14 +3,24 @@ import { useContext, type Ref } from 'react';
 import { typeColor } from '../utils/cardColors';
 import { LARGE_CARD, SMALL_CARD } from '../utils/layout';
 
-/** Badges for Special Conditions and protective effects on a Pokémon in play. */
+/**
+ * The Special Conditions on a Pokémon in play, as the user's round icons (public/status/: game8's, made one size by
+ * tools/status-tags/standardize.py; agreed 2026-10-26): `amount` is Poison's damage when it's more than 10. With the Settings
+ * page's text status tags on (useTextStatus), the original text tags instead: `label` on `className`.
+ */
+function conditionTags(p: InPlayPokemon): { image: string; title: string; amount?: number; label: string; className: string }[] {
+  const tags = [];
+  if (p.condition === 'asleep') tags.push({ image: '/status/asleep.png', title: "Asleep: flips to wake up between turns; can't attack or retreat", label: 'SLP', className: 'bg-indigo-500' });
+  if (p.condition === 'confused') tags.push({ image: '/status/confused.png', title: 'Confused: flips to attack (tails: 30 damage to itself); retreats with no flip', label: 'CNF', className: 'bg-pink-500' });
+  if (p.condition === 'paralyzed') tags.push({ image: '/status/paralyzed.png', title: "Paralyzed: can't attack or retreat until after its owner's next turn", label: 'PAR', className: 'bg-yellow-500 text-slate-900' });
+  if (p.burned) tags.push({ image: '/status/burned.png', title: 'Burned: 20 damage between turns, then a flip; heads cures it', label: 'BRN', className: 'bg-orange-600' });
+  if (p.poison) tags.push({ image: '/status/poisoned.png', title: `Poisoned: ${p.poison} damage between turns`, ...(p.poison > 10 && { amount: p.poison }), label: `PSN${p.poison > 10 ? ` ${p.poison}` : ''}`, className: 'bg-green-600' });
+  return tags;
+}
+
+/** Badges for protective and other effects on a Pokémon in play (its Special Conditions are conditionTags). */
 function statusBadges(p: InPlayPokemon, cards?: CardLibrary): { label: string; title: string; className: string }[] {
   const badges = [];
-  if (p.condition === 'asleep') badges.push({ label: 'SLP', title: "Asleep: flips to wake up between turns; can't attack or retreat", className: 'bg-indigo-500' });
-  if (p.condition === 'confused') badges.push({ label: 'CNF', title: 'Confused: flips to attack (tails: 20 damage to itself) and to retreat', className: 'bg-pink-500' });
-  if (p.condition === 'paralyzed') badges.push({ label: 'PAR', title: "Paralyzed: can't attack or retreat until after its owner's next turn", className: 'bg-yellow-500 text-slate-900' });
-  if (p.burned) badges.push({ label: 'BRN', title: 'Burned: 20 damage between turns, then a flip; heads cures it', className: 'bg-orange-600' });
-  if (p.poison) badges.push({ label: `PSN${p.poison > 10 ? ` ${p.poison}` : ''}`, title: `Poisoned: ${p.poison} damage between turns`, className: 'bg-green-600' });
   const e = p.effects ?? {};
   if (e.preventAll !== undefined) badges.push({ label: '🛡', title: 'Protected from all effects of attacks, including damage, next turn', className: 'bg-sky-600' });
   else if (e.preventDamage !== undefined) badges.push({ label: '🛡', title: 'Protected from attack damage next turn', className: 'bg-sky-600' });
@@ -33,6 +43,7 @@ function statusBadges(p: InPlayPokemon, cards?: CardLibrary): { label: string; t
   return badges;
 }
 import { useFlair, usePattern } from '../hooks/useFlair';
+import { useTextStatus } from '../hooks/useTextStatus';
 import { useTouchHold } from '../hooks/useTouchHold';
 import { holoAttributes } from '../utils/holo';
 import { EnergyIcon } from './EnergyIcon';
@@ -43,16 +54,33 @@ import { PreviewContext } from './PreviewContext';
 import { CardImage } from './CardImage';
 
 /**
- * A card attached to a Pokémon in play: a disc the size of its Energy's (`size` px) showing the card's art, its name
- * on hover and the card itself in the hover preview (the Pokémon's again once the pointer leaves it).
+ * A card attached to a Pokémon in play: a disc the size of its Energy's (`size` px), or for a Pokémon Tool a tile (`tile`: its
+ * illustration, framed, filling its cell; the user's, 2026-10-26, after Pokémon TCG Pocket), showing the card's art, its name
+ * on hover and the card itself in the hover preview (the Pokémon's again once the pointer leaves it). A click (or tap) opens
+ * the card, its text and all, in the CardInspector, closed by a click anywhere else (the user's, 2026-10-26); the click
+ * goes no further, so the Pokémon's own (its moves, a slot's drop) doesn't happen.
  */
-function AttachedIcon({ def, holder, size }: { def: CardDef; holder: CardDef; size: number }) {
+function AttachedIcon({ def, holder, size, tile }: { def: CardDef; holder: CardDef; size?: number; tile?: { thin: boolean } }) {
   const setPreview = useContext(PreviewContext);
+  const catalog = useContext(CatalogContext);
+  const openInspector = useContext(InspectContext);
+  const entry = catalog?.get(def.id);
   return (
     <span
       title={def.name}
-      className="inline-block shrink-0 rounded-full border border-white bg-slate-700 bg-no-repeat shadow shadow-black/60"
-      style={{ width: size, height: size, backgroundImage: def.imageUrl ? `url(${def.imageUrl}/low.webp)` : undefined, backgroundSize: '260%', backgroundPosition: '50% 24%' }}
+      role={openInspector && entry ? 'button' : undefined}
+      onClick={
+        openInspector && entry
+          ? (e) => {
+              e.stopPropagation();
+              setPreview(null);
+              openInspector(entry);
+            }
+          : undefined
+      }
+      className={`${tile ? `block aspect-[4/3] w-full rounded-[10%] ${tile.thin ? 'border' : 'border-2'} shadow-md shadow-black/70` : 'inline-block shrink-0 rounded-full border shadow shadow-black/60'} border-white bg-slate-700 bg-no-repeat ${openInspector && entry ? 'cursor-pointer' : ''}`}
+      // A tile shows the card's illustration (its upper part, as the printed cards frame it); an icon a disc of it.
+      style={{ ...(!tile && { width: size, height: size }), backgroundImage: def.imageUrl ? `url(${def.imageUrl}/low.webp)` : undefined, backgroundSize: tile ? '122%' : '260%', backgroundPosition: tile ? '50% 21%' : '50% 24%' }}
       onMouseEnter={(e) => setPreview({ def, x: e.clientX, y: e.clientY, from: e.currentTarget, mine: !!e.currentTarget.closest('[data-mine]') })}
       onMouseLeave={(e) => {
         const card = e.currentTarget.closest<HTMLElement>('[data-in-play]');
@@ -61,6 +89,21 @@ function AttachedIcon({ def, holder, size }: { def: CardDef; holder: CardDef; si
     />
   );
 }
+
+/** The attached Trainers shown only by their badge (statusBadges), with no icon (the user's, 2026-10-26). */
+const BADGED = new Set(['PlusPower', 'Defender', "Sabrina's ESP", 'Charity', "Brock's Protection", "Koga's Ninja Trick"]);
+
+/**
+ * A Technical Machine, by its name (the card component can't read the engine's effects): only its attack, in the Active Pokémon's
+ * moves with its own, so no icon (the user's, 2026-10-26). The Pokémon Tools with an attack (G Booster, G Scope) are tiles.
+ */
+const MACHINE = /Technical Machine|Cube 01$|^Miracle Sphere|^Mystery Plate/;
+
+/** An attached card shown as a round icon: not a Pokémon Tool (a tile), a Technical Machine, nor one shown only by its badge (BADGED, Shapeshift). */
+const iconed = (cards: CardLibrary, a: NonNullable<InPlayPokemon['attached']>[number]) => {
+  const name = lookupCard(cards, a.card.defId).name;
+  return !a.tool && !a.shapeshift && !BADGED.has(name) && !MACHINE.test(name);
+};
 
 /**
  * Card art from TCGdex (aspect ratio 63:88), with damage, attached energy and attached cards overlaid when in play. Right-clicking it
@@ -107,6 +150,9 @@ export function Card({
   const pattern = usePattern(def.id, mine);
   const border = useFlair(def.id, 'border', mine);
   const size = small ? SMALL_CARD : LARGE_CARD;
+  // Its Special Conditions as text tags, first among its badges, when the Settings page says so; otherwise its round icons.
+  const [textStatus] = useTextStatus();
+  const badges = inPlay ? [...(textStatus ? conditionTags(inPlay) : []), ...statusBadges(inPlay, cards)] : [];
   return (
     <div
       {...hold}
@@ -131,20 +177,51 @@ export function Card({
         </span>
       )}
       {inPlay && (
-        <div className="absolute left-1 top-1 flex flex-col items-start gap-0.5">
-          {/* The cards attached to it (Pokémon Tools, Trainers that stay on it, Shapeshift), as round icons like its Energy's, above its badges. */}
-          {cards && (inPlay.attached ?? []).length > 0 && (
-            <div className="flex flex-wrap gap-0.5">
-              {inPlay.attached!.map((a) => (
-                <AttachedIcon key={a.card.uid} def={lookupCard(cards, a.card.defId)} holder={def} size={small ? 18 : 22} />
+        // The user's (2026-10-26): the cards attached to it but its Pokémon Tools (Trainers that stay on it, Shapeshift; the Tools are
+        // tiles, below), round icons like its Energy's, two to a row in the top left corner, left to right then top to bottom; its Special Conditions to their right
+        // as the user's round icons, in the same two-wide layout; then its other badges, half as big again, two to a row. PlusPower,
+        // Defender, Sabrina's ESP, Charity, Brock's Protection, Koga's Ninja Trick and Shapeshift have no icon, only their badge (iconed).
+        <div className="absolute left-1 right-1 top-1 flex items-start gap-0.5">
+          {cards && (inPlay.attached ?? []).some((a) => iconed(cards, a)) && (
+            <div className="grid grid-cols-[repeat(2,max-content)] gap-0.5">
+              {inPlay.attached!
+                .filter((a) => iconed(cards, a))
+                .map((a) => (
+                  <AttachedIcon key={a.card.uid} def={lookupCard(cards, a.card.defId)} holder={def} size={small ? 18 : 22} />
+                ))}
+            </div>
+          )}
+          {!textStatus && conditionTags(inPlay).length > 0 && (
+            <div className="grid grid-cols-[repeat(2,max-content)] gap-0.5">
+              {conditionTags(inPlay).map((t) => (
+                <span key={t.image} title={t.title} className="relative inline-block shrink-0">
+                  <img src={t.image} alt={t.title.split(':')[0]} draggable={false} className={`${small ? 'h-[22px] w-[22px]' : 'h-7 w-7'} drop-shadow`} />
+                  {t.amount && <span className="absolute -right-1 -top-1 rounded-full bg-green-700 px-1 text-[10px] font-bold leading-4 text-white shadow">{t.amount}</span>}
+                </span>
               ))}
             </div>
           )}
-          {statusBadges(inPlay, cards).map((b, i) => (
-            <span key={`${b.label}-${i}`} title={b.title} className={`${b.className} rounded px-1 text-[10px] font-bold leading-4 text-white shadow`}>
-              {b.label}
-            </span>
-          ))}
+          {badges.length > 0 && (
+            <div className="grid grid-cols-[repeat(2,max-content)] gap-0.5">
+              {badges.map((b, i) => (
+                <span key={`${b.label}-${i}`} title={b.title} className={`${b.className} rounded px-[3.6px] text-[15px] font-bold leading-[20.4px] text-white shadow`}>
+                  {b.label}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {inPlay && cards && (inPlay.attached ?? []).some((a) => a.tool) && (
+        // Its Pokémon Tools (the user's, 2026-10-26, after Pokémon TCG Pocket): tiles of their art on the card's left edge, over the
+        // lower part of its illustration, each a quarter of the card wide; several two to a row (a 2×2 for four: Toolbox), left to
+        // right then top to bottom.
+        <div className={`absolute left-[3%] top-[31%] grid gap-[3%] ${(inPlay.attached ?? []).filter((a) => a.tool).length > 1 ? 'w-[55%] grid-cols-2' : 'w-[26%] grid-cols-1'}`}>
+          {inPlay.attached!
+            .filter((a) => a.tool)
+            .map((a) => (
+              <AttachedIcon key={a.card.uid} def={lookupCard(cards, a.card.defId)} holder={def} tile={{ thin: !!small }} />
+            ))}
         </div>
       )}
       {inPlay && cards && inPlay.energy.length > 0 && (

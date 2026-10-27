@@ -10,6 +10,8 @@ const TYPE_COLORS: Record<EnergyType, string> = {
   darkness: 'bg-slate-800',
   metal: 'bg-zinc-400',
   colorless: 'bg-slate-300',
+  // The Black & White series' Dragon type: the cards' dark gold (a game colour, not the theme's yellow).
+  dragon: 'bg-[#b58f1d]',
 };
 
 /** Background class for an energy type. */

@@ -1,5 +1,6 @@
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import BoltIcon from '@mui/icons-material/Bolt';
+import CycloneIcon from '@mui/icons-material/Cyclone';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -23,6 +24,8 @@ const ICONS: Record<EnergyType, ComponentType<{ sx?: object }>> = {
   darkness: DarkModeIcon,
   metal: SettingsIcon,
   colorless: StarIcon,
+  // Dragon (Black & White series): no dragon among Material's symbols, so a swirl.
+  dragon: CycloneIcon,
 };
 
 /** Rainbow Energy (every type): a rainbow disc. */

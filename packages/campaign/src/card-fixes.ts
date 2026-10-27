@@ -7,8 +7,35 @@
 import { attackEffect, energyEffect, powerEffect, trainerEffect, type Attack, type CardDef, type EnergyType, type PokemonCardDef, type Stage } from '@poke-tcg/game-engine';
 import { GEN2_SETS, GEN3_SETS, POOL_SETS, type Rarity } from './pool.js';
 
-const ENERGY_TYPES = new Set<EnergyType>(['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'darkness', 'metal', 'colorless']);
-const STAGES: Record<string, Stage> = { Basic: 'basic', Baby: 'basic', Stage1: 'stage1', Stage2: 'stage2', 'LEVEL-UP': 'levelUp' };
+const ENERGY_TYPES = new Set<EnergyType>(['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'darkness', 'metal', 'colorless', 'dragon']);
+// A Restored Pokémon (Black & White series) is unevolved in play, as a Basic, but marked `restored` (no Basic Pokémon).
+const STAGES: Record<string, Stage> = { Basic: 'basic', Baby: 'basic', Stage1: 'stage1', Stage2: 'stage2', 'LEVEL-UP': 'levelUp', RESTORED: 'basic' };
+
+/** A card's printing's id: a reverse-holo print's ("<card id>-reverse") is its card's. */
+const printId = (id: string) => id.replace(/-reverse$/, '');
+
+/**
+ * The Black & White series' ACE SPEC cards (a deck may hold 1 of them, whatever their names: isAceSpec) and Team Plasma
+ * cards (Pokémon, Trainers and Plasma Energy), which TCGdex doesn't mark: from the printed cards, as pokemon-tcg-data
+ * (github.com/PokemonTCG/pokemon-tcg-data) lists their subtypes ("ACE SPEC", "Team Plasma"), checked against card images.
+ */
+const ACE_SPEC = new Set(['bw7-137', 'bw7-138', 'bw7-139', 'bw7-140', 'bw8-128', 'bw8-129', 'bw8-130', 'bw9-107', 'bw9-108', 'bw10-92', 'bw10-93', 'bw10-94', 'bw10-95']);
+const TEAM_PLASMA = new Set([
+  'bw8-3', 'bw8-13', 'bw8-14', 'bw8-17', 'bw8-25', 'bw8-33', 'bw8-39', 'bw8-41', 'bw8-46', 'bw8-48', 'bw8-49', 'bw8-55', 'bw8-58', 'bw8-62', 'bw8-66',
+  'bw8-67', 'bw8-70', 'bw8-84', 'bw8-86', 'bw8-87', 'bw8-90', 'bw8-91', 'bw8-92', 'bw8-94', 'bw8-101', 'bw8-108', 'bw8-112', 'bw8-113', 'bw8-114',
+  'bw8-118', 'bw8-119', 'bw8-123', 'bw8-124', 'bw8-125', 'bw8-127', 'bw8-132', 'bw8-134', 'bw8-135', 'bw9-11', 'bw9-12', 'bw9-13', 'bw9-16', 'bw9-20',
+  'bw9-23', 'bw9-26', 'bw9-29', 'bw9-30', 'bw9-31', 'bw9-34', 'bw9-38', 'bw9-46', 'bw9-48', 'bw9-49', 'bw9-52', 'bw9-53', 'bw9-56', 'bw9-57', 'bw9-64',
+  'bw9-66', 'bw9-67', 'bw9-70', 'bw9-73', 'bw9-74', 'bw9-78', 'bw9-79', 'bw9-88', 'bw9-98', 'bw9-100', 'bw9-101', 'bw9-102', 'bw9-104', 'bw9-105',
+  'bw9-106', 'bw9-109', 'bw9-110', 'bw9-111', 'bw9-114', 'bw9-115', 'bw10-2', 'bw10-8', 'bw10-11', 'bw10-13', 'bw10-19', 'bw10-22', 'bw10-23', 'bw10-24',
+  'bw10-33', 'bw10-61', 'bw10-65', 'bw10-66', 'bw10-74', 'bw10-76', 'bw10-77', 'bw10-86', 'bw10-91', 'bw10-92', 'bw10-93', 'bw10-97', 'bw10-99',
+  'bw10-100', 'bw11-102',
+]);
+
+/** Whether a card is an ACE SPEC card (the deck rule: at most 1 in a deck). */
+export const isAceSpec = (id: string) => ACE_SPEC.has(printId(id));
+
+/** Whether a card is a Team Plasma card. */
+export const isTeamPlasma = (id: string) => TEAM_PLASMA.has(printId(id));
 
 /** Shape of the TCGdex fields kept in Card.data (see packages/db/prisma/tcgdex.ts). */
 export interface CardData {
@@ -235,6 +262,10 @@ export function catalogCardDef(card: CatalogCard, length?: string): CardDef {
     });
     const baby = card.stage === 'Baby' || BABIES.has(card.id);
     const ex = data.suffix === 'ex';
+    // A Pokémon-EX (Black & White series: TCGdex's suffix "EX", the EX series' "ex" lower case), a kind of its own (agreed).
+    const pokemonEX = data.suffix === 'EX';
+    const restored = card.stage === 'RESTORED';
+    const teamPlasma = isTeamPlasma(card.id);
     // Both types of a Pokémon printed as two (Team Aqua's Cacturne: Grass and Darkness), and every Weakness and Resistance after the first.
     const types = card.types.length > 1 ? { types: card.types.map(energyType) } : {};
     const moreWeakness = (data.weaknesses ?? []).slice(1).map((w) => energyType(w.type));
@@ -260,6 +291,9 @@ export function catalogCardDef(card: CatalogCard, length?: string): CardDef {
       holo: isHolo(card),
       ...(baby && { baby }),
       ...(ex && { ex }),
+      ...(pokemonEX && { pokemonEX }),
+      ...(restored && { restored }),
+      ...(teamPlasma && { teamPlasma }),
       ...(length && { length }),
     };
   }
@@ -288,13 +322,15 @@ export function catalogCardDef(card: CatalogCard, length?: string): CardDef {
     // Boost Energy provides 3 Colorless Energy, Bounce Energy 2 (their other rules are the engine's).
     if (card.name === 'Boost Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'colorless', amount: 3, basic: false, holo: isHolo(card) };
     if (card.name === 'Bounce Energy') return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: 'colorless', amount: 2, basic: false, holo: isHolo(card) };
-    // Full Heal, Potion and Recycle Energy provide Colorless (their effects are the engine's); Darkness and Metal Energy 1 Energy of their type.
-    return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: known ? named : 'colorless', basic: false, holo: isHolo(card) };
+    // Full Heal, Potion and Recycle Energy provide Colorless (their effects are the engine's); Darkness and Metal Energy 1 Energy of their type. Plasma Energy is a Team Plasma card.
+    return { id: card.id, kind: 'energy', name: card.name, imageUrl, energyType: known ? named : 'colorless', basic: false, holo: isHolo(card), ...(isTeamPlasma(card.id) && { teamPlasma: true }) };
   }
   const text = data.effect ?? '';
   const effect = trainerEffect(card.id);
+  // ACE SPEC and Team Plasma Trainers (Black & White series).
+  const marks = { ...(isAceSpec(card.id) && { aceSpec: true }), ...(isTeamPlasma(card.id) && { teamPlasma: true }) };
   // A Trainer the engine doesn't implement yet can be in a deck, but can't be played (trainerError says so).
-  if (!effect) return { id: card.id, kind: 'trainer', name: card.name, imageUrl, text, holo: isHolo(card) };
+  if (!effect) return { id: card.id, kind: 'trainer', name: card.name, imageUrl, text, holo: isHolo(card), ...marks };
   // A Trainer played as a Pokémon (Clefairy Doll): no type, attacks, weakness or retreat.
   if (effect.asPokemon) {
     return {
@@ -313,5 +349,5 @@ export function catalogCardDef(card: CatalogCard, length?: string): CardDef {
       holo: isHolo(card),
     };
   }
-  return { id: card.id, kind: 'trainer', name: card.name, imageUrl, text, holo: isHolo(card) };
+  return { id: card.id, kind: 'trainer', name: card.name, imageUrl, text, holo: isHolo(card), ...marks };
 }

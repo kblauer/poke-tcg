@@ -28,7 +28,7 @@ function ask(ctx: PowerContext, choice: Parameters<PowerContext['pend']>[0]) {
 }
 
 /** Whether the power may discard Energy cards from this Pokémon of the opponent's: Brock's Protection and Unown K's Keep (logged). */
-function oppEnergyCanGo(ctx: PowerContext, p: InPlayPokemon): boolean {
+export function oppEnergyCanGo(ctx: PowerContext, p: InPlayPokemon): boolean {
   const why = energyProtected(ctx.state.cards, p)
     ? `Brock's Protection: ${pokemonName(ctx.state, p)}'s Energy can't be removed.`
     : energyKept(ctx.opp, [ctx.opp, ctx.me], ctx.state.cards, p)

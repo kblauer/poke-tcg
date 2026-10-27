@@ -8,7 +8,7 @@
 import type { EnergyType } from '@poke-tcg/game-engine';
 import { BOSSES, boss, ELITE_FOUR, HOENN_ELITE_FOUR, HOENN_GYMS, JOHTO_ELITE_FOUR, JOHTO_GYMS, KANTO_GYMS, type Boss, type BossId } from './bosses.js';
 import { GEN1_DECK_RULES, GEN2_DECK_RULES, GEN3_DECK_RULES, type DeckRules } from './decks.js';
-import { BASIC_ENERGY, GEN2_BASIC_ENERGY, GEN2_DONE_SETS, GEN2_SETS, GEN3_BASIC_ENERGY, GEN3_DONE_SETS, GEN3_SETS, GEN4_SETS, POOL_SETS } from './pool.js';
+import { BASIC_ENERGY, GEN2_BASIC_ENERGY, GEN2_DONE_SETS, GEN2_SETS, GEN3_BASIC_ENERGY, GEN3_DONE_SETS, GEN3_SETS, GEN4_SETS, GEN5_SETS, POOL_SETS } from './pool.js';
 import { DEWFORD_GYM, FORTREE_GYM, HOENN_BOSS_ROOMS, HOENN_POKEMON_CENTER, LAVARIDGE_GYM, MAUVILLE_GYM, MOSSDEEP_GYM, PETALBURG_GYM, RUSTBORO_GYM, SOOTOPOLIS_GYM } from './hoenn-gyms.js';
 import { JAGGED_PASS, PETALBURG_WOODS, ROUTE_102, ROUTE_106, ROUTE_110, ROUTE_119, ROUTE_124, SOOTOPOLIS_CITY } from './hoenn-routes.js';
 import { CELADON_GYM, CERULEAN_GYM, CINNABAR_GYM, FUCHSIA_GYM, KANTO_BOSS_ROOMS, POKEMON_CENTER, POKEMON_TOWER_1F, POKEMON_TOWER_2F, POKEMON_TOWER_3F, POKEMON_TOWER_4F, POKEMON_TOWER_5F, POWER_PLANT, ROUTE_17, ROUTE_20, ROUTE_8, ROUTE_4, ROUTE_5, ROUTE_6, SAFFRON_GYM, VERMILION_GYM, VIRIDIAN_GYM } from './kanto-routes.js';
@@ -249,11 +249,13 @@ export const GENERATIONS: Record<number, Generation> = {
 
 /**
  * Every generation's booster packs, by generation (GENERATIONS'), for the Packs tab; and Gen 4's (Sinnoh's: the DP,
- * Platinum and HGSS sets), shown locked until its runs exist (the user's, 2026-10-24).
+ * Platinum and HGSS sets) and Gen 5's (Unova's: the Black & White series), shown locked until their runs exist (the
+ * user's, 2026-10-24 and 2026-10-26).
  */
 export const PACK_GENERATIONS: Record<number, { region: string; packs: string[] }> = {
   ...Object.fromEntries(Object.entries(GENERATIONS).map(([id, g]) => [id, { region: g.region, packs: g.packs }])),
   4: { region: 'Sinnoh', packs: GEN4_SETS },
+  5: { region: 'Unova', packs: GEN5_SETS },
 };
 
 /** The generation a run type belongs to. */

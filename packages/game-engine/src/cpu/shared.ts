@@ -5,6 +5,7 @@
 import { answerChoice, attackError, attackSituation, performAttack, resolveChoices, situationAttacks, traceDamage, type AttackChoices, type AttackSituation, type ChoiceSpec } from '../attacks.js';
 import { isBasicEnergy, isBasicPokemon, isLegend, isPokemonCard, isTrainerCard, lookupCard, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from '../cards.js';
 import { applyAction, cloneState, energyPool, resolveKnockouts, energyProvided, payCost, type PoolEnergy, evolveError, opponentOf, retreatCost, retreatError, type CardInstance, type GameAction, type GameState, type InPlayPokemon, type PlayerId, type PlayerState, type Target } from '../engine.js';
+import { trainerEffect } from '../effects/index.js';
 import { nextRandom } from '../rng.js';
 import { inPlayDef, openBenchSlot } from '../status.js';
 import { pendingChoiceView, type TrainerChoices } from '../trainers.js';
@@ -28,7 +29,8 @@ export const hpLeft = (cards: CardLibrary, p: InPlayPokemon) => pokemonDef(cards
 export function chooseActive(state: GameState, cpu: PlayerState): GameAction | null {
   if (cpu.ready) return null;
   // Its active only; it benches on its first turn.
-  if (cpu.active) return { type: 'START_BATTLE' };
+  // A First Ticket in the hand is always played as it starts (to go first).
+  if (cpu.active) return { type: 'START_BATTLE', ...(cpu.hand.some((c) => !!trainerEffect(c.defId)?.firstTicket) && { firstTicket: true }) };
   const basic = cpu.hand.find((c) => isBasicPokemon(lookupCard(state.cards, c.defId)));
   if (!basic) throw new Error('CPU has no Basic Pokémon to start with');
   return { type: 'SET_ACTIVE', cardUid: basic.uid };
@@ -608,7 +610,7 @@ export function resolveSearch(t: Turn): GameAction {
   if (choice.kind === 'discardFromHand' && choice.upTo) return { type: 'RESOLVE_CHOICE' };
   // Returning its own Pokémon to the hand (Fairy Power): it keeps them in play. Attract Energy: its Energy stays where it is.
   if (view.kind === 'ownPokemon' && view.optional) return { type: 'RESOLVE_CHOICE' };
-  if (choice.kind === 'moveAttached' || (choice.kind === 'deltaSwitch' && !choice.cardUid)) return { type: 'RESOLVE_CHOICE' };
+  if (choice.kind === 'moveAttached' || choice.kind === 'energyAnyWay' || (choice.kind === 'deltaSwitch' && !choice.cardUid)) return { type: 'RESOLVE_CHOICE' };
   // Healing one of its Pokémon (Heal): the one with the most damage. Attaching (Energy Spike): the active.
   if (view.kind === 'ownPokemon') {
     if (view.purpose === 'attach') return { type: 'RESOLVE_CHOICE', target: view.options.includes('active') ? 'active' : view.options[0] };
@@ -674,7 +676,7 @@ export function resolveSearch(t: Turn): GameAction {
 /**
  * An answer to a choice between labelled options. Lt. Surge's Treaty: both take a Prize card unless that helps the other
  * player more (they have fewer left). Bench Guard: Brock's Rhydon takes the 10 if that doesn't Knock it Out. Blaine's
- * Quiz #1: a guess at random. Otherwise the first (Sabrina's ESP: keep the flips).
+ * Quiz #1: a guess at random (Cedric Juniper's: always right). Otherwise the first (Sabrina's ESP: keep the flips).
  */
 function optionAnswer(t: Turn, count: number): number {
   const choice = t.state.pendingChoice!;
@@ -684,6 +686,8 @@ function optionAnswer(t: Turn, count: number): number {
     const rhydon = t.me.bench[choice.guard];
     return rhydon && hpLeft(t.state.cards, rhydon) > 10 ? 0 : 1;
   }
+  // Cedric Juniper: the CPU knows every Pokémon's height (the user's, 2026-10-26).
+  if (choice.kind === 'quiz' && choice.source === 'Cedric Juniper') return choice.answer;
   if (choice.kind === 'quiz' || choice.kind === 'guess') return Math.floor(nextRandom(t.state.rngState)[0] * count);
   // Looker's Investigation: a fresh hand of its own when it holds 3 cards or fewer, otherwise the opponent's hand goes.
   if (choice.kind === 'looker') return t.me.hand.length <= 3 ? 0 : 1;

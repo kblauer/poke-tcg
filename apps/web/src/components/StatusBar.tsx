@@ -151,7 +151,8 @@ export function StatusBar({
 }: {
   status: string;
   canEndTurn: boolean;
-  setup?: { canReset: boolean; canStart: boolean } | null;
+  /** `ticket`: a First Ticket in the hand, which may be played as the battle starts (Dragon Vault: go first). */
+  setup?: { canReset: boolean; canStart: boolean; ticket?: boolean } | null;
   endTurn: () => void;
   pending: GameAction | null;
   send: (a: GameAction) => void;
@@ -201,6 +202,18 @@ export function StatusBar({
             >
               {pending?.type === 'START_BATTLE' ? 'Starting…' : 'Start battle'}
             </button>
+            {setup.ticket && (
+              // First Ticket: start and play it, to go first (the user's, 2026-10-26: the player's choice). Below Start battle on a phone.
+              <button
+                data-banner-avoid
+                className={`${compact ? `${smallButton} absolute left-1/2 top-full mt-2 -translate-x-1/2` : `${button} absolute left-full top-1/2 ml-3 -translate-y-1/2`} z-[960] whitespace-nowrap disabled:bg-slate-700 disabled:text-slate-500`}
+                disabled={busy || !setup.canStart}
+                onClick={() => send({ type: 'START_BATTLE', firstTicket: true })}
+                title="Start, playing First Ticket from your hand to go first"
+              >
+                Start with First Ticket
+              </button>
+            )}
           </span>
         )}
         {canEndTurn && (

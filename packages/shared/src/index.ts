@@ -16,7 +16,7 @@ export const CPU_ID = 'cpu';
 const benchSlot = z.number().int().min(0).max(MAX_BENCH - 1);
 const target = z.union([z.literal('active'), benchSlot]);
 
-const energyType = z.enum(['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'darkness', 'metal', 'colorless']);
+const energyType = z.enum(['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting', 'darkness', 'metal', 'colorless', 'dragon']);
 
 /** Answers to an attack's questions (see AttackChoices in the engine). */
 const attackChoicesSchema = z.object({
@@ -111,11 +111,12 @@ export const gameActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('PROMOTE'), slot: benchSlot }),
   z.object({ type: z.literal('RETREAT'), slot: benchSlot, energyUids: z.array(z.string()).max(60) }),
   z.object({ type: z.literal('USE_POWER'), source: target, choices: powerChoicesSchema.optional() }),
+  z.object({ type: z.literal('USE_CARD_POWER'), cardUid: z.string() }),
   z.object({ type: z.literal('PLAY_TRAINER'), cardUid: z.string(), choices: trainerChoicesSchema.optional() }),
   resolveChoiceSchema,
   z.object({ type: z.literal('DISCARD_DOLL'), target }),
   z.object({ type: z.literal('RESET_SETUP') }),
-  z.object({ type: z.literal('START_BATTLE') }),
+  z.object({ type: z.literal('START_BATTLE'), firstTicket: z.boolean().optional() }),
   z.object({ type: z.literal('USE_STADIUM') }),
   z.object({ type: z.literal('FLIP_FACE_DOWN'), target }),
   z.object({ type: z.literal('DISCARD_SHAPESHIFT'), target }),
@@ -156,7 +157,9 @@ export const debugCommandSchema = z.discriminatedUnion('type', [
 ]) satisfies z.ZodType<DebugCommand>;
 
 /** The Settings page's debug switches (debug.setFlags): unlock everything that's locked, 1,000,000 ₱, Stardust or EXP added. */
-export const debugFlagsInput = z.object({ unlockAll: z.boolean().optional(), million: z.boolean().optional(), dust: z.boolean().optional(), exp: z.boolean().optional() });
+export const debugFlagsInput = z.object({ unlockAll: z.boolean().optional() });
+/** A debug button adding 1,000,000 to the bank, Stardust or EXP (debug.addCurrency). */
+export const debugAddInput = z.object({ currency: z.enum(['bank', 'stardust', 'exp']) });
 
 export const debugInput = z.object({
   gameId: z.uuid(),

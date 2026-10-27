@@ -3,7 +3,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { SMALL_CARD } from '../../utils/layout';
 import { Card } from '../Card';
 import { CardBack } from '../CardBack';
-import { DiscardPane } from '../DiscardPane';
+import { DiscardPane, type ZoneAbilities } from '../DiscardPane';
 
 /** A pile's size: small cards inside take --card-pile (index.css, .phone-cards) as their width. */
 const PILE = `relative shrink-0 [--card-sm:var(--card-pile)] ${SMALL_CARD}`;
@@ -58,7 +58,22 @@ export function PhonePrizes({ count, owner, faceUp }: { count: number; owner: st
  * deck, and the discard pile, half as big again, to their left, centred on them; each with its count. A tap on the
  * discard pile spreads it out to look through (DiscardPane).
  */
-export function PhonePiles({ deckCount, discard, cards, owner, prizes }: { deckCount: number; discard: CardInstance[]; cards: CardLibrary; owner: string; prizes: ReactNode }) {
+export function PhonePiles({
+  deckCount,
+  discard,
+  cards,
+  owner,
+  prizes,
+  abilities,
+}: {
+  deckCount: number;
+  discard: CardInstance[];
+  cards: CardLibrary;
+  owner: string;
+  prizes: ReactNode;
+  /** The player's own: Abilities used from the discard pile (DiscardPane). */
+  abilities?: ZoneAbilities;
+}) {
   const [browsing, setBrowsing] = useState(false);
   const top = discard.at(-1);
   return (
@@ -80,7 +95,7 @@ export function PhonePiles({ deckCount, discard, cards, owner, prizes }: { deckC
           <Count>{deckCount}</Count>
         </div>
       </div>
-      {browsing && <DiscardPane title={`${owner} discard pile`} discard={discard} cards={cards} onClose={() => setBrowsing(false)} />}
+      {browsing && <DiscardPane title={`${owner} discard pile`} discard={discard} cards={cards} onClose={() => setBrowsing(false)} abilities={abilities} />}
     </div>
   );
 }

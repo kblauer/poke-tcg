@@ -1,6 +1,6 @@
 import { useDroppable } from '@dnd-kit/core';
 import { lookupCard, type CardInstance, type CardLibrary, type GameAction } from '@poke-tcg/game-engine';
-import { useContext, useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useContext, useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { Card } from './Card';
 import { HandCard } from './HandCard';
 import { PAGE_BLEED } from '../utils/layout';
@@ -105,6 +105,7 @@ export function Hand({
   showPlayable = false,
   onCardClick,
   compact = false,
+  panel = null,
 }: {
   hand: CardInstance[];
   cards: CardLibrary;
@@ -119,6 +120,8 @@ export function Hand({
   showPlayable?: boolean;
   onCardClick: (card: CardInstance) => void;
   compact?: boolean;
+  /** A panel over one card, its Ability used from the hand (Busybody: Board's), raised above it. */
+  panel?: { uid: string; node: ReactNode } | null;
 }) {
   const busy = pending !== null;
   const ref = useRef<HTMLDivElement>(null);
@@ -190,7 +193,8 @@ export function Hand({
   };
   /** Phone: a finger goes down on the hand. Its card's own handlers (the drag, the long press) don't see it: the hand handles it. */
   const fingerDown = (e: ReactPointerEvent) => {
-    if (forwarding.current || e.pointerType !== 'touch' || !n) return;
+    // The panel over a card (its Ability's Use button) is pressed as itself, not as the card.
+    if (forwarding.current || e.pointerType !== 'touch' || !n || (e.target as Element).closest('[data-hand-ability]')) return;
     const card = (e.target as Element).closest('[data-hand-uid]')?.getAttribute('data-hand-uid');
     if (!card) return;
     e.stopPropagation();
@@ -280,7 +284,7 @@ export function Hand({
         {hand.map((c, i) => {
           const isHovered = i === hoveredIndex;
           const up = i === upIndex;
-          const raised = isHovered || up || browsing === c.uid || selected === c.uid || (pick?.picked.has(c.uid) ?? false);
+          const raised = isHovered || up || browsing === c.uid || selected === c.uid || panel?.uid === c.uid || (pick?.picked.has(c.uid) ?? false);
           const x = lefts[i]!;
           // Lifted so the whole card shows above the bottom of the screen; grown from its bottom edge.
           const y = !raised ? 0 : -(cardH - visibleH) - (isHovered || up ? 0 : 4);
@@ -316,6 +320,7 @@ export function Hand({
                 busy={busy}
                 onClick={() => onCardClick(c)}
               />
+              {panel?.uid === c.uid && <div className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2">{panel.node}</div>}
             </div>
           );
         })}

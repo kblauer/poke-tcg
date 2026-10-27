@@ -65,7 +65,7 @@ export const babyEvolution = (name: string | string[]): PowerEffect => ({
   blocked(s) {
     const source = pokemonAt(s.me, s.source);
     if (!babyCards(s, name).length) return `No ${[name].flat().join(' or ')} in your hand`;
-    const blocked = evolutionBlocked([s.me, s.opp], s.cards) ?? (source && primalBlock(source, [s.me, s.opp], s.cards));
+    const blocked = evolutionBlocked([s.me, s.opp], s.cards, true) ?? (source && primalBlock(source, [s.me, s.opp], s.cards));
     if (blocked) return blocked;
     return source?.effects?.noEvolve !== undefined ? `${inPlayDef(s.cards, source).name} can't evolve this turn` : null;
   },

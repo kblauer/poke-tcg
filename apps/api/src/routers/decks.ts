@@ -1,4 +1,5 @@
 import { TRPCError } from '@trpc/server';
+import { isAceSpec } from '@poke-tcg/campaign';
 import { prisma, type Card } from '@poke-tcg/db';
 import { DECK_NAME_LENGTH, DECK_SIZE, MAX_UNOWN, maxCopiesOf, copiesOfName, unownCount, deckIdInput, deckImportInput, deckOrderInput, deckProblems, deckRenameInput, deckSaveInput, favoriteCardInput, favoriteDeckInput, type DeckRuleCard } from '@poke-tcg/shared';
 import { ensureUser, type AuthUser } from '../auth.js';
@@ -9,11 +10,12 @@ import { protectedProcedure, router } from '../trpc.js';
 import { holoTwins, lockedProblem, unlockedIds, type Unlocked } from '../unlocks.js';
 
 /** What the deck rules need from a catalog row. */
-export const ruleCard = (card: Pick<Card, 'name' | 'kind' | 'stage' | 'data'>): DeckRuleCard => ({
+export const ruleCard = (card: Pick<Card, 'name' | 'kind' | 'stage' | 'data'>, id: string): DeckRuleCard => ({
   name: card.name,
   kind: card.kind,
   stage: card.stage,
   basicEnergy: isBasicEnergyCard(card),
+  ...(isAceSpec(id) && { aceSpec: true }),
 });
 
 const cardFields = { select: { name: true, kind: true, stage: true, data: true } } as const;
@@ -37,8 +39,8 @@ async function loadEditableDeck(deckId: string, userId: string) {
 }
 
 /** Why the deck's cards break the rules (see deckProblems). */
-export const problemsOf = (cards: { quantity: number; card: Pick<Card, 'name' | 'kind' | 'stage' | 'data'> }[]) =>
-  deckProblems(cards.map((c) => ({ card: ruleCard(c.card), quantity: c.quantity })));
+export const problemsOf = (cards: { cardId: string; quantity: number; card: Pick<Card, 'name' | 'kind' | 'stage' | 'data'> }[]) =>
+  deckProblems(cards.map((c) => ({ card: ruleCard(c.card, c.cardId), quantity: c.quantity })));
 
 /**
  * Why the deck can't be played: the rules, and cards the user hasn't unlocked (or more copies of a limited holo than
@@ -83,7 +85,7 @@ async function checkCards(cards: DeckList['cards']) {
   }
   const rows = await catalogCards(cards.map((c) => c.cardId));
   if (rows.length !== cards.length) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Unknown card in the deck' });
-  const entries = cards.map((c) => ({ card: ruleCard(rows.find((r) => r.id === c.cardId)!), quantity: c.quantity }));
+  const entries = cards.map((c) => ({ card: ruleCard(rows.find((r) => r.id === c.cardId)!, c.cardId), quantity: c.quantity }));
   const total = entries.reduce((n, e) => n + e.quantity, 0);
   if (total > DECK_SIZE) throw new TRPCError({ code: 'BAD_REQUEST', message: `A deck can't have more than ${DECK_SIZE} cards` });
   const over = entries.find((e) => !e.card.basicEnergy && copiesOfName(entries, e.card.name) > maxCopiesOf(e.card));

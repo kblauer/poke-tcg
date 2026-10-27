@@ -1,6 +1,6 @@
-// Pokédex lengths for Blaine's Quiz #1, which TCGdex doesn't have. Heights in decimetres by National Pokédex number
-// (1–251, the WOTC era), from PokeAPI's data (data/v2/csv/pokemon.csv), rounded to the inch as the cards print them
-// (checked against the printed Gym Heroes cards).
+// Pokédex lengths for Blaine's Quiz #1 and Cedric Juniper, which TCGdex doesn't have. Heights in decimetres by National Pokédex number
+// (1–649: the WOTC era's for Blaine's Quiz #1, and Gen 5's for Cedric Juniper), from PokeAPI's data (data/v2/csv/pokemon.csv),
+// rounded to the inch as the cards print them (checked against the printed Gym Heroes cards).
 const HEIGHT_DM = [
   7, 10, 20, 6, 11, 17, 5, 10, 16, 3, 7, 11, 3, 6, 10, 3, 11, 15, 3, 7, 3, 12, 20, 35, 4,
   8, 6, 10, 4, 8, 13, 5, 9, 14, 6, 13, 6, 11, 5, 10, 8, 16, 5, 8, 12, 3, 10, 10, 15, 2,
@@ -12,10 +12,25 @@ const HEIGHT_DM = [
   6, 2, 15, 6, 8, 14, 4, 4, 8, 12, 11, 4, 6, 8, 8, 3, 8, 12, 4, 14, 9, 10, 5, 20, 7,
   5, 13, 15, 6, 12, 15, 11, 92, 6, 14, 5, 18, 6, 15, 9, 6, 18, 7, 8, 4, 11, 6, 6, 9, 9,
   21, 17, 6, 14, 18, 5, 11, 6, 14, 12, 7, 14, 4, 6, 7, 12, 15, 19, 21, 20, 6, 12, 20, 52, 38,
-  6,
+  6, 5, 9, 17, 4, 9, 19, 4, 7, 15, 5, 10, 4, 5, 3, 6, 10, 7, 12, 5, 12, 15, 5, 10, 13,
+  3, 7, 6, 12, 4, 8, 16, 5, 8, 4, 12, 8, 14, 20, 5, 8, 8, 6, 10, 15, 10, 23, 2, 10, 6,
+  11, 5, 6, 4, 9, 21, 6, 13, 6, 15, 4, 4, 7, 6, 3, 4, 17, 8, 18, 20, 145, 7, 19, 5, 7,
+  9, 11, 7, 11, 20, 4, 13, 4, 11, 13, 27, 10, 12, 4, 9, 6, 11, 5, 15, 10, 15, 7, 15, 6, 62,
+  3, 10, 6, 11, 8, 16, 20, 6, 12, 6, 7, 15, 8, 11, 14, 4, 17, 18, 10, 6, 6, 11, 15, 6, 12,
+  16, 17, 18, 19, 14, 20, 45, 35, 70, 3, 17, 4, 11, 22, 5, 9, 12, 4, 8, 17, 3, 6, 12, 5, 10,
+  3, 10, 5, 9, 14, 2, 9, 9, 16, 5, 13, 2, 5, 9, 3, 12, 4, 7, 11, 4, 5, 3, 9, 12, 4,
+  12, 4, 12, 9, 9, 5, 10, 2, 4, 10, 5, 13, 5, 6, 6, 5, 10, 7, 14, 19, 6, 7, 12, 8, 20,
+  8, 13, 7, 13, 14, 4, 12, 10, 10, 22, 11, 12, 17, 24, 20, 18, 16, 15, 19, 10, 8, 20, 25, 9, 16,
+  14, 22, 13, 3, 3, 3, 3, 54, 42, 17, 37, 45, 15, 4, 3, 15, 2, 32, 4, 6, 8, 33, 5, 10, 16,
+  5, 8, 15, 5, 11, 4, 9, 12, 4, 11, 6, 11, 6, 10, 6, 10, 6, 11, 3, 6, 12, 8, 16, 4, 9,
+  17, 4, 9, 3, 7, 11, 6, 12, 14, 5, 8, 15, 13, 14, 3, 5, 12, 4, 12, 25, 3, 7, 5, 11, 10,
+  7, 10, 15, 6, 13, 10, 3, 14, 6, 11, 14, 5, 17, 7, 12, 5, 14, 6, 19, 7, 16, 4, 5, 4, 7,
+  15, 3, 6, 10, 5, 13, 4, 11, 13, 6, 19, 4, 5, 10, 2, 6, 12, 22, 12, 1, 8, 6, 10, 3, 6,
+  6, 2, 12, 21, 5, 10, 3, 6, 10, 6, 10, 18, 5, 26, 11, 4, 8, 7, 9, 14, 16, 10, 28, 5, 16,
+  16, 5, 15, 5, 12, 14, 3, 8, 14, 18, 11, 16, 21, 19, 20, 15, 15, 32, 29, 15, 30, 14, 6, 15,
 ];
 
-/** The length printed on a card of this National Pokédex number, e.g. `6' 3"`; undefined outside 1–251. */
+/** The length printed on a card of this National Pokédex number, e.g. `6' 3"`; undefined outside 1–649. */
 export function pokedexLength(dex: number | undefined): string | undefined {
   const dm = dex === undefined ? undefined : HEIGHT_DM[dex - 1];
   if (dm === undefined) return undefined;

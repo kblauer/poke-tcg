@@ -1,13 +1,16 @@
 // Booster packs, bought with the ₱ in the bank. Each is 11 cards from one set with the generally accepted
 // WOTC-era make-up (averaged over the sets, not each set's own odds): 1 rare (holo about 1 pack in 3),
 // 3 uncommons and 6 commons, all different (each of those now and then a rare instead: EXTRA_RARE_CHANCES), plus 1 basic Energy: the set's own, or the closest earlier set's, and
-// about 1 pack in 50 a holo Energy instead (found only in packs). An EX or Gen 4 set's pack has a reverse holo in place of one common
+// about 1 pack in 50 a holo Energy instead (found only in packs). An EX, Gen 4 or Gen 5 set's pack has a reverse holo in place of one common
 // (agreed with the user). Opening one unlocks its cards.
-import { BASIC_ENERGY, EX_SETS, GEN2_SETS, GEN4_SETS, type Rarity } from './pool.js';
+import { BASIC_ENERGY, EX_SETS, GEN2_SETS, GEN4_SETS, GEN5_SETS, type Rarity } from './pool.js';
 import { chance, pick, sample, type Rng } from './random.js';
 
-/** Sets with packs: Gen 1's, Gen 2's (GEN2_SETS), Gen 3's (EX_SETS) and Gen 4's (GEN4_SETS: locked until Gen 4's runs exist, the user's). */
-export const PACK_SETS = ['base1', 'base2', 'base3', 'basep', 'base4', 'base5', 'gym1', 'gym2', 'lc', ...GEN2_SETS, ...EX_SETS, ...GEN4_SETS];
+/**
+ * Sets with packs: Gen 1's, Gen 2's (GEN2_SETS), Gen 3's (EX_SETS), Gen 4's (GEN4_SETS) and Gen 5's (GEN5_SETS); Gen 4's
+ * and Gen 5's locked until their runs exist (the user's).
+ */
+export const PACK_SETS = ['base1', 'base2', 'base3', 'basep', 'base4', 'base5', 'gym1', 'gym2', 'lc', ...GEN2_SETS, ...EX_SETS, ...GEN4_SETS, ...GEN5_SETS];
 
 /**
  * Stardust, the account's crafting currency, for each card pulled from a pack that the account already had (a new
@@ -62,13 +65,13 @@ export interface PackSet {
   holo: string[];
   energy?: string[];
   holoEnergy?: string[];
-  /** The reverse-holo prints (EX and Gen 4 sets): one of them takes a common's place in each pack. */
+  /** The reverse-holo prints (EX, Gen 4 and Gen 5 sets): one of them takes a common's place in each pack. */
   reverse?: string[];
 }
 
 export interface PackCard {
   cardId: string;
-  /** The slot it came from: its rarity, basic Energy, (instead, now and then) a holo Energy, or a reverse holo (EX and Gen 4 sets). */
+  /** The slot it came from: its rarity, basic Energy, (instead, now and then) a holo Energy, or a reverse holo (EX, Gen 4 and Gen 5 sets). */
   slot: Rarity | 'energy' | 'holoEnergy' | 'reverse';
 }
 
@@ -123,7 +126,7 @@ export function openPack(set: PackSet, rng: Rng, { forceHoloEnergy = false, forc
     return [energy, ...rest, ...extras, ...(holo ? [holo] : [])];
   }
   const rare = rareCard()!;
-  // EX and Gen 4 sets: a reverse holo of any card in the set instead of the last common, revealed just before the rare.
+  // EX, Gen 4 and Gen 5 sets: a reverse holo of any card in the set instead of the last common, revealed just before the rare.
   const reverse: PackCard[] = set.reverse?.length ? [{ cardId: pick(rng, set.reverse), slot: 'reverse' }] : [];
   const rest = upgrade([...commons(PACK_COMMONS - reverse.length), ...sample(rng, set.uncommon, PACK_UNCOMMONS).map((cardId) => ({ cardId, slot: 'uncommon' as const }))]);
   return [energy, ...rest, ...extras, ...reverse, rare];

@@ -10,7 +10,9 @@ import { useDebugFlags } from '../hooks/useDebugFlags';
 import { useFontStyle, type FontStyle } from '../hooks/useFontStyle';
 import { useExpTheme, usePokedollarTheme } from '../hooks/useThemedFigures';
 import { useSkipFlips } from '../hooks/useSkipFlips';
+import { useTextStatus } from '../hooks/useTextStatus';
 import { PAGE_WIDTH } from '../utils/layout';
+import { BUTTON } from '../utils/styles';
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -32,6 +34,7 @@ export function SettingsPage() {
   const [skipFlips, setSkipFlips] = useSkipFlips();
   const [expTheme, setExpTheme] = useExpTheme();
   const [pokedollarTheme, setPokedollarTheme] = usePokedollarTheme();
+  const [textStatus, setTextStatus] = useTextStatus();
   const music = useMusicSettings();
   return (
     <div className={`space-y-4 ${PAGE_WIDTH}`}>
@@ -44,6 +47,10 @@ export function SettingsPage() {
           <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300">
             <input type="checkbox" checked={skipFlips} onChange={(e) => setSkipFlips(e.target.checked)} />
             Skip coin flip animations
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300" title="A Pokémon's Special Conditions as the original text tags (off: round icons)">
+            <input type="checkbox" checked={textStatus} onChange={(e) => setTextStatus(e.target.checked)} />
+            Text status tags (SLP, CNF, PAR, BRN, PSN)
           </label>
           <OptionsPanel />
           <EndTurnReminders />
@@ -115,7 +122,7 @@ function FontPicker() {
   );
 }
 
-/** Debug mode's switches (useDebugFlags), shown only while debugging: unlock everything that's locked, and 1,000,000 ₱, Stardust or EXP added. */
+/** Debug mode's switches (useDebugFlags), shown only while debugging: unlock everything that's locked, and buttons adding 1,000,000 ₱, Stardust or EXP each press. */
 function DebugSwitches() {
   const flags = useDebugFlags();
   if (!flags.debug || !flags.loaded) return null;
@@ -125,19 +132,20 @@ function DebugSwitches() {
         <input type="checkbox" checked={flags.unlockAll} disabled={flags.pending} onChange={(e) => flags.set.mutate({ unlockAll: e.target.checked })} />
         Unlock everything that's locked
       </label>
-      {(
-        [
-          ['million', 'Add ₱1,000,000 to the bank'],
-          ['dust', 'Add 1,000,000 Stardust'],
-          ['exp', 'Add 1,000,000 EXP'],
-        ] as const
-      ).map(([flag, label]) => (
-        <label key={flag} className="flex cursor-pointer items-center gap-2 text-sm text-slate-300" title="Off takes the 1,000,000 away again">
-          <input type="checkbox" checked={flags[flag]} disabled={flags.pending} onChange={(e) => flags.set.mutate({ [flag]: e.target.checked })} />
-          {label}
-        </label>
-      ))}
-      {flags.set.error && <p className="text-xs text-amber-300">{flags.set.error.message}</p>}
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            ['bank', '+₱1,000,000'],
+            ['stardust', '+1,000,000 Stardust'],
+            ['exp', '+1,000,000 EXP'],
+          ] as const
+        ).map(([currency, label]) => (
+          <button key={currency} className={BUTTON} disabled={flags.pending} onClick={() => flags.add.mutate({ currency })}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {(flags.set.error ?? flags.add.error) && <p className="text-xs text-amber-300">{(flags.set.error ?? flags.add.error)!.message}</p>}
     </Section>
   );
 }

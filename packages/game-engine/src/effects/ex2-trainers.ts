@@ -54,7 +54,7 @@ export const EX2_TRAINERS: Record<string, TrainerEffect> = {
   'ex2-88': {
     blocked(s) {
       if (s.turn <= 2) return "You can't evolve on your first turn";
-      const blocked = evolutionBlocked([s.me, s.opp], s.cards);
+      const blocked = evolutionBlocked([s.me, s.opp], s.cards, true);
       if (blocked) return blocked;
       return otherHandCards(s).some((c) => candyTargets(s, c).length) ? null : 'No Evolution card in your hand evolves from a Basic Pokémon you can evolve';
     },
