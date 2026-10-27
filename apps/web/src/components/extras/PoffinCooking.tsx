@@ -6,17 +6,7 @@ import { useTRPC } from '../../lib/trpc';
 import { BUTTON } from '../../utils/styles';
 import { BerryIcon, berryName } from './BerryIcon';
 import { PoffinScreen } from './PoffinScreen';
-
-/** A Poffin's sprite (Platinum's, in its type's colours: public/extras/poffin/poffins.png, 64px a type), drawn crisp at `size`. */
-function PoffinIcon({ type, size = 32 }: { type: number; size?: number }) {
-  return (
-    <span
-      aria-hidden
-      className="inline-block shrink-0 [image-rendering:pixelated]"
-      style={{ width: size, height: size, backgroundImage: 'url(/extras/poffin/poffins.png)', backgroundSize: `${29 * size}px ${size}px`, backgroundPosition: `${-type * size}px 0` }}
-    />
-  );
-}
+import { PoffinIcon } from './TreatIcons';
 
 /** A berry's flavours as Platinum has them for Poffins (they differ from Gen 3's for half the berries). */
 function Flavors({ berry }: { berry: string }) {

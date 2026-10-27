@@ -30,3 +30,6 @@ export * from './slot-machine.js';
 export * from './roulette.js';
 export * from './voltorb-flip.js';
 export * from './whos-that.js';
+export * from './condition.js';
+export * from './contest.js';
+export * from './contest-data.js';
