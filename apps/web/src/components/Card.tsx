@@ -90,6 +90,9 @@ function AttachedIcon({ def, holder, size, tile }: { def: CardDef; holder: CardD
   );
 }
 
+/** An attached card shown as a round icon: not a Pokémon Tool (a tile) nor PlusPower (only its +10 badge, the user's, 2026-10-26). */
+const iconed = (cards: CardLibrary, a: NonNullable<InPlayPokemon['attached']>[number]) => !a.tool && lookupCard(cards, a.card.defId).name !== 'PlusPower';
+
 /**
  * Card art from TCGdex (aspect ratio 63:88), with damage, attached energy and attached cards overlaid when in play. Right-clicking it
  * (or a long press, on a touch screen) opens it in the CardInspector. `shine`: a holo card gets its holo effect, still (the Active Pokémon);
@@ -164,12 +167,13 @@ export function Card({
       {inPlay && (
         // The user's (2026-10-26): the cards attached to it but its Pokémon Tools (Trainers that stay on it, Shapeshift; the Tools are
         // tiles, below), round icons like its Energy's, two to a row in the top left corner, left to right then top to bottom; its Special Conditions to their right
-        // as the user's round icons, in the same two-wide layout; then its other badges, half as big again, two to a row.
+        // as the user's round icons, in the same two-wide layout; then its other badges, half as big again, two to a row. PlusPower has
+        // no icon, only its +10 badge (the user's).
         <div className="absolute left-1 right-1 top-1 flex items-start gap-0.5">
-          {cards && (inPlay.attached ?? []).some((a) => !a.tool) && (
+          {cards && (inPlay.attached ?? []).some((a) => iconed(cards, a)) && (
             <div className="grid grid-cols-[repeat(2,max-content)] gap-0.5">
               {inPlay.attached!
-                .filter((a) => !a.tool)
+                .filter((a) => iconed(cards, a))
                 .map((a) => (
                   <AttachedIcon key={a.card.uid} def={lookupCard(cards, a.card.defId)} holder={def} size={small ? 18 : 22} />
                 ))}
