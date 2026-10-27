@@ -6,14 +6,10 @@ import { useTRPC } from '../../lib/trpc';
 import { BUTTON } from '../../utils/styles';
 import { BerryIcon, berryName } from './BerryIcon';
 import { BlenderScreen } from './BlenderScreen';
+import { PokeblockIcon } from './TreatIcons';
 
 /** The blender's record as the game shows it: "66.27 RPM". */
 const rpmText = (rpm: number) => `${Math.floor(rpm / 100)}.${String(rpm % 100).padStart(2, '0')} RPM`;
-
-/** A Pokéblock's picture (Emerald's, in its colour: public/extras/pokeblocks/, 8px), drawn crisp at `size`. */
-function PokeblockIcon({ color, size = 16 }: { color: string; size?: number }) {
-  return <img src={`/extras/pokeblocks/${color.toLowerCase()}.png`} alt="" width={size} height={size} draggable={false} className="shrink-0 [image-rendering:pixelated]" />;
-}
 
 /** A berry's flavours as the Berry Tag shows them (spicy, dry, sweet, bitter, sour), the ones it has. */
 function Flavors({ berry }: { berry: string }) {

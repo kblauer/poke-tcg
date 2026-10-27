@@ -1,6 +1,7 @@
 import { SPECIES, STAT_NAMES } from '@poke-tcg/idle';
 import { useState } from 'react';
 import type { IdleOverview } from '../../hooks/useIdle';
+import { ConditionFeeder } from '../contest/ConditionFeeder';
 import { TypeBadge } from './MonIcon';
 
 type DexRow = IdleOverview['dex'][number];
@@ -9,7 +10,8 @@ type DexRow = IdleOverview['dex'][number];
  * The account's Pokédex (README: Idle Adventure; agreed with the user): Kanto's 151 in order with the game's sprites,
  * seen and caught, and for each caught species the best IV and EV ever had in each stat. With `onPick`, it's where a new
  * run's starter is picked from (`starters`: the species allowed; `shinyStarters`: those with a shiny caught, which can
- * start shiny: agreed). A species with a shiny caught has a ★ and its shiny sprite in its entry.
+ * start shiny: agreed). A species with a shiny caught has a ★ and its shiny sprite in its entry. A caught entry is the
+ * Pokémon for the Super Contests (the user's): its condition, and the Pokéblocks and Poffins to feed it, are in its entry.
  */
 export function Pokedex({
   dex,
@@ -124,6 +126,12 @@ export function Pokedex({
                 </tr>
               </tbody>
             </table>
+          )}
+          {rec?.caught && (
+            <div className="space-y-1 border-t border-slate-700 pt-2">
+              <h3 className="text-sm font-semibold">Condition</h3>
+              <ConditionFeeder key={sel.id} species={sel.id} />
+            </div>
           )}
         </section>
       )}

@@ -1,5 +1,6 @@
 import { cardsRouter } from './routers/cards.js';
 import { communityRouter } from './routers/community.js';
+import { contestRouter } from './routers/contest.js';
 import { cosmeticsRouter } from './routers/cosmetics.js';
 import { debugRouter } from './routers/debug.js';
 import { extrasRouter } from './routers/extras.js';
@@ -29,6 +30,7 @@ export const appRouter = router({
   flair: flairRouter,
   settings: settingsRouter,
   extras: extrasRouter,
+  contest: contestRouter,
   whosThat: whosThatRouter,
   debug: debugRouter,
 });

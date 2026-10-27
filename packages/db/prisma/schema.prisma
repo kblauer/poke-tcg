@@ -59,6 +59,8 @@ model User {
   coins         Int             @default(0)
   /// Voltorb Flip's session (the campaign package's VoltorbFlipState): its last 5 rounds, for the level, and the board in play.
   voltorbFlip   Json            @default("{}")
+  /// The Super Contest under way (the campaign package's ContestState, README: Super Contests); {} when none is.
+  contest       Json            @default("{}")
   /// The Idle Adventure's settings (the idle package's IdleSettings: auto-heal, auto-catch, full-party toggles,
   /// auto-evolve, playback speed); {} is the defaults.
   idleSettings  Json            @default("{}")
@@ -497,6 +499,13 @@ model IdleDex {
   /// HP, Attack, Defense, Sp. Atk, Sp. Def, Speed.
   bestIv    Int[]    @default([0, 0, 0, 0, 0, 0])
   bestEv    Int[]    @default([0, 0, 0, 0, 0, 0])
+  /// Its condition (Cool, Beauty, Cute, Smart, Tough, Sheen), raised by the Pokéblocks and Poffins fed to it: the entry is the
+  /// Pokémon (the user's), so they stay with it for good (README: Super Contests).
+  condition    Int[]    @default([0, 0, 0, 0, 0, 0])
+  /// The moves it performs in the Super Contests' Acting Competition (2-4 of its level-up learnset).
+  contestMoves String[] @default([])
+  /// The Super Contest ribbons it has won ("cool-normal"…: ribbonId).
+  ribbons      String[] @default([])
   updatedAt DateTime @updatedAt
 
   @@id([userId, species])

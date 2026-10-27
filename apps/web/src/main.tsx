@@ -53,6 +53,7 @@ const ExtrasPage = lazyRouteComponent(() => import('./pages/Extras'), 'ExtrasPag
 const BerryFarmPage = lazyRouteComponent(() => import('./pages/Extras'), 'BerryFarmPage');
 const BerryBlenderPage = lazyRouteComponent(() => import('./pages/Extras'), 'BerryBlenderPage');
 const PoffinCookingPage = lazyRouteComponent(() => import('./pages/Extras'), 'PoffinCookingPage');
+const SuperContestPage = lazyRouteComponent(() => import('./pages/Extras'), 'SuperContestPage');
 const GameCornerPage = lazyRouteComponent(() => import('./pages/Extras'), 'GameCornerPage');
 const VoltorbFlipPage = lazyRouteComponent(() => import('./pages/Extras'), 'VoltorbFlipPage');
 const WhosThatPage = lazyRouteComponent(() => import('./pages/Extras'), 'WhosThatPage');
@@ -220,12 +221,13 @@ const extrasRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extra
 const berryFarmRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras/berry-farm', component: BerryFarmPage });
 const berryBlenderRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras/berry-blender', component: BerryBlenderPage });
 const poffinCookingRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras/poffin-cooking', component: PoffinCookingPage });
+const superContestRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras/contest', component: SuperContestPage });
 const gameCornerRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras/game-corner', component: GameCornerPage });
 const voltorbFlipRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras/voltorb-flip', component: VoltorbFlipPage });
 const whosThatRoute = createRoute({ getParentRoute: () => rootRoute, path: '/extras/whos-that', component: WhosThatPage });
 
 const router = createRouter({
-  routeTree: rootRoute.addChildren([playRoute, homeRoute, towerRoute, idleRoute, battleRoute, gameRoute, decksRoute, communityRoute, inventoryRoute, cosmeticsRoute, packsRoute, settingsRoute, extrasRoute, berryFarmRoute, berryBlenderRoute, poffinCookingRoute, gameCornerRoute, voltorbFlipRoute, whosThatRoute]),
+  routeTree: rootRoute.addChildren([playRoute, homeRoute, towerRoute, idleRoute, battleRoute, gameRoute, decksRoute, communityRoute, inventoryRoute, cosmeticsRoute, packsRoute, settingsRoute, extrasRoute, berryFarmRoute, berryBlenderRoute, poffinCookingRoute, superContestRoute, gameCornerRoute, voltorbFlipRoute, whosThatRoute]),
 });
 
 declare module '@tanstack/react-router' {

@@ -11,7 +11,7 @@ Pitch is the sample's rate (the pitch of its base key) moved by the key, the pit
 modulation (CC 1, a vibrato). Pan is left out (the effects are mono). It's a close rendering, not a bit-exact one.
 
 Used by platinum_extras.py (the Poffin cooking sounds); `python nds_render.py <pokeplatinum checkout> <SEQ name> <out.wav>`
-renders one. Pure Python."""
+renders one (an optional 4th argument: at most that many seconds, 20 by default). Pure Python."""
 import json, math, os, struct, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -192,20 +192,21 @@ class Note:
         return out
 
 
-def render(repo, seq):
-    """A sequence's samples (−1..1), until every note has died away."""
+def render(repo, seq, seconds=20):
+    """A sequence's samples (−1..1), until every note has died away (at most `seconds`)."""
     info = next(s for s in json.load(open(os.path.join(repo, 'res', 'sound', 'pl_sound_data.json')))['seqInfo'] if s.get('name') == seq)
     banks = json.load(open(os.path.join(repo, 'res', 'sound', 'pl_sound_data.json')))['bankInfo']
     bank = next(b for b in banks if b['name'] == info['bank'])
     programs = read_bank(repo, bank['name'], bank['waves'])
     path = os.path.join(repo, 'res', 'sound', 'SEQ', seq + '.mid')
     division = struct.unpack('>H', open(path, 'rb').read()[12:14])[0]
-    return play(m4a_render.read_midi(path), division, programs, info.get('volume', 127))
+    return play(m4a_render.read_midi(path), division, programs, info.get('volume', 127), seconds)
 
 
-def play(events, division, programs, volume):
+def play(events, division, programs, volume, seconds=20):
     """Plays a sequence's events (read_midi's, or sdat.py's: those add expression, CC 11, and the track's envelope
-    overrides, 'adsr') on its bank's programs at its volume: the samples (−1..1), until every note has died away."""
+    overrides, 'adsr') on its bank's programs at its volume: the samples (−1..1), until every note has died away (at most
+    `seconds`)."""
     end = max(e[0] for e in events)
     seq_db = decibels(volume)
     tracks = {}
@@ -265,11 +266,11 @@ def play(events, division, programs, volume):
         out.extend(mixed)
         t += SOUND_FRAME
         done_ticks = ev >= len(events) and t * bpm * division / 60 > end
-        if (done_ticks and not sounding) or len(out) > RATE * 20:
+        if (done_ticks and not sounding) or len(out) > RATE * seconds:
             break
     return out
 
 
 if __name__ == '__main__':
     repo, seq, path = sys.argv[1:4]
-    m4a_render.write_wav(path, render(repo, seq))
+    m4a_render.write_wav(path, render(repo, seq, *(float(a) for a in sys.argv[4:5])))

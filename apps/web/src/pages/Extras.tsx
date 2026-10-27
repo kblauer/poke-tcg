@@ -5,13 +5,14 @@ import { BerryBlender } from '../components/extras/BerryBlender';
 import { BerryFarm } from '../components/extras/BerryFarm';
 import { GameCorner } from '../components/extras/GameCorner';
 import { PoffinCooking } from '../components/extras/PoffinCooking';
+import { SuperContest } from '../components/extras/SuperContest';
 import { VoltorbFlip } from '../components/extras/VoltorbFlip';
 import { WhosThat } from '../components/extras/WhosThat';
 import { PageHeader } from '../components/PageHeader';
 import { PAGE_WIDTH } from '../utils/layout';
 
 /** The Extras page's minigames and modes, in its list's order: each its page, picture and a line on it. */
-const EXTRAS: { to: '/extras/berry-farm' | '/extras/berry-blender' | '/extras/poffin-cooking' | '/extras/game-corner' | '/extras/voltorb-flip' | '/extras/whos-that'; title: string; text: string; picture: ReactNode }[] = [
+const EXTRAS: { to: '/extras/berry-farm' | '/extras/berry-blender' | '/extras/poffin-cooking' | '/extras/contest' | '/extras/game-corner' | '/extras/voltorb-flip' | '/extras/whos-that'; title: string; text: string; picture: ReactNode }[] = [
   {
     to: '/extras/berry-farm',
     title: 'Berry Farm',
@@ -32,6 +33,13 @@ const EXTRAS: { to: '/extras/berry-farm' | '/extras/berry-blender' | '/extras/po
     text: 'Cook a berry into a Poffin as at Platinum’s Poffin House, stirring the pot the way the arrow points. Don’t let it burn or spill!',
     // The Poffin Case item's icon (PokeAPI's sprites), at 3×.
     picture: <img src="/extras/poffin-case.png" alt="" className="size-[90px] [image-rendering:pixelated]" />,
+  },
+  {
+    to: '/extras/contest',
+    title: 'Super Contests',
+    text: 'Platinum’s Super Contests: dress up, dance and perform with a Pokémon from your Idle Adventure Pokédex, fed on your Poffins and Pokéblocks, to win its ribbons.',
+    // The Cool Master Rank ribbon (Platinum's), at 3×.
+    picture: <img src="/extras/contest/ribbons/cool-master.png" alt="" className="size-24 [image-rendering:pixelated]" />,
   },
   {
     to: '/extras/game-corner',
@@ -110,6 +118,15 @@ export function PoffinCookingPage() {
   return (
     <ExtraPage title="Poffin Cooking" info="Cook your berries into Poffins">
       <PoffinCooking />
+    </ExtraPage>
+  );
+}
+
+/** The Super Contests (`/extras/contest`). */
+export function SuperContestPage() {
+  return (
+    <ExtraPage title="Super Contests" info="Platinum's contests, with your Idle Adventure Pokémon">
+      <SuperContest />
     </ExtraPage>
   );
 }
