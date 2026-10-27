@@ -1,6 +1,6 @@
 import { rngFrom } from '@poke-tcg/campaign';
 import { describe, expect, it } from 'vitest';
-import { Battle, EXP_RATE, POWDER_MOVES, simulateBattle, opponentMon, statusUseless, type BattleSetup } from './battle.js';
+import { Battle, EXP_RATE, simulateBattle, opponentMon, type BattleSetup } from './battle.js';
 import { catchChance, catchOdds, shakeThreshold } from './catch.js';
 import { moveData, species } from './data.js';
 import { ENCOUNTERS } from './data/gen1/encounters.js';
@@ -175,29 +175,6 @@ describe('moves and cooldowns', () => {
     const gained = (uid: string) => r.events.find((e) => e.t === 'exp' && e.uid === uid);
     expect(gained('karp')).toBeDefined();
     expect(gained('zard')).toBeDefined();
-  });
-
-  it("keeps powders off Grass types and paralysis off Electric types (the later generations' immunities)", () => {
-    // A Vileplume (accuracy never misses at +6) using each powder on a Bulbasaur: nothing happens; on a Rattata it works.
-    const use = (foe: number, key: string) => {
-      const b = new Battle(setup([mon(45, 50, { moves: [key], slots: [key], autoSlots: false })], [mon(foe, 50)]), rngFrom(2));
-      const [me, them] = b.active;
-      me.stages.acc = 6;
-      expect(statusUseless(b, me, key)).toBe(foe === 1);
-      b.useMove(me, key);
-      return { them, b };
-    };
-    for (const key of POWDER_MOVES) {
-      const { them } = use(1, key);
-      expect(them.status, key).toBeNull();
-      expect(them.stages.spe, key).toBe(0);
-    }
-    expect(use(19, 'stun-spore').them.status).toBe('paralysis');
-    expect(use(19, 'spore').them.status).toBe('sleep');
-    // Pikachu can't be paralyzed, by a move or anything else (Body Slam's, Static's).
-    const b = new Battle(setup([mon(4, 50)], [mon(25, 50)]), rngFrom(2));
-    expect(b.canStatus(b.active[1], 'paralysis', b.active[0])).toBe(false);
-    expect(b.canStatus(b.active[0], 'paralysis', b.active[1])).toBe(true);
   });
 
   it('evolves at the right levels', () => {

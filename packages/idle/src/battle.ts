@@ -125,11 +125,6 @@ const TYPE_BOOSTERS: Record<string, TypeName> = {
 };
 
 /** Sound-based moves (battle_util.c's sSoundMovesTable), stopped by Soundproof. */
-/**
- * The powder and spore moves (the user's, 2026-10-26: a later generation's rule, not FireRed's): they don't affect
- * Grass-type Pokémon (Gen 6's immunity; FireRed has no such flag, so they're listed).
- */
-export const POWDER_MOVES = new Set(['poison-powder', 'stun-spore', 'sleep-powder', 'spore', 'cotton-spore']);
 export const SOUND_MOVES = new Set(['growl', 'roar', 'sing', 'supersonic', 'screech', 'snore', 'uproar', 'metal-sound', 'grass-whistle', 'hyper-voice', 'perish-song', 'heal-bell']);
 
 export interface Volatiles {
@@ -413,8 +408,7 @@ export class Battle {
       case 'burn':
         return b.ability !== 'water-veil' && !b.types.includes('fire');
       case 'paralysis':
-        // Electric types can't be paralyzed (the user's, 2026-10-26: Gen 6's rule, with the powders' Grass immunity).
-        return b.ability !== 'limber' && !b.types.includes('electric');
+        return b.ability !== 'limber';
       case 'freeze':
         return b.ability !== 'magma-armor' && !b.types.includes('ice') && !this.isWeather('sun');
     }
@@ -1001,7 +995,7 @@ export class Battle {
 
   /**
    * The checks a move aimed at the other Pokémon goes through before it lands (Protect, being out of reach, accuracy,
-   * type immunity, Grass types' to powders (POWDER_MOVES), absorbing abilities, Soundproof), each with its line. Returns whether it lands.
+   * type immunity, absorbing abilities, Soundproof), each with its line. Returns whether it lands.
    */
   lands(ctx: MoveCtx, o: { accuracy?: boolean; immunity?: boolean } = {}): boolean {
     const { user, target, move } = ctx;
@@ -1012,10 +1006,6 @@ export class Battle {
     }
     if (target.v.protect && move.flags.includes('protect_affected')) {
       this.text(`${this.Name(target)} protected itself!`);
-      return false;
-    }
-    if (POWDER_MOVES.has(ctx.key) && target.types.includes('grass')) {
-      this.text(`It doesn't affect ${this.name(target)}…`);
       return false;
     }
     if (target.ability === 'soundproof' && SOUND_MOVES.has(ctx.key)) {
@@ -1324,7 +1314,6 @@ export function statusUseless(b: Battle, user: Battler, key: string): boolean {
   const m = moveData(key);
   if (m.power > 0) return false;
   const foe = b.foeOf(user);
-  if (POWDER_MOVES.has(key) && foe.types.includes('grass')) return true;
   const stage = (who: Battler, stat: BattleStat, dir: number) => (dir > 0 ? who.stages[stat] >= 6 : who.stages[stat] <= -6);
   const e = m.effect;
   const raises: Record<string, BattleStat[]> = {
