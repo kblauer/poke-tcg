@@ -506,6 +506,10 @@ model IdleDex {
   contestMoves String[] @default([])
   /// The Super Contest ribbons it has won ("cool-normal"…: ribbonId).
   ribbons      String[] @default([])
+  /// Its nature for the Super Contests (0 Hardy … 24 Quirky, the player's choice): the flavour it likes and dislikes when fed.
+  contestNature Int     @default(0)
+  /// Its held item in the Super Contests (a contest scarf's key, CONTEST_SCARVES; null for none).
+  contestItem  String?
   updatedAt DateTime @updatedAt
 
   @@id([userId, species])

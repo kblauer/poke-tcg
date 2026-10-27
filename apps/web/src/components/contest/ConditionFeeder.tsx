@@ -1,4 +1,4 @@
-import { CONDITION_NAMES, conditionOf, FLAVORS, MAX_CONDITION, POKEBLOCK_NAMES, poffinName, sheenMaxed, type PokeblockColor } from '@poke-tcg/campaign';
+import { CONDITION_NAMES, conditionOf, FLAVORS, MAX_CONDITION, natureFlavors, NATURES, POKEBLOCK_NAMES, poffinName, sheenMaxed, type PokeblockColor } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useToasts } from '../../hooks/useToasts';
@@ -31,7 +31,8 @@ const flavorText = (flavors: readonly number[]) => FLAVORS.flatMap((f, i) => (fl
 
 /**
  * A Pokédex entry's condition, and the account's Pokéblocks and Poffins to feed it (README: Super Contests): a treat
- * fed raises the entry's condition for good (the entry is the Pokémon) and is used up (`contest.feed`). Shown in the
+ * fed raises the entry's condition for good (the entry is the Pokémon), by its nature's liked and disliked flavours, and
+ * is used up (`contest.feed`). Shown in the
  * Idle Adventure's Pokédex and the Super Contests' entry.
  */
 export function ConditionFeeder({ species }: { species: number }) {
@@ -62,7 +63,9 @@ export function ConditionFeeder({ species }: { species: number }) {
       <ConditionBars condition={condition} />
       {gained && <p className="text-xs text-emerald-300">Fed: {gained}</p>}
       <div className="flex items-center gap-1 text-xs">
-        <span className="mr-auto text-slate-400">{full ? 'Its sheen is full: it won’t eat any more.' : 'Feed it:'}</span>
+        <span className="mr-auto text-slate-400">
+          {full ? 'Its sheen is full: it won’t eat any more.' : `Feed it (${NATURES[entry.nature]}: ${natureFlavors(entry.nature) ? `likes ${FLAVORS[natureFlavors(entry.nature)!.liked]}, dislikes ${FLAVORS[natureFlavors(entry.nature)!.disliked]}` : 'no favourite flavour'}):`}
+        </span>
         {(['poffin', 'pokeblock'] as const).map((k) => (
           <button key={k} className={`rounded px-2 py-0.5 ${tab === k ? 'bg-slate-600 text-slate-50' : 'text-slate-400 hover:bg-slate-700'}`} onClick={() => setTab(k)}>
             {k === 'poffin' ? `Poffins (${overview.data.poffins.length})` : `Pokéblocks (${overview.data.pokeblocks.length})`}

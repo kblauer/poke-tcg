@@ -9,6 +9,12 @@ const species = z.number().int().min(1).max(DEX_SIZE);
 export const contestFeedInput = z.object({ species, kind: z.enum(['pokeblock', 'poffin']), id: z.uuid() });
 /** An entry's contest moves: 1-4 of its level-up learnset (2 to enter). */
 export const contestMovesInput = z.object({ species, moves: z.array(z.string().min(1).max(40)).min(1).max(4) });
+/** An entry's nature (0 Hardy … 24 Quirky) and held item (a contest scarf's key, or null). */
+export const contestProfileInput = z.object({
+  species,
+  nature: z.number().int().min(0).max(24),
+  item: z.enum(['red-scarf', 'blue-scarf', 'pink-scarf', 'green-scarf', 'yellow-scarf']).nullable(),
+});
 /** Entering a contest: the entry, the rank (0 Normal … 3 Master) and the category (0 Cool … 4 Tough). */
 export const contestStartInput = z.object({ species, rank: z.number().int().min(0).max(3), category: z.number().int().min(0).max(4) });
 const version = z.number().int().min(0);

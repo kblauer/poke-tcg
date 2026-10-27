@@ -8,7 +8,7 @@
 // dancer's own (Contest_GetSeededRNGNext, s·1812433253 + 1), seeded from it at each lead's turn. The game also advances
 // its LCRNG once a frame through the dance and reseeds it from the clock (Contest_Init); here it's seeded once from the
 // server, so the numbers match the game's rules, not its exact draws.
-import { CONTEST_EFFECTS, CONTEST_ENTRANTS, CONTEST_MOVES, ACTING_AI, THEME_POINTS, type ContestEntrantData } from './contest-data.js';
+import { CONTEST_EFFECTS, CONTEST_ENTRANTS, CONTEST_MOVES, CONTEST_SCARVES, ACTING_AI, THEME_POINTS, type ContestEntrantData } from './contest-data.js';
 import { conditionOf, type Condition } from './condition.js';
 
 export const CONTEST_CATEGORIES = ['Cool', 'Beauty', 'Cute', 'Smart', 'Tough'] as const;
@@ -56,6 +56,8 @@ export interface ContestEntrant {
   outfit: number[];
   /** The CPU's record (CONTEST_ENTRANTS' index), for its outfit's places. */
   npc?: number;
+  /** Its held item (a CONTEST_SCARVES key, the player's choice; the CPUs hold none, sub_02095380). */
+  item?: string | null;
 }
 
 export interface VisualScore {
@@ -250,10 +252,21 @@ const SECONDARY = [[4, 1], [0, 2], [1, 3], [2, 4], [3, 0]] as const;
 const HEARTS = [[10, 20, 30, 40, 50, 60, 70, 80], [90, 110, 130, 150, 170, 190, 210, 230], [170, 200, 230, 260, 290, 320, 350, 380], [320, 360, 400, 440, 480, 520, 560, 600]];
 const STARS = [[3, 5, 8], [5, 10, 15], [7, 15, 23], [10, 20, 30]];
 
-/** A contestant's Visual Competition score: its condition's hearts (sub_02095928) and its outfit's stars (sub_0209598C). No held items: no scarf's ×1.1. */
-export function visualScore(rank: number, category: number, theme: number, condition: Condition, outfit: readonly number[]): VisualScore {
+/**
+ * A held scarf's share of the condition score (ov17_0223F374): ×1.10 for the contest's own category's, ×1.05 for the
+ * two categories beside it (Cool's Blue and Yellow, Beauty's Red and Pink…), else ×1.
+ */
+export function scarfModifier(category: number, item: string | null | undefined) {
+  const i = CONTEST_SCARVES.findIndex((s) => s.key === item);
+  if (i < 0) return 100;
+  return i === category ? 110 : SCARF_NEIGHBOURS[category]!.includes(i) ? 105 : 100;
+}
+const SCARF_NEIGHBOURS = [[1, 4], [0, 2], [1, 3], [2, 4], [3, 0]];
+
+/** A contestant's Visual Competition score: its condition's hearts (sub_02095928, its scarf's share in) and its outfit's stars (sub_0209598C). */
+export function visualScore(rank: number, category: number, theme: number, condition: Condition, outfit: readonly number[], item?: string | null): VisualScore {
   const [a, b] = SECONDARY[category]!;
-  const score = condition[category]! + Math.trunc((condition[a]! + condition[b]! + condition[5]) / 2);
+  const score = Math.trunc(((condition[category]! + Math.trunc((condition[a]! + condition[b]! + condition[5]) / 2)) * scarfModifier(category, item)) / 100);
   const themePoints = outfit.reduce((sum, id) => sum + (THEME_POINTS[theme]?.[id] ?? 0), 0);
   const hearts = HEARTS[rank]!.filter((t) => score >= t).length;
   const [s1, s2, s3] = STARS[rank]!;
@@ -270,7 +283,7 @@ export function finishVisual(state: ContestState, outfit: readonly number[]): Co
   if (error) return { error };
   const next: ContestState = structuredClone(state);
   next.entrants[PLAYER]!.outfit = [...outfit];
-  next.visual = next.entrants.map((e) => visualScore(next.rank, next.category, next.theme, e.condition, e.outfit));
+  next.visual = next.entrants.map((e) => visualScore(next.rank, next.category, next.theme, e.condition, e.outfit, e.item));
   // ov17_0223EBB0, at each lead's turn: a seed for each CPU dancer.
   next.danceSeeds = Array.from({ length: CONTESTANTS }, () => Array.from({ length: CONTESTANTS }, (_, c) => (c === PLAYER ? 0 : draw(next))));
   next.phase = 'dance';

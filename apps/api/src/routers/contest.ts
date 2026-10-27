@@ -1,7 +1,7 @@
-import { actingTurn, canEnter, conditionOf, contestMove, createContest, feedCondition, finishDance, finishVisual, PLAYER, poffinLevel, pokeblockLevel, ribbonId, type ContestState, type PokeblockColor } from '@poke-tcg/campaign';
+import { actingTurn, canEnter, conditionOf, contestMove, createContest, feedPoffin, feedPokeblock, finishDance, finishVisual, PLAYER, poffinLevel, pokeblockLevel, ribbonId, type ContestState, type PokeblockColor } from '@poke-tcg/campaign';
 import { prisma } from '@poke-tcg/db';
 import { species as speciesData } from '@poke-tcg/idle';
-import { contestActInput, contestDanceInput, contestFeedInput, contestMovesInput, contestStartInput, contestVisualInput } from '@poke-tcg/shared';
+import { contestActInput, contestDanceInput, contestFeedInput, contestMovesInput, contestProfileInput, contestStartInput, contestVisualInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { asJson, newSeed } from '../games.js';
 import { lockUser } from '../runs.js';
@@ -63,7 +63,7 @@ export const contestRouter = router({
       prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { contest: true } }),
     ]);
     return {
-      entries: dex.map((d) => ({ species: d.species, shiny: d.shiny, condition: conditionOf(d.condition), moves: d.contestMoves, ribbons: d.ribbons, learnable: learnable(d.species) })),
+      entries: dex.map((d) => ({ species: d.species, shiny: d.shiny, condition: conditionOf(d.condition), moves: d.contestMoves, ribbons: d.ribbons, nature: d.contestNature, item: d.contestItem, learnable: learnable(d.species) })),
       pokeblocks: pokeblocks.map((p) => ({ ...p, color: p.color as PokeblockColor, level: pokeblockLevel({ ...p, color: p.color as PokeblockColor }) })),
       poffins: poffins.map((p) => ({ ...p, level: poffinLevel(p) })),
       contest: contestOf(user.contest),
@@ -71,8 +71,9 @@ export const contestRouter = router({
   }),
 
   /**
-   * Feeds a Pokéblock or a Poffin to a dex entry (feedCondition): its flavours raise the entry's condition and its feel or
-   * smoothness its sheen, for good; the treat is used up. BAD_REQUEST when its sheen is full (it won't eat any more).
+   * Feeds a Pokéblock or a Poffin to a dex entry (feedPokeblock, feedPoffin, by the entry's nature): its flavours raise the
+   * entry's condition and its feel or smoothness its sheen, for good; the treat is used up. BAD_REQUEST when its sheen is
+   * full (it won't eat any more).
    */
   feed: protectedProcedure.input(contestFeedInput).mutation(({ ctx, input }) =>
     prisma.$transaction(async (tx) => {
@@ -83,7 +84,7 @@ export const contestRouter = router({
           ? await tx.pokeblock.findFirst({ where: { id: input.id, userId: ctx.user.id }, select: { flavors: true, feel: true } }).then((p) => p && { flavors: p.flavors, sheen: p.feel })
           : await tx.poffin.findFirst({ where: { id: input.id, userId: ctx.user.id }, select: { flavors: true, smoothness: true } }).then((p) => p && { flavors: p.flavors, sheen: p.smoothness });
       if (!treat) throw new TRPCError({ code: 'NOT_FOUND', message: 'That treat is gone' });
-      const condition = feedCondition(conditionOf(entry.condition), treat.flavors, treat.sheen);
+      const condition = (input.kind === 'pokeblock' ? feedPokeblock : feedPoffin)(conditionOf(entry.condition), treat.flavors, treat.sheen, entry.contestNature);
       if (!condition) throw failed("It won't eat any more");
       await tx.idleDex.update({ where: { userId_species: { userId: ctx.user.id, species: input.species } }, data: { condition } });
       if (input.kind === 'pokeblock') await tx.pokeblock.delete({ where: { id: input.id } });
@@ -104,6 +105,16 @@ export const contestRouter = router({
     }),
   ),
 
+  /** Sets a dex entry's nature (the flavours it likes when fed, from now on) and held item (a scarf for the Visual Competition). */
+  setProfile: protectedProcedure.input(contestProfileInput).mutation(({ ctx, input }) =>
+    prisma.$transaction(async (tx) => {
+      await lockUser(tx, ctx.user.id);
+      await caughtEntry(tx, ctx.user.id, input.species);
+      await tx.idleDex.update({ where: { userId_species: { userId: ctx.user.id, species: input.species } }, data: { contestNature: input.nature, contestItem: input.item } });
+      return input;
+    }),
+  ),
+
   /**
    * Enters a contest with a dex entry (canEnter: 2 moves, and the category's ribbons of the ranks below). One contest at
    * a time. The post-game entrants come once any of the account's Pokémon has won a Master Rank contest (Platinum's gate
@@ -120,7 +131,7 @@ export const contestRouter = router({
       const error = canEnter(entry.ribbons, input.category, input.rank, moves.length);
       if (error) throw failed(error);
       const masters = await tx.idleDex.count({ where: { userId: ctx.user.id, ribbons: { hasSome: ['cool-master', 'beauty-master', 'cute-master', 'smart-master', 'tough-master'] } } });
-      const state = createContest({ rank: input.rank, category: input.category, player: { species: input.species, name: speciesData(input.species).name, trainer: user.accountName ?? 'You', moves, condition: conditionOf(entry.condition) }, postgame: masters > 0 }, newSeed());
+      const state = createContest({ rank: input.rank, category: input.category, player: { species: input.species, name: speciesData(input.species).name, trainer: user.accountName ?? 'You', moves, condition: conditionOf(entry.condition), item: entry.contestItem }, postgame: masters > 0 }, newSeed());
       return saveContest(tx, ctx.user.id, state);
     }),
   ),

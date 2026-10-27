@@ -819,5 +819,17 @@ export const ACTING_AI: readonly (readonly number[])[] = [
   [4, 13, 9, 0, 60, 20, -20, 20],
 ];
 
+/** The 25 natures (res/text/nature_names.json), by number. */
+export const NATURES = ['Hardy', 'Lonely', 'Brave', 'Adamant', 'Naughty', 'Bold', 'Docile', 'Relaxed', 'Impish', 'Lax', 'Timid', 'Hasty', 'Serious', 'Jolly', 'Naive', 'Modest', 'Mild', 'Quiet', 'Bashful', 'Rash', 'Calm', 'Gentle', 'Sassy', 'Careful', 'Quirky'] as const;
+
+/** The contest scarves (res/items/data/<scarf>.json): each its key, name and description, in the categories’ order. */
+export const CONTEST_SCARVES = [
+  { key: 'red-scarf', name: 'Red Scarf', text: 'An item to be held by a Pokémon. It boosts the “Cool” aspect of the holder in a Contest.' },
+  { key: 'blue-scarf', name: 'Blue Scarf', text: 'An item to be held by a Pokémon. It boosts the “Beauty” aspect of the holder in a Contest.' },
+  { key: 'pink-scarf', name: 'Pink Scarf', text: 'An item to be held by a Pokémon. It boosts the “Cute” aspect of the holder in a Contest.' },
+  { key: 'green-scarf', name: 'Green Scarf', text: 'An item to be held by a Pokémon. It boosts the “Smart” aspect of the holder in a Contest.' },
+  { key: 'yellow-scarf', name: 'Yellow Scarf', text: 'An item to be held by a Pokémon. It boosts the “Tough” aspect of the holder in a Contest.' },
+] as const;
+
 /** The species an entrant can be (CONTEST_ENTRANTS'), with their names. */
 export const ENTRANT_SPECIES: Record<number, string> = { 25: 'Pikachu', 35: 'Clefairy', 41: 'Zubat', 54: 'Psyduck', 66: 'Machop', 74: 'Geodude', 77: 'Ponyta', 82: 'Magneton', 92: 'Gastly', 95: 'Onix', 113: 'Chansey', 115: 'Kangaskhan', 118: 'Goldeen', 163: 'Hoothoot', 172: 'Pichu', 198: 'Murkrow', 200: 'Misdreavus', 208: 'Steelix', 307: 'Meditite', 339: 'Barboach', 387: 'Turtwig', 390: 'Chimchar', 393: 'Piplup', 396: 'Starly', 399: 'Bidoof', 403: 'Shinx', 406: 'Budew', 410: 'Shieldon', 417: 'Pachirisu', 418: 'Buizel', 420: 'Cherubi', 422: 'Shellos', 426: 'Drifblim', 427: 'Buneary', 431: 'Glameow', 433: 'Chingling', 434: 'Stunky', 436: 'Bronzor', 438: 'Bonsly', 439: 'Mime Jr.', 440: 'Happiny', 441: 'Chatot' };

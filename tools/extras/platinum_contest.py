@@ -17,10 +17,12 @@ Platinum has them:
   Kanto's 151 and every entrant's species: apps/web/public/extras/contest/pokemon/<National Dex number>.png;
 - the Sinnoh contest ribbons (res/graphics/pokemon_summary_screen/ribbons/sinnoh_contest*.png, one a rank, in
   ribbons.pal's palette of each category, src/ribbon.c's paletteNum): apps/web/public/extras/contest/ribbons/<category>-<rank>.png;
+- the contest scarves' icons (res/items/icons/red_scarf.png in each scarf's palette): apps/web/public/extras/contest/items/;
+  the natures' names and the scarves' (contest-data.ts);
 - the contest's songs, rendered by nds_render.py (the 7 dance songs of Unk_ov17_02253084, the dressing room's, the
   results' and the winner's fanfare), whole: apps/web/public/extras/contest/sounds/<SEQ>.mp3.
 
-Usage: python tools/extras/platinum_contest.py <pokeplatinum checkout>
+Usage: python tools/extras/platinum_contest.py <pokeplatinum checkout> [--no-songs]
 Needs Pillow and lameenc."""
 import json, os, re, struct, sys
 
@@ -213,6 +215,19 @@ def ribbons(repo):
             indexed(os.path.join(src, name + '.png'), pal[c * 16:(c + 1) * 16]).save(os.path.join(folder, '%s-%s.png' % (category, RANKS[r])))
 
 
+# The contest scarves (Platinum's only held items a contest reads, ov17_0223F374), in CONTEST_CATEGORIES' order.
+SCARVES = ['red_scarf', 'blue_scarf', 'pink_scarf', 'green_scarf', 'yellow_scarf']
+
+
+def scarves(repo):
+    """Each scarf's icon (res/items/icons/red_scarf.png, the five sharing its picture, each in its own palette), 32x32."""
+    folder = os.path.join(PUBLIC, 'items')
+    os.makedirs(folder, exist_ok=True)
+    src = os.path.join(repo, 'res', 'items', 'icons')
+    for scarf in SCARVES:
+        indexed(os.path.join(src, 'red_scarf.png'), jasc(os.path.join(src, scarf + '.pal'))).save(os.path.join(folder, scarf.replace('_', '-') + '.png'))
+
+
 def songs(repo):
     """Each song whole (up to 5 minutes), as a 64 kbps mono MP3 (lameenc): the dance songs run 1-2 minutes."""
     import lameenc
@@ -279,11 +294,18 @@ def main(repo):
                   'export const ACTING_AI: readonly (readonly number[])[] = [']
     for r in ai_table(repo):
         lines_out.append('  %s,' % ts(r))
-    lines_out += ['];', '', '/** The species an entrant can be (CONTEST_ENTRANTS\'), with their names. */', 'export const ENTRANT_SPECIES: Record<number, string> = %s;' % ('{ ' + ', '.join('%d: %s' % (s, ts(names[s])) for s in sorted({n['species'] for n in npcs})) + ' }'), '']
+    lines_out += ['];', '', '/** The 25 natures (res/text/nature_names.json), by number. */', 'export const NATURES = %s as const;' % ts(text(repo, 'nature_names')), '',
+                  '/** The contest scarves (res/items/data/<scarf>.json): each its key, name and description, in the categories’ order. */', 'export const CONTEST_SCARVES = [']
+    for scarf in SCARVES:
+        d = json.load(open(os.path.join(repo, 'res', 'items', 'data', scarf + '.json'), encoding='utf-8'))
+        lines_out.append('  { key: %s, name: %s, text: %s },' % (ts(scarf.replace('_', '-')), ts(d['name']), ts(''.join(d['description']).replace('\n', ' '))))
+    lines_out += ['] as const;', '', '/** The species an entrant can be (CONTEST_ENTRANTS\'), with their names. */', 'export const ENTRANT_SPECIES: Record<number, string> = %s;' % ('{ ' + ', '.join('%d: %s' % (s, ts(names[s])) for s in sorted({n['species'] for n in npcs})) + ' }'), '']
     open(OUT_TS, 'w', encoding='utf-8', newline='\n').write('\n'.join(lines_out))
     sprites(repo, set(range(1, 152)) | {n['species'] for n in npcs})
     ribbons(repo)
-    songs(repo)
+    scarves(repo)
+    if '--no-songs' not in sys.argv:
+        songs(repo)
 
 
 if __name__ == '__main__':

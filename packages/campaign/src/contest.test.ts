@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { feedCondition, NO_CONDITION, type Condition } from './condition.js';
+import { feedPoffin, feedPokeblock, natureFlavors, NO_CONDITION, type Condition } from './condition.js';
 import {
   ACCESSORY_LIMIT,
   actingTurn,
@@ -16,6 +16,7 @@ import {
   PLAYER,
   ribbonId,
   roundPoints,
+  scarfModifier,
   visualScore,
   type ContestState,
   type DancePress,
@@ -42,12 +43,31 @@ function playThrough(seed: number, rank = 0, category = 0): ContestState {
 }
 
 describe('condition', () => {
+  const HARDY = 0;
+  const LONELY = 1; // likes spicy, dislikes sour
+  const BOLD = 5; // likes sour, dislikes spicy
   it('adds each flavour to its condition and the feel to the sheen, kept to 255', () => {
-    expect(feedCondition([0, 0, 0, 0, 0, 0], [10, 0, 5, 0, 1], 20)).toEqual([10, 0, 5, 0, 1, 20]);
-    expect(feedCondition([250, 0, 0, 0, 0, 250], [10, 0, 0, 0, 0], 20)).toEqual([255, 0, 0, 0, 0, 255]);
+    expect(feedPokeblock([0, 0, 0, 0, 0, 0], [10, 0, 5, 0, 1], 20, HARDY)).toEqual([10, 0, 5, 0, 1, 20]);
+    expect(feedPoffin([250, 0, 0, 0, 0, 250], [10, 0, 0, 0, 0], 20, HARDY)).toEqual([255, 0, 0, 0, 0, 255]);
   });
   it("won't eat with a full sheen", () => {
-    expect(feedCondition([0, 0, 0, 0, 0, 255], [10, 0, 0, 0, 0], 1)).toBeNull();
+    expect(feedPokeblock([0, 0, 0, 0, 0, 255], [10, 0, 0, 0, 0], 1, HARDY)).toBeNull();
+    expect(feedPoffin([0, 0, 0, 0, 0, 255], [10, 0, 0, 0, 0], 1, HARDY)).toBeNull();
+  });
+  it('knows each nature’s liked and disliked flavour', () => {
+    expect(natureFlavors(HARDY)).toBeNull();
+    expect(natureFlavors(LONELY)).toEqual({ liked: 0, disliked: 4 });
+    expect(natureFlavors(15)).toEqual({ liked: 1, disliked: 0 }); // Modest: dry, not spicy
+  });
+  it('gives a Pokéblock a tenth more of a liked flavour when the nature likes it overall, a tenth less of a disliked one when not', () => {
+    // Lonely: spicy 25 liked, sour 10 disliked: gain 15 > 0, spicy +3 (2.5 rounded up), sour unchanged.
+    expect(feedPokeblock(NO_CONDITION, [25, 0, 0, 0, 10], 5, LONELY)).toEqual([28, 0, 0, 0, 10, 5]);
+    // Bold: spicy 25 disliked, sour 10 liked: gain −15, spicy −3, sour unchanged.
+    expect(feedPokeblock(NO_CONDITION, [25, 0, 0, 0, 10], 5, BOLD)).toEqual([22, 0, 0, 0, 10, 5]);
+  });
+  it('gives a Poffin ×1.1 of the liked flavour and ×0.9 of the disliked', () => {
+    expect(feedPoffin(NO_CONDITION, [20, 0, 0, 0, 20], 10, LONELY)).toEqual([22, 0, 0, 0, 18, 10]);
+    expect(feedPoffin(NO_CONDITION, [10, 0, 0, 0, 10], 10, LONELY)).toEqual([11, 0, 0, 0, 9, 10]);
   });
 });
 
@@ -94,6 +114,14 @@ describe('the Visual Competition', () => {
     expect(visualScore(0, 0, 2, [3, 1, 3, 1, 2, 30], []).condition).toBe(3 + 16);
     expect(visualScore(0, 0, 2, [3, 1, 3, 1, 2, 30], []).hearts).toBe(1);
     expect(visualScore(3, 0, 2, [255, 255, 255, 255, 255, 255], []).hearts).toBe(8);
+  });
+  it('raises the condition score with a scarf, most for the category’s own', () => {
+    expect(scarfModifier(0, 'red-scarf')).toBe(110);
+    expect(scarfModifier(0, 'blue-scarf')).toBe(105);
+    expect(scarfModifier(0, 'yellow-scarf')).toBe(105);
+    expect(scarfModifier(0, 'pink-scarf')).toBe(100);
+    expect(scarfModifier(0, null)).toBe(100);
+    expect(visualScore(0, 0, 2, [100, 0, 0, 0, 0, 0], [], 'red-scarf').condition).toBe(110);
   });
   it('gives stars for the theme points, none for none', () => {
     // Created (2): Peculiar Spoon (40) is 2 points, Specs (56-58) 2 each.

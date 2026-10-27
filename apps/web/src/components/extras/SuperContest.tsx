@@ -1,4 +1,4 @@
-import { canEnter, CONTEST_CATEGORIES, CONTEST_RANKS, ribbonId, type ContestState } from '@poke-tcg/campaign';
+import { canEnter, CONTEST_CATEGORIES, CONTEST_RANKS, CONTEST_SCARVES, FLAVORS, natureFlavors, NATURES, ribbonId, type ContestState } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useToasts } from '../../hooks/useToasts';
@@ -111,6 +111,58 @@ function MovesEditor({ entry }: { entry: ContestEntry }) {
   );
 }
 
+/** A nature's flavours ("likes spicy, dislikes sour"; none for the five that have neither). */
+export const natureText = (nature: number) => {
+  const f = natureFlavors(nature);
+  return f ? `likes ${FLAVORS[f.liked]}, dislikes ${FLAVORS[f.disliked]}` : 'no favourite flavour';
+};
+
+/**
+ * An entry's nature and held item (`contest.setProfile`): the nature decides the flavour it likes and dislikes when fed
+ * from now on, and a scarf raises its Visual Competition score (×1.1 in its own category, ×1.05 in the two beside it).
+ */
+function ProfileEditor({ entry }: { entry: ContestEntry }) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const toasts = useToasts();
+  const save = useMutation(trpc.contest.setProfile.mutationOptions({ onSuccess: () => queryClient.invalidateQueries({ queryKey: trpc.contest.overview.queryKey() }), onError: (e) => toasts.push('error', e.message) }));
+  const set = (nature: number, item: string | null) => save.mutate({ species: entry.species, nature, item: item as (typeof CONTEST_SCARVES)[number]['key'] | null });
+  return (
+    <div className="space-y-2 text-sm">
+      <label className="flex flex-wrap items-center gap-2">
+        <span className="w-20 text-slate-400">Nature</span>
+        <select className="rounded bg-slate-700 px-2 py-1" value={entry.nature} disabled={save.isPending} onChange={(e) => set(Number(e.target.value), entry.item)}>
+          {NATURES.map((n, i) => (
+            <option key={n} value={i}>
+              {n}
+            </option>
+          ))}
+        </select>
+        <span className="text-xs text-slate-400">{natureText(entry.nature)}</span>
+      </label>
+      <div className="flex flex-wrap items-center gap-1">
+        <span className="w-20 text-slate-400">Held item</span>
+        <button className={`rounded px-2 py-1 text-xs ring-1 ${!entry.item ? 'bg-slate-600 ring-yellow-300' : 'bg-slate-800 ring-slate-700 hover:bg-slate-700'}`} disabled={save.isPending} onClick={() => set(entry.nature, null)}>
+          None
+        </button>
+        {CONTEST_SCARVES.map((sc) => (
+          <button
+            key={sc.key}
+            title={sc.text}
+            className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-xs ring-1 ${entry.item === sc.key ? 'bg-slate-600 ring-yellow-300' : 'bg-slate-800 ring-slate-700 hover:bg-slate-700'}`}
+            disabled={save.isPending}
+            onClick={() => set(entry.nature, sc.key)}
+          >
+            <img src={`/extras/contest/items/${sc.key}.png`} alt="" width={24} height={24} className="[image-rendering:pixelated]" />
+            {sc.name}
+          </button>
+        ))}
+      </div>
+      <Toasts toasts={toasts.toasts} />
+    </div>
+  );
+}
+
 /** The lobby: the account's caught Pokémon (the Idle Adventure's Pokédex), one chosen to feed, set its moves and enter. */
 function Lobby({ entries, busy, onEnter }: { entries: ContestEntry[]; busy: boolean; onEnter: (species: number, rank: number, category: number) => void }) {
   const [chosen, setChosen] = useState<number | null>(entries[0]?.species ?? null);
@@ -137,6 +189,10 @@ function Lobby({ entries, busy, onEnter }: { entries: ContestEntry[]; busy: bool
               <div className="font-heading text-lg">{speciesName(entry.species)}</div>
               <div className="flex flex-wrap gap-0.5">{entry.ribbons.length ? entry.ribbons.map((r) => <RibbonIcon key={r} id={r} size={24} />) : <span className="text-xs text-slate-500">No ribbons yet</span>}</div>
             </div>
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-sm font-semibold">Nature and held item</h3>
+            <ProfileEditor entry={entry} />
           </div>
           <div className="space-y-1">
             <h3 className="text-sm font-semibold">Condition</h3>
