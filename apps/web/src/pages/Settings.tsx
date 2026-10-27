@@ -10,6 +10,7 @@ import { useDebugFlags } from '../hooks/useDebugFlags';
 import { useFontStyle, type FontStyle } from '../hooks/useFontStyle';
 import { useExpTheme, usePokedollarTheme } from '../hooks/useThemedFigures';
 import { useSkipFlips } from '../hooks/useSkipFlips';
+import { useTextStatus } from '../hooks/useTextStatus';
 import { PAGE_WIDTH } from '../utils/layout';
 import { BUTTON } from '../utils/styles';
 
@@ -33,6 +34,7 @@ export function SettingsPage() {
   const [skipFlips, setSkipFlips] = useSkipFlips();
   const [expTheme, setExpTheme] = useExpTheme();
   const [pokedollarTheme, setPokedollarTheme] = usePokedollarTheme();
+  const [textStatus, setTextStatus] = useTextStatus();
   const music = useMusicSettings();
   return (
     <div className={`space-y-4 ${PAGE_WIDTH}`}>
@@ -45,6 +47,10 @@ export function SettingsPage() {
           <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300">
             <input type="checkbox" checked={skipFlips} onChange={(e) => setSkipFlips(e.target.checked)} />
             Skip coin flip animations
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300" title="A Pokémon's Special Conditions as the original text tags (off: round icons)">
+            <input type="checkbox" checked={textStatus} onChange={(e) => setTextStatus(e.target.checked)} />
+            Text status tags (SLP, CNF, PAR, BRN, PSN)
           </label>
           <OptionsPanel />
           <EndTurnReminders />

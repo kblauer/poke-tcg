@@ -5,15 +5,16 @@ import { LARGE_CARD, SMALL_CARD } from '../utils/layout';
 
 /**
  * The Special Conditions on a Pokémon in play, as the user's round icons (public/status/: game8's, made one size by
- * tools/status-tags/standardize.py; agreed 2026-10-26): `amount` is Poison's damage when it's more than 10.
+ * tools/status-tags/standardize.py; agreed 2026-10-26): `amount` is Poison's damage when it's more than 10. With the Settings
+ * page's text status tags on (useTextStatus), the original text tags instead: `label` on `className`.
  */
-function conditionTags(p: InPlayPokemon): { image: string; title: string; amount?: number }[] {
+function conditionTags(p: InPlayPokemon): { image: string; title: string; amount?: number; label: string; className: string }[] {
   const tags = [];
-  if (p.condition === 'asleep') tags.push({ image: '/status/asleep.png', title: "Asleep: flips to wake up between turns; can't attack or retreat" });
-  if (p.condition === 'confused') tags.push({ image: '/status/confused.png', title: 'Confused: flips to attack (tails: 30 damage to itself); retreats with no flip' });
-  if (p.condition === 'paralyzed') tags.push({ image: '/status/paralyzed.png', title: "Paralyzed: can't attack or retreat until after its owner's next turn" });
-  if (p.burned) tags.push({ image: '/status/burned.png', title: 'Burned: 20 damage between turns, then a flip; heads cures it' });
-  if (p.poison) tags.push({ image: '/status/poisoned.png', title: `Poisoned: ${p.poison} damage between turns`, ...(p.poison > 10 && { amount: p.poison }) });
+  if (p.condition === 'asleep') tags.push({ image: '/status/asleep.png', title: "Asleep: flips to wake up between turns; can't attack or retreat", label: 'SLP', className: 'bg-indigo-500' });
+  if (p.condition === 'confused') tags.push({ image: '/status/confused.png', title: 'Confused: flips to attack (tails: 30 damage to itself); retreats with no flip', label: 'CNF', className: 'bg-pink-500' });
+  if (p.condition === 'paralyzed') tags.push({ image: '/status/paralyzed.png', title: "Paralyzed: can't attack or retreat until after its owner's next turn", label: 'PAR', className: 'bg-yellow-500 text-slate-900' });
+  if (p.burned) tags.push({ image: '/status/burned.png', title: 'Burned: 20 damage between turns, then a flip; heads cures it', label: 'BRN', className: 'bg-orange-600' });
+  if (p.poison) tags.push({ image: '/status/poisoned.png', title: `Poisoned: ${p.poison} damage between turns`, ...(p.poison > 10 && { amount: p.poison }), label: `PSN${p.poison > 10 ? ` ${p.poison}` : ''}`, className: 'bg-green-600' });
   return tags;
 }
 
@@ -42,6 +43,7 @@ function statusBadges(p: InPlayPokemon, cards?: CardLibrary): { label: string; t
   return badges;
 }
 import { useFlair, usePattern } from '../hooks/useFlair';
+import { useTextStatus } from '../hooks/useTextStatus';
 import { useTouchHold } from '../hooks/useTouchHold';
 import { holoAttributes } from '../utils/holo';
 import { EnergyIcon } from './EnergyIcon';
@@ -131,6 +133,9 @@ export function Card({
   const pattern = usePattern(def.id, mine);
   const border = useFlair(def.id, 'border', mine);
   const size = small ? SMALL_CARD : LARGE_CARD;
+  // Its Special Conditions as text tags, first among its badges, when the Settings page says so; otherwise its round icons.
+  const [textStatus] = useTextStatus();
+  const badges = inPlay ? [...(textStatus ? conditionTags(inPlay) : []), ...statusBadges(inPlay, cards)] : [];
   return (
     <div
       {...hold}
@@ -166,7 +171,7 @@ export function Card({
               ))}
             </div>
           )}
-          {conditionTags(inPlay).length > 0 && (
+          {!textStatus && conditionTags(inPlay).length > 0 && (
             <div className="grid grid-cols-[repeat(2,max-content)] gap-0.5">
               {conditionTags(inPlay).map((t) => (
                 <span key={t.image} title={t.title} className="relative inline-block shrink-0">
@@ -176,9 +181,9 @@ export function Card({
               ))}
             </div>
           )}
-          {statusBadges(inPlay, cards).length > 0 && (
+          {badges.length > 0 && (
             <div className="grid grid-cols-[repeat(2,max-content)] gap-0.5">
-              {statusBadges(inPlay, cards).map((b, i) => (
+              {badges.map((b, i) => (
                 <span key={`${b.label}-${i}`} title={b.title} className={`${b.className} rounded px-[3.6px] text-[15px] font-bold leading-[20.4px] text-white shadow`}>
                   {b.label}
                 </span>
