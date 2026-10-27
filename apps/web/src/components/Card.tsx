@@ -4,8 +4,8 @@ import { typeColor } from '../utils/cardColors';
 import { LARGE_CARD, SMALL_CARD } from '../utils/layout';
 
 /**
- * The Special Conditions on a Pokémon in play, as the user's tags (public/status/, cut from their pictures by
- * tools/status-tags/make_tags.py; agreed 2026-10-26): `amount` is Poison's damage when it's more than 10.
+ * The Special Conditions on a Pokémon in play, as the user's round icons (public/status/: game8's, made one size by
+ * tools/status-tags/standardize.py; agreed 2026-10-26): `amount` is Poison's damage when it's more than 10.
  */
 function conditionTags(p: InPlayPokemon): { image: string; title: string; amount?: number }[] {
   const tags = [];
@@ -157,8 +157,7 @@ export function Card({
       {inPlay && (
         // The user's (2026-10-26): the cards attached to it (Pokémon Tools, Trainers that stay on it, Shapeshift), round icons like
         // its Energy's, two to a row in the top left corner, left to right then top to bottom; its Special Conditions to their right
-        // as the user's tags, filling the card's width left to right then top to bottom (too wide for two to a row), then its other
-        // badges, half as big again, two to a row.
+        // as the user's round icons, in the same two-wide layout; then its other badges, half as big again, two to a row.
         <div className="absolute left-1 right-1 top-1 flex items-start gap-0.5">
           {cards && (inPlay.attached ?? []).length > 0 && (
             <div className="grid grid-cols-[repeat(2,max-content)] gap-0.5">
@@ -168,10 +167,10 @@ export function Card({
             </div>
           )}
           {conditionTags(inPlay).length > 0 && (
-            <div className="flex min-w-0 flex-wrap gap-0.5">
+            <div className="grid grid-cols-[repeat(2,max-content)] gap-0.5">
               {conditionTags(inPlay).map((t) => (
                 <span key={t.image} title={t.title} className="relative inline-block shrink-0">
-                  <img src={t.image} alt={t.title.split(':')[0]} draggable={false} className={`${small ? 'h-4' : 'h-[22px]'} w-auto drop-shadow`} />
+                  <img src={t.image} alt={t.title.split(':')[0]} draggable={false} className={`${small ? 'h-[22px] w-[22px]' : 'h-7 w-7'} drop-shadow`} />
                   {t.amount && <span className="absolute -right-1 -top-1 rounded-full bg-green-700 px-1 text-[10px] font-bold leading-4 text-white shadow">{t.amount}</span>}
                 </span>
               ))}
