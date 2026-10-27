@@ -538,7 +538,7 @@ describe('an idle run', () => {
     expect(on.ok && on.state.area).toBe(index('route-2'));
   });
 
-  it('grinds on a route picked on the Town Map: from its end, its trainers passed, Continue route walking on from there', () => {
+  it('grinds on a route picked on the Town Map: from its end, its trainers passed, Continue route going back where it was', () => {
     const index = (id: string) => AREAS.findIndex((a) => a.id === id);
     const base = createIdleRun({ species: 4 }, 2);
     const town: IdleState = { ...base, area: index('cerulean-city'), phase: 'town', reached: index('cerulean-city'), party: [{ ...base.party[0]!, level: 40 }] };
@@ -553,13 +553,42 @@ describe('an idle run', () => {
     // Not a route, or not reached yet.
     expect(applyIdleAction(town, { type: 'GRIND_AT', area: index('pewter-city'), kind: 'wild' }).ok).toBe(false);
     expect(applyIdleAction(town, { type: 'GRIND_AT', area: index('route-24'), kind: 'wild' }).ok).toBe(false);
-    // A wild grind on Route 2, then Continue route: on to Pewter City.
+    // A wild grind on Route 2, then Continue route: back to Cerulean City, where the run was (the user's).
     let s = (applyIdleAction(town, { type: 'GRIND_AT', area: index('route-2'), kind: 'wild' }) as { state: IdleState }).state;
     for (let i = 0; i < 5; i++) s = simulateSegment(s, MANUAL, new Set())!.state;
     expect(modeOf(s)).toBe('wild');
     s = (applyIdleAction(s, { type: 'SET_MODE', mode: 'route' }) as { state: IdleState }).state;
-    for (let i = 0; i < 20 && s.phase === 'walking'; i++) s = simulateSegment(s, MANUAL, new Set())!.state;
-    expect([s.phase, s.area]).toEqual(['town', index('pewter-city')]);
+    expect([s.phase, s.area]).toEqual(['town', index('cerulean-city')]);
+  });
+
+  it('goes back where it was with Continue route after the Town Map moved it, however many moves; walking on there forgets it', () => {
+    const index = (id: string) => AREAS.findIndex((a) => a.id === id);
+    const base = createIdleRun({ species: 4 }, 2);
+    const route3: IdleState = { ...base, area: index('route-3'), step: 10, beaten: ['x'], badges: ['Boulder'], party: [{ ...base.party[0]!, level: 40 }] };
+    const act = (s: IdleState, a: Parameters<typeof applyIdleAction>[1]) => {
+      const r = applyIdleAction(s, a);
+      if (!r.ok) throw new Error(r.error);
+      return r.state;
+    };
+    // A town, then a grind elsewhere: still Route 3's place to go back to.
+    let s = act(route3, { type: 'TRAVEL', area: index('viridian-city') });
+    expect(s.back).toMatchObject({ area: index('route-3'), step: 10, beaten: ['x'] });
+    s = act(s, { type: 'GRIND_AT', area: index('route-2'), kind: 'wild' });
+    expect(s.back?.area).toBe(index('route-3'));
+    s = act(s, { type: 'SET_MODE', mode: 'route' });
+    expect(s).toMatchObject({ area: index('route-3'), step: 10, beaten: ['x'], phase: 'walking' });
+    expect(s.back).toBeUndefined();
+    expect(s.loop).toBeUndefined();
+    // From a town: back in the town, waiting.
+    const cerulean: IdleState = { ...base, area: index('cerulean-city'), phase: 'town', reached: index('cerulean-city'), party: [{ ...base.party[0]!, level: 40 }] };
+    const back = act(act(cerulean, { type: 'GRIND_AT', area: index('route-2'), kind: 'trainers' }), { type: 'SET_MODE', mode: 'route' });
+    expect([back.area, back.phase]).toEqual([index('cerulean-city'), 'town']);
+    // Walked on as far as it: forgotten (Pewter City's Continue reaches Route 3).
+    const pewter = act(route3, { type: 'TRAVEL', area: index('pewter-city') });
+    expect(pewter.back?.area).toBe(index('route-3'));
+    const on = act(pewter, { type: 'CONTINUE' });
+    expect(on.area).toBe(index('route-3'));
+    expect(on.back).toBeUndefined();
   });
 
   it('picks a grind on the route it walks from where it is, and refuses the one already on', () => {

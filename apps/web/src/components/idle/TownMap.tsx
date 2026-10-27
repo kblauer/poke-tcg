@@ -147,11 +147,20 @@ export function TownMap({ view, busy, gender, onAct }: { view: ClientIdleRun['vi
           <div className="absolute flex flex-col" style={{ right: px(4), bottom: px(4), gap: px(2), zIndex: 4 }}>
             {(
               [
-                ['route', 'Continue route', 'Walk on along the route (ends a grind)'],
+                ['route', 'Continue route', view.back ? `Back to ${AREAS[view.back.area]!.name}, where you were, and on from there` : 'Walk on along the route (ends a grind)'],
                 ['stop', 'Stop', 'Stop where you are, offline too, until another mode is chosen'],
               ] as const
             ).map(([id, label, hint]) => (
-              <MapButton key={id} label={label} title={hint} on={mode === id} disabled={locked} onClick={() => mode !== id && send({ type: 'SET_MODE', mode: id })} />
+              // Continue route always goes (the user's): back where the map took the run from (IdleState.back), out of a
+              // grind, or on after Stop; the map closes on it. Moved by the map, it isn't lit: the run is elsewhere.
+              <MapButton
+                key={id}
+                label={label}
+                title={hint}
+                on={mode === id && !(id === 'route' && view.back)}
+                disabled={locked}
+                onClick={() => (id === 'route' ? send({ type: 'SET_MODE', mode: 'route' }, close) : mode !== id && send({ type: 'SET_MODE', mode: id }))}
+              />
             ))}
           </div>
 

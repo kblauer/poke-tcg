@@ -121,6 +121,12 @@ export interface IdleState {
    * be picked (TRAVEL, GRIND_AT).
    */
   reached?: number;
+  /**
+   * Where the run was before the Town Map first took it elsewhere (TRAVEL, GRIND_AT on another route; the user's): on a
+   * route (its leg, step and trainers beaten) or in a town. Continue route (SET_MODE route) goes back there and walks on;
+   * reaching it again by walking on forgets it.
+   */
+  back?: MapBack;
   party: Mon[];
   bag: Record<string, number>;
   money: number;
@@ -414,6 +420,34 @@ export function reachedArea(state: Pick<IdleState, 'reached' | 'area' | 'loop' |
 /** Whether every store sells TMs and HMs (Buy TMs): once the run has reached Celadon City (the user's). */
 export const tmShopOpen = (state: Pick<IdleState, 'reached' | 'area' | 'loop' | 'badges'>) => reachedArea(state) >= areaIndex(TM_SHOP_AREA);
 
+export type MapBack = { area: number; leg: number; step: number; beaten: string[]; town?: true };
+
+/** Where the run is, to come back to (IdleState.back): a route grind's place where it began, a town (or its auto-grind) the town. */
+function hereNow(state: IdleState): MapBack {
+  if (state.phase === 'town' || state.phase === 'grinding') return { area: state.area, leg: 0, step: 0, beaten: [], town: true };
+  if (state.loop) return { ...state.loop.resume, beaten: [...state.loop.resume.beaten] };
+  return { area: state.area, leg: state.leg, step: state.step, beaten: [...state.beaten] };
+}
+
+/** Before the Town Map moves the run to `to`: where it was kept (IdleState.back), the first time only, unless `to` is on from there. */
+function keepBack(state: IdleState, to: number) {
+  const back = state.back ?? hereNow(state);
+  if (to < back.area || (to === back.area && !back.town)) state.back = back;
+  else delete state.back;
+}
+
+/** Continue route after the Town Map moved the run: back where it was (IdleState.back), walking on from there (or waiting in its town). */
+function goBack(state: IdleState) {
+  const back = state.back!;
+  delete state.back;
+  delete state.loop;
+  delete state.grind;
+  delete state.inStore;
+  state.log.push(`Went back to ${AREAS[back.area]!.name}.`);
+  if (back.town) return enterArea(state, back.area, []);
+  Object.assign(state, { area: back.area, leg: back.leg, step: back.step, beaten: [...back.beaten], phase: 'walking', encounter: { steps: 0, buff: 0, prev: '' } });
+}
+
 /** Why the Town Map can't take the run to a town (TRAVEL), or null: only towns reached already, not the one it waits in. */
 export function travelError(state: Pick<IdleState, 'reached' | 'area' | 'loop' | 'badges' | 'phase'>, index: number): string | null {
   const a = AREAS[index];
@@ -452,6 +486,8 @@ export function mapGrindPlan(state: Pick<IdleState, 'reached' | 'area' | 'leg' |
 /** Enters an area: a town waits for the player; any other starts at its first leg's first step. */
 function enterArea(state: IdleState, index: number, events: SegmentEvent[]) {
   state.reached = Math.max(reachedArea(state), index);
+  // Walked on as far as where the Town Map took it from: nothing to go back to.
+  if (state.back && index >= state.back.area) delete state.back;
   // A route grind keeps going through a white-out back to its route's start; any other area ends it.
   if (index !== state.area) delete state.loop;
   delete state.inStore;
@@ -604,7 +640,9 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
       const was = state.stopped;
       delete state.stopped;
       if (action.mode === 'route') {
-        if (state.loop) endRouteLoop(state);
+        // Moved by the Town Map: back where it was first (the user's), walking on.
+        if (state.back) goBack(state);
+        else if (state.loop) endRouteLoop(state);
         else if (was) state.log.push('Went on.');
         return ok();
       }
@@ -618,9 +656,13 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
       const error = travelError(state, action.area);
       if (error) return fail(error);
       // Whatever it was doing ends (a route grind, a town's auto-grind, the store); the mode (Stop) stays.
+      const back = state.back ?? hereNow(state);
       delete state.loop;
       state.log.push(`Went to ${AREAS[action.area]!.name} by the Town Map.`);
       enterArea(state, action.area, []);
+      // Kept after entering (which forgets one it's reached): Continue route comes back to it.
+      state.back = back;
+      keepBack(state, action.area);
       return ok();
     }
     case 'GRIND_AT': {
@@ -632,7 +674,9 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
         const error = startRouteLoop(state, action.kind);
         return error ? fail(error) : ok();
       }
-      // Elsewhere: at the end of that route, its trainers passed (as BACK_ROUTE), Continue route walking on from there.
+      // Elsewhere: at the end of that route, its trainers passed (as BACK_ROUTE); Continue route goes back where the run
+      // was (IdleState.back), or walks on from there when that was further back.
+      keepBack(state, action.area);
       delete state.loop;
       delete state.grind;
       delete state.inStore;
