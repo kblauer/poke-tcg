@@ -4,7 +4,7 @@ import { attachBlocked, greenAroma, stickyHold, timeAura, discardsLocked, energy
 import { evolvesFromEevee, isPokemonSP, evolveWith, pendingChoiceView, playTrainer, resolvePending, stadiumError, trainersLocked, TRAINERS_LOCKED, type PendingChoice, type TrainerChoices } from './trainers.js';
 import { energyEffect, powerEffect, trainerEffect } from './effects/index.js';
 import { conditionProof, givesTwoPrizes, hasOwner, isLegend, hasType, holonEnergy, namesMatch, isBasicEnergy, isBasicPokemon, isBenchable, isTrainerCard, lookupCard, type Attack, type CardDef, type CardLibrary, type EnergyType, type PokemonCardDef } from './cards.js';
-import { addLog, baseUid, clearOnLeavingActive, clearSpecialConditions, effectId, evolvedFromName, isDelta, isPlasmaPokemon, evolvedHook, hasSpecialCondition, shapeshiftCard, flipCoin, inPlayDef, logTool, openBenchSlot, pokemonName, revealFaceDown, sameCards, type LogEntry } from './status.js';
+import { addLog, baseUid, clearOnLeavingActive, logConditionDamage, clearSpecialConditions, effectId, evolvedFromName, isDelta, isPlasmaPokemon, evolvedHook, hasSpecialCondition, shapeshiftCard, flipCoin, inPlayDef, logTool, openBenchSlot, pokemonName, revealFaceDown, sameCards, type LogEntry } from './status.js';
 import { shuffle } from './rng.js';
 import type { CpuDifficulty } from './cpu/index.js';
 
@@ -716,12 +716,15 @@ export function createGame(p1: NewGamePlayer, p2: NewGamePlayer, seed: number, l
 export const TURN_ORDER_FLIP = 'Coin flip for turn order';
 
 /**
- * An ending turn's Pokémon Checkup: the state as it began, and as it ended (before the next turn begins); `burn`, when a
- * Burned Pokémon took its damage, as it stood before the Burn flips.
+ * An ending turn's Pokémon Checkup: the state as it began, and as it ended (before the next turn begins); `poison`, when a
+ * Poisoned Pokémon took its damage, as it stood then; `burn`, when a Burned Pokémon took its damage, as it stood before the
+ * Burn flips.
  */
 export interface Checkup {
   start: GameState;
   end: GameState;
+  /** After the Poisoned Pokémon took their damage, before any Burn damage. */
+  poison?: GameState;
   burn?: GameState;
 }
 
@@ -739,15 +742,17 @@ export function captureCheckup<T>(run: () => T): { result: T; checkup: Checkup |
   let end: GameState | null = null;
   // Set in the callback, so not narrowed to null here.
   let burn = null as GameState | null;
+  let poison = null as GameState | null;
   const outer = onCheckup;
   onCheckup = (state, at) => {
     if (at === 'start') start ??= structuredClone(state);
     else if (at === 'burn') burn ??= structuredClone(state);
+    else if (at === 'poison') poison ??= structuredClone(state);
     else end ??= structuredClone(state);
   };
   try {
     const result = run();
-    return { result, checkup: start && end ? { start, end, ...(burn && { burn }) } : null };
+    return { result, checkup: start && end ? { start, end, ...(poison && { poison }), ...(burn && { burn }) } : null };
   } finally {
     onCheckup = outer;
   }
@@ -2273,15 +2278,18 @@ function betweenTurns(state: GameState) {
   const virus = all.some((side) => [side.active, ...side.bench].some((p) => p && pokemonPower(p)?.toxicVirus && powerActive(p, state.cards, all)));
   // Virbank City Gym: 2 more damage counters for every Poisoned Pokémon.
   const virbank = !!state.stadium && lookupCard(state.cards, state.stadium.card.defId).name === 'Virbank City Gym';
-  for (const { id, active, name } of actives) {
-    if (!active.poison) continue;
-    active.damage += active.poison + (virus ? 10 : 0) + (virbank ? 20 : 0);
+  const poisoned = actives.filter(({ active }) => active.poison);
+  for (const { id, active, name } of poisoned) {
+    const damage = active.poison! + (virus ? 10 : 0) + (virbank ? 20 : 0);
+    active.damage += damage;
     if (virus) addLog(state, `Toxic Virus: 1 more damage counter on ${name}.`, id);
     if (virbank) addLog(state, `Virbank City Gym: 2 more damage counters on ${name}.`, id);
     // Shadow Images lasts until the Pokémon takes damage.
     if (active.effects) delete active.effects.shadowImages;
-    addLog(state, `${name} takes ${active.poison} Poison damage.`, id);
+    // Logged with what it did, for the board's animation over the Pokémon (the `poison` checkup frame).
+    logConditionDamage(state, `${name} takes ${active.poison} Poison damage.`, id, { uid: active.card.uid, condition: 'Poison', damage });
   }
+  if (poisoned.length) onCheckup?.(state, 'poison');
   // Fiery Aura: an Active Rapidash's makes Burn 4 damage counters, for both players' Burned Pokémon (agreed).
   const everyone = state.playerOrder.map((id) => state.players[id]!);
   const fiery = everyone.some((s) => s.active && pokemonPower(s.active)?.fieryAura && powerActive(s.active, state.cards, everyone));
@@ -2296,7 +2304,7 @@ function betweenTurns(state: GameState) {
     const burn = fiery || flame || scales ? 40 : (active.burnDamage ?? 20);
     active.damage += burn;
     if (active.effects) delete active.effects.shadowImages;
-    addLog(state, `${name} takes ${burn} Burn damage${fiery ? ' (Fiery Aura)' : ''}.`, id);
+    logConditionDamage(state, `${name} takes ${burn} Burn damage${fiery ? ' (Fiery Aura)' : ''}.`, id, { uid: active.card.uid, condition: 'Burn', damage: burn });
   }
   if (burned.length) onCheckup?.(state, 'burn');
   for (const { id, active, name } of burned) {

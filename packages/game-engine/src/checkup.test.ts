@@ -40,6 +40,20 @@ describe('captureCheckup', () => {
     expect(captureCheckup(() => endTurn(duel('charmander', 'charmander'), 'ash')).checkup!.burn).toBeUndefined();
   });
 
+  it("keeps the state after the Poison damage, before the Burn's, each logged with its Pokémon and damage for the board's animation", () => {
+    const s = duel('charmander', 'charmander');
+    const uid = misty(s).active!.card.uid;
+    Object.assign(misty(s).active!, { poison: 20, burned: true });
+    const { checkup } = captureCheckup(() => endTurn(flips(s, false), 'ash'));
+    expect([misty(checkup!.poison!).active!.damage, misty(checkup!.burn!).active!.damage]).toEqual([20, 40]);
+    expect(checkup!.poison!.log!.filter((l) => l.conditionDamage).map((l) => l.conditionDamage)).toEqual([{ uid, condition: 'Poison', damage: 20 }]);
+    expect(checkup!.burn!.log!.filter((l) => l.conditionDamage).map((l) => l.conditionDamage)).toEqual([
+      { uid, condition: 'Poison', damage: 20 },
+      { uid, condition: 'Burn', damage: 20 },
+    ]);
+    expect(captureCheckup(() => endTurn(duel('charmander', 'charmander'), 'ash')).checkup!.poison).toBeUndefined();
+  });
+
   it('is null for a move that ends no turn', () => {
     const s = duel('clefairy', 'charmander', { energy: ['fire'], bench: ['charmander'] });
     const energy = s.players.ash!.active!.energy[0]!.uid;

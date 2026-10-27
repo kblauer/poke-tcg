@@ -20,6 +20,11 @@ export interface LogEntry {
    * the Pokémon (its card's uid), the Tool's name, and the damage it healed (none: it cured Special Conditions).
    */
   tool?: { uid: string; name: string; heal?: number };
+  /**
+   * Set when a Special Condition does damage between turns (Poison, Burn), for the UI's animation over its Pokémon: the
+   * Pokémon (its card's uid), the condition, and the damage it took (with the extra from Toxic Virus, Virbank City Gym…).
+   */
+  conditionDamage?: { uid: string; condition: 'Poison' | 'Burn'; damage: number };
 }
 
 export function addLog(state: GameState, text: string, player: PlayerId | null = null, coin?: LogEntry['coin']) {
@@ -29,6 +34,12 @@ export function addLog(state: GameState, text: string, player: PlayerId | null =
 }
 
 /** Logs a Pokémon Tool working by itself (LogEntry's `tool`). */
+/** Logs a Special Condition's damage between turns with what it did (LogEntry's `conditionDamage`), for the board's animation. */
+export function logConditionDamage(state: GameState, text: string, player: PlayerId, damage: NonNullable<LogEntry['conditionDamage']>) {
+  addLog(state, text, player);
+  state.log!.at(-1)!.conditionDamage = damage;
+}
+
 export function logTool(state: GameState, text: string, player: PlayerId, tool: NonNullable<LogEntry['tool']>) {
   addLog(state, text, player);
   state.log!.at(-1)!.tool = tool;
