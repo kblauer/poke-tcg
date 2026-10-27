@@ -1,5 +1,5 @@
 import type { AppRouter } from '@poke-tcg/api/router';
-import { AREAS, areaIndex, ballLineMs, CHALLENGE_MS, FADE_MS, INTRO_MS, ITEMS, openingLineMs, playing, STEP_MS, TICK_MS, type CatchUpSummary, type IdleAction, type IdleSettings, type SegmentEvent, type TownArea, type TrackStep, type WalkArea } from '@poke-tcg/idle';
+import { AREAS, areaIndex, ballLineMs, CHALLENGE_MS, FADE_MS, INTRO_MS, ITEMS, openingLineMs, playing, STEP_MS, TICK_MS, TOWN_HERE_MS, type CatchUpSummary, type IdleAction, type IdleSettings, type SegmentEvent, type TownArea, type TrackStep, type WalkArea } from '@poke-tcg/idle';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type { inferRouterOutputs } from '@trpc/server';
@@ -123,6 +123,27 @@ function useTabVisible() {
     },
     () => document.visibilityState === 'visible',
   );
+}
+
+/**
+ * The player watching a town (the user's, 2026-10-27: a town never goes on by itself while they're there): every
+ * TOWN_HERE_MS while a town is on a visible page, idle.here moves the run's time up to now, so only time away (the tab
+ * hidden or the page closed) is played by the offline catch-up's town wait. The first one only after TOWN_HERE_MS, so
+ * the catch-up on coming back plays the time away first.
+ */
+export function useTownHere(run: ClientIdleRun | null | undefined) {
+  const trpc = useTRPC();
+  const here = useMutation(trpc.idle.here.mutationOptions());
+  const visible = useTabVisible();
+  const runId = run?.id;
+  const inTown = run?.status === 'ACTIVE' && run.view.phase === 'town';
+  const send = useRef(here.mutate);
+  send.current = here.mutate;
+  useEffect(() => {
+    if (!runId || !inTown || !visible) return;
+    const timer = window.setInterval(() => send.current({ runId }), TOWN_HERE_MS);
+    return () => window.clearInterval(timer);
+  }, [runId, inTown, visible]);
 }
 
 /** Thrown into the playback when it's stopped (the page left), so it goes no further. */

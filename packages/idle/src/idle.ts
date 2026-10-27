@@ -39,11 +39,13 @@ export const TICK_MS = 10000;
 export const BATTLE_MS = 2400;
 export const FADE_MS = 800;
 /**
- * How long a town waits for the player's choice before taking it itself (the user's: no prompt waits on the player): the
- * gym, or on once it's beaten. 10 s of the player doing nothing (the user's, 2026-10-26; 5 s before): the browser counts
- * it again from any input; not at all in the store (IdleState.inStore).
+ * How long a town waits for the player's choice before taking it itself, only while they're away (the user's,
+ * 2026-10-27: watched, a town waits for them however long; 10 s, 2026-10-26; 5 s before): the gym, or on once it's
+ * beaten, played by the offline catch-up; not at all in the store (IdleState.inStore).
  */
 export const TOWN_WAIT_MS = 10000;
+/** How often a page watching a town tells the server the player is there (idle.here), well inside TOWN_WAIT_MS. */
+export const TOWN_HERE_MS = 4000;
 /** Offline catch-up's cap (12 hours of absence, agreed with the user) and how many segments one call simulates (the browser calls again for more). */
 export const CATCH_UP_CAP_MS = 12 * 60 * 60 * 1000;
 export const CATCH_UP_SEGMENTS = 40;
@@ -113,6 +115,11 @@ export interface IdleState {
   beaten: string[];
   /** Gym Trainers beaten in this run (not the leaders): fought once, then walked past on the way back to the leader (the user's, 2026-10-27). */
   gymBeaten?: string[];
+  /**
+   * The furthest area entered (AREAS' index; older runs' from reachedArea): the Town Map's towns and routes up to it can
+   * be picked (TRAVEL, GRIND_AT).
+   */
+  reached?: number;
   party: Mon[];
   bag: Record<string, number>;
   money: number;
@@ -180,8 +187,12 @@ export type IdleAction =
   | { type: 'WILD_GRIND' }
   | { type: 'TRAINER_GRIND' }
   | { type: 'CONTINUE_ROUTE' }
-  /** The mode (the mode dropdown, the user's): Route, Wild grind, Trainer grind, or Stop (stopped where it is). */
+  /** The mode (the Town Map's Continue route and Stop, the user's): Route, Wild grind, Trainer grind, or Stop (stopped where it is). */
   | { type: 'SET_MODE'; mode: IdleMode }
+  /** The Town Map (the user's): to a town reached already, its usual choices waiting there. */
+  | { type: 'TRAVEL'; area: number }
+  /** The Town Map (the user's): Wild or Trainer grind on a route (or in a dungeon) reached already (mapGrindPlan). */
+  | { type: 'GRIND_AT'; area: number; kind: 'wild' | 'trainers' }
   | { type: 'BUY'; item: string; count: number }
   /** The party's order (the lead fights first). */
   | { type: 'SET_ORDER'; uids: string[] }
@@ -390,8 +401,53 @@ export function previousRoute(townIndex: number): number | null {
   return null;
 }
 
+/**
+ * The furthest area the run has entered (IdleState.reached; an older run's from where it is, the grind it's on and the
+ * gyms whose badges it has).
+ */
+export function reachedArea(state: Pick<IdleState, 'reached' | 'area' | 'loop' | 'badges'>): number {
+  const gyms = AREAS.flatMap((a, i) => (a.kind === 'gym' && state.badges.includes(a.badge!) ? [i] : []));
+  return Math.max(state.reached ?? 0, state.area, state.loop?.resume.area ?? 0, ...gyms);
+}
+
+/** Why the Town Map can't take the run to a town (TRAVEL), or null: only towns reached already, not the one it waits in. */
+export function travelError(state: Pick<IdleState, 'reached' | 'area' | 'loop' | 'badges' | 'phase'>, index: number): string | null {
+  const a = AREAS[index];
+  if (!a || !isTown(a)) return 'Not a town';
+  if (index > reachedArea(state)) return 'Not reached yet';
+  if (state.phase === 'town' && state.area === index) return 'You are here';
+  return null;
+}
+
+/** A route grind picked on the Town Map is where the run walks already: started from where it is (as the mode was). */
+const mapGrindHere = (state: Pick<IdleState, 'phase' | 'area' | 'loop'>, index: number) => state.phase === 'walking' && state.area === index && (!state.loop || state.loop.resume.area === index);
+
+/** Where a route grind picked on the Town Map starts, away from it: the route's end, its trainers passed (as BACK_ROUTE). */
+function mapGrindStart(index: number): Pick<IdleState, 'area' | 'leg' | 'step' | 'beaten' | 'encounter'> {
+  const w = AREAS[index] as WalkArea;
+  const leg = w.legs.length - 1;
+  return { area: index, leg, step: w.legs[leg]!.track.length - 1, beaten: w.trainers.map((t) => t.key), encounter: { steps: 0, buff: 0, prev: '' } };
+}
+
+/**
+ * What Wild or Trainer grind on a route (or in a dungeon) picked on the Town Map does (the user's), or why it can't: one
+ * reached already; where the run walks, from where it is; elsewhere, from its end. A wild grind stays on that route (no
+ * wild Pokémon there: an error, never another route's).
+ */
+export function mapGrindPlan(state: Pick<IdleState, 'reached' | 'area' | 'leg' | 'step' | 'beaten' | 'loop' | 'badges' | 'phase'>, index: number, kind: 'wild' | 'trainers'): RouteGrindPlan {
+  const a = AREAS[index];
+  if (!a || (a.kind !== 'route' && a.kind !== 'dungeon')) return { error: 'Only on a route or in a dungeon' };
+  if (index > reachedArea(state)) return { error: 'Not reached yet' };
+  if (mapGrindHere(state, index) && modeOf(state as Pick<IdleState, 'loop'>) === kind) return { error: 'Already in that mode' };
+  const from = mapGrindHere(state, index) ? (state.loop ? { ...state, ...state.loop.resume, loop: undefined } : state) : { ...state, ...mapGrindStart(index), phase: 'walking' as const, loop: undefined };
+  const plan = routeGrindPlan(from, kind);
+  if ('error' in plan || plan.area === index) return plan;
+  return { error: `No wild Pokémon in ${a.name}` };
+}
+
 /** Enters an area: a town waits for the player; any other starts at its first leg's first step. */
 function enterArea(state: IdleState, index: number, events: SegmentEvent[]) {
+  state.reached = Math.max(reachedArea(state), index);
   // A route grind keeps going through a white-out back to its route's start; any other area ends it.
   if (index !== state.area) delete state.loop;
   delete state.inStore;
@@ -454,7 +510,7 @@ function autoStones(state: IdleState, stock: string[], events: SegmentEvent[]) {
 /** The changes queued while a wild battle's replay is held (IdleState.pending): the party's order, its moves, a stone. */
 export const QUEUED_ACTIONS: IdleAction['type'][] = ['SET_ORDER', 'SET_SLOTS', 'USE_STONE', 'SET_MODE'];
 
-/** The run's modes (the mode dropdown, the user's). */
+/** The run's modes (the Town Map's buttons and its routes' grinds, the user's). */
 export const IDLE_MODES = ['route', 'wild', 'trainers', 'stop'] as const;
 export type IdleMode = (typeof IDLE_MODES)[number];
 
@@ -509,6 +565,8 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
     return { ok: true, state };
   };
   if (state.phase === 'won' || state.phase === 'given-up') return fail('This run is over');
+  // Kept before anything moves the run back (an older run's worked out once).
+  state.reached = reachedArea(state);
   const area = AREAS[state.area]!;
   const inTown = state.phase === 'town' && isTown(area);
   // Out of the store before going anywhere (the user's: it's left by hand).
@@ -551,6 +609,33 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
       const error = startRouteLoop(state, action.mode === 'wild' ? 'wild' : 'trainers');
       if (error) return fail(error);
       return ok();
+    }
+    case 'TRAVEL': {
+      const error = travelError(state, action.area);
+      if (error) return fail(error);
+      // Whatever it was doing ends (a route grind, a town's auto-grind, the store); the mode (Stop) stays.
+      delete state.loop;
+      state.log.push(`Went to ${AREAS[action.area]!.name} by the Town Map.`);
+      enterArea(state, action.area, []);
+      return ok();
+    }
+    case 'GRIND_AT': {
+      const plan = mapGrindPlan(state, action.area, action.kind);
+      if ('error' in plan) return fail(plan.error);
+      delete state.stopped;
+      if (mapGrindHere(state, action.area)) {
+        if (modeOf(state) === action.kind) return ok();
+        const error = startRouteLoop(state, action.kind);
+        return error ? fail(error) : ok();
+      }
+      // Elsewhere: at the end of that route, its trainers passed (as BACK_ROUTE), Continue route walking on from there.
+      delete state.loop;
+      delete state.grind;
+      delete state.inStore;
+      Object.assign(state, mapGrindStart(action.area), { phase: 'walking' });
+      state.log.push(`Went to ${AREAS[action.area]!.name} by the Town Map.`);
+      const error = startRouteLoop(state, action.kind);
+      return error ? fail(error) : ok();
     }
     case 'CONTINUE_ROUTE': {
       if (!state.loop) return fail('Not grinding');

@@ -1,6 +1,6 @@
 import { prisma } from '@poke-tcg/db';
-import { AREAS, applyIdleAction, areaIndex, BALLS, throwable, isBaseForm, CATCH_UP_CAP_MS, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, simulateSegment, TOWN_WAIT_MS, starterOptions, STARTERS, visitStore, withPending, type IdleSettings, type Stats } from '@poke-tcg/idle';
-import { idleActInput, idleRunInput, idleSettingsInput, idleThrowInput, idleWarpInput, startIdleInput } from '@poke-tcg/shared';
+import { AREAS, applyIdleAction, areaIndex, BALLS, throwable, isBaseForm, CATCH_UP_CAP_MS, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, reachedArea, simulateSegment, TOWN_WAIT_MS, starterOptions, STARTERS, visitStore, withPending, type IdleSettings, type Stats } from '@poke-tcg/idle';
+import { idleActInput, idleHereInput, idleRunInput, idleSettingsInput, idleThrowInput, idleWarpInput, startIdleInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { asJson, newSeed } from '../games.js';
 import { caughtSpecies, clientIdleRun, idleSettings, latestIdleRun, loadOwnIdleRun, saveIdleRun, type LoadedIdleRun } from '../idle.js';
@@ -126,7 +126,8 @@ export const idleRouter = router({
     // Leaving a town starts the clock again from now (time spent waiting there isn't played).
     // (Leaving the store too: the town's wait starts again then, the user's.)
     // (Any action out of a waiting town too: a grind chosen there, the user's.)
-    const leaving = input.action.type === 'GYM' || input.action.type === 'CONTINUE' || input.action.type === 'GRIND' || input.action.type === 'BACK_ROUTE' || input.action.type === 'LEAVE_STORE' || (run.state.phase === 'town' && state.phase !== 'town');
+    // (The Town Map's too: the segment playing is left where it is, the run going on from its new place now.)
+    const leaving = ['GYM', 'CONTINUE', 'GRIND', 'BACK_ROUTE', 'LEAVE_STORE', 'TRAVEL', 'GRIND_AT'].includes(input.action.type) || (run.state.phase === 'town' && state.phase !== 'town');
     // So does going on after the Stop mode (time stopped isn't played either); a segment still playing ends first.
     const unstopped = withPending(run.state).stopped && !withPending(state).stopped;
     const restart = leaving ? new Date() : unstopped ? new Date(Math.max(Date.now(), run.simulatedAt.getTime())) : null;
@@ -190,6 +191,22 @@ export const idleRouter = router({
     return { run: clientIdleRun(saved), segment: next.segment };
   }),
 
+  /**
+   * The player watching a town (the user's, 2026-10-27: a town never goes on by itself while they're there): the browser
+   * says so every few seconds (TOWN_HERE_MS) while a town is on a visible page, and the run's time moves up to now, so
+   * only time away (the page hidden or closed) counts toward the town's wait (TOWN_WAIT_MS, played by the offline
+   * catch-up). Nothing else changes: no version, no state.
+   */
+  here: protectedProcedure.input(idleHereInput).mutation(async ({ ctx, input }) => {
+    const run = await loadOwnIdleRun(input.runId, ctx.user.id);
+    const now = new Date();
+    // Only while they've been here all along: a gap of the town's wait or more is time away, the catch-up's to play.
+    if (run.status !== 'ACTIVE' || run.state.phase !== 'town' || run.simulatedAt >= now || now.getTime() - run.simulatedAt.getTime() >= TOWN_WAIT_MS) return { ok: false };
+    // Only the version seen: an action saved meanwhile sets its own time.
+    const { count } = await prisma.idleRun.updateMany({ where: { id: run.id, version: run.version }, data: { simulatedAt: now } });
+    return { ok: count > 0 };
+  }),
+
   /** Debug (refused in production): warps the run to an area's start (a town waits there), its party and bag kept. */
   debugWarp: debugProcedure.input(idleWarpInput).mutation(async ({ ctx, input }) => {
     const run = await loadOwnIdleRun(input.runId, ctx.user.id);
@@ -198,7 +215,8 @@ export const idleRouter = router({
     const index = areaIndex(input.area);
     if (index < 0) throw failed('Unknown area');
     const state = structuredClone(run.state);
-    Object.assign(state, { area: index, leg: 0, step: 0, beaten: [], phase: isTown(AREAS[index]!) ? 'town' : 'walking', version: state.version + 1 });
+    // The Town Map's places up to it open with it.
+    Object.assign(state, { reached: Math.max(reachedArea(state), index), area: index, leg: 0, step: 0, beaten: [], phase: isTown(AREAS[index]!) ? 'town' : 'walking', version: state.version + 1 });
     delete state.grind;
     delete state.replay;
     state.log.push(`Debug: warped to ${AREAS[index]!.name}.`);

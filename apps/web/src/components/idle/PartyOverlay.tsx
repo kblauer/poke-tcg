@@ -1,7 +1,7 @@
 import { basicFor, calcStats, cooldownTicks, ITEMS, moveData, species, usableStones, type IdleAction, type Mon } from '@poke-tcg/idle';
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { useEscape } from '../../hooks/useEscape';
-import { MODE_SELECT_HEIGHT } from './ModeSelect';
+import { TOWN_MAP_HEIGHT } from './TownMap';
 
 /** One game pixel of FireRed's 240x160 screen, in the game screen's width (container query units). */
 const px = (n: number) => `${(n * 100) / 240}cqw`;
@@ -15,10 +15,10 @@ const TEXT = { color: '#ffffff', textShadow: `${px(1)} ${px(1)} 0 #737373`, font
 const SLOT_W = 88;
 const SLOT_H = 24;
 const LIST_LEFT = 240 - (10 + SLOT_W + 4);
-/** The Pokémon's panel's width (just left of the slots' column), top, and tallest: its bottom edge above the mode menu (the user's), wherever the scene puts it. */
+/** The Pokémon's panel's width (just left of the slots' column), top, and tallest: its bottom edge above the Map button (the user's), wherever the scene puts it. */
 const PANEL_W = 104;
 const PANEL_TOP = 2;
-const panelMaxH = (modeBottom: number) => 160 - modeBottom - MODE_SELECT_HEIGHT - 2 - PANEL_TOP;
+const panelMaxH = (mapBottom: number) => 160 - mapBottom - TOWN_MAP_HEIGHT - 2 - PANEL_TOP;
 /** The panel's colours: a slot's (slot.png's border, fill and light). */
 const FRAME = { border: '#4a4a62', fill: '#3994de', light: '#83c5de', shade: '#297bb4' };
 /** How far (game pixels) a slot must be dragged before it's a drag, not a click. */
@@ -47,7 +47,7 @@ const moved = (order: string[], from: number, to: number) => {
  * stones it can use. Escape, the button again or CANCEL closes it. Changes made during a wild battle wait for its end
  * (`pending`, IdleState.pending), shown at once.
  */
-export function PartyOverlay({ party, bag, busy, pending, open, modeBottom, onToggle, onAct }: { party: Mon[]; bag: Record<string, number>; busy: boolean; pending: number; open: boolean; modeBottom: number; onToggle: (open: boolean) => void; onAct: (action: IdleAction) => unknown }) {
+export function PartyOverlay({ party, bag, busy, pending, open, mapBottom, onToggle, onAct }: { party: Mon[]; bag: Record<string, number>; busy: boolean; pending: number; open: boolean; mapBottom: number; onToggle: (open: boolean) => void; onAct: (action: IdleAction) => unknown }) {
   const [chosen, setChosen] = useState<string | null>(null);
   const mon = party.find((m) => m.uid === chosen) ?? null;
   const close = () => (setChosen(null), onToggle(false));
@@ -136,7 +136,7 @@ export function PartyOverlay({ party, bag, busy, pending, open, modeBottom, onTo
       </div>
       {open && mon && (
         <div ref={panel} className="contents">
-          <MonPanel mon={mon} bag={bag} busy={busy} pending={pending} maxH={panelMaxH(modeBottom)} onAct={onAct} onClose={() => setChosen(null)} />
+          <MonPanel mon={mon} bag={bag} busy={busy} pending={pending} maxH={panelMaxH(mapBottom)} onAct={onAct} onClose={() => setChosen(null)} />
         </div>
       )}
       {/* The button: the lead's menu icon, hopping (the user's: where the ball button was, the ball now beside it); not

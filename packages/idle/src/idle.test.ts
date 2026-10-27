@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AREAS, isTown, type TownArea, type WalkArea } from './areas.js';
 import { familyMovesUpTo } from './mon.js';
-import { applyIdleAction, catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, modeOf, previousRoute, routeGrindPlan, starterOptions, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
+import { applyIdleAction, catchUp, mapGrindPlan, reachedArea, travelError, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, modeOf, previousRoute, routeGrindPlan, starterOptions, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
 
 type BattleSeg = Extract<SegmentEvent, { t: 'battle' }>;
 
@@ -516,6 +516,59 @@ describe('an idle run', () => {
     for (let i = 0; i < 10 && s.phase === 'walking'; i++) s = simulateSegment(s, DEFAULT_IDLE_SETTINGS, new Set())!.state;
     expect(s.area).toBe(pewter);
     expect(['grinding', 'town']).toContain(s.phase);
+  });
+
+  it('travels by the Town Map to a town reached already, its choices waiting there; never further on, nor where it waits', () => {
+    const index = (id: string) => AREAS.findIndex((a) => a.id === id);
+    const base = createIdleRun({ species: 4 }, 2);
+    // On Route 3 with Pewter's badge (an older run: no `reached`, worked out from where it is and its badges).
+    const s: IdleState = { ...base, area: index('route-3'), step: 10, badges: ['Boulder'], party: [{ ...base.party[0]!, level: 40 }] };
+    expect(reachedArea(s)).toBe(index('route-3'));
+    const r = applyIdleAction(s, { type: 'TRAVEL', area: index('viridian-city') });
+    expect(r.ok).toBe(true);
+    const t = (r as { state: IdleState }).state;
+    expect(t).toMatchObject({ area: index('viridian-city'), phase: 'town', reached: index('route-3') });
+    // The furthest point is kept: Pewter City is still a choice, Cerulean City isn't yet.
+    expect(travelError(t, index('pewter-city'))).toBeNull();
+    expect(travelError(t, index('cerulean-city'))).toBe('Not reached yet');
+    expect(applyIdleAction(t, { type: 'TRAVEL', area: index('viridian-city') }).ok).toBe(false);
+    expect(applyIdleAction(t, { type: 'TRAVEL', area: index('route-2') }).ok).toBe(false);
+    // From the town, Continue walks Route 2 again.
+    const on = applyIdleAction(t, { type: 'CONTINUE' });
+    expect(on.ok && on.state.area).toBe(index('route-2'));
+  });
+
+  it('grinds on a route picked on the Town Map: from its end, its trainers passed, Continue route walking on from there', () => {
+    const index = (id: string) => AREAS.findIndex((a) => a.id === id);
+    const base = createIdleRun({ species: 4 }, 2);
+    const town: IdleState = { ...base, area: index('cerulean-city'), phase: 'town', reached: index('cerulean-city'), party: [{ ...base.party[0]!, level: 40 }] };
+    for (const kind of ['wild', 'trainers'] as const) {
+      expect('error' in mapGrindPlan(town, index('route-2'), kind)).toBe(false);
+      const r = applyIdleAction(town, { type: 'GRIND_AT', area: index('route-2'), kind });
+      expect(r.ok).toBe(true);
+      const g = (r as { state: IdleState }).state;
+      expect(modeOf(g)).toBe(kind);
+      expect(g).toMatchObject({ area: index('route-2'), phase: 'walking', reached: index('cerulean-city') });
+    }
+    // Not a route, or not reached yet.
+    expect(applyIdleAction(town, { type: 'GRIND_AT', area: index('pewter-city'), kind: 'wild' }).ok).toBe(false);
+    expect(applyIdleAction(town, { type: 'GRIND_AT', area: index('route-24'), kind: 'wild' }).ok).toBe(false);
+    // A wild grind on Route 2, then Continue route: on to Pewter City.
+    let s = (applyIdleAction(town, { type: 'GRIND_AT', area: index('route-2'), kind: 'wild' }) as { state: IdleState }).state;
+    for (let i = 0; i < 5; i++) s = simulateSegment(s, MANUAL, new Set())!.state;
+    expect(modeOf(s)).toBe('wild');
+    s = (applyIdleAction(s, { type: 'SET_MODE', mode: 'route' }) as { state: IdleState }).state;
+    for (let i = 0; i < 20 && s.phase === 'walking'; i++) s = simulateSegment(s, MANUAL, new Set())!.state;
+    expect([s.phase, s.area]).toEqual(['town', index('pewter-city')]);
+  });
+
+  it('picks a grind on the route it walks from where it is, and refuses the one already on', () => {
+    const area = AREAS.findIndex((a) => a.id === 'route-2');
+    const base = createIdleRun({ species: 4 }, 2);
+    const s: IdleState = { ...base, area, step: 60, party: [{ ...base.party[0]!, level: 40 }] };
+    const wild = applyIdleAction(s, { type: 'GRIND_AT', area, kind: 'wild' });
+    expect(wild.ok && wild.state.loop?.resume.step).toBe(60);
+    expect(applyIdleAction((wild as { state: IdleState }).state, { type: 'GRIND_AT', area, kind: 'wild' }).ok).toBe(false);
   });
 
   it('plays a segment again from its kept start exactly as it played (resuming a page opened mid-segment)', () => {
