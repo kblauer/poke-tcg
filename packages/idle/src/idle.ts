@@ -4,7 +4,7 @@
 // JSON like a run's (RunState), changed only by applyIdleAction (the player's choices) and simulateSegment (the next
 // stretch of walking and its battle, from the seeded RNG). Every decision in between is a setting, so a segment never
 // waits on the player, online or caught up offline (catchUp).
-import { openingMs } from './battle-timing.js';
+import { catchTextFrame, FRAME_MS, openingMs } from './battle-timing.js';
 import { int, rngFrom, type Rng } from '@poke-tcg/campaign';
 import { AREAS, areaById, areaIndex, isTown, mapView, TERRAIN_LETTERS, type IdleArea, type TownArea, type WalkArea } from './areas.js';
 import { opponentMon, simulateBattle, type BattleEvent, type BattleResult, MEDICINE, type Terrain } from './battle.js';
@@ -38,6 +38,8 @@ export const STEP_MS = 267;
 export const TICK_MS = 10000;
 /** A battle's own time besides its opening (battle-timing.ts: openingMs) and its ticks: the transition in, the screen held at its end. */
 export const BATTLE_MS = 2400;
+/** Of BATTLE_MS, the screen held at the battle's end (the rest is the transition in). */
+export const BATTLE_HOLD_MS = 1400;
 export const FADE_MS = 800;
 /**
  * How long a town waits for the player's choice before taking it itself, only while they're away (the user's,
@@ -1454,8 +1456,21 @@ export function simulateSegment(from: IdleState, idleSettings: IdleSettings, cau
  * The run as it stands at `now` while a segment plays (the user's: Stop, Continue run and the Town Map act at once): the
  * segment's start (IdleState.replay) moved along its events as far as the player has walked, a trainer's "!" or a battle
  * begun dropped (no rewards: the player where it began, the trainer still to fight), a town reached its town; the changes
- * queued and the slots and the party's order set meanwhile kept. The run unchanged when no segment is playing.
+ * queued and the slots and the party's order set meanwhile kept. The run unchanged when no segment is playing, or once a
+ * catch has shown its "Gotcha!" (the user's: the Pokémon is kept; a catch ends its battle, the rest of it played).
  */
+/**
+ * When a caught battle's "Gotcha!" shows, from the battle's start (the browser's pacing): the transition in, the opening,
+ * the turns before the catching one (TICK_MS each), then the ball's animation, thrown first in its turn (an item goes
+ * before a move).
+ */
+function catchShownMs(b: Extract<SegmentEvent, { t: 'battle' }>): number {
+  const i = b.events.findIndex((x) => x.t === 'ball' && x.caught);
+  const ball = b.events[i] as Extract<BattleEvent, { t: 'ball' }>;
+  const tick = b.events.slice(0, i).reverse().find((x): x is Extract<BattleEvent, { t: 'tick' }> => x.t === 'tick');
+  return BATTLE_MS - BATTLE_HOLD_MS + openingMs(b.events, b.kind) + Math.max(0, (tick?.n ?? 1) - 1) * TICK_MS + catchTextFrame(ball.shakes, true) * FRAME_MS;
+}
+
 /** The choices that cut the segment playing (cutSegment) before they're applied: Stop, Continue run and the Town Map's moves. */
 export const cuts = (action: IdleAction) => action.type === 'CONTINUE_RUN' || action.type === 'TRAVEL' || action.type === 'GRIND_AT' || (action.type === 'SET_MODE' && action.mode === 'stop');
 
@@ -1481,6 +1496,8 @@ export function cutSegment(saved: IdleState, now: number): IdleState {
       state.totals.steps += 1;
       t += d;
     } else {
+      // A catch already shown: the battle kept whole (its segment ends with it).
+      if (e.t === 'battle' && e.result === 'caught' && elapsed >= t + catchShownMs(e)) return saved;
       // The area's end (its town), or what stops the walk: a trainer's "!", a battle, a grind's loop.
       if (e.t === 'town') town = e.area;
       break;

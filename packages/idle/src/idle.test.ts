@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { AREAS, isTown, type TownArea, type WalkArea } from './areas.js';
 import { familyMovesUpTo } from './mon.js';
-import { applyIdleAction, atProgress, catchUp, cutSegment, mapGrindPlan, progressOf, reachedArea, travelError, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, modeOf, previousRoute, routeGrindPlan, starterOptions, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
+import type { BattleEvent } from './battle.js';
+import { catchTextFrame, FRAME_MS, openingMs } from './battle-timing.js';
+import { applyIdleAction, atProgress, BATTLE_HOLD_MS, BATTLE_MS, catchUp, cutSegment, mapGrindPlan, progressOf, reachedArea, travelError, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, modeOf, previousRoute, routeGrindPlan, starterOptions, TICK_MS, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
 
 type BattleSeg = Extract<SegmentEvent, { t: 'battle' }>;
 
@@ -620,6 +622,27 @@ describe('an idle run', () => {
     // Stopped there.
     const stopped = applyIdleAction(cut, { type: 'SET_MODE', mode: 'stop' });
     expect(stopped.ok && stopped.state.stopped).toBe(true);
+  });
+
+  it('keeps a Pokémon caught when Stop comes after its "Gotcha!", and drops the catch before it', () => {
+    const settings: IdleSettings = { ...MANUAL, autoCatch: 'all' };
+    let s: IdleState = { ...createIdleRun({ species: 4 }, 7), bag: { 'ultra-ball': 99 } };
+    let next = simulateSegment(s, settings, new Set())!;
+    const caughtBattle = () => next.segment.events.find((e): e is Extract<SegmentEvent, { t: 'battle' }> => e.t === 'battle' && e.result === 'caught');
+    for (let i = 0; i < 60 && !caughtBattle(); i++) {
+      s = next.state;
+      next = simulateSegment(s, settings, new Set())!;
+    }
+    const b = caughtBattle()!;
+    expect(b).toBeDefined();
+    const saved: IdleState = { ...next.state, replay: { prev: s, settings, caught: [], from: 0, throws: [] } };
+    // The battle starts once the walk is done: what's left of the segment is the battle.
+    const start = next.segment.durationMs - (BATTLE_MS + openingMs(b.events, 'wild') + b.ticks * TICK_MS);
+    const ball = b.events.find((e): e is Extract<BattleEvent, { t: 'ball' }> => e.t === 'ball' && e.caught)!;
+    const tick = b.events.slice(0, b.events.indexOf(ball)).reverse().find((e): e is Extract<BattleEvent, { t: 'tick' }> => e.t === 'tick')!;
+    const gotcha = start + BATTLE_MS - BATTLE_HOLD_MS + openingMs(b.events, 'wild') + Math.max(0, tick.n - 1) * TICK_MS + catchTextFrame(ball.shakes, true) * FRAME_MS;
+    expect(cutSegment(saved, gotcha + 1)).toBe(saved);
+    expect(cutSegment(saved, gotcha - 1).party).toHaveLength(s.party.length);
   });
 
   it('picks a grind on the route it walks from where it is, and refuses the one already on', () => {

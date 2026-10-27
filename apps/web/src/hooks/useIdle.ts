@@ -1,5 +1,5 @@
 import type { AppRouter } from '@poke-tcg/api/router';
-import { AREAS, areaIndex, ballLineMs, CHALLENGE_MS, FADE_MS, INTRO_MS, ITEMS, openingLineMs, playing, STEP_MS, TICK_MS, TOWN_HERE_MS, type CatchUpSummary, type IdleAction, type IdleSettings, type SegmentEvent, type TownArea, type TrackStep, type WalkArea } from '@poke-tcg/idle';
+import { AREAS, areaIndex, ballLineMs, BATTLE_HOLD_MS, CHALLENGE_MS, FADE_MS, INTRO_MS, ITEMS, openingLineMs, playing, STEP_MS, TICK_MS, TOWN_HERE_MS, type CatchUpSummary, type IdleAction, type IdleSettings, type SegmentEvent, type TownArea, type TrackStep, type WalkArea } from '@poke-tcg/idle';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type { inferRouterOutputs } from '@trpc/server';
@@ -408,7 +408,7 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
           replacement = r.events;
         }
       }
-      await wait(1400);
+      await wait(BATTLE_HOLD_MS);
       update({ battle: null, cue: null, shown: 0, spotted: null, turn: null, tickAt: Date.now() });
     }
 
