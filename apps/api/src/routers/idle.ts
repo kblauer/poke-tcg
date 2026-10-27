@@ -125,7 +125,8 @@ export const idleRouter = router({
     }
     // Leaving a town starts the clock again from now (time spent waiting there isn't played).
     // (Leaving the store too: the town's wait starts again then, the user's.)
-    const leaving = input.action.type === 'GYM' || input.action.type === 'CONTINUE' || input.action.type === 'GRIND' || input.action.type === 'BACK_ROUTE' || input.action.type === 'LEAVE_STORE';
+    // (Any action out of a waiting town too: a grind chosen there, the user's.)
+    const leaving = input.action.type === 'GYM' || input.action.type === 'CONTINUE' || input.action.type === 'GRIND' || input.action.type === 'BACK_ROUTE' || input.action.type === 'LEAVE_STORE' || (run.state.phase === 'town' && state.phase !== 'town');
     // So does going on after the Stop mode (time stopped isn't played either); a segment still playing ends first.
     const unstopped = withPending(run.state).stopped && !withPending(state).stopped;
     const restart = leaving ? new Date() : unstopped ? new Date(Math.max(Date.now(), run.simulatedAt.getTime())) : null;

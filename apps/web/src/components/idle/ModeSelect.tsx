@@ -43,10 +43,12 @@ export function ModeSelect({ view, busy, bottom, onAct }: { view: ClientIdleRun[
   const from = view.loop ? { ...view, ...view.loop.resume, loop: undefined } : view;
   const wild = routeGrindPlan(from, 'wild');
   const trainers = routeGrindPlan(from, 'trainers');
-  const away = !('error' in wild) && wild.kind === 'pace' && (wild.area !== from.area || wild.leg !== from.leg);
+  // From a town (or its auto-grind) a grind goes out to the route before it (the user's).
+  const inTown = view.phase === 'town' || view.phase === 'grinding';
+  const away = !inTown && !('error' in wild) && wild.kind === 'pace' && (wild.area !== from.area || wild.leg !== from.leg);
   const options: { id: IdleMode; label: string; title: string; error?: string }[] = [
     { id: 'route', label: 'Route', title: 'Walk on along the route' },
-    { id: 'wild', label: 'Wild grind', title: away && !('error' in wild) ? `No wild Pokémon here: trains in ${AREAS[wild.area]!.name}` : 'Battle wild Pokémon nearby', error: 'error' in wild ? wild.error : undefined },
+    { id: 'wild', label: 'Wild grind', title: 'error' in wild ? '' : inTown ? `Battle wild Pokémon in ${AREAS[wild.area]!.name}, until Route` : away ? `No wild Pokémon here: trains in ${AREAS[wild.area]!.name}` : 'Battle wild Pokémon nearby', error: 'error' in wild ? wild.error : undefined },
     { id: 'trainers', label: 'Trainer grind', title: "Fight the route's trainers in a loop (a rematch pays a quarter)", error: 'error' in trainers ? trainers.error : undefined },
     { id: 'stop', label: 'Stop', title: 'Stop where you are, offline too, until another mode is chosen' },
   ];

@@ -881,7 +881,25 @@ export type RouteGrindPlan =
   | { kind: 'pace'; area: number; leg: number; from: number; to: number }
   | { error: string };
 
+/**
+ * Where Wild or Trainer grind starts from a town (the user's: auto-grinding there, or waiting, either grind can be chosen
+ * and holds until Route): the end of the route before it (its grind loop's leg, the area's grind route), that route's
+ * trainers passed. Null outside a town, or with no route before it.
+ */
+function townGrindStart(state: Pick<IdleState, 'phase' | 'area'>): Pick<IdleState, 'area' | 'leg' | 'step' | 'beaten'> | null {
+  const town = AREAS[state.area]!;
+  if ((state.phase !== 'town' && state.phase !== 'grinding') || !isTown(town)) return null;
+  const route = town.grind ? areaIndex(town.grind.area) : previousRoute(state.area);
+  if (route === null) return null;
+  const w = AREAS[route] as WalkArea;
+  const leg = town.grind ? town.grind.leg : w.legs.length - 1;
+  return { area: route, leg, step: w.legs[leg]!.track.length - 1, beaten: w.trainers.map((t) => t.key) };
+}
+
 export function routeGrindPlan(state: Pick<IdleState, 'phase' | 'area' | 'leg' | 'step' | 'beaten' | 'loop'>, kind: 'wild' | 'trainers'): RouteGrindPlan {
+  // From a town (or its auto-grind): planned from the end of the route before it.
+  const start = townGrindStart(state);
+  if (start) state = { ...state, ...start, phase: 'walking', loop: undefined };
   const a = AREAS[state.area]!;
   if (state.phase !== 'walking' || (a.kind !== 'route' && a.kind !== 'dungeon')) return { error: 'Only on a route or in a dungeon' };
   const area = a as WalkArea;
@@ -923,6 +941,14 @@ function startRouteLoop(state: IdleState, kind: 'wild' | 'trainers'): string | n
   if (state.loop) endRouteLoop(state);
   const plan = routeGrindPlan(state, kind);
   if ('error' in plan) return plan.error;
+  // From a town (or its auto-grind: it ends): out to the end of the route before it, Route coming back from there.
+  const start = townGrindStart(state);
+  if (start) {
+    if (state.inStore) return 'Leave the store first';
+    state.log.push(`Left ${AREAS[state.area]!.name} for ${AREAS[start.area]!.name}.`);
+    Object.assign(state, start, { phase: 'walking' });
+    delete state.grind;
+  }
   const resume = { area: state.area, leg: state.leg, step: state.step, beaten: [...state.beaten] };
   state.encounter = { steps: 0, buff: 0, prev: '' };
   if (plan.kind === 'trainers') {
