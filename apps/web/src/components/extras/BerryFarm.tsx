@@ -2,7 +2,7 @@ import MyLocationIcon from '@mui/icons-material/MyLocation';
 import { BERRY_FARM_MAP, RIPE, routePath, STAGES, stageAt, type Route, type RouteSpot } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { mapTransform, usePan, ZOOM } from '../../hooks/usePan';
+import { glideTransition, mapPlacement, usePan, ZOOM } from '../../hooks/usePan';
 import { useRun } from '../../hooks/useRun';
 import { useToasts } from '../../hooks/useToasts';
 import { useTRPC } from '../../lib/trpc';
@@ -300,8 +300,8 @@ function FarmMap({
         {pan.size.w > 0 && (
           <div
             ref={mapEl}
-            className="absolute left-0 top-0 origin-top-left"
-            style={{ width: FARM.width, height: FARM.height, transform: mapTransform(pan.offset), transition: pan.glide ? `transform ${pan.glide.ms}ms ${pan.glide.ease}` : undefined }}
+            className="absolute origin-top-left"
+            style={{ width: FARM.width, height: FARM.height, ...mapPlacement(pan.offset), transition: glideTransition(pan.glide) }}
           >
             <img src={FARM.image} alt="" draggable={false} className="h-full w-full select-none [image-rendering:pixelated]" />
             {trees.map((t, i) => (

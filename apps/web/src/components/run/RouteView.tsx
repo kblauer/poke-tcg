@@ -7,7 +7,7 @@ import { flowAt, inGrass, isBattleKind, onPath, onWater, routePath, type Route, 
 import type { PlayerGender } from '@poke-tcg/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
-import { mapTransform, usePan, ZOOM } from '../../hooks/usePan';
+import { glideTransition, mapPlacement, usePan, ZOOM } from '../../hooks/usePan';
 import type { RunViewData } from '../../hooks/useRun';
 import { FADE_MS, GRASS_PACE, pace, stepPace, THROUGH_MS, useWalk, type MapSection, type Walker } from '../../hooks/useWalk';
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
@@ -272,12 +272,12 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
         {size.w > 0 && (
           <div
             ref={mapEl}
-            className="absolute left-0 top-0 origin-top-left"
+            className="absolute origin-top-left"
             style={{
               width: shown.width,
               height: shown.height,
-              transform: mapTransform(offset),
-              transition: glide ? `transform ${glide.ms}ms ${glide.ease}` : undefined,
+              ...mapPlacement(offset),
+              transition: glideTransition(glide),
             }}
           >
             <img src={shown.image} alt="" draggable={false} className="h-full w-full select-none [image-rendering:pixelated]" />
