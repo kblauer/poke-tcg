@@ -8,7 +8,8 @@ const px = (n: number) => `${(n * 100) / 240}cqw`;
 
 /**
  * The menu's place: the game screen's bottom left corner (the user's), its height (game pixels) fixed so nothing above
- * it overlaps it; in a battle just above the text box (48 game pixels and its border), so it never covers the text.
+ * it overlaps it, the battle's too (the user's: where the map has it, over the text box's corner); in the store's buy
+ * screen above its item icon (MODE_SELECT_BATTLE_BOTTOM).
  */
 export const MODE_SELECT_BOTTOM = 4;
 export const MODE_SELECT_BATTLE_BOTTOM = 52;

@@ -179,8 +179,8 @@ describe('moves and cooldowns', () => {
   });
 
   it("times FireRed's intro, send-outs and catches", () => {
-    // The intro: the band (32 frames), the slides (120), a wild Pokémon's healthbox (23).
-    expect(INTRO_MS).toBeCloseTo(175 * FRAME_MS);
+    // The intro at twice the game's speed: the band (16 frames), the slides (60), a wild Pokémon's healthbox (23).
+    expect(INTRO_MS).toBeCloseTo(99 * FRAME_MS);
     // The opening runs to turn 1: both send-outs' lines, the foe's first.
     const wild = simulateBattle(setup([mon(4, 10)], [opponentMon(mon(16, 5))]), rngFrom(1)).events;
     expect(openingLines(wild).map((e) => e.t)).toEqual(['send', 'send']);

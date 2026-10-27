@@ -7,8 +7,13 @@ import type { BattleEvent } from './battle.js';
 /** One frame (the GBA's ~60 a second). */
 export const FRAME_MS = 1000 / 60;
 
-/** The battle's opening: the band opening (32 frames), the two halves sliding in (120), a wild Pokémon's healthbox (23). */
-export const INTRO_FRAMES = { band: 32, slide: 120, healthbox: 23 } as const;
+/**
+ * The battle's opening cut-in at twice FireRed's speed (the user's, 2026-10-26; the game's 32 and 120 frames): the band
+ * opening (16 frames), the two halves and both sides sliding in (60, 4 pixels a frame), then a wild Pokémon's healthbox
+ * (23, the game's).
+ */
+export const INTRO_SPEED = 2;
+export const INTRO_FRAMES = { band: 32 / INTRO_SPEED, slide: 120 / INTRO_SPEED, healthbox: 23 } as const;
 
 /** A healthbox sliding in (StartHealthboxSlideIn: 115 pixels at 5 a frame). */
 export const HEALTHBOX_FRAMES = 23;
