@@ -3,14 +3,23 @@ import { useContext, type Ref } from 'react';
 import { typeColor } from '../utils/cardColors';
 import { LARGE_CARD, SMALL_CARD } from '../utils/layout';
 
-/** Badges for Special Conditions and protective effects on a Pokémon in play. */
+/**
+ * The Special Conditions on a Pokémon in play, as the user's tags (public/status/, cut from their pictures by
+ * tools/status-tags/make_tags.py; agreed 2026-10-26): `amount` is Poison's damage when it's more than 10.
+ */
+function conditionTags(p: InPlayPokemon): { image: string; title: string; amount?: number }[] {
+  const tags = [];
+  if (p.condition === 'asleep') tags.push({ image: '/status/asleep.png', title: "Asleep: flips to wake up between turns; can't attack or retreat" });
+  if (p.condition === 'confused') tags.push({ image: '/status/confused.png', title: 'Confused: flips to attack (tails: 30 damage to itself); retreats with no flip' });
+  if (p.condition === 'paralyzed') tags.push({ image: '/status/paralyzed.png', title: "Paralyzed: can't attack or retreat until after its owner's next turn" });
+  if (p.burned) tags.push({ image: '/status/burned.png', title: 'Burned: 20 damage between turns, then a flip; heads cures it' });
+  if (p.poison) tags.push({ image: '/status/poisoned.png', title: `Poisoned: ${p.poison} damage between turns`, ...(p.poison > 10 && { amount: p.poison }) });
+  return tags;
+}
+
+/** Badges for protective and other effects on a Pokémon in play (its Special Conditions are conditionTags). */
 function statusBadges(p: InPlayPokemon, cards?: CardLibrary): { label: string; title: string; className: string }[] {
   const badges = [];
-  if (p.condition === 'asleep') badges.push({ label: 'SLP', title: "Asleep: flips to wake up between turns; can't attack or retreat", className: 'bg-indigo-500' });
-  if (p.condition === 'confused') badges.push({ label: 'CNF', title: 'Confused: flips to attack (tails: 20 damage to itself) and to retreat', className: 'bg-pink-500' });
-  if (p.condition === 'paralyzed') badges.push({ label: 'PAR', title: "Paralyzed: can't attack or retreat until after its owner's next turn", className: 'bg-yellow-500 text-slate-900' });
-  if (p.burned) badges.push({ label: 'BRN', title: 'Burned: 20 damage between turns, then a flip; heads cures it', className: 'bg-orange-600' });
-  if (p.poison) badges.push({ label: `PSN${p.poison > 10 ? ` ${p.poison}` : ''}`, title: `Poisoned: ${p.poison} damage between turns`, className: 'bg-green-600' });
   const e = p.effects ?? {};
   if (e.preventAll !== undefined) badges.push({ label: '🛡', title: 'Protected from all effects of attacks, including damage, next turn', className: 'bg-sky-600' });
   else if (e.preventDamage !== undefined) badges.push({ label: '🛡', title: 'Protected from attack damage next turn', className: 'bg-sky-600' });
@@ -147,13 +156,24 @@ export function Card({
       )}
       {inPlay && (
         // The user's (2026-10-26): the cards attached to it (Pokémon Tools, Trainers that stay on it, Shapeshift), round icons like
-        // its Energy's, two to a row in the top left corner, left to right then top to bottom; its badges (Special Conditions and
-        // the rest) to their right, half as big again, in the same two-wide layout.
-        <div className="absolute left-1 top-1 flex items-start gap-0.5">
+        // its Energy's, two to a row in the top left corner, left to right then top to bottom; its Special Conditions to their right
+        // as the user's tags, filling the card's width left to right then top to bottom (too wide for two to a row), then its other
+        // badges, half as big again, two to a row.
+        <div className="absolute left-1 right-1 top-1 flex items-start gap-0.5">
           {cards && (inPlay.attached ?? []).length > 0 && (
             <div className="grid grid-cols-[repeat(2,max-content)] gap-0.5">
               {inPlay.attached!.map((a) => (
                 <AttachedIcon key={a.card.uid} def={lookupCard(cards, a.card.defId)} holder={def} size={small ? 18 : 22} />
+              ))}
+            </div>
+          )}
+          {conditionTags(inPlay).length > 0 && (
+            <div className="flex min-w-0 flex-wrap gap-0.5">
+              {conditionTags(inPlay).map((t) => (
+                <span key={t.image} title={t.title} className="relative inline-block shrink-0">
+                  <img src={t.image} alt={t.title.split(':')[0]} draggable={false} className={`${small ? 'h-4' : 'h-[22px]'} w-auto drop-shadow`} />
+                  {t.amount && <span className="absolute -right-1 -top-1 rounded-full bg-green-700 px-1 text-[10px] font-bold leading-4 text-white shadow">{t.amount}</span>}
+                </span>
               ))}
             </div>
           )}
