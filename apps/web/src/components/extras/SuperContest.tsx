@@ -1,6 +1,6 @@
 import { canEnter, CONTEST_CATEGORIES, CONTEST_RANKS, CONTEST_SCARVES, FLAVORS, natureFlavors, NATURES, ribbonId, type ContestState } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useToasts } from '../../hooks/useToasts';
 import { useTRPC } from '../../lib/trpc';
 import { BUTTON } from '../../utils/styles';
@@ -224,9 +224,12 @@ export function SuperContest() {
   const overview = useQuery(trpc.contest.overview.queryOptions());
   const [volume, setVolume] = useState(loadVolume);
   const [ribbon, setRibbon] = useState<string | null>(null);
+  // The acting's last turn is played back before the results show (ActingRound's onFinished).
+  const [actingDone, setActingDone] = useState(false);
+  const finishActing = useCallback(() => setActingDone(true), []);
   const setContest = (contest: ContestState | null) => queryClient.setQueryData(trpc.contest.overview.queryKey(), (old) => (old ? { ...old, contest } : old));
   const onError = (e: { message: string }) => toasts.push('error', e.message);
-  const start = useMutation(trpc.contest.start.mutationOptions({ onSuccess: (c) => (setRibbon(null), setContest(c)), onError }));
+  const start = useMutation(trpc.contest.start.mutationOptions({ onSuccess: (c) => (setRibbon(null), setActingDone(false), setContest(c)), onError }));
   const visual = useMutation(trpc.contest.visual.mutationOptions({ onSuccess: setContest, onError }));
   const dance = useMutation(trpc.contest.dance.mutationOptions({ onSuccess: setContest, onError }));
   const act = useMutation(
@@ -242,7 +245,7 @@ export function SuperContest() {
   const leave = useMutation(trpc.contest.leave.mutationOptions({ onSuccess: () => (setContest(null), setRibbon(null)), onError }));
   const contest = overview.data?.contest ?? null;
   const won = contest?.phase === 'results' && contest.result?.placing[0] === 0;
-  useContestSong(contest?.phase === 'visual' ? 'SEQ_CO_DRESS' : contest?.phase === 'results' ? (won ? 'SEQ_CO_FANFA' : 'SEQ_CO_KEKKA') : null, contest?.phase === 'visual', volume);
+  useContestSong(contest?.phase === 'visual' ? 'SEQ_CO_DRESS' : contest?.phase === 'results' && actingDone ? (won ? 'SEQ_CO_FANFA' : 'SEQ_CO_KEKKA') : null, contest?.phase === 'visual', volume);
   if (overview.error && !overview.data) return <p className="text-sm text-red-400">{overview.error.message}</p>;
   if (!overview.data) return <p className="text-sm text-slate-400">Loading…</p>;
   const held = contest ? overview.data.entries.find((e) => e.species === contest.entrants[0]!.species)?.ribbons.includes(ribbonId(contest.category, contest.rank)) : false;
@@ -254,8 +257,8 @@ export function SuperContest() {
         <VisualRound contest={contest} busy={visual.isPending} onDone={(outfit) => visual.mutate({ expectedVersion: contest.version, outfit })} />
       ) : contest.phase === 'dance' ? (
         <DanceRound contest={contest} volume={volume} busy={dance.isPending} onDone={(presses) => dance.mutate({ expectedVersion: contest.version, presses })} />
-      ) : contest.phase === 'acting' ? (
-        <ActingRound contest={contest} busy={act.isPending} onAct={(move, judge) => act.mutate({ expectedVersion: contest.version, move, judge })} />
+      ) : contest.phase === 'acting' || !actingDone ? (
+        <ActingRound contest={contest} busy={act.isPending} onAct={(move, judge) => act.mutate({ expectedVersion: contest.version, move, judge })} onFinished={finishActing} />
       ) : (
         <ContestResults contest={contest} ribbon={ribbon ?? (won && held ? ribbonId(contest.category, contest.rank) : null)} busy={leave.isPending} onLeave={() => leave.mutate()} />
       )}
