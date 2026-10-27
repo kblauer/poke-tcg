@@ -1,5 +1,5 @@
 import type { AppRouter } from '@poke-tcg/api/router';
-import { AREAS, areaIndex, FADE_MS, ITEMS, playing, STEP_MS, TICK_MS, type CatchUpSummary, type IdleAction, type IdleSettings, type SegmentEvent, type TownArea, type TrackStep, type WalkArea } from '@poke-tcg/idle';
+import { AREAS, areaIndex, ballLineMs, CHALLENGE_MS, FADE_MS, INTRO_MS, ITEMS, openingLineMs, playing, STEP_MS, TICK_MS, type CatchUpSummary, type IdleAction, type IdleSettings, type SegmentEvent, type TownArea, type TrackStep, type WalkArea } from '@poke-tcg/idle';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type { inferRouterOutputs } from '@trpc/server';
@@ -308,8 +308,11 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
       if (stopped) throw new Stopped();
       update({ battle: e, shown: 0, entering: false });
       onScreen.current = { battle: e, turn: 0 };
-      // Each tick's events spread over its TICK_MS; the opening (send-outs) at a quicker pace. A run of rewards (EXP.,
-      // levels, moves learned) is one line: shown at once.
+      // Each tick's events spread over its TICK_MS, a thrown ball's line taking its catch's animation (ballLineMs) and
+      // the rest sharing what's left; the opening first FireRed's intro (and a trainer's challenge), then each of its lines
+      // the time its animation takes (openingLineMs; the run counts the same: openingMs). A run of rewards (EXP., levels,
+      // moves learned) is one line: shown at once.
+      await wait(INTRO_MS + (e.kind === 'trainer' ? CHALLENGE_MS : 0));
       const said = (x: BattleEvent) => 'msg' in x && !!x.msg;
       let i = 0;
       while (i < e.events.length) {
@@ -346,13 +349,21 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
           j = end;
         }
         const count = slots.filter(([j, end]) => e.events.slice(j, end + 1).some(said)).length;
-        const per = (start === 0 ? 1600 : TICK_MS) / Math.max(1, count);
-        const beat = Math.min(HIT_BEAT_MS, per / 2);
+        const thrown = (j: number, end: number) => e.events.slice(j, end + 1).find((x): x is Extract<BattleEvent, { t: 'ball' }> => x.t === 'ball');
+        const ballMs = slots.reduce((t, [j, end]) => {
+          const b = thrown(j, end);
+          return b ? t + ballLineMs(b.shakes, b.caught) : t;
+        }, 0);
+        const others = count - slots.filter(([j, end]) => thrown(j, end)).length;
+        const rest = Math.max(0, TICK_MS - ballMs) / Math.max(1, others);
         for (const [j, end] of slots) {
           if (!e.events.slice(j, end + 1).some(said)) {
             update({ shown: end + 1 });
             continue;
           }
+          const b = thrown(j, end);
+          const per = start === 0 ? openingLineMs(e.events.slice(j, end + 1).find(said)!, e.kind) : b ? ballLineMs(b.shakes, b.caught) : rest;
+          const beat = Math.min(HIT_BEAT_MS, per / 2);
           // A line with silent events after it: the line, then the rest a beat later.
           const head = isReward(e.events[j]!) ? end : j;
           update({ shown: head + 1 });

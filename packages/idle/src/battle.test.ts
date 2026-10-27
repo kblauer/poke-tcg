@@ -1,6 +1,7 @@
 import { rngFrom } from '@poke-tcg/campaign';
 import { describe, expect, it } from 'vitest';
 import { Battle, EXP_RATE, simulateBattle, opponentMon, type BattleSetup } from './battle.js';
+import { CATCH, catchTextFrame, CHALLENGE_MS, FRAME_MS, INTRO_MS, openingLines, openingMs, READ_MS, SHAKES_AT } from './battle-timing.js';
 import { catchChance, catchOdds, shakeThreshold } from './catch.js';
 import { moveData, species } from './data.js';
 import { ENCOUNTERS } from './data/gen1/encounters.js';
@@ -175,6 +176,26 @@ describe('moves and cooldowns', () => {
     const gained = (uid: string) => r.events.find((e) => e.t === 'exp' && e.uid === uid);
     expect(gained('karp')).toBeDefined();
     expect(gained('zard')).toBeDefined();
+  });
+
+  it("times FireRed's intro, send-outs and catches", () => {
+    // The intro: the band (32 frames), the slides (120), a wild Pokémon's healthbox (23).
+    expect(INTRO_MS).toBeCloseTo(175 * FRAME_MS);
+    // The opening runs to turn 1: both send-outs' lines, the foe's first.
+    const wild = simulateBattle(setup([mon(4, 10)], [opponentMon(mon(16, 5))]), rngFrom(1)).events;
+    expect(openingLines(wild).map((e) => e.t)).toEqual(['send', 'send']);
+    // A wild battle: the intro, "appeared!" read, the player's throw (32 + 25 frames), its Pokémon out (12), its healthbox (23), read.
+    expect(openingMs(wild, 'wild')).toBeCloseTo(INTRO_MS + READ_MS + (32 + 25 + 12 + 23) * FRAME_MS + READ_MS);
+    // A trainer's: their challenge, and their send-out's 60-frame pause, ball (17), Pokémon (12), healthbox (23).
+    const trainer = simulateBattle(setup([mon(4, 10)], [opponentMon(mon(16, 5))], { kind: 'trainer' }), rngFrom(1)).events;
+    expect(openingMs(trainer, 'trainer')).toBeCloseTo(INTRO_MS + CHALLENGE_MS + (60 + 17 + 12 + 23) * FRAME_MS + READ_MS + (32 + 25 + 12 + 23) * FRAME_MS + READ_MS);
+    // Catching: the shakes start after the throw, the ball's opening, the wait, the drawing in, the close, the bounces and the wait.
+    expect(SHAKES_AT).toBe(34 + 10 + 10 + 30 + 10 + 84 + 31);
+    expect(catchTextFrame(0, false)).toBe(SHAKES_AT + CATCH.breakText);
+    expect(catchTextFrame(2, false)).toBe(SHAKES_AT + 2 * 59 + CATCH.breakText);
+    // Caught: the click 40 frames after the 3rd shake, "Gotcha!" 95 after the click; the whole line still fits a tick.
+    expect(catchTextFrame(4, true)).toBe(SHAKES_AT + 2 * 59 + 28 + 40 + 95);
+    expect(catchTextFrame(4, true) * FRAME_MS + READ_MS).toBeLessThan(10000);
   });
 
   it('evolves at the right levels', () => {

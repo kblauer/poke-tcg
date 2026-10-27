@@ -6,6 +6,7 @@ export * from './catch.js';
 export * from './evolution.js';
 export * from './areas.js';
 export * from './idle.js';
+export * from './battle-timing.js';
 export { KANTO_MAPS } from './data/gen1/maps.js';
 export { Battle, Battler, simulateBattle, opponentMon, MEDICINE, EXP_RATE, BATTLE_STATS, abilityName } from './battle.js';
 export type { BattleEvent, BattleOutcome, BattleResult, BattleSetup, BattleSettings, BattlerView, Side, StatusKind, Terrain, Weather, BattleStat } from './battle.js';

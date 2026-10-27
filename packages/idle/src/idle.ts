@@ -4,6 +4,7 @@
 // JSON like a run's (RunState), changed only by applyIdleAction (the player's choices) and simulateSegment (the next
 // stretch of walking and its battle, from the seeded RNG). Every decision in between is a setting, so a segment never
 // waits on the player, online or caught up offline (catchUp).
+import { openingMs } from './battle-timing.js';
 import { int, rngFrom, type Rng } from '@poke-tcg/campaign';
 import { AREAS, areaById, areaIndex, isTown, mapView, TERRAIN_LETTERS, type IdleArea, type TownArea, type WalkArea } from './areas.js';
 import { opponentMon, simulateBattle, type BattleEvent, type BattleResult, MEDICINE, type Terrain } from './battle.js';
@@ -34,7 +35,8 @@ export const PARTY_SIZE = 6;
  */
 export const STEP_MS = 267;
 export const TICK_MS = 10000;
-export const BATTLE_MS = 4000;
+/** A battle's own time besides its opening (battle-timing.ts: openingMs) and its ticks: the transition in, the screen held at its end. */
+export const BATTLE_MS = 2400;
 export const FADE_MS = 800;
 /**
  * How long a town waits for the player's choice before taking it itself (the user's: no prompt waits on the player): the
@@ -765,7 +767,8 @@ function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<
     result: result.result,
     ticks: result.ticks,
   });
-  out.durationMs += BATTLE_MS + result.ticks * TICK_MS;
+  // FireRed's intro and send-outs (the user's: their animations' time kept), then a tick a turn.
+  out.durationMs += BATTLE_MS + openingMs(result.events, o.kind) + result.ticks * TICK_MS;
   state.totals.battles += 1;
   if (o.kind === 'wild') state.totals.wild += 1;
   else state.totals.trainers += 1;
