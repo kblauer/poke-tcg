@@ -93,8 +93,17 @@ function AttachedIcon({ def, holder, size, tile }: { def: CardDef; holder: CardD
 /** The attached Trainers shown only by their badge (statusBadges), with no icon (the user's, 2026-10-26). */
 const BADGED = new Set(['PlusPower', 'Defender', "Sabrina's ESP", 'Charity', "Brock's Protection", "Koga's Ninja Trick"]);
 
-/** An attached card shown as a round icon: not a Pokémon Tool (a tile), nor one shown only by its badge (BADGED, Shapeshift). */
-const iconed = (cards: CardLibrary, a: NonNullable<InPlayPokemon['attached']>[number]) => !a.tool && !a.shapeshift && !BADGED.has(lookupCard(cards, a.card.defId).name);
+/**
+ * A Technical Machine, by its name (the card component can't read the engine's effects): only its attack, in the Active Pokémon's
+ * moves with its own, so no icon (the user's, 2026-10-26). The Pokémon Tools with an attack (G Booster, G Scope) are tiles.
+ */
+const MACHINE = /Technical Machine|Cube 01$|^Miracle Sphere|^Mystery Plate/;
+
+/** An attached card shown as a round icon: not a Pokémon Tool (a tile), a Technical Machine, nor one shown only by its badge (BADGED, Shapeshift). */
+const iconed = (cards: CardLibrary, a: NonNullable<InPlayPokemon['attached']>[number]) => {
+  const name = lookupCard(cards, a.card.defId).name;
+  return !a.tool && !a.shapeshift && !BADGED.has(name) && !MACHINE.test(name);
+};
 
 /**
  * Card art from TCGdex (aspect ratio 63:88), with damage, attached energy and attached cards overlaid when in play. Right-clicking it
