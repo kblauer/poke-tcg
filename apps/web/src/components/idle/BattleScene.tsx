@@ -1,4 +1,4 @@
-import { CATCH, FOE_SEND, FRAME_MS, HEALTHBOX_FRAMES, INTRO_FRAMES, OPEN_FRAMES, PLAYER_SEND, SHAKES_AT, species, type BattleEvent, type BattlerView } from '@poke-tcg/idle';
+import { CATCH, FOE_SEND, FRAME_MS, HEALTHBOX_FRAMES, INTRO_FRAMES, INTRO_SPEED, OPEN_FRAMES, PLAYER_SEND, SHAKES_AT, species, type BattleEvent, type BattlerView } from '@poke-tcg/idle';
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import type { BattleSegment } from '../../hooks/useIdle';
 import { GAME_HEIGHT, GAME_WIDTH } from './GameScreen';
@@ -176,8 +176,9 @@ export function BattleScene({
   const fi = frames(introAt);
   const band = INTRO_FRAMES.band;
   const slideF = clamp(fi - band, 0, INTRO_FRAMES.slide);
-  const off = 240 - 2 * slideF;
-  const bandHalf = fi < band ? fi + 1 : fi < band + 12 ? 33 + 4 * (fi - band) : 80;
+  // (At INTRO_SPEED times the game's: its band a pixel each way a frame to 48 pixels high then 4 to the screen, its slides 2 a frame.)
+  const off = 240 - 2 * INTRO_SPEED * slideF;
+  const bandHalf = fi < band ? INTRO_SPEED * fi + 1 : fi < band + 12 / INTRO_SPEED ? 33 + 4 * INTRO_SPEED * (fi - band) : 80;
 
   // Each side: its latest send-out, what came after it.
   const latest = (side: 0 | 1, t: BattleEvent['t']) => {
@@ -212,7 +213,8 @@ export function BattleScene({
   if (!wild) {
     // The trainer: sliding in with the intro, off to the right (35 frames) once they send out their first Pokémon.
     const pic = trainerPic;
-    const sent = foeSend && opening(foeSend.index) ? Math.max(0, foeFrames(foeSend.at, foeSend.index)) : -1;
+    // (Gone for good once they've sent one out: a later send-out is the ball alone.)
+    const sent = !foeSend ? -1 : opening(foeSend.index) ? Math.max(0, foeFrames(foeSend.at, foeSend.index)) : Infinity;
     const x = sent < 0 ? 176 - off : 176 + ((280 - 176) * Math.min(sent, FOE_SEND.trainerOut)) / FOE_SEND.trainerOut;
     if (pic && sent < FOE_SEND.trainerOut) parts.push(<Pic key="trainer" src={`${GEN1}/trainers/${pic}.png`} x={x} y={40} />);
   }
