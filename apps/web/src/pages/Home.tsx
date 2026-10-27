@@ -37,12 +37,12 @@ export function HomePage() {
   const { overview } = run;
   // Auto play follows the run: the route, the town, the gym, a Pokémon Center.
   useRunMusic();
-  // On a phone, once an encounter is over (its reward taken), the page scrolls back up to its top (the user's: not just
+  // On a phone, once an encounter is over (its reward taken), the page jumps back up to its top (the user's: at once, not just
   // to the route map's), to watch the player walk on to the next spot.
   const phase = overview.data?.run?.view.phase;
   const lastPhase = useRef(phase);
   useEffect(() => {
-    if (phone && phase === 'map' && lastPhase.current === 'encounter') window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (phone && phase === 'map' && lastPhase.current === 'encounter') window.scrollTo({ top: 0, behavior: 'instant' });
     lastPhase.current = phase;
   }, [phase, phone]);
   // A failed refetch keeps the run screen (and the map's walk) up with what it has.
