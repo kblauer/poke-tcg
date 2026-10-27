@@ -308,18 +308,52 @@ export function JumpShadow({ tile, shown, moveMs }: { tile: RouteSpot; shown: bo
 /** How long each of the landing dust's 3 frames shows (FireRed's: 8 of its 60 frames a second). */
 const DUST_FRAME_MS = 133;
 
-/** The dust where a ledge jump lands (FireRed's ground impact dust, `jump_dust.png`: 3 frames of 16x8, stacked), played once. */
-export function JumpDust({ tile }: { tile: RouteSpot }) {
+/**
+ * The dust where a ledge jump lands (FireRed's ground impact dust, `jump_dust.png`: 3 frames of 16x8, stacked), played once;
+ * `grass`, landing in tall grass, the grass thrown up instead (FLDEFF_JUMP_TALL_GRASS, `jump_tall_grass.png`: 4 frames).
+ */
+export function JumpDust({ tile, grass = false }: { tile: RouteSpot; grass?: boolean }) {
+  const frames = grass ? 4 : 3;
   const [frame, setFrame] = useState(0);
   useEffect(() => {
-    const timers = [1, 2, 3].map((f) => window.setTimeout(() => setFrame(f), f * DUST_FRAME_MS));
+    const timers = Array.from({ length: frames }, (_, i) => window.setTimeout(() => setFrame(i + 1), (i + 1) * DUST_FRAME_MS));
     return () => timers.forEach((t) => window.clearTimeout(t));
-  }, []);
-  if (frame > 2) return null;
+  }, [frames]);
+  if (frame >= frames) return null;
   return (
     <div
       className="pointer-events-none absolute [image-rendering:pixelated]"
-      style={{ left: tile.x * 16, top: tile.y * 16 + 8, width: 16, height: 8, backgroundImage: 'url(/overworld/jump_dust.png)', backgroundPosition: `0 ${-frame * 8}px`, zIndex: tile.y + 1 }}
+      style={{ left: tile.x * 16, top: tile.y * 16 + 8, width: 16, height: 8, backgroundImage: `url(/overworld/${grass ? 'jump_tall_grass' : 'jump_dust'}.png)`, backgroundPosition: `0 ${-frame * 8}px`, zIndex: tile.y + 1 }}
+    />
+  );
+}
+
+/** How long each frame of tall grass's rustle shows (FireRed's sAnim_TallGrass: 10 of its 60 frames a second). */
+const GRASS_FRAME_MS = 167;
+/** The rustle's frames in order (sAnim_TallGrass): the tuft, the leaves flying off it, then the grass at rest (frame 0). */
+const RUSTLE = [1, 2, 3, 4, 0];
+/** How long the rustle takes, after which the grass is at rest. */
+export const RUSTLE_MS = RUSTLE.length * GRASS_FRAME_MS;
+
+/**
+ * Tall grass drawn over someone standing in it, on its tile (FireRed's FLDEFF_TALL_GRASS, `tall_grass.png`: 5 frames of
+ * 16x16, stacked): at rest (frame 0, its blades over their feet) or, `rustle`, rustling as they step in (frames 1 to 4,
+ * then at rest). Drawn after the sprites: in front of one on its row or above it, behind one below it (on a higher
+ * zIndex), as the game layers them; and during the rustle's first frame behind the one stepping in too (its subpriority
+ * 4 more then: UpdateTallGrassFieldEffect).
+ */
+export function TallGrass({ tile, rustle = false }: { tile: RouteSpot; rustle?: boolean }) {
+  const [step, setStep] = useState(rustle ? 0 : RUSTLE.length - 1);
+  useEffect(() => {
+    if (!rustle) return;
+    const timers = RUSTLE.slice(1).map((_, i) => window.setTimeout(() => setStep(i + 1), (i + 1) * GRASS_FRAME_MS));
+    return () => timers.forEach((t) => window.clearTimeout(t));
+  }, [rustle]);
+  const frame = RUSTLE[step]!;
+  return (
+    <div
+      className="pointer-events-none absolute [image-rendering:pixelated]"
+      style={{ left: tile.x * 16, top: tile.y * 16, width: 16, height: 16, backgroundImage: 'url(/overworld/tall_grass.png)', backgroundPosition: `0 ${-frame * 16}px`, zIndex: frame === 1 ? Math.max(0, tile.y - 1) : tile.y }}
     />
   );
 }
