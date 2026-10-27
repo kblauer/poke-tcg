@@ -8,7 +8,7 @@ in their metatile attributes (16 bits each: the behaviour in the low byte).
 Usage: python emerald_map.py <pokeemerald checkout> <MapName, as in data/maps/, e.g. Route102> <out prefix>
 Writes <out prefix>.png, <out prefix>_overhead.png (what the game draws over the people: its top layer, see-through
 elsewhere) and <out prefix>.json: the size in tiles, `rows` ('.' walkable, '#' not: collision, ledges, water,
-doors, warps and the map's people, but for item balls and cut trees; '~' surfable water; ledges by the way they're
+doors, warps and the map's people, but for item balls and cut trees, always walkable; '~' surfable water; ledges by the way they're
 jumped, '>' east, '<' west, '^' north, 'v' south), `grass` (1 where tall grass) and the map's events (map.json). Needs
 Pillow (pip install pillow)."""
 import json, os, re, struct, sys
@@ -119,6 +119,8 @@ def render(repo, map_name, out_prefix=None, block_people=True):
                                 if layer == 1 and over:
                                     tpx[ox + x, oy + y] = (*colors[v], 255)
     blocked = {(o['x'], o['y']) for o in m.get('object_events', []) if block_people and o['graphics_id'] not in FREE} | {(w['x'], w['y']) for w in m.get('warp_events', [])}
+    # Item balls and cut trees are walked through (picked up, cut down), whatever the tile under them.
+    free = {(o['x'], o['y']) for o in m.get('object_events', []) if o['graphics_id'] in FREE}
     rows, grass = [], []
     for by in range(H):
         r, g = [], []
@@ -130,7 +132,7 @@ def render(repo, map_name, out_prefix=None, block_people=True):
                 c = LEDGES[name]
             elif collision == 0 and SURF.search(name) and 'WATERFALL' not in name and (bx, by) not in blocked:
                 c = '~'
-            elif collision == 0 and not UNSAFE.search(name) and (bx, by) not in blocked:
+            elif (bx, by) in free or (collision == 0 and not UNSAFE.search(name) and (bx, by) not in blocked):
                 c = '.'
             else:
                 c = '#'

@@ -83,7 +83,25 @@ CENTER = ('LavaridgeTown_PokemonCenter_1F', 'MAP_LAVARIDGE_TOWN', 'OBJ_EVENT_GFX
 # walkable, links, Gym Trainer places.
 USER_WALKABLE = {'mauville': [(4, 7), (5, 7)]}
 USER_LINKS = {}
-USER_GYM_TRAINER = {}
+# The user's Gym Trainer places, in place of the generator's: the player's spot and (if given) where the Gym Trainer stands.
+USER_GYM_TRAINER = {'rustboro': {'spot': (2, 8)}}
+# The routes' fixes from the user: rectangles of tiles to make walkable (x0, y0, x1, y1, corners included), the entrance,
+# the exit (walked to from the last spot before the fade to the gym) and the spots, in place of the picked ones.
+USER_ROUTES = {
+    'rustboro': dict(walkable=[(36, 38, 37, 43), (14, 0, 15, 5)], entrance=(36, 41), exit=(14, 2),
+                     spots=[(35, 35), (24, 34), (16, 35), (7, 29), (12, 25), (22, 25), (23, 17), (12, 18), (6, 10), (15, 9)]),
+}
+# The other routes' entrances and spots as picked while the map's people still blocked their tiles, kept so that change
+# (they don't any more) leaves them where they were.
+KEPT_PICKS = {
+    'dewford': ((10, 6), [(15, 5), (20, 9), (29, 11), (30, 7), (38, 8), (46, 9), (52, 7), (60, 9), (65, 11), (70, 10)]),
+    'mauville': ((24, 95), [(28, 85), (26, 79), (18, 69), (18, 55), (13, 43), (5, 39), (5, 28), (6, 14), (12, 8), (15, 2)]),
+    'lavaridge': ((14, 6), [(18, 9), (19, 12), (20, 19), (19, 22), (21, 30), (16, 29), (11, 31), (12, 35), (15, 36), (15, 39)]),
+    'petalburg': ((48, 10), [(45, 11), (40, 13), (37, 15), (29, 15), (23, 10), (20, 9), (13, 4), (10, 4), (5, 7), (2, 7)]),
+    'fortree': ((20, 138), [(24, 124), (24, 112), (29, 100), (27, 86), (15, 84), (10, 73), (14, 61), (7, 51), (9, 39), (12, 31)]),
+    'mossdeep': ((1, 28), [(10, 30), (14, 32), (18, 37), (24, 41), (35, 43), (42, 44), (50, 45), (61, 48), (69, 43), (78, 46)]),
+    'sootopolis': ((45, 7), [(48, 13), (49, 16), (45, 20), (45, 24), (48, 28), (49, 31), (42, 39), (37, 40), (36, 35), (31, 34)]),
+}
 
 
 # --- Walking ---
@@ -141,13 +159,18 @@ def land_near(rows, x, y, r):
 
 # --- Routes ---
 
-def route_rows(info, cfg):
-    """The map's rows as the route has them: ledges walls (but Jagged Pass's, jumped down), water only on a surfed map."""
+def route_rows(info, cfg, user):
+    """The map's rows as the route has them: ledges walls (but Jagged Pass's, jumped down), water only on a surfed map, and
+    the user's walkable tiles."""
     rows = []
     for r in info['rows']:
         r = ''.join('#' if c in '<>^' or (c == 'v' and not cfg.get('ledges')) or (c == '~' and not cfg.get('surf')) else c for c in r)
-        rows.append(r)
-    return rows
+        rows.append(list(r))
+    for x0, y0, x1, y1 in user.get('walkable', []):
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                rows[y][x] = '.'
+    return [''.join(r) for r in rows]
 
 
 def pick(name, rows, info, cfg):
@@ -228,8 +251,9 @@ def rows_ts(rows):
     return '\n'.join(f"    '{r}'," for r in rows)
 
 
-def route_ts(cfg, ent, spots, rows, grass):
+def route_ts(cfg, ent, spots, rows, grass, exit=None, picked_by_user=False):
     surf = cfg.get('surf')
+    exit_ts = f'\n  exit: {{ x: {exit[0]}, y: {exit[1]} }},' if exit else ''
     extra = "\n  travel: 'surf',\n  trainers: { names: SWIMMERS, share: 1 }," if surf else ''
     if cfg.get('land_spots'):
         extra += '\n  landSpots: true,'
@@ -239,11 +263,11 @@ def route_ts(cfg, ent, spots, rows, grass):
     if any(any(r) for r in grass):
         grass_ts = '\n  grass: [\n' + '\n'.join("    '" + ''.join('g' if g else '.' for g in r) + "'," for r in grass) + '\n  ],'
     return f"""
-/** {cfg['title']}: {cfg['what']}. Spots along the walk, picked by tools/routes/emerald/hoenn_maps.py. */
+/** {cfg['title']}: {cfg['what']}. Spots along the walk, {'from the user' if picked_by_user else 'picked by tools/routes/emerald/hoenn_maps.py'}. */
 export const {cfg['const']}: Route = {{
   flow: '{cfg['flow']}',
   sprites: 'rse',
-  entrance: {{ x: {ent[0]}, y: {ent[1]} }},{extra}
+  entrance: {{ x: {ent[0]}, y: {ent[1]} }},{exit_ts}{extra}
   name: '{cfg['title']}',
   image: '/routes/{cfg['image']}',
   width: {len(rows[0]) * TILE},
@@ -262,8 +286,7 @@ ROUTES_HEAD = """// The Hoenn gym runs' maps, from Pokémon Emerald (the pret/po
 // Kanto ones come from FireRed: each drawn with its tilesets (emerald_map.py), 16 px to a tile, with which tiles can be
 // walked on from the map data, its tall grass, and 10 spots along the walk. Every map uses Emerald's overworld sprites
 // (`sprites: 'rse'`). Written by tools/routes/emerald/hoenn_maps.py.
-import { SWIMMERS } from './kanto-routes.js';
-import type { Route } from './routes.js';
+import { SWIMMERS, type Route } from './routes.js';
 """
 
 
@@ -381,7 +404,7 @@ def place(repo, city, rows, info, cfg, names):
         tstand = next(((tspot[0] + dx, tspot[1]) for dx in (-1, 1) if rows[tspot[1]][tspot[0] + dx] == '.' and (tspot[0] + dx, tspot[1]) not in walk), (tspot[0] - 1, tspot[1]))
     user = USER_GYM_TRAINER.get(city)
     if user:
-        tspot, tstand = user['spot'], user['stand']
+        tspot, tstand = user['spot'], user.get('stand', tstand)
     guide = next(((o['x'], o['y']) for o in objs if 'GymGuide' in o.get('script', '')), None)
     guide_sprite = next((sprite_name(o['graphics_id']) for o in objs if 'GymGuide' in o.get('script', '')), None)
     gaps = []
@@ -462,12 +485,18 @@ def main():
     riders = sorted({t[0] for t in gym_trainers(repo, ['Route110'], names) if t[0].startswith('Triathlete ')})
     out = ['\n/** The trainers on the Seaside Cycling Road (Route 110, the Mauville City run): its Triathletes, as Emerald has them. */\nexport const TRIATHLETES = [' + ', '.join(f"'{n}'" for n in riders) + '];\n']
     for key, cfg in ROUTES.items():
-        img, info = emerald_map.render(repo, cfg['map'])
-        rows = route_rows(info, cfg)
-        ent, spots = pick(key, rows, info, cfg)
+        # The map's people aren't drawn on a route (only the encounters' figures are), so their tiles aren't walls.
+        img, info = emerald_map.render(repo, cfg['map'], block_people=False)
+        user = USER_ROUTES.get(key, {})
+        rows = route_rows(info, cfg, user)
+        ent, spots = KEPT_PICKS[key] if key in KEPT_PICKS else pick(key, rows, info, cfg)
+        ent, spots, ext = user.get('entrance', ent), user.get('spots', spots), user.get('exit')
+        stops = [ent] + spots + ([ext] if ext else [])
+        gaps = [(a, b) for a, b in zip(stops, stops[1:]) if not walkable(rows[b[1]][b[0]], cfg.get('surf')) or b not in bfs(rows, a, cfg.get('surf'))]
+        assert not gaps, (key, "the user's spots: no walk", gaps)
         img.save(os.path.join(PUBLIC, cfg['image']))
-        preview(img, [('IN', ent, (0, 255, 0))] + [(str(i + 1), s, (255, 0, 0)) for i, s in enumerate(spots)], os.path.join(work, key + '-route.png'))
-        out.append(route_ts(cfg, ent, spots, rows, info['grass']))
+        preview(img, [('IN', ent, (0, 255, 0))] + ([('OUT', ext, (0, 128, 255))] if ext else []) + [(str(i + 1), s, (255, 0, 0)) for i, s in enumerate(spots)], os.path.join(work, key + '-route.png'))
+        out.append(route_ts(cfg, ent, spots, rows, info['grass'], ext, 'spots' in user))
         print('route', key, cfg['map'], 'entrance', ent, 'spots', spots)
     open(ROUTES_OUT, 'w', encoding='utf-8', newline='\n').write(ROUTES_HEAD + ''.join(out))
 

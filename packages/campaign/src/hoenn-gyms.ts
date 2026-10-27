@@ -20,7 +20,7 @@ export const RUSTBORO_GYM: Route = {
   height: 320,
   entrance: { x: 5, y: 19 },
   spots: [
-    { x: 2, y: 9 },
+    { x: 2, y: 8 },
     { x: 5, y: 3 },
   ],
   stands: [
