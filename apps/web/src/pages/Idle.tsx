@@ -225,7 +225,7 @@ export function IdlePage() {
         </TownMenu>
       ) : play.battle ? (
         <BattleScreen battle={play.battle} shown={play.shown} gender={gender} dialogue={catchUp} onThrow={throwBall} throwing={throwing}>
-          {overlays(MODE_SELECT_BATTLE_BOTTOM)}
+          {overlays(MODE_SELECT_BOTTOM)}
         </BattleScreen>
       ) : (
         <AreaScene playback={play} gender={gender} dialogue={catchUp ?? (play.notice ? { text: play.notice, choices: [], instant: true, answer: () => {} } : null)}>
