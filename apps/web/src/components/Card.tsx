@@ -90,8 +90,11 @@ function AttachedIcon({ def, holder, size, tile }: { def: CardDef; holder: CardD
   );
 }
 
-/** An attached card shown as a round icon: not a Pokémon Tool (a tile) nor PlusPower (only its +10 badge, the user's, 2026-10-26). */
-const iconed = (cards: CardLibrary, a: NonNullable<InPlayPokemon['attached']>[number]) => !a.tool && lookupCard(cards, a.card.defId).name !== 'PlusPower';
+/** The attached Trainers shown only by their badge (statusBadges), with no icon (the user's, 2026-10-26). */
+const BADGED = new Set(['PlusPower', 'Defender', "Sabrina's ESP", 'Charity', "Brock's Protection", "Koga's Ninja Trick"]);
+
+/** An attached card shown as a round icon: not a Pokémon Tool (a tile), nor one shown only by its badge (BADGED, Shapeshift). */
+const iconed = (cards: CardLibrary, a: NonNullable<InPlayPokemon['attached']>[number]) => !a.tool && !a.shapeshift && !BADGED.has(lookupCard(cards, a.card.defId).name);
 
 /**
  * Card art from TCGdex (aspect ratio 63:88), with damage, attached energy and attached cards overlaid when in play. Right-clicking it
@@ -167,8 +170,8 @@ export function Card({
       {inPlay && (
         // The user's (2026-10-26): the cards attached to it but its Pokémon Tools (Trainers that stay on it, Shapeshift; the Tools are
         // tiles, below), round icons like its Energy's, two to a row in the top left corner, left to right then top to bottom; its Special Conditions to their right
-        // as the user's round icons, in the same two-wide layout; then its other badges, half as big again, two to a row. PlusPower has
-        // no icon, only its +10 badge (the user's).
+        // as the user's round icons, in the same two-wide layout; then its other badges, half as big again, two to a row. PlusPower,
+        // Defender, Sabrina's ESP, Charity, Brock's Protection, Koga's Ninja Trick and Shapeshift have no icon, only their badge (iconed).
         <div className="absolute left-1 right-1 top-1 flex items-start gap-0.5">
           {cards && (inPlay.attached ?? []).some((a) => iconed(cards, a)) && (
             <div className="grid grid-cols-[repeat(2,max-content)] gap-0.5">
