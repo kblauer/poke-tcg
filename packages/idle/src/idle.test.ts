@@ -645,6 +645,18 @@ describe('an idle run', () => {
     expect(cutSegment(saved, gotcha - 1).party).toHaveLength(s.party.length);
   });
 
+  it("fights a trainer whose sight a segment starts in (a cut at the leader's \"!\", Continue run), never walking past to the badge", () => {
+    const area = AREAS.findIndex((a) => a.id === 'pewter-gym');
+    const gym = AREAS[area] as WalkArea;
+    const at = meetStep(gym, gym.leader!)!;
+    const base = createIdleRun({ species: 7 }, 4);
+    const s: IdleState = { ...base, area, leg: at.leg, step: at.step, beaten: gym.trainers.map((t) => t.key).filter((k) => k !== gym.leader), party: [{ ...base.party[0]!, level: 60 }] };
+    const next = simulateSegment(s, MANUAL, new Set())!;
+    const fought = next.segment.events.find((e): e is Extract<SegmentEvent, { t: 'battle' }> => e.t === 'battle');
+    expect(fought?.trainer).toBe(gym.leader);
+    expect(next.segment.events.findIndex((e) => e.t === 'battle')).toBeLessThan(next.segment.events.findIndex((e) => e.t === 'badge'));
+  });
+
   it('picks a grind on the route it walks from where it is, and refuses the one already on', () => {
     const area = AREAS.findIndex((a) => a.id === 'route-2');
     const base = createIdleRun({ species: 4 }, 2);

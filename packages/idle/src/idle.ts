@@ -1369,10 +1369,13 @@ export function simulateSegment(from: IdleState, idleSettings: IdleSettings, cau
       const [m, x, y] = leg.track[i]!;
       return a.trainers.find((t) => t.leg === state.leg && t.map === m && !state.beaten.includes(t.key) && t.sight.some(([sx, sy]) => sx === x && sy === y));
     };
-    // The first step of an area (or after a white-out) can be in a trainer's sight already (a League room's boss).
+    // The first step of an area (or after a white-out) can be in a trainer's sight already (a League room's boss), and so
+    // can the step a segment starts on: a segment cut at a trainer's "!" or battle (Stop, Continue run: cutSegment), or
+    // Continue run's furthest place. Fought there, never walked past (a gym's track ends at its leader: its end would
+    // give the badge with no battle).
     const pace = state.loop?.kind === 'pace' ? state.loop : null;
     // A wild grind meets no trainers (the user's: wild Pokémon only).
-    const seen = !pace && state.step === 0 && trainerHere(0);
+    const seen = !pace && (state.step === 0 || guard === 0) && trainerHere(state.step);
     if (pace && (state.leg !== pace.leg || state.step < pace.from || state.step > pace.to)) {
       // Back on the pacing loop (after a white-out sent it to the route's start).
       state.leg = pace.leg;
