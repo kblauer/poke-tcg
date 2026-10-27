@@ -334,8 +334,22 @@ export function createIdleRun(choice: StarterChoice, seed: number): IdleState {
 }
 
 // ---- Towns, stores ----
-/** The items a town's store sells: its marts' lists without Escape Ropes and Repels (agreed), only those with a use here (balls, medicine, evolution stones). */
-export function storeStock(town: TownArea): string[] {
+/** The area whose reaching stocks every store with every item (the user's): the Indigo Plateau, past Victory Road. */
+export const LEAGUE_TOWN = 'indigo-plateau';
+
+/**
+ * The items a town's store sells: its marts' lists (martStock); once the run has reached the Indigo Plateau (the user's),
+ * every Kanto store's, balls first, then medicine, then stones, each by price.
+ */
+export function storeStock(town: TownArea, state?: Pick<IdleState, 'reached' | 'area' | 'loop' | 'badges'>): string[] {
+  if (!state || reachedArea(state) < areaIndex(LEAGUE_TOWN)) return martStock(town);
+  const all = [...new Set(AREAS.filter(isTown).flatMap(martStock))];
+  const kind = (item: string) => (BALLS.some(([b]) => b === item) ? 0 : MEDICINE[item] ? 1 : 2);
+  return all.sort((a, b) => kind(a) - kind(b) || itemData(a).price - itemData(b).price);
+}
+
+/** A town's own marts' lists without Escape Ropes and Repels (agreed), only those with a use here (balls, medicine, evolution stones). */
+function martStock(town: TownArea): string[] {
   const out: string[] = [];
   for (const m of town.marts) {
     for (const item of MARTS[m] ?? []) {
@@ -454,11 +468,21 @@ type ProgressState = Pick<IdleState, 'progress' | 'reached' | 'area' | 'leg' | '
  * start of the furthest area it reached when that's further on.
  */
 export function progressOf(state: ProgressState): Progress {
-  if (state.progress) return state.progress;
+  if (state.progress) return { ...leagueToTown(state.progress), beaten: AREAS[state.progress.area]!.kind === 'league' ? [] : state.progress.beaten };
   const here: Progress = state.loop ? state.loop.resume : { ...placeOfRun(state), beaten: state.phase === 'walking' ? state.beaten : [] };
   const reached = reachedArea(state);
   const start = { area: reached, leg: 0, step: 0 };
-  return comparePlaces(state, start, here) > 0 ? { ...start, beaten: [] } : { ...here, beaten: [...here.beaten] };
+  const p = comparePlaces(state, start, here) > 0 ? { ...start, beaten: [] } : { ...here, beaten: [...here.beaten] };
+  return AREAS[p.area]!.kind === 'league' ? { ...leagueToTown(p), beaten: [] } : p;
+}
+
+/**
+ * The League's rooms are never progress (the user's: the Elite Four and the Champion beaten in a row on every try): a
+ * place in them is the Indigo Plateau's, so Continue run never goes back into a room part way, and every try starts
+ * with Lorelei (a Stop part way goes on with the same try: further on than the Plateau, the run is at its furthest).
+ */
+function leagueToTown<P extends Place>(p: P): P {
+  return AREAS[p.area]!.kind === 'league' ? { ...p, area: areaIndex(LEAGUE_TOWN), leg: 0, step: 0 } : p;
 }
 
 /** Whether the run stands at its furthest place (Continue run goes on from there rather than to it); never while grinding. */
@@ -482,9 +506,9 @@ function goToProgress(state: IdleState, events: SegmentEvent[]) {
 /** The run's place marked as its furthest when it is (IdleState.progress): walking on, never grinding. */
 function markProgress(state: IdleState) {
   if (state.loop || state.phase === 'grinding' || state.phase === 'won' || state.phase === 'given-up') return;
-  const here = placeOfRun(state);
+  const here = leagueToTown(placeOfRun(state));
   if (comparePlaces(state, here, progressOf(state)) < 0) return;
-  state.progress = { ...here, beaten: state.phase === 'walking' ? [...state.beaten] : [] };
+  state.progress = { ...here, beaten: state.phase === 'walking' && here.area === state.area ? [...state.beaten] : [] };
 }
 
 /** Why the Town Map can't take the run to a town (TRAVEL), or null: only towns reached already, not the one it waits in. */
@@ -554,7 +578,7 @@ function autoBuyBalls(state: IdleState, settings: IdleSettings, events: SegmentE
   const town = AREAS[state.area]!;
   const want = Math.min(settings.autoBalls, MAX_AUTO_BALLS) - ballCount(state.bag);
   if (!isTown(town) || want <= 0) return;
-  const stock = storeStock(town);
+  const stock = storeStock(town, state);
   const ball = BALLS.map(([b]) => b)
     .filter((b) => stock.includes(b))
     .sort((a, b) => itemData(a).price - itemData(b).price)[0];
@@ -707,6 +731,8 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
       if (atProgress(state)) {
         // There already: on from a town whose gym is beaten (the old Continue), else on along the way.
         if (inTown && townDone(state, area)) enterArea(state, afterTown(state.area), []);
+        // At the Indigo Plateau (Enter the Pokémon League, the user's): into the League's first room, Lorelei's.
+        else if (inTown && area.gym && areaById(area.gym).kind === 'league') enterGym(state, []);
         else if (was) state.log.push('Went on.');
         return ok();
       }
@@ -797,7 +823,7 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
         state.log.push(`Bought ${itemData(action.item).name.toUpperCase()} for ₱${cost}.`);
         return ok();
       }
-      if (!storeStock(area).includes(action.item)) return fail('Not sold here');
+      if (!storeStock(area, state).includes(action.item)) return fail('Not sold here');
       if (!Number.isInteger(action.count) || action.count < 1 || action.count > 99) return fail('Buy 1 to 99');
       const cost = itemData(action.item).price * action.count;
       if (cost > state.money) return fail('Not enough money');
@@ -853,7 +879,7 @@ export function visitStore(prev: IdleState, settings: IdleSettings): { state: Id
   const state = structuredClone(prev);
   const events: SegmentEvent[] = [];
   const area = AREAS[state.area]!;
-  if (settings.autoEvolve && state.phase === 'town' && isTown(area)) autoStones(state, storeStock(area), events);
+  if (settings.autoEvolve && state.phase === 'town' && isTown(area)) autoStones(state, storeStock(area, state), events);
   return { state, events };
 }
 
@@ -1642,7 +1668,7 @@ export function idleView(saved: IdleState) {
   const area: IdleArea = AREAS[state.area]!;
   // Grinding: the area the loop is in (the run's `area` stays the town), and the level it trains to.
   const grindArea = state.phase === 'grinding' && isTown(area) && area.grind ? areaById(area.grind.area) : null;
-  return { ...rest, areaId: area.id, areaName: grindArea?.name ?? area.name, store: isTown(area) ? storeStock(area) : [], grindTarget: state.grind?.level ?? grindTarget(state.area, state.rivalStarter), pendingChanges: saved.pending?.length ?? 0 };
+  return { ...rest, areaId: area.id, areaName: grindArea?.name ?? area.name, store: isTown(area) ? storeStock(area, state) : [], grindTarget: state.grind?.level ?? grindTarget(state.area, state.rivalStarter), pendingChanges: saved.pending?.length ?? 0 };
 }
 
 export type IdleView = ReturnType<typeof idleView>;
