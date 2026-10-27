@@ -157,16 +157,24 @@ describe('moves and cooldowns', () => {
     expect([tick(), tick(), tick(), tick(), tick(), tick()]).toEqual(['flamethrower', 'slash', 'ember', 'scratch', 'ember', 'flamethrower']);
   });
 
-  it('uses a status move set by hand once, first, above any attack; on the automatic pick by power', () => {
+  it('opens with a status move set by hand against each foe Pokémon, then uses it by power; on the automatic pick by power', () => {
     const moves = ['scratch', 'smokescreen', 'flamethrower'];
-    const first = (autoSlots: boolean) => {
-      const b = new Battle(setup([mon(5, 40, { moves, slots: ['flamethrower', 'smokescreen'], autoSlots })], [mon(1, 40)]), rngFrom(1));
-      const me = b.active[0];
-      return [b.chooseMove(me), b.chooseMove(me)];
-    };
-    // Set by hand: Smokescreen, then Flamethrower; once used, it's no longer first.
-    expect(first(false)).toEqual(['smokescreen', 'flamethrower']);
-    expect(first(true)[0]).toBe('flamethrower');
+    const battle = (autoSlots: boolean) => new Battle(setup([mon(5, 40, { moves, slots: ['flamethrower', 'smokescreen'], autoSlots })], [mon(1, 40), mon(4, 40)], { kind: 'trainer' }), rngFrom(1));
+    const b = battle(false);
+    const me = b.active[0];
+    // Set by hand: Smokescreen first, then Flamethrower; with Flamethrower cooling down, Smokescreen again (before the
+    // basic move), no longer first: once Smokescreen's cooled down too and Flamethrower is ready, Flamethrower.
+    expect([b.chooseMove(me), b.chooseMove(me)]).toEqual(['smokescreen', 'flamethrower']);
+    me.cooldowns = { flamethrower: 3 };
+    expect(b.chooseMove(me)).toBe('smokescreen');
+    me.cooldowns = {};
+    expect(b.chooseMove(me)).toBe('flamethrower');
+    // The foe's next Pokémon: Smokescreen first again.
+    me.cooldowns = {};
+    b.sendOut(b.foes[1]!);
+    expect(b.chooseMove(me)).toBe('smokescreen');
+    // On the automatic pick: by power from the start.
+    expect(battle(true).chooseMove(battle(true).active[0])).toBe('flamethrower');
   });
 
   it("gives a quarter of the game's experience", () => {
