@@ -13,7 +13,7 @@ import { FADE_MS, GRASS_PACE, pace, stepPace, THROUGH_MS, useWalk, type MapSecti
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
 import { bobs, BOB_MS, isItemBall, playerSprite, STEP_MS, WALK_FRAME_MS, type Facing } from '../../utils/overworld';
 import { encounterFigure, facing, key, placeFigures, setOf, type PlacedFigure } from '../../utils/routeFigures';
-import { Exclamation, Figure, JumpDust, JumpShadow, OverworldSprite, TileOverlay } from './RouteSprites';
+import { Exclamation, Figure, GrassTufts, JumpDust, JumpShadow, OverworldSprite, TallGrass, TileOverlay } from './RouteSprites';
 
 /**
  * The players' sprites (Red's, Ethan's and Brendan's, and the girls', Leaf's, Lyra's and May's, walking, on a bike, surfing) and the swimmers' in-water ones, fetched when
@@ -167,6 +167,10 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
   }, [stillBob]);
   // Wading through tall grass, the player's legs slow with his steps (GRASS_PACE).
   const wading = walker.walking && inGrass(shown, walker.tile);
+  // Tall grass on the Gen 3 maps is the games' own, drawn over the feet of those in it (TallGrass, GrassTufts: FireRed's,
+  // Emerald's on the Hoenn maps); on HGSS's, it hides their legs (OverworldSprite's `grass`).
+  const sprites = setOf(shown);
+  const masked = (tile: RouteSpot) => sprites === 'hgss' && inGrass(shown, tile);
   useEffect(() => {
     if (!anyWalking) return;
     const timer = window.setInterval(() => setTick((t) => t + 1), ms.frame / (pace(shown) * (wading ? GRASS_PACE : 1)));
@@ -282,7 +286,7 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
           >
             <img src={shown.image} alt="" draggable={false} className="h-full w-full select-none [image-rendering:pixelated]" />
             {/* The people always there (a gym's guide). */}
-            {shown.npcs?.map((n, i) => <OverworldSprite key={`npc${i}`} name={n.sprite} tile={n.tile} face={n.face} grass={inGrass(shown, n.tile)} />)}
+            {shown.npcs?.map((n, i) => <OverworldSprite key={`npc${i}`} name={n.sprite} tile={n.tile} face={n.face} grass={masked(n.tile)} />)}
             {/* Keyed by the spot and option, not the index, so a step's change doesn't remount every figure (their transitions would snap). */}
             {placed.map((p) =>
               isApproaching(p) ? (
@@ -295,15 +299,16 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
                   walkTick={approaching!.walking ? tick : undefined}
                   moveMs={approaching!.walking ? ms.step : 0}
                   wet={onWater(shown, approaching!.tile)}
-                  grass={inGrass(shown, approaching!.tile)}
+                  grass={masked(approaching!.tile)}
                 />
               ) : (
-                <Figure key={`${key(p.spot)}|${p.figure.option ?? ''}|${p.figure.title}`} figure={p.figure} tile={p.tile} spot={p.spot} faded={p.faded} wet={onWater(shown, p.tile)} grass={inGrass(shown, p.tile)} />
+                <Figure key={`${key(p.spot)}|${p.figure.option ?? ''}|${p.figure.title}`} figure={p.figure} tile={p.tile} spot={p.spot} faded={p.faded} wet={onWater(shown, p.tile)} grass={masked(p.tile)} />
               ),
             )}
             {/* A ledge jump's shadow on the ground under him, and the dust where he lands (FireRed's). */}
             <JumpShadow tile={walker.tile} shown={!!walker.jump} moveMs={walker.jump?.ms ?? (walker.walking ? ms.step / stepPace(shown, walker.tile) : 0)} />
-            {walker.landed && <JumpDust key={walker.landed.stamp} tile={walker.landed.tile} />}
+            {/* (Landing in tall grass on a Gen 3 map, the grass thrown up instead: GrassTufts.) */}
+            {walker.landed && (sprites === 'hgss' || !inGrass(shown, walker.landed.tile)) && <JumpDust key={walker.landed.stamp} tile={walker.landed.tile} />}
             <OverworldSprite
               name={playerName}
               bob={stillBob && bobbing}
@@ -314,9 +319,31 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
               jump={walker.jump}
               fadeMs={ms.fade}
               hidden={walker.hidden}
-              grass={inGrass(shown, walker.tile)}
+              grass={masked(walker.tile)}
               title="You"
             />
+            {/* The Gen 3 maps' tall grass, after the sprites so it's over the feet of those on its row. */}
+            {sprites !== 'hgss' && (
+              <>
+                {shown.npcs?.map((n, i) => inGrass(shown, n.tile) && <TallGrass key={`npc${i}`} tile={n.tile} set={sprites} />)}
+                {placed.map((p) =>
+                  isApproaching(p) ? (
+                    <GrassTufts key="approach" tile={approaching!.tile} grass={inGrass(shown, approaching!.tile)} map={shown.image} moveMs={approaching!.walking ? ms.step : 0} set={sprites} />
+                  ) : (
+                    inGrass(shown, p.tile) && <TallGrass key={`${key(p.spot)}|${p.figure.option ?? ''}|${p.figure.title}`} tile={p.tile} set={sprites} />
+                  ),
+                )}
+                <GrassTufts
+                  tile={walker.tile}
+                  grass={inGrass(shown, walker.tile)}
+                  map={shown.image}
+                  moveMs={walker.jump?.ms ?? (walker.walking ? ms.step / stepPace(shown, walker.tile) : 0)}
+                  jump={walker.jump}
+                  hidden={walker.hidden}
+                  set={sprites}
+                />
+              </>
+            )}
             {/* What's over the people walking under it (a bridge): above every sprite (zIndex: their row), below the bubbles and "!";
                 on a track (walked over the bridge too), only while the player is under it. */}
             {shown.overhead && (!shown.track || walker.under) && <img src={shown.overhead} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full select-none [image-rendering:pixelated]" style={{ zIndex: 899 }} />}

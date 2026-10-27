@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { RUSTLE_MS } from '../components/run/RouteSprites';
+import type { SpriteSet } from '../utils/overworld';
 
-/** A tuft of tall grass drawn over the player (TallGrass): its tile, whether it rustles, and when it began. */
+/** How long each frame of tall grass's rustle shows (FireRed's and Emerald's sAnim_TallGrass: 10 of their 60 frames a second). */
+export const GRASS_FRAME_MS = 167;
+/** The rustle's frames in order (sAnim_TallGrass): the tuft, the leaves flying off it, then the grass at rest (frame 0). */
+export const RUSTLE = [1, 2, 3, 4, 0];
+/** How long the rustle takes, after which the grass is at rest. */
+const RUSTLE_MS = RUSTLE.length * GRASS_FRAME_MS;
+
+/** A tuft of tall grass drawn over someone (TallGrass): its tile, whether it rustles, and when it began. */
 export interface GrassTuft {
   key: number;
   x: number;
@@ -11,14 +18,14 @@ export interface GrassTuft {
 }
 
 /**
- * The tall grass over the player as FireRed's ground effects make it (event_object_movement.c, field_effect_helpers.c): put
- * on a tile of tall grass (`grass`: the map shown, after a fade or a battle) the grass at rest over his feet
+ * The tall grass over someone walking as FireRed's ground effects make it (event_object_movement.c, field_effect_helpers.c;
+ * Emerald's the same, `set` its pictures): put on a tile of tall grass (`grass`: the map shown, after a fade or a battle) the grass at rest over his feet
  * (GroundEffect_SpawnOnTallGrass); each step into it a new tuft rustling, from the step's start (StepOnTallGrass); a ledge
  * jump none on the way, but landing in it the grass thrown up (`splash`, JumpDust's `grass`) and a tuft at rest if there's
  * none (JumpOnTallGrass). A tuft stays while he's on its tile or has just left it (drawn over him as he steps out), and
  * goes once he's off both and its rustle is over (UpdateTallGrassFieldEffect). `map` is the map shown: a new one starts over.
  */
-export function useTallGrass({ tile, grass, map, moveMs, jump }: { tile: { x: number; y: number }; grass: boolean; map: string; moveMs: number; jump?: { ms: number } | null }) {
+export function useTallGrass({ tile, grass, map, moveMs, jump, set = 'frlg' }: { tile: { x: number; y: number }; grass: boolean; map: string; moveMs: number; jump?: { ms: number } | null; set?: SpriteSet }) {
   const keys = useRef(0);
   const tuft = (rustle: boolean): GrassTuft => ({ key: ++keys.current, x: tile.x, y: tile.y, rustle, at: Date.now() });
   const [tufts, setTufts] = useState<GrassTuft[]>(() => (grass ? [tuft(false)] : []));
@@ -46,8 +53,9 @@ export function useTallGrass({ tile, grass, map, moveMs, jump }: { tile: { x: nu
   }, [tile.x, tile.y, map]);
   // The grass's picture fetched ahead, so the first rustle never draws in late.
   useEffect(() => {
-    new Image().src = '/overworld/tall_grass.png';
-    new Image().src = '/overworld/jump_tall_grass.png';
-  }, []);
+    const dir = set === 'rse' ? 'rse/' : '';
+    new Image().src = `/overworld/${dir}tall_grass.png`;
+    new Image().src = `/overworld/${dir}jump_tall_grass.png`;
+  }, [set]);
   return { tufts, splash };
 }
