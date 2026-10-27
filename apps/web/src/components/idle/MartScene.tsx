@@ -12,6 +12,8 @@ import { DIALOGUE_TEXT, GAME_HEIGHT, GAME_WIDTH, useGameScale } from './GameScre
 const SHOP = '/idle/gen1/shop';
 /** How many of the list's rows show at once (BuyMenuBuildListMenuTemplate's maxShowed). */
 const ROWS = 6;
+/** How much wheel scrolling (CSS pixels) moves the list a row: about a mouse wheel's notch. */
+const WHEEL_ROW = 100;
 /** The text's colours: the list's and the money box's (the menu window palette's 2 on 3), the description's (1 on 2). */
 const DARK = { color: '#626262', textShadow: '1px 0 0 #d5d5cd, 0 1px 0 #d5d5cd, 1px 1px 0 #d5d5cd' };
 const WHITE = { color: '#ffffff', textShadow: '1px 0 0 #626262, 0 1px 0 #626262, 1px 1px 0 #626262' };
@@ -181,6 +183,28 @@ function BuyScreen({ run, player, busy, onBuy, onClose, children }: { run: Clien
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
+  // The mouse wheel over the list (the user's): a row a notch (WHEEL_ROW of scrolling, a trackpad's adding up), the
+  // cursor kept among the rows shown; the page doesn't scroll with it (a listener that isn't passive).
+  const list = useRef<HTMLDivElement>(null);
+  const wheeled = useRef(0);
+  useEffect(() => {
+    const el = list.current;
+    if (!el || step.kind !== 'list') return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaMode === 2 ? e.deltaY * WHEEL_ROW * ROWS : e.deltaY;
+      if (Math.sign(dy) !== Math.sign(wheeled.current)) wheeled.current = 0;
+      wheeled.current += dy;
+      const by = Math.trunc(wheeled.current / WHEEL_ROW);
+      if (!by) return;
+      wheeled.current -= by * WHEEL_ROW;
+      const t = Math.max(0, Math.min(Math.max(0, rows.length - ROWS), top + by));
+      setTop(t);
+      setCursor(Math.max(t, Math.min(t + ROWS - 1, cursor)));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  });
   useEscape(() => (step.kind === 'list' ? onClose() : step.kind === 'quantity' ? setStep({ kind: 'list' }) : undefined));
   const name = (it: string) => caps(ITEMS[it]!.name);
   const dialogue: Dialogue | null =
@@ -226,7 +250,7 @@ function BuyScreen({ run, player, busy, onBuy, onClose, children }: { run: Clien
               <Money right={0} y={12} amount={money} />
             </Win>
             {/* The list (window 4: 11,1, 17 by 12 tiles): the name from 9, the price from 105, rows of 16 from 2. */}
-            <div className="absolute" style={{ left: 88, top: 8, width: 136, height: 96 }}>
+            <div ref={list} className="absolute" style={{ left: 88, top: 8, width: 136, height: 96 }}>
               {shown.map((it, i) => {
                 const row = top + i;
                 return (
