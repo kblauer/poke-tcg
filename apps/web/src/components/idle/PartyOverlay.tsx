@@ -47,7 +47,7 @@ const moved = (order: string[], from: number, to: number) => {
  * stones it can use. Escape, the button again or CANCEL closes it. Changes made during a wild battle wait for its end
  * (`pending`, IdleState.pending), shown at once.
  */
-export function PartyOverlay({ party, bag, busy, pending, open, modeBottom, onToggle, onAct }: { party: Mon[]; bag: Record<string, number>; busy: boolean; pending: number; open: boolean; modeBottom: number; onToggle: (open: boolean) => void; onAct: (action: IdleAction) => void }) {
+export function PartyOverlay({ party, bag, busy, pending, open, modeBottom, onToggle, onAct }: { party: Mon[]; bag: Record<string, number>; busy: boolean; pending: number; open: boolean; modeBottom: number; onToggle: (open: boolean) => void; onAct: (action: IdleAction) => unknown }) {
   const [chosen, setChosen] = useState<string | null>(null);
   const mon = party.find((m) => m.uid === chosen) ?? null;
   const close = () => (setChosen(null), onToggle(false));
@@ -70,7 +70,9 @@ export function PartyOverlay({ party, bag, busy, pending, open, modeBottom, onTo
   }, [open]);
 
   // Dragging a slot: which, from where, how far (game pixels); the order it would drop into, the others making way.
-  const order = party.map((m) => m.uid);
+  // A dropped order is kept on screen until the server answers (the user's: no popping back first), the party's after.
+  const [dropped, setDropped] = useState<string[] | null>(null);
+  const order = dropped ?? party.map((m) => m.uid);
   const [drag, setDrag] = useState<{ uid: string; from: number; dy: number } | null>(null);
   const pointer = useRef<{ uid: string; from: number; startY: number; scale: number; dragging: boolean } | null>(null);
   /** A drag just ended (its click is no click). */
@@ -95,7 +97,10 @@ export function PartyOverlay({ party, bag, busy, pending, open, modeBottom, onTo
     pointer.current = null;
     if (!p?.dragging) return;
     dragged.current = true;
-    if (drag && to !== drag.from) onAct({ type: 'SET_ORDER', uids: shown });
+    if (drag && to !== drag.from) {
+      setDropped(shown);
+      void Promise.resolve(onAct({ type: 'SET_ORDER', uids: shown })).finally(() => setDropped(null));
+    }
     setDrag(null);
   };
 
@@ -108,7 +113,7 @@ export function PartyOverlay({ party, bag, busy, pending, open, modeBottom, onTo
         style={{ left: px(LIST_LEFT), width: px(240 - LIST_LEFT), transform: open ? 'none' : 'translateX(101%)', backgroundImage: `url(${PARTY}/bg.png)`, backgroundSize: `${px(240)} ${px(160)}`, backgroundPosition: `-${px(LIST_LEFT)} 0` }}
         aria-hidden={!open}
       >
-        {party.map((m, i) => {
+        {party.map((m) => {
           const held = drag?.uid === m.uid;
           return (
             <Slot
@@ -117,7 +122,7 @@ export function PartyOverlay({ party, bag, busy, pending, open, modeBottom, onTo
               top={held ? drag.from * SLOT_H + drag.dy : shown.indexOf(m.uid) * SLOT_H}
               held={held}
               selected={m.uid === chosen}
-              handlers={{ onPointerDown: down(m.uid, i), onPointerMove: move, onPointerUp: up, onPointerCancel: up }}
+              handlers={{ onPointerDown: down(m.uid, order.indexOf(m.uid)), onPointerMove: move, onPointerUp: up, onPointerCancel: up }}
               onClick={() => {
                 if (dragged.current) return void (dragged.current = false);
                 setChosen(m.uid === chosen ? null : m.uid);
