@@ -150,12 +150,7 @@ export function IdlePage() {
         actions={
           active ? (
             <span className="flex items-center gap-2">
-              {/* Grinding (the user's): back to the town's choice. */}
-              {v?.phase === 'grinding' && (
-                <button className={BUTTON} disabled={actions.busy} onClick={() => void act({ type: 'STOP_GRIND' })}>
-                  Stop grinding
-                </button>
-              )}
+              {/* (Auto-grinding is quit with the Town Map's Stop or Continue run, the user's: no button of its own.) */}
               {
             confirmQuit ? (
               <span className="flex items-center gap-2 text-sm">

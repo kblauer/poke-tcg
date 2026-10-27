@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AREAS } from './areas.js';
 import { applyIdleAction, createIdleRun, type IdleState } from './idle.js';
-import { canLearnMachine, HM_PRICE, machineMove, machinePrice, slotMoves, TM_GROUPS, TM_MOVES, tmGroupStock } from './tms.js';
+import { canLearnMachine, HM_PRICE, MACHINES, machineMove, machinePrice, slotMoves, TM_MOVES } from './tms.js';
 
 const index = (id: string) => AREAS.findIndex((a) => a.id === id);
 
@@ -23,12 +23,11 @@ describe('TMs and HMs', () => {
     expect(machinePrice('hm01')).toBe(HM_PRICE);
   });
 
-  it('splits the 50 TMs into 4 groups by their first letter, each once, and the 8 HMs', () => {
-    const tms = TM_GROUPS.filter((g) => !g.hm).flatMap((g) => tmGroupStock(g.id));
-    expect(tms).toHaveLength(50);
-    expect(new Set(tms).size).toBe(50);
-    expect(tmGroupStock('hm')).toEqual(['hm01', 'hm02', 'hm03', 'hm04', 'hm05', 'hm06', 'hm07', 'hm08']);
-    for (const g of TM_GROUPS) expect(tmGroupStock(g.id).length, g.id).toBeGreaterThan(0);
+  it('sells every TM and HM in one list, TM01 to TM50 then HM01 to HM08', () => {
+    expect(MACHINES).toHaveLength(58);
+    expect(MACHINES.slice(0, 3)).toEqual(['tm01', 'tm02', 'tm03']);
+    expect(MACHINES[49]).toBe('tm50');
+    expect(MACHINES.slice(50)).toEqual(['hm01', 'hm02', 'hm03', 'hm04', 'hm05', 'hm06', 'hm07', 'hm08']);
   });
 
   it('sells them in every store once the run has reached Celadon City, one of each', () => {

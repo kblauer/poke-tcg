@@ -3,6 +3,7 @@ import { AREAS, isTown, type TownArea, type WalkArea } from './areas.js';
 import { familyMovesUpTo } from './mon.js';
 import type { BattleEvent } from './battle.js';
 import { catchTextFrame, FRAME_MS, openingMs } from './battle-timing.js';
+import { TOWN_MAP_PLACES, townMapArea } from './town-map.js';
 import { applyIdleAction, atProgress, BATTLE_HOLD_MS, BATTLE_MS, catchUp, cutSegment, mapGrindPlan, progressOf, reachedArea, travelError, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, modeOf, previousRoute, routeGrindPlan, starterOptions, TICK_MS, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
 
 type BattleSeg = Extract<SegmentEvent, { t: 'battle' }>;
@@ -672,6 +673,76 @@ describe('an idle run', () => {
     expect(battles(all).length).toBeGreaterThan(0);
     expect(battles(all).every((b) => b.caughtBefore)).toBe(true);
     expect(battles(new Set()).some((b) => b.caughtBefore)).toBe(false);
+  });
+
+  it('quits auto-grinding on Stop (stopped where the player stands on its route) and on Continue run (to the town)', () => {
+    const pewter = AREAS.findIndex((a) => a.id === 'pewter-city');
+    const spot = (AREAS[pewter] as TownArea).grind!;
+    const base = createIdleRun({ species: 4 }, 3);
+    const town: IdleState = { ...base, area: pewter, phase: 'town', reached: pewter };
+    let s = (applyIdleAction(town, { type: 'GRIND' }) as { state: IdleState }).state;
+    expect(s.phase).toBe('grinding');
+    // A segment round the loop playing (kept as idle.next keeps it), cut by Stop part way.
+    const next = simulateSegment(s, MANUAL, new Set())!;
+    const saved: IdleState = { ...next.state, replay: { prev: s, settings: MANUAL, caught: [], from: 0, throws: [] } };
+    s = cutSegment(saved, 2000);
+    const stopped = applyIdleAction(s, { type: 'SET_MODE', mode: 'stop' });
+    expect(stopped.ok).toBe(true);
+    const st = (stopped as { state: IdleState }).state;
+    expect(st).toMatchObject({ phase: 'walking', area: AREAS.findIndex((a) => a.id === spot.area), leg: spot.leg, stopped: true });
+    expect(st.grind).toBeUndefined();
+    const [m, x, y] = (AREAS[st.area] as WalkArea).legs[st.leg]!.track[st.step]!;
+    expect(spot.loop.some(([lm, lx, ly]) => lm === m && lx === x && ly === y)).toBe(true);
+    // Continue run: the town, its choices waiting.
+    const on = (applyIdleAction(st, { type: 'CONTINUE_RUN' }) as { state: IdleState }).state;
+    expect([on.phase, on.area, on.stopped]).toEqual(['town', pewter, undefined]);
+    // Continue run straight from the grind: the town too.
+    const grinding = (applyIdleAction(town, { type: 'GRIND' }) as { state: IdleState }).state;
+    const back = (applyIdleAction(grinding, { type: 'CONTINUE_RUN' }) as { state: IdleState }).state;
+    expect([back.phase, back.area, back.grind]).toEqual(['town', pewter, undefined]);
+  });
+
+  it('opens the Indigo Plateau on the Town Map once Victory Road is done, and every store sells every item from then', () => {
+    const index = (id: string) => AREAS.findIndex((a) => a.id === id);
+    const base = createIdleRun({ species: 7 }, 6);
+    const road = AREAS[index('victory-road')] as WalkArea;
+    const leg = road.legs.length - 1;
+    // At Victory Road's end, its trainers beaten: the next segment reaches the Plateau.
+    let s: IdleState = { ...base, area: index('victory-road'), leg, step: road.legs[leg]!.track.length - 2, beaten: road.trainers.map((t) => t.key), party: [{ ...base.party[0]!, level: 70 }] };
+    const viridian = AREAS[index('viridian-city')] as TownArea;
+    expect(storeStock(viridian, s)).toEqual(storeStock(viridian));
+    expect(travelError(s, index('indigo-plateau'))).toBe('Not reached yet');
+    for (let i = 0; i < 5 && s.phase !== 'town' && s.phase !== 'grinding'; i++) s = simulateSegment(s, MANUAL, new Set())!.state;
+    expect(s.area).toBe(index('indigo-plateau'));
+    expect(townMapArea(TOWN_MAP_PLACES.find((p) => p.section === 'indigo_plateau')!, reachedArea(s))).toBe(index('indigo-plateau'));
+    expect(travelError({ ...s, area: index('celadon-city'), phase: 'town' }, index('indigo-plateau'))).toBeNull();
+    // Every store's items in Viridian City's store now, as in any other.
+    const all = new Set(AREAS.filter(isTown).flatMap((t) => storeStock(t)));
+    expect(new Set(storeStock(viridian, s))).toEqual(all);
+    expect(storeStock(viridian, s)).toContain('ultra-ball');
+    const inViridian: IdleState = { ...s, area: index('viridian-city'), phase: 'town', inStore: true, money: 100000 };
+    expect(applyIdleAction(inViridian, { type: 'BUY', item: 'ultra-ball', count: 1 }).ok).toBe(true);
+  });
+
+  it('starts every try at the League with Lorelei: Continue run never goes back into a room part way', () => {
+    const index = (id: string) => AREAS.findIndex((a) => a.id === id);
+    const base = createIdleRun({ species: 7 }, 6);
+    const act = (s: IdleState, a: Parameters<typeof applyIdleAction>[1]) => {
+      const r = applyIdleAction(s, a);
+      if (!r.ok) throw new Error(r.error);
+      return r.state;
+    };
+    // Part way through Agatha's room: its furthest place is the Plateau.
+    const agatha: IdleState = { ...base, area: index('agatha'), step: 3, phase: 'walking', reached: index('agatha') };
+    expect(progressOf(agatha)).toMatchObject({ area: index('indigo-plateau'), leg: 0, step: 0 });
+    // A Stop there goes on with the same try.
+    const stopped = act(agatha, { type: 'SET_MODE', mode: 'stop' });
+    expect(act(stopped, { type: 'CONTINUE_RUN' })).toMatchObject({ area: index('agatha'), step: 3 });
+    // Away (the Town Map) and Continue run: the Plateau; Enter the Pokémon League (Continue run there): Lorelei's room.
+    const plateau = act(act(agatha, { type: 'TRAVEL', area: index('celadon-city') }), { type: 'CONTINUE_RUN' });
+    expect([plateau.phase, plateau.area]).toEqual(['town', index('indigo-plateau')]);
+    const lorelei = act(plateau, { type: 'CONTINUE_RUN' });
+    expect([lorelei.phase, lorelei.area, lorelei.step]).toEqual(['walking', index('lorelei'), 0]);
   });
 
   it('picks a grind on the route it walks from where it is, and refuses the one already on', () => {

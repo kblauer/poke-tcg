@@ -45,12 +45,16 @@ export function TownMenu({
   const target = run.view.grindTarget;
   // Continue run (the user's): straight to the run's furthest place from a town behind it; from the furthest, on once its gym is beaten.
   const furthest = atProgress(run.view);
-  const options: { label: string; act: () => void; disabled?: boolean }[] = [
-    ...(gym && !gymDone ? [{ label: league ? 'Challenge the Elite Four' : 'Gym', act: onGym }] : []),
-    ...(gym && !gymDone && town.grind && target ? [{ label: `Grind to Lv. ${target}`, act: onGrind, disabled: topLevel(run.view.party) >= target }] : []),
-    ...(town.marts.length > 0 ? [{ label: 'Store', act: onStore }] : []),
-    ...(!furthest || (gymDone && !league) ? [{ label: 'Continue run', act: onContinue }] : []),
-  ];
+  // The Indigo Plateau (the user's): Store, and Enter the Pokémon League, Continue run here (CONTINUE_RUN: into
+  // Lorelei's room from the furthest place, else to it).
+  const options: { label: string; act: () => void; disabled?: boolean }[] = league
+    ? [...(town.marts.length > 0 ? [{ label: 'Store', act: onStore }] : []), { label: 'Enter the Pokémon League', act: onContinue }]
+    : [
+        ...(gym && !gymDone ? [{ label: 'Gym', act: onGym }] : []),
+        ...(gym && !gymDone && town.grind && target ? [{ label: `Grind to Lv. ${target}`, act: onGrind, disabled: topLevel(run.view.party) >= target }] : []),
+        ...(town.marts.length > 0 ? [{ label: 'Store', act: onStore }] : []),
+        ...(!furthest || gymDone ? [{ label: 'Continue run', act: onContinue }] : []),
+      ];
   const question: Dialogue = {
     text: `${town.name}. ${gymDone ? (league ? '' : 'Where to next?') : league ? 'The Pokémon League awaits.' : `${gym?.name} is here.`}`.trim(),
     choices: options.map((o) => ({ label: o.label, disabled: busy || o.disabled })),

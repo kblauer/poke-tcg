@@ -1,4 +1,4 @@
-import { AREAS, isMachine, ITEMS, machineMove, machinePrice, mapView, moveData, TM_GROUPS, tmGroupStock, tmShopOpen, type TownArea } from '@poke-tcg/idle';
+import { AREAS, isMachine, ITEMS, MACHINES, machineMove, machinePrice, mapView, moveData, tmShopOpen, type TownArea } from '@poke-tcg/idle';
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useEscape } from '../../hooks/useEscape';
 import { useIsPhone } from '../../hooks/useIsPhone';
@@ -35,8 +35,8 @@ const priceOf = (item: string) => (isMachine(item) ? machinePrice(item) : ITEMS[
  * buy screen): the mart's map with the player at the counter across from its clerk (TownArea.mart), the clerk's "May I
  * help you?" with BUY and SEE YA!; BUY opens FireRed's buy screen (BuyScreen), its CANCEL back to the counter ("anything
  * else"), SEE YA! "Please come again!", then out (`onLeave`: LEAVE_STORE). From Celadon City on (tmShopOpen, the
- * user's), BUY TMs too: the clerk asks which (TM_GROUPS: 4 groups of TMs by their move's first letter, and the HMs), each
- * the buy screen with that group's machines (`machines`), CANCEL back to the question. The town doesn't go on while the player is in
+ * user's), BUY TM/HM too: the buy screen with every TM and HM in one list (MACHINES, `machines`), CANCEL back to the
+ * counter. The town doesn't go on while the player is in
  * here (IdleState.inStore). `dialogue` (the catch-up's pages) comes first; `children` over the scene (the overlays).
  */
 export function MartScene({
@@ -64,22 +64,19 @@ export function MartScene({
   const mart = town.mart;
   const map = mapView(mart.map);
   const player = gender === 'female' ? 'leaf' : 'red';
-  const [stage, setStage] = useState<'hello' | 'again' | 'buy' | 'tms' | 'bye' | { group: string }>('hello');
+  const [stage, setStage] = useState<'hello' | 'again' | 'buy' | 'tms' | 'bye'>('hello');
   const tms = tmShopOpen(run.view);
-  if (stage === 'buy' && !dialogue) return <BuyScreen run={run} player={player} busy={busy} onBuy={onBuy} onClose={() => setStage('again')}>{buyChildren}</BuyScreen>;
-  if (typeof stage === 'object' && !dialogue)
+  if ((stage === 'buy' || stage === 'tms') && !dialogue)
     return (
-      <BuyScreen key={stage.group} run={run} player={player} busy={busy} onBuy={onBuy} onClose={() => setStage('tms')} machines={tmGroupStock(stage.group)}>
+      <BuyScreen key={stage} run={run} player={player} busy={busy} onBuy={onBuy} onClose={() => setStage('again')} machines={stage === 'tms' ? [...MACHINES] : undefined}>
         {buyChildren}
       </BuyScreen>
     );
-  const choices = ['BUY', ...(tms ? ['BUY TMs'] : []), 'SEE YA!'];
+  const choices = ['BUY', ...(tms ? ['BUY TM/HM'] : []), 'SEE YA!'];
   const clerk: Dialogue =
     stage === 'bye'
       ? { text: 'Please come again!', answer: () => !busy && onLeave() }
-      : stage === 'tms'
-        ? { text: 'Which TMs would you like to see?', choices: [...TM_GROUPS.map((g) => g.label), 'CANCEL'], answer: (i) => setStage(i < TM_GROUPS.length ? { group: TM_GROUPS[i]!.id } : 'again') }
-        : { text: stage === 'hello' ? 'Hi, there!\nMay I help you?' : 'Is there anything else I can do?', choices, answer: (i) => setStage(choices[i] === 'BUY' ? 'buy' : choices[i] === 'BUY TMs' ? 'tms' : 'bye') };
+      : { text: stage === 'hello' ? 'Hi, there!\nMay I help you?' : 'Is there anything else I can do?', choices, answer: (i) => setStage(choices[i] === 'BUY' ? 'buy' : choices[i] === 'BUY TM/HM' ? 'tms' : 'bye') };
   return (
     <MapScene image={map.image} width={map.width} height={map.height} tile={{ x: mart.x, y: mart.y }} player={player} face={mart.face} moveMs={0} people={mart.people.map((p, i) => ({ key: String(i), ...p }))} dialogue={dialogue ?? clerk}>
       {children}
