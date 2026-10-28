@@ -126,7 +126,7 @@ export function TownMap({ view, busy, gender, onAct }: { view: ClientIdleRun['vi
         onClick={(e) => (e.stopPropagation(), setOpen(true))}
       >
         Map
-        {/* The mode: a dot, red when stopped, blue walking on, yellow grinding. */}
+        {/* The mode: a dot, red when stopped, blue walking on, yellow grinding (a town's auto-grind too). */}
         <span aria-hidden style={{ width: px(5), height: px(5), borderRadius: '50%', background: mode === 'stop' ? '#e03030' : mode === 'route' ? FRAME.on : '#e8b820' }} />
       </button>
       {/* Stop or play under it (the user's, 2026-10-27): the map's Stop without opening the map, and once stopped a play

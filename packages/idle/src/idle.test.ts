@@ -895,6 +895,8 @@ describe('an idle run', () => {
     const town: IdleState = { ...base, area: pewter, phase: 'town', reached: pewter };
     let s = (applyIdleAction(town, { type: 'GRIND' }) as { state: IdleState }).state;
     expect(s.phase).toBe('grinding');
+    // Auto-grinding is a wild grind, not the run going on (the user's, 2026-10-28: the Town Map's dot).
+    expect(modeOf(s)).toBe('wild');
     // A segment round the loop playing (kept as idle.next keeps it), cut by Stop part way.
     const next = simulateSegment(s, MANUAL, new Set())!;
     const saved: IdleState = { ...next.state, replay: { prev: s, settings: MANUAL, caught: [], from: 0, throws: [] } };
@@ -913,6 +915,7 @@ describe('an idle run', () => {
     const grinding = (applyIdleAction(town, { type: 'GRIND' }) as { state: IdleState }).state;
     const back = (applyIdleAction(grinding, { type: 'CONTINUE_RUN' }) as { state: IdleState }).state;
     expect([back.phase, back.area, back.grind]).toEqual(['town', pewter, undefined]);
+    expect(modeOf(back)).toBe('route');
   });
 
   it('opens the Indigo Plateau on the Town Map once Victory Road is done, and every store sells every item from then', () => {
