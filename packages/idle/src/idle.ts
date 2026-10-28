@@ -743,24 +743,31 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
   const inTown = state.phase === 'town' && isTown(area);
   // Out of the store before going anywhere (the user's: it's left by hand).
   if (state.inStore && (action.type === 'GYM' || action.type === 'GRIND' || action.type === 'CONTINUE' || action.type === 'BACK_ROUTE')) return fail('Leave the store first');
+  // A town's choice that moves the run (Gym, Grind…) starts it going again if it was stopped (the user's, 2026-10-28:
+  // a town reached by the Town Map while stopped keeps Stop till then).
+  const go = () => {
+    if (state.stopped) state.log.push('Went on.');
+    delete state.stopped;
+    return ok();
+  };
   switch (action.type) {
     case 'GYM': {
       if (!inTown || !area.gym) return fail('There is no gym here');
       if (townDone(state, area)) return fail('Its badge is won already');
       enterGym(state, []);
-      return ok();
+      return go();
     }
     case 'GRIND': {
       const error = grindError(state);
       if (error) return fail(error);
       startGrind(state, []);
-      return ok();
+      return go();
     }
     case 'WILD_GRIND':
     case 'TRAINER_GRIND': {
       const error = startRouteLoop(state, action.type === 'WILD_GRIND' ? 'wild' : 'trainers');
       if (error) return fail(error);
-      return ok();
+      return go();
     }
     case 'SET_MODE': {
       if (action.mode === 'stop') {
@@ -891,13 +898,13 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
       state.log.push(`Went back to ${area.name}.`);
       const plan = wildPlan(back, leg, step, -1);
       if (plan) startPacing(state, plan, { area: back, leg, step, beaten: [...state.beaten] });
-      return ok();
+      return go();
     }
     case 'CONTINUE': {
       if (!inTown) return fail('Not in a town');
       if (!townDone(state, area)) return fail(area.gym && areaById(area.gym).kind === 'league' ? 'The League is the only way on' : 'Win the gym\'s badge first');
       enterArea(state, afterTown(state.area), []);
-      return ok();
+      return go();
     }
     case 'VISIT_STORE': {
       if (!inTown) return fail('Not in a town');
