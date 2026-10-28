@@ -63,6 +63,14 @@ for f in [os.path.join('data', 'scripts', 'trainers.inc')] + [os.path.join('data
             SCRIPT_TRAINERS[label].append(m.group(1))
         m = re.search(r'goto\w*\s+(?:VAR_\w+,\s*\w+,\s*)?(\w+_EventScript_\w+)', line)
 
+# Each map's wild tables (src/data/wild_encounters.json): its encounter types, 1 land and 2 water (as the metatiles').
+WILD_TABLES = collections.defaultdict(set)
+for group in json.loads(read('src/data/wild_encounters.json'))['wild_encounter_groups']:
+    for e in group['encounters']:
+        WILD_TABLES[e['map']] |= {k for k, f in ((1, 'land_mons'), (2, 'water_mons')) if f in e}
+# The maps with fishing (a fishing table, either version's): an area walking one fishes there (WalkArea.fishing).
+FISH_TABLES = {e['map'] for group in json.loads(read('src/data/wild_encounters.json'))['wild_encounter_groups'] for e in group['encounters'] if 'fishing_mons' in e}
+
 # Graphics that don't block: item balls, Cut trees, boulders and rocks (walked through: no HMs needed), Snorlax.
 FREE_GFX = ('ITEM_BALL', 'CUT_TREE', 'PUSHABLE_BOULDER', 'ROCK_SMASH_ROCK', 'SNORLAX', 'FOSSIL')
 # Trainers left out (agreed: no rival battles or Team Rocket events in this version).
@@ -401,6 +409,9 @@ def plan_leg(leg, trainers_seen, report):
     """A leg's track (steps [map index, x, y, flags]) and its trainers (with their sight lines)."""
     names = leg['maps']
     grids = [Grid(load(n), leg.get('surf', False), leg.get('fixes', {}).get(n, ())) for n in names]
+    # Tiles stood on that no object of the map holds (Moltres's, on Victory Road): in the way too.
+    for n, g in zip(names, grids):
+        g.blocked |= set(leg.get('block', {}).get(n, ()))
     links = build_links(names, grids)
     start = spec_tile(names, grids, leg['start'])
     end = spec_tile(names, grids, leg['end'])
@@ -471,8 +482,9 @@ def plan_leg(leg, trainers_seen, report):
         def wild(node):
             mi, x, y = node
             return grids[mi].m.encounter(x, y) in (1, 2)
-        if not any(wild(n) for n, _ in track):
-            tiles = {(mi, x, y) for mi, g in enumerate(grids) for y in range(g.m.h) for x in range(g.m.w) if g.walkable(x, y) and wild((mi, x, y))}
+
+        def into_patch(tiles):
+            """Into the middle of the nearest patch of `tiles` the leg's end can still be reached from; the tile reached, or None."""
             # Each wild tile's steps from the patch's edge (an edge tile: one with a walkable tile beside it that isn't wild).
             depth = {}
             q = collections.deque()
@@ -494,11 +506,30 @@ def plan_leg(leg, trainers_seen, report):
             while patch:
                 detour = bfs(grids, links, here, patch)
                 if detour is None:
-                    break
+                    return None
                 if bfs(grids, links, detour[-1][0], {end}) is not None:
                     walk(detour)
-                    break
+                    return detour[-1][0]
                 patch.discard(detour[-1][0])
+            return None
+
+        # (A legendary's walk up to it meets no wild Pokémon: `no_wild`.)
+        if not leg.get('no_wild') and not any(wild(n) for n, _ in track):
+            into_patch({(mi, x, y) for mi, g in enumerate(grids) for y in range(g.m.h) for x in range(g.m.w) if g.walkable(x, y) and wild((mi, x, y))})
+        if leg.get('every_table'):
+            # Off the main road (the user's: every Pokémon of the place can be grinded for): into a patch of each of its
+            # maps' wild tables (land, and water where it surfs) the track hasn't walked yet, nearest first.
+            def met(mi, e):
+                return any(n[0] == mi and grids[mi].m.encounter(n[1], n[2]) == e for n, _ in track)
+            missed = set()
+            while True:
+                groups = [(mi, e) for mi, g in enumerate(grids) for e in WILD_TABLES.get(g.m.id, ()) if (e == 1 or g.surf) and (mi, e) not in missed and not met(mi, e)]
+                if not groups:
+                    break
+                tiles = {(mi, x, y) for mi, e in groups for y in range(grids[mi].m.h) for x in range(grids[mi].m.w) if grids[mi].walkable(x, y) and grids[mi].m.encounter(x, y) == e}
+                if into_patch(tiles) is None:
+                    report.extend(f"{names[mi]}: its {'land' if e == 1 else 'water'} Pokémon out of reach" for mi, e in groups)
+                    missed.update(groups)
         path = bfs(grids, links, here, {end})
         if path is None:
             raise SystemExit(f'{names}: no way from {here} to the end {end}')
@@ -524,6 +555,22 @@ def leg(maps, start, end, **kw):
 def opened_tiles(m):
     """The tiles a map's scripts open (setmetatile with no collision: Cinnabar Gym's quiz gates), walked as open: the puzzles count as solved."""
     return [(int(x), int(y)) for x, y in re.findall(r'setmetatile\s+(\d+),\s*(\d+),\s*\w+,\s*0\b', read(f'data/maps/{m}/scripts.inc'))]
+
+
+def mansion_doors():
+    """The Pokémon Mansion's barriers (data/scripts/pokemon_mansion.inc: each floor's switch opens some and shuts the
+    others), every one walked as open, as the gyms' puzzles: {map: tiles}."""
+    out = collections.defaultdict(list)
+    floor = None
+    for line in read('data/scripts/pokemon_mansion.inc').split('\n'):
+        m = re.match(r'^PokemonMansion_EventScript_(?:Press|Reset)Switch_(\w+)::', line)
+        if m:
+            floor = 'PokemonMansion_' + m.group(1)
+            continue
+        m = re.search(r'setmetatile\s+(\d+),\s*(\d+),\s*\w+,\s*0\b', line)
+        if m and floor:
+            out[floor].append((int(m.group(1)), int(m.group(2))))
+    return dict(out)
 
 
 def gym(area_id, name, town, m, leader, badge, **kw):
@@ -563,6 +610,46 @@ def mart_of(marts, sprites):
 
 def town(area_id, name, m, marts, gym=None, **kw):
     return {'id': area_id, 'name': name, 'kind': 'town', 'map': m, 'marts': marts, 'gym': gym, **kw}
+
+
+def optional(area_id, name, kind, opens, legs):
+    """An area off the main road (WalkArea.opens): grinded in from the Town Map once the run has reached `opens`, its
+    legs walking into every wild table of their maps (`every_table`)."""
+    return {'id': area_id, 'name': name, 'kind': kind, 'opens': opens, 'legs': [{**lg, 'every_table': True} for lg in legs]}
+
+
+def legend(species, name, m, dex, steps=4, at=None, level_map=None, surf=False):
+    """A legendary Pokémon (WalkArea.legend, the user's, 2026-10-27): once the run reaches the Indigo Plateau, picked on
+    the Town Map; the run walks `steps` tiles up to it where the game has it (its map object; `at` where the map has
+    none: Moltres, on Mt. Ember in the game, on Victory Road as in Red and Blue), meeting nothing on the way, and battles
+    it at the game's level (its script's setwildbattle; `level_map`'s for one moved)."""
+    objects = load(m).objects
+    obj = next((o for o in objects if o['graphics_id'] == 'OBJ_EVENT_GFX_' + species.upper()), None)
+    x, y = (obj['x'], obj['y']) if obj else at
+    face = facings(obj['movement_type'])[0] if obj else 'down'
+    level = int(re.search(r'setwildbattle SPECIES_' + species.upper() + r', (\d+)', read(f'data/maps/{level_map or m}/scripts.inc')).group(1))
+    # Where the player stands to battle it: the tile it faces, and the walk's start `steps` tiles from there (the
+    # straightest), by the map's walkable tiles.
+    g = Grid(load(m), surf)
+    g.blocked.add((x, y))
+    dx, dy = DIRS[face]
+    stand = (x + dx, y + dy)
+    dist = {stand: 0}
+    q = collections.deque([stand])
+    while q:
+        cx, cy = q.popleft()
+        for ex, ey in DIRS.values():
+            n = (cx + ex, cy + ey)
+            if n not in dist and g.walkable(*n):
+                dist[n] = dist[(cx, cy)] + 1
+                q.append(n)
+    # In front of it, the most straight ahead (never behind it, coming round).
+    ahead = lambda n: (n[0] - x) * dx + (n[1] - y) * dy
+    far = [n for n, d in dist.items() if d == steps and ahead(n) > 0] or [max((n for n in dist if ahead(n) > 0), key=dist.get)]
+    start = min(far, key=lambda n: (abs((n[0] - x) * dy) + abs((n[1] - y) * dx), -ahead(n), n))
+    return {'id': species, 'name': name, 'kind': 'dungeon', 'opens': 'indigo-plateau',
+            'legend': {'species': dex, 'level': level, 'map': 0, 'x': x, 'y': y, 'face': face, 'sprite': species},
+            'legs': [leg([m], (m, 'tile', *start), (m, 'tile', *stand), no_wild=True, surf=surf, **({} if obj else {'block': {m: [(x, y)]}}))]}
 
 
 AREAS = [
@@ -627,7 +714,41 @@ AREAS = [
     league('agatha', "Agatha's Room", 'PokemonLeague_AgathasRoom', 'elite-four-agatha'),
     league('lance', "Lance's Room", 'PokemonLeague_LancesRoom', 'elite-four-lance'),
     league('champion', "The Champion's Room", 'PokemonLeague_ChampionsRoom', 'champion'),
+    # Off the main road (the user's, 2026-10-27: every Town Map place with wild Pokémon the road doesn't walk), after the
+    # Champion: never walked on to, only grinded in from the Town Map once the run reaches the area that opens it.
+    optional('route-11', 'Route 11', 'route', 'vermilion-city', [leg(['Route11'], edge('Route11', 'left'), edge('Route11', 'right'))]),
+    optional('digletts-cave', "Diglett's Cave", 'dungeon', 'vermilion-city', [
+        leg(['DiglettsCave_SouthEntrance', 'DiglettsCave_B1F', 'DiglettsCave_NorthEntrance'], warp('DiglettsCave_SouthEntrance', 0), warp('DiglettsCave_NorthEntrance', 1))]),
+    optional('pokemon-tower', 'Pokémon Tower', 'dungeon', 'lavender-town', [
+        leg(['PokemonTower_1F', 'PokemonTower_2F', 'PokemonTower_3F', 'PokemonTower_4F', 'PokemonTower_5F', 'PokemonTower_6F', 'PokemonTower_7F'], warp('PokemonTower_1F', 1), warp('PokemonTower_7F', 0))]),
+    # Its doors' warps all lead out to Route 10 (joined as a gatehouse): in by the front door, to its far end (46,38).
+    optional('power-plant', 'Power Plant', 'dungeon', 'route-9', [leg(['PowerPlant'], warp('PowerPlant', 1), ('PowerPlant', 'tile', 46, 38))]),
+    optional('safari-zone', 'Safari Zone', 'dungeon', 'fuchsia-city', [
+        leg(['SafariZone_Center', 'SafariZone_East', 'SafariZone_North', 'SafariZone_West'], warp('SafariZone_Center', 1), warp('SafariZone_Center', 1), via=('SafariZone_East', 'SafariZone_North', 'SafariZone_West'))]),
+    optional('pokemon-mansion', 'Pokémon Mansion', 'dungeon', 'cinnabar-island', [
+        leg(['PokemonMansion_1F', 'PokemonMansion_2F', 'PokemonMansion_3F', 'PokemonMansion_B1F'], warp('PokemonMansion_1F', 1), warp('PokemonMansion_1F', 1), via=('PokemonMansion_2F', 'PokemonMansion_3F', 'PokemonMansion_B1F'), fixes=mansion_doors())]),
+    optional('cerulean-cave', 'Cerulean Cave', 'dungeon', 'indigo-plateau', [
+        leg(['CeruleanCave_1F', 'CeruleanCave_2F', 'CeruleanCave_B1F'], warp('CeruleanCave_1F', 0), warp('CeruleanCave_1F', 0), via=('CeruleanCave_2F', 'CeruleanCave_B1F'), surf=True)]),
+    # Route 21's tall grass (Tangela's only Kanto home), which the surfed main road never walks: the same Town Map place.
+    optional('route-21-grass', 'Route 21 (tall grass)', 'route', 'route-21', [leg(['Route21_North', 'Route21_South'], edge('Route21_North', 'up'), edge('Route21_South', 'down'), surf=True)]),
+    # The grass of the main road's routes it never steps in (the user's: each route's own wild grind on its Town Map place).
+    optional('route-9-grass', 'Route 9 (tall grass)', 'route', 'route-9', [leg(['Route9'], edge('Route9', 'left'), edge('Route9', 'right'))]),
+    optional('route-12-grass', 'Route 12 (tall grass)', 'route', 'route-15', [leg(['Route12'], edge('Route12', 'down'), edge('Route12', 'up'))]),
+    optional('route-13-grass', 'Route 13 (tall grass)', 'route', 'route-15', [leg(['Route14', 'Route13'], edge('Route14', 'left'), edge('Route13', 'up'))]),
+    optional('route-14-grass', 'Route 14 (tall grass)', 'route', 'route-15', [leg(['Route14'], edge('Route14', 'left'), edge('Route14', 'right'))]),
+    # The legendary Pokémon (the user's, 2026-10-27), after the Indigo Plateau: their places' Town Map places.
+    legend('articuno', 'Articuno (Seafoam Islands)', 'SeafoamIslands_B4F', 144, surf=True),
+    legend('zapdos', 'Zapdos (Power Plant)', 'PowerPlant', 145),
+    legend('moltres', 'Moltres (Victory Road)', 'VictoryRoad_2F', 146, at=(11, 2), level_map='MtEmber_Summit'),
+    legend('mewtwo', 'Mewtwo (Cerulean Cave)', 'CeruleanCave_B1F', 150, surf=True),
 ]
+
+def wild_letter(m, x, y):
+    """A tile's wild encounters: 'l' land, 'w' water, '.' none (an encounter tile on a map with no such table, as
+    Diglett's Cave's entrances: none, as the game has it)."""
+    e = m.encounter(x, y)
+    return {1: 'l', 2: 'w'}[e] if e in WILD_TABLES.get(m.id, ()) else '.'
+
 
 # ---- Battle terrain (BattleSetup_GetTerrainId) ----
 def terrain(m, x, y):
@@ -669,7 +790,7 @@ def grind_loop(names, grids, track):
     None when the leg has no such ring."""
     def tile(n):
         m = grids[n[0]].m
-        return {1: 'l', 2: 'w'}.get(m.encounter(n[1], n[2]), '.') + terrain(m, n[1], n[2])
+        return wild_letter(m, n[1], n[2]) + terrain(m, n[1], n[2])
     links = build_links(names, grids)
     end = track[-1][0]
     dist = {end: 0}
@@ -717,6 +838,30 @@ def js(v):
     raise TypeError(v)
 
 
+def fishing_spot(g, steps):
+    """The tile nearest a map's track steps ([(step, x, y)]) facing fishable water: walked to over land (surfing only
+    where nothing on land faces any, and the area surfs: then a 1 after), the nearest first: (step, way, x, y), or None."""
+    fishable = lambda x, y: g.m.inside(x, y) and g.water(x, y) and g.m.collision(x, y) == 0 and 'WATERFALL' not in g.m.behavior(x, y)
+    for over_water in (False, True):
+        seen = {}
+        q = collections.deque()
+        for i, x, y in steps:
+            if (x, y) not in seen and (over_water or not g.water(x, y)):
+                seen[(x, y)] = i
+                q.append((x, y))
+        while q:
+            x, y = q.popleft()
+            for way, (dx, dy) in DIRS.items():
+                if fishable(x + dx, y + dy) and (over_water or not g.water(x, y)):
+                    return (seen[(x, y)], way, x, y, 1) if g.water(x, y) else (seen[(x, y)], way, x, y)
+            for dx, dy in DIRS.values():
+                n = (x + dx, y + dy)
+                if n not in seen and g.walkable(*n) and (over_water or not g.water(*n)):
+                    seen[n] = seen[(x, y)]
+                    q.append(n)
+    return None
+
+
 def sprite_name(gfx):
     """A trainer's overworld sprite in public/overworld/ (cut from the game when it isn't there yet)."""
     return gfx
@@ -762,6 +907,7 @@ def main():
         legs = []
         trainers = []
         last_legs = []
+        fishing_maps = {}
         for lg in a['legs']:
             if lg['end'] is None:
                 lg['end'] = lg['start']
@@ -774,9 +920,22 @@ def main():
             # metatile's encounter type: 'l' land, 'w' water, '.' none) and battle terrain (BattleSetup_GetTerrainId).
             def tile(node):
                 mm = grids[node[0]].m
-                return {1: 'l', 2: 'w'}.get(mm.encounter(node[1], node[2]), '.') + terrain(mm, node[1], node[2])
+                return ('.' if lg.get('no_wild') else wild_letter(mm, node[1], node[2])) + terrain(mm, node[1], node[2])
             legs.append({'maps': names, 'track': [[n[0], n[1], n[2], f, tile(n)] for n, f in track]})
             last_legs.append((a['id'], len(legs) - 1, names, grids, track))
+            # Where it fishes on each map with fishing (the user's, 2026-10-27: a wild grind with a rod): the nearest tile to
+            # the track facing fishable water (item_use.c's CanFish: surfable, no collision, not a waterfall), from the
+            # shore where it can be walked to, else surfing (where the area surfs); one a map (an earlier leg's first):
+            # [leg, the track's step nearest it (faded from), the way it faces, its tile, 1 when surfing].
+            if not lg.get('no_wild'):
+                for mi, n in enumerate(names):
+                    if grids[mi].m.id not in FISH_TABLES or n in fishing_maps:
+                        continue
+                    spot = fishing_spot(grids[mi], [(i, x, y) for i, ((tm, x, y), _) in enumerate(track) if tm == mi])
+                    if spot is None:
+                        report.append(f"{a['id']}: no water to fish in on {n}")
+                        continue
+                    fishing_maps[n] = [len(legs) - 1, *spot]
             # Each trainer faces where the player meets them (the user's): the first step of the track in their sight,
             # trainers met in turn as the run meets them (idle.ts's trainerHere: the first not yet beaten in this order).
             met = {}
@@ -796,7 +955,9 @@ def main():
                                  # Standing in tall grass (MetatileBehavior_IsTallGrass): its grass drawn over their feet.
                                  **({'grass': True} if terrain(grids[t['map']].m, t['x'], t['y']) == 'g' else {})})
         area = {'id': a['id'], 'name': a['name'], 'kind': a['kind'], 'legs': legs, 'trainers': trainers}
-        for k in ('town', 'badge', 'leader'):
+        if fishing_maps:
+            area['fishing'] = list(fishing_maps.values())
+        for k in ('town', 'badge', 'leader', 'opens', 'legend'):
             if a.get(k):
                 area[k] = a[k]
         if a['kind'] == 'gym' or a['kind'] == 'league':
@@ -823,12 +984,39 @@ def main():
             'height': m.h,
             'encounters': enc_key,
             'scene': m.json.get('battle_scene', 'MAP_BATTLE_SCENE_NORMAL')[len('MAP_BATTLE_SCENE_'):].lower(),
+            # Its Town Map section (town-map.ts's places': the Town Map's choices are a place's own maps').
+            'section': m.json['region_map_section'][len('MAPSEC_'):].lower(),
             'music': m.json.get('music', ''),
         }
     # Overworld sprites the trainers need, cut from the game where public/overworld/ has none (and Professor Oak, in the
     # starter's scene).
     sprites.add('prof_oak')
     gfx = es.Graphics(SRC)
+    # The player's fishing sprites (the user's: fishing on the map): Red's and Leaf's 12 frames, left, up, down (4 each).
+    for who, gfx_id in (('red_fish', 'OBJ_EVENT_GFX_RED_FISH'), ('leaf_fish', 'OBJ_EVENT_GFX_GREEN_FISH')):
+        p = os.path.join(PUB, 'overworld', who + '.png')
+        if not os.path.exists(p):
+            frames = gfx.frames(gfx_id)
+            sheet = Image.new('RGBA', (frames[0].width * len(frames), frames[0].height), (0, 0, 0, 0))
+            for i, f in enumerate(frames):
+                sheet.alpha_composite(f, (i * f.width, 0))
+            sheet.save(p)
+    # The surf blob under the player fishing from the water (graphics/object_events/pics/misc/surf_blob.png: down, up, left).
+    p = os.path.join(PUB, 'overworld', 'surf_blob.png')
+    if not os.path.exists(p):
+        es.colour(Image.open(os.path.join(SRC, 'graphics', 'object_events', 'pics', 'misc', 'surf_blob.png')), gfx.palette('OBJ_EVENT_PAL_TAG_PLAYER_RED')).save(p)
+    # The legendaries' (16x16 Mewtwo's on a 16x32 frame, its feet on the tile as the others').
+    for a in out_areas:
+        lgd = a.get('legend')
+        p = lgd and os.path.join(PUB, 'overworld', lgd['sprite'] + '.png')
+        if lgd and not os.path.exists(p):
+            frames = gfx.frames('OBJ_EVENT_GFX_' + lgd['sprite'].upper())
+            padded = []
+            for f in frames:
+                big = Image.new('RGBA', (f.width, max(32, f.height)), (0, 0, 0, 0))
+                big.alpha_composite(f, (0, big.height - f.height))
+                padded.append(big)
+            es.strip(padded).save(p)
     for s in sorted(sprites):
         p = os.path.join(PUB, 'overworld', s + '.png')
         if not os.path.exists(p):

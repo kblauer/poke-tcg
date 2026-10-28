@@ -115,6 +115,8 @@ def main():
             continue
         for block in re.findall(r'\w+_Items::\s*((?:\s*\.2byte ITEM_\w+)+)', read(p)):
             sold.update(c for c in re.findall(r'ITEM_(\w+)', block) if c != 'NONE')
+    # The Moon Stone, sold at Celadon's with the other stones (the user's, 2026-10-27; firered_data.py's marts).
+    sold.add('MOON_STONE')
     # Every TM and HM (Buy TMs, every store's from Celadon City on: the user's), each its type's disc.
     sold.update([f'TM{n:02}' for n in range(1, 51)] + [f'HM{n:02}' for n in range(1, 9)])
     table = {c: (pic, pal) for c, pic, pal in re.findall(r'\[ITEM_(\w+)\]\s*=\s*\{(gItemIcon_\w+), (gItemIconPalette_\w+)\}', read('src/data/item_icon_table.h'))}

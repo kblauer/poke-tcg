@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { AREAS, isTown, type TownArea, type WalkArea } from './areas.js';
+import { AREAS, isTown, legendOf, mapView, type TownArea, type WalkArea } from './areas.js';
+import { SPECIES } from './data/gen1/species.js';
+import { ENCOUNTERS } from './data/gen1/encounters.js';
 import { familyMovesUpTo } from './mon.js';
 import type { BattleEvent } from './battle.js';
 import { catchTextFrame, FRAME_MS, openingMs } from './battle-timing.js';
 import { TOWN_MAP_PLACES, townMapArea } from './town-map.js';
-import { applyIdleAction, atProgress, BATTLE_HOLD_MS, BATTLE_MS, catchUp, cutSegment, mapGrindPlan, progressOf, reachedArea, travelError, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, modeOf, previousRoute, routeGrindPlan, starterOptions, TICK_MS, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
+import { applyIdleAction, atProgress, legendError, rodsOf, STARTERS, BATTLE_HOLD_MS, BATTLE_MS, catchUp, cutSegment, mapGrindPlan, progressOf, reachedArea, travelError, wildSpots, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, modeOf, previousRoute, routeGrindPlan, starterOptions, TICK_MS, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
 
 type BattleSeg = Extract<SegmentEvent, { t: 'battle' }>;
 
@@ -289,7 +291,8 @@ describe('an idle run', () => {
       const wild = (leg: WalkArea['legs'][number]) => leg.track.some(([, , , , t]) => t[0] === 'l' || t[0] === 'w');
       let checked = 0;
       AREAS.forEach((a, i) => {
-        if (a.kind !== 'route' && a.kind !== 'dungeon') return;
+        // (A legendary Pokémon's walk meets none, on purpose: no grinding there.)
+        if ((a.kind !== 'route' && a.kind !== 'dungeon') || legendOf(i)) return;
         (a as WalkArea).legs.forEach((leg, li) => {
           if (wild(leg)) return;
           checked++;
@@ -594,6 +597,216 @@ describe('an idle run', () => {
     expect(act(pewter, { type: 'CONTINUE_RUN' }).area).toBe(index('route-3'));
     // Its gym's badge puts the town past the gym (back there after the badge).
     expect(progressOf({ ...pewter, reached: index('pewter-gym') }).area).toBe(index('pewter-city'));
+  });
+
+  describe('the places off the main road (the user\'s, 2026-10-27)', () => {
+    const index = (id: string) => AREAS.findIndex((a) => a.id === id);
+    const act = (s: IdleState, a: Parameters<typeof applyIdleAction>[1]) => {
+      const r = applyIdleAction(s, a);
+      if (!r.ok) throw new Error(r.error);
+      return r.state;
+    };
+    const base = createIdleRun({ species: 4 }, 2);
+    const fuchsia: IdleState = { ...base, area: index('fuchsia-city'), phase: 'town', reached: index('fuchsia-city'), badges: ['Boulder', 'Cascade', 'Thunder', 'Rainbow'], party: [{ ...base.party[0]!, level: 60 }] };
+
+    it('open once the run reaches the area that opens them, never counting as reached or as progress', () => {
+      expect('error' in mapGrindPlan(fuchsia, index('safari-zone'), 'wild')).toBe(false);
+      expect(mapGrindPlan(fuchsia, index('cerulean-cave'), 'wild')).toEqual({ error: 'Not reached yet' });
+      const place = TOWN_MAP_PLACES.find((p) => p.section === 'kanto_safari_zone')!;
+      expect(townMapArea(place, index('celadon-city'))).toBeNull();
+      expect(townMapArea(place, index('fuchsia-city'))).toBe(index('safari-zone'));
+      let s = act(fuchsia, { type: 'GRIND_AT', area: index('safari-zone'), kind: 'wild' });
+      for (let i = 0; i < 4; i++) s = simulateSegment(s, MANUAL, new Set())!.state;
+      expect(s.area).toBe(index('safari-zone'));
+      expect(reachedArea(s)).toBe(index('fuchsia-city'));
+      expect(progressOf(s).area).toBe(index('fuchsia-city'));
+      expect(atProgress(s)).toBe(false);
+      // Continue run: back to Fuchsia City.
+      expect(act(s, { type: 'CONTINUE_RUN' })).toMatchObject({ area: index('fuchsia-city'), phase: 'town' });
+    });
+
+    it('grind on one wild table picked on the Town Map (a zone, a floor), its tiles only', () => {
+      const spots = wildSpots(index('safari-zone')).filter((s) => !s.fish);
+      expect(spots.map((s) => s.label)).toEqual(['Center', 'East', 'North', 'West']);
+      const west = spots.find((s) => s.label === 'West')!;
+      const s = act(fuchsia, { type: 'GRIND_AT', area: index('safari-zone'), kind: 'wild', spot: west.id });
+      const loop = s.loop as Extract<IdleState['loop'], { kind: 'pace' }>;
+      expect(loop.kind).toBe('pace');
+      const leg = (AREAS[s.area] as WalkArea).legs[loop.leg]!;
+      for (let i = loop.from; i <= loop.to; i++) expect(leg.maps[leg.track[i]![0]]).toBe('SafariZone_West');
+      // The same spot again is the mode already on; another is a switch.
+      expect(applyIdleAction(s, { type: 'GRIND_AT', area: index('safari-zone'), kind: 'wild', spot: west.id }).ok).toBe(false);
+      expect(act(s, { type: 'GRIND_AT', area: index('safari-zone'), kind: 'wild', spot: spots[0]!.id }).loop).toMatchObject({ kind: 'pace' });
+      expect(applyIdleAction(fuchsia, { type: 'GRIND_AT', area: index('safari-zone'), kind: 'wild', spot: 'Route1:l' }).ok).toBe(false);
+    });
+
+    it('send the run back to its furthest place when it walks off their end', () => {
+      let s = act(fuchsia, { type: 'GRIND_AT', area: index('route-11'), kind: 'trainers' });
+      s = act(s, { type: 'SET_MODE', mode: 'route' });
+      for (let i = 0; i < 40 && s.area === index('route-11'); i++) s = simulateSegment(s, MANUAL, new Set())!.state;
+      expect(s).toMatchObject({ area: index('fuchsia-city'), phase: 'town' });
+    });
+
+    it('offer every Kanto wild Pokémon that walks or swims (not fished) on some grind spot', () => {
+      const got = new Set<number>();
+      AREAS.forEach((_, i) => {
+        for (const spot of wildSpots(i)) {
+          if (spot.fish) continue;
+          const [map, kind] = spot.id.split(':');
+          ENCOUNTERS[mapView(map!).encounters]![kind === 'w' ? 'water' : 'land']!.mons.forEach(([, , id]) => got.add(id));
+        }
+      });
+      const kanto = Object.entries(ENCOUNTERS).filter(([key]) => !/^(ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN)_ISLAND|^MT_EMBER/.test(key));
+      const missing = kanto.flatMap(([key, t]) => [...(t.land?.mons ?? []), ...(t.water?.mons ?? [])].filter(([, , id]) => !got.has(id)).map(([, , id]) => `${key}: ${id}`));
+      expect(missing).toEqual([]);
+    });
+
+    it("offer every Kanto Pokémon but Mew, with LeafGreen's and the extra slots, the legendaries and fishing (the user's)", () => {
+      const got = new Set<number>(STARTERS);
+      AREAS.forEach((_, i) => {
+        const legend = legendOf(i);
+        if (legend) got.add(legend.species);
+        for (const spot of wildSpots(i)) {
+          const [map, kind] = spot.id.split(':');
+          const table = ENCOUNTERS[mapView(map!).encounters]![kind === 'f' ? 'fishing' : kind === 'w' ? 'water' : 'land']!;
+          [...table.mons, ...(table.extra ?? [])].forEach(([, , id]) => got.add(id));
+          (table.leafGreen ?? []).forEach(([, , , id]) => got.add(id));
+        }
+      });
+      // A species is had when it or what it evolves from is (stones are sold, the Moon Stone too, and trades evolve by level).
+      const from = new Map(SPECIES.flatMap((s) => s.evolutions.map((e) => [e.into, s.id] as const)));
+      const had = (id: number): boolean => got.has(id) || (from.has(id) && had(from.get(id)!));
+      // Mew (a shop's, later: the user's).
+      expect(SPECIES.filter((s) => !had(s.id)).map((s) => s.name)).toEqual(['Mew']);
+      // Every extra slot is on a table some spot grinds.
+      for (const [key, t] of Object.entries(ENCOUNTERS))
+        for (const kind of ['land', 'water'] as const) if (t[kind]?.extra) expect(AREAS.some((_, i) => wildSpots(i).some((s) => !s.fish && mapView(s.id.split(':')[0]!).encounters === key && s.water === (kind === 'water'))), `${key} ${kind}`).toBe(true);
+    });
+
+    it("fish at a fishing spot picked on the Town Map, cast after cast, a battle with the map's fished Pokémon (the user's)", () => {
+      const pallet = wildSpots(index('route-1')).find((s) => s.fish)!;
+      expect(pallet).toMatchObject({ id: 'PalletTown:f', map: 'PalletTown' });
+      let s = act(fuchsia, { type: 'GRIND_AT', area: index('route-1'), kind: 'wild', spot: pallet.id });
+      expect(s.loop).toMatchObject({ kind: 'fish', spot: 0 });
+      expect(modeOf(s)).toBe('wild');
+      expect(applyIdleAction(s, { type: 'GRIND_AT', area: index('route-1'), kind: 'wild', spot: pallet.id }).ok).toBe(false);
+      const table = ENCOUNTERS.PALLET_TOWN!.fishing!;
+      const fished = new Set([...table.mons.map((m) => m[2]), ...(table.leafGreen ?? []).map((m) => m[3])]);
+      let casts = 0;
+      let nibbles = 0;
+      for (let i = 0; i < 30; i++) {
+        const next = simulateSegment(s, { ...MANUAL, autoCatch: 'off' }, new Set())!;
+        const evs = next.segment.events;
+        // Every segment: casts until one bites, then its battle (the user's: until another mode or Stop).
+        const fishes = evs.filter((e): e is Extract<SegmentEvent, { t: 'fish' }> => e.t === 'fish');
+        casts += fishes.length;
+        nibbles += fishes.filter((f) => !f.bite).length;
+        expect(fishes.at(-1)!.bite).toBe(true);
+        const fight = evs.find((e): e is BattleSeg => e.t === 'battle')!;
+        expect(fished.has(fight.foes[0]!.species)).toBe(true);
+        expect(fight.terrain).toBe('water');
+        s = next.state;
+      }
+      expect(nibbles).toBeGreaterThan(0);
+      expect(casts).toBeGreaterThan(30);
+      expect(s.loop).toMatchObject({ kind: 'fish' });
+      // Stop, or another mode, ends it.
+      expect(act(s, { type: 'SET_MODE', mode: 'route' }).loop).toBeUndefined();
+    });
+
+    it("fish only with a rod: the Old Rod from Vermilion City, the Good Rod from Fuchsia City, the Super Rod from Cinnabar Island (the user's)", () => {
+      const at = (id: string): IdleState => ({ ...base, area: index(id), phase: 'town', reached: index(id) });
+      expect(rodsOf(at('cerulean-city'))).toEqual([]);
+      expect(mapGrindPlan(at('cerulean-city'), index('route-1'), 'wild', 'PalletTown:f')).toEqual({ error: 'No rod yet (the Old Rod: Vermilion City)' });
+      expect(rodsOf(at('vermilion-city'))).toEqual([0]);
+      expect(rodsOf(fuchsia)).toEqual([0, 1]);
+      expect(rodsOf(at('cinnabar-island'))).toEqual([0, 1, 2]);
+      // Each cast one of the rods the run has.
+      let s = act(fuchsia, { type: 'GRIND_AT', area: index('route-1'), kind: 'wild', spot: 'PalletTown:f' });
+      const rods = new Set<number>();
+      for (let i = 0; i < 20; i++) {
+        const next = simulateSegment(s, { ...MANUAL, autoCatch: 'off' }, new Set())!;
+        for (const e of next.segment.events) if (e.t === 'fish') rods.add(e.rod);
+        s = next.state;
+      }
+      expect([...rods].sort()).toEqual([0, 1]);
+      // Reaching its town, the rod: walking off the Seafoam Islands' end into Cinnabar Island.
+      const seafoam = AREAS[index('seafoam-islands')] as WalkArea;
+      const last = seafoam.legs.length - 1;
+      const walked = simulateSegment({ ...base, area: index('seafoam-islands'), leg: last, step: seafoam.legs[last]!.track.length - 1, reached: index('seafoam-islands'), beaten: seafoam.trainers.map((t) => t.key), party: [{ ...base.party[0]!, level: 100 }] }, MANUAL, new Set())!.state;
+      expect(walked.area).toBe(index('cinnabar-island'));
+      expect(walked.log).toContain('Got the Super Rod!');
+    });
+  });
+
+  it("meets LeafGreen's Pokémon and the extra slots' while grinding (Route 7: Vulpix, Bellsprout, Eevee, Porygon)", () => {
+    const index = (id: string) => AREAS.findIndex((a) => a.id === id);
+    const base = createIdleRun({ species: 4 }, 4);
+    const celadon: IdleState = { ...base, area: index('celadon-city'), phase: 'town', reached: index('celadon-city'), party: [{ ...base.party[0]!, level: 100 }] };
+    const r = applyIdleAction(celadon, { type: 'GRIND_AT', area: index('route-8'), kind: 'wild', spot: 'Route7:l' });
+    let s = r.ok ? r.state : celadon;
+    const seen = new Set<number>();
+    for (let i = 0; i < 200; i++) {
+      const next = simulateSegment(s, { ...MANUAL, autoCatch: 'off' }, new Set())!;
+      for (const e of next.segment.events) if (e.t === 'battle') e.foes.forEach((f) => seen.add(f.species));
+      s = next.state;
+    }
+    expect([...seen].filter((id) => [37, 69, 133, 137].includes(id)).sort((a, b) => a - b)).toEqual([37, 69, 133, 137]);
+  });
+
+  describe("the legendary Pokémon (the user's, 2026-10-27)", () => {
+    const index = (id: string) => AREAS.findIndex((a) => a.id === id);
+    const act = (s: IdleState, a: Parameters<typeof applyIdleAction>[1]) => {
+      const r = applyIdleAction(s, a);
+      if (!r.ok) throw new Error(r.error);
+      return r.state;
+    };
+    const base = createIdleRun({ species: 4 }, 3);
+    const plateau: IdleState = { ...base, area: index('indigo-plateau'), phase: 'town', reached: index('indigo-plateau'), badges: ['Boulder', 'Cascade', 'Thunder', 'Rainbow', 'Soul', 'Marsh', 'Volcano', 'Earth'], party: [{ ...base.party[0]!, level: 100 }] };
+    const untilTown = (s: IdleState) => {
+      const events: SegmentEvent[] = [];
+      for (let i = 0; i < 10 && s.phase !== 'town'; i++) {
+        const next = simulateSegment(s, DEFAULT_IDLE_SETTINGS, new Set())!;
+        events.push(...next.segment.events);
+        s = next.state;
+      }
+      return { s, events };
+    };
+
+    it('open from the Indigo Plateau, on their places of the Town Map', () => {
+      const fuchsia: IdleState = { ...base, area: index('fuchsia-city'), phase: 'town', reached: index('fuchsia-city') };
+      expect(legendError(fuchsia, index('articuno'))).toBe('Reach the Indigo Plateau first');
+      expect(legendError(plateau, index('articuno'))).toBeNull();
+      expect(legendError(plateau, index('seafoam-islands'))).toBe('No legendary Pokémon there');
+      expect(TOWN_MAP_PLACES.find((p) => p.areas.includes('mewtwo'))?.section).toBe('cerulean_cave');
+      expect(mapGrindPlan(plateau, index('zapdos'), 'wild')).toEqual({ error: 'No grinding there' });
+    });
+
+    it('are walked up to and battled at their level; beaten or caught, gone for the run, and back to the Indigo Plateau', () => {
+      const s = act(plateau, { type: 'LEGEND', area: index('articuno') });
+      expect(s).toMatchObject({ area: index('articuno'), phase: 'walking', step: 0 });
+      const { s: after, events } = untilTown(s);
+      const fight = events.find((e): e is BattleSeg => e.t === 'battle')!;
+      expect(fight.foes).toEqual([{ species: 144, level: 50 }]);
+      expect(events.filter((e) => e.t === 'battle')).toHaveLength(1);
+      expect(['won', 'caught']).toContain(fight.result);
+      expect(after).toMatchObject({ area: index('indigo-plateau'), phase: 'town', legends: [144] });
+      expect(legendError(after, index('articuno'))).toBe('Articuno is gone');
+      // Not progress, never reached.
+      expect(reachedArea(after)).toBe(index('indigo-plateau'));
+    });
+
+    it('lost (a white-out) or stopped on the way: back to the Indigo Plateau, still there to find', () => {
+      const weak: IdleState = { ...plateau, party: [{ ...base.party[0]!, level: 5 }], bag: {} };
+      const { s: lost } = untilTown(act(weak, { type: 'LEGEND', area: index('mewtwo') }));
+      expect(lost).toMatchObject({ area: index('indigo-plateau'), phase: 'town' });
+      expect(lost.legends ?? []).toEqual([]);
+      expect(lost.totals.whiteOuts).toBe(1);
+      expect(legendError(lost, index('mewtwo'))).toBeNull();
+      const stopped = act(act(plateau, { type: 'LEGEND', area: index('zapdos') }), { type: 'SET_MODE', mode: 'stop' });
+      expect(stopped).toMatchObject({ area: index('indigo-plateau'), phase: 'town' });
+      expect(stopped.stopped).toBeFalsy();
+    });
   });
 
   it("does nothing on Stop in a town; walking, it stops where the player stands, a battle begun dropped (cutSegment)", () => {

@@ -4,8 +4,9 @@ screen, cut to the map's 208x144 from (16, 16): apps/web/public/idle/gen1/town-m
 packages/idle/src/data/gen1/town-map.ts: the map's places, each a map section (region_map_sections.json's name) with its
 cells on the 22x15 grid of 8px cells at (32, 32) (region_map_layout_kanto.h, both layers: the map's and the dungeons')
 and the run's areas there (AREAS' ids, from each area's maps' `region_map_section`). A town's are every town area on it
-(Viridian City's two); a route's or dungeon's the first walk area with a map there (Route 4's is Route 3's), but never a
-town's section (Pallet Town, walked on Route 1's first leg). Gyms and the League's rooms are in their towns: no place.
+(Viridian City's two); a route's or dungeon's the first walk area with a map there (Route 4's is Route 3's; Pallet Town,
+with no town area, Route 1's: its first leg walks it); an area off the main road on a section a main-road area has
+(Route 21's tall grass) is that place's too. Gyms and the League's rooms are in their towns: no place.
 
 Usage: python tools/idle/town_map.py <pokefirered checkout>. Needs Pillow; run after kanto_areas.py."""
 import json, os, re, subprocess, sys
@@ -69,6 +70,11 @@ def icon(name):
     return rgba
 
 
+def quote(text):
+    """A TypeScript string in single quotes (Diglett's Cave's apostrophe escaped)."""
+    return "'" + text.replace('\\', '\\\\').replace("'", "\\'") + "'"
+
+
 def layout():
     """The grid's sections, per layer: {'map': [[MAPSEC_…]], 'dungeon': …}."""
     text = open(path('src', 'data', 'region_map', 'region_map_layout_kanto.h'), encoding='utf8').read()
@@ -82,7 +88,7 @@ def layout():
 
 def areas():
     """AREAS as the idle package has them: id, kind and the maps each walks or stands on."""
-    script = "import {AREAS} from './src/areas.ts'; console.log(JSON.stringify(AREAS.map((a) => ({id: a.id, kind: a.kind, maps: 'legs' in a ? [...new Set(a.legs.flatMap((l) => l.maps))] : [a.map]}))))"
+    script = "import {AREAS} from './src/areas.ts'; console.log(JSON.stringify(AREAS.map((a) => ({id: a.id, kind: a.kind, opens: 'opens' in a ? a.opens : null, maps: 'legs' in a ? [...new Set(a.legs.flatMap((l) => l.maps))] : [a.map]}))))"
     return json.loads(subprocess.run(['npx', 'tsx', '-e', script], cwd=os.path.join(ROOT, 'packages', 'idle'), capture_output=True, text=True, shell=os.name == 'nt', check=True).stdout.strip().splitlines()[-1])
 
 
@@ -112,9 +118,15 @@ def main():
             continue
         for m in a['maps']:
             sec = section(m)
-            # A town's section (Pallet Town, with no town area of its own) is never a route's.
-            if sec not in town_sections and sec not in places and not re.search(r'_(TOWN|CITY|ISLAND|PLATEAU)$', sec):
+            # A town's section is never a route's; Pallet Town, with no town area of its own, is Route 1's (walked on its
+            # first leg: fished in from its shore, the user's).
+            if sec in town_sections:
+                continue
+            if sec not in places:
                 places[sec] = [a['id']]
+            # An area off the main road on a main-road place's section (Route 21's tall grass): offered there too.
+            elif a['opens'] and a['id'] not in places[sec]:
+                places[sec].append(a['id'])
 
     grid = layout()
     cells = {}
@@ -136,9 +148,9 @@ def main():
     ]
     for sec, ids in places.items():
         cs = ', '.join(f"[{x}, {y}, '{layer}']" for x, y, layer in cells[sec])
-        lines.append(f"  {{ section: '{sec[len('MAPSEC_'):].lower()}', name: {json.dumps(names[sec])}, areas: [{', '.join(repr(i) for i in ids)}], cells: [{cs}] }},")
+        lines.append(f"  {{ section: '{sec[len('MAPSEC_'):].lower()}', name: {quote(names[sec])}, areas: [{', '.join(quote(i) for i in ids)}], cells: [{cs}] }},")
     lines.append('];')
-    open(OUT_TS, 'w', encoding='utf8', newline='\n').write('\n'.join(lines).replace('"', "'") + '\n')
+    open(OUT_TS, 'w', encoding='utf8', newline='\n').write('\n'.join(lines) + '\n')
     print(f'{len(places)} places')
 
 

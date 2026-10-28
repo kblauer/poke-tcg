@@ -343,14 +343,15 @@ const TOWER_MUSIC: Record<number, Record<Soundtrack, { lobby: Song; rooms: Song 
  * game's MUS_ constant) by soundtrack, the Red album's for the original one. Pewter's and Fuchsia's themes are Viridian's
  * and Cerulean's in Red, as the run maps have them. Routes 24 and 25 (MUS_ROUTE24) play the Welcome to the World of
  * Pokémon! theme, as both games do; it and Oak's lab's songs are under a minute, `hidden` in tracks.json (the user's:
- * a song a map needs is added however short).
+ * a song a map needs is added however short). The Safari Zone's (MUS_EVOLUTION, the Evolution theme) isn't in it yet: it
+ * plays Route 4's until it's added (areas.test.ts lists it).
  */
 export const IDLE_MAP_MUSIC: Record<Soundtrack, Record<string, Song>> = {
   original: Object.fromEntries(
     Object.entries({
       MUS_ROUTE1: 'Route 1', MUS_ROUTE3: 'Route 3', MUS_ROUTE11: 'Route 11', MUS_ROUTE24: 'Route 24 - Welcome to the World of Pokémon!', MUS_OAK_LAB: 'Pokémon Lab', MUS_PALLET: 'Pallet Town', MUS_PEWTER: 'Viridian City', MUS_VIRIDIAN_FOREST: 'Viridian Forest',
       MUS_MT_MOON: 'Mt. Moon', MUS_GYM: 'Pokémon Gym', MUS_LAVENDER: 'Lavender Town', MUS_CELADON: 'Celadon City', MUS_FUCHSIA: 'Cerulean City', MUS_CINNABAR: 'Cinnabar Island',
-      MUS_VERMILLION: 'Vermilion City', MUS_VICTORY_ROAD: 'Victory Road', MUS_ROCKET_HIDEOUT: 'Rocket Hideout', MUS_POKE_TOWER: 'Pokémon Tower', MUS_CERULEAN: 'Cerulean City',
+      MUS_VERMILLION: 'Vermilion City', MUS_VICTORY_ROAD: 'Victory Road', MUS_ROCKET_HIDEOUT: 'Rocket Hideout', MUS_POKE_TOWER: 'Pokémon Tower', MUS_CERULEAN: 'Cerulean City', MUS_POKE_MANSION: 'Pokémon Mansion',
     }).map(([k, title]) => [k, { game: 'Red, Green, Blue & Yellow', title }]),
   ),
   remastered: Object.fromEntries(
@@ -358,7 +359,7 @@ export const IDLE_MAP_MUSIC: Record<Soundtrack, Record<string, Song>> = {
       MUS_ROUTE1: 'Road to Viridian City: Leaving Pallet Town', MUS_ROUTE3: 'Road to Cerulean City: Leaving Mt. Moon', MUS_ROUTE11: 'Road to Fuchsia City: Leaving Lavender Town',
       MUS_ROUTE24: 'Welcome to the World of Pokémon!', MUS_OAK_LAB: "Professor Oak's Laboratory", MUS_PALLET: 'Pallet Town', MUS_PEWTER: 'Pewter City', MUS_VIRIDIAN_FOREST: 'Viridian Forest', MUS_MT_MOON: 'Mt. Moon', MUS_GYM: 'Pokémon Gym',
       MUS_LAVENDER: 'Lavender Town', MUS_CELADON: 'Celadon City', MUS_FUCHSIA: 'Fuchsia City', MUS_CINNABAR: 'Cinnabar Island', MUS_VERMILLION: 'Vermilion City',
-      MUS_VICTORY_ROAD: 'Victory Road', MUS_ROCKET_HIDEOUT: 'Rocket Hideout', MUS_POKE_TOWER: 'Pokémon Tower', MUS_CERULEAN: 'Fuchsia City',
+      MUS_VICTORY_ROAD: 'Victory Road', MUS_ROCKET_HIDEOUT: 'Rocket Hideout', MUS_POKE_TOWER: 'Pokémon Tower', MUS_CERULEAN: 'Fuchsia City', MUS_POKE_MANSION: 'Pokémon Mansion',
     }).map(([k, title]) => [k, { game: 'FireRed & LeafGreen', title }]),
   ),
 };
