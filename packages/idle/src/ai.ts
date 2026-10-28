@@ -66,8 +66,8 @@ function autoHeal(b: Battle, me: Battler): Action | null {
   return null;
 }
 
-/** The most a move could do to the target: the highest roll with a critical hit (Weakness included), or its fixed damage. */
-export function maxDamage(b: Battle, user: Battler, target: Battler, key: string): number {
+/** The most a move could do to the target: the highest roll, with a critical hit unless `crit` is false (Weakness included), or its fixed damage. */
+export function maxDamage(b: Battle, user: Battler, target: Battler, key: string, crit = true): number {
   const m = moveData(key);
   if (m.power === 0) return 0;
   if (b.immune(user, target, b.moveType(user, m))) return 0;
@@ -94,7 +94,7 @@ export function maxDamage(b: Battle, user: Battler, target: Battler, key: string
   }
   const power = m.effect === 'flail' ? 200 : m.effect === 'magnitude' ? 150 : m.effect === 'eruption' ? 150 : m.effect === 'low_kick' ? 120 : m.power;
   const hits = m.effect === 'multi_hit' ? 5 : m.effect === 'double_hit' || m.effect === 'twineedle' ? 2 : m.effect === 'triple_kick' ? 3 : 1;
-  const { damage } = b.baseDamage(user, target, m, { power: m.effect === 'triple_kick' ? 30 : power, type: b.moveType(user, m), crit: true, effect: m.effect });
+  const { damage } = b.baseDamage(user, target, m, { power: m.effect === 'triple_kick' ? 30 : power, type: b.moveType(user, m), crit, effect: m.effect });
   return damage * hits * (m.effect === 'rollout' ? 16 : 1);
 }
 
@@ -110,10 +110,10 @@ export const CATCH_MARGIN = 0.03;
 /** Status moves that make a catch likelier without hurting the wild Pokémon (the user's): sleep and paralysis (Yawn's sleep too). */
 const CATCH_STATUS = new Set(['sleep', 'paralyze', 'yawn']);
 
-/** Whether auto-catch hits with the basic move again (CATCH_MANY): the first only if no roll could Knock it Out (the highest with a critical hit). */
+/** Whether auto-catch hits with the basic move again (CATCH_MANY): the first only if its highest roll couldn't Knock it Out (a critical hit risked: the user's, 2026-10-27). */
 function catchHit(b: Battle, me: Battler, target: Battler): boolean {
   if (b.catchHits === 0) {
-    const most = maxDamage(b, me, target, me.basic);
+    const most = maxDamage(b, me, target, me.basic, false);
     return most > 0 && most < target.hp;
   }
   const share = b.catchDamage / target.maxHp;
@@ -126,7 +126,7 @@ function catchHit(b: Battle, me: Battler, target: Battler): boolean {
  * until it has hit once, then more hits by what it did (catchHit), then the best ball owned every turn; once it has hit
  * (or the balls have started), a slot move that puts the wild Pokémon to sleep or paralyses it, whenever it's ready
  * (off cooldown and able to work), before the next hit or ball. A basic move that can't be used or could Knock it Out
- * first time is skipped for the balls; no more hits once they start. Out of balls, the battle goes on as any other.
+ * first time (its highest roll, no critical hit) is skipped for the balls; no more hits once they start. Out of balls, the battle goes on as any other.
  */
 function autoCatch(b: Battle, me: Battler): Action | null {
   const target = b.active[1];

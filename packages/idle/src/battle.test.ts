@@ -106,6 +106,9 @@ describe('auto-catch', () => {
     expect(a.slice(3).every((x) => x === 'ball')).toBe(true);
     // A level-9 one's takes 7 of a level-6 Pidgey's 20 (35%): two hits, then balls.
     expect(actions(mon(4, 9), mon(16, 6), 3).slice(0, 3)).toEqual(['scratch', 'scratch', 'ball']);
+    // A level-10 one's could knock a level-5 Pidgey out only with a critical hit, a risk taken (the user's): it hits, taking
+    // 9 of its 19 HP (47%); a second (9 + 1 of the 10 left) could knock it out: balls.
+    expect(actions(mon(4, 10), mon(16, 5), 3).slice(0, 2)).toEqual(['scratch', 'ball']);
   });
 
   it('allows more hits by the share of HP the first took: any up to 30%, two up to 50%, one above', () => {
