@@ -282,8 +282,10 @@ export class Battle {
   movedThisTurn = new Set<Side>();
   /** For each foe, the player's Pokémon that faced it (they share its experience). */
   facedBy = new Map<number, Set<number>>();
-  /** Auto-catch's basic hits so far this battle (ai.ts: at most 2, then the balls). */
+  /** Auto-catch (ai.ts): the player's basic hits that did damage to the wild Pokémon, the most one of them did, and whether the balls have started (no more hits then). */
   catchHits = 0;
+  catchDamage = 0;
+  catchBalls = false;
   /** The player's own throws made so far (BattleSetup.throwAt). */
   throwsMade = 0;
   participated = new Set<number>();
@@ -902,7 +904,14 @@ export class Battle {
       if (b.v.rampage) delete b.v.rampage;
       return;
     }
+    // The player's basic move on a wild Pokémon: what it did, for auto-catch's next hits (ai.ts).
+    const foe = this.active[1];
+    const before = b.side === 0 && this.setup.kind === 'wild' && action.move === b.basic ? foe.hp : null;
     this.useMove(b, action.move);
+    if (before !== null && this.active[1] === foe && before > foe.hp) {
+      this.catchHits += 1;
+      this.catchDamage = Math.max(this.catchDamage, before - foe.hp);
+    }
   }
 
   /**
