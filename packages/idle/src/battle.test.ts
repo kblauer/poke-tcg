@@ -1,5 +1,6 @@
 import { rngFrom } from '@poke-tcg/campaign';
 import { describe, expect, it } from 'vitest';
+import { choosePlayerAction } from './ai.js';
 import { Battle, EXP_RATE, simulateBattle, opponentMon, type BattleSetup } from './battle.js';
 import { CATCH, catchTextFrame, CHALLENGE_MS, FRAME_MS, INTRO_MS, openingLines, openingMs, READ_MS, SHAKES_AT } from './battle-timing.js';
 import { catchChance, catchOdds, shakeThreshold } from './catch.js';
@@ -98,12 +99,80 @@ describe('auto-catch', () => {
       .events.filter((e) => (e.t === 'move' && e.side === 0) || e.t === 'ball')
       .map((e) => (e.t === 'ball' ? 'ball' : (e as { move: string }).move));
 
-  it('hits with the basic move, again above 60% HP, then throws balls', () => {
-    // A level-5 Charmander's Scratch leaves a level-10 Rattata well above 60%: two hits, then balls.
-    const a = actions(mon(4, 5), mon(19, 10));
-    expect(a.slice(0, 2)).toEqual(['scratch', 'scratch']);
-    expect(a.slice(2).every((x) => x === 'ball')).toBe(true);
-    expect(a.length).toBeGreaterThan(2);
+  it('hits with the basic move as long as the wild Pokémon would survive the next hit, then throws balls', () => {
+    // A level-5 Charmander's Scratch takes 5 of a level-4 Pidgey's 17 HP (29%): hits to 2 HP, the next (5 + 1) too many.
+    const a = actions(mon(4, 5), mon(16, 4), 3);
+    expect(a.slice(0, 4)).toEqual(['scratch', 'scratch', 'scratch', 'ball']);
+    expect(a.slice(3).every((x) => x === 'ball')).toBe(true);
+    // A level-9 one's takes 7 of a level-6 Pidgey's 20 (35%): two hits, then balls.
+    expect(actions(mon(4, 9), mon(16, 6), 3).slice(0, 3)).toEqual(['scratch', 'scratch', 'ball']);
+    // A level-10 one's could knock a level-5 Pidgey out only with a critical hit, a risk taken (the user's): it hits, taking
+    // 9 of its 19 HP (47%); a second (9 + 1 of the 10 left) could knock it out: balls.
+    expect(actions(mon(4, 10), mon(16, 5), 3).slice(0, 2)).toEqual(['scratch', 'ball']);
+  });
+
+  it('allows more hits by the share of HP the first took: any up to 30%, two up to 50%, one above', () => {
+    // A level-5 Charmander against a level-60 Snorlax, the hits so far set by hand.
+    const b = new Battle(setup([mon(4, 5)], [mon(143, 60)], { bag: { 'poke-ball': 5 }, settings: { autoHeal: false, tryCatch: true } }), rngFrom(1));
+    const foe = b.active[1];
+    const M = foe.maxHp;
+    const next = (hits: number, damage: number, hp = M) => {
+      Object.assign(b, { catchHits: hits, catchDamage: { scratch: damage }, catchBalls: false });
+      foe.hp = hp;
+      return choosePlayerAction(b);
+    };
+    const scratch = { kind: 'move', move: 'scratch' };
+    const ball = { kind: 'ball', item: 'poke-ball' };
+    const small = Math.floor(M * 0.3);
+    expect(next(5, small)).toEqual(scratch);
+    // Each hit must leave it standing with 3% of its HP added to the damage.
+    const margin = Math.ceil(M * 0.03);
+    expect(next(5, small, small + margin + 1)).toEqual(scratch);
+    expect(next(5, small, small + margin)).toEqual(ball);
+    const middle = Math.floor(M * 0.4);
+    expect(next(1, middle)).toEqual(scratch);
+    expect(next(2, middle)).toEqual(ball);
+    expect(next(1, Math.floor(M * 0.6))).toEqual(ball);
+    // No more hits once the balls have started.
+    Object.assign(b, { catchHits: 1, catchDamage: { scratch: 1 }, catchBalls: true });
+    foe.hp = M;
+    expect(choosePlayerAction(b)).toEqual(ball);
+  });
+
+  it("hits with the first slot's move by the setting, the basic move while it cools down or when it's a status move", () => {
+    const battle = (slots: string[], catchMove: 'basic' | 'slot') =>
+      new Battle(setup([mon(4, 5, { slots, autoSlots: false })], [mon(143, 60)], { bag: { 'poke-ball': 5 }, settings: { autoHeal: false, tryCatch: true, catchMove } }), rngFrom(1));
+    expect(choosePlayerAction(battle(['ember'], 'basic'))).toEqual({ kind: 'move', move: 'scratch' });
+    const b = battle(['ember'], 'slot');
+    const me = b.active[0];
+    expect(choosePlayerAction(b)).toEqual({ kind: 'move', move: 'ember' });
+    expect(me.cooldowns.ember).toBeGreaterThan(0);
+    // Ember cooling down: Scratch, its own damage checked.
+    Object.assign(b, { catchHits: 1, catchDamage: { ember: 10 } });
+    expect(choosePlayerAction(b)).toEqual({ kind: 'move', move: 'scratch' });
+    me.cooldowns = {};
+    expect(choosePlayerAction(b)).toEqual({ kind: 'move', move: 'ember' });
+    // A status move first (Growl): the basic move.
+    expect(choosePlayerAction(battle(['growl', 'ember'], 'slot'))).toEqual({ kind: 'move', move: 'scratch' });
+  });
+
+  it('puts the wild Pokémon to sleep or paralyses it whenever the move is ready, from the first hit on', () => {
+    // Oddish: Absorb first, then Sleep Powder before the next hit.
+    const oddish = mon(43, 12, { moves: ['sleep-powder', 'absorb', 'tackle'], slots: ['sleep-powder', 'absorb'], autoSlots: false });
+    expect(actions(oddish, mon(16, 10), 3).slice(0, 2)).toEqual(['absorb', 'sleep-powder']);
+    // In the ball phase too: Thunder Wave once it's ready and the foe has no status, a ball otherwise.
+    const pikachu = mon(25, 12, { moves: ['thunder-wave', 'thunder-shock'], slots: ['thunder-wave'], autoSlots: false });
+    const b = new Battle(setup([pikachu], [mon(143, 60)], { bag: { 'poke-ball': 5 }, settings: { autoHeal: false, tryCatch: true } }), rngFrom(1));
+    const me = b.active[0];
+    Object.assign(b, { catchHits: 1, catchDamage: {}, catchBalls: true });
+    me.cooldowns = { 'thunder-wave': 2 };
+    expect(choosePlayerAction(b)).toEqual({ kind: 'ball', item: 'poke-ball' });
+    me.cooldowns = {};
+    expect(choosePlayerAction(b)).toEqual({ kind: 'move', move: 'thunder-wave' });
+    expect(me.cooldowns['thunder-wave']).toBeGreaterThan(0);
+    me.cooldowns = {};
+    b.active[1].status = 'paralysis';
+    expect(choosePlayerAction(b)).toEqual({ kind: 'ball', item: 'poke-ball' });
   });
 
   it('throws a ball instead of a hit that could knock the Pokémon out', () => {

@@ -3,8 +3,9 @@
 // - auto-heal (agreed with the user): a Potion-class item when the active Pokémon is at half its HP or less, the one
 //   wasting least; a status cure when it has a status (the specific cure before Full Heal); a Revive by the settings'
 //   policy (the last one standing, any fainted, boss battles, the lead; none, never);
-// - auto-catch (the user's, 2026-10-25): the basic move once, again only while the wild Pokémon is above 60% of its HP,
-//   then the best ball owned every turn (a basic move that could Knock it Out is skipped for the ball);
+// - auto-catch (the user's, 2026-10-27): the basic move (or the first slot's, a setting) once, more hits by the share of the wild Pokémon's HP it took
+//   (up to 30%: as many as it survives; up to 50%: one more; above: none), then the best ball owned every turn, a
+//   sleep or paralysis move whenever it's ready from the first hit on;
 // - a trainer's items (the game's AI_SwitchOrUseItem, simplified): a healing item at a quarter of its HP or less, a
 //   status cure for a status.
 import { MEDICINE, type Battle, type Battler, type StatusKind } from './battle.js';
@@ -65,8 +66,8 @@ function autoHeal(b: Battle, me: Battler): Action | null {
   return null;
 }
 
-/** The most a move could do to the target: the highest roll with a critical hit (Weakness included), or its fixed damage. */
-export function maxDamage(b: Battle, user: Battler, target: Battler, key: string): number {
+/** The most a move could do to the target: the highest roll, with a critical hit unless `crit` is false (Weakness included), or its fixed damage. */
+export function maxDamage(b: Battle, user: Battler, target: Battler, key: string, crit = true): number {
   const m = moveData(key);
   if (m.power === 0) return 0;
   if (b.immune(user, target, b.moveType(user, m))) return 0;
@@ -93,31 +94,74 @@ export function maxDamage(b: Battle, user: Battler, target: Battler, key: string
   }
   const power = m.effect === 'flail' ? 200 : m.effect === 'magnitude' ? 150 : m.effect === 'eruption' ? 150 : m.effect === 'low_kick' ? 120 : m.power;
   const hits = m.effect === 'multi_hit' ? 5 : m.effect === 'double_hit' || m.effect === 'twineedle' ? 2 : m.effect === 'triple_kick' ? 3 : 1;
-  const { damage } = b.baseDamage(user, target, m, { power: m.effect === 'triple_kick' ? 30 : power, type: b.moveType(user, m), crit: true, effect: m.effect });
+  const { damage } = b.baseDamage(user, target, m, { power: m.effect === 'triple_kick' ? 30 : power, type: b.moveType(user, m), crit, effect: m.effect });
   return damage * hits * (m.effect === 'rollout' ? 16 : 1);
 }
 
-/** How much HP the wild Pokémon may still have for auto-catch's second basic hit: above 60% of it (the user's). */
-export const CATCH_SECOND_HIT = 0.6;
+/**
+ * Auto-catch's basic hits after the first, by the share of the wild Pokémon's HP the most damaging one did (the user's,
+ * 2026-10-27): up to CATCH_MANY, as many as it survives; above that, two in all; above CATCH_TWO, none. Each must leave
+ * it standing with CATCH_MARGIN of its HP added to that damage, for the damage roll.
+ */
+export const CATCH_MANY = 0.3;
+export const CATCH_TWO = 0.5;
+export const CATCH_MARGIN = 0.03;
+
+/** Status moves that make a catch likelier without hurting the wild Pokémon (the user's): sleep and paralysis (Yawn's sleep too). */
+const CATCH_STATUS = new Set(['sleep', 'paralyze', 'yawn']);
 
 /**
- * Auto-catch's action for the tick (the user's, 2026-10-25): its basic move the first turn, again the next only if the
- * wild Pokémon is still above CATCH_SECOND_HIT of its HP, then the best ball owned every turn; a basic move that could
- * Knock it Out (on the highest roll with a critical hit) or can't be used is skipped for the ball. Out of balls, the
- * battle goes on as any other.
+ * Whether auto-catch hits with this move now: the hits so far within what the most damaging one allows (CATCH_MANY), and
+ * the wild Pokémon surviving it: by what it did before, or a move not yet used only if its highest roll couldn't Knock
+ * it Out (a critical hit risked: the user's, 2026-10-27).
+ */
+function catchHit(b: Battle, me: Battler, target: Battler, key: string): boolean {
+  const most = Math.max(0, ...Object.values(b.catchDamage));
+  const share = most / target.maxHp;
+  const hits = b.catchHits === 0 || share <= CATCH_MANY ? Infinity : share <= CATCH_TWO ? 2 : 1;
+  if (b.catchHits >= hits) return false;
+  const did = b.catchDamage[key];
+  if (did === undefined) {
+    const max = maxDamage(b, me, target, key, false);
+    return max > 0 && max < target.hp;
+  }
+  return target.hp > did + Math.ceil(target.maxHp * CATCH_MARGIN);
+}
+
+/** Auto-catch's move to hit with (IdleSettings.catchMove, the user's): the first slot's when set, damaging and ready (it then cools down), else the basic move. */
+function catchHitMove(b: Battle, me: Battler, target: Battler): string | null {
+  const slot = me.slots[0];
+  if (b.setup.settings.catchMove === 'slot' && slot && moveData(slot).power > 0 && b.ready(me, slot) && catchHit(b, me, target, slot)) {
+    b.startCooldown(me, slot);
+    return slot;
+  }
+  return b.selectable(me, me.basic) && catchHit(b, me, target, me.basic) ? me.basic : null;
+}
+
+/**
+ * Auto-catch's action for the tick (the user's, 2026-10-27, replacing 2026-10-25's two hits above 60%): its hitting
+ * move (catchHitMove: the basic move or the first slot's) until it has hit once, then more hits by what it did
+ * (catchHit), then the best ball owned every turn; once it has hit (or the balls have started), a slot move that puts
+ * the wild Pokémon to sleep or paralyses it, whenever it's ready (off cooldown and able to work), before the next hit
+ * or ball. A move that can't be used or could Knock it Out first time (its highest roll, no critical hit) is skipped,
+ * for the basic move or the balls; no more hits once they start. Out of balls, the battle goes on as any other.
  */
 function autoCatch(b: Battle, me: Battler): Action | null {
   const target = b.active[1];
   const ball = BALLS.map(([k]) => k).find((k) => (b.bag[k] ?? 0) > 0);
   if (!ball) return null;
   if (me.v.charging || me.v.rampage || me.v.rollout || me.v.uproar || me.v.bide || me.v.recharging) return null;
-  const hit = b.catchHits === 0 || (b.catchHits === 1 && target.hp > target.maxHp * CATCH_SECOND_HIT);
-  if (hit && b.selectable(me, me.basic) && maxDamage(b, me, target, me.basic) < target.hp) {
-    b.catchHits += 1;
-    return { kind: 'move', move: me.basic };
+  if (b.catchHits > 0 || b.catchBalls) {
+    const status = me.slots.find((k) => CATCH_STATUS.has(moveData(k).effect) && b.ready(me, k));
+    if (status) {
+      me.openers = me.openers.filter((k) => k !== status);
+      b.startCooldown(me, status);
+      return { kind: 'move', move: status };
+    }
   }
-  // No more hits once the balls start.
-  b.catchHits = 2;
+  const hit = b.catchBalls ? null : catchHitMove(b, me, target);
+  if (hit) return { kind: 'move', move: hit };
+  b.catchBalls = true;
   return { kind: 'ball', item: ball };
 }
 

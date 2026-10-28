@@ -70,6 +70,8 @@ export interface BattleSettings {
   autoHeal: boolean;
   /** Try to catch this wild Pokémon (the run decides from the auto-catch setting, the dex and the party). */
   tryCatch: boolean;
+  /** Auto-catch's hits: the basic move, or the first slot's move when it's a damaging one that's ready (idle.ts's IdleSettings.catchMove; ai.ts). */
+  catchMove?: 'basic' | 'slot';
   /** When auto-heal uses Revives (idle.ts's RevivePolicy; none, never). */
   revives?: ('last' | 'any' | 'boss' | 'lead')[];
 }
@@ -282,8 +284,10 @@ export class Battle {
   movedThisTurn = new Set<Side>();
   /** For each foe, the player's Pokémon that faced it (they share its experience). */
   facedBy = new Map<number, Set<number>>();
-  /** Auto-catch's basic hits so far this battle (ai.ts: at most 2, then the balls). */
+  /** Auto-catch (ai.ts): the player's hits that did damage to the wild Pokémon, the most each move did, and whether the balls have started (no more hits then). */
   catchHits = 0;
+  catchDamage: Record<string, number> = {};
+  catchBalls = false;
   /** The player's own throws made so far (BattleSetup.throwAt). */
   throwsMade = 0;
   participated = new Set<number>();
@@ -902,7 +906,14 @@ export class Battle {
       if (b.v.rampage) delete b.v.rampage;
       return;
     }
+    // The player's move on a wild Pokémon: what it did, for auto-catch's next hits (ai.ts).
+    const foe = this.active[1];
+    const before = b.side === 0 && this.setup.kind === 'wild' ? foe.hp : null;
     this.useMove(b, action.move);
+    if (before !== null && this.active[1] === foe && before > foe.hp) {
+      this.catchHits += 1;
+      this.catchDamage[action.move] = Math.max(this.catchDamage[action.move] ?? 0, before - foe.hp);
+    }
   }
 
   /**

@@ -34,6 +34,9 @@ function arc(t: number, n: number, a: [number, number], b: [number, number], hei
 /** One shake's frames (DoShake, from the decompilation's numbers): the rotation (1/256 turns, + anticlockwise) and x offset each frame. */
 const SHAKE_ROT = [-3, -6, -9, -12, -15, -18, -21, -24, -27, -24, -21, -18, -15, -12, -9, -6, -3, 0, 3, 6, 9, 12, 15, 12, 9, 6, 3, 0];
 const SHAKE_X = [0, 0, 0, 1, 1, 2, 2, 2, 3, 3, 3, 3, 2, 2, 1, 1, 0, 0, 0, -1, -1, -2, -2, -2, -1, -1, 0, 0];
+/** The player's send-out spin (SpriteCB_PlayerMonSendOut_2: affine anim 4, 25/256 of a turn a frame) from the arc's phase 35 of 128 till it lands. */
+const SEND_SPIN = 25;
+const SEND_SPIN_FROM = Math.ceil((35 * PLAYER_SEND.arc) / 128);
 
 /** The ball's sheet frame (closed, half open, open), drawn centred at x, y, turned `rot` (1/256 turns) and darkened. */
 function Ball({ item, frame, x, y, rot = 0, dark = 0 }: { item: string; frame: number; x: number; y: number; rot?: number; dark?: number }) {
@@ -373,7 +376,8 @@ export function BattleScene({
     const g = frames(meSend.at) - (opening(meSend.index) ? PLAYER_SEND.throwAt : 0);
     const faint = after(0, 'faint', meSend.index);
     const target: [number, number] = [72, Math.min(104, 88 + species(mon.species).pic.backY) + 24];
-    if (g >= 0 && g < PLAYER_SEND.arc) parts.push(<Ball key="me-ball" item="poke-ball" frame={0} {...xy(arc(g, PLAYER_SEND.arc, [48, 70], target, 30))} />);
+    const spin = SEND_SPIN * Math.max(0, g - SEND_SPIN_FROM + 1);
+    if (g >= 0 && g < PLAYER_SEND.arc) parts.push(<Ball key="me-ball" item="poke-ball" frame={0} rot={spin % 256} {...xy(arc(g, PLAYER_SEND.arc, [48, 70], target, 30))} />);
     const o = g - PLAYER_SEND.arc;
     if (o >= 0) {
       if (o < OPEN_FRAMES.anim) parts.push(<Ball key="me-ball" item="poke-ball" frame={o < 5 ? 1 : 2} x={target[0]} y={target[1]} />);

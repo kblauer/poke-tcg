@@ -51,7 +51,14 @@ export function IdleSettings({ settings, busy, onChange }: { settings: Settings;
           <option value="all">Every wild Pokémon</option>
         </select>
       </label>
-      <p className="-mt-2 text-xs text-slate-400">Hits it once with the basic move, again if it's still above 60% HP, then throws the best ball in the bag every turn (it skips a hit that could knock it out).</p>
+      <label className="flex items-center gap-2 text-sm">
+        Hit with
+        <select className="rounded bg-slate-700 px-2 py-1 ring-1 ring-slate-600" value={settings.catchMove} disabled={busy || settings.autoCatch === 'off'} onChange={(e) => onChange({ catchMove: e.target.value as Settings['catchMove'] })}>
+          <option value="basic">The basic move</option>
+          <option value="slot">The first slot's move</option>
+        </select>
+      </label>
+      <p className="-mt-2 text-xs text-slate-400">Hits it once, then again by how much that took: up to 30% of its HP, as long as it would survive the next hit; up to 50%, once more; more, not again. Then throws the best ball in the bag every turn, putting it to sleep or paralysing it first whenever such a move is ready. A move that could knock it out isn't used; the first slot's move gives way to the basic move while it cools down, or when it's a status move.</p>
       <label className="flex items-center gap-2 text-sm">
         Auto-buy balls up to
         <input

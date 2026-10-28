@@ -70,6 +70,8 @@ export interface IdleSettings {
   revives: RevivePolicy[];
   /** Auto-catch: off, only species not yet caught (no caught dex record), or every wild Pokémon. */
   autoCatch: 'off' | 'new' | 'all';
+  /** Auto-catch's hits (the user's): the basic move, or the first slot's move (the basic move while it cools down, or if it's a status move or could knock the Pokémon out). */
+  catchMove: 'basic' | 'slot';
   /** With a full party: skip catching (the dex still marks them seen)… */
   stopWhenFull: boolean;
   /** …or replace the lowest-level party Pokémon (its best stats go to the dex first); with neither, the catch is registered and released. */
@@ -91,7 +93,7 @@ export interface IdleSettings {
 /** The most balls auto-buy keeps. */
 export const MAX_AUTO_BALLS = 99;
 
-export const DEFAULT_IDLE_SETTINGS: IdleSettings = { autoHeal: true, revives: ['last'], autoCatch: 'new', stopWhenFull: false, replaceLowest: false, autoEvolve: true, autoGrind: true, autoBalls: 0 };
+export const DEFAULT_IDLE_SETTINGS: IdleSettings = { autoHeal: true, revives: ['last'], autoCatch: 'new', catchMove: 'basic', stopWhenFull: false, replaceLowest: false, autoEvolve: true, autoGrind: true, autoBalls: 0 };
 
 /**
  * The settings a segment plays by, with the player's own throws (the ball button, the user's: `throwAt`, the ticks of
@@ -1100,7 +1102,7 @@ function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<
   const before = state.party.map((m) => m.level);
   const t = o.trainer ? TRAINERS[o.trainer] : null;
   const result = simulateBattle(
-    { kind: o.kind, party: state.party, foes: o.foes, foeItems: t?.items ?? [], bag: state.bag, settings: { autoHeal: settings.autoHeal, revives: settings.revives, tryCatch }, boss: !!o.trainer && /^(leader|elite-four|champion)/.test(o.trainer), badges: state.badges.length, terrain: terrainOf(o.tile), ...(o.kind === 'wild' && settings.throwAt?.length && { throwAt: settings.throwAt }) },
+    { kind: o.kind, party: state.party, foes: o.foes, foeItems: t?.items ?? [], bag: state.bag, settings: { autoHeal: settings.autoHeal, revives: settings.revives, tryCatch, catchMove: settings.catchMove }, boss: !!o.trainer && /^(leader|elite-four|champion)/.test(o.trainer), badges: state.badges.length, terrain: terrainOf(o.tile), ...(o.kind === 'wild' && settings.throwAt?.length && { throwAt: settings.throwAt }) },
     rng,
   );
   out.events.push({

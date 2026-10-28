@@ -31,6 +31,7 @@ export const idleSettingsSchema = z.object({
   autoHeal: z.boolean(),
   revives: z.array(z.enum(['last', 'any', 'boss', 'lead'])).max(4),
   autoCatch: z.enum(['off', 'new', 'all']),
+  catchMove: z.enum(['basic', 'slot']),
   stopWhenFull: z.boolean(),
   replaceLowest: z.boolean(),
   autoEvolve: z.boolean(),
