@@ -77,7 +77,7 @@ export const ITEMS: Record<string, ItemData> = {
   'escape-rope': { name: 'Escape Rope', price: 550, pocket: 'items', hold: 'none', holdParam: 0, description: 'A long, durable rope.\nUse it to escape instantly from a\ncave or a dungeon.' },
   'repel': { name: 'Repel', price: 350, pocket: 'items', hold: 'none', holdParam: 100, description: 'Prevents weak wild POKéMON from\nappearing for 100 steps.' },
   'sun-stone': { name: 'Sun Stone', price: 2100, pocket: 'items', hold: 'none', holdParam: 0, description: 'A peculiar stone that makes certain\nspecies of POKéMON evolve.\nIt is as red as the sun.' },
-  'moon-stone': { name: 'Moon Stone', price: 0, pocket: 'items', hold: 'none', holdParam: 0, description: 'A peculiar stone that makes certain\nspecies of POKéMON evolve.\nIt is as black as the night sky.' },
+  'moon-stone': { name: 'Moon Stone', price: 2100, pocket: 'items', hold: 'none', holdParam: 0, description: 'A peculiar stone that makes certain\nspecies of POKéMON evolve.\nIt is as black as the night sky.' },
   'fire-stone': { name: 'Fire Stone', price: 2100, pocket: 'items', hold: 'none', holdParam: 0, description: 'A peculiar stone that makes certain\nspecies of POKéMON evolve.\nIt is colored orange.' },
   'thunder-stone': { name: 'Thunderstone', price: 2100, pocket: 'items', hold: 'none', holdParam: 0, description: 'A peculiar stone that makes certain\nspecies of POKéMON evolve.\nIt has a thunderbolt pattern.' },
   'water-stone': { name: 'Water Stone', price: 2100, pocket: 'items', hold: 'none', holdParam: 0, description: 'A peculiar stone that makes certain\nspecies of POKéMON evolve.\nIt is a clear light blue.' },

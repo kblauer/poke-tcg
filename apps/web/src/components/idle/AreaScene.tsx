@@ -73,6 +73,7 @@ export function MapScene({
   people = [],
   spotted,
   dialogue,
+  fishing,
   children,
 }: {
   image: string;
@@ -89,6 +90,8 @@ export function MapScene({
   people?: { key: string; sprite: string; x: number; y: number; face: Facing; grass?: boolean }[];
   spotted?: string | null;
   dialogue?: Dialogue | null;
+  /** A cast on screen (the user's: fishing): the player's fishing sprite in its phase, in place of the player's. */
+  fishing?: { sprite: string; surfing: boolean; phase: 'cast' | 'hooked' | 'away'; stamp: number };
   children?: ReactNode;
 }) {
   const phone = useIsPhone();
@@ -130,7 +133,7 @@ export function MapScene({
               {spotted === p.key && <Exclamation tile={{ x: p.x, y: p.y }} />}
             </div>
           ))}
-          <OverworldSprite name={player} tile={tile} face={face} walkTick={moveMs ? walkTick : undefined} moveMs={moveMs} {...(jump && { jump })} />
+          {fishing ? <FishingSprite {...fishing} tile={tile} face={face} /> : <OverworldSprite name={player} tile={tile} face={face} walkTick={moveMs ? walkTick : undefined} moveMs={moveMs} {...(jump && { jump })} />}
           {/* The grass after the sprites, so it's over the feet of those on its row. */}
           {people.map((p) => p.grass && <TallGrass key={p.key} tile={{ x: p.x, y: p.y }} />)}
           <GrassTufts tile={tile} grass={grass} map={image} moveMs={moveMs} jump={jump} />
@@ -141,6 +144,55 @@ export function MapScene({
       {dialogue && <DialogueBox key={dialogueKey(dialogue)} dialogue={dialogue} pressRef={pressDialogue} phone={phone} maxWidth={Math.min(DIALOGUE_MAX, width * 16 * zoom, view.w)} fontSize={DIALOGUE_TEXT * zoom || undefined} />}
     </div>
     </div>
+  );
+}
+
+/** The fishing sprite's frames by facing (red_fish.png's 12, 32x32: left, up, down; right the left ones mirrored, as object_event_anims.h). */
+const FISH_BASE: Record<Facing, number> = { left: 0, right: 0, up: 4, down: 8 };
+/** 4 game frames a frame (sAnim_TakeOutRod*), 6 for the bite's jerks (sAnim_HookedPokemon*), at 60 a second. */
+const FISH_FRAME_MS = 67;
+
+/** The surf blob's frame by facing (surf_blob.png's 6, 32x32: down, up, left, two each; right the left mirrored). */
+const BLOB_FRAME: Record<Facing, number> = { down: 0, up: 2, left: 4, right: 4 };
+
+/**
+ * The player fishing (the user's; object_event_anims.h): the rod taken out (frames 0 to 3) and held; on a bite, the rod
+ * jerking (2 and 3, twice, then held a moment, over again); none, the rod put away (3 to 0). Surfing, on the surf blob
+ * (a little below, as surf_frames draws Red surfing).
+ */
+function FishingSprite({ sprite, surfing, phase, stamp, tile, face }: { sprite: string; surfing: boolean; phase: 'cast' | 'hooked' | 'away'; stamp: number; tile: { x: number; y: number }; face: Facing }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), FISH_FRAME_MS / 2);
+    return () => window.clearInterval(timer);
+  }, []);
+  const n = Math.floor(Math.max(0, now - stamp) / FISH_FRAME_MS);
+  const hooked = [2, 2, 3, 3, 2, 2, 3, 3, ...Array(8).fill(3)];
+  const frame = phase === 'cast' ? Math.min(3, n) : phase === 'hooked' ? hooked[n % hooked.length]! : Math.max(0, 3 - n);
+  const flip = face === 'right' ? 'scaleX(-1)' : undefined;
+  return (
+    <>
+      {surfing && (
+        <div
+          className="absolute [image-rendering:pixelated]"
+          style={{ left: tile.x * 16 + 8 - 16, top: tile.y * 16 - 8, width: 32, height: 24, backgroundImage: 'url(/overworld/surf_blob.png)', backgroundSize: '192px 32px', backgroundPosition: `${-BLOB_FRAME[face] * 32}px 0`, transform: flip, zIndex: tile.y }}
+        />
+      )}
+      <div
+        className="absolute [image-rendering:pixelated]"
+        style={{
+          left: tile.x * 16 + 8 - 16,
+          top: tile.y * 16 - 16,
+          width: 32,
+          height: 32,
+          backgroundImage: `url(/overworld/${sprite}.png)`,
+          backgroundSize: '384px 32px',
+          backgroundPosition: `${-(FISH_BASE[face] + frame) * 32}px 0`,
+          transform: flip,
+          zIndex: tile.y,
+        }}
+      />
+    </>
   );
 }
 
@@ -165,14 +217,23 @@ export function AreaScene({ playback, gender, dialogue, children }: { playback: 
   const people = area.trainers
     .filter((t) => t.leg === place.leg && t.map === m)
     .map((t) => ({ key: t.key, sprite: WATER_SPRITES[t.sprite] && water ? WATER_SPRITES[t.sprite]! : t.sprite, x: t.x, y: t.y, face: t.face, grass: t.grass }));
+  // A legendary Pokémon where it stands (WalkArea.legend), the player facing it once walked up to it (its battle next).
+  const legend = area.legend && area.legend.map === m ? area.legend : null;
+  if (legend) people.push({ key: 'legend', sprite: legend.sprite, x: legend.x, y: legend.y, face: legend.face, grass: undefined });
+  const arrived = legend && place.step >= track.length - 1 && !playback.moveMs;
+  // Fishing (the user's): on its spot's tile, facing the water, the rod's frames while a cast plays.
+  const fishAt = playback.fishSpot !== null && place.grind === undefined ? area.fishing?.[playback.fishSpot] : undefined;
+  const at = fishAt ? { x: fishAt[3], y: fishAt[4] } : { x, y };
+  const face: Facing = fishAt ? fishAt[2] : arrived ? (Math.abs(legend.x - x) > Math.abs(legend.y - y) ? (legend.x > x ? 'right' : 'left') : legend.y > y ? 'down' : 'up') : playback.face;
   return (
     <MapScene
       image={map.image}
       width={map.width}
       height={map.height}
-      tile={{ x, y }}
-      player={water ? `${base}_surf` : base}
-      face={playback.face}
+      tile={at}
+      player={(fishAt ? fishAt[5] : water) ? `${base}_surf` : base}
+      {...(fishAt && playback.fishing && { fishing: { sprite: `${base}_fish`, surfing: !!fishAt[5], ...playback.fishing } })}
+      face={face}
       walkTick={playback.walkTick}
       moveMs={playback.moveMs}
       jump={playback.jump}

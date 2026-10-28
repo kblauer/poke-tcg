@@ -146,7 +146,7 @@ export function IdlePage() {
     <div className={`${PAGE_WIDTH} space-y-4`}>
       <PageHeader
         title="Idle Adventure"
-        info={active && v ? `${v.areaName}${v.phase === 'grinding' ? ` (grinding to Lv. ${v.grindTarget})` : v.loop ? ' (grinding)' : ''} · ${v.badges.length} badge${v.badges.length === 1 ? '' : 's'} · ₱${commas(v.money)}` : 'Walk Kanto from Pallet Town to the Indigo Plateau'}
+        info={active && v ? `${v.areaName}${v.phase === 'grinding' ? ` (grinding to Lv. ${v.grindTarget})` : v.loop ? (v.loop.kind === 'fish' ? ' (fishing)' : ' (grinding)') : ''} · ${v.badges.length} badge${v.badges.length === 1 ? '' : 's'} · ₱${commas(v.money)}` : 'Walk Kanto from Pallet Town to the Indigo Plateau'}
         actions={
           active ? (
             <span className="flex items-center gap-2">

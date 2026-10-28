@@ -3,7 +3,7 @@
 export const MARTS: Record<string, string[]> = {
   CeladonCity_DepartmentStore_2F_Items: ['great-ball', 'super-potion', 'revive', 'antidote', 'paralyze-heal', 'awakening', 'burn-heal', 'ice-heal', 'super-repel'],
   CeladonCity_DepartmentStore_2F_TMs: ['tm05', 'tm15', 'tm28', 'tm31', 'tm43', 'tm45'],
-  CeladonCity_DepartmentStore_4F_Items: ['poke-doll', 'retro-mail', 'fire-stone', 'thunder-stone', 'water-stone', 'leaf-stone'],
+  CeladonCity_DepartmentStore_4F_Items: ['poke-doll', 'retro-mail', 'fire-stone', 'thunder-stone', 'water-stone', 'leaf-stone', 'moon-stone'],
   CeladonCity_DepartmentStore_5F_XItems: ['x-attack', 'x-defend', 'x-speed', 'x-special', 'x-accuracy', 'guard-spec', 'dire-hit'],
   CeladonCity_DepartmentStore_5F_Vitamins: ['hp-up', 'protein', 'iron', 'calcium', 'zinc', 'carbos'],
   CeruleanCity_Mart_Items: ['poke-ball', 'super-potion', 'potion', 'antidote', 'paralyze-heal', 'awakening', 'burn-heal', 'escape-rope', 'repel'],
