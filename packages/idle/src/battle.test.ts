@@ -117,7 +117,7 @@ describe('auto-catch', () => {
     const foe = b.active[1];
     const M = foe.maxHp;
     const next = (hits: number, damage: number, hp = M) => {
-      Object.assign(b, { catchHits: hits, catchDamage: damage, catchBalls: false });
+      Object.assign(b, { catchHits: hits, catchDamage: { scratch: damage }, catchBalls: false });
       foe.hp = hp;
       return choosePlayerAction(b);
     };
@@ -134,9 +134,26 @@ describe('auto-catch', () => {
     expect(next(2, middle)).toEqual(ball);
     expect(next(1, Math.floor(M * 0.6))).toEqual(ball);
     // No more hits once the balls have started.
-    Object.assign(b, { catchHits: 1, catchDamage: 1, catchBalls: true });
+    Object.assign(b, { catchHits: 1, catchDamage: { scratch: 1 }, catchBalls: true });
     foe.hp = M;
     expect(choosePlayerAction(b)).toEqual(ball);
+  });
+
+  it("hits with the first slot's move by the setting, the basic move while it cools down or when it's a status move", () => {
+    const battle = (slots: string[], catchMove: 'basic' | 'slot') =>
+      new Battle(setup([mon(4, 5, { slots, autoSlots: false })], [mon(143, 60)], { bag: { 'poke-ball': 5 }, settings: { autoHeal: false, tryCatch: true, catchMove } }), rngFrom(1));
+    expect(choosePlayerAction(battle(['ember'], 'basic'))).toEqual({ kind: 'move', move: 'scratch' });
+    const b = battle(['ember'], 'slot');
+    const me = b.active[0];
+    expect(choosePlayerAction(b)).toEqual({ kind: 'move', move: 'ember' });
+    expect(me.cooldowns.ember).toBeGreaterThan(0);
+    // Ember cooling down: Scratch, its own damage checked.
+    Object.assign(b, { catchHits: 1, catchDamage: { ember: 10 } });
+    expect(choosePlayerAction(b)).toEqual({ kind: 'move', move: 'scratch' });
+    me.cooldowns = {};
+    expect(choosePlayerAction(b)).toEqual({ kind: 'move', move: 'ember' });
+    // A status move first (Growl): the basic move.
+    expect(choosePlayerAction(battle(['growl', 'ember'], 'slot'))).toEqual({ kind: 'move', move: 'scratch' });
   });
 
   it('puts the wild Pokémon to sleep or paralyses it whenever the move is ready, from the first hit on', () => {
@@ -147,7 +164,7 @@ describe('auto-catch', () => {
     const pikachu = mon(25, 12, { moves: ['thunder-wave', 'thunder-shock'], slots: ['thunder-wave'], autoSlots: false });
     const b = new Battle(setup([pikachu], [mon(143, 60)], { bag: { 'poke-ball': 5 }, settings: { autoHeal: false, tryCatch: true } }), rngFrom(1));
     const me = b.active[0];
-    Object.assign(b, { catchHits: 1, catchDamage: 1, catchBalls: true });
+    Object.assign(b, { catchHits: 1, catchDamage: {}, catchBalls: true });
     me.cooldowns = { 'thunder-wave': 2 };
     expect(choosePlayerAction(b)).toEqual({ kind: 'ball', item: 'poke-ball' });
     me.cooldowns = {};

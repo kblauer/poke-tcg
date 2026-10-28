@@ -3,7 +3,7 @@
 // - auto-heal (agreed with the user): a Potion-class item when the active Pokémon is at half its HP or less, the one
 //   wasting least; a status cure when it has a status (the specific cure before Full Heal); a Revive by the settings'
 //   policy (the last one standing, any fainted, boss battles, the lead; none, never);
-// - auto-catch (the user's, 2026-10-27): the basic move once, more hits by the share of the wild Pokémon's HP it took
+// - auto-catch (the user's, 2026-10-27): the basic move (or the first slot's, a setting) once, more hits by the share of the wild Pokémon's HP it took
 //   (up to 30%: as many as it survives; up to 50%: one more; above: none), then the best ball owned every turn, a
 //   sleep or paralysis move whenever it's ready from the first hit on;
 // - a trainer's items (the game's AI_SwitchOrUseItem, simplified): a healing item at a quarter of its HP or less, a
@@ -110,23 +110,41 @@ export const CATCH_MARGIN = 0.03;
 /** Status moves that make a catch likelier without hurting the wild Pokémon (the user's): sleep and paralysis (Yawn's sleep too). */
 const CATCH_STATUS = new Set(['sleep', 'paralyze', 'yawn']);
 
-/** Whether auto-catch hits with the basic move again (CATCH_MANY): the first only if its highest roll couldn't Knock it Out (a critical hit risked: the user's, 2026-10-27). */
-function catchHit(b: Battle, me: Battler, target: Battler): boolean {
-  if (b.catchHits === 0) {
-    const most = maxDamage(b, me, target, me.basic, false);
-    return most > 0 && most < target.hp;
+/**
+ * Whether auto-catch hits with this move now: the hits so far within what the most damaging one allows (CATCH_MANY), and
+ * the wild Pokémon surviving it: by what it did before, or a move not yet used only if its highest roll couldn't Knock
+ * it Out (a critical hit risked: the user's, 2026-10-27).
+ */
+function catchHit(b: Battle, me: Battler, target: Battler, key: string): boolean {
+  const most = Math.max(0, ...Object.values(b.catchDamage));
+  const share = most / target.maxHp;
+  const hits = b.catchHits === 0 || share <= CATCH_MANY ? Infinity : share <= CATCH_TWO ? 2 : 1;
+  if (b.catchHits >= hits) return false;
+  const did = b.catchDamage[key];
+  if (did === undefined) {
+    const max = maxDamage(b, me, target, key, false);
+    return max > 0 && max < target.hp;
   }
-  const share = b.catchDamage / target.maxHp;
-  const hits = share <= CATCH_MANY ? Infinity : share <= CATCH_TWO ? 2 : 1;
-  return b.catchHits < hits && target.hp > b.catchDamage + Math.ceil(target.maxHp * CATCH_MARGIN);
+  return target.hp > did + Math.ceil(target.maxHp * CATCH_MARGIN);
+}
+
+/** Auto-catch's move to hit with (IdleSettings.catchMove, the user's): the first slot's when set, damaging and ready (it then cools down), else the basic move. */
+function catchHitMove(b: Battle, me: Battler, target: Battler): string | null {
+  const slot = me.slots[0];
+  if (b.setup.settings.catchMove === 'slot' && slot && moveData(slot).power > 0 && b.ready(me, slot) && catchHit(b, me, target, slot)) {
+    b.startCooldown(me, slot);
+    return slot;
+  }
+  return b.selectable(me, me.basic) && catchHit(b, me, target, me.basic) ? me.basic : null;
 }
 
 /**
- * Auto-catch's action for the tick (the user's, 2026-10-27, replacing 2026-10-25's two hits above 60%): the basic move
- * until it has hit once, then more hits by what it did (catchHit), then the best ball owned every turn; once it has hit
- * (or the balls have started), a slot move that puts the wild Pokémon to sleep or paralyses it, whenever it's ready
- * (off cooldown and able to work), before the next hit or ball. A basic move that can't be used or could Knock it Out
- * first time (its highest roll, no critical hit) is skipped for the balls; no more hits once they start. Out of balls, the battle goes on as any other.
+ * Auto-catch's action for the tick (the user's, 2026-10-27, replacing 2026-10-25's two hits above 60%): its hitting
+ * move (catchHitMove: the basic move or the first slot's) until it has hit once, then more hits by what it did
+ * (catchHit), then the best ball owned every turn; once it has hit (or the balls have started), a slot move that puts
+ * the wild Pokémon to sleep or paralyses it, whenever it's ready (off cooldown and able to work), before the next hit
+ * or ball. A move that can't be used or could Knock it Out first time (its highest roll, no critical hit) is skipped,
+ * for the basic move or the balls; no more hits once they start. Out of balls, the battle goes on as any other.
  */
 function autoCatch(b: Battle, me: Battler): Action | null {
   const target = b.active[1];
@@ -141,7 +159,8 @@ function autoCatch(b: Battle, me: Battler): Action | null {
       return { kind: 'move', move: status };
     }
   }
-  if (!b.catchBalls && b.selectable(me, me.basic) && catchHit(b, me, target)) return { kind: 'move', move: me.basic };
+  const hit = b.catchBalls ? null : catchHitMove(b, me, target);
+  if (hit) return { kind: 'move', move: hit };
   b.catchBalls = true;
   return { kind: 'ball', item: ball };
 }
