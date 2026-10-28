@@ -582,7 +582,7 @@ export function mapGrindPlan(state: Pick<IdleState, 'reached' | 'area' | 'leg' |
     if (state.area === index && plan.kind === 'fish' && loop?.kind === 'fish' && loop.spot === plan.spot) return { error: 'Already in that mode' };
     return plan;
   }
-  if (mapGrindHere(state, index) && modeOf(state as Pick<IdleState, 'loop'>) === kind) return { error: 'Already in that mode' };
+  if (mapGrindHere(state, index) && loopMode(state) === kind) return { error: 'Already in that mode' };
   const from = mapGrindHere(state, index) ? (state.loop ? { ...state, ...state.loop.resume, loop: undefined } : state) : { ...state, ...mapGrindStart(index), phase: 'walking' as const, loop: undefined };
   const plan = routeGrindPlan(from, kind);
   if ('error' in plan || plan.area === index) return plan;
@@ -681,8 +681,11 @@ export const QUEUED_ACTIONS: IdleAction['type'][] = ['SET_ORDER', 'SET_SLOTS', '
 export const IDLE_MODES = ['route', 'wild', 'trainers', 'stop'] as const;
 export type IdleMode = (typeof IDLE_MODES)[number];
 
-/** The mode a run is in: stopped, grinding wild Pokémon or trainers on a route, else going on. */
-export const modeOf = (s: Pick<IdleState, 'stopped' | 'loop'>): IdleMode => (s.stopped ? 'stop' : s.loop?.kind === 'pace' || s.loop?.kind === 'fish' ? 'wild' : s.loop?.kind === 'trainers' ? 'trainers' : 'route');
+/** A route grind's mode (IdleState.loop): grinding wild Pokémon or trainers on a route, else going on. */
+const loopMode = (s: Pick<IdleState, 'loop'>): IdleMode => (s.loop?.kind === 'pace' || s.loop?.kind === 'fish' ? 'wild' : s.loop?.kind === 'trainers' ? 'trainers' : 'route');
+
+/** The mode a run is in: stopped, grinding wild Pokémon (a town's auto-grind too: not the run going on, the user's, 2026-10-28) or trainers on a route, else going on. */
+export const modeOf = (s: Pick<IdleState, 'stopped' | 'loop' | 'phase'>): IdleMode => (s.stopped ? 'stop' : s.phase === 'grinding' ? 'wild' : loopMode(s));
 
 /**
  * Applies the player's choice to a run. Pure: returns a new state, or an error. A party change while the last segment's
@@ -783,8 +786,8 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
         else if (was) state.log.push('Went on.');
         return ok();
       }
-      // A grind: the one on already, only going on again; otherwise started (switching from the other one).
-      if (modeOf(state) === action.mode) return ok();
+      // A grind: the one on already, only going on again; otherwise started (switching from the other one, or from auto-grinding).
+      if (loopMode(state) === action.mode) return ok();
       const error = startRouteLoop(state, action.mode === 'wild' ? 'wild' : 'trainers');
       if (error) return fail(error);
       return ok();
@@ -835,7 +838,7 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
         return ok();
       }
       if (mapGrindHere(state, action.area)) {
-        if (modeOf(state) === action.kind) return ok();
+        if (loopMode(state) === action.kind) return ok();
         const error = startRouteLoop(state, action.kind);
         return error ? fail(error) : ok();
       }
