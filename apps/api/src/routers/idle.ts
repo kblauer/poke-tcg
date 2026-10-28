@@ -1,5 +1,5 @@
 import { prisma } from '@poke-tcg/db';
-import { AREAS, applyIdleAction, areaIndex, BALLS, throwable, isBaseForm, CATCH_UP_CAP_MS, catchUp, createIdleRun, cutSegment, cuts, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, reachedArea, simulateSegment, TOWN_WAIT_MS, starterOptions, STARTERS, visitStore, withPending, type IdleSettings, type Stats } from '@poke-tcg/idle';
+import { AREAS, applyIdleAction, areaIndex, BALLS, throwable, isBaseForm, isOptional, CATCH_UP_CAP_MS, catchUp, createIdleRun, cutSegment, cuts, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, reachedArea, simulateSegment, TOWN_WAIT_MS, starterOptions, STARTERS, visitStore, withPending, type IdleSettings, type Stats } from '@poke-tcg/idle';
 import { idleActInput, idleHereInput, idleRunInput, idleSettingsInput, idleThrowInput, idleWarpInput, startIdleInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { asJson, newSeed } from '../games.js';
@@ -219,7 +219,7 @@ export const idleRouter = router({
     if (index < 0) throw failed('Unknown area');
     const state = structuredClone(run.state);
     // The Town Map's places up to it open with it.
-    Object.assign(state, { reached: Math.max(reachedArea(state), index), area: index, leg: 0, step: 0, beaten: [], phase: isTown(AREAS[index]!) ? 'town' : 'walking', version: state.version + 1 });
+    Object.assign(state, { reached: Math.max(reachedArea(state), isOptional(index) ? 0 : index), area: index, leg: 0, step: 0, beaten: [], phase: isTown(AREAS[index]!) ? 'town' : 'walking', version: state.version + 1 });
     delete state.grind;
     delete state.replay;
     state.log.push(`Debug: warped to ${AREAS[index]!.name}.`);

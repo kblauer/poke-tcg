@@ -6,7 +6,7 @@
 // waits on the player, online or caught up offline (catchUp).
 import { catchTextFrame, FRAME_MS, openingMs } from './battle-timing.js';
 import { int, rngFrom, type Rng } from '@poke-tcg/campaign';
-import { AREAS, areaById, areaIndex, isTown, mapView, TERRAIN_LETTERS, type IdleArea, type TownArea, type WalkArea } from './areas.js';
+import { AREAS, areaById, areaIndex, areaOpen, isOptional, isTown, legendOf, mapView, TERRAIN_LETTERS, type IdleArea, type IdleLeg, type TownArea, type TrackStep, type WalkArea } from './areas.js';
 import { opponentMon, simulateBattle, type BattleEvent, type BattleResult, MEDICINE, type Terrain } from './battle.js';
 import { BALLS } from './catch.js';
 import { itemData, species } from './data.js';
@@ -157,6 +157,8 @@ export interface IdleState {
    * (LEAVE_STORE); only then are BUYs taken.
    */
   inStore?: boolean;
+  /** The legendary Pokémon (dex numbers) beaten or caught in this run (WalkArea.legend): gone from the Town Map. */
+  legends?: number[];
   /** The trainers (TRAINERS' keys) whose full prize the run has had: a rematch pays REMATCH_PRIZE of it. */
   paid?: string[];
   /**
@@ -202,8 +204,13 @@ export type IdleAction =
   | { type: 'CONTINUE_RUN' }
   /** The Town Map (the user's): to a town reached already, its usual choices waiting there. */
   | { type: 'TRAVEL'; area: number }
-  /** The Town Map (the user's): Wild or Trainer grind on a route (or in a dungeon) reached already (mapGrindPlan). */
-  | { type: 'GRIND_AT'; area: number; kind: 'wild' | 'trainers' }
+  /**
+   * The Town Map (the user's): Wild or Trainer grind on a route (or in a dungeon) reached already (mapGrindPlan); a wild
+   * grind's `spot` (WildSpot.id) is one of its maps' wild tables, for an area with several (a floor, a zone).
+   */
+  | { type: 'GRIND_AT'; area: number; kind: 'wild' | 'trainers'; spot?: string }
+  /** The Town Map (the user's, 2026-10-27): to a legendary Pokémon (WalkArea.legend), walked up to and battled (legendError). */
+  | { type: 'LEGEND'; area: number }
   | { type: 'BUY'; item: string; count: number }
   /** The party's order (the lead fights first). */
   | { type: 'SET_ORDER'; uids: string[] }
@@ -231,6 +238,8 @@ export const throwable = (state: Pick<IdleState, 'replay'>) => !!state.replay &&
 export type RouteLoop = { resume: { area: number; leg: number; step: number; beaten: string[] } } & (
   | { kind: 'trainers'; keys: string[] }
   | { kind: 'pace'; leg: number; from: number; to: number; dir: 1 | -1 }
+  /** Fishing (the user's, 2026-10-27): at one of the area's fishing spots (WalkArea.fishing), cast after cast. */
+  | { kind: 'fish'; spot: number }
 );
 
 export type IdleResult = { ok: true; state: IdleState } | { ok: false; error: string };
@@ -243,6 +252,12 @@ export type SegmentEvent =
   | { t: 'grind'; town: number; at: number }
   | { t: 'circle'; from: number; steps: number }
   | { t: 'spotted'; trainer: string }
+  /**
+   * A cast (the user's: fishing on the map; FireRed's Task_Fishing): at the area's fishing spot `spot` (WalkArea.fishing),
+   * its rod, the dots before the bite or not, and whether one bit ("A POKéMON's on the hook!", its battle next) or not
+   * ("Not even a nibble…").
+   */
+  | { t: 'fish'; spot: number; rod: number; dots: number; bite: boolean }
   | {
       t: 'battle';
       kind: 'wild' | 'trainer';
@@ -434,8 +449,23 @@ export function previousRoute(townIndex: number): number | null {
  */
 export function reachedArea(state: Pick<IdleState, 'reached' | 'area' | 'loop' | 'badges'>): number {
   const gyms = AREAS.flatMap((a, i) => (a.kind === 'gym' && state.badges.includes(a.badge!) ? [i] : []));
-  return Math.max(state.reached ?? 0, state.area, state.loop?.resume.area ?? 0, ...gyms);
+  // An area off the main road is never reached this way (its `opens` opens it).
+  const road = (i: number) => (isOptional(i) ? 0 : i);
+  return Math.max(state.reached ?? 0, road(state.area), road(state.loop?.resume.area ?? 0), ...gyms);
 }
+
+/**
+ * The rods (the user's, 2026-10-27): the Old Rod once the run reaches Vermilion City, the Good Rod Fuchsia City, the Super
+ * Rod Cinnabar Island; fishing needs one, and each cast takes one of those it has at random (fishCast).
+ */
+export const RODS = [
+  { name: 'Old Rod', town: 'vermilion-city' },
+  { name: 'Good Rod', town: 'fuchsia-city' },
+  { name: 'Super Rod', town: 'cinnabar-island' },
+] as const;
+
+/** The rods a run has (RODS' indexes), by the furthest it has reached. */
+export const rodsOf = (state: Pick<IdleState, 'reached' | 'area' | 'loop' | 'badges'>) => RODS.flatMap((r, i) => (reachedArea(state) >= areaIndex(r.town) ? [i] : []));
 
 /** Whether every store sells TMs and HMs (Buy TMs): once the run has reached Celadon City (the user's). */
 export const tmShopOpen = (state: Pick<IdleState, 'reached' | 'area' | 'loop' | 'badges'>) => reachedArea(state) >= areaIndex(TM_SHOP_AREA);
@@ -472,7 +502,7 @@ export function progressOf(state: ProgressState): Progress {
   const here: Progress = state.loop ? state.loop.resume : { ...placeOfRun(state), beaten: state.phase === 'walking' ? state.beaten : [] };
   const reached = reachedArea(state);
   const start = { area: reached, leg: 0, step: 0 };
-  const p = comparePlaces(state, start, here) > 0 ? { ...start, beaten: [] } : { ...here, beaten: [...here.beaten] };
+  const p = isOptional(here.area) || comparePlaces(state, start, here) > 0 ? { ...start, beaten: [] } : { ...here, beaten: [...here.beaten] };
   return AREAS[p.area]!.kind === 'league' ? { ...leagueToTown(p), beaten: [] } : p;
 }
 
@@ -487,7 +517,7 @@ function leagueToTown<P extends Place>(p: P): P {
 
 /** Whether the run stands at its furthest place (Continue run goes on from there rather than to it); never while grinding. */
 export function atProgress(state: ProgressState): boolean {
-  if (state.loop || state.phase === 'grinding') return false;
+  if (state.loop || state.phase === 'grinding' || isOptional(state.area)) return false;
   return comparePlaces(state, placeOfRun(state), progressOf(state)) >= 0;
 }
 
@@ -503,9 +533,9 @@ function goToProgress(state: IdleState, events: SegmentEvent[]) {
   events.push({ t: 'area', area: p.area, leg: p.leg, step: p.step });
 }
 
-/** The run's place marked as its furthest when it is (IdleState.progress): walking on, never grinding. */
+/** The run's place marked as its furthest when it is (IdleState.progress): walking on, never grinding nor off the main road. */
 function markProgress(state: IdleState) {
-  if (state.loop || state.phase === 'grinding' || state.phase === 'won' || state.phase === 'given-up') return;
+  if (state.loop || state.phase === 'grinding' || state.phase === 'won' || state.phase === 'given-up' || isOptional(state.area)) return;
   const here = leagueToTown(placeOfRun(state));
   if (comparePlaces(state, here, progressOf(state)) < 0) return;
   state.progress = { ...here, beaten: state.phase === 'walking' && here.area === state.area ? [...state.beaten] : [] };
@@ -532,13 +562,24 @@ function mapGrindStart(index: number): Pick<IdleState, 'area' | 'leg' | 'step' |
 
 /**
  * What Wild or Trainer grind on a route (or in a dungeon) picked on the Town Map does (the user's), or why it can't: one
- * reached already; where the run walks, from where it is; elsewhere, from its end. A wild grind stays on that route (no
- * wild Pokémon there: an error, never another route's).
+ * reached already (off the main road, once its `opens` is); where the run walks, from where it is; elsewhere, from its
+ * end. A wild grind stays on that route (no wild Pokémon there: an error, never another route's); with a `spot`, on that
+ * wild table's tiles (spotPlan).
  */
-export function mapGrindPlan(state: Pick<IdleState, 'reached' | 'area' | 'leg' | 'step' | 'beaten' | 'loop' | 'badges' | 'phase'>, index: number, kind: 'wild' | 'trainers'): RouteGrindPlan {
+export function mapGrindPlan(state: Pick<IdleState, 'reached' | 'area' | 'leg' | 'step' | 'beaten' | 'loop' | 'badges' | 'phase'>, index: number, kind: 'wild' | 'trainers', spot?: string): RouteGrindPlan {
   const a = AREAS[index];
   if (!a || (a.kind !== 'route' && a.kind !== 'dungeon')) return { error: 'Only on a route or in a dungeon' };
-  if (index > reachedArea(state)) return { error: 'Not reached yet' };
+  if (legendOf(index)) return { error: 'No grinding there' };
+  if (!areaOpen(index, reachedArea(state))) return { error: 'Not reached yet' };
+  if (kind === 'wild' && spot !== undefined) {
+    const plan = spotPlan(index, spot);
+    if (!plan) return { error: 'No wild Pokémon there' };
+    if (plan.kind === 'fish' && !rodsOf(state).length) return { error: `No rod yet (the ${RODS[0].name}: ${areaById(RODS[0].town).name})` };
+    const loop = state.loop;
+    if (state.area === index && plan.kind === 'pace' && loop?.kind === 'pace' && loop.leg === plan.leg && loop.from === plan.from && loop.to === plan.to) return { error: 'Already in that mode' };
+    if (state.area === index && plan.kind === 'fish' && loop?.kind === 'fish' && loop.spot === plan.spot) return { error: 'Already in that mode' };
+    return plan;
+  }
   if (mapGrindHere(state, index) && modeOf(state as Pick<IdleState, 'loop'>) === kind) return { error: 'Already in that mode' };
   const from = mapGrindHere(state, index) ? (state.loop ? { ...state, ...state.loop.resume, loop: undefined } : state) : { ...state, ...mapGrindStart(index), phase: 'walking' as const, loop: undefined };
   const plan = routeGrindPlan(from, kind);
@@ -546,9 +587,32 @@ export function mapGrindPlan(state: Pick<IdleState, 'reached' | 'area' | 'leg' |
   return { error: `No wild Pokémon in ${a.name}` };
 }
 
+/**
+ * Why the Town Map can't send the run to an area's legendary Pokémon (LEGEND), or null: one there, the Indigo Plateau
+ * reached (its `opens`), not beaten nor caught in this run yet, and not on the way to it already.
+ */
+export function legendError(state: Pick<IdleState, 'reached' | 'area' | 'loop' | 'badges' | 'legends' | 'phase'>, index: number): string | null {
+  const legend = legendOf(index);
+  if (!legend) return 'No legendary Pokémon there';
+  if (!areaOpen(index, reachedArea(state))) return 'Reach the Indigo Plateau first';
+  if (state.legends?.includes(legend.species)) return `${species(legend.species).name} is gone`;
+  if (state.phase === 'walking' && state.area === index) return 'On the way there';
+  return null;
+}
+
+/** After a legendary Pokémon's battle, or a Stop on the way to it (the user's): back to the Indigo Plateau, its choices waiting. */
+function leaveLegend(state: IdleState, events: SegmentEvent[]) {
+  delete state.loop;
+  delete state.stopped;
+  enterArea(state, areaIndex(LEAGUE_TOWN), events);
+}
+
 /** Enters an area: a town waits for the player; any other starts at its first leg's first step. */
 function enterArea(state: IdleState, index: number, events: SegmentEvent[]) {
-  state.reached = Math.max(reachedArea(state), index);
+  const rods = rodsOf(state).length;
+  state.reached = Math.max(reachedArea(state), isOptional(index) ? 0 : index);
+  // A rod got in its town (the user's), the first time the run reaches it.
+  for (const r of rodsOf(state).slice(rods)) state.log.push(`Got the ${RODS[r]!.name}!`);
   // A route grind keeps going through a white-out back to its route's start; any other area ends it.
   if (index !== state.area) delete state.loop;
   delete state.inStore;
@@ -616,7 +680,7 @@ export const IDLE_MODES = ['route', 'wild', 'trainers', 'stop'] as const;
 export type IdleMode = (typeof IDLE_MODES)[number];
 
 /** The mode a run is in: stopped, grinding wild Pokémon or trainers on a route, else going on. */
-export const modeOf = (s: Pick<IdleState, 'stopped' | 'loop'>): IdleMode => (s.stopped ? 'stop' : s.loop?.kind === 'pace' ? 'wild' : s.loop?.kind === 'trainers' ? 'trainers' : 'route');
+export const modeOf = (s: Pick<IdleState, 'stopped' | 'loop'>): IdleMode => (s.stopped ? 'stop' : s.loop?.kind === 'pace' || s.loop?.kind === 'fish' ? 'wild' : s.loop?.kind === 'trainers' ? 'trainers' : 'route');
 
 /**
  * Applies the player's choice to a run. Pure: returns a new state, or an error. A party change while the last segment's
@@ -697,6 +761,13 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
       if (action.mode === 'stop') {
         // Nothing to stop in a town (the user's); walking, it stops where it stands (the API cuts the segment playing first: cutSegment).
         if (state.stopped || state.phase === 'town') return ok();
+        // On the way to a legendary Pokémon or in its battle (the user's): back to the Indigo Plateau instead.
+        const legend = legendOf(state.area);
+        if (legend && state.phase === 'walking') {
+          state.log.push(`Left ${species(legend.species).name}.`);
+          leaveLegend(state, []);
+          return ok();
+        }
         // Auto-grinding (the user's): the grind ends, the player stopped where they stand on its route.
         if (state.phase === 'grinding') leaveAutoGrind(state);
         state.stopped = true;
@@ -741,9 +812,26 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
       return ok();
     }
     case 'GRIND_AT': {
-      const plan = mapGrindPlan(state, action.area, action.kind);
+      const plan = mapGrindPlan(state, action.area, action.kind, action.spot);
       if ('error' in plan) return fail(plan.error);
       delete state.stopped;
+      if ((plan.kind === 'pace' || plan.kind === 'fish') && action.spot !== undefined) {
+        // One wild table's tiles (a floor, a zone): where the run walks there, its grind ends first (back where it began);
+        // elsewhere, from the area's end (as below); then pacing on that spot.
+        if (mapGrindHere(state, action.area)) {
+          if (state.loop) endRouteLoop(state);
+        } else {
+          delete state.loop;
+          delete state.grind;
+          delete state.inStore;
+          Object.assign(state, mapGrindStart(action.area), { phase: 'walking' });
+          state.log.push(`Went to ${AREAS[action.area]!.name} by the Town Map.`);
+        }
+        const resume = { area: state.area, leg: state.leg, step: state.step, beaten: [...state.beaten] };
+        if (plan.kind === 'fish') startFishing(state, plan, resume);
+        else startPacing(state, plan, resume);
+        return ok();
+      }
       if (mapGrindHere(state, action.area)) {
         if (modeOf(state) === action.kind) return ok();
         const error = startRouteLoop(state, action.kind);
@@ -758,6 +846,18 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
       state.log.push(`Went to ${AREAS[action.area]!.name} by the Town Map.`);
       const error = startRouteLoop(state, action.kind);
       return error ? fail(error) : ok();
+    }
+    case 'LEGEND': {
+      const error = legendError(state, action.area);
+      if (error) return fail(error);
+      // Whatever it was doing ends (a route grind, a town's auto-grind, the store, Stop): walking up to it.
+      delete state.loop;
+      delete state.grind;
+      delete state.inStore;
+      delete state.stopped;
+      Object.assign(state, { area: action.area, leg: 0, step: 0, beaten: [], phase: 'walking', encounter: { steps: 0, buff: 0, prev: '' } });
+      state.log.push(`Went to find ${species(legendOf(action.area)!.species).name} by the Town Map.`);
+      return ok();
     }
     case 'CONTINUE_ROUTE': {
       if (!state.loop) return fail('Not grinding');
@@ -887,6 +987,28 @@ export function visitStore(prev: IdleState, settings: IdleSettings): { state: Id
 /** The land slots' odds (ENCOUNTER_CHANCE_LAND_MONS: 20/20/10/10/10/10/5/5/4/4/1/1) and the water slots' (60/30/5/4/1). */
 const LAND_ODDS = [20, 20, 10, 10, 10, 10, 5, 5, 4, 4, 1, 1];
 const WATER_ODDS = [60, 30, 5, 4, 1];
+/** Each rod's slots of a fishing table, from its first (ENCOUNTER_CHANCE_FISHING_MONS: the Old Rod's 70/30, the Good Rod's 60/20/20, the Super Rod's 40/40/15/4/1). */
+const ROD_SLOTS: [first: number, odds: number[]][] = [
+  [0, [70, 30]],
+  [2, [60, 20, 20]],
+  [5, [40, 40, 15, 4, 1]],
+];
+
+/** Each of a table's extra slots' share of its encounters (EncounterSlots.extra: a placeholder, to balance later). */
+export const EXTRA_PERCENT = 5;
+
+/**
+ * A wild Pokémon of a table: [min level, max level, dex number]. One of its extra slots EXTRA_PERCENT of the time each,
+ * else a slot by the game's odds, LeafGreen's Pokémon there half the time where its differs (the user's, 2026-10-27).
+ */
+function pickWild(rng: Rng, table: EncounterSlots, odds: number[], first = 0): [number, number, number] {
+  const extra = table.extra ?? [];
+  if (extra.length && int(rng, 100) < EXTRA_PERCENT * extra.length) return extra[int(rng, extra.length)]!;
+  const slot = first + pickSlot(rng, odds);
+  const lg = table.leafGreen?.find((s) => s[0] === slot);
+  if (lg && int(rng, 2)) return [lg[1], lg[2], lg[3]];
+  return table.mons[slot]!;
+}
 
 function pickSlot(rng: Rng, odds: number[]): number {
   let r = int(rng, 100);
@@ -1077,10 +1199,12 @@ const before = (p: { leg: number; step: number }, q: { leg: number; step: number
  * of one kind, on one map, walked onto without a fade or a ledge, behind `step` first. Trainers' sight doesn't matter:
  * a wild grind is wild Pokémon only, no trainer spots it (the user's).
  */
-function paceWindow(areaIndex: number, leg: number, step: number): { from: number; to: number } | null {
-  const track = (AREAS[areaIndex] as WalkArea).legs[leg]!.track;
+function paceWindow(areaIndex: number, leg: number, step: number, spot?: string): { from: number; to: number } | null {
+  const { legs } = AREAS[areaIndex] as WalkArea;
+  const track = legs[leg]!.track;
   const fits = (s: number, n: number) => {
     if (s < 0 || s + n > track.length) return false;
+    if (spot !== undefined && spotOf(legs[leg]!, track[s]!) !== spot) return false;
     for (let i = s; i < s + n; i++) {
       const [m, , , flags, tile] = track[i]!;
       if ((tile[0] !== 'l' && tile[0] !== 'w') || tile[0] !== track[s]![4][0] || m !== track[s]![0] || (i > s && flags)) return false;
@@ -1097,6 +1221,89 @@ function paceWindow(areaIndex: number, leg: number, step: number): { from: numbe
   return null;
 }
 
+/** A wild table a grind can pace on (the Town Map's wild grinds, the user's, 2026-10-27): one map's land or water Pokémon. */
+export interface WildSpot {
+  /** Its map and kind ('PokemonTower_3F:l'): GRIND_AT's `spot`. */
+  id: string;
+  /** Its map's short name (3F, East, Viridian Forest) and whether it's surfed. */
+  label: string;
+  water: boolean;
+  /** Fished ('Route12:f', the user's): its map's fishing table, from the area's fishing spot there (WalkArea.fishing). */
+  fish?: true;
+  /** Its map (its Town Map place's: IdleMap.section). */
+  map: string;
+}
+
+/** A track step's wild table (WildSpot.id), or null on a tile with no wild Pokémon (a cave's entrance has none: no table). */
+function spotOf(leg: IdleLeg, [m, , , , tile]: TrackStep): string | null {
+  const kind = tile[0] === 'l' ? 'land' : tile[0] === 'w' ? 'water' : null;
+  const map = leg.maps[m]!;
+  return kind && ENCOUNTERS[mapView(map).encounters]?.[kind] ? `${map}:${tile[0]}` : null;
+}
+
+/** A map's short name: its floor or zone (PokemonTower_3F: 3F, SafariZone_East: East), else its name spaced (Viridian Forest). */
+const mapLabel = (map: string) => (map.includes('_') ? map.slice(map.lastIndexOf('_') + 1) : map.replace(/([a-z])([A-Z0-9])/g, '$1 $2'));
+
+/**
+ * The wild tables an area's grinds can pace on, in the track's order: each map's land and water Pokémon its track walks
+ * enough tiles of for a pacing window (spotPlan). The Town Map offers each when there's more than one.
+ */
+export function wildSpots(areaIndex: number): WildSpot[] {
+  const area = AREAS[areaIndex];
+  if (!area || isTown(area)) return [];
+  // Worked out once an area (the Town Map asks for every open area's on each click).
+  const known = spotsOf.get(areaIndex);
+  if (known) return known;
+  const out: WildSpot[] = [];
+  spotsOf.set(areaIndex, out);
+  for (const leg of area.legs) {
+    for (const step of leg.track) {
+      const id = spotOf(leg, step);
+      if (id === null || out.some((s) => s.id === id) || !spotPlan(areaIndex, id)) continue;
+      out.push({ id, label: mapLabel(leg.maps[step[0]]!), water: id.endsWith(':w'), map: leg.maps[step[0]]! });
+    }
+  }
+  // Its fishing spots (the user's), one a map with fishing.
+  for (const [l, step] of area.fishing ?? []) {
+    const map = area.legs[l]!.maps[area.legs[l]!.track[step]![0]]!;
+    if (ENCOUNTERS[mapView(map).encounters]?.fishing) out.push({ id: `${map}:f`, label: mapLabel(map), water: true, fish: true, map });
+  }
+  return out;
+}
+
+const spotsOf = new Map<number, WildSpot[]>();
+
+/** An area's fishing spot's map (WalkArea.fishing). */
+const fishMap = (area: WalkArea, spot: number) => {
+  const [l, step] = area.fishing![spot]!;
+  return area.legs[l]!.maps[area.legs[l]!.track[step]![0]]!;
+};
+
+/** Where a wild grind on one of an area's wild tables (WildSpot.id) paces: its last pacing window along the track, or null. */
+function spotPlan(areaIndex: number, spot: string): Extract<RouteGrindPlan, { kind: 'pace' | 'fish' }> | null {
+  const area = AREAS[areaIndex] as WalkArea;
+  const { legs } = area;
+  if (spot.endsWith(':f')) {
+    const i = (area.fishing ?? []).findIndex((_, k) => `${fishMap(area, k)}:f` === spot);
+    return i >= 0 && ENCOUNTERS[mapView(fishMap(area, i)).encounters]?.fishing ? { kind: 'fish', area: areaIndex, spot: i } : null;
+  }
+  for (let l = legs.length - 1; l >= 0; l--) {
+    const found = paceWindow(areaIndex, l, legs[l]!.track.length - 1, spot);
+    if (found) return { kind: 'pace', area: areaIndex, leg: l, ...found };
+  }
+  // A table the track only crosses a tile at a time (Route 9's and 14's grass): back and forth between one of its tiles
+  // and the step beside it (an encounter only on its own tile).
+  for (let l = legs.length - 1; l >= 0; l--) {
+    const track = legs[l]!.track;
+    for (let s = track.length - 2; s >= 0; s--) {
+      const [m, , , flags] = track[s + 1]!;
+      if (m !== track[s]![0] || flags) continue;
+      if (spotOf(legs[l]!, track[s]!) === spot || spotOf(legs[l]!, track[s + 1]!) === spot) return { kind: 'pace', area: areaIndex, leg: l, from: s, to: s + 1 };
+    }
+  }
+  return null;
+}
+
 /**
  * What a route grind does from where the run stands (the user's, 2026-10-25): `trainers` (Trainer grind, TRAINER_GRIND),
  * every trainer of its route in a loop, the first to the last, beaten or not; `wild` (Wild grind, WILD_GRIND), pacing near
@@ -1106,6 +1313,7 @@ function paceWindow(areaIndex: number, leg: number, step: number): { from: numbe
 export type RouteGrindPlan =
   | { kind: 'trainers'; area: number; keys: string[]; first: { leg: number; step: number } }
   | { kind: 'pace'; area: number; leg: number; from: number; to: number }
+  | { kind: 'fish'; area: number; spot: number }
   | { error: string };
 
 /**
@@ -1150,6 +1358,8 @@ function wildPlan(areaIndex: number, leg: number, step: number, dir: 1 | -1): Ex
     const found = paceWindow(areaIndex, l, dir < 0 ? legs[l]!.track.length - 1 : 0);
     if (found) return { kind: 'pace', area: areaIndex, leg: l, ...found };
   }
+  // Off the main road, only its own wild Pokémon (the areas before it in AREAS are the League's rooms).
+  if (isOptional(areaIndex)) return null;
   for (let i = areaIndex - 1; i >= 0; i--) {
     const w = AREAS[i]!;
     if (w.kind !== 'route' && w.kind !== 'dungeon') continue;
@@ -1186,7 +1396,8 @@ function startRouteLoop(state: IdleState, kind: 'wild' | 'trainers'): string | n
     state.log.push(`Went to fight the trainers of ${AREAS[state.area]!.name}.`);
     return null;
   }
-  startPacing(state, plan, resume);
+  if (plan.kind === 'fish') startFishing(state, plan, resume);
+  else startPacing(state, plan, resume);
   return null;
 }
 
@@ -1203,6 +1414,14 @@ function startPacing(state: IdleState, plan: Extract<RouteGrindPlan, { kind: 'pa
   state.step = plan.from;
   state.encounter = { steps: 0, buff: 0, prev: '' };
   state.log.push(away ? `No wild Pokémon here: went to train in ${AREAS[plan.area]!.name}.` : `Started training in ${AREAS[state.area]!.name}.`);
+}
+
+/** Fishing on a plan's spot (the user's): the run's place the track's step nearest it (the player shown on the spot itself). */
+function startFishing(state: IdleState, plan: Extract<RouteGrindPlan, { kind: 'fish' }>, resume: RouteLoop['resume']) {
+  const [leg, step] = (AREAS[plan.area] as WalkArea).fishing![plan.spot]!;
+  state.loop = { kind: 'fish', spot: plan.spot, resume };
+  Object.assign(state, { area: plan.area, leg, step, encounter: { steps: 0, buff: 0, prev: '' } });
+  state.log.push(`Started fishing in ${AREAS[plan.area]!.name}.`);
 }
 
 /**
@@ -1270,15 +1489,71 @@ function whiteOut(state: IdleState, out: Segment) {
   }
 }
 
+/** A cast's times (FireRed's Task_Fishing, 60 frames a second): the rod out and a second's wait, each dot (20 frames), the line after. */
+export const FISH_CAST_MS = 1000;
+export const FISH_DOT_MS = 333;
+export const FISH_TEXT_MS = 1500;
+/** How long a cast plays (its dots, and one more beat before the line, as the game waits). */
+export const fishMs = (e: Pick<Extract<SegmentEvent, { t: 'fish' }>, 'dots'>) => FISH_CAST_MS + (e.dots + 1) * FISH_DOT_MS + FISH_TEXT_MS;
+
+/**
+ * A cast at the area's fishing spot (the user's: FireRed's Task_Fishing, one of the run's rods at random each cast, RODS):
+ * 4 to 10 dots, then half the time "Not even a nibble…" (null), else "A POKéMON's on the hook!" and its
+ * battle, a Pokémon from that rod's slots of the map's fishing table; whether it was won.
+ */
+function fishCast(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<number>, spot: number, out: Segment): boolean | null {
+  const area = AREAS[state.area] as WalkArea;
+  const map = mapView(fishMap(area, spot));
+  const table = ENCOUNTERS[map.encounters]!.fishing!;
+  const rods = rodsOf(state);
+  const rod = rods[int(rng, rods.length)]!;
+  const dots = Math.min(10, int(rng, 10) + 4);
+  const bite = int(rng, 2) === 0;
+  out.events.push({ t: 'fish', spot, rod, dots, bite });
+  out.durationMs += fishMs({ dots });
+  if (!bite) return null;
+  const [first, odds] = ROD_SLOTS[rod]!;
+  const [min, max, id] = pickWild(rng, table, odds, first);
+  const level = min + (int(rng, 65536) % (max - min + 1));
+  const wild = opponentMon(createMon(rng, { species: id, level, ...(int(rng, SHINY_ODDS) === 0 && { shiny: true }) }));
+  // On the water's terrain (a fished Pokémon's battle is on the water, as the game's).
+  return battle(state, rng, settings, caught, { kind: 'wild', foes: [wild], tile: '.w', scene: map.scene }, out);
+}
+
 /** A step's wild encounter, if one appears (its tile's table, wildCheck): the battle played; whether it was won, or null for none. */
 function wildStep(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<number>, tile: string, map: ReturnType<typeof mapView>, out: Segment): boolean | null {
   const kind = tile[0] === 'l' ? 'land' : tile[0] === 'w' ? 'water' : null;
   const table = kind && ENCOUNTERS[map.encounters]?.[kind];
   if (!table || !wildCheck(rng, state.encounter, table, tile, state.party[0]!)) return null;
-  const [min, max, id] = table.mons[pickSlot(rng, kind === 'land' ? LAND_ODDS : WATER_ODDS)]!;
+  const [min, max, id] = pickWild(rng, table, kind === 'land' ? LAND_ODDS : WATER_ODDS);
   const level = min + (int(rng, 65536) % (max - min + 1));
   const wild = opponentMon(createMon(rng, { species: id, level, ...(int(rng, SHINY_ODDS) === 0 && { shiny: true }) }));
   return battle(state, rng, settings, caught, { kind: 'wild', foes: [wild], tile, scene: map.scene }, out);
+}
+
+/**
+ * A legendary Pokémon's battle, the run walked up to it (the user's, 2026-10-27): a wild battle at its level, caught or
+ * beaten gone for the run (IdleState.legends); then, however it ends (lost: a white-out; it fled), back to the Indigo Plateau.
+ */
+function legendBattle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<number>, out: Segment) {
+  const a = AREAS[state.area] as WalkArea;
+  const legend = a.legend!;
+  const leg = a.legs[state.leg]!;
+  const tile = leg.track[state.step]![4];
+  const foe = opponentMon(createMon(rng, { species: legend.species, level: legend.level, ...(int(rng, SHINY_ODDS) === 0 && { shiny: true }) }));
+  const won = battle(state, rng, settings, caught, { kind: 'wild', foes: [foe], tile, scene: mapView(leg.maps[legend.map]!).scene }, out);
+  const result = (out.events.filter((e) => e.t === 'battle').at(-1) as Extract<SegmentEvent, { t: 'battle' }>).result;
+  const name = species(legend.species).name;
+  if (result === 'won' || result === 'caught') {
+    state.legends = [...(state.legends ?? []), legend.species];
+    if (result === 'won') state.log.push(`Defeated ${name}!`);
+  } else if (!won) {
+    state.totals.whiteOuts += 1;
+    out.events.push({ t: 'whiteout' });
+    state.log.push(`Whited out against ${name}.`);
+  } else state.log.push(`${name} got away.`);
+  leaveLegend(state, out.events);
+  out.durationMs += FADE_MS;
 }
 
 /** The grind's end (the party's highest at the gym's highest level): into the gym. */
@@ -1380,6 +1655,8 @@ function finishArea(state: IdleState, out: Segment) {
     state.log.push('Became the Champion!');
     return;
   }
+  // Off the main road (walked off its end: Route mode, a white-out with no grind on): back to the run's furthest place.
+  if (a.opens) return goToProgress(state, out.events);
   enterArea(state, state.area + 1, out.events);
 }
 
@@ -1409,6 +1686,8 @@ export function simulateSegment(from: IdleState, idleSettings: IdleSettings, cau
   const rng = rngOf(state);
   const out: Segment = { events: [], durationMs: 0, dex: [] };
   let whitedOut = false;
+  // A legendary Pokémon's battle sends the run to the Indigo Plateau to wait (the user's): no auto-grind from there.
+  let legendMet = false;
   const grinding = state.phase === 'grinding';
   if (grinding) whitedOut = grindSegment(state, rng, settings, caught, out);
   // A run that just came back from a battle or into an area starts its playback where it stands.
@@ -1425,6 +1704,25 @@ export function simulateSegment(from: IdleState, idleSettings: IdleSettings, cau
     // Continue run's furthest place. Fought there, never walked past (a gym's track ends at its leader: its end would
     // give the badge with no battle).
     const pace = state.loop?.kind === 'pace' ? state.loop : null;
+    const fish = state.loop?.kind === 'fish' ? state.loop : null;
+    if (fish) {
+      // Fishing (the user's): onto the spot first (after a white-out sent it to the route's start), then cast after cast
+      // until one bites and its battle is played.
+      const [leg, step] = a.fishing![fish.spot]!;
+      if (state.leg !== leg || state.step !== step) {
+        Object.assign(state, { leg, step });
+        out.events.push({ t: 'area', area: state.area, leg, step });
+        out.durationMs += FADE_MS;
+        continue;
+      }
+      const won = fishCast(state, rng, settings, caught, fish.spot, out);
+      if (won === null) continue;
+      if (!won) {
+        whiteOut(state, out);
+        whitedOut = true;
+      }
+      break;
+    }
     // A wild grind meets no trainers (the user's: wild Pokémon only).
     const seen = !pace && (state.step === 0 || guard === 0) && trainerHere(state.step);
     if (pace && (state.leg !== pace.leg || state.step < pace.from || state.step > pace.to)) {
@@ -1452,6 +1750,12 @@ export function simulateSegment(from: IdleState, idleSettings: IdleSettings, cau
           out.events.push({ t: 'area', area: state.area, leg: state.leg, step: 0 });
           out.durationMs += FADE_MS;
           continue;
+        }
+        // A legendary Pokémon at the end: its battle.
+        if (a.legend) {
+          legendBattle(state, rng, settings, caught, out);
+          legendMet = true;
+          break;
         }
         finishArea(state, out);
         out.durationMs += FADE_MS;
@@ -1498,7 +1802,7 @@ export function simulateSegment(from: IdleState, idleSettings: IdleSettings, cau
   // Auto-grind (the user's) on reaching a gym's town, after a white-out training REGRIND_LEVELS more first.
   // Auto-buy balls on reaching a town (white-outs too), before auto-grind leaves it.
   if (state.phase === 'town') autoBuyBalls(state, settings, out.events);
-  if (state.phase === 'town' && settings.autoGrind) autoGrind(state, out, whitedOut);
+  if (state.phase === 'town' && settings.autoGrind && !legendMet) autoGrind(state, out, whitedOut);
   markProgress(state);
   state.rngState = rng.state;
   state.version += 1;
@@ -1525,8 +1829,8 @@ function catchShownMs(b: Extract<SegmentEvent, { t: 'battle' }>): number {
   return BATTLE_MS - BATTLE_HOLD_MS + openingMs(b.events, b.kind) + Math.max(0, (tick?.n ?? 1) - 1) * TICK_MS + catchTextFrame(ball.shakes, true) * FRAME_MS;
 }
 
-/** The choices that cut the segment playing (cutSegment) before they're applied: Stop, Continue run and the Town Map's moves. */
-export const cuts = (action: IdleAction) => action.type === 'CONTINUE_RUN' || action.type === 'TRAVEL' || action.type === 'GRIND_AT' || (action.type === 'SET_MODE' && action.mode === 'stop');
+/** The choices that cut the segment playing (cutSegment) before they're applied: Stop, Continue run and the Town Map's moves (a legendary Pokémon's too). */
+export const cuts = (action: IdleAction) => action.type === 'CONTINUE_RUN' || action.type === 'TRAVEL' || action.type === 'GRIND_AT' || action.type === 'LEGEND' || (action.type === 'SET_MODE' && action.mode === 'stop');
 
 export function cutSegment(saved: IdleState, now: number): IdleState {
   const r = saved.replay;

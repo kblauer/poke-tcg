@@ -80,11 +80,17 @@ export interface ItemData {
 export interface EncounterSlots {
   rate: number;
   mons: [number, number, number][];
+  /** LeafGreen's Pokémon where its slots differ (the user's, 2026-10-27): [slot, min level, max level, dex number], half the time. */
+  leafGreen?: [number, number, number, number][];
+  /** Pokémon the game only gives, trades or sells, added to the table (the user's, 2026-10-27): EXTRA_PERCENT of its encounters each. */
+  extra?: [number, number, number][];
 }
 
 export interface EncounterTable {
   land?: EncounterSlots;
   water?: EncounterSlots;
+  /** Fished (the user's, 2026-10-27): its 10 slots the Old Rod's 2, the Good Rod's 3 and the Super Rod's 5. */
+  fishing?: EncounterSlots;
 }
 
 export interface TrainerMonData {

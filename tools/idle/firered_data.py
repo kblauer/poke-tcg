@@ -6,7 +6,11 @@ pret/pokefirered decompilation:
 - abilities.ts: the ability names (abilities.h), keyed as the species' abilities are;
 - items.ts: the items (items.json): name, price, pocket, hold effect, description (as the game prints it, for the shop);
 - types.ts: the type chart (battle_main.c's gTypeEffectiveness);
-- encounters.ts: FireRed's wild encounter tables (wild_encounters.json), land and water, by map;
+- encounters.ts: FireRed's wild encounter tables (wild_encounters.json), land, water and fishing, by map, with LeafGreen's
+  Pokémon where its slot differs (`leafGreen`, the user's, 2026-10-27: LeafGreen's only Pokémon in their own places) and
+  the Pokémon the game only gives, trades or sells (gifts, fossils, Game Corner prizes, in-game trades, Ponyta, Snorlax)
+  as extra slots in a couple of tables near where the game has them (`extra`, EXTRA_SLOTS: the user's; their levels the
+  table's, not the game's); a slot of a species outside Kanto's 151 (Cerulean Cave's Wobbuffet) is the slot before it;
 - trainers.ts: FireRed's trainers (trainers.h, trainer_parties.h): class, name, pic, items, party, the class's prize
   money (battle_main.c's gTrainerMoneyTable) and name (trainer_class_names.h);
 - marts.ts: each mart's stock (data/maps/*/scripts.inc's pokemart lists);
@@ -236,23 +240,76 @@ for it in json.load(open(os.path.join(SRC, 'src/data/items.json'), encoding='utf
     items[key(it['itemId'], 'ITEM_')] = {'name': title(it['english']), 'price': it['price'], 'pocket': it['pocket'][len('POCKET_'):].lower(),
                                         'hold': it['holdEffect'][len('HOLD_EFFECT_'):].lower(), 'holdParam': it['holdEffectParam'],
                                         'description': it['description_english'].replace('\\n', '\n')}
+# The Moon Stone (the user's, 2026-10-27: sold at Celadon with the other stones; the game has it at ₱0, never sold) at their price.
+items['moon-stone']['price'] = items['fire-stone']['price']
 write('items.ts', 'src/data/items.json',
       "import type { ItemData } from '../../types.js';\n\n/** Every item, by key (ITEM_POKE_BALL: 'poke-ball'): its name, price, pocket, hold effect and description (the game's lines). */\nexport const ITEMS: Record<string, ItemData> = {\n"
       + ''.join(f'  {js(k)}: {js(v)},\n' for k, v in items.items()) + '};\n')
 
-# ---- Wild encounters (FireRed's tables, not LeafGreen's) ----
+# ---- Wild encounters (FireRed's tables, LeafGreen's Pokémon where its slots differ, and the extra slots) ----
+# The Pokémon the game never has wild in Kanto, as extra slots (the user's, 2026-10-27: a couple of tables each, near
+# where the game gives them and with Pokémon like them; each EXTRA_PERCENT of the table's encounters, idle.ts): by map
+# and kind, dex numbers (areas.test.ts checks every one is on a track).
+EXTRA_SLOTS = {
+    # Only tables the areas' tracks walk (the main road's never change: Mt. Moon's B2F, Seafoam's B4F and Routes 12 to 14's
+    # grass aren't walked). Gifts: the Fighting Dojo's Hitmonlee and Hitmonchan (Rock Tunnel, with Machop), Silph Co.'s
+    # Lapras (the seas south of Fuchsia), Celadon's Eevee (Routes 7 and 16), Mt. Moon's fossils (Omanyte, Kabuto) and
+    # Pewter's Old Amber (Aerodactyl). Game Corner prizes: Porygon (Route 7, the Power Plant), Dratini (Seafoam's water,
+    # with Horsea, and Route 20). In-game trades: Mr. Mime (Routes 24 and 25, with Abra), Jynx (Seafoam), Farfetch'd
+    # (Routes 11 and 15, by Vermilion), Lickitung (Routes 17 and 18). The Sevii Islands' Ponyta (Route 17, the Pokémon
+    # Mansion, with Growlithe), LeafGreen's Magmar (Mt. Ember's: the Pokémon Mansion, Red and Blue's) and Snorlax (Routes
+    # 16 and 11, by where it sleeps).
+    ('ROCK_TUNNEL_1F', 'land'): [106, 107],
+    ('ROCK_TUNNEL_B1F', 'land'): [106, 107],
+    ('ROUTE19', 'water'): [131],
+    ('ROUTE20', 'water'): [131, 147],
+    ('ROUTE7', 'land'): [133, 137],
+    ('ROUTE16', 'land'): [133, 143],
+    ('MT_MOON_1F', 'land'): [138, 140, 142],
+    ('MT_MOON_B1F', 'land'): [138, 140, 142],
+    ('POWER_PLANT', 'land'): [137],
+    ('SEAFOAM_ISLANDS_B3F', 'water'): [147],
+    ('ROUTE24', 'land'): [122],
+    ('ROUTE25', 'land'): [122],
+    ('SEAFOAM_ISLANDS_B2F', 'land'): [124],
+    ('SEAFOAM_ISLANDS_B3F', 'land'): [124],
+    ('ROUTE11', 'land'): [83, 143],
+    ('ROUTE15', 'land'): [83],
+    ('ROUTE17', 'land'): [108, 77],
+    ('ROUTE18', 'land'): [108],
+    ('POKEMON_MANSION_1F', 'land'): [77, 126],
+    ('POKEMON_MANSION_B1F', 'land'): [126],
+}
 enc = {}
+lg = {}
 for e in json.load(open(os.path.join(SRC, 'src/data/wild_encounters.json'), encoding='utf8'))['wild_encounter_groups'][0]['encounters']:
-    if 'LeafGreen' in e['base_label']:
-        continue
     entry = {}
-    for kind, name in (('land_mons', 'land'), ('water_mons', 'water')):
+    for kind, name in (('land_mons', 'land'), ('water_mons', 'water'), ('fishing_mons', 'fishing')):
         if kind in e and e[kind].get('mons'):
-            entry[name] = {'rate': e[kind]['encounter_rate'], 'mons': [[m['min_level'], m['max_level'], by_const.get(m['species'], 0)] for m in e[kind]['mons']]}
+            mons = [[m['min_level'], m['max_level'], by_const.get(m['species'], 0)] for m in e[kind]['mons']]
+            # A species outside Kanto's 151 (Cerulean Cave's Wobbuffet; Tanoby's tables, all Unown, left as they are): the slot before it.
+            for i in range(1, len(mons)):
+                if not mons[i][2] and mons[0][2]:
+                    mons[i] = mons[i - 1][:]
+            entry[name] = {'rate': e[kind]['encounter_rate'], 'mons': mons}
     if entry:
-        enc[e['map'][len('MAP_'):]] = entry
+        (lg if 'LeafGreen' in e['base_label'] else enc)[e['map'][len('MAP_'):]] = entry
+for k, entry in enc.items():
+    for name, table in entry.items():
+        # LeafGreen's Pokémon in their slots (its tables have FireRed's slots and odds, its own version's species there).
+        other = lg.get(k, {}).get(name)
+        if other and len(other['mons']) == len(table['mons']):
+            diff = [[i, *m] for i, (m, f) in enumerate(zip(other['mons'], table['mons'])) if m[2] and m[2] != f[2]]
+            if diff:
+                table['leafGreen'] = diff
+        if (k, name) in EXTRA_SLOTS:
+            levels = [l for m in table['mons'] for l in m[:2]]
+            table['extra'] = [[min(levels), max(levels), d] for d in EXTRA_SLOTS[(k, name)]]
+missing = [k for k in EXTRA_SLOTS if k[1] not in enc.get(k[0], {})]
+if missing:
+    sys.exit(f'No such wild tables: {missing}')
 write('encounters.ts', 'src/data/wild_encounters.json',
-      "import type { EncounterTable } from '../../types.js';\n\n/** FireRed's wild Pokémon by map (MAP_ROUTE1: 'ROUTE1'): each table's encounter rate and slots, [min level, max level, dex number]. */\nexport const ENCOUNTERS: Record<string, EncounterTable> = {\n"
+      "import type { EncounterTable } from '../../types.js';\n\n/** FireRed's wild Pokémon by map (MAP_ROUTE1: 'ROUTE1'): each table's (land, water, fishing: its 10 slots the Old Rod's 2, the Good Rod's 3, the Super Rod's 5) encounter rate and slots, [min level, max level, dex number], LeafGreen's where its differ ([slot, min, max, dex]) and the extra slots (the user's). */\nexport const ENCOUNTERS: Record<string, EncounterTable> = {\n"
       + ''.join(f'  {js(k)}: {js(v)},\n' for k, v in enc.items()) + '};\n')
 
 # ---- Trainers ----
@@ -312,6 +369,8 @@ for d in sorted(os.listdir(os.path.join(SRC, 'data', 'maps'))):
         m = re.search(re.escape(label) + r'::\s*(.*?)ITEM_NONE', t, re.S)
         if m:
             marts[label] = [key(x, 'ITEM_') for x in re.findall(r'\.2byte (ITEM_\w+)', m.group(1))]
+# The Moon Stone at Celadon's with the other stones (the user's, 2026-10-27).
+marts['CeladonCity_DepartmentStore_4F_Items'].append('moon-stone')
 write('marts.ts', 'data/maps/*/scripts.inc',
       "/** Every Poké Mart's stock, by its list's label (PewterCity_Mart_Items), in the game's order. */\nexport const MARTS: Record<string, string[]> = {\n"
       + ''.join(f'  {k}: {js(v)},\n' for k, v in marts.items()) + '};\n')

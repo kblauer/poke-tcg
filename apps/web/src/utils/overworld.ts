@@ -59,9 +59,9 @@ export const stripFrames = (name: string) => (bobs(name) ? 16 : isHgss(name) ? 1
 
 /**
  * Sprites 32px wide: the bikers (FireRed's, and Emerald's cycling triathletes) and Red and Brendan on a bike, with their bikes,
- * and surfing, on their Pokémon; every HGSS sprite.
+ * and surfing, on their Pokémon; the legendary birds (the Idle Adventure's); every HGSS sprite.
  */
-const WIDE = new Set(['biker', 'red_bike', 'red_surf', 'leaf_bike', 'leaf_surf', 'rse/brendan_bike', 'rse/brendan_surf', 'rse/may_bike', 'rse/may_surf', 'rse/cyclist_m', 'rse/cyclist_f']);
+const WIDE = new Set(['biker', 'red_bike', 'red_surf', 'leaf_bike', 'leaf_surf', 'rse/brendan_bike', 'rse/brendan_surf', 'rse/may_bike', 'rse/may_surf', 'rse/cyclist_m', 'rse/cyclist_f', 'articuno', 'zapdos', 'moltres']);
 export const spriteWidth = (name: string) => (WIDE.has(name) || isHgss(name) ? 32 : 16);
 
 /** Each sprite set's player, the boy and the girl (the Inventory's choice): their walking, bike and surfing sprites. */

@@ -1,5 +1,5 @@
 import type { AppRouter } from '@poke-tcg/api/router';
-import { AREAS, areaIndex, ballLineMs, BATTLE_HOLD_MS, CHALLENGE_MS, FADE_MS, INTRO_MS, ITEMS, openingLineMs, playing, STEP_MS, TICK_MS, TOWN_HERE_MS, type CatchUpSummary, type IdleAction, type IdleSettings, type SegmentEvent, type TownArea, type TrackStep, type WalkArea } from '@poke-tcg/idle';
+import { AREAS, areaIndex, ballLineMs, BATTLE_HOLD_MS, CHALLENGE_MS, FADE_MS, FISH_CAST_MS, FISH_DOT_MS, FISH_TEXT_MS, INTRO_MS, ITEMS, openingLineMs, playing, STEP_MS, TICK_MS, TOWN_HERE_MS, type CatchUpSummary, type IdleAction, type IdleSettings, type SegmentEvent, type TownArea, type TrackStep, type WalkArea } from '@poke-tcg/idle';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type { inferRouterOutputs } from '@trpc/server';
@@ -79,6 +79,9 @@ function grindPlace(town: number, at: number): Place {
 /** Where a run stands: its area's step, or grinding, its step round the town's loop. */
 export const placeOf = (view: ClientIdleRun['view']): Place => (view.phase === 'grinding' && view.grind ? grindPlace(view.area, view.grind.at) : { area: view.area, leg: view.leg, step: view.step });
 
+/** The fishing spot a run stands on (its area's WalkArea.fishing: the user's), or null. */
+export const fishSpotOf = (view: ClientIdleRun['view']): number | null => (view.phase === 'walking' && view.loop?.kind === 'fish' ? view.loop.spot : null);
+
 /** What the scene shows while a run plays back (useIdlePlayback). */
 export interface Playback {
   place: Place | null;
@@ -109,10 +112,14 @@ export interface Playback {
   tickAt: number;
   /** The segments played so far: its battle's song is keyed on it, so a ball thrown (the battle played again) carries the song on. */
   segment: number;
+  /** Fishing (the user's): the area's fishing spot the player stands on (WalkArea.fishing), facing its water. */
+  fishSpot: number | null;
+  /** A cast on screen: the rod out (`cast`), a bite (`hooked`) or none (`away`, the rod put away), from `stamp`. */
+  fishing: { phase: 'cast' | 'hooked' | 'away'; stamp: number } | null;
 }
 
 // Facing down to begin with: out of a door (a run's start, Oak's lab's), as the game has it.
-const IDLE: Playback = { place: null, face: 'down', walkTick: 0, moveMs: 0, jump: null, fading: false, spotted: null, battle: null, cue: null, shown: 0, entering: false, notice: null, turn: null, tickAt: 0, segment: 0 };
+const IDLE: Playback = { place: null, face: 'down', walkTick: 0, moveMs: 0, jump: null, fading: false, spotted: null, battle: null, cue: null, shown: 0, entering: false, notice: null, turn: null, tickAt: 0, segment: 0, fishSpot: null, fishing: null };
 
 /** Whether the tab is showing (document.visibilityState), followed as it changes. */
 function useTabVisible() {
@@ -221,7 +228,7 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
     if (!run || !walking) {
       // No run under way any more (given up, won): nothing of its playback stays (its battle, its music's cue).
       if (!run) update({ battle: null, cue: null, spotted: null, entering: false, notice: null, turn: null });
-      else update({ place: placeOf(run.view), battle: null, cue: null, spotted: null });
+      else update({ place: placeOf(run.view), fishSpot: fishSpotOf(run.view), fishing: null, battle: null, cue: null, spotted: null });
       // Opened in a town (the user's: no prompt waits on the player): time away past its wait is caught up too, and the
       // run, walking again, plays on (this effect again, for the rest).
       if (run?.status !== 'ACTIVE' || run.view.phase !== 'town' || !visible) return;
@@ -409,7 +416,25 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
         }
       }
       await wait(BATTLE_HOLD_MS);
-      update({ battle: null, cue: null, shown: 0, spotted: null, turn: null, tickAt: Date.now() });
+      update({ battle: null, cue: null, shown: 0, spotted: null, turn: null, tickAt: Date.now(), fishing: null });
+    }
+
+    /**
+     * A cast (the user's: fishing on the map, FireRed's Task_Fishing): the rod out and a second's wait, its dots one by one
+     * in the text box, a beat, then "A POKéMON's on the hook!" (the rod jerking; its battle next) or "Not even a nibble…"
+     * (the rod put away); as long as the server counts it (fishMs).
+     */
+    async function fish(e: Extract<SegmentEvent, { t: 'fish' }>) {
+      update({ fishSpot: e.spot, fishing: { phase: 'cast', stamp: Date.now() }, notice: null, moveMs: 0 });
+      await wait(FISH_CAST_MS);
+      for (let k = 1; k <= e.dots; k++) {
+        update({ notice: Array(k).fill('·').join(' ') });
+        await wait(FISH_DOT_MS);
+      }
+      await wait(FISH_DOT_MS);
+      update({ fishing: { phase: e.bite ? 'hooked' : 'away', stamp: Date.now() }, notice: e.bite ? "A POKéMON's on the hook!" : 'Not even a nibble…' });
+      await wait(FISH_TEXT_MS);
+      update({ notice: null, ...(!e.bite && { fishing: null }) });
     }
 
     /** The place on screen (the walk moves its step along). */
@@ -428,13 +453,18 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
           const changed = shown.area !== next.area || shown.leg !== next.leg || shown.grind !== next.grind || Math.abs(shown.step - next.step) > 1;
           place = next;
           shown = place;
+          // Fishing goes on where it stands (the spot is the place's own); anywhere else, off the shore.
+          const keep = !changed && evs.slice(i + 1).some((x) => x.t === 'fish');
           if (changed) {
             update({ fading: true });
             await wait(FADE_MS / 2);
-            update({ place: { ...place }, fading: false, moveMs: 0 });
+            update({ place: { ...place }, fading: false, moveMs: 0, fishSpot: null, fishing: null });
             await wait(FADE_MS / 2);
-          } else update({ place: { ...place }, moveMs: 0 });
+          } else update({ place: { ...place }, moveMs: 0, ...(!keep && { fishSpot: null, fishing: null }) });
+        } else if (e.t === 'fish') {
+          await fish(e);
         } else if (e.t === 'walk' && place) {
+          update({ fishSpot: null, fishing: null });
           await walk(e, place);
         } else if (e.t === 'circle' && place) {
           await circle(e, place);
@@ -465,7 +495,7 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
 
     (async () => {
       try {
-        update({ place: placeOf(current.view) });
+        update({ place: placeOf(current.view), fishSpot: fishSpotOf(current.view) });
         // Offline catch-up first: the time since it was last played, a share at a time.
         let total: CatchUpSummary | null = null;
         for (let more = true; more; ) {
@@ -480,7 +510,7 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
           const told = total;
           if (told.durationMs >= CATCH_UP_TOLD_MS) setSummary((old) => (old ? mergeSummaries(old, told) : told));
           shown = placeOf(current.view);
-          update({ place: { ...shown } });
+          update({ place: { ...shown }, fishSpot: fishSpotOf(current.view) });
         }
         // A segment still playing (the page opened, or the tab came back, part way through it): played again from its
         // start, fast-forwarded to now, instead of waiting until it would have ended.
