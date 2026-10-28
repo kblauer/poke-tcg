@@ -6,7 +6,7 @@ import { familyMovesUpTo } from './mon.js';
 import type { BattleEvent } from './battle.js';
 import { catchTextFrame, FRAME_MS, openingMs } from './battle-timing.js';
 import { TOWN_MAP_PLACES, townMapArea } from './town-map.js';
-import { applyIdleAction, atProgress, legendError, rodsOf, STARTERS, BATTLE_HOLD_MS, BATTLE_MS, catchUp, cutSegment, mapGrindPlan, progressOf, reachedArea, travelError, wildSpots, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, modeOf, previousRoute, routeGrindPlan, starterOptions, TICK_MS, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
+import { applyIdleAction, atProgress, legendError, rodsOf, STARTERS, BATTLE_HOLD_MS, BATTLE_MS, catchUp, cutSegment, mapGrindPlan, progressOf, reachedArea, travelError, wildSpots, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, modeOf, playing, previousRoute, routeGrindPlan, starterOptions, TICK_MS, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
 
 type BattleSeg = Extract<SegmentEvent, { t: 'battle' }>;
 
@@ -886,6 +886,19 @@ describe('an idle run', () => {
     expect(battles(all).length).toBeGreaterThan(0);
     expect(battles(all).every((b) => b.caughtBefore)).toBe(true);
     expect(battles(new Set()).some((b) => b.caughtBefore)).toBe(false);
+  });
+
+  it("goes on again from a stopped town with the town's choices (Gym, Grind)", () => {
+    const pewter = AREAS.findIndex((a) => a.id === 'pewter-city');
+    const base = createIdleRun({ species: 4 }, 3);
+    const town: IdleState = { ...base, area: pewter, phase: 'town', reached: pewter, stopped: true };
+    const gym = (applyIdleAction(town, { type: 'GYM' }) as { state: IdleState }).state;
+    expect([gym.area, gym.phase, gym.stopped]).toEqual([AREAS.findIndex((a) => a.id === 'pewter-gym'), 'walking', undefined]);
+    expect(playing(gym)).toBe(true);
+    const grind = (applyIdleAction(town, { type: 'GRIND' }) as { state: IdleState }).state;
+    expect([grind.phase, grind.stopped]).toEqual(['grinding', undefined]);
+    // The store moves nothing: Stop stays.
+    expect((applyIdleAction(town, { type: 'VISIT_STORE' }) as { state: IdleState }).state.stopped).toBe(true);
   });
 
   it('quits auto-grinding on Stop (stopped where the player stands on its route) and on Continue run (to the town)', () => {
