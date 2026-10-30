@@ -80,8 +80,9 @@ LEAGUE = {
 CENTER = ('LavaridgeTown_PokemonCenter_1F', 'MAP_LAVARIDGE_TOWN', 'OBJ_EVENT_GFX_NURSE')
 # Gym puzzles the map data doesn't show solved (in the map's tiles): Mauville's electric barriers across the middle (4,7
 # and 5,7), open as its switches leave them. Fixes from the user, as for Kanto and Johto, go here too: tiles to make
-# walkable, links, Gym Trainer places.
+# walkable or unwalkable (Rustboro Gym's rock walls), links, Gym Trainer places.
 USER_WALKABLE = {'mauville': [(4, 7), (5, 7)]}
+USER_UNWALKABLE = {'rustboro': [(4, 14), (6, 14), (7, 14), (2, 12), (3, 12), (2, 10), (3, 10), (4, 8), (6, 8), (7, 8), (0, 5)] + [(x, 5) for x in range(3, 11)]}
 USER_LINKS = {}
 USER_GYM_TRAINER = {}
 
@@ -348,6 +349,8 @@ def place(repo, city, rows, info, cfg, names):
                 links.append((a, b))
     for t in USER_WALKABLE.get(city, []):
         rows[t[1]][t[0]] = '.'
+    for t in USER_UNWALKABLE.get(city, []):
+        rows[t[1]][t[0]] = '#'
     rows = [''.join(r) for r in rows]
     links += USER_LINKS.get(city, [])
     objs = info['events']['object_events']
