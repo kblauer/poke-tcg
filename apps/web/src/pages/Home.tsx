@@ -37,14 +37,23 @@ export function HomePage() {
   const { overview } = run;
   // Auto play follows the run: the route, the town, the gym, a Pokémon Center.
   useRunMusic();
-  // On a phone, once an encounter is over (its reward taken), the page jumps back up to its top (the user's: at once, not just
-  // to the route map's), to watch the player walk on to the next spot.
+  // On a phone, as an encounter is chosen and once it's over (its reward taken), the page jumps back up to its top (the
+  // user's: at once, not just to the route map's), to watch the player walk to it, then on to the next spot: the page's
+  // own scrolling box (`scroller`, the run screen scrolls inside it) and the window.
+  const scroller = useRef<HTMLDivElement>(null);
+  const toTop = () => {
+    scroller.current?.scrollTo({ top: 0, behavior: 'instant' });
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  };
   const phase = overview.data?.run?.view.phase;
   const lastPhase = useRef(phase);
   useEffect(() => {
-    if (phone && phase === 'map' && lastPhase.current === 'encounter') window.scrollTo({ top: 0, behavior: 'instant' });
+    if (phone && phase === 'map' && lastPhase.current === 'encounter') toTop();
     lastPhase.current = phase;
   }, [phase, phone]);
+  useEffect(() => {
+    if (phone && run.spotted) toTop();
+  }, [run.spotted, phone]);
   // A failed refetch keeps the run screen (and the map's walk) up with what it has.
   if (overview.error && !overview.data) return <p className={`${PAGE_WIDTH} text-red-400`}>{overview.error.message}</p>;
   if (!overview.data) return <p className={`${PAGE_WIDTH} text-slate-400`}>Loading…</p>;
@@ -96,7 +105,7 @@ export function HomePage() {
     // Cards show the large hover preview; the wheel still scrolls the page.
     <PreviewProvider scrollZoom={false}>
       <div ref={fill.ref} className="-mb-4 -mt-6 flex" style={fill.style}>
-        <div className={`min-w-0 flex-1 space-y-6 overflow-y-auto pb-4 pt-6 ${PAGE_WIDTH}`}>
+        <div ref={scroller} className={`min-w-0 flex-1 space-y-6 overflow-y-auto pb-4 pt-6 ${PAGE_WIDTH}`}>
           {run.error && <p className="rounded bg-red-400 px-3 py-2 text-sm font-medium text-slate-900">{run.error}</p>}
           {!current || !view ? (
             <>
