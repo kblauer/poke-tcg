@@ -2,7 +2,7 @@ import { inGrass, ledgeAt, onIce, onPath, onWater, type EncounterKind, type Rout
 import { useEffect, useRef, useState } from 'react';
 import { GRASS_FRAME_MS, RUSTLE, useTallGrass } from '../../hooks/useTallGrass';
 import { FADE_MS } from '../../hooks/useWalk';
-import { bobFrame, bobs, isItemBall, mirrored, spriteWidth, standFrame, stripFrames, walkFrame, waterSprite, type Facing, type SpriteSet } from '../../utils/overworld';
+import { bobFrame, bobs, isItemBall, mirrored, spriteWidth, standFrame, stripFrames, surfBobs, walkFrame, waterSprite, type Facing, type SpriteSet } from '../../utils/overworld';
 import { facing, type RouteFigure } from '../../utils/routeFigures';
 import { ENCOUNTER_STYLE } from './encounterIcons';
 
@@ -262,7 +262,7 @@ export function OverworldSprite({
     <div
       ref={el}
       title={title}
-      className={`absolute [image-rendering:pixelated] ${faded ? 'opacity-50' : ''}`}
+      className={`absolute [image-rendering:pixelated] ${faded ? 'opacity-50' : ''} ${surfBobs(name) ? SURF_BOB : ''}`}
       style={{
         transition: `left ${moveMs}ms linear, top ${moveMs}ms linear, opacity ${fadeMs}ms`,
         opacity: hidden ? 0 : undefined,
@@ -277,6 +277,7 @@ export function OverworldSprite({
         backgroundRepeat: 'no-repeat',
         transform: mirrored(name, face) ? 'scaleX(-1)' : undefined,
         ...(inGrass && sunk && GRASS_MASK),
+        ...(surfBobs(name) && SURF_MASK),
         zIndex: tile.y,
       }}
     />
@@ -383,6 +384,16 @@ const GRASS_MASK = (() => {
   const mask = `linear-gradient(to bottom, black ${line - GRASS_FADE / 2}px, transparent ${line + GRASS_FADE / 2}px)`;
   return { maskImage: mask, WebkitMaskImage: mask };
 })();
+
+/** Gen 3's surfing player's bottom fading into the water (the user's, in place of the sprite's hard edge), in map pixels. */
+const SURF_FADE = 3;
+const SURF_MASK = (() => {
+  const mask = `linear-gradient(to bottom, black ${32 - SURF_FADE}px, transparent 32px)`;
+  return { maskImage: mask, WebkitMaskImage: mask };
+})();
+
+/** The surf bob (index.css's `surf-bob`): on anything the surfing player carries along (the Idle Adventure's surf blob). */
+export const SURF_BOB = 'motion-safe:animate-[surf-bob_536ms_step-end_infinite]';
 
 /**
  * A speech bubble over a figure's head with its encounter's icon (ENCOUNTER_STYLE, as in the encounter panels), in map

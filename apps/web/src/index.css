@@ -223,6 +223,20 @@ html[data-font="emerald"] {
   to { translate: 0 1px; }
 }
 
+/* Gen 3's player surfing (OverworldSprite, surfBobs): bobbing on the water as the surf blob carries him, as Emerald's
+   UpdateBobbingEffect has it: a map pixel every 4 frames, up 4 and back down over 32 (536 ms, held between steps:
+   step-end; `translate`, so the sprite's mirroring and a ledge jump's transform stay). */
+@keyframes surf-bob {
+  0% { translate: 0 0; }
+  12.5% { translate: 0 -1px; }
+  25% { translate: 0 -2px; }
+  37.5% { translate: 0 -3px; }
+  50% { translate: 0 -4px; }
+  62.5% { translate: 0 -3px; }
+  75% { translate: 0 -2px; }
+  87.5% { translate: 0 -1px; }
+}
+
 /*
  * The board (components/PlayArea.tsx, with the turn bar between its two sides) sizes its cards to fill the space it has. PlayArea is the
  * size container; this inner element turns its size into card widths. Small cards (bench, prizes,

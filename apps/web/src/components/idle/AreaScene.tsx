@@ -5,7 +5,7 @@ import { placeTrack, type Playback } from '../../hooks/useIdle';
 import { usePanTo } from '../../hooks/usePan';
 import type { Facing } from '../../utils/overworld';
 import { DialogueBox, dialogueKey, type Dialogue } from '../DialogueBox';
-import { Exclamation, GrassTufts, OverworldSprite, TallGrass } from '../run/RouteSprites';
+import { Exclamation, GrassTufts, OverworldSprite, SURF_BOB, TallGrass } from '../run/RouteSprites';
 import { DIALOGUE_TEXT, GAME_HEIGHT, GAME_WIDTH, GameScreen, useGameScale } from './GameScreen';
 
 /** The text box's widest (the user's: bound to less than the scene's width), and never wider than the map drawn. */
@@ -158,7 +158,7 @@ const BLOB_FRAME: Record<Facing, number> = { down: 0, up: 2, left: 4, right: 4 }
 /**
  * The player fishing (the user's; object_event_anims.h): the rod taken out (frames 0 to 3) and held; on a bite, the rod
  * jerking (2 and 3, twice, then held a moment, over again); none, the rod put away (3 to 0). Surfing, on the surf blob
- * (a little below, as surf_frames draws Red surfing).
+ * (a little below, as surf_frames draws Red surfing), the two bobbing together (SURF_BOB).
  */
 function FishingSprite({ sprite, surfing, phase, stamp, tile, face }: { sprite: string; surfing: boolean; phase: 'cast' | 'hooked' | 'away'; stamp: number; tile: { x: number; y: number }; face: Facing }) {
   const [now, setNow] = useState(() => Date.now());
@@ -174,12 +174,12 @@ function FishingSprite({ sprite, surfing, phase, stamp, tile, face }: { sprite: 
     <>
       {surfing && (
         <div
-          className="absolute [image-rendering:pixelated]"
+          className={`absolute [image-rendering:pixelated] ${SURF_BOB}`}
           style={{ left: tile.x * 16 + 8 - 16, top: tile.y * 16 - 8, width: 32, height: 24, backgroundImage: 'url(/overworld/surf_blob.png)', backgroundSize: '192px 32px', backgroundPosition: `${-BLOB_FRAME[face] * 32}px 0`, transform: flip, zIndex: tile.y }}
         />
       )}
       <div
-        className="absolute [image-rendering:pixelated]"
+        className={`absolute [image-rendering:pixelated] ${surfing ? SURF_BOB : ''}`}
         style={{
           left: tile.x * 16 + 8 - 16,
           top: tile.y * 16 - 16,

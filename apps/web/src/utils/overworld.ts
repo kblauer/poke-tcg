@@ -53,6 +53,13 @@ export const bobs = (name: string) => BOBBING.has(name);
 export const bobFrame = (name: string, face: Facing) => 12 + HGSS_FRAME[face];
 export const BOB_MS = 450;
 
+/**
+ * Gen 3's players surfing (FireRed's and Emerald's): bobbing up and down on the water, still or moving, as the surf blob
+ * carries them (the `surf-bob` animation, index.css), their bottom fading into the water (OverworldSprite's SURF_MASK).
+ */
+const SURF_BOBBING = new Set(['red_surf', 'leaf_surf', 'rse/brendan_surf', 'rse/may_surf']);
+export const surfBobs = (name: string) => SURF_BOBBING.has(name);
+
 /** Frames in each strip. */
 export const STRIP_FRAMES = 9;
 export const stripFrames = (name: string) => (bobs(name) ? 16 : isHgss(name) ? 12 : STRIP_FRAMES);
