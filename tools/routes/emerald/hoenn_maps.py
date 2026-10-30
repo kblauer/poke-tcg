@@ -118,6 +118,9 @@ USER_ROUTE_TREETOPS = {'mauville': (8, 93)}
 # right, the two beside him above and below; the user's).
 USER_SPOT_FLOWS = {'mauville': {6: 'down', 8: 'right'}, 'lavaridge': {2: 'up'}}
 TREETOP_SAME = 0.75
+# Ledges jumped going down (the user's: Jagged Pass's rock ridges between two levels, 17-22,33 among them): every wall
+# with walkable tiles above and below drawn the same as one of these tiles (`ledges`), made a ledge ('v').
+USER_ROUTE_LEDGES = {'lavaridge': [(x, 33) for x in range(17, 23)]}
 USER_ROUTE_UNWALKABLE = {'mauville': [(x, 79) for x in range(14, 26)] + [(9, 32)] + [(x, 32) for x in range(14, 31)] + [(25, 29), (25, 15), (29, 15)]}
 USER_SPOTS = {'mauville': {1: (12, 91), 2: (28, 85), 3: (17, 78), 4: (18, 55), 5: (11, 53), 6: (12, 31), 7: (27, 30), 8: (28, 8), 9: (6, 14), 10: (12, 8)},
               'lavaridge': {1: (14, 3), 2: (17, 8), 3: (10, 20), 4: (14, 21), 5: (20, 20), 6: (22, 24), 7: (20, 32), 8: (9, 33), 9: (16, 34), 10: (14, 36)}}
@@ -281,6 +284,15 @@ def treetops(img, rows, ref):
             if sum(top[i:i + 3] == t[i:i + 3] for i in range(0, len(t), 3)) / (TILE * TILE) >= TREETOP_SAME:
                 out.append((x, y))
     return out
+
+
+def ledges(img, rows, refs):
+    """The walls that are ledges (USER_ROUTE_LEDGES): walkable tiles above and below them, and drawn as one of `refs`."""
+    src = img.convert('RGB')
+    tile = lambda x, y: src.crop((x * TILE, y * TILE, x * TILE + TILE, y * TILE + TILE)).tobytes()
+    looks = {tile(x, y) for x, y in refs}
+    h, w = len(rows), len(rows[0])
+    return [(x, y) for y in range(1, h - 1) for x in range(w) if rows[y][x] == '#' and rows[y - 1][x] == '.' and rows[y + 1][x] == '.' and tile(x, y) in looks]
 
 
 def route_ts(cfg, ent, spots, rows, grass, links=(), on_foot=False, spot_flows=None, exit=None, doors=False):
@@ -581,6 +593,11 @@ def main():
         for x, y in USER_ROUTE_UNWALKABLE.get(key, []):
             rows[y][x] = '#'
         rows = [''.join(r) for r in rows]
+        if key in USER_ROUTE_LEDGES:
+            rows = [list(r) for r in rows]
+            for x, y in ledges(img, [''.join(r) for r in rows], USER_ROUTE_LEDGES[key]):
+                rows[y][x] = 'v'
+            rows = [''.join(r) for r in rows]
         for n, t in USER_SPOTS.get(key, {}).items():
             spots[n - 1] = t
         ent = USER_ROUTE_ENTRANCE.get(key, ent)
