@@ -95,7 +95,7 @@ USER_GYM_TRAINER = {}
 # walkable and unwalkable, and spots moved (by encounter number, from 1).
 USER_ROUTE_WALKABLE = {'mauville': [(21, 78)]}
 USER_ROUTE_UNWALKABLE = {'mauville': [(x, 79) for x in range(14, 26)]}
-USER_SPOTS = {'mauville': {2: (17, 78)}}
+USER_SPOTS = {'mauville': {1: (12, 91), 2: (28, 85), 3: (17, 78), 4: (18, 69), 5: (18, 55), 6: (13, 43), 7: (5, 39), 8: (5, 28), 9: (6, 14), 10: (12, 8)}}
 
 
 # --- Walking ---

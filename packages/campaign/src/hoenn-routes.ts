@@ -181,6 +181,7 @@ export const ROUTE_110: Route = {
   width: 640,
   height: 1600,
   spots: [
+    { x: 12, y: 91 },
     { x: 28, y: 85 },
     { x: 17, y: 78 },
     { x: 18, y: 69 },
@@ -190,7 +191,6 @@ export const ROUTE_110: Route = {
     { x: 5, y: 28 },
     { x: 6, y: 14 },
     { x: 12, y: 8 },
-    { x: 15, y: 2 },
   ],
   walkable: [
     '############.......#########.###########',
