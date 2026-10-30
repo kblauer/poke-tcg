@@ -843,17 +843,19 @@ describe('Gen 3 runs', () => {
     }
   });
 
-  it("Route 110 (the Mauville City run) is walked up the sandy road, then ridden on a bike, most of its ridden trainers the Cycling Road's Triathletes", () => {
+  it("Route 110 (the Mauville City run) is walked up the sandy road, ridden along the Cycling Road and walked again to Mauville, most of its ridden trainers the Cycling Road's Triathletes", () => {
     const route = runType('mauville').routes![0]!;
     expect(route.travel).toBe('bike');
-    // On foot from its entrance to the gatehouse's left door (encounter 1 on the way), riding from its right door on.
+    // On foot from its entrance through the south gatehouse (encounter 1 on the way), riding out of it to the north
+    // gatehouse (encounters 2 to 8), on foot out of that one to its exit (encounters 9 and 10).
+    const foot = [0, 8, 9];
     expect(travelAt(route, route.entrance!)).toBeUndefined();
-    expect(travelAt(route, route.spots[0]!)).toBeUndefined();
-    expect(route.spots.slice(1).every((s) => travelAt(route, s) === 'bike')).toBe(true);
+    expect(route.spots.map((s) => travelAt(route, s))).toEqual(route.spots.map((_, i) => (foot.includes(i) ? undefined : 'bike')));
+    expect(travelAt(route, route.exit!)).toBeUndefined();
     const runs = Array.from({ length: 60 }, (_, seed) => createRun('mauville', deck, seed + 1).steps);
     const battles = (steps: RunState['steps']) => steps.flatMap((s) => s.options.filter((o) => o.kind === 'battle').map((o) => o.trainer!));
-    expect(battles(runs.map((s) => s[0]!)).filter((t) => t.startsWith('Triathlete '))).toEqual([]);
-    const ridden = battles(runs.flatMap((s) => s.slice(1, 10)));
+    expect(battles(runs.flatMap((s) => foot.map((i) => s[i]!))).filter((t) => t.startsWith('Triathlete '))).toEqual([]);
+    const ridden = battles(runs.flatMap((s) => s.slice(1, 8)));
     const share = ridden.filter((t) => t.startsWith('Triathlete ')).length / ridden.length;
     expect(share).toBeGreaterThan(0.7);
     expect(share).toBeLessThan(0.9);

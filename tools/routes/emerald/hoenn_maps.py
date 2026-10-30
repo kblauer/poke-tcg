@@ -92,14 +92,16 @@ USER_OVERHEAD_WHOLE = {'dewford': [(4, 23), (7, 23)]}
 USER_LINKS = {}
 USER_GYM_TRAINER = {}
 # The routes' fixes from the user, made after the spots are picked (so the rest stay where they were): tiles made
-# walkable and unwalkable, spots moved (by encounter number, from 1), the entrance, links (a building walked through:
-# its doors, fading between them) and the tile of a part walked on foot before the route's travel begins (`onFoot`).
-# Route 110: in at 17,99 from Slateport, up the sandy road on foot into the Cycling Road's gatehouse at 16,88 and out
-# of its other door, 19,88, on the bike (the user's).
-USER_ROUTE_WALKABLE = {'mauville': [(21, 78), (16, 88), (19, 88), (16, 55), (9, 57), (27, 24)]}
+# walkable and unwalkable, spots moved (by encounter number, from 1), the entrance and exit, links (a building walked
+# through: its doors, fading between them), and a route come into on foot (`onFoot`: each link switches the player
+# between on foot and its travel). Route 110 (the user's): in at 17,99 from Slateport, up the sandy road on foot into
+# the Cycling Road's south gatehouse at 16,88 and out of its other door, 19,88, on the bike; along the Cycling Road into
+# its north gatehouse at 18,16 and out at 15,16 on foot again, out of the route at 15,0.
+USER_ROUTE_WALKABLE = {'mauville': [(21, 78), (16, 88), (19, 88), (16, 55), (9, 57), (27, 24), (18, 16), (15, 16)]}
 USER_ROUTE_ENTRANCE = {'mauville': (17, 99)}
-USER_ROUTE_LINKS = {'mauville': [((16, 88), (19, 88))]}
-USER_ROUTE_ON_FOOT = {'mauville': (17, 99)}
+USER_ROUTE_EXIT = {'mauville': (15, 0)}
+USER_ROUTE_LINKS = {'mauville': [((16, 88), (19, 88)), ((18, 16), (15, 16))]}
+USER_ROUTE_ON_FOOT = {'mauville'}
 # Treetops made unwalkable (the user's: a tree's top over a tile the map lets the player onto): every walkable tile with
 # a wall (or the map's edge) below it that shares TREETOP_SAME of its pixels with the route's treetop at that tile.
 USER_ROUTE_TREETOPS = {'mauville': (8, 93)}
@@ -109,7 +111,7 @@ USER_ROUTE_TREETOPS = {'mauville': (8, 93)}
 USER_SPOT_FLOWS = {'mauville': {6: 'down', 8: 'right'}}
 TREETOP_SAME = 0.75
 USER_ROUTE_UNWALKABLE = {'mauville': [(x, 79) for x in range(14, 26)] + [(9, 32)] + [(x, 32) for x in range(14, 31)] + [(25, 29), (25, 15), (29, 15)]}
-USER_SPOTS = {'mauville': {1: (12, 91), 2: (28, 85), 3: (17, 78), 4: (18, 55), 5: (11, 53), 6: (12, 31), 7: (27, 30), 8: (30, 8), 9: (6, 14), 10: (12, 8)}}
+USER_SPOTS = {'mauville': {1: (12, 91), 2: (28, 85), 3: (17, 78), 4: (18, 55), 5: (11, 53), 6: (12, 31), 7: (27, 30), 8: (28, 8), 9: (6, 14), 10: (12, 8)}}
 
 
 # --- Walking ---
@@ -272,7 +274,7 @@ def treetops(img, rows, ref):
     return out
 
 
-def route_ts(cfg, ent, spots, rows, grass, links=(), on_foot=None, spot_flows=None):
+def route_ts(cfg, ent, spots, rows, grass, links=(), on_foot=False, spot_flows=None, exit=None):
     surf = cfg.get('surf')
     extra = "\n  travel: 'surf',\n  trainers: { names: SWIMMERS, share: 1 }," if surf else ''
     if cfg.get('land_spots'):
@@ -280,7 +282,7 @@ def route_ts(cfg, ent, spots, rows, grass, links=(), on_foot=None, spot_flows=No
     if cfg.get('bike'):
         extra = "\n  travel: 'bike',\n  trainers: { names: TRIATHLETES, share: 0.8 },"
     if on_foot:
-        extra += f'\n  onFoot: {{ x: {on_foot[0]}, y: {on_foot[1]} }},'
+        extra += '\n  onFoot: true,'
     if links:
         extra += '\n  links: [' + ', '.join(f'[{{ x: {a[0]}, y: {a[1]} }}, {{ x: {b[0]}, y: {b[1]} }}]' for a, b in links) + '],'
     if spot_flows:
@@ -293,7 +295,7 @@ def route_ts(cfg, ent, spots, rows, grass, links=(), on_foot=None, spot_flows=No
 export const {cfg['const']}: Route = {{
   flow: '{cfg['flow']}',
   sprites: 'rse',
-  entrance: {{ x: {ent[0]}, y: {ent[1]} }},{extra}
+  entrance: {{ x: {ent[0]}, y: {ent[1]} }},{f'{chr(10)}  exit: {{ x: {exit[0]}, y: {exit[1]} }},' if exit else ''}{extra}
   name: '{cfg['title']}',
   image: '/routes/{cfg['image']}',
   width: {len(rows[0]) * TILE},
@@ -567,7 +569,7 @@ def main():
         ent = USER_ROUTE_ENTRANCE.get(key, ent)
         img.save(os.path.join(PUBLIC, cfg['image']))
         preview(img, [('IN', ent, (0, 255, 0))] + [(str(i + 1), s, (255, 0, 0)) for i, s in enumerate(spots)], os.path.join(work, key + '-route.png'))
-        out.append(route_ts(cfg, ent, spots, rows, info['grass'], USER_ROUTE_LINKS.get(key, []), USER_ROUTE_ON_FOOT.get(key), USER_SPOT_FLOWS.get(key, {})))
+        out.append(route_ts(cfg, ent, spots, rows, info['grass'], USER_ROUTE_LINKS.get(key, []), key in USER_ROUTE_ON_FOOT, USER_SPOT_FLOWS.get(key, {}), USER_ROUTE_EXIT.get(key)))
         print('route', key, cfg['map'], 'entrance', ent, 'spots', spots)
     open(ROUTES_OUT, 'w', encoding='utf-8', newline='\n').write(ROUTES_HEAD + ''.join(out))
 

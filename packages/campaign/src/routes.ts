@@ -100,11 +100,11 @@ export interface Route {
   /** How the player gets along (Route 17: on a bike, walking twice as fast; Route 20: surfing its water, '~'); on foot otherwise. */
   travel?: 'bike' | 'surf';
   /**
-   * A tile of the part of the route walked on foot before the `travel` begins (travelAt): every walkable tile reached from
-   * it without going through a link (Route 110's sandy road from Slateport up to the Cycling Road's gatehouse, the user's:
-   * he walks in at its left door and rides out of its right one).
+   * The player comes in on foot, and each link he goes through switches him between on foot and the route's `travel`
+   * (travelAt): Route 110's, the user's, walked up the sandy road from Slateport into the Cycling Road's south gatehouse,
+   * ridden from its other door along the Cycling Road into its north gatehouse, walked again from there to Mauville.
    */
-  onFoot?: RouteSpot;
+  onFoot?: true;
   /**
    * The trainers met in battles here: `share` of them (each at random) one of `names` (Route 17's Bikers), the others any
    * trainer (TRAINERS in run.ts, but for these names' classes).
@@ -398,31 +398,53 @@ export const onIce = (route: Route, spot: RouteSpot) => route.ice?.[spot.y]?.[sp
 /** Whether a tile of a route is water surfed across (on a route tagged for surfing). */
 export const onWater = (route: Route, spot: RouteSpot) => route.travel === 'surf' && route.walkable[spot.y]?.[spot.x] === '~';
 
-/** Each route's part walked on foot (its `onFoot` area), by its tiles' keys, worked out once. */
-const footAreas = new WeakMap<Route, Set<string>>();
-const footArea = (route: Route) => {
-  let area = footAreas.get(route);
-  if (!area) {
-    area = new Set<string>();
-    const queue = route.onFoot ? [route.onFoot] : [];
-    for (const t of queue) area.add(`${t.x},${t.y}`);
-    while (queue.length) {
-      const { x, y } = queue.shift()!;
-      for (const n of [{ x: x + 1, y }, { x: x - 1, y }, { x, y: y + 1 }, { x, y: y - 1 }]) {
-        const key = `${n.x},${n.y}`;
-        if (!area.has(key) && onPath(route, n)) {
-          area.add(key);
-          queue.push(n);
-        }
+type Travel = Route['travel'];
+
+/**
+ * How the player gets along on each tile of a route that comes in on foot (`onFoot`), by tile key, worked out once: along
+ * its walk (from the entrance to each spot in turn, then the exit; routePath), on foot from the entrance and switched at
+ * each link he goes through.
+ */
+const walkTravels = new WeakMap<Route, Map<string, Travel>>();
+const walkTravel = (route: Route) => {
+  let travels = walkTravels.get(route);
+  if (!travels) {
+    travels = new Map<string, Travel>();
+    let travel: Travel = undefined;
+    const stops = [route.entrance, ...route.spots, route.exit].filter((s): s is RouteSpot => !!s);
+    travels.set(tileKey(stops[0]!), travel);
+    for (let i = 1; i < stops.length; i++) {
+      for (const step of routePath(route, stops[i - 1]!, stops[i]!) ?? []) {
+        if (step.fade) travel = travel ? undefined : route.travel;
+        travels.set(tileKey(step.tile), travel);
       }
     }
-    footAreas.set(route, area);
+    walkTravels.set(route, travels);
   }
-  return area;
+  return travels;
 };
 
-/** How the player gets along on a tile: the route's `travel`, but on foot in its `onFoot` area. */
-export const travelAt = (route: Route, spot: RouteSpot) => (route.onFoot && footArea(route).has(`${spot.x},${spot.y}`) ? undefined : route.travel);
+/**
+ * How the player gets along on a tile: the route's `travel`; on a route that comes in on foot (`onFoot`), as its walk has
+ * it there, or off the walk (around someone in the way) as at the walk's nearest tile.
+ */
+export const travelAt = (route: Route, spot: RouteSpot): Travel => {
+  if (!route.onFoot) return route.travel;
+  const travels = walkTravel(route);
+  const seen = new Set([tileKey(spot)]);
+  const queue = [spot];
+  for (const { x, y } of queue) {
+    const here = tileKey({ x, y });
+    if (travels.has(here)) return travels.get(here);
+    for (const n of [{ x: x + 1, y }, { x: x - 1, y }, { x, y: y + 1 }, { x, y: y - 1 }]) {
+      if (!seen.has(tileKey(n)) && onPath(route, n)) {
+        seen.add(tileKey(n));
+        queue.push(n);
+      }
+    }
+  }
+  return route.travel;
+};
 
 /**
  * A gym leader's part of their gym, for a run that goes straight to them (the Gym Challenge, the Champion run; agreed with
