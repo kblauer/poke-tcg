@@ -82,6 +82,9 @@ CENTER = ('LavaridgeTown_PokemonCenter_1F', 'MAP_LAVARIDGE_TOWN', 'OBJ_EVENT_GFX
 # and 5,7), open as its switches leave them. Fixes from the user, as for Kanto and Johto, go here too: tiles to make
 # walkable, links, Gym Trainer places.
 USER_WALKABLE = {'mauville': [(4, 7), (5, 7)]}
+# Tiles whose wall is drawn over the people standing on them (Rustboro Gym's rock walls: the top of each wall's face runs
+# through the tile, the player walking behind it), cut from the map's picture into its overhead image (wall_overhead).
+USER_OVERHEAD = {'rustboro': [(4, 14), (6, 14), (7, 14), (2, 12), (3, 12), (2, 10), (3, 10), (4, 8), (6, 8), (7, 8), (0, 5)] + [(x, 5) for x in range(3, 11)]}
 USER_LINKS = {}
 USER_GYM_TRAINER = {}
 
@@ -405,8 +408,26 @@ def entrance_near(rows, spot, links=()):
     return spot
 
 
-def gym_ts(const, title, doc, image, rows, door, spots, stands, npcs=(), links=()):
+# The rock walls' dark outline (Rustboro Gym's), where a wall's face begins down a tile.
+OUTLINE = (65, 74, 106)
+
+
+def wall_overhead(img, tiles):
+    """The map's overhead image (see-through but for the walls of `tiles`): down each column of each tile, from the wall's
+    outline to the tile's foot, so a person standing there is behind the wall's top."""
+    src = img.convert('RGBA')
+    top = Image.new('RGBA', src.size, (0, 0, 0, 0))
+    for tx, ty in tiles:
+        for x in range(tx * TILE, tx * TILE + TILE):
+            start = next((y for y in range(ty * TILE, ty * TILE + TILE) if src.getpixel((x, y))[:3] == OUTLINE), None)
+            for y in range(start if start is not None else ty * TILE + TILE, ty * TILE + TILE):
+                top.putpixel((x, y), src.getpixel((x, y)))
+    return top
+
+
+def gym_ts(const, title, doc, image, rows, door, spots, stands, npcs=(), links=(), overhead=None):
     links_ = '\n  links: [' + ', '.join(f'[{{ x: {a[0]}, y: {a[1]} }}, {{ x: {b[0]}, y: {b[1]} }}]' for a, b in links) + '],' if links else ''
+    overhead_ = f"\n  overhead: '/routes/{overhead}'," if overhead else ''
     name = f'"{title}"' if "'" in title else f"'{title}'"
     npcs_ = ''
     if npcs:
@@ -417,7 +438,7 @@ export const {const}: Route = {{
   flow: 'up',
   sprites: 'rse',
   name: {name},
-  image: '/routes/{image}',
+  image: '/routes/{image}',{overhead_}
   width: {len(rows[0]) * TILE},
   height: {len(rows) * TILE},
   entrance: {{ x: {door[0]}, y: {door[1]} }},{links_}
@@ -480,6 +501,10 @@ def main():
         problems += gaps
         image = f'{city}_gym.png'
         img.save(os.path.join(PUBLIC, image))
+        overhead = None
+        if city in USER_OVERHEAD:
+            overhead = f'{city}_gym_overhead.png'
+            wall_overhead(img, USER_OVERHEAD[city]).save(os.path.join(PUBLIC, overhead))
         npcs = []
         if guide:
             npcs.append((guide_sprite, guide, 'down'))
@@ -491,7 +516,7 @@ def main():
             doc += f', Liza beside Tate ({partner[0]},{partner[1]})'
         if links:
             doc += ', its rooms joined through their doors (' + '; '.join(f'{a[0]},{a[1]} to {b[0]},{b[1]}' for a, b in links) + ')'
-        out.append(gym_ts(const, title, doc + '.', image, rows, door, spots, stands, npcs, links))
+        out.append(gym_ts(const, title, doc + '.', image, rows, door, spots, stands, npcs, links, overhead))
         entrances[city] = (entrance_near(rows, spots[1], links), links)
         trainers = gym_trainers(repo, [leader_map] + others, names, [leader_map] + others)
         print('gym', city, 'door', door, 'spots', spots, 'stands', stands, 'trainer', tname, 'links', links)

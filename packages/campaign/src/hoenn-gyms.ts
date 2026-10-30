@@ -16,6 +16,7 @@ export const RUSTBORO_GYM: Route = {
   sprites: 'rse',
   name: 'Rustboro Gym',
   image: '/routes/rustboro_gym.png',
+  overhead: '/routes/rustboro_gym_overhead.png',
   width: 176,
   height: 320,
   entrance: { x: 5, y: 19 },
