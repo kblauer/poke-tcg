@@ -416,7 +416,7 @@ export const JAGGED_PASS: Route = {
   height: 736,
   spots: [
     { x: 14, y: 3 },
-    { x: 17, y: 8 },
+    { x: 18, y: 8 },
     { x: 10, y: 20 },
     { x: 14, y: 21 },
     { x: 20, y: 20 },
