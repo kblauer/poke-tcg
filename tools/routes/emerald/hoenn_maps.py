@@ -96,7 +96,7 @@ USER_GYM_TRAINER = {}
 # its doors, fading between them) and the tile of a part walked on foot before the route's travel begins (`onFoot`).
 # Route 110: in at 17,99 from Slateport, up the sandy road on foot into the Cycling Road's gatehouse at 16,88 and out
 # of its other door, 19,88, on the bike (the user's).
-USER_ROUTE_WALKABLE = {'mauville': [(21, 78), (16, 88), (19, 88)]}
+USER_ROUTE_WALKABLE = {'mauville': [(21, 78), (16, 88), (19, 88), (16, 55), (9, 57), (27, 24)]}
 USER_ROUTE_ENTRANCE = {'mauville': (17, 99)}
 USER_ROUTE_LINKS = {'mauville': [((16, 88), (19, 88))]}
 USER_ROUTE_ON_FOOT = {'mauville': (17, 99)}
@@ -104,7 +104,7 @@ USER_ROUTE_ON_FOOT = {'mauville': (17, 99)}
 # a wall (or the map's edge) below it that shares TREETOP_SAME of its pixels with the route's treetop at that tile.
 USER_ROUTE_TREETOPS = {'mauville': (8, 93)}
 TREETOP_SAME = 0.75
-USER_ROUTE_UNWALKABLE = {'mauville': [(x, 79) for x in range(14, 26)] + [(9, 32)] + [(x, 32) for x in range(14, 31)]}
+USER_ROUTE_UNWALKABLE = {'mauville': [(x, 79) for x in range(14, 26)] + [(9, 32)] + [(x, 32) for x in range(14, 31)] + [(25, 29), (25, 15), (29, 15)]}
 USER_SPOTS = {'mauville': {1: (12, 91), 2: (28, 85), 3: (17, 78), 4: (18, 55), 5: (11, 53), 6: (13, 43), 7: (5, 39), 8: (5, 28), 9: (6, 14), 10: (12, 8)}}
 
 
