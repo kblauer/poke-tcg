@@ -103,9 +103,12 @@ USER_ROUTE_ON_FOOT = {'mauville': (17, 99)}
 # Treetops made unwalkable (the user's: a tree's top over a tile the map lets the player onto): every walkable tile with
 # a wall (or the map's edge) below it that shares TREETOP_SAME of its pixels with the route's treetop at that tile.
 USER_ROUTE_TREETOPS = {'mauville': (8, 93)}
+# Spots whose figures go another way than the map's flow (by encounter number, from 1; the Route's `spotFlows`): the
+# third figure, past the two beside the player, in line ahead the way given (Route 110's encounter 6: south, the user's).
+USER_SPOT_FLOWS = {'mauville': {6: 'down'}}
 TREETOP_SAME = 0.75
 USER_ROUTE_UNWALKABLE = {'mauville': [(x, 79) for x in range(14, 26)] + [(9, 32)] + [(x, 32) for x in range(14, 31)] + [(25, 29), (25, 15), (29, 15)]}
-USER_SPOTS = {'mauville': {1: (12, 91), 2: (28, 85), 3: (17, 78), 4: (18, 55), 5: (11, 53), 6: (13, 43), 7: (5, 39), 8: (5, 28), 9: (6, 14), 10: (12, 8)}}
+USER_SPOTS = {'mauville': {1: (12, 91), 2: (28, 85), 3: (17, 78), 4: (18, 55), 5: (11, 53), 6: (12, 31), 7: (27, 30), 8: (5, 28), 9: (6, 14), 10: (12, 8)}}
 
 
 # --- Walking ---
@@ -268,7 +271,7 @@ def treetops(img, rows, ref):
     return out
 
 
-def route_ts(cfg, ent, spots, rows, grass, links=(), on_foot=None):
+def route_ts(cfg, ent, spots, rows, grass, links=(), on_foot=None, spot_flows=None):
     surf = cfg.get('surf')
     extra = "\n  travel: 'surf',\n  trainers: { names: SWIMMERS, share: 1 }," if surf else ''
     if cfg.get('land_spots'):
@@ -279,6 +282,8 @@ def route_ts(cfg, ent, spots, rows, grass, links=(), on_foot=None):
         extra += f'\n  onFoot: {{ x: {on_foot[0]}, y: {on_foot[1]} }},'
     if links:
         extra += '\n  links: [' + ', '.join(f'[{{ x: {a[0]}, y: {a[1]} }}, {{ x: {b[0]}, y: {b[1]} }}]' for a, b in links) + '],'
+    if spot_flows:
+        extra += '\n  spotFlows: { ' + ', '.join(f"{n - 1}: '{f}'" for n, f in sorted(spot_flows.items())) + ' },'
     grass_ts = ''
     if any(any(r) for r in grass):
         grass_ts = '\n  grass: [\n' + '\n'.join("    '" + ''.join('g' if g else '.' for g in r) + "'," for r in grass) + '\n  ],'
@@ -561,7 +566,7 @@ def main():
         ent = USER_ROUTE_ENTRANCE.get(key, ent)
         img.save(os.path.join(PUBLIC, cfg['image']))
         preview(img, [('IN', ent, (0, 255, 0))] + [(str(i + 1), s, (255, 0, 0)) for i, s in enumerate(spots)], os.path.join(work, key + '-route.png'))
-        out.append(route_ts(cfg, ent, spots, rows, info['grass'], USER_ROUTE_LINKS.get(key, []), USER_ROUTE_ON_FOOT.get(key)))
+        out.append(route_ts(cfg, ent, spots, rows, info['grass'], USER_ROUTE_LINKS.get(key, []), USER_ROUTE_ON_FOOT.get(key), USER_SPOT_FLOWS.get(key, {})))
         print('route', key, cfg['map'], 'entrance', ent, 'spots', spots)
     open(ROUTES_OUT, 'w', encoding='utf-8', newline='\n').write(ROUTES_HEAD + ''.join(out))
 
