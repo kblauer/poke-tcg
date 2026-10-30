@@ -81,7 +81,8 @@ CENTER = ('LavaridgeTown_PokemonCenter_1F', 'MAP_LAVARIDGE_TOWN', 'OBJ_EVENT_GFX
 # Gym puzzles the map data doesn't show solved (in the map's tiles): Mauville's electric barriers across the middle (4,7
 # and 5,7), open as its switches leave them. Fixes from the user, as for Kanto and Johto, go here too: tiles to make
 # walkable or unwalkable, links, Gym Trainer places.
-USER_WALKABLE = {'mauville': [(4, 7), (5, 7)]}
+# Lavaridge Gym's warp at 8,9 (a sand geyser at the top of the corridor) to 12,12 in Flannery's room, the user's.
+USER_WALKABLE = {'mauville': [(4, 7), (5, 7)], 'lavaridge': [(8, 9), (12, 12)]}
 # Tiles of a gym's picture drawn over with another of its tiles (from, to): Mauville Gym's open barrier between its
 # pylons, 4-5,6-7, as its plain floor (4,5; the user's).
 USER_TILE_COPIES = {'mauville': [((4, 5), (x, y)) for y in (6, 7) for x in (4, 5)]}
@@ -92,8 +93,9 @@ USER_UNWALKABLE = {'dewford': [(5, 24)]}
 USER_OVERHEAD = {'rustboro': [(4, 14), (6, 14), (7, 14), (2, 12), (3, 12), (2, 10), (3, 10), (4, 8), (6, 8), (7, 8), (0, 5)] + [(x, 5) for x in range(3, 11)], 'dewford': 'walls'}
 # Tiles drawn whole over the people on them (Dewford Gym's statues' tops: the player all but hidden behind them, the user's).
 USER_OVERHEAD_WHOLE = {'dewford': [(4, 23), (7, 23)]}
-USER_LINKS = {}
-USER_GYM_TRAINER = {}
+USER_LINKS = {'lavaridge': [((8, 9), (12, 12))]}
+# The Gym Trainer's spot (the player's) and where they stand (the user's).
+USER_GYM_TRAINER = {'lavaridge': {'spot': (9, 13), 'stand': (8, 13)}}
 # The routes' fixes from the user, made after the spots are picked (so the rest stay where they were): tiles made
 # walkable and unwalkable, spots moved (by encounter number, from 1), the entrance and exit, links (a building walked
 # through: its doors, fading between them), and a route come into on foot (`onFoot`: each link switches the player
@@ -459,6 +461,7 @@ def place(repo, city, rows, info, cfg, names):
     user = USER_GYM_TRAINER.get(city)
     if user:
         tspot, tstand = user['spot'], user['stand']
+        tname = "no one (the user's place)"
     guide = next(((o['x'], o['y']) for o in objs if 'GymGuide' in o.get('script', '')), None)
     guide_sprite = next((sprite_name(o['graphics_id']) for o in objs if 'GymGuide' in o.get('script', '')), None)
     gaps = []

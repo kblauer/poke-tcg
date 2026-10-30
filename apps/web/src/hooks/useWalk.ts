@@ -107,9 +107,11 @@ export function useWalk({
         const face = facing(i ? path[i - 1]!.tile : begin, tile);
         if (fade) {
           // Through a building's doors (the map's `doors`): fading out still facing up, into it, and back in facing down.
+          // Through any other link (a warp panel, stairs): facing as he came onto it, from fading out to fading back in
+          // (the user's: Lavaridge Gym's warps).
           later(t, () => setWalker((w) => ({ ...w, walking: false, hidden: true, through: true, ...(on.doors && { face: 'up' as const }) })));
           later(t + ms.fade, () => {
-            setWalker({ section: onSection, tile, face: on.doors ? 'down' : face, walking: false, hidden: true, through: true });
+            setWalker((w) => ({ section: onSection, tile, face: on.doors ? 'down' : w.face, walking: false, hidden: true, through: true }));
             setGlide({ ms: ms.through, ease: 'ease-in-out' });
             setOffset(centreOnMap(on, tile));
           });

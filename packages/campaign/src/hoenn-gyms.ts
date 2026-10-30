@@ -147,7 +147,7 @@ export const MAUVILLE_GYM: Route = {
   ],
 };
 
-/** Lavaridge Gym, the leader's room: the Gym Trainer where no one (halfway along the walk) stands (11,14), the leader in their place (13,9). */
+/** Lavaridge Gym, the leader's room: the Gym Trainer where no one (the user's place) stands (8,13), the leader in their place (13,9), its rooms joined through their doors (8,9 to 12,12). */
 export const LAVARIDGE_GYM: Route = {
   flow: 'up',
   sprites: 'rse',
@@ -156,12 +156,13 @@ export const LAVARIDGE_GYM: Route = {
   width: 272,
   height: 304,
   entrance: { x: 13, y: 18 },
+  links: [[{ x: 8, y: 9 }, { x: 12, y: 12 }]],
   spots: [
-    { x: 12, y: 14 },
+    { x: 9, y: 13 },
     { x: 13, y: 10 },
   ],
   stands: [
-    { x: 11, y: 14 },
+    { x: 8, y: 13 },
     { x: 13, y: 9 },
   ],
   npcs: [{ sprite: 'rse/man_2', tile: { x: 12, y: 16 }, face: 'down' }],
@@ -175,10 +176,10 @@ export const LAVARIDGE_GYM: Route = {
     '#..#.##.#.##..#.#',
     '#################',
     '#################',
-    '....##.##.##...##',
+    '....##.#..##...##',
     '#..##..#..##...##',
     '....#..#..#.....#',
-    '....#..#..#.#...#',
+    '....#..#..#.....#',
     '....#..#..#.....#',
     '.#.###.#..#.....#',
     '..#.#..#..#.....#',
