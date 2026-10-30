@@ -278,7 +278,7 @@ export function OverworldSprite({
         backgroundRepeat: 'no-repeat',
         transform: mirrored(name, face) ? 'scaleX(-1)' : undefined,
         ...(inGrass && sunk && GRASS_MASK),
-        ...(surfBobs(name) && (spriteHeight(name) === 32 || face === 'left' || face === 'right') && SURF_MASK),
+        ...(surfBobs(name) && spriteHeight(name) === 32 && SURF_MASK),
         zIndex: tile.y,
       }}
     />
@@ -388,8 +388,8 @@ const GRASS_MASK = (() => {
 
 /**
  * Gen 3's surfing player's bottom fading into the water (the user's, in place of the sprite's hard edge), in map pixels;
- * but Brendan's and May's facing down or up (the user's: those are Emerald's whole, the blob under it round to its bottom:
- * spriteHeight).
+ * FireRed's Red's and Leaf's only (the user's: Brendan's and May's are Emerald's whole, the blob under them round to its
+ * bottom: spriteHeight).
  */
 const SURF_FADE = 3;
 const SURF_MASK = (() => {

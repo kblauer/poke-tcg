@@ -72,7 +72,7 @@ const WIDE = new Set(['biker', 'red_bike', 'red_surf', 'leaf_bike', 'leaf_surf',
 export const spriteWidth = (name: string) => (WIDE.has(name) || isHgss(name) ? 32 : 16);
 /**
  * A sprite's height in map pixels: 32, but Brendan's and May's surfing, 40, the surf blob's bottom below the rider (the
- * user's: facing down and up the whole blob, as Emerald draws it; emerald_sprites.py's SURF_HEIGHT), drawn from the same top.
+ * user's: the whole blob, as Emerald draws it; emerald_sprites.py's SURF_HEIGHT), drawn from the same top.
  */
 const TALL = new Set(['rse/brendan_surf', 'rse/may_surf']);
 export const spriteHeight = (name: string) => (TALL.has(name) ? 40 : 32);
