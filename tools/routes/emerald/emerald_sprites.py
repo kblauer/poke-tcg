@@ -175,8 +175,23 @@ def strip(frames):
     return out
 
 
+def trim_flare(f):
+    """The blob facing down without its bottom two rows' flare (the user's: a fringe past the rows above, where they fade
+    into the water): their pixels outside the row above's ends cleared."""
+    px = f.load()
+    body = [x for x in range(32) if px[x, 29][3]]
+    if not body:
+        return f
+    for y in (30, 31):
+        for x in range(32):
+            if x < min(body) or x > max(body):
+                px[x, y] = (0, 0, 0, 0)
+    return f
+
+
 def surf_frames(g, repo, who='BRENDAN'):
-    """Brendan (or May) on the surf blob, in their palette: the blob's frame for each facing (down, up, left) under theirs."""
+    """Brendan (or May) on the surf blob, in their palette: the blob's frame for each facing (down, up, left) under theirs,
+    facing down without its bottom's flare (trim_flare)."""
     rider = g.frames(f'OBJ_EVENT_GFX_{who}_SURFING')
     blob_sheet = Image.open(os.path.join(repo, 'graphics', 'field_effects', 'pics', 'surf_blob.png'))
     pal = g.palette(f'OBJ_EVENT_PAL_TAG_{who}')
@@ -188,7 +203,7 @@ def surf_frames(g, repo, who='BRENDAN'):
         # The blob a little below him, as the game draws it (he sits on its back).
         f.alpha_composite(blobs[facing[i]].crop((0, 0, 32, 24)), (0, 8))
         f.alpha_composite(rider[i], (0, 0))
-        out.append(f)
+        out.append(trim_flare(f) if facing[i] == 0 else f)
     return out
 
 
