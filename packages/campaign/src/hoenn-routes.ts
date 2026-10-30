@@ -600,6 +600,7 @@ export const ROUTE_119: Route = {
   entrance: { x: 20, y: 138 },
   name: 'Route 119',
   image: '/routes/route119.png',
+  overhead: '/routes/route119_overhead.png',
   width: 640,
   height: 2240,
   spots: [

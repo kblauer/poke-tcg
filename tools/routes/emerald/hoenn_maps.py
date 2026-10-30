@@ -117,6 +117,9 @@ USER_ROUTE_DOORS = {'mauville'}
 # Treetops made unwalkable (the user's: a tree's top over a tile the map lets the player onto): every walkable tile with
 # a wall (or the map's edge) below it that shares TREETOP_SAME of its pixels with the route's treetop at that tile.
 USER_ROUTE_TREETOPS = {'mauville': (8, 93)}
+# Treetops drawn over the player standing on them instead (the user's: Route 119's), found as `treetops` finds them and
+# copied whole into the route's overhead image (<image>_overhead.png).
+USER_ROUTE_TREETOP_OVERHEAD = {'fortree': (17, 121)}
 # Spots whose figures go another way than the map's flow (by encounter number, from 1; the Route's `spotFlows`): the
 # third figure, past the two beside the player, in line ahead the way given (Route 110's encounter 6: south; its 8th's
 # right, the two beside him above and below; the user's).
@@ -302,7 +305,7 @@ def ledges(img, rows, refs):
     return [(x, y) for y in range(1, h - 1) for x in range(w) if rows[y][x] == '#' and rows[y - 1][x] == '.' and rows[y + 1][x] == '.' and tile(x, y) in looks]
 
 
-def route_ts(cfg, ent, spots, rows, grass, links=(), on_foot=False, spot_flows=None, exit=None, doors=False):
+def route_ts(cfg, ent, spots, rows, grass, links=(), on_foot=False, spot_flows=None, exit=None, doors=False, overhead=None):
     surf = cfg.get('surf')
     extra = "\n  travel: 'surf',\n  trainers: { names: SWIMMERS, share: 1 }," if surf else ''
     if cfg.get('land_spots'):
@@ -327,7 +330,7 @@ export const {cfg['const']}: Route = {{
   sprites: 'rse',
   entrance: {{ x: {ent[0]}, y: {ent[1]} }},{f'{chr(10)}  exit: {{ x: {exit[0]}, y: {exit[1]} }},' if exit else ''}{extra}
   name: '{cfg['title']}',
-  image: '/routes/{cfg['image']}',
+  image: '/routes/{cfg['image']}',{f"{chr(10)}  overhead: '/routes/{overhead}'," if overhead else ''}
   width: {len(rows[0]) * TILE},
   height: {len(rows) * TILE},
   spots: [
@@ -593,6 +596,10 @@ def main():
         rows = route_rows(info, cfg)
         ent, spots = pick(key, rows, info, cfg)
         tops = treetops(img, rows, USER_ROUTE_TREETOPS[key]) if key in USER_ROUTE_TREETOPS else []
+        overhead = None
+        if key in USER_ROUTE_TREETOP_OVERHEAD:
+            overhead = cfg['image'].replace('.png', '_overhead.png')
+            wall_overhead(img, [], treetops(img, rows, USER_ROUTE_TREETOP_OVERHEAD[key])).save(os.path.join(PUBLIC, overhead))
         rows = [list(r) for r in rows]
         for x, y in tops:
             rows[y][x] = '#'
@@ -611,7 +618,7 @@ def main():
         ent = USER_ROUTE_ENTRANCE.get(key, ent)
         img.save(os.path.join(PUBLIC, cfg['image']))
         preview(img, [('IN', ent, (0, 255, 0))] + [(str(i + 1), s, (255, 0, 0)) for i, s in enumerate(spots)], os.path.join(work, key + '-route.png'))
-        out.append(route_ts(cfg, ent, spots, rows, info['grass'], USER_ROUTE_LINKS.get(key, []), key in USER_ROUTE_ON_FOOT, USER_SPOT_FLOWS.get(key, {}), USER_ROUTE_EXIT.get(key), key in USER_ROUTE_DOORS))
+        out.append(route_ts(cfg, ent, spots, rows, info['grass'], USER_ROUTE_LINKS.get(key, []), key in USER_ROUTE_ON_FOOT, USER_SPOT_FLOWS.get(key, {}), USER_ROUTE_EXIT.get(key), key in USER_ROUTE_DOORS, overhead))
         print('route', key, cfg['map'], 'entrance', ent, 'spots', spots)
     open(ROUTES_OUT, 'w', encoding='utf-8', newline='\n').write(ROUTES_HEAD + ''.join(out))
 
