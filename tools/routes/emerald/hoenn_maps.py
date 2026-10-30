@@ -104,11 +104,12 @@ USER_ROUTE_ON_FOOT = {'mauville': (17, 99)}
 # a wall (or the map's edge) below it that shares TREETOP_SAME of its pixels with the route's treetop at that tile.
 USER_ROUTE_TREETOPS = {'mauville': (8, 93)}
 # Spots whose figures go another way than the map's flow (by encounter number, from 1; the Route's `spotFlows`): the
-# third figure, past the two beside the player, in line ahead the way given (Route 110's encounter 6: south, the user's).
-USER_SPOT_FLOWS = {'mauville': {6: 'down'}}
+# third figure, past the two beside the player, in line ahead the way given (Route 110's encounter 6: south; its 8th's
+# right, the two beside him above and below; the user's).
+USER_SPOT_FLOWS = {'mauville': {6: 'down', 8: 'right'}}
 TREETOP_SAME = 0.75
 USER_ROUTE_UNWALKABLE = {'mauville': [(x, 79) for x in range(14, 26)] + [(9, 32)] + [(x, 32) for x in range(14, 31)] + [(25, 29), (25, 15), (29, 15)]}
-USER_SPOTS = {'mauville': {1: (12, 91), 2: (28, 85), 3: (17, 78), 4: (18, 55), 5: (11, 53), 6: (12, 31), 7: (27, 30), 8: (5, 28), 9: (6, 14), 10: (12, 8)}}
+USER_SPOTS = {'mauville': {1: (12, 91), 2: (28, 85), 3: (17, 78), 4: (18, 55), 5: (11, 53), 6: (12, 31), 7: (27, 30), 8: (30, 8), 9: (6, 14), 10: (12, 8)}}
 
 
 # --- Walking ---
