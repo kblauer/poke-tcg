@@ -106,8 +106,8 @@ USER_ROUTE_WALKABLE = {'mauville': [(21, 78), (16, 88), (19, 88), (16, 55), (9, 
                        # Jagged Pass's ash path down from Mt. Chimney (12-15,0-3, 13-14,4) and its wooden steps (13-14,5);
                        # its dirt path out to Lavaridge (14-15,40-43).
                        'lavaridge': [(x, y) for y in range(4) for x in range(12, 16)] + [(13, 4), (14, 4), (13, 5), (14, 5)] + [(x, y) for y in range(40, 44) for x in (14, 15)],
-                       # Route 102's tiles walls before (the user's): 18,11, 19,4 (encounter 8) and 25,15.
-                       'petalburg': [(18, 11), (19, 4), (25, 15)]}
+                       # Route 102's tiles walls before (the user's): 18,11, 19,4 (encounter 8), 25,15 and 37,4.
+                       'petalburg': [(18, 11), (19, 4), (25, 15), (37, 4)]}
 USER_ROUTE_ENTRANCE = {'mauville': (17, 99), 'lavaridge': (14, 0), 'petalburg': (49, 10)}
 USER_ROUTE_EXIT = {'mauville': (15, 0), 'lavaridge': (15, 43)}
 USER_ROUTE_LINKS = {'mauville': [((16, 88), (19, 88)), ((18, 16), (15, 16))]}
@@ -120,7 +120,9 @@ USER_ROUTE_TREETOPS = {'mauville': (8, 93)}
 # Spots whose figures go another way than the map's flow (by encounter number, from 1; the Route's `spotFlows`): the
 # third figure, past the two beside the player, in line ahead the way given (Route 110's encounter 6: south; its 8th's
 # right, the two beside him above and below; the user's).
-USER_SPOT_FLOWS = {'mauville': {6: 'down', 8: 'right'}, 'lavaridge': {2: 'up'}}
+USER_SPOT_FLOWS = {'mauville': {6: 'down', 8: 'right'}, 'lavaridge': {2: 'up'},
+                   # Route 102 flows left: its encounters 2, 3 and 6 with their figures either side (the user's), the third above.
+                   'petalburg': {2: 'up', 3: 'up', 6: 'up'}}
 TREETOP_SAME = 0.75
 # Ledges jumped going down (the user's: Jagged Pass's rock ridges between two levels, 17-22,33 among them): every wall
 # with walkable tiles above and below drawn the same as one of these tiles (`ledges`), made a ledge ('v').
@@ -128,7 +130,7 @@ USER_ROUTE_LEDGES = {'lavaridge': [(x, 33) for x in range(17, 23)]}
 USER_ROUTE_UNWALKABLE = {'mauville': [(x, 79) for x in range(14, 26)] + [(9, 32)] + [(x, 32) for x in range(14, 31)] + [(25, 29), (25, 15), (29, 15)]}
 USER_SPOTS = {'mauville': {1: (12, 91), 2: (28, 85), 3: (17, 78), 4: (18, 55), 5: (11, 53), 6: (12, 31), 7: (27, 30), 8: (28, 8), 9: (6, 14), 10: (12, 8)},
               'lavaridge': {1: (14, 3), 2: (18, 8), 3: (10, 20), 4: (14, 21), 5: (20, 20), 6: (22, 24), 7: (20, 32), 8: (16, 34), 9: (9, 33), 10: (14, 36)},
-              'petalburg': {1: (44, 9), 2: (37, 5), 3: (38, 11), 4: (21, 15), 5: (25, 17), 6: (19, 13), 7: (27, 4), 8: (19, 4), 9: (10, 4), 10: (3, 8)}}
+              'petalburg': {1: (44, 9), 2: (37, 5), 3: (38, 13), 4: (31, 15), 5: (25, 17), 6: (19, 12), 7: (27, 4), 8: (19, 4), 9: (10, 4), 10: (3, 8)}}
 
 
 # --- Walking ---
