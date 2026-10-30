@@ -2,7 +2,7 @@ import { inGrass, ledgeAt, onIce, onPath, onWater, type EncounterKind, type Rout
 import { useEffect, useRef, useState } from 'react';
 import { GRASS_FRAME_MS, RUSTLE, useTallGrass } from '../../hooks/useTallGrass';
 import { FADE_MS } from '../../hooks/useWalk';
-import { bobFrame, bobs, isItemBall, mirrored, spriteWidth, standFrame, stripFrames, surfBobs, walkFrame, waterSprite, type Facing, type SpriteSet } from '../../utils/overworld';
+import { bobFrame, bobs, isItemBall, mirrored, spriteHeight, spriteWidth, standFrame, stripFrames, surfBobs, walkFrame, waterSprite, type Facing, type SpriteSet } from '../../utils/overworld';
 import { facing, type RouteFigure } from '../../utils/routeFigures';
 import { ENCOUNTER_STYLE } from './encounterIcons';
 
@@ -173,13 +173,14 @@ function useGutteredStrip(name: string) {
         const img = new Image();
         img.onload = () => {
           const w = spriteWidth(name);
+          const h = spriteHeight(name);
           const frames = stripFrames(name);
           const canvas = document.createElement('canvas');
           canvas.width = frames * (w + 2 * GUTTER);
-          canvas.height = 32;
+          canvas.height = h;
           const ctx = canvas.getContext('2d');
           if (!ctx) return reject(new Error('No canvas'));
-          for (let f = 0; f < frames; f++) ctx.drawImage(img, f * w, 0, w, 32, f * (w + 2 * GUTTER) + GUTTER, 0, w, 32);
+          for (let f = 0; f < frames; f++) ctx.drawImage(img, f * w, 0, w, h, f * (w + 2 * GUTTER) + GUTTER, 0, w, h);
           resolve(canvas.toDataURL());
         };
         img.onerror = reject;
@@ -269,10 +270,10 @@ export function OverworldSprite({
         left: tile.x * 16 + 8 - w / 2,
         top: tile.y * 16 - 16,
         width: w,
-        height: 32,
+        height: spriteHeight(name),
         // The strip with see-through gutters between its frames once it's made (useGutteredStrip), the file till then.
         backgroundImage: `url(${strip ?? `/overworld/${name}.png`})`,
-        backgroundSize: `${(w + (strip ? 2 * GUTTER : 0)) * stripFrames(name)}px 32px`,
+        backgroundSize: `${(w + (strip ? 2 * GUTTER : 0)) * stripFrames(name)}px ${spriteHeight(name)}px`,
         backgroundPosition: `${strip ? -frame * (w + 2 * GUTTER) - GUTTER : -frame * w}px 0`,
         backgroundRepeat: 'no-repeat',
         transform: mirrored(name, face) ? 'scaleX(-1)' : undefined,
@@ -387,7 +388,7 @@ const GRASS_MASK = (() => {
 
 /**
  * Gen 3's surfing player's bottom fading into the water (the user's, in place of the sprite's hard edge), in map pixels;
- * not facing down (the user's: the blob's trimmed front stays whole, emerald_sprites.py's trim_flare).
+ * not facing down (the user's: facing down the sprite is Emerald's whole, the blob under it round to its bottom: spriteHeight).
  */
 const SURF_FADE = 3;
 const SURF_MASK = (() => {
