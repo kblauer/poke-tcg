@@ -101,10 +101,11 @@ USER_GYM_TRAINER = {}
 # the Cycling Road's south gatehouse at 16,88 and out of its other door, 19,88, on the bike; along the Cycling Road into
 # its north gatehouse at 18,16 and out at 15,16 on foot again, out of the route at 15,0.
 USER_ROUTE_WALKABLE = {'mauville': [(21, 78), (16, 88), (19, 88), (16, 55), (9, 57), (27, 24), (18, 16), (15, 16)],
-                       # Jagged Pass's ash path down from Mt. Chimney (12-15,0-3, 13-14,4) and its wooden steps (13-14,5).
-                       'lavaridge': [(x, y) for y in range(4) for x in range(12, 16)] + [(13, 4), (14, 4), (13, 5), (14, 5)]}
+                       # Jagged Pass's ash path down from Mt. Chimney (12-15,0-3, 13-14,4) and its wooden steps (13-14,5);
+                       # its dirt path out to Lavaridge (14-15,40-43).
+                       'lavaridge': [(x, y) for y in range(4) for x in range(12, 16)] + [(13, 4), (14, 4), (13, 5), (14, 5)] + [(x, y) for y in range(40, 44) for x in (14, 15)]}
 USER_ROUTE_ENTRANCE = {'mauville': (17, 99), 'lavaridge': (14, 0)}
-USER_ROUTE_EXIT = {'mauville': (15, 0)}
+USER_ROUTE_EXIT = {'mauville': (15, 0), 'lavaridge': (15, 43)}
 USER_ROUTE_LINKS = {'mauville': [((16, 88), (19, 88)), ((18, 16), (15, 16))]}
 USER_ROUTE_ON_FOOT = {'mauville'}
 # Routes whose links are buildings' front doors (`doors`): the player fades out facing up, back in facing down.
@@ -115,11 +116,11 @@ USER_ROUTE_TREETOPS = {'mauville': (8, 93)}
 # Spots whose figures go another way than the map's flow (by encounter number, from 1; the Route's `spotFlows`): the
 # third figure, past the two beside the player, in line ahead the way given (Route 110's encounter 6: south; its 8th's
 # right, the two beside him above and below; the user's).
-USER_SPOT_FLOWS = {'mauville': {6: 'down', 8: 'right'}}
+USER_SPOT_FLOWS = {'mauville': {6: 'down', 8: 'right'}, 'lavaridge': {2: 'up'}}
 TREETOP_SAME = 0.75
 USER_ROUTE_UNWALKABLE = {'mauville': [(x, 79) for x in range(14, 26)] + [(9, 32)] + [(x, 32) for x in range(14, 31)] + [(25, 29), (25, 15), (29, 15)]}
 USER_SPOTS = {'mauville': {1: (12, 91), 2: (28, 85), 3: (17, 78), 4: (18, 55), 5: (11, 53), 6: (12, 31), 7: (27, 30), 8: (28, 8), 9: (6, 14), 10: (12, 8)},
-              'lavaridge': {1: (14, 3), 2: (18, 9), 3: (19, 12), 4: (20, 19), 5: (19, 22), 6: (21, 30), 7: (16, 29), 8: (11, 31), 9: (12, 35), 10: (15, 36)}}
+              'lavaridge': {1: (14, 3), 2: (17, 8), 3: (10, 20), 4: (14, 21), 5: (20, 20), 6: (22, 24), 7: (20, 32), 8: (9, 33), 9: (16, 34), 10: (14, 36)}}
 
 
 # --- Walking ---
