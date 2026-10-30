@@ -82,6 +82,9 @@ CENTER = ('LavaridgeTown_PokemonCenter_1F', 'MAP_LAVARIDGE_TOWN', 'OBJ_EVENT_GFX
 # and 5,7), open as its switches leave them. Fixes from the user, as for Kanto and Johto, go here too: tiles to make
 # walkable or unwalkable, links, Gym Trainer places.
 USER_WALKABLE = {'mauville': [(4, 7), (5, 7)]}
+# Tiles of a gym's picture drawn over with another of its tiles (from, to): Mauville Gym's open barrier between its
+# pylons, 4-5,6-7, as its plain floor (4,5; the user's).
+USER_TILE_COPIES = {'mauville': [((4, 5), (x, y)) for y in (6, 7) for x in (4, 5)]}
 USER_UNWALKABLE = {'dewford': [(5, 24)]}
 # Tiles whose wall is drawn over the people standing on them (the top of each wall's face runs through the tile, the
 # player walking behind it), cut from the map's picture into its overhead image (wall_overhead): Rustboro Gym's rock
@@ -469,6 +472,12 @@ OUTLINES = {(65, 74, 106), (65, 65, 106)}
 OUTLINE_FROM = 4
 
 
+def copy_tiles(img, copies):
+    """Draws tiles of a map's picture over others (USER_TILE_COPIES: from, to), in place."""
+    for (fx, fy), (tx, ty) in copies:
+        img.paste(img.crop((fx * TILE, fy * TILE, fx * TILE + TILE, fy * TILE + TILE)), (tx * TILE, ty * TILE))
+
+
 def wall_edges(img, rows):
     """The walkable tiles with a wall's top edge across them and a wall below: an outline run of 6 or more pixels in a row,
     OUTLINE_FROM down or further."""
@@ -585,6 +594,7 @@ def main():
         rows, door, links, spots, stands, (guide, guide_sprite), partner, gaps, tname = place(repo, city, info['rows'], info, cfg, names)
         problems += gaps
         image = f'{city}_gym.png'
+        copy_tiles(img, USER_TILE_COPIES.get(city, []))
         img.save(os.path.join(PUBLIC, image))
         overhead = None
         if city in USER_OVERHEAD or city in USER_OVERHEAD_WHOLE:
