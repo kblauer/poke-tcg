@@ -87,6 +87,11 @@ export interface Route {
   /** Tiles joined by a building the player walks through (a gatehouse's doors on either side): a walk between them fades out and in. */
   links?: [RouteSpot, RouteSpot][];
   /**
+   * Its links are buildings' front doors, walked into going up: the player fades out still facing up and fades back in
+   * facing down, out of the other door (Route 110's Cycling Road gatehouses, the user's).
+   */
+  doors?: true;
+  /**
    * Where the player comes in, walking from there to the first spot: on a route, a tile in from the edge the run starts at
    * (one in where it can be walked to: Route 2's 9,78, from the user), or a gate's door; in a gym, its door.
    */

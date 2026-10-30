@@ -177,6 +177,7 @@ export const ROUTE_110: Route = {
   exit: { x: 15, y: 0 },
   travel: 'bike',
   trainers: { names: TRIATHLETES, share: 0.8 },
+  doors: true,
   onFoot: true,
   links: [[{ x: 16, y: 88 }, { x: 19, y: 88 }], [{ x: 18, y: 16 }, { x: 15, y: 16 }]],
   spotFlows: { 5: 'down', 7: 'right' },

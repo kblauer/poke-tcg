@@ -102,6 +102,8 @@ USER_ROUTE_ENTRANCE = {'mauville': (17, 99)}
 USER_ROUTE_EXIT = {'mauville': (15, 0)}
 USER_ROUTE_LINKS = {'mauville': [((16, 88), (19, 88)), ((18, 16), (15, 16))]}
 USER_ROUTE_ON_FOOT = {'mauville'}
+# Routes whose links are buildings' front doors (`doors`): the player fades out facing up, back in facing down.
+USER_ROUTE_DOORS = {'mauville'}
 # Treetops made unwalkable (the user's: a tree's top over a tile the map lets the player onto): every walkable tile with
 # a wall (or the map's edge) below it that shares TREETOP_SAME of its pixels with the route's treetop at that tile.
 USER_ROUTE_TREETOPS = {'mauville': (8, 93)}
@@ -274,13 +276,15 @@ def treetops(img, rows, ref):
     return out
 
 
-def route_ts(cfg, ent, spots, rows, grass, links=(), on_foot=False, spot_flows=None, exit=None):
+def route_ts(cfg, ent, spots, rows, grass, links=(), on_foot=False, spot_flows=None, exit=None, doors=False):
     surf = cfg.get('surf')
     extra = "\n  travel: 'surf',\n  trainers: { names: SWIMMERS, share: 1 }," if surf else ''
     if cfg.get('land_spots'):
         extra += '\n  landSpots: true,'
     if cfg.get('bike'):
         extra = "\n  travel: 'bike',\n  trainers: { names: TRIATHLETES, share: 0.8 },"
+    if doors:
+        extra += '\n  doors: true,'
     if on_foot:
         extra += '\n  onFoot: true,'
     if links:
@@ -569,7 +573,7 @@ def main():
         ent = USER_ROUTE_ENTRANCE.get(key, ent)
         img.save(os.path.join(PUBLIC, cfg['image']))
         preview(img, [('IN', ent, (0, 255, 0))] + [(str(i + 1), s, (255, 0, 0)) for i, s in enumerate(spots)], os.path.join(work, key + '-route.png'))
-        out.append(route_ts(cfg, ent, spots, rows, info['grass'], USER_ROUTE_LINKS.get(key, []), key in USER_ROUTE_ON_FOOT, USER_SPOT_FLOWS.get(key, {}), USER_ROUTE_EXIT.get(key)))
+        out.append(route_ts(cfg, ent, spots, rows, info['grass'], USER_ROUTE_LINKS.get(key, []), key in USER_ROUTE_ON_FOOT, USER_SPOT_FLOWS.get(key, {}), USER_ROUTE_EXIT.get(key), key in USER_ROUTE_DOORS))
         print('route', key, cfg['map'], 'entrance', ent, 'spots', spots)
     open(ROUTES_OUT, 'w', encoding='utf-8', newline='\n').write(ROUTES_HEAD + ''.join(out))
 

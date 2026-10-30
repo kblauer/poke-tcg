@@ -104,9 +104,10 @@ export function useWalk({
       path.forEach(({ tile, fade, under, slide, jump }, i) => {
         const face = facing(i ? path[i - 1]!.tile : begin, tile);
         if (fade) {
-          later(t, () => setWalker((w) => ({ ...w, walking: false, hidden: true })));
+          // Through a building's doors (the map's `doors`): fading out still facing up, into it, and back in facing down.
+          later(t, () => setWalker((w) => ({ ...w, walking: false, hidden: true, ...(on.doors && { face: 'up' as const }) })));
           later(t + ms.fade, () => {
-            setWalker({ section: onSection, tile, face, walking: false, hidden: true });
+            setWalker({ section: onSection, tile, face: on.doors ? 'down' : face, walking: false, hidden: true });
             setGlide({ ms: ms.through, ease: 'ease-in-out' });
             setOffset(centreOnMap(on, tile));
           });
