@@ -105,7 +105,7 @@ USER_ROUTE_ON_FOOT = {'mauville': (17, 99)}
 USER_ROUTE_TREETOPS = {'mauville': (8, 93)}
 TREETOP_SAME = 0.75
 USER_ROUTE_UNWALKABLE = {'mauville': [(x, 79) for x in range(14, 26)]}
-USER_SPOTS = {'mauville': {1: (12, 91), 2: (28, 85), 3: (17, 78), 4: (18, 69), 5: (18, 55), 6: (13, 43), 7: (5, 39), 8: (5, 28), 9: (6, 14), 10: (12, 8)}}
+USER_SPOTS = {'mauville': {1: (12, 91), 2: (28, 85), 3: (17, 78), 4: (18, 55), 5: (11, 53), 6: (13, 43), 7: (5, 39), 8: (5, 28), 9: (6, 14), 10: (12, 8)}}
 
 
 # --- Walking ---
