@@ -422,8 +422,8 @@ export const JAGGED_PASS: Route = {
     { x: 20, y: 20 },
     { x: 22, y: 24 },
     { x: 20, y: 32 },
-    { x: 9, y: 33 },
     { x: 16, y: 34 },
+    { x: 9, y: 33 },
     { x: 14, y: 36 },
   ],
   walkable: [
