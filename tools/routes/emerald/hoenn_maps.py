@@ -109,7 +109,7 @@ USER_ROUTE_WALKABLE = {'mauville': [(21, 78), (16, 88), (19, 88), (16, 55), (9, 
                        # Route 102's tiles walls before (the user's): 18,11, 19,4 (encounter 8), 25,15 and 37,4.
                        'petalburg': [(18, 11), (19, 4), (25, 15), (37, 4)]}
 USER_ROUTE_ENTRANCE = {'mauville': (17, 99), 'lavaridge': (14, 0), 'petalburg': (49, 10)}
-USER_ROUTE_EXIT = {'mauville': (15, 0), 'lavaridge': (15, 43)}
+USER_ROUTE_EXIT = {'mauville': (15, 0), 'lavaridge': (15, 43), 'petalburg': (0, 8)}
 USER_ROUTE_LINKS = {'mauville': [((16, 88), (19, 88)), ((18, 16), (15, 16))]}
 USER_ROUTE_ON_FOOT = {'mauville'}
 # Routes whose links are buildings' front doors (`doors`): the player fades out facing up, back in facing down.

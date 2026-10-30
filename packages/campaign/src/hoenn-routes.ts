@@ -529,6 +529,7 @@ export const ROUTE_102: Route = {
   flow: 'left',
   sprites: 'rse',
   entrance: { x: 49, y: 10 },
+  exit: { x: 0, y: 8 },
   spotFlows: { 1: 'up', 2: 'up', 5: 'up' },
   name: 'Route 102',
   image: '/routes/route102.png',
