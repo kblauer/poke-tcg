@@ -100,6 +100,10 @@ USER_ROUTE_WALKABLE = {'mauville': [(21, 78), (16, 88), (19, 88)]}
 USER_ROUTE_ENTRANCE = {'mauville': (17, 99)}
 USER_ROUTE_LINKS = {'mauville': [((16, 88), (19, 88))]}
 USER_ROUTE_ON_FOOT = {'mauville': (17, 99)}
+# Treetops made unwalkable (the user's: a tree's top over a tile the map lets the player onto): every walkable tile with
+# a wall (or the map's edge) below it that shares TREETOP_SAME of its pixels with the route's treetop at that tile.
+USER_ROUTE_TREETOPS = {'mauville': (8, 93)}
+TREETOP_SAME = 0.75
 USER_ROUTE_UNWALKABLE = {'mauville': [(x, 79) for x in range(14, 26)]}
 USER_SPOTS = {'mauville': {1: (12, 91), 2: (28, 85), 3: (17, 78), 4: (18, 69), 5: (18, 55), 6: (13, 43), 7: (5, 39), 8: (5, 28), 9: (6, 14), 10: (12, 8)}}
 
@@ -244,6 +248,24 @@ def pts(ps):
 
 def rows_ts(rows):
     return '\n'.join(f"    '{r}'," for r in rows)
+
+
+def treetops(img, rows, ref):
+    """The walkable tiles that are a tree's top (USER_ROUTE_TREETOPS): a wall or the map's edge below, and at least
+    TREETOP_SAME of their pixels the same as the treetop at `ref` (its ground around it may differ)."""
+    src = img.convert('RGB')
+    tile = lambda x, y: src.crop((x * TILE, y * TILE, x * TILE + TILE, y * TILE + TILE)).tobytes()
+    top = tile(*ref)
+    h, w = len(rows), len(rows[0])
+    out = []
+    for y in range(h):
+        for x in range(w):
+            if rows[y][x] != '.' or (y + 1 < h and rows[y + 1][x] == '.'):
+                continue
+            t = tile(x, y)
+            if sum(top[i:i + 3] == t[i:i + 3] for i in range(0, len(t), 3)) / (TILE * TILE) >= TREETOP_SAME:
+                out.append((x, y))
+    return out
 
 
 def route_ts(cfg, ent, spots, rows, grass, links=(), on_foot=None):
@@ -525,7 +547,10 @@ def main():
         img, info = emerald_map.render(repo, cfg['map'])
         rows = route_rows(info, cfg)
         ent, spots = pick(key, rows, info, cfg)
+        tops = treetops(img, rows, USER_ROUTE_TREETOPS[key]) if key in USER_ROUTE_TREETOPS else []
         rows = [list(r) for r in rows]
+        for x, y in tops:
+            rows[y][x] = '#'
         for x, y in USER_ROUTE_WALKABLE.get(key, []):
             rows[y][x] = '.'
         for x, y in USER_ROUTE_UNWALKABLE.get(key, []):
