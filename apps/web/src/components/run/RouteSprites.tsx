@@ -277,7 +277,7 @@ export function OverworldSprite({
         backgroundRepeat: 'no-repeat',
         transform: mirrored(name, face) ? 'scaleX(-1)' : undefined,
         ...(inGrass && sunk && GRASS_MASK),
-        ...(surfBobs(name) && SURF_MASK),
+        ...(surfBobs(name) && face !== 'down' && SURF_MASK),
         zIndex: tile.y,
       }}
     />
@@ -385,7 +385,10 @@ const GRASS_MASK = (() => {
   return { maskImage: mask, WebkitMaskImage: mask };
 })();
 
-/** Gen 3's surfing player's bottom fading into the water (the user's, in place of the sprite's hard edge), in map pixels. */
+/**
+ * Gen 3's surfing player's bottom fading into the water (the user's, in place of the sprite's hard edge), in map pixels;
+ * not facing down (the user's: the blob's trimmed front stays whole, emerald_sprites.py's trim_flare).
+ */
 const SURF_FADE = 3;
 const SURF_MASK = (() => {
   const mask = `linear-gradient(to bottom, black ${32 - SURF_FADE}px, transparent 32px)`;
