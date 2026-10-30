@@ -105,8 +105,10 @@ USER_GYM_TRAINER = {'lavaridge': {'spot': (9, 13), 'stand': (8, 13)}}
 USER_ROUTE_WALKABLE = {'mauville': [(21, 78), (16, 88), (19, 88), (16, 55), (9, 57), (27, 24), (18, 16), (15, 16)],
                        # Jagged Pass's ash path down from Mt. Chimney (12-15,0-3, 13-14,4) and its wooden steps (13-14,5);
                        # its dirt path out to Lavaridge (14-15,40-43).
-                       'lavaridge': [(x, y) for y in range(4) for x in range(12, 16)] + [(13, 4), (14, 4), (13, 5), (14, 5)] + [(x, y) for y in range(40, 44) for x in (14, 15)]}
-USER_ROUTE_ENTRANCE = {'mauville': (17, 99), 'lavaridge': (14, 0)}
+                       'lavaridge': [(x, y) for y in range(4) for x in range(12, 16)] + [(13, 4), (14, 4), (13, 5), (14, 5)] + [(x, y) for y in range(40, 44) for x in (14, 15)],
+                       # Route 102's encounters 7 and 8 (18,11 a wall before).
+                       'petalburg': [(18, 11), (19, 14)]}
+USER_ROUTE_ENTRANCE = {'mauville': (17, 99), 'lavaridge': (14, 0), 'petalburg': (49, 10)}
 USER_ROUTE_EXIT = {'mauville': (15, 0), 'lavaridge': (15, 43)}
 USER_ROUTE_LINKS = {'mauville': [((16, 88), (19, 88)), ((18, 16), (15, 16))]}
 USER_ROUTE_ON_FOOT = {'mauville'}
@@ -125,7 +127,8 @@ TREETOP_SAME = 0.75
 USER_ROUTE_LEDGES = {'lavaridge': [(x, 33) for x in range(17, 23)]}
 USER_ROUTE_UNWALKABLE = {'mauville': [(x, 79) for x in range(14, 26)] + [(9, 32)] + [(x, 32) for x in range(14, 31)] + [(25, 29), (25, 15), (29, 15)]}
 USER_SPOTS = {'mauville': {1: (12, 91), 2: (28, 85), 3: (17, 78), 4: (18, 55), 5: (11, 53), 6: (12, 31), 7: (27, 30), 8: (28, 8), 9: (6, 14), 10: (12, 8)},
-              'lavaridge': {1: (14, 3), 2: (18, 8), 3: (10, 20), 4: (14, 21), 5: (20, 20), 6: (22, 24), 7: (20, 32), 8: (16, 34), 9: (9, 33), 10: (14, 36)}}
+              'lavaridge': {1: (14, 3), 2: (18, 8), 3: (10, 20), 4: (14, 21), 5: (20, 20), 6: (22, 24), 7: (20, 32), 8: (16, 34), 9: (9, 33), 10: (14, 36)},
+              'petalburg': {1: (44, 9), 2: (37, 5), 3: (38, 11), 4: (35, 15), 5: (30, 17), 6: (21, 16), 7: (18, 11), 8: (19, 14), 9: (10, 4), 10: (3, 8)}}
 
 
 # --- Walking ---
