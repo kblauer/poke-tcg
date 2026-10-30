@@ -91,6 +91,10 @@ USER_OVERHEAD = {'rustboro': [(4, 14), (6, 14), (7, 14), (2, 12), (3, 12), (2, 1
 USER_OVERHEAD_WHOLE = {'dewford': [(4, 23), (7, 23)]}
 USER_LINKS = {}
 USER_GYM_TRAINER = {}
+# The routes' fixes from the user, made after the spots are picked (so the rest stay where they were): tiles made
+# unwalkable, and spots moved (by encounter number, from 1).
+USER_ROUTE_UNWALKABLE = {'mauville': [(x, 29) for x in range(14, 27)]}
+USER_SPOTS = {'mauville': {2: (16, 78)}}
 
 
 # --- Walking ---
@@ -510,6 +514,13 @@ def main():
         img, info = emerald_map.render(repo, cfg['map'])
         rows = route_rows(info, cfg)
         ent, spots = pick(key, rows, info, cfg)
+        if key in USER_ROUTE_UNWALKABLE:
+            rows = [list(r) for r in rows]
+            for x, y in USER_ROUTE_UNWALKABLE[key]:
+                rows[y][x] = '#'
+            rows = [''.join(r) for r in rows]
+        for n, t in USER_SPOTS.get(key, {}).items():
+            spots[n - 1] = t
         img.save(os.path.join(PUBLIC, cfg['image']))
         preview(img, [('IN', ent, (0, 255, 0))] + [(str(i + 1), s, (255, 0, 0)) for i, s in enumerate(spots)], os.path.join(work, key + '-route.png'))
         out.append(route_ts(cfg, ent, spots, rows, info['grass']))
