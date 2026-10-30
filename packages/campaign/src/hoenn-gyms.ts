@@ -189,7 +189,7 @@ export const LAVARIDGE_GYM: Route = {
   ],
 };
 
-/** Petalburg Gym, the leader's room: the Gym Trainer where Cooltrainer Mary stands (4,94), the leader in their place (4,2), its rooms joined through their doors (1,105 to 7,85; 6,85 to 1,105; 7,105 to 1,98; 2,98 to 7,105; 1,79 to 7,46; 7,79 to 1,59; 6,46 to 1,79; 2,59 to 7,79; 1,92 to 7,59; 7,92 to 1,72; 6,59 to 1,92; 2,72 to 7,92; 7,40 to 1,20; 1,53 to 7,20; 7,53 to 1,33; 1,66 to 7,33; 2,20 to 7,40; 6,20 to 1,53; 2,33 to 7,53; 6,33 to 1,66; 7,14 to 1,7; 1,27 to 7,7; 2,7 to 7,14; 6,7 to 1,27). */
+/** Petalburg Gym, the leader's room: the Gym Trainer where no one (the user's place) stands (4,55), the leader in their place (4,2), its rooms joined through their doors (1,105 to 7,85; 6,85 to 1,105; 7,105 to 1,98; 2,98 to 7,105; 1,79 to 7,46; 7,79 to 1,59; 6,46 to 1,79; 2,59 to 7,79; 1,92 to 7,59; 7,92 to 1,72; 6,59 to 1,92; 2,72 to 7,92; 7,40 to 1,20; 1,53 to 7,20; 7,53 to 1,33; 1,66 to 7,33; 2,20 to 7,40; 6,20 to 1,53; 2,33 to 7,53; 6,33 to 1,66; 7,14 to 1,7; 1,27 to 7,7; 2,7 to 7,14; 6,7 to 1,27). */
 export const PETALBURG_GYM: Route = {
   flow: 'up',
   sprites: 'rse',
@@ -200,11 +200,11 @@ export const PETALBURG_GYM: Route = {
   entrance: { x: 4, y: 111 },
   links: [[{ x: 1, y: 105 }, { x: 7, y: 85 }], [{ x: 6, y: 85 }, { x: 1, y: 105 }], [{ x: 7, y: 105 }, { x: 1, y: 98 }], [{ x: 2, y: 98 }, { x: 7, y: 105 }], [{ x: 1, y: 79 }, { x: 7, y: 46 }], [{ x: 7, y: 79 }, { x: 1, y: 59 }], [{ x: 6, y: 46 }, { x: 1, y: 79 }], [{ x: 2, y: 59 }, { x: 7, y: 79 }], [{ x: 1, y: 92 }, { x: 7, y: 59 }], [{ x: 7, y: 92 }, { x: 1, y: 72 }], [{ x: 6, y: 59 }, { x: 1, y: 92 }], [{ x: 2, y: 72 }, { x: 7, y: 92 }], [{ x: 7, y: 40 }, { x: 1, y: 20 }], [{ x: 1, y: 53 }, { x: 7, y: 20 }], [{ x: 7, y: 53 }, { x: 1, y: 33 }], [{ x: 1, y: 66 }, { x: 7, y: 33 }], [{ x: 2, y: 20 }, { x: 7, y: 40 }], [{ x: 6, y: 20 }, { x: 1, y: 53 }], [{ x: 2, y: 33 }, { x: 7, y: 53 }], [{ x: 6, y: 33 }, { x: 1, y: 66 }], [{ x: 7, y: 14 }, { x: 1, y: 7 }], [{ x: 1, y: 27 }, { x: 7, y: 7 }], [{ x: 2, y: 7 }, { x: 7, y: 14 }], [{ x: 6, y: 7 }, { x: 1, y: 27 }]],
   spots: [
-    { x: 4, y: 95 },
+    { x: 4, y: 56 },
     { x: 4, y: 3 },
   ],
   stands: [
-    { x: 4, y: 94 },
+    { x: 4, y: 55 },
     { x: 4, y: 2 },
   ],
   npcs: [{ sprite: 'rse/man_2', tile: { x: 3, y: 109 }, face: 'down' }],

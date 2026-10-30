@@ -95,7 +95,7 @@ USER_OVERHEAD = {'rustboro': [(4, 14), (6, 14), (7, 14), (2, 12), (3, 12), (2, 1
 USER_OVERHEAD_WHOLE = {'dewford': [(4, 23), (7, 23)]}
 USER_LINKS = {'lavaridge': [((8, 9), (12, 12))]}
 # The Gym Trainer's spot (the player's) and where they stand (the user's).
-USER_GYM_TRAINER = {'lavaridge': {'spot': (9, 13), 'stand': (8, 13)}}
+USER_GYM_TRAINER = {'lavaridge': {'spot': (9, 13), 'stand': (8, 13)}, 'petalburg': {'spot': (4, 56), 'stand': (4, 55)}}
 # The routes' fixes from the user, made after the spots are picked (so the rest stay where they were): tiles made
 # walkable and unwalkable, spots moved (by encounter number, from 1), the entrance and exit, links (a building walked
 # through: its doors, fading between them), and a route come into on foot (`onFoot`: each link switches the player
