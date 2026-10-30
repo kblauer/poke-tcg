@@ -80,11 +80,15 @@ LEAGUE = {
 CENTER = ('LavaridgeTown_PokemonCenter_1F', 'MAP_LAVARIDGE_TOWN', 'OBJ_EVENT_GFX_NURSE')
 # Gym puzzles the map data doesn't show solved (in the map's tiles): Mauville's electric barriers across the middle (4,7
 # and 5,7), open as its switches leave them. Fixes from the user, as for Kanto and Johto, go here too: tiles to make
-# walkable, links, Gym Trainer places.
+# walkable or unwalkable, links, Gym Trainer places.
 USER_WALKABLE = {'mauville': [(4, 7), (5, 7)]}
-# Tiles whose wall is drawn over the people standing on them (Rustboro Gym's rock walls: the top of each wall's face runs
-# through the tile, the player walking behind it), cut from the map's picture into its overhead image (wall_overhead).
-USER_OVERHEAD = {'rustboro': [(4, 14), (6, 14), (7, 14), (2, 12), (3, 12), (2, 10), (3, 10), (4, 8), (6, 8), (7, 8), (0, 5)] + [(x, 5) for x in range(3, 11)]}
+USER_UNWALKABLE = {'dewford': [(5, 24)]}
+# Tiles whose wall is drawn over the people standing on them (the top of each wall's face runs through the tile, the
+# player walking behind it), cut from the map's picture into its overhead image (wall_overhead): Rustboro Gym's rock
+# walls, the user's tiles; 'walls', every wall's top edge with a wall below (wall_edges: Dewford Gym's, the user's).
+USER_OVERHEAD = {'rustboro': [(4, 14), (6, 14), (7, 14), (2, 12), (3, 12), (2, 10), (3, 10), (4, 8), (6, 8), (7, 8), (0, 5)] + [(x, 5) for x in range(3, 11)], 'dewford': 'walls'}
+# Tiles drawn whole over the people on them (Dewford Gym's statues' tops: the player all but hidden behind them, the user's).
+USER_OVERHEAD_WHOLE = {'dewford': [(4, 23), (7, 23)]}
 USER_LINKS = {}
 USER_GYM_TRAINER = {}
 
@@ -351,6 +355,8 @@ def place(repo, city, rows, info, cfg, names):
                 links.append((a, b))
     for t in USER_WALKABLE.get(city, []):
         rows[t[1]][t[0]] = '.'
+    for t in USER_UNWALKABLE.get(city, []):
+        rows[t[1]][t[0]] = '#'
     rows = [''.join(r) for r in rows]
     links += USER_LINKS.get(city, [])
     objs = info['events']['object_events']
@@ -408,18 +414,36 @@ def entrance_near(rows, spot, links=()):
     return spot
 
 
-# The rock walls' dark outline (Rustboro Gym's), where a wall's face begins down a tile.
-OUTLINE = (65, 74, 106)
+# The walls' dark outline (Rustboro Gym's and Dewford Gym's), where a wall's face begins down a tile.
+OUTLINES = {(65, 74, 106), (65, 65, 106)}
+# How far down a tile the outline is looked for (a wall's top edge is below it; a wall's side above it is left out).
+OUTLINE_FROM = 4
 
 
-def wall_overhead(img, tiles):
-    """The map's overhead image (see-through but for the walls of `tiles`): down each column of each tile, from the wall's
-    outline to the tile's foot, so a person standing there is behind the wall's top."""
+def wall_edges(img, rows):
+    """The walkable tiles with a wall's top edge across them and a wall below: an outline run of 6 or more pixels in a row,
+    OUTLINE_FROM down or further."""
+    src = img.convert('RGB')
+    out = []
+    for ty in range(len(rows) - 1):
+        for tx in range(len(rows[0])):
+            if rows[ty][tx] != '.' or rows[ty + 1][tx] == '.':
+                continue
+            if any(sum(src.getpixel((tx * TILE + c, ty * TILE + r)) in OUTLINES for c in range(TILE)) >= 6 for r in range(OUTLINE_FROM, TILE)):
+                out.append((tx, ty))
+    return out
+
+
+def wall_overhead(img, tiles, whole=()):
+    """The map's overhead image (see-through but for the walls of `tiles` and the `whole` tiles): down each column of each
+    tile, from the wall's outline to the tile's foot, so a person standing there is behind the wall's top."""
     src = img.convert('RGBA')
     top = Image.new('RGBA', src.size, (0, 0, 0, 0))
+    for tx, ty in whole:
+        top.paste(src.crop((tx * TILE, ty * TILE, tx * TILE + TILE, ty * TILE + TILE)), (tx * TILE, ty * TILE))
     for tx, ty in tiles:
         for x in range(tx * TILE, tx * TILE + TILE):
-            start = next((y for y in range(ty * TILE, ty * TILE + TILE) if src.getpixel((x, y))[:3] == OUTLINE), None)
+            start = next((y for y in range(ty * TILE + OUTLINE_FROM, ty * TILE + TILE) if src.getpixel((x, y))[:3] in OUTLINES), None)
             for y in range(start if start is not None else ty * TILE + TILE, ty * TILE + TILE):
                 top.putpixel((x, y), src.getpixel((x, y)))
     return top
@@ -502,9 +526,10 @@ def main():
         image = f'{city}_gym.png'
         img.save(os.path.join(PUBLIC, image))
         overhead = None
-        if city in USER_OVERHEAD:
+        if city in USER_OVERHEAD or city in USER_OVERHEAD_WHOLE:
             overhead = f'{city}_gym_overhead.png'
-            wall_overhead(img, USER_OVERHEAD[city]).save(os.path.join(PUBLIC, overhead))
+            tiles = USER_OVERHEAD.get(city, [])
+            wall_overhead(img, wall_edges(img, rows) if tiles == 'walls' else tiles, USER_OVERHEAD_WHOLE.get(city, [])).save(os.path.join(PUBLIC, overhead))
         npcs = []
         if guide:
             npcs.append((guide_sprite, guide, 'down'))
