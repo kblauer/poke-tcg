@@ -100,6 +100,12 @@ export interface Route {
   /** How the player gets along (Route 17: on a bike, walking twice as fast; Route 20: surfing its water, '~'); on foot otherwise. */
   travel?: 'bike' | 'surf';
   /**
+   * A tile of the part of the route walked on foot before the `travel` begins (travelAt): every walkable tile reached from
+   * it without going through a link (Route 110's sandy road from Slateport up to the Cycling Road's gatehouse, the user's:
+   * he walks in at its left door and rides out of its right one).
+   */
+  onFoot?: RouteSpot;
+  /**
    * The trainers met in battles here: `share` of them (each at random) one of `names` (Route 17's Bikers), the others any
    * trainer (TRAINERS in run.ts, but for these names' classes).
    */
@@ -391,6 +397,32 @@ export const onIce = (route: Route, spot: RouteSpot) => route.ice?.[spot.y]?.[sp
 
 /** Whether a tile of a route is water surfed across (on a route tagged for surfing). */
 export const onWater = (route: Route, spot: RouteSpot) => route.travel === 'surf' && route.walkable[spot.y]?.[spot.x] === '~';
+
+/** Each route's part walked on foot (its `onFoot` area), by its tiles' keys, worked out once. */
+const footAreas = new WeakMap<Route, Set<string>>();
+const footArea = (route: Route) => {
+  let area = footAreas.get(route);
+  if (!area) {
+    area = new Set<string>();
+    const queue = route.onFoot ? [route.onFoot] : [];
+    for (const t of queue) area.add(`${t.x},${t.y}`);
+    while (queue.length) {
+      const { x, y } = queue.shift()!;
+      for (const n of [{ x: x + 1, y }, { x: x - 1, y }, { x, y: y + 1 }, { x, y: y - 1 }]) {
+        const key = `${n.x},${n.y}`;
+        if (!area.has(key) && onPath(route, n)) {
+          area.add(key);
+          queue.push(n);
+        }
+      }
+    }
+    footAreas.set(route, area);
+  }
+  return area;
+};
+
+/** How the player gets along on a tile: the route's `travel`, but on foot in its `onFoot` area. */
+export const travelAt = (route: Route, spot: RouteSpot) => (route.onFoot && footArea(route).has(`${spot.x},${spot.y}`) ? undefined : route.travel);
 
 /**
  * A gym leader's part of their gym, for a run that goes straight to them (the Gym Challenge, the Champion run; agreed with

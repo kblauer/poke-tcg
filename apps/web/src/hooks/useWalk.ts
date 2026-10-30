@@ -1,13 +1,16 @@
-import { inGrass, routePath, type Route, type RouteSpot } from '@poke-tcg/campaign';
+import { inGrass, routePath, travelAt, type Route, type RouteSpot } from '@poke-tcg/campaign';
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import type { Jump } from '../components/run/RouteSprites';
 import { facing, key, type PlacedFigure } from '../utils/routeFigures';
 import type { Facing } from '../utils/overworld';
 
-/** How much faster than walking the player gets along a map: twice as fast on a bike (Route 17, agreed with the user). */
-export const pace = (route: Route) => (route.travel === 'bike' ? 2 : 1);
+/**
+ * How much faster than walking the player gets along a map's tile: twice as fast on a bike (Route 17, agreed with the
+ * user), but on foot before a route's travel begins (travelAt: Route 110's sandy road).
+ */
+export const pace = (route: Route, tile: RouteSpot) => (travelAt(route, tile) === 'bike' ? 2 : 1);
 /** A step's pace onto `tile`: a little slower into tall grass (GRASS_PACE, agreed with the user). */
-export const stepPace = (route: Route, tile: RouteSpot) => pace(route) * (inGrass(route, tile) ? GRASS_PACE : 1);
+export const stepPace = (route: Route, tile: RouteSpot) => pace(route, tile) * (inGrass(route, tile) ? GRASS_PACE : 1);
 /** How fast the player wades through tall grass, of his pace elsewhere: 30% slower (agreed with the user). */
 export const GRASS_PACE = 0.7;
 

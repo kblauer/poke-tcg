@@ -11,7 +11,7 @@ import { activeEffects, battleRules, effectTotal, item, ITEMS, MAX_CONSUMABLES_P
 import { byId, DECK_TYPES, offerable, PRICES, rarityWeight, type PoolCard, type Rarity } from './pool.js';
 import { between, chance, pick, random, rngFrom, sample, seed, weighted, type Rng } from './random.js';
 import { finalBoss, routeAt, runGeneration, runType, type RunType, type RunTypeId } from './run-types.js';
-import type { Route, RouteSpot } from './routes.js';
+import { travelAt, type Route, type RouteSpot } from './routes.js';
 import { WHOS_THAT_EXP, WHOS_THAT_RUN_MS } from './whos-that.js';
 
 export const MAX_HP = 3;
@@ -259,11 +259,14 @@ function poolAt(type: RunType, encounter: number): { pool: TrainerPool; landBatt
   const near = surf && landNear(route, spot);
   const landBattle = !!route.trainers && route.landBattle === index;
   const sea = { atSea: surf && !near, ashore: near && !landBattle };
+  // A spot walked to on foot before the route's travel begins (its `onFoot` area: Route 110's sandy road, before the bike).
+  const onFoot = !!route.onFoot && travelAt(route, spot) === undefined;
   if (!route.trainers) return { pool: surf ? undefined : LAND_POOL, landBattle: false, ...sea };
   const classes = new Set(route.trainers.names.map(classOf));
   const others = (surf ? TRAINERS : LAND_TRAINERS).filter((t) => !classes.has(classOf(t)));
-  // The land battle and a spot on land: anyone but the route's own trainers (no Swimmers on land).
-  return { pool: landBattle || onLand ? { names: [], share: 0, others } : { ...route.trainers, others }, landBattle, ...sea };
+  // The land battle, a spot on land and one on foot: anyone but the route's own trainers (no Swimmers on land, no
+  // Triathletes off the Cycling Road).
+  return { pool: landBattle || onLand || onFoot ? { names: [], share: 0, others } : { ...route.trainers, others }, landBattle, ...sea };
 }
 
 function mapEncounter(rng: Rng, kind: EncounterKind, pool?: TrainerPool): MapEncounter {

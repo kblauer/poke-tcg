@@ -4,7 +4,7 @@ import { ITEMS, itemText, MAX_CONSUMABLES_PER_RUN, onlyOne, shopStock } from './
 import { RUN_TYPE_IDS, RUN_TYPES, runType, type RunType, type RunTypeId } from './run-types.js';
 import { ROUTE_4 } from './kanto-routes.js';
 import { JOHTO_BOSS_ROOMS, MAHOGANY_GYM } from './johto-gyms.js';
-import { onPath, PEWTER_GYM, ROUTE_2, routePath, type Route, type RouteSpot } from './routes.js';
+import { onPath, PEWTER_GYM, ROUTE_2, routePath, travelAt, type Route, type RouteSpot } from './routes.js';
 import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, isBattleKind, isBossKind, landNear, MAX_CENTERS, REQUIRED_BATTLES, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, withConsumablesBefore, carriedConsumables, parsePendingConsumable, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
 import { GEN2_SETS, GEN3_SETS } from './pool.js';
 import { GEN2_TEST_POOL, GEN3_TEST_POOL, TEST_POOL } from './test-pool.js';
@@ -843,11 +843,18 @@ describe('Gen 3 runs', () => {
     }
   });
 
-  it("Route 110 (the Mauville City run) is ridden on a bike, most of its trainers the Cycling Road's Triathletes", () => {
+  it("Route 110 (the Mauville City run) is walked up the sandy road, then ridden on a bike, most of its ridden trainers the Cycling Road's Triathletes", () => {
     const route = runType('mauville').routes![0]!;
     expect(route.travel).toBe('bike');
-    const trainers = Array.from({ length: 60 }, (_, seed) => createRun('mauville', deck, seed + 1).steps.slice(0, 10)).flat().flatMap((s) => s.options.filter((o) => o.kind === 'battle').map((o) => o.trainer!));
-    const share = trainers.filter((t) => t.startsWith('Triathlete ')).length / trainers.length;
+    // On foot from its entrance to the gatehouse's left door (encounter 1 on the way), riding from its right door on.
+    expect(travelAt(route, route.entrance!)).toBeUndefined();
+    expect(travelAt(route, route.spots[0]!)).toBeUndefined();
+    expect(route.spots.slice(1).every((s) => travelAt(route, s) === 'bike')).toBe(true);
+    const runs = Array.from({ length: 60 }, (_, seed) => createRun('mauville', deck, seed + 1).steps);
+    const battles = (steps: RunState['steps']) => steps.flatMap((s) => s.options.filter((o) => o.kind === 'battle').map((o) => o.trainer!));
+    expect(battles(runs.map((s) => s[0]!)).filter((t) => t.startsWith('Triathlete '))).toEqual([]);
+    const ridden = battles(runs.flatMap((s) => s.slice(1, 10)));
+    const share = ridden.filter((t) => t.startsWith('Triathlete ')).length / ridden.length;
     expect(share).toBeGreaterThan(0.7);
     expect(share).toBeLessThan(0.9);
   });

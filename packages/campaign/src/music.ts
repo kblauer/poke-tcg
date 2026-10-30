@@ -6,6 +6,7 @@
 
 import { battlesFought, isBattleKind, type BattleKind, type EncounterKind } from './run.js';
 import { routeAt, RUN_TYPE_IDS, runBosses, runType } from './run-types.js';
+import { travelAt } from './routes.js';
 
 export type Soundtrack = 'original' | 'remastered';
 export const SOUNDTRACKS: Soundtrack[] = ['original', 'remastered'];
@@ -236,8 +237,11 @@ export function runMusic(view: RunMusicView, soundtrack: Soundtrack, runId = '',
   const town = music.towns[type.id];
   if (town && gymAt >= 0 && gymAt - position <= TOWN_STEPS) return cue(`town:${type.id}`, town);
   // The step's route map (as RouteView shows it: each map's spots in turn), or the last one past them all (the gym's steps).
-  const route = routeAt(type, position)?.route ?? type.routes?.at(-1) ?? null;
-  if (route?.travel === 'bike') return cue('bike', music.bike);
+  const at = routeAt(type, position);
+  const route = at?.route ?? type.routes?.at(-1) ?? null;
+  // How the player gets along at the step's spot (on foot before a route's travel begins: travelAt).
+  const travel = at ? travelAt(at.route, at.route.spots[at.index]!) : route?.travel;
+  if (travel === 'bike') return cue('bike', music.bike);
   // Sootopolis City is surfed, but keeps its own theme.
   if (route?.travel === 'surf' && route.name !== 'Sootopolis City') return cue('surf', music.surf);
   const title = route && music.routes[route.name];

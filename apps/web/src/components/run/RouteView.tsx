@@ -3,7 +3,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
-import { flowAt, inGrass, isBattleKind, onPath, onWater, routePath, type Route, type RouteSpot } from '@poke-tcg/campaign';
+import { flowAt, inGrass, isBattleKind, onPath, onWater, routePath, travelAt, type Route, type RouteSpot } from '@poke-tcg/campaign';
 import type { PlayerGender } from '@poke-tcg/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
@@ -158,7 +158,8 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
   const anyWalking = walker.walking || !!approach?.walking;
   // The player bobbing on the spot while still (Ethan surfing): the low half of the bob every other BOB_MS.
   const [bobbing, setBobbing] = useState(false);
-  const playerName = playerSprite(setOf(shown), shown.travel, onWater(shown, walker.tile), gender);
+  // On foot or riding by where he is (travelAt: Route 110's sandy road walked, the Cycling Road ridden).
+  const playerName = playerSprite(setOf(shown), travelAt(shown, walker.tile), onWater(shown, walker.tile), gender);
   const stillBob = bobs(playerName) && !walker.walking;
   useEffect(() => {
     if (!stillBob) return;
@@ -173,9 +174,9 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
   const masked = (tile: RouteSpot) => sprites === 'hgss' && inGrass(shown, tile);
   useEffect(() => {
     if (!anyWalking) return;
-    const timer = window.setInterval(() => setTick((t) => t + 1), ms.frame / (pace(shown) * (wading ? GRASS_PACE : 1)));
+    const timer = window.setInterval(() => setTick((t) => t + 1), ms.frame / (pace(shown, walker.tile) * (wading ? GRASS_PACE : 1)));
     return () => window.clearInterval(timer);
-  }, [anyWalking, shown, wading]);
+  }, [anyWalking, shown, wading, walker.tile]);
 
   // A non-battle encounter chosen: its NPC (an item ball aside) walks from where it stood to the free tile beside the
   // player it reaches soonest, then faces him; from the moment it's clicked (`spotted`), or once the encounter is under way

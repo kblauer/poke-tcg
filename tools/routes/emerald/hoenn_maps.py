@@ -92,8 +92,14 @@ USER_OVERHEAD_WHOLE = {'dewford': [(4, 23), (7, 23)]}
 USER_LINKS = {}
 USER_GYM_TRAINER = {}
 # The routes' fixes from the user, made after the spots are picked (so the rest stay where they were): tiles made
-# walkable and unwalkable, and spots moved (by encounter number, from 1).
-USER_ROUTE_WALKABLE = {'mauville': [(21, 78)]}
+# walkable and unwalkable, spots moved (by encounter number, from 1), the entrance, links (a building walked through:
+# its doors, fading between them) and the tile of a part walked on foot before the route's travel begins (`onFoot`).
+# Route 110: in at 17,99 from Slateport, up the sandy road on foot into the Cycling Road's gatehouse at 16,88 and out
+# of its other door, 19,88, on the bike (the user's).
+USER_ROUTE_WALKABLE = {'mauville': [(21, 78), (16, 88), (19, 88)]}
+USER_ROUTE_ENTRANCE = {'mauville': (17, 99)}
+USER_ROUTE_LINKS = {'mauville': [((16, 88), (19, 88))]}
+USER_ROUTE_ON_FOOT = {'mauville': (17, 99)}
 USER_ROUTE_UNWALKABLE = {'mauville': [(x, 79) for x in range(14, 26)]}
 USER_SPOTS = {'mauville': {1: (12, 91), 2: (28, 85), 3: (17, 78), 4: (18, 69), 5: (18, 55), 6: (13, 43), 7: (5, 39), 8: (5, 28), 9: (6, 14), 10: (12, 8)}}
 
@@ -240,13 +246,17 @@ def rows_ts(rows):
     return '\n'.join(f"    '{r}'," for r in rows)
 
 
-def route_ts(cfg, ent, spots, rows, grass):
+def route_ts(cfg, ent, spots, rows, grass, links=(), on_foot=None):
     surf = cfg.get('surf')
     extra = "\n  travel: 'surf',\n  trainers: { names: SWIMMERS, share: 1 }," if surf else ''
     if cfg.get('land_spots'):
         extra += '\n  landSpots: true,'
     if cfg.get('bike'):
         extra = "\n  travel: 'bike',\n  trainers: { names: TRIATHLETES, share: 0.8 },"
+    if on_foot:
+        extra += f'\n  onFoot: {{ x: {on_foot[0]}, y: {on_foot[1]} }},'
+    if links:
+        extra += '\n  links: [' + ', '.join(f'[{{ x: {a[0]}, y: {a[1]} }}, {{ x: {b[0]}, y: {b[1]} }}]' for a, b in links) + '],'
     grass_ts = ''
     if any(any(r) for r in grass):
         grass_ts = '\n  grass: [\n' + '\n'.join("    '" + ''.join('g' if g else '.' for g in r) + "'," for r in grass) + '\n  ],'
@@ -523,9 +533,10 @@ def main():
         rows = [''.join(r) for r in rows]
         for n, t in USER_SPOTS.get(key, {}).items():
             spots[n - 1] = t
+        ent = USER_ROUTE_ENTRANCE.get(key, ent)
         img.save(os.path.join(PUBLIC, cfg['image']))
         preview(img, [('IN', ent, (0, 255, 0))] + [(str(i + 1), s, (255, 0, 0)) for i, s in enumerate(spots)], os.path.join(work, key + '-route.png'))
-        out.append(route_ts(cfg, ent, spots, rows, info['grass']))
+        out.append(route_ts(cfg, ent, spots, rows, info['grass'], USER_ROUTE_LINKS.get(key, []), USER_ROUTE_ON_FOOT.get(key)))
         print('route', key, cfg['map'], 'entrance', ent, 'spots', spots)
     open(ROUTES_OUT, 'w', encoding='utf-8', newline='\n').write(ROUTES_HEAD + ''.join(out))
 
