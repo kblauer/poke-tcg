@@ -249,7 +249,8 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
   // The trainer who just spotted the player (the battle chosen, or the Ace Trainer accepted): the step's option while the
   // battle is being set up, then the encounter's figure once it's in.
   const spottedFigure = spotted ? mine.find((p) => !p.figure.bubble && (view.phase === 'encounter' ? true : p.figure.option === spotted.option)) : undefined;
-  const redFace: Facing = walker.walking
+  // Walking, or passing through a building's doors (fading out and back in), the way the walk has him.
+  const redFace: Facing = walker.walking || walker.through
     ? walker.face
     : spottedFigure
       ? facing(walker.tile, spottedFigure.tile)

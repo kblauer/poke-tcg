@@ -36,6 +36,8 @@ export interface Walker {
   sliding?: boolean;
   jump?: Jump;
   landed?: { tile: RouteSpot; stamp: number };
+  /** Passing through a link (a building's doors), from fading out until his next step: facing as the walk has him. */
+  through?: boolean;
 }
 
 /** How long a ledge jump takes, in steps' time: FireRed's 32 frames over its two tiles, as two steps' walk. */
@@ -105,9 +107,9 @@ export function useWalk({
         const face = facing(i ? path[i - 1]!.tile : begin, tile);
         if (fade) {
           // Through a building's doors (the map's `doors`): fading out still facing up, into it, and back in facing down.
-          later(t, () => setWalker((w) => ({ ...w, walking: false, hidden: true, ...(on.doors && { face: 'up' as const }) })));
+          later(t, () => setWalker((w) => ({ ...w, walking: false, hidden: true, through: true, ...(on.doors && { face: 'up' as const }) })));
           later(t + ms.fade, () => {
-            setWalker({ section: onSection, tile, face: on.doors ? 'down' : face, walking: false, hidden: true });
+            setWalker({ section: onSection, tile, face: on.doors ? 'down' : face, walking: false, hidden: true, through: true });
             setGlide({ ms: ms.through, ease: 'ease-in-out' });
             setOffset(centreOnMap(on, tile));
           });
