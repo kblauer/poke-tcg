@@ -130,29 +130,24 @@ export function IdlePage() {
       : Promise.resolve(false);
   const start = (id: number, shiny = false) => actions.start(id, shiny).catch(failed);
   const v = run?.view;
-  // A catch with the party full while the player watches (the user's): which party Pokémon it takes the place of, or
-  // Release; the run waits for the answer (CAUGHT_CHOICE). Each choice its icon over its name and level.
-  const caughtLabel = (m: { species: number; level: number }, i: number, all: { species: number; level: number }[]) =>
-    `${name(m.species)} Lv. ${m.level}${all.some((o, j) => j !== i && o.species === m.species && o.level === m.level) ? ` (${i + 1})` : ''}`;
-  const choosing: Dialogue | null =
-    active && v?.choosing
-      ? {
-          text: `${name(v.choosing.species)} (Lv. ${v.choosing.level}) was caught, but the party is full. Which Pokémon should it replace?`,
-          inline: true,
-          choices: [
-            ...v.party.map((m, i) => ({ label: caughtLabel(m, i, v.party), icon: <MonIcon id={m.species} />, disabled: actions.busy })),
-            { label: `Release ${name(v.choosing.species)}`, icon: <MonIcon id={v.choosing.species} />, disabled: actions.busy },
-          ],
-          answer: (i) => void act({ type: 'CAUGHT_CHOICE', ...(i < v.party.length && { replace: v.party[i]!.uid }) }),
-        }
-      : null;
   // The party over the game screen (the user's): its button in the screen's top right corner, its slots sliding out; and
   // the Town Map's button in its top left corner, on every scene (the user's, in place of the mode drop-down), and the
   // map, opened, over everything.
   const overlays = () =>
     active && v ? (
       <>
-        <PartyOverlay party={v.party} bag={v.bag} busy={actions.busy} pending={v.pendingChanges} open={partyOpen} onToggle={setPartyOpen} onAct={act} />
+        <PartyOverlay
+          party={v.party}
+          bag={v.bag}
+          busy={actions.busy}
+          pending={v.pendingChanges}
+          open={partyOpen}
+          onToggle={setPartyOpen}
+          onAct={act}
+          // A catch with the party full (the user's): which party Pokémon it replaces, or Release, in the party itself.
+          replacing={v.choosing ?? null}
+          onReplace={(uid) => void act({ type: 'CAUGHT_CHOICE', ...(uid && { replace: uid }) })}
+        />
         <TownMap view={v} busy={actions.busy} gender={gender} onAct={act} />
       </>
     ) : null;
@@ -242,7 +237,7 @@ export function IdlePage() {
           {overlays()}
         </BattleScreen>
       ) : (
-        <AreaScene playback={play} gender={gender} dialogue={catchUp ?? choosing ?? (play.notice ? { text: play.notice, choices: [], instant: true, answer: () => {} } : null)}>
+        <AreaScene playback={play} gender={gender} dialogue={catchUp ?? (play.notice ? { text: play.notice, choices: [], instant: true, answer: () => {} } : null)}>
           {!play.entering && overlays()}
           {play.entering && <SceneTransition />}
         </AreaScene>
