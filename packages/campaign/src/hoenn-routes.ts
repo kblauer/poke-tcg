@@ -598,6 +598,7 @@ export const ROUTE_119: Route = {
   flow: 'up',
   sprites: 'rse',
   entrance: { x: 20, y: 138 },
+  exit: { x: 38, y: 8 },
   name: 'Route 119',
   image: '/routes/route119.png',
   overhead: '/routes/route119_overhead.png',
