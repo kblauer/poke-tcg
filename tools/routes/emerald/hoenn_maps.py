@@ -124,7 +124,8 @@ USER_GYM_LINKS = {'mossdeep': [((1, 33), (20, 24)), ((23, 20), (8, 12)), ((11, 3
 USER_ROOM_ENTRANCE = {'lavaridge': (12, 12)}
 # The Pokémon League rooms' too (walkable: the door the player comes in at; the Elite Four's at 6,13, the user's).
 USER_LEAGUE_ENTRANCE = {k: (6, 13) for k in ('sidney', 'phoebe', 'glacia', 'drake')}
-# A League room's tiles drawn whole over the people under them (the Elite Four's arch over their door, row 11: the user's).
+# A League room's tiles drawn whole over the people under them (the Elite Four's arch over their door, row 11: the user's),
+# and the top of the arch in the tiles above them, from its outline down (wall_overhead).
 USER_LEAGUE_OVERHEAD = {k: [(x, 11) for x in range(13)] for k in ('sidney', 'phoebe', 'glacia', 'drake')}
 USER_GYM_TRAINER = {'lavaridge': {'spot': (9, 13), 'stand': (8, 13)}, 'petalburg': {'spot': (4, 56), 'stand': (4, 55)}, 'mossdeep': {'spot': (7, 9), 'stand': (6, 9)},
                     # Sootopolis Gym's off its ice, in the room the player comes in at (its 1F has no trainers: Emerald's are on B1F).
@@ -766,7 +767,8 @@ def main():
         overhead = None
         if key in USER_LEAGUE_OVERHEAD:
             overhead = image.replace('.png', '_overhead.png')
-            wall_overhead(img, [], USER_LEAGUE_OVERHEAD[key]).save(os.path.join(PUBLIC, overhead))
+            whole = USER_LEAGUE_OVERHEAD[key]
+            wall_overhead(img, [(x, y - 1) for x, y in whole], whole).save(os.path.join(PUBLIC, overhead))
         if key == 'center':
             doc = f"A Pokémon Center's ground floor (Lavaridge Town's, Emerald's), for the Pokémon Center in the middle of the Hoenn Gym Challenge: the player comes in at the door ({ent[0]},{ent[1]}) and walks up to the counter ({spot[0]},{spot[1]}), the nurse behind it ({stand[0]},{stand[1]})."
             const_ = 'HOENN_POKEMON_CENTER'
