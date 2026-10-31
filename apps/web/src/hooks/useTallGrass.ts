@@ -15,14 +15,14 @@ export const LONG_RUSTLE: [frame: number, ticks: number][] = [[1, 3], [2, 3], [0
 /** How long long grass's rustle takes. */
 const LONG_RUSTLE_MS = (LONG_RUSTLE.reduce((n, [, t]) => n + t, 0) * 1000) / 60;
 
-/** A tuft of tall grass drawn over someone (TallGrass): its tile, whether it rustles, when it began, and whether it's long grass. */
+/** A tuft of tall grass drawn over someone (TallGrass): its tile, whether it rustles, when it began, and whether it's long grass (or its foot, 'edge'). */
 export interface GrassTuft {
   key: number;
   x: number;
   y: number;
   rustle: boolean;
   at: number;
-  long: boolean;
+  long: boolean | 'edge';
 }
 
 /**
@@ -32,9 +32,10 @@ export interface GrassTuft {
  * jump none on the way, but landing in it the grass thrown up (`splash`, JumpDust's `grass`) and a tuft at rest if there's
  * none (JumpOnTallGrass). A tuft stays while he's on its tile or has just left it (drawn over him as he steps out), and
  * goes once he's off both and its rustle is over (UpdateTallGrassFieldEffect). `map` is the map shown: a new one starts over.
- * `long`: the tile is Emerald's long grass, whose tufts are its own (FldEff_LongGrass, the same rules).
+ * `long`: the tile is Emerald's long grass, whose tufts are its own (FldEff_LongGrass, the same rules); 'edge', its foot
+ * (onLongGrassEdge: long grass's tufts cut off above the band of ground).
  */
-export function useTallGrass({ tile, grass, long = false, map, moveMs, jump, set = 'frlg' }: { tile: { x: number; y: number }; grass: boolean; long?: boolean; map: string; moveMs: number; jump?: { ms: number } | null; set?: SpriteSet }) {
+export function useTallGrass({ tile, grass, long = false, map, moveMs, jump, set = 'frlg' }: { tile: { x: number; y: number }; grass: boolean; long?: boolean | 'edge'; map: string; moveMs: number; jump?: { ms: number } | null; set?: SpriteSet }) {
   const keys = useRef(0);
   const tuft = (rustle: boolean): GrassTuft => ({ key: ++keys.current, x: tile.x, y: tile.y, rustle, at: Date.now(), long });
   const [tufts, setTufts] = useState<GrassTuft[]>(() => (grass ? [tuft(false)] : []));

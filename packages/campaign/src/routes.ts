@@ -404,6 +404,13 @@ export const inGrass = (route: Route, spot: RouteSpot) => {
 /** Whether a tile is Emerald's long grass (the route's `grass`, 'L': Route 119's very tall grass), hiding more of those in it. */
 export const inLongGrass = (route: Route, spot: RouteSpot) => route.grass?.[spot.y]?.[spot.x] === 'L';
 
+/**
+ * Whether a tile is the foot of Emerald's long grass: tall grass beside long grass (Route 119's patches' bottom row, long
+ * grass above a band of ground), whose tufts are long grass's cut off above the band (the user's).
+ */
+export const onLongGrassEdge = (route: Route, spot: RouteSpot) =>
+  route.grass?.[spot.y]?.[spot.x] === 'g' && [-1, 0, 1].some((dy) => [-1, 0, 1].some((dx) => route.grass?.[spot.y + dy]?.[spot.x + dx] === 'L'));
+
 /** Whether a tile is ice (the route's `ice`), slid across. */
 export const onIce = (route: Route, spot: RouteSpot) => route.ice?.[spot.y]?.[spot.x] === 'i';
 

@@ -125,9 +125,6 @@ USER_ROUTE_TREETOPS = {'mauville': (8, 93)}
 # Treetops drawn over the player standing on them instead (the user's: Route 119's), found as `treetops` finds them and
 # copied whole into the route's overhead image (<image>_overhead.png).
 USER_ROUTE_TREETOP_OVERHEAD = {'fortree': (17, 121)}
-# Routes whose tall grass is all long grass (the user's: Route 119's tall grass tiles are its long grass patches' top
-# edges, drawn as long grass, so they show long grass's tufts and mask too).
-USER_ROUTE_ALL_LONG_GRASS = {'fortree'}
 # Spots whose figures go another way than the map's flow (by encounter number, from 1; the Route's `spotFlows`): the
 # third figure, past the two beside the player, in line ahead the way given (Route 110's encounter 6: south; its 8th's
 # right, the two beside him above and below; the user's).
@@ -636,8 +633,7 @@ def main():
         ent = USER_ROUTE_ENTRANCE.get(key, ent)
         img.save(os.path.join(PUBLIC, cfg['image']))
         preview(img, [('IN', ent, (0, 255, 0))] + [(str(i + 1), s, (255, 0, 0)) for i, s in enumerate(spots)], os.path.join(work, key + '-route.png'))
-        grass = [[2 if g else 0 for g in r] for r in info['grass']] if key in USER_ROUTE_ALL_LONG_GRASS else info['grass']
-        out.append(route_ts(cfg, ent, spots, rows, grass, USER_ROUTE_LINKS.get(key, []), key in USER_ROUTE_ON_FOOT, USER_SPOT_FLOWS.get(key, {}), USER_ROUTE_EXIT.get(key), key in USER_ROUTE_DOORS, overhead))
+        out.append(route_ts(cfg, ent, spots, rows, info['grass'], USER_ROUTE_LINKS.get(key, []), key in USER_ROUTE_ON_FOOT, USER_SPOT_FLOWS.get(key, {}), USER_ROUTE_EXIT.get(key), key in USER_ROUTE_DOORS, overhead))
         print('route', key, cfg['map'], 'entrance', ent, 'spots', spots)
     open(ROUTES_OUT, 'w', encoding='utf-8', newline='\n').write(ROUTES_HEAD + ''.join(out))
 

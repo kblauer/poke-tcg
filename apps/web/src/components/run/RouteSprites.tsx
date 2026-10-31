@@ -341,6 +341,9 @@ export function JumpDust({ tile, grass = false, set = 'frlg' }: { tile: RouteSpo
 /** Where a map's tall grass pictures are: FireRed's, or Emerald's on the Hoenn maps (tools/routes/jump_effects.py). */
 const grassDir = (set: SpriteSet) => (set === 'rse' ? 'rse/' : '');
 
+/** How far down the long grass's foot its tufts reach (Route 119's: the band of ground below, from its 9th row). */
+const LONG_EDGE = 8;
+
 /**
  * Tall grass drawn over someone standing in it, on its tile (FireRed's FLDEFF_TALL_GRASS, `tall_grass.png`: 5 frames of
  * 16x16, stacked): at rest (frame 0, its blades over their feet) or, `rustle`, rustling as they step in (frames 1 to 4,
@@ -348,9 +351,10 @@ const grassDir = (set: SpriteSet) => (set === 'rse' ? 'rse/' : '');
  * zIndex), as the game layers them; and during the rustle's first frame behind the one stepping in too (its subpriority
  * 4 more then: UpdateTallGrassFieldEffect). Emerald's (`set` 'rse') works the same, with its own pictures. `long`: Emerald's
  * long grass instead (FLDEFF_LONG_GRASS, `rse/long_grass.png`: 4 frames, LONG_RUSTLE), always in front of the one in it
- * (its subpriority never raised: UpdateLongGrassFieldEffect).
+ * (its subpriority never raised: UpdateLongGrassFieldEffect); 'edge', the long grass's foot (onLongGrassEdge), its tufts only
+ * down to LONG_EDGE, the map's band of ground showing below them (the user's).
  */
-export function TallGrass({ tile, rustle = false, set = 'frlg', long = false }: { tile: RouteSpot; rustle?: boolean; set?: SpriteSet; long?: boolean }) {
+export function TallGrass({ tile, rustle = false, set = 'frlg', long = false }: { tile: RouteSpot; rustle?: boolean; set?: SpriteSet; long?: boolean | 'edge' }) {
   const frames = long ? LONG_RUSTLE.map(([f]) => f) : RUSTLE;
   const [step, setStep] = useState(rustle ? 0 : frames.length - 1);
   useEffect(() => {
@@ -365,7 +369,7 @@ export function TallGrass({ tile, rustle = false, set = 'frlg', long = false }: 
   return (
     <div
       className="pointer-events-none absolute [image-rendering:pixelated]"
-      style={{ left: tile.x * 16, top: tile.y * 16, width: 16, height: 16, backgroundImage: `url(/overworld/${long ? 'rse/long_grass' : `${grassDir(set)}tall_grass`}.png)`, backgroundPosition: `0 ${-frame * 16}px`, zIndex: frame === 1 && !long ? Math.max(0, tile.y - 1) : tile.y }}
+      style={{ left: tile.x * 16, top: tile.y * 16, width: 16, height: long === 'edge' ? LONG_EDGE : 16, backgroundImage: `url(/overworld/${long ? 'rse/long_grass' : `${grassDir(set)}tall_grass`}.png)`, backgroundPosition: `0 ${-frame * 16}px`, zIndex: frame === 1 && !long ? Math.max(0, tile.y - 1) : tile.y }}
     />
   );
 }
@@ -373,9 +377,9 @@ export function TallGrass({ tile, rustle = false, set = 'frlg', long = false }: 
 /**
  * The tall grass over someone walking (useTallGrass: rustling as they step in, at rest where they're put, thrown up where a
  * ledge jump lands in it), on `map` (its picture: a new one starts over); none while they're `hidden` (faded out). `long`:
- * the tile they're on is Emerald's long grass.
+ * the tile they're on is Emerald's long grass, or its foot ('edge').
  */
-export function GrassTufts({ tile, grass, long = false, map, moveMs, jump, hidden = false, set = 'frlg' }: { tile: RouteSpot; grass: boolean; long?: boolean; map: string; moveMs: number; jump?: { ms: number } | null; hidden?: boolean; set?: SpriteSet }) {
+export function GrassTufts({ tile, grass, long = false, map, moveMs, jump, hidden = false, set = 'frlg' }: { tile: RouteSpot; grass: boolean; long?: boolean | 'edge'; map: string; moveMs: number; jump?: { ms: number } | null; hidden?: boolean; set?: SpriteSet }) {
   const { tufts, splash } = useTallGrass({ tile, grass, long, map, moveMs, jump, set });
   if (hidden) return null;
   return (

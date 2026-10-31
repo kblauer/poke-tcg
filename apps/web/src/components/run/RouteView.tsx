@@ -3,7 +3,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
-import { flowAt, inGrass, inLongGrass, isBattleKind, onPath, onWater, routePath, travelAt, type Route, type RouteSpot } from '@poke-tcg/campaign';
+import { flowAt, inGrass, inLongGrass, isBattleKind, onLongGrassEdge, onPath, onWater, routePath, travelAt, type Route, type RouteSpot } from '@poke-tcg/campaign';
 import type { PlayerGender } from '@poke-tcg/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
@@ -174,6 +174,8 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
   const masked = (tile: RouteSpot) => sprites === 'hgss' && inGrass(shown, tile);
   // Emerald's long grass (Route 119's very tall grass) hides the whole bottom tile of those in it, under its own tufts.
   const long = (tile: RouteSpot) => inLongGrass(shown, tile);
+  // Its tufts: long grass's, cut off above the band of ground at its foot ('edge', onLongGrassEdge).
+  const tuftOf = (tile: RouteSpot) => long(tile) || (onLongGrassEdge(shown, tile) && 'edge');
   useEffect(() => {
     if (!anyWalking) return;
     const timer = window.setInterval(() => setTick((t) => t + 1), ms.frame / (pace(shown, walker.tile) * (wading ? GRASS_PACE : 1)));
@@ -327,18 +329,18 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
             {/* The Gen 3 maps' tall grass, after the sprites so it's over the feet of those on its row. */}
             {sprites !== 'hgss' && (
               <>
-                {shown.npcs?.map((n, i) => inGrass(shown, n.tile) && <TallGrass key={`npc${i}`} tile={n.tile} set={sprites} long={long(n.tile)} />)}
+                {shown.npcs?.map((n, i) => inGrass(shown, n.tile) && <TallGrass key={`npc${i}`} tile={n.tile} set={sprites} long={tuftOf(n.tile)} />)}
                 {placed.map((p) =>
                   isApproaching(p) ? (
-                    <GrassTufts key="approach" tile={approaching!.tile} grass={inGrass(shown, approaching!.tile)} long={long(approaching!.tile)} map={shown.image} moveMs={approaching!.walking ? ms.step : 0} set={sprites} />
+                    <GrassTufts key="approach" tile={approaching!.tile} grass={inGrass(shown, approaching!.tile)} long={tuftOf(approaching!.tile)} map={shown.image} moveMs={approaching!.walking ? ms.step : 0} set={sprites} />
                   ) : (
-                    inGrass(shown, p.tile) && <TallGrass key={`${key(p.spot)}|${p.figure.option ?? ''}|${p.figure.title}`} tile={p.tile} set={sprites} long={long(p.tile)} />
+                    inGrass(shown, p.tile) && <TallGrass key={`${key(p.spot)}|${p.figure.option ?? ''}|${p.figure.title}`} tile={p.tile} set={sprites} long={tuftOf(p.tile)} />
                   ),
                 )}
                 <GrassTufts
                   tile={walker.tile}
                   grass={inGrass(shown, walker.tile)}
-                  long={long(walker.tile)}
+                  long={tuftOf(walker.tile)}
                   map={shown.image}
                   moveMs={walker.jump?.ms ?? (walker.walking ? ms.step / stepPace(shown, walker.tile) : 0)}
                   jump={walker.jump}

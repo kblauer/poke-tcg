@@ -4,7 +4,7 @@ import { ITEMS, itemText, MAX_CONSUMABLES_PER_RUN, onlyOne, shopStock } from './
 import { RUN_TYPE_IDS, RUN_TYPES, runType, type RunType, type RunTypeId } from './run-types.js';
 import { ROUTE_4 } from './kanto-routes.js';
 import { JOHTO_BOSS_ROOMS, MAHOGANY_GYM } from './johto-gyms.js';
-import { inGrass, inLongGrass, onPath, PEWTER_GYM, ROUTE_2, routePath, travelAt, type Route, type RouteSpot } from './routes.js';
+import { inGrass, inLongGrass, onLongGrassEdge, onPath, PEWTER_GYM, ROUTE_2, routePath, travelAt, type Route, type RouteSpot } from './routes.js';
 import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, isBattleKind, isBossKind, landNear, MAX_CENTERS, REQUIRED_BATTLES, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, withConsumablesBefore, carriedConsumables, parsePendingConsumable, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
 import { GEN2_SETS, GEN3_SETS } from './pool.js';
 import { GEN2_TEST_POOL, GEN3_TEST_POOL, TEST_POOL } from './test-pool.js';
@@ -251,11 +251,12 @@ describe('createRun', () => {
     const y = route.grass!.findIndex((r) => r.includes('L'));
     const tile = { x: route.grass![y]!.indexOf('L'), y };
     expect([inGrass(route, tile), inLongGrass(route, tile)]).toEqual([true, true]);
-    // Its tall grass is all long grass (the user's); another map's tall grass isn't.
-    expect(route.grass!.some((r) => r.includes('g'))).toBe(false);
-    const other = maps.find((m) => m.grass?.some((r) => r.includes('g')))!;
-    const tall = { x: other.grass!.find((r) => r.includes('g'))!.indexOf('g'), y: other.grass!.findIndex((r) => r.includes('g')) };
-    expect([inGrass(other, tall), inLongGrass(other, tall)]).toEqual([true, false]);
+    const tall = { x: route.grass!.find((r) => r.includes('g'))!.indexOf('g'), y: route.grass!.findIndex((r) => r.includes('g')) };
+    expect([inGrass(route, tall), inLongGrass(route, tall)]).toEqual([true, false]);
+    // Its tall grass is the long grass's foot (every tile of it), and no other map has any.
+    const talls = (m: Route) => m.grass!.flatMap((r, y) => [...r].flatMap((c, x) => (c === 'g' ? [{ x, y }] : [])));
+    expect(talls(route).every((t) => onLongGrassEdge(route, t))).toBe(true);
+    expect(maps.filter((m) => m !== route && m.grass && talls(m).some((t) => onLongGrassEdge(m, t)))).toEqual([]);
   });
 
   it("Goldenrod Gym's walks follow its track (the user's): over the bridges and back under them, never cutting across", () => {
