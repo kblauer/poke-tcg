@@ -169,6 +169,8 @@ export interface IdleState {
    * Pokémon it takes the place of or Release (CAUGHT_CHOICE); away, after TOWN_WAIT_MS, the settings' (choiceWait).
    */
   choosing?: Mon;
+  /** Debug (set by idle.debugCatch only, refused in production): every ball thrown in this run catches. */
+  debugCatch?: boolean;
   /** The trainers (TRAINERS' keys) whose full prize the run has had: a rematch pays REMATCH_PRIZE of it. */
   paid?: string[];
   /**
@@ -1165,7 +1167,7 @@ function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<
   const before = state.party.map((m) => m.level);
   const t = o.trainer ? TRAINERS[o.trainer] : null;
   const result = simulateBattle(
-    { kind: o.kind, party: state.party, foes: o.foes, foeItems: t?.items ?? [], bag: state.bag, settings: { autoHeal: settings.autoHeal, revives: settings.revives, tryCatch, catchMove: settings.catchMove }, boss: !!o.trainer && /^(leader|elite-four|champion)/.test(o.trainer), badges: state.badges.length, terrain: terrainOf(o.tile), ...(o.kind === 'wild' && settings.throwAt?.length && { throwAt: settings.throwAt }) },
+    { kind: o.kind, party: state.party, foes: o.foes, foeItems: t?.items ?? [], bag: state.bag, settings: { autoHeal: settings.autoHeal, revives: settings.revives, tryCatch, catchMove: settings.catchMove }, boss: !!o.trainer && /^(leader|elite-four|champion)/.test(o.trainer), badges: state.badges.length, terrain: terrainOf(o.tile), ...(o.kind === 'wild' && settings.throwAt?.length && { throwAt: settings.throwAt }), ...(state.debugCatch && { sureCatch: true }) },
     rng,
   );
   out.events.push({

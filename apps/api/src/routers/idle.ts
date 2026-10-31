@@ -1,6 +1,6 @@
 import { prisma } from '@poke-tcg/db';
 import { AREAS, applyIdleAction, areaIndex, BALLS, throwable, isBaseForm, isOptional, CATCH_UP_CAP_MS, catchUp, createIdleRun, cutSegment, cuts, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, reachedArea, simulateSegment, TOWN_WAIT_MS, starterOptions, STARTERS, visitStore, withPending, type IdleSettings, type Stats } from '@poke-tcg/idle';
-import { idleActInput, idleHereInput, idleRunInput, idleSettingsInput, idleThrowInput, idleWarpInput, startIdleInput } from '@poke-tcg/shared';
+import { idleActInput, idleDebugCatchInput, idleHereInput, idleRunInput, idleSettingsInput, idleThrowInput, idleWarpInput, startIdleInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { asJson, newSeed } from '../games.js';
 import { caughtSpecies, clientIdleRun, idleSettings, latestIdleRun, loadOwnIdleRun, saveIdleRun, type LoadedIdleRun } from '../idle.js';
@@ -9,6 +9,8 @@ import { debugProcedure, protectedProcedure, router } from '../trpc.js';
 
 /** How far ahead of now a run may be played (the browser asks for the next segment as the last one ends; a little early is fine). */
 const AHEAD_MS = 15_000;
+/** Debug's money button (idle.debugMoney): ₱ added to the run under way. */
+const DEBUG_MONEY = 1_000_000;
 
 /** A run's state checked against the version the browser had (CONFLICT when stale). */
 function checkVersion(run: LoadedIdleRun, expected: number) {
@@ -216,6 +218,30 @@ export const idleRouter = router({
   }),
 
   /** Debug (refused in production): warps the run to an area's start (a town waits there), its party and bag kept. */
+  /** Debug (refused in production): ₱1,000,000 more for the run under way (its segment's start too, so a ball thrown keeps it). */
+  debugMoney: debugProcedure.input(idleHereInput).mutation(async ({ ctx, input }) => {
+    const run = await loadOwnIdleRun(input.runId, ctx.user.id);
+    if (run.status !== 'ACTIVE') throw failed('This run is over');
+    const state = structuredClone(run.state);
+    state.money += DEBUG_MONEY;
+    if (state.replay) state.replay.prev.money += DEBUG_MONEY;
+    state.version += 1;
+    state.log.push(`Debug: +₱${DEBUG_MONEY.toLocaleString()}.`);
+    return clientIdleRun(await saveIdleRun(run, state, {}));
+  }),
+
+  /** Debug (refused in production): every ball thrown in the run catches (IdleState.debugCatch), or not; from the next battle. */
+  debugCatch: debugProcedure.input(idleDebugCatchInput).mutation(async ({ ctx, input }) => {
+    const run = await loadOwnIdleRun(input.runId, ctx.user.id);
+    if (run.status !== 'ACTIVE') throw failed('This run is over');
+    const state = structuredClone(run.state);
+    if (input.on) state.debugCatch = true;
+    else delete state.debugCatch;
+    state.version += 1;
+    state.log.push(`Debug: every ball catches ${input.on ? 'on' : 'off'}.`);
+    return clientIdleRun(await saveIdleRun(run, state, {}));
+  }),
+
   debugWarp: debugProcedure.input(idleWarpInput).mutation(async ({ ctx, input }) => {
     const run = await loadOwnIdleRun(input.runId, ctx.user.id);
     // Only a run under way (a finished one is banked: warping it back would make two runs under way).

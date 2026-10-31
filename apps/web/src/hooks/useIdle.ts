@@ -44,12 +44,16 @@ export function useIdleActions() {
   const act = useMutation(trpc.idle.act.mutationOptions({ onSuccess: ({ run }) => setRun(run) }));
   const settings = useMutation(trpc.idle.settings.mutationOptions({ onSuccess: (s) => queryClient.setQueryData(key, (old) => old && { ...old, settings: s }) }));
   const warp = useMutation(trpc.idle.debugWarp.mutationOptions({ onSuccess: setRun }));
+  const money = useMutation(trpc.idle.debugMoney.mutationOptions({ onSuccess: setRun }));
+  const sureCatch = useMutation(trpc.idle.debugCatch.mutationOptions({ onSuccess: setRun }));
   return {
     busy: start.isPending || act.isPending,
     start: (species: number, shiny = false) => start.mutateAsync({ species, shiny }),
     act: (run: ClientIdleRun, action: IdleAction) => act.mutateAsync({ runId: run.id, expectedVersion: run.version, action }),
     settings: (s: Partial<IdleSettings>) => settings.mutateAsync(s),
     warp: (run: ClientIdleRun, area: string) => warp.mutateAsync({ runId: run.id, area }),
+    money: (run: ClientIdleRun) => money.mutateAsync({ runId: run.id }),
+    sureCatch: (run: ClientIdleRun, on: boolean) => sureCatch.mutateAsync({ runId: run.id, on }),
     // Changing a run invalidates any segment in flight: refetch the overview so its version is the newest.
     refresh: () => queryClient.invalidateQueries({ queryKey: key }),
   };

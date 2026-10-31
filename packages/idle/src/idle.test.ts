@@ -430,6 +430,24 @@ describe('an idle run', () => {
     expect(away.choosing).toBeUndefined();
   });
 
+  it("catches with every ball thrown under debug's guaranteed catching (IdleState.debugCatch)", () => {
+    const area = AREAS.findIndex((a) => a.id === 'route-2');
+    const leg = (AREAS[area] as WalkArea).legs[0]!;
+    const forest = leg.maps.indexOf('ViridianForest');
+    const step = leg.track.findIndex(([m, , , , t]) => m === forest && t[0] === 'l');
+    const base = createIdleRun({ species: 4 }, 7);
+    let s: IdleState = { ...base, area, step, beaten: (AREAS[area] as WalkArea).trainers.map((t) => t.key), bag: { 'poke-ball': 99 }, party: [{ ...base.party[0]!, level: 12 }], debugCatch: true };
+    s = (applyIdleAction(s, { type: 'WILD_GRIND' }) as { state: IdleState }).state;
+    const balls: { caught?: boolean }[] = [];
+    for (let i = 0; i < 40 && balls.length < 5; i++) {
+      const next = simulateSegment(s, { ...MANUAL, autoCatch: 'all' }, new Set())!;
+      for (const e of next.segment.events) if (e.t === 'battle') balls.push(...e.events.filter((x) => x.t === 'ball'));
+      s = next.state;
+    }
+    expect(balls.length).toBeGreaterThan(0);
+    expect(balls.every((b) => b.caught)).toBe(true);
+  });
+
   it('offers as starters only Pokémon that evolve from none', () => {
     // Charmeleon, Pidgeotto and Vaporeon caught: not startable; Pidgey, Tauros (no evolutions) and Eevee are.
     expect(starterOptions([5, 16, 17, 128, 133, 134])).toEqual([1, 4, 7, 16, 128, 133]);

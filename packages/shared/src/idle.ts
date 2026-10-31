@@ -52,3 +52,5 @@ export const idleHereInput = z.object({ runId: z.uuid() });
 export const idleSettingsInput = idleSettingsSchema.partial();
 /** Debug: a warp to an area (the run's party and bag kept). */
 export const idleWarpInput = z.object({ runId: z.uuid(), area: z.string().min(1).max(40) });
+/** Debug: every ball thrown in the run catches, or not. */
+export const idleDebugCatchInput = z.object({ runId: z.uuid(), on: z.boolean() });
