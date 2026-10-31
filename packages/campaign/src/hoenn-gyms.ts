@@ -372,7 +372,7 @@ export const FORTREE_GYM: Route = {
   ],
 };
 
-/** Mossdeep Gym, the leader's room: the Gym Trainer where Psychic Virgil stands (6,9), the leader in their place (23,7), Liza beside Tate (24,7), its rooms joined through their doors (3,28 to 1,23; 7,18 to 8,12; 9,18 to 23,20; 1,33 to 20,24; 11,3 to 11,35; 13,32 to 21,10). */
+/** Mossdeep Gym, the leader's room: the Gym Trainer where no one (the user's place) stands (6,9), the leader in their place (23,7), Liza beside Tate (24,7), its rooms joined through their doors (1,33 to 20,24; 23,20 to 8,12; 11,3 to 7,18; 1,23 to 21,10). */
 export const MOSSDEEP_GYM: Route = {
   flow: 'up',
   sprites: 'rse',
@@ -381,9 +381,9 @@ export const MOSSDEEP_GYM: Route = {
   width: 416,
   height: 576,
   entrance: { x: 6, y: 35 },
-  links: [[{ x: 3, y: 28 }, { x: 1, y: 23 }], [{ x: 7, y: 18 }, { x: 8, y: 12 }], [{ x: 9, y: 18 }, { x: 23, y: 20 }], [{ x: 1, y: 33 }, { x: 20, y: 24 }], [{ x: 11, y: 3 }, { x: 11, y: 35 }], [{ x: 13, y: 32 }, { x: 21, y: 10 }]],
+  links: [[{ x: 1, y: 33 }, { x: 20, y: 24 }], [{ x: 23, y: 20 }, { x: 8, y: 12 }], [{ x: 11, y: 3 }, { x: 7, y: 18 }], [{ x: 1, y: 23 }, { x: 21, y: 10 }]],
   spots: [
-    { x: 8, y: 10 },
+    { x: 7, y: 9 },
     { x: 23, y: 8 },
   ],
   stands: [
@@ -400,7 +400,7 @@ export const MOSSDEEP_GYM: Route = {
     '####.....##..#############',
     '####.....##..########~####',
     '####.#..###.#########.####',
-    '####....#...#########.#..#',
+    '####....###.#########.#..#',
     '######......#########.....',
     '########.############.####',
     '########.#################',

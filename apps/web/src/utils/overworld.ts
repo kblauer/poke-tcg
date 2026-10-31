@@ -95,6 +95,12 @@ const IN_WATER: Record<string, string> = { swimmer_m_land: 'swimmer_m_water', sw
 export const waterSprite = (name: string) => IN_WATER[name];
 /** Whether a sprite is a swimmer's (they stand in water where they can): HGSS's and Emerald's swimmers are only ever in it. */
 export const swims = (name: string) => !!IN_WATER[name] || ['hgss/swimmer_m', 'hgss/swimmer_f', 'rse/swimmer_m', 'rse/swimmer_f'].includes(name);
+/**
+ * A boss drawn on the map with an overworld sprite instead of their own picture (`public/trainers/`), when that picture
+ * holds more than one person: Tate & Liza's is both twins, so Tate stands in the gym in his own sprite, Liza beside him as
+ * the gym's other person (its `npcs`; the user's).
+ */
+export const BOSS_MAP_SPRITES: Partial<Record<string, string>> = { 'tate-liza': 'rse/tate' };
 /** The item ball (a Mystery not yet revealed, a Lucky Find), which stays put and is one tile tall. */
 export const isItemBall = (name: string | undefined) => name === 'item_ball' || name === 'hgss/item_ball' || name === 'rse/item_ball';
 

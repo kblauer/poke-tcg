@@ -2,7 +2,7 @@ import { inGrass, inLongGrass, ledgeAt, onIce, onPath, onWater, type EncounterKi
 import { useEffect, useRef, useState } from 'react';
 import { GRASS_FRAME_MS, LONG_RUSTLE, RUSTLE, useTallGrass } from '../../hooks/useTallGrass';
 import { FADE_MS } from '../../hooks/useWalk';
-import { bobFrame, bobs, isItemBall, mirrored, spriteHeight, spriteWidth, standFrame, stripFrames, surfBobs, walkFrame, waterSprite, type Facing, type SpriteSet } from '../../utils/overworld';
+import { BOSS_MAP_SPRITES, bobFrame, bobs, isItemBall, mirrored, spriteHeight, spriteWidth, standFrame, stripFrames, surfBobs, walkFrame, waterSprite, type Facing, type SpriteSet } from '../../utils/overworld';
 import { facing, type RouteFigure } from '../../utils/routeFigures';
 import { ENCOUNTER_STYLE } from './encounterIcons';
 
@@ -494,10 +494,11 @@ export function Figure({
   walkTick?: number;
   moveMs?: number;
 }) {
-  if (!figure.boss) {
+  const mapSprite = figure.boss && BOSS_MAP_SPRITES[figure.boss];
+  if (!figure.boss || mapSprite) {
     return (
       <>
-        <OverworldSprite name={(wet && figure.sprite && waterSprite(figure.sprite)) || figure.sprite || 'boy'} tile={tile} face={face ?? facing(tile, spot)} title={figure.title} faded={faded} walkTick={walkTick} moveMs={moveMs} grass={grass} longGrass={longGrass} />
+        <OverworldSprite name={mapSprite || (wet && figure.sprite && waterSprite(figure.sprite)) || figure.sprite || 'boy'} tile={tile} face={face ?? facing(tile, spot)} title={figure.title} faded={faded} walkTick={walkTick} moveMs={moveMs} grass={grass} longGrass={longGrass} />
         {figure.bubble && <EncounterBubble kind={figure.bubble} tile={tile} faded={faded} low={isItemBall(figure.sprite)} below={tile.y > spot.y} moveMs={moveMs} />}
       </>
     );

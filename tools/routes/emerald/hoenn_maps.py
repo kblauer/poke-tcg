@@ -88,7 +88,9 @@ USER_WALKABLE = {'mauville': [(4, 7), (5, 7)], 'lavaridge': [(8, 9), (12, 12)]}
 USER_TILE_COPIES = {'mauville': [((4, 5), (x, y)) for y in (6, 7) for x in (4, 5)]}
 # Fortree Gym's fences, 13-17 on rows 6, 12 and 17 (the user's: the player goes round by the gym's left side), and
 # 15,21, where its Gym Guide stands (the user's).
-USER_UNWALKABLE = {'dewford': [(5, 24)], 'fortree': [(x, y) for y in (6, 12, 17) for x in range(13, 18)] + [(15, 21)]}
+USER_UNWALKABLE = {'dewford': [(5, 24)], 'fortree': [(x, y) for y in (6, 12, 17) for x in range(13, 18)] + [(15, 21)],
+                   # Mossdeep Gym's spin panels 9,8 and 10,8: the player goes from the Gym Trainer along row 9 to 11,9, then up (the user's).
+                   'mossdeep': [(9, 8), (10, 8)]}
 # Tiles whose wall is drawn over the people standing on them (the top of each wall's face runs through the tile, the
 # player walking behind it), cut from the map's picture into its overhead image (wall_overhead): Rustboro Gym's rock
 # walls, the user's tiles; 'walls', every wall's top edge with a wall below (wall_edges: Dewford Gym's, the user's);
@@ -97,8 +99,11 @@ USER_OVERHEAD = {'rustboro': [(4, 14), (6, 14), (7, 14), (2, 12), (3, 12), (2, 1
 # Tiles drawn whole over the people on them (Dewford Gym's statues' tops: the player all but hidden behind them, the user's).
 USER_OVERHEAD_WHOLE = {'dewford': [(4, 23), (7, 23)]}
 USER_LINKS = {'lavaridge': [((8, 9), (12, 12))]}
+# A gym's links instead of its own warps (the user's: Mossdeep Gym's way through its spin panels, the door's room to
+# 20,24, 23,20 to the Gym Trainer's room at 8,12, 11,3 down to 7,18, and 1,23 up to the leaders' room at 21,10).
+USER_GYM_LINKS = {'mossdeep': [((1, 33), (20, 24)), ((23, 20), (8, 12)), ((11, 3), (7, 18)), ((1, 23), (21, 10))]}
 # The Gym Trainer's spot (the player's) and where they stand (the user's).
-USER_GYM_TRAINER = {'lavaridge': {'spot': (9, 13), 'stand': (8, 13)}, 'petalburg': {'spot': (4, 56), 'stand': (4, 55)}}
+USER_GYM_TRAINER = {'lavaridge': {'spot': (9, 13), 'stand': (8, 13)}, 'petalburg': {'spot': (4, 56), 'stand': (4, 55)}, 'mossdeep': {'spot': (7, 9), 'stand': (6, 9)}}
 # The routes' fixes from the user, made after the spots are picked (so the rest stay where they were): tiles made
 # walkable and unwalkable, spots moved (by encounter number, from 1), the entrance and exit, links (a building walked
 # through: its doors, fading between them), and a route come into on foot (`onFoot`: each link switches the player
@@ -450,6 +455,7 @@ def place(repo, city, rows, info, cfg, names):
         rows[t[1]][t[0]] = '#'
     rows = [''.join(r) for r in rows]
     links += USER_LINKS.get(city, [])
+    links = USER_GYM_LINKS.get(city, links)
     objs = info['events']['object_events']
     gfx = leader_gfx if isinstance(leader_gfx, tuple) else (leader_gfx,)
     leader = next(o for o in objs if o['graphics_id'] == gfx[0])
