@@ -1017,6 +1017,7 @@ export const SOOTOPOLIS_CITY: Route = {
   sprites: 'rse',
   entrance: { x: 31, y: 16 },
   exit: { x: 31, y: 32 },
+  spotFlows: { 0: 'right', 3: 'right', 7: 'right', 8: 'right' },
   travel: 'surf',
   trainers: { names: SWIMMERS, share: 1 },
   landSpots: true,

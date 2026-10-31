@@ -143,7 +143,9 @@ USER_SPOT_FLOWS = {'mauville': {6: 'down', 8: 'right'}, 'lavaridge': {2: 'up'},
                    # Route 102 flows left: its encounters 2, 3 and 6 with their figures either side (the user's), the third above.
                    'petalburg': {2: 'up', 3: 'up', 6: 'up'},
                    # Route 124 flows right: its encounters 2, 3, 5, 6 and 8 with their figures either side (the user's), the third above.
-                   'mossdeep': {2: 'up', 3: 'up', 5: 'up', 6: 'up', 8: 'up'}}
+                   'mossdeep': {2: 'up', 3: 'up', 5: 'up', 6: 'up', 8: 'up'},
+                   # Sootopolis City flows down: its encounters 1, 4, 8 and 9 with their figures above and below (the user's), the third right.
+                   'sootopolis': {1: 'right', 4: 'right', 8: 'right', 9: 'right'}}
 TREETOP_SAME = 0.75
 # Ledges jumped going down (the user's: Jagged Pass's rock ridges between two levels, 17-22,33 among them): every wall
 # with walkable tiles above and below drawn the same as one of these tiles (`ledges`), made a ledge ('v').
