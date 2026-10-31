@@ -121,7 +121,7 @@ export interface Route {
   /** Where each spot's figure stands (a gym's trainers, as the game has them), instead of near the spot. */
   stands?: RouteSpot[];
   /** The overworld sprites it's drawn with: HeartGold/SoulSilver's on the Johto maps ('hgss', 32x32), Emerald's on the Hoenn ones ('rse'); FireRed's otherwise. */
-  sprites?: 'hgss' | 'rse';
+  sprites?: 'hgss' | 'rse' | 'dp';
   /** How the player gets along (Route 17: on a bike, walking twice as fast; Route 20: surfing its water, '~'); on foot otherwise. */
   travel?: 'bike' | 'surf';
   /**

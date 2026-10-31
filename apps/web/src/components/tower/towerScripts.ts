@@ -27,7 +27,8 @@ const LEADING = new Set<TowerSprites>(['hgss', 'rse']);
 const SAVED_WELCOME = 'Welcome to the Battle Tower!';
 export const SAVED_LINE = 'You already have a Battle Tower challenge in progress. Would you like to continue?';
 
-const setOf = (room: TowerRoom): TowerSprites => room.sprites ?? 'frlg';
+// The Battle Tower's rooms are FireRed's, HGSS's and Emerald's (never Diamond and Pearl's, 'dp', a route map's only).
+const setOf = (room: TowerRoom): TowerSprites => (room.sprites as TowerSprites | undefined) ?? 'frlg';
 const wins = (n: number) => `${n} ${n === 1 ? 'battle' : 'battles'}`;
 
 /** What the scripts need from the page: the player's look, the start floors, the deck picker and the server's moves. */

@@ -1,6 +1,6 @@
 // Deck lists: the starter deck, gym leaders' decks, and random medium-strength decks for the other trainers.
 import { isBasicPokemon, isPokemonCard, type CardDef, type EnergyType, type PokemonCardDef } from '@poke-tcg/game-engine';
-import { BASIC_ENERGY, byId, DOUBLE_COLORLESS, GEN2_BASIC_ENERGY, GEN3_BASIC_ENERGY, nameKey, type PoolCard } from './pool.js';
+import { BASIC_ENERGY, byId, DOUBLE_COLORLESS, GEN2_BASIC_ENERGY, GEN3_BASIC_ENERGY, GEN4_BASIC_ENERGY, GEN4_DOUBLE_COLORLESS, nameKey, type PoolCard } from './pool.js';
 import { between, chance, pick, sample, type Rng } from './random.js';
 
 /** [card id, copies] */
@@ -291,6 +291,46 @@ const GEN3_GYM_LEADER_TRAINERS: [string, number][] = [
   ['Windstorm', 1],
 ];
 
+/**
+ * Gen 4's Trainers for random decks, from the Diamond & Pearl, Platinum and HeartGold & SoulSilver sets, as the other
+ * generations': the core and extras the Trainer CPU plays, the gym leader's extras with disruption on top (and Rare Candy
+ * with a Stage 2 line).
+ */
+const GEN4_CORE_TRAINERS: [string, number][] = [
+  ["Professor Oak's New Theory", 2],
+  ['Pokémon Collector', 1],
+  ['Potion', 2],
+  ['Switch', 2],
+];
+const GEN4_EXTRA_TRAINERS: [string, number][] = [
+  ["Bebe's Search", 1],
+  ["Roseanne's Research", 1],
+  ['Quick Ball', 1],
+  ['Great Ball', 1],
+  ['Poké Ball', 1],
+  ['Dual Ball', 1],
+  ['Energy Search', 1],
+  ['Energy Restore', 1],
+  ['Energy Switch', 1],
+  ['Night Maintenance', 1],
+  ['Moomoo Milk', 1],
+  ['Full Heal', 1],
+  ['Double Full Heal', 1],
+  ['Buffer Piece', 1],
+  ['Copycat', 1],
+];
+const GEN4_GYM_LEADER_TRAINERS: [string, number][] = [
+  ['Pokémon Reversal', 1],
+  ['Warp Point', 1],
+  ['Pokémon Circulator', 1],
+  ['Super Scoop Up', 1],
+  ['PlusPower', 1],
+  ['Expert Belt', 1],
+  ['Luxury Ball', 1],
+  ['Life Herb', 1],
+  ['Judge', 1],
+];
+
 /** Special Energy for random decks: Colorless-heavy decks take the `colorless` ones, two-type decks the `twoTypes` ones. */
 type SpecialEnergy = [name: string, copies: number, when: 'colorless' | 'twoTypes'];
 
@@ -376,6 +416,19 @@ export const GEN3_DECK_RULES: DeckRules = {
   gymLeaderExtra: GEN3_GYM_LEADER_TRAINERS,
   special: [['Multi Energy', 1, 'twoTypes'], ['Heal Energy', 1, 'colorless']],
   gymLeaderSpecial: [['Boost Energy', 1, 'colorless'], ['Double Rainbow Energy', 1, 'twoTypes']],
+  breeder: 'Rare Candy',
+  owners: {},
+  types: {},
+};
+
+export const GEN4_DECK_RULES: DeckRules = {
+  basicEnergy: GEN4_BASIC_ENERGY,
+  doubleColorless: GEN4_DOUBLE_COLORLESS,
+  core: GEN4_CORE_TRAINERS,
+  extra: GEN4_EXTRA_TRAINERS,
+  gymLeaderExtra: GEN4_GYM_LEADER_TRAINERS,
+  special: [['Multi Energy', 1, 'twoTypes'], ['Health Energy', 1, 'colorless']],
+  gymLeaderSpecial: [['Rainbow Energy', 1, 'twoTypes'], ['Warp Energy', 1, 'colorless']],
   breeder: 'Rare Candy',
   owners: {},
   types: {},

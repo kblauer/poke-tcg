@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { boss } from './bosses.js';
 import { PACK_SETS } from './packs.js';
-import { bossTypes, generation, generationBadges, generationLock, nextPack, PACK_GENERATIONS, RUN_TYPE_IDS, RUN_TYPES, runTypeLock } from './run-types.js';
-import { EX_SETS } from './pool.js';
+import { bossTypes, generation, generationBadges, generationLock, nextPack, PACK_GENERATIONS, RUN_TYPE_IDS, RUN_TYPES, runType, runTypeLock } from './run-types.js';
+import { DP_SETS, EX_SETS, GEN4_SETS } from './pool.js';
 
 const kanto = generation(1);
 const none = { badges: new Set<string>(), beaten: new Set<string>() };
@@ -27,6 +27,20 @@ describe('unlocking run types', () => {
     expect(runTypeLock(RUN_TYPES.hoennGyms, { beaten: johtoBeaten, badges: new Set(hoenn) })).toBeNull();
     expect(runTypeLock(RUN_TYPES.hoennChampion, { beaten: johtoBeaten, badges: new Set(hoenn) })).toBe('Beat the Hoenn Gym Challenge first');
     expect(runTypeLock(RUN_TYPES.hoennChampion, { ...none, beaten: new Set(['johtoGyms', 'hoennGyms']) })).toBeNull();
+  });
+
+  it("Sinnoh's runs open once the Hoenn Gym Challenge is beaten; its Gym Challenge needs its 8 badges, its Champion run the Sinnoh Gym Challenge", () => {
+    const sinnoh = generationBadges(generation(4));
+    expect(sinnoh).toEqual(['coal-badge', 'forest-badge', 'cobble-badge', 'fen-badge', 'relic-badge', 'mine-badge', 'icicle-badge', 'beacon-badge']);
+    expect(runTypeLock(RUN_TYPES.oreburgh, { ...none, beaten: new Set(['johtoGyms']) })).toBe('Beat the Hoenn Gym Challenge first');
+    const hoennBeaten = new Set(['hoennGyms']);
+    const gyms = RUN_TYPE_IDS.filter((id) => RUN_TYPES[id].generation === 4 && !runType(id).requires);
+    expect(gyms.map((id) => runTypeLock(RUN_TYPES[id], { ...none, beaten: hoennBeaten }))).toEqual(gyms.map(() => null));
+    expect(gyms).toHaveLength(8);
+    expect(runTypeLock(RUN_TYPES.sinnohGyms, { ...none, beaten: hoennBeaten })).toBe('Earn all 8 Sinnoh badges first (8 to go)');
+    expect(runTypeLock(RUN_TYPES.sinnohGyms, { beaten: hoennBeaten, badges: new Set(sinnoh) })).toBeNull();
+    expect(runTypeLock(RUN_TYPES.sinnohChampion, { beaten: hoennBeaten, badges: new Set(sinnoh) })).toBe('Beat the Sinnoh Gym Challenge first');
+    expect(runTypeLock(RUN_TYPES.sinnohChampion, { ...none, beaten: new Set(['hoennGyms', 'sinnohGyms']) })).toBeNull();
   });
 
   it("each generation's runs need the Gym Challenge of the one before beaten, its Champion run or not", () => {
@@ -56,11 +70,14 @@ describe('unlocking run types', () => {
 describe('generation packs', () => {
   it("the generations' packs are every pack set, each in one generation, one at a time in release order", () => {
     expect(Object.values(PACK_GENERATIONS).flatMap((g) => g.packs).sort()).toEqual([...PACK_SETS].sort());
-    expect([...kanto.packs, ...generation(2).packs, ...generation(3).packs, ...PACK_GENERATIONS[4]!.packs, ...PACK_GENERATIONS[5]!.packs].sort()).toEqual([...PACK_SETS].sort());
+    expect([...kanto.packs, ...generation(2).packs, ...generation(3).packs, ...generation(4).packs, ...PACK_GENERATIONS[5]!.packs].sort()).toEqual([...PACK_SETS].sort());
     expect(nextPack(generation(2), new Set(kanto.packs))).toBe('neo1');
     // Gen 3's runs unlock the EX sets' packs, from EX Ruby & Sapphire.
     expect(generation(3).packs).toEqual(EX_SETS);
     expect(nextPack(generation(3), new Set([...kanto.packs, ...generation(2).packs]))).toBe('ex1');
+    // Gen 4's runs unlock the Diamond & Pearl to HGSS sets' packs, from Diamond & Pearl.
+    expect(generation(4).packs).toEqual(GEN4_SETS);
+    expect(nextPack(generation(4), new Set(EX_SETS))).toBe(DP_SETS[0]);
     expect(nextPack(kanto, new Set())).toBe('base1');
     expect(nextPack(kanto, new Set(['base1']))).toBe('base2');
     expect(nextPack(kanto, new Set(kanto.packs))).toBeNull();
@@ -74,5 +91,7 @@ describe('bossTypes', () => {
     // Gen 3's basic Energy (EX Ruby & Sapphire's) counts too.
     expect(bossTypes(boss('flannery'))).toEqual(['fire']);
     expect(bossTypes(boss('winona'))).toEqual(['colorless']);
+    // And Gen 4's (Diamond & Pearl's), basic Metal Energy too.
+    expect(bossTypes(boss('byron'))).toEqual(['metal']);
   });
 });

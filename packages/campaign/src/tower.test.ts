@@ -44,7 +44,7 @@ function fight(state: TowerState, won: boolean, extra: { conceded?: boolean; ski
 
 describe('Battle Tower floors', () => {
   it('gives each band of 10 floors a generation, staying with the last one with cards', () => {
-    expect([1, 10, 11, 20, 21, 30, 31, 99].map(towerGeneration)).toEqual([1, 1, 2, 2, 3, 3, 3, 3]);
+    expect([1, 10, 11, 20, 21, 30, 31, 99].map(towerGeneration)).toEqual([1, 1, 2, 2, 3, 3, 4, 4]);
     expect([1, 11, 21, 50].map(towerSprites)).toEqual(['frlg', 'hgss', 'rse', 'rse']);
   });
 
@@ -57,7 +57,7 @@ describe('Battle Tower floors', () => {
   });
 
   it("pays Battle Points, more on later generations' floors", () => {
-    expect([1, 10, 11, 21, 60].map((f) => towerReward(f).bp)).toEqual([1, 1, 2, 3, 3]);
+    expect([1, 10, 11, 21, 60].map((f) => towerReward(f).bp)).toEqual([1, 1, 2, 3, 4]);
   });
 
   it('meets only trainers with a sprite in the floor\'s set', () => {

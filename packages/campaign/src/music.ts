@@ -54,8 +54,9 @@ interface RegionMusic {
   /** In the Elite Four's and the Champion's rooms. */
   league: string;
   center: string;
-  /** The jingle as Nurse Joy heals the party. */
+  /** The jingle as Nurse Joy heals the party; `healedGame`: another album's, where this one's isn't in the list. */
   healed: string;
+  healedGame?: string;
   /** Trainers' battles (Gym Trainers' and Ace Trainers' too): the trainer, wild Pokémon and rival themes, one at random. */
   trainer: string[];
   gymLeader: string;
@@ -175,11 +176,60 @@ const HOENN_OMEGA_RUBY: RegionMusic = {
   victory: 'Victory! (Gym Leader - Elite Four)',
 };
 
+// Sinnoh (Diamond and Pearl's maps), each map's and town's song from pokediamond's map headers (map_header.c's music,
+// named by the album's map that shares it): Route 209's theme on Routes 212 and 222, Route 210's on Route 215, Route 216's
+// on Route 217 and Acuity Lakefront, Valor Lakefront's on Route 213 and Hotel Grand Lake's grounds (both maps'), Oreburgh Mine's in Iron Island, Solaceon Town's in
+// Pastoria City; the Elite Four's and the Champion's rooms play the Pokémon League's. The album is the only Sinnoh one in
+// the list (no remake's), so both soundtracks play it, and its healing jingle isn't in it: HeartGold and SoulSilver's.
+const SINNOH_DIAMOND: RegionMusic = {
+  game: 'Diamond, Pearl & Platinum',
+  routes: {
+    'Route 203': 'Route 203 (Day)',
+    'Oreburgh Gate': 'Oreburgh Gate',
+    'Eterna Forest': 'Eterna Forest',
+    'Route 205': 'Route 205 (Day)',
+    'Route 215': 'Route 210 (Day)',
+    'Valor Lakefront': 'Valor Lakefront (Day)',
+    'Route 213': 'Valor Lakefront (Day)',
+    'Route 212': 'Route 209 (Day)',
+    'Iron Island B1F': 'Oreburgh Mine',
+    'Iron Island B2F': 'Oreburgh Mine',
+    'Iron Island B3F': 'Oreburgh Mine',
+    'Route 217': 'Route 216 (Day)',
+    'Acuity Lakefront': 'Route 216 (Day)',
+    'Hotel Grand Lake': 'Valor Lakefront (Day)',
+    'Route 222': 'Route 209 (Day)',
+  },
+  towns: {
+    oreburgh: 'Oreburgh City (Day)',
+    eterna: 'Eterna City (Day)',
+    veilstone: 'Veilstone City (Day)',
+    pastoria: 'Solaceon Town (Day)',
+    hearthome: 'Hearthome City (Day)',
+    canalave: 'Canalave City (Day)',
+    snowpoint: 'Snowpoint City (Day)',
+    sunyshore: 'Sunyshore City (Day)',
+  },
+  bike: 'Bicycle',
+  surf: 'Surf',
+  gym: 'Pokémon Gym',
+  league: 'Pokémon League (Day)',
+  center: 'Pokémon Center (Day)',
+  healed: 'Pokémon Healed',
+  healedGame: 'HeartGold & SoulSilver',
+  trainer: ['Battle! (Trainer Battle)', 'Battle! (Wild Pokémon)', 'Battle! (Rival)'],
+  gymLeader: 'Battle! (Gym Leader)',
+  eliteFour: 'Battle! (Elite Four)',
+  champion: 'Battle! (Champion)',
+  victory: 'Victory! (Gym Leader)',
+};
+
 /** Each generation's region's music, by soundtrack. */
 export const REGION_MUSIC: Record<number, Record<Soundtrack, RegionMusic>> = {
   1: { original: KANTO_RED, remastered: KANTO_FIRERED },
   2: { original: JOHTO_GOLD, remastered: JOHTO_HEARTGOLD },
   3: { original: HOENN_RUBY, remastered: HOENN_OMEGA_RUBY },
+  4: { original: SINNOH_DIAMOND, remastered: SINNOH_DIAMOND },
 };
 
 function floors(name: string): Record<string, string> {
@@ -267,7 +317,7 @@ export function victoryMusic(typeId: string, soundtrack: Soundtrack, runId: stri
 /** The Pokémon Center's healing jingle for a run's region. */
 export const healedJingle = (typeId: string, soundtrack: Soundtrack): Song => {
   const music = regionMusic(runType(typeId).generation, soundtrack);
-  return song(music, music.healed);
+  return { game: music.healedGame ?? music.game, title: music.healed };
 };
 
 /** Each boss's generation and role, from the run types that have them. */

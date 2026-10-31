@@ -6,8 +6,8 @@ import { ROUTE_4 } from './kanto-routes.js';
 import { JOHTO_BOSS_ROOMS, MAHOGANY_GYM } from './johto-gyms.js';
 import { inGrass, inLongGrass, onLongGrassEdge, onPath, onThinIce, PEWTER_GYM, ROUTE_2, routePath, travelAt, type Route, type RouteSpot } from './routes.js';
 import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, isBattleKind, isBossKind, landNear, MAX_CENTERS, REQUIRED_BATTLES, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, withConsumablesBefore, carriedConsumables, parsePendingConsumable, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
-import { GEN2_SETS, GEN3_SETS } from './pool.js';
-import { GEN2_TEST_POOL, GEN3_TEST_POOL, TEST_POOL } from './test-pool.js';
+import { GEN2_SETS, GEN3_SETS, GEN4_SETS } from './pool.js';
+import { GEN2_TEST_POOL, GEN3_TEST_POOL, GEN4_TEST_POOL, TEST_POOL } from './test-pool.js';
 
 const deck = expandDeck(STARTER_DECK);
 const fresh = (seed = 1) => createRun('celadon', deck, seed);
@@ -242,8 +242,10 @@ describe('createRun', () => {
   it("a map's tall grass lines up with its tiles: the same rows as `walkable`", () => {
     const maps = RUN_TYPE_IDS.flatMap((id) => [...(runType(id).routes ?? []), ...(runType(id).gym ? [runType(id).gym!] : [])]);
     const grassy = maps.filter((m) => m.grass);
-    // FireRed's Routes 2, 4, 5, 6 and 8, HGSS's 30, 32, 34, 35 and 45, and Emerald's Petalburg Woods, Routes 102, 110 and 119 and Jagged Pass.
-    expect(new Set(grassy.map((m) => m.name))).toEqual(new Set(['Route 2', 'Route 4', 'Route 5', 'Route 6', 'Route 8', 'Route 30', 'Route 32', 'Route 34', 'Route 35', 'Route 45', 'Petalburg Woods', 'Route 102', 'Route 110', 'Route 119', 'Jagged Pass']));
+    // FireRed's Routes 2, 4, 5, 6 and 8, HGSS's 30, 32, 34, 35 and 45, Emerald's Petalburg Woods, Routes 102, 110 and 119 and
+    // Jagged Pass, and Diamond and Pearl's maps with grass.
+    const sinnoh = ['Route 203', 'Eterna Forest', 'Route 205', 'Route 215', 'Valor Lakefront', 'Route 213', 'Route 212', 'Route 217', 'Acuity Lakefront', 'Hotel Grand Lake', 'Route 222'];
+    expect(new Set(grassy.map((m) => m.name))).toEqual(new Set(['Route 2', 'Route 4', 'Route 5', 'Route 6', 'Route 8', 'Route 30', 'Route 32', 'Route 34', 'Route 35', 'Route 45', 'Petalburg Woods', 'Route 102', 'Route 110', 'Route 119', 'Jagged Pass', ...sinnoh]));
     for (const m of grassy) expect(m.grass!.map((r) => r.length), m.name).toEqual(m.walkable.map((r) => r.length));
   });
 
@@ -937,6 +939,21 @@ describe('Gen 3 runs', () => {
       expect(setup.deck.filter((id) => !GEN3_SETS.includes(id.split('-')[0]!))).toEqual([]);
     }
   });
+
+  it('a Sinnoh gym run ends with its gym leader, and its Gym Trainer and leader play Gen 4 decks', () => {
+    let s = createRun('oreburgh', deck, 7);
+    // 10 encounters (no map yet: GYM_RUN_STEPS), the Gym Trainer and Roark.
+    expect(s.steps).toHaveLength(12);
+    expect(s.steps.at(-1)!.options[0]).toMatchObject({ kind: 'gymLeader', boss: 'roark' });
+    for (const kind of ['gymTrainer', 'gymLeader'] as const) {
+      s = createRun('oreburgh', deck, 7);
+      s.position = s.steps.findIndex((step) => step.options[0]!.kind === kind);
+      s = act(s, { type: 'CHOOSE', option: 0 }, [], GEN4_TEST_POOL);
+      const setup = battleSetup(s, GEN4_TEST_POOL);
+      expect(setup.deck).toHaveLength(60);
+      expect(setup.deck.filter((id) => !GEN4_SETS.includes(id.split('-')[0]!))).toEqual([]);
+    }
+  });
 });
 
 describe('Gen 2 runs', () => {
@@ -1029,5 +1046,24 @@ describe('Gen 2 runs', () => {
       expect(setup.deck).toHaveLength(60);
       expect(setup.deck.filter((id) => !GEN2_SETS.includes(id.split('-')[0]!))).toEqual([]);
     }
+  });
+});
+
+describe('Gen 4 runs', () => {
+  it('every Sinnoh gym run crosses its Diamond and Pearl maps: each walked from its entrance through each spot in turn and out at its exit', () => {
+    for (const id of ['oreburgh', 'eterna', 'veilstone', 'pastoria', 'hearthome', 'canalave', 'snowpoint', 'sunyshore'] as const) {
+      for (const route of runType(id).routes!) {
+        expect(route.sprites, `${id} ${route.name}`).toBe('dp');
+        const stops = [route.entrance!, ...route.spots, route.exit!];
+        expect(stops.slice(1).map((to, i) => routePath(route, stops[i]!, to) !== null), `${id} ${route.name}`).toEqual(stops.slice(1).map(() => true));
+      }
+      expect(runType(id).routes!.reduce((n, r) => n + r.spots.length, 0), id).toBe(10);
+    }
+  });
+
+  it("the Sinnoh Gym Challenge and Champion runs have each boss's room, Pastoria's Pokémon Center after the fourth gym", () => {
+    expect(runType('sinnohGyms').routes!.map((m) => m.name)).toEqual(['Oreburgh Gym', 'Eterna Gym', 'Veilstone Gym', 'Pastoria Gym', 'Pokémon Center', 'Hearthome Gym', 'Canalave Gym', 'Snowpoint Gym', 'Sunyshore Gym']);
+    expect(runType('sinnohChampion').routes!.slice(-5).map((m) => m.name)).toEqual(["Aaron's Room", "Bertha's Room", "Flint's Room", "Lucian's Room", "Cynthia's Room"]);
+    expect(runType('sinnohChampion').routes!.every((m) => m.sprites === 'dp')).toBe(true);
   });
 });

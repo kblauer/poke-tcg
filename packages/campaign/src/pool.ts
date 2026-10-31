@@ -33,10 +33,10 @@ export const HGSS_SETS = ['hgss1', 'hgssp', 'hgss2', 'hgss3', 'hgss4', 'col1'];
 
 /**
  * Generation 4's sets, in release order: the Diamond & Pearl and Platinum series, then HGSS's (in Gen 4 runs only, not
- * Gen 2's: the user's, 2026-10-24). Asked for 2026-10-24, on the `gen-4-packs` branch. In the card snapshot; not yet in
- * any pool or pack: their card effects are to come, and their packs unlock with Gen 4 runs, which are to come too.
+ * Gen 2's: the user's, 2026-10-24): Gen 4 (Sinnoh) runs' sets and packs, every one's card effects done.
  */
 export const GEN4_SETS = [...DP_SETS, ...HGSS_SETS];
+export const GEN4_DONE_SETS = GEN4_SETS;
 
 /**
  * Generation 5's sets (Unova), in release order: the Black & White series, Black & White to Legendary Treasures with
@@ -78,6 +78,22 @@ export const GEN3_BASIC_ENERGY: Partial<Record<EnergyType, string>> = {
   psychic: 'ex1-107',
   fighting: 'ex1-105',
 };
+
+/**
+ * Gen 4's basic Energy (Diamond & Pearl printings), basic Darkness and Metal Energy too, which the Diamond & Pearl sets
+ * print; and Double Colorless Energy (HeartGold & SoulSilver's).
+ */
+export const GEN4_BASIC_ENERGY: Partial<Record<EnergyType, string>> = {
+  grass: 'dp1-123',
+  fire: 'dp1-124',
+  water: 'dp1-125',
+  lightning: 'dp1-126',
+  psychic: 'dp1-127',
+  fighting: 'dp1-128',
+  darkness: 'dp1-129',
+  metal: 'dp1-130',
+};
+export const GEN4_DOUBLE_COLORLESS = 'hgss1-103';
 
 /** Types with a basic Energy card, the ones decks are built around. */
 export const DECK_TYPES = Object.keys(BASIC_ENERGY) as EnergyType[];

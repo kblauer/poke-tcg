@@ -7,6 +7,7 @@ import type { EnergyType } from '@poke-tcg/game-engine';
 import type { DeckList } from './decks.js';
 import { HOENN_BOSSES } from './hoenn-bosses.js';
 import { JOHTO_BOSSES } from './johto-bosses.js';
+import { SINNOH_BOSSES } from './sinnoh-bosses.js';
 
 export type BossKind = 'gymLeader' | 'eliteFour' | 'champion';
 
@@ -14,7 +15,7 @@ export interface Boss {
   name: string;
   title: string;
   kind: BossKind;
-  /** The deck it plays (Kanto: its TCG 1 deck), and the TCG 1 character who plays it (Kanto only: johto-bosses.ts, hoenn-bosses.ts). */
+  /** The deck it plays (Kanto: its TCG 1 deck), and the TCG 1 character who plays it (Kanto only: johto-bosses.ts, hoenn-bosses.ts, sinnoh-bosses.ts). */
   deckName: string;
   counterpart?: string;
   deck: DeckList;
@@ -22,7 +23,7 @@ export interface Boss {
    * Gym leaders: their gym's type, for the Gym Trainer's deck before them (with `favorites`, the Pokémon that deck is built
    * from first, for a type with no basic Energy); and the badge for beating them (a key item). `trainers` are who their Gym
    * Trainer may be, one picked each run: the trainers in their gym, in FireRed and LeafGreen for Kanto and HeartGold and
-   * SoulSilver for Johto, Emerald for Hoenn (pret's gym maps, every room of the gym; not Azalea's Twins, a double battle), Olivine's (a gym
+   * SoulSilver for Johto, Emerald for Hoenn, Diamond for Sinnoh (pret's gym maps, every room of the gym; not Azalea's Twins, a double battle), Olivine's (a gym
    * with none) the Olivine Lighthouse's (agreed with the user); without them, any of a general list.
    */
   gym?: { city: string; type: EnergyType; badge: string; favorites?: string[]; trainers?: string[] };
@@ -304,7 +305,7 @@ const LEGENDARY_RONALD_DECK: DeckList = [
   ['base1-96', 4], // Double Colorless Energy
 ];
 
-/** Kanto's bosses, with their TCG 1 decks; Johto's and Hoenn's are in their own files. */
+/** Kanto's bosses, with their TCG 1 decks; Johto's, Hoenn's and Sinnoh's are in their own files. */
 const KANTO_BOSSES = {
   brock: { name: 'Brock', title: 'Pewter Gym Leader', kind: 'gymLeader', deckName: 'Rock Crusher', counterpart: 'Gene', deck: ROCK_CRUSHER_DECK, gym: { city: 'Pewter', type: 'fighting', badge: 'boulder-badge', trainers: ['Camper Liam'] } },
   misty: { name: 'Misty', title: 'Cerulean Gym Leader', kind: 'gymLeader', deckName: 'Rain Dancer', counterpart: 'Amy', deck: RAIN_DANCER_DECK, gym: { city: 'Cerulean', type: 'water', badge: 'cascade-badge', trainers: ['Swimmer Luis', 'Picnicker Diana'] } },
@@ -325,6 +326,7 @@ export const BOSSES = {
   ...KANTO_BOSSES,
   ...JOHTO_BOSSES,
   ...HOENN_BOSSES,
+  ...SINNOH_BOSSES,
 } satisfies Record<string, Boss>;
 
 export type BossId = keyof typeof BOSSES;
@@ -332,6 +334,7 @@ export type BossId = keyof typeof BOSSES;
 export type KantoBossId = keyof typeof KANTO_BOSSES;
 export type JohtoBossId = keyof typeof JOHTO_BOSSES;
 export type HoennBossId = keyof typeof HOENN_BOSSES;
+export type SinnohBossId = keyof typeof SINNOH_BOSSES;
 
 /** Kanto's gyms in the order the games visit them. */
 // Sabrina before Koga (agreed with the user).
@@ -343,6 +346,9 @@ export const JOHTO_ELITE_FOUR: JohtoBossId[] = ['will', 'johto-koga', 'johto-bru
 /** Hoenn's gyms in the order Emerald visits them, and its Elite Four. */
 export const HOENN_GYMS: HoennBossId[] = ['roxanne', 'brawly', 'wattson', 'flannery', 'norman', 'winona', 'tate-liza', 'juan'];
 export const HOENN_ELITE_FOUR: HoennBossId[] = ['sidney', 'phoebe', 'glacia', 'drake'];
+/** Sinnoh's gyms in the order Diamond and Pearl visit them, and its Elite Four. */
+export const SINNOH_GYMS: SinnohBossId[] = ['roark', 'gardenia', 'maylene', 'crasher-wake', 'fantina', 'byron', 'candice', 'volkner'];
+export const SINNOH_ELITE_FOUR: SinnohBossId[] = ['aaron', 'bertha', 'flint', 'lucian'];
 
 export const boss = (id: string): Boss => {
   const b = (BOSSES as Record<string, Boss>)[id];

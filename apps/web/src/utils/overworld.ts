@@ -12,13 +12,19 @@
 // The Hoenn maps use Emerald's (`public/overworld/rse/<name>.png`, named `rse/<name>` here, made by
 // tools/routes/emerald/emerald_sprites.py from the pret/pokeemerald decompilation): strips of 9 frames as FireRed's (the same
 // frames, facing right mirrored), 16x32 (Brendan on his bike and surfing, 32x32). Brendan is the player.
+//
+// The Sinnoh maps use Diamond and Pearl's (`public/overworld/dp/<name>.png`, named `dp/<name>` here, by their textures'
+// names in the game, made by tools/routes/dp/dp_sprites.py from the pret/pokediamond decompilation): strips laid out as
+// HGSS's (12 frames, 32x32, right with its own frames). Lucas is the player (`hero`; Dawn is `heroine`).
 
 export type Facing = 'down' | 'up' | 'left' | 'right';
 
-/** Which game's sprites a map uses: FireRed's (Kanto), HeartGold/SoulSilver's (Johto) or Emerald's (Hoenn). */
-export type SpriteSet = 'frlg' | 'hgss' | 'rse';
+/** Which game's sprites a map uses: FireRed's (Kanto), HeartGold/SoulSilver's (Johto), Emerald's (Hoenn) or Diamond and Pearl's (Sinnoh). */
+export type SpriteSet = 'frlg' | 'hgss' | 'rse' | 'dp';
 
-const isHgss = (name: string) => name.startsWith('hgss/');
+/** The DS games' sets (HGSS's and Diamond and Pearl's): 3D maps, their sprites' strips laid out alike. */
+export const isDsSet = (set: SpriteSet) => set === 'hgss' || set === 'dp';
+const isHgss = (name: string) => name.startsWith('hgss/') || name.startsWith('dp/');
 
 /** The standing frame for each facing; right is left, mirrored. */
 export const FRAME: Record<Facing, number> = { down: 0, up: 1, left: 2, right: 2 };
@@ -82,6 +88,8 @@ const PLAYERS: Record<SpriteSet, Record<'male' | 'female', [walk: string, bike: 
   frlg: { male: ['red', 'red_bike', 'red_surf'], female: ['leaf', 'leaf_bike', 'leaf_surf'] },
   hgss: { male: ['hgss/hero', 'hgss/cyclehero', 'hgss/swimhero'], female: ['hgss/heroine', 'hgss/cycleheroine', 'hgss/swimheroine'] },
   rse: { male: ['rse/brendan', 'rse/brendan_bike', 'rse/brendan_surf'], female: ['rse/may', 'rse/may_bike', 'rse/may_surf'] },
+  // No Sinnoh map is ridden or surfed, so Lucas and Dawn walk.
+  dp: { male: ['dp/hero', 'dp/hero', 'dp/hero'], female: ['dp/heroine', 'dp/heroine', 'dp/heroine'] },
 };
 
 /** The player's sprite: Red, Ethan or Brendan (or, `gender` 'female', Leaf, Lyra or May), walking, on a bike (`travel`) or surfing (in water). */
@@ -102,7 +110,7 @@ export const swims = (name: string) => !!IN_WATER[name] || ['hgss/swimmer_m', 'h
  */
 export const BOSS_MAP_SPRITES: Partial<Record<string, string>> = { 'tate-liza': 'rse/tate' };
 /** The item ball (a Mystery not yet revealed, a Lucky Find), which stays put and is one tile tall. */
-export const isItemBall = (name: string | undefined) => name === 'item_ball' || name === 'hgss/item_ball' || name === 'rse/item_ball';
+export const isItemBall = (name: string | undefined) => name === 'item_ball' || name === 'hgss/item_ball' || name === 'rse/item_ball' || name === 'dp/monstarball';
 
 /**
  * Each trainer class's sprite, by the class in the trainer's name ("Swimmer" in "Swimmer Luis"). Classes FireRed has no
@@ -232,15 +240,102 @@ const RSE_GYM_SPRITES: Record<string, string> = {
 };
 
 /**
+ * Each trainer class's Diamond and Pearl sprite (by its texture's name): Diamond's own for its classes (the sprite its
+ * trainers of each class have in its map events), and the nearest for the others: Super Nerds and Scientists the
+ * assistant, Jugglers the clown, Rockers, Guitarists and Kindlers the man in the cap (Diamond's Guitarists), Gamblers the
+ * middle-aged man, Psychics, Channelers, Hex Maniacs and Mediums the mystic, Burglars the roughneck, Team Rocket's grunts
+ * Team Galactic's, Bird Keepers the woman (Diamond's), Gym Guides the man in sunglasses.
+ */
+const DP_CLASS_SPRITES: Record<string, string> = {
+  Youngster: 'boy2',
+  Lass: 'girl1',
+  'Bug Catcher': 'boy3',
+  'Bug Maniac': 'boy3',
+  Hiker: 'mount',
+  Picnicker: 'picnicgirl',
+  Camper: 'campboy',
+  'Super Nerd': 'assistantm',
+  Scientist: 'assistantm',
+  Swimmer: 'swimmerm',
+  Fisherman: 'fishing',
+  Beauty: 'woman2',
+  Gentleman: 'gentleman',
+  Biker: 'cyclem',
+  Triathlete: 'cyclem',
+  Juggler: 'clown',
+  Rocker: 'man2',
+  Guitarist: 'man2',
+  Kindler: 'man2',
+  Gambler: 'middleman1',
+  Sailor: 'seaman',
+  Psychic: 'mystery',
+  Channeler: 'mystery',
+  'Hex Maniac': 'mystery',
+  Medium: 'mystery',
+  'Black Belt': 'fighter',
+  'Battle Girl': 'girl2',
+  'Bird Keeper': 'woman3',
+  Burglar: 'badman',
+  'Gym Guide': 'sunglasses',
+  'Rocket Grunt': 'gingam',
+  Tamer: 'man1',
+  Engineer: 'workman',
+  Worker: 'workman',
+  Lady: 'gorggeousw',
+  Pokéfan: 'middleman1',
+  Skier: 'skierm',
+  Boarder: 'skierm',
+  'Aroma Lady': 'woman1',
+  'Poké Kid': 'pikachu',
+};
+
+/**
+ * The Sinnoh gyms' trainers (sinnoh-bosses.ts) Diamond draws otherwise than their class gives (its gym maps): the women
+ * among its Ace Trainers, Tubers and School Kids, and Snowpoint's Ace Trainers in their snow gear.
+ */
+const DP_GYM_SPRITES: Record<string, string> = {
+  'Ace Trainer Catherine': 'woman3',
+  'Ace Trainer Breanna': 'woman3',
+  'Ace Trainer Destiny': 'woman3',
+  'Ace Trainer Anton': 'man5',
+  'Ace Trainer Isaiah': 'man5',
+  'Ace Trainer Sergio': 'man5',
+  'Ace Trainer Savannah': 'woman5',
+  'Ace Trainer Alicia': 'woman5',
+  'Ace Trainer Brenna': 'woman5',
+  'Tuber Jacky': 'beachboy',
+  'Tuber Caitlyn': 'beachgirl',
+  'School Kid Chance': 'boy1',
+  'School Kid Forrest': 'boy1',
+  'School Kid Mackenzie': 'girl3',
+  'School Kid Tiera': 'girl3',
+};
+
+/** Diamond and Pearl's sprites for the non-battle encounters' people (encounterSprite's names). */
+const DP_ENCOUNTERS: Record<string, string> = { clerk: 'shopm1', nurse: 'pcwoman1', rich_boy: 'gorggeousm', woman_1: 'woman1', woman_2: 'woman2', old_man_1: 'oldman1', rocket_m: 'gingam', fat_man: 'bigman', item_ball: 'monstarball' };
+
+/**
  * The overworld sprite for a trainer met on the map (or at a gym), by their name; the boy for any other. Kanto's Gym
  * Trainers' own sprites (GYM_SPRITES) are FireRed's, on its maps; Hoenn's (RSE_GYM_SPRITES) Emerald's.
  */
 export function trainerSprite(trainer: string, set: SpriteSet = 'frlg'): string {
   if (set === 'frlg' && GYM_SPRITES[trainer]) return GYM_SPRITES[trainer];
   if (set === 'rse' && RSE_GYM_SPRITES[trainer]) return `rse/${RSE_GYM_SPRITES[trainer]}`;
+  if (set === 'dp' && DP_GYM_SPRITES[trainer]) return `dp/${DP_GYM_SPRITES[trainer]}`;
   const words = trainer.split(' ');
   const name = words.at(-1)!;
   const trainerClass = words.slice(0, -1).join(' ');
+  if (set === 'dp') {
+    const woman = WOMEN.has(name);
+    if (trainerClass === 'Cooltrainer' || trainerClass === 'Ace Trainer') return `dp/${woman ? 'woman3' : 'man3'}`;
+    if (trainerClass === 'Jr. Trainer') return `dp/${name === 'Ami' ? 'picnicgirl' : 'campboy'}`;
+    if (trainerClass === 'Swimmer' && woman) return 'dp/swimmerw';
+    if ((trainerClass === 'Triathlete' || trainerClass === 'Biker') && woman) return 'dp/cyclew';
+    if (trainerClass === 'Rocket Grunt' && woman) return 'dp/gingaw';
+    if ((trainerClass === 'Skier' || trainerClass === 'Boarder') && woman) return 'dp/skierw';
+    if (trainerClass === 'Pokéfan' && woman) return 'dp/middlewoman1';
+    return `dp/${DP_CLASS_SPRITES[trainerClass] ?? 'boy1'}`;
+  }
   const pickRse = (): string => {
     if (trainerClass === 'Cooltrainer' || trainerClass === 'Ace Trainer') return WOMEN.has(name) ? 'woman_5' : 'man_3';
     if (trainerClass === 'Jr. Trainer') return name === 'Ami' ? 'picnicker' : 'camper';
@@ -283,6 +378,7 @@ export function encounterSprite(kind: string, event?: string, set: SpriteSet = '
         return null;
     }
   })();
+  if (name && set === 'dp') return `dp/${DP_ENCOUNTERS[name] ?? 'boy1'}`;
   // HGSS has a sprite of each of these names; Emerald too, but for the old man and Team Rocket's dealer (Team Magma's).
   if (name && set === 'rse') return `rse/${({ old_man_1: 'old_man', rocket_m: 'magma_grunt_m' } as Record<string, string>)[name] ?? name}`;
   return name && set === 'hgss' ? `hgss/${name}` : name;

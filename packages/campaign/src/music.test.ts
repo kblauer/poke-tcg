@@ -18,8 +18,10 @@ describe('auto play music', () => {
   it("every song it can play is in the music player's list (public/music/tracks.json)", () => {
     const missing = Object.values(REGION_MUSIC).flatMap((bySoundtrack) =>
       Object.values(bySoundtrack).flatMap((m) => {
-        const named = [...Object.values(m.routes), ...Object.values(m.towns), m.bike, m.surf, m.gym, m.league, m.center, m.healed, ...m.trainer, m.gymLeader, m.eliteFour, m.champion, m.victory];
-        return named.filter((title) => !inList({ game: m.game, title })).map((title) => `${m.game}: ${title}`);
+        const named = [...Object.values(m.routes), ...Object.values(m.towns), m.bike, m.surf, m.gym, m.league, m.center, ...m.trainer, m.gymLeader, m.eliteFour, m.champion, m.victory];
+        // The healing jingle can be another album's (Sinnoh's, HGSS's).
+        const healed = inList({ game: m.healedGame ?? m.game, title: m.healed }) ? [] : [`${m.healedGame ?? m.game}: ${m.healed}`];
+        return [...named.filter((title) => !inList({ game: m.game, title })).map((title) => `${m.game}: ${title}`), ...healed];
       }),
     );
     expect(missing).toEqual([]);

@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { cardImplemented, type CardDef } from '@poke-tcg/game-engine';
 import { cardRarity, catalogCardDef, type CatalogCard } from './card-fixes.js';
 import type { PackSet } from './packs.js';
-import { GEN2_DONE_SETS, GEN2_SETS, GEN3_SETS, POOL_SETS, type PoolCard } from './pool.js';
+import { GEN2_DONE_SETS, GEN2_SETS, GEN3_SETS, GEN4_SETS, POOL_SETS, type PoolCard } from './pool.js';
 
 /** A snapshot card (TcgdexCard, packages/db/prisma/tcgdex.ts): the fields the seed takes out of it, the rest its Card.data. */
 export interface Row {
@@ -101,6 +101,14 @@ export const GEN2_TEST_POOL: PoolCard[] = rows
 /** Gen 3's pool as the API builds it: the cards of GEN3_SETS (the EX sets, every one's effects done) the engine plays fully. */
 export const GEN3_TEST_POOL: PoolCard[] = rows
   .filter((r) => GEN3_SETS.includes(r.id.split('-')[0]!))
+  .flatMap((r) => {
+    const def = toDef(r);
+    return def && cardImplemented(def) ? [{ def, rarity: rarity(r) }] : [];
+  });
+
+/** Gen 4's pool as the API builds it: the cards of GEN4_SETS (the Diamond & Pearl to HGSS sets, every one's effects done) the engine plays fully. */
+export const GEN4_TEST_POOL: PoolCard[] = rows
+  .filter((r) => GEN4_SETS.includes(r.id.split('-')[0]!))
   .flatMap((r) => {
     const def = toDef(r);
     return def && cardImplemented(def) ? [{ def, rarity: rarity(r) }] : [];

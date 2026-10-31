@@ -12,7 +12,7 @@ import { mapScale, usePan, ZOOM } from '../../hooks/usePan';
 import type { RunViewData } from '../../hooks/useRun';
 import { FADE_MS, GRASS_PACE, pace, stepPace, THROUGH_MS, useWalk, type MapSection, type Walker } from '../../hooks/useWalk';
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
-import { bobs, BOB_MS, isItemBall, playerSprite, STEP_MS, WALK_FRAME_MS, type Facing } from '../../utils/overworld';
+import { bobs, BOB_MS, isDsSet, isItemBall, playerSprite, STEP_MS, WALK_FRAME_MS, type Facing } from '../../utils/overworld';
 import { encounterFigure, facing, key, placeFigures, setOf, type PlacedFigure } from '../../utils/routeFigures';
 import { Exclamation, Figure, GrassTufts, JumpDust, JumpShadow, OverworldSprite, TallGrass, TileOverlay } from './RouteSprites';
 
@@ -21,7 +21,7 @@ import { Exclamation, Figure, GrassTufts, JumpDust, JumpShadow, OverworldSprite,
  * the map first shows (not on every page), so a switch between them (stepping off the water onto land) never shows him blank while one loads. The
  * images are kept so the browser keeps them decoded.
  */
-const PRELOAD = ['red', 'red_bike', 'red_surf', 'leaf', 'leaf_bike', 'leaf_surf', 'swimmer_m_water', 'swimmer_f_water', 'hgss/hero', 'hgss/cyclehero', 'hgss/swimhero', 'hgss/heroine', 'hgss/cycleheroine', 'hgss/swimheroine', 'rse/brendan', 'rse/brendan_bike', 'rse/brendan_surf', 'rse/may', 'rse/may_bike', 'rse/may_surf'];
+const PRELOAD = ['red', 'red_bike', 'red_surf', 'leaf', 'leaf_bike', 'leaf_surf', 'swimmer_m_water', 'swimmer_f_water', 'hgss/hero', 'hgss/cyclehero', 'hgss/swimhero', 'hgss/heroine', 'hgss/cycleheroine', 'hgss/swimheroine', 'rse/brendan', 'rse/brendan_bike', 'rse/brendan_surf', 'rse/may', 'rse/may_bike', 'rse/may_surf', 'dp/hero', 'dp/heroine'];
 let preloaded: HTMLImageElement[] | undefined;
 const preloadSprites = () => (preloaded ??= PRELOAD.map((name) => Object.assign(new Image(), { src: `/overworld/${name}.png` })));
 
@@ -172,9 +172,9 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
   // Sootopolis Gym's thin ice, cracked where the player has stepped (its `crackedIce` drawn over those tiles), and its stairs once they're there.
   const { cracked, stairs } = useCrackedIce(shown, walker.tile, walker.walking ? ms.step / stepPace(shown, walker.tile) : 0);
   // Tall grass on the Gen 3 maps is the games' own, drawn over the feet of those in it (TallGrass, GrassTufts: FireRed's,
-  // Emerald's on the Hoenn maps); on HGSS's, it hides their legs (OverworldSprite's `grass`).
+  // Emerald's on the Hoenn maps); on HGSS's and Diamond and Pearl's, it hides their legs (OverworldSprite's `grass`).
   const sprites = setOf(shown);
-  const masked = (tile: RouteSpot) => sprites === 'hgss' && inGrass(shown, tile);
+  const masked = (tile: RouteSpot) => isDsSet(sprites) && inGrass(shown, tile);
   // Emerald's long grass (Route 119's very tall grass) hides the whole bottom tile of those in it, under its own tufts.
   const long = (tile: RouteSpot) => inLongGrass(shown, tile);
   // Its tufts: long grass's, cut off above the band of ground at its foot ('edge', onLongGrassEdge).
@@ -316,7 +316,7 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
             {/* A ledge jump's shadow on the ground under him, and the dust where he lands (FireRed's). */}
             <JumpShadow tile={walker.tile} shown={!!walker.jump} moveMs={walker.jump?.ms ?? (walker.walking ? ms.step / stepPace(shown, walker.tile) : 0)} />
             {/* (Landing in tall grass on a Gen 3 map, the grass thrown up instead: GrassTufts.) */}
-            {walker.landed && (sprites === 'hgss' || !inGrass(shown, walker.landed.tile)) && <JumpDust key={walker.landed.stamp} tile={walker.landed.tile} />}
+            {walker.landed && (isDsSet(sprites) || !inGrass(shown, walker.landed.tile)) && <JumpDust key={walker.landed.stamp} tile={walker.landed.tile} />}
             <OverworldSprite
               name={playerName}
               bob={stillBob && bobbing}
@@ -332,7 +332,7 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
               title="You"
             />
             {/* The Gen 3 maps' tall grass, after the sprites so it's over the feet of those on its row. */}
-            {sprites !== 'hgss' && (
+            {!isDsSet(sprites) && (
               <>
                 {shown.npcs?.map((n, i) => inGrass(shown, n.tile) && <TallGrass key={`npc${i}`} tile={n.tile} set={sprites} long={tuftOf(n.tile)} />)}
                 {placed.map((p) =>

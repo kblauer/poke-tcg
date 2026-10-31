@@ -21,7 +21,7 @@ export interface RouteFigure {
   option?: number;
 }
 
-/** The sprites a map uses: HGSS's on the Johto maps (`sprites: 'hgss'`), Emerald's on the Hoenn ones (`'rse'`), FireRed's on the others. */
+/** The sprites a map uses: HGSS's on the Johto maps (`sprites: 'hgss'`), Emerald's on the Hoenn ones (`'rse'`), Diamond and Pearl's on the Sinnoh ones (`'dp'`), FireRed's on the others. */
 export const setOf = (route: Route): SpriteSet => route.sprites ?? 'frlg';
 
 /** An option's figure: its trainer (a boss's own sprite), or the non-battle encounter's (null if it has none). */
