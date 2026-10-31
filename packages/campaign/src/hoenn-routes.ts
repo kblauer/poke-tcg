@@ -906,7 +906,7 @@ export const ROUTE_119: Route = {
 export const ROUTE_124: Route = {
   flow: 'right',
   sprites: 'rse',
-  entrance: { x: 1, y: 24 },
+  entrance: { x: 0, y: 24 },
   exit: { x: 79, y: 53 },
   travel: 'surf',
   trainers: { names: SWIMMERS, share: 1 },

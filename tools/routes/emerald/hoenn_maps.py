@@ -113,7 +113,7 @@ USER_ROUTE_WALKABLE = {'mauville': [(21, 78), (16, 88), (19, 88), (16, 55), (9, 
                        'petalburg': [(18, 11), (19, 4), (25, 15), (37, 4)],
                        # Route 119's bridge over the river (its west end 13,33-34 and 17,33) and 25,32, 28,25.
                        'fortree': [(13, 33), (13, 34), (17, 33), (25, 32), (28, 25)]}
-USER_ROUTE_ENTRANCE = {'mauville': (17, 99), 'lavaridge': (14, 0), 'petalburg': (49, 10), 'mossdeep': (1, 24)}
+USER_ROUTE_ENTRANCE = {'mauville': (17, 99), 'lavaridge': (14, 0), 'petalburg': (49, 10), 'mossdeep': (0, 24)}
 USER_ROUTE_EXIT = {'mauville': (15, 0), 'lavaridge': (15, 43), 'petalburg': (0, 8), 'fortree': (38, 8), 'mossdeep': (79, 53)}
 USER_ROUTE_LINKS = {'mauville': [((16, 88), (19, 88)), ((18, 16), (15, 16))]}
 USER_ROUTE_ON_FOOT = {'mauville'}
