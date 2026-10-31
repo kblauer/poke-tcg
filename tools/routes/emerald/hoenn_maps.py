@@ -119,6 +119,9 @@ USER_GYM_TRACKS = {'sootopolis': [(8, 25), {'to': [(8, 19), (7, 19), (7, 18), (9
 # 20,24, 23,20 to the Gym Trainer's room at 8,12, 11,3 down to 7,18, and 1,23 up to the leaders' room at 21,10).
 USER_GYM_LINKS = {'mossdeep': [((1, 33), (20, 24)), ((23, 20), (8, 12)), ((11, 3), (7, 18)), ((1, 23), (21, 10))]}
 # The Gym Trainer's spot (the player's) and where they stand (the user's).
+# Where the player comes in for a leader's room in the Gym Challenge, in place of entrance_near's (the user's: Lavaridge
+# Gym's at 12,12, where its sand geyser from 8,9 brings him up into Flannery's room).
+USER_ROOM_ENTRANCE = {'lavaridge': (12, 12)}
 USER_GYM_TRAINER = {'lavaridge': {'spot': (9, 13), 'stand': (8, 13)}, 'petalburg': {'spot': (4, 56), 'stand': (4, 55)}, 'mossdeep': {'spot': (7, 9), 'stand': (6, 9)},
                     # Sootopolis Gym's off its ice, in the room the player comes in at (its 1F has no trainers: Emerald's are on B1F).
                     'sootopolis': {'spot': (8, 22), 'stand': (9, 22)}}
@@ -732,7 +735,7 @@ def main():
             stairs_image = f'{city}_gym_stairs.png'
             emerald_map.metatile_image(repo, leader_map, ICE_STAIRS_METATILE).save(os.path.join(PUBLIC, stairs_image))
         out.append(gym_ts(const, title, doc + '.', image, rows, door, spots, stands, npcs, links, overhead, thin_ice, cracked, USER_GYM_TRACKS.get(city), stairs, stairs_image))
-        entrances[city] = (entrance_near(rows, spots[1], links), links)
+        entrances[city] = (USER_ROOM_ENTRANCE.get(city) or entrance_near(rows, spots[1], links), links)
         trainers = gym_trainers(repo, [leader_map] + others, names, [leader_map] + others)
         print('gym', city, 'door', door, 'spots', spots, 'stands', stands, 'trainer', tname, 'links', links)
         print('  trainers:', json.dumps([t[0] for t in trainers]), 'sprites:', json.dumps({t[0]: t[1] for t in trainers}))

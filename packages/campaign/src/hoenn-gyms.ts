@@ -708,7 +708,7 @@ export const HOENN_BOSS_ROOMS: Record<HoennBossId, Route> = {
   roxanne: leaderRoom(RUSTBORO_GYM, { x: 3, y: 5 }),
   brawly: leaderRoom(DEWFORD_GYM, { x: 2, y: 6 }),
   wattson: leaderRoom(MAUVILLE_GYM, { x: 5, y: 7 }),
-  flannery: leaderRoom(LAVARIDGE_GYM, { x: 13, y: 14 }),
+  flannery: leaderRoom(LAVARIDGE_GYM, { x: 12, y: 12 }),
   norman: leaderRoom(PETALBURG_GYM, { x: 4, y: 7 }),
   winona: leaderRoom(FORTREE_GYM, { x: 13, y: 5 }),
   'tate-liza': leaderRoom(MOSSDEEP_GYM, { x: 21, y: 10 }),
