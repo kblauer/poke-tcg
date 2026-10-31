@@ -36,7 +36,7 @@ export interface Walker {
   sliding?: boolean;
   jump?: Jump;
   landed?: { tile: RouteSpot; stamp: number };
-  /** Passing through a link (a building's doors), from fading out until his next step: facing as the walk has him. */
+  /** Passing through a link (a building's doors, a warp) or into another map, from fading out until his next step: facing as the walk has him. */
   through?: boolean;
 }
 
@@ -141,7 +141,8 @@ export function useWalk({
       later(t, () => setWalker((w) => ({ ...w, walking: false, sliding: false })));
     };
     // Into another map: walk to this one's exit (going on to the next), fade out, appear at the next one's door with the
-    // view on it, fade in, then walk on from there.
+    // view on it, fade in, then walk on from there; facing as he came onto the exit all the while, as through a link (the
+    // user's: every warp as Lavaridge Gym's).
     if (section !== targetSection) {
       const leaving = sections[section]?.map;
       const exit = targetSection > section ? leaving?.exit : undefined;
@@ -151,9 +152,9 @@ export function useWalk({
         if (out && out.length <= MAX_WALK) walk(leaving, section, out, from);
       }
       const door = map.entrance ?? to;
-      later(t, () => setWalker((w) => ({ ...w, walking: false, hidden: true })));
+      later(t, () => setWalker((w) => ({ ...w, walking: false, hidden: true, through: true })));
       later(t + ms.fade, () => {
-        setWalker({ section: targetSection, tile: door, face: 'down', walking: false, hidden: true });
+        setWalker((w) => ({ section: targetSection, tile: door, face: w.face, walking: false, hidden: true, through: true }));
         setGlide(null);
         setOffset(centreOnMap(map, door));
       });
