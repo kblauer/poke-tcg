@@ -122,10 +122,10 @@ USER_GYM_LINKS = {'mossdeep': [((1, 33), (20, 24)), ((23, 20), (8, 12)), ((11, 3
 # Where the player comes in for a leader's room in the Gym Challenge, in place of entrance_near's (the user's: Lavaridge
 # Gym's at 12,12, where its sand geyser from 8,9 brings him up into Flannery's room).
 USER_ROOM_ENTRANCE = {'lavaridge': (12, 12)}
-# The Pokémon League rooms' too (walkable: the door the player comes in at; Sidney's at 6,13, the user's).
-USER_LEAGUE_ENTRANCE = {'sidney': (6, 13)}
-# A League room's tiles drawn whole over the people under them (Sidney's arch over its door, row 11: the user's).
-USER_LEAGUE_OVERHEAD = {'sidney': [(x, 11) for x in range(13)]}
+# The Pokémon League rooms' too (walkable: the door the player comes in at; the Elite Four's at 6,13, the user's).
+USER_LEAGUE_ENTRANCE = {k: (6, 13) for k in ('sidney', 'phoebe', 'glacia', 'drake')}
+# A League room's tiles drawn whole over the people under them (the Elite Four's arch over their door, row 11: the user's).
+USER_LEAGUE_OVERHEAD = {k: [(x, 11) for x in range(13)] for k in ('sidney', 'phoebe', 'glacia', 'drake')}
 USER_GYM_TRAINER = {'lavaridge': {'spot': (9, 13), 'stand': (8, 13)}, 'petalburg': {'spot': (4, 56), 'stand': (4, 55)}, 'mossdeep': {'spot': (7, 9), 'stand': (6, 9)},
                     # Sootopolis Gym's off its ice, in the room the player comes in at (its 1F has no trainers: Emerald's are on B1F).
                     'sootopolis': {'spot': (8, 22), 'stand': (9, 22)}}

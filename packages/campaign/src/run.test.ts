@@ -12,7 +12,7 @@ import { GEN2_TEST_POOL, GEN3_TEST_POOL, TEST_POOL } from './test-pool.js';
 const deck = expandDeck(STARTER_DECK);
 const fresh = (seed = 1) => createRun('celadon', deck, seed);
 /** Boss rooms the player comes into at their door (the user's), further than 5 tiles from the boss: the walk's steps. */
-const DOOR_ENTRANCES: Record<string, number> = { "Sidney's Room": 7 };
+const DOOR_ENTRANCES: Record<string, number> = { "Sidney's Room": 7, "Phoebe's Room": 7, "Glacia's Room": 7, "Drake's Room": 7 };
 
 function act(state: RunState, action: RunAction | RunSystemAction, gear: string[] = [], pool = TEST_POOL): RunState {
   const res = applyRunAction(state, action, pool, gear);

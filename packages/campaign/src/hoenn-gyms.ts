@@ -545,15 +545,16 @@ export const HOENN_SIDNEYS_ROOM: Route = {
   ],
 };
 
-/** Phoebe's Room at the Pokémon League (Emerald's), for the Hoenn Champion run: Phoebe in their place (6,5), the player coming in 5 tiles from them (6,10). */
+/** Phoebe's Room at the Pokémon League (Emerald's), for the Hoenn Champion run: Phoebe in their place (6,5), the player coming in at its door (6,13), its arch over him as he comes in (its overhead). */
 export const HOENN_PHOEBES_ROOM: Route = {
   flow: 'up',
   sprites: 'rse',
   name: "Phoebe's Room",
   image: '/routes/rse_evergrande_phoebes_room.png',
+  overhead: '/routes/rse_evergrande_phoebes_room_overhead.png',
   width: 208,
   height: 224,
-  entrance: { x: 6, y: 10 },
+  entrance: { x: 6, y: 13 },
   spots: [
     { x: 6, y: 6 },
   ],
@@ -574,19 +575,20 @@ export const HOENN_PHOEBES_ROOM: Route = {
     '.............',
     '.............',
     '#####...#####',
-    '#####.#.#####',
+    '#####...#####',
   ],
 };
 
-/** Glacia's Room at the Pokémon League (Emerald's), for the Hoenn Champion run: Glacia in their place (6,5), the player coming in 5 tiles from them (6,10). */
+/** Glacia's Room at the Pokémon League (Emerald's), for the Hoenn Champion run: Glacia in their place (6,5), the player coming in at its door (6,13), its arch over him as he comes in (its overhead). */
 export const HOENN_GLACIAS_ROOM: Route = {
   flow: 'up',
   sprites: 'rse',
   name: "Glacia's Room",
   image: '/routes/rse_evergrande_glacias_room.png',
+  overhead: '/routes/rse_evergrande_glacias_room_overhead.png',
   width: 208,
   height: 224,
-  entrance: { x: 6, y: 10 },
+  entrance: { x: 6, y: 13 },
   spots: [
     { x: 6, y: 6 },
   ],
@@ -607,19 +609,20 @@ export const HOENN_GLACIAS_ROOM: Route = {
     '.............',
     '.............',
     '#####...#####',
-    '#####.#.#####',
+    '#####...#####',
   ],
 };
 
-/** Drake's Room at the Pokémon League (Emerald's), for the Hoenn Champion run: Drake in their place (6,5), the player coming in 5 tiles from them (6,10). */
+/** Drake's Room at the Pokémon League (Emerald's), for the Hoenn Champion run: Drake in their place (6,5), the player coming in at its door (6,13), its arch over him as he comes in (its overhead). */
 export const HOENN_DRAKES_ROOM: Route = {
   flow: 'up',
   sprites: 'rse',
   name: "Drake's Room",
   image: '/routes/rse_evergrande_drakes_room.png',
+  overhead: '/routes/rse_evergrande_drakes_room_overhead.png',
   width: 208,
   height: 224,
-  entrance: { x: 6, y: 10 },
+  entrance: { x: 6, y: 13 },
   spots: [
     { x: 6, y: 6 },
   ],
@@ -640,7 +643,7 @@ export const HOENN_DRAKES_ROOM: Route = {
     '.............',
     '.............',
     '#####...#####',
-    '#####.#.#####',
+    '#####...#####',
   ],
 };
 
