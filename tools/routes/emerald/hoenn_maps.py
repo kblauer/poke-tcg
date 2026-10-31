@@ -133,7 +133,9 @@ TREETOP_COLOURS = {(0x39, 0x8b, 0x31), (0x39, 0x52, 0x00), (0x83, 0xc5, 0x62), (
 # right, the two beside him above and below; the user's).
 USER_SPOT_FLOWS = {'mauville': {6: 'down', 8: 'right'}, 'lavaridge': {2: 'up'},
                    # Route 102 flows left: its encounters 2, 3 and 6 with their figures either side (the user's), the third above.
-                   'petalburg': {2: 'up', 3: 'up', 6: 'up'}}
+                   'petalburg': {2: 'up', 3: 'up', 6: 'up'},
+                   # Route 124 flows right: its encounters 2, 3, 5, 6 and 8 with their figures either side (the user's), the third above.
+                   'mossdeep': {2: 'up', 3: 'up', 5: 'up', 6: 'up', 8: 'up'}}
 TREETOP_SAME = 0.75
 # Ledges jumped going down (the user's: Jagged Pass's rock ridges between two levels, 17-22,33 among them): every wall
 # with walkable tiles above and below drawn the same as one of these tiles (`ledges`), made a ledge ('v').
@@ -143,7 +145,7 @@ USER_SPOTS = {'mauville': {1: (12, 91), 2: (28, 85), 3: (17, 78), 4: (18, 55), 5
               'lavaridge': {1: (14, 3), 2: (18, 8), 3: (10, 20), 4: (14, 21), 5: (20, 20), 6: (22, 24), 7: (20, 32), 8: (16, 34), 9: (9, 33), 10: (14, 36)},
               'petalburg': {1: (44, 9), 2: (37, 5), 3: (38, 13), 4: (31, 15), 5: (25, 17), 6: (19, 12), 7: (19, 4), 8: (27, 4), 9: (10, 4), 10: (3, 8)},
               'fortree': {1: (24, 124), 2: (27, 112), 3: (30, 102), 4: (35, 85), 5: (6, 78), 6: (14, 61), 7: (17, 46), 8: (8, 36), 9: (27, 33), 10: (31, 11)},
-              'mossdeep': {1: (11, 25), 2: (21, 26), 3: (21, 41), 4: (32, 32), 5: (45, 29), 6: (45, 41), 7: (60, 42), 8: (55, 56), 9: (66, 61), 10: (71, 51)}}
+              'mossdeep': {1: (7, 26), 2: (21, 26), 3: (21, 41), 4: (32, 32), 5: (45, 29), 6: (45, 41), 7: (60, 42), 8: (55, 56), 9: (66, 61), 10: (71, 51)}}
 
 
 # --- Walking ---

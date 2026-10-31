@@ -908,6 +908,7 @@ export const ROUTE_124: Route = {
   sprites: 'rse',
   entrance: { x: 0, y: 24 },
   exit: { x: 79, y: 53 },
+  spotFlows: { 1: 'up', 2: 'up', 4: 'up', 5: 'up', 7: 'up' },
   travel: 'surf',
   trainers: { names: SWIMMERS, share: 1 },
   name: 'Route 124',
@@ -915,7 +916,7 @@ export const ROUTE_124: Route = {
   width: 1280,
   height: 1280,
   spots: [
-    { x: 11, y: 25 },
+    { x: 7, y: 26 },
     { x: 21, y: 26 },
     { x: 21, y: 41 },
     { x: 32, y: 32 },
