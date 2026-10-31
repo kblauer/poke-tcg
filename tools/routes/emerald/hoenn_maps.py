@@ -117,9 +117,12 @@ USER_ROUTE_WALKABLE = {'mauville': [(21, 78), (16, 88), (19, 88), (16, 55), (9, 
                        # Route 102's tiles walls before (the user's): 18,11, 19,4 (encounter 8), 25,15 and 37,4.
                        'petalburg': [(18, 11), (19, 4), (25, 15), (37, 4)],
                        # Route 119's bridge over the river (its west end 13,33-34 and 17,33) and 25,32, 28,25.
-                       'fortree': [(13, 33), (13, 34), (17, 33), (25, 32), (28, 25)]}
-USER_ROUTE_ENTRANCE = {'mauville': (17, 99), 'lavaridge': (14, 0), 'petalburg': (49, 10), 'mossdeep': (0, 24)}
-USER_ROUTE_EXIT = {'mauville': (15, 0), 'lavaridge': (15, 43), 'petalburg': (0, 8), 'fortree': (38, 8), 'mossdeep': (79, 53)}
+                       'fortree': [(13, 33), (13, 34), (17, 33), (25, 32), (28, 25)],
+                       # Sootopolis City's doors in (31,16) and out (the gym's, 31,32), and its patches of bare earth in the
+                       # grass (20,36 the foot of the steps down to the lake) and 31,18, the grass below the door's step: the user's.
+                       'sootopolis': [(31, 16), (31, 32), (31, 18), (29, 33), (31, 33), (20, 36), (19, 37), (17, 40), (14, 42), (9, 43), (17, 44)]}
+USER_ROUTE_ENTRANCE = {'mauville': (17, 99), 'lavaridge': (14, 0), 'petalburg': (49, 10), 'mossdeep': (0, 24), 'sootopolis': (31, 16)}
+USER_ROUTE_EXIT = {'mauville': (15, 0), 'lavaridge': (15, 43), 'petalburg': (0, 8), 'fortree': (38, 8), 'mossdeep': (79, 53), 'sootopolis': (31, 32)}
 USER_ROUTE_LINKS = {'mauville': [((16, 88), (19, 88)), ((18, 16), (15, 16))]}
 USER_ROUTE_ON_FOOT = {'mauville'}
 # Routes whose links are buildings' front doors (`doors`): the player fades out facing up, back in facing down.
@@ -150,7 +153,8 @@ USER_SPOTS = {'mauville': {1: (12, 91), 2: (28, 85), 3: (17, 78), 4: (18, 55), 5
               'lavaridge': {1: (14, 3), 2: (18, 8), 3: (10, 20), 4: (14, 21), 5: (20, 20), 6: (22, 24), 7: (20, 32), 8: (16, 34), 9: (9, 33), 10: (14, 36)},
               'petalburg': {1: (44, 9), 2: (37, 5), 3: (38, 13), 4: (31, 15), 5: (25, 17), 6: (19, 12), 7: (19, 4), 8: (27, 4), 9: (10, 4), 10: (3, 8)},
               'fortree': {1: (24, 124), 2: (27, 112), 3: (30, 102), 4: (35, 85), 5: (6, 78), 6: (14, 61), 7: (17, 46), 8: (8, 36), 9: (27, 33), 10: (31, 11)},
-              'mossdeep': {1: (7, 26), 2: (21, 26), 3: (18, 37), 4: (30, 37), 5: (37, 46), 6: (45, 41), 7: (60, 42), 8: (58, 53), 9: (67, 57), 10: (71, 51)}}
+              'mossdeep': {1: (7, 26), 2: (21, 26), 3: (18, 37), 4: (30, 37), 5: (37, 46), 6: (45, 41), 7: (60, 42), 8: (58, 53), 9: (67, 57), 10: (71, 51)},
+              'sootopolis': {1: (28, 21), 2: (25, 16), 3: (30, 6), 4: (23, 7), 5: (15, 9), 6: (17, 19), 7: (20, 33), 8: (15, 42), 9: (25, 43), 10: (28, 36)}}
 
 
 # --- Walking ---
