@@ -9,7 +9,7 @@ Usage: python emerald_map.py <pokeemerald checkout> <MapName, as in data/maps/, 
 Writes <out prefix>.png, <out prefix>_overhead.png (what the game draws over the people: its top layer, see-through
 elsewhere) and <out prefix>.json: the size in tiles, `rows` ('.' walkable, '#' not: collision, ledges, water,
 doors, warps and the map's people, but for item balls and cut trees; '~' surfable water; ledges by the way they're
-jumped, '>' east, '<' west, '^' north, 'v' south), `grass` (1 where tall grass) and the map's events (map.json). Needs
+jumped, '>' east, '<' west, '^' north, 'v' south), `grass` (1 where tall grass, 2 where long grass, MB_LONG_GRASS: Route 119's very tall grass) and the map's events (map.json). Needs
 Pillow (pip install pillow)."""
 import json, os, re, struct, sys
 from PIL import Image
@@ -135,7 +135,7 @@ def render(repo, map_name, out_prefix=None, block_people=True):
             else:
                 c = '#'
             r.append(c)
-            g.append(1 if 'TALL_GRASS' in name or 'LONG_GRASS' in name else 0)
+            g.append(2 if 'LONG_GRASS' in name else 1 if 'TALL_GRASS' in name else 0)
         rows.append(''.join(r))
         grass.append(g)
     info = {'width': W, 'height': H, 'rows': rows, 'grass': grass, 'events': {k: m.get(k, []) for k in ('object_events', 'warp_events', 'coord_events', 'bg_events')}, 'connections': m.get('connections') or []}

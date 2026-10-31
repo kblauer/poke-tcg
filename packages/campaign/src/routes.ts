@@ -75,7 +75,8 @@ export interface Route {
   walkable: string[];
   /**
    * The tall grass ('g'), one string per tile row as `walkable`, from the game's tile behaviours (tools/routes/kanto_grass.py,
-   * tools/routes/hgss/johto_routes.py): people standing in it are drawn half hidden, as in the games. None on a map without.
+   * tools/routes/hgss/johto_routes.py): people standing in it are drawn half hidden, as in the games; Emerald's long grass
+   * ('L', Route 119's very tall grass: tools/routes/emerald/hoenn_maps.py) hides more of them. None on a map without.
    */
   grass?: string[];
   /**
@@ -394,8 +395,14 @@ export const ledgeAt = (route: Route, spot: RouteSpot): (typeof LEDGES)[keyof ty
 /** Whether a tile of a route is a ledge jumped going down ('v'), from the tile above it to the one below (the user's). */
 const downLedge = (route: Route, spot: RouteSpot) => ledgeAt(route, spot) === 'down';
 
-/** Whether a tile is tall grass (the route's `grass`), where people are drawn half hidden. */
-export const inGrass = (route: Route, spot: RouteSpot) => route.grass?.[spot.y]?.[spot.x] === 'g';
+/** Whether a tile is tall grass (the route's `grass`, long grass too), where people are drawn half hidden. */
+export const inGrass = (route: Route, spot: RouteSpot) => {
+  const g = route.grass?.[spot.y]?.[spot.x];
+  return g === 'g' || g === 'L';
+};
+
+/** Whether a tile is Emerald's long grass (the route's `grass`, 'L': Route 119's very tall grass), hiding more of those in it. */
+export const inLongGrass = (route: Route, spot: RouteSpot) => route.grass?.[spot.y]?.[spot.x] === 'L';
 
 /** Whether a tile is ice (the route's `ice`), slid across. */
 export const onIce = (route: Route, spot: RouteSpot) => route.ice?.[spot.y]?.[spot.x] === 'i';

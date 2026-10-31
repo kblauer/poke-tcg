@@ -7,14 +7,22 @@ export const GRASS_FRAME_MS = 167;
 export const RUSTLE = [1, 2, 3, 4, 0];
 /** How long the rustle takes, after which the grass is at rest. */
 const RUSTLE_MS = RUSTLE.length * GRASS_FRAME_MS;
+/**
+ * Emerald's long grass's rustle (sAnim_LongGrass, Route 119's very tall grass): its frames and how many of the game's 60
+ * frames a second each shows, ending at rest (frame 0).
+ */
+export const LONG_RUSTLE: [frame: number, ticks: number][] = [[1, 3], [2, 3], [0, 4], [3, 4], [0, 4], [3, 4], [0, 4]];
+/** How long long grass's rustle takes. */
+const LONG_RUSTLE_MS = (LONG_RUSTLE.reduce((n, [, t]) => n + t, 0) * 1000) / 60;
 
-/** A tuft of tall grass drawn over someone (TallGrass): its tile, whether it rustles, and when it began. */
+/** A tuft of tall grass drawn over someone (TallGrass): its tile, whether it rustles, when it began, and whether it's long grass. */
 export interface GrassTuft {
   key: number;
   x: number;
   y: number;
   rustle: boolean;
   at: number;
+  long: boolean;
 }
 
 /**
@@ -24,10 +32,11 @@ export interface GrassTuft {
  * jump none on the way, but landing in it the grass thrown up (`splash`, JumpDust's `grass`) and a tuft at rest if there's
  * none (JumpOnTallGrass). A tuft stays while he's on its tile or has just left it (drawn over him as he steps out), and
  * goes once he's off both and its rustle is over (UpdateTallGrassFieldEffect). `map` is the map shown: a new one starts over.
+ * `long`: the tile is Emerald's long grass, whose tufts are its own (FldEff_LongGrass, the same rules).
  */
-export function useTallGrass({ tile, grass, map, moveMs, jump, set = 'frlg' }: { tile: { x: number; y: number }; grass: boolean; map: string; moveMs: number; jump?: { ms: number } | null; set?: SpriteSet }) {
+export function useTallGrass({ tile, grass, long = false, map, moveMs, jump, set = 'frlg' }: { tile: { x: number; y: number }; grass: boolean; long?: boolean; map: string; moveMs: number; jump?: { ms: number } | null; set?: SpriteSet }) {
   const keys = useRef(0);
-  const tuft = (rustle: boolean): GrassTuft => ({ key: ++keys.current, x: tile.x, y: tile.y, rustle, at: Date.now() });
+  const tuft = (rustle: boolean): GrassTuft => ({ key: ++keys.current, x: tile.x, y: tile.y, rustle, at: Date.now(), long });
   const [tufts, setTufts] = useState<GrassTuft[]>(() => (grass ? [tuft(false)] : []));
   const [splash, setSplash] = useState<{ stamp: number; tile: { x: number; y: number } } | null>(null);
   const last = useRef({ x: tile.x, y: tile.y, map });
@@ -38,14 +47,14 @@ export function useTallGrass({ tile, grass, map, moveMs, jump, set = 'frlg' }: {
     // Put there (a fade, a new map): only the grass he stands in.
     if (!moveMs || was.map !== map) return setTufts(grass ? [tuft(false)] : []);
     const now = Date.now();
-    const keep = (t: GrassTuft) => !(t.x === tile.x && t.y === tile.y) && ((t.x === was.x && t.y === was.y) || now - t.at < RUSTLE_MS);
+    const keep = (t: GrassTuft) => !(t.x === tile.x && t.y === tile.y) && ((t.x === was.x && t.y === was.y) || now - t.at < (t.long ? LONG_RUSTLE_MS : RUSTLE_MS));
     if (!jump) return setTufts((old) => [...old.filter(keep), ...(grass ? [tuft(true)] : [])]);
     setTufts((old) => old.filter(keep));
     if (!grass) return;
     const landed = { x: tile.x, y: tile.y };
     const timer = window.setTimeout(() => {
       setSplash({ stamp: Date.now(), tile: landed });
-      setTufts((old) => (old.some((t) => t.x === landed.x && t.y === landed.y) ? old : [...old, { key: ++keys.current, ...landed, rustle: false, at: Date.now() }]));
+      setTufts((old) => (old.some((t) => t.x === landed.x && t.y === landed.y) ? old : [...old, { key: ++keys.current, ...landed, rustle: false, at: Date.now(), long }]));
     }, jump.ms);
     return () => window.clearTimeout(timer);
     // Only as he moves (the step's time and the jump are the ones it starts with).
@@ -56,6 +65,7 @@ export function useTallGrass({ tile, grass, map, moveMs, jump, set = 'frlg' }: {
     const dir = set === 'rse' ? 'rse/' : '';
     new Image().src = `/overworld/${dir}tall_grass.png`;
     new Image().src = `/overworld/${dir}jump_tall_grass.png`;
+    if (set === 'rse') new Image().src = '/overworld/rse/long_grass.png';
   }, [set]);
   return { tufts, splash };
 }

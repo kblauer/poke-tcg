@@ -322,7 +322,8 @@ def route_ts(cfg, ent, spots, rows, grass, links=(), on_foot=False, spot_flows=N
         extra += '\n  spotFlows: { ' + ', '.join(f"{n - 1}: '{f}'" for n, f in sorted(spot_flows.items())) + ' },'
     grass_ts = ''
     if any(any(r) for r in grass):
-        grass_ts = '\n  grass: [\n' + '\n'.join("    '" + ''.join('g' if g else '.' for g in r) + "'," for r in grass) + '\n  ],'
+        # Long grass 'L' (emerald_map's 2: Route 119's), tall grass 'g'.
+        grass_ts = '\n  grass: [\n' + '\n'.join("    '" + ''.join('L' if g == 2 else 'g' if g else '.' for g in r) + "'," for r in grass) + '\n  ],'
     return f"""
 /** {cfg['title']}: {cfg['what']}. Spots along the walk, picked by tools/routes/emerald/hoenn_maps.py. */
 export const {cfg['const']}: Route = {{
