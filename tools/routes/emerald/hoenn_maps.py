@@ -113,8 +113,8 @@ USER_ROUTE_WALKABLE = {'mauville': [(21, 78), (16, 88), (19, 88), (16, 55), (9, 
                        'petalburg': [(18, 11), (19, 4), (25, 15), (37, 4)],
                        # Route 119's bridge over the river (its west end 13,33-34 and 17,33) and 25,32, 28,25.
                        'fortree': [(13, 33), (13, 34), (17, 33), (25, 32), (28, 25)]}
-USER_ROUTE_ENTRANCE = {'mauville': (17, 99), 'lavaridge': (14, 0), 'petalburg': (49, 10)}
-USER_ROUTE_EXIT = {'mauville': (15, 0), 'lavaridge': (15, 43), 'petalburg': (0, 8), 'fortree': (38, 8)}
+USER_ROUTE_ENTRANCE = {'mauville': (17, 99), 'lavaridge': (14, 0), 'petalburg': (49, 10), 'mossdeep': (1, 24)}
+USER_ROUTE_EXIT = {'mauville': (15, 0), 'lavaridge': (15, 43), 'petalburg': (0, 8), 'fortree': (38, 8), 'mossdeep': (79, 53)}
 USER_ROUTE_LINKS = {'mauville': [((16, 88), (19, 88)), ((18, 16), (15, 16))]}
 USER_ROUTE_ON_FOOT = {'mauville'}
 # Routes whose links are buildings' front doors (`doors`): the player fades out facing up, back in facing down.
@@ -142,7 +142,8 @@ USER_ROUTE_UNWALKABLE = {'mauville': [(x, 79) for x in range(14, 26)] + [(9, 32)
 USER_SPOTS = {'mauville': {1: (12, 91), 2: (28, 85), 3: (17, 78), 4: (18, 55), 5: (11, 53), 6: (12, 31), 7: (27, 30), 8: (28, 8), 9: (6, 14), 10: (12, 8)},
               'lavaridge': {1: (14, 3), 2: (18, 8), 3: (10, 20), 4: (14, 21), 5: (20, 20), 6: (22, 24), 7: (20, 32), 8: (16, 34), 9: (9, 33), 10: (14, 36)},
               'petalburg': {1: (44, 9), 2: (37, 5), 3: (38, 13), 4: (31, 15), 5: (25, 17), 6: (19, 12), 7: (19, 4), 8: (27, 4), 9: (10, 4), 10: (3, 8)},
-              'fortree': {1: (24, 124), 2: (27, 112), 3: (30, 102), 4: (35, 85), 5: (6, 78), 6: (14, 61), 7: (17, 46), 8: (8, 36), 9: (27, 33), 10: (31, 11)}}
+              'fortree': {1: (24, 124), 2: (27, 112), 3: (30, 102), 4: (35, 85), 5: (6, 78), 6: (14, 61), 7: (17, 46), 8: (8, 36), 9: (27, 33), 10: (31, 11)},
+              'mossdeep': {1: (11, 25), 2: (21, 26), 3: (21, 41), 4: (32, 32), 5: (45, 29), 6: (45, 41), 7: (60, 42), 8: (55, 56), 9: (66, 61), 10: (71, 51)}}
 
 
 # --- Walking ---
