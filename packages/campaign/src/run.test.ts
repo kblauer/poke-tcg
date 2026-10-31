@@ -251,8 +251,11 @@ describe('createRun', () => {
     const y = route.grass!.findIndex((r) => r.includes('L'));
     const tile = { x: route.grass![y]!.indexOf('L'), y };
     expect([inGrass(route, tile), inLongGrass(route, tile)]).toEqual([true, true]);
-    const tall = { x: route.grass!.find((r) => r.includes('g'))!.indexOf('g'), y: route.grass!.findIndex((r) => r.includes('g')) };
-    expect([inGrass(route, tall), inLongGrass(route, tall)]).toEqual([true, false]);
+    // Its tall grass is all long grass (the user's); another map's tall grass isn't.
+    expect(route.grass!.some((r) => r.includes('g'))).toBe(false);
+    const other = maps.find((m) => m.grass?.some((r) => r.includes('g')))!;
+    const tall = { x: other.grass!.find((r) => r.includes('g'))!.indexOf('g'), y: other.grass!.findIndex((r) => r.includes('g')) };
+    expect([inGrass(other, tall), inLongGrass(other, tall)]).toEqual([true, false]);
   });
 
   it("Goldenrod Gym's walks follow its track (the user's): over the bridges and back under them, never cutting across", () => {
