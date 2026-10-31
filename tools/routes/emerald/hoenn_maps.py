@@ -86,8 +86,9 @@ USER_WALKABLE = {'mauville': [(4, 7), (5, 7)], 'lavaridge': [(8, 9), (12, 12)]}
 # Tiles of a gym's picture drawn over with another of its tiles (from, to): Mauville Gym's open barrier between its
 # pylons, 4-5,6-7, as its plain floor (4,5; the user's).
 USER_TILE_COPIES = {'mauville': [((4, 5), (x, y)) for y in (6, 7) for x in (4, 5)]}
-# Fortree Gym's fences, 13-17 on rows 6, 12 and 17 (the user's: the player goes round by the gym's left side).
-USER_UNWALKABLE = {'dewford': [(5, 24)], 'fortree': [(x, y) for y in (6, 12, 17) for x in range(13, 18)]}
+# Fortree Gym's fences, 13-17 on rows 6, 12 and 17 (the user's: the player goes round by the gym's left side), and
+# 15,21, where its Gym Guide stands (the user's).
+USER_UNWALKABLE = {'dewford': [(5, 24)], 'fortree': [(x, y) for y in (6, 12, 17) for x in range(13, 18)] + [(15, 21)]}
 # Tiles whose wall is drawn over the people standing on them (the top of each wall's face runs through the tile, the
 # player walking behind it), cut from the map's picture into its overhead image (wall_overhead): Rustboro Gym's rock
 # walls, the user's tiles; 'walls', every wall's top edge with a wall below (wall_edges: Dewford Gym's, the user's);
