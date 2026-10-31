@@ -6,6 +6,7 @@ import MyLocationIcon from '@mui/icons-material/MyLocation';
 import { flowAt, inGrass, inLongGrass, isBattleKind, onLongGrassEdge, onPath, onWater, routePath, travelAt, type Route, type RouteSpot } from '@poke-tcg/campaign';
 import type { PlayerGender } from '@poke-tcg/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCrackedIce } from '../../hooks/useCrackedIce';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { mapScale, usePan, ZOOM } from '../../hooks/usePan';
 import type { RunViewData } from '../../hooks/useRun';
@@ -168,6 +169,8 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
   }, [stillBob]);
   // Wading through tall grass, the player's legs slow with his steps (GRASS_PACE).
   const wading = walker.walking && inGrass(shown, walker.tile);
+  // Sootopolis Gym's thin ice, cracked where the player has stepped (its `crackedIce` drawn over those tiles).
+  const cracked = useCrackedIce(shown, walker.tile, walker.walking ? ms.step / stepPace(shown, walker.tile) : 0);
   // Tall grass on the Gen 3 maps is the games' own, drawn over the feet of those in it (TallGrass, GrassTufts: FireRed's,
   // Emerald's on the Hoenn maps); on HGSS's, it hides their legs (OverworldSprite's `grass`).
   const sprites = setOf(shown);
@@ -287,6 +290,7 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
             style={{ width: shown.width, height: shown.height, transform: mapScale }}
           >
             <img src={shown.image} alt="" draggable={false} className="h-full w-full select-none [image-rendering:pixelated]" />
+            {shown.crackedIce && cracked.map((t) => <img key={key(t)} src={shown.crackedIce} alt="" draggable={false} className="pointer-events-none absolute select-none [image-rendering:pixelated]" style={{ left: t.x * 16, top: t.y * 16, width: 16, height: 16 }} />)}
             {/* The people always there (a gym's guide). */}
             {shown.npcs?.map((n, i) => <OverworldSprite key={`npc${i}`} name={n.sprite} tile={n.tile} face={n.face} grass={masked(n.tile)} longGrass={long(n.tile)} />)}
             {/* Keyed by the spot and option, not the index, so a step's change doesn't remount every figure (their transitions would snap). */}

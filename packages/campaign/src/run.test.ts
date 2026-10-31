@@ -4,7 +4,7 @@ import { ITEMS, itemText, MAX_CONSUMABLES_PER_RUN, onlyOne, shopStock } from './
 import { RUN_TYPE_IDS, RUN_TYPES, runType, type RunType, type RunTypeId } from './run-types.js';
 import { ROUTE_4 } from './kanto-routes.js';
 import { JOHTO_BOSS_ROOMS, MAHOGANY_GYM } from './johto-gyms.js';
-import { inGrass, inLongGrass, onLongGrassEdge, onPath, PEWTER_GYM, ROUTE_2, routePath, travelAt, type Route, type RouteSpot } from './routes.js';
+import { inGrass, inLongGrass, onLongGrassEdge, onPath, onThinIce, PEWTER_GYM, ROUTE_2, routePath, travelAt, type Route, type RouteSpot } from './routes.js';
 import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, isBattleKind, isBossKind, landNear, MAX_CENTERS, REQUIRED_BATTLES, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, withConsumablesBefore, carriedConsumables, parsePendingConsumable, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
 import { GEN2_SETS, GEN3_SETS } from './pool.js';
 import { GEN2_TEST_POOL, GEN3_TEST_POOL, TEST_POOL } from './test-pool.js';
@@ -242,6 +242,22 @@ describe('createRun', () => {
     // FireRed's Routes 2, 4, 5, 6 and 8, HGSS's 30, 32, 34, 35 and 45, and Emerald's Petalburg Woods, Routes 102, 110 and 119 and Jagged Pass.
     expect(new Set(grassy.map((m) => m.name))).toEqual(new Set(['Route 2', 'Route 4', 'Route 5', 'Route 6', 'Route 8', 'Route 30', 'Route 32', 'Route 34', 'Route 35', 'Route 45', 'Petalburg Woods', 'Route 102', 'Route 110', 'Route 119', 'Jagged Pass']));
     for (const m of grassy) expect(m.grass!.map((r) => r.length), m.name).toEqual(m.walkable.map((r) => r.length));
+  });
+
+  it("Sootopolis Gym's thin ice is its puzzle's, walkable, with its cracked ice's picture", () => {
+    const maps = RUN_TYPE_IDS.flatMap((id) => [...(runType(id).routes ?? []), ...(runType(id).gym ? [runType(id).gym!] : [])]);
+    const icy = maps.filter((m) => m.thinIce);
+    expect(new Set(icy.map((m) => m.name))).toEqual(new Set(['Sootopolis Gym']));
+    for (const m of icy) {
+      expect(m.crackedIce, m.name).toBeTruthy();
+      const tiles = m.thinIce!.flatMap((r, y) => [...r].flatMap((c, x) => (c === 't' ? [{ x, y }] : [])));
+      expect(tiles.length).toBe(64);
+      // Emerald's ice puzzle region (ICE_PUZZLE_L/R/T/B, field_tasks.c), every tile of it walked on as floor.
+      for (const t of tiles) {
+        expect(t.x >= 3 && t.x <= 13 && t.y >= 6 && t.y <= 19, `${t.x},${t.y}`).toBe(true);
+        expect(onThinIce(m, t) && onPath(m, t), `${t.x},${t.y}`).toBe(true);
+      }
+    }
   });
 
   it("Emerald's long grass ('L') is only Route 119's very tall grass, and counts as grass", () => {

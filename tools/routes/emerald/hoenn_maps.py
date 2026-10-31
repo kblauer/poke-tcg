@@ -99,6 +99,8 @@ USER_OVERHEAD = {'rustboro': [(4, 14), (6, 14), (7, 14), (2, 12), (3, 12), (2, 1
 # Tiles drawn whole over the people on them (Dewford Gym's statues' tops: the player all but hidden behind them, the user's).
 USER_OVERHEAD_WHOLE = {'dewford': [(4, 23), (7, 23)]}
 USER_LINKS = {'lavaridge': [((8, 9), (12, 12))]}
+# Sootopolis Gym's cracked ice (METATILE_SootopolisGym_Ice_Cracked), what its thin ice turns into once stepped on.
+CRACKED_ICE = 0x20E
 # A gym's links instead of its own warps (the user's: Mossdeep Gym's way through its spin panels, the door's room to
 # 20,24, 23,20 to the Gym Trainer's room at 8,12, 11,3 down to 7,18, and 1,23 up to the leaders' room at 21,10).
 USER_GYM_LINKS = {'mossdeep': [((1, 33), (20, 24)), ((23, 20), (8, 12)), ((11, 3), (7, 18)), ((1, 23), (21, 10))]}
@@ -574,9 +576,11 @@ def wall_overhead(img, tiles, whole=(), outline_from=OUTLINE_FROM):
     return top
 
 
-def gym_ts(const, title, doc, image, rows, door, spots, stands, npcs=(), links=(), overhead=None):
+def gym_ts(const, title, doc, image, rows, door, spots, stands, npcs=(), links=(), overhead=None, thin_ice=None, cracked=None):
     links_ = '\n  links: [' + ', '.join(f'[{{ x: {a[0]}, y: {a[1]} }}, {{ x: {b[0]}, y: {b[1]} }}]' for a, b in links) + '],' if links else ''
     overhead_ = f"\n  overhead: '/routes/{overhead}'," if overhead else ''
+    cracked_ = f"\n  crackedIce: '/routes/{cracked}'," if cracked else ''
+    thin_ = '\n  thinIce: [\n' + rows_ts(thin_ice) + '\n  ],' if thin_ice else ''
     name = f'"{title}"' if "'" in title else f"'{title}'"
     npcs_ = ''
     if npcs:
@@ -587,7 +591,7 @@ export const {const}: Route = {{
   flow: 'up',
   sprites: 'rse',
   name: {name},
-  image: '/routes/{image}',{overhead_}
+  image: '/routes/{image}',{overhead_}{cracked_}
   width: {len(rows[0]) * TILE},
   height: {len(rows) * TILE},
   entrance: {{ x: {door[0]}, y: {door[1]} }},{links_}
@@ -599,7 +603,7 @@ export const {const}: Route = {{
   ],{npcs_}
   walkable: [
 {rows_ts(rows)}
-  ],
+  ],{thin_}
 }};
 """
 
@@ -692,7 +696,12 @@ def main():
             doc += f', Liza beside Tate ({partner[0]},{partner[1]})'
         if links:
             doc += ', its rooms joined through their doors (' + '; '.join(f'{a[0]},{a[1]} to {b[0]},{b[1]}' for a, b in links) + ')'
-        out.append(gym_ts(const, title, doc + '.', image, rows, door, spots, stands, npcs, links, overhead))
+        # Thin ice (Sootopolis Gym's): its tiles, and the cracked ice they turn into once stepped on (the user's).
+        thin_ice, cracked = None, None
+        if any('t' in r for r in info['thin_ice']):
+            thin_ice, cracked = info['thin_ice'], f'{city}_gym_cracked_ice.png'
+            emerald_map.metatile_image(repo, leader_map, CRACKED_ICE).save(os.path.join(PUBLIC, cracked))
+        out.append(gym_ts(const, title, doc + '.', image, rows, door, spots, stands, npcs, links, overhead, thin_ice, cracked))
         entrances[city] = (entrance_near(rows, spots[1], links), links)
         trainers = gym_trainers(repo, [leader_map] + others, names, [leader_map] + others)
         print('gym', city, 'door', door, 'spots', spots, 'stands', stands, 'trainer', tname, 'links', links)

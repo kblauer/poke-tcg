@@ -85,6 +85,13 @@ export interface Route {
    * he's onto ground (agreed with the user). None on a map without.
    */
   ice?: string[];
+  /**
+   * Thin ice ('t'), one string per tile row as `walkable` (Sootopolis Gym's, MB_THIN_ICE): walked on as any floor, but
+   * cracked once the player has stepped onto it, drawn as `crackedIce` until he leaves the map (the user's).
+   */
+  thinIce?: string[];
+  /** The picture (in apps/web/public) of a tile of thin ice once cracked, 16x16 (METATILE_SootopolisGym_Ice_Cracked). */
+  crackedIce?: string;
   /** Tiles joined by a building the player walks through (a gatehouse's doors on either side): a walk between them fades out and in. */
   links?: [RouteSpot, RouteSpot][];
   /**
@@ -413,6 +420,9 @@ export const onLongGrassEdge = (route: Route, spot: RouteSpot) =>
 
 /** Whether a tile is ice (the route's `ice`), slid across. */
 export const onIce = (route: Route, spot: RouteSpot) => route.ice?.[spot.y]?.[spot.x] === 'i';
+
+/** Whether a tile is thin ice (the route's `thinIce`), cracked once stepped onto. */
+export const onThinIce = (route: Route, spot: RouteSpot) => route.thinIce?.[spot.y]?.[spot.x] === 't';
 
 /** Whether a tile of a route is water surfed across (on a route tagged for surfing). */
 export const onWater = (route: Route, spot: RouteSpot) => route.travel === 'surf' && route.walkable[spot.y]?.[spot.x] === '~';
