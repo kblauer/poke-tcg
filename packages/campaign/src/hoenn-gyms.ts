@@ -330,6 +330,7 @@ export const FORTREE_GYM: Route = {
   sprites: 'rse',
   name: 'Fortree Gym',
   image: '/routes/fortree_gym.png',
+  overhead: '/routes/fortree_gym_overhead.png',
   width: 320,
   height: 400,
   entrance: { x: 15, y: 24 },

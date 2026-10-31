@@ -89,8 +89,9 @@ USER_TILE_COPIES = {'mauville': [((4, 5), (x, y)) for y in (6, 7) for x in (4, 5
 USER_UNWALKABLE = {'dewford': [(5, 24)]}
 # Tiles whose wall is drawn over the people standing on them (the top of each wall's face runs through the tile, the
 # player walking behind it), cut from the map's picture into its overhead image (wall_overhead): Rustboro Gym's rock
-# walls, the user's tiles; 'walls', every wall's top edge with a wall below (wall_edges: Dewford Gym's, the user's).
-USER_OVERHEAD = {'rustboro': [(4, 14), (6, 14), (7, 14), (2, 12), (3, 12), (2, 10), (3, 10), (4, 8), (6, 8), (7, 8), (0, 5)] + [(x, 5) for x in range(3, 11)], 'dewford': 'walls'}
+# walls, the user's tiles; 'walls', every wall's top edge with a wall below (wall_edges: Dewford Gym's, the user's);
+# 'pillars', every tree pillar's top over a walkable tile (pillar_edges: Fortree Gym's, the user's).
+USER_OVERHEAD = {'rustboro': [(4, 14), (6, 14), (7, 14), (2, 12), (3, 12), (2, 10), (3, 10), (4, 8), (6, 8), (7, 8), (0, 5)] + [(x, 5) for x in range(3, 11)], 'dewford': 'walls', 'fortree': 'pillars'}
 # Tiles drawn whole over the people on them (Dewford Gym's statues' tops: the player all but hidden behind them, the user's).
 USER_OVERHEAD_WHOLE = {'dewford': [(4, 23), (7, 23)]}
 USER_LINKS = {'lavaridge': [((8, 9), (12, 12))]}
@@ -526,7 +527,15 @@ def wall_edges(img, rows):
     return out
 
 
-def wall_overhead(img, tiles, whole=()):
+def pillar_edges(img, rows):
+    """The walkable tiles with a tree pillar's top across them (Fortree Gym's, the user's): a wall below and its outline
+    anywhere in the tile (the taller pillars' tops reach higher than OUTLINE_FROM)."""
+    src = img.convert('RGB')
+    return [(tx, ty) for ty in range(len(rows) - 1) for tx in range(len(rows[0])) if rows[ty][tx] == '.' and rows[ty + 1][tx] != '.'
+            and any(src.getpixel((tx * TILE + c, ty * TILE + r)) in OUTLINES for c in range(TILE) for r in range(TILE))]
+
+
+def wall_overhead(img, tiles, whole=(), outline_from=OUTLINE_FROM):
     """The map's overhead image (see-through but for the walls of `tiles` and the `whole` tiles): down each column of each
     tile, from the wall's outline to the tile's foot, so a person standing there is behind the wall's top."""
     src = img.convert('RGBA')
@@ -535,7 +544,7 @@ def wall_overhead(img, tiles, whole=()):
         top.paste(src.crop((tx * TILE, ty * TILE, tx * TILE + TILE, ty * TILE + TILE)), (tx * TILE, ty * TILE))
     for tx, ty in tiles:
         for x in range(tx * TILE, tx * TILE + TILE):
-            start = next((y for y in range(ty * TILE + OUTLINE_FROM, ty * TILE + TILE) if src.getpixel((x, y))[:3] in OUTLINES), None)
+            start = next((y for y in range(ty * TILE + outline_from, ty * TILE + TILE) if src.getpixel((x, y))[:3] in OUTLINES), None)
             for y in range(start if start is not None else ty * TILE + TILE, ty * TILE + TILE):
                 top.putpixel((x, y), src.getpixel((x, y)))
     return top
@@ -644,7 +653,11 @@ def main():
         if city in USER_OVERHEAD or city in USER_OVERHEAD_WHOLE:
             overhead = f'{city}_gym_overhead.png'
             tiles = USER_OVERHEAD.get(city, [])
-            wall_overhead(img, wall_edges(img, rows) if tiles == 'walls' else tiles, USER_OVERHEAD_WHOLE.get(city, [])).save(os.path.join(PUBLIC, overhead))
+            if tiles == 'pillars':
+                top = wall_overhead(img, pillar_edges(img, rows), USER_OVERHEAD_WHOLE.get(city, []), outline_from=0)
+            else:
+                top = wall_overhead(img, wall_edges(img, rows) if tiles == 'walls' else tiles, USER_OVERHEAD_WHOLE.get(city, []))
+            top.save(os.path.join(PUBLIC, overhead))
         npcs = []
         if guide:
             npcs.append((guide_sprite, guide, 'down'))
