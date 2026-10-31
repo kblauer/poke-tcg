@@ -125,6 +125,9 @@ USER_ROUTE_TREETOPS = {'mauville': (8, 93)}
 # Treetops drawn over the player standing on them instead (the user's: Route 119's), found as `treetops` finds them and
 # copied whole into the route's overhead image (<image>_overhead.png).
 USER_ROUTE_TREETOP_OVERHEAD = {'fortree': (17, 121)}
+# The treetops' own colours (Route 119's trees): only these are kept in the overhead, the ground round each tree's top
+# (and the riverbank's) see-through, so the people behind it are hidden by the tree's outline, not the tile's square (the user's).
+TREETOP_COLOURS = {(0x39, 0x8b, 0x31), (0x39, 0x52, 0x00), (0x83, 0xc5, 0x62), (0xb4, 0xff, 0x83)}
 # Spots whose figures go another way than the map's flow (by encounter number, from 1; the Route's `spotFlows`): the
 # third figure, past the two beside the player, in line ahead the way given (Route 110's encounter 6: south; its 8th's
 # right, the two beside him above and below; the user's).
@@ -534,6 +537,13 @@ def pillar_edges(img, rows):
             and any(src.getpixel((tx * TILE + c, ty * TILE + r)) in OUTLINES for c in range(TILE) for r in range(TILE))]
 
 
+def only_colours(img, colours):
+    """An overhead image with every pixel not of `colours` made see-through (TREETOP_COLOURS: the trees alone)."""
+    out = img.convert('RGBA')
+    out.putdata([p if p[3] and p[:3] in colours else (0, 0, 0, 0) for p in out.getdata()])
+    return out
+
+
 def wall_overhead(img, tiles, whole=(), outline_from=OUTLINE_FROM):
     """The map's overhead image (see-through but for the walls of `tiles` and the `whole` tiles): down each column of each
     tile, from the wall's outline to the tile's foot, so a person standing there is behind the wall's top."""
@@ -614,7 +624,7 @@ def main():
         overhead = None
         if key in USER_ROUTE_TREETOP_OVERHEAD:
             overhead = cfg['image'].replace('.png', '_overhead.png')
-            wall_overhead(img, [], treetops(img, rows, USER_ROUTE_TREETOP_OVERHEAD[key])).save(os.path.join(PUBLIC, overhead))
+            only_colours(wall_overhead(img, [], treetops(img, rows, USER_ROUTE_TREETOP_OVERHEAD[key])), TREETOP_COLOURS).save(os.path.join(PUBLIC, overhead))
         rows = [list(r) for r in rows]
         for x, y in tops:
             rows[y][x] = '#'
