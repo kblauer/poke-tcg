@@ -90,7 +90,9 @@ USER_TILE_COPIES = {'mauville': [((4, 5), (x, y)) for y in (6, 7) for x in (4, 5
 # 15,21, where its Gym Guide stands (the user's).
 USER_UNWALKABLE = {'dewford': [(5, 24)], 'fortree': [(x, y) for y in (6, 12, 17) for x in range(13, 18)] + [(15, 21)],
                    # Mossdeep Gym's spin panels 9,8 and 10,8: the player goes from the Gym Trainer along row 9 to 11,9, then up (the user's).
-                   'mossdeep': [(9, 8), (10, 8)]}
+                   'mossdeep': [(9, 8), (10, 8)],
+                   # Sootopolis Gym's stairs between its ice sections, none until the ice below is all cracked (ICE_STAIRS).
+                   'sootopolis': [(8, 4), (8, 5), (8, 10), (8, 11), (8, 15), (8, 16)]}
 # Tiles whose wall is drawn over the people standing on them (the top of each wall's face runs through the tile, the
 # player walking behind it), cut from the map's picture into its overhead image (wall_overhead): Rustboro Gym's rock
 # walls, the user's tiles; 'walls', every wall's top edge with a wall below (wall_edges: Dewford Gym's, the user's);
@@ -101,11 +103,25 @@ USER_OVERHEAD_WHOLE = {'dewford': [(4, 23), (7, 23)]}
 USER_LINKS = {'lavaridge': [((8, 9), (12, 12))]}
 # Sootopolis Gym's cracked ice (METATILE_SootopolisGym_Ice_Cracked), what its thin ice turns into once stepped on.
 CRACKED_ICE = 0x20E
+# Sootopolis Gym's stairs (METATILE_SootopolisGym_Stairs), set by its script once each ice section is all cracked: on its
+# tiles, after how many tiles of thin ice cracked (VAR_ICE_STEP_COUNT's 8, 28 and 67, less its 1 to start and the 1 each
+# set of stairs adds), as SootopolisCity_Gym_1F_EventScript_CheckSetStairMetatiles has them.
+ICE_STAIRS_METATILE = 0x207
+ICE_STAIRS = {'sootopolis': [([(8, 15), (8, 16)], 7), ([(8, 10), (8, 11)], 26), ([(8, 4), (8, 5)], 64)]}
+# A gym's one way through (`track`), as trackLine's legs (the user's: Sootopolis Gym's, every tile of each ice section
+# stepped on once, waiting at its last for the stairs to appear: their 40 frames after its crack's 4, and a little more).
+USER_GYM_TRACKS = {'sootopolis': [(8, 25), {'to': [(8, 19), (7, 19), (7, 18), (9, 18), (9, 17), (8, 17)]},
+                                  {'wait': 800, 'to': [(8, 14), (11, 14), (11, 12), (9, 12), (9, 13), (7, 13), (7, 14), (5, 14), (5, 12), (8, 12)]},
+                                  {'wait': 800, 'to': [(8, 9), (3, 9), (3, 6), (4, 6), (4, 7), (5, 7), (5, 8), (6, 8), (6, 6), (7, 6), (7, 7), (8, 7),
+                                                       (8, 8), (9, 8), (9, 9), (10, 9), (10, 7), (11, 7), (11, 8), (12, 8), (12, 9), (13, 9), (13, 6), (8, 6)]},
+                                  {'wait': 800, 'to': [(8, 3)]}]}
 # A gym's links instead of its own warps (the user's: Mossdeep Gym's way through its spin panels, the door's room to
 # 20,24, 23,20 to the Gym Trainer's room at 8,12, 11,3 down to 7,18, and 1,23 up to the leaders' room at 21,10).
 USER_GYM_LINKS = {'mossdeep': [((1, 33), (20, 24)), ((23, 20), (8, 12)), ((11, 3), (7, 18)), ((1, 23), (21, 10))]}
 # The Gym Trainer's spot (the player's) and where they stand (the user's).
-USER_GYM_TRAINER = {'lavaridge': {'spot': (9, 13), 'stand': (8, 13)}, 'petalburg': {'spot': (4, 56), 'stand': (4, 55)}, 'mossdeep': {'spot': (7, 9), 'stand': (6, 9)}}
+USER_GYM_TRAINER = {'lavaridge': {'spot': (9, 13), 'stand': (8, 13)}, 'petalburg': {'spot': (4, 56), 'stand': (4, 55)}, 'mossdeep': {'spot': (7, 9), 'stand': (6, 9)},
+                    # Sootopolis Gym's off its ice, in the room the player comes in at (its 1F has no trainers: Emerald's are on B1F).
+                    'sootopolis': {'spot': (8, 22), 'stand': (9, 22)}}
 # The routes' fixes from the user, made after the spots are picked (so the rest stay where they were): tiles made
 # walkable and unwalkable, spots moved (by encounter number, from 1), the entrance and exit, links (a building walked
 # through: its doors, fading between them), and a route come into on foot (`onFoot`: each link switches the player
@@ -297,6 +313,10 @@ def preview(img, marks, out):
 
 def pts(ps):
     return '\n'.join(f'    {{ x: {x}, y: {y} }},' for x, y in ps)
+
+
+def pts_inline(ps):
+    return ', '.join(f'{{ x: {x}, y: {y} }}' for x, y in ps)
 
 
 def rows_ts(rows):
@@ -576,11 +596,17 @@ def wall_overhead(img, tiles, whole=(), outline_from=OUTLINE_FROM):
     return top
 
 
-def gym_ts(const, title, doc, image, rows, door, spots, stands, npcs=(), links=(), overhead=None, thin_ice=None, cracked=None):
+def gym_ts(const, title, doc, image, rows, door, spots, stands, npcs=(), links=(), overhead=None, thin_ice=None, cracked=None, track=None, stairs=None, stairs_image=None):
     links_ = '\n  links: [' + ', '.join(f'[{{ x: {a[0]}, y: {a[1]} }}, {{ x: {b[0]}, y: {b[1]} }}]' for a, b in links) + '],' if links else ''
     overhead_ = f"\n  overhead: '/routes/{overhead}'," if overhead else ''
     cracked_ = f"\n  crackedIce: '/routes/{cracked}'," if cracked else ''
     thin_ = '\n  thinIce: [\n' + rows_ts(thin_ice) + '\n  ],' if thin_ice else ''
+    if stairs:
+        cracked_ += f"\n  iceStairs: [{', '.join(f'{{ tiles: [{pts_inline(t)}], cracks: {n} }}' for t, n in stairs)}],\n  iceStairsImage: '/routes/{stairs_image}',"
+    track_ = ''
+    if track:
+        legs = ', '.join('{ ' + (f"wait: {leg['wait']}, " if leg.get('wait') else '') + f"to: [{', '.join(f'[{x}, {y}]' for x, y in leg['to'])}] }}" for leg in track[1:])
+        track_ = f'\n  track: trackLine([{track[0][0]}, {track[0][1]}], {legs}),'
     name = f'"{title}"' if "'" in title else f"'{title}'"
     npcs_ = ''
     if npcs:
@@ -594,7 +620,7 @@ export const {const}: Route = {{
   image: '/routes/{image}',{overhead_}{cracked_}
   width: {len(rows[0]) * TILE},
   height: {len(rows) * TILE},
-  entrance: {{ x: {door[0]}, y: {door[1]} }},{links_}
+  entrance: {{ x: {door[0]}, y: {door[1]} }},{links_}{track_}
   spots: [
 {pts(spots)}
   ],
@@ -618,7 +644,7 @@ GYMS_HEAD = """// The Hoenn gyms' interiors, from Pokémon Emerald (the pret/pok
 // League's, each boss in their place and the player coming in 5 tiles from them, and Lavaridge Town's Pokémon Center; and
 // each boss's map for those runs (HOENN_BOSS_ROOMS). Written by tools/routes/emerald/hoenn_maps.py.
 import type { HoennBossId } from './bosses.js';
-import { leaderRoom, type Route } from './routes.js';
+import { leaderRoom, trackLine, type Route } from './routes.js';
 """
 
 
@@ -701,7 +727,11 @@ def main():
         if any('t' in r for r in info['thin_ice']):
             thin_ice, cracked = info['thin_ice'], f'{city}_gym_cracked_ice.png'
             emerald_map.metatile_image(repo, leader_map, CRACKED_ICE).save(os.path.join(PUBLIC, cracked))
-        out.append(gym_ts(const, title, doc + '.', image, rows, door, spots, stands, npcs, links, overhead, thin_ice, cracked))
+        stairs, stairs_image = ICE_STAIRS.get(city), None
+        if stairs:
+            stairs_image = f'{city}_gym_stairs.png'
+            emerald_map.metatile_image(repo, leader_map, ICE_STAIRS_METATILE).save(os.path.join(PUBLIC, stairs_image))
+        out.append(gym_ts(const, title, doc + '.', image, rows, door, spots, stands, npcs, links, overhead, thin_ice, cracked, USER_GYM_TRACKS.get(city), stairs, stairs_image))
         entrances[city] = (entrance_near(rows, spots[1], links), links)
         trainers = gym_trainers(repo, [leader_map] + others, names, [leader_map] + others)
         print('gym', city, 'door', door, 'spots', spots, 'stands', stands, 'trainer', tname, 'links', links)

@@ -244,7 +244,7 @@ describe('createRun', () => {
     for (const m of grassy) expect(m.grass!.map((r) => r.length), m.name).toEqual(m.walkable.map((r) => r.length));
   });
 
-  it("Sootopolis Gym's thin ice is its puzzle's, walkable, with its cracked ice's picture", () => {
+  it("Sootopolis Gym's thin ice is its puzzle's, walkable, with its cracked ice's picture, walked over once by its track", () => {
     const maps = RUN_TYPE_IDS.flatMap((id) => [...(runType(id).routes ?? []), ...(runType(id).gym ? [runType(id).gym!] : [])]);
     const icy = maps.filter((m) => m.thinIce);
     expect(new Set(icy.map((m) => m.name))).toEqual(new Set(['Sootopolis Gym']));
@@ -257,6 +257,20 @@ describe('createRun', () => {
         expect(t.x >= 3 && t.x <= 13 && t.y >= 6 && t.y <= 19, `${t.x},${t.y}`).toBe(true);
         expect(onThinIce(m, t) && onPath(m, t), `${t.x},${t.y}`).toBe(true);
       }
+      // Its one way through steps on every tile once (a second step breaks it, in Emerald), each set of stairs reached only
+      // once it's there: as many tiles cracked as it takes, its section's last tile the one before it, waited on.
+      const steps = m.track!;
+      const ice = steps.filter((t) => onThinIce(m, t)).map((t) => `${t.x},${t.y}`);
+      expect(new Set(ice).size).toBe(ice.length);
+      expect(ice.length).toBe(tiles.length);
+      for (const { tiles: at, cracks } of m.iceStairs!) {
+        const i = steps.findIndex((t) => t.x === at[1]!.x && t.y === at[1]!.y);
+        expect(steps.slice(0, i).filter((t) => onThinIce(m, t)).length, `${at[1]!.x},${at[1]!.y}`).toBe(cracks);
+        expect(onThinIce(m, steps[i - 1]!) && steps[i]!.wait, `${at[1]!.x},${at[1]!.y}`).toBeTruthy();
+        for (const t of at) expect(onPath(m, t), `${t.x},${t.y} only once they're there`).toBe(false);
+      }
+      // Every step of it one tile from the last.
+      steps.slice(1).forEach((t, i) => expect(Math.abs(t.x - steps[i]!.x) + Math.abs(t.y - steps[i]!.y)).toBe(1));
     }
   });
 

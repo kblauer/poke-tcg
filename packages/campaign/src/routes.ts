@@ -16,18 +16,23 @@ export interface RouteSpot {
   y: number;
 }
 
-/** A tile of a route's `track`: `under` when it's walked under a bridge. */
+/**
+ * A tile of a route's `track`: `under` when it's walked under a bridge; `wait`, how long (ms) the player stands before
+ * stepping onto it (Sootopolis Gym's stairs, till they appear).
+ */
 export interface TrackTile extends RouteSpot {
   under?: boolean;
+  wait?: number;
 }
 
 /**
  * A `track` from its corners: from `start`, each leg's straight lines to its corners in turn (every tile on the way), the
- * legs walked under a bridge marked `under`.
+ * legs walked under a bridge marked `under`, and a leg's `wait` on its first tile.
  */
-export function trackLine(start: [number, number], ...legs: { to: [number, number][]; under?: boolean }[]): TrackTile[] {
+export function trackLine(start: [number, number], ...legs: { to: [number, number][]; under?: boolean; wait?: number }[]): TrackTile[] {
   const tiles: TrackTile[] = [{ x: start[0], y: start[1] }];
-  for (const { to, under } of legs) {
+  for (const { to, under, wait } of legs) {
+    const first = tiles.length;
     for (const [x, y] of to) {
       const last = tiles.at(-1)!;
       if (last.x !== x && last.y !== y) throw new Error(`track corner ${x},${y} isn't in line with ${last.x},${last.y}`);
@@ -38,6 +43,7 @@ export function trackLine(start: [number, number], ...legs: { to: [number, numbe
         if (t.x === x && t.y === y) break;
       }
     }
+    if (wait) tiles[first] = { ...tiles[first]!, wait };
   }
   return tiles;
 }
@@ -92,6 +98,12 @@ export interface Route {
   thinIce?: string[];
   /** The picture (in apps/web/public) of a tile of thin ice once cracked, 16x16 (METATILE_SootopolisGym_Ice_Cracked). */
   crackedIce?: string;
+  /**
+   * Stairs that appear once `cracks` tiles of the thin ice are cracked (Sootopolis Gym's, as its script's VAR_ICE_STEP_COUNT
+   * 8, 28 and 67: each section's ice all cracked), on `tiles`, drawn as `iceStairsImage` (METATILE_SootopolisGym_Stairs).
+   */
+  iceStairs?: { tiles: RouteSpot[]; cracks: number }[];
+  iceStairsImage?: string;
   /** Tiles joined by a building the player walks through (a gatehouse's doors on either side): a walk between them fades out and in. */
   links?: [RouteSpot, RouteSpot][];
   /**
@@ -484,11 +496,12 @@ export const leaderRoom = (gym: Route, entrance: RouteSpot): Route => ({ ...gym,
 
 /**
  * A step of a walk: the tile stepped onto, `fade` when it's reached through a link (a gatehouse), `under` when it's
- * under a bridge (a `track`'s), `slide` when it's slid onto across ice, and `jump` when it's jumped onto, over a ledge (two
- * tiles at once).
+ * under a bridge (a `track`'s), `slide` when it's slid onto across ice, `jump` when it's jumped onto, over a ledge (two
+ * tiles at once), and `wait`, how long (ms) the player stands still first (a `track`'s).
  */
 export interface RouteStep {
   tile: RouteSpot;
+  wait?: number;
   fade?: boolean;
   under?: boolean;
   slide?: boolean;
@@ -505,7 +518,7 @@ function trackPath(track: TrackTile[], from: RouteSpot, to: RouteSpot): RouteSte
   const ahead = track.findIndex((s, j) => j > i && at(to)(s));
   const behind = track.slice(0, i).map(at(to)).lastIndexOf(true);
   const tiles = ahead >= 0 ? track.slice(i + 1, ahead + 1) : behind >= 0 ? track.slice(behind, i).reverse() : null;
-  return tiles && tiles.map(({ x, y, under }) => ({ tile: { x, y }, ...(under && { under: true }) }));
+  return tiles && tiles.map(({ x, y, under, wait }) => ({ tile: { x, y }, ...(under && { under: true }), ...(ahead >= 0 && wait && { wait }) }));
 }
 
 /**

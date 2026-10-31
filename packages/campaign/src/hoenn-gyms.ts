@@ -8,7 +8,7 @@
 // League's, each boss in their place and the player coming in 5 tiles from them, and Lavaridge Town's Pokémon Center; and
 // each boss's map for those runs (HOENN_BOSS_ROOMS). Written by tools/routes/emerald/hoenn_maps.py.
 import type { HoennBossId } from './bosses.js';
-import { leaderRoom, type Route } from './routes.js';
+import { leaderRoom, trackLine, type Route } from './routes.js';
 
 /** Rustboro Gym, the leader's room: the Gym Trainer where Youngster Tommy stands (3,9), the leader in their place (5,2). */
 export const RUSTBORO_GYM: Route = {
@@ -431,22 +431,25 @@ export const MOSSDEEP_GYM: Route = {
   ],
 };
 
-/** Sootopolis Gym, the leader's room: the Gym Trainer where no one (halfway along the walk) stands (7,14), the leader in their place (8,2). */
+/** Sootopolis Gym, the leader's room: the Gym Trainer where no one (the user's place) stands (9,22), the leader in their place (8,2). */
 export const SOOTOPOLIS_GYM: Route = {
   flow: 'up',
   sprites: 'rse',
   name: 'Sootopolis Gym',
   image: '/routes/sootopolis_gym.png',
   crackedIce: '/routes/sootopolis_gym_cracked_ice.png',
+  iceStairs: [{ tiles: [{ x: 8, y: 15 }, { x: 8, y: 16 }], cracks: 7 }, { tiles: [{ x: 8, y: 10 }, { x: 8, y: 11 }], cracks: 26 }, { tiles: [{ x: 8, y: 4 }, { x: 8, y: 5 }], cracks: 64 }],
+  iceStairsImage: '/routes/sootopolis_gym_stairs.png',
   width: 272,
   height: 416,
   entrance: { x: 8, y: 25 },
+  track: trackLine([8, 25], { to: [[8, 19], [7, 19], [7, 18], [9, 18], [9, 17], [8, 17]] }, { wait: 800, to: [[8, 14], [11, 14], [11, 12], [9, 12], [9, 13], [7, 13], [7, 14], [5, 14], [5, 12], [8, 12]] }, { wait: 800, to: [[8, 9], [3, 9], [3, 6], [4, 6], [4, 7], [5, 7], [5, 8], [6, 8], [6, 6], [7, 6], [7, 7], [8, 7], [8, 8], [9, 8], [9, 9], [10, 9], [10, 7], [11, 7], [11, 8], [12, 8], [12, 9], [13, 9], [13, 6], [8, 6]] }, { wait: 800, to: [[8, 3]] }),
   spots: [
-    { x: 8, y: 14 },
+    { x: 8, y: 22 },
     { x: 8, y: 3 },
   ],
   stands: [
-    { x: 7, y: 14 },
+    { x: 9, y: 22 },
     { x: 8, y: 2 },
   ],
   npcs: [{ sprite: 'rse/man_2', tile: { x: 7, y: 24 }, face: 'down' }],
@@ -455,19 +458,19 @@ export const SOOTOPOLIS_GYM: Route = {
     '#################',
     '###.##.....##.###',
     '###...........###',
-    '########.#######.',
-    '########.#######.',
+    '################.',
+    '################.',
     '###..#........##.',
     '###......#..#.##.',
     '###.#..#......##.',
     '###........#..###',
-    '########.########',
-    '########.########',
+    '#################',
+    '#################',
     '#####.......#####',
     '#####.#...#.#####',
     '#..##.......##..#',
-    '#..#####.#####..#',
-    '#....###.###.....',
+    '#..###########..#',
+    '#....#######.....',
     '#....###..##.....',
     '#######...#######',
     '#######..########',
@@ -709,7 +712,7 @@ export const HOENN_BOSS_ROOMS: Record<HoennBossId, Route> = {
   norman: leaderRoom(PETALBURG_GYM, { x: 4, y: 7 }),
   winona: leaderRoom(FORTREE_GYM, { x: 13, y: 5 }),
   'tate-liza': leaderRoom(MOSSDEEP_GYM, { x: 21, y: 10 }),
-  juan: leaderRoom(SOOTOPOLIS_GYM, { x: 8, y: 7 }),
+  juan: leaderRoom(SOOTOPOLIS_GYM, { x: 4, y: 3 }),
   sidney: HOENN_SIDNEYS_ROOM,
   phoebe: HOENN_PHOEBES_ROOM,
   glacia: HOENN_GLACIAS_ROOM,

@@ -103,7 +103,12 @@ export function useWalk({
     let start = from;
     /** Walks a path on a map from `begin`, step by step (through a link, fading out and in), from `t` on. */
     const walk = (on: Route, onSection: number, path: NonNullable<ReturnType<typeof routePath>>, begin: RouteSpot) => {
-      path.forEach(({ tile, fade, under, slide, jump }, i) => {
+      path.forEach(({ tile, fade, under, slide, jump, wait }, i) => {
+        // Standing a while first (a track's: Sootopolis Gym's stairs, till they appear).
+        if (wait) {
+          later(t, () => setWalker((w) => ({ ...w, walking: false })));
+          t += wait;
+        }
         const face = facing(i ? path[i - 1]!.tile : begin, tile);
         if (fade) {
           // Through a building's doors (the map's `doors`): fading out still facing up, into it, and back in facing down.
