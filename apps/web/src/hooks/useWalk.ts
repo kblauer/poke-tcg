@@ -1,13 +1,16 @@
-import { inGrass, routePath, type Route, type RouteSpot } from '@poke-tcg/campaign';
+import { inGrass, routePath, travelAt, type Route, type RouteSpot } from '@poke-tcg/campaign';
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import type { Jump } from '../components/run/RouteSprites';
 import { facing, key, type PlacedFigure } from '../utils/routeFigures';
 import type { Facing } from '../utils/overworld';
 
-/** How much faster than walking the player gets along a map: twice as fast on a bike (Route 17, agreed with the user). */
-export const pace = (route: Route) => (route.travel === 'bike' ? 2 : 1);
+/**
+ * How much faster than walking the player gets along a map's tile: twice as fast on a bike (Route 17, agreed with the
+ * user), but on foot before a route's travel begins (travelAt: Route 110's sandy road).
+ */
+export const pace = (route: Route, tile: RouteSpot) => (travelAt(route, tile) === 'bike' ? 2 : 1);
 /** A step's pace onto `tile`: a little slower into tall grass (GRASS_PACE, agreed with the user). */
-export const stepPace = (route: Route, tile: RouteSpot) => pace(route) * (inGrass(route, tile) ? GRASS_PACE : 1);
+export const stepPace = (route: Route, tile: RouteSpot) => pace(route, tile) * (inGrass(route, tile) ? GRASS_PACE : 1);
 /** How fast the player wades through tall grass, of his pace elsewhere: 30% slower (agreed with the user). */
 export const GRASS_PACE = 0.7;
 
@@ -33,6 +36,8 @@ export interface Walker {
   sliding?: boolean;
   jump?: Jump;
   landed?: { tile: RouteSpot; stamp: number };
+  /** Passing through a link (a building's doors, a warp) or into another map, from fading out until his next step: facing as the walk has him. */
+  through?: boolean;
 }
 
 /** How long a ledge jump takes, in steps' time: FireRed's 32 frames over its two tiles, as two steps' walk. */
@@ -98,12 +103,20 @@ export function useWalk({
     let start = from;
     /** Walks a path on a map from `begin`, step by step (through a link, fading out and in), from `t` on. */
     const walk = (on: Route, onSection: number, path: NonNullable<ReturnType<typeof routePath>>, begin: RouteSpot) => {
-      path.forEach(({ tile, fade, under, slide, jump }, i) => {
+      path.forEach(({ tile, fade, under, slide, jump, wait }, i) => {
+        // Standing a while first (a track's: Sootopolis Gym's stairs, till they appear).
+        if (wait) {
+          later(t, () => setWalker((w) => ({ ...w, walking: false })));
+          t += wait;
+        }
         const face = facing(i ? path[i - 1]!.tile : begin, tile);
         if (fade) {
-          later(t, () => setWalker((w) => ({ ...w, walking: false, hidden: true })));
+          // Through a building's doors (the map's `doors`): fading out still facing up, into it, and back in facing down.
+          // Through any other link (a warp panel, stairs): facing as he came onto it, from fading out to fading back in
+          // (the user's: Lavaridge Gym's warps).
+          later(t, () => setWalker((w) => ({ ...w, walking: false, hidden: true, through: true, ...(on.doors && { face: 'up' as const }) })));
           later(t + ms.fade, () => {
-            setWalker({ section: onSection, tile, face, walking: false, hidden: true });
+            setWalker((w) => ({ section: onSection, tile, face: on.doors ? 'down' : w.face, walking: false, hidden: true, through: true }));
             setGlide({ ms: ms.through, ease: 'ease-in-out' });
             setOffset(centreOnMap(on, tile));
           });
@@ -133,7 +146,8 @@ export function useWalk({
       later(t, () => setWalker((w) => ({ ...w, walking: false, sliding: false })));
     };
     // Into another map: walk to this one's exit (going on to the next), fade out, appear at the next one's door with the
-    // view on it, fade in, then walk on from there.
+    // view on it, fade in, then walk on from there; facing as he came onto the exit all the while, as through a link (the
+    // user's: every warp as Lavaridge Gym's).
     if (section !== targetSection) {
       const leaving = sections[section]?.map;
       const exit = targetSection > section ? leaving?.exit : undefined;
@@ -143,9 +157,9 @@ export function useWalk({
         if (out && out.length <= MAX_WALK) walk(leaving, section, out, from);
       }
       const door = map.entrance ?? to;
-      later(t, () => setWalker((w) => ({ ...w, walking: false, hidden: true })));
+      later(t, () => setWalker((w) => ({ ...w, walking: false, hidden: true, through: true })));
       later(t + ms.fade, () => {
-        setWalker({ section: targetSection, tile: door, face: 'down', walking: false, hidden: true });
+        setWalker((w) => ({ section: targetSection, tile: door, face: w.face, walking: false, hidden: true, through: true }));
         setGlide(null);
         setOffset(centreOnMap(map, door));
       });

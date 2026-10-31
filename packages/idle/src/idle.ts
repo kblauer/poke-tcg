@@ -74,7 +74,10 @@ export interface IdleSettings {
   catchMove: 'basic' | 'slot';
   /** With a full party: skip catching (the dex still marks them seen)… */
   stopWhenFull: boolean;
-  /** …or replace the lowest-level party Pokémon (its best stats go to the dex first); with neither, the catch is registered and released. */
+  /**
+   * …or replace the lowest-level party Pokémon (its best stats go to the dex first); with neither, the catch is registered
+   * and released. Only while the player is away: watched, they choose (IdleState.choosing, the user's).
+   */
   replaceLowest: boolean;
   /** At a store selling evolution stones, buy one for each party Pokémon that can use one and use it at once. */
   autoEvolve: boolean;
@@ -99,7 +102,7 @@ export const DEFAULT_IDLE_SETTINGS: IdleSettings = { autoHeal: true, revives: ['
  * The settings a segment plays by, with the player's own throws (the ball button, the user's: `throwAt`, the ticks of
  * its wild battle a ball was asked for; the server plays the segment again from its start with them, idle.throwBall).
  */
-type PlaySettings = IdleSettings & { throwAt?: number[] };
+type PlaySettings = IdleSettings & { throwAt?: number[]; ask?: boolean };
 
 /** Wild encounter bookkeeping between steps (wild_encounter.c's sWildEncounterData). */
 interface EncounterState {
@@ -161,6 +164,13 @@ export interface IdleState {
   inStore?: boolean;
   /** The legendary Pokémon (dex numbers) beaten or caught in this run (WalkArea.legend): gone from the Town Map. */
   legends?: number[];
+  /**
+   * A Pokémon caught with the party full while the player watched (the user's): the run waits for their choice, which party
+   * Pokémon it takes the place of or Release (CAUGHT_CHOICE); away, after TOWN_WAIT_MS, the settings' (choiceWait).
+   */
+  choosing?: Mon;
+  /** Debug (set by idle.debugCatch only, refused in production): every ball thrown in this run catches. */
+  debugCatch?: boolean;
   /** The trainers (TRAINERS' keys) whose full prize the run has had: a rematch pays REMATCH_PRIZE of it. */
   paid?: string[];
   /**
@@ -220,7 +230,9 @@ export type IdleAction =
   | { type: 'SET_SLOTS'; uid: string; slots: string[]; auto?: boolean }
   /** Uses an evolution stone from the bag on a Pokémon. */
   | { type: 'USE_STONE'; uid: string; item: string }
-  | { type: 'GIVE_UP' };
+  | { type: 'GIVE_UP' }
+  /** A Pokémon caught with the party full (IdleState.choosing): in place of the party Pokémon `replace` (its uid), or released (none). */
+  | { type: 'CAUGHT_CHOICE'; replace?: string };
 
 /** A segment's start kept to play it again (IdleState.replay): the state before it, its settings and caught species, when it began (ms), the ticks a ball was asked for. */
 export interface SegmentReplay {
@@ -278,6 +290,8 @@ export type SegmentEvent =
   | { t: 'bought'; item: string; count: number; cost: number }
   | { t: 'evolve'; uid: string; from: number; into: number }
   | { t: 'caught'; species: number; kept: boolean; replaced?: number; shiny?: true }
+  /** Caught with the party full, the player watching: the run waits for their choice (IdleState.choosing). */
+  | { t: 'full'; species: number; shiny?: true }
   | { t: 'badge'; badge: string }
   | { t: 'whiteout' }
   | { t: 'town'; area: number }
@@ -303,8 +317,8 @@ export interface Segment {
 
 const rngOf = (s: IdleState): Rng => ({ state: s.rngState });
 
-/** Whether a run plays by itself (walking or grinding), not waiting for the player or over. */
-export const playing = (s: Pick<IdleState, 'phase' | 'stopped'>) => !s.stopped && (s.phase === 'walking' || s.phase === 'grinding');
+/** Whether a run plays by itself (walking or grinding), not waiting for the player (a catch with the party full too) or over. */
+export const playing = (s: Pick<IdleState, 'phase' | 'stopped' | 'choosing'>) => !s.stopped && !s.choosing && (s.phase === 'walking' || s.phase === 'grinding');
 
 // ---- Starting a run ----
 export interface StarterChoice {
@@ -736,6 +750,10 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
     return { ok: true, state };
   };
   if (state.phase === 'won' || state.phase === 'given-up') return fail('This run is over');
+  // A catch waiting for the player's choice: only that, the party's changes, or giving up, till it's made.
+  if (state.choosing && action.type !== 'CAUGHT_CHOICE' && action.type !== 'GIVE_UP' && !['SET_ORDER', 'SET_SLOTS', 'USE_STONE'].includes(action.type)) {
+    return fail(`Choose where ${species(state.choosing.species).name} goes first`);
+  }
   // Kept before anything moves the run back (an older run's worked out once).
   state.reached = reachedArea(state);
   state.progress = progressOf(state);
@@ -978,6 +996,15 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
       state.log.push(`${species(from).name} evolved into ${species(into).name}!`);
       return ok();
     }
+    case 'CAUGHT_CHOICE': {
+      const mon = state.choosing;
+      if (!mon) return fail('No Pokémon is waiting');
+      const slot = action.replace === undefined ? null : state.party.findIndex((m) => m.uid === action.replace);
+      if (slot === -1) return fail("That Pokémon isn't in the party");
+      delete state.choosing;
+      settleCaught(state, mon, slot, { events: [], durationMs: 0, dex: [] });
+      return ok();
+    }
     case 'GIVE_UP': {
       state.phase = 'given-up';
       state.log.push('Gave up the run.');
@@ -1103,6 +1130,34 @@ function shouldCatch(state: IdleState, settings: IdleSettings, caught: ReadonlyS
 /** Notes for the dex: every party Pokémon's IVs and EVs (they only grow). */
 export const partyNotes = (party: Mon[]): DexNote[] => party.map((m) => ({ species: m.species, ivs: m.ivs, evs: m.evs, ...(m.shiny && { shiny: true as const }) }));
 
+/** The party's lowest-level Pokémon's place (the first of them). */
+function lowestLevel(party: Mon[]): number {
+  let low = 0;
+  party.forEach((m, i) => m.level < party[low]!.level && (low = i));
+  return low;
+}
+
+/**
+ * A caught Pokémon kept or not: into the party with room in it, else in place of the party Pokémon at `slot` (its best
+ * stats to the dex first), or with none registered and released.
+ */
+function settleCaught(state: IdleState, mon: Mon, slot: number | null, out: Segment) {
+  const name = species(mon.species).name;
+  if (state.party.length < PARTY_SIZE) {
+    state.party.push(mon);
+    out.events.push({ t: 'caught', species: mon.species, kept: true, ...(mon.shiny && { shiny: true as const }) });
+  } else if (slot !== null) {
+    const gone = state.party[slot]!;
+    out.dex.push({ species: gone.species, ivs: gone.ivs, evs: gone.evs });
+    state.party[slot] = mon;
+    out.events.push({ t: 'caught', species: mon.species, kept: true, replaced: gone.species, ...(mon.shiny && { shiny: true as const }) });
+    state.log.push(`${name} took ${species(gone.species).name}'s place.`);
+  } else {
+    out.events.push({ t: 'caught', species: mon.species, kept: false, ...(mon.shiny && { shiny: true as const }) });
+    state.log.push(`${name} was released.`);
+  }
+}
+
 /**
  * Plays one battle and settles it: experience and levels kept, evolutions after it (the game's), prize money, a
  * badge, a caught Pokémon kept or released, or a white-out (back to the area's start, its trainers to fight again).
@@ -1112,7 +1167,7 @@ function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<
   const before = state.party.map((m) => m.level);
   const t = o.trainer ? TRAINERS[o.trainer] : null;
   const result = simulateBattle(
-    { kind: o.kind, party: state.party, foes: o.foes, foeItems: t?.items ?? [], bag: state.bag, settings: { autoHeal: settings.autoHeal, revives: settings.revives, tryCatch, catchMove: settings.catchMove }, boss: !!o.trainer && /^(leader|elite-four|champion)/.test(o.trainer), badges: state.badges.length, terrain: terrainOf(o.tile), ...(o.kind === 'wild' && settings.throwAt?.length && { throwAt: settings.throwAt }) },
+    { kind: o.kind, party: state.party, foes: o.foes, foeItems: t?.items ?? [], bag: state.bag, settings: { autoHeal: settings.autoHeal, revives: settings.revives, tryCatch, catchMove: settings.catchMove }, boss: !!o.trainer && /^(leader|elite-four|champion)/.test(o.trainer), badges: state.badges.length, terrain: terrainOf(o.tile), ...(o.kind === 'wild' && settings.throwAt?.length && { throwAt: settings.throwAt }), ...(state.debugCatch && { sureCatch: true }) },
     rng,
   );
   out.events.push({
@@ -1158,20 +1213,13 @@ function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<
     caught.add(mon.species);
     state.totals.caught += 1;
     out.dex.push({ species: mon.species, seen: true, caught: true, ivs: mon.ivs, evs: mon.evs, ...(mon.shiny && { shiny: true as const }) });
-    if (state.party.length < PARTY_SIZE) {
-      state.party.push(mon);
-      out.events.push({ t: 'caught', species: mon.species, kept: true, ...(mon.shiny && { shiny: true as const }) });
-    } else if (settings.replaceLowest) {
-      let low = 0;
-      state.party.forEach((m, i) => m.level < state.party[low]!.level && (low = i));
-      const gone = state.party[low]!;
-      out.dex.push({ species: gone.species, ivs: gone.ivs, evs: gone.evs });
-      state.party[low] = mon;
-      out.events.push({ t: 'caught', species: mon.species, kept: true, replaced: gone.species, ...(mon.shiny && { shiny: true as const }) });
-    } else {
-      out.events.push({ t: 'caught', species: mon.species, kept: false, ...(mon.shiny && { shiny: true as const }) });
-    }
     state.log.push(`Caught ${species(mon.species).name}!`);
+    if (state.party.length < PARTY_SIZE) settleCaught(state, mon, null, out);
+    else if (settings.ask) {
+      // Watched with the party full (the user's): the player chooses which party Pokémon it replaces, or Release; the run waits.
+      state.choosing = mon;
+      out.events.push({ t: 'full', species: mon.species, ...(mon.shiny && { shiny: true as const }) });
+    } else settleCaught(state, mon, settings.replaceLowest ? lowestLevel(state.party) : null, out);
   }
   if (result.result === 'won' && t && o.trainer) {
     // The full prize the first time a trainer is beaten in a run, a quarter after that (the user's: grinding them).
@@ -1676,10 +1724,11 @@ function finishArea(state: IdleState, out: Segment) {
  * The next segment of a run walking (agreed with the user): steps along the track until a trainer sees the player or
  * a wild Pokémon appears, then that whole battle; or to the area's end (a town, where it waits). `caught` is the
  * account's caught species (auto-catch's "new"), updated with this segment's catches. Returns the new state and the
- * segment (in a town, its wait: townWait), or null when the run is over.
+ * segment (in a town, its wait: townWait), or null when the run is over. `ask`: the player is watching (idle.next and its
+ * replays), so a catch with the party full waits for their choice (IdleState.choosing); away (catchUp), the settings decide.
  */
-export function simulateSegment(from: IdleState, idleSettings: IdleSettings, caught: Set<number>, o: { throwAt?: number[] } = {}): { state: IdleState; segment: Segment } | null {
-  const settings: PlaySettings = { ...idleSettings, ...(o.throwAt && { throwAt: o.throwAt }) };
+export function simulateSegment(from: IdleState, idleSettings: IdleSettings, caught: Set<number>, o: { throwAt?: number[]; ask?: boolean } = {}): { state: IdleState; segment: Segment } | null {
+  const settings: PlaySettings = { ...idleSettings, ...(o.throwAt && { throwAt: o.throwAt }), ...(o.ask && { ask: true }) };
   // The party changes queued during the last battle, first (withPending).
   const prev = withPending(from);
   // Stopped (the Stop mode): nothing played; a stop queued during the last battle is saved (its segment empty).
@@ -1692,6 +1741,8 @@ export function simulateSegment(from: IdleState, idleSettings: IdleSettings, cau
   }
   // In the store: the town waits until the player leaves it.
   if (prev.phase === 'town') return prev.inStore ? null : townWait(prev);
+  // A catch waiting for the player's choice: watched, it waits; away, the settings' after a while (choiceWait).
+  if (prev.choosing) return o.ask ? null : choiceWait(prev, settings);
   if (!playing(prev)) return null;
   const state = structuredClone(prev);
   delete state.replay;
@@ -1847,7 +1898,7 @@ export const cuts = (action: IdleAction) => action.type === 'CONTINUE_RUN' || ac
 export function cutSegment(saved: IdleState, now: number): IdleState {
   const r = saved.replay;
   if (!r) return saved;
-  const again = simulateSegment(r.prev, r.settings, new Set(r.caught), { throwAt: r.throws });
+  const again = simulateSegment(r.prev, r.settings, new Set(r.caught), { throwAt: r.throws, ask: true });
   const elapsed = now - r.from;
   if (!again || elapsed >= again.segment.durationMs) return saved;
   const state = structuredClone(withPending(r.prev));
@@ -1902,6 +1953,21 @@ export function cutSegment(saved: IdleState, now: number): IdleState {
  * itself, into the gym (or the League) while it's unbeaten, otherwise on to the next area. The browser counts the wait
  * down and takes the choice with the player's own action; this is the same for a run played offline (catchUp).
  */
+/**
+ * A catch waiting for the player's choice (IdleState.choosing) while they're away: TOWN_WAIT_MS, as a town waits, then
+ * the settings' choice (replace the lowest-level party Pokémon, or register and release it).
+ */
+function choiceWait(prev: IdleState, settings: PlaySettings): { state: IdleState; segment: Segment } {
+  const state = structuredClone(prev);
+  delete state.replay;
+  const mon = state.choosing!;
+  delete state.choosing;
+  const out: Segment = { events: [], durationMs: TOWN_WAIT_MS, dex: [] };
+  settleCaught(state, mon, settings.replaceLowest ? lowestLevel(state.party) : null, out);
+  state.version += 1;
+  return { state, segment: out };
+}
+
 function townWait(prev: IdleState): { state: IdleState; segment: Segment } {
   const state = structuredClone(prev);
   delete state.replay;

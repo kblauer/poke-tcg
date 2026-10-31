@@ -16,18 +16,23 @@ export interface RouteSpot {
   y: number;
 }
 
-/** A tile of a route's `track`: `under` when it's walked under a bridge. */
+/**
+ * A tile of a route's `track`: `under` when it's walked under a bridge; `wait`, how long (ms) the player stands before
+ * stepping onto it (Sootopolis Gym's stairs, till they appear).
+ */
 export interface TrackTile extends RouteSpot {
   under?: boolean;
+  wait?: number;
 }
 
 /**
  * A `track` from its corners: from `start`, each leg's straight lines to its corners in turn (every tile on the way), the
- * legs walked under a bridge marked `under`.
+ * legs walked under a bridge marked `under`, and a leg's `wait` on its first tile.
  */
-export function trackLine(start: [number, number], ...legs: { to: [number, number][]; under?: boolean }[]): TrackTile[] {
+export function trackLine(start: [number, number], ...legs: { to: [number, number][]; under?: boolean; wait?: number }[]): TrackTile[] {
   const tiles: TrackTile[] = [{ x: start[0], y: start[1] }];
-  for (const { to, under } of legs) {
+  for (const { to, under, wait } of legs) {
+    const first = tiles.length;
     for (const [x, y] of to) {
       const last = tiles.at(-1)!;
       if (last.x !== x && last.y !== y) throw new Error(`track corner ${x},${y} isn't in line with ${last.x},${last.y}`);
@@ -38,6 +43,7 @@ export function trackLine(start: [number, number], ...legs: { to: [number, numbe
         if (t.x === x && t.y === y) break;
       }
     }
+    if (wait) tiles[first] = { ...tiles[first]!, wait };
   }
   return tiles;
 }
@@ -75,7 +81,8 @@ export interface Route {
   walkable: string[];
   /**
    * The tall grass ('g'), one string per tile row as `walkable`, from the game's tile behaviours (tools/routes/kanto_grass.py,
-   * tools/routes/hgss/johto_routes.py): people standing in it are drawn half hidden, as in the games. None on a map without.
+   * tools/routes/hgss/johto_routes.py): people standing in it are drawn half hidden, as in the games; Emerald's long grass
+   * ('L', Route 119's very tall grass: tools/routes/emerald/hoenn_maps.py) hides more of them. None on a map without.
    */
   grass?: string[];
   /**
@@ -84,8 +91,26 @@ export interface Route {
    * he's onto ground (agreed with the user). None on a map without.
    */
   ice?: string[];
+  /**
+   * Thin ice ('t'), one string per tile row as `walkable` (Sootopolis Gym's, MB_THIN_ICE): walked on as any floor, but
+   * cracked once the player has stepped onto it, drawn as `crackedIce` until he leaves the map (the user's).
+   */
+  thinIce?: string[];
+  /** The picture (in apps/web/public) of a tile of thin ice once cracked, 16x16 (METATILE_SootopolisGym_Ice_Cracked). */
+  crackedIce?: string;
+  /**
+   * Stairs that appear once `cracks` tiles of the thin ice are cracked (Sootopolis Gym's, as its script's VAR_ICE_STEP_COUNT
+   * 8, 28 and 67: each section's ice all cracked), on `tiles`, drawn as `iceStairsImage` (METATILE_SootopolisGym_Stairs).
+   */
+  iceStairs?: { tiles: RouteSpot[]; cracks: number }[];
+  iceStairsImage?: string;
   /** Tiles joined by a building the player walks through (a gatehouse's doors on either side): a walk between them fades out and in. */
   links?: [RouteSpot, RouteSpot][];
+  /**
+   * Its links are buildings' front doors, walked into going up: the player fades out still facing up and fades back in
+   * facing down, out of the other door (Route 110's Cycling Road gatehouses, the user's).
+   */
+  doors?: true;
   /**
    * Where the player comes in, walking from there to the first spot: on a route, a tile in from the edge the run starts at
    * (one in where it can be walked to: Route 2's 9,78, from the user), or a gate's door; in a gym, its door.
@@ -99,6 +124,12 @@ export interface Route {
   sprites?: 'hgss' | 'rse';
   /** How the player gets along (Route 17: on a bike, walking twice as fast; Route 20: surfing its water, '~'); on foot otherwise. */
   travel?: 'bike' | 'surf';
+  /**
+   * The player comes in on foot, and each link he goes through switches him between on foot and the route's `travel`
+   * (travelAt): Route 110's, the user's, walked up the sandy road from Slateport into the Cycling Road's south gatehouse,
+   * ridden from its other door along the Cycling Road into its north gatehouse, walked again from there to Mauville.
+   */
+  onFoot?: true;
   /**
    * The trainers met in battles here: `share` of them (each at random) one of `names` (Route 17's Bikers), the others any
    * trainer (TRAINERS in run.ts, but for these names' classes).
@@ -383,14 +414,78 @@ export const ledgeAt = (route: Route, spot: RouteSpot): (typeof LEDGES)[keyof ty
 /** Whether a tile of a route is a ledge jumped going down ('v'), from the tile above it to the one below (the user's). */
 const downLedge = (route: Route, spot: RouteSpot) => ledgeAt(route, spot) === 'down';
 
-/** Whether a tile is tall grass (the route's `grass`), where people are drawn half hidden. */
-export const inGrass = (route: Route, spot: RouteSpot) => route.grass?.[spot.y]?.[spot.x] === 'g';
+/** Whether a tile is tall grass (the route's `grass`, long grass too), where people are drawn half hidden. */
+export const inGrass = (route: Route, spot: RouteSpot) => {
+  const g = route.grass?.[spot.y]?.[spot.x];
+  return g === 'g' || g === 'L';
+};
+
+/** Whether a tile is Emerald's long grass (the route's `grass`, 'L': Route 119's very tall grass), hiding more of those in it. */
+export const inLongGrass = (route: Route, spot: RouteSpot) => route.grass?.[spot.y]?.[spot.x] === 'L';
+
+/**
+ * Whether a tile is the foot of Emerald's long grass: tall grass beside long grass (Route 119's patches' bottom row, long
+ * grass above a band of ground), whose tufts are long grass's cut off above the band (the user's).
+ */
+export const onLongGrassEdge = (route: Route, spot: RouteSpot) =>
+  route.grass?.[spot.y]?.[spot.x] === 'g' && [-1, 0, 1].some((dy) => [-1, 0, 1].some((dx) => route.grass?.[spot.y + dy]?.[spot.x + dx] === 'L'));
 
 /** Whether a tile is ice (the route's `ice`), slid across. */
 export const onIce = (route: Route, spot: RouteSpot) => route.ice?.[spot.y]?.[spot.x] === 'i';
 
+/** Whether a tile is thin ice (the route's `thinIce`), cracked once stepped onto. */
+export const onThinIce = (route: Route, spot: RouteSpot) => route.thinIce?.[spot.y]?.[spot.x] === 't';
+
 /** Whether a tile of a route is water surfed across (on a route tagged for surfing). */
 export const onWater = (route: Route, spot: RouteSpot) => route.travel === 'surf' && route.walkable[spot.y]?.[spot.x] === '~';
+
+type Travel = Route['travel'];
+
+/**
+ * How the player gets along on each tile of a route that comes in on foot (`onFoot`), by tile key, worked out once: along
+ * its walk (from the entrance to each spot in turn, then the exit; routePath), on foot from the entrance and switched at
+ * each link he goes through.
+ */
+const walkTravels = new WeakMap<Route, Map<string, Travel>>();
+const walkTravel = (route: Route) => {
+  let travels = walkTravels.get(route);
+  if (!travels) {
+    travels = new Map<string, Travel>();
+    let travel: Travel = undefined;
+    const stops = [route.entrance, ...route.spots, route.exit].filter((s): s is RouteSpot => !!s);
+    travels.set(tileKey(stops[0]!), travel);
+    for (let i = 1; i < stops.length; i++) {
+      for (const step of routePath(route, stops[i - 1]!, stops[i]!) ?? []) {
+        if (step.fade) travel = travel ? undefined : route.travel;
+        travels.set(tileKey(step.tile), travel);
+      }
+    }
+    walkTravels.set(route, travels);
+  }
+  return travels;
+};
+
+/**
+ * How the player gets along on a tile: the route's `travel`; on a route that comes in on foot (`onFoot`), as its walk has
+ * it there, or off the walk (around someone in the way) as at the walk's nearest tile.
+ */
+export const travelAt = (route: Route, spot: RouteSpot): Travel => {
+  if (!route.onFoot) return route.travel;
+  const travels = walkTravel(route);
+  const seen = new Set([tileKey(spot)]);
+  const queue = [spot];
+  for (const { x, y } of queue) {
+    const here = tileKey({ x, y });
+    if (travels.has(here)) return travels.get(here);
+    for (const n of [{ x: x + 1, y }, { x: x - 1, y }, { x, y: y + 1 }, { x, y: y - 1 }]) {
+      if (!seen.has(tileKey(n)) && onPath(route, n)) {
+        seen.add(tileKey(n));
+        queue.push(n);
+      }
+    }
+  }
+  return route.travel;
+};
 
 /**
  * A gym leader's part of their gym, for a run that goes straight to them (the Gym Challenge, the Champion run; agreed with
@@ -401,11 +496,12 @@ export const leaderRoom = (gym: Route, entrance: RouteSpot): Route => ({ ...gym,
 
 /**
  * A step of a walk: the tile stepped onto, `fade` when it's reached through a link (a gatehouse), `under` when it's
- * under a bridge (a `track`'s), `slide` when it's slid onto across ice, and `jump` when it's jumped onto, over a ledge (two
- * tiles at once).
+ * under a bridge (a `track`'s), `slide` when it's slid onto across ice, `jump` when it's jumped onto, over a ledge (two
+ * tiles at once), and `wait`, how long (ms) the player stands still first (a `track`'s).
  */
 export interface RouteStep {
   tile: RouteSpot;
+  wait?: number;
   fade?: boolean;
   under?: boolean;
   slide?: boolean;
@@ -422,7 +518,7 @@ function trackPath(track: TrackTile[], from: RouteSpot, to: RouteSpot): RouteSte
   const ahead = track.findIndex((s, j) => j > i && at(to)(s));
   const behind = track.slice(0, i).map(at(to)).lastIndexOf(true);
   const tiles = ahead >= 0 ? track.slice(i + 1, ahead + 1) : behind >= 0 ? track.slice(behind, i).reverse() : null;
-  return tiles && tiles.map(({ x, y, under }) => ({ tile: { x, y }, ...(under && { under: true }) }));
+  return tiles && tiles.map(({ x, y, under, wait }) => ({ tile: { x, y }, ...(under && { under: true }), ...(ahead >= 0 && wait && { wait }) }));
 }
 
 /**

@@ -8,7 +8,7 @@
 // League's, each boss in their place and the player coming in 5 tiles from them, and Lavaridge Town's Pokémon Center; and
 // each boss's map for those runs (HOENN_BOSS_ROOMS). Written by tools/routes/emerald/hoenn_maps.py.
 import type { HoennBossId } from './bosses.js';
-import { leaderRoom, type Route } from './routes.js';
+import { leaderRoom, trackLine, type Route } from './routes.js';
 
 /** Rustboro Gym, the leader's room: the Gym Trainer where Youngster Tommy stands (3,9), the leader in their place (5,2). */
 export const RUSTBORO_GYM: Route = {
@@ -16,6 +16,7 @@ export const RUSTBORO_GYM: Route = {
   sprites: 'rse',
   name: 'Rustboro Gym',
   image: '/routes/rustboro_gym.png',
+  overhead: '/routes/rustboro_gym_overhead.png',
   width: 176,
   height: 320,
   entrance: { x: 5, y: 19 },
@@ -58,6 +59,7 @@ export const DEWFORD_GYM: Route = {
   sprites: 'rse',
   name: 'Dewford Gym',
   image: '/routes/dewford_gym.png',
+  overhead: '/routes/dewford_gym_overhead.png',
   width: 288,
   height: 448,
   entrance: { x: 5, y: 27 },
@@ -95,7 +97,7 @@ export const DEWFORD_GYM: Route = {
     '##.#####.....#####',
     '##..............##',
     '###.....####.#####',
-    '#####..#####.#####',
+    '######.#####.#####',
     '####....####.#####',
     '#####..###########',
     '#####.############',
@@ -145,7 +147,7 @@ export const MAUVILLE_GYM: Route = {
   ],
 };
 
-/** Lavaridge Gym, the leader's room: the Gym Trainer where no one (halfway along the walk) stands (11,14), the leader in their place (13,9). */
+/** Lavaridge Gym, the leader's room: the Gym Trainer where no one (the user's place) stands (8,13), the leader in their place (13,9), its rooms joined through their doors (8,9 to 12,12). */
 export const LAVARIDGE_GYM: Route = {
   flow: 'up',
   sprites: 'rse',
@@ -154,12 +156,13 @@ export const LAVARIDGE_GYM: Route = {
   width: 272,
   height: 304,
   entrance: { x: 13, y: 18 },
+  links: [[{ x: 8, y: 9 }, { x: 12, y: 12 }]],
   spots: [
-    { x: 12, y: 14 },
+    { x: 9, y: 13 },
     { x: 13, y: 10 },
   ],
   stands: [
-    { x: 11, y: 14 },
+    { x: 8, y: 13 },
     { x: 13, y: 9 },
   ],
   npcs: [{ sprite: 'rse/man_2', tile: { x: 12, y: 16 }, face: 'down' }],
@@ -173,10 +176,10 @@ export const LAVARIDGE_GYM: Route = {
     '#..#.##.#.##..#.#',
     '#################',
     '#################',
-    '....##.##.##...##',
+    '....##.#..##...##',
     '#..##..#..##...##',
     '....#..#..#.....#',
-    '....#..#..#.#...#',
+    '....#..#..#.....#',
     '....#..#..#.....#',
     '.#.###.#..#.....#',
     '..#.#..#..#.....#',
@@ -186,7 +189,7 @@ export const LAVARIDGE_GYM: Route = {
   ],
 };
 
-/** Petalburg Gym, the leader's room: the Gym Trainer where Cooltrainer Mary stands (4,94), the leader in their place (4,2), its rooms joined through their doors (1,105 to 7,85; 6,85 to 1,105; 7,105 to 1,98; 2,98 to 7,105; 1,79 to 7,46; 7,79 to 1,59; 6,46 to 1,79; 2,59 to 7,79; 1,92 to 7,59; 7,92 to 1,72; 6,59 to 1,92; 2,72 to 7,92; 7,40 to 1,20; 1,53 to 7,20; 7,53 to 1,33; 1,66 to 7,33; 2,20 to 7,40; 6,20 to 1,53; 2,33 to 7,53; 6,33 to 1,66; 7,14 to 1,7; 1,27 to 7,7; 2,7 to 7,14; 6,7 to 1,27). */
+/** Petalburg Gym, the leader's room: the Gym Trainer where no one (the user's place) stands (4,55), the leader in their place (4,2), its rooms joined through their doors (1,105 to 7,85; 6,85 to 1,105; 7,105 to 1,98; 2,98 to 7,105; 1,79 to 7,46; 7,79 to 1,59; 6,46 to 1,79; 2,59 to 7,79; 1,92 to 7,59; 7,92 to 1,72; 6,59 to 1,92; 2,72 to 7,92; 7,40 to 1,20; 1,53 to 7,20; 7,53 to 1,33; 1,66 to 7,33; 2,20 to 7,40; 6,20 to 1,53; 2,33 to 7,53; 6,33 to 1,66; 7,14 to 1,7; 1,27 to 7,7; 2,7 to 7,14; 6,7 to 1,27). */
 export const PETALBURG_GYM: Route = {
   flow: 'up',
   sprites: 'rse',
@@ -197,11 +200,11 @@ export const PETALBURG_GYM: Route = {
   entrance: { x: 4, y: 111 },
   links: [[{ x: 1, y: 105 }, { x: 7, y: 85 }], [{ x: 6, y: 85 }, { x: 1, y: 105 }], [{ x: 7, y: 105 }, { x: 1, y: 98 }], [{ x: 2, y: 98 }, { x: 7, y: 105 }], [{ x: 1, y: 79 }, { x: 7, y: 46 }], [{ x: 7, y: 79 }, { x: 1, y: 59 }], [{ x: 6, y: 46 }, { x: 1, y: 79 }], [{ x: 2, y: 59 }, { x: 7, y: 79 }], [{ x: 1, y: 92 }, { x: 7, y: 59 }], [{ x: 7, y: 92 }, { x: 1, y: 72 }], [{ x: 6, y: 59 }, { x: 1, y: 92 }], [{ x: 2, y: 72 }, { x: 7, y: 92 }], [{ x: 7, y: 40 }, { x: 1, y: 20 }], [{ x: 1, y: 53 }, { x: 7, y: 20 }], [{ x: 7, y: 53 }, { x: 1, y: 33 }], [{ x: 1, y: 66 }, { x: 7, y: 33 }], [{ x: 2, y: 20 }, { x: 7, y: 40 }], [{ x: 6, y: 20 }, { x: 1, y: 53 }], [{ x: 2, y: 33 }, { x: 7, y: 53 }], [{ x: 6, y: 33 }, { x: 1, y: 66 }], [{ x: 7, y: 14 }, { x: 1, y: 7 }], [{ x: 1, y: 27 }, { x: 7, y: 7 }], [{ x: 2, y: 7 }, { x: 7, y: 14 }], [{ x: 6, y: 7 }, { x: 1, y: 27 }]],
   spots: [
-    { x: 4, y: 95 },
+    { x: 4, y: 56 },
     { x: 4, y: 3 },
   ],
   stands: [
-    { x: 4, y: 94 },
+    { x: 4, y: 55 },
     { x: 4, y: 2 },
   ],
   npcs: [{ sprite: 'rse/man_2', tile: { x: 3, y: 109 }, face: 'down' }],
@@ -327,6 +330,7 @@ export const FORTREE_GYM: Route = {
   sprites: 'rse',
   name: 'Fortree Gym',
   image: '/routes/fortree_gym.png',
+  overhead: '/routes/fortree_gym_overhead.png',
   width: 320,
   height: 400,
   entrance: { x: 15, y: 24 },
@@ -346,29 +350,29 @@ export const FORTREE_GYM: Route = {
     '##.#..####...#...###',
     '##.#..............##',
     '##.#..#######.....##',
-    '#..##.#######.....##',
+    '#..##.##############',
     '#..##...#####.....##',
     '#.......#.###.....##',
     '#.###......##.....##',
     '#.####.....##.....##',
     '#########.###.....##',
-    '#######...###.....##',
+    '#######...##########',
     '#######.#.###.....##',
     '####.##...###.....##',
     '####.##..####.....##',
     '####.....####.....##',
-    '##....#.#####.....##',
+    '##....#.############',
     '##.#....#####.....##',
     '##...########.....##',
     '##...########.....##',
-    '##...##...#...#..###',
+    '##...##...#...##.###',
     '###...............##',
     '####....#####.....##',
     '###############.####',
   ],
 };
 
-/** Mossdeep Gym, the leader's room: the Gym Trainer where Psychic Virgil stands (6,9), the leader in their place (23,7), Liza beside Tate (24,7), its rooms joined through their doors (3,28 to 1,23; 7,18 to 8,12; 9,18 to 23,20; 1,33 to 20,24; 11,3 to 11,35; 13,32 to 21,10). */
+/** Mossdeep Gym, the leader's room: the Gym Trainer where no one (the user's place) stands (6,9), the leader in their place (23,7), Liza beside Tate (24,7), its rooms joined through their doors (1,33 to 20,24; 23,20 to 8,12; 11,3 to 7,18; 1,23 to 21,10). */
 export const MOSSDEEP_GYM: Route = {
   flow: 'up',
   sprites: 'rse',
@@ -377,9 +381,9 @@ export const MOSSDEEP_GYM: Route = {
   width: 416,
   height: 576,
   entrance: { x: 6, y: 35 },
-  links: [[{ x: 3, y: 28 }, { x: 1, y: 23 }], [{ x: 7, y: 18 }, { x: 8, y: 12 }], [{ x: 9, y: 18 }, { x: 23, y: 20 }], [{ x: 1, y: 33 }, { x: 20, y: 24 }], [{ x: 11, y: 3 }, { x: 11, y: 35 }], [{ x: 13, y: 32 }, { x: 21, y: 10 }]],
+  links: [[{ x: 1, y: 33 }, { x: 20, y: 24 }], [{ x: 23, y: 20 }, { x: 8, y: 12 }], [{ x: 11, y: 3 }, { x: 7, y: 18 }], [{ x: 1, y: 23 }, { x: 21, y: 10 }]],
   spots: [
-    { x: 8, y: 10 },
+    { x: 7, y: 9 },
     { x: 23, y: 8 },
   ],
   stands: [
@@ -396,7 +400,7 @@ export const MOSSDEEP_GYM: Route = {
     '####.....##..#############',
     '####.....##..########~####',
     '####.#..###.#########.####',
-    '####....#...#########.#..#',
+    '####....###.#########.#..#',
     '######......#########.....',
     '########.############.####',
     '########.#################',
@@ -427,21 +431,25 @@ export const MOSSDEEP_GYM: Route = {
   ],
 };
 
-/** Sootopolis Gym, the leader's room: the Gym Trainer where no one (halfway along the walk) stands (7,14), the leader in their place (8,2). */
+/** Sootopolis Gym, the leader's room: the Gym Trainer where no one (the user's place) stands (9,22), the leader in their place (8,2). */
 export const SOOTOPOLIS_GYM: Route = {
   flow: 'up',
   sprites: 'rse',
   name: 'Sootopolis Gym',
   image: '/routes/sootopolis_gym.png',
+  crackedIce: '/routes/sootopolis_gym_cracked_ice.png',
+  iceStairs: [{ tiles: [{ x: 8, y: 15 }, { x: 8, y: 16 }], cracks: 7 }, { tiles: [{ x: 8, y: 10 }, { x: 8, y: 11 }], cracks: 26 }, { tiles: [{ x: 8, y: 4 }, { x: 8, y: 5 }], cracks: 64 }],
+  iceStairsImage: '/routes/sootopolis_gym_stairs.png',
   width: 272,
   height: 416,
   entrance: { x: 8, y: 25 },
+  track: trackLine([8, 25], { to: [[8, 19], [7, 19], [7, 18], [9, 18], [9, 17], [8, 17]] }, { wait: 800, to: [[8, 14], [11, 14], [11, 12], [9, 12], [9, 13], [7, 13], [7, 14], [5, 14], [5, 12], [8, 12]] }, { wait: 800, to: [[8, 9], [3, 9], [3, 6], [4, 6], [4, 7], [5, 7], [5, 8], [6, 8], [6, 6], [7, 6], [7, 7], [8, 7], [8, 8], [9, 8], [9, 9], [10, 9], [10, 7], [11, 7], [11, 8], [12, 8], [12, 9], [13, 9], [13, 6], [8, 6]] }, { wait: 800, to: [[8, 3]] }),
   spots: [
-    { x: 8, y: 14 },
+    { x: 8, y: 22 },
     { x: 8, y: 3 },
   ],
   stands: [
-    { x: 7, y: 14 },
+    { x: 9, y: 22 },
     { x: 8, y: 2 },
   ],
   npcs: [{ sprite: 'rse/man_2', tile: { x: 7, y: 24 }, face: 'down' }],
@@ -450,19 +458,19 @@ export const SOOTOPOLIS_GYM: Route = {
     '#################',
     '###.##.....##.###',
     '###...........###',
-    '########.#######.',
-    '########.#######.',
+    '################.',
+    '################.',
     '###..#........##.',
     '###......#..#.##.',
     '###.#..#......##.',
     '###........#..###',
-    '########.########',
-    '########.########',
+    '#################',
+    '#################',
     '#####.......#####',
     '#####.#...#.#####',
     '#..##.......##..#',
-    '#..#####.#####..#',
-    '#....###.###.....',
+    '#..###########..#',
+    '#....#######.....',
     '#....###..##.....',
     '#######...#######',
     '#######..########',
@@ -473,17 +481,46 @@ export const SOOTOPOLIS_GYM: Route = {
     '#####.#...#.#####',
     '#####....#..#####',
   ],
+  thinIce: [
+    '.................',
+    '.................',
+    '.................',
+    '.................',
+    '.................',
+    '.................',
+    '...tt.tttttttt...',
+    '...tttttt.tt.t...',
+    '...t.tt.tttttt...',
+    '...tttttttt.tt...',
+    '.................',
+    '.................',
+    '.....ttttttt.....',
+    '.....t.ttt.t.....',
+    '.....ttttttt.....',
+    '.................',
+    '.................',
+    '........tt.......',
+    '.......ttt.......',
+    '.......tt........',
+    '.................',
+    '.................',
+    '.................',
+    '.................',
+    '.................',
+    '.................',
+  ],
 };
 
-/** Sidney's Room at the Pokémon League (Emerald's), for the Hoenn Champion run: Sidney in their place (6,5), the player coming in 5 tiles from them (6,10). */
+/** Sidney's Room at the Pokémon League (Emerald's), for the Hoenn Champion run: Sidney in their place (6,5), the player coming in at its door (6,13), its arch over him as he comes in (its overhead). */
 export const HOENN_SIDNEYS_ROOM: Route = {
   flow: 'up',
   sprites: 'rse',
   name: "Sidney's Room",
   image: '/routes/rse_evergrande_sidneys_room.png',
+  overhead: '/routes/rse_evergrande_sidneys_room_overhead.png',
   width: 208,
   height: 224,
-  entrance: { x: 6, y: 10 },
+  entrance: { x: 6, y: 13 },
   spots: [
     { x: 6, y: 6 },
   ],
@@ -504,19 +541,20 @@ export const HOENN_SIDNEYS_ROOM: Route = {
     '.............',
     '.............',
     '#####...#####',
-    '#####.#.#####',
+    '#####...#####',
   ],
 };
 
-/** Phoebe's Room at the Pokémon League (Emerald's), for the Hoenn Champion run: Phoebe in their place (6,5), the player coming in 5 tiles from them (6,10). */
+/** Phoebe's Room at the Pokémon League (Emerald's), for the Hoenn Champion run: Phoebe in their place (6,5), the player coming in at its door (6,13), its arch over him as he comes in (its overhead). */
 export const HOENN_PHOEBES_ROOM: Route = {
   flow: 'up',
   sprites: 'rse',
   name: "Phoebe's Room",
   image: '/routes/rse_evergrande_phoebes_room.png',
+  overhead: '/routes/rse_evergrande_phoebes_room_overhead.png',
   width: 208,
   height: 224,
-  entrance: { x: 6, y: 10 },
+  entrance: { x: 6, y: 13 },
   spots: [
     { x: 6, y: 6 },
   ],
@@ -537,19 +575,20 @@ export const HOENN_PHOEBES_ROOM: Route = {
     '.............',
     '.............',
     '#####...#####',
-    '#####.#.#####',
+    '#####...#####',
   ],
 };
 
-/** Glacia's Room at the Pokémon League (Emerald's), for the Hoenn Champion run: Glacia in their place (6,5), the player coming in 5 tiles from them (6,10). */
+/** Glacia's Room at the Pokémon League (Emerald's), for the Hoenn Champion run: Glacia in their place (6,5), the player coming in at its door (6,13), its arch over him as he comes in (its overhead). */
 export const HOENN_GLACIAS_ROOM: Route = {
   flow: 'up',
   sprites: 'rse',
   name: "Glacia's Room",
   image: '/routes/rse_evergrande_glacias_room.png',
+  overhead: '/routes/rse_evergrande_glacias_room_overhead.png',
   width: 208,
   height: 224,
-  entrance: { x: 6, y: 10 },
+  entrance: { x: 6, y: 13 },
   spots: [
     { x: 6, y: 6 },
   ],
@@ -570,19 +609,20 @@ export const HOENN_GLACIAS_ROOM: Route = {
     '.............',
     '.............',
     '#####...#####',
-    '#####.#.#####',
+    '#####...#####',
   ],
 };
 
-/** Drake's Room at the Pokémon League (Emerald's), for the Hoenn Champion run: Drake in their place (6,5), the player coming in 5 tiles from them (6,10). */
+/** Drake's Room at the Pokémon League (Emerald's), for the Hoenn Champion run: Drake in their place (6,5), the player coming in at its door (6,13), its arch over him as he comes in (its overhead). */
 export const HOENN_DRAKES_ROOM: Route = {
   flow: 'up',
   sprites: 'rse',
   name: "Drake's Room",
   image: '/routes/rse_evergrande_drakes_room.png',
+  overhead: '/routes/rse_evergrande_drakes_room_overhead.png',
   width: 208,
   height: 224,
-  entrance: { x: 6, y: 10 },
+  entrance: { x: 6, y: 13 },
   spots: [
     { x: 6, y: 6 },
   ],
@@ -603,11 +643,11 @@ export const HOENN_DRAKES_ROOM: Route = {
     '.............',
     '.............',
     '#####...#####',
-    '#####.#.#####',
+    '#####...#####',
   ],
 };
 
-/** Champion's Room at the Pokémon League (Emerald's), for the Hoenn Champion run: Wallace in their place (6,5), the player coming in 5 tiles from them (6,10). */
+/** Champion's Room at the Pokémon League (Emerald's), for the Hoenn Champion run: Wallace in their place (6,5), the player coming in at its door (6,12). */
 export const HOENN_CHAMPIONS_ROOM: Route = {
   flow: 'up',
   sprites: 'rse',
@@ -615,7 +655,7 @@ export const HOENN_CHAMPIONS_ROOM: Route = {
   image: '/routes/rse_evergrande_wallaces_room.png',
   width: 208,
   height: 208,
-  entrance: { x: 6, y: 10 },
+  entrance: { x: 6, y: 12 },
   spots: [
     { x: 6, y: 6 },
   ],
@@ -635,7 +675,7 @@ export const HOENN_CHAMPIONS_ROOM: Route = {
     '####.....####',
     '#####...#####',
     '#####...#####',
-    '#####.#.#####',
+    '#####...#####',
   ],
 };
 
@@ -672,11 +712,11 @@ export const HOENN_BOSS_ROOMS: Record<HoennBossId, Route> = {
   roxanne: leaderRoom(RUSTBORO_GYM, { x: 3, y: 5 }),
   brawly: leaderRoom(DEWFORD_GYM, { x: 2, y: 6 }),
   wattson: leaderRoom(MAUVILLE_GYM, { x: 5, y: 7 }),
-  flannery: leaderRoom(LAVARIDGE_GYM, { x: 13, y: 14 }),
+  flannery: leaderRoom(LAVARIDGE_GYM, { x: 12, y: 12 }),
   norman: leaderRoom(PETALBURG_GYM, { x: 4, y: 7 }),
-  winona: leaderRoom(FORTREE_GYM, { x: 15, y: 7 }),
+  winona: leaderRoom(FORTREE_GYM, { x: 13, y: 5 }),
   'tate-liza': leaderRoom(MOSSDEEP_GYM, { x: 21, y: 10 }),
-  juan: leaderRoom(SOOTOPOLIS_GYM, { x: 8, y: 7 }),
+  juan: leaderRoom(SOOTOPOLIS_GYM, { x: 4, y: 3 }),
   sidney: HOENN_SIDNEYS_ROOM,
   phoebe: HOENN_PHOEBES_ROOM,
   glacia: HOENN_GLACIAS_ROOM,

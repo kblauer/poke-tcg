@@ -95,6 +95,8 @@ export interface BattleSetup {
   maxTicks?: number;
   /** The player's own throws (the battle's ball button, the user's): from each tick listed, the best ball once, as soon as one can be thrown (a wild battle's). */
   throwAt?: number[];
+  /** Debug (IdleState.debugCatch): every ball thrown catches. */
+  sureCatch?: boolean;
 }
 
 
@@ -1085,7 +1087,7 @@ export class Battle {
     const target = this.active[1];
     this.bag[item] = (this.bag[item] ?? 0) - 1;
     if (!this.bag[item]) delete this.bag[item];
-    const { caught, shakes } = attemptCatch(this.rng, { catchRate: species(target.species).catchRate, maxHp: target.maxHp, hp: target.hp, status: target.status, ball: item });
+    const { caught, shakes } = this.setup.sureCatch ? { caught: true, shakes: 4 } : attemptCatch(this.rng, { catchRate: species(target.species).catchRate, maxHp: target.maxHp, hp: target.hp, status: target.status, ball: item });
     const name = species(target.species).name;
     const lines = ['Oh, no! The Pokémon broke free!', 'Aww! It appeared to be caught!', 'Aargh! Almost had it!', 'Shoot! It was so close, too!'];
     this.emit({ t: 'ball', item, shakes, caught, msg: caught ? `Gotcha! ${name} was caught!` : lines[shakes]! });

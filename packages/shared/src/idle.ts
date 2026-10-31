@@ -25,6 +25,7 @@ export const idleActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('SET_SLOTS'), uid, slots: z.array(z.string().min(1).max(40)).max(3), auto: z.boolean().optional() }),
   z.object({ type: z.literal('USE_STONE'), uid, item: z.string().min(1).max(40) }),
   z.object({ type: z.literal('GIVE_UP') }),
+  z.object({ type: z.literal('CAUGHT_CHOICE'), replace: uid.optional() }),
 ]) satisfies z.ZodType<IdleAction>;
 
 export const idleSettingsSchema = z.object({
@@ -51,3 +52,5 @@ export const idleHereInput = z.object({ runId: z.uuid() });
 export const idleSettingsInput = idleSettingsSchema.partial();
 /** Debug: a warp to an area (the run's party and bag kept). */
 export const idleWarpInput = z.object({ runId: z.uuid(), area: z.string().min(1).max(40) });
+/** Debug: every ball thrown in the run catches, or not. */
+export const idleDebugCatchInput = z.object({ runId: z.uuid(), on: z.boolean() });

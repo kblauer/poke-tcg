@@ -1,8 +1,8 @@
-import { inGrass, ledgeAt, onIce, onPath, onWater, type EncounterKind, type Route, type RouteSpot } from '@poke-tcg/campaign';
+import { inGrass, inLongGrass, ledgeAt, onIce, onPath, onWater, type EncounterKind, type Route, type RouteSpot } from '@poke-tcg/campaign';
 import { useEffect, useRef, useState } from 'react';
-import { GRASS_FRAME_MS, RUSTLE, useTallGrass } from '../../hooks/useTallGrass';
+import { GRASS_FRAME_MS, LONG_RUSTLE, RUSTLE, useTallGrass } from '../../hooks/useTallGrass';
 import { FADE_MS } from '../../hooks/useWalk';
-import { bobFrame, bobs, isItemBall, mirrored, spriteWidth, standFrame, stripFrames, walkFrame, waterSprite, type Facing, type SpriteSet } from '../../utils/overworld';
+import { BOSS_MAP_SPRITES, bobFrame, bobs, isItemBall, mirrored, spriteHeight, spriteWidth, standFrame, stripFrames, surfBobs, walkFrame, waterSprite, type Facing, type SpriteSet } from '../../utils/overworld';
 import { facing, type RouteFigure } from '../../utils/routeFigures';
 import { ENCOUNTER_STYLE } from './encounterIcons';
 
@@ -66,7 +66,7 @@ export function TileOverlay({ route }: { route: Route }) {
           return (
             <div
               key={`${x},${y}`}
-              title={`${x},${y}${ledge ? ` · ledge, jumped going ${ledge}` : area ? ` · walkable area ${area}` : ' · not walkable'}${inGrass(route, { x, y }) ? ' · tall grass' : ''}${onIce(route, { x, y }) ? ' · ice' : ''}${area && route.travel === 'surf' ? (onWater(route, { x, y }) ? ' · water' : ' · land') : ''}`}
+              title={`${x},${y}${ledge ? ` · ledge, jumped going ${ledge}` : area ? ` · walkable area ${area}` : ' · not walkable'}${inLongGrass(route, { x, y }) ? ' · long grass' : inGrass(route, { x, y }) ? ' · tall grass' : ''}${onIce(route, { x, y }) ? ' · ice' : ''}${area && route.travel === 'surf' ? (onWater(route, { x, y }) ? ' · water' : ' · land') : ''}`}
               className="absolute flex items-center justify-center font-mono leading-none"
               style={{
                 left: x * 16,
@@ -173,13 +173,14 @@ function useGutteredStrip(name: string) {
         const img = new Image();
         img.onload = () => {
           const w = spriteWidth(name);
+          const h = spriteHeight(name);
           const frames = stripFrames(name);
           const canvas = document.createElement('canvas');
           canvas.width = frames * (w + 2 * GUTTER);
-          canvas.height = 32;
+          canvas.height = h;
           const ctx = canvas.getContext('2d');
           if (!ctx) return reject(new Error('No canvas'));
-          for (let f = 0; f < frames; f++) ctx.drawImage(img, f * w, 0, w, 32, f * (w + 2 * GUTTER) + GUTTER, 0, w, 32);
+          for (let f = 0; f < frames; f++) ctx.drawImage(img, f * w, 0, w, h, f * (w + 2 * GUTTER) + GUTTER, 0, w, h);
           resolve(canvas.toDataURL());
         };
         img.onerror = reject;
@@ -202,7 +203,8 @@ function useGutteredStrip(name: string) {
  * pixels; lower on the map is in front, as in the game. `frame` shows another frame of its strip (a walking one), `moveMs`
  * slides it to a new tile over that long (a step), and `hidden` fades it out. `grass`: on a tile of tall grass, its
  * bottom (GRASS_HIDES) fades out (GRASS_MASK), so the grass drawn on the map shows there instead, as in the games (agreed with the user);
- * stepping or jumping into it, only once it's there (`moveMs` later, the user's), stepping out of it, at once.
+ * stepping or jumping into it, only once it's there (`moveMs` later, the user's), stepping out of it, at once. `longGrass`:
+ * on Emerald's long grass, its whole bottom tile hidden (LONG_GRASS_MASK), at the same moments.
  */
 export function OverworldSprite({
   name,
@@ -216,6 +218,7 @@ export function OverworldSprite({
   fadeMs = FADE_MS,
   hidden = false,
   grass = false,
+  longGrass = false,
   jump,
 }: {
   name: string;
@@ -231,6 +234,8 @@ export function OverworldSprite({
   fadeMs?: number;
   hidden?: boolean;
   grass?: boolean;
+  /** Standing in Emerald's long grass: its bottom tile hidden in it (LONG_GRASS_MASK). */
+  longGrass?: boolean;
   /** Jumping a ledge: it rises and falls along JUMP_Y over the jump's time (as it slides to the landing tile, `moveMs`). */
   jump?: Jump;
 }) {
@@ -248,35 +253,38 @@ export function OverworldSprite({
   const w = spriteWidth(name);
   const strip = useGutteredStrip(name);
   // An item ball stays whole (it lies in the grass, one tile tall).
-  const inGrass = grass && !isItemBall(name);
-  const [sunk, setSunk] = useState(inGrass);
+  // How deep it's in: 0 out of the grass, 1 tall grass, 2 long grass. Deeper only once it's there, shallower at once.
+  const cover = isItemBall(name) ? 0 : longGrass ? 2 : grass ? 1 : 0;
+  const [sunk, setSunk] = useState(cover);
   useEffect(() => {
-    if (!inGrass || !moveMs) return setSunk(inGrass);
-    const timer = window.setTimeout(() => setSunk(true), moveMs);
+    if (cover < sunk || !moveMs) return setSunk(cover);
+    const timer = window.setTimeout(() => setSunk(cover), moveMs);
     return () => window.clearTimeout(timer);
     // Only on going into or out of the grass (the move's time is the one it starts with).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inGrass]);
+  }, [cover]);
+  const hiddenBy = Math.min(sunk, cover);
   const frame = walkTick !== undefined ? walkFrame(name, face, walkTick) : bob && bobs(name) ? bobFrame(name, face) : standFrame(name, face);
   return (
     <div
       ref={el}
       title={title}
-      className={`absolute [image-rendering:pixelated] ${faded ? 'opacity-50' : ''}`}
+      className={`absolute [image-rendering:pixelated] ${faded ? 'opacity-50' : ''} ${surfBobs(name) ? SURF_BOB : ''}`}
       style={{
         transition: `left ${moveMs}ms linear, top ${moveMs}ms linear, opacity ${fadeMs}ms`,
         opacity: hidden ? 0 : undefined,
         left: tile.x * 16 + 8 - w / 2,
         top: tile.y * 16 - 16,
         width: w,
-        height: 32,
+        height: spriteHeight(name),
         // The strip with see-through gutters between its frames once it's made (useGutteredStrip), the file till then.
         backgroundImage: `url(${strip ?? `/overworld/${name}.png`})`,
-        backgroundSize: `${(w + (strip ? 2 * GUTTER : 0)) * stripFrames(name)}px 32px`,
+        backgroundSize: `${(w + (strip ? 2 * GUTTER : 0)) * stripFrames(name)}px ${spriteHeight(name)}px`,
         backgroundPosition: `${strip ? -frame * (w + 2 * GUTTER) - GUTTER : -frame * w}px 0`,
         backgroundRepeat: 'no-repeat',
         transform: mirrored(name, face) ? 'scaleX(-1)' : undefined,
-        ...(inGrass && sunk && GRASS_MASK),
+        ...(hiddenBy === 2 ? LONG_GRASS_MASK : hiddenBy === 1 ? GRASS_MASK : undefined),
+        ...(surfBobs(name) && spriteHeight(name) === 32 && SURF_MASK),
         zIndex: tile.y,
       }}
     />
@@ -333,40 +341,51 @@ export function JumpDust({ tile, grass = false, set = 'frlg' }: { tile: RouteSpo
 /** Where a map's tall grass pictures are: FireRed's, or Emerald's on the Hoenn maps (tools/routes/jump_effects.py). */
 const grassDir = (set: SpriteSet) => (set === 'rse' ? 'rse/' : '');
 
+/** How far down the long grass's foot its tufts reach (Route 119's: the band of ground below, from its 9th row). */
+const LONG_EDGE = 8;
+
 /**
  * Tall grass drawn over someone standing in it, on its tile (FireRed's FLDEFF_TALL_GRASS, `tall_grass.png`: 5 frames of
  * 16x16, stacked): at rest (frame 0, its blades over their feet) or, `rustle`, rustling as they step in (frames 1 to 4,
  * then at rest). Drawn after the sprites: in front of one on its row or above it, behind one below it (on a higher
  * zIndex), as the game layers them; and during the rustle's first frame behind the one stepping in too (its subpriority
- * 4 more then: UpdateTallGrassFieldEffect). Emerald's (`set` 'rse') works the same, with its own pictures.
+ * 4 more then: UpdateTallGrassFieldEffect). Emerald's (`set` 'rse') works the same, with its own pictures. `long`: Emerald's
+ * long grass instead (FLDEFF_LONG_GRASS, `rse/long_grass.png`: 4 frames, LONG_RUSTLE), always in front of the one in it
+ * (its subpriority never raised: UpdateLongGrassFieldEffect); 'edge', the long grass's foot (onLongGrassEdge), its tufts only
+ * down to LONG_EDGE, the map's band of ground showing below them (the user's).
  */
-export function TallGrass({ tile, rustle = false, set = 'frlg' }: { tile: RouteSpot; rustle?: boolean; set?: SpriteSet }) {
-  const [step, setStep] = useState(rustle ? 0 : RUSTLE.length - 1);
+export function TallGrass({ tile, rustle = false, set = 'frlg', long = false }: { tile: RouteSpot; rustle?: boolean; set?: SpriteSet; long?: boolean | 'edge' }) {
+  const frames = long ? LONG_RUSTLE.map(([f]) => f) : RUSTLE;
+  const [step, setStep] = useState(rustle ? 0 : frames.length - 1);
   useEffect(() => {
     if (!rustle) return;
-    const timers = RUSTLE.slice(1).map((_, i) => window.setTimeout(() => setStep(i + 1), (i + 1) * GRASS_FRAME_MS));
+    let at = 0;
+    const timers = frames.slice(1).map((_, i) => window.setTimeout(() => setStep(i + 1), (at += long ? (LONG_RUSTLE[i]![1] * 1000) / 60 : GRASS_FRAME_MS)));
     return () => timers.forEach((t) => window.clearTimeout(t));
+    // Only as it starts rustling.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rustle]);
-  const frame = RUSTLE[step]!;
+  const frame = frames[step]!;
   return (
     <div
       className="pointer-events-none absolute [image-rendering:pixelated]"
-      style={{ left: tile.x * 16, top: tile.y * 16, width: 16, height: 16, backgroundImage: `url(/overworld/${grassDir(set)}tall_grass.png)`, backgroundPosition: `0 ${-frame * 16}px`, zIndex: frame === 1 ? Math.max(0, tile.y - 1) : tile.y }}
+      style={{ left: tile.x * 16, top: tile.y * 16, width: 16, height: long === 'edge' ? LONG_EDGE : 16, backgroundImage: `url(/overworld/${long ? 'rse/long_grass' : `${grassDir(set)}tall_grass`}.png)`, backgroundPosition: `0 ${-frame * 16}px`, zIndex: frame === 1 && !long ? Math.max(0, tile.y - 1) : tile.y }}
     />
   );
 }
 
 /**
  * The tall grass over someone walking (useTallGrass: rustling as they step in, at rest where they're put, thrown up where a
- * ledge jump lands in it), on `map` (its picture: a new one starts over); none while they're `hidden` (faded out).
+ * ledge jump lands in it), on `map` (its picture: a new one starts over); none while they're `hidden` (faded out). `long`:
+ * the tile they're on is Emerald's long grass, or its foot ('edge').
  */
-export function GrassTufts({ tile, grass, map, moveMs, jump, hidden = false, set = 'frlg' }: { tile: RouteSpot; grass: boolean; map: string; moveMs: number; jump?: { ms: number } | null; hidden?: boolean; set?: SpriteSet }) {
-  const { tufts, splash } = useTallGrass({ tile, grass, map, moveMs, jump, set });
+export function GrassTufts({ tile, grass, long = false, map, moveMs, jump, hidden = false, set = 'frlg' }: { tile: RouteSpot; grass: boolean; long?: boolean | 'edge'; map: string; moveMs: number; jump?: { ms: number } | null; hidden?: boolean; set?: SpriteSet }) {
+  const { tufts, splash } = useTallGrass({ tile, grass, long, map, moveMs, jump, set });
   if (hidden) return null;
   return (
     <>
       {tufts.map((t) => (
-        <TallGrass key={t.key} tile={t} rustle={t.rustle} set={set} />
+        <TallGrass key={t.key} tile={t} rustle={t.rustle} set={set} long={t.long} />
       ))}
       {splash && <JumpDust key={splash.stamp} tile={splash.tile} grass set={set} />}
     </>
@@ -383,6 +402,28 @@ const GRASS_MASK = (() => {
   const mask = `linear-gradient(to bottom, black ${line - GRASS_FADE / 2}px, transparent ${line + GRASS_FADE / 2}px)`;
   return { maskImage: mask, WebkitMaskImage: mask };
 })();
+/**
+ * Someone standing in Emerald's long grass: their whole bottom tile hidden, as the game draws it behind the grass (once
+ * they've stepped from long grass onto long grass, the sprite's bottom 16x16 at priority 3: SetObjectEventSpriteOamTableForLongGrass).
+ */
+const LONG_GRASS_MASK = (() => {
+  const mask = 'linear-gradient(to bottom, black 16px, transparent 16px)';
+  return { maskImage: mask, WebkitMaskImage: mask };
+})();
+
+/**
+ * Gen 3's surfing player's bottom fading into the water (the user's, in place of the sprite's hard edge), in map pixels;
+ * FireRed's Red's and Leaf's only (the user's: Brendan's and May's are Emerald's whole, the blob under them round to its
+ * bottom: spriteHeight).
+ */
+const SURF_FADE = 3;
+const SURF_MASK = (() => {
+  const mask = `linear-gradient(to bottom, black ${32 - SURF_FADE}px, transparent 32px)`;
+  return { maskImage: mask, WebkitMaskImage: mask };
+})();
+
+/** The surf bob (index.css's `surf-bob`): on anything the surfing player carries along (the Idle Adventure's surf blob). */
+export const SURF_BOB = 'motion-safe:animate-[surf-bob_536ms_step-end_infinite]';
 
 /**
  * A speech bubble over a figure's head with its encounter's icon (ENCOUNTER_STYLE, as in the encounter panels), in map
@@ -436,6 +477,7 @@ export function Figure({
   moveMs,
   wet,
   grass,
+  longGrass,
 }: {
   figure: RouteFigure;
   tile: RouteSpot;
@@ -445,15 +487,18 @@ export function Figure({
   wet?: boolean;
   /** Standing in tall grass: half hidden in it. */
   grass?: boolean;
+  /** Standing in Emerald's long grass: its bottom tile hidden in it. */
+  longGrass?: boolean;
   /** While walking (an NPC coming up to the player): the way it's going, its walking frame and its step's time. */
   face?: Facing;
   walkTick?: number;
   moveMs?: number;
 }) {
-  if (!figure.boss) {
+  const mapSprite = figure.boss && BOSS_MAP_SPRITES[figure.boss];
+  if (!figure.boss || mapSprite) {
     return (
       <>
-        <OverworldSprite name={(wet && figure.sprite && waterSprite(figure.sprite)) || figure.sprite || 'boy'} tile={tile} face={face ?? facing(tile, spot)} title={figure.title} faded={faded} walkTick={walkTick} moveMs={moveMs} grass={grass} />
+        <OverworldSprite name={mapSprite || (wet && figure.sprite && waterSprite(figure.sprite)) || figure.sprite || 'boy'} tile={tile} face={face ?? facing(tile, spot)} title={figure.title} faded={faded} walkTick={walkTick} moveMs={moveMs} grass={grass} longGrass={longGrass} />
         {figure.bubble && <EncounterBubble kind={figure.bubble} tile={tile} faded={faded} low={isItemBall(figure.sprite)} below={tile.y > spot.y} moveMs={moveMs} />}
       </>
     );

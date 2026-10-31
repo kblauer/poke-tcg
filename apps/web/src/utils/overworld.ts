@@ -53,6 +53,13 @@ export const bobs = (name: string) => BOBBING.has(name);
 export const bobFrame = (name: string, face: Facing) => 12 + HGSS_FRAME[face];
 export const BOB_MS = 450;
 
+/**
+ * Gen 3's players surfing (FireRed's and Emerald's): bobbing up and down on the water, still or moving, as the surf blob
+ * carries them (the `surf-bob` animation, index.css), their bottom fading into the water (OverworldSprite's SURF_MASK).
+ */
+const SURF_BOBBING = new Set(['red_surf', 'leaf_surf', 'rse/brendan_surf', 'rse/may_surf']);
+export const surfBobs = (name: string) => SURF_BOBBING.has(name);
+
 /** Frames in each strip. */
 export const STRIP_FRAMES = 9;
 export const stripFrames = (name: string) => (bobs(name) ? 16 : isHgss(name) ? 12 : STRIP_FRAMES);
@@ -63,6 +70,12 @@ export const stripFrames = (name: string) => (bobs(name) ? 16 : isHgss(name) ? 1
  */
 const WIDE = new Set(['biker', 'red_bike', 'red_surf', 'leaf_bike', 'leaf_surf', 'rse/brendan_bike', 'rse/brendan_surf', 'rse/may_bike', 'rse/may_surf', 'rse/cyclist_m', 'rse/cyclist_f', 'articuno', 'zapdos', 'moltres']);
 export const spriteWidth = (name: string) => (WIDE.has(name) || isHgss(name) ? 32 : 16);
+/**
+ * A sprite's height in map pixels: 32, but Brendan's and May's surfing, 40, the surf blob's bottom below the rider (the
+ * user's: the whole blob, as Emerald draws it; emerald_sprites.py's SURF_HEIGHT), drawn from the same top.
+ */
+const TALL = new Set(['rse/brendan_surf', 'rse/may_surf']);
+export const spriteHeight = (name: string) => (TALL.has(name) ? 40 : 32);
 
 /** Each sprite set's player, the boy and the girl (the Inventory's choice): their walking, bike and surfing sprites. */
 const PLAYERS: Record<SpriteSet, Record<'male' | 'female', [walk: string, bike: string, surf: string]>> = {
@@ -82,6 +95,12 @@ const IN_WATER: Record<string, string> = { swimmer_m_land: 'swimmer_m_water', sw
 export const waterSprite = (name: string) => IN_WATER[name];
 /** Whether a sprite is a swimmer's (they stand in water where they can): HGSS's and Emerald's swimmers are only ever in it. */
 export const swims = (name: string) => !!IN_WATER[name] || ['hgss/swimmer_m', 'hgss/swimmer_f', 'rse/swimmer_m', 'rse/swimmer_f'].includes(name);
+/**
+ * A boss drawn on the map with an overworld sprite instead of their own picture (`public/trainers/`), when that picture
+ * holds more than one person: Tate & Liza's is both twins, so Tate stands in the gym in his own sprite, Liza beside him as
+ * the gym's other person (its `npcs`; the user's).
+ */
+export const BOSS_MAP_SPRITES: Partial<Record<string, string>> = { 'tate-liza': 'rse/tate' };
 /** The item ball (a Mystery not yet revealed, a Lucky Find), which stays put and is one tile tall. */
 export const isItemBall = (name: string | undefined) => name === 'item_ball' || name === 'hgss/item_ball' || name === 'rse/item_ball';
 

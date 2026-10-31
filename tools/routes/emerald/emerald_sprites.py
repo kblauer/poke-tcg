@@ -175,8 +175,14 @@ def strip(frames):
     return out
 
 
+# The surfing strips' height: the rider's 32 and the blob's bottom below them (it's drawn 8 down; the user's: facing
+# every way whole). The site reads it as overworld.ts's spriteHeight.
+SURF_HEIGHT = 40
+
+
 def surf_frames(g, repo, who='BRENDAN'):
-    """Brendan (or May) on the surf blob, in their palette: the blob's frame for each facing (down, up, left) under theirs."""
+    """Brendan (or May) on the surf blob, in their palette: the blob's frame for each facing (down, up, left) under theirs,
+    32x40 (SURF_HEIGHT): the whole blob, as the game draws it (the user's)."""
     rider = g.frames(f'OBJ_EVENT_GFX_{who}_SURFING')
     blob_sheet = Image.open(os.path.join(repo, 'graphics', 'field_effects', 'pics', 'surf_blob.png'))
     pal = g.palette(f'OBJ_EVENT_PAL_TAG_{who}')
@@ -184,9 +190,9 @@ def surf_frames(g, repo, who='BRENDAN'):
     facing = [0, 1, 2, 0, 0, 1, 1, 2, 2]
     out = []
     for i in range(FRAMES):
-        f = Image.new('RGBA', (32, 32), (0, 0, 0, 0))
+        f = Image.new('RGBA', (32, SURF_HEIGHT), (0, 0, 0, 0))
         # The blob a little below him, as the game draws it (he sits on its back).
-        f.alpha_composite(blobs[facing[i]].crop((0, 0, 32, 24)), (0, 8))
+        f.alpha_composite(blobs[facing[i]], (0, 8))
         f.alpha_composite(rider[i], (0, 0))
         out.append(f)
     return out

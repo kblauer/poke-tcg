@@ -44,12 +44,36 @@ const moved = (order: string[], from: number, to: number) => {
  * dragged up or down reorders the party (the user's: the others make way, SET_ORDER on the drop); a slot clicked opens a
  * panel in the slots' style just left of the column with the Pokémon's stats as a hexagon, its moves to set and the
  * stones it can use. Escape, the button again or CANCEL closes it. Changes made during a wild battle wait for its end
- * (`pending`, IdleState.pending), shown at once.
+ * (`pending`, IdleState.pending), shown at once. `replacing`: a Pokémon caught with the party full (IdleState.choosing,
+ * the user's): the party open by itself till it's settled, its prompt in the panel's place, a Pokémon's panel with a
+ * button to replace it (`onReplace` with its uid), RELEASE for CANCEL (`onReplace` with none), no reordering meanwhile.
  */
-export function PartyOverlay({ party, bag, busy, pending, open, onToggle, onAct }: { party: Mon[]; bag: Record<string, number>; busy: boolean; pending: number; open: boolean; onToggle: (open: boolean) => void; onAct: (action: IdleAction) => unknown }) {
+export function PartyOverlay({
+  party,
+  bag,
+  busy,
+  pending,
+  open: opened,
+  onToggle,
+  onAct,
+  replacing,
+  onReplace,
+}: {
+  party: Mon[];
+  bag: Record<string, number>;
+  busy: boolean;
+  pending: number;
+  open: boolean;
+  onToggle: (open: boolean) => void;
+  onAct: (action: IdleAction) => unknown;
+  replacing?: Mon | null;
+  onReplace?: (uid?: string) => void;
+}) {
+  const open = opened || !!replacing;
   const [chosen, setChosen] = useState<string | null>(null);
   const mon = party.find((m) => m.uid === chosen) ?? null;
-  const close = () => (setChosen(null), onToggle(false));
+  // Open by itself while a catch waits: only the Pokémon's panel closes.
+  const close = () => (setChosen(null), !replacing && onToggle(false));
   useEscape(() => (mon ? setChosen(null) : close()), open);
   const lead = party[0];
   // A press anywhere but the slots, the Pokémon's panel or the button closes them all (the user's).
@@ -79,7 +103,7 @@ export function PartyOverlay({ party, bag, busy, pending, open, onToggle, onAct 
   const to = drag ? Math.max(0, Math.min(order.length - 1, drag.from + Math.round(drag.dy / SLOT_H))) : -1;
   const shown = drag ? moved(order, drag.from, to) : order;
   const down = (uid: string, from: number) => (e: PointerEvent<HTMLButtonElement>) => {
-    if (busy || e.button !== 0) return;
+    if (busy || replacing || e.button !== 0) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     pointer.current = { uid, from, startY: e.clientY, scale: e.currentTarget.getBoundingClientRect().height / SLOT_H, dragging: false };
   };
@@ -121,6 +145,7 @@ export function PartyOverlay({ party, bag, busy, pending, open, onToggle, onAct 
               top={held ? drag.from * SLOT_H + drag.dy : shown.indexOf(m.uid) * SLOT_H}
               held={held}
               selected={m.uid === chosen}
+              choosing={!!replacing}
               handlers={{ onPointerDown: down(m.uid, order.indexOf(m.uid)), onPointerMove: move, onPointerUp: up, onPointerCancel: up }}
               onClick={() => {
                 if (dragged.current) return void (dragged.current = false);
@@ -129,18 +154,26 @@ export function PartyOverlay({ party, bag, busy, pending, open, onToggle, onAct 
             />
           );
         })}
-        <button type="button" className="absolute" style={{ left: px(10 + SLOT_W - 56), top: px(144), width: px(56), height: px(16), backgroundImage: `url(${PARTY}/cancel.png)`, backgroundSize: '100% 100%' }} onClick={close}>
-          <span className="block text-center" style={{ ...TEXT, fontSize: px(10), paddingTop: px(2) }}>CANCEL</span>
+        <button
+          type="button"
+          className="absolute"
+          style={{ left: px(10 + SLOT_W - 56), top: px(144), width: px(56), height: px(16), backgroundImage: `url(${PARTY}/cancel.png)`, backgroundSize: '100% 100%' }}
+          disabled={!!replacing && busy}
+          onClick={() => (replacing ? onReplace?.() : close())}
+          title={replacing ? `Release ${species(replacing.species).name}` : undefined}
+        >
+          <span className="block text-center" style={{ ...TEXT, fontSize: px(10), paddingTop: px(2) }}>{replacing ? 'RELEASE' : 'CANCEL'}</span>
         </button>
       </div>
       {open && mon && (
         <div ref={panel} className="contents">
-          <MonPanel mon={mon} bag={bag} busy={busy} pending={pending} maxH={PANEL_MAX_H} onAct={onAct} onClose={() => setChosen(null)} />
+          <MonPanel mon={mon} bag={bag} busy={busy} pending={pending} maxH={PANEL_MAX_H} onAct={onAct} onClose={() => setChosen(null)} replacing={replacing} onReplace={onReplace} />
         </div>
       )}
+      {replacing && !mon && <ReplacePrompt mon={replacing} />}
       {/* The button: the lead's menu icon, hopping (the user's: where the ball button was, the ball now beside it); not
           while a Pokémon's panel is open (it has its own ✕). */}
-      {lead && !(open && mon) && (
+      {lead && !(open && mon) && !replacing && (
         <button
           ref={button}
           type="button"
@@ -172,6 +205,7 @@ function Slot({
   top,
   held,
   selected,
+  choosing,
   handlers,
   onClick,
 }: {
@@ -179,6 +213,8 @@ function Slot({
   top: number;
   held: boolean;
   selected: boolean;
+  /** Picking one to replace with a catch: clicked, not dragged. */
+  choosing: boolean;
   handlers: Record<'onPointerDown' | 'onPointerMove' | 'onPointerUp' | 'onPointerCancel', (e: PointerEvent<HTMLButtonElement>) => void>;
   onClick: () => void;
 }) {
@@ -186,12 +222,12 @@ function Slot({
   return (
     <button
       type="button"
-      className={`absolute touch-none select-none text-left ${held ? 'cursor-grabbing' : 'cursor-grab'}`}
+      className={`absolute touch-none select-none text-left ${choosing ? 'cursor-pointer' : held ? 'cursor-grabbing' : 'cursor-grab'}`}
       style={{ left: px(10), top: px(top), width: px(SLOT_W), height: px(SLOT_H), zIndex: held ? 2 : 1, transition: held ? 'none' : 'top 150ms ease-out', filter: held ? 'drop-shadow(0 0.6cqw 0 rgba(0,0,0,0.35))' : undefined }}
       {...handlers}
       onClick={onClick}
       aria-pressed={selected}
-      title={`${s.name}: drag to reorder, click for details`}
+      title={choosing ? `${s.name}: click to replace it` : `${s.name}: drag to reorder, click for details`}
     >
       <span className="absolute inset-0" style={{ backgroundImage: `url(${PARTY}/${selected || held ? 'slot_selected' : 'slot'}.png)`, backgroundSize: '100% 100%' }} />
       {/* The ball (closed, open when chosen) and the icon over it, as FireRed places them (sPartyMenuSpriteCoords). */}
@@ -214,6 +250,32 @@ function Slot({
         )}
       </span>
     </button>
+  );
+}
+
+/**
+ * The prompt for a catch with the party full (in the Pokémon's panel's place, its style; FireRed's party screen's
+ * "Choose a POKéMON."): the Pokémon caught, its icon, name and level, and what to do.
+ */
+function ReplacePrompt({ mon }: { mon: Mon }) {
+  const s = species(mon.species);
+  return (
+    <div
+      className="pointer-events-auto absolute"
+      style={{ left: px(LIST_LEFT - PANEL_W), top: px(PANEL_TOP), width: px(PANEL_W), background: FRAME.fill, border: `${px(1)} solid ${FRAME.border}`, borderRadius: px(3), boxShadow: `inset 0 0 0 ${px(1)} ${FRAME.light}`, padding: px(3) }}
+      role="status"
+    >
+      <div className="flex items-center" style={{ gap: px(2) }}>
+        <span className="shrink-0 bg-no-repeat" style={{ width: px(32), height: px(32), backgroundImage: `url(/idle/gen1/pokemon/icon/${mon.species}.png)`, backgroundSize: `${px(32)} ${px(64)}`, animation: 'idle-icon-cqw 0.5s steps(1) infinite' }} />
+        <span style={{ ...TEXT, fontSize: px(9) }}>
+          {mon.shiny && <span style={{ color: '#ffd552' }}>★</span>}
+          {s.name} Lv{mon.level}
+        </span>
+      </div>
+      <p style={{ ...TEXT, fontSize: px(8), lineHeight: 1.3, marginTop: px(2) }}>
+        Caught! The party is full: choose a Pokémon to replace with it, or RELEASE it.
+      </p>
+    </div>
   );
 }
 
@@ -278,7 +340,28 @@ function StatHex({ stats, height }: { stats: number[]; height: number }) {
  * automatically: its own moves, and the moves of the bag's TMs and HMs it can learn, the user's) and the stones in the
  * bag it can use.
  */
-function MonPanel({ mon, bag, busy, pending, maxH, onAct, onClose }: { mon: Mon; bag: Record<string, number>; busy: boolean; pending: number; maxH: number; onAct: (a: IdleAction) => void; onClose: () => void }) {
+function MonPanel({
+  mon,
+  bag,
+  busy,
+  pending,
+  maxH,
+  onAct,
+  onClose,
+  replacing,
+  onReplace,
+}: {
+  mon: Mon;
+  bag: Record<string, number>;
+  busy: boolean;
+  pending: number;
+  maxH: number;
+  onAct: (a: IdleAction) => void;
+  onClose: () => void;
+  /** A catch with the party full: a button to put it in this one's place. */
+  replacing?: Mon | null;
+  onReplace?: (uid?: string) => void;
+}) {
   const s = species(mon.species);
   const stats = calcStats(mon.species, mon.level, mon.ivs, mon.evs, mon.nature);
   const basic = basicFor(mon);
@@ -306,6 +389,17 @@ function MonPanel({ mon, bag, busy, pending, maxH, onAct, onClose }: { mon: Mon;
           ✕
         </button>
       </div>
+      {replacing && (
+        <button
+          type="button"
+          className="block w-full"
+          style={{ ...TEXT, fontSize: px(8), marginTop: px(2), padding: px(1.5), background: '#d84040', border: `${px(1)} solid ${FRAME.border}`, borderRadius: px(2) }}
+          disabled={busy}
+          onClick={() => onReplace?.(mon.uid)}
+        >
+          Replace with {species(replacing.species).name}
+        </button>
+      )}
       {/* Its types (FireRed's labels, menu_info.png's, at three quarters) over its stats, small (the user's), in one white window. */}
       <div style={{ background: '#ffffff', borderRadius: px(2), marginTop: px(2), border: `${px(1)} solid ${FRAME.shade}`, padding: px(2) }}>
         <div className="flex justify-center" style={{ gap: px(2) }}>

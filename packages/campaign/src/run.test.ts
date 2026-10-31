@@ -4,13 +4,15 @@ import { ITEMS, itemText, MAX_CONSUMABLES_PER_RUN, onlyOne, shopStock } from './
 import { RUN_TYPE_IDS, RUN_TYPES, runType, type RunType, type RunTypeId } from './run-types.js';
 import { ROUTE_4 } from './kanto-routes.js';
 import { JOHTO_BOSS_ROOMS, MAHOGANY_GYM } from './johto-gyms.js';
-import { onPath, PEWTER_GYM, ROUTE_2, routePath, type Route, type RouteSpot } from './routes.js';
+import { inGrass, inLongGrass, onLongGrassEdge, onPath, onThinIce, PEWTER_GYM, ROUTE_2, routePath, travelAt, type Route, type RouteSpot } from './routes.js';
 import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, isBattleKind, isBossKind, landNear, MAX_CENTERS, REQUIRED_BATTLES, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, withConsumablesBefore, carriedConsumables, parsePendingConsumable, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
 import { GEN2_SETS, GEN3_SETS } from './pool.js';
 import { GEN2_TEST_POOL, GEN3_TEST_POOL, TEST_POOL } from './test-pool.js';
 
 const deck = expandDeck(STARTER_DECK);
 const fresh = (seed = 1) => createRun('celadon', deck, seed);
+/** Boss rooms the player comes into at their door (the user's), further than 5 tiles from the boss: the walk's steps. */
+const DOOR_ENTRANCES: Record<string, number> = { "Sidney's Room": 7, "Phoebe's Room": 7, "Glacia's Room": 7, "Drake's Room": 7 };
 
 function act(state: RunState, action: RunAction | RunSystemAction, gear: string[] = [], pool = TEST_POOL): RunState {
   const res = applyRunAction(state, action, pool, gear);
@@ -221,8 +223,9 @@ describe('createRun', () => {
         const map = type.routes![i]!;
         expect(map.spots, `${id} ${map.name}`).toHaveLength(1);
         expect(map.name, id).toBe(s.options[0]!.kind === 'center' ? 'Pokémon Center' : map.name);
-        // The player walks up from the entrance: 4 steps, 5 tiles from the boss.
-        expect(routePath(map, map.entrance!, map.spots[0]!)?.length, `${id} ${map.name}`).toBeLessThanOrEqual(6);
+        // The player walks up from the entrance: 4 steps, 5 tiles from the boss; or from the room's door, where the user put
+        // it (DOOR_ENTRANCES).
+        expect(routePath(map, map.entrance!, map.spots[0]!)?.length, `${id} ${map.name}`).toBeLessThanOrEqual(DOOR_ENTRANCES[map.name] ?? 6);
       });
     }
     expect(runType('kantoGyms').routes!.map((m) => m.name)).toEqual(['Pewter Gym', 'Cerulean Gym', 'Vermilion Gym', 'Celadon Gym', 'Pokémon Center', 'Saffron Gym', 'Fuchsia Gym', 'Cinnabar Gym', 'Viridian Gym']);
@@ -242,6 +245,51 @@ describe('createRun', () => {
     // FireRed's Routes 2, 4, 5, 6 and 8, HGSS's 30, 32, 34, 35 and 45, and Emerald's Petalburg Woods, Routes 102, 110 and 119 and Jagged Pass.
     expect(new Set(grassy.map((m) => m.name))).toEqual(new Set(['Route 2', 'Route 4', 'Route 5', 'Route 6', 'Route 8', 'Route 30', 'Route 32', 'Route 34', 'Route 35', 'Route 45', 'Petalburg Woods', 'Route 102', 'Route 110', 'Route 119', 'Jagged Pass']));
     for (const m of grassy) expect(m.grass!.map((r) => r.length), m.name).toEqual(m.walkable.map((r) => r.length));
+  });
+
+  it("Sootopolis Gym's thin ice is its puzzle's, walkable, with its cracked ice's picture, walked over once by its track", () => {
+    const maps = RUN_TYPE_IDS.flatMap((id) => [...(runType(id).routes ?? []), ...(runType(id).gym ? [runType(id).gym!] : [])]);
+    const icy = maps.filter((m) => m.thinIce);
+    expect(new Set(icy.map((m) => m.name))).toEqual(new Set(['Sootopolis Gym']));
+    for (const m of icy) {
+      expect(m.crackedIce, m.name).toBeTruthy();
+      const tiles = m.thinIce!.flatMap((r, y) => [...r].flatMap((c, x) => (c === 't' ? [{ x, y }] : [])));
+      expect(tiles.length).toBe(64);
+      // Emerald's ice puzzle region (ICE_PUZZLE_L/R/T/B, field_tasks.c), every tile of it walked on as floor.
+      for (const t of tiles) {
+        expect(t.x >= 3 && t.x <= 13 && t.y >= 6 && t.y <= 19, `${t.x},${t.y}`).toBe(true);
+        expect(onThinIce(m, t) && onPath(m, t), `${t.x},${t.y}`).toBe(true);
+      }
+      // Its one way through steps on every tile once (a second step breaks it, in Emerald), each set of stairs reached only
+      // once it's there: as many tiles cracked as it takes, its section's last tile the one before it, waited on.
+      const steps = m.track!;
+      const ice = steps.filter((t) => onThinIce(m, t)).map((t) => `${t.x},${t.y}`);
+      expect(new Set(ice).size).toBe(ice.length);
+      expect(ice.length).toBe(tiles.length);
+      for (const { tiles: at, cracks } of m.iceStairs!) {
+        const i = steps.findIndex((t) => t.x === at[1]!.x && t.y === at[1]!.y);
+        expect(steps.slice(0, i).filter((t) => onThinIce(m, t)).length, `${at[1]!.x},${at[1]!.y}`).toBe(cracks);
+        expect(onThinIce(m, steps[i - 1]!) && steps[i]!.wait, `${at[1]!.x},${at[1]!.y}`).toBeTruthy();
+        for (const t of at) expect(onPath(m, t), `${t.x},${t.y} only once they're there`).toBe(false);
+      }
+      // Every step of it one tile from the last.
+      steps.slice(1).forEach((t, i) => expect(Math.abs(t.x - steps[i]!.x) + Math.abs(t.y - steps[i]!.y)).toBe(1));
+    }
+  });
+
+  it("Emerald's long grass ('L') is only Route 119's very tall grass, and counts as grass", () => {
+    const maps = RUN_TYPE_IDS.flatMap((id) => runType(id).routes ?? []);
+    expect(new Set(maps.filter((m) => m.grass?.some((r) => r.includes('L'))).map((m) => m.name))).toEqual(new Set(['Route 119']));
+    const route = maps.find((m) => m.name === 'Route 119')!;
+    const y = route.grass!.findIndex((r) => r.includes('L'));
+    const tile = { x: route.grass![y]!.indexOf('L'), y };
+    expect([inGrass(route, tile), inLongGrass(route, tile)]).toEqual([true, true]);
+    const tall = { x: route.grass!.find((r) => r.includes('g'))!.indexOf('g'), y: route.grass!.findIndex((r) => r.includes('g')) };
+    expect([inGrass(route, tall), inLongGrass(route, tall)]).toEqual([true, false]);
+    // Its tall grass is the long grass's foot (every tile of it), and no other map has any.
+    const talls = (m: Route) => m.grass!.flatMap((r, y) => [...r].flatMap((c, x) => (c === 'g' ? [{ x, y }] : [])));
+    expect(talls(route).every((t) => onLongGrassEdge(route, t))).toBe(true);
+    expect(maps.filter((m) => m !== route && m.grass && talls(m).some((t) => onLongGrassEdge(m, t)))).toEqual([]);
   });
 
   it("Goldenrod Gym's walks follow its track (the user's): over the bridges and back under them, never cutting across", () => {
@@ -843,11 +891,20 @@ describe('Gen 3 runs', () => {
     }
   });
 
-  it("Route 110 (the Mauville City run) is ridden on a bike, most of its trainers the Cycling Road's Triathletes", () => {
+  it("Route 110 (the Mauville City run) is walked up the sandy road, ridden along the Cycling Road and walked again to Mauville, most of its ridden trainers the Cycling Road's Triathletes", () => {
     const route = runType('mauville').routes![0]!;
     expect(route.travel).toBe('bike');
-    const trainers = Array.from({ length: 60 }, (_, seed) => createRun('mauville', deck, seed + 1).steps.slice(0, 10)).flat().flatMap((s) => s.options.filter((o) => o.kind === 'battle').map((o) => o.trainer!));
-    const share = trainers.filter((t) => t.startsWith('Triathlete ')).length / trainers.length;
+    // On foot from its entrance through the south gatehouse (encounter 1 on the way), riding out of it to the north
+    // gatehouse (encounters 2 to 8), on foot out of that one to its exit (encounters 9 and 10).
+    const foot = [0, 8, 9];
+    expect(travelAt(route, route.entrance!)).toBeUndefined();
+    expect(route.spots.map((s) => travelAt(route, s))).toEqual(route.spots.map((_, i) => (foot.includes(i) ? undefined : 'bike')));
+    expect(travelAt(route, route.exit!)).toBeUndefined();
+    const runs = Array.from({ length: 60 }, (_, seed) => createRun('mauville', deck, seed + 1).steps);
+    const battles = (steps: RunState['steps']) => steps.flatMap((s) => s.options.filter((o) => o.kind === 'battle').map((o) => o.trainer!));
+    expect(battles(runs.flatMap((s) => foot.map((i) => s[i]!))).filter((t) => t.startsWith('Triathlete '))).toEqual([]);
+    const ridden = battles(runs.flatMap((s) => s.slice(1, 8)));
+    const share = ridden.filter((t) => t.startsWith('Triathlete ')).length / ridden.length;
     expect(share).toBeGreaterThan(0.7);
     expect(share).toBeLessThan(0.9);
   });

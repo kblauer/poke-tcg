@@ -80,10 +80,110 @@ LEAGUE = {
 CENTER = ('LavaridgeTown_PokemonCenter_1F', 'MAP_LAVARIDGE_TOWN', 'OBJ_EVENT_GFX_NURSE')
 # Gym puzzles the map data doesn't show solved (in the map's tiles): Mauville's electric barriers across the middle (4,7
 # and 5,7), open as its switches leave them. Fixes from the user, as for Kanto and Johto, go here too: tiles to make
-# walkable, links, Gym Trainer places.
-USER_WALKABLE = {'mauville': [(4, 7), (5, 7)]}
-USER_LINKS = {}
-USER_GYM_TRAINER = {}
+# walkable or unwalkable, links, Gym Trainer places.
+# Lavaridge Gym's warp at 8,9 (a sand geyser at the top of the corridor) to 12,12 in Flannery's room, the user's.
+USER_WALKABLE = {'mauville': [(4, 7), (5, 7)], 'lavaridge': [(8, 9), (12, 12)]}
+# Tiles of a gym's picture drawn over with another of its tiles (from, to): Mauville Gym's open barrier between its
+# pylons, 4-5,6-7, as its plain floor (4,5; the user's).
+USER_TILE_COPIES = {'mauville': [((4, 5), (x, y)) for y in (6, 7) for x in (4, 5)]}
+# Fortree Gym's fences, 13-17 on rows 6, 12 and 17 (the user's: the player goes round by the gym's left side), and
+# 15,21, where its Gym Guide stands (the user's).
+USER_UNWALKABLE = {'dewford': [(5, 24)], 'fortree': [(x, y) for y in (6, 12, 17) for x in range(13, 18)] + [(15, 21)],
+                   # Mossdeep Gym's spin panels 9,8 and 10,8: the player goes from the Gym Trainer along row 9 to 11,9, then up (the user's).
+                   'mossdeep': [(9, 8), (10, 8)],
+                   # Sootopolis Gym's stairs between its ice sections, none until the ice below is all cracked (ICE_STAIRS).
+                   'sootopolis': [(8, 4), (8, 5), (8, 10), (8, 11), (8, 15), (8, 16)]}
+# Tiles whose wall is drawn over the people standing on them (the top of each wall's face runs through the tile, the
+# player walking behind it), cut from the map's picture into its overhead image (wall_overhead): Rustboro Gym's rock
+# walls, the user's tiles; 'walls', every wall's top edge with a wall below (wall_edges: Dewford Gym's, the user's);
+# 'pillars', every tree pillar's top over a walkable tile (pillar_edges: Fortree Gym's, the user's).
+USER_OVERHEAD = {'rustboro': [(4, 14), (6, 14), (7, 14), (2, 12), (3, 12), (2, 10), (3, 10), (4, 8), (6, 8), (7, 8), (0, 5)] + [(x, 5) for x in range(3, 11)], 'dewford': 'walls', 'fortree': 'pillars'}
+# Tiles drawn whole over the people on them (Dewford Gym's statues' tops: the player all but hidden behind them, the user's).
+USER_OVERHEAD_WHOLE = {'dewford': [(4, 23), (7, 23)]}
+USER_LINKS = {'lavaridge': [((8, 9), (12, 12))]}
+# Sootopolis Gym's cracked ice (METATILE_SootopolisGym_Ice_Cracked), what its thin ice turns into once stepped on.
+CRACKED_ICE = 0x20E
+# Sootopolis Gym's stairs (METATILE_SootopolisGym_Stairs), set by its script once each ice section is all cracked: on its
+# tiles, after how many tiles of thin ice cracked (VAR_ICE_STEP_COUNT's 8, 28 and 67, less its 1 to start and the 1 each
+# set of stairs adds), as SootopolisCity_Gym_1F_EventScript_CheckSetStairMetatiles has them.
+ICE_STAIRS_METATILE = 0x207
+ICE_STAIRS = {'sootopolis': [([(8, 15), (8, 16)], 7), ([(8, 10), (8, 11)], 26), ([(8, 4), (8, 5)], 64)]}
+# A gym's one way through (`track`), as trackLine's legs (the user's: Sootopolis Gym's, every tile of each ice section
+# stepped on once, waiting at its last for the stairs to appear: their 40 frames after its crack's 4, and a little more).
+USER_GYM_TRACKS = {'sootopolis': [(8, 25), {'to': [(8, 19), (7, 19), (7, 18), (9, 18), (9, 17), (8, 17)]},
+                                  {'wait': 800, 'to': [(8, 14), (11, 14), (11, 12), (9, 12), (9, 13), (7, 13), (7, 14), (5, 14), (5, 12), (8, 12)]},
+                                  {'wait': 800, 'to': [(8, 9), (3, 9), (3, 6), (4, 6), (4, 7), (5, 7), (5, 8), (6, 8), (6, 6), (7, 6), (7, 7), (8, 7),
+                                                       (8, 8), (9, 8), (9, 9), (10, 9), (10, 7), (11, 7), (11, 8), (12, 8), (12, 9), (13, 9), (13, 6), (8, 6)]},
+                                  {'wait': 800, 'to': [(8, 3)]}]}
+# A gym's links instead of its own warps (the user's: Mossdeep Gym's way through its spin panels, the door's room to
+# 20,24, 23,20 to the Gym Trainer's room at 8,12, 11,3 down to 7,18, and 1,23 up to the leaders' room at 21,10).
+USER_GYM_LINKS = {'mossdeep': [((1, 33), (20, 24)), ((23, 20), (8, 12)), ((11, 3), (7, 18)), ((1, 23), (21, 10))]}
+# The Gym Trainer's spot (the player's) and where they stand (the user's).
+# Where the player comes in for a leader's room in the Gym Challenge, in place of entrance_near's (the user's: Lavaridge
+# Gym's at 12,12, where its sand geyser from 8,9 brings him up into Flannery's room).
+USER_ROOM_ENTRANCE = {'lavaridge': (12, 12)}
+# The Pokémon League rooms' too (walkable: the door the player comes in at; the Elite Four's at 6,13, the Champion's at
+# 6,12, at the foot of his stairs: the user's).
+USER_LEAGUE_ENTRANCE = {**{k: (6, 13) for k in ('sidney', 'phoebe', 'glacia', 'drake')}, 'wallace': (6, 12)}
+# A League room's tiles drawn whole over the people under them (the Elite Four's arch over their door, row 11: the user's),
+# and the top of the arch in the tiles above them, from its outline down (wall_overhead).
+USER_LEAGUE_OVERHEAD = {k: [(x, 11) for x in range(13)] for k in ('sidney', 'phoebe', 'glacia', 'drake')}
+USER_GYM_TRAINER = {'lavaridge': {'spot': (9, 13), 'stand': (8, 13)}, 'petalburg': {'spot': (4, 56), 'stand': (4, 55)}, 'mossdeep': {'spot': (7, 9), 'stand': (6, 9)},
+                    # Sootopolis Gym's off its ice, in the room the player comes in at (its 1F has no trainers: Emerald's are on B1F).
+                    'sootopolis': {'spot': (8, 22), 'stand': (9, 22)}}
+# The routes' fixes from the user, made after the spots are picked (so the rest stay where they were): tiles made
+# walkable and unwalkable, spots moved (by encounter number, from 1), the entrance and exit, links (a building walked
+# through: its doors, fading between them), and a route come into on foot (`onFoot`: each link switches the player
+# between on foot and its travel). Route 110 (the user's): in at 17,99 from Slateport, up the sandy road on foot into
+# the Cycling Road's south gatehouse at 16,88 and out of its other door, 19,88, on the bike; along the Cycling Road into
+# its north gatehouse at 18,16 and out at 15,16 on foot again, out of the route at 15,0.
+USER_ROUTE_WALKABLE = {'mauville': [(21, 78), (16, 88), (19, 88), (16, 55), (9, 57), (27, 24), (18, 16), (15, 16)],
+                       # Jagged Pass's ash path down from Mt. Chimney (12-15,0-3, 13-14,4) and its wooden steps (13-14,5);
+                       # its dirt path out to Lavaridge (14-15,40-43).
+                       'lavaridge': [(x, y) for y in range(4) for x in range(12, 16)] + [(13, 4), (14, 4), (13, 5), (14, 5)] + [(x, y) for y in range(40, 44) for x in (14, 15)],
+                       # Route 102's tiles walls before (the user's): 18,11, 19,4 (encounter 8), 25,15 and 37,4.
+                       'petalburg': [(18, 11), (19, 4), (25, 15), (37, 4)],
+                       # Route 119's bridge over the river (its west end 13,33-34 and 17,33) and 25,32, 28,25.
+                       'fortree': [(13, 33), (13, 34), (17, 33), (25, 32), (28, 25)],
+                       # Sootopolis City's doors in (31,16) and out (the gym's, 31,32), and its patches of bare earth in the
+                       # grass (20,36 the foot of the steps down to the lake) and 31,18, the grass below the door's step: the user's.
+                       'sootopolis': [(31, 16), (31, 32), (31, 18), (29, 33), (31, 33), (20, 36), (19, 37), (17, 40), (14, 42), (9, 43), (17, 44)]}
+USER_ROUTE_ENTRANCE = {'mauville': (17, 99), 'lavaridge': (14, 0), 'petalburg': (49, 10), 'mossdeep': (0, 24), 'sootopolis': (31, 16)}
+USER_ROUTE_EXIT = {'mauville': (15, 0), 'lavaridge': (15, 43), 'petalburg': (0, 8), 'fortree': (38, 8), 'mossdeep': (79, 53), 'sootopolis': (31, 32)}
+USER_ROUTE_LINKS = {'mauville': [((16, 88), (19, 88)), ((18, 16), (15, 16))]}
+USER_ROUTE_ON_FOOT = {'mauville'}
+# Routes whose links are buildings' front doors (`doors`): the player fades out facing up, back in facing down.
+USER_ROUTE_DOORS = {'mauville'}
+# Treetops made unwalkable (the user's: a tree's top over a tile the map lets the player onto): every walkable tile with
+# a wall (or the map's edge) below it that shares TREETOP_SAME of its pixels with the route's treetop at that tile.
+USER_ROUTE_TREETOPS = {'mauville': (8, 93)}
+# Treetops drawn over the player standing on them instead (the user's: Route 119's), found as `treetops` finds them and
+# copied whole into the route's overhead image (<image>_overhead.png).
+USER_ROUTE_TREETOP_OVERHEAD = {'fortree': (17, 121)}
+# The treetops' own colours (Route 119's trees): only these are kept in the overhead, the ground round each tree's top
+# (and the riverbank's) see-through, so the people behind it are hidden by the tree's outline, not the tile's square (the user's).
+TREETOP_COLOURS = {(0x39, 0x8b, 0x31), (0x39, 0x52, 0x00), (0x83, 0xc5, 0x62), (0xb4, 0xff, 0x83)}
+# Spots whose figures go another way than the map's flow (by encounter number, from 1; the Route's `spotFlows`): the
+# third figure, past the two beside the player, in line ahead the way given (Route 110's encounter 6: south; its 8th's
+# right, the two beside him above and below; the user's).
+USER_SPOT_FLOWS = {'mauville': {6: 'down', 8: 'right'}, 'lavaridge': {2: 'up'},
+                   # Route 102 flows left: its encounters 2, 3 and 6 with their figures either side (the user's), the third above.
+                   'petalburg': {2: 'up', 3: 'up', 6: 'up'},
+                   # Route 124 flows right: its encounters 2, 3, 5, 6 and 8 with their figures either side (the user's), the third above.
+                   'mossdeep': {2: 'up', 3: 'up', 5: 'up', 6: 'up', 8: 'up'},
+                   # Sootopolis City flows down: its encounters 1, 4, 8 and 9 with their figures above and below (the user's), the third right.
+                   'sootopolis': {1: 'right', 4: 'right', 8: 'right', 9: 'right'}}
+TREETOP_SAME = 0.75
+# Ledges jumped going down (the user's: Jagged Pass's rock ridges between two levels, 17-22,33 among them): every wall
+# with walkable tiles above and below drawn the same as one of these tiles (`ledges`), made a ledge ('v').
+USER_ROUTE_LEDGES = {'lavaridge': [(x, 33) for x in range(17, 23)]}
+USER_ROUTE_UNWALKABLE = {'mauville': [(x, 79) for x in range(14, 26)] + [(9, 32)] + [(x, 32) for x in range(14, 31)] + [(25, 29), (25, 15), (29, 15)]}
+USER_SPOTS = {'mauville': {1: (12, 91), 2: (28, 85), 3: (17, 78), 4: (18, 55), 5: (11, 53), 6: (12, 31), 7: (27, 30), 8: (28, 8), 9: (6, 14), 10: (12, 8)},
+              'lavaridge': {1: (14, 3), 2: (18, 8), 3: (10, 20), 4: (14, 21), 5: (20, 20), 6: (22, 24), 7: (20, 32), 8: (16, 34), 9: (9, 33), 10: (14, 36)},
+              'petalburg': {1: (44, 9), 2: (37, 5), 3: (38, 13), 4: (31, 15), 5: (25, 17), 6: (19, 12), 7: (19, 4), 8: (27, 4), 9: (10, 4), 10: (3, 8)},
+              'fortree': {1: (24, 124), 2: (27, 112), 3: (30, 102), 4: (35, 85), 5: (6, 78), 6: (14, 61), 7: (17, 46), 8: (8, 36), 9: (27, 33), 10: (31, 11)},
+              'mossdeep': {1: (7, 26), 2: (21, 26), 3: (18, 37), 4: (30, 37), 5: (37, 46), 6: (45, 41), 7: (60, 42), 8: (58, 53), 9: (67, 57), 10: (71, 51)},
+              'sootopolis': {1: (28, 21), 2: (25, 16), 3: (30, 6), 4: (23, 7), 5: (15, 9), 6: (17, 19), 7: (20, 33), 8: (15, 42), 9: (25, 43), 10: (28, 36)}}
 
 
 # --- Walking ---
@@ -224,28 +324,68 @@ def pts(ps):
     return '\n'.join(f'    {{ x: {x}, y: {y} }},' for x, y in ps)
 
 
+def pts_inline(ps):
+    return ', '.join(f'{{ x: {x}, y: {y} }}' for x, y in ps)
+
+
 def rows_ts(rows):
     return '\n'.join(f"    '{r}'," for r in rows)
 
 
-def route_ts(cfg, ent, spots, rows, grass):
+def treetops(img, rows, ref):
+    """The walkable tiles that are a tree's top (USER_ROUTE_TREETOPS): a wall or the map's edge below, and at least
+    TREETOP_SAME of their pixels the same as the treetop at `ref` (its ground around it may differ)."""
+    src = img.convert('RGB')
+    tile = lambda x, y: src.crop((x * TILE, y * TILE, x * TILE + TILE, y * TILE + TILE)).tobytes()
+    top = tile(*ref)
+    h, w = len(rows), len(rows[0])
+    out = []
+    for y in range(h):
+        for x in range(w):
+            if rows[y][x] != '.' or (y + 1 < h and rows[y + 1][x] == '.'):
+                continue
+            t = tile(x, y)
+            if sum(top[i:i + 3] == t[i:i + 3] for i in range(0, len(t), 3)) / (TILE * TILE) >= TREETOP_SAME:
+                out.append((x, y))
+    return out
+
+
+def ledges(img, rows, refs):
+    """The walls that are ledges (USER_ROUTE_LEDGES): walkable tiles above and below them, and drawn as one of `refs`."""
+    src = img.convert('RGB')
+    tile = lambda x, y: src.crop((x * TILE, y * TILE, x * TILE + TILE, y * TILE + TILE)).tobytes()
+    looks = {tile(x, y) for x, y in refs}
+    h, w = len(rows), len(rows[0])
+    return [(x, y) for y in range(1, h - 1) for x in range(w) if rows[y][x] == '#' and rows[y - 1][x] == '.' and rows[y + 1][x] == '.' and tile(x, y) in looks]
+
+
+def route_ts(cfg, ent, spots, rows, grass, links=(), on_foot=False, spot_flows=None, exit=None, doors=False, overhead=None):
     surf = cfg.get('surf')
     extra = "\n  travel: 'surf',\n  trainers: { names: SWIMMERS, share: 1 }," if surf else ''
     if cfg.get('land_spots'):
         extra += '\n  landSpots: true,'
     if cfg.get('bike'):
         extra = "\n  travel: 'bike',\n  trainers: { names: TRIATHLETES, share: 0.8 },"
+    if doors:
+        extra += '\n  doors: true,'
+    if on_foot:
+        extra += '\n  onFoot: true,'
+    if links:
+        extra += '\n  links: [' + ', '.join(f'[{{ x: {a[0]}, y: {a[1]} }}, {{ x: {b[0]}, y: {b[1]} }}]' for a, b in links) + '],'
+    if spot_flows:
+        extra += '\n  spotFlows: { ' + ', '.join(f"{n - 1}: '{f}'" for n, f in sorted(spot_flows.items())) + ' },'
     grass_ts = ''
     if any(any(r) for r in grass):
-        grass_ts = '\n  grass: [\n' + '\n'.join("    '" + ''.join('g' if g else '.' for g in r) + "'," for r in grass) + '\n  ],'
+        # Long grass 'L' (emerald_map's 2: Route 119's), tall grass 'g'.
+        grass_ts = '\n  grass: [\n' + '\n'.join("    '" + ''.join('L' if g == 2 else 'g' if g else '.' for g in r) + "'," for r in grass) + '\n  ],'
     return f"""
 /** {cfg['title']}: {cfg['what']}. Spots along the walk, picked by tools/routes/emerald/hoenn_maps.py. */
 export const {cfg['const']}: Route = {{
   flow: '{cfg['flow']}',
   sprites: 'rse',
-  entrance: {{ x: {ent[0]}, y: {ent[1]} }},{extra}
+  entrance: {{ x: {ent[0]}, y: {ent[1]} }},{f'{chr(10)}  exit: {{ x: {exit[0]}, y: {exit[1]} }},' if exit else ''}{extra}
   name: '{cfg['title']}',
-  image: '/routes/{cfg['image']}',
+  image: '/routes/{cfg['image']}',{f"{chr(10)}  overhead: '/routes/{overhead}'," if overhead else ''}
   width: {len(rows[0]) * TILE},
   height: {len(rows) * TILE},
   spots: [
@@ -348,8 +488,11 @@ def place(repo, city, rows, info, cfg, names):
                 links.append((a, b))
     for t in USER_WALKABLE.get(city, []):
         rows[t[1]][t[0]] = '.'
+    for t in USER_UNWALKABLE.get(city, []):
+        rows[t[1]][t[0]] = '#'
     rows = [''.join(r) for r in rows]
     links += USER_LINKS.get(city, [])
+    links = USER_GYM_LINKS.get(city, links)
     objs = info['events']['object_events']
     gfx = leader_gfx if isinstance(leader_gfx, tuple) else (leader_gfx,)
     leader = next(o for o in objs if o['graphics_id'] == gfx[0])
@@ -382,6 +525,7 @@ def place(repo, city, rows, info, cfg, names):
     user = USER_GYM_TRAINER.get(city)
     if user:
         tspot, tstand = user['spot'], user['stand']
+        tname = "no one (the user's place)"
     guide = next(((o['x'], o['y']) for o in objs if 'GymGuide' in o.get('script', '')), None)
     guide_sprite = next((sprite_name(o['graphics_id']) for o in objs if 'GymGuide' in o.get('script', '')), None)
     gaps = []
@@ -405,8 +549,73 @@ def entrance_near(rows, spot, links=()):
     return spot
 
 
-def gym_ts(const, title, doc, image, rows, door, spots, stands, npcs=(), links=()):
+# The walls' dark outline (Rustboro Gym's and Dewford Gym's), where a wall's face begins down a tile.
+OUTLINES = {(65, 74, 106), (65, 65, 106)}
+# How far down a tile the outline is looked for (a wall's top edge is below it; a wall's side above it is left out).
+OUTLINE_FROM = 4
+
+
+def copy_tiles(img, copies):
+    """Draws tiles of a map's picture over others (USER_TILE_COPIES: from, to), in place."""
+    for (fx, fy), (tx, ty) in copies:
+        img.paste(img.crop((fx * TILE, fy * TILE, fx * TILE + TILE, fy * TILE + TILE)), (tx * TILE, ty * TILE))
+
+
+def wall_edges(img, rows):
+    """The walkable tiles with a wall's top edge across them and a wall below: an outline run of 6 or more pixels in a row,
+    OUTLINE_FROM down or further."""
+    src = img.convert('RGB')
+    out = []
+    for ty in range(len(rows) - 1):
+        for tx in range(len(rows[0])):
+            if rows[ty][tx] != '.' or rows[ty + 1][tx] == '.':
+                continue
+            if any(sum(src.getpixel((tx * TILE + c, ty * TILE + r)) in OUTLINES for c in range(TILE)) >= 6 for r in range(OUTLINE_FROM, TILE)):
+                out.append((tx, ty))
+    return out
+
+
+def pillar_edges(img, rows):
+    """The walkable tiles with a tree pillar's top across them (Fortree Gym's, the user's): a wall below and its outline
+    anywhere in the tile (the taller pillars' tops reach higher than OUTLINE_FROM)."""
+    src = img.convert('RGB')
+    return [(tx, ty) for ty in range(len(rows) - 1) for tx in range(len(rows[0])) if rows[ty][tx] == '.' and rows[ty + 1][tx] != '.'
+            and any(src.getpixel((tx * TILE + c, ty * TILE + r)) in OUTLINES for c in range(TILE) for r in range(TILE))]
+
+
+def only_colours(img, colours):
+    """An overhead image with every pixel not of `colours` made see-through (TREETOP_COLOURS: the trees alone)."""
+    out = img.convert('RGBA')
+    out.putdata([p if p[3] and p[:3] in colours else (0, 0, 0, 0) for p in out.getdata()])
+    return out
+
+
+def wall_overhead(img, tiles, whole=(), outline_from=OUTLINE_FROM):
+    """The map's overhead image (see-through but for the walls of `tiles` and the `whole` tiles): down each column of each
+    tile, from the wall's outline to the tile's foot, so a person standing there is behind the wall's top."""
+    src = img.convert('RGBA')
+    top = Image.new('RGBA', src.size, (0, 0, 0, 0))
+    for tx, ty in whole:
+        top.paste(src.crop((tx * TILE, ty * TILE, tx * TILE + TILE, ty * TILE + TILE)), (tx * TILE, ty * TILE))
+    for tx, ty in tiles:
+        for x in range(tx * TILE, tx * TILE + TILE):
+            start = next((y for y in range(ty * TILE + outline_from, ty * TILE + TILE) if src.getpixel((x, y))[:3] in OUTLINES), None)
+            for y in range(start if start is not None else ty * TILE + TILE, ty * TILE + TILE):
+                top.putpixel((x, y), src.getpixel((x, y)))
+    return top
+
+
+def gym_ts(const, title, doc, image, rows, door, spots, stands, npcs=(), links=(), overhead=None, thin_ice=None, cracked=None, track=None, stairs=None, stairs_image=None):
     links_ = '\n  links: [' + ', '.join(f'[{{ x: {a[0]}, y: {a[1]} }}, {{ x: {b[0]}, y: {b[1]} }}]' for a, b in links) + '],' if links else ''
+    overhead_ = f"\n  overhead: '/routes/{overhead}'," if overhead else ''
+    cracked_ = f"\n  crackedIce: '/routes/{cracked}'," if cracked else ''
+    thin_ = '\n  thinIce: [\n' + rows_ts(thin_ice) + '\n  ],' if thin_ice else ''
+    if stairs:
+        cracked_ += f"\n  iceStairs: [{', '.join(f'{{ tiles: [{pts_inline(t)}], cracks: {n} }}' for t, n in stairs)}],\n  iceStairsImage: '/routes/{stairs_image}',"
+    track_ = ''
+    if track:
+        legs = ', '.join('{ ' + (f"wait: {leg['wait']}, " if leg.get('wait') else '') + f"to: [{', '.join(f'[{x}, {y}]' for x, y in leg['to'])}] }}" for leg in track[1:])
+        track_ = f'\n  track: trackLine([{track[0][0]}, {track[0][1]}], {legs}),'
     name = f'"{title}"' if "'" in title else f"'{title}'"
     npcs_ = ''
     if npcs:
@@ -417,10 +626,10 @@ export const {const}: Route = {{
   flow: 'up',
   sprites: 'rse',
   name: {name},
-  image: '/routes/{image}',
+  image: '/routes/{image}',{overhead_}{cracked_}
   width: {len(rows[0]) * TILE},
   height: {len(rows) * TILE},
-  entrance: {{ x: {door[0]}, y: {door[1]} }},{links_}
+  entrance: {{ x: {door[0]}, y: {door[1]} }},{links_}{track_}
   spots: [
 {pts(spots)}
   ],
@@ -429,7 +638,7 @@ export const {const}: Route = {{
   ],{npcs_}
   walkable: [
 {rows_ts(rows)}
-  ],
+  ],{thin_}
 }};
 """
 
@@ -444,7 +653,7 @@ GYMS_HEAD = """// The Hoenn gyms' interiors, from Pokémon Emerald (the pret/pok
 // League's, each boss in their place and the player coming in 5 tiles from them, and Lavaridge Town's Pokémon Center; and
 // each boss's map for those runs (HOENN_BOSS_ROOMS). Written by tools/routes/emerald/hoenn_maps.py.
 import type { HoennBossId } from './bosses.js';
-import { leaderRoom, type Route } from './routes.js';
+import { leaderRoom, trackLine, type Route } from './routes.js';
 """
 
 
@@ -465,9 +674,30 @@ def main():
         img, info = emerald_map.render(repo, cfg['map'])
         rows = route_rows(info, cfg)
         ent, spots = pick(key, rows, info, cfg)
+        tops = treetops(img, rows, USER_ROUTE_TREETOPS[key]) if key in USER_ROUTE_TREETOPS else []
+        overhead = None
+        if key in USER_ROUTE_TREETOP_OVERHEAD:
+            overhead = cfg['image'].replace('.png', '_overhead.png')
+            only_colours(wall_overhead(img, [], treetops(img, rows, USER_ROUTE_TREETOP_OVERHEAD[key])), TREETOP_COLOURS).save(os.path.join(PUBLIC, overhead))
+        rows = [list(r) for r in rows]
+        for x, y in tops:
+            rows[y][x] = '#'
+        for x, y in USER_ROUTE_WALKABLE.get(key, []):
+            rows[y][x] = '.'
+        for x, y in USER_ROUTE_UNWALKABLE.get(key, []):
+            rows[y][x] = '#'
+        rows = [''.join(r) for r in rows]
+        if key in USER_ROUTE_LEDGES:
+            rows = [list(r) for r in rows]
+            for x, y in ledges(img, [''.join(r) for r in rows], USER_ROUTE_LEDGES[key]):
+                rows[y][x] = 'v'
+            rows = [''.join(r) for r in rows]
+        for n, t in USER_SPOTS.get(key, {}).items():
+            spots[n - 1] = t
+        ent = USER_ROUTE_ENTRANCE.get(key, ent)
         img.save(os.path.join(PUBLIC, cfg['image']))
         preview(img, [('IN', ent, (0, 255, 0))] + [(str(i + 1), s, (255, 0, 0)) for i, s in enumerate(spots)], os.path.join(work, key + '-route.png'))
-        out.append(route_ts(cfg, ent, spots, rows, info['grass']))
+        out.append(route_ts(cfg, ent, spots, rows, info['grass'], USER_ROUTE_LINKS.get(key, []), key in USER_ROUTE_ON_FOOT, USER_SPOT_FLOWS.get(key, {}), USER_ROUTE_EXIT.get(key), key in USER_ROUTE_DOORS, overhead))
         print('route', key, cfg['map'], 'entrance', ent, 'spots', spots)
     open(ROUTES_OUT, 'w', encoding='utf-8', newline='\n').write(ROUTES_HEAD + ''.join(out))
 
@@ -479,7 +709,17 @@ def main():
         rows, door, links, spots, stands, (guide, guide_sprite), partner, gaps, tname = place(repo, city, info['rows'], info, cfg, names)
         problems += gaps
         image = f'{city}_gym.png'
+        copy_tiles(img, USER_TILE_COPIES.get(city, []))
         img.save(os.path.join(PUBLIC, image))
+        overhead = None
+        if city in USER_OVERHEAD or city in USER_OVERHEAD_WHOLE:
+            overhead = f'{city}_gym_overhead.png'
+            tiles = USER_OVERHEAD.get(city, [])
+            if tiles == 'pillars':
+                top = wall_overhead(img, pillar_edges(img, rows), USER_OVERHEAD_WHOLE.get(city, []), outline_from=0)
+            else:
+                top = wall_overhead(img, wall_edges(img, rows) if tiles == 'walls' else tiles, USER_OVERHEAD_WHOLE.get(city, []))
+            top.save(os.path.join(PUBLIC, overhead))
         npcs = []
         if guide:
             npcs.append((guide_sprite, guide, 'down'))
@@ -491,8 +731,17 @@ def main():
             doc += f', Liza beside Tate ({partner[0]},{partner[1]})'
         if links:
             doc += ', its rooms joined through their doors (' + '; '.join(f'{a[0]},{a[1]} to {b[0]},{b[1]}' for a, b in links) + ')'
-        out.append(gym_ts(const, title, doc + '.', image, rows, door, spots, stands, npcs, links))
-        entrances[city] = (entrance_near(rows, spots[1], links), links)
+        # Thin ice (Sootopolis Gym's): its tiles, and the cracked ice they turn into once stepped on (the user's).
+        thin_ice, cracked = None, None
+        if any('t' in r for r in info['thin_ice']):
+            thin_ice, cracked = info['thin_ice'], f'{city}_gym_cracked_ice.png'
+            emerald_map.metatile_image(repo, leader_map, CRACKED_ICE).save(os.path.join(PUBLIC, cracked))
+        stairs, stairs_image = ICE_STAIRS.get(city), None
+        if stairs:
+            stairs_image = f'{city}_gym_stairs.png'
+            emerald_map.metatile_image(repo, leader_map, ICE_STAIRS_METATILE).save(os.path.join(PUBLIC, stairs_image))
+        out.append(gym_ts(const, title, doc + '.', image, rows, door, spots, stands, npcs, links, overhead, thin_ice, cracked, USER_GYM_TRACKS.get(city), stairs, stairs_image))
+        entrances[city] = (USER_ROOM_ENTRANCE.get(city) or entrance_near(rows, spots[1], links), links)
         trainers = gym_trainers(repo, [leader_map] + others, names, [leader_map] + others)
         print('gym', city, 'door', door, 'spots', spots, 'stands', stands, 'trainer', tname, 'links', links)
         print('  trainers:', json.dumps([t[0] for t in trainers]), 'sprites:', json.dumps({t[0]: t[1] for t in trainers}))
@@ -506,6 +755,9 @@ def main():
         if key == 'center':
             door = next((w['x'], w['y']) for w in info['events']['warp_events'] if w['dest_map'] == CENTER[1])
             rows[door[1]][door[0]] = '.'
+        door = USER_LEAGUE_ENTRANCE.get(key, door)
+        if door:
+            rows[door[1]][door[0]] = '.'
         rows = [''.join(r) for r in rows]
         who = next(o for o in info['events']['object_events'] if o['graphics_id'] == gfx)
         stand = (who['x'], who['y'])
@@ -513,17 +765,22 @@ def main():
         ent = door or entrance_near(rows, spot)
         image = f'rse_evergrande_{key}s_room.png' if key != 'center' else 'rse_lavaridge_pokemoncenter_1f.png'
         img.save(os.path.join(PUBLIC, image))
+        overhead = None
+        if key in USER_LEAGUE_OVERHEAD:
+            overhead = image.replace('.png', '_overhead.png')
+            whole = USER_LEAGUE_OVERHEAD[key]
+            wall_overhead(img, [(x, y - 1) for x, y in whole], whole).save(os.path.join(PUBLIC, overhead))
         if key == 'center':
             doc = f"A Pokémon Center's ground floor (Lavaridge Town's, Emerald's), for the Pokémon Center in the middle of the Hoenn Gym Challenge: the player comes in at the door ({ent[0]},{ent[1]}) and walks up to the counter ({spot[0]},{spot[1]}), the nurse behind it ({stand[0]},{stand[1]})."
             const_ = 'HOENN_POKEMON_CENTER'
         else:
             who_name = title.split("'")[0] if key != 'wallace' else 'Wallace'
-            doc = f"{title} at the Pokémon League (Emerald's), for the Hoenn Champion run: {who_name} in their place ({stand[0]},{stand[1]}), the player coming in 5 tiles from them ({ent[0]},{ent[1]})."
+            doc = f"{title} at the Pokémon League (Emerald's), for the Hoenn Champion run: {who_name} in their place ({stand[0]},{stand[1]}), the player coming in " + (f"at its door ({ent[0]},{ent[1]})" if key in USER_LEAGUE_ENTRANCE else f"5 tiles from them ({ent[0]},{ent[1]})") + (', its arch over him as he comes in (its overhead)' if key in USER_LEAGUE_OVERHEAD else '') + '.'
             const_ = 'HOENN_' + const
             rooms[boss] = const_
         if ent not in bfs(rows, spot) and key != 'center':
             problems.append((key, 'entrance', ent, 'spot', spot))
-        out.append(gym_ts(const_, title, doc, image, rows, ent, [spot], [stand]))
+        out.append(gym_ts(const_, title, doc, image, rows, ent, [spot], [stand], overhead=overhead))
         print(key, 'entrance', ent, 'spot', spot, 'stand', stand)
 
     lines = [f"  {LEADERS[c] if '-' not in LEADERS[c] else repr(LEADERS[c])}: leaderRoom({GYMS[c][3]}, {{ x: {e[0]}, y: {e[1]} }})," for c, (e, _) in entrances.items()]

@@ -44,12 +44,16 @@ export function useIdleActions() {
   const act = useMutation(trpc.idle.act.mutationOptions({ onSuccess: ({ run }) => setRun(run) }));
   const settings = useMutation(trpc.idle.settings.mutationOptions({ onSuccess: (s) => queryClient.setQueryData(key, (old) => old && { ...old, settings: s }) }));
   const warp = useMutation(trpc.idle.debugWarp.mutationOptions({ onSuccess: setRun }));
+  const money = useMutation(trpc.idle.debugMoney.mutationOptions({ onSuccess: setRun }));
+  const sureCatch = useMutation(trpc.idle.debugCatch.mutationOptions({ onSuccess: setRun }));
   return {
     busy: start.isPending || act.isPending,
     start: (species: number, shiny = false) => start.mutateAsync({ species, shiny }),
     act: (run: ClientIdleRun, action: IdleAction) => act.mutateAsync({ runId: run.id, expectedVersion: run.version, action }),
     settings: (s: Partial<IdleSettings>) => settings.mutateAsync(s),
     warp: (run: ClientIdleRun, area: string) => warp.mutateAsync({ runId: run.id, area }),
+    money: (run: ClientIdleRun) => money.mutateAsync({ runId: run.id }),
+    sureCatch: (run: ClientIdleRun, on: boolean) => sureCatch.mutateAsync({ runId: run.id, on }),
     // Changing a run invalidates any segment in flight: refetch the overview so its version is the newest.
     refresh: () => queryClient.invalidateQueries({ queryKey: key }),
   };
@@ -143,7 +147,8 @@ export function useTownHere(run: ClientIdleRun | null | undefined) {
   const here = useMutation(trpc.idle.here.mutationOptions());
   const visible = useTabVisible();
   const runId = run?.id;
-  const inTown = run?.status === 'ACTIVE' && run.view.phase === 'town';
+  // A catch with the party full waiting for the player's choice too (the same: it waits while they're here).
+  const inTown = run?.status === 'ACTIVE' && (run.view.phase === 'town' || !!run.view.choosing);
   const send = useRef(here.mutate);
   send.current = here.mutate;
   useEffect(() => {
@@ -169,6 +174,8 @@ function noticeOf(e: SegmentEvent, name: (id: number) => string): string | null 
       return `Bought ${e.count} ${ITEMS[e.item]?.name ?? e.item}${e.count === 1 ? '' : 's'} for ₱${e.cost.toLocaleString()}.`;
     case 'caught':
       return (e.shiny ? 'A shiny! ' : '') + (e.kept ? (e.replaced ? `${name(e.species)} joined the party in place of ${name(e.replaced)}.` : `${name(e.species)} joined the party!`) : `${name(e.species)} was registered in the Pokédex and released.`);
+    case 'full':
+      return `${e.shiny ? 'A shiny! ' : ''}${name(e.species)} was caught, but the party is full!`;
     case 'badge':
       return `Won the ${e.badge} Badge!`;
     case 'whiteout':
@@ -212,7 +219,7 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
   const runId = run?.id ?? null;
   // Walking or grinding, stopped or not: the Stop mode (the user's) lets the segment playing finish, so it doesn't
   // restart the playback; the loop ends after it instead (`parked`), and going on again restarts it.
-  const walking = run?.status === 'ACTIVE' && playing({ phase: run.view.phase });
+  const walking = run?.status === 'ACTIVE' && playing({ phase: run.view.phase, choosing: run.view.choosing });
   const parked = useRef(false);
   const halted = !!run?.view.stopped;
   useEffect(() => {
@@ -231,7 +238,8 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
       else update({ place: placeOf(run.view), fishSpot: fishSpotOf(run.view), fishing: null, battle: null, cue: null, spotted: null });
       // Opened in a town (the user's: no prompt waits on the player): time away past its wait is caught up too, and the
       // run, walking again, plays on (this effect again, for the rest).
-      if (run?.status !== 'ACTIVE' || run.view.phase !== 'town' || !visible) return;
+      // (A catch waiting for the player's choice too, taken by the settings after its wait.)
+      if (run?.status !== 'ACTIVE' || (run.view.phase !== 'town' && !run.view.choosing) || !visible) return;
       let gone = false;
       catchUp
         .mutateAsync({ runId: run.id, expectedVersion: run.version })

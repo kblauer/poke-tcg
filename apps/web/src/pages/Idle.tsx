@@ -136,7 +136,18 @@ export function IdlePage() {
   const overlays = () =>
     active && v ? (
       <>
-        <PartyOverlay party={v.party} bag={v.bag} busy={actions.busy} pending={v.pendingChanges} open={partyOpen} onToggle={setPartyOpen} onAct={act} />
+        <PartyOverlay
+          party={v.party}
+          bag={v.bag}
+          busy={actions.busy}
+          pending={v.pendingChanges}
+          open={partyOpen}
+          onToggle={setPartyOpen}
+          onAct={act}
+          // A catch with the party full (the user's): which party Pokémon it replaces, or Release, in the party itself.
+          replacing={v.choosing ?? null}
+          onReplace={(uid) => void act({ type: 'CAUGHT_CHOICE', ...(uid && { replace: uid }) })}
+        />
         <TownMap view={v} busy={actions.busy} gender={gender} onAct={act} />
       </>
     ) : null;
@@ -254,6 +265,7 @@ export function IdlePage() {
           )}
           <Badges badges={v.badges} />
           {debug && <DebugWarp run={active} onWarp={(id) => void actions.warp(active, id).catch(failed)} />}
+          {debug && <DebugCheats run={active} onMoney={() => void actions.money(active).catch(failed)} onCatch={(on) => void actions.sureCatch(active, on).catch(failed)} />}
         </section>
       )}
       <Toasts toasts={toasts.toasts} />
@@ -281,6 +293,21 @@ function TickMeter({ turn, tickAt }: { turn: number | null; tickAt: number }) {
 function Badges({ badges }: { badges: string[] }) {
   if (!badges.length) return null;
   return <p className="text-xs text-slate-400">Badges: {badges.join(', ')}</p>;
+}
+
+/** Debug (debug builds only, refused in production): ₱1,000,000 more for the run, and every ball thrown catching. */
+function DebugCheats({ run, onMoney, onCatch }: { run: ClientIdleRun; onMoney: () => void; onCatch: (on: boolean) => void }) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+      <button className={BUTTON} onClick={onMoney}>
+        Debug: +₱1,000,000
+      </button>
+      <label className="flex items-center gap-1.5">
+        <input type="checkbox" checked={!!run.view.debugCatch} onChange={(e) => onCatch(e.target.checked)} />
+        Debug: every ball catches
+      </label>
+    </div>
+  );
 }
 
 /** Debug (debug builds only, refused in production): warps the run to an area's start. */

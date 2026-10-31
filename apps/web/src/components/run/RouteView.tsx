@@ -3,9 +3,10 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
-import { flowAt, inGrass, isBattleKind, onPath, onWater, routePath, type Route, type RouteSpot } from '@poke-tcg/campaign';
+import { flowAt, inGrass, inLongGrass, isBattleKind, onLongGrassEdge, onPath, onWater, routePath, travelAt, type Route, type RouteSpot } from '@poke-tcg/campaign';
 import type { PlayerGender } from '@poke-tcg/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCrackedIce } from '../../hooks/useCrackedIce';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { mapScale, usePan, ZOOM } from '../../hooks/usePan';
 import type { RunViewData } from '../../hooks/useRun';
@@ -158,7 +159,8 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
   const anyWalking = walker.walking || !!approach?.walking;
   // The player bobbing on the spot while still (Ethan surfing): the low half of the bob every other BOB_MS.
   const [bobbing, setBobbing] = useState(false);
-  const playerName = playerSprite(setOf(shown), shown.travel, onWater(shown, walker.tile), gender);
+  // On foot or riding by where he is (travelAt: Route 110's sandy road walked, the Cycling Road ridden).
+  const playerName = playerSprite(setOf(shown), travelAt(shown, walker.tile), onWater(shown, walker.tile), gender);
   const stillBob = bobs(playerName) && !walker.walking;
   useEffect(() => {
     if (!stillBob) return;
@@ -167,15 +169,21 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
   }, [stillBob]);
   // Wading through tall grass, the player's legs slow with his steps (GRASS_PACE).
   const wading = walker.walking && inGrass(shown, walker.tile);
+  // Sootopolis Gym's thin ice, cracked where the player has stepped (its `crackedIce` drawn over those tiles), and its stairs once they're there.
+  const { cracked, stairs } = useCrackedIce(shown, walker.tile, walker.walking ? ms.step / stepPace(shown, walker.tile) : 0);
   // Tall grass on the Gen 3 maps is the games' own, drawn over the feet of those in it (TallGrass, GrassTufts: FireRed's,
   // Emerald's on the Hoenn maps); on HGSS's, it hides their legs (OverworldSprite's `grass`).
   const sprites = setOf(shown);
   const masked = (tile: RouteSpot) => sprites === 'hgss' && inGrass(shown, tile);
+  // Emerald's long grass (Route 119's very tall grass) hides the whole bottom tile of those in it, under its own tufts.
+  const long = (tile: RouteSpot) => inLongGrass(shown, tile);
+  // Its tufts: long grass's, cut off above the band of ground at its foot ('edge', onLongGrassEdge).
+  const tuftOf = (tile: RouteSpot) => long(tile) || (onLongGrassEdge(shown, tile) && 'edge');
   useEffect(() => {
     if (!anyWalking) return;
-    const timer = window.setInterval(() => setTick((t) => t + 1), ms.frame / (pace(shown) * (wading ? GRASS_PACE : 1)));
+    const timer = window.setInterval(() => setTick((t) => t + 1), ms.frame / (pace(shown, walker.tile) * (wading ? GRASS_PACE : 1)));
     return () => window.clearInterval(timer);
-  }, [anyWalking, shown, wading]);
+  }, [anyWalking, shown, wading, walker.tile]);
 
   // A non-battle encounter chosen: its NPC (an item ball aside) walks from where it stood to the free tile beside the
   // player it reaches soonest, then faces him; from the moment it's clicked (`spotted`), or once the encounter is under way
@@ -248,7 +256,8 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
   // The trainer who just spotted the player (the battle chosen, or the Ace Trainer accepted): the step's option while the
   // battle is being set up, then the encounter's figure once it's in.
   const spottedFigure = spotted ? mine.find((p) => !p.figure.bubble && (view.phase === 'encounter' ? true : p.figure.option === spotted.option)) : undefined;
-  const redFace: Facing = walker.walking
+  // Walking, or passing through a building's doors (fading out and back in), the way the walk has him.
+  const redFace: Facing = walker.walking || walker.through
     ? walker.face
     : spottedFigure
       ? facing(walker.tile, spottedFigure.tile)
@@ -281,8 +290,10 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
             style={{ width: shown.width, height: shown.height, transform: mapScale }}
           >
             <img src={shown.image} alt="" draggable={false} className="h-full w-full select-none [image-rendering:pixelated]" />
+            {shown.crackedIce && cracked.map((t) => <img key={key(t)} src={shown.crackedIce} alt="" draggable={false} className="pointer-events-none absolute select-none [image-rendering:pixelated]" style={{ left: t.x * 16, top: t.y * 16, width: 16, height: 16 }} />)}
+            {shown.iceStairsImage && stairs.map((t) => <img key={`stairs${key(t)}`} src={shown.iceStairsImage} alt="" draggable={false} className="pointer-events-none absolute select-none [image-rendering:pixelated]" style={{ left: t.x * 16, top: t.y * 16, width: 16, height: 16 }} />)}
             {/* The people always there (a gym's guide). */}
-            {shown.npcs?.map((n, i) => <OverworldSprite key={`npc${i}`} name={n.sprite} tile={n.tile} face={n.face} grass={masked(n.tile)} />)}
+            {shown.npcs?.map((n, i) => <OverworldSprite key={`npc${i}`} name={n.sprite} tile={n.tile} face={n.face} grass={masked(n.tile)} longGrass={long(n.tile)} />)}
             {/* Keyed by the spot and option, not the index, so a step's change doesn't remount every figure (their transitions would snap). */}
             {placed.map((p) =>
               isApproaching(p) ? (
@@ -296,9 +307,10 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
                   moveMs={approaching!.walking ? ms.step : 0}
                   wet={onWater(shown, approaching!.tile)}
                   grass={masked(approaching!.tile)}
+                  longGrass={long(approaching!.tile)}
                 />
               ) : (
-                <Figure key={`${key(p.spot)}|${p.figure.option ?? ''}|${p.figure.title}`} figure={p.figure} tile={p.tile} spot={p.spot} faded={p.faded} wet={onWater(shown, p.tile)} grass={masked(p.tile)} />
+                <Figure key={`${key(p.spot)}|${p.figure.option ?? ''}|${p.figure.title}`} figure={p.figure} tile={p.tile} spot={p.spot} faded={p.faded} wet={onWater(shown, p.tile)} grass={masked(p.tile)} longGrass={long(p.tile)} />
               ),
             )}
             {/* A ledge jump's shadow on the ground under him, and the dust where he lands (FireRed's). */}
@@ -316,22 +328,24 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
               fadeMs={ms.fade}
               hidden={walker.hidden}
               grass={masked(walker.tile)}
+              longGrass={long(walker.tile)}
               title="You"
             />
             {/* The Gen 3 maps' tall grass, after the sprites so it's over the feet of those on its row. */}
             {sprites !== 'hgss' && (
               <>
-                {shown.npcs?.map((n, i) => inGrass(shown, n.tile) && <TallGrass key={`npc${i}`} tile={n.tile} set={sprites} />)}
+                {shown.npcs?.map((n, i) => inGrass(shown, n.tile) && <TallGrass key={`npc${i}`} tile={n.tile} set={sprites} long={tuftOf(n.tile)} />)}
                 {placed.map((p) =>
                   isApproaching(p) ? (
-                    <GrassTufts key="approach" tile={approaching!.tile} grass={inGrass(shown, approaching!.tile)} map={shown.image} moveMs={approaching!.walking ? ms.step : 0} set={sprites} />
+                    <GrassTufts key="approach" tile={approaching!.tile} grass={inGrass(shown, approaching!.tile)} long={tuftOf(approaching!.tile)} map={shown.image} moveMs={approaching!.walking ? ms.step : 0} set={sprites} />
                   ) : (
-                    inGrass(shown, p.tile) && <TallGrass key={`${key(p.spot)}|${p.figure.option ?? ''}|${p.figure.title}`} tile={p.tile} set={sprites} />
+                    inGrass(shown, p.tile) && <TallGrass key={`${key(p.spot)}|${p.figure.option ?? ''}|${p.figure.title}`} tile={p.tile} set={sprites} long={tuftOf(p.tile)} />
                   ),
                 )}
                 <GrassTufts
                   tile={walker.tile}
                   grass={inGrass(shown, walker.tile)}
+                  long={tuftOf(walker.tile)}
                   map={shown.image}
                   moveMs={walker.jump?.ms ?? (walker.walking ? ms.step / stepPace(shown, walker.tile) : 0)}
                   jump={walker.jump}
