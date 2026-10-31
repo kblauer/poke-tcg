@@ -122,6 +122,10 @@ USER_GYM_LINKS = {'mossdeep': [((1, 33), (20, 24)), ((23, 20), (8, 12)), ((11, 3
 # Where the player comes in for a leader's room in the Gym Challenge, in place of entrance_near's (the user's: Lavaridge
 # Gym's at 12,12, where its sand geyser from 8,9 brings him up into Flannery's room).
 USER_ROOM_ENTRANCE = {'lavaridge': (12, 12)}
+# The Pokémon League rooms' too (walkable: the door the player comes in at; Sidney's at 6,13, the user's).
+USER_LEAGUE_ENTRANCE = {'sidney': (6, 13)}
+# A League room's tiles drawn whole over the people under them (Sidney's arch over its door, row 11: the user's).
+USER_LEAGUE_OVERHEAD = {'sidney': [(x, 11) for x in range(13)]}
 USER_GYM_TRAINER = {'lavaridge': {'spot': (9, 13), 'stand': (8, 13)}, 'petalburg': {'spot': (4, 56), 'stand': (4, 55)}, 'mossdeep': {'spot': (7, 9), 'stand': (6, 9)},
                     # Sootopolis Gym's off its ice, in the room the player comes in at (its 1F has no trainers: Emerald's are on B1F).
                     'sootopolis': {'spot': (8, 22), 'stand': (9, 22)}}
@@ -749,6 +753,9 @@ def main():
         if key == 'center':
             door = next((w['x'], w['y']) for w in info['events']['warp_events'] if w['dest_map'] == CENTER[1])
             rows[door[1]][door[0]] = '.'
+        door = USER_LEAGUE_ENTRANCE.get(key, door)
+        if door:
+            rows[door[1]][door[0]] = '.'
         rows = [''.join(r) for r in rows]
         who = next(o for o in info['events']['object_events'] if o['graphics_id'] == gfx)
         stand = (who['x'], who['y'])
@@ -756,17 +763,21 @@ def main():
         ent = door or entrance_near(rows, spot)
         image = f'rse_evergrande_{key}s_room.png' if key != 'center' else 'rse_lavaridge_pokemoncenter_1f.png'
         img.save(os.path.join(PUBLIC, image))
+        overhead = None
+        if key in USER_LEAGUE_OVERHEAD:
+            overhead = image.replace('.png', '_overhead.png')
+            wall_overhead(img, [], USER_LEAGUE_OVERHEAD[key]).save(os.path.join(PUBLIC, overhead))
         if key == 'center':
             doc = f"A Pokémon Center's ground floor (Lavaridge Town's, Emerald's), for the Pokémon Center in the middle of the Hoenn Gym Challenge: the player comes in at the door ({ent[0]},{ent[1]}) and walks up to the counter ({spot[0]},{spot[1]}), the nurse behind it ({stand[0]},{stand[1]})."
             const_ = 'HOENN_POKEMON_CENTER'
         else:
             who_name = title.split("'")[0] if key != 'wallace' else 'Wallace'
-            doc = f"{title} at the Pokémon League (Emerald's), for the Hoenn Champion run: {who_name} in their place ({stand[0]},{stand[1]}), the player coming in 5 tiles from them ({ent[0]},{ent[1]})."
+            doc = f"{title} at the Pokémon League (Emerald's), for the Hoenn Champion run: {who_name} in their place ({stand[0]},{stand[1]}), the player coming in " + (f"at its door ({ent[0]},{ent[1]})" if key in USER_LEAGUE_ENTRANCE else f"5 tiles from them ({ent[0]},{ent[1]})") + (', its arch over him as he comes in (its overhead)' if key in USER_LEAGUE_OVERHEAD else '') + '.'
             const_ = 'HOENN_' + const
             rooms[boss] = const_
         if ent not in bfs(rows, spot) and key != 'center':
             problems.append((key, 'entrance', ent, 'spot', spot))
-        out.append(gym_ts(const_, title, doc, image, rows, ent, [spot], [stand]))
+        out.append(gym_ts(const_, title, doc, image, rows, ent, [spot], [stand], overhead=overhead))
         print(key, 'entrance', ent, 'spot', spot, 'stand', stand)
 
     lines = [f"  {LEADERS[c] if '-' not in LEADERS[c] else repr(LEADERS[c])}: leaderRoom({GYMS[c][3]}, {{ x: {e[0]}, y: {e[1]} }})," for c, (e, _) in entrances.items()]

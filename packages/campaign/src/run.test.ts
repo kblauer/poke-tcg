@@ -11,6 +11,8 @@ import { GEN2_TEST_POOL, GEN3_TEST_POOL, TEST_POOL } from './test-pool.js';
 
 const deck = expandDeck(STARTER_DECK);
 const fresh = (seed = 1) => createRun('celadon', deck, seed);
+/** Boss rooms the player comes into at their door (the user's), further than 5 tiles from the boss: the walk's steps. */
+const DOOR_ENTRANCES: Record<string, number> = { "Sidney's Room": 7 };
 
 function act(state: RunState, action: RunAction | RunSystemAction, gear: string[] = [], pool = TEST_POOL): RunState {
   const res = applyRunAction(state, action, pool, gear);
@@ -221,8 +223,9 @@ describe('createRun', () => {
         const map = type.routes![i]!;
         expect(map.spots, `${id} ${map.name}`).toHaveLength(1);
         expect(map.name, id).toBe(s.options[0]!.kind === 'center' ? 'Pokémon Center' : map.name);
-        // The player walks up from the entrance: 4 steps, 5 tiles from the boss.
-        expect(routePath(map, map.entrance!, map.spots[0]!)?.length, `${id} ${map.name}`).toBeLessThanOrEqual(6);
+        // The player walks up from the entrance: 4 steps, 5 tiles from the boss; or from the room's door, where the user put
+        // it (DOOR_ENTRANCES).
+        expect(routePath(map, map.entrance!, map.spots[0]!)?.length, `${id} ${map.name}`).toBeLessThanOrEqual(DOOR_ENTRANCES[map.name] ?? 6);
       });
     }
     expect(runType('kantoGyms').routes!.map((m) => m.name)).toEqual(['Pewter Gym', 'Cerulean Gym', 'Vermilion Gym', 'Celadon Gym', 'Pokémon Center', 'Saffron Gym', 'Fuchsia Gym', 'Cinnabar Gym', 'Viridian Gym']);

@@ -511,15 +511,16 @@ export const SOOTOPOLIS_GYM: Route = {
   ],
 };
 
-/** Sidney's Room at the Pokémon League (Emerald's), for the Hoenn Champion run: Sidney in their place (6,5), the player coming in 5 tiles from them (6,10). */
+/** Sidney's Room at the Pokémon League (Emerald's), for the Hoenn Champion run: Sidney in their place (6,5), the player coming in at its door (6,13), its arch over him as he comes in (its overhead). */
 export const HOENN_SIDNEYS_ROOM: Route = {
   flow: 'up',
   sprites: 'rse',
   name: "Sidney's Room",
   image: '/routes/rse_evergrande_sidneys_room.png',
+  overhead: '/routes/rse_evergrande_sidneys_room_overhead.png',
   width: 208,
   height: 224,
-  entrance: { x: 6, y: 10 },
+  entrance: { x: 6, y: 13 },
   spots: [
     { x: 6, y: 6 },
   ],
@@ -540,7 +541,7 @@ export const HOENN_SIDNEYS_ROOM: Route = {
     '.............',
     '.............',
     '#####...#####',
-    '#####.#.#####',
+    '#####...#####',
   ],
 };
 
