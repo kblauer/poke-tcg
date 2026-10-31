@@ -647,7 +647,7 @@ export const HOENN_DRAKES_ROOM: Route = {
   ],
 };
 
-/** Champion's Room at the Pokémon League (Emerald's), for the Hoenn Champion run: Wallace in their place (6,5), the player coming in 5 tiles from them (6,10). */
+/** Champion's Room at the Pokémon League (Emerald's), for the Hoenn Champion run: Wallace in their place (6,5), the player coming in at its door (6,12). */
 export const HOENN_CHAMPIONS_ROOM: Route = {
   flow: 'up',
   sprites: 'rse',
@@ -655,7 +655,7 @@ export const HOENN_CHAMPIONS_ROOM: Route = {
   image: '/routes/rse_evergrande_wallaces_room.png',
   width: 208,
   height: 208,
-  entrance: { x: 6, y: 10 },
+  entrance: { x: 6, y: 12 },
   spots: [
     { x: 6, y: 6 },
   ],
@@ -675,7 +675,7 @@ export const HOENN_CHAMPIONS_ROOM: Route = {
     '####.....####',
     '#####...#####',
     '#####...#####',
-    '#####.#.#####',
+    '#####...#####',
   ],
 };
 

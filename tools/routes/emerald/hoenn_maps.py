@@ -122,8 +122,9 @@ USER_GYM_LINKS = {'mossdeep': [((1, 33), (20, 24)), ((23, 20), (8, 12)), ((11, 3
 # Where the player comes in for a leader's room in the Gym Challenge, in place of entrance_near's (the user's: Lavaridge
 # Gym's at 12,12, where its sand geyser from 8,9 brings him up into Flannery's room).
 USER_ROOM_ENTRANCE = {'lavaridge': (12, 12)}
-# The Pokémon League rooms' too (walkable: the door the player comes in at; the Elite Four's at 6,13, the user's).
-USER_LEAGUE_ENTRANCE = {k: (6, 13) for k in ('sidney', 'phoebe', 'glacia', 'drake')}
+# The Pokémon League rooms' too (walkable: the door the player comes in at; the Elite Four's at 6,13, the Champion's at
+# 6,12, at the foot of his stairs: the user's).
+USER_LEAGUE_ENTRANCE = {**{k: (6, 13) for k in ('sidney', 'phoebe', 'glacia', 'drake')}, 'wallace': (6, 12)}
 # A League room's tiles drawn whole over the people under them (the Elite Four's arch over their door, row 11: the user's),
 # and the top of the arch in the tiles above them, from its outline down (wall_overhead).
 USER_LEAGUE_OVERHEAD = {k: [(x, 11) for x in range(13)] for k in ('sidney', 'phoebe', 'glacia', 'drake')}
