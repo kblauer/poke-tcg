@@ -74,8 +74,9 @@ export const idleRouter = router({
     if (run.state.phase === 'town' && now < run.simulatedAt.getTime() + TOWN_WAIT_MS) throw failed('Waiting in town');
     const settings = await idleSettings(ctx.user.id);
     const caughtList = await caughtSpecies(ctx.user.id);
-    const next = simulateSegment(run.state, settings, new Set(caughtList));
-    if (!next) throw failed(withPending(run.state).stopped ? 'Stopped' : run.state.inStore ? 'In the store' : 'This run is over');
+    // Watched (`ask`): a catch with the party full waits for the player's choice (IdleState.choosing).
+    const next = simulateSegment(run.state, settings, new Set(caughtList), { ask: true });
+    if (!next) throw failed(withPending(run.state).stopped ? 'Stopped' : run.state.inStore ? 'In the store' : run.state.choosing ? 'Waiting for your choice' : 'This run is over');
     const from = Math.max(now, run.simulatedAt.getTime());
     const playedTo = new Date(from + next.segment.durationMs);
     // Its start kept, to play it again: from the moment a page opened meanwhile (resume), and its wild battle with a ball
@@ -98,7 +99,7 @@ export const idleRouter = router({
     // The cap is on the whole absence, not each call: time before the last 8 hours isn't played.
     const from = Math.max(run.simulatedAt.getTime(), now - CATCH_UP_CAP_MS);
     const elapsed = now - from;
-    if ((!playing(run.state) && run.state.phase !== 'town') || elapsed <= 0) return { run: clientIdleRun(run), summary: null, more: false };
+    if ((!playing(run.state) && run.state.phase !== 'town' && !run.state.choosing) || elapsed <= 0) return { run: clientIdleRun(run), summary: null, more: false };
     const settings = await idleSettings(ctx.user.id);
     const caught = new Set(await caughtSpecies(ctx.user.id));
     const { state, summary, dex } = catchUp(run.state, settings, caught, elapsed);
@@ -130,11 +131,14 @@ export const idleRouter = router({
     // (Leaving the store too: the town's wait starts again then, the user's.)
     // (Any action out of a waiting town too: a grind chosen there, the user's.)
     // (Those that cut the segment playing too: the run goes on from where it is now.)
-    const leaving = cut || ['GYM', 'CONTINUE', 'GRIND', 'BACK_ROUTE', 'LEAVE_STORE'].includes(input.action.type) || (run.state.phase === 'town' && state.phase !== 'town');
+    // (A catch with the party full settled by the player too: the run goes on from now, the user's.)
+    const leaving = cut || ['GYM', 'CONTINUE', 'GRIND', 'BACK_ROUTE', 'LEAVE_STORE', 'CAUGHT_CHOICE'].includes(input.action.type) || (run.state.phase === 'town' && state.phase !== 'town');
     // So does going on after the Stop mode (time stopped isn't played either); a segment still playing ends first.
     const unstopped = withPending(run.state).stopped && !withPending(state).stopped;
     const restart = leaving ? new Date() : unstopped ? new Date(Math.max(Date.now(), run.simulatedAt.getTime())) : null;
-    const saved = await saveIdleRun(run, state, { dex: partyNotes(state.party), ...(restart && { simulatedAt: restart }) });
+    // A party Pokémon replaced by a catch: its best stats to the dex too, as it leaves.
+    const gone = run.state.party.filter((m) => !state.party.some((p) => p.uid === m.uid));
+    const saved = await saveIdleRun(run, state, { dex: partyNotes([...state.party, ...gone]), ...(restart && { simulatedAt: restart }) });
     return { run: clientIdleRun(saved), events };
   }),
 
@@ -151,7 +155,7 @@ export const idleRouter = router({
     if (replay.throws.some((t) => t >= input.tick)) throw failed('A ball is already on its way');
     if (!BALLS.some(([b]) => (replay.prev.bag[b] ?? 0) > 0)) throw failed('No Poké Balls in the bag');
     const throws = [...replay.throws, input.tick];
-    const again = simulateSegment(replay.prev, replay.settings, new Set(replay.caught), { throwAt: throws });
+    const again = simulateSegment(replay.prev, replay.settings, new Set(replay.caught), { throwAt: throws, ask: true });
     const b = again?.segment.events.find((e) => e.t === 'battle');
     if (!again || b?.t !== 'battle' || b.kind !== 'wild') throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'The battle could not be played again' });
     if (input.tick > b.ticks) throw failed('The battle is over');
@@ -172,7 +176,7 @@ export const idleRouter = router({
     const run = await loadOwnIdleRun(input.runId, ctx.user.id);
     const replay = run.state.replay;
     if (!replay || run.simulatedAt.getTime() <= Date.now()) return null;
-    const again = simulateSegment(replay.prev, replay.settings, new Set(replay.caught), { throwAt: replay.throws });
+    const again = simulateSegment(replay.prev, replay.settings, new Set(replay.caught), { throwAt: replay.throws, ask: true });
     if (!again) return null;
     return { run: clientIdleRun(run), segment: again.segment, from: replay.from };
   }),
@@ -188,14 +192,15 @@ export const idleRouter = router({
   debugNext: debugProcedure.input(idleRunInput).mutation(async ({ ctx, input }) => {
     const run = await loadOwnIdleRun(input.runId, ctx.user.id);
     checkVersion(run, input.expectedVersion);
-    const next = simulateSegment(run.state, { ...DEFAULT_IDLE_SETTINGS, ...(await idleSettings(ctx.user.id)) }, new Set(await caughtSpecies(ctx.user.id)));
+    const next = simulateSegment(run.state, { ...DEFAULT_IDLE_SETTINGS, ...(await idleSettings(ctx.user.id)) }, new Set(await caughtSpecies(ctx.user.id)), { ask: true });
     if (!next) throw failed('Not walking');
     const saved = await saveIdleRun(run, next.state, { dex: next.segment.dex, simulatedAt: new Date() });
     return { run: clientIdleRun(saved), segment: next.segment };
   }),
 
   /**
-   * The player watching a town (the user's, 2026-10-27: a town never goes on by itself while they're there): the browser
+   * The player watching a town (the user's, 2026-10-27: a town never goes on by itself while they're there), or a catch
+   * with the party full waiting for their choice (IdleState.choosing, the same): the browser
    * says so every few seconds (TOWN_HERE_MS) while a town is on a visible page, and the run's time moves up to now, so
    * only time away (the page hidden or closed) counts toward the town's wait (TOWN_WAIT_MS, played by the offline
    * catch-up). Nothing else changes: no version, no state.
@@ -204,7 +209,7 @@ export const idleRouter = router({
     const run = await loadOwnIdleRun(input.runId, ctx.user.id);
     const now = new Date();
     // Only while they've been here all along: a gap of the town's wait or more is time away, the catch-up's to play.
-    if (run.status !== 'ACTIVE' || run.state.phase !== 'town' || run.simulatedAt >= now || now.getTime() - run.simulatedAt.getTime() >= TOWN_WAIT_MS) return { ok: false };
+    if (run.status !== 'ACTIVE' || (run.state.phase !== 'town' && !run.state.choosing) || run.simulatedAt >= now || now.getTime() - run.simulatedAt.getTime() >= TOWN_WAIT_MS) return { ok: false };
     // Only the version seen: an action saved meanwhile sets its own time.
     const { count } = await prisma.idleRun.updateMany({ where: { id: run.id, version: run.version }, data: { simulatedAt: now } });
     return { ok: count > 0 };

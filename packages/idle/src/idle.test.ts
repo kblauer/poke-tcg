@@ -381,6 +381,55 @@ describe('an idle run', () => {
     expect(kakuna!.moves).toEqual(expect.arrayContaining(['poison-sting', 'string-shot', 'harden']));
   });
 
+  it('waits for the player watching to choose where a Pokémon caught with the party full goes, or the settings away', () => {
+    // A full party grinding Viridian Forest's wild Pokémon, catching every one.
+    const area = AREAS.findIndex((a) => a.id === 'route-2');
+    const leg = (AREAS[area] as WalkArea).legs[0]!;
+    const forest = leg.maps.indexOf('ViridianForest');
+    const step = leg.track.findIndex(([m, , , , t]) => m === forest && t[0] === 'l');
+    const base = createIdleRun({ species: 4 }, 7);
+    const party = Array.from({ length: 6 }, (_, i) => ({ ...base.party[0]!, uid: `m${i}`, level: 12 + i }));
+    let s: IdleState = { ...base, area, step, beaten: (AREAS[area] as WalkArea).trainers.map((t) => t.key), bag: { 'master-ball': 99 }, party };
+    s = (applyIdleAction(s, { type: 'WILD_GRIND' }) as { state: IdleState }).state;
+    const settings = { ...MANUAL, autoCatch: 'all' as const };
+    // Watched (`ask`): the catch waits, the party as it was, the run not playing.
+    let full: SegmentEvent | undefined;
+    for (let i = 0; i < 200 && !s.choosing; i++) {
+      const next = simulateSegment(s, settings, new Set(), { ask: true })!;
+      full = next.segment.events.find((e) => e.t === 'full');
+      s = next.state;
+    }
+    expect(s.choosing).toBeDefined();
+    expect(full).toEqual(expect.objectContaining({ t: 'full', species: s.choosing!.species }));
+    expect(s.party.map((m) => m.uid)).toEqual(party.map((m) => m.uid));
+    expect(playing(s)).toBe(false);
+    expect(simulateSegment(s, settings, new Set(), { ask: true })).toBeNull();
+    // Only the choice, the party's changes or giving up meanwhile.
+    expect(applyIdleAction(s, { type: 'CONTINUE_ROUTE' }).ok).toBe(false);
+    expect(applyIdleAction(s, { type: 'CAUGHT_CHOICE', replace: 'nobody' }).ok).toBe(false);
+    expect(applyIdleAction(s, { type: 'SET_ORDER', uids: party.map((m) => m.uid).reverse() }).ok).toBe(true);
+    // In place of the one picked, or released.
+    const replaced = (applyIdleAction(s, { type: 'CAUGHT_CHOICE', replace: 'm3' }) as { state: IdleState }).state;
+    expect(replaced.choosing).toBeUndefined();
+    expect(replaced.party[3]!.uid).toBe(s.choosing!.uid);
+    expect(replaced.party.some((m) => m.uid === 'm3')).toBe(false);
+    expect(playing(replaced)).toBe(true);
+    const released = (applyIdleAction(s, { type: 'CAUGHT_CHOICE' }) as { state: IdleState }).state;
+    expect(released.party.map((m) => m.uid)).toEqual(party.map((m) => m.uid));
+    expect(released.choosing).toBeUndefined();
+    // Away, the settings' after a town's wait: the lowest level replaced, or released.
+    const lowest = simulateSegment(s, { ...settings, replaceLowest: true }, new Set())!;
+    expect(lowest.segment.durationMs).toBe(TOWN_WAIT_MS);
+    expect(lowest.state.party[0]!.uid).toBe(s.choosing!.uid);
+    expect(lowest.segment.events).toEqual([expect.objectContaining({ t: 'caught', kept: true, replaced: party[0]!.species })]);
+    expect(simulateSegment(s, settings, new Set())!.state.party.map((m) => m.uid)).toEqual(party.map((m) => m.uid));
+    expect(catchUp(s, settings, new Set(), TOWN_WAIT_MS - 1).summary.segments).toBe(0);
+    // Played away from the start (catchUp), a catch never waits.
+    let away: IdleState = { ...s, choosing: undefined };
+    for (let i = 0; i < 50; i++) away = simulateSegment(away, settings, new Set())!.state;
+    expect(away.choosing).toBeUndefined();
+  });
+
   it('offers as starters only Pokémon that evolve from none', () => {
     // Charmeleon, Pidgeotto and Vaporeon caught: not startable; Pidgey, Tauros (no evolutions) and Eevee are.
     expect(starterOptions([5, 16, 17, 128, 133, 134])).toEqual([1, 4, 7, 16, 128, 133]);
