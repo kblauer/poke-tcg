@@ -48,6 +48,13 @@ LEAGUE = {
     'cynthia': ('MAP_POKEMON_LEAGUE_CYNTHIA_ROOM', 'CHAMPION', 'cynthia', 'CYNTHIAS_ROOM', "Cynthia's Room"),
 }
 CENTER = ('MAP_PASTORIA_POKECENTER', 'MAP_PASTORIA', 'PCWOMAN1')
+# The user's fixes, in the gym's own tiles (after the crop): the door the player comes in at (made walkable), and the Gym
+# Trainer's spot (the player's) and where they stand. Oreburgh Gym (2026-10-31, 2026-11-01): in at 5,25, the bottom of the
+# doormat; the Gym Trainer in Youngster Darius's place, 7,11, the player at 5,11.
+USER_DOOR = {'oreburgh': (5, 25)}
+USER_GYM_TRAINER = {'oreburgh': {'spot': (5, 11), 'stand': (7, 11)}}
+# Tiles drawn over the player (the route's `overhead`): bridges he walks under. Oreburgh Gym's wooden bridge (the user's).
+USER_OVERHEAD = {'oreburgh': [(x, 17) for x in range(4, 8)]}
 FACE = {0: 'up', 1: 'down', 2: 'left', 3: 'right'}
 STEP = {'up': (0, -1), 'down': (0, 1), 'left': (-1, 0), 'right': (1, 0)}
 # How far past the room's walkable tiles the image goes: its walls above (drawn tilted), a tile elsewhere.
@@ -144,7 +151,7 @@ def render(work, name, map_const, apicula, cache):
     return prefix, json.load(open(prefix + '.json'))['rows']
 
 
-def gym_ts(const, title, doc, image, w, h, door, spots, stands, guide, rows):
+def gym_ts(const, title, doc, image, w, h, door, spots, stands, guide, rows, overhead=None):
     pts = lambda ps: '\n'.join(f'    {{ x: {x}, y: {y} }},' for x, y in ps)
     walk = '\n'.join(f"    '{r}'," for r in rows)
     name = f'"{title}"' if "'" in title else f"'{title}'"
@@ -155,7 +162,7 @@ export const {const}: Route = {{
   flow: 'up',
   sprites: 'dp',
   name: {name},
-  image: '/routes/{image}',
+  image: '/routes/{image}',{f"{chr(10)}  overhead: '/routes/{overhead}'," if overhead else ''}
   width: {w * TILE},
   height: {h * TILE},
   entrance: {{ x: {door[0]}, y: {door[1]} }},
@@ -209,6 +216,12 @@ def main():
         guide = guide and shift(guide)
         if guide and not (0 <= guide[1] < len(rows) and 0 <= guide[0] < len(rows[0])):
             guide = None
+        if city in USER_DOOR:
+            door = USER_DOOR[city]
+            rows[door[1]] = rows[door[1]][:door[0]] + '.' + rows[door[1]][door[0] + 1:]
+        if city in USER_GYM_TRAINER:
+            spots[0], stands[0] = USER_GYM_TRAINER[city]['spot'], USER_GYM_TRAINER[city]['stand']
+            trainer = next((o for o in events['objects'] if (o['x'] - x0, o['z'] - y0) in (spots[0], stands[0]) and dd.trainer_of(cache, o)), trainer)
         if spots[0] not in bfs(rows, door):
             problems.append((city, 'door', door, 'Gym Trainer spot', spots[0]))
         if spots[1] not in bfs(rows, spots[0]):
@@ -221,11 +234,19 @@ def main():
             d.rectangle([x * TILE, y * TILE, x * TILE + 15, y * TILE + 15], outline=col, width=2)
             d.text((x * TILE + 17, y * TILE), label, fill=col)
         pv.save(prefix + '-preview.png')
+        overhead = None
+        if city in USER_OVERHEAD:
+            over = Image.new('RGBA', im.size)
+            for x, y in USER_OVERHEAD[city]:
+                box = (x * TILE, y * TILE, (x + 1) * TILE, (y + 1) * TILE)
+                over.paste(im.convert('RGBA').crop(box), box)
+            overhead = f'{city}_gym_overhead.png'
+            over.save(os.path.join(PUBLIC, overhead))
         who = dd.trainer_of(cache, trainer) if trainer else None
         who = f"{re.sub(r' (M|F|Snow M|Snow F)$', '', who['class'].replace('TRAINER_CLASS_', '').replace('_', ' ').title())} {who['name'].replace('{TRNAME}', '')}" if who else 'its trainer' if trainer else None
-        doc = (f"{title}, the leader's room: the Gym Trainer where {who} stands ({stands[0][0]},{stands[0][1]}), the leader in their place ({stands[1][0]},{stands[1][1]})." if who else
+        doc = (f"{title}, the leader's room: the Gym Trainer where {who} stands ({stands[0][0]},{stands[0][1]}{'; the user' + chr(39) + 's' if city in USER_GYM_TRAINER else ''}), the leader in their place ({stands[1][0]},{stands[1][1]})." if who else
                f"{title}, the leader's room (no trainers in it): the Gym Trainer halfway in ({stands[0][0]},{stands[0][1]}), the leader in their place ({stands[1][0]},{stands[1][1]}).")
-        out.append(gym_ts(const, title, doc, image, len(rows[0]), len(rows), door, spots, stands, guide, rows))
+        out.append(gym_ts(const, title, doc, image, len(rows[0]), len(rows), door, spots, stands, guide, rows, overhead))
         entrances[boss] = (const, entrance_near(rows, spots[1]))
         print(city, 'door', door, 'spots', spots, 'stands', stands, 'guide', guide, 'trainer', who, 'leader room entrance', entrances[boss][1])
 

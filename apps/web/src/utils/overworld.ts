@@ -22,8 +22,6 @@ export type Facing = 'down' | 'up' | 'left' | 'right';
 /** Which game's sprites a map uses: FireRed's (Kanto), HeartGold/SoulSilver's (Johto), Emerald's (Hoenn) or Diamond and Pearl's (Sinnoh). */
 export type SpriteSet = 'frlg' | 'hgss' | 'rse' | 'dp';
 
-/** The DS games' sets (HGSS's and Diamond and Pearl's): 3D maps, their sprites' strips laid out alike. */
-export const isDsSet = (set: SpriteSet) => set === 'hgss' || set === 'dp';
 const isHgss = (name: string) => name.startsWith('hgss/') || name.startsWith('dp/');
 
 /** The standing frame for each facing; right is left, mirrored. */

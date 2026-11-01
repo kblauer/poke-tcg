@@ -3,7 +3,8 @@ Sinnoh routes use them: its terrain chunks and buildings converted to GLB with a
 maps' renderer (../hgss/render_hgss.py), and writes which tiles can be walked on.
 
 Usage: python dp_map.py <out prefix> <MAP_CONST>[,<MAP_CONST>...] [--tilt 0.6] [--apicula <apicula.exe>] [--cache <dir>]
-Writes <out prefix>.png and <out prefix>.json: the size in tiles and `rows`, one string per tile row: '.' walkable, '#'
+Writes <out prefix>.png, <out prefix>_height.npy (each pixel's model height, for what stands above the ground) and
+<out prefix>.json: the size in tiles and `rows`, one string per tile row: '.' walkable, '#'
 not (collision, doors and warps), '~' water (surfable), and ledges by the way they're jumped: '>' east, '<' west, '^'
 north, 'v' south; `grass`, the same size: 'g' tall grass, '.' not; `snow`: 's' snow (Route 217), '.' not. Its tile
 behaviours are Gen 4's (pokeplatinum's include/constants/field/map_tile_behaviors.h names them; Diamond's are the same).
@@ -109,7 +110,7 @@ def main():
     scene = Scene(W * 16, H * 16, tilt=tilt, ground=ground)
     for glb, origin, texmtx in parts:
         scene.glb(glb, origin, texmtx)
-    scene.render(out + '.png')
+    scene.render(out + '.png', heights=out + '_height.npy')
     json.dump({'width': W, 'height': H, 'rows': [''.join(r) for r in rows], 'grass': [''.join(r) for r in grass], 'snow': [''.join(r) for r in snow],
                'origin': [x0, y0], 'chunks': [[c['x'] - x0, c['y'] - y0, c['land']] for c in mine]}, open(out + '.json', 'w'))
     print('rendered', consts, W, 'x', H, 'tiles; ground', ground)

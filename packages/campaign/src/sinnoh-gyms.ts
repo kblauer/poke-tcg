@@ -9,21 +9,22 @@
 import type { SinnohBossId } from './bosses.js';
 import { leaderRoom, type Route } from './routes.js';
 
-/** Oreburgh Gym, the leader's room: the Gym Trainer where Youngster Jonathon stands (4,18), the leader in their place (5,3). */
+/** Oreburgh Gym, the leader's room: the Gym Trainer where Youngster Darius stands (7,11; the user's), the leader in their place (5,3). */
 export const OREBURGH_GYM: Route = {
   flow: 'up',
   sprites: 'dp',
   name: 'Oreburgh Gym',
   image: '/routes/oreburgh_gym.png',
+  overhead: '/routes/oreburgh_gym_overhead.png',
   width: 192,
   height: 416,
-  entrance: { x: 5, y: 24 },
+  entrance: { x: 5, y: 25 },
   spots: [
-    { x: 5, y: 18 },
+    { x: 5, y: 11 },
     { x: 5, y: 4 },
   ],
   stands: [
-    { x: 4, y: 18 },
+    { x: 7, y: 11 },
     { x: 5, y: 3 },
   ],
   npcs: [{ sprite: 'dp/sunglasses', tile: { x: 6, y: 23 }, face: 'down' }],
@@ -53,7 +54,7 @@ export const OREBURGH_GYM: Route = {
     '#..#...#...#',
     '#..#...#...#',
     '#..........#',
-    '############',
+    '#####.######',
   ],
 };
 

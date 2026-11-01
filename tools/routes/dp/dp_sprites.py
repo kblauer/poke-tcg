@@ -6,7 +6,7 @@ cropped, for public/trainers/. Sprites are named by their texture (Diamond's own
 converting every mmodel file once.
 
 Usage: python dp_sprites.py [--apicula <apicula.exe>] [--cache <dir>]
-Writes SPRITES to apps/web/public/overworld/dp/<name>.png and BOSSES to apps/web/public/trainers/<boss id>.png."""
+Writes SPRITES to apps/web/public/overworld/dp/<name>.png, the grass rustle to …/dp/grass.png and BOSSES to apps/web/public/trainers/<boss id>.png."""
 import os, re, subprocess, sys, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -43,6 +43,10 @@ BOSSES = {
     'aaron': 'bigfour1', 'bertha': 'bigfour2', 'flint': 'bigfour3', 'lucian': 'bigfour4', 'cynthia': 'champion',
 }
 
+# The grass a person steps into rustling (Diamond's field effect `kusaeff`: a 32x32 billboard, fldeff narc 0, its pattern
+# animation's 4 textures at frames 0, 4, 8 and 12, resting on the last: pokeplatinum's ov5_021F2D20.c).
+GRASS = 'files/data/mmodel/fldeff/narc_0000.NSBTX'
+
 
 def textures(apicula, cache, work):
     """Every mmodel file's converted frames, by texture name: [frame images, in order]."""
@@ -64,6 +68,16 @@ def textures(apicula, cache, work):
         key = lambda f: int(re.search(r'_(\d+)\.png$', f).group(1)) if re.search(r'_(\d+)\.png$', f) else 0
         out[name] = [Image.open(os.path.join(d, f)).convert('RGBA') for f in sorted(pngs, key=key)]
     return out
+
+
+def grass(apicula, cache):
+    """The grass rustle (GRASS: its 4 textures, `kusaeff_1` to `_4`, stacked) for public/overworld/dp/grass.png."""
+    d = tempfile.mkdtemp(prefix='dp_grass_')
+    subprocess.run([apicula, 'convert', dd.fetch(cache, GRASS), '-o', d, '--more-textures', '--overwrite'], capture_output=True, check=True)
+    strip = Image.new('RGBA', (FRAME, FRAME * 4), (0, 0, 0, 0))
+    for k in range(4):
+        strip.paste(Image.open(os.path.join(d, f'kusaeff_{k + 1}.png')).convert('RGBA'), (0, k * FRAME))
+    strip.save(os.path.join(OVERWORLD, 'grass.png'))
 
 
 def main():
@@ -91,6 +105,7 @@ def main():
     for boss, name in BOSSES.items():
         f = tex[name][WALK[0]]
         f.crop(f.getbbox()).save(os.path.join(TRAINERS, boss + '.png'))
+    grass(apicula, cache)
     print('wrote', len(SPRITES), 'sprites to', OVERWORLD, 'and', len(BOSSES), 'bosses to', TRAINERS)
 
 

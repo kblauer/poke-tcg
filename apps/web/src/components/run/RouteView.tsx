@@ -10,9 +10,9 @@ import { useCrackedIce } from '../../hooks/useCrackedIce';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { mapScale, usePan, ZOOM } from '../../hooks/usePan';
 import type { RunViewData } from '../../hooks/useRun';
-import { FADE_MS, GRASS_PACE, pace, stepPace, THROUGH_MS, useWalk, type MapSection, type Walker } from '../../hooks/useWalk';
+import { FADE_MS, GRASS_PACE, pace, slowGrass, stepPace, THROUGH_MS, useWalk, type MapSection, type Walker } from '../../hooks/useWalk';
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
-import { bobs, BOB_MS, isDsSet, isItemBall, playerSprite, STEP_MS, WALK_FRAME_MS, type Facing } from '../../utils/overworld';
+import { bobs, BOB_MS, isItemBall, playerSprite, STEP_MS, WALK_FRAME_MS, type Facing } from '../../utils/overworld';
 import { encounterFigure, facing, key, placeFigures, setOf, type PlacedFigure } from '../../utils/routeFigures';
 import { Exclamation, Figure, GrassTufts, JumpDust, JumpShadow, OverworldSprite, TallGrass, TileOverlay } from './RouteSprites';
 
@@ -167,14 +167,16 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
     const timer = window.setInterval(() => setBobbing((b) => !b), BOB_MS);
     return () => window.clearInterval(timer);
   }, [stillBob]);
-  // Wading through tall grass, the player's legs slow with his steps (GRASS_PACE).
-  const wading = walker.walking && inGrass(shown, walker.tile);
+  // Wading through tall grass, the player's legs slow with his steps (GRASS_PACE; not in Diamond and Pearl's short grass).
+  const wading = walker.walking && slowGrass(shown, walker.tile);
   // Sootopolis Gym's thin ice, cracked where the player has stepped (its `crackedIce` drawn over those tiles), and its stairs once they're there.
   const { cracked, stairs } = useCrackedIce(shown, walker.tile, walker.walking ? ms.step / stepPace(shown, walker.tile) : 0);
   // Tall grass on the Gen 3 maps is the games' own, drawn over the feet of those in it (TallGrass, GrassTufts: FireRed's,
-  // Emerald's on the Hoenn maps); on HGSS's and Diamond and Pearl's, it hides their legs (OverworldSprite's `grass`).
+  // Emerald's on the Hoenn maps), as Diamond and Pearl's short grass is (its own rustle, the user's); on HGSS's, it hides
+  // their legs (OverworldSprite's `grass`).
   const sprites = setOf(shown);
-  const masked = (tile: RouteSpot) => isDsSet(sprites) && inGrass(shown, tile);
+  const legsHidden = sprites === 'hgss';
+  const masked = (tile: RouteSpot) => legsHidden && inGrass(shown, tile);
   // Emerald's long grass (Route 119's very tall grass) hides the whole bottom tile of those in it, under its own tufts.
   const long = (tile: RouteSpot) => inLongGrass(shown, tile);
   // Its tufts: long grass's, cut off above the band of ground at its foot ('edge', onLongGrassEdge).
@@ -237,7 +239,9 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
   }, [size.w, size.h]);
 
   // When the run moves on, Red walks (or fades) to the new spot, the view following him.
-  useWalk({ position, sections, targetSection, targetSpot, walkerRef, setWalker, placedRef, ms, centreOnMap, setGlide, setOffset });
+  // Who stands on another map, as it'll be drawn once he's there (placeFigures), for his walk into it to go round them.
+  const figuresOn = (s: number) => placeFigures(sections[s]!.map, view, sections[s]!.first, sections[s]!.upto, movedRef.current).map((p) => p.tile);
+  useWalk({ position, sections, targetSection, targetSpot, walkerRef, setWalker, placedRef, figuresOn, ms, centreOnMap, setGlide, setOffset });
 
   // Where each non-battle encounter's NPC walked up to (the step it's for), so it stays there once passed.
   if (approach) movedRef.current.set(approach.position, approach.tile);
@@ -316,7 +320,7 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
             {/* A ledge jump's shadow on the ground under him, and the dust where he lands (FireRed's). */}
             <JumpShadow tile={walker.tile} shown={!!walker.jump} moveMs={walker.jump?.ms ?? (walker.walking ? ms.step / stepPace(shown, walker.tile) : 0)} />
             {/* (Landing in tall grass on a Gen 3 map, the grass thrown up instead: GrassTufts.) */}
-            {walker.landed && (isDsSet(sprites) || !inGrass(shown, walker.landed.tile)) && <JumpDust key={walker.landed.stamp} tile={walker.landed.tile} />}
+            {walker.landed && (legsHidden || !inGrass(shown, walker.landed.tile)) && <JumpDust key={walker.landed.stamp} tile={walker.landed.tile} />}
             <OverworldSprite
               name={playerName}
               bob={stillBob && bobbing}
@@ -331,8 +335,8 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
               longGrass={long(walker.tile)}
               title="You"
             />
-            {/* The Gen 3 maps' tall grass, after the sprites so it's over the feet of those on its row. */}
-            {!isDsSet(sprites) && (
+            {/* The Gen 3 maps' and Diamond and Pearl's grass, after the sprites so it's over the feet of those on its row. */}
+            {!legsHidden && (
               <>
                 {shown.npcs?.map((n, i) => inGrass(shown, n.tile) && <TallGrass key={`npc${i}`} tile={n.tile} set={sprites} long={tuftOf(n.tile)} />)}
                 {placed.map((p) =>

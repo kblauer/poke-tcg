@@ -9,8 +9,10 @@ import type { Facing } from '../utils/overworld';
  * user), but on foot before a route's travel begins (travelAt: Route 110's sandy road).
  */
 export const pace = (route: Route, tile: RouteSpot) => (travelAt(route, tile) === 'bike' ? 2 : 1);
+/** Whether `tile` is tall grass that slows the player (GRASS_PACE): not Diamond and Pearl's short grass (the user's). */
+export const slowGrass = (route: Route, tile: RouteSpot) => route.sprites !== 'dp' && inGrass(route, tile);
 /** A step's pace onto `tile`: a little slower into tall grass (GRASS_PACE, agreed with the user). */
-export const stepPace = (route: Route, tile: RouteSpot) => pace(route, tile) * (inGrass(route, tile) ? GRASS_PACE : 1);
+export const stepPace = (route: Route, tile: RouteSpot) => pace(route, tile) * (slowGrass(route, tile) ? GRASS_PACE : 1);
 /** How fast the player wades through tall grass, of his pace elsewhere: 30% slower (agreed with the user). */
 export const GRASS_PACE = 0.7;
 
@@ -70,6 +72,7 @@ export function useWalk({
   walkerRef,
   setWalker,
   placedRef,
+  figuresOn,
   ms,
   centreOnMap,
   setGlide,
@@ -85,6 +88,8 @@ export function useWalk({
   setWalker: Dispatch<SetStateAction<Walker>>;
   /** The figures as last drawn, for the walk to go around them. */
   placedRef: RefObject<PlacedFigure[]>;
+  /** Where the figures stand on another map (section), for the walk there once he's come into it. */
+  figuresOn: (section: number) => RouteSpot[];
   /** The walk's timings at the walk speed. */
   ms: { step: number; fade: number; through: number; glide: number };
   centreOnMap: (map: Route, t: RouteSpot) => { x: number; y: number };
@@ -168,7 +173,7 @@ export function useWalk({
       start = door;
     }
     // Around the people there, unless one stands in a one-tile gap (a cut-tree's, a door): then past them.
-    const others = section === targetSection ? new Set(placedRef.current.map((p) => key(p.tile))) : new Set((map.stands ?? []).map(key));
+    const others = new Set((section === targetSection ? placedRef.current.map((p) => p.tile) : figuresOn(targetSection)).map(key));
     // Several people at the spot standing in a line (a row, on one y, or a column, on one x): the player comes into their
     // line of sight only as he arrives, as in the games (agreed with the user): a row's by its column first, a column's by
     // its row first.

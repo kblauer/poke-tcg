@@ -1,6 +1,6 @@
 import { inGrass, inLongGrass, ledgeAt, onIce, onPath, onWater, type EncounterKind, type Route, type RouteSpot } from '@poke-tcg/campaign';
 import { useEffect, useRef, useState } from 'react';
-import { GRASS_FRAME_MS, LONG_RUSTLE, RUSTLE, useTallGrass } from '../../hooks/useTallGrass';
+import { DP_GRASS_FRAME_MS, DP_RUSTLE, GRASS_FRAME_MS, LONG_RUSTLE, RUSTLE, useTallGrass } from '../../hooks/useTallGrass';
 import { FADE_MS } from '../../hooks/useWalk';
 import { BOSS_MAP_SPRITES, bobFrame, bobs, isItemBall, mirrored, spriteHeight, spriteWidth, standFrame, stripFrames, surfBobs, walkFrame, waterSprite, type Facing, type SpriteSet } from '../../utils/overworld';
 import { facing, type RouteFigure } from '../../utils/routeFigures';
@@ -341,6 +341,9 @@ export function JumpDust({ tile, grass = false, set = 'frlg' }: { tile: RouteSpo
 /** Where a map's tall grass pictures are: FireRed's, or Emerald's on the Hoenn maps (tools/routes/jump_effects.py). */
 const grassDir = (set: SpriteSet) => (set === 'rse' ? 'rse/' : '');
 
+/** How far below its tile's foot Diamond and Pearl's grass billboard stands, in map pixels. */
+const DP_GRASS_BELOW = 2;
+
 /** How far down the long grass's foot its tufts reach (Route 119's: the band of ground below, from its 9th row). */
 const LONG_EDGE = 8;
 
@@ -352,20 +355,31 @@ const LONG_EDGE = 8;
  * 4 more then: UpdateTallGrassFieldEffect). Emerald's (`set` 'rse') works the same, with its own pictures. `long`: Emerald's
  * long grass instead (FLDEFF_LONG_GRASS, `rse/long_grass.png`: 4 frames, LONG_RUSTLE), always in front of the one in it
  * (its subpriority never raised: UpdateLongGrassFieldEffect); 'edge', the long grass's foot (onLongGrassEdge), its tufts only
- * down to LONG_EDGE, the map's band of ground showing below them (the user's).
+ * down to LONG_EDGE, the map's band of ground showing below them (the user's). Diamond and Pearl's (`set` 'dp'): its
+ * short grass's own effect (DP_RUSTLE, `dp/grass.png`: 4 frames of 32x32, stacked), a billboard as wide as two tiles,
+ * centred on the tile, its foot DP_GRASS_BELOW below the tile's (the game's: 18 of a tile's 16 units down), in front of the
+ * one in it.
  */
 export function TallGrass({ tile, rustle = false, set = 'frlg', long = false }: { tile: RouteSpot; rustle?: boolean; set?: SpriteSet; long?: boolean | 'edge' }) {
-  const frames = long ? LONG_RUSTLE.map(([f]) => f) : RUSTLE;
+  const dp = set === 'dp' && !long;
+  const frames = long ? LONG_RUSTLE.map(([f]) => f) : dp ? DP_RUSTLE : RUSTLE;
   const [step, setStep] = useState(rustle ? 0 : frames.length - 1);
   useEffect(() => {
     if (!rustle) return;
     let at = 0;
-    const timers = frames.slice(1).map((_, i) => window.setTimeout(() => setStep(i + 1), (at += long ? (LONG_RUSTLE[i]![1] * 1000) / 60 : GRASS_FRAME_MS)));
+    const timers = frames.slice(1).map((_, i) => window.setTimeout(() => setStep(i + 1), (at += long ? (LONG_RUSTLE[i]![1] * 1000) / 60 : dp ? DP_GRASS_FRAME_MS : GRASS_FRAME_MS)));
     return () => timers.forEach((t) => window.clearTimeout(t));
     // Only as it starts rustling.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rustle]);
   const frame = frames[step]!;
+  if (dp)
+    return (
+      <div
+        className="pointer-events-none absolute [image-rendering:pixelated]"
+        style={{ left: tile.x * 16 - 8, top: tile.y * 16 + 16 + DP_GRASS_BELOW - 32, width: 32, height: 32, backgroundImage: 'url(/overworld/dp/grass.png)', backgroundPosition: `0 ${-frame * 32}px`, zIndex: tile.y }}
+      />
+    );
   return (
     <div
       className="pointer-events-none absolute [image-rendering:pixelated]"
