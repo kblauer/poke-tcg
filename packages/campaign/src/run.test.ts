@@ -142,6 +142,29 @@ describe('createRun', () => {
     expect(walks.map((w) => w !== null)).toEqual(walks.map(() => true));
   });
 
+  it("a bridge is walked over only from end to end and under only from side to side, never off its sides (Route 215's)", () => {
+    // A 5x7 map: a bridge over columns 1-3, its deck rows 1-5, the way under it row 3; ground round it.
+    const map: Route = {
+      name: 'Bridge', flow: 'up', image: '', width: 80, height: 112, spots: [],
+      walkable: ['.....', '.....', '.....', '.....', '.....', '.....', '.....'],
+      bridges: [{ x: [1, 3], y: [1, 5], under: [3, 3] }],
+    };
+    const tiles = (w: ReturnType<typeof routePath>) => w!.map(({ tile, under }) => `${tile.x},${tile.y}${under ? 'u' : ''}`);
+    // Over it end to end, and under it side to side.
+    expect(tiles(routePath(map, { x: 2, y: 0 }, { x: 2, y: 6 }))).toEqual(['2,1', '2,2', '2,3', '2,4', '2,5', '2,6']);
+    // (The step out from under it is under it too: he's under it till he's off it.)
+    expect(tiles(routePath(map, { x: 0, y: 3 }, { x: 4, y: 3 }))).toEqual(['1,3u', '2,3u', '3,3u', '4,3u']);
+    // From the side at a deck row: round its end, not onto it; from under it up onto the deck: never.
+    expect(routePath(map, { x: 0, y: 2 }, { x: 2, y: 2 })![0]!.tile).toEqual({ x: 0, y: 1 });
+    expect(routePath(map, { x: 0, y: 3 }, { x: 2, y: 2 })!.some(({ tile, under }) => under && tile.y !== 3)).toBe(false);
+    expect(tiles(routePath(map, { x: 2, y: 3 }, { x: 0, y: 2 }))).toEqual(['1,3u', '0,3u', '0,2']);
+    // One running across with no way under it: over it end to end, and round it, never off its sides nor under it.
+    const across: Route = { ...map, bridges: [{ x: [1, 3], y: [2, 3], runs: 'x' }] };
+    expect(tiles(routePath(across, { x: 0, y: 2 }, { x: 4, y: 2 }))).toEqual(['1,2', '2,2', '3,2', '4,2']);
+    const round = routePath(across, { x: 2, y: 1 }, { x: 2, y: 4 })!;
+    expect([round.length, round.some(({ tile }) => tile.x >= 1 && tile.x <= 3 && tile.y >= 2 && tile.y <= 3)]).toEqual([7, false]);
+  });
+
   it('every route and gym has an entrance, and on a route the player can walk from it to the first spot', () => {
     for (const type of RUN_TYPE_IDS.map(runType)) {
       for (const map of type.routes ?? []) expect(map.entrance && routePath(map, map.entrance, map.spots[0]!), `${type.id} ${map.name}`).toBeTruthy();

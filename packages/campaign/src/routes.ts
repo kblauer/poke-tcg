@@ -26,6 +26,19 @@ export interface TrackTile extends RouteSpot {
 }
 
 /**
+ * A bridge (Route 215's, the user's): its deck's columns `x` and rows `y` (first, last), running up and down (`runs` 'y',
+ * the default: got onto and off only at its top and bottom ends) or across ('x': at its left and right ends), and the
+ * way `under` it where there's one (rows of a 'y' bridge, columns of an 'x' one), walked only across it, from side to
+ * side. routePath walks its tiles as two levels, never off its sides nor from under it onto it.
+ */
+export interface Bridge {
+  x: [number, number];
+  y: [number, number];
+  runs?: 'x' | 'y';
+  under?: [number, number];
+}
+
+/**
  * A `track` from its corners: from `start`, each leg's straight lines to its corners in turn (every tile on the way), the
  * legs walked under a bridge marked `under`, and a leg's `wait` on its first tile.
  */
@@ -74,6 +87,9 @@ export interface Route {
    * a bridge and back under it); `under` marks the tiles walked under a bridge.
    */
   track?: TrackTile[];
+  /** Bridges walked over and under (see Bridge); `bridgeOverhead` (an image the map's size) is drawn over the player only while he's under one. */
+  bridges?: Bridge[];
+  bridgeOverhead?: string;
   width: number;
   height: number;
   /** One spot per encounter step, in order (the run's start first); the steps after them stay at the last spot. */
@@ -510,6 +526,30 @@ export interface RouteStep {
 
 const tileKey = (t: RouteSpot) => `${t.x},${t.y}`;
 
+const inSpan = (v: number, [a, b]: [number, number]) => v >= a && v <= b;
+const bridgeAt = (route: Route, t: RouteSpot) => route.bridges?.find((b) => inSpan(t.x, b.x) && inSpan(t.y, b.y));
+
+/**
+ * A move from `here` (on a bridge's deck when `deck`) one tile (dx, dy) to `to`, by a route's `bridges`: on the deck
+ * (true) or not (false), or null when it can't be made (off a deck's side, onto it but at its ends, from under it onto it).
+ */
+function bridgeMove(route: Route, here: RouteSpot, deck: boolean, to: RouteSpot, dx: number, dy: number): boolean | null {
+  const from = bridgeAt(route, here);
+  const onto = bridgeAt(route, to);
+  if (!from && !onto) return false;
+  // Along a bridge (the way its deck runs), and where along it a tile is; across it, the way under it is walked.
+  const along = (b: Bridge) => (b.runs === 'x' ? dx : dy);
+  const at = (b: Bridge, t: RouteSpot) => (b.runs === 'x' ? t.x : t.y);
+  const ends = (b: Bridge) => (b.runs === 'x' ? b.x : b.y);
+  const under = (b: Bridge, t: RouteSpot) => !!b.under && inSpan(b.runs === 'x' ? t.x : t.y, b.under);
+  if (from && from === onto) return deck ? true : under(from, to) ? false : null;
+  // Off a bridge (onto another one too: never side by side): off its deck only at its ends, from under it only across it.
+  if (from && (deck ? !((along(from) === -1 && at(from, here) === ends(from)[0]) || (along(from) === 1 && at(from, here) === ends(from)[1])) : along(from) !== 0)) return null;
+  if (!onto) return false;
+  if ((along(onto) === 1 && at(onto, to) === ends(onto)[0]) || (along(onto) === -1 && at(onto, to) === ends(onto)[1])) return true;
+  return along(onto) === 0 && under(onto, to) ? false : null;
+}
+
 /** The walk along a route's `track` from one of its tiles to another (onwards, or back the way it came); null if either isn't on it. */
 function trackPath(track: TrackTile[], from: RouteSpot, to: RouteSpot): RouteStep[] | null {
   const at = (t: RouteSpot) => (s: RouteSpot) => s.x === t.x && s.y === t.y;
@@ -527,7 +567,8 @@ function trackPath(track: TrackTile[], from: RouteSpot, to: RouteSpot): RouteSte
  * A ledge ('v') is jumped over going down, landing on the tile below it: one move (`jump`), never onto the ledge itself.
  * Onto ice (the route's `ice`), a move slides on the way it was going until the next tile is a wall or someone standing
  * there, or it's onto ground, stopping only there: the fewest moves (a slide one), its tiles all steps (`slide`).
- * `lineOfSight` (an encounter whose people stand in a line through `to`): of the shortest walks, the one that gets onto
+ * A bridge's tiles (the route's `bridges`) are two levels: its deck, got onto and off at its ends, and the way under it,
+ * crossed from side to side (its steps `under`). `lineOfSight` (an encounter whose people stand in a line through `to`): of the shortest walks, the one that gets onto
  * `to`'s column (people on its row, 'row') or row (people in its column, 'column') soonest and comes straight along it,
  * so the player steps into their line of sight only as he arrives, as in the games (agreed with the user): the fewest
  * steps off that column (or row) before `to`. On a map with a `track`, the walk along it between two of its tiles.
@@ -535,19 +576,26 @@ function trackPath(track: TrackTile[], from: RouteSpot, to: RouteSpot): RouteSte
 export function routePath(route: Route, from: RouteSpot, to: RouteSpot, blocked: ReadonlySet<string> = new Set(), lineOfSight?: 'row' | 'column'): RouteStep[] | null {
   const along = route.track && trackPath(route.track, from, to);
   if (along) return along;
-  const prev = new Map<string, { from: RouteSpot; fade: boolean; via: RouteSpot[]; slide: boolean; jump: boolean } | null>([[tileKey(from), null]]);
+  // Each tile is one place but on a bridge, where its deck (key `^`) is another than the way under it.
+  const key = (t: RouteSpot, deck: boolean) => (deck ? `${tileKey(t)}^` : tileKey(t));
+  const prev = new Map<string, { from: RouteSpot; fromKey: string; fade: boolean; via: RouteSpot[]; slide: boolean; jump: boolean } | null>([[tileKey(from), null]]);
+  const decks = new Map<string, boolean>([[tileKey(from), false]]);
   const offLine = (t: RouteSpot) => (lineOfSight === 'row' ? t.x !== to.x : lineOfSight === 'column' ? t.y !== to.y : false);
   // Each tile's steps from `from`, and (lineOfSight) its walk's steps off the line: BFS reaches a tile first by a shortest
   // walk, and a later one as short replaces it if it has fewer steps off the line.
   const dist = new Map<string, number>([[tileKey(from), 0]]);
   const onRow = new Map<string, number>([[tileKey(from), 0]]);
-  const queue: RouteSpot[] = [from];
+  const queue: [RouteSpot, string][] = [[from, tileKey(from)]];
   while (queue.length) {
-    const here = queue.shift()!;
+    const [here, hereKey] = queue.shift()!;
+    const onDeck = decks.get(hereKey)!;
     if (here.x === to.x && here.y === to.y) {
       const steps: RouteStep[] = [];
-      for (let t = here, p = prev.get(tileKey(t)); p; t = p.from, p = prev.get(tileKey(t))) {
-        steps.unshift({ tile: t, ...(p.fade && { fade: true }), ...(p.slide && { slide: true }), ...(p.jump && { jump: true }) });
+      for (let t = here, k = hereKey, p = prev.get(k); p; t = p.from, k = p.fromKey, p = prev.get(k)) {
+        // Under a bridge: onto its way under, and the step out from it too (he's under it till he's off it: the user's).
+        const below = (tile: RouteSpot, tk: string) => !decks.get(tk) && !!bridgeAt(route, tile);
+        const under = below(t, k) || below(p.from, p.fromKey);
+        steps.unshift({ tile: t, ...(p.fade && { fade: true }), ...(under && { under: true }), ...(p.slide && { slide: true }), ...(p.jump && { jump: true }) });
         steps.unshift(...p.via.map((tile) => ({ tile, slide: true })));
       }
       return steps;
@@ -567,6 +615,8 @@ export function routePath(route: Route, from: RouteSpot, to: RouteSpot, blocked:
         first = { x: first.x, y: first.y + 1 };
       }
       if (!onPath(route, first) || blocked.has(tileKey(first))) continue;
+      const deck = fade ? false : bridgeMove(route, here, onDeck, first, dx, dy);
+      if (deck === null) continue;
       // Onto ice: on until the next tile can't be walked onto (or someone stands there), or this one is ground.
       const via: RouteSpot[] = [];
       let tile = first;
@@ -577,21 +627,22 @@ export function routePath(route: Route, from: RouteSpot, to: RouteSpot, blocked:
         tile = on;
       }
       const slide = via.length > 0 || (!fade && onIce(route, tile));
-      const k = tileKey(tile);
-      const d = dist.get(tileKey(here))! + 1;
-      const row = onRow.get(tileKey(here))! + [...via, tile].filter(offLine).length;
+      const k = key(tile, deck);
+      const d = dist.get(hereKey)! + 1;
+      const row = onRow.get(hereKey)! + [...via, tile].filter(offLine).length;
       if (prev.has(k)) {
         // Already reached: only a walk as short with fewer steps off the line takes its place (it's still queued).
         if (lineOfSight && dist.get(k) === d && row < onRow.get(k)!) {
-          prev.set(k, { from: here, fade, via, slide, jump });
+          prev.set(k, { from: here, fromKey: hereKey, fade, via, slide, jump });
           onRow.set(k, row);
         }
         continue;
       }
-      prev.set(k, { from: here, fade, via, slide, jump });
+      prev.set(k, { from: here, fromKey: hereKey, fade, via, slide, jump });
+      decks.set(k, deck);
       dist.set(k, d);
       onRow.set(k, row);
-      queue.push(tile);
+      queue.push([tile, k]);
     }
   }
   return null;

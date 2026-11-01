@@ -243,7 +243,7 @@ def main():
         over = None
         if city in USER_TREETOPS:
             heights = np.load(prefix + '_height.npy')[y0 * TILE:(y1 + 1) * TILE, x0 * TILE:(x1 + 1) * TILE]
-            over = treetops_overhead(im, rows, heights, True) or None
+            over = treetops_overhead(im, rows, heights, 2) or None
         if city in USER_OVERHEAD:
             over = over or Image.new('RGBA', im.size)
             for x, y in USER_OVERHEAD[city]:

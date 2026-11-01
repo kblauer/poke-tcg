@@ -17,7 +17,7 @@ export const stepPace = (route: Route, tile: RouteSpot) => pace(route, tile) * (
 export const GRASS_PACE = 0.7;
 
 /** The longest walk between spots, in tiles; farther (or with no path), the player fades out and back in instead. */
-const MAX_WALK = 40;
+const MAX_WALK = 50;
 /** How long the player takes to fade out, or back in; and the view's glide while he's out (through a gatehouse). */
 export const FADE_MS = 300;
 export const THROUGH_MS = 500;
@@ -25,7 +25,7 @@ export const THROUGH_MS = 500;
 /**
  * The player on the route map (RouteView): the map he's on (its section), where he stands (or is walking through), which
  * way he's going, whether he's faded out, whether he's under a bridge (a track's: the map's overhead drawn over him only
- * then), whether he's sliding across ice, the ledge jump he's in the middle of (`jump`) and where he last landed one
+ * then; a route's `bridges`: its `bridgeOverhead`), whether he's sliding across ice, the ledge jump he's in the middle of (`jump`) and where he last landed one
  * (`landed`, for its dust).
  */
 export interface Walker {

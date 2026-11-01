@@ -83,16 +83,19 @@ USER_SPOTS = {'route203': {1: (6, 13), 2: (19, 13), 3: (15, 21), 4: (25, 15), 5:
               # Eterna Forest's 7th on the way to its exit and 8th by the cottage (the user's, 2026-11-01: Route 205's first
               # two moved there), the others kept.
               'eterna_forest': {1: (25, 69), 2: (37, 54), 3: (41, 70), 4: (62, 68), 5: (72, 55), 6: (64, 41), 7: (53, 32), 8: (63, 16)},
-              'route205n': {1: (7, 19), 2: (26, 22)}}
-USER_ENTRANCE = {'route203': (0, 23), 'oreburgh_gate': (3, 22), 'eterna_forest': (16, 81), 'route205n': (2, 12)}
-USER_EXIT = {'route203': (55, 11), 'oreburgh_gate': (28, 22), 'eterna_forest': (75, 31), 'route205n': (31, 21)}
+              'route205n': {1: (7, 19), 2: (26, 22)},
+              'route215': {1: (10, 22), 2: (11, 14), 3: (37, 21), 4: (33, 10), 5: (48, 13), 6: (56, 7), 7: (65, 9), 8: (81, 6), 9: (68, 18), 10: (84, 22)}}
+USER_ENTRANCE = {'route203': (0, 23), 'oreburgh_gate': (3, 22), 'eterna_forest': (16, 81), 'route205n': (2, 12), 'route215': (0, 22)}
+USER_EXIT = {'route203': (55, 11), 'oreburgh_gate': (28, 22), 'eterna_forest': (75, 31), 'route205n': (31, 21), 'route215': (95, 23)}
 USER_MOVES = {}
 # Tiles made walkable or unwalkable (after USER_RAISED). Eterna Forest (the user's, 2026-11-01): out at 75,31, so 74,31
 # walkable and 74,30 not; 32-35,56 walkable; 44-47,70, 48-49,72, 40-43,54, 15-27,58 unwalkable, and its cliffs' feet:
 # 60-61 and 68-69,54, 62-67,56, 66-73,40, 74-75,42, 48-71,52 and 66-73,28. Route 205: 3,12 walkable, the way from its
 # door (2,12, the user's) through the trees.
 USER_WALKABLE = {'eterna_forest': [(74, 31)] + [(x, 56) for x in range(32, 36)], 'route205n': [(3, 12)]}
-USER_BLOCKED = {'eterna_forest': [(74, 30)] + [(x, 70) for x in range(44, 48)] + [(48, 72), (49, 72)] + [(x, 54) for x in range(40, 44)]
+# Route 215: 35-36,7 and 13-14,11 (the user's), and 24-27,7, the top bridge's west platform's wall.
+USER_BLOCKED = {'route215': [(35, 7), (36, 7), (13, 11), (14, 11), (24, 7), (25, 7), (26, 7), (27, 7)],
+                'eterna_forest': [(74, 30)] + [(x, 70) for x in range(44, 48)] + [(48, 72), (49, 72)] + [(x, 54) for x in range(40, 44)]
                                   + [(60, 54), (61, 54), (68, 54), (69, 54)] + [(x, 56) for x in range(62, 68)]
                                   + [(x, 40) for x in range(66, 74)] + [(74, 42), (75, 42)] + [(x, 58) for x in range(15, 28)]
                                   + [(x, 52) for x in range(48, 72)] + [(x, 28) for x in range(66, 74)]}
@@ -101,24 +104,42 @@ USER_RAISED = {'route203': [(23, 34, 1), (37, 54, 2)], 'eterna_forest': [(0, 77,
 # Spots whose figures stand beside the player along the map's flow, not across it (the Route's `spotFlows`, by spot number
 # from 1): Route 203 flows right, so its encounters 1, 2, 4 and 8 have theirs left and right (the user's), the third above.
 # Route 205's encounters (9 and 10) have their figures above and below the player, the third to his right (the user's).
-USER_SPOT_FLOWS = {'route203': {1: 'up', 2: 'up', 4: 'up', 8: 'up'}, 'route205n': {1: 'right', 2: 'right'}}
+# Route 215's 2, 4 and 8 have theirs left and right (the user's).
+USER_SPOT_FLOWS = {'route203': {1: 'up', 2: 'up', 4: 'up', 8: 'up'}, 'route205n': {1: 'right', 2: 'right'}, 'route215': {2: 'up', 4: 'up', 8: 'up'}}
 # Treetops drawn over the player (the user's: the 2 tiles above a tree's unwalkable tiles): in each walkable tile within 2
 # above an unwalkable one, the pixels of what stands more than TREETOP_HIGH model units (a tile is 16) above the ground
 # round it (from dp_map.py's heights: the highest median height of the walkable tiles near it, not themselves under
 # treetops, that's no higher than the tile's own lower pixels, so at a cliff or stairs it's its own level's) are copied
 # into the route's overhead image (<name>_overhead.png). Tiles never treetops: stairs up a cliff, whose own steps stand
 # above the ground below (Route 203's between its parts, 22,20-23 and 35-36,9-10 and 20-23).
-USER_TREETOPS = {'route203', 'eterna_forest', 'route205n'}
+USER_TREETOPS = {'route203', 'eterna_forest', 'route205n', 'route215'}
+# How many tiles above a tree's unwalkable ones its treetop reaches, where it isn't 2: Route 215's trees stand taller over
+# theirs (the user's: those standing in front of them weren't masked).
+USER_TREETOP_ROWS = {'route215': 3}
+# Maps whose treetops are only their green pixels: Route 215's raised platforms, stairs and cliff edges stand as high.
+USER_TREETOP_GREEN = {'route215'}
 USER_NOT_TREETOPS = {'route203': [(22, y) for y in range(20, 24)] + [(x, y) for x in (35, 36) for y in (9, 10, 20, 21, 22, 23)]}
 TREETOP_HIGH = 8
 # Fewer pixels than this standing high in a tile aren't a treetop: grass blades and flowers (Eterna Forest's).
 TREETOP_MIN = 24
 # Nor is a piece of them no wider than this: a stem's tip standing up beside a tree (Eterna Gym's).
 TREETOP_THIN = 4
+# How far a bridge's edges and rails overhang the tiles beside it, in pixels.
+BRIDGE_EDGE = 3
 # Cave mouths the player goes in and out by, drawn over him (the user's): only their rock in front of him, not the whole
 # tile (the user's): of the mouth's tile and those round it, the rock (higher than the ground he walks in from) beyond the
 # hollow (sunk below it), across it from him, or below it.
 USER_CAVE_MOUTHS = {'route203': [(55, 11)], 'oreburgh_gate': [(3, 22), (28, 22)]}
+# Bridges (the Route's `bridges`: the deck's columns `x` and rows `y`, the way it `runs`, 'y' up and down or 'x' across, and
+# the rows (or columns) walked `under` it, if any): the walk gets onto the deck only at its ends and never off its sides,
+# and crosses under it only from side to side (the user's), and what stands above the ground beside it, by height, over
+# the way under it (and the row above, the deck over his head), is the route's `bridgeOverhead` (<name>_bridges.png),
+# drawn over the player only while he's under it. Route 215's three (2026-11-01): 15-17 from its upper platform to its
+# lower one (rows 13-18), the way from the west up onto the route, and 37-39 from the top bridge down to the cliff (rows
+# 7-20), both over rows 14-17; and the top bridge across, 26-36 on rows 5-6, over the ground at 28-34 (the way from the
+# north to encounter 4's ground, east of the ledge on 31,14-17).
+USER_BRIDGES = {'route215': [{'x': (15, 17), 'y': (13, 18), 'under': (14, 17)}, {'x': (37, 39), 'y': (7, 20), 'under': (14, 17)},
+                             {'x': (26, 36), 'y': (5, 6), 'runs': 'x', 'under': (28, 34)}]}
 STEP = {'left': (-1, 0), 'right': (1, 0), 'up': (0, -1), 'down': (0, 1)}
 HEAD = """// The Sinnoh gym runs' maps, from Diamond and Pearl (the pret/pokediamond decompilation; tools/routes/dp/): its maps are
 // 3D, so dp_map.py converts each one's terrain chunks and buildings with apicula and draws them looking down, slightly
@@ -200,17 +221,17 @@ def thin(mask):
     return out
 
 
-def overhead(img, rows, heights, treetops, never=(), mouths=()):
+def overhead(img, rows, heights, treetops, never=(), mouths=(), bridges=(), green=False):
     """The map's overhead image (see-through but for what's drawn over the player), or None, from `heights` (each pixel's
-    model height): the treetops above its trees (`treetops`: USER_TREETOPS) but on the `never` tiles, and the rock in
-    front of its cave `mouths` (USER_CAVE_MOUTHS)."""
+    model height): the treetops in the `treetops` tiles above its trees (USER_TREETOPS, USER_TREETOP_ROWS; 0: none; only their green pixels if `green`, USER_TREETOP_GREEN) but on the `never` tiles, and the rock in
+    front of its cave `mouths` (USER_CAVE_MOUTHS), and the decks of the `bridges` over the walk (USER_BRIDGES)."""
     img = img.convert('RGBA')
     h, w = len(rows), len(rows[0])
     src, dst = np.asarray(img), np.zeros((img.height, img.width, 4), np.uint8)
     tile = lambda x, y: heights[y * TILE:(y + 1) * TILE, x * TILE:(x + 1) * TILE]
     top = np.zeros((img.height, img.width), bool)
     if treetops:
-        tops = {(x, y - k) for y in range(1, h) for x in range(w) for k in (1, 2) if y - k >= 0 and rows[y - k][x] == '.' and rows[y][x] == '#'}
+        tops = {(x, y - k) for y in range(1, h) for x in range(w) for k in range(1, treetops + 1) if y - k >= 0 and rows[y - k][x] == '.' and rows[y][x] == '#'}
         # And beside a tree, left or right: its canopy's edge over the side of whoever walks past (the user's).
         sides = {(x + d, y) for y in range(h) for x in range(w) for d in (-1, 1) if 0 <= x + d < w and rows[y][x] == '#' and rows[y][x + d] == '.'}
         for x, y in (tops | sides) - set(never):
@@ -222,6 +243,9 @@ def overhead(img, rows, heights, treetops, never=(), mouths=()):
             own = np.nanpercentile(tile(x, y), 25)
             ground = max((g for g in near if g <= own + 2), default=min(near))
             high = tile(x, y) > ground + TREETOP_HIGH
+            if green:
+                r, g, b = (src[y * TILE:(y + 1) * TILE, x * TILE:(x + 1) * TILE, c].astype(int) for c in range(3))
+                high &= (g >= np.maximum(r, b) + 16) & (b < 100)  # the leaves: not the stairs' rails nor the platforms' grass
             if high.sum() < TREETOP_MIN:
                 continue
             top[y * TILE:(y + 1) * TILE, x * TILE:(x + 1) * TILE] |= high
@@ -240,6 +264,25 @@ def overhead(img, rows, heights, treetops, never=(), mouths=()):
         beyond = cum(hollow, 1) if side < 0 else cum(hollow[:, ::-1], 1)[:, ::-1]
         front = rock & (beyond | cum(hollow, 0))
         dst[y0:y0 + 3 * TILE, x0:x0 + 3 * TILE][front] = src[y0:y0 + 3 * TILE, x0:x0 + 3 * TILE][front]
+    for br in bridges:
+        if 'under' not in br:
+            continue
+        # The way under it, and the row above it (the deck over his head).
+        (l, r), (t, b) = (br['under'], (br['y'][0] - 1, br['y'][1])) if br.get('runs') == 'x' else (br['x'], (br['under'][0] - 1, br['under'][1]))
+        # The ground: the way beside the bridge, either side of it where it's walked under.
+        beside = [(x, y) for y in (t - 1, b + 1) for x in range(l, r + 1)] if br.get('runs') == 'x' else [(x, y) for y in range(t, b + 1) for x in (l - 1, r + 1)]
+        ground = np.nanmedian([np.nanmedian(tile(x, y)) for x, y in beside if rows[y][x] == '.'])
+        # And its edges and rails standing over the ground in the tiles either side of the way under it (the user's: 14,14-17
+        # by Route 215's), the BRIDGE_EDGE pixels nearest it, but no leaves there.
+        y0, y1, x0, x1 = t * TILE, (b + 1) * TILE, l * TILE, (r + 1) * TILE
+        if br.get('runs') == 'x':
+            y1 += BRIDGE_EDGE
+        else:
+            x0, x1 = x0 - BRIDGE_EDGE, x1 + BRIDGE_EDGE
+        red, green, blue = (src[y0:y1, x0:x1, c].astype(int) for c in range(3))
+        deck = (heights[y0:y1, x0:x1] > ground + TREETOP_HIGH) & ~((green >= np.maximum(red, blue) + 16) & (blue < 100))
+        deck &= ~thin(deck)
+        dst[y0:y1, x0:x1][deck] = src[y0:y1, x0:x1][deck]
     out = Image.fromarray(dst)
     return out if out.getbbox() else None
 
@@ -304,7 +347,7 @@ def main():
             near = [(x, y) for y in range(t[1] - 2, t[1] + 3) for x in range(t[0] - 2, t[0] + 3) if 0 <= y < h and 0 <= x < w and rows[y][x] == '.' and (x, y) in prev and (x, y) not in spots and (x, y) not in (ent, end)]
             spots.append(max(near, key=lambda n: openness(n) * 2 - abs(n[0] - t[0]) - abs(n[1] - t[1])))
         img = Image.open(prefix + '.png')
-        heights = np.load(prefix + '_height.npy') if name in USER_TREETOPS or name in USER_CAVE_MOUTHS else None
+        heights = np.load(prefix + '_height.npy') if name in USER_TREETOPS or name in USER_CAVE_MOUTHS or name in USER_BRIDGES else None
         grass = j['grass']
         if name in CROP or box:
             tiles = list(prev)
@@ -349,9 +392,12 @@ def main():
             if t not in reach or rows[t[1]][t[0]] != '.':
                 print('NO WALK:', name, 'entrance', ent, 'to', t)
         flows = USER_SPOT_FLOWS.get(name)
-        over = heights is not None and overhead(img, rows, heights, name in USER_TREETOPS, USER_NOT_TREETOPS.get(name, []), USER_CAVE_MOUTHS.get(name, []))
+        over = heights is not None and overhead(img, rows, heights, USER_TREETOP_ROWS.get(name, 2) if name in USER_TREETOPS else 0, USER_NOT_TREETOPS.get(name, []), USER_CAVE_MOUTHS.get(name, []), green=name in USER_TREETOP_GREEN)
         if over:
             over.save(os.path.join(PUBLIC, name + '_overhead.png'))
+        bridges = USER_BRIDGES.get(name, [])
+        if bridges:
+            overhead(img, rows, heights, 0, bridges=bridges).save(os.path.join(PUBLIC, name + '_bridges.png'))
         img.save(os.path.join(PUBLIC, name + '.png'))
         pv = img.convert('RGB'); d = ImageDraw.Draw(pv)
         for k, (x, y) in enumerate([ent] + spots + [end]):
@@ -365,6 +411,8 @@ def main():
         links_ = ('\n  links: [' + ', '.join(f'[{{ x: {a[0]}, y: {a[1]} }}, {{ x: {b[0]}, y: {b[1]} }}]' for a, b in links) + '],') if links else ''
         flows_ = ('\n  spotFlows: { ' + ', '.join(f"{n - 1}: '{f}'" for n, f in sorted(flows.items())) + ' },') if flows else ''
         over_ = f"\n  overhead: '/routes/{name}_overhead.png'," if over else ''
+        over_ += ('\n  bridges: [' + ', '.join('{ ' + ', '.join(f"{k}: [{v[0]}, {v[1]}]" if isinstance(v, tuple) else f"{k}: '{v}'" for k, v in br.items()) + ' }' for br in bridges)
+                  + f"],\n  bridgeOverhead: '/routes/{name}_bridges.png',") if bridges else ''
         out.append(f"""
 /** {title}: {what}. Spots along the walk from its entrance to its exit, picked by the generator. */
 export const {const}: Route = {{
