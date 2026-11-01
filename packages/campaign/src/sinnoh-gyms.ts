@@ -64,6 +64,7 @@ export const ETERNA_GYM: Route = {
   sprites: 'dp',
   name: 'Eterna Gym',
   image: '/routes/eterna_gym.png',
+  overhead: '/routes/eterna_gym_overhead.png',
   width: 416,
   height: 496,
   entrance: { x: 13, y: 29 },

@@ -35,9 +35,9 @@ MAPS = {
                  'Jubilife City (west) to Oreburgh Gate (east), for the Oreburgh City run, then Oreburgh Gate'),
     'oreburgh_gate': (['MAP_OREBURGH_GATE_1F'], 2, ('warp', 'MAP_ROUTE_203'), ('warp', 'MAP_OREBURGH'), 'right', 'OREBURGH_GATE', 'Oreburgh Gate',
                       "Oreburgh Gate's ground floor, from Route 203 (west) to Oreburgh City (east), after Route 203"),
-    'eterna_forest': (['MAP_ETERNA_FOREST_INTERIOR'], 6, ('warp', 'MAP_ROUTE_205_SOUTH'), ('warp', 'MAP_ROUTE_205_NORTH'), 'up', 'ETERNA_FOREST', 'Eterna Forest',
+    'eterna_forest': (['MAP_ETERNA_FOREST_INTERIOR'], 8, ('warp', 'MAP_ROUTE_205_SOUTH'), ('warp', 'MAP_ROUTE_205_NORTH'), 'up', 'ETERNA_FOREST', 'Eterna Forest',
                       "from Route 205's south half (south) to its north half (east), for the Eterna City run, then Route 205"),
-    'route205n': (['MAP_ROUTE_205_NORTH'], 4, ('warp', 'MAP_ETERNA_FOREST_INTERIOR'), 'top', 'up', 'ROUTE_205', 'Route 205',
+    'route205n': (['MAP_ROUTE_205_NORTH'], 2, ('warp', 'MAP_ETERNA_FOREST_INTERIOR'), 'top', 'up', 'ROUTE_205', 'Route 205',
                   "Route 205's upper part (agreed with the user), from Eterna Forest (west) up to Eterna City (north), after Eterna Forest"),
     'route215': (['MAP_ROUTE_215'], 10, 'left', ('warp', 'MAP_VEILSTONE_ROUTE_215_GATEHOUSE'), 'right', 'ROUTE_215', 'Route 215',
                  "Route 210 (west) to Veilstone City's gatehouse (east), for the Veilstone City run"),
@@ -74,28 +74,47 @@ MARGIN = {'top': 4, 'side': 2, 'bottom': 2}
 # The maps' fixes from the user, in the map's own tiles (after any crop), made once its spots are picked: spots moved (by
 # spot number on the map, from 1), the entrance and exit (made walkable), tiles moved (left, top, right, bottom, rows
 # down: negative is up; the tiles they leave walkable), and higher ground (columns left to right, and how many rows higher
-# it's drawn than the map data has it: its walkable tiles and grass moved up that many, the user's). Route 203 (the user's,
+# it's drawn than the map data has it: its walkable tiles and grass moved up that many, down when it's negative, the user's). Route 203 (the user's,
 # 2026-10-31): in at its west edge (0,23), out at Oreburgh Gate's cave mouth (55,11); its middle part (23-34) is drawn a
 # row higher and its eastern part (37-54) two, as its trees, ledge and grass show. Oreburgh Gate: in and out at its cave
 # mouths (3,22 and 28,22).
 USER_SPOTS = {'route203': {1: (6, 13), 2: (19, 13), 3: (15, 21), 4: (25, 15), 5: (34, 20), 6: (51, 19), 7: (39, 13), 8: (48, 9)},
-              'oreburgh_gate': {1: (14, 24), 2: (23, 22)}}
-USER_ENTRANCE = {'route203': (0, 23), 'oreburgh_gate': (3, 22)}
-USER_EXIT = {'route203': (55, 11), 'oreburgh_gate': (28, 22)}
+              'oreburgh_gate': {1: (14, 24), 2: (23, 22)},
+              # Eterna Forest's 7th on the way to its exit and 8th by the cottage (the user's, 2026-11-01: Route 205's first
+              # two moved there), the others kept.
+              'eterna_forest': {1: (25, 69), 2: (37, 54), 3: (41, 70), 4: (62, 68), 5: (72, 55), 6: (64, 41), 7: (53, 32), 8: (63, 16)},
+              'route205n': {1: (7, 19), 2: (26, 22)}}
+USER_ENTRANCE = {'route203': (0, 23), 'oreburgh_gate': (3, 22), 'eterna_forest': (16, 81), 'route205n': (2, 12)}
+USER_EXIT = {'route203': (55, 11), 'oreburgh_gate': (28, 22), 'eterna_forest': (75, 31), 'route205n': (31, 21)}
 USER_MOVES = {}
-USER_RAISED = {'route203': [(23, 34, 1), (37, 54, 2)]}
+# Tiles made walkable or unwalkable (after USER_RAISED). Eterna Forest (the user's, 2026-11-01): out at 75,31, so 74,31
+# walkable and 74,30 not; 32-35,56 walkable; 44-47,70, 48-49,72, 40-43,54, 15-27,58 unwalkable, and its cliffs' feet:
+# 60-61 and 68-69,54, 62-67,56, 66-73,40, 74-75,42, 48-71,52 and 66-73,28. Route 205: 3,12 walkable, the way from its
+# door (2,12, the user's) through the trees.
+USER_WALKABLE = {'eterna_forest': [(74, 31)] + [(x, 56) for x in range(32, 36)], 'route205n': [(3, 12)]}
+USER_BLOCKED = {'eterna_forest': [(74, 30)] + [(x, 70) for x in range(44, 48)] + [(48, 72), (49, 72)] + [(x, 54) for x in range(40, 44)]
+                                  + [(60, 54), (61, 54), (68, 54), (69, 54)] + [(x, 56) for x in range(62, 68)]
+                                  + [(x, 40) for x in range(66, 74)] + [(74, 42), (75, 42)] + [(x, 58) for x in range(15, 28)]
+                                  + [(x, 52) for x in range(48, 72)] + [(x, 28) for x in range(66, 74)]}
+# Eterna Forest is drawn a row lower than its map data has it, all of it (its trees, fences and grass: the user's): -1.
+USER_RAISED = {'route203': [(23, 34, 1), (37, 54, 2)], 'eterna_forest': [(0, 77, -1)]}
 # Spots whose figures stand beside the player along the map's flow, not across it (the Route's `spotFlows`, by spot number
 # from 1): Route 203 flows right, so its encounters 1, 2, 4 and 8 have theirs left and right (the user's), the third above.
-USER_SPOT_FLOWS = {'route203': {1: 'up', 2: 'up', 4: 'up', 8: 'up'}}
+# Route 205's encounters (9 and 10) have their figures above and below the player, the third to his right (the user's).
+USER_SPOT_FLOWS = {'route203': {1: 'up', 2: 'up', 4: 'up', 8: 'up'}, 'route205n': {1: 'right', 2: 'right'}}
 # Treetops drawn over the player (the user's: the 2 tiles above a tree's unwalkable tiles): in each walkable tile within 2
 # above an unwalkable one, the pixels of what stands more than TREETOP_HIGH model units (a tile is 16) above the ground
 # round it (from dp_map.py's heights: the highest median height of the walkable tiles near it, not themselves under
 # treetops, that's no higher than the tile's own lower pixels, so at a cliff or stairs it's its own level's) are copied
 # into the route's overhead image (<name>_overhead.png). Tiles never treetops: stairs up a cliff, whose own steps stand
 # above the ground below (Route 203's between its parts, 22,20-23 and 35-36,9-10 and 20-23).
-USER_TREETOPS = {'route203'}
+USER_TREETOPS = {'route203', 'eterna_forest', 'route205n'}
 USER_NOT_TREETOPS = {'route203': [(22, y) for y in range(20, 24)] + [(x, y) for x in (35, 36) for y in (9, 10, 20, 21, 22, 23)]}
 TREETOP_HIGH = 8
+# Fewer pixels than this standing high in a tile aren't a treetop: grass blades and flowers (Eterna Forest's).
+TREETOP_MIN = 24
+# Nor is a piece of them no wider than this: a stem's tip standing up beside a tree (Eterna Gym's).
+TREETOP_THIN = 4
 # Cave mouths the player goes in and out by, drawn over him (the user's): only their rock in front of him, not the whole
 # tile (the user's): of the mouth's tile and those round it, the rock (higher than the ground he walks in from) beyond the
 # hollow (sunk below it), across it from him, or below it.
@@ -156,6 +175,31 @@ def edge_tile(rows, area, edge, inward=True):
     return x, y
 
 
+def thin(mask):
+    """The pixels of `mask`'s pieces (8-connected) no more than TREETOP_THIN wide: grass blades' and stems' tips, not trees."""
+    out, seen = np.zeros_like(mask), np.zeros_like(mask)
+    h, w = mask.shape
+    for y0, x0 in zip(*np.nonzero(mask)):
+        if seen[y0, x0]:
+            continue
+        piece, todo = [], [(y0, x0)]
+        seen[y0, x0] = True
+        while todo:
+            y, x = todo.pop()
+            piece.append((y, x))
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    ny, nx = y + dy, x + dx
+                    if 0 <= ny < h and 0 <= nx < w and mask[ny, nx] and not seen[ny, nx]:
+                        seen[ny, nx] = True
+                        todo.append((ny, nx))
+        xs = [x for _, x in piece]
+        if max(xs) - min(xs) + 1 <= TREETOP_THIN:
+            for y, x in piece:
+                out[y, x] = True
+    return out
+
+
 def overhead(img, rows, heights, treetops, never=(), mouths=()):
     """The map's overhead image (see-through but for what's drawn over the player), or None, from `heights` (each pixel's
     model height): the treetops above its trees (`treetops`: USER_TREETOPS) but on the `never` tiles, and the rock in
@@ -164,9 +208,12 @@ def overhead(img, rows, heights, treetops, never=(), mouths=()):
     h, w = len(rows), len(rows[0])
     src, dst = np.asarray(img), np.zeros((img.height, img.width, 4), np.uint8)
     tile = lambda x, y: heights[y * TILE:(y + 1) * TILE, x * TILE:(x + 1) * TILE]
+    top = np.zeros((img.height, img.width), bool)
     if treetops:
         tops = {(x, y - k) for y in range(1, h) for x in range(w) for k in (1, 2) if y - k >= 0 and rows[y - k][x] == '.' and rows[y][x] == '#'}
-        for x, y in tops - set(never):
+        # And beside a tree, left or right: its canopy's edge over the side of whoever walks past (the user's).
+        sides = {(x + d, y) for y in range(h) for x in range(w) for d in (-1, 1) if 0 <= x + d < w and rows[y][x] == '#' and rows[y][x + d] == '.'}
+        for x, y in (tops | sides) - set(never):
             near = [np.nanmedian(tile(xx, yy)) for yy in range(max(0, y - 3), y + 1) for xx in range(max(0, x - 3), min(w, x + 4))
                     if rows[yy][xx] == '.' and (xx, yy) not in tops and not np.isnan(tile(xx, yy)).all()]
             if not near:
@@ -175,7 +222,11 @@ def overhead(img, rows, heights, treetops, never=(), mouths=()):
             own = np.nanpercentile(tile(x, y), 25)
             ground = max((g for g in near if g <= own + 2), default=min(near))
             high = tile(x, y) > ground + TREETOP_HIGH
-            dst[y * TILE:(y + 1) * TILE, x * TILE:(x + 1) * TILE][high] = src[y * TILE:(y + 1) * TILE, x * TILE:(x + 1) * TILE][high]
+            if high.sum() < TREETOP_MIN:
+                continue
+            top[y * TILE:(y + 1) * TILE, x * TILE:(x + 1) * TILE] |= high
+        top &= ~thin(top)
+        dst[top] = src[top]
     for mx, my in mouths:
         # The ground he walks in from (the walkable tile beside the mouth), the hollow sunk below it and the rock above it,
         # in the mouth's tiles and those round it.
@@ -272,7 +323,8 @@ def main():
         for l, r, up in USER_RAISED.get(name, []):
             for x in range(l, r + 1):
                 for layer, fill in ((rows, '#'), (grass, '.')):
-                    col = [layer[y][x] for y in range(len(layer))][up:] + [fill] * up
+                    col = [layer[y][x] for y in range(len(layer))]
+                    col = col[up:] + [fill] * up if up > 0 else [fill] * -up + col[:len(col) + up]
                     for y, c in enumerate(col):
                         layer[y][x] = c
         grass = [''.join(r) for r in grass]
@@ -283,6 +335,10 @@ def main():
                     rows[y][x] = '.'
             for (x, y), c in moved.items():
                 rows[y][x] = c
+        for x, y in USER_WALKABLE.get(name, []):
+            rows[y][x] = '.'
+        for x, y in USER_BLOCKED.get(name, []):
+            rows[y][x] = '#'
         ent, end = USER_ENTRANCE.get(name, ent), USER_EXIT.get(name, end)
         for x, y in (ent, end):
             rows[y][x] = '.'

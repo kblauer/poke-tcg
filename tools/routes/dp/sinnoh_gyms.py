@@ -20,7 +20,9 @@ from collections import deque
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from PIL import Image, ImageDraw
+import numpy as np
 import dp_data as dd
+from sinnoh_routes import overhead as treetops_overhead
 
 REPO = os.path.abspath(os.path.join(HERE, '..', '..', '..'))
 PUBLIC = os.path.join(REPO, 'apps', 'web', 'public', 'routes')
@@ -55,6 +57,9 @@ USER_DOOR = {'oreburgh': (5, 25)}
 USER_GYM_TRAINER = {'oreburgh': {'spot': (5, 11), 'stand': (7, 11)}}
 # Tiles drawn over the player (the route's `overhead`): bridges he walks under. Oreburgh Gym's wooden bridge (the user's).
 USER_OVERHEAD = {'oreburgh': [(x, 17) for x in range(4, 8)]}
+# Gyms whose treetops are drawn over the player, found by height as the routes' are (sinnoh_routes.py's `overhead`,
+# USER_TREETOPS there): Eterna Gym's (the user's, 2026-11-01).
+USER_TREETOPS = {'eterna'}
 FACE = {0: 'up', 1: 'down', 2: 'left', 3: 'right'}
 STEP = {'up': (0, -1), 'down': (0, 1), 'left': (-1, 0), 'right': (1, 0)}
 # How far past the room's walkable tiles the image goes: its walls above (drawn tilted), a tile elsewhere.
@@ -235,11 +240,16 @@ def main():
             d.text((x * TILE + 17, y * TILE), label, fill=col)
         pv.save(prefix + '-preview.png')
         overhead = None
+        over = None
+        if city in USER_TREETOPS:
+            heights = np.load(prefix + '_height.npy')[y0 * TILE:(y1 + 1) * TILE, x0 * TILE:(x1 + 1) * TILE]
+            over = treetops_overhead(im, rows, heights, True) or None
         if city in USER_OVERHEAD:
-            over = Image.new('RGBA', im.size)
+            over = over or Image.new('RGBA', im.size)
             for x, y in USER_OVERHEAD[city]:
                 box = (x * TILE, y * TILE, (x + 1) * TILE, (y + 1) * TILE)
                 over.paste(im.convert('RGBA').crop(box), box)
+        if over:
             overhead = f'{city}_gym_overhead.png'
             over.save(os.path.join(PUBLIC, overhead))
         who = dd.trainer_of(cache, trainer) if trainer else None
