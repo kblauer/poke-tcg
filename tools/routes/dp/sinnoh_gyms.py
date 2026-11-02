@@ -57,6 +57,19 @@ USER_DOOR = {'oreburgh': (5, 25)}
 USER_GYM_TRAINER = {'oreburgh': {'spot': (5, 11), 'stand': (7, 11)}}
 # Tiles drawn over the player (the route's `overhead`): bridges he walks under. Oreburgh Gym's wooden bridge (the user's).
 USER_OVERHEAD = {'oreburgh': [(x, 17) for x in range(4, 8)]}
+# The user's tracks (the one way through, in the cropped map's tiles; only its tiles walkable), as johto_gyms.py's: from
+# the door, its legs' corners in turn, a leg `under` where the gym's overhead is drawn over him. Pastoria Gym's
+# (2026-11-02): round its walls as its water would have him, up past the Gym Trainer and on to Crasher Wake, below the
+# raised floor at 6-9,20.
+USER_TRACKS = {'pastoria': {'start': (13, 42), 'legs': [{'to': [(13, 29), (8, 29), (8, 33), (6, 33), (6, 23), (7, 23), (4, 23), (4, 20), (5, 20)]},
+                                                        {'under': True, 'to': [(9, 20)]}, {'to': [(13, 20), (13, 5)]}]}}
+# Tiles whose raised pixels (above the floor of the tile given) are drawn over the player: Pastoria Gym's raised floor
+# along 6-9,20, its upper half, the floor beside it at 5,20 (the user's).
+USER_RAISED_OVER = {'pastoria': ([(x, 20) for x in range(6, 10)], (5, 20))}
+# Tiles painted over with another tile of the gym's (tile: the one copied). Pastoria Gym's gate across the channel in from
+# its door, 13,33-35, gone: the channel's floor above it; the walkway at 6,27-30 up to 6,23, and the floor at 13,8-9 up to
+# Crasher Wake's platform (the user's, 2026-11-02).
+USER_FLOOR = {'pastoria': {**{(13, y): (13, 32) for y in range(33, 36)}, **{(6, y): (6, 28) for y in range(23, 27)}, **{(13, y): (13, 8) for y in range(5, 8)}}}
 # Gyms whose treetops are drawn over the player, found by height as the routes' are (sinnoh_routes.py's `overhead`,
 # USER_TREETOPS there): Eterna Gym's (the user's, 2026-11-01).
 USER_TREETOPS = {'eterna'}
@@ -156,7 +169,21 @@ def render(work, name, map_const, apicula, cache):
     return prefix, json.load(open(prefix + '.json'))['rows']
 
 
-def gym_ts(const, title, doc, image, w, h, door, spots, stands, guide, rows, overhead=None):
+def track_tiles(track):
+    """A user track's tiles, every one on the way from corner to corner."""
+    tiles = [track['start']]
+    for x, y in (c for leg in track['legs'] for c in leg['to']):
+        x0, y0 = tiles[-1]
+        assert x == x0 or y == y0, ('track corner not in line', (x0, y0), (x, y))
+        dx, dy = (x > x0) - (x < x0), (y > y0) - (y < y0)
+        while tiles[-1] != (x, y):
+            tiles.append((tiles[-1][0] + dx, tiles[-1][1] + dy))
+    return tiles
+
+
+def gym_ts(const, title, doc, image, w, h, door, spots, stands, guide, rows, overhead=None, track=None):
+    legs = lambda: ', '.join('{ ' + ('under: true, ' if leg.get('under') else '') + f"to: [{', '.join(f'[{x}, {y}]' for x, y in leg['to'])}] }}" for leg in track['legs'])
+    track_ = f"\n  track: trackLine([{track['start'][0]}, {track['start'][1]}], {legs()})," if track else ''
     pts = lambda ps: '\n'.join(f'    {{ x: {x}, y: {y} }},' for x, y in ps)
     walk = '\n'.join(f"    '{r}'," for r in rows)
     name = f'"{title}"' if "'" in title else f"'{title}'"
@@ -170,7 +197,7 @@ export const {const}: Route = {{
   image: '/routes/{image}',{f"{chr(10)}  overhead: '/routes/{overhead}'," if overhead else ''}
   width: {w * TILE},
   height: {h * TILE},
-  entrance: {{ x: {door[0]}, y: {door[1]} }},
+  entrance: {{ x: {door[0]}, y: {door[1]} }},{track_}
   spots: [
 {pts(spots)}
   ],
@@ -193,7 +220,7 @@ HEAD = """// The Sinnoh gyms' interiors, from Diamond and Pearl (the pret/pokedi
 // the Pokémon League's, each boss in their place and the player coming in 5 tiles from them, and Pastoria's Pokémon Center;
 // and each boss's map for those runs (SINNOH_BOSS_ROOMS). Written by tools/routes/dp/sinnoh_gyms.py.
 import type { SinnohBossId } from './bosses.js';
-import { leaderRoom, type Route } from './routes.js';
+import { leaderRoom, trackLine, type Route } from './routes.js';
 """
 
 
@@ -227,11 +254,17 @@ def main():
         if city in USER_GYM_TRAINER:
             spots[0], stands[0] = USER_GYM_TRAINER[city]['spot'], USER_GYM_TRAINER[city]['stand']
             trainer = next((o for o in events['objects'] if (o['x'] - x0, o['z'] - y0) in (spots[0], stands[0]) and dd.trainer_of(cache, o)), trainer)
+        track = USER_TRACKS.get(city)
+        if track:
+            on = set(track_tiles(track))
+            rows = [''.join('.' if (x, y) in on else '#' for x in range(len(r))) for y, r in enumerate(rows)]
         if spots[0] not in bfs(rows, door):
             problems.append((city, 'door', door, 'Gym Trainer spot', spots[0]))
         if spots[1] not in bfs(rows, spots[0]):
             problems.append((city, 'Gym Trainer spot', spots[0], 'leader spot', spots[1]))
         im = Image.open(prefix + '.png').crop((x0 * TILE, y0 * TILE, (x1 + 1) * TILE, (y1 + 1) * TILE))
+        for (x, y), (fx, fy) in USER_FLOOR.get(city, {}).items():
+            im.paste(im.crop((fx * TILE, fy * TILE, (fx + 1) * TILE, (fy + 1) * TILE)), (x * TILE, y * TILE))
         image = f'{city}_gym.png'
         im.save(os.path.join(PUBLIC, image))
         pv = im.convert('RGB'); d = ImageDraw.Draw(pv)
@@ -244,6 +277,18 @@ def main():
         if city in USER_TREETOPS:
             heights = np.load(prefix + '_height.npy')[y0 * TILE:(y1 + 1) * TILE, x0 * TILE:(x1 + 1) * TILE]
             over = treetops_overhead(im, rows, heights, 2) or None
+        if city in USER_RAISED_OVER:
+            heights = np.load(prefix + '_height.npy')[y0 * TILE:(y1 + 1) * TILE, x0 * TILE:(x1 + 1) * TILE]
+            tiles, (fx, fy) = USER_RAISED_OVER[city]
+            floor = np.nanmedian(heights[fy * TILE:(fy + 1) * TILE, fx * TILE:(fx + 1) * TILE])
+            over = over or Image.new('RGBA', im.size)
+            src, dst = np.asarray(im.convert('RGBA')), np.array(over)
+            for x, y in tiles:
+                box = (slice(y * TILE, (y + 1) * TILE), slice(x * TILE, (x + 1) * TILE))
+                high = heights[box] > floor + 2
+                print('  raised', city, (x, y), int(high.sum()), 'of', TILE * TILE, 'pixels')
+                dst[box][high] = src[box][high]
+            over = Image.fromarray(dst)
         if city in USER_OVERHEAD:
             over = over or Image.new('RGBA', im.size)
             for x, y in USER_OVERHEAD[city]:
@@ -256,7 +301,7 @@ def main():
         who = f"{re.sub(r' (M|F|Snow M|Snow F)$', '', who['class'].replace('TRAINER_CLASS_', '').replace('_', ' ').title())} {who['name'].replace('{TRNAME}', '')}" if who else 'its trainer' if trainer else None
         doc = (f"{title}, the leader's room: the Gym Trainer where {who} stands ({stands[0][0]},{stands[0][1]}{'; the user' + chr(39) + 's' if city in USER_GYM_TRAINER else ''}), the leader in their place ({stands[1][0]},{stands[1][1]})." if who else
                f"{title}, the leader's room (no trainers in it): the Gym Trainer halfway in ({stands[0][0]},{stands[0][1]}), the leader in their place ({stands[1][0]},{stands[1][1]}).")
-        out.append(gym_ts(const, title, doc, image, len(rows[0]), len(rows), door, spots, stands, guide, rows, overhead))
+        out.append(gym_ts(const, title, doc, image, len(rows[0]), len(rows), door, spots, stands, guide, rows, overhead, track))
         entrances[boss] = (const, entrance_near(rows, spots[1]))
         print(city, 'door', door, 'spots', spots, 'stands', stands, 'guide', guide, 'trainer', who, 'leader room entrance', entrances[boss][1])
 
