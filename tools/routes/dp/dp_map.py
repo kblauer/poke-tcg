@@ -1,0 +1,214 @@
+"""Renders a Diamond/Pearl map (or several maps of one matrix, joined) from the pret/pokediamond decompilation, as the
+Sinnoh routes use them: its terrain chunks and buildings converted to GLB with apicula and drawn tilted by the HGSS
+maps' renderer (../hgss/render_hgss.py), and writes which tiles can be walked on.
+
+Usage: python dp_map.py <out prefix> <MAP_CONST>[,<MAP_CONST>...] [--tilt 0.6] [--apicula <apicula.exe>] [--cache <dir>]
+       [--game platinum] (a Platinum map, from pokeplatinum: pt_data.py; Hearthome Gym's, the user's)
+       [--lift <model>[@x,z]] (a platform lift's model, Iron Island's 258, iron_island_platform_lift: left out of the
+       map and drawn alone as <out prefix>_lift.png, its ride in the JSON's `lift`; at tile x,z, 1 tile high, where the
+       map's data hasn't it: B2F's, placed by pokeplatinum's platform_lift.c)
+       [--frames <json>] (a JSON list of --props strings: the map drawn once more for each, without --props, as
+       <out>_f<n>.png: Sunyshore Gym's gears turning, frame by frame)
+       [--props <model>@x,z[,y][,rx<deg>|,ry<deg>];...] (props the game places by its code, not in the map's data,
+       drawn in the map at
+       those tiles' centres, on the ground or y units up: Canalave Gym's lifts and upper floors)
+       [--no-land --ground <y>] (the props alone, drawn as seen from y units up: Canalave Gym's top floor, Byron's)
+Writes <out prefix>.png, <out prefix>_height.npy (each pixel's model height, for what stands above the ground) and
+<out prefix>.json: the size in tiles and `rows`, one string per tile row: '.' walkable, '#'
+not (collision, doors and warps), '~' water (surfable), and ledges by the way they're jumped: '>' east, '<' west, '^'
+north, 'v' south; `grass`, the same size: 'g' tall grass, '.' not; `snow`: '1' deep snow, '2' deeper, '3' deepest, 's' shallow, 'w' snow
+with shadows (Route 217's; pokeplatinum's TILE_BEHAVIOR_SNOW_*), '.' not; `ice`: 'i'
+ice (Snowpoint Gym's), '.' not; `stairs`: '|' climbed only north or south, '-' only east or west, '.' neither. Its tile
+behaviours are Gen 4's (pokeplatinum's include/constants/field/map_tile_behaviors.h names them; Diamond's are the same).
+A map in a matrix of one map (a building's inside, a cave) is every cell of its matrix. People and item balls are not in
+the map data (they're events), so their tiles are walkable. Needs numpy and Pillow, and apicula on the PATH or given."""
+import collections, json, os, subprocess, sys, tempfile
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(HERE, '..', 'hgss'))
+import dp_data as dd
+import pt_data
+from PIL import Image
+from render_hgss import Scene, UNIT, S, _load_glb, _primitives, _accessor
+from hgss_data import texture_matrices
+
+CHUNK = 32  # tiles across a terrain chunk
+# A platform lift's ride (pokeplatinum's platform_lift.c, Iron Island's): from 1 tile high to 9, so 8 tiles of height.
+LIFT_RISE = 8 * UNIT
+WATER = {0x10, 0x13, 0x15}  # river, waterfall, sea
+LEDGES = {0x38: '>', 0x39: '<', 0x3A: '^', 0x3B: 'v'}
+BLOCKED = set(range(0x5E, 0x70))  # warp stairs, entrances, doors, escalators, warps
+GRASS = {0x02, 0x03, 0xA6, 0xA7}  # tall grass, very tall grass, mud with grass
+SNOW = {0xA1: '1', 0xA2: '2', 0xA3: '3', 0xA8: 's', 0xA9: 'w'}  # deep, deeper, deepest, shallow snow and snow with shadows
+ICE = 0x20
+STAIRS = {0x4A: '|', 0x49: '-'}  # blocking east and west, north and south: stairs up a slope (Snowpoint Gym's)
+
+
+def tile_char(lo, hi):
+    if lo in LEDGES:
+        return LEDGES[lo]
+    if lo in BLOCKED:
+        return '#'
+    if lo in WATER:
+        return '~'
+    return '#' if hi & 0x80 else '.'
+
+
+def convert(apicula, files, out):
+    subprocess.run([apicula, 'convert', *files, '-o', out, '-f', 'glb', '--overwrite'], check=True, capture_output=True)
+    return next(os.path.join(out, f) for f in os.listdir(out) if f.endswith('.glb'))
+
+
+def map_cells(cache, headers, consts, data=dd):
+    """The matrix cells of the maps (`consts`, one matrix), and their matrix's first map's header."""
+    first = headers[consts[0]]
+    _, _, cells = data.matrix(cache, first['matrix'])
+    ids = {headers[c]['id'] for c in consts}
+    return first, [c for c in cells if c['land'] != 0xFFFF and (c['header'] is None or c['header'] in ids)]
+
+
+def main():
+    args = sys.argv[1:]
+    def opt(name, default):
+        if name in args:
+            i = args.index(name); v = args[i + 1]; del args[i:i + 2]; return v
+        return default
+    tilt = float(opt('--tilt', '0.6'))
+    apicula = opt('--apicula', 'apicula')
+    platinum = opt('--game', 'diamond') == 'platinum'
+    # Each prop: its model, where (x, z, maybe y) and how it's turned ('rx'/'ry' and degrees: Sunyshore Gym's gears).
+    prop_list = lambda spec: [(int(m), [float(v) for v in at.split(',') if v[0] != 'r'], next(((v[1], float(v[2:])) for v in at.split(',') if v[0] == 'r'), None))
+                              for m, _, at in (p.partition('@') for p in (spec or '').split(';') if p)]
+    props = prop_list(opt('--props', ''))
+    frames = opt('--frames', None)
+    frames = [prop_list(f) for f in json.load(open(frames))] if frames else []
+    no_land = '--no-land' in args
+    if no_land:
+        args.remove('--no-land')
+    ground_at = opt('--ground', None)
+    lift_model, _, lift_at = (opt('--lift', '') or '').partition('@')
+    lift_model = lift_model and int(lift_model)
+    lift = None
+    data = pt_data if platinum else dd
+    cache = opt('--cache', os.path.join(tempfile.gettempdir(), 'pokeplatinum' if platinum else 'pokediamond'))
+    out, consts = args[0], args[1].split(',')
+
+    headers = data.map_headers(cache)
+    first, mine = map_cells(cache, headers, consts, data)
+    x0, y0 = min(c['x'] for c in mine), min(c['y'] for c in mine)
+    cw, ch = max(c['x'] for c in mine) - x0 + 1, max(c['y'] for c in mine) - y0 + 1
+    textures = data.read(cache, data.MAP_TEXTURES, data.area_textures(cache, first['area']))
+    work = tempfile.mkdtemp(prefix='dp_map_')
+    tex_path = os.path.join(work, 'tex.nsbtx'); open(tex_path, 'wb').write(textures)
+    # Platinum's props have their own texture set (the area's); Diamond's are drawn with the map's.
+    prop_tex = [tex_path]
+    if platinum:
+        prop_tex = [os.path.join(work, 'proptex.nsbtx'), tex_path]
+        open(prop_tex[0], 'wb').write(pt_data.prop_textures(cache, first['area']))
+
+    W, H = cw * CHUNK, ch * CHUNK
+    rows = [['#'] * W for _ in range(H)]
+    grass = [['.'] * W for _ in range(H)]
+    snow = [['.'] * W for _ in range(H)]
+    ice = [['.'] * W for _ in range(H)]
+    stairs = [['.'] * W for _ in range(H)]
+    parts, ys = [], collections.Counter()
+    for c in mine:
+        if no_land:
+            continue
+        chunk = dd.land_chunk(data.read(cache, data.LAND_DATA, c['land']))
+        ox, oz = (c['x'] - x0) * CHUNK, (c['y'] - y0) * CHUNK
+        for ty in range(CHUNK):
+            for tx in range(CHUNK):
+                lo, hi = chunk['perm'][(ty * CHUNK + tx) * 2], chunk['perm'][(ty * CHUNK + tx) * 2 + 1]
+                rows[oz + ty][ox + tx] = tile_char(lo, hi)
+                if lo in GRASS:
+                    grass[oz + ty][ox + tx] = 'g'
+                snow[oz + ty][ox + tx] = SNOW.get(lo, '.')
+                if lo == ICE:
+                    ice[oz + ty][ox + tx] = 'i'
+                stairs[oz + ty][ox + tx] = STAIRS.get(lo, '.')
+        model = os.path.join(work, f"land{c['land']}.nsbmd"); open(model, 'wb').write(chunk['model'])
+        glb = convert(apicula, [model, tex_path], os.path.join(work, f"land{c['land']}"))
+        # The chunk's model origin is its centre, raised by the cell's altitude.
+        centre = ((ox + CHUNK / 2) * UNIT, c['alt'] * UNIT / 2, (oz + CHUNK / 2) * UNIT)
+        parts.append((glb, centre, texture_matrices(chunk['model'])))
+        for b in chunk['buildings']:
+            bm = os.path.join(work, f"bm{b['model']}.nsbmd")
+            if not os.path.exists(bm):
+                open(bm, 'wb').write(data.read(cache, data.BUILDING, b['model']))
+            try:
+                bglb = convert(apicula, [bm, *prop_tex], os.path.join(work, f"bm{b['model']}"))
+            except (subprocess.CalledProcessError, StopIteration):
+                print('  building', b['model'], "didn't convert")
+                continue
+            part = (bglb, (centre[0] + b['pos'][0], centre[1] + b['pos'][1], centre[2] + b['pos'][2]), texture_matrices(data.read(cache, data.BUILDING, b['model'])))
+            if b['model'] == lift_model:
+                lift = part
+            else:
+                parts.append(part)
+
+    if lift_model and not lift and lift_at:
+        x, z, *y = (float(v) for v in lift_at.split(','))
+        bm = os.path.join(work, f'bm{lift_model}.nsbmd')
+        open(bm, 'wb').write(data.read(cache, data.BUILDING, lift_model))
+        lift = (convert(apicula, [bm, *prop_tex], os.path.join(work, f'bm{lift_model}')), (x * UNIT, y[0] if y else UNIT, z * UNIT), texture_matrices(data.read(cache, data.BUILDING, lift_model)))
+    converted = {}
+
+    def prop_part(model, x, z, y, turn):
+        if model not in converted:
+            bm = os.path.join(work, f'bm{model}.nsbmd')
+            open(bm, 'wb').write(data.read(cache, data.BUILDING, model))
+            converted[model] = (convert(apicula, [bm, *prop_tex], os.path.join(work, f'bm{model}')), texture_matrices(data.read(cache, data.BUILDING, model)))
+        glb, texmtx = converted[model]
+        return glb, (x * UNIT, y[0] if y else 0, z * UNIT), texmtx, turn
+    land = len(parts)
+    for model, (x, z, *y), turn in props:
+        parts.append(prop_part(model, x, z, y, turn))
+    # The ground's height: the commonest height of the first chunk's vertices (most of it is flat ground).
+    for glb, origin, *_ in parts[:1]:
+        gj, bin_ = _load_glb(glb)
+        for m, p in _primitives(gj):
+            for y in _accessor(gj, bin_, p['attributes']['POSITION'])[:, 1]:
+                ys[round(y + origin[1])] += 1
+    ground = float(ground_at) if ground_at is not None else ys.most_common(1)[0][0] if ys else 0
+    scene = Scene(W * 16, H * 16, tilt=tilt, ground=ground)
+    for glb, origin, texmtx, *turn in parts:
+        scene.glb(glb, origin, texmtx, turn=turn[0] if turn else None)
+    scene.render(out + '.png', heights=out + '_height.npy')
+    if frames:
+        # The map without its props once, then each frame's props drawn over it.
+        scene = Scene(W * 16, H * 16, tilt=tilt, ground=ground)
+        for glb, origin, texmtx, *turn in parts[:land]:
+            scene.glb(glb, origin, texmtx, turn=turn[0] if turn else None)
+        scene.draw()
+        shot = scene.snapshot()
+        for n, frame in enumerate(frames):
+            scene.restore(shot)
+            for model, (x, z, *y), turn in frame:
+                glb, origin, texmtx, turn = prop_part(model, x, z, y, turn)
+                scene.glb(glb, origin, texmtx, turn=turn)
+            scene.render(f'{out}_f{n}.png')
+    ride = None
+    if lift:
+        # The platform alone, where the map has it (its bottom: 1 tile high), cut to what's drawn; and the tiles the player
+        # stands on riding it, in the picture's tiles: at its bottom, the middle of it as drawn; at its top, as many rows
+        # up as its ride raises it in the picture (drawn higher the higher it is: LIFT_RISE, at the renderer's tilt).
+        glb, origin, texmtx = lift
+        alone = Scene(W * 16, H * 16, tilt=tilt, ground=ground)
+        alone.glb(glb, origin, texmtx)
+        alone.render(out + '_lift.png', transparent=True)
+        sprite = Image.open(out + '_lift.png')
+        box = sprite.getbbox()
+        sprite.crop(box).save(out + '_lift.png')
+        col = int(origin[0] // UNIT)
+        bottom = (col, int((box[1] + box[3]) / 2 // 16))
+        top = (col, bottom[1] - round(LIFT_RISE * S * tilt / 16))
+        ride = {'top': top, 'bottom': bottom, 'offset': [box[0] - bottom[0] * 16, box[1] - bottom[1] * 16]}
+    json.dump({'width': W, 'height': H, 'rows': [''.join(r) for r in rows], 'grass': [''.join(r) for r in grass], 'snow': [''.join(r) for r in snow],
+               'ice': [''.join(r) for r in ice], 'stairs': [''.join(r) for r in stairs], 'ground': ground, 'origin': [x0, y0], 'chunks': [[c['x'] - x0, c['y'] - y0, c['land']] for c in mine], **({'lift': ride} if ride else {})}, open(out + '.json', 'w'))
+    print('rendered', consts, W, 'x', H, 'tiles; ground', ground)
+
+
+if __name__ == '__main__':
+    main()

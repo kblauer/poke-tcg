@@ -127,6 +127,19 @@ export const COIN_DESIGNS: Record<string, CoinDesign> = {
     tails: ballTails('#292524'),
     rim: '#eab308',
   },
+  'coin-duskball': {
+    heads: ballHeads(
+      '#15803d',
+      <>
+        <path d="M50 0 L40 44 L60 44 Z" fill="#1c1917" />
+        <path d="M14 15 L32 44 L22 44 L4 30 Z" fill="#1c1917" />
+        <path d="M86 15 L68 44 L78 44 L96 30 Z" fill="#1c1917" />
+      </>,
+      '#292524',
+    ),
+    tails: ballTails('#166534'),
+    rim: '#f97316',
+  },
   'coin-fire': { heads: energyFace(LocalFireDepartmentIcon, '#fb923c', '#c2410c'), tails: energyFace(LocalFireDepartmentIcon, '#fb923c', '#c2410c', true), rim: '#7c2d12' },
   'coin-water': { heads: energyFace(WaterDropIcon, '#60a5fa', '#1d4ed8'), tails: energyFace(WaterDropIcon, '#60a5fa', '#1d4ed8', true), rim: '#1e3a8a' },
   'coin-grass': { heads: energyFace(SpaIcon, '#4ade80', '#15803d'), tails: energyFace(SpaIcon, '#4ade80', '#15803d', true), rim: '#14532d' },

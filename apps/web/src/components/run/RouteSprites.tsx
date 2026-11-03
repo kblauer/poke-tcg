@@ -1,6 +1,6 @@
 import { inGrass, inLongGrass, ledgeAt, onIce, onPath, onWater, type EncounterKind, type Route, type RouteSpot } from '@poke-tcg/campaign';
 import { useEffect, useRef, useState } from 'react';
-import { GRASS_FRAME_MS, LONG_RUSTLE, RUSTLE, useTallGrass } from '../../hooks/useTallGrass';
+import { DP_GRASS_FRAME_MS, DP_RUSTLE, GRASS_FRAME_MS, LONG_RUSTLE, RUSTLE, useTallGrass } from '../../hooks/useTallGrass';
 import { FADE_MS } from '../../hooks/useWalk';
 import { BOSS_MAP_SPRITES, bobFrame, bobs, isItemBall, mirrored, spriteHeight, spriteWidth, standFrame, stripFrames, surfBobs, walkFrame, waterSprite, type Facing, type SpriteSet } from '../../utils/overworld';
 import { facing, type RouteFigure } from '../../utils/routeFigures';
@@ -128,7 +128,7 @@ export function TileOverlay({ route }: { route: Route }) {
  * FireRed's "!" balloon over a figure's head (`public/overworld/exclamation.png`, from the decompilation's emoticons): it
  * pops open over three frames, as when a trainer spots you, and stays.
  */
-export function Exclamation({ tile }: { tile: RouteSpot }) {
+export function Exclamation({ tile, drop = 0 }: { tile: RouteSpot; drop?: number }) {
   const [frame, setFrame] = useState(0);
   useEffect(() => {
     const timers = [window.setTimeout(() => setFrame(1), 70), window.setTimeout(() => setFrame(2), 140)];
@@ -140,7 +140,7 @@ export function Exclamation({ tile }: { tile: RouteSpot }) {
       style={{
         left: tile.x * 16,
         // Just over the head (the sprite's top is 16px above its tile), touching it as in the games.
-        top: tile.y * 16 - 28,
+        top: tile.y * 16 - 28 + drop,
         width: 16,
         height: 16,
         backgroundImage: 'url(/overworld/exclamation.png)',
@@ -220,6 +220,8 @@ export function OverworldSprite({
   grass = false,
   longGrass = false,
   jump,
+  drop = 0,
+  sink = 0,
 }: {
   name: string;
   tile: RouteSpot;
@@ -238,6 +240,13 @@ export function OverworldSprite({
   longGrass?: boolean;
   /** Jumping a ledge: it rises and falls along JUMP_Y over the jump's time (as it slides to the landing tile, `moveMs`). */
   jump?: Jump;
+  /** How far below its tile it's drawn, in pixels: on a lower floor of the map (dropAt: Snowpoint Gym's pit). */
+  drop?: number;
+  /**
+   * How far it's sunk into deep snow, in pixels (snowSink): drawn that much lower, its bottom that much hidden under the
+   * snow (its feet's line where it is), sinking and rising with its step (`moveMs`).
+   */
+  sink?: number;
 }) {
   const el = useRef<HTMLDivElement>(null);
   const flip = mirrored(name, face) ? 'scaleX(-1) ' : '';
@@ -271,16 +280,17 @@ export function OverworldSprite({
       title={title}
       className={`absolute [image-rendering:pixelated] ${faded ? 'opacity-50' : ''} ${surfBobs(name) ? SURF_BOB : ''}`}
       style={{
-        transition: `left ${moveMs}ms linear, top ${moveMs}ms linear, opacity ${fadeMs}ms`,
+        transition: `left ${moveMs}ms linear, top ${moveMs}ms linear, background-position-y ${moveMs}ms linear, opacity ${fadeMs}ms`,
         opacity: hidden ? 0 : undefined,
         left: tile.x * 16 + 8 - w / 2,
-        top: tile.y * 16 - 16,
+        top: tile.y * 16 - 16 + drop,
         width: w,
         height: spriteHeight(name),
         // The strip with see-through gutters between its frames once it's made (useGutteredStrip), the file till then.
         backgroundImage: `url(${strip ?? `/overworld/${name}.png`})`,
         backgroundSize: `${(w + (strip ? 2 * GUTTER : 0)) * stripFrames(name)}px ${spriteHeight(name)}px`,
-        backgroundPosition: `${strip ? -frame * (w + 2 * GUTTER) - GUTTER : -frame * w}px 0`,
+        backgroundPositionX: `${strip ? -frame * (w + 2 * GUTTER) - GUTTER : -frame * w}px`,
+        backgroundPositionY: `${sink}px`,
         backgroundRepeat: 'no-repeat',
         transform: mirrored(name, face) ? 'scaleX(-1)' : undefined,
         ...(hiddenBy === 2 ? LONG_GRASS_MASK : hiddenBy === 1 ? GRASS_MASK : undefined),
@@ -341,6 +351,9 @@ export function JumpDust({ tile, grass = false, set = 'frlg' }: { tile: RouteSpo
 /** Where a map's tall grass pictures are: FireRed's, or Emerald's on the Hoenn maps (tools/routes/jump_effects.py). */
 const grassDir = (set: SpriteSet) => (set === 'rse' ? 'rse/' : '');
 
+/** How far below its tile's foot Diamond and Pearl's grass billboard stands, in map pixels. */
+const DP_GRASS_BELOW = 2;
+
 /** How far down the long grass's foot its tufts reach (Route 119's: the band of ground below, from its 9th row). */
 const LONG_EDGE = 8;
 
@@ -352,20 +365,31 @@ const LONG_EDGE = 8;
  * 4 more then: UpdateTallGrassFieldEffect). Emerald's (`set` 'rse') works the same, with its own pictures. `long`: Emerald's
  * long grass instead (FLDEFF_LONG_GRASS, `rse/long_grass.png`: 4 frames, LONG_RUSTLE), always in front of the one in it
  * (its subpriority never raised: UpdateLongGrassFieldEffect); 'edge', the long grass's foot (onLongGrassEdge), its tufts only
- * down to LONG_EDGE, the map's band of ground showing below them (the user's).
+ * down to LONG_EDGE, the map's band of ground showing below them (the user's). Diamond and Pearl's (`set` 'dp'): its
+ * short grass's own effect (DP_RUSTLE, `dp/grass.png`: 4 frames of 32x32, stacked), a billboard as wide as two tiles,
+ * centred on the tile, its foot DP_GRASS_BELOW below the tile's (the game's: 18 of a tile's 16 units down), in front of the
+ * one in it.
  */
 export function TallGrass({ tile, rustle = false, set = 'frlg', long = false }: { tile: RouteSpot; rustle?: boolean; set?: SpriteSet; long?: boolean | 'edge' }) {
-  const frames = long ? LONG_RUSTLE.map(([f]) => f) : RUSTLE;
+  const dp = set === 'dp' && !long;
+  const frames = long ? LONG_RUSTLE.map(([f]) => f) : dp ? DP_RUSTLE : RUSTLE;
   const [step, setStep] = useState(rustle ? 0 : frames.length - 1);
   useEffect(() => {
     if (!rustle) return;
     let at = 0;
-    const timers = frames.slice(1).map((_, i) => window.setTimeout(() => setStep(i + 1), (at += long ? (LONG_RUSTLE[i]![1] * 1000) / 60 : GRASS_FRAME_MS)));
+    const timers = frames.slice(1).map((_, i) => window.setTimeout(() => setStep(i + 1), (at += long ? (LONG_RUSTLE[i]![1] * 1000) / 60 : dp ? DP_GRASS_FRAME_MS : GRASS_FRAME_MS)));
     return () => timers.forEach((t) => window.clearTimeout(t));
     // Only as it starts rustling.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rustle]);
   const frame = frames[step]!;
+  if (dp)
+    return (
+      <div
+        className="pointer-events-none absolute [image-rendering:pixelated]"
+        style={{ left: tile.x * 16 - 8, top: tile.y * 16 + 16 + DP_GRASS_BELOW - 32, width: 32, height: 32, backgroundImage: 'url(/overworld/dp/grass.png)', backgroundPosition: `0 ${-frame * 32}px`, zIndex: tile.y }}
+      />
+    );
   return (
     <div
       className="pointer-events-none absolute [image-rendering:pixelated]"
@@ -478,6 +502,8 @@ export function Figure({
   wet,
   grass,
   longGrass,
+  drop = 0,
+  sink = 0,
 }: {
   figure: RouteFigure;
   tile: RouteSpot;
@@ -493,12 +519,16 @@ export function Figure({
   face?: Facing;
   walkTick?: number;
   moveMs?: number;
+  /** How far below its tile it's drawn (OverworldSprite's `drop`). */
+  drop?: number;
+  /** How far it's sunk into deep snow (OverworldSprite's `sink`). */
+  sink?: number;
 }) {
   const mapSprite = figure.boss && BOSS_MAP_SPRITES[figure.boss];
   if (!figure.boss || mapSprite) {
     return (
       <>
-        <OverworldSprite name={mapSprite || (wet && figure.sprite && waterSprite(figure.sprite)) || figure.sprite || 'boy'} tile={tile} face={face ?? facing(tile, spot)} title={figure.title} faded={faded} walkTick={walkTick} moveMs={moveMs} grass={grass} longGrass={longGrass} />
+        <OverworldSprite name={mapSprite || (wet && figure.sprite && waterSprite(figure.sprite)) || figure.sprite || 'boy'} tile={tile} face={face ?? facing(tile, spot)} title={figure.title} faded={faded} walkTick={walkTick} moveMs={moveMs} grass={grass} longGrass={longGrass} drop={drop} sink={sink} />
         {figure.bubble && <EncounterBubble kind={figure.bubble} tile={tile} faded={faded} low={isItemBall(figure.sprite)} below={tile.y > spot.y} moveMs={moveMs} />}
       </>
     );
@@ -510,7 +540,64 @@ export function Figure({
       title={figure.title}
       draggable={false}
       className={`absolute select-none [image-rendering:pixelated] ${faded ? 'opacity-50' : ''}`}
-      style={{ left: tile.x * 16 + 8, top: tile.y * 16 + 16, transform: 'translate(-50%, -100%)', zIndex: tile.y }}
+      style={{ left: tile.x * 16 + 8, top: tile.y * 16 + 16 + drop, transform: 'translate(-50%, -100%)', zIndex: tile.y }}
+    />
+  );
+}
+
+/**
+ * A track left in the snow (useSnowTracks: Diamond's footprints and furrows, `snow_tracks.png`'s 16x16 frames), flat on
+ * its tile under everyone (Diamond's, ov5_021F1ECC: as tilted as the map, a pixel lower than the tile), whole for
+ * `showMs`, then fading out over `fadeMs`.
+ */
+export function SnowTrack({ tile, frame, showMs, fadeMs }: { tile: RouteSpot; frame: number; showMs: number; fadeMs: number }) {
+  const el = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    el.current?.animate([{ opacity: 1 }, { opacity: 1, offset: showMs / (showMs + fadeMs) }, { opacity: 0 }], { duration: showMs + fadeMs, fill: 'forwards' });
+    // Once, as it's left.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <div
+      ref={el}
+      className="pointer-events-none absolute [image-rendering:pixelated]"
+      style={{ left: tile.x * 16, top: tile.y * 16 + 1, width: 16, height: 16, backgroundImage: 'url(/overworld/dp/snow_tracks.png)', backgroundPosition: `${-frame * 16}px 0` }}
+    />
+  );
+}
+
+/** How long each of a snowball's frames shows as it's crushed (cracked, crumbling, a heap), and how long the heap takes to fade away. */
+export const CRUSH_FRAME_MS = 80;
+export const CRUSH_FADE_MS = 250;
+
+/**
+ * A snowball (the route's `snowballs`, its `snowballImage`: Snowpoint Gym's), 32x32 standing on its tile as people do:
+ * whole, or once `crushed` (when, a Date.now() stamp; 0: crushed before, gone) cracking, crumbling to a heap and fading away.
+ */
+export function Snowball({ tile, image, crushed, drop = 0 }: { tile: RouteSpot; image: string; crushed?: number; drop?: number }) {
+  const [frame, setFrame] = useState(() => (crushed === 0 ? 4 : 0));
+  useEffect(() => {
+    if (crushed === undefined) return setFrame(0);
+    if (crushed === 0) return setFrame(4);
+    const timers = [1, 2, 3, 4].map((f) => window.setTimeout(() => setFrame(f), (f - 1) * CRUSH_FRAME_MS));
+    return () => timers.forEach((t) => window.clearTimeout(t));
+  }, [crushed]);
+  return (
+    <div
+      className="pointer-events-none absolute [image-rendering:pixelated]"
+      style={{
+        left: tile.x * 16 - 8,
+        top: tile.y * 16 - 16 + drop,
+        width: 32,
+        height: 32,
+        backgroundImage: `url(${image})`,
+        backgroundSize: '128px 32px',
+        backgroundPosition: `${-Math.min(frame, 3) * 32}px 0`,
+        // The heap (frame 3) fades away; gone after.
+        opacity: frame >= 4 ? 0 : 1,
+        transition: crushed ? `opacity ${CRUSH_FADE_MS}ms` : undefined,
+        zIndex: tile.y,
+      }}
     />
   );
 }

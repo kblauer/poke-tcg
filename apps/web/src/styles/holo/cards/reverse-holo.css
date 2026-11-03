@@ -17,6 +17,9 @@
 */
 .card {
   --foil-brightness: 0.55;
+  /* How much of the shine a reverse holo keeps: color-dodge over the whole text box washed its words out at full
+     strength (the user's, 2026-11-01: toned down a little). */
+  --reverse-shine: 0.7;
 }
 
 .card[data-rarity$="reverse holo"] .card__shine {
@@ -40,10 +43,10 @@
   background-size: 120% 120%, 200% 200%, cover;
   background-position: center center, calc( (100% * var(--pointer-from-left))) calc( (100% * var(--pointer-from-top))) , center center;
   
-  filter: brightness(var(--foil-brightness)) contrast(1.5) saturate(1);
+  filter: brightness(calc(var(--foil-brightness) * var(--reverse-shine))) contrast(1.5) saturate(1);
   mix-blend-mode: color-dodge;
 
-  opacity: calc( (1.5 * var(--card-opacity)) - var(--pointer-from-center));
+  opacity: calc( ((1.5 * var(--card-opacity)) - var(--pointer-from-center)) * var(--reverse-shine));
   
 }
 

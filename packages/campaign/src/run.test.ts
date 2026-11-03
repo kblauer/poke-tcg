@@ -4,10 +4,12 @@ import { ITEMS, itemText, MAX_CONSUMABLES_PER_RUN, onlyOne, shopStock } from './
 import { RUN_TYPE_IDS, RUN_TYPES, runType, type RunType, type RunTypeId } from './run-types.js';
 import { ROUTE_4 } from './kanto-routes.js';
 import { JOHTO_BOSS_ROOMS, MAHOGANY_GYM } from './johto-gyms.js';
-import { inGrass, inLongGrass, onLongGrassEdge, onPath, onThinIce, PEWTER_GYM, ROUTE_2, routePath, travelAt, type Route, type RouteSpot } from './routes.js';
+import { dropAt, inGrass, inLongGrass, liftEnd, onLongGrassEdge, onPath, onThinIce, PEWTER_GYM, ROUTE_2, routePath, gearStateAt, snowAt, snowballsLeft, snowPace, snowSink, snowTrack, travelAt, type Route, type RouteSpot } from './routes.js';
+import { IRON_ISLAND_B1F, IRON_ISLAND_B2F, IRON_ISLAND_B3F, ROUTE_217 } from './sinnoh-routes.js';
+import { CANALAVE_GYM, SNOWPOINT_GYM, SUNYSHORE_GYM } from './sinnoh-gyms.js';
 import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, isBattleKind, isBossKind, landNear, MAX_CENTERS, REQUIRED_BATTLES, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, withConsumablesBefore, carriedConsumables, parsePendingConsumable, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
-import { GEN2_SETS, GEN3_SETS } from './pool.js';
-import { GEN2_TEST_POOL, GEN3_TEST_POOL, TEST_POOL } from './test-pool.js';
+import { GEN2_SETS, GEN3_SETS, GEN4_SETS } from './pool.js';
+import { GEN2_TEST_POOL, GEN3_TEST_POOL, GEN4_TEST_POOL, TEST_POOL } from './test-pool.js';
 
 const deck = expandDeck(STARTER_DECK);
 const fresh = (seed = 1) => createRun('celadon', deck, seed);
@@ -142,6 +144,103 @@ describe('createRun', () => {
     expect(walks.map((w) => w !== null)).toEqual(walks.map(() => true));
   });
 
+  it("a bridge is walked over only from end to end and under only from side to side, never off its sides (Route 215's)", () => {
+    // A 5x7 map: a bridge over columns 1-3, its deck rows 1-5, the way under it row 3; ground round it.
+    const map: Route = {
+      name: 'Bridge', flow: 'up', image: '', width: 80, height: 112, spots: [],
+      walkable: ['.....', '.....', '.....', '.....', '.....', '.....', '.....'],
+      bridges: [{ x: [1, 3], y: [1, 5], under: [3, 3] }],
+    };
+    const tiles = (w: ReturnType<typeof routePath>) => w!.map(({ tile, under }) => `${tile.x},${tile.y}${under ? 'u' : ''}`);
+    // Over it end to end, and under it side to side.
+    expect(tiles(routePath(map, { x: 2, y: 0 }, { x: 2, y: 6 }))).toEqual(['2,1', '2,2', '2,3', '2,4', '2,5', '2,6']);
+    // (The step out from under it is under it too: he's under it till he's off it.)
+    expect(tiles(routePath(map, { x: 0, y: 3 }, { x: 4, y: 3 }))).toEqual(['1,3u', '2,3u', '3,3u', '4,3u']);
+    // From the side at a deck row: round its end, not onto it; from under it up onto the deck: never.
+    expect(routePath(map, { x: 0, y: 2 }, { x: 2, y: 2 })![0]!.tile).toEqual({ x: 0, y: 1 });
+    expect(routePath(map, { x: 0, y: 3 }, { x: 2, y: 2 })!.some(({ tile, under }) => under && tile.y !== 3)).toBe(false);
+    expect(tiles(routePath(map, { x: 2, y: 3 }, { x: 0, y: 2 }))).toEqual(['1,3u', '0,3u', '0,2']);
+    // One running across with no way under it: over it end to end, and round it, never off its sides nor under it.
+    const across: Route = { ...map, bridges: [{ x: [1, 3], y: [2, 3], runs: 'x' }] };
+    expect(tiles(routePath(across, { x: 0, y: 2 }, { x: 4, y: 2 }))).toEqual(['1,2', '2,2', '3,2', '4,2']);
+    const round = routePath(across, { x: 2, y: 1 }, { x: 2, y: 4 })!;
+    expect([round.length, round.some(({ tile }) => tile.x >= 1 && tile.x <= 3 && tile.y >= 2 && tile.y <= 3)]).toEqual([7, false]);
+  });
+
+  it("a lift is ridden between its ends as one step, its platform at the end the player can walk to (Iron Island's)", () => {
+    // A 3x7 map: the floor above (rows 0-1) and the pit (rows 5-6), the shaft between them unwalkable; the lift from 1,1 to 1,5.
+    const lift = { image: '', top: { x: 1, y: 1 }, bottom: { x: 1, y: 5 }, offset: { x: 0, y: 0 } };
+    const map: Route = { name: 'Lift', flow: 'down', image: '', width: 48, height: 112, spots: [], walkable: ['...', '...', '###', '###', '###', '...', '...'], lifts: [lift] };
+    const walk = routePath(map, { x: 0, y: 0 }, { x: 2, y: 6 })!;
+    expect(walk.map(({ tile, lift: l }) => `${tile.x},${tile.y}${l ? 'L' : ''}`)).toEqual(['1,0', '1,1', '1,5L', '2,5', '2,6']);
+    expect(walk.some((s) => s.fade)).toBe(false);
+    expect([liftEnd(lift, { x: 0, y: 0 }), liftEnd(lift, { x: 2, y: 6 })]).toEqual(['top', 'bottom']);
+    // Without it, no way down.
+    expect(routePath({ ...map, lifts: undefined }, { x: 0, y: 0 }, { x: 2, y: 6 })).toBeNull();
+    // Iron Island's floors: each one's lift ridden once on its walk, from the floor above down to its stairs (B1F, B2F),
+    // or up from the stairs it's come in at (B3F).
+    // And Canalave Gym's, up from its ground floor to Byron's (the user's).
+    for (const floor of [IRON_ISLAND_B1F, IRON_ISLAND_B2F, IRON_ISLAND_B3F, { ...CANALAVE_GYM, exit: CANALAVE_GYM.spots.at(-1)! }]) {
+      const stops = [floor.entrance!, ...floor.spots, floor.exit!];
+      const rides = stops.slice(1).flatMap((to, i) => routePath(floor, stops[i]!, to)!.filter((s) => s.lift));
+      expect(rides.length, floor.name).toBe(1);
+      // The platform where he comes in, at the other end once he's ridden it.
+      const lift = floor.lifts![0]!;
+      expect(liftEnd(lift, floor.entrance!) !== liftEnd(lift, floor.exit!), floor.name).toBe(true);
+    }
+  });
+
+  it("ice is never slid up a level but by stairs, and a snowball slid into is crushed (Snowpoint Gym's)", () => {
+    // A 1x5 column: ground at the top, ice down a ramp (levels 2, 1, 0) to the bottom; a snowball at 0,3.
+    const col: Route = { name: 'Pit', flow: 'up', image: '', width: 16, height: 80, spots: [], walkable: ['.', '.', '.', '.', '.'], ice: ['.', 'i', 'i', 'i', 'i'], levels: ['2', '2', '1', '0', '0'], levelPx: 5 };
+    const tiles = (w: ReturnType<typeof routePath>) => w?.map(({ tile, breaks }) => `${tile.x},${tile.y}${breaks ? `x${breaks.x},${breaks.y}` : ''}`);
+    expect(tiles(routePath(col, { x: 0, y: 0 }, { x: 0, y: 4 }))).toEqual(['0,1', '0,2', '0,3', '0,4']);
+    expect(routePath(col, { x: 0, y: 4 }, { x: 0, y: 0 })).toBeNull();
+    expect(routePath({ ...col, stairs: ['.', '.', '|', '|', '.'] }, { x: 0, y: 4 }, { x: 0, y: 0 })).not.toBeNull();
+    expect(dropAt({ ...col, entrance: { x: 0, y: 0 } }, { x: 0, y: 4 })).toBe(10);
+    // The snowball: the slide down stops against it and crushes it, then on down past where it was.
+    const ball = { ...col, entrance: { x: 0, y: 0 }, snowballs: [{ x: 0, y: 3 }] };
+    expect(tiles(routePath(ball, { x: 0, y: 0 }, { x: 0, y: 4 }))).toEqual(['0,1', '0,2x0,3', '0,3', '0,4']);
+    // Snowpoint Gym: to Isaiah, then (the snowballs crushed on the way staying crushed) to Candice, each walk 65 tiles or less.
+    const people = new Set(SNOWPOINT_GYM.stands!.map(({ x, y }) => `${x},${y}`));
+    const [trainer, candice] = SNOWPOINT_GYM.spots;
+    const first = routePath(SNOWPOINT_GYM, SNOWPOINT_GYM.entrance!, trainer!, people)!;
+    const second = routePath(SNOWPOINT_GYM, trainer!, candice!, people)!;
+    expect([first.length <= 65, second.length <= 65]).toEqual([true, true]);
+    expect(second.filter((s) => s.breaks).length).toBeGreaterThan(0);
+    expect(snowballsLeft(SNOWPOINT_GYM, candice!)!.length).toBe(SNOWPOINT_GYM.snowballs!.length - [...first, ...second].filter((s) => s.breaks).length);
+  });
+
+  it("deep snow sinks people and slows the player, and every step off snow leaves its track (Route 217's, Diamond's)", () => {
+    const [deep, deeper, deepest, shallow] = [{ x: 2, y: 14 }, { x: 2, y: 15 }, { x: 31, y: 27 }, { x: 20, y: 0 }];
+    expect([deep, deeper, deepest, shallow].map((t) => snowAt(ROUTE_217, t))).toEqual(['deep', 'deeper', 'deepest', 'shallow']);
+    expect([deep, deeper, deepest, shallow].map((t) => snowSink(ROUTE_217, t))).toEqual([7, 8, 10, 0]);
+    expect([deep, deeper, deepest, shallow].map((t) => snowPace(ROUTE_217, t))).toEqual([1, 0.5, 0.25, 1]);
+    // Footprints the way he goes; a furrow joining the way he came to the way he goes (up, then right: its upper left corner).
+    expect([snowTrack(ROUTE_217, shallow, 'left'), snowTrack(ROUTE_217, deep, 'up'), snowTrack(ROUTE_217, deep, 'right', 'up'), snowTrack(ROUTE_217, deep, 'up', 'left')]).toEqual([2, 4, 6, 8]);
+    expect(snowAt(ROUTE_2, { x: 5, y: 5 })).toBeNull();
+  });
+
+  it("Sunyshore Gym's gears: their arms walked onto only while they're there, its buttons turning them, its floors joined only by its ramps", () => {
+    const people = new Set(SUNYSHORE_GYM.stands!.map(({ x, y }) => `${x},${y}`));
+    const [trainer, volkner] = SUNYSHORE_GYM.spots;
+    const first = routePath(SUNYSHORE_GYM, SUNYSHORE_GYM.entrance!, trainer!, people)!;
+    const second = routePath(SUNYSHORE_GYM, trainer!, volkner!, people)!;
+    expect(second.some((s) => s.turns)).toBe(true);
+    // Each step onto a tile that's there in the gears' state as he steps, the state turned by each button on the way.
+    let state = 0;
+    for (const step of [...first, ...second]) {
+      expect(SUNYSHORE_GYM.gears!.blocked[state]!.some((t) => t.x === step.tile.x && t.y === step.tile.y)).toBe(false);
+      state = (state + (step.turns ?? 0)) % 4;
+    }
+    expect(gearStateAt(SUNYSHORE_GYM, volkner!)).toBe(state);
+    // The bottom floor drawn lower than the top one (the picture's ground: dropAt).
+    expect(dropAt(SUNYSHORE_GYM, SUNYSHORE_GYM.entrance!)).toBeGreaterThan(40);
+    expect(Math.abs(dropAt(SUNYSHORE_GYM, volkner!))).toBeLessThan(16);
+    // No step between floors 20 units apart (5 levels): the bottom gears' north arms from the middle ones' south arms.
+    expect(routePath({ ...SUNYSHORE_GYM, gears: undefined }, { x: 6, y: 15 }, { x: 6, y: 16 })!.length).toBeGreaterThan(1);
+  });
+
   it('every route and gym has an entrance, and on a route the player can walk from it to the first spot', () => {
     for (const type of RUN_TYPE_IDS.map(runType)) {
       for (const map of type.routes ?? []) expect(map.entrance && routePath(map, map.entrance, map.spots[0]!), `${type.id} ${map.name}`).toBeTruthy();
@@ -242,8 +341,10 @@ describe('createRun', () => {
   it("a map's tall grass lines up with its tiles: the same rows as `walkable`", () => {
     const maps = RUN_TYPE_IDS.flatMap((id) => [...(runType(id).routes ?? []), ...(runType(id).gym ? [runType(id).gym!] : [])]);
     const grassy = maps.filter((m) => m.grass);
-    // FireRed's Routes 2, 4, 5, 6 and 8, HGSS's 30, 32, 34, 35 and 45, and Emerald's Petalburg Woods, Routes 102, 110 and 119 and Jagged Pass.
-    expect(new Set(grassy.map((m) => m.name))).toEqual(new Set(['Route 2', 'Route 4', 'Route 5', 'Route 6', 'Route 8', 'Route 30', 'Route 32', 'Route 34', 'Route 35', 'Route 45', 'Petalburg Woods', 'Route 102', 'Route 110', 'Route 119', 'Jagged Pass']));
+    // FireRed's Routes 2, 4, 5, 6 and 8, HGSS's 30, 32, 34, 35 and 45, Emerald's Petalburg Woods, Routes 102, 110 and 119 and
+    // Jagged Pass, and Diamond and Pearl's maps with grass.
+    const sinnoh = ['Route 203', 'Eterna Forest', 'Route 205', 'Route 215', 'Valor Lakefront', 'Route 213', 'Route 212', 'Route 217', 'Acuity Lakefront', 'Hotel Grand Lake', 'Route 222'];
+    expect(new Set(grassy.map((m) => m.name))).toEqual(new Set(['Route 2', 'Route 4', 'Route 5', 'Route 6', 'Route 8', 'Route 30', 'Route 32', 'Route 34', 'Route 35', 'Route 45', 'Petalburg Woods', 'Route 102', 'Route 110', 'Route 119', 'Jagged Pass', ...sinnoh]));
     for (const m of grassy) expect(m.grass!.map((r) => r.length), m.name).toEqual(m.walkable.map((r) => r.length));
   });
 
@@ -937,6 +1038,21 @@ describe('Gen 3 runs', () => {
       expect(setup.deck.filter((id) => !GEN3_SETS.includes(id.split('-')[0]!))).toEqual([]);
     }
   });
+
+  it('a Sinnoh gym run ends with its gym leader, and its Gym Trainer and leader play Gen 4 decks', () => {
+    let s = createRun('oreburgh', deck, 7);
+    // 10 encounters (no map yet: GYM_RUN_STEPS), the Gym Trainer and Roark.
+    expect(s.steps).toHaveLength(12);
+    expect(s.steps.at(-1)!.options[0]).toMatchObject({ kind: 'gymLeader', boss: 'roark' });
+    for (const kind of ['gymTrainer', 'gymLeader'] as const) {
+      s = createRun('oreburgh', deck, 7);
+      s.position = s.steps.findIndex((step) => step.options[0]!.kind === kind);
+      s = act(s, { type: 'CHOOSE', option: 0 }, [], GEN4_TEST_POOL);
+      const setup = battleSetup(s, GEN4_TEST_POOL);
+      expect(setup.deck).toHaveLength(60);
+      expect(setup.deck.filter((id) => !GEN4_SETS.includes(id.split('-')[0]!))).toEqual([]);
+    }
+  });
 });
 
 describe('Gen 2 runs', () => {
@@ -1029,5 +1145,24 @@ describe('Gen 2 runs', () => {
       expect(setup.deck).toHaveLength(60);
       expect(setup.deck.filter((id) => !GEN2_SETS.includes(id.split('-')[0]!))).toEqual([]);
     }
+  });
+});
+
+describe('Gen 4 runs', () => {
+  it('every Sinnoh gym run crosses its Diamond and Pearl maps: each walked from its entrance through each spot in turn and out at its exit', () => {
+    for (const id of ['oreburgh', 'eterna', 'veilstone', 'pastoria', 'hearthome', 'canalave', 'snowpoint', 'sunyshore'] as const) {
+      for (const route of runType(id).routes!) {
+        expect(route.sprites, `${id} ${route.name}`).toBe('dp');
+        const stops = [route.entrance!, ...route.spots, route.exit!];
+        expect(stops.slice(1).map((to, i) => routePath(route, stops[i]!, to) !== null), `${id} ${route.name}`).toEqual(stops.slice(1).map(() => true));
+      }
+      expect(runType(id).routes!.reduce((n, r) => n + r.spots.length, 0), id).toBe(10);
+    }
+  });
+
+  it("the Sinnoh Gym Challenge and Champion runs have each boss's room, Pastoria's Pokémon Center after the fourth gym", () => {
+    expect(runType('sinnohGyms').routes!.map((m) => m.name)).toEqual(['Oreburgh Gym', 'Eterna Gym', 'Veilstone Gym', 'Pastoria Gym', 'Pokémon Center', 'Hearthome Gym', 'Canalave Gym', 'Snowpoint Gym', 'Sunyshore Gym']);
+    expect(runType('sinnohChampion').routes!.slice(-5).map((m) => m.name)).toEqual(["Aaron's Room", "Bertha's Room", "Flint's Room", "Lucian's Room", "Cynthia's Room"]);
+    expect(runType('sinnohChampion').routes!.every((m) => m.sprites === 'dp')).toBe(true);
   });
 });

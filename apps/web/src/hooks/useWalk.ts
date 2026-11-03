@@ -1,21 +1,26 @@
-import { inGrass, routePath, travelAt, type Route, type RouteSpot } from '@poke-tcg/campaign';
+import { GEAR_TURN_MS, inGrass, routePath, snowPace, travelAt, type Route, type RouteSpot } from '@poke-tcg/campaign';
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import type { Jump } from '../components/run/RouteSprites';
 import { facing, key, type PlacedFigure } from '../utils/routeFigures';
-import type { Facing } from '../utils/overworld';
+import { STEP_MS, type Facing } from '../utils/overworld';
 
 /**
  * How much faster than walking the player gets along a map's tile: twice as fast on a bike (Route 17, agreed with the
  * user), but on foot before a route's travel begins (travelAt: Route 110's sandy road).
  */
 export const pace = (route: Route, tile: RouteSpot) => (travelAt(route, tile) === 'bike' ? 2 : 1);
-/** A step's pace onto `tile`: a little slower into tall grass (GRASS_PACE, agreed with the user). */
-export const stepPace = (route: Route, tile: RouteSpot) => pace(route, tile) * (inGrass(route, tile) ? GRASS_PACE : 1);
+/** Whether `tile` is tall grass that slows the player (GRASS_PACE): not Diamond and Pearl's short grass (the user's). */
+export const slowGrass = (route: Route, tile: RouteSpot) => route.sprites !== 'dp' && inGrass(route, tile);
+/**
+ * A step's pace onto `tile`: a little slower into tall grass (GRASS_PACE, agreed with the user), and from `from`, slower
+ * out of Diamond's deeper and deepest snow (snowPace).
+ */
+export const stepPace = (route: Route, tile: RouteSpot, from?: RouteSpot) => pace(route, tile) * (slowGrass(route, tile) ? GRASS_PACE : 1) * (from ? snowPace(route, from) : 1);
 /** How fast the player wades through tall grass, of his pace elsewhere: 30% slower (agreed with the user). */
 export const GRASS_PACE = 0.7;
 
 /** The longest walk between spots, in tiles; farther (or with no path), the player fades out and back in instead. */
-const MAX_WALK = 40;
+const MAX_WALK = 65;
 /** How long the player takes to fade out, or back in; and the view's glide while he's out (through a gatehouse). */
 export const FADE_MS = 300;
 export const THROUGH_MS = 500;
@@ -23,7 +28,7 @@ export const THROUGH_MS = 500;
 /**
  * The player on the route map (RouteView): the map he's on (its section), where he stands (or is walking through), which
  * way he's going, whether he's faded out, whether he's under a bridge (a track's: the map's overhead drawn over him only
- * then), whether he's sliding across ice, the ledge jump he's in the middle of (`jump`) and where he last landed one
+ * then; a route's `bridges`: its `bridgeOverhead`), whether he's sliding across ice, the ledge jump he's in the middle of (`jump`) and where he last landed one
  * (`landed`, for its dust).
  */
 export interface Walker {
@@ -38,6 +43,10 @@ export interface Walker {
   landed?: { tile: RouteSpot; stamp: number };
   /** Passing through a link (a building's doors, a warp) or into another map, from fading out until his next step: facing as the walk has him. */
   through?: boolean;
+  /** Riding a lift (the route's `lifts`): how long the ride takes, he and its platform gliding there together. */
+  riding?: number;
+  /** Walking: how long the step he's taking takes (stepPace's, at the walk speed). */
+  stepMs?: number;
 }
 
 /** How long a ledge jump takes, in steps' time: FireRed's 32 frames over its two tiles, as two steps' walk. */
@@ -70,10 +79,13 @@ export function useWalk({
   walkerRef,
   setWalker,
   placedRef,
+  figuresOn,
   ms,
   centreOnMap,
   setGlide,
   setOffset,
+  onCrush,
+  onTurn,
 }: {
   position: number;
   sections: MapSection[];
@@ -85,11 +97,17 @@ export function useWalk({
   setWalker: Dispatch<SetStateAction<Walker>>;
   /** The figures as last drawn, for the walk to go around them. */
   placedRef: RefObject<PlacedFigure[]>;
+  /** Where the figures stand on another map (section), for the walk there once he's come into it. */
+  figuresOn: (section: number) => RouteSpot[];
   /** The walk's timings at the walk speed. */
-  ms: { step: number; fade: number; through: number; glide: number };
+  ms: { step: number; fade: number; through: number; glide: number; lift: number; liftPause: number };
   centreOnMap: (map: Route, t: RouteSpot) => { x: number; y: number };
   setGlide: Dispatch<SetStateAction<Glide | null>>;
   setOffset: Dispatch<SetStateAction<{ x: number; y: number }>>;
+  /** A snowball slid into (a step's `breaks`: Snowpoint Gym's), crushed as he gets to the tile before it. */
+  onCrush?: (tile: RouteSpot) => void;
+  /** A button stepped onto (a step's `turns`: Sunyshore Gym's), turning the map's gears that many states over `ms`, as he gets there; he waits on it while they turn. */
+  onTurn?: (turns: number, ms: number) => void;
 }) {
   useEffect(() => {
     const { section, tile: from } = walkerRef.current;
@@ -103,7 +121,7 @@ export function useWalk({
     let start = from;
     /** Walks a path on a map from `begin`, step by step (through a link, fading out and in), from `t` on. */
     const walk = (on: Route, onSection: number, path: NonNullable<ReturnType<typeof routePath>>, begin: RouteSpot) => {
-      path.forEach(({ tile, fade, under, slide, jump, wait }, i) => {
+      path.forEach(({ tile, fade, lift, under, slide, jump, wait, breaks, turns }, i) => {
         // Standing a while first (a track's: Sootopolis Gym's stairs, till they appear).
         if (wait) {
           later(t, () => setWalker((w) => ({ ...w, walking: false })));
@@ -122,6 +140,19 @@ export function useWalk({
           });
           later(t + ms.fade + ms.through, () => setWalker((w) => ({ ...w, hidden: false })));
           t += ms.fade * 2 + ms.through;
+        } else if (lift) {
+          // On a lift (Iron Island's, the user's): stopped on its platform a moment, facing as he got on, then riding it to
+          // its other end, the view following (its platform drawn with him by RouteView).
+          later(t, () => setWalker((w) => ({ ...w, walking: false })));
+          t += ms.liftPause;
+          later(t, () => {
+            setWalker((w) => ({ landed: w.landed, section: onSection, tile, face: w.face, walking: false, hidden: false, riding: ms.lift }));
+            setGlide({ ms: ms.lift, ease: 'linear' });
+            setOffset(centreOnMap(on, tile));
+          });
+          later(t + ms.lift, () => setWalker((w) => ({ ...w, riding: undefined })));
+          // And stopped on it a moment once it's there, before stepping off (the user's: Canalave Gym's, at Byron's).
+          t += ms.lift + ms.liftPause;
         } else if (jump) {
           // Over a ledge (the user's): two tiles in one hop (FireRed's, JUMP_STEPS), walking as he goes, his shadow under him;
           // the dust where he lands.
@@ -134,13 +165,23 @@ export function useWalk({
           later(t + jumpMs, () => setWalker((w) => ({ ...w, jump: undefined, landed: { tile, stamp: Date.now() } })));
           t += jumpMs;
         } else {
+          const stepMs = ms.step / stepPace(on, tile, i ? path[i - 1]!.tile : begin);
           later(t, () => {
             // Across ice: on the move, facing the way he goes, held mid-step, legs out (his walk cycle's first frame), as in the games.
-            setWalker((w) => ({ landed: w.landed, section: onSection, tile, face, walking: true, hidden: false, under, sliding: slide }));
-            setGlide({ ms: ms.step / stepPace(on, tile), ease: 'linear' });
+            setWalker((w) => ({ landed: w.landed, section: onSection, tile, face, walking: true, hidden: false, under, sliding: slide, stepMs }));
+            setGlide({ ms: stepMs, ease: 'linear' });
             setOffset(centreOnMap(on, tile));
           });
-          t += ms.step / stepPace(on, tile);
+          t += stepMs;
+          if (breaks) later(t, () => onCrush?.(breaks));
+          if (turns) {
+            const turnMs = (turns * GEAR_TURN_MS * ms.step) / STEP_MS;
+            later(t, () => {
+              setWalker((w) => ({ ...w, walking: false }));
+              onTurn?.(turns, turnMs);
+            });
+            t += turnMs;
+          }
         }
       });
       later(t, () => setWalker((w) => ({ ...w, walking: false, sliding: false })));
@@ -168,7 +209,7 @@ export function useWalk({
       start = door;
     }
     // Around the people there, unless one stands in a one-tile gap (a cut-tree's, a door): then past them.
-    const others = section === targetSection ? new Set(placedRef.current.map((p) => key(p.tile))) : new Set((map.stands ?? []).map(key));
+    const others = new Set((section === targetSection ? placedRef.current.map((p) => p.tile) : figuresOn(targetSection)).map(key));
     // Several people at the spot standing in a line (a row, on one y, or a column, on one x): the player comes into their
     // line of sight only as he arrives, as in the games (agreed with the user): a row's by its column first, a column's by
     // its row first.
@@ -176,8 +217,8 @@ export function useWalk({
     const lineOfSight =
       there.length < 2 ? undefined : there.every((p) => p.tile.y === there[0]!.tile.y) ? 'row' : there.every((p) => p.tile.x === there[0]!.tile.x) ? 'column' : undefined;
     const path = start.x === to.x && start.y === to.y ? [] : (routePath(map, start, to, others, lineOfSight) ?? routePath(map, start, to, new Set(), lineOfSight));
-    // A track is walked however long it is (the gym's one way through).
-    if (path && (path.length <= MAX_WALK || map.track)) {
+    // A track is walked however long it is (the gym's one way through), and a gym's way across its gears.
+    if (path && (path.length <= MAX_WALK || map.track || map.gears)) {
       walk(map, targetSection, path, start);
     } else {
       later(t, () => setWalker((w) => ({ ...w, walking: false, hidden: true })));

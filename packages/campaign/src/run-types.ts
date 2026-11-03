@@ -6,15 +6,17 @@
 // generation's badges and the Champion run a beaten Gym Challenge, and every run of a generation the Gym Challenge of
 // the one before it (generationLock, runTypeLock).
 import type { EnergyType } from '@poke-tcg/game-engine';
-import { BOSSES, boss, ELITE_FOUR, HOENN_ELITE_FOUR, HOENN_GYMS, JOHTO_ELITE_FOUR, JOHTO_GYMS, KANTO_GYMS, type Boss, type BossId } from './bosses.js';
-import { GEN1_DECK_RULES, GEN2_DECK_RULES, GEN3_DECK_RULES, type DeckRules } from './decks.js';
-import { BASIC_ENERGY, GEN2_BASIC_ENERGY, GEN2_DONE_SETS, GEN2_SETS, GEN3_BASIC_ENERGY, GEN3_DONE_SETS, GEN3_SETS, GEN4_SETS, GEN5_SETS, POOL_SETS } from './pool.js';
+import { BOSSES, boss, ELITE_FOUR, HOENN_ELITE_FOUR, HOENN_GYMS, JOHTO_ELITE_FOUR, JOHTO_GYMS, KANTO_GYMS, SINNOH_ELITE_FOUR, SINNOH_GYMS, type Boss, type BossId } from './bosses.js';
+import { GEN1_DECK_RULES, GEN2_DECK_RULES, GEN3_DECK_RULES, GEN4_DECK_RULES, type DeckRules } from './decks.js';
+import { BASIC_ENERGY, GEN2_BASIC_ENERGY, GEN2_DONE_SETS, GEN2_SETS, GEN3_BASIC_ENERGY, GEN3_DONE_SETS, GEN3_SETS, GEN4_BASIC_ENERGY, GEN4_DONE_SETS, GEN4_SETS, GEN5_SETS, POOL_SETS } from './pool.js';
 import { DEWFORD_GYM, FORTREE_GYM, HOENN_BOSS_ROOMS, HOENN_POKEMON_CENTER, LAVARIDGE_GYM, MAUVILLE_GYM, MOSSDEEP_GYM, PETALBURG_GYM, RUSTBORO_GYM, SOOTOPOLIS_GYM } from './hoenn-gyms.js';
 import { JAGGED_PASS, PETALBURG_WOODS, ROUTE_102, ROUTE_106, ROUTE_110, ROUTE_119, ROUTE_124, SOOTOPOLIS_CITY } from './hoenn-routes.js';
 import { CELADON_GYM, CERULEAN_GYM, CINNABAR_GYM, FUCHSIA_GYM, KANTO_BOSS_ROOMS, POKEMON_CENTER, POKEMON_TOWER_1F, POKEMON_TOWER_2F, POKEMON_TOWER_3F, POKEMON_TOWER_4F, POKEMON_TOWER_5F, POWER_PLANT, ROUTE_17, ROUTE_20, ROUTE_8, ROUTE_4, ROUTE_5, ROUTE_6, SAFFRON_GYM, VERMILION_GYM, VIRIDIAN_GYM } from './kanto-routes.js';
 import { AZALEA_GYM, BLACKTHORN_GYM, CIANWOOD_GYM, ECRUTEAK_GYM, GOLDENROD_GYM, JOHTO_BOSS_ROOMS, JOHTO_POKEMON_CENTER, MAHOGANY_GYM, OLIVINE_GYM, VIOLET_GYM } from './johto-gyms.js';
 import { ROUTE_30, ROUTE_32, ROUTE_34, ROUTE_35, ROUTE_40, ROUTE_42, ROUTE_42_UPPER, ROUTE_44, ROUTE_44_UPPER, ROUTE_45 } from './johto-routes.js';
 import { PEWTER_GYM, ROUTE_2, type Route } from './routes.js';
+import { CANALAVE_GYM, ETERNA_GYM, HEARTHOME_GYM, OREBURGH_GYM, PASTORIA_GYM, SINNOH_BOSS_ROOMS, SINNOH_POKEMON_CENTER, SNOWPOINT_GYM, SUNYSHORE_GYM, VEILSTONE_GYM } from './sinnoh-gyms.js';
+import { ACUITY_LAKEFRONT, ETERNA_FOREST, HOTEL_GRAND_LAKE, IRON_ISLAND_B1F, IRON_ISLAND_B2F, IRON_ISLAND_B3F, OREBURGH_GATE, ROUTE_203, ROUTE_205, ROUTE_212, ROUTE_213, ROUTE_215, ROUTE_217, ROUTE_222, VALOR_LAKEFRONT } from './sinnoh-routes.js';
 
 /** `Id` narrows the bosses to a region's (KantoBossId…), so a run of bosses back to back can't miss one's room (bossMaps). */
 export interface RunSegment<Id extends BossId = BossId> {
@@ -49,7 +51,8 @@ export interface RunType {
 /**
  * One gym: along its `maps` (its routes and gym interior, routes.ts), one encounter per route spot (agreed with the user:
  * 10), then the gym (FireRed's in Kanto, kanto-routes.ts; HeartGold/SoulSilver's in Johto, johto-gyms.ts; Emerald's in
- * Hoenn, hoenn-gyms.ts): the Gym Trainer, then the gym leader. `place`: "City" or "Town".
+ * Hoenn, hoenn-gyms.ts; Diamond and Pearl's in Sinnoh, sinnoh-gyms.ts): the Gym Trainer, then the gym leader. `place`:
+ * "City" or "Town".
  */
 const gymRun = (id: BossId, city: string, generation: number, place: string, maps: { routes: Route[]; gym?: Route; along?: string }) => {
   const b = boss(id);
@@ -70,7 +73,7 @@ const gymRun = (id: BossId, city: string, generation: number, place: string, map
 
 /**
  * The maps of a run of bosses back to back (the Gym Challenge and Champion runs; agreed with the user), one per step in
- * order: each boss's room (`rooms`: KANTO_BOSS_ROOMS, JOHTO_BOSS_ROOMS or HOENN_BOSS_ROOMS, typed by the region's boss ids
+ * order: each boss's room (`rooms`: KANTO_BOSS_ROOMS, JOHTO_BOSS_ROOMS, HOENN_BOSS_ROOMS or SINNOH_BOSS_ROOMS, typed by the region's boss ids
  * so a missing room fails to compile), and the Pokémon Center's (`center`) for a segment's `center`.
  */
 const bossMaps = <Id extends BossId>(segments: RunSegment<Id>[], rooms: Record<Id, Route>, center: Route): Route[] =>
@@ -171,6 +174,32 @@ export const RUN_TYPES = {
     generation: 3,
     requires: 'gymChallenge',
   }, HOENN_BOSS_ROOMS, HOENN_POKEMON_CENTER),
+  // Each Sinnoh gym's maps and interior, from Diamond and Pearl (sinnoh-routes.ts, sinnoh-gyms.ts; the maps the user's,
+  // 2026-10-31): 10 encounters across them, then the gym, in the order Diamond and Pearl visit them.
+  oreburgh: gymRun('roark', 'Oreburgh', 4, 'City', { routes: [ROUTE_203, OREBURGH_GATE], gym: OREBURGH_GYM }),
+  eterna: gymRun('gardenia', 'Eterna', 4, 'City', { routes: [ETERNA_FOREST, ROUTE_205], gym: ETERNA_GYM }),
+  veilstone: gymRun('maylene', 'Veilstone', 4, 'City', { routes: [ROUTE_215], gym: VEILSTONE_GYM }),
+  pastoria: gymRun('crasher-wake', 'Pastoria', 4, 'City', { routes: [VALOR_LAKEFRONT, ROUTE_213], gym: PASTORIA_GYM }),
+  hearthome: gymRun('fantina', 'Hearthome', 4, 'City', { routes: [ROUTE_212], gym: HEARTHOME_GYM }),
+  canalave: gymRun('byron', 'Canalave', 4, 'City', { routes: [IRON_ISLAND_B1F, IRON_ISLAND_B2F, IRON_ISLAND_B3F], gym: CANALAVE_GYM, along: 'Iron Island, B1F to B3F' }),
+  snowpoint: gymRun('candice', 'Snowpoint', 4, 'City', { routes: [ROUTE_217, ACUITY_LAKEFRONT], gym: SNOWPOINT_GYM }),
+  sunyshore: gymRun('volkner', 'Sunyshore', 4, 'City', { routes: [HOTEL_GRAND_LAKE, ROUTE_222], gym: SUNYSHORE_GYM }),
+  sinnohGyms: bossRun({
+    id: 'sinnohGyms',
+    name: 'Sinnoh Gym Challenge',
+    description: 'All eight Sinnoh gym leaders back to back, Roark to Volkner, with a Pokémon Center after the fourth.',
+    segments: gymChallenge(SINNOH_GYMS),
+    generation: 4,
+    requires: 'badges',
+  }, SINNOH_BOSS_ROOMS, SINNOH_POKEMON_CENTER),
+  sinnohChampion: bossRun({
+    id: 'sinnohChampion',
+    name: 'Sinnoh Champion',
+    description: 'All eight Sinnoh gym leaders, the Elite Four and Champion Cynthia, back to back.',
+    segments: [{ steps: 0, bosses: [...SINNOH_GYMS, ...SINNOH_ELITE_FOUR, 'cynthia'], gymTrainers: false }],
+    generation: 4,
+    requires: 'gymChallenge',
+  }, SINNOH_BOSS_ROOMS, SINNOH_POKEMON_CENTER),
 } satisfies Record<string, RunType>;
 
 export type RunTypeId = keyof typeof RUN_TYPES;
@@ -217,7 +246,8 @@ export function bossSummary(type: RunType): string {
  * A generation of runs (agreed with the user): its region, its gyms (whose badges unlock its Gym Challenge), its Gym
  * Challenge run (beating it unlocks its Champion run), and its sets' booster packs in release order. An account starts
  * with no packs: the first battle finished without conceding in a run unlocks the generation's next pack, and beating
- * a run of the generation unlocks them all. Gen 2 (Neo Genesis onwards) and Gen 3 (the EX sets) come with their runs.
+ * a run of the generation unlocks them all. Gen 2 (Neo Genesis onwards), Gen 3 (the EX sets) and Gen 4 (the Diamond &
+ * Pearl to HGSS sets) come with their runs.
  */
 export interface Generation {
   region: string;
@@ -226,7 +256,7 @@ export interface Generation {
   packs: string[];
   /**
    * The sets its runs' cards come from (offered, sold, and in trainers' decks), only the cards the engine plays fully from
-   * `implementedSets` (those whose effects are done: every set of all three generations, so far), and how its random decks are made.
+   * `implementedSets` (those whose effects are done: every set of all four generations, so far), and how its random decks are made.
    */
   poolSets: string[];
   implementedSets: string[];
@@ -245,16 +275,15 @@ export const GENERATIONS: Record<number, Generation> = {
   },
   2: { region: 'Johto', gyms: JOHTO_GYMS, gymChallenge: 'johtoGyms', packs: GEN2_SETS, poolSets: GEN2_SETS, implementedSets: GEN2_DONE_SETS, deckRules: GEN2_DECK_RULES },
   3: { region: 'Hoenn', gyms: HOENN_GYMS, gymChallenge: 'hoennGyms', packs: GEN3_SETS, poolSets: GEN3_SETS, implementedSets: GEN3_DONE_SETS, deckRules: GEN3_DECK_RULES },
+  4: { region: 'Sinnoh', gyms: SINNOH_GYMS, gymChallenge: 'sinnohGyms', packs: GEN4_SETS, poolSets: GEN4_SETS, implementedSets: GEN4_DONE_SETS, deckRules: GEN4_DECK_RULES },
 };
 
 /**
- * Every generation's booster packs, by generation (GENERATIONS'), for the Packs tab; and Gen 4's (Sinnoh's: the DP,
- * Platinum and HGSS sets) and Gen 5's (Unova's: the Black & White series), shown locked until their runs exist (the
- * user's, 2026-10-24 and 2026-10-26).
+ * Every generation's booster packs, by generation (GENERATIONS'), for the Packs tab; and Gen 5's (Unova's: the Black &
+ * White series), shown locked until its runs exist (the user's, 2026-10-26).
  */
 export const PACK_GENERATIONS: Record<number, { region: string; packs: string[] }> = {
   ...Object.fromEntries(Object.entries(GENERATIONS).map(([id, g]) => [id, { region: g.region, packs: g.packs }])),
-  4: { region: 'Sinnoh', packs: GEN4_SETS },
   5: { region: 'Unova', packs: GEN5_SETS },
 };
 
@@ -302,7 +331,7 @@ export function runTypeLock(type: RunType, account: { badges: ReadonlySet<string
 
 /** The type of a basic Energy card of any generation's printings (pool.ts), or undefined. */
 const basicEnergyType = (id: string): EnergyType | undefined =>
-  [BASIC_ENERGY, GEN2_BASIC_ENERGY, GEN3_BASIC_ENERGY].map((set) => Object.entries(set).find(([, e]) => e === id)).find(Boolean)?.[0] as EnergyType | undefined;
+  [BASIC_ENERGY, GEN2_BASIC_ENERGY, GEN3_BASIC_ENERGY, GEN4_BASIC_ENERGY].map((set) => Object.entries(set).find(([, e]) => e === id)).find(Boolean)?.[0] as EnergyType | undefined;
 
 /** The types a boss's deck is built around: the ones it names (`types`), or its basic Energy's, the most first. */
 export function bossTypes(b: Boss): EnergyType[] {

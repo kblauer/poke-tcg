@@ -29,6 +29,8 @@ const BASE_COSMETICS: CosmeticDef[] = [
   { id: 'illusion', kind: 'cardBack', name: 'Illusion', description: 'The Japanese back with a rainbow illusion foil.', unlock: { type: 'beat', runType: 'johtoChampion' } },
   { id: 'maze', kind: 'cardBack', name: 'Maze', description: 'The classic back with a labyrinth foil.', unlock: { type: 'beat', runType: 'hoennGyms' } },
   { id: 'tidal', kind: 'cardBack', name: 'Tidal', description: 'The classic back with a rolling-wave foil.', unlock: { type: 'beat', runType: 'hoennChampion' } },
+  { id: 'pearl', kind: 'cardBack', name: 'Pearl', description: 'The classic back with a pearlescent sheen.', unlock: { type: 'beat', runType: 'sinnohGyms' } },
+  { id: 'diamond', kind: 'cardBack', name: 'Diamond', description: 'The classic back with a diamond-cut sparkle foil.', unlock: { type: 'beat', runType: 'sinnohChampion' } },
   // Playmats: faint geometric patterns that answer a click on the table subtly, shifting or lighting their lines and points
   // (agreed: nothing turns or flips; the web app draws them, Playmat.tsx).
   { id: 'plain', kind: 'playmat', name: 'Plain', description: 'The bare table.', unlock: { type: 'default' } },
@@ -54,6 +56,7 @@ const BASE_COSMETICS: CosmeticDef[] = [
   { id: 'coin-masterball', kind: 'coin', name: 'Master Ball', description: 'A Master Ball on heads.', unlock: { type: 'beat', runType: 'kantoChampion' } },
   { id: 'coin-gsball', kind: 'coin', name: 'GS Ball', description: 'The gold and silver GS Ball on heads.', unlock: { type: 'beat', runType: 'johtoChampion' } },
   { id: 'coin-luxuryball', kind: 'coin', name: 'Luxury Ball', description: 'A Luxury Ball on heads.', unlock: { type: 'beat', runType: 'hoennChampion' } },
+  { id: 'coin-duskball', kind: 'coin', name: 'Dusk Ball', description: 'A Dusk Ball on heads.', unlock: { type: 'beat', runType: 'sinnohChampion' } },
 ];
 
 /**
@@ -64,12 +67,12 @@ const BASE_COSMETICS: CosmeticDef[] = [
 const SLEEVES: [slug: string, name: string, unlock: CosmeticUnlock][] = [
   ['acerola', 'Acerola', { type: 'buy', price: 1500 }],
   ['alolan-vulpix', 'Alolan Vulpix', { type: 'buy', price: 1500 }],
-  ['arceus', 'Arceus', { type: 'buy', price: 1500 }],
+  ['arceus', 'Arceus', { type: 'beat', runType: 'sinnohChampion' }],
   ['arven', 'Arven', { type: 'buy', price: 1500 }],
   ['blastoise', 'Blastoise', { type: 'beat', runType: 'kantoChampion' }],
   ['charizard', 'Charizard', { type: 'buy', price: 1500 }],
-  ['chimchar', 'Chimchar', { type: 'buy', price: 1500 }],
-  ['cynthia', 'Cynthia', { type: 'buy', price: 1500 }],
+  ['chimchar', 'Chimchar', { type: 'beat', runType: 'sinnohGyms' }],
+  ['cynthia', 'Cynthia', { type: 'beat', runType: 'sinnohChampion' }],
   ['darkrai', 'Darkrai', { type: 'buy', price: 1500 }],
   ['eevee', 'Eevee', { type: 'buy', price: 1500 }],
   ['eevee-ver-2', 'Eevee ver 2', { type: 'buy', price: 1500 }],
@@ -85,7 +88,7 @@ const SLEEVES: [slug: string, name: string, unlock: CosmeticUnlock][] = [
   ['leafeon-glaceon', 'Leafeon Glaceon', { type: 'buy', price: 1500 }],
   ['lillie', 'Lillie', { type: 'buy', price: 1500 }],
   ['lillie-ver-2', 'Lillie ver 2', { type: 'buy', price: 1500 }],
-  ['lucario', 'Lucario', { type: 'buy', price: 1500 }],
+  ['lucario', 'Lucario', { type: 'beat', runType: 'sinnohGyms' }],
   ['manaphy', 'Manaphy', { type: 'buy', price: 1500 }],
   ['may', 'May', { type: 'beat', runType: 'hoennGyms' }],
   ['mega-altaria', 'Mega Altaria', { type: 'beat', runType: 'hoennGyms' }],
