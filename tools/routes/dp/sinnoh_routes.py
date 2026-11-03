@@ -98,11 +98,14 @@ USER_SPOTS = {'route203': {1: (6, 13), 2: (19, 13), 3: (15, 21), 4: (25, 15), 5:
               'route212': {1: (121, 118), 2: (101, 114), 3: (71, 113), 4: (36, 102), 5: (5, 115), 6: (18, 83), 7: (22, 67), 8: (8, 59),
                            9: (11, 36), 10: (11, 7)},
               'route217': {1: (14, 107), 2: (23, 88), 3: (17, 72), 4: (8, 59), 5: (17, 38), 6: (3, 30), 7: (23, 7)},
-              'acuity_lakefront': {1: (20, 54), 2: (38, 52), 3: (49, 42)}}
+              'acuity_lakefront': {1: (20, 54), 2: (38, 52), 3: (49, 42)},
+              # Hotel Grand Lake's (the user's, 2026-11-03).
+              'hotel_grand_lake': {1: (23, 19), 2: (30, 9), 3: (44, 12)},
+              'route222': {1: (8, 22), 2: (10, 9), 3: (25, 9), 4: (26, 20), 5: (43, 18), 6: (62, 19), 7: (86, 18)}}
 USER_ENTRANCE = {'route203': (0, 23), 'oreburgh_gate': (3, 22), 'eterna_forest': (16, 81), 'route205n': (2, 12), 'route215': (0, 22), 'route212': (127, 111),
-                 'iron_island_b2f': (39, 3), 'iron_island_b3f': (15, 19), 'route217': (16, 127)}
+                 'iron_island_b2f': (39, 3), 'iron_island_b3f': (15, 19), 'route217': (16, 127), 'route222': (0, 22)}
 USER_EXIT = {'route203': (55, 11), 'oreburgh_gate': (28, 22), 'eterna_forest': (75, 31), 'route205n': (31, 21), 'route215': (95, 23), 'valor_lakefront': (34, 63),
-            'iron_island_b1f': (18, 31), 'iron_island_b2f': (13, 52), 'iron_island_b3f': (1, 5), 'route217': (25, 0)}
+            'iron_island_b1f': (18, 31), 'iron_island_b2f': (13, 52), 'iron_island_b3f': (1, 5), 'route217': (25, 0), 'hotel_grand_lake': (52, 12)}
 USER_MOVES = {}
 # Links in place of the map's own (its two doors into one building): Route 213's reception, walked into at its north door
 # and out at its south one (the user's, 2026-11-02; 66,17 below it walkable, his way out).
@@ -117,9 +120,11 @@ USER_OVERHEAD = {'route213': [(66, 12)]}
 USER_LIFTS = {'iron_island_b1f': '258', 'iron_island_b2f': '258@19.5,44.5', 'iron_island_b3f': '258'}
 # Raised things drawn over the player where he walks under them (in these tiles, the pixels at least this high, from
 # dp_map.py's heights): Route 212's bike rails, 26-40,108-109, 41,111-116 and 108,106-122 (the user's, 2026-11-02), at 50
-# over the plateaus' 48.
+# over the plateaus' 48. Hotel Grand Lake's reception, 22-24,35, over the player coming out of its north door (the
+# user's, 2026-11-03), at 90 over the ground's 64.
 USER_RAISED_OVER = {'route212': ([(x, y) for x in range(26, 41) for y in (108, 109)] + [(41, y) for y in range(111, 117)]
-                                 + [(108, y) for y in range(106, 123)], 49)}
+                                 + [(108, y) for y in range(106, 123)], 49),
+                    'hotel_grand_lake': ([(22, 35), (23, 35), (24, 35)], 90)}
 # Tiles made walkable or unwalkable (after USER_RAISED). Eterna Forest (the user's, 2026-11-01): out at 75,31, so 74,31
 # walkable and 74,30 not; 32-35,56 walkable; 44-47,70, 48-49,72, 40-43,54, 15-27,58 unwalkable, and its cliffs' feet:
 # 60-61 and 68-69,54, 62-67,56, 66-73,40, 74-75,42, 48-71,52 and 66-73,28. Route 205: 3,12 walkable, the way from its
@@ -130,6 +135,11 @@ USER_WALKABLE = {'eterna_forest': [(74, 31)] + [(x, 56) for x in range(32, 36)],
                  'valor_lakefront': [(x, y) for x in range(37, 49) for y in (49, 50)] + [(x, y) for x in range(31, 40) for y in range(51, 55)]
                                     + [(x, 51) for x in range(40, 53)],
                  'route213': [(66, 17)],
+                 # Hotel Grand Lake (the user's, 2026-11-03): the ground round the Seven Stars Restaurant, 20-25,10, 21-25,11,
+                 # 22-25,12 and 22-24,13, the path north of it, 26-34,8-9 and 26-29,10, and 38,9-10 and 39-42,10.
+                 'hotel_grand_lake': [(x, 10) for x in range(20, 30)] + [(x, 11) for x in range(21, 26)] + [(x, 12) for x in range(22, 26)]
+                                     + [(x, 13) for x in range(22, 25)] + [(x, y) for x in range(26, 35) for y in (8, 9)] + [(38, 9), (38, 10)]
+                                     + [(x, 10) for x in range(39, 43)],
                  # Iron Island B1F's pit floor where it's drawn (Diamond's data has it 5 rows higher): rows 28-29 from 5 to
                  # 18, round its pillars and rock, and rows 30 and 31 (the user's), to its stairs out at 18,31 (the user's,
                  # 2026-11-02); rows 26 and 27 not (below).
@@ -143,7 +153,11 @@ USER_WALKABLE = {'eterna_forest': [(74, 31)] + [(x, 56) for x in range(32, 36)],
 # Route 212: 54-63,115 and 48-51,119 (the user's, 2026-11-02). Iron Island B1F: rows 26 and 27, its pit's back wall, and the user's
 # marks round its pit: 3-9,25, 1-9 and 13-20,26-28, 13-19,29, 9-10,30, 14,30 and 6-9,31 (11,30 and 11-18,31 walkable). B2F:
 # 14-17 and 21-23,47-49, either side of its lift's bottom (the user's).
-USER_BLOCKED = {'iron_island_b2f': [(x, y) for x in [*range(14, 18), *range(21, 24)] for y in (47, 48, 49)],
+USER_BLOCKED = {# Hotel Grand Lake (the user's, 2026-11-03): 29,11-14, 38-39,12-14, 42,13-14, 38-43,8, 42-44,9, and the
+                # Seven Stars Restaurant's front, 21-25,8-9.
+                'hotel_grand_lake': [(x, y) for x in range(21, 26) for y in (8, 9)] + [(29, y) for y in range(11, 15)] + [(x, y) for x in (38, 39) for y in range(12, 15)] + [(42, 13), (42, 14)]
+                                    + [(x, 8) for x in range(38, 44)] + [(x, 9) for x in range(42, 45)],
+                'iron_island_b2f': [(x, y) for x in [*range(14, 18), *range(21, 24)] for y in (47, 48, 49)],
                 'iron_island_b1f': [(x, y) for x in range(32) for y in (26, 27)] + [(x, 25) for x in range(3, 10)]
                                    + [(x, y) for y in (26, 27, 28) for x in [*range(1, 10), *range(13, 21)]] + [(x, 29) for x in range(13, 20)]
                                    + [(9, 30), (10, 30), (14, 30)] + [(x, 31) for x in range(6, 10)],
@@ -164,7 +178,11 @@ USER_RAISED = {'route203': [(23, 34, 1), (37, 54, 2)], 'eterna_forest': [(0, 77,
 # Route 215's 2, 4 and 8 have theirs left and right (the user's).
 USER_SPOT_FLOWS = {'route203': {1: 'up', 2: 'up', 4: 'up', 8: 'up'}, 'route205n': {1: 'right', 2: 'right'}, 'route215': {2: 'up', 4: 'up', 8: 'up'}, 'route213': {3: 'up', 4: 'up', 6: 'up'},
                    # Iron Island B2F's 1 and 4 with theirs above and below him, B3F's 2 either side, the third above (the user's).
-                   'iron_island_b2f': {1: 'right', 4: 'right'}, 'iron_island_b3f': {2: 'up'}}
+                   'iron_island_b2f': {1: 'right', 4: 'right'}, 'iron_island_b3f': {2: 'up'},
+                   # Hotel Grand Lake's 1 with theirs either side (the user's).
+                   'hotel_grand_lake': {1: 'up'},
+                   # Route 222's 2, 4 and 7 with theirs either side (the user's).
+                   'route222': {2: 'up', 4: 'up', 7: 'up'}}
 # Treetops drawn over the player (the user's: the 2 tiles above a tree's unwalkable tiles): in each walkable tile within 2
 # above an unwalkable one, the pixels of what stands more than TREETOP_HIGH model units (a tile is 16) above the ground
 # round it (from dp_map.py's heights: the highest median height of the walkable tiles near it, not themselves under

@@ -4,9 +4,9 @@ import { ITEMS, itemText, MAX_CONSUMABLES_PER_RUN, onlyOne, shopStock } from './
 import { RUN_TYPE_IDS, RUN_TYPES, runType, type RunType, type RunTypeId } from './run-types.js';
 import { ROUTE_4 } from './kanto-routes.js';
 import { JOHTO_BOSS_ROOMS, MAHOGANY_GYM } from './johto-gyms.js';
-import { dropAt, inGrass, inLongGrass, liftEnd, onLongGrassEdge, onPath, onThinIce, PEWTER_GYM, ROUTE_2, routePath, snowAt, snowballsLeft, snowPace, snowSink, snowTrack, travelAt, type Route, type RouteSpot } from './routes.js';
+import { dropAt, inGrass, inLongGrass, liftEnd, onLongGrassEdge, onPath, onThinIce, PEWTER_GYM, ROUTE_2, routePath, gearStateAt, snowAt, snowballsLeft, snowPace, snowSink, snowTrack, travelAt, type Route, type RouteSpot } from './routes.js';
 import { IRON_ISLAND_B1F, IRON_ISLAND_B2F, IRON_ISLAND_B3F, ROUTE_217 } from './sinnoh-routes.js';
-import { CANALAVE_GYM, SNOWPOINT_GYM } from './sinnoh-gyms.js';
+import { CANALAVE_GYM, SNOWPOINT_GYM, SUNYSHORE_GYM } from './sinnoh-gyms.js';
 import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, isBattleKind, isBossKind, landNear, MAX_CENTERS, REQUIRED_BATTLES, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, withConsumablesBefore, carriedConsumables, parsePendingConsumable, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
 import { GEN2_SETS, GEN3_SETS, GEN4_SETS } from './pool.js';
 import { GEN2_TEST_POOL, GEN3_TEST_POOL, GEN4_TEST_POOL, TEST_POOL } from './test-pool.js';
@@ -219,6 +219,26 @@ describe('createRun', () => {
     // Footprints the way he goes; a furrow joining the way he came to the way he goes (up, then right: its upper left corner).
     expect([snowTrack(ROUTE_217, shallow, 'left'), snowTrack(ROUTE_217, deep, 'up'), snowTrack(ROUTE_217, deep, 'right', 'up'), snowTrack(ROUTE_217, deep, 'up', 'left')]).toEqual([2, 4, 6, 8]);
     expect(snowAt(ROUTE_2, { x: 5, y: 5 })).toBeNull();
+  });
+
+  it("Sunyshore Gym's gears: their arms walked onto only while they're there, its buttons turning them, its floors joined only by its ramps", () => {
+    const people = new Set(SUNYSHORE_GYM.stands!.map(({ x, y }) => `${x},${y}`));
+    const [trainer, volkner] = SUNYSHORE_GYM.spots;
+    const first = routePath(SUNYSHORE_GYM, SUNYSHORE_GYM.entrance!, trainer!, people)!;
+    const second = routePath(SUNYSHORE_GYM, trainer!, volkner!, people)!;
+    expect(second.some((s) => s.turns)).toBe(true);
+    // Each step onto a tile that's there in the gears' state as he steps, the state turned by each button on the way.
+    let state = 0;
+    for (const step of [...first, ...second]) {
+      expect(SUNYSHORE_GYM.gears!.blocked[state]!.some((t) => t.x === step.tile.x && t.y === step.tile.y)).toBe(false);
+      state = (state + (step.turns ?? 0)) % 4;
+    }
+    expect(gearStateAt(SUNYSHORE_GYM, volkner!)).toBe(state);
+    // The bottom floor drawn lower than the top one (the picture's ground: dropAt).
+    expect(dropAt(SUNYSHORE_GYM, SUNYSHORE_GYM.entrance!)).toBeGreaterThan(40);
+    expect(Math.abs(dropAt(SUNYSHORE_GYM, volkner!))).toBeLessThan(16);
+    // No step between floors 20 units apart (5 levels): the bottom gears' north arms from the middle ones' south arms.
+    expect(routePath({ ...SUNYSHORE_GYM, gears: undefined }, { x: 6, y: 15 }, { x: 6, y: 16 })!.length).toBeGreaterThan(1);
   });
 
   it('every route and gym has an entrance, and on a route the player can walk from it to the first spot', () => {

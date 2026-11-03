@@ -27,16 +27,16 @@ class Scene:
         left), their texture coordinates, vertex colours (0-1), an RGBA texture (0-1) and how it wraps."""
         self.prims.append((np.asarray(pos, float), np.asarray(uv, float), np.asarray(col, float), tex, wrap, alpha, blend))
 
-    def glb(self, path, origin, texmtx=None, only=None):
+    def glb(self, path, origin, texmtx=None, only=None, turn=None):
         """A GLB (apicula's), its model origin at `origin` (x, y, z in model units); `texmtx`: its materials' texture
-        matrices (hgss_data.texture_matrices); `only`: just these materials (a bridge overhead)."""
+        matrices (hgss_data.texture_matrices); `only`: just these materials (a bridge overhead); `turn`: turned about its
+        origin first, (axis 'x' or 'y', degrees), as the DS turns a prop (NitroSDK's MTX_RotX33/MTX_RotY33)."""
         for p in glb_prims(path, texmtx):
             if only is None or p['material'] in only:
-                self.mesh(p['pos'] + np.array(origin), p['uv'], p['col'], p['tex'], p['wrap'], p['alpha'], p['blend'])
+                self.mesh(turned(p['pos'], turn) + np.array(origin), p['uv'], p['col'], p['tex'], p['wrap'], p['alpha'], p['blend'])
 
-    def render(self, out, transparent=False, heights=None):
-        """Draws the scene to `out`; `transparent`: see-through wherever nothing was drawn (an overhead layer); `heights`:
-        a .npy file for each pixel's model height (`height`)."""
+    def draw(self):
+        """Draws the triangles added so far into the picture (and forgets them), so more can be drawn over it later."""
         # Opaque first, then see-through surfaces (water), so they blend over what's beneath them.
         for pos, uv, col, tex, wrap, alpha, blend in sorted(self.prims, key=lambda p: p[6]):
             sx = pos[:, 0] * S
@@ -44,6 +44,19 @@ class Scene:
             d = pos[:, 1] + pos[:, 2] * self.tilt * 0.5
             for k in range(0, len(pos) - 2, 3):
                 self._triangle(sx[k:k + 3], sy[k:k + 3], d[k:k + 3], uv[k:k + 3], col[k:k + 3], tex, wrap, alpha, pos[k:k + 3, 1])
+        self.prims = []
+
+    def snapshot(self):
+        """What's drawn so far (picture, depths, heights), to go back to (`restore`)."""
+        return self.img.copy(), self.depth.copy(), self.height.copy()
+
+    def restore(self, shot):
+        self.img, self.depth, self.height = (a.copy() for a in shot)
+
+    def render(self, out, transparent=False, heights=None):
+        """Draws the scene to `out`; `transparent`: see-through wherever nothing was drawn (an overhead layer); `heights`:
+        a .npy file for each pixel's model height (`height`)."""
+        self.draw()
         if heights:
             np.save(heights, self.height.astype(np.float32))
         rgb = (np.clip(self.img, 0, 1) * 255).astype(np.uint8)
@@ -93,6 +106,17 @@ class Scene:
         sub[solid] = d[solid]
         if hs is not None:
             self.height[miny:maxy + 1, minx:maxx + 1][solid] = (w0 * hs[0] + w1 * hs[1] + w2 * hs[2])[solid]
+
+
+def turned(pos, turn):
+    """Positions turned about the origin by `turn` (axis 'x' or 'y', degrees; None: as they are), as the DS does
+    (row vectors times MTX_RotX33's or MTX_RotY33's matrix)."""
+    if not turn:
+        return pos
+    axis, deg = turn
+    c, s = np.cos(np.radians(deg)), np.sin(np.radians(deg))
+    m = np.array([[1, 0, 0], [0, c, s], [0, -s, c]]) if axis == 'x' else np.array([[c, 0, -s], [0, 1, 0], [s, 0, c]])
+    return pos @ m
 
 
 def glb_prims(path, texmtx=None):

@@ -15,7 +15,7 @@ packages/campaign/src/sinnoh-gyms.ts, copying the images to apps/web/public/rout
 Usage: python sinnoh_gyms.py [--apicula <apicula.exe>] [--cache <dir>] [--work <dir>]
 (--work: where the renders go; each gym also gets a <city>-preview.png there with its door, stands and spots marked.)
 Prints any walk it can't find (a gym puzzle the map data doesn't show: fixes come from the user, as for Johto)."""
-import json, os, re, shutil, subprocess, sys, tempfile
+import json, math, os, re, shutil, subprocess, sys, tempfile
 from collections import deque
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -56,6 +56,12 @@ CENTER = ('MAP_PASTORIA_POKECENTER', 'MAP_PASTORIA', 'PCWOMAN1')
 # doormat; the Gym Trainer in Youngster Darius's place, 7,11, the player at 5,11. Hearthome Gym's at 17,26 in its second
 # statue room, the trainer above at 17,25 (2026-11-02).
 USER_DOOR = {'oreburgh': (5, 25)}
+# Where the player comes into a leader's room for the Gym Challenge and Champion runs, where it isn't 5 tiles from them
+# (entrance_near): the user's, 2026-11-03.
+USER_LEADER_ENTRANCE = {'oreburgh': (5, 12), 'eterna': (12, 11), 'pastoria': (13, 12), 'hearthome': (14, 13), 'canalave': (16, 9), 'snowpoint': (11, 11), 'sunyshore': (11, 7)}
+# Tiles walkable in a leader's room for those runs that aren't in the gym (none now: Sunyshore Gym's 9-10,7 were for its
+# In tile at 9,7, since moved onto its top gear's north arm, the user's).
+USER_LEADER_OPEN = {}
 USER_GYM_TRAINER = {'oreburgh': {'spot': (5, 11), 'stand': (7, 11)}, 'hearthome': {'spot': (17, 26), 'stand': (17, 25)},
                     # Snowpoint Gym's Ace Trainer Isaiah at 14,13, the player slid up to him from the south at 14,14 (the
                     # user's, 2026-11-03: never stopping at 14,12 across the ice).
@@ -91,6 +97,23 @@ USER_TREETOPS = {'eterna', 'hearthome'}
 USER_SLIDES = {'snowpoint'}
 LEVEL_UNITS = 8
 SNOWBALL = 118
+# Gyms with gears turning bridges, walked across where their arms are (the user's, 2026-11-03): Sunyshore Gym's leader's
+# room, its room 3 (pokeplatinum's gym_features.c: sSunyshoreRoom3Gears, props drawn turned as each of the gears' 4
+# states has them, `<model>_s<state>` renders; their arms walkable only as sSunyshoreRoom3State<n>Collisions leaves
+# them; its buttons, scripts_sunyshore_city_gym_room_3.s's coord events: 6,8 and 16,13 turning them once, 6,18 and 16,18
+# twice), drawn turning frame by frame (GEAR_FRAMES a turn, 5.625° each: FieldTask_SunyshoreGym_RotateGears; one sheet,
+# `<city>_gym_gears.png`, of the part of the picture they change, GEAR_SHEET_COLUMNS wide). The pits between its top
+# floor's platforms (`gaps`: 7-8 and 13-14,3-5, walkable in the map's data) aren't walked across (the user's, 2026-11-03).
+# Its floors are 96 units apart, joined by the ramps at its sides: each tile's level from the renders' heights,
+# GEAR_LEVEL_UNITS each (base 36), a step up or down at most GEAR_LEVEL_STEP (terrain_collision_manager.c: none onto a
+# floor 20 units off).
+USER_GEARS = {'sunyshore': {'room': 3, 'buttons': {(6, 8): 1, (16, 13): 1, (6, 18): 2, (16, 18): 2},
+                             'gaps': [(x, y) for x in (7, 8, 13, 14) for y in (3, 4, 5)]}}
+GEAR_FRAMES = 64
+GEAR_SHEET_COLUMNS = 8
+GEAR_LEVEL_UNITS = 4
+GEAR_LEVEL_STEP = 4
+GEAR_STATES = 4
 # Props the game places by its code, drawn in the gym's picture (model, and the tile centre it stands on, in the map's own
 # tiles): Canalave Gym's lifts (the user's, 2026-11-02, from Diamond's gym): Byron's red one (297) in the top row's middle
 # pit, and yellow ones (296) in the four pits of the second row and the bottom row's left one, each centred in its pit (a
@@ -112,6 +135,46 @@ def canalave_floor(floor):
     nums = re.findall(r'\b[01]\b', s[s.index('{', a) + 1:s.index('};', a)])
     m = nums[floor * 1024:(floor + 1) * 1024]
     return [''.join('#' if m[z * 32 + x] == '1' else '.' for x in range(32)) for z in range(32)]
+def gym_features(name):
+    """pokeplatinum's gym_features.c, its table `name`'s text."""
+    s = open(pt_data.fetch(os.path.join(tempfile.gettempdir(), 'pokeplatinum'), 'src/overlay008/gym_features.c'), encoding='utf-8').read()
+    a = s.index(name)
+    return s[a:s.index('};', a)]
+
+
+def sunyshore_gears(room):
+    """A Sunyshore Gym room's gears (model number in map_prop_models.order's order, x, y, z, initialRotation,
+    turnsClockwise, isVertical), its collision regions (x, z, sizeX, sizeZ) and each state's blocked regions."""
+    order = open(pt_data.fetch(os.path.join(tempfile.gettempdir(), 'pokeplatinum'), 'res/field/props/models/map_prop_models.order'), encoding='utf-8').read().split()
+    gears = [(order.index(m[0] + '.nsbmd'), int(m[1]), int(m[2]), int(m[3]), int(m[4]), m[5] == 'TRUE', m[6] == 'TRUE') for m in re.findall(
+        r'\.modelID = (\w+)_nsbmd,\s*\.x = (\d+),\s*\.y = (\d+),\s*\.z = (\d+),\s*\.initialRotation = (\d),\s*\.turnsClockwise = (\w+),\s*\.isVertical = (\w+)',
+        gym_features(f'sSunyshoreRoom{room}Gears['))]
+    regions = [tuple(map(int, m)) for m in re.findall(r'\.x = (\d+), \.z = (\d+), \.sizeX = (\d+), \.sizeZ = (\d+)', gym_features(f'sSunyshoreRoom{room}CollisionRegions['))]
+    states = [[int(v) for v in re.findall(r'\d+', gym_features(f'sSunyshoreRoom{room}State{s}Collisions[]').split('{')[1])] for s in range(GEAR_STATES)]
+    return gears, regions, states
+
+
+def gear_props(room, state, frame=0):
+    """The gears of a Sunyshore Gym room as dp_map.py --props, in a state: at their tiles' centres (a vertical one half a
+    tile up), turned 90° for each of initialRotation, then 90° on (back if it turns clockwise) for each state
+    (SunyshoreGym_SetGearRotation), and `frame` frames of a turn on from it (360° / GEAR_FRAMES each)."""
+    turn = 90 * state + 360 / GEAR_FRAMES * frame
+    return ';'.join(f"{m}@{x + 0.5},{z + 0.5},{y * 16 + (8 if v else 0)},r{'x' if v else 'y'}{90 * r + (-turn if cw else turn)}" for m, x, y, z, r, cw, v in sunyshore_gears(room)[0])
+
+
+def floor_height(heights, x, y, ground):
+    """The highest floor drawn on a tile in any of `heights` (the renders' heights, None for a state whose render it's
+    no floor in), where its middle column meets it as tilted (tile_level's), or None."""
+    found = []
+    for h in heights:
+        if h is None:
+            continue
+        col = h[:, x * TILE + TILE // 2]
+        at = ~np.isnan(col) & (np.abs(np.arange(len(col)) - (y * TILE + TILE // 2 - (col - ground) * 0.6)) <= 1.5)
+        found += [float(v) for v in col[at]]
+    return max(found) if found else None
+
+
 # How high above the floor a treetop's pixels stand, where it isn't the routes' TREETOP_HIGH: Hearthome Gym's Duskull
 # statues, about 11 units tall, masked from 2 up (the user's: their tops drawn over the player behind them, 2026-11-02).
 USER_TREETOP_HIGH = {'hearthome': 2}
@@ -262,10 +325,11 @@ def platinum_gym(spec, work, city, apicula):
     return prefix, rows, door, [spot_of(trainer), lspot], [(trainer['x'], trainer['z']), lstand], guide, who, links, never
 
 
-def render(work, name, map_const, apicula, cache):
-    prefix = os.path.join(work, name)
+def render(work, name, map_const, apicula, cache, state=0):
+    prefix = os.path.join(work, name + (f'_s{state}' if state else ''))
     if not os.path.exists(prefix + '.png'):
         props = ['--props', ';'.join(f'{m}@{x},{z}' for m, x, z in USER_PROPS[name])] if name in USER_PROPS else []
+        props = ['--props', gear_props(USER_GEARS[name]['room'], state)] if name in USER_GEARS else props
         lift = ['--lift', '{}@{},{},0'.format(USER_UPPER[name]['lift'][0], USER_UPPER[name]['lift'][1] + 0.5, USER_UPPER[name]['lift'][2] + 0.5)] if name in USER_UPPER else []
         subprocess.run([sys.executable, os.path.join(HERE, 'dp_map.py'), prefix, map_const, '--apicula', apicula, '--cache', cache, *props, *lift], check=True)
     return prefix, json.load(open(prefix + '.json'))['rows']
@@ -304,7 +368,7 @@ def tile_levels(heights, x0, y0, x1, y1, ground):
     return out
 
 
-def gym_ts(const, title, doc, image, w, h, door, spots, stands, guide, rows, overhead=None, track=None, links=(), lifts=(), slides=None):
+def gym_ts(const, title, doc, image, w, h, door, spots, stands, guide, rows, overhead=None, track=None, links=(), lifts=(), slides=None, gears=None):
     legs = lambda: ', '.join('{ ' + ('under: true, ' if leg.get('under') else '') + f"to: [{', '.join(f'[{x}, {y}]' for x, y in leg['to'])}] }}" for leg in track['legs'])
     track_ = f"\n  track: trackLine([{track['start'][0]}, {track['start'][1]}], {legs()})," if track else ''
     lifts_ = ('\n  lifts: [' + ', '.join(f"{{ image: '{i}', top: {{ x: {t[0]}, y: {t[1]} }}, bottom: {{ x: {b[0]}, y: {b[1]} }}, offset: {{ x: {o[0]}, y: {o[1]} }} }}" for i, t, b, o in lifts) + '],') if lifts else ''
@@ -314,8 +378,15 @@ def gym_ts(const, title, doc, image, w, h, door, spots, stands, guide, rows, ove
     name = f'"{title}"' if "'" in title else f"'{title}'"
     npcs = f"\n  npcs: [{{ sprite: 'dp/sunglasses', tile: {{ x: {guide[0]}, y: {guide[1]} }}, face: 'down' }}]," if guide else ''
     grid = lambda k, rs: f'%s  {k}: [' % chr(10) + ''.join(f"%s    '{r}'," % chr(10) for r in rs) + '%s  ],' % chr(10)
-    slides_ = (grid('ice', slides['ice']) + grid('levels', slides['levels']) + '%s  levelPx: %s,' % (chr(10), round(LEVEL_UNITS * 0.6, 2)) + grid('stairs', slides['stairs']) +
+    # (Its people drawn by their level below its door's, the picture's ground, wherever a run comes in: leaderRoom.)
+    slides_ = (grid('ice', slides['ice']) + grid('levels', slides['levels']) + '%s  levelPx: %s,%s  levelGround: %s,' % (chr(10), round(LEVEL_UNITS * 0.6, 2), chr(10), slides['levels'][door[1]][door[0]]) + grid('stairs', slides['stairs']) +
                '%s  snowballs: [' % chr(10) + ', '.join(f'{{ x: {x}, y: {y} }}' for x, y in slides['balls']) + "],%s  snowballImage: '/overworld/dp/snowball.png'," % chr(10)) if slides else ''
+    spot = lambda t: f'{{ x: {t[0]}, y: {t[1]} }}'
+    if gears:
+        slides_ += (grid('levels', gears['levels']) + '%s  levelPx: %s,%s  levelStep: %s,%s  levelGround: %s,' % (chr(10), round(GEAR_LEVEL_UNITS * 0.6, 2), chr(10), GEAR_LEVEL_STEP, chr(10), gears['ground'])
+                    + '%s  gears: {%s    blocked: [' % (chr(10), chr(10)) + ''.join('%s      [%s],' % (chr(10), ', '.join(spot(t) for t in b)) for b in gears['blocked'])
+                    + '%s    ],%s    buttons: [%s],' % (chr(10), chr(10), ', '.join(f'{{ tile: {spot(t)}, turns: {n} }}' for t, n in gears['buttons']))
+                    + '%s    frames: { %s },%s  },' % (chr(10), ', '.join(f"{k}: '{v}'" if isinstance(v, str) else f'{k}: {v}' for k, v in gears['frames'].items()), chr(10)))
     return f"""
 /** {doc} */
 export const {const}: Route = {{
@@ -400,6 +471,43 @@ def main():
             rows, door, spots, stands, guide, trainer = place(rows, events, warp_to and headers[warp_to]['id'], leader_sprite(events, sprites), sprites['SUNGLASSES'], cache)
         keep = [t for a, b in links + [l[:2] for l in lifts] for t in [*bfs(rows, a), *bfs(rows, b)]]
         x0, y0, x1, y1 = crop_box(rows, door, [*spots, *stands] + ([guide] if guide else []) + keep)
+        gears = None
+        if city in USER_GEARS:
+            for x, y in USER_GEARS[city]['gaps']:
+                rows[y] = rows[y][:x] + '#' + rows[y][x + 1:]
+            # Each tile's level, the highest floor drawn there in any state its arm is there in (an arm's, where one's
+            # ever there, flat); the picture as low as its lowest floor is drawn (people drawn lower on it: dropAt).
+            ground = json.load(open(prefix + '.json'))['ground']
+            _, regions, states = sunyshore_gears(USER_GEARS[city]['room'])
+            off = [{(x, z) for i in states[s] for x in range(regions[i][0], regions[i][0] + regions[i][2]) for z in range(regions[i][1], regions[i][1] + regions[i][3])} for s in range(GEAR_STATES)]
+            heights = [np.load(render(work, city, map_const, apicula, cache, s)[0] + '_height.npy') for s in range(GEAR_STATES)]
+            floor = [[floor_height([h if (x, y) not in off[s] else None for s, h in enumerate(heights)], x, y, ground) for x in range(len(rows[0]))] for y in range(len(rows))]
+            level = lambda h: max(0, min(35, round(h / GEAR_LEVEL_UNITS)))
+            lowest = min(level(h) for r in floor for h in r if h is not None)
+            y1 = min(len(rows) - 1, y1 + math.ceil((level(ground) - lowest) * GEAR_LEVEL_UNITS * 0.6 / TILE))
+            base36 = lambda n: '0123456789abcdefghijklmnopqrstuvwxyz'[n]
+            gears = {'levels': [''.join(base36(level(floor[y][x]) if floor[y][x] is not None else lowest) for x in range(x0, x1 + 1)) for y in range(y0, y1 + 1)],
+                     'ground': level(ground),
+                     'blocked': [[(x - x0, z - y0) for i in states[s] for x in range(regions[i][0], regions[i][0] + regions[i][2]) for z in range(regions[i][1], regions[i][1] + regions[i][3])] for s in range(GEAR_STATES)],
+                     'buttons': [((x - x0, y - y0), n) for (x, y), n in USER_GEARS[city]['buttons'].items()]}
+            # Every frame of a whole turn from state 0 (each state's GEAR_FRAMES / 4 frames on), the room drawn once.
+            frames = os.path.join(work, city + '_frames')
+            if not os.path.exists(f'{frames}_f{GEAR_FRAMES - 1}.png'):
+                json.dump([gear_props(USER_GEARS[city]['room'], 0, f) for f in range(GEAR_FRAMES)], open(frames + '.json', 'w'))
+                subprocess.run([sys.executable, os.path.join(HERE, 'dp_map.py'), frames, map_const, '--apicula', apicula, '--cache', cache, '--frames', frames + '.json'], check=True)
+            box = (x0 * TILE, y0 * TILE, (x1 + 1) * TILE, (y1 + 1) * TILE)
+            pics = [np.asarray(Image.open(f'{frames}_f{f}.png').convert('RGBA').crop(box)) for f in range(GEAR_FRAMES)]
+            # Only the part of the picture the gears change, a sheet of its frames.
+            moved = np.any([np.any(p != pics[0], axis=2) for p in pics], axis=0)
+            ys, xs = np.nonzero(moved)
+            part = (int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1)
+            pw, ph = part[2] - part[0], part[3] - part[1]
+            sheet = Image.new('RGBA', (pw * GEAR_SHEET_COLUMNS, ph * math.ceil(GEAR_FRAMES / GEAR_SHEET_COLUMNS)))
+            for f, p in enumerate(pics):
+                sheet.paste(Image.fromarray(p).crop(part), (f % GEAR_SHEET_COLUMNS * pw, f // GEAR_SHEET_COLUMNS * ph))
+            # (In 256 colours: the DS's own are fewer, and it's 64 frames.)
+            sheet.quantize(256, dither=Image.Dither.NONE).save(os.path.join(PUBLIC, f'{city}_gym_gears.png'), optimize=True)
+            gears['frames'] = {'image': f'/routes/{city}_gym_gears.png', 'x': part[0], 'y': part[1], 'width': pw, 'height': ph, 'columns': GEAR_SHEET_COLUMNS, 'count': GEAR_FRAMES}
         shift = lambda t: (t[0] - x0, t[1] - y0)
         links = [(shift(a), shift(b)) for a, b in links]
         lifts = [(shift(a), shift(b), o) for a, b, o in lifts]
@@ -477,8 +585,10 @@ def main():
         lifts_ = [(f'/routes/{city}_gym_lift.png', a, b, o) for a, b, o in lifts]
         if slides:
             doc = doc[:-1] + f", its ice slid across as Mahogany Gym's (the user's): never up a ramp but by its stairs, its snowballs ({', '.join(f'{x},{y}' for x, y in slides['balls'])}, the map's) crushed by a slide into them."
-        out.append(gym_ts(const, title, doc, image, len(rows[0]), len(rows), door, spots, stands, guide, rows, overhead, track, links, lifts_, slides))
-        entrances[boss] = (const, entrance_near(rows, spots[1]))
+        if gears:
+            doc = doc[:-1] + f", its gears' bridges turned by its buttons ({', '.join(f'{x},{y}' for (x, y), _ in gears['buttons'])}), walked across where they are, as Diamond has them (the user's)."
+        out.append(gym_ts(const, title, doc, image, len(rows[0]), len(rows), door, spots, stands, guide, rows, overhead, track, links, lifts_, slides, gears))
+        entrances[boss] = (const, USER_LEADER_ENTRANCE.get(city) or entrance_near(rows, spots[1]), USER_LEADER_OPEN.get(city, []))
         print(city, 'door', door, 'spots', spots, 'stands', stands, 'guide', guide, 'trainer', who, 'leader room entrance', entrances[boss][1])
 
     # The League's rooms and the Pokémon Center, each cropped to the area walked to from its entrance.
@@ -510,7 +620,7 @@ def main():
 
     # Each Sinnoh boss's map for the Gym Challenge and Champion runs.
     key = lambda b: f"'{b}'" if '-' in b else b
-    lines = [f'  {key(b)}: leaderRoom({c}, {{ x: {e[0]}, y: {e[1]} }}),' for b, (c, e) in entrances.items()]
+    lines = [f'  {key(b)}: leaderRoom({c}, {{ x: {e[0]}, y: {e[1]} }}' + (', [' + ', '.join(f'{{ x: {x}, y: {y} }}' for x, y in o) + ']' if o else '') + '),' for b, (c, e, o) in entrances.items()]
     lines += [f'  {key(b)}: {c},' for b, c in rooms.items()]
     out.append("\n/** Each Sinnoh boss's map for the Gym Challenge and Champion runs, by boss id: their gym (leaderRoom, the player coming in 5 tiles from them, south where it can) or Pokémon League room. */\nexport const SINNOH_BOSS_ROOMS: Record<SinnohBossId, Route> = {\n" + '\n'.join(lines) + '\n};\n')
     open(OUT, 'w', encoding='utf-8', newline='\n').write(HEAD + ''.join(out))

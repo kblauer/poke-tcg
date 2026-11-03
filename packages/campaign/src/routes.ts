@@ -128,12 +128,17 @@ export interface Route {
   iceStairs?: { tiles: RouteSpot[]; cracks: number }[];
   iceStairsImage?: string;
   /**
-   * How high each tile's floor is, one string per tile row as `walkable`, a digit a level ('0' lowest; Snowpoint Gym's
+   * How high each tile's floor is, one string per tile row as `walkable`, a base-36 digit a level ('0' lowest; Snowpoint Gym's
    * pit, from the render's heights: tools/routes/dp/sinnoh_gyms.py): never walked or slid up onto a higher tile but by
-   * `stairs`, and those on it drawn `levelPx` lower for each level below the entrance's (the picture's tilt).
+   * `stairs`, and those on it drawn `levelPx` lower for each level below the entrance's (the picture's tilt). With
+   * `levelStep` (Sunyshore Gym's two floors), walked up or down at most that many levels a step, both ways (Diamond's
+   * terrain_collision_manager.c: no step onto a floor 20 units higher or lower), and drawn by their level below
+   * `levelGround`'s (the level the picture has at its tiles) instead of the entrance's.
    */
   levels?: string[];
   levelPx?: number;
+  levelStep?: number;
+  levelGround?: number;
   /** Stairs, one string per tile row as `walkable`: '|' climbed north or south, '-' east or west (Diamond's tile behaviours 0x4A, 0x49), the only way up a level. */
   stairs?: string[];
   /**
@@ -144,6 +149,19 @@ export interface Route {
    */
   snowballs?: RouteSpot[];
   snowballImage?: string;
+  /**
+   * Gears turning bridges (Sunyshore Gym's, pokeplatinum's gym_features.c): in each of their 4 states (from 0, as the
+   * player comes in) the tiles of their arms that aren't there (`blocked`: sSunyshoreRoom3State<n>Collisions' regions);
+   * stepping onto one of the `buttons` (its scripts' coord events) turns them `turns` states on (90° each, GEAR_TURN_MS),
+   * the player waiting on it while they turn. `frames`: the part of the map's picture they change (`x`, `y`, `width`,
+   * `height`, in pixels), drawn turning, `count` frames a whole turn from state 0 (a quarter of them a state), on one sheet
+   * `columns` frames wide (`image`).
+   */
+  gears?: {
+    blocked: RouteSpot[][];
+    buttons: { tile: RouteSpot; turns: number }[];
+    frames: { image: string; x: number; y: number; width: number; height: number; columns: number; count: number };
+  };
   /** Tiles joined by a building the player walks through (a gatehouse's doors on either side): a walk between them fades out and in. */
   links?: [RouteSpot, RouteSpot][];
   /** Platform lifts ridden between a floor and the pit below it (Iron Island's, the user's): see Lift. */
@@ -517,10 +535,16 @@ export const onLongGrassEdge = (route: Route, spot: RouteSpot) =>
 /** Whether a tile is ice (the route's `ice`), slid across. */
 export const onIce = (route: Route, spot: RouteSpot) => route.ice?.[spot.y]?.[spot.x] === 'i';
 
-/** How far below where it is in the picture a tile's people are drawn, in pixels (the route's `levels`): its level below the entrance's, `levelPx` each. */
+/** A tile's level (the route's `levels`, base 36), NaN off them. */
+const levelAt = (route: Route, t: RouteSpot) => parseInt(route.levels?.[t.y]?.[t.x] ?? '', 36);
+
+/**
+ * How far below where it is in the picture a tile's people are drawn, in pixels (the route's `levels`): its level below
+ * the entrance's (or `levelGround`), `levelPx` each.
+ */
 export const dropAt = (route: Route, spot: RouteSpot) => {
-  const level = (t: RouteSpot) => Number(route.levels?.[t.y]?.[t.x] ?? NaN);
-  const drop = (level(route.entrance ?? spot) - level(spot)) * (route.levelPx ?? 0);
+  const level = (t: RouteSpot) => levelAt(route, t);
+  const drop = ((route.levelGround ?? level(route.entrance ?? spot)) - level(spot)) * (route.levelPx ?? 0);
   return Number.isFinite(drop) ? drop : 0;
 };
 
@@ -530,9 +554,10 @@ export const dropAt = (route: Route, spot: RouteSpot) => {
  */
 const climbable = (route: Route, a: RouteSpot, b: RouteSpot, dx: number, dy: number) => {
   if (!route.levels) return true;
+  if (route.levelStep !== undefined) return Math.abs(levelAt(route, b) - levelAt(route, a)) <= route.levelStep;
   const stair = (t: RouteSpot) => route.stairs?.[t.y]?.[t.x];
   for (const t of [a, b]) if ((stair(t) === '|' && dx !== 0) || (stair(t) === '-' && dy !== 0)) return false;
-  return stair(a) === '|' || stair(a) === '-' || stair(b) === '|' || stair(b) === '-' || route.levels[b.y]![b.x]! <= route.levels[a.y]![a.x]!;
+  return stair(a) === '|' || stair(a) === '-' || stair(b) === '|' || stair(b) === '-' || levelAt(route, b) <= levelAt(route, a);
 };
 
 /**
@@ -551,11 +576,43 @@ export const snowballsLeft = (route: Route, at: RouteSpot): RouteSpot[] | null =
     let left = route.snowballs;
     stops.set(tileKey(walk[0]!), left);
     for (let i = 1; i < walk.length; i++) {
-      const crushed = new Set((routePath(route, walk[i - 1]!, walk[i]!, people, undefined, left) ?? []).flatMap((s) => (s.breaks ? [tileKey(s.breaks)] : [])));
+      const crushed = new Set((routePath(route, walk[i - 1]!, walk[i]!, people, undefined, left, 0) ?? []).flatMap((s) => (s.breaks ? [tileKey(s.breaks)] : [])));
       left = left.filter((t) => !crushed.has(tileKey(t)));
       if (!stops.has(tileKey(walk[i]!))) stops.set(tileKey(walk[i]!), left);
     }
     snowballsAt.set(route, stops);
+  }
+  return stops.get(tileKey(at)) ?? null;
+};
+
+/** How long gears (the route's `gears`) take to turn 90°: pokeplatinum's FieldTask_SunyshoreGym_RotateGears, 5.625° a frame, 16 frames at 30 a second. */
+export const GEAR_TURN_MS = (16 / 30) * 1000;
+
+/** Whether a tile is a gear's arm that isn't there in its gears' `state` (the route's `gears`). */
+const gearBlocks = (route: Route, state: number, t: RouteSpot) => !!route.gears?.blocked[state]!.some((b) => b.x === t.x && b.y === t.y);
+
+/** How many states on a step onto `t` turns the route's gears (one of its `buttons`), 0 off them. */
+const gearTurns = (route: Route, t: RouteSpot) => route.gears?.buttons.find((b) => b.tile.x === t.x && b.tile.y === t.y)?.turns ?? 0;
+
+/**
+ * The state the route's gears are in when the player stands at one of its stops (its entrance, in state 0, then each of
+ * its spots in turn), as its walks there have turned them (as snowballsLeft); null at a tile that's none of its stops.
+ */
+const gearsAt = new WeakMap<Route, Map<string, number>>();
+export const gearStateAt = (route: Route, at: RouteSpot): number | null => {
+  if (!route.gears) return null;
+  let stops = gearsAt.get(route);
+  if (!stops) {
+    stops = new Map<string, number>();
+    const people = new Set([...(route.stands ?? []), ...(route.npcs ?? []).map((n) => n.tile)].map(tileKey));
+    const walk = [route.entrance, ...route.spots].filter((s): s is RouteSpot => !!s);
+    let state = 0;
+    stops.set(tileKey(walk[0]!), state);
+    for (let i = 1; i < walk.length; i++) {
+      state = (routePath(route, walk[i - 1]!, walk[i]!, people, undefined, null, state) ?? []).reduce((s, step) => (s + (step.turns ?? 0)) % 4, state);
+      if (!stops.has(tileKey(walk[i]!))) stops.set(tileKey(walk[i]!), state);
+    }
+    gearsAt.set(route, stops);
   }
   return stops.get(tileKey(at)) ?? null;
 };
@@ -618,11 +675,12 @@ export const travelAt = (route: Route, spot: RouteSpot): Travel => {
  * A gym leader's part of their gym, for a run that goes straight to them (the Gym Challenge, the Champion run; agreed with
  * the user): the gym's map with the leader in their place (its last stand) and the player's spot below them (its last
  * spot), the player coming in at `entrance`, 5 tiles from the leader (south where the gym allows: 4 steps from the spot),
- * with no snowball there (Snowpoint Gym's 11,8).
+ * with no snowball there (Snowpoint Gym's 11,8); `open`, tiles walkable there that aren't in the gym (Sunyshore Gym's, the user's).
  */
-export const leaderRoom = (gym: Route, entrance: RouteSpot): Route => ({
+export const leaderRoom = (gym: Route, entrance: RouteSpot, open: RouteSpot[] = []): Route => ({
   ...gym,
   entrance,
+  ...(open.length && { walkable: gym.walkable.map((r, y) => [...r].map((c, x) => (open.some((t) => t.x === x && t.y === y) ? '.' : c)).join('')) }),
   spots: [gym.spots.at(-1)!],
   stands: [gym.stands!.at(-1)!],
   spotFlows: undefined,
@@ -661,7 +719,8 @@ export const LIFT_PAUSE_MS = 400;
  * to on a lift (the route's `lifts`), `under` when it's
  * under a bridge (a `track`'s), `slide` when it's slid onto across ice, `jump` when it's jumped onto, over a ledge (two
  * tiles at once), `wait`, how long (ms) the player stands still first (a `track`'s), and `breaks`, the snowball he's slid
- * into and crushed, stopping there (the route's `snowballs`).
+ * into and crushed, stopping there (the route's `snowballs`), and `turns`, how many states on the button stepped onto turns
+ * the route's gears (`gears`), as he gets there.
  */
 export interface RouteStep {
   tile: RouteSpot;
@@ -672,6 +731,7 @@ export interface RouteStep {
   slide?: boolean;
   jump?: boolean;
   breaks?: RouteSpot;
+  turns?: number;
 }
 
 const tileKey = (t: RouteSpot) => `${t.x},${t.y}`;
@@ -722,6 +782,8 @@ const SNOW_STATES = 50000;
  * there, or it's onto ground, stopping only there: the fewest moves (a slide one), its tiles all steps (`slide`).
  * Never onto a higher tile but by stairs (the route's `levels`, `stairs`). Its snowballs (`snowballs`; those still whole:
  * `snowballsLeft` at `from`, or `left`) are in the way and stop a slide, crushed by it (`breaks`) and gone from then on.
+ * Its gears' arms (`gears`) are walked onto only while they're there, in the gears' state then (gearStateAt at `from`, or
+ * `gear`), which each button stepped onto turns on (`turns`).
  * A bridge's tiles (the route's `bridges`) are two levels: its deck, got onto and off at its ends, and the way under it,
  * crossed from side to side (its steps `under`). `lineOfSight` (an encounter whose people stand in a line through `to`): of the shortest walks, the one that gets onto
  * `to`'s column (people on its row, 'row') or row (people in its column, 'column') soonest and comes straight along it,
@@ -735,15 +797,18 @@ export function routePath(
   blocked: ReadonlySet<string> = new Set(),
   lineOfSight?: 'row' | 'column',
   left: RouteSpot[] | null = snowballsLeft(route, from) ?? route.snowballs ?? null,
+  gear: number = gearStateAt(route, from) ?? 0,
 ): RouteStep[] | null {
   const along = route.track && trackPath(route.track, from, to);
   if (along) return along;
   // Each tile is one place but on a bridge, where its deck (key `^`) is another than the way under it; on a map with
-  // snowballs, one for each set of them crushed (after `|`).
+  // snowballs, one for each set of them crushed (after `|`); on a map with gears, one for each of their states (after `@`).
   const crushedOf = new Map<string, string[]>([[tileKey(from), []]]);
-  const key = (t: RouteSpot, deck: boolean, crushed: string[]) => (deck ? `${tileKey(t)}^` : tileKey(t)) + (crushed.length ? `|${crushed.join(';')}` : '');
+  const gearOf = new Map<string, number>([[tileKey(from), gear]]);
+  const key = (t: RouteSpot, deck: boolean, crushed: string[], state: number) =>
+    (deck ? `${tileKey(t)}^` : tileKey(t)) + (crushed.length ? `|${crushed.join(';')}` : '') + (route.gears && state !== gear ? `@${state}` : '');
   const whole = new Set((left ?? []).map(tileKey));
-  const prev = new Map<string, { from: RouteSpot; fromKey: string; fade: boolean; lift: boolean; via: RouteSpot[]; slide: boolean; jump: boolean; breaks?: RouteSpot } | null>([[tileKey(from), null]]);
+  const prev = new Map<string, { from: RouteSpot; fromKey: string; fade: boolean; lift: boolean; via: RouteSpot[]; slide: boolean; jump: boolean; breaks?: RouteSpot; turns?: number } | null>([[tileKey(from), null]]);
   const decks = new Map<string, boolean>([[tileKey(from), false]]);
   const offLine = (t: RouteSpot) => (lineOfSight === 'row' ? t.x !== to.x : lineOfSight === 'column' ? t.y !== to.y : false);
   // Each tile's steps from `from`, and (lineOfSight) its walk's steps off the line: BFS reaches a tile first by a shortest
@@ -755,7 +820,8 @@ export function routePath(
     const [here, hereKey] = queue.shift()!;
     const onDeck = decks.get(hereKey)!;
     const crushed = crushedOf.get(hereKey)!;
-    const inTheWay = (t: RouteSpot) => whole.has(tileKey(t)) && !crushed.includes(tileKey(t));
+    const state = gearOf.get(hereKey)!;
+    const inTheWay = (t: RouteSpot) => (whole.has(tileKey(t)) && !crushed.includes(tileKey(t))) || gearBlocks(route, state, t);
     // (A map with snowballs: a search over which are crushed too, given up past SNOW_STATES.)
     if (whole.size && prev.size > SNOW_STATES) return null;
     if (here.x === to.x && here.y === to.y) {
@@ -764,7 +830,7 @@ export function routePath(
         // Under a bridge: onto its way under, and the step out from it too (he's under it till he's off it: the user's).
         const below = (tile: RouteSpot, tk: string) => !decks.get(tk) && !!bridgeAt(route, tile);
         const under = below(t, k) || below(p.from, p.fromKey);
-        steps.unshift({ tile: t, ...(p.fade && { fade: true }), ...(p.lift && { lift: true }), ...(under && { under: true }), ...(p.slide && { slide: true }), ...(p.jump && { jump: true }), ...(p.breaks && { breaks: p.breaks }) });
+        steps.unshift({ tile: t, ...(p.fade && { fade: true }), ...(p.lift && { lift: true }), ...(under && { under: true }), ...(p.slide && { slide: true }), ...(p.jump && { jump: true }), ...(p.breaks && { breaks: p.breaks }), ...(p.turns && { turns: p.turns }) });
         steps.unshift(...p.via.map((tile) => ({ tile, slide: true })));
       }
       return steps;
@@ -809,20 +875,22 @@ export function routePath(
       }
       const slide = via.length > 0 || (!linkLike && onIce(route, tile));
       const now = breaks ? [...crushed, tileKey(breaks)].sort() : crushed;
-      const k = key(tile, deck, now);
+      const turns = gearTurns(route, tile);
+      const k = key(tile, deck, now, (state + turns) % 4);
       const d = dist.get(hereKey)! + 1;
       const row = onRow.get(hereKey)! + [...via, tile].filter(offLine).length;
       if (prev.has(k)) {
         // Already reached: only a walk as short with fewer steps off the line takes its place (it's still queued).
         if (lineOfSight && dist.get(k) === d && row < onRow.get(k)!) {
-          prev.set(k, { from: here, fromKey: hereKey, fade, lift, via, slide, jump, breaks });
+          prev.set(k, { from: here, fromKey: hereKey, fade, lift, via, slide, jump, breaks, turns });
           onRow.set(k, row);
         }
         continue;
       }
-      prev.set(k, { from: here, fromKey: hereKey, fade, lift, via, slide, jump, breaks });
+      prev.set(k, { from: here, fromKey: hereKey, fade, lift, via, slide, jump, breaks, turns });
       decks.set(k, deck);
       crushedOf.set(k, now);
+      gearOf.set(k, (state + turns) % 4);
       dist.set(k, d);
       onRow.set(k, row);
       queue.push([tile, k]);

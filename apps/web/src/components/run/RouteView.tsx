@@ -8,6 +8,7 @@ import type { PlayerGender } from '@poke-tcg/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCrackedIce } from '../../hooks/useCrackedIce';
 import { useSnowballs } from '../../hooks/useSnowballs';
+import { useGears } from '../../hooks/useGears';
 import { TRACK_FADE_STEPS, TRACK_SHOW_STEPS, useSnowTracks } from '../../hooks/useSnowTracks';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { mapScale, usePan, ZOOM } from '../../hooks/usePan';
@@ -177,6 +178,8 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
   const { cracked, stairs } = useCrackedIce(shown, walker.tile, stepMs);
   // Snowpoint Gym's snowballs, crushed as the player slides into them (useWalk's onCrush) and gone once he's passed.
   const { crushed, crush } = useSnowballs(shown, walker.tile, walker.walking);
+  // Sunyshore Gym's gears, turning as the player steps onto their buttons (useWalk's onTurn), frame by frame.
+  const gears = useGears(shown, walker.tile, walker.walking);
   // How far below its tile each person is drawn: on a lower floor (dropAt: Snowpoint Gym's pit).
   const drop = (tile: RouteSpot) => dropAt(shown, tile);
   // How far each person is sunk into deep snow (snowSink: Route 217's).
@@ -253,7 +256,7 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
   // When the run moves on, Red walks (or fades) to the new spot, the view following him.
   // Who stands on another map, as it'll be drawn once he's there (placeFigures), for his walk into it to go round them.
   const figuresOn = (s: number) => placeFigures(sections[s]!.map, view, sections[s]!.first, sections[s]!.upto, movedRef.current).map((p) => p.tile);
-  useWalk({ position, sections, targetSection, targetSpot, walkerRef, setWalker, placedRef, figuresOn, ms, centreOnMap, setGlide, setOffset, onCrush: crush });
+  useWalk({ position, sections, targetSection, targetSpot, walkerRef, setWalker, placedRef, figuresOn, ms, centreOnMap, setGlide, setOffset, onCrush: crush, onTurn: gears.turn });
 
   // Where each non-battle encounter's NPC walked up to (the step it's for), so it stays there once passed.
   if (approach) movedRef.current.set(approach.position, approach.tile);
@@ -311,6 +314,20 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
             style={{ width: shown.width, height: shown.height, transform: mapScale }}
           >
             <img src={shown.image} alt="" draggable={false} className="h-full w-full select-none [image-rendering:pixelated]" />
+            {/* The gears (Sunyshore Gym's), the frame of their turning they're at, over the part of the map they change. */}
+            {shown.gears && (
+              <div
+                className="pointer-events-none absolute [image-rendering:pixelated]"
+                style={{
+                  left: shown.gears.frames.x,
+                  top: shown.gears.frames.y,
+                  width: shown.gears.frames.width,
+                  height: shown.gears.frames.height,
+                  backgroundImage: `url(${shown.gears.frames.image})`,
+                  backgroundPosition: `${-(gears.frame % shown.gears.frames.columns) * shown.gears.frames.width}px ${-Math.floor(gears.frame / shown.gears.frames.columns) * shown.gears.frames.height}px`,
+                }}
+              />
+            )}
             {shown.crackedIce && cracked.map((t) => <img key={key(t)} src={shown.crackedIce} alt="" draggable={false} className="pointer-events-none absolute select-none [image-rendering:pixelated]" style={{ left: t.x * 16, top: t.y * 16, width: 16, height: 16 }} />)}
             {tracks.map((t) => <SnowTrack key={t.id} tile={t.tile} frame={t.frame} showMs={TRACK_SHOW_STEPS * ms.step} fadeMs={TRACK_FADE_STEPS * ms.step} />)}
             {shown.iceStairsImage && stairs.map((t) => <img key={`stairs${key(t)}`} src={shown.iceStairsImage} alt="" draggable={false} className="pointer-events-none absolute select-none [image-rendering:pixelated]" style={{ left: t.x * 16, top: t.y * 16, width: 16, height: 16 }} />)}

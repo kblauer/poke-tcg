@@ -7,7 +7,10 @@ Usage: python dp_map.py <out prefix> <MAP_CONST>[,<MAP_CONST>...] [--tilt 0.6] [
        [--lift <model>[@x,z]] (a platform lift's model, Iron Island's 258, iron_island_platform_lift: left out of the
        map and drawn alone as <out prefix>_lift.png, its ride in the JSON's `lift`; at tile x,z, 1 tile high, where the
        map's data hasn't it: B2F's, placed by pokeplatinum's platform_lift.c)
-       [--props <model>@x,z[,y];...] (props the game places by its code, not in the map's data, drawn in the map at
+       [--frames <json>] (a JSON list of --props strings: the map drawn once more for each, without --props, as
+       <out>_f<n>.png: Sunyshore Gym's gears turning, frame by frame)
+       [--props <model>@x,z[,y][,rx<deg>|,ry<deg>];...] (props the game places by its code, not in the map's data,
+       drawn in the map at
        those tiles' centres, on the ground or y units up: Canalave Gym's lifts and upper floors)
        [--no-land --ground <y>] (the props alone, drawn as seen from y units up: Canalave Gym's top floor, Byron's)
 Writes <out prefix>.png, <out prefix>_height.npy (each pixel's model height, for what stands above the ground) and
@@ -73,7 +76,12 @@ def main():
     tilt = float(opt('--tilt', '0.6'))
     apicula = opt('--apicula', 'apicula')
     platinum = opt('--game', 'diamond') == 'platinum'
-    props = [(int(m), *(float(v) for v in at.split(','))) for m, _, at in (p.partition('@') for p in (opt('--props', '') or '').split(';') if p)]
+    # Each prop: its model, where (x, z, maybe y) and how it's turned ('rx'/'ry' and degrees: Sunyshore Gym's gears).
+    prop_list = lambda spec: [(int(m), [float(v) for v in at.split(',') if v[0] != 'r'], next(((v[1], float(v[2:])) for v in at.split(',') if v[0] == 'r'), None))
+                              for m, _, at in (p.partition('@') for p in (spec or '').split(';') if p)]
+    props = prop_list(opt('--props', ''))
+    frames = opt('--frames', None)
+    frames = [prop_list(f) for f in json.load(open(frames))] if frames else []
     no_land = '--no-land' in args
     if no_land:
         args.remove('--no-land')
@@ -145,21 +153,42 @@ def main():
         bm = os.path.join(work, f'bm{lift_model}.nsbmd')
         open(bm, 'wb').write(data.read(cache, data.BUILDING, lift_model))
         lift = (convert(apicula, [bm, *prop_tex], os.path.join(work, f'bm{lift_model}')), (x * UNIT, y[0] if y else UNIT, z * UNIT), texture_matrices(data.read(cache, data.BUILDING, lift_model)))
-    for i, (model, x, z, *y) in enumerate(props):
-        bm = os.path.join(work, f'bm{model}.nsbmd')
-        open(bm, 'wb').write(data.read(cache, data.BUILDING, model))
-        parts.append((convert(apicula, [bm, *prop_tex], os.path.join(work, f'bm{model}')), (x * UNIT, y[0] if y else 0, z * UNIT), texture_matrices(data.read(cache, data.BUILDING, model))))
+    converted = {}
+
+    def prop_part(model, x, z, y, turn):
+        if model not in converted:
+            bm = os.path.join(work, f'bm{model}.nsbmd')
+            open(bm, 'wb').write(data.read(cache, data.BUILDING, model))
+            converted[model] = (convert(apicula, [bm, *prop_tex], os.path.join(work, f'bm{model}')), texture_matrices(data.read(cache, data.BUILDING, model)))
+        glb, texmtx = converted[model]
+        return glb, (x * UNIT, y[0] if y else 0, z * UNIT), texmtx, turn
+    land = len(parts)
+    for model, (x, z, *y), turn in props:
+        parts.append(prop_part(model, x, z, y, turn))
     # The ground's height: the commonest height of the first chunk's vertices (most of it is flat ground).
-    for glb, origin, _ in parts[:1]:
+    for glb, origin, *_ in parts[:1]:
         gj, bin_ = _load_glb(glb)
         for m, p in _primitives(gj):
             for y in _accessor(gj, bin_, p['attributes']['POSITION'])[:, 1]:
                 ys[round(y + origin[1])] += 1
     ground = float(ground_at) if ground_at is not None else ys.most_common(1)[0][0] if ys else 0
     scene = Scene(W * 16, H * 16, tilt=tilt, ground=ground)
-    for glb, origin, texmtx in parts:
-        scene.glb(glb, origin, texmtx)
+    for glb, origin, texmtx, *turn in parts:
+        scene.glb(glb, origin, texmtx, turn=turn[0] if turn else None)
     scene.render(out + '.png', heights=out + '_height.npy')
+    if frames:
+        # The map without its props once, then each frame's props drawn over it.
+        scene = Scene(W * 16, H * 16, tilt=tilt, ground=ground)
+        for glb, origin, texmtx, *turn in parts[:land]:
+            scene.glb(glb, origin, texmtx, turn=turn[0] if turn else None)
+        scene.draw()
+        shot = scene.snapshot()
+        for n, frame in enumerate(frames):
+            scene.restore(shot)
+            for model, (x, z, *y), turn in frame:
+                glb, origin, texmtx, turn = prop_part(model, x, z, y, turn)
+                scene.glb(glb, origin, texmtx, turn=turn)
+            scene.render(f'{out}_f{n}.png')
     ride = None
     if lift:
         # The platform alone, where the map has it (its bottom: 1 tile high), cut to what's drawn; and the tiles the player

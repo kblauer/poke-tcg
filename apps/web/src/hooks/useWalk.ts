@@ -1,8 +1,8 @@
-import { inGrass, routePath, snowPace, travelAt, type Route, type RouteSpot } from '@poke-tcg/campaign';
+import { GEAR_TURN_MS, inGrass, routePath, snowPace, travelAt, type Route, type RouteSpot } from '@poke-tcg/campaign';
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import type { Jump } from '../components/run/RouteSprites';
 import { facing, key, type PlacedFigure } from '../utils/routeFigures';
-import type { Facing } from '../utils/overworld';
+import { STEP_MS, type Facing } from '../utils/overworld';
 
 /**
  * How much faster than walking the player gets along a map's tile: twice as fast on a bike (Route 17, agreed with the
@@ -85,6 +85,7 @@ export function useWalk({
   setGlide,
   setOffset,
   onCrush,
+  onTurn,
 }: {
   position: number;
   sections: MapSection[];
@@ -105,6 +106,8 @@ export function useWalk({
   setOffset: Dispatch<SetStateAction<{ x: number; y: number }>>;
   /** A snowball slid into (a step's `breaks`: Snowpoint Gym's), crushed as he gets to the tile before it. */
   onCrush?: (tile: RouteSpot) => void;
+  /** A button stepped onto (a step's `turns`: Sunyshore Gym's), turning the map's gears that many states over `ms`, as he gets there; he waits on it while they turn. */
+  onTurn?: (turns: number, ms: number) => void;
 }) {
   useEffect(() => {
     const { section, tile: from } = walkerRef.current;
@@ -118,7 +121,7 @@ export function useWalk({
     let start = from;
     /** Walks a path on a map from `begin`, step by step (through a link, fading out and in), from `t` on. */
     const walk = (on: Route, onSection: number, path: NonNullable<ReturnType<typeof routePath>>, begin: RouteSpot) => {
-      path.forEach(({ tile, fade, lift, under, slide, jump, wait, breaks }, i) => {
+      path.forEach(({ tile, fade, lift, under, slide, jump, wait, breaks, turns }, i) => {
         // Standing a while first (a track's: Sootopolis Gym's stairs, till they appear).
         if (wait) {
           later(t, () => setWalker((w) => ({ ...w, walking: false })));
@@ -171,6 +174,14 @@ export function useWalk({
           });
           t += stepMs;
           if (breaks) later(t, () => onCrush?.(breaks));
+          if (turns) {
+            const turnMs = (turns * GEAR_TURN_MS * ms.step) / STEP_MS;
+            later(t, () => {
+              setWalker((w) => ({ ...w, walking: false }));
+              onTurn?.(turns, turnMs);
+            });
+            t += turnMs;
+          }
         }
       });
       later(t, () => setWalker((w) => ({ ...w, walking: false, sliding: false })));
@@ -206,8 +217,8 @@ export function useWalk({
     const lineOfSight =
       there.length < 2 ? undefined : there.every((p) => p.tile.y === there[0]!.tile.y) ? 'row' : there.every((p) => p.tile.x === there[0]!.tile.x) ? 'column' : undefined;
     const path = start.x === to.x && start.y === to.y ? [] : (routePath(map, start, to, others, lineOfSight) ?? routePath(map, start, to, new Set(), lineOfSight));
-    // A track is walked however long it is (the gym's one way through).
-    if (path && (path.length <= MAX_WALK || map.track)) {
+    // A track is walked however long it is (the gym's one way through), and a gym's way across its gears.
+    if (path && (path.length <= MAX_WALK || map.track || map.gears)) {
       walk(map, targetSection, path, start);
     } else {
       later(t, () => setWalker((w) => ({ ...w, walking: false, hidden: true })));
