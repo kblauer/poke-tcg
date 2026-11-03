@@ -55,9 +55,9 @@ MAPS = {
                         'from the stairs down from B1F to the stairs down to B3F, after B1F, then B3F'),
     'iron_island_b3f': (['MAP_IRON_ISLAND_B3F'], 2, ('warp', 'MAP_IRON_ISLAND_B2F_ROOM_2'), ('warp', 'MAP_IRON_ISLAND_EXTERIOR'), 'left', 'IRON_ISLAND_B3F', 'Iron Island B3F',
                         "from the stairs down from B2F to the way out, after B2F"),
-    'route217': (['MAP_ROUTE_217'], 6, 'bottom', 'top', 'up', 'ROUTE_217', 'Route 217',
+    'route217': (['MAP_ROUTE_217'], 7, 'bottom', 'top', 'up', 'ROUTE_217', 'Route 217',
                  'from Route 216 (south) up through the snow to Acuity Lakefront (north), for the Snowpoint City run, then Acuity Lakefront'),
-    'acuity_lakefront': (['MAP_ACUITY_LAKEFRONT'], 4, 'bottom', 'right', 'right', 'ACUITY_LAKEFRONT', 'Acuity Lakefront',
+    'acuity_lakefront': (['MAP_ACUITY_LAKEFRONT'], 3, 'bottom', 'right', 'right', 'ACUITY_LAKEFRONT', 'Acuity Lakefront',
                          'from Route 217 (south) to Snowpoint City (east), after Route 217'),
     # Hotel Grand Lake has no map of its own: its grounds are Valor Lakefront's south and Route 213's north, cut out of the
     # two joined (BOX; the user's screenshot's bounds, east to Route 222). In at the reception's north door.
@@ -96,11 +96,13 @@ USER_SPOTS = {'route203': {1: (6, 13), 2: (19, 13), 3: (15, 21), 4: (25, 15), 5:
               'iron_island_b2f': {1: (22, 4), 2: (24, 12), 3: (33, 18), 4: (34, 33), 5: (24, 37), 6: (21, 52)},
               'iron_island_b3f': {1: (6, 19), 2: (9, 6)},
               'route212': {1: (121, 118), 2: (101, 114), 3: (71, 113), 4: (36, 102), 5: (5, 115), 6: (18, 83), 7: (22, 67), 8: (8, 59),
-                           9: (11, 36), 10: (11, 7)}}
+                           9: (11, 36), 10: (11, 7)},
+              'route217': {1: (14, 107), 2: (23, 88), 3: (17, 72), 4: (8, 59), 5: (17, 38), 6: (3, 30), 7: (23, 7)},
+              'acuity_lakefront': {1: (20, 54), 2: (38, 52), 3: (49, 42)}}
 USER_ENTRANCE = {'route203': (0, 23), 'oreburgh_gate': (3, 22), 'eterna_forest': (16, 81), 'route205n': (2, 12), 'route215': (0, 22), 'route212': (127, 111),
-                 'iron_island_b2f': (39, 3), 'iron_island_b3f': (15, 19)}
+                 'iron_island_b2f': (39, 3), 'iron_island_b3f': (15, 19), 'route217': (16, 127)}
 USER_EXIT = {'route203': (55, 11), 'oreburgh_gate': (28, 22), 'eterna_forest': (75, 31), 'route205n': (31, 21), 'route215': (95, 23), 'valor_lakefront': (34, 63),
-            'iron_island_b1f': (18, 31), 'iron_island_b2f': (13, 52), 'iron_island_b3f': (1, 5)}
+            'iron_island_b1f': (18, 31), 'iron_island_b2f': (13, 52), 'iron_island_b3f': (1, 5), 'route217': (25, 0)}
 USER_MOVES = {}
 # Links in place of the map's own (its two doors into one building): Route 213's reception, walked into at its north door
 # and out at its south one (the user's, 2026-11-02; 66,17 below it walkable, his way out).
@@ -169,13 +171,16 @@ USER_SPOT_FLOWS = {'route203': {1: 'up', 2: 'up', 4: 'up', 8: 'up'}, 'route205n'
 # treetops, that's no higher than the tile's own lower pixels, so at a cliff or stairs it's its own level's) are copied
 # into the route's overhead image (<name>_overhead.png). Tiles never treetops: stairs up a cliff, whose own steps stand
 # above the ground below (Route 203's between its parts, 22,20-23 and 35-36,9-10 and 20-23).
-USER_TREETOPS = {'route203', 'eterna_forest', 'route205n', 'route215', 'valor_lakefront', 'route213', 'route212'}
+USER_TREETOPS = {'route203', 'eterna_forest', 'route205n', 'route215', 'valor_lakefront', 'route213', 'route212', 'route217', 'acuity_lakefront'}
 # How many tiles above a tree's unwalkable ones its treetop reaches, where it isn't 2: Route 215's trees stand taller over
 # theirs (the user's: those standing in front of them weren't masked).
 USER_TREETOP_ROWS = {'route215': 3}
 # Maps whose treetops are only their green pixels: Route 215's raised platforms, stairs and cliff edges stand as high, as
 # do Valor Lakefront's and Route 213's roofs, fences and rocks, and Route 212's bridges and stairs.
 USER_TREETOP_GREEN = {'route215', 'valor_lakefront', 'route213', 'route212'}
+# Maps whose treetops find their ground up to 6 tiles off, where all within 3 is under treetops too: Route 217's and
+# Acuity Lakefront's rows of trees in front of their forests (the user's, 2026-11-03: 217's 9-10,15 were left bare).
+USER_TREETOP_WIDE = {'route217', 'acuity_lakefront'}
 USER_NOT_TREETOPS = {'route203': [(22, y) for y in range(20, 24)] + [(x, y) for x in (35, 36) for y in (9, 10, 20, 21, 22, 23)]}
 TREETOP_HIGH = 8
 # Fewer pixels than this standing high in a tile aren't a treetop: grass blades and flowers (Eterna Forest's).
@@ -307,7 +312,7 @@ def rock_overhead(img, rows, heights):
     return Image.fromarray(dst) if top.any() else None
 
 
-def overhead(img, rows, heights, treetops, never=(), mouths=(), bridges=(), green=False, rocks=False, tall=TREETOP_HIGH):
+def overhead(img, rows, heights, treetops, never=(), mouths=(), bridges=(), green=False, rocks=False, tall=TREETOP_HIGH, wide=False):
     """The map's overhead image (see-through but for what's drawn over the player), or None, from `heights` (each pixel's
     model height): the treetops in the `treetops` tiles above its trees (USER_TREETOPS, USER_TREETOP_ROWS; 0: none; only their green pixels if `green`, USER_TREETOP_GREEN, but by
     `rocks`, USER_ROCKS, a tall rock's whatever their colour: one standing alone, ROCK_TILES tiles or fewer) but on the `never` tiles, and the rock in
@@ -339,8 +344,12 @@ def overhead(img, rows, heights, treetops, never=(), mouths=(), bridges=(), gree
                     if len(part) <= ROCK_TILES and not todo:
                         rocky |= {(rx + dx, ry + dy) for rx, ry in part for dx, dy in [(0, -k) for k in range(1, treetops + 1)] + [(-1, 0), (1, 0)]}
         for x, y in (tops | sides) - set(never):
-            near = [np.nanmedian(tile(xx, yy)) for yy in range(max(0, y - 3), y + 1) for xx in range(max(0, x - 3), min(w, x + 4))
-                    if rows[yy][xx] == '.' and (xx, yy) not in tops and not np.isnan(tile(xx, yy)).all()]
+            # The ground within 3 tiles, or on `wide` maps 6 where all that near is under treetops too (USER_TREETOP_WIDE).
+            for r in (3, 6) if wide else (3,):
+                near = [np.nanmedian(tile(xx, yy)) for yy in range(max(0, y - r), y + 1) for xx in range(max(0, x - r), min(w, x + r + 1))
+                        if rows[yy][xx] == '.' and (xx, yy) not in tops and not np.isnan(tile(xx, yy)).all()]
+                if near:
+                    break
             if not near:
                 continue
             # The ground at its own level: the highest of the ground near it no higher than its own lower pixels.
@@ -462,7 +471,7 @@ def main():
             spots.append(max(near, key=lambda n: openness(n) * 2 - abs(n[0] - t[0]) - abs(n[1] - t[1])))
         img = Image.open(prefix + '.png')
         heights = np.load(prefix + '_height.npy') if name in USER_TREETOPS or name in USER_ROCKS_ONLY or name in USER_RAISED_OVER or name in USER_CAVE_MOUTHS or name in USER_BRIDGES else None
-        grass = j['grass']
+        grass, snow = j['grass'], j.get('snow', [])
         if name in CROP or box:
             tiles = list(prev)
             x0 = max(0, min(t[0] for t in tiles) - MARGIN['side']); x1 = min(w - 1, max(t[0] for t in tiles) + MARGIN['side'])
@@ -470,6 +479,7 @@ def main():
             if box:
                 x0, y0, x1, y1 = box
             rows, grass = [r[x0:x1 + 1] for r in rows[y0:y1 + 1]], [r[x0:x1 + 1] for r in grass[y0:y1 + 1]]
+            snow = [r[x0:x1 + 1] for r in snow[y0:y1 + 1]]
             shift = lambda t: (t[0] - x0, t[1] - y0)
             ent, end, spots = shift(ent), shift(end), [shift(s) for s in spots]
             links = [(shift(a), shift(b)) for a, b in links]
@@ -477,15 +487,15 @@ def main():
             img = img.crop((x0 * TILE, y0 * TILE, (x1 + 1) * TILE, (y1 + 1) * TILE))
             heights = heights if heights is None else heights[y0 * TILE:(y1 + 1) * TILE, x0 * TILE:(x1 + 1) * TILE]
         # The user's fixes.
-        rows, grass = [list(r) for r in rows], [list(r) for r in grass]
+        rows, grass, snow = [list(r) for r in rows], [list(r) for r in grass], [list(r) for r in snow]
         for l, r, up in USER_RAISED.get(name, []):
             for x in range(l, r + 1):
-                for layer, fill in ((rows, '#'), (grass, '.')):
+                for layer, fill in ((rows, '#'), (grass, '.'), (snow, '.')):
                     col = [layer[y][x] for y in range(len(layer))]
                     col = col[up:] + [fill] * up if up > 0 else [fill] * -up + col[:len(col) + up]
                     for y, c in enumerate(col):
                         layer[y][x] = c
-        grass = [''.join(r) for r in grass]
+        grass, snow = [''.join(r) for r in grass], [''.join(r) for r in snow]
         for (l, t, r, b), dy in USER_MOVES.get(name, []):
             moved = {(x, y + dy): rows[y][x] for y in range(t, b + 1) for x in range(l, r + 1)}
             for y in range(t, b + 1):
@@ -512,7 +522,7 @@ def main():
                 print('NO WALK:', name, 'entrance', ent, 'to', t)
         flows = USER_SPOT_FLOWS.get(name)
         over = heights is not None and (rock_overhead(img, rows, heights) if name in USER_ROCKS_ONLY else
-                                        overhead(img, rows, heights, USER_TREETOP_ROWS.get(name, 2) if name in USER_TREETOPS else 0, USER_NOT_TREETOPS.get(name, []), USER_CAVE_MOUTHS.get(name, []), green=name in USER_TREETOP_GREEN, rocks=name in USER_ROCKS))
+                                        overhead(img, rows, heights, USER_TREETOP_ROWS.get(name, 2) if name in USER_TREETOPS else 0, USER_NOT_TREETOPS.get(name, []), USER_CAVE_MOUTHS.get(name, []), green=name in USER_TREETOP_GREEN, rocks=name in USER_ROCKS, wide=name in USER_TREETOP_WIDE))
         if name in USER_RAISED_OVER:
             over = over or Image.new('RGBA', img.size)
             tiles, high = USER_RAISED_OVER[name]
@@ -548,6 +558,7 @@ def main():
         spots_ = '\n'.join(f'    {{ x: {x}, y: {y} }},' for x, y in spots)
         walk_ = '\n'.join(f"    '{r}'," for r in rows)
         grass_ = ('\n  grass: [' + ''.join(f"\n    '{r}'," for r in grass) + '\n  ],') if any('g' in r for r in grass) else ''
+        snow_ = ('\n  snow: [' + ''.join(f"\n    '{r}'," for r in snow) + '\n  ],') if any(c != '.' for r in snow for c in r) else ''
         links_ = ('\n  links: [' + ', '.join(f'[{{ x: {a[0]}, y: {a[1]} }}, {{ x: {b[0]}, y: {b[1]} }}]' for a, b in links) + '],') if links else ''
         flows_ = ('\n  spotFlows: { ' + ', '.join(f"{n - 1}: '{f}'" for n, f in sorted(flows.items())) + ' },') if flows else ''
         over_ = f"\n  overhead: '/routes/{name}_overhead.png'," if over else ''
@@ -569,7 +580,7 @@ export const {const}: Route = {{
   ],
   walkable: [
 {walk_}
-  ],{grass_}
+  ],{grass_}{snow_}
 }};
 """)
         print(name, 'entrance', ent, 'exit', end, 'spots', spots, 'size', len(rows[0]), 'x', len(rows))

@@ -3,10 +3,12 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
-import { flowAt, inGrass, inLongGrass, isBattleKind, LIFT_MS, LIFT_PAUSE_MS, liftEnd, onLongGrassEdge, onPath, onWater, routePath, travelAt, type Route, type RouteSpot } from '@poke-tcg/campaign';
+import { dropAt, flowAt, inGrass, inLongGrass, isBattleKind, LIFT_MS, LIFT_PAUSE_MS, liftEnd, onLongGrassEdge, onPath, onWater, routePath, snowSink, travelAt, type Route, type RouteSpot } from '@poke-tcg/campaign';
 import type { PlayerGender } from '@poke-tcg/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCrackedIce } from '../../hooks/useCrackedIce';
+import { useSnowballs } from '../../hooks/useSnowballs';
+import { TRACK_FADE_STEPS, TRACK_SHOW_STEPS, useSnowTracks } from '../../hooks/useSnowTracks';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { mapScale, usePan, ZOOM } from '../../hooks/usePan';
 import type { RunViewData } from '../../hooks/useRun';
@@ -14,7 +16,7 @@ import { FADE_MS, GRASS_PACE, pace, slowGrass, stepPace, THROUGH_MS, useWalk, ty
 import { DEBUG_BUILD, useDebugEnabled } from '../../utils/debug';
 import { bobs, BOB_MS, isItemBall, playerSprite, STEP_MS, WALK_FRAME_MS, type Facing } from '../../utils/overworld';
 import { encounterFigure, facing, key, placeFigures, setOf, type PlacedFigure } from '../../utils/routeFigures';
-import { Exclamation, Figure, GrassTufts, JumpDust, JumpShadow, OverworldSprite, TallGrass, TileOverlay } from './RouteSprites';
+import { Exclamation, Figure, GrassTufts, JumpDust, JumpShadow, OverworldSprite, Snowball, SnowTrack, TallGrass, TileOverlay } from './RouteSprites';
 
 /**
  * The players' sprites (Red's, Ethan's and Brendan's, and the girls', Leaf's, Lyra's and May's, walking, on a bike, surfing) and the swimmers' in-water ones, fetched when
@@ -169,8 +171,16 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
   }, [stillBob]);
   // Wading through tall grass, the player's legs slow with his steps (GRASS_PACE; not in Diamond and Pearl's short grass).
   const wading = walker.walking && slowGrass(shown, walker.tile);
+  // The step he's taking: how long it takes (useWalk's, slower out of deep snow), 0 standing still.
+  const stepMs = walker.walking ? (walker.stepMs ?? ms.step / stepPace(shown, walker.tile)) : 0;
   // Sootopolis Gym's thin ice, cracked where the player has stepped (its `crackedIce` drawn over those tiles), and its stairs once they're there.
-  const { cracked, stairs } = useCrackedIce(shown, walker.tile, walker.walking ? ms.step / stepPace(shown, walker.tile) : 0);
+  const { cracked, stairs } = useCrackedIce(shown, walker.tile, stepMs);
+  // Snowpoint Gym's snowballs, crushed as the player slides into them (useWalk's onCrush) and gone once he's passed.
+  const { crushed, crush } = useSnowballs(shown, walker.tile, walker.walking);
+  // How far below its tile each person is drawn: on a lower floor (dropAt: Snowpoint Gym's pit).
+  const drop = (tile: RouteSpot) => dropAt(shown, tile);
+  // How far each person is sunk into deep snow (snowSink: Route 217's).
+  const sink = (tile: RouteSpot) => snowSink(shown, tile);
   // Tall grass on the Gen 3 maps is the games' own, drawn over the feet of those in it (TallGrass, GrassTufts: FireRed's,
   // Emerald's on the Hoenn maps), as Diamond and Pearl's short grass is (its own rustle, the user's); on HGSS's, it hides
   // their legs (OverworldSprite's `grass`).
@@ -183,9 +193,11 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
   const tuftOf = (tile: RouteSpot) => long(tile) || (onLongGrassEdge(shown, tile) && 'edge');
   useEffect(() => {
     if (!anyWalking) return;
-    const timer = window.setInterval(() => setTick((t) => t + 1), ms.frame / (pace(shown, walker.tile) * (wading ? GRASS_PACE : 1)));
+    // His legs as slow as his step (useWalk's: on a bike, in tall grass, out of deep snow).
+    const frameMs = walker.walking && walker.stepMs ? (ms.frame * walker.stepMs) / ms.step : ms.frame / (pace(shown, walker.tile) * (wading ? GRASS_PACE : 1));
+    const timer = window.setInterval(() => setTick((t) => t + 1), frameMs);
     return () => window.clearInterval(timer);
-  }, [anyWalking, shown, wading, walker.tile]);
+  }, [anyWalking, shown, wading, walker.tile, walker.stepMs]);
 
   // A non-battle encounter chosen: its NPC (an item ball aside) walks from where it stood to the free tile beside the
   // player it reaches soonest, then faces him; from the moment it's clicked (`spotted`), or once the encounter is under way
@@ -241,7 +253,7 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
   // When the run moves on, Red walks (or fades) to the new spot, the view following him.
   // Who stands on another map, as it'll be drawn once he's there (placeFigures), for his walk into it to go round them.
   const figuresOn = (s: number) => placeFigures(sections[s]!.map, view, sections[s]!.first, sections[s]!.upto, movedRef.current).map((p) => p.tile);
-  useWalk({ position, sections, targetSection, targetSpot, walkerRef, setWalker, placedRef, figuresOn, ms, centreOnMap, setGlide, setOffset });
+  useWalk({ position, sections, targetSection, targetSpot, walkerRef, setWalker, placedRef, figuresOn, ms, centreOnMap, setGlide, setOffset, onCrush: crush });
 
   // Where each non-battle encounter's NPC walked up to (the step it's for), so it stays there once passed.
   if (approach) movedRef.current.set(approach.position, approach.tile);
@@ -252,6 +264,11 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
   if (view.phase === 'map') choosingRef.current = placed;
   // The NPC coming up to the player (approach), for the encounter under way: drawn where it's walked to.
   const approaching = approach && approach.position === position && view.phase !== 'won' && view.phase !== 'lost' ? approach : null;
+  // The tracks the player and the NPC coming up to him leave in the snow (Diamond's).
+  const tracks = [
+    ...useSnowTracks(shown, { tile: walker.tile, walking: walker.walking, hidden: walker.hidden, jumping: !!walker.jump }, stepMs, ms.step),
+    ...useSnowTracks(shown, approaching, ms.step, ms.step),
+  ];
   // While choosing, the chosen option's figure; once the encounter is under way, its figure.
   const isApproaching = (p: PlacedFigure) =>
     !!approaching && p.spot === spot && !p.faded && (view.phase === 'encounter' || p.figure.option === chosenOption);
@@ -295,6 +312,7 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
           >
             <img src={shown.image} alt="" draggable={false} className="h-full w-full select-none [image-rendering:pixelated]" />
             {shown.crackedIce && cracked.map((t) => <img key={key(t)} src={shown.crackedIce} alt="" draggable={false} className="pointer-events-none absolute select-none [image-rendering:pixelated]" style={{ left: t.x * 16, top: t.y * 16, width: 16, height: 16 }} />)}
+            {tracks.map((t) => <SnowTrack key={t.id} tile={t.tile} frame={t.frame} showMs={TRACK_SHOW_STEPS * ms.step} fadeMs={TRACK_FADE_STEPS * ms.step} />)}
             {shown.iceStairsImage && stairs.map((t) => <img key={`stairs${key(t)}`} src={shown.iceStairsImage} alt="" draggable={false} className="pointer-events-none absolute select-none [image-rendering:pixelated]" style={{ left: t.x * 16, top: t.y * 16, width: 16, height: 16 }} />)}
             {/* A lift's platform (Iron Island's), at the end the player's at (liftEnd), riding with him, under him. */}
             {shown.lifts?.map((l, i) => {
@@ -311,7 +329,8 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
               );
             })}
             {/* The people always there (a gym's guide). */}
-            {shown.npcs?.map((n, i) => <OverworldSprite key={`npc${i}`} name={n.sprite} tile={n.tile} face={n.face} grass={masked(n.tile)} longGrass={long(n.tile)} />)}
+            {shown.npcs?.map((n, i) => <OverworldSprite key={`npc${i}`} name={n.sprite} tile={n.tile} face={n.face} grass={masked(n.tile)} longGrass={long(n.tile)} drop={drop(n.tile)} sink={sink(n.tile)} />)}
+            {shown.snowballImage && shown.snowballs?.map((t) => <Snowball key={`snow${key(t)}`} tile={t} image={shown.snowballImage!} crushed={crushed.get(key(t))} drop={drop(t)} />)}
             {/* Keyed by the spot and option, not the index, so a step's change doesn't remount every figure (their transitions would snap). */}
             {placed.map((p) =>
               isApproaching(p) ? (
@@ -326,13 +345,15 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
                   wet={onWater(shown, approaching!.tile)}
                   grass={masked(approaching!.tile)}
                   longGrass={long(approaching!.tile)}
+                  drop={drop(approaching!.tile)}
+                  sink={sink(approaching!.tile)}
                 />
               ) : (
-                <Figure key={`${key(p.spot)}|${p.figure.option ?? ''}|${p.figure.title}`} figure={p.figure} tile={p.tile} spot={p.spot} faded={p.faded} wet={onWater(shown, p.tile)} grass={masked(p.tile)} longGrass={long(p.tile)} />
+                <Figure key={`${key(p.spot)}|${p.figure.option ?? ''}|${p.figure.title}`} figure={p.figure} tile={p.tile} spot={p.spot} faded={p.faded} wet={onWater(shown, p.tile)} grass={masked(p.tile)} longGrass={long(p.tile)} drop={drop(p.tile)} sink={sink(p.tile)} />
               ),
             )}
             {/* A ledge jump's shadow on the ground under him, and the dust where he lands (FireRed's). */}
-            <JumpShadow tile={walker.tile} shown={!!walker.jump} moveMs={walker.jump?.ms ?? (walker.walking ? ms.step / stepPace(shown, walker.tile) : 0)} />
+            <JumpShadow tile={walker.tile} shown={!!walker.jump} moveMs={walker.jump?.ms ?? stepMs} />
             {/* (Landing in tall grass on a Gen 3 map, the grass thrown up instead: GrassTufts.) */}
             {walker.landed && (legsHidden || !inGrass(shown, walker.landed.tile)) && <JumpDust key={walker.landed.stamp} tile={walker.landed.tile} />}
             <OverworldSprite
@@ -341,12 +362,14 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
               tile={walker.tile}
               face={redFace}
               walkTick={walker.walking ? (walker.sliding ? 0 : tick) : undefined}
-              moveMs={walker.riding ?? walker.jump?.ms ?? (walker.walking ? ms.step / stepPace(shown, walker.tile) : 0)}
+              moveMs={walker.riding ?? walker.jump?.ms ?? stepMs}
               jump={walker.jump}
               fadeMs={ms.fade}
               hidden={walker.hidden}
               grass={masked(walker.tile)}
               longGrass={long(walker.tile)}
+              drop={drop(walker.tile)}
+              sink={sink(walker.tile)}
               title="You"
             />
             {/* The Gen 3 maps' and Diamond and Pearl's grass, after the sprites so it's over the feet of those on its row. */}
@@ -365,7 +388,7 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
                   grass={inGrass(shown, walker.tile)}
                   long={tuftOf(walker.tile)}
                   map={shown.image}
-                  moveMs={walker.jump?.ms ?? (walker.walking ? ms.step / stepPace(shown, walker.tile) : 0)}
+                  moveMs={walker.jump?.ms ?? stepMs}
                   jump={walker.jump}
                   hidden={walker.hidden}
                   set={sprites}
@@ -377,7 +400,7 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
             {shown.overhead && (!shown.track || walker.under) && <img src={shown.overhead} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full select-none [image-rendering:pixelated]" style={{ zIndex: 899 }} />}
             {/* A bridge walked over and under (the route's `bridges`): its deck over him only while he's under it. */}
             {shown.bridgeOverhead && walker.under && <img src={shown.bridgeOverhead} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full select-none [image-rendering:pixelated]" style={{ zIndex: 899 }} />}
-            {spottedFigure && <Exclamation tile={spottedFigure.tile} />}
+            {spottedFigure && <Exclamation tile={spottedFigure.tile} drop={drop(spottedFigure.tile)} />}
             {DEBUG_BUILD && debug && showTiles && <TileOverlay route={shown} />}
           </div>
         )}

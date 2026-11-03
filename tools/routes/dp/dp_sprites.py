@@ -6,7 +6,7 @@ cropped, for public/trainers/. Sprites are named by their texture (Diamond's own
 converting every mmodel file once.
 
 Usage: python dp_sprites.py [--apicula <apicula.exe>] [--cache <dir>]
-Writes SPRITES to apps/web/public/overworld/dp/<name>.png, the grass rustle to …/dp/grass.png and BOSSES to apps/web/public/trainers/<boss id>.png."""
+Writes SPRITES to apps/web/public/overworld/dp/<name>.png, FRAMES to …/dp/<file>.png, the snow tracks to …/dp/snow_tracks.png, the grass rustle to …/dp/grass.png and BOSSES to apps/web/public/trainers/<boss id>.png."""
 import os, re, subprocess, sys, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -35,6 +35,14 @@ SPRITES = {
     'fighter': 'walk', 'campboy': 'walk', 'picnicgirl': 'walk', 'fishing': 'walk', 'seaman': 'walk', 'gorggeousm': 'walk',
     'gorggeousw': 'walk', 'mystery': 'walk', 'pikachu': 'walk', 'gingam': 'walk', 'gingaw': 'walk', 'sunglasses': 'walk',
 }
+# Sprites of a few frames, each a strip of them as they are (no walk): Snowpoint Gym's snowball (r09_o01: whole, cracked,
+# crumbling, a heap; crushed in that order), as public/overworld/dp/<file>.png.
+FRAMES = {'r09_o01': 'snowball'}
+# The tracks left in the snow (fldeff narc 93 to 102, each a 16x16 texture: Diamond's nf_mark_* footprints up, down, left
+# and right, then its nc_mark_* furrows through deep snow, up-down, left-right and the corners upper left, upper right,
+# lower left and lower right; pokeplatinum's foot_tracks_snow_* and bike_tracks_snow_* in ov5_021F1CC8.c's order), as one
+# strip, public/overworld/dp/snow_tracks.png.
+TRACKS = [f'files/data/mmodel/fldeff/narc_{n:04d}.bin' for n in range(93, 103)]
 # Each boss's standing frame (their own overworld sprite in Diamond: leader1 to leader8 in the order of the gyms' map
 # events, bigfour1 to bigfour4 and champion).
 BOSSES = {
@@ -80,6 +88,20 @@ def grass(apicula, cache):
     strip.save(os.path.join(OVERWORLD, 'grass.png'))
 
 
+def tracks(apicula, cache):
+    """The snow tracks (TRACKS: each model's one texture) side by side for public/overworld/dp/snow_tracks.png."""
+    d = tempfile.mkdtemp(prefix='dp_tracks_')
+    strip = Image.new('RGBA', (16 * len(TRACKS), 16), (0, 0, 0, 0))
+    for k, path in enumerate(TRACKS):
+        model = os.path.join(d, f'{k}.nsbmd')  # (BMD0 files named .bin in the narc)
+        open(model, 'wb').write(open(dd.fetch(cache, path), 'rb').read())
+        out = os.path.join(d, str(k))
+        subprocess.run([apicula, 'convert', model, '-o', out, '--more-textures', '--overwrite'], capture_output=True, check=True)
+        png = next(f for f in os.listdir(out) if f.endswith('.png'))
+        strip.paste(Image.open(os.path.join(out, png)).convert('RGBA'), (16 * k, 0))
+    strip.save(os.path.join(OVERWORLD, 'snow_tracks.png'))
+
+
 def main():
     args = sys.argv[1:]
     def opt(name, default):
@@ -102,10 +124,17 @@ def main():
             for k, i in enumerate(WALK):
                 strip.paste(fr[i], (k * FRAME, 0), fr[i])
         strip.save(os.path.join(OVERWORLD, name + '.png'))
+    for name, file in FRAMES.items():
+        fr = tex[name]
+        strip = Image.new('RGBA', (FRAME * len(fr), FRAME), (0, 0, 0, 0))
+        for k, f in enumerate(fr):
+            strip.paste(f, (k * FRAME, 0), f)
+        strip.save(os.path.join(OVERWORLD, file + '.png'))
     for boss, name in BOSSES.items():
         f = tex[name][WALK[0]]
         f.crop(f.getbbox()).save(os.path.join(TRAINERS, boss + '.png'))
     grass(apicula, cache)
+    tracks(apicula, cache)
     print('wrote', len(SPRITES), 'sprites to', OVERWORLD, 'and', len(BOSSES), 'bosses to', TRAINERS)
 
 

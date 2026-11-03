@@ -1,4 +1,4 @@
-import { inGrass, routePath, travelAt, type Route, type RouteSpot } from '@poke-tcg/campaign';
+import { inGrass, routePath, snowPace, travelAt, type Route, type RouteSpot } from '@poke-tcg/campaign';
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import type { Jump } from '../components/run/RouteSprites';
 import { facing, key, type PlacedFigure } from '../utils/routeFigures';
@@ -11,8 +11,11 @@ import type { Facing } from '../utils/overworld';
 export const pace = (route: Route, tile: RouteSpot) => (travelAt(route, tile) === 'bike' ? 2 : 1);
 /** Whether `tile` is tall grass that slows the player (GRASS_PACE): not Diamond and Pearl's short grass (the user's). */
 export const slowGrass = (route: Route, tile: RouteSpot) => route.sprites !== 'dp' && inGrass(route, tile);
-/** A step's pace onto `tile`: a little slower into tall grass (GRASS_PACE, agreed with the user). */
-export const stepPace = (route: Route, tile: RouteSpot) => pace(route, tile) * (slowGrass(route, tile) ? GRASS_PACE : 1);
+/**
+ * A step's pace onto `tile`: a little slower into tall grass (GRASS_PACE, agreed with the user), and from `from`, slower
+ * out of Diamond's deeper and deepest snow (snowPace).
+ */
+export const stepPace = (route: Route, tile: RouteSpot, from?: RouteSpot) => pace(route, tile) * (slowGrass(route, tile) ? GRASS_PACE : 1) * (from ? snowPace(route, from) : 1);
 /** How fast the player wades through tall grass, of his pace elsewhere: 30% slower (agreed with the user). */
 export const GRASS_PACE = 0.7;
 
@@ -42,6 +45,8 @@ export interface Walker {
   through?: boolean;
   /** Riding a lift (the route's `lifts`): how long the ride takes, he and its platform gliding there together. */
   riding?: number;
+  /** Walking: how long the step he's taking takes (stepPace's, at the walk speed). */
+  stepMs?: number;
 }
 
 /** How long a ledge jump takes, in steps' time: FireRed's 32 frames over its two tiles, as two steps' walk. */
@@ -79,6 +84,7 @@ export function useWalk({
   centreOnMap,
   setGlide,
   setOffset,
+  onCrush,
 }: {
   position: number;
   sections: MapSection[];
@@ -97,6 +103,8 @@ export function useWalk({
   centreOnMap: (map: Route, t: RouteSpot) => { x: number; y: number };
   setGlide: Dispatch<SetStateAction<Glide | null>>;
   setOffset: Dispatch<SetStateAction<{ x: number; y: number }>>;
+  /** A snowball slid into (a step's `breaks`: Snowpoint Gym's), crushed as he gets to the tile before it. */
+  onCrush?: (tile: RouteSpot) => void;
 }) {
   useEffect(() => {
     const { section, tile: from } = walkerRef.current;
@@ -110,7 +118,7 @@ export function useWalk({
     let start = from;
     /** Walks a path on a map from `begin`, step by step (through a link, fading out and in), from `t` on. */
     const walk = (on: Route, onSection: number, path: NonNullable<ReturnType<typeof routePath>>, begin: RouteSpot) => {
-      path.forEach(({ tile, fade, lift, under, slide, jump, wait }, i) => {
+      path.forEach(({ tile, fade, lift, under, slide, jump, wait, breaks }, i) => {
         // Standing a while first (a track's: Sootopolis Gym's stairs, till they appear).
         if (wait) {
           later(t, () => setWalker((w) => ({ ...w, walking: false })));
@@ -154,13 +162,15 @@ export function useWalk({
           later(t + jumpMs, () => setWalker((w) => ({ ...w, jump: undefined, landed: { tile, stamp: Date.now() } })));
           t += jumpMs;
         } else {
+          const stepMs = ms.step / stepPace(on, tile, i ? path[i - 1]!.tile : begin);
           later(t, () => {
             // Across ice: on the move, facing the way he goes, held mid-step, legs out (his walk cycle's first frame), as in the games.
-            setWalker((w) => ({ landed: w.landed, section: onSection, tile, face, walking: true, hidden: false, under, sliding: slide }));
-            setGlide({ ms: ms.step / stepPace(on, tile), ease: 'linear' });
+            setWalker((w) => ({ landed: w.landed, section: onSection, tile, face, walking: true, hidden: false, under, sliding: slide, stepMs }));
+            setGlide({ ms: stepMs, ease: 'linear' });
             setOffset(centreOnMap(on, tile));
           });
-          t += ms.step / stepPace(on, tile);
+          t += stepMs;
+          if (breaks) later(t, () => onCrush?.(breaks));
         }
       });
       later(t, () => setWalker((w) => ({ ...w, walking: false, sliding: false })));

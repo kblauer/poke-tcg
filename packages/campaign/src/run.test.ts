@@ -4,9 +4,9 @@ import { ITEMS, itemText, MAX_CONSUMABLES_PER_RUN, onlyOne, shopStock } from './
 import { RUN_TYPE_IDS, RUN_TYPES, runType, type RunType, type RunTypeId } from './run-types.js';
 import { ROUTE_4 } from './kanto-routes.js';
 import { JOHTO_BOSS_ROOMS, MAHOGANY_GYM } from './johto-gyms.js';
-import { inGrass, inLongGrass, liftEnd, onLongGrassEdge, onPath, onThinIce, PEWTER_GYM, ROUTE_2, routePath, travelAt, type Route, type RouteSpot } from './routes.js';
-import { IRON_ISLAND_B1F, IRON_ISLAND_B2F, IRON_ISLAND_B3F } from './sinnoh-routes.js';
-import { CANALAVE_GYM } from './sinnoh-gyms.js';
+import { dropAt, inGrass, inLongGrass, liftEnd, onLongGrassEdge, onPath, onThinIce, PEWTER_GYM, ROUTE_2, routePath, snowAt, snowballsLeft, snowPace, snowSink, snowTrack, travelAt, type Route, type RouteSpot } from './routes.js';
+import { IRON_ISLAND_B1F, IRON_ISLAND_B2F, IRON_ISLAND_B3F, ROUTE_217 } from './sinnoh-routes.js';
+import { CANALAVE_GYM, SNOWPOINT_GYM } from './sinnoh-gyms.js';
 import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, isBattleKind, isBossKind, landNear, MAX_CENTERS, REQUIRED_BATTLES, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, withConsumablesBefore, carriedConsumables, parsePendingConsumable, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
 import { GEN2_SETS, GEN3_SETS, GEN4_SETS } from './pool.js';
 import { GEN2_TEST_POOL, GEN3_TEST_POOL, GEN4_TEST_POOL, TEST_POOL } from './test-pool.js';
@@ -188,6 +188,37 @@ describe('createRun', () => {
       const lift = floor.lifts![0]!;
       expect(liftEnd(lift, floor.entrance!) !== liftEnd(lift, floor.exit!), floor.name).toBe(true);
     }
+  });
+
+  it("ice is never slid up a level but by stairs, and a snowball slid into is crushed (Snowpoint Gym's)", () => {
+    // A 1x5 column: ground at the top, ice down a ramp (levels 2, 1, 0) to the bottom; a snowball at 0,3.
+    const col: Route = { name: 'Pit', flow: 'up', image: '', width: 16, height: 80, spots: [], walkable: ['.', '.', '.', '.', '.'], ice: ['.', 'i', 'i', 'i', 'i'], levels: ['2', '2', '1', '0', '0'], levelPx: 5 };
+    const tiles = (w: ReturnType<typeof routePath>) => w?.map(({ tile, breaks }) => `${tile.x},${tile.y}${breaks ? `x${breaks.x},${breaks.y}` : ''}`);
+    expect(tiles(routePath(col, { x: 0, y: 0 }, { x: 0, y: 4 }))).toEqual(['0,1', '0,2', '0,3', '0,4']);
+    expect(routePath(col, { x: 0, y: 4 }, { x: 0, y: 0 })).toBeNull();
+    expect(routePath({ ...col, stairs: ['.', '.', '|', '|', '.'] }, { x: 0, y: 4 }, { x: 0, y: 0 })).not.toBeNull();
+    expect(dropAt({ ...col, entrance: { x: 0, y: 0 } }, { x: 0, y: 4 })).toBe(10);
+    // The snowball: the slide down stops against it and crushes it, then on down past where it was.
+    const ball = { ...col, entrance: { x: 0, y: 0 }, snowballs: [{ x: 0, y: 3 }] };
+    expect(tiles(routePath(ball, { x: 0, y: 0 }, { x: 0, y: 4 }))).toEqual(['0,1', '0,2x0,3', '0,3', '0,4']);
+    // Snowpoint Gym: to Isaiah, then (the snowballs crushed on the way staying crushed) to Candice, each walk 65 tiles or less.
+    const people = new Set(SNOWPOINT_GYM.stands!.map(({ x, y }) => `${x},${y}`));
+    const [trainer, candice] = SNOWPOINT_GYM.spots;
+    const first = routePath(SNOWPOINT_GYM, SNOWPOINT_GYM.entrance!, trainer!, people)!;
+    const second = routePath(SNOWPOINT_GYM, trainer!, candice!, people)!;
+    expect([first.length <= 65, second.length <= 65]).toEqual([true, true]);
+    expect(second.filter((s) => s.breaks).length).toBeGreaterThan(0);
+    expect(snowballsLeft(SNOWPOINT_GYM, candice!)!.length).toBe(SNOWPOINT_GYM.snowballs!.length - [...first, ...second].filter((s) => s.breaks).length);
+  });
+
+  it("deep snow sinks people and slows the player, and every step off snow leaves its track (Route 217's, Diamond's)", () => {
+    const [deep, deeper, deepest, shallow] = [{ x: 2, y: 14 }, { x: 2, y: 15 }, { x: 31, y: 27 }, { x: 20, y: 0 }];
+    expect([deep, deeper, deepest, shallow].map((t) => snowAt(ROUTE_217, t))).toEqual(['deep', 'deeper', 'deepest', 'shallow']);
+    expect([deep, deeper, deepest, shallow].map((t) => snowSink(ROUTE_217, t))).toEqual([7, 8, 10, 0]);
+    expect([deep, deeper, deepest, shallow].map((t) => snowPace(ROUTE_217, t))).toEqual([1, 0.5, 0.25, 1]);
+    // Footprints the way he goes; a furrow joining the way he came to the way he goes (up, then right: its upper left corner).
+    expect([snowTrack(ROUTE_217, shallow, 'left'), snowTrack(ROUTE_217, deep, 'up'), snowTrack(ROUTE_217, deep, 'right', 'up'), snowTrack(ROUTE_217, deep, 'up', 'left')]).toEqual([2, 4, 6, 8]);
+    expect(snowAt(ROUTE_2, { x: 5, y: 5 })).toBeNull();
   });
 
   it('every route and gym has an entrance, and on a route the player can walk from it to the first spot', () => {

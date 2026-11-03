@@ -57,6 +57,9 @@ CENTER = ('MAP_PASTORIA_POKECENTER', 'MAP_PASTORIA', 'PCWOMAN1')
 # statue room, the trainer above at 17,25 (2026-11-02).
 USER_DOOR = {'oreburgh': (5, 25)}
 USER_GYM_TRAINER = {'oreburgh': {'spot': (5, 11), 'stand': (7, 11)}, 'hearthome': {'spot': (17, 26), 'stand': (17, 25)},
+                    # Snowpoint Gym's Ace Trainer Isaiah at 14,13, the player slid up to him from the south at 14,14 (the
+                    # user's, 2026-11-03: never stopping at 14,12 across the ice).
+                    'snowpoint': {'spot': (14, 14), 'stand': (14, 13)},
                     # Canalave Gym's at 11,50 (its ground floor's 11,21), the player at 12,50, on his way along its track (the user's).
                     'canalave': {'spot': (12, 50), 'stand': (11, 50)}}
 # Tiles drawn over the player (the route's `overhead`): bridges he walks under. Oreburgh Gym's wooden bridge (the user's).
@@ -82,6 +85,12 @@ USER_FLOOR = {'pastoria': {**{(13, y): (13, 32) for y in range(33, 36)}, **{(6, 
 # Gyms whose treetops are drawn over the player, found by height as the routes' are (sinnoh_routes.py's `overhead`,
 # USER_TREETOPS there): Eterna Gym's (the user's, 2026-11-01).
 USER_TREETOPS = {'eterna', 'hearthome'}
+# Gyms slid across as Mahogany Gym's ice (the user's, 2026-11-03): Snowpoint Gym's, its ice (behaviour 0x20) a pit of 4
+# floors with ramps between (its tiles' levels from the render's heights, LEVEL_UNITS each: never slid up but by its
+# stairs, behaviours 0x4A and 0x49) and its snowballs (OBJ_EVENT_GFX_SNOWBALL, SNOWBALL), crushed by a slide into them.
+USER_SLIDES = {'snowpoint'}
+LEVEL_UNITS = 8
+SNOWBALL = 118
 # Props the game places by its code, drawn in the gym's picture (model, and the tile centre it stands on, in the map's own
 # tiles): Canalave Gym's lifts (the user's, 2026-11-02, from Diamond's gym): Byron's red one (297) in the top row's middle
 # pit, and yellow ones (296) in the four pits of the second row and the bottom row's left one, each centred in its pit (a
@@ -274,7 +283,28 @@ def track_tiles(track):
     return tiles
 
 
-def gym_ts(const, title, doc, image, w, h, door, spots, stands, guide, rows, overhead=None, track=None, links=(), lifts=()):
+def tile_level(heights, x, y, ground):
+    """A tile's floor level (LEVEL_UNITS each, from the lowest, -2: Snowpoint Gym's pit), from the render's heights: the
+    height drawn where the tile's middle column meets the floor as tilted (dp_map.py: y = z*16 - (height - ground)*0.6)."""
+    for py in range(heights.shape[0]):
+        v = heights[py, x * TILE + TILE // 2]
+        if not np.isnan(v) and abs(py - (y * TILE + TILE // 2 - (v - ground) * 0.6)) <= 1.5:
+            return max(0, min(9, round((float(v) + 2) / LEVEL_UNITS)))
+    return None
+
+
+def tile_levels(heights, x0, y0, x1, y1, ground):
+    """Each tile's level (tile_level) as rows of digits; one whose floor isn't seen (hidden behind a statue: Snowpoint Gym's
+    9,26 and 13,26) is its nearest seen neighbour's in the row, else 0."""
+    out = []
+    for y in range(y0, y1 + 1):
+        row = [tile_level(heights, x, y, ground) for x in range(x0, x1 + 1)]
+        seen = [i for i, v in enumerate(row) if v is not None]
+        out.append(''.join(str(v if v is not None else row[min(seen, key=lambda j: abs(j - i))] if seen else 0) for i, v in enumerate(row)))
+    return out
+
+
+def gym_ts(const, title, doc, image, w, h, door, spots, stands, guide, rows, overhead=None, track=None, links=(), lifts=(), slides=None):
     legs = lambda: ', '.join('{ ' + ('under: true, ' if leg.get('under') else '') + f"to: [{', '.join(f'[{x}, {y}]' for x, y in leg['to'])}] }}" for leg in track['legs'])
     track_ = f"\n  track: trackLine([{track['start'][0]}, {track['start'][1]}], {legs()})," if track else ''
     lifts_ = ('\n  lifts: [' + ', '.join(f"{{ image: '{i}', top: {{ x: {t[0]}, y: {t[1]} }}, bottom: {{ x: {b[0]}, y: {b[1]} }}, offset: {{ x: {o[0]}, y: {o[1]} }} }}" for i, t, b, o in lifts) + '],') if lifts else ''
@@ -283,6 +313,9 @@ def gym_ts(const, title, doc, image, w, h, door, spots, stands, guide, rows, ove
     walk = '\n'.join(f"    '{r}'," for r in rows)
     name = f'"{title}"' if "'" in title else f"'{title}'"
     npcs = f"\n  npcs: [{{ sprite: 'dp/sunglasses', tile: {{ x: {guide[0]}, y: {guide[1]} }}, face: 'down' }}]," if guide else ''
+    grid = lambda k, rs: f'%s  {k}: [' % chr(10) + ''.join(f"%s    '{r}'," % chr(10) for r in rs) + '%s  ],' % chr(10)
+    slides_ = (grid('ice', slides['ice']) + grid('levels', slides['levels']) + '%s  levelPx: %s,' % (chr(10), round(LEVEL_UNITS * 0.6, 2)) + grid('stairs', slides['stairs']) +
+               '%s  snowballs: [' % chr(10) + ', '.join(f'{{ x: {x}, y: {y} }}' for x, y in slides['balls']) + "],%s  snowballImage: '/overworld/dp/snowball.png'," % chr(10)) if slides else ''
     return f"""
 /** {doc} */
 export const {const}: Route = {{
@@ -301,7 +334,7 @@ export const {const}: Route = {{
   ],{npcs}
   walkable: [
 {walk}
-  ],
+  ],{slides_}
 }};
 """
 
@@ -372,6 +405,13 @@ def main():
         lifts = [(shift(a), shift(b), o) for a, b, o in lifts]
         never = [shift(t) for t in never]
         rows = [r[x0:x1 + 1] for r in rows[y0:y1 + 1]]
+        slides = None
+        if city in USER_SLIDES:
+            j = json.load(open(prefix + '.json'))
+            heights = np.load(prefix + '_height.npy')
+            slides = {'ice': [r[x0:x1 + 1] for r in j['ice'][y0:y1 + 1]], 'stairs': [r[x0:x1 + 1] for r in j['stairs'][y0:y1 + 1]],
+                      'levels': tile_levels(heights, x0, y0, x1, y1, j['ground']),
+                      'balls': [shift((o['x'], o['z'])) for o in events['objects'] if o['sprite'] == SNOWBALL]}
         door, spots, stands = shift(door), [shift(s) for s in spots], [shift(s) for s in stands]
         guide = guide and shift(guide)
         if guide and not (0 <= guide[1] < len(rows) and 0 <= guide[0] < len(rows[0])):
@@ -435,7 +475,9 @@ def main():
                f"{title}, the leader's room: the Gym Trainer where {who} stands ({stands[0][0]},{stands[0][1]}{'; the user' + chr(39) + 's' if city in USER_GYM_TRAINER else ''}), the leader in their place ({stands[1][0]},{stands[1][1]})." if who else
                f"{title}, the leader's room (no trainers in it): the Gym Trainer halfway in ({stands[0][0]},{stands[0][1]}), the leader in their place ({stands[1][0]},{stands[1][1]}).")
         lifts_ = [(f'/routes/{city}_gym_lift.png', a, b, o) for a, b, o in lifts]
-        out.append(gym_ts(const, title, doc, image, len(rows[0]), len(rows), door, spots, stands, guide, rows, overhead, track, links, lifts_))
+        if slides:
+            doc = doc[:-1] + f", its ice slid across as Mahogany Gym's (the user's): never up a ramp but by its stairs, its snowballs ({', '.join(f'{x},{y}' for x, y in slides['balls'])}, the map's) crushed by a slide into them."
+        out.append(gym_ts(const, title, doc, image, len(rows[0]), len(rows), door, spots, stands, guide, rows, overhead, track, links, lifts_, slides))
         entrances[boss] = (const, entrance_near(rows, spots[1]))
         print(city, 'door', door, 'spots', spots, 'stands', stands, 'guide', guide, 'trainer', who, 'leader room entrance', entrances[boss][1])
 

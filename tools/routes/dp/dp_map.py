@@ -13,7 +13,9 @@ Usage: python dp_map.py <out prefix> <MAP_CONST>[,<MAP_CONST>...] [--tilt 0.6] [
 Writes <out prefix>.png, <out prefix>_height.npy (each pixel's model height, for what stands above the ground) and
 <out prefix>.json: the size in tiles and `rows`, one string per tile row: '.' walkable, '#'
 not (collision, doors and warps), '~' water (surfable), and ledges by the way they're jumped: '>' east, '<' west, '^'
-north, 'v' south; `grass`, the same size: 'g' tall grass, '.' not; `snow`: 's' snow (Route 217), '.' not. Its tile
+north, 'v' south; `grass`, the same size: 'g' tall grass, '.' not; `snow`: '1' deep snow, '2' deeper, '3' deepest, 's' shallow, 'w' snow
+with shadows (Route 217's; pokeplatinum's TILE_BEHAVIOR_SNOW_*), '.' not; `ice`: 'i'
+ice (Snowpoint Gym's), '.' not; `stairs`: '|' climbed only north or south, '-' only east or west, '.' neither. Its tile
 behaviours are Gen 4's (pokeplatinum's include/constants/field/map_tile_behaviors.h names them; Diamond's are the same).
 A map in a matrix of one map (a building's inside, a cave) is every cell of its matrix. People and item balls are not in
 the map data (they're events), so their tiles are walkable. Needs numpy and Pillow, and apicula on the PATH or given."""
@@ -34,7 +36,9 @@ WATER = {0x10, 0x13, 0x15}  # river, waterfall, sea
 LEDGES = {0x38: '>', 0x39: '<', 0x3A: '^', 0x3B: 'v'}
 BLOCKED = set(range(0x5E, 0x70))  # warp stairs, entrances, doors, escalators, warps
 GRASS = {0x02, 0x03, 0xA6, 0xA7}  # tall grass, very tall grass, mud with grass
-SNOW = {0xA1, 0xA2, 0xA3, 0xA8}  # deep, deeper, deepest and shallow snow
+SNOW = {0xA1: '1', 0xA2: '2', 0xA3: '3', 0xA8: 's', 0xA9: 'w'}  # deep, deeper, deepest, shallow snow and snow with shadows
+ICE = 0x20
+STAIRS = {0x4A: '|', 0x49: '-'}  # blocking east and west, north and south: stairs up a slope (Snowpoint Gym's)
 
 
 def tile_char(lo, hi):
@@ -98,6 +102,8 @@ def main():
     rows = [['#'] * W for _ in range(H)]
     grass = [['.'] * W for _ in range(H)]
     snow = [['.'] * W for _ in range(H)]
+    ice = [['.'] * W for _ in range(H)]
+    stairs = [['.'] * W for _ in range(H)]
     parts, ys = [], collections.Counter()
     for c in mine:
         if no_land:
@@ -110,8 +116,10 @@ def main():
                 rows[oz + ty][ox + tx] = tile_char(lo, hi)
                 if lo in GRASS:
                     grass[oz + ty][ox + tx] = 'g'
-                if lo in SNOW:
-                    snow[oz + ty][ox + tx] = 's'
+                snow[oz + ty][ox + tx] = SNOW.get(lo, '.')
+                if lo == ICE:
+                    ice[oz + ty][ox + tx] = 'i'
+                stairs[oz + ty][ox + tx] = STAIRS.get(lo, '.')
         model = os.path.join(work, f"land{c['land']}.nsbmd"); open(model, 'wb').write(chunk['model'])
         glb = convert(apicula, [model, tex_path], os.path.join(work, f"land{c['land']}"))
         # The chunk's model origin is its centre, raised by the cell's altitude.
@@ -169,7 +177,7 @@ def main():
         top = (col, bottom[1] - round(LIFT_RISE * S * tilt / 16))
         ride = {'top': top, 'bottom': bottom, 'offset': [box[0] - bottom[0] * 16, box[1] - bottom[1] * 16]}
     json.dump({'width': W, 'height': H, 'rows': [''.join(r) for r in rows], 'grass': [''.join(r) for r in grass], 'snow': [''.join(r) for r in snow],
-               'origin': [x0, y0], 'chunks': [[c['x'] - x0, c['y'] - y0, c['land']] for c in mine], **({'lift': ride} if ride else {})}, open(out + '.json', 'w'))
+               'ice': [''.join(r) for r in ice], 'stairs': [''.join(r) for r in stairs], 'ground': ground, 'origin': [x0, y0], 'chunks': [[c['x'] - x0, c['y'] - y0, c['land']] for c in mine], **({'lift': ride} if ride else {})}, open(out + '.json', 'w'))
     print('rendered', consts, W, 'x', H, 'tiles; ground', ground)
 
 
