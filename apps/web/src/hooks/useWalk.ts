@@ -17,7 +17,7 @@ export const stepPace = (route: Route, tile: RouteSpot) => pace(route, tile) * (
 export const GRASS_PACE = 0.7;
 
 /** The longest walk between spots, in tiles; farther (or with no path), the player fades out and back in instead. */
-const MAX_WALK = 50;
+const MAX_WALK = 65;
 /** How long the player takes to fade out, or back in; and the view's glide while he's out (through a gatehouse). */
 export const FADE_MS = 300;
 export const THROUGH_MS = 500;
