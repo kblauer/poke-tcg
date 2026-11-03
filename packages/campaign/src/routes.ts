@@ -122,6 +122,8 @@ export interface Route {
   iceStairsImage?: string;
   /** Tiles joined by a building the player walks through (a gatehouse's doors on either side): a walk between them fades out and in. */
   links?: [RouteSpot, RouteSpot][];
+  /** Platform lifts ridden between a floor and the pit below it (Iron Island's, the user's): see Lift. */
+  lifts?: Lift[];
   /**
    * Its links are buildings' front doors, walked into going up: the player fades out still facing up and fades back in
    * facing down, out of the other door (Route 110's Cycling Road gatehouses, the user's).
@@ -511,7 +513,34 @@ export const travelAt = (route: Route, spot: RouteSpot): Travel => {
 export const leaderRoom = (gym: Route, entrance: RouteSpot): Route => ({ ...gym, entrance, spots: [gym.spots.at(-1)!], stands: [gym.stands!.at(-1)!], spotFlows: undefined, otherSpots: gym.spots.slice(0, -1) });
 
 /**
- * A step of a walk: the tile stepped onto, `fade` when it's reached through a link (a gatehouse), `under` when it's
+ * A platform lift (Iron Island's, Diamond's prop 494; the user's): ridden from the tile the player stands on at its `top`
+ * (the floor above) to the one at its `bottom` (the pit), or back, as one step of a walk (`lift`), both drawn where they
+ * are in the map's tilted picture. Its platform is drawn apart from the map (`image`, by tools/routes/dp/dp_map.py), at
+ * `offset` pixels from the player's tile at whichever end it's at (liftEnd), moving with him as he rides it (LIFT_MS).
+ */
+export interface Lift {
+  image: string;
+  top: RouteSpot;
+  bottom: RouteSpot;
+  offset: { x: number; y: number };
+}
+
+/** How long a lift's ride takes: pokeplatinum's platform_lift.c, a unit of height a frame over its 8 tiles' (128 frames at 60 a second). */
+export const LIFT_MS = (128 / 60) * 1000;
+
+/**
+ * Which end of a lift its platform is at, with the player at `tile`: where he is, the floor above (no lower than the
+ * lift's top) or the pit (below it), as he came to it or rode it there; where he came in, as in the game. By the rows,
+ * not the walkable tiles: the pits' tiles, drawn rows lower than Diamond's data has them, may still join the floor above.
+ */
+export const liftEnd = (lift: Lift, tile: RouteSpot): 'top' | 'bottom' => (tile.y <= lift.top.y ? 'top' : 'bottom');
+
+/** How long the player stands on a lift's platform before it moves and once it's stopped (the user's: he stops on it, then it goes; he waits a moment before stepping off). */
+export const LIFT_PAUSE_MS = 400;
+
+/**
+ * A step of a walk: the tile stepped onto, `fade` when it's reached through a link (a gatehouse), `lift` when it's ridden
+ * to on a lift (the route's `lifts`), `under` when it's
  * under a bridge (a `track`'s), `slide` when it's slid onto across ice, `jump` when it's jumped onto, over a ledge (two
  * tiles at once), and `wait`, how long (ms) the player stands still first (a `track`'s).
  */
@@ -519,6 +548,7 @@ export interface RouteStep {
   tile: RouteSpot;
   wait?: number;
   fade?: boolean;
+  lift?: boolean;
   under?: boolean;
   slide?: boolean;
   jump?: boolean;
@@ -562,7 +592,7 @@ function trackPath(track: TrackTile[], from: RouteSpot, to: RouteSpot): RouteSte
 }
 
 /**
- * The shortest walk from one tile to another over the route's walkable tiles (4 ways, as in the game) and its links,
+ * The shortest walk from one tile to another over the route's walkable tiles (4 ways, as in the game), its links and its lifts,
  * around the tiles in `blocked` (people standing on the route), as the steps taken (not `from`); null if there's none.
  * A ledge ('v') is jumped over going down, landing on the tile below it: one move (`jump`), never onto the ledge itself.
  * Onto ice (the route's `ice`), a move slides on the way it was going until the next tile is a wall or someone standing
@@ -578,7 +608,7 @@ export function routePath(route: Route, from: RouteSpot, to: RouteSpot, blocked:
   if (along) return along;
   // Each tile is one place but on a bridge, where its deck (key `^`) is another than the way under it.
   const key = (t: RouteSpot, deck: boolean) => (deck ? `${tileKey(t)}^` : tileKey(t));
-  const prev = new Map<string, { from: RouteSpot; fromKey: string; fade: boolean; via: RouteSpot[]; slide: boolean; jump: boolean } | null>([[tileKey(from), null]]);
+  const prev = new Map<string, { from: RouteSpot; fromKey: string; fade: boolean; lift: boolean; via: RouteSpot[]; slide: boolean; jump: boolean } | null>([[tileKey(from), null]]);
   const decks = new Map<string, boolean>([[tileKey(from), false]]);
   const offLine = (t: RouteSpot) => (lineOfSight === 'row' ? t.x !== to.x : lineOfSight === 'column' ? t.y !== to.y : false);
   // Each tile's steps from `from`, and (lineOfSight) its walk's steps off the line: BFS reaches a tile first by a shortest
@@ -595,50 +625,56 @@ export function routePath(route: Route, from: RouteSpot, to: RouteSpot, blocked:
         // Under a bridge: onto its way under, and the step out from it too (he's under it till he's off it: the user's).
         const below = (tile: RouteSpot, tk: string) => !decks.get(tk) && !!bridgeAt(route, tile);
         const under = below(t, k) || below(p.from, p.fromKey);
-        steps.unshift({ tile: t, ...(p.fade && { fade: true }), ...(under && { under: true }), ...(p.slide && { slide: true }), ...(p.jump && { jump: true }) });
+        steps.unshift({ tile: t, ...(p.fade && { fade: true }), ...(p.lift && { lift: true }), ...(under && { under: true }), ...(p.slide && { slide: true }), ...(p.jump && { jump: true }) });
         steps.unshift(...p.via.map((tile) => ({ tile, slide: true })));
       }
       return steps;
     }
-    const linked = (route.links ?? []).flatMap(([a, b]) => (tileKey(a) === tileKey(here) ? [b] : tileKey(b) === tileKey(here) ? [a] : []));
+    const other = ([a, b]: [RouteSpot, RouteSpot]) => (tileKey(a) === tileKey(here) ? [b] : tileKey(b) === tileKey(here) ? [a] : []);
+    const linked = (route.links ?? []).flatMap(other);
+    const ridden = (route.lifts ?? []).flatMap((l) => other([l.top, l.bottom]));
     const next = [
-      ...([[0, -1], [1, 0], [0, 1], [-1, 0]] as const).map(([dx, dy]) => ({ tile: { x: here.x + dx, y: here.y + dy }, fade: false, dx, dy })),
-      ...linked.map((tile) => ({ tile, fade: true, dx: 0, dy: 0 })),
+      ...([[0, -1], [1, 0], [0, 1], [-1, 0]] as const).map(([dx, dy]) => ({ tile: { x: here.x + dx, y: here.y + dy }, fade: false, lift: false, dx, dy })),
+      ...linked.map((tile) => ({ tile, fade: true, lift: false, dx: 0, dy: 0 })),
+      // A lift ridden: no ledge, bridge or ice about it, as a link.
+      ...ridden.map((tile) => ({ tile, fade: true, lift: true, dx: 0, dy: 0 })),
     ];
     for (const step of next) {
-      const { fade, dx, dy } = step;
+      const { dx, dy, lift } = step;
+      const fade = step.fade && !lift;
+      const linkLike = step.fade;
       let first = step.tile;
       // A ledge: jumped over going down, landing on the tile below it; no other way across or onto it.
-      const jump = !fade && downLedge(route, first);
+      const jump = !linkLike && downLedge(route, first);
       if (jump) {
         if (dy !== 1) continue;
         first = { x: first.x, y: first.y + 1 };
       }
       if (!onPath(route, first) || blocked.has(tileKey(first))) continue;
-      const deck = fade ? false : bridgeMove(route, here, onDeck, first, dx, dy);
+      const deck = linkLike ? false : bridgeMove(route, here, onDeck, first, dx, dy);
       if (deck === null) continue;
       // Onto ice: on until the next tile can't be walked onto (or someone stands there), or this one is ground.
       const via: RouteSpot[] = [];
       let tile = first;
-      while (!fade && onIce(route, tile)) {
+      while (!linkLike && onIce(route, tile)) {
         const on = { x: tile.x + dx, y: tile.y + dy };
         if (!onPath(route, on) || blocked.has(tileKey(on))) break;
         via.push(tile);
         tile = on;
       }
-      const slide = via.length > 0 || (!fade && onIce(route, tile));
+      const slide = via.length > 0 || (!linkLike && onIce(route, tile));
       const k = key(tile, deck);
       const d = dist.get(hereKey)! + 1;
       const row = onRow.get(hereKey)! + [...via, tile].filter(offLine).length;
       if (prev.has(k)) {
         // Already reached: only a walk as short with fewer steps off the line takes its place (it's still queued).
         if (lineOfSight && dist.get(k) === d && row < onRow.get(k)!) {
-          prev.set(k, { from: here, fromKey: hereKey, fade, via, slide, jump });
+          prev.set(k, { from: here, fromKey: hereKey, fade, lift, via, slide, jump });
           onRow.set(k, row);
         }
         continue;
       }
-      prev.set(k, { from: here, fromKey: hereKey, fade, via, slide, jump });
+      prev.set(k, { from: here, fromKey: hereKey, fade, lift, via, slide, jump });
       decks.set(k, deck);
       dist.set(k, d);
       onRow.set(k, row);

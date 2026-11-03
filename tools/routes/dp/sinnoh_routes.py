@@ -49,11 +49,11 @@ MAPS = {
                  "from Valor Lakefront (north) along the beach to Pastoria City's gatehouse (west), after Valor Lakefront"),
     'route212': (['MAP_ROUTE_212_NORTH', 'MAP_ROUTE_212_SOUTH'], 10, 'right', ('warp', 'MAP_HEARTHOME_ROUTE_212_GATEHOUSE'), 'up', 'ROUTE_212', 'Route 212',
                  "all of it (agreed with the user), its south half from Pastoria City (east) west through the marsh, then its north half up to Hearthome City's gatehouse (north), for the Hearthome City run"),
-    'iron_island_b1f': (['MAP_IRON_ISLAND_B1F_ROOM_2'], 3, ('warp', 'MAP_IRON_ISLAND_1F'), ('warp', 'MAP_IRON_ISLAND_B2F_ROOM_2'), 'down', 'IRON_ISLAND_B1F', 'Iron Island B1F',
+    'iron_island_b1f': (['MAP_IRON_ISLAND_B1F_ROOM_2'], 2, ('warp', 'MAP_IRON_ISLAND_1F'), ('warp', 'MAP_IRON_ISLAND_B2F_ROOM_2'), 'down', 'IRON_ISLAND_B1F', 'Iron Island B1F',
                         'from the stairs down from 1F to the stairs down to B2F, for the Canalave City run (its three floors, agreed with the user), then B2F'),
-    'iron_island_b2f': (['MAP_IRON_ISLAND_B2F_ROOM_2'], 4, ('warp', 'MAP_IRON_ISLAND_B1F_ROOM_2'), ('warp', 'MAP_IRON_ISLAND_B3F'), 'down', 'IRON_ISLAND_B2F', 'Iron Island B2F',
+    'iron_island_b2f': (['MAP_IRON_ISLAND_B2F_ROOM_2'], 6, ('warp', 'MAP_IRON_ISLAND_B1F_ROOM_2'), ('warp', 'MAP_IRON_ISLAND_B3F'), 'down', 'IRON_ISLAND_B2F', 'Iron Island B2F',
                         'from the stairs down from B1F to the stairs down to B3F, after B1F, then B3F'),
-    'iron_island_b3f': (['MAP_IRON_ISLAND_B3F'], 3, ('warp', 'MAP_IRON_ISLAND_B2F_ROOM_2'), ('warp', 'MAP_IRON_ISLAND_EXTERIOR'), 'left', 'IRON_ISLAND_B3F', 'Iron Island B3F',
+    'iron_island_b3f': (['MAP_IRON_ISLAND_B3F'], 2, ('warp', 'MAP_IRON_ISLAND_B2F_ROOM_2'), ('warp', 'MAP_IRON_ISLAND_EXTERIOR'), 'left', 'IRON_ISLAND_B3F', 'Iron Island B3F',
                         "from the stairs down from B2F to the way out, after B2F"),
     'route217': (['MAP_ROUTE_217'], 6, 'bottom', 'top', 'up', 'ROUTE_217', 'Route 217',
                  'from Route 216 (south) up through the snow to Acuity Lakefront (north), for the Snowpoint City run, then Acuity Lakefront'),
@@ -90,10 +90,17 @@ USER_SPOTS = {'route203': {1: (6, 13), 2: (19, 13), 3: (15, 21), 4: (25, 15), 5:
               'valor_lakefront': {1: (50, 12), 2: (50, 29), 3: (49, 44), 4: (34, 54)},
               'route213': {1: (72, 27), 2: (63, 30), 3: (26, 40), 4: (27, 28), 5: (32, 14), 6: (14, 18)},
               # Route 212's (the user's, 2026-11-02).
+              # Iron Island's (the user's, 2026-11-02): 2 on B1F, 6 on B2F (its last in the pit, after the lift), 2 on B3F
+              # (its first in the pit, before it).
+              'iron_island_b1f': {1: (7, 6), 2: (16, 16)},
+              'iron_island_b2f': {1: (22, 4), 2: (24, 12), 3: (33, 18), 4: (34, 33), 5: (24, 37), 6: (21, 52)},
+              'iron_island_b3f': {1: (6, 19), 2: (9, 6)},
               'route212': {1: (121, 118), 2: (101, 114), 3: (71, 113), 4: (36, 102), 5: (5, 115), 6: (18, 83), 7: (22, 67), 8: (8, 59),
                            9: (11, 36), 10: (11, 7)}}
-USER_ENTRANCE = {'route203': (0, 23), 'oreburgh_gate': (3, 22), 'eterna_forest': (16, 81), 'route205n': (2, 12), 'route215': (0, 22), 'route212': (127, 111)}
-USER_EXIT = {'route203': (55, 11), 'oreburgh_gate': (28, 22), 'eterna_forest': (75, 31), 'route205n': (31, 21), 'route215': (95, 23), 'valor_lakefront': (34, 63)}
+USER_ENTRANCE = {'route203': (0, 23), 'oreburgh_gate': (3, 22), 'eterna_forest': (16, 81), 'route205n': (2, 12), 'route215': (0, 22), 'route212': (127, 111),
+                 'iron_island_b2f': (39, 3), 'iron_island_b3f': (15, 19)}
+USER_EXIT = {'route203': (55, 11), 'oreburgh_gate': (28, 22), 'eterna_forest': (75, 31), 'route205n': (31, 21), 'route215': (95, 23), 'valor_lakefront': (34, 63),
+            'iron_island_b1f': (18, 31), 'iron_island_b2f': (13, 52), 'iron_island_b3f': (1, 5)}
 USER_MOVES = {}
 # Links in place of the map's own (its two doors into one building): Route 213's reception, walked into at its north door
 # and out at its south one (the user's, 2026-11-02; 66,17 below it walkable, his way out).
@@ -101,6 +108,11 @@ USER_LINKS = {'route213': [((66, 12), (66, 16))]}
 # Tiles of the picture drawn over the player (copied into the route's overhead): Route 213's reception's north door, so
 # he walks into the building (the user's).
 USER_OVERHEAD = {'route213': [(66, 12)]}
+# Maps with a platform lift ridden between their floor above and their pit (Iron Island's, the user's, 2026-11-02): the
+# platform's model (dp_map.py --lift: 258, iron_island_platform_lift; B2F's at 19.5,44.5, where the game puts it, not in
+# its data), left out of the map's picture and drawn by the run screen as it rides (`lifts`). Its shaft's frame (494)
+# stays in the picture.
+USER_LIFTS = {'iron_island_b1f': '258', 'iron_island_b2f': '258@19.5,44.5', 'iron_island_b3f': '258'}
 # Raised things drawn over the player where he walks under them (in these tiles, the pixels at least this high, from
 # dp_map.py's heights): Route 212's bike rails, 26-40,108-109, 41,111-116 and 108,106-122 (the user's, 2026-11-02), at 50
 # over the plateaus' 48.
@@ -115,10 +127,25 @@ USER_RAISED_OVER = {'route212': ([(x, y) for x in range(26, 41) for y in (108, 1
 USER_WALKABLE = {'eterna_forest': [(74, 31)] + [(x, 56) for x in range(32, 36)], 'route205n': [(3, 12)],
                  'valor_lakefront': [(x, y) for x in range(37, 49) for y in (49, 50)] + [(x, y) for x in range(31, 40) for y in range(51, 55)]
                                     + [(x, 51) for x in range(40, 53)],
-                 'route213': [(66, 17)]}
+                 'route213': [(66, 17)],
+                 # Iron Island B1F's pit floor where it's drawn (Diamond's data has it 5 rows higher): rows 28-29 from 5 to
+                 # 18, round its pillars and rock, and rows 30 and 31 (the user's), to its stairs out at 18,31 (the user's,
+                 # 2026-11-02); rows 26 and 27 not (below).
+                 'iron_island_b1f': [(x, y) for x in range(5, 19) for y in (28, 29) if (x, y) not in ((8, 29), (9, 29), (14, 29))]
+                                    + [(x, y) for x in range(1, 22) for y in (30, 31)] + [(11, 30)] + [(x, 31) for x in range(11, 19)],
+                 # B2F's, rows 50-55 from 13 to 24, to its stairs out at 13,52 (the user's).
+                 'iron_island_b2f': [(x, y) for x in range(13, 25) for y in range(50, 56)],
+                 # B3F's, rows 18-21 from 3 to 14, for its first encounter, 6,19 (the user's).
+                 'iron_island_b3f': [(x, y) for x in range(3, 15) for y in range(18, 22)]}
 # Route 215: 35-36,7 and 13-14,11 (the user's), and 24-27,7, the top bridge's west platform's wall. Valor Lakefront: above.
-# Route 212: 54-63,115 and 48-51,119 (the user's, 2026-11-02).
-USER_BLOCKED = {'route212': [(x, 115) for x in range(54, 64)] + [(x, 119) for x in range(48, 52)],
+# Route 212: 54-63,115 and 48-51,119 (the user's, 2026-11-02). Iron Island B1F: rows 26 and 27, its pit's back wall, and the user's
+# marks round its pit: 3-9,25, 1-9 and 13-20,26-28, 13-19,29, 9-10,30, 14,30 and 6-9,31 (11,30 and 11-18,31 walkable). B2F:
+# 14-17 and 21-23,47-49, either side of its lift's bottom (the user's).
+USER_BLOCKED = {'iron_island_b2f': [(x, y) for x in [*range(14, 18), *range(21, 24)] for y in (47, 48, 49)],
+                'iron_island_b1f': [(x, y) for x in range(32) for y in (26, 27)] + [(x, 25) for x in range(3, 10)]
+                                   + [(x, y) for y in (26, 27, 28) for x in [*range(1, 10), *range(13, 21)]] + [(x, 29) for x in range(13, 20)]
+                                   + [(9, 30), (10, 30), (14, 30)] + [(x, 31) for x in range(6, 10)],
+                'route212': [(x, 115) for x in range(54, 64)] + [(x, 119) for x in range(48, 52)],
                 'route215': [(35, 7), (36, 7), (13, 11), (14, 11), (24, 7), (25, 7), (26, 7), (27, 7)],
                 'valor_lakefront': [(40, y) for y in range(52, 56)] + [(x, y) for x in (49, 50) for y in (47, 48)] + [(x, 47) for x in range(39, 46)]
                                    + [(37, y) for y in range(54, 58)] + [(x, 61) for x in range(26, 33)] + [(x, y) for x in range(36, 44) for y in (61, 62)]
@@ -133,7 +160,9 @@ USER_RAISED = {'route203': [(23, 34, 1), (37, 54, 2)], 'eterna_forest': [(0, 77,
 # from 1): Route 203 flows right, so its encounters 1, 2, 4 and 8 have theirs left and right (the user's), the third above.
 # Route 205's encounters (9 and 10) have their figures above and below the player, the third to his right (the user's).
 # Route 215's 2, 4 and 8 have theirs left and right (the user's).
-USER_SPOT_FLOWS = {'route203': {1: 'up', 2: 'up', 4: 'up', 8: 'up'}, 'route205n': {1: 'right', 2: 'right'}, 'route215': {2: 'up', 4: 'up', 8: 'up'}, 'route213': {3: 'up', 4: 'up', 6: 'up'}}
+USER_SPOT_FLOWS = {'route203': {1: 'up', 2: 'up', 4: 'up', 8: 'up'}, 'route205n': {1: 'right', 2: 'right'}, 'route215': {2: 'up', 4: 'up', 8: 'up'}, 'route213': {3: 'up', 4: 'up', 6: 'up'},
+                   # Iron Island B2F's 1 and 4 with theirs above and below him, B3F's 2 either side, the third above (the user's).
+                   'iron_island_b2f': {1: 'right', 4: 'right'}, 'iron_island_b3f': {2: 'up'}}
 # Treetops drawn over the player (the user's: the 2 tiles above a tree's unwalkable tiles): in each walkable tile within 2
 # above an unwalkable one, the pixels of what stands more than TREETOP_HIGH model units (a tile is 16) above the ground
 # round it (from dp_map.py's heights: the highest median height of the walkable tiles near it, not themselves under
@@ -160,10 +189,14 @@ ROCK_TILES = 6
 # Maps whose tall rocks are drawn over the player though their treetops are only green (USER_TREETOP_GREEN): Route 213's
 # beach rocks (the user's, 2026-11-02).
 USER_ROCKS = {'route213'}
+# Maps whose rocks alone are drawn over the player, no treetops nor walls (rock_overhead): Iron Island B2F's boulders and
+# pillars (the user's, 2026-11-02), in a cave of brown walls.
+USER_ROCKS_ONLY = {'iron_island_b2f'}
+ROCK_HIGH = 2
 # Cave mouths the player goes in and out by, drawn over him (the user's): only their rock in front of him, not the whole
 # tile (the user's): of the mouth's tile and those round it, the rock (higher than the ground he walks in from) beyond the
 # hollow (sunk below it), across it from him, or below it.
-USER_CAVE_MOUTHS = {'route203': [(55, 11)], 'oreburgh_gate': [(3, 22), (28, 22)]}
+USER_CAVE_MOUTHS = {'route203': [(55, 11)], 'oreburgh_gate': [(3, 22), (28, 22)], 'iron_island_b3f': [(1, 5)]}
 # Bridges (the Route's `bridges`: the deck's columns `x` and rows `y`, the way it `runs`, 'y' up and down or 'x' across, and
 # the rows (or columns) walked `under` it, if any): the walk gets onto the deck only at its ends and never off its sides,
 # and crosses under it only from side to side (the user's), and what stands above the ground beside it, by height, over
@@ -253,6 +286,25 @@ def thin(mask):
             for y, x in piece:
                 out[y, x] = True
     return out
+
+
+def rock_overhead(img, rows, heights):
+    """The overhead of a cave's rocks alone (USER_ROCKS_ONLY), or None: in each walkable tile, what stands more than
+    ROCK_HIGH above its ground (its lowest quarter's height) and is a rock's colour, pinkish (red well over green, blue near
+    green), not the cave's brown walls and floor: the top of a rock in the tile below, over whoever stands behind it."""
+    src = np.asarray(img.convert('RGBA'))
+    r, g, b = (src[..., c].astype(int) for c in range(3))
+    rock = (r - g >= 25) & (b >= g - 30)
+    top = np.zeros(rock.shape, bool)
+    for y, row in enumerate(rows):
+        for x, c in enumerate(row):
+            t = heights[y * TILE:(y + 1) * TILE, x * TILE:(x + 1) * TILE]
+            if c != '.' or np.isnan(t).all():
+                continue
+            top[y * TILE:(y + 1) * TILE, x * TILE:(x + 1) * TILE] = (t > np.nanpercentile(t, 25) + ROCK_HIGH) & rock[y * TILE:(y + 1) * TILE, x * TILE:(x + 1) * TILE]
+    dst = np.zeros_like(src)
+    dst[top] = src[top]
+    return Image.fromarray(dst) if top.any() else None
 
 
 def overhead(img, rows, heights, treetops, never=(), mouths=(), bridges=(), green=False, rocks=False, tall=TREETOP_HIGH):
@@ -354,8 +406,11 @@ def main():
     for name, (consts, count, entrance, exit_, flow, const, title, what) in MAPS.items():
         prefix = os.path.join(work, name)
         if not os.path.exists(prefix + '.json'):
-            subprocess.run([sys.executable, os.path.join(HERE, 'dp_map.py'), prefix, ','.join(consts), '--apicula', apicula, '--cache', cache], check=True)
+            lift = ['--lift', USER_LIFTS[name]] if name in USER_LIFTS else []
+            subprocess.run([sys.executable, os.path.join(HERE, 'dp_map.py'), prefix, ','.join(consts), '--apicula', apicula, '--cache', cache, *lift], check=True)
         j = json.load(open(prefix + '.json'))
+        # The lift's two ends, walkable, and ridden between as a link is walked through.
+        lifts = [(tuple(j['lift']['top']), tuple(j['lift']['bottom']))] if 'lift' in j else []
         rows = [list(r) for r in j['rows']]
         # The maps' warps, in this render's tiles (an overworld map's are the whole matrix's: less its first cell's).
         ox, oz = (j['origin'][0] * 32, j['origin'][1] * 32) if headers[consts[0]]['matrix'] == 0 else (0, 0)
@@ -380,7 +435,14 @@ def main():
         rows = [''.join(r) for r in rows]
         area = largest_area(rows)
         ent = ent or edge_tile(rows, area, entrance)
-        prev = bfs(rows, ent, links)
+        # The shaft's top (the platform's 3 columns, 2 rows below its top end) unwalkable: the lift the only way between
+        # the floor above and the pit (Diamond's data has the platform's tiles as floor, joining them).
+        for (tx, ty), _ in lifts:
+            for y in (ty + 1, ty + 2):
+                rows[y] = rows[y][:tx - 1] + '###' + rows[y][tx + 2:]
+        for t in (t for ends in lifts for t in ends):
+            rows[t[1]] = rows[t[1]][:t[0]] + '.' + rows[t[1]][t[0] + 1:]
+        prev = bfs(rows, ent, links + lifts)
         # Only the links walked to.
         links = [(a, b) for a, b in links if a in prev and b in prev]
         end = end or edge_tile(rows, [t for t in prev], exit_, inward=False)
@@ -399,7 +461,7 @@ def main():
             near = [(x, y) for y in range(t[1] - 2, t[1] + 3) for x in range(t[0] - 2, t[0] + 3) if 0 <= y < h and 0 <= x < w and rows[y][x] == '.' and (x, y) in prev and (x, y) not in spots and (x, y) not in (ent, end)]
             spots.append(max(near, key=lambda n: openness(n) * 2 - abs(n[0] - t[0]) - abs(n[1] - t[1])))
         img = Image.open(prefix + '.png')
-        heights = np.load(prefix + '_height.npy') if name in USER_TREETOPS or name in USER_RAISED_OVER or name in USER_CAVE_MOUTHS or name in USER_BRIDGES else None
+        heights = np.load(prefix + '_height.npy') if name in USER_TREETOPS or name in USER_ROCKS_ONLY or name in USER_RAISED_OVER or name in USER_CAVE_MOUTHS or name in USER_BRIDGES else None
         grass = j['grass']
         if name in CROP or box:
             tiles = list(prev)
@@ -411,6 +473,7 @@ def main():
             shift = lambda t: (t[0] - x0, t[1] - y0)
             ent, end, spots = shift(ent), shift(end), [shift(s) for s in spots]
             links = [(shift(a), shift(b)) for a, b in links]
+            lifts = [(shift(a), shift(b)) for a, b in lifts]
             img = img.crop((x0 * TILE, y0 * TILE, (x1 + 1) * TILE, (y1 + 1) * TILE))
             heights = heights if heights is None else heights[y0 * TILE:(y1 + 1) * TILE, x0 * TILE:(x1 + 1) * TILE]
         # The user's fixes.
@@ -443,12 +506,13 @@ def main():
                 rows[y][x] = '.'
         rows = [''.join(r) for r in rows]
         spots = [USER_SPOTS.get(name, {}).get(i + 1, s) for i, s in enumerate(spots)]
-        reach = bfs(rows, ent, links)
+        reach = bfs(rows, ent, links + lifts)
         for t in spots + [end]:
             if t not in reach or rows[t[1]][t[0]] != '.':
                 print('NO WALK:', name, 'entrance', ent, 'to', t)
         flows = USER_SPOT_FLOWS.get(name)
-        over = heights is not None and overhead(img, rows, heights, USER_TREETOP_ROWS.get(name, 2) if name in USER_TREETOPS else 0, USER_NOT_TREETOPS.get(name, []), USER_CAVE_MOUTHS.get(name, []), green=name in USER_TREETOP_GREEN, rocks=name in USER_ROCKS)
+        over = heights is not None and (rock_overhead(img, rows, heights) if name in USER_ROCKS_ONLY else
+                                        overhead(img, rows, heights, USER_TREETOP_ROWS.get(name, 2) if name in USER_TREETOPS else 0, USER_NOT_TREETOPS.get(name, []), USER_CAVE_MOUTHS.get(name, []), green=name in USER_TREETOP_GREEN, rocks=name in USER_ROCKS))
         if name in USER_RAISED_OVER:
             over = over or Image.new('RGBA', img.size)
             tiles, high = USER_RAISED_OVER[name]
@@ -469,6 +533,12 @@ def main():
         if bridges:
             overhead(img, rows, heights, 0, bridges=bridges).save(os.path.join(PUBLIC, name + '_bridges.png'))
         img.save(os.path.join(PUBLIC, name + '.png'))
+        lift_ = ''
+        if lifts:
+            shutil.copy(prefix + '_lift.png', os.path.join(PUBLIC, name + '_lift.png'))
+            (tx, ty), (bx, by) = lifts[0]
+            lift_ = (f"\n  lifts: [{{ image: '/routes/{name}_lift.png', top: {{ x: {tx}, y: {ty} }}, bottom: {{ x: {bx}, y: {by} }}, "
+                     f"offset: {{ x: {j['lift']['offset'][0]}, y: {j['lift']['offset'][1]} }} }}],")
         pv = img.convert('RGB'); d = ImageDraw.Draw(pv)
         for k, (x, y) in enumerate([ent] + spots + [end]):
             col = (0, 255, 0) if k == 0 else (255, 0, 255) if k == len(spots) + 1 else (255, 0, 0)
@@ -489,7 +559,7 @@ export const {const}: Route = {{
   flow: '{flow}',
   sprites: 'dp',
   entrance: {{ x: {ent[0]}, y: {ent[1]} }},
-  exit: {{ x: {end[0]}, y: {end[1]} }},{links_}{flows_}
+  exit: {{ x: {end[0]}, y: {end[1]} }},{links_}{lift_}{flows_}
   name: '{title}',
   image: '/routes/{name}.png',{over_}
   width: {len(rows[0]) * TILE},

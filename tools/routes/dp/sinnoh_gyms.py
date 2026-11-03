@@ -15,7 +15,7 @@ packages/campaign/src/sinnoh-gyms.ts, copying the images to apps/web/public/rout
 Usage: python sinnoh_gyms.py [--apicula <apicula.exe>] [--cache <dir>] [--work <dir>]
 (--work: where the renders go; each gym also gets a <city>-preview.png there with its door, stands and spots marked.)
 Prints any walk it can't find (a gym puzzle the map data doesn't show: fixes come from the user, as for Johto)."""
-import json, os, re, subprocess, sys, tempfile
+import json, os, re, shutil, subprocess, sys, tempfile
 from collections import deque
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -56,14 +56,21 @@ CENTER = ('MAP_PASTORIA_POKECENTER', 'MAP_PASTORIA', 'PCWOMAN1')
 # doormat; the Gym Trainer in Youngster Darius's place, 7,11, the player at 5,11. Hearthome Gym's at 17,26 in its second
 # statue room, the trainer above at 17,25 (2026-11-02).
 USER_DOOR = {'oreburgh': (5, 25)}
-USER_GYM_TRAINER = {'oreburgh': {'spot': (5, 11), 'stand': (7, 11)}, 'hearthome': {'spot': (17, 26), 'stand': (17, 25)}}
+USER_GYM_TRAINER = {'oreburgh': {'spot': (5, 11), 'stand': (7, 11)}, 'hearthome': {'spot': (17, 26), 'stand': (17, 25)},
+                    # Canalave Gym's at 11,50 (its ground floor's 11,21), the player at 12,50, on his way along its track (the user's).
+                    'canalave': {'spot': (12, 50), 'stand': (11, 50)}}
 # Tiles drawn over the player (the route's `overhead`): bridges he walks under. Oreburgh Gym's wooden bridge (the user's).
 USER_OVERHEAD = {'oreburgh': [(x, 17) for x in range(4, 8)]}
 # The user's tracks (the one way through, in the cropped map's tiles; only its tiles walkable), as johto_gyms.py's: from
 # the door, its legs' corners in turn, a leg `under` where the gym's overhead is drawn over him. Pastoria Gym's
 # (2026-11-02): round its walls as its water would have him, up past the Gym Trainer and on to Crasher Wake, below the
 # raised floor at 6-9,20.
-USER_TRACKS = {'pastoria': {'start': (13, 42), 'legs': [{'to': [(13, 29), (8, 29), (8, 33), (6, 33), (6, 23), (7, 23), (4, 23), (4, 20), (5, 20)]},
+USER_TRACKS = {
+    # Canalave Gym's ground floor (the user's, 2026-11-02; its tiles 29 rows down in the joined map, USER_UPPER): in at its
+    # door, up to row 21 and west past the Gym Trainer, up column 8 to row 16, east to the lift at 15,13. Only the rows it
+    # spans are the track's: Byron's floor above them is walked as its own.
+    'canalave': {'start': (16, 56), 'legs': [{'to': [(16, 50), (8, 50), (8, 45), (15, 45), (15, 42)]}], 'rows': (29, 60)},
+    'pastoria': {'start': (13, 42), 'legs': [{'to': [(13, 29), (8, 29), (8, 33), (6, 33), (6, 23), (7, 23), (4, 23), (4, 20), (5, 20)]},
                                                         {'under': True, 'to': [(9, 20)]}, {'to': [(13, 20), (13, 5)]}]}}
 # Tiles whose raised pixels (above the floor of the tile given) are drawn over the player: Pastoria Gym's raised floor
 # along 6-9,20, its upper half, the floor beside it at 5,20 (the user's).
@@ -75,6 +82,27 @@ USER_FLOOR = {'pastoria': {**{(13, y): (13, 32) for y in range(33, 36)}, **{(6, 
 # Gyms whose treetops are drawn over the player, found by height as the routes' are (sinnoh_routes.py's `overhead`,
 # USER_TREETOPS there): Eterna Gym's (the user's, 2026-11-01).
 USER_TREETOPS = {'eterna', 'hearthome'}
+# Props the game places by its code, drawn in the gym's picture (model, and the tile centre it stands on, in the map's own
+# tiles): Canalave Gym's lifts (the user's, 2026-11-02, from Diamond's gym): Byron's red one (297) in the top row's middle
+# pit, and yellow ones (296) in the four pits of the second row and the bottom row's left one, each centred in its pit (a
+# row above its lift tile, behaviour 0x6E, which is its pit's bottom row).
+USER_PROPS = {'canalave': [(297, 16.5, 9.5)] + [(296, x + 0.5, 13.5) for x in (11, 19, 24)] + [(296, 21.5, 22.5)]}
+# A gym's floor above, drawn above it as one map (the user's, 2026-11-02): Canalave Gym's top floor, Byron's (pokeplatinum's
+# gym_features.c: canalave_gym_fourth_floor, model 302, 30 tiles up at 16,16, with its lifts where they start, and its
+# walkable tiles, sCanalaveGymCollisionMaps[3]), its first `rows` rows on top, the gym below them; ridden up to from the
+# ground floor's lift at 15,13 (model 296, drawn apart: dp_map.py --lift), arriving at `arrive` (16,9, where its red lift
+# comes up below Byron), as Iron Island's lifts are ridden (the user's: in place of the gym's lifts and floors between).
+USER_UPPER = {'canalave': {'height': 480, 'rows': 29, 'floor': 3, 'arrive': (16, 9), 'lift': (296, 15, 13),
+                           'props': [(302, 16, 16), (297, 7.5, 9.5), (295, 19.5, 4.5), (295, 26.5, 26.5), (294, 29.5, 7.5), (294, 2.5, 23.5)]}}
+
+
+def canalave_floor(floor):
+    """pokeplatinum's Canalave Gym collision map for a floor (gym_features.c's sCanalaveGymCollisionMaps), as rows."""
+    s = open(pt_data.fetch(os.path.join(tempfile.gettempdir(), 'pokeplatinum'), 'src/overlay008/gym_features.c'), encoding='utf-8').read()
+    a = s.index('sCanalaveGymCollisionMaps[4]')
+    nums = re.findall(r'\b[01]\b', s[s.index('{', a) + 1:s.index('};', a)])
+    m = nums[floor * 1024:(floor + 1) * 1024]
+    return [''.join('#' if m[z * 32 + x] == '1' else '.' for x in range(32)) for z in range(32)]
 # How high above the floor a treetop's pixels stand, where it isn't the routes' TREETOP_HIGH: Hearthome Gym's Duskull
 # statues, about 11 units tall, masked from 2 up (the user's: their tops drawn over the player behind them, 2026-11-02).
 USER_TREETOP_HIGH = {'hearthome': 2}
@@ -228,7 +256,9 @@ def platinum_gym(spec, work, city, apicula):
 def render(work, name, map_const, apicula, cache):
     prefix = os.path.join(work, name)
     if not os.path.exists(prefix + '.png'):
-        subprocess.run([sys.executable, os.path.join(HERE, 'dp_map.py'), prefix, map_const, '--apicula', apicula, '--cache', cache], check=True)
+        props = ['--props', ';'.join(f'{m}@{x},{z}' for m, x, z in USER_PROPS[name])] if name in USER_PROPS else []
+        lift = ['--lift', '{}@{},{},0'.format(USER_UPPER[name]['lift'][0], USER_UPPER[name]['lift'][1] + 0.5, USER_UPPER[name]['lift'][2] + 0.5)] if name in USER_UPPER else []
+        subprocess.run([sys.executable, os.path.join(HERE, 'dp_map.py'), prefix, map_const, '--apicula', apicula, '--cache', cache, *props, *lift], check=True)
     return prefix, json.load(open(prefix + '.json'))['rows']
 
 
@@ -244,9 +274,10 @@ def track_tiles(track):
     return tiles
 
 
-def gym_ts(const, title, doc, image, w, h, door, spots, stands, guide, rows, overhead=None, track=None, links=()):
+def gym_ts(const, title, doc, image, w, h, door, spots, stands, guide, rows, overhead=None, track=None, links=(), lifts=()):
     legs = lambda: ', '.join('{ ' + ('under: true, ' if leg.get('under') else '') + f"to: [{', '.join(f'[{x}, {y}]' for x, y in leg['to'])}] }}" for leg in track['legs'])
     track_ = f"\n  track: trackLine([{track['start'][0]}, {track['start'][1]}], {legs()})," if track else ''
+    lifts_ = ('\n  lifts: [' + ', '.join(f"{{ image: '{i}', top: {{ x: {t[0]}, y: {t[1]} }}, bottom: {{ x: {b[0]}, y: {b[1]} }}, offset: {{ x: {o[0]}, y: {o[1]} }} }}" for i, t, b, o in lifts) + '],') if lifts else ''
     links_ = ('\n  links: [' + ', '.join(f'[{{ x: {a[0]}, y: {a[1]} }}, {{ x: {b[0]}, y: {b[1]} }}]' for a, b in links) + '],') if links else ''
     pts = lambda ps: '\n'.join(f'    {{ x: {x}, y: {y} }},' for x, y in ps)
     walk = '\n'.join(f"    '{r}'," for r in rows)
@@ -261,7 +292,7 @@ export const {const}: Route = {{
   image: '/routes/{image}',{f"{chr(10)}  overhead: '/routes/{overhead}'," if overhead else ''}
   width: {w * TILE},
   height: {h * TILE},
-  entrance: {{ x: {door[0]}, y: {door[1]} }},{track_}{links_}
+  entrance: {{ x: {door[0]}, y: {door[1]} }},{track_}{links_}{lifts_}
   spots: [
 {pts(spots)}
   ],
@@ -304,16 +335,41 @@ def main():
     for city, (map_const, warp_to, const, title, boss) in GYMS.items():
         prefix, rows = render(work, city, map_const, apicula, cache)
         events = dd.events(cache, headers[map_const]['events'])
-        links, who, never = [], None, []
+        links, who, never, lifts = [], None, [], []
+        if city in USER_UPPER:
+            # The floor above (its props alone, seen from its height) on top, the gym below it; the gym's people and
+            # doors moved down with it, but the leader, who's on the floor above.
+            u = USER_UPPER[city]; oy = u['rows']
+            top = os.path.join(work, city + '_top')
+            if not os.path.exists(top + '.png'):
+                subprocess.run([sys.executable, os.path.join(HERE, 'dp_map.py'), top, map_const, '--apicula', apicula, '--cache', cache, '--no-land', '--ground', str(u['height']),
+                                '--props', ';'.join(f'{m}@{x},{z},{u["height"]}' for m, x, z in u['props'])], check=True)
+            ground = Image.open(prefix + '.png')
+            joined = Image.new('RGBA', (ground.width, (oy + len(rows)) * TILE))
+            joined.paste(Image.open(top + '.png').crop((0, 0, ground.width, oy * TILE)), (0, 0))
+            joined.paste(ground, (0, oy * TILE))
+            rows = canalave_floor(u['floor'])[:oy] + rows
+            lead = leader_sprite(events, sprites)
+            events = {'objects': [o if o['sprite'] == lead else {**o, 'z': o['z'] + oy} for o in events['objects']], 'warps': [{**w, 'z': w['z'] + oy} for w in events['warps']]}
+            ride = json.load(open(prefix + '.json'))['lift']
+            bottom = (u['lift'][1], u['lift'][2] + oy)
+            offset = (ride['offset'][0] + (ride['bottom'][0] - bottom[0]) * TILE, ride['offset'][1] + (ride['bottom'][1] + oy - bottom[1]) * TILE)
+            lifts = [(u['arrive'], bottom, offset)]
+            shutil.copy(prefix + '_lift.png', os.path.join(PUBLIC, f'{city}_gym_lift.png'))
+            prefix = os.path.join(work, city + '_joined')
+            joined.save(prefix + '.png')
+            for x, y in (t for l in lifts for t in l[:2]):
+                rows[y] = rows[y][:x] + '.' + rows[y][x + 1:]
         if city in USER_PLATINUM:
             prefix, rows, door, spots, stands, guide, who, links, never = platinum_gym(USER_PLATINUM[city], work, city, apicula)
             trainer = None
         else:
             rows, door, spots, stands, guide, trainer = place(rows, events, warp_to and headers[warp_to]['id'], leader_sprite(events, sprites), sprites['SUNGLASSES'], cache)
-        keep = [t for a, b in links for t in [*bfs(rows, a), *bfs(rows, b)]]
+        keep = [t for a, b in links + [l[:2] for l in lifts] for t in [*bfs(rows, a), *bfs(rows, b)]]
         x0, y0, x1, y1 = crop_box(rows, door, [*spots, *stands] + ([guide] if guide else []) + keep)
         shift = lambda t: (t[0] - x0, t[1] - y0)
         links = [(shift(a), shift(b)) for a, b in links]
+        lifts = [(shift(a), shift(b), o) for a, b, o in lifts]
         never = [shift(t) for t in never]
         rows = [r[x0:x1 + 1] for r in rows[y0:y1 + 1]]
         door, spots, stands = shift(door), [shift(s) for s in spots], [shift(s) for s in stands]
@@ -328,11 +384,15 @@ def main():
             trainer = next((o for o in events['objects'] if (o['x'] - x0, o['z'] - y0) in (spots[0], stands[0]) and dd.trainer_of(cache, o)), trainer)
         track = USER_TRACKS.get(city)
         if track:
+            # Only the track's tiles walkable (in the rows it's for, if it says).
             on = set(track_tiles(track))
-            rows = [''.join('.' if (x, y) in on else '#' for x in range(len(r))) for y, r in enumerate(rows)]
-        if spots[0] not in bfs(rows, door, links):
+            y0_, y1_ = track.get('rows', (0, len(rows)))
+            rows = [''.join('.' if (x, y) in on else '#' if y0_ <= y <= y1_ else c for x, c in enumerate(r)) for y, r in enumerate(rows)]
+        # (A link is walked from its first tile to its second; a lift ridden up, from its bottom to its top.)
+        ridden = links + [(l[1], l[0]) for l in lifts]
+        if spots[0] not in bfs(rows, door, ridden):
             problems.append((city, 'door', door, 'Gym Trainer spot', spots[0]))
-        if spots[1] not in bfs(rows, spots[0], links):
+        if spots[1] not in bfs(rows, spots[0], ridden):
             problems.append((city, 'Gym Trainer spot', spots[0], 'leader spot', spots[1]))
         im = Image.open(prefix + '.png').crop((x0 * TILE, y0 * TILE, (x1 + 1) * TILE, (y1 + 1) * TILE))
         for (x, y), (fx, fy) in USER_FLOOR.get(city, {}).items():
@@ -374,7 +434,8 @@ def main():
         doc = (f"{title}, Platinum's (the user's): its rooms stacked, in from the city at its door ({door[0]},{door[1]}), each room's middle door a link to the next one's entrance, the Gym Trainer {f"where {who} stands" if city not in USER_GYM_TRAINER else "in the second statue room"} ({stands[0][0]},{stands[0][1]}{"; the user's" if city in USER_GYM_TRAINER else ''}), the leader in their place ({stands[1][0]},{stands[1][1]})." if city in USER_PLATINUM else
                f"{title}, the leader's room: the Gym Trainer where {who} stands ({stands[0][0]},{stands[0][1]}{'; the user' + chr(39) + 's' if city in USER_GYM_TRAINER else ''}), the leader in their place ({stands[1][0]},{stands[1][1]})." if who else
                f"{title}, the leader's room (no trainers in it): the Gym Trainer halfway in ({stands[0][0]},{stands[0][1]}), the leader in their place ({stands[1][0]},{stands[1][1]}).")
-        out.append(gym_ts(const, title, doc, image, len(rows[0]), len(rows), door, spots, stands, guide, rows, overhead, track, links))
+        lifts_ = [(f'/routes/{city}_gym_lift.png', a, b, o) for a, b, o in lifts]
+        out.append(gym_ts(const, title, doc, image, len(rows[0]), len(rows), door, spots, stands, guide, rows, overhead, track, links, lifts_))
         entrances[boss] = (const, entrance_near(rows, spots[1]))
         print(city, 'door', door, 'spots', spots, 'stands', stands, 'guide', guide, 'trainer', who, 'leader room entrance', entrances[boss][1])
 

@@ -4,6 +4,12 @@ maps' renderer (../hgss/render_hgss.py), and writes which tiles can be walked on
 
 Usage: python dp_map.py <out prefix> <MAP_CONST>[,<MAP_CONST>...] [--tilt 0.6] [--apicula <apicula.exe>] [--cache <dir>]
        [--game platinum] (a Platinum map, from pokeplatinum: pt_data.py; Hearthome Gym's, the user's)
+       [--lift <model>[@x,z]] (a platform lift's model, Iron Island's 258, iron_island_platform_lift: left out of the
+       map and drawn alone as <out prefix>_lift.png, its ride in the JSON's `lift`; at tile x,z, 1 tile high, where the
+       map's data hasn't it: B2F's, placed by pokeplatinum's platform_lift.c)
+       [--props <model>@x,z[,y];...] (props the game places by its code, not in the map's data, drawn in the map at
+       those tiles' centres, on the ground or y units up: Canalave Gym's lifts and upper floors)
+       [--no-land --ground <y>] (the props alone, drawn as seen from y units up: Canalave Gym's top floor, Byron's)
 Writes <out prefix>.png, <out prefix>_height.npy (each pixel's model height, for what stands above the ground) and
 <out prefix>.json: the size in tiles and `rows`, one string per tile row: '.' walkable, '#'
 not (collision, doors and warps), '~' water (surfable), and ledges by the way they're jumped: '>' east, '<' west, '^'
@@ -17,10 +23,13 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, '..', 'hgss'))
 import dp_data as dd
 import pt_data
-from render_hgss import Scene, UNIT, _load_glb, _primitives, _accessor
+from PIL import Image
+from render_hgss import Scene, UNIT, S, _load_glb, _primitives, _accessor
 from hgss_data import texture_matrices
 
 CHUNK = 32  # tiles across a terrain chunk
+# A platform lift's ride (pokeplatinum's platform_lift.c, Iron Island's): from 1 tile high to 9, so 8 tiles of height.
+LIFT_RISE = 8 * UNIT
 WATER = {0x10, 0x13, 0x15}  # river, waterfall, sea
 LEDGES = {0x38: '>', 0x39: '<', 0x3A: '^', 0x3B: 'v'}
 BLOCKED = set(range(0x5E, 0x70))  # warp stairs, entrances, doors, escalators, warps
@@ -60,6 +69,14 @@ def main():
     tilt = float(opt('--tilt', '0.6'))
     apicula = opt('--apicula', 'apicula')
     platinum = opt('--game', 'diamond') == 'platinum'
+    props = [(int(m), *(float(v) for v in at.split(','))) for m, _, at in (p.partition('@') for p in (opt('--props', '') or '').split(';') if p)]
+    no_land = '--no-land' in args
+    if no_land:
+        args.remove('--no-land')
+    ground_at = opt('--ground', None)
+    lift_model, _, lift_at = (opt('--lift', '') or '').partition('@')
+    lift_model = lift_model and int(lift_model)
+    lift = None
     data = pt_data if platinum else dd
     cache = opt('--cache', os.path.join(tempfile.gettempdir(), 'pokeplatinum' if platinum else 'pokediamond'))
     out, consts = args[0], args[1].split(',')
@@ -83,6 +100,8 @@ def main():
     snow = [['.'] * W for _ in range(H)]
     parts, ys = [], collections.Counter()
     for c in mine:
+        if no_land:
+            continue
         chunk = dd.land_chunk(data.read(cache, data.LAND_DATA, c['land']))
         ox, oz = (c['x'] - x0) * CHUNK, (c['y'] - y0) * CHUNK
         for ty in range(CHUNK):
@@ -107,21 +126,50 @@ def main():
             except (subprocess.CalledProcessError, StopIteration):
                 print('  building', b['model'], "didn't convert")
                 continue
-            parts.append((bglb, (centre[0] + b['pos'][0], centre[1] + b['pos'][1], centre[2] + b['pos'][2]), texture_matrices(data.read(cache, data.BUILDING, b['model']))))
+            part = (bglb, (centre[0] + b['pos'][0], centre[1] + b['pos'][1], centre[2] + b['pos'][2]), texture_matrices(data.read(cache, data.BUILDING, b['model'])))
+            if b['model'] == lift_model:
+                lift = part
+            else:
+                parts.append(part)
 
+    if lift_model and not lift and lift_at:
+        x, z, *y = (float(v) for v in lift_at.split(','))
+        bm = os.path.join(work, f'bm{lift_model}.nsbmd')
+        open(bm, 'wb').write(data.read(cache, data.BUILDING, lift_model))
+        lift = (convert(apicula, [bm, *prop_tex], os.path.join(work, f'bm{lift_model}')), (x * UNIT, y[0] if y else UNIT, z * UNIT), texture_matrices(data.read(cache, data.BUILDING, lift_model)))
+    for i, (model, x, z, *y) in enumerate(props):
+        bm = os.path.join(work, f'bm{model}.nsbmd')
+        open(bm, 'wb').write(data.read(cache, data.BUILDING, model))
+        parts.append((convert(apicula, [bm, *prop_tex], os.path.join(work, f'bm{model}')), (x * UNIT, y[0] if y else 0, z * UNIT), texture_matrices(data.read(cache, data.BUILDING, model))))
     # The ground's height: the commonest height of the first chunk's vertices (most of it is flat ground).
     for glb, origin, _ in parts[:1]:
         gj, bin_ = _load_glb(glb)
         for m, p in _primitives(gj):
             for y in _accessor(gj, bin_, p['attributes']['POSITION'])[:, 1]:
                 ys[round(y + origin[1])] += 1
-    ground = ys.most_common(1)[0][0] if ys else 0
+    ground = float(ground_at) if ground_at is not None else ys.most_common(1)[0][0] if ys else 0
     scene = Scene(W * 16, H * 16, tilt=tilt, ground=ground)
     for glb, origin, texmtx in parts:
         scene.glb(glb, origin, texmtx)
     scene.render(out + '.png', heights=out + '_height.npy')
+    ride = None
+    if lift:
+        # The platform alone, where the map has it (its bottom: 1 tile high), cut to what's drawn; and the tiles the player
+        # stands on riding it, in the picture's tiles: at its bottom, the middle of it as drawn; at its top, as many rows
+        # up as its ride raises it in the picture (drawn higher the higher it is: LIFT_RISE, at the renderer's tilt).
+        glb, origin, texmtx = lift
+        alone = Scene(W * 16, H * 16, tilt=tilt, ground=ground)
+        alone.glb(glb, origin, texmtx)
+        alone.render(out + '_lift.png', transparent=True)
+        sprite = Image.open(out + '_lift.png')
+        box = sprite.getbbox()
+        sprite.crop(box).save(out + '_lift.png')
+        col = int(origin[0] // UNIT)
+        bottom = (col, int((box[1] + box[3]) / 2 // 16))
+        top = (col, bottom[1] - round(LIFT_RISE * S * tilt / 16))
+        ride = {'top': top, 'bottom': bottom, 'offset': [box[0] - bottom[0] * 16, box[1] - bottom[1] * 16]}
     json.dump({'width': W, 'height': H, 'rows': [''.join(r) for r in rows], 'grass': [''.join(r) for r in grass], 'snow': [''.join(r) for r in snow],
-               'origin': [x0, y0], 'chunks': [[c['x'] - x0, c['y'] - y0, c['land']] for c in mine]}, open(out + '.json', 'w'))
+               'origin': [x0, y0], 'chunks': [[c['x'] - x0, c['y'] - y0, c['land']] for c in mine], **({'lift': ride} if ride else {})}, open(out + '.json', 'w'))
     print('rendered', consts, W, 'x', H, 'tiles; ground', ground)
 
 

@@ -3,7 +3,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
-import { flowAt, inGrass, inLongGrass, isBattleKind, onLongGrassEdge, onPath, onWater, routePath, travelAt, type Route, type RouteSpot } from '@poke-tcg/campaign';
+import { flowAt, inGrass, inLongGrass, isBattleKind, LIFT_MS, LIFT_PAUSE_MS, liftEnd, onLongGrassEdge, onPath, onWater, routePath, travelAt, type Route, type RouteSpot } from '@poke-tcg/campaign';
 import type { PlayerGender } from '@poke-tcg/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCrackedIce } from '../../hooks/useCrackedIce';
@@ -98,7 +98,7 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
   const panLocked = phone && locked;
   // The walk speed (the speed button), and every walk timing at it.
   const [speed, setSpeed] = useState(loadSpeed);
-  const ms = { step: STEP_MS / speed, frame: WALK_FRAME_MS / speed, fade: FADE_MS / speed, through: THROUGH_MS / speed, glide: 700 / speed };
+  const ms = { step: STEP_MS / speed, frame: WALK_FRAME_MS / speed, fade: FADE_MS / speed, through: THROUGH_MS / speed, glide: 700 / speed, lift: LIFT_MS / speed, liftPause: LIFT_PAUSE_MS / speed };
 
   const position = view.position;
   const total = view.steps.length;
@@ -211,7 +211,7 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
     const walk = walks[0];
     setApproach({ position, tile: from, face: facing(from, spot), walking: false });
     // No walking through a gatehouse, or into water (the NPC can't swim: it stays on land).
-    if (!walk?.length || walk.some((s) => s.fade || onWater(shown, s.tile))) return;
+    if (!walk?.length || walk.some((s) => s.fade || s.lift || onWater(shown, s.tile))) return;
     // Kept until the step changes, not when the encounter comes in mid-walk.
     approachTimers.current = walk.map(({ tile }, i) =>
       window.setTimeout(() => setApproach({ position, tile, face: facing(i ? walk[i - 1]!.tile : from, tile), walking: true }), i * ms.step),
@@ -296,6 +296,20 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
             <img src={shown.image} alt="" draggable={false} className="h-full w-full select-none [image-rendering:pixelated]" />
             {shown.crackedIce && cracked.map((t) => <img key={key(t)} src={shown.crackedIce} alt="" draggable={false} className="pointer-events-none absolute select-none [image-rendering:pixelated]" style={{ left: t.x * 16, top: t.y * 16, width: 16, height: 16 }} />)}
             {shown.iceStairsImage && stairs.map((t) => <img key={`stairs${key(t)}`} src={shown.iceStairsImage} alt="" draggable={false} className="pointer-events-none absolute select-none [image-rendering:pixelated]" style={{ left: t.x * 16, top: t.y * 16, width: 16, height: 16 }} />)}
+            {/* A lift's platform (Iron Island's), at the end the player's at (liftEnd), riding with him, under him. */}
+            {shown.lifts?.map((l, i) => {
+              const at = liftEnd(l, walker.tile) === 'top' ? l.top : l.bottom;
+              return (
+                <img
+                  key={`lift${i}`}
+                  src={l.image}
+                  alt=""
+                  draggable={false}
+                  className="pointer-events-none absolute select-none [image-rendering:pixelated]"
+                  style={{ left: at.x * 16 + l.offset.x, top: at.y * 16 + l.offset.y, zIndex: Math.max(0, at.y - 1), transition: walker.riding ? `left ${walker.riding}ms linear, top ${walker.riding}ms linear` : undefined }}
+                />
+              );
+            })}
             {/* The people always there (a gym's guide). */}
             {shown.npcs?.map((n, i) => <OverworldSprite key={`npc${i}`} name={n.sprite} tile={n.tile} face={n.face} grass={masked(n.tile)} longGrass={long(n.tile)} />)}
             {/* Keyed by the spot and option, not the index, so a step's change doesn't remount every figure (their transitions would snap). */}
@@ -327,7 +341,7 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
               tile={walker.tile}
               face={redFace}
               walkTick={walker.walking ? (walker.sliding ? 0 : tick) : undefined}
-              moveMs={walker.jump?.ms ?? (walker.walking ? ms.step / stepPace(shown, walker.tile) : 0)}
+              moveMs={walker.riding ?? walker.jump?.ms ?? (walker.walking ? ms.step / stepPace(shown, walker.tile) : 0)}
               jump={walker.jump}
               fadeMs={ms.fade}
               hidden={walker.hidden}

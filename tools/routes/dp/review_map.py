@@ -1,7 +1,7 @@
 """Draws a Sinnoh run's maps for review, as the run screen's debug overlay shows them (RouteSprites' TileOverlay): every
 tile's coordinates, red where it can't be walked on, green on tall grass, amber on a ledge (an arrow the way it's jumped),
 the entrance (IN, green) and exit (OUT, blue) dashed, what's drawn over the people (the overhead) over them, its tiles
-outlined in cyan, links (two tiles joined by a fade) in violet, each spot ringed in red
+outlined in cyan, links (two tiles joined by a fade) in violet, lifts' rides in amber (the platform where it starts), each spot ringed in red
 and numbered, and every encounter's figure on its spot (a trainer on the route's; the Gym Trainer and the leader at the
 gym's stands, the Gym Guide and other people where they stand). The maps are the campaign's own (run-types.ts), dumped
 with tsx, so the images show what the run screen uses.
@@ -48,6 +48,11 @@ def font(size):
 def draw(route, out, scale, people):
     """One map with its overlay (people: [(sprite, tile)] standing on it)."""
     img = Image.open(os.path.join(PUBLIC, route['image'].lstrip('/'))).convert('RGBA')
+    for l in route.get('lifts') or []:
+        # A lift's platform at the end the player comes in on (above it or below it), as the run screen has it first.
+        at = l['top'] if route['entrance']['y'] <= l['top']['y'] else l['bottom']
+        plat = Image.open(os.path.join(PUBLIC, l['image'].lstrip('/'))).convert('RGBA')
+        img.alpha_composite(plat, (at['x'] * TILE + l['offset']['x'], at['y'] * TILE + l['offset']['y']))
     img = img.resize((img.width * scale, img.height * scale), Image.NEAREST)
     s = TILE * scale
     over = Image.new('RGBA', img.size, (0, 0, 0, 0))
@@ -62,6 +67,11 @@ def draw(route, out, scale, people):
                 d.rectangle(box, fill=fill)
             d.rectangle(box, outline=(15, 23, 42, 90))
             d.text((x * s + 1, y * s + 1), LEDGES[c] if c in LEDGES else f'{x},{y}', fill=(15, 23, 42, 255), font=small)
+    # A lift's ride (its two ends) in amber, as a link's.
+    for a, b in [(l['top'], l['bottom']) for l in route.get('lifts') or []]:
+        for t in (a, b):
+            d.rectangle([t['x'] * s, t['y'] * s, (t['x'] + 1) * s - 1, (t['y'] + 1) * s - 1], outline=(245, 158, 11, 255), width=2)
+        d.line([(a['x'] + 0.5) * s, (a['y'] + 0.5) * s, (b['x'] + 0.5) * s, (b['y'] + 0.5) * s], fill=(245, 158, 11, 255), width=2)
     for a, b in route.get('links') or []:
         for t in (a, b):
             d.rectangle([t['x'] * s, t['y'] * s, (t['x'] + 1) * s - 1, (t['y'] + 1) * s - 1], outline=(139, 92, 246, 255), width=2)

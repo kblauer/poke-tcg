@@ -40,6 +40,8 @@ export interface Walker {
   landed?: { tile: RouteSpot; stamp: number };
   /** Passing through a link (a building's doors, a warp) or into another map, from fading out until his next step: facing as the walk has him. */
   through?: boolean;
+  /** Riding a lift (the route's `lifts`): how long the ride takes, he and its platform gliding there together. */
+  riding?: number;
 }
 
 /** How long a ledge jump takes, in steps' time: FireRed's 32 frames over its two tiles, as two steps' walk. */
@@ -91,7 +93,7 @@ export function useWalk({
   /** Where the figures stand on another map (section), for the walk there once he's come into it. */
   figuresOn: (section: number) => RouteSpot[];
   /** The walk's timings at the walk speed. */
-  ms: { step: number; fade: number; through: number; glide: number };
+  ms: { step: number; fade: number; through: number; glide: number; lift: number; liftPause: number };
   centreOnMap: (map: Route, t: RouteSpot) => { x: number; y: number };
   setGlide: Dispatch<SetStateAction<Glide | null>>;
   setOffset: Dispatch<SetStateAction<{ x: number; y: number }>>;
@@ -108,7 +110,7 @@ export function useWalk({
     let start = from;
     /** Walks a path on a map from `begin`, step by step (through a link, fading out and in), from `t` on. */
     const walk = (on: Route, onSection: number, path: NonNullable<ReturnType<typeof routePath>>, begin: RouteSpot) => {
-      path.forEach(({ tile, fade, under, slide, jump, wait }, i) => {
+      path.forEach(({ tile, fade, lift, under, slide, jump, wait }, i) => {
         // Standing a while first (a track's: Sootopolis Gym's stairs, till they appear).
         if (wait) {
           later(t, () => setWalker((w) => ({ ...w, walking: false })));
@@ -127,6 +129,19 @@ export function useWalk({
           });
           later(t + ms.fade + ms.through, () => setWalker((w) => ({ ...w, hidden: false })));
           t += ms.fade * 2 + ms.through;
+        } else if (lift) {
+          // On a lift (Iron Island's, the user's): stopped on its platform a moment, facing as he got on, then riding it to
+          // its other end, the view following (its platform drawn with him by RouteView).
+          later(t, () => setWalker((w) => ({ ...w, walking: false })));
+          t += ms.liftPause;
+          later(t, () => {
+            setWalker((w) => ({ landed: w.landed, section: onSection, tile, face: w.face, walking: false, hidden: false, riding: ms.lift }));
+            setGlide({ ms: ms.lift, ease: 'linear' });
+            setOffset(centreOnMap(on, tile));
+          });
+          later(t + ms.lift, () => setWalker((w) => ({ ...w, riding: undefined })));
+          // And stopped on it a moment once it's there, before stepping off (the user's: Canalave Gym's, at Byron's).
+          t += ms.lift + ms.liftPause;
         } else if (jump) {
           // Over a ledge (the user's): two tiles in one hop (FireRed's, JUMP_STEPS), walking as he goes, his shadow under him;
           // the dust where he lands.

@@ -4,7 +4,9 @@ import { ITEMS, itemText, MAX_CONSUMABLES_PER_RUN, onlyOne, shopStock } from './
 import { RUN_TYPE_IDS, RUN_TYPES, runType, type RunType, type RunTypeId } from './run-types.js';
 import { ROUTE_4 } from './kanto-routes.js';
 import { JOHTO_BOSS_ROOMS, MAHOGANY_GYM } from './johto-gyms.js';
-import { inGrass, inLongGrass, onLongGrassEdge, onPath, onThinIce, PEWTER_GYM, ROUTE_2, routePath, travelAt, type Route, type RouteSpot } from './routes.js';
+import { inGrass, inLongGrass, liftEnd, onLongGrassEdge, onPath, onThinIce, PEWTER_GYM, ROUTE_2, routePath, travelAt, type Route, type RouteSpot } from './routes.js';
+import { IRON_ISLAND_B1F, IRON_ISLAND_B2F, IRON_ISLAND_B3F } from './sinnoh-routes.js';
+import { CANALAVE_GYM } from './sinnoh-gyms.js';
 import { applyRunAction, bankablePokedollars, battleReward, battleSetup, battlesCompleted, battlesFought, createRun, isBattleKind, isBossKind, landNear, MAX_CENTERS, REQUIRED_BATTLES, MAX_HP, needsBattle, runView, STARTING_POKEDOLLARS, withConsumablesBefore, carriedConsumables, parsePendingConsumable, type EncounterKind, type RunAction, type RunState, type RunSystemAction } from './run.js';
 import { GEN2_SETS, GEN3_SETS, GEN4_SETS } from './pool.js';
 import { GEN2_TEST_POOL, GEN3_TEST_POOL, GEN4_TEST_POOL, TEST_POOL } from './test-pool.js';
@@ -163,6 +165,29 @@ describe('createRun', () => {
     expect(tiles(routePath(across, { x: 0, y: 2 }, { x: 4, y: 2 }))).toEqual(['1,2', '2,2', '3,2', '4,2']);
     const round = routePath(across, { x: 2, y: 1 }, { x: 2, y: 4 })!;
     expect([round.length, round.some(({ tile }) => tile.x >= 1 && tile.x <= 3 && tile.y >= 2 && tile.y <= 3)]).toEqual([7, false]);
+  });
+
+  it("a lift is ridden between its ends as one step, its platform at the end the player can walk to (Iron Island's)", () => {
+    // A 3x7 map: the floor above (rows 0-1) and the pit (rows 5-6), the shaft between them unwalkable; the lift from 1,1 to 1,5.
+    const lift = { image: '', top: { x: 1, y: 1 }, bottom: { x: 1, y: 5 }, offset: { x: 0, y: 0 } };
+    const map: Route = { name: 'Lift', flow: 'down', image: '', width: 48, height: 112, spots: [], walkable: ['...', '...', '###', '###', '###', '...', '...'], lifts: [lift] };
+    const walk = routePath(map, { x: 0, y: 0 }, { x: 2, y: 6 })!;
+    expect(walk.map(({ tile, lift: l }) => `${tile.x},${tile.y}${l ? 'L' : ''}`)).toEqual(['1,0', '1,1', '1,5L', '2,5', '2,6']);
+    expect(walk.some((s) => s.fade)).toBe(false);
+    expect([liftEnd(lift, { x: 0, y: 0 }), liftEnd(lift, { x: 2, y: 6 })]).toEqual(['top', 'bottom']);
+    // Without it, no way down.
+    expect(routePath({ ...map, lifts: undefined }, { x: 0, y: 0 }, { x: 2, y: 6 })).toBeNull();
+    // Iron Island's floors: each one's lift ridden once on its walk, from the floor above down to its stairs (B1F, B2F),
+    // or up from the stairs it's come in at (B3F).
+    // And Canalave Gym's, up from its ground floor to Byron's (the user's).
+    for (const floor of [IRON_ISLAND_B1F, IRON_ISLAND_B2F, IRON_ISLAND_B3F, { ...CANALAVE_GYM, exit: CANALAVE_GYM.spots.at(-1)! }]) {
+      const stops = [floor.entrance!, ...floor.spots, floor.exit!];
+      const rides = stops.slice(1).flatMap((to, i) => routePath(floor, stops[i]!, to)!.filter((s) => s.lift));
+      expect(rides.length, floor.name).toBe(1);
+      // The platform where he comes in, at the other end once he's ridden it.
+      const lift = floor.lifts![0]!;
+      expect(liftEnd(lift, floor.entrance!) !== liftEnd(lift, floor.exit!), floor.name).toBe(true);
+    }
   });
 
   it('every route and gym has an entrance, and on a route the player can walk from it to the first spot', () => {
