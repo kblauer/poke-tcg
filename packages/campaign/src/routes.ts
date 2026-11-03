@@ -78,9 +78,11 @@ export interface Route {
   /**
    * What's drawn over the people walking under it (Route 32's Magnet Train bridge): an image the map's size, see-through
    * elsewhere (tools/routes/hgss/johto_routes.py's OVERHEAD). On a map with a `track`, only while the player is on one of
-   * its `under` tiles (he also walks over the bridge).
+   * its `under` tiles (he also walks over the bridge); with `overheadAt`, only while he's on one of those (the Elite Four's
+   * doorways, the user's: their arch over him in the doorway, not once he's stepped into the room).
    */
   overhead?: string;
+  overheadAt?: RouteSpot[];
   /**
    * The one way through (Goldenrod Gym's walkways and bridges, from the user): its tiles in the order walked, from the
    * door past every spot. A walk between two of its tiles follows it, never cutting across where it crosses itself (over

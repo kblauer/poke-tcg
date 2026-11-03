@@ -182,6 +182,16 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
   const gears = useGears(shown, walker.tile, walker.walking);
   // How far below its tile each person is drawn: on a lower floor (dropAt: Snowpoint Gym's pit).
   const drop = (tile: RouteSpot) => dropAt(shown, tile);
+  // A map's overhead only over its `overheadAt` tiles (the Elite Four's doorways): over him there, and until his step off one is done.
+  const atOverhead = !!shown.overheadAt?.some((t) => t.x === walker.tile.x && t.y === walker.tile.y);
+  const [overheadOn, setOverheadOn] = useState(atOverhead);
+  useEffect(() => {
+    if (atOverhead) return setOverheadOn(true);
+    const timer = window.setTimeout(() => setOverheadOn(false), stepMs);
+    return () => window.clearTimeout(timer);
+    // Only as he comes onto or off one of them.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [atOverhead]);
   // How far each person is sunk into deep snow (snowSink: Route 217's).
   const sink = (tile: RouteSpot) => snowSink(shown, tile);
   // Tall grass on the Gen 3 maps is the games' own, drawn over the feet of those in it (TallGrass, GrassTufts: FireRed's,
@@ -414,7 +424,7 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
             )}
             {/* What's over the people walking under it (a bridge): above every sprite (zIndex: their row), below the bubbles and "!";
                 on a track (walked over the bridge too), only while the player is under it. */}
-            {shown.overhead && (!shown.track || walker.under) && <img src={shown.overhead} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full select-none [image-rendering:pixelated]" style={{ zIndex: 899 }} />}
+            {shown.overhead && (!shown.track || walker.under) && (!shown.overheadAt || overheadOn) && <img src={shown.overhead} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full select-none [image-rendering:pixelated]" style={{ zIndex: 899 }} />}
             {/* A bridge walked over and under (the route's `bridges`): its deck over him only while he's under it. */}
             {shown.bridgeOverhead && walker.under && <img src={shown.bridgeOverhead} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full select-none [image-rendering:pixelated]" style={{ zIndex: 899 }} />}
             {spottedFigure && <Exclamation tile={spottedFigure.tile} drop={drop(spottedFigure.tile)} />}

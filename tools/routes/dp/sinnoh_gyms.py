@@ -51,6 +51,11 @@ LEAGUE = {
     'cynthia': ('MAP_POKEMON_LEAGUE_CYNTHIA_ROOM', 'CHAMPION', 'cynthia', 'CYNTHIAS_ROOM', "Cynthia's Room"),
 }
 CENTER = ('MAP_PASTORIA_POKECENTER', 'MAP_PASTORIA', 'PCWOMAN1')
+# The Elite Four's rooms (the user's, 2026-11-03, in the room's tiles after its crop): in at their doorway, 8,12, under
+# its arch, the front wall's pixels in 7-9,10-12 (higher than the floor: its top ledge down to the arch, the user's) drawn over the player only while he's there
+# and on his way up through it, to the top of 8,10, still mostly wall (the Route's `overheadAt`: 8,10-12, the user's),
+# not once he's stepped past it into the room.
+USER_LEAGUE = {key: {'in': (8, 12), 'arch': [(x, y) for x in (7, 8, 9) for y in (10, 11, 12)], 'under': [(8, 12), (8, 11), (8, 10)]} for key in ('aaron', 'bertha', 'flint', 'lucian')}
 # The user's fixes, in the gym's own tiles (after the crop): the door the player comes in at (made walkable), and the Gym
 # Trainer's spot (the player's) and where they stand. Oreburgh Gym (2026-10-31, 2026-11-01): in at 5,25, the bottom of the
 # doormat; the Gym Trainer in Youngster Darius's place, 7,11, the player at 5,11. Hearthome Gym's at 17,26 in its second
@@ -368,7 +373,7 @@ def tile_levels(heights, x0, y0, x1, y1, ground):
     return out
 
 
-def gym_ts(const, title, doc, image, w, h, door, spots, stands, guide, rows, overhead=None, track=None, links=(), lifts=(), slides=None, gears=None):
+def gym_ts(const, title, doc, image, w, h, door, spots, stands, guide, rows, overhead=None, track=None, links=(), lifts=(), slides=None, gears=None, overhead_at=()):
     legs = lambda: ', '.join('{ ' + ('under: true, ' if leg.get('under') else '') + f"to: [{', '.join(f'[{x}, {y}]' for x, y in leg['to'])}] }}" for leg in track['legs'])
     track_ = f"\n  track: trackLine([{track['start'][0]}, {track['start'][1]}], {legs()})," if track else ''
     lifts_ = ('\n  lifts: [' + ', '.join(f"{{ image: '{i}', top: {{ x: {t[0]}, y: {t[1]} }}, bottom: {{ x: {b[0]}, y: {b[1]} }}, offset: {{ x: {o[0]}, y: {o[1]} }} }}" for i, t, b, o in lifts) + '],') if lifts else ''
@@ -393,7 +398,7 @@ export const {const}: Route = {{
   flow: 'up',
   sprites: 'dp',
   name: {name},
-  image: '/routes/{image}',{f"{chr(10)}  overhead: '/routes/{overhead}'," if overhead else ''}
+  image: '/routes/{image}',{f"{chr(10)}  overhead: '/routes/{overhead}'," if overhead else ''}{f"{chr(10)}  overheadAt: [{', '.join(f'{{ x: {x}, y: {y} }}' for x, y in overhead_at)}]," if overhead_at else ''}
   width: {w * TILE},
   height: {h * TILE},
   entrance: {{ x: {door[0]}, y: {door[1]} }},{track_}{links_}{lifts_}
@@ -603,19 +608,35 @@ def main():
         spot = nearest_walkable(rows, (stand[0], stand[1] + (2 if key == 'center' else 1)), (0, 1))
         if key != 'center':
             ent = entrance_near(rows, spot)
+            # The room alone: none of the empty map past its door walkable (nothing drawn there), so it's cropped to the room.
+            pic = np.asarray(Image.open(prefix + '.png').convert('RGB'))
+            rows = [''.join(c if pic[y * TILE:(y + 1) * TILE, x * TILE:(x + 1) * TILE].max() > 16 else '#' for x, c in enumerate(r)) for y, r in enumerate(rows)]
         x0, y0, x1, y1 = crop_box(rows, ent, [stand, spot])
         shift = lambda t: (t[0] - x0, t[1] - y0)
         rows = [r[x0:x1 + 1] for r in rows[y0:y1 + 1]]
         stand, spot, ent = shift(stand), shift(spot), shift(ent)
         image = 'dp_pokemonleague_' + key + 's_room.png' if key != 'center' else 'dp_pastoria_pokemoncenter_1f.png'
-        Image.open(prefix + '.png').crop((x0 * TILE, y0 * TILE, (x1 + 1) * TILE, (y1 + 1) * TILE)).save(os.path.join(PUBLIC, image))
+        im = Image.open(prefix + '.png').crop((x0 * TILE, y0 * TILE, (x1 + 1) * TILE, (y1 + 1) * TILE))
+        im.save(os.path.join(PUBLIC, image))
+        overhead = None
+        if key in USER_LEAGUE:
+            ent = USER_LEAGUE[key]['in']
+            rows[ent[1]] = rows[ent[1]][:ent[0]] + '.' + rows[ent[1]][ent[0] + 1:]
+            heights = np.load(prefix + '_height.npy')[y0 * TILE:(y1 + 1) * TILE, x0 * TILE:(x1 + 1) * TILE]
+            src, dst = np.asarray(im.convert('RGBA')), np.zeros((im.height, im.width, 4), np.uint8)
+            for x, y in USER_LEAGUE[key]['arch']:
+                box = (slice(y * TILE, (y + 1) * TILE), slice(x * TILE, (x + 1) * TILE))
+                dst[box][heights[box] > 2] = src[box][heights[box] > 2]
+            overhead = image.replace('.png', '_overhead.png')
+            Image.fromarray(dst).save(os.path.join(PUBLIC, overhead))
         if key == 'center':
             doc = f"A Pokémon Center's ground floor (Pastoria City's, Diamond's; agreed with the user), for the Pokémon Center in the middle of the Sinnoh Gym Challenge: the player comes in at the door ({ent[0]},{ent[1]}) and walks up to the counter ({spot[0]},{spot[1]}), the nurse behind it ({stand[0]},{stand[1]})."
         else:
-            doc = f"{title} at the Pokémon League (Diamond's), for the Sinnoh Champion run: {title.split(chr(39))[0]} in their place ({stand[0]},{stand[1]}), the player coming in 5 tiles from them ({ent[0]},{ent[1]})."
+            doc = (f"{title} at the Pokémon League (Diamond's), for the Sinnoh Champion run: {title.split(chr(39))[0]} in their place ({stand[0]},{stand[1]}), the player coming in "
+                   + (f"at its doorway ({ent[0]},{ent[1]}), under its arch (the user's)." if key in USER_LEAGUE else f"5 tiles from them ({ent[0]},{ent[1]})."))
             const = 'SINNOH_' + const
             rooms[boss] = const
-        out.append(gym_ts(const, title, doc, image, len(rows[0]), len(rows), ent, [spot], [stand], None, rows))
+        out.append(gym_ts(const, title, doc, image, len(rows[0]), len(rows), ent, [spot], [stand], None, rows, overhead, overhead_at=USER_LEAGUE[key]['under'] if key in USER_LEAGUE else ()))
         print(key, 'entrance', ent, 'spot', spot, 'stand', stand)
 
     # Each Sinnoh boss's map for the Gym Challenge and Champion runs.
