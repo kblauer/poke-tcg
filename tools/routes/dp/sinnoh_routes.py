@@ -117,7 +117,9 @@ USER_WALKABLE = {'eterna_forest': [(74, 31)] + [(x, 56) for x in range(32, 36)],
                                     + [(x, 51) for x in range(40, 53)],
                  'route213': [(66, 17)]}
 # Route 215: 35-36,7 and 13-14,11 (the user's), and 24-27,7, the top bridge's west platform's wall. Valor Lakefront: above.
-USER_BLOCKED = {'route215': [(35, 7), (36, 7), (13, 11), (14, 11), (24, 7), (25, 7), (26, 7), (27, 7)],
+# Route 212: 54-63,115 and 48-51,119 (the user's, 2026-11-02).
+USER_BLOCKED = {'route212': [(x, 115) for x in range(54, 64)] + [(x, 119) for x in range(48, 52)],
+                'route215': [(35, 7), (36, 7), (13, 11), (14, 11), (24, 7), (25, 7), (26, 7), (27, 7)],
                 'valor_lakefront': [(40, y) for y in range(52, 56)] + [(x, y) for x in (49, 50) for y in (47, 48)] + [(x, 47) for x in range(39, 46)]
                                    + [(37, y) for y in range(54, 58)] + [(x, 61) for x in range(26, 33)] + [(x, y) for x in range(36, 44) for y in (61, 62)]
                                    + [(x, y) for x in range(32, 37) for y in (49, 50)],
@@ -253,11 +255,12 @@ def thin(mask):
     return out
 
 
-def overhead(img, rows, heights, treetops, never=(), mouths=(), bridges=(), green=False, rocks=False):
+def overhead(img, rows, heights, treetops, never=(), mouths=(), bridges=(), green=False, rocks=False, tall=TREETOP_HIGH):
     """The map's overhead image (see-through but for what's drawn over the player), or None, from `heights` (each pixel's
     model height): the treetops in the `treetops` tiles above its trees (USER_TREETOPS, USER_TREETOP_ROWS; 0: none; only their green pixels if `green`, USER_TREETOP_GREEN, but by
     `rocks`, USER_ROCKS, a tall rock's whatever their colour: one standing alone, ROCK_TILES tiles or fewer) but on the `never` tiles, and the rock in
-    front of its cave `mouths` (USER_CAVE_MOUTHS), and the decks of the `bridges` over the walk (USER_BRIDGES)."""
+    front of its cave `mouths` (USER_CAVE_MOUTHS), and the decks of the `bridges` over the walk (USER_BRIDGES). What's
+    more than `tall` above the ground is a treetop."""
     img = img.convert('RGBA')
     h, w = len(rows), len(rows[0])
     src, dst = np.asarray(img), np.zeros((img.height, img.width, 4), np.uint8)
@@ -291,7 +294,7 @@ def overhead(img, rows, heights, treetops, never=(), mouths=(), bridges=(), gree
             # The ground at its own level: the highest of the ground near it no higher than its own lower pixels.
             own = np.nanpercentile(tile(x, y), 25)
             ground = max((g for g in near if g <= own + 2), default=min(near))
-            high = tile(x, y) > ground + TREETOP_HIGH
+            high = tile(x, y) > ground + tall
             if green and (x, y) not in rocky:
                 r, g, b = (src[y * TILE:(y + 1) * TILE, x * TILE:(x + 1) * TILE, c].astype(int) for c in range(3))
                 high &= (g >= np.maximum(r, b) + 16) & (b < 100)  # the leaves: not the stairs' rails nor the platforms' grass

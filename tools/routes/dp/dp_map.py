@@ -3,6 +3,7 @@ Sinnoh routes use them: its terrain chunks and buildings converted to GLB with a
 maps' renderer (../hgss/render_hgss.py), and writes which tiles can be walked on.
 
 Usage: python dp_map.py <out prefix> <MAP_CONST>[,<MAP_CONST>...] [--tilt 0.6] [--apicula <apicula.exe>] [--cache <dir>]
+       [--game platinum] (a Platinum map, from pokeplatinum: pt_data.py; Hearthome Gym's, the user's)
 Writes <out prefix>.png, <out prefix>_height.npy (each pixel's model height, for what stands above the ground) and
 <out prefix>.json: the size in tiles and `rows`, one string per tile row: '.' walkable, '#'
 not (collision, doors and warps), '~' water (surfable), and ledges by the way they're jumped: '>' east, '<' west, '^'
@@ -15,6 +16,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, '..', 'hgss'))
 import dp_data as dd
+import pt_data
 from render_hgss import Scene, UNIT, _load_glb, _primitives, _accessor
 from hgss_data import texture_matrices
 
@@ -41,10 +43,10 @@ def convert(apicula, files, out):
     return next(os.path.join(out, f) for f in os.listdir(out) if f.endswith('.glb'))
 
 
-def map_cells(cache, headers, consts):
+def map_cells(cache, headers, consts, data=dd):
     """The matrix cells of the maps (`consts`, one matrix), and their matrix's first map's header."""
     first = headers[consts[0]]
-    _, _, cells = dd.matrix(cache, first['matrix'])
+    _, _, cells = data.matrix(cache, first['matrix'])
     ids = {headers[c]['id'] for c in consts}
     return first, [c for c in cells if c['land'] != 0xFFFF and (c['header'] is None or c['header'] in ids)]
 
@@ -57,16 +59,23 @@ def main():
         return default
     tilt = float(opt('--tilt', '0.6'))
     apicula = opt('--apicula', 'apicula')
-    cache = opt('--cache', os.path.join(tempfile.gettempdir(), 'pokediamond'))
+    platinum = opt('--game', 'diamond') == 'platinum'
+    data = pt_data if platinum else dd
+    cache = opt('--cache', os.path.join(tempfile.gettempdir(), 'pokeplatinum' if platinum else 'pokediamond'))
     out, consts = args[0], args[1].split(',')
 
-    headers = dd.map_headers(cache)
-    first, mine = map_cells(cache, headers, consts)
+    headers = data.map_headers(cache)
+    first, mine = map_cells(cache, headers, consts, data)
     x0, y0 = min(c['x'] for c in mine), min(c['y'] for c in mine)
     cw, ch = max(c['x'] for c in mine) - x0 + 1, max(c['y'] for c in mine) - y0 + 1
-    textures = dd.read(cache, dd.MAP_TEXTURES, dd.area_textures(cache, first['area']))
+    textures = data.read(cache, data.MAP_TEXTURES, data.area_textures(cache, first['area']))
     work = tempfile.mkdtemp(prefix='dp_map_')
     tex_path = os.path.join(work, 'tex.nsbtx'); open(tex_path, 'wb').write(textures)
+    # Platinum's props have their own texture set (the area's); Diamond's are drawn with the map's.
+    prop_tex = [tex_path]
+    if platinum:
+        prop_tex = [os.path.join(work, 'proptex.nsbtx'), tex_path]
+        open(prop_tex[0], 'wb').write(pt_data.prop_textures(cache, first['area']))
 
     W, H = cw * CHUNK, ch * CHUNK
     rows = [['#'] * W for _ in range(H)]
@@ -74,7 +83,7 @@ def main():
     snow = [['.'] * W for _ in range(H)]
     parts, ys = [], collections.Counter()
     for c in mine:
-        chunk = dd.land_chunk(dd.read(cache, dd.LAND_DATA, c['land']))
+        chunk = dd.land_chunk(data.read(cache, data.LAND_DATA, c['land']))
         ox, oz = (c['x'] - x0) * CHUNK, (c['y'] - y0) * CHUNK
         for ty in range(CHUNK):
             for tx in range(CHUNK):
@@ -92,13 +101,13 @@ def main():
         for b in chunk['buildings']:
             bm = os.path.join(work, f"bm{b['model']}.nsbmd")
             if not os.path.exists(bm):
-                open(bm, 'wb').write(dd.read(cache, dd.BUILDING, b['model']))
+                open(bm, 'wb').write(data.read(cache, data.BUILDING, b['model']))
             try:
-                bglb = convert(apicula, [bm, tex_path], os.path.join(work, f"bm{b['model']}"))
+                bglb = convert(apicula, [bm, *prop_tex], os.path.join(work, f"bm{b['model']}"))
             except (subprocess.CalledProcessError, StopIteration):
                 print('  building', b['model'], "didn't convert")
                 continue
-            parts.append((bglb, (centre[0] + b['pos'][0], centre[1] + b['pos'][1], centre[2] + b['pos'][2]), texture_matrices(dd.read(cache, dd.BUILDING, b['model']))))
+            parts.append((bglb, (centre[0] + b['pos'][0], centre[1] + b['pos'][1], centre[2] + b['pos'][2]), texture_matrices(data.read(cache, data.BUILDING, b['model']))))
 
     # The ground's height: the commonest height of the first chunk's vertices (most of it is flat ground).
     for glb, origin, _ in parts[:1]:

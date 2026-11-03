@@ -1,7 +1,7 @@
 // The Sinnoh gyms' interiors, from Diamond and Pearl (the pret/pokediamond decompilation; tools/routes/dp/), as the Johto
 // gyms have HGSS's (johto-gyms.ts): each the leader's room, drawn as the Sinnoh routes are (dp_map.py), cropped to the
-// room. The door the player comes in at, the Gym Trainer where the gym's trainer nearest halfway in stands (the player
-// beside them, on the side they face; Hearthome's, with no trainer in Fantina's room, halfway in), the leader in their
+// room (Hearthome's with its first question room beside it, the user's). The door the player comes in at, the Gym Trainer
+// where the gym's trainer nearest halfway in stands (the player beside them, on the side they face), the leader in their
 // place (the player below them), and the Gym Guide where there is one, all from the map's events. Walking connections the
 // map data doesn't show (a gym's puzzle) come from the user. Then the Sinnoh Gym Challenge and Champion runs' other rooms:
 // the Pokémon League's, each boss in their place and the player coming in 5 tiles from them, and Pastoria's Pokémon Center;
@@ -58,7 +58,7 @@ export const OREBURGH_GYM: Route = {
   ],
 };
 
-/** Eterna Gym, the leader's room: the Gym Trainer where its trainer stands (19,18), the leader in their place (12,3). */
+/** Eterna Gym, the leader's room (no trainers in it): the Gym Trainer halfway in (19,18), the leader in their place (12,3). */
 export const ETERNA_GYM: Route = {
   flow: 'up',
   sprites: 'dp',
@@ -228,38 +228,88 @@ export const PASTORIA_GYM: Route = {
   ],
 };
 
-/** Hearthome Gym, the leader's room (no trainers in it): the Gym Trainer halfway in (9,7), the leader in their place (9,5). */
+/** Hearthome Gym, Platinum's (the user's): its rooms stacked, in from the city at its door (14,59), each room's middle door a link to the next one's entrance, the Gym Trainer in the second statue room (17,25; the user's), the leader in their place (14,10). */
 export const HEARTHOME_GYM: Route = {
   flow: 'up',
   sprites: 'dp',
   name: 'Hearthome Gym',
   image: '/routes/hearthome_gym.png',
-  width: 304,
-  height: 224,
-  entrance: { x: 9, y: 12 },
+  overhead: '/routes/hearthome_gym_overhead.png',
+  width: 448,
+  height: 976,
+  entrance: { x: 14, y: 59 },
+  links: [[{ x: 14, y: 53 }, { x: 14, y: 49 }], [{ x: 14, y: 41 }, { x: 14, y: 37 }], [{ x: 14, y: 17 }, { x: 14, y: 13 }]],
   spots: [
-    { x: 9, y: 8 },
-    { x: 9, y: 6 },
+    { x: 17, y: 26 },
+    { x: 14, y: 11 },
   ],
   stands: [
-    { x: 9, y: 7 },
-    { x: 9, y: 5 },
+    { x: 17, y: 25 },
+    { x: 14, y: 10 },
   ],
+  npcs: [{ sprite: 'dp/sunglasses', tile: { x: 15, y: 57 }, face: 'down' }],
   walkable: [
-    '###################',
-    '###################',
-    '###################',
-    '#.................#',
-    '#.................#',
-    '#.................#',
-    '#.................#',
-    '#.................#',
-    '#.................#',
-    '#.................#',
-    '#.................#',
-    '#.................#',
-    '#.................#',
-    '###################',
+    '############################',
+    '############################',
+    '############################',
+    '#######################.####',
+    '#######################..###',
+    '#######################..###',
+    '#######################..###',
+    '#######################..###',
+    '############.....######..###',
+    '###########..............###',
+    '###########..............###',
+    '###########.......##########',
+    '###########.......#......###',
+    '############.....##......###',
+    '##########..#####........###',
+    '############################',
+    '############################',
+    '##############.#############',
+    '#.#...#....#....#....#....#.',
+    '#.##..###..#...####..###.##.',
+    '#.#..##...###...#...##....#.',
+    '#...........................',
+    '#.#####.......#.......#####.',
+    '#...#.........#.........#...',
+    '#...#..####.##########..#...',
+    '#........#....#....#........',
+    '####.###.#....#....#.###....',
+    '#...........................',
+    '#.....###..###.###..###.#...',
+    '#.......................#...',
+    '#.......####.....####.######',
+    '#.........#...#...#.....#...',
+    '#.........#...#...#.....#...',
+    '#...........######..........',
+    '########......#......#######',
+    '########.###..#..###.#######',
+    '########..#.......#..#######',
+    '########.............#######',
+    '############################',
+    '############################',
+    '############################',
+    '##############.#############',
+    '#######.#...#...#...#.######',
+    '#######...............######',
+    '##########.#.#.#.#.#########',
+    '#######.#....#.#......######',
+    '#######.#...#####..#..######',
+    '#######.....#......#..######',
+    '#######.###.......###.######',
+    '#######...............######',
+    '############################',
+    '############################',
+    '############################',
+    '##############.#############',
+    '###########..........#######',
+    '###########...........######',
+    '###########.......##########',
+    '###########.#...#.##########',
+    '###########.......##########',
+    '###########.......##########',
+    '############################',
   ],
 };
 
@@ -696,7 +746,7 @@ export const SINNOH_BOSS_ROOMS: Record<SinnohBossId, Route> = {
   gardenia: leaderRoom(ETERNA_GYM, { x: 12, y: 8 }),
   maylene: leaderRoom(VEILSTONE_GYM, { x: 11, y: 9 }),
   'crasher-wake': leaderRoom(PASTORIA_GYM, { x: 13, y: 9 }),
-  fantina: leaderRoom(HEARTHOME_GYM, { x: 9, y: 10 }),
+  fantina: leaderRoom(HEARTHOME_GYM, { x: 12, y: 13 }),
   byron: leaderRoom(CANALAVE_GYM, { x: 16, y: 8 }),
   candice: leaderRoom(SNOWPOINT_GYM, { x: 11, y: 8 }),
   volkner: leaderRoom(SUNYSHORE_GYM, { x: 11, y: 8 }),
