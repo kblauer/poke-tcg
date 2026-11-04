@@ -39,6 +39,7 @@ function hit(ctx: MoveCtx, after?: (h: Hit) => void, o: Parameters<Battle['strik
   const h = b.strike(ctx, o);
   if (h.toMon && ctx.type === 'fire' && target.status === 'freeze') b.cureStatus(target, `${b.Name(target)} was defrosted!`);
   b.contact(user, target, ctx.move, h);
+  kingsRock(ctx, h);
   after?.(h);
   b.colorChange(ctx, h);
   b.destinyBond(user, target);
@@ -275,9 +276,10 @@ function eatBerry(b: Battle, eater: Battler, item: string) {
     if (heal(Math.floor(eater.maxHp / holdParam)) && eater.mon.nature % 5 === FLAVOURS[hold] && Math.floor(eater.mon.nature / 5) !== eater.mon.nature % 5) b.confuse(eater, null);
   } else if (stats[hold]) b.changeStat(eater, stats[hold], 1, true);
   else if (hold === 'pinch_random_up') {
-    const open = (['atk', 'def', 'spe', 'spa', 'spd', 'acc', 'eva'] as const).filter((s) => eater.stages[s] < 6);
+    const open = (['atk', 'def', 'spe', 'spa', 'spd'] as const).filter((s) => eater.stages[s] < 6);
     if (open.length) b.changeStat(eater, open[b.random16() % open.length]!, 2, true);
-  } else if (hold === 'pinch_critrate_up') {
+  } else if (hold === 'pinch_acc_up') eater.v.micle = true;
+  else if (hold === 'pinch_critrate_up') {
     eater.v.focusEnergy = true;
     b.text(`${b.Name(eater)} is getting pumped!`);
   }
@@ -1151,6 +1153,7 @@ export const EFFECTS: Record<string, Effect> = {
       if (t.v.attractedTo !== undefined || (b.gen4 ? b.targetHas(user, t, 'oblivious') : t.ability === 'oblivious') || !user.mon.gender || !t.mon.gender || user.mon.gender === t.mon.gender) return fail(b);
       t.v.attractedTo = user.side;
       b.text(`${b.Name(t)} fell in love!`);
+      b.destinyKnot(t);
     }, { substitute: !ctx.b.gen4 }),
 
   // ---- Stats ----
@@ -1602,7 +1605,8 @@ export const EFFECTS: Record<string, Effect> = {
     }, { substitute: false }),
   teleport: (ctx) => {
     const { b, user } = ctx;
-    if (b.setup.kind !== 'wild' || user.v.meanLook || user.v.trapped) {
+    if (b.setup.kind !== 'wild') return fail(b);
+    if (user.v.meanLook || user.v.trapped) {
       if (!(b.gen4 && (user.ability === 'run-away' || b.holdEffect(user) === 'flee'))) return fail(b);
     }
     if (b.gen4 && user.ability !== 'run-away' && b.holdEffect(user) !== 'flee') {
@@ -1645,6 +1649,14 @@ function drain(ctx: MoveCtx, h: Hit) {
     if (!(b.gen4 && user.ability === 'magic-guard')) b.damage(user, amount, { msg: `${b.Name(user)} sucked up the liquid ooze!` });
   } else if (b.gen4 && user.v.healBlock) b.text(`${b.Name(user)} was prevented from healing due to Heal Block!`);
   else b.heal(user, amount, `${b.Name(target)} had its energy drained!`);
+}
+
+/** Gen 4's King's Rock and Razor Fang (TryItemFlinch): 10% (no Serene Grace) to flinch with a move that can, once it hurt the target. */
+function kingsRock(ctx: MoveCtx, h: Hit) {
+  const { b, user, target } = ctx;
+  if (!b.gen4 || b.holdEffect(user) !== 'flinch_chance' || !h.toMon || h.dealt <= 0 || target.hp <= 0 || !ctx.move.flags.includes('kings_rock_affected')) return;
+  if (b.random16() % 100 >= itemData(user.item!).holdParam || b.targetHas(user, target, 'inner-focus') || b.movedThisTurn.has(target.side)) return;
+  target.v.flinch = true;
 }
 
 /** Gen 4's Reckless: recoil moves' power 1.2x. */

@@ -458,3 +458,90 @@ describe("Gen 4's abilities", () => {
       expect(f.types).toEqual(['fire']);
     }));
 });
+
+describe("Gen 4's held items", () => {
+  it('eats a Sitrus Berry right after the hit that halves it, and a Lum Berry after a status', () =>
+    johto(() => {
+      const b = duel(true, 1);
+      const [u, f] = b.active;
+      f.item = 'sitrus-berry';
+      f.hp = Math.floor(f.maxHp / 2) + 2;
+      b.useMove(u, 'tackle');
+      b.heldItemCheck(f);
+      expect(f.item).toBeNull();
+      expect(f.usedItem).toBe('sitrus-berry');
+      f.item = 'lum-berry';
+      b.useMove(u, 'thunder-wave');
+      b.heldItemCheck(f);
+      expect([f.status, f.item]).toEqual([null, null]);
+    }));
+
+  it('halves a super-effective hit with a type-resist Berry', () =>
+    johto(() => {
+      const b = duel(true, 1);
+      const [u, f] = b.active;
+      b.useMove(u, 'ember');
+      const full = f.maxHp - f.hp;
+      f.hp = f.maxHp;
+      f.item = 'occa-berry';
+      b.useMove(u, 'ember');
+      expect(f.maxHp - f.hp).toBe(Math.floor(full / 2));
+      expect(f.item).toBeNull();
+    }));
+
+  it('takes a tenth back with the Life Orb and heals an eighth with the Shell Bell', () =>
+    johto(() => {
+      const b = duel(true, 1);
+      const [u, f] = b.active;
+      u.item = 'life-orb';
+      b.useMove(u, 'tackle');
+      expect(u.maxHp - u.hp).toBe(Math.floor(u.maxHp / 10));
+      u.item = 'shell-bell';
+      const before = u.hp;
+      const foeBefore = f.hp;
+      b.useMove(u, 'tackle');
+      expect(u.hp - before).toBe(Math.max(1, Math.floor((foeBefore - f.hp) / 8)));
+    }));
+
+  it('locks a Choice holder into its first move, its basic move meanwhile', () =>
+    johto(() => {
+      const b = duel(true);
+      const u = b.active[0];
+      u.item = 'choice-band';
+      u.slots = ['ember', 'quick-attack'];
+      b.useMove(u, 'ember');
+      expect(u.v.choiceMove).toBe('ember');
+      expect(b.selectable(u, 'quick-attack')).toBe(false);
+      expect(b.selectable(u, u.basic)).toBe(true);
+      u.item = null;
+      expect(b.selectable(u, 'quick-attack')).toBe(true);
+    }));
+
+  it('badly poisons with the Toxic Orb at the end of turn, and resets a lowered stat with the White Herb', () =>
+    johto(() => {
+      const b = duel(true);
+      const [u, f] = b.active;
+      u.item = 'toxic-orb';
+      endTurn(b);
+      expect(u.status).toBe('toxic');
+      f.item = 'white-herb';
+      f.ability = 'blaze';
+      u.ability = 'intimidate';
+      b.sendOut(u);
+      b.heldItemCheck(f);
+      expect([f.stages.atk, f.item]).toEqual([0, null]);
+    }));
+
+  it('flinches with the King\x27s Rock, and puts a Custap holder first in its pinch', () =>
+    johto(() => {
+      const b = duel(true);
+      const [u, f] = b.active;
+      u.item = 'kings-rock';
+      b.useMove(u, 'tackle');
+      expect(f.v.flinch).toBe(true);
+      f.item = 'custap-berry';
+      f.hp = Math.floor(f.maxHp / 4);
+      const order = b['order']([{ kind: 'move', move: 'tackle' }, { kind: 'move', move: 'tackle' }]);
+      expect(order[0]).toBe(1);
+    }));
+});

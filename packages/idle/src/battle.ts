@@ -220,6 +220,11 @@ export interface Volatiles {
   traced?: boolean;
   truantFrom?: number;
   hadItem?: boolean;
+  /** Gen 4's items' state: the Choice lock's move, the Micle Berry's next-move accuracy, a Custap Berry waiting to be eaten, the Metronome's streak. */
+  choiceMove?: string;
+  micle?: boolean;
+  custap?: boolean;
+  metronomeMove?: string;
   /** Mimic's copy, in place of Mimic for the battle. */
   mimicked?: { from: string; to: string };
 }
@@ -351,6 +356,8 @@ export class Battle {
   trickRoom = 0;
   /** This turn's chosen actions (Gen 4's Sucker Punch and Me First read the foe's). */
   turnActions: [Action, Action] | null = null;
+  /** The damage the move being used has dealt (Gen 4's Shell Bell and Life Orb, after it). */
+  moveDealt = 0;
 
   constructor(setup: BattleSetup, rng: Rng) {
     this.rng = rng;
@@ -431,8 +438,9 @@ export class Battle {
     if ((b.ability === 'swift-swim' && this.isWeather('rain')) || (b.ability === 'chlorophyll' && this.isWeather('sun'))) s *= 2;
     const hold = this.holdEffect(b);
     const raw = b.item ? itemData(b.item).hold : 'none';
-    if (hold === 'choice_speed') s = Math.floor((s * 15) / 10);
     if (raw === 'evs_up_speed_down' || raw === 'speed_down_grounded' || raw.startsWith('lvlup_')) s = Math.floor(s / 2);
+    if (hold === 'choice_speed') s = Math.floor((s * 15) / 10);
+    if (hold === 'ditto_speed_up' && b.species === 132) s *= 2;
     if (b.ability === 'slow-start' && (b.v.slowStart ?? 0) < 5) s = Math.floor(s / 2);
     // Unburden: twice as fast once the item it held is gone.
     if (b.ability === 'unburden' && b.v.hadItem && !b.item) s *= 2;
@@ -907,6 +915,10 @@ export class Battle {
       const hold = this.holdEffect(user);
       if (hold === 'accuracy_up') calc = Math.floor((calc * (100 + itemData(user.item!).holdParam)) / 100);
       if (hold === 'critrate_up_slower' && this.movedThisTurn.has(target.side)) calc = Math.floor((calc * (100 + itemData(user.item!).holdParam)) / 100);
+      if (user.v.micle) {
+        delete user.v.micle;
+        calc = Math.floor((calc * 120) / 100);
+      }
       if (this.gravity) calc = Math.floor((calc * 10) / 6);
     }
     acc = (this.random16() % 100) + 1;
@@ -998,6 +1010,7 @@ export class Battle {
     if (target.v.substitute && user !== target) {
       const dealt = Math.min(target.v.substitute, damage);
       target.v.substitute -= dealt;
+      this.moveDealt += dealt;
       if (crit) this.text('A critical hit!');
       if (crit) this.angerPoint(target);
       this.text(`The substitute took damage for ${this.name(target)}!`);
@@ -1013,18 +1026,29 @@ export class Battle {
         if (target.v.endure) this.text(`${this.Name(target)} endured the hit!`);
       } else if (this.holdOn(target)) damage = target.hp - 1;
     }
+    // Gen 4's type-resist Berries (subscript_0264): a super-effective hit of their type halved (Chilan any Normal one),
+    // after the hold-on items; what's recorded for Counter, Mirror Coat and Bide is the whole hit.
+    const whole = damage;
+    const resist = this.gen4 && o.fixed === undefined && move.effect !== 'ohko' && ctx.key !== 'struggle' ? RESIST_BERRIES[this.holdEffect(target)] : undefined;
+    if (resist && (resist === 'chilan' ? type === 'normal' : resist === type && eff > 1)) {
+      damage = Math.floor(damage / 2);
+      this.consume(target, `The ${itemData(target.item!).name} weakened ${move.name}'s power!`);
+    }
     const dealt = this.damage(target, damage, { crit, eff });
+    this.moveDealt += dealt;
     if (user.side !== target.side) target.v.lastHit = { dealt, by: user.side };
     if (crit) this.text('A critical hit!');
     if (crit) this.angerPoint(target);
     if (eff > 1) this.text("It's super effective!");
     else if (eff > 0 && eff < 1) this.text("It's not very effective…");
     target.v.hitThisTurn = true;
-    if (this.physical(move, type)) target.v.physicalHit = dealt;
-    else target.v.specialHit = dealt;
+    const recorded = Math.min(whole, dealt + (whole - damage));
+    if (this.physical(move, type)) target.v.physicalHit = recorded;
+    else target.v.specialHit = recorded;
     target.lastHitBy = { move: ctx.key, type };
-    if (target.v.bide) target.v.bide.damage += dealt;
+    if (target.v.bide) target.v.bide.damage += recorded;
     if (target.v.rage && dealt > 0 && target.hp > 0) this.changeStat(target, 'atk', 1, true);
+    if (this.gen4 && dealt > 0) this.onHitItems(user, target, move, eff);
     return { dealt, toMon: true, crit, eff };
   }
 
@@ -1112,6 +1136,7 @@ export class Battle {
           else {
             user.v.attractedTo = target.side;
             this.text(`${this.Name(target)}'s Cute Charm infatuated ${this.name(user)}!`);
+            this.destinyKnot(user);
           }
         }
         break;
@@ -1174,6 +1199,7 @@ export class Battle {
     }
     this.entryAbility(b);
     if (this.gen4) {
+      this.heldItemCheck(b);
       b.v.hadItem = !!b.item;
       b.v.truantFrom = this.tick;
       // A Trace with nothing to copy tries the new foe (TryAbilityOnEntry, after every action).
@@ -1396,6 +1422,9 @@ export class Battle {
         this.statusHeal4(this.foeOf(b));
         this.forecast();
       }
+      // The held Berries after each move, the mover's then the other's (both generations: Cmd_moveend's item effects).
+      this.heldItemCheck(b);
+      this.heldItemCheck(this.foeOf(b));
       this.checkFaints();
       if (this.result) return;
     }
@@ -1439,15 +1468,33 @@ export class Battle {
     const p1 = prio(1);
     if (p0 !== p1) return p0 > p1 ? [0, 1] : [1, 0];
     // Quick Claw (Gen 4's sometimes_priority): first, its param's % of the time, one roll for the turn (gRandomTurnNumber).
-    const claws = this.active.map((b) => ['quick_claw', 'sometimes_priority'].includes(this.holdEffect(b)));
-    const turnRoll = claws.some(Boolean) ? this.random16() : 0;
-    const quick = (s: Side) => claws[s] && turnRoll < Math.floor((0xffff * itemData(this.active[s].item!).holdParam) / 100);
-    let s0 = quick(0) ? Infinity : this.speed(this.active[0]);
-    let s1 = quick(1) ? Infinity : this.speed(this.active[1]);
+    let quick: (s: Side) => boolean;
     if (this.gen4) {
-      // Gen 4 (CheckSortSpeed): the Lagging Tail and Full Incense, then Stall, last among the same priority.
+      // Gen 4: a roll a battler, 1 in 100/param (BT_STATE_QUICK_CLAW); the Custap Berry in its pinch (eaten as it moves).
+      const firsts = this.active.map((b) => {
+        const hold = this.holdEffect(b);
+        if (hold === 'sometimes_priority' && this.random16() % Math.floor(100 / itemData(b.item!).holdParam) === 0) return true;
+        if (hold === 'pinch_priority' && this.pinch(b)) return (b.v.custap = true);
+        return false;
+      });
+      quick = (s) => firsts[s]!;
+    } else {
+      // Gen 3: one roll for the turn (gRandomTurnNumber).
+      const claws = this.active.map((b) => this.holdEffect(b) === 'quick_claw');
+      const turnRoll = claws.some(Boolean) ? this.random16() : 0;
+      quick = (s) => claws[s]! && turnRoll < Math.floor((0xffff * itemData(this.active[s].item!).holdParam) / 100);
+    }
+    let s0 = this.speed(this.active[0]);
+    let s1 = this.speed(this.active[1]);
+    if (!this.gen4 || quick(0) !== quick(1)) {
+      if (quick(0)) s0 = Infinity;
+      if (quick(1)) s1 = Infinity;
+    }
+    if (this.gen4) {
+      // Gen 4 (CheckSortSpeed): the Lagging Tail and Full Incense, then Stall, last among the same priority; both last, the slower first.
       const last = (b: Battler) => (this.holdEffect(b) === 'speed_down' ? 2 : b.ability === 'stall' ? 1 : 0);
       const [l0, l1] = [last(this.active[0]), last(this.active[1])];
+      if (l0 && l0 === l1 && !quick(0) && !quick(1) && s0 !== s1) return s0 < s1 ? [0, 1] : [1, 0];
       if (l0 !== l1 && !quick(0) && !quick(1)) [s0, s1] = l0 > l1 ? [0, 1] : [1, 0];
       // Trick Room: the slower first, after the claws and the items and abilities that move last.
       else if (this.trickRoom && quick(0) === quick(1) && s0 !== s1) [s0, s1] = [s1, s0];
@@ -1464,6 +1511,8 @@ export class Battle {
     if (b.v.torment && b.lastMove === key && key !== 'struggle') return false;
     const foe = this.foeOf(b);
     if (foe.v.imprison && (foe.slots.includes(key) || foe.basic === key)) return false;
+    // Gen 4's Choice items (the user's reading, 2026-11-04): locked into the first slot move it used, the basic move meanwhile.
+    if (this.gen4 && b.v.choiceMove && CHOICE.has(this.holdEffect(b)) && key !== b.v.choiceMove && key !== b.basic) return false;
     if (this.gen4 && (this.banned4(b, key) || (key === 'last-resort' && !this.lastResortReady(b)) || (key === 'trump-card' && (b.v.trumpUses ?? 0) >= 5))) return false;
     return true;
   }
@@ -1670,6 +1719,8 @@ export class Battle {
       if (user.v.encore && user.v.encore.move !== realKey) delete user.v.encore;
     }
     this.lastMoveUsed = realKey;
+    if (this.gen4 && !called) this.beforeMove4(user, realKey);
+    this.moveDealt = 0;
     const ctx: MoveCtx = {
       b: this,
       user,
@@ -1683,6 +1734,148 @@ export class Battle {
     const effect = EFFECTS[move.effect] ?? (move.power > 0 ? EFFECTS.hit! : EFFECTS.splash!);
     effect(ctx);
     if (user.v.charged && move.type === 'electric' && move.power > 0) delete user.v.charged;
+    if (this.gen4 && !called) this.afterMove4(user, move);
+  }
+
+  /**
+   * Gen 4's items as a move starts (the move sequence's first steps): a Custap Berry that put it first eaten; the
+   * Metronome's streak (the same move again: one more, up to 10; another: none); a Choice item's lock set.
+   */
+  private beforeMove4(user: Battler, key: string) {
+    if (user.v.custap) {
+      delete user.v.custap;
+      this.consume(user, `${this.Name(user)}'s Custap Berry let it move first!`);
+    }
+    if (this.holdEffect(user) === 'boost_repeated' && !user.v.rampage && !user.v.uproar && !user.v.charging) {
+      user.v.metronomeTurns = user.v.metronomeMove === key ? Math.min(10, (user.v.metronomeTurns ?? 0) + 1) : 0;
+      user.v.metronomeMove = key;
+    } else if (this.holdEffect(user) !== 'boost_repeated') delete user.v.metronomeTurns;
+    if (CHOICE.has(this.holdEffect(user)) && !user.v.choiceMove && key !== 'struggle' && key !== user.basic) user.v.choiceMove = key;
+  }
+
+  /** Gen 4's items after a whole move (ov12_0224E1BC): the Shell Bell (an eighth of what it dealt), then the Life Orb's tenth (not for Magic Guard). */
+  private afterMove4(user: Battler, move: MoveData) {
+    if (user.hp <= 0 || this.moveDealt <= 0 || move.category === 'status') return;
+    const hold = this.holdEffect(user);
+    if (hold === 'hp_restore_on_dmg' && user.hp < user.maxHp) this.heal(user, Math.max(1, Math.floor(this.moveDealt / itemData(user.item!).holdParam)), `${this.Name(user)} restored a little HP using its Shell Bell!`);
+    if (hold === 'hp_drain_on_atk' && !this.magicGuard(user)) this.damage(user, Math.max(1, Math.floor(user.maxHp / 10)), { msg: `${this.Name(user)} lost some of its HP!` });
+  }
+
+  /** A held item used up (a Berry eaten, an herb used), with its line. */
+  consume(b: Battler, msg: string) {
+    this.emit({ t: 'item', side: b.side, item: b.item!, msg });
+    b.usedItem = b.item;
+    b.item = null;
+  }
+
+  /** In its pinch Berries' pinch: a quarter of its HP or less (the item's param), half with Gluttony. */
+  pinch(b: Battler) {
+    const param = itemData(b.item!).holdParam;
+    return b.hp <= Math.floor(b.maxHp / (b.ability === 'gluttony' ? Math.floor(param / 2) : param));
+  }
+
+  /**
+   * The held Berries and herbs (TryUseHeldItem, CheckUseHeldItem; after each move, on the way in and at the end of the
+   * turn): Gen 3's HP Berries; Gen 4's Oran, Sitrus and the flavour Berries at half HP (the flavour a nature dislikes
+   * confusing it), the status Berries, Lum, the pinch Berries (a quarter, Gluttony a half), Starf, Lansat, Micle, the
+   * White Herb and the Mental Herb.
+   */
+  heldItemCheck(b: Battler) {
+    if (b.fainted || b.hp <= 0 || !b.item) return;
+    const hold = this.holdEffect(b);
+    const item = itemData(b.item);
+    const half = b.hp <= Math.floor(b.maxHp / 2);
+    if (!this.gen4) {
+      if (hold === 'restore_hp' && half) {
+        this.consume(b, `${this.Name(b)}'s ${item.name} restored health!`);
+        this.heal(b, item.holdParam);
+      }
+      return;
+    }
+    const used = (msg: string) => this.consume(b, msg);
+    const healed = (amount: number) => {
+      used(`${this.Name(b)} restored its health using its ${item.name}!`);
+      this.heal(b, Math.max(1, amount));
+    };
+    const cures: Record<string, [StatusKind[], string]> = {
+      prz_restore: [['paralysis'], 'cured its paralysis'], slp_restore: [['sleep'], 'woke it up'], psn_restore: [['poison', 'toxic'], 'cured its poison'],
+      brn_restore: [['burn'], 'healed its burn'], frz_restore: [['freeze'], 'defrosted it'],
+    };
+    const FLAVOURS: Record<string, [number, string]> = { hp_restore_spicy: [0, 'spicy'], hp_restore_sour: [1, 'sour'], hp_restore_sweet: [2, 'sweet'], hp_restore_dry: [3, 'dry'], hp_restore_bitter: [4, 'bitter'] };
+    const PINCH: Record<string, BattleStat> = { pinch_atk_up: 'atk', pinch_def_up: 'def', pinch_speed_up: 'spe', pinch_spatk_up: 'spa', pinch_spdef_up: 'spd' };
+    if (hold === 'hp_restore' && half) healed(item.holdParam);
+    else if (hold === 'hp_pct_restore' && half) healed(Math.floor((b.maxHp * item.holdParam) / 100));
+    else if (hold in FLAVOURS && half) {
+      const [stat, flavour] = FLAVOURS[hold]!;
+      healed(Math.floor(b.maxHp / item.holdParam));
+      if (b.mon.nature % 5 === stat && Math.floor(b.mon.nature / 5) !== stat) {
+        this.text(`For ${this.name(b)}, the ${item.name} was too ${flavour}!`);
+        this.confuse(b, null);
+      }
+    } else if (cures[hold] && b.status && cures[hold][0].includes(b.status)) {
+      used(`${this.Name(b)}'s ${item.name} ${cures[hold][1]}!`);
+      this.cureStatus(b);
+    } else if (hold === 'confuse_restore' && b.v.confused) {
+      used(`${this.Name(b)}'s ${item.name} snapped it out of confusion!`);
+      delete b.v.confused;
+    } else if (hold === 'status_restore' && (b.status || b.v.confused)) {
+      used(`${this.Name(b)} normalized its status using its ${item.name}!`);
+      this.cureStatus(b);
+      delete b.v.confused;
+    } else if (PINCH[hold] && this.pinch(b) && b.stages[PINCH[hold]] < 6) {
+      used(`${this.Name(b)} used its ${item.name}!`);
+      this.changeStat(b, PINCH[hold], 1, true);
+    } else if (hold === 'pinch_random_up' && this.pinch(b)) {
+      const open = (['atk', 'def', 'spe', 'spa', 'spd'] as const).filter((s) => b.stages[s] < 6);
+      if (open.length) {
+        used(`${this.Name(b)} used its ${item.name}!`);
+        this.changeStat(b, open[this.random16() % open.length]!, 2, true);
+      }
+    } else if (hold === 'pinch_critrate_up' && this.pinch(b) && !b.v.focusEnergy) {
+      used(`${this.Name(b)} used the ${item.name} to get pumped!`);
+      b.v.focusEnergy = true;
+    } else if (hold === 'pinch_acc_up' && this.pinch(b)) {
+      used(`${this.Name(b)} boosted the accuracy of its next move using its ${item.name}!`);
+      b.v.micle = true;
+    } else if (hold === 'statdown_restore' && BATTLE_STATS.some((s) => b.stages[s] < 0)) {
+      used(`${this.Name(b)} restored its status using its ${item.name}!`);
+      for (const s of BATTLE_STATS) b.stages[s] = Math.max(0, b.stages[s]);
+    } else if (hold === 'heal_infatuation' && b.v.attractedTo !== undefined) {
+      used(`${this.Name(b)} cured its infatuation using its ${item.name}!`);
+      delete b.v.attractedTo;
+    }
+  }
+
+  /**
+   * Gen 4's items reacting to a hit on their holder (CheckItemEffectOnHit): the Enigma Berry a quarter back from a
+   * super-effective one it survived; the Jaboca and Rowap Berries an eighth of the attacker's HP from a physical or a
+   * special one; the Sticky Barb to an attacker with no item from a contact one.
+   */
+  private onHitItems(user: Battler, target: Battler, move: MoveData, eff: number) {
+    const hold = this.holdEffect(target);
+    if (!target.item || hold === 'none' || user === target) return;
+    const item = itemData(target.item);
+    if (hold === 'hp_restore_se' && eff > 1 && target.hp > 0) {
+      this.consume(target, `${this.Name(target)} restored its health using its ${item.name}!`);
+      this.heal(target, Math.max(1, Math.floor(target.maxHp / item.holdParam)));
+    } else if ((hold === 'recoil_physical' && move.category === 'physical') || (hold === 'recoil_special' && move.category === 'special')) {
+      if (user.hp > 0 && !this.magicGuard(user)) {
+        this.consume(target, `${this.Name(user)} is hurt by ${this.name(target)}'s ${item.name}!`);
+        this.damage(user, Math.max(1, Math.floor(user.maxHp / item.holdParam)));
+      }
+    } else if (hold === 'dmg_user_contact_xfr' && move.flags.includes('makes_contact') && user.hp > 0 && !user.item) {
+      user.item = target.item;
+      target.item = null;
+    }
+  }
+
+  /** Gen 4's Destiny Knot: its holder falling in love makes the other fall for it too. */
+  destinyKnot(b: Battler) {
+    const other = this.foeOf(b);
+    if (!this.gen4 || this.holdEffect(b) !== 'reciprocate_infat' || !other || other.hp <= 0 || !other.attractable(b)) return;
+    if (other.ability === 'oblivious') return void this.text(`${this.Name(other)}'s Oblivious prevents romance!`);
+    other.v.attractedTo = b.side;
+    this.text(`${this.Name(b)}'s Destiny Knot infatuated ${this.name(other)}!`);
   }
 
   /**
@@ -1907,7 +2100,10 @@ export class Battle {
       const v = b.v;
       if (v.ingrain) {
         if (this.gen4 && v.healBlock) this.text(`${this.Name(b)} was prevented from healing due to Heal Block!`);
-        else this.heal(b, Math.max(1, Math.floor(b.maxHp / 16)), `${this.Name(b)} absorbed nutrients with its roots!`);
+        else {
+          const roots = Math.max(1, Math.floor(b.maxHp / 16));
+          this.heal(b, this.gen4 && this.holdEffect(b) === 'leech_boost' ? Math.floor((roots * (100 + itemData(b.item!).holdParam)) / 100) : roots, `${this.Name(b)} absorbed nutrients with its roots!`);
+        }
       }
       // Gen 4's Aqua Ring, after Ingrain (UMC_STATE_AQUA_RING): the Big Root heals more, Heal Block not at all.
       if (v.aquaRing && b.hp < b.maxHp) {
@@ -1921,6 +2117,8 @@ export class Battle {
       if (b.ability === 'shed-skin' && b.status && (this.gen4 ? this.random16() % 10 < 3 : this.roll(3) === 0)) this.cureStatus(b, `${this.Name(b)}'s Shed Skin cured its status!`);
       // Speed Boost: nothing at +6 (both generations check the stage first).
       if (b.ability === 'speed-boost' && !v.firstTurn && b.stages.spe < 6) this.changeStat(b, 'spe', 1, true);
+      // Gen 4: the held items' first check, before Leftovers (UMC_STATE_HELD_ITEM).
+      if (this.gen4) this.heldItemCheck(b);
       const hold = this.holdEffect(b);
       if (hold === (this.gen4 ? 'hp_restore_gradual' : 'leftovers')) this.heal(b, Math.max(1, Math.floor(b.maxHp / 16)));
       // Gen 4's Black Sludge: a Poison type's Leftovers, the others hurt.
@@ -2000,12 +2198,15 @@ export class Battle {
         delete v.yawn;
         if (this.canStatus(b, 'sleep', null)) this.setStatus(b, 'sleep', null);
       }
-      if (this.holdEffect(b) === (this.gen4 ? 'hp_restore' : 'restore_hp') && b.hp <= Math.floor(b.maxHp / 2) && b.item) {
-        const amount = itemData(b.item).holdParam;
-        this.emit({ t: 'item', side: b.side, item: b.item, msg: `${this.Name(b)}'s ${itemData(b.item).name} restored health!` });
-        b.usedItem = b.item;
-        b.item = null;
-        this.heal(b, amount);
+      this.heldItemCheck(b);
+      // Gen 4's last items (UMC_STATE_HELD_ITEM_DAMAGE): the Toxic and Flame Orbs, the Sticky Barb's eighth.
+      if (this.gen4 && b.hp > 0) {
+        const orb = ({ psn_user: 'toxic', brn_user: 'burn' } as const)[this.holdEffect(b) as 'psn_user'];
+        if (orb && this.canStatus(b, orb, null)) {
+          this.setStatus(b, orb, null);
+          this.text(`${this.Name(b)} was ${orb === 'toxic' ? 'badly poisoned by the Toxic' : 'burned by the Flame'} Orb!`);
+        }
+        if (this.holdEffect(b) === 'dmg_user_contact_xfr' && !this.magicGuard(b)) this.damage(b, Math.max(1, Math.floor(b.maxHp / itemData(b.item!).holdParam)), { msg: `${this.Name(b)} is hurt by its Sticky Barb!` });
       }
     }
     for (const side of [0, 1] as Side[]) {
@@ -2056,6 +2257,17 @@ export class Battle {
   }
 }
 
+
+/** Gen 4's Choice items (their lock). */
+const CHOICE = new Set(['choice_atk', 'choice_spatk', 'choice_speed']);
+
+/** Gen 4's type-resist Berries' types (Chilan any Normal move). */
+const RESIST_BERRIES: Record<string, TypeName | 'chilan'> = {
+  weaken_se_fire: 'fire', weaken_se_water: 'water', weaken_se_electric: 'electric', weaken_se_grass: 'grass', weaken_se_ice: 'ice',
+  weaken_se_fight: 'fighting', weaken_se_poison: 'poison', weaken_se_ground: 'ground', weaken_se_flying: 'flying', weaken_se_psychic: 'psychic',
+  weaken_se_bug: 'bug', weaken_se_rock: 'rock', weaken_se_ghost: 'ghost', weaken_se_dragon: 'dragon', weaken_se_dark: 'dark', weaken_se_steel: 'steel',
+  weaken_normal: 'chilan',
+};
 
 /** Gen 4's type-boosting held items and Plates (sTypeEnhancingItems): their power boost's type. */
 const TYPE_ENHANCERS4: Record<string, TypeName> = {
