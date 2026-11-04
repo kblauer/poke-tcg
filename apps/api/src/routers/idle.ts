@@ -1,5 +1,5 @@
 import { prisma } from '@poke-tcg/db';
-import { areas, applyIdleAction, areaIndex, BALLS, throwable, isBaseForm, isOptional, CATCH_UP_CAP_MS, catchUp, createIdleRun, cutSegment, cuts, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, reachedArea, simulateSegment, TOWN_WAIT_MS, starterOptions, starters, visitStore, withPending, type IdleSettings, type Stats } from '@poke-tcg/idle';
+import { areas, applyIdleAction, areaIndex, BALLS, throwTick, throwable, isBaseForm, isOptional, CATCH_UP_CAP_MS, catchUp, createIdleRun, cutSegment, cuts, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, reachedArea, simulateSegment, TOWN_WAIT_MS, starterOptions, starters, visitStore, withPending, type IdleSettings, type Stats } from '@poke-tcg/idle';
 import { idleActInput, idleDebugCatchInput, idleHereInput, idleRunInput, idleSettingsInput, idleThrowInput, idleWarpInput, startIdleInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { asJson, newSeed } from '../games.js';
@@ -154,9 +154,11 @@ export const idleRouter = router({
     checkVersion(run, input.expectedVersion);
     const replay = run.state.replay;
     if (!replay || !throwable(run.state)) throw failed('Too late to throw a ball in this battle');
-    if (replay.throws.some((t) => t >= input.tick)) throw failed('A ball is already on its way');
-    if (!BALLS.some(([b]) => (replay.prev.bag[b] ?? 0) > 0)) throw failed('No Poké Balls in the bag');
-    const throws = [...replay.throws, input.tick];
+    if (replay.throws.some((t) => throwTick(t) >= input.tick)) throw failed('A ball is already on its way');
+    // The ball button throws the best ball but the Master Ball, which has its own button (the user's, 2026-11-04).
+    if (input.master && !(replay.prev.bag['master-ball'] ?? 0)) throw failed('No Master Ball in the bag');
+    if (!input.master && !BALLS.some(([b]) => b !== 'master-ball' && (replay.prev.bag[b] ?? 0) > 0)) throw failed('No Poké Balls in the bag');
+    const throws = [...replay.throws, input.master ? { tick: input.tick, ball: 'master-ball' as const } : input.tick];
     const again = simulateSegment(replay.prev, replay.settings, new Set(replay.caught), { throwAt: throws, ask: true });
     const b = again?.segment.events.find((e) => e.t === 'battle');
     if (!again || b?.t !== 'battle' || b.kind !== 'wild') throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'The battle could not be played again' });

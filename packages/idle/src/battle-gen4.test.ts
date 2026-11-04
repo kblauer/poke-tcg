@@ -4,6 +4,7 @@ import { Battle, simulateBattle, type BattleSetup } from './battle.js';
 import { moveData } from './data.js';
 import { MOVES as JOHTO_MOVES } from './data/gen2/moves.js';
 import { EFFECTS } from './moves.js';
+import { ballTenths, bestBall, catchOdds } from './catch.js';
 import { inGeneration } from './generation.js';
 import { createMon } from './mon.js';
 import type { Mon, Stats } from './types.js';
@@ -544,4 +545,45 @@ describe("Gen 4's held items", () => {
       const order = b['order']([{ kind: 'move', move: 'tackle' }, { kind: 'move', move: 'tackle' }]);
       expect(order[0]).toBe(1);
     }));
+});
+
+describe("Gen 4's balls", () => {
+  it('multiplies by the situation (BattleSystem_CalculateBallShakes)', () => {
+    const s = { types: ['water'] as const, level: 30, turn: 0, gen4: true };
+    expect(ballTenths('net-ball', { ...s, types: ['water'] })).toBe(30);
+    expect(ballTenths('net-ball', { ...s, types: ['fire'] })).toBe(10);
+    expect(ballTenths('nest-ball', { ...s, types: ['fire'] })).toBe(10);
+    expect(ballTenths('nest-ball', { ...s, types: ['fire'], level: 5 })).toBe(35);
+    expect(ballTenths('quick-ball', { ...s, types: ['fire'] })).toBe(40);
+    expect(ballTenths('quick-ball', { ...s, types: ['fire'], turn: 1 })).toBe(10);
+    expect(ballTenths('timer-ball', { ...s, types: ['fire'], turn: 12 })).toBe(22);
+    expect(ballTenths('dusk-ball', { ...s, types: ['fire'], night: true })).toBe(35);
+    expect(ballTenths('dusk-ball', { ...s, types: ['fire'], night: true, gen4: false })).toBe(10);
+    // The formula's the same as Gen 3's, with the ball's multiplier: 45 x 3 = 135, x (3 x 30 - 2 x 30) / (3 x 30) = 45.
+    expect(catchOdds({ catchRate: 45, maxHp: 30, hp: 30, status: null, ball: 'net-ball', tenths: 30 })).toBe(45);
+  });
+
+  it('throws the best ball for the moment, a Master Ball first', () => {
+    const bag = { 'poke-ball': 5, 'ultra-ball': 2, 'quick-ball': 1, 'net-ball': 3 };
+    const s = { types: ['fire'] as const, level: 30, turn: 0, gen4: true };
+    expect(bestBall(bag, { ...s, types: ['fire'] })).toBe('quick-ball');
+    expect(bestBall(bag, { ...s, types: ['water'], turn: 3 })).toBe('net-ball');
+    expect(bestBall(bag, { ...s, types: ['fire'], turn: 3 })).toBe('ultra-ball');
+    expect(bestBall({ ...bag, 'master-ball': 1 }, { ...s, types: ['fire'] })).toBe('master-ball');
+    // Auto-catch never throws the Master Ball.
+    expect(bestBall({ ...bag, 'master-ball': 1 }, { ...s, types: ['fire'] }, true)).toBe('quick-ball');
+    expect(bestBall({ 'master-ball': 1 }, { ...s, types: ['fire'] }, true)).toBeNull();
+  });
+});
+
+describe('the ball buttons', () => {
+  it('throw the best ball but the Master Ball, and the Master Ball from its own button; auto-catch never does', () => {
+    const throws = (throwAt: BattleSetup['throwAt'], tryCatch = false) => {
+      const b = new Battle(setup([mon(4, 30)], [mon(1, 30)], { bag: { 'master-ball': 1, 'poke-ball': 5 }, throwAt, settings: { autoHeal: false, tryCatch } }), rngFrom(3));
+      return b.run().events.filter((e) => e.t === 'ball').map((e) => (e as { item: string }).item);
+    };
+    expect(throws([1])[0]).toBe('poke-ball');
+    expect(throws([{ tick: 1, ball: 'master-ball' }])).toEqual(['master-ball']);
+    expect(throws(undefined, true)).not.toContain('master-ball');
+  });
 });

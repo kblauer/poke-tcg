@@ -584,16 +584,17 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
     /** A ball asked for and not yet answered. */
     throwing,
     /**
-     * The battle's ball button (the user's): the best ball on the tick after the one on screen. The server plays the
-     * segment again with it; the playback holds at the next tick until it answers, then goes on with that battle.
+     * The battle's ball buttons (the user's): the best ball but the Master Ball, or (`master`, its own button, 2026-11-04)
+     * the Master Ball, on the tick after the one on screen. The server plays the segment again with it; the playback
+     * holds at the next tick until it answers, then goes on with that battle.
      */
-    throwBall: () => {
+    throwBall: (master = false) => {
       const s = onScreen.current;
       const r = latest.current;
       if (!s.battle || s.battle.kind !== 'wild' || pendingThrow.current || !r) return;
       setThrowing(true);
       pendingThrow.current = throwMut
-        .mutateAsync({ runId: r.id, expectedVersion: r.version, tick: s.turn + 1 })
+        .mutateAsync({ runId: r.id, expectedVersion: r.version, tick: s.turn + 1, master })
         .then((x) => ({ run: x.run, events: x.segment.events }))
         .catch((e: unknown) => {
           onError(e instanceof Error ? e.message : 'The ball could not be thrown.');

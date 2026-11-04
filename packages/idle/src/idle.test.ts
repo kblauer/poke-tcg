@@ -372,7 +372,7 @@ describe('an idle run', () => {
     const forest = leg.maps.indexOf('ViridianForest');
     const step = leg.track.findIndex(([m, , , , t]) => m === forest && t[0] === 'l');
     const base = createIdleRun({ species: 4 }, 7);
-    let s: IdleState = { ...base, area, step, beaten: (areas()[area] as WalkArea).trainers.map((t) => t.key), bag: { 'master-ball': 99 }, party: [{ ...base.party[0]!, level: 12 }] };
+    let s: IdleState = { ...base, area, step, beaten: (areas()[area] as WalkArea).trainers.map((t) => t.key), bag: { 'poke-ball': 99 }, debugCatch: true, party: [{ ...base.party[0]!, level: 12 }] };
     s = (applyIdleAction(s, { type: 'WILD_GRIND' }) as { state: IdleState }).state;
     const settings = { ...MANUAL, autoCatch: 'all' as const, replaceLowest: true };
     for (let i = 0; i < 400 && !s.party.some((m) => m.species === 14); i++) s = simulateSegment(s, settings, new Set())!.state;
@@ -389,7 +389,7 @@ describe('an idle run', () => {
     const step = leg.track.findIndex(([m, , , , t]) => m === forest && t[0] === 'l');
     const base = createIdleRun({ species: 4 }, 7);
     const party = Array.from({ length: 6 }, (_, i) => ({ ...base.party[0]!, uid: `m${i}`, level: 12 + i }));
-    let s: IdleState = { ...base, area, step, beaten: (areas()[area] as WalkArea).trainers.map((t) => t.key), bag: { 'master-ball': 99 }, party };
+    let s: IdleState = { ...base, area, step, beaten: (areas()[area] as WalkArea).trainers.map((t) => t.key), bag: { 'poke-ball': 99 }, debugCatch: true, party };
     s = (applyIdleAction(s, { type: 'WILD_GRIND' }) as { state: IdleState }).state;
     const settings = { ...MANUAL, autoCatch: 'all' as const };
     // Watched (`ask`): the catch waits, the party as it was, the run not playing.

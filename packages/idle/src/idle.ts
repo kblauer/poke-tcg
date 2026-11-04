@@ -8,7 +8,7 @@ import { catchTextFrame, FRAME_MS, openingMs } from './battle-timing.js';
 import { int, rngFrom, type Rng } from '@poke-tcg/campaign';
 import { areas, areaById, areaIndex, areaOpen, isOptional, isTown, legendOf, mapView, TERRAIN_LETTERS, type IdleArea, type IdleLeg, type TownArea, type TrackStep, type WalkArea } from './areas.js';
 import { opponentMon, simulateBattle, type BattleEvent, type BattleResult, MEDICINE, type Terrain } from './battle.js';
-import { BALLS } from './catch.js';
+import { BALLS, type ThrowAsk } from './catch.js';
 import { itemData, species } from './data.js';
 import { generation, inGeneration, perGeneration, type IdleGen } from './generation.js';
 import { evolve, levelEvolution, stoneEvolution, usableStones } from './evolution.js';
@@ -100,7 +100,7 @@ export const DEFAULT_IDLE_SETTINGS: IdleSettings = { autoHeal: true, revives: ['
  * The settings a segment plays by, with the player's own throws (the ball button, the user's: `throwAt`, the ticks of
  * its wild battle a ball was asked for; the server plays the segment again from its start with them, idle.throwBall).
  */
-type PlaySettings = IdleSettings & { throwAt?: number[]; ask?: boolean };
+type PlaySettings = IdleSettings & { throwAt?: ThrowAsk[]; ask?: boolean };
 
 /** Wild encounter bookkeeping between steps (wild_encounter.c's sWildEncounterData). */
 interface EncounterState {
@@ -240,7 +240,7 @@ export interface SegmentReplay {
   settings: IdleSettings;
   caught: number[];
   from: number;
-  throws: number[];
+  throws: ThrowAsk[];
   /** Its wild battle can still take a ball (and party changes are queued meanwhile); missing (older runs'), it can. */
   throwable?: boolean;
 }
@@ -1743,11 +1743,11 @@ function finishArea(state: IdleState, out: Segment) {
  * segment (in a town, its wait: townWait), or null when the run is over. `ask`: the player is watching (idle.next and its
  * replays), so a catch with the party full waits for their choice (IdleState.choosing); away (catchUp), the settings decide.
  */
-export function simulateSegment(from: IdleState, idleSettings: IdleSettings, caught: Set<number>, o: { throwAt?: number[]; ask?: boolean } = {}): { state: IdleState; segment: Segment } | null {
+export function simulateSegment(from: IdleState, idleSettings: IdleSettings, caught: Set<number>, o: { throwAt?: ThrowAsk[]; ask?: boolean } = {}): { state: IdleState; segment: Segment } | null {
   return inGeneration(from.gen, () => simulateIn(from, idleSettings, caught, o));
 }
 
-function simulateIn(from: IdleState, idleSettings: IdleSettings, caught: Set<number>, o: { throwAt?: number[]; ask?: boolean }): { state: IdleState; segment: Segment } | null {
+function simulateIn(from: IdleState, idleSettings: IdleSettings, caught: Set<number>, o: { throwAt?: ThrowAsk[]; ask?: boolean }): { state: IdleState; segment: Segment } | null {
   const settings: PlaySettings = { ...idleSettings, ...(o.throwAt && { throwAt: o.throwAt }), ...(o.ask && { ask: true }) };
   // The party changes queued during the last battle, first (withPending).
   const prev = withPending(from);

@@ -206,6 +206,26 @@ function BallButton({ disabled, title, onClick }: { disabled: boolean; title: st
   );
 }
 
+/** The Master Ball's button (the user's, 2026-11-04): the Master Ball next turn, left of the ball button, shown while the bag holds one. */
+function MasterBallButton({ disabled, title, onClick }: { disabled: boolean; title: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      disabled={disabled}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className="absolute transition hover:scale-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
+      style={{ right: px(60), top: px(3), width: px(24), height: px(24) }}
+    >
+      <img src="/items/master-ball.png" alt="" draggable={false} className="h-full w-full select-none [image-rendering:pixelated]" />
+    </button>
+  );
+}
+
 /**
  * A battle as it plays (README: Idle Adventure): FireRed's layout at its 240x160 scale, sized to its box (the terrain
  * background, the foe's front sprite and the player's Pokémon's back, the healthboxes, the text box), and under it the
@@ -218,6 +238,7 @@ export function BattleScreen({
   gender,
   dialogue,
   onThrow,
+  onThrowMaster,
   throwing = false,
   children,
 }: {
@@ -225,8 +246,10 @@ export function BattleScreen({
   shown: number;
   gender: 'male' | 'female';
   dialogue?: Dialogue | null;
-  /** The ball button (the user's): the best ball next turn. */
+  /** The ball button (the user's): the best ball next turn, never the Master Ball. */
   onThrow?: () => void;
+  /** The Master Ball's button (the user's, 2026-11-04), given while the bag holds one. */
+  onThrowMaster?: () => void;
   throwing?: boolean;
   /** Drawn over the battle (the party overlay, its button in the top right corner). */
   children?: ReactNode;
@@ -312,6 +335,13 @@ export function BattleScreen({
           disabled={battle.kind !== 'wild' || throwing || shown >= battle.events.length}
           title={battle.kind !== 'wild' ? "You can't catch a trainer's Pokémon" : throwing ? 'Throwing a ball next turn…' : 'Throw the best Poké Ball next turn'}
           onClick={onThrow}
+        />
+      )}
+      {onThrowMaster && (
+        <MasterBallButton
+          disabled={battle.kind !== 'wild' || throwing || shown >= battle.events.length}
+          title={battle.kind !== 'wild' ? "You can't catch a trainer's Pokémon" : throwing ? 'Throwing a ball next turn…' : 'Throw the Master Ball next turn'}
+          onClick={onThrowMaster}
         />
       )}
       {children}

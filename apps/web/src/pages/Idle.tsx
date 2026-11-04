@@ -233,7 +233,15 @@ export function IdlePage() {
           {overlays()}
         </TownMenu>
       ) : play.battle ? (
-        <BattleScreen battle={play.battle} shown={play.shown} gender={gender} dialogue={catchUp} onThrow={throwBall} throwing={throwing}>
+        <BattleScreen
+          battle={play.battle}
+          shown={play.shown}
+          gender={gender}
+          dialogue={catchUp}
+          onThrow={() => throwBall()}
+          onThrowMaster={(active?.view.bag['master-ball'] ?? 0) > 0 ? () => throwBall(true) : undefined}
+          throwing={throwing}
+        >
           {overlays()}
         </BattleScreen>
       ) : (

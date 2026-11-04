@@ -45,7 +45,8 @@ export const startIdleInput = z.object({ species: z.number().int().min(1).max(DE
 export const idleRunInput = z.object({ runId: z.uuid(), expectedVersion: z.number().int().min(0) });
 export const idleActInput = idleRunInput.extend({ action: idleActionSchema });
 /** The battle's ball button: a ball on this tick of the wild battle playing (the tick after the one on screen). */
-export const idleThrowInput = idleRunInput.extend({ tick: z.number().int().min(1).max(100000) });
+/** A ball thrown from the battle's buttons: the best ball (never the Master Ball), or the Master Ball's own button (`master`). */
+export const idleThrowInput = idleRunInput.extend({ tick: z.number().int().min(1).max(100000), master: z.boolean().default(false) });
 /** The player watching a town (idle.here): no version, as it changes nothing but the run's time. */
 export const idleHereInput = z.object({ runId: z.uuid() });
 /** Changes some of the settings (the rest kept). */

@@ -9,7 +9,7 @@
 // Simplifications, agreed or forced by the mode: no switching but a fainted Pokémon's replacement (the next in party
 // order) and Roar/Whirlwind; a wild Pokémon never runs; the party is healed after every battle by the run, not here.
 import { int, type Rng } from '@poke-tcg/campaign';
-import { attemptCatch } from './catch.js';
+import { attemptCatch, ballTenths, bestBall, type BallSituation, type ThrowAsk } from './catch.js';
 import { effectiveness, isPhysical, itemData, moveData, species } from './data.js';
 import { generation } from './generation.js';
 import { abilityOf, autoSlots, basicFor, cooldownTicks, lastFourMoves, movePower, movesAt } from './mon.js';
@@ -98,9 +98,12 @@ export interface BattleSetup {
   /** The battle ends after this many ticks: a wild Pokémon wanders off, a trainer battle is lost (no endless stalls). */
   maxTicks?: number;
   /** The player's own throws (the battle's ball button, the user's): from each tick listed, the best ball once, as soon as one can be thrown (a wild battle's). */
-  throwAt?: number[];
+  throwAt?: ThrowAsk[];
   /** Debug (IdleState.debugCatch): every ball thrown catches. */
   sureCatch?: boolean;
+  /** For the special balls (the run's): night by its clock (Gen 4's Dusk Ball), the wild species caught already (the Repeat Ball). */
+  night?: boolean;
+  caughtBefore?: boolean;
 }
 
 
@@ -1953,11 +1956,23 @@ export class Battle {
     if (med.cures === 'all' && target.v.confused) delete target.v.confused;
   }
 
+  /** What the special balls see of the wild Pokémon and the battle now (BallSituation): the turn counted from 0. */
+  ballSituation(): BallSituation {
+    const t = this.active[1];
+    return { types: t.types, level: t.level, turn: Math.max(0, this.tick - 1), night: this.setup.night, cave: this.setup.terrain === 'cave', water: this.setup.terrain === 'water', caught: this.setup.caughtBefore, gen4: this.gen4 };
+  }
+
+  /** The best ball in the bag for the wild Pokémon now (bestBall), never the Master Ball (the user's: it has its own button). */
+  bestBall() {
+    return bestBall(this.bag, this.ballSituation(), true);
+  }
+
   private throwBall(item: string) {
     const target = this.active[1];
     this.bag[item] = (this.bag[item] ?? 0) - 1;
     if (!this.bag[item]) delete this.bag[item];
-    const { caught, shakes } = this.setup.sureCatch ? { caught: true, shakes: 4 } : attemptCatch(this.rng, { catchRate: species(target.species).catchRate, maxHp: target.maxHp, hp: target.hp, status: target.status, ball: item });
+    const tenths = ballTenths(item, this.ballSituation());
+    const { caught, shakes } = this.setup.sureCatch ? { caught: true, shakes: 4 } : attemptCatch(this.rng, { catchRate: species(target.species).catchRate, maxHp: target.maxHp, hp: target.hp, status: target.status, ball: item, tenths });
     const name = species(target.species).name;
     const lines = ['Oh, no! The Pokémon broke free!', 'Aww! It appeared to be caught!', 'Aargh! Almost had it!', 'Shoot! It was so close, too!'];
     this.emit({ t: 'ball', item, shakes, caught, msg: caught ? `Gotcha! ${name} was caught!` : lines[shakes]! });
