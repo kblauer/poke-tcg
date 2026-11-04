@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import type { TownArea, WalkArea } from './areas.js';
 import { ABILITY_NAMES } from './data/gen2/abilities.js';
+import { JOHTO_AREAS } from './data/gen2/areas.js';
 import { ENCOUNTERS } from './data/gen2/encounters.js';
 import { ITEMS } from './data/gen2/items.js';
+import { JOHTO_MAPS } from './data/gen2/maps.js';
 import { MART_CLERKS, MARTS } from './data/gen2/marts.js';
 import { MOVES } from './data/gen2/moves.js';
 import { SPECIES } from './data/gen2/species.js';
@@ -111,5 +114,34 @@ describe("Johto's data", () => {
     expect(mul('electric', 'ground')).toBe(0);
     expect(mul('steel', 'steel')).toBe(0.5);
     expect(TYPE_CHART.some(([a, d, m, lifted]) => a === 'normal' && d === 'ghost' && m === 0 && lifted)).toBe(true);
+  });
+  // Johto's areas (data/gen2/areas.ts and maps.ts, tools/idle/johto_areas.py; issue #170, step 4b).
+  it("walks Johto's main road from New Bark Town to Lance, every reference resolving", () => {
+    const walks = JOHTO_AREAS.filter((a): a is WalkArea => a.kind !== 'town');
+    const towns = JOHTO_AREAS.filter((a): a is TownArea => a.kind === 'town');
+    expect(JOHTO_AREAS[0]!.id).toBe('route-29');
+    expect(JOHTO_AREAS.at(-1)).toMatchObject({ id: 'lance', kind: 'league', leader: 'champion-lance' });
+    expect(walks.filter((a) => a.kind === 'gym').map((a) => a.leader)).toEqual(['leader-falkner', 'leader-bugsy', 'leader-whitney', 'leader-morty', 'leader-chuck', 'leader-jasmine', 'leader-pryce', 'leader-clair']);
+    expect(new Set(JOHTO_AREAS.map((a) => a.id)).size).toBe(JOHTO_AREAS.length);
+    for (const a of walks) {
+      for (const l of a.legs) {
+        for (const m of l.maps) expect(JOHTO_MAPS[m], `${a.id}: ${m}`).toBeDefined();
+        expect(l.track.length, a.id).toBeGreaterThan(0);
+        l.track.forEach(([mi, x, y], i) => {
+          const m = JOHTO_MAPS[l.maps[mi]!]!;
+          expect(x >= 0 && y >= 0 && x < m.width && y < m.height, `${a.id} step ${i}`).toBe(true);
+        });
+      }
+      for (const t of a.trainers) expect(TRAINERS[t.key], `${a.id}: ${t.key}`).toBeDefined();
+      // Gyms and League rooms end at their boss, met last.
+      if (a.leader) expect(a.trainers.at(-1)!.key).toBe(a.leader);
+    }
+    for (const t of towns) {
+      expect(JOHTO_MAPS[t.map]).toBeDefined();
+      expect(JOHTO_MAPS[t.mart.map]).toBeDefined();
+      for (const m of t.marts) expect(m === 'badges' || m in MARTS, `${t.id}: ${m}`).toBe(true);
+      if (t.gym) expect(JOHTO_AREAS.some((a) => a.id === t.gym)).toBe(true);
+    }
+    for (const m of Object.values(JOHTO_MAPS)) if (m.encounters) expect(ENCOUNTERS[m.encounters], m.name).toBeDefined();
   });
 });

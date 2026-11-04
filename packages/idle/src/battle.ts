@@ -26,8 +26,8 @@ export type BattleStat = 'atk' | 'def' | 'spe' | 'spa' | 'spd' | 'acc' | 'eva';
 export const BATTLE_STATS: BattleStat[] = ['atk', 'def', 'spe', 'spa', 'spd', 'acc', 'eva'];
 const STAT_LABEL: Record<BattleStat, string> = { atk: 'Attack', def: 'Defense', spe: 'Speed', spa: 'Sp. Atk', spd: 'Sp. Def', acc: 'accuracy', eva: 'evasiveness' };
 
-/** The battle terrain under the player (GetBattleTerrain), for the background, Camouflage, Secret Power and Nature Power. */
-export type Terrain = 'grass' | 'longgrass' | 'sand' | 'water' | 'pond' | 'mountain' | 'cave' | 'building' | 'plain';
+/** The battle terrain under the player (GetBattleTerrain; Gen 4's snow and ice, HGSS's maps only), for the background, Camouflage, Secret Power and Nature Power. */
+export type Terrain = 'grass' | 'longgrass' | 'sand' | 'water' | 'pond' | 'mountain' | 'cave' | 'building' | 'plain' | 'snow' | 'ice';
 
 /** What the browser shows of a Pokémon in battle. */
 export interface BattlerView {

@@ -4,7 +4,7 @@
 // player's choice (gym, store, continue).
 import { generation, perGeneration } from './generation.js';
 
-/** A FireRed map an area walks: its picture (in apps/web/public) and size in 16px tiles, its wild table, battle scene and music. */
+/** A FireRed or HeartGold map an area walks: its picture (in apps/web/public) and size in 16px tiles, its wild table, battle scene and music. */
 export interface IdleMap {
   name: string;
   image: string;
@@ -14,16 +14,18 @@ export interface IdleMap {
   encounters: string;
   /** Its map battle scene (MAP_BATTLE_SCENE_, lower case): gym, lorelei… for the battle background. */
   scene: string;
-  /** Its song (the game's MUS_ constant). */
+  /** Its song (the game's MUS_ constant; HGSS's SEQ_ one, by day). */
   music: string;
+  /** HGSS's song by night, where it differs. */
+  nightMusic?: string;
   /** Its Town Map section (MAPSEC_, lower case: TownMapPlace.section): the Town Map offers a place its own maps' grinds. */
   section: string;
 }
 
 /**
  * A step of a track: the map (its index in the leg's maps), the tile, flags (1: reached through a fade, a warp or a
- * gatehouse; 2: jumped onto over a ledge) and the tile's wild encounters ('l' land, 'w' water, '.' none) and battle
- * terrain (Terrain's first letter: g grass, s sand, w water, p pond, m mountain, c cave, b building, '.' plain).
+ * gatehouse; 2: jumped onto over a ledge; 4: slid onto across ice, HGSS's maps) and the tile's wild encounters ('l' land, 'w' water, '.' none) and battle
+ * terrain (Terrain's first letter: g grass, s sand, w water, p pond, m mountain, c cave, b building, '.' plain; HGSS's n snow, i ice).
  */
 export type TrackStep = [map: number, x: number, y: number, flags: number, tile: string];
 
@@ -43,6 +45,9 @@ export interface AreaTrainer {
   sight: [number, number][];
   /** Standing in tall grass: its grass drawn over their feet (TallGrass). */
   grass?: true;
+  /** HGSS's: there only at night, or only by day, by the run's clock (the user's, 2026-11-04: Policemen Keith and Dirk only at night). */
+  night?: true;
+  day?: true;
 }
 
 export interface IdleLeg {
@@ -138,7 +143,7 @@ export function areaOpen(index: number, reached: number): boolean {
 }
 
 /** The terrain letters of a track step's tile. */
-export const TERRAIN_LETTERS = { g: 'grass', s: 'sand', w: 'water', p: 'pond', m: 'mountain', c: 'cave', b: 'building', '.': 'plain' } as const;
+export const TERRAIN_LETTERS = { g: 'grass', s: 'sand', w: 'water', p: 'pond', m: 'mountain', c: 'cave', b: 'building', n: 'snow', i: 'ice', '.': 'plain' } as const;
 
 /** The badges in order (each gym's), for the run's badge count and FireRed's badge boosts. */
 export const badgeList = perGeneration((g) => g.areas.filter((a): a is WalkArea => a.kind === 'gym').map((a) => a.badge!));

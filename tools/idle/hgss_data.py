@@ -47,7 +47,7 @@ def load(path):
 
 def key(const, prefix):
     """MOVE_KARATE_CHOP -> 'karate-chop'."""
-    return const[len(prefix):].lower().replace('_', '-')
+    return re.sub('-+', '-', const[len(prefix):].lower().replace('_', '-'))
 
 
 def js(v):

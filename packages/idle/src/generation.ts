@@ -20,8 +20,10 @@ import { KANTO_TOWN_MAP_PLACES } from './data/gen1/town-map.js';
 import { TRAINERS } from './data/gen1/trainers.js';
 import { TYPE_CHART } from './data/gen1/types.js';
 import { ABILITY_NAMES as JOHTO_ABILITY_NAMES } from './data/gen2/abilities.js';
+import { JOHTO_AREAS } from './data/gen2/areas.js';
 import { ENCOUNTERS as JOHTO_ENCOUNTERS } from './data/gen2/encounters.js';
 import { ITEMS as JOHTO_ITEMS } from './data/gen2/items.js';
+import { JOHTO_MAPS } from './data/gen2/maps.js';
 import { MARTS as JOHTO_MARTS } from './data/gen2/marts.js';
 import { MOVES as JOHTO_MOVES } from './data/gen2/moves.js';
 import { SPECIES as JOHTO_SPECIES } from './data/gen2/species.js';
@@ -92,7 +94,7 @@ const KANTO: Generation = {
   battleRules: 3,
 };
 
-/** Johto (HeartGold/SoulSilver, issue #170): its tables (data/gen2/, tools/idle/hgss_data.py); its areas, maps and Town Map to come (steps 4 and 5). */
+/** Johto (HeartGold/SoulSilver, issue #170): its tables (data/gen2/, tools/idle/hgss_data.py), its areas and maps (tools/idle/johto_areas.py); its Town Map to come (step 5). */
 const JOHTO: Generation = {
   gen: 2,
   region: 'Johto',
@@ -106,8 +108,8 @@ const JOHTO: Generation = {
   trainers: JOHTO_TRAINERS,
   tmMoves: JOHTO_TM_MOVES,
   tmLearners: JOHTO_TM_LEARNERS,
-  areas: [],
-  maps: {},
+  areas: JOHTO_AREAS,
+  maps: JOHTO_MAPS,
   townMapPlaces: [],
   // A placeholder until Johto's Pokégear map (step 5).
   townMapGrid: { image: '', imageWidth: 0, imageHeight: 0, x: 0, y: 0, cell: 8, width: 0, height: 0 },

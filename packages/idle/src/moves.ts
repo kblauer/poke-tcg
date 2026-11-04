@@ -176,8 +176,8 @@ const NO_SLEEP_TALK = new Set(['sleep-talk', 'focus-punch', 'uproar', 'bide', 'a
 /** Gen 4's (BtlCmd_TrySleepTalk): Gen 3's, the moves that call others, Chatter and Shadow Force. */
 const NO_SLEEP_TALK4 = new Set([...NO_SLEEP_TALK, 'copycat', 'me-first', 'chatter', 'shadow-force']);
 
-/** Gen 4's Secret Power, Nature Power and Camouflage by terrain (sSecretPowerEffectTable, sNaturePowerMoveTable, sCamouflageTypeTable): our terrains as Gen 4's (pond its puddle). */
-const TERRAIN4: Record<Terrain, { secret: 'acc' | 'sleep' | 'flinch' | 'atk' | 'paralysis' | 'spe'; nature: string; type: TypeName }> = {
+/** Gen 4's Secret Power, Nature Power and Camouflage by terrain (sSecretPowerEffectTable, sNaturePowerMoveTable, sCamouflageTypeTable): our terrains as Gen 4's (pond its puddle; the League's rooms are building, its "others"). */
+const TERRAIN4: Record<Terrain, { secret: 'acc' | 'sleep' | 'flinch' | 'atk' | 'paralysis' | 'spe' | 'freeze'; nature: string; type: TypeName }> = {
   plain: { secret: 'acc', nature: 'earthquake', type: 'ground' },
   sand: { secret: 'acc', nature: 'earthquake', type: 'ground' },
   grass: { secret: 'sleep', nature: 'seed-bomb', type: 'grass' },
@@ -187,12 +187,14 @@ const TERRAIN4: Record<Terrain, { secret: 'acc' | 'sleep' | 'flinch' | 'atk' | '
   cave: { secret: 'flinch', nature: 'rock-slide', type: 'rock' },
   water: { secret: 'atk', nature: 'hydro-pump', type: 'water' },
   building: { secret: 'paralysis', nature: 'tri-attack', type: 'normal' },
+  snow: { secret: 'freeze', nature: 'blizzard', type: 'ice' },
+  ice: { secret: 'freeze', nature: 'ice-beam', type: 'ice' },
 };
 
 /** The move Nature Power becomes on each terrain (sNaturePowerMoves). */
-const NATURE_POWER: Record<Terrain, string> = { grass: 'stun-spore', longgrass: 'razor-leaf', sand: 'earthquake', water: 'surf', pond: 'bubble-beam', mountain: 'rock-slide', cave: 'shadow-ball', building: 'swift', plain: 'swift' };
+const NATURE_POWER: Record<Terrain, string> = { grass: 'stun-spore', longgrass: 'razor-leaf', sand: 'earthquake', water: 'surf', pond: 'bubble-beam', mountain: 'rock-slide', cave: 'shadow-ball', building: 'swift', plain: 'swift', snow: 'swift', ice: 'swift' };
 /** Camouflage's type on each terrain (sTerrainToType). */
-const CAMOUFLAGE: Record<Terrain, TypeName> = { grass: 'grass', longgrass: 'grass', sand: 'ground', water: 'water', pond: 'water', mountain: 'rock', cave: 'rock', building: 'normal', plain: 'normal' };
+const CAMOUFLAGE: Record<Terrain, TypeName> = { grass: 'grass', longgrass: 'grass', sand: 'ground', water: 'water', pond: 'water', mountain: 'rock', cave: 'rock', building: 'normal', plain: 'normal', snow: 'normal', ice: 'normal' };
 
 /** Magnitude's powers by its roll (4 to 10). */
 function magnitude(b: Battle): { n: number; power: number } {
@@ -747,7 +749,7 @@ export const EFFECTS: Record<string, Effect> = {
       if (!b.secondaryHappens(ctx, h)) return;
       if (b.gen4) {
         const s = TERRAIN4[b.setup.terrain].secret;
-        if (s === 'sleep' || s === 'paralysis') {
+        if (s === 'sleep' || s === 'paralysis' || s === 'freeze') {
           if (b.canStatus(target, s, user)) b.setStatus(target, s, user);
         } else if (s === 'flinch') flinch(ctx, h, 100);
         else b.changeStat(target, s, -1, false);
