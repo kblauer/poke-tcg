@@ -38,8 +38,9 @@ function hit(ctx: MoveCtx, after?: (h: Hit) => void, o: Parameters<Battle['strik
   if (!b.lands(ctx, { accuracy: o.accuracy, immunity: o.immunity })) return null;
   const h = b.strike(ctx, o);
   if (h.toMon && ctx.type === 'fire' && target.status === 'freeze') b.cureStatus(target, `${b.Name(target)} was defrosted!`);
-  b.contact(user, target, ctx.move);
+  b.contact(user, target, ctx.move, h);
   after?.(h);
+  b.colorChange(ctx, h);
   b.destinyBond(user, target);
   return h;
 }
@@ -112,7 +113,8 @@ function multiHit(ctx: MoveCtx, times?: number, each?: (h: Hit, i: number) => vo
   let count = 0;
   for (let i = 0; i < n && !target.fainted && target.hp > 0 && user.hp > 0; i++) {
     const h = b.strike(ctx);
-    b.contact(user, target, ctx.move);
+    b.contact(user, target, ctx.move, h);
+    b.colorChange(ctx, h);
     count++;
     each?.(h, i);
   }
@@ -790,8 +792,8 @@ export const EFFECTS: Record<string, Effect> = {
     let count = 0;
     for (let i = 1; i <= 3 && !target.fainted && target.hp > 0; i++) {
       if (!b.lands(ctx)) break;
-      b.strike({ ...ctx, power: 10 * i });
-      b.contact(user, target, ctx.move);
+      const h = b.strike({ ...ctx, power: 10 * i });
+      b.contact(user, target, ctx.move, h);
       count++;
     }
     if (count) b.text(`Hit ${count} time${count === 1 ? '' : 's'}!`);
@@ -835,8 +837,8 @@ export const EFFECTS: Record<string, Effect> = {
     const { b, user, target } = ctx;
     reckless(ctx);
     if (b.lands(ctx)) {
-      b.strike(ctx);
-      b.contact(user, target, ctx.move);
+      const h = b.strike(ctx);
+      b.contact(user, target, ctx.move, h);
       return;
     }
     if (b.gen4) {
@@ -1001,13 +1003,17 @@ export const EFFECTS: Record<string, Effect> = {
       b.text('It shattered the barrier!');
     }
     if (b.gen4 && b.immune(ctx.user, target, ctx.type)) return void b.text(`It doesn't affect ${b.name(target)}…`);
-    b.strike(ctx);
-    b.contact(ctx.user, target, ctx.move);
+    const h = b.strike(ctx);
+    b.contact(ctx.user, target, ctx.move, h);
   },
   knock_off: (ctx) =>
     void hit(ctx, (h) => {
       const { b, target } = ctx;
-      if (!h.toMon || !target.item || target.ability === 'sticky-hold') return;
+      if (!h.toMon || !target.item) return;
+      if (b.gen4 ? b.targetHas(ctx.user, target, 'sticky-hold') : target.ability === 'sticky-hold') {
+        if (b.gen4) b.text(`${b.Name(target)}'s Sticky Hold made ${ctx.move.name} ineffective!`);
+        return;
+      }
       b.text(`${b.Name(ctx.user)} knocked off ${b.name(target)}'s ${itemName(target.item)}!`);
       target.item = null;
     }),
@@ -1015,7 +1021,8 @@ export const EFFECTS: Record<string, Effect> = {
     void hit(ctx, (h) => {
       const { b, target, user } = ctx;
       // The foe's side never steals outside link battles (MOVE_EFFECT_STEAL_ITEM).
-      if (!h.toMon || !target.item || user.item || target.ability === 'sticky-hold' || user.side === 1) return;
+      if (!h.toMon || !target.item || user.item || (b.gen4 ? b.targetHas(user, target, 'sticky-hold') : target.ability === 'sticky-hold') || user.side === 1) return;
+      user.v.hadItem = true;
       b.text(`${b.Name(user)} stole ${b.name(target)}'s ${itemName(target.item)}!`);
       user.item = target.item;
       target.item = null;
@@ -1246,7 +1253,7 @@ export const EFFECTS: Record<string, Effect> = {
     const { b, user } = ctx;
     if (user.status === 'sleep') return void b.text(`${b.Name(user)} is already asleep!`);
     if (user.hp === user.maxHp) return void b.text(`${b.Name(user)}'s HP is full!`);
-    if (user.ability === 'insomnia' || user.ability === 'vital-spirit' || b.active.some((x) => x.v.uproar)) return fail(b);
+    if (user.ability === 'insomnia' || user.ability === 'vital-spirit' || (b.active.some((x) => x.v.uproar) && !(b.gen4 && user.ability === 'soundproof'))) return fail(b);
     user.status = null;
     b.setStatus(user, 'sleep', null, 3);
     b.heal(user, user.maxHp, `${b.Name(user)} slept and became healthy!`);
@@ -1547,7 +1554,9 @@ export const EFFECTS: Record<string, Effect> = {
     onTarget(ctx, (t) => {
       const { b, user } = ctx;
       // The foe's side never trades items outside link battles (Cmd_tryswapitems).
-      if ((!user.item && !t.item) || t.ability === 'sticky-hold' || user.side === 1) return fail(b);
+      if ((!user.item && !t.item) || (b.gen4 ? b.targetHas(user, t, 'sticky-hold') : t.ability === 'sticky-hold') || user.side === 1) return fail(b);
+      if (t.item) user.v.hadItem = true;
+      if (user.item) t.v.hadItem = true;
       [user.item, t.item] = [t.item, user.item];
       b.text(`${b.Name(user)} switched items with its target!`);
     }),
@@ -1583,12 +1592,25 @@ export const EFFECTS: Record<string, Effect> = {
       const others = team.filter((m) => m !== t && !m.fainted);
       if (!others.length) return fail(b);
       const next = others[b.roll(others.length)]!;
+      if (t.ability === 'natural-cure' && t.status) {
+        t.status = null;
+        t.sleepTurns = 0;
+        t.toxicCount = 0;
+      }
       b.text(`${b.Name(t)} was dragged out!`);
       b.sendOut(next);
     }, { substitute: false }),
   teleport: (ctx) => {
     const { b, user } = ctx;
-    if (b.setup.kind !== 'wild' || user.v.meanLook || user.v.trapped) return fail(b);
+    if (b.setup.kind !== 'wild' || user.v.meanLook || user.v.trapped) {
+      if (!(b.gen4 && (user.ability === 'run-away' || b.holdEffect(user) === 'flee'))) return fail(b);
+    }
+    if (b.gen4 && user.ability !== 'run-away' && b.holdEffect(user) !== 'flee') {
+      // Gen 4 (CantEscape): a foe's Shadow Tag, Arena Trap on a grounded user, Magnet Pull on a Steel one; Ingrain.
+      const foe = b.foeOf(user);
+      const grounded = b.gravity > 0 || b.holdEffect(user) === 'speed_down_grounded' || !(user.types.includes('flying') || user.ability === 'levitate' || user.v.magnetRise);
+      if ((foe.ability === 'shadow-tag' && user.ability !== 'shadow-tag') || (foe.ability === 'arena-trap' && grounded) || (foe.ability === 'magnet-pull' && user.types.includes('steel')) || user.v.ingrain) return fail(b);
+    }
     b.text(user.side === 1 ? `${b.Name(user)} fled!` : `${b.Name(user)} teleported away!`);
     b.end('fled');
   },

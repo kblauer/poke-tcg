@@ -355,3 +355,106 @@ describe("Gen 4's own effects", () => {
       expect(b.selectable(f, 'trump-card')).toBe(false);
     }));
 });
+
+describe("Gen 4's abilities", () => {
+  it('starts permanent rain with Drizzle, and ends Slow Start after 5 turns', () =>
+    johto(() => {
+      const b = duel(true);
+      const [u, f] = b.active;
+      u.ability = 'drizzle';
+      b.sendOut(u);
+      expect(b.weather).toMatchObject({ kind: 'rain', permanent: true });
+      for (let i = 0; i < 8; i++) endTurn(b);
+      expect(b.weather?.kind).toBe('rain');
+      f.ability = 'slow-start';
+      b.sendOut(f);
+      const slow = b.speed(f);
+      for (let i = 0; i < 5; i++) endTurn(b);
+      expect(f.v.slowStart).toBe(5);
+      expect(b.speed(f)).toBe(slow * 2);
+    }));
+
+  it('reads Intimidate (not through a Substitute) and Download', () =>
+    johto(() => {
+      const b = duel(true);
+      const [u, f] = b.active;
+      u.ability = 'intimidate';
+      f.v.substitute = 10;
+      b.sendOut(u);
+      expect(f.stages.atk).toBe(0);
+      delete f.v.substitute;
+      b.sendOut(u);
+      expect(f.stages.atk).toBe(-1);
+      u.ability = 'download';
+      b.sendOut(u);
+      // Chikorita's Defense and Sp. Def are equal: Sp. Atk up.
+      expect(u.stages.spa).toBe(1);
+    }));
+
+  it('hurts a contact attacker with Rough Skin and Static, not through a Substitute', () =>
+    johto(() => {
+      const b = duel(true);
+      const [u, f] = b.active;
+      f.ability = 'rough-skin';
+      b.useMove(u, 'tackle');
+      expect(u.maxHp - u.hp).toBe(Math.floor(u.maxHp / 8));
+      u.hp = u.maxHp;
+      f.v.substitute = 999;
+      b.useMove(u, 'tackle');
+      expect(u.hp).toBe(u.maxHp);
+      delete f.v.substitute;
+      f.ability = 'static';
+      b.useMove(u, 'tackle');
+      expect(u.status).toBe('paralysis');
+    }));
+
+  it('absorbs with Volt Absorb and Motor Drive, past which Mold Breaker gets, and guards with Wonder Guard', () =>
+    johto(() => {
+      const b = duel(true);
+      const [u, f] = b.active;
+      f.ability = 'motor-drive';
+      b.useMove(u, 'thunder-shock');
+      expect([f.hp, f.stages.spe]).toEqual([f.maxHp, 1]);
+      u.ability = 'mold-breaker';
+      b.useMove(u, 'thunder-shock');
+      expect(f.hp).toBeLessThan(f.maxHp);
+      f.hp = f.maxHp;
+      u.ability = 'blaze';
+      f.ability = 'wonder-guard';
+      b.useMove(u, 'tackle');
+      expect(f.hp).toBe(f.maxHp);
+      b.useMove(u, 'ember');
+      expect(f.hp).toBeLessThan(f.maxHp);
+    }));
+
+  it('loafs every other turn with Truant, and Klutz turns its item off', () =>
+    johto(() => {
+      const b = duel(true);
+      const u = b.active[0];
+      u.ability = 'truant';
+      b.sendOut(u);
+      const acts = [1, 2, 3, 4].map((t) => {
+        b.tick = t;
+        return b['canMove'](u, 'tackle');
+      });
+      expect(acts).toEqual([true, false, true, false]);
+      u.ability = 'klutz';
+      u.item = 'leftovers';
+      expect(b.holdEffect(u)).toBe('none');
+    }));
+
+  it('maxes Attack on a critical hit with Anger Point, and changes type with Color Change', () =>
+    johto(() => {
+      const b = duel(true);
+      const [u, f] = b.active;
+      f.ability = 'anger-point';
+      b.random16 = () => 0;
+      b.useMove(u, 'tackle');
+      expect(f.stages.atk).toBe(6);
+      f.hp = f.maxHp;
+      b.random16 = () => 1;
+      f.ability = 'color-change';
+      b.useMove(u, 'ember');
+      expect(f.types).toEqual(['fire']);
+    }));
+});

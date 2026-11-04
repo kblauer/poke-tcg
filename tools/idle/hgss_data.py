@@ -160,9 +160,13 @@ write('moves.ts', 'files/poketool/waza/waza_tbl.narc, include/constants/move_eff
 # ---- Abilities ----
 ability_consts = constants('include/constants/abilities.h', 'ABILITY_')
 ability_names = messages(720)
+# Kanto's key for an ability of the same name (ABILITY_COMPOUNDEYES is Kanto's 'compound-eyes').
+kanto_abilities = {re.sub(r'[^a-z0-9]', '', name.lower()): k
+                   for k, name in re.findall(r"^  '([^']+)': '((?:[^'\\]|\\.)*)'", open(os.path.join(GEN1, 'abilities.ts'), encoding='utf8').read(), re.M)}
+ability_key = {c: same_key(kanto_abilities, ability_names[n], key(c, 'ABILITY_')) for n, c in ability_consts.items()}
 write('abilities.ts', 'include/constants/abilities.h, msg_0720',
-      "/** Every ability's name, by key (ABILITY_SPEED_BOOST: 'speed-boost'). */\nexport const ABILITY_NAMES: Record<string, string> = {\n"
-      + ''.join(f'  {js(key(c, "ABILITY_"))}: {js(ability_names[n])},\n' for n, c in sorted(ability_consts.items()) if n) + '};\n')
+      "/** Every ability's name, by key (ABILITY_SPEED_BOOST: 'speed-boost'; Kanto's key where a Kanto ability has its name). */\nexport const ABILITY_NAMES: Record<string, string> = {\n"
+      + ''.join(f'  {js(ability_key[c])}: {js(ability_names[n])},\n' for n, c in sorted(ability_consts.items()) if n) + '};\n')
 
 # ---- Items ----
 item_consts = constants('include/constants/items.h', 'ITEM_', '#define ITEM_NONE', '#define ITEMS_COUNT')
@@ -275,7 +279,7 @@ for n in range(1, NATIONAL_DEX + 1):
         'evYield': [p['hp_yield'], p['atk_yield'], p['def_yield'], p['spatk_yield'], p['spdef_yield'], p['speed_yield']],
         'growth': GROWTH[p['growthRate']],
         'genderRatio': int(p['genderRatio'] * 254.75) if p['genderRatio'] <= 1 else 255,
-        'abilities': [key(a, 'ABILITY_') for a in p['abilities'] if a != 'ABILITY_NONE'],
+        'abilities': [ability_key[a] for a in p['abilities'] if a != 'ABILITY_NONE'],
         'learnset': learnset(n),
         'evolutions': evolutions(c),
         'icon': 0,

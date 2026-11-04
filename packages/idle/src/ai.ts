@@ -70,7 +70,10 @@ function autoHeal(b: Battle, me: Battler): Action | null {
 export function maxDamage(b: Battle, user: Battler, target: Battler, key: string, crit = true): number {
   const m = moveData(key);
   if (m.power === 0) return 0;
-  if (b.immune(user, target, b.moveType(user, m))) return 0;
+  const type = b.moveType(user, m);
+  if (b.immune(user, target, type)) return 0;
+  // Nothing either into an ability that takes the move in (Gen 4's absorbers) or Wonder Guard.
+  if ((b.gen4 && b.absorber4(user, target, type, m)) || b.wonderGuards(user, target, key, m, type)) return 0;
   switch (m.effect) {
     case 'false_swipe':
       return Math.max(0, target.hp - 1);

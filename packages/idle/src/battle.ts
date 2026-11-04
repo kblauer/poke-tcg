@@ -216,6 +216,10 @@ export interface Volatiles {
   lastHit?: { dealt: number; by: Side };
   /** Gen 4's Me First: the copied move's damage 1.5x. */
   meFirst?: boolean;
+  /** Gen 4's abilities' state: Trace done, Truant's first acting tick (it loafs every other tick from it), an item held (Unburden). */
+  traced?: boolean;
+  truantFrom?: number;
+  hadItem?: boolean;
   /** Mimic's copy, in place of Mimic for the battle. */
   mimicked?: { from: string; to: string };
 }
@@ -277,6 +281,11 @@ export class Battler {
     return this.mon.level;
   }
 
+  /** Whether it can fall for `other` (Attract, Cute Charm): both gendered, opposite genders, not already in love. */
+  attractable(other: Battler) {
+    return this.v.attractedTo === undefined && !!this.mon.gender && !!other.mon.gender && this.mon.gender !== other.mon.gender;
+  }
+
   view(): BattlerView {
     return { uid: this.mon.uid, species: this.species, level: this.level, hp: this.hp, maxHp: this.maxHp, status: this.status, gender: this.mon.gender, slots: [...this.slots], basic: this.basic, cooldowns: { ...this.cooldowns }, index: this.index, ...(this.mon.shiny && { shiny: true }) };
   }
@@ -314,7 +323,8 @@ export class Battle {
   foes: Battler[];
   active: [Battler, Battler];
   sides: [SideState, SideState] = [newSide(), newSide()];
-  weather: { kind: Weather; turns: number } | null = null;
+  /** The weather and its turns left; `permanent` (a weather ability's) never wears off, only another weather replaces it. */
+  weather: { kind: Weather; turns: number; permanent?: boolean } | null = null;
   bag: Record<string, number>;
   foeItems: string[];
   tick = 0;
@@ -420,9 +430,12 @@ export class Battle {
     let s = this.staged(b, 'spe', stage);
     if ((b.ability === 'swift-swim' && this.isWeather('rain')) || (b.ability === 'chlorophyll' && this.isWeather('sun'))) s *= 2;
     const hold = this.holdEffect(b);
+    const raw = b.item ? itemData(b.item).hold : 'none';
     if (hold === 'choice_speed') s = Math.floor((s * 15) / 10);
-    if (hold === 'evs_up_speed_down' || hold === 'speed_down_grounded' || hold.startsWith('lvlup_')) s = Math.floor(s / 2);
+    if (raw === 'evs_up_speed_down' || raw === 'speed_down_grounded' || raw.startsWith('lvlup_')) s = Math.floor(s / 2);
     if (b.ability === 'slow-start' && (b.v.slowStart ?? 0) < 5) s = Math.floor(s / 2);
+    // Unburden: twice as fast once the item it held is gone.
+    if (b.ability === 'unburden' && b.v.hadItem && !b.item) s *= 2;
     if (b.ability === 'quick-feet' && b.status) s = Math.floor((s * 15) / 10);
     else if (b.status === 'paralysis') s = Math.floor(s / 4);
     if (this.sides[b.side].tailwind) s *= 2;
@@ -431,7 +444,7 @@ export class Battle {
 
   /** A held item's hold effect (none under Gen 4's Embargo). */
   holdEffect(b: Battler) {
-    return b.item && !(this.gen4 && b.v.embargo) ? itemData(b.item).hold : 'none';
+    return b.item && !(this.gen4 && (b.v.embargo || b.ability === 'klutz')) ? itemData(b.item).hold : 'none';
   }
 
   // ---- HP ----
@@ -845,6 +858,8 @@ export class Battle {
 
   /** The move's type for this use (Hidden Power, Weather Ball…), from its effect if it changes it. */
   moveType(user: Battler, move: MoveData): TypeName {
+    // Gen 4's Normalize: every move Normal, before Hidden Power, Weather Ball, Judgment (BattleSystem_GetMoveType).
+    if (this.gen4 && user.ability === 'normalize') return 'normal';
     if (move.effect === 'weather_ball' && this.weatherOn()) return ({ rain: 'water', sun: 'fire', sandstorm: 'rock', hail: 'ice' } as const)[this.weather!.kind];
     if (move.effect === 'hidden_power') return hiddenPowerType(user.mon);
     return move.type;
@@ -882,7 +897,7 @@ export class Battle {
     const [n, d] = ACCURACY_RATIOS[buff + 6]!;
     let calc = Math.floor((n * acc) / d);
     if (user.ability === 'compound-eyes') calc = Math.floor((calc * 130) / 100);
-    if (target.ability === 'sand-veil' && this.isWeather('sandstorm')) calc = Math.floor((calc * 80) / 100);
+    if ((this.gen4 ? this.targetHas(user, target, 'sand-veil') : target.ability === 'sand-veil') && this.isWeather('sandstorm')) calc = Math.floor((calc * 80) / 100);
     if (user.ability === 'hustle' && this.physical(move, this.moveType(user, move))) calc = Math.floor((calc * 80) / 100);
     if (this.holdEffect(target) === (this.gen4 ? 'acc_reduce' : 'evasion_up')) calc = Math.floor((calc * (100 - itemData(target.item!).holdParam)) / 100);
     if (this.gen4) {
@@ -901,6 +916,7 @@ export class Battle {
   /** Whether the target's ability takes this move's type in (Volt Absorb, Water Absorb, Flash Fire), healing or powering up. */
   absorbs(user: Battler, target: Battler, type: TypeName, move: MoveData): boolean {
     if (user === target || move.target === 'user') return false;
+    if (this.gen4) return this.absorbs4(user, target, type, move);
     if (target.ability === 'volt-absorb' && type === 'electric' && move.target !== 'opponents_field') {
       this.absorbHeal(target);
       return true;
@@ -916,6 +932,35 @@ export class Battle {
     }
     return false;
   }
+  /**
+   * The ability that would take a move in, by Gen 4's rules (BattleContext_CheckMoveImmunityFromAbility; Mold Breaker
+   * gets past all of them): Volt Absorb and Motor Drive any Electric move, Water Absorb and Dry Skin a damaging Water one,
+   * Flash Fire a damaging Fire one or Will-O-Wisp (not while frozen). A plain check (the AI's too).
+   */
+  absorber4(user: Battler, target: Battler, type: TypeName, move: MoveData): string | null {
+    if (user === target || move.target === 'user' || move.target === 'opponents_field') return null;
+    const has = (a: string) => this.targetHas(user, target, a);
+    if (type === 'electric' && (has('volt-absorb') || has('motor-drive'))) return target.ability;
+    if (type === 'water' && move.power > 0 && (has('water-absorb') || has('dry-skin'))) return target.ability;
+    if (type === 'fire' && (move.power > 0 || move.effect === 'will_o_wisp') && has('flash-fire') && target.status !== 'freeze') return target.ability;
+    return null;
+  }
+
+  private absorbs4(user: Battler, target: Battler, type: TypeName, move: MoveData): boolean {
+    const a = this.absorber4(user, target, type, move);
+    if (!a) return false;
+    const name = `${this.Name(target)}'s ${abilityName(a)}`;
+    if (a === 'motor-drive') {
+      if (target.stages.spe >= 6) this.text(`${name} made ${move.name} useless!`);
+      else if (this.changeStat(target, 'spe', 1, true, true)) this.text(`${name} raised its Speed!`);
+    } else if (a === 'flash-fire') {
+      this.text(target.v.flashFire ? `${name} made ${move.name} ineffective!` : `${name} raised the power of its Fire-type moves!`);
+      target.v.flashFire = true;
+    } else if (target.hp === target.maxHp) this.text(`${name} made ${move.name} useless!`);
+    else this.heal(target, Math.max(1, Math.floor(target.maxHp / 4)), `${this.Name(target)} restored HP using its ${abilityName(a)}!`);
+    return true;
+  }
+
   private absorbHeal(target: Battler) {
     if (target.hp === target.maxHp) this.text(`${this.Name(target)}'s ${abilityName(target.ability)} made it ineffective!`);
     else this.heal(target, Math.max(1, Math.floor(target.maxHp / 4)), `${this.Name(target)} restored HP using its ${abilityName(target.ability)}!`);
@@ -954,6 +999,7 @@ export class Battle {
       const dealt = Math.min(target.v.substitute, damage);
       target.v.substitute -= dealt;
       if (crit) this.text('A critical hit!');
+      if (crit) this.angerPoint(target);
       this.text(`The substitute took damage for ${this.name(target)}!`);
       if (target.v.substitute <= 0) {
         delete target.v.substitute;
@@ -970,6 +1016,7 @@ export class Battle {
     const dealt = this.damage(target, damage, { crit, eff });
     if (user.side !== target.side) target.v.lastHit = { dealt, by: user.side };
     if (crit) this.text('A critical hit!');
+    if (crit) this.angerPoint(target);
     if (eff > 1) this.text("It's super effective!");
     else if (eff > 0 && eff < 1) this.text("It's not very effective…");
     target.v.hitThisTurn = true;
@@ -1001,10 +1048,16 @@ export class Battle {
   }
 
   /** Contact abilities on the attacker after a contact move hit (Static, Flame Body, Poison Point, Effect Spore, Cute Charm). */
-  contact(user: Battler, target: Battler, move: MoveData) {
+  contact(user: Battler, target: Battler, move: MoveData, hit?: { toMon: boolean; dealt: number }) {
     if (!move.flags.includes('makes_contact') || user.fainted || target.ability === 'none') return;
+    // Only when the hit damaged the target itself (TARGET_TURN_DAMAGED: not its Substitute; both generations).
+    if (hit && (!hit.toMon || hit.dealt <= 0)) return;
+    if (this.gen4) return this.contact4(user, target);
     const third = this.roll(3) === 0;
     switch (target.ability) {
+      case 'rough-skin':
+        if (user.hp > 0) this.damage(user, Math.max(1, Math.floor(user.maxHp / 16)), { msg: `${this.Name(target)}'s Rough Skin hurt ${this.name(user)}!` });
+        break;
       case 'static':
         if (third && this.canStatus(user, 'paralysis', null)) this.setStatus(user, 'paralysis', target);
         break;
@@ -1027,6 +1080,67 @@ export class Battle {
         }
         break;
     }
+  }
+
+  /**
+   * Gen 4's contact abilities (CheckAbilityEffectOnHit): Static, Flame Body, Poison Point and Cute Charm 30% (Cute Charm
+   * needing its holder standing, Oblivious suppressing it), Effect Spore 30% then one of its three statuses on an attacker
+   * with none, Rough Skin an eighth, Aftermath a quarter from a holder knocked out (not with Damp around); Magic Guard
+   * taking neither.
+   */
+  private contact4(user: Battler, target: Battler) {
+    const chance = () => this.random16() % 10 < 3;
+    switch (target.ability) {
+      case 'static':
+        if (chance() && this.canStatus(user, 'paralysis', null)) this.setStatus(user, 'paralysis', target);
+        break;
+      case 'flame-body':
+        if (chance() && this.canStatus(user, 'burn', null)) this.setStatus(user, 'burn', target);
+        break;
+      case 'poison-point':
+        if (chance() && this.canStatus(user, 'poison', null)) this.setStatus(user, 'poison', target);
+        break;
+      case 'effect-spore':
+        if (!user.status && chance()) {
+          const kind = (['poison', 'paralysis', 'sleep'] as const)[this.random16() % 3]!;
+          if (this.canStatus(user, kind, null)) this.setStatus(user, kind, target);
+        }
+        break;
+      case 'cute-charm':
+        if (target.hp > 0 && chance() && user.attractable(target)) {
+          if (user.ability === 'oblivious') this.text(`${this.Name(user)}'s Oblivious suppressed ${this.name(target)}'s Cute Charm!`);
+          else {
+            user.v.attractedTo = target.side;
+            this.text(`${this.Name(target)}'s Cute Charm infatuated ${this.name(user)}!`);
+          }
+        }
+        break;
+      case 'rough-skin':
+        if (!this.magicGuard(user)) this.damage(user, Math.max(1, Math.floor(user.maxHp / 8)), { msg: `${this.Name(target)}'s Rough Skin hurt ${this.name(user)}!` });
+        break;
+      case 'aftermath':
+        if (target.hp <= 0 && !this.magicGuard(user) && !this.active.some((x) => x.hp > 0 && x.ability === 'damp')) {
+          this.damage(user, Math.max(1, Math.floor(user.maxHp / 4)), { msg: `${this.Name(user)} was hurt by ${this.name(target)}'s Aftermath!` });
+        }
+        break;
+    }
+  }
+
+  /** Gen 4's Anger Point: a critical hit maxes its Attack. */
+  private angerPoint(b: Battler) {
+    if (!this.gen4 || b.ability !== 'anger-point' || b.hp <= 0 || b.stages.atk >= 6) return;
+    const change = 6 - b.stages.atk;
+    b.stages.atk = 6;
+    this.emit({ t: 'stat', side: b.side, stat: 'atk', change, msg: `${this.Name(b)} maxed its Attack with Anger Point!` });
+  }
+
+  /** Gen 4's Color Change: after a hit that hurt it, it becomes the move's type (not Struggle's). */
+  colorChange(ctx: MoveCtx, hit: { toMon: boolean; dealt: number }) {
+    const { target, key, move } = ctx;
+    if (!this.gen4 || target.ability !== 'color-change' || !hit.toMon || hit.dealt <= 0 || target.hp <= 0 || key === 'struggle' || !move.power) return;
+    if (target.types.length === 1 && target.types[0] === ctx.type) return;
+    target.types = [ctx.type];
+    this.text(`${this.Name(target)}'s Color Change made it the ${ctx.type[0]!.toUpperCase() + ctx.type.slice(1)} type!`);
   }
 
   /** Whether a secondary effect happens: its chance (doubled by Serene Grace), not through Shield Dust or a Substitute. */
@@ -1059,6 +1173,13 @@ export class Battle {
       }
     }
     this.entryAbility(b);
+    if (this.gen4) {
+      b.v.hadItem = !!b.item;
+      b.v.truantFrom = this.tick;
+      // A Trace with nothing to copy tries the new foe (TryAbilityOnEntry, after every action).
+      const other = this.active[b.side === 0 ? 1 : 0];
+      if (other && other !== b && other.ability === 'trace' && !other.v.traced && !other.fainted) this.entryAbility(other);
+    }
   }
 
   /**
@@ -1099,8 +1220,16 @@ export class Battle {
     }
   }
 
-  private entryAbility(b: Battler) {
+  private entryAbility(b: Battler): void {
     const foe = this.foeOf(b);
+    // A weather ability starts its weather for good (Drizzle, Drought, Sand Stream; Gen 4's Snow Warning), unless it's on for good already.
+    const weather = ({ drizzle: 'rain', drought: 'sun', 'sand-stream': 'sandstorm', 'snow-warning': 'hail' } as const)[b.ability as 'drizzle'];
+    if (weather && !(this.weather?.kind === weather && this.weather.permanent) && !(b.ability === 'snow-warning' && !this.gen4)) {
+      this.weather = { kind: weather, turns: 0, permanent: true };
+      const line = { drizzle: 'made it rain!', drought: "intensified the sun's rays!", 'sand-stream': 'whipped up a sandstorm!', 'snow-warning': 'whipped up a hailstorm!' }[b.ability as 'drizzle'];
+      this.emit({ t: 'weather', weather, msg: `${this.Name(b)}'s ${abilityName(b.ability)} ${line}` });
+    }
+    if (this.gen4) return this.entryAbility4(b);
     if (!foe || foe.fainted) return;
     if (b.ability === 'intimidate') {
       this.text(`${this.Name(b)}'s Intimidate cuts ${this.name(foe)}'s Attack!`);
@@ -1109,6 +1238,96 @@ export class Battle {
     if (b.ability === 'trace' && foe.ability !== 'none') {
       b.ability = foe.ability;
       this.text(`${this.Name(b)} traced ${this.name(foe)}'s ${abilityName(foe.ability)}!`);
+    }
+  }
+
+  /**
+   * Gen 4's entry abilities in TryAbilityOnEntry's order: Trace (not Trace, Forecast or Multitype; tried again as the next
+   * foe comes in), Intimidate (not through a Substitute, one line), Download, Anticipation, Forewarn, Frisk, Slow Start,
+   * Mold Breaker and Pressure's lines; then Forecast and the abilities curing a status it has (CheckStatusHealAbility).
+   */
+  private entryAbility4(b: Battler): void {
+    const foe = this.foeOf(b);
+    const up = !!foe && !foe.fainted && foe.hp > 0;
+    if (b.ability === 'trace' && !b.v.traced && up && !['trace', 'forecast', 'multitype', 'none'].includes(foe.ability)) {
+      b.v.traced = true;
+      b.ability = foe.ability;
+      this.text(`${this.Name(b)} traced ${this.name(foe)}'s ${abilityName(foe.ability)}!`);
+      return this.entryAbility(b);
+    }
+    if (b.ability === 'intimidate' && up && !foe.v.substitute) {
+      const blocker = ['hyper-cutter', 'clear-body', 'white-smoke'].find((a) => foe.ability === a);
+      if (this.sides[foe.side].mist) this.text(`${this.Name(foe)} is protected by Mist!`);
+      else if (blocker) this.text(`${this.Name(foe)}'s ${abilityName(blocker)} suppressed ${this.name(b)}'s Intimidate!`);
+      else if (foe.stages.atk > -6) {
+        foe.stages.atk -= 1;
+        this.emit({ t: 'stat', side: foe.side, stat: 'atk', change: -1, msg: `${this.Name(b)}'s Intimidate cuts ${this.name(foe)}'s Attack!` });
+      }
+    }
+    if (b.ability === 'download' && up && !foe.v.substitute) this.changeStat(b, this.staged(foe, 'def') >= this.staged(foe, 'spd') ? 'spa' : 'atk', 1, true);
+    if (b.ability === 'anticipation' && up && this.shudders(b, foe)) this.text(`${this.Name(b)}'s Anticipation made it shudder!`);
+    if (b.ability === 'forewarn' && up) {
+      const known = [...new Set([...foe.slots, foe.basic])];
+      const rank = (k: string) => {
+        const m = moveData(k);
+        if (m.power !== 1) return m.power;
+        return m.effect === 'ohko' ? 150 : ['counter', 'mirror_coat', 'metal_burst'].includes(m.effect) ? 120 : 80;
+      };
+      let pick = known[this.random16() % known.length]!;
+      let best = 0;
+      for (const k of known) if (rank(k) > best || (rank(k) === best && best > 0 && this.random16() & 1)) [pick, best] = [k, rank(k)];
+      this.text(`${this.Name(b)}'s Forewarn alerted it to ${moveData(pick).name}!`);
+    }
+    if (b.ability === 'frisk' && up && foe.item) this.text(`${this.Name(b)} frisked its foe and found one ${itemData(foe.item).name}!`);
+    if (b.ability === 'slow-start') {
+      b.v.slowStart = 0;
+      this.text(`${this.Name(b)} can't get it going because of its Slow Start!`);
+    }
+    if (b.ability === 'mold-breaker') this.text(`${this.Name(b)} breaks the mold!`);
+    if (b.ability === 'pressure') this.text(`${this.Name(b)} is exerting its Pressure!`);
+    this.forecast();
+    this.statusHeal4(b);
+  }
+
+  /** Gen 4's Anticipation (TryAbilityOnEntry): a foe's move super effective on it (or a one-hit KO move it can land). */
+  private shudders(b: Battler, foe: Battler) {
+    const fixed = new Set(['dragon_rage', 'level_damage', 'psywave', 'counter', 'mirror_coat', 'metal_burst', 'explosion']);
+    return [...new Set([...foe.slots, foe.basic])].some((k) => {
+      const m = moveData(k);
+      if (fixed.has(m.effect)) return false;
+      if (m.effect === 'ohko') return b.level <= foe.level;
+      const type = foe.ability === 'normalize' ? 'normal' : m.type;
+      return !this.immune(foe, b, type) && this.typeSteps4(foe, b, type).reduce((x, y) => x * y, 1) > 1;
+    });
+  }
+
+  /** Forecast (Castform): Fire in sun, Water in rain, Ice in hail, Normal otherwise or with Cloud Nine or Air Lock out. */
+  forecast() {
+    for (const b of this.active) {
+      if (b.fainted || b.hp <= 0 || b.ability !== 'forecast' || b.species !== 351) continue;
+      const t: TypeName = !this.weatherOn() ? 'normal' : ({ sun: 'fire', rain: 'water', hail: 'ice', sandstorm: 'normal' } as const)[this.weather!.kind];
+      if (b.types.length === 1 && b.types[0] === t) continue;
+      b.types = [t];
+      this.text(`${this.Name(b)} transformed!`);
+    }
+  }
+
+  /**
+   * Gen 4's abilities curing a status their holder has anyway (CheckStatusHealAbility: after each action and on entry):
+   * Immunity poison, Water Veil a burn, Insomnia and Vital Spirit sleep, Limber paralysis, Magma Armor a freeze, Own Tempo
+   * confusion, Oblivious infatuation.
+   */
+  statusHeal4(b: Battler) {
+    if (!this.gen4 || b.fainted || b.hp <= 0) return;
+    const cures: Record<string, StatusKind[]> = { immunity: ['poison', 'toxic'], 'water-veil': ['burn'], insomnia: ['sleep'], 'vital-spirit': ['sleep'], limber: ['paralysis'], 'magma-armor': ['freeze'] };
+    if (b.status && cures[b.ability]?.includes(b.status)) return void this.cureStatus(b, `${this.Name(b)}'s ${abilityName(b.ability)} cured its problem!`);
+    if (b.ability === 'own-tempo' && b.v.confused) {
+      delete b.v.confused;
+      this.text(`${this.Name(b)}'s Own Tempo snapped it out of confusion!`);
+    }
+    if (b.ability === 'oblivious' && b.v.attractedTo !== undefined) {
+      delete b.v.attractedTo;
+      this.text(`${this.Name(b)}'s Oblivious cured its infatuation!`);
     }
   }
 
@@ -1171,6 +1390,12 @@ export class Battle {
       }
       this.act(b, actions[side]);
       this.movedThisTurn.add(side);
+      if (this.gen4) {
+        // After each action: the status-curing abilities (the mover, then the other) and Forecast.
+        this.statusHeal4(b);
+        this.statusHeal4(this.foeOf(b));
+        this.forecast();
+      }
       this.checkFaints();
       if (this.result) return;
     }
@@ -1262,7 +1487,10 @@ export class Battle {
   /** A slot move used: it cools down for its cooldownTicks (the basic move and Struggle never do). */
   startCooldown(b: Battler, key: string) {
     if (key === b.basic || key === 'struggle' || !b.slots.includes(key)) return;
-    b.cooldowns[key] = cooldownTicks(key);
+    // Gen 4's Pressure, the extra PP it costs as a tick longer to cool down (moves aimed at it: not the user's own side's).
+    const target = moveData(key).target;
+    const pressure = this.gen4 && this.foeOf(b).ability === 'pressure' && target !== 'user' && target !== 'user_side' ? 1 : 0;
+    b.cooldowns[key] = cooldownTicks(key) + pressure;
     this.emit({ t: 'cooldown', side: b.side, cooldowns: { ...b.cooldowns } });
   }
 
@@ -1323,7 +1551,7 @@ export class Battle {
    * with a 40-power typeless hit), paralysis (1 in 4), attraction (half the time).
    */
   private canMove(b: Battler, move: string): boolean {
-    if (b.v.recharging) {
+    if (b.v.recharging && !this.gen4) {
       b.v.recharging = false;
       this.text(`${this.Name(b)} must recharge!`);
       return false;
@@ -1344,6 +1572,19 @@ export class Battle {
       if (this.roll(5) === 0 || thaws) this.cureStatus(b, `${this.Name(b)} was defrosted!`);
       else {
         this.text(`${this.Name(b)} is frozen solid!`);
+        return false;
+      }
+    }
+    if (this.gen4) {
+      // Gen 4's Truant (CheckTruant: every other turn from its first, after sleep and freeze), then recharging.
+      if (b.ability === 'truant' && b.v.truantFrom !== undefined && (this.tick - b.v.truantFrom) % 2 === 0) {
+        b.v.recharging = false;
+        this.text(`${this.Name(b)} is loafing around!`);
+        return false;
+      }
+      if (b.v.recharging) {
+        b.v.recharging = false;
+        this.text(`${this.Name(b)} must recharge!`);
         return false;
       }
     }
@@ -1391,7 +1632,8 @@ export class Battle {
         }
       }
     }
-    if (b.status === 'paralysis' && this.roll(4) === 0) {
+    // Gen 4's Magic Guard is never fully paralyzed.
+    if (b.status === 'paralysis' && !this.magicGuard(b) && this.roll(4) === 0) {
       this.text(`${this.Name(b)} is paralyzed! It can't move!`);
       return false;
     }
@@ -1458,7 +1700,7 @@ export class Battle {
       this.text(`${this.Name(target)} protected itself!`);
       return false;
     }
-    if (target.ability === 'soundproof' && (SOUND_MOVES.has(ctx.key) || (this.gen4 && SOUND_MOVES4.has(ctx.key)))) {
+    if ((this.gen4 ? this.targetHas(user, target, 'soundproof') : target.ability === 'soundproof') && (SOUND_MOVES.has(ctx.key) || (this.gen4 && SOUND_MOVES4.has(ctx.key)))) {
       this.text(`${this.Name(target)}'s Soundproof blocks ${move.name}!`);
       return false;
     }
@@ -1471,7 +1713,21 @@ export class Battle {
       this.text(`It doesn't affect ${this.name(target)}…`);
       return false;
     }
+    if (this.wonderGuards(user, target, ctx.key, move, ctx.type)) {
+      this.text(`${this.Name(target)} avoided damage by using Wonder Guard!`);
+      return false;
+    }
     return true;
+  }
+
+  /**
+   * Whether Wonder Guard stops a damaging move that isn't super effective (Gen 3's and Gen 4's; Gen 4's Mold Breaker gets
+   * past it). Struggle passes, and Gen 4's Fire Fang by its bug (ov12_02258440).
+   */
+  wonderGuards(user: Battler, target: Battler, key: string, move: MoveData, type: TypeName) {
+    if (move.power === 0 || key === 'struggle' || user === target) return false;
+    if (this.gen4) return this.targetHas(user, target, 'wonder-guard') && move.effect !== 'flinch_burn_hit' && this.typeSteps4(user, target, type).reduce((m, x) => m * x, 1) <= 1;
+    return target.ability === 'wonder-guard' && effectiveness(type, target.types, !!target.v.foresight) <= 1;
   }
 
   /** After a move: an attacker knocked out by Destiny Bond's holder takes it down too. */
@@ -1613,15 +1869,15 @@ export class Battle {
       }
     }
     if (this.weather) {
-      this.weather.turns -= 1;
-      if (this.weather.turns <= 0) {
+      if (!this.weather.permanent) this.weather.turns -= 1;
+      if (!this.weather.permanent && this.weather.turns <= 0) {
         this.emit({ t: 'weather', weather: null, msg: ({ rain: 'The rain stopped.', sun: 'The sunlight faded.', sandstorm: 'The sandstorm subsided.', hail: 'The hail stopped.' })[this.weather.kind] });
         this.weather = null;
       } else if (this.weatherOn() && (this.weather.kind === 'sandstorm' || this.weather.kind === 'hail')) {
         for (const b of this.speedOrder()) {
           if (b.fainted || b.v.semiInvulnerable === 'underground' || b.v.semiInvulnerable === 'underwater') continue;
           if (this.gen4 && this.weather.kind === 'hail' && b.ability === 'ice-body') {
-            this.heal(b, Math.max(1, Math.floor(b.maxHp / 16)), `${this.Name(b)}'s Ice Body restored its HP!`);
+            if (b.hp < b.maxHp) this.heal(b, Math.max(1, Math.floor(b.maxHp / 16)), `${this.Name(b)}'s Ice Body restored its HP!`);
             continue;
           }
           // Gen 4: Snow Cloak too; Magic Guard takes none (BtlCmd_EndOfTurnWeatherEffect).
@@ -1634,11 +1890,13 @@ export class Battle {
           if (b.fainted || b.hp <= 0) continue;
           const kind = this.weather.kind;
           // Rain Dish (ABILITYEFFECT_ENDTURN); Gen 4's Dry Skin, Hydration, Solar Power.
-          if (kind === 'rain' && b.ability === 'rain-dish') this.heal(b, Math.max(1, Math.floor(b.maxHp / 16)), `${this.Name(b)}'s Rain Dish restored its HP!`);
+          // Rain Dish only below full HP (ABILITYEFFECT_ENDTURN: maxHP > hp).
+          if (kind === 'rain' && b.ability === 'rain-dish' && b.hp < b.maxHp) this.heal(b, Math.max(1, Math.floor(b.maxHp / 16)), `${this.Name(b)}'s Rain Dish restored its HP!`);
           if (!this.gen4) continue;
-          if (kind === 'rain' && b.ability === 'dry-skin') this.heal(b, Math.max(1, Math.floor(b.maxHp / 8)), `${this.Name(b)}'s Dry Skin restored its HP!`);
+          if (kind === 'rain' && b.ability === 'dry-skin' && b.hp < b.maxHp) this.heal(b, Math.max(1, Math.floor(b.maxHp / 8)), `${this.Name(b)}'s Dry Skin restored its HP!`);
           if (kind === 'rain' && b.ability === 'hydration' && b.status) this.cureStatus(b, `${this.Name(b)}'s Hydration cured its status!`);
-          if (kind === 'sun' && (b.ability === 'dry-skin' || b.ability === 'solar-power') && !this.magicGuard(b)) this.damage(b, Math.max(1, Math.floor(b.maxHp / 8)), { msg: `${this.Name(b)}'s ${abilityName(b.ability)} hurt it!` });
+          const hidden = b.v.semiInvulnerable === 'underground' || b.v.semiInvulnerable === 'underwater';
+          if (kind === 'sun' && (b.ability === 'dry-skin' || b.ability === 'solar-power') && !this.magicGuard(b) && !hidden) this.damage(b, Math.max(1, Math.floor(b.maxHp / 8)), { msg: `${this.Name(b)}'s ${abilityName(b.ability)} hurt it!` });
         }
       }
     }
@@ -1659,8 +1917,10 @@ export class Battle {
           this.heal(b, this.holdEffect(b) === 'leech_boost' ? Math.floor((amount * (100 + itemData(b.item!).holdParam)) / 100) : amount, `Aqua Ring restored ${this.name(b)}'s HP!`);
         }
       }
-      if (b.ability === 'shed-skin' && b.status && this.roll(3) === 0) this.cureStatus(b, `${this.Name(b)}'s Shed Skin cured its status!`);
-      if (b.ability === 'speed-boost' && !v.firstTurn) this.changeStat(b, 'spe', 1, true);
+      // Shed Skin: 30% in Gen 4 (ov12_02253068), a third in Gen 3.
+      if (b.ability === 'shed-skin' && b.status && (this.gen4 ? this.random16() % 10 < 3 : this.roll(3) === 0)) this.cureStatus(b, `${this.Name(b)}'s Shed Skin cured its status!`);
+      // Speed Boost: nothing at +6 (both generations check the stage first).
+      if (b.ability === 'speed-boost' && !v.firstTurn && b.stages.spe < 6) this.changeStat(b, 'spe', 1, true);
       const hold = this.holdEffect(b);
       if (hold === (this.gen4 ? 'hp_restore_gradual' : 'leftovers')) this.heal(b, Math.max(1, Math.floor(b.maxHp / 16)));
       // Gen 4's Black Sludge: a Poison type's Leftovers, the others hurt.
@@ -1674,7 +1934,11 @@ export class Battle {
         if (seeder && seeder.hp > 0 && !this.magicGuard(b)) {
           const sap = this.damage(b, Math.max(1, Math.floor(b.maxHp / 8)), { msg: `${this.Name(b)}'s health is sapped by Leech Seed!` });
           const heal = this.gen4 && this.holdEffect(seeder) === 'leech_boost' ? Math.floor((sap * (100 + itemData(seeder.item!).holdParam)) / 100) : sap;
-          if (b.ability === 'liquid-ooze') this.damage(seeder, sap, { msg: `${this.Name(seeder)} sucked up the liquid ooze!` });
+          // Liquid Ooze hurts by the sap the Big Root grew (Gen 4), a Magic Guard seeder not at all (subscript_0069).
+          if (b.ability === 'liquid-ooze') {
+            if (this.magicGuard(seeder)) this.text(`${this.Name(seeder)}'s Magic Guard suppressed ${this.name(b)}'s Liquid Ooze!`);
+            else this.damage(seeder, this.gen4 ? heal : sap, { msg: `${this.Name(seeder)} sucked up the liquid ooze!` });
+          }
           else if (this.gen4 && seeder.v.healBlock) this.text(`${this.Name(seeder)} was prevented from healing due to Heal Block!`);
           else this.heal(seeder, heal);
         }
@@ -1701,6 +1965,11 @@ export class Battle {
           delete v.trapped;
         } else if (!this.magicGuard(b)) this.damage(b, Math.max(1, Math.floor(b.maxHp / 16)), { msg: `${this.Name(b)} is hurt by ${moveData(v.trapped.move).name}!` });
       }
+      // Gen 4's Bad Dreams: a sleeper loses an eighth for each foe with it (UMC_STATE_BAD_DREAMS, after binding).
+      const foe = this.foeOf(b);
+      if (this.gen4 && b.status === 'sleep' && foe.ability === 'bad-dreams' && foe.hp > 0 && !this.magicGuard(b)) this.damage(b, Math.max(1, Math.floor(b.maxHp / 8)), { msg: `${this.Name(b)} is tormented by ${this.name(foe)}'s Bad Dreams!` });
+      // Gen 4's Slow Start counts the turns since it came out: done after 5.
+      if (this.gen4 && b.ability === 'slow-start' && v.slowStart !== undefined && v.slowStart < 5 && ++v.slowStart === 5) this.text(`${this.Name(b)} finally got its act together!`);
       // Gen 4: an uproar wakes the sleepers at each end of turn, but a Soundproof one.
       if (this.gen4 && b.status === 'sleep' && b.ability !== 'soundproof' && this.active.some((x) => x.v.uproar)) this.cureStatus(b, `${this.Name(b)} woke up in the uproar!`);
       if (v.uproar && --v.uproar <= 0) {
@@ -1773,6 +2042,7 @@ export class Battle {
     }
     // Gen 4's Trick Room, last of all (UFCE_STATE_TRICK_ROOM).
     if (this.trickRoom && --this.trickRoom === 0) this.text('The twisted dimensions returned to normal!');
+    if (this.gen4) this.forecast();
   }
 
   /** Gen 4's Magic Guard: no damage but from moves. */
@@ -1889,7 +2159,14 @@ export function statusUseless(b: Battle, user: Battler, key: string): boolean {
     special_defense_down_2: ['spd'], accuracy_down: ['acc'], evasion_down: ['eva'], tickle: ['atk', 'def'],
   };
   if (raises[e]) return raises[e].every((s) => stage(user, s, 1));
-  if (lowers[e]) return lowers[e].every((s) => stage(foe, s, -1)) || foe.v.substitute !== undefined || b.sides[foe.side].mist > 0;
+  // A drop can't get past Clear Body or White Smoke (Hyper Cutter for Attack, Keen Eye for accuracy).
+  const guarded = (s: BattleStat) => {
+    // Gen 4 only, so Kanto's picks stay as they were.
+    if (!b.gen4) return false;
+    const has = (a: string) => b.targetHas(user, foe, a);
+    return has('clear-body') || has('white-smoke') || (s === 'atk' && has('hyper-cutter')) || (s === 'acc' && has('keen-eye'));
+  };
+  if (lowers[e]) return lowers[e].every((s) => stage(foe, s, -1) || guarded(s)) || foe.v.substitute !== undefined || b.sides[foe.side].mist > 0;
   switch (e) {
     case 'sleep':
       return !b.canStatus(foe, 'sleep', user) || foe.v.substitute !== undefined;
@@ -1994,7 +2271,8 @@ export function statusUseless(b: Battle, user: Battler, key: string): boolean {
     case 'swallow':
       return user.hp === user.maxHp || (e === 'swallow' && !user.v.stockpile);
     case 'rest':
-      return user.hp === user.maxHp || user.status === 'sleep' || !b.canStatus({ ...user, status: null } as Battler, 'sleep', null);
+      // Rest itself checks Insomnia, Vital Spirit and an uproar only (not Leaf Guard or Safeguard).
+      return user.hp === user.maxHp || user.status === 'sleep' || user.ability === 'insomnia' || user.ability === 'vital-spirit' || (b.active.some((x) => x.v.uproar) && !(b.gen4 && user.ability === 'soundproof'));
     case 'wish':
       return !!b.sides[user.side].wish || user.hp === user.maxHp;
     case 'focus_energy':
