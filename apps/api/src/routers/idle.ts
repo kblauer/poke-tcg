@@ -1,5 +1,5 @@
 import { prisma } from '@poke-tcg/db';
-import { AREAS, applyIdleAction, areaIndex, BALLS, throwable, isBaseForm, isOptional, CATCH_UP_CAP_MS, catchUp, createIdleRun, cutSegment, cuts, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, reachedArea, simulateSegment, TOWN_WAIT_MS, starterOptions, STARTERS, visitStore, withPending, type IdleSettings, type Stats } from '@poke-tcg/idle';
+import { areas, applyIdleAction, areaIndex, BALLS, throwable, isBaseForm, isOptional, CATCH_UP_CAP_MS, catchUp, createIdleRun, cutSegment, cuts, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, reachedArea, simulateSegment, TOWN_WAIT_MS, starterOptions, starters, visitStore, withPending, type IdleSettings, type Stats } from '@poke-tcg/idle';
 import { idleActInput, idleDebugCatchInput, idleHereInput, idleRunInput, idleSettingsInput, idleThrowInput, idleWarpInput, startIdleInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { asJson, newSeed } from '../games.js';
@@ -37,7 +37,7 @@ export const idleRouter = router({
       run: run && clientIdleRun(run),
       settings,
       // The three starters on the first run; from the second on, any species the Pokédex has caught too (agreed).
-      starters: runs ? starterOptions(caught) : STARTERS,
+      starters: runs ? starterOptions(caught) : [...starters()],
       // A species with a shiny caught can start shiny (agreed).
       shinyStarters: runs ? dex.filter((d) => d.shiny && isBaseForm(d.species)).map((d) => d.species) : [],
       dex: dex.map((d) => ({ species: d.species, seen: d.seen, caught: d.caught, shiny: d.shiny, bestIv: d.bestIv, bestEv: d.bestEv })),
@@ -51,7 +51,7 @@ export const idleRouter = router({
       if (await tx.idleRun.findFirst({ where: { ownerId: ctx.user.id, status: 'ACTIVE' }, select: { id: true } })) throw failed('A run is already under way');
       const runs = await tx.idleRun.count({ where: { ownerId: ctx.user.id } });
       const caught = await caughtSpecies(ctx.user.id, tx);
-      if (!(runs ? starterOptions(caught) : STARTERS).includes(input.species)) throw failed("That Pokémon can't be picked");
+      if (!(runs ? starterOptions(caught) : starters()).includes(input.species)) throw failed("That Pokémon can't be picked");
       // A caught species starts with its record's best IVs and EVs (a starter never caught: random IVs, no EVs).
       const record = caught.includes(input.species) ? await tx.idleDex.findUnique({ where: { userId_species: { userId: ctx.user.id, species: input.species } } }) : null;
       if (input.shiny && !(runs && record?.shiny)) throw failed('No shiny of that Pokémon has been caught');
@@ -250,10 +250,10 @@ export const idleRouter = router({
     if (index < 0) throw failed('Unknown area');
     const state = structuredClone(run.state);
     // The Town Map's places up to it open with it.
-    Object.assign(state, { reached: Math.max(reachedArea(state), isOptional(index) ? 0 : index), area: index, leg: 0, step: 0, beaten: [], phase: isTown(AREAS[index]!) ? 'town' : 'walking', version: state.version + 1 });
+    Object.assign(state, { reached: Math.max(reachedArea(state), isOptional(index) ? 0 : index), area: index, leg: 0, step: 0, beaten: [], phase: isTown(areas()[index]!) ? 'town' : 'walking', version: state.version + 1 });
     delete state.grind;
     delete state.replay;
-    state.log.push(`Debug: warped to ${AREAS[index]!.name}.`);
+    state.log.push(`Debug: warped to ${areas()[index]!.name}.`);
     return clientIdleRun(await saveIdleRun(run, state, { simulatedAt: new Date() }));
   }),
 });

@@ -1,5 +1,5 @@
 import type { AppRouter } from '@poke-tcg/api/router';
-import { AREAS, areaIndex, ballLineMs, BATTLE_HOLD_MS, CHALLENGE_MS, FADE_MS, FISH_CAST_MS, FISH_DOT_MS, FISH_TEXT_MS, INTRO_MS, ITEMS, openingLineMs, playing, STEP_MS, TICK_MS, TOWN_HERE_MS, type CatchUpSummary, type IdleAction, type IdleSettings, type SegmentEvent, type TownArea, type TrackStep, type WalkArea } from '@poke-tcg/idle';
+import { generation, areas, areaIndex, ballLineMs, BATTLE_HOLD_MS, CHALLENGE_MS, FADE_MS, FISH_CAST_MS, FISH_DOT_MS, FISH_TEXT_MS, INTRO_MS, openingLineMs, playing, STEP_MS, TICK_MS, TOWN_HERE_MS, type CatchUpSummary, type IdleAction, type IdleSettings, type SegmentEvent, type TownArea, type TrackStep, type WalkArea } from '@poke-tcg/idle';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type { inferRouterOutputs } from '@trpc/server';
@@ -69,14 +69,14 @@ export interface Place {
 
 /** The track a place's step is on: its leg's, or grinding, the town's loop (TownArea.grind). */
 export function placeTrack(place: Place): TrackStep[] {
-  if (place.grind !== undefined) return (AREAS[place.grind] as TownArea).grind!.loop;
-  const area = AREAS[place.area] as WalkArea;
+  if (place.grind !== undefined) return (areas()[place.grind] as TownArea).grind!.loop;
+  const area = areas()[place.area] as WalkArea;
   return area.legs[Math.min(place.leg, area.legs.length - 1)]!.track;
 }
 
 /** The place on a town's grind loop at its step `at`. */
 function grindPlace(town: number, at: number): Place {
-  const grind = (AREAS[town] as TownArea).grind!;
+  const grind = (areas()[town] as TownArea).grind!;
   return { area: areaIndex(grind.area), leg: grind.leg, step: at, grind: town };
 }
 
@@ -171,7 +171,7 @@ function noticeOf(e: SegmentEvent, name: (id: number) => string): string | null 
     case 'evolve':
       return `${name(e.from)} evolved into ${name(e.into)}!`;
     case 'bought':
-      return `Bought ${e.count} ${ITEMS[e.item]?.name ?? e.item}${e.count === 1 ? '' : 's'} for ₱${e.cost.toLocaleString()}.`;
+      return `Bought ${e.count} ${generation().items[e.item]?.name ?? e.item}${e.count === 1 ? '' : 's'} for ₱${e.cost.toLocaleString()}.`;
     case 'caught':
       return (e.shiny ? 'A shiny! ' : '') + (e.kept ? (e.replaced ? `${name(e.species)} joined the party in place of ${name(e.replaced)}.` : `${name(e.species)} joined the party!`) : `${name(e.species)} was registered in the Pokédex and released.`);
     case 'full':

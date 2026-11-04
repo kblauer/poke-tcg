@@ -1,19 +1,19 @@
 import { IDLE_MAP_MUSIC, SOUNDTRACKS } from '@poke-tcg/campaign';
 import { describe, expect, it } from 'vitest';
-import { AREAS, areaIndex, BADGES, isTown, mapView, type WalkArea } from './areas.js';
+import { areas, areaIndex, badgeList, isTown, mapView, type WalkArea } from './areas.js';
 import { ENCOUNTERS } from './data/gen1/encounters.js';
 import { MARTS } from './data/gen1/marts.js';
 import { TRAINERS } from './data/gen1/trainers.js';
 
-const walks = AREAS.filter((a): a is WalkArea => !isTown(a));
+const walks = areas().filter((a): a is WalkArea => !isTown(a));
 
 describe('the Kanto areas', () => {
   it('go from Route 1 to the Champion in the game\'s order, then the places off the main road', () => {
-    expect(AREAS[0]!.id).toBe('route-1');
-    const road = AREAS.filter((a) => !('opens' in a && a.opens));
+    expect(areas()[0]!.id).toBe('route-1');
+    const road = areas().filter((a) => !('opens' in a && a.opens));
     expect(road.at(-1)!.id).toBe('champion');
-    expect(AREAS.slice(road.length).every((a) => 'opens' in a && !!a.opens && areaIndex(a.opens) < road.length)).toBe(true);
-    expect(BADGES).toEqual(['Boulder', 'Cascade', 'Thunder', 'Rainbow', 'Soul', 'Marsh', 'Volcano', 'Earth']);
+    expect(areas().slice(road.length).every((a) => 'opens' in a && !!a.opens && areaIndex(a.opens) < road.length)).toBe(true);
+    expect(badgeList()).toEqual(['Boulder', 'Cascade', 'Thunder', 'Rainbow', 'Soul', 'Marsh', 'Volcano', 'Earth']);
   });
 
   it('have every trainer facing the tile where the player meets them (the first step of the track in their sight)', () => {
@@ -36,7 +36,7 @@ describe('the Kanto areas', () => {
   });
 
   it('only use known maps, trainers, marts and wild tables', () => {
-    for (const a of AREAS) {
+    for (const a of areas()) {
       if (isTown(a)) {
         mapView(a.map);
         for (const m of a.marts) expect(MARTS[m], m).toBeDefined();
@@ -85,7 +85,7 @@ describe('the Kanto areas', () => {
 describe("the Idle Adventure's music", () => {
   it("has each map's own song (its MUS_ constant) in both soundtracks, Oak's lab's too: none falls back", () => {
     const maps = new Set(['PalletTown_ProfessorOaksLab']);
-    for (const area of AREAS) {
+    for (const area of areas()) {
       if ('legs' in area) for (const leg of area.legs) for (const map of leg.maps) maps.add(map);
       if ('map' in area) maps.add(area.map);
     }

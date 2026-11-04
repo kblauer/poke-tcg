@@ -1,4 +1,4 @@
-import { basicFor, calcStats, cooldownTicks, ITEMS, machineMoves, moveData, species, usableStones, type IdleAction, type Mon } from '@poke-tcg/idle';
+import { generation, basicFor, calcStats, cooldownTicks, machineMoves, moveData, species, usableStones, type IdleAction, type Mon } from '@poke-tcg/idle';
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { useEscape } from '../../hooks/useEscape';
 
@@ -445,7 +445,7 @@ function MonPanel({
       </label>
       {stones.map((st) => (
         <button key={st} type="button" className="block w-full" style={{ ...TEXT, ...small, marginTop: px(2), padding: px(1.5), background: '#38a040', border: `${px(1)} solid ${FRAME.border}`, borderRadius: px(2) }} disabled={busy} onClick={() => onAct({ type: 'USE_STONE', uid: mon.uid, item: st })}>
-          Use a {ITEMS[st]!.name}
+          Use a {generation().items[st]!.name}
         </button>
       ))}
       {pending > 0 && <div style={{ fontSize: px(7), marginTop: px(2), color: '#ffe639', textShadow: TEXT.textShadow, fontFamily: TEXT.fontFamily, lineHeight: 1 }}>Applies when the battle ends.</div>}

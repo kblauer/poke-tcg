@@ -1,4 +1,4 @@
-import { SPECIES, STAT_NAMES } from '@poke-tcg/idle';
+import { generation, STAT_NAMES } from '@poke-tcg/idle';
 import { useState } from 'react';
 import type { IdleOverview } from '../../hooks/useIdle';
 import { ConditionFeeder } from '../contest/ConditionFeeder';
@@ -30,15 +30,15 @@ export function Pokedex({
   const [open, setOpen] = useState<number | null>(null);
   const caught = dex.filter((d) => d.caught).length;
   const seen = dex.filter((d) => d.seen).length;
-  const sel = open !== null ? SPECIES[open - 1] : null;
+  const sel = open !== null ? generation().species[open - 1] : null;
   const rec = open !== null ? byId.get(open) : undefined;
   return (
     <div className="space-y-3">
       <p className="text-sm text-slate-400">
-        Seen {seen} · Caught {caught} of {SPECIES.length}
+        Seen {seen} · Caught {caught} of {generation().species.length}
       </p>
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(4.5rem,1fr))] gap-1.5">
-        {SPECIES.map((s) => {
+        {generation().species.map((s) => {
           const d = byId.get(s.id);
           const pickable = starters?.includes(s.id);
           return (

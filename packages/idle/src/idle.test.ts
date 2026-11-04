@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { AREAS, isTown, legendOf, mapView, type TownArea, type WalkArea } from './areas.js';
+import { areas, isTown, legendOf, mapView, type TownArea, type WalkArea } from './areas.js';
 import { SPECIES } from './data/gen1/species.js';
 import { ENCOUNTERS } from './data/gen1/encounters.js';
 import { familyMovesUpTo } from './mon.js';
 import type { BattleEvent } from './battle.js';
 import { catchTextFrame, FRAME_MS, openingMs } from './battle-timing.js';
-import { TOWN_MAP_PLACES, townMapArea } from './town-map.js';
-import { applyIdleAction, atProgress, legendError, rodsOf, STARTERS, BATTLE_HOLD_MS, BATTLE_MS, catchUp, cutSegment, mapGrindPlan, progressOf, reachedArea, travelError, wildSpots, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, modeOf, playing, previousRoute, routeGrindPlan, starterOptions, TICK_MS, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
+import { townMapPlaces, townMapArea } from './town-map.js';
+import { applyIdleAction, atProgress, legendError, rodsOf, starters, BATTLE_HOLD_MS, BATTLE_MS, catchUp, cutSegment, mapGrindPlan, progressOf, reachedArea, travelError, wildSpots, createIdleRun, DEFAULT_IDLE_SETTINGS, FADE_MS, grindTarget, idleView, meetStep, modeOf, playing, previousRoute, routeGrindPlan, starterOptions, TICK_MS, TOWN_WAIT_MS, simulateSegment, storeStock, topLevel, visitStore, type IdleSettings, type IdleState, type SegmentEvent } from './idle.js';
 
 type BattleSeg = Extract<SegmentEvent, { t: 'battle' }>;
 
@@ -15,7 +15,7 @@ const MANUAL: IdleSettings = { ...DEFAULT_IDLE_SETTINGS, autoGrind: false };
 
 /** A player who goes into every gym and on, and keeps a few Potions and Poké Balls in the bag. */
 function townChoice(state: IdleState): IdleState {
-  const area = AREAS[state.area]!;
+  const area = areas()[state.area]!;
   if (!isTown(area)) return state;
   let s = state;
   const stock = storeStock(area);
@@ -78,7 +78,7 @@ describe('an idle run', () => {
   it('plays to the Champion', { timeout: 120000 }, () => {
     for (const seed of [1, 2]) {
       const { state, segments } = play(seed, DEFAULT_IDLE_SETTINGS, 40000);
-      const how = `seed ${seed}: ${state.phase} in ${AREAS[state.area]!.id} after ${segments} segments, ${state.totals.whiteOuts} white-outs`;
+      const how = `seed ${seed}: ${state.phase} in ${areas()[state.area]!.id} after ${segments} segments, ${state.totals.whiteOuts} white-outs`;
       expect(state.phase, how).toBe('won');
       expect(state.badges).toHaveLength(8);
     }
@@ -86,8 +86,8 @@ describe('an idle run', () => {
 
   it('plays to the Champion with auto-grind, each gym at its highest level or more', { timeout: 120000 }, () => {
     const { state, segments } = play(3, { ...DEFAULT_IDLE_SETTINGS, autoGrind: true }, 40000);
-    expect(state.phase, `${state.phase} in ${AREAS[state.area]!.id} after ${segments} segments`).toBe('won');
-    expect(topLevel(state.party)).toBeGreaterThanOrEqual(grindTarget(AREAS.findIndex((a) => a.id === 'indigo-plateau'), state.rivalStarter)!);
+    expect(state.phase, `${state.phase} in ${areas()[state.area]!.id} after ${segments} segments`).toBe('won');
+    expect(topLevel(state.party)).toBeGreaterThanOrEqual(grindTarget(areas().findIndex((a) => a.id === 'indigo-plateau'), state.rivalStarter)!);
   });
 
   it('catches up offline until a town', () => {
@@ -107,18 +107,18 @@ describe('an idle run', () => {
 
   it("starts coming out of Professor Oak's lab in Pallet Town, then walks Route 1", () => {
     const s = createIdleRun({ species: 1 }, 1);
-    const leg = (AREAS[s.area] as WalkArea).legs[s.leg]!;
+    const leg = (areas()[s.area] as WalkArea).legs[s.leg]!;
     expect(leg.maps[leg.track[s.step]![0]]).toBe('PalletTown');
     expect(leg.track[s.step]!.slice(1, 3)).toEqual([16, 13]);
     expect(leg.maps.at(-1)).toBe('Route1');
   });
 
   it('has a grind loop before every gym: a ring of wild encounter tiles, each a step from the next', () => {
-    for (const town of AREAS.filter(isTown).filter((t) => t.gym)) {
+    for (const town of areas().filter(isTown).filter((t) => t.gym)) {
       const grind = town.grind!;
       expect(grind, town.id).toBeDefined();
       // The area walked just before the town.
-      expect(AREAS[AREAS.indexOf(town) - 1]!.id, town.id).toBe(grind.area);
+      expect(areas()[areas().indexOf(town) - 1]!.id, town.id).toBe(grind.area);
       const loop = grind.loop;
       expect(loop.length, town.id).toBeGreaterThanOrEqual(4);
       loop.forEach(([m, x, y, , tile], i) => {
@@ -131,7 +131,7 @@ describe('an idle run', () => {
   });
 
   it("grinds to the gym's highest level (Brock's Onix, Lv. 14), then goes into the gym", () => {
-    const pewter = AREAS.findIndex((a) => a.id === 'pewter-city');
+    const pewter = areas().findIndex((a) => a.id === 'pewter-city');
     expect(grindTarget(pewter, 'charmander')).toBe(14);
     const start = { ...createIdleRun({ species: 4 }, 4), area: pewter, phase: 'town' as const };
     const grinding = applyIdleAction(start, { type: 'GRIND' });
@@ -148,14 +148,14 @@ describe('an idle run', () => {
     // A white-out ends it in town; otherwise it reached the level and went into Pewter Gym.
     if (state.phase === 'town') expect(state.totals.whiteOuts).toBeGreaterThan(0);
     else {
-      expect(AREAS[state.area]!.id).toBe('pewter-gym');
+      expect(areas()[state.area]!.id).toBe('pewter-gym');
       expect(topLevel(state.party)).toBeGreaterThanOrEqual(14);
     }
     expect(applyIdleAction({ ...start, party: [{ ...start.party[0]!, level: 14 }] }, { type: 'GRIND' }).ok).toBe(false);
   });
 
   it('stops grinding back in town', () => {
-    const pewter = AREAS.findIndex((a) => a.id === 'pewter-city');
+    const pewter = areas().findIndex((a) => a.id === 'pewter-city');
     const s = (applyIdleAction({ ...createIdleRun({ species: 1 }, 2), area: pewter, phase: 'town' }, { type: 'GRIND' }) as { state: IdleState }).state;
     const back = applyIdleAction(s, { type: 'STOP_GRIND' });
     expect(back.ok && back.state.phase).toBe('town');
@@ -164,20 +164,20 @@ describe('an idle run', () => {
 
   it('auto-grinds on reaching a gym town, and with the level reached, goes into the gym', () => {
     // Route 2's end, the step before Pewter City.
-    const route2 = AREAS.findIndex((a) => a.id === 'route-2');
-    const leg = (AREAS[route2] as WalkArea).legs.length - 1;
+    const route2 = areas().findIndex((a) => a.id === 'route-2');
+    const leg = (areas()[route2] as WalkArea).legs.length - 1;
     const base = createIdleRun({ species: 4 }, 6);
-    const end = { ...base, area: route2, leg, step: (AREAS[route2] as WalkArea).legs[leg]!.track.length - 1, beaten: (AREAS[route2] as WalkArea).trainers.map((t) => t.key) };
+    const end = { ...base, area: route2, leg, step: (areas()[route2] as WalkArea).legs[leg]!.track.length - 1, beaten: (areas()[route2] as WalkArea).trainers.map((t) => t.key) };
     const auto = { ...DEFAULT_IDLE_SETTINGS, autoGrind: true };
     expect(simulateSegment(end, auto, new Set())!.state.phase).toBe('grinding');
     expect(simulateSegment(end, MANUAL, new Set())!.state.phase).toBe('town');
     const strong = { ...end, party: [{ ...end.party[0]!, level: 20 }] };
-    expect(AREAS[simulateSegment(strong, auto, new Set())!.state.area]!.id).toBe('pewter-gym');
+    expect(areas()[simulateSegment(strong, auto, new Set())!.state.area]!.id).toBe('pewter-gym');
   });
 
   it('after a white-out, auto-grind trains 2 levels above the party\'s highest, then goes into the gym again', () => {
     // A level-14 Magikarp knows only Splash: it can't win in Pewter Gym.
-    const gym = AREAS.findIndex((a) => a.id === 'pewter-gym');
+    const gym = areas().findIndex((a) => a.id === 'pewter-gym');
     let state: IdleState = { ...createIdleRun({ species: 129 }, 8), area: gym };
     state.party = [{ ...state.party[0]!, level: 14, moves: ['splash'], slots: [] }];
     const auto = { ...DEFAULT_IDLE_SETTINGS, autoGrind: true };
@@ -195,8 +195,8 @@ describe('an idle run', () => {
   });
 
   it("fights a gym's Gym Trainers once a run: back in the gym, only the leader is left", () => {
-    const gym = AREAS.findIndex((a) => a.id === 'pewter-gym');
-    const town = AREAS.findIndex((a) => a.id === 'pewter-city');
+    const gym = areas().findIndex((a) => a.id === 'pewter-gym');
+    const town = areas().findIndex((a) => a.id === 'pewter-city');
     const base = createIdleRun({ species: 6 }, 8);
     let state: IdleState = { ...base, area: gym, party: [{ ...base.party[0]!, level: 70, moves: ['flamethrower', 'slash', 'scratch'], slots: ['flamethrower', 'slash'] }] };
     for (let i = 0; i < 20 && !state.beaten.includes('camper-liam'); i++) state = simulateSegment(state, MANUAL, new Set())!.state;
@@ -216,7 +216,7 @@ describe('an idle run', () => {
   describe('grinding on a route', () => {
     /** A run on Route 3 with a party that wins every battle, walked until it has beaten `n` trainers there. */
     const route3 = (n: number) => {
-      const area = AREAS.findIndex((a) => a.id === 'route-3');
+      const area = areas().findIndex((a) => a.id === 'route-3');
       const base = createIdleRun({ species: 6 }, 11);
       let s: IdleState = { ...base, area, party: [{ ...base.party[0]!, level: 70, moves: ['flamethrower', 'slash', 'scratch'], slots: ['flamethrower', 'slash'] }] };
       for (let i = 0; i < 500 && s.beaten.length < n; i++) s = simulateSegment(s, MANUAL, new Set())!.state;
@@ -225,7 +225,7 @@ describe('an idle run', () => {
 
     it('trainer grind fights every trainer of the route in a loop, never past the last; rematches pay a quarter; Continue route goes on from where it was', () => {
       const start = route3(1);
-      const area = AREAS[start.area] as WalkArea;
+      const area = areas()[start.area] as WalkArea;
       const keys = area.trainers.map((t) => t.key).filter((k) => meetStep(area, k));
       const r = applyIdleAction(start, { type: 'TRAINER_GRIND' });
       expect(r.ok).toBe(true);
@@ -257,7 +257,7 @@ describe('an idle run', () => {
 
     it('a white-out in a trainer grind turns it to a wild grind near the route start, its beaten trainers kept', () => {
       // Route 2 (and Viridian Forest): grass from its start.
-      const area = AREAS.findIndex((a) => a.id === 'route-2');
+      const area = areas().findIndex((a) => a.id === 'route-2');
       const base = createIdleRun({ species: 129 }, 3);
       let s: IdleState = { ...base, area, beaten: [], party: [{ ...base.party[0]!, level: 2, moves: ['splash'], slots: [] }] };
       s = (applyIdleAction(s, { type: 'TRAINER_GRIND' }) as { state: IdleState }).state;
@@ -290,7 +290,7 @@ describe('an idle run', () => {
     it('with no wild Pokémon where it is, goes back to the most recent stretch that has them, and Continue route returns', () => {
       const wild = (leg: WalkArea['legs'][number]) => leg.track.some(([, , , , t]) => t[0] === 'l' || t[0] === 'w');
       let checked = 0;
-      AREAS.forEach((a, i) => {
+      areas().forEach((a, i) => {
         // (A legendary Pokémon's walk meets none, on purpose: no grinding there.)
         if ((a.kind !== 'route' && a.kind !== 'dungeon') || legendOf(i)) return;
         (a as WalkArea).legs.forEach((leg, li) => {
@@ -301,12 +301,12 @@ describe('an idle run', () => {
           const p = plan as Extract<typeof plan, { kind: 'pace' }>;
           expect(p.kind).toBe('pace');
           expect(p.area < i || (p.area === i && p.leg < li), `${a.id} leg ${li}`).toBe(true);
-          expect(wild((AREAS[p.area] as WalkArea).legs[p.leg]!)).toBe(true);
+          expect(wild((areas()[p.area] as WalkArea).legs[p.leg]!)).toBe(true);
         });
       });
       expect(checked).toBeGreaterThan(0);
       // Route 23 past Victory Road (no wild Pokémon): back into Victory Road's caves, then back again on Continue route.
-      const vr = AREAS.findIndex((a) => a.id === 'victory-road');
+      const vr = areas().findIndex((a) => a.id === 'victory-road');
       const s: IdleState = { ...createIdleRun({ species: 4 }, 1), area: vr, leg: 1, step: 5, beaten: [] };
       const g = applyIdleAction(s, { type: 'WILD_GRIND' });
       expect(g.ok && [g.state.area, g.state.leg]).toEqual([vr, 0]);
@@ -316,9 +316,9 @@ describe('an idle run', () => {
 
     it('only on a route or in a dungeon', () => {
       const s = createIdleRun({ species: 4 }, 2);
-      expect(applyIdleAction({ ...s, area: AREAS.findIndex((a) => a.id === 'pewter-gym') }, { type: 'WILD_GRIND' }).ok).toBe(false);
+      expect(applyIdleAction({ ...s, area: areas().findIndex((a) => a.id === 'pewter-gym') }, { type: 'WILD_GRIND' }).ok).toBe(false);
       // (From a town it goes out to the route before it: see the auto-grind test.)
-      expect(applyIdleAction({ ...s, area: AREAS.findIndex((a) => a.id === 'pewter-city'), phase: 'town', inStore: true }, { type: 'WILD_GRIND' }).ok).toBe(false);
+      expect(applyIdleAction({ ...s, area: areas().findIndex((a) => a.id === 'pewter-city'), phase: 'town', inStore: true }, { type: 'WILD_GRIND' }).ok).toBe(false);
       expect(applyIdleAction(s, { type: 'CONTINUE_ROUTE' }).ok).toBe(false);
       // Route 1 has no trainers.
       expect(applyIdleAction(s, { type: 'TRAINER_GRIND' }).ok).toBe(false);
@@ -349,7 +349,7 @@ describe('an idle run', () => {
 
   it('a white-out on a route with no grind on goes back to its start and starts a wild grind there', () => {
     // A level-2 Magikarp knowing only Splash, on Route 2: the first battle whites it out.
-    const area = AREAS.findIndex((a) => a.id === 'route-2');
+    const area = areas().findIndex((a) => a.id === 'route-2');
     const base = createIdleRun({ species: 129 }, 3);
     let s: IdleState = { ...base, area, step: 40, party: [{ ...base.party[0]!, level: 2, moves: ['splash'], slots: [] }] };
     for (let i = 0; i < 100 && !s.totals.whiteOuts; i++) s = simulateSegment(s, MANUAL, new Set())!.state;
@@ -367,12 +367,12 @@ describe('an idle run', () => {
     // Charizard at 40: Charmander's, Charmeleon's and its own, by level.
     expect(familyMovesUpTo(6, 40)).toEqual(expect.arrayContaining(['scratch', 'growl', 'ember', 'metal-claw', 'smokescreen', 'scary-face', 'flamethrower', 'slash', 'wing-attack']));
     // Catching one in Viridian Forest (wild grinding there): auto-catch every wild Pokémon with Master Balls until a Kakuna joins.
-    const area = AREAS.findIndex((a) => a.id === 'route-2');
-    const leg = (AREAS[area] as WalkArea).legs[0]!;
+    const area = areas().findIndex((a) => a.id === 'route-2');
+    const leg = (areas()[area] as WalkArea).legs[0]!;
     const forest = leg.maps.indexOf('ViridianForest');
     const step = leg.track.findIndex(([m, , , , t]) => m === forest && t[0] === 'l');
     const base = createIdleRun({ species: 4 }, 7);
-    let s: IdleState = { ...base, area, step, beaten: (AREAS[area] as WalkArea).trainers.map((t) => t.key), bag: { 'master-ball': 99 }, party: [{ ...base.party[0]!, level: 12 }] };
+    let s: IdleState = { ...base, area, step, beaten: (areas()[area] as WalkArea).trainers.map((t) => t.key), bag: { 'master-ball': 99 }, party: [{ ...base.party[0]!, level: 12 }] };
     s = (applyIdleAction(s, { type: 'WILD_GRIND' }) as { state: IdleState }).state;
     const settings = { ...MANUAL, autoCatch: 'all' as const, replaceLowest: true };
     for (let i = 0; i < 400 && !s.party.some((m) => m.species === 14); i++) s = simulateSegment(s, settings, new Set())!.state;
@@ -383,13 +383,13 @@ describe('an idle run', () => {
 
   it('waits for the player watching to choose where a Pokémon caught with the party full goes, or the settings away', () => {
     // A full party grinding Viridian Forest's wild Pokémon, catching every one.
-    const area = AREAS.findIndex((a) => a.id === 'route-2');
-    const leg = (AREAS[area] as WalkArea).legs[0]!;
+    const area = areas().findIndex((a) => a.id === 'route-2');
+    const leg = (areas()[area] as WalkArea).legs[0]!;
     const forest = leg.maps.indexOf('ViridianForest');
     const step = leg.track.findIndex(([m, , , , t]) => m === forest && t[0] === 'l');
     const base = createIdleRun({ species: 4 }, 7);
     const party = Array.from({ length: 6 }, (_, i) => ({ ...base.party[0]!, uid: `m${i}`, level: 12 + i }));
-    let s: IdleState = { ...base, area, step, beaten: (AREAS[area] as WalkArea).trainers.map((t) => t.key), bag: { 'master-ball': 99 }, party };
+    let s: IdleState = { ...base, area, step, beaten: (areas()[area] as WalkArea).trainers.map((t) => t.key), bag: { 'master-ball': 99 }, party };
     s = (applyIdleAction(s, { type: 'WILD_GRIND' }) as { state: IdleState }).state;
     const settings = { ...MANUAL, autoCatch: 'all' as const };
     // Watched (`ask`): the catch waits, the party as it was, the run not playing.
@@ -431,12 +431,12 @@ describe('an idle run', () => {
   });
 
   it("catches with every ball thrown under debug's guaranteed catching (IdleState.debugCatch)", () => {
-    const area = AREAS.findIndex((a) => a.id === 'route-2');
-    const leg = (AREAS[area] as WalkArea).legs[0]!;
+    const area = areas().findIndex((a) => a.id === 'route-2');
+    const leg = (areas()[area] as WalkArea).legs[0]!;
     const forest = leg.maps.indexOf('ViridianForest');
     const step = leg.track.findIndex(([m, , , , t]) => m === forest && t[0] === 'l');
     const base = createIdleRun({ species: 4 }, 7);
-    let s: IdleState = { ...base, area, step, beaten: (AREAS[area] as WalkArea).trainers.map((t) => t.key), bag: { 'poke-ball': 99 }, party: [{ ...base.party[0]!, level: 12 }], debugCatch: true };
+    let s: IdleState = { ...base, area, step, beaten: (areas()[area] as WalkArea).trainers.map((t) => t.key), bag: { 'poke-ball': 99 }, party: [{ ...base.party[0]!, level: 12 }], debugCatch: true };
     s = (applyIdleAction(s, { type: 'WILD_GRIND' }) as { state: IdleState }).state;
     const balls: { caught?: boolean }[] = [];
     for (let i = 0; i < 40 && balls.length < 5; i++) {
@@ -476,15 +476,15 @@ describe('an idle run', () => {
   });
 
   it('goes back from a town to the end of the route before it, wild grinding there, and Route mode walks on to the town again', () => {
-    const pewter = AREAS.findIndex((a) => a.id === 'pewter-city');
-    const route2 = AREAS.findIndex((a) => a.id === 'route-2');
+    const pewter = areas().findIndex((a) => a.id === 'pewter-city');
+    const route2 = areas().findIndex((a) => a.id === 'route-2');
     expect(previousRoute(pewter)).toBe(route2);
     const base = createIdleRun({ species: 4 }, 2);
     const r = applyIdleAction({ ...base, area: pewter, phase: 'town', party: [{ ...base.party[0]!, level: 40 }] }, { type: 'BACK_ROUTE' });
     expect(r.ok).toBe(true);
     let s = (r as { state: IdleState }).state;
-    const leg = (AREAS[route2] as WalkArea).legs.length - 1;
-    const end = (AREAS[route2] as WalkArea).legs[leg]!.track.length - 1;
+    const leg = (areas()[route2] as WalkArea).legs.length - 1;
+    const end = (areas()[route2] as WalkArea).legs[leg]!.track.length - 1;
     expect(s).toMatchObject({ area: route2, phase: 'walking', loop: { kind: 'pace', resume: { area: route2, leg, step: end } } });
     for (let i = 0; i < 10; i++) s = simulateSegment(s, MANUAL, new Set())!.state;
     expect(s.loop?.kind).toBe('pace');
@@ -494,7 +494,7 @@ describe('an idle run', () => {
   });
 
   it('switches straight from one grind to the other (the mode toggle), and refuses the one already on', () => {
-    const area = AREAS.findIndex((a) => a.id === 'route-2');
+    const area = areas().findIndex((a) => a.id === 'route-2');
     const base = createIdleRun({ species: 4 }, 2);
     const s: IdleState = { ...base, area, step: 60, party: [{ ...base.party[0]!, level: 40 }] };
     const wild = (applyIdleAction(s, { type: 'WILD_GRIND' }) as { state: IdleState }).state;
@@ -508,7 +508,7 @@ describe('an idle run', () => {
   });
 
   it('stops where it is in the Stop mode (no segment, offline either) and goes on in any other mode', () => {
-    const area = AREAS.findIndex((a) => a.id === 'route-2');
+    const area = areas().findIndex((a) => a.id === 'route-2');
     const base = createIdleRun({ species: 4 }, 2);
     const s: IdleState = { ...base, area, step: 60, party: [{ ...base.party[0]!, level: 40 }] };
     const r = applyIdleAction(s, { type: 'SET_MODE', mode: 'stop' });
@@ -531,7 +531,7 @@ describe('an idle run', () => {
   });
 
   it('switches modes with SET_MODE: a grind already on stays as it is, and Route ends one', () => {
-    const area = AREAS.findIndex((a) => a.id === 'route-2');
+    const area = areas().findIndex((a) => a.id === 'route-2');
     const base = createIdleRun({ species: 4 }, 2);
     const s: IdleState = { ...base, area, step: 60, party: [{ ...base.party[0]!, level: 40 }] };
     const wild = (applyIdleAction(s, { type: 'SET_MODE', mode: 'wild' }) as { state: IdleState }).state;
@@ -543,8 +543,8 @@ describe('an idle run', () => {
     const route = trainers.ok ? applyIdleAction(trainers.state, { type: 'SET_MODE', mode: 'route' }) : trainers;
     expect(route.ok && modeOf(route.state)).toBe('route');
     // A grind that can't start is refused (in a gym; in a town's store).
-    expect(applyIdleAction({ ...s, area: AREAS.findIndex((a) => a.id === 'pewter-gym') }, { type: 'SET_MODE', mode: 'wild' }).ok).toBe(false);
-    expect(applyIdleAction({ ...s, area: AREAS.findIndex((a) => a.id === 'pewter-city'), phase: 'town', inStore: true }, { type: 'SET_MODE', mode: 'wild' }).ok).toBe(false);
+    expect(applyIdleAction({ ...s, area: areas().findIndex((a) => a.id === 'pewter-gym') }, { type: 'SET_MODE', mode: 'wild' }).ok).toBe(false);
+    expect(applyIdleAction({ ...s, area: areas().findIndex((a) => a.id === 'pewter-city'), phase: 'town', inStore: true }, { type: 'SET_MODE', mode: 'wild' }).ok).toBe(false);
   });
 
   it('changes the mode once the wild battle playing is over: queued, shown at once, saved by the next segment', () => {
@@ -564,9 +564,9 @@ describe('an idle run', () => {
   });
 
   it('leaves auto-grinding for a wild or trainer grind on the route before the town, held until Route walks back to the town', () => {
-    const pewter = AREAS.findIndex((a) => a.id === 'pewter-city');
-    const route2 = AREAS.findIndex((a) => a.id === 'route-2');
-    const town = (AREAS[pewter] as TownArea).grind!;
+    const pewter = areas().findIndex((a) => a.id === 'pewter-city');
+    const route2 = areas().findIndex((a) => a.id === 'route-2');
+    const town = (areas()[pewter] as TownArea).grind!;
     const base = createIdleRun({ species: 4 }, 2);
     // Reaching Pewter City below Brock's level: auto-grind starts.
     let s: IdleState = (applyIdleAction({ ...base, area: pewter, phase: 'town' }, { type: 'GRIND' }) as { state: IdleState }).state;
@@ -592,7 +592,7 @@ describe('an idle run', () => {
   });
 
   it('travels by the Town Map to a town reached already, its choices waiting there; never further on, nor where it waits', () => {
-    const index = (id: string) => AREAS.findIndex((a) => a.id === id);
+    const index = (id: string) => areas().findIndex((a) => a.id === id);
     const base = createIdleRun({ species: 4 }, 2);
     // On Route 3 with Pewter's badge (an older run: no `reached`, worked out from where it is and its badges).
     const s: IdleState = { ...base, area: index('route-3'), step: 10, badges: ['Boulder'], party: [{ ...base.party[0]!, level: 40 }] };
@@ -612,7 +612,7 @@ describe('an idle run', () => {
   });
 
   it('grinds on a route picked on the Town Map: from its end, its trainers passed, Continue route going back where it was', () => {
-    const index = (id: string) => AREAS.findIndex((a) => a.id === id);
+    const index = (id: string) => areas().findIndex((a) => a.id === id);
     const base = createIdleRun({ species: 4 }, 2);
     const town: IdleState = { ...base, area: index('cerulean-city'), phase: 'town', reached: index('cerulean-city'), party: [{ ...base.party[0]!, level: 40 }] };
     for (const kind of ['wild', 'trainers'] as const) {
@@ -635,7 +635,7 @@ describe('an idle run', () => {
   });
 
   it('goes straight to its furthest place with Continue run, however the Town Map moved it, and on from there when it is there', () => {
-    const index = (id: string) => AREAS.findIndex((a) => a.id === id);
+    const index = (id: string) => areas().findIndex((a) => a.id === id);
     const base = createIdleRun({ species: 4 }, 2);
     const route3: IdleState = { ...base, area: index('route-3'), step: 10, beaten: ['x'], badges: ['Boulder'], party: [{ ...base.party[0]!, level: 40 }] };
     const act = (s: IdleState, a: Parameters<typeof applyIdleAction>[1]) => {
@@ -667,7 +667,7 @@ describe('an idle run', () => {
   });
 
   describe('the places off the main road (the user\'s, 2026-10-27)', () => {
-    const index = (id: string) => AREAS.findIndex((a) => a.id === id);
+    const index = (id: string) => areas().findIndex((a) => a.id === id);
     const act = (s: IdleState, a: Parameters<typeof applyIdleAction>[1]) => {
       const r = applyIdleAction(s, a);
       if (!r.ok) throw new Error(r.error);
@@ -679,7 +679,7 @@ describe('an idle run', () => {
     it('open once the run reaches the area that opens them, never counting as reached or as progress', () => {
       expect('error' in mapGrindPlan(fuchsia, index('safari-zone'), 'wild')).toBe(false);
       expect(mapGrindPlan(fuchsia, index('cerulean-cave'), 'wild')).toEqual({ error: 'Not reached yet' });
-      const place = TOWN_MAP_PLACES.find((p) => p.section === 'kanto_safari_zone')!;
+      const place = townMapPlaces().find((p) => p.section === 'kanto_safari_zone')!;
       expect(townMapArea(place, index('celadon-city'))).toBeNull();
       expect(townMapArea(place, index('fuchsia-city'))).toBe(index('safari-zone'));
       let s = act(fuchsia, { type: 'GRIND_AT', area: index('safari-zone'), kind: 'wild' });
@@ -699,7 +699,7 @@ describe('an idle run', () => {
       const s = act(fuchsia, { type: 'GRIND_AT', area: index('safari-zone'), kind: 'wild', spot: west.id });
       const loop = s.loop as Extract<IdleState['loop'], { kind: 'pace' }>;
       expect(loop.kind).toBe('pace');
-      const leg = (AREAS[s.area] as WalkArea).legs[loop.leg]!;
+      const leg = (areas()[s.area] as WalkArea).legs[loop.leg]!;
       for (let i = loop.from; i <= loop.to; i++) expect(leg.maps[leg.track[i]![0]]).toBe('SafariZone_West');
       // The same spot again is the mode already on; another is a switch.
       expect(applyIdleAction(s, { type: 'GRIND_AT', area: index('safari-zone'), kind: 'wild', spot: west.id }).ok).toBe(false);
@@ -716,7 +716,7 @@ describe('an idle run', () => {
 
     it('offer every Kanto wild Pokémon that walks or swims (not fished) on some grind spot', () => {
       const got = new Set<number>();
-      AREAS.forEach((_, i) => {
+      areas().forEach((_, i) => {
         for (const spot of wildSpots(i)) {
           if (spot.fish) continue;
           const [map, kind] = spot.id.split(':');
@@ -729,8 +729,8 @@ describe('an idle run', () => {
     });
 
     it("offer every Kanto Pokémon but Mew, with LeafGreen's and the extra slots, the legendaries and fishing (the user's)", () => {
-      const got = new Set<number>(STARTERS);
-      AREAS.forEach((_, i) => {
+      const got = new Set<number>(starters());
+      areas().forEach((_, i) => {
         const legend = legendOf(i);
         if (legend) got.add(legend.species);
         for (const spot of wildSpots(i)) {
@@ -747,7 +747,7 @@ describe('an idle run', () => {
       expect(SPECIES.filter((s) => !had(s.id)).map((s) => s.name)).toEqual(['Mew']);
       // Every extra slot is on a table some spot grinds.
       for (const [key, t] of Object.entries(ENCOUNTERS))
-        for (const kind of ['land', 'water'] as const) if (t[kind]?.extra) expect(AREAS.some((_, i) => wildSpots(i).some((s) => !s.fish && mapView(s.id.split(':')[0]!).encounters === key && s.water === (kind === 'water'))), `${key} ${kind}`).toBe(true);
+        for (const kind of ['land', 'water'] as const) if (t[kind]?.extra) expect(areas().some((_, i) => wildSpots(i).some((s) => !s.fish && mapView(s.id.split(':')[0]!).encounters === key && s.water === (kind === 'water'))), `${key} ${kind}`).toBe(true);
     });
 
     it("fish at a fishing spot picked on the Town Map, cast after cast, a battle with the map's fished Pokémon (the user's)", () => {
@@ -798,7 +798,7 @@ describe('an idle run', () => {
       }
       expect([...rods].sort()).toEqual([0, 1]);
       // Reaching its town, the rod: walking off the Seafoam Islands' end into Cinnabar Island.
-      const seafoam = AREAS[index('seafoam-islands')] as WalkArea;
+      const seafoam = areas()[index('seafoam-islands')] as WalkArea;
       const last = seafoam.legs.length - 1;
       const walked = simulateSegment({ ...base, area: index('seafoam-islands'), leg: last, step: seafoam.legs[last]!.track.length - 1, reached: index('seafoam-islands'), beaten: seafoam.trainers.map((t) => t.key), party: [{ ...base.party[0]!, level: 100 }] }, MANUAL, new Set())!.state;
       expect(walked.area).toBe(index('cinnabar-island'));
@@ -807,7 +807,7 @@ describe('an idle run', () => {
   });
 
   it("meets LeafGreen's Pokémon and the extra slots' while grinding (Route 7: Vulpix, Bellsprout, Eevee, Porygon)", () => {
-    const index = (id: string) => AREAS.findIndex((a) => a.id === id);
+    const index = (id: string) => areas().findIndex((a) => a.id === id);
     const base = createIdleRun({ species: 4 }, 4);
     const celadon: IdleState = { ...base, area: index('celadon-city'), phase: 'town', reached: index('celadon-city'), party: [{ ...base.party[0]!, level: 100 }] };
     const r = applyIdleAction(celadon, { type: 'GRIND_AT', area: index('route-8'), kind: 'wild', spot: 'Route7:l' });
@@ -822,7 +822,7 @@ describe('an idle run', () => {
   });
 
   describe("the legendary Pokémon (the user's, 2026-10-27)", () => {
-    const index = (id: string) => AREAS.findIndex((a) => a.id === id);
+    const index = (id: string) => areas().findIndex((a) => a.id === id);
     const act = (s: IdleState, a: Parameters<typeof applyIdleAction>[1]) => {
       const r = applyIdleAction(s, a);
       if (!r.ok) throw new Error(r.error);
@@ -845,7 +845,7 @@ describe('an idle run', () => {
       expect(legendError(fuchsia, index('articuno'))).toBe('Reach the Indigo Plateau first');
       expect(legendError(plateau, index('articuno'))).toBeNull();
       expect(legendError(plateau, index('seafoam-islands'))).toBe('No legendary Pokémon there');
-      expect(TOWN_MAP_PLACES.find((p) => p.areas.includes('mewtwo'))?.section).toBe('cerulean_cave');
+      expect(townMapPlaces().find((p) => p.areas.includes('mewtwo'))?.section).toBe('cerulean_cave');
       expect(mapGrindPlan(plateau, index('zapdos'), 'wild')).toEqual({ error: 'No grinding there' });
     });
 
@@ -877,7 +877,7 @@ describe('an idle run', () => {
   });
 
   it("does nothing on Stop in a town; walking, it stops where the player stands, a battle begun dropped (cutSegment)", () => {
-    const index = (id: string) => AREAS.findIndex((a) => a.id === id);
+    const index = (id: string) => areas().findIndex((a) => a.id === id);
     const base = createIdleRun({ species: 4 }, 5);
     const town = applyIdleAction({ ...base, area: index('viridian-city'), phase: 'town' }, { type: 'SET_MODE', mode: 'stop' });
     expect(town.ok && town.state.stopped).toBeFalsy();
@@ -927,8 +927,8 @@ describe('an idle run', () => {
   });
 
   it("fights a trainer whose sight a segment starts in (a cut at the leader's \"!\", Continue run), never walking past to the badge", () => {
-    const area = AREAS.findIndex((a) => a.id === 'pewter-gym');
-    const gym = AREAS[area] as WalkArea;
+    const area = areas().findIndex((a) => a.id === 'pewter-gym');
+    const gym = areas()[area] as WalkArea;
     const at = meetStep(gym, gym.leader!)!;
     const base = createIdleRun({ species: 7 }, 4);
     const s: IdleState = { ...base, area, leg: at.leg, step: at.step, beaten: gym.trainers.map((t) => t.key).filter((k) => k !== gym.leader), party: [{ ...base.party[0]!, level: 60 }] };
@@ -956,11 +956,11 @@ describe('an idle run', () => {
   });
 
   it("goes on again from a stopped town with the town's choices (Gym, Grind)", () => {
-    const pewter = AREAS.findIndex((a) => a.id === 'pewter-city');
+    const pewter = areas().findIndex((a) => a.id === 'pewter-city');
     const base = createIdleRun({ species: 4 }, 3);
     const town: IdleState = { ...base, area: pewter, phase: 'town', reached: pewter, stopped: true };
     const gym = (applyIdleAction(town, { type: 'GYM' }) as { state: IdleState }).state;
-    expect([gym.area, gym.phase, gym.stopped]).toEqual([AREAS.findIndex((a) => a.id === 'pewter-gym'), 'walking', undefined]);
+    expect([gym.area, gym.phase, gym.stopped]).toEqual([areas().findIndex((a) => a.id === 'pewter-gym'), 'walking', undefined]);
     expect(playing(gym)).toBe(true);
     const grind = (applyIdleAction(town, { type: 'GRIND' }) as { state: IdleState }).state;
     expect([grind.phase, grind.stopped]).toEqual(['grinding', undefined]);
@@ -969,8 +969,8 @@ describe('an idle run', () => {
   });
 
   it('quits auto-grinding on Stop (stopped where the player stands on its route) and on Continue run (to the town)', () => {
-    const pewter = AREAS.findIndex((a) => a.id === 'pewter-city');
-    const spot = (AREAS[pewter] as TownArea).grind!;
+    const pewter = areas().findIndex((a) => a.id === 'pewter-city');
+    const spot = (areas()[pewter] as TownArea).grind!;
     const base = createIdleRun({ species: 4 }, 3);
     const town: IdleState = { ...base, area: pewter, phase: 'town', reached: pewter };
     let s = (applyIdleAction(town, { type: 'GRIND' }) as { state: IdleState }).state;
@@ -984,9 +984,9 @@ describe('an idle run', () => {
     const stopped = applyIdleAction(s, { type: 'SET_MODE', mode: 'stop' });
     expect(stopped.ok).toBe(true);
     const st = (stopped as { state: IdleState }).state;
-    expect(st).toMatchObject({ phase: 'walking', area: AREAS.findIndex((a) => a.id === spot.area), leg: spot.leg, stopped: true });
+    expect(st).toMatchObject({ phase: 'walking', area: areas().findIndex((a) => a.id === spot.area), leg: spot.leg, stopped: true });
     expect(st.grind).toBeUndefined();
-    const [m, x, y] = (AREAS[st.area] as WalkArea).legs[st.leg]!.track[st.step]!;
+    const [m, x, y] = (areas()[st.area] as WalkArea).legs[st.leg]!.track[st.step]!;
     expect(spot.loop.some(([lm, lx, ly]) => lm === m && lx === x && ly === y)).toBe(true);
     // Continue run: the town, its choices waiting.
     const on = (applyIdleAction(st, { type: 'CONTINUE_RUN' }) as { state: IdleState }).state;
@@ -999,21 +999,21 @@ describe('an idle run', () => {
   });
 
   it('opens the Indigo Plateau on the Town Map once Victory Road is done, and every store sells every item from then', () => {
-    const index = (id: string) => AREAS.findIndex((a) => a.id === id);
+    const index = (id: string) => areas().findIndex((a) => a.id === id);
     const base = createIdleRun({ species: 7 }, 6);
-    const road = AREAS[index('victory-road')] as WalkArea;
+    const road = areas()[index('victory-road')] as WalkArea;
     const leg = road.legs.length - 1;
     // At Victory Road's end, its trainers beaten: the next segment reaches the Plateau.
     let s: IdleState = { ...base, area: index('victory-road'), leg, step: road.legs[leg]!.track.length - 2, beaten: road.trainers.map((t) => t.key), party: [{ ...base.party[0]!, level: 70 }] };
-    const viridian = AREAS[index('viridian-city')] as TownArea;
+    const viridian = areas()[index('viridian-city')] as TownArea;
     expect(storeStock(viridian, s)).toEqual(storeStock(viridian));
     expect(travelError(s, index('indigo-plateau'))).toBe('Not reached yet');
     for (let i = 0; i < 5 && s.phase !== 'town' && s.phase !== 'grinding'; i++) s = simulateSegment(s, MANUAL, new Set())!.state;
     expect(s.area).toBe(index('indigo-plateau'));
-    expect(townMapArea(TOWN_MAP_PLACES.find((p) => p.section === 'indigo_plateau')!, reachedArea(s))).toBe(index('indigo-plateau'));
+    expect(townMapArea(townMapPlaces().find((p) => p.section === 'indigo_plateau')!, reachedArea(s))).toBe(index('indigo-plateau'));
     expect(travelError({ ...s, area: index('celadon-city'), phase: 'town' }, index('indigo-plateau'))).toBeNull();
     // Every store's items in Viridian City's store now, as in any other.
-    const all = new Set(AREAS.filter(isTown).flatMap((t) => storeStock(t)));
+    const all = new Set(areas().filter(isTown).flatMap((t) => storeStock(t)));
     expect(new Set(storeStock(viridian, s))).toEqual(all);
     expect(storeStock(viridian, s)).toContain('ultra-ball');
     const inViridian: IdleState = { ...s, area: index('viridian-city'), phase: 'town', inStore: true, money: 100000 };
@@ -1021,7 +1021,7 @@ describe('an idle run', () => {
   });
 
   it('starts every try at the League with Lorelei: Continue run never goes back into a room part way', () => {
-    const index = (id: string) => AREAS.findIndex((a) => a.id === id);
+    const index = (id: string) => areas().findIndex((a) => a.id === id);
     const base = createIdleRun({ species: 7 }, 6);
     const act = (s: IdleState, a: Parameters<typeof applyIdleAction>[1]) => {
       const r = applyIdleAction(s, a);
@@ -1042,7 +1042,7 @@ describe('an idle run', () => {
   });
 
   it('picks a grind on the route it walks from where it is, and refuses the one already on', () => {
-    const area = AREAS.findIndex((a) => a.id === 'route-2');
+    const area = areas().findIndex((a) => a.id === 'route-2');
     const base = createIdleRun({ species: 4 }, 2);
     const s: IdleState = { ...base, area, step: 60, party: [{ ...base.party[0]!, level: 40 }] };
     const wild = applyIdleAction(s, { type: 'GRIND_AT', area, kind: 'wild' });
@@ -1082,13 +1082,13 @@ describe('an idle run', () => {
   });
 
   it('waits 10 s in a town, then goes into its unbeaten gym, or on once it is beaten, offline too', () => {
-    const pewter = AREAS.findIndex((a) => a.id === 'pewter-city');
+    const pewter = areas().findIndex((a) => a.id === 'pewter-city');
     const town = { ...createIdleRun({ species: 4 }, 4), area: pewter, phase: 'town' as const };
     const into = simulateSegment(town, DEFAULT_IDLE_SETTINGS, new Set())!;
     expect(into.segment.durationMs).toBe(TOWN_WAIT_MS + FADE_MS);
-    expect(AREAS[into.state.area]!.id).toBe('pewter-gym');
+    expect(areas()[into.state.area]!.id).toBe('pewter-gym');
     const beaten = simulateSegment({ ...town, badges: ['Boulder'] }, DEFAULT_IDLE_SETTINGS, new Set())!;
-    expect(AREAS[beaten.state.area]!.id).toBe('route-3');
+    expect(areas()[beaten.state.area]!.id).toBe('route-3');
     // Catch-up plays through the town's wait.
     const { state, summary } = catchUp({ ...town, badges: ['Boulder'] }, DEFAULT_IDLE_SETTINGS, new Set(), 60 * 60 * 1000, 1000);
     expect(summary.segments).toBeGreaterThan(1);
@@ -1098,7 +1098,7 @@ describe('an idle run', () => {
   });
 
   it("doesn't go on from a town while the player is in its store, which is left by hand; buys only in it", () => {
-    const pewter = AREAS.findIndex((a) => a.id === 'pewter-city');
+    const pewter = areas().findIndex((a) => a.id === 'pewter-city');
     const town: IdleState = { ...createIdleRun({ species: 4 }, 4), area: pewter, phase: 'town', money: 1000 };
     expect(applyIdleAction(town, { type: 'BUY', item: 'poke-ball', count: 1 }).ok).toBe(false);
     const inStore = (applyIdleAction(town, { type: 'VISIT_STORE' }) as { state: IdleState }).state;
@@ -1114,11 +1114,11 @@ describe('an idle run', () => {
     const out = (applyIdleAction(inStore, { type: 'LEAVE_STORE' }) as { state: IdleState }).state;
     expect(out.inStore).toBeUndefined();
     expect(applyIdleAction(out, { type: 'LEAVE_STORE' }).ok).toBe(false);
-    expect(AREAS[simulateSegment(out, DEFAULT_IDLE_SETTINGS, new Set())!.state.area]!.id).toBe('pewter-gym');
+    expect(areas()[simulateSegment(out, DEFAULT_IDLE_SETTINGS, new Set())!.state.area]!.id).toBe('pewter-gym');
   });
 
   it("knows each town's Poké Mart: the player across the counter from the clerk, facing them", () => {
-    for (const a of AREAS.filter(isTown)) {
+    for (const a of areas().filter(isTown)) {
       const m = a.mart;
       const clerk = m.people.find((p) => p.sprite === 'clerk' && Math.abs(p.x - m.x) + Math.abs(p.y - m.y) === 2 && (p.x === m.x || p.y === m.y));
       expect(clerk, a.id).toBeDefined();
@@ -1126,10 +1126,10 @@ describe('an idle run', () => {
   });
 
   it('auto-buys balls on reaching a town, up to the setting, the cheapest the store sells, while the money lasts', () => {
-    const route2 = AREAS.findIndex((a) => a.id === 'route-2');
-    const leg = (AREAS[route2] as WalkArea).legs.length - 1;
+    const route2 = areas().findIndex((a) => a.id === 'route-2');
+    const leg = (areas()[route2] as WalkArea).legs.length - 1;
     const base = createIdleRun({ species: 4 }, 6);
-    const end = { ...base, area: route2, leg, step: (AREAS[route2] as WalkArea).legs[leg]!.track.length - 1, beaten: (AREAS[route2] as WalkArea).trainers.map((t) => t.key), bag: { 'poke-ball': 2, 'great-ball': 1 } };
+    const end = { ...base, area: route2, leg, step: (areas()[route2] as WalkArea).legs[leg]!.track.length - 1, beaten: (areas()[route2] as WalkArea).trainers.map((t) => t.key), bag: { 'poke-ball': 2, 'great-ball': 1 } };
     // Pewter City sells Poké Balls at ₱200: 3 in the bag, 7 bought.
     const s = simulateSegment(end, { ...DEFAULT_IDLE_SETTINGS, autoBalls: 10 }, new Set())!;
     expect(s.state.bag['poke-ball']).toBe(9);

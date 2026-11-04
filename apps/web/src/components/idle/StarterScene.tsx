@@ -1,4 +1,4 @@
-import { mapView, species, STARTERS } from '@poke-tcg/idle';
+import { mapView, species, starters } from '@poke-tcg/idle';
 import type { Dialogue } from '../DialogueBox';
 import { TrimmedSprite } from '../TrimmedSprite';
 import { MapScene } from './AreaScene';
@@ -25,7 +25,7 @@ export function StarterScene({ gender, busy, onPick, dialogue }: { gender: 'male
     choices: BALLS.map(({ id }) => ({
       label: species(id).name,
       icon: <TrimmedSprite src={`/idle/gen1/pokemon/front/${id}.png`} scale={1.5} />,
-      disabled: busy || !STARTERS.includes(id),
+      disabled: busy || !starters().includes(id),
     })),
     answer: (i) => onPick(BALLS[i]!.id),
   };

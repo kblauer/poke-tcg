@@ -1,4 +1,4 @@
-import { AREAS, isMachine, ITEMS, MACHINES, machineMove, machinePrice, mapView, moveData, tmShopOpen, type TownArea } from '@poke-tcg/idle';
+import { generation, areas, isMachine, machineList, machineMove, machinePrice, mapView, moveData, tmShopOpen, type TownArea } from '@poke-tcg/idle';
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useEscape } from '../../hooks/useEscape';
 import { useIsPhone } from '../../hooks/useIsPhone';
@@ -25,17 +25,17 @@ const SMALL: CSSProperties = { ...FONT, fontSize: 9 };
 const caps = (name: string) => name.toUpperCase().replace(/É/g, 'é');
 
 /** An item's name in the lists: a TM or HM with its move (TM28 DIG). */
-const itemName = (item: string) => caps(ITEMS[item]!.name) + (isMachine(item) ? ` ${caps(moveData(machineMove(item)).name)}` : '');
+const itemName = (item: string) => caps(generation().items[item]!.name) + (isMachine(item) ? ` ${caps(moveData(machineMove(item)).name)}` : '');
 
 /** An item's price: a TM's or HM's machinePrice (HMs' a placeholder). */
-const priceOf = (item: string) => (isMachine(item) ? machinePrice(item) : ITEMS[item]!.price);
+const priceOf = (item: string) => (isMachine(item) ? machinePrice(item) : generation().items[item]!.price);
 
 /**
  * The town's Poké Mart (the user's: the store moves the player into the town's own mart, and its list is the game's own
  * buy screen): the mart's map with the player at the counter across from its clerk (TownArea.mart), the clerk's "May I
  * help you?" with BUY and SEE YA!; BUY opens FireRed's buy screen (BuyScreen), its CANCEL back to the counter ("anything
  * else"), SEE YA! "Please come again!", then out (`onLeave`: LEAVE_STORE). From Celadon City on (tmShopOpen, the
- * user's), BUY TM/HM too: the buy screen with every TM and HM in one list (MACHINES, `machines`), CANCEL back to the
+ * user's), BUY TM/HM too: the buy screen with every TM and HM in one list (machineList(), `machines`), CANCEL back to the
  * counter. The town doesn't go on while the player is in
  * here (IdleState.inStore). `dialogue` (the catch-up's pages) comes first; `children` over the scene (the overlays).
  */
@@ -60,7 +60,7 @@ export function MartScene({
   /** The overlays over the buy screen. */
   buyChildren?: ReactNode;
 }) {
-  const town = AREAS[run.view.area] as TownArea;
+  const town = areas()[run.view.area] as TownArea;
   const mart = town.mart;
   const map = mapView(mart.map);
   const player = gender === 'female' ? 'leaf' : 'red';
@@ -68,7 +68,7 @@ export function MartScene({
   const tms = tmShopOpen(run.view);
   if ((stage === 'buy' || stage === 'tms') && !dialogue)
     return (
-      <BuyScreen key={stage} run={run} player={player} busy={busy} onBuy={onBuy} onClose={() => setStage('again')} machines={stage === 'tms' ? [...MACHINES] : undefined}>
+      <BuyScreen key={stage} run={run} player={player} busy={busy} onBuy={onBuy} onClose={() => setStage('again')} machines={stage === 'tms' ? [...machineList()] : undefined}>
         {buyChildren}
       </BuyScreen>
     );
@@ -154,7 +154,7 @@ function BuyScreen({ run, player, busy, onBuy, onClose, machines, children }: { 
   const phone = useIsPhone();
   const { ref, scale } = useGameScale();
   const pressDialogue = useRef<(() => void) | null>(null);
-  const town = AREAS[run.view.area] as TownArea;
+  const town = areas()[run.view.area] as TownArea;
   const mart = town.mart;
   const map = mapView(mart.map);
   const stock = machines ?? run.view.store;
@@ -328,7 +328,7 @@ function BuyScreen({ run, player, busy, onBuy, onClose, machines, children }: { 
             {/* The item's description (window 5: 5,14) and icon (at 24,140), hidden while it's being bought. */}
             {listing && (
               <Text x={40} y={115} style={{ ...NORMAL, ...WHITE, lineHeight: '15px' }}>
-                {item ? ITEMS[item]!.description : 'Quit shopping.'}
+                {item ? generation().items[item]!.description : 'Quit shopping.'}
               </Text>
             )}
             <img src={`${SHOP}/items/${item ?? 'cancel'}.png`} alt="" className="absolute" style={{ left: 8, top: 124, width: 24, height: 24 }} draggable={false} />

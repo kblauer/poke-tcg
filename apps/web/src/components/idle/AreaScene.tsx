@@ -1,4 +1,4 @@
-import { AREAS, areaById, mapView, type TownArea, type WalkArea } from '@poke-tcg/idle';
+import { areas, areaById, mapView, type TownArea, type WalkArea } from '@poke-tcg/idle';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { placeTrack, type Playback } from '../../hooks/useIdle';
@@ -28,7 +28,7 @@ export function usePreloadMaps(area: number | null) {
   useEffect(() => {
     if (area === null) return;
     const names = new Set<string>();
-    for (const a of AREAS.slice(area, area + 3)) {
+    for (const a of areas().slice(area, area + 3)) {
       if ('legs' in a) a.legs.forEach((l) => l.maps.forEach((m) => names.add(m)));
       else {
         names.add(a.map);
@@ -203,7 +203,7 @@ function FishingSprite({ sprite, surfing, phase, stamp, tile, face }: { sprite: 
  */
 export function AreaScene({ playback, gender, dialogue, children }: { playback: Playback; gender: 'male' | 'female'; dialogue?: Dialogue | null; children?: ReactNode }) {
   const place = playback.place;
-  const area = place && (AREAS[place.area] as WalkArea | undefined);
+  const area = place && (areas()[place.area] as WalkArea | undefined);
   if (!place || !area || !('legs' in area)) return <GameScreen className="rounded-lg bg-slate-900 ring-1 ring-slate-700">{() => children}</GameScreen>;
   const leg = area.legs[Math.min(place.leg, area.legs.length - 1)]!;
   // Grinding, the step round the town's loop (on one of the leg's maps).

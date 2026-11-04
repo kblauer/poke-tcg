@@ -1,4 +1,4 @@
-import { catchTextFrame, cooldownTicks, FRAME_MS, INTRO_MS, ITEMS, moveData, species, TICK_MS, TRAINERS, type BattleEvent, type BattlerView } from '@poke-tcg/idle';
+import { generation, catchTextFrame, cooldownTicks, FRAME_MS, INTRO_MS, moveData, species, TICK_MS, type BattleEvent, type BattlerView } from '@poke-tcg/idle';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { isReward, type BattleSegment } from '../../hooks/useIdle';
@@ -36,7 +36,7 @@ export function preloadBattle(b: BattleSegment): Promise<void> {
     // The healthboxes and the balls (BattleScene, Healthbox).
     ...['healthbox_player', 'healthbox_opponent', 'hp_text', 'hp_bar', 'exp_bar', 'font_small', 'particles', 'balls/poke-ball'].map((n) => `${GEN1}/battle/${n}.png`),
   ]);
-  const pic = b.trainer ? TRAINERS[b.trainer]?.pic : null;
+  const pic = b.trainer ? generation().trainers[b.trainer]?.pic : null;
   if (pic) srcs.add(`${GEN1}/trainers/${pic}.png`);
   for (const e of b.events) if (e.t === 'send') srcs.add(`${GEN1}/pokemon/${e.mon.shiny ? 'shiny/' : ''}${e.side ? 'front' : 'back'}/${e.mon.species}.png`);
   return Promise.all(
@@ -239,7 +239,7 @@ export function BattleScreen({
   const { sides, text, line, rewards, exp, cooling, hit, attacker } = shownState(events, battle.party);
   const speciesOf = (uid: string) => battle.party.find((m) => m.uid === uid)?.species ?? 0;
   const [me] = sides;
-  const trainer = battle.trainer ? TRAINERS[battle.trainer] : null;
+  const trainer = battle.trainer ? generation().trainers[battle.trainer] : null;
   // When each event came up (the scene's animations run from it), and when the battle opened (its intro): a battle
   // opened part way through (the page opened mid-battle) skips the intro, the events already shown long played.
   const times = useRef<number[]>([]);
@@ -275,7 +275,7 @@ export function BattleScreen({
           ? `${trainer.class} ${trainer.name} sent out ${name(latest.mon.species)}!`
           : `Wild ${name(latest.mon.species)} appeared!`
         : latest?.t === 'ball' && ballWait > 0
-          ? `${gender === 'female' ? 'Leaf' : 'Red'} used ${ITEMS[latest.item]?.name ?? 'a ball'}!`
+          ? `${gender === 'female' ? 'Leaf' : 'Red'} used ${generation().items[latest.item]?.name ?? 'a ball'}!`
           : text;
   return (
     <div ref={ref} className="w-full">

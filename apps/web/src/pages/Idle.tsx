@@ -1,5 +1,5 @@
 import { idleMusic } from '@poke-tcg/campaign';
-import { AREAS, cuts, mapView, species, TICK_MS, type IdleAction, type WalkArea } from '@poke-tcg/idle';
+import { areas, cuts, mapView, species, TICK_MS, type IdleAction, type WalkArea } from '@poke-tcg/idle';
 import { useState } from 'react';
 import type { Dialogue } from '../components/DialogueBox';
 import { useMusicCue, useMusicSettings } from '../components/MusicPlayer';
@@ -80,7 +80,7 @@ export function IdlePage() {
   // water too), but on Route 23, Victory Road and the Indigo Plateau (Overworld_MusicCanOverrideMapMusic); the bike's on
   // the Cycling Road (Route 17), where the game puts the player on the bike.
   const place = active ? (play.place ?? placeOf(active.view)) : null;
-  const area = place ? AREAS[place.area] : null;
+  const area = place ? areas()[place.area] : null;
   let mapName: string | null = active ? null : 'PalletTown_ProfessorOaksLab';
   let surfing = false;
   if (area && 'legs' in area) {
@@ -315,8 +315,8 @@ function DebugWarp({ run, onWarp }: { run: ClientIdleRun; onWarp: (area: string)
   return (
     <label className="flex items-center gap-2 text-xs text-slate-400">
       Debug: warp to
-      <select className="rounded bg-slate-700 px-2 py-1 ring-1 ring-slate-600" value={AREAS[run.view.area]!.id} onChange={(e) => onWarp(e.target.value)}>
-        {AREAS.map((a) => (
+      <select className="rounded bg-slate-700 px-2 py-1 ring-1 ring-slate-600" value={areas()[run.view.area]!.id} onChange={(e) => onWarp(e.target.value)}>
+        {areas().map((a) => (
           <option key={a.id} value={a.id}>
             {a.name}
             {a.kind === 'gym' ? ` (${(a as WalkArea).leader})` : ''}

@@ -1,6 +1,6 @@
 import type { AppRouter } from '@poke-tcg/api/router';
 import { CONTEST_CATEGORIES, CONTEST_RANKS, contestMove, CONTEST_EFFECTS, ENTRANT_SPECIES } from '@poke-tcg/campaign';
-import { SPECIES } from '@poke-tcg/idle';
+import { generation } from '@poke-tcg/idle';
 import type { inferRouterOutputs } from '@trpc/server';
 
 export type ContestOverview = inferRouterOutputs<AppRouter>['contest']['overview'];
@@ -11,7 +11,7 @@ export const CATEGORY_COLORS = ['bg-red-600', 'bg-blue-600', 'bg-pink-500', 'bg-
 export const CATEGORY_TEXT = ['text-red-400', 'text-blue-400', 'text-pink-400', 'text-green-400', 'text-yellow-400'] as const;
 
 /** A species' name: Kanto's from the Idle Adventure, the CPU entrants' from Platinum. */
-export const speciesName = (n: number) => SPECIES[n - 1]?.name ?? ENTRANT_SPECIES[n] ?? `No. ${n}`;
+export const speciesName = (n: number) => generation().species[n - 1]?.name ?? ENTRANT_SPECIES[n] ?? `No. ${n}`;
 
 /** A Pokémon's Platinum front sprite (tools/extras/platinum_contest.py: public/extras/contest/pokemon/<n>.png, 80x80), drawn crisp. */
 export function ContestSprite({ species, size = 80, className = '' }: { species: number; size?: number; className?: string }) {

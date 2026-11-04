@@ -5,6 +5,7 @@
 // its basic move when every slot is cooling down.
 import { int, type Rng } from '@poke-tcg/campaign';
 import { moveData, species } from './data.js';
+import { perGeneration } from './generation.js';
 import { expForLevel } from './stats.js';
 import { machineMoves } from './tms.js';
 import type { Mon, MoveData, Stats } from './types.js';
@@ -76,7 +77,7 @@ const evolvesFrom = (id: number) => {
 /** Whether a species evolves from none: a line's first stage, or a Pokémon that doesn't evolve at all (Tauros). */
 export const isBaseForm = (id: number) => evolvesFrom(id) === null;
 
-const basicCache = new Map<number, string>();
+const basicCache = perGeneration(() => new Map<number, string>());
 
 /**
  * A species' basic move (agreed with the user): the earliest damaging, high-PP level-up move of its own learnset
@@ -85,7 +86,7 @@ const basicCache = new Map<number, string>();
  * BASIC_OVERRIDES first.
  */
 export function basicMove(id: number): string {
-  const cached = basicCache.get(id);
+  const cached = basicCache().get(id);
   if (cached) return cached;
   let found = BASIC_OVERRIDES[id];
   if (!found) {
@@ -98,7 +99,7 @@ export function basicMove(id: number): string {
       found = candidates.find((m) => moveData(m).power > moveData(first).power) ?? first;
     } else found = candidates[0]!;
   }
-  basicCache.set(id, found);
+  basicCache().set(id, found);
   return found;
 }
 

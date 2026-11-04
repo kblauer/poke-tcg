@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { AREAS } from './areas.js';
+import { areas } from './areas.js';
 import { applyIdleAction, createIdleRun, type IdleState } from './idle.js';
-import { canLearnMachine, HM_PRICE, MACHINES, machineMove, machinePrice, slotMoves, TM_MOVES } from './tms.js';
+import { TM_MOVES } from './data/gen1/tms.js';
+import { canLearnMachine, HM_PRICE, machineList, machineMove, machinePrice, slotMoves } from './tms.js';
 
-const index = (id: string) => AREAS.findIndex((a) => a.id === id);
+const index = (id: string) => areas().findIndex((a) => a.id === id);
 
 /** A run in a town's store, having reached `reached`, with plenty of money. */
 function inStore(town: string, reached: string, species = 4): IdleState {
@@ -24,10 +25,10 @@ describe('TMs and HMs', () => {
   });
 
   it('sells every TM and HM in one list, TM01 to TM50 then HM01 to HM08', () => {
-    expect(MACHINES).toHaveLength(58);
-    expect(MACHINES.slice(0, 3)).toEqual(['tm01', 'tm02', 'tm03']);
-    expect(MACHINES[49]).toBe('tm50');
-    expect(MACHINES.slice(50)).toEqual(['hm01', 'hm02', 'hm03', 'hm04', 'hm05', 'hm06', 'hm07', 'hm08']);
+    expect(machineList()).toHaveLength(58);
+    expect(machineList().slice(0, 3)).toEqual(['tm01', 'tm02', 'tm03']);
+    expect(machineList()[49]).toBe('tm50');
+    expect(machineList().slice(50)).toEqual(['hm01', 'hm02', 'hm03', 'hm04', 'hm05', 'hm06', 'hm07', 'hm08']);
   });
 
   it('sells them in every store once the run has reached Celadon City, one of each', () => {

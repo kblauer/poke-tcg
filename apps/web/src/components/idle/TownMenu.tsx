@@ -1,4 +1,4 @@
-import { AREAS, areaById, atProgress, mapView, topLevel, type TownArea } from '@poke-tcg/idle';
+import { areas, areaById, atProgress, mapView, topLevel, type TownArea } from '@poke-tcg/idle';
 import type { ReactNode } from 'react';
 import type { ClientIdleRun } from '../../hooks/useIdle';
 import type { Dialogue } from '../DialogueBox';
@@ -36,7 +36,7 @@ export function TownMenu({
   /** Drawn over the town (the party overlay). */
   children?: ReactNode;
 }) {
-  const town = AREAS[run.view.area] as TownArea;
+  const town = areas()[run.view.area] as TownArea;
   const map = mapView(town.map);
   const gym = town.gym ? areaById(town.gym) : null;
   const badge = gym && gym.kind === 'gym' ? gym.badge! : null;
