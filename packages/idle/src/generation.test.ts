@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { areas } from './areas.js';
 import { species } from './data.js';
-import { DEX_SIZE, generation, generationOf, inGeneration, perGeneration } from './generation.js';
+import { allGenerations, DEX_SIZE, generation, generationOf, inGeneration, perGeneration } from './generation.js';
 import { createIdleRun, DEFAULT_IDLE_SETTINGS, simulateSegment, type IdleState } from './idle.js';
 
 describe('generations', () => {
@@ -10,7 +10,7 @@ describe('generations', () => {
     expect(generation().region).toBe('Kanto');
     expect(generationOf({})).toBe(1);
     expect(createIdleRun({ species: 4 }, 1).gen).toBe(1);
-    expect(DEX_SIZE).toBe(151);
+    expect(DEX_SIZE).toBe(Math.max(...allGenerations().map((g) => g.species.length)));
     expect(species(25).name).toBe('Pikachu');
     expect(areas()[0]!.id).toBe('route-1');
   });
@@ -23,6 +23,12 @@ describe('generations', () => {
     ).toThrow('inside');
     expect(generation().gen).toBe(1);
     expect(inGeneration(undefined, () => generation().gen)).toBe(1);
+  });
+
+  it("reads Johto's tables inside its generation", () => {
+    expect(inGeneration(2, () => [generation().region, generation().battleRules, species(152).name])).toEqual(['Johto', 4, 'Chikorita']);
+    expect(generation().region).toBe('Kanto');
+    expect(() => species(152)).toThrow();
   });
 
   it('works a per-generation value out once', () => {

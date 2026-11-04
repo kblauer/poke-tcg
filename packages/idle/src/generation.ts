@@ -19,9 +19,18 @@ import { TM_LEARNERS, TM_MOVES } from './data/gen1/tms.js';
 import { KANTO_TOWN_MAP_PLACES } from './data/gen1/town-map.js';
 import { TRAINERS } from './data/gen1/trainers.js';
 import { TYPE_CHART } from './data/gen1/types.js';
+import { ABILITY_NAMES as JOHTO_ABILITY_NAMES } from './data/gen2/abilities.js';
+import { ENCOUNTERS as JOHTO_ENCOUNTERS } from './data/gen2/encounters.js';
+import { ITEMS as JOHTO_ITEMS } from './data/gen2/items.js';
+import { MARTS as JOHTO_MARTS } from './data/gen2/marts.js';
+import { MOVES as JOHTO_MOVES } from './data/gen2/moves.js';
+import { SPECIES as JOHTO_SPECIES } from './data/gen2/species.js';
+import { TM_LEARNERS as JOHTO_TM_LEARNERS, TM_MOVES as JOHTO_TM_MOVES } from './data/gen2/tms.js';
+import { TRAINERS as JOHTO_TRAINERS } from './data/gen2/trainers.js';
+import { TYPE_CHART as JOHTO_TYPE_CHART } from './data/gen2/types.js';
 
-/** The generations a run can be (Kanto's 1; Johto's 2 to come, issue #170). */
-export const IDLE_GENERATIONS = [1] as const;
+/** The generations a run can be: Kanto's 1 and Johto's 2 (issue #170: its tables and Gen 4's battles so far; no areas yet, so no Johto run starts). */
+export const IDLE_GENERATIONS = [1, 2] as const;
 export type IdleGen = (typeof IDLE_GENERATIONS)[number];
 
 /** A Town Map's picture (in apps/web/public) and its grid of cells on it. */
@@ -56,6 +65,8 @@ export interface Generation {
   townMapGrid: TownMapGrid;
   /** The first run's starters. */
   starters: readonly number[];
+  /** Whose battle rules its battles play by (battle.ts): FireRed's (3) or HeartGold's (4: the physical/special split, Gen 4's damage, effects, abilities and items). */
+  battleRules: 3 | 4;
 }
 
 const KANTO: Generation = {
@@ -78,9 +89,33 @@ const KANTO: Generation = {
   // region_map.c has it: 22x15 cells of 8px, from (32, 32) on the screen, (16, 16) in the picture.
   townMapGrid: { image: '/idle/gen1/town-map/kanto.png', imageWidth: 208, imageHeight: 144, x: 16, y: 16, cell: 8, width: 22, height: 15 },
   starters: [1, 4, 7],
+  battleRules: 3,
 };
 
-const GENERATIONS: Record<IdleGen, Generation> = { 1: KANTO };
+/** Johto (HeartGold/SoulSilver, issue #170): its tables (data/gen2/, tools/idle/hgss_data.py); its areas, maps and Town Map to come (steps 4 and 5). */
+const JOHTO: Generation = {
+  gen: 2,
+  region: 'Johto',
+  species: JOHTO_SPECIES,
+  moves: JOHTO_MOVES,
+  items: JOHTO_ITEMS,
+  abilityNames: JOHTO_ABILITY_NAMES,
+  typeChart: JOHTO_TYPE_CHART,
+  encounters: JOHTO_ENCOUNTERS,
+  marts: JOHTO_MARTS,
+  trainers: JOHTO_TRAINERS,
+  tmMoves: JOHTO_TM_MOVES,
+  tmLearners: JOHTO_TM_LEARNERS,
+  areas: [],
+  maps: {},
+  townMapPlaces: [],
+  // A placeholder until Johto's Pokégear map (step 5).
+  townMapGrid: { image: '', imageWidth: 0, imageHeight: 0, x: 0, y: 0, cell: 8, width: 0, height: 0 },
+  starters: [152, 155, 158],
+  battleRules: 4,
+};
+
+const GENERATIONS: Record<IdleGen, Generation> = { 1: KANTO, 2: JOHTO };
 
 let active: Generation = KANTO;
 
@@ -110,5 +145,11 @@ export function perGeneration<V>(make: (g: Generation) => V): () => V {
   };
 }
 
-/** The account Pokédex's size: every species any generation has. */
-export const DEX_SIZE = Math.max(...Object.values(GENERATIONS).map((g) => g.species.length));
+/**
+ * The account Pokédex's size: every species any generation has (Johto's tables go to Arceus). A number, not worked out
+ * from the tables, so the shared schemas that read it never pull the tables in; a test checks it.
+ */
+export const DEX_SIZE = 493;
+
+/** Every generation's tables (the test checking DEX_SIZE). */
+export const allGenerations = (): readonly Generation[] => Object.values(GENERATIONS);

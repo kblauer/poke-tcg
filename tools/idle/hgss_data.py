@@ -5,7 +5,7 @@ Gen 4's rules add:
   items, base friendship; wotbl.narc's level-up learnsets; evo.json's evolutions, every method; the Pokédex's category,
   height, weight and HeartGold's text);
 - moves.ts: every move (waza_tbl.narc): type, category (physical, special, status: Gen 4's split), power, accuracy, PP,
-  effect (move_effects.h's MOVE_EFFECT_, lower case), chance, target, priority, flags, and its description;
+  effect (Gen 3's name where it has one, below), chance, target, priority, flags, and its description;
 - abilities.ts: the ability names (abilities.h), keyed as the species' abilities are;
 - items.ts: the items (item_data.csv): name, price, pocket, hold effect, Fling's and Natural Gift's power, description;
 - types.ts: the type chart (sTypeEffectiveness, Gen 4's: Steel and the Foresight immunities as Gen 3's);
@@ -17,13 +17,18 @@ Gen 4's rules add:
 - marts.ts: the Poké Marts' stock by badge count (ScrCmd_MartBuy's tiers) and the special marts' lists
   (_0210FA3C, SpecialMartBuy's), and which a mart map's clerks sell (the map scripts' std_pokemart / std_special_mart);
 - tms.ts: the TMs' and HMs' moves (item.c's sTMHMMoves) and the species that learn each (personal.json's tms, hms).
+A move's effect is named as Gen 3 names it where Gen 3 has it (Gen 4 kept Gen 3's numbers, 0 to 213:
+MOVE_EFFECT_HALVE_DEFENSE is EFFECT_EXPLOSION; pokefirered's battle_move_effects.h, EFFECT_, lower case), so the battle
+engine plays it with Gen 3's code and Gen 4's changes (battle.ts's rules 4); the effects from 214 on keep Gen 4's names
+(MOVE_EFFECT_, lower case).
 Keys follow Kanto's where the thing is the same (an item or move of the same name keeps FireRed's key: 'paralyze-heal',
 not 'parlyz-heal'), so shared rules (the balls, the medicine, the stones) read both. The battle pictures' offsets
 (`pic`) and the party icons' palettes are filled with the graphics (issue #170, step 5).
-Usage: python tools/idle/hgss_data.py <pokeheartgold checkout>."""
+Usage: python tools/idle/hgss_data.py <pokeheartgold checkout> <pokefirered checkout>."""
 import csv, json, os, re, struct, sys
 
 SRC = os.path.abspath(sys.argv[1])
+FIRERED = os.path.abspath(sys.argv[2])
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
 OUT_TS = os.path.join(ROOT, 'packages', 'idle', 'src', 'data', 'gen2')
 GEN1 = os.path.join(ROOT, 'packages', 'idle', 'src', 'data', 'gen1')
@@ -124,6 +129,7 @@ TYPE_BY_ID = {n: key(c, 'TYPE_') for n, c in constants('include/constants/pokemo
 move_consts = constants('include/constants/moves.h', 'MOVE_', '#define MOVE_NONE', '#define NUM_MOVES')
 move_names, move_descs = messages(750), messages(749)
 # move_effects.h leaves a few numbers unnamed: named for their moves (Rest; Superpower; Magic Coat; Recycle; Revenge and Avalanche; Teeter Dance).
+gen3_effects = {int(n): c[len('EFFECT_'):].lower() for c, n in re.findall(r'#define (EFFECT_\w+)\s+(\d+)', open(os.path.join(FIRERED, 'include/constants/battle_move_effects.h'), encoding='utf8').read())}
 effect_names = {n: c[len('MOVE_EFFECT_'):].lower() for n, c in constants('include/constants/move_effects.h', 'MOVE_EFFECT_').items()} | {
     37: 'rest', 182: 'superpower', 183: 'magic_coat', 184: 'recycle', 185: 'revenge', 199: 'teeter_dance'}
 kanto_moves = kanto_keys('moves.ts')
@@ -144,7 +150,7 @@ for n, c in sorted(move_consts.items()):
     move_key[c] = k
     moves[k] = {
         'name': move_names[n], 'type': TYPE_BY_ID[typ], 'category': CATEGORIES[category], 'power': power, 'accuracy': accuracy, 'pp': pp,
-        'effect': effect_names[effect], 'chance': chance, 'target': TARGETS[rng], 'priority': priority,
+        'effect': gen3_effects.get(effect, effect_names[effect]), 'chance': chance, 'target': TARGETS[rng], 'priority': priority,
         'flags': [f for i, f in enumerate(FLAGS) if flags & (1 << i)], 'description': flat(move_descs[n]),
     }
 write('moves.ts', 'files/poketool/waza/waza_tbl.narc, include/constants/move_effects.h, msg_0749, msg_0750',

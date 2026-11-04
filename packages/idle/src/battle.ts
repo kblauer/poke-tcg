@@ -3,11 +3,15 @@
 // turn a tick. Each tick both Pokémon act, the faster first (items before moves, then priority, then Speed, ties
 // random), then the end-of-turn effects. Moves are picked by the cooldown rule (mon.ts; ai.ts) instead of PP. The whole
 // battle is resolved at once from the seeded RNG and returned as an event log the browser plays back.
+// Johto's battles play by HeartGold's rules instead (the generation's battleRules 4, `gen4`; issue #170): the same
+// battles with Gen 4's changes from pokeheartgold (src/battle/: CalcMoveDamage, TryCriticalHit, ov12_02251D28's types),
+// marked where they differ; a Gen 4 move's effect is named as Gen 3's where Gen 3 has it (data/gen2/moves.ts).
 // Simplifications, agreed or forced by the mode: no switching but a fainted Pokémon's replacement (the next in party
 // order) and Roar/Whirlwind; a wild Pokémon never runs; the party is healed after every battle by the run, not here.
 import { int, type Rng } from '@poke-tcg/campaign';
 import { attemptCatch } from './catch.js';
 import { effectiveness, isPhysical, itemData, moveData, species } from './data.js';
+import { generation } from './generation.js';
 import { abilityOf, autoSlots, basicFor, cooldownTicks, lastFourMoves, movePower, movesAt } from './mon.js';
 import { EFFECTS, fixedDamageEffect, type MoveCtx } from './moves.js';
 import { addEvs, calcStats, levelForExp } from './stats.js';
@@ -185,6 +189,11 @@ export interface Volatiles {
   hitThisTurn?: boolean;
   /** Its first turn out (Fake Out). */
   firstTurn?: boolean;
+  /** Gen 4's: turns since it came out with Slow Start; the Metronome item's moves in a row; Roost used this turn; Miracle Eye on it. */
+  slowStart?: number;
+  metronomeTurns?: number;
+  roosted?: boolean;
+  miracleEye?: boolean;
   /** Mimic's copy, in place of Mimic for the battle. */
   mimicked?: { from: string; to: string };
 }
@@ -262,6 +271,8 @@ export interface SideState {
   wish?: { turns: number; hp: number };
   mudSport?: boolean;
   waterSport?: boolean;
+  /** Gen 4's Lucky Chant: no critical hits on this side, for its turns. */
+  luckyChant?: number;
 }
 
 const newSide = (): SideState => ({ reflect: 0, lightScreen: 0, mist: 0, safeguard: 0, spikes: 0 });
@@ -295,6 +306,10 @@ export class Battle {
   participated = new Set<number>();
   /** The move used last in the battle (Mirror Move's fallback is none). */
   lastMoveUsed: string | null = null;
+  /** HeartGold's rules (the generation's battleRules 4): the physical/special split, Gen 4's damage and critical hits. */
+  gen4: boolean;
+  /** Gen 4's Gravity: its turns left. */
+  gravity = 0;
 
   constructor(setup: BattleSetup, rng: Rng) {
     this.rng = rng;
@@ -304,6 +319,7 @@ export class Battle {
     this.party = setup.party.map((m, i) => new Battler(0, i, structuredClone(m), setup.badges));
     this.foes = setup.foes.map((m, i) => new Battler(1, i, structuredClone(m), 0));
     this.active = [this.party[0]!, this.foes[0]!];
+    this.gen4 = generation().battleRules === 4;
   }
 
   // ---- Output ----
@@ -459,6 +475,11 @@ export class Battle {
   }
 
   // ---- Damage ----
+  /** Whether a damaging move is physical: by Gen 4's rules its own category (the split), by Gen 3's its type's. */
+  physical(move: MoveData, type: TypeName) {
+    return this.gen4 ? move.category === 'physical' : isPhysical(type);
+  }
+
   /** A critical hit (Cmd_critcalc): stage from Focus Energy (+2), high-crit moves (+1), Scope Lens (+1); Battle/Shell Armor stop it. */
   critRoll(user: Battler, target: Battler, move: MoveData): boolean {
     let stage = (user.v.focusEnergy ? 2 : 0) + (HIGH_CRIT.has(move.effect) ? 1 : 0) + (this.holdEffect(user) === 'scope_lens' ? 1 : 0);
@@ -558,6 +579,166 @@ export class Battle {
     return { damage, eff };
   }
 
+  /** Whether the target has an ability the user's Mold Breaker doesn't ignore (CheckBattlerAbilityIfNotIgnored). */
+  targetHas(user: Battler, target: Battler, ability: string) {
+    return target.ability === ability && user.ability !== 'mold-breaker';
+  }
+
+  /**
+   * Gen 4's critical hit (TryCriticalHit): its stage from Focus Energy (+2), the Scope Lens, the move (high-crit
+   * effects +1), Super Luck, the Lucky Punch on Chansey and the Stick on Farfetch'd (+2 each), at most 4; Battle and
+   * Shell Armor and Lucky Chant stop it. Returns the damage multiplier: 1, 2, or 3 with Sniper.
+   */
+  critMultiplier4(user: Battler, target: Battler, move: MoveData): number {
+    const hold = this.holdEffect(user);
+    let stage = (user.v.focusEnergy ? 2 : 0) + (hold === 'critrate_up' ? 1 : 0) + (HIGH_CRIT.has(move.effect) ? 1 : 0) + (user.ability === 'super-luck' ? 1 : 0);
+    if (hold === 'chansey_critrate_up' && user.species === 113) stage += 2;
+    if (hold === 'farfetchd_critrate_up' && user.species === 83) stage += 2;
+    stage = Math.min(stage, CRIT_CHANCE.length - 1);
+    if (this.random16() % CRIT_CHANCE[stage]! !== 0) return 1;
+    if (this.targetHas(user, target, 'battle-armor') || this.targetHas(user, target, 'shell-armor') || this.sides[target.side].luckyChant) return 1;
+    return user.ability === 'sniper' ? 3 : 2;
+  }
+
+  /**
+   * A hit's damage by Gen 4's rules, in pokeheartgold's order: CalcMoveDamage (the power's and the stats' abilities and
+   * items, the stages (Simple, Unaware), the category's stats, burn, the screens, the weather, Flash Fire, + 2), then
+   * DamageCalcDefault's critical multiplier, the Life Orb and the Metronome, ApplyDamageRange's random 85–100%, then
+   * ov12_02251D28's STAB (Adaptability), each type in turn (typeSteps4), Filter and Solid Rock, the Expert Belt and Tinted
+   * Lens. Returns the damage and the type multiplier.
+   */
+  damage4(user: Battler, target: Battler, move: MoveData, o: { key: string; power: number; type: TypeName; crit: number }): { damage: number; eff: number } {
+    const type = user.ability === 'normalize' ? 'normal' : o.type;
+    const hold = this.holdEffect(user);
+    const mod = user.item ? itemData(user.item).holdParam : 0;
+    const targetHold = this.holdEffect(target);
+    const physical = move.category === 'physical';
+    let power = o.power;
+    let atk = user.stats.atk;
+    let def = target.stats.def;
+    let spa = user.stats.spa;
+    let spd = target.stats.spd;
+    if (user.v.charged && type === 'electric') power *= 2;
+    if (user.ability === 'technician' && o.key !== 'struggle' && power <= 60) power = Math.floor((power * 15) / 10);
+    if (user.ability === 'huge-power' || user.ability === 'pure-power') atk *= 2;
+    if (user.ability === 'slow-start' && (user.v.slowStart ?? 0) < 5) atk = Math.floor(atk / 2);
+    if (TYPE_ENHANCERS4[hold] === type) power = Math.floor((power * (100 + mod)) / 100);
+    if (hold === 'choice_atk') atk = Math.floor((atk * 150) / 100);
+    if (hold === 'choice_spatk') spa = Math.floor((spa * 150) / 100);
+    if (hold === 'lati_special' && (user.species === 380 || user.species === 381)) spa = Math.floor((spa * 150) / 100);
+    if (targetHold === 'lati_special' && (target.species === 380 || target.species === 381)) spd = Math.floor((spd * 150) / 100);
+    if (hold === 'clamperl_spatk' && user.species === 366) spa *= 2;
+    if (targetHold === 'clamperl_spdef' && target.species === 366) spd *= 2;
+    if (hold === 'pika_spatk_up' && user.species === 25) power *= 2;
+    if (targetHold === 'ditto_def_up' && target.species === 132) def *= 2;
+    if (hold === 'cubone_atk_up' && (user.species === 104 || user.species === 105)) atk *= 2;
+    if (hold === 'dialga_boost' && (type === 'dragon' || type === 'steel') && user.species === 483) power = Math.floor((power * (100 + mod)) / 100);
+    if (hold === 'palkia_boost' && (type === 'dragon' || type === 'water') && user.species === 484) power = Math.floor((power * (100 + mod)) / 100);
+    if (hold === 'giratina_boost' && (type === 'dragon' || type === 'ghost') && !user.v.transformed && user.species === 487) power = Math.floor((power * (100 + mod)) / 100);
+    if (hold === 'power_up_phys' && physical) power = Math.floor((power * (100 + mod)) / 100);
+    if (hold === 'power_up_spec' && move.category === 'special') power = Math.floor((power * (100 + mod)) / 100);
+    if (this.targetHas(user, target, 'thick-fat') && (type === 'fire' || type === 'ice')) power = Math.floor(power / 2);
+    if (user.ability === 'hustle') atk = Math.floor((atk * 150) / 100);
+    if (user.ability === 'guts' && user.status) atk = Math.floor((atk * 150) / 100);
+    if (this.targetHas(user, target, 'marvel-scale') && target.status) def = Math.floor((def * 150) / 100);
+    if (type === 'electric' && this.sides.some((s) => s.mudSport)) power = Math.floor(power / 2);
+    if (type === 'fire' && this.sides.some((s) => s.waterSport)) power = Math.floor(power / 2);
+    const pinch = user.hp <= Math.floor(user.maxHp / 3);
+    if (pinch && ((type === 'grass' && user.ability === 'overgrow') || (type === 'fire' && user.ability === 'blaze') || (type === 'water' && user.ability === 'torrent') || (type === 'bug' && user.ability === 'swarm'))) {
+      power = Math.floor((power * 150) / 100);
+    }
+    if (type === 'fire' && this.targetHas(user, target, 'heatproof')) power = Math.floor(power / 2);
+    if (type === 'fire' && this.targetHas(user, target, 'dry-skin')) power = Math.floor((power * 125) / 100);
+    const clamp = (s: number) => Math.max(-6, Math.min(6, s));
+    let atkStage = user.stages.atk;
+    let spaStage = user.stages.spa;
+    let defStage = target.stages.def;
+    let spdStage = target.stages.spd;
+    if (user.ability === 'simple') [atkStage, spaStage] = [clamp(atkStage * 2), clamp(spaStage * 2)];
+    if (this.targetHas(user, target, 'simple')) [defStage, spdStage] = [clamp(defStage * 2), clamp(spdStage * 2)];
+    if (this.targetHas(user, target, 'unaware')) [atkStage, spaStage] = [0, 0];
+    if (user.ability === 'unaware') [defStage, spdStage] = [0, 0];
+    if (user.ability === 'rivalry' && user.mon.gender && target.mon.gender) power = Math.floor((power * (user.mon.gender === target.mon.gender ? 125 : 75)) / 100);
+    if (user.ability === 'iron-fist' && PUNCHING_MOVES.has(o.key)) power = Math.floor((power * 12) / 10);
+    if (this.weatherOn()) {
+      if (this.isWeather('sun') && user.ability === 'solar-power') spa = Math.floor((spa * 15) / 10);
+      if (this.isWeather('sandstorm') && target.types.includes('rock')) spd = Math.floor((spd * 15) / 10);
+      if (this.isWeather('sun') && user.ability === 'flower-gift') atk = Math.floor((atk * 15) / 10);
+      if (this.isWeather('sun') && user.ability !== 'mold-breaker' && target.ability === 'flower-gift') spd = Math.floor((spd * 15) / 10);
+    }
+    if (move.effect === 'explosion') def = Math.floor(def / 2);
+    const staged = (value: number, stage: number) => Math.floor((value * STAGE_RATIOS[stage + 6]![0]) / STAGE_RATIOS[stage + 6]![1]);
+    const crit = o.crit > 1;
+    let damage = 0;
+    if (move.category !== 'status') {
+      const [a, aStage, d, dStage] = physical ? [atk, atkStage, def, defStage] : [spa, spaStage, spd, spdStage];
+      // A critical hit ignores the attacker's lowered and the target's raised stages, and the screens.
+      damage = crit && aStage <= 0 ? a : staged(a, aStage);
+      damage = damage * power * (Math.floor((user.level * 2) / 5) + 2);
+      damage = Math.floor(damage / (crit && dStage >= 0 ? d : staged(d, dStage)));
+      damage = Math.floor(damage / 50);
+      if (physical && user.status === 'burn' && user.ability !== 'guts') damage = Math.floor(damage / 2);
+      const screen = physical ? this.sides[target.side].reflect : this.sides[target.side].lightScreen;
+      if (screen && !crit && move.effect !== 'brick_break') damage = Math.floor(damage / 2);
+    }
+    if (this.weatherOn()) {
+      if (this.isWeather('rain')) {
+        if (type === 'fire') damage = Math.floor(damage / 2);
+        if (type === 'water') damage = Math.floor((damage * 15) / 10);
+      }
+      if (!this.isWeather('sun') && o.key === 'solar-beam') damage = Math.floor(damage / 2);
+      if (this.isWeather('sun')) {
+        if (type === 'fire') damage = Math.floor((damage * 15) / 10);
+        if (type === 'water') damage = Math.floor(damage / 2);
+      }
+    }
+    if (user.v.flashFire && type === 'fire') damage = Math.floor((damage * 15) / 10);
+    damage += 2;
+    // DamageCalcDefault: the critical multiplier, the Life Orb, the Metronome; then ApplyDamageRange.
+    damage *= o.crit;
+    if (hold === 'hp_drain_on_atk') damage = Math.floor((damage * (100 + mod)) / 100);
+    if (hold === 'boost_repeated') damage = Math.floor((damage * (10 + (user.v.metronomeTurns ?? 0))) / 10);
+    damage = Math.floor((damage * (100 - (this.random16() % 16))) / 100);
+    if (damage === 0) damage = 1;
+    // ov12_02251D28: Struggle takes none of it.
+    if (o.key === 'struggle') return { damage, eff: 1 };
+    if (user.types.includes(type)) damage = user.ability === 'adaptability' ? damage * 2 : Math.floor((damage * 15) / 10);
+    let eff = 1;
+    for (const m of this.typeSteps4(user, target, type)) {
+      if (damage) damage = divide(damage * m * 10, 10);
+      eff *= m;
+    }
+    if (eff > 1 && move.power) {
+      if (this.targetHas(user, target, 'filter') || this.targetHas(user, target, 'solid-rock')) damage = divide(damage * 3, 4);
+      if (hold === 'power_up_se') damage = Math.floor((damage * (100 + mod)) / 100);
+    }
+    if (eff > 0 && eff < 1 && move.power && user.ability === 'tinted-lens') damage *= 2;
+    return { damage, eff };
+  }
+
+  /**
+   * Gen 4's type chart for one hit (ov12_02251D28, ov12_02251C74): each row for the move's type against the target's
+   * first type, then its second (when it's another), in the chart's order; the rows after the Foresight marker (the
+   * Ghost immunities) skipped altogether once Foresight or Scrappy is in play; the Iron Ball, Ingrain and Gravity lifting
+   * Flying's Ground immunity, Roost taking Flying away for the turn, Miracle Eye lifting Dark's Psychic immunity.
+   */
+  typeSteps4(user: Battler, target: Battler, type: TypeName): number[] {
+    const out: number[] = [];
+    const [t1, t2] = target.types;
+    for (const [attack, defend, mul, lifted] of generation().typeChart) {
+      if (lifted && (target.v.foresight || user.ability === 'scrappy')) break;
+      if (attack !== type) continue;
+      const kept =
+        !(defend === 'flying' && mul === 0 && (this.holdEffect(target) === 'speed_down_grounded' || target.v.ingrain || this.gravity)) &&
+        !(defend === 'flying' && target.v.roosted) &&
+        !(defend === 'dark' && mul === 0 && target.v.miracleEye);
+      if (!kept) continue;
+      if (defend === t1) out.push(mul);
+      if (t2 && t2 !== t1 && defend === t2) out.push(mul);
+    }
+    return out;
+  }
+
   /** Whether a move can't touch the target for its type (immunity, Levitate vs Ground; Wonder Guard isn't in Kanto). */
   immune(user: Battler, target: Battler, type: TypeName) {
     if (type === 'ground' && target.ability === 'levitate') return true;
@@ -590,7 +771,7 @@ export class Battle {
     let calc = Math.floor((n * acc) / d);
     if (user.ability === 'compound-eyes') calc = Math.floor((calc * 130) / 100);
     if (target.ability === 'sand-veil' && this.isWeather('sandstorm')) calc = Math.floor((calc * 80) / 100);
-    if (user.ability === 'hustle' && isPhysical(this.moveType(user, move))) calc = Math.floor((calc * 80) / 100);
+    if (user.ability === 'hustle' && this.physical(move, this.moveType(user, move))) calc = Math.floor((calc * 80) / 100);
     if (this.holdEffect(target) === 'evasion_up') calc = Math.floor((calc * (100 - itemData(target.item!).holdParam)) / 100);
     acc = (this.random16() % 100) + 1;
     return acc <= calc;
@@ -632,6 +813,13 @@ export class Battle {
     let eff = 1;
     if (o.fixed !== undefined) {
       damage = o.fixed;
+    } else if (this.gen4) {
+      // Gen 4: the random roll comes before STAB and the types (damage4).
+      const mult = o.noCrit ? 1 : this.critMultiplier4(user, target, move);
+      crit = mult > 1;
+      const r = this.damage4(user, target, move, { key: ctx.key, power: o.power ?? ctx.power, type, crit: mult });
+      damage = r.damage;
+      eff = r.eff;
     } else {
       crit = !o.noCrit && this.critRoll(user, target, move);
       const r = this.baseDamage(user, target, move, { power: o.power ?? ctx.power, type, crit, effect: move.effect });
@@ -666,7 +854,7 @@ export class Battle {
     if (eff > 1) this.text("It's super effective!");
     else if (eff > 0 && eff < 1) this.text("It's not very effective…");
     target.v.hitThisTurn = true;
-    if (isPhysical(type)) target.v.physicalHit = dealt;
+    if (this.physical(move, type)) target.v.physicalHit = dealt;
     else target.v.specialHit = dealt;
     target.lastHitBy = { move: ctx.key, type };
     if (target.v.bide) target.v.bide.damage += dealt;
@@ -1277,6 +1465,22 @@ export class Battle {
   }
 }
 
+
+/** Gen 4's type-boosting held items and Plates (sTypeEnhancingItems): their power boost's type. */
+const TYPE_ENHANCERS4: Record<string, TypeName> = {
+  strengthen_bug: 'bug', strengthen_steel: 'steel', strengthen_ground: 'ground', strengthen_rock: 'rock', strengthen_grass: 'grass', strengthen_dark: 'dark',
+  strengthen_fight: 'fighting', strengthen_electric: 'electric', strengthen_water: 'water', strengthen_flying: 'flying', strengthen_poison: 'poison',
+  strengthen_ice: 'ice', strengthen_ghost: 'ghost', strengthen_psychic: 'psychic', strengthen_fire: 'fire', strengthen_dragon: 'dragon', strengthen_normal: 'normal',
+  arceus_fire: 'fire', arceus_water: 'water', arceus_electric: 'electric', arceus_grass: 'grass', arceus_ice: 'ice', arceus_fighting: 'fighting',
+  arceus_poison: 'poison', arceus_ground: 'ground', arceus_flying: 'flying', arceus_psychic: 'psychic', arceus_bug: 'bug', arceus_rock: 'rock',
+  arceus_ghost: 'ghost', arceus_dragon: 'dragon', arceus_dark: 'dark', arceus_steel: 'steel',
+};
+
+/** Iron Fist's moves (sPunchingMoves). */
+const PUNCHING_MOVES = new Set(['ice-punch', 'fire-punch', 'thunder-punch', 'mach-punch', 'focus-punch', 'dizzy-punch', 'dynamic-punch', 'hammer-arm', 'mega-punch', 'comet-punch', 'meteor-mash', 'shadow-punch', 'drain-punch', 'bullet-punch', 'sky-uppercut']);
+
+/** Gen 4's DamageDivide: a division that never rounds a non-zero number to 0. */
+const divide = (num: number, den: number) => (num === 0 ? 0 : Math.trunc(num / den) || Math.sign(num));
 
 /** Effects with a raised critical-hit ratio. */
 const HIGH_CRIT = new Set(['high_critical', 'blaze_kick', 'poison_tail', 'razor_wind', 'sky_attack']);

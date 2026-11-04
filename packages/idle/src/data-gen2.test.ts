@@ -30,7 +30,7 @@ describe("Johto's data", () => {
 
   it('has Gen 4 moves with their split', () => {
     expect(MOVES['pound']).toMatchObject({ category: 'physical', power: 40, accuracy: 100, pp: 35, effect: 'hit' });
-    expect(MOVES['growl']).toMatchObject({ category: 'status', effect: 'atk_down', target: 'both' });
+    expect(MOVES['growl']).toMatchObject({ category: 'status', effect: 'attack_down', target: 'both' });
     expect(MOVES['fire-punch']!.category).toBe('physical');
     expect(MOVES['shadow-ball']!.category).toBe('special');
     expect(MOVES['close-combat']).toMatchObject({ type: 'fighting', power: 120, category: 'physical' });
