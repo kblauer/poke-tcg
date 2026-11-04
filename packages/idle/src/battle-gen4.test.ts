@@ -102,3 +102,150 @@ describe("Gen 4's damage", () => {
       expect(results.has('won') || results.has('lost')).toBe(true);
     }));
 });
+
+/** A level-30 battle (Kanto: Charmander on Bulbasaur; Johto: Cyndaquil on Chikorita), every random roll 0 unless given. */
+function duel(johtoBattle: boolean, roll = 0) {
+  const b = johtoBattle ? new Battle(setup([mon(155, 30)], [mon(152, 30)]), rngFrom(1)) : new Battle(setup([mon(4, 30)], [mon(1, 30)]), rngFrom(1));
+  b.random16 = () => roll;
+  b.roll = () => roll;
+  return b;
+}
+const endTurn = (b: Battle) => b['endOfTurn']();
+
+describe('rules both generations share (checked against pokefirered)', () => {
+  it("releases Bide's stored energy on the foe, not the user", () => {
+    const b = duel(false);
+    const [u, f] = b.active;
+    u.v.bide = { turns: 1, damage: 10 };
+    b.useMove(u, 'bide');
+    expect(f.hp).toBe(f.maxHp - 20);
+    expect(u.hp).toBe(u.maxHp);
+  });
+
+  it("takes Toxic's sixteenth, rounded, times the count", () => {
+    const b = duel(false);
+    const f = b.active[1];
+    f.status = 'toxic';
+    f.toxicCount = 1;
+    endTurn(b);
+    expect(f.maxHp - f.hp).toBe(Math.max(1, Math.floor(f.maxHp / 16)) * 2);
+  });
+
+  it('hurts with Spikes by 1/8, 1/6 and 1/4', () => {
+    const b = duel(false);
+    const f = b.active[1];
+    b.sides[1].spikes = 2;
+    b.sendOut(f);
+    expect(f.maxHp - f.hp).toBe(Math.floor(f.maxHp / 6));
+  });
+
+  it('faints a Perish Song listener at the fourth end of turn', () => {
+    const b = duel(false);
+    const u = b.active[0];
+    u.v.perish = 3;
+    for (let i = 0; i < 3; i++) endTurn(b);
+    expect(u.hp).toBe(u.maxHp);
+    endTurn(b);
+    expect(u.hp).toBe(0);
+  });
+
+  it("ends Destiny Bond and Rage as their user moves on, Lock-On at the next turn's end", () => {
+    const b = duel(false);
+    const u = b.active[0];
+    u.v.destinyBond = true;
+    u.v.rage = true;
+    b.useMove(u, 'growl');
+    expect(u.v.destinyBond).toBeUndefined();
+    expect(u.v.rage).toBeUndefined();
+    b.useMove(u, 'lock-on');
+    expect(u.v.lockOn).toBe(2);
+    endTurn(b);
+    expect(u.v.lockOn).toBe(1);
+    endTurn(b);
+    expect(u.v.lockOn).toBeUndefined();
+  });
+
+  it("fails Rest while asleep, Protect for the last to move, and the foe's Thief", () => {
+    const b = duel(false);
+    const [u, f] = b.active;
+    u.status = 'sleep';
+    u.sleepTurns = 2;
+    u.hp = 1;
+    b.useMove(u, 'rest');
+    expect(u.hp).toBe(1);
+    b.movedThisTurn.add(1);
+    b.useMove(u, 'protect');
+    expect(u.v.protect).toBeUndefined();
+    u.item = 'leftovers';
+    b.useMove(f, 'thief');
+    expect([u.item, f.item]).toEqual(['leftovers', null]);
+  });
+});
+
+describe("Gen 4's changes to the Gen 3 effects", () => {
+  it('raises Sp. Def with Charge, and Defense and Sp. Def with Stockpile until Spit Up', () =>
+    johto(() => {
+      const b = duel(true);
+      const u = b.active[0];
+      b.useMove(u, 'charge');
+      expect(u.stages.spd).toBe(1);
+      u.stages.spd = 0;
+      b.useMove(u, 'stockpile');
+      expect([u.stages.def, u.stages.spd]).toEqual([1, 1]);
+      b.useMove(u, 'spit-up');
+      expect([u.stages.def, u.stages.spd]).toEqual([0, 0]);
+    }));
+
+  it('lasts Taunt 3–5 turns and Disable 4–7', () =>
+    johto(() => {
+      const b = duel(true, 2);
+      const [u, f] = b.active;
+      b.useMove(u, 'taunt');
+      expect(f.v.taunt).toBe(5);
+      f.lastMove = 'tackle';
+      b.useMove(u, 'disable');
+      expect(f.v.disabled).toEqual({ move: 'tackle', turns: 6 });
+    }));
+
+  it('skips a charge turn with the Power Herb, and lengthens rain with the Damp Rock', () =>
+    johto(() => {
+      const b = duel(true);
+      const [u, f] = b.active;
+      u.item = 'power-herb';
+      b.useMove(u, 'solar-beam');
+      expect(f.hp).toBeLessThan(f.maxHp);
+      expect([u.item, u.v.charging]).toEqual([null, undefined]);
+      u.item = 'damp-rock';
+      b.useMove(u, 'rain-dance');
+      expect(b.weather).toEqual({ kind: 'rain', turns: 8 });
+    }));
+
+  it('misses a sure-hit move on a target out of reach (Kanto hits)', () => {
+    for (const gen4 of [true, false]) {
+      const run = () => {
+        const b = duel(gen4);
+        const [u, f] = b.active;
+        f.v.semiInvulnerable = 'air';
+        b.useMove(u, 'swift');
+        return f.hp < f.maxHp;
+      };
+      expect(gen4 ? johto(run) : run()).toBe(!gen4);
+    }
+  });
+
+  it('reads Leaf Guard, Mold Breaker and Magic Guard', () =>
+    johto(() => {
+      const b = duel(true);
+      const [u, f] = b.active;
+      f.ability = 'leaf-guard';
+      b.weather = { kind: 'sun', turns: 5 };
+      expect(b.canStatus(f, 'sleep', u)).toBe(false);
+      u.ability = 'mold-breaker';
+      expect(b.canStatus(f, 'sleep', u)).toBe(true);
+      b.weather = null;
+      f.ability = 'magic-guard';
+      f.status = 'poison';
+      endTurn(b);
+      expect(f.hp).toBe(f.maxHp);
+    }));
+});
