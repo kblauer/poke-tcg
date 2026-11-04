@@ -33,9 +33,9 @@ type Hit = ReturnType<Battle['strike']>;
  * The ordinary damaging move: lands (Protect, accuracy, immunity), strikes, contact abilities, a Fire move thawing its
  * target, Destiny Bond; then `after` (a secondary effect) with the hit. Returns the hit, or null when it missed.
  */
-function hit(ctx: MoveCtx, after?: (h: Hit) => void, o: Parameters<Battle['strike']>[1] & { accuracy?: boolean } = {}): Hit | null {
+function hit(ctx: MoveCtx, after?: (h: Hit) => void, o: Parameters<Battle['strike']>[1] & { accuracy?: boolean; immunity?: boolean } = {}): Hit | null {
   const { b, user, target } = ctx;
-  if (!b.lands(ctx, { accuracy: o.accuracy })) return null;
+  if (!b.lands(ctx, { accuracy: o.accuracy, immunity: o.immunity })) return null;
   const h = b.strike(ctx, o);
   if (h.toMon && ctx.type === 'fire' && target.status === 'freeze') b.cureStatus(target, `${b.Name(target)} was defrosted!`);
   b.contact(user, target, ctx.move);
@@ -121,7 +121,7 @@ function multiHit(ctx: MoveCtx, times?: number, each?: (h: Hit, i: number) => vo
 }
 
 /** The two-turn moves' first turn (Razor Wind, Solar Beam, Skull Bash, Sky Attack, Fly, Dig, Dive, Bounce). Returns whether this is the strike. */
-function twoTurn(ctx: MoveCtx, line: string, semi?: 'air' | 'underground' | 'underwater', skip = false): boolean {
+function twoTurn(ctx: MoveCtx, line: string, semi?: 'air' | 'underground' | 'underwater' | 'vanished', skip = false): boolean {
   const { user } = ctx;
   if (user.v.charging === ctx.key) {
     delete user.v.charging;
@@ -244,10 +244,433 @@ const takeStockpile = (b: Battle, u: Battler) => {
   return n;
 };
 
+/**
+ * Gen 4's Berries eaten by Pluck, Bug Bite and Fling (BtlCmd_TryPluck, its steal effects), on `eater`, by their hold
+ * effect: Oran and Sitrus heal, the status Berries cure, the flavour Berries heal (confusing a nature that dislikes
+ * the flavour), the pinch Berries raise their stat, Starf a random one by 2, Lansat Focus Energy. Klutz eats it for nothing.
+ */
+function eatBerry(b: Battle, eater: Battler, item: string) {
+  if (eater.ability === 'klutz' || eater.v.embargo) return;
+  const { hold, holdParam } = itemData(item);
+  const heal = (n: number) => eater.hp < eater.maxHp && b.heal(eater, Math.max(1, n), `${b.Name(eater)} regained health!`);
+  const cures: Record<string, StatusKind[]> = { prz_restore: ['paralysis'], slp_restore: ['sleep'], psn_restore: ['poison', 'toxic'], brn_restore: ['burn'], frz_restore: ['freeze'] };
+  const stats: Record<string, Parameters<Battle['changeStat']>[1]> = { pinch_atk_up: 'atk', pinch_def_up: 'def', pinch_speed_up: 'spe', pinch_spatk_up: 'spa', pinch_spdef_up: 'spd' };
+  // A flavour Berry's dislike: the nature lowering its stat (spicy Attack, dry Sp. Atk, sweet Speed, bitter Sp. Def, sour Defense).
+  const FLAVOURS: Record<string, number> = { hp_restore_spicy: 0, hp_restore_sour: 1, hp_restore_sweet: 2, hp_restore_dry: 3, hp_restore_bitter: 4 };
+  if (hold === 'hp_restore') heal(holdParam);
+  else if (hold === 'hp_pct_restore') heal(Math.floor((eater.maxHp * holdParam) / 100));
+  else if (cures[hold]) {
+    if (eater.status && cures[hold].includes(eater.status)) b.cureStatus(eater, `${b.Name(eater)}'s status returned to normal!`);
+  } else if (hold === 'confuse_restore') {
+    if (eater.v.confused) {
+      delete eater.v.confused;
+      b.text(`${b.Name(eater)} snapped out of confusion!`);
+    }
+  } else if (hold === 'status_restore') {
+    if (eater.status) b.cureStatus(eater, `${b.Name(eater)}'s status returned to normal!`);
+    delete eater.v.confused;
+  } else if (hold in FLAVOURS) {
+    if (heal(Math.floor(eater.maxHp / holdParam)) && eater.mon.nature % 5 === FLAVOURS[hold] && Math.floor(eater.mon.nature / 5) !== eater.mon.nature % 5) b.confuse(eater, null);
+  } else if (stats[hold]) b.changeStat(eater, stats[hold], 1, true);
+  else if (hold === 'pinch_random_up') {
+    const open = (['atk', 'def', 'spe', 'spa', 'spd', 'acc', 'eva'] as const).filter((s) => eater.stages[s] < 6);
+    if (open.length) b.changeStat(eater, open[b.random16() % open.length]!, 2, true);
+  } else if (hold === 'pinch_critrate_up') {
+    eater.v.focusEnergy = true;
+    b.text(`${b.Name(eater)} is getting pumped!`);
+  }
+}
+
+/** Gen 4's two-roll fangs (subscript_0247/0248/0249): the status on its own roll, then a flinch on another. */
+const fang = (kind: StatusKind): Effect => (ctx) =>
+  void hit(ctx, (h) => {
+    const { b, target, user } = ctx;
+    if (b.secondaryHappens(ctx, h) && b.canStatus(target, kind, user)) b.setStatus(target, kind, user);
+    flinch(ctx, h);
+  });
+
+/** Gen 4's recoil moves with a status (Flare Blitz, Volt Tackle): Reckless, the hit, a third back, then the status on its roll. */
+const recoilStatus = (kind: StatusKind): Effect => (ctx) => {
+  reckless(ctx);
+  hit(ctx, (h) => {
+    const { b, user, target } = ctx;
+    if (user.ability !== 'rock-head' && user.ability !== 'magic-guard' && h.dealt > 0) b.damage(user, Math.max(1, Math.floor(h.dealt / 3)), { msg: `${b.Name(user)} is hit with recoil!` });
+    if (b.secondaryHappens(ctx, h) && b.canStatus(target, kind, user)) b.setStatus(target, kind, user);
+  });
+};
+
+/** Gen 4's Healing Wish and Lunar Dance (BtlCmd_TryReplaceFaintedMon): fails with no one to send in; the user faints, the next one sent out healed (hazards4). */
+const wishFaint = (kind: 'wish' | 'dance'): Effect => (ctx) => {
+  const { b, user } = ctx;
+  const team = user.side === 0 ? b.party : b.foes;
+  if (b.setup.kind === 'wild' && user.side === 1) return fail(b);
+  if (!team.some((m) => m !== user && !m.fainted)) return fail(b);
+  b.damage(user, user.hp);
+  b.sides[user.side].healingWish = kind;
+};
+
+/** Gen 4's stage swaps (Power Swap, Guard Swap, Heart Swap): the user's and the target's, through a Substitute. */
+const stageSwap = (stats: readonly (keyof Battler['stages'])[], line: string): Effect => (ctx) =>
+  onTarget(ctx, (t) => {
+    const { b, user } = ctx;
+    for (const s of stats) [user.stages[s], t.stages[s]] = [t.stages[s], user.stages[s]];
+    if (stats.length === 7) [user.v.focusEnergy, t.v.focusEnergy] = [t.v.focusEnergy, user.v.focusEnergy];
+    b.text(`${b.Name(user)} ${line}`);
+  }, { substitute: false });
+
+/** Gen 4's Trump Card powers by the PP it would have left (sTrumpCardPowerTable), from its 5. */
+const TRUMP_CARD = [200, 80, 60, 50, 40];
+
 /** The friendship every Pokémon is taken to have (none is kept in these runs): the species' usual 70, for Return and Frustration. */
 const FRIENDSHIP = 70;
 
 export const EFFECTS: Record<string, Effect> = {
+  // ---- Gen 4's own effects (issue #170, step 3c: pokeheartgold's effect scripts 214 on, and the moves Gen 4 gave new numbers) ----
+  double_damage_dive: (ctx) => {
+    // Surf reaches an underwater target, at twice the power.
+    if (ctx.target.v.semiInvulnerable === 'underwater') ctx.power *= 2;
+    hit(ctx);
+  },
+  blizzard: statusHit('freeze'),
+  dig: (ctx) => EFFECTS.semi_invulnerable!(ctx),
+  dive: (ctx) => EFFECTS.semi_invulnerable!(ctx),
+  bounce: (ctx) => EFFECTS.semi_invulnerable!(ctx),
+  whirlpool: (ctx) => {
+    if (ctx.target.v.semiInvulnerable === 'underwater') ctx.power *= 2;
+    EFFECTS.trap!(ctx);
+  },
+  struggle: (ctx) => {
+    // Typeless (no immunity), never missing but out of reach; a quarter of its max HP back whatever it dealt (subscript_0043).
+    const { b, user } = ctx;
+    if (!hit(ctx, undefined, { immunity: false })) return;
+    if (!user.fainted) b.damage(user, Math.max(1, Math.floor(user.maxHp / 4)), { msg: `${b.Name(user)} is hit with recoil!` });
+  },
+  recoil_paralyze_hit: recoilStatus('paralysis'),
+  recoil_burn_hit: recoilStatus('burn'),
+  recoil_half: (ctx) => {
+    reckless(ctx);
+    hit(ctx, (h) => {
+      if (ctx.user.ability === 'rock-head' || ctx.user.ability === 'magic-guard' || h.dealt === 0) return;
+      ctx.b.damage(ctx.user, Math.max(1, Math.floor(h.dealt / 2)), { msg: `${ctx.b.Name(ctx.user)} is hit with recoil!` });
+    });
+  },
+  flinch_paralyze_hit: fang('paralysis'),
+  flinch_freeze_hit: fang('freeze'),
+  flinch_burn_hit: fang('burn'),
+  def_spd_down_hit: (ctx) =>
+    void hit(ctx, () => {
+      ctx.b.changeStat(ctx.user, 'def', -1, true);
+      ctx.b.changeStat(ctx.user, 'spd', -1, true);
+    }),
+  lower_sp_def_2_hit: statHit('spd', -2),
+  raise_sp_atk_hit: statHit('spa', 1, true),
+  heal_half_remove_flying_type: (ctx) => {
+    // Roost: half its HP back, and (only once it healed) no Flying type against it for the turn.
+    const { b, user } = ctx;
+    if (user.hp === user.maxHp) return void b.text(`${b.Name(user)}'s HP is full!`);
+    b.heal(user, Math.max(1, Math.floor(user.maxHp / 2)), `${b.Name(user)} regained health!`);
+    user.v.roosted = true;
+  },
+  double_power_heal_sleep: (ctx) => {
+    const { b, target } = ctx;
+    const slap = target.status === 'sleep' && !target.v.substitute;
+    if (slap) ctx.power *= 2;
+    hit(ctx, () => {
+      if (slap && target.hp > 0 && target.status === 'sleep') b.cureStatus(target, `${b.Name(target)} woke up!`);
+    });
+  },
+  double_power_when_below_half: (ctx) => {
+    if (ctx.target.hp <= Math.floor(ctx.target.maxHp / 2)) ctx.power *= 2;
+    hit(ctx);
+  },
+  power_based_on_low_speed: (ctx) => {
+    ctx.power = Math.min(150, 1 + Math.floor((25 * ctx.b.speed(ctx.target)) / Math.max(1, ctx.b.speed(ctx.user))));
+    hit(ctx);
+  },
+  increase_power_with_more_hp: (ctx) => {
+    ctx.power = 1 + Math.floor((120 * ctx.target.hp) / ctx.target.maxHp);
+    hit(ctx);
+  },
+  increase_power_with_more_stat_up: (ctx) => {
+    const ups = Object.values(ctx.target.stages).reduce((n, s) => n + Math.max(0, s), 0);
+    ctx.power = Math.min(200, 60 + 20 * ups);
+    hit(ctx);
+  },
+  double_power_if_hit: (ctx) => {
+    // Payback: twice as strong once the target has acted this turn.
+    if (ctx.b.movedThisTurn.has(ctx.target.side)) ctx.power *= 2;
+    hit(ctx);
+  },
+  double_power_if_target_hit: (ctx) => {
+    // Assurance: twice as strong once the target lost HP this turn.
+    if (ctx.target.v.lostHp) ctx.power *= 2;
+    hit(ctx);
+  },
+  higher_power_when_low_pp: (ctx) => {
+    // Trump Card by its uses, as the PP it would have left (useMove counts them; out of use after 5, selectable).
+    ctx.power = TRUMP_CARD[Math.min(4, Math.max(0, 5 - (ctx.user.v.trumpUses ?? 1)))]!;
+    hit(ctx);
+  },
+  natural_gift: (ctx) => {
+    // Its Berry's power and type, the Berry used up before it lands (BtlCmd_CalcNaturalGiftParams).
+    const { b, user } = ctx;
+    const gift = user.item && user.ability !== 'klutz' && !user.v.embargo ? itemData(user.item).naturalGift : undefined;
+    if (!gift) return fail(b);
+    [ctx.power, ctx.type] = gift;
+    user.usedItem = user.item;
+    user.item = null;
+    hit(ctx);
+  },
+  fling: (ctx) => {
+    // Its item's Fling power, flung away before it lands; then its effect on the target (subscript_0220_Fling).
+    const { b, user, target } = ctx;
+    const item = user.item;
+    const power = item && !user.v.embargo && user.ability !== 'multitype' ? itemData(item).flingPower : undefined;
+    if (!item || !power || item === 'griseous-orb') return fail(b);
+    ctx.power = power;
+    b.text(`${b.Name(user)} flung its ${itemData(item).name}!`);
+    user.usedItem = item;
+    user.item = null;
+    hit(ctx, (h) => {
+      if (!h.toMon || target.hp <= 0 || target.v.embargo) return;
+      const hold = itemData(item).hold;
+      const status: Record<string, StatusKind> = { pika_spatk_up: 'paralysis', strengthen_poison: 'poison', psn_user: 'toxic', brn_user: 'burn' };
+      if (hold === 'flinch_chance' || item === 'razor-fang') flinch(ctx, h, 100);
+      else if (status[hold] && b.canStatus(target, status[hold], user)) b.setStatus(target, status[hold], user);
+      else if (itemData(item).pocket === 'berries') eatBerry(b, target, item);
+      else if (hold === 'statdown_restore') for (const s of Object.keys(target.stages) as (keyof Battler['stages'])[]) target.stages[s] = Math.max(0, target.stages[s]);
+      else if (hold === 'heal_infatuation') delete target.v.attractedTo;
+    });
+  },
+  eat_berry: (ctx) =>
+    void hit(ctx, (h) => {
+      // Pluck and Bug Bite: the target's Berry eaten by the user (BtlCmd_TryPluck).
+      const { b, user, target } = ctx;
+      const item = target.item;
+      if (!item) return;
+      if (b.targetHas(user, target, 'sticky-hold')) return void b.text(`${b.Name(target)}'s Sticky Hold made ${ctx.move.name} ineffective!`);
+      if (!h.toMon || itemData(item).pocket !== 'berries') return;
+      b.text(`${b.Name(user)} stole and ate its foe's ${itemData(item).name}!`);
+      target.usedItem = item;
+      target.item = null;
+      eatBerry(b, user, item);
+    }),
+  remove_protect: (ctx) => {
+    // Feint: only against a Protect this turn, which it breaks.
+    const { b, target } = ctx;
+    if (!target.v.protect) return fail(b);
+    hit(ctx, () => {
+      target.v.protect = false;
+      b.text(`${b.Name(target)} fell for the feint!`);
+    });
+  },
+  shadow_force: (ctx) => {
+    // Vanished for a turn (nothing reaches it), then through Protect, breaking it.
+    if (!twoTurn(ctx, 'vanished instantly!', 'vanished')) return;
+    const { b, target } = ctx;
+    const protecting = !!target.v.protect;
+    hit(ctx, () => {
+      if (protecting) b.text(`It broke through ${b.name(target)}'s protection!`);
+      target.v.protect = false;
+    });
+  },
+  switch_hit: (ctx) => void hit(ctx), // U-turn: its hit (no switching in these battles).
+  metal_burst: (ctx) => {
+    // The last damage a foe's move did to it this turn, 1.5x, as fixed damage (BtlCmd_TryMetalBurst).
+    const { b, user } = ctx;
+    const taken = user.v.lastHit;
+    if (!taken || taken.by === user.side || !taken.dealt || b.active[taken.by].hp <= 0) return fail(b);
+    hit({ ...ctx, target: b.active[taken.by] }, undefined, { fixed: Math.floor((taken.dealt * 15) / 10), immunity: false });
+  },
+  hit_first_if_target_attacking: (ctx) => {
+    // Sucker Punch: fails once the target has moved, or unless it chose a damaging move.
+    const { b, target } = ctx;
+    const a = b.turnActions?.[target.side];
+    if (b.movedThisTurn.has(target.side) || a?.kind !== 'move' || moveData(a.move).power === 0) return fail(b);
+    hit(ctx);
+  },
+  use_move_first: (ctx) => {
+    // Me First: the target's chosen damaging move, before it, at 1.5x (BtlCmd_TryMeFirst).
+    const { b, user, target } = ctx;
+    const a = b.turnActions?.[target.side];
+    const banned = ['counter', 'mirror-coat', 'thief', 'covet', 'focus-punch', 'chatter', 'struggle'];
+    if (b.movedThisTurn.has(target.side) || a?.kind !== 'move' || moveData(a.move).power === 0 || banned.includes(a.move)) return fail(b);
+    user.v.meFirst = true;
+    b.useMove(user, a.move, true);
+    delete user.v.meFirst;
+  },
+  use_last_used_move: (ctx) => {
+    // Copycat: the last move used in the battle (BtlCmd_TryCopycat).
+    const { b, user } = ctx;
+    const last = b.lastMoveUsed;
+    if (!last || last === 'copycat' || noMetronome(b).has(last) || b.banned4(user, last)) return fail(b);
+    b.useMove(user, last, true);
+  },
+  fail_if_not_used_all_other_moves: (ctx) => {
+    if (!ctx.b.lastResortReady(ctx.user)) return fail(ctx.b);
+    hit(ctx);
+  },
+  judgement: (ctx) => void hit(ctx),
+  chatter: (ctx) =>
+    void hit(ctx, (h) => {
+      // Chatot's Chatter: with no recorded cry, the game's off-by-one 1% to confuse (BtlCmd_CheckChatterActivation).
+      const { b, user, target } = ctx;
+      if (user.species === 441 && !user.v.transformed && h.toMon && target.hp > 0 && b.random16() % 100 === 0) b.confuse(target, user);
+    }),
+
+  // ---- Gen 4's own status moves ----
+  gravity: (ctx) => {
+    const { b } = ctx;
+    if (b.gravity) return fail(b);
+    b.gravity = 5;
+    b.text('Gravity intensified!');
+    for (const x of b.active) {
+      if (x.fainted) continue;
+      const flying = x.v.semiInvulnerable === 'air';
+      if (x.v.magnetRise) delete x.v.magnetRise;
+      if (flying) {
+        delete x.v.charging;
+        delete x.v.semiInvulnerable;
+      }
+      if (flying || x.ability === 'levitate' || x.types.includes('flying')) b.text(`${b.Name(x)} couldn't stay airborne because of gravity!`);
+    }
+  },
+  ignore_evation_remove_dark_immune: (ctx) =>
+    onTarget(ctx, (t) => {
+      t.v.miracleEye = true;
+      ctx.b.text(`${ctx.b.Name(ctx.user)} identified ${ctx.b.name(t)}!`);
+    }, { substitute: false }),
+  faint_and_full_heal_next_mon: wishFaint('wish'),
+  faint_full_restore_next_mon: wishFaint('dance'),
+  double_speed_3_turns: (ctx) => {
+    const { b, user } = ctx;
+    const side = b.sides[user.side];
+    if (side.tailwind) return fail(b);
+    side.tailwind = 3;
+    b.text(`The tailwind blew from behind ${user.side === 0 ? 'your' : "the foe's"} team!`);
+  },
+  prevent_crits: (ctx) => {
+    const { b, user } = ctx;
+    const side = b.sides[user.side];
+    if (side.luckyChant) return fail(b);
+    side.luckyChant = 5;
+    b.text(`The Lucky Chant shielded ${user.side === 0 ? 'your' : "the foe's"} team from critical hits!`);
+  },
+  random_stat_up_2: (ctx) => {
+    // Acupressure: one of its stats below +6, at random, up 2 (BtlCmd_BoostRandomStatBy2); not behind its own Substitute.
+    const { b, user } = ctx;
+    const open = (['atk', 'def', 'spe', 'spa', 'spd', 'acc', 'eva'] as const).filter((s) => user.stages[s] < 6);
+    if (!open.length || user.v.substitute) return fail(b);
+    b.changeStat(user, open[b.random16() % open.length]!, 2, true);
+  },
+  prevent_item_use: (ctx) =>
+    onTarget(ctx, (t) => {
+      const { b } = ctx;
+      if (t.v.embargo || t.ability === 'multitype' || t.item === 'griseous-orb' || b.outOfReach(ctx)) return fail(b);
+      t.v.embargo = 5;
+      b.text(`${b.Name(t)} can't use items anymore!`);
+    }),
+  prevent_healing: (ctx) =>
+    onTarget(ctx, (t) => {
+      const { b } = ctx;
+      if (t.v.healBlock) return void b.text(`It failed to affect ${b.name(t)}!`);
+      t.v.healBlock = 5;
+      b.text(`${b.Name(t)} was prevented from healing!`);
+    }),
+  transfer_status: (ctx) => {
+    // Psycho Shift: the user's status to the target, the user cured only once the target has it.
+    const { b, user, target } = ctx;
+    if (!user.status || target.status || target.v.substitute) return fail(b);
+    onTarget(ctx, (t) => {
+      const kind: StatusKind = user.status === 'sleep' || user.status === 'poison' || user.status === 'burn' || user.status === 'paralysis' ? user.status : 'toxic';
+      if (!b.canStatus(t, kind, user)) return fail(b);
+      b.setStatus(t, kind, user);
+      user.status = null;
+      user.sleepTurns = 0;
+      user.toxicCount = 0;
+      b.emit({ t: 'status', side: user.side, status: null });
+    }, { substitute: false });
+  },
+  swap_atk_def: (ctx) => {
+    const { b, user } = ctx;
+    [user.stats.atk, user.stats.def] = [user.stats.def, user.stats.atk];
+    user.v.powerTrick = !user.v.powerTrick;
+    b.text(`${b.Name(user)} switched its Attack and Defense!`);
+  },
+  supress_ability: (ctx) =>
+    onTarget(ctx, (t) => {
+      const { b } = ctx;
+      if (t.v.suppressedAbility !== undefined || t.ability === 'multitype' || b.outOfReach(ctx)) return fail(b);
+      t.v.suppressedAbility = t.ability;
+      t.ability = 'none';
+      b.text(`${b.Name(t)}'s ability was suppressed!`);
+    }),
+  set_ability_to_insomnia: (ctx) =>
+    onTarget(ctx, (t) => {
+      const { b } = ctx;
+      if (t.ability === 'truant' || t.ability === 'multitype' || t.item === 'griseous-orb' || b.outOfReach(ctx)) return fail(b);
+      t.ability = 'insomnia';
+      b.text(`${b.Name(t)} acquired Insomnia!`);
+      if (t.status === 'sleep') b.cureStatus(t, `${b.Name(t)}'s Insomnia woke it up!`);
+    }),
+  swap_atk_sp_atk_stat_changes: stageSwap(['atk', 'spa'], 'switched all changes to its Attack and Sp. Atk with the target!'),
+  swap_def_sp_def_stat_changes: stageSwap(['def', 'spd'], 'switched all changes to its Defense and Sp. Def with the target!'),
+  swap_stat_changes: stageSwap(['atk', 'def', 'spe', 'spa', 'spd', 'acc', 'eva'], 'switched stat changes with the target!'),
+  toxic_spikes: (ctx) => {
+    const { b, user } = ctx;
+    const side = b.sides[user.side === 0 ? 1 : 0];
+    if ((side.toxicSpikes ?? 0) >= 2) return fail(b);
+    side.toxicSpikes = (side.toxicSpikes ?? 0) + 1;
+    b.text(`Poison spikes were scattered all around ${user.side === 0 ? "the foe's" : 'your'} team's feet!`);
+  },
+  stealth_rock: (ctx) => {
+    const { b, user } = ctx;
+    const side = b.sides[user.side === 0 ? 1 : 0];
+    if (side.stealthRock) return fail(b);
+    side.stealthRock = true;
+    b.text(`Pointed stones float in the air around ${user.side === 0 ? "the foe's" : 'your'} team!`);
+  },
+  restore_hp_every_turn: (ctx) => {
+    if (ctx.user.v.aquaRing) return fail(ctx.b);
+    ctx.user.v.aquaRing = true;
+    ctx.b.text(`${ctx.b.Name(ctx.user)} surrounded itself with a veil of water!`);
+  },
+  give_ground_immunity: (ctx) => {
+    const { b, user } = ctx;
+    if (user.v.magnetRise || user.ability === 'levitate' || user.v.ingrain || b.gravity) return fail(b);
+    user.v.magnetRise = 5;
+    b.text(`${b.Name(user)} levitated on electromagnetism!`);
+  },
+  remove_hazards_screens_eva_down: (ctx) =>
+    onTarget(ctx, (t) => {
+      // Defog: the target's evasion down (not through its Substitute), then its side's screens, Mist, Safeguard and hazards blown away.
+      const { b, user } = ctx;
+      if (!t.v.substitute) b.changeStat(t, 'eva', -1, false);
+      const side = b.sides[t.side];
+      const gone: [keyof typeof side, string][] = [['reflect', 'Reflect'], ['lightScreen', 'Light Screen'], ['mist', 'Mist'], ['safeguard', 'Safeguard'], ['spikes', 'Spikes'], ['toxicSpikes', 'Toxic Spikes'], ['stealthRock', 'Stealth Rock']];
+      for (const [k, name] of gone) {
+        if (!side[k]) continue;
+        (side as unknown as Record<string, unknown>)[k] = k === 'stealthRock' ? false : 0;
+        b.text(`${b.Name(user)} blew away ${name}!`);
+      }
+    }, { substitute: false }),
+  trick_room: (ctx) => {
+    const { b, user } = ctx;
+    if (b.trickRoom) {
+      b.trickRoom = 0;
+      return void b.text('The twisted dimensions returned to normal!');
+    }
+    b.trickRoom = 5;
+    b.text(`${b.Name(user)} twisted the dimensions!`);
+  },
+  sp_atk_down_2_opposite_gender: (ctx) =>
+    onTarget(ctx, (t) => {
+      const { b, user } = ctx;
+      if (b.targetHas(user, t, 'oblivious')) return void b.text(`${b.Name(t)}'s Oblivious made Captivate ineffective!`);
+      if (!user.mon.gender || !t.mon.gender || user.mon.gender === t.mon.gender) return void b.text(`It failed to affect ${b.name(t)}!`);
+      b.changeStat(t, 'spa', -2, false);
+    }),
+
   hit: (ctx) => void hit(ctx),
   // Gen 4: a sure hit still misses a target out of reach (BattleSystem_CheckMoveEffect); its accuracy is 0.
   always_hit: (ctx) => void hit(ctx, undefined, { accuracy: ctx.b.gen4 }),
@@ -555,6 +978,7 @@ export const EFFECTS: Record<string, Effect> = {
   },
   present: (ctx) => {
     const { b, target } = ctx;
+    if (b.gen4 && target.v.healBlock && (b.random16() & 0xff) >= 204) return void b.text(`${b.Name(target)} was prevented from healing due to Heal Block!`);
     const r = b.random16() & 0xff;
     if (r < 102) ctx.power = 40;
     else if (r < 178) ctx.power = 80;
@@ -670,7 +1094,7 @@ export const EFFECTS: Record<string, Effect> = {
   sky_attack: (ctx) => twoTurn(ctx, 'is glowing!') && void hit(ctx, (h) => flinch(ctx, h)),
   semi_invulnerable: (ctx) => {
     const where = ctx.key === 'dig' ? 'underground' : ctx.key === 'dive' ? 'underwater' : 'air';
-    const line = { underground: 'dug a hole!', underwater: 'hid underwater!', air: ctx.key === 'bounce' ? 'sprang up!' : 'flew up high!' }[where];
+    const line = { underground: ctx.b.gen4 ? 'burrowed its way under the ground!' : 'dug a hole!', underwater: 'hid underwater!', air: ctx.key === 'bounce' ? 'sprang up!' : 'flew up high!' }[where];
     if (twoTurn(ctx, line, where)) hit(ctx, (h) => ctx.key === 'bounce' && ctx.b.secondaryHappens(ctx, h) && ctx.b.canStatus(ctx.target, 'paralysis', ctx.user) && ctx.b.setStatus(ctx.target, 'paralysis', ctx.user));
   },
   future_sight: (ctx) => {
@@ -1197,7 +1621,8 @@ function drain(ctx: MoveCtx, h: Hit) {
   const ooze = target.ability === 'liquid-ooze' && !(b.gen4 && ctx.move.effect === 'dream_eater');
   if (ooze) {
     if (!(b.gen4 && user.ability === 'magic-guard')) b.damage(user, amount, { msg: `${b.Name(user)} sucked up the liquid ooze!` });
-  } else b.heal(user, amount, `${b.Name(target)} had its energy drained!`);
+  } else if (b.gen4 && user.v.healBlock) b.text(`${b.Name(user)} was prevented from healing due to Heal Block!`);
+  else b.heal(user, amount, `${b.Name(target)} had its energy drained!`);
 }
 
 /** Gen 4's Reckless: recoil moves' power 1.2x. */

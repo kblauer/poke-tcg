@@ -15,6 +15,9 @@ const VARIABLE_DAMAGE_COST: Record<string, number> = {
   ohko: 6, level_damage: 3, dragon_rage: 3, sonicboom: 2, super_fang: 3, flail: 3, low_kick: 3, magnitude: 3, counter: 3,
   mirror_coat: 3, endeavor: 3, psywave: 3, present: 2, return: 4, frustration: 4, hidden_power: 3, spit_up: 4, bide: 3,
   beat_up: 3,
+  // Gen 4's.
+  power_based_on_low_speed: 3, natural_gift: 3, fling: 3, higher_power_when_low_pp: 3, increase_power_with_more_hp: 4,
+  increase_power_with_more_stat_up: 3, metal_burst: 3,
 };
 
 /** Status moves' cooldowns by what they do (placeholders, to balance later: agreed with the user). */

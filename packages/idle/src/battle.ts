@@ -148,7 +148,8 @@ export interface Volatiles {
   focusEnergy?: boolean;
   /** A two-turn move's first turn done (Solar Beam, Fly…): the move comes next turn. */
   charging?: string;
-  semiInvulnerable?: 'air' | 'underground' | 'underwater';
+  /** Out of reach mid-move: Fly and Bounce in the air, Dig underground, Dive underwater, Gen 4's Shadow Force vanished (nothing reaches it). */
+  semiInvulnerable?: 'air' | 'underground' | 'underwater' | 'vanished';
   recharging?: boolean;
   /** Thrash, Outrage, Petal Dance: the move and turns left, then confusion. */
   rampage?: { move: string; turns: number };
@@ -198,6 +199,23 @@ export interface Volatiles {
   metronomeTurns?: number;
   roosted?: boolean;
   miracleEye?: boolean;
+  /** Gen 4's lasting conditions: Magnet Rise's, Heal Block's and Embargo's turns left; Aqua Ring; Power Trick swapped. */
+  magnetRise?: number;
+  healBlock?: number;
+  embargo?: number;
+  aquaRing?: boolean;
+  powerTrick?: boolean;
+  /** Gen 4's Gastro Acid: the ability it took away (its ability is 'none' meanwhile). */
+  suppressedAbility?: string;
+  /** Gen 4's Last Resort: the other moves it has used since it came out. */
+  usedMoves?: string[];
+  /** Gen 4's Trump Card: its uses this battle, as the PP it would have spent (5). */
+  trumpUses?: number;
+  /** Lost HP this turn (Gen 4's Assurance), and the last damage a foe's move did to it this turn (Metal Burst). */
+  lostHp?: boolean;
+  lastHit?: { dealt: number; by: Side };
+  /** Gen 4's Me First: the copied move's damage 1.5x. */
+  meFirst?: boolean;
   /** Mimic's copy, in place of Mimic for the battle. */
   mimicked?: { from: string; to: string };
 }
@@ -278,6 +296,11 @@ export interface SideState {
   waterSport?: boolean;
   /** Gen 4's Lucky Chant: no critical hits on this side, for its turns. */
   luckyChant?: number;
+  /** Gen 4's: Tailwind's turns (Speed 2x), Toxic Spikes' layers, Stealth Rock, a Healing Wish or Lunar Dance for the next Pokémon sent out. */
+  tailwind?: number;
+  toxicSpikes?: number;
+  stealthRock?: boolean;
+  healingWish?: 'wish' | 'dance';
 }
 
 const newSide = (): SideState => ({ reflect: 0, lightScreen: 0, mist: 0, safeguard: 0, spikes: 0 });
@@ -313,8 +336,11 @@ export class Battle {
   lastMoveUsed: string | null = null;
   /** HeartGold's rules (the generation's battleRules 4): the physical/special split, Gen 4's damage and critical hits. */
   gen4: boolean;
-  /** Gen 4's Gravity: its turns left. */
+  /** Gen 4's Gravity and Trick Room: their turns left. */
   gravity = 0;
+  trickRoom = 0;
+  /** This turn's chosen actions (Gen 4's Sucker Punch and Me First read the foe's). */
+  turnActions: [Action, Action] | null = null;
 
   constructor(setup: BattleSetup, rng: Rng) {
     this.rng = rng;
@@ -399,11 +425,13 @@ export class Battle {
     if (b.ability === 'slow-start' && (b.v.slowStart ?? 0) < 5) s = Math.floor(s / 2);
     if (b.ability === 'quick-feet' && b.status) s = Math.floor((s * 15) / 10);
     else if (b.status === 'paralysis') s = Math.floor(s / 4);
+    if (this.sides[b.side].tailwind) s *= 2;
     return s;
   }
 
+  /** A held item's hold effect (none under Gen 4's Embargo). */
   holdEffect(b: Battler) {
-    return b.item ? itemData(b.item).hold : 'none';
+    return b.item && !(this.gen4 && b.v.embargo) ? itemData(b.item).hold : 'none';
   }
 
   // ---- HP ----
@@ -411,6 +439,7 @@ export class Battle {
   damage(b: Battler, amount: number, extra: { crit?: boolean; eff?: number; msg?: string } = {}) {
     const dealt = Math.min(b.hp, Math.max(0, amount));
     b.hp -= dealt;
+    if (dealt > 0) b.v.lostHp = true;
     this.emit({ t: 'hp', side: b.side, hp: b.hp, maxHp: b.maxHp, delta: -dealt, ...(extra.crit && { crit: true as const }), ...(extra.eff !== undefined && extra.eff !== 1 && { eff: extra.eff }), ...(extra.msg && { msg: extra.msg }) });
     return dealt;
   }
@@ -754,6 +783,7 @@ export class Battle {
     damage *= o.crit;
     if (hold === 'hp_drain_on_atk') damage = Math.floor((damage * (100 + mod)) / 100);
     if (hold === 'boost_repeated') damage = Math.floor((damage * (10 + (user.v.metronomeTurns ?? 0))) / 10);
+    if (user.v.meFirst) damage = Math.floor((damage * 15) / 10);
     if (!o.noRandom) damage = Math.floor((damage * (100 - (this.random16() % 16))) / 100);
     if (damage === 0) damage = 1;
     // ov12_02251D28: Struggle takes none of it, nor Future Sight's stored damage or a confused Pokémon's hit on itself.
@@ -803,6 +833,12 @@ export class Battle {
 
   /** Whether a move can't touch the target for its type (immunity, Levitate vs Ground; Wonder Guard isn't in Kanto). */
   immune(user: Battler, target: Battler, type: TypeName) {
+    if (this.gen4) {
+      // Gen 4: Levitate and Magnet Rise unless grounded (Gravity, the Iron Ball, Ingrain); the chart as typeSteps4 reads it.
+      const grounded = this.gravity || this.holdEffect(target) === 'speed_down_grounded' || target.v.ingrain;
+      if (type === 'ground' && !grounded && (this.targetHas(user, target, 'levitate') || target.v.magnetRise)) return true;
+      return this.typeSteps4(user, target, type).includes(0);
+    }
     if (type === 'ground' && target.ability === 'levitate') return true;
     return effectiveness(type, target.types, !!target.v.foresight) === 0;
   }
@@ -821,6 +857,8 @@ export class Battle {
    */
   hits(user: Battler, target: Battler, move: MoveData, key: string): boolean {
     if (user === target) return true;
+    // Gen 4: Lock-On and No Guard hit before the out-of-reach check (BattleSystem_CheckMoveHit).
+    if (this.gen4 && (user.v.lockOn || user.ability === 'no-guard' || target.ability === 'no-guard')) return true;
     const semi = target.v.semiInvulnerable;
     if (semi && !reachesSemi(key, move, semi)) return false;
     if (user.v.lockOn) return true;
@@ -930,6 +968,7 @@ export class Battle {
       } else if (this.holdOn(target)) damage = target.hp - 1;
     }
     const dealt = this.damage(target, damage, { crit, eff });
+    if (user.side !== target.side) target.v.lastHit = { dealt, by: user.side };
     if (crit) this.text('A critical hit!');
     if (eff > 1) this.text("It's super effective!");
     else if (eff > 0 && eff < 1) this.text("It's not very effective…");
@@ -1012,11 +1051,52 @@ export class Battle {
     // A new foe Pokémon (the user's): each of the player's Pokémon opens with its hand-set status moves against it again.
     if (b.side === 1) for (const p of this.party) p.openers = openersOf(p.mon);
     if (!first || b.side === 0) this.noteFacing();
-    const spikes = this.sides[b.side].spikes;
-    if (spikes && !b.types.includes('flying') && b.ability !== 'levitate') {
-      this.damage(b, Math.max(1, Math.floor(b.maxHp / ((5 - spikes) * 2))), { msg: `${this.Name(b)} is hurt by spikes!` });
+    if (this.gen4) this.hazards4(b);
+    else {
+      const spikes = this.sides[b.side].spikes;
+      if (spikes && !b.types.includes('flying') && b.ability !== 'levitate') {
+        this.damage(b, Math.max(1, Math.floor(b.maxHp / ((5 - spikes) * 2))), { msg: `${this.Name(b)} is hurt by spikes!` });
+      }
     }
     this.entryAbility(b);
+  }
+
+  /**
+   * Gen 4's hazards as a Pokémon comes in (subscript_0099 HazardsCheck): none for Magic Guard; Toxic Spikes (a grounded
+   * Poison type takes them away; poison, or bad poison from 2 layers), Spikes (both for grounded Pokémon only: not Flying,
+   * Levitate or Magnet Rise unless Gravity or the Iron Ball holds it down), Stealth Rock (by Rock's effectiveness on it);
+   * then a Healing Wish or Lunar Dance waiting for it.
+   */
+  private hazards4(b: Battler) {
+    const side = this.sides[b.side];
+    if (!this.magicGuard(b)) {
+      const grounded = this.gravity > 0 || this.holdEffect(b) === 'speed_down_grounded' || !(b.types.includes('flying') || b.ability === 'levitate' || b.v.magnetRise);
+      if (side.toxicSpikes && grounded) {
+        if (b.types.includes('poison')) {
+          side.toxicSpikes = 0;
+          this.text(`The poison spikes disappeared from around ${b.side === 0 ? 'your' : "the foe's"} team's feet!`);
+        } else {
+          const kind = side.toxicSpikes >= 2 ? 'toxic' : 'poison';
+          if (this.canStatus(b, kind, null)) this.setStatus(b, kind, null);
+        }
+      }
+      if (side.spikes && grounded) this.damage(b, Math.max(1, Math.floor(b.maxHp / ((5 - side.spikes) * 2))), { msg: `${this.Name(b)} is hurt by spikes!` });
+      if (side.stealthRock && b.hp > 0) {
+        const eff = this.typeSteps4(b, b, 'rock').reduce((m, x) => m * x, 1);
+        this.damage(b, Math.max(1, Math.floor((b.maxHp * eff) / 8)), { msg: `Pointed stones dug into ${this.name(b)}!` });
+      }
+    }
+    if (side.healingWish && b.hp > 0) {
+      const dance = side.healingWish === 'dance';
+      delete side.healingWish;
+      this.text(dance ? 'It became cloaked in mystical moonlight!' : 'The healing wish came true!');
+      this.cureStatus(b);
+      if (dance) {
+        b.cooldowns = {};
+        this.emit({ t: 'cooldown', side: b.side, cooldowns: {} });
+      }
+      this.heal(b, b.maxHp, `${this.Name(b)} regained health!`);
+    }
   }
 
   private entryAbility(b: Battler) {
@@ -1079,6 +1159,7 @@ export class Battle {
   private turn() {
     this.emit({ t: 'tick', n: this.tick });
     const actions: [Action, Action] = [choosePlayerAction(this), this.foeAction()];
+    this.turnActions = actions;
     const order = this.order(actions);
     this.movedThisTurn.clear();
     for (const side of order) {
@@ -1107,7 +1188,8 @@ export class Battle {
     }
     this.replaceFainted();
     for (const b of this.active) {
-      Object.assign(b.v, { flinch: false, protect: false, endure: false, helpingHand: false, magicCoat: false, snatch: false, hitThisTurn: false, physicalHit: 0, specialHit: 0, firstTurn: false });
+      Object.assign(b.v, { flinch: false, protect: false, endure: false, helpingHand: false, magicCoat: false, snatch: false, hitThisTurn: false, physicalHit: 0, specialHit: 0, firstTurn: false, roosted: false, lostHp: false });
+      delete b.v.lastHit;
     }
   }
 
@@ -1142,6 +1224,8 @@ export class Battle {
       const last = (b: Battler) => (this.holdEffect(b) === 'speed_down' ? 2 : b.ability === 'stall' ? 1 : 0);
       const [l0, l1] = [last(this.active[0]), last(this.active[1])];
       if (l0 !== l1 && !quick(0) && !quick(1)) [s0, s1] = l0 > l1 ? [0, 1] : [1, 0];
+      // Trick Room: the slower first, after the claws and the items and abilities that move last.
+      else if (this.trickRoom && quick(0) === quick(1) && s0 !== s1) [s0, s1] = [s1, s0];
     }
     if (s0 !== s1) return s0 > s1 ? [0, 1] : [1, 0];
     return this.random16() & 1 ? [1, 0] : [0, 1];
@@ -1155,7 +1239,19 @@ export class Battle {
     if (b.v.torment && b.lastMove === key && key !== 'struggle') return false;
     const foe = this.foeOf(b);
     if (foe.v.imprison && (foe.slots.includes(key) || foe.basic === key)) return false;
+    if (this.gen4 && (this.banned4(b, key) || (key === 'last-resort' && !this.lastResortReady(b)) || (key === 'trump-card' && (b.v.trumpUses ?? 0) >= 5))) return false;
     return true;
+  }
+
+  /** A move Gen 4's Gravity or Heal Block won't let it use (sGravityUnusableMoves, sHealBlockUnusableMoves). */
+  banned4(b: Battler, key: string) {
+    return (this.gravity > 0 && GRAVITY_BANNED.has(key)) || (!!b.v.healBlock && HEAL_BLOCKED.has(key));
+  }
+
+  /** Whether Gen 4's Last Resort can work: it knows another move, and has used every other move it knows since it came out. */
+  lastResortReady(b: Battler) {
+    const known = [...new Set([...b.slots, b.basic])].filter((k) => k !== 'last-resort');
+    return known.length >= 1 && known.every((k) => b.v.usedMoves?.includes(k));
   }
 
   /** Whether a slot move is ready (off cooldown), can be picked and would do something (statusUseless). */
@@ -1201,6 +1297,8 @@ export class Battle {
     if (action.kind === 'item') return this.useItem(b, action.item, action.target);
     if (action.kind === 'ball') return this.throwBall(action.item);
     if (!this.canMove(b, action.move)) {
+      // Gen 4's Copycat copies nothing after a turn a Pokémon couldn't move (moveNoPrev).
+      if (this.gen4) this.lastMoveUsed = null;
       // A turn it couldn't move ends its locks (two-turn moves, Thrash, Rollout, Bide), as the game's cancelled multi-turn moves.
       delete b.v.charging;
       delete b.v.semiInvulnerable;
@@ -1315,6 +1413,13 @@ export class Battle {
     if (!called || !user.v.charging) this.emit({ t: 'move', side: user.side, move: realKey, msg: `${this.Name(user)} used ${move.name}!` });
     // Protect and Endure only grow less likely when used in a row.
     if (move.effect !== 'protect' && move.effect !== 'endure') delete user.v.protectStreak;
+    // Gen 4: Gravity's and Heal Block's moves fail as they're used (ov12_0224B1FC).
+    if (this.gen4 && this.banned4(user, realKey)) {
+      return void this.text(`${this.Name(user)} can't use ${move.name} because of ${this.gravity && GRAVITY_BANNED.has(realKey) ? 'gravity' : 'Heal Block'}!`);
+    }
+    // Gen 4's Last Resort counts every other move used since it came out; Trump Card its uses.
+    if (this.gen4 && realKey !== 'last-resort') user.v.usedMoves = [...new Set([...(user.v.usedMoves ?? []), realKey])];
+    if (this.gen4 && realKey === 'trump-card') user.v.trumpUses = (user.v.trumpUses ?? 0) + (this.foeOf(user).ability === 'pressure' ? 2 : 1);
     if (!called) {
       delete user.v.destinyBond;
       delete user.v.grudge;
@@ -1496,10 +1601,14 @@ export class Battle {
       for (const k of ['reflect', 'lightScreen', 'mist', 'safeguard'] as const) {
         if (s[k] > 0 && --s[k] === 0) this.text(`${side === 0 ? 'Your team' : "The foe's team"}'s ${({ reflect: 'Reflect', lightScreen: 'Light Screen', mist: 'Mist', safeguard: 'Safeguard' })[k]} wore off!`);
       }
+      // Gen 4's Tailwind and Lucky Chant, after Safeguard (UFC_STATE_TAILWIND, UFC_STATE_LUCKY_CHANT).
+      if (s.tailwind && --s.tailwind === 0) this.text(`${side === 0 ? 'Your' : "The foe's"} team's tailwind petered out!`);
+      if (s.luckyChant && --s.luckyChant === 0) this.text(`${side === 0 ? 'Your' : "The foe's"} team's Lucky Chant wore off!`);
       if (s.wish && --s.wish.turns === 0) {
         const b = this.active[side];
         // Gen 4 (UFC_STATE_WISH): half the max HP of whoever is there now.
-        if (!b.fainted) this.heal(b, this.gen4 ? Math.max(1, Math.floor(b.maxHp / 2)) : s.wish.hp, `${this.Name(b)}'s wish came true!`);
+        if (!b.fainted && this.gen4 && b.v.healBlock) this.text(`${this.Name(b)} was prevented from healing due to Heal Block!`);
+        else if (!b.fainted) this.heal(b, this.gen4 ? Math.max(1, Math.floor(b.maxHp / 2)) : s.wish.hp, `${this.Name(b)}'s wish came true!`);
         delete s.wish;
       }
     }
@@ -1533,10 +1642,23 @@ export class Battle {
         }
       }
     }
+    // Gen 4's Gravity, after the weather (UFC_STATE_GRAVITY).
+    if (this.gravity && --this.gravity === 0) this.text('Gravity returned to normal!');
     for (const b of this.speedOrder()) {
       if (b.fainted || b.hp <= 0) continue;
       const v = b.v;
-      if (v.ingrain) this.heal(b, Math.max(1, Math.floor(b.maxHp / 16)), `${this.Name(b)} absorbed nutrients with its roots!`);
+      if (v.ingrain) {
+        if (this.gen4 && v.healBlock) this.text(`${this.Name(b)} was prevented from healing due to Heal Block!`);
+        else this.heal(b, Math.max(1, Math.floor(b.maxHp / 16)), `${this.Name(b)} absorbed nutrients with its roots!`);
+      }
+      // Gen 4's Aqua Ring, after Ingrain (UMC_STATE_AQUA_RING): the Big Root heals more, Heal Block not at all.
+      if (v.aquaRing && b.hp < b.maxHp) {
+        if (v.healBlock) this.text(`${this.Name(b)} was prevented from healing due to Heal Block!`);
+        else {
+          const amount = Math.max(1, Math.floor(b.maxHp / 16));
+          this.heal(b, this.holdEffect(b) === 'leech_boost' ? Math.floor((amount * (100 + itemData(b.item!).holdParam)) / 100) : amount, `Aqua Ring restored ${this.name(b)}'s HP!`);
+        }
+      }
       if (b.ability === 'shed-skin' && b.status && this.roll(3) === 0) this.cureStatus(b, `${this.Name(b)}'s Shed Skin cured its status!`);
       if (b.ability === 'speed-boost' && !v.firstTurn) this.changeStat(b, 'spe', 1, true);
       const hold = this.holdEffect(b);
@@ -1553,6 +1675,7 @@ export class Battle {
           const sap = this.damage(b, Math.max(1, Math.floor(b.maxHp / 8)), { msg: `${this.Name(b)}'s health is sapped by Leech Seed!` });
           const heal = this.gen4 && this.holdEffect(seeder) === 'leech_boost' ? Math.floor((sap * (100 + itemData(seeder.item!).holdParam)) / 100) : sap;
           if (b.ability === 'liquid-ooze') this.damage(seeder, sap, { msg: `${this.Name(seeder)} sucked up the liquid ooze!` });
+          else if (this.gen4 && seeder.v.healBlock) this.text(`${this.Name(seeder)} was prevented from healing due to Heal Block!`);
           else this.heal(seeder, heal);
         }
       }
@@ -1591,6 +1714,19 @@ export class Battle {
       if (v.encore && --v.encore.turns <= 0) delete v.encore;
       if (v.taunt && --v.taunt <= 0) delete v.taunt;
       if (v.charged) v.charged -= 1;
+      // Gen 4's Magnet Rise, Heal Block, Embargo, after Taunt and before Yawn.
+      if (v.magnetRise && --v.magnetRise === 0) {
+        delete v.magnetRise;
+        this.text(`${this.Name(b)}'s electromagnetism wore off!`);
+      }
+      if (v.healBlock && --v.healBlock === 0) {
+        delete v.healBlock;
+        this.text(`${this.Name(b)}'s Heal Block wore off!`);
+      }
+      if (v.embargo && --v.embargo === 0) {
+        delete v.embargo;
+        this.text(`${this.Name(b)} can use items again!`);
+      }
       if (v.yawn && --v.yawn === 0) {
         delete v.yawn;
         if (this.canStatus(b, 'sleep', null)) this.setStatus(b, 'sleep', null);
@@ -1635,6 +1771,8 @@ export class Battle {
       if (b.v.perish === 0) this.damage(b, b.hp);
       else b.v.perish -= 1;
     }
+    // Gen 4's Trick Room, last of all (UFCE_STATE_TRICK_ROOM).
+    if (this.trickRoom && --this.trickRoom === 0) this.text('The twisted dimensions returned to normal!');
   }
 
   /** Gen 4's Magic Guard: no damage but from moves. */
@@ -1665,6 +1803,10 @@ const PUNCHING_MOVES = new Set(['ice-punch', 'fire-punch', 'thunder-punch', 'mac
 /** Gen 4's DamageDivide: a division that never rounds a non-zero number to 0. */
 const divide = (num: number, den: number) => (num === 0 ? 0 : Math.trunc(num / den) || Math.sign(num));
 
+/** Moves Gen 4's Gravity stops (sGravityUnusableMoves) and Heal Block stops (sHealBlockUnusableMoves). */
+export const GRAVITY_BANNED = new Set(['fly', 'bounce', 'jump-kick', 'hi-jump-kick', 'splash', 'magnet-rise']);
+export const HEAL_BLOCKED = new Set(['recover', 'soft-boiled', 'rest', 'milk-drink', 'morning-sun', 'synthesis', 'moonlight', 'swallow', 'heal-order', 'slack-off', 'roost', 'lunar-dance', 'healing-wish', 'wish']);
+
 /** Gen 4's sound moves beyond Gen 3's, for Soundproof (sSoundMoves). */
 const SOUND_MOVES4 = new Set(['bug-buzz', 'chatter']);
 
@@ -1678,6 +1820,7 @@ function reachesSemi(key: string, move: MoveData, semi: Volatiles['semiInvulnera
   if (semi === 'air') return ['gust', 'twister', 'thunder', 'sky-uppercut'].includes(key);
   if (semi === 'underground') return move.effect === 'earthquake' || move.effect === 'magnitude';
   if (semi === 'underwater') return key === 'surf' || key === 'whirlpool';
+  if (semi === 'vanished') return false;
   return true;
 }
 
@@ -1777,6 +1920,60 @@ export function statusUseless(b: Battle, user: Battler, key: string): boolean {
       return b.sides[user.side].mist > 0;
     case 'safeguard':
       return b.sides[user.side].safeguard > 0;
+    // Gen 4's own status moves.
+    case 'gravity':
+      return b.gravity > 0;
+    case 'trick_room':
+      return b.trickRoom > 0;
+    case 'ignore_evation_remove_dark_immune':
+      return !!foe.v.miracleEye;
+    case 'double_speed_3_turns':
+      return !!b.sides[user.side].tailwind;
+    case 'prevent_crits':
+      return !!b.sides[user.side].luckyChant;
+    case 'random_stat_up_2':
+      return user.v.substitute !== undefined || BATTLE_STATS.every((s) => user.stages[s] >= 6);
+    case 'prevent_item_use':
+      return !!foe.v.embargo || !foe.item;
+    case 'prevent_healing':
+      return !!foe.v.healBlock;
+    case 'swap_atk_def':
+      return !!user.v.powerTrick;
+    case 'supress_ability':
+      return foe.v.suppressedAbility !== undefined || foe.ability === 'none' || foe.ability === 'multitype';
+    case 'set_ability_to_insomnia':
+      return ['insomnia', 'truant', 'multitype'].includes(foe.ability) || foe.v.substitute !== undefined;
+    case 'transfer_status':
+      return !user.status || !!foe.status;
+    case 'restore_hp_every_turn':
+      return !!user.v.aquaRing;
+    case 'give_ground_immunity':
+      return !!user.v.magnetRise || user.ability === 'levitate' || !!user.v.ingrain || b.gravity > 0;
+    case 'sp_atk_down_2_opposite_gender':
+      return !user.mon.gender || !foe.mon.gender || user.mon.gender === foe.mon.gender || foe.stages.spa <= -6;
+    case 'use_last_used_move':
+      return !b.lastMoveUsed;
+    // Healing Wish and Lunar Dance only once the user is nearly done for (a quarter of its HP or less), for a teammate.
+    case 'faint_and_full_heal_next_mon':
+    case 'faint_full_restore_next_mon':
+      return user.hp > Math.floor(user.maxHp / 4) || !(user.side === 0 ? b.party : b.foes).some((m) => m !== user && !m.fainted) || (b.setup.kind === 'wild' && user.side === 1);
+    // The stage swaps only when they'd gain the user more than it gives.
+    case 'swap_atk_sp_atk_stat_changes':
+      return foe.stages.atk + foe.stages.spa <= user.stages.atk + user.stages.spa;
+    case 'swap_def_sp_def_stat_changes':
+      return foe.stages.def + foe.stages.spd <= user.stages.def + user.stages.spd;
+    case 'swap_stat_changes':
+      return BATTLE_STATS.reduce((n, s) => n + foe.stages[s] - user.stages[s], 0) <= 0;
+    case 'toxic_spikes':
+      return (b.sides[foe.side].toxicSpikes ?? 0) >= 2 || b.setup.kind === 'wild' || (!b.foes.some((f) => !f.fainted && f !== b.active[1]) && foe.side === 1);
+    case 'stealth_rock':
+      return !!b.sides[foe.side].stealthRock || b.setup.kind === 'wild' || (!b.foes.some((f) => !f.fainted && f !== b.active[1]) && foe.side === 1);
+    case 'remove_hazards_screens_eva_down': {
+      const s = b.sides[foe.side];
+      return foe.stages.eva <= -6 && !s.reflect && !s.lightScreen && !s.mist && !s.safeguard && !s.spikes && !s.toxicSpikes && !s.stealthRock;
+    }
+    case 'heal_half_remove_flying_type':
+      return user.hp === user.maxHp;
     case 'spikes':
       return b.sides[foe.side].spikes >= 3 || b.setup.kind === 'wild' || !b.foes.some((f) => !f.fainted && f !== b.active[1]) && foe.side === 1;
     case 'rain_dance':

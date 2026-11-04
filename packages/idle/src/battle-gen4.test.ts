@@ -2,6 +2,8 @@ import { rngFrom } from '@poke-tcg/campaign';
 import { describe, expect, it } from 'vitest';
 import { Battle, simulateBattle, type BattleSetup } from './battle.js';
 import { moveData } from './data.js';
+import { MOVES as JOHTO_MOVES } from './data/gen2/moves.js';
+import { EFFECTS } from './moves.js';
 import { inGeneration } from './generation.js';
 import { createMon } from './mon.js';
 import type { Mon, Stats } from './types.js';
@@ -247,5 +249,109 @@ describe("Gen 4's changes to the Gen 3 effects", () => {
       f.status = 'poison';
       endTurn(b);
       expect(f.hp).toBe(f.maxHp);
+    }));
+});
+
+describe("Gen 4's own effects", () => {
+  it('has an implementation for every Johto move', () => {
+    expect([...new Set(Object.values(JOHTO_MOVES).map((m) => m.effect))].filter((e) => !EFFECTS[e])).toEqual([]);
+  });
+
+  it('roosts, grounding a Flying type for the turn', () =>
+    johto(() => {
+      const b = new Battle(setup([mon(155, 30)], [mon(16, 30)]), rngFrom(1));
+      b.random16 = () => 0;
+      const [u, f] = b.active;
+      expect(b.immune(u, f, 'ground')).toBe(true);
+      f.hp = 10;
+      b.useMove(f, 'roost');
+      expect(f.hp).toBe(10 + Math.floor(f.maxHp / 2));
+      expect(b.immune(u, f, 'ground')).toBe(false);
+    }));
+
+  it('lays Stealth Rock and Toxic Spikes for the next Pokémon in', () =>
+    johto(() => {
+      const b = duel(true);
+      const [u, f] = b.active;
+      b.useMove(u, 'stealth-rock');
+      b.useMove(u, 'toxic-spikes');
+      b.sendOut(f);
+      // Rock on Grass is neutral: an eighth; one layer of Toxic Spikes poisons.
+      expect(f.maxHp - f.hp).toBe(Math.floor(f.maxHp / 8));
+      expect(f.status).toBe('poison');
+    }));
+
+  it('doubles Speed with Tailwind and turns the order round with Trick Room', () =>
+    johto(() => {
+      const b = duel(true);
+      const u = b.active[0];
+      const before = b.speed(u);
+      b.useMove(u, 'tailwind');
+      expect(b.speed(u)).toBe(before * 2);
+      const order = (b2: Battle) => b2['order']([{ kind: 'move', move: 'tackle' }, { kind: 'move', move: 'tackle' }]);
+      const b2 = duel(true);
+      const fast = order(b2);
+      b2.trickRoom = 5;
+      expect(order(b2)).toEqual([...fast].reverse());
+    }));
+
+  it('bans Fly under Gravity and healing moves under Heal Block', () =>
+    johto(() => {
+      const b = duel(true);
+      const [u, f] = b.active;
+      b.useMove(u, 'gravity');
+      expect(b.gravity).toBe(5);
+      expect(b.selectable(u, 'fly')).toBe(false);
+      b.useMove(u, 'heal-block');
+      expect(f.v.healBlock).toBe(5);
+      expect(b.selectable(f, 'roost')).toBe(false);
+    }));
+
+  it('fails Sucker Punch against a status move, and doubles Assurance after damage', () =>
+    johto(() => {
+      const b = duel(true);
+      const [u, f] = b.active;
+      b.turnActions = [{ kind: 'move', move: 'sucker-punch' }, { kind: 'move', move: 'growl' }];
+      b.useMove(u, 'sucker-punch');
+      expect(f.hp).toBe(f.maxHp);
+      b.turnActions = [{ kind: 'move', move: 'sucker-punch' }, { kind: 'move', move: 'tackle' }];
+      b.useMove(u, 'sucker-punch');
+      expect(f.hp).toBeLessThan(f.maxHp);
+      const once = f.maxHp - f.hp;
+      f.hp = f.maxHp;
+      f.v.lostHp = false;
+      b.useMove(u, 'assurance');
+      const plain = f.maxHp - f.hp;
+      f.hp = f.maxHp;
+      b.useMove(u, 'assurance');
+      expect(f.maxHp - f.hp).toBeGreaterThan(plain);
+      expect(once).toBeGreaterThan(0);
+    }));
+
+  it('takes Struggle recoil from max HP, and Close Combat its user\x27s defenses', () =>
+    johto(() => {
+      const b = duel(true);
+      const u = b.active[0];
+      b.useMove(u, 'struggle');
+      expect(u.maxHp - u.hp).toBe(Math.floor(u.maxHp / 4));
+      b.useMove(u, 'close-combat');
+      expect([u.stages.def, u.stages.spd]).toEqual([-1, -1]);
+    }));
+
+  it('heals the next Pokémon with Healing Wish, and powers Trump Card by its uses', () =>
+    johto(() => {
+      const b = new Battle(setup([mon(155, 30), mon(158, 30)], [mon(152, 30)]), rngFrom(1));
+      b.random16 = () => 0;
+      const [u, f] = b.active;
+      const next = b.party[1]!;
+      next.hp = 1;
+      next.status = 'burn';
+      b.useMove(u, 'healing-wish');
+      expect(u.hp).toBe(0);
+      b.sendOut(next);
+      expect([next.hp, next.status]).toEqual([next.maxHp, null]);
+      for (let i = 0; i < 5; i++) b.useMove(f, 'trump-card');
+      expect(f.v.trumpUses).toBe(5);
+      expect(b.selectable(f, 'trump-card')).toBe(false);
     }));
 });
