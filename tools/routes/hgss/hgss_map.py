@@ -56,9 +56,18 @@ def main():
     w, h, cells = hd.matrix(cache, header['matrix'])
     wanted = {ids[c] for c in consts}
     mine = [c for c in cells if c['header'] in wanted or (c['header'] is None and c['land'] != 0xFFFF)]
+    rows, grass, ice, cw, ch, x0, y0 = render(out, mine, header, '--room' in sys.argv, apicula, cache, tilt, overhead)
+    json.dump({'width': cw * CHUNK, 'height': ch * CHUNK, 'rows': [''.join(r) for r in rows], 'grass': [''.join(r) for r in grass], 'ice': [''.join(r) for r in ice], 'chunks':[[c['x'] - x0, c['y'] - y0, c['land']] for c in mine]}, open(out + '.json', 'w'))
+    print('rendered', consts, cw * CHUNK, 'x', ch * CHUNK, 'tiles')
+
+
+def render(out, mine, header, room, apicula, cache, tilt=0.6, overhead=()):
+    """Draws matrix cells `mine` (their terrain chunks and buildings) to <out>.png (and <out>-overhead.png with
+    `overhead`'s materials): the picture's top left the cells' top left, 16 px a tile. Their tiles' rows, grass and ice,
+    the size in cells and the top left cell."""
     x0, y0 = min(c['x'] for c in mine), min(c['y'] for c in mine)
     cw, ch = max(c['x'] for c in mine) - x0 + 1, max(c['y'] for c in mine) - y0 + 1
-    ar = hd.area(cache, header['area'], room='--room' in sys.argv)
+    ar = hd.area(cache, header['area'], room=room)
     land = hd.narc(hd.fetch(cache, hd.LAND_DATA))
     textures = hd.narc(hd.fetch(cache, hd.MAP_TEXTURES))[ar['textures']]
     buildings = hd.narc(hd.fetch(cache, hd.BUILDINGS[ar['buildings']]))
@@ -111,8 +120,8 @@ def main():
         for glb, origin, texmtx in parts:
             top.glb(glb, origin, texmtx, only=overhead)
         top.render(out + '-overhead.png', transparent=True)
-    json.dump({'width': cw * CHUNK, 'height': ch * CHUNK, 'rows': [''.join(r) for r in rows], 'grass': [''.join(r) for r in grass], 'ice': [''.join(r) for r in ice], 'chunks':[[c['x'] - x0, c['y'] - y0, c['land']] for c in mine]}, open(out + '.json', 'w'))
-    print('rendered', consts, cw * CHUNK, 'x', ch * CHUNK, 'tiles; texture set', ar['textures'], '; ground', ground)
+    print('  texture set', ar['textures'], '; ground', ground)
+    return rows, grass, ice, cw, ch, x0, y0
 
 
 if __name__ == '__main__':

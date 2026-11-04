@@ -524,7 +524,7 @@ AREAS = [
     route('ice-path', 'Ice Path', [leg(['MAP_ICE_PATH_1F', 'MAP_ICE_PATH_B1F', 'MAP_ICE_PATH_B2F', 'MAP_ICE_PATH_B3F'], warp('MAP_ICE_PATH_1F', 'MAP_ROUTE_44'), warp('MAP_ICE_PATH_1F', 'MAP_BLACKTHORN'))], kind='dungeon'),
     town('blackthorn-city', 'Blackthorn City', 'MAP_BLACKTHORN', 'blackthorn-gym'),
     gym('blackthorn-gym', 'Blackthorn Gym', 'blackthorn-city', 'MAP_BLACKTHORN_GYM', 'leader-clair', 'Rising'),
-    route('route-27', 'Routes 27 and 26', [leg(['MAP_ROUTE_27', 'MAP_TOHJO_FALLS', 'MAP_ROUTE_26'], edge('MAP_ROUTE_27', 'right'), warp('MAP_ROUTE_26', 'MAP_ROUTE_22_POKEMON_LEAGUE_RECEPTION_GATE'), surf=True)]),
+    route('route-27', 'Routes 27 and 26', [leg(['MAP_NEW_BARK', 'MAP_ROUTE_27', 'MAP_TOHJO_FALLS', 'MAP_ROUTE_26'], edge('MAP_NEW_BARK', 'right'), warp('MAP_ROUTE_26', 'MAP_ROUTE_22_POKEMON_LEAGUE_RECEPTION_GATE'), surf=True, via=('MAP_TOHJO_FALLS',))]),
     route('victory-road', 'Victory Road', [leg(['MAP_VICTORY_ROAD_1F', 'MAP_VICTORY_ROAD_2F', 'MAP_VICTORY_ROAD_3F'], warp('MAP_VICTORY_ROAD_1F', 'MAP_ROUTE_22_POKEMON_LEAGUE_RECEPTION_GATE'), warp('MAP_VICTORY_ROAD_3F', 'MAP_INDIGO_PLATEAU'))], kind='dungeon'),
     town('indigo-plateau', 'Indigo Plateau', 'MAP_INDIGO_PLATEAU', 'will'),
     league('will', "Will's room", 'MAP_POKEMON_LEAGUE_WILL_ROOM', 'elite-four-will'),
@@ -792,7 +792,7 @@ def main():
         h = m.header
         out_maps[map_key(n)] = {
             'name': map_key(n),
-            # Rendered from the 3D map by step 4c (tools/idle/hgss_render.py, to come).
+            # Drawn from the 3D map by tools/idle/hgss_render.py (step 4c).
             'image': '/idle/gen2/maps/' + n[len('MAP_'):].lower() + '.png',
             'width': m.w,
             'height': m.h,
