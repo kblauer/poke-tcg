@@ -1,6 +1,6 @@
 // Lookups over the active generation's generated tables (generation.ts; Kanto's data/gen1/, by tools/idle/firered_data.py).
 // Every read of the tables goes through these, so a missing key fails loudly instead of reading undefined.
-import { generation } from './generation.js';
+import { allGenerations, generation, inGeneration, type IdleGen } from './generation.js';
 import type { ItemData, MoveData, SpeciesData, TypeName } from './types.js';
 
 export { DEX_SIZE } from './generation.js';
@@ -10,6 +10,21 @@ export function species(id: number): SpeciesData {
   if (!s) throw new Error(`Unknown species ${id}`);
   return s;
 }
+
+/**
+ * The generation whose tables a species of the account's Pokédex is read from (issue #170, step 6: the Pokédex covers
+ * every species either region has, DEX_SIZE): the active one where it has it (Kanto's 151 in Kanto), else the first
+ * that does (Johto's go to Arceus).
+ */
+export function dexGen(id: number): IdleGen {
+  if (generation().species[id - 1]) return generation().gen;
+  const g = allGenerations().find((x) => x.species[id - 1]);
+  if (!g) throw new Error(`Unknown species ${id}`);
+  return g.gen;
+}
+
+/** A species of the account's Pokédex, from its generation's tables (dexGen). */
+export const dexSpecies = (id: number): SpeciesData => inGeneration(dexGen(id), () => species(id));
 
 export function moveData(key: string): MoveData {
   const m = generation().moves[key];

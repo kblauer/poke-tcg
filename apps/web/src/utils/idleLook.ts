@@ -1,4 +1,4 @@
-import { generation } from '@poke-tcg/idle';
+import { dexGen, generation } from '@poke-tcg/idle';
 
 /**
  * The player's overworld sprites in the shown run's region (issue #170, step 5): Kanto's FireRed's Red or Leaf (walking,
@@ -14,3 +14,6 @@ export function playerSprites(gender: 'male' | 'female'): { walk: string; surf: 
 
 /** The shown run's region's Pokémon pictures (front/, back/, shiny/, icon/<id>.png): FireRed's in Kanto, HeartGold's in Johto (tools/idle/hgss_pics.py). */
 export const pokemonPics = () => (generation().gen === 2 ? '/idle/gen2/pokemon' : '/idle/gen1/pokemon');
+
+/** A Pokédex species' front picture (issue #170, step 6): its generation's (dexGen: FireRed's in Kanto for its 151, HeartGold's for the rest and in Johto). */
+export const dexPic = (id: number, shiny = false) => `/idle/gen${dexGen(id)}/pokemon/${shiny ? 'shiny/' : ''}front/${id}.png`;

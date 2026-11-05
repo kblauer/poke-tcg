@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { areas } from './areas.js';
-import { species } from './data.js';
+import { dexGen, dexSpecies, species } from './data.js';
 import { allGenerations, DEX_SIZE, generation, generationOf, inGeneration, perGeneration } from './generation.js';
 import { createIdleRun, DEFAULT_IDLE_SETTINGS, simulateSegment, type IdleState } from './idle.js';
 
@@ -13,6 +13,17 @@ describe('generations', () => {
     expect(DEX_SIZE).toBe(Math.max(...allGenerations().map((g) => g.species.length)));
     expect(species(25).name).toBe('Pikachu');
     expect(areas()[0]!.id).toBe('route-1');
+  });
+
+  it("reads the account Pokédex's every species (issue #170, step 6) from the shown region's tables where it has it, else Johto's", () => {
+    expect([dexGen(25), dexGen(152), dexGen(493)]).toEqual([1, 2, 2]);
+    expect(dexSpecies(493).name).toBe('Arceus');
+    expect(dexSpecies(25)).toBe(species(25));
+    inGeneration(2, () => {
+      expect(dexGen(25)).toBe(2);
+      expect(dexSpecies(25)).toBe(species(25));
+    });
+    expect(() => dexGen(DEX_SIZE + 1)).toThrow();
   });
 
   it('restores the outer generation, even when the inner call throws', () => {

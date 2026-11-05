@@ -1,14 +1,15 @@
-import { generation, STAT_NAMES } from '@poke-tcg/idle';
+import { DEX_SIZE, dexSpecies, STAT_NAMES } from '@poke-tcg/idle';
 import { useState } from 'react';
 import type { IdleOverview } from '../../hooks/useIdle';
 import { ConditionFeeder } from '../contest/ConditionFeeder';
 import { TypeBadge } from './MonIcon';
-import { pokemonPics } from '../../utils/idleLook';
+import { dexPic } from '../../utils/idleLook';
 
 type DexRow = IdleOverview['dex'][number];
 
 /**
- * The account's Pokédex (README: Idle Adventure; agreed with the user): Kanto's 151 in order with the game's sprites,
+ * The account's Pokédex (README: Idle Adventure; agreed with the user): every species either region has, to Arceus
+ * (issue #170, step 6), in order with the games' sprites (the shown region's where it has the species: dexSpecies, dexPic),
  * seen and caught, and for each caught species the best IV and EV ever had in each stat. With `onPick`, it's where a new
  * run's starter is picked from (`starters`: the species allowed; `shinyStarters`: those with a shiny caught, which can
  * start shiny: agreed). A species with a shiny caught has a ★ and its shiny sprite in its entry. A caught entry is the
@@ -31,15 +32,16 @@ export function Pokedex({
   const [open, setOpen] = useState<number | null>(null);
   const caught = dex.filter((d) => d.caught).length;
   const seen = dex.filter((d) => d.seen).length;
-  const sel = open !== null ? generation().species[open - 1] : null;
+  const all = Array.from({ length: DEX_SIZE }, (_, i) => dexSpecies(i + 1));
+  const sel = open !== null ? all[open - 1]! : null;
   const rec = open !== null ? byId.get(open) : undefined;
   return (
     <div className="space-y-3">
       <p className="text-sm text-slate-400">
-        Seen {seen} · Caught {caught} of {generation().species.length}
+        Seen {seen} · Caught {caught} of {DEX_SIZE}
       </p>
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(4.5rem,1fr))] gap-1.5">
-        {generation().species.map((s) => {
+        {all.map((s) => {
           const d = byId.get(s.id);
           const pickable = starters?.includes(s.id);
           return (
@@ -50,7 +52,7 @@ export function Pokedex({
                 title={d?.seen ? s.name : '???'}
               >
                 <img
-                  src={`${pokemonPics()}/front/${s.id}.png`}
+                  src={dexPic(s.id)}
                   alt=""
                   className={`size-12 [image-rendering:pixelated] ${d?.caught ? '' : d?.seen ? 'opacity-60 grayscale' : 'opacity-40 brightness-0'}`}
                   draggable={false}
@@ -68,8 +70,8 @@ export function Pokedex({
       {sel && (
         <section className="space-y-2 rounded-lg bg-slate-800 p-4 ring-1 ring-slate-600">
           <div className="flex flex-wrap items-center gap-3">
-            <img src={`${pokemonPics()}/front/${sel.id}.png`} alt="" className="size-16 [image-rendering:pixelated]" draggable={false} />
-            {rec?.shiny && <img src={`${pokemonPics()}/shiny/front/${sel.id}.png`} alt="Shiny" title="Shiny caught" className="size-16 [image-rendering:pixelated]" draggable={false} />}
+            <img src={dexPic(sel.id)} alt="" className="size-16 [image-rendering:pixelated]" draggable={false} />
+            {rec?.shiny && <img src={dexPic(sel.id, true)} alt="Shiny" title="Shiny caught" className="size-16 [image-rendering:pixelated]" draggable={false} />}
             <div>
               <div className="font-semibold">
                 No. {String(sel.id).padStart(3, '0')} {rec?.seen ? sel.name : '???'}

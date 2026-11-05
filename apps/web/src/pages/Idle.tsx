@@ -1,5 +1,5 @@
 import { idleMusic } from '@poke-tcg/campaign';
-import { areas, cuts, mapView, showGeneration, species, TICK_MS, type IdleAction, type IdleGen, type WalkArea } from '@poke-tcg/idle';
+import { areas, cuts, dexSpecies, mapView, showGeneration, TICK_MS, type IdleAction, type IdleGen, type WalkArea } from '@poke-tcg/idle';
 import { useEffect, useState } from 'react';
 import type { Dialogue } from '../components/DialogueBox';
 import { useMusicCue, useMusicSettings } from '../components/MusicPlayer';
@@ -35,7 +35,8 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'log', label: 'Log' },
 ];
 
-const name = (id: number) => species(id).name;
+/** A species' name, any region's (the last run's party may be another region's than the one picked: dexSpecies). */
+const name = (id: number) => dexSpecies(id).name;
 
 /** The battle music's kind for a battle (the Champion's, a gym leader's or the Elite Four's, a trainer's, a wild one). */
 const battleKind = (trainer: string | undefined) => (!trainer ? 'wild' : trainer.startsWith('champion') ? 'champion' : trainer.startsWith('leader') || trainer.startsWith('elite-four') ? 'leader' : 'trainer');
@@ -65,11 +66,12 @@ export function IdlePage() {
   const run = data?.run ?? null;
   const active = run?.status === 'ACTIVE' ? run : null;
   const settings = data?.settings;
-  // The region a new run starts in (the user's, issue #170): those open (Johto once a Kanto run has beaten the Champion),
-  // or in debug mode any (the user's, 2026-11-04).
+  // The region a new run starts in (the user's, issue #170): every region listed, those not open yet (Johto until a Kanto
+  // run has beaten the Champion) greyed out with why, but in debug mode (the user's, 2026-11-04: any).
   const [pickGen, setPickGen] = useState<IdleGen>(1);
-  const regions = (data?.generations ?? []).filter((g) => !g.locked || debug);
-  const picked = regions.find((g) => g.gen === pickGen) ?? regions[0];
+  const regions = data?.generations ?? [];
+  const startable = (g: (typeof regions)[number]) => !g.locked || debug;
+  const picked = regions.find((g) => g.gen === pickGen && startable(g)) ?? regions.find(startable);
   // The shown run's region's tables (its maps, species, areas) for everything on the page; Kanto's once it closes.
   const shownGen = active?.view.gen ?? (active ? 1 : (picked?.gen ?? 1));
   showGeneration(shownGen);
@@ -214,16 +216,21 @@ export function IdlePage() {
             </section>
           )}
           {regions.length > 1 && (
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex flex-wrap items-center gap-2 text-sm">
               Region
               <select className="rounded bg-slate-700 px-2 py-1" value={picked?.gen} onChange={(e) => setPickGen(Number(e.target.value) as IdleGen)}>
                 {regions.map((g) => (
-                  <option key={g.gen} value={g.gen}>
+                  <option key={g.gen} value={g.gen} disabled={!startable(g)} title={g.locked ?? undefined}>
                     {g.region}
-                    {g.locked ? ' (debug: locked)' : ''}
+                    {g.locked ? (debug ? ' (debug: locked)' : ' (locked)') : ''}
                   </option>
                 ))}
               </select>
+              {regions.filter((g) => g.locked && !debug).map((g) => (
+                <span key={g.gen} className="text-slate-400">
+                  {g.locked}.
+                </span>
+              ))}
             </label>
           )}
           <StarterScene key={picked?.gen} gender={gender} busy={actions.busy} onPick={(id) => void start(id)} dialogue={catchUp} />

@@ -1,6 +1,6 @@
 import { actingTurn, canEnter, conditionOf, contestMove, createContest, feedPoffin, feedPokeblock, finishDance, finishVisual, PLAYER, poffinLevel, pokeblockLevel, ribbonId, type ContestState, type PokeblockColor } from '@poke-tcg/campaign';
 import { prisma } from '@poke-tcg/db';
-import { species as speciesData } from '@poke-tcg/idle';
+import { dexSpecies as speciesData } from '@poke-tcg/idle';
 import { contestActInput, contestDanceInput, contestFeedInput, contestMovesInput, contestProfileInput, contestStartInput, contestVisualInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { asJson, newSeed } from '../games.js';
@@ -15,7 +15,7 @@ const failed = (message: string) => new TRPCError({ code: 'BAD_REQUEST', message
 /** The contest under way kept on the account (User.contest), or null ({} when none). */
 const contestOf = (saved: unknown): ContestState | null => (saved && typeof saved === 'object' && 'phase' in saved ? (saved as ContestState) : null);
 
-/** A species' moves it can perform: its level-up learnset (a dex entry has no level, so any of it), each with its contest data. */
+/** A species' moves it can perform: its level-up learnset (a dex entry has no level, so any of it; its Pokédex generation's: dexSpecies), each with its contest data. */
 function learnable(species: number) {
   const seen = new Set<string>();
   return speciesData(species).learnset.flatMap(([, key]) => {

@@ -1,7 +1,7 @@
 import { ACCESSORIES, ACCESSORY_LIMIT, accessoryCopies, BACKDROPS, CONTEST_CATEGORIES, CONTEST_THEMES, DRESS_SECONDS, type ContestState } from '@poke-tcg/campaign';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Cell, DsScreen, Layer, MessageBox, SCALE, useGfx, useTicks } from './ds';
-import { rankName } from './contestUi';
+import { contestPic, rankName } from './contestUi';
 
 /** The dressing room's windows on the touch screen (ov22): the case on the left, the stage on the right; the Pokémon centred on (192, 56). */
 const CASE = { x: 8, y: 16, w: 112, h: 128 };
@@ -52,7 +52,7 @@ function useSpriteMask(species: number) {
       for (let i = 0; i < m.length; i++) m[i] = data[i * 4 + 3]! > 0 ? 1 : 0;
       setMask(m);
     };
-    img.src = `/extras/contest/pokemon/${species}.png`;
+    img.src = contestPic(species);
   }, [species]);
   return mask;
 }
@@ -206,7 +206,7 @@ export function VisualRound({ contest, busy, onDone }: { contest: ContestState; 
           <Layer src={tab === 'accessories' ? 'dressup/case-accessories.png' : 'dressup/case-backdrops.png'} x={CASE.x} y={CASE.y} />
           <div className="absolute overflow-hidden" style={{ left: STAGE.x, top: STAGE.y, width: STAGE.w, height: STAGE.h }}>
             <Layer src={`backdrops/${backdrop}${Math.floor(ticks / 34) % 2 ? '-2' : ''}.png`} />
-            <img src={`/extras/contest/pokemon/${me.species}.png`} alt="" draggable={false} className="pointer-events-none absolute max-w-none" style={{ left: MON.x - STAGE.x, top: MON.y - STAGE.y }} />
+            <img src={contestPic(me.species)} alt="" draggable={false} className="pointer-events-none absolute max-w-none" style={{ left: MON.x - STAGE.x, top: MON.y - STAGE.y }} />
             {shown
               .filter((p) => p.key !== drag?.key)
               .map((p) => (
