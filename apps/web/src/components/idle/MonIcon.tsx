@@ -1,9 +1,11 @@
+import { pokemonPics } from '../../utils/idleLook';
+
 /** A party icon (FireRed's, two frames stacked: shown in turn, as the party screen bobs them). */
 export function MonIcon({ id, className = '' }: { id: number; className?: string }) {
   return (
     <span
       className={`inline-block size-8 shrink-0 bg-no-repeat [image-rendering:pixelated] ${className}`}
-      style={{ backgroundImage: `url(/idle/gen1/pokemon/icon/${id}.png)`, backgroundSize: '32px 64px', animation: 'idle-icon 0.5s steps(1) infinite' }}
+      style={{ backgroundImage: `url(${pokemonPics()}/icon/${id}.png)`, backgroundSize: '32px 64px', animation: 'idle-icon 0.5s steps(1) infinite' }}
       aria-hidden
     />
   );

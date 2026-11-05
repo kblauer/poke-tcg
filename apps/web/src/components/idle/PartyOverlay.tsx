@@ -1,12 +1,15 @@
 import { generation, basicFor, calcStats, cooldownTicks, machineMoves, moveData, species, usableStones, type IdleAction, type Mon } from '@poke-tcg/idle';
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { useEscape } from '../../hooks/useEscape';
+import { pokemonPics } from '../../utils/idleLook';
+import { gameSize } from './GameScreen';
+import { HgssParty } from './HgssParty';
 
-/** One game pixel of FireRed's 240x160 screen, in the game screen's width (container query units). */
-const px = (n: number) => `${(n * 100) / 240}cqw`;
+/** One game pixel of the region's screen (FireRed's 240 wide, HGSS's 256: gameSize), in the game screen's width (container query units). */
+export const px = (n: number) => `${(n * 100) / gameSize().w}cqw`;
 const PARTY = '/idle/gen1/party';
 /** FireRed's party text: white with its grey shadow (sFontColorTable[0]), in the Gen 3 font. */
-const TEXT = { color: '#ffffff', textShadow: `${px(1)} ${px(1)} 0 #737373`, fontFamily: '"Pokemon Emerald", monospace', lineHeight: 1 } as const;
+export const TEXT = { color: '#ffffff', textShadow: `${px(1)} ${px(1)} 0 #737373`, fontFamily: '"Pokemon Emerald", monospace', lineHeight: 1 } as const;
 /**
  * A slot's width (party/slot.png: FireRed's without its HP bar or HP, 11 tiles: the user's, as narrow as fits a shiny's
  * star and a 10-letter name), its height (a slot a row), and where the slots' column begins.
@@ -15,7 +18,7 @@ const SLOT_W = 88;
 const SLOT_H = 24;
 const LIST_LEFT = 240 - (10 + SLOT_W + 4);
 /** The Pokémon's panel's width (just left of the slots' column), top, and tallest: the screen's height (the Map button is in the top left corner, clear of it). */
-const PANEL_W = 104;
+export const PANEL_W = 104;
 const PANEL_TOP = 2;
 const PANEL_MAX_H = 160 - 2 - PANEL_TOP;
 /** The panel's colours: a slot's (slot.png's border, fill and light). */
@@ -30,7 +33,7 @@ const moveLabel = (key: string) => {
 };
 
 /** `order` with the one at `from` moved to `to`. */
-const moved = (order: string[], from: number, to: number) => {
+export const moved = (order: string[], from: number, to: number) => {
   const out = [...order];
   const [uid] = out.splice(from, 1);
   out.splice(to, 0, uid!);
@@ -69,6 +72,23 @@ export function PartyOverlay({
   replacing?: Mon | null;
   onReplace?: (uid?: string) => void;
 }) {
+  // Johto's: HeartGold's party menu (HgssParty), its slots in the touch screen's two columns.
+  if (generation().gen === 2) return <HgssParty party={party} bag={bag} busy={busy} pending={pending} open={opened} onToggle={onToggle} onAct={onAct} replacing={replacing} onReplace={onReplace} />;
+  return <FireRedParty party={party} bag={bag} busy={busy} pending={pending} open={opened} onToggle={onToggle} onAct={onAct} replacing={replacing} onReplace={onReplace} />;
+}
+
+/** FireRed's party screen sliding out from the right (PartyOverlay's in Kanto). */
+function FireRedParty({
+  party,
+  bag,
+  busy,
+  pending,
+  open: opened,
+  onToggle,
+  onAct,
+  replacing,
+  onReplace,
+}: Parameters<typeof PartyOverlay>[0]) {
   const open = opened || !!replacing;
   const [chosen, setChosen] = useState<string | null>(null);
   const mon = party.find((m) => m.uid === chosen) ?? null;
@@ -187,7 +207,7 @@ export function PartyOverlay({
         >
           <span
             className="absolute bg-no-repeat"
-            style={{ left: px(-3), top: px(-5), width: px(32), height: px(32), backgroundImage: `url(/idle/gen1/pokemon/icon/${lead.species}.png)`, backgroundSize: `${px(32)} ${px(64)}`, animation: 'idle-icon-cqw 0.5s steps(1) infinite' }}
+            style={{ left: px(-3), top: px(-5), width: px(32), height: px(32), backgroundImage: `url(${pokemonPics()}/icon/${lead.species}.png)`, backgroundSize: `${px(32)} ${px(64)}`, animation: 'idle-icon-cqw 0.5s steps(1) infinite' }}
           />
         </button>
       )}
@@ -234,7 +254,7 @@ function Slot({
       <span className="absolute" style={{ left: px(-10), top: px(1), width: px(32), height: px(32), backgroundImage: `url(${PARTY}/pokeball.png)`, backgroundSize: `${px(32)} ${px(64)}`, backgroundPosition: `0 ${selected ? `-${px(32)}` : '0'}` }} />
       <span
         className="absolute bg-no-repeat"
-        style={{ left: px(-8), top: px(-6), width: px(32), height: px(32), backgroundImage: `url(/idle/gen1/pokemon/icon/${mon.species}.png)`, backgroundSize: `${px(32)} ${px(64)}`, animation: `idle-icon-cqw ${selected || held ? '0.25s' : '0.5s'} steps(1) infinite` }}
+        style={{ left: px(-8), top: px(-6), width: px(32), height: px(32), backgroundImage: `url(${pokemonPics()}/icon/${mon.species}.png)`, backgroundSize: `${px(32)} ${px(64)}`, animation: `idle-icon-cqw ${selected || held ? '0.25s' : '0.5s'} steps(1) infinite` }}
       />
       <span className="absolute whitespace-nowrap" style={{ ...TEXT, left: px(22), top: px(3), fontSize: px(11) }}>
         {mon.shiny && <span style={{ color: '#ffd552' }}>★</span>}
@@ -257,16 +277,16 @@ function Slot({
  * The prompt for a catch with the party full (in the Pokémon's panel's place, its style; FireRed's party screen's
  * "Choose a POKéMON."): the Pokémon caught, its icon, name and level, and what to do.
  */
-function ReplacePrompt({ mon }: { mon: Mon }) {
+export function ReplacePrompt({ mon, left = LIST_LEFT - PANEL_W }: { mon: Mon; left?: number }) {
   const s = species(mon.species);
   return (
     <div
       className="pointer-events-auto absolute"
-      style={{ left: px(LIST_LEFT - PANEL_W), top: px(PANEL_TOP), width: px(PANEL_W), background: FRAME.fill, border: `${px(1)} solid ${FRAME.border}`, borderRadius: px(3), boxShadow: `inset 0 0 0 ${px(1)} ${FRAME.light}`, padding: px(3) }}
+      style={{ left: px(left), top: px(PANEL_TOP), zIndex: 5, width: px(PANEL_W), background: FRAME.fill, border: `${px(1)} solid ${FRAME.border}`, borderRadius: px(3), boxShadow: `inset 0 0 0 ${px(1)} ${FRAME.light}`, padding: px(3) }}
       role="status"
     >
       <div className="flex items-center" style={{ gap: px(2) }}>
-        <span className="shrink-0 bg-no-repeat" style={{ width: px(32), height: px(32), backgroundImage: `url(/idle/gen1/pokemon/icon/${mon.species}.png)`, backgroundSize: `${px(32)} ${px(64)}`, animation: 'idle-icon-cqw 0.5s steps(1) infinite' }} />
+        <span className="shrink-0 bg-no-repeat" style={{ width: px(32), height: px(32), backgroundImage: `url(${pokemonPics()}/icon/${mon.species}.png)`, backgroundSize: `${px(32)} ${px(64)}`, animation: 'idle-icon-cqw 0.5s steps(1) infinite' }} />
         <span style={{ ...TEXT, fontSize: px(9) }}>
           {mon.shiny && <span style={{ color: '#ffd552' }}>★</span>}
           {s.name} Lv{mon.level}
@@ -340,7 +360,7 @@ function StatHex({ stats, height }: { stats: number[]; height: number }) {
  * automatically: its own moves, and the moves of the bag's TMs and HMs it can learn, the user's) and the stones in the
  * bag it can use.
  */
-function MonPanel({
+export function MonPanel({
   mon,
   bag,
   busy,
@@ -350,7 +370,10 @@ function MonPanel({
   onClose,
   replacing,
   onReplace,
+  left = LIST_LEFT - PANEL_W,
 }: {
+  /** Where it stands (game pixels): just left of FireRed's slots, or beside HGSS's chosen one. */
+  left?: number;
   mon: Mon;
   bag: Record<string, number>;
   busy: boolean;
@@ -379,7 +402,7 @@ function MonPanel({
   return (
     <div
       className="pointer-events-auto absolute overflow-y-auto"
-      style={{ left: px(LIST_LEFT - PANEL_W), top: px(PANEL_TOP), width: px(PANEL_W), maxHeight: px(maxH), background: FRAME.fill, border: `${px(1)} solid ${FRAME.border}`, borderRadius: px(3), boxShadow: `inset 0 0 0 ${px(1)} ${FRAME.light}`, padding: px(2) }}
+      style={{ left: px(left), top: px(PANEL_TOP), width: px(PANEL_W), maxHeight: px(maxH), zIndex: 5, background: FRAME.fill, border: `${px(1)} solid ${FRAME.border}`, borderRadius: px(3), boxShadow: `inset 0 0 0 ${px(1)} ${FRAME.light}`, padding: px(2) }}
     >
       <div className="flex items-center justify-between">
         <span className="truncate" style={{ ...TEXT, fontSize: px(9) }}>

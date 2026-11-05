@@ -1,15 +1,20 @@
-import { generation, catchTextFrame, cooldownTicks, FRAME_MS, INTRO_MS, moveData, species, TICK_MS, type BattleEvent, type BattlerView } from '@poke-tcg/idle';
+import { generation, catchTextFrame, cooldownTicks, FRAME_MS, introMs, moveData, species, TICK_MS, type BattleEvent, type BattlerView } from '@poke-tcg/idle';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { isReward, type BattleSegment } from '../../hooks/useIdle';
 import { DialogueBox, dialogueKey, type Dialogue } from '../DialogueBox';
 import { BattleScene } from './BattleScene';
-import { DIALOGUE_TEXT, GAME_HEIGHT, GAME_WIDTH, useGameScale } from './GameScreen';
+import { DsText } from './dsFont';
+import { DIALOGUE_TEXT, DS_HEIGHT, DS_WIDTH, GAME_HEIGHT, GAME_WIDTH, gameSize, useGameScale } from './GameScreen';
+import { hgssBattleArt, HgssBattleScene, hgssMonSrc } from './HgssBattleScene';
 import { MonIcon } from './MonIcon';
 
-/** One game pixel of FireRed's 240x160 screen, in the battle box's width (container query units). */
-const px = (n: number) => `${(n * 100) / 240}cqw`;
+/** One game pixel of the region's screen (FireRed's 240x160, HGSS's 256x192: gameSize), in the battle box's width (container query units). */
+const px = (n: number) => `${(n * 100) / gameSize().w}cqw`;
 const GEN1 = '/idle/gen1';
+const GEN2 = '/idle/gen2';
+/** Whether the battle is Johto's (HeartGold's screen: HgssBattleScene). */
+const isHgss = () => generation().gen === 2;
 
 /** The battle background for a battle (battle_bg.c): a League room's or a gym's own, else the terrain under the player. */
 function background(b: BattleSegment): string {
@@ -29,16 +34,7 @@ const preloaded = new Map<string, { img: HTMLImageElement; decoded: Promise<void
  * they're all decoded (or failed).
  */
 export function preloadBattle(b: BattleSegment): Promise<void> {
-  const srcs = new Set<string>([
-    background(b),
-    `${GEN1}/trainers/red_back_sheet.png`,
-    `${GEN1}/trainers/leaf_back_sheet.png`,
-    // The healthboxes and the balls (BattleScene, Healthbox).
-    ...['healthbox_player', 'healthbox_opponent', 'hp_text', 'hp_bar', 'exp_bar', 'font_small', 'particles', 'balls/poke-ball'].map((n) => `${GEN1}/battle/${n}.png`),
-  ]);
-  const pic = b.trainer ? generation().trainers[b.trainer]?.pic : null;
-  if (pic) srcs.add(`${GEN1}/trainers/${pic}.png`);
-  for (const e of b.events) if (e.t === 'send') srcs.add(`${GEN1}/pokemon/${e.mon.shiny ? 'shiny/' : ''}${e.side ? 'front' : 'back'}/${e.mon.species}.png`);
+  const srcs = isHgss() ? hgssSources(b) : gen1Sources(b);
   return Promise.all(
     [...srcs].map((src) => {
       let p = preloaded.get(src);
@@ -50,6 +46,32 @@ export function preloadBattle(b: BattleSegment): Promise<void> {
       return p.decoded;
     }),
   ).then(() => {});
+}
+
+/** Johto's battle pictures (HgssBattleScene's): the background and platforms, the back pics, the healthboxes and their pieces, the trainer, every Pokémon sent out. */
+function hgssSources(b: BattleSegment): Set<string> {
+  const art = hgssBattleArt(b);
+  const srcs = new Set<string>([art.bg, art.enemy, art.player, `${GEN2}/trainers/hero_back_sheet.png`, `${GEN2}/trainers/heroine_back_sheet.png`, `${GEN2}/battle/textbox/frame_0.png`, `${GEN2}/battle/balls/poke-ball.png`, `${GEN2}/battle/shadow.png`]);
+  for (const n of ['healthbox_player', 'healthbox_enemy', 'hp_bar', 'exp_bar', 'digits', 'status', 'font_healthbox', 'font_message', 'lv_male', 'lv_female', 'lv_none']) srcs.add(`${GEN2}/battle/${n}.png`);
+  const pic = b.trainer ? generation().trainers[b.trainer]?.pic : null;
+  if (pic) srcs.add(`${GEN2}/trainers/${pic}.png`);
+  for (const e of b.events) if (e.t === 'send') srcs.add(hgssMonSrc(e.mon, e.side));
+  return srcs;
+}
+
+/** Kanto's (BattleScene's). */
+function gen1Sources(b: BattleSegment): Set<string> {
+  const srcs = new Set<string>([
+    background(b),
+    `${GEN1}/trainers/red_back_sheet.png`,
+    `${GEN1}/trainers/leaf_back_sheet.png`,
+    // The healthboxes and the balls (BattleScene, Healthbox).
+    ...['healthbox_player', 'healthbox_opponent', 'hp_text', 'hp_bar', 'exp_bar', 'font_small', 'particles', 'balls/poke-ball'].map((n) => `${GEN1}/battle/${n}.png`),
+  ]);
+  const pic = b.trainer ? generation().trainers[b.trainer]?.pic : null;
+  if (pic) srcs.add(`${GEN1}/trainers/${pic}.png`);
+  for (const e of b.events) if (e.t === 'send') srcs.add(`${GEN1}/pokemon/${e.mon.shiny ? 'shiny/' : ''}${e.side ? 'front' : 'back'}/${e.mon.species}.png`);
+  return srcs;
 }
 
 interface SideShown {
@@ -280,7 +302,7 @@ export function BattleScreen({
   const [, redraw] = useState(0);
   const latest = line >= 0 ? battle.events[line]! : null;
   const ballWait = latest?.t === 'ball' ? (times.current[line] ?? 0) + catchTextFrame(latest.shakes, latest.caught) * FRAME_MS - performance.now() : 0;
-  const introWait = shown === 0 ? introAt.current + INTRO_MS - performance.now() : 0;
+  const introWait = shown === 0 ? introAt.current + introMs(battle.kind) - performance.now() : 0;
   useEffect(() => {
     const ms = Math.max(ballWait, introWait);
     if (ms <= 0) return;
@@ -288,6 +310,9 @@ export function BattleScreen({
     return () => window.clearTimeout(timer);
   }, [ballWait > 0, introWait > 0, line, shown]);
   const name = (id: number) => species(id).name;
+  const hgss = isHgss();
+  // HGSS's words where they differ (msg_0197: "A wild X appeared!"), and its player's name.
+  const playerName = hgss ? (gender === 'female' ? 'Lyra' : 'Ethan') : gender === 'female' ? 'Leaf' : 'Red';
   const said =
     shown === 0
       ? trainer && introWait <= 0
@@ -296,22 +321,37 @@ export function BattleScreen({
       : latest?.t === 'send' && latest.side === 1
         ? trainer
           ? `${trainer.class} ${trainer.name} sent out ${name(latest.mon.species)}!`
-          : `Wild ${name(latest.mon.species)} appeared!`
+          : `${hgss ? 'A wild' : 'Wild'} ${name(latest.mon.species)} appeared!`
         : latest?.t === 'ball' && ballWait > 0
-          ? `${gender === 'female' ? 'Leaf' : 'Red'} used ${generation().items[latest.item]?.name ?? 'a ball'}!`
+          ? `${playerName} used ${generation().items[latest.item]?.name ?? 'a ball'}!`
           : text;
   return (
     <div ref={ref} className="w-full">
-    <div className="mx-auto space-y-2" style={{ width: scale ? GAME_WIDTH * scale : '100%' }}>
-    <div className="relative aspect-[3/2] w-full overflow-hidden rounded-lg bg-black [container-type:inline-size] [image-rendering:pixelated]" onClick={() => pressDialogue.current?.()}>
-      {/* The scene in game pixels (FireRed's sprites, their animations, the healthboxes), scaled to the screen. */}
+    <div className="mx-auto space-y-2" style={{ width: scale ? (hgss ? DS_WIDTH : GAME_WIDTH) * scale : '100%' }}>
+    <div className={`relative w-full overflow-hidden rounded-lg bg-black [container-type:inline-size] [image-rendering:pixelated] ${hgss ? 'aspect-[4/3]' : 'aspect-[3/2]'}`} onClick={() => pressDialogue.current?.()}>
+      {/* The scene in game pixels (FireRed's or HeartGold's sprites, their animations, the healthboxes), scaled to the screen. */}
       {scale > 0 && (
-        <div className="pointer-events-none absolute left-0 top-0 origin-top-left [image-rendering:pixelated]" style={{ width: GAME_WIDTH, height: GAME_HEIGHT, transform: `scale(${scale})` }}>
-          <BattleScene battle={battle} background={background(battle)} trainerPic={trainer?.pic ?? null} events={events} current={[sides[0].mon, sides[1].mon]} times={times.current} introAt={introAt.current} gender={gender} exp={exp} hit={hit} attacker={attacker} line={line} />
+        <div className="pointer-events-none absolute left-0 top-0 origin-top-left [image-rendering:pixelated]" style={{ width: hgss ? DS_WIDTH : GAME_WIDTH, height: hgss ? DS_HEIGHT : GAME_HEIGHT, transform: `scale(${scale})` }}>
+          {hgss ? (
+            <>
+              <HgssBattleScene battle={battle} trainerPic={trainer?.pic ?? null} events={events} current={[sides[0].mon, sides[1].mon]} times={times.current} introAt={introAt.current} gender={gender} exp={exp} hit={hit} attacker={attacker} line={line} />
+              {/* HGSS's text box (its frame at 0,144; the line at 16,152 in its message font, 216 wide, 2 lines). */}
+              {!rewards.length && (
+                <>
+                  <img src={`${GEN2}/battle/textbox/frame_0.png`} alt="" className="absolute left-0" style={{ top: 144 }} draggable={false} />
+                  {said && <DsText text={said} x={16} y={152} font={`${GEN2}/battle/font_message.png`} wrap={216} />}
+                </>
+              )}
+            </>
+          ) : (
+            <BattleScene battle={battle} background={background(battle)} trainerPic={trainer?.pic ?? null} events={events} current={[sides[0].mon, sides[1].mon]} times={times.current} introAt={introAt.current} gender={gender} exp={exp} hit={hit} attacker={attacker} line={line} />
+          )}
         </div>
       )}
-      {/* The text box: the latest line, or a run of rewards all at once (the user's), growing upward to hold them. */}
-      <div className="absolute inset-x-0 bottom-0 border-t-[0.6cqw] border-[#c87028] bg-[#283848] text-white" style={{ minHeight: px(48), padding: `${px(6)} ${px(10)}`, fontSize: px(10), lineHeight: 1.35 }}>
+      {/* The text box: the latest line, or a run of rewards all at once (the user's), growing upward to hold them (in
+          Johto only the rewards, in HGSS's white box with its message text's colours: its lines are in the scene). */}
+      {(!hgss || rewards.length > 0) && (
+      <div className={`absolute inset-x-0 bottom-0 ${hgss ? 'rounded-[1cqw] border-[0.8cqw] border-[#52525a] bg-white text-[#52525a]' : 'border-t-[0.6cqw] border-[#c87028] bg-[#283848] text-white'}`} style={{ minHeight: px(48), padding: `${px(6)} ${px(10)}`, fontSize: px(10), lineHeight: 1.35 }}>
         {rewards.length ? (
           <ul className="grid grid-cols-2 gap-x-[3cqw]">
             {rewards.map((r) => (
@@ -319,8 +359,8 @@ export function BattleScreen({
                 <MonIcon id={speciesOf(r.uid)} className="-my-[1cqw]" />
                 <span>
                   {species(speciesOf(r.uid)).name} +{r.gained} EXP.
-                  {r.level !== null && <span className="text-[#f8d030]"> Lv. {r.level}!</span>}
-                  {r.learned.length > 0 && <span className="text-[#88d8f8]"> Learned {r.learned.join(', ')}!</span>}
+                  {r.level !== null && <span className={hgss ? 'text-[#c88000]' : 'text-[#f8d030]'}> Lv. {r.level}!</span>}
+                  {r.learned.length > 0 && <span className={hgss ? 'text-[#1870c0]' : 'text-[#88d8f8]'}> Learned {r.learned.join(', ')}!</span>}
                 </span>
               </li>
             ))}
@@ -329,6 +369,7 @@ export function BattleScreen({
           said
         )}
       </div>
+      )}
       {/* The ball button (the user's): the best ball in the bag next turn, a wild battle's; over until the battle's over. */}
       {onThrow && (
         <BallButton

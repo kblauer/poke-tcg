@@ -3,6 +3,7 @@
 // battle_controller_player.c and _opponent.c). The browser draws them frame by frame; the run counts the time they take
 // into a battle's segment (simulateSegment), so the two keep in step.
 import type { BattleEvent } from './battle.js';
+import { generation } from './generation.js';
 
 /** One frame (the GBA's ~60 a second). */
 export const FRAME_MS = 1000 / 60;
@@ -45,8 +46,34 @@ export const CATCH = { throw: 34, open: 10, wait: 10, shrink: 30, close: 10, bou
 /** When the shakes start (frames from the throw). */
 export const SHAKES_AT = CATCH.throw + CATCH.open + CATCH.wait + CATCH.shrink + CATCH.close + CATCH.bounce + CATCH.preShake;
 
+/**
+ * HeartGold's (issue #170, step 5: Johto's battles; the frame counts of pokeheartgold's battle scripts and tasks, Platinum's
+ * C where HGSS's is still assembly): the intro at twice the game's speed as FireRed's (the user's: its 28-frame delay
+ * and 34-frame slide halved, without the cry's wait), the wild Pokémon's 9-frame fade in and its healthbox (7 frames,
+ * 24 pixels a frame); the foe's send-out (subscript_0000_StartEncounter: the trainer off in 21 frames, the ball 12 still,
+ * opening 5 frames in, the Pokémon growing in 8 and its colour fading in 17; its healthbox 112 frames in); the player's
+ * (the back pic off in 21, the ball's 20-frame arc with its 4-frame hang, ~14 frames of white, the Pokémon out; the
+ * healthbox 96 in); catching (Task_GetPokemon: the throw 16, the ball opening and the Pokémon drawn in 40, its flash,
+ * drop and bounces 39, each shake 14 still, its wobble 6 (the third 11) and 12 more, the click 12 after the third and
+ * the stars ~22; broken out, the Pokémon out again in ~25).
+ */
+export const HGSS_INTRO = { delay: 28 / INTRO_SPEED, slide: 34 / INTRO_SPEED, fade: 9, healthbox: 7 } as const;
+export const HGSS_FOE_SEND = { trainerOut: 21, still: 12, release: 5, grow: 8, fade: 17, healthboxAt: 112 } as const;
+export const HGSS_PLAYER_SEND = { slide: 21, arc: 20, hang: 4, white: 14, grow: 8, healthboxAt: 96 } as const;
+export const HGSS_CATCH = { throw: 16, open: 40, drawIn: 23, flash: 8, drop: 11, bounce: 20, still: 14, wobble: [6, 6, 11], wait: 12, click: 12, stars: 22, out: 25 } as const;
+/** Where the shakes start in HGSS's catch (frames from the throw), and each shake's length. */
+export const HGSS_SHAKES_AT = HGSS_CATCH.throw + HGSS_CATCH.open + HGSS_CATCH.flash + HGSS_CATCH.drop + HGSS_CATCH.bounce;
+export const hgssShake = (k: number) => HGSS_CATCH.still + HGSS_CATCH.wobble[Math.min(2, k)]! + HGSS_CATCH.wait;
+
+/** Whether the active generation's battles look like HeartGold's (Johto's) rather than FireRed's. */
+const hgss = () => generation().gen === 2;
+
 /** The frame a thrown ball's line comes up (its animation played): "Gotcha!" after the click, or the Pokémon out again. */
 export function catchTextFrame(shakes: number, caught: boolean): number {
+  if (hgss()) {
+    const shaken = (n: number) => Array.from({ length: n }, (_, k) => hgssShake(k)).reduce((a, b) => a + b, 0);
+    return caught ? HGSS_SHAKES_AT + shaken(3) + HGSS_CATCH.click + HGSS_CATCH.stars : HGSS_SHAKES_AT + shaken(Math.min(3, shakes)) + HGSS_CATCH.out;
+  }
   if (caught) return SHAKES_AT + 2 * (CATCH.shake + CATCH.pause) + CATCH.shake + CATCH.click + CATCH.gotcha;
   return SHAKES_AT + shakes * (CATCH.shake + CATCH.pause) + CATCH.breakText;
 }
@@ -61,6 +88,10 @@ export const READ_MS = 1200;
  */
 export function openingLineMs(e: BattleEvent, kind: 'wild' | 'trainer'): number {
   if (e.t !== 'send') return READ_MS;
+  if (hgss()) {
+    if (e.side === 1) return kind === 'wild' ? READ_MS : (HGSS_FOE_SEND.healthboxAt + HGSS_INTRO.healthbox) * FRAME_MS + READ_MS;
+    return (HGSS_PLAYER_SEND.healthboxAt + HGSS_INTRO.healthbox) * FRAME_MS + READ_MS;
+  }
   if (e.side === 1) return kind === 'wild' ? READ_MS : (60 + FOE_SEND.open + OPEN_FRAMES.emerge + HEALTHBOX_FRAMES) * FRAME_MS + READ_MS;
   return (PLAYER_SEND.throwAt + PLAYER_SEND.arc + OPEN_FRAMES.emerge + HEALTHBOX_FRAMES) * FRAME_MS + READ_MS;
 }
@@ -71,6 +102,10 @@ export const CHALLENGE_MS = 1500;
 /** The intro's slides (and a wild Pokémon's healthbox) before the first line. */
 export const INTRO_MS = (INTRO_FRAMES.band + INTRO_FRAMES.slide + INTRO_FRAMES.healthbox) * FRAME_MS;
 
+/** The intro before the first line in the active generation: FireRed's (INTRO_MS), or HGSS's (a wild Pokémon's fade and healthbox after the slide). */
+export const introMs = (kind: 'wild' | 'trainer') =>
+  hgss() ? (HGSS_INTRO.delay + HGSS_INTRO.slide + (kind === 'wild' ? HGSS_INTRO.fade + HGSS_INTRO.healthbox : 0)) * FRAME_MS : INTRO_MS;
+
 /** The battle's opening events (before its first tick), each with a line of its own. */
 export function openingLines(events: BattleEvent[]): BattleEvent[] {
   // (They begin with turn 0's tick; the opening runs to turn 1's.)
@@ -80,7 +115,7 @@ export function openingLines(events: BattleEvent[]): BattleEvent[] {
 
 /** The whole opening: the intro, a trainer's challenge, and its lines. */
 export function openingMs(events: BattleEvent[], kind: 'wild' | 'trainer'): number {
-  return INTRO_MS + (kind === 'trainer' ? CHALLENGE_MS : 0) + openingLines(events).reduce((t, e) => t + openingLineMs(e, kind), 0);
+  return introMs(kind) + (kind === 'trainer' ? CHALLENGE_MS : 0) + openingLines(events).reduce((t, e) => t + openingLineMs(e, kind), 0);
 }
 
 /** How long a thrown ball's line takes: its animation, then the line to read. */

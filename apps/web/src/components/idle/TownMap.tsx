@@ -1,10 +1,11 @@
-import { areas, areaIndex, areaOpen, atProgress, isTown, legendError, legendOf, mapGrindPlan, mapView, modeOf, reachedArea, species, townMapGrid, townMapPlaces, townMapArea, townMapAreas, townMapPlaceOf, travelError, wildSpots, type IdleAction, type IdleMode, type TownMapPlace } from '@poke-tcg/idle';
+import { generation, areas, areaIndex, areaOpen, atProgress, isTown, legendError, legendOf, mapGrindPlan, mapView, modeOf, reachedArea, species, townMapGrid, townMapPlaces, townMapArea, townMapAreas, townMapPlaceOf, travelError, wildSpots, type IdleAction, type IdleMode, type TownMapPlace } from '@poke-tcg/idle';
 import { useState } from 'react';
 import { useEscape } from '../../hooks/useEscape';
 import type { ClientIdleRun } from '../../hooks/useIdle';
+import { gameSize } from './GameScreen';
 
-/** One game pixel of FireRed's 240x160 screen, in the game screen's width (container query units). */
-const px = (n: number) => `${(n * 100) / 240}cqw`;
+/** One game pixel of the region's screen (FireRed's 240 wide, HGSS's 256: gameSize), in the game screen's width (container query units). */
+const px = (n: number) => `${(n * 100) / gameSize().w}cqw`;
 
 /**
  * The Map button's place: the game screen's top left corner on every scene (the user's, 2026-10-27; the store's buy
@@ -17,11 +18,15 @@ const FRAME = { border: '#4a4a62', on: '#3994de', shade: '#297bb4', bar: '#28386
 const TEXT = { fontFamily: '"Pokemon Emerald", monospace', fontSize: px(8), lineHeight: 1 };
 /** FireRed's white box with its dark border (the menus' window). */
 const BOX = { background: '#ffffff', border: `${px(1)} solid ${FRAME.border}`, borderRadius: px(4), boxShadow: `0 ${px(1)} 0 rgba(0,0,0,0.35)` };
-/** The map's picture is drawn where the game draws it: (16, 16) on the screen, its grid's cells from (32, 32). */
-const MAP_X = 16;
-const MAP_Y = 16;
-const cellX = (x: number) => MAP_X + townMapGrid().x + x * townMapGrid().cell;
-const cellY = (y: number) => MAP_Y + townMapGrid().y + y * townMapGrid().cell;
+/**
+ * The map's picture is drawn where the game draws it: Kanto's at (16, 16) on the screen, its grid's cells from (32, 32);
+ * Johto's Pokégear map (232x144, tools/idle/johto_town_map.py) centred under the top bar on HGSS's 256x192.
+ */
+const mapAt = () => (generation().gen === 2 ? { x: 12, y: 32 } : { x: 16, y: 16 });
+const cellX = (x: number) => mapAt().x + townMapGrid().x + x * townMapGrid().cell;
+const cellY = (y: number) => mapAt().y + townMapGrid().y + y * townMapGrid().cell;
+/** The player's icon on the map: FireRed's Red or Leaf, the Pokégear's Ethan or Lyra. */
+const playerIcon = (gender: 'male' | 'female') => (generation().gen === 2 ? `/idle/gen2/town-map/${gender === 'female' ? 'lyra' : 'ethan'}.png` : `/idle/gen1/town-map/${gender === 'female' ? 'leaf' : 'red'}.png`);
 /** The route choice's box: its least width, a choice's height and the gap between them (game pixels). */
 const CHOICE_W = 88;
 const CHOICE_ROW = 14;
@@ -113,7 +118,7 @@ export function TownMap({ view, busy, gender, onAct }: { view: ClientIdleRun['vi
   const choices = picked ? [picked.place.name, 'Trainer grind', ...(spots.length ? spots.map(spotLabel) : ['Wild grind']), ...legends.map((l) => l.name), ...(picked.town !== null ? [`Go to ${areas()[picked.town]!.name}`] : [])] : [];
   const choiceW = Math.max(CHOICE_W, ...choices.map((c) => c.length * CHAR_W + 10));
   const choiceH = 4 + 10 + (choices.length + 1) * CHOICE_ROW;
-  const title = (picked?.place ?? hover ?? here)?.name ?? 'KANTO';
+  const title = (picked?.place ?? hover ?? here)?.name ?? generation().region.toUpperCase();
 
   return (
     <div className="pointer-events-none absolute inset-0 [container-type:inline-size]">
@@ -152,7 +157,7 @@ export function TownMap({ view, busy, gender, onAct }: { view: ClientIdleRun['vi
 
       {open && (
         <div className="pointer-events-auto absolute inset-0 z-20 overflow-hidden" style={{ background: '#000000' }} onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Town Map">
-          <img src={townMapGrid().image} alt="" draggable={false} className="absolute select-none" style={{ left: px(MAP_X), top: px(MAP_Y), width: px(townMapGrid().imageWidth), height: px(townMapGrid().imageHeight), imageRendering: 'pixelated' }} />
+          <img src={townMapGrid().image} alt="" draggable={false} className="absolute select-none" style={{ left: px(mapAt().x), top: px(mapAt().y), width: px(townMapGrid().imageWidth), height: px(townMapGrid().imageHeight), imageRendering: 'pixelated' }} />
 
           {/* The top bar: the place pointed at (or where the run is), the mode, and ×. */}
           <div className="absolute flex items-center justify-between" style={{ ...TEXT, left: 0, right: 0, top: 0, height: px(16), padding: `0 ${px(4)}`, background: FRAME.bar, color: '#ffffff', textShadow: `${px(1)} ${px(1)} 0 #101828` }}>
@@ -196,7 +201,7 @@ export function TownMap({ view, busy, gender, onAct }: { view: ClientIdleRun['vi
           {/* The player's icon (region_map.c's: centred on the cell). */}
           {here && (
             <img
-              src={`/idle/gen1/town-map/${gender === 'female' ? 'leaf' : 'red'}.png`}
+              src={playerIcon(gender)}
               alt=""
               aria-hidden
               className="pointer-events-none absolute"

@@ -293,6 +293,8 @@ export type SegmentEvent =
       ticks: number;
       /** A wild Pokémon whose species the account had caught when the battle began (its healthbox's Poké Ball, FireRed's TryAddPokeballIconToHealthbox). */
       caughtBefore?: true;
+      /** The hour on the run's clock as it began (HGSS's: its background's day, evening or night palette); none without a clock. */
+      hour?: number;
     }
   | { t: 'money'; amount: number; total: number; why: string }
   | { t: 'bought'; item: string; count: number; cost: number }
@@ -1226,6 +1228,7 @@ function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<
     result: result.result,
     ticks: result.ticks,
     ...(o.kind === 'wild' && caught.has(o.foes[0]!.species) && { caughtBefore: true as const }),
+    ...(hourOf(state, out.durationMs) !== null && { hour: hourOf(state, out.durationMs)! }),
   });
   // FireRed's intro and send-outs (the user's: their animations' time kept), then a tick a turn.
   out.durationMs += BATTLE_MS + openingMs(result.events, o.kind) + result.ticks * TICK_MS;
@@ -1966,7 +1969,7 @@ function simulateIn(from: IdleState, idleSettings: IdleSettings, caught: Set<num
       const key = trainerKey(state, trainer.key);
       out.events.push({ t: 'spotted', trainer: trainer.key });
       out.durationMs += 1500;
-      const won = battle(state, rng, settings, caught, { kind: 'trainer', foes: trainerParty(rng, key), trainer: key, tile, scene: a.kind === 'gym' && trainer.key === a.leader ? 'leader' : map.scene }, out);
+      const won = battle(state, rng, settings, caught, { kind: 'trainer', foes: trainerParty(rng, key), trainer: key, tile, scene: a.kind === 'gym' && trainer.key === a.leader && generation().gen === 1 ? 'leader' : map.scene }, out);
       if (generation().battleRules === 4) Object.assign(state.encounter, { steps: 0, buff: 0 });
       if (!won) {
         whiteOut(state, out);

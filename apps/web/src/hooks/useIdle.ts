@@ -1,5 +1,5 @@
 import type { AppRouter } from '@poke-tcg/api/router';
-import { generation, areas, areaIndex, ballLineMs, BATTLE_HOLD_MS, CHALLENGE_MS, FADE_MS, FISH_CAST_MS, FISH_DOT_MS, FISH_TEXT_MS, INTRO_MS, openingLineMs, playing, STEP_MS, TICK_MS, TOWN_HERE_MS, type CatchUpSummary, type IdleAction, type IdleGen, type IdleSettings, type SegmentEvent, type TownArea, type TrackStep, type WalkArea } from '@poke-tcg/idle';
+import { generation, areas, areaIndex, ballLineMs, BATTLE_HOLD_MS, CHALLENGE_MS, FADE_MS, FISH_CAST_MS, FISH_DOT_MS, FISH_TEXT_MS, introMs, openingLineMs, playing, STEP_MS, TICK_MS, TOWN_HERE_MS, type CatchUpSummary, type IdleAction, type IdleGen, type IdleSettings, type SegmentEvent, type TownArea, type TrackStep, type WalkArea } from '@poke-tcg/idle';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type { inferRouterOutputs } from '@trpc/server';
@@ -351,7 +351,7 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
       // the rest sharing what's left; the opening first FireRed's intro (and a trainer's challenge), then each of its lines
       // the time its animation takes (openingLineMs; the run counts the same: openingMs). A run of rewards (EXP., levels,
       // moves learned) is one line: shown at once.
-      await wait(INTRO_MS + (e.kind === 'trainer' ? CHALLENGE_MS : 0));
+      await wait(introMs(e.kind) + (e.kind === 'trainer' ? CHALLENGE_MS : 0));
       const said = (x: BattleEvent) => 'msg' in x && !!x.msg;
       let i = 0;
       while (i < e.events.length) {

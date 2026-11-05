@@ -1,5 +1,5 @@
 import { idleMusic } from '@poke-tcg/campaign';
-import { areas, cuts, mapView, showGeneration, townMapPlaces, species, TICK_MS, type IdleAction, type IdleGen, type WalkArea } from '@poke-tcg/idle';
+import { areas, cuts, mapView, showGeneration, species, TICK_MS, type IdleAction, type IdleGen, type WalkArea } from '@poke-tcg/idle';
 import { useEffect, useState } from 'react';
 import type { Dialogue } from '../components/DialogueBox';
 import { useMusicCue, useMusicSettings } from '../components/MusicPlayer';
@@ -157,8 +157,7 @@ export function IdlePage() {
           replacing={v.choosing ?? null}
           onReplace={(uid) => void act({ type: 'CAUGHT_CHOICE', ...(uid && { replace: uid }) })}
         />
-        {/* (Johto's Town Map, the Pokégear's, is still to come: issue #170, step 5.) */}
-        {townMapPlaces().length > 0 && <TownMap view={v} busy={actions.busy} gender={gender} onAct={act} />}
+        <TownMap view={v} busy={actions.busy} gender={gender} onAct={act} />
       </>
     ) : null;
   const over = run && run.status !== 'ACTIVE';

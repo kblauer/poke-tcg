@@ -1,5 +1,5 @@
 import { generation, mapView, species, starters } from '@poke-tcg/idle';
-import { playerSprites } from '../../utils/idleLook';
+import { playerSprites, pokemonPics } from '../../utils/idleLook';
 import type { Facing } from '../../utils/overworld';
 import type { Dialogue } from '../DialogueBox';
 import { TrimmedSprite } from '../TrimmedSprite';
@@ -41,7 +41,7 @@ export function StarterScene({ gender, busy, onPick, dialogue }: { gender: 'male
     inline: true,
     choices: three.map((id) => ({
       label: species(id).name,
-      icon: <TrimmedSprite src={`/idle/gen1/pokemon/front/${id}.png`} scale={1.5} />,
+      icon: <TrimmedSprite src={`${pokemonPics()}/front/${id}.png`} scale={1.5} />,
       disabled: busy,
     })),
     answer: (i) => onPick(three[i]!),

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { areas, areaIndex, isTown, mapView } from './areas.js';
 import { KANTO_MAPS } from './data/gen1/maps.js';
 import { ENCOUNTERS } from './data/gen1/encounters.js';
+import { inGeneration } from './generation.js';
 import { wildSpots } from './idle.js';
 import { townMapGrid, townMapPlaces, townMapArea, townMapAreas, townMapPlaceAt, townMapPlaceOf } from './town-map.js';
 
@@ -19,6 +20,21 @@ describe('the Town Map', () => {
         expect(seen.has(`${x},${y},${layer}`)).toBe(false);
         seen.add(`${x},${y},${layer}`);
       }
+  });
+
+  it("has Johto's (the Pokégear's map) with a place for every area, on its grid, one a cell on each layer", () => {
+    inGeneration(2, () => {
+      for (let i = 0; i < areas().length; i++) expect(townMapPlaceOf(i), areas()[i]!.id).not.toBeNull();
+      for (const a of areas()) if (a.kind === 'town' || a.kind === 'route' || a.kind === 'dungeon') expect(townMapPlaces().some((p) => p.areas.includes(a.id)), a.id).toBe(true);
+      const seen = new Set<string>();
+      for (const p of townMapPlaces())
+        for (const [x, y, layer] of p.cells) {
+          expect(x >= 0 && x < townMapGrid().width && y >= 0 && y < townMapGrid().height).toBe(true);
+          expect(seen.has(`${x},${y},${layer}`)).toBe(false);
+          seen.add(`${x},${y},${layer}`);
+        }
+      expect(townMapPlaceOf(areaIndex('ilex-forest'))!.name).toBe('Ilex Forest');
+    });
   });
 
   it("finds a dungeon over its route's cell first, and a town's latest visit reached", () => {

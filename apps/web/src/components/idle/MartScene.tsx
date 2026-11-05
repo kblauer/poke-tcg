@@ -7,6 +7,7 @@ import { playerSprites } from '../../utils/idleLook';
 import { DialogueBox, dialogueKey, type Dialogue } from '../DialogueBox';
 import { OverworldSprite } from '../run/RouteSprites';
 import { MapScene } from './AreaScene';
+import { HgssBuyScreen } from './HgssBuyScreen';
 import { DIALOGUE_TEXT, GAME_HEIGHT, GAME_WIDTH, useGameScale } from './GameScreen';
 
 /** The buy screen's pictures (tools/idle/shop_menu.py). */
@@ -67,17 +68,22 @@ export function MartScene({
   const player = playerSprites(gender).walk;
   const [stage, setStage] = useState<'hello' | 'again' | 'buy' | 'tms' | 'bye'>('hello');
   const tms = tmShopOpen(run.view);
+  // Johto's: HeartGold's buy screen on the DS's two screens (HgssBuyScreen), its clerk's words HGSS's (msg_0040, msg_0435).
+  const hgss = generation().gen === 2;
+  const Buy = hgss ? HgssBuyScreen : BuyScreen;
   if ((stage === 'buy' || stage === 'tms') && !dialogue)
     return (
-      <BuyScreen key={stage} run={run} player={player} busy={busy} onBuy={onBuy} onClose={() => setStage('again')} machines={stage === 'tms' ? [...machineList()] : undefined}>
+      <Buy key={stage} run={run} player={player} busy={busy} onBuy={onBuy} onClose={() => setStage('again')} machines={stage === 'tms' ? [...machineList()] : undefined}>
         {buyChildren}
-      </BuyScreen>
+      </Buy>
     );
   const choices = ['BUY', ...(tms ? ['BUY TM/HM'] : []), 'SEE YA!'];
+  const hello = hgss ? 'Welcome!\nWhat do you need?' : 'Hi, there!\nMay I help you?';
+  const again = hgss ? 'Is there anything else I may do\nfor you?' : 'Is there anything else I can do?';
   const clerk: Dialogue =
     stage === 'bye'
       ? { text: 'Please come again!', answer: () => !busy && onLeave() }
-      : { text: stage === 'hello' ? 'Hi, there!\nMay I help you?' : 'Is there anything else I can do?', choices, answer: (i) => setStage(choices[i] === 'BUY' ? 'buy' : choices[i] === 'BUY TM/HM' ? 'tms' : 'bye') };
+      : { text: stage === 'hello' ? hello : again, choices, answer: (i) => setStage(choices[i] === 'BUY' ? 'buy' : choices[i] === 'BUY TM/HM' ? 'tms' : 'bye') };
   return (
     <MapScene image={map.image} width={map.width} height={map.height} tile={{ x: mart.x, y: mart.y }} player={player} face={mart.face} moveMs={0} people={mart.people.map((p, i) => ({ key: String(i), ...p }))} dialogue={dialogue ?? clerk}>
       {children}

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { IdleOverview } from '../../hooks/useIdle';
 import { ConditionFeeder } from '../contest/ConditionFeeder';
 import { TypeBadge } from './MonIcon';
+import { pokemonPics } from '../../utils/idleLook';
 
 type DexRow = IdleOverview['dex'][number];
 
@@ -49,7 +50,7 @@ export function Pokedex({
                 title={d?.seen ? s.name : '???'}
               >
                 <img
-                  src={`/idle/gen1/pokemon/front/${s.id}.png`}
+                  src={`${pokemonPics()}/front/${s.id}.png`}
                   alt=""
                   className={`size-12 [image-rendering:pixelated] ${d?.caught ? '' : d?.seen ? 'opacity-60 grayscale' : 'opacity-40 brightness-0'}`}
                   draggable={false}
@@ -67,8 +68,8 @@ export function Pokedex({
       {sel && (
         <section className="space-y-2 rounded-lg bg-slate-800 p-4 ring-1 ring-slate-600">
           <div className="flex flex-wrap items-center gap-3">
-            <img src={`/idle/gen1/pokemon/front/${sel.id}.png`} alt="" className="size-16 [image-rendering:pixelated]" draggable={false} />
-            {rec?.shiny && <img src={`/idle/gen1/pokemon/shiny/front/${sel.id}.png`} alt="Shiny" title="Shiny caught" className="size-16 [image-rendering:pixelated]" draggable={false} />}
+            <img src={`${pokemonPics()}/front/${sel.id}.png`} alt="" className="size-16 [image-rendering:pixelated]" draggable={false} />
+            {rec?.shiny && <img src={`${pokemonPics()}/shiny/front/${sel.id}.png`} alt="Shiny" title="Shiny caught" className="size-16 [image-rendering:pixelated]" draggable={false} />}
             <div>
               <div className="font-semibold">
                 No. {String(sel.id).padStart(3, '0')} {rec?.seen ? sel.name : '???'}

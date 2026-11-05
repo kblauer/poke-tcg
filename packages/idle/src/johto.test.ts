@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { areaById, areas, type TownArea } from './areas.js';
+import { catchTextFrame, HGSS_SHAKES_AT, INTRO_MS, introMs } from './battle-timing.js';
 import { leavesShedinja, levelEvolution, stoneEvolution } from './evolution.js';
 import { inGeneration } from './generation.js';
 import { catchUp, createIdleRun, DEFAULT_IDLE_SETTINGS, simulateSegment, storeStock, tmShopOpen, type IdleState } from './idle.js';
@@ -38,6 +39,21 @@ describe("Johto's evolutions", () => {
   });
 });
 
+describe("Johto's battle timing", () => {
+  it("counts HGSS's frames (step 5), Kanto's FireRed's as they were", () => {
+    const kanto = [catchTextFrame(3, true), catchTextFrame(1, false), introMs('wild'), introMs('trainer')];
+    expect(kanto[2]).toBe(INTRO_MS);
+    johto(() => {
+      // The shakes from the throw's 16, the open's 40 and the fall's 39; 32, 32 and 37 each; the click and its stars.
+      expect(HGSS_SHAKES_AT).toBe(16 + 40 + 8 + 11 + 20);
+      expect(catchTextFrame(3, true)).toBe(HGSS_SHAKES_AT + 32 + 32 + 37 + 12 + 22);
+      expect(catchTextFrame(1, false)).toBe(HGSS_SHAKES_AT + 32 + 25);
+      expect(introMs('wild')).toBeGreaterThan(introMs('trainer'));
+    });
+    expect([catchTextFrame(3, true), catchTextFrame(1, false), introMs('wild'), introMs('trainer')]).toEqual(kanto);
+  });
+});
+
 describe("Johto's run", () => {
   it("sells by the badges (HGSS's Poké Mart tiers) and TMs from Goldenrod City on", () => {
     johto(() => {
@@ -56,10 +72,12 @@ describe("Johto's run", () => {
     let s: IdleState = createIdleRun({ species: 158 }, 5, 2);
     const caught = new Set<number>();
     const prizes: number[] = [];
+    const hours = new Set<number>();
     for (let i = 0; i < 12000 && s.phase !== 'won'; i++) {
       const n = simulateSegment(s, DEFAULT_IDLE_SETTINGS, caught);
       expect(n).not.toBeNull();
       for (const e of n!.segment.events) if (e.t === 'money' && e.why.startsWith('Youngster Joey')) prizes.push(e.amount);
+      for (const e of n!.segment.events) if (e.t === 'battle') hours.add(e.hour!);
       for (const d of n!.segment.dex) if (d.caught) caught.add(d.species);
       s = n!.state;
     }
@@ -67,6 +85,9 @@ describe("Johto's run", () => {
     expect(s.badges).toEqual(['Zephyr', 'Hive', 'Plain', 'Fog', 'Storm', 'Mineral', 'Glacier', 'Rising']);
     // HGSS's prize: Joey's Rattata at level 4, ₱4 a level, × 4.
     expect(prizes[0]).toBe(4 * 4 * 4);
+    // Each battle has its hour on the run's clock (its background's palette), and the day goes round.
+    expect([...hours].every((h) => h >= 0 && h < 24)).toBe(true);
+    expect(hours.size).toBe(24);
     const offline = catchUp(createIdleRun({ species: 152 }, 6, 2), DEFAULT_IDLE_SETTINGS, new Set(), 60 * 60 * 1000);
     expect(offline.state.clock).toBeGreaterThan(50 * 60 * 1000);
     expect(offline.summary.battles).toBeGreaterThan(10);

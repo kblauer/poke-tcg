@@ -24,6 +24,7 @@ import { JOHTO_AREAS } from './data/gen2/areas.js';
 import { ENCOUNTERS as JOHTO_ENCOUNTERS } from './data/gen2/encounters.js';
 import { ITEMS as JOHTO_ITEMS } from './data/gen2/items.js';
 import { JOHTO_MAPS } from './data/gen2/maps.js';
+import { JOHTO_TOWN_MAP_GRID, JOHTO_TOWN_MAP_PLACES } from './data/gen2/town-map.js';
 import { MARTS as JOHTO_MARTS } from './data/gen2/marts.js';
 import { MOVES as JOHTO_MOVES } from './data/gen2/moves.js';
 import { SPECIES as JOHTO_SPECIES } from './data/gen2/species.js';
@@ -129,9 +130,10 @@ const JOHTO: Generation = {
   tmLearners: JOHTO_TM_LEARNERS,
   areas: JOHTO_AREAS,
   maps: JOHTO_MAPS,
-  townMapPlaces: [],
+  townMapPlaces: JOHTO_TOWN_MAP_PLACES,
   // A placeholder until Johto's Pokégear map (step 5).
-  townMapGrid: { image: '', imageWidth: 0, imageHeight: 0, x: 0, y: 0, cell: 8, width: 0, height: 0 },
+  // public/idle/gen2/town-map/johto.png: the Pokégear's map, cells 1–29 across and 1–18 down of its 8px grid (tools/idle/johto_town_map.py).
+  townMapGrid: JOHTO_TOWN_MAP_GRID,
   starters: [152, 155, 158],
   battleRules: 4,
   tmShop: 'goldenrod-city',
