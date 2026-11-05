@@ -74,6 +74,7 @@ export function MapScene({
   spotted,
   dialogue,
   fishing,
+  overhead,
   children,
 }: {
   image: string;
@@ -92,6 +93,8 @@ export function MapScene({
   dialogue?: Dialogue | null;
   /** A cast on screen (the user's: fishing): the player's fishing sprite in its phase, in place of the player's. */
   fishing?: { sprite: string; surfing: boolean; phase: 'cast' | 'hooked' | 'away'; stamp: number };
+  /** What's over the player while he's under it (the map's overhead: Goldenrod Gym's bridges, the user's), or nothing. */
+  overhead?: string | null;
   children?: ReactNode;
 }) {
   const phone = useIsPhone();
@@ -137,6 +140,8 @@ export function MapScene({
           {/* The grass after the sprites, so it's over the feet of those on its row. */}
           {people.map((p) => p.grass && <TallGrass key={p.key} tile={{ x: p.x, y: p.y }} />)}
           <GrassTufts tile={tile} grass={grass} map={image} moveMs={moveMs} jump={jump} />
+          {/* A bridge over the player walking under it: above every sprite (zIndex: their row). */}
+          {overhead && <img src={overhead} alt="" draggable={false} className="pointer-events-none absolute inset-0 max-w-none select-none" style={{ width: width * 16, height: height * 16, zIndex: 899 }} />}
         </div>
       </div>
       <div className="pointer-events-none absolute inset-0 bg-black transition-opacity duration-300" style={{ opacity: fading ? 1 : 0 }} />
@@ -208,7 +213,7 @@ export function AreaScene({ playback, gender, dialogue, children }: { playback: 
   const leg = area.legs[Math.min(place.leg, area.legs.length - 1)]!;
   // Grinding, the step round the town's loop (on one of the leg's maps).
   const track = placeTrack(place);
-  const [m, x, y, , tileCode] = track[Math.min(place.step, track.length - 1)]!;
+  const [m, x, y, flags, tileCode] = track[Math.min(place.step, track.length - 1)]!;
   const map = mapView(leg.maps[m]!);
   const water = tileCode[1] === 'w' || tileCode[1] === 'p';
   // Tall grass (MB_TALL_GRASS: the tile's battle terrain).
@@ -242,6 +247,7 @@ export function AreaScene({ playback, gender, dialogue, children }: { playback: 
       people={people}
       spotted={playback.spotted}
       dialogue={dialogue}
+      overhead={map.overhead && flags & 8 ? map.overhead : null}
     >
       {children}
     </MapScene>

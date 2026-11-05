@@ -67,8 +67,19 @@ export interface Generation {
   townMapGrid: TownMapGrid;
   /** The first run's starters. */
   starters: readonly number[];
-  /** Whose battle rules its battles play by (battle.ts): FireRed's (3) or HeartGold's (4: the physical/special split, Gen 4's damage, effects, abilities and items). */
+  /** Whose battle rules its battles play by (battle.ts): FireRed's (3) or HeartGold's (4: the physical/special split, Gen 4's damage, effects, abilities and items; and its wild encounters, encounters4.ts). */
   battleRules: 3 | 4;
+  /** The town from which every store sells TMs and HMs (Buy TMs, the user's: Kanto's Celadon City, Johto's Goldenrod City, their department stores'). */
+  tmShop: string;
+  /** The Champion's room (its area's id): beating its boss wins the run. */
+  champion: string;
+  /** The rods (the user's): each got once the run reaches its area, fishing with one of those it has at random each cast. */
+  rods: readonly { name: string; town: string }[];
+  /**
+   * The run's play clock (the user's, 2026-11-04: IdleState.clock, the segments played, not the computer's clock): a
+   * day's length in play and the hour a run starts at (placeholders), for HGSS's times of day. None: no time of day.
+   */
+  day?: { ms: number; startHour: number };
 }
 
 const KANTO: Generation = {
@@ -92,6 +103,14 @@ const KANTO: Generation = {
   townMapGrid: { image: '/idle/gen1/town-map/kanto.png', imageWidth: 208, imageHeight: 144, x: 16, y: 16, cell: 8, width: 22, height: 15 },
   starters: [1, 4, 7],
   battleRules: 3,
+  tmShop: 'celadon-city',
+  champion: 'champion',
+  // The user's (2026-10-27): the Old Rod in Vermilion City, the Good Rod Fuchsia City, the Super Rod Cinnabar Island.
+  rods: [
+    { name: 'Old Rod', town: 'vermilion-city' },
+    { name: 'Good Rod', town: 'fuchsia-city' },
+    { name: 'Super Rod', town: 'cinnabar-island' },
+  ],
 };
 
 /** Johto (HeartGold/SoulSilver, issue #170): its tables (data/gen2/, tools/idle/hgss_data.py), its areas and maps (tools/idle/johto_areas.py); its Town Map to come (step 5). */
@@ -115,6 +134,17 @@ const JOHTO: Generation = {
   townMapGrid: { image: '', imageWidth: 0, imageHeight: 0, x: 0, y: 0, cell: 8, width: 0, height: 0 },
   starters: [152, 155, 158],
   battleRules: 4,
+  tmShop: 'goldenrod-city',
+  champion: 'lance',
+  // HGSS's Old Rod on Route 32 (its Pokémon Center), the Good Rod in Olivine City; the Super Rod, Route 12's in Kanto, at
+  // the Indigo Plateau (the user's, 2026-11-04).
+  rods: [
+    { name: 'Old Rod', town: 'route-32' },
+    { name: 'Good Rod', town: 'olivine-city' },
+    { name: 'Super Rod', town: 'indigo-plateau' },
+  ],
+  // Placeholders (the user's, 2026-11-04: a 2-hour day, from 10:00).
+  day: { ms: 2 * 60 * 60 * 1000, startHour: 10 },
 };
 
 const GENERATIONS: Record<IdleGen, Generation> = { 1: KANTO, 2: JOHTO };

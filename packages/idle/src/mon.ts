@@ -187,6 +187,8 @@ export interface NewMon {
   moves?: string[];
   item?: string;
   shiny?: boolean;
+  /** Its gender (a wild one's by the lead's Cute Charm, HGSS's), else rolled. */
+  gender?: 'male' | 'female';
 }
 
 /** A new Pokémon: random IVs, nature, gender and ability unless given; its level-up moves so far (or `moves`). */
@@ -202,7 +204,7 @@ export function createMon(rng: Rng, o: NewMon): Mon {
     ivs,
     evs: o.evs ?? [0, 0, 0, 0, 0, 0],
     nature: o.nature ?? int(rng, 25),
-    gender: rollGender(rng, o.species),
+    gender: o.gender ?? rollGender(rng, o.species),
     abilitySlot: s.abilities.length > 1 ? int(rng, 2) : 0,
     moves,
     slots: [],

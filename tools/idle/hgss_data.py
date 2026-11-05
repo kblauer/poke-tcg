@@ -342,6 +342,9 @@ def table(e, game):
     for src, dst in (('old_rod', 'oldRod'), ('good_rod', 'goodRod'), ('super_rod', 'superRod')):
         if e['fishing'][src]['rate']:
             out[dst] = {'rate': e['fishing'][src]['rate'], 'mons': slots(e['fishing'][src]['mons'], game)}
+    # The night's fished Pokémon (EncSlotArray_Update_NightFishing: the Good Rod's slot 3 and the Super Rod's slot 1 from 20:00 to 03:59).
+    if ('goodRod' in out or 'superRod' in out) and species_id.get(version(e.get('nightFish'), game)):
+        out['nightFish'] = species_id[version(e['nightFish'], game)]
     return out
 
 
@@ -349,8 +352,10 @@ def merged(hg, ss):
     """HeartGold's table, its morning and night slots where they differ from the day's, and SoulSilver's Pokémon where its slots differ."""
     out = {}
     for name, t in hg.items():
-        o = ss[name]
-        if name == 'land':
+        o = ss.get(name)
+        if name == 'nightFish':
+            entry = t
+        elif name == 'land':
             entry = {'rate': t['rate'], 'mons': t['day']}
             for time in ('morning', 'night'):
                 if t[time] != t['day']:
@@ -379,7 +384,7 @@ for e in load('files/fielddata/encountdata/gs_enc_data.json')['encounters']:
     if t:
         encounters[e['map']] = t
 write('encounters.ts', 'files/fielddata/encountdata/gs_enc_data.json',
-      "import type { EncounterTable } from '../../types.js';\n\n/** HeartGold's wild tables by map code (R29, D24R0101…): land (the day's slots, the morning's and the night's where they differ), surf (`water`), Rock Smash and the three rods, with SoulSilver's Pokémon where its slots differ ([slot, min level, max level, dex number], by time of day: `soulSilver`). Slots are [min level, max level, dex number]. */\nexport const ENCOUNTERS: Record<string, EncounterTable> = {\n"
+      "import type { EncounterTable } from '../../types.js';\n\n/** HeartGold's wild tables by map code (R29, D24R0101…): land (the day's slots, the morning's and the night's where they differ), surf (`water`), Rock Smash and the three rods (and the night's fished Pokémon, `nightFish`), with SoulSilver's Pokémon where its slots differ ([slot, min level, max level, dex number], by time of day: `soulSilver`). Slots are [min level, max level, dex number]. */\nexport const ENCOUNTERS: Record<string, EncounterTable> = {\n"
       + ''.join(f'  {js(k)}: {js(v)},\n' for k, v in encounters.items()) + '};\n')
 
 # ---- Trainers ----

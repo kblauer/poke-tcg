@@ -1,5 +1,5 @@
 // The Idle Adventure's TMs and HMs (README: Idle Adventure, Buy TMs; the user's, 2026-10-27): every store's Buy TM/HM
-// once the run has reached Celadon City (tmShopOpen, idle.ts), the 50 TMs and the 8 HMs in one list (machineList(); 4 groups
+// once the run has reached Celadon City (Johto's: Goldenrod City; Generation.tmShop, tmShopOpen in idle.ts), the 50 TMs and the 8 HMs in one list (machineList(); 4 groups
 // by first letter before, 2026-10-27), each bought once (BUY), kept in the bag. A machine owned is a move any Pokémon that can learn it (FireRed's
 // tmhm_learnsets.h, data/gen1/tms.ts by tools/idle/firered_tms.py) can have in its slots (SET_SLOTS), never used up.
 import { itemData } from './data.js';
@@ -7,7 +7,6 @@ import { generation, perGeneration } from './generation.js';
 import type { Mon } from './types.js';
 
 /** The area whose reaching opens every store's Buy TMs (the user's). */
-export const TM_SHOP_AREA = 'celadon-city';
 
 /** An HM's price (FireRed sells none: ₱0 in its data); a placeholder for the balance pass. */
 export const HM_PRICE = 3000;

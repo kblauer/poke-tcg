@@ -2,13 +2,15 @@
 4c) from a checkout of the pret/pokeheartgold decompilation: every map in packages/idle/src/data/gen2/maps.ts (written by
 johto_areas.py), as the card runs draw HGSS's maps (tools/routes/hgss/hgss_map.py's `render`: its terrain chunks and
 buildings converted with apicula and drawn tilted), on the same tile grid as the map's tiles (hgss_maps.py's cells, its
-picture's top left their top left, 16 px a tile), to apps/web/public/idle/gen2/maps/<map>.png. The people, item balls,
+picture's top left their top left, 16 px a tile), to apps/web/public/idle/gen2/maps/<map>.png, and a map's overhead
+(its `bridges`' tiles alone: Goldenrod Gym's, drawn over the player under them) to <map>_overhead.png. The people, item balls,
 Cut trees and Strength boulders are events, not in the land data, so they aren't drawn (the boulders left out, the user's).
 A building's inside (MAP_TYPE_INTERIOR) draws with bm_room's buildings. Pictures already there are kept (--force draws
 them again).
 
 Usage: python tools/idle/hgss_render.py <pokeheartgold checkout> [--apicula <apicula.exe>] [--force] [MAP_CONST ...]"""
-import os, re, sys
+import json, os, re, sys
+from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -46,6 +48,19 @@ def main():
         _, _, _, cw, ch, _, _ = hgss_map.render(out, cells, hd.map_header(src, const), room, apicula, src)
         assert (cw * hm.CHUNK, ch * hm.CHUNK) == (w, h), (const, cw, ch, w, h)
         print(const, w, 'x', h)
+    # The overheads (maps.ts's `bridges`, Goldenrod Gym's): those tiles of the picture alone, see-through elsewhere, drawn
+    # over the player while he's under them (as the card runs' johto_gyms.py cuts them).
+    for m in re.finditer(r"image: '/idle/gen2/maps/(\w+)\.png'[^\n]*?overhead: '[^']+', bridges: (\[[^\n]*?\]\])", text):
+        name = m.group(1)
+        if only and 'MAP_' + name.upper() not in only:
+            continue
+        im = Image.open(os.path.join(OUT, name + '.png')).convert('RGBA')
+        top = Image.new('RGBA', im.size, (0, 0, 0, 0))
+        for l, t, r, b in json.loads(m.group(2)):
+            box = (l * 16, t * 16, (r + 1) * 16, (b + 1) * 16)
+            top.paste(im.crop(box), box[:2])
+        top.save(os.path.join(OUT, name + '_overhead.png'))
+        print('MAP_' + name.upper(), 'overhead')
 
 
 if __name__ == '__main__':

@@ -115,6 +115,8 @@ export interface EncounterTable {
   oldRod?: EncounterSlots;
   goodRod?: EncounterSlots;
   superRod?: EncounterSlots;
+  /** HGSS's: the night's fished Pokémon (20:00–03:59: the Good Rod's slot 3, the Super Rod's slot 1). */
+  nightFish?: number;
 }
 
 export interface TrainerMonData {

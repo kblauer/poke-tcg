@@ -22,7 +22,7 @@ export const JOHTO_MAPS: Record<string, IdleMap> = {
   Route34: { name: 'Route34', image: '/idle/gen2/maps/route_34.png', width: 32, height: 96, encounters: 'R34', scene: 'general', section: 'route-34', music: 'SEQ_GS_R_4_34' },
   Goldenrod: { name: 'Goldenrod', image: '/idle/gen2/maps/goldenrod.png', width: 96, height: 64, encounters: '', scene: 'city', section: 'goldenrod-city', music: 'SEQ_GS_C_KOGANE' },
   GoldenrodDepartmentStore2f: { name: 'GoldenrodDepartmentStore2f', image: '/idle/gen2/maps/goldenrod_department_store_2f.png', width: 32, height: 32, encounters: '', scene: 'building-1', section: 'goldenrod-city', music: 'SEQ_GS_FS' },
-  GoldenrodGym: { name: 'GoldenrodGym', image: '/idle/gen2/maps/goldenrod_gym.png', width: 32, height: 32, encounters: '', scene: 'building-1', section: 'goldenrod-city', music: 'SEQ_GS_GYM' },
+  GoldenrodGym: { name: 'GoldenrodGym', image: '/idle/gen2/maps/goldenrod_gym.png', width: 32, height: 32, encounters: '', scene: 'building-1', section: 'goldenrod-city', music: 'SEQ_GS_GYM', overhead: '/idle/gen2/maps/goldenrod_gym_overhead.png', bridges: [[12, 8, 14, 9], [18, 9, 20, 10]] },
   Route35: { name: 'Route35', image: '/idle/gen2/maps/route_35.png', width: 32, height: 64, encounters: 'R35', scene: 'general', section: 'route-35', music: 'SEQ_GS_R_5_34' },
   NationalPark: { name: 'NationalPark', image: '/idle/gen2/maps/national_park.png', width: 96, height: 96, encounters: 'D22R0101', scene: 'general', section: 'national-park', music: 'SEQ_GS_D_KOUEN' },
   Route36: { name: 'Route36', image: '/idle/gen2/maps/route_36.png', width: 96, height: 32, encounters: 'R36', scene: 'general', section: 'route-36', music: 'SEQ_GS_R_5_34' },

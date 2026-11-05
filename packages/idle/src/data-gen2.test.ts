@@ -70,7 +70,8 @@ describe("Johto's data", () => {
     }
     for (const list of Object.values(MARTS)) for (const i of list) expect(ITEMS[i], i).toBeDefined();
     for (const lists of Object.values(MART_CLERKS)) for (const l of lists) expect(l === 'badges' || l in MARTS, l).toBe(true);
-    const tables = Object.values(ENCOUNTERS).flatMap((t) => Object.values(t) as EncounterSlots[]);
+    const tables = Object.values(ENCOUNTERS).flatMap((t) => Object.values(t).filter((v) => typeof v === 'object') as EncounterSlots[]);
+    for (const t of Object.values(ENCOUNTERS)) if (t.nightFish) expect(species(t.nightFish)).toBe(true);
     for (const t of tables) {
       for (const [, , d] of [...t.mons, ...(t.morning ?? []), ...(t.night ?? [])]) expect(species(d)).toBe(true);
       for (const slots of Object.values(t.soulSilver ?? {})) for (const [slot, , , d] of slots) expect(slot < t.mons.length && species(d)).toBe(true);

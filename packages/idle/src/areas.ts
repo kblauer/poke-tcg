@@ -18,13 +18,20 @@ export interface IdleMap {
   music: string;
   /** HGSS's song by night, where it differs. */
   nightMusic?: string;
+  /**
+   * What's drawn over the player while he's under it (the user's, 2026-11-04: Goldenrod Gym's bridges, walked over and
+   * then under): its picture, over him on a track's steps flagged 8, and the tiles it covers (left, top, right, bottom).
+   */
+  overhead?: string;
+  bridges?: [number, number, number, number][];
   /** Its Town Map section (MAPSEC_, lower case: TownMapPlace.section): the Town Map offers a place its own maps' grinds. */
   section: string;
 }
 
 /**
  * A step of a track: the map (its index in the leg's maps), the tile, flags (1: reached through a fade, a warp or a
- * gatehouse; 2: jumped onto over a ledge; 4: slid onto across ice, HGSS's maps) and the tile's wild encounters ('l' land, 'w' water, '.' none) and battle
+ * gatehouse; 2: jumped onto over a ledge; 4: slid onto across ice, HGSS's maps; 8: under the map's overhead, Goldenrod
+ * Gym's bridges) and the tile's wild encounters ('l' land, 'w' water, '.' none) and battle
  * terrain (Terrain's first letter: g grass, s sand, w water, p pond, m mountain, c cave, b building, '.' plain; HGSS's n snow, i ice).
  */
 export type TrackStep = [map: number, x: number, y: number, flags: number, tile: string];
