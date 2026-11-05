@@ -1,11 +1,13 @@
-import { AREAS, isMachine, ITEMS, MACHINES, machineMove, machinePrice, mapView, moveData, tmShopOpen, type TownArea } from '@poke-tcg/idle';
+import { generation, areas, isMachine, machineList, machineMove, machinePrice, mapView, moveData, tmShopOpen, type TownArea } from '@poke-tcg/idle';
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useEscape } from '../../hooks/useEscape';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import type { ClientIdleRun } from '../../hooks/useIdle';
+import { playerSprites } from '../../utils/idleLook';
 import { DialogueBox, dialogueKey, type Dialogue } from '../DialogueBox';
 import { OverworldSprite } from '../run/RouteSprites';
 import { MapScene } from './AreaScene';
+import { HgssBuyScreen } from './HgssBuyScreen';
 import { DIALOGUE_TEXT, GAME_HEIGHT, GAME_WIDTH, useGameScale } from './GameScreen';
 
 /** The buy screen's pictures (tools/idle/shop_menu.py). */
@@ -25,17 +27,17 @@ const SMALL: CSSProperties = { ...FONT, fontSize: 9 };
 const caps = (name: string) => name.toUpperCase().replace(/É/g, 'é');
 
 /** An item's name in the lists: a TM or HM with its move (TM28 DIG). */
-const itemName = (item: string) => caps(ITEMS[item]!.name) + (isMachine(item) ? ` ${caps(moveData(machineMove(item)).name)}` : '');
+const itemName = (item: string) => caps(generation().items[item]!.name) + (isMachine(item) ? ` ${caps(moveData(machineMove(item)).name)}` : '');
 
 /** An item's price: a TM's or HM's machinePrice (HMs' a placeholder). */
-const priceOf = (item: string) => (isMachine(item) ? machinePrice(item) : ITEMS[item]!.price);
+const priceOf = (item: string) => (isMachine(item) ? machinePrice(item) : generation().items[item]!.price);
 
 /**
  * The town's Poké Mart (the user's: the store moves the player into the town's own mart, and its list is the game's own
  * buy screen): the mart's map with the player at the counter across from its clerk (TownArea.mart), the clerk's "May I
  * help you?" with BUY and SEE YA!; BUY opens FireRed's buy screen (BuyScreen), its CANCEL back to the counter ("anything
  * else"), SEE YA! "Please come again!", then out (`onLeave`: LEAVE_STORE). From Celadon City on (tmShopOpen, the
- * user's), BUY TM/HM too: the buy screen with every TM and HM in one list (MACHINES, `machines`), CANCEL back to the
+ * user's), BUY TM/HM too: the buy screen with every TM and HM in one list (machineList(), `machines`), CANCEL back to the
  * counter. The town doesn't go on while the player is in
  * here (IdleState.inStore). `dialogue` (the catch-up's pages) comes first; `children` over the scene (the overlays).
  */
@@ -60,25 +62,30 @@ export function MartScene({
   /** The overlays over the buy screen. */
   buyChildren?: ReactNode;
 }) {
-  const town = AREAS[run.view.area] as TownArea;
+  const town = areas()[run.view.area] as TownArea;
   const mart = town.mart;
   const map = mapView(mart.map);
-  const player = gender === 'female' ? 'leaf' : 'red';
+  const player = playerSprites(gender).walk;
   const [stage, setStage] = useState<'hello' | 'again' | 'buy' | 'tms' | 'bye'>('hello');
   const tms = tmShopOpen(run.view);
+  // Johto's: HeartGold's buy screen on the DS's two screens (HgssBuyScreen), its clerk's words HGSS's (msg_0040, msg_0435).
+  const hgss = generation().gen === 2;
+  const Buy = hgss ? HgssBuyScreen : BuyScreen;
   if ((stage === 'buy' || stage === 'tms') && !dialogue)
     return (
-      <BuyScreen key={stage} run={run} player={player} busy={busy} onBuy={onBuy} onClose={() => setStage('again')} machines={stage === 'tms' ? [...MACHINES] : undefined}>
+      <Buy key={stage} run={run} player={player} busy={busy} onBuy={onBuy} onClose={() => setStage('again')} machines={stage === 'tms' ? [...machineList()] : undefined}>
         {buyChildren}
-      </BuyScreen>
+      </Buy>
     );
   const choices = ['BUY', ...(tms ? ['BUY TM/HM'] : []), 'SEE YA!'];
+  const hello = hgss ? 'Welcome!\nWhat do you need?' : 'Hi, there!\nMay I help you?';
+  const again = hgss ? 'Is there anything else I may do\nfor you?' : 'Is there anything else I can do?';
   const clerk: Dialogue =
     stage === 'bye'
       ? { text: 'Please come again!', answer: () => !busy && onLeave() }
-      : { text: stage === 'hello' ? 'Hi, there!\nMay I help you?' : 'Is there anything else I can do?', choices, answer: (i) => setStage(choices[i] === 'BUY' ? 'buy' : choices[i] === 'BUY TM/HM' ? 'tms' : 'bye') };
+      : { text: stage === 'hello' ? hello : again, choices, answer: (i) => setStage(choices[i] === 'BUY' ? 'buy' : choices[i] === 'BUY TM/HM' ? 'tms' : 'bye') };
   return (
-    <MapScene image={map.image} width={map.width} height={map.height} tile={{ x: mart.x, y: mart.y }} player={player} face={mart.face} moveMs={0} people={mart.people.map((p, i) => ({ key: String(i), ...p }))} dialogue={dialogue ?? clerk}>
+    <MapScene image={map.image} top={map.top} width={map.width} height={map.height} tile={{ x: mart.x, y: mart.y }} player={player} face={mart.face} moveMs={0} people={mart.people.map((p, i) => ({ key: String(i), ...p }))} dialogue={dialogue ?? clerk}>
       {children}
     </MapScene>
   );
@@ -154,7 +161,7 @@ function BuyScreen({ run, player, busy, onBuy, onClose, machines, children }: { 
   const phone = useIsPhone();
   const { ref, scale } = useGameScale();
   const pressDialogue = useRef<(() => void) | null>(null);
-  const town = AREAS[run.view.area] as TownArea;
+  const town = areas()[run.view.area] as TownArea;
   const mart = town.mart;
   const map = mapView(mart.map);
   const stock = machines ?? run.view.store;
@@ -291,6 +298,8 @@ function BuyScreen({ run, player, busy, onBuy, onClose, machines, children }: { 
               {people.map((p, i) => (
                 <OverworldSprite key={i} name={p.sprite} tile={{ x: p.x, y: p.y }} face={p.face} />
               ))}
+              {/* The counter's near edge over the clerk and the player (the map's top layer). */}
+              {map.top && <img src={map.top} alt="" className="absolute left-0 top-0 max-w-none" style={{ width: map.width * 16, height: map.height * 16, zIndex: 899 }} draggable={false} />}
             </div>
             <img src={`${SHOP}/${listing ? 'frame' : 'frame_quantity'}.png`} alt="" className="absolute left-0 top-0" style={{ width: GAME_WIDTH, height: GAME_HEIGHT }} draggable={false} />
             {/* The money box (window 0's 8 by 3 tiles; the user's: on the left, just above the description's bar, not in the
@@ -328,7 +337,7 @@ function BuyScreen({ run, player, busy, onBuy, onClose, machines, children }: { 
             {/* The item's description (window 5: 5,14) and icon (at 24,140), hidden while it's being bought. */}
             {listing && (
               <Text x={40} y={115} style={{ ...NORMAL, ...WHITE, lineHeight: '15px' }}>
-                {item ? ITEMS[item]!.description : 'Quit shopping.'}
+                {item ? generation().items[item]!.description : 'Quit shopping.'}
               </Text>
             )}
             <img src={`${SHOP}/items/${item ?? 'cancel'}.png`} alt="" className="absolute" style={{ left: 8, top: 124, width: 24, height: 24 }} draggable={false} />

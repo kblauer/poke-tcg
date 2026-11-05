@@ -419,18 +419,45 @@ export const IDLE_MAP_MUSIC: Record<Soundtrack, Record<string, Song>> = {
 };
 
 /**
- * The Idle Adventure's music: a map's song (IDLE_MAP_MUSIC; Surfing on the water, the bike's on the Cycling Road, where the
+ * The same for HeartGold's maps (issue #170, step 5: each map header's song by day, its SEQ_ constant), the Gold album's
+ * for the original soundtrack: the Gold album has no Union Cave, Ice Path, Victory Road or Poké Mart theme, so those
+ * play Rock Tunnel's (the caves), Route 26's (Victory Road) and the Pokémon Center's (the marts); Olivine plays Violet
+ * City's, Mahogany Cherrygrove's and Blackthorn Azalea's in Gold, as the run maps have them; the League's rooms and the
+ * Indigo Plateau (SEQ_GS_CHAMPROAD) the League's theme.
+ */
+export const IDLE_JOHTO_MUSIC: Record<Soundtrack, Record<string, Song>> = {
+  original: Object.fromEntries(
+    Object.entries({
+      SEQ_GS_T_WAKABA: 'New Bark Town', SEQ_GS_UTSUGI_RABO: 'Pokémon Lab', SEQ_GS_R_1_29: 'Route 29', SEQ_GS_C_YOSHINO: 'Cherrygrove City', SEQ_GS_R_1_30: 'Route 30', SEQ_GS_R_2_30: 'Route 30', SEQ_GS_R_3_30: 'Route 30',
+      SEQ_GS_C_KIKYOU: 'Violet City', SEQ_GS_GYM: 'Pokémon Gym', SEQ_GS_FS: 'Pokémon Center', SEQ_GS_D_CHIKATSUURO: 'Rock Tunnel', SEQ_GS_T_HIWADA: 'Azalea Town', SEQ_GS_R_4_34: 'Route 34', SEQ_GS_R_5_34: 'Route 34', SEQ_GS_R_6_34: 'Route 34',
+      SEQ_GS_C_KOGANE: 'Goldenrod City', SEQ_GS_D_KOUEN: 'National Park', SEQ_GS_C_ENJU: 'Ecruteak City', SEQ_GS_R_6_38: 'Route 38', SEQ_GS_C_ASAGI: 'Violet City', SEQ_GS_C_TANBA: 'Ecruteak City', SEQ_GS_R_7_42: 'Route 42',
+      SEQ_GS_T_CHOUJI: 'Cherrygrove City', SEQ_GS_D_KOORINONUKE: 'Rock Tunnel', SEQ_GS_C_FUSUBE: 'Azalea Town', SEQ_GS_R_1_26: 'Route 26', SEQ_GS_D_CHAMPROAD: 'Route 26', SEQ_GS_CHAMPROAD: 'Pokémon League',
+    }).map(([k, title]) => [k, { game: 'Gold, Silver & Crystal', title }]),
+  ),
+  remastered: Object.fromEntries(
+    Object.entries({
+      SEQ_GS_T_WAKABA: 'New Bark Town', SEQ_GS_UTSUGI_RABO: 'Elm Pokémon Lab', SEQ_GS_R_1_29: 'Route 29', SEQ_GS_C_YOSHINO: 'Cherrygrove City', SEQ_GS_R_1_30: 'Route 30', SEQ_GS_R_2_30: 'Route 30', SEQ_GS_R_3_30: 'Route 30',
+      SEQ_GS_C_KIKYOU: 'Violet City', SEQ_GS_GYM: 'Pokémon Gym', SEQ_GS_FS: 'Poké Mart', SEQ_GS_D_CHIKATSUURO: 'Union Cave', SEQ_GS_T_HIWADA: 'Azalea Town', SEQ_GS_R_4_34: 'Route 34', SEQ_GS_R_5_34: 'Route 34', SEQ_GS_R_6_34: 'Route 34',
+      SEQ_GS_C_KOGANE: 'Goldenrod City', SEQ_GS_D_KOUEN: 'National Park', SEQ_GS_C_ENJU: 'Ecruteak City', SEQ_GS_R_6_38: 'Route 38', SEQ_GS_C_ASAGI: 'Violet City', SEQ_GS_C_TANBA: 'Cianwood City', SEQ_GS_R_7_42: 'Route 42',
+      SEQ_GS_T_CHOUJI: 'Cherrygrove City', SEQ_GS_D_KOORINONUKE: 'Ice Path', SEQ_GS_C_FUSUBE: 'Azalea Town', SEQ_GS_R_1_26: 'Route 26', SEQ_GS_D_CHAMPROAD: 'Victory Road', SEQ_GS_CHAMPROAD: 'The Pokémon League',
+    }).map(([k, title]) => [k, { game: 'HeartGold & SoulSilver', title }]),
+  ),
+};
+
+/**
+ * The Idle Adventure's music in a run's region (`gen`: Kanto's FireRed and Red albums, Johto's HeartGold and Gold): a map's song (IDLE_MAP_MUSIC, IDLE_JOHTO_MUSIC; Surfing on the water, the bike's on the Cycling Road, where the
  * page says FireRed plays them), or a battle's: the wild, trainer,
  * gym leader (and Elite Four) or Champion theme, from the start, or the Hall of Fame once the Champion is beaten.
  */
-export function idleMusic(soundtrack: Soundtrack, place: { map: string; surfing?: boolean; cycling?: boolean } | { battle: 'wild' | 'trainer' | 'leader' | 'champion'; id: string } | { won: true }): MusicCue {
-  const m = regionMusic(1, soundtrack);
+export function idleMusic(soundtrack: Soundtrack, place: { map: string; surfing?: boolean; cycling?: boolean } | { battle: 'wild' | 'trainer' | 'leader' | 'champion'; id: string } | { won: true }, gen: 1 | 2 = 1): MusicCue {
+  const m = regionMusic(gen, soundtrack);
   if ('won' in place) return { key: `idle:won:${m.victory}`, songs: [song(m, m.victory)], seed: 'idle' };
   if ('battle' in place) {
     const title = place.battle === 'wild' ? m.trainer[1]! : place.battle === 'trainer' ? m.trainer[0]! : place.battle === 'leader' ? m.gymLeader : m.champion;
     return { key: `idle:battle:${place.id}`, songs: [song(m, title)], seed: place.id, fromStart: true, cut: true };
   }
-  const s = place.surfing ? song(m, m.surf) : place.cycling ? song(m, m.bike) : (IDLE_MAP_MUSIC[soundtrack][place.map] ?? song(m, m.routes['Route 4']!));
+  const maps = gen === 2 ? IDLE_JOHTO_MUSIC : IDLE_MAP_MUSIC;
+  const s = place.surfing ? song(m, m.surf) : place.cycling ? song(m, m.bike) : (maps[soundtrack][place.map] ?? song(m, gen === 2 ? 'Route 30' : m.routes['Route 4']!));
   return { key: `idle:${s.game}:${s.title}`, songs: [s], seed: 'idle' };
 }
 

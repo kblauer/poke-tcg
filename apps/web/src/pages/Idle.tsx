@@ -1,6 +1,6 @@
 import { idleMusic } from '@poke-tcg/campaign';
-import { AREAS, cuts, mapView, species, TICK_MS, type IdleAction, type WalkArea } from '@poke-tcg/idle';
-import { useState } from 'react';
+import { areas, cuts, dexSpecies, mapView, showGeneration, TICK_MS, type IdleAction, type IdleGen, type WalkArea } from '@poke-tcg/idle';
+import { useEffect, useState } from 'react';
 import type { Dialogue } from '../components/DialogueBox';
 import { useMusicCue, useMusicSettings } from '../components/MusicPlayer';
 import { PageHeader } from '../components/PageHeader';
@@ -22,6 +22,7 @@ import { placeOf, placeTrack, useIdleActions, useIdleOverview, useIdlePlayback, 
 import { useRun } from '../hooks/useRun';
 import { useToasts } from '../hooks/useToasts';
 import { DEBUG_BUILD, useDebugEnabled } from '../utils/debug';
+import { idleSpeed, useIdleSpeed } from '../utils/idleSpeed';
 import { PAGE_WIDTH } from '../utils/layout';
 import { commas } from '../utils/math';
 import { BUTTON } from '../utils/styles';
@@ -35,7 +36,8 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'log', label: 'Log' },
 ];
 
-const name = (id: number) => species(id).name;
+/** A species' name, any region's (the last run's party may be another region's than the one picked: dexSpecies). */
+const name = (id: number) => dexSpecies(id).name;
 
 /** The battle music's kind for a battle (the Champion's, a gym leader's or the Elite Four's, a trainer's, a wild one). */
 const battleKind = (trainer: string | undefined) => (!trainer ? 'wild' : trainer.startsWith('champion') ? 'champion' : trainer.startsWith('leader') || trainer.startsWith('elite-four') ? 'leader' : 'trainer');
@@ -56,6 +58,8 @@ export function IdlePage() {
   const gender = useRun().overview.data?.playerGender === 'female' ? 'female' : 'male';
   const debugOn = useDebugEnabled();
   const debug = DEBUG_BUILD && debugOn;
+  // Debug mode's ×3 speed (the user's, 2026-11-04: idleSpeed), set before the playback below reads it.
+  const [speed, setFast] = useIdleSpeed(debug);
   const soundtrack = useMusicSettings()?.soundtrack ?? 'remastered';
   const [tab, setTab] = useState<Tab>('bag');
   // The party overlay's open (kept as the scene changes: the map, a battle, a town).
@@ -65,6 +69,16 @@ export function IdlePage() {
   const run = data?.run ?? null;
   const active = run?.status === 'ACTIVE' ? run : null;
   const settings = data?.settings;
+  // The region a new run starts in (the user's, issue #170): every region listed, those not open yet (Johto until a Kanto
+  // run has beaten the Champion) greyed out with why, but in debug mode (the user's, 2026-11-04: any).
+  const [pickGen, setPickGen] = useState<IdleGen>(1);
+  const regions = data?.generations ?? [];
+  const startable = (g: (typeof regions)[number]) => !g.locked || debug;
+  const picked = regions.find((g) => g.gen === pickGen && startable(g)) ?? regions.find(startable);
+  // The shown run's region's tables (its maps, species, areas) for everything on the page; Kanto's once it closes.
+  const shownGen = active?.view.gen ?? (active ? 1 : (picked?.gen ?? 1));
+  showGeneration(shownGen);
+  useEffect(() => () => showGeneration(1), []);
   const { play, summary, closeSummary, actOn, acted, interrupt, throwBall, throwing } = useIdlePlayback(active, name, (m) => toasts.push('error', m));
   // A town on screen waits for the player however long (the user's): only time away is played by its wait.
   useTownHere(active);
@@ -80,8 +94,8 @@ export function IdlePage() {
   // water too), but on Route 23, Victory Road and the Indigo Plateau (Overworld_MusicCanOverrideMapMusic); the bike's on
   // the Cycling Road (Route 17), where the game puts the player on the bike.
   const place = active ? (play.place ?? placeOf(active.view)) : null;
-  const area = place ? AREAS[place.area] : null;
-  let mapName: string | null = active ? null : 'PalletTown_ProfessorOaksLab';
+  const area = place ? areas()[place.area] : null;
+  let mapName: string | null = active ? null : picked?.gen === 2 ? 'NewBarkElmsLab1f' : 'PalletTown_ProfessorOaksLab';
   let surfing = false;
   if (area && 'legs' in area) {
     const leg = area.legs[Math.min(place!.leg, area.legs.length - 1)]!;
@@ -97,11 +111,11 @@ export function IdlePage() {
   const fight = active ? (play.battle ?? play.cue) : null;
   useMusicCue(
     fight
-      ? idleMusic(soundtrack, { battle: battleKind(fight.trainer), id: `${run?.id}:${play.segment}` })
+      ? idleMusic(soundtrack, { battle: battleKind(fight.trainer), id: `${run?.id}:${play.segment}` }, shownGen)
       : run?.view.phase === 'won'
-        ? idleMusic(soundtrack, { won: true })
+        ? idleMusic(soundtrack, { won: true }, run.view.gen ?? 1)
         : mapMusic
-          ? idleMusic(soundtrack, { map: mapMusic, surfing, cycling })
+          ? idleMusic(soundtrack, { map: mapMusic, surfing, cycling }, shownGen)
           : null,
   );
 
@@ -128,7 +142,7 @@ export function IdlePage() {
           .then((r) => (acted(r.run), true))
           .catch((e: unknown) => (failed(e), false))
       : Promise.resolve(false);
-  const start = (id: number, shiny = false) => actions.start(id, shiny).catch(failed);
+  const start = (id: number, shiny = false) => picked && actions.start(id, shiny, picked.gen, !!picked.locked).catch(failed);
   const v = run?.view;
   // The party over the game screen (the user's): its button in the screen's top right corner, its slots sliding out; and
   // the Town Map's button in its top left corner, on every scene (the user's, in place of the mode drop-down), and the
@@ -157,7 +171,7 @@ export function IdlePage() {
     <div className={`${PAGE_WIDTH} space-y-4`}>
       <PageHeader
         title="Idle Adventure"
-        info={active && v ? `${v.areaName}${v.phase === 'grinding' ? ` (grinding to Lv. ${v.grindTarget})` : v.loop ? (v.loop.kind === 'fish' ? ' (fishing)' : ' (grinding)') : ''} · ${v.badges.length} badge${v.badges.length === 1 ? '' : 's'} · ₱${commas(v.money)}` : 'Walk Kanto from Pallet Town to the Indigo Plateau'}
+        info={active && v ? `${v.areaName}${v.phase === 'grinding' ? ` (grinding to Lv. ${v.grindTarget})` : v.loop ? (v.loop.kind === 'fish' ? ' (fishing)' : ' (grinding)') : ''} · ${v.badges.length} badge${v.badges.length === 1 ? '' : 's'} · ₱${commas(v.money)}` : picked?.gen === 2 ? 'Walk Johto from New Bark Town to the Indigo Plateau' : 'Walk Kanto from Pallet Town to the Indigo Plateau'}
         actions={
           active ? (
             <span className="flex items-center gap-2">
@@ -204,12 +218,30 @@ export function IdlePage() {
               </div>
             </section>
           )}
-          <StarterScene gender={gender} busy={actions.busy} onPick={(id) => start(id)} dialogue={catchUp} />
-          {(data.starters.length > 3 || data.shinyStarters.length > 0) && (
+          {regions.length > 1 && (
+            <label className="flex flex-wrap items-center gap-2 text-sm">
+              Region
+              <select className="rounded bg-slate-700 px-2 py-1" value={picked?.gen} onChange={(e) => setPickGen(Number(e.target.value) as IdleGen)}>
+                {regions.map((g) => (
+                  <option key={g.gen} value={g.gen} disabled={!startable(g)} title={g.locked ?? undefined}>
+                    {g.region}
+                    {g.locked ? (debug ? ' (debug: locked)' : ' (locked)') : ''}
+                  </option>
+                ))}
+              </select>
+              {regions.filter((g) => g.locked && !debug).map((g) => (
+                <span key={g.gen} className="text-slate-400">
+                  {g.locked}.
+                </span>
+              ))}
+            </label>
+          )}
+          <StarterScene key={picked?.gen} gender={gender} busy={actions.busy} onPick={(id) => void start(id)} dialogue={catchUp} />
+          {picked && (picked.starters.length > 3 || picked.shinyStarters.length > 0) && (
             <section className="space-y-2">
               <h3 className="text-lg font-semibold">Or start from your Pokédex</h3>
               <p className="text-sm text-slate-400">Any species you've caught, at level 5 with its best IVs and EVs on record.</p>
-              <Pokedex dex={data.dex} starters={data.starters} shinyStarters={data.shinyStarters} onPick={start} busy={actions.busy} />
+              <Pokedex dex={data.dex} starters={picked.starters} shinyStarters={picked.shinyStarters} onPick={(id, shiny) => void start(id, shiny)} busy={actions.busy} />
             </section>
           )}
           <ReturnToPlay />
@@ -233,7 +265,15 @@ export function IdlePage() {
           {overlays()}
         </TownMenu>
       ) : play.battle ? (
-        <BattleScreen battle={play.battle} shown={play.shown} gender={gender} dialogue={catchUp} onThrow={throwBall} throwing={throwing}>
+        <BattleScreen
+          battle={play.battle}
+          shown={play.shown}
+          gender={gender}
+          dialogue={catchUp}
+          onThrow={() => throwBall()}
+          onThrowMaster={(active?.view.bag['master-ball'] ?? 0) > 0 ? () => throwBall(true) : undefined}
+          throwing={throwing}
+        >
           {overlays()}
         </BattleScreen>
       ) : (
@@ -265,7 +305,7 @@ export function IdlePage() {
           )}
           <Badges badges={v.badges} />
           {debug && <DebugWarp run={active} onWarp={(id) => void actions.warp(active, id).catch(failed)} />}
-          {debug && <DebugCheats run={active} onMoney={() => void actions.money(active).catch(failed)} onCatch={(on) => void actions.sureCatch(active, on).catch(failed)} />}
+          {debug && <DebugCheats run={active} onMoney={() => void actions.money(active).catch(failed)} onCatch={(on) => void actions.sureCatch(active, on).catch(failed)} fast={speed > 1} onFast={setFast} />}
         </section>
       )}
       <Toasts toasts={toasts.toasts} />
@@ -282,9 +322,9 @@ function TickMeter({ turn, tickAt }: { turn: number | null; tickAt: number }) {
     <div className={`mx-auto flex w-full max-w-60 items-center gap-2 text-xs text-slate-400 ${turn === null ? 'invisible' : ''}`} aria-hidden={turn === null || undefined}>
       <span className="shrink-0 tabular-nums">Turn {turn ?? 0}</span>
       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-700">
-        {turn !== null && <div key={`${tickAt}:${turn}`} className="h-full origin-left rounded-full bg-yellow-300" style={{ animation: `idle-tick ${TICK_MS}ms linear 1 both` }} />}
+        {turn !== null && <div key={`${tickAt}:${turn}`} className="h-full origin-left rounded-full bg-yellow-300" style={{ animation: `idle-tick ${TICK_MS / idleSpeed()}ms linear 1 both` }} />}
       </div>
-      <span className="shrink-0 tabular-nums">{TICK_MS / 1000} s</span>
+      <span className="shrink-0 tabular-nums">{Math.round(TICK_MS / idleSpeed() / 100) / 10} s</span>
     </div>
   );
 }
@@ -295,10 +335,14 @@ function Badges({ badges }: { badges: string[] }) {
   return <p className="text-xs text-slate-400">Badges: {badges.join(', ')}</p>;
 }
 
-/** Debug (debug builds only, refused in production): ₱1,000,000 more for the run, and every ball thrown catching. */
-function DebugCheats({ run, onMoney, onCatch }: { run: ClientIdleRun; onMoney: () => void; onCatch: (on: boolean) => void }) {
+/** Debug (debug builds only, refused in production): ₱1,000,000 more for the run, every ball thrown catching, and ×3 speed. */
+function DebugCheats({ run, onMoney, onCatch, fast, onFast }: { run: ClientIdleRun; onMoney: () => void; onCatch: (on: boolean) => void; fast: boolean; onFast: (on: boolean) => void }) {
   return (
     <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+      <label className="flex items-center gap-1.5" title="Every wait, step and animation three times faster (from the next segment)">
+        <input type="checkbox" checked={fast} onChange={(e) => onFast(e.target.checked)} />
+        Debug: ×3 speed
+      </label>
       <button className={BUTTON} onClick={onMoney}>
         Debug: +₱1,000,000
       </button>
@@ -315,8 +359,8 @@ function DebugWarp({ run, onWarp }: { run: ClientIdleRun; onWarp: (area: string)
   return (
     <label className="flex items-center gap-2 text-xs text-slate-400">
       Debug: warp to
-      <select className="rounded bg-slate-700 px-2 py-1 ring-1 ring-slate-600" value={AREAS[run.view.area]!.id} onChange={(e) => onWarp(e.target.value)}>
-        {AREAS.map((a) => (
+      <select className="rounded bg-slate-700 px-2 py-1 ring-1 ring-slate-600" value={areas()[run.view.area]!.id} onChange={(e) => onWarp(e.target.value)}>
+        {areas().map((a) => (
           <option key={a.id} value={a.id}>
             {a.name}
             {a.kind === 'gym' ? ` (${(a as WalkArea).leader})` : ''}

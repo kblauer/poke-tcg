@@ -1,10 +1,11 @@
-import { AREAS, areaIndex, areaOpen, atProgress, isTown, legendError, legendOf, mapGrindPlan, mapView, modeOf, reachedArea, species, TOWN_MAP_GRID, TOWN_MAP_PLACES, townMapArea, townMapAreas, townMapPlaceOf, travelError, wildSpots, type IdleAction, type IdleMode, type TownMapPlace } from '@poke-tcg/idle';
+import { generation, areas, areaIndex, areaOpen, atProgress, isTown, legendError, legendOf, mapGrindPlan, mapView, modeOf, reachedArea, species, townMapGrid, townMapPlaces, townMapArea, townMapAreas, townMapPlaceOf, travelError, wildSpots, type IdleAction, type IdleMode, type TownMapPlace } from '@poke-tcg/idle';
 import { useState } from 'react';
 import { useEscape } from '../../hooks/useEscape';
 import type { ClientIdleRun } from '../../hooks/useIdle';
+import { gameSize } from './GameScreen';
 
-/** One game pixel of FireRed's 240x160 screen, in the game screen's width (container query units). */
-const px = (n: number) => `${(n * 100) / 240}cqw`;
+/** One game pixel of the region's screen (FireRed's 240 wide, HGSS's 256: gameSize), in the game screen's width (container query units). */
+const px = (n: number) => `${(n * 100) / gameSize().w}cqw`;
 
 /**
  * The Map button's place: the game screen's top left corner on every scene (the user's, 2026-10-27; the store's buy
@@ -17,11 +18,15 @@ const FRAME = { border: '#4a4a62', on: '#3994de', shade: '#297bb4', bar: '#28386
 const TEXT = { fontFamily: '"Pokemon Emerald", monospace', fontSize: px(8), lineHeight: 1 };
 /** FireRed's white box with its dark border (the menus' window). */
 const BOX = { background: '#ffffff', border: `${px(1)} solid ${FRAME.border}`, borderRadius: px(4), boxShadow: `0 ${px(1)} 0 rgba(0,0,0,0.35)` };
-/** The map's picture is drawn where the game draws it: (16, 16) on the screen, its grid's cells from (32, 32). */
-const MAP_X = 16;
-const MAP_Y = 16;
-const cellX = (x: number) => MAP_X + TOWN_MAP_GRID.x + x * TOWN_MAP_GRID.cell;
-const cellY = (y: number) => MAP_Y + TOWN_MAP_GRID.y + y * TOWN_MAP_GRID.cell;
+/**
+ * The map's picture is drawn where the game draws it: Kanto's at (16, 16) on the screen, its grid's cells from (32, 32);
+ * Johto's Pokégear map (232x144, tools/idle/johto_town_map.py) centred under the top bar on HGSS's 256x192.
+ */
+const mapAt = () => (generation().gen === 2 ? { x: 12, y: 32 } : { x: 16, y: 16 });
+const cellX = (x: number) => mapAt().x + townMapGrid().x + x * townMapGrid().cell;
+const cellY = (y: number) => mapAt().y + townMapGrid().y + y * townMapGrid().cell;
+/** The player's icon on the map: FireRed's Red or Leaf, the Pokégear's Ethan or Lyra. */
+const playerIcon = (gender: 'male' | 'female') => (generation().gen === 2 ? `/idle/gen2/town-map/${gender === 'female' ? 'lyra' : 'ethan'}.png` : `/idle/gen1/town-map/${gender === 'female' ? 'leaf' : 'red'}.png`);
 /** The route choice's box: its least width, a choice's height and the gap between them (game pixels). */
 const CHOICE_W = 88;
 const CHOICE_ROW = 14;
@@ -33,7 +38,7 @@ const MODE_LABEL: Record<IdleMode, string> = { route: 'Walking', wild: 'Wild gri
 /**
  * The Town Map (the user's, in place of the mode drop-down): a Map button in the game screen's top left corner, on
  * every scene, opens FireRed's Kanto map (region_map.c's, by tools/idle/town_map.py) over the game screen. Its places
- * are the run's towns, routes and dungeons (TOWN_MAP_PLACES); those not reached yet are darkened. A town clicked takes
+ * are the run's towns, routes and dungeons (townMapPlaces()); those not reached yet are darkened. A town clicked takes
  * the run there (TRAVEL), its usual choices waiting; a route or dungeon clicked offers Wild grind and Trainer grind there
  * (GRIND_AT; one that can't start greyed out with why, mapGrindPlan), a wild grind for each of the place's own maps' wild
  * tables, walked, surfed and fished (a floor, a zone; Route 17's on Route 17, the user's: wildSpots, IdleMap.section), and
@@ -56,7 +61,7 @@ export function TownMap({ view, busy, gender, onAct }: { view: ClientIdleRun['vi
   const reached = reachedArea(view);
   const mode = typeof waiting === 'string' ? waiting : modeOf(view);
   // Where the run is: grinding from a town (its auto-grind), on the town's grind route.
-  const area = AREAS[view.area]!;
+  const area = areas()[view.area]!;
   const at = view.phase === 'grinding' && isTown(area) && area.grind ? areaIndex(area.grind.area) : view.area;
   // On the map the run walks (Route 17 of Routes 16, 17 and 18: its own place).
   const leg = view.phase === 'walking' && 'legs' in area ? area.legs[view.leg] : undefined;
@@ -78,8 +83,8 @@ export function TownMap({ view, busy, gender, onAct }: { view: ClientIdleRun['vi
       const index = townMapArea(place, reached);
       return index === null ? [] : [{ place, index }];
     });
-    const walk = open.find((o) => !isTown(AREAS[o.index]!));
-    const town = open.find((o) => isTown(AREAS[o.index]!));
+    const walk = open.find((o) => !isTown(areas()[o.index]!));
+    const town = open.find((o) => isTown(areas()[o.index]!));
     if (walk) return setPicked({ place: walk.place, area: walk.index, town: town?.index ?? null, x, y });
     if (!town) return;
     const error = travelError(view, town.index);
@@ -90,7 +95,7 @@ export function TownMap({ view, busy, gender, onAct }: { view: ClientIdleRun['vi
   // Each cell once, its places the dungeons' layer first (a dungeon's cell over its route's or its town's).
   const cells: { x: number; y: number; places: TownMapPlace[] }[] = [];
   for (const layer of ['dungeon', 'map'] as const)
-    for (const place of TOWN_MAP_PLACES)
+    for (const place of townMapPlaces())
       for (const [x, y, l] of place.cells) {
         if (l !== layer) continue;
         const cell = cells.find((c) => c.x === x && c.y === y);
@@ -101,7 +106,7 @@ export function TownMap({ view, busy, gender, onAct }: { view: ClientIdleRun['vi
   // 17 and 18): walked, surfed and fished, by its areas (Route 21's tall grass too) or any other open area walking its
   // maps (Route 4's grass, walked out of Mt. Moon).
   const spots = picked
-    ? [...townMapAreas(picked.place, reached), ...AREAS.map((_, i) => i).filter((i) => areaOpen(i, reached))]
+    ? [...townMapAreas(picked.place, reached), ...areas().map((_, i) => i).filter((i) => areaOpen(i, reached))]
         .flatMap((area) => wildSpots(area).map((spot) => ({ ...spot, area })))
         .filter((s, i, all) => all.findIndex((t) => t.id === s.id) === i && mapView(s.map).section === picked.place.section)
     : [];
@@ -110,10 +115,10 @@ export function TownMap({ view, busy, gender, onAct }: { view: ClientIdleRun['vi
   const spotLabel = (s: { label: string; water: boolean; fish?: true }) => (spots.filter((t) => kindOf(t) === kindOf(s)).length > 1 ? `${kindOf(s)}: ${s.label}` : kindOf(s));
   // Its legendary Pokémon, once the run has reached the Indigo Plateau (the user's): walked up to and battled (LEGEND).
   const legends = picked ? townMapAreas(picked.place, reached).flatMap((area) => (legendOf(area) ? [{ area, name: species(legendOf(area)!.species).name }] : [])) : [];
-  const choices = picked ? [picked.place.name, 'Trainer grind', ...(spots.length ? spots.map(spotLabel) : ['Wild grind']), ...legends.map((l) => l.name), ...(picked.town !== null ? [`Go to ${AREAS[picked.town]!.name}`] : [])] : [];
+  const choices = picked ? [picked.place.name, 'Trainer grind', ...(spots.length ? spots.map(spotLabel) : ['Wild grind']), ...legends.map((l) => l.name), ...(picked.town !== null ? [`Go to ${areas()[picked.town]!.name}`] : [])] : [];
   const choiceW = Math.max(CHOICE_W, ...choices.map((c) => c.length * CHAR_W + 10));
   const choiceH = 4 + 10 + (choices.length + 1) * CHOICE_ROW;
-  const title = (picked?.place ?? hover ?? here)?.name ?? 'KANTO';
+  const title = (picked?.place ?? hover ?? here)?.name ?? generation().region.toUpperCase();
 
   return (
     <div className="pointer-events-none absolute inset-0 [container-type:inline-size]">
@@ -152,7 +157,7 @@ export function TownMap({ view, busy, gender, onAct }: { view: ClientIdleRun['vi
 
       {open && (
         <div className="pointer-events-auto absolute inset-0 z-20 overflow-hidden" style={{ background: '#000000' }} onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Town Map">
-          <img src={TOWN_MAP_GRID.image} alt="" draggable={false} className="absolute select-none" style={{ left: px(MAP_X), top: px(MAP_Y), width: px(TOWN_MAP_GRID.imageWidth), height: px(TOWN_MAP_GRID.imageHeight), imageRendering: 'pixelated' }} />
+          <img src={townMapGrid().image} alt="" draggable={false} className="absolute select-none" style={{ left: px(mapAt().x), top: px(mapAt().y), width: px(townMapGrid().imageWidth), height: px(townMapGrid().imageHeight), imageRendering: 'pixelated' }} />
 
           {/* The top bar: the place pointed at (or where the run is), the mode, and ×. */}
           <div className="absolute flex items-center justify-between" style={{ ...TEXT, left: 0, right: 0, top: 0, height: px(16), padding: `0 ${px(4)}`, background: FRAME.bar, color: '#ffffff', textShadow: `${px(1)} ${px(1)} 0 #101828` }}>
@@ -180,8 +185,8 @@ export function TownMap({ view, busy, gender, onAct }: { view: ClientIdleRun['vi
                 style={{
                   left: px(cellX(x)),
                   top: px(cellY(y)),
-                  width: px(TOWN_MAP_GRID.cell),
-                  height: px(TOWN_MAP_GRID.cell),
+                  width: px(townMapGrid().cell),
+                  height: px(townMapGrid().cell),
                   background: !open.length ? 'rgba(0,0,0,0.5)' : lit ? 'rgba(248,56,24,0.35)' : 'transparent',
                   outline: lit ? `${px(1)} solid #f83818` : undefined,
                   zIndex: 1,
@@ -196,7 +201,7 @@ export function TownMap({ view, busy, gender, onAct }: { view: ClientIdleRun['vi
           {/* The player's icon (region_map.c's: centred on the cell). */}
           {here && (
             <img
-              src={`/idle/gen1/town-map/${gender === 'female' ? 'leaf' : 'red'}.png`}
+              src={playerIcon(gender)}
               alt=""
               aria-hidden
               className="pointer-events-none absolute"
@@ -266,7 +271,7 @@ export function TownMap({ view, busy, gender, onAct }: { view: ClientIdleRun['vi
                 (() => {
                   const town = picked.town;
                   const error = travelError(view, town);
-                  return <MapButton label={`Go to ${AREAS[town]!.name}`} title={error ?? `Go to ${AREAS[town]!.name}`} on={false} disabled={locked || !!error} onClick={() => send({ type: 'TRAVEL', area: town }, close)} />;
+                  return <MapButton label={`Go to ${areas()[town]!.name}`} title={error ?? `Go to ${areas()[town]!.name}`} on={false} disabled={locked || !!error} onClick={() => send({ type: 'TRAVEL', area: town }, close)} />;
                 })()}
               <MapButton label="Cancel" disabled={false} on={false} onClick={() => setPicked(null)} />
             </div>

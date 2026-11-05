@@ -5,6 +5,7 @@
 // its basic move when every slot is cooling down.
 import { int, type Rng } from '@poke-tcg/campaign';
 import { moveData, species } from './data.js';
+import { perGeneration } from './generation.js';
 import { expForLevel } from './stats.js';
 import { machineMoves } from './tms.js';
 import type { Mon, MoveData, Stats } from './types.js';
@@ -14,6 +15,9 @@ const VARIABLE_DAMAGE_COST: Record<string, number> = {
   ohko: 6, level_damage: 3, dragon_rage: 3, sonicboom: 2, super_fang: 3, flail: 3, low_kick: 3, magnitude: 3, counter: 3,
   mirror_coat: 3, endeavor: 3, psywave: 3, present: 2, return: 4, frustration: 4, hidden_power: 3, spit_up: 4, bide: 3,
   beat_up: 3,
+  // Gen 4's.
+  power_based_on_low_speed: 3, natural_gift: 3, fling: 3, higher_power_when_low_pp: 3, increase_power_with_more_hp: 4,
+  increase_power_with_more_stat_up: 3, metal_burst: 3,
 };
 
 /** Status moves' cooldowns by what they do (placeholders, to balance later: agreed with the user). */
@@ -76,7 +80,7 @@ const evolvesFrom = (id: number) => {
 /** Whether a species evolves from none: a line's first stage, or a Pokémon that doesn't evolve at all (Tauros). */
 export const isBaseForm = (id: number) => evolvesFrom(id) === null;
 
-const basicCache = new Map<number, string>();
+const basicCache = perGeneration(() => new Map<number, string>());
 
 /**
  * A species' basic move (agreed with the user): the earliest damaging, high-PP level-up move of its own learnset
@@ -85,7 +89,7 @@ const basicCache = new Map<number, string>();
  * BASIC_OVERRIDES first.
  */
 export function basicMove(id: number): string {
-  const cached = basicCache.get(id);
+  const cached = basicCache().get(id);
   if (cached) return cached;
   let found = BASIC_OVERRIDES[id];
   if (!found) {
@@ -98,7 +102,7 @@ export function basicMove(id: number): string {
       found = candidates.find((m) => moveData(m).power > moveData(first).power) ?? first;
     } else found = candidates[0]!;
   }
-  basicCache.set(id, found);
+  basicCache().set(id, found);
   return found;
 }
 
@@ -183,6 +187,8 @@ export interface NewMon {
   moves?: string[];
   item?: string;
   shiny?: boolean;
+  /** Its gender (a wild one's by the lead's Cute Charm, HGSS's), else rolled. */
+  gender?: 'male' | 'female';
 }
 
 /** A new Pokémon: random IVs, nature, gender and ability unless given; its level-up moves so far (or `moves`). */
@@ -198,7 +204,7 @@ export function createMon(rng: Rng, o: NewMon): Mon {
     ivs,
     evs: o.evs ?? [0, 0, 0, 0, 0, 0],
     nature: o.nature ?? int(rng, 25),
-    gender: rollGender(rng, o.species),
+    gender: o.gender ?? rollGender(rng, o.species),
     abilitySlot: s.abilities.length > 1 ? int(rng, 2) : 0,
     moves,
     slots: [],

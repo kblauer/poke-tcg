@@ -9,7 +9,7 @@
 // - a trainer's items (the game's AI_SwitchOrUseItem, simplified): a healing item at a quarter of its HP or less, a
 //   status cure for a status.
 import { MEDICINE, type Battle, type Battler, type StatusKind } from './battle.js';
-import { BALLS } from './catch.js';
+import { throwTick } from './catch.js';
 import { moveData } from './data.js';
 
 export type Action = { kind: 'move'; move: string } | { kind: 'item'; item: string; target: number } | { kind: 'ball'; item: string };
@@ -70,7 +70,10 @@ function autoHeal(b: Battle, me: Battler): Action | null {
 export function maxDamage(b: Battle, user: Battler, target: Battler, key: string, crit = true): number {
   const m = moveData(key);
   if (m.power === 0) return 0;
-  if (b.immune(user, target, b.moveType(user, m))) return 0;
+  const type = b.moveType(user, m);
+  if (b.immune(user, target, type)) return 0;
+  // Nothing either into an ability that takes the move in (Gen 4's absorbers) or Wonder Guard.
+  if ((b.gen4 && b.absorber4(user, target, type, m)) || b.wonderGuards(user, target, key, m, type)) return 0;
   switch (m.effect) {
     case 'false_swipe':
       return Math.max(0, target.hp - 1);
@@ -148,7 +151,8 @@ function catchHitMove(b: Battle, me: Battler, target: Battler): string | null {
  */
 function autoCatch(b: Battle, me: Battler): Action | null {
   const target = b.active[1];
-  const ball = BALLS.map(([k]) => k).find((k) => (b.bag[k] ?? 0) > 0);
+  // Never the Master Ball (the user's, 2026-11-04): only its own button throws it.
+  const ball = b.bestBall();
   if (!ball) return null;
   if (me.v.charging || me.v.rampage || me.v.rollout || me.v.uproar || me.v.bide || me.v.recharging) return null;
   if (b.catchHits > 0 || b.catchBalls) {
@@ -170,9 +174,11 @@ export function choosePlayerAction(b: Battle): Action {
   const me = b.active[0];
   const locked = me.v.charging || me.v.rampage || me.v.rollout || me.v.uproar || me.v.bide || me.v.recharging;
   // The player's own throw (the ball button, the user's): the best ball, before anything else, once one is due.
-  const due = b.setup.throwAt?.filter((t) => t <= b.tick).length ?? 0;
-  if (b.setup.kind === 'wild' && !locked && due > b.throwsMade) {
-    const ball = BALLS.map(([k]) => k).find((k) => (b.bag[k] ?? 0) > 0);
+  const due = b.setup.throwAt?.filter((a) => throwTick(a) <= b.tick) ?? [];
+  if (b.setup.kind === 'wild' && !locked && due.length > b.throwsMade) {
+    // The ball button the best ball but the Master Ball; the Master Ball's button that one (the user's, 2026-11-04).
+    const ask = due[b.throwsMade]!;
+    const ball = typeof ask === 'number' ? b.bestBall() : (b.bag['master-ball'] ?? 0) > 0 ? 'master-ball' : null;
     if (ball) {
       b.throwsMade += 1;
       return { kind: 'ball', item: ball };

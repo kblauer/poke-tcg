@@ -1,6 +1,6 @@
 import type { AppRouter } from '@poke-tcg/api/router';
 import { CONTEST_CATEGORIES, CONTEST_RANKS, contestMove, CONTEST_EFFECTS, ENTRANT_SPECIES } from '@poke-tcg/campaign';
-import { SPECIES } from '@poke-tcg/idle';
+import { DEX_SIZE, dexSpecies } from '@poke-tcg/idle';
 import type { inferRouterOutputs } from '@trpc/server';
 
 export type ContestOverview = inferRouterOutputs<AppRouter>['contest']['overview'];
@@ -10,12 +10,18 @@ export type ContestEntry = ContestOverview['entries'][number];
 export const CATEGORY_COLORS = ['bg-red-600', 'bg-blue-600', 'bg-pink-500', 'bg-green-600', 'bg-yellow-500 text-slate-900'] as const;
 export const CATEGORY_TEXT = ['text-red-400', 'text-blue-400', 'text-pink-400', 'text-green-400', 'text-yellow-400'] as const;
 
-/** A species' name: Kanto's from the Idle Adventure, the CPU entrants' from Platinum. */
-export const speciesName = (n: number) => SPECIES[n - 1]?.name ?? ENTRANT_SPECIES[n] ?? `No. ${n}`;
+/** A species' name: the Idle Adventure Pokédex's (any region's: dexSpecies), the CPU entrants' from Platinum. */
+export const speciesName = (n: number) => (n >= 1 && n <= DEX_SIZE ? dexSpecies(n).name : (ENTRANT_SPECIES[n] ?? `No. ${n}`));
 
-/** A Pokémon's Platinum front sprite (tools/extras/platinum_contest.py: public/extras/contest/pokemon/<n>.png, 80x80), drawn crisp. */
+/**
+ * A Pokémon's front sprite for the contests: Platinum's (tools/extras/platinum_contest.py: public/extras/contest/pokemon/<n>.png,
+ * 80x80: Kanto's 151 and the CPU entrants'), or for a Pokédex species it hasn't (one caught in Johto) HeartGold's, the same size.
+ */
+export const contestPic = (species: number) => (species <= 151 || ENTRANT_SPECIES[species] ? `/extras/contest/pokemon/${species}.png` : `/idle/gen2/pokemon/front/${species}.png`);
+
+/** A Pokémon's contest sprite (contestPic), drawn crisp. */
 export function ContestSprite({ species, size = 80, className = '' }: { species: number; size?: number; className?: string }) {
-  return <img src={`/extras/contest/pokemon/${species}.png`} alt={speciesName(species)} width={size} height={size} draggable={false} className={`[image-rendering:pixelated] ${className}`} />;
+  return <img src={contestPic(species)} alt={speciesName(species)} width={size} height={size} draggable={false} className={`[image-rendering:pixelated] ${className}`} />;
 }
 
 /** A contest ribbon's picture (Platinum's, in its category's palette: public/extras/contest/ribbons/<category>-<rank>.png). */

@@ -1,6 +1,7 @@
 import { CATCH, FOE_SEND, FRAME_MS, HEALTHBOX_FRAMES, INTRO_FRAMES, INTRO_SPEED, OPEN_FRAMES, PLAYER_SEND, SHAKES_AT, species, type BattleEvent, type BattlerView } from '@poke-tcg/idle';
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import type { BattleSegment } from '../../hooks/useIdle';
+import { idleSpeed } from '../../utils/idleSpeed';
 import { GAME_HEIGHT, GAME_WIDTH } from './GameScreen';
 import { Healthbox } from './Healthbox';
 
@@ -173,7 +174,8 @@ export function BattleScene({
     id = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(id);
   }, []);
-  const frames = (at: number) => Math.floor((now - at) / FRAME_MS);
+  // (Debug mode's ×3: that many frames a frame, idleSpeed.)
+  const frames = (at: number) => Math.floor(((now - at) * idleSpeed()) / FRAME_MS);
   const wild = battle.kind === 'wild';
   const firstTick = battle.events.findIndex((e, i) => i > 0 && e.t === 'tick');
   const opening = (i: number) => firstTick < 0 || i < firstTick;

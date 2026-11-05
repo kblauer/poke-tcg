@@ -1,5 +1,5 @@
 // The Idle Adventure's data types (README: Idle Adventure): the shapes of the generated tables (data/gen1/, by
-// tools/idle/firered_data.py) and of a Pokémon as a run keeps it. Stats are always in the order HP, Attack, Defense,
+// tools/idle/firered_data.py; data/gen2/, by tools/idle/hgss_data.py, with Gen 4's fields) and of a Pokémon as a run keeps it. Stats are always in the order HP, Attack, Defense,
 // Sp. Atk, Sp. Def, Speed (the games' summary order), never the battle engine's internal one.
 
 export type TypeName =
@@ -17,6 +17,10 @@ export interface Evolution {
   into: number;
   level?: number;
   item?: string;
+  /** Gen 4's: the move it must know (has_move), the species in the party (other_party_mon), the beauty (beauty). */
+  move?: string;
+  with?: number;
+  beauty?: number;
 }
 
 export interface SpeciesData {
@@ -48,11 +52,16 @@ export interface SpeciesData {
    * pixels (lowered so it stands on its spot), and the foe's elevation (fliers and floaters raised).
    */
   pic: { frontY: number; backY: number; elevation: number };
+  /** Gen 4's: its base friendship (friendship evolutions) and the items wild ones hold, [common, rare]. */
+  friendship?: number;
+  heldItems?: [string | null, string | null];
 }
 
 export interface MoveData {
   name: string;
   type: TypeName;
+  /** Gen 4's split (the move's own); Gen 3's is its type's (isPhysical). */
+  category?: 'physical' | 'special' | 'status';
   power: number;
   accuracy: number;
   pp: number;
@@ -63,6 +72,8 @@ export interface MoveData {
   target: string;
   priority: number;
   flags: string[];
+  /** Its description as the game prints it (Gen 4's tables). */
+  description?: string;
 }
 
 export interface ItemData {
@@ -74,6 +85,9 @@ export interface ItemData {
   /** Its description as the game prints it (the shop's), its lines split by 
 . */
   description: string;
+  /** Gen 4's: Fling's power, and Natural Gift's power and type (Berries). */
+  flingPower?: number;
+  naturalGift?: [number, TypeName];
 }
 
 /** A wild encounter table: its rate and its slots, [min level, max level, dex number]. */
@@ -84,6 +98,11 @@ export interface EncounterSlots {
   leafGreen?: [number, number, number, number][];
   /** Pokémon the game only gives, trades or sells, added to the table (the user's, 2026-10-27): EXTRA_PERCENT of its encounters each. */
   extra?: [number, number, number][];
+  /** HGSS's land tables (the run's play clock, the user's, 2026-11-04): the morning's and the night's slots where they differ from the day's (`mons`). */
+  morning?: [number, number, number][];
+  night?: [number, number, number][];
+  /** SoulSilver's Pokémon where its slots differ from HeartGold's, by time of day: [slot, min level, max level, dex number], half the time. */
+  soulSilver?: { morning?: [number, number, number, number][]; day?: [number, number, number, number][]; night?: [number, number, number, number][] };
 }
 
 export interface EncounterTable {
@@ -91,6 +110,13 @@ export interface EncounterTable {
   water?: EncounterSlots;
   /** Fished (the user's, 2026-10-27): its 10 slots the Old Rod's 2, the Good Rod's 3 and the Super Rod's 5. */
   fishing?: EncounterSlots;
+  /** HGSS's: Rock Smash, and each rod's own 5 slots. */
+  rockSmash?: EncounterSlots;
+  oldRod?: EncounterSlots;
+  goodRod?: EncounterSlots;
+  superRod?: EncounterSlots;
+  /** HGSS's: the night's fished Pokémon (20:00–03:59: the Good Rod's slot 3, the Super Rod's slot 1). */
+  nightFish?: number;
 }
 
 export interface TrainerMonData {
@@ -101,6 +127,8 @@ export interface TrainerMonData {
   item?: string;
   /** Its moves; the species' last 4 level-up moves at its level when not given (as the game). */
   moves?: string[];
+  /** Gen 4's: the ability set by the trainer's data (0 or 1); by the game's personality otherwise. */
+  abilitySlot?: number;
 }
 
 export interface TrainerData {
@@ -113,6 +141,8 @@ export interface TrainerData {
   /** Bag items they use in battle (Potions, Full Restores). */
   items: string[];
   party: TrainerMonData[];
+  /** A double battle in the game (Gen 4's: Twins…). */
+  double?: true;
 }
 
 /** A Pokémon as a run keeps it (plain JSON). Its HP isn't kept: the party is fully healed after every battle. */

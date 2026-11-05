@@ -42,7 +42,7 @@ function Clip({ x0, x1, y0, y1, children }: { x0: number; x1: number; y0: number
 }
 
 /** A bar's tiles (CalcBarFilledPixels): 8 pixels a tile up to the value's share, at least 1 while it's above 0. */
-function filled(value: number, max: number, tiles: number): { pixels: number; perTile: number[] } {
+export function filled(value: number, max: number, tiles: number): { pixels: number; perTile: number[] } {
   let n = max > 0 ? Math.floor((value * tiles * 8) / max) : 0;
   const perTile = Array<number>(tiles).fill(0);
   if (n === 0 && value > 0) return { pixels: 1, perTile: [1, ...perTile.slice(1)] };
@@ -55,7 +55,7 @@ function filled(value: number, max: number, tiles: number): { pixels: number; pe
  * A bar's value moving to `target` as the game moves it (CalcNewBarValue): 1 a frame, or a pixel a frame when the
  * maximum is less than the bar's pixels. From a new Pokémon (`key`), it starts where it is.
  */
-function useBarValue(target: number, max: number, pixels: number, key: string): number {
+export function useBarValue(target: number, max: number, pixels: number, key: string): number {
   const [shown, setShown] = useState(target);
   const at = useRef({ key, value: target });
   if (at.current.key !== key) at.current = { key, value: target };
@@ -76,7 +76,7 @@ function useBarValue(target: number, max: number, pixels: number, key: string): 
   return at.current.key === key ? shown : target;
 }
 
-const STATUS: Record<StatusKind, string> = { sleep: 'slp', poison: 'psn', toxic: 'psn', burn: 'brn', paralysis: 'par', freeze: 'frz' };
+export const STATUS: Record<StatusKind, string> = { sleep: 'slp', poison: 'psn', toxic: 'psn', burn: 'brn', paralysis: 'par', freeze: 'frz' };
 
 /**
  * A single battle's healthbox, as FireRed draws it (battle_interface.c), in game pixels: its picture (two sprites,

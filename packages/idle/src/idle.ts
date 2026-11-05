@@ -6,18 +6,17 @@
 // waits on the player, online or caught up offline (catchUp).
 import { catchTextFrame, FRAME_MS, openingMs } from './battle-timing.js';
 import { int, rngFrom, type Rng } from '@poke-tcg/campaign';
-import { AREAS, areaById, areaIndex, areaOpen, isOptional, isTown, legendOf, mapView, TERRAIN_LETTERS, type IdleArea, type IdleLeg, type TownArea, type TrackStep, type WalkArea } from './areas.js';
+import { areas, areaById, areaIndex, areaOpen, isOptional, isTown, legendOf, mapView, TERRAIN_LETTERS, type IdleArea, type IdleLeg, type TownArea, type TrackStep, type WalkArea } from './areas.js';
 import { opponentMon, simulateBattle, type BattleEvent, type BattleResult, MEDICINE, type Terrain } from './battle.js';
-import { BALLS } from './catch.js';
+import { BALLS, type ThrowAsk } from './catch.js';
 import { itemData, species } from './data.js';
-import { ENCOUNTERS } from './data/gen1/encounters.js';
-import { MARTS } from './data/gen1/marts.js';
-import { TRAINERS } from './data/gen1/trainers.js';
-import { evolve, levelEvolution, stoneEvolution, usableStones } from './evolution.js';
-import { abilityOf, autoSlots, basicFor, createMon, familyMovesUpTo, isBaseForm } from './mon.js';
+import { generation, inGeneration, perGeneration, type IdleGen } from './generation.js';
+import { evolve, leavesShedinja, levelEvolution, SHEDINJA, stoneEvolution, usableStones } from './evolution.js';
+import { fishBite4, pickWild4, ROD_TABLES, timeOfDay, wildCheck4, type TimeOfDay } from './encounters4.js';
+import { abilityOf, autoSlots, basicFor, createMon, familyMovesUpTo, isBaseForm, newUid } from './mon.js';
 import { MAX_LEVEL } from './stats.js';
-import { isMachine, machinePrice, slotMoves, TM_SHOP_AREA } from './tms.js';
-import type { EncounterSlots, Mon, Stats } from './types.js';
+import { isMachine, machinePrice, slotMoves } from './tms.js';
+import type { EncounterSlots, EncounterTable, Mon, Stats } from './types.js';
 
 /** The run's starting money (the game's ₱3000: a placeholder, to balance later). */
 export const START_MONEY = 3000;
@@ -26,7 +25,7 @@ export const START_BAG: Record<string, number> = { 'poke-ball': 5 };
 /** The starters' level. */
 export const STARTER_LEVEL = 5;
 /** The generation's three starters (Bulbasaur, Charmander, Squirtle). */
-export const STARTERS = [1, 4, 7];
+export const starters = () => generation().starters;
 /** A party holds 6 Pokémon. */
 export const PARTY_SIZE = 6;
 
@@ -102,20 +101,22 @@ export const DEFAULT_IDLE_SETTINGS: IdleSettings = { autoHeal: true, revives: ['
  * The settings a segment plays by, with the player's own throws (the ball button, the user's: `throwAt`, the ticks of
  * its wild battle a ball was asked for; the server plays the segment again from its start with them, idle.throwBall).
  */
-type PlaySettings = IdleSettings & { throwAt?: number[]; ask?: boolean };
+type PlaySettings = IdleSettings & { throwAt?: ThrowAsk[]; ask?: boolean };
 
 /** Wild encounter bookkeeping between steps (wild_encounter.c's sWildEncounterData). */
 interface EncounterState {
   steps: number;
   buff: number;
-  /** The last tile's code (its behaviour, as far as encounters go). */
+  /** The last tile's code (its behaviour, as far as encounters go); HGSS's: the map it's on (a new one counts the steps from 0). */
   prev: string;
+  /** HGSS's: the way the player last faced at a check (encounters4.ts's EncounterState4). */
+  face?: string;
 }
 
 export interface IdleState {
   version: number;
   rngState: number;
-  /** The area (AREAS' index), its leg and the step along it the player stands on. */
+  /** The area (areas()' index), its leg and the step along it the player stands on. */
   area: number;
   leg: number;
   step: number;
@@ -124,7 +125,7 @@ export interface IdleState {
   /** Gym Trainers beaten in this run (not the leaders): fought once, then walked past on the way back to the leader (the user's, 2026-10-27). */
   gymBeaten?: string[];
   /**
-   * The furthest area entered (AREAS' index; older runs' from reachedArea): the Town Map's towns and routes up to it can
+   * The furthest area entered (areas()' index; older runs' from reachedArea): the Town Map's towns and routes up to it can
    * be picked (TRAVEL, GRIND_AT).
    */
   reached?: number;
@@ -185,6 +186,13 @@ export interface IdleState {
    * still works): applied, in order, when the next segment starts (withPending); the view shows them at once.
    */
   pending?: IdleAction[];
+  /** The run's generation (generation.ts: its region's areas and tables), Kanto's 1 when missing (a run from before generations). */
+  gen?: IdleGen;
+  /**
+   * The run's play clock (the user's, 2026-11-04): the milliseconds of the segments it has played, for its generation's
+   * time of day (Generation.day: HGSS's morning, day and night). Only a generation with a day keeps one.
+   */
+  clock?: number;
   /** The Champion's team: the starter he'd have picked against the run's (FireRed's TRAINER_CHAMPION_FIRST_<his starter>). */
   rivalStarter: 'bulbasaur' | 'charmander' | 'squirtle';
   /** The run's totals, for the screen and the run's end. */
@@ -240,7 +248,7 @@ export interface SegmentReplay {
   settings: IdleSettings;
   caught: number[];
   from: number;
-  throws: number[];
+  throws: ThrowAsk[];
   /** Its wild battle can still take a ball (and party changes are queued meanwhile); missing (older runs'), it can. */
   throwable?: boolean;
 }
@@ -258,7 +266,7 @@ export type RouteLoop = { resume: { area: number; leg: number; step: number; bea
 
 export type IdleResult = { ok: true; state: IdleState } | { ok: false; error: string };
 
-/** What the browser plays back of a segment, in order. Step indexes are along the leg's track (AREAS). */
+/** What the browser plays back of a segment, in order. Step indexes are along the leg's track (areas()). */
 export type SegmentEvent =
   | { t: 'area'; area: number; leg: number; step: number }
   | { t: 'walk'; from: number; to: number }
@@ -285,6 +293,8 @@ export type SegmentEvent =
       ticks: number;
       /** A wild Pokémon whose species the account had caught when the battle began (its healthbox's Poké Ball, FireRed's TryAddPokeballIconToHealthbox). */
       caughtBefore?: true;
+      /** The hour on the run's clock as it began (HGSS's: its background's day, evening or night palette); none without a clock. */
+      hour?: number;
     }
   | { t: 'money'; amount: number; total: number; why: string }
   | { t: 'bought'; item: string; count: number; cost: number }
@@ -339,8 +349,12 @@ function rivalStarterFor(rng: Rng, id: number): IdleState['rivalStarter'] {
   return (['bulbasaur', 'charmander', 'squirtle'] as const)[int(rng, 3)]!;
 }
 
-/** A new run with its starter at level 5 (a dex species keeps its record's IVs and EVs, its nature re-rolled). */
-export function createIdleRun(choice: StarterChoice, seed: number): IdleState {
+/** A new run in `gen`'s region with its starter at level 5 (a dex species keeps its record's IVs and EVs, its nature re-rolled). */
+export function createIdleRun(choice: StarterChoice, seed: number, gen: IdleGen = 1): IdleState {
+  return inGeneration(gen, () => ({ ...newRun(choice, seed), gen }));
+}
+
+function newRun(choice: StarterChoice, seed: number): IdleState {
   const rng = rngFrom(seed);
   const mon = createMon(rng, { species: choice.species, level: STARTER_LEVEL, ...(choice.ivs && { ivs: choice.ivs }), ...(choice.evs && { evs: choice.evs }), ...(choice.shiny && { shiny: true }) });
   const state: IdleState = {
@@ -373,17 +387,21 @@ export const LEAGUE_TOWN = 'indigo-plateau';
  * every Kanto store's, balls first, then medicine, then stones, each by price.
  */
 export function storeStock(town: TownArea, state?: Pick<IdleState, 'reached' | 'area' | 'loop' | 'badges'>): string[] {
-  if (!state || reachedArea(state) < areaIndex(LEAGUE_TOWN)) return martStock(town);
-  const all = [...new Set(AREAS.filter(isTown).flatMap(martStock))];
+  const badges = state?.badges.length ?? 0;
+  if (!state || reachedArea(state) < areaIndex(LEAGUE_TOWN)) return martStock(town, badges);
+  const all = [...new Set(areas().filter(isTown).flatMap((t) => martStock(t, badges)))];
   const kind = (item: string) => (BALLS.some(([b]) => b === item) ? 0 : MEDICINE[item] ? 1 : 2);
   return all.sort((a, b) => kind(a) - kind(b) || itemData(a).price - itemData(b).price);
 }
 
-/** A town's own marts' lists without Escape Ropes and Repels (agreed), only those with a use here (balls, medicine, evolution stones). */
-function martStock(town: TownArea): string[] {
+/**
+ * A town's own marts' lists without Escape Ropes and Repels (agreed), only those with a use here (balls, medicine,
+ * evolution stones); HGSS's Poké Mart clerk's list by the run's badges (`badges`: ScrCmd_MartBuy's tiers, `badges-<n>`).
+ */
+function martStock(town: TownArea, badges: number): string[] {
   const out: string[] = [];
   for (const m of town.marts) {
-    for (const item of MARTS[m] ?? []) {
+    for (const item of generation().marts[m === 'badges' ? `badges-${badges}` : m] ?? []) {
       if (out.includes(item) || /repel|escape-rope/.test(item)) continue;
       if (BALLS.some(([b]) => b === item) || MEDICINE[item] || STONES.has(item)) out.push(item);
     }
@@ -391,7 +409,7 @@ function martStock(town: TownArea): string[] {
   return out;
 }
 
-const STONES = new Set(['fire-stone', 'water-stone', 'thunder-stone', 'leaf-stone', 'moon-stone']);
+const STONES = new Set(['fire-stone', 'water-stone', 'thunder-stone', 'leaf-stone', 'moon-stone', 'sun-stone', 'shiny-stone', 'dusk-stone', 'dawn-stone']);
 
 /** Whether the run's current town's gym (or the League) is beaten, so it can go on. */
 function townDone(state: IdleState, town: TownArea): boolean {
@@ -402,9 +420,9 @@ function townDone(state: IdleState, town: TownArea): boolean {
 
 /** The area after a town (skipping its own gym). */
 function afterTown(townIndex: number): number {
-  const town = AREAS[townIndex] as TownArea;
+  const town = areas()[townIndex] as TownArea;
   let i = townIndex + 1;
-  while (i < AREAS.length && AREAS[i]!.id === town.gym) i++;
+  while (i < areas().length && areas()[i]!.id === town.gym) i++;
   return i;
 }
 
@@ -417,16 +435,16 @@ export const topLevel = (party: Mon[]) => Math.max(...party.map((m) => m.level))
  * town with no gym.
  */
 export function grindTarget(townIndex: number, rivalStarter: IdleState['rivalStarter']): number | null {
-  const town = AREAS[townIndex];
+  const town = areas()[townIndex];
   if (!town || !isTown(town) || !town.gym) return null;
   const gym = areaById(town.gym) as WalkArea;
-  const bosses = gym.kind === 'league' ? AREAS.filter((a): a is WalkArea => a.kind === 'league').map((a) => a.leader!) : [gym.leader!];
-  return Math.max(...bosses.flatMap((k) => TRAINERS[k === 'champion' ? `champion-first-${rivalStarter}` : k]!.party.map((p) => p.level)));
+  const bosses = gym.kind === 'league' ? areas().filter((a): a is WalkArea => a.kind === 'league').map((a) => a.leader!) : [gym.leader!];
+  return Math.max(...bosses.flatMap((k) => generation().trainers[k === 'champion' ? `champion-first-${rivalStarter}` : k]!.party.map((p) => p.level)));
 }
 
 /** Why the run can't grind in its town now, or null when it can: a gym's town with its gym unbeaten, the party below the gym's highest level. */
 function grindError(state: IdleState): string | null {
-  const town = AREAS[state.area]!;
+  const town = areas()[state.area]!;
   if (state.phase !== 'town' || !isTown(town)) return 'Not in a town';
   if (!town.grind || townDone(state, town)) return 'There is no gym ahead to train for';
   const target = grindTarget(state.area, state.rivalStarter)!;
@@ -436,7 +454,7 @@ function grindError(state: IdleState): string | null {
 
 /** Back to the town's grind loop (a fade), at its first step, to train the party's highest to `level` (the gym's highest by default). */
 function startGrind(state: IdleState, events: SegmentEvent[], level = grindTarget(state.area, state.rivalStarter)!) {
-  const town = AREAS[state.area] as TownArea;
+  const town = areas()[state.area] as TownArea;
   state.phase = 'grinding';
   state.grind = { at: 0, level };
   state.encounter = { steps: 0, buff: 0, prev: '' };
@@ -446,14 +464,14 @@ function startGrind(state: IdleState, events: SegmentEvent[], level = grindTarge
 
 /** Into a town's gym (or the League's first room). */
 function enterGym(state: IdleState, events: SegmentEvent[]) {
-  enterArea(state, areaIndex((AREAS[state.area] as TownArea).gym!), events);
-  state.log.push(`Went into ${AREAS[state.area]!.name}.`);
+  enterArea(state, areaIndex((areas()[state.area] as TownArea).gym!), events);
+  state.log.push(`Went into ${areas()[state.area]!.name}.`);
 }
 
 /** The route (or dungeon) walked just before a town (the user's: Back to it from the town), or null. */
 export function previousRoute(townIndex: number): number | null {
   for (let i = townIndex - 1; i >= 0; i--) {
-    const kind = AREAS[i]!.kind;
+    const kind = areas()[i]!.kind;
     if (kind === 'route' || kind === 'dungeon') return i;
   }
   return null;
@@ -464,27 +482,37 @@ export function previousRoute(townIndex: number): number | null {
  * gyms whose badges it has).
  */
 export function reachedArea(state: Pick<IdleState, 'reached' | 'area' | 'loop' | 'badges'>): number {
-  const gyms = AREAS.flatMap((a, i) => (a.kind === 'gym' && state.badges.includes(a.badge!) ? [i] : []));
+  const gyms = areas().flatMap((a, i) => (a.kind === 'gym' && state.badges.includes(a.badge!) ? [i] : []));
   // An area off the main road is never reached this way (its `opens` opens it).
   const road = (i: number) => (isOptional(i) ? 0 : i);
   return Math.max(state.reached ?? 0, road(state.area), road(state.loop?.resume.area ?? 0), ...gyms);
 }
 
 /**
- * The rods (the user's, 2026-10-27): the Old Rod once the run reaches Vermilion City, the Good Rod Fuchsia City, the Super
- * Rod Cinnabar Island; fishing needs one, and each cast takes one of those it has at random (fishCast).
+ * The generation's rods (Generation.rods, the user's: Kanto's in Vermilion City, Fuchsia City and Cinnabar Island,
+ * Johto's on Route 32, in Olivine City and at the Indigo Plateau); fishing needs one, and each cast takes one of those it
+ * has at random (fishCast).
  */
-export const RODS = [
-  { name: 'Old Rod', town: 'vermilion-city' },
-  { name: 'Good Rod', town: 'fuchsia-city' },
-  { name: 'Super Rod', town: 'cinnabar-island' },
-] as const;
+export const rodList = () => generation().rods;
 
-/** The rods a run has (RODS' indexes), by the furthest it has reached. */
-export const rodsOf = (state: Pick<IdleState, 'reached' | 'area' | 'loop' | 'badges'>) => RODS.flatMap((r, i) => (reachedArea(state) >= areaIndex(r.town) ? [i] : []));
+/** The rods a run has (rodList's indexes), by the furthest it has reached. */
+export const rodsOf = (state: Pick<IdleState, 'reached' | 'area' | 'loop' | 'badges'>) => rodList().flatMap((r, i) => (reachedArea(state) >= areaIndex(r.town) ? [i] : []));
+
+/** The hour on the run's play clock `extraMs` into a segment (Generation.day), or null for a generation with no time of day. */
+export function hourOf(state: Pick<IdleState, 'clock'>, extraMs = 0): number | null {
+  const day = generation().day;
+  if (!day) return null;
+  return Math.floor(day.startHour + (((state.clock ?? 0) + extraMs) % day.ms) * (24 / day.ms)) % 24;
+}
+
+/** HGSS's time of day on the run's clock (encounters4.ts's bands), or null with none. */
+export const timeOfDayOf = (state: Pick<IdleState, 'clock'>, extraMs = 0): TimeOfDay | null => {
+  const h = hourOf(state, extraMs);
+  return h === null ? null : timeOfDay(h);
+};
 
 /** Whether every store sells TMs and HMs (Buy TMs): once the run has reached Celadon City (the user's). */
-export const tmShopOpen = (state: Pick<IdleState, 'reached' | 'area' | 'loop' | 'badges'>) => reachedArea(state) >= areaIndex(TM_SHOP_AREA);
+export const tmShopOpen = (state: Pick<IdleState, 'reached' | 'area' | 'loop' | 'badges'>) => reachedArea(state) >= areaIndex(generation().tmShop);
 
 /** The furthest place a run has reached (IdleState.progress): an area, its leg and step (a town's 0), the trainers beaten there. */
 export type Progress = { area: number; leg: number; step: number; beaten: string[] };
@@ -493,7 +521,7 @@ type Place = { area: number; leg: number; step: number };
 
 /** An area's place in the run's order: a town whose gym is beaten just past its gym (the run is back there with the badge). */
 function rankOf(state: Pick<IdleState, 'badges'>, index: number): number {
-  const a = AREAS[index]!;
+  const a = areas()[index]!;
   if (isTown(a) && a.gym) {
     const gym = areaById(a.gym);
     if (gym.kind === 'gym' && state.badges.includes(gym.badge!)) return areaIndex(a.gym) + 0.5;
@@ -514,12 +542,12 @@ type ProgressState = Pick<IdleState, 'progress' | 'reached' | 'area' | 'leg' | '
  * start of the furthest area it reached when that's further on.
  */
 export function progressOf(state: ProgressState): Progress {
-  if (state.progress) return { ...leagueToTown(state.progress), beaten: AREAS[state.progress.area]!.kind === 'league' ? [] : state.progress.beaten };
+  if (state.progress) return { ...leagueToTown(state.progress), beaten: areas()[state.progress.area]!.kind === 'league' ? [] : state.progress.beaten };
   const here: Progress = state.loop ? state.loop.resume : { ...placeOfRun(state), beaten: state.phase === 'walking' ? state.beaten : [] };
   const reached = reachedArea(state);
   const start = { area: reached, leg: 0, step: 0 };
   const p = isOptional(here.area) || comparePlaces(state, start, here) > 0 ? { ...start, beaten: [] } : { ...here, beaten: [...here.beaten] };
-  return AREAS[p.area]!.kind === 'league' ? { ...leagueToTown(p), beaten: [] } : p;
+  return areas()[p.area]!.kind === 'league' ? { ...leagueToTown(p), beaten: [] } : p;
 }
 
 /**
@@ -528,7 +556,7 @@ export function progressOf(state: ProgressState): Progress {
  * with Lorelei (a Stop part way goes on with the same try: further on than the Plateau, the run is at its furthest).
  */
 function leagueToTown<P extends Place>(p: P): P {
-  return AREAS[p.area]!.kind === 'league' ? { ...p, area: areaIndex(LEAGUE_TOWN), leg: 0, step: 0 } : p;
+  return areas()[p.area]!.kind === 'league' ? { ...p, area: areaIndex(LEAGUE_TOWN), leg: 0, step: 0 } : p;
 }
 
 /** Whether the run stands at its furthest place (Continue run goes on from there rather than to it); never while grinding. */
@@ -543,8 +571,8 @@ function goToProgress(state: IdleState, events: SegmentEvent[]) {
   delete state.loop;
   delete state.grind;
   delete state.inStore;
-  state.log.push(`Went on with the run in ${AREAS[p.area]!.name}.`);
-  if (isTown(AREAS[p.area]!)) return enterArea(state, p.area, events);
+  state.log.push(`Went on with the run in ${areas()[p.area]!.name}.`);
+  if (isTown(areas()[p.area]!)) return enterArea(state, p.area, events);
   Object.assign(state, { area: p.area, leg: p.leg, step: p.step, beaten: [...p.beaten], phase: 'walking', encounter: { steps: 0, buff: 0, prev: '' } });
   events.push({ t: 'area', area: p.area, leg: p.leg, step: p.step });
 }
@@ -559,7 +587,7 @@ function markProgress(state: IdleState) {
 
 /** Why the Town Map can't take the run to a town (TRAVEL), or null: only towns reached already, not the one it waits in. */
 export function travelError(state: Pick<IdleState, 'reached' | 'area' | 'loop' | 'badges' | 'phase'>, index: number): string | null {
-  const a = AREAS[index];
+  const a = areas()[index];
   if (!a || !isTown(a)) return 'Not a town';
   if (index > reachedArea(state)) return 'Not reached yet';
   if (state.phase === 'town' && state.area === index) return 'You are here';
@@ -571,7 +599,7 @@ const mapGrindHere = (state: Pick<IdleState, 'phase' | 'area' | 'loop'>, index: 
 
 /** Where a route grind picked on the Town Map starts, away from it: the route's end, its trainers passed (as BACK_ROUTE). */
 function mapGrindStart(index: number): Pick<IdleState, 'area' | 'leg' | 'step' | 'beaten' | 'encounter'> {
-  const w = AREAS[index] as WalkArea;
+  const w = areas()[index] as WalkArea;
   const leg = w.legs.length - 1;
   return { area: index, leg, step: w.legs[leg]!.track.length - 1, beaten: w.trainers.map((t) => t.key), encounter: { steps: 0, buff: 0, prev: '' } };
 }
@@ -583,14 +611,14 @@ function mapGrindStart(index: number): Pick<IdleState, 'area' | 'leg' | 'step' |
  * wild table's tiles (spotPlan).
  */
 export function mapGrindPlan(state: Pick<IdleState, 'reached' | 'area' | 'leg' | 'step' | 'beaten' | 'loop' | 'badges' | 'phase'>, index: number, kind: 'wild' | 'trainers', spot?: string): RouteGrindPlan {
-  const a = AREAS[index];
+  const a = areas()[index];
   if (!a || (a.kind !== 'route' && a.kind !== 'dungeon')) return { error: 'Only on a route or in a dungeon' };
   if (legendOf(index)) return { error: 'No grinding there' };
   if (!areaOpen(index, reachedArea(state))) return { error: 'Not reached yet' };
   if (kind === 'wild' && spot !== undefined) {
     const plan = spotPlan(index, spot);
     if (!plan) return { error: 'No wild Pokémon there' };
-    if (plan.kind === 'fish' && !rodsOf(state).length) return { error: `No rod yet (the ${RODS[0].name}: ${areaById(RODS[0].town).name})` };
+    if (plan.kind === 'fish' && !rodsOf(state).length) return { error: `No rod yet (the ${rodList()[0]!.name}: ${areaById(rodList()[0]!.town).name})` };
     const loop = state.loop;
     if (state.area === index && plan.kind === 'pace' && loop?.kind === 'pace' && loop.leg === plan.leg && loop.from === plan.from && loop.to === plan.to) return { error: 'Already in that mode' };
     if (state.area === index && plan.kind === 'fish' && loop?.kind === 'fish' && loop.spot === plan.spot) return { error: 'Already in that mode' };
@@ -628,14 +656,14 @@ function enterArea(state: IdleState, index: number, events: SegmentEvent[]) {
   const rods = rodsOf(state).length;
   state.reached = Math.max(reachedArea(state), isOptional(index) ? 0 : index);
   // A rod got in its town (the user's), the first time the run reaches it.
-  for (const r of rodsOf(state).slice(rods)) state.log.push(`Got the ${RODS[r]!.name}!`);
+  for (const r of rodsOf(state).slice(rods)) state.log.push(`Got the ${rodList()[r]!.name}!`);
   // A route grind keeps going through a white-out back to its route's start; any other area ends it.
   if (index !== state.area) delete state.loop;
   delete state.inStore;
   state.area = index;
   state.leg = 0;
   state.step = 0;
-  const a = AREAS[index]!;
+  const a = areas()[index]!;
   // A gym's trainers beaten before stay beaten (gymBeaten); any other area's are fought again.
   state.beaten = a.kind === 'gym' ? (state.gymBeaten ?? []).filter((k) => (a as WalkArea).trainers.some((t) => t.key === k)) : [];
   state.encounter = { steps: 0, buff: 0, prev: '' };
@@ -655,7 +683,7 @@ export const ballCount = (bag: Record<string, number>) => BALLS.reduce((n, [b]) 
 
 /** Auto-buy balls (the user's): in a town, the cheapest ball its store sells, up to the setting's count, while the money lasts. */
 function autoBuyBalls(state: IdleState, settings: IdleSettings, events: SegmentEvent[]) {
-  const town = AREAS[state.area]!;
+  const town = areas()[state.area]!;
   const want = Math.min(settings.autoBalls, MAX_AUTO_BALLS) - ballCount(state.bag);
   if (!isTown(town) || want <= 0) return;
   const stock = storeStock(town, state);
@@ -707,6 +735,10 @@ export const modeOf = (s: Pick<IdleState, 'stopped' | 'loop' | 'phase'>): IdleMo
  * then queued (`pending`) instead, keeping the replay (the user's).
  */
 export function applyIdleAction(prev: IdleState, action: IdleAction): IdleResult {
+  return inGeneration(prev.gen, () => applyIn(prev, action));
+}
+
+function applyIn(prev: IdleState, action: IdleAction): IdleResult {
   if (throwable(prev) && QUEUED_ACTIONS.includes(action.type)) {
     const check = applyNow(withPending(prev), action);
     if (!check.ok) return check;
@@ -724,6 +756,10 @@ export function applyIdleAction(prev: IdleState, action: IdleAction): IdleResult
  * can't be made any more is dropped.
  */
 export function withPending(prev: IdleState): IdleState {
+  return inGeneration(prev.gen, () => withPendingIn(prev));
+}
+
+function withPendingIn(prev: IdleState): IdleState {
   if (!prev.pending?.length) return prev;
   let state = structuredClone(prev);
   delete state.pending;
@@ -757,7 +793,7 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
   // Kept before anything moves the run back (an older run's worked out once).
   state.reached = reachedArea(state);
   state.progress = progressOf(state);
-  const area = AREAS[state.area]!;
+  const area = areas()[state.area]!;
   const inTown = state.phase === 'town' && isTown(area);
   // Out of the store before going anywhere (the user's: it's left by hand).
   if (state.inStore && (action.type === 'GYM' || action.type === 'GRIND' || action.type === 'CONTINUE' || action.type === 'BACK_ROUTE')) return fail('Leave the store first');
@@ -822,7 +858,7 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
       if (error) return fail(error);
       // Whatever it was doing ends (a route grind, a town's auto-grind, the store); the mode (Stop) stays.
       delete state.loop;
-      state.log.push(`Went to ${AREAS[action.area]!.name} by the Town Map.`);
+      state.log.push(`Went to ${areas()[action.area]!.name} by the Town Map.`);
       enterArea(state, action.area, []);
       return ok();
     }
@@ -855,7 +891,7 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
           delete state.grind;
           delete state.inStore;
           Object.assign(state, mapGrindStart(action.area), { phase: 'walking' });
-          state.log.push(`Went to ${AREAS[action.area]!.name} by the Town Map.`);
+          state.log.push(`Went to ${areas()[action.area]!.name} by the Town Map.`);
         }
         const resume = { area: state.area, leg: state.leg, step: state.step, beaten: [...state.beaten] };
         if (plan.kind === 'fish') startFishing(state, plan, resume);
@@ -873,7 +909,7 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
       delete state.grind;
       delete state.inStore;
       Object.assign(state, mapGrindStart(action.area), { phase: 'walking' });
-      state.log.push(`Went to ${AREAS[action.area]!.name} by the Town Map.`);
+      state.log.push(`Went to ${areas()[action.area]!.name} by the Town Map.`);
       const error = startRouteLoop(state, action.kind);
       return error ? fail(error) : ok();
     }
@@ -907,7 +943,7 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
       if (back === null) return fail('There is no route behind this town');
       // Its end (the user's), its trainers beaten on the way, and a wild grind from there until Route mode walks on to
       // this town again.
-      const area = AREAS[back] as WalkArea;
+      const area = areas()[back] as WalkArea;
       const leg = area.legs.length - 1;
       const step = area.legs[leg]!.track.length - 1;
       Object.assign(state, { area: back, leg, step, phase: 'walking', beaten: area.trainers.map((t) => t.key), encounter: { steps: 0, buff: 0, prev: '' } });
@@ -941,7 +977,7 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
       if (!state.inStore) return fail('Not in the store');
       // A TM or HM (Buy TMs, every store's from Celadon City on): one of each, kept for good (the user's).
       if (isMachine(action.item)) {
-        if (!tmShopOpen(state)) return fail('TMs are sold from Celadon City on');
+        if (!tmShopOpen(state)) return fail(`TMs are sold from ${areaById(generation().tmShop).name} on`);
         if (state.bag[action.item]) return fail('You have it already');
         if (action.count !== 1) return fail('One of each');
         const cost = machinePrice(action.item);
@@ -1015,9 +1051,13 @@ function applyNow(prev: IdleState, action: IdleAction): IdleResult {
 
 /** Visiting a store with auto-evolve on: the stones bought and used (the API applies it with VISIT_STORE). */
 export function visitStore(prev: IdleState, settings: IdleSettings): { state: IdleState; events: SegmentEvent[] } {
+  return inGeneration(prev.gen, () => visitStoreIn(prev, settings));
+}
+
+function visitStoreIn(prev: IdleState, settings: IdleSettings): { state: IdleState; events: SegmentEvent[] } {
   const state = structuredClone(prev);
   const events: SegmentEvent[] = [];
-  const area = AREAS[state.area]!;
+  const area = areas()[state.area]!;
   if (settings.autoEvolve && state.phase === 'town' && isTown(area)) autoStones(state, storeStock(area, state), events);
   return { state, events };
 }
@@ -1104,13 +1144,19 @@ const trainerKey = (state: IdleState, key: string) => (key === 'champion' ? `cha
 
 /** A trainer's Pokémon: its IVs from the party's 0–255 value (iv × 31 / 255), no EVs, its moves or the last 4 learned. */
 function trainerParty(rng: Rng, key: string): Mon[] {
-  const t = TRAINERS[key];
+  const t = generation().trainers[key];
   if (!t) throw new Error(`Unknown trainer ${key}`);
   return t.party.map((p) => {
     const iv = Math.floor((p.iv * 31) / 255);
     const mon = createMon(rng, { species: p.species, level: p.level, ivs: [iv, iv, iv, iv, iv, iv], ...(p.item && { item: p.item }) });
     return opponentMon(mon, p.moves);
   });
+}
+
+/** HGSS's moment for the special balls (BattleSetup.night, caughtBefore: the Dusk and Repeat Balls), by the run's clock; nothing for Kanto's. */
+function ballMoment(state: IdleState, caught: ReadonlySet<number>, kind: 'wild' | 'trainer', id: number, out: Segment) {
+  if (generation().battleRules !== 4 || kind !== 'wild') return {};
+  return { ...(timeOfDayOf(state, out.durationMs) === 'night' && { night: true }), ...(caught.has(id) && { caughtBefore: true }) };
 }
 
 /** The terrain of a track step's tile (its second letter). */
@@ -1165,9 +1211,9 @@ function settleCaught(state: IdleState, mon: Mon, slot: number | null, out: Segm
 function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<number>, o: { kind: 'wild' | 'trainer'; foes: Mon[]; trainer?: string; tile: string; scene: string }, out: Segment) {
   const tryCatch = o.kind === 'wild' && shouldCatch(state, settings, caught, o.foes[0]!.species);
   const before = state.party.map((m) => m.level);
-  const t = o.trainer ? TRAINERS[o.trainer] : null;
+  const t = o.trainer ? generation().trainers[o.trainer] : null;
   const result = simulateBattle(
-    { kind: o.kind, party: state.party, foes: o.foes, foeItems: t?.items ?? [], bag: state.bag, settings: { autoHeal: settings.autoHeal, revives: settings.revives, tryCatch, catchMove: settings.catchMove }, boss: !!o.trainer && /^(leader|elite-four|champion)/.test(o.trainer), badges: state.badges.length, terrain: terrainOf(o.tile), ...(o.kind === 'wild' && settings.throwAt?.length && { throwAt: settings.throwAt }), ...(state.debugCatch && { sureCatch: true }) },
+    { kind: o.kind, party: state.party, foes: o.foes, foeItems: t?.items ?? [], bag: state.bag, settings: { autoHeal: settings.autoHeal, revives: settings.revives, tryCatch, catchMove: settings.catchMove }, boss: !!o.trainer && /^(leader|elite-four|champion)/.test(o.trainer), badges: state.badges.length, terrain: terrainOf(o.tile), ...(o.kind === 'wild' && settings.throwAt?.length && { throwAt: settings.throwAt }), ...(state.debugCatch && { sureCatch: true }), ...ballMoment(state, caught, o.kind, o.foes[0]!.species, out) },
     rng,
   );
   out.events.push({
@@ -1182,6 +1228,7 @@ function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<
     result: result.result,
     ticks: result.ticks,
     ...(o.kind === 'wild' && caught.has(o.foes[0]!.species) && { caughtBefore: true as const }),
+    ...(hourOf(state, out.durationMs) !== null && { hour: hourOf(state, out.durationMs)! }),
   });
   // FireRed's intro and send-outs (the user's: their animations' time kept), then a tick a turn.
   out.durationMs += BATTLE_MS + openingMs(result.events, o.kind) + result.ticks * TICK_MS;
@@ -1191,15 +1238,25 @@ function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<
   for (const f of o.foes) out.dex.push({ species: f.species, seen: true });
   state.bag = result.bag;
   state.party = result.party;
-  // Evolutions after the battle, for those that grew a level in it (Kanto's 151 only; trade evolutions at their set levels).
+  // Evolutions after the battle, for those that grew a level in it (trade evolutions and those these runs can't do as
+  // the game does at their set levels; HGSS's by the run's time of day and the party).
+  const time = timeOfDayOf(state, out.durationMs);
+  const shedinjas: Mon[] = [];
   state.party = state.party.map((m, i) => {
     if (m.level === before[i]) return m;
-    const into = levelEvolution(m);
+    const into = levelEvolution(m, { time, party: state.party });
     if (!into) return m;
     out.events.push({ t: 'evolve', uid: m.uid, from: m.species, into });
     state.log.push(`${species(m.species).name} evolved into ${species(into).name}!`);
+    // Nincada's evolution leaves a Shedinja with room in the party and a Poké Ball (HGSS's level_shedinja: one ball used).
+    if (leavesShedinja(m.species) && state.party.length + shedinjas.length < 6 && (state.bag['poke-ball'] ?? 0) > 0) {
+      state.bag['poke-ball']! -= 1;
+      shedinjas.push({ ...evolve(m, SHEDINJA, state.bag).mon, uid: newUid(rng) });
+      state.log.push(`${species(SHEDINJA).name} joined the party!`);
+    }
     return evolve(m, into, state.bag).mon;
   });
+  state.party.push(...shedinjas);
   out.dex.push(...partyNotes(state.party));
   if (result.payDay) {
     state.money += result.payDay;
@@ -1223,7 +1280,8 @@ function battle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<
   }
   if (result.result === 'won' && t && o.trainer) {
     // The full prize the first time a trainer is beaten in a run, a quarter after that (the user's: grinding them).
-    const full = t.money * o.foes.at(-1)!.level;
+    // HGSS's: level × 4 × the class's, twice for a double battle (BattleSystem_CalcPrizeMoney).
+    const full = generation().battleRules === 4 ? t.money * 4 * o.foes.at(-1)!.level * (t.double ? 2 : 1) : t.money * o.foes.at(-1)!.level;
     const rematch = (state.paid ?? []).includes(o.trainer);
     const prize = rematch ? Math.floor(full * REMATCH_PRIZE) : full;
     if (!rematch) (state.paid ??= []).push(o.trainer);
@@ -1260,7 +1318,7 @@ const before = (p: { leg: number; step: number }, q: { leg: number; step: number
  * a wild grind is wild Pokémon only, no trainer spots it (the user's).
  */
 function paceWindow(areaIndex: number, leg: number, step: number, spot?: string): { from: number; to: number } | null {
-  const { legs } = AREAS[areaIndex] as WalkArea;
+  const { legs } = areas()[areaIndex] as WalkArea;
   const track = legs[leg]!.track;
   const fits = (s: number, n: number) => {
     if (s < 0 || s + n > track.length) return false;
@@ -1298,7 +1356,7 @@ export interface WildSpot {
 function spotOf(leg: IdleLeg, [m, , , , tile]: TrackStep): string | null {
   const kind = tile[0] === 'l' ? 'land' : tile[0] === 'w' ? 'water' : null;
   const map = leg.maps[m]!;
-  return kind && ENCOUNTERS[mapView(map).encounters]?.[kind] ? `${map}:${tile[0]}` : null;
+  return kind && generation().encounters[mapView(map).encounters]?.[kind] ? `${map}:${tile[0]}` : null;
 }
 
 /** A map's short name: its floor or zone (PokemonTower_3F: 3F, SafariZone_East: East), else its name spaced (Viridian Forest). */
@@ -1309,13 +1367,13 @@ const mapLabel = (map: string) => (map.includes('_') ? map.slice(map.lastIndexOf
  * enough tiles of for a pacing window (spotPlan). The Town Map offers each when there's more than one.
  */
 export function wildSpots(areaIndex: number): WildSpot[] {
-  const area = AREAS[areaIndex];
+  const area = areas()[areaIndex];
   if (!area || isTown(area)) return [];
   // Worked out once an area (the Town Map asks for every open area's on each click).
-  const known = spotsOf.get(areaIndex);
+  const known = spotsOf().get(areaIndex);
   if (known) return known;
   const out: WildSpot[] = [];
-  spotsOf.set(areaIndex, out);
+  spotsOf().set(areaIndex, out);
   for (const leg of area.legs) {
     for (const step of leg.track) {
       const id = spotOf(leg, step);
@@ -1326,12 +1384,15 @@ export function wildSpots(areaIndex: number): WildSpot[] {
   // Its fishing spots (the user's), one a map with fishing.
   for (const [l, step] of area.fishing ?? []) {
     const map = area.legs[l]!.maps[area.legs[l]!.track[step]![0]]!;
-    if (ENCOUNTERS[mapView(map).encounters]?.fishing) out.push({ id: `${map}:f`, label: mapLabel(map), water: true, fish: true, map });
+    if (fishes(generation().encounters[mapView(map).encounters])) out.push({ id: `${map}:f`, label: mapLabel(map), water: true, fish: true, map });
   }
   return out;
 }
 
-const spotsOf = new Map<number, WildSpot[]>();
+const spotsOf = perGeneration(() => new Map<number, WildSpot[]>());
+
+/** Whether a map's wild tables can be fished: Kanto's fishing table, or any of HGSS's rods'. */
+const fishes = (t: EncounterTable | undefined) => !!(t && (t.fishing || t.oldRod || t.goodRod || t.superRod));
 
 /** An area's fishing spot's map (WalkArea.fishing). */
 const fishMap = (area: WalkArea, spot: number) => {
@@ -1341,11 +1402,11 @@ const fishMap = (area: WalkArea, spot: number) => {
 
 /** Where a wild grind on one of an area's wild tables (WildSpot.id) paces: its last pacing window along the track, or null. */
 function spotPlan(areaIndex: number, spot: string): Extract<RouteGrindPlan, { kind: 'pace' | 'fish' }> | null {
-  const area = AREAS[areaIndex] as WalkArea;
+  const area = areas()[areaIndex] as WalkArea;
   const { legs } = area;
   if (spot.endsWith(':f')) {
     const i = (area.fishing ?? []).findIndex((_, k) => `${fishMap(area, k)}:f` === spot);
-    return i >= 0 && ENCOUNTERS[mapView(fishMap(area, i)).encounters]?.fishing ? { kind: 'fish', area: areaIndex, spot: i } : null;
+    return i >= 0 && fishes(generation().encounters[mapView(fishMap(area, i)).encounters]) ? { kind: 'fish', area: areaIndex, spot: i } : null;
   }
   for (let l = legs.length - 1; l >= 0; l--) {
     const found = paceWindow(areaIndex, l, legs[l]!.track.length - 1, spot);
@@ -1382,11 +1443,11 @@ export type RouteGrindPlan =
  * trainers passed. Null outside a town, or with no route before it.
  */
 function townGrindStart(state: Pick<IdleState, 'phase' | 'area'>): Pick<IdleState, 'area' | 'leg' | 'step' | 'beaten'> | null {
-  const town = AREAS[state.area]!;
+  const town = areas()[state.area]!;
   if ((state.phase !== 'town' && state.phase !== 'grinding') || !isTown(town)) return null;
   const route = town.grind ? areaIndex(town.grind.area) : previousRoute(state.area);
   if (route === null) return null;
-  const w = AREAS[route] as WalkArea;
+  const w = areas()[route] as WalkArea;
   const leg = town.grind ? town.grind.leg : w.legs.length - 1;
   return { area: route, leg, step: w.legs[leg]!.track.length - 1, beaten: w.trainers.map((t) => t.key) };
 }
@@ -1395,7 +1456,7 @@ export function routeGrindPlan(state: Pick<IdleState, 'phase' | 'area' | 'leg' |
   // From a town (or its auto-grind): planned from the end of the route before it.
   const start = townGrindStart(state);
   if (start) state = { ...state, ...start, phase: 'walking', loop: undefined };
-  const a = AREAS[state.area]!;
+  const a = areas()[state.area]!;
   if (state.phase !== 'walking' || (a.kind !== 'route' && a.kind !== 'dungeon')) return { error: 'Only on a route or in a dungeon' };
   const area = a as WalkArea;
   if (kind === 'trainers') {
@@ -1413,15 +1474,15 @@ export function routeGrindPlan(state: Pick<IdleState, 'phase' | 'area' | 'leg' |
 function wildPlan(areaIndex: number, leg: number, step: number, dir: 1 | -1): Extract<RouteGrindPlan, { kind: 'pace' }> | null {
   const here = paceWindow(areaIndex, leg, step);
   if (here) return { kind: 'pace', area: areaIndex, leg, ...here };
-  const legs = (AREAS[areaIndex] as WalkArea).legs;
+  const legs = (areas()[areaIndex] as WalkArea).legs;
   for (let l = leg + dir; l >= 0 && l < legs.length; l += dir) {
     const found = paceWindow(areaIndex, l, dir < 0 ? legs[l]!.track.length - 1 : 0);
     if (found) return { kind: 'pace', area: areaIndex, leg: l, ...found };
   }
-  // Off the main road, only its own wild Pokémon (the areas before it in AREAS are the League's rooms).
+  // Off the main road, only its own wild Pokémon (the areas before it in areas() are the League's rooms).
   if (isOptional(areaIndex)) return null;
   for (let i = areaIndex - 1; i >= 0; i--) {
-    const w = AREAS[i]!;
+    const w = areas()[i]!;
     if (w.kind !== 'route' && w.kind !== 'dungeon') continue;
     for (let l = w.legs.length - 1; l >= 0; l--) {
       const found = paceWindow(i, l, w.legs[l]!.track.length - 1);
@@ -1442,7 +1503,7 @@ function startRouteLoop(state: IdleState, kind: 'wild' | 'trainers'): string | n
   const start = townGrindStart(state);
   if (start) {
     if (state.inStore) return 'Leave the store first';
-    state.log.push(`Left ${AREAS[state.area]!.name} for ${AREAS[start.area]!.name}.`);
+    state.log.push(`Left ${areas()[state.area]!.name} for ${areas()[start.area]!.name}.`);
     Object.assign(state, start, { phase: 'walking' });
     delete state.grind;
   }
@@ -1453,7 +1514,7 @@ function startRouteLoop(state: IdleState, kind: 'wild' | 'trainers'): string | n
     state.beaten = state.beaten.filter((k) => !plan.keys.includes(k));
     state.leg = plan.first.leg;
     state.step = Math.max(0, plan.first.step - LOOP_RUN_UP);
-    state.log.push(`Went to fight the trainers of ${AREAS[state.area]!.name}.`);
+    state.log.push(`Went to fight the trainers of ${areas()[state.area]!.name}.`);
     return null;
   }
   if (plan.kind === 'fish') startFishing(state, plan, resume);
@@ -1466,22 +1527,22 @@ function startPacing(state: IdleState, plan: Extract<RouteGrindPlan, { kind: 'pa
   const from = state.area;
   if (plan.area !== state.area) {
     state.area = plan.area;
-    state.beaten = (AREAS[plan.area] as WalkArea).trainers.map((t) => t.key);
+    state.beaten = (areas()[plan.area] as WalkArea).trainers.map((t) => t.key);
   }
   const away = plan.area !== from || plan.leg !== state.leg;
   state.loop = { kind: 'pace', leg: plan.leg, from: plan.from, to: plan.to, dir: 1, resume };
   state.leg = plan.leg;
   state.step = plan.from;
   state.encounter = { steps: 0, buff: 0, prev: '' };
-  state.log.push(away ? `No wild Pokémon here: went to train in ${AREAS[plan.area]!.name}.` : `Started training in ${AREAS[state.area]!.name}.`);
+  state.log.push(away ? `No wild Pokémon here: went to train in ${areas()[plan.area]!.name}.` : `Started training in ${areas()[state.area]!.name}.`);
 }
 
 /** Fishing on a plan's spot (the user's): the run's place the track's step nearest it (the player shown on the spot itself). */
 function startFishing(state: IdleState, plan: Extract<RouteGrindPlan, { kind: 'fish' }>, resume: RouteLoop['resume']) {
-  const [leg, step] = (AREAS[plan.area] as WalkArea).fishing![plan.spot]!;
+  const [leg, step] = (areas()[plan.area] as WalkArea).fishing![plan.spot]!;
   state.loop = { kind: 'fish', spot: plan.spot, resume };
   Object.assign(state, { area: plan.area, leg, step, encounter: { steps: 0, buff: 0, prev: '' } });
-  state.log.push(`Started fishing in ${AREAS[plan.area]!.name}.`);
+  state.log.push(`Started fishing in ${areas()[plan.area]!.name}.`);
 }
 
 /**
@@ -1498,13 +1559,13 @@ function endRouteLoop(state: IdleState) {
   }
   delete state.loop;
   state.encounter = { steps: 0, buff: 0, prev: '' };
-  state.log.push(`Went on along ${AREAS[state.area]!.name}.`);
+  state.log.push(`Went on along ${areas()[state.area]!.name}.`);
 }
 
 /** A trainers loop's lap done (its last trainer beaten again): back before the first to fight them all again (a fade). */
 function restartTrainerLoop(state: IdleState, out: Segment) {
   const loop = state.loop as Extract<RouteLoop, { kind: 'trainers' }>;
-  const area = AREAS[state.area] as WalkArea;
+  const area = areas()[state.area] as WalkArea;
   const first = loop.keys.map((k) => meetStep(area, k)!).reduce((x, y) => (before(y, x) ? y : x));
   state.beaten = state.beaten.filter((k) => !loop.keys.includes(k));
   state.leg = first.leg;
@@ -1523,11 +1584,11 @@ function whiteOut(state: IdleState, out: Segment) {
   state.totals.whiteOuts += 1;
   out.events.push({ t: 'whiteout' });
   if (state.phase === 'grinding') {
-    state.log.push(`Whited out training in ${areaById((AREAS[state.area] as TownArea).grind!.area).name}.`);
+    state.log.push(`Whited out training in ${areaById((areas()[state.area] as TownArea).grind!.area).name}.`);
     enterArea(state, state.area, out.events);
     return;
   }
-  const a = AREAS[state.area] as WalkArea;
+  const a = areas()[state.area] as WalkArea;
   state.log.push(`Whited out in ${a.name}.`);
   const back = a.kind === 'gym' ? areaIndex(a.town!) : a.kind === 'league' ? areaIndex('indigo-plateau') : state.area;
   enterArea(state, back, out.events);
@@ -1562,9 +1623,10 @@ export const fishMs = (e: Pick<Extract<SegmentEvent, { t: 'fish' }>, 'dots'>) =>
  * battle, a Pokémon from that rod's slots of the map's fishing table; whether it was won.
  */
 function fishCast(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<number>, spot: number, out: Segment): boolean | null {
-  const area = AREAS[state.area] as WalkArea;
+  const area = areas()[state.area] as WalkArea;
   const map = mapView(fishMap(area, spot));
-  const table = ENCOUNTERS[map.encounters]!.fishing!;
+  if (generation().battleRules === 4) return fishCast4(state, rng, settings, caught, spot, map, out);
+  const table = generation().encounters[map.encounters]!.fishing!;
   const rods = rodsOf(state);
   const rod = rods[int(rng, rods.length)]!;
   const dots = Math.min(10, int(rng, 10) + 4);
@@ -1580,10 +1642,63 @@ function fishCast(state: IdleState, rng: Rng, settings: PlaySettings, caught: Se
   return battle(state, rng, settings, caught, { kind: 'wild', foes: [wild], tile: '.w', scene: map.scene }, out);
 }
 
-/** A step's wild encounter, if one appears (its tile's table, wildCheck): the battle played; whether it was won, or null for none. */
-function wildStep(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<number>, tile: string, map: ReturnType<typeof mapView>, out: Segment): boolean | null {
+/**
+ * HGSS's cast (the user's: Johto's fishing, Task_OverworldFish): one of the run's rods with a table here at random, the
+ * bite decided first (fishBite4), then the wait before the "!" (a dot a half second, 1 to 4: `(R() % 4 + 1) × 30`
+ * frames), always reeled in; a Pokémon from that rod's slots (pickWild4, the night's fished one at night).
+ */
+function fishCast4(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<number>, spot: number, map: ReturnType<typeof mapView>, out: Segment): boolean | null {
+  const tables = generation().encounters[map.encounters]!;
+  const rods = rodsOf(state).filter((r) => tables[ROD_TABLES[r]!]);
+  if (!rods.length) return null;
+  const rod = rods[int(rng, rods.length)]!;
+  const lead = state.party[0]!;
+  const bite = fishBite4(rng, tables[ROD_TABLES[rod]!]!, lead);
+  const dots = int(rng, 4) + 1;
+  out.events.push({ t: 'fish', spot, rod, dots, bite });
+  out.durationMs += fishMs({ dots });
+  if (!bite) return null;
+  const w = pickWild4(rng, ROD_TABLES[rod]!, tables, lead, timeOfDayOf(state, out.durationMs) ?? 'day');
+  if (!w) return null;
+  const wild = opponentMon(createMon(rng, { species: w.species, level: w.level, ...(w.nature !== undefined && { nature: w.nature }), ...(w.gender && { gender: w.gender }), ...(int(rng, SHINY_ODDS) === 0 && { shiny: true }) }));
+  return battle(state, rng, settings, caught, { kind: 'wild', foes: [wild], tile: '.w', scene: map.scene }, out);
+}
+
+/**
+ * HGSS's step (encounters4.ts): every step counted (the steps since a map change or battle: a new map counts from 0),
+ * then on a wild encounter tile the check (wildCheck4, the way `face` it walked for the turns back) and the Pokémon
+ * (pickWild4, by the run's time of day): the battle played (a Pokémon met counts the steps from 0 again); whether it
+ * was won, or null for none.
+ */
+function wildStep4(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<number>, tile: string, map: ReturnType<typeof mapView>, out: Segment, face?: string): boolean | null {
+  const enc = state.encounter;
+  if (enc.prev !== map.name) Object.assign(enc, { steps: 0, buff: 0, prev: map.name });
+  enc.steps = Math.min(0xffff, enc.steps + 1);
   const kind = tile[0] === 'l' ? 'land' : tile[0] === 'w' ? 'water' : null;
-  const table = kind && ENCOUNTERS[map.encounters]?.[kind];
+  const tables = generation().encounters[map.encounters];
+  const table = kind && tables?.[kind];
+  const lead = state.party[0]!;
+  if (!table || !wildCheck4(rng, enc, table.rate, lead, face)) return null;
+  const w = pickWild4(rng, kind, tables!, lead, timeOfDayOf(state, out.durationMs) ?? 'day');
+  if (!w) return null;
+  Object.assign(enc, { steps: 0, buff: 0 });
+  const wild = opponentMon(createMon(rng, { species: w.species, level: w.level, ...(w.nature !== undefined && { nature: w.nature }), ...(w.gender && { gender: w.gender }), ...(int(rng, SHINY_ODDS) === 0 && { shiny: true }) }));
+  return battle(state, rng, settings, caught, { kind: 'wild', foes: [wild], tile, scene: map.scene }, out);
+}
+
+/** The way a step goes from one tile to the next (for HGSS's turns back), or undefined for none or a jump across maps. */
+const stepFace = (from: TrackStep | undefined, to: TrackStep) => {
+  if (!from || from[0] !== to[0]) return undefined;
+  const dx = to[1]! - from[1]!;
+  const dy = to[2]! - from[2]!;
+  return dx > 0 ? 'right' : dx < 0 ? 'left' : dy > 0 ? 'down' : dy < 0 ? 'up' : undefined;
+};
+
+/** A step's wild encounter, if one appears (its tile's table, wildCheck): the battle played; whether it was won, or null for none. */
+function wildStep(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<number>, tile: string, map: ReturnType<typeof mapView>, out: Segment, face?: string): boolean | null {
+  if (generation().battleRules === 4) return wildStep4(state, rng, settings, caught, tile, map, out, face);
+  const kind = tile[0] === 'l' ? 'land' : tile[0] === 'w' ? 'water' : null;
+  const table = kind && generation().encounters[map.encounters]?.[kind];
   if (!table || !wildCheck(rng, state.encounter, table, tile, state.party[0]!)) return null;
   const [min, max, id] = pickWild(rng, table, kind === 'land' ? LAND_ODDS : WATER_ODDS);
   const level = min + (int(rng, 65536) % (max - min + 1));
@@ -1596,7 +1711,7 @@ function wildStep(state: IdleState, rng: Rng, settings: PlaySettings, caught: Se
  * beaten gone for the run (IdleState.legends); then, however it ends (lost: a white-out; it fled), back to the Indigo Plateau.
  */
 function legendBattle(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<number>, out: Segment) {
-  const a = AREAS[state.area] as WalkArea;
+  const a = areas()[state.area] as WalkArea;
   const legend = a.legend!;
   const leg = a.legs[state.leg]!;
   const tile = leg.track[state.step]![4];
@@ -1630,7 +1745,7 @@ function finishGrind(state: IdleState, out: Segment) {
  * gym. Returns whether the party whited out (back in the town, waiting for the player).
  */
 function grindSegment(state: IdleState, rng: Rng, settings: PlaySettings, caught: Set<number>, out: Segment): boolean {
-  const spot = (AREAS[state.area] as TownArea).grind!;
+  const spot = (areas()[state.area] as TownArea).grind!;
   const leg = (areaById(spot.area) as WalkArea).legs[spot.leg]!;
   const grind = state.grind!;
   const target = grind.level;
@@ -1648,7 +1763,7 @@ function grindSegment(state: IdleState, rng: Rng, settings: PlaySettings, caught
     else out.events.push({ t: 'circle', from, steps: 1 });
     out.durationMs += STEP_MS;
     const [m, , , , tile] = spot.loop[grind.at]!;
-    const won = wildStep(state, rng, settings, caught, tile, mapView(leg.maps[m]!), out);
+    const won = wildStep(state, rng, settings, caught, tile, mapView(leg.maps[m]!), out, stepFace(spot.loop[from], spot.loop[grind.at]!));
     if (won === null) continue;
     if (!won) {
       whiteOut(state, out);
@@ -1666,9 +1781,9 @@ function grindSegment(state: IdleState, rng: Rng, settings: PlaySettings, caught
  * then goes on from the run's furthest place (its town). Back in the town if the loop's tile isn't on the track.
  */
 function leaveAutoGrind(state: IdleState) {
-  const spot = (AREAS[state.area] as TownArea).grind!;
+  const spot = (areas()[state.area] as TownArea).grind!;
   const route = areaIndex(spot.area);
-  const w = AREAS[route] as WalkArea;
+  const w = areas()[route] as WalkArea;
   const [m, x, y] = spot.loop[state.grind!.at]!;
   const step = w.legs[spot.leg]!.track.findIndex(([tm, tx, ty]) => tm === m && tx === x && ty === y);
   delete state.grind;
@@ -1689,7 +1804,7 @@ export const REGRIND_LEVELS = 2;
  * highest (the gym's highest at least), then into the gym again; past MAX_LEVEL it waits for the player.
  */
 function autoGrind(state: IdleState, out: Segment, whitedOut: boolean) {
-  const town = AREAS[state.area]!;
+  const town = areas()[state.area]!;
   if (!isTown(town) || !town.grind || townDone(state, town)) return;
   const target = grindTarget(state.area, state.rivalStarter)!;
   const level = whitedOut ? Math.max(target, topLevel(state.party) + REGRIND_LEVELS) : target;
@@ -1701,7 +1816,7 @@ function autoGrind(state: IdleState, out: Segment, whitedOut: boolean) {
 
 /** After an area's last trainer or step: a gym's badge (back to its town), the next League room, the title, or the next area. */
 function finishArea(state: IdleState, out: Segment) {
-  const a = AREAS[state.area] as WalkArea;
+  const a = areas()[state.area] as WalkArea;
   if (a.kind === 'gym') {
     state.badges.push(a.badge!);
     out.events.push({ t: 'badge', badge: a.badge! });
@@ -1709,7 +1824,7 @@ function finishArea(state: IdleState, out: Segment) {
     enterArea(state, areaIndex(a.town!), out.events);
     return;
   }
-  if (a.id === 'champion') {
+  if (a.id === generation().champion) {
     state.phase = 'won';
     out.events.push({ t: 'won' });
     state.log.push('Became the Champion!');
@@ -1727,7 +1842,16 @@ function finishArea(state: IdleState, out: Segment) {
  * segment (in a town, its wait: townWait), or null when the run is over. `ask`: the player is watching (idle.next and its
  * replays), so a catch with the party full waits for their choice (IdleState.choosing); away (catchUp), the settings decide.
  */
-export function simulateSegment(from: IdleState, idleSettings: IdleSettings, caught: Set<number>, o: { throwAt?: number[]; ask?: boolean } = {}): { state: IdleState; segment: Segment } | null {
+export function simulateSegment(from: IdleState, idleSettings: IdleSettings, caught: Set<number>, o: { throwAt?: ThrowAsk[]; ask?: boolean } = {}): { state: IdleState; segment: Segment } | null {
+  return inGeneration(from.gen, () => {
+    const out = simulateIn(from, idleSettings, caught, o);
+    // The run's play clock (the user's, 2026-11-04): on by each segment's length, where the generation has a day.
+    if (out && generation().day) out.state.clock = (from.clock ?? 0) + out.segment.durationMs;
+    return out;
+  });
+}
+
+function simulateIn(from: IdleState, idleSettings: IdleSettings, caught: Set<number>, o: { throwAt?: ThrowAsk[]; ask?: boolean }): { state: IdleState; segment: Segment } | null {
   const settings: PlaySettings = { ...idleSettings, ...(o.throwAt && { throwAt: o.throwAt }), ...(o.ask && { ask: true }) };
   // The party changes queued during the last battle, first (withPending).
   const prev = withPending(from);
@@ -1756,11 +1880,16 @@ export function simulateSegment(from: IdleState, idleSettings: IdleSettings, cau
   // A run that just came back from a battle or into an area starts its playback where it stands.
   else out.events.push({ t: 'area', area: state.area, leg: state.leg, step: state.step });
   for (let guard = 0; !grinding && guard < 5000; guard++) {
-    const a = AREAS[state.area] as WalkArea;
+    // The step walked this time round, if any (HGSS's turns back: the way it went).
+    let walkedFrom: number | undefined;
+    const a = areas()[state.area] as WalkArea;
     const leg = a.legs[state.leg]!;
     const trainerHere = (i: number) => {
       const [m, x, y] = leg.track[i]!;
-      return a.trainers.find((t) => t.leg === state.leg && t.map === m && !state.beaten.includes(t.key) && t.sight.some(([sx, sy]) => sx === x && sy === y));
+      // HGSS's trainers there only at night or only by day (the user's: Policemen Keith and Dirk only at night), by the run's clock.
+      const time = timeOfDayOf(state, out.durationMs);
+      const there = (t: (typeof a.trainers)[number]) => time === null || (!(t.night && time !== 'night') && !(t.day && time === 'night'));
+      return a.trainers.find((t) => t.leg === state.leg && t.map === m && !state.beaten.includes(t.key) && there(t) && t.sight.some(([sx, sy]) => sx === x && sy === y));
     };
     // The first step of an area (or after a white-out) can be in a trainer's sight already (a League room's boss), and so
     // can the step a segment starts on: a segment cut at a trainer's "!" or battle (Stop, Continue run: cutSegment), or
@@ -1800,6 +1929,7 @@ export function simulateSegment(from: IdleState, idleSettings: IdleSettings, cau
       // Back and forth over the loop's tiles.
       if (state.step + pace.dir > pace.to || state.step + pace.dir < pace.from) pace.dir = -pace.dir as 1 | -1;
       const from = state.step;
+      walkedFrom = from;
       state.step += pace.dir;
       state.totals.steps += 1;
       out.events.push({ t: 'walk', from, to: state.step });
@@ -1825,6 +1955,7 @@ export function simulateSegment(from: IdleState, idleSettings: IdleSettings, cau
         break;
       }
       const from = state.step;
+      walkedFrom = from;
       state.step += 1;
       state.totals.steps += 1;
       markProgress(state);
@@ -1838,14 +1969,15 @@ export function simulateSegment(from: IdleState, idleSettings: IdleSettings, cau
       const key = trainerKey(state, trainer.key);
       out.events.push({ t: 'spotted', trainer: trainer.key });
       out.durationMs += 1500;
-      const won = battle(state, rng, settings, caught, { kind: 'trainer', foes: trainerParty(rng, key), trainer: key, tile, scene: a.kind === 'gym' && trainer.key === a.leader ? 'leader' : map.scene }, out);
+      const won = battle(state, rng, settings, caught, { kind: 'trainer', foes: trainerParty(rng, key), trainer: key, tile, scene: a.kind === 'gym' && trainer.key === a.leader && generation().gen === 1 ? 'leader' : map.scene }, out);
+      if (generation().battleRules === 4) Object.assign(state.encounter, { steps: 0, buff: 0 });
       if (!won) {
         whiteOut(state, out);
         whitedOut = true;
       } else {
         state.beaten.push(trainer.key);
         if (a.kind === 'gym' && trainer.key !== a.leader) state.gymBeaten = [...(state.gymBeaten ?? []), trainer.key];
-        state.log.push(`Beat ${TRAINERS[key]!.class} ${TRAINERS[key]!.name}.`);
+        state.log.push(`Beat ${generation().trainers[key]!.class} ${generation().trainers[key]!.name}.`);
         if ((a.kind === 'gym' || a.kind === 'league') && trainer.key === a.leader) finishArea(state, out);
         // A trainer beaten while grinding counts in the real run (the user's); a trainers loop's last beaten: round again.
         const loop = state.loop;
@@ -1854,7 +1986,7 @@ export function simulateSegment(from: IdleState, idleSettings: IdleSettings, cau
       }
       break;
     }
-    const won = wildStep(state, rng, settings, caught, tile, map, out);
+    const won = wildStep(state, rng, settings, caught, tile, map, out, stepFace(walkedFrom === undefined ? undefined : leg.track[walkedFrom], leg.track[state.step]!));
     if (won === null) continue;
     if (!won) {
       whiteOut(state, out);
@@ -1896,6 +2028,10 @@ function catchShownMs(b: Extract<SegmentEvent, { t: 'battle' }>): number {
 export const cuts = (action: IdleAction) => action.type === 'CONTINUE_RUN' || action.type === 'TRAVEL' || action.type === 'GRIND_AT' || action.type === 'LEGEND' || (action.type === 'SET_MODE' && action.mode === 'stop');
 
 export function cutSegment(saved: IdleState, now: number): IdleState {
+  return inGeneration(saved.gen, () => cutIn(saved, now));
+}
+
+function cutIn(saved: IdleState, now: number): IdleState {
   const r = saved.replay;
   if (!r) return saved;
   const again = simulateSegment(r.prev, r.settings, new Set(r.caught), { throwAt: r.throws, ask: true });
@@ -1914,11 +2050,11 @@ export function cutSegment(saved: IdleState, now: number): IdleState {
     } else if (e.t === 'circle' && state.grind) {
       // Round the town's grind loop, a step each STEP_MS.
       const steps = Math.min(e.steps, Math.floor((elapsed - t) / STEP_MS));
-      state.grind.at = (e.from + steps) % (AREAS[state.area] as TownArea).grind!.loop.length;
+      state.grind.at = (e.from + steps) % (areas()[state.area] as TownArea).grind!.loop.length;
       state.totals.steps += steps;
       t += e.steps * STEP_MS;
     } else if (e.t === 'walk') {
-      const flags = (AREAS[state.area] as WalkArea).legs[state.leg]!.track[e.to]![3];
+      const flags = (areas()[state.area] as WalkArea).legs[state.leg]!.track[e.to]![3];
       const d = STEP_MS * (flags & 2 ? 2 : 1) + (flags & 1 ? FADE_MS : 0);
       if (elapsed < t + d) break;
       state.step = e.to;
@@ -1934,6 +2070,8 @@ export function cutSegment(saved: IdleState, now: number): IdleState {
     if (elapsed < t) break;
   }
   if (town !== null) enterArea(state, town, []);
+  // The play clock as far as the segment played (where the generation has a day).
+  if (generation().day) state.clock = (r.prev.clock ?? 0) + Math.min(elapsed, again.segment.durationMs);
   // What the player changed meanwhile.
   if (saved.pending?.length) state.pending = [...saved.pending];
   const order = saved.party.map((m) => m.uid);
@@ -1972,7 +2110,7 @@ function townWait(prev: IdleState): { state: IdleState; segment: Segment } {
   const state = structuredClone(prev);
   delete state.replay;
   const out: Segment = { events: [{ t: 'town', area: state.area }], durationMs: TOWN_WAIT_MS + FADE_MS, dex: [] };
-  const town = AREAS[state.area] as TownArea;
+  const town = areas()[state.area] as TownArea;
   if (!townDone(state, town)) enterGym(state, out.events);
   // Continue run (the user's): from a town behind the run's furthest place, straight there; from the furthest, on.
   else if (!atProgress(state)) goToProgress(state, out.events);
@@ -2002,6 +2140,10 @@ export interface CatchUpSummary {
  * summary and the dex notes; the events themselves are dropped.
  */
 export function catchUp(prev: IdleState, settings: IdleSettings, caught: Set<number>, elapsedMs: number, maxSegments = CATCH_UP_SEGMENTS) {
+  return inGeneration(prev.gen, () => catchUpIn(prev, settings, caught, elapsedMs, maxSegments));
+}
+
+function catchUpIn(prev: IdleState, settings: IdleSettings, caught: Set<number>, elapsedMs: number, maxSegments: number) {
   let state = prev;
   const budget = Math.min(elapsedMs, CATCH_UP_CAP_MS);
   const summary: CatchUpSummary = { segments: 0, durationMs: 0, battles: 0, caught: [], levels: 0, evolutions: [], whiteOuts: 0, money: 0, badges: [], stopped: 'time' };
@@ -2044,10 +2186,14 @@ export const bankedMoney = (state: Pick<IdleState, 'phase' | 'money'>) => (state
 
 /** What the player sees of a run: everything but the RNG, with the area it's in. */
 export function idleView(saved: IdleState) {
+  return inGeneration(saved.gen, () => idleViewIn(saved));
+}
+
+function idleViewIn(saved: IdleState) {
   // The party changes queued during a battle shown at once (the user's), and how many wait.
   const state = withPending(saved);
   const { rngState: _, replay: __, ...rest } = state;
-  const area: IdleArea = AREAS[state.area]!;
+  const area: IdleArea = areas()[state.area]!;
   // Grinding: the area the loop is in (the run's `area` stays the town), and the level it trains to.
   const grindArea = state.phase === 'grinding' && isTown(area) && area.grind ? areaById(area.grind.area) : null;
   return { ...rest, areaId: area.id, areaName: grindArea?.name ?? area.name, store: isTown(area) ? storeStock(area, state) : [], grindTarget: state.grind?.level ?? grindTarget(state.area, state.rivalStarter), pendingChanges: saved.pending?.length ?? 0 };
@@ -2059,4 +2205,4 @@ export type IdleView = ReturnType<typeof idleView>;
  * The Pokédex's starters for a new run: the three starters always, and any species with a caught record (from the second
  * run) that evolves from none (the user's: a line's first stage, or one that doesn't evolve; never Charmeleon).
  */
-export const starterOptions = (caughtSpecies: number[]) => [...new Set([...STARTERS, ...caughtSpecies.filter(isBaseForm)])].sort((a, b) => a - b);
+export const starterOptions = (caughtSpecies: number[]) => [...new Set([...starters(), ...caughtSpecies.filter(isBaseForm)])].sort((a, b) => a - b);

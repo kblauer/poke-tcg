@@ -524,6 +524,11 @@ html[data-font="emerald"] {
   50% { background-position: 0 -32px; }
 }
 /* A party icon's two frames in turn at any size (PartyOverlay: the sheet's two frames, top then bottom). */
+/* HGSS's party menu: the chosen Pokémon's icon bouncing with its frames (sub_0207F178: 3 pixels up on the first, 1 down on the second, of its 32). */
+@keyframes idle-hgss-bounce {
+  0% { transform: translateY(-9.375%); }
+  50% { transform: translateY(3.125%); }
+}
 @keyframes idle-icon-cqw {
   0% { background-position: 0 0; }
   50% { background-position: 0 100%; }

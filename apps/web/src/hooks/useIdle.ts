@@ -1,5 +1,5 @@
 import type { AppRouter } from '@poke-tcg/api/router';
-import { AREAS, areaIndex, ballLineMs, BATTLE_HOLD_MS, CHALLENGE_MS, FADE_MS, FISH_CAST_MS, FISH_DOT_MS, FISH_TEXT_MS, INTRO_MS, ITEMS, openingLineMs, playing, STEP_MS, TICK_MS, TOWN_HERE_MS, type CatchUpSummary, type IdleAction, type IdleSettings, type SegmentEvent, type TownArea, type TrackStep, type WalkArea } from '@poke-tcg/idle';
+import { generation, areas, areaIndex, ballLineMs, BATTLE_HOLD_MS, CHALLENGE_MS, FADE_MS, FISH_CAST_MS, FISH_DOT_MS, FISH_TEXT_MS, introMs, openingLineMs, playing, STEP_MS, TICK_MS, TOWN_HERE_MS, type CatchUpSummary, type IdleAction, type IdleGen, type IdleSettings, type SegmentEvent, type TownArea, type TrackStep, type WalkArea } from '@poke-tcg/idle';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type { inferRouterOutputs } from '@trpc/server';
@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { TRANSITION_MS } from '../components/BattleTransition';
 import { preloadBattle } from '../components/idle/BattleScreen';
 import { useTRPC } from '../lib/trpc';
+import { idleSpeed } from '../utils/idleSpeed';
 import type { Facing } from '../utils/overworld';
 
 export type IdleOverview = inferRouterOutputs<AppRouter>['idle']['overview'];
@@ -40,15 +41,18 @@ export function useIdleActions() {
   const queryClient = useQueryClient();
   const key = trpc.idle.overview.queryKey();
   const setRun = (run: ClientIdleRun) => queryClient.setQueryData(key, (old) => old && { ...old, run });
-  const start = useMutation(trpc.idle.start.mutationOptions({ onSuccess: (run) => (setRun(run), void queryClient.invalidateQueries({ queryKey: key })) }));
+  const started = { onSuccess: (run: ClientIdleRun) => (setRun(run), void queryClient.invalidateQueries({ queryKey: key })) };
+  const start = useMutation(trpc.idle.start.mutationOptions(started));
+  // Debug mode's: a region not open yet (the user's, 2026-11-04).
+  const debugStart = useMutation(trpc.idle.debugStart.mutationOptions(started));
   const act = useMutation(trpc.idle.act.mutationOptions({ onSuccess: ({ run }) => setRun(run) }));
   const settings = useMutation(trpc.idle.settings.mutationOptions({ onSuccess: (s) => queryClient.setQueryData(key, (old) => old && { ...old, settings: s }) }));
   const warp = useMutation(trpc.idle.debugWarp.mutationOptions({ onSuccess: setRun }));
   const money = useMutation(trpc.idle.debugMoney.mutationOptions({ onSuccess: setRun }));
   const sureCatch = useMutation(trpc.idle.debugCatch.mutationOptions({ onSuccess: setRun }));
   return {
-    busy: start.isPending || act.isPending,
-    start: (species: number, shiny = false) => start.mutateAsync({ species, shiny }),
+    busy: start.isPending || debugStart.isPending || act.isPending,
+    start: (species: number, shiny: boolean, gen: IdleGen, debug = false) => (debug ? debugStart : start).mutateAsync({ species, shiny, gen }),
     act: (run: ClientIdleRun, action: IdleAction) => act.mutateAsync({ runId: run.id, expectedVersion: run.version, action }),
     settings: (s: Partial<IdleSettings>) => settings.mutateAsync(s),
     warp: (run: ClientIdleRun, area: string) => warp.mutateAsync({ runId: run.id, area }),
@@ -69,14 +73,14 @@ export interface Place {
 
 /** The track a place's step is on: its leg's, or grinding, the town's loop (TownArea.grind). */
 export function placeTrack(place: Place): TrackStep[] {
-  if (place.grind !== undefined) return (AREAS[place.grind] as TownArea).grind!.loop;
-  const area = AREAS[place.area] as WalkArea;
+  if (place.grind !== undefined) return (areas()[place.grind] as TownArea).grind!.loop;
+  const area = areas()[place.area] as WalkArea;
   return area.legs[Math.min(place.leg, area.legs.length - 1)]!.track;
 }
 
 /** The place on a town's grind loop at its step `at`. */
 function grindPlace(town: number, at: number): Place {
-  const grind = (AREAS[town] as TownArea).grind!;
+  const grind = (areas()[town] as TownArea).grind!;
   return { area: areaIndex(grind.area), leg: grind.leg, step: at, grind: town };
 }
 
@@ -171,7 +175,7 @@ function noticeOf(e: SegmentEvent, name: (id: number) => string): string | null 
     case 'evolve':
       return `${name(e.from)} evolved into ${name(e.into)}!`;
     case 'bought':
-      return `Bought ${e.count} ${ITEMS[e.item]?.name ?? e.item}${e.count === 1 ? '' : 's'} for ₱${e.cost.toLocaleString()}.`;
+      return `Bought ${e.count} ${generation().items[e.item]?.name ?? e.item}${e.count === 1 ? '' : 's'} for ₱${e.cost.toLocaleString()}.`;
     case 'caught':
       return (e.shiny ? 'A shiny! ' : '') + (e.kept ? (e.replaced ? `${name(e.species)} joined the party in place of ${name(e.replaced)}.` : `${name(e.species)} joined the party!`) : `${name(e.species)} was registered in the Pokédex and released.`);
     case 'full':
@@ -198,6 +202,7 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
   const queryClient = useQueryClient();
   const key = trpc.idle.overview.queryKey();
   const next = useMutation(trpc.idle.next.mutationOptions());
+  const debugNext = useMutation(trpc.idle.debugNext.mutationOptions());
   const catchUp = useMutation(trpc.idle.catchUp.mutationOptions());
   const throwMut = useMutation(trpc.idle.throwBall.mutationOptions());
   const resume = useMutation(trpc.idle.resume.mutationOptions());
@@ -265,9 +270,11 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
      * its waits taken out of this until it's spent (the user's: picking it up where it is, not waiting on it).
      */
     let skipMs = 0;
-    const wait = (full: number) =>
+    const wait = (gameMs: number) =>
       new Promise<void>((done, fail) => {
         if (stopped) return fail(new Stopped());
+        // At debug mode's speed (idleSpeed), that many times shorter.
+        const full = gameMs / idleSpeed();
         const skipped = Math.min(full, skipMs);
         skipMs -= skipped;
         const ms = full - skipped;
@@ -307,8 +314,8 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
           place: { ...place, step: i },
           face: faceOf(x - px, y - py, old.face),
           walkTick: old.walkTick + 1,
-          moveMs: ms,
-          jump: jump ? { ms, stamp: Date.now() } : old.jump,
+          moveMs: ms / idleSpeed(),
+          jump: jump ? { ms: ms / idleSpeed(), stamp: Date.now() } : old.jump,
         }));
         await wait(STEP_MS * (jump ? 2 : 1));
         // Landed: the jump goes, or the map scene coming back after a battle would play it again.
@@ -324,7 +331,7 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
         const i = (e.from + k) % loop.length;
         const [, x, y] = loop[i]!;
         const [, px, py] = loop[(i + loop.length - 1) % loop.length]!;
-        setPlay((old) => ({ ...old, place: { ...place, step: i }, face: faceOf(x - px, y - py, old.face), walkTick: old.walkTick + 1, moveMs: STEP_MS }));
+        setPlay((old) => ({ ...old, place: { ...place, step: i }, face: faceOf(x - px, y - py, old.face), walkTick: old.walkTick + 1, moveMs: STEP_MS / idleSpeed() }));
         await wait(STEP_MS);
         place.step = i;
       }
@@ -348,7 +355,7 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
       // the rest sharing what's left; the opening first FireRed's intro (and a trainer's challenge), then each of its lines
       // the time its animation takes (openingLineMs; the run counts the same: openingMs). A run of rewards (EXP., levels,
       // moves learned) is one line: shown at once.
-      await wait(INTRO_MS + (e.kind === 'trainer' ? CHALLENGE_MS : 0));
+      await wait(introMs(e.kind) + (e.kind === 'trainer' ? CHALLENGE_MS : 0));
       const said = (x: BattleEvent) => 'msg' in x && !!x.msg;
       let i = 0;
       while (i < e.events.length) {
@@ -536,7 +543,9 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
         while (!stopped && current.status === 'ACTIVE' && playing(current.view)) {
           let r;
           try {
-            r = await next.mutateAsync({ runId: current.id, expectedVersion: newest().version });
+            // Debug mode's ×3 (idleSpeed): asked for at once, the server counting it played that much faster.
+            const ask = { runId: current.id, expectedVersion: newest().version };
+            r = await (idleSpeed() > 1 ? debugNext.mutateAsync({ ...ask, speed: idleSpeed() }) : next.mutateAsync(ask));
           } catch (e) {
             // Played back faster than the server counted (a reload mid-segment): wait until it's caught up.
             if (stopped || !(e instanceof Error) || !e.message.startsWith('Still playing')) throw e;
@@ -584,16 +593,17 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
     /** A ball asked for and not yet answered. */
     throwing,
     /**
-     * The battle's ball button (the user's): the best ball on the tick after the one on screen. The server plays the
-     * segment again with it; the playback holds at the next tick until it answers, then goes on with that battle.
+     * The battle's ball buttons (the user's): the best ball but the Master Ball, or (`master`, its own button, 2026-11-04)
+     * the Master Ball, on the tick after the one on screen. The server plays the segment again with it; the playback
+     * holds at the next tick until it answers, then goes on with that battle.
      */
-    throwBall: () => {
+    throwBall: (master = false) => {
       const s = onScreen.current;
       const r = latest.current;
       if (!s.battle || s.battle.kind !== 'wild' || pendingThrow.current || !r) return;
       setThrowing(true);
       pendingThrow.current = throwMut
-        .mutateAsync({ runId: r.id, expectedVersion: r.version, tick: s.turn + 1 })
+        .mutateAsync({ runId: r.id, expectedVersion: r.version, tick: s.turn + 1, master })
         .then((x) => ({ run: x.run, events: x.segment.events }))
         .catch((e: unknown) => {
           onError(e instanceof Error ? e.message : 'The ball could not be thrown.');
