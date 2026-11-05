@@ -182,6 +182,8 @@ function noticeOf(e: SegmentEvent, name: (id: number) => string): string | null 
       return `${e.shiny ? 'A shiny! ' : ''}${name(e.species)} was caught, but the party is full!`;
     case 'badge':
       return `Won the ${e.badge} Badge!`;
+    case 'gift':
+      return `Got a ${generation().items[e.item]?.name ?? e.item}!`;
     case 'whiteout':
       return 'Blacked out! Went back to the start.';
     case 'won':
