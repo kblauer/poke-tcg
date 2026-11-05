@@ -441,10 +441,12 @@ const LONG_GRASS_MASK = (() => {
  * bottom: spriteHeight).
  */
 const SURF_FADE = 3;
-const SURF_MASK = (() => {
-  const mask = `linear-gradient(to bottom, black ${32 - SURF_FADE}px, transparent 32px)`;
+/** That fade on anything `height` pixels tall whose bottom is the surf blob's (the Idle Adventure's blob under a cast). */
+export const surfMask = (height: number) => {
+  const mask = `linear-gradient(to bottom, black ${height - SURF_FADE}px, transparent ${height}px)`;
   return { maskImage: mask, WebkitMaskImage: mask };
-})();
+};
+const SURF_MASK = surfMask(32);
 
 /** The surf bob (index.css's `surf-bob`): on anything the surfing player carries along (the Idle Adventure's surf blob). */
 export const SURF_BOB = 'motion-safe:animate-[surf-bob_536ms_step-end_infinite]';

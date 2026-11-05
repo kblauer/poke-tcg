@@ -6,7 +6,7 @@ import { usePanTo } from '../../hooks/usePan';
 import type { Facing } from '../../utils/overworld';
 import { playerSprites } from '../../utils/idleLook';
 import { DialogueBox, dialogueKey, type Dialogue } from '../DialogueBox';
-import { Exclamation, GrassTufts, OverworldSprite, SURF_BOB, TallGrass } from '../run/RouteSprites';
+import { Exclamation, GrassTufts, JumpDust, JumpShadow, OverworldSprite, SURF_BOB, surfMask, TallGrass } from '../run/RouteSprites';
 import { DIALOGUE_TEXT, GameScreen, gameSize, useGameScale } from './GameScreen';
 
 /** The text box's widest (the user's: bound to less than the scene's width), and never wider than the map drawn. */
@@ -76,6 +76,7 @@ export function MapScene({
   dialogue,
   fishing,
   overhead,
+  top: topLayer,
   children,
 }: {
   image: string;
@@ -96,6 +97,8 @@ export function MapScene({
   fishing?: { sprite: string; right?: boolean; surfing: boolean; phase: 'cast' | 'hooked' | 'away'; stamp: number };
   /** What's over the player while he's under it (the map's overhead: Goldenrod Gym's bridges, the user's), or nothing. */
   overhead?: string | null;
+  /** What's over everyone always (the map's `top`: FireRed's top layer, its treetops and counters' edges), or nothing. */
+  top?: string;
   children?: ReactNode;
 }) {
   const phone = useIsPhone();
@@ -121,6 +124,17 @@ export function MapScene({
   const top = mapH <= view.h ? (view.h - mapH) / 2 : view.h / 2 - (tile.y * 16 + 8) * zoom;
   const panned = useRef<HTMLDivElement>(null);
   usePanTo(panned, { x: left, y: top }, shown && moveMs ? { ms: moveMs, ease: 'linear' } : null, `${zoom} ${image}`);
+  // Where a ledge jump last landed (the run maps' useWalk `landed`): the jump's tile once its time is up, for its dust.
+  const [landed, setLanded] = useState<{ tile: { x: number; y: number }; stamp: number; grass: boolean } | null>(null);
+  const landing = useRef({ tile, grass });
+  landing.current = { tile, grass };
+  useEffect(() => {
+    if (!jump) return;
+    const timer = window.setTimeout(() => setLanded({ ...landing.current, stamp: Date.now() }), jump.ms);
+    return () => window.clearTimeout(timer);
+    // Each jump once (its stamp).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jump?.stamp]);
   return (
     <div ref={ref} className="w-full">
     <div className="relative mx-auto overflow-hidden rounded-lg bg-black ring-1 ring-slate-700" style={measured ? { width: view.w, height: view.h } : { width: '100%', aspectRatio: `${screen.w} / ${screen.h}` }} onClick={() => pressDialogue.current?.()}>
@@ -141,10 +155,16 @@ export function MapScene({
               {spotted === p.key && <Exclamation tile={{ x: p.x, y: p.y }} />}
             </div>
           ))}
+          {/* A ledge jump's shadow on the ground under him, and the dust where he lands (FireRed's, as the run maps draw
+              them: JumpShadow, JumpDust; landing in FireRed's tall grass, the grass thrown up instead: GrassTufts). */}
+          <JumpShadow tile={tile} shown={!!jump} moveMs={jump?.ms ?? moveMs} />
+          {landed && (legsHidden || !landed.grass) && <JumpDust key={landed.stamp} tile={landed.tile} />}
           {fishing ? <FishingSprite {...fishing} tile={tile} face={face} /> : <OverworldSprite name={player} tile={tile} face={face} walkTick={moveMs ? walkTick : undefined} moveMs={moveMs} grass={legsHidden && grass} {...(jump && { jump })} />}
           {/* The grass after the sprites, so it's over the feet of those on its row (FireRed's; HGSS's hides their legs instead). */}
           {!legsHidden && people.map((p) => p.grass && <TallGrass key={p.key} tile={{ x: p.x, y: p.y }} />)}
           {!legsHidden && <GrassTufts tile={tile} grass={grass} map={image} moveMs={moveMs} jump={jump} />}
+          {/* FireRed's top layer over everyone (treetops, counters' edges), as the run maps draw their Kanto routes' overheads. */}
+          {topLayer && <img src={topLayer} alt="" draggable={false} className="pointer-events-none absolute inset-0 max-w-none select-none" style={{ width: width * 16, height: height * 16, zIndex: 899 }} />}
           {/* A bridge over the player walking under it: above every sprite (zIndex: their row). */}
           {overhead && <img src={overhead} alt="" draggable={false} className="pointer-events-none absolute inset-0 max-w-none select-none" style={{ width: width * 16, height: height * 16, zIndex: 899 }} />}
         </div>
@@ -172,7 +192,8 @@ const BLOB_FRAME: Record<Facing, number> = { down: 0, up: 2, left: 4, right: 4 }
 /**
  * The player fishing (the user's; object_event_anims.h): the rod taken out (frames 0 to 3) and held; on a bite, the rod
  * jerking (2 and 3, twice, then held a moment, over again); none, the rod put away (3 to 0). Surfing, on the surf blob
- * (a little below, as surf_frames draws Red surfing), the two bobbing together (SURF_BOB).
+ * (a little below, as surf_frames draws Red surfing), the two bobbing together (SURF_BOB), the blob's bottom fading into
+ * the water as the surfing sprite's does (surfMask: the run maps' SURF_MASK).
  */
 function FishingSprite({ sprite, right = false, surfing, phase, stamp, tile, face }: { sprite: string; right?: boolean; surfing: boolean; phase: 'cast' | 'hooked' | 'away'; stamp: number; tile: { x: number; y: number }; face: Facing }) {
   const [now, setNow] = useState(() => Date.now());
@@ -190,7 +211,7 @@ function FishingSprite({ sprite, right = false, surfing, phase, stamp, tile, fac
       {surfing && (
         <div
           className={`absolute [image-rendering:pixelated] ${SURF_BOB}`}
-          style={{ left: tile.x * 16 + 8 - 16, top: tile.y * 16 - 8, width: 32, height: 24, backgroundImage: 'url(/overworld/surf_blob.png)', backgroundSize: '192px 32px', backgroundPosition: `${-BLOB_FRAME[face] * 32}px 0`, transform: flip, zIndex: tile.y }}
+          style={{ left: tile.x * 16 + 8 - 16, top: tile.y * 16 - 8, width: 32, height: 24, backgroundImage: 'url(/overworld/surf_blob.png)', backgroundSize: '192px 32px', backgroundPosition: `${-BLOB_FRAME[face] * 32}px 0`, transform: flip, zIndex: tile.y, ...surfMask(24) }}
         />
       )}
       <div
@@ -258,6 +279,7 @@ export function AreaScene({ playback, gender, dialogue, children }: { playback: 
       spotted={playback.spotted}
       dialogue={dialogue}
       overhead={map.overhead && flags & 8 ? map.overhead : null}
+      top={map.top}
     >
       {children}
     </MapScene>

@@ -49,6 +49,7 @@ export function StarterScene({ gender, busy, onPick, dialogue }: { gender: 'male
   return (
     <MapScene
       image={map.image}
+      top={map.top}
       width={map.width}
       height={map.height}
       tile={lab.player}

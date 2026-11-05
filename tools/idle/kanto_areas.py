@@ -988,6 +988,9 @@ def main():
             'section': m.json['region_map_section'][len('MAPSEC_'):].lower(),
             'music': m.json.get('music', ''),
         }
+        # What the game draws over the people (its top layer: treetops, counters), beside the picture (tools/routes/kanto_overheads.py: run it first).
+        if os.path.exists(os.path.join(PUB, image.lstrip('/'))[:-len('.png')] + '_overhead.png'):
+            out_maps[n]['top'] = image[:-len('.png')] + '_overhead.png'
     # Overworld sprites the trainers need, cut from the game where public/overworld/ has none (and Professor Oak, in the
     # starter's scene).
     sprites.add('prof_oak')

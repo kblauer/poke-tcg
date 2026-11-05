@@ -85,7 +85,7 @@ export function MartScene({
       ? { text: 'Please come again!', answer: () => !busy && onLeave() }
       : { text: stage === 'hello' ? hello : again, choices, answer: (i) => setStage(choices[i] === 'BUY' ? 'buy' : choices[i] === 'BUY TM/HM' ? 'tms' : 'bye') };
   return (
-    <MapScene image={map.image} width={map.width} height={map.height} tile={{ x: mart.x, y: mart.y }} player={player} face={mart.face} moveMs={0} people={mart.people.map((p, i) => ({ key: String(i), ...p }))} dialogue={dialogue ?? clerk}>
+    <MapScene image={map.image} top={map.top} width={map.width} height={map.height} tile={{ x: mart.x, y: mart.y }} player={player} face={mart.face} moveMs={0} people={mart.people.map((p, i) => ({ key: String(i), ...p }))} dialogue={dialogue ?? clerk}>
       {children}
     </MapScene>
   );
@@ -298,6 +298,8 @@ function BuyScreen({ run, player, busy, onBuy, onClose, machines, children }: { 
               {people.map((p, i) => (
                 <OverworldSprite key={i} name={p.sprite} tile={{ x: p.x, y: p.y }} face={p.face} />
               ))}
+              {/* The counter's near edge over the clerk and the player (the map's top layer). */}
+              {map.top && <img src={map.top} alt="" className="absolute left-0 top-0 max-w-none" style={{ width: map.width * 16, height: map.height * 16, zIndex: 899 }} draggable={false} />}
             </div>
             <img src={`${SHOP}/${listing ? 'frame' : 'frame_quantity'}.png`} alt="" className="absolute left-0 top-0" style={{ width: GAME_WIDTH, height: GAME_HEIGHT }} draggable={false} />
             {/* The money box (window 0's 8 by 3 tiles; the user's: on the left, just above the description's bar, not in the

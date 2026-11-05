@@ -24,6 +24,12 @@ export interface IdleMap {
    */
   overhead?: string;
   bridges?: [number, number, number, number][];
+  /**
+   * What FireRed draws over the people on its map (its top background layer: a tree's top, a counter's near edge; the
+   * user's: the treetops masking the player, as the run maps' Kanto routes draw them), always over every sprite: a
+   * picture the map's size, see-through elsewhere (tools/routes/kanto_overheads.py). None on a map without.
+   */
+  top?: string;
   /** Its Town Map section (MAPSEC_, lower case: TownMapPlace.section): the Town Map offers a place its own maps' grinds. */
   section: string;
 }

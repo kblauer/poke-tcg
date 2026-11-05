@@ -76,7 +76,8 @@ export interface Route {
   /** The map image (in apps/web/public) and its size in pixels; its tiles are 16px. */
   image: string;
   /**
-   * What's drawn over the people walking under it (Route 32's Magnet Train bridge): an image the map's size, see-through
+   * What's drawn over the people walking under it (Route 32's Magnet Train bridge; the Kanto routes' FireRed top layer, its
+   * treetops and counters' edges, tools/routes/kanto_overheads.py, the user's): an image the map's size, see-through
    * elsewhere (tools/routes/hgss/johto_routes.py's OVERHEAD). On a map with a `track`, only while the player is on one of
    * its `under` tiles (he also walks over the bridge); with `overheadAt`, only while he's on one of those (the Elite Four's
    * doorways, the user's: their arch over him in the doorway, not once he's stepped into the room).
@@ -223,6 +224,7 @@ export const ROUTE_2: Route = {
   flow: 'up',
   entrance: { x: 9, y: 78 },
   image: '/routes/route2.png',
+  overhead: '/routes/route2_overhead.png',
   width: 384,
   height: 1280,
   spots: [
@@ -423,6 +425,7 @@ export const PEWTER_GYM: Route = {
   name: 'Pewter Gym',
   flow: 'up',
   image: '/routes/pewter_gym.png',
+  overhead: '/routes/pewter_gym_overhead.png',
   width: 208,
   height: 256,
   entrance: { x: 6, y: 13 },

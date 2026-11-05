@@ -62,7 +62,7 @@ export function TownMenu({
     answer: (i) => options[i]!.act(),
   };
   return (
-    <MapScene image={map.image} width={map.width} height={map.height} tile={{ x: town.stand[0], y: town.stand[1] }} player={playerSprites(gender).walk} face="down" moveMs={0} dialogue={dialogue ?? question}>
+    <MapScene image={map.image} top={map.top} width={map.width} height={map.height} tile={{ x: town.stand[0], y: town.stand[1] }} player={playerSprites(gender).walk} face="down" moveMs={0} dialogue={dialogue ?? question}>
       {children}
     </MapScene>
   );
