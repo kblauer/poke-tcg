@@ -83,6 +83,8 @@ describe("Johto's run", () => {
     }
     expect(s.phase).toBe('won');
     expect(s.badges).toEqual(['Zephyr', 'Hive', 'Plain', 'Fog', 'Storm', 'Mineral', 'Glacier', 'Rising']);
+    // Only Kanto's 8th badge gives a Master Ball.
+    expect(s.bag['master-ball']).toBeUndefined();
     // HGSS's prize: Joey's Rattata at level 4, ₱4 a level, × 4.
     expect(prizes[0]).toBe(4 * 4 * 4);
     // Each battle has its hour on the run's clock (its background's palette), and the day goes round.

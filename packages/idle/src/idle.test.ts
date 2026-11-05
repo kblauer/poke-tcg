@@ -81,6 +81,8 @@ describe('an idle run', () => {
       const how = `seed ${seed}: ${state.phase} in ${areas()[state.area]!.id} after ${segments} segments, ${state.totals.whiteOuts} white-outs`;
       expect(state.phase, how).toBe('won');
       expect(state.badges).toHaveLength(8);
+      // The 8th badge's Master Ball, never thrown by itself.
+      expect(state.bag['master-ball'], how).toBe(1);
     }
   });
 

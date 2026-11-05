@@ -303,6 +303,8 @@ export type SegmentEvent =
   /** Caught with the party full, the player watching: the run waits for their choice (IdleState.choosing). */
   | { t: 'full'; species: number; shiny?: true }
   | { t: 'badge'; badge: string }
+  /** An item given (Kanto's Master Ball with the 8th badge). */
+  | { t: 'gift'; item: string }
   | { t: 'whiteout' }
   | { t: 'town'; area: number }
   | { t: 'won' };
@@ -1814,6 +1816,9 @@ function autoGrind(state: IdleState, out: Segment, whitedOut: boolean) {
   out.durationMs += FADE_MS;
 }
 
+/** The badges a Kanto run has when it's given a Master Ball (finishArea). */
+export const MASTER_BALL_BADGES = 8;
+
 /** After an area's last trainer or step: a gym's badge (back to its town), the next League room, the title, or the next area. */
 function finishArea(state: IdleState, out: Segment) {
   const a = areas()[state.area] as WalkArea;
@@ -1821,6 +1826,12 @@ function finishArea(state: IdleState, out: Segment) {
     state.badges.push(a.badge!);
     out.events.push({ t: 'badge', badge: a.badge! });
     state.log.push(`Won the ${a.badge} Badge!`);
+    // Kanto's 8th badge gives a Master Ball (the user's, 2026-11-05), thrown only from its own button.
+    if (generation().gen === 1 && state.badges.length === MASTER_BALL_BADGES) {
+      state.bag['master-ball'] = (state.bag['master-ball'] ?? 0) + 1;
+      out.events.push({ t: 'gift', item: 'master-ball' });
+      state.log.push('Got a Master Ball!');
+    }
     enterArea(state, areaIndex(a.town!), out.events);
     return;
   }
