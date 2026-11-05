@@ -1,6 +1,6 @@
 import { prisma } from '@poke-tcg/db';
-import { areas, applyIdleAction, areaIndex, BALLS, throwTick, throwable, isBaseForm, isOptional, CATCH_UP_CAP_MS, catchUp, createIdleRun, cutSegment, cuts, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, reachedArea, simulateSegment, TOWN_WAIT_MS, starterOptions, starters, visitStore, withPending, type IdleSettings, type Stats } from '@poke-tcg/idle';
-import { idleActInput, idleDebugCatchInput, idleHereInput, idleRunInput, idleSettingsInput, idleThrowInput, idleWarpInput, startIdleInput } from '@poke-tcg/shared';
+import { areas, applyIdleAction, areaIndex, BALLS, throwTick, throwable, generation, generationOf, IDLE_GENERATIONS, inGeneration, isBaseForm, isOptional, CATCH_UP_CAP_MS, catchUp, createIdleRun, cutSegment, cuts, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, reachedArea, simulateSegment, TOWN_WAIT_MS, starterOptions, starters, visitStore, withPending, type IdleGen, type IdleSettings, type Stats } from '@poke-tcg/idle';
+import { idleActInput, idleDebugCatchInput, idleHereInput, idleRunInput, idleSettingsInput, idleThrowInput, idleWarpInput, startIdleInput, type StartIdleInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { asJson, newSeed } from '../games.js';
 import { caughtSpecies, clientIdleRun, idleSettings, latestIdleRun, loadOwnIdleRun, saveIdleRun, type LoadedIdleRun } from '../idle.js';
@@ -19,48 +19,85 @@ function checkVersion(run: LoadedIdleRun, expected: number) {
 
 const failed = (error: string) => new TRPCError({ code: 'BAD_REQUEST', message: error });
 
+type Db = Parameters<Parameters<typeof prisma.$transaction>[0]>[0] | typeof prisma;
+
+/** Whether the account has beaten Kanto's Champion in a run (Johto's lock, the user's; a run with no generation is Kanto's). */
+async function kantoBeaten(userId: string, db: Db = prisma) {
+  const rows = await db.$queryRaw<unknown[]>`SELECT 1 FROM "IdleRun" WHERE "ownerId" = ${userId}::uuid AND status = 'BEATEN' AND COALESCE(state->>'gen', '1') = '1' LIMIT 1`;
+  return rows.length > 0;
+}
+
+/** Why a generation can't be started (null: it can): Johto until a Kanto run has beaten the Champion (the user's). */
+const generationLocked = (gen: IdleGen, beaten: boolean) => (gen === 2 && !beaten ? 'Johto opens once a Kanto run has beaten the Champion' : null);
+
+/**
+ * Starts a run (one under way at a time): its generation open (`debug`: any, debug mode's), its starter one of that
+ * generation's three or (from the second run) a caught base form, at level 5, a dex species with its record's best IVs and EVs.
+ */
+async function startIdle(userId: string, input: StartIdleInput, debug: boolean) {
+  const created = await prisma.$transaction(async (tx) => {
+    await lockUser(tx, userId);
+    if (await tx.idleRun.findFirst({ where: { ownerId: userId, status: 'ACTIVE' }, select: { id: true } })) throw failed('A run is already under way');
+    const locked = !debug && generationLocked(input.gen, await kantoBeaten(userId, tx));
+    if (locked) throw failed(locked);
+    const runs = await tx.idleRun.count({ where: { ownerId: userId } });
+    const caught = await caughtSpecies(userId, tx);
+    if (!inGeneration(input.gen, () => (runs ? starterOptions(caught) : starters()).includes(input.species))) throw failed("That Pokémon can't be picked");
+    // A caught species starts with its record's best IVs and EVs (a starter never caught: random IVs, no EVs).
+    const record = caught.includes(input.species) ? await tx.idleDex.findUnique({ where: { userId_species: { userId, species: input.species } } }) : null;
+    if (input.shiny && !(runs && record?.shiny)) throw failed('No shiny of that Pokémon has been caught');
+    const seed = newSeed();
+    const state = createIdleRun({ species: input.species, shiny: input.shiny, ...(record && { ivs: record.bestIv as Stats, evs: record.bestEv as Stats }) }, seed, input.gen);
+    return tx.idleRun.create({ data: { ownerId: userId, state: asJson(state), version: state.version, seed } });
+  });
+  return clientIdleRun({ ...created, state: created.state as never });
+}
+
 /**
  * The Idle Adventure (README: Idle Adventure): the account's run, starting one, its segments as it walks, the town
  * choices, offline catch-up, the settings and the Pokédex.
  */
 export const idleRouter = router({
-  /** The account's latest run (under way or over), its settings, the starters it can pick and its Pokédex. */
+  /**
+   * The account's latest run (under way or over), its settings, each generation's starters (`generations`: why it's
+   * locked, if it is; its three, or from the second run on any caught species in its tables too) and its Pokédex.
+   */
   overview: protectedProcedure.query(async ({ ctx }) => {
-    const [run, settings, dex, runs] = await Promise.all([
+    const [run, settings, dex, runs, beaten] = await Promise.all([
       latestIdleRun(ctx.user.id),
       idleSettings(ctx.user.id),
       prisma.idleDex.findMany({ where: { userId: ctx.user.id }, orderBy: { species: 'asc' } }),
       prisma.idleRun.count({ where: { ownerId: ctx.user.id } }),
+      kantoBeaten(ctx.user.id),
     ]);
     const caught = dex.filter((d) => d.caught).map((d) => d.species);
+    const generations = IDLE_GENERATIONS.map((gen) =>
+      inGeneration(gen, () => {
+        const known = (id: number) => id <= generation().species.length;
+        return {
+          gen,
+          region: generation().region,
+          locked: generationLocked(gen, beaten),
+          // The three starters on the first run; from the second on, any species the Pokédex has caught too (agreed).
+          starters: runs ? starterOptions(caught.filter(known)) : [...starters()],
+          // A species with a shiny caught can start shiny (agreed).
+          shinyStarters: runs ? dex.filter((d) => d.shiny && known(d.species) && isBaseForm(d.species)).map((d) => d.species) : [],
+        };
+      }),
+    );
     return {
       run: run && clientIdleRun(run),
       settings,
-      // The three starters on the first run; from the second on, any species the Pokédex has caught too (agreed).
-      starters: runs ? starterOptions(caught) : [...starters()],
-      // A species with a shiny caught can start shiny (agreed).
-      shinyStarters: runs ? dex.filter((d) => d.shiny && isBaseForm(d.species)).map((d) => d.species) : [],
+      generations,
       dex: dex.map((d) => ({ species: d.species, seen: d.seen, caught: d.caught, shiny: d.shiny, bestIv: d.bestIv, bestEv: d.bestEv })),
     };
   }),
 
-  /** Starts a run with a starter (at level 5; a dex species with its record's best IVs and EVs). One run under way at a time. */
-  start: protectedProcedure.input(startIdleInput).mutation(async ({ ctx, input }) => {
-    const created = await prisma.$transaction(async (tx) => {
-      await lockUser(tx, ctx.user.id);
-      if (await tx.idleRun.findFirst({ where: { ownerId: ctx.user.id, status: 'ACTIVE' }, select: { id: true } })) throw failed('A run is already under way');
-      const runs = await tx.idleRun.count({ where: { ownerId: ctx.user.id } });
-      const caught = await caughtSpecies(ctx.user.id, tx);
-      if (!(runs ? starterOptions(caught) : starters()).includes(input.species)) throw failed("That Pokémon can't be picked");
-      // A caught species starts with its record's best IVs and EVs (a starter never caught: random IVs, no EVs).
-      const record = caught.includes(input.species) ? await tx.idleDex.findUnique({ where: { userId_species: { userId: ctx.user.id, species: input.species } } }) : null;
-      if (input.shiny && !(runs && record?.shiny)) throw failed('No shiny of that Pokémon has been caught');
-      const seed = newSeed();
-      const state = createIdleRun({ species: input.species, shiny: input.shiny, ...(record && { ivs: record.bestIv as Stats, evs: record.bestEv as Stats }) }, seed);
-      return tx.idleRun.create({ data: { ownerId: ctx.user.id, state: asJson(state), version: state.version, seed } });
-    });
-    return clientIdleRun({ ...created, state: created.state as never });
-  }),
+  /** Starts a run in an open generation with a starter. One run under way at a time. */
+  start: protectedProcedure.input(startIdleInput).mutation(({ ctx, input }) => startIdle(ctx.user.id, input, false)),
+
+  /** Debug (refused in production): starts a run in any generation, locked or not (the user's, 2026-11-04). */
+  debugStart: debugProcedure.input(startIdleInput).mutation(({ ctx, input }) => startIdle(ctx.user.id, input, true)),
 
   /**
    * The next segment (agreed with the user: the server resolves everything, the browser plays it back): steps until a
@@ -248,14 +285,18 @@ export const idleRouter = router({
     const run = await loadOwnIdleRun(input.runId, ctx.user.id);
     // Only a run under way (a finished one is banked: warping it back would make two runs under way).
     if (run.status !== 'ACTIVE') throw failed('This run is over');
-    const index = areaIndex(input.area);
-    if (index < 0) throw failed('Unknown area');
-    const state = structuredClone(run.state);
-    // The Town Map's places up to it open with it.
-    Object.assign(state, { reached: Math.max(reachedArea(state), isOptional(index) ? 0 : index), area: index, leg: 0, step: 0, beaten: [], phase: isTown(areas()[index]!) ? 'town' : 'walking', version: state.version + 1 });
-    delete state.grind;
-    delete state.replay;
-    state.log.push(`Debug: warped to ${areas()[index]!.name}.`);
+    // The run's own region's areas.
+    const state = inGeneration(generationOf(run.state), () => {
+      const index = areaIndex(input.area);
+      if (index < 0) throw failed('Unknown area');
+      const state = structuredClone(run.state);
+      // The Town Map's places up to it open with it.
+      Object.assign(state, { reached: Math.max(reachedArea(state), isOptional(index) ? 0 : index), area: index, leg: 0, step: 0, beaten: [], phase: isTown(areas()[index]!) ? 'town' : 'walking', version: state.version + 1 });
+      delete state.grind;
+      delete state.replay;
+      state.log.push(`Debug: warped to ${areas()[index]!.name}.`);
+      return state;
+    });
     return clientIdleRun(await saveIdleRun(run, state, { simulatedAt: new Date() }));
   }),
 });

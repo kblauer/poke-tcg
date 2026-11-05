@@ -1,4 +1,4 @@
-import { IDLE_MAP_MUSIC, SOUNDTRACKS } from '@poke-tcg/campaign';
+import { IDLE_JOHTO_MUSIC, IDLE_MAP_MUSIC, SOUNDTRACKS } from '@poke-tcg/campaign';
 import { describe, expect, it } from 'vitest';
 import { areas, areaIndex, badgeList, isTown, mapView, type WalkArea } from './areas.js';
 import { ENCOUNTERS } from './data/gen1/encounters.js';
@@ -175,5 +175,16 @@ describe("the Idle Adventure's music", () => {
     // The Safari Zone's Evolution theme isn't in the music list yet (it plays Route 4's): to add to tracks.json.
     const missing = new Set(['MUS_EVOLUTION']);
     for (const map of maps) for (const soundtrack of SOUNDTRACKS) if (!missing.has(mapView(map).music)) expect(IDLE_MAP_MUSIC[soundtrack][mapView(map).music], `${map} (${mapView(map).music}), ${soundtrack}`).toBeDefined();
+  });
+
+  it("has each Johto map's own song (its SEQ_ constant, by day) in both soundtracks, its marts' and Elm's lab's too", () => {
+    inGeneration(2, () => {
+      const maps = new Set(['NewBarkElmsLab1f']);
+      for (const area of areas()) {
+        if ('legs' in area) for (const leg of area.legs) for (const map of leg.maps) maps.add(map);
+        if ('map' in area) maps.add(area.map), maps.add(area.mart.map);
+      }
+      for (const map of maps) for (const soundtrack of SOUNDTRACKS) expect(IDLE_JOHTO_MUSIC[soundtrack][mapView(map).music], `${map} (${mapView(map).music}), ${soundtrack}`).toBeDefined();
+    });
   });
 });

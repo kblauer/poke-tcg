@@ -1,5 +1,5 @@
 import type { AppRouter } from '@poke-tcg/api/router';
-import { generation, areas, areaIndex, ballLineMs, BATTLE_HOLD_MS, CHALLENGE_MS, FADE_MS, FISH_CAST_MS, FISH_DOT_MS, FISH_TEXT_MS, INTRO_MS, openingLineMs, playing, STEP_MS, TICK_MS, TOWN_HERE_MS, type CatchUpSummary, type IdleAction, type IdleSettings, type SegmentEvent, type TownArea, type TrackStep, type WalkArea } from '@poke-tcg/idle';
+import { generation, areas, areaIndex, ballLineMs, BATTLE_HOLD_MS, CHALLENGE_MS, FADE_MS, FISH_CAST_MS, FISH_DOT_MS, FISH_TEXT_MS, INTRO_MS, openingLineMs, playing, STEP_MS, TICK_MS, TOWN_HERE_MS, type CatchUpSummary, type IdleAction, type IdleGen, type IdleSettings, type SegmentEvent, type TownArea, type TrackStep, type WalkArea } from '@poke-tcg/idle';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type { inferRouterOutputs } from '@trpc/server';
@@ -40,15 +40,18 @@ export function useIdleActions() {
   const queryClient = useQueryClient();
   const key = trpc.idle.overview.queryKey();
   const setRun = (run: ClientIdleRun) => queryClient.setQueryData(key, (old) => old && { ...old, run });
-  const start = useMutation(trpc.idle.start.mutationOptions({ onSuccess: (run) => (setRun(run), void queryClient.invalidateQueries({ queryKey: key })) }));
+  const started = { onSuccess: (run: ClientIdleRun) => (setRun(run), void queryClient.invalidateQueries({ queryKey: key })) };
+  const start = useMutation(trpc.idle.start.mutationOptions(started));
+  // Debug mode's: a region not open yet (the user's, 2026-11-04).
+  const debugStart = useMutation(trpc.idle.debugStart.mutationOptions(started));
   const act = useMutation(trpc.idle.act.mutationOptions({ onSuccess: ({ run }) => setRun(run) }));
   const settings = useMutation(trpc.idle.settings.mutationOptions({ onSuccess: (s) => queryClient.setQueryData(key, (old) => old && { ...old, settings: s }) }));
   const warp = useMutation(trpc.idle.debugWarp.mutationOptions({ onSuccess: setRun }));
   const money = useMutation(trpc.idle.debugMoney.mutationOptions({ onSuccess: setRun }));
   const sureCatch = useMutation(trpc.idle.debugCatch.mutationOptions({ onSuccess: setRun }));
   return {
-    busy: start.isPending || act.isPending,
-    start: (species: number, shiny = false) => start.mutateAsync({ species, shiny }),
+    busy: start.isPending || debugStart.isPending || act.isPending,
+    start: (species: number, shiny: boolean, gen: IdleGen, debug = false) => (debug ? debugStart : start).mutateAsync({ species, shiny, gen }),
     act: (run: ClientIdleRun, action: IdleAction) => act.mutateAsync({ runId: run.id, expectedVersion: run.version, action }),
     settings: (s: Partial<IdleSettings>) => settings.mutateAsync(s),
     warp: (run: ClientIdleRun, area: string) => warp.mutateAsync({ runId: run.id, area }),

@@ -1,6 +1,6 @@
 import { idleMusic } from '@poke-tcg/campaign';
-import { areas, cuts, mapView, species, TICK_MS, type IdleAction, type WalkArea } from '@poke-tcg/idle';
-import { useState } from 'react';
+import { areas, cuts, mapView, showGeneration, townMapPlaces, species, TICK_MS, type IdleAction, type IdleGen, type WalkArea } from '@poke-tcg/idle';
+import { useEffect, useState } from 'react';
 import type { Dialogue } from '../components/DialogueBox';
 import { useMusicCue, useMusicSettings } from '../components/MusicPlayer';
 import { PageHeader } from '../components/PageHeader';
@@ -65,6 +65,15 @@ export function IdlePage() {
   const run = data?.run ?? null;
   const active = run?.status === 'ACTIVE' ? run : null;
   const settings = data?.settings;
+  // The region a new run starts in (the user's, issue #170): those open (Johto once a Kanto run has beaten the Champion),
+  // or in debug mode any (the user's, 2026-11-04).
+  const [pickGen, setPickGen] = useState<IdleGen>(1);
+  const regions = (data?.generations ?? []).filter((g) => !g.locked || debug);
+  const picked = regions.find((g) => g.gen === pickGen) ?? regions[0];
+  // The shown run's region's tables (its maps, species, areas) for everything on the page; Kanto's once it closes.
+  const shownGen = active?.view.gen ?? (active ? 1 : (picked?.gen ?? 1));
+  showGeneration(shownGen);
+  useEffect(() => () => showGeneration(1), []);
   const { play, summary, closeSummary, actOn, acted, interrupt, throwBall, throwing } = useIdlePlayback(active, name, (m) => toasts.push('error', m));
   // A town on screen waits for the player however long (the user's): only time away is played by its wait.
   useTownHere(active);
@@ -81,7 +90,7 @@ export function IdlePage() {
   // the Cycling Road (Route 17), where the game puts the player on the bike.
   const place = active ? (play.place ?? placeOf(active.view)) : null;
   const area = place ? areas()[place.area] : null;
-  let mapName: string | null = active ? null : 'PalletTown_ProfessorOaksLab';
+  let mapName: string | null = active ? null : picked?.gen === 2 ? 'NewBarkElmsLab1f' : 'PalletTown_ProfessorOaksLab';
   let surfing = false;
   if (area && 'legs' in area) {
     const leg = area.legs[Math.min(place!.leg, area.legs.length - 1)]!;
@@ -97,11 +106,11 @@ export function IdlePage() {
   const fight = active ? (play.battle ?? play.cue) : null;
   useMusicCue(
     fight
-      ? idleMusic(soundtrack, { battle: battleKind(fight.trainer), id: `${run?.id}:${play.segment}` })
+      ? idleMusic(soundtrack, { battle: battleKind(fight.trainer), id: `${run?.id}:${play.segment}` }, shownGen)
       : run?.view.phase === 'won'
-        ? idleMusic(soundtrack, { won: true })
+        ? idleMusic(soundtrack, { won: true }, run.view.gen ?? 1)
         : mapMusic
-          ? idleMusic(soundtrack, { map: mapMusic, surfing, cycling })
+          ? idleMusic(soundtrack, { map: mapMusic, surfing, cycling }, shownGen)
           : null,
   );
 
@@ -128,7 +137,7 @@ export function IdlePage() {
           .then((r) => (acted(r.run), true))
           .catch((e: unknown) => (failed(e), false))
       : Promise.resolve(false);
-  const start = (id: number, shiny = false) => actions.start(id, shiny).catch(failed);
+  const start = (id: number, shiny = false) => picked && actions.start(id, shiny, picked.gen, !!picked.locked).catch(failed);
   const v = run?.view;
   // The party over the game screen (the user's): its button in the screen's top right corner, its slots sliding out; and
   // the Town Map's button in its top left corner, on every scene (the user's, in place of the mode drop-down), and the
@@ -148,7 +157,8 @@ export function IdlePage() {
           replacing={v.choosing ?? null}
           onReplace={(uid) => void act({ type: 'CAUGHT_CHOICE', ...(uid && { replace: uid }) })}
         />
-        <TownMap view={v} busy={actions.busy} gender={gender} onAct={act} />
+        {/* (Johto's Town Map, the Pokégear's, is still to come: issue #170, step 5.) */}
+        {townMapPlaces().length > 0 && <TownMap view={v} busy={actions.busy} gender={gender} onAct={act} />}
       </>
     ) : null;
   const over = run && run.status !== 'ACTIVE';
@@ -157,7 +167,7 @@ export function IdlePage() {
     <div className={`${PAGE_WIDTH} space-y-4`}>
       <PageHeader
         title="Idle Adventure"
-        info={active && v ? `${v.areaName}${v.phase === 'grinding' ? ` (grinding to Lv. ${v.grindTarget})` : v.loop ? (v.loop.kind === 'fish' ? ' (fishing)' : ' (grinding)') : ''} · ${v.badges.length} badge${v.badges.length === 1 ? '' : 's'} · ₱${commas(v.money)}` : 'Walk Kanto from Pallet Town to the Indigo Plateau'}
+        info={active && v ? `${v.areaName}${v.phase === 'grinding' ? ` (grinding to Lv. ${v.grindTarget})` : v.loop ? (v.loop.kind === 'fish' ? ' (fishing)' : ' (grinding)') : ''} · ${v.badges.length} badge${v.badges.length === 1 ? '' : 's'} · ₱${commas(v.money)}` : picked?.gen === 2 ? 'Walk Johto from New Bark Town to the Indigo Plateau' : 'Walk Kanto from Pallet Town to the Indigo Plateau'}
         actions={
           active ? (
             <span className="flex items-center gap-2">
@@ -204,12 +214,25 @@ export function IdlePage() {
               </div>
             </section>
           )}
-          <StarterScene gender={gender} busy={actions.busy} onPick={(id) => start(id)} dialogue={catchUp} />
-          {(data.starters.length > 3 || data.shinyStarters.length > 0) && (
+          {regions.length > 1 && (
+            <label className="flex items-center gap-2 text-sm">
+              Region
+              <select className="rounded bg-slate-700 px-2 py-1" value={picked?.gen} onChange={(e) => setPickGen(Number(e.target.value) as IdleGen)}>
+                {regions.map((g) => (
+                  <option key={g.gen} value={g.gen}>
+                    {g.region}
+                    {g.locked ? ' (debug: locked)' : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <StarterScene key={picked?.gen} gender={gender} busy={actions.busy} onPick={(id) => void start(id)} dialogue={catchUp} />
+          {picked && (picked.starters.length > 3 || picked.shinyStarters.length > 0) && (
             <section className="space-y-2">
               <h3 className="text-lg font-semibold">Or start from your Pokédex</h3>
               <p className="text-sm text-slate-400">Any species you've caught, at level 5 with its best IVs and EVs on record.</p>
-              <Pokedex dex={data.dex} starters={data.starters} shinyStarters={data.shinyStarters} onPick={start} busy={actions.busy} />
+              <Pokedex dex={data.dex} starters={picked.starters} shinyStarters={picked.shinyStarters} onPick={(id, shiny) => void start(id, shiny)} busy={actions.busy} />
             </section>
           )}
           <ReturnToPlay />

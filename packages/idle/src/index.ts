@@ -1,6 +1,6 @@
 export * from './types.js';
 export * from './data.js';
-export { generation, generationOf, inGeneration, IDLE_GENERATIONS, type Generation, type IdleGen, type TownMapGrid } from './generation.js';
+export { generation, generationOf, inGeneration, showGeneration, IDLE_GENERATIONS, type Generation, type IdleGen, type TownMapGrid } from './generation.js';
 export * from './stats.js';
 export * from './mon.js';
 export * from './catch.js';

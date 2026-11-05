@@ -667,8 +667,8 @@ def fishing_spot(g, steps):
 
 
 def sprite_name(sprite):
-    """A person's overworld sprite by the game's SPRITE_ constant (SPRITE_GSBOY3: 'gsboy3'), cut for the HGSS look in step 5."""
-    return sprite[len('SPRITE_'):].lower()
+    """A person's overworld sprite by the game's SPRITE_ constant (SPRITE_GSBOY3: 'hgss/gsboy3', public/overworld/hgss/'s, made by hgss_people.py)."""
+    return 'hgss/' + sprite[len('SPRITE_'):].lower()
 
 
 def map_key(const):
@@ -692,7 +692,8 @@ def mart_of(town, stores=None):
     face = hm.FIXED_FACING.get(clerk['movement'], clerk['face'])
     dx, dy = DIRS[face]
     back = {'down': 'up', 'up': 'down', 'left': 'right', 'right': 'left'}[face]
-    people = [{'sprite': sprite_name(p['sprite']), 'x': p['x'], 'y': p['y'], 'face': face if p is clerk else p['face']} for p in m.events['people'] if not p.get('story')]
+    # (Its people, but a Pokémon standing there: SPRITE_FOLLOWER_MON_*, another archive's models.)
+    people = [{'sprite': sprite_name(p['sprite']), 'x': p['x'], 'y': p['y'], 'face': face if p is clerk else p['face']} for p in m.events['people'] if not p.get('story') and not p['sprite'].startswith('SPRITE_FOLLOWER_MON')]
     lists = [l for d in (stores or [name]) for l in MART_CLERKS[J.codes[d]]]
     return name, lists, {'map': map_key(name), 'x': clerk['x'] + 2 * dx, 'y': clerk['y'] + 2 * dy, 'face': back, 'people': people}
 

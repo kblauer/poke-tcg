@@ -1,6 +1,7 @@
 import { areas, areaById, atProgress, mapView, topLevel, type TownArea } from '@poke-tcg/idle';
 import type { ReactNode } from 'react';
 import type { ClientIdleRun } from '../../hooks/useIdle';
+import { playerSprites } from '../../utils/idleLook';
 import type { Dialogue } from '../DialogueBox';
 import { MapScene } from './AreaScene';
 
@@ -61,7 +62,7 @@ export function TownMenu({
     answer: (i) => options[i]!.act(),
   };
   return (
-    <MapScene image={map.image} width={map.width} height={map.height} tile={{ x: town.stand[0], y: town.stand[1] }} player={gender === 'female' ? 'leaf' : 'red'} face="down" moveMs={0} dialogue={dialogue ?? question}>
+    <MapScene image={map.image} width={map.width} height={map.height} tile={{ x: town.stand[0], y: town.stand[1] }} player={playerSprites(gender).walk} face="down" moveMs={0} dialogue={dialogue ?? question}>
       {children}
     </MapScene>
   );

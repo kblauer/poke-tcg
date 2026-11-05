@@ -41,7 +41,9 @@ export const idleSettingsSchema = z.object({
 }) satisfies z.ZodType<IdleSettings>;
 
 /** A new run: its starter (one of the three, or a species the account's Pokédex has caught, from the second run on), shiny if one was caught. */
-export const startIdleInput = z.object({ species: z.number().int().min(1).max(DEX_SIZE), shiny: z.boolean().default(false) });
+/** A new run: its starter, shiny or not, and its region (IdleGen: Kanto 1, Johto 2). */
+export const startIdleInput = z.object({ species: z.number().int().min(1).max(DEX_SIZE), shiny: z.boolean().default(false), gen: z.union([z.literal(1), z.literal(2)]).default(1) });
+export type StartIdleInput = z.infer<typeof startIdleInput>;
 export const idleRunInput = z.object({ runId: z.uuid(), expectedVersion: z.number().int().min(0) });
 export const idleActInput = idleRunInput.extend({ action: idleActionSchema });
 /** The battle's ball button: a ball on this tick of the wild battle playing (the tick after the one on screen). */

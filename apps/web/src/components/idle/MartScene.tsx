@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { useEscape } from '../../hooks/useEscape';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import type { ClientIdleRun } from '../../hooks/useIdle';
+import { playerSprites } from '../../utils/idleLook';
 import { DialogueBox, dialogueKey, type Dialogue } from '../DialogueBox';
 import { OverworldSprite } from '../run/RouteSprites';
 import { MapScene } from './AreaScene';
@@ -63,7 +64,7 @@ export function MartScene({
   const town = areas()[run.view.area] as TownArea;
   const mart = town.mart;
   const map = mapView(mart.map);
-  const player = gender === 'female' ? 'leaf' : 'red';
+  const player = playerSprites(gender).walk;
   const [stage, setStage] = useState<'hello' | 'again' | 'buy' | 'tms' | 'bye'>('hello');
   const tms = tmShopOpen(run.view);
   if ((stage === 'buy' || stage === 'tms') && !dialogue)

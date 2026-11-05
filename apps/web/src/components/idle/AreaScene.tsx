@@ -4,6 +4,7 @@ import { useIsPhone } from '../../hooks/useIsPhone';
 import { placeTrack, type Playback } from '../../hooks/useIdle';
 import { usePanTo } from '../../hooks/usePan';
 import type { Facing } from '../../utils/overworld';
+import { playerSprites } from '../../utils/idleLook';
 import { DialogueBox, dialogueKey, type Dialogue } from '../DialogueBox';
 import { Exclamation, GrassTufts, OverworldSprite, SURF_BOB, TallGrass } from '../run/RouteSprites';
 import { DIALOGUE_TEXT, GAME_HEIGHT, GAME_WIDTH, GameScreen, useGameScale } from './GameScreen';
@@ -218,7 +219,7 @@ export function AreaScene({ playback, gender, dialogue, children }: { playback: 
   const water = tileCode[1] === 'w' || tileCode[1] === 'p';
   // Tall grass (MB_TALL_GRASS: the tile's battle terrain).
   const grass = tileCode[1] === 'g';
-  const base = gender === 'female' ? 'leaf' : 'red';
+  const sprites = playerSprites(gender);
   const people = area.trainers
     .filter((t) => t.leg === place.leg && t.map === m)
     .map((t) => ({ key: t.key, sprite: WATER_SPRITES[t.sprite] && water ? WATER_SPRITES[t.sprite]! : t.sprite, x: t.x, y: t.y, face: t.face, grass: t.grass }));
@@ -236,8 +237,8 @@ export function AreaScene({ playback, gender, dialogue, children }: { playback: 
       width={map.width}
       height={map.height}
       tile={at}
-      player={(fishAt ? fishAt[5] : water) ? `${base}_surf` : base}
-      {...(fishAt && playback.fishing && { fishing: { sprite: `${base}_fish`, surfing: !!fishAt[5], ...playback.fishing } })}
+      player={(fishAt ? fishAt[5] : water) ? sprites.surf : sprites.walk}
+      {...(fishAt && playback.fishing && sprites.fish && { fishing: { sprite: sprites.fish, surfing: !!fishAt[5], ...playback.fishing } })}
       face={face}
       walkTick={playback.walkTick}
       moveMs={playback.moveMs}

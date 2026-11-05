@@ -168,6 +168,14 @@ export function inGeneration<T>(gen: IdleGen | undefined, run: () => T): T {
   }
 }
 
+/**
+ * The browser's (one run on screen): makes `gen`'s tables the active ones outside any `inGeneration`, for the Idle
+ * page's components while its run is shown (Kanto's again when it closes). Never on the server: requests share it.
+ */
+export function showGeneration(gen: IdleGen | undefined) {
+  active = GENERATIONS[gen ?? 1];
+}
+
 /** A value worked out once per generation (a cache or a list derived from its tables), the active one's. */
 export function perGeneration<V>(make: (g: Generation) => V): () => V {
   const made = new Map<IdleGen, V>();
