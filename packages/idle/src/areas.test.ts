@@ -4,6 +4,8 @@ import { areas, areaIndex, badgeList, isTown, mapView, type WalkArea } from './a
 import { ENCOUNTERS } from './data/gen1/encounters.js';
 import { MARTS } from './data/gen1/marts.js';
 import { TRAINERS } from './data/gen1/trainers.js';
+import { JOHTO_COLLISION } from './data/gen2/collision.js';
+import { generation, inGeneration } from './generation.js';
 
 const walks = areas().filter((a): a is WalkArea => !isTown(a));
 
@@ -79,6 +81,87 @@ describe('the Kanto areas', () => {
 
   it('end gyms and League rooms with their leader', () => {
     for (const a of walks.filter((x) => x.kind === 'gym' || x.kind === 'league')) expect(a.trainers.at(-1)!.key).toBe(a.leader);
+  });
+});
+
+// Johto's areas (data/gen2/, tools/idle/johto_areas.py over HGSS's maps; issue #170, step 4f): every step walkable on
+// the game's collision (collision.ts) and every trainer's sight line crossed.
+describe('the Johto areas', () => {
+  const johto = inGeneration(2, () => ({ walks: areas().filter((a): a is WalkArea => !isTown(a)), trainers: generation().trainers, encounters: generation().encounters, maps: generation().maps }));
+  const at = (list: [number, number][], x: number, y: number) => list.some(([px, py]) => px === x && py === y);
+  const LEDGE_WAY: Record<string, [number, number]> = { '>': [1, 0], '<': [-1, 0], '^': [0, -1], v: [0, 1] };
+
+  it('walk tracks one tile at a time (but for fades and ledge jumps; a slide across ice a tile a step)', () => {
+    for (const a of johto.walks) {
+      for (const leg of a.legs) {
+        for (let i = 1; i < leg.track.length; i++) {
+          const [pm, px, py] = leg.track[i - 1]!;
+          const [m, x, y, flags] = leg.track[i]!;
+          if (flags & 1) continue;
+          expect(m, `${a.id} step ${i}`).toBe(pm);
+          expect(Math.abs(x - px) + Math.abs(y - py), `${a.id} step ${i}`).toBe(flags & 2 ? 2 : 1);
+          if (flags & 2) {
+            // Over a ledge the way it's jumped, from the tile before it to the one after.
+            const way = LEDGE_WAY[JOHTO_COLLISION[leg.maps[m]!]!.rows[(y + py) / 2]![(x + px) / 2]!];
+            expect(way, `${a.id} step ${i}: a ledge`).toEqual([(x - px) / 2, (y - py) / 2]);
+          }
+        }
+      }
+    }
+  });
+
+  it("stand every step on a walkable tile of the game's collision, water only where the leg surfs, never on someone", () => {
+    for (const a of johto.walks) {
+      a.legs.forEach((leg, li) => {
+        const surfs = leg.track.some(([, , , , tile]) => tile[0] === 'w');
+        leg.track.forEach(([m, x, y, flags, tile], i) => {
+          const c = JOHTO_COLLISION[leg.maps[m]!]!;
+          const where = `${a.id} ${leg.maps[m]} step ${i} (${x}, ${y})`;
+          const ch = c.rows[y]![x]!;
+          expect(ch === '.' || (ch === '~' && surfs) || at(c.warps, x, y) || at(c.fixed, x, y), `${where}: '${ch}'`).toBe(true);
+          if (tile[0] === 'w') expect(ch, where).toBe('~');
+          expect(at(c.people, x, y), `${where}: someone's there`).toBe(false);
+          // Under Goldenrod Gym's bridges (flag 8), a trainer may stand on the bridge above.
+          if (!(flags & 8)) expect(a.trainers.some((t) => t.leg === li && t.map === m && t.x === x && t.y === y), `${where}: a trainer's there`).toBe(false);
+        });
+      });
+    }
+  });
+
+  it("cross every trainer's sight line, and face the tile where the player meets them", () => {
+    for (const a of johto.walks) {
+      a.legs.forEach((leg, li) => {
+        const trainers = a.trainers.filter((t) => t.leg === li);
+        const met = new Set<string>();
+        for (const [m, x, y] of leg.track) {
+          // As the run meets them (idle.ts's trainerHere): every one not yet met whose sight the step is in, one battle
+          // after another from the same step (Route 37's Beauties Callie and Kassandra).
+          for (const t of trainers.filter((t) => !met.has(t.key) && t.map === m && t.sight.some(([sx, sy]) => sx === x && sy === y))) {
+            met.add(t.key);
+            const dx = x - t.x;
+            const dy = y - t.y;
+            const face = dx && Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up';
+            expect(t.face, `${a.id}: ${t.key}`).toBe(face);
+          }
+        }
+        for (const t of trainers) expect(met.has(t.key), `${a.id}: ${t.key}'s sight line`).toBe(true);
+      });
+    }
+  });
+
+  it('only use known maps, trainers and wild tables', () => {
+    for (const a of johto.walks) {
+      for (const t of a.trainers) expect(johto.trainers[t.key], `${a.id}: ${t.key}`).toBeDefined();
+      for (const leg of a.legs) {
+        for (const [m, , , , tile] of leg.track) {
+          const map = johto.maps[leg.maps[m]!]!;
+          expect(JOHTO_COLLISION[map.name], map.name).toBeDefined();
+          const table = johto.encounters[map.encounters];
+          if (tile[0] === 'l') expect(table?.land, `${a.id} ${map.name}`).toBeDefined();
+          if (tile[0] === 'w') expect(table?.water, `${a.id} ${map.name}`).toBeDefined();
+        }
+      }
+    }
   });
 });
 

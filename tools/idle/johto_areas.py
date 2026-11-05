@@ -718,6 +718,8 @@ def main():
     seen = set()
     out_areas = []
     used_maps = {}
+    # Tiles walked only by the user's fixes (gym floors and links, the League's shut doors), by map, for collision.ts.
+    fixed = {}
     # The last walked area's legs (where a gym's town grinds: its last leg with a loop, as Kanto's).
     last_legs = []
     for a in AREAS:
@@ -750,6 +752,7 @@ def main():
             names, grids, track, order = plan_leg(lg, seen, report)
             for n, g in zip(names, grids):
                 used_maps.setdefault(n, g.m)
+                fixed.setdefault(n, set()).update((x, y) for x, y in g.fixes | (g.floors or set()) if g.m.inside(x, y) and g.m.char(x, y) != '.')
 
             def tile(node):
                 mm = grids[node[0]].m
@@ -766,12 +769,13 @@ def main():
                         report.append(f"{a['id']}: no water to fish in on {n}")
                         continue
                     fishing_maps[n] = [len(legs) - 1, *spot]
-            # Each trainer faces where the player meets them: the first step of the track in their sight.
+            # Each trainer faces where the player meets them: the first step of the track in their sight (every one not
+            # yet met whose sight a step is in, one battle after another, as idle.ts's trainerHere).
             met = {}
             for node, _ in track:
-                t = next((t for t in order if t['key'] not in met and node in t['sight']), None)
-                if t:
-                    met[t['key']] = node
+                for t in order:
+                    if t['key'] not in met and node in t['sight']:
+                        met[t['key']] = node
             for t in order:
                 if t['key'] in met:
                     _, mx, my = met[t['key']]
@@ -832,6 +836,17 @@ def main():
     open(os.path.join(OUT_TS, 'areas.ts'), 'w', encoding='utf8', newline='\n').write(
         head + "import type { IdleArea } from '../../areas.js';\n\n/** Johto's areas in the game's order, from New Bark Town to Lance, each with its legs' planned tracks ([map index in the leg, x, y, flags: 1 a fade, 2 a ledge jump, the tile: wild encounters and battle terrain]) and trainers. */\nexport const JOHTO_AREAS: IdleArea[] = [\n"
         + ''.join(f'  {js(a)},\n' for a in out_areas) + '];\n')
+    # Each map's collision, for areas.test.ts's check that every step is walkable: its tiles (hgss_maps.tiles: '.'
+    # walkable, '#' not, '~' water, a ledge's way), its warps, the people in the way and the tiles the user's fixes open.
+    collision = {}
+    for n, m in used_maps.items():
+        e = m.events
+        collision[map_key(n)] = {'rows': m.rows, 'warps': sorted([w['x'], w['y']] for w in e['warps']),
+                                 'people': sorted([p['x'], p['y']] for p in e['people'] if not p.get('story')),
+                                 'fixed': sorted([x, y] for x, y in fixed.get(n, ()))}
+    open(os.path.join(OUT_TS, 'collision.ts'), 'w', encoding='utf8', newline='\n').write(
+        head + "/** The collision of the HeartGold maps the Johto areas walk (maps.ts's), only for areas.test.ts: each map's tiles by row ('.' walkable, '#' not, '~' water, '<', '>', '^', 'v' a ledge), warps, the people in the way and the tiles walkable by the user's fixes. */\nexport const JOHTO_COLLISION: Record<string, { rows: string[]; warps: [number, number][]; people: [number, number][]; fixed: [number, number][] }> = {\n"
+        + ''.join(f'  {k}: {js(v)},\n' for k, v in collision.items()) + '};\n')
     print(len(out_maps), 'maps,', len(out_areas), 'areas')
     for r in report:
         print('  !', r)
