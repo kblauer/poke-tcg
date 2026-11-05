@@ -92,4 +92,25 @@ describe("Johto's run", () => {
     expect(offline.state.clock).toBeGreaterThan(50 * 60 * 1000);
     expect(offline.summary.battles).toBeGreaterThan(10);
   }, 60000);
+
+  // Step 7 (issue #170): whole runs with each starter, as a player who leaves it be (towns going on by themselves,
+  // auto-grind on), each winning; and their time and white-outs within what Kanto's take (README: Idle Adventure, Johto's
+  // balance: 31–51 hours of play, 25–30 white-outs, Kanto's 40–57 and 12–25).
+  it('wins with every starter, in a Kanto-like time', () => {
+    for (const [species, seed] of [[152, 3], [155, 1], [158, 2]] as const) {
+      let s: IdleState = createIdleRun({ species }, seed, 2);
+      const caught = new Set<number>();
+      let ms = 0;
+      for (let i = 0; i < 20000 && s.phase !== 'won'; i++) {
+        const n = simulateSegment(s, DEFAULT_IDLE_SETTINGS, caught)!;
+        ms += n.segment.durationMs;
+        for (const d of n.segment.dex) if (d.caught) caught.add(d.species);
+        s = n.state;
+      }
+      const how = `${species} seed ${seed}: ${s.phase}, ${(ms / 3600000).toFixed(1)} hours, ${s.totals.whiteOuts} white-outs`;
+      expect(s.phase, how).toBe('won');
+      expect(ms / 3600000, how).toBeLessThan(70);
+      expect(s.totals.whiteOuts, how).toBeLessThan(60);
+    }
+  }, 120000);
 });
