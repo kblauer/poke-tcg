@@ -1,6 +1,7 @@
 import { expForLevel, FRAME_MS, HGSS_CATCH, HGSS_FOE_SEND, HGSS_INTRO, HGSS_PLAYER_SEND, HGSS_SHAKES_AT, hgssShake, JOHTO_PICS, species, type BattleEvent, type BattlerView } from '@poke-tcg/idle';
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import type { BattleSegment } from '../../hooks/useIdle';
+import { idleSpeed } from '../../utils/idleSpeed';
 import { DsText } from './dsFont';
 import { DS_HEIGHT, DS_WIDTH } from './GameScreen';
 import { filled, STATUS, useBarValue } from './Healthbox';
@@ -192,7 +193,8 @@ export function HgssBattleScene({
     id = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(id);
   }, []);
-  const frames = (at: number) => Math.floor((now - at) / FRAME_MS);
+  // (Debug mode's ×3: that many frames a frame, idleSpeed.)
+  const frames = (at: number) => Math.floor(((now - at) * idleSpeed()) / FRAME_MS);
   const wild = battle.kind === 'wild';
   const firstTick = battle.events.findIndex((e, i) => i > 0 && e.t === 'tick');
   const opening = (i: number) => firstTick < 0 || i < firstTick;

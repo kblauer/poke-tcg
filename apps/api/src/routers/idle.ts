@@ -1,6 +1,6 @@
 import { prisma } from '@poke-tcg/db';
 import { areas, applyIdleAction, areaIndex, BALLS, throwTick, throwable, generation, generationOf, IDLE_GENERATIONS, inGeneration, isBaseForm, isOptional, CATCH_UP_CAP_MS, catchUp, createIdleRun, cutSegment, cuts, DEFAULT_IDLE_SETTINGS, isTown, partyNotes, playing, reachedArea, simulateSegment, TOWN_WAIT_MS, starterOptions, starters, visitStore, withPending, type IdleGen, type IdleSettings, type Stats } from '@poke-tcg/idle';
-import { idleActInput, idleDebugCatchInput, idleHereInput, idleRunInput, idleSettingsInput, idleThrowInput, idleWarpInput, startIdleInput, type StartIdleInput } from '@poke-tcg/shared';
+import { idleActInput, idleDebugCatchInput, idleDebugNextInput, idleHereInput, idleRunInput, idleSettingsInput, idleThrowInput, idleWarpInput, startIdleInput, type StartIdleInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { asJson, newSeed } from '../games.js';
 import { caughtSpecies, clientIdleRun, idleSettings, latestIdleRun, loadOwnIdleRun, saveIdleRun, type LoadedIdleRun } from '../idle.js';
@@ -229,13 +229,22 @@ export const idleRouter = router({
     return settings;
   }),
 
-  /** Debug (refused in production): the next segment at once, with no wait for playback. */
-  debugNext: debugProcedure.input(idleRunInput).mutation(async ({ ctx, input }) => {
+  /**
+   * Debug (refused in production): the next segment at once, with no wait for the last one's playback (debug mode's ×3
+   * speed, the user's, 2026-11-04: `speed`), played up to its length over `speed` from now, its start kept as `next` keeps
+   * it (the ball button, resuming).
+   */
+  debugNext: debugProcedure.input(idleDebugNextInput).mutation(async ({ ctx, input }) => {
     const run = await loadOwnIdleRun(input.runId, ctx.user.id);
     checkVersion(run, input.expectedVersion);
-    const next = simulateSegment(run.state, { ...DEFAULT_IDLE_SETTINGS, ...(await idleSettings(ctx.user.id)) }, new Set(await caughtSpecies(ctx.user.id)), { ask: true });
-    if (!next) throw failed('Not walking');
-    const saved = await saveIdleRun(run, next.state, { dex: next.segment.dex, simulatedAt: new Date() });
+    const settings = await idleSettings(ctx.user.id);
+    const caughtList = await caughtSpecies(ctx.user.id);
+    const next = simulateSegment(run.state, settings, new Set(caughtList), { ask: true });
+    if (!next) throw failed(withPending(run.state).stopped ? 'Stopped' : run.state.inStore ? 'In the store' : run.state.choosing ? 'Waiting for your choice' : 'This run is over');
+    const from = Date.now();
+    const { replay: _, ...prev } = run.state;
+    next.state.replay = { prev, settings, caught: caughtList, from, throws: [], throwable: next.segment.events.some((e) => e.t === 'battle' && e.kind === 'wild') };
+    const saved = await saveIdleRun(run, next.state, { dex: next.segment.dex, simulatedAt: new Date(from + next.segment.durationMs / input.speed) });
     return { run: clientIdleRun(saved), segment: next.segment };
   }),
 

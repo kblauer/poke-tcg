@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { TRANSITION_MS } from '../components/BattleTransition';
 import { preloadBattle } from '../components/idle/BattleScreen';
 import { useTRPC } from '../lib/trpc';
+import { idleSpeed } from '../utils/idleSpeed';
 import type { Facing } from '../utils/overworld';
 
 export type IdleOverview = inferRouterOutputs<AppRouter>['idle']['overview'];
@@ -201,6 +202,7 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
   const queryClient = useQueryClient();
   const key = trpc.idle.overview.queryKey();
   const next = useMutation(trpc.idle.next.mutationOptions());
+  const debugNext = useMutation(trpc.idle.debugNext.mutationOptions());
   const catchUp = useMutation(trpc.idle.catchUp.mutationOptions());
   const throwMut = useMutation(trpc.idle.throwBall.mutationOptions());
   const resume = useMutation(trpc.idle.resume.mutationOptions());
@@ -268,9 +270,11 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
      * its waits taken out of this until it's spent (the user's: picking it up where it is, not waiting on it).
      */
     let skipMs = 0;
-    const wait = (full: number) =>
+    const wait = (gameMs: number) =>
       new Promise<void>((done, fail) => {
         if (stopped) return fail(new Stopped());
+        // At debug mode's speed (idleSpeed), that many times shorter.
+        const full = gameMs / idleSpeed();
         const skipped = Math.min(full, skipMs);
         skipMs -= skipped;
         const ms = full - skipped;
@@ -310,8 +314,8 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
           place: { ...place, step: i },
           face: faceOf(x - px, y - py, old.face),
           walkTick: old.walkTick + 1,
-          moveMs: ms,
-          jump: jump ? { ms, stamp: Date.now() } : old.jump,
+          moveMs: ms / idleSpeed(),
+          jump: jump ? { ms: ms / idleSpeed(), stamp: Date.now() } : old.jump,
         }));
         await wait(STEP_MS * (jump ? 2 : 1));
         // Landed: the jump goes, or the map scene coming back after a battle would play it again.
@@ -327,7 +331,7 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
         const i = (e.from + k) % loop.length;
         const [, x, y] = loop[i]!;
         const [, px, py] = loop[(i + loop.length - 1) % loop.length]!;
-        setPlay((old) => ({ ...old, place: { ...place, step: i }, face: faceOf(x - px, y - py, old.face), walkTick: old.walkTick + 1, moveMs: STEP_MS }));
+        setPlay((old) => ({ ...old, place: { ...place, step: i }, face: faceOf(x - px, y - py, old.face), walkTick: old.walkTick + 1, moveMs: STEP_MS / idleSpeed() }));
         await wait(STEP_MS);
         place.step = i;
       }
@@ -539,7 +543,9 @@ export function useIdlePlayback(run: ClientIdleRun | null | undefined, name: (id
         while (!stopped && current.status === 'ACTIVE' && playing(current.view)) {
           let r;
           try {
-            r = await next.mutateAsync({ runId: current.id, expectedVersion: newest().version });
+            // Debug mode's ×3 (idleSpeed): asked for at once, the server counting it played that much faster.
+            const ask = { runId: current.id, expectedVersion: newest().version };
+            r = await (idleSpeed() > 1 ? debugNext.mutateAsync({ ...ask, speed: idleSpeed() }) : next.mutateAsync(ask));
           } catch (e) {
             // Played back faster than the server counted (a reload mid-segment): wait until it's caught up.
             if (stopped || !(e instanceof Error) || !e.message.startsWith('Still playing')) throw e;

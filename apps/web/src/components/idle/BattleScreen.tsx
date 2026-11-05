@@ -2,6 +2,7 @@ import { generation, catchTextFrame, cooldownTicks, FRAME_MS, introMs, moveData,
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import { isReward, type BattleSegment } from '../../hooks/useIdle';
+import { idleSpeed } from '../../utils/idleSpeed';
 import { DialogueBox, dialogueKey, type Dialogue } from '../DialogueBox';
 import { BattleScene } from './BattleScene';
 import { DsText } from './dsFont';
@@ -301,8 +302,8 @@ export function BattleScreen({
   // "<trainer> sent out X!", and "<player> used <ball>!" while a thrown ball's animation plays (its line after it).
   const [, redraw] = useState(0);
   const latest = line >= 0 ? battle.events[line]! : null;
-  const ballWait = latest?.t === 'ball' ? (times.current[line] ?? 0) + catchTextFrame(latest.shakes, latest.caught) * FRAME_MS - performance.now() : 0;
-  const introWait = shown === 0 ? introAt.current + introMs(battle.kind) - performance.now() : 0;
+  const ballWait = latest?.t === 'ball' ? (times.current[line] ?? 0) + (catchTextFrame(latest.shakes, latest.caught) * FRAME_MS) / idleSpeed() - performance.now() : 0;
+  const introWait = shown === 0 ? introAt.current + introMs(battle.kind) / idleSpeed() - performance.now() : 0;
   useEffect(() => {
     const ms = Math.max(ballWait, introWait);
     if (ms <= 0) return;

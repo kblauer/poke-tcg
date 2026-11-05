@@ -5,6 +5,7 @@ import { placeTrack, type Playback } from '../../hooks/useIdle';
 import { usePanTo } from '../../hooks/usePan';
 import type { Facing } from '../../utils/overworld';
 import { playerSprites } from '../../utils/idleLook';
+import { idleSpeed } from '../../utils/idleSpeed';
 import { DialogueBox, dialogueKey, type Dialogue } from '../DialogueBox';
 import { Exclamation, GrassTufts, JumpDust, JumpShadow, OverworldSprite, SURF_BOB, surfMask, TallGrass } from '../run/RouteSprites';
 import { DIALOGUE_TEXT, GameScreen, gameSize, useGameScale } from './GameScreen';
@@ -201,7 +202,7 @@ function FishingSprite({ sprite, right = false, surfing, phase, stamp, tile, fac
     const timer = window.setInterval(() => setNow(Date.now()), FISH_FRAME_MS / 2);
     return () => window.clearInterval(timer);
   }, []);
-  const n = Math.floor(Math.max(0, now - stamp) / FISH_FRAME_MS);
+  const n = Math.floor((Math.max(0, now - stamp) * idleSpeed()) / FISH_FRAME_MS);
   const hooked = [2, 2, 3, 3, 2, 2, 3, 3, ...Array(8).fill(3)];
   const frame = phase === 'cast' ? Math.min(3, n) : phase === 'hooked' ? hooked[n % hooked.length]! : Math.max(0, 3 - n);
   const flip = face === 'right' && !right ? 'scaleX(-1)' : undefined;

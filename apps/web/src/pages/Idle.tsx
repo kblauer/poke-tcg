@@ -22,6 +22,7 @@ import { placeOf, placeTrack, useIdleActions, useIdleOverview, useIdlePlayback, 
 import { useRun } from '../hooks/useRun';
 import { useToasts } from '../hooks/useToasts';
 import { DEBUG_BUILD, useDebugEnabled } from '../utils/debug';
+import { idleSpeed, useIdleSpeed } from '../utils/idleSpeed';
 import { PAGE_WIDTH } from '../utils/layout';
 import { commas } from '../utils/math';
 import { BUTTON } from '../utils/styles';
@@ -57,6 +58,8 @@ export function IdlePage() {
   const gender = useRun().overview.data?.playerGender === 'female' ? 'female' : 'male';
   const debugOn = useDebugEnabled();
   const debug = DEBUG_BUILD && debugOn;
+  // Debug mode's ×3 speed (the user's, 2026-11-04: idleSpeed), set before the playback below reads it.
+  const [speed, setFast] = useIdleSpeed(debug);
   const soundtrack = useMusicSettings()?.soundtrack ?? 'remastered';
   const [tab, setTab] = useState<Tab>('bag');
   // The party overlay's open (kept as the scene changes: the map, a battle, a town).
@@ -302,7 +305,7 @@ export function IdlePage() {
           )}
           <Badges badges={v.badges} />
           {debug && <DebugWarp run={active} onWarp={(id) => void actions.warp(active, id).catch(failed)} />}
-          {debug && <DebugCheats run={active} onMoney={() => void actions.money(active).catch(failed)} onCatch={(on) => void actions.sureCatch(active, on).catch(failed)} />}
+          {debug && <DebugCheats run={active} onMoney={() => void actions.money(active).catch(failed)} onCatch={(on) => void actions.sureCatch(active, on).catch(failed)} fast={speed > 1} onFast={setFast} />}
         </section>
       )}
       <Toasts toasts={toasts.toasts} />
@@ -319,9 +322,9 @@ function TickMeter({ turn, tickAt }: { turn: number | null; tickAt: number }) {
     <div className={`mx-auto flex w-full max-w-60 items-center gap-2 text-xs text-slate-400 ${turn === null ? 'invisible' : ''}`} aria-hidden={turn === null || undefined}>
       <span className="shrink-0 tabular-nums">Turn {turn ?? 0}</span>
       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-700">
-        {turn !== null && <div key={`${tickAt}:${turn}`} className="h-full origin-left rounded-full bg-yellow-300" style={{ animation: `idle-tick ${TICK_MS}ms linear 1 both` }} />}
+        {turn !== null && <div key={`${tickAt}:${turn}`} className="h-full origin-left rounded-full bg-yellow-300" style={{ animation: `idle-tick ${TICK_MS / idleSpeed()}ms linear 1 both` }} />}
       </div>
-      <span className="shrink-0 tabular-nums">{TICK_MS / 1000} s</span>
+      <span className="shrink-0 tabular-nums">{Math.round(TICK_MS / idleSpeed() / 100) / 10} s</span>
     </div>
   );
 }
@@ -332,10 +335,14 @@ function Badges({ badges }: { badges: string[] }) {
   return <p className="text-xs text-slate-400">Badges: {badges.join(', ')}</p>;
 }
 
-/** Debug (debug builds only, refused in production): ₱1,000,000 more for the run, and every ball thrown catching. */
-function DebugCheats({ run, onMoney, onCatch }: { run: ClientIdleRun; onMoney: () => void; onCatch: (on: boolean) => void }) {
+/** Debug (debug builds only, refused in production): ₱1,000,000 more for the run, every ball thrown catching, and ×3 speed. */
+function DebugCheats({ run, onMoney, onCatch, fast, onFast }: { run: ClientIdleRun; onMoney: () => void; onCatch: (on: boolean) => void; fast: boolean; onFast: (on: boolean) => void }) {
   return (
     <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+      <label className="flex items-center gap-1.5" title="Every wait, step and animation three times faster (from the next segment)">
+        <input type="checkbox" checked={fast} onChange={(e) => onFast(e.target.checked)} />
+        Debug: ×3 speed
+      </label>
       <button className={BUTTON} onClick={onMoney}>
         Debug: +₱1,000,000
       </button>
