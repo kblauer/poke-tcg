@@ -2,7 +2,9 @@
 4c) from a checkout of the pret/pokeheartgold decompilation: every map in packages/idle/src/data/gen2/maps.ts (written by
 johto_areas.py), as the card runs draw HGSS's maps (tools/routes/hgss/hgss_map.py's `render`: its terrain chunks and
 buildings converted with apicula and drawn tilted), on the same tile grid as the map's tiles (hgss_maps.py's cells, its
-picture's top left their top left, 16 px a tile), to apps/web/public/idle/gen2/maps/<map>.png, and a map's overhead
+picture's top left their top left, PX a tile: 32, twice the card runs' and the DS's 16, so the 3D maps' textures keep
+their detail at the game screen's scale, the user's; maps.ts's sizes stay in tiles, the page drawing a picture 16 game
+pixels a tile), to apps/web/public/idle/gen2/maps/<map>.png, and a map's overhead
 (its `bridges`' tiles alone: Goldenrod Gym's, drawn over the player under them) to <map>_overhead.png. The people, item balls,
 Cut trees and Strength boulders are events, not in the land data, so they aren't drawn (the boulders left out, the user's).
 A building's inside (MAP_TYPE_INTERIOR) draws with bm_room's buildings. Pictures already there are kept (--force draws
@@ -21,6 +23,8 @@ import hgss_map  # noqa: E402
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
 OUT = os.path.join(ROOT, 'apps', 'web', 'public', 'idle', 'gen2', 'maps')
 MAPS_TS = os.path.join(ROOT, 'packages', 'idle', 'src', 'data', 'gen2', 'maps.ts')
+# Pixels a tile in the pictures.
+PX = 32
 
 
 def main():
@@ -45,7 +49,7 @@ def main():
             continue
         cells = j.cells(const)
         room = j.header(const)['type'] == 'MAP_TYPE_INTERIOR'
-        _, _, _, cw, ch, _, _ = hgss_map.render(out, cells, hd.map_header(src, const), room, apicula, src)
+        _, _, _, cw, ch, _, _ = hgss_map.render(out, cells, hd.map_header(src, const), room, apicula, src, px=PX)
         assert (cw * hm.CHUNK, ch * hm.CHUNK) == (w, h), (const, cw, ch, w, h)
         print(const, w, 'x', h)
     # The overheads (maps.ts's `bridges`, Goldenrod Gym's): those tiles of the picture alone, see-through elsewhere, drawn
@@ -57,7 +61,7 @@ def main():
         im = Image.open(os.path.join(OUT, name + '.png')).convert('RGBA')
         top = Image.new('RGBA', im.size, (0, 0, 0, 0))
         for l, t, r, b in json.loads(m.group(2)):
-            box = (l * 16, t * 16, (r + 1) * 16, (b + 1) * 16)
+            box = (l * PX, t * PX, (r + 1) * PX, (b + 1) * PX)
             top.paste(im.crop(box), box[:2])
         top.save(os.path.join(OUT, name + '_overhead.png'))
         print('MAP_' + name.upper(), 'overhead')

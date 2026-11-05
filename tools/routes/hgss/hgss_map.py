@@ -61,9 +61,9 @@ def main():
     print('rendered', consts, cw * CHUNK, 'x', ch * CHUNK, 'tiles')
 
 
-def render(out, mine, header, room, apicula, cache, tilt=0.6, overhead=()):
+def render(out, mine, header, room, apicula, cache, tilt=0.6, overhead=(), px=16):
     """Draws matrix cells `mine` (their terrain chunks and buildings) to <out>.png (and <out>-overhead.png with
-    `overhead`'s materials): the picture's top left the cells' top left, 16 px a tile. Their tiles' rows, grass and ice,
+    `overhead`'s materials): the picture's top left the cells' top left, `px` a tile (16, the card runs'). Their tiles' rows, grass and ice,
     the size in cells and the top left cell."""
     x0, y0 = min(c['x'] for c in mine), min(c['y'] for c in mine)
     cw, ch = max(c['x'] for c in mine) - x0 + 1, max(c['y'] for c in mine) - y0 + 1
@@ -110,13 +110,13 @@ def render(out, mine, header, room, apicula, cache, tilt=0.6, overhead=()):
             for y in _accessor(gj, bin_, p['attributes']['POSITION'])[:, 1]:
                 ys[round(y)] += 1
     ground = ys.most_common(1)[0][0] if ys else 0
-    scene = Scene(cw * CHUNK * 16, ch * CHUNK * 16, tilt=tilt, ground=ground)
+    scene = Scene(cw * CHUNK * px, ch * CHUNK * px, tilt=tilt, ground=ground, px=px)
     for glb, origin, texmtx in parts:
         scene.glb(glb, origin, texmtx)
     scene.render(out + '.png')
     if overhead:
         # The parts drawn over the people walking under them (a bridge), on their own, see-through elsewhere.
-        top = Scene(cw * CHUNK * 16, ch * CHUNK * 16, tilt=tilt, ground=ground)
+        top = Scene(cw * CHUNK * px, ch * CHUNK * px, tilt=tilt, ground=ground, px=px)
         for glb, origin, texmtx in parts:
             top.glb(glb, origin, texmtx, only=overhead)
         top.render(out + '-overhead.png', transparent=True)

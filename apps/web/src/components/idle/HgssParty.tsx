@@ -2,8 +2,8 @@ import { species, type IdleAction, type Mon } from '@poke-tcg/idle';
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { useEscape } from '../../hooks/useEscape';
 import { pokemonPics } from '../../utils/idleLook';
-import { DS_HEIGHT, DS_WIDTH } from './GameScreen';
-import { MonPanel, moved, PANEL_W, px } from './PartyOverlay';
+import { DS_HEIGHT, DS_WIDTH, screenPx as px } from './GameScreen';
+import { MonPanel, moved, PANEL_W } from './PartyOverlay';
 
 /** The party menu's pictures (tools/idle/hgss_menus.py), and the message frame (the buy screen's, DrawFrameAndWindow2's). */
 const PARTY = '/idle/gen2/party';

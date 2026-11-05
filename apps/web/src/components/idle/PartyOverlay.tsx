@@ -2,11 +2,8 @@ import { generation, basicFor, calcStats, cooldownTicks, machineMoves, moveData,
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { useEscape } from '../../hooks/useEscape';
 import { pokemonPics } from '../../utils/idleLook';
-import { gameSize } from './GameScreen';
+import { screenPx as px } from './GameScreen';
 import { HgssParty } from './HgssParty';
-
-/** One game pixel of the region's screen (FireRed's 240 wide, HGSS's 256: gameSize), in the game screen's width (container query units). */
-export const px = (n: number) => `${(n * 100) / gameSize().w}cqw`;
 const PARTY = '/idle/gen1/party';
 /** FireRed's party text: white with its grey shadow (sFontColorTable[0]), in the Gen 3 font. */
 export const TEXT = { color: '#ffffff', textShadow: `${px(1)} ${px(1)} 0 #737373`, fontFamily: '"Pokemon Emerald", monospace', lineHeight: 1 } as const;

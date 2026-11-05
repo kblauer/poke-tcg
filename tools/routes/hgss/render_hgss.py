@@ -14,8 +14,10 @@ REPEAT, CLAMP, MIRROR = 10497, 33071, 33648
 
 
 class Scene:
-    def __init__(self, width_px, height_px, tilt=0.6, ground=0.0, background=(0, 0, 0)):
+    def __init__(self, width_px, height_px, tilt=0.6, ground=0.0, background=(0, 0, 0), px=PX):
+        """`px`: pixels per tile (PX: the card runs'; the Idle Adventure's Johto maps draw at twice that, for their textures' detail)."""
         self.w, self.h, self.tilt, self.ground = width_px, height_px, tilt, ground
+        self.s = px / UNIT
         self.img = np.zeros((height_px, width_px, 3)); self.img[:] = np.array(background) / 255
         self.depth = np.full((height_px, width_px), -1e18)
         # The model height (y) of what's drawn at each pixel (its opaque surfaces'), for what stands above the ground.
@@ -39,8 +41,8 @@ class Scene:
         """Draws the triangles added so far into the picture (and forgets them), so more can be drawn over it later."""
         # Opaque first, then see-through surfaces (water), so they blend over what's beneath them.
         for pos, uv, col, tex, wrap, alpha, blend in sorted(self.prims, key=lambda p: p[6]):
-            sx = pos[:, 0] * S
-            sy = pos[:, 2] * S - (pos[:, 1] - self.ground) * S * self.tilt
+            sx = pos[:, 0] * self.s
+            sy = pos[:, 2] * self.s - (pos[:, 1] - self.ground) * self.s * self.tilt
             d = pos[:, 1] + pos[:, 2] * self.tilt * 0.5
             for k in range(0, len(pos) - 2, 3):
                 self._triangle(sx[k:k + 3], sy[k:k + 3], d[k:k + 3], uv[k:k + 3], col[k:k + 3], tex, wrap, alpha, pos[k:k + 3, 1])
