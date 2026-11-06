@@ -229,7 +229,11 @@ function BallButton({ disabled, title, onClick }: { disabled: boolean; title: st
   );
 }
 
-/** The Master Ball's button (the user's, 2026-11-04): the Master Ball next turn, left of the ball button, shown while the bag holds one. */
+/**
+ * The Master Ball's button (the user's, 2026-11-04): the Master Ball next turn, left of the ball button, shown while the
+ * bag holds one; drawn as the ball button is (the user's, 2026-11-06: not the item icon, which the nav menu's Poké Ball
+ * resembles): purple over white, its two pink bumps and white M.
+ */
 function MasterBallButton({ disabled, title, onClick }: { disabled: boolean; title: string; onClick: () => void }) {
   return (
     <button
@@ -241,10 +245,15 @@ function MasterBallButton({ disabled, title, onClick }: { disabled: boolean; tit
         e.stopPropagation();
         onClick();
       }}
-      className="absolute transition hover:scale-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
-      style={{ right: px(60), top: px(3), width: px(24), height: px(24) }}
+      className="absolute overflow-hidden rounded-full border-[0.5cqw] border-[#202020] shadow-[0_0.4cqw_0_rgba(0,0,0,0.4)] transition hover:scale-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
+      style={{ right: px(60), top: px(5), width: px(20), height: px(20), background: 'linear-gradient(#7038c8 0 44%, #202020 44% 56%, #f8f8f8 56%)' }}
     >
-      <img src="/items/master-ball.png" alt="" draggable={false} className="h-full w-full select-none [image-rendering:pixelated]" />
+      <span className="absolute rounded-full bg-[#f060b8]" style={{ left: px(1), top: px(3), width: px(5), height: px(5) }} />
+      <span className="absolute rounded-full bg-[#f060b8]" style={{ right: px(1), top: px(3), width: px(5), height: px(5) }} />
+      <span className="absolute left-1/2 -translate-x-1/2 font-bold leading-none text-[#f8f8f8]" style={{ top: px(1.5), fontSize: px(6) }}>
+        M
+      </span>
+      <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-[0.4cqw] border-[#202020] bg-[#f8f8f8]" style={{ width: px(7), height: px(7) }} />
     </button>
   );
 }
