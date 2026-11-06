@@ -321,7 +321,8 @@ export function RouteView({ routes, gym, view, spotted, gender = 'male' }: { rou
             ref={mapEl}
             className="absolute origin-top-left"
             // Placed and glided by usePan (usePanTo).
-            style={{ width: shown.width, height: shown.height, transform: mapScale }}
+            // Only the part shown where the map has one (its `view`: a gym's leader's room).
+            style={{ width: shown.width, height: shown.height, transform: mapScale, ...(shown.view && { clipPath: `inset(${shown.view.y * 16}px ${shown.width - (shown.view.x + shown.view.width) * 16}px ${shown.height - (shown.view.y + shown.view.height) * 16}px ${shown.view.x * 16}px)` }) }}
           >
             <img src={shown.image} alt="" draggable={false} className="h-full w-full select-none [image-rendering:pixelated]" />
             {/* The gears (Sunyshore Gym's), the frame of their turning they're at, over the part of the map they change. */}

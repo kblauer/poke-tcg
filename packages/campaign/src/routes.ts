@@ -95,6 +95,11 @@ export interface Route {
   bridgeOverhead?: string;
   width: number;
   height: number;
+  /**
+   * The part of the map shown, in tiles, where it's only one of its rooms (leaderRoom's, in a gym of several: Mossdeep
+   * Gym's, the user's): the view kept inside it (centred where it's smaller), the rest of the map not drawn. The whole map without.
+   */
+  view?: { x: number; y: number; width: number; height: number };
   /** One spot per encounter step, in order (the run's start first); the steps after them stay at the last spot. */
   spots: RouteSpot[];
   walkable: string[];
@@ -676,14 +681,45 @@ export const travelAt = (route: Route, spot: RouteSpot): Travel => {
   return route.travel;
 };
 
+/** How far round a room's walkable tiles its picture goes, in tiles: its back wall and roof above, a wall elsewhere. */
+const ROOM_MARGIN = { up: 3, down: 1, side: 1 };
+
+/**
+ * The room the player comes in to (leaderRoom's `entrance`: every tile reached from it that isn't a wall, with its walls
+ * round it) as the map's `view` (leaderRoom's `ownRoom`).
+ */
+function roomView(gym: Route, from: RouteSpot): Pick<Route, 'view'> {
+  const open = (x: number, y: number) => (gym.walkable[y]?.[x] ?? '#') !== '#';
+  const seen = new Set<string>();
+  const todo = [from];
+  let [x0, y0, x1, y1] = [from.x, from.y, from.x, from.y];
+  while (todo.length) {
+    const t = todo.pop()!;
+    const k = `${t.x},${t.y}`;
+    if (seen.has(k) || (!open(t.x, t.y) && t !== from)) continue;
+    seen.add(k);
+    [x0, y0, x1, y1] = [Math.min(x0, t.x), Math.min(y0, t.y), Math.max(x1, t.x), Math.max(y1, t.y)];
+    todo.push({ x: t.x + 1, y: t.y }, { x: t.x - 1, y: t.y }, { x: t.x, y: t.y + 1 }, { x: t.x, y: t.y - 1 });
+  }
+  const tilesW = gym.width / 16;
+  const tilesH = gym.height / 16;
+  const x = Math.max(0, x0 - ROOM_MARGIN.side);
+  const y = Math.max(0, y0 - ROOM_MARGIN.up);
+  const width = Math.min(tilesW, x1 + 1 + ROOM_MARGIN.side) - x;
+  const height = Math.min(tilesH, y1 + 1 + ROOM_MARGIN.down) - y;
+  return { view: { x, y, width, height } };
+}
+
 /**
  * A gym leader's part of their gym, for a run that goes straight to them (the Gym Challenge, the Champion run; agreed with
  * the user): the gym's map with the leader in their place (its last stand) and the player's spot below them (its last
  * spot), the player coming in at `entrance`, 5 tiles from the leader (south where the gym allows: 4 steps from the spot),
- * with no snowball there (Snowpoint Gym's 11,8); `open`, tiles walkable there that aren't in the gym (Sunyshore Gym's, the user's).
+ * with no snowball there (Snowpoint Gym's 11,8); `open`, tiles walkable there that aren't in the gym (Sunyshore Gym's, the user's);
+ * `ownRoom`, only the leader's room shown (roomView: a gym of rooms apart, black between them, Mossdeep Gym's, the user's).
  */
-export const leaderRoom = (gym: Route, entrance: RouteSpot, open: RouteSpot[] = []): Route => ({
+export const leaderRoom = (gym: Route, entrance: RouteSpot, open: RouteSpot[] = [], ownRoom = false): Route => ({
   ...gym,
+  ...(ownRoom && roomView(gym, entrance)),
   entrance,
   ...(open.length && { walkable: gym.walkable.map((r, y) => [...r].map((c, x) => (open.some((t) => t.x === x && t.y === y) ? '.' : c)).join('')) }),
   spots: [gym.spots.at(-1)!],
