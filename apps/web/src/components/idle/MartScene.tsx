@@ -1,6 +1,7 @@
 import { generation, areas, isMachine, machineList, machineMove, machinePrice, mapView, moveData, tmShopOpen, type TownArea } from '@poke-tcg/idle';
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useEscape } from '../../hooks/useEscape';
+import { useDragSteps, useOutsideTap } from './martGestures';
 import { useIsPhone } from '../../hooks/useIsPhone';
 import type { ClientIdleRun } from '../../hooks/useIdle';
 import { playerSprites } from '../../utils/idleLook';
@@ -261,6 +262,11 @@ function BuyScreen({ run, player, busy, onBuy, onClose, machines, children }: { 
     return () => el.removeEventListener('wheel', onWheel);
   });
   useEscape(() => (step.kind === 'list' ? onClose() : step.kind === 'quantity' ? setStep({ kind: 'list' }) : undefined));
+  // On a phone (the user's): a finger dragged up or down the list scrolls it a row a row's height, over the screen while
+  // choosing how many changes it as the wheel does; a tap outside closes the list (or goes back to it).
+  useDragSteps(list, step.kind === 'list', 16 * scale, scroll);
+  useDragSteps(screen, step.kind === 'quantity', 16 * scale, (by) => adjust(by));
+  useOutsideTap(ref, () => (step.kind === 'list' ? onClose() : step.kind === 'quantity' || step.kind === 'confirm' ? setStep({ kind: 'list' }) : undefined));
   const name = itemName;
   const dialogue: Dialogue | null =
     step.kind === 'quantity'

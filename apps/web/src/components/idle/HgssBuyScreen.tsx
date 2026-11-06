@@ -1,6 +1,7 @@
 import { generation, areas, isMachine, machineMove, machinePrice, mapView, moveData, type TownArea } from '@poke-tcg/idle';
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useEscape } from '../../hooks/useEscape';
+import { useDragSteps, useOutsideTap } from './martGestures';
 import type { ClientIdleRun } from '../../hooks/useIdle';
 import { OverworldSprite } from '../run/RouteSprites';
 import { DS_HEIGHT, DS_WIDTH, useGameScale } from './GameScreen';
@@ -143,15 +144,19 @@ export function HgssBuyScreen({ run, player, busy, onBuy, onClose, machines, chi
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
+  const listing = step.kind === 'list';
   const said = useRef<(() => void) | null>(null);
   said.current = step.kind === 'said' ? () => setStep({ kind: 'list' }) : null;
   useEscape(() => (step.kind === 'list' ? onClose() : step.kind !== 'said' ? setStep({ kind: 'list' }) : said.current?.()));
+  // On a phone (the user's): a finger swiped over the screens turns the page (up or left the next), and a tap outside
+  // them closes the list, as Escape.
+  useDragSteps(ref, listing, 64 * scale, turn, 'xy');
+  useOutsideTap(ref, () => (step.kind === 'list' ? onClose() : step.kind !== 'said' ? setStep({ kind: 'list' }) : said.current?.()));
 
   // The top screen: the mart round the player (the map's 16 by 12 tiles with him in the middle) and everyone near him.
   const ox = DS_WIDTH / 2 - (mart.x * 16 + 8);
   const oy = DS_HEIGHT / 2 - (mart.y * 16 + 8);
   const people = [...mart.people, { sprite: player, x: mart.x, y: mart.y, face: mart.face }];
-  const listing = step.kind === 'list';
   const background = step.kind === 'quantity' ? 'bottom_quantity' : step.kind === 'confirm' ? 'bottom_confirm' : 'bottom';
   /** A screen in game pixels at the game screen's scale, `over` it in CSS pixels (the overlays: the party, the Town Map). */
   const screen = (content: ReactNode, over?: ReactNode) => (

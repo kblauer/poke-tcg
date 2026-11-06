@@ -47,6 +47,9 @@ const MAX_VOLUME = 0.5;
 const FADE_MS = 1000;
 
 // Auto play on and the Remastered soundtrack by default (agreed 2026-10-23).
+/** What lets a page play sound (a user activation): auto play's first try after one (MusicProvider). */
+const GESTURES = ['click', 'touchend', 'keydown'] as const;
+
 const DEFAULTS: MusicPrefs = { open: false, gen: null, shuffle: false, repeat: false, volume: 0.5, track: null, autoplay: true, soundtrack: 'remastered' };
 
 /** Auto play and its soundtrack as the account keeps them (utils/accountSettings): the browser's, or null when it has none saved. */
@@ -159,7 +162,7 @@ export function MusicControls({ onOpen }: { onOpen?: () => void }) {
   const openTitle = open ? 'Hide the music player' : 'Show the music player';
   return (
     // Clicks here don't cancel a move in progress on the board (the Board's outside-click listener).
-    <div data-keep-action className="flex w-fit min-w-0 items-center gap-1 rounded-full bg-slate-800 p-1 shadow-lg ring-1 ring-slate-600">
+    <div data-keep-action data-music className="flex w-fit min-w-0 items-center gap-1 rounded-full bg-slate-800 p-1 shadow-lg ring-1 ring-slate-600">
       <button className={`${iconButton} rounded-full`} onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'} title={playing ? 'Pause' : 'Play'}>
         {playing ? <PauseIcon sx={{ fontSize: 20 }} /> : <PlayArrowIcon sx={{ fontSize: 20 }} />}
       </button>
@@ -294,8 +297,8 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
     if (!audio || !startNext.current || pausing.current) return;
     startNext.current = false;
     audio.play().catch((e: unknown) => {
-      // A newer choice interrupting this one isn't an error.
-      if (!(e instanceof DOMException && e.name === 'AbortError')) setError("This song couldn't be played.");
+      // A newer choice interrupting this one isn't an error, nor the browser waiting for a tap first (auto play's start, below).
+      if (!(e instanceof DOMException && (e.name === 'AbortError' || e.name === 'NotAllowedError'))) setError("This song couldn't be played.");
     });
   };
 
@@ -356,9 +359,37 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
   useEffect(() => {
     if (cue?.start || !cueStarted.current) return;
     cueStarted.current = false;
+    ownPause.current = true;
     player.current?.audio.current?.pause();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cue?.key]);
+
+  // Auto play starts the music by itself (the user's, 2026-11-06): the song the page wants, at once where the browser
+  // allows it, otherwise on the first tap, click or key press (browsers, phones' above all, play nothing before one; the
+  // play() in the handler itself, as Safari wants it), unless the player paused it (`pausedByPlayer`, till they play
+  // again). The music's own controls (`data-music`) are left to do it themselves.
+  const pausedByPlayer = useRef(false);
+  /** A pause the player didn't make (a cue's end): onPause leaves `pausedByPlayer` alone. */
+  const ownPause = useRef(false);
+  const autoStart = useRef(() => {});
+  autoStart.current = () => {
+    const audio = player.current?.audio.current;
+    if (!prefs.autoplay || !cueTrack || pausedByPlayer.current || inJingle.current || (audio && !audio.paused)) return;
+    if (audio && current === cueTrack) {
+      startNext.current = true;
+      return startPlaying();
+    }
+    if (current !== cueTrack) switchTo(cueTrack, true);
+  };
+  useEffect(() => {
+    if (!prefs.autoplay || playing || !cueTrack) return;
+    autoStart.current();
+    const onGesture = (e: Event) => !(e.target as Element | null)?.closest?.('[data-music]') && autoStart.current();
+    for (const kind of GESTURES) window.addEventListener(kind, onGesture, true);
+    return () => {
+      for (const kind of GESTURES) window.removeEventListener(kind, onGesture, true);
+    };
+  }, [prefs.autoplay, playing, cueTrack]);
   const playJingle = (song: Song) => {
     const jingle = findSong(song);
     if (!prefs.autoplay || !playing || !jingle || inJingle.current) return;
@@ -458,8 +489,11 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
       const first = cueTrack ?? list[0];
       if (first) play(first);
       else update({ open: true });
-    } else if (audio?.paused) void audio.play();
-    else {
+    } else if (audio?.paused) {
+      pausedByPlayer.current = false;
+      void audio.play();
+    } else {
+      pausedByPlayer.current = true;
       audio?.pause();
       // A switch waiting for the song to fade out is made at once, the new song waiting for play.
       pausing.current = true;
@@ -533,6 +567,7 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
       {/* Clicks here don't cancel a move in progress on the board (the Board's outside-click listener). */}
       <div data-keep-action className={`fixed z-[1300] flex flex-col gap-2 ${docked ? 'bottom-3 left-3 items-start' : 'right-4 top-16 items-end'}`}>
         <section
+          data-music
           aria-label="Music player"
           className={`${prefs.open ? 'flex' : 'hidden'} max-h-[min(42rem,calc(100vh-5rem))] w-[26rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-lg bg-slate-800 shadow-xl ring-1 ring-slate-600`}
         >
@@ -564,10 +599,19 @@ export function MusicProvider({ children, docked }: { children: ReactNode; docke
               onClickNext={() => step(1)}
               onClickPrevious={() => step(-1)}
               onEnded={ended}
-              onPlay={() => setPlaying(true)}
+              onPlay={() => {
+                setPlaying(true);
+                pausedByPlayer.current = false;
+              }}
               // A song switched to (or played again after a switch made while paused) fades in once it's really playing.
               onPlaying={() => gain.current < 1 && !afterFade.current && fade(1)}
-              onPause={() => setPlaying(false)}
+              onPause={() => {
+                setPlaying(false);
+                // Paused by the player (the panel's own button too): auto play doesn't start it again by itself.
+                const audio = player.current?.audio.current;
+                if (ownPause.current) ownPause.current = false;
+                else if (audio && !audio.ended && !held.current && !afterFade.current) pausedByPlayer.current = true;
+              }}
               onError={() => setError("This song couldn't be loaded.")}
               customVolumeControls={[
                 <div key="volume" className="flex items-center gap-1">

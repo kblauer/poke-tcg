@@ -248,6 +248,13 @@ const TCGDEX_FIXES: Record<string, Partial<TcgdexCard>> = {
   // EX Team Rocket Returns (from the printed cards): Dark Houndoom is Fire and Darkness, Dark Dragonair Darkness only (resisting
   // Grass and Fighting), each with one Weakness; Dark Gyarados's Dark Scale, Magby's Detour, Houndour's Dark Lift (Darkness
   // Energy), Dark Slowking's Litter and Rocket's Tricky Gym have their printed text; Treecko ☆'s Spring Back does 20+.
+  // Dark Crobat's Dark Drain costs Grass and Colorless as printed (TCGdex: Grass and Darkness).
+  'ex7-3': {
+    attacks: [
+      { name: 'Dark Drain', cost: ['Grass', 'Colorless'], damage: null, effect: "Does 10 damage to each of your opponent's Pokémon. (Don't apply Weakness and Resistance for Benched Pokémon.) Remove from Dark Crobat a number of damage counters equal to the number of your opponent's Pokémon in play." },
+      { name: 'Skill Dive', cost: ['Grass', 'Colorless'], damage: null, effect: "Does 30 damage to 1 of your opponent's Pokémon. (Don't apply Weakness and Resistance for Benched Pokémon.)" },
+    ],
+  },
   'ex7-5': { types: ['Fire', 'Darkness'], weaknesses: [{ type: 'Fighting', value: '×2' }], resistances: [{ type: 'Psychic', value: '-30' }] },
   'ex7-9': {
     attacks: [

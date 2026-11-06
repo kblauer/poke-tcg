@@ -3,9 +3,11 @@ import CloseIcon from '@mui/icons-material/Close';
 import RemoveIcon from '@mui/icons-material/Remove';
 import StarIcon from '@mui/icons-material/Star';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
-import { EFFECT_MOMENTS, holoPattern, isEffectSlot, type EffectMoment, type FlairSlot } from '@poke-tcg/campaign';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import { EFFECT_MOMENTS, flairFor, FLAIR_SLOTS, holoPattern, isEffectSlot, type EffectMoment, type FlairSlot } from '@poke-tcg/campaign';
 import { useRef, useState } from 'react';
 import { useEscape } from '../hooks/useEscape';
+import { useIsPhone } from '../hooks/useIsPhone';
 import { useScrollLock } from '../hooks/useScrollLock';
 import type { CatalogCard } from '../utils/cardList';
 import { CardViewer } from './CardViewer';
@@ -26,7 +28,9 @@ const KEEP_OPEN = 'button, input, a, [data-keep-open]';
  * card for Stardust. The page behind it doesn't scroll while it's open (useScrollLock), and it fits the window: the card
  * shrinks to leave room for the rest (CardViewer). The ★ button (`favorite`) adds the card to the account's favorites, or takes it out. For a holo,
  * `unlocked` is how many copies the account has (see useUnlocked's `holoCopies`), shown above it. Under it, the card
- * flair the card can be given (FlairPicker: a holo's patterns, a low-rarity card's borders, a Pokémon's effects), previewed on the card.
+ * flair the card can be given (FlairPicker: a holo's patterns, a low-rarity card's borders, a Pokémon's effects), previewed on the card:
+ * only in the Collection's view (`flair`, the user's, 2026-11-06), and on a phone in one Card flair box, closed until opened, so
+ * the card has the room.
  */
 export function CardInspector({
   card,
@@ -36,7 +40,7 @@ export function CardInspector({
   favorite,
   unlocked,
   onClose,
-  flair = true,
+  flair = false,
 }: {
   card: CatalogCard;
   locked: boolean;
@@ -48,7 +52,7 @@ export function CardInspector({
   /** How many copies of the card the account has unlocked, for a card that counts them. */
   unlocked?: number;
   onClose: () => void;
-  /** The flair options (FlairPicker): left out during a battle (the user's, 2026-10-26). */
+  /** The flair options (FlairPicker): only the Collection's (the user's, 2026-11-06). */
   flair?: boolean;
 }) {
   /** A press has started on it since it opened. */
@@ -58,6 +62,10 @@ export function CardInspector({
   /** An effect played on the card shown (an effect chip clicked): a new `id` plays it again. */
   const [played, setPlayed] = useState<{ id: number; effect: string; moment: EffectMoment; box: Box } | null>(null);
   const overlay = useRef<HTMLDivElement>(null);
+  const phone = useIsPhone();
+  /** On a phone, the flair box opened (closed, it drops every preview). */
+  const [flairOpen, setFlairOpen] = useState(false);
+  const slots = flair ? FLAIR_SLOTS.filter((slot) => flairFor(card, slot).length) : [];
   const play = (slot: FlairSlot, effect: string) => {
     // Over the card itself (the holo card in the viewer), not the room around it.
     const el = overlay.current?.querySelector('.card');
@@ -65,8 +73,9 @@ export function CardInspector({
     const { left, top, width, height } = el.getBoundingClientRect();
     setPlayed((p) => ({ id: (p?.id ?? 0) + 1, effect, moment: EFFECT_MOMENTS[slot], box: { left, top, width, height } }));
   };
-  const picker = (slot: FlairSlot) => flair && (
+  const picker = (slot: FlairSlot) => (
     <FlairPicker
+      key={slot}
       card={card}
       slot={slot}
       locked={locked}
@@ -148,12 +157,25 @@ export function CardInspector({
           </div>
         )}
         {craft && (craft.error ?? craft.blocked) && <p className="text-xs text-amber-300">{craft.error ?? craft.blocked}.</p>}
-        {picker('pattern')}
-        {picker('border')}
-        {picker('effect-play')}
-        {picker('effect-attack')}
-        {picker('effect-evolve')}
-        {picker('effect-ko')}
+        {slots.length > 0 &&
+          (phone ? (
+            <div data-keep-open className="flex w-full flex-col gap-2 rounded-lg bg-slate-800 text-sm ring-1 ring-slate-600">
+              <button
+                className="flex items-center gap-2 rounded-lg px-3 py-2 text-left transition hover:bg-slate-700/60"
+                aria-expanded={flairOpen}
+                onClick={() => {
+                  if (flairOpen) setPreview({});
+                  setFlairOpen(!flairOpen);
+                }}
+              >
+                <span className="flex-1 font-semibold">Card flair</span>
+                <ExpandMoreIcon sx={{ fontSize: 20 }} className={`text-slate-400 transition-transform ${flairOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {flairOpen && <div className="flex flex-col gap-2 px-2 pb-2">{slots.map(picker)}</div>}
+            </div>
+          ) : (
+            slots.map(picker)
+          ))}
         {played && <FlairEffect key={played.id} effect={played.effect} moment={played.moment} box={played.box} onDone={() => setPlayed(null)} />}
       </div>
     </div>

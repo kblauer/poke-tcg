@@ -469,6 +469,7 @@ export function DecksPage() {
               : undefined
           }
           onClose={() => setInspected(null)}
+          flair
         />
       )}
       {dialog === 'share' && deckId && <ShareDeckDialog deckId={deckId} name={name} problem={ruleProblems[0]} onClose={() => setDialog(null)} />}
