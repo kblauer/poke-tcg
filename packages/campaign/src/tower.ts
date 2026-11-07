@@ -23,8 +23,11 @@ export const TOP_FLOOR = 100;
 export type TowerSprites = 'frlg' | 'hgss' | 'rse';
 const GENERATION_SPRITES: Record<number, TowerSprites> = { 1: 'frlg', 2: 'hgss', 3: 'rse' };
 
-/** The newest generation with cards: floors past its band stay with it until there's another (agreed with the user). */
-const LAST_GENERATION = Math.max(...Object.keys(GENERATIONS).map(Number));
+/**
+ * The newest generation with cards and the tower's rooms (GENERATION_SPRITES, TOWER_ROOMS): floors past its band stay with
+ * it until there's another (agreed with the user). Sinnoh has runs but no Battle Tower rooms yet, so floors 31+ are Gen 3's.
+ */
+const LAST_GENERATION = Math.max(...Object.keys(GENERATIONS).map(Number).filter((gen) => gen in GENERATION_SPRITES));
 
 /** The generation of a floor (counted from 1): its opponents' decks, its rooms and its trainers' sprites. */
 export const towerGeneration = (floor: number) => Math.min(Math.max(1, Math.ceil(floor / FLOORS_PER_GENERATION)), LAST_GENERATION);
