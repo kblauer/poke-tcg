@@ -36,10 +36,10 @@ export const cosmeticsRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
     const [has, user, decks] = await Promise.all([
       cosmeticsOf(ctx.user.id),
-      prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { bank: true, cardBack: true, playmat: true, coin: true } }),
-      prisma.deck.findMany({ where: { ownerId: ctx.user.id, runId: null }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], select: { id: true, cardBack: true, playmat: true, coin: true } }),
+      prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { bank: true, cardBack: true, mat: true, playmat: true, coin: true } }),
+      prisma.deck.findMany({ where: { ownerId: ctx.user.id, runId: null }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], select: { id: true, cardBack: true, mat: true, playmat: true, coin: true } }),
     ]);
-    const defaults = { cardBack: defaultOf('cardBack', user.cardBack, has), playmat: defaultOf('playmat', user.playmat, has), coin: defaultOf('coin', user.coin, has) };
+    const defaults = { cardBack: defaultOf('cardBack', user.cardBack, has), mat: defaultOf('mat', user.mat, has), playmat: defaultOf('playmat', user.playmat, has), coin: defaultOf('coin', user.coin, has) };
     return {
       cosmetics: Object.values(COSMETICS).map((c) => ({ ...c, owned: has(c.id), deckIds: decks.filter((d) => d[c.kind] === c.id).map((d) => d.id), isDefault: defaults[c.kind] === c.id })),
       defaults,
@@ -73,7 +73,7 @@ export const cosmeticsRouter = router({
     if (!(await cosmeticsOf(ctx.user.id))(def.id)) throw new TRPCError({ code: 'BAD_REQUEST', message: `You don't have ${def.name} yet` });
     const decks = await prisma.deck.findMany({ where: { id: { in: input.deckIds }, ownerId: ctx.user.id, runId: null }, select: { id: true } });
     if (decks.length !== new Set(input.deckIds).size) throw new TRPCError({ code: 'BAD_REQUEST', message: "Assign it to your own decks (the run's deck takes its starting deck's)" });
-    const user = await prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { cardBack: true, playmat: true, coin: true } });
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { cardBack: true, mat: true, playmat: true, coin: true } });
     const picked = user[def.kind];
     await prisma.$transaction([
       prisma.deck.updateMany({ where: { ownerId: ctx.user.id, runId: null, [def.kind]: def.id, id: { notIn: input.deckIds } }, data: { [def.kind]: null } }),

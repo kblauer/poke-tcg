@@ -33,8 +33,10 @@ model User {
   /// Consumables used from the Inventory while no run was under way (item ids, already taken from the inventory; at most a
   /// run's 3): they all take effect when the next run starts (among that run's 3), then this is cleared.
   pendingConsumables String[]   @default([])
-  /// The cosmetics in use (ids from the campaign package's COSMETICS): the player's card back, playmat and coin; null is the default.
+  /// The cosmetics in use (ids from the campaign package's COSMETICS): the player's card back, mat, playmat (the click
+  /// overlay) and coin; null is the default.
   cardBack      String?
+  mat           String?
   playmat       String?
   coin          String?
   /// The Settings page's choices kept with the account, so they follow it to any browser (the shared package's
@@ -169,8 +171,9 @@ model Deck {
   /// Starred on the Collection tab: offered under the run's deck choice (Favorite decks).
   favorite  Boolean    @default(false)
   /// The deck's own cosmetics (ids from the campaign package's COSMETICS), used in its battles; null is the account's
-  /// (User.cardBack, playmat, coin). The run deck takes the run's starting (or switched-to) deck's.
+  /// (User.cardBack, mat, playmat, coin). The run deck takes the run's starting (or switched-to) deck's.
   cardBack  String?
+  mat       String?
   playmat   String?
   coin      String?
   cards     DeckCard[]

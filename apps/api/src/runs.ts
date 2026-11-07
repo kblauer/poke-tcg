@@ -191,7 +191,7 @@ async function startBattle(run: LoadedRun, state: RunState, gear: string[]): Pro
   // The CPU picks its active right away, so the game is waiting on the player.
   const { state: game, actions } = runCpu(initial, CPU_ID);
   // The run deck's cosmetics (those of the deck it was started with, or switched to).
-  const cosmetics = await prisma.deck.findFirst({ where: { runId: run.id }, select: { cardBack: true, playmat: true, coin: true } });
+  const cosmetics = await prisma.deck.findFirst({ where: { runId: run.id }, select: { cardBack: true, mat: true, playmat: true, coin: true } });
   const created = await prisma.game.create({
     data: {
       ownerId: run.ownerId,

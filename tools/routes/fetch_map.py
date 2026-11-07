@@ -25,7 +25,8 @@ SHARED_GRAPHICS = {'silph_co': 'condominiums'}
 def snake(tileset):
     """gTileset_CeruleanGym -> cerulean_gym (the tileset's folder under data/tilesets/)."""
     words = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', tileset.replace('gTileset_', ''))
-    return words.lower()
+    # A number after letters is its own word (gTileset_SeviiIslands123 -> sevii_islands_123).
+    return re.sub(r'([a-z])([0-9])', r'\1_\2', words.lower())
 
 
 os.makedirs(out, exist_ok=True)

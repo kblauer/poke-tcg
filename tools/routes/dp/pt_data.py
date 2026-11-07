@@ -1,14 +1,17 @@
 """Reading Platinum data from the pret/pokeplatinum decompilation, as dp_data.py reads Diamond's, for the one Platinum map
 the Sinnoh runs use (Hearthome Gym, the user's: Platinum's layout). The same functions as dp_data.py (dp_map.py renders
-with either, `--game platinum`), over pokeplatinum's files: map headers in include/data/map_headers.h, matrices, area
-data and events as JSON, land data (Diamond's format) and texture sets by number, props by their name's place in
-map_prop_models.order, each prop drawn with its area's prop texture set."""
-import json, os, re, urllib.request
+with either, `--game platinum`), over pokeplatinum's files (its layout since 2026: a folder a map), map headers in
+generated/map_headers.txt (their order, the ids) and each map's res/field/maps/<map>/header.json and events.json, the
+matrices in res/field/maps/groups.json (their order, the ids), area data as JSON, land data (Diamond's format) and
+texture sets by number under res/field/mapmodels/, props by their name's place in map_prop_models.order, each prop drawn
+with its area's prop texture set."""
+import functools, json, os, urllib.request
+from collections.abc import Mapping
 from dp_data import land_chunk  # noqa: F401 (the same land data format)
 
 BASE = 'https://raw.githubusercontent.com/pret/pokeplatinum/main/'
-LAND_DATA = 'res/field/maps/data/map_data_{:03d}.bin'
-MAP_TEXTURES = 'res/field/maps/texture_sets/map_texture_set_{:03d}.nsbtx'
+LAND_DATA = 'res/field/mapmodels/data/map_data_{:03d}.bin'
+MAP_TEXTURES = 'res/field/mapmodels/texture_sets/map_texture_set_{:03d}.nsbtx'
 PROP_TEXTURES = 'res/field/props/texture_sets/prop_texture_set_{:03d}.nsbtx'
 BUILDING = 'res/field/props/models/{}'
 
@@ -31,21 +34,44 @@ def read(cache, folder, n):
     return open(fetch(cache, folder.format(n)), 'rb').read()
 
 
+class _Headers(Mapping):
+    """The map headers by MAP_* constant, each read (its header.json, a download) only when it's asked for."""
+
+    def __init__(self, cache):
+        self.cache = cache
+        names = [l.strip() for l in open(fetch(cache, 'generated/map_headers.txt'), encoding='utf-8') if l.strip()]
+        self.ids = {'MAP_' + n.removeprefix('MAP_HEADER_'): i for i, n in enumerate(names)}
+        self.read = {}
+
+    def __getitem__(self, const):
+        if const not in self.read:
+            folder = const.removeprefix('MAP_').lower()
+            h = json.load(open(fetch(self.cache, f'res/field/maps/{folder}/header.json'), encoding='utf-8'))
+            self.read[const] = {'id': self.ids[const], 'area': int(h['areaData'].split('_')[-1]), 'matrix': _groups(self.cache)[h['mapGroup']], 'events': folder}
+        return self.read[const]
+
+    def __iter__(self):
+        return iter(self.ids)
+
+    def __len__(self):
+        return len(self.ids)
+
+
 def map_headers(cache):
-    """MAP_* constant (MAP_HEADER_ without HEADER_) -> its header: id (its index), area data, matrix and events names."""
-    text = open(fetch(cache, 'include/data/map_headers.h'), encoding='utf-8').read()
-    out = {}
-    for i, m in enumerate(re.finditer(r'\[MAP_HEADER_(\w+)\] = \{(.*?)\n    \}', text, re.S)):
-        body = m.group(2)
-        field = lambda f: re.search(rf'\.{f} = (\w+)', body).group(1)
-        out['MAP_' + m.group(1)] = {'id': i, 'area': int(field('areaDataArchiveID').split('_')[-1]), 'matrix': int(field('mapMatrixID').split('_')[-1]),
-                                    'events': field('eventsArchiveID')}
-    return out
+    """MAP_* constant (MAP_HEADER_ without HEADER_) -> its header: id (its index), area data, matrix and events (its map's
+    folder), each read when first asked for."""
+    return _Headers(cache)
+
+
+@functools.cache
+def _groups(cache):
+    """The matrices' ids by their group's id (groups.json's order)."""
+    return {g['id']: i for i, g in enumerate(json.load(open(fetch(cache, 'res/field/maps/groups.json'), encoding='utf-8')))}
 
 
 def matrix(cache, n):
-    """A map matrix (JSON): its size, and for each cell its map header (or None), altitude and land data id."""
-    d = json.load(open(fetch(cache, f'res/field/matrices/map_matrix_{n:03d}.json'), encoding='utf-8'))
+    """A map matrix (groups.json's nth): its size, and for each cell its map header (or None), altitude and land data id."""
+    d = json.load(open(fetch(cache, 'res/field/maps/groups.json'), encoding='utf-8'))[n]
     maps = d['maps']
     h, w = len(maps), len(maps[0])
     cell = lambda grid, x, y, default: grid[y][x] if grid else default
@@ -65,11 +91,15 @@ def prop_textures(cache, area):
     return read(cache, PROP_TEXTURES, area)
 
 
+# The facings as numbers, as Diamond's events have them (pokeplatinum's JSON names them).
+DIRS = {'DIR_NORTH': 0, 'DIR_SOUTH': 1, 'DIR_WEST': 2, 'DIR_EAST': 3}
+
+
 def events(cache, name):
-    """A map's events (JSON): its people (`objects`: graphics, trainer, facing and tile) and warps (tile, where to:
-    a MAP_* constant and the warp there)."""
-    d = json.load(open(fetch(cache, f'res/field/events/{name}.json'), encoding='utf-8'))
-    objects = [{'gfx': o['graphics_id'], 'trainer': o['script'] if o['trainer_type'] != 'TRAINER_TYPE_NONE' else None,
-                'face': o['initial_dir'], 'x': o['x'], 'z': o['z']} for o in d['object_events']]
+    """A map's events (its folder's events.json): its people (`objects`: graphics, trainer, facing, 0-3 as Diamond's, and
+    tile) and warps (tile, where to: a MAP_* constant and the warp there, by its name)."""
+    d = json.load(open(fetch(cache, f'res/field/maps/{name}/events.json'), encoding='utf-8'))
+    objects = [{'gfx': o['graphics_id'], 'trainer': o['trainer']['id'] if o['trainer_type'] != 'TRAINER_TYPE_NONE' else None,
+                'face': DIRS.get(o['initial_dir'], o['initial_dir']), 'x': o['x'], 'z': o['z']} for o in d['object_events']]
     warps = [{'x': w['x'], 'z': w['z'], 'to': w['dest_header_id'].replace('MAP_HEADER_', 'MAP_'), 'warp': w['dest_warp_id']} for w in d['warp_events']]
     return {'objects': objects, 'warps': warps}

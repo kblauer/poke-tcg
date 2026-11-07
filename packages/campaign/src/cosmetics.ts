@@ -1,11 +1,12 @@
-// Cosmetics: card backs (the player's own face-down cards), playmats (the player's side of the table) and coins (every coin
-// flip). An account has
+// Cosmetics: card backs (the player's own face-down cards), mats (the table under the cards), playmats (the table's click
+// overlays) and coins (every coin flip). An account has
 // the default of each from the start; the others are bought with banked ₱ on the Cosmetics tab, or unlocked by beating a
 // Gym Challenge or Champion run (agreed with the user). Every one is unlocked while debugging. Prices are placeholders.
 
 import type { RunTypeId } from './run-types.js';
 
-export type CosmeticKind = 'cardBack' | 'playmat' | 'coin';
+/** `playmat` is the click overlays' kind (its id kept from before mats, saved in User.playmat and Deck.playmat). */
+export type CosmeticKind = 'cardBack' | 'mat' | 'playmat' | 'coin';
 
 /** How a cosmetic is had: from the start, bought with banked ₱, or by beating a run type. */
 export type CosmeticUnlock = { type: 'default' } | { type: 'buy'; price: number } | { type: 'beat'; runType: RunTypeId };
@@ -31,9 +32,58 @@ const BASE_COSMETICS: CosmeticDef[] = [
   { id: 'tidal', kind: 'cardBack', name: 'Tidal', description: 'The classic back with a rolling-wave foil.', unlock: { type: 'beat', runType: 'hoennChampion' } },
   { id: 'pearl', kind: 'cardBack', name: 'Pearl', description: 'The classic back with a pearlescent sheen.', unlock: { type: 'beat', runType: 'sinnohGyms' } },
   { id: 'diamond', kind: 'cardBack', name: 'Diamond', description: 'The classic back with a diamond-cut sparkle foil.', unlock: { type: 'beat', runType: 'sinnohChampion' } },
-  // Playmats: faint geometric patterns that answer a click on the table subtly, shifting or lighting their lines and points
+  // Mats (the user's, 2026-11-06, after Pokémon TCG Live's): the table under the cards, the whole table (both sides) on a
+  // big screen and the whole battle screen on a phone, drawn by the web app (TypeMat.tsx, utils/typeMats.ts).
+  { id: 'mat-plain', kind: 'mat', name: 'Bare table', description: 'The table as it is.', unlock: { type: 'default' } },
+  // The games' own looks (the user's, 2026-11-06): made-up scenes from FireRed/LeafGreen's and Diamond/Pearl's tiles (tools/mats/),
+  // each taking on the type of the player's Active Pokémon (the drawn Elemental mat removed, the user's, 2026-11-07).
+  {
+    id: 'mat-frlg',
+    kind: 'mat',
+    name: 'FireRed & LeafGreen',
+    description: "Takes on your Active Pokémon's type, in FireRed and LeafGreen's tiles: a sandy island in the sea for Water, a rocky island in lava for Fire, a field ringed by flowers for Grass.",
+    unlock: { type: 'buy', price: 3000 },
+  },
+  {
+    id: 'mat-dp',
+    kind: 'mat',
+    name: 'Diamond & Pearl',
+    description: "Takes on your Active Pokémon's type, in Diamond and Pearl's look: Route 222's sand in the sea for Water, Stark Mountain's rock in its magma for Fire, a field in Floaroma's flowers for Grass.",
+    unlock: { type: 'buy', price: 3000 },
+  },
+  // Places (the user's, 2026-11-07): each a mat of its own, a real place as the games draw it, the same scene whatever the
+  // type (tools/mats/frlg_places.py).
+  {
+    id: 'mat-mt-chimney',
+    kind: 'mat',
+    name: 'Mt. Chimney',
+    description: "Emerald's Mt. Chimney: its lava crater at the top, the summit's rocky floor round the cards.",
+    unlock: { type: 'buy', price: 3000 },
+  },
+  {
+    id: 'mat-vermilion-city',
+    kind: 'mat',
+    name: 'Vermilion City',
+    description: "FireRed's Vermilion harbour: the pier and its lighthouses, the dock running down to the S.S. Anne.",
+    unlock: { type: 'buy', price: 3000 },
+  },
+  {
+    id: 'mat-viridian-forest',
+    kind: 'mat',
+    name: 'Viridian Forest',
+    description: "FireRed's Viridian Forest at its south end: the path winding up through its tall grass and trees.",
+    unlock: { type: 'buy', price: 3000 },
+  },
+  {
+    id: 'mat-pretty-petal-flower-shop',
+    kind: 'mat',
+    name: 'Pretty Petal Flower Shop',
+    description: "Emerald's flower shop on Route 104, its planters, shelves and counter just as the game lays them out.",
+    unlock: { type: 'buy', price: 3000 },
+  },
+  // Playmats (the overlays): faint geometric patterns that answer a click on the table subtly, shifting or lighting their lines and points
   // (agreed: nothing turns or flips; the web app draws them, Playmat.tsx).
-  { id: 'plain', kind: 'playmat', name: 'Plain', description: 'The bare table.', unlock: { type: 'default' } },
+  { id: 'plain', kind: 'playmat', name: 'None', description: 'Nothing happens when you click the table.', unlock: { type: 'default' } },
   { id: 'dots', kind: 'playmat', name: 'Dot matrix', description: 'A grid of dots that scatter from where you click.', unlock: { type: 'buy', price: 1500 } },
   { id: 'squares', kind: 'playmat', name: 'Grid', description: 'Grid lines that light up, their crossings nudged aside, as a wave runs out from where you click.', unlock: { type: 'buy', price: 2000 } },
   { id: 'crosses', kind: 'playmat', name: 'Crosses', description: 'Small crosses that light up and open out as a wave passes them.', unlock: { type: 'buy', price: 1000 } },
@@ -144,7 +194,7 @@ export const COSMETICS: Record<string, CosmeticDef> = Object.fromEntries(COSMETI
 export const COSMETIC_IDS = COSMETIC_LIST.map((c) => c.id);
 
 /** The cosmetic of each kind every account has from the start, used when none is picked. */
-export const DEFAULT_COSMETIC: Record<CosmeticKind, string> = { cardBack: 'classic', playmat: 'plain', coin: 'coin-classic' };
+export const DEFAULT_COSMETIC: Record<CosmeticKind, string> = { cardBack: 'classic', mat: 'mat-plain', playmat: 'plain', coin: 'coin-classic' };
 
 /**
  * Whether an account has a cosmetic: the defaults always, a bought one once it's bought (`bought`, its CosmeticUnlock rows),

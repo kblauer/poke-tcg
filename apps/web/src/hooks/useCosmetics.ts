@@ -13,7 +13,8 @@ export const DeckCosmeticsContext = createContext<DeckCosmetics | null>(null);
 /**
  * The cosmetics in use: in a battle those assigned to its deck (DeckCosmeticsContext), otherwise and for any kind it has
  * none of, the account's defaults (cosmetics.list's `defaults`, set on the Cosmetics tab): the card back's image, for the
- * player's own face-down cards, the playmat's id (Playmat.tsx) and the coin's (coinDesigns.tsx). The built-in defaults
+ * player's own face-down cards, the mat's id (TypeMat.tsx), the playmat's (the click overlay, Playmat.tsx) and the coin's
+ * (coinDesigns.tsx). The built-in defaults
  * until they've loaded.
  */
 export function useCosmetics() {
@@ -21,5 +22,5 @@ export function useCosmetics() {
   const { data } = useQuery({ ...trpc.cosmetics.list.queryOptions(), staleTime: 5 * 60_000 });
   const deck = useContext(DeckCosmeticsContext);
   const pick = (kind: CosmeticKind) => deck?.[kind] ?? data?.defaults[kind] ?? DEFAULT_COSMETIC[kind];
-  return { cardBack: cardBackUrl(pick('cardBack')), playmat: pick('playmat'), coin: pick('coin') };
+  return { cardBack: cardBackUrl(pick('cardBack')), mat: pick('mat'), playmat: pick('playmat'), coin: pick('coin') };
 }
