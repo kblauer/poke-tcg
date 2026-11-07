@@ -5,6 +5,7 @@ import { DeckAndDiscard } from './DeckAndDiscard';
 import { useCosmetics } from '../hooks/useCosmetics';
 import { FloatingDialog } from './FloatingDialog';
 import { Playmat } from './Playmat';
+import { MAT_SETS } from '../utils/typeMats';
 import { PrizeCards } from './PrizeCards';
 import { Slot } from './Slot';
 
@@ -50,13 +51,14 @@ export function OpponentArea({
   /** A click on the CPU's hand while it's face up (Clairvoyance): Board spreads it out (DiscardPane). */
   openHand: () => void;
 }) {
-  const { playmat } = useCosmetics();
+  const { mat, playmat } = useCosmetics();
   const slot = (id: string, target: Target, pokemon: InPlayPokemon | null, large?: boolean) => (
     <OpponentSlot key={id} id={id} target={target} pokemon={pokemon} cards={cards} large={large} pick={pick} drop={drop} lunge={lunge} spotlight={spotlight} />
   );
   return (
     // The player's playmat here too (the Cosmetics tab), so the whole table matches.
-    <section className="relative flex min-h-0 flex-1 items-center rounded-lg bg-slate-900 p-3">
+    // See-through over the type mat (Board's TypeMat, under the whole table).
+    <section className={`relative flex min-h-0 flex-1 items-center rounded-lg p-3 ${MAT_SETS[mat] ? '' : 'bg-slate-900'}`}>
       <Playmat id={playmat} group="table" />
       {/* The CPU's hand, face down and half off the top edge, as on a phone (no line of who it is or its hand size; the user's). */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-[1]">

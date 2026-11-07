@@ -27,9 +27,9 @@ export async function loadOwnDeck(deckId: string, userId: string) {
   return deck;
 }
 
-/** A deck's cosmetics (Deck.cardBack, playmat, coin, assigned on the Cosmetics tab): each an id, or null for the default. */
-export type DeckCosmetics = { cardBack: string | null; playmat: string | null; coin: string | null };
-export const deckCosmetics = (deck: DeckCosmetics): DeckCosmetics => ({ cardBack: deck.cardBack, playmat: deck.playmat, coin: deck.coin });
+/** A deck's cosmetics (Deck.cardBack, mat, playmat, coin, assigned on the Cosmetics tab): each an id, or null for the default. */
+export type DeckCosmetics = { cardBack: string | null; mat: string | null; playmat: string | null; coin: string | null };
+export const deckCosmetics = (deck: DeckCosmetics): DeckCosmetics => ({ cardBack: deck.cardBack, mat: deck.mat, playmat: deck.playmat, coin: deck.coin });
 
 /** One of the user's decks that they can change: not the automatic run deck, which copies the run's deck. */
 async function loadEditableDeck(deckId: string, userId: string) {

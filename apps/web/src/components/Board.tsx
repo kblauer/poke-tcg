@@ -33,6 +33,9 @@ import { PendingChoicePanel } from './PendingChoicePanel';
 import { PhoneBoard } from './phone/PhoneBoard';
 import { PlayArea } from './PlayArea';
 import { Playmat } from './Playmat';
+import { TypeMat } from './TypeMat';
+import { useMatType } from '../hooks/useMatType';
+import { MAT_SETS, setTypes } from '../utils/typeMats';
 import { PeekCard, PowerPanel } from './PowerPanel';
 import { PreviewContext, type Preview } from './PreviewContext';
 import { PrizeCards } from './PrizeCards';
@@ -113,8 +116,11 @@ export function Board({
   overlay?: ReactNode;
 }) {
   const debugEnabled = useDebugEnabled();
-  // The player's playmat, behind their side of the table (the Cosmetics tab).
-  const { playmat } = useCosmetics();
+  // The player's playmat (the click overlay), behind their side of the table, and their mat under the whole table (the Cosmetics tab).
+  const { mat, playmat } = useCosmetics();
+  // The type mat's set (the game whose pictures it shows); none for the bare table.
+  const matSet = MAT_SETS[mat];
+  const matChoice = useMatType(view, matSet ? setTypes(matSet) : []);
   const phone = useIsPhone();
   useLockedScreen(phone);
   /** The spread-out view of the CPU's hand, while it's face up (Clairvoyance): a click on its hand opens it (the phone's is PhoneBoard's own). */
@@ -676,6 +682,7 @@ export function Board({
         busy={busy}
         gameId={gameId}
         playmat={playmat}
+        mat={matSet ? { choice: matChoice, set: matSet } : null}
         dnd={dnd}
         dragEndedAt={dragEndedAt}
         dragging={dragging}
@@ -746,6 +753,8 @@ export function Board({
               drop={dragging && heldCard ? { over: dropTarget !== null } : null}
               overlay={tableOverlay}
             >
+              {/* The type mat under the whole table, both sides and the bar between (the sides see-through over it). */}
+              {matSet && <TypeMat choice={matChoice} set={matSet} />}
               <OpponentArea
                 opponent={view.opponent}
                 cards={view.cards}
@@ -762,7 +771,7 @@ export function Board({
               {statusBar(false)}
 
               {/* Prize cards on the left of the play area; discard pile and deck on the right; under them the player's playmat. */}
-              <section className="relative flex min-h-0 flex-1 items-center rounded-lg bg-slate-900 p-3">
+              <section className={`relative flex min-h-0 flex-1 items-center rounded-lg p-3 ${matSet ? '' : 'bg-slate-900'}`}>
                 <Playmat id={playmat} group="table" />
                 {/* Bottom-aligned, with the side columns lifted past the "You" label (text-sm + space-y-3 = 2rem) to line up with the bench. */}
                 <div className="relative flex w-full items-end gap-3">
