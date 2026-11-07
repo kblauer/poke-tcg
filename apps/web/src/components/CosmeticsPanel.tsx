@@ -3,7 +3,7 @@ import LockIcon from '@mui/icons-material/Lock';
 import RemoveIcon from '@mui/icons-material/Remove';
 import { RUN_TYPES, type CosmeticDef, type CosmeticKind } from '@poke-tcg/campaign';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useEscape } from '../hooks/useEscape';
 import { useIsPhone } from '../hooks/useIsPhone';
 import { useTRPC } from '../lib/trpc';
@@ -13,6 +13,8 @@ import { SpinningCoin } from './CoinFlip';
 import { foldText } from '../utils/cardList';
 import { CompactDeckTile, type SavedDeck } from './DeckList';
 import { Playmat } from './Playmat';
+import { TypeMat } from './TypeMat';
+import { isPlace, MAT_SETS, MAT_TYPES } from '../utils/typeMats';
 
 const button = 'rounded bg-slate-600 px-3 py-1 text-xs font-semibold transition hover:bg-slate-500 disabled:opacity-40';
 
@@ -103,10 +105,10 @@ function howToGet(def: CosmeticDef): string {
 
 /**
  * The Cosmetics tab's panel (pages/Cosmetics.tsx): the card backs (the player's own face-down cards: their deck and Prize
- * cards), playmats (their side of the table) and coins (every coin flip's, a tile's coin flipped by a click), each a tile
+ * cards), mats (the table under the cards: MatPreview), overlays (the playmats: effects on clicks on the table) and coins (every coin flip's, a tile's coin flipped by a click), each a tile
  * with Buy with banked ₱ for one sold, or the run that unlocks it; once the account has it, Assign, which picks the decks
  * it's used for and whether it's the default for decks with none of its kind (DeckAssign, AssignDialog; agreed
- * 2026-10-23). A playmat's preview answers clicks as on the table. Every one is had while
+ * 2026-10-23). An overlay's preview answers clicks as on the table. Every one is had while
  * debugging (the API says so).
  */
 export function CosmeticsPanel() {
@@ -169,7 +171,12 @@ export function CosmeticsPanel() {
           )}
         </ul>
       </Section>
-      <Section {...section('playmat')} title="Playmats" note="Your side of the table in battles. Click a preview to try it.">
+      <Section {...section('mat')} title="Mats" note="The table under your cards in battles.">
+        <ul className="grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-3">
+          {of('mat').map((def) => tile(def, <MatPreview id={def.id} dim={!def.owned} />))}
+        </ul>
+      </Section>
+      <Section {...section('playmat')} title="Overlays" note="What the table does when you click open space in battles, over the mat. Click a preview to try it.">
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-3">
           {of('playmat').map((def) =>
             tile(
@@ -199,7 +206,26 @@ interface Assignable {
   isDefault: boolean;
 }
 
-const KIND_NAMES: Record<CosmeticKind, string> = { cardBack: 'card back', playmat: 'playmat', coin: 'coin' };
+const KIND_NAMES: Record<CosmeticKind, string> = { cardBack: 'card back', mat: 'mat', playmat: 'overlay', coin: 'coin' };
+
+/** How long a type mat's preview shows each type before the next bursts in. */
+const MAT_PREVIEW_MS = 3500;
+
+/** A mat's preview: the bare table, a type mat going round its types (each bursting in from the middle), or a place's one scene. */
+function MatPreview({ id, dim }: { id: string; dim: boolean }) {
+  const [step, setStep] = useState(0);
+  const set = MAT_SETS[id];
+  useEffect(() => {
+    if (!set || isPlace(set)) return;
+    const timer = setInterval(() => setStep((n) => n + 1), MAT_PREVIEW_MS);
+    return () => clearInterval(timer);
+  }, [set]);
+  return (
+    <div className={`relative h-32 overflow-hidden rounded-md bg-slate-900 ring-1 ring-slate-700 ${dim ? 'opacity-60' : ''}`}>
+      {set && <TypeMat choice={{ type: MAT_TYPES[step % MAT_TYPES.length]!, side: null }} set={set} />}
+    </div>
+  );
+}
 
 /** A cosmetic's Assign button, opening AssignDialog to pick its decks and whether it's the default. */
 function DeckAssign({ def, busy, onAssign }: { def: Assignable; busy: boolean; onAssign: (deckIds: string[], isDefault: boolean) => void }) {

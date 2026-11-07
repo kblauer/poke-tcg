@@ -15,6 +15,9 @@ import { OpponentSlot, type Spotlight } from '../OpponentArea';
 import { PendingChoicePanel } from '../PendingChoicePanel';
 import { PlayArea } from '../PlayArea';
 import { Playmat } from '../Playmat';
+import { TypeMat } from '../TypeMat';
+import type { MatChoice } from '../../hooks/useMatType';
+import type { MatSet } from '../../utils/typeMats';
 import { PeekCard } from '../PowerPanel';
 import { PreviewContext } from '../PreviewContext';
 import { StadiumCard } from '../StadiumCard';
@@ -35,6 +38,7 @@ export function PhoneBoard({
   busy,
   gameId,
   playmat,
+  mat,
   dnd,
   dragEndedAt,
   dragging,
@@ -66,6 +70,8 @@ export function PhoneBoard({
   gameId: string;
   /** The player's playmat (the Cosmetics tab). */
   playmat: ReturnType<typeof useCosmetics>['playmat'];
+  /** The type mat's type and whose Active Pokémon brought it (useMatType), and its set, while it's the player's mat; null for the bare table. */
+  mat: { choice: MatChoice; set: MatSet } | null;
   dnd: CardPlay['dnd'];
   /** When the last drag ended (Board's). */
   dragEndedAt: RefObject<number>;
@@ -124,6 +130,8 @@ export function PhoneBoard({
         {/* The whole screen, over the site's header, held still: nothing in it pans, zooms or selects text. */}
         <div className={`fixed inset-0 z-30 flex touch-none select-none flex-col overflow-hidden bg-slate-950 [-webkit-touch-callout:none] ${busy ? 'cursor-progress' : ''}`}>
           {/* The player's playmat (the Cosmetics tab) as the whole screen's background, both sides of the table, answering taps anywhere on it; drawn at 0.6 the size, to suit the phone's smaller cards. */}
+          {/* The type mat (the Cosmetics tab) under it, the whole screen too. */}
+          {mat && <TypeMat choice={mat.choice} set={mat.set} bare="--color-slate-950" className="-z-10" />}
           <Playmat id={playmat} className="-z-10" scale={0.6} />
           {self.pendingChoice && !pendingPick && (
             <FloatingDialog clickThrough={false} className="absolute left-1/2 top-1/2 z-[1000] w-fit max-w-[calc(100%-1rem)] -translate-x-1/2 -translate-y-1/2 touch-pan-y">

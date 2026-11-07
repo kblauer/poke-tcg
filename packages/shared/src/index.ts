@@ -226,7 +226,7 @@ export const trainerSpriteInput = z.object({ sprite: z.enum(TRAINER_SPRITES) });
 export const PLAYER_GENDERS = ['male', 'female'] as const;
 export type PlayerGender = (typeof PLAYER_GENDERS)[number];
 export const playerGenderInput = z.object({ gender: z.enum(PLAYER_GENDERS) });
-/** A cosmetic (card back, playmat or coin) to buy, or to assign: the account's decks that use it, and whether it's the default for decks with none of its kind. */
+/** A cosmetic (card back, mat, playmat or coin) to buy, or to assign: the account's decks that use it, and whether it's the default for decks with none of its kind. */
 export const buyCosmeticInput = z.object({ id: z.enum(COSMETIC_IDS as [string, ...string[]]) });
 export const assignCosmeticInput = buyCosmeticInput.extend({ deckIds: z.array(z.uuid()).max(500), isDefault: z.boolean() });
 
