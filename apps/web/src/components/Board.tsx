@@ -35,7 +35,7 @@ import { PlayArea } from './PlayArea';
 import { Playmat } from './Playmat';
 import { TypeMat } from './TypeMat';
 import { useMatType } from '../hooks/useMatType';
-import { MAT_SETS } from '../utils/typeMats';
+import { MAT_SETS, setTypes } from '../utils/typeMats';
 import { PeekCard, PowerPanel } from './PowerPanel';
 import { PreviewContext, type Preview } from './PreviewContext';
 import { PrizeCards } from './PrizeCards';
@@ -118,9 +118,9 @@ export function Board({
   const debugEnabled = useDebugEnabled();
   // The player's playmat (the click overlay), behind their side of the table, and their mat under the whole table (the Cosmetics tab).
   const { mat, playmat } = useCosmetics();
-  const matChoice = useMatType(view);
   // The type mat's set (the game whose pictures it shows); none for the bare table.
   const matSet = MAT_SETS[mat];
+  const matChoice = useMatType(view, matSet ? setTypes(matSet) : []);
   const phone = useIsPhone();
   useLockedScreen(phone);
   /** The spread-out view of the CPU's hand, while it's face up (Clairvoyance): a click on its hand opens it (the phone's is PhoneBoard's own). */

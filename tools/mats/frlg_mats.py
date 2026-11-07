@@ -13,7 +13,10 @@ middle clear for the cards, with its surround on every side (`ARENAS`):
   `beach_overlay`), two sandbars and rocks offshore;
 - grass: a field of Route 1's grass, its open middle where General's flowers (FireRed's only flowers) thin out:
   drifts and clumps of them, single flowers and pairs loose between, tall grass mixed in, Route 1's trees along the
-  top and bottom.
+  top and bottom;
+- psychic: Mt. Pyre's summit (Emerald's tiles): its plateau walled round by its cliffs, with gaps, the orb shrine in the
+  middle, grass, tall grass and graves outside the walls, Emerald's horizontal fog drifting over it all (`fog_overlay`,
+  its only animation: 16 frames).
 They're laid out by hand (no collapse); their tile animations play (the lava's bubbles, the sea's and shore's, the
 flowers').
 
@@ -542,6 +545,25 @@ def paint(out, mask, value):
     """out[mask] = value, for a value that's a tuple of classes too."""
     for y, x in zip(*np.nonzero(mask)):
         out[y, x] = value
+
+
+def jog(rng, n, lo, hi, least=3):
+    """n steps of an edge's offset, lo to hi, moving a cell in or out every `least` to twice as many cells."""
+    out, v = [], int(rng.integers(lo, hi + 1))
+    while len(out) < n:
+        out += [v] * int(rng.integers(least, 2 * least + 1))
+        v = int(np.clip(v + rng.choice((-1, 1)), lo, hi))
+    return np.array(out[:n])
+
+
+def chebyshev(mask):
+    """Each cell's distance from the mask, in steps any way (corners too)."""
+    d = np.full(mask.shape, -1)
+    k = 0
+    while (d < 0).any():
+        d[mask & (d < 0)] = k
+        mask, k = grow(mask, 1), k + 1
+    return d
 
 
 ISLAND_CAVE = [[None, 370, 379, 372, None], [370, 833, 113, 834, 372], [136, 123, 100, 125, 138], [144, 121, 167, 145, 146]]
@@ -1156,7 +1178,13 @@ def water_arena(rng):
 # shadow), deck chairs and floats (1x3), its sign. Each wanted near a spot on the island, out of the cards' middle.
 BEACH = dict(red=[[740, 741], [748, 749], [756, 757]], blue=[[738, 739], [746, 747], [754, 755]], green=[[742, 743], [750, 751], [758, 759]],
              chair=[[737], [745], [753]], raft=[[736], [744], [752]], sign=[[660]])
-BEACH_SPOTS = [('red', 7, 9), ('raft', 8, 12), ('chair', 15, 9), ('chair', 15, 10), ('blue', 6, 36), ('chair', 7, 38), ('green', 16, 34), ('sign', 20, 11)]
+BEACH_SPOTS = [('red', 7, 9), ('raft', 8, 12), ('chair', 15, 9), ('chair', 15, 10), ('blue', 6, 36), ('chair', 7, 38), ('green', 12, 9), ('sign', 20, 11)]
+# Dewford Town's trees, which grow in sand (Emerald's General and Dewford tiles; the user's): a tree's top, the next one's
+# top over it where they stand one behind another, its foot. Clumps of them on the island (y, x, rows, columns across:
+# ovals, the user's circles), and the Dewford sand round them (left out where they're drawn).
+DEWFORD_TREE = 569, 579, 570
+DEWFORD_SAND = 292
+GROVES = [(7.6, 25.5, 1.9, 4.8), (18.8, 18.2, 1.8, 1.9), (19.6, 31.2, 2.9, 3.8)]
 
 
 def beach_things(grid):
@@ -1174,6 +1202,38 @@ def beach_things(grid):
             _, y, x = min(spots)
             taken[y:y + h, x:x + w] = True
             out.append((name, y, x))
+    return out
+
+
+def groves(grid):
+    """The island's clumps of Dewford's trees (GROVES): in each oval, on plain sand, a column of trees per column of it,
+    one behind another down to the lowest's foot. Returns [(y, x, metatile)]."""
+    top, behind, foot = DEWFORD_TREE
+    y, x = np.mgrid[0:H, 0:W]
+    out = []
+    for cy, cx, ry, rx in GROVES:
+        oval = (((y - cy) / ry) ** 2 + ((x - cx) / rx) ** 2 <= 1) & (grid == SHORE['mid'])
+        for col in np.nonzero(oval.any(0))[0]:
+            rows = np.nonzero(oval[:, col])[0]
+            if len(rows) < 2:
+                continue
+            out += [(int(r), int(col), top if r == rows[0] else foot if r == rows[-1] else behind) for r in rows]
+    return out
+
+
+def grove_overlay(shots, trees):
+    """Dewford's trees drawn over every frame, as Emerald draws them: only their pixels that aren't Dewford's sand, so
+    FireRed's sand shows round them."""
+    ts = Tilesets('gTileset_General', 'gTileset_Dewford', EMERALD)
+    sand = ts.draw(DEWFORD_SAND)
+    pics = {m: ts.draw(m) for m in DEWFORD_TREE}
+    out = []
+    for rgb, ms in shots:
+        rgb = rgb.copy()
+        for y, x, m in trees:
+            keep = (pics[m] != sand).any(-1)
+            rgb[y * 16:y * 16 + 16, x * 16:x * 16 + 16][keep] = pics[m][keep]
+        out.append((rgb, ms))
     return out
 
 
@@ -1240,7 +1300,690 @@ def grass_arena(rng):
     return ts, grid
 
 
-ARENAS = dict(fire=fire_arena, water=water_arena, grass=grass_arena)
+# The interiors (lightning, psychic, fighting), laid out as the outdoor three: an open floor about the arena's
+# footprint in the middle (`room_open`: its edge uneven), the place's things all round it, a back wall along the top.
+
+def room_open(rng):
+    """The interiors' open floor: rows 5-22, columns 9-38, with a few bites and bulges 2 to 3 tiles at its edges."""
+    open_ = np.zeros((H, W), bool)
+    open_[5:23, 9:39] = True
+    for _ in range(8):
+        side = int(rng.integers(4))
+        run, deep = int(rng.integers(2, 4)), int(rng.integers(1, 3))
+        if side < 2:
+            x = int(rng.integers(11, 35))
+            rows = slice(5, 5 + deep) if side == 0 else slice(23 - deep, 23)
+            open_[rows, x:x + run] = rng.random() < 0.4
+        else:
+            y = int(rng.integers(7, 19))
+            cols = slice(9, 9 + deep) if side == 2 else slice(39 - deep, 39)
+            open_[y:y + run, cols] = rng.random() < 0.4
+    return open_
+
+
+def place(grid, taken, y, x, block):
+    """Puts block (rows of metatiles, None to leave) at (y, x) if it fits the frame and nothing taken is under it."""
+    h, w = len(block), len(block[0])
+    if y < 0 or x < 0 or y + h > H or x + w > W or taken[y:y + h, x:x + w].any():
+        return False
+    for j, row in enumerate(block):
+        for i, t in enumerate(row):
+            if t is not None:
+                grid[y + j, x + i] = t
+    taken[y:y + h, x:x + w] = True
+    return True
+
+
+def scatter_things(rng, grid, taken, things, tries=400):
+    """Each (block, count) put that many times at random free places (a tile apart from the rest)."""
+    for block, count in things:
+        h, w = len(block), len(block[0])
+        for _ in range(tries):
+            if not count:
+                break
+            y, x = int(rng.integers(0, H - h + 1)), int(rng.integers(0, W - w + 1))
+            if not grow(taken, 1)[y:y + h, x:x + w].any() and place(grid, taken, y, x, block):
+                count -= 1
+
+
+GRAVE, TOWER_FLOOR, HEALING = 657, 642, [[665, 666, 667], [673, 674, 675], [681, 682, 683]]
+
+
+def pokemon_tower_place(rng):
+    """Pokémon Tower (FireRed's Building and Pokémon Tower tiles; the psychic mat until Mt. Pyre's, kept for a place
+    mat): its floor, its back wall along the top (5F's wall top, face and the floor's shade under it), its graves round
+    the open floor in rows and clumps of different lengths as its floors have them, and 5F's purified zone, the 3x3
+    healing tile, in the middle."""
+    ts = Tilesets('gTileset_Building', 'gTileset_PokemonTower')
+    grid = np.full((H, W), TOWER_FLOOR)
+    grid[0], grid[1], grid[2] = 664, 672, 644
+    taken = np.zeros((H, W), bool)
+    taken[:3] = True
+    taken |= room_open(rng)
+    rows = [[[GRAVE] * n] for n in (5, 4, 4, 3, 3, 3, 2, 2)]  # runs of graves, and blocks of them
+    blocks = [[[GRAVE] * 3] * 3, [[GRAVE] * 3] * 2, [[GRAVE] * 2] * 2, [[GRAVE] * 2] * 3]
+    scatter_things(rng, grid, taken, [(b, 2) for b in blocks] + [(r, 3) for r in rows] + [([[GRAVE]], 8)])
+    grid[12:15, 22:25] = HEALING
+    return ts, grid
+
+
+# Mt. Pyre (Emerald's General and Facility tiles, its exterior's and summit's): its ridges are raised rock seen from
+# above, drawn by where the rock is round each cell (`pyre_rock`): the pink top's edges and corners, the dark face along
+# the bottom, the inside corners where two ridges meet.
+PYRE_GRASS, PYRE_TALL, PYRE_GRAVES = 1, 13, dict(g=805, o=804)  # the mountain's grass, tall grass, grey and orange graves
+SHRINE = [[None, 810, None], [810, None, 810], [812, 813, 814]]  # the summit's orbs on their stands, the altar below them
+PATH = 464, 472, 480  # the summit's pale path down from the altar: its top row, its rows, its end (each 3 wide)
+# The cliffs (y, x, h, w): the walls round the summit's plateau, the cards' middle inside them, with gaps (the back one,
+# a side's each and the way in at the bottom), stepped out or in a column here and there; and knobs of rock outside.
+PYRE_WALLS = [(1, 6, 3, 13), (0, 19, 3, 11), (1, 33, 3, 9),  # the back, its middle a step higher behind the shrine
+              (1, 6, 11, 3), (5, 5, 4, 1), (15, 7, 11, 3),  # the left side
+              (1, 39, 8, 3), (11, 40, 15, 3), (16, 43, 4, 1),  # the right side
+              (24, 7, 2, 13), (25, 28, 2, 7), (24, 35, 3, 8)]  # the bottom, either side of the way in
+PYRE_KNOBS = [(0, 0, 3, 3), (6, 1, 3, 3), (17, 0, 4, 3), (9, 45, 3, 3), (20, 45, 3, 3), (23, 0, 3, 3)]
+# The walls' outer corners rounded off and their inner corners filled in, in steps (y, x of the corner cell, k cells along
+# each side; the way it steps from the frame's nearest corner): outer ones cut, inner ones filled.
+PYRE_ROUND = [(1, 6, 3), (1, 41, 3), (25, 7, 2), (26, 42, 3), (0, 19, 2), (0, 29, 2), (1, 18, 1), (1, 30, 1)]
+PYRE_FILL = [(4, 9, 2), (4, 38, 2), (23, 10, 2), (23, 39, 2), (9, 39, 1), (14, 8, 1)]
+# Graves outside the walls, as the summit stands them: rows of one kind a column apart (kind, y, x, how many).
+PYRE_ROWS = [('o', 0, 4, 2), ('g', 0, 32, 3), ('o', 0, 41, 2), ('g', 4, 1, 2), ('g', 9, 1, 2), ('o', 12, 0, 3),
+             ('g', 15, 1, 2), ('o', 19, 3, 1), ('g', 20, 3, 1), ('o', 27, 1, 2), ('o', 26, 11, 4), ('g', 27, 20, 2),
+             ('g', 27, 26, 2), ('o', 27, 36, 3), ('g', 5, 44, 2), ('o', 7, 43, 3), ('g', 13, 44, 2), ('o', 15, 45, 2),
+             ('g', 18, 44, 1), ('o', 23, 44, 2), ('g', 26, 44, 2)]
+PYRE_TALL_PATCHES = [(11, 0, 3, 5), (25, 0, 3, 5), (26, 4, 2, 5), (0, 43, 3, 5), (14, 44, 4, 4), (24, 43, 4, 5), (0, 8, 1, 5)]
+PYRE_INNER_PATCHES = [(5, 10, 5, 6), (5, 33, 2, 4), (6, 36, 3, 3), (20, 12, 4, 5), (16, 34, 4, 5), (20, 35, 3, 4)]  # inside the walls (the user's)
+SHRINE_NUDGE = 8, 8  # px the shrine and its path are drawn down and right of their cells: its middle the frame's, between the Active Spots (the user's)
+
+
+def pyre_rock(rock):
+    """Mt. Pyre's ridge metatiles for the rock in a mask (every piece at least 2 cells each way)."""
+    grid = np.full(rock.shape, PYRE_GRASS)
+    pad = np.pad(rock, 1, constant_values=False)
+    for y, x in zip(*np.nonzero(rock)):
+        at = lambda dy, dx: pad[y + 1 + dy, x + 1 + dx]
+        if not at(-1, 0):  # the top's edge (grass above)
+            t = 104 if not at(0, -1) else 106 if not at(0, 1) else 105
+        elif not at(1, 0):  # the face along the bottom
+            t = 120 if not at(0, -1) else 122 if not at(0, 1) else 121
+        elif not at(0, -1) or not at(0, 1):  # the sides
+            t = 112 if not at(0, -1) else 114
+        else:  # inside: an inside corner where grass touches only a corner, otherwise the plain top
+            t = 191 if not at(-1, 1) else 190 if not at(-1, -1) else 137 if not at(1, -1) else 116 if not at(1, 1) else 113
+        grid[y, x] = t
+    return grid
+
+
+def pyre_walls(rng, keep):
+    """The cliffs' rock, organic: each of `PYRE_WALLS` wavering along its length (each long side moving a cell in or out
+    every 3 to 6 cells: its outer side a cell out or in, its inner side a cell in at most, never further into the middle
+    than the plan; 2 thick at least, its ends a cell shorter where it's thick), with the knobs; the outer corners
+    rounded off and the inner ones filled in, in steps (`PYRE_ROUND`, `PYRE_FILL`); nothing on `keep` (the graves, the
+    shrine, its path), and no rock outside a 2x2 block of it (the pieces' least)."""
+    rock, near_keep = np.zeros((H, W), bool), grow(keep, 1)
+    for y, x, h, w in PYRE_WALLS:
+        along = w >= h  # a wall along a row (its long sides its top and bottom), or down a column
+        n, deep, at = (w, h, y) if along else (h, w, x)
+        inner_far = (y < H // 2) if along else (x < W // 2)  # the side facing the middle: never moved further in
+        outer, inner = jog(rng, n, -1, 1, 3), jog(rng, n, -1, 0, 3)  # how far each side is out from the plan's
+        if deep < 2:  # (a step out of a wall: as it is)
+            outer[:], inner[:] = 0, 0
+        near, far = (-outer, inner) if inner_far else (-inner, outer)
+        for i in range(n):
+            a, b = at + near[i], at + deep + far[i]
+            if i in (0, n - 1) and b - a > 2:  # (its ends tapered)
+                a, b = (a, b - 1) if inner_far else (a + 1, b)
+            end = H if along else W  # (not out to the frame's edge where the plan isn't: its face would be cut off)
+            a, b = (max(a, 1) if a < at else a), (min(b, end - 1) if b > at + deep else b)
+            line = near_keep[:, x + i] if along else near_keep[y + i]
+            while a < at and line[a]:  # (never out beside a grave)
+                a += 1
+            while b > at + deep and line[b - 1]:
+                b -= 1
+            if b - a < min(2, deep):  # (2 thick at least: back to the plan)
+                a, b = min(a, at), max(b, at + deep)
+            a, b = max(0, a), min(H if along else W, b)
+            if along:
+                rock[a:b, x + i] = True
+            else:
+                rock[y + i, a:b] = True
+    for y, x, h, w in PYRE_KNOBS:
+        rock[y:y + h, x:x + w] = True
+    for corners, value in ((PYRE_ROUND, False), (PYRE_FILL, True)):
+        for y, x, k in corners:
+            dy, dx = (1 if y < H // 2 else -1), (1 if x < W // 2 else -1)
+            for j in range(k):
+                for i in range(k - j):
+                    rock[y + dy * j, x + dx * i] = value
+    rock &= ~keep
+    block = rock[:-1, :-1] & rock[1:, :-1] & rock[:-1, 1:] & rock[1:, 1:]  # (rock in no 2x2 block of it dropped)
+    whole = np.zeros_like(rock)
+    for dy in (0, 1):
+        for dx in (0, 1):
+            whole[dy:H - 1 + dy, dx:W - 1 + dx] |= block
+    return whole
+
+
+def psychic_arena(rng):
+    """Psychic: Mt. Pyre's summit (Emerald: FireRed has no mountain graveyard): its plateau in the middle, walled round
+    by its cliffs (`PYRE_WALLS`, gaps in them; their outlines wavering, `pyre_walls`), the summit's orb shrine at its
+    middle with its pale path down to the way in; outside the walls the mountain's grass, its tall grass in uneven
+    patches, knobs of rock and its graves in rows. Fog drifts over it all (`fog_overlay`)."""
+    ts = Tilesets('gTileset_General', 'gTileset_Facility', EMERALD)
+    tall = np.zeros((H, W), bool)
+
+    def patches(spots):  # each patch's corners nibbled at random, so none is a rectangle
+        for y, x, h, w in spots:
+            tall[y:y + h, x:x + w] = True
+            for cy, cx in ((y, x), (y, x + w - 1), (y + h - 1, x), (y + h - 1, x + w - 1)):
+                if rng.random() < 0.6:
+                    tall[cy, cx] = False
+    patches(PYRE_TALL_PATCHES)
+    keep = np.zeros((H, W), bool)
+    for kind, y, x, n in PYRE_ROWS:
+        keep[y, x:x + 2 * n - 1:2] = True
+    keep[12:H, 21:26] = True  # the shrine, its path and the way in, with a cell either side
+    rock = pyre_walls(rng, keep)
+    patches(PYRE_INNER_PATCHES)  # (after the walls, so adding them left the walls as they were)
+    grid = pyre_rock(rock)
+    grid[tall & ~rock] = PYRE_TALL
+    for kind, y, x, n in PYRE_ROWS:
+        for i in range(n):
+            if not rock[y, x + 2 * i]:
+                grid[y, x + 2 * i] = PYRE_GRAVES[kind]
+    # The shrine and its path on a block of their own, drawn over the scene half a cell off (`nudge`, SHRINE_NUDGE).
+    shrine = np.full((14, 3), PYRE_GRASS)
+    for j, row in enumerate(SHRINE):
+        for i, t in enumerate(row):
+            shrine[j, i] = PYRE_GRASS if t is None else t
+    top, mid, end = PATH
+    shrine[3] = range(top, top + 3)
+    shrine[4:13] = range(mid, mid + 3)
+    shrine[13] = range(end, end + 3)
+    grid[12:26, 22:25] = PYRE_GRASS
+    ts.nudge = 12, 22, shrine, SHRINE_NUDGE
+    return ts, grid
+
+
+def nudge(ts, shots):
+    """The scene's block drawn off its cells (`ts.nudge`: its top row and column, its metatiles, px down and right) over
+    every frame: only its pixels that aren't its plain grass, so the grass under it runs on unbroken."""
+    y0, x0, block, (dy, dx) = ts.nudge
+    pic, plain = ts.render(block), ts.render(np.full(block.shape, PYRE_GRASS))
+    mask = (pic != plain).any(-1)
+    out = []
+    for rgb, ms in shots:
+        rgb = rgb.copy()
+        y, x = y0 * 16 + dy, x0 * 16 + dx
+        rgb[y:y + pic.shape[0], x:x + pic.shape[1]][mask] = pic[mask]
+        out.append((rgb, ms))
+    return out
+
+
+FOG_BLEND = 4, 14  # the fog's weight and the scene's, in 16ths (the game's 12 and 8 hid too much of the scene)
+FOG_STEP = 4  # px the fog moves left a frame: the game's 1 every 4 game frames, 16 game frames a frame
+
+
+def fog_overlay(shots):
+    """Emerald's horizontal fog (WEATHER_FOG_HORIZONTAL, Mt. Pyre summit's: field_weather_effect.c's FogHorizontal) over
+    the still scene: its 64x64 sprite (fog_horizontal.png, fog.pal; index 0 see-through) tiled over the frame, scrolled
+    left a pixel every 4 game frames, alpha-blended with the scene as the GBA blends (in 5-bit colour), lighter than the
+    game's. One loop is the sprite's width: 64 / FOG_STEP frames of 16 game frames."""
+    fog = np.array(Image.open(io.BytesIO(get('graphics/weather/fog_horizontal.png', EMERALD))))
+    pal = np.array(read_pal(get('graphics/weather/fog.pal', EMERALD)), int)
+    rgb, _ = shots[0]
+    h, w = rgb.shape[:2]
+    eva, evb = FOG_BLEND
+    out = []
+    for k in range(64 // FOG_STEP):
+        idx = np.tile(np.roll(fog, -k * FOG_STEP, axis=1), (h // 64 + 1, w // 64 + 1))[:h, :w]
+        mix = np.minimum(31, (pal[idx] // 8 * eva + rgb.astype(int) // 8 * evb) // 16) * 255 // 31
+        out.append((np.where((idx > 0)[..., None], mix, rgb).astype(np.uint8), FOG_STEP * 4 * 1000 / 60))
+    return out
+
+
+DOJO_WALL = 1, 7, 2, 12  # the Dojo's back wall and its pillars: map rows 1-6, columns 2-11, repeated along the top
+TATAMI = dict(tl=706, t=707, tr=708, l=714, m=715, r=716, bl=722, b=723, br=724)
+STATUE = [[726, 704], [734, 720], [721, 728]]  # a Pokémon statue on its plinth, its shade to its right
+
+
+def fighting_dojo_place(rng):
+    """The Fighting Dojo (FireRed's Building and Pewter Gym tiles, as Saffron's Dojo; the fighting mat once, kept for a
+    place mat): its wooden floor (its knots here and there), its back wall with its windows, scrolls and pillars
+    repeated along the top, a big tatami mat as its own is in the middle, and its Pokémon statues round it."""
+    ts = Tilesets('gTileset_Building', 'gTileset_PewterGym')
+    dojo = blocks(layout('SaffronCity_Dojo'))
+    grid = np.where(rng.random((H, W)) < 0.08, rng.choice([729, 730], (H, W)), 704)
+    y0, y1, x0, x1 = DOJO_WALL
+    unit = dojo[y0:y1, x0:x1]
+    for x in range(0, W, unit.shape[1]):
+        grid[0:unit.shape[0], x:x + unit.shape[1]] = unit[:, :W - x]
+    top, bottom, left, right = 7, 22, 10, 37
+    grid[top, left:right + 1] = [TATAMI['tl']] + [TATAMI['t']] * (right - left - 1) + [TATAMI['tr']]
+    grid[top + 1:bottom, left] = TATAMI['l']
+    grid[top + 1:bottom, right] = TATAMI['r']
+    grid[top + 1:bottom, left + 1:right] = TATAMI['m']
+    grid[bottom, left:right + 1] = [TATAMI['bl']] + [TATAMI['b']] * (right - left - 1) + [TATAMI['br']]
+    taken = np.zeros((H, W), bool)
+    taken[:unit.shape[0]] = True
+    taken[top - 1:bottom + 2, left - 1:right + 2] = True
+    for y, x in ((9, 5), (16, 4), (12, 1), (9, 42), (16, 43), (12, 46), (24, 7), (24, 39), (24, 16), (24, 30), (25, 2), (25, 45)):
+        place(grid, taken, y, x, STATUE)
+    return ts, grid
+
+
+GENERATOR = [[744, 745, 746], [752, 753, 754], [760, 761, 762], [768, 769, 770]]  # set in the back wall's face
+CAPACITOR, RUBBLE = [720, 729], 694  # a capacitor (2 tall) and rubble, on the floor
+
+
+def power_plant_place(rng):
+    """The Power Plant (FireRed's Building and Power Plant tiles; the lightning mat once, kept for a place mat): its
+    floor, its back wall along the top (its top, face and the floor's shade under it) with its generators set in it,
+    banks of its capacitors and heaps of its rubble round the open floor."""
+    ts = Tilesets('gTileset_Building', 'gTileset_PowerPlant')
+    grid = np.full((H, W), 671)
+    grid[0], grid[1], grid[2] = 653, 661, 669  # the wall's top (crenellated), its striped face, the floor's shade under it
+    for x in (3, 17, 31, 44):  # generators, their top in the wall's face
+        if x + 3 <= W:
+            grid[1:5, x:x + 3] = GENERATOR
+    taken = np.zeros((H, W), bool)
+    taken[:5] = True
+    taken |= room_open(rng)
+    banks = [([[CAPACITOR[0]] * n, [CAPACITOR[1]] * n], c) for n, c in ((6, 2), (5, 2), (4, 3), (3, 3), (2, 3))]
+    heaps = [([[RUBBLE] * 3, [RUBBLE] * 2 + [None]], 3), ([[RUBBLE] * 2, [None, RUBBLE]], 3), ([[RUBBLE] * 2], 4), ([[RUBBLE]], 10)]
+    scatter_things(rng, grid, taken, banks + heaps)
+    return ts, grid
+
+
+# Lightning: a terraced mountain at night in a thunderstorm, stepped as FireRed's are (Four Island's, Ruin Valley's;
+# General's tiles, Fuchsia City's for the lake's edge): its broad grassy top the cards' place, its rocky sides stepping down in tiers to the lake
+# on the left, the right and along the bottom, coves of grass at its foot in the bottom corners, trees, flowers and
+# tall grass in them and on the top's edges; Emerald's thunderstorm over it (`storm`).
+POND = dict(N=291, S=796, W=298, E=300, NW=290, NE=292, SW=795, SE=804, ne=304, nw=305, se=299, sw=299, mid=299, w=297, e=296)
+# General's mountain pieces, as its tile sheet lays them out (each a 3x3 of sides and outer corners): rock over the
+# grass below it (`CLIFF`), a step of rock over the rock (or water) below it (`STEP`), and the inner corners both share.
+CLIFF = dict(N=105, S=121, W=112, E=114, NW=104, NE=106, SW=120, SE=122)
+STEP = dict(N=108, S=124, W=115, E=117, NW=107, NE=109, SW=123, SE=125)
+NOOK = dict(nw=187, ne=186, sw=179, se=178)
+ROCK = 113  # the mountain's plain rock
+TIERS = 6  # the steps from the water (or a cove) up to the top
+COVES = [(19, -1, 4, 6), (17, 1, 4, 6)]  # grass at the foot: its top row, side (-1 left), width (lo, hi), down to the water
+TREE = [14, 15], [30, 31], [22, 23], [38, 39]  # General's tree: its top, its crown, the next one's top behind it, its foot
+
+
+def autotile(grid, cells, pieces):
+    """The cells' metatiles by which of their 8 neighbours are outside them (past the frame's edge counts as inside):
+    a side or outer corner piece (N, NW...), an inner corner (ne: only the cell to the north-east outside...), or the
+    middle. A pond's side with lake past its end (w, e) is the zone's own piece for it."""
+    pad = np.pad(cells, 1, constant_values=True)
+    for y, x in zip(*np.nonzero(cells)):
+        out = {k: not pad[y + 1 + dy, x + 1 + dx] for k, (dy, dx) in dict(N=(-1, 0), S=(1, 0), W=(0, -1), E=(0, 1), nw=(-1, -1), ne=(-1, 1), sw=(1, -1), se=(1, 1)).items()}
+        side = ''.join(k for k in 'NS' if out[k]) + ''.join(k for k in 'WE' if out[k])
+        t = pieces.get(side, pieces['mid']) if side else next((pieces[k] for k in ('ne', 'nw', 'se', 'sw') if out[k]), pieces['mid'])
+        if side in ('W', 'E') and not out['n' + side.lower()]:
+            t = pieces.get(side.lower(), t)
+        grid[y, x] = t
+
+
+def euclid(mask):
+    """Each cell's distance from the mask in whole cells, measured straight (rounded): `rounded`'s discs."""
+    ys, xs = np.nonzero(mask)
+    y, x = np.mgrid[0:mask.shape[0], 0:mask.shape[1]]
+    d = np.sqrt((y[..., None] - ys) ** 2 + (x[..., None] - xs) ** 2).min(axis=-1)
+    return np.rint(d).astype(int)
+
+
+def rounded(mask, r):
+    """mask with its corners and notches rounded off at radius r (an opening, then a closing, by a disc), the mask going
+    on past the frame's edge as it meets it."""
+    grown = lambda m: euclid(m) <= r if m.any() else m
+    k = r + 1
+    m = np.pad(mask, k, mode='edge')
+    m = grown(~grown(~m))
+    return (~grown(~grown(m)))[k:-k, k:-k]
+
+
+def lightning_land(rng):
+    """The mountain: the water (2 rows along the bottom, its edges jogging 1 to 3 cells in on the left and right), the
+    top (the cards' place, widening upwards in steps, so no rock is ever above it: the frame's top cuts it, and lower
+    down its corners rise, every corner rounded off: `rounded`, the user's: no hard cliff corners), the coves (grass from the water up to their top row in the bottom corners) and each cell's
+    tier: the steps are its distance from the water or a cove against its distance from the top, so they run along
+    both, the slope's outline and the top's. Returns the water, the top, the coves and the tiers (the top's TIERS, a
+    cove's -1, the water's -99)."""
+    y, x = np.mgrid[0:H, 0:W]
+    land = (x >= jog(rng, H, 1, 3, 6)[:, None]) & (x < W - jog(rng, H, 1, 3, 6)[:, None])
+    land[H - 2:] = False
+    land = opened(land)
+    left, right = np.sort(jog(rng, H, 4, 10)), np.sort(jog(rng, H, 38, 44))[::-1]
+    bottom = np.where((x[0] < 13) | (x[0] > 35), np.minimum(24, jog(rng, W, 19, 22)), 24)
+    top = (x >= left[:, None]) & (x < right[:, None]) & (y < bottom[None, :])
+    top[0:24, 10:38] = True
+    top = opened(rounded(top, 5), 3)
+    water = ~land
+    from_top = chebyshev(top)
+    cove = np.zeros((H, W), bool)
+    for y0, side, lo, hi in COVES:
+        cols = np.nonzero(land[(y0 + H) // 2])[0]
+        deep = int(rng.integers(lo, hi))
+        x0 = cols[0] if side < 0 else cols[-1] - deep + 1
+        cove[y0:, x0:x0 + deep] = True
+    cove = opened(cove & land & (from_top > 2)) & land
+    from_foot = chebyshev(water | cove)
+    tier = np.minimum(from_foot - 1, TIERS - from_top).astype(float)
+    tier[top], tier[cove], tier[water] = TIERS, -1, -99
+    return water, top, cove, tier
+
+
+def mountain(tier):
+    """The rock's metatiles (every cell of a tier from 0 below the top's) by which of its neighbours are lower: a side or
+    outer corner, an inner corner or plain rock; the cliff's pieces where it's a cove below, the step's where it's rock
+    or water."""
+    pt = np.pad(tier, 1, mode='edge')
+    grid = np.full(tier.shape, ROCK)
+    near = dict(N=(-1, 0), S=(1, 0), W=(0, -1), E=(0, 1), nw=(-1, -1), ne=(-1, 1), sw=(1, -1), se=(1, 1))
+    for y, x in zip(*np.nonzero((tier >= 0) & (tier < TIERS))):
+        at = {k: pt[y + 1 + dy, x + 1 + dx] for k, (dy, dx) in near.items()}
+        low = {k: t < tier[y, x] for k, t in at.items()}
+        if any(low[k] and at[k] == -1 for k in 'NSWE'):  # over a cove, its cliff (and the water's), the steps beside it left out
+            low = {k: low[k] and at[k] < 0 for k in low}
+        side = ''.join(k for k in 'NS' if low[k]) + ''.join(k for k in 'WE' if low[k])
+        if side:
+            grid[y, x] = (CLIFF if any(at[k] == -1 for k in side) else STEP).get(side, ROCK)
+        else:
+            grid[y, x] = next((NOOK[k] for k in ('nw', 'ne', 'sw', 'se') if low[k]), ROCK)
+    return grid
+
+
+def general_seams(game=FRLG):
+    """The primary tileset's seams in every map of General's: (a, d, b) for metatile b at DIRS[d] of metatile a."""
+    out = set()
+    for l in layouts(game):
+        if l['primary_tileset'] != 'gTileset_General':
+            continue
+        try:
+            b = blocks(l, game)
+        except ValueError:
+            continue
+        h, w = b.shape
+        for d, (dx, dy) in enumerate(DIRS[:4]):
+            p, q = b[max(0, -dy):h - max(0, dy), max(0, -dx):w - max(0, dx)], b[max(0, dy):h - max(0, -dy), max(0, dx):w - max(0, -dx)]
+            keep = (p < game.primary) & (q < game.primary)
+            out |= set(zip(p[keep].tolist(), [d] * int(keep.sum()), q[keep].tolist()))
+    return out
+
+
+def mend(grid, rock, seen, rounds=20):
+    """Where a rock cell's seam with a neighbour is none General's maps have (the steps' rule can't foresee every
+    meeting), the mountain piece that leaves it fewest such seams, if any does better."""
+    h, w = grid.shape
+    pieces = sorted(set(CLIFF.values()) | set(STEP.values()) | set(NOOK.values()) | {ROCK})
+
+    def odd(y, x, t):
+        return sum(0 <= y + dy < h and 0 <= x + dx < w and grid[y + dy, x + dx] < FRLG.primary and (t, d, int(grid[y + dy, x + dx])) not in seen
+                   for d, (dx, dy) in enumerate(DIRS[:4]))
+    for _ in range(rounds):
+        changed = False
+        for y, x in zip(*np.nonzero(rock)):
+            now = odd(y, x, int(grid[y, x]))
+            if now:
+                best = min(pieces, key=lambda t: (odd(y, x, t), t != grid[y, x]))
+                if odd(y, x, best) < now:
+                    grid[y, x], changed = best, True
+        if not changed:
+            break
+    return grid
+
+
+def grove(rng, grid, free, n, gap=1):
+    """Up to n of General's trees, each a column of 1 to 3 one behind another, where they fit wholly in `free` with `gap`
+    cells of it round them (0: side by side, as the game's rows of trees stand); the cells they took."""
+    top, crown, behind, foot = TREE
+    taken = np.zeros_like(free)
+    ys, xs = np.nonzero(free)
+    for i in rng.permutation(len(ys)):
+        if n == 0:
+            break
+        y, x, k = int(ys[i]), int(xs[i]), int(rng.integers(1, 4))
+        rows = [top, crown] + [behind, crown] * (k - 1) + [foot]
+        if y + len(rows) > H or x + 2 > W or not free[y:y + len(rows), x:x + 2].all() or grow(taken, gap)[y:y + len(rows), x:x + 2].any():
+            continue
+        grid[y:y + len(rows), x:x + 2] = rows
+        taken[y:y + len(rows), x:x + 2] = True
+        n -= 1
+    return taken
+
+
+def forest(rng, grid, free):
+    """General's trees filling the top of `free` as a wood going on past the frame's top: each 2-cell column of them
+    stacked one behind another (a tree's top hidden behind the one in front) down to its foot, its foot 0 to 2 rows
+    above the lowest it can go (in `free`, never past half the frame), wandering a row from the column before's, so
+    the wood's edge is uneven; the cells they took."""
+    top, crown, behind, foot = TREE
+    taken = np.zeros_like(free)
+    k = int(rng.integers(0, 3))
+    for x in range(int(np.nonzero(free[0])[0][0]), W - 1, 2):
+        deepest = next((y for y in range(H // 2) if not free[y:y + 1, x:x + 2].all()), H // 2) - 1
+        if deepest < 1:
+            continue
+        k = int(np.clip(k + rng.choice((-1, 0, 1)), 0, 2))
+        f = max(1, deepest - k)
+        for y in range(f + 1):
+            grid[y, x:x + 2] = foot if y == f else crown if (f - y) % 2 == 1 else behind
+        taken[:f + 1, x:x + 2] = True
+    return taken
+
+
+# The little lighthouse on the point east of Emerald's Lilycove City (its General and Lilycove tilesets): the top
+# layers of metatiles 576 (its lamp, over the sea) and 674 (its foot), one above the other.
+LIGHTHOUSE = 576, 674
+# The lighthouses' feet (row, column), on the top's rim round the cards (the user's: their screenshot's dots).
+BEACON_SPOTS = [(5, 8), (5, 38), (15, 9), (17, 37), (23, 16), (23, 31)]
+BEACON_GLOW = 255, 225, 140  # their lamps' light at night (the app's, `beacon_lights`)
+
+
+def draw_beacons(rgb, spots):
+    """The lighthouses drawn over a frame, Emerald's tiles and palettes, each foot at its spot and its lamp above."""
+    ts = Tilesets('gTileset_General', 'gTileset_Lilycove', EMERALD)
+    rgb = rgb.copy()
+    for y0, x0 in spots:
+        for j, m in enumerate(LIGHTHOUSE):
+            for q, e in enumerate(ts.entries(m)[4:]):
+                t = ts.tiles[e & 0x3FF]
+                if e >> 10 & 1:
+                    t = t[:, ::-1]
+                if e >> 11 & 1:
+                    t = t[::-1]
+                yy, xx = (y0 - 1 + j) * 16 + (q // 2) * 8, x0 * 16 + (q % 2) * 8
+                if yy < 0:
+                    continue
+                rgb[yy:yy + 8, xx:xx + 8][t != 0] = ts.pals[e >> 12][t[t != 0]]
+    return rgb
+
+
+def beacon_lights(spots):
+    """The lighthouses' lamps' lights for the sheet's json (`lights`: their middle and reach in the frame's px, their
+    colour), drawn by the app over the frames, fading in and out (the user's: the frames' own couldn't, few enough)."""
+    return [{'x': x0 * 16 + 8, 'y': (y0 - 1) * 16 + 5, 'r': 32, 'rgb': list(BEACON_GLOW)} for y0, x0 in spots]
+
+
+def lightning_arena(rng):
+    """Lightning: a terraced mountain in a lake (`lightning_land`; FireRed's General tiles, Fuchsia City's for the lake's
+    edge), its rock stepping down from the grassy top (`mountain`, mended where a seam is none General's maps have),
+    the pond's rim round the lake (its inner corners, grass in the game, plain water against rock); on the top's edges,
+    away from the cards, and in the coves at its foot, a wood along the top (`forest`), trees, drifts of flowers and tall grass; Lilycove's lighthouses on the top's rim (`BEACON_SPOTS`). The night and the storm
+    go over it after (`storm`)."""
+    ts = Tilesets('gTileset_General', 'gTileset_FuchsiaCity')
+    water, top, cove, tier = lightning_land(rng)
+    grid = np.array([[GRASS[y % 2][x % 2] for x in range(W)] for y in range(H)])
+    rock = ~water & ~top & ~cove
+    grid[rock] = mountain(tier)[rock]
+    autotile(grid, water, POND)
+    for y, x in zip(*np.nonzero(np.isin(grid, (POND['ne'], POND['nw'])))):
+        if rock[y - 1, x + (1 if grid[y, x] == POND['ne'] else -1)]:
+            grid[y, x] = POND['mid']
+    mend(grid, rock, general_seams())
+    cards = np.zeros((H, W), bool)
+    cards[5:24, 10:38] = True  # (the wood may come a row lower: the cards start below it)
+    green = (top | cove) & ~cards & ~grow(rock | water, 1)
+    trees = forest(rng, grid, green & top) | grove(rng, grid, green & cove, 4)
+    drift = 0.6 * smooth_noise(rng, H, W, 3) + 0.4 * smooth_noise(rng, H, W, 2)
+    bare = green & ~grow(trees, 1)
+    lush = np.where(cove, 0.15, 0)  # (the coves fuller)
+    # Fields of tall grass (the user's): over the cards' edges too, thinning out towards their middle (an oval, so the
+    # fields' inner edge isn't a box), which stays clear.
+    y, x = np.mgrid[0:H, 0:W]
+    mid = np.hypot((y - 14.5) / 7, (x - 23.5) / 10)
+    field = (top | cove) & (mid > 0.75) & ~grow(rock | water, 1) & ~grow(trees, 1)
+    grid[field & (drift > 0.45 - lush + 0.5 * np.clip(1.4 - mid, 0, None))] = TALL
+    grid[bare & (drift < 0.3 + lush) & (rng.random((H, W)) < 0.6)] = FLOWER
+    for y, x in BEACON_SPOTS:  # (grass under the lighthouses, drawn by `storm`)
+        grid[y - 1:y + 1, x] = [GRASS[(y - 1) % 2][x % 2], GRASS[y % 2][x % 2]]
+    ts.beacons = BEACON_SPOTS
+    return ts, grid
+
+
+# Emerald's thunderstorm (src/field_weather_effect.c, WEATHER_RAIN_THUNDERSTORM): its rain sprites, and its lightning,
+# the weather's colour maps (src/field_weather.c's BuildColorMaps: the darkened contrast maps) brightening the scene.
+RAIN_FALL, RAIN_SPLASH = 18, [(1, 3), (4, 2), (5, 2)]  # a raindrop falls 18 frames, then splashes: its pictures, frames each
+RAIN_STEP = -0x68 / 16, 0xD0 / 16  # px it moves a game frame, x and y (sRainSpriteMovement's Q28.4, the thunderstorm's)
+RAIN_CYCLE = RAIN_FALL + 7 + 1  # its fall, its splash and a frame unseen before it falls again
+RAIN_PER_SCREEN = 16  # Thunderstorm_InitVars' targetRainSpriteCount, on the GBA's 240 x 160 screen
+STORM_STEP = 2  # game frames a frame: 30 a second, the mat's own frame rate
+RAIN_PACE = 1  # game frames of the rain's a frame: half the game's speed (the user's, 2026-11-07; STORM_STEP is its own)
+NIGHT_MAP = 3  # the storm's dimmed colour map, and the night's blue over it (per channel)
+NIGHT = 0.7, 0.75, 0.95
+# A strike (the user's, 2026-11-07, after Emerald's short bolt then long bolt): a short flash, a moment's dark (at least
+# STRIKE_GAP frames), then a longer one, dimmer and shorter than the game's long bolt (its map 19 fading out over half a
+# second), held a moment and fading out; each a colour map a frame.
+SHORT_FLASH = 9, 9, 6
+HELD_FLASH = (8,) * 8 + (7, 7, 6, 6, 5, 5, 4, 4)  # (held a quarter second, the user's, then fading)
+STRIKE_GAP = 9
+BOLT_PHASES = 4  # the rain frames a flash may start on (any wait, a frame or so later), so the lit frames stay few
+STORM_CYCLES = 6  # the storm's waits before it comes round again (the user's: less regular than 3)
+
+
+def colour_map(k):
+    """Emerald's darkened contrast colour map k (ApplyColorMap's 1-19) as a lookup of 5-bit values, as BuildColorMaps
+    makes it: 1-3 a little darker each, then up to full brightness at 19, the shadows (under 12) rising half as fast."""
+    out = []
+    for v in range(32):
+        cur, delta, maps = v << 8, (v << 8) // 16, []
+        for _ in range(3):
+            cur -= delta
+            maps.append(cur >> 8)
+        base, delta = cur, (0x1F00 - cur) // 16
+        for _ in range(3, 19):
+            cur += delta
+            if v < 12 and cur > base:
+                cur -= (cur - base) // 2
+            maps.append(min(31, cur >> 8))
+        out.append(maps[k - 1])
+    return np.array(out)
+
+
+def shade(rgb, k):
+    """A frame through colour map k, then the night's blue."""
+    v = colour_map(k)[rgb >> 3]
+    return ((v << 3 | v >> 2) * np.array(NIGHT)).astype(np.uint8)
+
+
+def rain_frames(rng, h, w):
+    """The rain over an (h, w) px scene, a frame every RAIN_PACE game frames over two of a drop's cycles: each frame
+    a list of (y, x, picture), a drop's 16x32 RGBA picture and its top left corner. As many drops as the game's screen
+    has, for the scene's size; each lands at a random spot on the 8 px grid (StartRainSpriteFall), a new one each
+    cycle, their cycles started apart (InitRainSpriteMovement)."""
+    im = Image.open(io.BytesIO(get('graphics/weather/rain.png', EMERALD)))
+    a = np.array(im)
+    pal = np.array(im.getpalette()[:48], np.uint8).reshape(16, 3)
+    pics = [np.dstack([pal[a[i:i + 32]], np.where(a[i:i + 32] == 0, 0, 255).astype(np.uint8)]) for i in range(0, len(a), 32)]
+    splash = [i for i, n in RAIN_SPLASH for _ in range(n)]
+    n = round(RAIN_PER_SCREEN * h * w / (240 * 160))
+    lands = rng.integers(0, (h // 8, w // 8), (n, 2, 2)) * 8  # each drop's landing spot, cycle by cycle
+    start = rng.integers(0, 2 * RAIN_CYCLE, n)
+    out = []
+    for f in range(0, 2 * RAIN_CYCLE, RAIN_PACE):
+        drops = []
+        for d in range(n):
+            t = (f + start[d]) % (2 * RAIN_CYCLE)
+            (y, x), t = lands[d, t // RAIN_CYCLE], t % RAIN_CYCLE
+            if t < RAIN_FALL:  # its (t + 1)th step down
+                y, x, pic = y - RAIN_STEP[1] * (RAIN_FALL - 1 - t), x - RAIN_STEP[0] * (RAIN_FALL - 1 - t), pics[0]
+            elif t - RAIN_FALL < len(splash):
+                pic = pics[splash[t - RAIN_FALL]]
+            else:
+                continue
+            drops.append((int(y) - 16, int(x) - 8, pic))  # (a sprite's position is its middle)
+        out.append(drops)
+    return out
+
+
+def storm(ts, grid, rng):
+    """The scene at night in Emerald's thunderstorm: the rain over it (wrapping round its edges), dimmed by the storm's
+    colour map and tinted blue; and its lightning (the user's, after Thunderstorm_Main's): a wait of 480-1080 game
+    frames, then a strike, a short flash and a longer one held (SHORT_FLASH, HELD_FLASH, a moment apart), each flash
+    starting on one of a few rain frames (BOLT_PHASES). Returns the sheet's frames and the order they show in: the rain's loop over and over, a frame
+    lit where a bolt falls (each lit frame drawn once, whichever bolt it's in), STORM_CYCLES waits and round again. The scene's own tiles stand still (its water's animation, every 16 frames over 8, wouldn't
+    loop with the rain's in few enough frames)."""
+    base = draw_beacons(ts.render(grid), getattr(ts, 'beacons', ()))
+    h, w = base.shape[:2]
+    rain = []
+    for drops in rain_frames(rng, h, w):
+        rgb = base.copy()
+        for y0, x0, pic in drops:
+            for y in (y0 - h, y0, y0 + h):
+                for x in (x0 - w, x0, x0 + w):
+                    ys, xs = slice(max(0, y), min(h, y + 32)), slice(max(0, x), min(w, x + 16))
+                    if ys.start < ys.stop and xs.start < xs.stop:
+                        p = pic[ys.start - y:ys.stop - y, xs.start - x:xs.stop - x]
+                        rgb[ys, xs][p[..., 3] > 0] = p[..., :3][p[..., 3] > 0]
+        rain.append(rgb)
+    loop = len(rain)
+    spots = getattr(ts, 'beacons', ())
+    sheet, lit, order, f = [shade(r, NIGHT_MAP) for r in rain], {}, [], 0
+    phases = rng.choice(loop, BOLT_PHASES, replace=False)
+    for _ in range(STORM_CYCLES):
+        wait = int(rng.integers(480, 1081)) // STORM_STEP  # (8-18 s between strikes)
+        for flash in (SHORT_FLASH, HELD_FLASH):
+            wait += int(min((p - f - wait) % loop for p in phases))
+            order += [(f + i) % loop for i in range(wait)]
+            f += wait
+            for k in flash:
+                if (f % loop, k) not in lit:
+                    lit[f % loop, k] = len(sheet)
+                    sheet.append(shade(rain[f % loop], k))
+                order.append(lit[f % loop, k])
+                f += 1
+            wait = STRIKE_GAP
+    return [(s, STORM_STEP * 1000 / 60) for s in sheet], order
+
+
+# Fighting: Victory Road (Emerald's B2F, General and Cave tiles: FireRed's has no water), the part the user boxed: the
+# water along the top, the middle plateau with its ledges stepping up to it, the plank bridges either side, the cave
+# floor below. As the map is, but for the plateau, a few rows taller so the cards fit on it; 24 x 14 metatiles, drawn
+# at twice the size (`zoomed`).
+VICTORY_ROAD = 12, 36, 14  # the map's columns (end exclusive), and its row at the scene's top once the plateau is taller
+# Each column's row repeated to make the plateau taller (VR_ROWS times): the floor under the left bridge, the
+# plateau's own floor across its middle, and on the right rows above the bridge (its planks can't be split): the
+# plateau's wall, then the water. Where columns repeating different rows meet, the map's seams hold but for one
+# ledge's end at the plateau's right.
+VR_TALLER = [21] * 7 + [20] * 10 + [19] + [17] * 3 + [16] * 3
+VR_ROWS = 2
+
+
+def fighting_arena(rng):
+    """Fighting: Victory Road B2F's boxed part (`VICTORY_ROAD`), its plateau made taller (`VR_TALLER`)."""
+    ts = Tilesets('gTileset_General', 'gTileset_Cave', EMERALD)
+    x0, x1, y0 = VICTORY_ROAD
+    grid = blocks(layout('VictoryRoad_B2F', EMERALD), EMERALD)[:, x0:x1]
+    for _ in range(VR_ROWS):
+        grid = np.stack([np.insert(grid[:, c], r, grid[r, c]) for c, r in enumerate(VR_TALLER)], axis=1)
+    return ts, grid[y0:y0 + H // 2]
+
+
+def zoomed(shots, k):
+    """The frames k times the size (a scene of fewer, bigger metatiles)."""
+    return [(rgb.repeat(k, 0).repeat(k, 1), ms) for rgb, ms in shots]
+
+
+ARENAS = dict(fire=fire_arena, water=water_arena, grass=grass_arena, lightning=lightning_arena, psychic=psychic_arena, fighting=fighting_arena)
 
 
 def overlay(shots, objects):
@@ -1301,17 +2044,24 @@ def frames(ts, grid):
     return out
 
 
-def save(kind, shots, out_dir):
-    """The frames stacked into one indexed PNG, and <kind>.json: {width, height, frames: [{y, ms}]}."""
+def save(kind, shots, out_dir, order=None, lights=()):
+    """The frames stacked into one PNG (indexed where it can be), and <kind>.json: {width, height, frames: [{y, ms}]}, in the sheet's
+    order or `order`'s (indices into it, a frame showing any number of times)."""
     sheet = np.concatenate([s for s, _ in shots])
     colours, inverse = np.unique(sheet.reshape(-1, 3), axis=0, return_inverse=True)
-    assert len(colours) <= 256, len(colours)
-    im = Image.fromarray(inverse.reshape(sheet.shape[:2]).astype(np.uint8), 'P')
-    im.putpalette(colours.astype(np.uint8).ravel().tolist())
+    if len(colours) <= 256:
+        im = Image.fromarray(inverse.reshape(sheet.shape[:2]).astype(np.uint8), 'P')
+        im.putpalette(colours.astype(np.uint8).ravel().tolist())
+    else:  # (a light's fall-off, the lighthouses': more colours than a palette holds, the nearest 256 for the whole
+        im = Image.fromarray(sheet).quantize(256, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)  # sheet at once)
     os.makedirs(out_dir, exist_ok=True)
     im.save(os.path.join(out_dir, kind + '.png'), optimize=True)
     h, w = shots[0][0].shape[:2]
-    json.dump({'width': w, 'height': h, 'frames': [{'y': i * h, 'ms': round(ms)} for i, (_, ms) in enumerate(shots)]}, open(os.path.join(out_dir, kind + '.json'), 'w'))
+    order = range(len(shots)) if order is None else order
+    meta = {'width': w, 'height': h, 'frames': [{'y': i * h, 'ms': round(shots[i][1])} for i in order]}
+    if lights:
+        meta['lights'] = list(lights)
+    json.dump(meta, open(os.path.join(out_dir, kind + '.json'), 'w'))
 
 
 def preview(kind, shots, out_dir):
@@ -1342,7 +2092,7 @@ def main():
     args = ap.parse_args()
     FRLG.cache, EMERALD.cache = args.cache, args.emerald_cache
     out_dir = args.out or os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'apps', 'web', 'public', 'mats', 'frlg')
-    for kind in args.types or list(SCENES):
+    for kind in args.types or list(ARENAS if args.layout == 'arena' else SCENES):
         name, objects = kind, []
         if args.layout == 'arena':
             ts, grid = ARENAS[kind](np.random.default_rng(args.seed))
@@ -1359,12 +2109,19 @@ def main():
                 grid, objects = dress(ts, grid, np.random.default_rng(args.seed))
         if args.layout == 'scene' and kind == 'fire' and args.fire != 'dressed':
             name = 'fire_' + args.fire
-        shots = overlay(frames(ts, grid), objects)
+        if args.layout == 'arena' and kind == 'lightning':  # (the storm's frames: its tiles stand still)
+            shots, order = storm(ts, grid, np.random.default_rng(args.seed))
+        else:
+            shots, order = overlay(frames(ts, grid), objects), None
+        if args.layout == 'arena' and grid.shape[1] < W:
+            shots = zoomed(shots, W // grid.shape[1])
         if args.layout == 'arena' and kind == 'water':
-            shots = beach_overlay(shots, things)
+            shots = grove_overlay(beach_overlay(shots, things), groves(grid))
         if args.layout == 'arena' and kind == 'fire':
             shots = ember_overlay(shots)
-        save(name, shots, out_dir)
+        if args.layout == 'arena' and kind == 'psychic':
+            shots = fog_overlay(nudge(ts, shots))
+        save(name, shots, out_dir, order, beacon_lights(getattr(ts, 'beacons', ())))
         if args.preview:
             preview(name, shots, args.preview)
         print(name, len(shots), 'frames of', round(shots[0][1]), 'ms')

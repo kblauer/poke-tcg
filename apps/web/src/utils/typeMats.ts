@@ -1,10 +1,11 @@
 // The type mats' scenes (the user's, 2026-11-06, after Pokémon TCG Live's mats): one a type, the table under the cards
 // taking on the type of the player's Active Pokémon (TypeMat.tsx), each a game's picture (`pictureScene`); a change of
 // type is a burst from the arriving Active Pokémon (`drawTransition`), the new scene sweeping out over the old within
-// a ragged ring in the new type's style (Water a foam ring, Fire a burning edge, Grass a ring of leaves).
+// a ragged ring in the new type's style (Water a foam ring, Fire a burning edge, Grass a ring of leaves, Lightning a
+// crackling edge throwing bolts, Psychic a shimmering wave, Fighting a shockwave of dust).
 
-/** The types with a scene so far (the user's: Grass, Fire and Water first); any other type is the bare table. */
-export const MAT_TYPES = ['grass', 'fire', 'water'] as const;
+/** The types a mat can have a scene for (the user's: Grass, Fire and Water first, then Lightning, Psychic and Fighting). */
+export const MAT_TYPES = ['grass', 'fire', 'water', 'lightning', 'psychic', 'fighting'] as const;
 export type MatType = (typeof MAT_TYPES)[number];
 export const isMatType = (t: string | null | undefined): t is MatType => (MAT_TYPES as readonly string[]).includes(t ?? '');
 
@@ -26,6 +27,12 @@ export const MAT_SETS: Record<string, MatSet> = {
 
 /** A place's mat: one picture, public/mats/places/<name>.png, whatever the Active Pokémon's type. */
 export const isPlace = (set: MatSet) => set.startsWith('places/');
+
+/** The types each set has a scene for so far (issue #175: every type, each set in turn); a place has its one scene. */
+const SET_TYPES: Record<'frlg' | 'dp', readonly MatType[]> = { frlg: MAT_TYPES, dp: ['grass', 'fire', 'water'] };
+
+/** The types `set` shows a scene for, in order (a place: every type, its one scene). */
+export const setTypes = (set: MatSet): readonly MatType[] => (isPlace(set) ? MAT_TYPES : SET_TYPES[set as 'frlg' | 'dp']);
 
 /** How long a change of type takes, in ms. */
 export const TRANSITION_MS = 1300;
@@ -82,6 +89,8 @@ interface Sheet {
   width: number;
   height: number;
   frames: { y: number; ms: number }[];
+  /** Glows drawn over the frames (the Lightning mat's lighthouses' lamps): their middle and reach in the frame's pixels, their colour. */
+  lights?: { x: number; y: number; r: number; rgb: [number, number, number] }[];
 }
 
 /** The sheets loaded (or loading, or failed), by set and type: fetched once, the first time a mat asks. */
@@ -148,8 +157,24 @@ function pictureScene(key: string, { w, h }: MatSize): Scene | null {
       const y = (sheet.frames.find((x) => (at -= x.ms) < 0) ?? sheet.frames[0])?.y ?? 0;
       if (y !== drawn) frameAt(ctx, (drawn = y));
       g.drawImage(still, 0, 0);
+      sheet.lights?.forEach((l, i) => glow(g, dx + l.x * (sw / sheet.width), dy + l.y * (sh / sheet.height), l.r * (sw / sheet.width), l.rgb, t, i));
     },
   };
+}
+
+/**
+ * A lamp's glow at (x, y), `r` across: a warm light fading out from it, gently fading in and out itself (the user's,
+ * 2026-11-07), each lamp (`i`) at its own slow pace and phase so they never pulse together.
+ */
+function glow(g: CanvasRenderingContext2D, x: number, y: number, r: number, [cr, cg, cb]: [number, number, number], t: number, i: number) {
+  const period = 3600 + ((i * 1370) % 2300);
+  const a = 0.45 + 0.3 * Math.sin((t / period + i * 0.37) * 2 * Math.PI);
+  const fill = g.createRadialGradient(x, y, 0, x, y, r);
+  fill.addColorStop(0, `rgba(${cr}, ${cg}, ${cb}, ${a})`);
+  fill.addColorStop(0.45, `rgba(${cr}, ${cg}, ${cb}, ${a * 0.3})`);
+  fill.addColorStop(1, `rgba(${cr}, ${cg}, ${cb}, 0)`);
+  g.fillStyle = fill;
+  g.fillRect(x - r, y - r, 2 * r, 2 * r);
 }
 
 /** A leaf's shape at (x, y), `len` long, turned by `ang`. */
@@ -191,10 +216,18 @@ const BURST = 0.12;
 const ease = (p: number) => (p < BURST ? 0.07 * (p / BURST) : 0.07 + 0.93 * (1 - (1 - (p - BURST) / (1 - BURST)) ** 2));
 
 /** The burst's glow at the card, by the arriving type (and the bare table's, slate). */
-const GLOW: Record<MatType | 'bare', string> = { water: '150, 220, 255', fire: '255, 150, 50', grass: '170, 240, 120', bare: '148, 163, 184' };
+const GLOW: Record<MatType | 'bare', string> = { water: '150, 220, 255', fire: '255, 150, 50', grass: '170, 240, 120', lightning: '255, 235, 90', psychic: '230, 130, 255', fighting: '235, 160, 90', bare: '148, 163, 184' };
 
 /** The burst's ring's ragged edge, its wobble by type. */
-const ringEdges: Record<MatType | 'bare', (a: number, t: number) => number> = { water: wobble(41, [5, 9, 14]), fire: wobble(42, [7, 13, 21, 34]), grass: wobble(43, [4, 7, 11]), bare: wobble(44, [3, 6]) };
+const ringEdges: Record<MatType | 'bare', (a: number, t: number) => number> = {
+  water: wobble(41, [5, 9, 14]),
+  fire: wobble(42, [7, 13, 21, 34]),
+  grass: wobble(43, [4, 7, 11]),
+  lightning: wobble(45, [11, 19, 31, 47]),
+  psychic: wobble(46, [3, 5]),
+  fighting: wobble(47, [6, 9, 15]),
+  bare: wobble(44, [3, 6]),
+};
 
 /**
  * A change of type, `p` (0 to 1) of the way through: the old scene (`from`, null the bare table) with the new (`to`)
@@ -281,6 +314,58 @@ export function drawTransition(g: CanvasRenderingContext2D, size: MatSize, from:
       const d = r + (rnd() * 70 * p) * px;
       const s = (1 + rnd() * 2) * px;
       g.fillStyle = `rgba(255, ${170 + Math.round(rnd() * 80)}, 80, ${0.5 + rnd() * 0.5})`;
+      g.fillRect(origin.x + Math.cos(ang) * d - s, origin.y + Math.sin(ang) * d - s, s * 2, s * 2);
+    }
+  } else if (style === 'lightning') {
+    // Lightning: a crackling yellow edge, and bolts forking out ahead of it, flickering.
+    g.globalCompositeOperation = 'lighter';
+    g.lineJoin = 'miter';
+    g.strokeStyle = 'rgba(255, 220, 60, 0.45)';
+    g.lineWidth = 14 * px;
+    g.stroke(ring(-3 * px));
+    g.strokeStyle = 'rgba(255, 252, 210, 0.95)';
+    g.lineWidth = 3 * px;
+    g.stroke(ring(0));
+    const rnd = random(54 + Math.floor(t / 70));
+    for (let i = 0; i < 14; i++) {
+      const ang = rnd() * Math.PI * 2;
+      let d = r;
+      g.beginPath();
+      g.moveTo(origin.x + Math.cos(ang) * d, origin.y + Math.sin(ang) * d);
+      for (let k = 0; k < 4; k++) {
+        d += (10 + rnd() * 18) * px;
+        const a = ang + (rnd() - 0.5) * 0.25;
+        g.lineTo(origin.x + Math.cos(a) * d, origin.y + Math.sin(a) * d);
+      }
+      g.strokeStyle = `rgba(255, 245, 150, ${0.5 + rnd() * 0.5})`;
+      g.lineWidth = (1 + rnd() * 2) * px;
+      g.stroke();
+    }
+  } else if (style === 'psychic') {
+    // Psychic: soft violet waves rippling out behind the edge, and a faint pink shimmer on it.
+    g.globalCompositeOperation = 'lighter';
+    for (const [grow, alpha] of [[0, 0.7], [-18, 0.4], [-36, 0.22], [-54, 0.1]] as const) {
+      g.strokeStyle = `rgba(215, 120, 255, ${alpha})`;
+      g.lineWidth = (8 - grow / 12) * px;
+      g.stroke(ring(grow * px));
+    }
+    g.strokeStyle = 'rgba(255, 200, 245, 0.8)';
+    g.lineWidth = 2 * px;
+    g.stroke(ring(4 * px));
+  } else if (style === 'fighting') {
+    // Fighting: a shockwave, a hard pale ring with dust and grit thrown out ahead of it.
+    g.strokeStyle = 'rgba(250, 230, 200, 0.85)';
+    g.lineWidth = 6 * px;
+    g.stroke(ring(0));
+    g.strokeStyle = 'rgba(200, 150, 100, 0.35)';
+    g.lineWidth = 26 * px;
+    g.stroke(ring(-12 * px));
+    const rnd = random(55);
+    for (let i = 0; i < 60; i++) {
+      const ang = rnd() * Math.PI * 2;
+      const d = r + (6 + rnd() * 50 * p) * px;
+      const s = (1.5 + rnd() * 3) * px;
+      g.fillStyle = `rgba(${150 + Math.round(rnd() * 60)}, ${110 + Math.round(rnd() * 40)}, 80, ${0.4 + rnd() * 0.5})`;
       g.fillRect(origin.x + Math.cos(ang) * d - s, origin.y + Math.sin(ang) * d - s, s * 2, s * 2);
     }
   } else {

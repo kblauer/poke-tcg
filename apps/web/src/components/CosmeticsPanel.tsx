@@ -14,7 +14,7 @@ import { foldText } from '../utils/cardList';
 import { CompactDeckTile, type SavedDeck } from './DeckList';
 import { Playmat } from './Playmat';
 import { TypeMat } from './TypeMat';
-import { isPlace, MAT_SETS, MAT_TYPES } from '../utils/typeMats';
+import { isPlace, MAT_SETS, setTypes } from '../utils/typeMats';
 
 const button = 'rounded bg-slate-600 px-3 py-1 text-xs font-semibold transition hover:bg-slate-500 disabled:opacity-40';
 
@@ -222,7 +222,7 @@ function MatPreview({ id, dim }: { id: string; dim: boolean }) {
   }, [set]);
   return (
     <div className={`relative h-32 overflow-hidden rounded-md bg-slate-900 ring-1 ring-slate-700 ${dim ? 'opacity-60' : ''}`}>
-      {set && <TypeMat choice={{ type: MAT_TYPES[step % MAT_TYPES.length]!, side: null }} set={set} />}
+      {set && <TypeMat choice={{ type: setTypes(set)[step % setTypes(set).length]!, side: null }} set={set} />}
     </div>
   );
 }
