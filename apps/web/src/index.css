@@ -543,6 +543,11 @@ html[data-font="emerald"] {
   to { transform: scaleX(1); }
 }
 
+/* A Pokédex entry's habitat on the Town Map (DexHabitat): its places flashing on and off, as the games' Area display. */
+@keyframes idle-habitat {
+  50% { opacity: 0; }
+}
+
 /* An Idle Adventure move's cooldown bar (BattleScreen's MoveBars): filling as a smooth timer from `--from` to full. */
 @keyframes idle-cooldown {
   from { transform: scaleX(var(--from)); }

@@ -56,6 +56,7 @@ function hgssSources(b: BattleSegment): Set<string> {
   for (const n of ['healthbox_player', 'healthbox_enemy', 'hp_bar', 'exp_bar', 'digits', 'status', 'font_healthbox', 'font_message', 'lv_male', 'lv_female', 'lv_none']) srcs.add(`${GEN2}/battle/${n}.png`);
   const pic = b.trainer ? generation().trainers[b.trainer]?.pic : null;
   if (pic) srcs.add(`${GEN2}/trainers/${pic}.png`);
+  if (b.kind === 'trainer') srcs.add(`${GEN2}/battle/party_balls.png`);
   for (const e of b.events) if (e.t === 'send') srcs.add(hgssMonSrc(e.mon, e.side));
   return srcs;
 }
@@ -71,8 +72,51 @@ function gen1Sources(b: BattleSegment): Set<string> {
   ]);
   const pic = b.trainer ? generation().trainers[b.trainer]?.pic : null;
   if (pic) srcs.add(`${GEN1}/trainers/${pic}.png`);
+  if (b.kind === 'trainer') srcs.add(`${GEN1}/battle/party_balls.png`);
   for (const e of b.events) if (e.t === 'send') srcs.add(`${GEN1}/pokemon/${e.mon.shiny ? 'shiny/' : ''}${e.side ? 'front' : 'back'}/${e.mon.species}.png`);
   return srcs;
+}
+
+/** A trainer's party ball's look (party_balls.png's order): able to battle, with a status, fainted, an empty slot. */
+type BallLook = 'ok' | 'status' | 'fainted' | 'empty';
+const BALL_LOOKS: BallLook[] = ['ok', 'status', 'fainted', 'empty'];
+
+/** Each of the trainer's 6 party slots after the events played so far: its Pokémon fainted or with a status (the one out's `status` and `faint` events, by its party index), or empty. */
+function foeBalls(events: BattleEvent[], foes: number): BallLook[] {
+  const status: boolean[] = Array.from({ length: foes }, () => false);
+  const fainted = [...status];
+  let out = -1;
+  for (const e of events) {
+    if (e.t === 'send' && e.side === 1) {
+      out = e.mon.index;
+      status[out] = !!e.mon.status;
+    } else if (e.t === 'status' && e.side === 1 && out >= 0) status[out] = !!e.status;
+    else if (e.t === 'faint' && e.side === 1 && out >= 0) fainted[out] = true;
+  }
+  return Array.from({ length: 6 }, (_, i) => (i >= foes ? 'empty' : fainted[i] ? 'fainted' : status[i] ? 'status' : 'ok'));
+}
+
+/**
+ * A trainer's party as Poké Balls, as the games show it (the user's, 2026-11-06): FireRed's party summary balls
+ * (CreatePartyStatusSummarySprites: 10 px apart) or HeartGold's party gauge's (16 px apart), the lead's rightmost,
+ * greyed once fainted and yellowed with a status. The games show them only as the trainer sends a Pokémon out, under
+ * where the foe's healthbox comes in; here they stay the whole battle, along the top of the screen right of the Town
+ * Map's button, level with it (the user's, 2026-11-06: FireRed's from x 40 to 90 at y 4, HGSS's from x 36 to 116 at y 0).
+ */
+function PartyBalls({ events, foes, hgss }: { events: BattleEvent[]; foes: number; hgss: boolean }) {
+  const size = hgss ? 16 : 8;
+  const src = `${hgss ? GEN2 : GEN1}/battle/party_balls.png`;
+  return (
+    <>
+      {foeBalls(events, foes).map((look, i) => (
+        <span
+          key={i}
+          className="absolute"
+          style={{ left: hgss ? 116 - 16 * i : 90 - 10 * i, top: hgss ? 0 : 4, width: size, height: size, backgroundImage: `url(${src})`, backgroundPosition: `${-BALL_LOOKS.indexOf(look) * size}px 0` }}
+        />
+      ))}
+    </>
+  );
 }
 
 interface SideShown {
@@ -356,6 +400,8 @@ export function BattleScreen({
           ) : (
             <BattleScene battle={battle} background={background(battle)} trainerPic={trainer?.pic ?? null} events={events} current={[sides[0].mon, sides[1].mon]} times={times.current} introAt={introAt.current} gender={gender} exp={exp} hit={hit} attacker={attacker} line={line} />
           )}
+          {/* The trainer's party, a Poké Ball each (the user's). */}
+          {battle.kind === 'trainer' && <PartyBalls events={events} foes={battle.foes.length} hgss={hgss} />}
         </div>
       )}
       {/* The text box: the latest line, or a run of rewards all at once (the user's), growing upward to hold them (in
