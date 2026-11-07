@@ -4,7 +4,7 @@ import { KANTO_MAPS } from './data/gen1/maps.js';
 import { ENCOUNTERS } from './data/gen1/encounters.js';
 import { inGeneration } from './generation.js';
 import { wildSpots } from './idle.js';
-import { townMapGrid, townMapPlaces, townMapArea, townMapAreas, townMapPlaceAt, townMapPlaceOf } from './town-map.js';
+import { habitat, townMapGrid, townMapPlaces, townMapArea, townMapAreas, townMapPlaceAt, townMapPlaceOf } from './town-map.js';
 
 describe('the Town Map', () => {
   it('has a place for every town, route and dungeon, and one for every gym and League room (its town)', () => {
@@ -72,5 +72,14 @@ describe('the Town Map', () => {
         if (maps.some(([, m]) => ENCOUNTERS[m.encounters]?.[kind]) && !spots.some((s) => s.id.endsWith(`:${letter}`) && mapView(s.map).section === place.section)) missing.push(`${place.name} ${kind}`);
     }
     expect(missing).toEqual(['ROUTE 4 fishing']);
+  });
+
+  it("shows a species' habitat: the places its wild tables and legendary Pokémon are on, by region", () => {
+    const names = (species: number) => habitat(species).map((p) => p.name);
+    expect(names(25)).toEqual(expect.arrayContaining(['VIRIDIAN FOREST', 'POWER PLANT']));
+    expect(names(92)).toEqual(['POKéMON TOWER']);
+    expect(names(144)).toEqual(['SEAFOAM ISLANDS']);
+    expect(names(151)).toEqual([]);
+    expect(inGeneration(2, () => habitat(163).map((p) => p.name))).toContain('Route 29');
   });
 });

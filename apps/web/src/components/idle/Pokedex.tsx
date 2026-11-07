@@ -2,6 +2,7 @@ import { DEX_SIZE, dexSpecies, STAT_NAMES } from '@poke-tcg/idle';
 import { useState } from 'react';
 import type { IdleOverview } from '../../hooks/useIdle';
 import { ConditionFeeder } from '../contest/ConditionFeeder';
+import { DexHabitat } from './DexHabitat';
 import { TypeBadge } from './MonIcon';
 import { dexPic } from '../../utils/idleLook';
 
@@ -14,6 +15,7 @@ type DexRow = IdleOverview['dex'][number];
  * run's starter is picked from (`starters`: the species allowed; `shinyStarters`: those with a shiny caught, which can
  * start shiny: agreed). A species with a shiny caught has a ★ and its shiny sprite in its entry. A caught entry is the
  * Pokémon for the Super Contests (the user's): its condition, and the Pokéblocks and Poffins to feed it, are in its entry.
+ * A seen species' entry shows its habitat, the Town Map with its places flashing (DexHabitat, the user's, 2026-11-06).
  */
 export function Pokedex({
   dex,
@@ -101,6 +103,12 @@ export function Pokedex({
             <p className="text-sm text-slate-300">
               The {sel.category} Pokémon. {(sel.height / 10).toFixed(1)} m, {(sel.weight / 10).toFixed(1)} kg. {sel.dexText}
             </p>
+          )}
+          {rec?.seen && (
+            <div className="space-y-1 border-t border-slate-700 pt-2">
+              <h3 className="text-sm font-semibold">Habitat</h3>
+              <DexHabitat key={sel.id} species={sel.id} />
+            </div>
           )}
           {rec?.caught && (
             <table className="w-full text-center text-xs">

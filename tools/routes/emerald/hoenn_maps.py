@@ -68,6 +68,9 @@ GYMS = {
     'mossdeep': ('MossdeepCity_Gym', [], 'MAP_MOSSDEEP_CITY', 'MOSSDEEP_GYM', 'Mossdeep Gym', ('OBJ_EVENT_GFX_TATE', 'OBJ_EVENT_GFX_LIZA')),
     'sootopolis': ('SootopolisCity_Gym_1F', ['SootopolisCity_Gym_B1F'], 'MAP_SOOTOPOLIS_CITY', 'SOOTOPOLIS_GYM', 'Sootopolis Gym', 'OBJ_EVENT_GFX_JUAN'),
 }
+# The Gym Challenge's rooms showing only the leader's room (the user's, 2026-11-06: Mossdeep Gym's, far right in a map of
+# rooms apart, the view stopped at its edge with black beside it).
+USER_OWN_ROOM = {'mossdeep'}
 LEADERS = {'rustboro': 'roxanne', 'dewford': 'brawly', 'mauville': 'wattson', 'lavaridge': 'flannery', 'petalburg': 'norman', 'fortree': 'winona', 'mossdeep': 'tate-liza', 'sootopolis': 'juan'}
 # The Pokémon League's rooms (their map, the boss's sprite, boss id, constant, name) and the Pokémon Center.
 LEAGUE = {
@@ -783,7 +786,8 @@ def main():
         out.append(gym_ts(const_, title, doc, image, rows, ent, [spot], [stand], overhead=overhead))
         print(key, 'entrance', ent, 'spot', spot, 'stand', stand)
 
-    lines = [f"  {LEADERS[c] if '-' not in LEADERS[c] else repr(LEADERS[c])}: leaderRoom({GYMS[c][3]}, {{ x: {e[0]}, y: {e[1]} }})," for c, (e, _) in entrances.items()]
+    # Only the leader's room shown where the gym's rooms are far apart, black between them (USER_OWN_ROOM: leaderRoom's `ownRoom`).
+    lines = [f"  {LEADERS[c] if '-' not in LEADERS[c] else repr(LEADERS[c])}: leaderRoom({GYMS[c][3]}, {{ x: {e[0]}, y: {e[1]} }}{', [], true' if c in USER_OWN_ROOM else ''})," for c, (e, _) in entrances.items()]
     lines += [f'  {boss}: {const},' for boss, const in rooms.items()]
     out.append("\n/** Each Hoenn boss's map for the Gym Challenge and Champion runs, by boss id: their gym (leaderRoom, the player coming in 5 tiles from them, south where it can) or Pokémon League room. */\nexport const HOENN_BOSS_ROOMS: Record<HoennBossId, Route> = {\n" + '\n'.join(lines) + '\n};\n')
     open(GYMS_OUT, 'w', encoding='utf-8', newline='\n').write(GYMS_HEAD + ''.join(out))

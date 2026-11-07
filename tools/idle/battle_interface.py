@@ -12,6 +12,10 @@ decompilation, as FireRed draws them (src/battle_interface.c): apps/web/public/i
   hp_left_border.png  the bar's left end in place of "HP" while the opponent has a status (element 65)
   exp_bar.png         the EXP. bar's 9 tiles, 0 to 8 pixels filled (element 12, healthbox.pal)
   ball_caught.png     the opponent's caught-before Poké Ball (element 70, healthbar.pal)
+  party_balls.png     the party summary's balls (CreatePartyStatusSummarySprites: elements 66-69, healthbar.pal), 8x8
+                      each side by side: a Pokémon able to battle (66), one with a status (the same ball, its top and
+                      bottom turned to the palette's yellows: the user's, 2026-11-06, in place of the game's dark 68),
+                      fainted (69) and an empty slot (67)
   status/<kind>_<side>.png
                       the status icons (3 tiles each: the player's battler 0's, the opponent's battler 1's), their
                       colour (the palette's 12 + battler) set to sStatusIconColors' (UpdateStatusIconInHealthbox)
@@ -154,6 +158,8 @@ def main():
     strip([tile_at(el, 65)], BAR).save(os.path.join(OUT, 'hp_left_border.png'))
     strip([tile_at(el, 12 + i) for i in range(9)], BOX).save(os.path.join(OUT, 'exp_bar.png'))
     strip([tile_at(el, 70)], BAR).save(os.path.join(OUT, 'ball_caught.png'))
+    yellowed = [[{8: 13, 9: 13, 2: 12, 3: 7}.get(c, c) for c in row] for row in tile_at(el, 66)]
+    strip([tile_at(el, 66), yellowed, tile_at(el, 69), tile_at(el, 67)], BAR).save(os.path.join(OUT, 'party_balls.png'))
     # sStatusIconColors: RGB(r, g, b) in 5 bits a channel.
     colors = {k: tuple(round(v * 255 / 31) for v in rgb) for k, rgb in
               {'psn': (24, 12, 24), 'par': (23, 23, 3), 'slp': (20, 20, 17), 'frz': (17, 22, 28), 'brn': (28, 14, 10)}.items()}

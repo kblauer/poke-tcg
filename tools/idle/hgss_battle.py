@@ -29,6 +29,11 @@ decoder in tools/extras): apps/web/public/idle/gen2/battle/
   status.png          the status icons (components 38-55, 3 tiles each): a row each for none (the healthbox's own
                       background), PAR, FRZ, SLP, PSN, BRN
   ball_caught.png     the enemy's caught-before Poké Ball (component 59)
+  party_balls.png     the trainer's party gauge's balls (a/0/0/8 340-342, palette 110: pokeplatinum's party_gauge.c,
+                      PARTY_GAUGE_NCGR_BIN and the rest, at the same members in HeartGold), 16x16 each side by side:
+                      a Pokémon able to battle (cell 0, its spin's first frame), one with a status (the same ball, its
+                      red and white turned yellow: the user's, 2026-11-06, in place of the game's pink cell 8), fainted (cell
+                      16) and an empty slot (cell 24)
   lv_<gender>.png     the "Lv" with its gender symbol (components 60-65 top halves, 72-77 bottom halves), 16x16:
                       lv_female, lv_male, lv_none
   digits.png          the healthbox's level and HP digits (graphic/font.narc 5, MessagePrinter_New(14, 2, 15) in
@@ -184,6 +189,15 @@ def main():
         status.paste(tile_strip(parts[38 + 3 * row:41 + 3 * row], box, False), (0, row * 8))
     save(status, 'status.png')
     save(tile_strip([parts[59]], box, False), 'ball_caught.png')
+    # The party gauge's balls (PokeballsAnimationFrame's: PGANM_POKEBALL_*_THEIRS), the statused one yellow (the user's).
+    gauge, gauge_tiles, gauge_pal = nitro.ncer(obj[341]), nitro.ncgr(obj[340]), nitro.nclr(obj[110])
+    yellow = list(gauge_pal)
+    yellow[11], yellow[12], yellow[2], yellow[3] = (232, 200, 24, 255), (192, 144, 0, 255), (240, 216, 96, 255), (255, 240, 152, 255)
+    balls = Image.new('RGBA', (64, 16))
+    for k, (cell, pal) in enumerate(((0, gauge_pal), (0, yellow), (16, gauge_pal), (24, gauge_pal))):
+        im, _ = nitro.draw_cell(gauge, cell, gauge_tiles, pal)
+        balls.paste(im, (k * 16, 0), im)
+    save(balls, 'party_balls.png')
     for k, gender in enumerate(('female', 'male', 'none')):
         lv = Image.new('RGBA', (16, 16))
         lv.paste(tile_strip(parts[60 + 2 * k:62 + 2 * k], box, False), (0, 0))

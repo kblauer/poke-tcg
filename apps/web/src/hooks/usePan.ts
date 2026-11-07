@@ -79,12 +79,13 @@ export function usePan({ box, mapEl, map, mapHeight, panLocked }: { box: RefObje
     return () => observer.disconnect();
   }, []);
 
-  /** An offset kept inside a map (the map centred along any side where it's smaller than the view). */
+  /** An offset kept inside a map, or the part of it shown (its `view`), centred along any side where it's smaller than the view. */
   const clampOn = useCallback(
     (on: Route, o: { x: number; y: number }) => {
-      const fit = (v: number, inView: number, mapSize: number) => (mapSize <= inView ? (inView - mapSize) / 2 : Math.min(0, Math.max(inView - mapSize, v)));
+      const fit = (v: number, inView: number, start: number, size: number) => (size <= inView ? (inView - size) / 2 - start : Math.min(-start, Math.max(inView - size - start, v)));
       const { w, h } = sizeRef.current;
-      return { x: fit(o.x, w, on.width * ZOOM), y: fit(o.y, h, on.height * ZOOM) };
+      const b = on.view ? { x: on.view.x * 16, y: on.view.y * 16, w: on.view.width * 16, h: on.view.height * 16 } : { x: 0, y: 0, w: on.width, h: on.height };
+      return { x: fit(o.x, w, b.x * ZOOM, b.w * ZOOM), y: fit(o.y, h, b.y * ZOOM, b.h * ZOOM) };
     },
     [size],
   );
