@@ -267,3 +267,56 @@ export function featuredPokemon(entries: DeckEntry[], byId: Map<string, CatalogC
   }
   return picked;
 }
+/** A version's place in Rarity up's order (the user's): a holo above a reverse holo above the plain print. */
+const rarityRank = (card: CatalogCard) => (card.reverseHolo ? 1 : card.holo ? 2 : 0);
+
+/**
+ * The deck with each card turned into its rarest version the account has (the user's, 2026-11-07: Rarity up, only
+ * what's owned): a card's copies (its plain print's, special holo's and reverse holo's together, `versions` by the plain
+ * print's id) go to its holo as far as the holos gained go, then its reverse holo, then the plain print; any left over
+ * (versions not gained) stay as they were, the rarest first. Unchanged entries keep their places.
+ */
+export function rarityUp(entries: DeckEntry[], byId: Map<string, CatalogCard>, versions: Map<string, string[]>, isLocked: (card: CatalogCard) => boolean, pulled: (cardId: string) => number): DeckEntry[] {
+  const baseOf = (id: string) => byId.get(id)?.twinOf ?? id;
+  const groups = new Map<string, DeckEntry[]>();
+  for (const e of entries) groups.set(baseOf(e.cardId), [...(groups.get(baseOf(e.cardId)) ?? []), e]);
+  const out: DeckEntry[] = [];
+  for (const [base, group] of groups) {
+    const cards = [base, ...(versions.get(base) ?? [])].map((id) => byId.get(id)).filter((c): c is CatalogCard => !!c);
+    if (cards.length < 2) {
+      out.push(...group);
+      continue;
+    }
+    const byRank = (a: CatalogCard, b: CatalogCard) => rarityRank(b) - rarityRank(a);
+    let left = group.reduce((n, e) => n + e.quantity, 0);
+    const got = new Map<string, number>();
+    for (const card of [...cards].sort(byRank)) {
+      const n = Math.min(left, card.limitedCopies ? pulled(card.id) : isLocked(card) ? 0 : left);
+      if (n) got.set(card.id, n);
+      left -= n;
+    }
+    for (const e of [...group].sort((a, b) => byRank(byId.get(a.cardId)!, byId.get(b.cardId)!))) {
+      const n = Math.min(left, e.quantity);
+      if (n) got.set(e.cardId, (got.get(e.cardId) ?? 0) + n);
+      left -= n;
+    }
+    out.push(...[...got].map(([cardId, quantity]) => ({ cardId, quantity })));
+  }
+  return out;
+}
+
+/** What Craft all would craft (the API's packs.craftDeck decides): each locked card once, a special holo's copies beyond those gained; and its Stardust. */
+export function missingCrafts(entries: DeckEntry[], byId: Map<string, CatalogCard>, isLocked: (card: CatalogCard) => boolean, pulled: (cardId: string) => number, craftable: (card: CatalogCard) => boolean) {
+  let cards = 0;
+  let cost = 0;
+  // Special holos first, as the API crafts them: crafting one unlocks its plain print too.
+  const freed = new Set<string>();
+  for (const { card, quantity } of withCards(entries, byId).sort((a, b) => Number(!!b.card.twinOf) - Number(!!a.card.twinOf))) {
+    const need = card.limitedCopies ? Math.max(0, quantity - pulled(card.id)) : isLocked(card) && !freed.has(card.id) ? 1 : 0;
+    if (!need || card.craftCost === null || !craftable(card)) continue;
+    if (card.twinOf) freed.add(card.twinOf);
+    cards += need;
+    cost += need * card.craftCost;
+  }
+  return { cards, cost };
+}
