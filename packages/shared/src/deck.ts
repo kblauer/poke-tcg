@@ -91,6 +91,9 @@ export const deckSaveInput = z.object({
     .max(DECK_SIZE),
 });
 
+/** Crafting every card a deck is missing (packs.craftDeck): the deck's cards, as saved. */
+export const craftDeckInput = deckSaveInput.pick({ cards: true });
+
 export const deckIdInput = z.object({ deckId: z.uuid() });
 
 /** A new name for one of the account's decks. */

@@ -19,7 +19,7 @@ import { useUnlocked } from '../hooks/useUnlocked';
 import { useWindowFill } from '../hooks/useWindowFill';
 import { useTRPC } from '../lib/trpc';
 import { isVersion, setGroups, type CatalogCard } from '../utils/cardList';
-import { EMPTY_DECK_FILTER, LOCKED_DECK_PROBLEM, cantAdd, changeCount, deckSize, filterForDeck, hasLockedCards, lockedWarning, problemsOf, sortForDeck, type DeckEntry, type DeckFilter, type DeckSort } from '../utils/deckBuilder';
+import { EMPTY_DECK_FILTER, LOCKED_DECK_PROBLEM, cantAdd, changeCount, deckSize, filterForDeck, hasLockedCards, lockedWarning, missingCrafts, problemsOf, rarityUp, sortForDeck, type DeckEntry, type DeckFilter, type DeckSort } from '../utils/deckBuilder';
 import { preloadHolos } from '../utils/holoPreload';
 import { PAGE_WIDTH } from '../utils/layout';
 import { PAGE_BUTTON as button } from '../utils/styles';
@@ -212,6 +212,18 @@ export function DecksPage() {
       },
     }),
   );
+  // Craft all (the user's): every card the open deck is missing, crafted at once.
+  const craftDeck = useMutation(
+    trpc.packs.craftDeck.mutationOptions({
+      onSuccess: ({ stardust: left, crafted, cost, skipped }) => {
+        queryClient.setQueryData(trpc.packs.stardust.queryKey(), left);
+        queryClient.invalidateQueries({ queryKey: trpc.decks.unlocked.queryKey() });
+        queryClient.invalidateQueries({ queryKey: trpc.decks.list.queryKey() });
+        queryClient.invalidateQueries({ queryKey: trpc.packs.list.queryKey() });
+        setBlocked(`Crafted ${crafted} card${crafted === 1 ? '' : 's'} for ${cost} Stardust${skipped.length ? `; can't craft ${skipped.join(', ')}` : ''}`);
+      },
+    }),
+  );
   /** Why the card can't be crafted now, or null: one already unlocked (unless it counts copies), its set's packs still locked, or too little Stardust. */
   const craftBlocked = (card: CatalogCard, cost: number) =>
     !isLocked(card) && !card.limitedCopies
@@ -223,6 +235,12 @@ export function DecksPage() {
         : null;
 
   const byId = useMemo(() => new Map((catalog.data ?? []).map((c) => [c.id, c])), [catalog.data]);
+  /** Each plain print's special holo and reverse holo (Rarity up). */
+  const versions = useMemo(() => {
+    const out = new Map<string, string[]>();
+    for (const c of catalog.data ?? []) if (c.twinOf) out.set(c.twinOf, [...(out.get(c.twinOf) ?? []), c.id]);
+    return out;
+  }, [catalog.data]);
   const sets = useMemo(() => (catalog.data ? setGroups(catalog.data) : []), [catalog.data]);
   // Holo Energy and reverse holos (versions of other cards, agreed with the user) only show once they've been gained.
   const searchable = useMemo(() => (catalog.data ?? []).filter((c) => !isVersion(c) || copies(c.id) > 0), [catalog.data, copies]);
@@ -299,8 +317,36 @@ export function DecksPage() {
   /** Why another copy of the card can't go in the open deck, or null. */
   const blockedFor = (card: CatalogCard) => cantAdd(entries, card, byId);
   const sharedDeck = decks.data?.find((d) => d.id === sharedId);
-  const error = save.error?.message ?? remove.error?.message ?? saved.error?.message;
+  const error = save.error?.message ?? remove.error?.message ?? saved.error?.message ?? craftDeck.error?.message;
   const listError = decks.error?.message ?? duplicate.error?.message ?? reorder.error?.message ?? rename.error?.message;
+  // Craft all and Rarity up (the user's): beside Share.
+  const missing = missingCrafts(entries, byId, isLocked, copies, (card) => !!unlockedSets.data?.includes(card.setId));
+  const craftAllButton = missing.cards > 0 && (
+    <button
+      className={`${button} bg-slate-600 hover:bg-slate-500`}
+      disabled={craftDeck.isPending || loading || (stardust.data ?? 0) < missing.cost}
+      title={(stardust.data ?? 0) < missing.cost ? `Crafting them takes ${missing.cost} Stardust; you have ${stardust.data ?? 0}` : 'Craft every card this deck is missing with Stardust'}
+      onClick={() => window.confirm(`Craft ${missing.cards} missing card${missing.cards === 1 ? '' : 's'} for ${missing.cost} Stardust?`) && craftDeck.mutate({ cards: entries })}
+    >
+      {craftDeck.isPending ? 'Crafting…' : `Craft all (${missing.cost} Stardust)`}
+    </button>
+  );
+  const rarer = rarityUp(entries, byId, versions, isLocked, copies);
+  const rarityChanges = JSON.stringify(rarer) !== JSON.stringify(entries);
+  const rarityButton = !readOnly && (
+    <button
+      className={`${button} bg-slate-600 hover:bg-slate-500`}
+      disabled={loading || !rarityChanges}
+      title={rarityChanges ? 'Turn every card into its rarest version you have: holo, then reverse holo' : 'Every card is already its rarest version you have'}
+      onClick={() => {
+        setEntries(rarer);
+        setDirty(true);
+        setBlocked(null);
+      }}
+    >
+      Rarity up
+    </button>
+  );
   // Shares the saved deck, so changes are saved first.
   const shareButton = deckId && (
     <button className={`${button} bg-slate-600 hover:bg-slate-500`} disabled={loading || dirty} title={dirty ? 'Save the deck to share it' : 'Copy its deck code, or publish it to Community Decks'} onClick={() => setDialog('share')}>
@@ -351,6 +397,7 @@ export function DecksPage() {
               Copy to edit
             </button>
             {shareButton}
+            {craftAllButton}
             <span className="text-xs text-slate-400">Your run's deck: it changes with the run (trades, switching decks).</span>
           </div>
         ) : (
@@ -373,6 +420,8 @@ export function DecksPage() {
             </button>
           )}
           {shareButton}
+          {craftAllButton}
+          {rarityButton}
           {loading ? <span className="text-xs text-slate-400">Loading the deck…</span> : dirty && <span className="text-xs text-slate-400">Unsaved changes</span>}
         </div>
         )}

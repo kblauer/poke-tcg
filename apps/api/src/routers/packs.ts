@@ -1,6 +1,6 @@
 import { BP_PACK_PRICE, CRAFT_COST, GENERATIONS, openPack, PACK_GENERATIONS, PACK_PRICE, PACK_SETS, rngFrom, STARDUST_PER_CARD, type PackSet } from '@poke-tcg/campaign';
 import { prisma, type Card } from '@poke-tcg/db';
-import { craftCardInput, debugOpenPackInput, openPackInput } from '@poke-tcg/shared';
+import { craftCardInput, craftDeckInput, debugOpenPackInput, openPackInput } from '@poke-tcg/shared';
 import { TRPCError } from '@trpc/server';
 import { unlocksAll } from '../debugFlags.js';
 import { ensureUser } from '../auth.js';
@@ -217,6 +217,46 @@ export const packsRouter = router({
       await unlockCards(ctx.user.id, [card.id], tx);
       const { stardust } = await tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { stardust: true } });
       return { stardust };
+    });
+  }),
+
+  /**
+   * Crafts every card a deck is missing (the deck builder's Craft all, the user's), as `craft` crafts one: a locked card
+   * once, a special holo as many copies as the deck holds beyond those gained (its plain print unlocked with it). Cards
+   * that can't be crafted (basic and holo Energy) or whose set's packs are still locked are left, named in `skipped`. All
+   * or nothing: too little Stardust for the lot crafts none.
+   */
+  craftDeck: protectedProcedure.input(craftDeckInput).mutation(async ({ ctx, input }) => {
+    const [index, twins, packs] = await Promise.all([catalogIndex(), holoTwins(), unlockedPacks(ctx.user.id)]);
+    const ids = [...new Set(input.cards.flatMap((e) => [e.cardId, ...(twins.has(e.cardId) ? [twins.get(e.cardId)!] : [])]))];
+    return prisma.$transaction(async (tx) => {
+      // Checked with the user row locked, as `craft` is.
+      await lockUser(tx, ctx.user.id);
+      const owned = new Map((await tx.cardUnlock.findMany({ where: { userId: ctx.user.id, cardId: { in: ids } }, select: { cardId: true, quantity: true } })).map((u) => [u.cardId, u.quantity]));
+      const gained: string[] = [];
+      const skipped = new Set<string>();
+      let cost = 0;
+      // Special holos first: crafting one unlocks its plain print, which then needn't be crafted.
+      for (const e of [...input.cards].sort((a, b) => Number(twins.has(b.cardId)) - Number(twins.has(a.cardId)))) {
+        const card = index.get(e.cardId);
+        const price = card ? craftCost(card) : null;
+        const need = twins.has(e.cardId) ? Math.max(0, e.quantity - (owned.get(e.cardId) ?? 0)) : owned.has(e.cardId) ? 0 : 1;
+        if (!card || !need || (price === null && isBasicEnergyCard(card) && !holoEnergyStyle(card))) continue;
+        if (price === null || !packs.has(card.setId)) {
+          skipped.add(card.name);
+          continue;
+        }
+        for (let i = 0; i < need; i++) gained.push(card.id);
+        cost += need * price;
+        owned.set(card.id, (owned.get(card.id) ?? 0) + need);
+        if (twins.has(card.id)) owned.set(twins.get(card.id)!, owned.get(twins.get(card.id)!) ?? 1);
+      }
+      if (!gained.length) throw new TRPCError({ code: 'BAD_REQUEST', message: skipped.size ? `None of the missing cards can be crafted (${[...skipped].join(', ')})` : 'The deck has every card already' });
+      const { count } = await tx.user.updateMany({ where: { id: ctx.user.id, stardust: { gte: cost } }, data: { stardust: { decrement: cost } } });
+      if (!count) throw new TRPCError({ code: 'BAD_REQUEST', message: `Crafting them takes ${cost} Stardust` });
+      await unlockCards(ctx.user.id, gained, tx);
+      const { stardust } = await tx.user.findUniqueOrThrow({ where: { id: ctx.user.id }, select: { stardust: true } });
+      return { stardust, crafted: gained.length, cost, skipped: [...skipped] };
     });
   }),
 

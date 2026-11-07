@@ -66,6 +66,8 @@ async function buildCatalogList() {
         reverseHolo: isReverseHolo(c),
         /** A deck holds no more copies than were gained: holo Energy and special holos (holoTwins). */
         limitedCopies: holoEnergyStyle(c) !== null || twins.has(c.id),
+        /** A special holo's or reverse holo's plain print (holoTwins), null for others: the deck builder's Rarity up. */
+        twinOf: twins.get(c.id) ?? null,
         /** Stardust to craft it (packs.craft), or null for a card that can't be crafted. */
         craftCost: craftCost(c),
         imageUrl: c.imageUrl,
