@@ -158,7 +158,6 @@ function autoCatch(b: Battle, me: Battler): Action | null {
   if (b.catchHits > 0 || b.catchBalls) {
     const status = me.slots.find((k) => CATCH_STATUS.has(moveData(k).effect) && b.ready(me, k));
     if (status) {
-      me.openers = me.openers.filter((k) => k !== status);
       b.startCooldown(me, status);
       return { kind: 'move', move: status };
     }

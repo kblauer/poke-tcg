@@ -96,8 +96,9 @@ POINTS = {
 }
 # Gen 1's battle room is HGSS's (ROOMS), with its places.
 POINTS['frlg-room'] = POINTS['hgss-room']
-# Tiles made walkable that the map data blocks (the user's): the Trainer Tower lobby's 9,2, the way up its stairs.
-USER_OPEN = {'frlg-lobby': [(9, 2)]}
+# Tiles made walkable that the map data blocks (the user's): the Trainer Tower lobby's 9,2, the way up its stairs; Emerald's
+# battle room's 5,1, the opponent's door, walked back out of after a battle.
+USER_OPEN = {'frlg-lobby': [(9, 2)], 'rse-room': [(5, 1)]}
 
 # The lobbies whose receptionist walks the player to the elevator, up through her counter (their scripts).
 LEADING_RECEPTIONISTS = {'hgss-lobby', 'rse-lobby'}

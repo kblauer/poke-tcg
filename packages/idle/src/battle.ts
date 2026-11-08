@@ -251,6 +251,8 @@ export class Battler {
   v: Volatiles = {};
   /** The ticks each slot move still cools down (the cooldown rule, chooseMove); none: ready. Every move starts ready. */
   cooldowns: Record<string, number> = {};
+  /** The slot move picked this tick and set cooling down (startCooldown), with its openers before: undone if it isn't used after all (asleep, frozen, paralyzed…; the user's). */
+  picked: { key: string; openers: string[] } | null = null;
   /** The moves its slots hold and its basic move (a Transformed Pokémon's are its target's). */
   slots: string[];
   /**
@@ -1409,6 +1411,7 @@ export class Battle {
     const actions: [Action, Action] = [choosePlayerAction(this), this.foeAction()];
     this.turnActions = actions;
     const order = this.order(actions);
+    const movers = [...this.active];
     this.movedThisTurn.clear();
     for (const side of order) {
       if (this.result) return;
@@ -1431,6 +1434,8 @@ export class Battle {
       this.checkFaints();
       if (this.result) return;
     }
+    // A slot move picked but never used (asleep, frozen, fully paralyzed, flinched, dragged out…): not cooling down after all.
+    for (const b of movers) this.uncool(b);
     this.endOfTurn();
     this.checkFaints();
     if (this.result) return;
@@ -1536,14 +1541,28 @@ export class Battle {
     return !b.cooldowns[key] && this.selectable(b, key) && !statusUseless(this, b, key);
   }
 
-  /** A slot move used: it cools down for its cooldownTicks (the basic move and Struggle never do). */
+  /**
+   * A slot move picked: it cools down for its cooldownTicks (the basic move and Struggle never do) and is off the openers;
+   * both undone if the Pokémon doesn't use it this tick (uncool).
+   */
   startCooldown(b: Battler, key: string) {
     if (key === b.basic || key === 'struggle' || !b.slots.includes(key)) return;
+    b.picked = { key, openers: b.openers };
+    b.openers = b.openers.filter((k) => k !== key);
     // Gen 4's Pressure, the extra PP it costs as a tick longer to cool down (moves aimed at it: not the user's own side's).
     const target = moveData(key).target;
     const pressure = this.gen4 && this.foeOf(b).ability === 'pressure' && target !== 'user' && target !== 'user_side' ? 1 : 0;
     b.cooldowns[key] = cooldownTicks(key) + pressure;
     this.emit({ t: 'cooldown', side: b.side, cooldowns: { ...b.cooldowns } });
+  }
+
+  /** A slot move picked but not used this tick (it couldn't move, or never got to): ready again, an opener again (the user's). */
+  private uncool(b: Battler) {
+    if (!b.picked) return;
+    delete b.cooldowns[b.picked.key];
+    b.openers = b.picked.openers;
+    b.picked = null;
+    if (!b.fainted) this.emit({ t: 'cooldown', side: b.side, cooldowns: { ...b.cooldowns } });
   }
 
   /**
@@ -1559,7 +1578,6 @@ export class Battle {
     if (b.v.encore && this.selectable(b, b.v.encore.move)) return b.v.encore.move;
     const opener = b.openers.find((k) => b.slots.includes(k) && this.ready(b, k));
     if (opener) {
-      b.openers = b.openers.filter((k) => k !== opener);
       this.startCooldown(b, opener);
       return opener;
     }
@@ -1587,6 +1605,8 @@ export class Battle {
       if (b.v.rampage) delete b.v.rampage;
       return;
     }
+    // Used: its cooldown stands.
+    b.picked = null;
     // The player's move on a wild Pokémon: what it did, for auto-catch's next hits (ai.ts).
     const foe = this.active[1];
     const before = b.side === 0 && this.setup.kind === 'wild' ? foe.hp : null;
