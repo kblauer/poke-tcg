@@ -424,7 +424,8 @@ export const ROUTE_2: Route = {
  * Pewter Gym's interior, for the Pewter City run's Gym Trainer and Brock (`gym` on its run type): FireRed's map, with
  * Camper Liam's and Brock's places as the game has them (Liam halfway in on the left, 3,8, facing right; Brock on his
  * platform at the back, 6,5, facing down) and the Gym Guy by the door. The player comes in at the door (6,13) and stands
- * beside Liam (4,8), then below Brock (6,6).
+ * beside Liam (4,8), then below Brock (6,6). Only its middle path is walkable (the user's): up from the door to Brock,
+ * with the way across to Liam.
  */
 export const PEWTER_GYM: Route = {
   name: 'Pewter Gym',
@@ -445,20 +446,20 @@ export const PEWTER_GYM: Route = {
   npcs: [{ sprite: 'gym_guy', tile: { x: 7, y: 12 }, face: 'down' }],
   walkable: [
     '#############',
-    '####.....####',
     '#############',
-    '#....#.#....#',
-    '#...........#',
-    '#...#.#.#...#',
-    '#...........#',
-    '#..#.#.#.#..#',
-    '##.#.......##',
-    '#...#...#...#',
-    '##.........##',
-    '#...........#',
-    '#...#..##...#',
-    '#...........#',
-    '#....###....#',
+    '#############',
+    '#############',
+    '#############',
+    '#############',
+    '######.######',
+    '######.######',
+    '####...######',
+    '######.######',
+    '######.######',
+    '######.######',
+    '######.######',
+    '######.######',
+    '######.######',
     '#############',
   ],
 };
