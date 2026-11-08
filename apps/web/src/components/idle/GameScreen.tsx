@@ -19,13 +19,17 @@ export const DIALOGUE_TEXT = 6;
 const RESERVED_HEIGHT = 200;
 /** The least it's given of the window's height, however short the window. */
 const MIN_HEIGHT = 320;
+/** On a dense screen (2 or more device pixels a CSS pixel), how much of the room a whole number of device pixels must fill before the screen gives that up and fills it all. */
+const DENSE_FILL = 0.9;
 
 /**
  * The game screen's scale (the user's, pixel accurate: the map and the battle the same size, as big as fits): CSS pixels
  * per game pixel, the largest whole number of *device* pixels (display scaling counted, `devicePixelRatio`) whose
  * screen (240x160, or HGSS's 256x192: gameSize) fits the width `el` has and the window's height under the page's header, so every game pixel is the same
- * whole number of device pixels and nothing shimmers as the map pans. At least 1 device pixel. Measured again as the
- * width, the window or the display scaling changes.
+ * whole number of device pixels and nothing shimmers as the map pans. At least 1 device pixel. But on a dense screen (a
+ * phone's) where that leaves more than a tenth of the room empty, it fills the room exactly (the user's, 2026-11-07:
+ * a phone's 3.9 device pixels a game pixel shown at 3 left wide margins; a part of a device pixel's difference between
+ * game pixels doesn't show there). Measured again as the width, the window or the display scaling changes.
  */
 export function useGameScale() {
   const ref = useRef<HTMLDivElement>(null);
@@ -37,8 +41,9 @@ export function useGameScale() {
     const fit = () => {
       const dpr = window.devicePixelRatio || 1;
       const h = Math.max(MIN_HEIGHT, window.innerHeight - RESERVED_HEIGHT);
-      const device = Math.max(1, Math.floor(Math.min((el.clientWidth * dpr) / w, (h * dpr) / gameH)));
-      setScale(device / dpr);
+      const exact = Math.min((el.clientWidth * dpr) / w, (h * dpr) / gameH);
+      const device = Math.max(1, Math.floor(exact));
+      setScale((dpr >= 2 && device < exact * DENSE_FILL ? exact : device) / dpr);
     };
     const observer = new ResizeObserver(fit);
     observer.observe(el);
